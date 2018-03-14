@@ -97,11 +97,19 @@ func (m *flushManager) Flush(curr time.Time) error {
 
 		// TODO: Only snapshot from blockStart --> (now-bufferPast) because we have to read at least
 		// bufferPast of the commit log to make sure we didn't miss anything
-		// TODO: Make sure that previous block has been flushed already before snapshotting
-		if err := ns.Snapshot(m.snapshotBlockStart(ns, curr), flush); err != nil {
-			detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
-				ns.ID().String(), err)
-			multiErr = multiErr.Add(detailedErr)
+		var (
+			blockSize          = ns.Options().RetentionOptions().BlockSize()
+			snapshotBlockStart = m.snapshotBlockStart(ns, curr)
+			prevBlockStart     = snapshotBlockStart.Add(-blockSize)
+		)
+
+		// Don't perform any snapshots until the previous blocks flush has completed
+		if !ns.NeedsFlush(prevBlockStart, prevBlockStart) {
+			if err := ns.Snapshot(snapshotBlockStart, flush); err != nil {
+				detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
+					ns.ID().String(), err)
+				multiErr = multiErr.Add(detailedErr)
+			}
 		}
 	}
 
