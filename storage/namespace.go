@@ -187,6 +187,7 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 	return databaseNamespaceMetrics{
 		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
 		flush:               instrument.NewMethodMetrics(scope, "flush", samplingRate),
+		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", samplingRate),
 		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
 		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", samplingRate),
 		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
