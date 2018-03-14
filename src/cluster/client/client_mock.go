@@ -62,7 +62,7 @@ func (_mr *_MockClientRecorder) KV() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "KV")
 }
 
-func (_m *MockClient) Services(_param0 services.Options) (services.Services, error) {
+func (_m *MockClient) Services(_param0 services.OverrideOptions) (services.Services, error) {
 	ret := _m.ctrl.Call(_m, "Services", _param0)
 	ret0, _ := ret[0].(services.Services)
 	ret1, _ := ret[1].(error)

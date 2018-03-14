@@ -117,7 +117,7 @@ m3sd:
 			},
 		},
 	}, cfg.ETCDClusters)
-	require.Equal(t, 10*time.Second, cfg.SDConfig.InitTimeout)
+	require.Equal(t, 10*time.Second, *cfg.SDConfig.InitTimeout)
 
 	opts := cfg.NewOptions()
 	cluster, exists := opts.ClusterForZone("z1")

@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/client"
-	etcdsd "github.com/m3db/m3cluster/services/client/etcd"
+	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -73,12 +73,12 @@ func (c *keepAliveConfig) NewOptions() KeepAliveOptions {
 
 // Configuration is for config service client.
 type Configuration struct {
-	Zone         string               `yaml:"zone"`
-	Env          string               `yaml:"env"`
-	Service      string               `yaml:"service" validate:"nonzero"`
-	CacheDir     string               `yaml:"cacheDir"`
-	ETCDClusters []ClusterConfig      `yaml:"etcdClusters"`
-	SDConfig     etcdsd.Configuration `yaml:"m3sd"`
+	Zone         string                 `yaml:"zone"`
+	Env          string                 `yaml:"env"`
+	Service      string                 `yaml:"service" validate:"nonzero"`
+	CacheDir     string                 `yaml:"cacheDir"`
+	ETCDClusters []ClusterConfig        `yaml:"etcdClusters"`
+	SDConfig     services.Configuration `yaml:"m3sd"`
 }
 
 // NewClient creates a new config service client.
@@ -94,7 +94,7 @@ func (cfg Configuration) NewOptions() Options {
 		SetService(cfg.Service).
 		SetCacheDir(cfg.CacheDir).
 		SetClusters(cfg.etcdClusters()).
-		SetServiceDiscoveryConfig(cfg.SDConfig)
+		SetServicesOptions(cfg.SDConfig.NewOptions())
 }
 
 func (cfg Configuration) etcdClusters() []Cluster {

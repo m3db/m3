@@ -29,7 +29,7 @@ import (
 // access to cluster services.
 type Client interface {
 	// Services returns access to the set of services.
-	Services(opts services.Options) (services.Services, error)
+	Services(opts services.OverrideOptions) (services.Services, error)
 
 	// KV returns access to the distributed configuration store.
 	// To be deprecated.

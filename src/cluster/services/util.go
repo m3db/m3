@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package etcd
+package services
 
 import (
 	"fmt"
@@ -26,7 +26,6 @@ import (
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/services"
 )
 
 const (
@@ -35,7 +34,7 @@ const (
 	keyFormat       = "%s/%s"
 )
 
-type keyFn func(sid services.ServiceID) string
+type keyFn func(sid ServiceID) string
 
 func placementNamespace(ns string) string {
 	if ns == "" {
@@ -54,23 +53,23 @@ func metadataNamespace(ns string) string {
 }
 
 func keyFnWithNamespace(namespace string) keyFn {
-	return func(sid services.ServiceID) string {
+	return func(sid ServiceID) string {
 		return fmt.Sprintf(keyFormat, namespace, serviceKey(sid))
 	}
 }
 
-func adKey(sid services.ServiceID, id string) string {
+func adKey(sid ServiceID, id string) string {
 	return fmt.Sprintf(keyFormat, serviceKey(sid), id)
 }
 
-func serviceKey(s services.ServiceID) string {
+func serviceKey(s ServiceID) string {
 	if s.Environment() == "" {
 		return s.Name()
 	}
 	return fmt.Sprintf(keyFormat, s.Environment(), s.Name())
 }
 
-func validateServiceID(sid services.ServiceID) error {
+func validateServiceID(sid ServiceID) error {
 	if sid.Name() == "" {
 		return errNoServiceName
 	}

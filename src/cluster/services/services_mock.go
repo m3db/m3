@@ -30,112 +30,11 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services/leader/campaign"
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/watch"
 
 	"github.com/golang/mock/gomock"
 )
-
-// Mock of Options interface
-type MockOptions struct {
-	ctrl     *gomock.Controller
-	recorder *_MockOptionsRecorder
-}
-
-// Recorder for MockOptions (not exported)
-type _MockOptionsRecorder struct {
-	mock *MockOptions
-}
-
-func NewMockOptions(ctrl *gomock.Controller) *MockOptions {
-	mock := &MockOptions{ctrl: ctrl}
-	mock.recorder = &_MockOptionsRecorder{mock}
-	return mock
-}
-
-func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
-	return _m.recorder
-}
-
-func (_m *MockOptions) NamespaceOptions() NamespaceOptions {
-	ret := _m.ctrl.Call(_m, "NamespaceOptions")
-	ret0, _ := ret[0].(NamespaceOptions)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) NamespaceOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NamespaceOptions")
-}
-
-func (_m *MockOptions) SetNamespaceOptions(opts NamespaceOptions) Options {
-	ret := _m.ctrl.Call(_m, "SetNamespaceOptions", opts)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) SetNamespaceOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNamespaceOptions", arg0)
-}
-
-// Mock of NamespaceOptions interface
-type MockNamespaceOptions struct {
-	ctrl     *gomock.Controller
-	recorder *_MockNamespaceOptionsRecorder
-}
-
-// Recorder for MockNamespaceOptions (not exported)
-type _MockNamespaceOptionsRecorder struct {
-	mock *MockNamespaceOptions
-}
-
-func NewMockNamespaceOptions(ctrl *gomock.Controller) *MockNamespaceOptions {
-	mock := &MockNamespaceOptions{ctrl: ctrl}
-	mock.recorder = &_MockNamespaceOptionsRecorder{mock}
-	return mock
-}
-
-func (_m *MockNamespaceOptions) EXPECT() *_MockNamespaceOptionsRecorder {
-	return _m.recorder
-}
-
-func (_m *MockNamespaceOptions) PlacementNamespace() string {
-	ret := _m.ctrl.Call(_m, "PlacementNamespace")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-func (_mr *_MockNamespaceOptionsRecorder) PlacementNamespace() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementNamespace")
-}
-
-func (_m *MockNamespaceOptions) SetPlacementNamespace(v string) NamespaceOptions {
-	ret := _m.ctrl.Call(_m, "SetPlacementNamespace", v)
-	ret0, _ := ret[0].(NamespaceOptions)
-	return ret0
-}
-
-func (_mr *_MockNamespaceOptionsRecorder) SetPlacementNamespace(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPlacementNamespace", arg0)
-}
-
-func (_m *MockNamespaceOptions) MetadataNamespace() string {
-	ret := _m.ctrl.Call(_m, "MetadataNamespace")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-func (_mr *_MockNamespaceOptionsRecorder) MetadataNamespace() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "MetadataNamespace")
-}
-
-func (_m *MockNamespaceOptions) SetMetadataNamespace(v string) NamespaceOptions {
-	ret := _m.ctrl.Call(_m, "SetMetadataNamespace", v)
-	ret0, _ := ret[0].(NamespaceOptions)
-	return ret0
-}
-
-func (_mr *_MockNamespaceOptionsRecorder) SetMetadataNamespace(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMetadataNamespace", arg0)
-}
 
 // Mock of Services interface
 type MockServices struct {
@@ -252,6 +151,259 @@ func (_m *MockServices) LeaderService(service ServiceID, opts ElectionOptions) (
 
 func (_mr *_MockServicesRecorder) LeaderService(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "LeaderService", arg0, arg1)
+}
+
+// Mock of Options interface
+type MockOptions struct {
+	ctrl     *gomock.Controller
+	recorder *_MockOptionsRecorder
+}
+
+// Recorder for MockOptions (not exported)
+type _MockOptionsRecorder struct {
+	mock *MockOptions
+}
+
+func NewMockOptions(ctrl *gomock.Controller) *MockOptions {
+	mock := &MockOptions{ctrl: ctrl}
+	mock.recorder = &_MockOptionsRecorder{mock}
+	return mock
+}
+
+func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
+	return _m.recorder
+}
+
+func (_m *MockOptions) InitTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "InitTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) InitTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InitTimeout")
+}
+
+func (_m *MockOptions) SetInitTimeout(t time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetInitTimeout", t)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetInitTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInitTimeout", arg0)
+}
+
+func (_m *MockOptions) KVGen() KVGen {
+	ret := _m.ctrl.Call(_m, "KVGen")
+	ret0, _ := ret[0].(KVGen)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) KVGen() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "KVGen")
+}
+
+func (_m *MockOptions) SetKVGen(gen KVGen) Options {
+	ret := _m.ctrl.Call(_m, "SetKVGen", gen)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetKVGen(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetKVGen", arg0)
+}
+
+func (_m *MockOptions) HeartbeatGen() HeartbeatGen {
+	ret := _m.ctrl.Call(_m, "HeartbeatGen")
+	ret0, _ := ret[0].(HeartbeatGen)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) HeartbeatGen() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "HeartbeatGen")
+}
+
+func (_m *MockOptions) SetHeartbeatGen(gen HeartbeatGen) Options {
+	ret := _m.ctrl.Call(_m, "SetHeartbeatGen", gen)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetHeartbeatGen(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHeartbeatGen", arg0)
+}
+
+func (_m *MockOptions) LeaderGen() LeaderGen {
+	ret := _m.ctrl.Call(_m, "LeaderGen")
+	ret0, _ := ret[0].(LeaderGen)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) LeaderGen() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "LeaderGen")
+}
+
+func (_m *MockOptions) SetLeaderGen(gen LeaderGen) Options {
+	ret := _m.ctrl.Call(_m, "SetLeaderGen", gen)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetLeaderGen(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetLeaderGen", arg0)
+}
+
+func (_m *MockOptions) InstrumentsOptions() instrument.Options {
+	ret := _m.ctrl.Call(_m, "InstrumentsOptions")
+	ret0, _ := ret[0].(instrument.Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) InstrumentsOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentsOptions")
+}
+
+func (_m *MockOptions) SetInstrumentsOptions(iopts instrument.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetInstrumentsOptions", iopts)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetInstrumentsOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInstrumentsOptions", arg0)
+}
+
+func (_m *MockOptions) NamespaceOptions() NamespaceOptions {
+	ret := _m.ctrl.Call(_m, "NamespaceOptions")
+	ret0, _ := ret[0].(NamespaceOptions)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) NamespaceOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NamespaceOptions")
+}
+
+func (_m *MockOptions) SetNamespaceOptions(opts NamespaceOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetNamespaceOptions", opts)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetNamespaceOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNamespaceOptions", arg0)
+}
+
+func (_m *MockOptions) Validate() error {
+	ret := _m.ctrl.Call(_m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) Validate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
+}
+
+// Mock of NamespaceOptions interface
+type MockNamespaceOptions struct {
+	ctrl     *gomock.Controller
+	recorder *_MockNamespaceOptionsRecorder
+}
+
+// Recorder for MockNamespaceOptions (not exported)
+type _MockNamespaceOptionsRecorder struct {
+	mock *MockNamespaceOptions
+}
+
+func NewMockNamespaceOptions(ctrl *gomock.Controller) *MockNamespaceOptions {
+	mock := &MockNamespaceOptions{ctrl: ctrl}
+	mock.recorder = &_MockNamespaceOptionsRecorder{mock}
+	return mock
+}
+
+func (_m *MockNamespaceOptions) EXPECT() *_MockNamespaceOptionsRecorder {
+	return _m.recorder
+}
+
+func (_m *MockNamespaceOptions) PlacementNamespace() string {
+	ret := _m.ctrl.Call(_m, "PlacementNamespace")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockNamespaceOptionsRecorder) PlacementNamespace() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementNamespace")
+}
+
+func (_m *MockNamespaceOptions) SetPlacementNamespace(v string) NamespaceOptions {
+	ret := _m.ctrl.Call(_m, "SetPlacementNamespace", v)
+	ret0, _ := ret[0].(NamespaceOptions)
+	return ret0
+}
+
+func (_mr *_MockNamespaceOptionsRecorder) SetPlacementNamespace(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPlacementNamespace", arg0)
+}
+
+func (_m *MockNamespaceOptions) MetadataNamespace() string {
+	ret := _m.ctrl.Call(_m, "MetadataNamespace")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockNamespaceOptionsRecorder) MetadataNamespace() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MetadataNamespace")
+}
+
+func (_m *MockNamespaceOptions) SetMetadataNamespace(v string) NamespaceOptions {
+	ret := _m.ctrl.Call(_m, "SetMetadataNamespace", v)
+	ret0, _ := ret[0].(NamespaceOptions)
+	return ret0
+}
+
+func (_mr *_MockNamespaceOptionsRecorder) SetMetadataNamespace(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMetadataNamespace", arg0)
+}
+
+// Mock of OverrideOptions interface
+type MockOverrideOptions struct {
+	ctrl     *gomock.Controller
+	recorder *_MockOverrideOptionsRecorder
+}
+
+// Recorder for MockOverrideOptions (not exported)
+type _MockOverrideOptionsRecorder struct {
+	mock *MockOverrideOptions
+}
+
+func NewMockOverrideOptions(ctrl *gomock.Controller) *MockOverrideOptions {
+	mock := &MockOverrideOptions{ctrl: ctrl}
+	mock.recorder = &_MockOverrideOptionsRecorder{mock}
+	return mock
+}
+
+func (_m *MockOverrideOptions) EXPECT() *_MockOverrideOptionsRecorder {
+	return _m.recorder
+}
+
+func (_m *MockOverrideOptions) NamespaceOptions() NamespaceOptions {
+	ret := _m.ctrl.Call(_m, "NamespaceOptions")
+	ret0, _ := ret[0].(NamespaceOptions)
+	return ret0
+}
+
+func (_mr *_MockOverrideOptionsRecorder) NamespaceOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NamespaceOptions")
+}
+
+func (_m *MockOverrideOptions) SetNamespaceOptions(opts NamespaceOptions) OverrideOptions {
+	ret := _m.ctrl.Call(_m, "SetNamespaceOptions", opts)
+	ret0, _ := ret[0].(OverrideOptions)
+	return ret0
+}
+
+func (_mr *_MockOverrideOptionsRecorder) SetNamespaceOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNamespaceOptions", arg0)
 }
 
 // Mock of Watch interface

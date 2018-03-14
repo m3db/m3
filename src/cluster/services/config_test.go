@@ -22,19 +22,20 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 )
 
-func TestConfiguration(t *testing.T) {
+func TestOverrideConfiguration(t *testing.T) {
 	configStr := `
 namespaces:
   placement: p
   metadata: m
 `
 
-	var cfg Configuration
+	var cfg OverrideConfiguration
 	err := yaml.Unmarshal([]byte(configStr), &cfg)
 	require.NoError(t, err)
 	opts := cfg.NewOptions()
@@ -54,4 +55,13 @@ metadata: m
 	opts := cfg.NewOptions()
 	require.Equal(t, "p", opts.PlacementNamespace())
 	require.Equal(t, "m", opts.MetadataNamespace())
+}
+
+func TestConfig(t *testing.T) {
+	cf := Configuration{}
+	require.Equal(t, defaultInitTimeout, cf.NewOptions().InitTimeout())
+
+	sec := time.Second
+	cf = Configuration{InitTimeout: &sec}
+	require.Equal(t, time.Second, cf.NewOptions().InitTimeout())
 }

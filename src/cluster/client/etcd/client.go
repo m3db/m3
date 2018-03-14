@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	etcdkv "github.com/m3db/m3cluster/kv/etcd"
 	"github.com/m3db/m3cluster/services"
-	etcdsd "github.com/m3db/m3cluster/services/client/etcd"
 	etcdheartbeat "github.com/m3db/m3cluster/services/heartbeat/etcd"
 	"github.com/m3db/m3cluster/services/leader"
 	"github.com/m3db/m3x/instrument"
@@ -71,7 +70,7 @@ func NewConfigServiceClient(opts Options) (client.Client, error) {
 
 	return &csclient{
 		opts:    opts,
-		sdOpts:  opts.ServiceDiscoveryConfig().NewOptions(),
+		sdOpts:  opts.ServicesOptions(),
 		kvScope: scope.Tagged(map[string]string{"config_service": "kv"}),
 		sdScope: scope.Tagged(map[string]string{"config_service": "sd"}),
 		hbScope: scope.Tagged(map[string]string{"config_service": "hb"}),
@@ -86,7 +85,7 @@ type csclient struct {
 	clis map[string]*clientv3.Client
 
 	opts    Options
-	sdOpts  etcdsd.Options
+	sdOpts  services.Options
 	kvScope tally.Scope
 	sdScope tally.Scope
 	hbScope tally.Scope
@@ -98,9 +97,9 @@ type csclient struct {
 	txnErr  error
 }
 
-func (c *csclient) Services(opts services.Options) (services.Services, error) {
+func (c *csclient) Services(opts services.OverrideOptions) (services.Services, error) {
 	if opts == nil {
-		opts = services.NewOptions()
+		opts = services.NewOverrideOptions()
 	}
 	return c.createServices(opts)
 }
@@ -129,10 +128,10 @@ func (c *csclient) TxnStore(opts kv.Options) (kv.TxnStore, error) {
 	return c.createTxnStore(opts)
 }
 
-func (c *csclient) createServices(opts services.Options) (services.Services, error) {
+func (c *csclient) createServices(opts services.OverrideOptions) (services.Services, error) {
 	nOpts := opts.NamespaceOptions()
 	cacheFileExtraFields := []string{nOpts.PlacementNamespace(), nOpts.MetadataNamespace()}
-	return etcdsd.NewServices(c.sdOpts.
+	return services.NewServices(c.sdOpts.
 		SetHeartbeatGen(c.heartbeatGen()).
 		SetKVGen(c.kvGen(c.cacheFileFn(cacheFileExtraFields...))).
 		SetLeaderGen(c.leaderGen()).
@@ -151,8 +150,8 @@ func (c *csclient) createTxnStore(opts kv.Options) (kv.TxnStore, error) {
 	return c.txnGen(opts.Zone(), c.cacheFileFn(), opts.Logger(), opts.Namespace(), opts.Environment())
 }
 
-func (c *csclient) kvGen(fn cacheFileForZoneFn) etcdsd.KVGen {
-	return etcdsd.KVGen(func(zone string) (kv.Store, error) {
+func (c *csclient) kvGen(fn cacheFileForZoneFn) services.KVGen {
+	return services.KVGen(func(zone string) (kv.Store, error) {
 		return c.txnGen(zone, fn, c.logger)
 	})
 }
@@ -196,8 +195,8 @@ func (c *csclient) txnGen(
 	)
 }
 
-func (c *csclient) heartbeatGen() etcdsd.HeartbeatGen {
-	return etcdsd.HeartbeatGen(
+func (c *csclient) heartbeatGen() services.HeartbeatGen {
+	return services.HeartbeatGen(
 		func(sid services.ServiceID) (services.HeartbeatService, error) {
 			cli, err := c.etcdClientGen(sid.Zone())
 			if err != nil {
@@ -214,8 +213,8 @@ func (c *csclient) heartbeatGen() etcdsd.HeartbeatGen {
 	)
 }
 
-func (c *csclient) leaderGen() etcdsd.LeaderGen {
-	return etcdsd.LeaderGen(
+func (c *csclient) leaderGen() services.LeaderGen {
+	return services.LeaderGen(
 		func(sid services.ServiceID, eo services.ElectionOptions) (services.LeaderService, error) {
 			cli, err := c.etcdClientGen(sid.Zone())
 			if err != nil {

@@ -20,14 +20,16 @@
 
 package services
 
-// Configuration configs the Options.
-type Configuration struct {
+import "time"
+
+// OverrideConfiguration configs the override options.
+type OverrideConfiguration struct {
 	Namespaces NamespacesConfiguration `yaml:"namespaces"`
 }
 
-// NewOptions creates a new Options.
-func (cfg Configuration) NewOptions() Options {
-	return NewOptions().
+// NewOptions creates a new override options.
+func (cfg OverrideConfiguration) NewOptions() OverrideOptions {
+	return NewOverrideOptions().
 		SetNamespaceOptions(cfg.Namespaces.NewOptions())
 }
 
@@ -42,4 +44,18 @@ func (cfg NamespacesConfiguration) NewOptions() NamespaceOptions {
 	return NewNamespaceOptions().
 		SetPlacementNamespace(cfg.Placement).
 		SetMetadataNamespace(cfg.Metadata)
+}
+
+// Configuration is the config for service options.
+type Configuration struct {
+	InitTimeout *time.Duration `yaml:"initTimeout"`
+}
+
+// NewOptions creates an Option.
+func (cfg Configuration) NewOptions() Options {
+	opts := NewOptions()
+	if cfg.InitTimeout != nil {
+		opts = opts.SetInitTimeout(*cfg.InitTimeout)
+	}
+	return opts
 }
