@@ -1,5 +1,5 @@
-hash: 148266c8b8944082082b9f307ff5c3d5fd8d0ff37254b5dd19895b64222e8fb0
-updated: 2018-03-09T13:17:34.009047867-05:00
+hash: 2115cc9921b5335affadbebc5549fe0194d70b116a009bd09a9caf58607369f3
+updated: 2018-03-14T14:53:33.017586-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -25,7 +25,7 @@ imports:
   - proto
   - protoc-gen-go
 - name: github.com/m3db/m3cluster
-  version: 6b9b5a7eae36b0f3fc23823250d4536f6518332f
+  version: 2d1b9e21241b09b6191c01930e658d447daf5055
   subpackages:
   - generated/proto/placementpb
   - kv
@@ -55,7 +55,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/shirou/gopsutil
-  version: c432be29ccce470088d07eea25b3ea7e68a8afbb
+  version: 5776ff9c7c5d063d574ef53d740f75c68b448e53
   subpackages:
   - cpu
   - host
@@ -86,7 +86,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
   subpackages:
   - buffer
   - internal/bufferpool

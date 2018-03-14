@@ -10,7 +10,7 @@ import:
   - retry
 
 - package: github.com/m3db/m3cluster
-  version: 6b9b5a7eae36b0f3fc23823250d4536f6518332f
+  version: 2d1b9e21241b09b6191c01930e658d447daf5055
 
 - package: github.com/golang/mock
   version: ^1
