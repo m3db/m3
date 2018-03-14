@@ -70,6 +70,18 @@ func (_mr *MockdatabaseBufferMockRecorder) Write(arg0, arg1, arg2, arg3, arg4 in
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Write", reflect.TypeOf((*MockdatabaseBuffer)(nil).Write), arg0, arg1, arg2, arg3, arg4)
 }
 
+// Snapshot mocks base method
+func (_m *MockdatabaseBuffer) Snapshot(ctx context.Context, blockStart time.Time) [][]xio.SegmentReader {
+	ret := _m.ctrl.Call(_m, "Snapshot", ctx, blockStart)
+	ret0, _ := ret[0].([][]xio.SegmentReader)
+	return ret0
+}
+
+// Snapshot indicates an expected call of Snapshot
+func (_mr *MockdatabaseBufferMockRecorder) Snapshot(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseBuffer)(nil).Snapshot), arg0, arg1)
+}
+
 // ReadEncoded mocks base method
 func (_m *MockdatabaseBuffer) ReadEncoded(ctx context.Context, start time.Time, end time.Time) [][]xio.SegmentReader {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, start, end)
