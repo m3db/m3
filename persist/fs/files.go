@@ -237,6 +237,8 @@ func ReadInfoFiles(
 	return indexEntries
 }
 
+// SnapshotFiles returns a slice of all the names for all the fileset files
+// for a given namespace and shard combination.
 func SnapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32) ([]string, error) {
 	return snapshotFiles(filePathPrefix, namespace, shard, filesetFilePattern)
 }
