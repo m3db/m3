@@ -804,7 +804,6 @@ func (n *dbNamespace) Snapshot(blockStart time.Time, flush persist.Flush) error 
 		}
 
 		fmt.Println("Snapshotting shard: ", shard.ID(), " at time: ", callStart, " for block: ", blockStart)
-		// TODO: Fix me
 		err := shard.Snapshot(blockStart, callStart, flush)
 		if err != nil {
 			// Log / metric?
