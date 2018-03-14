@@ -1809,6 +1809,40 @@ func (s *dbShard) markDoneSnapshotting(success bool, completionTime time.Time) {
 	s.snapshotState.Unlock()
 }
 
+func (s *dbShard) CleanupSnapshots() error {
+	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	multiErr := xerrors.NewMultiError()
+	// TODO: Make mockable
+	files, err := fs.SnapshotFiles(filePathPrefix, s.namespace.ID(), s.ID())
+	if err != nil {
+		return err
+	}
+
+	// Determine which set of files is the latest
+	var (
+		latest   time.Time
+		fileTime time.Time
+	)
+	for _, file := range files {
+		fileTime, err = fs.TimeFromFileName(file)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+
+		if fileTime.After(latest) {
+			latest = fileTime
+		}
+	}
+
+	filesToDelete, err := fs.FilesBefore(files, latest)
+	if err != nil {
+		return multiErr.Add(err).FinalError()
+	}
+	err = fs.DeleteFiles(filesToDelete)
+	return multiErr.Add(err).FinalError()
+}
+
 func (s *dbShard) CleanupFileset(earliestToRetain time.Time) error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	multiErr := xerrors.NewMultiError()
