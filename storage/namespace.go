@@ -803,9 +803,9 @@ func (n *dbNamespace) Snapshot(blockStart time.Time, flush persist.Flush) error 
 			continue
 		}
 
-		fmt.Println("Snapshotting shard: ", shard.ID(), " at time: ", callStart)
+		fmt.Println("Snapshotting shard: ", shard.ID(), " at time: ", callStart, " for block: ", blockStart)
 		// TODO: Fix me
-		err := shard.Snapshot(callStart, callStart, flush)
+		err := shard.Snapshot(blockStart, callStart, flush)
 		if err != nil {
 			// Log / metric?
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
@@ -815,8 +815,7 @@ func (n *dbNamespace) Snapshot(blockStart time.Time, flush persist.Flush) error 
 	}
 
 	res := multiErr.FinalError()
-	// TODO: Metrics
-	// n.metrics.flush.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	n.metrics.snapshot.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
 	return res
 }
 

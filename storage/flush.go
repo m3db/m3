@@ -90,16 +90,15 @@ func (m *flushManager) Flush(curr time.Time) error {
 
 	multiErr := xerrors.NewMultiError()
 	for _, ns := range namespaces {
+		// TODO: Does this even make sense anymore
+		// Do flush first to prevent situations where we perform a snapshot right before a flush
 		flushTimes := m.namespaceFlushTimes(ns, curr)
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, flushTimes, flush))
 
-		// Snapshot from blockStart --> (now-bufferPast) because we have to read at least bufferPast
-		// of the commit log to make sure we didn't miss anything
-		// blockStart should be determined as now.add(-bufferPast).truncate(blockStart) so that we
-		// only start snapshotting the new block once the old one is immutable
-		// Also we want to make sure that previous block has been flushed already
-		// Do flush first to prevent situations where we perform a snapshot right before a flush
-		if err := ns.Snapshot(flush); err != nil {
+		// TODO: Only snapshot from blockStart --> (now-bufferPast) because we have to read at least
+		// bufferPast of the commit log to make sure we didn't miss anything
+		// TODO: Make sure that previous block has been flushed already before snapshotting
+		if err := ns.Snapshot(m.snapshotBlockStart(ns, curr), flush); err != nil {
 			detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
 				ns.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)
