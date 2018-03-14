@@ -626,11 +626,7 @@ func (s *dbSeries) Snapshot(
 	}
 
 	var (
-		// blockSize = s.opts.RetentionOptions().BlockSize()
-		min, max = s.buffer.MinMax()
-		// // Only snapshot data for the specified block that is still in the buffers / was bootstrapped
-		// buckets  = s.buffer.ReadEncoded(ctx, blockStart, blockStart.Add(blockSize))
-		buckets  = s.buffer.ReadEncoded(ctx, min, max)
+		buckets  = s.buffer.Snapshot(ctx, blockStart)
 		multiErr = xerrors.NewMultiError()
 	)
 

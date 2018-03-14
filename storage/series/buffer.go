@@ -69,6 +69,8 @@ type databaseBuffer interface {
 		annotation []byte,
 	) error
 
+	Snapshot(ctx context.Context, blockStart time.Time) [][]xio.SegmentReader
+
 	ReadEncoded(
 		ctx context.Context,
 		start, end time.Time,
@@ -349,6 +351,24 @@ func (b *dbBuffer) computedForEachBucketAsc(
 		b.pastMostBucketIdx = int(bucketNum)
 	}
 	return result
+}
+
+func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) [][]xio.SegmentReader {
+	// TODO(r): pool these results arrays
+	var res [][]xio.SegmentReader
+	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
+		if !bucket.canRead() {
+			return
+		}
+
+		if !blockStart.Equal(bucket.start) {
+			return
+		}
+
+		res = append(res, bucket.streams(ctx))
+	})
+
+	return res
 }
 
 func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.SegmentReader {
