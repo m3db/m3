@@ -122,7 +122,7 @@ func TestConfig(t *testing.T) {
 		SetLogger(xlog.NullLogger))
 	require.NoError(t, err)
 
-	svcs, err := configSvcClient.Services(services.NewOptions())
+	svcs, err := configSvcClient.Services(services.NewOverrideOptions())
 	require.NoError(t, err)
 
 	serviceID := services.NewServiceID().

@@ -119,7 +119,7 @@ func (o *staticOptions) HostShardSets() []HostShardSet {
 type dynamicOptions struct {
 	configServiceClient client.Client
 	serviceID           services.ServiceID
-	serviceOptions      services.Options
+	serviceOptions      services.OverrideOptions
 	queryOptions        services.QueryOptions
 	instrumentOptions   instrument.Options
 	initTimeout         time.Duration
@@ -130,7 +130,7 @@ type dynamicOptions struct {
 func NewDynamicOptions() DynamicOptions {
 	return &dynamicOptions{
 		serviceID:         services.NewServiceID().SetName(defaultServiceName),
-		serviceOptions:    services.NewOptions(),
+		serviceOptions:    services.NewOverrideOptions(),
 		queryOptions:      services.NewQueryOptions(),
 		instrumentOptions: instrument.NewOptions(),
 		initTimeout:       defaultInitTimeout,
@@ -167,12 +167,12 @@ func (o *dynamicOptions) ServiceID() services.ServiceID {
 	return o.serviceID
 }
 
-func (o *dynamicOptions) SetServiceOptions(opts services.Options) DynamicOptions {
+func (o *dynamicOptions) SetServiceOptions(opts services.OverrideOptions) DynamicOptions {
 	o.serviceOptions = opts
 	return o
 }
 
-func (o *dynamicOptions) ServicesOptions() services.Options {
+func (o *dynamicOptions) ServicesOptions() services.OverrideOptions {
 	return o.serviceOptions
 }
 
