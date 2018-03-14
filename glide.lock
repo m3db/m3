@@ -1,5 +1,5 @@
-hash: 12047a2cacfc88b49d8b198b413cf7b12879ccaa9c1d8e081de80dbd947fdd36
-updated: 2018-03-13T12:53:29.300804-04:00
+hash: da9a19895e5834e0873c2539548240c2d65ed3015837ee7dd573fab047e2b97d
+updated: 2018-03-14T14:25:43.869043-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -157,7 +157,7 @@ imports:
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3cluster
-  version: 8d91cda3fad40f85d9ece65ec024faba473a62e1
+  version: 2d1b9e21241b09b6191c01930e658d447daf5055
   subpackages:
   - client
   - client/etcd
@@ -177,7 +177,6 @@ imports:
   - placement/service
   - placement/storage
   - services
-  - services/client/etcd
   - services/heartbeat/etcd
   - services/leader
   - services/leader/campaign
