@@ -93,6 +93,11 @@ func (m *flushManager) Flush(curr time.Time) error {
 		flushTimes := m.namespaceFlushTimes(ns, curr)
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, flushTimes, flush))
 
+		// Snapshot from blockStart --> (now-bufferPast) because we have to read at least bufferPast
+		// of the commit log to make sure we didn't miss anything
+		// blockStart should be determined as now.add(-bufferPast).truncate(blockStart) so that we
+		// only start snapshotting the new block once the old one is immutable
+		// Also we want to make sure that previous block has been flushed already
 		// Do flush first to prevent situations where we perform a snapshot right before a flush
 		if err := ns.Snapshot(flush); err != nil {
 			detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
@@ -116,6 +121,24 @@ func (m *flushManager) Report() {
 	} else {
 		m.status.Update(0)
 	}
+}
+
+func (m *flushManager) snapshotBlockStart(ns databaseNamespace, curr time.Time) time.Time {
+	var (
+		rOpts      = ns.Options().RetentionOptions()
+		blockSize  = rOpts.BlockSize()
+		bufferPast = rOpts.BufferPast()
+	)
+	// Only begin snapshotting a new block once the previous one is immutable. I.E if we have
+	// a 2-hour blocksize, and bufferPast is 10 minutes and our blocks are aligned on even hours,
+	// then at:
+	// 		1) 1:30PM we want to snapshot with a 12PM block start and 1:30.Add(-10min).Truncate(2hours) = 12PM
+	// 		2) 1:59PM we want to snapshot with a 12PM block start and 1:59.Add(-10min).Truncate(2hours) = 12PM
+	// 		3) 2:09PM we want to snapshot with a 12PM block start (because the 12PM block can still be receiving
+	// 		   "buffer past" writes) and 2:09.Add(-10min).Truncate(2hours) = 12PM
+	// 		4) 2:10PM we want to snapshot with a 2PM block start (because the 12PM block can no long receive
+	// 		   "buffer past" writes) and 2:10.Add(-10min).Truncate(2hours) = 2PM
+	return curr.Add(-bufferPast).Truncate(blockSize)
 }
 
 func (m *flushManager) flushRange(ropts retention.Options, t time.Time) (time.Time, time.Time) {

@@ -766,7 +766,7 @@ func (n *dbNamespace) Flush(
 	return res
 }
 
-func (n *dbNamespace) Snapshot(flush persist.Flush) error {
+func (n *dbNamespace) Snapshot(blockStart time.Time, flush persist.Flush) error {
 	callStart := n.nowFn()
 
 	n.RLock()
