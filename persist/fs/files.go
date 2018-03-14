@@ -237,13 +237,17 @@ func ReadInfoFiles(
 	return indexEntries
 }
 
+func SnapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32) ([]string, error) {
+	return snapshotFiles(filePathPrefix, namespace, shard, filesetFilePattern)
+}
+
 // FilesetBefore returns all the fileset files whose timestamps are earlier than a given time.
 func FilesetBefore(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) ([]string, error) {
 	matched, err := filesetFiles(filePathPrefix, namespace, shard, filesetFilePattern)
 	if err != nil {
 		return nil, err
 	}
-	return filesBefore(matched, t)
+	return FilesBefore(matched, t)
 }
 
 // DeleteInactiveDirectories deletes any directories that are not currently active, as defined by the
@@ -286,7 +290,7 @@ func CommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return filesBefore(commitLogs, t)
+	return FilesBefore(commitLogs, t)
 }
 
 type toSortableFn func(files []string) sort.Interface
@@ -325,6 +329,13 @@ func findSubDirectoriesAndPaths(directoryPath string) (directoryNamesToPaths, er
 	return subDirectoriesToPaths, nil
 }
 
+func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, pattern string) ([]string, error) {
+	shardDir := ShardSnapshotsDirPath(filePathPrefix, namespace, shard)
+	return findFiles(shardDir, pattern, func(files []string) sort.Interface {
+		return byTimeAscending(files)
+	})
+}
+
 func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, pattern string) ([]string, error) {
 	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
 	return findFiles(shardDir, pattern, func(files []string) sort.Interface {
@@ -338,7 +349,9 @@ func commitlogFiles(commitLogsDir string, pattern string) ([]string, error) {
 	})
 }
 
-func filesBefore(files []string, t time.Time) ([]string, error) {
+// FilesBefore filters the list of files down to those whose name indicate they are
+// before a given time period. Mutates the provided slice.
+func FilesBefore(files []string, t time.Time) ([]string, error) {
 	var (
 		j        int
 		multiErr xerrors.MultiError
