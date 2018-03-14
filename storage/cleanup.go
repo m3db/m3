@@ -91,7 +91,12 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 	multiErr := xerrors.NewMultiError()
 	if err := m.cleanupDataFiles(t); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up fileset files for %v: %v", t, err))
+			"encountered errors when cleaning up data files for %v: %v", t, err))
+	}
+
+	if err := m.cleanupSnapshotFiles(); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when cleaning up snapshot files for %v: %v", t, err))
 	}
 
 	if err := m.deleteInactiveDatafiles(); err != nil {
@@ -185,22 +190,6 @@ func (m *cleanupManager) deleteInactiveFilesetFiles(filesetFilesDirPathFn func(s
 	return multiErr.FinalError()
 }
 
-// func (m *cleanupManager) cleanupFilesetFiles(t time.Time) error {
-// 	multiErr := xerrors.NewMultiError()
-// 	namespaces, err := m.database.GetOwnedNamespaces()
-// 	if err != nil {
-// 		return err
-// 	}
-// 	for _, n := range namespaces {
-// 		earliestToRetain := retention.FlushTimeStart(n.Options().RetentionOptions(), t)
-// 		shards := n.GetOwnedShards()
-// 		if n.Options().NeedsFilesetCleanup() {
-// 			multiErr = multiErr.Add(m.cleanupNamespaceFilesetFiles(earliestToRetain, shards))
-// 		}
-// 	}
-// 	return multiErr.FinalError()
-// }
-
 func (m *cleanupManager) cleanupDataFiles(t time.Time) error {
 	multiErr := xerrors.NewMultiError()
 	namespaces, err := m.database.GetOwnedNamespaces()
@@ -211,16 +200,43 @@ func (m *cleanupManager) cleanupDataFiles(t time.Time) error {
 		earliestToRetain := retention.FlushTimeStart(n.Options().RetentionOptions(), t)
 		shards := n.GetOwnedShards()
 		if n.Options().NeedsFilesetCleanup() {
-			multiErr = multiErr.Add(m.cleanupNamespaceFilesetFiles(earliestToRetain, shards))
+			multiErr = multiErr.Add(m.cleanupNamespaceDataFiles(earliestToRetain, shards))
 		}
 	}
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) cleanupNamespaceFilesetFiles(earliestToRetain time.Time, shards []databaseShard) error {
+func (m *cleanupManager) cleanupSnapshotFiles() error {
+	multiErr := xerrors.NewMultiError()
+	namespaces, err := m.database.GetOwnedNamespaces()
+	if err != nil {
+		return err
+	}
+	for _, n := range namespaces {
+		shards := n.GetOwnedShards()
+		// TODO: Create separate for snapshots
+		if n.Options().NeedsFilesetCleanup() {
+			multiErr = multiErr.Add(m.cleanupNamespaceSnapshotFiles(shards))
+		}
+	}
+	return multiErr.FinalError()
+}
+
+func (m *cleanupManager) cleanupNamespaceDataFiles(earliestToRetain time.Time, shards []databaseShard) error {
 	multiErr := xerrors.NewMultiError()
 	for _, shard := range shards {
 		if err := shard.CleanupFileset(earliestToRetain); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	return multiErr.FinalError()
+}
+
+func (m *cleanupManager) cleanupNamespaceSnapshotFiles(shards []databaseShard) error {
+	multiErr := xerrors.NewMultiError()
+	for _, shard := range shards {
+		if err := shard.CleanupSnapshots(); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
