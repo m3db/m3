@@ -166,6 +166,18 @@ func (_mr *MockServiceNodeMockRecorder) IsLeaving() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "IsLeaving", reflect.TypeOf((*MockServiceNode)(nil).IsLeaving))
 }
 
+// IsolationGroup mocks base method
+func (_m *MockServiceNode) IsolationGroup() string {
+	ret := _m.ctrl.Call(_m, "IsolationGroup")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// IsolationGroup indicates an expected call of IsolationGroup
+func (_mr *MockServiceNodeMockRecorder) IsolationGroup() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "IsolationGroup", reflect.TypeOf((*MockServiceNode)(nil).IsolationGroup))
+}
+
 // Port mocks base method
 func (_m *MockServiceNode) Port() uint32 {
 	ret := _m.ctrl.Call(_m, "Port")
@@ -189,18 +201,6 @@ func (_m *MockServiceNode) Proto() (*placementpb.Instance, error) {
 // Proto indicates an expected call of Proto
 func (_mr *MockServiceNodeMockRecorder) Proto() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Proto", reflect.TypeOf((*MockServiceNode)(nil).Proto))
-}
-
-// Rack mocks base method
-func (_m *MockServiceNode) Rack() string {
-	ret := _m.ctrl.Call(_m, "Rack")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// Rack indicates an expected call of Rack
-func (_mr *MockServiceNodeMockRecorder) Rack() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Rack", reflect.TypeOf((*MockServiceNode)(nil).Rack))
 }
 
 // RegisterListener mocks base method
@@ -251,6 +251,18 @@ func (_mr *MockServiceNodeMockRecorder) SetID(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetID", reflect.TypeOf((*MockServiceNode)(nil).SetID), arg0)
 }
 
+// SetIsolationGroup mocks base method
+func (_m *MockServiceNode) SetIsolationGroup(_param0 string) placement.Instance {
+	ret := _m.ctrl.Call(_m, "SetIsolationGroup", _param0)
+	ret0, _ := ret[0].(placement.Instance)
+	return ret0
+}
+
+// SetIsolationGroup indicates an expected call of SetIsolationGroup
+func (_mr *MockServiceNodeMockRecorder) SetIsolationGroup(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetIsolationGroup", reflect.TypeOf((*MockServiceNode)(nil).SetIsolationGroup), arg0)
+}
+
 // SetPort mocks base method
 func (_m *MockServiceNode) SetPort(_param0 uint32) placement.Instance {
 	ret := _m.ctrl.Call(_m, "SetPort", _param0)
@@ -261,18 +273,6 @@ func (_m *MockServiceNode) SetPort(_param0 uint32) placement.Instance {
 // SetPort indicates an expected call of SetPort
 func (_mr *MockServiceNodeMockRecorder) SetPort(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetPort", reflect.TypeOf((*MockServiceNode)(nil).SetPort), arg0)
-}
-
-// SetRack mocks base method
-func (_m *MockServiceNode) SetRack(_param0 string) placement.Instance {
-	ret := _m.ctrl.Call(_m, "SetRack", _param0)
-	ret0, _ := ret[0].(placement.Instance)
-	return ret0
-}
-
-// SetRack indicates an expected call of SetRack
-func (_mr *MockServiceNodeMockRecorder) SetRack(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetRack", reflect.TypeOf((*MockServiceNode)(nil).SetRack), arg0)
 }
 
 // SetShardSetID mocks base method

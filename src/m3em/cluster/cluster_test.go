@@ -60,7 +60,7 @@ func newMockServiceNode(ctrl *gomock.Controller) *mocknode.MockServiceNode {
 	r := defaultRandomVar
 	node := mocknode.NewMockServiceNode(ctrl)
 	node.EXPECT().ID().AnyTimes().Return(fmt.Sprintf("%d", r.Int()))
-	node.EXPECT().Rack().AnyTimes().Return(fmt.Sprintf("%d", r.Int()))
+	node.EXPECT().IsolationGroup().AnyTimes().Return(fmt.Sprintf("%d", r.Int()))
 	node.EXPECT().Endpoint().AnyTimes().Return(fmt.Sprintf("%v:%v", r.Int(), r.Int()))
 	node.EXPECT().Zone().AnyTimes().Return(fmt.Sprintf("%d", r.Int()))
 	node.EXPECT().Weight().AnyTimes().Return(uint32(r.Int()))
