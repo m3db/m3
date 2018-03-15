@@ -117,6 +117,7 @@ func TestInitializerNoTimeout(t *testing.T) {
 	require.Equal(t, "testns1", md.ID().String())
 	require.Equal(t, expectedNsValue.NeedsBootstrap, md.Options().NeedsBootstrap())
 	require.Equal(t, expectedNsValue.NeedsFilesetCleanup, md.Options().NeedsFilesetCleanup())
+	require.Equal(t, expectedNsValue.NeedsSnapshotCleanup, md.Options().NeedsSnapshotCleanup())
 	require.Equal(t, expectedNsValue.NeedsFlush, md.Options().NeedsFlush())
 	require.Equal(t, expectedNsValue.NeedsRepair, md.Options().NeedsRepair())
 	require.Equal(t, expectedNsValue.WritesToCommitLog, md.Options().WritesToCommitLog())
@@ -334,11 +335,12 @@ func singleTestValue() *testValue {
 		Registry: nsproto.Registry{
 			Namespaces: map[string]*nsproto.NamespaceOptions{
 				"testns1": &nsproto.NamespaceOptions{
-					NeedsBootstrap:      true,
-					NeedsFilesetCleanup: true,
-					NeedsFlush:          true,
-					NeedsRepair:         true,
-					WritesToCommitLog:   true,
+					NeedsBootstrap:       true,
+					NeedsFilesetCleanup:  true,
+					NeedsSnapshotCleanup: true,
+					NeedsFlush:           true,
+					NeedsRepair:          true,
+					WritesToCommitLog:    true,
 					RetentionOptions: &nsproto.RetentionOptions{
 						BlockDataExpiry:                          true,
 						BlockDataExpiryAfterNotAccessPeriodNanos: toNanosInt64(time.Minute),

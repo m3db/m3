@@ -81,26 +81,28 @@ func TestRegistryConfig(t *testing.T) {
 
 func TestMetadataConfig(t *testing.T) {
 	var (
-		id                  = "someLongString"
-		needsBootstrap      = true
-		needsFlush          = false
-		writesToCommitLog   = true
-		needsFilesetCleanup = false
-		needsRepair         = false
-		retention           = retention.Configuration{
+		id                   = "someLongString"
+		needsBootstrap       = true
+		needsFlush           = false
+		writesToCommitLog    = true
+		needsFilesetCleanup  = false
+		needsSnapshotCleanup = false
+		needsRepair          = false
+		retention            = retention.Configuration{
 			BlockSize:       time.Hour,
 			RetentionPeriod: time.Hour,
 			BufferFuture:    time.Minute,
 			BufferPast:      time.Minute,
 		}
 		config = &MetadataConfiguration{
-			ID:                  id,
-			NeedsBootstrap:      &needsBootstrap,
-			NeedsFlush:          &needsFlush,
-			WritesToCommitLog:   &writesToCommitLog,
-			NeedsFilesetCleanup: &needsFilesetCleanup,
-			NeedsRepair:         &needsRepair,
-			Retention:           retention,
+			ID:                   id,
+			NeedsBootstrap:       &needsBootstrap,
+			NeedsFlush:           &needsFlush,
+			WritesToCommitLog:    &writesToCommitLog,
+			NeedsFilesetCleanup:  &needsFilesetCleanup,
+			NeedsSnapshotCleanup: &needsSnapshotCleanup,
+			NeedsRepair:          &needsRepair,
+			Retention:            retention,
 		}
 	)
 
@@ -113,6 +115,7 @@ func TestMetadataConfig(t *testing.T) {
 	require.Equal(t, needsFlush, opts.NeedsFlush())
 	require.Equal(t, writesToCommitLog, opts.WritesToCommitLog())
 	require.Equal(t, needsFilesetCleanup, opts.NeedsFilesetCleanup())
+	require.Equal(t, needsSnapshotCleanup, opts.NeedsSnapshotCleanup())
 	require.Equal(t, needsRepair, opts.NeedsRepair())
 	require.Equal(t, retention.Options(), opts.RetentionOptions())
 }
@@ -124,7 +127,8 @@ metadatas:
     needsBootstrap: false
     needsFlush: false
     writesToCommitLog: false
-    needsFilesetCleanup: false
+	needsFilesetCleanup: false
+	needsSnapshotCleanup: false
     needsRepair: false
     retention:
       retentionPeriod: 8h
@@ -135,7 +139,8 @@ metadatas:
     needsBootstrap: true
     needsFlush: true
     writesToCommitLog: true
-    needsFilesetCleanup: true
+	needsFilesetCleanup: true
+	needsSnapshotCleanup: true
     needsRepair: true
     retention:
       retentionPeriod: 48h
@@ -146,7 +151,8 @@ metadatas:
     needsBootstrap: true
     needsFlush: true
     writesToCommitLog: true
-    needsFilesetCleanup: true
+	needsFilesetCleanup: true
+	needsSnapshotCleanup: true
     needsRepair: true
     retention:
       retentionPeriod: 960h
@@ -172,6 +178,7 @@ metadatas:
 	require.Equal(t, false, opts.NeedsFlush())
 	require.Equal(t, false, opts.WritesToCommitLog())
 	require.Equal(t, false, opts.NeedsFilesetCleanup())
+	require.Equal(t, false, opts.NeedsSnapshotCleanup())
 	require.Equal(t, false, opts.NeedsRepair())
 	testRetentionOpts := retention.NewOptions().
 		SetRetentionPeriod(8 * time.Hour).
@@ -189,6 +196,7 @@ metadatas:
 	require.Equal(t, true, opts.NeedsFlush())
 	require.Equal(t, true, opts.WritesToCommitLog())
 	require.Equal(t, true, opts.NeedsFilesetCleanup())
+	require.Equal(t, true, opts.NeedsSnapshotCleanup())
 	require.Equal(t, true, opts.NeedsRepair())
 	testRetentionOpts = retention.NewOptions().
 		SetRetentionPeriod(48 * time.Hour).
@@ -206,6 +214,7 @@ metadatas:
 	require.Equal(t, true, opts.NeedsFlush())
 	require.Equal(t, true, opts.WritesToCommitLog())
 	require.Equal(t, true, opts.NeedsFilesetCleanup())
+	require.Equal(t, true, opts.NeedsSnapshotCleanup())
 	require.Equal(t, true, opts.NeedsRepair())
 	testRetentionOpts = retention.NewOptions().
 		SetRetentionPeriod(960 * time.Hour).

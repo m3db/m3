@@ -107,11 +107,12 @@ type StaticNamespaceConfiguration struct {
 
 // StaticNamespaceOptions sets namespace options- if nil, default is used
 type StaticNamespaceOptions struct {
-	NeedsBootstrap      bool `yaml:"needsBootstrap"`
-	NeedsFlush          bool `yaml:"needsFlush"`
-	WritesToCommitLog   bool `yaml:"writesToCommitLog"`
-	NeedsFilesetCleanup bool `yaml:"needsFilesetCleanup"`
-	NeedsRepair         bool `yaml:"needsRepair"`
+	NeedsBootstrap       bool `yaml:"needsBootstrap"`
+	NeedsFlush           bool `yaml:"needsFlush"`
+	WritesToCommitLog    bool `yaml:"writesToCommitLog"`
+	NeedsFilesetCleanup  bool `yaml:"needsFilesetCleanup"`
+	NeedsSnapshotCleanup bool `yaml:"needsSnapshotCleanup"`
+	NeedsRepair          bool `yaml:"needsRepair"`
 }
 
 // StaticNamespaceRetention sets the retention per namespace (required)
@@ -298,11 +299,12 @@ func newNamespaceMetadata(cfg StaticNamespaceConfiguration) (namespace.Metadata,
 	}
 	if cfg.Options == nil {
 		cfg.Options = &StaticNamespaceOptions{
-			NeedsBootstrap:      true,
-			NeedsFilesetCleanup: true,
-			NeedsFlush:          true,
-			NeedsRepair:         true,
-			WritesToCommitLog:   true,
+			NeedsBootstrap:       true,
+			NeedsFilesetCleanup:  true,
+			NeedsSnapshotCleanup: true,
+			NeedsFlush:           true,
+			NeedsRepair:          true,
+			WritesToCommitLog:    true,
 		}
 	}
 	md, err := namespace.NewMetadata(
@@ -310,6 +312,7 @@ func newNamespaceMetadata(cfg StaticNamespaceConfiguration) (namespace.Metadata,
 		namespace.NewOptions().
 			SetNeedsBootstrap(cfg.Options.NeedsBootstrap).
 			SetNeedsFilesetCleanup(cfg.Options.NeedsFilesetCleanup).
+			SetNeedsSnapshotCleanup(cfg.Options.NeedsSnapshotCleanup).
 			SetNeedsFlush(cfg.Options.NeedsFlush).
 			SetNeedsRepair(cfg.Options.NeedsRepair).
 			SetWritesToCommitLog(cfg.Options.WritesToCommitLog).

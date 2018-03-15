@@ -202,6 +202,30 @@ func (_mr *MockOptionsMockRecorder) NeedsFilesetCleanup() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "NeedsFilesetCleanup", reflect.TypeOf((*MockOptions)(nil).NeedsFilesetCleanup))
 }
 
+// SetNeedsSnapshotCleanup mocks base method
+func (_m *MockOptions) SetNeedsSnapshotCleanup(value bool) Options {
+	ret := _m.ctrl.Call(_m, "SetNeedsSnapshotCleanup", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetNeedsSnapshotCleanup indicates an expected call of SetNeedsSnapshotCleanup
+func (_mr *MockOptionsMockRecorder) SetNeedsSnapshotCleanup(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetNeedsSnapshotCleanup", reflect.TypeOf((*MockOptions)(nil).SetNeedsSnapshotCleanup), arg0)
+}
+
+// NeedsSnapshotCleanup mocks base method
+func (_m *MockOptions) NeedsSnapshotCleanup() bool {
+	ret := _m.ctrl.Call(_m, "NeedsSnapshotCleanup")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// NeedsSnapshotCleanup indicates an expected call of NeedsSnapshotCleanup
+func (_mr *MockOptionsMockRecorder) NeedsSnapshotCleanup() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "NeedsSnapshotCleanup", reflect.TypeOf((*MockOptions)(nil).NeedsSnapshotCleanup))
+}
+
 // SetNeedsRepair mocks base method
 func (_m *MockOptions) SetNeedsRepair(value bool) Options {
 	ret := _m.ctrl.Call(_m, "SetNeedsRepair", value)

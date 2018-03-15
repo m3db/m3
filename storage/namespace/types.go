@@ -68,6 +68,12 @@ type Options interface {
 	// NeedsFilesetCleanup returns whether this namespace requires cleaning up fileset files
 	NeedsFilesetCleanup() bool
 
+	// SetNeedsSnapshotCleanup sets whether this namespace requires cleaning up snapshot files
+	SetNeedsSnapshotCleanup(value bool) Options
+
+	// NeedsSnapshotCleanup returns whether this namespace reuqires cleaning up snapshot files
+	NeedsSnapshotCleanup() bool
+
 	// SetNeedsRepair sets whether the data for this namespace needs to be repaired
 	SetNeedsRepair(value bool) Options
 

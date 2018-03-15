@@ -533,6 +533,7 @@ func defaultNamespaceProtoValue() (proto.Message, error) {
 		namespace.NewOptions().
 			SetNeedsBootstrap(true).
 			SetNeedsFilesetCleanup(true).
+			SetNeedsSnapshotCleanup(true).
 			SetNeedsFlush(true).
 			SetNeedsRepair(true).
 			SetWritesToCommitLog(true).

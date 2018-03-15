@@ -18,6 +18,8 @@ message NamespaceOptions {
 	bool needsRepair         = 5;
 
 	RetentionOptions retentionOptions = 6;
+
+	bool needsSnapshotCleanup = 7;
 }
 
 message Registry {

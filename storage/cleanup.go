@@ -214,8 +214,7 @@ func (m *cleanupManager) cleanupSnapshotFiles() error {
 	}
 	for _, n := range namespaces {
 		shards := n.GetOwnedShards()
-		// TODO: Create separate for snapshots
-		if n.Options().NeedsFilesetCleanup() {
+		if n.Options().NeedsSnapshotCleanup() {
 			multiErr = multiErr.Add(m.cleanupNamespaceSnapshotFiles(shards))
 		}
 	}

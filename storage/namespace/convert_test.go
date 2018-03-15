@@ -47,12 +47,13 @@ var (
 	}
 
 	validNamespaceOpts = nsproto.NamespaceOptions{
-		NeedsBootstrap:      true,
-		NeedsFlush:          true,
-		WritesToCommitLog:   true,
-		NeedsFilesetCleanup: true,
-		NeedsRepair:         true,
-		RetentionOptions:    &validRetentionOpts,
+		NeedsBootstrap:       true,
+		NeedsFlush:           true,
+		WritesToCommitLog:    true,
+		NeedsFilesetCleanup:  true,
+		NeedsSnapshotCleanup: true,
+		NeedsRepair:          true,
+		RetentionOptions:     &validRetentionOpts,
 	}
 
 	invalidRetentionOpts = []nsproto.RetentionOptions{
@@ -161,6 +162,7 @@ func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOp
 	require.Equal(t, expected.NeedsFlush, opts.NeedsFlush())
 	require.Equal(t, expected.WritesToCommitLog, opts.WritesToCommitLog())
 	require.Equal(t, expected.NeedsFilesetCleanup, opts.NeedsFilesetCleanup())
+	require.Equal(t, expected.NeedsSnapshotCleanup, opts.NeedsSnapshotCleanup())
 	require.Equal(t, expected.NeedsRepair, opts.NeedsRepair())
 
 	assertEqualRetentions(t, *expected.RetentionOptions, opts.RetentionOptions())

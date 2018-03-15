@@ -41,30 +41,35 @@ const (
 	// Namespace requires fileset cleanup by default
 	defaultNeedsFilesetCleanup = true
 
+	// Namespace requires snapshot cleanup by default
+	defaultNeedsSnapshotCleanup = true
+
 	// Namespace requires repair by default
 	defaultNeedsRepair = true
 )
 
 type options struct {
-	needsBootstrap      bool
-	needsFlush          bool
-	needsSnapshot       bool
-	writesToCommitLog   bool
-	needsFilesetCleanup bool
-	needsRepair         bool
-	retentionOpts       retention.Options
+	needsBootstrap       bool
+	needsFlush           bool
+	needsSnapshot        bool
+	writesToCommitLog    bool
+	needsFilesetCleanup  bool
+	needsSnapshotCleanup bool
+	needsRepair          bool
+	retentionOpts        retention.Options
 }
 
 // NewOptions creates a new namespace options
 func NewOptions() Options {
 	return &options{
-		needsBootstrap:      defaultNeedsBootstrap,
-		needsFlush:          defaultNeedsFlush,
-		needsSnapshot:       defaultNeedsSnapshot,
-		writesToCommitLog:   defaultWritesToCommitLog,
-		needsFilesetCleanup: defaultNeedsFilesetCleanup,
-		needsRepair:         defaultNeedsRepair,
-		retentionOpts:       retention.NewOptions(),
+		needsBootstrap:       defaultNeedsBootstrap,
+		needsFlush:           defaultNeedsFlush,
+		needsSnapshot:        defaultNeedsSnapshot,
+		writesToCommitLog:    defaultWritesToCommitLog,
+		needsFilesetCleanup:  defaultNeedsFilesetCleanup,
+		needsSnapshotCleanup: defaultNeedsSnapshotCleanup,
+		needsRepair:          defaultNeedsRepair,
+		retentionOpts:        retention.NewOptions(),
 	}
 }
 
@@ -129,6 +134,16 @@ func (o *options) SetNeedsFilesetCleanup(value bool) Options {
 
 func (o *options) NeedsFilesetCleanup() bool {
 	return o.needsFilesetCleanup
+}
+
+func (o *options) SetNeedsSnapshotCleanup(value bool) Options {
+	opts := *o
+	opts.needsSnapshotCleanup = value
+	return &opts
+}
+
+func (o *options) NeedsSnapshotCleanup() bool {
+	return o.needsSnapshotCleanup
 }
 
 func (o *options) SetNeedsRepair(value bool) Options {

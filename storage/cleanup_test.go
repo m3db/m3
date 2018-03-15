@@ -123,6 +123,12 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	require.NoError(t, mgr.Cleanup(ts))
 }
 
+// func TestCleanupSnapshotFiles(t *testing.T) {
+// 	ctrl := gomock.NewController(t)
+// 	defer ctrl.Finish()
+// 	ts := timeFor(36000)
+// }
+
 func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
