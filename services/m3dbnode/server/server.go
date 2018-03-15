@@ -680,7 +680,7 @@ func withEncodingAndPoolingOptions(
 	contextPool := context.NewPool(context.NewOptions().
 		SetContextPoolOptions(contextPoolOpts).
 		SetFinalizerPoolOptions(closersPoolOpts).
-		SetMaxPooledFinalizerCapacity(policy.ContextPool.MaxFinalizerCapacity()))
+		SetMaxPooledFinalizerCapacity(policy.ContextPool.MaxFinalizerCapacityWithDefault()))
 	iteratorPool := encoding.NewReaderIteratorPool(
 		poolOptions(policy.IteratorPool, scope.SubScope("iterator-pool")))
 	multiIteratorPool := encoding.NewMultiReaderIteratorPool(

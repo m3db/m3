@@ -136,14 +136,15 @@ type ContextPoolPolicy struct {
 	// pool will allow to be returned (finalizer slices that grow too
 	// large during use will be discarded instead of returning to the
 	// pool where they would consume more memory.)
-	maxFinalizerCapacity int `yaml:"maxFinalizerCapacity" validate:"min=1"`
+	MaxFinalizerCapacity int `yaml:"maxFinalizerCapacity"`
 }
 
-// MaxFinalizerCapacity returns the maximum finalizer capacity
-func (c ContextPoolPolicy) MaxFinalizerCapacity() int {
-	if c.maxFinalizerCapacity == 0 {
+// MaxFinalizerCapacityWithDefault returns the maximum finalizer capacity and
+// fallsback to the default value if its not set
+func (c ContextPoolPolicy) MaxFinalizerCapacityWithDefault() int {
+	if c.MaxFinalizerCapacity == 0 {
 		return defaultMaxFinalizerCapacity
 	}
 
-	return c.maxFinalizerCapacity
+	return c.MaxFinalizerCapacity
 }
