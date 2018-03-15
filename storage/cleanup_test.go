@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -123,11 +124,31 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	require.NoError(t, mgr.Cleanup(ts))
 }
 
-// func TestCleanupSnapshotFiles(t *testing.T) {
-// 	ctrl := gomock.NewController(t)
-// 	defer ctrl.Finish()
-// 	ts := timeFor(36000)
-// }
+func TestCleanupDataAndSnapshotFilesetFiles(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	ts := timeFor(36000)
+
+	nsOpts := namespace.NewOptions()
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
+
+	shard := NewMockdatabaseShard(ctrl)
+	expectedEarliestToRetain := retention.FlushTimeStart(ns.Options().RetentionOptions(), ts)
+	shard.EXPECT().CleanupFileset(expectedEarliestToRetain).Return(nil)
+	shard.EXPECT().CleanupSnapshots()
+	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
+	ns.EXPECT().GetOwnedShards().Return([]databaseShard{shard}).AnyTimes()
+	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
+	namespaces := []databaseNamespace{ns}
+
+	db := newMockdatabase(ctrl, namespaces...)
+	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
+	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+
+	require.NoError(t, mgr.Cleanup(ts))
+}
 
 func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
 	ctrl := gomock.NewController(t)
