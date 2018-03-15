@@ -23,6 +23,7 @@ package storage
 import (
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -148,6 +149,72 @@ func TestCleanupDataAndSnapshotFilesetFiles(t *testing.T) {
 	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
 
 	require.NoError(t, mgr.Cleanup(ts))
+}
+
+type deleteInactiveDirectoriesCall struct {
+	parentDirPath  string
+	activeDirNames []string
+}
+
+func TestDeleteInactiveDataAndSnapshotFilesetFiles(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	ts := timeFor(36000)
+
+	nsOpts := namespace.NewOptions().
+		SetNeedsFilesetCleanup(false).
+		SetNeedsSnapshotCleanup(false)
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
+
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
+	ns.EXPECT().GetOwnedShards().Return([]databaseShard{shard}).AnyTimes()
+	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
+	namespaces := []databaseNamespace{ns}
+
+	db := newMockdatabase(ctrl, namespaces...)
+	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
+	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+
+	deleteInactiveDirectoriesCalls := []deleteInactiveDirectoriesCall{}
+	deleteInactiveDirectoriesFn := func(parentDirPath string, activeDirNames []string) error {
+		deleteInactiveDirectoriesCalls = append(deleteInactiveDirectoriesCalls, deleteInactiveDirectoriesCall{
+			parentDirPath:  parentDirPath,
+			activeDirNames: activeDirNames,
+		})
+		return nil
+	}
+	mgr.deleteInactiveDirectoriesFn = deleteInactiveDirectoriesFn
+
+	require.NoError(t, mgr.Cleanup(ts))
+
+	expectedCalls := []deleteInactiveDirectoriesCall{
+		deleteInactiveDirectoriesCall{
+			parentDirPath:  "data/nsID",
+			activeDirNames: []string{"0"},
+		},
+		deleteInactiveDirectoriesCall{
+			parentDirPath:  "snapshots/nsID",
+			activeDirNames: []string{"0"},
+		},
+		deleteInactiveDirectoriesCall{
+			parentDirPath:  "data",
+			activeDirNames: []string{"nsID"},
+		},
+	}
+
+	for _, expectedCall := range expectedCalls {
+		found := false
+		for _, call := range deleteInactiveDirectoriesCalls {
+			if strings.Contains(call.parentDirPath, expectedCall.parentDirPath) &&
+				expectedCall.activeDirNames[0] == call.activeDirNames[0] {
+				found = true
+			}
+		}
+		require.Equal(t, true, found)
+	}
 }
 
 func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
