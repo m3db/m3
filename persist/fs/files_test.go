@@ -399,15 +399,28 @@ func TestSnapshotDirPath(t *testing.T) {
 }
 
 func TestNamespaceSnapshotsDirPath(t *testing.T) {
-	expected := "prefix/snapshots/metrics"
-	actual := NamespaceSnapshotsDirPath("prefix", ident.StringID("metrics"))
+	expected := "prefix/snapshots/testNs"
+	actual := NamespaceSnapshotsDirPath("prefix", testNs1ID)
 	require.Equal(t, expected, actual)
 }
 
 func TestShardSnapshotsDirPath(t *testing.T) {
-	expected := "prefix/snapshots/metrics/0"
-	actual := ShardSnapshotsDirPath("prefix", ident.StringID("metrics"), 0)
+	expected := "prefix/snapshots/testNs/0"
+	actual := ShardSnapshotsDirPath("prefix", testNs1ID, 0)
 	require.Equal(t, expected, actual)
+}
+
+func TestSnapshotFilesetExistsAt(t *testing.T) {
+	shard := uint32(0)
+	ts := time.Unix(0, 0)
+	dir := createTempDir(t)
+	shardPath := ShardSnapshotsDirPath(dir, testNs1ID, 0)
+	require.NoError(t, os.MkdirAll(shardPath, 0755))
+
+	filePath := filesetPathFromTime(shardPath, ts, checkpointFileSuffix)
+	createFile(t, filePath, []byte{})
+
+	require.Equal(t, true, SnapshotFilesetExistsAt(dir, testNs1ID, shard, ts))
 }
 
 func TestCommitLogFilesBefore(t *testing.T) {
