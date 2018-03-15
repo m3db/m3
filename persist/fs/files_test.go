@@ -394,6 +394,22 @@ func TestSnapshotFiles(t *testing.T) {
 	}
 }
 
+func TestSnapshotDirPath(t *testing.T) {
+	require.Equal(t, "prefix/snapshots", SnapshotDirPath("prefix"))
+}
+
+func TestNamespaceSnapshotsDirPath(t *testing.T) {
+	expected := "prefix/snapshots/metrics"
+	actual := NamespaceSnapshotsDirPath("prefix", ident.StringID("metrics"))
+	require.Equal(t, expected, actual)
+}
+
+func TestShardSnapshotsDirPath(t *testing.T) {
+	expected := "prefix/snapshots/metrics/0"
+	actual := ShardSnapshotsDirPath("prefix", ident.StringID("metrics"), 0)
+	require.Equal(t, expected, actual)
+}
+
 func TestCommitLogFilesBefore(t *testing.T) {
 	iter := 20
 	perSlot := 3
