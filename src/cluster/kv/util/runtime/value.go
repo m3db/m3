@@ -168,8 +168,10 @@ func (v *value) updateWithLock(update kv.Value) error {
 		return errNilValue
 	}
 	if v.currValue != nil && !update.IsNewer(v.currValue) {
+		v.log.Warnf("ignore kv update with version %d which is not newer than the version of the current value: %d", update.Version(), v.currValue.Version())
 		return nil
 	}
+	v.log.Infof("received kv update with version %d for key %s", update.Version(), v.key)
 	latest, err := v.unmarshalFn(update)
 	if err != nil {
 		err = fmt.Errorf("error unmarshalling value for version %d: %v", update.Version(), err)

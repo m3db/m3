@@ -23,7 +23,6 @@ package kv
 import (
 	"errors"
 
-	"github.com/m3db/m3x/log"
 	xwatch "github.com/m3db/m3x/watch"
 )
 
@@ -31,7 +30,6 @@ var (
 	errEmptyZone        = errors.New("empty kv zone")
 	errEmptyEnvironment = errors.New("empty kv environment")
 	errEmptyNamespace   = errors.New("empty kv namespace")
-	errNoLogger         = errors.New("no kv logger")
 )
 
 type valueWatch struct {
@@ -101,55 +99,45 @@ func valueFromWatch(value interface{}) Value {
 	return nil
 }
 
-type options struct {
+type overrideOptions struct {
 	zone      string
 	env       string
 	namespace string
-	logger    log.Logger
 }
 
-// NewOptions creates a new kv Options.
-func NewOptions() Options {
-	return options{logger: log.NullLogger}
+// NewOverrideOptions creates a new kv Options.
+func NewOverrideOptions() OverrideOptions {
+	return overrideOptions{}
 }
 
-func (opts options) Logger() log.Logger {
-	return opts.logger
-}
-
-func (opts options) SetLogger(logger log.Logger) Options {
-	opts.logger = logger
-	return opts
-}
-
-func (opts options) Zone() string {
+func (opts overrideOptions) Zone() string {
 	return opts.zone
 }
 
-func (opts options) SetZone(value string) Options {
+func (opts overrideOptions) SetZone(value string) OverrideOptions {
 	opts.zone = value
 	return opts
 }
 
-func (opts options) Environment() string {
+func (opts overrideOptions) Environment() string {
 	return opts.env
 }
 
-func (opts options) SetEnvironment(env string) Options {
+func (opts overrideOptions) SetEnvironment(env string) OverrideOptions {
 	opts.env = env
 	return opts
 }
 
-func (opts options) Namespace() string {
+func (opts overrideOptions) Namespace() string {
 	return opts.namespace
 }
 
-func (opts options) SetNamespace(namespace string) Options {
+func (opts overrideOptions) SetNamespace(namespace string) OverrideOptions {
 	opts.namespace = namespace
 	return opts
 }
 
-func (opts options) Validate() error {
+func (opts overrideOptions) Validate() error {
 	if opts.zone == "" {
 		return errEmptyZone
 	}
@@ -158,9 +146,6 @@ func (opts options) Validate() error {
 	}
 	if opts.namespace == "" {
 		return errEmptyNamespace
-	}
-	if opts.logger == nil {
-		return errNoLogger
 	}
 	return nil
 }

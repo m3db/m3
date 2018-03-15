@@ -194,7 +194,7 @@ func TestCheckAndSet(t *testing.T) {
 	_, err = store.CheckAndSet("foo", 1, genProto("bar"))
 	require.Equal(t, kv.ErrVersionMismatch, err)
 
-	version, err := store.SetIfNotExists("foo", genProto("bar"))
+	version, err := store.CheckAndSet("foo", 0, genProto("bar"))
 	require.NoError(t, err)
 	require.Equal(t, 1, version)
 

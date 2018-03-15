@@ -23,8 +23,6 @@ package kv
 import (
 	"errors"
 
-	"github.com/m3db/m3x/log"
-
 	"github.com/golang/protobuf/proto"
 )
 
@@ -97,31 +95,25 @@ type ValueWatchable interface {
 	Close()
 }
 
-// Options provides a set of options to config a KV store.
-type Options interface {
-	// Logger returns the logger of the KV store.
-	Logger() log.Logger
-
-	// SetLogger sets the logger of the KV store.
-	SetLogger(logger log.Logger) Options
-
+// OverrideOptions provides a set of options to override the default configurations of a KV store.
+type OverrideOptions interface {
 	// Zone returns the zone of the KV store.
 	Zone() string
 
 	// SetZone sets the zone of the KV store.
-	SetZone(value string) Options
+	SetZone(value string) OverrideOptions
 
 	// Namespace returns the namespace of the KV store.
 	Namespace() string
 
 	// SetNamespace sets the namespace of the KV store.
-	SetNamespace(namespace string) Options
+	SetNamespace(namespace string) OverrideOptions
 
 	// Environment returns the environment of the KV store.
 	Environment() string
 
 	// SetEnvironment sets the environment of the KV store.
-	SetEnvironment(env string) Options
+	SetEnvironment(env string) OverrideOptions
 
 	// Validate validates the Options.
 	Validate() error

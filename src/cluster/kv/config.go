@@ -20,29 +20,16 @@
 
 package kv
 
-import "github.com/m3db/m3x/log"
-
-// Configuration is the config for kv options.
-type Configuration struct {
-	Logging     *log.Configuration `yaml:"logging"`
-	Zone        string             `yaml:"zone"`
-	Environment string             `yaml:"environment"`
-	Namespace   string             `yaml:"namespace"`
+// OverrideConfiguration is the config for OverrideOptions.
+type OverrideConfiguration struct {
+	Zone        string `yaml:"zone"`
+	Environment string `yaml:"environment"`
+	Namespace   string `yaml:"namespace"`
 }
 
-// NewOptions creates a kv.Options.
-func (cfg Configuration) NewOptions() (Options, error) {
-	logger := log.NullLogger
-	if cfg.Logging != nil {
-		var err error
-		logger, err = cfg.Logging.BuildLogger()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return NewOptions().
-		SetLogger(logger).
+// NewOverrideOptions creates a OverrideOptions.
+func (cfg OverrideConfiguration) NewOverrideOptions() (OverrideOptions, error) {
+	return NewOverrideOptions().
 		SetZone(cfg.Zone).
 		SetEnvironment(cfg.Environment).
 		SetNamespace(cfg.Namespace), nil
