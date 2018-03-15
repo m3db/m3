@@ -143,7 +143,7 @@ type ContextPoolPolicy struct {
 	// pool will allow to be returned (finalizer slices that grow too
 	// large during use will be discarded instead of returning to the
 	// pool where they would consume more memory.)
-	MaxFinalizerCapacity int `yaml:"maxFinalizerCapacity"`
+	MaxFinalizerCapacity int `yaml:"maxFinalizerCapacity" validate:"min=0"`
 }
 
 // PoolPolicy returns the PoolPolicy that is represented by the ContextPoolPolicy
