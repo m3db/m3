@@ -143,6 +143,7 @@ pooling:
         size: 524288
         lowWatermark: 0.01
         highWatermark: 0.02
+        maxFinalizerCapacity: 4
     segmentReaderPool:
         size: 16384
         lowWatermark: 0.01
@@ -401,6 +402,7 @@ pooling:
     size: 524288
     lowWatermark: 0.01
     highWatermark: 0.02
+    maxFinalizerCapacity: 4
   seriesPool:
     size: 5242880
     lowWatermark: 0.01

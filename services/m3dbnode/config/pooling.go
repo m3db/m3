@@ -130,7 +130,7 @@ type BucketPoolPolicy struct {
 
 // ContextPoolPolicy specifies the policy for the context pool
 type ContextPoolPolicy struct {
-	PoolPolicy
+	PoolPolicy `yaml:",inline"`
 
 	// The maximum allowable size for a slice of finalizers that the
 	// pool will allow to be returned (finalizer slices that grow too
