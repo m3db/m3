@@ -10,6 +10,7 @@
 *.cov
 *.html
 test.log
+.DS_Store
 
 # glide manages this
 vendor/

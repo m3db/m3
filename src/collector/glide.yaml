@@ -58,10 +58,13 @@ import:
 - package: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 
+- package: github.com/golang/mock
+  version: 77f22c2b84e452a6b76fb0d1b09c9cfb44746aa4
+
 testImports:
 
 - package: github.com/stretchr/testify
-  version: ^1.1.4
+  version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
   - assert
   - require
