@@ -27,13 +27,13 @@ import (
 )
 
 func TestConfigurationNoLogger(t *testing.T) {
-	cfg := Configuration{
+	cfg := OverrideConfiguration{
 		Environment: "foo",
 		Namespace:   "bar",
 		Zone:        "zone",
 	}
 
-	opts, err := cfg.NewOptions()
+	opts, err := cfg.NewOverrideOptions()
 	require.NoError(t, err)
 
 	require.NoError(t, opts.Validate())

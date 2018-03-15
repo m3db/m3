@@ -27,9 +27,7 @@ import (
 )
 
 func TestOptions(t *testing.T) {
-	opts := NewOptions()
-	assert.NotNil(t, opts.Logger())
-
+	opts := NewOverrideOptions()
 	// Make sure this invalid, have not specified environment or namespace
 	assert.Error(t, opts.Validate())
 
@@ -42,9 +40,4 @@ func TestOptions(t *testing.T) {
 	opts = opts.SetZone("zone")
 	// Now valid, should not have to specify a null logger yourself
 	assert.NoError(t, opts.Validate())
-
-	opts = opts.SetLogger(nil)
-
-	// An explicit nil logger is not valid however
-	assert.Error(t, opts.Validate())
 }

@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3x/log"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"
@@ -122,11 +121,11 @@ func TestClient(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, kv1, kv2)
 
-	kv3, err := c.Store(kv.NewOptions().SetNamespace("ns").SetEnvironment("test_env1"))
+	kv3, err := c.Store(kv.NewOverrideOptions().SetNamespace("ns").SetEnvironment("test_env1"))
 	require.NoError(t, err)
 	require.NotEqual(t, kv1, kv3)
 
-	kv4, err := c.Store(kv.NewOptions().SetNamespace("ns"))
+	kv4, err := c.Store(kv.NewOverrideOptions().SetNamespace("ns"))
 	require.NoError(t, err)
 	require.NotEqual(t, kv3, kv4)
 
@@ -135,7 +134,7 @@ func TestClient(t *testing.T) {
 	_, ok := c.clis["zone1"]
 	require.True(t, ok)
 
-	kv5, err := c.Store(kv.NewOptions().SetZone("zone2").SetNamespace("ns"))
+	kv5, err := c.Store(kv.NewOverrideOptions().SetZone("zone2").SetNamespace("ns"))
 	require.NoError(t, err)
 	require.NotEqual(t, kv4, kv5)
 
@@ -208,71 +207,74 @@ func TestCacheFileForZone(t *testing.T) {
 	require.NoError(t, err)
 	cs := c.(*csclient)
 
-	kvOpts := cs.newkvOptions("z1", cs.cacheFileFn(), cs.logger, "namespace")
+	kvOpts := cs.newkvOptions("z1", cs.cacheFileFn(), "namespace")
 	require.Equal(t, "", kvOpts.CacheFileFn()(kvOpts.Prefix()))
 
 	cs.opts = cs.opts.SetCacheDir("/cacheDir")
-	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn(), cs.logger)
+	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn())
 	require.Equal(t, "/cacheDir/test_app_z1.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
-	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn(), cs.logger, "namespace")
+	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn(), "namespace")
 	require.Equal(t, "/cacheDir/namespace_test_app_z1.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
 
-	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn(), cs.logger, "namespace", "")
+	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn(), "namespace", "")
 	require.Equal(t, "/cacheDir/namespace_test_app_z1.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
 
-	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn(), cs.logger, "namespace", "env")
+	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn(), "namespace", "env")
 	require.Equal(t, "/cacheDir/namespace_env_test_app_z1.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
 
-	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn("f1", "", "f2"), cs.logger, "namespace")
+	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn("f1", "", "f2"), "namespace")
 	require.Equal(t, "/cacheDir/namespace_test_app_z1_f1_f2.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
 
-	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn("/r2/m3agg"), cs.logger, "")
+	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn("/r2/m3agg"), "")
 	require.Equal(t, "/cacheDir/test_app_z1__r2_m3agg.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
 }
 
-func TestSanitizeKVOptions(t *testing.T) {
+func TestSanitizeKVOverrideOptions(t *testing.T) {
 	opts := testOptions()
 	cs, err := NewConfigServiceClient(opts)
 	require.NoError(t, err)
 
 	client := cs.(*csclient)
-	opts1, err := client.sanitizeOptions(kv.NewOptions())
+	opts1, err := client.sanitizeOptions(kv.NewOverrideOptions())
 	require.NoError(t, err)
 	require.Equal(t, opts.Env(), opts1.Environment())
 	require.Equal(t, opts.Zone(), opts1.Zone())
 	require.Equal(t, kvPrefix, opts1.Namespace())
 }
 
-func TestSanitizeKVOptionsDefaultLogger(t *testing.T) {
+func TestReuseKVStore(t *testing.T) {
 	opts := testOptions()
 	cs, err := NewConfigServiceClient(opts)
 	require.NoError(t, err)
 
-	inputs := []kv.Options{
-		kv.NewOptions(),
-		kv.NewOptions().SetLogger(log.NullLogger),
-	}
-	for _, input := range inputs {
-		kvOpts, err := cs.(*csclient).sanitizeOptions(input)
-		require.NoError(t, err)
-		require.NoError(t, kvOpts.Validate())
-		require.Equal(t, kvPrefix, kvOpts.Namespace())
-		require.Equal(t, opts.Env(), kvOpts.Environment())
-		require.Equal(t, opts.InstrumentOptions().Logger(), kvOpts.Logger())
-	}
-}
-
-func TestSanitizeKVOptionsCustomLogger(t *testing.T) {
-	opts := testOptions()
-	cs, err := NewConfigServiceClient(opts)
+	store1, err := cs.Txn()
 	require.NoError(t, err)
 
-	logger := log.NewLevelLogger(log.SimpleLogger, log.LevelWarn)
-	kvOpts := kv.NewOptions().SetLogger(logger)
-	kvOpts, err = cs.(*csclient).sanitizeOptions(kvOpts)
+	store2, err := cs.KV()
 	require.NoError(t, err)
-	require.NoError(t, kvOpts.Validate())
-	require.Equal(t, logger, kvOpts.Logger())
+	require.Equal(t, store1, store2)
+
+	store3, err := cs.Store(kv.NewOverrideOptions())
+	require.NoError(t, err)
+	require.Equal(t, store1, store3)
+
+	store4, err := cs.TxnStore(kv.NewOverrideOptions())
+	require.NoError(t, err)
+	require.Equal(t, store1, store4)
+
+	store5, err := cs.Store(kv.NewOverrideOptions().SetNamespace("foo"))
+	require.NoError(t, err)
+	require.NotEqual(t, store1, store5)
+
+	store6, err := cs.TxnStore(kv.NewOverrideOptions().SetNamespace("foo"))
+	require.NoError(t, err)
+	require.Equal(t, store5, store6)
+
+	client := cs.(*csclient)
+
+	client.storeLock.Lock()
+	require.Equal(t, 2, len(client.stores))
+	client.storeLock.Unlock()
 }
 
 func TestValidateNamespace(t *testing.T) {
