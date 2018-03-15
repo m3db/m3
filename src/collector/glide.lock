@@ -1,5 +1,5 @@
-hash: 28e040843fe0aa26c24ac890244d9bd14e40324d536983d76886616671f8ae61
-updated: 2018-03-09T14:40:59.701351172-05:00
+hash: 7790daef613944e717e0288e766ae2e631fc4b1fe0f1245f8fd7e5363a13396a
+updated: 2018-03-15T16:37:36.51782-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -16,10 +16,9 @@ imports:
   subpackages:
   - oleutil
 - name: github.com/golang/mock
-  version: 13f360950a79f5864a972c786a10a50e44b69541
+  version: 77f22c2b84e452a6b76fb0d1b09c9cfb44746aa4
   subpackages:
   - gomock
-  - mockgen
 - name: github.com/golang/protobuf
   version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
   subpackages:
@@ -79,7 +78,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/shirou/gopsutil
-  version: c432be29ccce470088d07eea25b3ea7e68a8afbb
+  version: 5776ff9c7c5d063d574ef53d740f75c68b448e53
   subpackages:
   - cpu
   - host
@@ -153,7 +152,7 @@ imports:
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
 - name: github.com/fortytw2/leaktest
-  version: 7dad53304f9614c1c365755c1176a8e876fee3e8
+  version: 3b724c3d7b8729a35bf4e577f71653aec6e53513
 - name: github.com/leanovate/gopter
   version: 9e6101e5a87586b269acf3d0d61f363e4317309f
   subpackages:
