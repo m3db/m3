@@ -33,6 +33,10 @@ const (
 	NativePooling PoolingType = "native"
 )
 
+const (
+	defaultMaxFinalizerCapacity = 4
+)
+
 // PoolingPolicy specifies the pooling policy.
 type PoolingPolicy struct {
 	// The initial alloc size for a block
@@ -132,5 +136,14 @@ type ContextPoolPolicy struct {
 	// pool will allow to be returned (finalizer slices that grow too
 	// large during use will be discarded instead of returning to the
 	// pool where they would consume more memory.)
-	MaxFinalizerCapacity int `yaml:"maxFinalizerCapacity"`
+	maxFinalizerCapacity int `yaml:"maxFinalizerCapacity"`
+}
+
+// MaxFinalizerCapacity returns the maximum finalizer capacity
+func (c ContextPoolPolicy) MaxFinalizerCapacity() int {
+	if c.maxFinalizerCapacity == 0 {
+		return defaultMaxFinalizerCapacity
+	}
+
+	return c.maxFinalizerCapacity
 }
