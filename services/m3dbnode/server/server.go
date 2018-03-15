@@ -676,7 +676,7 @@ func withEncodingAndPoolingOptions(
 	encoderPool := encoding.NewEncoderPool(
 		poolOptions(policy.EncoderPool, scope.SubScope("encoder-pool")))
 	closersPoolOpts := poolOptions(policy.ClosersPool, scope.SubScope("closers-pool"))
-	contextPoolOpts := poolOptions(policy.ContextPool.PoolPolicy, scope.SubScope("context-pool"))
+	contextPoolOpts := poolOptions(policy.ContextPool.PoolPolicy(), scope.SubScope("context-pool"))
 	contextPool := context.NewPool(context.NewOptions().
 		SetContextPoolOptions(contextPoolOpts).
 		SetFinalizerPoolOptions(closersPoolOpts).

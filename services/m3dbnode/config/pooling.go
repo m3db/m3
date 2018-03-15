@@ -146,6 +146,15 @@ type ContextPoolPolicy struct {
 	MaxFinalizerCapacity int `yaml:"maxFinalizerCapacity"`
 }
 
+// PoolPolicy returns the PoolPolicy that is represented by the ContextPoolPolicy
+func (c ContextPoolPolicy) PoolPolicy() PoolPolicy {
+	return PoolPolicy{
+		Size:                c.Size,
+		RefillLowWaterMark:  c.RefillLowWaterMark,
+		RefillHighWaterMark: c.RefillHighWaterMark,
+	}
+}
+
 // MaxFinalizerCapacityWithDefault returns the maximum finalizer capacity and
 // fallsback to the default value if its not set
 func (c ContextPoolPolicy) MaxFinalizerCapacityWithDefault() int {
