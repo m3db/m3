@@ -71,17 +71,17 @@ install-mockgen: install-vendor
 install-proto-bin: install-vendor
 	@echo Installing protobuf binaries
 	@echo Note: the protobuf compiler v3.0.0 can be downloaded from https://github.com/google/protobuf/releases or built from source at https://github.com/google/protobuf.
-	go install $(m3db_package)/$(vendor_prefix)/$(protoc_go_package)
+	go install $(m3ninx_package)/$(vendor_prefix)/$(protoc_go_package)
 
 .PHONY: mock-gen
-mock-gen: install-mockgen install-license-bin
+mock-gen: install-mockgen install-util-mockclean install-license-bin
 	@echo Generating mocks
-	PACKAGE=$(m3db_package) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
+	PACKAGE=$(m3ninx_package) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
 
 .PHONY: proto-gen
 proto-gen: install-proto-bin install-license-bin
 	@echo Generating protobuf files
-	PACKAGE=$(m3db_package) $(auto_gen) $(proto_output_dir) $(proto_rules_dir)
+	PACKAGE=$(m3ninx_package) $(auto_gen) $(proto_output_dir) $(proto_rules_dir)
 
 .PHONY: all-gen
 all-gen: mock-gen proto-gen

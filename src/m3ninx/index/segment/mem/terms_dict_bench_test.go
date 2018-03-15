@@ -5,46 +5,47 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3ninx/postings"
 )
 
 var (
-	benchRegexFetchName   = []byte("__name__")
-	benchRegexFetchFilter = []byte("node_netstat_Tcp_.*")
-	benchRegexFetchOpts   = termFetchOptions{true}
+	benchField    = []byte("__name__")
+	benchRegexp   = []byte("node_netstat_Tcp_.*")
+	benchCompiled = regexp.MustCompile(string(benchRegexp))
 )
 
-func BenchmarkTermsDictionary(b *testing.B) {
+func BenchmarkTermsDict(b *testing.B) {
 	benchmarks := []struct {
 		name string
 		fn   func(docs []doc.Document, b *testing.B)
 	}{
 		{
-			name: "benchmark inserting documents into simple terms dictionary",
-			fn:   benchmarkInsertSimpleTermsDictionary,
+			name: "benchmark Insert with simple terms dictionary",
+			fn:   benchmarkInsertSimpleTermsDict,
 		},
 		{
-			name: "benchmark inserting documents into trigram terms dictionary",
-			fn:   benchmarkInsertTrigramTermsDictionary,
+			name: "benchmark Insert with trigram terms dictionary",
+			fn:   benchmarkInsertTrigramTermsDict,
 		},
 		{
-			name: "benchmark fetching documents from simple terms dictionary",
-			fn:   benchmarkFetchSimpleTermsDictionary,
+			name: "benchmark MatchTerm with simple terms dictionary",
+			fn:   benchmarkMatchTermSimpleTermsDict,
 		},
 		{
-			name: "benchmark fetching documents from trigram terms dictionary",
-			fn:   benchmarkFetchTrigramTermsDictionary,
+			name: "benchmark MatchTerm with trigram terms dictionary",
+			fn:   benchmarkMatchTermTrigramTermsDict,
 		},
 		{
-			name: "benchmark regex fetch for simple terms dictionary",
-			fn:   benchmarkFetchRegexSimpleTermsDictionary,
+			name: "benchmark MatchRegex with simple terms dictionary",
+			fn:   benchmarkMatchRegexSimpleTermsDict,
 		},
 		{
-			name: "benchmark regex fetch for trigram terms dictionary",
-			fn:   benchmarkFetchRegexTrigramTermsDictionary,
+			name: "benchmark MatchRegex with trigram terms dictionary",
+			fn:   benchmarkMatchRegexTrigramTermsDict,
 		},
 	}
 
@@ -60,39 +61,45 @@ func BenchmarkTermsDictionary(b *testing.B) {
 	}
 }
 
-func benchmarkInsertSimpleTermsDictionary(docs []doc.Document, b *testing.B) {
+func benchmarkInsertSimpleTermsDict(docs []doc.Document, b *testing.B) {
+	b.ReportAllocs()
+
 	for n := 0; n < b.N; n++ {
 		b.StopTimer()
-		dict := newSimpleTermsDictionary(NewOptions())
+		dict := newSimpleTermsDict(NewOptions())
 		b.StartTimer()
 
 		for i, d := range docs {
 			for _, f := range d.Fields {
-				dict.Insert(f, segment.DocID(i))
+				dict.Insert(f, postings.ID(i))
 			}
 		}
 	}
 }
 
-func benchmarkInsertTrigramTermsDictionary(docs []doc.Document, b *testing.B) {
+func benchmarkInsertTrigramTermsDict(docs []doc.Document, b *testing.B) {
+	b.ReportAllocs()
+
 	for n := 0; n < b.N; n++ {
 		b.StopTimer()
-		dict := newTrigramTermsDictionary(NewOptions())
+		dict := newTrigramTermsDict(NewOptions())
 		b.StartTimer()
 
 		for i, d := range docs {
 			for _, f := range d.Fields {
-				dict.Insert(f, segment.DocID(i))
+				dict.Insert(f, postings.ID(i))
 			}
 		}
 	}
 }
 
-func benchmarkFetchSimpleTermsDictionary(docs []doc.Document, b *testing.B) {
-	dict := newSimpleTermsDictionary(NewOptions())
+func benchmarkMatchTermSimpleTermsDict(docs []doc.Document, b *testing.B) {
+	b.ReportAllocs()
+
+	dict := newSimpleTermsDict(NewOptions())
 	for i, d := range docs {
 		for _, f := range d.Fields {
-			dict.Insert(f, segment.DocID(i))
+			dict.Insert(f, postings.ID(i))
 		}
 	}
 
@@ -100,17 +107,19 @@ func benchmarkFetchSimpleTermsDictionary(docs []doc.Document, b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		for _, d := range docs {
 			for _, f := range d.Fields {
-				dict.Fetch(f.Name, f.Value, termFetchOptions{false})
+				dict.MatchTerm(f.Name, f.Value)
 			}
 		}
 	}
 }
 
-func benchmarkFetchTrigramTermsDictionary(docs []doc.Document, b *testing.B) {
-	dict := newTrigramTermsDictionary(NewOptions())
+func benchmarkMatchTermTrigramTermsDict(docs []doc.Document, b *testing.B) {
+	b.ReportAllocs()
+
+	dict := newTrigramTermsDict(NewOptions())
 	for i, d := range docs {
 		for _, f := range d.Fields {
-			dict.Insert(f, segment.DocID(i))
+			dict.Insert(f, postings.ID(i))
 		}
 	}
 
@@ -121,31 +130,35 @@ func benchmarkFetchTrigramTermsDictionary(docs []doc.Document, b *testing.B) {
 				// The trigram terms dictionary can return false postives so we may want to
 				// consider verifying the results returned are matches to provide a more
 				// fair comparison with the simple terms dictionary.
-				dict.Fetch(f.Name, f.Value, termFetchOptions{false})
+				dict.MatchTerm(f.Name, f.Value)
 			}
 		}
 	}
 }
 
-func benchmarkFetchRegexSimpleTermsDictionary(docs []doc.Document, b *testing.B) {
-	dict := newSimpleTermsDictionary(NewOptions())
+func benchmarkMatchRegexSimpleTermsDict(docs []doc.Document, b *testing.B) {
+	b.ReportAllocs()
+
+	dict := newSimpleTermsDict(NewOptions())
 	for i, d := range docs {
 		for _, f := range d.Fields {
-			dict.Insert(f, segment.DocID(i))
+			dict.Insert(f, postings.ID(i))
 		}
 	}
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		dict.Fetch(benchRegexFetchName, benchRegexFetchFilter, benchRegexFetchOpts)
+		dict.MatchRegexp(benchField, benchRegexp, benchCompiled)
 	}
 }
 
-func benchmarkFetchRegexTrigramTermsDictionary(docs []doc.Document, b *testing.B) {
-	dict := newTrigramTermsDictionary(NewOptions())
+func benchmarkMatchRegexTrigramTermsDict(docs []doc.Document, b *testing.B) {
+	b.ReportAllocs()
+
+	dict := newTrigramTermsDict(NewOptions())
 	for i, d := range docs {
 		for _, f := range d.Fields {
-			dict.Insert(f, segment.DocID(i))
+			dict.Insert(f, postings.ID(i))
 		}
 	}
 
@@ -154,7 +167,7 @@ func benchmarkFetchRegexTrigramTermsDictionary(docs []doc.Document, b *testing.B
 		// The trigram terms dictionary can return false postives so we may want to
 		// consider verifying the results returned are matches to provide a more
 		// fair comparison with the simple terms dictionary.
-		dict.Fetch(benchRegexFetchName, benchRegexFetchFilter, benchRegexFetchOpts)
+		dict.MatchRegexp(benchField, benchRegexp, benchCompiled)
 	}
 }
 
@@ -179,7 +192,7 @@ func readDocuments(fn string, n int) ([]doc.Document, error) {
 		for k, v := range fieldsMap {
 			fields = append(fields, doc.Field{
 				Name:  []byte(k),
-				Value: doc.Value(v),
+				Value: []byte(v),
 			})
 		}
 		docs = append(docs, doc.Document{

@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,34 +18,59 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package segment
+package searcher
 
 import (
-	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index"
-	"github.com/m3db/m3ninx/util"
+	"github.com/m3db/m3ninx/postings"
+	"github.com/m3db/m3ninx/search"
 )
 
-// Segment is a sub-collection of documents within an index.
-type Segment interface {
-	util.RefCount
+type termSearcher struct {
+	field, term []byte
+	readers     index.Readers
 
-	// Reader returns a point-in-time accessor to search the segment.
-	Reader() (index.Reader, error)
-
-	// Close closes the segment and releases any internal resources.
-	Close() error
+	idx  int
+	curr postings.List
+	err  error
 }
 
-// MutableSegment is a segment which can be updated.
-type MutableSegment interface {
-	Segment
+// NewTermSearcher returns a new searcher for finding documents which match the given term.
+// It is not safe for concurrent access.
+func NewTermSearcher(rs index.Readers, field, term []byte) search.Searcher {
+	return &termSearcher{
+		field:   field,
+		term:    term,
+		readers: rs,
+		idx:     -1,
+	}
+}
 
-	// Insert inserts the given document into the segment. The document is guaranteed to be
-	// searchable once the Insert method returns.
-	Insert(d doc.Document) error
+func (s *termSearcher) Next() bool {
+	if s.err != nil || s.idx == len(s.readers)-1 {
+		return false
+	}
 
-	// Seal marks the segment as immutable. After Seal is called no more documents can be
-	// inserted into the segment.
-	Seal() error
+	s.idx++
+	r := s.readers[s.idx]
+	pl, err := r.MatchTerm(s.field, s.term)
+	if err != nil {
+		s.err = err
+		return false
+	}
+	s.curr = pl
+
+	return true
+}
+
+func (s *termSearcher) Current() postings.List {
+	return s.curr
+}
+
+func (s *termSearcher) Err() error {
+	return s.err
+}
+
+func (s *termSearcher) NumReaders() int {
+	return len(s.readers)
 }

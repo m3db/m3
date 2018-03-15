@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,46 +18,46 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package segment
+package query
 
 import (
 	"testing"
 
-	"github.com/RoaringBitmap/roaring"
+	"github.com/m3db/m3ninx/index"
+	"github.com/m3db/m3ninx/search"
+
+	"github.com/stretchr/testify/require"
 )
 
-func BenchmarkClone(b *testing.B) {
-	initPL := roaring.New()
-	for i := 0; i < b.N; i++ {
-		initPL.Add(uint32(i))
+func TestConjunctionQuery(t *testing.T) {
+	tests := []struct {
+		name    string
+		queries []search.Query
+	}{
+		{
+			name: "no queries provided",
+		},
+		{
+			name: "a single query provided",
+			queries: []search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+			},
+		},
+		{
+			name: "multiple queries provided",
+			queries: []search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+				NewTermQuery([]byte("vegetable"), []byte("carrot")),
+			},
+		},
 	}
 
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		copy := initPL.Clone()
-		if copy.GetCardinality() != initPL.GetCardinality() {
-			b.Error("unequal duplicate size")
-		}
-	}
-}
-
-func BenchmarkCachedObject(b *testing.B) {
-	initPL := roaring.New()
-	for i := 0; i < b.N; i++ {
-		initPL.Add(uint32(i))
-	}
-
-	copy := roaring.New()
-	b.ResetTimer()
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		copy.Clear()
-		copy.Or(initPL)
-		if copy.GetCardinality() != initPL.GetCardinality() {
-			b.Error("unequal duplicate size")
-		}
+	rs := index.Readers{}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			q := NewConjuctionQuery(test.queries)
+			_, err := q.Searcher(rs)
+			require.NoError(t, err)
+		})
 	}
 }

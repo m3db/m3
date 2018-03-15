@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,64 +21,42 @@
 package mem
 
 import (
-	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment"
+	re "regexp"
 
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3ninx/postings"
+	"github.com/m3db/m3ninx/util"
 )
 
-// Segment represents a memory backed index segment.
-type Segment interface {
-	segment.Segment
-	segment.Readable
-	segment.Writable
+// termsDict is an internal interface for a mutable terms dictionary.
+type termsDict interface {
+	// Insert inserts the field with the given ID into the terms dictionary.
+	Insert(field doc.Field, id postings.ID) error
+
+	// MatchTerm returns the postings list corresponding to documents which match the
+	// given field term exactly.
+	MatchTerm(field, term []byte) (postings.List, error)
+
+	// MatchRegexp returns the postings list corresponding to documents which match the
+	// given egular expression.
+	MatchRegexp(field, regexp []byte, compiled *re.Regexp) (postings.List, error)
 }
 
-// Options is a collection of knobs for an in-memory segment.
-type Options interface {
-	// SetInstrumentOptions sets the instrument options.
-	SetInstrumentOptions(value instrument.Options) Options
+// ReadableSegment is an internal interface for reading from a segment.
+//
+// NB(jeromefroe): Currently mockgen requires that interfaces with embedded interfaces be
+// generated with reflection mode, but private interfaces can only be generated with file
+// mode so we can't mock this interface if its private. Once mockgen supports mocking
+// private interfaces which contain embedded interfaces we can make this interface private.
+type ReadableSegment interface {
+	util.RefCount
 
-	// InstrumentOptions returns the instrument options.
-	InstrumentOptions() instrument.Options
+	// matchTerm returns the postings list of documents which match the given term exactly.
+	matchTerm(field, term []byte) (postings.List, error)
 
-	// SetPostingsListPool sets the PostingsListPool.
-	SetPostingsListPool(value segment.PostingsListPool) Options
+	// matchRegexp returns the postings list of documents which match the given regular expression.
+	matchRegexp(name, regexp []byte, compiled *re.Regexp) (postings.List, error)
 
-	// PostingsListPool returns the PostingsListPool.
-	PostingsListPool() segment.PostingsListPool
-
-	// SetInitialCapacity sets the initial capacity.
-	SetInitialCapacity(value int) Options
-
-	// InitialCapacity returns the initial capacity.
-	InitialCapacity() int
-}
-
-// termFetchOptions are the set of options accompanying the term.
-type termFetchOptions struct {
-	isRegexp bool
-}
-
-// matchPredicate returns a bool indicating if the document matched the
-// provided criterion, or not.
-type matchPredicate func(d doc.Document) bool
-
-// queryable is the base contract required for any mem segement implementation to be used by a `searcher`.
-type queryable interface {
-	// Options returns the segment Options.
-	Options() Options
-
-	// Filter retrieves the PostingsList for the filter, and any additional
-	// filtering criterion that must be applied in post processing.
-	Filter(f segment.Filter) (candidateDocIDs segment.PostingsList, pendingFilterFn matchPredicate, err error)
-
-	// FetchDocument returns the document with the provided id.
-	FetchDocument(docID segment.DocID) (document, error)
-}
-
-// searcher performs a search on known queryable(s).
-type searcher interface {
-	// Query retrieves the list of documents matching the given criterion.
-	Query(q segment.Query) (candidateDocIDs segment.PostingsList, pendingFilterFn matchPredicate, err error)
+	// getDoc returns the document associated with the given ID.
+	getDoc(id postings.ID) (doc.Document, error)
 }

@@ -21,20 +21,22 @@
 package mem
 
 import (
+	re "regexp"
 	"testing"
 
 	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3ninx/postings"
 
 	"github.com/stretchr/testify/suite"
 )
 
-type newTrigramTermsDictFn func() *trigramTermsDictionary
+type newTrigramTermsDictFn func() *trigramTermsDict
 
 type trigramTermsDictionaryTestSuite struct {
 	suite.Suite
 
 	fn        newTrigramTermsDictFn
-	termsDict *trigramTermsDictionary
+	termsDict *trigramTermsDict
 }
 
 func (t *trigramTermsDictionaryTestSuite) SetupTest() {
@@ -42,44 +44,65 @@ func (t *trigramTermsDictionaryTestSuite) SetupTest() {
 }
 
 func (t *trigramTermsDictionaryTestSuite) TestInsert() {
-	err := t.termsDict.Insert(doc.Field{
-		Name:  []byte("foo"),
-		Value: doc.Value("bar"),
-	}, 1)
+	err := t.termsDict.Insert(
+		doc.Field{
+			Name:  []byte("foo"),
+			Value: []byte("bar"),
+		},
+		1,
+	)
 	t.Require().NoError(err)
 
-	ids, err := t.termsDict.Fetch([]byte("foo"), []byte("bar"), termFetchOptions{false})
+	pl, err := t.termsDict.MatchTerm([]byte("foo"), []byte("bar"))
 	t.Require().NoError(err)
-	t.Require().NotNil(ids)
-	t.Equal(uint64(1), ids.Size())
-	t.True(ids.Contains(1))
+	t.Require().NotNil(pl)
+	t.Equal(1, pl.Len())
+	t.True(pl.Contains(1))
 }
 
-func (t *trigramTermsDictionaryTestSuite) TestFetchRegex() {
+func (t *trigramTermsDictionaryTestSuite) TestMatchRegex() {
 	err := t.termsDict.Insert(doc.Field{
 		Name:  []byte("foo"),
-		Value: doc.Value("bar-1"),
+		Value: []byte("bar-1"),
 	}, 1)
 	t.Require().NoError(err)
 	err = t.termsDict.Insert(doc.Field{
 		Name:  []byte("foo"),
-		Value: doc.Value("bar-2"),
+		Value: []byte("bar-2"),
 	}, 2)
 	t.Require().NoError(err)
 
-	ids, err := t.termsDict.Fetch([]byte("foo"), []byte("bar-.*"), termFetchOptions{true})
-	t.Require().NoError(err)
-	t.Require().NotNil(ids)
-	t.Equal(uint64(2), ids.Size())
-	t.True(ids.Contains(1))
-	t.True(ids.Contains(2))
+	tests := []struct {
+		regexp   string
+		expected []int
+	}{
+		{
+			regexp:   "bar-.*",
+			expected: []int{1, 2},
+		},
+		{
+			regexp:   "bar-(1|2)",
+			expected: []int{1, 2},
+		},
+	}
+
+	for _, test := range tests {
+		re := re.MustCompile(test.regexp)
+		pl, err := t.termsDict.MatchRegexp([]byte("foo"), []byte(test.regexp), re)
+		t.Require().NoError(err)
+
+		t.Equal(len(test.expected), pl.Len())
+		for _, e := range test.expected {
+			t.True(pl.Contains(postings.ID(e)))
+		}
+	}
 }
 
 func TestTrigramTermsDictionary(t *testing.T) {
 	opts := NewOptions()
 	suite.Run(t, &trigramTermsDictionaryTestSuite{
-		fn: func() *trigramTermsDictionary {
-			return newTrigramTermsDictionary(opts)
+		fn: func() *trigramTermsDict {
+			return newTrigramTermsDict(opts).(*trigramTermsDict)
 		},
 	})
 }

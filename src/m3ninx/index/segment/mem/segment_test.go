@@ -21,289 +21,180 @@
 package mem
 
 import (
+	re "regexp"
 	"testing"
 
 	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment"
 
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 )
 
-type newSegmentFn func() Segment
-
-type segmentTestSuite struct {
-	suite.Suite
-
-	fn      newSegmentFn
-	segment Segment
-}
-
-func (t *segmentTestSuite) SetupTest() {
-	t.segment = t.fn()
-}
-
-func (t *segmentTestSuite) TestInsert() {
-	err := t.segment.Insert(doc.Document{
-		ID: []byte("abc=efg"),
+func TestSegmentInsert(t *testing.T) {
+	name, value := []byte("apple"), []byte("red")
+	doc := doc.Document{
 		Fields: []doc.Field{
-			doc.Field{Name: []byte("abc"), Value: doc.Value("efg")},
-		},
-	})
-	t.NoError(err)
-
-	docs, err := t.segment.Query(segment.Query{
-		Conjunction: segment.AndConjunction,
-		Filters: []segment.Filter{
-			segment.Filter{
-				FieldName:        []byte("abc"),
-				FieldValueFilter: []byte("efg"),
-				Negate:           false,
-				Regexp:           false,
+			doc.Field{
+				Name:  name,
+				Value: value,
 			},
 		},
-	})
-	t.NoError(err)
-	t.True(docs != nil)
-	t.True(docs.Next())
-	result, tombstoned := docs.Current()
-	t.Equal(doc.ID("abc=efg"), result.ID)
-	t.False(tombstoned)
-	t.False(docs.Next())
-}
-
-func (t *segmentTestSuite) TestQueryRegex() {
-	err := t.segment.Insert(doc.Document{
-		ID: []byte("abc=efg"),
-		Fields: []doc.Field{
-			doc.Field{Name: []byte("abc"), Value: doc.Value("efg")},
-		},
-	})
-	t.NoError(err)
-
-	err = t.segment.Insert(doc.Document{
-		ID: []byte("abc=efgh"),
-		Fields: []doc.Field{
-			doc.Field{Name: []byte("abc"), Value: doc.Value("efgh")},
-		},
-	})
-	t.NoError(err)
-
-	docs, err := t.segment.Query(segment.Query{
-		Conjunction: segment.AndConjunction,
-		Filters: []segment.Filter{
-			segment.Filter{
-				FieldName:        []byte("abc"),
-				FieldValueFilter: []byte("efg.+"),
-				Negate:           false,
-				Regexp:           true,
-			},
-		},
-	})
-	t.NoError(err)
-	t.True(docs != nil)
-	t.True(docs.Next())
-	result, tombstoned := docs.Current()
-	t.Equal(doc.ID("abc=efgh"), result.ID)
-	t.False(tombstoned)
-	t.False(docs.Next())
-}
-
-func (t *segmentTestSuite) TestQueryNegate() {
-	err := t.segment.Insert(doc.Document{
-		ID: []byte("abc=efg"),
-		Fields: []doc.Field{
-			doc.Field{Name: []byte("abc"), Value: doc.Value("efg")},
-		},
-	})
-	t.NoError(err)
-
-	err = t.segment.Insert(doc.Document{
-		ID: []byte("abc=efgh"),
-		Fields: []doc.Field{
-			doc.Field{Name: []byte("abc"), Value: doc.Value("efgh")},
-		},
-	})
-	t.NoError(err)
-
-	docs, err := t.segment.Query(segment.Query{
-		Conjunction: segment.AndConjunction,
-		Filters: []segment.Filter{
-			segment.Filter{
-				FieldName:        []byte("abc"),
-				FieldValueFilter: []byte("efg"),
-				Negate:           true,
-				Regexp:           false,
-			},
-			segment.Filter{
-				FieldName:        []byte("abc"),
-				FieldValueFilter: []byte("efgh"),
-				Negate:           false,
-				Regexp:           false,
-			},
-		},
-	})
-	t.NoError(err)
-	t.True(docs != nil)
-	t.True(docs.Next())
-	result, tombstoned := docs.Current()
-	t.Equal(doc.ID("abc=efgh"), result.ID)
-	t.False(tombstoned)
-	t.False(docs.Next())
-}
-
-func (t *segmentTestSuite) TestQueryRegexNegate() {
-	err := t.segment.Insert(doc.Document{
-		ID: []byte("abc=efg|foo=bar"),
-		Fields: []doc.Field{
-			doc.Field{Name: []byte("foo"), Value: doc.Value("bar")},
-			doc.Field{Name: []byte("abc"), Value: doc.Value("efg")},
-		},
-	})
-	t.NoError(err)
-
-	err = t.segment.Insert(doc.Document{
-		ID: []byte("abc=efgh|foo=baz"),
-		Fields: []doc.Field{
-			doc.Field{Name: []byte("foo"), Value: doc.Value("bar")},
-			doc.Field{Name: []byte("abc"), Value: doc.Value("efgh")},
-		},
-	})
-	t.NoError(err)
-	err = t.segment.Insert(doc.Document{
-		ID: []byte("foo=bar|baz=efgh"),
-		Fields: []doc.Field{
-			doc.Field{Name: []byte("foo"), Value: doc.Value("bar")},
-			doc.Field{Name: []byte("baz"), Value: doc.Value("efgh")},
-		},
-	})
-	t.NoError(err)
-
-	docs, err := t.segment.Query(segment.Query{
-		Conjunction: segment.AndConjunction,
-		Filters: []segment.Filter{
-			segment.Filter{
-				FieldName:        []byte("foo"),
-				FieldValueFilter: []byte("bar"),
-				Negate:           false,
-				Regexp:           false,
-			},
-			segment.Filter{
-				FieldName:        []byte("abc"),
-				FieldValueFilter: []byte("efg.+"),
-				Negate:           true,
-				Regexp:           true,
-			},
-		},
-	})
-	t.NoError(err)
-	t.True(docs != nil)
-
-	returnedIds := []doc.ID{}
-	for docs.Next() {
-		result, tombstoned := docs.Current()
-		t.False(tombstoned)
-		returnedIds = append(returnedIds, result.ID)
 	}
-	t.Equal(2, len(returnedIds))
-	requiredIds := []doc.ID{
-		doc.ID("abc=efg|foo=bar"),
-		doc.ID("foo=bar|baz=efgh"),
-	}
-	for _, req := range requiredIds {
-		found := false
-		for _, ret := range returnedIds {
-			if string(req) == string(ret) {
-				found = true
-			}
-		}
-		t.True(found, string(req))
-	}
+
+	segment, err := NewSegment(0, NewOptions())
+	require.NoError(t, err)
+
+	err = segment.Insert(doc)
+	require.NoError(t, err)
+
+	reader, err := segment.Reader()
+	require.NoError(t, err)
+
+	pl, err := reader.MatchTerm(name, value)
+	require.NoError(t, err)
+
+	iter, err := reader.Docs(pl)
+	require.NoError(t, err)
+
+	require.True(t, iter.Next())
+	require.Equal(t, doc, iter.Current())
+	require.False(t, iter.Next())
+	require.NoError(t, iter.Err())
 }
 
-func (t *segmentTestSuite) TestQueryExactNegate() {
-	err := t.segment.Insert(doc.Document{
-		ID: []byte("abc=efg|foo=bar"),
-		Fields: []doc.Field{
-			doc.Field{Name: []byte("foo"), Value: doc.Value("bar")},
-			doc.Field{Name: []byte("abc"), Value: doc.Value("efg")},
-		},
-	})
-	t.NoError(err)
-
-	err = t.segment.Insert(doc.Document{
-		ID: []byte("abc=efgh|foo=baz"),
-		Fields: []doc.Field{
-			doc.Field{Name: []byte("foo"), Value: doc.Value("bar")},
-			doc.Field{Name: []byte("abc"), Value: doc.Value("efgh")},
-		},
-	})
-	t.NoError(err)
-	err = t.segment.Insert(doc.Document{
-		ID: []byte("foo=bar|baz=efgh"),
-		Fields: []doc.Field{
-			doc.Field{Name: []byte("foo"), Value: doc.Value("bar")},
-			doc.Field{Name: []byte("baz"), Value: doc.Value("efgh")},
-		},
-	})
-	t.NoError(err)
-
-	docs, err := t.segment.Query(segment.Query{
-		Conjunction: segment.AndConjunction,
-		Filters: []segment.Filter{
-			segment.Filter{
-				FieldName:        []byte("foo"),
-				FieldValueFilter: []byte("bar"),
-				Negate:           false,
-				Regexp:           false,
-			},
-			segment.Filter{
-				FieldName:        []byte("abc"),
-				FieldValueFilter: []byte("efgh"),
-				Negate:           true,
-				Regexp:           false,
+func TestSegmentReaderMatchExact(t *testing.T) {
+	docs := []doc.Document{
+		doc.Document{
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("fruit"),
+					Value: []byte("apple"),
+				},
+				doc.Field{
+					Name:  []byte("color"),
+					Value: []byte("red"),
+				},
 			},
 		},
-	})
-	t.NoError(err)
-
-	returnedIds := []doc.ID{}
-	for docs.Next() {
-		result, tombstoned := docs.Current()
-		t.False(tombstoned)
-		returnedIds = append(returnedIds, result.ID)
+		doc.Document{
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("fruit"),
+					Value: []byte("banana"),
+				},
+				doc.Field{
+					Name:  []byte("color"),
+					Value: []byte("yellow"),
+				},
+			},
+		},
+		doc.Document{
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("fruit"),
+					Value: []byte("apple"),
+				},
+				doc.Field{
+					Name:  []byte("color"),
+					Value: []byte("green"),
+				},
+			},
+		},
 	}
-	t.Equal(2, len(returnedIds))
 
-	requiredIds := []doc.ID{
-		doc.ID("abc=efg|foo=bar"),
-		doc.ID("foo=bar|baz=efgh"),
-	}
-	for _, req := range requiredIds {
-		found := false
-		for _, ret := range returnedIds {
-			if string(req) == string(ret) {
-				found = true
-			}
-		}
-		t.True(found, string(req))
-	}
-}
+	segment, err := NewSegment(0, NewOptions())
+	require.NoError(t, err)
 
-// TODO(prateek): test for write idempotency
-// TODO(prateek): test for update
-// TODO(prateek): test for delete
-// TODO(prateek): test for insert after delete
-// TODO(prateek): SUT property tests for Segment
-// TODO(prateek): property tests to ensure all Segments give equal results for any input (within reason - mutability)
-// TODO(prateek): these are all "integration" style unit tests, add unit tests for individuals components w/ mocks
-
-func TestSimpleSegment(t *testing.T) {
-	fn := func() Segment {
-		opts := NewOptions()
-		seg, err := New(1, opts)
+	for _, doc := range docs {
+		err = segment.Insert(doc)
 		require.NoError(t, err)
-		return seg
 	}
-	suite.Run(t, &segmentTestSuite{fn: fn})
+
+	reader, err := segment.Reader()
+	require.NoError(t, err)
+
+	pl, err := reader.MatchTerm([]byte("fruit"), []byte("apple"))
+	require.NoError(t, err)
+
+	iter, err := reader.Docs(pl)
+	require.NoError(t, err)
+
+	actualDocs := make([]doc.Document, 0)
+	for iter.Next() {
+		actualDocs = append(actualDocs, iter.Current())
+	}
+
+	require.NoError(t, iter.Err())
+
+	expectedDocs := []doc.Document{docs[0], docs[2]}
+	require.Equal(t, expectedDocs, actualDocs)
+}
+
+func TestSegmentReaderMatchRegex(t *testing.T) {
+	docs := []doc.Document{
+		doc.Document{
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("fruit"),
+					Value: []byte("banana"),
+				},
+				doc.Field{
+					Name:  []byte("color"),
+					Value: []byte("yellow"),
+				},
+			},
+		},
+		doc.Document{
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("fruit"),
+					Value: []byte("apple"),
+				},
+				doc.Field{
+					Name:  []byte("color"),
+					Value: []byte("red"),
+				},
+			},
+		},
+		doc.Document{
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("fruit"),
+					Value: []byte("pineapple"),
+				},
+				doc.Field{
+					Name:  []byte("color"),
+					Value: []byte("yellow"),
+				},
+			},
+		},
+	}
+
+	segment, err := NewSegment(0, NewOptions())
+	require.NoError(t, err)
+
+	for _, doc := range docs {
+		err = segment.Insert(doc)
+		require.NoError(t, err)
+	}
+
+	reader, err := segment.Reader()
+	require.NoError(t, err)
+
+	field, regexp := []byte("fruit"), []byte(".*ple")
+	compiled := re.MustCompile(string(regexp))
+	pl, err := reader.MatchRegexp(field, regexp, compiled)
+	require.NoError(t, err)
+
+	iter, err := reader.Docs(pl)
+	require.NoError(t, err)
+
+	actualDocs := make([]doc.Document, 0)
+	for iter.Next() {
+		actualDocs = append(actualDocs, iter.Current())
+	}
+
+	require.NoError(t, iter.Err())
+
+	expectedDocs := []doc.Document{docs[1], docs[2]}
+	require.Equal(t, expectedDocs, actualDocs)
 }

@@ -23,12 +23,13 @@ package mem
 import (
 	"errors"
 	"fmt"
+	re "regexp"
 	"regexp/syntax"
 
 	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3ninx/postings"
 
-	"github.com/m3db/codesearch/index"
+	cindex "github.com/m3db/codesearch/index"
 )
 
 var (
@@ -38,8 +39,7 @@ var (
 // trigramsTermsDict stores trigrams of terms to support regular expression queries
 // more efficiently. It does not support all queries and returns an errUnsupportedQuery
 // for queries which it does not support. It can also return false positives and it is the
-// caller's responsibility to check the docIDs returned from Fetch if false positives
-// are not acceptable.
+// caller's responsibility to check the documents to remove false positives.
 //
 // The trigram terms dictionary works by breaking down the value of a field into
 // its constiuent trigrams and storing each trigram in a simple dictionary. For
@@ -49,20 +49,20 @@ var (
 //   (2) For each trigram `t` created in step 1, store the entry
 //       (value: `t`, docID: `i`) in the postings list for the field name "foo".
 //
-type trigramTermsDictionary struct {
+type trigramTermsDict struct {
 	opts Options
 
-	backingDict *simpleTermsDictionary
+	backingDict termsDict
 }
 
-func newTrigramTermsDictionary(opts Options) *trigramTermsDictionary {
-	return &trigramTermsDictionary{
+func newTrigramTermsDict(opts Options) termsDict {
+	return &trigramTermsDict{
 		opts:        opts,
-		backingDict: newSimpleTermsDictionary(opts),
+		backingDict: newSimpleTermsDict(opts),
 	}
 }
 
-func (t *trigramTermsDictionary) Insert(field doc.Field, i segment.DocID) error {
+func (t *trigramTermsDict) Insert(field doc.Field, id postings.ID) error {
 	// TODO: Benchmark performance difference between first constructing a set of unique
 	// trigrams versus inserting all trigrams and relying on the backing dictionary to
 	// deduplicate them.
@@ -70,11 +70,10 @@ func (t *trigramTermsDictionary) Insert(field doc.Field, i segment.DocID) error 
 	for _, tri := range trigrams {
 		if err := t.backingDict.Insert(
 			doc.Field{
-				Name:      field.Name,
-				Value:     tri,
-				ValueType: field.ValueType,
+				Name:  field.Name,
+				Value: tri,
 			},
-			i,
+			id,
 		); err != nil {
 			return fmt.Errorf("unable to insert trigram %s into backing dictionary: %v", tri, err)
 		}
@@ -82,124 +81,121 @@ func (t *trigramTermsDictionary) Insert(field doc.Field, i segment.DocID) error 
 	return nil
 }
 
-func (t *trigramTermsDictionary) Fetch(
-	fieldName []byte,
-	fieldValueFilter []byte,
-	opts termFetchOptions,
-) (segment.PostingsList, error) {
-	filter := string(fieldValueFilter)
-	re, err := syntax.Parse(filter, syntax.Perl)
+func (t *trigramTermsDict) MatchTerm(field, term []byte) (postings.List, error) {
+	return t.matchRegexp(field, term)
+}
+
+func (t *trigramTermsDict) MatchRegexp(
+	field, regexp []byte,
+	compiled *re.Regexp,
+) (postings.List, error) {
+	return t.matchRegexp(field, regexp)
+}
+
+func (t *trigramTermsDict) matchRegexp(field, regexp []byte) (postings.List, error) {
+	// TODO: Consider updating syntax.Parse to accepts a byte string so we can avoid the
+	// conversion to a string here.
+	regexpStr := string(regexp)
+	re, err := syntax.Parse(regexpStr, syntax.Perl)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse query filter %s: %v", filter, err)
+		return nil, fmt.Errorf("unable to parse regular expression %s: %v", regexpStr, err)
 	}
-	q := index.RegexpQuery(re)
-	ids, err := t.postingQuery(fieldName, q, nil, false)
+	q := cindex.RegexpQuery(re)
+	pl, err := t.matchQuery(field, q, nil)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get postings list matching query: %v", err)
 	}
-	return ids, nil
+	return pl, nil
 }
 
-func (t *trigramTermsDictionary) postingQuery(
-	fieldName []byte,
-	q *index.Query,
-	candidateIDs segment.PostingsList,
-	created bool,
-) (segment.PostingsList, error) {
+func (t *trigramTermsDict) matchQuery(
+	field []byte,
+	q *cindex.Query,
+	restrict postings.MutableList,
+) (postings.MutableList, error) {
+	var list postings.MutableList
+
 	switch q.Op {
-	case index.QNone:
+	case cindex.QNone:
 		// Do nothing.
 
-	case index.QAll:
-		if candidateIDs != nil {
-			return candidateIDs, nil
+	case cindex.QAll:
+		if restrict != nil {
+			return restrict, nil
 		}
 		// Match all queries are not supported by the trigram terms dictionary.
 		return nil, errUnsupportedQuery
 
-	case index.QAnd:
+	case cindex.QAnd:
 		for _, tri := range q.Trigram {
-			ids, err := t.docIDsForTrigram(fieldName, tri)
+			pl, err := t.matchTrigram(field, tri)
 			if err != nil {
 				return nil, err
 			}
-			if ids == nil {
-				return t.opts.PostingsListPool().Get(), nil
-			}
-			if !created {
-				candidateIDs = ids.Clone()
-				created = true
+
+			if list == nil {
+				list = pl.Clone()
+				if restrict != nil {
+					list.Intersect(restrict)
+				}
 			} else {
-				candidateIDs.Intersect(ids)
+				list.Intersect(pl)
 			}
-			if candidateIDs.IsEmpty() {
-				return candidateIDs, nil
+
+			if list.IsEmpty() {
+				return list, nil
 			}
 		}
 
 		for _, sub := range q.Sub {
-			ids, err := t.postingQuery(fieldName, sub, candidateIDs, created)
+			var err error
+			list, err = t.matchQuery(field, sub, list)
 			if err != nil {
 				return nil, err
 			}
-			if ids == nil {
-				return t.opts.PostingsListPool().Get(), nil
-			}
-			if !created {
-				candidateIDs = ids
-				created = true
-			} else {
-				candidateIDs.Intersect(ids)
-			}
-			if candidateIDs.IsEmpty() {
-				return candidateIDs, nil
+
+			if list.IsEmpty() {
+				return list, nil
 			}
 		}
 
-	case index.QOr:
+	case cindex.QOr:
 		for _, tri := range q.Trigram {
-			ids, err := t.docIDsForTrigram(fieldName, tri)
+			pl, err := t.matchTrigram(field, tri)
 			if err != nil {
 				return nil, err
 			}
-			if ids == nil {
-				continue
-			}
-			if !created {
-				candidateIDs = ids.Clone()
-				created = true
+
+			if list == nil {
+				list = pl.Clone()
 			} else {
-				candidateIDs.Union(ids)
+				list.Union(pl)
 			}
 		}
 
 		for _, sub := range q.Sub {
-			ids, err := t.postingQuery(fieldName, sub, candidateIDs, created)
+			pl, err := t.matchQuery(field, sub, restrict)
 			if err != nil {
 				return nil, err
 			}
-			if ids == nil {
-				return t.opts.PostingsListPool().Get(), nil
-			}
-			if !created {
-				candidateIDs = ids
-				created = true
+
+			if list == nil {
+				list = pl.Clone()
 			} else {
-				candidateIDs.Union(ids)
+				list.Union(pl)
 			}
 		}
+
+		list.Intersect(restrict)
 	}
 
-	return candidateIDs, nil
+	return list, nil
 }
 
-func (t *trigramTermsDictionary) docIDsForTrigram(
-	fieldName []byte,
-	tri string,
-) (segment.ImmutablePostingsList, error) {
+func (t *trigramTermsDict) matchTrigram(field []byte, tri string) (postings.List, error) {
 	// TODO(jeromefroe): Consider adding a FetchString method to the simpleDictionary
 	// to avoid the string conversion here.
-	return t.backingDict.Fetch(fieldName, []byte(tri), termFetchOptions{isRegexp: false})
+	return t.backingDict.MatchTerm(field, []byte(tri))
 }
 
 // computeTrigrams returns the trigrams composing a byte slice. The slice of trigrams

@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,34 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package segment
+package query
 
 import (
-	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index"
-	"github.com/m3db/m3ninx/util"
+	"github.com/m3db/m3ninx/search"
+	"github.com/m3db/m3ninx/search/searcher"
 )
 
-// Segment is a sub-collection of documents within an index.
-type Segment interface {
-	util.RefCount
-
-	// Reader returns a point-in-time accessor to search the segment.
-	Reader() (index.Reader, error)
-
-	// Close closes the segment and releases any internal resources.
-	Close() error
+// termQuery finds document which match the given term exactly.
+type termQuery struct {
+	field []byte
+	term  []byte
 }
 
-// MutableSegment is a segment which can be updated.
-type MutableSegment interface {
-	Segment
+// NewTermQuery constructs a new TermQuery for the given field and term.
+func NewTermQuery(field, term []byte) search.Query {
+	return &termQuery{
+		field: field,
+		term:  term,
+	}
+}
 
-	// Insert inserts the given document into the segment. The document is guaranteed to be
-	// searchable once the Insert method returns.
-	Insert(d doc.Document) error
-
-	// Seal marks the segment as immutable. After Seal is called no more documents can be
-	// inserted into the segment.
-	Seal() error
+func (q *termQuery) Searcher(rs index.Readers) (search.Searcher, error) {
+	return searcher.NewTermSearcher(rs, q.field, q.term), nil
 }

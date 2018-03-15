@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,38 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package segment
+package util
 
 import (
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/checked"
 )
 
-type postingsListPool struct {
-	pool pool.ObjectPool
+type refCount struct {
+	inner *checked.RefCount
 }
 
-// PostingsListAllocateFn returns a new PostingsList.
-type PostingsListAllocateFn func() PostingsList
-
-// NewPostingsListPool returns a new PostingsListPool.
-func NewPostingsListPool(
-	opts pool.ObjectPoolOptions,
-	allocator PostingsListAllocateFn,
-) PostingsListPool {
-	p := &postingsListPool{
-		pool: pool.NewObjectPool(opts),
-	}
-	p.pool.Init(func() interface{} {
-		return allocator()
-	})
-	return p
+// NewRefCount returns a new reference count.
+func NewRefCount() RefCount {
+	return &refCount{inner: new(checked.RefCount)}
 }
 
-func (p *postingsListPool) Get() PostingsList {
-	return p.pool.Get().(PostingsList)
+func (rc *refCount) IncRef() {
+	rc.inner.IncRef()
 }
 
-func (p *postingsListPool) Put(pl PostingsList) {
-	pl.Reset()
-	p.pool.Put(pl)
+func (rc *refCount) DecRef() {
+	rc.inner.DecRef()
+}
+
+func (rc *refCount) MoveRef() {
+	rc.inner.MoveRef()
+}
+
+func (rc *refCount) NumRef() int {
+	return rc.inner.NumRef()
 }

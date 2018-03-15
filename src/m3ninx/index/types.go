@@ -21,22 +21,55 @@
 package index
 
 import (
-	"github.com/m3db/m3ninx/index/segment"
+	"regexp"
 
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3ninx/postings"
+
+	"github.com/m3db/m3x/errors"
 )
 
-// Index is a collection of segments.
+// Index is a collection of searchable documents.
 type Index interface {
-	segment.Readable
-	segment.Writable
+	// Insert inserts the given document into the index. The document is guaranteed to be
+	// searchable once the Insert method returns.
+	Insert(d doc.Document) error
+
+	// Readers returns a set of readers representing a point-in-time snapshot of the index.
+	Readers() (Readers, error)
+
+	// Close closes the index and releases any internal resources.
+	Close() error
 }
 
-// Options is a set of knobs by which to tweak Index-ing behaviour.
-type Options interface {
-	// SetInstrumentOptions sets the instrument options.
-	SetInstrumentOptions(value instrument.Options) Options
+// Reader provides a point-in-time accessor to the documents in an index.
+type Reader interface {
+	// MatchTerm returns a postings list over all documents which match the given term.
+	MatchTerm(field, term []byte) (postings.List, error)
 
-	// InstrumentOptions returns the instrument options.
-	InstrumentOptions() instrument.Options
+	// MatchRegexp returns a postings list over all documents which match the given
+	// regular expression.
+	MatchRegexp(field, regexp []byte, compiled *regexp.Regexp) (postings.List, error)
+
+	// Docs returns an iterator over the documents whose IDs are in the provided
+	//  postings list.
+	Docs(pl postings.List) (doc.Iterator, error)
+
+	// Close closes the reader and releases any internal resources.
+	Close() error
+}
+
+// Readers is a slice of Reader.
+type Readers []Reader
+
+// Close closes all of the Readers in rs.
+func (rs Readers) Close() error {
+	multiErr := errors.NewMultiError()
+	for _, r := range rs {
+		err := r.Close()
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+	return multiErr.FinalError()
 }

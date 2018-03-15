@@ -4,12 +4,17 @@ import:
 - package: github.com/RoaringBitmap/roaring
   version: 0.3.9
 - package: github.com/m3db/m3x
+  version: c67bc0f6effede3c0db07835859b52b203b5677c
   subpackages:
   - instrument
 - package: github.com/uber-go/atomic
   version: ^1.2.0
 - package: github.com/m3db/codesearch
   version: a45d81b686e85d01f2838439deaf72126ccd5a96
+- package: github.com/golang/mock
+  version: ^1.0.0
+  subpackages:
+  - gomock
 testImport:
 - package: github.com/stretchr/testify
   version: ^1.2.0
