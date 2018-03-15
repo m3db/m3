@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package policy
+package aggregation
 
 import (
 	"fmt"
@@ -26,56 +26,56 @@ import (
 	"github.com/willf/bitset"
 )
 
-// AggregationIDCompressor can compress AggregationTypes into an AggregationID.
-type AggregationIDCompressor interface {
+// IDCompressor can compress Types into an ID.
+type IDCompressor interface {
 	// Compress compresses a set of aggregation types into an aggregation id.
-	Compress(aggTypes AggregationTypes) (AggregationID, error)
+	Compress(aggTypes Types) (ID, error)
 
 	// MustCompress compresses a set of aggregation types into an aggregation id,
 	// and panics if an error is encountered.
-	MustCompress(aggTypes AggregationTypes) AggregationID
+	MustCompress(aggTypes Types) ID
 }
 
-// AggregationIDDecompressor can decompress AggregationID.
-type AggregationIDDecompressor interface {
+// IDDecompressor can decompress ID.
+type IDDecompressor interface {
 	// Decompress decompresses aggregation types,
 	// returns error if any invalid aggregation type is encountered.
-	Decompress(compressed AggregationID) (AggregationTypes, error)
+	Decompress(compressed ID) (Types, error)
 }
 
-type aggregationIDCompressor struct {
+type idCompressor struct {
 	bs *bitset.BitSet
 }
 
-// NewAggregationIDCompressor returns a new AggregationIDCompressor.
-func NewAggregationIDCompressor() AggregationIDCompressor {
+// NewIDCompressor returns a new IDCompressor.
+func NewIDCompressor() IDCompressor {
 	// NB(cw): If we start to support more than 64 types, the library will
 	// expand the underlying word list itself.
-	return &aggregationIDCompressor{
-		bs: bitset.New(MaxAggregationTypeID),
+	return &idCompressor{
+		bs: bitset.New(maxTypeID),
 	}
 }
 
-func (c *aggregationIDCompressor) Compress(aggTypes AggregationTypes) (AggregationID, error) {
+func (c *idCompressor) Compress(aggTypes Types) (ID, error) {
 	c.bs.ClearAll()
 	for _, aggType := range aggTypes {
 		if !aggType.IsValid() {
-			return DefaultAggregationID, fmt.Errorf("could not compress invalid AggregationType %v", aggType)
+			return DefaultID, fmt.Errorf("could not compress invalid Type %v", aggType)
 		}
 		c.bs.Set(uint(aggType.ID()))
 	}
 
 	codes := c.bs.Bytes()
-	var id AggregationID
-	// NB(cw) it's guaranteed that len(id) == len(codes) == AggregationIDLen, we need to copy
+	var id ID
+	// NB(cw) it's guaranteed that len(id) == len(codes) == IDLen, we need to copy
 	// the words in bitset out because the bitset contains a slice internally.
-	for i := 0; i < AggregationIDLen; i++ {
+	for i := 0; i < IDLen; i++ {
 		id[i] = codes[i]
 	}
 	return id, nil
 }
 
-func (c *aggregationIDCompressor) MustCompress(aggTypes AggregationTypes) AggregationID {
+func (c *idCompressor) MustCompress(aggTypes Types) ID {
 	id, err := c.Compress(aggTypes)
 	if err != nil {
 		panic(fmt.Errorf("unable to compress %v: %v", aggTypes, err))
@@ -83,48 +83,48 @@ func (c *aggregationIDCompressor) MustCompress(aggTypes AggregationTypes) Aggreg
 	return id
 }
 
-type aggregationIDDecompressor struct {
+type idDecompressor struct {
 	bs   *bitset.BitSet
 	buf  []uint64
-	pool AggregationTypesPool
+	pool TypesPool
 }
 
-// NewAggregationIDDecompressor returns a new AggregationIDDecompressor.
-func NewAggregationIDDecompressor() AggregationIDDecompressor {
-	return NewPooledAggregationIDDecompressor(nil)
+// NewIDDecompressor returns a new IDDecompressor.
+func NewIDDecompressor() IDDecompressor {
+	return NewPooledIDDecompressor(nil)
 }
 
-// NewPooledAggregationIDDecompressor returns a new pooled AggregationTypeDecompressor.
-func NewPooledAggregationIDDecompressor(pool AggregationTypesPool) AggregationIDDecompressor {
-	bs := bitset.New(MaxAggregationTypeID)
-	return &aggregationIDDecompressor{
+// NewPooledIDDecompressor returns a new pooled TypeDecompressor.
+func NewPooledIDDecompressor(pool TypesPool) IDDecompressor {
+	bs := bitset.New(maxTypeID)
+	return &idDecompressor{
 		bs:   bs,
 		buf:  bs.Bytes(),
 		pool: pool,
 	}
 }
 
-func (c *aggregationIDDecompressor) Decompress(id AggregationID) (AggregationTypes, error) {
+func (c *idDecompressor) Decompress(id ID) (Types, error) {
 	if id.IsDefault() {
-		return DefaultAggregationTypes, nil
+		return DefaultTypes, nil
 	}
-	// NB(cw) it's guaranteed that len(c.buf) == len(id) == AggregationIDLen, we need to copy
+	// NB(cw) it's guaranteed that len(c.buf) == len(id) == IDLen, we need to copy
 	// the words from id into a slice to be used in bitset.
 	for i := range id {
 		c.buf[i] = id[i]
 	}
 
-	var res AggregationTypes
+	var res Types
 	if c.pool == nil {
-		res = make(AggregationTypes, 0, MaxAggregationTypeID)
+		res = make(Types, 0, maxTypeID)
 	} else {
 		res = c.pool.Get()
 	}
 
 	for i, e := c.bs.NextSet(0); e; i, e = c.bs.NextSet(i + 1) {
-		aggType := AggregationType(i)
+		aggType := Type(i)
 		if !aggType.IsValid() {
-			return DefaultAggregationTypes, fmt.Errorf("invalid AggregationType: %s", aggType.String())
+			return DefaultTypes, fmt.Errorf("invalid Type: %s", aggType.String())
 		}
 
 		res = append(res, aggType)

@@ -18,44 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package policy
+package aggregation
 
 import "github.com/m3db/m3x/pool"
 
-// AggregationTypesAlloc allocates new aggregation types.
-type AggregationTypesAlloc func() AggregationTypes
+// TypesAlloc allocates new aggregation types.
+type TypesAlloc func() Types
 
-// AggregationTypesPool provides a pool of aggregation types.
-type AggregationTypesPool interface {
+// TypesPool provides a pool of aggregation types.
+type TypesPool interface {
 	// Init initializes the aggregation types pool.
-	Init(alloc AggregationTypesAlloc)
+	Init(alloc TypesAlloc)
 
 	// Get gets an empty list of aggregation types from the pool.
-	Get() AggregationTypes
+	Get() Types
 
 	// Put returns aggregation types to the pool.
-	Put(value AggregationTypes)
+	Put(value Types)
 }
 
-type aggTypesPool struct {
+type typesPool struct {
 	pool pool.ObjectPool
 }
 
-// NewAggregationTypesPool creates a new pool for aggregation types.
-func NewAggregationTypesPool(opts pool.ObjectPoolOptions) AggregationTypesPool {
-	return &aggTypesPool{pool: pool.NewObjectPool(opts)}
+// NewTypesPool creates a new pool for aggregation types.
+func NewTypesPool(opts pool.ObjectPoolOptions) TypesPool {
+	return &typesPool{pool: pool.NewObjectPool(opts)}
 }
 
-func (p *aggTypesPool) Init(alloc AggregationTypesAlloc) {
+func (p *typesPool) Init(alloc TypesAlloc) {
 	p.pool.Init(func() interface{} {
 		return alloc()
 	})
 }
 
-func (p *aggTypesPool) Get() AggregationTypes {
-	return p.pool.Get().(AggregationTypes)
+func (p *typesPool) Get() Types {
+	return p.pool.Get().(Types)
 }
 
-func (p *aggTypesPool) Put(value AggregationTypes) {
+func (p *typesPool) Put(value Types) {
 	p.pool.Put(value[:0])
 }

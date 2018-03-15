@@ -27,6 +27,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
@@ -81,7 +82,7 @@ func (it *baseIterator) decodePolicy() policy.Policy {
 	return policy.NewPolicy(sp, aggTypes)
 }
 
-func (it *baseIterator) decodeCompressedAggregationTypes() policy.AggregationID {
+func (it *baseIterator) decodeCompressedAggregationTypes() aggregation.ID {
 	numActualFields := it.decodeNumObjectFields()
 	aggregationEncodeType := it.decodeObjectType()
 	numExpectedFields, ok := it.checkExpectedNumFieldsForType(
@@ -89,10 +90,10 @@ func (it *baseIterator) decodeCompressedAggregationTypes() policy.AggregationID 
 		numActualFields,
 	)
 	if !ok {
-		return policy.DefaultAggregationID
+		return aggregation.DefaultID
 	}
 
-	var aggTypes policy.AggregationID
+	var aggTypes aggregation.ID
 	switch aggregationEncodeType {
 	case defaultAggregationID:
 	case shortAggregationID:
@@ -100,7 +101,7 @@ func (it *baseIterator) decodeCompressedAggregationTypes() policy.AggregationID 
 		aggTypes[0] = uint64(value)
 	case longAggregationID:
 		numValues := it.decodeArrayLen()
-		if numValues > policy.AggregationIDLen {
+		if numValues > aggregation.IDLen {
 			it.decodeErr = fmt.Errorf("invalid CompressedAggregationType length: %d", numValues)
 			return aggTypes
 		}

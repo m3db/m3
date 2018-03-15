@@ -26,11 +26,11 @@ import (
 
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/id/m3"
-	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -39,16 +39,16 @@ import (
 
 // Configuration is config used to create a Matcher.
 type Configuration struct {
-	InitWatchTimeout      time.Duration                        `yaml:"initWatchTimeout"`
-	RulesKVConfig         kv.Configuration                     `yaml:"rulesKVConfig"`
-	NamespacesKey         string                               `yaml:"namespacesKey" validate:"nonzero"`
-	RuleSetKeyFmt         string                               `yaml:"ruleSetKeyFmt" validate:"nonzero"`
-	NamespaceTag          string                               `yaml:"namespaceTag" validate:"nonzero"`
-	DefaultNamespace      string                               `yaml:"defaultNamespace" validate:"nonzero"`
-	NameTagKey            string                               `yaml:"nameTagKey" validate:"nonzero"`
-	MatchRangePast        *time.Duration                       `yaml:"matchRangePast"`
-	SortedTagIteratorPool pool.ObjectPoolConfiguration         `yaml:"sortedTagIteratorPool"`
-	AggregationTypes      policy.AggregationTypesConfiguration `yaml:"aggregationTypes"`
+	InitWatchTimeout      time.Duration                  `yaml:"initWatchTimeout"`
+	RulesKVConfig         kv.Configuration               `yaml:"rulesKVConfig"`
+	NamespacesKey         string                         `yaml:"namespacesKey" validate:"nonzero"`
+	RuleSetKeyFmt         string                         `yaml:"ruleSetKeyFmt" validate:"nonzero"`
+	NamespaceTag          string                         `yaml:"namespaceTag" validate:"nonzero"`
+	DefaultNamespace      string                         `yaml:"defaultNamespace" validate:"nonzero"`
+	NameTagKey            string                         `yaml:"nameTagKey" validate:"nonzero"`
+	MatchRangePast        *time.Duration                 `yaml:"matchRangePast"`
+	SortedTagIteratorPool pool.ObjectPoolConfiguration   `yaml:"sortedTagIteratorPool"`
+	AggregationTypes      aggregation.TypesConfiguration `yaml:"aggregationTypes"`
 }
 
 // NewNamespaces creates a matcher.Namespaces.

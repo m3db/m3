@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
@@ -40,12 +41,12 @@ import (
 )
 
 var (
-	compressor      = policy.NewAggregationIDCompressor()
-	compressedMax   = compressor.MustCompress(policy.AggregationTypes{policy.Max})
-	compressedCount = compressor.MustCompress(policy.AggregationTypes{policy.Count})
-	compressedMin   = compressor.MustCompress(policy.AggregationTypes{policy.Min})
-	compressedMean  = compressor.MustCompress(policy.AggregationTypes{policy.Mean})
-	compressedP999  = compressor.MustCompress(policy.AggregationTypes{policy.P999})
+	compressor      = aggregation.NewIDCompressor()
+	compressedMax   = compressor.MustCompress(aggregation.Types{aggregation.Max})
+	compressedCount = compressor.MustCompress(aggregation.Types{aggregation.Count})
+	compressedMin   = compressor.MustCompress(aggregation.Types{aggregation.Min})
+	compressedMean  = compressor.MustCompress(aggregation.Types{aggregation.Mean})
+	compressedP999  = compressor.MustCompress(aggregation.Types{aggregation.P999})
 
 	now      = time.Now().UnixNano()
 	testUser = "test_user"
@@ -63,13 +64,13 @@ func TestActiveRuleSetForwardMappingPoliciesForNonRollupID(t *testing.T) {
 					22000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 					},
 				),
 			},
@@ -84,9 +85,9 @@ func TestActiveRuleSetForwardMappingPoliciesForNonRollupID(t *testing.T) {
 					35000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 					},
 				),
 			},
@@ -101,7 +102,7 @@ func TestActiveRuleSetForwardMappingPoliciesForNonRollupID(t *testing.T) {
 					24000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 					},
 				),
 			},
@@ -139,52 +140,52 @@ func TestActiveRuleSetForwardMappingPoliciesForNonRollupID(t *testing.T) {
 					false,
 					[]policy.Policy{
 						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), compressedMean),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 					},
 				),
 				policy.NewStagedPolicies(
 					22000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 					},
 				),
 				policy.NewStagedPolicies(
 					30000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 					},
 				),
 				policy.NewStagedPolicies(
 					34000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 					},
 				),
 				policy.NewStagedPolicies(
 					35000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 					},
 				),
 			},
@@ -200,7 +201,7 @@ func TestActiveRuleSetForwardMappingPoliciesForNonRollupID(t *testing.T) {
 					24000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 					},
 				),
 			},
@@ -215,7 +216,7 @@ func TestActiveRuleSetForwardMappingPoliciesForNonRollupID(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
-		policy.NewAggregationTypesOptions(),
+		aggregation.NewTypesOptions(),
 	)
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 100000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -234,19 +235,19 @@ func TestActiveRuleSetReverseMappingPoliciesForNonRollupID(t *testing.T) {
 			matchTo:         25001,
 			expireAtNanos:   30000,
 			metricType:      metric.CounterType,
-			aggregationType: policy.Sum,
+			aggregationType: aggregation.Sum,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
 					22000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 					},
 				),
 			},
@@ -257,15 +258,15 @@ func TestActiveRuleSetReverseMappingPoliciesForNonRollupID(t *testing.T) {
 			matchTo:         35001,
 			expireAtNanos:   100000,
 			metricType:      metric.CounterType,
-			aggregationType: policy.Sum,
+			aggregationType: aggregation.Sum,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
 					35000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 					},
 				),
 			},
@@ -276,13 +277,13 @@ func TestActiveRuleSetReverseMappingPoliciesForNonRollupID(t *testing.T) {
 			matchTo:         25001,
 			expireAtNanos:   30000,
 			metricType:      metric.CounterType,
-			aggregationType: policy.Sum,
+			aggregationType: aggregation.Sum,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
 					24000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 					},
 				),
 			},
@@ -293,7 +294,7 @@ func TestActiveRuleSetReverseMappingPoliciesForNonRollupID(t *testing.T) {
 			matchTo:         25001,
 			expireAtNanos:   30000,
 			metricType:      metric.CounterType,
-			aggregationType: policy.Sum,
+			aggregationType: aggregation.Sum,
 			result:          policy.DefaultPoliciesList,
 		},
 		{
@@ -302,7 +303,7 @@ func TestActiveRuleSetReverseMappingPoliciesForNonRollupID(t *testing.T) {
 			matchTo:         25001,
 			expireAtNanos:   30000,
 			metricType:      metric.CounterType,
-			aggregationType: policy.Min,
+			aggregationType: aggregation.Min,
 			result:          nil,
 		},
 		{
@@ -311,7 +312,7 @@ func TestActiveRuleSetReverseMappingPoliciesForNonRollupID(t *testing.T) {
 			matchTo:         12000,
 			expireAtNanos:   15000,
 			metricType:      metric.CounterType,
-			aggregationType: policy.Sum,
+			aggregationType: aggregation.Sum,
 			result:          nil,
 		},
 		{
@@ -320,15 +321,15 @@ func TestActiveRuleSetReverseMappingPoliciesForNonRollupID(t *testing.T) {
 			matchTo:         21000,
 			expireAtNanos:   22000,
 			metricType:      metric.CounterType,
-			aggregationType: policy.Sum,
+			aggregationType: aggregation.Sum,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
 					20000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 					},
 				),
 			},
@@ -339,7 +340,7 @@ func TestActiveRuleSetReverseMappingPoliciesForNonRollupID(t *testing.T) {
 			matchTo:         40000,
 			expireAtNanos:   100000,
 			metricType:      metric.TimerType,
-			aggregationType: policy.Count,
+			aggregationType: aggregation.Count,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
 					10000,
@@ -360,52 +361,52 @@ func TestActiveRuleSetReverseMappingPoliciesForNonRollupID(t *testing.T) {
 					20000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 					},
 				),
 				policy.NewStagedPolicies(
 					22000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 					},
 				),
 				policy.NewStagedPolicies(
 					30000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 					},
 				),
 				policy.NewStagedPolicies(
 					34000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 					},
 				),
 				policy.NewStagedPolicies(
 					35000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 					},
 				),
 			},
@@ -416,14 +417,14 @@ func TestActiveRuleSetReverseMappingPoliciesForNonRollupID(t *testing.T) {
 			matchTo:         40000,
 			expireAtNanos:   100000,
 			metricType:      metric.CounterType,
-			aggregationType: policy.Sum,
+			aggregationType: aggregation.Sum,
 			result: policy.PoliciesList{
 				policy.DefaultStagedPolicies,
 				policy.NewStagedPolicies(
 					24000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 					},
 				),
 			},
@@ -438,7 +439,7 @@ func TestActiveRuleSetReverseMappingPoliciesForNonRollupID(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		func([]byte, []byte) bool { return false },
-		policy.NewAggregationTypesOptions(),
+		aggregation.NewTypesOptions(),
 	)
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 100000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -457,13 +458,13 @@ func TestActiveRuleSetReverseMappingPoliciesForRollupID(t *testing.T) {
 			matchTo:         25001,
 			expireAtNanos:   30000,
 			metricType:      metric.CounterType,
-			aggregationType: policy.Sum,
+			aggregationType: aggregation.Sum,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
 					24000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), aggregation.DefaultID),
 					},
 				),
 			},
@@ -474,7 +475,7 @@ func TestActiveRuleSetReverseMappingPoliciesForRollupID(t *testing.T) {
 			matchTo:         25001,
 			expireAtNanos:   30000,
 			metricType:      metric.CounterType,
-			aggregationType: policy.Min,
+			aggregationType: aggregation.Min,
 			result:          nil,
 		},
 		{
@@ -483,7 +484,7 @@ func TestActiveRuleSetReverseMappingPoliciesForRollupID(t *testing.T) {
 			matchTo:         25001,
 			expireAtNanos:   30000,
 			metricType:      metric.UnknownType,
-			aggregationType: policy.UnknownAggregationType,
+			aggregationType: aggregation.UnknownType,
 			result:          nil,
 		},
 		{
@@ -492,13 +493,13 @@ func TestActiveRuleSetReverseMappingPoliciesForRollupID(t *testing.T) {
 			matchTo:         25001,
 			expireAtNanos:   30000,
 			metricType:      metric.TimerType,
-			aggregationType: policy.P99,
+			aggregationType: aggregation.P99,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
 					24000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), aggregation.DefaultID),
 					},
 				),
 			},
@@ -509,7 +510,7 @@ func TestActiveRuleSetReverseMappingPoliciesForRollupID(t *testing.T) {
 			matchTo:         25001,
 			expireAtNanos:   30000,
 			metricType:      metric.CounterType,
-			aggregationType: policy.Sum,
+			aggregationType: aggregation.Sum,
 			result:          nil,
 		},
 		{
@@ -525,14 +526,14 @@ func TestActiveRuleSetReverseMappingPoliciesForRollupID(t *testing.T) {
 			matchTo:         130001,
 			expireAtNanos:   math.MaxInt64,
 			metricType:      metric.TimerType,
-			aggregationType: policy.P99,
+			aggregationType: aggregation.P99,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
 					120000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), policy.MustCompressAggregationTypes(policy.Sum, policy.P90, policy.P99)),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour), policy.MustCompressAggregationTypes(policy.Sum, policy.P99)),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), aggregation.MustCompressTypes(aggregation.Sum, aggregation.P90, aggregation.P99)),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour), aggregation.MustCompressTypes(aggregation.Sum, aggregation.P99)),
 					},
 				),
 			},
@@ -543,13 +544,13 @@ func TestActiveRuleSetReverseMappingPoliciesForRollupID(t *testing.T) {
 			matchTo:         130001,
 			expireAtNanos:   math.MaxInt64,
 			metricType:      metric.TimerType,
-			aggregationType: policy.P90,
+			aggregationType: aggregation.P90,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
 					120000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), policy.MustCompressAggregationTypes(policy.Sum, policy.P90, policy.P99)),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), aggregation.MustCompressTypes(aggregation.Sum, aggregation.P90, aggregation.P99)),
 					},
 				),
 			},
@@ -560,7 +561,7 @@ func TestActiveRuleSetReverseMappingPoliciesForRollupID(t *testing.T) {
 			matchTo:         130001,
 			expireAtNanos:   math.MaxInt64,
 			metricType:      metric.GaugeType,
-			aggregationType: policy.Last,
+			aggregationType: aggregation.Last,
 			result:          nil,
 		},
 	}
@@ -573,7 +574,7 @@ func TestActiveRuleSetReverseMappingPoliciesForRollupID(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		func([]byte, []byte) bool { return true },
-		policy.NewAggregationTypesOptions(),
+		aggregation.NewTypesOptions(),
 	)
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 100000, 120000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -600,13 +601,13 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 							22000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 							},
 						),
 					},
@@ -618,7 +619,7 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 							22000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 							},
 						),
 					},
@@ -638,7 +639,7 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 							24000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), aggregation.DefaultID),
 							},
 						),
 					},
@@ -665,77 +666,77 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 							10000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 							},
 						),
 						policy.NewStagedPolicies(
 							15000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
 							},
 						),
 						policy.NewStagedPolicies(
 							20000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 							},
 						),
 						policy.NewStagedPolicies(
 							22000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 							},
 						),
 						policy.NewStagedPolicies(
 							30000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 							},
 						),
 						policy.NewStagedPolicies(
 							34000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 							},
 						),
 						policy.NewStagedPolicies(
 							35000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(45*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(45*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 							},
 						),
 						policy.NewStagedPolicies(
 							38000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(45*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(45*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
 							},
 						),
 					},
@@ -747,14 +748,14 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 							22000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 							},
 						),
 						policy.NewStagedPolicies(
 							30000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 							},
 						),
 						policy.NewStagedPolicies(
@@ -776,7 +777,7 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
-		policy.NewAggregationTypesOptions(),
+		aggregation.NewTypesOptions(),
 	)
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 100000, 120000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
@@ -867,12 +868,12 @@ func TestRuleSetActiveSet(t *testing.T) {
 							false,
 							[]policy.Policy{
 								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), compressedMax),
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
 								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), compressedMin),
-								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 							},
 						),
 					},
@@ -887,9 +888,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 							35000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 							},
 						),
 					},
@@ -931,13 +932,13 @@ func TestRuleSetActiveSet(t *testing.T) {
 									22000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
-										policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
-										policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
+										policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+										policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 									},
 								),
 							},
@@ -949,7 +950,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 									22000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 									},
 								),
 							},
@@ -969,7 +970,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 									24000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), aggregation.DefaultID),
 									},
 								),
 							},
@@ -998,9 +999,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 							35000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 							},
 						),
 					},
@@ -1042,9 +1043,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 									35000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-										policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+										policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 									},
 								),
 							},
@@ -1064,7 +1065,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 									24000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), aggregation.DefaultID),
 									},
 								),
 							},
@@ -1093,10 +1094,10 @@ func TestRuleSetActiveSet(t *testing.T) {
 							100000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 							},
 						),
 					},
@@ -1138,9 +1139,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 									100000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-										policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+										policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 									},
 								),
 							},
@@ -1152,7 +1153,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 									100000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 									},
 								),
 							},
@@ -1172,7 +1173,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 									24000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), aggregation.DefaultID),
 									},
 								),
 							},
@@ -1236,7 +1237,7 @@ func TestRuleSetLatest(t *testing.T) {
 				CutoverNanos: 30000,
 				Filter:       "mtagName1:mtagValue1",
 				Policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
 				},
 			},
 			"mappingRule3": &MappingRuleView{
@@ -1246,8 +1247,8 @@ func TestRuleSetLatest(t *testing.T) {
 				CutoverNanos: 34000,
 				Filter:       "mtagName1:mtagValue1",
 				Policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 				},
 			},
 			"mappingRule4": &MappingRuleView{
@@ -1257,7 +1258,7 @@ func TestRuleSetLatest(t *testing.T) {
 				CutoverNanos: 24000,
 				Filter:       "mtagName1:mtagValue2",
 				Policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.MustCompressAggregationTypes(policy.P999)),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.MustCompressTypes(aggregation.P999)),
 				},
 			},
 			"mappingRule5": &MappingRuleView{
@@ -1269,7 +1270,7 @@ func TestRuleSetLatest(t *testing.T) {
 				LastUpdatedBy:      "test",
 				Filter:             "mtagName1:mtagValue1",
 				Policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 				},
 			},
 		},
@@ -1285,7 +1286,7 @@ func TestRuleSetLatest(t *testing.T) {
 						Name: "rName1",
 						Tags: []string{"rtagName1", "rtagName2"},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1301,8 +1302,8 @@ func TestRuleSetLatest(t *testing.T) {
 						Name: "rName1",
 						Tags: []string{"rtagName1", "rtagName2"},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1318,7 +1319,7 @@ func TestRuleSetLatest(t *testing.T) {
 						Name: "rName3",
 						Tags: []string{"rtagName1", "rtagName2"},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1334,7 +1335,7 @@ func TestRuleSetLatest(t *testing.T) {
 						Name: "rName4",
 						Tags: []string{"rtagName1"},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1350,7 +1351,7 @@ func TestRuleSetLatest(t *testing.T) {
 						Name: "rName3",
 						Tags: []string{"rtagName1", "rtagName2"},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1401,9 +1402,9 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 20000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-					policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+					policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 				},
 			},
 			&mappingRuleSnapshot{
@@ -1412,7 +1413,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 30000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
 				},
 			},
 		},
@@ -1436,8 +1437,8 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 22000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 				},
 			},
 			&mappingRuleSnapshot{
@@ -1446,8 +1447,8 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 35000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 				},
 			},
 		},
@@ -1462,9 +1463,9 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 22000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-					policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+					policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 				},
 			},
 			&mappingRuleSnapshot{
@@ -1473,8 +1474,8 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 34000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 				},
 			},
 		},
@@ -1489,7 +1490,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 24000,
 				filter:       filter2,
 				policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 				},
 			},
 		},
@@ -1504,7 +1505,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 100000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 				},
 			},
 		},
@@ -1545,7 +1546,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1560,9 +1561,9 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-							policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
-							policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+							policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1577,7 +1578,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1598,7 +1599,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1613,8 +1614,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1629,7 +1630,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(45*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(45*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1650,16 +1651,16 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-							policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+							policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 						},
 					},
 					{
 						Name: b("rName2"),
 						Tags: [][]byte{b("rtagName1")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1674,8 +1675,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1690,8 +1691,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
-							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1712,7 +1713,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName3"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1735,7 +1736,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName4"),
 						Tags: [][]byte{b("rtagName1")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1756,7 +1757,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName3"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
 						},
 					},
 				},
@@ -1779,8 +1780,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName5"),
 						Tags: [][]byte{b("rtagName1")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), policy.MustCompressAggregationTypes(policy.Sum, policy.P90, policy.P99)),
-							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour), policy.MustCompressAggregationTypes(policy.Sum, policy.P99)),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), aggregation.MustCompressTypes(aggregation.Sum, aggregation.P90, aggregation.P99)),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour), aggregation.MustCompressTypes(aggregation.Sum, aggregation.P99)),
 						},
 					},
 				},
@@ -2616,7 +2617,7 @@ func TestAddMappingRule(t *testing.T) {
 	require.Equal(t, err, errRuleNotFound)
 
 	newFilter := "tag1:value tag2:value"
-	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
+	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID)}
 	view := MappingRuleView{
 		Name:     "foo",
 		Filter:   newFilter,
@@ -2647,7 +2648,7 @@ func TestAddMappingRuleInvalidFilter(t *testing.T) {
 	view := MappingRuleView{
 		Name:     "testInvalidFilter",
 		Filter:   "tag1:value1 tag2:abc[def",
-		Policies: []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)},
+		Policies: []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID)},
 	}
 	newID, err := mutable.AddMappingRule(view, helper.NewUpdateMetadata(time.Now().UnixNano(), testUser))
 	require.Empty(t, newID)
@@ -2666,7 +2667,7 @@ func TestAddMappingRuleDup(t *testing.T) {
 	require.NotNil(t, m)
 
 	newFilter := "tag1:value tag2:value"
-	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
+	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID)}
 	view := MappingRuleView{
 		Name:     "mappingRule5.snapshot1",
 		Filter:   newFilter,
@@ -2695,7 +2696,7 @@ func TestAddMappingRuleRevive(t *testing.T) {
 	require.NoError(t, err)
 
 	newFilter := "test:bar"
-	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
+	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID)}
 	view := MappingRuleView{
 		Name:     "mappingRule5.snapshot1",
 		Filter:   newFilter,
@@ -2736,7 +2737,7 @@ func TestUpdateMappingRule(t *testing.T) {
 	require.Contains(t, mrs, "mappingRule5")
 
 	newFilter := "tag1:value tag2:value"
-	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
+	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID)}
 	view := MappingRuleView{
 		ID:       "mappingRule5",
 		Name:     "foo",
@@ -2795,7 +2796,7 @@ func TestAddRollupRule(t *testing.T) {
 	require.Equal(t, err, errRuleNotFound)
 
 	newFilter := "tag1:value tag2:value"
-	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
+	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID)}
 
 	newTargets := []RollupTargetView{
 		RollupTargetView{
@@ -2837,7 +2838,7 @@ func TestAddRollupRuleDup(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, r)
 
-	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
+	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID)}
 
 	newTargets := []RollupTargetView{
 		RollupTargetView{
@@ -2915,7 +2916,7 @@ func TestUpdateRollupRule(t *testing.T) {
 	require.NoError(t, err)
 
 	newFilter := "tag1:value tag2:value"
-	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
+	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID)}
 	newTargets := []RollupTargetView{
 		RollupTargetView{
 			Name:     "blah",
@@ -3037,7 +3038,7 @@ type testMappingsData struct {
 	expireAtNanos   int64
 	result          policy.PoliciesList
 	metricType      metric.Type
-	aggregationType policy.AggregationType
+	aggregationType aggregation.Type
 }
 
 type testRollupResultsData struct {

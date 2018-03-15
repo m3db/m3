@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package policy
+package aggregation
 
 import (
 	"testing"
@@ -29,21 +29,21 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-func TestAggregationTypeIsValid(t *testing.T) {
+func TestTypeIsValid(t *testing.T) {
 	require.True(t, P9999.IsValid())
-	require.False(t, AggregationType(int(P9999)+1).IsValid())
+	require.False(t, Type(int(P9999)+1).IsValid())
 }
 
-func TestAggregationTypeMaxID(t *testing.T) {
-	require.Equal(t, MaxAggregationTypeID, P9999.ID())
-	require.Equal(t, P9999, AggregationType(MaxAggregationTypeID))
-	require.Equal(t, MaxAggregationTypeID, len(ValidAggregationTypes))
+func TestTypeMaxID(t *testing.T) {
+	require.Equal(t, maxTypeID, P9999.ID())
+	require.Equal(t, P9999, Type(maxTypeID))
+	require.Equal(t, maxTypeID, len(ValidTypes))
 }
 
-func TestAggregationTypeUnmarshalYAML(t *testing.T) {
+func TestTypeUnmarshalYAML(t *testing.T) {
 	inputs := []struct {
 		str         string
-		expected    AggregationType
+		expected    Type
 		expectedErr bool
 	}{
 		{
@@ -60,7 +60,7 @@ func TestAggregationTypeUnmarshalYAML(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		var aggtype AggregationType
+		var aggtype Type
 		err := yaml.Unmarshal([]byte(input.str), &aggtype)
 
 		if input.expectedErr {
@@ -73,25 +73,25 @@ func TestAggregationTypeUnmarshalYAML(t *testing.T) {
 	}
 }
 
-func TestAggregationTypesIsDefault(t *testing.T) {
-	require.True(t, DefaultAggregationTypes.IsDefault())
+func TestTypesIsDefault(t *testing.T) {
+	require.True(t, DefaultTypes.IsDefault())
 
-	require.False(t, AggregationTypes{Max}.IsDefault())
+	require.False(t, Types{Max}.IsDefault())
 }
 
-func TestAggregationTypesUnmarshalYAML(t *testing.T) {
+func TestTypesUnmarshalYAML(t *testing.T) {
 	inputs := []struct {
 		str         string
-		expected    AggregationTypes
+		expected    Types
 		expectedErr bool
 	}{
 		{
 			str:      "Min",
-			expected: AggregationTypes{Min},
+			expected: Types{Min},
 		},
 		{
 			str:      "Mean,Max,P99,P9999",
-			expected: AggregationTypes{Mean, Max, P99, P9999},
+			expected: Types{Mean, Max, P99, P9999},
 		},
 		{
 			str:         "Min,Max,P99,P9999,P100",
@@ -115,7 +115,7 @@ func TestAggregationTypesUnmarshalYAML(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		var aggtypes AggregationTypes
+		var aggtypes Types
 		err := yaml.Unmarshal([]byte(input.str), &aggtypes)
 
 		if input.expectedErr {
@@ -128,29 +128,29 @@ func TestAggregationTypesUnmarshalYAML(t *testing.T) {
 	}
 }
 
-func TestParseAggregationTypes(t *testing.T) {
+func TestParseTypes(t *testing.T) {
 	inputs := []struct {
 		str      string
-		expected AggregationTypes
+		expected Types
 	}{
 		{
 			str:      "Min",
-			expected: AggregationTypes{Min},
+			expected: Types{Min},
 		},
 		{
 			str:      "Min,Max",
-			expected: AggregationTypes{Min, Max},
+			expected: Types{Min, Max},
 		},
 	}
 	for _, input := range inputs {
-		res, err := ParseAggregationTypes(input.str)
+		res, err := ParseTypes(input.str)
 		require.NoError(t, err)
 		require.Equal(t, input.expected, res)
 	}
 }
 
 func TestQuantiles(t *testing.T) {
-	res, ok := AggregationTypes{Median, P95, P99}.PooledQuantiles(nil)
+	res, ok := Types{Median, P95, P99}.PooledQuantiles(nil)
 	require.Equal(t, []float64{0.5, 0.95, 0.99}, res)
 	require.False(t, ok)
 
@@ -161,40 +161,41 @@ func TestQuantiles(t *testing.T) {
 		nil,
 	)
 	p.Init()
-	res, ok = AggregationTypes{Median, P95, P99}.PooledQuantiles(p)
+	res, ok = Types{Median, P95, P99}.PooledQuantiles(p)
 	require.Equal(t, []float64{0.5, 0.95, 0.99}, res)
 	require.True(t, ok)
 
 	p.Put(res)
 
-	res2, ok := AggregationTypes{P90, P95, P99}.PooledQuantiles(p)
+	res2, ok := Types{P90, P95, P99}.PooledQuantiles(p)
 	require.Equal(t, []float64{0.9, 0.95, 0.99}, res2)
 	require.Equal(t, res, res2)
 	require.True(t, ok)
 	p.Put(res2)
 
-	res3, ok := AggregationTypes{Count}.PooledQuantiles(p)
+	res3, ok := Types{Count}.PooledQuantiles(p)
 	require.Nil(t, res3)
 	require.False(t, ok)
 
-	res4, ok := AggregationTypes{P10, P20, P30, P40, P50, Median, P60, P70, P80, P90, P95, P99, P999, P9999}.PooledQuantiles(p)
+	res4, ok := Types{P10, P20, P30, P40, P50, Median, P60, P70, P80, P90, P95, P99, P999, P9999}.PooledQuantiles(p)
 	require.Equal(t, []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999}, res4)
 	require.True(t, ok)
 }
 
-func TestAggregationIDContains(t *testing.T) {
-	require.True(t, MustCompressAggregationTypes(P99).Contains(P99))
-	require.True(t, MustCompressAggregationTypes(P99, P95).Contains(P99))
-	require.True(t, MustCompressAggregationTypes(P99, P95).Contains(P95))
-	require.True(t, MustCompressAggregationTypes(Sum, Last, P999).Contains(Sum))
-	require.True(t, MustCompressAggregationTypes(Sum, Last, P999).Contains(Last))
-	require.True(t, MustCompressAggregationTypes(Sum, Last, P999).Contains(P999))
-	require.False(t, MustCompressAggregationTypes(Sum, Last, P999).Contains(P9999))
-	require.False(t, MustCompressAggregationTypes().Contains(P99))
-	require.False(t, MustCompressAggregationTypes(P99, P95).Contains(P9999))
+func TestIDContains(t *testing.T) {
+	require.True(t, MustCompressTypes(P99).Contains(P99))
+	require.True(t, MustCompressTypes(P99, P95).Contains(P99))
+	require.True(t, MustCompressTypes(P99, P95).Contains(P95))
+	require.True(t, MustCompressTypes(Sum, Last, P999).Contains(Sum))
+	require.True(t, MustCompressTypes(Sum, Last, P999).Contains(Last))
+	require.True(t, MustCompressTypes(Sum, Last, P999).Contains(P999))
+	require.False(t, MustCompressTypes(Sum, Last, P999).Contains(P9999))
+	require.False(t, MustCompressTypes().Contains(P99))
+	require.False(t, MustCompressTypes(P99, P95).Contains(P9999))
 }
-func TestCompressedAggregationTypesIsDefault(t *testing.T) {
-	var id AggregationID
+
+func TestCompressedTypesIsDefault(t *testing.T) {
+	var id ID
 	require.True(t, id.IsDefault())
 
 	id[0] = 8

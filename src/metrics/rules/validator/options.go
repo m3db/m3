@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
@@ -47,14 +48,14 @@ type Options interface {
 
 	// SetDefaultAllowedCustomAggregationTypes sets the default list of allowed custom
 	// aggregation types.
-	SetDefaultAllowedCustomAggregationTypes(value policy.AggregationTypes) Options
+	SetDefaultAllowedCustomAggregationTypes(value aggregation.Types) Options
 
 	// SetAllowedStoragePoliciesFor sets the list of allowed storage policies for a given metric type.
 	SetAllowedStoragePoliciesFor(t metric.Type, policies []policy.StoragePolicy) Options
 
 	// SetAllowedCustomAggregationTypesFor sets the list of allowed custom aggregation
 	// types for a given metric type.
-	SetAllowedCustomAggregationTypesFor(t metric.Type, aggTypes policy.AggregationTypes) Options
+	SetAllowedCustomAggregationTypesFor(t metric.Type, aggTypes aggregation.Types) Options
 
 	// SetMetricTypesFn sets the metric types function.
 	SetMetricTypesFn(value MetricTypesFn) Options
@@ -88,18 +89,18 @@ type Options interface {
 
 	// IsAllowedCustomAggregationTypeFor determines whether a given aggregation type is allowed for
 	// the given metric type.
-	IsAllowedCustomAggregationTypeFor(t metric.Type, aggType policy.AggregationType) bool
+	IsAllowedCustomAggregationTypeFor(t metric.Type, aggType aggregation.Type) bool
 }
 
 type validationMetadata struct {
 	allowedStoragePolicies map[policy.StoragePolicy]struct{}
-	allowedCustomAggTypes  map[policy.AggregationType]struct{}
+	allowedCustomAggTypes  map[aggregation.Type]struct{}
 }
 
 type options struct {
 	namespaceValidator                   namespace.Validator
 	defaultAllowedStoragePolicies        map[policy.StoragePolicy]struct{}
-	defaultAllowedCustomAggregationTypes map[policy.AggregationType]struct{}
+	defaultAllowedCustomAggregationTypes map[aggregation.Type]struct{}
 	metricTypesFn                        MetricTypesFn
 	requiredRollupTags                   []string
 	metricNameInvalidChars               map[rune]struct{}
@@ -129,7 +130,7 @@ func (o *options) SetDefaultAllowedStoragePolicies(value []policy.StoragePolicy)
 	return o
 }
 
-func (o *options) SetDefaultAllowedCustomAggregationTypes(value policy.AggregationTypes) Options {
+func (o *options) SetDefaultAllowedCustomAggregationTypes(value aggregation.Types) Options {
 	o.defaultAllowedCustomAggregationTypes = toAggregationTypeSet(value)
 	return o
 }
@@ -141,7 +142,7 @@ func (o *options) SetAllowedStoragePoliciesFor(t metric.Type, policies []policy.
 	return o
 }
 
-func (o *options) SetAllowedCustomAggregationTypesFor(t metric.Type, aggTypes policy.AggregationTypes) Options {
+func (o *options) SetAllowedCustomAggregationTypesFor(t metric.Type, aggTypes aggregation.Types) Options {
 	metadata := o.findOrCreateMetadata(t)
 	metadata.allowedCustomAggTypes = toAggregationTypeSet(aggTypes)
 	o.metadatasByType[t] = metadata
@@ -203,7 +204,7 @@ func (o *options) IsAllowedStoragePolicyFor(t metric.Type, p policy.StoragePolic
 	return found
 }
 
-func (o *options) IsAllowedCustomAggregationTypeFor(t metric.Type, aggType policy.AggregationType) bool {
+func (o *options) IsAllowedCustomAggregationTypeFor(t metric.Type, aggType aggregation.Type) bool {
 	if metadata, exists := o.metadatasByType[t]; exists {
 		_, found := metadata.allowedCustomAggTypes[aggType]
 		return found
@@ -230,8 +231,8 @@ func toStoragePolicySet(policies []policy.StoragePolicy) map[policy.StoragePolic
 	return m
 }
 
-func toAggregationTypeSet(aggTypes policy.AggregationTypes) map[policy.AggregationType]struct{} {
-	m := make(map[policy.AggregationType]struct{}, len(aggTypes))
+func toAggregationTypeSet(aggTypes aggregation.Types) map[aggregation.Type]struct{} {
+	m := make(map[aggregation.Type]struct{}, len(aggTypes))
 	for _, t := range aggTypes {
 		m[t] = struct{}{}
 	}

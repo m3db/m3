@@ -25,7 +25,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
 	xtime "github.com/m3db/m3x/time"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,8 +40,8 @@ func TestStagedPoliciesHasDefaultPolicies(t *testing.T) {
 
 func TestStagedPoliciesHasCustomPolicies(t *testing.T) {
 	policies := []Policy{
-		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
+		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
 	}
 	sp := NewStagedPolicies(testNowNanos, false, policies)
 	require.Equal(t, testNowNanos, sp.CutoverNanos)
@@ -63,10 +65,10 @@ func TestStagedPoliciesEquals(t *testing.T) {
 		{
 			sp: [2]StagedPolicies{
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), MustCompressAggregationTypes(Min, Max)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.MustCompressTypes(aggregation.Min, aggregation.Max)),
 				}),
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), MustCompressAggregationTypes(Max, Min)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.MustCompressTypes(aggregation.Max, aggregation.Min)),
 				}),
 			},
 			expected: true,
@@ -74,12 +76,12 @@ func TestStagedPoliciesEquals(t *testing.T) {
 		{
 			sp: [2]StagedPolicies{
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), DefaultAggregationID),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), aggregation.DefaultID),
 				}),
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), DefaultAggregationID),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), aggregation.DefaultID),
 				}),
 			},
 			expected: true,
@@ -101,10 +103,10 @@ func TestStagedPoliciesEquals(t *testing.T) {
 		{
 			sp: [2]StagedPolicies{
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), MustCompressAggregationTypes(Max)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.MustCompressTypes(aggregation.Max)),
 				}),
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), MustCompressAggregationTypes(Last)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.MustCompressTypes(aggregation.Last)),
 				}),
 			},
 			expected: false,
@@ -112,10 +114,10 @@ func TestStagedPoliciesEquals(t *testing.T) {
 		{
 			sp: [2]StagedPolicies{
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), MustCompressAggregationTypes(Max)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.MustCompressTypes(aggregation.Max)),
 				}),
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), MustCompressAggregationTypes(Max, Min)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.MustCompressTypes(aggregation.Max, aggregation.Min)),
 				}),
 			},
 			expected: false,
@@ -124,8 +126,8 @@ func TestStagedPoliciesEquals(t *testing.T) {
 			sp: [2]StagedPolicies{
 				NewStagedPolicies(0, false, nil),
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), DefaultAggregationID),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), aggregation.DefaultID),
 				}),
 			},
 			expected: false,
@@ -133,27 +135,13 @@ func TestStagedPoliciesEquals(t *testing.T) {
 		{
 			sp: [2]StagedPolicies{
 				NewStagedPolicies(1000, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), DefaultAggregationID),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), aggregation.DefaultID),
 				}),
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), DefaultAggregationID),
-					NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 24*time.Hour), DefaultAggregationID),
-				}),
-			},
-			expected: false,
-		},
-		{
-			sp: [2]StagedPolicies{
-				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), DefaultAggregationID),
-					NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 24*time.Hour), DefaultAggregationID),
-				}),
-				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), DefaultAggregationID),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), aggregation.DefaultID),
+					NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
 				}),
 			},
 			expected: false,
@@ -161,12 +149,26 @@ func TestStagedPoliciesEquals(t *testing.T) {
 		{
 			sp: [2]StagedPolicies{
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), DefaultAggregationID),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), aggregation.DefaultID),
+					NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
 				}),
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), DefaultAggregationID),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), aggregation.DefaultID),
+				}),
+			},
+			expected: false,
+		},
+		{
+			sp: [2]StagedPolicies{
+				NewStagedPolicies(0, false, []Policy{
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), aggregation.DefaultID),
+				}),
+				NewStagedPolicies(0, false, []Policy{
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+					NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
 				}),
 			},
 			expected: false,
@@ -200,8 +202,8 @@ func TestStagedPoliciesIsEmpty(t *testing.T) {
 		},
 		{
 			sp: NewStagedPolicies(0, true, []Policy{
-				NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-				NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), DefaultAggregationID),
+				NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+				NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), aggregation.DefaultID),
 			}),
 			expected: false,
 		},
@@ -226,8 +228,8 @@ func TestPoliciesListIsDefault(t *testing.T) {
 		},
 		{
 			pl: []StagedPolicies{NewStagedPolicies(0, true, []Policy{
-				NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-				NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), DefaultAggregationID),
+				NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+				NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), aggregation.DefaultID),
 			})},
 			expected: false,
 		},
@@ -260,15 +262,15 @@ func TestPoliciesListJSONMarshaling(t *testing.T) {
 					0,
 					false,
 					[]Policy{
-						NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-						NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), MustCompressAggregationTypes(Count, Mean)),
+						NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+						NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.MustCompressTypes(aggregation.Count, aggregation.Mean)),
 					},
 				),
 				NewStagedPolicies(
 					100,
 					true,
 					[]Policy{
-						NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), MustCompressAggregationTypes(Sum)),
+						NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.MustCompressTypes(aggregation.Sum)),
 					},
 				),
 				NewStagedPolicies(

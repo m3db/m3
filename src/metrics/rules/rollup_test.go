@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/policy"
@@ -122,7 +123,7 @@ func TestNewRollupTargetNilPolicySchema(t *testing.T) {
 
 func TestRollupTargetSameTransform(t *testing.T) {
 	policies := []policy.Policy{
-		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), policy.DefaultAggregationID),
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), aggregation.DefaultID),
 	}
 	target := RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2")}
 	inputs := []testRollupTargetData{
@@ -162,7 +163,7 @@ func TestRollupTargetSameTransform(t *testing.T) {
 
 func TestRollupTargetClone(t *testing.T) {
 	policies := []policy.Policy{
-		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), policy.DefaultAggregationID),
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), aggregation.DefaultID),
 	}
 	target := RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2"), Policies: policies}
 	cloned := target.clone()
@@ -184,7 +185,7 @@ func TestNewRollupRuleSnapshotFromSchema(t *testing.T) {
 			Name: b("rName1"),
 			Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 			Policies: []policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+				policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 			},
 		},
 	}
@@ -229,7 +230,7 @@ func TestNewRollupRuleSnapshotFromFields(t *testing.T) {
 				Name: b("rName1"),
 				Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 				Policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 				},
 			},
 		}
@@ -304,7 +305,7 @@ func TestRollupRuleValidSchema(t *testing.T) {
 					Name: b("rName1"),
 					Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 					Policies: []policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 					},
 				},
 			},
@@ -318,7 +319,7 @@ func TestRollupRuleValidSchema(t *testing.T) {
 					Name: b("rName1"),
 					Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 					Policies: []policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
 						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), compressedMean),
 					},
 				},
@@ -402,7 +403,7 @@ func TestNewRollupRuleFromFields(t *testing.T) {
 				Name: b("rName1"),
 				Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 				Policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 				},
 			},
 		},
@@ -420,7 +421,7 @@ func TestNewRollupRuleFromFields(t *testing.T) {
 				Name: b("rName1"),
 				Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 				Policies: []policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 				},
 			},
 		},
@@ -473,7 +474,7 @@ func TestRollupRuleMarkTombstoned(t *testing.T) {
 			Name: b("rName1"),
 			Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 			Policies: []policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+				policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.DefaultID),
 			},
 		},
 	}

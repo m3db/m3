@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
@@ -171,7 +172,7 @@ func TestValidatorValidateMappingRuleDuplicatePolicies(t *testing.T) {
 }
 
 func TestValidatorValidateMappingRuleCustomAggregationTypes(t *testing.T) {
-	testAggregationTypes := []policy.AggregationType{policy.Count, policy.Max}
+	testAggregationTypes := []aggregation.Type{aggregation.Count, aggregation.Max}
 	ruleSet := testRuleSetWithMappingRules(t, testCustomAggregationTypeMappingRulesConfig())
 	inputs := []struct {
 		opts      Options
@@ -344,7 +345,7 @@ func TestValidatorValidateRollupRuleWithDuplicatePolicies(t *testing.T) {
 }
 
 func TestValidatorValidateRollupRuleCustomAggregationTypes(t *testing.T) {
-	testAggregationTypes := []policy.AggregationType{policy.Count, policy.Max}
+	testAggregationTypes := []aggregation.Type{aggregation.Count, aggregation.Max}
 	ruleSet := testRuleSetWithRollupRules(t, testCustomAggregationTypeRollupRulesConfig())
 	inputs := []struct {
 		opts      Options

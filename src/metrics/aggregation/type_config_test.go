@@ -18,22 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package policy
+package aggregation
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/m3db/m3x/instrument"
+
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 )
 
-func TestAggregationTypesConfiguration(t *testing.T) {
+func TestTypesConfiguration(t *testing.T) {
 	str := `
 defaultGaugeAggregationTypes: Max
 defaultTimerAggregationTypes: P50,P99,P9999
-globalOverrides: 
+globalOverrides:
   Mean: testMean
 gaugeOverrides:
   Last: ""
@@ -42,13 +43,13 @@ counterOverrides:
 transformFnType: suffix
 `
 
-	var cfg AggregationTypesConfiguration
+	var cfg TypesConfiguration
 	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
 	opts, err := cfg.NewOptions(instrument.NewOptions())
 	require.NoError(t, err)
 	require.Equal(t, defaultDefaultCounterAggregationTypes, opts.DefaultCounterAggregationTypes())
-	require.Equal(t, AggregationTypes{Max}, opts.DefaultGaugeAggregationTypes())
-	require.Equal(t, AggregationTypes{P50, P99, P9999}, opts.DefaultTimerAggregationTypes())
+	require.Equal(t, Types{Max}, opts.DefaultGaugeAggregationTypes())
+	require.Equal(t, Types{P50, P99, P9999}, opts.DefaultTimerAggregationTypes())
 	require.Equal(t, []byte(".testMean"), opts.TypeStringForCounter(Mean))
 	require.Equal(t, []byte(nil), opts.TypeStringForCounter(Sum))
 	require.Equal(t, []byte(nil), opts.TypeStringForGauge(Last))
@@ -59,11 +60,11 @@ transformFnType: suffix
 	}
 }
 
-func TestAggregationTypesConfigNoTransformFnType(t *testing.T) {
+func TestTypesConfigurationNoTransformFnType(t *testing.T) {
 	str := `
 defaultGaugeAggregationTypes: Max
 defaultTimerAggregationTypes: P50,P99,P9999
-globalOverrides: 
+globalOverrides:
   Mean: testMean
 gaugeOverrides:
   Last: ""
@@ -71,19 +72,19 @@ counterOverrides:
   Sum: ""
 `
 
-	var cfg AggregationTypesConfiguration
+	var cfg TypesConfiguration
 	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
 	_, err := cfg.NewOptions(instrument.NewOptions())
 	require.NoError(t, err)
 }
 
-func TestAggregationTypesConfigurationError(t *testing.T) {
+func TestTypesConfigurationError(t *testing.T) {
 	str := `
 defaultGaugeAggregationTypes: Max
 defaultTimerAggregationTypes: P50,P99,P9999
 transformFnType: bla
 `
 
-	var cfg AggregationTypesConfiguration
+	var cfg TypesConfiguration
 	require.Error(t, yaml.Unmarshal([]byte(str), &cfg))
 }

@@ -21,9 +21,9 @@
 package rules
 
 import (
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/policy"
 )
 
 // Options provide a set of options for rule matching.
@@ -47,23 +47,23 @@ type Options interface {
 	IsRollupIDFn() id.MatchIDFn
 
 	// SetAggregationTypesOptions sets the aggregation types options.
-	SetAggregationTypesOptions(v policy.AggregationTypesOptions) Options
+	SetAggregationTypesOptions(v aggregation.TypesOptions) Options
 
 	// PolicyOptions returns the aggregation types options.
-	AggregationTypesOptions() policy.AggregationTypesOptions
+	AggregationTypesOptions() aggregation.TypesOptions
 }
 
 type options struct {
 	tagsFilterOpts filters.TagsFilterOptions
 	newRollupIDFn  id.NewIDFn
 	isRollupIDFn   id.MatchIDFn
-	aggTypesOpts   policy.AggregationTypesOptions
+	aggTypesOpts   aggregation.TypesOptions
 }
 
 // NewOptions creates a new set of options.
 func NewOptions() Options {
 	return &options{
-		aggTypesOpts: policy.NewAggregationTypesOptions(),
+		aggTypesOpts: aggregation.NewTypesOptions(),
 	}
 }
 
@@ -97,12 +97,12 @@ func (o *options) IsRollupIDFn() id.MatchIDFn {
 	return o.isRollupIDFn
 }
 
-func (o *options) SetAggregationTypesOptions(value policy.AggregationTypesOptions) Options {
+func (o *options) SetAggregationTypesOptions(value aggregation.TypesOptions) Options {
 	opts := *o
 	opts.aggTypesOpts = value
 	return &opts
 }
 
-func (o *options) AggregationTypesOptions() policy.AggregationTypesOptions {
+func (o *options) AggregationTypesOptions() aggregation.TypesOptions {
 	return o.aggTypesOpts
 }

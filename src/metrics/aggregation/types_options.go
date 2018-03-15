@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package policy
+package aggregation
 
 import (
 	"bytes"
@@ -36,33 +36,33 @@ type QuantileTypeStringFn func(quantile float64) []byte
 // TypeStringTransformFn transforms the type string.
 type TypeStringTransformFn func(typeString []byte) []byte
 
-// AggregationTypesOptions provides a set of options for aggregation types.
-type AggregationTypesOptions interface {
+// TypesOptions provides a set of options for aggregation types.
+type TypesOptions interface {
 	// Validate checks if the options are valid.
 	Validate() error
 
 	// Read-Write methods.
 
 	// SetDefaultCounterAggregationTypes sets the default aggregation types for counters.
-	SetDefaultCounterAggregationTypes(value AggregationTypes) AggregationTypesOptions
+	SetDefaultCounterAggregationTypes(value Types) TypesOptions
 
 	// DefaultCounterAggregationTypes returns the default aggregation types for counters.
-	DefaultCounterAggregationTypes() AggregationTypes
+	DefaultCounterAggregationTypes() Types
 
 	// SetDefaultTimerAggregationTypes sets the default aggregation types for timers.
-	SetDefaultTimerAggregationTypes(value AggregationTypes) AggregationTypesOptions
+	SetDefaultTimerAggregationTypes(value Types) TypesOptions
 
 	// DefaultTimerAggregationTypes returns the default aggregation types for timers.
-	DefaultTimerAggregationTypes() AggregationTypes
+	DefaultTimerAggregationTypes() Types
 
 	// SetDefaultGaugeAggregationTypes sets the default aggregation types for gauges.
-	SetDefaultGaugeAggregationTypes(value AggregationTypes) AggregationTypesOptions
+	SetDefaultGaugeAggregationTypes(value Types) TypesOptions
 
 	// DefaultGaugeAggregationTypes returns the default aggregation types for gauges.
-	DefaultGaugeAggregationTypes() AggregationTypes
+	DefaultGaugeAggregationTypes() Types
 
 	// SetTimerQuantileTypeStringFn sets the quantile type string function for timers.
-	SetTimerQuantileTypeStringFn(value QuantileTypeStringFn) AggregationTypesOptions
+	SetTimerQuantileTypeStringFn(value QuantileTypeStringFn) TypesOptions
 
 	// TimerQuantileTypeStringFn returns the quantile type string function for timers.
 	TimerQuantileTypeStringFn() QuantileTypeStringFn
@@ -70,19 +70,19 @@ type AggregationTypesOptions interface {
 	// SetGlobalTypeStringTransformFn sets the type string transform functions.
 	// The GlobalTypeStringTransformFn will only be applied to the global type strings, it
 	// will NOT be applied to the metric type specific overrides.
-	SetGlobalTypeStringTransformFn(value TypeStringTransformFn) AggregationTypesOptions
+	SetGlobalTypeStringTransformFn(value TypeStringTransformFn) TypesOptions
 
 	// GlobalTypeStringTransformFn returns the global type string transform functions.
 	GlobalTypeStringTransformFn() TypeStringTransformFn
 
-	// SetAggregationTypesPool sets the aggregation types pool.
-	SetAggregationTypesPool(pool AggregationTypesPool) AggregationTypesOptions
+	// SetTypesPool sets the aggregation types pool.
+	SetTypesPool(pool TypesPool) TypesOptions
 
-	// AggregationTypesPool returns the aggregation types pool.
-	AggregationTypesPool() AggregationTypesPool
+	// TypesPool returns the aggregation types pool.
+	TypesPool() TypesPool
 
 	// SetQuantilesPool sets the timer quantiles pool.
-	SetQuantilesPool(pool pool.FloatsPool) AggregationTypesOptions
+	SetQuantilesPool(pool pool.FloatsPool) TypesOptions
 
 	// QuantilesPool returns the timer quantiles pool.
 	QuantilesPool() pool.FloatsPool
@@ -91,16 +91,16 @@ type AggregationTypesOptions interface {
 
 	// SetGlobalTypeStringOverrides sets the global type strings.
 	// The GlobalTypeStringTransformFn will be applied to these type strings.
-	SetGlobalTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions
+	SetGlobalTypeStringOverrides(m map[Type][]byte) TypesOptions
 
 	// SetCounterTypeStringOverrides sets the overrides for counter type strings.
-	SetCounterTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions
+	SetCounterTypeStringOverrides(m map[Type][]byte) TypesOptions
 
 	// SetTimerTypeStringOverrides sets the overrides for timer type strings.
-	SetTimerTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions
+	SetTimerTypeStringOverrides(m map[Type][]byte) TypesOptions
 
 	// SetGaugeTypeStringOverrides sets the overrides for gauge type strings.
-	SetGaugeTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions
+	SetGaugeTypeStringOverrides(m map[Type][]byte) TypesOptions
 
 	// Read only methods.
 
@@ -116,37 +116,37 @@ type AggregationTypesOptions interface {
 	// default gauge aggregation types.
 	DefaultGaugeAggregationTypeStrings() [][]byte
 
-	// TypeString returns the type string for the aggregation type for counters.
-	TypeStringForCounter(value AggregationType) []byte
+	// TypeStringForCounter returns the type string for the aggregation type for counters.
+	TypeStringForCounter(value Type) []byte
 
-	// TypeString returns the type string for the aggregation type for timers.
-	TypeStringForTimer(value AggregationType) []byte
+	// TypeStringForTimer returns the type string for the aggregation type for timers.
+	TypeStringForTimer(value Type) []byte
 
-	// TypeString returns the type string for the aggregation type for gauges.
-	TypeStringForGauge(value AggregationType) []byte
+	// TypeStringForGauge returns the type string for the aggregation type for gauges.
+	TypeStringForGauge(value Type) []byte
 
-	// AggregationTypeForCounter returns the aggregation type with the given type string for counters.
-	AggregationTypeForCounter(value []byte) AggregationType
+	// TypeForCounter returns the aggregation type with the given type string for counters.
+	TypeForCounter(value []byte) Type
 
-	// AggregationTypeForTimer returns the aggregation type with the given type string for timers.
-	AggregationTypeForTimer(value []byte) AggregationType
+	// TypeForTimer returns the aggregation type with the given type string for timers.
+	TypeForTimer(value []byte) Type
 
-	// AggregationTypeForGauge returns the aggregation type with the given type string for gauges.
-	AggregationTypeForGauge(value []byte) AggregationType
+	// TypeForGauge returns the aggregation type with the given type string for gauges.
+	TypeForGauge(value []byte) Type
 
 	// TimerQuantiles returns the quantiles for timers.
 	TimerQuantiles() []float64
 
 	// IsContainedInDefaultAggregationTypes checks if the given aggregation type is
 	// contained in the default aggregation types for the metric type.
-	IsContainedInDefaultAggregationTypes(at AggregationType, mt metric.Type) bool
+	IsContainedInDefaultAggregationTypes(at Type, mt metric.Type) bool
 }
 
 var (
-	defaultDefaultCounterAggregationTypes = AggregationTypes{
+	defaultDefaultCounterAggregationTypes = Types{
 		Sum,
 	}
-	defaultDefaultTimerAggregationTypes = AggregationTypes{
+	defaultDefaultTimerAggregationTypes = Types{
 		Sum,
 		SumSq,
 		Mean,
@@ -159,7 +159,7 @@ var (
 		P95,
 		P99,
 	}
-	defaultDefaultGaugeAggregationTypes = AggregationTypes{
+	defaultDefaultGaugeAggregationTypes = Types{
 		Last,
 	}
 
@@ -174,22 +174,22 @@ var (
 	defaultStdevTypeString   = []byte("stdev")
 	defaultMedianTypeString  = []byte("median")
 
-	defaultCounterTypeStringOverride = map[AggregationType][]byte{
+	defaultCounterAggregationTypeStringOverride = map[Type][]byte{
 		Sum: nil,
 	}
-	defaultTimerTypeStringOverride = map[AggregationType][]byte{}
-	defaultGaugeTypeStringOverride = map[AggregationType][]byte{
+	defaultTimerTypeStringOveAggregationTypes = map[Type][]byte{}
+	defaultGaugeAggregationTypestringOverride = map[Type][]byte{
 		Last: nil,
 	}
 )
 
 type options struct {
-	defaultCounterAggregationTypes AggregationTypes
-	defaultTimerAggregationTypes   AggregationTypes
-	defaultGaugeAggregationTypes   AggregationTypes
+	defaultCounterAggregationTypes Types
+	defaultTimerAggregationTypes   Types
+	defaultGaugeAggregationTypes   Types
 	timerQuantileTypeStringFn      QuantileTypeStringFn
 	globalTypeStringTransformFn    TypeStringTransformFn
-	aggTypesPool                   AggregationTypesPool
+	aggTypesPool                   TypesPool
 	quantilesPool                  pool.FloatsPool
 
 	defaultTypeStrings [][]byte
@@ -197,28 +197,28 @@ type options struct {
 	timerTypeStrings   [][]byte
 	gaugeTypeStrings   [][]byte
 
-	globalTypeStringOverrides map[AggregationType][]byte
-	counterTypeStringOverride map[AggregationType][]byte
-	timerTypeStringOverride   map[AggregationType][]byte
-	gaugeTypeStringOverride   map[AggregationType][]byte
+	globalTypeStringOverrides map[Type][]byte
+	counterTypeStringOverride map[Type][]byte
+	timerTypeStringOverride   map[Type][]byte
+	gaugeTypeStringOverride   map[Type][]byte
 
 	defaultCounterAggregationTypeStrings [][]byte
 	defaultTimerAggregationTypeStrings   [][]byte
-	defaultGaugeAggregationTypeStrings   [][]byte
+	defaultGaugeAggregationTypestrings   [][]byte
 	timerQuantiles                       []float64
 }
 
-// NewAggregationTypesOptions returns a default AggregationTypesOptions.
-func NewAggregationTypesOptions() AggregationTypesOptions {
+// NewTypesOptions returns a default TypesOptions.
+func NewTypesOptions() TypesOptions {
 	o := &options{
 		defaultCounterAggregationTypes: defaultDefaultCounterAggregationTypes,
 		defaultGaugeAggregationTypes:   defaultDefaultGaugeAggregationTypes,
 		defaultTimerAggregationTypes:   defaultDefaultTimerAggregationTypes,
 		timerQuantileTypeStringFn:      defaultTimerQuantileTypeStringFn,
 		globalTypeStringTransformFn:    noopTransformFn,
-		counterTypeStringOverride:      defaultCounterTypeStringOverride,
-		timerTypeStringOverride:        defaultTimerTypeStringOverride,
-		gaugeTypeStringOverride:        defaultGaugeTypeStringOverride,
+		counterTypeStringOverride:      defaultCounterAggregationTypeStringOverride,
+		timerTypeStringOverride:        defaultTimerTypeStringOveAggregationTypes,
+		gaugeTypeStringOverride:        defaultGaugeAggregationTypestringOverride,
 	}
 	o.initPools()
 	o.computeAllDerived()
@@ -226,9 +226,9 @@ func NewAggregationTypesOptions() AggregationTypesOptions {
 }
 
 func (o *options) initPools() {
-	o.aggTypesPool = NewAggregationTypesPool(nil)
-	o.aggTypesPool.Init(func() AggregationTypes {
-		return make(AggregationTypes, 0, len(ValidAggregationTypes))
+	o.aggTypesPool = NewTypesPool(nil)
+	o.aggTypesPool.Init(func() Types {
+		return make(Types, 0, len(ValidTypes))
 	})
 
 	o.quantilesPool = pool.NewFloatsPool(nil, nil)
@@ -251,25 +251,25 @@ func (o *options) ensureUniqueTypeString(typeStrings [][]byte, t metric.Type) er
 		s := string(typeString)
 		if existAggType, ok := m[s]; ok {
 			return fmt.Errorf("invalid options, found duplicated type string: '%s' for aggregation type %v and %v for metric type: %s",
-				s, AggregationType(aggType), AggregationType(existAggType), t.String())
+				s, Type(aggType), Type(existAggType), t.String())
 		}
 		m[s] = aggType
 	}
 	return nil
 }
 
-func (o *options) SetDefaultCounterAggregationTypes(aggTypes AggregationTypes) AggregationTypesOptions {
+func (o *options) SetDefaultCounterAggregationTypes(aggTypes Types) TypesOptions {
 	opts := *o
 	opts.defaultCounterAggregationTypes = aggTypes
 	opts.computeTypeStrings()
 	return &opts
 }
 
-func (o *options) DefaultCounterAggregationTypes() AggregationTypes {
+func (o *options) DefaultCounterAggregationTypes() Types {
 	return o.defaultCounterAggregationTypes
 }
 
-func (o *options) SetDefaultTimerAggregationTypes(aggTypes AggregationTypes) AggregationTypesOptions {
+func (o *options) SetDefaultTimerAggregationTypes(aggTypes Types) TypesOptions {
 	opts := *o
 	opts.defaultTimerAggregationTypes = aggTypes
 	opts.computeQuantiles()
@@ -277,22 +277,22 @@ func (o *options) SetDefaultTimerAggregationTypes(aggTypes AggregationTypes) Agg
 	return &opts
 }
 
-func (o *options) DefaultTimerAggregationTypes() AggregationTypes {
+func (o *options) DefaultTimerAggregationTypes() Types {
 	return o.defaultTimerAggregationTypes
 }
 
-func (o *options) SetDefaultGaugeAggregationTypes(aggTypes AggregationTypes) AggregationTypesOptions {
+func (o *options) SetDefaultGaugeAggregationTypes(aggTypes Types) TypesOptions {
 	opts := *o
 	opts.defaultGaugeAggregationTypes = aggTypes
 	opts.computeTypeStrings()
 	return &opts
 }
 
-func (o *options) DefaultGaugeAggregationTypes() AggregationTypes {
+func (o *options) DefaultGaugeAggregationTypes() Types {
 	return o.defaultGaugeAggregationTypes
 }
 
-func (o *options) SetTimerQuantileTypeStringFn(value QuantileTypeStringFn) AggregationTypesOptions {
+func (o *options) SetTimerQuantileTypeStringFn(value QuantileTypeStringFn) TypesOptions {
 	opts := *o
 	opts.timerQuantileTypeStringFn = value
 	opts.computeTypeStrings()
@@ -303,7 +303,7 @@ func (o *options) TimerQuantileTypeStringFn() QuantileTypeStringFn {
 	return o.timerQuantileTypeStringFn
 }
 
-func (o *options) SetGlobalTypeStringTransformFn(value TypeStringTransformFn) AggregationTypesOptions {
+func (o *options) SetGlobalTypeStringTransformFn(value TypeStringTransformFn) TypesOptions {
 	opts := *o
 	opts.globalTypeStringTransformFn = value
 	opts.computeTypeStrings()
@@ -314,17 +314,17 @@ func (o *options) GlobalTypeStringTransformFn() TypeStringTransformFn {
 	return o.globalTypeStringTransformFn
 }
 
-func (o *options) SetAggregationTypesPool(pool AggregationTypesPool) AggregationTypesOptions {
+func (o *options) SetTypesPool(pool TypesPool) TypesOptions {
 	opts := *o
 	opts.aggTypesPool = pool
 	return &opts
 }
 
-func (o *options) AggregationTypesPool() AggregationTypesPool {
+func (o *options) TypesPool() TypesPool {
 	return o.aggTypesPool
 }
 
-func (o *options) SetQuantilesPool(pool pool.FloatsPool) AggregationTypesOptions {
+func (o *options) SetQuantilesPool(pool pool.FloatsPool) TypesOptions {
 	opts := *o
 	opts.quantilesPool = pool
 	return &opts
@@ -334,28 +334,28 @@ func (o *options) QuantilesPool() pool.FloatsPool {
 	return o.quantilesPool
 }
 
-func (o *options) SetGlobalTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions {
+func (o *options) SetGlobalTypeStringOverrides(m map[Type][]byte) TypesOptions {
 	opts := *o
 	opts.globalTypeStringOverrides = m
 	opts.computeTypeStrings()
 	return &opts
 }
 
-func (o *options) SetCounterTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions {
+func (o *options) SetCounterTypeStringOverrides(m map[Type][]byte) TypesOptions {
 	opts := *o
 	opts.counterTypeStringOverride = m
 	opts.computeTypeStrings()
 	return &opts
 }
 
-func (o *options) SetTimerTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions {
+func (o *options) SetTimerTypeStringOverrides(m map[Type][]byte) TypesOptions {
 	opts := *o
 	opts.timerTypeStringOverride = m
 	opts.computeTypeStrings()
 	return &opts
 }
 
-func (o *options) SetGaugeTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions {
+func (o *options) SetGaugeTypeStringOverrides(m map[Type][]byte) TypesOptions {
 	opts := *o
 	opts.gaugeTypeStringOverride = m
 	opts.computeTypeStrings()
@@ -371,30 +371,30 @@ func (o *options) DefaultTimerAggregationTypeStrings() [][]byte {
 }
 
 func (o *options) DefaultGaugeAggregationTypeStrings() [][]byte {
-	return o.defaultGaugeAggregationTypeStrings
+	return o.defaultGaugeAggregationTypestrings
 }
 
-func (o *options) TypeStringForCounter(aggType AggregationType) []byte {
+func (o *options) TypeStringForCounter(aggType Type) []byte {
 	return o.counterTypeStrings[aggType.ID()]
 }
 
-func (o *options) TypeStringForTimer(aggType AggregationType) []byte {
+func (o *options) TypeStringForTimer(aggType Type) []byte {
 	return o.timerTypeStrings[aggType.ID()]
 }
 
-func (o *options) TypeStringForGauge(aggType AggregationType) []byte {
+func (o *options) TypeStringForGauge(aggType Type) []byte {
 	return o.gaugeTypeStrings[aggType.ID()]
 }
 
-func (o *options) AggregationTypeForCounter(value []byte) AggregationType {
+func (o *options) TypeForCounter(value []byte) Type {
 	return aggregationTypeWithTypeString(value, o.counterTypeStrings)
 }
 
-func (o *options) AggregationTypeForTimer(value []byte) AggregationType {
+func (o *options) TypeForTimer(value []byte) Type {
 	return aggregationTypeWithTypeString(value, o.timerTypeStrings)
 }
 
-func (o *options) AggregationTypeForGauge(value []byte) AggregationType {
+func (o *options) TypeForGauge(value []byte) Type {
 	return aggregationTypeWithTypeString(value, o.gaugeTypeStrings)
 }
 
@@ -402,8 +402,8 @@ func (o *options) TimerQuantiles() []float64 {
 	return o.timerQuantiles
 }
 
-func (o *options) IsContainedInDefaultAggregationTypes(at AggregationType, mt metric.Type) bool {
-	var aggTypes AggregationTypes
+func (o *options) IsContainedInDefaultAggregationTypes(at Type, mt metric.Type) bool {
+	var aggTypes Types
 	switch mt {
 	case metric.CounterType:
 		aggTypes = o.DefaultCounterAggregationTypes()
@@ -416,13 +416,13 @@ func (o *options) IsContainedInDefaultAggregationTypes(at AggregationType, mt me
 	return aggTypes.Contains(at)
 }
 
-func aggregationTypeWithTypeString(value []byte, typeStrings [][]byte) AggregationType {
+func aggregationTypeWithTypeString(value []byte, typeStrings [][]byte) Type {
 	for aggType, b := range typeStrings {
 		if bytes.Equal(b, value) {
-			return AggregationType(aggType)
+			return Type(aggType)
 		}
 	}
-	return UnknownAggregationType
+	return UnknownType
 }
 
 func (o *options) computeAllDerived() {
@@ -441,15 +441,15 @@ func (o *options) computeTypeStrings() {
 	o.computeTimerTypeStrings()
 	o.computeGaugeTypeStrings()
 	o.computeDefaultCounterAggregationTypeString()
-	o.computeDefaultTimerAggregationTypeString()
-	o.computeDefaultGaugeAggregationTypeString()
+	o.computeDefaultTimerTypeSAggregationTypes()
+	o.computeDefaultGaugeAggregationTypestring()
 }
 
 func (o *options) computeDefaultTypeStrings() {
-	o.defaultTypeStrings = make([][]byte, MaxAggregationTypeID+1)
-	o.defaultTypeStrings[UnknownAggregationType.ID()] = defaultUnknownTypeString
+	o.defaultTypeStrings = make([][]byte, maxTypeID+1)
+	o.defaultTypeStrings[UnknownType.ID()] = defaultUnknownTypeString
 	transformFn := o.GlobalTypeStringTransformFn()
-	for aggType := range ValidAggregationTypes {
+	for aggType := range ValidTypes {
 		var typeString []byte
 		switch aggType {
 		case Last:
@@ -496,10 +496,10 @@ func (o *options) computeGaugeTypeStrings() {
 	o.gaugeTypeStrings = o.computeOverrideTypeStrings(o.gaugeTypeStringOverride)
 }
 
-func (o options) computeOverrideTypeStrings(m map[AggregationType][]byte) [][]byte {
+func (o options) computeOverrideTypeStrings(m map[Type][]byte) [][]byte {
 	res := make([][]byte, len(o.defaultTypeStrings))
 	for aggType, defaultTypeString := range o.defaultTypeStrings {
-		if overrideTypeString, ok := m[AggregationType(aggType)]; ok {
+		if overrideTypeString, ok := m[Type(aggType)]; ok {
 			res[aggType] = overrideTypeString
 			continue
 		}
@@ -515,17 +515,17 @@ func (o *options) computeDefaultCounterAggregationTypeString() {
 	}
 }
 
-func (o *options) computeDefaultTimerAggregationTypeString() {
+func (o *options) computeDefaultTimerTypeSAggregationTypes() {
 	o.defaultTimerAggregationTypeStrings = make([][]byte, len(o.DefaultTimerAggregationTypes()))
 	for i, aggType := range o.DefaultTimerAggregationTypes() {
 		o.defaultTimerAggregationTypeStrings[i] = o.TypeStringForTimer(aggType)
 	}
 }
 
-func (o *options) computeDefaultGaugeAggregationTypeString() {
-	o.defaultGaugeAggregationTypeStrings = make([][]byte, len(o.DefaultGaugeAggregationTypes()))
+func (o *options) computeDefaultGaugeAggregationTypestring() {
+	o.defaultGaugeAggregationTypestrings = make([][]byte, len(o.DefaultGaugeAggregationTypes()))
 	for i, aggType := range o.DefaultGaugeAggregationTypes() {
-		o.defaultGaugeAggregationTypeStrings[i] = o.TypeStringForGauge(aggType)
+		o.defaultGaugeAggregationTypestrings[i] = o.TypeStringForGauge(aggType)
 	}
 }
 

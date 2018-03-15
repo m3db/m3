@@ -266,7 +266,7 @@ func (v *validator) validatePolicy(t metric.Type, p policy.Policy) error {
 	if isDefaultAggFn := p.AggregationID.IsDefault(); isDefaultAggFn {
 		return nil
 	}
-	aggTypes, err := p.AggregationID.AggregationTypes()
+	aggTypes, err := p.AggregationID.Types()
 	if err != nil {
 		return err
 	}

@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -452,7 +453,7 @@ func TestUnaggregatedIteratorDecodePolicyWithCustomResolution(t *testing.T) {
 				time.Now().UnixNano(),
 				false,
 				[]policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(3*time.Second, xtime.Second, time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(3*time.Second, xtime.Second, time.Hour), aggregation.DefaultID),
 				},
 			),
 		},
@@ -474,7 +475,7 @@ func TestUnaggregatedIteratorDecodePolicyWithCustomRetention(t *testing.T) {
 				time.Now().UnixNano(),
 				false,
 				[]policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, 289*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, 289*time.Hour), aggregation.DefaultID),
 				},
 			),
 		},
@@ -496,7 +497,7 @@ func TestUnaggregatedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
 				time.Now().UnixNano(),
 				true,
 				[]policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), aggregation.DefaultID),
 				},
 			),
 		},

@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/matcher"
@@ -95,7 +96,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 						1000,
 						false,
 						[]policy.Policy{
-							policy.NewPolicy(policy.MustParseStoragePolicy("10s:1d"), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.MustParseStoragePolicy("10s:1d"), aggregation.DefaultID),
 						},
 					),
 				}),
@@ -122,7 +123,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 								500,
 								false,
 								[]policy.Policy{
-									policy.NewPolicy(policy.MustParseStoragePolicy("1m:2d"), policy.DefaultAggregationID),
+									policy.NewPolicy(policy.MustParseStoragePolicy("1m:2d"), aggregation.DefaultID),
 								},
 							),
 						},
@@ -144,7 +145,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 						1000,
 						false,
 						[]policy.Policy{
-							policy.NewPolicy(policy.MustParseStoragePolicy("10s:1d"), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.MustParseStoragePolicy("10s:1d"), aggregation.DefaultID),
 						},
 					),
 				}),
@@ -156,7 +157,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 								500,
 								false,
 								[]policy.Policy{
-									policy.NewPolicy(policy.MustParseStoragePolicy("1m:2d"), policy.DefaultAggregationID),
+									policy.NewPolicy(policy.MustParseStoragePolicy("1m:2d"), aggregation.DefaultID),
 								},
 							),
 						},
