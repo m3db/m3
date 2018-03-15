@@ -48,7 +48,7 @@ type PoolingPolicy struct {
 	ClosersPool PoolPolicy `yaml:"closersPool"`
 
 	// The policy for the Context pool
-	ContextPool PoolPolicy `yaml:"contextPool"`
+	ContextPool ContextPoolPolicy `yaml:"contextPool"`
 
 	// The policy for the DatabaseSeries pool
 	SeriesPool PoolPolicy `yaml:"seriesPool"`
@@ -122,4 +122,15 @@ type CapacityPoolPolicy struct {
 type BucketPoolPolicy struct {
 	// The pool buckets sizes to use
 	Buckets []CapacityPoolPolicy `yaml:"buckets"`
+}
+
+// ContextPoolPolicy specifies the policy for the context pool
+type ContextPoolPolicy struct {
+	PoolPolicy
+
+	// The maximum allowable size for a slice of finalizers that the
+	// pool will allow to be returned (finalizer slices that grow too
+	// large during use will be discarded instead of returning to the
+	// pool where they would consume more memory.)
+	MaxFinalizerCapacity int `yaml:"maxFinalizerCapacity"`
 }
