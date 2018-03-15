@@ -33,6 +33,10 @@ const (
 	NativePooling PoolingType = "native"
 )
 
+const (
+	defaultMaxFinalizerCapacity = 4
+)
+
 // PoolingPolicy specifies the pooling policy.
 type PoolingPolicy struct {
 	// The initial alloc size for a block
@@ -48,7 +52,7 @@ type PoolingPolicy struct {
 	ClosersPool PoolPolicy `yaml:"closersPool"`
 
 	// The policy for the Context pool
-	ContextPool PoolPolicy `yaml:"contextPool"`
+	ContextPool ContextPoolPolicy `yaml:"contextPool"`
 
 	// The policy for the DatabaseSeries pool
 	SeriesPool PoolPolicy `yaml:"seriesPool"`
@@ -122,4 +126,41 @@ type CapacityPoolPolicy struct {
 type BucketPoolPolicy struct {
 	// The pool buckets sizes to use
 	Buckets []CapacityPoolPolicy `yaml:"buckets"`
+}
+
+// ContextPoolPolicy specifies the policy for the context pool
+type ContextPoolPolicy struct {
+	// The size of the pool
+	Size int `yaml:"size"`
+
+	// The low watermark to start refilling the pool, if zero none
+	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
+
+	// The high watermark to stop refilling the pool, if zero none
+	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
+
+	// The maximum allowable size for a slice of finalizers that the
+	// pool will allow to be returned (finalizer slices that grow too
+	// large during use will be discarded instead of returning to the
+	// pool where they would consume more memory.)
+	MaxFinalizerCapacity int `yaml:"maxFinalizerCapacity" validate:"min=0"`
+}
+
+// PoolPolicy returns the PoolPolicy that is represented by the ContextPoolPolicy
+func (c ContextPoolPolicy) PoolPolicy() PoolPolicy {
+	return PoolPolicy{
+		Size:                c.Size,
+		RefillLowWaterMark:  c.RefillLowWaterMark,
+		RefillHighWaterMark: c.RefillHighWaterMark,
+	}
+}
+
+// MaxFinalizerCapacityWithDefault returns the maximum finalizer capacity and
+// fallsback to the default value if its not set
+func (c ContextPoolPolicy) MaxFinalizerCapacityWithDefault() int {
+	if c.MaxFinalizerCapacity == 0 {
+		return defaultMaxFinalizerCapacity
+	}
+
+	return c.MaxFinalizerCapacity
 }
