@@ -18,49 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package mem
+package postings
 
 import (
-	"testing"
-
-	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment"
-
-	"github.com/stretchr/testify/require"
+	xpool "github.com/m3db/m3x/pool"
 )
 
-func newTestOptions() Options {
-	return NewOptions()
+type pool struct {
+	pool xpool.ObjectPool
 }
 
-func TestNewMemSegment(t *testing.T) {
-	opts := newTestOptions()
-	idx, err := New(1, opts)
-	require.NoError(t, err)
+// PoolAllocateFn returns a new MutableList.
+type PoolAllocateFn func() MutableList
 
-	testDoc := doc.Document{
-		ID: []byte("some-random-id"),
-		Fields: []doc.Field{
-			doc.Field{Name: []byte("abc"), Value: doc.Value("one")},
-			doc.Field{Name: []byte("def"), Value: doc.Value("two")},
-		},
+// NewPool returns a new Pool.
+func NewPool(
+	opts xpool.ObjectPoolOptions,
+	allocator PoolAllocateFn,
+) Pool {
+	p := &pool{
+		pool: xpool.NewObjectPool(opts),
 	}
-
-	require.NoError(t, idx.Insert(testDoc))
-	docsIter, err := idx.Query(segment.Query{
-		Conjunction: segment.AndConjunction,
-		Filters: []segment.Filter{
-			segment.Filter{
-				FieldName:        []byte("abc"),
-				FieldValueFilter: []byte("one"),
-			},
-		},
+	p.pool.Init(func() interface{} {
+		return allocator()
 	})
-	require.NoError(t, err)
+	return p
+}
 
-	require.True(t, docsIter.Next())
-	result, tombstoned := docsIter.Current()
-	require.Equal(t, testDoc, result)
-	require.False(t, tombstoned)
-	require.False(t, docsIter.Next())
+func (p *pool) Get() MutableList {
+	return p.pool.Get().(MutableList)
+}
+
+func (p *pool) Put(pl MutableList) {
+	pl.Reset()
+	p.pool.Put(pl)
 }

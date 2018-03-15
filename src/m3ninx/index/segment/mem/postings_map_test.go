@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,34 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package segment
+package mem
 
 import (
-	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index"
-	"github.com/m3db/m3ninx/util"
+	"regexp"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-// Segment is a sub-collection of documents within an index.
-type Segment interface {
-	util.RefCount
+func TestPostingsMap(t *testing.T) {
+	opts := NewOptions()
+	pm := newPostingsMap(opts)
 
-	// Reader returns a point-in-time accessor to search the segment.
-	Reader() (index.Reader, error)
+	require.NoError(t, pm.addID([]byte("foo"), 1))
+	require.NoError(t, pm.addID([]byte("bar"), 2))
+	require.NoError(t, pm.addID([]byte("foo"), 3))
+	require.NoError(t, pm.addID([]byte("baz"), 4))
 
-	// Close closes the segment and releases any internal resources.
-	Close() error
-}
+	pl := pm.get([]byte("foo"))
+	require.Equal(t, 2, pl.Len())
+	require.True(t, pl.Contains(1))
+	require.True(t, pl.Contains(3))
 
-// MutableSegment is a segment which can be updated.
-type MutableSegment interface {
-	Segment
+	// No matches.
+	pl = pm.get([]byte("fizz"))
+	require.Equal(t, 0, pl.Len())
 
-	// Insert inserts the given document into the segment. The document is guaranteed to be
-	// searchable once the Insert method returns.
-	Insert(d doc.Document) error
+	re := regexp.MustCompile("ba.*")
+	pls := pm.getRegex(re)
+	require.Equal(t, 2, len(pls))
 
-	// Seal marks the segment as immutable. After Seal is called no more documents can be
-	// inserted into the segment.
-	Seal() error
+	clone := pls[0].Clone()
+	clone.Union(pls[1])
+	require.True(t, clone.Contains(2))
+	require.True(t, clone.Contains(4))
 }

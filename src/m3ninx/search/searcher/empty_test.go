@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,34 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package segment
+package searcher
 
 import (
-	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index"
-	"github.com/m3db/m3ninx/util"
+	"testing"
+
+	"github.com/m3db/m3ninx/postings/roaring"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
-// Segment is a sub-collection of documents within an index.
-type Segment interface {
-	util.RefCount
+func TestEmptySearcher(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
 
-	// Reader returns a point-in-time accessor to search the segment.
-	Reader() (index.Reader, error)
+	n := 42
+	s := NewEmptySearcher(42)
 
-	// Close closes the segment and releases any internal resources.
-	Close() error
-}
+	require.Equal(t, 42, s.NumReaders())
 
-// MutableSegment is a segment which can be updated.
-type MutableSegment interface {
-	Segment
+	emptyPL := roaring.NewPostingsList()
 
-	// Insert inserts the given document into the segment. The document is guaranteed to be
-	// searchable once the Insert method returns.
-	Insert(d doc.Document) error
+	for i := 0; i < n; i++ {
+		require.True(t, s.Next())
+		require.True(t, s.Current().Equal(emptyPL))
+	}
 
-	// Seal marks the segment as immutable. After Seal is called no more documents can be
-	// inserted into the segment.
-	Seal() error
+	require.False(t, s.Next())
+	require.NoError(t, s.Err())
 }

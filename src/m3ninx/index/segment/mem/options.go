@@ -21,7 +21,9 @@
 package mem
 
 import (
-	"github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3ninx/postings/roaring"
+	"github.com/m3db/m3ninx/postings"
+
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -29,9 +31,30 @@ const (
 	defaultInitialCapacity = 1024 * 1024
 )
 
+// Options is a collection of knobs for an in-memory segment.
+type Options interface {
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) Options
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
+
+	// SetPostingsListPool sets the postings list pool.
+	SetPostingsListPool(value postings.Pool) Options
+
+	// PostingsListPool returns the postings list pool.
+	PostingsListPool() postings.Pool
+
+	// SetInitialCapacity sets the initial capacity.
+	SetInitialCapacity(value int) Options
+
+	// InitialCapacity returns the initial capacity.
+	InitialCapacity() int
+}
+
 type opts struct {
 	iopts           instrument.Options
-	postingsPool    segment.PostingsListPool
+	postingsPool    postings.Pool
 	initialCapacity int
 }
 
@@ -39,7 +62,7 @@ type opts struct {
 func NewOptions() Options {
 	return &opts{
 		iopts:           instrument.NewOptions(),
-		postingsPool:    segment.NewPostingsListPool(nil, segment.NewPostingsList),
+		postingsPool:    postings.NewPool(nil, roaring.NewPostingsList),
 		initialCapacity: defaultInitialCapacity,
 	}
 }
@@ -54,13 +77,13 @@ func (o *opts) InstrumentOptions() instrument.Options {
 	return o.iopts
 }
 
-func (o *opts) SetPostingsListPool(v segment.PostingsListPool) Options {
+func (o *opts) SetPostingsListPool(v postings.Pool) Options {
 	opts := *o
 	opts.postingsPool = v
 	return &opts
 }
 
-func (o *opts) PostingsListPool() segment.PostingsListPool {
+func (o *opts) PostingsListPool() postings.Pool {
 	return o.postingsPool
 }
 

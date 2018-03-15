@@ -18,36 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package doc
+package postings
 
-// Field represents a field in a document. It is composed of a name and a value.
-type Field struct {
-	Name  []byte
-	Value []byte
+import (
+	"testing"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+)
+
+func TestPoolGet(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	mockPoolAllocateFn := func() MutableList {
+		return NewMockMutableList(mockCtrl)
+	}
+
+	pl := NewPool(nil, mockPoolAllocateFn)
+	require.NotNil(t, pl)
+
+	p := pl.Get()
+	require.NotNil(t, p)
 }
 
-// Document represents a document to be indexed.
-type Document struct {
-	// Fields contains the list of fields by which to index the document.
-	Fields []Field
-}
+func TestPoolPut(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
 
-// Iterator provides an iterator over a collection of documents. It is NOT safe for multiple
-// goroutines to invoke methods on an Iterator simultaneously.
-type Iterator interface {
-	// Next returns a bool indicating if the iterator has any more documents
-	// to return.
-	Next() bool
+	l := NewMockMutableList(mockCtrl)
+	gomock.InOrder(
+		l.EXPECT().Reset(),
+	)
 
-	// Current returns the current document. It is only safe to call Current immediately
-	// after a call to Next confirms there are more elements remaining. The Document
-	// returned from Current is only valid until the following call to Next(). Callers
-	// should copy the Document if they need it live longer.
-	Current() Document
+	mockPoolAllocateFn := func() MutableList {
+		return l
+	}
 
-	// Err returns any errors encountered during iteration.
-	Err() error
+	pl := NewPool(nil, mockPoolAllocateFn)
+	require.NotNil(t, pl)
 
-	// Close releases any internal resources used by the iterator.
-	Close() error
+	p := pl.Get()
+	require.NotNil(t, p)
+
+	pl.Put(p)
 }

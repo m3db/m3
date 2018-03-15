@@ -1,5 +1,5 @@
-hash: 9369108084d181614800f6f01439818f5bcddbcbec9503cf94d6041bdb9291d8
-updated: 2018-02-13T18:14:26.930516-05:00
+hash: dd0cc1ba288cd5d3966cdf44ac566402378c67fbfb07edbf0f32ab0608542f93
+updated: 2018-03-15T13:26:35.041438-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -10,11 +10,15 @@ imports:
 - name: github.com/glycerine/go-unsnap-stream
   version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
 - name: github.com/go-ole/go-ole
-  version: de8695c8edbf8236f30d6e1376e20b198a028d42
+  version: a41e3c4b706f6ae8dfbff342b06e40fa4d2d0506
   subpackages:
   - oleutil
+- name: github.com/golang/mock
+  version: 13f360950a79f5864a972c786a10a50e44b69541
+  subpackages:
+  - gomock
 - name: github.com/golang/snappy
-  version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
+  version: 553a641470496b2327abcac10b36396bd98e45c9
 - name: github.com/google/codesearch
   version: a45d81b686e85d01f2838439deaf72126ccd5a96
   subpackages:
@@ -24,13 +28,15 @@ imports:
   subpackages:
   - index
 - name: github.com/m3db/m3x
-  version: 640bad305baa75986e8b4cbacd23b530374f9c76
+  version: c67bc0f6effede3c0db07835859b52b203b5677c
   subpackages:
   - checked
+  - errors
   - instrument
   - log
   - pool
   - process
+  - resource
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/philhofer/fwd
@@ -38,7 +44,7 @@ imports:
 - name: github.com/RoaringBitmap/roaring
   version: 4bbba8874933b985c9160558fddea525dde73e63
 - name: github.com/shirou/gopsutil
-  version: b62e301a8b9958eebb7299683eb57fab229a9501
+  version: 5776ff9c7c5d063d574ef53d740f75c68b448e53
   subpackages:
   - cpu
   - host
@@ -49,22 +55,39 @@ imports:
 - name: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/StackExchange/wmi
-  version: e542ed97d15e640bdc14b5c12162d59e8fc67324
+  version: 5d049714c4a64225c3c79a7cf7d02f7fb5b96338
 - name: github.com/tinylib/msgp
-  version: 4b2b2ac00eb1c1f32da648403859ea59033f0bab
+  version: 3b5c87ab5fb00c660bf85b888445d9a01db64db4
   subpackages:
   - msgp
 - name: github.com/uber-go/atomic
   version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: github.com/uber-go/tally
-  version: 6c4631652c6aab57c64f65c2e0aaec2e9aae3a64
+  version: 522328b48efad0c6034dba92bf39228694e9d31f
   subpackages:
   - m3
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
 - name: github.com/willf/bitset
-  version: 1ea0245d2bc8ce44623f24a1ae162beb06ad8cd6
+  version: 1a37ad96e8c1a11b20900a232874843b5174221f
+- name: go.uber.org/atomic
+  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+- name: go.uber.org/multierr
+  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+- name: go.uber.org/zap
+  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - zapcore
+- name: golang.org/x/sys
+  version: f6cff0780e542efa0c8e864dc8fa522808f6a598
+  subpackages:
+  - unix
+  - windows
 testImports:
 - name: github.com/davecgh/go-spew
   version: 346938d642f2ec3594ed81d874461961cd0faa76
@@ -76,7 +99,7 @@ testImports:
   - gen
   - prop
 - name: github.com/pmezard/go-difflib
-  version: 792786c7400a136282c1664665ae0a8db921c6c2
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
 - name: github.com/stretchr/testify

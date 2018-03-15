@@ -23,10 +23,11 @@ package mem
 import (
 	"fmt"
 	"reflect"
+	re "regexp"
 	"testing"
 
 	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3ninx/postings"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -38,7 +39,7 @@ var (
 	testRandomSeed         int64 = 42
 	testMinSuccessfulTests       = 1000
 
-	sampleRegexes = []interface{}{
+	sampleRegexps = []interface{}{
 		`a`,
 		`a.`,
 		`a.b`,
@@ -64,13 +65,13 @@ var (
 	}
 )
 
-type newSimpleTermsDictFn func() *simpleTermsDictionary
+type newSimpleTermsDictFn func() *simpleTermsDict
 
 type simpleTermsDictionaryTestSuite struct {
 	suite.Suite
 
 	fn        newSimpleTermsDictFn
-	termsDict *simpleTermsDictionary
+	termsDict *simpleTermsDict
 }
 
 func (t *simpleTermsDictionaryTestSuite) SetupTest() {
@@ -80,24 +81,12 @@ func (t *simpleTermsDictionaryTestSuite) SetupTest() {
 func (t *simpleTermsDictionaryTestSuite) TestInsert() {
 	props := getProperties()
 	props.Property(
-		"Inserted fields should be immediately searchable",
+		"The dictionary should supporting inserting fields",
 		prop.ForAll(
-			func(f doc.Field, id segment.DocID) (bool, error) {
+			func(f doc.Field, id postings.ID) (bool, error) {
 				err := t.termsDict.Insert(f, id)
 				if err != nil {
 					return false, fmt.Errorf("unexpected error inserting %v into terms dictionary: %v", f, err)
-				}
-
-				ids, err := t.termsDict.Fetch(f.Name, []byte(f.Value), termFetchOptions{false})
-				if err != nil {
-					return false, fmt.Errorf("unexpected error searching for %v in terms dictionary: %v", f, err)
-				}
-
-				if ids == nil {
-					return false, fmt.Errorf("ids of documents matching query should not be nil")
-				}
-				if !ids.Contains(id) {
-					return false, fmt.Errorf("id of new document '%v' is not in list of matching documents", id)
 				}
 
 				return true, nil
@@ -109,33 +98,26 @@ func (t *simpleTermsDictionaryTestSuite) TestInsert() {
 	props.TestingRun(t.T())
 }
 
-func (t *simpleTermsDictionaryTestSuite) TestInsertIdempotent() {
+func (t *simpleTermsDictionaryTestSuite) TestMatchTerm() {
 	props := getProperties()
 	props.Property(
-		"Inserting the same field into the terms dictionary should be idempotent",
+		"The dictionary should support exact match queries",
 		prop.ForAll(
-			func(f doc.Field, id segment.DocID) (bool, error) {
+			func(f doc.Field, id postings.ID) (bool, error) {
 				err := t.termsDict.Insert(f, id)
 				if err != nil {
 					return false, fmt.Errorf("unexpected error inserting %v into terms dictionary: %v", f, err)
 				}
 
-				// Inserting the same field is a valid operation.
-				err = t.termsDict.Insert(f, id)
+				pl, err := t.termsDict.MatchTerm(f.Name, []byte(f.Value))
 				if err != nil {
-					return false, fmt.Errorf("unexpected error re-inserting %v into terms dictionary: %v", f, err)
+					return false, fmt.Errorf("unexpexted error retrieving postings list: %v", err)
 				}
-
-				ids, err := t.termsDict.Fetch(f.Name, []byte(f.Value), termFetchOptions{false})
-				if err != nil {
-					return false, fmt.Errorf("unexpected error searching for %v in terms dictionary: %v", f, err)
+				if pl == nil {
+					return false, fmt.Errorf("postings list of documents matching query should not be nil")
 				}
-
-				if ids == nil {
-					return false, fmt.Errorf("ids of documents matching query should not be nil")
-				}
-				if !ids.Contains(segment.DocID(id)) {
-					return false, fmt.Errorf("id of new document '%v' is not in list of matching documents", id)
+				if !pl.Contains(id) {
+					return false, fmt.Errorf("id of new document '%v' is not in postings list of matching documents", id)
 				}
 
 				return true, nil
@@ -147,31 +129,87 @@ func (t *simpleTermsDictionaryTestSuite) TestInsertIdempotent() {
 	props.TestingRun(t.T())
 }
 
-func (t *simpleTermsDictionaryTestSuite) TestFetchRegex() {
+func (t *simpleTermsDictionaryTestSuite) TestMatchTermNoResults() {
+	props := getProperties()
+	props.Property(
+		"Exact match queries which return no results are valid",
+		prop.ForAll(
+			func(f doc.Field) (bool, error) {
+				pl, err := t.termsDict.MatchTerm(f.Name, []byte(f.Value))
+				if err != nil {
+					return false, fmt.Errorf("unexpexted error retrieving postings list: %v", err)
+				}
+				if pl == nil {
+					return false, fmt.Errorf("postings list returned should not be nil")
+				}
+				if pl.Len() != 0 {
+					return false, fmt.Errorf("postings list contains unexpected IDs")
+				}
+
+				return true, nil
+			},
+			genField(),
+		))
+
+	props.TestingRun(t.T())
+}
+
+func (t *simpleTermsDictionaryTestSuite) TestMatchRegex() {
 	props := getProperties()
 	props.Property(
 		"The dictionary should support regular expression queries",
 		prop.ForAll(
-			func(input fieldAndRegex, id segment.DocID) (bool, error) {
+			func(input fieldAndRegexp, id postings.ID) (bool, error) {
 				var (
-					f  = input.field
-					re = input.re
+					f        = input.field
+					regexp   = input.regexp
+					compiled = input.compiled
 				)
 				err := t.termsDict.Insert(f, id)
 				if err != nil {
 					return false, fmt.Errorf("unexpected error inserting %v into terms dictionary: %v", f, err)
 				}
 
-				ids, err := t.termsDict.Fetch(f.Name, []byte(re), termFetchOptions{true})
+				pl, err := t.termsDict.MatchRegexp(f.Name, []byte(regexp), compiled)
 				if err != nil {
-					return false, fmt.Errorf("unexpected error searching for %v in terms dictionary: %v", f, err)
+					return false, fmt.Errorf("unexpexted error retrieving postings list: %v", err)
+				}
+				if pl == nil {
+					return false, fmt.Errorf("postings list of documents matching query should not be nil")
+				}
+				if !pl.Contains(id) {
+					return false, fmt.Errorf("id of new document '%v' is not in list of matching documents", id)
 				}
 
-				if ids == nil {
-					return false, fmt.Errorf("ids of documents matching query should not be nil")
+				return true, nil
+			},
+			genFieldAndRegex(),
+			genDocID(),
+		))
+
+	props.TestingRun(t.T())
+}
+
+func (t *simpleTermsDictionaryTestSuite) TestMatchRegexNoResults() {
+	props := getProperties()
+	props.Property(
+		"Regular expression queries which no results are valid",
+		prop.ForAll(
+			func(input fieldAndRegexp, id postings.ID) (bool, error) {
+				var (
+					f        = input.field
+					regexp   = input.regexp
+					compiled = input.compiled
+				)
+				pl, err := t.termsDict.MatchRegexp(f.Name, []byte(regexp), compiled)
+				if err != nil {
+					return false, fmt.Errorf("unexpexted error retrieving postings list: %v", err)
 				}
-				if !ids.Contains(id) {
-					return false, fmt.Errorf("id of new document '%v' is not in list of matching documents", id)
+				if pl == nil {
+					return false, fmt.Errorf("postings list returned should not be nil")
+				}
+				if pl.Len() != 0 {
+					return false, fmt.Errorf("postings list contains unexpected IDs")
 				}
 
 				return true, nil
@@ -186,8 +224,8 @@ func (t *simpleTermsDictionaryTestSuite) TestFetchRegex() {
 func TestSimpleTermsDictionary(t *testing.T) {
 	opts := NewOptions()
 	suite.Run(t, &simpleTermsDictionaryTestSuite{
-		fn: func() *simpleTermsDictionary {
-			return newSimpleTermsDictionary(opts)
+		fn: func() *simpleTermsDict {
+			return newSimpleTermsDict(opts).(*simpleTermsDict)
 		},
 	})
 }
@@ -210,7 +248,7 @@ func genField() gopter.Gen {
 		)
 		f := doc.Field{
 			Name:  []byte(name),
-			Value: doc.Value(value),
+			Value: []byte(value),
 		}
 		return f
 	})
@@ -218,37 +256,42 @@ func genField() gopter.Gen {
 
 func genDocID() gopter.Gen {
 	return gen.UInt32().
-		Map(func(value uint32) segment.DocID {
-			return segment.DocID(value)
+		Map(func(value uint32) postings.ID {
+			return postings.ID(value)
 		})
 }
 
-type fieldAndRegex struct {
-	field doc.Field
-	re    string
+type fieldAndRegexp struct {
+	field    doc.Field
+	regexp   string
+	compiled *re.Regexp
 }
 
 func genFieldAndRegex() gopter.Gen {
-	return gen.OneConstOf(sampleRegexes...).
+	return gen.OneConstOf(sampleRegexps...).
 		FlatMap(func(value interface{}) gopter.Gen {
-			re := value.(string)
-			return fieldFromRegex(re)
-		}, reflect.TypeOf(fieldAndRegex{}))
+			regex := value.(string)
+			return fieldFromRegexp(regex)
+		}, reflect.TypeOf(fieldAndRegexp{}))
 }
 
-func fieldFromRegex(re string) gopter.Gen {
+func fieldFromRegexp(regexp string) gopter.Gen {
 	return gopter.CombineGens(
 		gen.AnyString(),
-		gen.RegexMatch(re),
-	).Map(func(values []interface{}) fieldAndRegex {
+		gen.RegexMatch(regexp),
+	).Map(func(values []interface{}) fieldAndRegexp {
 		var (
 			name  = values[0].(string)
 			value = values[1].(string)
 		)
 		f := doc.Field{
 			Name:  []byte(name),
-			Value: doc.Value(value),
+			Value: []byte(value),
 		}
-		return fieldAndRegex{field: f, re: re}
+		return fieldAndRegexp{
+			field:    f,
+			regexp:   regexp,
+			compiled: re.MustCompile(regexp),
+		}
 	})
 }

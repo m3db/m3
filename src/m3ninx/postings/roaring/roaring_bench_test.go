@@ -18,36 +18,46 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package doc
+package roaring
 
-// Field represents a field in a document. It is composed of a name and a value.
-type Field struct {
-	Name  []byte
-	Value []byte
+import (
+	"testing"
+
+	"github.com/RoaringBitmap/roaring"
+)
+
+func BenchmarkClone(b *testing.B) {
+	b.ReportAllocs()
+
+	initPL := roaring.New()
+	for i := 0; i < b.N; i++ {
+		initPL.Add(uint32(i))
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		copy := initPL.Clone()
+		if copy.GetCardinality() != initPL.GetCardinality() {
+			b.Error("unequal duplicate size")
+		}
+	}
 }
 
-// Document represents a document to be indexed.
-type Document struct {
-	// Fields contains the list of fields by which to index the document.
-	Fields []Field
-}
+func BenchmarkCachedObject(b *testing.B) {
+	b.ReportAllocs()
 
-// Iterator provides an iterator over a collection of documents. It is NOT safe for multiple
-// goroutines to invoke methods on an Iterator simultaneously.
-type Iterator interface {
-	// Next returns a bool indicating if the iterator has any more documents
-	// to return.
-	Next() bool
+	initPL := roaring.New()
+	for i := 0; i < b.N; i++ {
+		initPL.Add(uint32(i))
+	}
+	copy := roaring.New()
 
-	// Current returns the current document. It is only safe to call Current immediately
-	// after a call to Next confirms there are more elements remaining. The Document
-	// returned from Current is only valid until the following call to Next(). Callers
-	// should copy the Document if they need it live longer.
-	Current() Document
-
-	// Err returns any errors encountered during iteration.
-	Err() error
-
-	// Close releases any internal resources used by the iterator.
-	Close() error
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		copy.Clear()
+		copy.Or(initPL)
+		if copy.GetCardinality() != initPL.GetCardinality() {
+			b.Error("unequal duplicate size")
+		}
+	}
 }
