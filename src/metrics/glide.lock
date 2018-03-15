@@ -1,5 +1,5 @@
-hash: a27f9ec2c1c2a746ebc91ca622475a4c1a26c6c5aeda07df834618a92e370337
-updated: 2018-03-09T12:45:29.656901901-05:00
+hash: 917fc7ee9d082037eb97a270f47c84a851c04d431447b88cc4f6d3c10c8068cb
+updated: 2018-03-15T10:32:08.892977581-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -15,7 +15,6 @@ imports:
   version: 13f360950a79f5864a972c786a10a50e44b69541
   subpackages:
   - gomock
-  - mockgen
 - name: github.com/golang/protobuf
   version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
   subpackages:
@@ -58,7 +57,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/shirou/gopsutil
-  version: c432be29ccce470088d07eea25b3ea7e68a8afbb
+  version: 5776ff9c7c5d063d574ef53d740f75c68b448e53
   subpackages:
   - cpu
   - host

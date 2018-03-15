@@ -18,30 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package policy
+package aggregation
 
 import (
 	"testing"
 
 	"github.com/m3db/m3x/pool"
+
 	"github.com/stretchr/testify/require"
 )
 
-func TestAggregationTypesPool(t *testing.T) {
-	p := NewAggregationTypesPool(pool.NewObjectPoolOptions().SetSize(1))
-	p.Init(func() AggregationTypes {
-		return make(AggregationTypes, 0, MaxAggregationTypeID)
+func TestTypesPool(t *testing.T) {
+	p := NewTypesPool(pool.NewObjectPoolOptions().SetSize(1))
+	p.Init(func() Types {
+		return make(Types, 0, maxTypeID)
 	})
 
 	aggTypes := p.Get()
-	require.Equal(t, MaxAggregationTypeID, cap(aggTypes))
+	require.Equal(t, maxTypeID, cap(aggTypes))
 	require.Equal(t, 0, len(aggTypes))
 	aggTypes = append(aggTypes, P9999)
 
 	p.Put(aggTypes)
 
 	aggTypes2 := p.Get()
-	require.Equal(t, MaxAggregationTypeID, cap(aggTypes2))
+	require.Equal(t, maxTypeID, cap(aggTypes2))
 	require.Equal(t, 0, len(aggTypes2))
 
 	aggTypes2 = append(aggTypes2, Last)

@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/policy"
@@ -99,7 +100,7 @@ var (
 func TestNewMappingRuleSnapshotFromSchema(t *testing.T) {
 	res, err := newMappingRuleSnapshot(testMappingRuleSchema.Snapshots[0], testTagsFilterOptions())
 	expectedPolicies := []policy.Policy{
-		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.MustCompressAggregationTypes(policy.P999)),
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.MustCompressTypes(aggregation.P999)),
 	}
 	require.NoError(t, err)
 	require.Equal(t, "foo", res.name)
@@ -138,8 +139,8 @@ func TestNewMappingRuleSnapshotFromFields(t *testing.T) {
 		cutoverNanos = int64(12345)
 		rawFilter    = "tagName1:tagValue1 tagName2:tagValue2"
 		policies     = []policy.Policy{
-			policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-			policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+			policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+			policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 		}
 		lastUpdatedAtNanos = int64(67890)
 		lastUpdatedBy      = "testUser"
@@ -215,8 +216,8 @@ func TestNewMappingRule(t *testing.T) {
 			tombstoned:   true,
 			cutoverNanos: 67890,
 			policies: []policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-				policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+				policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+				policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 			},
 		},
 	}
@@ -290,7 +291,7 @@ func TestNewMappingRuleFromFields(t *testing.T) {
 	mr, err := newMappingRuleFromFields(
 		"bar",
 		rawFilter,
-		[]policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), policy.DefaultAggregationID)},
+		[]policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), aggregation.DefaultID)},
 		UpdateMetadata{12345, 12345, "test_user"},
 	)
 	require.NoError(t, err)
@@ -300,7 +301,7 @@ func TestNewMappingRuleFromFields(t *testing.T) {
 		cutoverNanos: 12345,
 		filter:       nil,
 		rawFilter:    rawFilter,
-		policies:     []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), policy.DefaultAggregationID)},
+		policies:     []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), aggregation.DefaultID)},
 	}
 
 	require.NoError(t, err)
@@ -346,7 +347,7 @@ func TestMappingRuleMarkTombstoned(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedPolicies := []policy.Policy{
-		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.MustCompressAggregationTypes(policy.P999)),
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.MustCompressTypes(aggregation.P999)),
 	}
 	require.Equal(t, 1, len(mr.snapshots))
 	lastSnapshot := mr.snapshots[0]

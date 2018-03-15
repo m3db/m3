@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/metric"
@@ -59,7 +60,7 @@ type Matcher interface {
 
 	// ReverseMatch reverse matches the applicable policies for a metric id between [fromNanos, toNanos),
 	// with aware of the metric type and aggregation type for the given id.
-	ReverseMatch(id []byte, fromNanos, toNanos int64, mt metric.Type, at policy.AggregationType) MatchResult
+	ReverseMatch(id []byte, fromNanos, toNanos int64, mt metric.Type, at aggregation.Type) MatchResult
 }
 
 type activeRuleSet struct {
@@ -70,7 +71,7 @@ type activeRuleSet struct {
 	tagFilterOpts   filters.TagsFilterOptions
 	newRollupIDFn   metricID.NewIDFn
 	isRollupIDFn    metricID.MatchIDFn
-	aggTypeOpts     policy.AggregationTypesOptions
+	aggTypeOpts     aggregation.TypesOptions
 }
 
 func newActiveRuleSet(
@@ -80,7 +81,7 @@ func newActiveRuleSet(
 	tagFilterOpts filters.TagsFilterOptions,
 	newRollupIDFn metricID.NewIDFn,
 	isRollupIDFn metricID.MatchIDFn,
-	aggOpts policy.AggregationTypesOptions,
+	aggOpts aggregation.TypesOptions,
 ) *activeRuleSet {
 	uniqueCutoverTimes := make(map[int64]struct{})
 	for _, mappingRule := range mappingRules {
@@ -141,7 +142,8 @@ func (as *activeRuleSet) ForwardMatch(
 func (as *activeRuleSet) ReverseMatch(
 	id []byte,
 	fromNanos, toNanos int64,
-	mt metric.Type, at policy.AggregationType,
+	mt metric.Type,
+	at aggregation.Type,
 ) MatchResult {
 	var (
 		nextIdx            = as.nextCutoverIdx(fromNanos)
@@ -177,7 +179,7 @@ func (as *activeRuleSet) reverseMappingsFor(
 	isRollupID bool,
 	timeNanos int64,
 	mt metric.Type,
-	at policy.AggregationType,
+	at aggregation.Type,
 ) (policy.StagedPolicies, bool) {
 	if !isRollupID {
 		return as.reverseMappingsForNonRollupID(id, timeNanos, mt, at)
@@ -200,7 +202,8 @@ func (as *activeRuleSet) reverseMappingsFor(
 func (as *activeRuleSet) reverseMappingsForRollupID(
 	name, tags []byte,
 	timeNanos int64,
-	mt metric.Type, at policy.AggregationType,
+	mt metric.Type,
+	at aggregation.Type,
 ) (policy.StagedPolicies, bool) {
 	for _, rollupRule := range as.rollupRules {
 		snapshot := rollupRule.ActiveSnapshot(timeNanos)
@@ -255,7 +258,7 @@ func (as *activeRuleSet) reverseMappingsForNonRollupID(
 	id []byte,
 	timeNanos int64,
 	mt metric.Type,
-	at policy.AggregationType,
+	at aggregation.Type,
 ) (policy.StagedPolicies, bool) {
 	policies, cutoverNanos := as.mappingsForNonRollupID(id, timeNanos)
 	// NB(cw) aggregation types filter must be applied after the policy list is resolved.
@@ -544,7 +547,7 @@ type ruleSet struct {
 	tagsFilterOpts     filters.TagsFilterOptions
 	newRollupIDFn      metricID.NewIDFn
 	isRollupIDFn       metricID.MatchIDFn
-	aggOpts            policy.AggregationTypesOptions
+	aggTypesOpts       aggregation.TypesOptions
 }
 
 // NewRuleSetFromSchema creates a new RuleSet from a schema object.
@@ -583,7 +586,7 @@ func NewRuleSetFromSchema(version int, rs *schema.RuleSet, opts Options) (RuleSe
 		tagsFilterOpts:     tagsFilterOpts,
 		newRollupIDFn:      opts.NewRollupIDFn(),
 		isRollupIDFn:       opts.IsRollupIDFn(),
-		aggOpts:            opts.AggregationTypesOptions(),
+		aggTypesOpts:       opts.AggregationTypesOptions(),
 	}, nil
 }
 
@@ -596,7 +599,7 @@ func NewEmptyRuleSet(namespaceName string, meta UpdateMetadata) MutableRuleSet {
 		tombstoned:   false,
 		mappingRules: make([]*mappingRule, 0),
 		rollupRules:  make([]*rollupRule, 0),
-		aggOpts:      policy.NewAggregationTypesOptions(),
+		aggTypesOpts: aggregation.NewTypesOptions(),
 	}
 	rs.updateMetadata(meta)
 	return rs
@@ -627,7 +630,7 @@ func (rs *ruleSet) ActiveSet(timeNanos int64) Matcher {
 		rs.tagsFilterOpts,
 		rs.newRollupIDFn,
 		rs.isRollupIDFn,
-		rs.aggOpts,
+		rs.aggTypesOpts,
 	)
 }
 
@@ -744,7 +747,7 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 		tagsFilterOpts:     rs.tagsFilterOpts,
 		newRollupIDFn:      rs.newRollupIDFn,
 		isRollupIDFn:       rs.isRollupIDFn,
-		aggOpts:            rs.aggOpts,
+		aggTypesOpts:       rs.aggTypesOpts,
 	})
 }
 
@@ -1007,14 +1010,19 @@ func resolvePolicies(policies []policy.Policy) []policy.Policy {
 //   is contained in the default aggregation types for the metric type.
 // * If the policy contains custom aggregation types and the given aggregation type
 //   is contained in the custom aggregation type.
-func filterPoliciesWithAggregationTypes(ps []policy.Policy, mt metric.Type, at policy.AggregationType, opts policy.AggregationTypesOptions) ([]policy.Policy, bool) {
+func filterPoliciesWithAggregationTypes(
+	ps []policy.Policy,
+	mt metric.Type,
+	at aggregation.Type,
+	opts aggregation.TypesOptions,
+) ([]policy.Policy, bool) {
 	if policy.IsDefaultPolicies(ps) {
 		return nil, opts.IsContainedInDefaultAggregationTypes(at, mt)
 	}
 
 	var cur int
 	for i := 0; i < len(ps); i++ {
-		if !containsAggType(ps[i].AggregationID, mt, at, opts) {
+		if !containsAggregationType(ps[i].AggregationID, mt, at, opts) {
 			continue
 		}
 		// NB: The policy does not match the aggregation type and should be removed,
@@ -1027,7 +1035,12 @@ func filterPoliciesWithAggregationTypes(ps []policy.Policy, mt metric.Type, at p
 	return ps[:cur], false
 }
 
-func containsAggType(aggID policy.AggregationID, mt metric.Type, at policy.AggregationType, opts policy.AggregationTypesOptions) bool {
+func containsAggregationType(
+	aggID aggregation.ID,
+	mt metric.Type,
+	at aggregation.Type,
+	opts aggregation.TypesOptions,
+) bool {
 	if aggID.IsDefault() {
 		return opts.IsContainedInDefaultAggregationTypes(at, mt)
 	}

@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
@@ -190,7 +191,7 @@ func TestUnaggregatedEncodeArrayLenError(t *testing.T) {
 			time.Now().UnixNano(),
 			false,
 			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), policy.DefaultAggregationID),
+				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), aggregation.DefaultID),
 			},
 		),
 	}
@@ -235,7 +236,7 @@ func expectedResultsForUnaggregatedPolicy(p policy.Policy) []interface{} {
 	return append(results, expectedResultsForCompressedAggregationTypes(p.AggregationID)...)
 }
 
-func expectedResultsForCompressedAggregationTypes(compressed policy.AggregationID) []interface{} {
+func expectedResultsForCompressedAggregationTypes(compressed aggregation.ID) []interface{} {
 	results := []interface{}{}
 
 	if compressed.IsDefault() {

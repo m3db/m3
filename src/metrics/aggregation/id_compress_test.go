@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package policy
+package aggregation
 
 import (
 	"testing"
@@ -28,27 +28,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAggregationIDCompressRoundTrip(t *testing.T) {
+func TestIDCompressRoundTrip(t *testing.T) {
 	testcases := []struct {
-		input     AggregationTypes
-		result    AggregationTypes
+		input     Types
+		result    Types
 		expectErr bool
 	}{
-		{DefaultAggregationTypes, DefaultAggregationTypes, false},
-		{[]AggregationType{UnknownAggregationType}, DefaultAggregationTypes, true},
-		{[]AggregationType{Min, Max}, []AggregationType{Min, Max}, false},
-		{[]AggregationType{Last}, []AggregationType{Last}, false},
-		{[]AggregationType{P999, P9999}, []AggregationType{P999, P9999}, false},
-		{[]AggregationType{1, 5, 9, 3, 2}, []AggregationType{1, 2, 3, 5, 9}, false},
+		{DefaultTypes, DefaultTypes, false},
+		{[]Type{UnknownType}, DefaultTypes, true},
+		{[]Type{Min, Max}, []Type{Min, Max}, false},
+		{[]Type{Last}, []Type{Last}, false},
+		{[]Type{P999, P9999}, []Type{P999, P9999}, false},
+		{[]Type{1, 5, 9, 3, 2}, []Type{1, 2, 3, 5, 9}, false},
 		// 50 is an unknown aggregation type.
-		{[]AggregationType{10, 50}, DefaultAggregationTypes, true},
+		{[]Type{10, 50}, DefaultTypes, true},
 	}
 
-	p := NewAggregationTypesPool(pool.NewObjectPoolOptions().SetSize(1))
-	p.Init(func() AggregationTypes {
-		return make(AggregationTypes, 0, MaxAggregationTypeID)
+	p := NewTypesPool(pool.NewObjectPoolOptions().SetSize(1))
+	p.Init(func() Types {
+		return make(Types, 0, maxTypeID)
 	})
-	compressor, decompressor := NewAggregationIDCompressor(), NewPooledAggregationIDDecompressor(p)
+	compressor, decompressor := NewIDCompressor(), NewPooledIDDecompressor(p)
 	for _, test := range testcases {
 		codes, err := compressor.Compress(test.input)
 		if test.expectErr {
@@ -61,12 +61,12 @@ func TestAggregationIDCompressRoundTrip(t *testing.T) {
 	}
 }
 
-func TestAggregationIDDecompressError(t *testing.T) {
-	compressor, decompressor := NewAggregationIDCompressor(), NewAggregationIDDecompressor()
-	_, err := decompressor.Decompress([AggregationIDLen]uint64{1}) // aggregation type: UnknownAggregationType.
+func TestIDDecompressError(t *testing.T) {
+	compressor, decompressor := NewIDCompressor(), NewIDDecompressor()
+	_, err := decompressor.Decompress([IDLen]uint64{1})
 	require.Error(t, err)
 
-	max, err := compressor.Compress([]AggregationType{Last, Min, Max, Mean, Median, Count, Sum, SumSq, Stdev, P95, P99, P999, P9999})
+	max, err := compressor.Compress([]Type{Last, Min, Max, Mean, Median, Count, Sum, SumSq, Stdev, P95, P99, P999, P9999})
 	require.NoError(t, err)
 
 	max[0] = max[0] << 1

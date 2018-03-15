@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	xtime "github.com/m3db/m3x/time"
 
@@ -37,9 +38,9 @@ func TestPolicyString(t *testing.T) {
 		p        Policy
 		expected string
 	}{
-		{p: NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), DefaultAggregationID), expected: "10s:1h"},
-		{p: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), MustCompressAggregationTypes(Mean, P999)), expected: "1m:12h|Mean,P999"},
-		{p: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), MustCompressAggregationTypes(Mean)), expected: "1m:12h|Mean"},
+		{p: NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), aggregation.DefaultID), expected: "10s:1h"},
+		{p: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), aggregation.MustCompressTypes(aggregation.Mean, aggregation.P999)), expected: "1m:12h|Mean,P999"},
+		{p: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), aggregation.MustCompressTypes(aggregation.Mean)), expected: "1m:12h|Mean"},
 	}
 	for _, input := range inputs {
 		require.Equal(t, input.expected, input.p.String())
@@ -53,23 +54,23 @@ func TestPolicyUnmarshalYAML(t *testing.T) {
 	}{
 		{
 			str:      "1s:1h",
-			expected: NewPolicy(NewStoragePolicy(time.Second, xtime.Second, time.Hour), DefaultAggregationID),
+			expected: NewPolicy(NewStoragePolicy(time.Second, xtime.Second, time.Hour), aggregation.DefaultID),
 		},
 		{
 			str:      "10s:1d|Mean",
-			expected: NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), MustCompressAggregationTypes(Mean)),
+			expected: NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.MustCompressTypes(aggregation.Mean)),
 		},
 		{
 			str:      "60s:24h|Mean,Count",
-			expected: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), MustCompressAggregationTypes(Mean, Count)),
+			expected: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.MustCompressTypes(aggregation.Mean, aggregation.Count)),
 		},
 		{
 			str:      "1m:1d|Count,Mean",
-			expected: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), MustCompressAggregationTypes(Mean, Count)),
+			expected: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.MustCompressTypes(aggregation.Mean, aggregation.Count)),
 		},
 		{
 			str:      "1s@1s:1h|P999,P9999",
-			expected: NewPolicy(NewStoragePolicy(time.Second, xtime.Second, time.Hour), MustCompressAggregationTypes(P999, P9999)),
+			expected: NewPolicy(NewStoragePolicy(time.Second, xtime.Second, time.Hour), aggregation.MustCompressTypes(aggregation.P999, aggregation.P9999)),
 		},
 	}
 	for _, input := range inputs {
@@ -133,8 +134,8 @@ func TestNewPoliciesFromSchema(t *testing.T) {
 	res, err := NewPoliciesFromSchema(input)
 	require.NoError(t, err)
 	require.Equal(t, []Policy{
-		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), MustCompressAggregationTypes(Mean, P999)),
-		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 240*time.Hour), MustCompressAggregationTypes(Mean, P9999)),
+		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.MustCompressTypes(aggregation.Mean, aggregation.P999)),
+		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 240*time.Hour), aggregation.MustCompressTypes(aggregation.Mean, aggregation.P9999)),
 	}, res)
 }
 
@@ -231,15 +232,15 @@ func TestParsePolicyIntoSchema(t *testing.T) {
 
 func TestPoliciesByResolutionAsc(t *testing.T) {
 	inputs := []Policy{
-		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), DefaultAggregationID),
-		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), DefaultAggregationID),
-		NewPolicy(NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), DefaultAggregationID),
-		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), DefaultAggregationID),
-		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), DefaultAggregationID),
-		NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), AggregationID{100}),
-		NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), DefaultAggregationID),
-		NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), AggregationID{100}),
+		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
+		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+		NewPolicy(NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
+		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+		NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.ID{100}),
+		NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
+		NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.ID{100}),
 	}
 	expected := []Policy{inputs[2], inputs[0], inputs[1], inputs[5], inputs[4], inputs[3], inputs[7], inputs[6], inputs[8]}
 	sort.Sort(ByResolutionAscRetentionDesc(inputs))

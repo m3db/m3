@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package policy
+package aggregation
 
 import (
 	"fmt"
@@ -27,28 +27,28 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
-// AggregationTypesConfiguration contains configuration for aggregation types.
-type AggregationTypesConfiguration struct {
+// TypesConfiguration contains configuration for aggregation types.
+type TypesConfiguration struct {
 	// Default aggregation types for counter metrics.
-	DefaultCounterAggregationTypes *AggregationTypes `yaml:"defaultCounterAggregationTypes"`
+	DefaultCounterAggregationTypes *Types `yaml:"defaultCounterAggregationTypes"`
 
 	// Default aggregation types for timer metrics.
-	DefaultTimerAggregationTypes *AggregationTypes `yaml:"defaultTimerAggregationTypes"`
+	DefaultTimerAggregationTypes *Types `yaml:"defaultTimerAggregationTypes"`
 
 	// Default aggregation types for gauge metrics.
-	DefaultGaugeAggregationTypes *AggregationTypes `yaml:"defaultGaugeAggregationTypes"`
+	DefaultGaugeAggregationTypes *Types `yaml:"defaultGaugeAggregationTypes"`
 
 	// Global type string overrides.
-	GlobalOverrides map[AggregationType]string `yaml:"globalOverrides"`
+	GlobalOverrides map[Type]string `yaml:"globalOverrides"`
 
 	// Type string overrides for Counter.
-	CounterOverrides map[AggregationType]string `yaml:"counterOverrides"`
+	CounterOverrides map[Type]string `yaml:"counterOverrides"`
 
 	// Type string overrides for Timer.
-	TimerOverrides map[AggregationType]string `yaml:"timerOverrides"`
+	TimerOverrides map[Type]string `yaml:"timerOverrides"`
 
 	// Type string overrides for Gauge.
-	GaugeOverrides map[AggregationType]string `yaml:"gaugeOverrides"`
+	GaugeOverrides map[Type]string `yaml:"gaugeOverrides"`
 
 	// TransformFnType configs the global type string transform function type.
 	TransformFnType *transformFnType `yaml:"transformFnType"`
@@ -61,8 +61,8 @@ type AggregationTypesConfiguration struct {
 }
 
 // NewOptions creates a new Option.
-func (c AggregationTypesConfiguration) NewOptions(instrumentOpts instrument.Options) (AggregationTypesOptions, error) {
-	opts := NewAggregationTypesOptions()
+func (c TypesConfiguration) NewOptions(instrumentOpts instrument.Options) (TypesOptions, error) {
+	opts := NewTypesOptions()
 	if c.TransformFnType != nil {
 		fn, err := c.TransformFnType.TransformFn()
 		if err != nil {
@@ -91,10 +91,10 @@ func (c AggregationTypesConfiguration) NewOptions(instrumentOpts instrument.Opti
 	// Set aggregation types pool.
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("aggregation-types-pool"))
 	aggTypesPoolOpts := c.AggregationTypesPool.NewObjectPoolOptions(iOpts)
-	aggTypesPool := NewAggregationTypesPool(aggTypesPoolOpts)
-	opts = opts.SetAggregationTypesPool(aggTypesPool)
-	aggTypesPool.Init(func() AggregationTypes {
-		return make(AggregationTypes, 0, len(ValidAggregationTypes))
+	aggTypesPool := NewTypesPool(aggTypesPoolOpts)
+	opts = opts.SetTypesPool(aggTypesPool)
+	aggTypesPool.Init(func() Types {
+		return make(Types, 0, len(ValidTypes))
 	})
 
 	// Set quantiles pool.
@@ -112,8 +112,8 @@ func (c AggregationTypesConfiguration) NewOptions(instrumentOpts instrument.Opti
 	return opts, nil
 }
 
-func parseTypeStringOverride(m map[AggregationType]string) map[AggregationType][]byte {
-	res := make(map[AggregationType][]byte, len(m))
+func parseTypeStringOverride(m map[Type]string) map[Type][]byte {
+	res := make(map[Type][]byte, len(m))
 	for aggType, s := range m {
 		var bytes []byte
 		if s != "" {

@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 )
 
@@ -43,12 +44,12 @@ var (
 // Policy contains a storage policy and a list of custom aggregation types.
 type Policy struct {
 	StoragePolicy
-	AggregationID
+	AggregationID aggregation.ID
 }
 
 // NewPolicy creates a policy.
-func NewPolicy(sp StoragePolicy, aggTypes AggregationID) Policy {
-	return Policy{StoragePolicy: sp, AggregationID: aggTypes}
+func NewPolicy(sp StoragePolicy, aggID aggregation.ID) Policy {
+	return Policy{StoragePolicy: sp, AggregationID: aggID}
 }
 
 // NewPolicyFromSchema creates a new policy from a schema policy.
@@ -62,7 +63,7 @@ func NewPolicyFromSchema(p *schema.Policy) (Policy, error) {
 		return DefaultPolicy, err
 	}
 
-	aggID, err := NewAggregationIDFromSchema(p.AggregationTypes)
+	aggID, err := aggregation.NewIDFromSchema(p.AggregationTypes)
 	if err != nil {
 		return DefaultPolicy, err
 	}
@@ -78,7 +79,7 @@ func (p Policy) Schema() (*schema.Policy, error) {
 		return nil, err
 	}
 
-	aggTypes, err := NewAggregationIDDecompressor().Decompress(p.AggregationID)
+	aggTypes, err := aggregation.NewIDDecompressor().Decompress(p.AggregationID)
 	if err != nil {
 		return nil, err
 	}
@@ -146,25 +147,25 @@ func ParsePolicy(str string) (Policy, error) {
 		return DefaultPolicy, errInvalidPolicyString
 	}
 
-	p, err := ParseStoragePolicy(parts[0])
+	sp, err := ParseStoragePolicy(parts[0])
 	if err != nil {
 		return DefaultPolicy, err
 	}
 
-	var id = DefaultAggregationID
+	var aggID = aggregation.DefaultID
 	if l == 2 {
-		aggTypes, err := ParseAggregationTypes(parts[1])
+		aggTypes, err := aggregation.ParseTypes(parts[1])
 		if err != nil {
 			return DefaultPolicy, err
 		}
 
-		id, err = NewAggregationIDCompressor().Compress(aggTypes)
+		aggID, err = aggregation.NewIDCompressor().Compress(aggTypes)
 		if err != nil {
 			return DefaultPolicy, err
 		}
 	}
 
-	return NewPolicy(p, id), nil
+	return NewPolicy(sp, aggID), nil
 }
 
 // NewPoliciesFromSchema creates multiple new policies from given schema policies.
@@ -217,7 +218,7 @@ func (pr ByResolutionAscRetentionDesc) Less(i, j int) bool {
 		return false
 	}
 	at1, at2 := p1.AggregationID, p2.AggregationID
-	for k := 0; k < AggregationIDLen; k++ {
+	for k := 0; k < aggregation.IDLen; k++ {
 		if at1[k] < at2[k] {
 			return true
 		}

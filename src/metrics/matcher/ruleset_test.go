@@ -27,10 +27,10 @@ import (
 
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/metric"
-	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
 
 	"github.com/stretchr/testify/require"
@@ -91,12 +91,12 @@ func TestRuleSetReverseMatchWithMatcher(t *testing.T) {
 		toNanos   = now.Add(time.Second).UnixNano()
 	)
 
-	require.Equal(t, mockMatcher.res, rs.ReverseMatch([]byte("foo"), fromNanos, toNanos, metric.CounterType, policy.Sum))
+	require.Equal(t, mockMatcher.res, rs.ReverseMatch([]byte("foo"), fromNanos, toNanos, metric.CounterType, aggregation.Sum))
 	require.Equal(t, []byte("foo"), mockMatcher.id)
 	require.Equal(t, fromNanos, mockMatcher.fromNanos)
 	require.Equal(t, toNanos, mockMatcher.toNanos)
 	require.Equal(t, metric.CounterType, mockMatcher.metricType)
-	require.Equal(t, policy.Sum, mockMatcher.aggregationType)
+	require.Equal(t, aggregation.Sum, mockMatcher.aggregationType)
 }
 
 func TestToRuleSetNilValue(t *testing.T) {
@@ -221,7 +221,7 @@ type mockMatcher struct {
 	toNanos         int64
 	res             rules.MatchResult
 	metricType      metric.Type
-	aggregationType policy.AggregationType
+	aggregationType aggregation.Type
 }
 
 func (mm *mockMatcher) ForwardMatch(
@@ -237,7 +237,8 @@ func (mm *mockMatcher) ForwardMatch(
 func (mm *mockMatcher) ReverseMatch(
 	id []byte,
 	fromNanos, toNanos int64,
-	mt metric.Type, at policy.AggregationType,
+	mt metric.Type,
+	at aggregation.Type,
 ) rules.MatchResult {
 	mm.id = id
 	mm.fromNanos = fromNanos

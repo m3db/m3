@@ -24,14 +24,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
 	xtime "github.com/m3db/m3x/time"
 )
 
 var (
 	testNowNanos = time.Now().UnixNano()
 	testPolicies = []Policy{
-		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), DefaultAggregationID),
-		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 30*24*time.Hour), DefaultAggregationID),
+		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), aggregation.DefaultID),
+		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 30*24*time.Hour), aggregation.DefaultID),
 	}
 )
 

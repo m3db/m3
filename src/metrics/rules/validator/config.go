@@ -24,6 +24,7 @@ import (
 	"errors"
 
 	"github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
@@ -141,8 +142,8 @@ type policiesOverrideConfiguration struct {
 
 // policiesConfiguration is the configuration for storage policies and aggregation types.
 type policiesConfiguration struct {
-	StoragePolicies  []policy.StoragePolicy   `yaml:"storagePolicies"`
-	AggregationTypes []policy.AggregationType `yaml:"aggregationTypes"`
+	StoragePolicies  []policy.StoragePolicy `yaml:"storagePolicies"`
+	AggregationTypes []aggregation.Type     `yaml:"aggregationTypes"`
 }
 
 func toRunes(s string) []rune {

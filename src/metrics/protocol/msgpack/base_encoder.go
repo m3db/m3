@@ -21,6 +21,7 @@
 package msgpack
 
 import (
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 )
@@ -97,14 +98,14 @@ func (enc *baseEncoder) encodePolicyInternal(p policy.Policy) {
 	enc.encodeCompressedAggregationTypes(p.AggregationID)
 }
 
-func (enc *baseEncoder) encodeCompressedAggregationTypes(aggTypes policy.AggregationID) {
+func (enc *baseEncoder) encodeCompressedAggregationTypes(aggTypes aggregation.ID) {
 	if aggTypes.IsDefault() {
 		enc.encodeNumObjectFields(numFieldsForType(defaultAggregationID))
 		enc.encodeObjectType(defaultAggregationID)
 		return
 	}
 
-	if policy.AggregationIDLen == 1 {
+	if aggregation.IDLen == 1 {
 		enc.encodeNumObjectFields(numFieldsForType(shortAggregationID))
 		enc.encodeObjectType(shortAggregationID)
 		enc.encodeVarintFn(int64(aggTypes[0]))
@@ -114,7 +115,7 @@ func (enc *baseEncoder) encodeCompressedAggregationTypes(aggTypes policy.Aggrega
 	// NB(cw): Only reachable after we start to support more than 63 aggregation types
 	enc.encodeNumObjectFields(numFieldsForType(longAggregationID))
 	enc.encodeObjectType(longAggregationID)
-	enc.encodeArrayLen(policy.AggregationIDLen)
+	enc.encodeArrayLen(aggregation.IDLen)
 	for _, v := range aggTypes {
 		enc.encodeVarint(int64(v))
 	}

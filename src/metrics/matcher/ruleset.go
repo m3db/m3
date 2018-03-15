@@ -26,9 +26,9 @@ import (
 
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/util/runtime"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/metric"
-	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -162,7 +162,12 @@ func (r *ruleSet) ForwardMatch(id []byte, fromNanos, toNanos int64) rules.MatchR
 	return res
 }
 
-func (r *ruleSet) ReverseMatch(id []byte, fromNanos, toNanos int64, mt metric.Type, at policy.AggregationType) rules.MatchResult {
+func (r *ruleSet) ReverseMatch(
+	id []byte,
+	fromNanos, toNanos int64,
+	mt metric.Type,
+	at aggregation.Type,
+) rules.MatchResult {
 	callStart := r.nowFn()
 	r.RLock()
 	if r.matcher == nil {

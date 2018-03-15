@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
 
@@ -44,17 +45,17 @@ func TestMatchResult(t *testing.T) {
 				12345,
 				false,
 				[]policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-					policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+					policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 				},
 			),
 			policy.NewStagedPolicies(
 				23456,
 				true,
 				[]policy.Policy{
-					policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour), policy.DefaultAggregationID),
-					policy.NewPolicy(policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour), aggregation.DefaultID),
+					policy.NewPolicy(policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 				},
 			),
 		}
@@ -66,17 +67,17 @@ func TestMatchResult(t *testing.T) {
 						12345,
 						false,
 						[]policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
-							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
-							policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
+							policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 						},
 					),
 					policy.NewStagedPolicies(
 						23456,
 						false,
 						[]policy.Policy{
-							policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour), policy.DefaultAggregationID),
-							policy.NewPolicy(policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour), aggregation.DefaultID),
+							policy.NewPolicy(policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 						},
 					),
 				},
@@ -120,8 +121,8 @@ func TestMatchResult(t *testing.T) {
 					23456,
 					true,
 					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 					},
 				),
 			},
@@ -133,8 +134,8 @@ func TestMatchResult(t *testing.T) {
 							23456,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour), policy.DefaultAggregationID),
-								policy.NewPolicy(policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour), aggregation.DefaultID),
+								policy.NewPolicy(policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
 							},
 						),
 					},
