@@ -85,9 +85,17 @@ func createFile(t *testing.T, filePath string, b []byte) {
 	fd.Close()
 }
 
-func createInfoFiles(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
+func createInfoFilesSnapshotDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
+	return createInfoFiles(t, snapshotDirName, namespace, shard, iter)
+}
+
+func createInfoFilesDataDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
+	return createInfoFiles(t, dataDirName, namespace, shard, iter)
+}
+
+func createInfoFiles(t *testing.T, subDirName string, namespace ident.ID, shard uint32, iter int) string {
 	dir := createTempDir(t)
-	shardDir := path.Join(dir, dataDirName, namespace.String(), strconv.Itoa(int(shard)))
+	shardDir := path.Join(dir, subDirName, namespace.String(), strconv.Itoa(int(shard)))
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 	for i := 0; i < iter; i++ {
 		ts := time.Unix(0, int64(i))
@@ -352,7 +360,7 @@ func TestFilePathFromTime(t *testing.T) {
 
 func TestFilesetFilesBefore(t *testing.T) {
 	shard := uint32(0)
-	dir := createInfoFiles(t, testNs1ID, shard, 20)
+	dir := createInfoFilesDataDir(t, testNs1ID, shard, 20)
 	defer os.RemoveAll(dir)
 
 	cutoffIter := 8
@@ -365,6 +373,24 @@ func TestFilesetFilesBefore(t *testing.T) {
 	for i := 0; i < len(res); i++ {
 		ts := time.Unix(0, int64(i))
 		require.Equal(t, filesetPathFromTime(shardDir, ts, infoFileSuffix), res[i])
+	}
+}
+
+func TestSnapshotFiles(t *testing.T) {
+	shard := uint32(0)
+	dir := createInfoFilesSnapshotDir(t, testNs1ID, shard, 20)
+	defer os.RemoveAll(dir)
+
+	files, err := SnapshotFiles(dir, testNs1ID, shard)
+	require.NoError(t, err)
+	require.Equal(t, 20, len(files))
+	var prev time.Time
+	for _, file := range files {
+		// Make sure they're sorted ASC
+		curr, err := TimeFromFileName(file)
+		require.NoError(t, err)
+		require.Equal(t, true, curr.After(prev))
+		prev = curr
 	}
 }
 
