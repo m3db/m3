@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/id/m3"
 	"github.com/m3db/m3metrics/policy"
@@ -62,7 +63,7 @@ func TestReportMatchMappingWithRuleUpdates(t *testing.T) {
 					1000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(policy.MustParseStoragePolicy("10s:1d"), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.MustParseStoragePolicy("10s:1d"), aggregation.DefaultID),
 					},
 				),
 			},

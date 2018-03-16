@@ -1,5 +1,5 @@
-hash: 7790daef613944e717e0288e766ae2e631fc4b1fe0f1245f8fd7e5363a13396a
-updated: 2018-03-15T16:37:36.51782-04:00
+hash: c3fde187f75f9ee9ef96f95d42399b2423cb728819ac9f48790d5f6ce8e58b52
+updated: 2018-03-15T21:48:56.386106-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -24,7 +24,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: 6b9b5a7eae36b0f3fc23823250d4536f6518332f
+  version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
   subpackages:
   - client
   - generated/proto/metadatapb
@@ -33,12 +33,17 @@ imports:
   - kv/mem
   - kv/util/runtime
   - placement
+  - placement/algo
+  - placement/selector
+  - placement/service
+  - placement/storage
   - services
   - services/leader/campaign
   - shard
 - name: github.com/m3db/m3metrics
-  version: 1ed6b292f4f6a1dfa4d6bfcb4fa5cb98578bf7e8
+  version: d4a5c022c5f0c23489c58ef2ce360d12713f799b
   subpackages:
+  - aggregation
   - errors
   - filters
   - generated/proto/schema
@@ -152,7 +157,7 @@ imports:
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
 - name: github.com/fortytw2/leaktest
-  version: 3b724c3d7b8729a35bf4e577f71653aec6e53513
+  version: 7dad53304f9614c1c365755c1176a8e876fee3e8
 - name: github.com/leanovate/gopter
   version: 9e6101e5a87586b269acf3d0d61f363e4317309f
   subpackages:
