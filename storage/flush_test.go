@@ -232,6 +232,65 @@ func TestFlushManagerNamespaceFlushTimesSomeNeedFlush(t *testing.T) {
 	require.Equal(t, expectedTimes, times)
 }
 
+func TestFlushManagerFlushSnapshot(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
+	now := time.Now()
+
+	for _, ns := range []*MockdatabaseNamespace{ns1, ns2} {
+		rOpts := ns.Options().RetentionOptions()
+		blockSize := rOpts.BlockSize()
+		bufferPast := rOpts.BufferPast()
+
+		start := retention.FlushTimeStart(ns.Options().RetentionOptions(), now)
+		end := retention.FlushTimeEnd(ns.Options().RetentionOptions(), now)
+		num := numIntervals(start, end, blockSize)
+
+		for i := 0; i < num; i++ {
+			st := start.Add(time.Duration(i) * blockSize)
+			ns.EXPECT().NeedsFlush(st, st).Return(false)
+		}
+
+		currBlockStart := now.Add(-bufferPast).Truncate(blockSize)
+		prevBlockStart := currBlockStart.Add(-blockSize)
+		ns.EXPECT().NeedsFlush(prevBlockStart, prevBlockStart).Return(false)
+		ns.EXPECT().Snapshot(currBlockStart, gomock.Any())
+	}
+
+	require.NoError(t, fm.Flush(now))
+}
+
+func TestFlushManagerFlushNoSnapshotWhileFlushPending(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
+	now := time.Now()
+
+	for _, ns := range []*MockdatabaseNamespace{ns1, ns2} {
+		rOpts := ns.Options().RetentionOptions()
+		blockSize := rOpts.BlockSize()
+		bufferPast := rOpts.BufferPast()
+
+		start := retention.FlushTimeStart(ns.Options().RetentionOptions(), now)
+		end := retention.FlushTimeEnd(ns.Options().RetentionOptions(), now)
+		num := numIntervals(start, end, blockSize)
+
+		for i := 0; i < num; i++ {
+			st := start.Add(time.Duration(i) * blockSize)
+			ns.EXPECT().NeedsFlush(st, st).Return(false)
+		}
+
+		currBlockStart := now.Add(-bufferPast).Truncate(blockSize)
+		prevBlockStart := currBlockStart.Add(-blockSize)
+		ns.EXPECT().NeedsFlush(prevBlockStart, prevBlockStart).Return(true)
+	}
+
+	require.NoError(t, fm.Flush(now))
+}
+
 type timesInOrder []time.Time
 
 func (a timesInOrder) Len() int           { return len(a) }
