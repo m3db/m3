@@ -868,6 +868,11 @@ func (s *dbShard) writableSeries(id ident.ID) (*dbShardEntry, error) {
 
 		// Wait for the insert attempt
 		result.wg.Wait()
+
+		// TODO(prateek): as terrible as this is, the fall through is actually required
+		// the way the current code is structured. we should instead allow an async write
+		// which inserts an entry with the read/write count incremented by 1.
+		println(fmt.Sprintf("god this is terrible"))
 	}
 }
 
