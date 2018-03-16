@@ -224,30 +224,29 @@ pooling:
               highWatermark: 0.02
 
 config:
-    kv:
-        client:
-            env: production
-            zone: embedded
-            service: m3db
-            cacheDir: /var/lib/m3kv
-            etcdClusters:
-                - zone: embedded
-                  endpoints:
-                    - 1.1.1.1:2379
-                    - 1.1.1.2:2379
-                    - 1.1.1.3:2379
-        server:
-            listenPeerUrls:
-                - http://0.0.0.0:2380
-            listenClientUrls:
-                - http://0.0.0.0:2379
-            dir: '/var/lib/etcd'
-            initialAdvertisePeerUrls:
-                - http://1.1.1.1:2380
-            advertiseClientUrls:
-                - http://1.1.1.1:2379
-            initialCluster: host1=http://1.1.1.1:2380,host2=http://1.1.1.2:2380,host3=http://1.1.1.3:2380
-            name: host1
+    service:
+        env: production
+        zone: embedded
+        service: m3db
+        cacheDir: /var/lib/m3kv
+        etcdClusters:
+            - zone: embedded
+              endpoints:
+                  - 1.1.1.1:2379
+                  - 1.1.1.2:2379
+                  - 1.1.1.3:2379
+    embeddedServer:
+        listenPeerUrls:
+            - http://0.0.0.0:2380
+        listenClientUrls:
+            - http://0.0.0.0:2379
+        dir: /var/lib/etcd
+        initialAdvertisePeerUrls:
+            - http://1.1.1.1:2380
+        advertiseClientUrls:
+            - http://1.1.1.1:2379
+        initialCluster: host1=http://1.1.1.1:2380,host2=http://1.1.1.2:2380,host3=http://1.1.1.3:2380
+        name: host1
 hashing:
   seed: 42
 writeNewSeriesAsync: true
@@ -301,8 +300,10 @@ hostID:
   envVarName: null
 client:
   config:
+    service: null
     static: null
-    kv: null
+    embeddedServer: null
+    namespaceTimeout: 0s
   writeConsistencyLevel: 2
   readConsistencyLevel: 2
   connectConsistencyLevel: 0
@@ -472,40 +473,39 @@ pooling:
     lowWatermark: 0.01
     highWatermark: 0.02
 config:
+  service:
+    zone: embedded
+    env: production
+    service: m3db
+    cacheDir: /var/lib/m3kv
+    etcdClusters:
+    - zone: embedded
+      endpoints:
+      - 1.1.1.1:2379
+      - 1.1.1.2:2379
+      - 1.1.1.3:2379
+      keepAlive:
+        enabled: false
+        period: 0s
+        jitter: 0s
+        timeout: 0s
+      tls: null
+    m3sd:
+      initTimeout: 0s
   static: null
-  kv:
-    client:
-      zone: embedded
-      env: production
-      service: m3db
-      cacheDir: /var/lib/m3kv
-      etcdClusters:
-      - zone: embedded
-        endpoints:
-        - 1.1.1.1:2379
-        - 1.1.1.2:2379
-        - 1.1.1.3:2379
-        keepAlive:
-          enabled: false
-          period: 0s
-          jitter: 0s
-          timeout: 0s
-        tls: null
-      m3sd:
-        initTimeout: 0s
-    server:
-      dir: /var/lib/etcd
-      initialAdvertisePeerUrls:
-      - http://1.1.1.1:2380
-      advertiseClientUrls:
-      - http://1.1.1.1:2379
-      listenPeerUrls:
-      - http://0.0.0.0:2380
-      listenClientUrls:
-      - http://0.0.0.0:2379
-      initialCluster: host1=http://1.1.1.1:2380,host2=http://1.1.1.2:2380,host3=http://1.1.1.3:2380
-      name: host1
-    namespaceTimeout: 0s
+  embeddedServer:
+    dir: /var/lib/etcd
+    initialAdvertisePeerUrls:
+    - http://1.1.1.1:2380
+    advertiseClientUrls:
+    - http://1.1.1.1:2379
+    listenPeerUrls:
+    - http://0.0.0.0:2380
+    listenClientUrls:
+    - http://0.0.0.0:2379
+    initialCluster: host1=http://1.1.1.1:2380,host2=http://1.1.1.2:2380,host3=http://1.1.1.3:2380
+    name: host1
+  namespaceTimeout: 0s
 hashing:
   seed: 42
 writeNewSeriesAsync: true

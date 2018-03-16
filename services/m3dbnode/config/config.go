@@ -39,8 +39,8 @@ import (
 const (
 	defaultETCDDirSuffix  = "etcd"
 	defaultETCDListenHost = "http://0.0.0.0"
-	defaultETCDClientPort = ":2379"
-	defaultETCDServerPort = ":2380"
+	defaultETCDClientPort = 2379
+	defaultETCDServerPort = 2380
 )
 
 // Configuration is the configuration for a M3DB node.
@@ -204,10 +204,10 @@ type HashingConfiguration struct {
 	Seed uint32 `yaml:"seed"`
 }
 
-// GetETCDConfig creates a new embedded etcd config from kv config.
-func GetETCDConfig(cfg Configuration) (*embed.Config, error) {
+// ETCDConfig creates a new embedded etcd config from kv config.
+func ETCDConfig(cfg Configuration) (*embed.Config, error) {
 	newKVCfg := embed.NewConfig()
-	kvCfg := cfg.EnvironmentConfig.KV.Server
+	kvCfg := cfg.EnvironmentConfig.EmbeddedServer
 
 	dir := kvCfg.Dir
 	if dir == "" {
@@ -216,14 +216,14 @@ func GetETCDConfig(cfg Configuration) (*embed.Config, error) {
 	newKVCfg.Dir = dir
 
 	// listen-peer-urls
-	LPUrls, err := convertToURLsWithDefault(kvCfg.LPUrls, defaultETCDListenHost+defaultETCDServerPort)
+	LPUrls, err := convertToURLsWithDefault(kvCfg.LPUrls, newURL(defaultETCDListenHost, defaultETCDServerPort))
 	if err != nil {
 		return nil, err
 	}
 	newKVCfg.LPUrls = LPUrls
 
 	// listen-client-urls
-	LCUrls, err := convertToURLsWithDefault(kvCfg.LCUrls, defaultETCDListenHost+defaultETCDClientPort)
+	LCUrls, err := convertToURLsWithDefault(kvCfg.LCUrls, newURL(defaultETCDListenHost, defaultETCDClientPort))
 	if err != nil {
 		return nil, err
 	}
@@ -235,14 +235,14 @@ func GetETCDConfig(cfg Configuration) (*embed.Config, error) {
 	}
 
 	// initial-advertise-peer-urls
-	APUrls, err := convertToURLsWithDefault(kvCfg.APUrls, host+defaultETCDServerPort)
+	APUrls, err := convertToURLsWithDefault(kvCfg.APUrls, newURL(host, defaultETCDServerPort))
 	if err != nil {
 		return nil, err
 	}
 	newKVCfg.APUrls = APUrls
 
 	// advertise-client-urls
-	ACUrls, err := convertToURLsWithDefault(kvCfg.ACUrls, host+defaultETCDClientPort)
+	ACUrls, err := convertToURLsWithDefault(kvCfg.ACUrls, newURL(host, defaultETCDClientPort))
 	if err != nil {
 		return nil, err
 	}
@@ -252,6 +252,10 @@ func GetETCDConfig(cfg Configuration) (*embed.Config, error) {
 	newKVCfg.InitialCluster = kvCfg.InitialCluster
 
 	return newKVCfg, nil
+}
+
+func newURL(host string, port int) string {
+	return fmt.Sprintf("%s:%d", host, port)
 }
 
 func convertToURLsWithDefault(rawURLs []string, def ...string) ([]url.URL, error) {
@@ -324,7 +328,7 @@ func InitialClusterToETCDEndpoints(initialCluster string) ([]string, error) {
 			return nil, errors.New("invalid initialCluster format")
 		}
 
-		endpoints = append(endpoints, endpoint[:colonIdx]+defaultETCDClientPort)
+		endpoints = append(endpoints, newURL(endpoint[:colonIdx], defaultETCDClientPort))
 	}
 
 	return endpoints, nil

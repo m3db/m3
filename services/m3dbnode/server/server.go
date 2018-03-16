@@ -114,14 +114,10 @@ func Run(runOpts RunOptions) {
 		logger.Fatalf("could not connect to metrics: %v", err)
 	}
 
-	if cfg.EnvironmentConfig.KV == nil {
-		logger.Fatal("kv config cannot be nil")
-	}
-
 	// Presence of KV server config indicates embedded etcd cluster
-	if cfg.EnvironmentConfig.KV.Server != nil {
+	if cfg.EnvironmentConfig.EmbeddedServer != nil {
 		// Default etcd node name to HostID
-		if cfg.EnvironmentConfig.KV.Server.Name == "" {
+		if cfg.EnvironmentConfig.EmbeddedServer.Name == "" {
 			name, err := cfg.HostID.Resolve()
 			if err != nil {
 				logger.Fatal("unable to resolve HostID")
@@ -129,31 +125,31 @@ func Run(runOpts RunOptions) {
 
 			logger.Infof("setting KV server name to: %s", name)
 
-			cfg.EnvironmentConfig.KV.Server.Name = name
+			cfg.EnvironmentConfig.EmbeddedServer.Name = name
 		}
 
 		// Default etcd client clusters if not set already
-		clusters := cfg.EnvironmentConfig.KV.Client.ETCDClusters
+		clusters := cfg.EnvironmentConfig.Service.ETCDClusters
 		if len(clusters) == 0 {
-			endpoints, err := config.InitialClusterToETCDEndpoints(cfg.EnvironmentConfig.KV.Server.InitialCluster)
+			endpoints, err := config.InitialClusterToETCDEndpoints(cfg.EnvironmentConfig.EmbeddedServer.InitialCluster)
 			if err != nil {
 				logger.Fatalf("unable to create etcd clusters: %v", err)
 			}
 
-			zone := cfg.EnvironmentConfig.KV.Client.Zone
+			zone := cfg.EnvironmentConfig.Service.Zone
 
 			logger.Infof("setting client etcd cluster to zone [%s], endpoints %v", zone, endpoints)
 
-			cfg.EnvironmentConfig.KV.Client.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
+			cfg.EnvironmentConfig.Service.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
 				Zone:      zone,
 				Endpoints: endpoints,
 			}}
 		}
 
-		if config.IsETCDNode(cfg.EnvironmentConfig.KV.Server.InitialCluster, cfg.EnvironmentConfig.KV.Server.Name) {
+		if config.IsETCDNode(cfg.EnvironmentConfig.EmbeddedServer.InitialCluster, cfg.EnvironmentConfig.EmbeddedServer.Name) {
 			logger.Info("is a seed node; starting etcd server")
 
-			etcdCfg, err := config.GetETCDConfig(cfg)
+			etcdCfg, err := config.ETCDConfig(cfg)
 			if err != nil {
 				logger.Fatalf("unable to create etcd config: %v", err)
 			}
@@ -319,7 +315,7 @@ func Run(runOpts RunOptions) {
 	if cfg.EnvironmentConfig.Static == nil {
 		logger.Info("creating dynamic config service client with m3cluster")
 
-		namespaceTimeout := cfg.EnvironmentConfig.KV.NamespaceTimeout
+		namespaceTimeout := cfg.EnvironmentConfig.NamespaceTimeout
 		if namespaceTimeout <= 0 {
 			namespaceTimeout = namespaceInitTimeout
 		}

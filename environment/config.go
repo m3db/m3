@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/services"
@@ -39,7 +40,7 @@ import (
 )
 
 const (
-	defaultSDTimeout = 10 * time.Minute
+	defaultSDTimeout = 5 * time.Second
 )
 
 var (
@@ -49,19 +50,14 @@ var (
 
 // Configuration is a configuration that can be used to create namespaces, a topology, and kv store
 type Configuration struct {
+	// Service is used when a topology initializer is not supplied.
+	Service *etcdclient.Configuration `yaml:"service"`
+
 	// StaticConfiguration is used for running M3DB with a static config
 	Static *StaticConfiguration `yaml:"static"`
 
-	// KV sets the kv configuration for either a clustered or embedded etcd
-	KV *KVConfig `yaml:"kv"`
-}
-
-// KVConfig sets the configs for the KV client and server
-type KVConfig struct {
-	Client *etcdclient.Configuration `yaml:"client"`
-
 	// Presence of a (etcd) server in this config denotes an embedded cluster
-	Server *EmbeddedKV `yaml:"server"`
+	EmbeddedServer *EmbeddedKV `yaml:"embeddedServer"`
 
 	// NamespaceTimeout is the timeout duration for setting a namespace
 	NamespaceTimeout time.Duration `yaml:"namespaceTimeout"`
@@ -130,112 +126,121 @@ type ConfigurationParameters struct {
 func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	var emptyConfig ConfigureResults
 
-	if c.KV.Client.SDConfig.InitTimeout == 0 {
-		c.KV.Client.SDConfig.InitTimeout = defaultSDTimeout
+	if c.Service.SDConfig.InitTimeout == 0 {
+		c.Service.SDConfig.InitTimeout = defaultSDTimeout
 	}
 
-	configSvcClientOpts := c.KV.Client.NewOptions().
+	configSvcClientOpts := c.Service.NewOptions().
 		SetInstrumentOptions(cfgParams.InstrumentOpts).
-		SetServiceDiscoveryConfig(c.KV.Client.SDConfig)
+		SetServiceDiscoveryConfig(c.Service.SDConfig)
 	configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
 	if err != nil {
 		err = fmt.Errorf("could not create m3cluster client: %v", err)
 		return emptyConfig, err
 	}
 
-	switch {
-	case c.Static == nil:
-		dynamicOpts := namespace.NewDynamicOptions().
-			SetInstrumentOptions(cfgParams.InstrumentOpts).
-			SetConfigServiceClient(configSvcClient).
-			SetNamespaceRegistryKey(kvconfig.NamespacesKey).
-			SetInitTimeout(cfgParams.NamespaceTimeout)
-		nsInit := namespace.NewDynamicInitializer(dynamicOpts)
-
-		serviceID := services.NewServiceID().
-			SetName(c.KV.Client.Service).
-			SetEnvironment(c.KV.Client.Env).
-			SetZone(c.KV.Client.Zone)
-
-		topoOpts := topology.NewDynamicOptions().
-			SetConfigServiceClient(configSvcClient).
-			SetServiceID(serviceID).
-			SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
-			SetInstrumentOptions(cfgParams.InstrumentOpts).
-			SetHashGen(sharding.NewHashGenWithSeed(cfgParams.HashingSeed))
-		topoInit := topology.NewDynamicInitializer(topoOpts)
-
-		kv, err := configSvcClient.KV()
-		if err != nil {
-			err = fmt.Errorf("could not create KV client, %v", err)
-			return emptyConfig, err
-		}
-
-		configureResults := ConfigureResults{
-			NamespaceInitializer: nsInit,
-			TopologyInitializer:  topoInit,
-			KVStore:              kv,
-		}
-		return configureResults, nil
-
-	case c.Static != nil:
-		nsList := []namespace.Metadata{}
-		for _, ns := range c.Static.Namespaces {
-			md, err := newNamespaceMetadata(ns)
-			if err != nil {
-				err = fmt.Errorf("unable to create metadata for static config: %v", err)
-				return emptyConfig, err
-			}
-			nsList = append(nsList, md)
-		}
-
-		nsInitStatic := namespace.NewStaticInitializer(nsList)
-
-		shardSet, hostShardSets, err := newStaticShardSet(c.Static.TopologyConfig.Shards, c.Static.TopologyConfig.Hosts)
-		if err != nil {
-			err = fmt.Errorf("unable to create shard set for static config: %v", err)
-			return emptyConfig, err
-		}
-		staticOptions := topology.NewStaticOptions().
-			SetHostShardSets(hostShardSets).
-			SetShardSet(shardSet)
-
-		numHosts := len(c.Static.TopologyConfig.Hosts)
-		numReplicas := c.Static.TopologyConfig.Replicas
-
-		switch numReplicas {
-		case 0:
-			if numHosts != 1 {
-				err := fmt.Errorf("number of hosts (%d) must be 1 if replicas is not set", numHosts)
-				return emptyConfig, err
-			}
-			staticOptions = staticOptions.SetReplicas(1)
-		default:
-			if numHosts != numReplicas {
-				err := fmt.Errorf("number of hosts (%d) not equal to number of replicas (%d)", numHosts, numReplicas)
-				return emptyConfig, err
-			}
-			staticOptions = staticOptions.SetReplicas(c.Static.TopologyConfig.Replicas)
-		}
-
-		topoInit := topology.NewStaticInitializer(staticOptions)
-
-		kv, err := configSvcClient.KV()
-		if err != nil {
-			err = fmt.Errorf("could not create KV client, %v", err)
-			return emptyConfig, err
-		}
-
-		configureResults := ConfigureResults{
-			NamespaceInitializer: nsInitStatic,
-			TopologyInitializer:  topoInit,
-			KVStore:              kv,
-		}
-		return configureResults, nil
-
-	default:
-		return emptyConfig, errMissingConfig
+	if c.Service != nil {
+		return c.newDynamicConfigRes(configSvcClient, cfgParams)
 	}
+
+	if c.Static != nil {
+		return c.newStaticConfigRes(configSvcClient, cfgParams)
+	}
+
+	return emptyConfig, errMissingConfig
+}
+
+func (c Configuration) newDynamicConfigRes(configSvcClient client.Client, cfgParams ConfigurationParameters) (ConfigureResults, error) {
+	dynamicOpts := namespace.NewDynamicOptions().
+		SetInstrumentOptions(cfgParams.InstrumentOpts).
+		SetConfigServiceClient(configSvcClient).
+		SetNamespaceRegistryKey(kvconfig.NamespacesKey).
+		SetInitTimeout(cfgParams.NamespaceTimeout)
+	nsInit := namespace.NewDynamicInitializer(dynamicOpts)
+
+	serviceID := services.NewServiceID().
+		SetName(c.Service.Service).
+		SetEnvironment(c.Service.Env).
+		SetZone(c.Service.Zone)
+
+	topoOpts := topology.NewDynamicOptions().
+		SetConfigServiceClient(configSvcClient).
+		SetServiceID(serviceID).
+		SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
+		SetInstrumentOptions(cfgParams.InstrumentOpts).
+		SetHashGen(sharding.NewHashGenWithSeed(cfgParams.HashingSeed))
+	topoInit := topology.NewDynamicInitializer(topoOpts)
+
+	kv, err := configSvcClient.KV()
+	if err != nil {
+		err = fmt.Errorf("could not create KV client, %v", err)
+		return ConfigureResults{}, err
+	}
+
+	configureResults := ConfigureResults{
+		NamespaceInitializer: nsInit,
+		TopologyInitializer:  topoInit,
+		KVStore:              kv,
+	}
+	return configureResults, nil
+}
+
+func (c Configuration) newStaticConfigRes(configSvcClient client.Client, cfgParams ConfigurationParameters) (ConfigureResults, error) {
+	var emptyConfig ConfigureResults
+
+	nsList := []namespace.Metadata{}
+	for _, ns := range c.Static.Namespaces {
+		md, err := newNamespaceMetadata(ns)
+		if err != nil {
+			err = fmt.Errorf("unable to create metadata for static config: %v", err)
+			return emptyConfig, err
+		}
+		nsList = append(nsList, md)
+	}
+
+	nsInitStatic := namespace.NewStaticInitializer(nsList)
+
+	shardSet, hostShardSets, err := newStaticShardSet(c.Static.TopologyConfig.Shards, c.Static.TopologyConfig.Hosts)
+	if err != nil {
+		err = fmt.Errorf("unable to create shard set for static config: %v", err)
+		return emptyConfig, err
+	}
+	staticOptions := topology.NewStaticOptions().
+		SetHostShardSets(hostShardSets).
+		SetShardSet(shardSet)
+
+	numHosts := len(c.Static.TopologyConfig.Hosts)
+	numReplicas := c.Static.TopologyConfig.Replicas
+
+	switch numReplicas {
+	case 0:
+		if numHosts != 1 {
+			err := fmt.Errorf("number of hosts (%d) must be 1 if replicas is not set", numHosts)
+			return emptyConfig, err
+		}
+		staticOptions = staticOptions.SetReplicas(1)
+	default:
+		if numHosts != numReplicas {
+			err := fmt.Errorf("number of hosts (%d) not equal to number of replicas (%d)", numHosts, numReplicas)
+			return emptyConfig, err
+		}
+		staticOptions = staticOptions.SetReplicas(c.Static.TopologyConfig.Replicas)
+	}
+
+	topoInit := topology.NewStaticInitializer(staticOptions)
+
+	kv, err := configSvcClient.KV()
+	if err != nil {
+		err = fmt.Errorf("could not create KV client, %v", err)
+		return emptyConfig, err
+	}
+
+	configureResults := ConfigureResults{
+		NamespaceInitializer: nsInitStatic,
+		TopologyInitializer:  topoInit,
+		KVStore:              kv,
+	}
+	return configureResults, nil
 }
 
 func newStaticShardSet(numShards int, hosts []topology.HostShardConfig) (sharding.ShardSet, []topology.HostShardSet, error) {
