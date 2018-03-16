@@ -209,6 +209,8 @@ func (pm *persistManager) reset() {
 	pm.slept = 0
 }
 
+// Prepare returns a prepared persist object which can be used to persist data.
+// TODO: Make it return PreparedPersist, ok, error so that callers have to handle that
 func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.PreparedPersist, error) {
 
 	var (
@@ -229,21 +231,16 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 		return prepared, errPersistManagerCannotPrepareNotFlushing
 	}
 
+	// If the checkpoint file aleady exists, bail. This allows us to retry failed attempts because
+	// they wouldn't have created the checkpoint file. This can happen in a variety of situations
+	// for flushes, but is unlikely with snapshots because every snapshot has a unique timestamp
+	// that is not block-aligned.
 	if opts.IsSnapshot {
-		// If the checkpoint file for the snapshot already exists, bail. This allows us
-		// to retry failed snapshot attempts because they wouldn't have created the
-		// checkpoint file. Although in practice this is unlikely because unlike flushes,
-		// every snapshot has a unique timestamp that is not block-aligned.
 		if SnapshotFilesetExistsAt(pm.filePathPrefix, nsID, shard, writtenAt) {
-			// TODO: Don't return nil, nil. Return an error or something.
 			return prepared, nil
 		}
 	} else {
-		// NB(xichen): if the checkpoint file for blockStart already exists, bail.
-		// This allows us to retry failed flushing attempts because they wouldn't
-		// have created the checkpoint file.
 		if DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart) {
-			// TODO: Don't return nil, nil. Return an error or something.
 			return prepared, nil
 		}
 	}

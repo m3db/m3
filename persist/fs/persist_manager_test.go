@@ -37,8 +37,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createShardDir(t *testing.T, prefix string, namespace ident.ID, shard uint32) string {
+func createDataShardDir(t *testing.T, prefix string, namespace ident.ID, shard uint32) string {
 	shardDirPath := ShardDataDirPath(prefix, namespace, shard)
+	err := os.MkdirAll(shardDirPath, os.ModeDir|os.FileMode(0755))
+	require.Nil(t, err)
+	return shardDirPath
+}
+
+func createSnapshotsShardDir(t *testing.T, prefix string, namespace ident.ID, shard uint32) string {
+	shardDirPath := ShardSnapshotsDirPath(prefix, namespace, shard)
 	err := os.MkdirAll(shardDirPath, os.ModeDir|os.FileMode(0755))
 	require.Nil(t, err)
 	return shardDirPath
@@ -65,7 +72,7 @@ func testManager(
 	return manager, writer, opts
 }
 
-func TestPersistenceManagerPrepareFileExists(t *testing.T) {
+func TestPersistenceManagerPrepareDataFileExists(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -74,7 +81,7 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	shardDir := createShardDir(t, pm.filePathPrefix, testNs1ID, shard)
+	shardDir := createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
 	checkpointFilePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	f, err := os.Create(checkpointFilePath)
 	require.NoError(t, err)
@@ -92,6 +99,41 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 		Shard:      shard,
 		BlockStart: blockStart,
 		WrittenAt:  blockStart,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
+	require.NoError(t, err)
+	require.Nil(t, prepared.Persist)
+	require.Nil(t, prepared.Close)
+}
+
+func TestPersistenceManagerPrepareSnapshotFileExists(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	pm, _, _ := testManager(t, ctrl)
+	defer os.RemoveAll(pm.filePathPrefix)
+
+	shard := uint32(0)
+	blockStart := time.Unix(1000, 0)
+	shardDir := createSnapshotsShardDir(t, pm.filePathPrefix, testNs1ID, shard)
+	checkpointFilePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	f, err := os.Create(checkpointFilePath)
+	require.NoError(t, err)
+	f.Close()
+
+	flush, err := pm.StartFlush()
+	require.NoError(t, err)
+
+	defer func() {
+		assert.NoError(t, flush.Done())
+	}()
+
+	prepareOpts := persist.PrepareOptions{
+		NsMetadata: testNs1Metadata(t),
+		Shard:      shard,
+		BlockStart: blockStart,
+		WrittenAt:  blockStart,
+		IsSnapshot: true,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
