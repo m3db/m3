@@ -109,7 +109,7 @@ func (s *segment) Insert(d doc.Document) error {
 		return errSegmentSealed
 	}
 
-	// Validate that the documents contains only valid UTF-8.
+	// Validate that the document contains only valid UTF-8.
 	for _, f := range d.Fields {
 		if !utf8.Valid(f.Name) {
 			return fmt.Errorf("document contains invalid field name: %v", f.Name)
