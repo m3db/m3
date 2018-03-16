@@ -20,7 +20,7 @@
 
 package aggregation
 
-import "github.com/m3db/m3metrics/policy"
+import "github.com/m3db/m3metrics/aggregation"
 
 var (
 	defaultOptions Options
@@ -39,6 +39,6 @@ func NewOptions() Options {
 }
 
 // ResetSetData resets the aggregation options.
-func (o *Options) ResetSetData(aggTypes policy.AggregationTypes) {
+func (o *Options) ResetSetData(aggTypes aggregation.Types) {
 	o.HasExpensiveAggregations = isExpensive(aggTypes)
 }

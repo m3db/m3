@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
@@ -62,8 +63,8 @@ var (
 	}
 	testPoliciesList = policy.PoliciesList{
 		policy.NewStagedPolicies(123, false, []policy.Policy{
-			policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-			policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), policy.DefaultAggregationID),
+			policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+			policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), aggregation.DefaultID),
 		}),
 		policy.NewStagedPolicies(456, true, nil),
 	}

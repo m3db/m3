@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3aggregator/rate"
 	"github.com/m3db/m3aggregator/runtime"
+	"github.com/m3db/m3metrics/aggregation"
 	metricid "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -83,7 +84,7 @@ type Entry struct {
 	metrics                entryMetrics
 	// The entry keeps a decompressor to reuse the bitset in it, so we can
 	// save some heap allocations.
-	decompressor policy.AggregationIDDecompressor
+	decompressor aggregation.IDDecompressor
 }
 
 // NewEntry creates a new entry.
@@ -92,7 +93,7 @@ func NewEntry(lists *metricLists, runtimeOpts runtime.Options, opts Options) *En
 	e := &Entry{
 		aggregations: make(map[policy.Policy]*list.Element),
 		metrics:      newEntryMetrics(scope),
-		decompressor: policy.NewPooledAggregationIDDecompressor(opts.AggregationTypesOptions().AggregationTypesPool()),
+		decompressor: aggregation.NewPooledIDDecompressor(opts.AggregationTypesOptions().TypesPool()),
 	}
 	e.ResetSetData(lists, runtimeOpts, opts)
 	return e

@@ -23,7 +23,7 @@ package aggregation
 import (
 	"testing"
 
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/aggregation"
 
 	"github.com/stretchr/testify/require"
 )
@@ -35,9 +35,9 @@ func TestOptions(t *testing.T) {
 	o.ResetSetData(nil)
 	require.False(t, o.HasExpensiveAggregations)
 
-	o.ResetSetData(policy.AggregationTypes{policy.Sum})
+	o.ResetSetData(aggregation.Types{aggregation.Sum})
 	require.False(t, o.HasExpensiveAggregations)
 
-	o.ResetSetData(policy.AggregationTypes{policy.Sum, policy.SumSq})
+	o.ResetSetData(aggregation.Types{aggregation.Sum, aggregation.SumSq})
 	require.True(t, o.HasExpensiveAggregations)
 }

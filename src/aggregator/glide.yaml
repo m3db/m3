@@ -5,10 +5,10 @@ import:
   version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
 
 - package: github.com/m3db/m3cluster
-  version: 6b9b5a7eae36b0f3fc23823250d4536f6518332f
+  version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
 
 - package: github.com/m3db/m3metrics
-  version: 1ed6b292f4f6a1dfa4d6bfcb4fa5cb98578bf7e8
+  version: d4a5c022c5f0c23489c58ef2ce360d12713f799b
 
 - package: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a

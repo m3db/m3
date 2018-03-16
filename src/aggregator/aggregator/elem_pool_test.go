@@ -23,6 +23,7 @@ package aggregator
 import (
 	"testing"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/pool"
 
@@ -32,12 +33,12 @@ import (
 func TestCounterElemPool(t *testing.T) {
 	p := NewCounterElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *CounterElem {
-		return NewCounterElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, NewOptions())
+		return NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, NewOptions())
 	})
 
 	// Retrieve an element from the pool.
 	element := p.Get()
-	element.ResetSetData(testCounterID, testStoragePolicy, policy.DefaultAggregationTypes)
+	element.ResetSetData(testCounterID, testStoragePolicy, aggregation.DefaultTypes)
 	require.Equal(t, testCounterID, element.id)
 	require.Equal(t, testStoragePolicy, element.sp)
 
@@ -53,12 +54,12 @@ func TestCounterElemPool(t *testing.T) {
 func TestTimerElemPool(t *testing.T) {
 	p := NewTimerElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *TimerElem {
-		return NewTimerElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, NewOptions())
+		return NewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, NewOptions())
 	})
 
 	// Retrieve an element from the pool.
 	element := p.Get()
-	element.ResetSetData(testBatchTimerID, testStoragePolicy, policy.DefaultAggregationTypes)
+	element.ResetSetData(testBatchTimerID, testStoragePolicy, aggregation.DefaultTypes)
 	require.Equal(t, testBatchTimerID, element.id)
 	require.Equal(t, testStoragePolicy, element.sp)
 
@@ -74,12 +75,12 @@ func TestTimerElemPool(t *testing.T) {
 func TestGaugeElemPool(t *testing.T) {
 	p := NewGaugeElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *GaugeElem {
-		return NewGaugeElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, NewOptions())
+		return NewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, NewOptions())
 	})
 
 	// Retrieve an element from the pool.
 	element := p.Get()
-	element.ResetSetData(testGaugeID, testStoragePolicy, policy.DefaultAggregationTypes)
+	element.ResetSetData(testGaugeID, testStoragePolicy, aggregation.DefaultTypes)
 	require.Equal(t, testGaugeID, element.id)
 	require.Equal(t, testStoragePolicy, element.sp)
 

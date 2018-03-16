@@ -24,7 +24,7 @@ import (
 	"math"
 	"sync"
 
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/aggregation"
 )
 
 // Counter aggregates counter values.
@@ -93,21 +93,21 @@ func (c *Counter) Min() int64 { return c.min }
 func (c *Counter) Max() int64 { return c.max }
 
 // ValueOf returns the value for the aggregation type.
-func (c *Counter) ValueOf(aggType policy.AggregationType) float64 {
+func (c *Counter) ValueOf(aggType aggregation.Type) float64 {
 	switch aggType {
-	case policy.Min:
+	case aggregation.Min:
 		return float64(c.Min())
-	case policy.Max:
+	case aggregation.Max:
 		return float64(c.Max())
-	case policy.Mean:
+	case aggregation.Mean:
 		return c.Mean()
-	case policy.Count:
+	case aggregation.Count:
 		return float64(c.Count())
-	case policy.Sum:
+	case aggregation.Sum:
 		return float64(c.Sum())
-	case policy.SumSq:
+	case aggregation.SumSq:
 		return float64(c.SumSq())
-	case policy.Stdev:
+	case aggregation.Stdev:
 		return c.Stdev()
 	default:
 		return 0

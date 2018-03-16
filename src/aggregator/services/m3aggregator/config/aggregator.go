@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
@@ -53,7 +54,7 @@ var (
 // AggregatorConfiguration contains aggregator configuration.
 type AggregatorConfiguration struct {
 	// AggregationTypes configs the aggregation types.
-	AggregationTypes policy.AggregationTypesConfiguration `yaml:"aggregationTypes"`
+	AggregationTypes aggregation.TypesConfiguration `yaml:"aggregationTypes"`
 
 	// Common metric prefix.
 	MetricPrefix string `yaml:"metricPrefix"`
@@ -273,7 +274,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	counterElemPool := aggregator.NewCounterElemPool(counterElemPoolOpts)
 	opts = opts.SetCounterElemPool(counterElemPool)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.NewCounterElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, opts)
+		return aggregator.NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, opts)
 	})
 
 	// Set timer elem pool.
@@ -282,7 +283,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	timerElemPool := aggregator.NewTimerElemPool(timerElemPoolOpts)
 	opts = opts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.NewTimerElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, opts)
+		return aggregator.NewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, opts)
 	})
 
 	// Set gauge elem pool.
@@ -291,7 +292,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
 	opts = opts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.NewGaugeElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, opts)
+		return aggregator.NewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, opts)
 	})
 
 	// Set entry pool.
@@ -369,7 +370,7 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 }
 
 type placementManagerConfiguration struct {
-	KVConfig         kv.Configuration               `yaml:"kvConfig"`
+	KVConfig         kv.OverrideConfiguration       `yaml:"kvConfig"`
 	PlacementWatcher placement.WatcherConfiguration `yaml:"placementWatcher"`
 }
 
@@ -378,7 +379,7 @@ func (c placementManagerConfiguration) NewPlacementManager(
 	instanceID string,
 	instrumentOpts instrument.Options,
 ) (aggregator.PlacementManager, error) {
-	kvOpts, err := c.KVConfig.NewOptions()
+	kvOpts, err := c.KVConfig.NewOverrideOptions()
 	if err != nil {
 		return nil, err
 	}
@@ -399,7 +400,7 @@ func (c placementManagerConfiguration) NewPlacementManager(
 
 type flushTimesManagerConfiguration struct {
 	// KV Configuration.
-	KVConfig kv.Configuration `yaml:"kvConfig"`
+	KVConfig kv.OverrideConfiguration `yaml:"kvConfig"`
 
 	// Flush times key format.
 	FlushTimesKeyFmt string `yaml:"flushTimesKeyFmt" validate:"nonzero"`
@@ -412,7 +413,7 @@ func (c flushTimesManagerConfiguration) NewFlushTimesManager(
 	client client.Client,
 	instrumentOpts instrument.Options,
 ) (aggregator.FlushTimesManager, error) {
-	kvOpts, err := c.KVConfig.NewOptions()
+	kvOpts, err := c.KVConfig.NewOverrideOptions()
 	if err != nil {
 		return nil, err
 	}
@@ -456,7 +457,7 @@ func (c electionManagerConfiguration) NewElectionManager(
 	}
 	serviceID := c.ServiceID.NewServiceID()
 	namespaceOpts := services.NewNamespaceOptions().SetPlacementNamespace(placementNamespace)
-	serviceOpts := services.NewOptions().SetNamespaceOptions(namespaceOpts)
+	serviceOpts := services.NewOverrideOptions().SetNamespaceOptions(namespaceOpts)
 	svcs, err := client.Services(serviceOpts)
 	if err != nil {
 		return nil, err

@@ -23,7 +23,7 @@ package aggregation
 import (
 	"math"
 
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/aggregation"
 )
 
 func stdev(count int64, sumSq, sum float64) float64 {
@@ -35,9 +35,9 @@ func stdev(count int64, sumSq, sum float64) float64 {
 	return math.Sqrt(num / float64(div))
 }
 
-func isExpensive(aggTypes policy.AggregationTypes) bool {
+func isExpensive(aggTypes aggregation.Types) bool {
 	for _, aggType := range aggTypes {
-		if aggType == policy.SumSq || aggType == policy.Stdev {
+		if aggType == aggregation.SumSq || aggType == aggregation.Stdev {
 			return true
 		}
 	}

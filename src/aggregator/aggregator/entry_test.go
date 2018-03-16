@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/runtime"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -40,21 +41,21 @@ import (
 )
 
 var (
-	compressor       = policy.NewAggregationIDCompressor()
-	compressedMax, _ = compressor.Compress(policy.AggregationTypes{policy.Max})
-	testPolicies     = []policy.Policy{
-		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+	compressor    = aggregation.NewIDCompressor()
+	compressedMax = compressor.MustCompress(aggregation.Types{aggregation.Max})
+	testPolicies  = []policy.Policy{
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
 		policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), compressedMax),
-		policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 30*24*time.Hour), policy.DefaultAggregationID),
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 30*24*time.Hour), aggregation.DefaultID),
 	}
 	testNewPolicies = []policy.Policy{
-		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-		policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 7*24*time.Hour), policy.DefaultAggregationID),
-		policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 7*24*time.Hour), policy.DefaultAggregationID),
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
+		policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 7*24*time.Hour), aggregation.DefaultID),
+		policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 7*24*time.Hour), aggregation.DefaultID),
 	}
 	testDefaultPolicies = []policy.Policy{
-		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour), policy.DefaultAggregationID),
-		policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 720*time.Hour), policy.DefaultAggregationID),
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour), aggregation.DefaultID),
+		policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 720*time.Hour), aggregation.DefaultID),
 	}
 )
 
@@ -259,7 +260,7 @@ func TestEntryHasPolicyChangesWithLockSameLengthDifferentPolicies(t *testing.T) 
 			resolution := p.Resolution()
 			retention := p.Retention()
 			newRetention := time.Duration(retention) - time.Second
-			p = policy.NewPolicy(policy.NewStoragePolicy(resolution.Window, resolution.Precision, newRetention), policy.DefaultAggregationID)
+			p = policy.NewPolicy(policy.NewStoragePolicy(resolution.Window, resolution.Precision, newRetention), aggregation.DefaultID)
 		}
 		e.aggregations[p] = &list.Element{}
 	}
@@ -711,12 +712,12 @@ func TestEntryAddMetricWithPoliciesListWithInvalidAggregationType(t *testing.T) 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	compressor := policy.NewAggregationIDCompressor()
-	compressedMin, err := compressor.Compress(policy.AggregationTypes{policy.Min})
+	compressor := aggregation.NewIDCompressor()
+	compressedMin, err := compressor.Compress(aggregation.Types{aggregation.Min})
 	require.NoError(t, err)
-	compressedLast, err := compressor.Compress(policy.AggregationTypes{policy.Last})
+	compressedLast, err := compressor.Compress(aggregation.Types{aggregation.Last})
 	require.NoError(t, err)
-	compressedP9999, err := compressor.Compress(policy.AggregationTypes{policy.P9999})
+	compressedP9999, err := compressor.Compress(aggregation.Types{aggregation.P9999})
 	require.NoError(t, err)
 
 	e, _, _ := testEntry(ctrl)
@@ -896,7 +897,7 @@ func populateTestAggregations(
 		default:
 			require.Fail(t, fmt.Sprintf("unrecognized metric type: %v", typ))
 		}
-		newElem.ResetSetData(testID, p.StoragePolicy, policy.DefaultAggregationTypes)
+		newElem.ResetSetData(testID, p.StoragePolicy, aggregation.DefaultTypes)
 		list, err := e.lists.FindOrCreate(p.Resolution().Window)
 		require.NoError(t, err)
 		newListElem, err := list.PushBack(newElem)

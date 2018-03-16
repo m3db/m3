@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregation"
 	"github.com/m3db/m3aggregator/aggregator"
+	maggregation "github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	metricid "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
@@ -46,8 +47,8 @@ var (
 			0,
 			false,
 			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), policy.DefaultAggregationID),
-				policy.NewPolicy(policy.NewStoragePolicy(2*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), maggregation.DefaultID),
+				policy.NewPolicy(policy.NewStoragePolicy(2*time.Second, xtime.Second, 6*time.Hour), maggregation.DefaultID),
 			},
 		),
 	}
@@ -56,8 +57,8 @@ var (
 			0,
 			false,
 			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), policy.DefaultAggregationID),
-				policy.NewPolicy(policy.NewStoragePolicy(3*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), maggregation.DefaultID),
+				policy.NewPolicy(policy.NewStoragePolicy(3*time.Second, xtime.Second, 24*time.Hour), maggregation.DefaultID),
 			},
 		),
 	}
@@ -92,7 +93,7 @@ type valuesByTime map[int64]interface{}
 type datapointsByID map[metricKey]valuesByTime
 
 type dataForPolicy struct {
-	aggTypes policy.AggregationTypes
+	aggTypes maggregation.Types
 	data     datapointsByID
 }
 
@@ -217,10 +218,10 @@ func toExpectedResults(
 
 	byPolicy := make(metricsByPolicy)
 	for _, p := range policies {
-		byPolicy[p] = &dataForPolicy{aggTypes: policy.DefaultAggregationTypes, data: make(datapointsByID)}
+		byPolicy[p] = &dataForPolicy{aggTypes: maggregation.DefaultTypes, data: make(datapointsByID)}
 	}
 
-	decompressor := policy.NewAggregationIDDecompressor()
+	decompressor := maggregation.NewIDDecompressor()
 	aggTypeOpts := opts.AggregationTypesOptions()
 	// Aggregate metrics by policies.
 	for _, dataValues := range dsp.dataset {
@@ -314,7 +315,7 @@ func toAggregatedMetrics(
 	timeNanos int64,
 	values interface{},
 	sp policy.StoragePolicy,
-	aggTypes policy.AggregationTypes,
+	aggTypes maggregation.Types,
 	opts aggregator.Options,
 ) []aggregated.MetricWithStoragePolicy {
 	var result []aggregated.MetricWithStoragePolicy
