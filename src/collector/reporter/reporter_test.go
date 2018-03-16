@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
@@ -41,18 +42,18 @@ import (
 )
 
 var (
-	compressor               = policy.NewAggregationIDCompressor()
-	compressedMax, _         = compressor.Compress(policy.AggregationTypes{policy.Max})
-	compressedP9999, _       = compressor.Compress(policy.AggregationTypes{policy.P9999})
-	compressedMaxAndP9999, _ = compressor.Compress(policy.AggregationTypes{policy.Max, policy.P9999})
-	testMappingPoliciesList  = policy.PoliciesList{
+	compressor              = aggregation.NewIDCompressor()
+	compressedMax           = compressor.MustCompress(aggregation.Types{aggregation.Max})
+	compressedP9999         = compressor.MustCompress(aggregation.Types{aggregation.P9999})
+	compressedMaxAndP9999   = compressor.MustCompress(aggregation.Types{aggregation.Max, aggregation.P9999})
+	testMappingPoliciesList = policy.PoliciesList{
 		policy.NewStagedPolicies(
 			100,
 			false,
 			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+				policy.NewPolicy(policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
 				policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), compressedMax),
-				policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour), policy.DefaultAggregationID),
+				policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour), aggregation.DefaultID),
 			},
 		),
 		policy.NewStagedPolicies(
@@ -76,8 +77,8 @@ var (
 					false,
 					[]policy.Policy{
 						policy.NewPolicy(policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour), compressedMaxAndP9999),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), policy.DefaultAggregationID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), aggregation.DefaultID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour), aggregation.DefaultID),
 					},
 				),
 				policy.NewStagedPolicies(

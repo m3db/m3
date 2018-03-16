@@ -9,10 +9,10 @@ import:
   - log
 
 - package: github.com/m3db/m3cluster
-  version: 6b9b5a7eae36b0f3fc23823250d4536f6518332f
+  version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
 
 - package: github.com/m3db/m3metrics
-  version: 1ed6b292f4f6a1dfa4d6bfcb4fa5cb98578bf7e8
+  version: d4a5c022c5f0c23489c58ef2ce360d12713f799b
 
 - package: github.com/uber-go/tally
   version: ^3.0.0 # ie >= 3.0.0, < 4.0.0
