@@ -30,17 +30,17 @@ import (
 
 // NamespaceValidatorConfiguration configures a KV-backed namespace validator.
 type NamespaceValidatorConfiguration struct {
-	KVConfig               kv.Configuration `yaml:"kvConfig"`
-	InitWatchTimeout       *time.Duration   `yaml:"initWatchTimeout"`
-	ValidNamespacesKey     string           `yaml:"validNamespacesKey" validate:"nonzero"`
-	DefaultValidNamespaces *[]string        `yaml:"defaultValidNamespaces"`
+	KVConfig               kv.OverrideConfiguration `yaml:"kvConfig"`
+	InitWatchTimeout       *time.Duration           `yaml:"initWatchTimeout"`
+	ValidNamespacesKey     string                   `yaml:"validNamespacesKey" validate:"nonzero"`
+	DefaultValidNamespaces *[]string                `yaml:"defaultValidNamespaces"`
 }
 
 // NewNamespaceValidator creates a new namespace validator.
 func (c *NamespaceValidatorConfiguration) NewNamespaceValidator(
 	kvClient client.Client,
 ) (namespace.Validator, error) {
-	kvOpts, err := c.KVConfig.NewOptions()
+	kvOpts, err := c.KVConfig.NewOverrideOptions()
 	if err != nil {
 		return nil, err
 	}

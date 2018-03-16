@@ -75,7 +75,7 @@ kv:
 	require.NoError(t, yaml.Unmarshal([]byte(cfgStr), &cfg))
 
 	kvStore := mem.NewStore()
-	kvOpts := kv.NewOptions().SetZone("testZone").SetEnvironment("testEnvironment")
+	kvOpts := kv.NewOverrideOptions().SetZone("testZone").SetEnvironment("testEnvironment")
 	kvClient := client.NewMockClient(ctrl)
 	kvClient.EXPECT().Store(kvOpts).Return(kvStore, nil)
 	_, err := cfg.NewNamespaceValidator(kvClient)
