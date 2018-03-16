@@ -57,9 +57,13 @@ import (
 
 const (
 	shardIterateBatchPercent = 0.01
-	expireBatchLength        = 1024
 )
 
+var (
+	// NB(prateek): the following is set to a var instead of a const because we
+	// override it in tests
+	expireBatchLength = 1024
+)
 var (
 	errShardEntryNotFound         = errors.New("shard entry not found")
 	errShardNotOpen               = errors.New("shard is not open")
@@ -182,6 +186,8 @@ func (entry *dbShardEntry) decrementReaderWriterCount() {
 }
 
 type dbShardEntryWorkFn func(entry *dbShardEntry) bool
+
+type dbShardEntryBatchWorkFn func(entries []*dbShardEntry) bool
 
 type shardFlushState struct {
 	sync.RWMutex
@@ -379,17 +385,49 @@ func (s *dbShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 }
 
 func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
+	return s.forEachShardEntryBatch(func(currEntries []*dbShardEntry) bool {
+		for _, entry := range currEntries {
+			if continueForEach := entryFn(entry); !continueForEach {
+				return false
+			}
+		}
+		return true
+	})
+}
+
+func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn) error {
 	// NB(r): consider using a lockless list for ticking.
 	s.RLock()
 	elemsLen := s.list.Len()
 	batchSize := int(math.Ceil(shardIterateBatchPercent * float64(elemsLen)))
-	nextElem := s.list.Front()
 	s.RUnlock()
 
-	// TODO(xichen): pool or cache this.
-	currEntries := make([]*dbShardEntry, 0, batchSize)
-	for nextElem != nil {
+	decRefElem := func(e *list.Element) {
+		if e == nil {
+			return
+		}
+		e.Value.(*dbShardEntry).decrementReaderWriterCount()
+	}
+
+	var (
+		currEntries = make([]*dbShardEntry, 0, batchSize) // TODO(xichen): pool or cache this.
+		first       = true
+		nextElem    *list.Element
+	)
+
+	for nextElem != nil || first {
 		s.RLock()
+		// NB(prateek): release held reference on the next element pointer now
+		// that we have the read lock and are guaranteed it cannot be changed
+		// from under us.
+		decRefElem(nextElem)
+
+		// lazily pull from the head of the list at first
+		if first {
+			nextElem = s.list.Front()
+			first = false
+		}
+
 		elem := nextElem
 		for ticked := 0; ticked < batchSize && elem != nil; ticked++ {
 			nextElem = elem.Next()
@@ -398,22 +436,26 @@ func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
 			currEntries = append(currEntries, entry)
 			elem = nextElem
 		}
-		s.RUnlock()
-		for _, entry := range currEntries {
-			if continueForEach := entryFn(entry); !continueForEach {
-				// Abort early, decrement reader writer count for all entries first
-				for _, e := range currEntries {
-					e.decrementReaderWriterCount()
-				}
-				return nil
-			}
+
+		// NB(prateek): inc a reference to the next element while we have a lock,
+		// to guarantee the element pointer cannot be changed from under us.
+		if nextElem != nil {
+			nextElem.Value.(*dbShardEntry).incrementReaderWriterCount()
 		}
+		s.RUnlock()
+
+		continueExecution := entriesBatchFn(currEntries)
 		for i := range currEntries {
 			currEntries[i].decrementReaderWriterCount()
 			currEntries[i] = nil
 		}
 		currEntries = currEntries[:0]
+		if !continueExecution {
+			decRefElem(nextElem)
+			return nil
+		}
 	}
+
 	return nil
 }
 
@@ -523,7 +565,6 @@ func (s *dbShard) tickAndExpire(
 
 	var (
 		r                             tickResult
-		expired                       []series.DatabaseSeries
 		terminatedTickingDueToClosing bool
 		i                             int
 		slept                         time.Duration
@@ -532,72 +573,81 @@ func (s *dbShard) tickAndExpire(
 	tickSleepBatch := s.currRuntimeOptions.tickSleepSeriesBatchSize
 	tickSleepPerSeries := s.currRuntimeOptions.tickSleepPerSeries
 	s.RUnlock()
-	s.forEachShardEntry(func(entry *dbShardEntry) bool {
-		if i > 0 && i%tickSleepBatch == 0 {
-			// NB(xichen): if the tick is cancelled, we bail out immediately.
-			// The cancellation check is performed on every batch of entries
-			// instead of every entry to reduce load.
-			if c.IsCancelled() {
-				return false
-			}
-			// NB(prateek): Also bail out early if the shard is closing,
-			// unless it's the final tick issued during the Close(). This
-			// final tick is required to release resources back to our pools.
-			if policy != tickPolicyCloseShard && s.isClosing() {
-				terminatedTickingDueToClosing = true
-				return false
-			}
-			// Throttle the tick
-			sleepFor := time.Duration(tickSleepBatch) * tickSleepPerSeries
-			s.sleepFn(sleepFor)
-			slept += sleepFor
-		}
-		var (
-			result series.TickResult
-			err    error
-		)
-		switch policy {
-		case tickPolicyRegular:
-			result, err = entry.series.Tick()
-		case tickPolicyCloseShard:
-			err = series.ErrSeriesAllDatapointsExpired
-		}
-		if err == series.ErrSeriesAllDatapointsExpired {
-			expired = append(expired, entry.series)
-			r.expiredSeries++
-			if len(expired) >= expireBatchLength {
-				// Purge when reaching max batch size to avoid large array growth
-				// and ensure smooth rate of elements being returned to pools.
-				// This method does not run using a lock so this is safe to
-				// perform inline.
-				s.purgeExpiredSeries(expired)
-				for i := range expired {
-					expired[i] = nil
+	s.forEachShardEntryBatch(func(currEntries []*dbShardEntry) bool {
+		var expired []*dbShardEntry
+		for _, entry := range currEntries {
+			if i > 0 && i%tickSleepBatch == 0 {
+				// NB(xichen): if the tick is cancelled, we bail out immediately.
+				// The cancellation check is performed on every batch of entries
+				// instead of every entry to reduce load.
+				if c.IsCancelled() {
+					return false
 				}
-				expired = expired[:0]
+				// NB(prateek): Also bail out early if the shard is closing,
+				// unless it's the final tick issued during the Close(). This
+				// final tick is required to release resources back to our pools.
+				if policy != tickPolicyCloseShard && s.isClosing() {
+					terminatedTickingDueToClosing = true
+					return false
+				}
+				// Throttle the tick
+				sleepFor := time.Duration(tickSleepBatch) * tickSleepPerSeries
+				s.sleepFn(sleepFor)
+				slept += sleepFor
 			}
-		} else {
-			r.activeSeries++
-			if err != nil {
-				r.errors++
+
+			var (
+				result series.TickResult
+				err    error
+			)
+			switch policy {
+			case tickPolicyRegular:
+				result, err = entry.series.Tick()
+			case tickPolicyCloseShard:
+				err = series.ErrSeriesAllDatapointsExpired
 			}
+			if err == series.ErrSeriesAllDatapointsExpired {
+				expired = append(expired, entry)
+				r.expiredSeries++
+				if len(expired) >= expireBatchLength {
+					// Purge when reaching max batch size to avoid large array growth
+					// and ensure smooth rate of elements being returned to pools.
+					// This method does not run using a lock so this is safe to
+					// perform inline.
+					s.purgeExpiredSeries(expired)
+					for i := range expired {
+						expired[i] = nil
+					}
+					expired = expired[:0]
+				}
+			} else {
+				r.activeSeries++
+				if err != nil {
+					r.errors++
+				}
+			}
+			r.activeBlocks += result.ActiveBlocks
+			r.openBlocks += result.OpenBlocks
+			r.wiredBlocks += result.WiredBlocks
+			r.unwiredBlocks += result.UnwiredBlocks
+			r.madeExpiredBlocks += result.MadeExpiredBlocks
+			r.madeUnwiredBlocks += result.MadeUnwiredBlocks
+			r.mergedOutOfOrderBlocks += result.MergedOutOfOrderBlocks
+			i++
 		}
-		r.activeBlocks += result.ActiveBlocks
-		r.openBlocks += result.OpenBlocks
-		r.wiredBlocks += result.WiredBlocks
-		r.unwiredBlocks += result.UnwiredBlocks
-		r.madeExpiredBlocks += result.MadeExpiredBlocks
-		r.madeUnwiredBlocks += result.MadeUnwiredBlocks
-		r.mergedOutOfOrderBlocks += result.MergedOutOfOrderBlocks
-		i++
+
+		if len(expired) > 0 {
+			// Purge any series that still haven't been purged yet
+			s.purgeExpiredSeries(expired)
+			for i := range expired {
+				expired[i] = nil
+			}
+			expired = expired[:0]
+		}
+
 		// Continue
 		return true
 	})
-
-	if len(expired) > 0 {
-		// Purge any series that still haven't been purged yet
-		s.purgeExpiredSeries(expired)
-	}
 
 	if terminatedTickingDueToClosing {
 		return tickResult{}, errShardClosingTickTerminated
@@ -606,22 +656,24 @@ func (s *dbShard) tickAndExpire(
 	return r, nil
 }
 
-func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {
+// NB(prateek): the calling function must ensure it has incremented the reference
+// count on the provided `expiredEntries`.
+func (s *dbShard) purgeExpiredSeries(expiredEntries []*dbShardEntry) {
 	// Remove all expired series from lookup and list.
 	s.Lock()
-	for _, series := range expired {
+	for _, entry := range expiredEntries {
+		series := entry.series
 		hash := series.ID().Hash()
 		elem, exists := s.lookup[hash]
 		if !exists {
 			continue
 		}
-		entry := elem.Value.(*dbShardEntry)
 		// If this series is currently being written to or read from, we don't
 		// remove it even though it's empty in that it might become non-empty
 		// soon.
 		// We avoid closing the series during a read to ensure a consistent view
 		// of the series if they manage to take a reference to it.
-		if entry.readerWriterCount() > 0 {
+		if entry.readerWriterCount() > 1 {
 			continue
 		}
 		// If there have been datapoints written to the series since its
