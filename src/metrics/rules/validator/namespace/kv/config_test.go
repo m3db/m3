@@ -56,7 +56,7 @@ validNamespacesKey: validNamespaces
 	_, err := kvStore.SetIfNotExists("validNamespaces", initNamespaces)
 	require.NoError(t, err)
 
-	kvOpts := kv.NewOptions().
+	kvOpts := kv.NewOverrideOptions().
 		SetZone("testZone").
 		SetNamespace("testNamespace").
 		SetEnvironment("testEnvironment")

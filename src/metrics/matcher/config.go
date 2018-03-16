@@ -40,7 +40,7 @@ import (
 // Configuration is config used to create a Matcher.
 type Configuration struct {
 	InitWatchTimeout      time.Duration                  `yaml:"initWatchTimeout"`
-	RulesKVConfig         kv.Configuration               `yaml:"rulesKVConfig"`
+	RulesKVConfig         kv.OverrideConfiguration       `yaml:"rulesKVConfig"`
 	NamespacesKey         string                         `yaml:"namespacesKey" validate:"nonzero"`
 	RuleSetKeyFmt         string                         `yaml:"ruleSetKeyFmt" validate:"nonzero"`
 	NamespaceTag          string                         `yaml:"namespaceTag" validate:"nonzero"`
@@ -88,7 +88,7 @@ func (cfg *Configuration) NewOptions(
 	instrumentOpts instrument.Options,
 ) (Options, error) {
 	// Configure rules kv store.
-	kvOpts, err := cfg.RulesKVConfig.NewOptions()
+	kvOpts, err := cfg.RulesKVConfig.NewOverrideOptions()
 	if err != nil {
 		return nil, err
 	}

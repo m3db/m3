@@ -37,7 +37,7 @@ import (
 func TestConfigurationNewNamespaces(t *testing.T) {
 	cfg := Configuration{
 		InitWatchTimeout: time.Second,
-		RulesKVConfig: kv.Configuration{
+		RulesKVConfig: kv.OverrideConfiguration{
 			Namespace:   "RulesKVNamespace",
 			Environment: "RulesKVEnvironment",
 		},
@@ -53,7 +53,7 @@ func TestConfigurationNewNamespaces(t *testing.T) {
 	m := client.NewMockClient(ctrl)
 
 	mem := mem.NewStore()
-	m.EXPECT().Store(kv.NewOptions().SetEnvironment("RulesKVEnvironment").SetNamespace("RulesKVNamespace")).Return(mem, nil)
+	m.EXPECT().Store(kv.NewOverrideOptions().SetEnvironment("RulesKVEnvironment").SetNamespace("RulesKVNamespace")).Return(mem, nil)
 
 	opts, err := cfg.NewOptions(m, clock.NewOptions(), instrument.NewOptions())
 	require.NoError(t, err)

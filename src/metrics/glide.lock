@@ -1,5 +1,5 @@
-hash: 917fc7ee9d082037eb97a270f47c84a851c04d431447b88cc4f6d3c10c8068cb
-updated: 2018-03-15T10:32:08.892977581-04:00
+hash: 44753b05e871f26cdeb1f9f15ce521e22f97f10fce5ecd5e23c6226752618823
+updated: 2018-03-15T19:02:36.273816-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -20,7 +20,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: 6b9b5a7eae36b0f3fc23823250d4536f6518332f
+  version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
   subpackages:
   - client
   - generated/proto/commonpb
@@ -31,6 +31,10 @@ imports:
   - kv/util
   - kv/util/runtime
   - placement
+  - placement/algo
+  - placement/selector
+  - placement/service
+  - placement/storage
   - services
   - services/leader/campaign
   - shard
