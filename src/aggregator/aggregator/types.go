@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3aggregator/sharding"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
@@ -151,10 +152,10 @@ type Options interface {
 	TimeLock() *sync.RWMutex
 
 	// SetAggregationTypesOptions sets the aggregation types options.
-	SetAggregationTypesOptions(value policy.AggregationTypesOptions) Options
+	SetAggregationTypesOptions(value aggregation.TypesOptions) Options
 
 	// AggregationTypesOptions returns the aggregation types options.
-	AggregationTypesOptions() policy.AggregationTypesOptions
+	AggregationTypesOptions() aggregation.TypesOptions
 
 	// SetClockOptions sets the clock options.
 	SetClockOptions(value clock.Options) Options

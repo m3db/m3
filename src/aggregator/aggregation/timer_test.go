@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/require"
@@ -33,18 +33,18 @@ import (
 
 var (
 	testQuantiles = []float64{0.5, 0.95, 0.99}
-	testAggTypes  = policy.AggregationTypes{
-		policy.Sum,
-		policy.SumSq,
-		policy.Mean,
-		policy.Min,
-		policy.Max,
-		policy.Count,
-		policy.Stdev,
-		policy.Median,
-		policy.P50,
-		policy.P95,
-		policy.P99,
+	testAggTypes  = aggregation.Types{
+		aggregation.Sum,
+		aggregation.SumSq,
+		aggregation.Mean,
+		aggregation.Min,
+		aggregation.Max,
+		aggregation.Count,
+		aggregation.Stdev,
+		aggregation.Median,
+		aggregation.P50,
+		aggregation.P95,
+		aggregation.P99,
 	}
 )
 
@@ -105,32 +105,32 @@ func TestTimerAggregations(t *testing.T) {
 	require.True(t, timer.Quantile(0.95) >= 94 && timer.Quantile(0.95) <= 96)
 	require.True(t, timer.Quantile(0.99) >= 98 && timer.Quantile(0.99) <= 100)
 
-	for aggType := range policy.ValidAggregationTypes {
+	for aggType := range aggregation.ValidTypes {
 		v := timer.ValueOf(aggType)
 		switch aggType {
-		case policy.Last:
+		case aggregation.Last:
 			require.Equal(t, 0.0, v)
-		case policy.Min:
+		case aggregation.Min:
 			require.Equal(t, 1.0, v)
-		case policy.Max:
+		case aggregation.Max:
 			require.Equal(t, 100.0, v)
-		case policy.Mean:
+		case aggregation.Mean:
 			require.Equal(t, 50.5, v)
-		case policy.Median:
+		case aggregation.Median:
 			require.Equal(t, 50.0, v)
-		case policy.Count:
+		case aggregation.Count:
 			require.Equal(t, 100.0, v)
-		case policy.Sum:
+		case aggregation.Sum:
 			require.Equal(t, 5050.0, v)
-		case policy.SumSq:
+		case aggregation.SumSq:
 			require.Equal(t, 338350.0, v)
-		case policy.Stdev:
+		case aggregation.Stdev:
 			require.InDelta(t, 29.01149, v, 0.001)
-		case policy.P50:
+		case aggregation.P50:
 			require.Equal(t, 50.0, v)
-		case policy.P95:
+		case aggregation.P95:
 			require.Equal(t, 95.0, v)
-		case policy.P99:
+		case aggregation.P99:
 			require.True(t, v >= 99 && v <= 100)
 		}
 	}
@@ -144,7 +144,7 @@ func TestTimerAggregations(t *testing.T) {
 
 func TestTimerAggregationsNotExpensive(t *testing.T) {
 	opts := NewOptions()
-	opts.ResetSetData(policy.AggregationTypes{policy.Sum})
+	opts.ResetSetData(aggregation.Types{aggregation.Sum})
 
 	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
 

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation"
+	maggregation "github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -60,7 +61,7 @@ type metricElem interface {
 	ID() id.RawID
 
 	// ResetSetData resets the element and sets data.
-	ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes)
+	ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes maggregation.Types)
 
 	// AddMetric adds a new metric value.
 	// TODO(xichen): a value union would suffice here.
@@ -98,10 +99,10 @@ type elemBase struct {
 	sync.RWMutex
 
 	opts                  Options
-	aggTypesOpts          policy.AggregationTypesOptions
+	aggTypesOpts          maggregation.TypesOptions
 	id                    id.RawID
 	sp                    policy.StoragePolicy
-	aggTypes              policy.AggregationTypes
+	aggTypes              maggregation.Types
 	aggOpts               aggregation.Options
 	useDefaultAggregation bool
 	tombstoned            bool
@@ -144,7 +145,7 @@ func newElemBase(opts Options) elemBase {
 }
 
 // resetSetData resets the element base and sets data.
-func (e *elemBase) resetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes, useDefaultAggregation bool) {
+func (e *elemBase) resetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes maggregation.Types, useDefaultAggregation bool) {
 	e.id = id
 	e.sp = sp
 	e.aggTypes = aggTypes
@@ -175,7 +176,7 @@ func (e *elemBase) MarkAsTombstoned() {
 }
 
 // NewCounterElem creates a new counter element.
-func NewCounterElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes, opts Options) *CounterElem {
+func NewCounterElem(id id.RawID, sp policy.StoragePolicy, aggTypes maggregation.Types, opts Options) *CounterElem {
 	e := &CounterElem{
 		elemBase: newElemBase(opts),
 		values:   make([]timedCounter, 0, defaultNumValues), // in most cases values will have two entries
@@ -185,7 +186,7 @@ func NewCounterElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.Aggreg
 }
 
 // ResetSetData resets the counter element and sets data.
-func (e *CounterElem) ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes) {
+func (e *CounterElem) ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes maggregation.Types) {
 	useDefaultAggregation := aggTypes.IsDefault()
 	if useDefaultAggregation {
 		aggTypes = e.aggTypesOpts.DefaultCounterAggregationTypes()
@@ -257,7 +258,7 @@ func (e *CounterElem) Close() {
 	e.id = nil
 	e.values = e.values[:0]
 	e.toConsume = e.toConsume[:0]
-	aggTypesPool := e.aggTypesOpts.AggregationTypesPool()
+	aggTypesPool := e.aggTypesOpts.TypesPool()
 	pool := e.opts.CounterElemPool()
 	e.Unlock()
 
@@ -355,7 +356,7 @@ func (e *CounterElem) processValue(timeNanos int64, agg aggregation.Counter, fn 
 }
 
 // NewTimerElem creates a new timer element.
-func NewTimerElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes, opts Options) *TimerElem {
+func NewTimerElem(id id.RawID, sp policy.StoragePolicy, aggTypes maggregation.Types, opts Options) *TimerElem {
 	e := &TimerElem{
 		elemBase: newElemBase(opts),
 		values:   make([]timedTimer, 0, defaultNumValues), // in most cases values will have two entries
@@ -365,7 +366,7 @@ func NewTimerElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.Aggregat
 }
 
 // ResetSetData resets the timer element and sets data.
-func (e *TimerElem) ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes) {
+func (e *TimerElem) ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes maggregation.Types) {
 	useDefaultAggregation := aggTypes.IsDefault()
 	if useDefaultAggregation {
 		aggTypes = e.aggTypesOpts.DefaultTimerAggregationTypes()
@@ -452,7 +453,7 @@ func (e *TimerElem) Close() {
 	e.values = e.values[:0]
 	e.toConsume = e.toConsume[:0]
 	quantileFloatsPool := e.aggTypesOpts.QuantilesPool()
-	aggTypesPool := e.aggTypesOpts.AggregationTypesPool()
+	aggTypesPool := e.aggTypesOpts.TypesPool()
 	pool := e.opts.TimerElemPool()
 	e.Unlock()
 
@@ -554,7 +555,7 @@ func (e *TimerElem) processValue(timeNanos int64, agg aggregation.Timer, fn aggM
 }
 
 // NewGaugeElem creates a new gauge element.
-func NewGaugeElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes, opts Options) *GaugeElem {
+func NewGaugeElem(id id.RawID, sp policy.StoragePolicy, aggTypes maggregation.Types, opts Options) *GaugeElem {
 	e := &GaugeElem{
 		elemBase: newElemBase(opts),
 		values:   make([]timedGauge, 0, defaultNumValues), // in most cases values will have two entries
@@ -564,7 +565,7 @@ func NewGaugeElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.Aggregat
 }
 
 // ResetSetData resets the gauge element and sets data.
-func (e *GaugeElem) ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes) {
+func (e *GaugeElem) ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes maggregation.Types) {
 	useDefaultAggregation := aggTypes.IsDefault()
 	if useDefaultAggregation {
 		aggTypes = e.aggTypesOpts.DefaultGaugeAggregationTypes()
@@ -635,7 +636,7 @@ func (e *GaugeElem) Close() {
 	e.id = nil
 	e.values = e.values[:0]
 	e.toConsume = e.toConsume[:0]
-	aggTypesPool := e.aggTypesOpts.AggregationTypesPool()
+	aggTypesPool := e.aggTypesOpts.TypesPool()
 	pool := e.opts.GaugeElemPool()
 	e.Unlock()
 

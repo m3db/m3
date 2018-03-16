@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3aggregator/sharding"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -47,8 +48,8 @@ var (
 	defaultMaxTimerBatchSizePerWrite = 0
 	defaultResignTimeout             = 5 * time.Minute
 	defaultDefaultPolicies           = []policy.Policy{
-		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), policy.DefaultAggregationID),
-		policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 40*24*time.Hour), policy.DefaultAggregationID),
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), aggregation.DefaultID),
+		policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 40*24*time.Hour), aggregation.DefaultID),
 	}
 
 	// By default writes are buffered for 10 minutes before traffic is cut over to a shard
@@ -63,7 +64,7 @@ var (
 
 type options struct {
 	// Base options.
-	aggTypesOptions                  policy.AggregationTypesOptions
+	aggTypesOptions                  aggregation.TypesOptions
 	metricPrefix                     []byte
 	counterPrefix                    []byte
 	timerPrefix                      []byte
@@ -103,7 +104,7 @@ type options struct {
 // NewOptions create a new set of options.
 func NewOptions() Options {
 	o := &options{
-		aggTypesOptions:    policy.NewAggregationTypesOptions(),
+		aggTypesOptions:    aggregation.NewTypesOptions(),
 		metricPrefix:       defaultMetricPrefix,
 		counterPrefix:      defaultCounterPrefix,
 		timerPrefix:        defaultTimerPrefix,
@@ -188,13 +189,13 @@ func (o *options) TimeLock() *sync.RWMutex {
 	return o.timeLock
 }
 
-func (o *options) SetAggregationTypesOptions(value policy.AggregationTypesOptions) Options {
+func (o *options) SetAggregationTypesOptions(value aggregation.TypesOptions) Options {
 	opts := *o
 	opts.aggTypesOptions = value
 	return &opts
 }
 
-func (o *options) AggregationTypesOptions() policy.AggregationTypesOptions {
+func (o *options) AggregationTypesOptions() aggregation.TypesOptions {
 	return o.aggTypesOptions
 }
 
@@ -453,17 +454,17 @@ func (o *options) initPools() {
 
 	o.counterElemPool = NewCounterElemPool(nil)
 	o.counterElemPool.Init(func() *CounterElem {
-		return NewCounterElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, o)
+		return NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, o)
 	})
 
 	o.timerElemPool = NewTimerElemPool(nil)
 	o.timerElemPool.Init(func() *TimerElem {
-		return NewTimerElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, o)
+		return NewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, o)
 	})
 
 	o.gaugeElemPool = NewGaugeElemPool(nil)
 	o.gaugeElemPool.Init(func() *GaugeElem {
-		return NewGaugeElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, o)
+		return NewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, o)
 	})
 }
 

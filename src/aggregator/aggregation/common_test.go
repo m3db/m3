@@ -23,7 +23,7 @@ package aggregation
 import (
 	"testing"
 
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/aggregation"
 
 	"github.com/stretchr/testify/require"
 )
@@ -33,9 +33,9 @@ func TestStdev(t *testing.T) {
 }
 
 func TestIsExpensive(t *testing.T) {
-	require.False(t, isExpensive(policy.AggregationTypes{}))
-	require.True(t, isExpensive(policy.AggregationTypes{policy.Sum, policy.SumSq}))
-	require.True(t, isExpensive(policy.AggregationTypes{policy.Stdev}))
-	require.False(t, isExpensive(policy.AggregationTypes{policy.Sum}))
-	require.False(t, isExpensive(policy.AggregationTypes{policy.Count, policy.P999}))
+	require.False(t, isExpensive(aggregation.Types{}))
+	require.True(t, isExpensive(aggregation.Types{aggregation.Sum, aggregation.SumSq}))
+	require.True(t, isExpensive(aggregation.Types{aggregation.Stdev}))
+	require.False(t, isExpensive(aggregation.Types{aggregation.Sum}))
+	require.False(t, isExpensive(aggregation.Types{aggregation.Count, aggregation.P999}))
 }

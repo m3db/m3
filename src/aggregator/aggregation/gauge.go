@@ -24,7 +24,7 @@ import (
 	"math"
 	"sync"
 
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/aggregation"
 )
 
 const (
@@ -102,23 +102,23 @@ func (g *Gauge) Min() float64 { return g.min }
 func (g *Gauge) Max() float64 { return g.max }
 
 // ValueOf returns the value for the aggregation type.
-func (g *Gauge) ValueOf(aggType policy.AggregationType) float64 {
+func (g *Gauge) ValueOf(aggType aggregation.Type) float64 {
 	switch aggType {
-	case policy.Last:
+	case aggregation.Last:
 		return g.Last()
-	case policy.Min:
+	case aggregation.Min:
 		return g.Min()
-	case policy.Max:
+	case aggregation.Max:
 		return g.Max()
-	case policy.Mean:
+	case aggregation.Mean:
 		return g.Mean()
-	case policy.Count:
+	case aggregation.Count:
 		return float64(g.Count())
-	case policy.Sum:
+	case aggregation.Sum:
 		return g.Sum()
-	case policy.SumSq:
+	case aggregation.SumSq:
 		return g.SumSq()
-	case policy.Stdev:
+	case aggregation.Stdev:
 		return g.Stdev()
 	default:
 		return 0

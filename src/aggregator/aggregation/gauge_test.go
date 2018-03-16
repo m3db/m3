@@ -23,7 +23,7 @@ package aggregation
 import (
 	"testing"
 
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/aggregation"
 
 	"github.com/stretchr/testify/require"
 )
@@ -35,10 +35,10 @@ func TestGaugeDefaultAggregationType(t *testing.T) {
 		g.Update(i)
 	}
 	require.Equal(t, 100.0, g.Last())
-	require.Equal(t, 100.0, g.ValueOf(policy.Last))
-	require.Equal(t, 100.0, g.ValueOf(policy.Count))
-	require.Equal(t, 50.5, g.ValueOf(policy.Mean))
-	require.Equal(t, 0.0, g.ValueOf(policy.SumSq))
+	require.Equal(t, 100.0, g.ValueOf(aggregation.Last))
+	require.Equal(t, 100.0, g.ValueOf(aggregation.Count))
+	require.Equal(t, 50.5, g.ValueOf(aggregation.Mean))
+	require.Equal(t, 0.0, g.ValueOf(aggregation.SumSq))
 }
 
 func TestGaugeCustomAggregationType(t *testing.T) {
@@ -53,24 +53,24 @@ func TestGaugeCustomAggregationType(t *testing.T) {
 	}
 
 	require.Equal(t, 100.0, g.Last())
-	for aggType := range policy.ValidAggregationTypes {
+	for aggType := range aggregation.ValidTypes {
 		v := g.ValueOf(aggType)
 		switch aggType {
-		case policy.Last:
+		case aggregation.Last:
 			require.Equal(t, float64(100), v)
-		case policy.Min:
+		case aggregation.Min:
 			require.Equal(t, float64(1), v)
-		case policy.Max:
+		case aggregation.Max:
 			require.Equal(t, float64(100), v)
-		case policy.Mean:
+		case aggregation.Mean:
 			require.Equal(t, float64(50.5), v)
-		case policy.Count:
+		case aggregation.Count:
 			require.Equal(t, float64(100), v)
-		case policy.Sum:
+		case aggregation.Sum:
 			require.Equal(t, float64(5050), v)
-		case policy.SumSq:
+		case aggregation.SumSq:
 			require.Equal(t, float64(338350), v)
-		case policy.Stdev:
+		case aggregation.Stdev:
 			require.InDelta(t, 29.01149, v, 0.001)
 		default:
 			require.Equal(t, float64(0), v)

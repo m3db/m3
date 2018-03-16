@@ -24,7 +24,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
-	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/aggregation"
 )
 
 // Timer aggregates timer values. Timer APIs are not thread-safe.
@@ -106,25 +106,25 @@ func (t *Timer) Stdev() float64 {
 }
 
 // ValueOf returns the value for the aggregation type.
-func (t *Timer) ValueOf(aggType policy.AggregationType) float64 {
+func (t *Timer) ValueOf(aggType aggregation.Type) float64 {
 	if q, ok := aggType.Quantile(); ok {
 		return t.Quantile(q)
 	}
 
 	switch aggType {
-	case policy.Min:
+	case aggregation.Min:
 		return t.Min()
-	case policy.Max:
+	case aggregation.Max:
 		return t.Max()
-	case policy.Mean:
+	case aggregation.Mean:
 		return t.Mean()
-	case policy.Count:
+	case aggregation.Count:
 		return float64(t.Count())
-	case policy.Sum:
+	case aggregation.Sum:
 		return t.Sum()
-	case policy.SumSq:
+	case aggregation.SumSq:
 		return t.SumSq()
-	case policy.Stdev:
+	case aggregation.Stdev:
 		return t.Stdev()
 	}
 	return 0

@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -43,7 +44,7 @@ func TestMetricListPushBack(t *testing.T) {
 
 	l, err := newMetricList(testShard, time.Second, testOptions(ctrl))
 	require.NoError(t, err)
-	elem := NewCounterElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, l.opts)
+	elem := NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, l.opts)
 
 	// Push a counter to the list.
 	e, err := l.PushBack(elem)
@@ -260,15 +261,15 @@ func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
 	// Intentionally cause a one-time error during encoding.
 	elemPairs := []testElemPair{
 		{
-			elem:   NewCounterElem(testCounterID, testStoragePolicy, policy.DefaultAggregationTypes, opts),
+			elem:   NewCounterElem(testCounterID, testStoragePolicy, aggregation.DefaultTypes, opts),
 			metric: testCounter,
 		},
 		{
-			elem:   NewTimerElem(testBatchTimerID, testStoragePolicy, policy.DefaultAggregationTypes, opts),
+			elem:   NewTimerElem(testBatchTimerID, testStoragePolicy, aggregation.DefaultTypes, opts),
 			metric: testBatchTimer,
 		},
 		{
-			elem:   NewGaugeElem(testGaugeID, testStoragePolicy, policy.DefaultAggregationTypes, opts),
+			elem:   NewGaugeElem(testGaugeID, testStoragePolicy, aggregation.DefaultTypes, opts),
 			metric: testGauge,
 		},
 	}
@@ -304,9 +305,9 @@ func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
 
 		var expected []testAggMetric
 		alignedStart := nowTs.Truncate(l.resolution).UnixNano()
-		expected = append(expected, expectedAggMetricsForCounter(alignedStart, testStoragePolicy, policy.DefaultAggregationTypes)...)
-		expected = append(expected, expectedAggMetricsForTimer(alignedStart, testStoragePolicy, policy.DefaultAggregationTypes)...)
-		expected = append(expected, expectedAggMetricsForGauge(alignedStart, testStoragePolicy, policy.DefaultAggregationTypes)...)
+		expected = append(expected, expectedAggMetricsForCounter(alignedStart, testStoragePolicy, aggregation.DefaultTypes)...)
+		expected = append(expected, expectedAggMetricsForTimer(alignedStart, testStoragePolicy, aggregation.DefaultTypes)...)
+		expected = append(expected, expectedAggMetricsForGauge(alignedStart, testStoragePolicy, aggregation.DefaultTypes)...)
 
 		// Skip the first item because we intentionally triggered
 		// an encoder error when encoding the first item.

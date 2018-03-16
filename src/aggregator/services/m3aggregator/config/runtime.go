@@ -34,12 +34,12 @@ import (
 
 // RuntimeOptionsConfiguration configures runtime options.
 type RuntimeOptionsConfiguration struct {
-	KVConfig                               kv.Configuration `yaml:"kvConfig"`
-	WriteValuesPerMetricLimitPerSecondKey  string           `yaml:"writeValuesPerMetricLimitPerSecondKey" validate:"nonzero"`
-	WriteValuesPerMetricLimitPerSecond     int64            `yaml:"writeValuesPerMetricLimitPerSecond"`
-	WriteNewMetricLimitClusterPerSecondKey string           `yaml:"writeNewMetricLimitClusterPerSecondKey" validate:"nonzero"`
-	WriteNewMetricLimitClusterPerSecond    int64            `yaml:"writeNewMetricLimitClusterPerSecond"`
-	WriteNewMetricNoLimitWarmupDuration    time.Duration    `yaml:"writeNewMetricNoLimitWarmupDuration"`
+	KVConfig                               kv.OverrideConfiguration `yaml:"kvConfig"`
+	WriteValuesPerMetricLimitPerSecondKey  string                   `yaml:"writeValuesPerMetricLimitPerSecondKey" validate:"nonzero"`
+	WriteValuesPerMetricLimitPerSecond     int64                    `yaml:"writeValuesPerMetricLimitPerSecond"`
+	WriteNewMetricLimitClusterPerSecondKey string                   `yaml:"writeNewMetricLimitClusterPerSecondKey" validate:"nonzero"`
+	WriteNewMetricLimitClusterPerSecond    int64                    `yaml:"writeNewMetricLimitClusterPerSecond"`
+	WriteNewMetricNoLimitWarmupDuration    time.Duration            `yaml:"writeNewMetricNoLimitWarmupDuration"`
 }
 
 // NewRuntimeOptionsManager creates a new runtime options manager.
@@ -57,7 +57,7 @@ func (c RuntimeOptionsConfiguration) WatchRuntimeOptionChanges(
 	placementManager aggregator.PlacementManager,
 	logger log.Logger,
 ) {
-	kvOpts, err := c.KVConfig.NewOptions()
+	kvOpts, err := c.KVConfig.NewOverrideOptions()
 	if err != nil {
 		logger.Errorf("unable to create kv config options: %v", err)
 		return
@@ -117,12 +117,13 @@ func (c RuntimeOptionsConfiguration) WatchRuntimeOptionChanges(
 		return
 	}
 
+	utilOpts := kvutil.NewOptions().SetLogger(logger)
 	go func() {
 		for {
 			select {
 			case <-valueLimitCh:
 				valueLimitVal := valueLimitWatch.Get()
-				newValueLimit, err := kvutil.Int64FromValue(valueLimitVal, valueLimitKey, defaultValueLimit, nil)
+				newValueLimit, err := kvutil.Int64FromValue(valueLimitVal, valueLimitKey, defaultValueLimit, utilOpts)
 				if err != nil {
 					logger.Errorf("unable to determine per-metric write value limit: %v", err)
 					continue
@@ -138,7 +139,7 @@ func (c RuntimeOptionsConfiguration) WatchRuntimeOptionChanges(
 			case <-newMetricLimitCh:
 				newMetricLimitVal := newMetricLimitWatch.Get()
 				var newNewMetricPerShardLimit int64
-				newNewMetricClusterLimit, err := kvutil.Int64FromValue(newMetricLimitVal, newMetricClusterLimitKey, defaultNewMetricClusterLimit, nil)
+				newNewMetricClusterLimit, err := kvutil.Int64FromValue(newMetricLimitVal, newMetricClusterLimitKey, defaultNewMetricClusterLimit, utilOpts)
 				if err == nil {
 					newNewMetricPerShardLimit, err = clusterLimitToPerShardLimit(newNewMetricClusterLimit, placementManager)
 				}
