@@ -187,7 +187,7 @@ func (pi *PlacementInstance) newServicesPlacementInstance(nodePort int) placemen
 	endpoint := fmt.Sprintf("%s:%d", pi.Hostname, nodePort)
 	return placement.NewInstance().
 		SetID(pi.ID).
-		SetRack(pi.Rack).
+		SetIsolationGroup(pi.Rack).
 		SetZone(pi.Zone).
 		SetEndpoint(endpoint).
 		SetWeight(pi.Weight)

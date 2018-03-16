@@ -206,6 +206,7 @@ func (r *dynamicRegistry) run() {
 			continue
 		}
 
+		r.logger.Infof("dynamic namespace registry updated to version: %d", val.Version())
 		r.Lock()
 		r.currentValue = val
 		r.currentMap = m

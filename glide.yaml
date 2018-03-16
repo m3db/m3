@@ -16,14 +16,14 @@ import:
   - ident
 
 - package: github.com/m3db/m3cluster
-  version: 6b9b5a7eae36b0f3fc23823250d4536f6518332f
+  version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
   subpackages:
   - client
   - services
   - integration/etcd
 
 - package: github.com/m3db/m3em
-  version: e7d10496a72102ede0670d6292c76858f6ee1951
+  version: ed532baee45a440f0b08b6893c816634c6978d4d
 
 - package: github.com/m3db/m3ninx
   version: b2628ee8f986f6df48d3f7589d85a6f390f174a2

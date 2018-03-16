@@ -177,7 +177,7 @@ type testWatch struct {
 	sync.RWMutex
 
 	ctrl                  *gomock.Controller
-	data                  interface{}
+	data                  services.Service
 	firstDelay, nextDelay time.Duration
 	errAfter, closeAfter  int
 	currentCalled         int
@@ -214,7 +214,7 @@ func (w *testWatch) update() {
 
 func (w *testWatch) Close() {}
 
-func (w *testWatch) Get() interface{} {
+func (w *testWatch) Get() services.Service {
 	w.RLock()
 	defer w.RUnlock()
 	return w.data

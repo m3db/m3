@@ -481,7 +481,7 @@ config:
         timeout: 0s
       tls: null
     m3sd:
-      initTimeout: 0s
+      initTimeout: null
   static: null
 hashing:
   seed: 42

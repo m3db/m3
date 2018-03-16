@@ -78,7 +78,7 @@ type dynamicTopology struct {
 	sync.RWMutex
 	opts      DynamicOptions
 	services  services.Services
-	watch     xwatch.Watch
+	watch     services.Watch
 	watchable xwatch.Watchable
 	closed    bool
 	hashGen   sharding.HashGen
@@ -86,7 +86,7 @@ type dynamicTopology struct {
 }
 
 func newDynamicTopology(opts DynamicOptions) (DynamicTopology, error) {
-	services, err := opts.ConfigServiceClient().Services(opts.ServicesOptions())
+	services, err := opts.ConfigServiceClient().Services(opts.ServicesOverrideOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +185,7 @@ func (t *dynamicTopology) MarkShardAvailable(
 	return ps.MarkShardAvailable(instanceID, shardID)
 }
 
-func waitOnInit(w xwatch.Watch, d time.Duration) error {
+func waitOnInit(w services.Watch, d time.Duration) error {
 	if d <= 0 {
 		return nil
 	}

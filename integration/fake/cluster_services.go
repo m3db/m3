@@ -93,7 +93,7 @@ type m3ClusterClient struct {
 	txnStore M3ClusterTxnStore
 }
 
-func (c *m3ClusterClient) Services(opts services.Options) (services.Services, error) {
+func (c *m3ClusterClient) Services(opts services.OverrideOptions) (services.Services, error) {
 	return c.services, nil
 }
 
@@ -105,11 +105,11 @@ func (c *m3ClusterClient) Txn() (kv.TxnStore, error) {
 	return c.txnStore, nil
 }
 
-func (c *m3ClusterClient) Store(opts kv.Options) (kv.Store, error) {
+func (c *m3ClusterClient) Store(opts kv.OverrideOptions) (kv.Store, error) {
 	return c.kvStore, nil
 }
 
-func (c *m3ClusterClient) TxnStore(opts kv.Options) (kv.TxnStore, error) {
+func (c *m3ClusterClient) TxnStore(opts kv.OverrideOptions) (kv.TxnStore, error) {
 	return c.txnStore, nil
 }
 
@@ -187,7 +187,7 @@ func (s *m3ClusterServices) Query(
 func (s *m3ClusterServices) Watch(
 	service services.ServiceID,
 	opts services.QueryOptions,
-) (xwatch.Watch, error) {
+) (services.Watch, error) {
 	s.RLock()
 	defer s.RUnlock()
 	if entry, ok := s.services[service.Name()]; ok {
@@ -195,7 +195,7 @@ func (s *m3ClusterServices) Watch(
 		if err != nil {
 			return nil, err
 		}
-		return watch, nil
+		return services.NewWatch(watch), nil
 	}
 	return nil, fmt.Errorf("service not found: %s", service.Name())
 }

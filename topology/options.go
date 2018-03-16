@@ -117,24 +117,24 @@ func (o *staticOptions) HostShardSets() []HostShardSet {
 }
 
 type dynamicOptions struct {
-	configServiceClient client.Client
-	serviceID           services.ServiceID
-	serviceOptions      services.Options
-	queryOptions        services.QueryOptions
-	instrumentOptions   instrument.Options
-	initTimeout         time.Duration
-	hashGen             sharding.HashGen
+	configServiceClient     client.Client
+	serviceID               services.ServiceID
+	servicesOverrideOptions services.OverrideOptions
+	queryOptions            services.QueryOptions
+	instrumentOptions       instrument.Options
+	initTimeout             time.Duration
+	hashGen                 sharding.HashGen
 }
 
 // NewDynamicOptions creates a new set of dynamic topology options
 func NewDynamicOptions() DynamicOptions {
 	return &dynamicOptions{
-		serviceID:         services.NewServiceID().SetName(defaultServiceName),
-		serviceOptions:    services.NewOptions(),
-		queryOptions:      services.NewQueryOptions(),
-		instrumentOptions: instrument.NewOptions(),
-		initTimeout:       defaultInitTimeout,
-		hashGen:           sharding.DefaultHashFn,
+		serviceID:               services.NewServiceID().SetName(defaultServiceName),
+		servicesOverrideOptions: services.NewOverrideOptions(),
+		queryOptions:            services.NewQueryOptions(),
+		instrumentOptions:       instrument.NewOptions(),
+		initTimeout:             defaultInitTimeout,
+		hashGen:                 sharding.DefaultHashFn,
 	}
 }
 
@@ -167,13 +167,13 @@ func (o *dynamicOptions) ServiceID() services.ServiceID {
 	return o.serviceID
 }
 
-func (o *dynamicOptions) SetServiceOptions(opts services.Options) DynamicOptions {
-	o.serviceOptions = opts
+func (o *dynamicOptions) SetServicesOverrideOptions(opts services.OverrideOptions) DynamicOptions {
+	o.servicesOverrideOptions = opts
 	return o
 }
 
-func (o *dynamicOptions) ServicesOptions() services.Options {
-	return o.serviceOptions
+func (o *dynamicOptions) ServicesOverrideOptions() services.OverrideOptions {
+	return o.servicesOverrideOptions
 }
 
 func (o *dynamicOptions) SetQueryOptions(qo services.QueryOptions) DynamicOptions {
