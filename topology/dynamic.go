@@ -86,7 +86,7 @@ type dynamicTopology struct {
 }
 
 func newDynamicTopology(opts DynamicOptions) (DynamicTopology, error) {
-	services, err := opts.ConfigServiceClient().Services(opts.ServicesOptions())
+	services, err := opts.ConfigServiceClient().Services(opts.ServicesOverrideOptions())
 	if err != nil {
 		return nil, err
 	}

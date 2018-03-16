@@ -712,28 +712,28 @@ func (_mr *MockDynamicOptionsMockRecorder) ServiceID() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ServiceID", reflect.TypeOf((*MockDynamicOptions)(nil).ServiceID))
 }
 
-// SetServiceOptions mocks base method
-func (_m *MockDynamicOptions) SetServiceOptions(opts services.Options) DynamicOptions {
-	ret := _m.ctrl.Call(_m, "SetServiceOptions", opts)
+// SetServicesOverrideOptions mocks base method
+func (_m *MockDynamicOptions) SetServicesOverrideOptions(opts services.OverrideOptions) DynamicOptions {
+	ret := _m.ctrl.Call(_m, "SetServicesOverrideOptions", opts)
 	ret0, _ := ret[0].(DynamicOptions)
 	return ret0
 }
 
-// SetServiceOptions indicates an expected call of SetServiceOptions
-func (_mr *MockDynamicOptionsMockRecorder) SetServiceOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetServiceOptions", reflect.TypeOf((*MockDynamicOptions)(nil).SetServiceOptions), arg0)
+// SetServicesOverrideOptions indicates an expected call of SetServicesOverrideOptions
+func (_mr *MockDynamicOptionsMockRecorder) SetServicesOverrideOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetServicesOverrideOptions", reflect.TypeOf((*MockDynamicOptions)(nil).SetServicesOverrideOptions), arg0)
 }
 
-// ServicesOptions mocks base method
-func (_m *MockDynamicOptions) ServicesOptions() services.Options {
-	ret := _m.ctrl.Call(_m, "ServicesOptions")
-	ret0, _ := ret[0].(services.Options)
+// ServicesOverrideOptions mocks base method
+func (_m *MockDynamicOptions) ServicesOverrideOptions() services.OverrideOptions {
+	ret := _m.ctrl.Call(_m, "ServicesOverrideOptions")
+	ret0, _ := ret[0].(services.OverrideOptions)
 	return ret0
 }
 
-// ServicesOptions indicates an expected call of ServicesOptions
-func (_mr *MockDynamicOptionsMockRecorder) ServicesOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ServicesOptions", reflect.TypeOf((*MockDynamicOptions)(nil).ServicesOptions))
+// ServicesOverrideOptions indicates an expected call of ServicesOverrideOptions
+func (_mr *MockDynamicOptionsMockRecorder) ServicesOverrideOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ServicesOverrideOptions", reflect.TypeOf((*MockDynamicOptions)(nil).ServicesOverrideOptions))
 }
 
 // SetQueryOptions mocks base method

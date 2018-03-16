@@ -105,11 +105,11 @@ func (c *m3ClusterClient) Txn() (kv.TxnStore, error) {
 	return c.txnStore, nil
 }
 
-func (c *m3ClusterClient) Store(opts kv.Options) (kv.Store, error) {
+func (c *m3ClusterClient) Store(opts kv.OverrideOptions) (kv.Store, error) {
 	return c.kvStore, nil
 }
 
-func (c *m3ClusterClient) TxnStore(opts kv.Options) (kv.TxnStore, error) {
+func (c *m3ClusterClient) TxnStore(opts kv.OverrideOptions) (kv.TxnStore, error) {
 	return c.txnStore, nil
 }
 
