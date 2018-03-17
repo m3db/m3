@@ -186,6 +186,22 @@ func IsDefaultPolicies(ps []Policy) bool {
 	return len(ps) == 0
 }
 
+// Policies is a list of policies. Used to check ploicy list equivalence.
+type Policies []Policy
+
+// Equals takes a list of policies and checks equivalence.
+func (p Policies) Equals(other Policies) bool {
+	if len(p) != len(other) {
+		return false
+	}
+	for i := 0; i < len(p); i++ {
+		if p[i] != other[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // ByResolutionAscRetentionDesc implements the sort.Sort interface to sort policies first
 // by resolution in ascending order, then by rention in descending order.
 type ByResolutionAscRetentionDesc []Policy

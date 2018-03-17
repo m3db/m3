@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/rules/models"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -125,34 +126,34 @@ func TestRollupTargetSameTransform(t *testing.T) {
 	policies := []policy.Policy{
 		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), aggregation.DefaultID),
 	}
-	target := RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2")}
+	target := rollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2")}
 	inputs := []testRollupTargetData{
 		{
-			target: RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2"), Policies: policies},
+			target: rollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2"), Policies: policies},
 			result: true,
 		},
 		{
-			target: RollupTarget{Name: b("foo"), Tags: bs("bar2", "bar1"), Policies: policies},
+			target: rollupTarget{Name: b("foo"), Tags: bs("bar2", "bar1"), Policies: policies},
 			result: true,
 		},
 		{
-			target: RollupTarget{Name: b("foo"), Tags: bs("bar1")},
+			target: rollupTarget{Name: b("foo"), Tags: bs("bar1")},
 			result: false,
 		},
 		{
-			target: RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2", "bar3")},
+			target: rollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2", "bar3")},
 			result: false,
 		},
 		{
-			target: RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar3")},
+			target: rollupTarget{Name: b("foo"), Tags: bs("bar1", "bar3")},
 			result: false,
 		},
 		{
-			target: RollupTarget{Name: b("baz"), Tags: bs("bar1", "bar2")},
+			target: rollupTarget{Name: b("baz"), Tags: bs("bar1", "bar2")},
 			result: false,
 		},
 		{
-			target: RollupTarget{Name: b("baz"), Tags: bs("bar2", "bar1")},
+			target: rollupTarget{Name: b("baz"), Tags: bs("bar2", "bar1")},
 			result: false,
 		},
 	}
@@ -165,7 +166,7 @@ func TestRollupTargetClone(t *testing.T) {
 	policies := []policy.Policy{
 		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), aggregation.DefaultID),
 	}
-	target := RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2"), Policies: policies}
+	target := rollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2"), Policies: policies}
 	cloned := target.clone()
 
 	// Cloned object should look exactly the same as the original one.
@@ -180,7 +181,7 @@ func TestRollupTargetClone(t *testing.T) {
 
 func TestNewRollupRuleSnapshotFromSchema(t *testing.T) {
 	res, err := newRollupRuleSnapshot(testRollupRuleSchema.Snapshots[0], testTagsFilterOptions())
-	expectedTargets := []RollupTarget{
+	expectedTargets := []rollupTarget{
 		{
 			Name: b("rName1"),
 			Tags: [][]byte{b("rtagName1"), b("rtagName2")},
@@ -225,7 +226,7 @@ func TestNewRollupRuleSnapshotFromFields(t *testing.T) {
 		name         = "testSnapshot"
 		cutoverNanos = int64(12345)
 		rawFilter    = "tagName1:tagValue1 tagName2:tagValue2"
-		targets      = []RollupTarget{
+		targets      = []rollupTarget{
 			{
 				Name: b("rName1"),
 				Tags: [][]byte{b("rtagName1"), b("rtagName2")},
@@ -294,13 +295,13 @@ func TestRollupRuleValidSchema(t *testing.T) {
 		name         string
 		tombstoned   bool
 		cutoverNanos int64
-		targets      []RollupTarget
+		targets      []rollupTarget
 	}{
 		{
 			name:         "foo",
 			tombstoned:   false,
 			cutoverNanos: 12345,
-			targets: []RollupTarget{
+			targets: []rollupTarget{
 				{
 					Name: b("rName1"),
 					Tags: [][]byte{b("rtagName1"), b("rtagName2")},
@@ -314,7 +315,7 @@ func TestRollupRuleValidSchema(t *testing.T) {
 			name:         "bar",
 			tombstoned:   true,
 			cutoverNanos: 67890,
-			targets: []RollupTarget{
+			targets: []rollupTarget{
 				{
 					Name: b("rName1"),
 					Tags: [][]byte{b("rtagName1"), b("rtagName2")},
@@ -363,7 +364,7 @@ func TestRollupRuleActiveRuleFound(t *testing.T) {
 }
 
 type testRollupTargetData struct {
-	target RollupTarget
+	target rollupTarget
 	result bool
 }
 
@@ -398,7 +399,7 @@ func TestNewRollupRuleFromFields(t *testing.T) {
 	rr, err := newRollupRuleFromFields(
 		"bar",
 		rawFilter,
-		[]RollupTarget{
+		[]rollupTarget{
 			{
 				Name: b("rName1"),
 				Tags: [][]byte{b("rtagName1"), b("rtagName2")},
@@ -416,7 +417,7 @@ func TestNewRollupRuleFromFields(t *testing.T) {
 		cutoverNanos: 12345,
 		filter:       nil,
 		rawFilter:    rawFilter,
-		targets: []RollupTarget{
+		targets: []rollupTarget{
 			{
 				Name: b("rName1"),
 				Tags: [][]byte{b("rtagName1"), b("rtagName2")},
@@ -469,7 +470,7 @@ func TestRollupRuleMarkTombstoned(t *testing.T) {
 	rr, err := newRollupRule(schema, testTagsFilterOptions())
 	require.NoError(t, err)
 
-	expectedTargets := []RollupTarget{
+	expectedTargets := []rollupTarget{
 		{
 			Name: b("rName1"),
 			Tags: [][]byte{b("rtagName1"), b("rtagName2")},
@@ -556,15 +557,15 @@ func TestNewRollupRuleView(t *testing.T) {
 	require.NoError(t, err)
 
 	p, _ := policy.ParsePolicy("10s:24h")
-	expected := &RollupRuleView{
+	expected := &models.RollupRuleView{
 		ID:                 "12669817-13ae-40e6-ba2f-33087b262c68",
 		Name:               "foo",
 		CutoverNanos:       12345,
 		LastUpdatedAtNanos: 12345,
 		LastUpdatedBy:      "someone-else",
 		Filter:             "tag1:value1 tag2:value2",
-		Targets: []RollupTargetView{
-			RollupTargetView{
+		Targets: []models.RollupTargetView{
+			models.RollupTargetView{
 				Name:     "rName1",
 				Tags:     []string{"rtagName1", "rtagName2"},
 				Policies: []policy.Policy{p},
@@ -594,8 +595,8 @@ func TestNewRollupRuleHistory(t *testing.T) {
 	p0, _ := policy.ParsePolicy("10s:24h")
 	p1, _ := policy.ParsePolicy("1m:24h")
 	p2, _ := policy.ParsePolicy("5m:2d|Mean")
-	expected := []*RollupRuleView{
-		&RollupRuleView{
+	expected := []*models.RollupRuleView{
+		&models.RollupRuleView{
 			ID:                 "12669817-13ae-40e6-ba2f-33087b262c68",
 			Name:               "bar",
 			CutoverNanos:       67890,
@@ -603,15 +604,15 @@ func TestNewRollupRuleHistory(t *testing.T) {
 			LastUpdatedAtNanos: 67890,
 			LastUpdatedBy:      "someone",
 			Filter:             "tag3:value3 tag4:value4",
-			Targets: []RollupTargetView{
-				RollupTargetView{
+			Targets: []models.RollupTargetView{
+				models.RollupTargetView{
 					Name:     "rName1",
 					Tags:     []string{"rtagName1", "rtagName2"},
 					Policies: []policy.Policy{p1, p2},
 				},
 			},
 		},
-		&RollupRuleView{
+		&models.RollupRuleView{
 			ID:                 "12669817-13ae-40e6-ba2f-33087b262c68",
 			Name:               "foo",
 			CutoverNanos:       12345,
@@ -619,8 +620,8 @@ func TestNewRollupRuleHistory(t *testing.T) {
 			LastUpdatedAtNanos: 12345,
 			LastUpdatedBy:      "someone-else",
 			Filter:             "tag1:value1 tag2:value2",
-			Targets: []RollupTargetView{
-				RollupTargetView{
+			Targets: []models.RollupTargetView{
+				models.RollupTargetView{
 					Name:     "rName1",
 					Tags:     []string{"rtagName1", "rtagName2"},
 					Policies: []policy.Policy{p0},

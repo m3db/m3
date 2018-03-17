@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/rules/models"
 	xerrors "github.com/m3db/m3x/errors"
 )
 
@@ -114,22 +115,13 @@ func newNamespace(namespace *schema.Namespace) (Namespace, error) {
 	}, nil
 }
 
-// NamespaceView is a human friendly representation of a namespace at a single point in time.
-type NamespaceView struct {
-	Name               string
-	ForRuleSetVersion  int
-	Tombstoned         bool
-	LastUpdatedAtNanos int64
-	LastUpdatedBy      string
-}
-
 // NamespaceView returns the view representation of a namespace object.
-func (n Namespace) NamespaceView(snapshotIdx int) (*NamespaceView, error) {
+func (n Namespace) NamespaceView(snapshotIdx int) (*models.NamespaceView, error) {
 	if snapshotIdx < 0 || snapshotIdx >= len(n.snapshots) {
 		return nil, errNamespaceSnapshotIndexOutOfRange
 	}
 	s := n.snapshots[snapshotIdx]
-	return &NamespaceView{
+	return &models.NamespaceView{
 		Name:               string(n.name),
 		ForRuleSetVersion:  s.forRuleSetVersion,
 		Tombstoned:         s.tombstoned,
@@ -241,15 +233,9 @@ func NewNamespaces(version int, namespaces *schema.Namespaces) (Namespaces, erro
 	}, nil
 }
 
-// NamespacesView is a representation of all the namespaces at a point in time.
-type NamespacesView struct {
-	Version    int
-	Namespaces []*NamespaceView
-}
-
 // NamespacesView returns a view representation of a given Namespaces object.
-func (nss Namespaces) NamespacesView() (*NamespacesView, error) {
-	namespaces := make([]*NamespaceView, len(nss.namespaces))
+func (nss Namespaces) NamespacesView() (*models.NamespacesView, error) {
+	namespaces := make([]*models.NamespaceView, len(nss.namespaces))
 	for i, n := range nss.namespaces {
 		ns, err := n.NamespaceView(len(n.snapshots) - 1)
 		if err != nil {
@@ -257,7 +243,7 @@ func (nss Namespaces) NamespacesView() (*NamespacesView, error) {
 		}
 		namespaces[i] = ns
 	}
-	return &NamespacesView{
+	return &models.NamespacesView{
 		Version:    nss.version,
 		Namespaces: namespaces,
 	}, nil

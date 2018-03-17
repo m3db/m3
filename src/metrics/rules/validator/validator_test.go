@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3metrics/rules/models"
 	"github.com/m3db/m3metrics/rules/validator/namespace"
 	"github.com/m3db/m3metrics/rules/validator/namespace/kv"
 
@@ -450,10 +451,10 @@ func testNoDuplicateMappingRulesConfigWithTombstone() []*schema.MappingRule {
 	}
 }
 
-func testInvalidFilterExprMappingRuleSetSnapshot() *rules.RuleSetSnapshot {
-	return &rules.RuleSetSnapshot{
-		MappingRules: map[string]*rules.MappingRuleView{
-			"mappingRule1": &rules.MappingRuleView{
+func testInvalidFilterExprMappingRuleSetSnapshot() *models.RuleSetSnapshotView {
+	return &models.RuleSetSnapshotView{
+		MappingRules: map[string]*models.MappingRuleView{
+			"mappingRule1": &models.MappingRuleView{
 				Name:   "snapshot1",
 				Filter: "randomTag:*too*many*wildcards*",
 			},
@@ -461,10 +462,10 @@ func testInvalidFilterExprMappingRuleSetSnapshot() *rules.RuleSetSnapshot {
 	}
 }
 
-func testInvalidFilterTagNameMappingRuleSetSnapshot() *rules.RuleSetSnapshot {
-	return &rules.RuleSetSnapshot{
-		MappingRules: map[string]*rules.MappingRuleView{
-			"mappingRule1": &rules.MappingRuleView{
+func testInvalidFilterTagNameMappingRuleSetSnapshot() *models.RuleSetSnapshotView {
+	return &models.RuleSetSnapshotView{
+		MappingRules: map[string]*models.MappingRuleView{
+			"mappingRule1": &models.MappingRuleView{
 				Name:   "snapshot1",
 				Filter: "random$Tag:foo",
 			},
@@ -676,10 +677,10 @@ func testNoDuplicateRollupRulesConfigWithTombstone() []*schema.RollupRule {
 	}
 }
 
-func testInvalidFilterExprRollupRuleSetSnapshot() *rules.RuleSetSnapshot {
-	return &rules.RuleSetSnapshot{
-		RollupRules: map[string]*rules.RollupRuleView{
-			"rollupRule1": &rules.RollupRuleView{
+func testInvalidFilterExprRollupRuleSetSnapshot() *models.RuleSetSnapshotView {
+	return &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
 				Name:   "snapshot1",
 				Filter: "randomTag:*too*many*wildcards*",
 			},
@@ -687,10 +688,10 @@ func testInvalidFilterExprRollupRuleSetSnapshot() *rules.RuleSetSnapshot {
 	}
 }
 
-func testInvalidFilterTagNameRollupRuleSetSnapshot() *rules.RuleSetSnapshot {
-	return &rules.RuleSetSnapshot{
-		RollupRules: map[string]*rules.RollupRuleView{
-			"rollupRule1": &rules.RollupRuleView{
+func testInvalidFilterTagNameRollupRuleSetSnapshot() *models.RuleSetSnapshotView {
+	return &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
 				Name:   "snapshot1",
 				Filter: "random$Tag:foo",
 			},

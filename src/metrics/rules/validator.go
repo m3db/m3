@@ -20,13 +20,15 @@
 
 package rules
 
+import "github.com/m3db/m3metrics/rules/models"
+
 // Validator validates a ruleset.
 type Validator interface {
 	// Validate validates a ruleset.
 	Validate(rs RuleSet) error
 
 	// ValidateSnapshot validates a ruleset snapshot.
-	ValidateSnapshot(snapshot *RuleSetSnapshot) error
+	ValidateSnapshot(snapshot *models.RuleSetSnapshotView) error
 
 	// Close closes the validator.
 	Close()

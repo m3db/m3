@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/rules/models"
 
 	"github.com/stretchr/testify/require"
 )
@@ -93,15 +94,15 @@ func TestNamespaceView(t *testing.T) {
 		},
 	}
 
-	expected := []*NamespaceView{
-		&NamespaceView{
+	expected := []*models.NamespaceView{
+		&models.NamespaceView{
 			Name:               "foo",
 			ForRuleSetVersion:  123,
 			Tombstoned:         false,
 			LastUpdatedAtNanos: 456,
 			LastUpdatedBy:      "someone",
 		},
-		&NamespaceView{
+		&models.NamespaceView{
 			Name:               "foo",
 			ForRuleSetVersion:  456,
 			Tombstoned:         true,
@@ -493,17 +494,17 @@ func TestNamespacesView(t *testing.T) {
 		},
 	}
 
-	expected := &NamespacesView{
+	expected := &models.NamespacesView{
 		Version: 1,
-		Namespaces: []*NamespaceView{
-			&NamespaceView{
+		Namespaces: []*models.NamespaceView{
+			&models.NamespaceView{
 				Name:               "foo",
 				ForRuleSetVersion:  456,
 				Tombstoned:         true,
 				LastUpdatedAtNanos: 7890,
 				LastUpdatedBy:      "someone else",
 			},
-			&NamespaceView{
+			&models.NamespaceView{
 				Name:               "bar",
 				ForRuleSetVersion:  789,
 				Tombstoned:         false,
