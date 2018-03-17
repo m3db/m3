@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/rules/models"
 
 	"github.com/pborman/uuid"
 )
@@ -174,25 +175,13 @@ func (mrs *mappingRuleSnapshot) Schema() (*schema.MappingRuleSnapshot, error) {
 	return res, nil
 }
 
-// MappingRuleView is a human friendly representation of a mapping rule at a given point in time.
-type MappingRuleView struct {
-	ID                 string
-	Name               string
-	Tombstoned         bool
-	CutoverNanos       int64
-	Filter             string
-	Policies           []policy.Policy
-	LastUpdatedBy      string
-	LastUpdatedAtNanos int64
-}
-
-func (mc *mappingRule) mappingRuleView(snapshotIdx int) (*MappingRuleView, error) {
+func (mc *mappingRule) mappingRuleView(snapshotIdx int) (*models.MappingRuleView, error) {
 	if snapshotIdx < 0 || snapshotIdx >= len(mc.snapshots) {
 		return nil, errMappingRuleSnapshotIndexOutOfRange
 	}
 
 	mrs := mc.snapshots[snapshotIdx].clone()
-	return &MappingRuleView{
+	return &models.MappingRuleView{
 		ID:                 mc.uuid,
 		Name:               mrs.name,
 		Tombstoned:         mrs.tombstoned,
@@ -364,9 +353,9 @@ func (mc *mappingRule) activeIndex(timeNanos int64) int {
 	return idx
 }
 
-func (mc *mappingRule) history() ([]*MappingRuleView, error) {
+func (mc *mappingRule) history() ([]*models.MappingRuleView, error) {
 	lastIdx := len(mc.snapshots) - 1
-	views := make([]*MappingRuleView, len(mc.snapshots))
+	views := make([]*models.MappingRuleView, len(mc.snapshots))
 	// Snapshots are stored oldest -> newest. History should start with newest.
 	for i := 0; i < len(mc.snapshots); i++ {
 		mrs, err := mc.mappingRuleView(lastIdx - i)

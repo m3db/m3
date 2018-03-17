@@ -30,12 +30,13 @@ import (
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/rules/models"
 
 	"github.com/pborman/uuid"
 )
 
 var (
-	emptyRollupTarget RollupTarget
+	emptyRollupTarget rollupTarget
 
 	errRollupRuleSnapshotIndexOutOfRange = errors.New("rollup rule snapshot index out of range")
 	errNilRollupTargetSchema             = errors.New("nil rollup target schema")
@@ -43,48 +44,16 @@ var (
 	errNilRollupRuleSchema               = errors.New("nil rollup rule schema")
 )
 
-// RollupTargetView is a human friendly representation of a rollup rule target at a given point in time.
-type RollupTargetView struct {
-	Name     string
-	Tags     []string
-	Policies []policy.Policy
-}
-
-func newRollupTargetView(target RollupTarget) RollupTargetView {
-	return RollupTargetView{
-		Name:     string(target.Name),
-		Tags:     stringArrayFromBytesArray(target.Tags),
-		Policies: target.Policies,
-	}
-}
-
-// RollupTarget creates a rollup target from a rollup target view.
-func (rtv RollupTargetView) RollupTarget() RollupTarget {
-	return RollupTarget{
-		Name:     []byte(rtv.Name),
-		Tags:     bytesArrayFromStringArray(rtv.Tags),
-		Policies: rtv.Policies,
-	}
-}
-
-func rollupTargetViewsToTargets(views []RollupTargetView) []RollupTarget {
-	targets := make([]RollupTarget, len(views))
-	for i, t := range views {
-		targets[i] = t.RollupTarget()
-	}
-	return targets
-}
-
 // RollupTarget dictates how to roll up metrics. Metrics associated with a rollup
 // target will be grouped and rolled up across the provided set of tags, named
 // with the provided name, and aggregated and retained under the provided policies.
-type RollupTarget struct {
+type rollupTarget struct {
 	Name     []byte
 	Tags     [][]byte
 	Policies []policy.Policy
 }
 
-func newRollupTarget(target *schema.RollupTarget) (RollupTarget, error) {
+func newRollupTarget(target *schema.RollupTarget) (rollupTarget, error) {
 	if target == nil {
 		return emptyRollupTarget, errNilRollupTargetSchema
 	}
@@ -95,15 +64,40 @@ func newRollupTarget(target *schema.RollupTarget) (RollupTarget, error) {
 	tags := make([]string, len(target.Tags))
 	copy(tags, target.Tags)
 	sort.Strings(tags)
-	return RollupTarget{
+	return rollupTarget{
 		Name:     []byte(target.Name),
 		Tags:     bytesArrayFromStringArray(tags),
 		Policies: policies,
 	}, nil
 }
 
+func newRollupTargetsFromView(views []models.RollupTargetView) []rollupTarget {
+	targets := make([]rollupTarget, len(views))
+	for i, t := range views {
+		targets[i] = newRollupTargetFromView(t)
+	}
+	return targets
+}
+
+func newRollupTargetFromView(rtv models.RollupTargetView) rollupTarget {
+	return rollupTarget{
+		Name:     []byte(rtv.Name),
+		Tags:     bytesArrayFromStringArray(rtv.Tags),
+		Policies: rtv.Policies,
+	}
+}
+
+func (t rollupTarget) rollupTargetView() models.RollupTargetView {
+	return models.RollupTargetView{
+		Name:     string(t.Name),
+		Tags:     stringArrayFromBytesArray(t.Tags),
+		Policies: t.Policies,
+	}
+}
+
+// TODO: Evaluate if this function is needed for rule matching. If not remove it.
 // SameTransform returns whether two rollup targets have the same transformation.
-func (t *RollupTarget) SameTransform(other RollupTarget) bool {
+func (t *rollupTarget) SameTransform(other rollupTarget) bool {
 	if !bytes.Equal(t.Name, other.Name) {
 		return false
 	}
@@ -123,12 +117,12 @@ func (t *RollupTarget) SameTransform(other RollupTarget) bool {
 }
 
 // clone clones a rollup target.
-func (t *RollupTarget) clone() RollupTarget {
+func (t *rollupTarget) clone() rollupTarget {
 	name := make([]byte, len(t.Name))
 	copy(name, t.Name)
 	policies := make([]policy.Policy, len(t.Policies))
 	copy(policies, t.Policies)
-	return RollupTarget{
+	return rollupTarget{
 		Name:     name,
 		Tags:     bytesArrayCopy(t.Tags),
 		Policies: policies,
@@ -136,7 +130,7 @@ func (t *RollupTarget) clone() RollupTarget {
 }
 
 // Schema returns the schema representation of a rollup target.
-func (t *RollupTarget) Schema() (*schema.RollupTarget, error) {
+func (t *rollupTarget) Schema() (*schema.RollupTarget, error) {
 	res := &schema.RollupTarget{
 		Name: string(t.Name),
 	}
@@ -162,7 +156,7 @@ type rollupRuleSnapshot struct {
 	tombstoned         bool
 	cutoverNanos       int64
 	filter             filters.Filter
-	targets            []RollupTarget
+	targets            []rollupTarget
 	rawFilter          string
 	lastUpdatedAtNanos int64
 	lastUpdatedBy      string
@@ -175,7 +169,7 @@ func newRollupRuleSnapshot(
 	if r == nil {
 		return nil, errNilRollupRuleSnapshotSchema
 	}
-	targets := make([]RollupTarget, 0, len(r.Targets))
+	targets := make([]rollupTarget, 0, len(r.Targets))
 	for _, t := range r.Targets {
 		target, err := newRollupTarget(t)
 		if err != nil {
@@ -208,7 +202,7 @@ func newRollupRuleSnapshotFromFields(
 	name string,
 	cutoverNanos int64,
 	rawFilter string,
-	targets []RollupTarget,
+	targets []rollupTarget,
 	filter filters.Filter,
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
@@ -235,7 +229,7 @@ func newRollupRuleSnapshotFromFieldsInternal(
 	tombstoned bool,
 	cutoverNanos int64,
 	rawFilter string,
-	targets []RollupTarget,
+	targets []rollupTarget,
 	filter filters.Filter,
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
@@ -253,7 +247,7 @@ func newRollupRuleSnapshotFromFieldsInternal(
 }
 
 func (rrs *rollupRuleSnapshot) clone() rollupRuleSnapshot {
-	targets := make([]RollupTarget, len(rrs.targets))
+	targets := make([]rollupTarget, len(rrs.targets))
 	for i, t := range rrs.targets {
 		targets[i] = t.clone()
 	}
@@ -297,30 +291,18 @@ func (rrs *rollupRuleSnapshot) Schema() (*schema.RollupRuleSnapshot, error) {
 	return res, nil
 }
 
-// RollupRuleView is a human friendly representation of a rollup rule at a given point in time.
-type RollupRuleView struct {
-	ID                 string
-	Name               string
-	Tombstoned         bool
-	CutoverNanos       int64
-	Filter             string
-	Targets            []RollupTargetView
-	LastUpdatedBy      string
-	LastUpdatedAtNanos int64
-}
-
-func (rc *rollupRule) rollupRuleView(snapshotIdx int) (*RollupRuleView, error) {
+func (rc *rollupRule) rollupRuleView(snapshotIdx int) (*models.RollupRuleView, error) {
 	if snapshotIdx < 0 || snapshotIdx >= len(rc.snapshots) {
 		return nil, errRollupRuleSnapshotIndexOutOfRange
 	}
 
 	rrs := rc.snapshots[snapshotIdx].clone()
-	targets := make([]RollupTargetView, len(rrs.targets))
+	targets := make([]models.RollupTargetView, len(rrs.targets))
 	for i, t := range rrs.targets {
-		targets[i] = newRollupTargetView(t)
+		targets[i] = t.rollupTargetView()
 	}
 
-	return &RollupRuleView{
+	return &models.RollupRuleView{
 		ID:                 rc.uuid,
 		Name:               rrs.name,
 		Tombstoned:         rrs.tombstoned,
@@ -362,7 +344,7 @@ func newRollupRule(
 func newRollupRuleFromFields(
 	name string,
 	rawFilter string,
-	targets []RollupTarget,
+	targets []rollupTarget,
 	meta UpdateMetadata,
 ) (*rollupRule, error) {
 	rr := rollupRule{uuid: uuid.New()}
@@ -434,7 +416,7 @@ func (rc *rollupRule) Tombstoned() bool {
 func (rc *rollupRule) addSnapshot(
 	name string,
 	rawFilter string,
-	rollupTargets []RollupTarget,
+	rollupTargets []rollupTarget,
 	meta UpdateMetadata,
 ) error {
 	snapshot, err := newRollupRuleSnapshotFromFields(
@@ -480,7 +462,7 @@ func (rc *rollupRule) markTombstoned(meta UpdateMetadata) error {
 func (rc *rollupRule) revive(
 	name string,
 	rawFilter string,
-	targets []RollupTarget,
+	targets []rollupTarget,
 	meta UpdateMetadata,
 ) error {
 	n, err := rc.Name()
@@ -493,9 +475,9 @@ func (rc *rollupRule) revive(
 	return rc.addSnapshot(name, rawFilter, targets, meta)
 }
 
-func (rc *rollupRule) history() ([]*RollupRuleView, error) {
+func (rc *rollupRule) history() ([]*models.RollupRuleView, error) {
 	lastIdx := len(rc.snapshots) - 1
-	views := make([]*RollupRuleView, len(rc.snapshots))
+	views := make([]*models.RollupRuleView, len(rc.snapshots))
 	// Snapshots are stored oldest -> newest. History should start with newest.
 	for i := 0; i < len(rc.snapshots); i++ {
 		rrs, err := rc.rollupRuleView(lastIdx - i)

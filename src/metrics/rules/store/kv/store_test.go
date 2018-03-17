@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3metrics/rules/models"
 
 	"github.com/stretchr/testify/require"
 )
@@ -585,6 +586,6 @@ type mockValidator struct {
 	validateFn validateFn
 }
 
-func (v *mockValidator) Validate(rs rules.RuleSet) error                        { return v.validateFn(rs) }
-func (v *mockValidator) ValidateSnapshot(snapshot *rules.RuleSetSnapshot) error { return nil }
-func (v *mockValidator) Close()                                                 {}
+func (v *mockValidator) Validate(rs rules.RuleSet) error                             { return v.validateFn(rs) }
+func (v *mockValidator) ValidateSnapshot(snapshot *models.RuleSetSnapshotView) error { return nil }
+func (v *mockValidator) Close()                                                      {}

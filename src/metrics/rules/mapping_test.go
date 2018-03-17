@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/rules/models"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -432,8 +433,8 @@ func TestMappingRuleHistory(t *testing.T) {
 	p1, _ := policy.ParsePolicy("1m:24h")
 	p2, _ := policy.ParsePolicy("5m:2d")
 
-	expectedViews := []*MappingRuleView{
-		&MappingRuleView{
+	expectedViews := []*models.MappingRuleView{
+		&models.MappingRuleView{
 			ID:                 "12669817-13ae-40e6-ba2f-33087b262c68",
 			Name:               "bar",
 			CutoverNanos:       67890,
@@ -443,7 +444,7 @@ func TestMappingRuleHistory(t *testing.T) {
 			LastUpdatedAtNanos: 1234,
 			LastUpdatedBy:      "someone",
 		},
-		&MappingRuleView{
+		&models.MappingRuleView{
 			ID:                 "12669817-13ae-40e6-ba2f-33087b262c68",
 			Name:               "foo",
 			CutoverNanos:       12345,

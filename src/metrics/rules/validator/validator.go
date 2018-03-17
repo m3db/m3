@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3metrics/rules/models"
 	"github.com/m3db/m3metrics/rules/validator/namespace"
 )
 
@@ -54,7 +55,7 @@ func (v *validator) Validate(rs rules.RuleSet) error {
 	return v.ValidateSnapshot(latest)
 }
 
-func (v *validator) ValidateSnapshot(snapshot *rules.RuleSetSnapshot) error {
+func (v *validator) ValidateSnapshot(snapshot *models.RuleSetSnapshotView) error {
 	if snapshot == nil {
 		return nil
 	}
@@ -68,7 +69,7 @@ func (v *validator) Close() {
 	v.nsValidator.Close()
 }
 
-func (v *validator) validateSnapshot(snapshot *rules.RuleSetSnapshot) error {
+func (v *validator) validateSnapshot(snapshot *models.RuleSetSnapshotView) error {
 	if err := v.validateNamespace(snapshot.Namespace); err != nil {
 		return err
 	}
@@ -82,7 +83,7 @@ func (v *validator) validateNamespace(ns string) error {
 	return v.nsValidator.Validate(ns)
 }
 
-func (v *validator) validateMappingRules(mrv map[string]*rules.MappingRuleView) error {
+func (v *validator) validateMappingRules(mrv map[string]*models.MappingRuleView) error {
 	namesSeen := make(map[string]struct{}, len(mrv))
 	for _, view := range mrv {
 		// Validate that no rules with the same name exist.
@@ -114,10 +115,10 @@ func (v *validator) validateMappingRules(mrv map[string]*rules.MappingRuleView) 
 	return nil
 }
 
-func (v *validator) validateRollupRules(rrv map[string]*rules.RollupRuleView) error {
+func (v *validator) validateRollupRules(rrv map[string]*models.RollupRuleView) error {
 	var (
 		namesSeen   = make(map[string]struct{}, len(rrv))
-		targetsSeen = make([]rules.RollupTarget, 0, len(rrv))
+		targetsSeen = make([]models.RollupTargetView, 0, len(rrv))
 	)
 	for _, view := range rrv {
 		// Validate that no rules with the same name exist.
@@ -158,13 +159,12 @@ func (v *validator) validateRollupRules(rrv map[string]*rules.RollupRuleView) er
 			}
 
 			// Validate that there are no conflicting rollup targets.
-			current := target.RollupTarget()
 			for _, seenTarget := range targetsSeen {
-				if current.SameTransform(seenTarget) {
-					return errors.NewRuleConflictError(fmt.Sprintf("rollup target with name '%s' and tags '%s' already exists", current.Name, current.Tags))
+				if target.SameTransform(seenTarget) {
+					return errors.NewRuleConflictError(fmt.Sprintf("rollup target with name '%s' and tags '%s' already exists", target.Name, target.Tags))
 				}
 			}
-			targetsSeen = append(targetsSeen, current)
+			targetsSeen = append(targetsSeen, target)
 		}
 	}
 
