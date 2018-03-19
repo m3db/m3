@@ -27,6 +27,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3aggregator/aggregator/handler"
+	"github.com/m3db/m3aggregator/aggregator/handler/writer"
 	schema "github.com/m3db/m3aggregator/generated/proto/flush"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/kv"
@@ -780,21 +782,21 @@ func testOptions(ctrl *gomock.Controller) Options {
 	flushManager.EXPECT().Unregister(gomock.Any()).Return(nil).AnyTimes()
 	flushManager.EXPECT().Close().Return(nil).AnyTimes()
 
-	writer := NewMockWriter(ctrl)
-	writer.EXPECT().Write(gomock.Any()).Return(nil).AnyTimes()
-	writer.EXPECT().Flush().Return(nil).AnyTimes()
-	writer.EXPECT().Close().Return(nil).AnyTimes()
+	w := writer.NewMockWriter(ctrl)
+	w.EXPECT().Write(gomock.Any()).Return(nil).AnyTimes()
+	w.EXPECT().Flush().Return(nil).AnyTimes()
+	w.EXPECT().Close().Return(nil).AnyTimes()
 
-	handler := NewMockHandler(ctrl)
-	handler.EXPECT().NewWriter(gomock.Any()).Return(writer, nil).AnyTimes()
-	handler.EXPECT().Close().AnyTimes()
+	h := handler.NewMockHandler(ctrl)
+	h.EXPECT().NewWriter(gomock.Any()).Return(w, nil).AnyTimes()
+	h.EXPECT().Close().AnyTimes()
 
 	return NewOptions().
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionMgr).
 		SetFlushManager(flushManager).
-		SetFlushHandler(handler)
+		SetFlushHandler(h)
 }
 
 type uint32Ascending []uint32

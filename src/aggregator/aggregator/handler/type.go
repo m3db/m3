@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,44 +18,45 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package aggregator
+package handler
 
-import "github.com/m3db/m3x/pool"
+import (
+	"fmt"
+	"strings"
+)
 
-// EntryAlloc allocates a new entry.
-type EntryAlloc func() *Entry
+// Type is the handler type.
+type Type string
 
-// EntryPool provides a pool of entries.
-type EntryPool interface {
-	// Init initializes the entry pool.
-	Init(alloc EntryAlloc)
+// A list of supported handler types.
+const (
+	blackholeType Type = "blackhole"
+	loggingType   Type = "logging"
+	forwardType   Type = "forward"
+)
 
-	// Get gets a entry from the pool.
-	Get() *Entry
+var (
+	validHandlerTypes = []Type{
+		blackholeType,
+		loggingType,
+		forwardType,
+	}
+)
 
-	// Put returns a entry to the pool.
-	Put(value *Entry)
-}
-
-type entryPool struct {
-	pool pool.ObjectPool
-}
-
-// NewEntryPool creates a new pool for entries.
-func NewEntryPool(opts pool.ObjectPoolOptions) EntryPool {
-	return &entryPool{pool: pool.NewObjectPool(opts)}
-}
-
-func (p *entryPool) Init(alloc EntryAlloc) {
-	p.pool.Init(func() interface{} {
-		return alloc()
-	})
-}
-
-func (p *entryPool) Get() *Entry {
-	return p.pool.Get().(*Entry)
-}
-
-func (p *entryPool) Put(value *Entry) {
-	p.pool.Put(value)
+// UnmarshalYAML unmarshals YAML into a type.
+func (t *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	validTypes := make([]string, 0, len(validHandlerTypes))
+	for _, valid := range validHandlerTypes {
+		if str == string(valid) {
+			*t = valid
+			return nil
+		}
+		validTypes = append(validTypes, string(valid))
+	}
+	return fmt.Errorf("invalid handler type '%s' valid types are: %s",
+		str, strings.Join(validTypes, ", "))
 }

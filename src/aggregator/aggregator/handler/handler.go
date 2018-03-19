@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,42 +21,16 @@
 package handler
 
 import (
-	"fmt"
-	"strings"
+	"github.com/m3db/m3aggregator/aggregator/handler/writer"
+
+	"github.com/uber-go/tally"
 )
 
-// Type is the handler type.
-type Type string
+// Handler handles aggregated metrics alongside their policies.
+type Handler interface {
+	// NewWriter creates a new writer for writing aggregated metrics and policies.
+	NewWriter(scope tally.Scope) (writer.Writer, error)
 
-// A list of supported handler types.
-const (
-	blackholeType Type = "blackhole"
-	loggingType   Type = "logging"
-	forwardType   Type = "forward"
-)
-
-var (
-	validHandlerTypes = []Type{
-		blackholeType,
-		loggingType,
-		forwardType,
-	}
-)
-
-// UnmarshalYAML unmarshals YAML into a type.
-func (t *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-	validTypes := make([]string, 0, len(validHandlerTypes))
-	for _, valid := range validHandlerTypes {
-		if str == string(valid) {
-			*t = valid
-			return nil
-		}
-		validTypes = append(validTypes, string(valid))
-	}
-	return fmt.Errorf("invalid handler type '%s' valid types are: %s",
-		str, strings.Join(validTypes, ", "))
+	// Close closes the handler.
+	Close()
 }

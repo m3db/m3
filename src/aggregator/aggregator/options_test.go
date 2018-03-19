@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3aggregator/aggregator/handler"
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -143,7 +144,7 @@ func TestSetFlushHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	h := NewMockHandler(ctrl)
+	h := handler.NewMockHandler(ctrl)
 	o := NewOptions().SetFlushHandler(h)
 	require.Equal(t, h, o.FlushHandler())
 }

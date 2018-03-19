@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3aggregator/aggregator/handler"
+	"github.com/m3db/m3aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
@@ -238,11 +240,11 @@ func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
 		flushed = append(flushed, mp)
 		return nil
 	}
-	writer := NewMockWriter(ctrl)
-	writer.EXPECT().Write(gomock.Any()).DoAndReturn(writeFn).AnyTimes()
-	writer.EXPECT().Flush().Return(nil).AnyTimes()
-	handler := NewMockHandler(ctrl)
-	handler.EXPECT().NewWriter(gomock.Any()).Return(writer, nil).AnyTimes()
+	w := writer.NewMockWriter(ctrl)
+	w.EXPECT().Write(gomock.Any()).DoAndReturn(writeFn).AnyTimes()
+	w.EXPECT().Flush().Return(nil).AnyTimes()
+	handler := handler.NewMockHandler(ctrl)
+	handler.EXPECT().NewWriter(gomock.Any()).Return(w, nil).AnyTimes()
 
 	var now = time.Unix(216, 0).UnixNano()
 	nowTs := time.Unix(0, now)

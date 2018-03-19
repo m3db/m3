@@ -21,14 +21,13 @@
 package writer
 
 import (
-	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/metric/aggregated"
 )
 
 type blackholeWriter struct{}
 
 // NewBlackholeWriter creates a new blackhole writer.
-func NewBlackholeWriter() aggregator.Writer { return blackholeWriter{} }
+func NewBlackholeWriter() Writer { return blackholeWriter{} }
 
 func (w blackholeWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) error { return nil }
 func (w blackholeWriter) Flush() error                                             { return nil }

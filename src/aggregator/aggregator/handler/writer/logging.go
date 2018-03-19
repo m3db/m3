@@ -21,7 +21,6 @@
 package writer
 
 import (
-	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3x/log"
 )
@@ -31,7 +30,7 @@ type loggingWriter struct {
 }
 
 // NewLoggingWriter creates a new logging writer.
-func NewLoggingWriter(logger log.Logger) aggregator.Writer {
+func NewLoggingWriter(logger log.Logger) Writer {
 	return loggingWriter{logger: logger}
 }
 

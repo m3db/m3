@@ -1,5 +1,5 @@
-hash: e04e645496f19a1adfe4bb45a2700b71081f70e1189267f9cd43a24928084e15
-updated: 2018-03-15T22:05:05.374282-04:00
+hash: bfa53c86eb804751ca738c8375f2ca6f67d5289cf28ec507ff0c29b9119c6e5f
+updated: 2018-03-19T10:24:42.109433159-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -126,7 +126,7 @@ imports:
   subpackages:
   - lru
 - name: github.com/golang/mock
-  version: 77f22c2b84e452a6b76fb0d1b09c9cfb44746aa4
+  version: 58cd061d09382b6011f84c1291ebe50ef2e25bab
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
@@ -306,6 +306,8 @@ imports:
   - trace
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  subpackages:
+  - unix
 - name: golang.org/x/text
   version: 4ee4af566555f5fbe026368b75596286a312663a
   subpackages:

@@ -21,7 +21,6 @@
 package handler
 
 import (
-	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/aggregator/handler/common"
 	"github.com/m3db/m3aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3aggregator/sharding"
@@ -46,7 +45,7 @@ type shardedHandler struct {
 }
 
 // NewShardedHandler creates a new sharded handler.
-func NewShardedHandler(srs []SharderRouter, writerOpts writer.Options) aggregator.Handler {
+func NewShardedHandler(srs []SharderRouter, writerOpts writer.Options) Handler {
 	// Group routers by their sharder ids so that metrics are only encoded once
 	// for backends with the same sharding functions.
 	var (
@@ -107,14 +106,14 @@ func NewShardedHandler(srs []SharderRouter, writerOpts writer.Options) aggregato
 	}
 }
 
-func (h *shardedHandler) NewWriter(scope tally.Scope) (aggregator.Writer, error) {
+func (h *shardedHandler) NewWriter(scope tally.Scope) (writer.Writer, error) {
 	instrumentOpts := h.writerOpts.InstrumentOptions()
 	writerOpts := h.writerOpts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(scope))
 	if len(h.routersBySharderID) == 1 {
 		sr := h.routersBySharderID[0]
 		return writer.NewShardedWriter(sr.SharderID, sr.Router, writerOpts)
 	}
-	writers := make([]aggregator.Writer, 0, len(h.routersBySharderID))
+	writers := make([]writer.Writer, 0, len(h.routersBySharderID))
 	for _, sr := range h.routersBySharderID {
 		w, err := writer.NewShardedWriter(sr.SharderID, sr.Router, writerOpts)
 		if err != nil {

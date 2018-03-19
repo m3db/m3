@@ -24,7 +24,6 @@ import (
 	"errors"
 	"math/rand"
 
-	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/aggregator/handler/common"
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3metrics/metric/aggregated"
@@ -87,7 +86,7 @@ func NewShardedWriter(
 	sharderID sharding.SharderID,
 	router common.Router,
 	opts Options,
-) (aggregator.Writer, error) {
+) (Writer, error) {
 	sharder, err := sharding.NewAggregatedSharder(sharderID)
 	if err != nil {
 		return nil, err

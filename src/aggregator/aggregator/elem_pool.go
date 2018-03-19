@@ -24,6 +24,51 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
+// CounterElemAlloc allocates a new counter element.
+type CounterElemAlloc func() *CounterElem
+
+// CounterElemPool provides a pool of counter elements.
+type CounterElemPool interface {
+	// Init initializes the counter element pool.
+	Init(alloc CounterElemAlloc)
+
+	// Get gets a counter element from the pool.
+	Get() *CounterElem
+
+	// Put returns a counter element to the pool.
+	Put(value *CounterElem)
+}
+
+// TimerElemAlloc allocates a new timer element.
+type TimerElemAlloc func() *TimerElem
+
+// TimerElemPool provides a pool of timer elements.
+type TimerElemPool interface {
+	// Init initializes the timer element pool.
+	Init(alloc TimerElemAlloc)
+
+	// Get gets a timer element from the pool.
+	Get() *TimerElem
+
+	// Put returns a timer element to the pool.
+	Put(value *TimerElem)
+}
+
+// GaugeElemAlloc allocates a new gauge element.
+type GaugeElemAlloc func() *GaugeElem
+
+// GaugeElemPool provides a pool of gauge elements.
+type GaugeElemPool interface {
+	// Init initializes the gauge element pool.
+	Init(alloc GaugeElemAlloc)
+
+	// Get gets a gauge element from the pool.
+	Get() *GaugeElem
+
+	// Put returns a gauge element to the pool.
+	Put(value *GaugeElem)
+}
+
 type counterElemPool struct {
 	pool pool.ObjectPool
 }

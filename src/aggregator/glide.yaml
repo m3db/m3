@@ -73,7 +73,7 @@ import:
 # different values based on input values that has not yet
 # been released. Can change back to semver once that's released.
 - package: github.com/golang/mock
-  version: 77f22c2b84e452a6b76fb0d1b09c9cfb44746aa4
+  version: 58cd061d09382b6011f84c1291ebe50ef2e25bab
 
 - package: github.com/grpc-ecosystem/go-grpc-prometheus
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0

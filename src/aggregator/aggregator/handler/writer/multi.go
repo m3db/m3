@@ -21,17 +21,16 @@
 package writer
 
 import (
-	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3x/errors"
 )
 
 type multiWriter struct {
-	writers []aggregator.Writer
+	writers []Writer
 }
 
 // NewMultiWriter creates a new multi-writer.
-func NewMultiWriter(writers []aggregator.Writer) aggregator.Writer {
+func NewMultiWriter(writers []Writer) Writer {
 	return &multiWriter{writers: writers}
 }
 

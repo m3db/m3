@@ -21,7 +21,6 @@
 package handler
 
 import (
-	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3x/log"
 
@@ -33,11 +32,11 @@ type loggingHandler struct {
 }
 
 // NewLoggingHandler creates a new logging handler.
-func NewLoggingHandler(logger log.Logger) aggregator.Handler {
+func NewLoggingHandler(logger log.Logger) Handler {
 	return &loggingHandler{logger: logger}
 }
 
-func (h *loggingHandler) NewWriter(tally.Scope) (aggregator.Writer, error) {
+func (h *loggingHandler) NewWriter(tally.Scope) (writer.Writer, error) {
 	return writer.NewLoggingWriter(h.logger), nil
 }
 
