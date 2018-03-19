@@ -505,6 +505,20 @@ config:
     - http://0.0.0.0:2379
     initialCluster: host1=http://1.1.1.1:2380,host2=http://1.1.1.2:2380,host3=http://1.1.1.3:2380
     name: host1
+    clientsecurityjson:
+      cafile: ""
+      certfile: ""
+      keyfile: ""
+      certauth: false
+      trustedcafile: ""
+      autotls: false
+    peersecurityjson:
+      cafile: ""
+      certfile: ""
+      keyfile: ""
+      certauth: false
+      trustedcafile: ""
+      autotls: false
   namespaceTimeout: 0s
 hashing:
   seed: 42

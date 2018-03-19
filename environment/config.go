@@ -65,13 +65,24 @@ type Configuration struct {
 
 // EmbeddedKV defines specific fields for the embedded kv server
 type EmbeddedKV struct {
-	Dir            string   `yaml:"dir"`
-	APUrls         []string `yaml:"initialAdvertisePeerUrls"`
-	ACUrls         []string `yaml:"advertiseClientUrls"`
-	LPUrls         []string `yaml:"listenPeerUrls"`
-	LCUrls         []string `yaml:"listenClientUrls"`
-	InitialCluster string   `yaml:"initialCluster"`
-	Name           string   `yaml:"name"`
+	Dir                string     `yaml:"dir"`
+	APUrls             []string   `yaml:"initialAdvertisePeerUrls"`
+	ACUrls             []string   `yaml:"advertiseClientUrls"`
+	LPUrls             []string   `yaml:"listenPeerUrls"`
+	LCUrls             []string   `yaml:"listenClientUrls"`
+	InitialCluster     string     `yaml:"initialCluster"`
+	Name               string     `yaml:"name"`
+	ClientSecurityJSON KVSecurity `json:"client-transport-security"`
+	PeerSecurityJSON   KVSecurity `json:"peer-transport-security"`
+}
+
+type KVSecurity struct {
+	CAFile        string `json:"ca-file"`
+	CertFile      string `json:"cert-file"`
+	KeyFile       string `json:"key-file"`
+	CertAuth      bool   `json:"client-cert-auth"`
+	TrustedCAFile string `json:"trusted-ca-file"`
+	AutoTLS       bool   `json:"auto-tls"`
 }
 
 // StaticConfiguration is used for running M3DB with a static config

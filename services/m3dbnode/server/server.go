@@ -89,6 +89,9 @@ type RunOptions struct {
 	// BootstrapCh is a channel to listen on to be notified of bootstrap.
 	BootstrapCh chan<- struct{}
 
+	// EmbeddedKVBootstrapCh is a channel to listen on to be notified of the embedded KV being bootstrapped.
+	EmbeddedKVBootstrapCh chan<- struct{}
+
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
@@ -158,6 +161,12 @@ func Run(runOpts RunOptions) {
 			if err != nil {
 				logger.Fatalf("could not start embedded etcd: %v", err)
 			}
+
+			if runOpts.EmbeddedKVBootstrapCh != nil {
+				// Notify on embedded KV bootstrap chan if specified
+				runOpts.EmbeddedKVBootstrapCh <- struct{}{}
+			}
+
 			defer e.Close()
 		}
 	}

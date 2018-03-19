@@ -29,6 +29,8 @@ import (
 	"time"
 
 	"github.com/coreos/etcd/embed"
+	"github.com/coreos/etcd/pkg/transport"
+	"github.com/coreos/etcd/pkg/types"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/environment"
 	"github.com/m3db/m3x/config/hostid"
@@ -251,6 +253,18 @@ func ETCDConfig(cfg Configuration) (*embed.Config, error) {
 	newKVCfg.Name = kvCfg.Name
 	newKVCfg.InitialCluster = kvCfg.InitialCluster
 
+	copySecurityDetails := func(tls *transport.TLSInfo, ysc *environment.KVSecurity) {
+		tls.CAFile = ysc.CAFile
+		tls.CertFile = ysc.CertFile
+		tls.KeyFile = ysc.KeyFile
+		tls.ClientCertAuth = ysc.CertAuth
+		tls.TrustedCAFile = ysc.TrustedCAFile
+	}
+	copySecurityDetails(&newKVCfg.ClientTLSInfo, &kvCfg.ClientSecurityJSON)
+	copySecurityDetails(&newKVCfg.PeerTLSInfo, &kvCfg.PeerSecurityJSON)
+	newKVCfg.ClientAutoTLS = kvCfg.ClientSecurityJSON.AutoTLS
+	newKVCfg.PeerAutoTLS = kvCfg.PeerSecurityJSON.AutoTLS
+
 	return newKVCfg, nil
 }
 
@@ -258,21 +272,17 @@ func newURL(host string, port int) string {
 	return fmt.Sprintf("%s:%d", host, port)
 }
 
-func convertToURLsWithDefault(rawURLs []string, def ...string) ([]url.URL, error) {
-	if len(rawURLs) == 0 {
-		rawURLs = def
+func convertToURLsWithDefault(urlStrs []string, def ...string) ([]url.URL, error) {
+	if len(urlStrs) == 0 {
+		urlStrs = def
 	}
 
-	var urls []url.URL
-
-	for _, u := range rawURLs {
-		parsed, err := url.Parse(u)
-		if err != nil {
-			return nil, fmt.Errorf("unable to parse URL: %s", u)
-		}
-		urls = append(urls, *parsed)
+	urls, err := types.NewURLs(urlStrs)
+	if err != nil {
+		return nil, err
 	}
-	return urls, nil
+
+	return []url.URL(urls), nil
 }
 
 func getHostFromHostID(initialCluster, hostID string) (string, error) {
