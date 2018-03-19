@@ -26,7 +26,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/aggregator/handler/common"
 	"github.com/m3db/m3aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3aggregator/sharding"
@@ -57,12 +56,12 @@ type FlushHandlerConfiguration struct {
 // NewHandler creates a new flush handler based on the configuration.
 func (c FlushHandlerConfiguration) NewHandler(
 	instrumentOpts instrument.Options,
-) (aggregator.Handler, error) {
+) (Handler, error) {
 	if len(c.Handlers) == 0 {
 		return nil, errNoHandlerConfiguration
 	}
 	var (
-		handlers       = make([]aggregator.Handler, 0, len(c.Handlers))
+		handlers       = make([]Handler, 0, len(c.Handlers))
 		sharderRouters = make([]SharderRouter, 0, len(c.Handlers))
 	)
 	for _, hc := range c.Handlers {

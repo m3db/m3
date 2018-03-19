@@ -21,7 +21,6 @@
 package handler
 
 import (
-	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/aggregator/handler/writer"
 
 	"github.com/uber-go/tally"
@@ -30,9 +29,9 @@ import (
 type blackholeHandler struct{}
 
 // NewBlackholeHandler creates a new blackhole handler.
-func NewBlackholeHandler() aggregator.Handler { return blackholeHandler{} }
+func NewBlackholeHandler() Handler { return blackholeHandler{} }
 
-func (h blackholeHandler) NewWriter(tally.Scope) (aggregator.Writer, error) {
+func (h blackholeHandler) NewWriter(tally.Scope) (writer.Writer, error) {
 	return writer.NewBlackholeWriter(), nil
 }
 

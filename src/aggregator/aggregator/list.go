@@ -27,6 +27,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3aggregator/aggregator/handler"
+	"github.com/m3db/m3aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	metricid "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
@@ -92,8 +94,8 @@ type metricList struct {
 	nowFn         clock.NowFn
 	log           log.Logger
 	timeLock      *sync.RWMutex
-	flushHandler  Handler
-	flushWriter   Writer
+	flushHandler  handler.Handler
+	flushWriter   writer.Writer
 	resolution    time.Duration
 	flushInterval time.Duration
 	flushMgr      FlushManager

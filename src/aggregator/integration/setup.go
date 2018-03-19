@@ -31,6 +31,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3aggregator/aggregator/handler"
+	"github.com/m3db/m3aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3aggregator/runtime"
 	httpserver "github.com/m3db/m3aggregator/server/http"
 	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
@@ -63,7 +65,7 @@ type testSetup struct {
 	httpServerOpts    httpserver.Options
 	aggregator        aggregator.Aggregator
 	aggregatorOpts    aggregator.Options
-	handler           aggregator.Handler
+	handler           handler.Handler
 	electionKey       string
 	leaderValue       string
 	leaderService     services.LeaderService
@@ -343,7 +345,7 @@ type capturingHandler struct {
 	resultLock *sync.Mutex
 }
 
-func (h *capturingHandler) NewWriter(tally.Scope) (aggregator.Writer, error) {
+func (h *capturingHandler) NewWriter(tally.Scope) (writer.Writer, error) {
 	return &capturingWriter{results: h.results, resultLock: h.resultLock}, nil
 }
 

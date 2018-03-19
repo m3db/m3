@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,44 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package aggregator
+package writer
 
-import "github.com/m3db/m3x/pool"
+import "github.com/m3db/m3metrics/metric/aggregated"
 
-// EntryAlloc allocates a new entry.
-type EntryAlloc func() *Entry
+// Writer writes aggregated metrics alongside their policies.
+type Writer interface {
+	// Write writes an aggregated metric alongside its storage policy.
+	Write(mp aggregated.ChunkedMetricWithStoragePolicy) error
 
-// EntryPool provides a pool of entries.
-type EntryPool interface {
-	// Init initializes the entry pool.
-	Init(alloc EntryAlloc)
+	// Flush flushes data buffered in the writer to backend.
+	Flush() error
 
-	// Get gets a entry from the pool.
-	Get() *Entry
-
-	// Put returns a entry to the pool.
-	Put(value *Entry)
-}
-
-type entryPool struct {
-	pool pool.ObjectPool
-}
-
-// NewEntryPool creates a new pool for entries.
-func NewEntryPool(opts pool.ObjectPoolOptions) EntryPool {
-	return &entryPool{pool: pool.NewObjectPool(opts)}
-}
-
-func (p *entryPool) Init(alloc EntryAlloc) {
-	p.pool.Init(func() interface{} {
-		return alloc()
-	})
-}
-
-func (p *entryPool) Get() *Entry {
-	return p.pool.Get().(*Entry)
-}
-
-func (p *entryPool) Put(value *Entry) {
-	p.pool.Put(value)
+	// Close closes the writer.
+	Close() error
 }

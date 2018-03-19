@@ -24,7 +24,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3metrics/metric/aggregated"
 
 	"github.com/golang/mock/gomock"
@@ -36,12 +36,12 @@ func TestBroadcastHandlerNewWriterSingleHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockWriter := aggregator.NewMockWriter(ctrl)
-	handler := aggregator.NewMockHandler(ctrl)
+	mockWriter := writer.NewMockWriter(ctrl)
+	handler := NewMockHandler(ctrl)
 	handler.EXPECT().
 		NewWriter(tally.NoopScope).
 		Return(mockWriter, nil)
-	h := NewBroadcastHandler([]aggregator.Handler{handler})
+	h := NewBroadcastHandler([]Handler{handler})
 	writer, err := h.NewWriter(tally.NoopScope)
 	require.NoError(t, err)
 	require.Equal(t, mockWriter, writer)
@@ -54,14 +54,14 @@ func TestBroadcastHandlerNewWriterMultiHandler(t *testing.T) {
 	data := aggregated.ChunkedMetricWithStoragePolicy{}
 
 	var written int
-	writer1 := aggregator.NewMockWriter(ctrl)
+	writer1 := writer.NewMockWriter(ctrl)
 	writer1.EXPECT().
 		Write(data).
 		DoAndReturn(func(aggregated.ChunkedMetricWithStoragePolicy) error {
 			written++
 			return nil
 		})
-	writer2 := aggregator.NewMockWriter(ctrl)
+	writer2 := writer.NewMockWriter(ctrl)
 	writer2.EXPECT().
 		Write(data).
 		DoAndReturn(func(aggregated.ChunkedMetricWithStoragePolicy) error {
@@ -69,15 +69,15 @@ func TestBroadcastHandlerNewWriterMultiHandler(t *testing.T) {
 			return nil
 		})
 
-	handler1 := aggregator.NewMockHandler(ctrl)
+	handler1 := NewMockHandler(ctrl)
 	handler1.EXPECT().
 		NewWriter(tally.NoopScope).
 		Return(writer1, nil)
-	handler2 := aggregator.NewMockHandler(ctrl)
+	handler2 := NewMockHandler(ctrl)
 	handler2.EXPECT().
 		NewWriter(tally.NoopScope).
 		Return(writer2, nil)
-	handlers := []aggregator.Handler{handler1, handler2}
+	handlers := []Handler{handler1, handler2}
 
 	h := NewBroadcastHandler(handlers)
 	writer, err := h.NewWriter(tally.NoopScope)
@@ -90,15 +90,15 @@ func TestBroadcastHandlerNewWriterMultiHandlerWithError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	handler1 := aggregator.NewMockHandler(ctrl)
+	handler1 := NewMockHandler(ctrl)
 	handler1.EXPECT().
 		NewWriter(tally.NoopScope).
-		Return(aggregator.NewMockWriter(ctrl), nil)
-	handler2 := aggregator.NewMockHandler(ctrl)
+		Return(writer.NewMockWriter(ctrl), nil)
+	handler2 := NewMockHandler(ctrl)
 	handler2.EXPECT().
 		NewWriter(tally.NoopScope).
 		Return(nil, errors.New("new writer error"))
-	handlers := []aggregator.Handler{handler1, handler2}
+	handlers := []Handler{handler1, handler2}
 
 	h := NewBroadcastHandler(handlers)
 	_, err := h.NewWriter(tally.NoopScope)

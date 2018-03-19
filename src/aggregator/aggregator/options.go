@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3aggregator/aggregator/handler"
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3metrics/aggregation"
@@ -62,6 +63,196 @@ var (
 	defaultBufferDurationAfterShardCutoff = time.Hour
 )
 
+// Options provide a set of base and derived options for the aggregator.
+type Options interface {
+	/// Read-write base options.
+
+	// SetMetricPrefix sets the common prefix for all metric types.
+	SetMetricPrefix(value []byte) Options
+
+	// MetricPrefix returns the common prefix for all metric types.
+	MetricPrefix() []byte
+
+	// SetCounterPrefix sets the prefix for counters.
+	SetCounterPrefix(value []byte) Options
+
+	// CounterPrefix returns the prefix for counters.
+	CounterPrefix() []byte
+
+	// SetTimerPrefix sets the prefix for timers.
+	SetTimerPrefix(value []byte) Options
+
+	// TimerPrefix returns the prefix for timers.
+	TimerPrefix() []byte
+
+	// SetGaugePrefix sets the prefix for gauges.
+	SetGaugePrefix(value []byte) Options
+
+	// GaugePrefix returns the prefix for gauges.
+	GaugePrefix() []byte
+
+	// SetTimeLock sets the time lock.
+	SetTimeLock(value *sync.RWMutex) Options
+
+	// TimeLock returns the time lock.
+	TimeLock() *sync.RWMutex
+
+	// SetAggregationTypesOptions sets the aggregation types options.
+	SetAggregationTypesOptions(value aggregation.TypesOptions) Options
+
+	// AggregationTypesOptions returns the aggregation types options.
+	AggregationTypesOptions() aggregation.TypesOptions
+
+	// SetClockOptions sets the clock options.
+	SetClockOptions(value clock.Options) Options
+
+	// ClockOptions returns the clock options.
+	ClockOptions() clock.Options
+
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) Options
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
+
+	// SetStreamOptions sets the stream options.
+	SetStreamOptions(value cm.Options) Options
+
+	// StreamOptions returns the stream options.
+	StreamOptions() cm.Options
+
+	// SetRuntimeOptionsManager sets the runtime options manager.
+	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
+
+	// RuntimeOptionsManager returns the runtime options manager.
+	RuntimeOptionsManager() runtime.OptionsManager
+
+	// SetPlacementManager sets the placement manager.
+	SetPlacementManager(value PlacementManager) Options
+
+	// PlacementManager returns the placement manager.
+	PlacementManager() PlacementManager
+
+	// SetShardFn sets the sharding function.
+	SetShardFn(value sharding.ShardFn) Options
+
+	// ShardFn returns the sharding function.
+	ShardFn() sharding.ShardFn
+
+	// SetBufferDurationBeforeShardCutover sets the duration for buffering writes before shard cutover.
+	SetBufferDurationBeforeShardCutover(value time.Duration) Options
+
+	// BufferDurationBeforeShardCutover returns the duration for buffering writes before shard cutover.
+	BufferDurationBeforeShardCutover() time.Duration
+
+	// SetBufferDurationAfterShardCutoff sets the duration for buffering writes after shard cutoff.
+	SetBufferDurationAfterShardCutoff(value time.Duration) Options
+
+	// BufferDurationAfterShardCutoff returns the duration for buffering writes after shard cutoff.
+	BufferDurationAfterShardCutoff() time.Duration
+
+	// SetFlushTimesManager sets the flush times manager.
+	SetFlushTimesManager(value FlushTimesManager) Options
+
+	// FlushTimesManager returns the flush times manager.
+	FlushTimesManager() FlushTimesManager
+
+	// SetElectionManager sets the election manager.
+	SetElectionManager(value ElectionManager) Options
+
+	// ElectionManager returns the election manager.
+	ElectionManager() ElectionManager
+
+	// SetFlushManager sets the flush manager.
+	SetFlushManager(value FlushManager) Options
+
+	// FlushManager returns the flush manager.
+	FlushManager() FlushManager
+
+	// SetMinFlushInterval sets the minimum flush interval.
+	SetMinFlushInterval(value time.Duration) Options
+
+	// MinFlushInterval returns the minimum flush interval.
+	MinFlushInterval() time.Duration
+
+	// SetFlushHandler sets the handler that flushes buffered encoders.
+	SetFlushHandler(value handler.Handler) Options
+
+	// FlushHandler returns the handler that flushes buffered encoders.
+	FlushHandler() handler.Handler
+
+	// SetEntryTTL sets the ttl for expiring stale entries.
+	SetEntryTTL(value time.Duration) Options
+
+	// EntryTTL returns the ttl for expiring stale entries.
+	EntryTTL() time.Duration
+
+	// SetEntryCheckInterval sets the interval for checking expired entries.
+	SetEntryCheckInterval(value time.Duration) Options
+
+	// EntryCheckInterval returns the interval for checking expired entries.
+	EntryCheckInterval() time.Duration
+
+	// SetEntryCheckBatchPercent sets the batch percentage for checking expired entries.
+	SetEntryCheckBatchPercent(value float64) Options
+
+	// EntryCheckBatchPercent returns the batch percentage for checking expired entries.
+	EntryCheckBatchPercent() float64
+
+	// SetMaxTimerBatchSizePerWrite sets the maximum timer batch size for each batched write.
+	SetMaxTimerBatchSizePerWrite(value int) Options
+
+	// MaxTimerBatchSizePerWrite returns the maximum timer batch size for each batched write.
+	MaxTimerBatchSizePerWrite() int
+
+	// SetDefaultPolicies sets the default policies.
+	SetDefaultPolicies(value []policy.Policy) Options
+
+	// DefaultPolicies returns the default policies.
+	DefaultPolicies() []policy.Policy
+
+	// SetResignTimeout sets the resign timeout.
+	SetResignTimeout(value time.Duration) Options
+
+	// ResignTimeout returns the resign timeout.
+	ResignTimeout() time.Duration
+
+	// SetEntryPool sets the entry pool.
+	SetEntryPool(value EntryPool) Options
+
+	// EntryPool returns the entry pool.
+	EntryPool() EntryPool
+
+	// SetCounterElemPool sets the counter element pool.
+	SetCounterElemPool(value CounterElemPool) Options
+
+	// CounterElemPool returns the counter element pool.
+	CounterElemPool() CounterElemPool
+
+	// SetTimerElemPool sets the timer element pool.
+	SetTimerElemPool(value TimerElemPool) Options
+
+	// TimerElemPool returns the timer element pool.
+	TimerElemPool() TimerElemPool
+
+	// SetGaugeElemPool sets the gauge element pool.
+	SetGaugeElemPool(value GaugeElemPool) Options
+
+	// GaugeElemPool returns the gauge element pool.
+	GaugeElemPool() GaugeElemPool
+
+	/// Read-only derived options.
+
+	// FullCounterPrefix returns the full prefix for counters.
+	FullCounterPrefix() []byte
+
+	// FullTimerPrefix returns the full prefix for timers.
+	FullTimerPrefix() []byte
+
+	// FullGaugePrefix returns the full prefix for gauges.
+	FullGaugePrefix() []byte
+}
+
 type options struct {
 	// Base options.
 	aggTypesOptions                  aggregation.TypesOptions
@@ -80,7 +271,7 @@ type options struct {
 	bufferDurationAfterShardCutoff   time.Duration
 	flushManager                     FlushManager
 	minFlushInterval                 time.Duration
-	flushHandler                     Handler
+	flushHandler                     handler.Handler
 	entryTTL                         time.Duration
 	entryCheckInterval               time.Duration
 	entryCheckBatchPercent           float64
@@ -319,13 +510,13 @@ func (o *options) MinFlushInterval() time.Duration {
 	return o.minFlushInterval
 }
 
-func (o *options) SetFlushHandler(value Handler) Options {
+func (o *options) SetFlushHandler(value handler.Handler) Options {
 	opts := *o
 	opts.flushHandler = value
 	return &opts
 }
 
-func (o *options) FlushHandler() Handler {
+func (o *options) FlushHandler() handler.Handler {
 	return o.flushHandler
 }
 

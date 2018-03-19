@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3aggregator/aggregator/handler"
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
@@ -288,7 +289,7 @@ type aggregator struct {
 	flushTimesChecker flushTimesChecker
 	electionManager   ElectionManager
 	flushManager      FlushManager
-	flushHandler      Handler
+	flushHandler      handler.Handler
 	resignTimeout     time.Duration
 
 	shardSetID          uint32
