@@ -293,7 +293,7 @@ type databaseNamespace interface {
 	Flush(blockStart time.Time, flush persist.Flush) error
 
 	// Snapshot snapshots unflushed in-memory data
-	Snapshot(blockStart time.Time, flush persist.Flush) error
+	Snapshot(blockStart, callStart time.Time, flush persist.Flush) error
 
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).

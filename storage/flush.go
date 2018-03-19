@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
 	xerrors "github.com/m3db/m3x/errors"
@@ -44,7 +43,6 @@ type flushManager struct {
 
 	database        database
 	opts            Options
-	nowFn           clock.NowFn
 	pm              persist.Manager
 	flushInProgress bool
 	status          tally.Gauge
@@ -55,7 +53,6 @@ func newFlushManager(database database, scope tally.Scope) databaseFlushManager 
 	return &flushManager{
 		database: database,
 		opts:     opts,
-		nowFn:    opts.ClockOptions().NowFn(),
 		pm:       opts.PersistManager(),
 		status:   scope.Gauge("flush"),
 	}
@@ -107,7 +104,7 @@ func (m *flushManager) Flush(curr time.Time) error {
 
 		// Don't perform any snapshots until the previous blocks flush has completed
 		if !ns.NeedsFlush(prevBlockStart, prevBlockStart) {
-			if err := ns.Snapshot(snapshotBlockStart, flush); err != nil {
+			if err := ns.Snapshot(snapshotBlockStart, curr, flush); err != nil {
 				detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
 					ns.ID().String(), err)
 				multiErr = multiErr.Add(detailedErr)

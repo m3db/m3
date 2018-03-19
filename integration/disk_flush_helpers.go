@@ -140,23 +140,6 @@ func verifyForTime(
 	compareSeriesList(t, expected, actual)
 }
 
-// func verifyFlushedSnapshotFiles(
-// 	t *testing.T,
-// 	shardSet sharding.ShardSet,
-// 	opts storage.Options,
-// 	namespace ident.ID,
-// 	snapshotTime time.Time,
-// 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
-// ) {
-// 	fsOpts := opts.CommitLogOptions().FilesystemOptions()
-// 	reader, err := fs.NewReader(opts.BytesPool(), fsOpts)
-// 	require.NoError(t, err)
-// 	iteratorPool := opts.ReaderIteratorPool()
-// 	for timestamp, seriesList := range seriesMaps {
-// 		verifyForTime(t, reader, shardSet, iteratorPool, timestamp.ToTime(), namespace, seriesList)
-// 	}
-// }
-
 // nolint: deadcode
 func verifyFlushedDataFiles(
 	t *testing.T,
@@ -171,5 +154,25 @@ func verifyFlushedDataFiles(
 	iteratorPool := opts.ReaderIteratorPool()
 	for timestamp, seriesList := range seriesMaps {
 		verifyForTime(t, reader, shardSet, iteratorPool, timestamp.ToTime(), namespace, seriesList)
+	}
+}
+
+// nolint: deadcode
+func verifySnapshottedDataFiles(
+	t *testing.T,
+	shardSet sharding.ShardSet,
+	storageOpts storage.Options,
+	namespace ident.ID,
+	snapshotTime time.Time,
+	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
+) {
+	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
+	reader, err := fs.NewReader(storageOpts.BytesPool(), fsOpts)
+	require.NoError(t, err)
+	iteratorPool := storageOpts.ReaderIteratorPool()
+	for _, ns := range testNamespaces {
+		for _, seriesList := range seriesMaps {
+			verifyForTime(t, reader, shardSet, iteratorPool, snapshotTime, ns, seriesList)
+		}
 	}
 }

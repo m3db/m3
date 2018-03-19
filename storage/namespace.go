@@ -725,6 +725,8 @@ func (n *dbNamespace) Flush(
 	blockStart time.Time,
 	flush persist.Flush,
 ) error {
+	// NB(rartoul): This value can be used for emitting metrics, but should not be used
+	// for business logic.
 	callStart := n.nowFn()
 
 	n.RLock()
@@ -767,9 +769,7 @@ func (n *dbNamespace) Flush(
 	return res
 }
 
-func (n *dbNamespace) Snapshot(blockStart time.Time, flush persist.Flush) error {
-	callStart := n.nowFn()
-
+func (n *dbNamespace) Snapshot(blockStart, callStart time.Time, flush persist.Flush) error {
 	n.RLock()
 	if n.bs != bootstrapped {
 		n.RUnlock()
@@ -801,7 +801,6 @@ func (n *dbNamespace) Snapshot(blockStart time.Time, flush persist.Flush) error 
 			continue
 		}
 
-		fmt.Println("Snapshotting shard: ", shard.ID(), " at time: ", callStart, " for block: ", blockStart)
 		err := shard.Snapshot(blockStart, callStart, flush)
 		if err != nil {
 			// Log / metric?

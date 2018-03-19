@@ -135,35 +135,38 @@ func NewWriter(opts Options) (FileSetWriter, error) {
 func (w *writer) Open(opts WriterOpenOptions) error {
 
 	var shardDir string
+	var fileTimestampUnixNano time.Time
 	if opts.IsSnapshot {
 		shardDir = ShardSnapshotsDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
 		}
+		fileTimestampUnixNano = opts.WrittenAt
 	} else {
 		shardDir = ShardDataDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
 		}
+		fileTimestampUnixNano = opts.BlockStart
 	}
 
 	w.blockSize = opts.BlockSize
 	w.start = opts.BlockStart
 	w.currIdx = 0
 	w.currOffset = 0
-	w.checkpointFilePath = filesetPathFromTime(shardDir, opts.BlockStart, checkpointFileSuffix)
+	w.checkpointFilePath = filesetPathFromTime(shardDir, fileTimestampUnixNano, checkpointFileSuffix)
 	w.err = nil
 
 	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File
 	if err := openFiles(
 		w.openWritable,
 		map[string]**os.File{
-			filesetPathFromTime(shardDir, opts.BlockStart, infoFileSuffix):        &infoFd,
-			filesetPathFromTime(shardDir, opts.BlockStart, indexFileSuffix):       &indexFd,
-			filesetPathFromTime(shardDir, opts.BlockStart, summariesFileSuffix):   &summariesFd,
-			filesetPathFromTime(shardDir, opts.BlockStart, bloomFilterFileSuffix): &bloomFilterFd,
-			filesetPathFromTime(shardDir, opts.BlockStart, dataFileSuffix):        &dataFd,
-			filesetPathFromTime(shardDir, opts.BlockStart, digestFileSuffix):      &digestFd,
+			filesetPathFromTime(shardDir, fileTimestampUnixNano, infoFileSuffix):        &infoFd,
+			filesetPathFromTime(shardDir, fileTimestampUnixNano, indexFileSuffix):       &indexFd,
+			filesetPathFromTime(shardDir, fileTimestampUnixNano, summariesFileSuffix):   &summariesFd,
+			filesetPathFromTime(shardDir, fileTimestampUnixNano, bloomFilterFileSuffix): &bloomFilterFd,
+			filesetPathFromTime(shardDir, fileTimestampUnixNano, dataFileSuffix):        &dataFd,
+			filesetPathFromTime(shardDir, fileTimestampUnixNano, digestFileSuffix):      &digestFd,
 		},
 	); err != nil {
 		return err

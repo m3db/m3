@@ -38,7 +38,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	}
 	// Test setup
 	testOpts := newTestOptions(t).
-		SetTickMinimumInterval(time.Second)
+		SetTickMinimumInterval(time.Millisecond)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
@@ -63,19 +63,24 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	now := testSetup.getNowFn()
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []generate.BlockConfig{
-		{[]string{"foo", "bar"}, 100, now},
-		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
+		{[]string{"foo", "bar", "baz"}, 100, now},
 	}
 	for _, input := range inputData {
 		testSetup.setNowFn(input.Start)
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(input.Start)] = testData
-		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
+		for _, ns := range testSetup.namespaces {
+			require.NoError(t, testSetup.writeBatch(ns.ID(), testData))
+		}
 	}
-	log.Debug("test data is now written")
+
+	now = testSetup.getNowFn().Add(blockSize).Add(-10 * time.Minute)
+	testSetup.setNowFn(now)
 	maxWaitTime := time.Minute
-	require.NoError(t, waitUntilSnapshotFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], []time.Time{now}, maxWaitTime))
-	log.Debug("snapshot file is now written")
+	for _, ns := range testSetup.namespaces {
+		require.NoError(t, waitUntilSnapshotFilesFlushed(filePathPrefix, testSetup.shardSet, ns.ID(), []time.Time{now}, maxWaitTime))
+		verifySnapshottedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, ns.ID(), now, seriesMaps)
+	}
 
 	// Advance time to make sure all data are flushed. Because data
 	// are flushed to disk asynchronously, need to poll to check
