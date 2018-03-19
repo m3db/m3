@@ -194,7 +194,7 @@ func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespac
 }
 
 // nolint: deadcode, unused
-func waitUntilFilesetsCleanedUp(filePathPrefix string, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
+func waitUntilDataFilesetsCleanedUp(filePathPrefix string, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
 	dataCleanedUp := func() bool {
 		for _, n := range namespaces {
 			shardDir := fs.ShardDataDirPath(filePathPrefix, n.ID(), extraShard)

@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/integration/generate"
+	"github.com/m3db/m3db/persist/fs"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -38,7 +39,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	}
 	// Test setup
 	testOpts := newTestOptions(t).
-		SetTickMinimumInterval(time.Millisecond)
+		SetTickMinimumInterval(time.Second)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
@@ -82,10 +83,18 @@ func TestDiskSnapshotSimple(t *testing.T) {
 		verifySnapshottedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, ns.ID(), now, seriesMaps)
 	}
 
-	// Advance time to make sure all data are flushed. Because data
-	// are flushed to disk asynchronously, need to poll to check
-	// when data are written.
-	newTime := testSetup.getNowFn().Add(blockSize * 2)
+	// Make sure new snapshot files are written out and old ones are deleted
+	oldTime := testSetup.getNowFn()
+	newTime := oldTime.Add(blockSize * 2)
 	testSetup.setNowFn(newTime)
-	require.NoError(t, waitUntilSnapshotFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], []time.Time{newTime}, maxWaitTime))
+
+	testSetup.sleepFor10xTickMinimumInterval()
+	for _, ns := range testSetup.namespaces {
+		require.NoError(t, waitUntilSnapshotFilesFlushed(filePathPrefix, testSetup.shardSet, ns.ID(), []time.Time{newTime}, maxWaitTime))
+		for _, shard := range testSetup.shardSet.All() {
+			waitUntil(func() bool {
+				return !fs.SnapshotFilesetExistsAt(filePathPrefix, ns.ID(), shard.ID(), oldTime)
+			}, maxWaitTime)
+		}
+	}
 }
