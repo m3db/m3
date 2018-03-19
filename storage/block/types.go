@@ -134,7 +134,7 @@ type FetchBlocksMetadataResults interface {
 // NewDatabaseBlockFn creates a new database block.
 type NewDatabaseBlockFn func() DatabaseBlock
 
-// DatabaseBlock represents a data block.
+// DatabaseBlock is the interface for a DatabaseBlock
 type DatabaseBlock interface {
 	OnRetrieveBlock
 
@@ -162,11 +162,12 @@ type DatabaseBlock interface {
 	// rather than merging three blocks together.
 	Merge(other DatabaseBlock)
 
-	// IsRetrieved returns whether the block is already retrieved.
+	// IsRetrieved returns whether the block is already retrieved. Only
+	// meaningful in the context of the CacheAllMetadata series caching policy.
 	IsRetrieved() bool
 
-	// WasRetrieved returns whether the block was retrieved from storage.
-	WasRetrieved() bool
+	// WasRetrievedFromDisk returns whether the block was retrieved from storage.
+	WasRetrievedFromDisk() bool
 
 	// IsCachedBlock returns whether the block is not retrieved, or rather
 	// only the metadata is currently available, or whether it was retrieved
@@ -185,6 +186,33 @@ type DatabaseBlock interface {
 
 	// Close closes the block.
 	Close()
+
+	// SetOnEvictedFromWiredList sets the owner of the block
+	SetOnEvictedFromWiredList(OnEvictedFromWiredList)
+
+	// OnEvictedFromWiredList returns the owner of the block
+	OnEvictedFromWiredList() OnEvictedFromWiredList
+
+	// Private methods because only the Wired List itself should use them.
+	databaseBlock
+}
+
+// databaseBlock is the private portion of the DatabaseBlock interface
+type databaseBlock interface {
+	next() DatabaseBlock
+	setNext(block DatabaseBlock)
+	prev() DatabaseBlock
+	setPrev(block DatabaseBlock)
+	nextPrevUpdatedAtUnixNano() int64
+	setNextPrevUpdatedAtUnixNano(value int64)
+	wiredListEntry() wiredListEntry
+}
+
+// OnEvictedFromWiredList is implemented by a struct that wants to be notified
+// when a block is evicted from the wired list.
+type OnEvictedFromWiredList interface {
+	// OnEvictedFromWiredList is called when a block is evicted from the wired list.
+	OnEvictedFromWiredList(id ident.ID, blockStart time.Time)
 }
 
 // OnRetrieveBlock is an interface to callback on when a block is retrieved.
@@ -194,6 +222,11 @@ type OnRetrieveBlock interface {
 		startTime time.Time,
 		segment ts.Segment,
 	)
+}
+
+// OnReadBlock is an interface to callback on when a block is read.
+type OnReadBlock interface {
+	OnReadBlock(b DatabaseBlock)
 }
 
 // OnRetrieveBlockFn is a function implementation for the
@@ -389,4 +422,10 @@ type Options interface {
 
 	// BytesPool returns the bytesPool
 	BytesPool() pool.CheckedBytesPool
+
+	// SetWiredList sets the database block wired list
+	SetWiredList(value *WiredList) Options
+
+	// WiredList returns the database block wired list
+	WiredList() *WiredList
 }

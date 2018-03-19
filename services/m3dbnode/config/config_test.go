@@ -82,7 +82,6 @@ client:
 
 gcPercentage: 100
 
-writeNewSeriesAsync: true
 writeNewSeriesLimitPerSecond: 1048576
 writeNewSeriesBackoffDuration: 2ms
 
@@ -240,6 +239,7 @@ config:
                 - etcd05-us-west1:2379
 hashing:
   seed: 42
+writeNewSeriesAsync: true
 `
 
 	fd, err := ioutil.TempFile("", "config.yaml")

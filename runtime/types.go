@@ -115,6 +115,20 @@ type Options interface {
 	// helps throttle the tick when the amount of series is low and the sleeps
 	// on a per series basis is short.
 	TickMinimumInterval() time.Duration
+
+	// SetMaxWiredBlocks sets the max blocks to keep wired; zero is used
+	// to specify no limit. Wired blocks that are in the buffer, I.E are
+	// being written to, cannot be unwired. Similarly, blocks which have
+	// just been rotated out of the buffer but have not been flushed yet
+	// can also not be unwired. This means that the limit is best effort.
+	SetMaxWiredBlocks(value uint) Options
+
+	// MaxWiredBlocks returns the max blocks to keep wired, zero is used
+	// to specify no limit. Wired blocks that are in the buffer, I.E are
+	// being written to, cannot be unwired. Similarly, blocks which have
+	// just been rotated out of the buffer but have not been flushed yet
+	// can also not be unwired. This means that the limit is best effort.
+	MaxWiredBlocks() uint
 }
 
 // OptionsManager updates and supplies runtime options.

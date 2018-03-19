@@ -56,10 +56,24 @@ type dbBlock struct {
 	retriever  DatabaseShardBlockRetriever
 	retrieveID ident.ID
 
+	onEvicted OnEvictedFromWiredList
+
+	// listState contains state that the Wired List requires in order to track a block's
+	// position in the wired list. All the state in this struct is "owned" by the wired
+	// list and should only be accessed by the Wired List itself. Does not require any
+	// synchronization because the WiredList is not concurrent.
+	listState listState
+
 	checksum uint32
 
-	wasRetrieved bool
-	closed       bool
+	wasRetrievedFromDisk bool
+	closed               bool
+}
+
+type listState struct {
+	next                      DatabaseBlock
+	prev                      DatabaseBlock
+	nextPrevUpdatedAtUnixNano int64
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
@@ -148,7 +162,8 @@ func (b *dbBlock) OnRetrieveBlock(
 	}
 
 	b.resetSegmentWithLock(segment)
-	b.wasRetrieved = true
+	b.retrieveID = id
+	b.wasRetrievedFromDisk = true
 }
 
 func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
@@ -209,9 +224,9 @@ func (b *dbBlock) IsRetrieved() bool {
 	return retrieved
 }
 
-func (b *dbBlock) WasRetrieved() bool {
+func (b *dbBlock) WasRetrievedFromDisk() bool {
 	b.RLock()
-	wasRetrieved := b.wasRetrieved
+	wasRetrieved := b.wasRetrievedFromDisk
 	b.RUnlock()
 	return wasRetrieved
 }
@@ -219,7 +234,7 @@ func (b *dbBlock) WasRetrieved() bool {
 func (b *dbBlock) IsCachedBlock() bool {
 	b.RLock()
 	retrieved := b.retriever == nil
-	wasRetrieved := b.wasRetrieved
+	wasRetrieved := b.wasRetrievedFromDisk
 	b.RUnlock()
 	return !retrieved || wasRetrieved
 }
@@ -267,7 +282,7 @@ func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 
 	b.retriever = nil
 	b.retrieveID = nil
-	b.wasRetrieved = false
+	b.wasRetrievedFromDisk = false
 
 	b.ctx.RegisterFinalizer(&seg)
 }
@@ -282,7 +297,7 @@ func (b *dbBlock) resetRetrievableWithLock(
 
 	b.retriever = retriever
 	b.retrieveID = metadata.ID
-	b.wasRetrieved = false
+	b.wasRetrievedFromDisk = false
 }
 
 func (b *dbBlock) Close() {
@@ -316,6 +331,72 @@ func (b *dbBlock) resetMergeTargetWithLock() {
 		b.mergeTarget.Close()
 	}
 	b.mergeTarget = nil
+}
+
+// Should only be used by the WiredList.
+func (b *dbBlock) next() DatabaseBlock {
+	return b.listState.next
+}
+
+// Should only be used by the WiredList.
+func (b *dbBlock) setNext(value DatabaseBlock) {
+	b.listState.next = value
+}
+
+// Should only be used by the WiredList.
+func (b *dbBlock) prev() DatabaseBlock {
+	return b.listState.prev
+}
+
+// Should only be used by the WiredList.
+func (b *dbBlock) setPrev(value DatabaseBlock) {
+	b.listState.prev = value
+}
+
+// Should only be used by the WiredList.
+func (b *dbBlock) nextPrevUpdatedAtUnixNano() int64 {
+	return b.listState.nextPrevUpdatedAtUnixNano
+}
+
+// Should only be used by the WiredList.
+func (b *dbBlock) setNextPrevUpdatedAtUnixNano(value int64) {
+	b.listState.nextPrevUpdatedAtUnixNano = value
+}
+
+// wiredListEntry is a snapshot of a subset of the block's state that the WiredList
+// uses to determine if a block is eligible for inclusion in the WiredList.
+type wiredListEntry struct {
+	retrieveID           ident.ID
+	startTime            time.Time
+	closed               bool
+	wasRetrievedFromDisk bool
+}
+
+// wiredListEntry generates a wiredListEntry for the block, and should only
+// be used by the WiredList.
+func (b *dbBlock) wiredListEntry() wiredListEntry {
+	b.RLock()
+	result := wiredListEntry{
+		closed:               b.closed,
+		retrieveID:           b.retrieveID,
+		wasRetrievedFromDisk: b.wasRetrievedFromDisk,
+		startTime:            b.startWithLock(),
+	}
+	b.RUnlock()
+	return result
+}
+
+func (b *dbBlock) SetOnEvictedFromWiredList(onEvicted OnEvictedFromWiredList) {
+	b.Lock()
+	b.onEvicted = onEvicted
+	b.Unlock()
+}
+
+func (b *dbBlock) OnEvictedFromWiredList() OnEvictedFromWiredList {
+	b.RLock()
+	onEvicted := b.onEvicted
+	b.RUnlock()
+	return onEvicted
 }
 
 type databaseSeriesBlocks struct {
@@ -407,7 +488,6 @@ func (dbb *databaseSeriesBlocks) RemoveAll() {
 }
 
 func (dbb *databaseSeriesBlocks) Reset() {
-	dbb.RemoveAll()
 	// Ensure the old, possibly large map is GC'd
 	dbb.elems = nil
 	dbb.elems = make(map[xtime.UnixNano]DatabaseBlock)

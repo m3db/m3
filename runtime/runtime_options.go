@@ -34,6 +34,7 @@ const (
 	defaultTickSeriesBatchSize                  = 512
 	defaultTickPerSeriesSleepDuration           = 100 * time.Microsecond
 	defaultTickMinimumInterval                  = time.Minute
+	defaultMaxWiredBlocks                       = uint(1 << 18) // 262,144
 )
 
 var (
@@ -55,6 +56,7 @@ type options struct {
 	tickSeriesBatchSize                  int
 	tickPerSeriesSleepDuration           time.Duration
 	tickMinimumInterval                  time.Duration
+	maxWiredBlocks                       uint
 }
 
 // NewOptions creates a new set of runtime options with defaults
@@ -67,6 +69,7 @@ func NewOptions() Options {
 		tickSeriesBatchSize:                  defaultTickSeriesBatchSize,
 		tickPerSeriesSleepDuration:           defaultTickPerSeriesSleepDuration,
 		tickMinimumInterval:                  defaultTickMinimumInterval,
+		maxWiredBlocks:                       defaultMaxWiredBlocks,
 	}
 }
 
@@ -163,4 +166,14 @@ func (o *options) SetTickMinimumInterval(value time.Duration) Options {
 
 func (o *options) TickMinimumInterval() time.Duration {
 	return o.tickMinimumInterval
+}
+
+func (o *options) SetMaxWiredBlocks(value uint) Options {
+	opts := *o
+	opts.maxWiredBlocks = value
+	return &opts
+}
+
+func (o *options) MaxWiredBlocks() uint {
+	return o.maxWiredBlocks
 }

@@ -1061,6 +1061,16 @@ func (_mr *MockdatabaseShardMockRecorder) IsBootstrapped() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "IsBootstrapped", reflect.TypeOf((*MockdatabaseShard)(nil).IsBootstrapped))
 }
 
+// OnEvictedFromWiredList mocks base method
+func (_m *MockdatabaseShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
+	_m.ctrl.Call(_m, "OnEvictedFromWiredList", id, blockStart)
+}
+
+// OnEvictedFromWiredList indicates an expected call of OnEvictedFromWiredList
+func (_mr *MockdatabaseShardMockRecorder) OnEvictedFromWiredList(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "OnEvictedFromWiredList", reflect.TypeOf((*MockdatabaseShard)(nil).OnEvictedFromWiredList), arg0, arg1)
+}
+
 // Close mocks base method
 func (_m *MockdatabaseShard) Close() error {
 	ret := _m.ctrl.Call(_m, "Close")

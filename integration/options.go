@@ -72,6 +72,9 @@ const (
 
 	// defaultNumShards is the default number of shards to use.
 	defaultNumShards = 12
+
+	// defaultMaxWiredBlocks is the default max number of wired blocks to keep in memory at once
+	defaultMaxWiredBlocks = 10
 )
 
 var (
@@ -242,6 +245,12 @@ type testOptions interface {
 
 	// SetNumShards sets the number of shards to use.
 	SetNumShards(value int) testOptions
+
+	// MaxWiredBlocks returns the maximum number of wired blocks to keep in memory using the LRU cache.
+	MaxWiredBlocks() uint
+
+	// SetMaxWiredBlocks sets the maximum number of wired blocks to keep in memory using the LRU cache.
+	SetMaxWiredBlocks(value uint) testOptions
 }
 
 type options struct {
@@ -270,6 +279,7 @@ type options struct {
 	verifySeriesDebugFilePathPrefix    string
 	writeConsistencyLevel              topology.ConsistencyLevel
 	numShards                          int
+	maxWiredBlocks                     uint
 }
 
 func newTestOptions(t *testing.T) testOptions {
@@ -301,6 +311,7 @@ func newTestOptions(t *testing.T) testOptions {
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
 		writeConsistencyLevel:          defaultWriteConsistencyLevel,
 		numShards:                      defaultNumShards,
+		maxWiredBlocks:                 defaultMaxWiredBlocks,
 	}
 }
 
@@ -554,5 +565,15 @@ func (o *options) NumShards() int {
 func (o *options) SetNumShards(value int) testOptions {
 	opts := *o
 	opts.numShards = value
+	return &opts
+}
+
+func (o *options) MaxWiredBlocks() uint {
+	return o.maxWiredBlocks
+}
+
+func (o *options) SetMaxWiredBlocks(value uint) testOptions {
+	opts := *o
+	opts.maxWiredBlocks = value
 	return &opts
 }

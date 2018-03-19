@@ -132,6 +132,9 @@ func Run(runOpts RunOptions) {
 			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEvery)).
 		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
 		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
+	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
+		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
+	}
 
 	if tick := cfg.Tick; tick != nil {
 		runtimeOpts = runtimeOpts.
@@ -745,6 +748,12 @@ func withEncodingAndPoolingOptions(
 		SetEncoderPool(encoderPool).
 		SetSegmentReaderPool(segmentReaderPool).
 		SetBytesPool(bytesPool)
+
+	if opts.SeriesCachePolicy() == series.CacheLRU {
+		runtimeOpts := opts.RuntimeOptionsManager()
+		wiredList := block.NewWiredList(runtimeOpts, iopts, opts.ClockOptions())
+		blockOpts = blockOpts.SetWiredList(wiredList)
+	}
 	blockPool := block.NewDatabaseBlockPool(poolOptions(policy.BlockPool,
 		scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {

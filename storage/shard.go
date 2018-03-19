@@ -352,6 +352,32 @@ func (s *dbShard) OnRetrieveBlock(
 	})
 }
 
+func (s *dbShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
+	s.RLock()
+	entry, _, err := s.lookupEntryWithLock(id)
+	s.RUnlock()
+
+	if err != nil && err != errShardEntryNotFound {
+		return // Shard is probably closing
+	}
+
+	if entry == nil {
+		// Its counter-intuitive that this can ever occur because the series should
+		// always exist if it has any active blocks, and if we've reached this point
+		// then the WiredList had a reference to a block that should still be in the
+		// series, and thus the series should exist. The reason this can occur is that
+		// even though the WiredList controls the lifecycle of blocks retrieved from
+		// disk, those blocks can still be removed from the series if they've completely
+		// fallen out of the retention period. In that case, the series tick will still
+		// remove the block, and then the shard tick can remove the series. At that point,
+		// it's possible for the WiredList to have a reference to an expired block for a
+		// series that is no longer in the shard.
+		return
+	}
+
+	entry.series.OnEvictedFromWiredList(id, blockStart)
+}
+
 func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
 	// NB(r): consider using a lockless list for ticking.
 	s.RLock()
@@ -754,7 +780,7 @@ func (s *dbShard) ReadEncoded(
 	retriever := s.seriesBlockRetriever
 	onRetrieve := s.seriesOnRetrieveBlock
 	opts := s.seriesOpts
-	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, opts)
+	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, nil, opts)
 	return reader.ReadEncoded(ctx, start, end)
 }
 
@@ -821,8 +847,8 @@ func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
 func (s *dbShard) newShardEntry(id ident.ID) *dbShardEntry {
 	series := s.seriesPool.Get()
 	clonedID := s.identifierPool.Clone(id)
-	series.Reset(clonedID, s.seriesBlockRetriever,
-		s.seriesOnRetrieveBlock, s.seriesOpts)
+	series.Reset(
+		clonedID, s.seriesBlockRetriever, s.seriesOnRetrieveBlock, s, s.seriesOpts)
 	uniqueIndex := s.increasingIndex.nextIndex()
 	return &dbShardEntry{series: series, index: uniqueIndex}
 }
@@ -1019,7 +1045,10 @@ func (s *dbShard) FetchBlocks(
 	retriever := s.seriesBlockRetriever
 	onRetrieve := s.seriesOnRetrieveBlock
 	opts := s.seriesOpts
-	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, opts)
+	// Nil for onRead callback because we don't want peer bootstrapping to impact
+	// the behavior of the LRU
+	var onReadCb block.OnReadBlock
+	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, onReadCb, opts)
 	return reader.FetchBlocks(ctx, starts)
 }
 

@@ -236,6 +236,30 @@ func (_mr *MockOptionsMockRecorder) TickMinimumInterval() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TickMinimumInterval", reflect.TypeOf((*MockOptions)(nil).TickMinimumInterval))
 }
 
+// SetMaxWiredBlocks mocks base method
+func (_m *MockOptions) SetMaxWiredBlocks(value uint) Options {
+	ret := _m.ctrl.Call(_m, "SetMaxWiredBlocks", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMaxWiredBlocks indicates an expected call of SetMaxWiredBlocks
+func (_mr *MockOptionsMockRecorder) SetMaxWiredBlocks(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetMaxWiredBlocks", reflect.TypeOf((*MockOptions)(nil).SetMaxWiredBlocks), arg0)
+}
+
+// MaxWiredBlocks mocks base method
+func (_m *MockOptions) MaxWiredBlocks() uint {
+	ret := _m.ctrl.Call(_m, "MaxWiredBlocks")
+	ret0, _ := ret[0].(uint)
+	return ret0
+}
+
+// MaxWiredBlocks indicates an expected call of MaxWiredBlocks
+func (_mr *MockOptionsMockRecorder) MaxWiredBlocks() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "MaxWiredBlocks", reflect.TypeOf((*MockOptions)(nil).MaxWiredBlocks))
+}
+
 // MockOptionsManager is a mock of OptionsManager interface
 type MockOptionsManager struct {
 	ctrl     *gomock.Controller

@@ -355,16 +355,16 @@ func (_mr *MockDatabaseBlockMockRecorder) IsRetrieved() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "IsRetrieved", reflect.TypeOf((*MockDatabaseBlock)(nil).IsRetrieved))
 }
 
-// WasRetrieved mocks base method
-func (_m *MockDatabaseBlock) WasRetrieved() bool {
-	ret := _m.ctrl.Call(_m, "WasRetrieved")
+// WasRetrievedFromDisk mocks base method
+func (_m *MockDatabaseBlock) WasRetrievedFromDisk() bool {
+	ret := _m.ctrl.Call(_m, "WasRetrievedFromDisk")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// WasRetrieved indicates an expected call of WasRetrieved
-func (_mr *MockDatabaseBlockMockRecorder) WasRetrieved() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WasRetrieved", reflect.TypeOf((*MockDatabaseBlock)(nil).WasRetrieved))
+// WasRetrievedFromDisk indicates an expected call of WasRetrievedFromDisk
+func (_mr *MockDatabaseBlockMockRecorder) WasRetrievedFromDisk() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WasRetrievedFromDisk", reflect.TypeOf((*MockDatabaseBlock)(nil).WasRetrievedFromDisk))
 }
 
 // IsCachedBlock mocks base method
@@ -409,6 +409,240 @@ func (_mr *MockDatabaseBlockMockRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Close", reflect.TypeOf((*MockDatabaseBlock)(nil).Close))
 }
 
+// SetOnEvictedFromWiredList mocks base method
+func (_m *MockDatabaseBlock) SetOnEvictedFromWiredList(_param0 OnEvictedFromWiredList) {
+	_m.ctrl.Call(_m, "SetOnEvictedFromWiredList", _param0)
+}
+
+// SetOnEvictedFromWiredList indicates an expected call of SetOnEvictedFromWiredList
+func (_mr *MockDatabaseBlockMockRecorder) SetOnEvictedFromWiredList(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetOnEvictedFromWiredList", reflect.TypeOf((*MockDatabaseBlock)(nil).SetOnEvictedFromWiredList), arg0)
+}
+
+// OnEvictedFromWiredList mocks base method
+func (_m *MockDatabaseBlock) OnEvictedFromWiredList() OnEvictedFromWiredList {
+	ret := _m.ctrl.Call(_m, "OnEvictedFromWiredList")
+	ret0, _ := ret[0].(OnEvictedFromWiredList)
+	return ret0
+}
+
+// OnEvictedFromWiredList indicates an expected call of OnEvictedFromWiredList
+func (_mr *MockDatabaseBlockMockRecorder) OnEvictedFromWiredList() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "OnEvictedFromWiredList", reflect.TypeOf((*MockDatabaseBlock)(nil).OnEvictedFromWiredList))
+}
+
+// next mocks base method
+func (_m *MockDatabaseBlock) next() DatabaseBlock {
+	ret := _m.ctrl.Call(_m, "next")
+	ret0, _ := ret[0].(DatabaseBlock)
+	return ret0
+}
+
+// next indicates an expected call of next
+func (_mr *MockDatabaseBlockMockRecorder) next() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "next", reflect.TypeOf((*MockDatabaseBlock)(nil).next))
+}
+
+// setNext mocks base method
+func (_m *MockDatabaseBlock) setNext(block DatabaseBlock) {
+	_m.ctrl.Call(_m, "setNext", block)
+}
+
+// setNext indicates an expected call of setNext
+func (_mr *MockDatabaseBlockMockRecorder) setNext(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "setNext", reflect.TypeOf((*MockDatabaseBlock)(nil).setNext), arg0)
+}
+
+// prev mocks base method
+func (_m *MockDatabaseBlock) prev() DatabaseBlock {
+	ret := _m.ctrl.Call(_m, "prev")
+	ret0, _ := ret[0].(DatabaseBlock)
+	return ret0
+}
+
+// prev indicates an expected call of prev
+func (_mr *MockDatabaseBlockMockRecorder) prev() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "prev", reflect.TypeOf((*MockDatabaseBlock)(nil).prev))
+}
+
+// setPrev mocks base method
+func (_m *MockDatabaseBlock) setPrev(block DatabaseBlock) {
+	_m.ctrl.Call(_m, "setPrev", block)
+}
+
+// setPrev indicates an expected call of setPrev
+func (_mr *MockDatabaseBlockMockRecorder) setPrev(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "setPrev", reflect.TypeOf((*MockDatabaseBlock)(nil).setPrev), arg0)
+}
+
+// nextPrevUpdatedAtUnixNano mocks base method
+func (_m *MockDatabaseBlock) nextPrevUpdatedAtUnixNano() int64 {
+	ret := _m.ctrl.Call(_m, "nextPrevUpdatedAtUnixNano")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// nextPrevUpdatedAtUnixNano indicates an expected call of nextPrevUpdatedAtUnixNano
+func (_mr *MockDatabaseBlockMockRecorder) nextPrevUpdatedAtUnixNano() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "nextPrevUpdatedAtUnixNano", reflect.TypeOf((*MockDatabaseBlock)(nil).nextPrevUpdatedAtUnixNano))
+}
+
+// setNextPrevUpdatedAtUnixNano mocks base method
+func (_m *MockDatabaseBlock) setNextPrevUpdatedAtUnixNano(value int64) {
+	_m.ctrl.Call(_m, "setNextPrevUpdatedAtUnixNano", value)
+}
+
+// setNextPrevUpdatedAtUnixNano indicates an expected call of setNextPrevUpdatedAtUnixNano
+func (_mr *MockDatabaseBlockMockRecorder) setNextPrevUpdatedAtUnixNano(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "setNextPrevUpdatedAtUnixNano", reflect.TypeOf((*MockDatabaseBlock)(nil).setNextPrevUpdatedAtUnixNano), arg0)
+}
+
+// wiredListEntry mocks base method
+func (_m *MockDatabaseBlock) wiredListEntry() wiredListEntry {
+	ret := _m.ctrl.Call(_m, "wiredListEntry")
+	ret0, _ := ret[0].(wiredListEntry)
+	return ret0
+}
+
+// wiredListEntry indicates an expected call of wiredListEntry
+func (_mr *MockDatabaseBlockMockRecorder) wiredListEntry() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "wiredListEntry", reflect.TypeOf((*MockDatabaseBlock)(nil).wiredListEntry))
+}
+
+// MockdatabaseBlock is a mock of databaseBlock interface
+type MockdatabaseBlock struct {
+	ctrl     *gomock.Controller
+	recorder *MockdatabaseBlockMockRecorder
+}
+
+// MockdatabaseBlockMockRecorder is the mock recorder for MockdatabaseBlock
+type MockdatabaseBlockMockRecorder struct {
+	mock *MockdatabaseBlock
+}
+
+// NewMockdatabaseBlock creates a new mock instance
+func NewMockdatabaseBlock(ctrl *gomock.Controller) *MockdatabaseBlock {
+	mock := &MockdatabaseBlock{ctrl: ctrl}
+	mock.recorder = &MockdatabaseBlockMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockdatabaseBlock) EXPECT() *MockdatabaseBlockMockRecorder {
+	return _m.recorder
+}
+
+// next mocks base method
+func (_m *MockdatabaseBlock) next() DatabaseBlock {
+	ret := _m.ctrl.Call(_m, "next")
+	ret0, _ := ret[0].(DatabaseBlock)
+	return ret0
+}
+
+// next indicates an expected call of next
+func (_mr *MockdatabaseBlockMockRecorder) next() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "next", reflect.TypeOf((*MockdatabaseBlock)(nil).next))
+}
+
+// setNext mocks base method
+func (_m *MockdatabaseBlock) setNext(block DatabaseBlock) {
+	_m.ctrl.Call(_m, "setNext", block)
+}
+
+// setNext indicates an expected call of setNext
+func (_mr *MockdatabaseBlockMockRecorder) setNext(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "setNext", reflect.TypeOf((*MockdatabaseBlock)(nil).setNext), arg0)
+}
+
+// prev mocks base method
+func (_m *MockdatabaseBlock) prev() DatabaseBlock {
+	ret := _m.ctrl.Call(_m, "prev")
+	ret0, _ := ret[0].(DatabaseBlock)
+	return ret0
+}
+
+// prev indicates an expected call of prev
+func (_mr *MockdatabaseBlockMockRecorder) prev() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "prev", reflect.TypeOf((*MockdatabaseBlock)(nil).prev))
+}
+
+// setPrev mocks base method
+func (_m *MockdatabaseBlock) setPrev(block DatabaseBlock) {
+	_m.ctrl.Call(_m, "setPrev", block)
+}
+
+// setPrev indicates an expected call of setPrev
+func (_mr *MockdatabaseBlockMockRecorder) setPrev(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "setPrev", reflect.TypeOf((*MockdatabaseBlock)(nil).setPrev), arg0)
+}
+
+// nextPrevUpdatedAtUnixNano mocks base method
+func (_m *MockdatabaseBlock) nextPrevUpdatedAtUnixNano() int64 {
+	ret := _m.ctrl.Call(_m, "nextPrevUpdatedAtUnixNano")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// nextPrevUpdatedAtUnixNano indicates an expected call of nextPrevUpdatedAtUnixNano
+func (_mr *MockdatabaseBlockMockRecorder) nextPrevUpdatedAtUnixNano() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "nextPrevUpdatedAtUnixNano", reflect.TypeOf((*MockdatabaseBlock)(nil).nextPrevUpdatedAtUnixNano))
+}
+
+// setNextPrevUpdatedAtUnixNano mocks base method
+func (_m *MockdatabaseBlock) setNextPrevUpdatedAtUnixNano(value int64) {
+	_m.ctrl.Call(_m, "setNextPrevUpdatedAtUnixNano", value)
+}
+
+// setNextPrevUpdatedAtUnixNano indicates an expected call of setNextPrevUpdatedAtUnixNano
+func (_mr *MockdatabaseBlockMockRecorder) setNextPrevUpdatedAtUnixNano(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "setNextPrevUpdatedAtUnixNano", reflect.TypeOf((*MockdatabaseBlock)(nil).setNextPrevUpdatedAtUnixNano), arg0)
+}
+
+// wiredListEntry mocks base method
+func (_m *MockdatabaseBlock) wiredListEntry() wiredListEntry {
+	ret := _m.ctrl.Call(_m, "wiredListEntry")
+	ret0, _ := ret[0].(wiredListEntry)
+	return ret0
+}
+
+// wiredListEntry indicates an expected call of wiredListEntry
+func (_mr *MockdatabaseBlockMockRecorder) wiredListEntry() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "wiredListEntry", reflect.TypeOf((*MockdatabaseBlock)(nil).wiredListEntry))
+}
+
+// MockOnEvictedFromWiredList is a mock of OnEvictedFromWiredList interface
+type MockOnEvictedFromWiredList struct {
+	ctrl     *gomock.Controller
+	recorder *MockOnEvictedFromWiredListMockRecorder
+}
+
+// MockOnEvictedFromWiredListMockRecorder is the mock recorder for MockOnEvictedFromWiredList
+type MockOnEvictedFromWiredListMockRecorder struct {
+	mock *MockOnEvictedFromWiredList
+}
+
+// NewMockOnEvictedFromWiredList creates a new mock instance
+func NewMockOnEvictedFromWiredList(ctrl *gomock.Controller) *MockOnEvictedFromWiredList {
+	mock := &MockOnEvictedFromWiredList{ctrl: ctrl}
+	mock.recorder = &MockOnEvictedFromWiredListMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockOnEvictedFromWiredList) EXPECT() *MockOnEvictedFromWiredListMockRecorder {
+	return _m.recorder
+}
+
+// OnEvictedFromWiredList mocks base method
+func (_m *MockOnEvictedFromWiredList) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
+	_m.ctrl.Call(_m, "OnEvictedFromWiredList", id, blockStart)
+}
+
+// OnEvictedFromWiredList indicates an expected call of OnEvictedFromWiredList
+func (_mr *MockOnEvictedFromWiredListMockRecorder) OnEvictedFromWiredList(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "OnEvictedFromWiredList", reflect.TypeOf((*MockOnEvictedFromWiredList)(nil).OnEvictedFromWiredList), arg0, arg1)
+}
+
 // MockOnRetrieveBlock is a mock of OnRetrieveBlock interface
 type MockOnRetrieveBlock struct {
 	ctrl     *gomock.Controller
@@ -440,6 +674,39 @@ func (_m *MockOnRetrieveBlock) OnRetrieveBlock(id ident.ID, startTime time.Time,
 // OnRetrieveBlock indicates an expected call of OnRetrieveBlock
 func (_mr *MockOnRetrieveBlockMockRecorder) OnRetrieveBlock(arg0, arg1, arg2 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "OnRetrieveBlock", reflect.TypeOf((*MockOnRetrieveBlock)(nil).OnRetrieveBlock), arg0, arg1, arg2)
+}
+
+// MockOnReadBlock is a mock of OnReadBlock interface
+type MockOnReadBlock struct {
+	ctrl     *gomock.Controller
+	recorder *MockOnReadBlockMockRecorder
+}
+
+// MockOnReadBlockMockRecorder is the mock recorder for MockOnReadBlock
+type MockOnReadBlockMockRecorder struct {
+	mock *MockOnReadBlock
+}
+
+// NewMockOnReadBlock creates a new mock instance
+func NewMockOnReadBlock(ctrl *gomock.Controller) *MockOnReadBlock {
+	mock := &MockOnReadBlock{ctrl: ctrl}
+	mock.recorder = &MockOnReadBlockMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockOnReadBlock) EXPECT() *MockOnReadBlockMockRecorder {
+	return _m.recorder
+}
+
+// OnReadBlock mocks base method
+func (_m *MockOnReadBlock) OnReadBlock(b DatabaseBlock) {
+	_m.ctrl.Call(_m, "OnReadBlock", b)
+}
+
+// OnReadBlock indicates an expected call of OnReadBlock
+func (_mr *MockOnReadBlockMockRecorder) OnReadBlock(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "OnReadBlock", reflect.TypeOf((*MockOnReadBlock)(nil).OnReadBlock), arg0)
 }
 
 // MockDatabaseBlockRetriever is a mock of DatabaseBlockRetriever interface
@@ -1147,4 +1414,28 @@ func (_m *MockOptions) BytesPool() pool.CheckedBytesPool {
 // BytesPool indicates an expected call of BytesPool
 func (_mr *MockOptionsMockRecorder) BytesPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BytesPool", reflect.TypeOf((*MockOptions)(nil).BytesPool))
+}
+
+// SetWiredList mocks base method
+func (_m *MockOptions) SetWiredList(value *WiredList) Options {
+	ret := _m.ctrl.Call(_m, "SetWiredList", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWiredList indicates an expected call of SetWiredList
+func (_mr *MockOptionsMockRecorder) SetWiredList(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWiredList", reflect.TypeOf((*MockOptions)(nil).SetWiredList), arg0)
+}
+
+// WiredList mocks base method
+func (_m *MockOptions) WiredList() *WiredList {
+	ret := _m.ctrl.Call(_m, "WiredList")
+	ret0, _ := ret[0].(*WiredList)
+	return ret0
+}
+
+// WiredList indicates an expected call of WiredList
+func (_mr *MockOptionsMockRecorder) WiredList() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WiredList", reflect.TypeOf((*MockOptions)(nil).WiredList))
 }
