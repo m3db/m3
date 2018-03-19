@@ -658,8 +658,8 @@ func (s *dbShard) tickAndExpire(
 // NB(prateek): purgeExpiredSeries requires that all entries passed to it have at least one reader/writer,
 // i.e. have a readWriteCount of at least 1.
 // Currently, this function is only called by the lambda inside `tickAndExpire`'s `forEachShardEntryBatch`
-// call. This satifies the contract of all entries it operates upon being guaranteed to have a readerWriterEntryCount
-// of at least 1, by virtue of the implementation of `forEachShardEntryBatch`.
+// call. This satisfies the contract of all entries it operating upon being guaranteed to have a
+// readerWriterEntryCount of at least 1, by virtue of the implementation of `forEachShardEntryBatch`.
 func (s *dbShard) purgeExpiredSeries(expiredEntries []*dbShardEntry) {
 	// Remove all expired series from lookup and list.
 	s.Lock()
