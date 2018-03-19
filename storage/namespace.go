@@ -774,6 +774,7 @@ func (n *dbNamespace) Snapshot(blockStart time.Time, flush persist.Flush) error 
 	if n.bs != bootstrapped {
 		n.RUnlock()
 		n.metrics.snapshot.ReportError(n.nowFn().Sub(callStart))
+		// TODO: Rename for snapshot
 		return errNamespaceNotBootstrapped
 	}
 	n.RUnlock()

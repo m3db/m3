@@ -356,6 +356,73 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	}, flushState)
 }
 
+func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	blockStart := time.Unix(21600, 0)
+
+	s := testDatabaseShard(t, testDatabaseOptions())
+	defer s.Close()
+	s.bs = bootstrapping
+
+	flush := persist.NewMockFlush(ctrl)
+	err := s.Snapshot(blockStart, blockStart, flush)
+	require.Equal(t, errShardNotBootstrappedToFlush, err)
+}
+
+func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	blockStart := time.Unix(21600, 0)
+
+	s := testDatabaseShard(t, testDatabaseOptions())
+	defer s.Close()
+	s.bs = bootstrapped
+
+	var closed bool
+	flush := persist.NewMockFlush(ctrl)
+	prepared := persist.PreparedPersist{
+		Persist: func(ident.ID, ts.Segment, uint32) error { return nil },
+		Close:   func() error { closed = true; return nil },
+	}
+
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata: s.namespace,
+		Shard:      s.shard,
+		BlockStart: blockStart,
+		WrittenAt:  blockStart,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
+
+	snapshotted := make(map[int]struct{})
+	for i := 0; i < 2; i++ {
+		i := i
+		series := series.NewMockDatabaseSeries(ctrl)
+		series.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
+		series.EXPECT().IsEmpty().Return(false).AnyTimes()
+		series.EXPECT().
+			Snapshot(gomock.Any(), blockStart, gomock.Any()).
+			Do(func(context.Context, time.Time, persist.Fn) {
+				snapshotted[i] = struct{}{}
+			}).
+			Return(nil)
+		s.list.PushBack(&dbShardEntry{series: series})
+	}
+
+	err := s.Snapshot(blockStart, blockStart, flush)
+
+	require.Equal(t, len(snapshotted), 2)
+	for i := 0; i < 2; i++ {
+		_, ok := snapshotted[i]
+		require.True(t, ok)
+	}
+
+	require.True(t, closed)
+	require.Nil(t, err)
+}
+
 func addMockTestSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID) *series.MockDatabaseSeries {
 	series := series.NewMockDatabaseSeries(ctrl)
 	series.EXPECT().ID().AnyTimes().Return(id)
