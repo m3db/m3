@@ -168,6 +168,9 @@ test-single-integration:
 .PHONY: test-ci-unit
 test-ci-unit: test-base-ci-unit
 
+.PHONY: test-ci-unit
+test-ci-big-unit: test-base-ci-big-unit
+
 .PHONY: test-ci-integration
 test-ci-integration:
 	INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
