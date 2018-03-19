@@ -530,13 +530,6 @@ func TestShardTickRace(t *testing.T) {
 func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(t, opts)
-	oldExpired := expireBatchLength
-	defer func() {
-		shard.Close()
-		expireBatchLength = oldExpired
-	}()
-
-	expireBatchLength = 1
 	addTestSeries(shard, ident.StringID("foo"))
 	shard.Tick(context.NewNoOpCanncellable())
 	require.Equal(t, 0, len(shard.lookup))
@@ -952,4 +945,13 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 
 	assert.False(t, entry.series.IsEmpty())
 	assert.Equal(t, 2, entry.series.NumActiveBlocks())
+}
+
+func TestShardIterateBatchSize(t *testing.T) {
+	smaller := shardIterateBatchMinSize - 1
+	require.Equal(t, smaller, iterateBatchSize(smaller))
+
+	require.Equal(t, shardIterateBatchMinSize, iterateBatchSize(shardIterateBatchMinSize+1))
+
+	require.True(t, shardIterateBatchMinSize < iterateBatchSize(2000))
 }

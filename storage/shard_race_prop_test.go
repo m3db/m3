@@ -41,26 +41,19 @@ import (
 )
 
 func TestShardTickReadFnRace(t *testing.T) {
-	oldExpired := expireBatchLength
-	defer func() {
-		expireBatchLength = oldExpired
-	}()
-
 	parameters := gopter.DefaultTestParameters()
 	seed := time.Now().UnixNano()
 	parameters.MinSuccessfulTests = 200
 	parameters.MaxSize = 40
-	parameters.MaxDiscardRatio = 20
 	parameters.Rng = rand.New(rand.NewSource(seed))
 	properties := gopter.NewProperties(parameters)
 
 	properties.Property("Concurrent Tick and Shard Fn doesn't panic", prop.ForAll(
-		func(ids []ident.ID, tickBatchSize uint8, expireBatchLength uint8, fn testShardReadFn) bool {
-			testShardTickReadFnRace(t, ids, int(expireBatchLength), int(tickBatchSize), fn)
+		func(ids []ident.ID, tickBatchSize uint8, fn testShardReadFn) bool {
+			testShardTickReadFnRace(t, ids, int(tickBatchSize), fn)
 			return true
 		},
 		anyIDs().WithLabel("ids"),
-		gen.UInt8().WithLabel("expireBatchLength").SuchThat(func(x uint8) bool { return x > 0 }),
 		gen.UInt8().WithLabel("tickBatchSize").SuchThat(func(x uint8) bool { return x > 0 }),
 		gen.OneConstOf(fetchBlocksMetadataShardFn, fetchBlocksMetadataV2ShardFn),
 	))
@@ -71,14 +64,13 @@ func TestShardTickReadFnRace(t *testing.T) {
 	}
 }
 
-func testShardTickReadFnRace(t *testing.T, ids []ident.ID, expireLen int, tickBatchSize int, fn testShardReadFn) {
+func testShardTickReadFnRace(t *testing.T, ids []ident.ID, tickBatchSize int, fn testShardReadFn) {
 	shard, opts := propTestDatabaseShard(t, tickBatchSize)
 	defer func() {
 		shard.Close()
 		opts.RuntimeOptionsManager().Close()
 	}()
 
-	expireBatchLength = expireLen
 	for _, id := range ids {
 		addTestSeries(shard, id)
 	}
