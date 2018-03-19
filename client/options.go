@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -77,6 +78,9 @@ const (
 	// defaultWriteOpPoolSize is the default write op pool size
 	defaultWriteOpPoolSize = 65536
 
+	// defaultWriteTaggedOpPoolSize is the default write tagged op pool size
+	defaultWriteTaggedOpPoolSize = 65536
+
 	// defaultFetchBatchOpPoolSize is the default fetch op pool size
 	defaultFetchBatchOpPoolSize = 8192
 
@@ -119,6 +123,9 @@ const (
 
 	// defaultSeriesIteratorPoolSize is the default size of the series iterator pools
 	defaultSeriesIteratorPoolSize = 65536
+
+	// defaultTagEncoderPoolSize is the default size of the tag encoder pool.
+	defaultTagEncoderPoolSize = 4096
 
 	// defaultFetchSeriesBlocksMaxBlockRetries is the default max retries for fetch series blocks
 	// from a single peer
@@ -186,11 +193,14 @@ type options struct {
 	backgroundHealthCheckStutter            time.Duration
 	backgroundHealthCheckFailLimit          int
 	backgroundHealthCheckFailThrottleFactor float64
+	tagEncoderOpts                          serialize.TagEncoderOptions
+	tagEncoderPoolSize                      int
 	writeRetrier                            xretry.Retrier
 	fetchRetrier                            xretry.Retrier
 	streamBlocksRetrier                     xretry.Retrier
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
 	writeOperationPoolSize                  int
+	writeTaggedOperationPoolSize            int
 	fetchBatchOpPoolSize                    int
 	writeBatchSize                          int
 	fetchBatchSize                          int
@@ -257,8 +267,11 @@ func newOptions() *options {
 		backgroundHealthCheckFailThrottleFactor: defaultBackgroundHealthCheckFailThrottleFactor,
 		writeRetrier:                            defaultWriteRetrier,
 		fetchRetrier:                            defaultFetchRetrier,
+		tagEncoderPoolSize:                      defaultTagEncoderPoolSize,
+		tagEncoderOpts:                          serialize.NewTagEncoderOptions(),
 		streamBlocksRetrier:                     defaultStreamBlocksRetrier,
 		writeOperationPoolSize:                  defaultWriteOpPoolSize,
+		writeTaggedOperationPoolSize:            defaultWriteTaggedOpPoolSize,
 		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
 		writeBatchSize:                          defaultWriteBatchSize,
 		fetchBatchSize:                          defaultFetchBatchSize,
@@ -516,6 +529,26 @@ func (o *options) FetchRetrier() xretry.Retrier {
 	return o.fetchRetrier
 }
 
+func (o *options) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
+	opts := *o
+	opts.tagEncoderOpts = value
+	return &opts
+}
+
+func (o *options) TagEncoderOptions() serialize.TagEncoderOptions {
+	return o.tagEncoderOpts
+}
+
+func (o *options) SetTagEncoderPoolSize(value int) Options {
+	opts := *o
+	opts.tagEncoderPoolSize = value
+	return &opts
+}
+
+func (o *options) TagEncoderPoolSize() int {
+	return o.tagEncoderPoolSize
+}
+
 func (o *options) SetStreamBlocksRetrier(value xretry.Retrier) AdminOptions {
 	opts := *o
 	opts.streamBlocksRetrier = value
@@ -534,6 +567,16 @@ func (o *options) SetWriteOpPoolSize(value int) Options {
 
 func (o *options) WriteOpPoolSize() int {
 	return o.writeOperationPoolSize
+}
+
+func (o *options) SetWriteTaggedOpPoolSize(value int) Options {
+	opts := *o
+	opts.writeTaggedOperationPoolSize = value
+	return &opts
+}
+
+func (o *options) WriteTaggedOpPoolSize() int {
+	return o.writeTaggedOperationPoolSize
 }
 
 func (o *options) SetFetchBatchOpPoolSize(value int) Options {

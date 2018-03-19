@@ -93,6 +93,7 @@ func applySessionTestOptions(opts Options) Options {
 		SetSeriesIteratorPoolSize(0).
 		SetSeriesIteratorArrayPoolBuckets([]pool.Bucket{}).
 		SetWriteOpPoolSize(0).
+		SetWriteTaggedOpPoolSize(0).
 		SetFetchBatchOpPoolSize(0).
 		SetTopologyInitializer(topology.NewStaticInitializer(
 			topology.NewStaticOptions().
@@ -207,6 +208,8 @@ func testSessionClusterConnectConsistencyLevel(
 		host topology.Host,
 		writeBatchRawRequestPool writeBatchRawRequestPool,
 		writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
+		writeTaggedBatchRawRequestPool writeTaggedBatchRawRequestPool,
+		writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool,
 		opts Options,
 	) hostQueue {
 		hostQueue := NewMockhostQueue(ctrl)
@@ -245,6 +248,8 @@ func mockHostQueues(
 		host topology.Host,
 		writeBatchRawRequestPool writeBatchRawRequestPool,
 		writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
+		writeTaggedBatchRawRequestPool writeTaggedBatchRawRequestPool,
+		writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool,
 		opts Options,
 	) hostQueue {
 		// Make a copy of the enqueue fns for each host

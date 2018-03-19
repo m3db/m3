@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/index"
@@ -199,13 +200,13 @@ type Client interface {
 // Session can write and read to a cluster
 type Session interface {
 	// Write value to the database for an ID
-	Write(namespace ident.ID, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+	Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
 	// WriteTagged value to the database for an ID and given tags.
 	WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
 	// Fetch values from the database for an ID
-	Fetch(namespace ident.ID, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
+	Fetch(namespace, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
 
 	// FetchIDs values from the database for a set of IDs
 	FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
@@ -536,6 +537,18 @@ type Options interface {
 	// a fetch operation. Only retryable errors are retried.
 	FetchRetrier() xretry.Retrier
 
+	// SetTagEncoderOptions sets the TagEncoderOptions.
+	SetTagEncoderOptions(value serialize.TagEncoderOptions) Options
+
+	// TagEncoderOptions returns the TagEncoderOptions.
+	TagEncoderOptions() serialize.TagEncoderOptions
+
+	// SetTagEncoderPoolSize sets the TagEncoderPoolSize.
+	SetTagEncoderPoolSize(value int) Options
+
+	// TagEncoderPoolSize returns the TagEncoderPoolSize.
+	TagEncoderPoolSize() int
+
 	// SetWriteBatchSize sets the writeBatchSize
 	// NB(r): for a write only application load this should match the host
 	// queue ops flush size so that each time a host queue is flushed it can
@@ -559,6 +572,12 @@ type Options interface {
 
 	// WriteOpPoolSize returns the writeOperationPoolSize
 	WriteOpPoolSize() int
+
+	// SetWriteTaggedOpPoolSize sets the writeTaggedOperationPoolSize
+	SetWriteTaggedOpPoolSize(value int) Options
+
+	// WriteTaggedOpPoolSize returns the writeTaggedOperationPoolSize
+	WriteTaggedOpPoolSize() int
 
 	// SetFetchBatchOpPoolSize sets the fetchBatchOpPoolSize
 	SetFetchBatchOpPoolSize(value int) Options
