@@ -794,10 +794,6 @@ func (n *dbNamespace) Snapshot(blockStart time.Time, flush persist.Flush) error 
 			continue
 		}
 
-		// TODO: Make time period configurable or should we just always snapshots?
-		// TODO: Should probably have some relationship with flush timing as well. I.E
-		// TODO: Want to somehow prevent snapshotting accross blocks? maybe it doesn't matter
-		// we should not perform a snapshot 3 seconds before we're about to flush.
 		if callStart.Sub(lastSuccessfulSnapshot) < 15*time.Minute {
 			// Skip snapshotting if not enough time has elapsed since
 			// the previous snapshot
@@ -820,44 +816,6 @@ func (n *dbNamespace) Snapshot(blockStart time.Time, flush persist.Flush) error 
 }
 
 func (n *dbNamespace) NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool {
-	var (
-		blockSize   = n.nopts.RetentionOptions().BlockSize()
-		blockStarts = timesInRange(alignedInclusiveStart, alignedInclusiveEnd, blockSize)
-	)
-
-	// NB(r): Essentially if all are success, we don't need to flush, if any
-	// are failed with the minimum num failures less than max retries then
-	// we need to flush - otherwise if any in progress we can't flush and if
-	// any not started then we need to flush.
-	n.RLock()
-	defer n.RUnlock()
-
-	// NB(prateek): we do not check if any other flush is in progress in this method,
-	// instead relying on the databaseFlushManager to ensure atomicity of flushes.
-
-	maxRetries := n.opts.MaxFlushRetries()
-	// Check for not started or failed that might need a flush
-	for _, shard := range n.shards {
-		if shard == nil {
-			continue
-		}
-		for _, blockStart := range blockStarts {
-			state := shard.FlushState(blockStart)
-			if state.Status == fileOpNotStarted {
-				return true
-			}
-			if state.Status == fileOpFailed && state.NumFailures < maxRetries {
-				return true
-			}
-		}
-	}
-
-	// All success or failed and reached max retries
-	return false
-}
-
-// TODO: Use this function
-func (n *dbNamespace) NeedsSnapshot(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool {
 	var (
 		blockSize   = n.nopts.RetentionOptions().BlockSize()
 		blockStarts = timesInRange(alignedInclusiveStart, alignedInclusiveEnd, blockSize)

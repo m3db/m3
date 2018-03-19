@@ -462,7 +462,52 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 	require.NoError(t, ns.Flush(blockStart, nil))
 }
 
-func TestNamespaceFlushAllShards(t *testing.T) {
+type snapshotTestCase struct {
+	isSnapshotting bool
+	expectSnapshot bool
+	snapshotErr    error
+}
+
+func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	ns := newTestNamespace(t)
+	ns.bs = bootstrapping
+
+	blockSize := ns.Options().RetentionOptions().BlockSize()
+	blockStart := time.Now().Truncate(blockSize)
+	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, nil))
+}
+
+func TestNamespaceSnapshotShardIsSnapshotting(t *testing.T) {
+	shardMethodResults := []snapshotTestCase{
+		snapshotTestCase{isSnapshotting: false, snapshotErr: nil, expectSnapshot: true},
+		snapshotTestCase{isSnapshotting: true, snapshotErr: nil, expectSnapshot: false},
+	}
+	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
+}
+
+func TestNamespaceSnapshotAllShardsSuccess(t *testing.T) {
+	shardMethodResults := []snapshotTestCase{
+		snapshotTestCase{isSnapshotting: false, snapshotErr: nil, expectSnapshot: true},
+		snapshotTestCase{isSnapshotting: false, snapshotErr: nil, expectSnapshot: true},
+	}
+	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
+}
+
+func TestNamespaceSnapshotShardError(t *testing.T) {
+	shardMethodResults := []snapshotTestCase{
+		snapshotTestCase{isSnapshotting: false, snapshotErr: nil, expectSnapshot: true},
+		snapshotTestCase{isSnapshotting: false, snapshotErr: errors.New("err"), expectSnapshot: true},
+	}
+	require.Error(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
+}
+
+func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapshotTestCase) error {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -472,20 +517,24 @@ func TestNamespaceFlushAllShards(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	ns.bs = bootstrapped
-	blockStart := time.Now().Truncate(ns.Options().RetentionOptions().BlockSize())
+	now := time.Now()
+	ns.nowFn = func() time.Time {
+		return now
+	}
+	blockSize := ns.Options().RetentionOptions().BlockSize()
+	blockStart := now.Truncate(blockSize)
 
-	errs := []error{nil, errors.New("foo")}
-	for i := range errs {
+	for i, tc := range shardMethodResults {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().FlushState(blockStart).Return(fileOpState{Status: fileOpNotStarted})
-		shard.EXPECT().Flush(blockStart, nil).Return(errs[i])
-		if errs[i] != nil {
-			shard.EXPECT().ID().Return(testShardIDs[i].ID())
+		shard.EXPECT().SnapshotState().Return(tc.isSnapshotting, blockStart.Add(-blockSize))
+		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
+		if tc.expectSnapshot {
+			shard.EXPECT().Snapshot(blockStart, now, nil).Return(tc.snapshotErr)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
-	require.Error(t, ns.Flush(blockStart, nil))
+	return ns.Snapshot(blockStart, nil)
 }
 
 func TestNamespaceTruncate(t *testing.T) {
