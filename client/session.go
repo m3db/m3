@@ -825,11 +825,6 @@ func (s *session) writeAttempt(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	if wType != untaggedWriteAttemptType && wType != taggedWriteAttemptType {
-		// should never happen
-		return errUnknownWriteAttemptType
-	}
-
 	timeType, timeTypeErr := convert.ToTimeType(unit)
 	if timeTypeErr != nil {
 		return timeTypeErr
@@ -897,8 +892,8 @@ func (s *session) writeAttemptWithRLock(
 	var tagEncoder serialize.TagEncoder
 	if wType == taggedWriteAttemptType {
 		tagEncoder = s.tagEncoderPool.Get()
+		defer tagEncoder.Finalize()
 		if err := tagEncoder.Encode(inputTags); err != nil {
-			tagEncoder.Finalize()
 			return nil, 0, 0, err
 		}
 	}
