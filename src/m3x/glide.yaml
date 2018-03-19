@@ -1,9 +1,6 @@
 package: github.com/m3db/m3x
 import:
 
-- package: github.com/facebookgo/clock
-  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
-
 - package: github.com/golang/mock
   version: ^1.0.0
 
@@ -25,18 +22,6 @@ import:
 - package: github.com/uber-go/atomic
   version: ^1.0.0
 
-- package: github.com/shirou/gopsutil
-  version: ^2.0.0
-
-- package: github.com/go-ole/go-ole
-  version: ^1.2.0
-
-- package: github.com/shirou/w32
-  version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
-
-- package: github.com/StackExchange/wmi
-  version: ^1.0.0
-
 - package: github.com/spaolacci/murmur3
   version: ^1.1.0
 
@@ -46,9 +31,6 @@ testImport:
   subpackages:
   - assert
   - require
-
-- package: github.com/davecgh/go-spew
-  version: ^1.0.0
 
 - package: github.com/fortytw2/leaktest
   version: ^1.1.0

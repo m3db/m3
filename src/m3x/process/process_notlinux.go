@@ -22,14 +22,14 @@
 
 package process
 
-import "github.com/shirou/gopsutil/process"
+import (
+	"errors"
+)
+
+var errNotAvailable = errors.New(
+	"cannot get process file descriptors, only available on linux")
 
 // NumFDs returns the number of file descriptors for a given process.
 func NumFDs(pid int) (int, error) {
-	process, err := process.NewProcess(int32(pid))
-	if err != nil {
-		return 0, err
-	}
-	numFDs, err := process.NumFDs()
-	return int(numFDs), err
+	return 0, errNotAvailable
 }
