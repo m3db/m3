@@ -480,7 +480,7 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 
 	blockSize := ns.Options().RetentionOptions().BlockSize()
 	blockStart := time.Now().Truncate(blockSize)
-	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, nil))
+	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil))
 }
 
 func TestNamespaceSnapshotShardIsSnapshotting(t *testing.T) {
@@ -534,7 +534,7 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
-	return ns.Snapshot(blockStart, nil)
+	return ns.Snapshot(blockStart, now, nil)
 }
 
 func TestNamespaceTruncate(t *testing.T) {

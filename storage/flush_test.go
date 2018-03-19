@@ -256,7 +256,7 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 		currBlockStart := now.Add(-bufferPast).Truncate(blockSize)
 		prevBlockStart := currBlockStart.Add(-blockSize)
 		ns.EXPECT().NeedsFlush(prevBlockStart, prevBlockStart).Return(false)
-		ns.EXPECT().Snapshot(currBlockStart, gomock.Any())
+		ns.EXPECT().Snapshot(currBlockStart, now, gomock.Any())
 	}
 
 	require.NoError(t, fm.Flush(now))
