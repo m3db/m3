@@ -774,7 +774,6 @@ func (n *dbNamespace) Snapshot(blockStart, callStart time.Time, flush persist.Fl
 	if n.bs != bootstrapped {
 		n.RUnlock()
 		n.metrics.snapshot.ReportError(n.nowFn().Sub(callStart))
-		// TODO: Rename for snapshot
 		return errNamespaceNotBootstrapped
 	}
 	n.RUnlock()
@@ -795,9 +794,9 @@ func (n *dbNamespace) Snapshot(blockStart, callStart time.Time, flush persist.Fl
 			continue
 		}
 
-		if callStart.Sub(lastSuccessfulSnapshot) < 15*time.Minute {
-			// Skip snapshotting if not enough time has elapsed since
-			// the previous snapshot
+		// TODO: Add a test case for this
+		if callStart.Sub(lastSuccessfulSnapshot) < n.opts.MinimumSnapshotInterval() {
+			// Skip if not enough time has elapsed since the previous snapshot
 			continue
 		}
 

@@ -706,6 +706,12 @@ type Options interface {
 	// MaxFlushRetries returns the maximum number of retries when data flushing fails
 	MaxFlushRetries() int
 
+	// SetMinimumSnapshotInterval sets the minimum amount of time that must elapse between snapshots
+	SetMinimumSnapshotInterval(value time.Duration) Options
+
+	// MinimumSnapshotInterval returns the minimum amount of time that must elapse between snapshots
+	MinimumSnapshotInterval() time.Duration
+
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
 	// use when bootstrapping retrievable blocks instead of blocks
 	// containing data.
