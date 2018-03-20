@@ -31,7 +31,7 @@ import (
 
 var (
 	testIndexInfo = schema.IndexInfo{
-		Start:        time.Now().UnixNano(),
+		BlockStart:   time.Now().UnixNano(),
 		BlockSize:    int64(2 * time.Hour),
 		Entries:      2000000,
 		MajorVersion: schema.MajorVersion,

@@ -102,7 +102,7 @@ func (s *fileSystemSource) shardAvailability(
 	var tr xtime.Ranges
 	for i := 0; i < len(entries); i++ {
 		info := entries[i]
-		t := xtime.FromNanoseconds(info.Start)
+		t := xtime.FromNanoseconds(info.BlockStart)
 		w := time.Duration(info.BlockSize)
 		currRange := xtime.Range{Start: t, End: t.Add(w)}
 		if targetRangesForShard.Overlaps(currRange) {
@@ -135,7 +135,7 @@ func (s *fileSystemSource) enqueueReaders(
 				readersCh <- newShardReadersErr(shard, tr, err)
 				continue
 			}
-			t := xtime.FromNanoseconds(files[i].Start).Round(0).UTC()
+			t := xtime.FromNanoseconds(files[i].BlockStart).Round(0).UTC()
 			openOpts := fs.ReaderOpenOptions{
 				Namespace:  namespace,
 				Shard:      shard,

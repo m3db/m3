@@ -448,7 +448,7 @@ func (w *writer) writeInfoFileContents(
 	summaries int,
 ) error {
 	info := schema.IndexInfo{
-		Start:        xtime.ToNanoseconds(w.start),
+		BlockStart:   xtime.ToNanoseconds(w.start),
 		BlockSize:    int64(w.blockSize),
 		Entries:      w.currIdx,
 		MajorVersion: schema.MajorVersion,

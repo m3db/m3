@@ -220,7 +220,7 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 		return emptyIndexInfo
 	}
 	var indexInfo schema.IndexInfo
-	indexInfo.Start = dec.decodeVarint()
+	indexInfo.BlockStart = dec.decodeVarint()
 	indexInfo.BlockSize = dec.decodeVarint()
 	indexInfo.Entries = dec.decodeVarint()
 	indexInfo.MajorVersion = dec.decodeVarint()

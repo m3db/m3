@@ -37,6 +37,7 @@ func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duratio
 		BlockStart: src.Blockstart,
 		IsSnapshot: false,
 	}
+
 	if err := reader.Open(openOpts); err != nil {
 		return fmt.Errorf("unable to read source fileset: %v", err)
 	}

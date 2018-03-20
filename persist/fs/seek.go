@@ -337,7 +337,7 @@ func (s *seeker) readInfo(size int) error {
 		return err
 	}
 
-	s.start = xtime.FromNanoseconds(info.Start)
+	s.start = xtime.FromNanoseconds(info.BlockStart)
 	s.blockSize = time.Duration(info.BlockSize)
 	s.entries = int(info.Entries)
 	s.bloomFilterInfo = info.BloomFilter

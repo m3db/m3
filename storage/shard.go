@@ -1619,7 +1619,7 @@ func (s *dbShard) Bootstrap(
 	entries := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
 	for _, info := range entries {
-		at := xtime.FromNanoseconds(info.Start)
+		at := xtime.FromNanoseconds(info.BlockStart)
 		fs := s.FlushState(at)
 		if fs.Status != fileOpNotStarted {
 			continue // Already recorded progress

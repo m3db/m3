@@ -65,7 +65,7 @@ func testExpectedResultForIndexInfo(t *testing.T, indexInfo schema.IndexInfo) []
 		numFieldsForType(rootObjectType),
 		int64(indexInfoType),
 		numFieldsForType(indexInfoType),
-		indexInfo.Start,
+		indexInfo.BlockStart,
 		indexInfo.BlockSize,
 		indexInfo.Entries,
 		indexInfo.MajorVersion,

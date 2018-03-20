@@ -220,7 +220,7 @@ func TestInfoReadWrite(t *testing.T) {
 	require.Equal(t, 1, len(infoFiles))
 
 	infoFile := infoFiles[0]
-	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.Start)))
+	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.BlockStart)))
 	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
 	require.Equal(t, int64(len(entries)), infoFile.Entries)
 }

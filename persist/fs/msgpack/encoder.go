@@ -144,7 +144,7 @@ func (enc *Encoder) EncodeLogMetadata(entry schema.LogMetadata) error {
 
 func (enc *Encoder) encodeIndexInfo(info schema.IndexInfo) {
 	enc.encodeNumObjectFieldsForFn(indexInfoType)
-	enc.encodeVarintFn(info.Start)
+	enc.encodeVarintFn(info.BlockStart)
 	enc.encodeVarintFn(info.BlockSize)
 	enc.encodeVarintFn(info.Entries)
 	enc.encodeVarintFn(info.MajorVersion)

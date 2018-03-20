@@ -276,7 +276,7 @@ func (r *reader) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
-	r.start = xtime.FromNanoseconds(info.Start)
+	r.start = xtime.FromNanoseconds(info.BlockStart)
 	r.blockSize = time.Duration(info.BlockSize)
 	r.entries = int(info.Entries)
 	r.entriesRead = 0
