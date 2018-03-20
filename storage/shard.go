@@ -1828,6 +1828,10 @@ func (s *dbShard) CleanupSnapshots() error {
 	}
 
 	// Determine which set of files is the latest
+	// TODO: This code needs to be a little smarter and make sure that the latest
+	// fileset actually has a checkpoint file otherwise we could end up deleting
+	// old snapshot files while the new ones are in the middle of being written to
+	// or were incompletely written.
 	var (
 		latest   time.Time
 		fileTime time.Time
@@ -1844,6 +1848,10 @@ func (s *dbShard) CleanupSnapshots() error {
 		}
 	}
 
+	// All snapshots files are cumulative (contain all data in previous files + new data),
+	// so if a newer file exists its always safe to delete the old ones. This is true accross
+	// block starts as well because we only ever write out snapshot files for a given block if
+	// the previous block has been properly flushed.
 	filesToDelete, err := fs.FilesBefore(files, latest)
 	if err != nil {
 		return multiErr.Add(err).FinalError()
