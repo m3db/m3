@@ -37,7 +37,6 @@ var (
 	errFlushAlreadyInProgress = errors.New("flush already in progress")
 )
 
-// TODO: Rename this?
 type flushManager struct {
 	sync.RWMutex
 
@@ -87,8 +86,7 @@ func (m *flushManager) Flush(curr time.Time) error {
 
 	multiErr := xerrors.NewMultiError()
 	for _, ns := range namespaces {
-		// TODO: Does this even make sense anymore
-		// Do flush first to prevent situations where we perform a snapshot right before a flush
+		// Flush first because we will only snapshot if there are no outstanding flushes
 		flushTimes := m.namespaceFlushTimes(ns, curr)
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, flushTimes, flush))
 
