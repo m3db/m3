@@ -802,7 +802,6 @@ func (n *dbNamespace) Snapshot(blockStart, callStart time.Time, flush persist.Fl
 
 		err := shard.Snapshot(blockStart, callStart, flush)
 		if err != nil {
-			// Log / metric?
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
 			// Continue with remaining shards
