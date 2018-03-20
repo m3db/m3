@@ -109,6 +109,7 @@ type StaticNamespaceConfiguration struct {
 type StaticNamespaceOptions struct {
 	NeedsBootstrap       bool `yaml:"needsBootstrap"`
 	NeedsFlush           bool `yaml:"needsFlush"`
+	NeedsSnapshot        bool `yaml:"needsSnapshot"`
 	WritesToCommitLog    bool `yaml:"writesToCommitLog"`
 	NeedsFilesetCleanup  bool `yaml:"needsFilesetCleanup"`
 	NeedsSnapshotCleanup bool `yaml:"needsSnapshotCleanup"`
@@ -303,6 +304,7 @@ func newNamespaceMetadata(cfg StaticNamespaceConfiguration) (namespace.Metadata,
 			NeedsFilesetCleanup:  true,
 			NeedsSnapshotCleanup: true,
 			NeedsFlush:           true,
+			NeedsSnapshot:        true,
 			NeedsRepair:          true,
 			WritesToCommitLog:    true,
 		}
@@ -314,6 +316,7 @@ func newNamespaceMetadata(cfg StaticNamespaceConfiguration) (namespace.Metadata,
 			SetNeedsFilesetCleanup(cfg.Options.NeedsFilesetCleanup).
 			SetNeedsSnapshotCleanup(cfg.Options.NeedsSnapshotCleanup).
 			SetNeedsFlush(cfg.Options.NeedsFlush).
+			SetNeedsSnapshot(cfg.Options.NeedsSnapshot).
 			SetNeedsRepair(cfg.Options.NeedsRepair).
 			SetWritesToCommitLog(cfg.Options.WritesToCommitLog).
 			SetRetentionOptions(

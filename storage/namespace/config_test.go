@@ -127,8 +127,8 @@ metadatas:
     needsBootstrap: false
     needsFlush: false
     writesToCommitLog: false
-	needsFilesetCleanup: false
-	needsSnapshotCleanup: false
+    needsFilesetCleanup: false
+    needsSnapshotCleanup: false
     needsRepair: false
     retention:
       retentionPeriod: 8h
@@ -139,8 +139,8 @@ metadatas:
     needsBootstrap: true
     needsFlush: true
     writesToCommitLog: true
-	needsFilesetCleanup: true
-	needsSnapshotCleanup: true
+    needsFilesetCleanup: true
+    needsSnapshotCleanup: true
     needsRepair: true
     retention:
       retentionPeriod: 48h
@@ -151,8 +151,8 @@ metadatas:
     needsBootstrap: true
     needsFlush: true
     writesToCommitLog: true
-	needsFilesetCleanup: true
-	needsSnapshotCleanup: true
+    needsFilesetCleanup: true
+    needsSnapshotCleanup: true
     needsRepair: true
     retention:
       retentionPeriod: 960h
