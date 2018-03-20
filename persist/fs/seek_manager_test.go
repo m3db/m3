@@ -89,6 +89,9 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 		}
 		return mock, nil
 	}
+	m.sleepFn = func(_ time.Duration) {
+		time.Sleep(time.Millisecond)
+	}
 
 	metadata := testNs1Metadata(t)
 	require.NoError(t, m.Open(metadata))
