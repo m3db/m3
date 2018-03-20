@@ -368,7 +368,7 @@ func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
 
 	flush := persist.NewMockFlush(ctrl)
 	err := s.Snapshot(blockStart, blockStart, flush)
-	require.Equal(t, errShardNotBootstrappedToFlush, err)
+	require.Equal(t, errShardNotBootstrappedToSnapshot, err)
 }
 
 func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
