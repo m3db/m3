@@ -1479,9 +1479,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		}
 
 		// Open a reader at this position, potentially from cache
-		fmt.Println("looking for fileset: ", blockStart.Unix(), " for shard: ", s.ID())
 		reader, err := s.namespaceReaderMgr.get(s.shard, blockStart, pos)
-		fmt.Println(err)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1640,7 +1638,6 @@ func (s *dbShard) Flush(
 	blockStart time.Time,
 	flush persist.Flush,
 ) error {
-	fmt.Println("Flushing: ", blockStart.Unix(), " for shard: ", s.ID())
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
 	if s.bs != bootstrapped {
@@ -1684,7 +1681,6 @@ func (s *dbShard) Flush(
 		multiErr = multiErr.Add(err)
 	}
 
-	fmt.Println("Success: ", multiErr.FinalError() == nil)
 	return s.markFlushStateSuccessOrError(blockStart, multiErr.FinalError())
 }
 
@@ -1860,7 +1856,6 @@ func (s *dbShard) CleanupFileset(earliestToRetain time.Time) error {
 				filePathPrefix, s.namespace.ID(), s.ID(), err)
 		multiErr = multiErr.Add(detailedErr)
 	}
-	fmt.Println("Deleting: ", expired)
 	if err := s.deleteFilesFn(expired); err != nil {
 		multiErr = multiErr.Add(err)
 	}

@@ -100,6 +100,7 @@ func verifyForTime(
 	iteratorPool encoding.ReaderIteratorPool,
 	timestamp time.Time,
 	namespace ident.ID,
+	isSnapshot bool,
 	expected generate.SeriesBlock,
 ) {
 	shards := make(map[uint32]struct{})
@@ -113,6 +114,7 @@ func verifyForTime(
 			Namespace:  namespace,
 			Shard:      shard,
 			BlockStart: timestamp,
+			IsSnapshot: isSnapshot,
 		}
 		require.NoError(t, reader.Open(rOpts))
 		for i := 0; i < reader.Entries(); i++ {
@@ -158,7 +160,7 @@ func verifyFlushedDataFiles(
 	require.NoError(t, err)
 	iteratorPool := opts.ReaderIteratorPool()
 	for timestamp, seriesList := range seriesMaps {
-		verifyForTime(t, reader, shardSet, iteratorPool, timestamp.ToTime(), namespace, seriesList)
+		verifyForTime(t, reader, shardSet, iteratorPool, timestamp.ToTime(), namespace, false, seriesList)
 	}
 }
 
@@ -177,7 +179,7 @@ func verifySnapshottedDataFiles(
 	iteratorPool := storageOpts.ReaderIteratorPool()
 	for _, ns := range testNamespaces {
 		for _, seriesList := range seriesMaps {
-			verifyForTime(t, reader, shardSet, iteratorPool, snapshotTime, ns, seriesList)
+			verifyForTime(t, reader, shardSet, iteratorPool, snapshotTime, ns, true, seriesList)
 		}
 	}
 }
