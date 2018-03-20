@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
@@ -79,7 +78,7 @@ func TestIndexLookupWriteRead(t *testing.T) {
 		if err != nil {
 			return false, fmt.Errorf("err creating writer: %v, ", err)
 		}
-		writerOpts := fs.WriterOpenOptions{
+		writerOpts := WriterOpenOptions{
 			Namespace:  testNs1ID,
 			BlockSize:  testBlockSize,
 			Shard:      shard,
