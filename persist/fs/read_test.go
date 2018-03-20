@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/x/mmap"
@@ -124,7 +125,12 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(t, filePathPrefix)
-	err = r.Open(testNs1ID, 0, testWriterStart)
+	rOpenOpts := fs.ReaderOpenOptions{
+		Namespace:  testNs1ID,
+		Shard:      0,
+		BlockStart: testWriterStart,
+	}
+	err = r.Open(rOpenOpts)
 	assert.NoError(t, err)
 
 	_, _, _, err = r.Read()
@@ -161,7 +167,12 @@ func TestReadDataError(t *testing.T) {
 	require.NoError(t, w.Close())
 
 	r := newTestReader(t, filePathPrefix)
-	err = r.Open(testNs1ID, 0, testWriterStart)
+	rOpenOpts := fs.ReaderOpenOptions{
+		Namespace:  testNs1ID,
+		Shard:      0,
+		BlockStart: testWriterStart,
+	}
+	err = r.Open(rOpenOpts)
 	assert.NoError(t, err)
 
 	// Close out the dataFd and use a mock to expect an error on next read
@@ -211,7 +222,12 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	assert.NoError(t, os.Truncate(dataFile, 1))
 
 	r := newTestReader(t, filePathPrefix)
-	err = r.Open(testNs1ID, 0, testWriterStart)
+	rOpenOpts := fs.ReaderOpenOptions{
+		Namespace:  testNs1ID,
+		Shard:      0,
+		BlockStart: testWriterStart,
+	}
+	err = r.Open(rOpenOpts)
 	assert.NoError(t, err)
 
 	_, _, _, err = r.Read()
@@ -244,7 +260,12 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	os.Remove(checkpointFile)
 
 	r := newTestReader(t, filePathPrefix)
-	err = r.Open(testNs1ID, shard, testWriterStart)
+	rOpenOpts := fs.ReaderOpenOptions{
+		Namespace:  testNs1ID,
+		Shard:      shard,
+		BlockStart: testWriterStart,
+	}
+	err = r.Open(rOpenOpts)
 	require.Equal(t, ErrCheckpointFileNotFound, err)
 }
 
@@ -282,7 +303,12 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	}
 
 	r := newTestReader(t, filePathPrefix)
-	require.Error(t, r.Open(testNs1ID, shard, time.Unix(1000, 0)))
+	rOpenOpts := fs.ReaderOpenOptions{
+		Namespace:  testNs1ID,
+		Shard:      shard,
+		BlockStart: time.Unix(1000, 0),
+	}
+	require.Error(t, r.Open(rOpenOpts))
 }
 
 func TestReadOpenDigestOfDigestMismatch(t *testing.T) {
@@ -358,7 +384,12 @@ func TestReadValidate(t *testing.T) {
 	require.NoError(t, w.Close())
 
 	r := newTestReader(t, filePathPrefix)
-	require.NoError(t, r.Open(testNs1ID, shard, start))
+	rOpenOpts := fs.ReaderOpenOptions{
+		Namespace:  testNs1ID,
+		Shard:      shard,
+		BlockStart: start,
+	}
+	require.NoError(t, r.Open(rOpenOpts))
 	_, _, _, err := r.Read()
 	require.NoError(t, err)
 

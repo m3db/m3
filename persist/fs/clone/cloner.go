@@ -31,7 +31,13 @@ func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duratio
 	if err != nil {
 		return fmt.Errorf("unable to create fileset reader: %v", err)
 	}
-	if err := reader.Open(ident.StringID(src.Namespace), src.Shard, src.Blockstart); err != nil {
+	openOpts := fs.ReaderOpenOptions{
+		Namespace:  ident.StringID(src.Namespace),
+		Shard:      src.Shard,
+		BlockStart: src.Blockstart,
+		IsSnapshot: false,
+	}
+	if err := reader.Open(openOpts); err != nil {
 		return fmt.Errorf("unable to read source fileset: %v", err)
 	}
 

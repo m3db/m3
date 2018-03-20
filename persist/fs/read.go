@@ -120,11 +120,31 @@ func NewReader(
 	}, nil
 }
 
-func (r *reader) Open(namespace ident.ID, shard uint32, blockStart time.Time) error {
-	var err error
+// ReaderOpenOptions is options struct for the reader open method.
+type ReaderOpenOptions struct {
+	Namespace  ident.ID
+	BlockStart time.Time
+	Shard      uint32
+	IsSnapshot bool
+}
+
+func (r *reader) Open(opts ReaderOpenOptions) error {
+	var (
+		namespace  = opts.Namespace
+		shard      = opts.Shard
+		blockStart = opts.BlockStart
+		isSnapshot = opts.IsSnapshot
+		err        error
+	)
+
+	var shardDir string
+	if isSnapshot {
+		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
+	} else {
+		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
+	}
 
 	// If there is no checkpoint file, don't read the data files.
-	shardDir := ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
 	if err := r.readCheckpointFile(shardDir, blockStart); err != nil {
 		return err
 	}
@@ -467,4 +487,42 @@ func (e indexEntriesByOffsetAsc) Less(i, j int) bool {
 
 func (e indexEntriesByOffsetAsc) Swap(i, j int) {
 	e[i], e[j] = e[j], e[i]
+}
+
+// ReaderOpenOptionsMatcher is a matcher for the ReaderOpenOptions struct
+type ReaderOpenOptionsMatcher struct {
+	Namespace  ident.ID
+	BlockStart time.Time
+	Shard      uint32
+	IsSnapshot bool
+}
+
+// Matches determine whether m matches a WriterOpenOptions
+func (m ReaderOpenOptionsMatcher) Matches(x interface{}) bool {
+	readerOpenOptions, ok := x.(ReaderOpenOptions)
+	if !ok {
+		return false
+	}
+
+	if !m.Namespace.Equal(readerOpenOptions.Namespace) {
+		return false
+	}
+	if m.Shard != readerOpenOptions.Shard {
+		return false
+	}
+	if !m.BlockStart.Equal(readerOpenOptions.BlockStart) {
+		return false
+	}
+	if !m.IsSnapshot == readerOpenOptions.IsSnapshot {
+		return false
+	}
+
+	return true
+}
+
+func (m ReaderOpenOptionsMatcher) String() string {
+	return fmt.Sprintf(
+		"namespace: %s, shard: %d, blockstart: %d, isSnapshot: %t",
+		m.Namespace.String(), m.Shard, m.BlockStart.Unix(), m.IsSnapshot,
+	)
 }

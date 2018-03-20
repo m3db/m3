@@ -414,12 +414,16 @@ func TestReadValidateError(t *testing.T) {
 		return reader, nil
 	}
 
-	idMatcher := ident.NewIDMatcher(testNs1ID.String())
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
+	rOpenOpts := fs.ReaderOpenOptionsMatcher{
+		Namespace:  testNs1ID,
+		Shard:      shard,
+		BlockStart: testStart,
+	}
 	reader.EXPECT().
-		Open(idMatcher, shard, xtime.NewMatcher(testStart)).
+		Open(rOpenOpts).
 		Return(nil)
 	reader.EXPECT().
 		Range().
@@ -462,12 +466,16 @@ func TestReadOpenError(t *testing.T) {
 		return reader, nil
 	}
 
-	idMatcher := ident.NewIDMatcher(testNs1ID.String())
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
+	rOpts := fs.ReaderOpenOptionsMatcher{
+		Namespace:  testNs1ID,
+		Shard:      shard,
+		BlockStart: testStart,
+	}
 	reader.EXPECT().
-		Open(idMatcher, shard, xtime.NewMatcher(testStart)).
+		Open(rOpts).
 		Return(errors.New("error"))
 
 	res, err := src.Read(testNsMetadata(t), testShardTimeRanges(),
@@ -504,9 +512,13 @@ func TestReadDeleteOnError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 
-	idMatcher := ident.NewIDMatcher(testNs1ID.String())
+	rOpts := fs.ReaderOpenOptionsMatcher{
+		Namespace:  testNs1ID,
+		Shard:      shard,
+		BlockStart: testStart,
+	}
 	gomock.InOrder(
-		reader.EXPECT().Open(idMatcher, shard, xtime.NewMatcher(testStart)).Return(nil),
+		reader.EXPECT().Open(rOpts).Return(nil),
 		reader.EXPECT().
 			Range().
 			Return(xtime.Range{

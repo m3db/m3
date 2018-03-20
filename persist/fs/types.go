@@ -66,7 +66,7 @@ type FileSetReader interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
-	Open(namespace ident.ID, shard uint32, start time.Time) error
+	Open(opts ReaderOpenOptions) error
 
 	// Status returns the status of the reader
 	Status() FileSetReaderStatus

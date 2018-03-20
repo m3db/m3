@@ -47,7 +47,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not create new reader: %v", err)
 	}
-	err = reader.Open(ident.StringID(*optNamespace), *optShard, time.Unix(0, *optBlockstart))
+
+	openOpts := fs.ReaderOpenOptions{
+		Namespace:  ident.StringID(*optNamespace),
+		Shard:      *optShard,
+		BlockStart: time.Unix(0, *optBlockstart),
+	}
+
+	err = reader.Open(openOpts)
 	if err != nil {
 		log.Fatalf("unable to open reader: %v", err)
 	}

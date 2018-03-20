@@ -251,7 +251,12 @@ func (m *namespaceReaderManager) get(
 	// We have a closed reader from the cache (either a cached closed
 	// reader or newly allocated, either way need to prepare it)
 	reader := lookup.closedReader
-	if err := reader.Open(m.namespace.ID(), shard, blockStart); err != nil {
+	openOpts := fs.ReaderOpenOptions{
+		Namespace:  m.namespace.ID(),
+		Shard:      shard,
+		BlockStart: blockStart,
+	}
+	if err := reader.Open(openOpts); err != nil {
 		return nil, err
 	}
 

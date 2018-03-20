@@ -109,7 +109,12 @@ func verifyForTime(
 	}
 	actual := make(generate.SeriesBlock, 0, len(expected))
 	for shard := range shards {
-		require.NoError(t, reader.Open(namespace, shard, timestamp))
+		rOpts := fs.ReaderOpenOptions{
+			Namespace:  namespace,
+			Shard:      shard,
+			BlockStart: timestamp,
+		}
+		require.NoError(t, reader.Open(rOpts))
 		for i := 0; i < reader.Entries(); i++ {
 			id, data, _, err := reader.Read()
 			require.NoError(t, err)

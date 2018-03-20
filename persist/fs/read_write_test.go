@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -91,7 +92,12 @@ var readTestTypes = []readTestType{
 // be a newly introduced reader reuse bug.
 func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
 	for _, underTest := range readTestTypes {
-		err := r.Open(testNs1ID, 0, timestamp)
+		rOpenOpts := ReaderOpenOptions{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: timestamp,
+		}
+		err := r.Open(rOpenOpts)
 		require.NoError(t, err)
 
 		require.Equal(t, len(entries), r.Entries())
@@ -280,7 +286,12 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	w.Close()
 
 	r := newTestReader(t, filePathPrefix)
-	require.Equal(t, ErrCheckpointFileNotFound, r.Open(testNs1ID, shard, testWriterStart))
+	rOpenOpts := fs.ReaderOpenOptions{
+		Namespace:  testNs1ID,
+		Shard:      shard,
+		BlockStart: testWriterStart,
+	}
+	require.Equal(t, ErrCheckpointFileNotFound, r.Open(rOpenOpts))
 
 	// Now reuse the writer and validate the data are written as expected.
 	writeTestData(t, w, shard, testWriterStart, entries)

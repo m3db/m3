@@ -133,7 +133,6 @@ func NewWriter(opts Options) (FileSetWriter, error) {
 // non-snapshots they would be the same. Probably going to have to modify the
 // file format on disk....
 func (w *writer) Open(opts WriterOpenOptions) error {
-
 	var shardDir string
 	var fileTimestampUnixNano time.Time
 	if opts.IsSnapshot {

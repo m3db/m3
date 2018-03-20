@@ -136,7 +136,12 @@ func (s *fileSystemSource) enqueueReaders(
 				continue
 			}
 			t := xtime.FromNanoseconds(files[i].Start).Round(0).UTC()
-			if err := r.Open(namespace, shard, t); err != nil {
+			openOpts := fs.ReaderOpenOptions{
+				Namespace:  namespace,
+				Shard:      shard,
+				BlockStart: t,
+			}
+			if err := r.Open(openOpts); err != nil {
 				s.log.WithFields(
 					xlog.NewField("shard", shard),
 					xlog.NewField("time", t.String()),

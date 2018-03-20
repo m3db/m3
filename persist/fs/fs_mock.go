@@ -177,15 +177,15 @@ func (_mr *MockFileSetReaderMockRecorder) MetadataRead() *gomock.Call {
 }
 
 // Open mocks base method
-func (_m *MockFileSetReader) Open(_param0 ident.ID, _param1 uint32, _param2 time.Time) error {
-	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2)
+func (_m *MockFileSetReader) Open(_param0 ReaderOpenOptions) error {
+	ret := _m.ctrl.Call(_m, "Open", _param0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Open indicates an expected call of Open
-func (_mr *MockFileSetReaderMockRecorder) Open(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Open", reflect.TypeOf((*MockFileSetReader)(nil).Open), arg0, arg1, arg2)
+func (_mr *MockFileSetReaderMockRecorder) Open(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Open", reflect.TypeOf((*MockFileSetReader)(nil).Open), arg0)
 }
 
 // Range mocks base method

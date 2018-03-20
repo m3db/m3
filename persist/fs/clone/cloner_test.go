@@ -65,14 +65,24 @@ func TestCloner(t *testing.T) {
 		SetInfoReaderBufferSize(opts.BufferSize()).
 		SetDecodingOptions(opts.DecodingOptions()))
 	require.NoError(t, err)
-	require.NoError(t, r1.Open(ident.StringID(src.Namespace), src.Shard, src.Blockstart))
+	r1OpenOpts := fs.ReaderOpenOptions{
+		Namespace:  ident.StringID(src.Namespace),
+		Shard:      src.Shard,
+		BlockStart: src.Blockstart,
+	}
+	require.NoError(t, r1.Open(r1OpenOpts))
 	r2, err := fs.NewReader(opts.BytesPool(), fs.NewOptions().
 		SetFilePathPrefix(dest.PathPrefix).
 		SetDataReaderBufferSize(opts.BufferSize()).
 		SetInfoReaderBufferSize(opts.BufferSize()).
 		SetDecodingOptions(opts.DecodingOptions()))
 	require.NoError(t, err)
-	require.NoError(t, r2.Open(ident.StringID(dest.Namespace), dest.Shard, dest.Blockstart))
+	r2OpenOpts := fs.ReaderOpenOptions{
+		Namespace:  ident.StringID(dest.Namespace),
+		Shard:      dest.Shard,
+		BlockStart: dest.Blockstart,
+	}
+	require.NoError(t, r2.Open(r2OpenOpts))
 	for {
 		t1, b1, c1, e1 := r1.Read()
 		t2, b2, c2, e2 := r2.Read()
