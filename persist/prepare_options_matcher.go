@@ -60,6 +60,6 @@ func (p PrepareOptionsMatcher) Matches(x interface{}) bool {
 
 func (p PrepareOptionsMatcher) String() string {
 	return fmt.Sprintf(
-		"id: %s, shard: %d, BlockStart: %d",
-		p.NsMetadata.ID().String(), p.Shard, p.WrittenAt.Unix())
+		"NSMetadata: %s, Shard: %d, BlockStart: %d, WrittenAt: %d",
+		p.NsMetadata.ID().String(), p.Shard, p.BlockStart.Unix(), p.WrittenAt.Unix())
 }
