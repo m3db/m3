@@ -27,7 +27,6 @@ const MajorVersion = 1
 
 // IndexInfo stores metadata information about block filesets
 type IndexInfo struct {
-	// TODO: Rename to BlockStart
 	BlockStart   int64
 	WrittenAt    int64
 	BlockSize    int64
