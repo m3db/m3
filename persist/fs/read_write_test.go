@@ -30,7 +30,6 @@ import (
 
 	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -286,7 +285,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	w.Close()
 
 	r := newTestReader(t, filePathPrefix)
-	rOpenOpts := fs.ReaderOpenOptions{
+	rOpenOpts := ReaderOpenOptions{
 		Namespace:  testNs1ID,
 		Shard:      shard,
 		BlockStart: testWriterStart,
