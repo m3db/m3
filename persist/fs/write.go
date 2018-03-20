@@ -56,6 +56,7 @@ type writer struct {
 	indexEntries               indexEntries
 
 	start      time.Time
+	writtenAt  time.Time
 	currIdx    int64
 	currOffset int64
 	encoder    *msgpack.Encoder
@@ -151,6 +152,7 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 
 	w.blockSize = opts.BlockSize
 	w.start = opts.BlockStart
+	w.writtenAt = opts.WrittenAt
 	w.currIdx = 0
 	w.currOffset = 0
 	w.checkpointFilePath = filesetPathFromTime(shardDir, fileTimestampUnixNano, checkpointFileSuffix)
@@ -449,6 +451,7 @@ func (w *writer) writeInfoFileContents(
 ) error {
 	info := schema.IndexInfo{
 		BlockStart:   xtime.ToNanoseconds(w.start),
+		WrittenAt:    xtime.ToNanoseconds(w.writtenAt),
 		BlockSize:    int64(w.blockSize),
 		Entries:      w.currIdx,
 		MajorVersion: schema.MajorVersion,
