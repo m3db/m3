@@ -226,6 +226,8 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.MajorVersion = dec.decodeVarint()
 	indexInfo.Summaries = dec.decodeIndexSummariesInfo()
 	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
+	indexInfo.WrittenAt = dec.decodeVarint()
+	indexInfo.IsSnapshot = dec.decodeBool()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyIndexInfo
@@ -509,6 +511,16 @@ func (dec *Decoder) decodeBytesLen() int {
 		return 0
 	}
 	value, err := dec.dec.DecodeBytesLen()
+	dec.err = err
+	return value
+}
+
+func (dec *Decoder) decodeBool() bool {
+	if dec.err != nil {
+		return false
+	}
+
+	value, err := dec.dec.DecodeBool()
 	dec.err = err
 	return value
 }
