@@ -101,11 +101,13 @@ func ToProto(m Map) *nsproto.Registry {
 	for _, md := range m.Metadatas() {
 		ropts := md.Options().RetentionOptions()
 		reg.Namespaces[md.ID().String()] = &nsproto.NamespaceOptions{
-			NeedsBootstrap:      md.Options().NeedsBootstrap(),
-			NeedsFlush:          md.Options().NeedsFlush(),
-			NeedsFilesetCleanup: md.Options().NeedsFilesetCleanup(),
-			NeedsRepair:         md.Options().NeedsRepair(),
-			WritesToCommitLog:   md.Options().WritesToCommitLog(),
+			NeedsBootstrap:       md.Options().NeedsBootstrap(),
+			NeedsFlush:           md.Options().NeedsFlush(),
+			NeedsFilesetCleanup:  md.Options().NeedsFilesetCleanup(),
+			NeedsSnapshot:        md.Options().NeedsSnapshot(),
+			NeedsSnapshotCleanup: md.Options().NeedsSnapshotCleanup(),
+			NeedsRepair:          md.Options().NeedsRepair(),
+			WritesToCommitLog:    md.Options().WritesToCommitLog(),
 			RetentionOptions: &nsproto.RetentionOptions{
 				BlockSizeNanos:                           toNanos(ropts.BlockSize()),
 				RetentionPeriodNanos:                     toNanos(ropts.RetentionPeriod()),

@@ -19,7 +19,8 @@ message NamespaceOptions {
 
 	RetentionOptions retentionOptions = 6;
 
-	bool needsSnapshotCleanup = 7;
+	bool needsSnapshot = 7;
+	bool needsSnapshotCleanup = 8;
 }
 
 message Registry {
