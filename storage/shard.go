@@ -1716,8 +1716,15 @@ func (s *dbShard) Snapshot(
 
 	// No action is necessary therefore we bail out early and there is no need to close.
 	if prepared.Persist == nil {
-		// TODO: What to do here? Probably just continue because the snapshot file already
-		// exists?
+		// This should never happen in practice, but if it does it means the snapshot file already
+		// exists.
+		s.logger.
+			WithFields(
+				xlog.NewField("blockStart", blockStart),
+				xlog.NewField("snapshotStart", snapshotStart),
+				xlog.NewField("shard", s.ID()),
+			).
+			Errorf("Tried to write prepare snapshot file that already exists")
 		return nil
 	}
 
