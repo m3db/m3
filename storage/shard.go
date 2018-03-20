@@ -1849,7 +1849,7 @@ func (s *dbShard) CleanupSnapshots() error {
 	}
 
 	// All snapshots files are cumulative (contain all data in previous files + new data),
-	// so if a newer file exists its always safe to delete the old ones. This is true accross
+	// so if a newer file exists its always safe to delete the old ones. This is true across
 	// block starts as well because we only ever write out snapshot files for a given block if
 	// the previous block has been properly flushed.
 	filesToDelete, err := fs.FilesBefore(files, latest)
