@@ -77,8 +77,8 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 	if dec.err != nil {
 		return emptyIndexInfo, dec.err
 	}
-	numFieldsToSkip := dec.decodeRootObject(indexInfoVersion, indexInfoType)
-	indexInfo := dec.decodeIndexInfo()
+	version, numFieldsToSkip := dec.decodeRootObject(indexInfoVersion, indexInfoType)
+	indexInfo := dec.decodeIndexInfo(version)
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyIndexInfo, dec.err
@@ -91,7 +91,7 @@ func (dec *Decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
 	}
-	numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
+	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
 	indexEntry := dec.decodeIndexEntry()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -106,7 +106,7 @@ func (dec *Decoder) DecodeIndexSummary() (
 	if dec.err != nil {
 		return emptyIndexSummary, emptyIndexSummaryToken, dec.err
 	}
-	numFieldsToSkip := dec.decodeRootObject(indexSummaryVersion, indexSummaryType)
+	_, numFieldsToSkip := dec.decodeRootObject(indexSummaryVersion, indexSummaryType)
 	indexSummary, indexSummaryMetadata := dec.decodeIndexSummary()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -120,7 +120,7 @@ func (dec *Decoder) DecodeLogInfo() (schema.LogInfo, error) {
 	if dec.err != nil {
 		return emptyLogInfo, dec.err
 	}
-	numFieldsToSkip := dec.decodeRootObject(logInfoVersion, logInfoType)
+	_, numFieldsToSkip := dec.decodeRootObject(logInfoVersion, logInfoType)
 	logInfo := dec.decodeLogInfo()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -134,7 +134,7 @@ func (dec *Decoder) DecodeLogEntry() (schema.LogEntry, error) {
 	if dec.err != nil {
 		return emptyLogEntry, dec.err
 	}
-	numFieldsToSkip := dec.decodeRootObject(logEntryVersion, logEntryType)
+	_, numFieldsToSkip := dec.decodeRootObject(logEntryVersion, logEntryType)
 	logEntry := dec.decodeLogEntry()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -158,8 +158,8 @@ func (dec *Decoder) DecodeLogEntryUniqueIndex() (DecodeLogEntryRemainingToken, u
 		return emptyLogEntryRemainingToken, 0, dec.err
 	}
 
-	numFieldsToSkip1 := dec.decodeRootObject(logEntryVersion, logEntryType)
-	numFieldsToSkip2, ok := dec.checkNumFieldsFor(logEntryType)
+	_, numFieldsToSkip1 := dec.decodeRootObject(logEntryVersion, logEntryType)
+	numFieldsToSkip2, ok := dec.checkNumFieldsFor(logEntryType, false)
 	if !ok {
 		return emptyLogEntryRemainingToken, 0, errorUnableToDetermineNumFieldsToSkip
 	}
@@ -205,7 +205,7 @@ func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 	if dec.err != nil {
 		return emptyLogMetadata, dec.err
 	}
-	numFieldsToSkip := dec.decodeRootObject(logMetadataVersion, logMetadataType)
+	_, numFieldsToSkip := dec.decodeRootObject(logMetadataVersion, logMetadataType)
 	logMetadata := dec.decodeLogMetadata()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -214,11 +214,12 @@ func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 	return logMetadata, nil
 }
 
-func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexInfoType)
+func (dec *Decoder) decodeIndexInfo(actualVersion int) schema.IndexInfo {
+	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexInfoType, true)
 	if !ok {
 		return emptyIndexInfo
 	}
+
 	var indexInfo schema.IndexInfo
 	indexInfo.BlockStart = dec.decodeVarint()
 	indexInfo.BlockSize = dec.decodeVarint()
@@ -226,8 +227,11 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.MajorVersion = dec.decodeVarint()
 	indexInfo.Summaries = dec.decodeIndexSummariesInfo()
 	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
-	indexInfo.WrittenAt = dec.decodeVarint()
-	indexInfo.IsSnapshot = dec.decodeBool()
+
+	if actualVersion > 1 {
+		indexInfo.WrittenAt = dec.decodeVarint()
+		indexInfo.IsSnapshot = dec.decodeBool()
+	}
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyIndexInfo
@@ -236,7 +240,7 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 }
 
 func (dec *Decoder) decodeIndexSummariesInfo() schema.IndexSummariesInfo {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexSummariesInfoType)
+	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexSummariesInfoType, false)
 	if !ok {
 		return emptyIndexSummariesInfo
 	}
@@ -250,7 +254,7 @@ func (dec *Decoder) decodeIndexSummariesInfo() schema.IndexSummariesInfo {
 }
 
 func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexBloomFilterInfoType)
+	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexBloomFilterInfoType, false)
 	if !ok {
 		return emptyIndexBloomFilterInfo
 	}
@@ -265,7 +269,7 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 }
 
 func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexEntryType)
+	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexEntryType, false)
 	if !ok {
 		return emptyIndexEntry
 	}
@@ -283,7 +287,7 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 }
 
 func (dec *Decoder) decodeIndexSummary() (schema.IndexSummary, IndexSummaryToken) {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexSummaryType)
+	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexSummaryType, false)
 	if !ok {
 		return emptyIndexSummary, emptyIndexSummaryToken
 	}
@@ -311,7 +315,7 @@ func (dec *Decoder) decodeIndexSummary() (schema.IndexSummary, IndexSummaryToken
 }
 
 func (dec *Decoder) decodeLogInfo() schema.LogInfo {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(logInfoType)
+	numFieldsToSkip, ok := dec.checkNumFieldsFor(logInfoType, false)
 	if !ok {
 		return emptyLogInfo
 	}
@@ -327,7 +331,7 @@ func (dec *Decoder) decodeLogInfo() schema.LogInfo {
 }
 
 func (dec *Decoder) decodeLogEntry() schema.LogEntry {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(logEntryType)
+	numFieldsToSkip, ok := dec.checkNumFieldsFor(logEntryType, false)
 	if !ok {
 		return emptyLogEntry
 	}
@@ -347,7 +351,7 @@ func (dec *Decoder) decodeLogEntry() schema.LogEntry {
 }
 
 func (dec *Decoder) decodeLogMetadata() schema.LogMetadata {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(logMetadataType)
+	numFieldsToSkip, ok := dec.checkNumFieldsFor(logMetadataType, false)
 	if !ok {
 		return emptyLogMetadata
 	}
@@ -362,47 +366,55 @@ func (dec *Decoder) decodeLogMetadata() schema.LogMetadata {
 	return logMetadata
 }
 
-func (dec *Decoder) decodeRootObject(expectedVersion int, expectedType objectType) int {
-	dec.checkVersion(expectedVersion)
+func (dec *Decoder) decodeRootObject(expectedVersion int, expectedType objectType) (int, int) {
+	version := dec.checkVersion(expectedVersion)
 	if dec.err != nil {
-		return 0
+		return 0, 0
 	}
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(rootObjectType)
+	numFieldsToSkip, ok := dec.checkNumFieldsFor(rootObjectType, false)
 	if !ok {
-		return 0
+		return 0, 0
 	}
 	actualType := dec.decodeObjectType()
 	if dec.err != nil {
-		return 0
+		return 0, 0
 	}
 	if expectedType != actualType {
 		dec.err = fmt.Errorf("object type mismatch: expected %v actual %v", expectedType, actualType)
-		return 0
+		return 0, 0
 	}
-	return numFieldsToSkip
+	return version, numFieldsToSkip
 }
 
-func (dec *Decoder) checkVersion(expected int) {
+func (dec *Decoder) checkVersion(expected int) int {
 	version := int(dec.decodeVarint())
 	if dec.err != nil {
-		return
+		return 0
 	}
 	if version > expected {
 		dec.err = fmt.Errorf("version mismatch: expected %v actual %v", expected, version)
+		return 0
 	}
+
+	return version
 }
 
-func (dec *Decoder) checkNumFieldsFor(objType objectType) (int, bool) {
+func (dec *Decoder) checkNumFieldsFor(objType objectType, allowLessFields bool) (int, bool) {
 	actual := dec.decodeNumObjectFields()
 	if dec.err != nil {
 		return 0, false
 	}
 	expected := numFieldsForType(objType)
-	if expected > actual {
+	if expected > actual && !allowLessFields {
 		dec.err = fmt.Errorf("number of fields mismatch: expected %d actual %d", expected, actual)
 		return 0, false
 	}
-	return actual - expected, true
+
+	numToSkip := actual - expected
+	if numToSkip < 0 {
+		numToSkip = 0
+	}
+	return numToSkip, true
 }
 
 func (dec *Decoder) skip(numFields int) {
