@@ -90,10 +90,6 @@ func (m *flushManager) Flush(curr time.Time) error {
 		flushTimes := m.namespaceFlushTimes(ns, curr)
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, flushTimes, flush))
 
-		// TODO: Only snapshot from blockStart --> (now-bufferPast) because we have to read at least
-		// bufferPast of the commit log to make sure we didn't miss anything
-		// TODO: Snapshot interval should be >= commit log block size because there is no point
-		// in snapshotting unless you can delete the corresponding commit log file
 		var (
 			blockSize          = ns.Options().RetentionOptions().BlockSize()
 			snapshotBlockStart = m.snapshotBlockStart(ns, curr)
