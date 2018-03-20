@@ -1616,8 +1616,16 @@ func (s *dbShard) Bootstrap(
 	// Now iterate flushed time ranges to determine which blocks are
 	// retrievable before servicing reads
 	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
-	entries := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
+	entries, err := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
+	if err != nil {
+		s.logger.WithFields(
+			xlog.NewField("shard", s.ID()),
+			xlog.NewField("namespace", s.namespace.ID()),
+			xlog.NewField("error", err.Error()),
+		).Error("unable to read info files in shard bootstrap")
+	}
+
 	for _, info := range entries {
 		at := xtime.FromNanoseconds(info.BlockStart)
 		fs := s.FlushState(at)

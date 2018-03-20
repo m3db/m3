@@ -93,8 +93,16 @@ func (s *fileSystemSource) shardAvailability(
 		return xtime.Ranges{}
 	}
 
-	entries := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
+	entries, err := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
 		namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
+	if err != nil {
+		s.log.WithFields(
+			xlog.NewField("shard", shard),
+			xlog.NewField("namespace", namespace.String()),
+			xlog.NewField("error", err.Error()),
+			xlog.NewField("targetRangesForShard", targetRangesForShard),
+		).Error("unable to read info files in shardAvailability")
+	}
 	if len(entries) == 0 {
 		return xtime.Ranges{}
 	}
@@ -119,8 +127,16 @@ func (s *fileSystemSource) enqueueReaders(
 	readersCh chan<- shardReaders,
 ) {
 	for shard, tr := range shardsTimeRanges {
-		files := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
+		files, err := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
 			namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
+		if err != nil {
+			s.log.WithFields(
+				xlog.NewField("shard", shard),
+				xlog.NewField("namespace", namespace.String()),
+				xlog.NewField("error", err.Error()),
+				xlog.NewField("timeRange", tr),
+			).Error("unable to read info files in enqueueReaders")
+		}
 		if len(files) == 0 {
 			// Use default readers value to indicate no readers for this shard
 			readersCh <- newShardReaders(shard, tr, nil)
