@@ -356,7 +356,6 @@ func (s *peersSource) incrementalFlush(
 		prepareOpts := persist.PrepareOptions{
 			NsMetadata: nsMetadata,
 			Shard:      shard,
-			// TODO: Do we want to keep these the same?
 			BlockStart: start,
 			WrittenAt:  start,
 		}
