@@ -353,9 +353,13 @@ func (s *peersSource) incrementalFlush(
 	}
 
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
-		prepared, err := flush.Prepare(nsMetadata, shard, start)
+		prepared, ok, err := flush.Prepare(nsMetadata, shard, start)
 		if err != nil {
 			return err
+		}
+
+		if !ok {
+			// TODO: Do something
 		}
 
 		var blockErr error

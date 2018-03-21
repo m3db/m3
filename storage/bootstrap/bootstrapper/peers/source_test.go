@@ -253,7 +253,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					closes["foo"]++
 					return nil
 				},
-			}, nil)
+			}, true, nil)
 		mockFlush.EXPECT().
 			Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(0), start.Add(ropts.BlockSize())).
 			Return(persist.PreparedPersist{
@@ -268,7 +268,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					closes["bar"]++
 					return nil
 				},
-			}, nil)
+			}, true, nil)
 		mockFlush.EXPECT().
 			Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(1), start).
 			Return(persist.PreparedPersist{
@@ -283,7 +283,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					closes["baz"]++
 					return nil
 				},
-			}, nil)
+			}, true, nil)
 		mockFlush.EXPECT().
 			Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(1), start.Add(ropts.BlockSize())).
 			Return(persist.PreparedPersist{
@@ -295,7 +295,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					closes["empty"]++
 					return nil
 				},
-			}, nil)
+			}, true, nil)
 
 		mockPersistManager := persist.NewMockManager(ctrl)
 		mockPersistManager.EXPECT().StartFlush().Return(mockFlush, nil)
@@ -475,7 +475,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["foo"]++
 				return nil
 			},
-		}, nil)
+		}, true, nil)
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(0), midway).
 		Return(persist.PreparedPersist{
@@ -487,7 +487,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["foo"]++
 				return nil
 			},
-		}, nil)
+		}, true, nil)
 
 		// expect bar
 	mockFlush.EXPECT().
@@ -501,7 +501,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["bar"]++
 				return nil
 			},
-		}, nil)
+		}, true, nil)
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(1), midway).
 		Return(persist.PreparedPersist{
@@ -513,7 +513,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["bar"]++
 				return nil
 			},
-		}, nil)
+		}, true, nil)
 
 		// expect baz
 	mockFlush.EXPECT().
@@ -527,7 +527,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["baz"]++
 				return nil
 			},
-		}, nil)
+		}, true, nil)
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(2), midway).
 		Return(persist.PreparedPersist{
@@ -539,7 +539,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["baz"]++
 				return nil
 			},
-		}, nil)
+		}, true, nil)
 
 		// expect qux
 	mockFlush.EXPECT().
@@ -553,7 +553,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["qux"]++
 				return fmt.Errorf("a persist close error")
 			},
-		}, nil)
+		}, true, nil)
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(3), midway).
 		Return(persist.PreparedPersist{
@@ -565,7 +565,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["qux"]++
 				return nil
 			},
-		}, nil)
+		}, true, nil)
 
 	mockPersistManager := persist.NewMockManager(ctrl)
 	mockPersistManager.EXPECT().StartFlush().Return(mockFlush, nil)

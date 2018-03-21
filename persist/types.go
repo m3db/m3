@@ -53,7 +53,7 @@ type Flush interface {
 	// Prepare prepares writing data for a given (shard, blockStart) combination,
 	// returning a PreparedPersist object and any error encountered during
 	// preparation if any.
-	Prepare(ns namespace.Metadata, shard uint32, blockStart time.Time) (PreparedPersist, error)
+	Prepare(ns namespace.Metadata, shard uint32, blockStart time.Time) (PreparedPersist, bool, error)
 
 	// Done marks the flush as complete.
 	Done() error

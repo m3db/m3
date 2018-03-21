@@ -86,8 +86,9 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 		assert.NoError(t, flush.Done())
 	}()
 
-	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+	prepared, ok, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
 	require.NoError(t, err)
+	require.False(t, ok)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
 }
@@ -114,8 +115,9 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 		assert.NoError(t, flush.Done())
 	}()
 
-	prepared, err := flush.Prepare(ns1Md, shard, blockStart)
+	prepared, ok, err := flush.Prepare(ns1Md, shard, blockStart)
 	require.Equal(t, expectedErr, err)
+	require.False(t, ok)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
 }
@@ -154,10 +156,11 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	pm.count = 123
 	pm.bytesWritten = 100
 
-	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+	prepared, ok, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
 	defer prepared.Close()
 
 	require.Nil(t, err)
+	require.True(t, ok)
 
 	require.Nil(t, prepared.Persist(id, segment, checksum))
 
@@ -212,8 +215,9 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	}()
 
 	// prepare the flush
-	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+	prepared, ok, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
 	require.NoError(t, err)
+	require.True(t, ok)
 
 	// Start persistence
 	now = time.Now()
@@ -283,8 +287,9 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		require.NoError(t, err)
 
 		// prepare the flush
-		prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+		prepared, ok, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
 		require.NoError(t, err)
+		require.True(t, ok)
 
 		// Start persistence
 		now = time.Now()
@@ -332,15 +337,17 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 
 	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
 		testBlockSize, shard, blockStart).Return(nil)
-	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+	prepared, ok, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
 	require.NoError(t, err)
+	require.True(t, ok)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
 
 	writer.EXPECT().Open(ident.NewIDMatcher(testNs2ID.String()),
 		testBlockSize, shard, blockStart).Return(nil)
-	prepared, err = flush.Prepare(testNs2Metadata(t), shard, blockStart)
+	prepared, ok, err = flush.Prepare(testNs2Metadata(t), shard, blockStart)
 	require.NoError(t, err)
+	require.True(t, ok)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
 }

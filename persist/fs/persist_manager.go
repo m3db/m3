@@ -214,7 +214,7 @@ func (pm *persistManager) Prepare(
 	nsMetadata namespace.Metadata,
 	shard uint32,
 	blockStart time.Time,
-) (persist.PreparedPersist, error) {
+) (persist.PreparedPersist, bool, error) {
 
 	var (
 		nsID     = nsMetadata.ID()
@@ -227,25 +227,25 @@ func (pm *persistManager) Prepare(
 	pm.RUnlock()
 
 	if status != persistManagerFlushing {
-		return prepared, errPersistManagerCannotPrepareNotFlushing
+		return prepared, false, errPersistManagerCannotPrepareNotFlushing
 	}
 
 	// NB(xichen): if the checkpoint file for blockStart already exists, bail.
 	// This allows us to retry failed flushing attempts because they wouldn't
 	// have created the checkpoint file.
 	if FilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart) {
-		return prepared, nil
+		return prepared, false, nil
 	}
 
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
 	if err := pm.writer.Open(nsID, blockSize, shard, blockStart); err != nil {
-		return prepared, err
+		return prepared, false, err
 	}
 
 	prepared.Persist = pm.persist
 	prepared.Close = pm.close
 
-	return prepared, nil
+	return prepared, true, nil
 }
 
 func (pm *persistManager) SetRuntimeOptions(value runtime.Options) {
