@@ -60,10 +60,11 @@ func (i *testIncreasingIndex) nextIndex() uint64 {
 }
 
 func testDatabaseShard(t *testing.T, opts Options) *dbShard {
-	ns := newTestNamespace(t)
-	nsReaderMgr := newNamespaceReaderManager(ns.metadata, tally.NoopScope, opts)
-	seriesOpts := NewSeriesOptionsFromOptions(opts, ns.Options().RetentionOptions())
-	return newDatabaseShard(ns.metadata, 0, nil, nsReaderMgr,
+	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	nsReaderMgr := newNamespaceReaderManager(metadata, tally.NoopScope, opts)
+	seriesOpts := NewSeriesOptionsFromOptions(opts, defaultTestNs1Opts.RetentionOptions())
+	return newDatabaseShard(metadata, 0, nil, nsReaderMgr,
 		&testIncreasingIndex{}, commitLogWriteNoOp, databaseIndexNoOp, true, opts, seriesOpts).(*dbShard)
 }
 
@@ -336,10 +337,15 @@ func addMockTestSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID) *se
 }
 
 func addTestSeries(shard *dbShard, id ident.ID) series.DatabaseSeries {
+	return addTestSeriesWithCount(shard, id, 0)
+}
+
+func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.DatabaseSeries {
 	series := series.NewDatabaseSeries(id, shard.seriesOpts)
 	series.Bootstrap(nil)
 	shard.Lock()
-	shard.lookup[id.Hash()] = shard.list.PushBack(&dbShardEntry{series: series})
+	shard.lookup[id.Hash()] = shard.list.PushBack(&dbShardEntry{
+		series: series, curReadWriters: count})
 	shard.Unlock()
 	return series
 }
@@ -406,6 +412,7 @@ func TestShardTick(t *testing.T) {
 	_, ok := shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)]
 	require.True(t, ok)
 }
+
 func TestShardWriteAsync(t *testing.T) {
 	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{
@@ -513,8 +520,19 @@ func TestShardTickRace(t *testing.T) {
 	wg.Wait()
 
 	shard.RLock()
-	require.Equal(t, 0, len(shard.lookup))
+	shardlen := len(shard.lookup)
 	shard.RUnlock()
+	require.Equal(t, 0, shardlen)
+}
+
+// Catches a logic bug we had trying to purgeSeries and counted the reference
+// we had while trying to purge as a concurrent read.
+func TestShardTickCleanupSmallBatchSize(t *testing.T) {
+	opts := testDatabaseOptions()
+	shard := testDatabaseShard(t, opts)
+	addTestSeries(shard, ident.StringID("foo"))
+	shard.Tick(context.NewNoOpCanncellable())
+	require.Equal(t, 0, len(shard.lookup))
 }
 
 // This tests ensures the shard returns an error if two ticks are triggered concurrently.
@@ -927,4 +945,13 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 
 	assert.False(t, entry.series.IsEmpty())
 	assert.Equal(t, 2, entry.series.NumActiveBlocks())
+}
+
+func TestShardIterateBatchSize(t *testing.T) {
+	smaller := shardIterateBatchMinSize - 1
+	require.Equal(t, smaller, iterateBatchSize(smaller))
+
+	require.Equal(t, shardIterateBatchMinSize, iterateBatchSize(shardIterateBatchMinSize+1))
+
+	require.True(t, shardIterateBatchMinSize < iterateBatchSize(2000))
 }
