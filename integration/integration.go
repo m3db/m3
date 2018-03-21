@@ -210,6 +210,13 @@ func newDefaultBootstrappableTestSetups(
 		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
 		var peersBootstrapper bootstrap.Bootstrapper
 
+		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+		filePathPrefix := fsOpts.FilePathPrefix()
+		bfsOpts := bfs.NewOptions().
+			SetResultOptions(bsOpts).
+			SetFilesystemOptions(fsOpts).
+			SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
+
 		if usingPeersBoostrapper {
 			adminOpts := client.NewAdminOptions()
 			if bootstrapBlocksBatchSize > 0 {
@@ -231,7 +238,7 @@ func newDefaultBootstrappableTestSetups(
 				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).
-				SetFilesystemOptions(fsOpts).
+				SetFilesystemOptions(bfsOpts).
 				SetAdminClient(adminClient).
 				SetFetchBlocksMetadataEndpointVersion(setupOpts[i].fetchBlocksMetadataEndpointVersion).
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
@@ -243,13 +250,6 @@ func newDefaultBootstrappableTestSetups(
 		} else {
 			peersBootstrapper = noOpAll
 		}
-
-		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-		filePathPrefix := fsOpts.FilePathPrefix()
-		bfsOpts := bfs.NewOptions().
-			SetResultOptions(bsOpts).
-			SetFilesystemOptions(fsOpts).
-			SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
 
 		fsBootstrapper := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, peersBootstrapper)
 		setup.storageOpts = setup.storageOpts.
