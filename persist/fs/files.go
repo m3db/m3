@@ -256,6 +256,15 @@ func FilesetAt(filePathPrefix string, namespace ident.ID, shard uint32, t time.T
 	return filesAt(matched, t)
 }
 
+// DeleteFilesetAt deletes all fileset files whose timestamps exactly match a given time.
+func DeleteFilesetAt(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) error {
+	matched, err := FilesetAt(filePathPrefix, namespace, shard, t)
+	if err != nil {
+		return err
+	}
+	return DeleteFiles(matched)
+}
+
 // DeleteInactiveDirectories deletes any directories that are not currently active, as defined by the
 // inputed active directories within the parent directory
 func DeleteInactiveDirectories(parentDirectoryPath string, activeDirectories []string) error {
