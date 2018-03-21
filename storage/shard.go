@@ -674,8 +674,8 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*dbShardEntry) {
 		count := entry.readerWriterCount()
 		// The contract requires all entries to have count >= 1.
 		if count < 1 {
-			s.logger.Errorf(`observed series [%s] with readerWriterCount [%d]. This violates
-				expected guarantees in the code.`, series.ID().String(), count)
+			s.logger.Errorf("observed series [%s] with readerWriterCount [%d]. %s",
+				series.ID().String(), count, "This violates expected guarantees in the code.")
 			continue
 		}
 		// If this series is currently being written to or read from, we don't
