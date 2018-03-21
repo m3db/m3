@@ -184,6 +184,72 @@
                 }
             }
         },
+        "/namespaces/{namespaceID}/ruleset/bulk": {
+            "post": {
+                "tags":[
+                    "namespaces"
+                ],
+                "summary": "Bulk update endpoint for ruleset changes",
+                "operationId": "bulkUpdateRuleSet",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "namespaceID",
+                        "description": "The name of the namespace",
+                        "type": "string",
+                        "required": true
+                    },
+                    {
+                        "in": "body",
+                        "name": "ruleset-changes",
+                        "description": "The updates to the ruleset",
+                        "required": true,
+                        "schema": {
+                        "$ref": "#/definitions/RuleSetChanges"
+                        }
+                    },
+                    {
+                        "in": "body",
+                        "name": "ruleset-version",
+                        "description": "The ruleset version to atomically apply bulk updates against",
+                        "required": true,
+                        "type": "integer"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The ruleset updates have been applied",
+                        "schema": {
+                            "$ref": "#/definitions/ApiResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "No such namespace",
+                        "schema": {
+                            "$ref": "#/definitions/ApiResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Namespace already exists",
+                        "schema": {
+                            "$ref": "#/definitions/ApiResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Something went horribly wrong",
+                        "schema": {
+                            "$ref": "#/definitions/ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/namespaces/{namespaceID}/ruleset/validate": {
             "post": {
                 "tags": [
@@ -874,6 +940,61 @@
                     "items": {
                         "$ref": "#/definitions/RollupRule"
                     }
+                }
+            }
+        },
+        "RuleSetChanges": {
+            "type": "object",
+            "properties": {
+                "MappingRuleChanges": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/MappingRuleChange"
+                    },
+                    "description": "list of mapping rule changes"
+                },
+                "RollupRuleChanges": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/RollupRuleChange"
+                    },
+                    "description": "list of rollup rule changes"
+                }
+            }
+        },
+        "MappingRuleChange": {
+            "type": "object",
+            "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": ["add", "delete", "change"],
+                    "description": "type of operation on rule"
+                },
+                "ruleID": {
+                    "type": "string",
+                    "description": "ID of the rule, should be omitted for adds"
+                },
+                "ruleData": {
+                    "$ref": "#/definitions/MappingRuleData",
+                    "description": "new rule data, can be left empty for deletes"
+                }
+            }
+        },
+        "RollupRuleChange": {
+            "type": "object",
+            "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": ["add", "delete", "change"],
+                    "description": "type of operation on rule"
+                },
+                "ruleID": {
+                    "type": "string",
+                    "description": "ID of the rule, should be omitted for adds"
+                },
+                "ruleData": {
+                    "$ref": "#/definitions/RollupRuleData",
+                    "description": "new rule data, can be omitted for deletes"
                 }
             }
         },
