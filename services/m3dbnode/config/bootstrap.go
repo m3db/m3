@@ -98,6 +98,14 @@ func (bsc BootstrapConfiguration) New(
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetSeriesCachePolicy(opts.SeriesCachePolicy())
 
+	fsopts := opts.CommitLogOptions().FilesystemOptions()
+	filePathPrefix := fsopts.FilePathPrefix()
+	bfsOpts := fs.NewOptions().
+		SetResultOptions(rsopts).
+		SetFilesystemOptions(fsopts).
+		SetNumProcessors(bsc.fsNumProcessors()).
+		SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager())
+
 	// Start from the end of the list because the bootstrappers are ordered by precedence in descending order.
 	for i := len(bsc.Bootstrappers) - 1; i >= 0; i-- {
 		switch bsc.Bootstrappers[i] {
@@ -106,14 +114,7 @@ func (bsc BootstrapConfiguration) New(
 		case bootstrapper.NoOpNoneBootstrapperName:
 			bs = bootstrapper.NewNoOpNoneBootstrapper()
 		case fs.FileSystemBootstrapperName:
-			fsopts := opts.CommitLogOptions().FilesystemOptions()
-			filePathPrefix := fsopts.FilePathPrefix()
-			fsbopts := fs.NewOptions().
-				SetResultOptions(rsopts).
-				SetFilesystemOptions(fsopts).
-				SetNumProcessors(bsc.fsNumProcessors()).
-				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager())
-			bs = fs.NewFileSystemBootstrapper(filePathPrefix, fsbopts, bs)
+			bs = fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, bs)
 		case commitlog.CommitLogBootstrapperName:
 			copts := commitlog.NewOptions().
 				SetResultOptions(rsopts).
@@ -125,7 +126,7 @@ func (bsc BootstrapConfiguration) New(
 		case peers.PeersBootstrapperName:
 			popts := peers.NewOptions().
 				SetResultOptions(rsopts).
-				SetFilesystemOptions(fsOpts).
+				SetFilesystemOptions(bfsOpts).
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
