@@ -368,6 +368,21 @@ func TestFilesetFilesBefore(t *testing.T) {
 	}
 }
 
+func TestFilesetFilesAt(t *testing.T) {
+	shard := uint32(0)
+	dir := createInfoFiles(t, testNs1ID, shard, 20)
+	defer os.RemoveAll(dir)
+
+	shardDir := path.Join(dir, dataDirName, testNs1ID.String(), strconv.Itoa(int(shard)))
+	for i := 0; i < 20; i++ {
+		ts := time.Unix(0, int64(i))
+		res, err := FilesetAt(dir, testNs1ID, shard, ts)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(res))
+		require.Equal(t, filesetPathFromTime(shardDir, ts, infoFileSuffix), res[0])
+	}
+}
+
 func TestCommitLogFilesBefore(t *testing.T) {
 	iter := 20
 	perSlot := 3

@@ -359,7 +359,10 @@ func (s *peersSource) incrementalFlush(
 		}
 
 		if !ok {
-			// TODO: Do something
+			// If we reach this point then it means that the fileset files already
+			// exist on disk, but we were unable to bootstrap from them for some
+			// reason. In order to proceed, we will need to delete the existing
+			// files and then try to recreate them.
 		}
 
 		var blockErr error

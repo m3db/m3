@@ -47,6 +47,8 @@ const (
 
 type fileOpener func(filePath string) (*os.File, error)
 
+type filterFilesByTimePred func(t time.Time) (include, continueScanning bool)
+
 func openFiles(opener fileOpener, fds map[string]**os.File) error {
 	var firstErr error
 	for filePath, fdPtr := range fds {
@@ -245,6 +247,15 @@ func FilesetBefore(filePathPrefix string, namespace ident.ID, shard uint32, t ti
 	return filesBefore(matched, t)
 }
 
+// FilesetAt returns all the fileset files whose timestamps exactly match a given time.
+func FilesetAt(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) ([]string, error) {
+	matched, err := filesetFiles(filePathPrefix, namespace, shard, filesetFilePattern)
+	if err != nil {
+		return nil, err
+	}
+	return filesAt(matched, t)
+}
+
 // DeleteInactiveDirectories deletes any directories that are not currently active, as defined by the
 // inputed active directories within the parent directory
 func DeleteInactiveDirectories(parentDirectoryPath string, activeDirectories []string) error {
@@ -338,22 +349,54 @@ func commitlogFiles(commitLogsDir string, pattern string) ([]string, error) {
 }
 
 func filesBefore(files []string, t time.Time) ([]string, error) {
+	return filterFilesByTime(files, func(ft time.Time) (bool, bool) {
+		if ft.Before(t) {
+			// Include and continue scanning
+			return true, true
+		}
+
+		// Don't include and don't continue scanning because files
+		// are sorted by their timestamps in ascending order so we
+		// know we're done.
+		return false, false
+	})
+}
+
+func filesAt(files []string, t time.Time) ([]string, error) {
+	return filterFilesByTime(files, func(ft time.Time) (bool, bool) {
+		if ft.Equal(t) {
+			// Include and continue scanning
+			return true, true
+		}
+
+		// Don't include, but continue scanning
+		return false, true
+	})
+}
+
+func filterFilesByTime(files []string, pred filterFilesByTimePred) ([]string, error) {
 	var (
 		j        int
 		multiErr xerrors.MultiError
 	)
-	// Matched files are sorted by their timestamps in ascending order.
+
 	for i := range files {
 		ft, err := TimeFromFileName(files[i])
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
 		}
-		if !ft.Before(t) {
+
+		include, continueScanning := pred(ft)
+
+		if include {
+			files[j] = files[i]
+			j++
+		}
+
+		if !continueScanning {
 			break
 		}
-		files[j] = files[i]
-		j++
 	}
 	return files[:j], multiErr.FinalError()
 }
