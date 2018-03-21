@@ -13,7 +13,9 @@ import (
 	"github.com/m3db/m3coordinator/util/logging"
 
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/storage/index"
+	m3ts "github.com/m3db/m3db/ts"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
 
@@ -27,7 +29,7 @@ func setup() {
 	defer logger.Sync()
 }
 
-func newSearchReq() *storage.FetchQuery {
+func newFetchReq() *storage.FetchQuery {
 	matchers := models.Matchers{
 		{
 			Type:  models.MatchEqual,
@@ -64,6 +66,16 @@ func newWriteQuery() *storage.WriteQuery {
 	}
 }
 
+func newMockSeriesIter(ctrl *gomock.Controller) encoding.SeriesIterator {
+	mockIter := encoding.NewMockSeriesIterator(ctrl)
+	mockIter.EXPECT().Next().Return(true).MaxTimes(1)
+	mockIter.EXPECT().Next().Return(false)
+	mockIter.EXPECT().Current().Return(m3ts.Datapoint{Timestamp: time.Now(), Value: 10}, xtime.Millisecond, nil)
+	mockIter.EXPECT().Close()
+
+	return mockIter
+}
+
 func setupLocalWrite(t *testing.T) storage.Storage {
 	setup()
 	ctrl := gomock.NewController(t)
@@ -86,6 +98,23 @@ func TestLocalWriteSuccess(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func setupLocalRead(t *testing.T) storage.Storage {
+	setup()
+	ctrl := gomock.NewController(t)
+	session := client.NewMockSession(ctrl)
+	session.EXPECT().Fetch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(newMockSeriesIter(ctrl), nil)
+	store := NewStorage(session, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
+	return store
+}
+
+func TestLocalRead(t *testing.T) {
+	store := setupLocalRead(t)
+	searchReq := newFetchReq()
+	results, err := store.Fetch(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	assert.NoError(t, err)
+	assert.Equal(t, models.Tags{"foo": "bar", "biz": "baz"}, results.SeriesList[0].Tags)
+}
+
 func setupLocalSearch(t *testing.T) storage.Storage {
 	setup()
 	ctrl := gomock.NewController(t)
@@ -97,7 +126,7 @@ func setupLocalSearch(t *testing.T) storage.Storage {
 
 func TestLocalSearchExpectedFail(t *testing.T) {
 	store := setupLocalSearch(t)
-	searchReq := newSearchReq()
+	searchReq := newFetchReq()
 	_, err := store.FetchTags(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
 	assert.Error(t, err)
 }
