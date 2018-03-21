@@ -28,21 +28,26 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
 
+type deleteFilesetAtFn func(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) error
+
 type peersSource struct {
-	opts  Options
-	log   xlog.Logger
-	nowFn clock.NowFn
+	opts              Options
+	log               xlog.Logger
+	nowFn             clock.NowFn
+	deleteFilesetAtFn deleteFilesetAtFn
 }
 
 type incrementalFlush struct {
@@ -55,9 +60,10 @@ type incrementalFlush struct {
 
 func newPeersSource(opts Options) bootstrap.Source {
 	return &peersSource{
-		opts:  opts,
-		log:   opts.ResultOptions().InstrumentOptions().Logger(),
-		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
+		opts:              opts,
+		log:               opts.ResultOptions().InstrumentOptions().Logger(),
+		nowFn:             opts.ResultOptions().ClockOptions().NowFn(),
+		deleteFilesetAtFn: fs.DeleteFilesetAt,
 	}
 }
 
@@ -347,6 +353,7 @@ func (s *peersSource) incrementalFlush(
 		shardRetriever    = shardRetrieverMgr.ShardRetriever(shard)
 		tmpCtx            = context.NewContext()
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
+		filePathPrefix    = s.opts.FilesystemOptions().FilesystemOptions().FilePathPrefix()
 	)
 	if seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
 		return fmt.Errorf("shard retriever missing for shard: %d", shard)
@@ -363,6 +370,21 @@ func (s *peersSource) incrementalFlush(
 			// exist on disk, but we were unable to bootstrap from them for some
 			// reason. In order to proceed, we will need to delete the existing
 			// files and then try to recreate them.
+			err := s.deleteFilesetAtFn(filePathPrefix, nsMetadata.ID(), shard, start)
+			if err != nil {
+				return err
+			}
+
+			prepared, ok, err = flush.Prepare(nsMetadata, shard, start)
+			if err != nil {
+				return err
+			}
+
+			if !ok {
+				return fmt.Errorf(
+					"flush preparation not ok after fileset deletion for shard: %d and namespace: %s and blockStart: %d",
+					shard, nsMetadata.ID(), start.Unix())
+			}
 		}
 
 		var blockErr error

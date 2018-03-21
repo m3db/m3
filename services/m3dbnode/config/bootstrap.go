@@ -125,6 +125,7 @@ func (bsc BootstrapConfiguration) New(
 		case peers.PeersBootstrapperName:
 			popts := peers.NewOptions().
 				SetResultOptions(rsopts).
+				SetFilesystemOptions(fsOpts).
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
