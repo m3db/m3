@@ -1,0 +1,15 @@
+hash: 2dcdc1d8794bb424ebe828931634cfa6f98f54359504735a6d21112b528953ed
+updated: 2018-03-22T17:12:39.152401-04:00
+imports:
+- name: github.com/gogo/protobuf
+  version: 1adfc126b41513cc696b209667c8656ea7aac67c
+- name: github.com/golang/protobuf
+  version: 925541529c1fa6821df4e44ce2723319eb2be768
+- name: github.com/m3db/m3x
+  version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
+testImports:
+- name: github.com/stretchr/testify
+  version: 232e8563676cd15c3a36ba5e675ad4312ac4cb11
+  subpackages:
+  - assert
+  - require
