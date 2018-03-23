@@ -403,7 +403,7 @@ type databaseShard interface {
 	// SnapshotState returns the snapshot state for this shard
 	SnapshotState() (isSnapshotting bool, lastSuccessfulSnapshot time.Time)
 
-	// CleanupSnapshot cleans up snapshot files
+	// CleanupSnapshots cleans up snapshot files
 	CleanupSnapshots() error
 
 	// CleanupFileset cleans up fileset files
