@@ -133,7 +133,8 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 	var (
 		shardDir              string
 		fileTimestampUnixNano time.Time
-		snapshotIndex         int
+		nextSnapshotIndex     int
+		err                   error
 	)
 
 	if opts.IsSnapshot {
@@ -142,6 +143,10 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 			return err
 		}
 		fileTimestampUnixNano = opts.WrittenAt
+		nextSnapshotIndex, err = NextSnapshotFileIndex(w.filePathPrefix, opts.Namespace, opts.Shard, opts.BlockStart)
+		if err != nil {
+			return err
+		}
 	} else {
 		shardDir = ShardDataDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
@@ -159,18 +164,36 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 	w.err = nil
 
 	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File
-	if err := openFiles(
-		w.openWritable,
-		map[string]**os.File{
-			filesetPathFromTime(shardDir, fileTimestampUnixNano, infoFileSuffix):        &infoFd,
-			filesetPathFromTime(shardDir, fileTimestampUnixNano, indexFileSuffix):       &indexFd,
-			filesetPathFromTime(shardDir, fileTimestampUnixNano, summariesFileSuffix):   &summariesFd,
-			filesetPathFromTime(shardDir, fileTimestampUnixNano, bloomFilterFileSuffix): &bloomFilterFd,
-			filesetPathFromTime(shardDir, fileTimestampUnixNano, dataFileSuffix):        &dataFd,
-			filesetPathFromTime(shardDir, fileTimestampUnixNano, digestFileSuffix):      &digestFd,
-		},
-	); err != nil {
-		return err
+	if opts.IsSnapshot {
+		err := openFiles(
+			w.openWritable,
+			map[string]**os.File{
+				snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, infoFileSuffix, nextSnapshotIndex):        &infoFd,
+				snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, indexFileSuffix, nextSnapshotIndex):       &indexFd,
+				snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, summariesFileSuffix, nextSnapshotIndex):   &summariesFd,
+				snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, bloomFilterFileSuffix, nextSnapshotIndex): &bloomFilterFd,
+				snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, dataFileSuffix, nextSnapshotIndex):        &dataFd,
+				snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, digestFileSuffix, nextSnapshotIndex):      &digestFd,
+			},
+		)
+		if err != nil {
+			return err
+		}
+	} else {
+		err := openFiles(
+			w.openWritable,
+			map[string]**os.File{
+				filesetPathFromTime(shardDir, fileTimestampUnixNano, infoFileSuffix):        &infoFd,
+				filesetPathFromTime(shardDir, fileTimestampUnixNano, indexFileSuffix):       &indexFd,
+				filesetPathFromTime(shardDir, fileTimestampUnixNano, summariesFileSuffix):   &summariesFd,
+				filesetPathFromTime(shardDir, fileTimestampUnixNano, bloomFilterFileSuffix): &bloomFilterFd,
+				filesetPathFromTime(shardDir, fileTimestampUnixNano, dataFileSuffix):        &dataFd,
+				filesetPathFromTime(shardDir, fileTimestampUnixNano, digestFileSuffix):      &digestFd,
+			},
+		)
+		if err != nil {
+			return err
+		}
 	}
 
 	w.infoFdWithDigest.Reset(infoFd)
