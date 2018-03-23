@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1829,37 +1830,22 @@ func (s *dbShard) CleanupSnapshots() error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	multiErr := xerrors.NewMultiError()
 	// TODO: Make mockable
-	files, err := fs.SnapshotFiles(filePathPrefix, s.namespace.ID(), s.ID())
+	snapshotFiles, err := fs.SnapshotFiles(filePathPrefix, s.namespace.ID(), s.ID())
 	if err != nil {
 		return err
 	}
 
-	// Determine which set of files is the latest
-	// TODO: This code needs to be a little smarter and make sure that the latest
-	// fileset actually has a checkpoint file otherwise we could end up deleting
-	// old snapshot files while the new ones are in the middle of being written to
-	// or were incompletely written.
-	var (
-		latest   time.Time
-		fileTime time.Time
-	)
-	for _, file := range files {
-		fileTime, err = fs.TimeFromFileName(file)
-		if err != nil {
-			multiErr = multiErr.Add(err)
-			continue
-		}
-
-		if fileTime.After(latest) {
-			latest = fileTime
-		}
-	}
+	// Should already be sorted by blockStart, but just to be safe
+	sort.Slice(snapshotFiles, func(i, j int) bool {
+		return snapshotFiles[i].BlockStart.Before(snapshotFiles[j].BlockStart)
+	})
+	latestBlockStart := snapshotFiles[len(snapshotFiles)-1].BlockStart
 
 	// All snapshots files are cumulative (contain all data in previous files + new data),
 	// so if a newer file exists its always safe to delete the old ones. This is true across
 	// block starts as well because we only ever write out snapshot files for a given block if
 	// the previous block has been properly flushed.
-	filesToDelete, err := fs.FilesBefore(files, latest)
+	filesToDelete, err := fs.FilesBefore(snapshotFiles.Flatten(), latestBlockStart)
 	if err != nil {
 		return multiErr.Add(err).FinalError()
 	}

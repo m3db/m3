@@ -54,6 +54,19 @@ type FilesetFile struct {
 	Files      []string
 }
 
+// FilesetFilesSlice is a slice of FilesetFile
+type FilesetFilesSlice []FilesetFile
+
+// Flatten flattens a slice of FilesetFiles to a single slice of filepaths
+func (f FilesetFilesSlice) Flatten() []string {
+	flattened := []string{}
+	for _, fileset := range f {
+		flattened = append(flattened, fileset.Files...)
+	}
+
+	return flattened
+}
+
 // NewFilesetFile creates a new Fileset file
 func NewFilesetFile(blockStart time.Time) FilesetFile {
 	return FilesetFile{
@@ -68,6 +81,19 @@ type SnapshotFile struct {
 	// also have an auto-incrementing index
 	Index int
 	FilesetFile
+}
+
+// SnapshotFilesSlice is a slice of SnapshotFile
+type SnapshotFilesSlice []SnapshotFile
+
+// Flatten flattens a slice of SnapshotFiles to a single slice of filepaths
+func (f SnapshotFilesSlice) Flatten() []string {
+	flattened := []string{}
+	for _, snapshot := range f {
+		flattened = append(flattened, snapshot.Files...)
+	}
+
+	return flattened
 }
 
 // NewSnapshotFile creates a new Snapshot file
@@ -212,10 +238,7 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
 	digestBuf := digest.NewBuffer()
 	for i := range matched {
-		t, err := TimeFromFileName(matched[i])
-		if err != nil {
-			continue
-		}
+		t := matched[i].BlockStart
 		checkpointFilePath := filesetPathFromTime(shardDir, t, checkpointFileSuffix)
 		if !FileExists(checkpointFilePath) {
 			continue
@@ -241,7 +264,7 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 		if err != nil {
 			continue
 		}
-		fn(matched[i], infoData)
+		fn(matched[i].Files[0], infoData)
 	}
 }
 
@@ -271,7 +294,7 @@ func ReadInfoFiles(
 
 // SnapshotFiles returns a slice of all the names for all the fileset files
 // for a given namespace and shard combination.
-func SnapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32) ([]SnapshotFile, error) {
+func SnapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32) (SnapshotFilesSlice, error) {
 	return snapshotFiles(filePathPrefix, namespace, shard, filesetFilePattern)
 }
 
@@ -281,7 +304,7 @@ func FilesetBefore(filePathPrefix string, namespace ident.ID, shard uint32, t ti
 	if err != nil {
 		return nil, err
 	}
-	return FilesBefore(matched, t)
+	return FilesBefore(matched.Flatten(), t)
 }
 
 // DeleteInactiveDirectories deletes any directories that are not currently active, as defined by the
@@ -386,12 +409,11 @@ func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, patt
 
 		if latestBlockStart.IsZero() {
 			latestSnapshotFile = NewSnapshotFile(currentFileBlockStart)
-			latestBlockStart = currentFileBlockStart
 		} else if !currentFileBlockStart.Equal(latestBlockStart) {
 			snapshotFiles = append(snapshotFiles, latestSnapshotFile)
 			latestSnapshotFile = NewSnapshotFile(currentFileBlockStart)
-			latestBlockStart = currentFileBlockStart
 		}
+		latestBlockStart = currentFileBlockStart
 
 		latestSnapshotFile.Files = append(latestSnapshotFile.Files, file)
 	}
@@ -400,11 +422,40 @@ func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, patt
 	return snapshotFiles, nil
 }
 
-func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, pattern string) ([]string, error) {
+func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, pattern string) (FilesetFilesSlice, error) {
 	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
-	return findFiles(shardDir, pattern, func(files []string) sort.Interface {
+	byTimeAsc, err := findFiles(shardDir, pattern, func(files []string) sort.Interface {
 		return byTimeAscending(files)
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		latestBlockStart  time.Time
+		latestFilesetFile FilesetFile
+		filesetFiles      = []FilesetFile{}
+	)
+	for _, file := range byTimeAsc {
+		currentFileBlockStart, err := TimeFromFileName(file)
+		if err != nil {
+			return nil, err
+		}
+
+		if latestBlockStart.IsZero() {
+			latestFilesetFile = NewFilesetFile(currentFileBlockStart)
+		} else if !currentFileBlockStart.Equal(latestBlockStart) {
+			filesetFiles = append(filesetFiles, latestFilesetFile)
+			latestFilesetFile = NewFilesetFile(currentFileBlockStart)
+		}
+		latestBlockStart = currentFileBlockStart
+
+		latestFilesetFile.Files = append(latestFilesetFile.Files, file)
+	}
+	filesetFiles = append(filesetFiles, latestFilesetFile)
+
+	return filesetFiles, nil
 }
 
 func commitlogFiles(commitLogsDir string, pattern string) ([]string, error) {

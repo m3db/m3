@@ -20,7 +20,6 @@
 
 package fs
 
-// ReaderOpenOptionsMatcher is a matcher for the ReaderOpenOptions struct
 import (
 	"fmt"
 	"time"
@@ -28,6 +27,7 @@ import (
 	"github.com/m3db/m3x/ident"
 )
 
+// ReaderOpenOptionsMatcher is a matcher for the ReaderOpenOptions struct
 type ReaderOpenOptionsMatcher struct {
 	Namespace  ident.ID
 	BlockStart time.Time

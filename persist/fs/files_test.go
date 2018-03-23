@@ -387,14 +387,6 @@ func TestSnapshotFiles(t *testing.T) {
 	for i, snapshotFile := range files {
 		require.Equal(t, int64(i), snapshotFile.BlockStart.Unix())
 	}
-	// var prev time.Time
-	// for _, file := range files {
-	// 	// Make sure they're sorted ASC
-	// 	curr, err := TimeFromFileName(file)
-	// 	require.NoError(t, err)
-	// 	require.Equal(t, true, curr.After(prev))
-	// 	prev = curr
-	// }
 }
 
 func TestSnapshotDirPath(t *testing.T) {

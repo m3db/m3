@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/ratelimit"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/close"
 
 	"github.com/golang/mock/gomock"
@@ -258,6 +259,78 @@ func (_m *MockOptions) MaxWiredBlocks() uint {
 // MaxWiredBlocks indicates an expected call of MaxWiredBlocks
 func (_mr *MockOptionsMockRecorder) MaxWiredBlocks() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "MaxWiredBlocks", reflect.TypeOf((*MockOptions)(nil).MaxWiredBlocks))
+}
+
+// SetClientBootstrapConsistencyLevel mocks base method
+func (_m *MockOptions) SetClientBootstrapConsistencyLevel(value topology.ReadConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetClientBootstrapConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClientBootstrapConsistencyLevel indicates an expected call of SetClientBootstrapConsistencyLevel
+func (_mr *MockOptionsMockRecorder) SetClientBootstrapConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClientBootstrapConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).SetClientBootstrapConsistencyLevel), arg0)
+}
+
+// ClientBootstrapConsistencyLevel mocks base method
+func (_m *MockOptions) ClientBootstrapConsistencyLevel() topology.ReadConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "ClientBootstrapConsistencyLevel")
+	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
+	return ret0
+}
+
+// ClientBootstrapConsistencyLevel indicates an expected call of ClientBootstrapConsistencyLevel
+func (_mr *MockOptionsMockRecorder) ClientBootstrapConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClientBootstrapConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).ClientBootstrapConsistencyLevel))
+}
+
+// SetClientReadConsistencyLevel mocks base method
+func (_m *MockOptions) SetClientReadConsistencyLevel(value topology.ReadConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetClientReadConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClientReadConsistencyLevel indicates an expected call of SetClientReadConsistencyLevel
+func (_mr *MockOptionsMockRecorder) SetClientReadConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClientReadConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).SetClientReadConsistencyLevel), arg0)
+}
+
+// ClientReadConsistencyLevel mocks base method
+func (_m *MockOptions) ClientReadConsistencyLevel() topology.ReadConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "ClientReadConsistencyLevel")
+	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
+	return ret0
+}
+
+// ClientReadConsistencyLevel indicates an expected call of ClientReadConsistencyLevel
+func (_mr *MockOptionsMockRecorder) ClientReadConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClientReadConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).ClientReadConsistencyLevel))
+}
+
+// SetClientWriteConsistencyLevel mocks base method
+func (_m *MockOptions) SetClientWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetClientWriteConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClientWriteConsistencyLevel indicates an expected call of SetClientWriteConsistencyLevel
+func (_mr *MockOptionsMockRecorder) SetClientWriteConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClientWriteConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).SetClientWriteConsistencyLevel), arg0)
+}
+
+// ClientWriteConsistencyLevel mocks base method
+func (_m *MockOptions) ClientWriteConsistencyLevel() topology.ConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "ClientWriteConsistencyLevel")
+	ret0, _ := ret[0].(topology.ConsistencyLevel)
+	return ret0
+}
+
+// ClientWriteConsistencyLevel indicates an expected call of ClientWriteConsistencyLevel
+func (_mr *MockOptionsMockRecorder) ClientWriteConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClientWriteConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).ClientWriteConsistencyLevel))
 }
 
 // MockOptionsManager is a mock of OptionsManager interface
