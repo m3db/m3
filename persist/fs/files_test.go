@@ -98,7 +98,7 @@ func createInfoFiles(t *testing.T, subDirName string, namespace ident.ID, shard 
 	shardDir := path.Join(dir, subDirName, namespace.String(), strconv.Itoa(int(shard)))
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 	for i := 0; i < iter; i++ {
-		ts := time.Unix(0, int64(i))
+		ts := time.Unix(int64(i), 0)
 		infoFilePath := filesetPathFromTime(shardDir, ts, infoFileSuffix)
 		createFile(t, infoFilePath, nil)
 	}
@@ -364,14 +364,14 @@ func TestFilesetFilesBefore(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	cutoffIter := 8
-	cutoff := time.Unix(0, int64(cutoffIter))
+	cutoff := time.Unix(int64(cutoffIter), 0)
 	res, err := FilesetBefore(dir, testNs1ID, shard, cutoff)
 	require.NoError(t, err)
 	require.Equal(t, cutoffIter, len(res))
 
 	shardDir := path.Join(dir, dataDirName, testNs1ID.String(), strconv.Itoa(int(shard)))
 	for i := 0; i < len(res); i++ {
-		ts := time.Unix(0, int64(i))
+		ts := time.Unix(int64(i), 0)
 		require.Equal(t, filesetPathFromTime(shardDir, ts, infoFileSuffix), res[i])
 	}
 }
@@ -384,14 +384,17 @@ func TestSnapshotFiles(t *testing.T) {
 	files, err := SnapshotFiles(dir, testNs1ID, shard)
 	require.NoError(t, err)
 	require.Equal(t, 20, len(files))
-	var prev time.Time
-	for _, file := range files {
-		// Make sure they're sorted ASC
-		curr, err := TimeFromFileName(file)
-		require.NoError(t, err)
-		require.Equal(t, true, curr.After(prev))
-		prev = curr
+	for i, snapshotFile := range files {
+		require.Equal(t, int64(i), snapshotFile.BlockStart.Unix())
 	}
+	// var prev time.Time
+	// for _, file := range files {
+	// 	// Make sure they're sorted ASC
+	// 	curr, err := TimeFromFileName(file)
+	// 	require.NoError(t, err)
+	// 	require.Equal(t, true, curr.After(prev))
+	// 	prev = curr
+	// }
 }
 
 func TestSnapshotDirPath(t *testing.T) {

@@ -48,6 +48,35 @@ const (
 
 type fileOpener func(filePath string) (*os.File, error)
 
+// FilesetFile represents a set of Fileset files for a given block start
+type FilesetFile struct {
+	BlockStart time.Time
+	Files      []string
+}
+
+// NewFilesetFile creates a new Fileset file
+func NewFilesetFile(blockStart time.Time) FilesetFile {
+	return FilesetFile{
+		BlockStart: blockStart,
+		Files:      []string{},
+	}
+}
+
+// SnapshotFile represents a set of Snapshot files for a given block start
+type SnapshotFile struct {
+	// There can be multiple snapshot files with the same blockstart, so they
+	// also have an auto-incrementing index
+	Index int
+	FilesetFile
+}
+
+// NewSnapshotFile creates a new Snapshot file
+func NewSnapshotFile(blockStart time.Time) SnapshotFile {
+	return SnapshotFile{
+		FilesetFile: NewFilesetFile(blockStart),
+	}
+}
+
 func openFiles(opener fileOpener, fds map[string]**os.File) error {
 	var firstErr error
 	for filePath, fdPtr := range fds {
@@ -242,7 +271,7 @@ func ReadInfoFiles(
 
 // SnapshotFiles returns a slice of all the names for all the fileset files
 // for a given namespace and shard combination.
-func SnapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32) ([]string, error) {
+func SnapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32) ([]SnapshotFile, error) {
 	return snapshotFiles(filePathPrefix, namespace, shard, filesetFilePattern)
 }
 
@@ -334,11 +363,41 @@ func findSubDirectoriesAndPaths(directoryPath string) (directoryNamesToPaths, er
 	return subDirectoriesToPaths, nil
 }
 
-func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, pattern string) ([]string, error) {
+func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, pattern string) ([]SnapshotFile, error) {
 	shardDir := ShardSnapshotsDirPath(filePathPrefix, namespace, shard)
-	return findFiles(shardDir, pattern, func(files []string) sort.Interface {
+	byTimeAsc, err := findFiles(shardDir, pattern, func(files []string) sort.Interface {
 		return byTimeAscending(files)
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		latestBlockStart   time.Time
+		latestSnapshotFile SnapshotFile
+		snapshotFiles      = []SnapshotFile{}
+	)
+	for _, file := range byTimeAsc {
+		currentFileBlockStart, err := TimeFromFileName(file)
+		if err != nil {
+			return nil, err
+		}
+
+		if latestBlockStart.IsZero() {
+			latestSnapshotFile = NewSnapshotFile(currentFileBlockStart)
+			latestBlockStart = currentFileBlockStart
+		} else if !currentFileBlockStart.Equal(latestBlockStart) {
+			snapshotFiles = append(snapshotFiles, latestSnapshotFile)
+			latestSnapshotFile = NewSnapshotFile(currentFileBlockStart)
+			latestBlockStart = currentFileBlockStart
+		}
+
+		latestSnapshotFile.Files = append(latestSnapshotFile.Files, file)
+	}
+	snapshotFiles = append(snapshotFiles, latestSnapshotFile)
+
+	return snapshotFiles, nil
 }
 
 func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, pattern string) ([]string, error) {
