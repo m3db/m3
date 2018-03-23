@@ -78,7 +78,8 @@ func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, index u
 
 func TestShardDontNeedBootstrap(t *testing.T) {
 	opts := testDatabaseOptions()
-	testNs := newTestNamespace(t)
+	testNs, closer := newTestNamespace(t)
+	defer closer()
 	seriesOpts := NewSeriesOptionsFromOptions(opts, testNs.Options().RetentionOptions())
 	shard := newDatabaseShard(testNs.metadata, 0, nil, nil,
 		&testIncreasingIndex{}, commitLogWriteNoOp, databaseIndexNoOp, false, opts, seriesOpts).(*dbShard)

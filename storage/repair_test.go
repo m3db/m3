@@ -358,7 +358,8 @@ func TestRepairerRepairTimes(t *testing.T) {
 		r.repairStatesByNs.setRepairState(defaultTestNs1ID, input.bs, input.rs)
 	}
 
-	testNs := newTestNamespace(t)
+	testNs, closer := newTestNamespace(t)
+	defer closer()
 	res := r.namespaceRepairTimeRanges(testNs)
 	expectedRanges := xtime.Ranges{}.
 		AddRange(xtime.Range{Start: time.Unix(14400, 0), End: time.Unix(28800, 0)}).
@@ -451,7 +452,8 @@ func TestRepairerTimesMultipleNamespaces(t *testing.T) {
 		r.repairStatesByNs.setRepairState(input.ns, input.bs, input.rs)
 	}
 
-	testNs1 := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, defaultTestNs1Opts)
+	testNs1, closer1 := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, defaultTestNs1Opts)
+	defer closer1()
 	res := r.namespaceRepairTimeRanges(testNs1)
 	expectedRanges := xtime.Ranges{}.
 		AddRange(xtime.Range{Start: tf2(2), End: tf2(4)}).
@@ -459,7 +461,8 @@ func TestRepairerTimesMultipleNamespaces(t *testing.T) {
 		AddRange(xtime.Range{Start: tf2(7), End: tf2(26)})
 	require.Equal(t, expectedRanges, res)
 
-	testNs2 := newTestNamespaceWithIDOpts(t, defaultTestNs2ID, defaultTestNs2Opts)
+	testNs2, closer2 := newTestNamespaceWithIDOpts(t, defaultTestNs2ID, defaultTestNs2Opts)
+	defer closer2()
 	res = r.namespaceRepairTimeRanges(testNs2)
 	expectedRanges = xtime.Ranges{}.
 		AddRange(xtime.Range{Start: tf4(1), End: tf4(2)}).
