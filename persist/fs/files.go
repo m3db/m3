@@ -181,13 +181,14 @@ func (a byTimeAscending) Less(i, j int) bool {
 // byTimeAndIndexAscending sorts files by their block start times and index in ascending
 // order. If the files do not have block start times or indexes in their names, the result
 // is undefined.
+// TODO: Rename so its clear only works with commitlog
 type byTimeAndIndexAscending []string
 
 func (a byTimeAndIndexAscending) Len() int      { return len(a) }
 func (a byTimeAndIndexAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a byTimeAndIndexAscending) Less(i, j int) bool {
-	ti, ii, _ := TimeAndIndexFromFileName(a[i])
-	tj, ij, _ := TimeAndIndexFromFileName(a[j])
+	ti, ii, _ := TimeAndIndexFromFileNameCommitlog(a[i])
+	tj, ij, _ := TimeAndIndexFromFileNameCommitlog(a[j])
 	if ti.Before(tj) {
 		return true
 	}
@@ -195,6 +196,7 @@ func (a byTimeAndIndexAscending) Less(i, j int) bool {
 }
 
 func componentsAndTimeFromFileName(fname string) ([]string, time.Time, error) {
+	fmt.Println("Parsing: ", fname)
 	components := strings.Split(filepath.Base(fname), separator)
 	if len(components) < 3 {
 		return nil, timeZero, fmt.Errorf("unexpected file name %s", fname)
@@ -202,6 +204,7 @@ func componentsAndTimeFromFileName(fname string) ([]string, time.Time, error) {
 	str := strings.Replace(components[1], fileSuffix, "", 1)
 	nanoseconds, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
+		fmt.Println("fml: ", fname)
 		return nil, timeZero, err
 	}
 	return components, time.Unix(0, nanoseconds), nil
@@ -213,13 +216,29 @@ func TimeFromFileName(fname string) (time.Time, error) {
 	return t, err
 }
 
-// TimeAndIndexFromFileName extracts the block start and index from file name.
-func TimeAndIndexFromFileName(fname string) (time.Time, int, error) {
+// TimeAndIndexFromFileNameCommitlog extracts the block start and index from file name for a commitlog.
+// TODO: Swap words in name
+func TimeAndIndexFromFileNameCommitlog(fname string) (time.Time, int, error) {
+	return timeAndIndexFromFileName(fname, 2)
+}
+
+// TimeAndIndexFromFileNameSnapshot extracts the block start and index from file name for a Snapshot.
+func TimeAndIndexFromFileNameSnapshot(fname string) (time.Time, int, error) {
+	return timeAndIndexFromFileName(fname, 3)
+}
+
+// TODO: Test
+func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, int, error) {
 	components, t, err := componentsAndTimeFromFileName(fname)
 	if err != nil {
 		return timeZero, 0, err
 	}
-	str := strings.Replace(components[2], fileSuffix, "", 1)
+
+	if componentPosition > (len(components) - 1) {
+		return timeZero, 0, fmt.Errorf("malformatted filename: %s", fname)
+	}
+
+	str := strings.Replace(components[componentPosition], fileSuffix, "", 1)
 	index, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
 		return timeZero, 0, err
@@ -408,7 +427,7 @@ func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, patt
 		snapshotFiles      = []SnapshotFile{}
 	)
 	for _, file := range byTimeAsc {
-		currentFileBlockStart, index, err := TimeAndIndexFromFileName(file)
+		currentFileBlockStart, index, err := TimeAndIndexFromFileNameSnapshot(file)
 		if err != nil {
 			return nil, err
 		}
@@ -571,6 +590,11 @@ func DataFilesetExistsAt(prefix string, namespace ident.ID, shard uint32, blockS
 
 // SnapshotFilesetExistsAt determines whether snapshot fileset files exist for the given namespace, shard, and block start time.
 func SnapshotFilesetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) bool {
+	// snapshotFiles, err := SnapshotFiles(prefix, namespace, shard)
+	// if err != nil {
+	// 	return false, err
+	// }
+
 	shardDir := ShardSnapshotsDirPath(prefix, namespace, shard)
 	checkpointFile := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	return FileExists(checkpointFile)
@@ -625,5 +649,6 @@ func filesetPathFromTime(prefix string, t time.Time, suffix string) string {
 
 func snapshotPathFromTimeAndIndex(prefix string, t time.Time, suffix string, index int) string {
 	name := fmt.Sprintf("%s%s%d%s%s%s%d%s", filesetFilePrefix, separator, t.UnixNano(), separator, suffix, separator, index, fileSuffix)
+	fmt.Println("writing: ", path.Join(prefix, name))
 	return path.Join(prefix, name)
 }

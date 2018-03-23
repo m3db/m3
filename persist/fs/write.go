@@ -132,7 +132,7 @@ func NewWriter(opts Options) (FileSetWriter, error) {
 func (w *writer) Open(opts WriterOpenOptions) error {
 	var (
 		shardDir              string
-		fileTimestampUnixNano time.Time
+		fileTimestampUnixNano = opts.BlockStart
 		nextSnapshotIndex     int
 		err                   error
 	)
@@ -142,7 +142,6 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
 		}
-		fileTimestampUnixNano = opts.WrittenAt
 		nextSnapshotIndex, err = NextSnapshotFileIndex(w.filePathPrefix, opts.Namespace, opts.Shard, opts.BlockStart)
 		if err != nil {
 			return err
@@ -152,7 +151,6 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
 		}
-		fileTimestampUnixNano = opts.BlockStart
 	}
 
 	w.blockSize = opts.BlockSize
@@ -160,7 +158,12 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 	w.writtenAt = opts.WrittenAt
 	w.currIdx = 0
 	w.currOffset = 0
-	w.checkpointFilePath = filesetPathFromTime(shardDir, fileTimestampUnixNano, checkpointFileSuffix)
+	if opts.IsSnapshot {
+		w.checkpointFilePath = snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, checkpointFileSuffix, nextSnapshotIndex)
+
+	} else {
+		w.checkpointFilePath = filesetPathFromTime(shardDir, fileTimestampUnixNano, checkpointFileSuffix)
+	}
 	w.err = nil
 
 	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File
