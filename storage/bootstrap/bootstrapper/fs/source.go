@@ -93,7 +93,7 @@ func (s *fileSystemSource) shardAvailability(
 		return xtime.Ranges{}
 	}
 
-	entries, err := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
+	readInfoFilesResults, err := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
 		namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
 	if err != nil {
 		s.log.WithFields(
@@ -103,13 +103,17 @@ func (s *fileSystemSource) shardAvailability(
 			xlog.NewField("targetRangesForShard", targetRangesForShard),
 		).Error("unable to read info files in shardAvailability")
 	}
-	if len(entries) == 0 {
+	if len(readInfoFilesResults) == 0 {
 		return xtime.Ranges{}
 	}
 
 	var tr xtime.Ranges
-	for i := 0; i < len(entries); i++ {
-		info := entries[i]
+	for i := 0; i < len(readInfoFilesResults); i++ {
+		result := readInfoFilesResults[i]
+		if result.Err != nil {
+			continue
+		}
+		info := result.Info
 		t := xtime.FromNanoseconds(info.BlockStart)
 		w := time.Duration(info.BlockSize)
 		currRange := xtime.Range{Start: t, End: t.Add(w)}
@@ -127,7 +131,7 @@ func (s *fileSystemSource) enqueueReaders(
 	readersCh chan<- shardReaders,
 ) {
 	for shard, tr := range shardsTimeRanges {
-		files, err := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
+		readInfoFilesResults, err := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
 			namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
 		if err != nil {
 			s.log.WithFields(
@@ -137,21 +141,27 @@ func (s *fileSystemSource) enqueueReaders(
 				xlog.NewField("timeRange", tr),
 			).Error("unable to read info files in enqueueReaders")
 		}
-		if len(files) == 0 {
+		if len(readInfoFilesResults) == 0 {
 			// Use default readers value to indicate no readers for this shard
 			readersCh <- newShardReaders(shard, tr, nil)
 			continue
 		}
 
-		readers := make([]fs.FileSetReader, 0, len(files))
-		for i := 0; i < len(files); i++ {
+		readers := make([]fs.FileSetReader, 0, len(readInfoFilesResults))
+		for i := 0; i < len(readInfoFilesResults); i++ {
+			result := readInfoFilesResults[i]
+			if result.Err != nil {
+				continue
+			}
+			info := result.Info
+
 			r, err := readerPool.get()
 			if err != nil {
 				s.log.Errorf("unable to get reader from pool")
 				readersCh <- newShardReadersErr(shard, tr, err)
 				continue
 			}
-			t := xtime.FromNanoseconds(files[i].BlockStart).Round(0).UTC()
+			t := xtime.FromNanoseconds(info.BlockStart).Round(0).UTC()
 			openOpts := fs.ReaderOpenOptions{
 				Namespace:  namespace,
 				Shard:      shard,

@@ -268,6 +268,12 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 	}
 }
 
+// ReadInfoFileResult is the result of reading an info file
+type ReadInfoFileResult struct {
+	Info schema.IndexInfo
+	Err  error
+}
+
 // ReadInfoFiles reads all the valid info entries. Even if ReadInfoFiles returns an error,
 // there may be some valid entries in the returned slice.
 func ReadInfoFiles(
@@ -276,20 +282,20 @@ func ReadInfoFiles(
 	shard uint32,
 	readerBufferSize int,
 	decodingOpts msgpack.DecodingOptions,
-) ([]schema.IndexInfo, error) {
+) ([]ReadInfoFileResult, error) {
 	multiErr := xerrors.NewMultiError()
-	var indexEntries []schema.IndexInfo
+	var infoFileResults []ReadInfoFileResult
 	decoder := msgpack.NewDecoder(decodingOpts)
 	forEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
 		decoder.Reset(msgpack.NewDecoderStream(data))
 		info, err := decoder.DecodeIndexInfo()
-		if err != nil {
-			multiErr = multiErr.Add(err)
-			return
-		}
-		indexEntries = append(indexEntries, info)
+		multiErr = multiErr.Add(err)
+		infoFileResults = append(infoFileResults, ReadInfoFileResult{
+			Info: info,
+			Err:  err,
+		})
 	})
-	return indexEntries, multiErr.FinalError()
+	return infoFileResults, multiErr.FinalError()
 }
 
 // SnapshotFiles returns a slice of all the names for all the fileset files

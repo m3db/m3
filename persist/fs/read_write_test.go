@@ -216,11 +216,14 @@ func TestInfoReadWrite(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writeTestData(t, w, 0, testWriterStart, entries)
 
-	infoFiles, err := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
-	require.Equal(t, 1, len(infoFiles))
+	readInfoFileResults, err := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
+	require.Equal(t, 1, len(readInfoFileResults))
 	require.NoError(t, err)
+	for _, result := range readInfoFileResults {
+		require.NoError(t, result.Err)
+	}
 
-	infoFile := infoFiles[0]
+	infoFile := readInfoFileResults[0].Info
 	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.BlockStart)))
 	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
 	require.Equal(t, int64(len(entries)), infoFile.Entries)
