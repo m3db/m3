@@ -237,14 +237,8 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 	// they wouldn't have created the checkpoint file. This can happen in a variety of situations
 	// for flushes, but is unlikely with snapshots because every snapshot has a unique timestamp
 	// that is not block-aligned.
-	if opts.IsSnapshot {
-		if SnapshotFilesetExistsAt(pm.filePathPrefix, nsID, shard, writtenAt) {
-			return prepared, nil
-		}
-	} else {
-		if DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart) {
-			return prepared, nil
-		}
+	if pm.filesetExistsAt(opts) {
+		return prepared, nil
 	}
 
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
@@ -264,6 +258,20 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 	prepared.Close = pm.close
 
 	return prepared, nil
+}
+
+func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) bool {
+	var (
+		blockStart = prepareOpts.BlockStart
+		shard      = prepareOpts.Shard
+		writtenAt  = prepareOpts.WrittenAt
+		nsID       = prepareOpts.NsMetadata.ID()
+	)
+
+	if prepareOpts.IsSnapshot {
+		return SnapshotFilesetExistsAt(pm.filePathPrefix, nsID, shard, writtenAt)
+	}
+	return DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart)
 }
 
 func (pm *persistManager) SetRuntimeOptions(value runtime.Options) {
