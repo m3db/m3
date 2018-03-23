@@ -28,12 +28,12 @@ const MajorVersion = 1
 // IndexInfo stores metadata information about block filesets
 type IndexInfo struct {
 	BlockStart   int64
-	WrittenAt    int64
 	BlockSize    int64
 	Entries      int64
 	MajorVersion int64
 	Summaries    IndexSummariesInfo
 	BloomFilter  IndexBloomFilterInfo
+	WrittenAt    int64
 	IsSnapshot   bool
 }
 
