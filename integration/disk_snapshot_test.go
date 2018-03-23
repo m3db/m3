@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -79,7 +80,9 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	testSetup.setNowFn(now)
 	maxWaitTime := time.Minute
 	for _, ns := range testSetup.namespaces {
-		require.NoError(t, waitUntilSnapshotFilesFlushed(filePathPrefix, testSetup.shardSet, ns.ID(), []time.Time{now}, maxWaitTime))
+		fmt.Println("waiting")
+		require.NoError(t, waitUntilSnapshotFilesFlushed(filePathPrefix, testSetup.shardSet, ns.ID(), []time.Time{now.Truncate(blockSize)}, maxWaitTime))
+		fmt.Println("done waiting")
 		verifySnapshottedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, ns.ID(), now, seriesMaps)
 	}
 
@@ -90,10 +93,13 @@ func TestDiskSnapshotSimple(t *testing.T) {
 
 	testSetup.sleepFor10xTickMinimumInterval()
 	for _, ns := range testSetup.namespaces {
-		require.NoError(t, waitUntilSnapshotFilesFlushed(filePathPrefix, testSetup.shardSet, ns.ID(), []time.Time{newTime}, maxWaitTime))
+		require.NoError(t, waitUntilSnapshotFilesFlushed(filePathPrefix, testSetup.shardSet, ns.ID(), []time.Time{newTime.Truncate(blockSize)}, maxWaitTime))
 		for _, shard := range testSetup.shardSet.All() {
 			waitUntil(func() bool {
-				return !fs.SnapshotFilesetExistsAt(filePathPrefix, ns.ID(), shard.ID(), oldTime)
+				fmt.Println("waiting....")
+				exists, err := fs.SnapshotFilesetExistsAt(filePathPrefix, ns.ID(), shard.ID(), oldTime)
+				require.NoError(t, err)
+				return exists
 			}, maxWaitTime)
 		}
 	}
