@@ -401,7 +401,7 @@ type databaseShard interface {
 	FlushState(blockStart time.Time) fileOpState
 
 	// SnapshotState returns the snapshot state for this shard
-	SnapshotState() (bool, time.Time)
+	SnapshotState() (isSnapshotting bool, lastSuccessfulSnapshot time.Time)
 
 	// CleanupSnapshot cleans up snapshot files
 	CleanupSnapshots() error
