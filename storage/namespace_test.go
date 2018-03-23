@@ -426,9 +426,8 @@ func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 }
 
 func TestNamespaceFlushDontNeedFlush(t *testing.T) {
-	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
-		namespace.NewOptions().SetNeedsFlush(false))
-	defer closer()
+	ns := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
+		namespace.NewOptions().SetFlushEnabled(false))
 	ns.bs = bootstrapped
 	require.NoError(t, ns.Flush(time.Now(), nil))
 }

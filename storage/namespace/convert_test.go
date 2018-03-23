@@ -158,10 +158,10 @@ func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOp
 	opts := observed.Options()
 
 	require.Equal(t, expected.NeedsBootstrap, opts.NeedsBootstrap())
-	require.Equal(t, expected.NeedsFlush, opts.NeedsFlush())
+	require.Equal(t, expected.NeedsFlush, opts.FlushEnabled())
 	require.Equal(t, expected.WritesToCommitLog, opts.WritesToCommitLog())
-	require.Equal(t, expected.NeedsFilesetCleanup, opts.NeedsCleanup())
-	require.Equal(t, expected.NeedsRepair, opts.NeedsRepair())
+	require.Equal(t, expected.NeedsFilesetCleanup, opts.CleanupEnabled())
+	require.Equal(t, expected.NeedsRepair, opts.RepairEnabled())
 
 	assertEqualRetentions(t, *expected.RetentionOptions, opts.RetentionOptions())
 }

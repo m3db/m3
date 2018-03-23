@@ -311,10 +311,10 @@ func newNamespaceMetadata(cfg StaticNamespaceConfiguration) (namespace.Metadata,
 		ident.StringID(cfg.Name),
 		namespace.NewOptions().
 			SetNeedsBootstrap(cfg.Options.NeedsBootstrap).
-			SetNeedsCleanup(cfg.Options.NeedsCleanup).
-			SetNeedsFlush(cfg.Options.NeedsFlush).
-			SetNeedsSnapshot(cfg.Options.NeedsSnapshot).
-			SetNeedsRepair(cfg.Options.NeedsRepair).
+			SetCleanupEnabled(cfg.Options.NeedsCleanup).
+			SetFlushEnabled(cfg.Options.NeedsFlush).
+			SetSnapshotEnabled(cfg.Options.NeedsSnapshot).
+			SetRepairEnabled(cfg.Options.NeedsRepair).
 			SetWritesToCommitLog(cfg.Options.WritesToCommitLog).
 			SetRetentionOptions(
 				retention.NewOptions().

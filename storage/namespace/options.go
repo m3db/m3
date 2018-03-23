@@ -74,10 +74,10 @@ func (o *options) Validate() error {
 
 func (o *options) Equal(value Options) bool {
 	return o.needsBootstrap == value.NeedsBootstrap() &&
-		o.needsFlush == value.NeedsFlush() &&
+		o.needsFlush == value.FlushEnabled() &&
 		o.writesToCommitLog == value.WritesToCommitLog() &&
-		o.needsCleanup == value.NeedsCleanup() &&
-		o.needsRepair == value.NeedsRepair() &&
+		o.needsCleanup == value.CleanupEnabled() &&
+		o.needsRepair == value.RepairEnabled() &&
 		o.retentionOpts.Equal(value.RetentionOptions())
 }
 
@@ -91,23 +91,23 @@ func (o *options) NeedsBootstrap() bool {
 	return o.needsBootstrap
 }
 
-func (o *options) SetNeedsFlush(value bool) Options {
+func (o *options) SetFlushEnabled(value bool) Options {
 	opts := *o
 	opts.needsFlush = value
 	return &opts
 }
 
-func (o *options) NeedsFlush() bool {
+func (o *options) FlushEnabled() bool {
 	return o.needsFlush
 }
 
-func (o *options) SetNeedsSnapshot(value bool) Options {
+func (o *options) SetSnapshotEnabled(value bool) Options {
 	opts := *o
 	opts.needsSnapshot = value
 	return &opts
 }
 
-func (o *options) NeedsSnapshot() bool {
+func (o *options) SnapshotEnabled() bool {
 	return o.needsSnapshot
 }
 
@@ -121,23 +121,23 @@ func (o *options) WritesToCommitLog() bool {
 	return o.writesToCommitLog
 }
 
-func (o *options) SetNeedsCleanup(value bool) Options {
+func (o *options) SetCleanupEnabled(value bool) Options {
 	opts := *o
 	opts.needsCleanup = value
 	return &opts
 }
 
-func (o *options) NeedsCleanup() bool {
+func (o *options) CleanupEnabled() bool {
 	return o.needsCleanup
 }
 
-func (o *options) SetNeedsRepair(value bool) Options {
+func (o *options) SetRepairEnabled(value bool) Options {
 	opts := *o
 	opts.needsRepair = value
 	return &opts
 }
 
-func (o *options) NeedsRepair() bool {
+func (o *options) RepairEnabled() bool {
 	return o.needsRepair
 }
 

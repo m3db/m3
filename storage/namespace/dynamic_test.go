@@ -116,9 +116,9 @@ func TestInitializerNoTimeout(t *testing.T) {
 	md := mds[0]
 	require.Equal(t, "testns1", md.ID().String())
 	require.Equal(t, expectedNsValue.NeedsBootstrap, md.Options().NeedsBootstrap())
-	require.Equal(t, expectedNsValue.NeedsFilesetCleanup, md.Options().NeedsCleanup())
-	require.Equal(t, expectedNsValue.NeedsFlush, md.Options().NeedsFlush())
-	require.Equal(t, expectedNsValue.NeedsRepair, md.Options().NeedsRepair())
+	require.Equal(t, expectedNsValue.NeedsFilesetCleanup, md.Options().CleanupEnabled())
+	require.Equal(t, expectedNsValue.NeedsFlush, md.Options().FlushEnabled())
+	require.Equal(t, expectedNsValue.NeedsRepair, md.Options().RepairEnabled())
 	require.Equal(t, expectedNsValue.WritesToCommitLog, md.Options().WritesToCommitLog())
 
 	ropts := expectedNsValue.RetentionOptions

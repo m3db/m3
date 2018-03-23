@@ -110,10 +110,10 @@ func TestMetadataConfig(t *testing.T) {
 
 	opts := metadata.Options()
 	require.Equal(t, needsBootstrap, opts.NeedsBootstrap())
-	require.Equal(t, needsFlush, opts.NeedsFlush())
+	require.Equal(t, needsFlush, opts.FlushEnabled())
 	require.Equal(t, writesToCommitLog, opts.WritesToCommitLog())
-	require.Equal(t, needsCleanup, opts.NeedsCleanup())
-	require.Equal(t, needsRepair, opts.NeedsRepair())
+	require.Equal(t, needsCleanup, opts.CleanupEnabled())
+	require.Equal(t, needsRepair, opts.RepairEnabled())
 	require.Equal(t, retention.Options(), opts.RetentionOptions())
 }
 
@@ -169,10 +169,10 @@ metadatas:
 	require.True(t, ns.ID().Equal(testmetrics))
 	opts := ns.Options()
 	require.Equal(t, false, opts.NeedsBootstrap())
-	require.Equal(t, false, opts.NeedsFlush())
+	require.Equal(t, false, opts.FlushEnabled())
 	require.Equal(t, false, opts.WritesToCommitLog())
-	require.Equal(t, false, opts.NeedsCleanup())
-	require.Equal(t, false, opts.NeedsRepair())
+	require.Equal(t, false, opts.CleanupEnabled())
+	require.Equal(t, false, opts.RepairEnabled())
 	testRetentionOpts := retention.NewOptions().
 		SetRetentionPeriod(8 * time.Hour).
 		SetBlockSize(2 * time.Hour).
@@ -186,10 +186,10 @@ metadatas:
 	require.True(t, ns.ID().Equal(metrics2d))
 	opts = ns.Options()
 	require.Equal(t, true, opts.NeedsBootstrap())
-	require.Equal(t, true, opts.NeedsFlush())
+	require.Equal(t, true, opts.FlushEnabled())
 	require.Equal(t, true, opts.WritesToCommitLog())
-	require.Equal(t, true, opts.NeedsCleanup())
-	require.Equal(t, true, opts.NeedsRepair())
+	require.Equal(t, true, opts.CleanupEnabled())
+	require.Equal(t, true, opts.RepairEnabled())
 	testRetentionOpts = retention.NewOptions().
 		SetRetentionPeriod(48 * time.Hour).
 		SetBlockSize(2 * time.Hour).
@@ -203,10 +203,10 @@ metadatas:
 	require.True(t, ns.ID().Equal(metrics40d))
 	opts = ns.Options()
 	require.Equal(t, true, opts.NeedsBootstrap())
-	require.Equal(t, true, opts.NeedsFlush())
+	require.Equal(t, true, opts.FlushEnabled())
 	require.Equal(t, true, opts.WritesToCommitLog())
-	require.Equal(t, true, opts.NeedsCleanup())
-	require.Equal(t, true, opts.NeedsRepair())
+	require.Equal(t, true, opts.CleanupEnabled())
+	require.Equal(t, true, opts.RepairEnabled())
 	testRetentionOpts = retention.NewOptions().
 		SetRetentionPeriod(960 * time.Hour).
 		SetBlockSize(12 * time.Hour).

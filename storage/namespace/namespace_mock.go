@@ -106,52 +106,52 @@ func (_mr *MockOptionsMockRecorder) NeedsBootstrap() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "NeedsBootstrap", reflect.TypeOf((*MockOptions)(nil).NeedsBootstrap))
 }
 
-// SetNeedsFlush mocks base method
-func (_m *MockOptions) SetNeedsFlush(value bool) Options {
-	ret := _m.ctrl.Call(_m, "SetNeedsFlush", value)
+// SetFlushEnabled mocks base method
+func (_m *MockOptions) SetFlushEnabled(value bool) Options {
+	ret := _m.ctrl.Call(_m, "SetFlushEnabled", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetNeedsFlush indicates an expected call of SetNeedsFlush
-func (_mr *MockOptionsMockRecorder) SetNeedsFlush(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetNeedsFlush", reflect.TypeOf((*MockOptions)(nil).SetNeedsFlush), arg0)
+// SetFlushEnabled indicates an expected call of SetFlushEnabled
+func (_mr *MockOptionsMockRecorder) SetFlushEnabled(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFlushEnabled", reflect.TypeOf((*MockOptions)(nil).SetFlushEnabled), arg0)
 }
 
-// NeedsFlush mocks base method
-func (_m *MockOptions) NeedsFlush() bool {
-	ret := _m.ctrl.Call(_m, "NeedsFlush")
+// FlushEnabled mocks base method
+func (_m *MockOptions) FlushEnabled() bool {
+	ret := _m.ctrl.Call(_m, "FlushEnabled")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// NeedsFlush indicates an expected call of NeedsFlush
-func (_mr *MockOptionsMockRecorder) NeedsFlush() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "NeedsFlush", reflect.TypeOf((*MockOptions)(nil).NeedsFlush))
+// FlushEnabled indicates an expected call of FlushEnabled
+func (_mr *MockOptionsMockRecorder) FlushEnabled() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FlushEnabled", reflect.TypeOf((*MockOptions)(nil).FlushEnabled))
 }
 
-// SetNeedsSnapshot mocks base method
-func (_m *MockOptions) SetNeedsSnapshot(value bool) Options {
-	ret := _m.ctrl.Call(_m, "SetNeedsSnapshot", value)
+// SetSnapshotEnabled mocks base method
+func (_m *MockOptions) SetSnapshotEnabled(value bool) Options {
+	ret := _m.ctrl.Call(_m, "SetSnapshotEnabled", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetNeedsSnapshot indicates an expected call of SetNeedsSnapshot
-func (_mr *MockOptionsMockRecorder) SetNeedsSnapshot(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetNeedsSnapshot", reflect.TypeOf((*MockOptions)(nil).SetNeedsSnapshot), arg0)
+// SetSnapshotEnabled indicates an expected call of SetSnapshotEnabled
+func (_mr *MockOptionsMockRecorder) SetSnapshotEnabled(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetSnapshotEnabled", reflect.TypeOf((*MockOptions)(nil).SetSnapshotEnabled), arg0)
 }
 
-// NeedsSnapshot mocks base method
-func (_m *MockOptions) NeedsSnapshot() bool {
-	ret := _m.ctrl.Call(_m, "NeedsSnapshot")
+// SnapshotEnabled mocks base method
+func (_m *MockOptions) SnapshotEnabled() bool {
+	ret := _m.ctrl.Call(_m, "SnapshotEnabled")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// NeedsSnapshot indicates an expected call of NeedsSnapshot
-func (_mr *MockOptionsMockRecorder) NeedsSnapshot() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "NeedsSnapshot", reflect.TypeOf((*MockOptions)(nil).NeedsSnapshot))
+// SnapshotEnabled indicates an expected call of SnapshotEnabled
+func (_mr *MockOptionsMockRecorder) SnapshotEnabled() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SnapshotEnabled", reflect.TypeOf((*MockOptions)(nil).SnapshotEnabled))
 }
 
 // SetWritesToCommitLog mocks base method
@@ -178,52 +178,52 @@ func (_mr *MockOptionsMockRecorder) WritesToCommitLog() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WritesToCommitLog", reflect.TypeOf((*MockOptions)(nil).WritesToCommitLog))
 }
 
-// SetNeedsCleanup mocks base method
-func (_m *MockOptions) SetNeedsCleanup(value bool) Options {
-	ret := _m.ctrl.Call(_m, "SetNeedsCleanup", value)
+// SetCleanupEnabled mocks base method
+func (_m *MockOptions) SetCleanupEnabled(value bool) Options {
+	ret := _m.ctrl.Call(_m, "SetCleanupEnabled", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetNeedsCleanup indicates an expected call of SetNeedsCleanup
-func (_mr *MockOptionsMockRecorder) SetNeedsCleanup(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetNeedsCleanup", reflect.TypeOf((*MockOptions)(nil).SetNeedsCleanup), arg0)
+// SetCleanupEnabled indicates an expected call of SetCleanupEnabled
+func (_mr *MockOptionsMockRecorder) SetCleanupEnabled(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetCleanupEnabled", reflect.TypeOf((*MockOptions)(nil).SetCleanupEnabled), arg0)
 }
 
-// NeedsCleanup mocks base method
-func (_m *MockOptions) NeedsCleanup() bool {
-	ret := _m.ctrl.Call(_m, "NeedsCleanup")
+// CleanupEnabled mocks base method
+func (_m *MockOptions) CleanupEnabled() bool {
+	ret := _m.ctrl.Call(_m, "CleanupEnabled")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// NeedsCleanup indicates an expected call of NeedsCleanup
-func (_mr *MockOptionsMockRecorder) NeedsCleanup() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "NeedsCleanup", reflect.TypeOf((*MockOptions)(nil).NeedsCleanup))
+// CleanupEnabled indicates an expected call of CleanupEnabled
+func (_mr *MockOptionsMockRecorder) CleanupEnabled() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "CleanupEnabled", reflect.TypeOf((*MockOptions)(nil).CleanupEnabled))
 }
 
-// SetNeedsRepair mocks base method
-func (_m *MockOptions) SetNeedsRepair(value bool) Options {
-	ret := _m.ctrl.Call(_m, "SetNeedsRepair", value)
+// SetRepairEnabled mocks base method
+func (_m *MockOptions) SetRepairEnabled(value bool) Options {
+	ret := _m.ctrl.Call(_m, "SetRepairEnabled", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetNeedsRepair indicates an expected call of SetNeedsRepair
-func (_mr *MockOptionsMockRecorder) SetNeedsRepair(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetNeedsRepair", reflect.TypeOf((*MockOptions)(nil).SetNeedsRepair), arg0)
+// SetRepairEnabled indicates an expected call of SetRepairEnabled
+func (_mr *MockOptionsMockRecorder) SetRepairEnabled(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetRepairEnabled", reflect.TypeOf((*MockOptions)(nil).SetRepairEnabled), arg0)
 }
 
-// NeedsRepair mocks base method
-func (_m *MockOptions) NeedsRepair() bool {
-	ret := _m.ctrl.Call(_m, "NeedsRepair")
+// RepairEnabled mocks base method
+func (_m *MockOptions) RepairEnabled() bool {
+	ret := _m.ctrl.Call(_m, "RepairEnabled")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// NeedsRepair indicates an expected call of NeedsRepair
-func (_mr *MockOptionsMockRecorder) NeedsRepair() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "NeedsRepair", reflect.TypeOf((*MockOptions)(nil).NeedsRepair))
+// RepairEnabled indicates an expected call of RepairEnabled
+func (_mr *MockOptionsMockRecorder) RepairEnabled() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "RepairEnabled", reflect.TypeOf((*MockOptions)(nil).RepairEnabled))
 }
 
 // SetRetentionOptions mocks base method

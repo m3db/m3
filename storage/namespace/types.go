@@ -30,7 +30,6 @@ import (
 )
 
 // Options controls namespace behavior
-// TODO: Rename these to use should instead of need
 type Options interface {
 	// Validate validates the options
 	Validate() error
@@ -44,17 +43,17 @@ type Options interface {
 	// NeedsBootstrap returns whether this namespace requires bootstrapping
 	NeedsBootstrap() bool
 
-	// SetNeedsFlush sets whether the in-memory data for this namespace needs to be flushed
-	SetNeedsFlush(value bool) Options
+	// SetFlushEnabled sets whether the in-memory data for this namespace needs to be flushed
+	SetFlushEnabled(value bool) Options
 
-	// NeedsFlush returns whether the in-memory data for this namespace needs to be flushed
-	NeedsFlush() bool
+	// FlushEnabled returns whether the in-memory data for this namespace needs to be flushed
+	FlushEnabled() bool
 
-	// SetNeedsSnapshot sets whether the in-memory data for this namespace should be snapshotted regularly
-	SetNeedsSnapshot(value bool) Options
+	// SetSnapshotEnabled sets whether the in-memory data for this namespace should be snapshotted regularly
+	SetSnapshotEnabled(value bool) Options
 
-	// NeedsSnapshot returns whether the in-memory data for this namespace should be snapshotted regularly
-	NeedsSnapshot() bool
+	// SnapshotEnabled returns whether the in-memory data for this namespace should be snapshotted regularly
+	SnapshotEnabled() bool
 
 	// SetWritesToCommitLog sets whether writes for series in this namespace need to go to commit log
 	SetWritesToCommitLog(value bool) Options
@@ -62,17 +61,17 @@ type Options interface {
 	// WritesToCommitLog returns whether writes for series in this namespace need to go to commit log
 	WritesToCommitLog() bool
 
-	// SetNeedsCleanup sets whether this namespace requires cleaning up fileset/snapshot files
-	SetNeedsCleanup(value bool) Options
+	// SetCleanupEnabled sets whether this namespace requires cleaning up fileset/snapshot files
+	SetCleanupEnabled(value bool) Options
 
-	// NeedsCleanup returns whether this namespace requires cleaning up fileset/snapshot files
-	NeedsCleanup() bool
+	// CleanupEnabled returns whether this namespace requires cleaning up fileset/snapshot files
+	CleanupEnabled() bool
 
-	// SetNeedsRepair sets whether the data for this namespace needs to be repaired
-	SetNeedsRepair(value bool) Options
+	// SetRepairEnabled sets whether the data for this namespace needs to be repaired
+	SetRepairEnabled(value bool) Options
 
-	// NeedsRepair returns whether the data for this namespace needs to be repaired
-	NeedsRepair() bool
+	// RepairEnabled returns whether the data for this namespace needs to be repaired
+	RepairEnabled() bool
 
 	// SetRetentionOptions sets the retention options for this namespace
 	SetRetentionOptions(value retention.Options) Options

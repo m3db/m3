@@ -79,9 +79,9 @@ func ToMetadata(
 
 	mopts := NewOptions().
 		SetNeedsBootstrap(opts.NeedsBootstrap).
-		SetNeedsFlush(opts.NeedsFlush).
-		SetNeedsCleanup(opts.NeedsFilesetCleanup).
-		SetNeedsRepair(opts.NeedsRepair).
+		SetFlushEnabled(opts.NeedsFlush).
+		SetCleanupEnabled(opts.NeedsFilesetCleanup).
+		SetRepairEnabled(opts.NeedsRepair).
 		SetWritesToCommitLog(opts.WritesToCommitLog).
 		SetRetentionOptions(ropts)
 
@@ -102,10 +102,10 @@ func ToProto(m Map) *nsproto.Registry {
 		ropts := md.Options().RetentionOptions()
 		reg.Namespaces[md.ID().String()] = &nsproto.NamespaceOptions{
 			NeedsBootstrap:      md.Options().NeedsBootstrap(),
-			NeedsFlush:          md.Options().NeedsFlush(),
-			NeedsFilesetCleanup: md.Options().NeedsCleanup(),
-			NeedsSnapshot:       md.Options().NeedsSnapshot(),
-			NeedsRepair:         md.Options().NeedsRepair(),
+			NeedsFlush:          md.Options().FlushEnabled(),
+			NeedsFilesetCleanup: md.Options().CleanupEnabled(),
+			NeedsSnapshot:       md.Options().SnapshotEnabled(),
+			NeedsRepair:         md.Options().RepairEnabled(),
 			WritesToCommitLog:   md.Options().WritesToCommitLog(),
 			RetentionOptions: &nsproto.RetentionOptions{
 				BlockSizeNanos:                           toNanos(ropts.BlockSize()),

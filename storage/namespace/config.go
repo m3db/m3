@@ -64,16 +64,16 @@ func (mc *MetadataConfiguration) Metadata() (Metadata, error) {
 		opts = opts.SetNeedsBootstrap(*v)
 	}
 	if v := mc.NeedsFlush; v != nil {
-		opts = opts.SetNeedsFlush(*v)
+		opts = opts.SetFlushEnabled(*v)
 	}
 	if v := mc.WritesToCommitLog; v != nil {
 		opts = opts.SetWritesToCommitLog(*v)
 	}
 	if v := mc.NeedsCleanup; v != nil {
-		opts = opts.SetNeedsCleanup(*v)
+		opts = opts.SetCleanupEnabled(*v)
 	}
 	if v := mc.NeedsRepair; v != nil {
-		opts = opts.SetNeedsRepair(*v)
+		opts = opts.SetRepairEnabled(*v)
 	}
 	return NewMetadata(ident.StringID(mc.ID), opts)
 }
