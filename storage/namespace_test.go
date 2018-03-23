@@ -72,8 +72,7 @@ func newTestNamespaceWithIDOpts(
 	dopts := testDatabaseOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
 	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts)
 	require.NoError(t, err)
-
-	closer := func() { dopts.RuntimeOptionsManager().Close() }
+	closer := dopts.RuntimeOptionsManager().Close
 	return ns.(*dbNamespace), closer
 }
 
