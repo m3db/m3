@@ -408,7 +408,7 @@ func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, patt
 		snapshotFiles      = []SnapshotFile{}
 	)
 	for _, file := range byTimeAsc {
-		currentFileBlockStart, err := TimeFromFileName(file)
+		currentFileBlockStart, index, err := TimeAndIndexFromFileName(file)
 		if err != nil {
 			return nil, err
 		}
@@ -421,6 +421,7 @@ func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, patt
 		}
 		latestBlockStart = currentFileBlockStart
 
+		latestSnapshotFile.Index = index
 		latestSnapshotFile.Files = append(latestSnapshotFile.Files, file)
 	}
 	snapshotFiles = append(snapshotFiles, latestSnapshotFile)
@@ -587,6 +588,25 @@ func NextCommitLogsFile(prefix string, start time.Time) (string, int) {
 	}
 }
 
+// NextSnapshotFileIndex returns the next snapshot file index for a given
+// namespace/shard/blockStart combination.
+func NextSnapshotFileIndex(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (int, error) {
+	snapshotFiles, err := SnapshotFiles(filePathPrefix, namespace, shard)
+	if err != nil {
+		return -1, err
+	}
+
+	var snapshotFilesForBlockStart SnapshotFile
+	for _, snapshot := range snapshotFiles {
+		if snapshot.BlockStart.Equal(blockStart) {
+			snapshotFilesForBlockStart = snapshot
+			break
+		}
+	}
+
+	return snapshotFilesForBlockStart.Index, nil
+}
+
 // FileExists returns whether a file at the given path exists.
 func FileExists(filePath string) bool {
 	_, err := os.Stat(filePath)
@@ -600,5 +620,10 @@ func OpenWritable(filePath string, perm os.FileMode) (*os.File, error) {
 
 func filesetPathFromTime(prefix string, t time.Time, suffix string) string {
 	name := fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, t.UnixNano(), separator, suffix, fileSuffix)
+	return path.Join(prefix, name)
+}
+
+func snapshotPathFromTimeAndIndex(prefix string, t time.Time, suffix string, index int) string {
+	name := fmt.Sprintf("%s%s%d%s%s%s%d%s", filesetFilePrefix, separator, t.UnixNano(), separator, suffix, separator, index, fileSuffix)
 	return path.Join(prefix, name)
 }
