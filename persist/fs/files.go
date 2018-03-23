@@ -596,15 +596,15 @@ func NextSnapshotFileIndex(filePathPrefix string, namespace ident.ID, shard uint
 		return -1, err
 	}
 
-	var snapshotFilesForBlockStart SnapshotFile
+	var currentSnapshotIndex = -1
 	for _, snapshot := range snapshotFiles {
 		if snapshot.BlockStart.Equal(blockStart) {
-			snapshotFilesForBlockStart = snapshot
+			currentSnapshotIndex = snapshot.Index
 			break
 		}
 	}
 
-	return snapshotFilesForBlockStart.Index, nil
+	return currentSnapshotIndex + 1, nil
 }
 
 // FileExists returns whether a file at the given path exists.

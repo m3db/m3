@@ -130,8 +130,12 @@ func NewWriter(opts Options) (FileSetWriter, error) {
 // specifically creating the shard directory if it doesn't exist, and
 // opening / truncating files associated with that shard for writing.
 func (w *writer) Open(opts WriterOpenOptions) error {
-	var shardDir string
-	var fileTimestampUnixNano time.Time
+	var (
+		shardDir              string
+		fileTimestampUnixNano time.Time
+		snapshotIndex         int
+	)
+
 	if opts.IsSnapshot {
 		shardDir = ShardSnapshotsDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
