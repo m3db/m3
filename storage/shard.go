@@ -1726,13 +1726,11 @@ func (s *dbShard) Snapshot(
 	if prepared.Persist == nil {
 		// This should never happen in practice, but if it does it means the snapshot file already
 		// exists.
-		s.logger.
-			WithFields(
-				xlog.NewField("blockStart", blockStart),
-				xlog.NewField("snapshotStart", snapshotStart),
-				xlog.NewField("shard", s.ID()),
-			).
-			Errorf("Tried to write prepare snapshot file that already exists")
+		s.logger.WithFields(
+			xlog.NewField("blockStart", blockStart),
+			xlog.NewField("snapshotStart", snapshotStart),
+			xlog.NewField("shard", s.ID()),
+		).Errorf("Tried to write prepare snapshot file that already exists")
 		return nil
 	}
 
