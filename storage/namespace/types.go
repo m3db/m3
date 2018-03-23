@@ -62,17 +62,11 @@ type Options interface {
 	// WritesToCommitLog returns whether writes for series in this namespace need to go to commit log
 	WritesToCommitLog() bool
 
-	// SetNeedsFilesetCleanup sets whether this namespace requires cleaning up fileset files
-	SetNeedsFilesetCleanup(value bool) Options
+	// SetNeedsCleanup sets whether this namespace requires cleaning up fileset/snapshot files
+	SetNeedsCleanup(value bool) Options
 
-	// NeedsFilesetCleanup returns whether this namespace requires cleaning up fileset files
-	NeedsFilesetCleanup() bool
-
-	// SetNeedsSnapshotCleanup sets whether this namespace requires cleaning up snapshot files
-	SetNeedsSnapshotCleanup(value bool) Options
-
-	// NeedsSnapshotCleanup returns whether this namespace reuqires cleaning up snapshot files
-	NeedsSnapshotCleanup() bool
+	// NeedsCleanup returns whether this namespace requires cleaning up fileset/snapshot files
+	NeedsCleanup() bool
 
 	// SetNeedsRepair sets whether the data for this namespace needs to be repaired
 	SetNeedsRepair(value bool) Options

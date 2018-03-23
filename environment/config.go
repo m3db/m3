@@ -107,13 +107,12 @@ type StaticNamespaceConfiguration struct {
 
 // StaticNamespaceOptions sets namespace options- if nil, default is used
 type StaticNamespaceOptions struct {
-	NeedsBootstrap       bool `yaml:"needsBootstrap"`
-	NeedsFlush           bool `yaml:"needsFlush"`
-	NeedsSnapshot        bool `yaml:"needsSnapshot"`
-	WritesToCommitLog    bool `yaml:"writesToCommitLog"`
-	NeedsFilesetCleanup  bool `yaml:"needsFilesetCleanup"`
-	NeedsSnapshotCleanup bool `yaml:"needsSnapshotCleanup"`
-	NeedsRepair          bool `yaml:"needsRepair"`
+	NeedsBootstrap    bool `yaml:"needsBootstrap"`
+	NeedsFlush        bool `yaml:"needsFlush"`
+	NeedsSnapshot     bool `yaml:"needsSnapshot"`
+	WritesToCommitLog bool `yaml:"writesToCommitLog"`
+	NeedsCleanup      bool `yaml:"needsCleanup"`
+	NeedsRepair       bool `yaml:"needsRepair"`
 }
 
 // StaticNamespaceRetention sets the retention per namespace (required)
@@ -300,21 +299,19 @@ func newNamespaceMetadata(cfg StaticNamespaceConfiguration) (namespace.Metadata,
 	}
 	if cfg.Options == nil {
 		cfg.Options = &StaticNamespaceOptions{
-			NeedsBootstrap:       true,
-			NeedsFilesetCleanup:  true,
-			NeedsSnapshotCleanup: true,
-			NeedsFlush:           true,
-			NeedsSnapshot:        true,
-			NeedsRepair:          true,
-			WritesToCommitLog:    true,
+			NeedsBootstrap:    true,
+			NeedsCleanup:      true,
+			NeedsFlush:        true,
+			NeedsSnapshot:     true,
+			NeedsRepair:       true,
+			WritesToCommitLog: true,
 		}
 	}
 	md, err := namespace.NewMetadata(
 		ident.StringID(cfg.Name),
 		namespace.NewOptions().
 			SetNeedsBootstrap(cfg.Options.NeedsBootstrap).
-			SetNeedsFilesetCleanup(cfg.Options.NeedsFilesetCleanup).
-			SetNeedsSnapshotCleanup(cfg.Options.NeedsSnapshotCleanup).
+			SetNeedsCleanup(cfg.Options.NeedsCleanup).
 			SetNeedsFlush(cfg.Options.NeedsFlush).
 			SetNeedsSnapshot(cfg.Options.NeedsSnapshot).
 			SetNeedsRepair(cfg.Options.NeedsRepair).

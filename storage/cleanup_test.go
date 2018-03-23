@@ -93,7 +93,7 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	rOpts := retention.NewOptions().
 		SetRetentionPeriod(21600 * time.Second).
 		SetBlockSize(7200 * time.Second)
-	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts).SetNeedsFilesetCleanup(false)
+	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts).SetNeedsCleanup(false)
 
 	namespaces := make([]databaseNamespace, 0, 3)
 	for range namespaces {
@@ -162,8 +162,7 @@ func TestDeleteInactiveDataAndSnapshotFilesetFiles(t *testing.T) {
 	ts := timeFor(36000)
 
 	nsOpts := namespace.NewOptions().
-		SetNeedsFilesetCleanup(false).
-		SetNeedsSnapshotCleanup(false)
+		SetNeedsCleanup(false)
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 

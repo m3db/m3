@@ -532,8 +532,7 @@ func defaultNamespaceProtoValue() (proto.Message, error) {
 		ident.StringID("metrics"),
 		namespace.NewOptions().
 			SetNeedsBootstrap(true).
-			SetNeedsFilesetCleanup(true).
-			SetNeedsSnapshotCleanup(true).
+			SetNeedsCleanup(true).
 			SetNeedsFlush(true).
 			SetNeedsRepair(true).
 			SetWritesToCommitLog(true).

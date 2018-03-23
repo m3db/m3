@@ -38,38 +38,33 @@ const (
 	// Namespace writes go to commit logs by default
 	defaultWritesToCommitLog = true
 
-	// Namespace requires fileset cleanup by default
-	defaultNeedsFilesetCleanup = true
-
-	// Namespace requires snapshot cleanup by default
-	defaultNeedsSnapshotCleanup = true
+	// Namespace requires fileset/snapshot cleanup by default
+	defaultNeedsCleanup = true
 
 	// Namespace requires repair by default
 	defaultNeedsRepair = true
 )
 
 type options struct {
-	needsBootstrap       bool
-	needsFlush           bool
-	needsSnapshot        bool
-	writesToCommitLog    bool
-	needsFilesetCleanup  bool
-	needsSnapshotCleanup bool
-	needsRepair          bool
-	retentionOpts        retention.Options
+	needsBootstrap    bool
+	needsFlush        bool
+	needsSnapshot     bool
+	writesToCommitLog bool
+	needsCleanup      bool
+	needsRepair       bool
+	retentionOpts     retention.Options
 }
 
 // NewOptions creates a new namespace options
 func NewOptions() Options {
 	return &options{
-		needsBootstrap:       defaultNeedsBootstrap,
-		needsFlush:           defaultNeedsFlush,
-		needsSnapshot:        defaultNeedsSnapshot,
-		writesToCommitLog:    defaultWritesToCommitLog,
-		needsFilesetCleanup:  defaultNeedsFilesetCleanup,
-		needsSnapshotCleanup: defaultNeedsSnapshotCleanup,
-		needsRepair:          defaultNeedsRepair,
-		retentionOpts:        retention.NewOptions(),
+		needsBootstrap:    defaultNeedsBootstrap,
+		needsFlush:        defaultNeedsFlush,
+		needsSnapshot:     defaultNeedsSnapshot,
+		writesToCommitLog: defaultWritesToCommitLog,
+		needsCleanup:      defaultNeedsCleanup,
+		needsRepair:       defaultNeedsRepair,
+		retentionOpts:     retention.NewOptions(),
 	}
 }
 
@@ -81,7 +76,7 @@ func (o *options) Equal(value Options) bool {
 	return o.needsBootstrap == value.NeedsBootstrap() &&
 		o.needsFlush == value.NeedsFlush() &&
 		o.writesToCommitLog == value.WritesToCommitLog() &&
-		o.needsFilesetCleanup == value.NeedsFilesetCleanup() &&
+		o.needsCleanup == value.NeedsCleanup() &&
 		o.needsRepair == value.NeedsRepair() &&
 		o.retentionOpts.Equal(value.RetentionOptions())
 }
@@ -126,24 +121,14 @@ func (o *options) WritesToCommitLog() bool {
 	return o.writesToCommitLog
 }
 
-func (o *options) SetNeedsFilesetCleanup(value bool) Options {
+func (o *options) SetNeedsCleanup(value bool) Options {
 	opts := *o
-	opts.needsFilesetCleanup = value
+	opts.needsCleanup = value
 	return &opts
 }
 
-func (o *options) NeedsFilesetCleanup() bool {
-	return o.needsFilesetCleanup
-}
-
-func (o *options) SetNeedsSnapshotCleanup(value bool) Options {
-	opts := *o
-	opts.needsSnapshotCleanup = value
-	return &opts
-}
-
-func (o *options) NeedsSnapshotCleanup() bool {
-	return o.needsSnapshotCleanup
+func (o *options) NeedsCleanup() bool {
+	return o.needsCleanup
 }
 
 func (o *options) SetNeedsRepair(value bool) Options {

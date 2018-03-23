@@ -34,14 +34,13 @@ type MapConfiguration struct {
 
 // MetadataConfiguration is the configuration for a single namespace
 type MetadataConfiguration struct {
-	ID                   string                  `yaml:"id" validate:"nonzero"`
-	NeedsBootstrap       *bool                   `yaml:"needsBootstrap"`
-	NeedsFlush           *bool                   `yaml:"needsFlush"`
-	WritesToCommitLog    *bool                   `yaml:"writesToCommitLog"`
-	NeedsFilesetCleanup  *bool                   `yaml:"needsFilesetCleanup"`
-	NeedsSnapshotCleanup *bool                   `yaml:"needsSnapshotCleanup"`
-	NeedsRepair          *bool                   `yaml:"needsRepair"`
-	Retention            retention.Configuration `yaml:"retention" validate:"nonzero"`
+	ID                string                  `yaml:"id" validate:"nonzero"`
+	NeedsBootstrap    *bool                   `yaml:"needsBootstrap"`
+	NeedsFlush        *bool                   `yaml:"needsFlush"`
+	WritesToCommitLog *bool                   `yaml:"writesToCommitLog"`
+	NeedsCleanup      *bool                   `yaml:"needsCleanup"`
+	NeedsRepair       *bool                   `yaml:"needsRepair"`
+	Retention         retention.Configuration `yaml:"retention" validate:"nonzero"`
 }
 
 // Map returns a Map corresponding to the receiver struct
@@ -70,11 +69,8 @@ func (mc *MetadataConfiguration) Metadata() (Metadata, error) {
 	if v := mc.WritesToCommitLog; v != nil {
 		opts = opts.SetWritesToCommitLog(*v)
 	}
-	if v := mc.NeedsFilesetCleanup; v != nil {
-		opts = opts.SetNeedsFilesetCleanup(*v)
-	}
-	if v := mc.NeedsSnapshotCleanup; v != nil {
-		opts = opts.SetNeedsSnapshotCleanup(*v)
+	if v := mc.NeedsCleanup; v != nil {
+		opts = opts.SetNeedsCleanup(*v)
 	}
 	if v := mc.NeedsRepair; v != nil {
 		opts = opts.SetNeedsRepair(*v)

@@ -199,7 +199,7 @@ func (m *cleanupManager) cleanupDataFiles(t time.Time) error {
 	for _, n := range namespaces {
 		earliestToRetain := retention.FlushTimeStart(n.Options().RetentionOptions(), t)
 		shards := n.GetOwnedShards()
-		if n.Options().NeedsFilesetCleanup() {
+		if n.Options().NeedsCleanup() {
 			multiErr = multiErr.Add(m.cleanupNamespaceDataFiles(earliestToRetain, shards))
 		}
 	}
@@ -214,7 +214,7 @@ func (m *cleanupManager) cleanupSnapshotFiles() error {
 	}
 	for _, n := range namespaces {
 		shards := n.GetOwnedShards()
-		if n.Options().NeedsSnapshotCleanup() {
+		if n.Options().NeedsCleanup() {
 			multiErr = multiErr.Add(m.cleanupNamespaceSnapshotFiles(shards))
 		}
 	}
