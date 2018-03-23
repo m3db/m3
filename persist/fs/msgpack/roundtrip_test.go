@@ -101,6 +101,35 @@ func TestIndexInfoRoundtrip(t *testing.T) {
 	require.Equal(t, testIndexInfo, res)
 }
 
+// Make sure the new decoding code can handle the old file format
+func TestIndexInfoRoundTripBackwardsCompatibilityV1(t *testing.T) {
+	var (
+		enc = testEncoder(t)
+		dec = testDecoder(t, nil)
+	)
+	enc.encodeIndexInfo(1, testIndexInfo)
+	dec.Reset(NewDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexInfo()
+	require.NoError(t, err)
+	require.Equal(t, testIndexInfo, res)
+}
+
+// Make sure the only decoder code can handle the new file format
+func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
+	var (
+		enc = testEncoder(t)
+		dec = testDecoder(t, nil)
+	)
+	enc.encodeIndexInfo(2, testIndexInfo)
+	dec.Reset(NewDecoderStream(enc.Bytes()))
+	version, numFieldsToSkip := dec.decodeRootObject(indexInfoVersion, indexInfoType)
+	require.Equal(t, version, 2)
+	res := dec.decodeIndexInfoV2()
+	dec.skip(numFieldsToSkip)
+	require.NoError(t, dec.err)
+	require.Equal(t, testIndexInfo, res)
+}
+
 func TestIndexEntryRoundtrip(t *testing.T) {
 	var (
 		enc = testEncoder(t)

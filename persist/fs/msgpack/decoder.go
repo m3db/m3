@@ -78,7 +78,14 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 		return emptyIndexInfo, dec.err
 	}
 	version, numFieldsToSkip := dec.decodeRootObject(indexInfoVersion, indexInfoType)
-	indexInfo := dec.decodeIndexInfo(version)
+	var indexInfo schema.IndexInfo
+	if version == 1 {
+		indexInfo = dec.decodeIndexInfoV1()
+	} else if version == 2 {
+		indexInfo = dec.decodeIndexInfoV2()
+	} else {
+		return emptyIndexInfo, fmt.Errorf("invalid version for index info file: %d", version)
+	}
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyIndexInfo, dec.err
@@ -214,7 +221,29 @@ func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 	return logMetadata, nil
 }
 
-func (dec *Decoder) decodeIndexInfo(actualVersion int) schema.IndexInfo {
+// We only keep this to test forwards-compatability
+func (dec *Decoder) decodeIndexInfoV1() schema.IndexInfo {
+	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexInfoType, false)
+	if !ok {
+		return emptyIndexInfo
+	}
+
+	var indexInfo schema.IndexInfo
+	indexInfo.BlockStart = dec.decodeVarint()
+	indexInfo.BlockSize = dec.decodeVarint()
+	indexInfo.Entries = dec.decodeVarint()
+	indexInfo.MajorVersion = dec.decodeVarint()
+	indexInfo.Summaries = dec.decodeIndexSummariesInfo()
+	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
+
+	dec.skip(numFieldsToSkip)
+	if dec.err != nil {
+		return emptyIndexInfo
+	}
+	return indexInfo
+}
+
+func (dec *Decoder) decodeIndexInfoV2() schema.IndexInfo {
 	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexInfoType, true)
 	if !ok {
 		return emptyIndexInfo
@@ -228,10 +257,9 @@ func (dec *Decoder) decodeIndexInfo(actualVersion int) schema.IndexInfo {
 	indexInfo.Summaries = dec.decodeIndexSummariesInfo()
 	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
 
-	if actualVersion > 1 {
-		indexInfo.WrittenAt = dec.decodeVarint()
-		indexInfo.IsSnapshot = dec.decodeBool()
-	}
+	indexInfo.WrittenAt = dec.decodeVarint()
+	indexInfo.IsSnapshot = dec.decodeBool()
+
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyIndexInfo

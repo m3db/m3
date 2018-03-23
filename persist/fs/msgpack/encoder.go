@@ -22,6 +22,7 @@ package msgpack
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/m3db/m3db/persist/schema"
 
@@ -87,8 +88,7 @@ func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 	if enc.err != nil {
 		return enc.err
 	}
-	enc.encodeRootObject(indexInfoVersion, indexInfoType)
-	enc.encodeIndexInfo(info)
+	enc.encodeIndexInfo(indexInfoVersion, info)
 	return enc.err
 }
 
@@ -142,7 +142,20 @@ func (enc *Encoder) EncodeLogMetadata(entry schema.LogMetadata) error {
 	return enc.err
 }
 
-func (enc *Encoder) encodeIndexInfo(info schema.IndexInfo) {
+func (enc *Encoder) encodeIndexInfo(version int, info schema.IndexInfo) {
+	enc.encodeRootObject(version, indexInfoType)
+	if version == 1 {
+		enc.encodeIndexInfoV1(info)
+	} else if version == 2 {
+		enc.encodeIndexInfoV2(info)
+	} else {
+		panic(fmt.Sprintf("invalid index info version: %d", version))
+	}
+}
+
+// We only keep this method around for the sake of testing
+// backwards-compatbility
+func (enc *Encoder) encodeIndexInfoV1(info schema.IndexInfo) {
 	enc.encodeNumObjectFieldsForFn(indexInfoType)
 	enc.encodeVarintFn(info.BlockStart)
 	enc.encodeVarintFn(info.BlockSize)
@@ -150,6 +163,10 @@ func (enc *Encoder) encodeIndexInfo(info schema.IndexInfo) {
 	enc.encodeVarintFn(info.MajorVersion)
 	enc.encodeIndexSummariesInfo(info.Summaries)
 	enc.encodeIndexBloomFilterInfo(info.BloomFilter)
+}
+
+func (enc *Encoder) encodeIndexInfoV2(info schema.IndexInfo) {
+	enc.encodeIndexInfoV1(info)
 	enc.encodeVarintFn(info.WrittenAt)
 	enc.encodeBoolFn(info.IsSnapshot)
 }
