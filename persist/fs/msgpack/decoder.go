@@ -221,7 +221,7 @@ func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 	return logMetadata, nil
 }
 
-// We only keep this to test forwards-compatability
+// We only keep this to test forwards-compatibility
 func (dec *Decoder) decodeIndexInfoV1() schema.IndexInfo {
 	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexInfoType, false)
 	if !ok {
