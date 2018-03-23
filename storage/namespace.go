@@ -788,6 +788,8 @@ func (n *dbNamespace) Snapshot(blockStart, callStart time.Time, flush persist.Fl
 	for _, shard := range shards {
 		isSnapshotting, lastSuccessfulSnapshot := shard.SnapshotState()
 		if isSnapshotting {
+			// Should never happen because snapshots should never overlap
+			// each other (controlled by loop in flush manager)
 			n.log.
 				WithFields(xlog.NewField("shard", shard.ID())).
 				Errorf("tried to snapshot shard that is already snapshotting")
