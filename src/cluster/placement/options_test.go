@@ -40,6 +40,7 @@ func TestDeploymentOptions(t *testing.T) {
 func TestPlacementOptions(t *testing.T) {
 	o := NewOptions()
 	assert.True(t, o.AllowPartialReplace())
+	assert.False(t, o.AddAllCandidates())
 	assert.True(t, o.IsSharded())
 	assert.Equal(t, IncludeTransitionalShardStates, o.ShardStateMode())
 	assert.False(t, o.Dryrun())
@@ -52,6 +53,9 @@ func TestPlacementOptions(t *testing.T) {
 
 	o = o.SetAllowPartialReplace(false)
 	assert.False(t, o.AllowPartialReplace())
+
+	o = o.SetAddAllCandidates(true)
+	assert.True(t, o.AddAllCandidates())
 
 	o = o.SetIsSharded(false)
 	assert.False(t, o.IsSharded())

@@ -318,6 +318,13 @@ type Options interface {
 	// SetAllowPartialReplace sets AllowPartialReplace.
 	SetAllowPartialReplace(allowPartialReplace bool) Options
 
+	// AddAllCandidates determines whether the placement will attempt to add all
+	// candidates when adding instances or just a single one.
+	AddAllCandidates() bool
+
+	// SetAddAllCandidates sets AddAllCandidates.
+	SetAddAllCandidates(addAllCandidates bool) Options
+
 	// IsSharded describes whether a placement needs to be sharded,
 	// when set to false, no specific shards will be assigned to any instance.
 	IsSharded() bool

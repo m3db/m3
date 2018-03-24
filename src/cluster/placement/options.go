@@ -58,6 +58,7 @@ func defaultShardValidationFn(s shard.Shard) error { return nil }
 
 type options struct {
 	allowPartialReplace bool
+	addAllCandidates    bool
 	shardStateMode      ShardStateMode
 	isSharded           bool
 	isMirrored          bool
@@ -95,6 +96,15 @@ func (o options) AllowPartialReplace() bool {
 
 func (o options) SetAllowPartialReplace(allowPartialReplace bool) Options {
 	o.allowPartialReplace = allowPartialReplace
+	return o
+}
+
+func (o options) AddAllCandidates() bool {
+	return o.addAllCandidates
+}
+
+func (o options) SetAddAllCandidates(addAllCandidates bool) Options {
+	o.addAllCandidates = addAllCandidates
 	return o
 }
 

@@ -1177,6 +1177,30 @@ func (_mr *MockOptionsMockRecorder) SetAllowPartialReplace(arg0 interface{}) *go
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetAllowPartialReplace", reflect.TypeOf((*MockOptions)(nil).SetAllowPartialReplace), arg0)
 }
 
+// AddAllCandidates mocks base method
+func (_m *MockOptions) AddAllCandidates() bool {
+	ret := _m.ctrl.Call(_m, "AddAllCandidates")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// AddAllCandidates indicates an expected call of AddAllCandidates
+func (_mr *MockOptionsMockRecorder) AddAllCandidates() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "AddAllCandidates", reflect.TypeOf((*MockOptions)(nil).AddAllCandidates))
+}
+
+// SetAddAllCandidates mocks base method
+func (_m *MockOptions) SetAddAllCandidates(addAllCandidates bool) Options {
+	ret := _m.ctrl.Call(_m, "SetAddAllCandidates", addAllCandidates)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetAddAllCandidates indicates an expected call of SetAddAllCandidates
+func (_mr *MockOptionsMockRecorder) SetAddAllCandidates(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetAddAllCandidates", reflect.TypeOf((*MockOptions)(nil).SetAddAllCandidates), arg0)
+}
+
 // IsSharded mocks base method
 func (_m *MockOptions) IsSharded() bool {
 	ret := _m.ctrl.Call(_m, "IsSharded")

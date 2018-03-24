@@ -772,6 +772,64 @@ func TestManyShards(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestAddMultipleInstances(t *testing.T) {
+	i1 := placement.NewInstance().
+		SetID("i1").
+		SetIsolationGroup("r1").
+		SetEndpoint("i1").
+		SetWeight(3)
+	i2 := placement.NewInstance().
+		SetID("i2").
+		SetIsolationGroup("r2").
+		SetEndpoint("i2").
+		SetWeight(1)
+	i3 := placement.NewInstance().
+		SetID("i3").
+		SetIsolationGroup("r1").
+		SetEndpoint("i3").
+		SetWeight(1)
+	i4 := placement.NewInstance().
+		SetID("i4").
+		SetIsolationGroup("r2").
+		SetEndpoint("i4").
+		SetWeight(2)
+
+	tests := []struct {
+		name               string
+		opts               placement.Options
+		initialInstances   []placement.Instance
+		candidateInstances []placement.Instance
+		expectNumAdded     int
+	}{
+		{
+			name:               "Add Single Candidate",
+			opts:               placement.NewOptions().SetAddAllCandidates(false),
+			initialInstances:   []placement.Instance{i1.Clone(), i2.Clone()},
+			candidateInstances: []placement.Instance{i3.Clone(), i4.Clone()},
+			expectNumAdded:     1,
+		},
+		{
+			name:               "Add All Candidates",
+			opts:               placement.NewOptions().SetAddAllCandidates(true),
+			initialInstances:   []placement.Instance{i1.Clone(), i2.Clone()},
+			candidateInstances: []placement.Instance{i3.Clone(), i4.Clone()},
+			expectNumAdded:     2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ps := NewPlacementService(NewMockStorage(), test.opts)
+			_, err := ps.BuildInitialPlacement(test.initialInstances, 4, 2)
+			require.NoError(t, err)
+
+			_, addedInstances, err := ps.AddInstances(test.candidateInstances)
+			require.NoError(t, err)
+			require.Equal(t, test.expectNumAdded, len(addedInstances))
+		})
+	}
+}
+
 // file based placement storage
 type mockStorage struct {
 	sync.Mutex
