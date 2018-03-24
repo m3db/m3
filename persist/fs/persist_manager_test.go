@@ -116,7 +116,7 @@ func TestPersistenceManagerPrepareSnapshotFileExists(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	shardDir := createSnapshotsShardDir(t, pm.filePathPrefix, testNs1ID, shard)
-	checkpointFilePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	checkpointFilePath := snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, 0)
 	f, err := os.Create(checkpointFilePath)
 	require.NoError(t, err)
 	f.Close()
