@@ -260,15 +260,10 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 		}
 	}
 
-	seriesOnly := result.WiredBlocks
-	result.WiredBlocksSeries = seriesOnly
-
 	bufferStats := s.buffer.Stats()
 	result.ActiveBlocks += bufferStats.wiredBlocks
 	result.WiredBlocks += bufferStats.wiredBlocks
 	result.OpenBlocks += bufferStats.openBlocks
-
-	result.WiredBlocksBuffer = result.WiredBlocks - seriesOnly
 
 	return result
 }

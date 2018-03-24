@@ -139,9 +139,7 @@ type TickStatus struct {
 	// WiredBlocks is the number of blocks wired in memory (all data kept)
 	WiredBlocks int
 	// UnwiredBlocks is the number of blocks unwired (data kept on disk)
-	UnwiredBlocks     int
-	WiredBlocksSeries int
-	WiredBlocksBuffer int
+	UnwiredBlocks int
 }
 
 // TickResult is a set of results from a tick

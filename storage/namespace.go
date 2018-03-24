@@ -162,8 +162,6 @@ type databaseNamespaceTickMetrics struct {
 	activeBlocks           tally.Gauge
 	openBlocks             tally.Gauge
 	wiredBlocks            tally.Gauge
-	wiredBlocksSeriesOnly  tally.Gauge
-	wiredBlocksBufferOnly  tally.Gauge
 	unwiredBlocks          tally.Gauge
 	madeUnwiredBlocks      tally.Counter
 	madeExpiredBlocks      tally.Counter
@@ -208,8 +206,11 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 			activeBlocks:           tickScope.Gauge("active-blocks"),
 			openBlocks:             tickScope.Gauge("open-blocks"),
 			wiredBlocks:            tickScope.Gauge("wired-blocks"),
+<<<<<<< HEAD
 			wiredBlocksSeriesOnly:  tickScope.Gauge("wired-blocks-series-only"),
 			wiredBlocksBufferOnly:  tickScope.Gauge("wired-blocks-buffer-only"),
+=======
+>>>>>>> Remove unnecessary metrics change
 			unwiredBlocks:          tickScope.Gauge("unwired-blocks"),
 			madeUnwiredBlocks:      tickScope.Counter("made-unwired-blocks"),
 			madeExpiredBlocks:      tickScope.Counter("made-expired-blocks"),
@@ -467,8 +468,11 @@ func (n *dbNamespace) Tick(c context.Cancellable) error {
 	n.metrics.tick.activeBlocks.Update(float64(r.activeBlocks))
 	n.metrics.tick.openBlocks.Update(float64(r.openBlocks))
 	n.metrics.tick.wiredBlocks.Update(float64(r.wiredBlocks))
+<<<<<<< HEAD
 	n.metrics.tick.wiredBlocksSeriesOnly.Update(float64(r.wiredBlocksSeriesOnly))
 	n.metrics.tick.wiredBlocksBufferOnly.Update(float64(r.wiredBlocksBufferOnly))
+=======
+>>>>>>> Remove unnecessary metrics change
 	n.metrics.tick.unwiredBlocks.Update(float64(r.unwiredBlocks))
 	n.metrics.tick.madeExpiredBlocks.Inc(int64(r.madeExpiredBlocks))
 	n.metrics.tick.madeUnwiredBlocks.Inc(int64(r.madeUnwiredBlocks))
