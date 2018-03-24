@@ -365,6 +365,11 @@ func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) [][]xio.S
 			return
 		}
 
+		// This operation is safe because all of the underlying resources will respect the
+		// lifecycle of the context in one way or another. The "bootstrapped blocks" that
+		// we stream from will mark their internal context as dependent on that of the passed
+		// context, and the Encoder's that we stream from actually perform a data copy and
+		// don't share a reference.
 		res = append(res, bucket.streams(ctx))
 	})
 
