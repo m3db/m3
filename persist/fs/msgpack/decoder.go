@@ -394,8 +394,8 @@ func (dec *Decoder) decodeLogMetadata() schema.LogMetadata {
 	return logMetadata
 }
 
-func (dec *Decoder) decodeRootObject(expectedVersion int, expectedType objectType) (int, int) {
-	version := dec.checkVersion(expectedVersion)
+func (dec *Decoder) decodeRootObject(expectedVersion int, expectedType objectType) (version int, numFieldsToSkip int) {
+	version = dec.checkVersion(expectedVersion)
 	if dec.err != nil {
 		return 0, 0
 	}
