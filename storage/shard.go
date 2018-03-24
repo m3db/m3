@@ -1830,7 +1830,6 @@ func (s *dbShard) markDoneSnapshotting(success bool, completionTime time.Time) {
 func (s *dbShard) CleanupSnapshots() error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	multiErr := xerrors.NewMultiError()
-	// TODO: Make mockable
 	snapshotFiles, err := fs.SnapshotFiles(filePathPrefix, s.namespace.ID(), s.ID())
 	if err != nil {
 		return err
