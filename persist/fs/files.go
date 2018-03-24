@@ -639,7 +639,6 @@ func SnapshotFilesetExistsAt(prefix string, namespace ident.ID, shard uint32, bl
 
 	latest, ok := snapshotFiles.LatestForBlock(blockStart)
 	if !ok {
-		fmt.Println("no latest")
 		return false, nil
 	}
 

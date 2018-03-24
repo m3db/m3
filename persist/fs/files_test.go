@@ -412,10 +412,12 @@ func TestSnapshotFilesetExistsAt(t *testing.T) {
 	shardPath := ShardSnapshotsDirPath(dir, testNs1ID, 0)
 	require.NoError(t, os.MkdirAll(shardPath, 0755))
 
-	filePath := filesetPathFromTime(shardPath, ts, checkpointFileSuffix)
+	filePath := snapshotPathFromTimeAndIndex(shardPath, ts, checkpointFileSuffix, 0)
 	createFile(t, filePath, []byte{})
 
-	require.Equal(t, true, SnapshotFilesetExistsAt(dir, testNs1ID, shard, ts))
+	exists, err := SnapshotFilesetExistsAt(dir, testNs1ID, shard, ts)
+	require.NoError(t, err)
+	require.True(t, exists)
 }
 
 func TestCommitLogFilesBefore(t *testing.T) {
