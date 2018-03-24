@@ -86,20 +86,25 @@ func createFile(t *testing.T, filePath string, b []byte) {
 }
 
 func createInfoFilesSnapshotDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
-	return createInfoFiles(t, snapshotDirName, namespace, shard, iter)
+	return createInfoFiles(t, snapshotDirName, namespace, shard, iter, true)
 }
 
 func createInfoFilesDataDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
-	return createInfoFiles(t, dataDirName, namespace, shard, iter)
+	return createInfoFiles(t, dataDirName, namespace, shard, iter, false)
 }
 
-func createInfoFiles(t *testing.T, subDirName string, namespace ident.ID, shard uint32, iter int) string {
+func createInfoFiles(t *testing.T, subDirName string, namespace ident.ID, shard uint32, iter int, isSnapshot bool) string {
 	dir := createTempDir(t)
 	shardDir := path.Join(dir, subDirName, namespace.String(), strconv.Itoa(int(shard)))
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 	for i := 0; i < iter; i++ {
 		ts := time.Unix(int64(i), 0)
-		infoFilePath := filesetPathFromTime(shardDir, ts, infoFileSuffix)
+		var infoFilePath string
+		if isSnapshot {
+			infoFilePath = snapshotPathFromTimeAndIndex(shardDir, ts, infoFileSuffix, 0)
+		} else {
+			infoFilePath = filesetPathFromTime(shardDir, ts, infoFileSuffix)
+		}
 		createFile(t, infoFilePath, nil)
 	}
 	return dir
@@ -387,6 +392,30 @@ func TestSnapshotFiles(t *testing.T) {
 	for i, snapshotFile := range files {
 		require.Equal(t, int64(i), snapshotFile.BlockStart.Unix())
 	}
+
+	require.Equal(t, 20, len(files.Flatten()))
+}
+
+func TestSnapshotFilesMultipleForBlockStart(t *testing.T) {
+	numSnapshotsForBlock := 20
+	shard := uint32(0)
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+	shardDir := path.Join(dir, snapshotDirName, testNs1ID.String(), strconv.Itoa(int(shard)))
+	require.NoError(t, os.MkdirAll(shardDir, 0755))
+
+	ts := time.Unix(0, 0)
+	for i := 0; i < numSnapshotsForBlock; i++ {
+		createFile(t, snapshotPathFromTimeAndIndex(shardDir, ts, infoFileSuffix, i), nil)
+	}
+
+	files, err := SnapshotFiles(dir, testNs1ID, shard)
+	require.NoError(t, err)
+	require.Equal(t, 20, len(files))
+	require.Equal(t, 20, len(files.Flatten()))
+	latestSnapshot, ok := files.LatestForBlock(ts)
+	require.True(t, ok)
+	require.Equal(t, numSnapshotsForBlock-1, latestSnapshot.Index)
 }
 
 func TestSnapshotDirPath(t *testing.T) {

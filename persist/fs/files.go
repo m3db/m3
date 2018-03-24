@@ -98,7 +98,6 @@ func (f SnapshotFilesSlice) Flatten() []string {
 
 // LatestForBlock returns the latest (highest index) SnapshotFile in the
 // slice for a given block start.
-// TODO: Test this
 func (f SnapshotFilesSlice) LatestForBlock(blockStart time.Time) (SnapshotFile, bool) {
 	for i := 0; i < len(f); i++ {
 		curr := f[i]
