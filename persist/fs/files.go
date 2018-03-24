@@ -102,10 +102,7 @@ func (f SnapshotFilesSlice) Flatten() []string {
 func (f SnapshotFilesSlice) LatestForBlock(blockStart time.Time) (SnapshotFile, bool) {
 	for i := 0; i < len(f); i++ {
 		curr := f[i]
-		fmt.Println("a: ", curr.BlockStart)
-		fmt.Println("b: ", blockStart)
 		if curr.BlockStart.Equal(blockStart) {
-			fmt.Println("Block start matches!")
 			isEnd := (i == len(f)-1)
 			isHighestIdx := true
 			if !isEnd {
