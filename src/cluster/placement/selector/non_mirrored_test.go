@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3cluster/placement"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGroupInstancesByConflict(t *testing.T) {
@@ -271,5 +272,69 @@ func TestFilterZones(t *testing.T) {
 	for args, exp := range tests {
 		res := filterZones(args.p, args.candidates, args.opts)
 		assert.Equal(t, exp, res)
+	}
+}
+
+func TestSelectAddingInstanceForNonMirrored(t *testing.T) {
+	i1 := placement.NewInstance().
+		SetID("i1").
+		SetIsolationGroup("r1").
+		SetWeight(3)
+	i2 := placement.NewInstance().
+		SetID("i2").
+		SetIsolationGroup("r2").
+		SetWeight(1)
+	i3 := placement.NewInstance().
+		SetID("i3").
+		SetIsolationGroup("r1").
+		SetWeight(1)
+	i4 := placement.NewInstance().
+		SetID("i4").
+		SetIsolationGroup("r2").
+		SetWeight(2)
+
+	tests := []struct {
+		name                  string
+		placement             placement.Placement
+		opts                  placement.Options
+		candidates            []placement.Instance
+		expectedNumAdded      int
+		expectedInstanceAdded placement.Instance
+	}{
+		{
+			name:                  "New Isolation Group",
+			placement:             placement.NewPlacement().SetInstances([]placement.Instance{i1}),
+			opts:                  placement.NewOptions().SetAddAllCandidates(false),
+			candidates:            []placement.Instance{i2, i3},
+			expectedNumAdded:      1,
+			expectedInstanceAdded: i2,
+		},
+		{
+			name:                  "Least Weighted Isolation Group",
+			placement:             placement.NewPlacement().SetInstances([]placement.Instance{i1, i4}),
+			opts:                  placement.NewOptions().SetAddAllCandidates(false),
+			candidates:            []placement.Instance{i2, i3},
+			expectedNumAdded:      1,
+			expectedInstanceAdded: i2,
+		},
+		{
+			name:             "Add All Candidates",
+			placement:        placement.NewPlacement().SetInstances([]placement.Instance{i1}),
+			opts:             placement.NewOptions().SetAddAllCandidates(true),
+			candidates:       []placement.Instance{i2, i3, i4},
+			expectedNumAdded: 3,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			selector := newNonMirroredSelector(test.opts)
+			added, err := selector.SelectAddingInstances(test.candidates, test.placement)
+			require.NoError(t, err)
+			require.Equal(t, test.expectedNumAdded, len(added))
+			if test.expectedInstanceAdded != nil {
+				require.Equal(t, test.expectedInstanceAdded, added[0])
+			}
+		})
 	}
 }

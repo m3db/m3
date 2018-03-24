@@ -58,39 +58,15 @@ func (f *nonMirroredSelector) SelectAddingInstances(
 		return nil, err
 	}
 
-	candidateGroups := buildIsolationGroupMap(candidates)
-
-	existingGroups := buildIsolationGroupMap(p.Instances())
-
-	// If there is a isolation group not in the current placement, prefer the isolation group.
-	for r, instances := range candidateGroups {
-		if _, exist := existingGroups[r]; !exist {
-			// All the isolation groups have at least 1 instance.
-			return instances[:1], nil
-		}
+	if f.opts.AddAllCandidates() {
+		return candidates, nil
 	}
 
-	// Otherwise sort the isolation groups in the current placement
-	// by capacity and find a instance from least sized isolation group.
-	groups := make(sortableValues, 0, len(existingGroups))
-	for group, instances := range existingGroups {
-		weight := 0
-		for _, i := range instances {
-			weight += int(i.Weight())
-		}
-		groups = append(groups, sortableValue{value: group, weight: weight})
+	instance, err := selectSingleCandidate(candidates, p)
+	if err != nil {
+		return nil, err
 	}
-	sort.Sort(groups)
-
-	for _, group := range groups {
-		if i, exist := candidateGroups[group.value.(string)]; exist {
-			for _, instance := range i {
-				return []placement.Instance{instance}, nil
-			}
-		}
-	}
-	// no instance in the candidate instances can be added to the placement
-	return nil, errNoValidInstance
+	return []placement.Instance{instance}, nil
 }
 
 func (f *nonMirroredSelector) SelectReplaceInstances(
@@ -240,6 +216,45 @@ func buildIsolationGroupMap(candidates []placement.Instance) map[string][]placem
 		result[instance.IsolationGroup()] = append(result[instance.IsolationGroup()], instance)
 	}
 	return result
+}
+
+func selectSingleCandidate(
+	candidates []placement.Instance,
+	p placement.Placement,
+) (placement.Instance, error) {
+	candidateGroups := buildIsolationGroupMap(candidates)
+	existingGroups := buildIsolationGroupMap(p.Instances())
+
+	// If there is an isolation group not in the current placement, prefer the isolation group.
+	for r, instances := range candidateGroups {
+		if _, exist := existingGroups[r]; !exist {
+			// All the isolation groups have at least 1 instance.
+			return instances[0], nil
+		}
+	}
+
+	// Otherwise sort the isolation groups in the current placement
+	// by capacity and find a instance from least sized isolation group.
+	groups := make(sortableValues, 0, len(existingGroups))
+	for group, instances := range existingGroups {
+		weight := 0
+		for _, i := range instances {
+			weight += int(i.Weight())
+		}
+		groups = append(groups, sortableValue{value: group, weight: weight})
+	}
+	sort.Sort(groups)
+
+	for _, group := range groups {
+		if i, exist := candidateGroups[group.value.(string)]; exist {
+			for _, instance := range i {
+				return instance, nil
+			}
+		}
+	}
+
+	// no instance in the candidate instances can be added to the placement
+	return nil, errNoValidInstance
 }
 
 type sortableValue struct {
