@@ -211,8 +211,6 @@ func (pm *persistManager) reset() {
 
 // Prepare returns a prepared persist object which can be used to persist data. Note that this
 // method will return (nil, nil) if the files already exist.
-// TODO(rartoul): This method would be nicer if it returned (persist.PreparedPersist, bool, error)
-// where the bool indicates whether the files already existed or not.
 func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.PreparedPersist, error) {
 
 	var (
