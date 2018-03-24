@@ -261,7 +261,6 @@ func TimeAndIndexFromSnapshotFilename(fname string) (time.Time, int, error) {
 	return timeAndIndexFromFileName(fname, 3)
 }
 
-// TODO: Test
 func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, int, error) {
 	components, t, err := componentsAndTimeFromFileName(fname)
 	if err != nil {
