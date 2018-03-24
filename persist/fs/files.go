@@ -209,8 +209,8 @@ type commitlogsByTimeAndIndexAscending []string
 func (a commitlogsByTimeAndIndexAscending) Len() int      { return len(a) }
 func (a commitlogsByTimeAndIndexAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a commitlogsByTimeAndIndexAscending) Less(i, j int) bool {
-	ti, ii, _ := TimeAndIndexFromFileNameCommitlog(a[i])
-	tj, ij, _ := TimeAndIndexFromFileNameCommitlog(a[j])
+	ti, ii, _ := TimeAndIndexFromCommitlogFilename(a[i])
+	tj, ij, _ := TimeAndIndexFromCommitlogFilename(a[j])
 	if ti.Before(tj) {
 		return true
 	}
@@ -224,8 +224,8 @@ type snapshotsByTimeAndIndexAscending []string
 func (a snapshotsByTimeAndIndexAscending) Len() int      { return len(a) }
 func (a snapshotsByTimeAndIndexAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a snapshotsByTimeAndIndexAscending) Less(i, j int) bool {
-	ti, ii, _ := TimeAndIndexFromFileNameSnapshot(a[i])
-	tj, ij, _ := TimeAndIndexFromFileNameSnapshot(a[j])
+	ti, ii, _ := TimeAndIndexFromSnapshotFilename(a[i])
+	tj, ij, _ := TimeAndIndexFromSnapshotFilename(a[j])
 	if ti.Before(tj) {
 		return true
 	}
@@ -251,14 +251,13 @@ func TimeFromFileName(fname string) (time.Time, error) {
 	return t, err
 }
 
-// TimeAndIndexFromFileNameCommitlog extracts the block start and index from file name for a commitlog.
-// TODO: Swap words in name
-func TimeAndIndexFromFileNameCommitlog(fname string) (time.Time, int, error) {
+// TimeAndIndexFromCommitlogFilename extracts the block start and index from file name for a commitlog.
+func TimeAndIndexFromCommitlogFilename(fname string) (time.Time, int, error) {
 	return timeAndIndexFromFileName(fname, 2)
 }
 
-// TimeAndIndexFromFileNameSnapshot extracts the block start and index from file name for a Snapshot.
-func TimeAndIndexFromFileNameSnapshot(fname string) (time.Time, int, error) {
+// TimeAndIndexFromSnapshotFilename extracts the block start and index from file name for a Snapshot.
+func TimeAndIndexFromSnapshotFilename(fname string) (time.Time, int, error) {
 	return timeAndIndexFromFileName(fname, 3)
 }
 
@@ -463,7 +462,7 @@ func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, patt
 		snapshotFiles      = []SnapshotFile{}
 	)
 	for _, file := range byTimeAsc {
-		currentFileBlockStart, index, err := TimeAndIndexFromFileNameSnapshot(file)
+		currentFileBlockStart, index, err := TimeAndIndexFromSnapshotFilename(file)
 		if err != nil {
 			return nil, err
 		}
