@@ -554,13 +554,3 @@ func (dec *Decoder) decodeBytesLen() int {
 	dec.err = err
 	return value
 }
-
-func (dec *Decoder) decodeBool() bool {
-	if dec.err != nil {
-		return false
-	}
-
-	value, err := dec.dec.DecodeBool()
-	dec.err = err
-	return value
-}

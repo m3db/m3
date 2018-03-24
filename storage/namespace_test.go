@@ -426,8 +426,10 @@ func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 }
 
 func TestNamespaceFlushDontNeedFlush(t *testing.T) {
-	ns := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
+	ns, close := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
 		namespace.NewOptions().SetFlushEnabled(false))
+	defer close()
+
 	ns.bs = bootstrapped
 	require.NoError(t, ns.Flush(time.Now(), nil))
 }
@@ -474,7 +476,9 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	ns := newTestNamespace(t)
+	ns, close := newTestNamespace(t)
+	defer close()
+
 	ns.bs = bootstrapping
 
 	blockSize := ns.Options().RetentionOptions().BlockSize()
