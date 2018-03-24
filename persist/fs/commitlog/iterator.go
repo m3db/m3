@@ -173,7 +173,7 @@ func (i *iterator) nextReader() bool {
 	file := i.files[0]
 	i.files = i.files[1:]
 
-	t, idx, err := fs.TimeAndIndexFromFileNameCommitlog(file)
+	t, idx, err := fs.TimeAndIndexFromCommitlogFilename(file)
 	if err != nil {
 		i.err = err
 		return false

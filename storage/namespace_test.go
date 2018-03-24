@@ -464,9 +464,10 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 }
 
 type snapshotTestCase struct {
-	isSnapshotting bool
-	expectSnapshot bool
-	snapshotErr    error
+	isSnapshotting   bool
+	expectSnapshot   bool
+	lastSnapshotTime func(blockStart time.Time, blockSize time.Duration) time.Time
+	snapshotErr      error
 }
 
 func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
@@ -484,6 +485,28 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 	blockSize := ns.Options().RetentionOptions().BlockSize()
 	blockStart := time.Now().Truncate(blockSize)
 	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil))
+}
+
+func TestNamespaceSnapshotNotEnoughTimeSinceLastSnapshot(t *testing.T) {
+	shardMethodResults := []snapshotTestCase{
+		snapshotTestCase{
+			isSnapshotting: false,
+			expectSnapshot: false,
+			lastSnapshotTime: func(curr time.Time, blockSize time.Duration) time.Time {
+				return curr
+			},
+			snapshotErr: nil,
+		},
+		snapshotTestCase{
+			isSnapshotting: false,
+			expectSnapshot: true,
+			lastSnapshotTime: func(curr time.Time, blockSize time.Duration) time.Time {
+				return curr.Add(-2 * defaultMinSnapshotInterval)
+			},
+			snapshotErr: nil,
+		},
+	}
+	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
 }
 
 func TestNamespaceSnapshotShardIsSnapshotting(t *testing.T) {
@@ -529,7 +552,13 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 
 	for i, tc := range shardMethodResults {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().SnapshotState().Return(tc.isSnapshotting, blockStart.Add(-blockSize))
+		var lastSnapshotTime time.Time
+		if tc.lastSnapshotTime == nil {
+			lastSnapshotTime = blockStart.Add(-blockSize)
+		} else {
+			lastSnapshotTime = tc.lastSnapshotTime(now, blockSize)
+		}
+		shard.EXPECT().SnapshotState().Return(tc.isSnapshotting, lastSnapshotTime)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
 		if tc.expectSnapshot {
 			shard.EXPECT().Snapshot(blockStart, now, nil).Return(tc.snapshotErr)
