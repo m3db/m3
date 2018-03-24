@@ -258,7 +258,7 @@ func (dec *Decoder) decodeIndexInfoV2() schema.IndexInfo {
 	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
 
 	indexInfo.WrittenAt = dec.decodeVarint()
-	indexInfo.IsSnapshot = dec.decodeBool()
+	indexInfo.FileType = schema.FilesetFileType(dec.decodeVarint())
 
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {

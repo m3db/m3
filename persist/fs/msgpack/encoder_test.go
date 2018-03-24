@@ -75,6 +75,7 @@ func testExpectedResultForIndexInfo(t *testing.T, indexInfo schema.IndexInfo) []
 		indexInfo.BloomFilter.NumElementsM,
 		indexInfo.BloomFilter.NumHashesK,
 		indexInfo.WrittenAt,
+		int64(indexInfo.FileType),
 	}
 }
 
