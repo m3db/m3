@@ -122,40 +122,57 @@ func NewReader(
 
 // ReaderOpenOptions is options struct for the reader open method.
 type ReaderOpenOptions struct {
-	Namespace  ident.ID
-	BlockStart time.Time
-	Shard      uint32
-	IsSnapshot bool
+	Namespace     ident.ID
+	BlockStart    time.Time
+	Shard         uint32
+	IsSnapshot    bool
+	SnapshotIndex int
 }
 
 func (r *reader) Open(opts ReaderOpenOptions) error {
 	var (
-		namespace  = opts.Namespace
-		shard      = opts.Shard
-		blockStart = opts.BlockStart
-		isSnapshot = opts.IsSnapshot
-		err        error
+		namespace     = opts.Namespace
+		shard         = opts.Shard
+		blockStart    = opts.BlockStart
+		isSnapshot    = opts.IsSnapshot
+		snapshotIndex = opts.SnapshotIndex
+		err           error
 	)
 
 	var shardDir string
+	var checkpointFilePath string
 	if isSnapshot {
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
+		checkpointFilePath = snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, snapshotIndex)
 	} else {
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
+		checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	}
 
 	// If there is no checkpoint file, don't read the data files.
-	if err := r.readCheckpointFile(shardDir, blockStart); err != nil {
+	if err := r.readCheckpointFile(checkpointFilePath, blockStart); err != nil {
 		return err
 	}
 
 	var infoFd, digestFd *os.File
-	if err := openFiles(os.Open, map[string]**os.File{
-		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
-		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
-		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &r.bloomFilterFd,
-	}); err != nil {
-		return err
+	if isSnapshot {
+		err := openFiles(os.Open, map[string]**os.File{
+			snapshotPathFromTimeAndIndex(shardDir, blockStart, infoFileSuffix, snapshotIndex):        &infoFd,
+			snapshotPathFromTimeAndIndex(shardDir, blockStart, digestFileSuffix, snapshotIndex):      &digestFd,
+			snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, snapshotIndex): &r.bloomFilterFd,
+		})
+		if err != nil {
+			return err
+		}
+	} else {
+		err := openFiles(os.Open, map[string]**os.File{
+			filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
+			filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
+			filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &r.bloomFilterFd,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	r.infoFdWithDigest.Reset(infoFd)
@@ -167,21 +184,38 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 		r.digestFdWithDigestContents.Close()
 	}()
 
-	result, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
-		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmap.FileDesc{
-			File:    &r.indexFd,
-			Bytes:   &r.indexMmap,
-			Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
-		},
-		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmap.FileDesc{
-			File:    &r.dataFd,
-			Bytes:   &r.dataMmap,
-			Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
-		},
-	})
+	var result mmap.FilesResult
+	if opts.IsSnapshot {
+		result, err = mmap.Files(os.Open, map[string]mmap.FileDesc{
+			snapshotPathFromTimeAndIndex(shardDir, blockStart, indexFileSuffix, snapshotIndex): mmap.FileDesc{
+				File:    &r.indexFd,
+				Bytes:   &r.indexMmap,
+				Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
+			},
+			snapshotPathFromTimeAndIndex(shardDir, blockStart, dataFileSuffix, snapshotIndex): mmap.FileDesc{
+				File:    &r.dataFd,
+				Bytes:   &r.dataMmap,
+				Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
+			},
+		})
+	} else {
+		result, err = mmap.Files(os.Open, map[string]mmap.FileDesc{
+			filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmap.FileDesc{
+				File:    &r.indexFd,
+				Bytes:   &r.indexMmap,
+				Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
+			},
+			filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmap.FileDesc{
+				File:    &r.dataFd,
+				Bytes:   &r.dataMmap,
+				Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
+			},
+		})
+	}
 	if err != nil {
 		return err
 	}
+
 	if warning := result.Warning; warning != nil {
 		logger := r.opts.InstrumentOptions().Logger()
 		logger.Warnf("warning while mmapping files in reader: %s",
@@ -226,8 +260,7 @@ func (r *reader) Status() FileSetReaderStatus {
 	}
 }
 
-func (r *reader) readCheckpointFile(shardDir string, blockStart time.Time) error {
-	filePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+func (r *reader) readCheckpointFile(filePath string, blockStart time.Time) error {
 	if !FileExists(filePath) {
 		return ErrCheckpointFileNotFound
 	}

@@ -25,6 +25,7 @@ package integration
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -100,6 +101,7 @@ func waitUntilDataFilesFlushed(
 
 func verifyForTime(
 	t *testing.T,
+	storageOpts storage.Options,
 	reader fs.FileSetReader,
 	shardSet sharding.ShardSet,
 	iteratorPool encoding.ReaderIteratorPool,
@@ -108,6 +110,7 @@ func verifyForTime(
 	isSnapshot bool,
 	expected generate.SeriesBlock,
 ) {
+	fmt.Println("huh: ", timestamp.Unix())
 	shards := make(map[uint32]struct{})
 	for _, series := range expected {
 		shard := shardSet.Lookup(series.ID)
@@ -120,6 +123,19 @@ func verifyForTime(
 			Shard:      shard,
 			BlockStart: timestamp,
 			IsSnapshot: isSnapshot,
+		}
+
+		if isSnapshot {
+			// If we're verifying snapshot files, then we need to identify the latest
+			// one because multiple snapshot files can exist at the same time with the
+			// same blockStart, but increasing "indexes" which indicates which one is
+			// most recent (and thus has more cumulative data).
+			filePathPrefix := storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+			snapshotFiles, err := fs.SnapshotFiles(filePathPrefix, namespace, shard)
+			require.NoError(t, err)
+			latest, ok := snapshotFiles.LatestForBlock(timestamp)
+			require.True(t, ok)
+			rOpts.SnapshotIndex = latest.Index
 		}
 		require.NoError(t, reader.Open(rOpts))
 		for i := 0; i < reader.Entries(); i++ {
@@ -156,16 +172,16 @@ func verifyForTime(
 func verifyFlushedDataFiles(
 	t *testing.T,
 	shardSet sharding.ShardSet,
-	opts storage.Options,
+	storageOpts storage.Options,
 	namespace ident.ID,
 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
 ) {
-	fsOpts := opts.CommitLogOptions().FilesystemOptions()
-	reader, err := fs.NewReader(opts.BytesPool(), fsOpts)
+	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
+	reader, err := fs.NewReader(storageOpts.BytesPool(), fsOpts)
 	require.NoError(t, err)
-	iteratorPool := opts.ReaderIteratorPool()
+	iteratorPool := storageOpts.ReaderIteratorPool()
 	for timestamp, seriesList := range seriesMaps {
-		verifyForTime(t, reader, shardSet, iteratorPool, timestamp.ToTime(), namespace, false, seriesList)
+		verifyForTime(t, storageOpts, reader, shardSet, iteratorPool, timestamp.ToTime(), namespace, false, seriesList)
 	}
 }
 
@@ -184,7 +200,7 @@ func verifySnapshottedDataFiles(
 	iteratorPool := storageOpts.ReaderIteratorPool()
 	for _, ns := range testNamespaces {
 		for _, seriesList := range seriesMaps {
-			verifyForTime(t, reader, shardSet, iteratorPool, snapshotTime, ns, true, seriesList)
+			verifyForTime(t, storageOpts, reader, shardSet, iteratorPool, snapshotTime, ns, true, seriesList)
 		}
 	}
 }
