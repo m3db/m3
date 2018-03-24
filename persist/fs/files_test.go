@@ -292,24 +292,49 @@ func TestTimeFromName(t *testing.T) {
 }
 
 func TestTimeAndIndexFromCommitlogFileName(t *testing.T) {
-	_, _, err := TimeAndIndexFromFileNameCommitlog("foo/bar")
+	_, _, err := TimeAndIndexFromCommitlogFilename("foo/bar")
 	require.Error(t, err)
 	require.Equal(t, "unexpected file name foo/bar", err.Error())
 
-	_, _, err = TimeAndIndexFromFileNameCommitlog("foo/bar-baz")
+	_, _, err = TimeAndIndexFromCommitlogFilename("foo/bar-baz")
 	require.Error(t, err)
 
 	type expected struct {
 		t time.Time
 		i int
 	}
-	ts, i, err := TimeAndIndexFromFileNameCommitlog("foo-1-0.db")
+	ts, i, err := TimeAndIndexFromCommitlogFilename("foo-1-0.db")
 	exp := expected{time.Unix(0, 1), 0}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
 
-	ts, i, err = TimeAndIndexFromFileNameCommitlog("foo/bar/foo-21234567890-1.db")
+	ts, i, err = TimeAndIndexFromCommitlogFilename("foo/bar/foo-21234567890-1.db")
+	exp = expected{time.Unix(0, 21234567890), 1}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+}
+
+func TestTimeAndIndexFromSnapshotFileName(t *testing.T) {
+	_, _, err := TimeAndIndexFromSnapshotFilename("foo/bar")
+	require.Error(t, err)
+	require.Equal(t, "unexpected file name foo/bar", err.Error())
+
+	_, _, err = TimeAndIndexFromSnapshotFilename("foo/bar-baz")
+	require.Error(t, err)
+
+	type expected struct {
+		t time.Time
+		i int
+	}
+	ts, i, err := TimeAndIndexFromSnapshotFilename("foo-1-data-0.db")
+	exp := expected{time.Unix(0, 1), 0}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+
+	ts, i, err = TimeAndIndexFromSnapshotFilename("foo/bar/foo-21234567890-data-1.db")
 	exp = expected{time.Unix(0, 21234567890), 1}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
