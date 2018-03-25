@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,8 +23,18 @@ package index
 import (
 	"time"
 
+	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
+)
+
+var (
+	// ReservedFieldNameNamespace is the field name used to index namespace in the
+	// m3ninx subsytem.
+	ReservedFieldNameNamespace = []byte("_m3db-namespace")
 )
 
 // Query is a rich end user query to describe a set of constraints on required IDs.
@@ -41,20 +51,56 @@ type QueryOptions struct {
 
 // QueryResults is the collection of results for a query.
 type QueryResults struct {
-	Iter       TaggedIDsIter
+	Iterator   Iterator
 	Exhaustive bool
 }
 
-// TaggedIDsIter iterates over a collection of IDs with associated
-// tags and namespace
-type TaggedIDsIter interface {
+// Iterator iterates over a collection of IDs with associated
+// tags and namespace.
+type Iterator interface {
 	// Next returns whether there are more items in the collection
 	Next() bool
 
 	// Current returns the ID, Tags and Namespace for a single timeseries.
 	// These remain valid until Next() is called again.
-	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.TagIterator)
+	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.Tags)
 
 	// Err returns any error encountered
 	Err() error
+}
+
+// Options control the Indexing knobs.
+type Options interface {
+	// Validate validates assumptions baked into the code.
+	Validate() error
+
+	// SetClockOptions sets the clock options.
+	SetClockOptions(value clock.Options) Options
+
+	// ClockOptions returns the clock options.
+	ClockOptions() clock.Options
+
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) Options
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
+
+	// SetMemSegmentOptions sets the mem segment options.
+	SetMemSegmentOptions(value mem.Options) Options
+
+	// MemSegmentOptions returns the mem segment options.
+	MemSegmentOptions() mem.Options
+
+	// SetIdentifierPool sets the identifier pool.
+	SetIdentifierPool(value ident.Pool) Options
+
+	// IdentifierPool returns the identifier pool.
+	IdentifierPool() ident.Pool
+
+	// SetCheckedBytesWrapperPool sets the checked bytes wrapper pool.
+	SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options
+
+	// CheckedBytesWrapperPool returns the checked bytes wrapper pool.
+	CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool
 }

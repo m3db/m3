@@ -61,11 +61,12 @@ const (
 )
 
 var (
-	errShardEntryNotFound         = errors.New("shard entry not found")
-	errShardNotOpen               = errors.New("shard is not open")
-	errShardAlreadyTicking        = errors.New("shard is already ticking")
-	errShardClosingTickTerminated = errors.New("shard is closing, terminating tick")
-	errShardInvalidPageToken      = errors.New("shard could not unmarshal page token")
+	errShardEntryNotFound          = errors.New("shard entry not found")
+	errShardNotOpen                = errors.New("shard is not open")
+	errShardAlreadyTicking         = errors.New("shard is already ticking")
+	errShardClosingTickTerminated  = errors.New("shard is closing, terminating tick")
+	errShardInvalidPageToken       = errors.New("shard could not unmarshal page token")
+	errShardIndexingNotImplemented = errors.New("shard indexing not implemented")
 )
 
 type filesetBeforeFn func(
@@ -103,7 +104,7 @@ type dbShard struct {
 	increasingIndex          increasingIndex
 	seriesPool               series.DatabaseSeriesPool
 	commitLogWriter          commitLogWriter
-	indexWriter              databaseIndexWriter
+	indexWriter              databaseIndex
 	insertQueue              *dbShardInsertQueue
 	lookup                   map[ident.Hash]*list.Element
 	list                     *list.List
@@ -203,7 +204,7 @@ func newDatabaseShard(
 	namespaceReaderMgr databaseNamespaceReaderManager,
 	increasingIndex increasingIndex,
 	commitLogWriter commitLogWriter,
-	indexWriter databaseIndexWriter,
+	indexWriter databaseIndex,
 	needsBootstrap bool,
 	opts Options,
 	seriesOpts series.Options,
@@ -709,7 +710,7 @@ func (s *dbShard) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	return errIndexingNotImplemented
+	return errShardIndexingNotImplemented
 }
 
 func (s *dbShard) Write(

@@ -138,13 +138,7 @@ func NewDatabase(
 	scope := iopts.MetricsScope().SubScope("database")
 	logger := iopts.Logger()
 
-	index := databaseIndexNoOp
-	if opts.IndexingEnabled() {
-		index, err = newDatabaseIndex(opts)
-		if err != nil {
-			return nil, err
-		}
-	}
+	var idx databaseIndex
 
 	d := &db{
 		opts:         opts,
@@ -152,7 +146,7 @@ func NewDatabase(
 		shardSet:     shardSet,
 		namespaces:   make(map[ident.Hash]databaseNamespace),
 		commitLog:    commitLog,
-		index:        index,
+		index:        idx,
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope),
 		log:          logger,

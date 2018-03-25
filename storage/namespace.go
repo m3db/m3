@@ -115,7 +115,7 @@ type dbNamespace struct {
 
 	increasingIndex increasingIndex
 	commitLogWriter commitLogWriter
-	indexWriter     databaseIndexWriter
+	indexWriter     databaseIndex
 
 	tickWorkers            xsync.WorkerPool
 	tickWorkersConcurrency int
@@ -219,7 +219,7 @@ func newDatabaseNamespace(
 	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
 	commitLogWriter commitLogWriter,
-	indexWriter databaseIndexWriter,
+	indexWriter databaseIndex,
 	opts Options,
 ) (databaseNamespace, error) {
 	var (

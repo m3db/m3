@@ -25,6 +25,7 @@ package storage
 
 import (
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -42,6 +43,7 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/x/xcounter"
 	"github.com/m3db/m3db/x/xio"
+	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -1259,8 +1261,8 @@ func (_m *MockdatabaseIndex) EXPECT() *MockdatabaseIndexMockRecorder {
 }
 
 // Write mocks base method
-func (_m *MockdatabaseIndex) Write(ctx context.Context, namespace ident.ID, id ident.ID, tags ident.TagIterator) error {
-	ret := _m.ctrl.Call(_m, "Write", ctx, namespace, id, tags)
+func (_m *MockdatabaseIndex) Write(namespace ident.ID, id ident.ID, tags ident.Tags, fns indexInsertLifecycleHooks) error {
+	ret := _m.ctrl.Call(_m, "Write", namespace, id, tags, fns)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
@@ -1281,6 +1283,121 @@ func (_m *MockdatabaseIndex) Query(ctx context.Context, query index.Query, opts 
 // Query indicates an expected call of Query
 func (_mr *MockdatabaseIndexMockRecorder) Query(arg0, arg1, arg2 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Query", reflect.TypeOf((*MockdatabaseIndex)(nil).Query), arg0, arg1, arg2)
+}
+
+// Close mocks base method
+func (_m *MockdatabaseIndex) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (_mr *MockdatabaseIndexMockRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Close", reflect.TypeOf((*MockdatabaseIndex)(nil).Close))
+}
+
+// MockdatabaseIndexInsertQueue is a mock of databaseIndexInsertQueue interface
+type MockdatabaseIndexInsertQueue struct {
+	ctrl     *gomock.Controller
+	recorder *MockdatabaseIndexInsertQueueMockRecorder
+}
+
+// MockdatabaseIndexInsertQueueMockRecorder is the mock recorder for MockdatabaseIndexInsertQueue
+type MockdatabaseIndexInsertQueueMockRecorder struct {
+	mock *MockdatabaseIndexInsertQueue
+}
+
+// NewMockdatabaseIndexInsertQueue creates a new mock instance
+func NewMockdatabaseIndexInsertQueue(ctrl *gomock.Controller) *MockdatabaseIndexInsertQueue {
+	mock := &MockdatabaseIndexInsertQueue{ctrl: ctrl}
+	mock.recorder = &MockdatabaseIndexInsertQueueMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockdatabaseIndexInsertQueue) EXPECT() *MockdatabaseIndexInsertQueueMockRecorder {
+	return _m.recorder
+}
+
+// Start mocks base method
+func (_m *MockdatabaseIndexInsertQueue) Start() error {
+	ret := _m.ctrl.Call(_m, "Start")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Start indicates an expected call of Start
+func (_mr *MockdatabaseIndexInsertQueueMockRecorder) Start() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Start", reflect.TypeOf((*MockdatabaseIndexInsertQueue)(nil).Start))
+}
+
+// Stop mocks base method
+func (_m *MockdatabaseIndexInsertQueue) Stop() error {
+	ret := _m.ctrl.Call(_m, "Stop")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Stop indicates an expected call of Stop
+func (_mr *MockdatabaseIndexInsertQueueMockRecorder) Stop() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Stop", reflect.TypeOf((*MockdatabaseIndexInsertQueue)(nil).Stop))
+}
+
+// Insert mocks base method
+func (_m *MockdatabaseIndexInsertQueue) Insert(d doc.Document, s indexInsertLifecycleHooks) (*sync.WaitGroup, error) {
+	ret := _m.ctrl.Call(_m, "Insert", d, s)
+	ret0, _ := ret[0].(*sync.WaitGroup)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Insert indicates an expected call of Insert
+func (_mr *MockdatabaseIndexInsertQueueMockRecorder) Insert(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Insert", reflect.TypeOf((*MockdatabaseIndexInsertQueue)(nil).Insert), arg0, arg1)
+}
+
+// MockindexInsertLifecycleHooks is a mock of indexInsertLifecycleHooks interface
+type MockindexInsertLifecycleHooks struct {
+	ctrl     *gomock.Controller
+	recorder *MockindexInsertLifecycleHooksMockRecorder
+}
+
+// MockindexInsertLifecycleHooksMockRecorder is the mock recorder for MockindexInsertLifecycleHooks
+type MockindexInsertLifecycleHooksMockRecorder struct {
+	mock *MockindexInsertLifecycleHooks
+}
+
+// NewMockindexInsertLifecycleHooks creates a new mock instance
+func NewMockindexInsertLifecycleHooks(ctrl *gomock.Controller) *MockindexInsertLifecycleHooks {
+	mock := &MockindexInsertLifecycleHooks{ctrl: ctrl}
+	mock.recorder = &MockindexInsertLifecycleHooksMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockindexInsertLifecycleHooks) EXPECT() *MockindexInsertLifecycleHooksMockRecorder {
+	return _m.recorder
+}
+
+// OnIndexSuccess mocks base method
+func (_m *MockindexInsertLifecycleHooks) OnIndexSuccess(indexEntryExpiry time.Time) {
+	_m.ctrl.Call(_m, "OnIndexSuccess", indexEntryExpiry)
+}
+
+// OnIndexSuccess indicates an expected call of OnIndexSuccess
+func (_mr *MockindexInsertLifecycleHooksMockRecorder) OnIndexSuccess(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "OnIndexSuccess", reflect.TypeOf((*MockindexInsertLifecycleHooks)(nil).OnIndexSuccess), arg0)
+}
+
+// OnIndexFinalize mocks base method
+func (_m *MockindexInsertLifecycleHooks) OnIndexFinalize() {
+	_m.ctrl.Call(_m, "OnIndexFinalize")
+}
+
+// OnIndexFinalize indicates an expected call of OnIndexFinalize
+func (_mr *MockindexInsertLifecycleHooksMockRecorder) OnIndexFinalize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "OnIndexFinalize", reflect.TypeOf((*MockindexInsertLifecycleHooks)(nil).OnIndexFinalize))
 }
 
 // MockdatabaseBootstrapManager is a mock of databaseBootstrapManager interface
