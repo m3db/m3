@@ -60,17 +60,26 @@ func (i *testIncreasingIndex) nextIndex() uint64 {
 }
 
 func testDatabaseShard(t *testing.T, opts Options) *dbShard {
+	return testDatabaseShardWithIndexFn(t, opts, nil)
+}
+
+func testDatabaseShardWithIndexFn(
+	t *testing.T,
+	opts Options,
+	fn reverseIndexWriteFn,
+) *dbShard {
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
 	nsReaderMgr := newNamespaceReaderManager(metadata, tally.NoopScope, opts)
 	seriesOpts := NewSeriesOptionsFromOptions(opts, defaultTestNs1Opts.RetentionOptions())
 	return newDatabaseShard(metadata, 0, nil, nsReaderMgr,
-		&testIncreasingIndex{}, commitLogWriteNoOp, nil, true, opts, seriesOpts).(*dbShard)
+		&testIncreasingIndex{}, commitLogWriteNoOp, fn, true, opts, seriesOpts).(*dbShard)
 }
 
-func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, index uint64) *series.MockDatabaseSeries {
+func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, tags ident.Tags, index uint64) *series.MockDatabaseSeries {
 	series := series.NewMockDatabaseSeries(ctrl)
 	series.EXPECT().ID().Return(id).AnyTimes()
+	series.EXPECT().Tags().Return(tags).AnyTimes()
 	series.EXPECT().IsEmpty().Return(false).AnyTimes()
 	shard.lookup[id.Hash()] = shard.list.PushBack(&dbShardEntry{series: series, index: index})
 	return series
@@ -342,7 +351,7 @@ func addTestSeries(shard *dbShard, id ident.ID) series.DatabaseSeries {
 }
 
 func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.DatabaseSeries {
-	series := series.NewDatabaseSeries(id, shard.seriesOpts)
+	series := series.NewDatabaseSeries(id, nil, shard.seriesOpts)
 	series.Bootstrap(nil)
 	shard.Lock()
 	shard.lookup[id.Hash()] = shard.list.PushBack(&dbShardEntry{
@@ -688,7 +697,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	id := ident.StringID("foo")
-	s := addMockSeries(ctrl, shard, id, 0)
+	s := addMockSeries(ctrl, shard, id, nil, 0)
 	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place just after tick for this series
 		s.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
@@ -718,11 +727,11 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	id := ident.StringID("foo")
-	s := addMockSeries(ctrl, shard, id, 0)
+	s := addMockSeries(ctrl, shard, id, nil, 0)
 	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place and staying open just after tick for this series
 		var err error
-		entry, err = shard.writableSeries(id)
+		entry, err = shard.writableSeries(id, ident.EmptyTagIterator)
 		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
@@ -794,7 +803,7 @@ func TestShardFetchBlocksIDExists(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	id := ident.StringID("foo")
-	series := addMockSeries(ctrl, shard, id, 0)
+	series := addMockSeries(ctrl, shard, id, nil, 0)
 	now := time.Now()
 	starts := []time.Time{now}
 	expected := []block.FetchBlockResult{block.NewFetchBlockResult(now, nil, nil)}
@@ -946,6 +955,37 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 
 	assert.False(t, entry.series.IsEmpty())
 	assert.Equal(t, 2, entry.series.NumActiveBlocks())
+}
+
+func TestShardNewInvalidShardEntry(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	shard := testDatabaseShard(t, testDatabaseOptions())
+	defer shard.Close()
+
+	iter := ident.NewMockTagIterator(ctrl)
+	gomock.InOrder(
+		iter.EXPECT().Duplicate().Return(iter),
+		iter.EXPECT().Remaining().Return(0),
+		iter.EXPECT().Next().Return(false),
+		iter.EXPECT().Err().Return(fmt.Errorf("random err")),
+		iter.EXPECT().Close(),
+	)
+
+	_, err := shard.newShardEntry(ident.StringID("abc"), iter)
+	require.Error(t, err)
+}
+
+func TestShardNewValidShardEntry(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	shard := testDatabaseShard(t, testDatabaseOptions())
+	defer shard.Close()
+
+	_, err := shard.newShardEntry(ident.StringID("abc"), ident.EmptyTagIterator)
+	require.NoError(t, err)
 }
 
 func TestShardIterateBatchSize(t *testing.T) {

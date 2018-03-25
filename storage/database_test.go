@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 	"testing"
@@ -32,6 +33,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
@@ -39,6 +41,7 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
+	xtime "github.com/m3db/m3x/time"
 	xwatch "github.com/m3db/m3x/watch"
 
 	"github.com/fortytw2/leaktest"
@@ -164,6 +167,7 @@ func newTestDatabase(t *testing.T, ctrl *gomock.Controller, bs bootstrapState) (
 
 	opts := testDatabaseOptions().
 		SetRepairEnabled(true).
+		SetIndexingEnabled(false).
 		SetRepairOptions(testRepairOptions(ctrl)).
 		SetNamespaceInitializer(newMockNsInitializer(t, ctrl, mapCh))
 
@@ -630,4 +634,73 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	ns2, ok := d.Namespace(defaultTestNs2ID)
 	require.True(t, ok)
 	require.Equal(t, defaultTestNs2Opts, ns2.Options())
+}
+
+func TestDatabaseIndexDisabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+
+	require.NoError(t, d.Open())
+
+	err := d.WriteTagged(context.NewContext(), ident.StringID("a"),
+		ident.StringID("b"), ident.EmptyTagIterator, time.Time{},
+		1.0, xtime.Second, nil)
+	require.EqualError(t, err, errDatabaseIndexingDisabled.Error())
+
+	_, err = d.QueryIDs(context.NewContext(), ident.StringID("abc"),
+		index.Query{}, index.QueryOptions{})
+	require.EqualError(t, err, errDatabaseIndexingDisabled.Error())
+
+	require.NoError(t, d.Close())
+}
+
+func TestDatabaseIndexEnabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+	}()
+
+	d.opts = d.opts.SetIndexingEnabled(true)
+	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	ns.EXPECT().Tick(gomock.Any()).Return(nil).AnyTimes()
+	require.NoError(t, d.Open())
+
+	ctx := context.NewContext()
+	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
+		time.Time{}, 1.0, xtime.Second, nil).Return(nil)
+	require.NoError(t, d.WriteTagged(ctx, ident.StringID("testns"),
+		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
+		1.0, xtime.Second, nil))
+
+	ns.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("foo"), gomock.Any(),
+		time.Time{}, 1.0, xtime.Second, nil).Return(fmt.Errorf("random err"))
+	require.Error(t, d.WriteTagged(ctx, ident.StringID("testns"),
+		ident.StringID("foo"), ident.EmptyTagIterator, time.Time{},
+		1.0, xtime.Second, nil))
+
+	var (
+		q    = index.Query{}
+		opts = index.QueryOptions{}
+		res  = index.QueryResults{}
+		err  error
+	)
+
+	ns.EXPECT().QueryIDs(ctx, q, opts).Return(res, nil)
+	_, err = d.QueryIDs(ctx, ident.StringID("testns"), q, opts)
+	require.NoError(t, err)
+
+	ns.EXPECT().QueryIDs(ctx, q, opts).Return(res, fmt.Errorf("random err"))
+	_, err = d.QueryIDs(ctx, ident.StringID("testns"), q, opts)
+	require.Error(t, err)
+
+	ns.EXPECT().Close().Return(nil)
+	require.NoError(t, d.Close())
 }

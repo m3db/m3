@@ -43,7 +43,7 @@ import (
 )
 
 func testNamespaceIndexOptions() index.Options {
-	return index.NewOptions()
+	return testDatabaseOptions().IndexOptions()
 }
 
 func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (namespaceIndex, *MocknamespaceIndexInsertQueue) {

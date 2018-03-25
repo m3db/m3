@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
@@ -82,6 +83,7 @@ var (
 var (
 	errNamespaceInitializerNotSet = errors.New("namespace registry initializer not set")
 	errRepairOptionsNotSet        = errors.New("repair enabled but repair options are not set")
+	errIndexOptionsNotSet         = errors.New("index enabled but index options are not set")
 	errPersistManagerNotSet       = errors.New("persist manager is not set")
 )
 
@@ -115,6 +117,7 @@ type options struct {
 	errThresholdForLoad            int64
 	indexingEnabled                bool
 	repairEnabled                  bool
+	indexOpts                      index.Options
 	repairOpts                     repair.Options
 	newEncoderFn                   encoding.NewEncoderFn
 	newDecoderFn                   encoding.NewDecoderFn
@@ -158,6 +161,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		errWindowForLoad:    defaultErrorWindowForLoad,
 		errThresholdForLoad: defaultErrorThresholdForLoad,
 		indexingEnabled:     defaultIndexingEnabled,
+		indexOpts:           index.NewOptions(),
 		repairEnabled:       defaultRepairEnabled,
 		repairOpts:          repair.NewOptions(),
 		bootstrapProcess:    defaultBootstrapProcess,
@@ -205,6 +209,17 @@ func (o *options) Validate() error {
 		}
 	}
 
+	// validate indexing options
+	if o.IndexingEnabled() {
+		iOpts := o.IndexOptions()
+		if iOpts == nil {
+			return errIndexOptionsNotSet
+		}
+		if err := iOpts.Validate(); err != nil {
+			return fmt.Errorf("unable to validate index options, err: %v", err)
+		}
+	}
+
 	// validate that persist manager is present, if not return
 	// error if error occurred during default creation otherwise
 	// it was set to nil by a caller
@@ -220,6 +235,7 @@ func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
 	opts.commitLogOpts = opts.commitLogOpts.SetClockOptions(value)
+	opts.indexOpts = opts.indexOpts.SetClockOptions(value)
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
 	return &opts
 }
@@ -232,6 +248,7 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 	opts := *o
 	opts.instrumentOpts = value
 	opts.commitLogOpts = opts.commitLogOpts.SetInstrumentOptions(value)
+	opts.indexOpts = opts.indexOpts.SetInstrumentOptions(value)
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
 	return &opts
 }
@@ -319,6 +336,16 @@ func (o *options) SetIndexingEnabled(b bool) Options {
 
 func (o *options) IndexingEnabled() bool {
 	return o.indexingEnabled
+}
+
+func (o *options) SetIndexOptions(value index.Options) Options {
+	opts := *o
+	opts.indexOpts = value
+	return &opts
+}
+
+func (o *options) IndexOptions() index.Options {
+	return o.indexOpts
 }
 
 func (o *options) SetRepairEnabled(b bool) Options {
@@ -555,6 +582,7 @@ func (o *options) MultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 
 func (o *options) SetIdentifierPool(value ident.Pool) Options {
 	opts := *o
+	opts.indexOpts = opts.indexOpts.SetIdentifierPool(value)
 	opts.identifierPool = value
 	return &opts
 }

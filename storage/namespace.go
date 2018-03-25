@@ -254,6 +254,17 @@ func newDatabaseNamespace(
 			metadata.ID().String(), err)
 	}
 
+	var (
+		index namespaceIndex
+		err   error
+	)
+	if opts.IndexingEnabled() {
+		index, err = newNamespaceIndex(metadata, newNamespaceIndexInsertQueue, opts.IndexOptions())
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	n := &dbNamespace{
 		id:                     id,
 		shutdownCh:             make(chan struct{}),
@@ -268,7 +279,7 @@ func newDatabaseNamespace(
 		log:                    logger,
 		increasingIndex:        increasingIndex,
 		commitLogWriter:        commitLogWriter,
-		reverseIndex:           nil, // FOLLOWUP(prateek): will be done in https://github.com/m3db/m3db/pull/507
+		reverseIndex:           index,
 		tickWorkers:            tickWorkers,
 		tickWorkersConcurrency: tickWorkersConcurrency,
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
@@ -335,6 +346,10 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	}
 
 	n.Lock()
+	var indexFn reverseIndexWriteFn
+	if n.reverseIndex != nil {
+		indexFn = n.reverseIndex.Write
+	}
 	existing = n.shards
 	for _, shard := range existing {
 		if shard == nil {
@@ -352,7 +367,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		} else {
 			needsBootstrap := n.nopts.NeedsBootstrap()
 			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.reverseIndex,
+				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, indexFn,
 				needsBootstrap, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
@@ -947,11 +962,15 @@ func (n *dbNamespace) readableShardAtWithRLock(shardID uint32) (databaseShard, e
 
 func (n *dbNamespace) initShards(needBootstrap bool) {
 	n.Lock()
+	var indexFn reverseIndexWriteFn
+	if n.reverseIndex != nil {
+		indexFn = n.reverseIndex.Write
+	}
 	shards := n.shardSet.AllIDs()
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
 		dbShards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-			n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.reverseIndex,
+			n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, indexFn,
 			needBootstrap, n.opts, n.seriesOpts)
 	}
 	n.shards = dbShards
@@ -972,5 +991,8 @@ func (n *dbNamespace) Close() error {
 	n.namespaceReaderMgr.close()
 	n.closeShards(shards, true)
 	close(n.shutdownCh)
+	if n.reverseIndex != nil {
+		return n.reverseIndex.Close()
+	}
 	return nil
 }

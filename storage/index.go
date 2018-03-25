@@ -44,6 +44,12 @@ var (
 	errDbIndexUnableToIndexWithReservedFieldName = errors.New("unable to index document due to usage of reserved fieldname")
 )
 
+type reverseIndexWriteFn func(
+	id ident.ID,
+	tags ident.Tags,
+	fns onIndexSeries,
+) error
+
 type nsIndexState byte
 
 const (

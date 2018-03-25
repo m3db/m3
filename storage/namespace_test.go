@@ -1003,6 +1003,7 @@ func TestNamespaceIndexInsert(t *testing.T) {
 	require.NoError(t, err)
 
 	shard.EXPECT().Close()
+	idx.EXPECT().Close().Return(nil)
 	require.NoError(t, ns.Close())
 }
 
@@ -1022,6 +1023,7 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	_, err := ns.QueryIDs(ctx, query, opts)
 	require.NoError(t, err)
 
+	idx.EXPECT().Close().Return(nil)
 	require.NoError(t, ns.Close())
 }
 

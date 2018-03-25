@@ -62,7 +62,8 @@ type dbSeries struct {
 	// series ID before changing ownership semantics (e.g.
 	// pooling the ID rather than releasing it to the GC on
 	// calling series.Reset()).
-	id ident.ID
+	id   ident.ID
+	tags ident.Tags
 
 	buffer                      databaseBuffer
 	blocks                      block.DatabaseSeriesBlocks
@@ -74,9 +75,9 @@ type dbSeries struct {
 }
 
 // NewDatabaseSeries creates a new database series
-func NewDatabaseSeries(id ident.ID, opts Options) DatabaseSeries {
+func NewDatabaseSeries(id ident.ID, tags ident.Tags, opts Options) DatabaseSeries {
 	s := newDatabaseSeries()
-	s.Reset(id, nil, nil, nil, opts)
+	s.Reset(id, tags, nil, nil, nil, opts)
 	return s
 }
 
@@ -108,6 +109,13 @@ func (s *dbSeries) ID() ident.ID {
 	id := s.id
 	s.RUnlock()
 	return id
+}
+
+func (s *dbSeries) Tags() ident.Tags {
+	s.RLock()
+	tags := s.tags
+	s.RUnlock()
+	return tags
 }
 
 func (s *dbSeries) Tick() (TickResult, error) {
@@ -649,6 +657,7 @@ func (s *dbSeries) Close() {
 
 func (s *dbSeries) Reset(
 	id ident.ID,
+	tags ident.Tags,
 	blockRetriever QueryableBlockRetriever,
 	onRetrieveBlock block.OnRetrieveBlock,
 	onEvictedFromWiredList block.OnEvictedFromWiredList,
@@ -658,6 +667,7 @@ func (s *dbSeries) Reset(
 	defer s.Unlock()
 
 	s.id = id
+	s.tags = tags
 	s.blocks.Reset()
 	s.buffer.Reset(opts)
 	s.opts = opts
