@@ -950,8 +950,8 @@ func TestShardCleanupSnapshot(t *testing.T) {
 				},
 				Index: 0,
 			},
-			// Should not get removed - Note that this entry preceeds the
-			// next in order to nesure that the storying logic works correctly.
+			// Should not get removed - Note that this entry precedes the
+			// next in order to ensure that the sorting logic works correctly.
 			fs.SnapshotFile{
 				FilesetFile: fs.FilesetFile{
 					BlockStart: notFlushedYet,
