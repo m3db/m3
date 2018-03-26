@@ -4,7 +4,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/m3db/m3coordinator/generated/proto/m3coordinator"
+	"github.com/m3db/m3coordinator/generated/proto/rpc"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/util/logging"
 

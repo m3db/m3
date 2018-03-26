@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/m3db/m3coordinator/errors"
-	"github.com/m3db/m3coordinator/generated/proto/m3coordinator"
+	"github.com/m3db/m3coordinator/generated/proto/rpc"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/ts"
 	"github.com/m3db/m3coordinator/util/logging"
@@ -26,14 +26,16 @@ type grpcClient struct {
 }
 
 // NewGrpcClient creates grpc client
-func NewGrpcClient(addresses []string) (Client, error) {
+func NewGrpcClient(addresses []string, additionalDialOpts ...grpc.DialOption) (Client, error) {
 	if len(addresses) == 0 {
 		return nil, errors.ErrNoClientAddresses
 	}
 	resolver := newStaticResolver(addresses)
 	balancer := grpc.RoundRobin(resolver)
-	dialOption := grpc.WithBalancer(balancer)
-	cc, err := grpc.Dial("", grpc.WithInsecure(), dialOption)
+	dialOptions := []grpc.DialOption{grpc.WithBalancer(balancer), grpc.WithInsecure()}
+	dialOptions = append(dialOptions, additionalDialOpts...)
+
+	cc, err := grpc.Dial("", dialOptions...)
 	if err != nil {
 		return nil, err
 	}

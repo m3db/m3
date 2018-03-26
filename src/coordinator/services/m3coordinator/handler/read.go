@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3coordinator/executor"
-	"github.com/m3db/m3coordinator/generated/proto/prometheus/prompb"
+	"github.com/m3db/m3coordinator/generated/proto/prompb"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/util/logging"
 

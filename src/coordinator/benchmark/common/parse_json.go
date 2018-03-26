@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3coordinator/generated/proto/prometheus/prompb"
+	"github.com/m3db/m3coordinator/generated/proto/prompb"
 	"github.com/m3db/m3coordinator/storage"
 
 	"github.com/golang/protobuf/proto"

@@ -1,5 +1,5 @@
-hash: 5df3d076fc0b0cbde32574cf11b97a44939c5f962fc22484af886af1b598403a
-updated: 2018-03-07T08:11:04.138421218-05:00
+hash: 4abf5684d59b5d5123fbc52379d0f117180fde3124e61d8f42d59137c46388e0
+updated: 2018-03-11T03:07:17.000334-04:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -11,12 +11,8 @@ imports:
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
   - lib/go/thrift
-- name: github.com/beorn7/perks
-  version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
-  subpackages:
-  - quantile
 - name: github.com/coreos/etcd
-  version: 8ba2897a21e4fc51b298ca553d251318425f93ae
+  version: 694728c496e22dfa5719c78ff23cc982e15bcb2f
   subpackages:
   - auth/authpb
   - clientv3
@@ -26,15 +22,12 @@ imports:
   - etcdserver/etcdserverpb
   - integration
   - mvcc/mvccpb
-  - pkg/tlsutil
 - name: github.com/davecgh/go-spew
   version: adab96458c51a58dc1783b3335dcce5461522e75
   subpackages:
   - spew
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
-- name: github.com/ghodss/yaml
-  version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/glycerine/go-unsnap-stream
   version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
 - name: github.com/go-ole/go-ole
@@ -42,7 +35,7 @@ imports:
   subpackages:
   - oleutil
 - name: github.com/gogo/protobuf
-  version: d5bc08a2c4c572e9bcff820aa125fe38ac3a3a42
+  version: 100ba4e885062801d56799d78530b73b178a78f3
   subpackages:
   - gogoproto
   - proto
@@ -54,12 +47,11 @@ imports:
 - name: github.com/golang/protobuf
   version: 1e59b77b52bf8e4b449a57e6f79f21226d571845
   subpackages:
-  - jsonpb
   - proto
+  - protoc-gen-go/descriptor
   - ptypes
   - ptypes/any
   - ptypes/duration
-  - ptypes/struct
   - ptypes/timestamp
 - name: github.com/golang/snappy
   version: 553a641470496b2327abcac10b36396bd98e45c9
@@ -67,23 +59,14 @@ imports:
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
   version: 53c1911da2b537f792e7cafcb446b05ffe33b996
-- name: github.com/grpc-ecosystem/go-grpc-prometheus
-  version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
-- name: github.com/grpc-ecosystem/grpc-gateway
-  version: 84398b94e188ee336f307779b57b3aa91af7063c
-  subpackages:
-  - runtime
-  - runtime/internal
-  - utilities
 - name: github.com/m3db/m3cluster
-  version: 8354845ef3ba8c1a4ddbad288fca248516fb0a50
+  version: ac52883b085bacbfa8441c511342d429772c8317
   subpackages:
   - client
   - client/etcd
   - etcd/watchmanager
   - generated/proto/metadatapb
   - generated/proto/placementpb
-  - integration/etcd
   - kv
   - kv/etcd
   - kv/mem
@@ -159,10 +142,6 @@ imports:
   - watch
 - name: github.com/m3db/stackadler32
   version: bfebcd73ef6ffe0ee30489227f0330c39064b674
-- name: github.com/matttproud/golang_protobuf_extensions
-  version: c12348ce28de40eed0136aa2b644d0ee0650e56c
-  subpackages:
-  - pbutil
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/opentracing/opentracing-go
@@ -179,26 +158,10 @@ imports:
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
-- name: github.com/prometheus/client_golang
-  version: 967789050ba94deca04a5e84cce8ad472ce313c1
-  subpackages:
-  - prometheus
-- name: github.com/prometheus/client_model
-  version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
-  subpackages:
-  - go
-- name: github.com/prometheus/common
-  version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
-  subpackages:
-  - expfmt
-  - internal/bitbucket.org/ww/goautoneg
-  - model
-- name: github.com/prometheus/procfs
-  version: 1878d9fbb537119d24b21ca07effd591627cd160
 - name: github.com/RoaringBitmap/roaring
   version: 4bbba8874933b985c9160558fddea525dde73e63
 - name: github.com/shirou/gopsutil
-  version: c432be29ccce470088d07eea25b3ea7e68a8afbb
+  version: 5776ff9c7c5d063d574ef53d740f75c68b448e53
   subpackages:
   - cpu
   - host
@@ -256,7 +219,7 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/net
-  version: 61557ac0112b576429a0df080e1c2cef5dfbb642
+  version: d0aafc73d5cdc42264b0af071c261abac580695e
   subpackages:
   - bpf
   - context
@@ -264,7 +227,7 @@ imports:
   - http2/hpack
   - idna
   - internal/iana
-  - internal/netreflect
+  - internal/socket
   - internal/timeseries
   - ipv4
   - ipv6
@@ -281,31 +244,34 @@ imports:
   subpackages:
   - unix
   - windows
-- name: google.golang.org/genproto
-  version: df60624c1e9b9d2973e889c7a1cff73155da81c4
+- name: golang.org/x/text
+  version: 4ee4af566555f5fbe026368b75596286a312663a
   subpackages:
+  - secure/bidirule
+  - transform
+  - unicode/bidi
+  - unicode/norm
+- name: google.golang.org/genproto
+  version: 09f6ed296fc66555a25fe4ce95173148778dfa85
+  subpackages:
+  - googleapis/api/annotations
   - googleapis/rpc/status
 - name: google.golang.org/grpc
-  version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
+  version: 401e0e00e4bb830a10496d64cd95e068c5bf50de
   subpackages:
   - balancer
-  - balancer/base
-  - balancer/roundrobin
   - codes
   - connectivity
   - credentials
-  - encoding
-  - encoding/proto
   - grpclb/grpc_lb_v1/messages
   - grpclog
+  - health/grpc_health_v1
   - internal
   - keepalive
   - metadata
   - naming
   - peer
   - resolver
-  - resolver/dns
-  - resolver/passthrough
   - stats
   - status
   - tap

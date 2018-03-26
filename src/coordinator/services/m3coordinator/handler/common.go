@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
 
 	"github.com/golang/snappy"
+	"go.uber.org/zap"
 )
 
 const (
@@ -67,4 +69,17 @@ func ParseRequestParams(r *http.Request) (*RequestParams, error) {
 	}
 
 	return &params, nil
+}
+
+// WriteJSONResponse writes a protobuf message to the ResponseWriter
+func WriteJSONResponse(w http.ResponseWriter, resp interface{}, logger *zap.Logger) {
+	jsonData, err := json.Marshal(resp)
+	if err != nil {
+		logger.Error("unable to marshal json", zap.Any("error", err))
+		Error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonData)
 }
