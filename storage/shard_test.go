@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
@@ -914,6 +915,72 @@ func TestShardCleanupFileset(t *testing.T) {
 	}
 	require.NoError(t, shard.CleanupFileset(time.Now()))
 	require.Equal(t, []string{defaultTestNs1ID.String(), "0"}, deletedFiles)
+}
+
+func TestShardCleanupSnapshot(t *testing.T) {
+	var (
+		opts                = testDatabaseOptions()
+		shard               = testDatabaseShard(t, opts)
+		blockSize           = 2 * time.Hour
+		now                 = time.Now().Truncate(blockSize)
+		earliestToRetain    = now.Add(-4 * blockSize)
+		pastRetention       = earliestToRetain.Add(-blockSize)
+		successfullyFlushed = earliestToRetain
+		notFlushedYet       = earliestToRetain.Add(blockSize)
+	)
+
+	shard.markFlushStateSuccess(earliestToRetain)
+	defer shard.Close()
+
+	shard.snapshotFilesFn = func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.SnapshotFilesSlice, error) {
+		return fs.SnapshotFilesSlice{
+			// Should get removed for not being in retention period
+			fs.SnapshotFile{
+				FilesetFile: fs.FilesetFile{
+					BlockStart: pastRetention,
+					Files:      []string{"not-in-retention"},
+				},
+				Index: 0,
+			},
+			// Should get removed for being flushed
+			fs.SnapshotFile{
+				FilesetFile: fs.FilesetFile{
+					BlockStart: successfullyFlushed,
+					Files:      []string{"successfully-flushed"},
+				},
+				Index: 0,
+			},
+			// Should get removed because the next one has a higher index
+			fs.SnapshotFile{
+				FilesetFile: fs.FilesetFile{
+					BlockStart: notFlushedYet,
+					Files:      []string{"not-latest-index"},
+				},
+				Index: 0,
+			},
+			// Should not get removed
+			fs.SnapshotFile{
+				FilesetFile: fs.FilesetFile{
+					BlockStart: notFlushedYet,
+					// Note this filename needs to contain the word "checkpoint" to
+					// pass the HasCheckpointFile() check
+					Files: []string{"latest-index-and-has-checkpoint"},
+				},
+				Index: 1,
+			},
+		}, nil
+	}
+
+	deletedFiles := []string{}
+	shard.deleteFilesFn = func(files []string) error {
+		deletedFiles = append(deletedFiles, files...)
+		return nil
+	}
+	require.NoError(t, shard.CleanupSnapshots(earliestToRetain))
+
+	expectedDeletedFiles := []string{
+		"not-in-retention", "successfully-flushed", "not-latest-index"}
+	require.Equal(t, expectedDeletedFiles, deletedFiles)
 }
 
 type testCloser struct {
