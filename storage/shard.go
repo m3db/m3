@@ -1827,10 +1827,16 @@ func (s *dbShard) markDoneSnapshotting(success bool, completionTime time.Time) {
 	s.snapshotState.Unlock()
 }
 
-// Can only delete snapshot files that are:
-// 		1) Out of retention
-// 		2) For a shard that has been flushed
-// 		3) Not the latest version
+// CleanupSnapshots examines the snapshot files for the shard that are on disk and
+// determines which can be safely deleted. A snapshot file is safe to delete if it
+// meets one of the following criteria:
+// 		1) It contains data for a block start that is out of retention (as determined
+// 		   by the earliestToRetain argument.)
+// 		2) It contains data for a block start that has already been successfully flushed.
+// 		3) It contains data for a block start that hasn't been flushed yet, but a more
+// 		   recent set of snapshot files (higher index) exists for the same block start.
+// 		   This is because snapshot files are cumulative, so once a new one has been
+//         written out it's safe to delete any previous ones for that block start.
 func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	multiErr := xerrors.NewMultiError()
