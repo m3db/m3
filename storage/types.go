@@ -404,7 +404,7 @@ type databaseShard interface {
 	SnapshotState() (isSnapshotting bool, lastSuccessfulSnapshot time.Time)
 
 	// CleanupSnapshots cleans up snapshot files
-	CleanupSnapshots() error
+	CleanupSnapshots(earliestToRetain time.Time) error
 
 	// CleanupFileset cleans up fileset files
 	CleanupFileset(earliestToRetain time.Time) error

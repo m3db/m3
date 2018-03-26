@@ -1827,7 +1827,11 @@ func (s *dbShard) markDoneSnapshotting(success bool, completionTime time.Time) {
 	s.snapshotState.Unlock()
 }
 
-func (s *dbShard) CleanupSnapshots() error {
+// Can only delete snapshot files that are:
+// 		1) Out of retention
+// 		2) For a shard that has been flushed
+// 		3) Not the latest version
+func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	multiErr := xerrors.NewMultiError()
 	snapshotFiles, err := fs.SnapshotFiles(filePathPrefix, s.namespace.ID(), s.ID())
@@ -1835,20 +1839,45 @@ func (s *dbShard) CleanupSnapshots() error {
 		return err
 	}
 
-	// Should already be sorted by blockStart, but just to be safe
 	sort.Slice(snapshotFiles, func(i, j int) bool {
+		// Make sure they're sorted by blockStart/Index in ascending order.
+		if snapshotFiles[i].BlockStart.Equal(snapshotFiles[j].BlockStart) {
+			return snapshotFiles[i].Index < snapshotFiles[j].Index
+		}
 		return snapshotFiles[i].BlockStart.Before(snapshotFiles[j].BlockStart)
 	})
-	latestBlockStart := snapshotFiles[len(snapshotFiles)-1].BlockStart
 
-	// All snapshots files are cumulative (contain all data in previous files + new data),
-	// so if a newer file exists its always safe to delete the old ones. This is true across
-	// block starts as well because we only ever write out snapshot files for a given block if
-	// the previous block has been properly flushed.
-	filesToDelete, err := fs.FilesBefore(snapshotFiles.Flatten(), latestBlockStart)
-	if err != nil {
-		return multiErr.Add(err).FinalError()
+	filesToDelete := []string{}
+
+	for i := 0; i < len(snapshotFiles); i++ {
+		curr := snapshotFiles[i]
+
+		if curr.BlockStart.Before(earliestToRetain) {
+			// Delete snapshot files for blocks that have fallen out
+			// of retention.
+			filesToDelete = append(filesToDelete, curr.Files...)
+			continue
+		}
+
+		if s.FlushState(curr.BlockStart).Status == fileOpSuccess {
+			// Delete snapshot files for any block starts that have been
+			// successfully flushed.
+			filesToDelete = append(filesToDelete, curr.Files...)
+			continue
+		}
+
+		if i+1 < len(snapshotFiles) &&
+			snapshotFiles[i+1].BlockStart == curr.BlockStart &&
+			snapshotFiles[i+1].Index > curr.Index &&
+			snapshotFiles[i+1].HasCheckpointFile() {
+			// Delete any snapshot files which are not the most recent
+			// for that block start, but only of the set of snapshot files
+			// with the higher index is complete (checkpoint file exists)
+			filesToDelete = append(filesToDelete, curr.Files...)
+			continue
+		}
 	}
+
 	err = fs.DeleteFiles(filesToDelete)
 	return multiErr.Add(err).FinalError()
 }
