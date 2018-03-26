@@ -16,13 +16,14 @@ import (
 	"github.com/m3db/m3coordinator/services/m3coordinator/config"
 	"github.com/m3db/m3coordinator/services/m3coordinator/httpd"
 	"github.com/m3db/m3coordinator/storage"
-
 	"github.com/m3db/m3coordinator/storage/fanout"
 	"github.com/m3db/m3coordinator/storage/local"
 	"github.com/m3db/m3coordinator/storage/remote"
 	tsdbRemote "github.com/m3db/m3coordinator/tsdb/remote"
 	"github.com/m3db/m3coordinator/util/logging"
 
+	m3clusterClient "github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3metrics/policy"
 	xconfig "github.com/m3db/m3x/config"
@@ -76,7 +77,16 @@ func main() {
 	fanoutStorage, storageCleanup := setupStorages(logger, session, flags)
 	defer storageCleanup()
 
-	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage))
+	var clusterClient m3clusterClient.Client
+	if m3dbClientOpts.EnvironmentConfig.Service != nil {
+		clusterSvcClientOpts := m3dbClientOpts.EnvironmentConfig.Service.NewOptions()
+		clusterClient, err = etcd.NewConfigServiceClient(clusterSvcClientOpts)
+		if err != nil {
+			logger.Fatal("unable to create etcd client", zap.Any("error", err))
+		}
+	}
+
+	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage), clusterClient)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Any("error", err))
 	}

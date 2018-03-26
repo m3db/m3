@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3coordinator/generated/proto/prometheus/prompb"
+	"github.com/m3db/m3coordinator/generated/proto/prompb"
 	"github.com/m3db/m3coordinator/models"
 	"github.com/m3db/m3coordinator/ts"
 
