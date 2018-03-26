@@ -38,6 +38,16 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+// WriterOpenOptions is the options struct for the Open method on the FilesetWriter
+type WriterOpenOptions struct {
+	Namespace  ident.ID
+	BlockSize  time.Duration
+	BlockStart time.Time
+	WrittenAt  time.Time
+	Shard      uint32
+	IsSnapshot bool
+}
+
 // FileSetWriter provides an unsynchronized writer for a TSDB file set
 type FileSetWriter interface {
 	io.Closer
@@ -59,6 +69,15 @@ type FileSetReaderStatus struct {
 
 	Shard uint32
 	Open  bool
+}
+
+// ReaderOpenOptions is options struct for the reader open method.
+type ReaderOpenOptions struct {
+	Namespace     ident.ID
+	BlockStart    time.Time
+	Shard         uint32
+	IsSnapshot    bool
+	SnapshotIndex int
 }
 
 // FileSetReader provides an unsynchronized reader for a TSDB file set

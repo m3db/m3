@@ -64,16 +64,6 @@ type writer struct {
 	err        error
 }
 
-// WriterOpenOptions is the options struct for the Open method on the FilesetWriter
-type WriterOpenOptions struct {
-	Namespace  ident.ID
-	BlockSize  time.Duration
-	BlockStart time.Time
-	WrittenAt  time.Time
-	Shard      uint32
-	IsSnapshot bool
-}
-
 type indexEntry struct {
 	index           int64
 	id              ident.ID

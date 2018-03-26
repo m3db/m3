@@ -120,15 +120,6 @@ func NewReader(
 	}, nil
 }
 
-// ReaderOpenOptions is options struct for the reader open method.
-type ReaderOpenOptions struct {
-	Namespace     ident.ID
-	BlockStart    time.Time
-	Shard         uint32
-	IsSnapshot    bool
-	SnapshotIndex int
-}
-
 func (r *reader) Open(opts ReaderOpenOptions) error {
 	var (
 		namespace     = opts.Namespace
