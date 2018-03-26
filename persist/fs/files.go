@@ -83,6 +83,18 @@ type SnapshotFile struct {
 	FilesetFile
 }
 
+// HasCheckpointFile returns a bool indicating whether the given set of
+// snapshot files has a checkpoint file.
+func (s SnapshotFile) HasCheckpointFile() bool {
+	for _, fileName := range s.Files {
+		if strings.Contains(fileName, checkpointFileSuffix) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // SnapshotFilesSlice is a slice of SnapshotFile
 type SnapshotFilesSlice []SnapshotFile
 
