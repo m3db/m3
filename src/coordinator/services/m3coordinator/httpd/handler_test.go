@@ -20,11 +20,13 @@ import (
 
 func TestPromReadGet(t *testing.T) {
 	logging.InitWithCores(nil)
+
 	req, _ := http.NewRequest("GET", handler.PromReadURL, nil)
 	res := httptest.NewRecorder()
 	storage := local.NewStorage(nil, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
-	h, err := NewHandler(storage, executor.NewEngine(storage))
-	require.Nil(t, err, "unable to setup handler")
+
+	h, err := NewHandler(storage, executor.NewEngine(storage), nil)
+	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
 	h.Router.ServeHTTP(res, req)
 	require.Equal(t, res.Code, http.StatusMethodNotAllowed, "GET method not defined")
@@ -32,11 +34,13 @@ func TestPromReadGet(t *testing.T) {
 
 func TestPromReadPost(t *testing.T) {
 	logging.InitWithCores(nil)
+
 	req, _ := http.NewRequest("POST", handler.PromReadURL, nil)
 	res := httptest.NewRecorder()
 	storage := local.NewStorage(nil, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
-	h, err := NewHandler(storage, executor.NewEngine(storage))
-	require.Nil(t, err, "unable to setup handler")
+
+	h, err := NewHandler(storage, executor.NewEngine(storage), nil)
+	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
 	h.Router.ServeHTTP(res, req)
 	require.Equal(t, res.Code, http.StatusBadRequest, "Empty request")

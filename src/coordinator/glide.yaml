@@ -49,3 +49,11 @@ import:
 - package: golang.org/x/sync
   subpackages:
   - errgroup
+
+- package: github.com/m3db/m3cluster
+  version: ac52883b085bacbfa8441c511342d429772c8317
+
+- package: golang.org/x/net
+  version: d0aafc73d5cdc42264b0af071c261abac580695e
+  subpackages:
+  - http2

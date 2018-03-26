@@ -48,15 +48,7 @@ func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonData, err := json.Marshal(results)
-	if err != nil {
-		logger.Error("unable to marshal json", zap.Any("error", err))
-		Error(w, err, http.StatusBadRequest)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonData)
+	WriteJSONResponse(w, results, logger)
 }
 
 func (h *SearchHandler) parseBody(r *http.Request) (*storage.FetchQuery, *ParseError) {
