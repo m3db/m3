@@ -137,7 +137,7 @@ func TestCleanupDataAndSnapshotFilesetFiles(t *testing.T) {
 	shard := NewMockdatabaseShard(ctrl)
 	expectedEarliestToRetain := retention.FlushTimeStart(ns.Options().RetentionOptions(), ts)
 	shard.EXPECT().CleanupFileset(expectedEarliestToRetain).Return(nil)
-	shard.EXPECT().CleanupSnapshots()
+	shard.EXPECT().CleanupSnapshots(expectedEarliestToRetain)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{shard}).AnyTimes()
 	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
