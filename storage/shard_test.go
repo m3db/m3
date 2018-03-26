@@ -950,15 +950,8 @@ func TestShardCleanupSnapshot(t *testing.T) {
 				},
 				Index: 0,
 			},
-			// Should get removed because the next one has a higher index
-			fs.SnapshotFile{
-				FilesetFile: fs.FilesetFile{
-					BlockStart: notFlushedYet,
-					Files:      []string{"not-latest-index"},
-				},
-				Index: 0,
-			},
-			// Should not get removed
+			// Should not get removed - Note that this entry preceeds the
+			// next in order to nesure that the storying logic works correctly.
 			fs.SnapshotFile{
 				FilesetFile: fs.FilesetFile{
 					BlockStart: notFlushedYet,
@@ -967,6 +960,14 @@ func TestShardCleanupSnapshot(t *testing.T) {
 					Files: []string{"latest-index-and-has-checkpoint"},
 				},
 				Index: 1,
+			},
+			// Should get removed because the next one has a higher index
+			fs.SnapshotFile{
+				FilesetFile: fs.FilesetFile{
+					BlockStart: notFlushedYet,
+					Files:      []string{"not-latest-index"},
+				},
+				Index: 0,
 			},
 		}, nil
 	}
