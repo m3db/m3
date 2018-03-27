@@ -26,19 +26,19 @@ import (
 
 	"github.com/m3db/m3ctl/service/r2"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3metrics/rules/models"
 	"github.com/m3db/m3x/instrument"
 	"github.com/pborman/uuid"
 )
 
-type mappingRuleHistories map[string][]*rules.MappingRuleView
-type rollupRuleHistories map[string][]*rules.RollupRuleView
+type mappingRuleHistories map[string][]*models.MappingRuleView
+type rollupRuleHistories map[string][]*models.RollupRuleView
 
 type stubData struct {
-	Namespaces        *rules.NamespacesView
+	Namespaces        *models.NamespacesView
 	ErrorNamespace    string
 	ConflictNamespace string
-	RuleSets          map[string]*rules.RuleSetSnapshot
+	RuleSets          map[string]*models.RuleSetSnapshotView
 	MappingHistory    map[string]mappingRuleHistories
 	RollupHistory     map[string]rollupRuleHistories
 }
@@ -53,28 +53,28 @@ var (
 	dummyData        = stubData{
 		ErrorNamespace:    "errNs",
 		ConflictNamespace: "conflictNs",
-		Namespaces: &rules.NamespacesView{
+		Namespaces: &models.NamespacesView{
 			Version: 1,
-			Namespaces: []*rules.NamespaceView{
-				&rules.NamespaceView{
+			Namespaces: []*models.NamespaceView{
+				&models.NamespaceView{
 					Name:              "ns1",
 					ForRuleSetVersion: 1,
 					Tombstoned:        false,
 				},
-				&rules.NamespaceView{
+				&models.NamespaceView{
 					Name:              "ns2",
 					ForRuleSetVersion: 1,
 					Tombstoned:        false,
 				},
 			},
 		},
-		RuleSets: map[string]*rules.RuleSetSnapshot{
-			"ns1": &rules.RuleSetSnapshot{
+		RuleSets: map[string]*models.RuleSetSnapshotView{
+			"ns1": &models.RuleSetSnapshotView{
 				Namespace:    "ns1",
 				Version:      1,
 				CutoverNanos: cutoverTimestamp,
-				MappingRules: map[string]*rules.MappingRuleView{
-					"mr_id1": &rules.MappingRuleView{
+				MappingRules: map[string]*models.MappingRuleView{
+					"mr_id1": &models.MappingRuleView{
 						ID:           "mr_id1",
 						Name:         "mr1",
 						CutoverNanos: cutoverTimestamp,
@@ -84,7 +84,7 @@ var (
 							makePolicy("10m:30d"),
 						},
 					},
-					"mr_id2": &rules.MappingRuleView{
+					"mr_id2": &models.MappingRuleView{
 						ID:           "mr_id2",
 						Name:         "mr2",
 						CutoverNanos: cutoverTimestamp,
@@ -94,14 +94,14 @@ var (
 						},
 					},
 				},
-				RollupRules: map[string]*rules.RollupRuleView{
-					"rr_id1": &rules.RollupRuleView{
+				RollupRules: map[string]*models.RollupRuleView{
+					"rr_id1": &models.RollupRuleView{
 						ID:           "rr_id1",
 						Name:         "rr1",
 						CutoverNanos: cutoverTimestamp,
 						Filter:       "tag1:val1 tag2:val2",
-						Targets: []rules.RollupTargetView{
-							rules.RollupTargetView{
+						Targets: []models.RollupTargetView{
+							models.RollupTargetView{
 								Name: "testTarget",
 								Tags: []string{"tag1", "tag2"},
 								Policies: []policy.Policy{
@@ -110,13 +110,13 @@ var (
 							},
 						},
 					},
-					"rr_id2": &rules.RollupRuleView{
+					"rr_id2": &models.RollupRuleView{
 						ID:           "rr_id2",
 						Name:         "rr2",
 						CutoverNanos: cutoverTimestamp,
 						Filter:       "tag1:val1",
-						Targets: []rules.RollupTargetView{
-							rules.RollupTargetView{
+						Targets: []models.RollupTargetView{
+							models.RollupTargetView{
 								Name: "testTarget",
 								Tags: []string{"tag1", "tag2"},
 								Policies: []policy.Policy{
@@ -127,26 +127,26 @@ var (
 					},
 				},
 			},
-			"ns2": &rules.RuleSetSnapshot{
+			"ns2": &models.RuleSetSnapshotView{
 				Namespace:    "ns2",
 				Version:      1,
 				CutoverNanos: cutoverTimestamp,
-				MappingRules: map[string]*rules.MappingRuleView{},
-				RollupRules: map[string]*rules.RollupRuleView{
-					"rr_id3": &rules.RollupRuleView{
+				MappingRules: map[string]*models.MappingRuleView{},
+				RollupRules: map[string]*models.RollupRuleView{
+					"rr_id3": &models.RollupRuleView{
 						ID:           "rr_id3",
 						Name:         "rr1",
 						CutoverNanos: cutoverTimestamp,
 						Filter:       "tag1:val1 tag2:val2",
-						Targets: []rules.RollupTargetView{
-							rules.RollupTargetView{
+						Targets: []models.RollupTargetView{
+							models.RollupTargetView{
 								Name: "testTarget",
 								Tags: []string{"tag1", "tag2"},
 								Policies: []policy.Policy{
 									makePolicy("1m:10d|Min,Max"),
 								},
 							},
-							rules.RollupTargetView{
+							models.RollupTargetView{
 								Name: "testTarget",
 								Tags: []string{"tag1", "tag2"},
 								Policies: []policy.Policy{
@@ -160,8 +160,8 @@ var (
 		},
 		MappingHistory: map[string]mappingRuleHistories{
 			"ns1": mappingRuleHistories{
-				"mr_id1": []*rules.MappingRuleView{
-					&rules.MappingRuleView{
+				"mr_id1": []*models.MappingRuleView{
+					&models.MappingRuleView{
 						ID:           "mr_id1",
 						Name:         "mr1",
 						CutoverNanos: cutoverTimestamp,
@@ -172,8 +172,8 @@ var (
 						},
 					},
 				},
-				"mr_id2": []*rules.MappingRuleView{
-					&rules.MappingRuleView{
+				"mr_id2": []*models.MappingRuleView{
+					&models.MappingRuleView{
 						ID:           "mr_id2",
 						Name:         "mr2",
 						CutoverNanos: cutoverTimestamp,
@@ -189,21 +189,21 @@ var (
 		},
 		RollupHistory: map[string]rollupRuleHistories{
 			"ns1": rollupRuleHistories{
-				"rr_id1": []*rules.RollupRuleView{
-					&rules.RollupRuleView{
+				"rr_id1": []*models.RollupRuleView{
+					&models.RollupRuleView{
 						ID:           "rr_id1",
 						Name:         "rr1",
 						CutoverNanos: cutoverTimestamp,
 						Filter:       "tag1:val1 tag2:val2",
-						Targets: []rules.RollupTargetView{
-							rules.RollupTargetView{
+						Targets: []models.RollupTargetView{
+							models.RollupTargetView{
 								Name: "testTarget",
 								Tags: []string{"tag1", "tag2"},
 								Policies: []policy.Policy{
 									makePolicy("1m:10d|Min,Max"),
 								},
 							},
-							rules.RollupTargetView{
+							models.RollupTargetView{
 								Name: "testTarget",
 								Tags: []string{"tag1", "tag2"},
 								Policies: []policy.Policy{
@@ -212,13 +212,13 @@ var (
 							},
 						},
 					},
-					&rules.RollupRuleView{
+					&models.RollupRuleView{
 						ID:           "rr_id1",
 						Name:         "rr1",
 						CutoverNanos: cutoverTimestamp,
 						Filter:       "tag1:val1",
-						Targets: []rules.RollupTargetView{
-							rules.RollupTargetView{
+						Targets: []models.RollupTargetView{
+							models.RollupTargetView{
 								Name: "testTarget",
 								Tags: []string{"tag1", "tag2"},
 								Policies: []policy.Policy{
@@ -230,21 +230,21 @@ var (
 				},
 			},
 			"ns2": rollupRuleHistories{
-				"rr_id3": []*rules.RollupRuleView{
-					&rules.RollupRuleView{
+				"rr_id3": []*models.RollupRuleView{
+					&models.RollupRuleView{
 						ID:           "rr_id1",
 						Name:         "rr1",
 						CutoverNanos: cutoverTimestamp,
 						Filter:       "tag1:val1 tag2:val2",
-						Targets: []rules.RollupTargetView{
-							rules.RollupTargetView{
+						Targets: []models.RollupTargetView{
+							models.RollupTargetView{
 								Name: "testTarget",
 								Tags: []string{"tag1", "tag2"},
 								Policies: []policy.Policy{
 									makePolicy("1m:10d|Min,Max"),
 								},
 							},
-							rules.RollupTargetView{
+							models.RollupTargetView{
 								Name: "testTarget",
 								Tags: []string{"tag1", "tag2"},
 								Policies: []policy.Policy{
@@ -270,11 +270,11 @@ func NewStore(iOpts instrument.Options) r2.Store {
 	return &store{data: &dummyData, iOpts: iOpts}
 }
 
-func (s *store) FetchNamespaces() (*rules.NamespacesView, error) {
+func (s *store) FetchNamespaces() (*models.NamespacesView, error) {
 	return s.data.Namespaces, nil
 }
 
-func (s *store) CreateNamespace(namespaceID string, uOpts r2.UpdateOptions) (*rules.NamespaceView, error) {
+func (s *store) CreateNamespace(namespaceID string, uOpts r2.UpdateOptions) (*models.NamespaceView, error) {
 	switch namespaceID {
 	case s.data.ErrorNamespace:
 		return nil, r2.NewInternalError(fmt.Sprintf("could not create namespace: %s", namespaceID))
@@ -287,24 +287,24 @@ func (s *store) CreateNamespace(namespaceID string, uOpts r2.UpdateOptions) (*ru
 			}
 		}
 
-		newView := &rules.NamespaceView{
+		newView := &models.NamespaceView{
 			Name:              namespaceID,
 			ForRuleSetVersion: 1,
 		}
 
 		s.data.Namespaces.Namespaces = append(s.data.Namespaces.Namespaces, newView)
-		s.data.RuleSets[namespaceID] = &rules.RuleSetSnapshot{
+		s.data.RuleSets[namespaceID] = &models.RuleSetSnapshotView{
 			Namespace:    namespaceID,
 			Version:      1,
 			CutoverNanos: time.Now().UnixNano(),
-			MappingRules: make(map[string]*rules.MappingRuleView),
-			RollupRules:  make(map[string]*rules.RollupRuleView),
+			MappingRules: make(map[string]*models.MappingRuleView),
+			RollupRules:  make(map[string]*models.RollupRuleView),
 		}
 		return newView, nil
 	}
 }
 
-func (s *store) ValidateRuleSet(rs *rules.RuleSetSnapshot) error {
+func (s *store) ValidateRuleSet(rs *models.RuleSetSnapshotView) error {
 	// Assumes no validation config for stub store so all rule sets are valid.
 	return nil
 }
@@ -326,7 +326,7 @@ func (s *store) DeleteNamespace(namespaceID string, uOpts r2.UpdateOptions) erro
 	}
 }
 
-func (s *store) FetchRuleSet(namespaceID string) (*rules.RuleSetSnapshot, error) {
+func (s *store) FetchRuleSet(namespaceID string) (*models.RuleSetSnapshotView, error) {
 	switch namespaceID {
 	case s.data.ErrorNamespace:
 		return nil, r2.NewInternalError(fmt.Sprintf("could not fetch namespace: %s", namespaceID))
@@ -341,7 +341,7 @@ func (s *store) FetchRuleSet(namespaceID string) (*rules.RuleSetSnapshot, error)
 	}
 }
 
-func (s *store) FetchMappingRule(namespaceID string, mappingRuleID string) (*rules.MappingRuleView, error) {
+func (s *store) FetchMappingRule(namespaceID string, mappingRuleID string) (*models.MappingRuleView, error) {
 	switch namespaceID {
 	case s.data.ErrorNamespace:
 		return nil, r2.NewInternalError(fmt.Sprintf("could not fetch mappingRule: %s in namespace: %s", namespaceID, mappingRuleID))
@@ -361,9 +361,9 @@ func (s *store) FetchMappingRule(namespaceID string, mappingRuleID string) (*rul
 
 func (s *store) CreateMappingRule(
 	namespaceID string,
-	mrv *rules.MappingRuleView,
+	mrv *models.MappingRuleView,
 	uOpts r2.UpdateOptions,
-) (*rules.MappingRuleView, error) {
+) (*models.MappingRuleView, error) {
 	switch namespaceID {
 	case s.data.ErrorNamespace:
 		return nil, r2.NewInternalError("could not create mapping rule")
@@ -381,7 +381,7 @@ func (s *store) CreateMappingRule(
 			}
 		}
 		newID := uuid.New()
-		newRule := &rules.MappingRuleView{
+		newRule := &models.MappingRuleView{
 			ID:           newID,
 			Name:         mrv.Name,
 			CutoverNanos: time.Now().UnixNano(),
@@ -396,9 +396,9 @@ func (s *store) CreateMappingRule(
 func (s *store) UpdateMappingRule(
 	namespaceID,
 	mappingRuleID string,
-	mrv *rules.MappingRuleView,
+	mrv *models.MappingRuleView,
 	uOpts r2.UpdateOptions,
-) (*rules.MappingRuleView, error) {
+) (*models.MappingRuleView, error) {
 	switch namespaceID {
 	case s.data.ErrorNamespace:
 		return nil, r2.NewInternalError("could not update mapping rule.")
@@ -412,7 +412,7 @@ func (s *store) UpdateMappingRule(
 
 		for i, m := range rs.MappingRules {
 			if mappingRuleID == m.ID {
-				newRule := &rules.MappingRuleView{
+				newRule := &models.MappingRuleView{
 					ID:           "new",
 					Name:         mrv.Name,
 					CutoverNanos: time.Now().UnixNano(),
@@ -451,7 +451,7 @@ func (s *store) DeleteMappingRule(
 	}
 }
 
-func (s *store) FetchMappingRuleHistory(namespaceID, mappingRuleID string) ([]*rules.MappingRuleView, error) {
+func (s *store) FetchMappingRuleHistory(namespaceID, mappingRuleID string) ([]*models.MappingRuleView, error) {
 	switch namespaceID {
 	case s.data.ErrorNamespace:
 		return nil, r2.NewInternalError(fmt.Sprintf("Could not fetch mappingRuleID: %s in namespace: %s", namespaceID, mappingRuleID))
@@ -468,7 +468,7 @@ func (s *store) FetchMappingRuleHistory(namespaceID, mappingRuleID string) ([]*r
 	}
 }
 
-func (s *store) FetchRollupRule(namespaceID, rollupRuleID string) (*rules.RollupRuleView, error) {
+func (s *store) FetchRollupRule(namespaceID, rollupRuleID string) (*models.RollupRuleView, error) {
 	switch namespaceID {
 	case s.data.ErrorNamespace:
 		return nil, r2.NewInternalError(fmt.Sprintf("Could not fetch rollupRule: %s in namespace: %s", namespaceID, rollupRuleID))
@@ -488,9 +488,9 @@ func (s *store) FetchRollupRule(namespaceID, rollupRuleID string) (*rules.Rollup
 
 func (s *store) CreateRollupRule(
 	namespaceID string,
-	rrv *rules.RollupRuleView,
+	rrv *models.RollupRuleView,
 	uOpts r2.UpdateOptions,
-) (*rules.RollupRuleView, error) {
+) (*models.RollupRuleView, error) {
 	switch namespaceID {
 	case s.data.ErrorNamespace:
 		return nil, r2.NewInternalError("could not create rollup rule")
@@ -507,7 +507,7 @@ func (s *store) CreateRollupRule(
 			}
 		}
 		newID := uuid.New()
-		newRule := &rules.RollupRuleView{
+		newRule := &models.RollupRuleView{
 			ID:           newID,
 			Name:         rrv.Name,
 			CutoverNanos: time.Now().UnixNano(),
@@ -522,9 +522,9 @@ func (s *store) CreateRollupRule(
 func (s *store) UpdateRollupRule(
 	namespaceID,
 	rollupRuleID string,
-	rrv *rules.RollupRuleView,
+	rrv *models.RollupRuleView,
 	uOpts r2.UpdateOptions,
-) (*rules.RollupRuleView, error) {
+) (*models.RollupRuleView, error) {
 	switch namespaceID {
 	case s.data.ErrorNamespace:
 		return nil, r2.NewInternalError("could not update rollup rule.")
@@ -541,7 +541,7 @@ func (s *store) UpdateRollupRule(
 			return nil, r2.NewNotFoundError(fmt.Sprintf("rollup rule: %s doesn't exist in namespace: %s", rollupRuleID, namespaceID))
 		}
 
-		newRule := &rules.RollupRuleView{
+		newRule := &models.RollupRuleView{
 			ID:           rollupRuleID,
 			Name:         rrv.Name,
 			CutoverNanos: time.Now().UnixNano(),
@@ -578,7 +578,7 @@ func (s *store) DeleteRollupRule(
 	}
 }
 
-func (s *store) FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]*rules.RollupRuleView, error) {
+func (s *store) FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]*models.RollupRuleView, error) {
 	switch namespaceID {
 	case s.data.ErrorNamespace:
 		return nil, r2.NewInternalError(fmt.Sprintf("Could not fetch rollupRule: %s in namespace: %s", namespaceID, rollupRuleID))
