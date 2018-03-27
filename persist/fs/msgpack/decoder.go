@@ -50,18 +50,31 @@ type Decoder struct {
 	reader            DecoderStream
 	dec               *msgpack.Decoder
 	err               error
+
+	// Used primarily for testing
+	forceDecodeIndexInfoV1 bool
 }
 
 // NewDecoder creates a new decoder
 func NewDecoder(opts DecodingOptions) *Decoder {
-	if opts == nil {
-		opts = NewDecodingOptions()
+	return newDecoder(opts, newDecoderOptions{})
+}
+
+type newDecoderOptions struct {
+	forceDecodeIndexInfoV1 bool
+}
+
+func newDecoder(decodingOpts DecodingOptions, ctorOpts newDecoderOptions) *Decoder {
+	if decodingOpts == nil {
+		decodingOpts = NewDecodingOptions()
 	}
 	reader := NewDecoderStream(nil)
 	return &Decoder{
-		allocDecodedBytes: opts.AllocDecodedBytes(),
+		allocDecodedBytes: decodingOpts.AllocDecodedBytes(),
 		reader:            reader,
 		dec:               msgpack.NewDecoder(reader),
+
+		forceDecodeIndexInfoV1: ctorOpts.forceDecodeIndexInfoV1,
 	}
 }
 
@@ -79,7 +92,7 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 	}
 	version, numFieldsToSkip := dec.decodeRootObject(indexInfoVersion, indexInfoType)
 	var indexInfo schema.IndexInfo
-	if version == 1 {
+	if version == 1 || dec.forceDecodeIndexInfoV1 {
 		indexInfo = dec.decodeIndexInfoV1()
 	} else if version == 2 {
 		indexInfo = dec.decodeIndexInfoV2()

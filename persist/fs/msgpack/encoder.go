@@ -52,10 +52,22 @@ type Encoder struct {
 	encodeBytesFn              encodeBytesFn
 	encodeArrayLenFn           encodeArrayLenFn
 	encodeBoolFn               encodeBoolFn
+
+	encodeIndexVersion int
 }
 
 // NewEncoder creates a new encoder
 func NewEncoder() *Encoder {
+	return newEncoder(newEncoderOptions{
+		encodeIndexVersion: indexInfoVersion,
+	})
+}
+
+type newEncoderOptions struct {
+	encodeIndexVersion int
+}
+
+func newEncoder(opts newEncoderOptions) *Encoder {
 	buf := bytes.NewBuffer(nil)
 	enc := &Encoder{
 		buf: buf,
@@ -70,6 +82,9 @@ func NewEncoder() *Encoder {
 	enc.encodeBytesFn = enc.encodeBytes
 	enc.encodeArrayLenFn = enc.encodeArrayLen
 	enc.encodeBoolFn = enc.encodeBool
+
+	// Used primarily for testing
+	enc.encodeIndexVersion = opts.encodeIndexVersion
 
 	return enc
 }
@@ -88,7 +103,7 @@ func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 	if enc.err != nil {
 		return enc.err
 	}
-	enc.encodeIndexInfo(indexInfoVersion, info)
+	enc.encodeIndexInfo(enc.encodeIndexVersion, info)
 	return enc.err
 }
 
