@@ -121,7 +121,7 @@ func verifyForTime(
 			Namespace:   namespace,
 			Shard:       shard,
 			BlockStart:  timestamp,
-			FilesetType: FilesetType,
+			FilesetType: filesetType,
 		}
 
 		if filesetType == persist.FilesetSnapshotType {
