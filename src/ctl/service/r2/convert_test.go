@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3metrics/rules/models"
 
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
@@ -60,7 +60,7 @@ func TestMappingRuleView(t *testing.T) {
 	id := "id"
 	name := "name"
 	fixture := testMappingRuleJSON(id, name)
-	expected := &rules.MappingRuleView{
+	expected := &models.MappingRuleView{
 		ID:       id,
 		Name:     name,
 		Filter:   "filter",
@@ -71,7 +71,7 @@ func TestMappingRuleView(t *testing.T) {
 
 func TestNewMappingRuleHistoryJSON(t *testing.T) {
 	id := "id"
-	hist := []*rules.MappingRuleView{
+	hist := []*models.MappingRuleView{
 		testMappingRuleView(id, "name1"),
 		testMappingRuleView(id, "name2"),
 	}
@@ -102,7 +102,7 @@ func TestNewMappingRuleHistoryJSON(t *testing.T) {
 
 func TestRollupTargetView(t *testing.T) {
 	fixture := testRollupTargetJSON("name")
-	expected := rules.RollupTargetView{
+	expected := models.RollupTargetView{
 		Name:     "name",
 		Tags:     []string{"tag"},
 		Policies: []policy.Policy{},
@@ -121,7 +121,7 @@ func TestNewRollupTargetJSON(t *testing.T) {
 }
 
 func TestNewRollupRuleJSON(t *testing.T) {
-	targets := []rules.RollupTargetView{
+	targets := []models.RollupTargetView{
 		*testRollupTargetView("target1"),
 		*testRollupTargetView("target2"),
 	}
@@ -155,11 +155,11 @@ func TestRollupRuleView(t *testing.T) {
 		*testRollupTargetJSON("target2"),
 	}
 	fixture := testRollupRuleJSON("id", "name", targets)
-	expected := &rules.RollupRuleView{
+	expected := &models.RollupRuleView{
 		ID:     "id",
 		Name:   "name",
 		Filter: "filter",
-		Targets: []rules.RollupTargetView{
+		Targets: []models.RollupTargetView{
 			{
 				Name:     "target1",
 				Tags:     []string{"tag"},
@@ -177,11 +177,11 @@ func TestRollupRuleView(t *testing.T) {
 
 func TestNewRollupRuleHistoryJSON(t *testing.T) {
 	id := "id"
-	targets := []rules.RollupTargetView{
+	targets := []models.RollupTargetView{
 		*testRollupTargetView("target1"),
 		*testRollupTargetView("target2"),
 	}
-	hist := []*rules.RollupRuleView{
+	hist := []*models.RollupRuleView{
 		testRollupRuleView(id, "name1", targets),
 		testRollupRuleView(id, "name2", targets),
 	}
@@ -242,11 +242,11 @@ func TestRuleSetSnapshot(t *testing.T) {
 		*testRollupRuleJSON("rr2_id", "rr2", []rollupTargetJSON{*testRollupTargetJSON("target2")}),
 	}
 	fixture := testRuleSetJSON("rs_ns", mappingRules, rollupRules)
-	expected := &rules.RuleSetSnapshot{
+	expected := &models.RuleSetSnapshotView{
 		Namespace:    "rs_ns",
 		Version:      1,
 		CutoverNanos: 0,
-		MappingRules: map[string]*rules.MappingRuleView{
+		MappingRules: map[string]*models.MappingRuleView{
 			"mr1_id": {
 				ID:       "mr1_id",
 				Name:     "mr1",
@@ -260,12 +260,12 @@ func TestRuleSetSnapshot(t *testing.T) {
 				Policies: []policy.Policy{},
 			},
 		},
-		RollupRules: map[string]*rules.RollupRuleView{
+		RollupRules: map[string]*models.RollupRuleView{
 			"rr1_id": {
 				ID:     "rr1_id",
 				Name:   "rr1",
 				Filter: "filter",
-				Targets: []rules.RollupTargetView{
+				Targets: []models.RollupTargetView{
 					{
 						Name:     "target1",
 						Tags:     []string{"tag"},
@@ -277,7 +277,7 @@ func TestRuleSetSnapshot(t *testing.T) {
 				ID:     "rr2_id",
 				Name:   "rr2",
 				Filter: "filter",
-				Targets: []rules.RollupTargetView{
+				Targets: []models.RollupTargetView{
 					{
 						Name:     "target2",
 						Tags:     []string{"tag"},
@@ -318,11 +318,11 @@ func TestRuleSetSnapshotGenerateMissingID(t *testing.T) {
 		rrIDs = append(rrIDs, id)
 	}
 
-	expected := &rules.RuleSetSnapshot{
+	expected := &models.RuleSetSnapshotView{
 		Namespace:    "namespace",
 		Version:      1,
 		CutoverNanos: 0,
-		MappingRules: map[string]*rules.MappingRuleView{
+		MappingRules: map[string]*models.MappingRuleView{
 			mrIDs[0]: {
 				ID:       mrIDs[0],
 				Name:     "mr",
@@ -336,12 +336,12 @@ func TestRuleSetSnapshotGenerateMissingID(t *testing.T) {
 				Policies: []policy.Policy{},
 			},
 		},
-		RollupRules: map[string]*rules.RollupRuleView{
+		RollupRules: map[string]*models.RollupRuleView{
 			rrIDs[0]: {
 				ID:     rrIDs[0],
 				Name:   "rr",
 				Filter: "filter",
-				Targets: []rules.RollupTargetView{
+				Targets: []models.RollupTargetView{
 					{
 						Name:     "target",
 						Tags:     []string{"tag"},
@@ -353,7 +353,7 @@ func TestRuleSetSnapshotGenerateMissingID(t *testing.T) {
 				ID:     rrIDs[1],
 				Name:   "rr",
 				Filter: "filter",
-				Targets: []rules.RollupTargetView{
+				Targets: []models.RollupTargetView{
 					{
 						Name:     "target",
 						Tags:     []string{"tag"},
@@ -397,26 +397,26 @@ func TestRuleSetSnapshotFailMissingRollupRuleID(t *testing.T) {
 }
 
 // Tests Setup
-func testNamespaceView(name string) *rules.NamespaceView {
-	return &rules.NamespaceView{
+func testNamespaceView(name string) *models.NamespaceView {
+	return &models.NamespaceView{
 		Name:              name,
 		ForRuleSetVersion: 1,
 	}
 }
 
-func testNamespacesView(namespaceNames ...string) *rules.NamespacesView {
-	namespaces := make([]*rules.NamespaceView, len(namespaceNames))
+func testNamespacesView(namespaceNames ...string) *models.NamespacesView {
+	namespaces := make([]*models.NamespaceView, len(namespaceNames))
 	for i, name := range namespaceNames {
 		namespaces[i] = testNamespaceView(name)
 	}
-	return &rules.NamespacesView{
+	return &models.NamespacesView{
 		Version:    1,
 		Namespaces: namespaces,
 	}
 }
 
-func testMappingRuleView(id, name string) *rules.MappingRuleView {
-	return &rules.MappingRuleView{
+func testMappingRuleView(id, name string) *models.MappingRuleView {
+	return &models.MappingRuleView{
 		ID:       id,
 		Name:     name,
 		Filter:   "filter",
@@ -441,8 +441,8 @@ func testRollupTargetJSON(name string) *rollupTargetJSON {
 	}
 }
 
-func testRollupTargetView(name string) *rules.RollupTargetView {
-	return &rules.RollupTargetView{
+func testRollupTargetView(name string) *models.RollupTargetView {
+	return &models.RollupTargetView{
 		Name:     name,
 		Tags:     []string{"tag"},
 		Policies: []policy.Policy{},
@@ -458,8 +458,8 @@ func testRollupRuleJSON(id, name string, targets []rollupTargetJSON) *rollupRule
 	}
 }
 
-func testRollupRuleView(id, name string, targets []rules.RollupTargetView) *rules.RollupRuleView {
-	return &rules.RollupRuleView{
+func testRollupRuleView(id, name string, targets []models.RollupTargetView) *models.RollupRuleView {
+	return &models.RollupRuleView{
 		ID:      id,
 		Name:    name,
 		Filter:  "filter",

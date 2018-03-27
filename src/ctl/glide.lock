@@ -1,5 +1,5 @@
-hash: e85e11c984048c91a81680a5844180ee6d7f2ed0987015dbf1bb4a672fb54c8f
-updated: 2018-02-02T15:46:09.384506-05:00
+hash: c5d11d8506f273befbed6d4fc63e00d3dc9d0660a443f36471ba13ab6fe506c0
+updated: 2018-03-27T14:59:20.379432794-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -7,10 +7,8 @@ imports:
   - lib/go/thrift
 - name: github.com/beorn7/perks
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
-  subpackages:
-  - quantile
 - name: github.com/coreos/etcd
-  version: 8ba2897a21e4fc51b298ca553d251318425f93ae
+  version: 694728c496e22dfa5719c78ff23cc982e15bcb2f
   subpackages:
   - auth/authpb
   - clientv3
@@ -18,7 +16,6 @@ imports:
   - etcdserver/api/v3rpc/rpctypes
   - etcdserver/etcdserverpb
   - mvcc/mvccpb
-  - pkg/tlsutil
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/ghodss/yaml
@@ -34,14 +31,18 @@ imports:
 - name: github.com/go-playground/universal-translator
   version: 71201497bace774495daed26a3874fd339e0b538
 - name: github.com/golang/mock
-  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  version: 13f360950a79f5864a972c786a10a50e44b69541
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
+  version: 5a0f697c9ed9d68fef0116532c6e05cfeae00e55
   subpackages:
-  - jsonpb
   - proto
+  - protoc-gen-go/descriptor
+  - ptypes
+  - ptypes/any
+  - ptypes/duration
+  - ptypes/timestamp
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
@@ -50,12 +51,8 @@ imports:
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
   version: 84398b94e188ee336f307779b57b3aa91af7063c
-  subpackages:
-  - runtime
-  - runtime/internal
-  - utilities
 - name: github.com/m3db/m3cluster
-  version: 4b25af16e37d029b79bae754d35655e6be382f94
+  version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
   subpackages:
   - client
   - client/etcd
@@ -73,15 +70,15 @@ imports:
   - placement/service
   - placement/storage
   - services
-  - services/client/etcd
   - services/heartbeat/etcd
   - services/leader
   - services/leader/campaign
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: f5f341f95cfc8e329467d25ae82ce8b22d8546e7
+  version: e1e762432dff17898f0b888751b613ac7db85f61
   subpackages:
+  - aggregation
   - errors
   - filters
   - generated/proto/schema
@@ -89,6 +86,7 @@ imports:
   - metric/id
   - policy
   - rules
+  - rules/models
   - rules/store/kv
   - rules/validator
   - rules/validator/namespace
@@ -111,24 +109,14 @@ imports:
   - watch
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
-  subpackages:
-  - pbutil
 - name: github.com/pborman/uuid
   version: e790cca94e6cc75c7064b1332e63811d4aae1a53
 - name: github.com/prometheus/client_golang
   version: c5b7fccd204277076155f10851dad72b76a49317
-  subpackages:
-  - prometheus
 - name: github.com/prometheus/client_model
   version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
-  subpackages:
-  - go
 - name: github.com/prometheus/common
   version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
-  subpackages:
-  - expfmt
-  - internal/bitbucket.org/ww/goautoneg
-  - model
 - name: github.com/prometheus/procfs
   version: 1878d9fbb537119d24b21ca07effd591627cd160
 - name: github.com/shirou/gopsutil
@@ -147,7 +135,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 6c4631652c6aab57c64f65c2e0aaec2e9aae3a64
+  version: 522328b48efad0c6034dba92bf39228694e9d31f
   subpackages:
   - m3
   - m3/customtransports
@@ -160,7 +148,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
   subpackages:
   - buffer
   - internal/bufferpool
@@ -168,7 +156,7 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/net
-  version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
+  version: ab5485076ff3407ad2d02db054635913f017b0ed
   subpackages:
   - context
   - http2
@@ -177,16 +165,37 @@ imports:
   - internal/timeseries
   - lex/httplex
   - trace
-- name: google.golang.org/grpc
-  version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
+- name: golang.org/x/text
+  version: 4ee4af566555f5fbe026368b75596286a312663a
   subpackages:
+  - secure/bidirule
+  - transform
+  - unicode/bidi
+  - unicode/norm
+- name: google.golang.org/genproto
+  version: 09f6ed296fc66555a25fe4ce95173148778dfa85
+  subpackages:
+  - googleapis/api/annotations
+  - googleapis/rpc/status
+- name: google.golang.org/grpc
+  version: 401e0e00e4bb830a10496d64cd95e068c5bf50de
+  subpackages:
+  - balancer
   - codes
+  - connectivity
   - credentials
+  - grpclb/grpc_lb_v1/messages
   - grpclog
+  - health/grpc_health_v1
   - internal
+  - keepalive
   - metadata
   - naming
   - peer
+  - resolver
+  - stats
+  - status
+  - tap
   - transport
 - name: gopkg.in/go-playground/validator.v9
   version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64

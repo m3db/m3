@@ -24,7 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3metrics/rules/models"
 
 	"github.com/pborman/uuid"
 )
@@ -34,7 +34,7 @@ type namespaceJSON struct {
 	ForRuleSetVersion int    `json:"forRuleSetVersion"`
 }
 
-func newNamespaceJSON(nv *rules.NamespaceView) namespaceJSON {
+func newNamespaceJSON(nv *models.NamespaceView) namespaceJSON {
 	return namespaceJSON{
 		ID:                nv.Name,
 		ForRuleSetVersion: nv.ForRuleSetVersion,
@@ -46,7 +46,7 @@ type namespacesJSON struct {
 	Namespaces []namespaceJSON `json:"namespaces"`
 }
 
-func newNamespacesJSON(nss *rules.NamespacesView) namespacesJSON {
+func newNamespacesJSON(nss *models.NamespacesView) namespacesJSON {
 	views := make([]namespaceJSON, len(nss.Namespaces))
 	for i, namespace := range nss.Namespaces {
 		views[i] = newNamespaceJSON(namespace)
@@ -67,8 +67,8 @@ type mappingRuleJSON struct {
 	LastUpdatedAtMillis int64           `json:"lastUpdatedAtMillis"`
 }
 
-func (m mappingRuleJSON) mappingRuleView() *rules.MappingRuleView {
-	return &rules.MappingRuleView{
+func (m mappingRuleJSON) mappingRuleView() *models.MappingRuleView {
+	return &models.MappingRuleView{
 		ID:       m.ID,
 		Name:     m.Name,
 		Filter:   m.Filter,
@@ -76,7 +76,7 @@ func (m mappingRuleJSON) mappingRuleView() *rules.MappingRuleView {
 	}
 }
 
-func newMappingRuleJSON(mrv *rules.MappingRuleView) mappingRuleJSON {
+func newMappingRuleJSON(mrv *models.MappingRuleView) mappingRuleJSON {
 	return mappingRuleJSON{
 		ID:                  mrv.ID,
 		Name:                mrv.Name,
@@ -92,7 +92,7 @@ type mappingRuleHistoryJSON struct {
 	MappingRules []mappingRuleJSON `json:"mappingRules"`
 }
 
-func newMappingRuleHistoryJSON(hist []*rules.MappingRuleView) mappingRuleHistoryJSON {
+func newMappingRuleHistoryJSON(hist []*models.MappingRuleView) mappingRuleHistoryJSON {
 	views := make([]mappingRuleJSON, len(hist))
 	for i, mappingRule := range hist {
 		views[i] = newMappingRuleJSON(mappingRule)
@@ -106,15 +106,15 @@ type rollupTargetJSON struct {
 	Policies []policy.Policy `json:"policies" validate:"required"`
 }
 
-func (t rollupTargetJSON) rollupTargetView() rules.RollupTargetView {
-	return rules.RollupTargetView{
+func (t rollupTargetJSON) rollupTargetView() models.RollupTargetView {
+	return models.RollupTargetView{
 		Name:     t.Name,
 		Tags:     t.Tags,
 		Policies: t.Policies,
 	}
 }
 
-func newRollupTargetJSON(t rules.RollupTargetView) rollupTargetJSON {
+func newRollupTargetJSON(t models.RollupTargetView) rollupTargetJSON {
 	return rollupTargetJSON{
 		Name:     t.Name,
 		Tags:     t.Tags,
@@ -132,7 +132,7 @@ type rollupRuleJSON struct {
 	LastUpdatedAtMillis int64              `json:"lastUpdatedAtMillis"`
 }
 
-func newRollupRuleJSON(rrv *rules.RollupRuleView) rollupRuleJSON {
+func newRollupRuleJSON(rrv *models.RollupRuleView) rollupRuleJSON {
 	targets := make([]rollupTargetJSON, len(rrv.Targets))
 	for i, t := range rrv.Targets {
 		targets[i] = newRollupTargetJSON(t)
@@ -148,13 +148,13 @@ func newRollupRuleJSON(rrv *rules.RollupRuleView) rollupRuleJSON {
 	}
 }
 
-func (r rollupRuleJSON) rollupRuleView() *rules.RollupRuleView {
-	targets := make([]rules.RollupTargetView, len(r.Targets))
+func (r rollupRuleJSON) rollupRuleView() *models.RollupRuleView {
+	targets := make([]models.RollupTargetView, len(r.Targets))
 	for i, t := range r.Targets {
 		targets[i] = t.rollupTargetView()
 	}
 
-	return &rules.RollupRuleView{
+	return &models.RollupRuleView{
 		ID:      r.ID,
 		Name:    r.Name,
 		Filter:  r.Filter,
@@ -166,7 +166,7 @@ type rollupRuleHistoryJSON struct {
 	RollupRules []rollupRuleJSON `json:"rollupRules"`
 }
 
-func newRollupRuleHistoryJSON(hist []*rules.RollupRuleView) rollupRuleHistoryJSON {
+func newRollupRuleHistoryJSON(hist []*models.RollupRuleView) rollupRuleHistoryJSON {
 	views := make([]rollupRuleJSON, len(hist))
 	for i, rollupRule := range hist {
 		views[i] = newRollupRuleJSON(rollupRule)
@@ -182,7 +182,7 @@ type ruleSetJSON struct {
 	RollupRules   []rollupRuleJSON  `json:"rollupRules"`
 }
 
-func newRuleSetJSON(latest *rules.RuleSetSnapshot) ruleSetJSON {
+func newRuleSetJSON(latest *models.RuleSetSnapshotView) ruleSetJSON {
 	var mrJSON []mappingRuleJSON
 	for _, m := range latest.MappingRules {
 		mrJSON = append(mrJSON, newMappingRuleJSON(m))
@@ -210,8 +210,8 @@ const (
 // ruleSetSnapshot create a RuleSetSnapshot from a rulesetJSON. If the ruleSetJSON has no IDs
 // for any of its mapping rules or rollup rules, it generates missing IDs and sets as a string UUID
 // string so they can be stored in a mapping (id -> rule).
-func (r ruleSetJSON) ruleSetSnapshot(idGenType idGenType) (*rules.RuleSetSnapshot, error) {
-	mappingRules := make(map[string]*rules.MappingRuleView, len(r.MappingRules))
+func (r ruleSetJSON) ruleSetSnapshot(idGenType idGenType) (*models.RuleSetSnapshotView, error) {
+	mappingRules := make(map[string]*models.MappingRuleView, len(r.MappingRules))
 	for _, mr := range r.MappingRules {
 		id := mr.ID
 		if id == "" {
@@ -224,7 +224,7 @@ func (r ruleSetJSON) ruleSetSnapshot(idGenType idGenType) (*rules.RuleSetSnapsho
 		mappingRules[id] = mr.mappingRuleView()
 	}
 
-	rollupRules := make(map[string]*rules.RollupRuleView, len(r.RollupRules))
+	rollupRules := make(map[string]*models.RollupRuleView, len(r.RollupRules))
 	for _, rr := range r.RollupRules {
 		id := rr.ID
 		if id == "" {
@@ -237,7 +237,7 @@ func (r ruleSetJSON) ruleSetSnapshot(idGenType idGenType) (*rules.RuleSetSnapsho
 		rollupRules[id] = rr.rollupRuleView()
 	}
 
-	return &rules.RuleSetSnapshot{
+	return &models.RuleSetSnapshotView{
 		Namespace:    r.Namespace,
 		Version:      r.Version,
 		MappingRules: mappingRules,

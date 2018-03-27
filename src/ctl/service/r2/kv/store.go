@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3ctl/service/r2"
 	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3metrics/rules/models"
 	"github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
 )
@@ -52,7 +53,7 @@ func NewStore(rs rules.Store, opts StoreOptions) r2.Store {
 	}
 }
 
-func (s *store) FetchNamespaces() (*rules.NamespacesView, error) {
+func (s *store) FetchNamespaces() (*models.NamespacesView, error) {
 	nss, err := s.ruleStore.ReadNamespaces()
 	if err != nil {
 		return nil, s.handleUpstreamError(err)
@@ -63,20 +64,20 @@ func (s *store) FetchNamespaces() (*rules.NamespacesView, error) {
 		return nil, s.handleUpstreamError(err)
 	}
 
-	liveNss := make([]*rules.NamespaceView, 0, len(namespaces.Namespaces))
+	liveNss := make([]*models.NamespaceView, 0, len(namespaces.Namespaces))
 	for _, ns := range namespaces.Namespaces {
 		if !ns.Tombstoned {
 			liveNss = append(liveNss, ns)
 		}
 	}
 
-	return &rules.NamespacesView{
+	return &models.NamespacesView{
 		Namespaces: liveNss,
 		Version:    namespaces.Version,
 	}, nil
 }
 
-func (s *store) ValidateRuleSet(rs *rules.RuleSetSnapshot) error {
+func (s *store) ValidateRuleSet(rs *models.RuleSetSnapshotView) error {
 	validator := s.opts.Validator()
 	// If no validator is set, then the validation functionality is not applicable.
 	if validator == nil {
@@ -86,7 +87,7 @@ func (s *store) ValidateRuleSet(rs *rules.RuleSetSnapshot) error {
 	return s.handleUpstreamError(validator.ValidateSnapshot(rs))
 }
 
-func (s *store) CreateNamespace(namespaceID string, uOpts r2.UpdateOptions) (*rules.NamespaceView, error) {
+func (s *store) CreateNamespace(namespaceID string, uOpts r2.UpdateOptions) (*models.NamespaceView, error) {
 	nss, err := s.ruleStore.ReadNamespaces()
 	if err != nil {
 		return nil, s.handleUpstreamError(err)
@@ -163,7 +164,7 @@ func (s *store) DeleteNamespace(namespaceID string, uOpts r2.UpdateOptions) erro
 	return nil
 }
 
-func (s *store) FetchRuleSet(namespaceID string) (*rules.RuleSetSnapshot, error) {
+func (s *store) FetchRuleSet(namespaceID string) (*models.RuleSetSnapshotView, error) {
 	rs, err := s.ruleStore.ReadRuleSet(namespaceID)
 	if err != nil {
 		return nil, s.handleUpstreamError(err)
@@ -171,7 +172,7 @@ func (s *store) FetchRuleSet(namespaceID string) (*rules.RuleSetSnapshot, error)
 	return rs.Latest()
 }
 
-func (s *store) FetchMappingRule(namespaceID string, mappingRuleID string) (*rules.MappingRuleView, error) {
+func (s *store) FetchMappingRule(namespaceID string, mappingRuleID string) (*models.MappingRuleView, error) {
 	crs, err := s.FetchRuleSet(namespaceID)
 	if err != nil {
 		return nil, err
@@ -186,9 +187,9 @@ func (s *store) FetchMappingRule(namespaceID string, mappingRuleID string) (*rul
 
 func (s *store) CreateMappingRule(
 	namespaceID string,
-	mrv *rules.MappingRuleView,
+	mrv *models.MappingRuleView,
 	uOpts r2.UpdateOptions,
-) (*rules.MappingRuleView, error) {
+) (*models.MappingRuleView, error) {
 	rs, err := s.ruleStore.ReadRuleSet(namespaceID)
 	if err != nil {
 		return nil, s.handleUpstreamError(err)
@@ -211,9 +212,9 @@ func (s *store) CreateMappingRule(
 func (s *store) UpdateMappingRule(
 	namespaceID,
 	mappingRuleID string,
-	mrv *rules.MappingRuleView,
+	mrv *models.MappingRuleView,
 	uOpts r2.UpdateOptions,
-) (*rules.MappingRuleView, error) {
+) (*models.MappingRuleView, error) {
 	rs, err := s.ruleStore.ReadRuleSet(namespaceID)
 	if err != nil {
 		return nil, s.handleUpstreamError(err)
@@ -257,7 +258,7 @@ func (s *store) DeleteMappingRule(
 	return nil
 }
 
-func (s *store) FetchMappingRuleHistory(namespaceID, mappingRuleID string) ([]*rules.MappingRuleView, error) {
+func (s *store) FetchMappingRuleHistory(namespaceID, mappingRuleID string) ([]*models.MappingRuleView, error) {
 	rs, err := s.ruleStore.ReadRuleSet(namespaceID)
 	if err != nil {
 		return nil, s.handleUpstreamError(err)
@@ -276,7 +277,7 @@ func (s *store) FetchMappingRuleHistory(namespaceID, mappingRuleID string) ([]*r
 	return hist, nil
 }
 
-func (s *store) FetchRollupRule(namespaceID string, mappingRuleID string) (*rules.RollupRuleView, error) {
+func (s *store) FetchRollupRule(namespaceID string, mappingRuleID string) (*models.RollupRuleView, error) {
 	crs, err := s.FetchRuleSet(namespaceID)
 	if err != nil {
 		return nil, s.handleUpstreamError(err)
@@ -291,9 +292,9 @@ func (s *store) FetchRollupRule(namespaceID string, mappingRuleID string) (*rule
 
 func (s *store) CreateRollupRule(
 	namespaceID string,
-	rrv *rules.RollupRuleView,
+	rrv *models.RollupRuleView,
 	uOpts r2.UpdateOptions,
-) (*rules.RollupRuleView, error) {
+) (*models.RollupRuleView, error) {
 	rs, err := s.ruleStore.ReadRuleSet(namespaceID)
 	if err != nil {
 		return nil, s.handleUpstreamError(err)
@@ -316,9 +317,9 @@ func (s *store) CreateRollupRule(
 func (s *store) UpdateRollupRule(
 	namespaceID,
 	rollupRuleID string,
-	rrv *rules.RollupRuleView,
+	rrv *models.RollupRuleView,
 	uOpts r2.UpdateOptions,
-) (*rules.RollupRuleView, error) {
+) (*models.RollupRuleView, error) {
 	rs, err := s.ruleStore.ReadRuleSet(namespaceID)
 	if err != nil {
 		return nil, s.handleUpstreamError(err)
@@ -362,7 +363,7 @@ func (s *store) DeleteRollupRule(
 	return nil
 }
 
-func (s *store) FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]*rules.RollupRuleView, error) {
+func (s *store) FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]*models.RollupRuleView, error) {
 	rs, err := s.ruleStore.ReadRuleSet(namespaceID)
 	if err != nil {
 		return nil, s.handleUpstreamError(err)

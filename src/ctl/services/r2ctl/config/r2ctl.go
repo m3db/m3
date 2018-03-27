@@ -87,7 +87,7 @@ type kvStoreConfig struct {
 	KVClient *etcd.Configuration `yaml:"kvClient" validate:"nonzero"`
 
 	// KV configuration for the rules store.
-	KVConfig clusterkv.Configuration `yaml:"kvConfig"`
+	KVConfig clusterkv.OverrideConfiguration `yaml:"kvConfig"`
 
 	// NamespacesKey is KV key associated with namespaces..
 	NamespacesKey string `yaml:"namespacesKey" validate:"nonzero"`
@@ -109,7 +109,7 @@ func (c kvStoreConfig) NewStore(instrumentOpts instrument.Options) (r2.Store, er
 	if err != nil {
 		return nil, err
 	}
-	kvOpts, err := c.KVConfig.NewOptions()
+	kvOpts, err := c.KVConfig.NewOverrideOptions()
 	if err != nil {
 		return nil, err
 	}

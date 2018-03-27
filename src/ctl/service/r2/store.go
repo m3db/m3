@@ -20,56 +20,58 @@
 
 package r2
 
-import "github.com/m3db/m3metrics/rules"
+import (
+	"github.com/m3db/m3metrics/rules/models"
+)
 
 // Store is a construct that can perform operations against a backing rule store.
 type Store interface {
 	// FetchNamespaces fetches namespaces.
-	FetchNamespaces() (*rules.NamespacesView, error)
+	FetchNamespaces() (*models.NamespacesView, error)
 
 	// ValidateRuleSet validates a namespace's ruleset.
-	ValidateRuleSet(rs *rules.RuleSetSnapshot) error
+	ValidateRuleSet(rs *models.RuleSetSnapshotView) error
 
 	// CreateNamespace creates a namespace for the given namespace ID.
-	CreateNamespace(namespaceID string, uOpts UpdateOptions) (*rules.NamespaceView, error)
+	CreateNamespace(namespaceID string, uOpts UpdateOptions) (*models.NamespaceView, error)
 
 	// DeleteNamespace deletes the namespace for the given namespace ID.
 	DeleteNamespace(namespaceID string, uOpts UpdateOptions) error
 
 	// FetchRuleSet fetches the ruleset for the given namespace ID.
-	FetchRuleSet(namespaceID string) (*rules.RuleSetSnapshot, error)
+	FetchRuleSet(namespaceID string) (*models.RuleSetSnapshotView, error)
 
 	// FetchMappingRule fetches the mapping rule for the given namespace ID and rule ID.
-	FetchMappingRule(namespaceID, mappingRuleID string) (*rules.MappingRuleView, error)
+	FetchMappingRule(namespaceID, mappingRuleID string) (*models.MappingRuleView, error)
 
 	// CreateMappingRule creates a mapping rule for the given namespace ID and rule data.
-	CreateMappingRule(namespaceID string, mrv *rules.MappingRuleView, uOpts UpdateOptions) (*rules.MappingRuleView, error)
+	CreateMappingRule(namespaceID string, mrv *models.MappingRuleView, uOpts UpdateOptions) (*models.MappingRuleView, error)
 
 	// UpdateMappingRule updates a mapping rule for the given namespace ID and rule data.
-	UpdateMappingRule(namespaceID, mappingRuleID string, mrv *rules.MappingRuleView, uOpts UpdateOptions) (*rules.MappingRuleView, error)
+	UpdateMappingRule(namespaceID, mappingRuleID string, mrv *models.MappingRuleView, uOpts UpdateOptions) (*models.MappingRuleView, error)
 
 	// DeleteMappingRule deletes the mapping rule for the given namespace ID and rule ID.
 	DeleteMappingRule(namespaceID, mappingRuleID string, uOpts UpdateOptions) error
 
 	// FetchMappingRuleHistory fetches the history of the mapping rule for the given namespace ID
 	// and rule ID.
-	FetchMappingRuleHistory(namespaceID, mappingRuleID string) ([]*rules.MappingRuleView, error)
+	FetchMappingRuleHistory(namespaceID, mappingRuleID string) ([]*models.MappingRuleView, error)
 
 	// FetchRollupRule fetches the rollup rule for the given namespace ID and rule ID.
-	FetchRollupRule(namespaceID, rollupRuleID string) (*rules.RollupRuleView, error)
+	FetchRollupRule(namespaceID, rollupRuleID string) (*models.RollupRuleView, error)
 
 	// CreateRollupRule creates a rollup rule for the given namespace ID and rule data.
-	CreateRollupRule(namespaceID string, rrv *rules.RollupRuleView, uOpts UpdateOptions) (*rules.RollupRuleView, error)
+	CreateRollupRule(namespaceID string, rrv *models.RollupRuleView, uOpts UpdateOptions) (*models.RollupRuleView, error)
 
 	// UpdateRollupRule updates a rollup rule for the given namespace ID and rule data.
-	UpdateRollupRule(namespaceID, rollupRuleID string, rrv *rules.RollupRuleView, uOpts UpdateOptions) (*rules.RollupRuleView, error)
+	UpdateRollupRule(namespaceID, rollupRuleID string, rrv *models.RollupRuleView, uOpts UpdateOptions) (*models.RollupRuleView, error)
 
 	// DeleteRollupRule deletes the rollup rule for the given namespace ID and rule ID.
 	DeleteRollupRule(namespaceID, rollupRuleID string, uOpts UpdateOptions) error
 
 	// FetchRollupRuleHistory fetches the history of the rollup rule for the given namespace ID
 	// and rule ID.
-	FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]*rules.RollupRuleView, error)
+	FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]*models.RollupRuleView, error)
 
 	// Close closes the store.
 	Close()
