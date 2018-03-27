@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1713,7 +1714,7 @@ func (s *dbShard) Snapshot(
 
 	s.markIsSnapshotting()
 	defer func() {
-		s.markDoneSnapshotting(multiErr.FinalError() == nil, snapshotTime)
+		s.markDoneSnapshotting(multiErr.Empty(), snapshotTime)
 	}()
 
 	prepareOpts := persist.PrepareOptions{
@@ -1839,19 +1840,18 @@ func (s *dbShard) markDoneSnapshotting(success bool, completionTime time.Time) {
 //         written out it's safe to delete any previous ones for that block start.
 func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-	multiErr := xerrors.NewMultiError()
 	snapshotFiles, err := s.snapshotFilesFn(filePathPrefix, s.namespace.ID(), s.ID())
 	if err != nil {
 		return err
 	}
 
-	// sort.Slice(snapshotFiles, func(i, j int) bool {
-	// 	// Make sure they're sorted by blockStart/Index in ascending order.
-	// 	if snapshotFiles[i].BlockStart.Equal(snapshotFiles[j].BlockStart) {
-	// 		return snapshotFiles[i].Index < snapshotFiles[j].Index
-	// 	}
-	// 	return snapshotFiles[i].BlockStart.Before(snapshotFiles[j].BlockStart)
-	// })
+	sort.Slice(snapshotFiles, func(i, j int) bool {
+		// Make sure they're sorted by blockStart/Index in ascending order.
+		if snapshotFiles[i].BlockStart.Equal(snapshotFiles[j].BlockStart) {
+			return snapshotFiles[i].Index < snapshotFiles[j].Index
+		}
+		return snapshotFiles[i].BlockStart.Before(snapshotFiles[j].BlockStart)
+	})
 
 	filesToDelete := []string{}
 
@@ -1884,8 +1884,7 @@ func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
 		}
 	}
 
-	err = s.deleteFilesFn(filesToDelete)
-	return multiErr.Add(err).FinalError()
+	return s.deleteFilesFn(filesToDelete)
 }
 
 func (s *dbShard) CleanupFileset(earliestToRetain time.Time) error {

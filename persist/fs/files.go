@@ -330,6 +330,10 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 		if err != nil {
 			continue
 		}
+		if len(matched[i].Files) != 1 {
+			continue
+		}
+
 		fn(matched[i].Files[0], infoData)
 	}
 }
@@ -647,8 +651,6 @@ func SnapshotFilesetExistsAt(prefix string, namespace ident.ID, shard uint32, bl
 	if !ok {
 		return false, nil
 	}
-
-	fmt.Println(latest)
 
 	shardDir := ShardSnapshotsDirPath(prefix, namespace, shard)
 	checkpointFile := snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, latest.Index)
