@@ -5,6 +5,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3x/ident"
 )
@@ -32,10 +33,10 @@ func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duratio
 		return fmt.Errorf("unable to create fileset reader: %v", err)
 	}
 	openOpts := fs.ReaderOpenOptions{
-		Namespace:  ident.StringID(src.Namespace),
-		Shard:      src.Shard,
-		BlockStart: src.Blockstart,
-		IsSnapshot: false,
+		Namespace:   ident.StringID(src.Namespace),
+		Shard:       src.Shard,
+		BlockStart:  src.Blockstart,
+		FilesetType: persist.FilesetFlushType,
 	}
 
 	if err := reader.Open(openOpts); err != nil {

@@ -801,7 +801,6 @@ func (n *dbNamespace) Snapshot(blockStart, callStart time.Time, flush persist.Fl
 		}
 
 		if callStart.Sub(lastSuccessfulSnapshot) < n.opts.MinimumSnapshotInterval() {
-			fmt.Println(lastSuccessfulSnapshot)
 			// Skip if not enough time has elapsed since the previous snapshot
 			continue
 		}

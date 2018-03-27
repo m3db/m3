@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/integration/generate"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
@@ -106,7 +107,7 @@ func verifyForTime(
 	iteratorPool encoding.ReaderIteratorPool,
 	timestamp time.Time,
 	namespace ident.ID,
-	isSnapshot bool,
+	filesetType persist.FilesetType,
 	expected generate.SeriesBlock,
 ) {
 	shards := make(map[uint32]struct{})
@@ -117,13 +118,13 @@ func verifyForTime(
 	actual := make(generate.SeriesBlock, 0, len(expected))
 	for shard := range shards {
 		rOpts := fs.ReaderOpenOptions{
-			Namespace:  namespace,
-			Shard:      shard,
-			BlockStart: timestamp,
-			IsSnapshot: isSnapshot,
+			Namespace:   namespace,
+			Shard:       shard,
+			BlockStart:  timestamp,
+			FilesetType: FilesetType,
 		}
 
-		if isSnapshot {
+		if filesetType == persist.FilesetSnapshotType {
 			// If we're verifying snapshot files, then we need to identify the latest
 			// one because multiple snapshot files can exist at the same time with the
 			// same blockStart, but increasing "indexes" which indicates which one is
@@ -179,7 +180,9 @@ func verifyFlushedDataFiles(
 	require.NoError(t, err)
 	iteratorPool := storageOpts.ReaderIteratorPool()
 	for timestamp, seriesList := range seriesMaps {
-		verifyForTime(t, storageOpts, reader, shardSet, iteratorPool, timestamp.ToTime(), namespace, false, seriesList)
+		verifyForTime(
+			t, storageOpts, reader, shardSet, iteratorPool, timestamp.ToTime(),
+			namespace, persist.FilesetFlushType, seriesList)
 	}
 }
 
@@ -198,7 +201,9 @@ func verifySnapshottedDataFiles(
 	iteratorPool := storageOpts.ReaderIteratorPool()
 	for _, ns := range testNamespaces {
 		for _, seriesList := range seriesMaps {
-			verifyForTime(t, storageOpts, reader, shardSet, iteratorPool, snapshotTime, ns, true, seriesList)
+			verifyForTime(
+				t, storageOpts, reader, shardSet, iteratorPool, snapshotTime,
+				ns, persist.FilesetSnapshotType, seriesList)
 		}
 	}
 }
