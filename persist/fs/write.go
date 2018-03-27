@@ -127,7 +127,16 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 		err                   error
 	)
 
-	if opts.IsSnapshot {
+	w.blockSize = opts.BlockSize
+	w.start = opts.BlockStart
+	w.snapshotTime = opts.SnapshotTime
+	w.currIdx = 0
+	w.currOffset = 0
+	w.err = nil
+
+	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File
+	switch opts.FilesetType {
+	case FilesetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
@@ -136,28 +145,8 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 		if err != nil {
 			return err
 		}
-	} else {
-		shardDir = ShardDataDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
-		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
-			return err
-		}
-	}
-
-	w.blockSize = opts.BlockSize
-	w.start = opts.BlockStart
-	w.snapshotTime = opts.SnapshotTime
-	w.currIdx = 0
-	w.currOffset = 0
-	if opts.IsSnapshot {
 		w.checkpointFilePath = snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, checkpointFileSuffix, nextSnapshotIndex)
 
-	} else {
-		w.checkpointFilePath = filesetPathFromTime(shardDir, fileTimestampUnixNano, checkpointFileSuffix)
-	}
-	w.err = nil
-
-	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File
-	if opts.IsSnapshot {
 		err := openFiles(
 			w.openWritable,
 			map[string]**os.File{
@@ -172,7 +161,13 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 		if err != nil {
 			return err
 		}
-	} else {
+	case FilesetFlushType:
+		shardDir = ShardDataDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
+		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
+			return err
+		}
+		w.checkpointFilePath = filesetPathFromTime(shardDir, fileTimestampUnixNano, checkpointFileSuffix)
+
 		err := openFiles(
 			w.openWritable,
 			map[string]**os.File{
@@ -187,6 +182,8 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 		if err != nil {
 			return err
 		}
+	default:
+		return fmt.Errorf("unable to open writer with fileset type: %s", opts.FilesetType)
 	}
 
 	w.infoFdWithDigest.Reset(infoFd)
