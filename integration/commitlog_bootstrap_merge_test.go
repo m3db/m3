@@ -56,6 +56,10 @@ import (
 // - ns1 block at t0 and t1
 // - commit log blocks from [t1, t3]
 func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
+
 	// Test setup
 	var (
 		rOpts              = retention.NewOptions().SetRetentionPeriod(12 * time.Hour)

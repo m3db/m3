@@ -38,14 +38,13 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
-var (
-	tchannelNodeAddrArg = flag.String("nodetchanneladdr", "127.0.0.1:9003", "Node TChannel server address")
-	namespaceArg        = flag.String("namespace", "default", "Namespace to read from")
-	shardsArg           = flag.String("shards", "0", "Shards to pull IDs from, comma separated")
-	pageLimitArg        = flag.Int64("pagelimit", 4096, "Page limit to pull for a single request")
-)
-
 func main() {
+	var (
+		tchannelNodeAddrArg = flag.String("nodetchanneladdr", "127.0.0.1:9003", "Node TChannel server address")
+		namespaceArg        = flag.String("namespace", "default", "Namespace to read from")
+		shardsArg           = flag.String("shards", "0", "Shards to pull IDs from, comma separated")
+		pageLimitArg        = flag.Int64("pagelimit", 4096, "Page limit to pull for a single request")
+	)
 	flag.Parse()
 
 	if *tchannelNodeAddrArg == "" ||
