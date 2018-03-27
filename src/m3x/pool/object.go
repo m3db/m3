@@ -24,7 +24,6 @@ import (
 	"errors"
 	"math"
 	"sync/atomic"
-	"time"
 
 	"github.com/uber-go/tally"
 )
@@ -49,6 +48,7 @@ type objectPool struct {
 	refillHighWatermark int
 	filling             int32
 	initialized         int32
+	dice                int32
 	metrics             objectPoolMetrics
 }
 
@@ -145,7 +145,7 @@ func (p *objectPool) Put(obj interface{}) {
 }
 
 func (p *objectPool) trySetGauges() {
-	if time.Now().UnixNano()%sampleObjectPoolLengthEvery == 0 {
+	if atomic.AddInt32(&p.dice, 1)%sampleObjectPoolLengthEvery == 0 {
 		p.setGauges()
 	}
 }
