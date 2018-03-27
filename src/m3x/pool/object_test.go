@@ -116,3 +116,16 @@ func TestObjectPoolPutBeforeInitError(t *testing.T) {
 	assert.Error(t, accessErr)
 	assert.Equal(t, errPoolPutBeforeInitialized, accessErr)
 }
+
+func BenchmarkObjectPoolGetPut(b *testing.B) {
+	opts := NewObjectPoolOptions().SetSize(1)
+	pool := NewObjectPool(opts)
+	pool.Init(func() interface{} {
+		return 1
+	})
+
+	for n := 0; n < b.N; n++ {
+		o := pool.Get()
+		pool.Put(o)
+	}
+}
