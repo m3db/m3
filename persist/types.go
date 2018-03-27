@@ -21,6 +21,7 @@
 package persist
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/storage/namespace"
@@ -65,5 +66,26 @@ type PrepareOptions struct {
 	BlockStart        time.Time
 	SnapshotTime      time.Time
 	Shard             uint32
-	IsSnapshot        bool
+	FilesetType       FilesetType
 }
+
+// FilesetType is an enum that indicates what type of files a fileset contains
+type FilesetType int
+
+func (f FilesetType) String() string {
+	switch f {
+	case FilesetFlushType:
+		return "flush"
+	case FilesetSnapshotType:
+		return "snapshot"
+	}
+
+	return fmt.Sprintf("unknown: %d", f)
+}
+
+const (
+	// FilesetFlushType indicates that the fileset files contain a complete flush
+	FilesetFlushType FilesetType = iota
+	// FilesetSnapshotType indicates that the fileset files contain a snapshot
+	FilesetSnapshotType
+)

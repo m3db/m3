@@ -21,12 +21,12 @@
 package fs
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
@@ -39,27 +39,6 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-// FilesetType is an enum that indicates what type of files a fileset contains
-type FilesetType int
-
-func (f FilesetType) String() string {
-	switch f {
-	case FilesetFlushType:
-		return "flush"
-	case FilesetSnapshotType:
-		return "snapshot"
-	}
-
-	return fmt.Sprintf("unknown: %d", f)
-}
-
-const (
-	// FilesetFlushType indicates that the fileset files contain a complete flush
-	FilesetFlushType FilesetType = iota
-	// FilesetSnapshotType indicates that the fileset files contain a snapshot
-	FilesetSnapshotType
-)
-
 // WriterOpenOptions is the options struct for the Open method on the FilesetWriter
 type WriterOpenOptions struct {
 	Namespace    ident.ID
@@ -67,7 +46,7 @@ type WriterOpenOptions struct {
 	BlockStart   time.Time
 	SnapshotTime time.Time
 	Shard        uint32
-	FilesetType  FilesetType
+	FilesetType  persist.FilesetType
 }
 
 // FileSetWriter provides an unsynchronized writer for a TSDB file set
@@ -98,7 +77,7 @@ type ReaderOpenOptions struct {
 	Namespace     ident.ID
 	BlockStart    time.Time
 	Shard         uint32
-	FilesetType   FilesetType
+	FilesetType   persist.FilesetType
 	SnapshotIndex int
 }
 

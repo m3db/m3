@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/x/mmap"
@@ -132,10 +133,10 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 	var shardDir string
 	var checkpointFilePath string
 	switch opts.FilesetType {
-	case FilesetSnapshotType:
+	case persist.FilesetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
 		checkpointFilePath = snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, snapshotIndex)
-	case FilesetFlushType:
+	case persist.FilesetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
 		checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	default:
@@ -149,7 +150,7 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 
 	var infoFd, digestFd *os.File
 	switch opts.FilesetType {
-	case FilesetSnapshotType:
+	case persist.FilesetSnapshotType:
 		err := openFiles(os.Open, map[string]**os.File{
 			snapshotPathFromTimeAndIndex(shardDir, blockStart, infoFileSuffix, snapshotIndex):        &infoFd,
 			snapshotPathFromTimeAndIndex(shardDir, blockStart, digestFileSuffix, snapshotIndex):      &digestFd,
@@ -158,7 +159,7 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 		if err != nil {
 			return err
 		}
-	case FilesetFlushType:
+	case persist.FilesetFlushType:
 		err := openFiles(os.Open, map[string]**os.File{
 			filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
 			filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
@@ -182,7 +183,7 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 
 	var result mmap.FilesResult
 	switch opts.FilesetType {
-	case FilesetSnapshotType:
+	case persist.FilesetSnapshotType:
 		result, err = mmap.Files(os.Open, map[string]mmap.FileDesc{
 			snapshotPathFromTimeAndIndex(shardDir, blockStart, indexFileSuffix, snapshotIndex): mmap.FileDesc{
 				File:    &r.indexFd,
@@ -195,7 +196,7 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 				Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
 			},
 		})
-	case FilesetFlushType:
+	case persist.FilesetFlushType:
 		result, err = mmap.Files(os.Open, map[string]mmap.FileDesc{
 			filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmap.FileDesc{
 				File:    &r.indexFd,

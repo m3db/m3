@@ -22,6 +22,7 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -250,7 +251,7 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 		Shard:        shard,
 		BlockStart:   blockStart,
 		SnapshotTime: snapshotTime,
-		IsSnapshot:   opts.IsSnapshot,
+		FilesetType:  opts.FilesetType,
 	}
 	if err := pm.writer.Open(writerOpts); err != nil {
 		return prepared, err
@@ -270,15 +271,16 @@ func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) (b
 		nsID         = prepareOpts.NamespaceMetadata.ID()
 	)
 
-	if prepareOpts.IsSnapshot {
-		exists, err := SnapshotFilesetExistsAt(pm.filePathPrefix, nsID, shard, snapshotTime)
-		if err != nil {
-			return false, err
-		}
-
-		return exists, nil
+	switch prepareOpts.FilesetType {
+	case persist.FilesetSnapshotType:
+		return SnapshotFilesetExistsAt(pm.filePathPrefix, nsID, shard, snapshotTime)
+	case persist.FilesetFlushType:
+		return DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart), nil
+	default:
+		return false, fmt.Errorf(
+			"unable to determine if fileset exists in persist manager for fileset type: %s",
+			prepareOpts.FilesetType)
 	}
-	return DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart), nil
 }
 
 func (pm *persistManager) SetRuntimeOptions(value runtime.Options) {

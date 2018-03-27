@@ -51,9 +51,9 @@ func (m ReaderOpenOptionsMatcher) Matches(x interface{}) bool {
 	if !m.BlockStart.Equal(readerOpenOptions.BlockStart) {
 		return false
 	}
-	if !m.IsSnapshot == readerOpenOptions.IsSnapshot {
-		return false
-	}
+	// if !m.IsSnapshot == readerOpenOptions.IsSnapshot {
+	// 	return false
+	// }
 
 	return true
 }

@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3x/checked"
@@ -136,7 +137,7 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 
 	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File
 	switch opts.FilesetType {
-	case FilesetSnapshotType:
+	case persist.FilesetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
@@ -161,7 +162,7 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 		if err != nil {
 			return err
 		}
-	case FilesetFlushType:
+	case persist.FilesetFlushType:
 		shardDir = ShardDataDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err

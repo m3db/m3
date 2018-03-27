@@ -664,9 +664,7 @@ func SnapshotFilesetExistsAt(prefix string, namespace ident.ID, shard uint32, bl
 		return false, nil
 	}
 
-	shardDir := ShardSnapshotsDirPath(prefix, namespace, shard)
-	checkpointFile := snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, latest.Index)
-	return FileExists(checkpointFile), nil
+	return latest.HasCheckpointFile(), nil
 }
 
 // NextCommitLogsFile returns the next commit logs file.

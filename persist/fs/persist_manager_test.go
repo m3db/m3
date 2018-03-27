@@ -132,7 +132,7 @@ func TestPersistenceManagerPrepareSnapshotFileExists(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 		SnapshotTime:      blockStart,
-		IsSnapshot:        true,
+		FilesetType:       persist.FilesetSnapshotType,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
