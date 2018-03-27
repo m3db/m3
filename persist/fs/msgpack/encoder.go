@@ -164,7 +164,7 @@ func (enc *Encoder) encodeIndexInfo(version int, info schema.IndexInfo) {
 	} else if version == 2 {
 		enc.encodeIndexInfoV2(info)
 	} else {
-		panic(fmt.Sprintf("invalid index info version: %d", version))
+		enc.err = fmt.Errorf("invalid index info version: %d", version)
 	}
 }
 
