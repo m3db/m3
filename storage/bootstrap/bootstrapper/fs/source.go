@@ -93,16 +93,9 @@ func (s *fileSystemSource) shardAvailability(
 		return xtime.Ranges{}
 	}
 
-	readInfoFilesResults, err := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
+	readInfoFilesResults := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
 		namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
-	if err != nil {
-		s.log.WithFields(
-			xlog.NewField("shard", shard),
-			xlog.NewField("namespace", namespace.String()),
-			xlog.NewField("error", err.Error()),
-			xlog.NewField("targetRangesForShard", targetRangesForShard),
-		).Error("unable to read info files in shardAvailability")
-	}
+
 	if len(readInfoFilesResults) == 0 {
 		return xtime.Ranges{}
 	}
@@ -111,6 +104,12 @@ func (s *fileSystemSource) shardAvailability(
 	for i := 0; i < len(readInfoFilesResults); i++ {
 		result := readInfoFilesResults[i]
 		if result.Err != nil {
+			s.log.WithFields(
+				xlog.NewField("shard", shard),
+				xlog.NewField("namespace", namespace.String()),
+				xlog.NewField("error", result.Err.Error()),
+				xlog.NewField("targetRangesForShard", targetRangesForShard),
+			).Error("unable to read info files in shardAvailability")
 			continue
 		}
 		info := result.Info
@@ -131,16 +130,9 @@ func (s *fileSystemSource) enqueueReaders(
 	readersCh chan<- shardReaders,
 ) {
 	for shard, tr := range shardsTimeRanges {
-		readInfoFilesResults, err := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
+		readInfoFilesResults := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
 			namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
-		if err != nil {
-			s.log.WithFields(
-				xlog.NewField("shard", shard),
-				xlog.NewField("namespace", namespace.String()),
-				xlog.NewField("error", err.Error()),
-				xlog.NewField("timeRange", tr),
-			).Error("unable to read info files in enqueueReaders")
-		}
+
 		if len(readInfoFilesResults) == 0 {
 			// Use default readers value to indicate no readers for this shard
 			readersCh <- newShardReaders(shard, tr, nil)
@@ -151,6 +143,12 @@ func (s *fileSystemSource) enqueueReaders(
 		for i := 0; i < len(readInfoFilesResults); i++ {
 			result := readInfoFilesResults[i]
 			if result.Err != nil {
+				s.log.WithFields(
+					xlog.NewField("shard", shard),
+					xlog.NewField("namespace", namespace.String()),
+					xlog.NewField("error", result.Err.Error()),
+					xlog.NewField("timeRange", tr),
+				).Error("unable to read info files in enqueueReaders")
 				continue
 			}
 			info := result.Info

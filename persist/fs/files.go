@@ -57,8 +57,8 @@ type FilesetFile struct {
 // FilesetFilesSlice is a slice of FilesetFile
 type FilesetFilesSlice []FilesetFile
 
-// Flatten flattens a slice of FilesetFiles to a single slice of filepaths
-func (f FilesetFilesSlice) Flatten() []string {
+// Filepaths flattens a slice of FilesetFiles to a single slice of filepaths
+func (f FilesetFilesSlice) Filepaths() []string {
 	flattened := []string{}
 	for _, fileset := range f {
 		flattened = append(flattened, fileset.Files...)
@@ -348,20 +348,18 @@ func ReadInfoFiles(
 	shard uint32,
 	readerBufferSize int,
 	decodingOpts msgpack.DecodingOptions,
-) ([]ReadInfoFileResult, error) {
-	multiErr := xerrors.NewMultiError()
+) []ReadInfoFileResult {
 	var infoFileResults []ReadInfoFileResult
 	decoder := msgpack.NewDecoder(decodingOpts)
 	forEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
 		decoder.Reset(msgpack.NewDecoderStream(data))
 		info, err := decoder.DecodeIndexInfo()
-		multiErr = multiErr.Add(err)
 		infoFileResults = append(infoFileResults, ReadInfoFileResult{
 			Info: info,
 			Err:  err,
 		})
 	})
-	return infoFileResults, multiErr.FinalError()
+	return infoFileResults
 }
 
 // SnapshotFiles returns a slice of all the names for all the fileset files
@@ -376,7 +374,7 @@ func FilesetBefore(filePathPrefix string, namespace ident.ID, shard uint32, t ti
 	if err != nil {
 		return nil, err
 	}
-	return FilesBefore(matched.Flatten(), t)
+	return FilesBefore(matched.Filepaths(), t)
 }
 
 // DeleteInactiveDirectories deletes any directories that are not currently active, as defined by the

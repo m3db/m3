@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1621,18 +1620,16 @@ func (s *dbShard) Bootstrap(
 	// Now iterate flushed time ranges to determine which blocks are
 	// retrievable before servicing reads
 	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
-	readInfoFilesResults, err := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
+	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
-	if err != nil {
-		s.logger.WithFields(
-			xlog.NewField("shard", s.ID()),
-			xlog.NewField("namespace", s.namespace.ID()),
-			xlog.NewField("error", err.Error()),
-		).Error("unable to read info files in shard bootstrap")
-	}
 
 	for _, result := range readInfoFilesResults {
 		if result.Err != nil {
+			s.logger.WithFields(
+				xlog.NewField("shard", s.ID()),
+				xlog.NewField("namespace", s.namespace.ID()),
+				xlog.NewField("error", result.Err.Error()),
+			).Error("unable to read info files in shard bootstrap")
 			continue
 		}
 		info := result.Info
@@ -1665,9 +1662,9 @@ func (s *dbShard) Flush(
 
 	var multiErr xerrors.MultiError
 	prepareOpts := persist.PrepareOptions{
-		NsMetadata: s.namespace,
-		Shard:      s.ID(),
-		BlockStart: blockStart,
+		NamespaceMetadata: s.namespace,
+		Shard:             s.ID(),
+		BlockStart:        blockStart,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	multiErr = multiErr.Add(err)
@@ -1720,11 +1717,11 @@ func (s *dbShard) Snapshot(
 	}()
 
 	prepareOpts := persist.PrepareOptions{
-		NsMetadata:   s.namespace,
-		Shard:        s.ID(),
-		BlockStart:   blockStart,
-		SnapshotTime: snapshotTime,
-		IsSnapshot:   true,
+		NamespaceMetadata: s.namespace,
+		Shard:             s.ID(),
+		BlockStart:        blockStart,
+		SnapshotTime:      snapshotTime,
+		IsSnapshot:        true,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	multiErr = multiErr.Add(err)
@@ -1848,13 +1845,13 @@ func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
 		return err
 	}
 
-	sort.Slice(snapshotFiles, func(i, j int) bool {
-		// Make sure they're sorted by blockStart/Index in ascending order.
-		if snapshotFiles[i].BlockStart.Equal(snapshotFiles[j].BlockStart) {
-			return snapshotFiles[i].Index < snapshotFiles[j].Index
-		}
-		return snapshotFiles[i].BlockStart.Before(snapshotFiles[j].BlockStart)
-	})
+	// sort.Slice(snapshotFiles, func(i, j int) bool {
+	// 	// Make sure they're sorted by blockStart/Index in ascending order.
+	// 	if snapshotFiles[i].BlockStart.Equal(snapshotFiles[j].BlockStart) {
+	// 		return snapshotFiles[i].Index < snapshotFiles[j].Index
+	// 	}
+	// 	return snapshotFiles[i].BlockStart.Before(snapshotFiles[j].BlockStart)
+	// })
 
 	filesToDelete := []string{}
 

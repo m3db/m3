@@ -214,11 +214,11 @@ func (pm *persistManager) reset() {
 func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.PreparedPersist, error) {
 
 	var (
-		nsMetadata   = opts.NsMetadata
+		nsMetadata   = opts.NamespaceMetadata
 		shard        = opts.Shard
 		blockStart   = opts.BlockStart
 		snapshotTime = opts.SnapshotTime
-		nsID         = opts.NsMetadata.ID()
+		nsID         = opts.NamespaceMetadata.ID()
 		prepared     persist.PreparedPersist
 	)
 
@@ -267,7 +267,7 @@ func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) (b
 		blockStart   = prepareOpts.BlockStart
 		shard        = prepareOpts.Shard
 		snapshotTime = prepareOpts.SnapshotTime
-		nsID         = prepareOpts.NsMetadata.ID()
+		nsID         = prepareOpts.NamespaceMetadata.ID()
 	)
 
 	if prepareOpts.IsSnapshot {

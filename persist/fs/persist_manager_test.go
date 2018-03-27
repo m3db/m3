@@ -95,9 +95,9 @@ func TestPersistenceManagerPrepareDataFileExists(t *testing.T) {
 	}()
 
 	prepareOpts := persist.PrepareOptions{
-		NsMetadata: testNs1Metadata(t),
-		Shard:      shard,
-		BlockStart: blockStart,
+		NamespaceMetadata: testNs1Metadata(t),
+		Shard:             shard,
+		BlockStart:        blockStart,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
@@ -128,11 +128,11 @@ func TestPersistenceManagerPrepareSnapshotFileExists(t *testing.T) {
 	}()
 
 	prepareOpts := persist.PrepareOptions{
-		NsMetadata:   testNs1Metadata(t),
-		Shard:        shard,
-		BlockStart:   blockStart,
-		SnapshotTime: blockStart,
-		IsSnapshot:   true,
+		NamespaceMetadata: testNs1Metadata(t),
+		Shard:             shard,
+		BlockStart:        blockStart,
+		SnapshotTime:      blockStart,
+		IsSnapshot:        true,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
@@ -168,9 +168,9 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	}()
 
 	prepareOpts := persist.PrepareOptions{
-		NsMetadata: ns1Md,
-		Shard:      shard,
-		BlockStart: blockStart,
+		NamespaceMetadata: ns1Md,
+		Shard:             shard,
+		BlockStart:        blockStart,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	require.Equal(t, expectedErr, err)
@@ -218,9 +218,9 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	pm.bytesWritten = 100
 
 	prepareOpts := persist.PrepareOptions{
-		NsMetadata: testNs1Metadata(t),
-		Shard:      shard,
-		BlockStart: blockStart,
+		NamespaceMetadata: testNs1Metadata(t),
+		Shard:             shard,
+		BlockStart:        blockStart,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	defer prepared.Close()
@@ -286,9 +286,9 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 
 	// prepare the flush
 	prepareOpts := persist.PrepareOptions{
-		NsMetadata: testNs1Metadata(t),
-		Shard:      shard,
-		BlockStart: blockStart,
+		NamespaceMetadata: testNs1Metadata(t),
+		Shard:             shard,
+		BlockStart:        blockStart,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
@@ -367,9 +367,9 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 
 		// prepare the flush
 		prepareOpts := persist.PrepareOptions{
-			NsMetadata: testNs1Metadata(t),
-			Shard:      shard,
-			BlockStart: blockStart,
+			NamespaceMetadata: testNs1Metadata(t),
+			Shard:             shard,
+			BlockStart:        blockStart,
 		}
 		prepared, err := flush.Prepare(prepareOpts)
 		require.NoError(t, err)
@@ -426,9 +426,9 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil)
 	prepareOpts := persist.PrepareOptions{
-		NsMetadata: testNs1Metadata(t),
-		Shard:      shard,
-		BlockStart: blockStart,
+		NamespaceMetadata: testNs1Metadata(t),
+		Shard:             shard,
+		BlockStart:        blockStart,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
@@ -443,9 +443,9 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil)
 	prepareOpts = persist.PrepareOptions{
-		NsMetadata: testNs2Metadata(t),
-		Shard:      shard,
-		BlockStart: blockStart,
+		NamespaceMetadata: testNs2Metadata(t),
+		Shard:             shard,
+		BlockStart:        blockStart,
 	}
 	prepared, err = flush.Prepare(prepareOpts)
 	require.NoError(t, err)

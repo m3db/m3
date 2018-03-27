@@ -42,7 +42,7 @@ func (p PrepareOptionsMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	if !p.NsMetadata.Equal(prepareOptions.NsMetadata) {
+	if !p.NsMetadata.Equal(prepareOptions.NamespaceMetadata) {
 		return false
 	}
 	if p.Shard != prepareOptions.Shard {

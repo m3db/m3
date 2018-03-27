@@ -215,9 +215,9 @@ func TestInfoReadWrite(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writeTestData(t, w, 0, testWriterStart, entries)
 
-	readInfoFileResults, err := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
+	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
 	require.Equal(t, 1, len(readInfoFileResults))
-	require.NoError(t, err)
+	require.NoError(t, readInfoFileResults[0].Err)
 	for _, result := range readInfoFileResults {
 		require.NoError(t, result.Err)
 	}
