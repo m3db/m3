@@ -125,19 +125,21 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 		namespace     = opts.Namespace
 		shard         = opts.Shard
 		blockStart    = opts.BlockStart
-		isSnapshot    = opts.IsSnapshot
 		snapshotIndex = opts.SnapshotIndex
 		err           error
 	)
 
 	var shardDir string
 	var checkpointFilePath string
-	if isSnapshot {
+	switch opts.FilesetType {
+	case FilesetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
 		checkpointFilePath = snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, snapshotIndex)
-	} else {
+	case FilesetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
 		checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	default:
+		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
 	}
 
 	// If there is no checkpoint file, don't read the data files.
@@ -146,7 +148,8 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 	}
 
 	var infoFd, digestFd *os.File
-	if isSnapshot {
+	switch opts.FilesetType {
+	case FilesetSnapshotType:
 		err := openFiles(os.Open, map[string]**os.File{
 			snapshotPathFromTimeAndIndex(shardDir, blockStart, infoFileSuffix, snapshotIndex):        &infoFd,
 			snapshotPathFromTimeAndIndex(shardDir, blockStart, digestFileSuffix, snapshotIndex):      &digestFd,
@@ -155,7 +158,7 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 		if err != nil {
 			return err
 		}
-	} else {
+	case FilesetFlushType:
 		err := openFiles(os.Open, map[string]**os.File{
 			filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
 			filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
@@ -164,6 +167,8 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 		if err != nil {
 			return err
 		}
+	default:
+		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
 	}
 
 	r.infoFdWithDigest.Reset(infoFd)
@@ -176,7 +181,8 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 	}()
 
 	var result mmap.FilesResult
-	if opts.IsSnapshot {
+	switch opts.FilesetType {
+	case FilesetSnapshotType:
 		result, err = mmap.Files(os.Open, map[string]mmap.FileDesc{
 			snapshotPathFromTimeAndIndex(shardDir, blockStart, indexFileSuffix, snapshotIndex): mmap.FileDesc{
 				File:    &r.indexFd,
@@ -189,7 +195,7 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 				Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
 			},
 		})
-	} else {
+	case FilesetFlushType:
 		result, err = mmap.Files(os.Open, map[string]mmap.FileDesc{
 			filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmap.FileDesc{
 				File:    &r.indexFd,
@@ -202,6 +208,8 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 				Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
 			},
 		})
+	default:
+		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
 	}
 	if err != nil {
 		return err

@@ -98,7 +98,7 @@ type ReaderOpenOptions struct {
 	Namespace     ident.ID
 	BlockStart    time.Time
 	Shard         uint32
-	IsSnapshot    bool
+	FilesetType   FilesetType
 	SnapshotIndex int
 }
 
