@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,22 +18,54 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ident
+package byteskey
 
 import (
-	"crypto/md5"
-	"testing"
+	"bytes"
 
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3x/pool"
+
+	"github.com/cespare/xxhash"
+	"github.com/cheekybits/genny/generic"
 )
 
-func TestHashFn(t *testing.T) {
-	input := []byte{0x1, 0x2, 0x3}
-	require.Equal(t, Hash(md5.Sum(input)), HashFn(input))
+// Value is the generic type that needs to be specified when generating.
+type Value generic.Type
+
+// MapOptions provides options used when created the map.
+type MapOptions struct {
+	InitialSize int
+	KeyCopyPool pool.BytesPool
 }
 
-func TestMurmur3Hash128(t *testing.T) {
-	input := []byte("foo.bar.baz")
-	expected := Hash128{0xf14b7935f63800a5, 0x57d98c62725b8ebd}
-	require.Equal(t, expected, Murmur3Hash128(input))
+// NewMap returns a new byte keyed map.
+func NewMap(opts MapOptions) *Map {
+	var (
+		copyFn     CopyFn
+		finalizeFn FinalizeFn
+	)
+	if pool := opts.KeyCopyPool; pool == nil {
+		copyFn = func(k []byte) []byte {
+			return append([]byte(nil), k...)
+		}
+	} else {
+		copyFn = func(k []byte) []byte {
+			keyLen := len(k)
+			pooled := pool.Get(keyLen)[:keyLen]
+			copy(pooled, k)
+			return pooled
+		}
+		finalizeFn = func(k []byte) {
+			pool.Put(k)
+		}
+	}
+	return newMap(mapOptions{
+		hash: func(k []byte) MapHash {
+			return MapHash(xxhash.Sum64(k))
+		},
+		equals:      bytes.Equal,
+		copy:        copyFn,
+		finalize:    finalizeFn,
+		initialSize: opts.InitialSize,
+	})
 }

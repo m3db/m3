@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,38 +18,55 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ident
+package idkey
 
 import (
 	"testing"
+	"unsafe"
 
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/cheekybits/genny/generic"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
-func TestConstructorEquality(t *testing.T) {
-	a := StringID("abc")
-	b := BinaryID(checked.NewBytes([]byte{'a', 'b', 'c'}, nil))
+// nolint: structcheck
+func TestMapWithPooling(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	require.Equal(t, a.String(), "abc")
+	key := ident.StringID("foo")
+	value := generic.Type("a")
 
-	assert.True(t, a.Equal(b))
-	assert.Equal(t, a.String(), b.String())
-	assert.Equal(t, a.Bytes(), b.Bytes())
-}
+	pool := pool.NewMockBytesPool(ctrl)
 
-func BenchmarkPooling(b *testing.B) {
-	p := NewNativePool(nil, pool.NewObjectPoolOptions())
-	ctx := context.NewContext()
+	m := NewMap(MapOptions{KeyCopyPool: pool})
 
-	v := checked.NewBytes([]byte{'a', 'b', 'c'}, nil)
+	mockPooledSlice := make([]byte, 0, 3)
+	pool.EXPECT().Get(len(key.Bytes())).Return(mockPooledSlice)
+	m.Set(key, value)
+	require.Equal(t, 1, m.Len())
 
-	for i := 0; i < b.N; i++ {
-		id := p.GetBinaryID(ctx, v)
-		id.Finalize()
+	// Now ensure that the key is from the pool and not our original key
+	for _, entry := range m.Iter() {
+		type slice struct {
+			array unsafe.Pointer
+			len   int
+			cap   int
+		}
+
+		keyBytes := []byte(entry.Key().(id))
+
+		rawPooledSlice := (*slice)(unsafe.Pointer(&mockPooledSlice))
+		rawKeySlice := (*slice)(unsafe.Pointer(&keyBytes))
+
+		require.True(t, rawPooledSlice.array == rawKeySlice.array)
 	}
+
+	// Now delete the key to simulate returning to pool
+	pool.EXPECT().Put(mockPooledSlice[:3])
+	m.Delete(key)
+	require.Equal(t, 0, m.Len())
 }

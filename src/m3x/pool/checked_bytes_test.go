@@ -53,9 +53,9 @@ func TestCheckedBytesPool(t *testing.T) {
 	assert.Equal(t, 5, b2.Cap())
 	b2.Append('b')
 
-	assert.NotEqual(t, b1.Get(), b2.Get())
+	assert.NotEqual(t, b1.Bytes(), b2.Bytes())
 
-	copiedB1 := append([]byte(nil), b1.Get()...)
+	copiedB1 := append([]byte(nil), b1.Bytes()...)
 	b1.DecRef()
 	b1.Finalize()
 
@@ -66,7 +66,7 @@ func TestCheckedBytesPool(t *testing.T) {
 	b3.IncRef()
 	assert.Equal(t, 0, b3.Len())
 	assert.Equal(t, 5, b3.Cap())
-	assert.Equal(t, copiedB1, b3.Get()[:1])
+	assert.Equal(t, copiedB1, b3.Bytes()[:1])
 }
 
 func TestAppendByteChecked(t *testing.T) {
@@ -91,7 +91,7 @@ func TestAppendByteChecked(t *testing.T) {
 	// Ensure swapped out with new pooled bytes
 	assert.NotEqual(t, firstB1, b1)
 
-	assert.Equal(t, vals, b1.Get())
+	assert.Equal(t, vals, b1.Bytes())
 	assert.Equal(t, 9, b1.Len())
 	assert.Equal(t, 10, b1.Cap())
 
@@ -99,7 +99,7 @@ func TestAppendByteChecked(t *testing.T) {
 	b2 := p.Get(2)
 	b2.IncRef()
 	assert.Equal(t, 3, b2.Cap())
-	assert.Equal(t, b1.Get()[:3], b2.Get()[:3])
+	assert.Equal(t, b1.Bytes()[:3], b2.Bytes()[:3])
 }
 
 func getCheckedBytesPool(

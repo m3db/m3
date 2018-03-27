@@ -38,22 +38,22 @@ func TestBytes(t *testing.T) {
 	b := NewBytes(raw, NewBytesOptions().SetFinalizer(finalizer))
 	b.IncRef()
 
-	assert.Equal(t, []byte("abc"), b.Get())
+	assert.Equal(t, []byte("abc"), b.Bytes())
 	assert.Equal(t, 3, b.Len())
 	assert.Equal(t, 5, b.Cap())
 
 	b.Append('d')
 	b.AppendAll([]byte{'e', 'f'})
 
-	assert.Equal(t, []byte("abcdef"), b.Get())
+	assert.Equal(t, []byte("abcdef"), b.Bytes())
 	assert.Equal(t, 6, b.Len())
 
 	b.Resize(4)
-	assert.Equal(t, []byte("abcd"), b.Get())
+	assert.Equal(t, []byte("abcd"), b.Bytes())
 	assert.Equal(t, 4, b.Len())
 
 	b.Reset([]byte{'x', 'y', 'z'})
-	assert.Equal(t, []byte("xyz"), b.Get())
+	assert.Equal(t, []byte("xyz"), b.Bytes())
 	assert.Equal(t, 3, b.Len())
 
 	b.DecRef()
@@ -63,7 +63,7 @@ func TestBytes(t *testing.T) {
 		// Ensure closing the ref we created
 		assert.Equal(t, b, finalizing)
 		finalizing.IncRef()
-		assert.Equal(t, []byte("xyz"), finalizing.Get())
+		assert.Equal(t, []byte("xyz"), finalizing.Bytes())
 		finalizing.DecRef()
 		finalizerCalls++
 	}

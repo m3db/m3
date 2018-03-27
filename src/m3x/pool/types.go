@@ -167,6 +167,10 @@ type CheckedBytesPool interface {
 	// to the pool. The pool uses the finalizer on the checked.Bytes so be sure
 	// not to override it.
 	Get(capacity int) checked.Bytes
+
+	// BytesPool returns the underlying bytes pool used, useful if required
+	// to retrieve when only the checked bytes pool is accessible.
+	BytesPool() BytesPool
 }
 
 // FloatsPool provides a pool for variable-sized float64 slices.

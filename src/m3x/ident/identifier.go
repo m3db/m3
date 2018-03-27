@@ -22,8 +22,6 @@ package ident
 
 import (
 	"bytes"
-	"fmt"
-	"sync/atomic"
 
 	"github.com/m3db/m3x/checked"
 )
@@ -43,68 +41,32 @@ func StringID(str string) ID {
 
 type id struct {
 	data checked.Bytes
-	hash Hash
 	pool Pool
-	flag int32
 }
 
-// Data returns the binary value of an ID.
+// Data returns the checked bytes of an ID.
 func (v *id) Data() checked.Bytes {
 	return v.data
 }
 
-type hashFlag int32
-
-const (
-	invalid hashFlag = iota
-	pending
-	computed
-)
-
-var null = Hash{}
-
-// Hash calculates and returns the hash of an ID.
-func (v *id) Hash() Hash {
-	switch flag := hashFlag(atomic.LoadInt32(&v.flag)); flag {
-	case computed:
-		// If the hash has been computed, return the previously cached value.
-		return v.hash
-	case pending:
-		break
-	case invalid:
-		// If the hash is not computed, and this goroutine gains exclusive
-		// access to the hash field, compute and cache it.
-		if atomic.CompareAndSwapInt32(&v.flag, int32(invalid), int32(pending)) {
-			v.hash = HashFn(v.data.Get())
-			atomic.StoreInt32(&v.flag, int32(computed))
-			return v.hash
-		}
-	default:
-		panic(fmt.Sprintf("unexpected hash state: %v", flag))
+// Bytes directly returns the underlying bytes of an ID, it is not safe
+// to hold a reference to this slice and is only valid during the lifetime
+// of the the ID itself.
+func (v *id) Bytes() []byte {
+	if v.data == nil {
+		return nil
 	}
-
-	// If the hash is being computed, compute the hash in place and don't
-	// wait.
-	return HashFn(v.data.Get())
+	return v.data.Bytes()
 }
 
 func (v *id) Equal(value ID) bool {
-	currNoData := v == nil || v.Data() == nil || v.Data().Len() == 0
-	otherNoData := value == nil || value.Data() == nil || value.Data().Len() == 0
-	if currNoData && otherNoData {
-		return true
-	}
-	if currNoData || otherNoData {
-		return false
-	}
-	return bytes.Equal(v.Data().Get(), value.Data().Get())
+	return bytes.Equal(v.Bytes(), value.Bytes())
 }
 
 func (v *id) Finalize() {
 	v.data.DecRef()
 	v.data.Finalize()
 	v.data = nil
-	v.hash = null
 
 	if v.pool == nil {
 		return
@@ -114,12 +76,9 @@ func (v *id) Finalize() {
 }
 
 func (v *id) Reset() {
-	v.data, v.hash, v.flag = nil, null, int32(invalid)
+	v.data = nil
 }
 
 func (v *id) String() string {
-	if v.data == nil {
-		return ""
-	}
-	return string(v.data.Get())
+	return string(v.Bytes())
 }

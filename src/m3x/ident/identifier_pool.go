@@ -126,7 +126,7 @@ func (p *simplePool) Clone(existing ID) ID {
 
 	newData := p.bytesPool.Get(data.Len())
 	newData.IncRef()
-	newData.AppendAll(data.Get())
+	newData.AppendAll(data.Bytes())
 
 	data.DecRef()
 
@@ -284,7 +284,7 @@ func (p *nativePool) Clone(existing ID) ID {
 
 	v := p.heap.Get(data.Len())
 	v.IncRef()
-	v.AppendAll(data.Get())
+	v.AppendAll(data.Bytes())
 
 	data.DecRef()
 
