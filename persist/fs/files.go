@@ -50,18 +50,19 @@ type fileOpener func(filePath string) (*os.File, error)
 
 // FilesetFile represents a set of Fileset files for a given block start
 type FilesetFile struct {
-	BlockStart time.Time
-	Files      []string
+	BlockStart        time.Time
+	AbsoluteFilepaths []string
 }
 
 // FilesetFilesSlice is a slice of FilesetFile
 type FilesetFilesSlice []FilesetFile
 
-// Filepaths flattens a slice of FilesetFiles to a single slice of filepaths
+// Filepaths flattens a slice of FilesetFiles to a single slice of filepaths.
+// All paths returned are absolute.
 func (f FilesetFilesSlice) Filepaths() []string {
 	flattened := []string{}
 	for _, fileset := range f {
-		flattened = append(flattened, fileset.Files...)
+		flattened = append(flattened, fileset.AbsoluteFilepaths...)
 	}
 
 	return flattened
@@ -70,8 +71,8 @@ func (f FilesetFilesSlice) Filepaths() []string {
 // NewFilesetFile creates a new Fileset file
 func NewFilesetFile(blockStart time.Time) FilesetFile {
 	return FilesetFile{
-		BlockStart: blockStart,
-		Files:      []string{},
+		BlockStart:        blockStart,
+		AbsoluteFilepaths: []string{},
 	}
 }
 
@@ -86,7 +87,7 @@ type SnapshotFile struct {
 // HasCheckpointFile returns a bool indicating whether the given set of
 // snapshot files has a checkpoint file.
 func (s SnapshotFile) HasCheckpointFile() bool {
-	for _, fileName := range s.Files {
+	for _, fileName := range s.AbsoluteFilepaths {
 		if strings.Contains(fileName, checkpointFileSuffix) {
 			return true
 		}
@@ -98,11 +99,12 @@ func (s SnapshotFile) HasCheckpointFile() bool {
 // SnapshotFilesSlice is a slice of SnapshotFile
 type SnapshotFilesSlice []SnapshotFile
 
-// Flatten flattens a slice of SnapshotFiles to a single slice of filepaths
-func (f SnapshotFilesSlice) Flatten() []string {
+// Filepaths flattens a slice of SnapshotFiles to a single slice of filepaths.
+// All paths returned are absolute.
+func (f SnapshotFilesSlice) Filepaths() []string {
 	flattened := []string{}
 	for _, snapshot := range f {
-		flattened = append(flattened, snapshot.Files...)
+		flattened = append(flattened, snapshot.AbsoluteFilepaths...)
 	}
 
 	return flattened
@@ -111,10 +113,9 @@ func (f SnapshotFilesSlice) Flatten() []string {
 // LatestForBlock returns the latest (highest index) SnapshotFile in the
 // slice for a given block start.
 func (f SnapshotFilesSlice) LatestForBlock(blockStart time.Time) (SnapshotFile, bool) {
-	for i := 0; i < len(f); i++ {
-		curr := f[i]
+	for i, curr := range f {
 		if curr.BlockStart.Equal(blockStart) {
-			isEnd := (i == len(f)-1)
+			isEnd := i == len(f)-1
 			isHighestIdx := true
 			if !isEnd {
 				next := f[i+1]
@@ -131,8 +132,6 @@ func (f SnapshotFilesSlice) LatestForBlock(blockStart time.Time) (SnapshotFile, 
 
 	return SnapshotFile{}, false
 }
-
-// LatestSnapshotTime
 
 // NewSnapshotFile creates a new Snapshot file
 func NewSnapshotFile(blockStart time.Time) SnapshotFile {
@@ -281,7 +280,7 @@ func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, i
 		return timeZero, 0, err
 	}
 
-	if componentPosition > (len(components) - 1) {
+	if componentPosition > len(components)-1 {
 		return timeZero, 0, fmt.Errorf("malformatted filename: %s", fname)
 	}
 
@@ -330,11 +329,11 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 		if err != nil {
 			continue
 		}
-		if len(matched[i].Files) != 1 {
+		if len(matched[i].AbsoluteFilepaths) != 1 {
 			continue
 		}
 
-		fn(matched[i].Files[0], infoData)
+		fn(matched[i].AbsoluteFilepaths[0], infoData)
 	}
 }
 
@@ -493,7 +492,7 @@ func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, patt
 		latestBlockStart = currentFileBlockStart
 
 		latestSnapshotFile.Index = index
-		latestSnapshotFile.Files = append(latestSnapshotFile.Files, file)
+		latestSnapshotFile.AbsoluteFilepaths = append(latestSnapshotFile.AbsoluteFilepaths, file)
 	}
 	snapshotFiles = append(snapshotFiles, latestSnapshotFile)
 
@@ -529,7 +528,7 @@ func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, patte
 		}
 		latestBlockStart = currentFileBlockStart
 
-		latestFilesetFile.Files = append(latestFilesetFile.Files, file)
+		latestFilesetFile.AbsoluteFilepaths = append(latestFilesetFile.AbsoluteFilepaths, file)
 	}
 	filesetFiles = append(filesetFiles, latestFilesetFile)
 

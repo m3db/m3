@@ -933,16 +933,16 @@ func TestShardCleanupSnapshot(t *testing.T) {
 			// Should get removed for not being in retention period
 			fs.SnapshotFile{
 				FilesetFile: fs.FilesetFile{
-					BlockStart: pastRetention,
-					Files:      []string{"not-in-retention"},
+					BlockStart:        pastRetention,
+					AbsoluteFilepaths: []string{"not-in-retention"},
 				},
 				Index: 0,
 			},
 			// Should get removed for being flushed
 			fs.SnapshotFile{
 				FilesetFile: fs.FilesetFile{
-					BlockStart: successfullyFlushed,
-					Files:      []string{"successfully-flushed"},
+					BlockStart:        successfullyFlushed,
+					AbsoluteFilepaths: []string{"successfully-flushed"},
 				},
 				Index: 0,
 			},
@@ -953,15 +953,15 @@ func TestShardCleanupSnapshot(t *testing.T) {
 					BlockStart: notFlushedYet,
 					// Note this filename needs to contain the word "checkpoint" to
 					// pass the HasCheckpointFile() check
-					Files: []string{"latest-index-and-has-checkpoint"},
+					AbsoluteFilepaths: []string{"latest-index-and-has-checkpoint"},
 				},
 				Index: 1,
 			},
 			// Should get removed because the next one has a higher index
 			fs.SnapshotFile{
 				FilesetFile: fs.FilesetFile{
-					BlockStart: notFlushedYet,
-					Files:      []string{"not-latest-index"},
+					BlockStart:        notFlushedYet,
+					AbsoluteFilepaths: []string{"not-latest-index"},
 				},
 				Index: 0,
 			},

@@ -25,7 +25,6 @@ package integration
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -110,7 +109,6 @@ func verifyForTime(
 	isSnapshot bool,
 	expected generate.SeriesBlock,
 ) {
-	fmt.Println("huh: ", timestamp.Unix())
 	shards := make(map[uint32]struct{})
 	for _, series := range expected {
 		shard := shardSet.Lookup(series.ID)
