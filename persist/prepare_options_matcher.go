@@ -29,10 +29,10 @@ import (
 
 // PrepareOptionsMatcher satisfies the gomock.Matcher interface for PrepareOptions
 type PrepareOptionsMatcher struct {
-	NsMetadata namespace.Metadata
-	Shard      uint32
-	BlockStart time.Time
-	WrittenAt  time.Time
+	NsMetadata   namespace.Metadata
+	Shard        uint32
+	BlockStart   time.Time
+	SnapshotTime time.Time
 }
 
 // Matches determines whether a PrepareOptionsMatcher matches a PrepareOptions
@@ -48,7 +48,7 @@ func (p PrepareOptionsMatcher) Matches(x interface{}) bool {
 	if p.Shard != prepareOptions.Shard {
 		return false
 	}
-	if !p.WrittenAt.Equal(prepareOptions.WrittenAt) {
+	if !p.SnapshotTime.Equal(prepareOptions.SnapshotTime) {
 		return false
 	}
 	if !p.BlockStart.Equal(prepareOptions.BlockStart) {
@@ -60,6 +60,6 @@ func (p PrepareOptionsMatcher) Matches(x interface{}) bool {
 
 func (p PrepareOptionsMatcher) String() string {
 	return fmt.Sprintf(
-		"NSMetadata: %s, Shard: %d, BlockStart: %d, WrittenAt: %d",
-		p.NsMetadata.ID().String(), p.Shard, p.BlockStart.Unix(), p.WrittenAt.Unix())
+		"NSMetadata: %s, Shard: %d, BlockStart: %d, SnapshotTime: %d",
+		p.NsMetadata.ID().String(), p.Shard, p.BlockStart.Unix(), p.SnapshotTime.Unix())
 }

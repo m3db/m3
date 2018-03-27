@@ -46,7 +46,7 @@ type IndexInfo struct {
 	MajorVersion int64
 	Summaries    IndexSummariesInfo
 	BloomFilter  IndexBloomFilterInfo
-	WrittenAt    int64
+	SnapshotTime int64
 	FileType     FilesetFileType
 }
 

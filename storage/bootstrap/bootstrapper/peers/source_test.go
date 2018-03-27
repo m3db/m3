@@ -243,7 +243,6 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			NsMetadata: testNsMd,
 			Shard:      uint32(0),
 			BlockStart: start,
-			WrittenAt:  start,
 		}
 		mockFlush.EXPECT().
 			Prepare(prepareOpts).
@@ -264,7 +263,6 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			NsMetadata: testNsMd,
 			Shard:      uint32(0),
 			BlockStart: start.Add(ropts.BlockSize()),
-			WrittenAt:  start.Add(ropts.BlockSize()),
 		}
 		mockFlush.EXPECT().
 			Prepare(prepareOpts).
@@ -285,7 +283,6 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			NsMetadata: testNsMd,
 			Shard:      uint32(1),
 			BlockStart: start,
-			WrittenAt:  start,
 		}
 		mockFlush.EXPECT().
 			Prepare(prepareOpts).
@@ -306,7 +303,6 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			NsMetadata: testNsMd,
 			Shard:      uint32(1),
 			BlockStart: start.Add(ropts.BlockSize()),
-			WrittenAt:  start.Add(ropts.BlockSize()),
 		}
 		mockFlush.EXPECT().
 			Prepare(prepareOpts).
@@ -492,7 +488,6 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		NsMetadata: testNsMd,
 		Shard:      uint32(0),
 		BlockStart: start,
-		WrittenAt:  start,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
@@ -510,7 +505,6 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		NsMetadata: testNsMd,
 		Shard:      uint32(0),
 		BlockStart: midway,
-		WrittenAt:  midway,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
@@ -530,7 +524,6 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		NsMetadata: testNsMd,
 		Shard:      uint32(1),
 		BlockStart: start,
-		WrittenAt:  start,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
@@ -548,7 +541,6 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		NsMetadata: testNsMd,
 		Shard:      uint32(1),
 		BlockStart: midway,
-		WrittenAt:  midway,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
@@ -568,7 +560,6 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		NsMetadata: testNsMd,
 		Shard:      uint32(2),
 		BlockStart: start,
-		WrittenAt:  start,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
@@ -586,7 +577,6 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		NsMetadata: testNsMd,
 		Shard:      uint32(2),
 		BlockStart: midway,
-		WrittenAt:  midway,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
@@ -606,7 +596,6 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		NsMetadata: testNsMd,
 		Shard:      uint32(3),
 		BlockStart: start,
-		WrittenAt:  start,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
@@ -624,7 +613,6 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		NsMetadata: testNsMd,
 		Shard:      uint32(3),
 		BlockStart: midway,
-		WrittenAt:  midway,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).

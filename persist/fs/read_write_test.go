@@ -57,7 +57,6 @@ func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.T
 		BlockSize:  testBlockSize,
 		Shard:      shard,
 		BlockStart: timestamp,
-		WrittenAt:  timestamp,
 	}
 	err := w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -271,7 +270,6 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      shard,
 		BlockStart: testWriterStart,
-		WrittenAt:  testWriterStart,
 	}
 	require.NoError(t, w.Open(writerOpts))
 
@@ -318,7 +316,6 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      0,
 		BlockStart: testWriterStart,
-		WrittenAt:  testWriterStart,
 	}
 	require.NoError(t, w.Open(writerOpts))
 

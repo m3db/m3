@@ -214,12 +214,12 @@ func (pm *persistManager) reset() {
 func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.PreparedPersist, error) {
 
 	var (
-		nsMetadata = opts.NsMetadata
-		shard      = opts.Shard
-		blockStart = opts.BlockStart
-		writtenAt  = opts.WrittenAt
-		nsID       = opts.NsMetadata.ID()
-		prepared   persist.PreparedPersist
+		nsMetadata   = opts.NsMetadata
+		shard        = opts.Shard
+		blockStart   = opts.BlockStart
+		snapshotTime = opts.SnapshotTime
+		nsID         = opts.NsMetadata.ID()
+		prepared     persist.PreparedPersist
 	)
 
 	// ensure StartFlush has been called
@@ -245,12 +245,12 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
 	writerOpts := WriterOpenOptions{
-		Namespace:  nsID,
-		BlockSize:  blockSize,
-		Shard:      shard,
-		BlockStart: blockStart,
-		WrittenAt:  writtenAt,
-		IsSnapshot: opts.IsSnapshot,
+		Namespace:    nsID,
+		BlockSize:    blockSize,
+		Shard:        shard,
+		BlockStart:   blockStart,
+		SnapshotTime: snapshotTime,
+		IsSnapshot:   opts.IsSnapshot,
 	}
 	if err := pm.writer.Open(writerOpts); err != nil {
 		return prepared, err
@@ -264,14 +264,14 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 
 func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) (bool, error) {
 	var (
-		blockStart = prepareOpts.BlockStart
-		shard      = prepareOpts.Shard
-		writtenAt  = prepareOpts.WrittenAt
-		nsID       = prepareOpts.NsMetadata.ID()
+		blockStart   = prepareOpts.BlockStart
+		shard        = prepareOpts.Shard
+		snapshotTime = prepareOpts.SnapshotTime
+		nsID         = prepareOpts.NsMetadata.ID()
 	)
 
 	if prepareOpts.IsSnapshot {
-		exists, err := SnapshotFilesetExistsAt(pm.filePathPrefix, nsID, shard, writtenAt)
+		exists, err := SnapshotFilesetExistsAt(pm.filePathPrefix, nsID, shard, snapshotTime)
 		if err != nil {
 			return false, err
 		}

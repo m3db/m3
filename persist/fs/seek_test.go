@@ -61,7 +61,6 @@ func TestSeekEmptyIndex(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      0,
 		BlockStart: testWriterStart,
-		WrittenAt:  testWriterStart,
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -91,7 +90,6 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      0,
 		BlockStart: testWriterStart,
-		WrittenAt:  testWriterStart,
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -131,7 +129,6 @@ func TestSeekBadChecksum(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      0,
 		BlockStart: testWriterStart,
-		WrittenAt:  testWriterStart,
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -170,7 +167,6 @@ func TestSeek(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      0,
 		BlockStart: testWriterStart,
-		WrittenAt:  testWriterStart,
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -236,7 +232,6 @@ func TestSeekIDNotExists(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      0,
 		BlockStart: testWriterStart,
-		WrittenAt:  testWriterStart,
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -288,7 +283,6 @@ func TestReuseSeeker(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      0,
 		BlockStart: testWriterStart.Add(-time.Hour),
-		WrittenAt:  testWriterStart.Add(-time.Hour),
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -303,7 +297,6 @@ func TestReuseSeeker(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      0,
 		BlockStart: testWriterStart,
-		WrittenAt:  testWriterStart,
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -350,7 +343,6 @@ func TestCloneSeeker(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      0,
 		BlockStart: testWriterStart.Add(-time.Hour),
-		WrittenAt:  testWriterStart.Add(-time.Hour),
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -365,7 +357,6 @@ func TestCloneSeeker(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      0,
 		BlockStart: testWriterStart,
-		WrittenAt:  testWriterStart,
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)

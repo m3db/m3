@@ -55,13 +55,13 @@ type writer struct {
 	checkpointFilePath         string
 	indexEntries               indexEntries
 
-	start      time.Time
-	writtenAt  time.Time
-	currIdx    int64
-	currOffset int64
-	encoder    *msgpack.Encoder
-	digestBuf  digest.Buffer
-	err        error
+	start        time.Time
+	snapshotTime time.Time
+	currIdx      int64
+	currOffset   int64
+	encoder      *msgpack.Encoder
+	digestBuf    digest.Buffer
+	err          error
 }
 
 type indexEntry struct {
@@ -145,7 +145,7 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 
 	w.blockSize = opts.BlockSize
 	w.start = opts.BlockStart
-	w.writtenAt = opts.WrittenAt
+	w.snapshotTime = opts.SnapshotTime
 	w.currIdx = 0
 	w.currOffset = 0
 	if opts.IsSnapshot {
@@ -467,7 +467,7 @@ func (w *writer) writeInfoFileContents(
 ) error {
 	info := schema.IndexInfo{
 		BlockStart:   xtime.ToNanoseconds(w.start),
-		WrittenAt:    xtime.ToNanoseconds(w.writtenAt),
+		SnapshotTime: xtime.ToNanoseconds(w.snapshotTime),
 		BlockSize:    int64(w.blockSize),
 		Entries:      w.currIdx,
 		MajorVersion: schema.MajorVersion,
@@ -491,11 +491,11 @@ func (w *writer) writeInfoFileContents(
 
 // WriterOpenOptionsMatcher satisfies the gomock.Matcher interface for WriterOpenOptions
 type WriterOpenOptionsMatcher struct {
-	Namespace  ident.ID
-	BlockSize  time.Duration
-	Shard      uint32
-	BlockStart time.Time
-	WrittenAt  time.Time
+	Namespace    ident.ID
+	BlockSize    time.Duration
+	Shard        uint32
+	BlockStart   time.Time
+	SnapshotTime time.Time
 }
 
 // Matches determine whether m matches a WriterOpenOptions
@@ -518,7 +518,7 @@ func (m WriterOpenOptionsMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	if !m.WrittenAt.Equal(writerOpenOptions.WrittenAt) {
+	if !m.SnapshotTime.Equal(writerOpenOptions.SnapshotTime) {
 		return false
 	}
 
@@ -527,7 +527,7 @@ func (m WriterOpenOptionsMatcher) Matches(x interface{}) bool {
 
 func (m WriterOpenOptionsMatcher) String() string {
 	return fmt.Sprintf(
-		"namespace: %s, blocksize: %d, shard: %d, blockstart: %d, writtenAt: %d",
-		m.Namespace.String(), m.BlockSize, m.Shard, m.BlockStart.Unix(), m.WrittenAt.Unix(),
+		"namespace: %s, blocksize: %d, shard: %d, blockstart: %d, snapshotTime: %d",
+		m.Namespace.String(), m.BlockSize, m.Shard, m.BlockStart.Unix(), m.SnapshotTime.Unix(),
 	)
 }

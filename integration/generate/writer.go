@@ -115,7 +115,6 @@ func writeToDisk(
 			BlockSize:  blockSize,
 			Shard:      shard,
 			BlockStart: start,
-			WrittenAt:  start,
 		}
 		if err := writer.Open(writerOpts); err != nil {
 			return err

@@ -132,6 +132,8 @@ func (f SnapshotFilesSlice) LatestForBlock(blockStart time.Time) (SnapshotFile, 
 	return SnapshotFile{}, false
 }
 
+// LatestSnapshotTime
+
 // NewSnapshotFile creates a new Snapshot file
 func NewSnapshotFile(blockStart time.Time) SnapshotFile {
 	return SnapshotFile{

@@ -40,12 +40,12 @@ import (
 
 // WriterOpenOptions is the options struct for the Open method on the FilesetWriter
 type WriterOpenOptions struct {
-	Namespace  ident.ID
-	BlockSize  time.Duration
-	BlockStart time.Time
-	WrittenAt  time.Time
-	Shard      uint32
-	IsSnapshot bool
+	Namespace    ident.ID
+	BlockSize    time.Duration
+	BlockStart   time.Time
+	SnapshotTime time.Time
+	Shard        uint32
+	IsSnapshot   bool
 }
 
 // FileSetWriter provides an unsynchronized writer for a TSDB file set

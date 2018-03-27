@@ -167,7 +167,7 @@ func (enc *Encoder) encodeIndexInfoV1(info schema.IndexInfo) {
 
 func (enc *Encoder) encodeIndexInfoV2(info schema.IndexInfo) {
 	enc.encodeIndexInfoV1(info)
-	enc.encodeVarintFn(info.WrittenAt)
+	enc.encodeVarintFn(info.SnapshotTime)
 	enc.encodeVarintFn(int64(info.FileType))
 }
 

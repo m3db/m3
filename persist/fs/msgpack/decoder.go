@@ -257,7 +257,7 @@ func (dec *Decoder) decodeIndexInfoV2() schema.IndexInfo {
 	indexInfo.Summaries = dec.decodeIndexSummariesInfo()
 	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
 
-	indexInfo.WrittenAt = dec.decodeVarint()
+	indexInfo.SnapshotTime = dec.decodeVarint()
 	indexInfo.FileType = schema.FilesetFileType(dec.decodeVarint())
 
 	dec.skip(numFieldsToSkip)

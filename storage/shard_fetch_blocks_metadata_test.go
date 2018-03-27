@@ -217,7 +217,6 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 			BlockSize:  blockSize,
 			Shard:      shard.shard,
 			BlockStart: at,
-			WrittenAt:  at,
 		}
 		err = writer.Open(writerOpts)
 		require.NoError(t, err)
