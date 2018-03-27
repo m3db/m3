@@ -423,25 +423,53 @@ func TestSnapshotFiles(t *testing.T) {
 }
 
 func TestMultipleForBlockStart(t *testing.T) {
-	numSnapshotsForBlock := 20
+	numSnapshots := 20
+	numSnapshotsPerBlock := 4
 	shard := uint32(0)
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 	shardDir := path.Join(dir, snapshotDirName, testNs1ID.String(), strconv.Itoa(int(shard)))
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 
+	// Write out many files with the same blockStart, but different indices
 	ts := time.Unix(0, 0)
-	for i := 0; i < numSnapshotsForBlock; i++ {
-		createFile(t, snapshotPathFromTimeAndIndex(shardDir, ts, infoFileSuffix, i), nil)
+	for i := 0; i < numSnapshots; i++ {
+		// Periodically update the blockStart
+		if i%numSnapshotsPerBlock == 0 {
+			ts = time.Unix(0, int64(i))
+		}
+		createFile(t, snapshotPathFromTimeAndIndex(shardDir, ts, infoFileSuffix, i%numSnapshotsPerBlock), nil)
 	}
 
 	files, err := SnapshotFiles(dir, testNs1ID, shard)
 	require.NoError(t, err)
 	require.Equal(t, 20, len(files))
 	require.Equal(t, 20, len(files.Filepaths()))
+
+	// Make sure LatestForBlock works even if the input list is not sorted properly
+	for i := range files {
+		if i+1 < len(files) {
+			files[i], files[i+1] = files[i+1], files[i]
+		}
+	}
+
 	latestSnapshot, ok := files.LatestForBlock(ts)
 	require.True(t, ok)
-	require.Equal(t, numSnapshotsForBlock-1, latestSnapshot.Index)
+	require.Equal(t, numSnapshotsPerBlock-1, latestSnapshot.Index)
+}
+
+func TestSnapshotFileHasCheckPointFile(t *testing.T) {
+	require.Equal(t, true, SnapshotFile{
+		FilesetFile: FilesetFile{
+			AbsoluteFilepaths: []string{"123-checkpoint-0.db"},
+		},
+	}.HasCheckpointFile())
+
+	require.Equal(t, false, SnapshotFile{
+		FilesetFile: FilesetFile{
+			AbsoluteFilepaths: []string{"123-index-0.db"},
+		},
+	}.HasCheckpointFile())
 }
 
 func TestSnapshotDirPath(t *testing.T) {

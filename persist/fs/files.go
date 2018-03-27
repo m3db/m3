@@ -113,6 +113,9 @@ func (f SnapshotFilesSlice) Filepaths() []string {
 // LatestForBlock returns the latest (highest index) SnapshotFile in the
 // slice for a given block start.
 func (f SnapshotFilesSlice) LatestForBlock(blockStart time.Time) (SnapshotFile, bool) {
+	// Make sure we're already sorted
+	f.sortByTimeAndIndexAscending()
+
 	for i, curr := range f {
 		if curr.BlockStart.Equal(blockStart) {
 			isEnd := i == len(f)-1
@@ -131,6 +134,16 @@ func (f SnapshotFilesSlice) LatestForBlock(blockStart time.Time) (SnapshotFile, 
 	}
 
 	return SnapshotFile{}, false
+}
+
+func (f SnapshotFilesSlice) sortByTimeAndIndexAscending() {
+	sort.Slice(f, func(i, j int) bool {
+		if f[i].BlockStart.Equal(f[j].BlockStart) {
+			return f[i].Index < f[j].Index
+		}
+
+		return f[i].BlockStart.Before(f[j].BlockStart)
+	})
 }
 
 // NewSnapshotFile creates a new Snapshot file
