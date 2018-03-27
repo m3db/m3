@@ -46,10 +46,10 @@ var errorUnableToDetermineNumFieldsToSkip = errors.New("unable to determine num 
 
 // Decoder decodes persisted msgpack-encoded data
 type Decoder struct {
-	allocDecodedBytes bool
 	reader            DecoderStream
 	dec               *msgpack.Decoder
 	err               error
+	allocDecodedBytes bool
 
 	// Used primarily for testing
 	forceDecodeIndexInfoV1 bool
