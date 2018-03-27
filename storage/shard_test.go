@@ -391,6 +391,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 		Shard:        s.shard,
 		BlockStart:   blockStart,
 		SnapshotTime: blockStart,
+		FilesetType:  persist.FilesetSnapshotType,
 	}
 	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
 
