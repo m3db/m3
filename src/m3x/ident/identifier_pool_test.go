@@ -60,7 +60,7 @@ func (s idPoolTestSuite) TestPoolGetClone() {
 	ctx.BlockingClose()
 
 	s.Require().Nil(a.Data())
-	s.Require().NotEmpty(b.Data().Get())
+	s.Require().NotEmpty(b.Data().Bytes())
 }
 
 func (s idPoolTestSuite) TestPoolStringRefs() {
@@ -102,7 +102,7 @@ func (s idPoolTestSuite) TestPoolBinaryID() {
 	s.Require().Equal(1+nr, v.NumRef())
 	bid.Finalize()
 	s.Require().Nil(bid.Data())
-	s.Require().NotNil(v.Get())
+	s.Require().NotNil(v.Bytes())
 	s.Require().Equal(nr, v.NumRef())
 }
 
@@ -136,11 +136,11 @@ func (s idPoolTestSuite) TestPoolBinaryTag() {
 
 	tag.Finalize()
 	s.Require().Nil(tag.Name)
-	s.Require().NotNil(tagName.Get())
+	s.Require().NotNil(tagName.Bytes())
 	s.Require().Equal(nr, tagName.NumRef())
 
 	s.Require().Nil(tag.Value)
-	s.Require().NotNil(tagValue.Get())
+	s.Require().NotNil(tagValue.Bytes())
 	s.Require().Equal(vr, tagValue.NumRef())
 }
 

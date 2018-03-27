@@ -3,26 +3,28 @@ include $(SELF_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail
 
-html_report          := coverage.html
-test                 := .ci/test-cover.sh
-convert-test-data    := .ci/convert-test-data.sh
-coverfile            := cover.out
-coverage_xml         := coverage.xml
-junit_xml            := junit.xml
-test_log             := test.log
-lint_check           := .ci/lint.sh
-metalint_check       := .ci/metalint.sh
-metalint_config      := .metalinter.json
-metalint_exclude     := .excludemetalint
-license_dir          := .ci/uber-licence
-license_node_modules := $(license_dir)/node_modules
-gopath_prefix        := $(GOPATH)/src
-vendor_prefix        := vendor
-auto_gen             := .ci/auto-gen.sh
-m3x_package          := github.com/m3db/m3x
-mockgen_package      := github.com/golang/mock/mockgen
-mocks_output_dir     := generated/mocks/mocks
-mocks_rules_dir      := generated/mocks
+html_report           := coverage.html
+test                  := .ci/test-cover.sh
+convert-test-data     := .ci/convert-test-data.sh
+coverfile             := cover.out
+coverage_xml          := coverage.xml
+junit_xml             := junit.xml
+test_log              := test.log
+lint_check            := .ci/lint.sh
+metalint_check        := .ci/metalint.sh
+metalint_config       := .metalinter.json
+metalint_exclude      := .excludemetalint
+license_dir           := .ci/uber-licence
+license_node_modules  := $(license_dir)/node_modules
+gopath_prefix         := $(GOPATH)/src
+vendor_prefix         := vendor
+auto_gen              := .ci/auto-gen.sh
+m3x_package           := github.com/m3db/m3x
+mockgen_package       := github.com/golang/mock/mockgen
+mocks_output_dir      := generated/mocks/mocks
+mocks_rules_dir       := generated/mocks
+genny_package         := github.com/cheekybits/genny
+genny_package_version := 9127e812e1e9e501ce899a18121d316ecb52e4ba
 
 BUILD           := $(abspath ./bin)
 LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
@@ -88,6 +90,36 @@ install-mockgen:
 mock-gen: install-mockgen install-license-bin install-util-mockclean
 	@echo Generating mocks
 	PACKAGE=$(m3x_package) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
+
+.PHONY: install-genny
+install-genny:
+	@which genny >/dev/null || (go get -u $(genny_package) && \
+		cd $(GOPATH)/src/$(genny_package)                    && \
+		git checkout $(genny_package_version)                && \
+		go install $(genny_package)                             \
+	)
+
+.PHONY: idhashmap-update
+idhashmap-update: install-genny
+	@cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg idkey gen "KeyType=ident.ID ValueType=Value" > ./idkey/map.go
+
+.PHONY: byteshashmap-update
+byteshashmap-update: install-genny
+	@cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg byteskey gen "KeyType=[]byte ValueType=Value" > ./byteskey/map.go
+
+.PHONY: hashmap-gen
+hashmap-gen: install-genny
+	@cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg $(pkg) gen "KeyType=$(key_type) ValueType=$(value_type)" > "$(out_dir:\=)/map.go"
+
+.PHONY: idhashmap-gen
+idhashmap-gen: install-genny
+	@cd generics/hashmap/idkey && cat ./map.go | grep -v nolint | genny -pkg $(pkg) gen "Value=$(value_type)" > "$(out_dir:\=)/map.go"
+	@cd generics/hashmap/idkey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) gen "Value=$(value_type)" > "$(out_dir:\=)/new_map.go"
+
+.PHONY: byteshashmap-gen
+byteshashmap-gen: install-genny
+	@cd generics/hashmap/byteskey && cat ./map.go | grep -v nolint | genny -pkg $(pkg) gen "Value=$(value_type)" > "$(out_dir:\=)/map.go"
+	@cd generics/hashmap/byteskey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) gen "Value=$(value_type)" > "$(out_dir:\=)/new_map.go"
 
 .PHONY: clean
 clean:

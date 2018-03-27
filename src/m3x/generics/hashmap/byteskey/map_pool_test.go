@@ -18,8 +18,54 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate sh -c "mockgen -package=ident github.com/m3db/m3x/ident ID,TagIterator,MapKey | mockclean -pkg github.com/m3db/m3x/ident -out $GOPATH/src/github.com/m3db/m3x/ident/ident_mock.go"
-//go:generate sh -c "mockgen -package=checked github.com/m3db/m3x/checked Bytes | mockclean -pkg github.com/m3db/m3x/checked -out $GOPATH/src/github.com/m3db/m3x/checked/checked_mock.go"
-//go:generate sh -c "mockgen -package=pool github.com/m3db/m3x/pool CheckedBytesPool,BytesPool | mockclean -pkg github.com/m3db/m3x/pool -out $GOPATH/src/github.com/m3db/m3x/pool/pool_mock.go"
+package byteskey
 
-package generated
+import (
+	"testing"
+	"unsafe"
+
+	"github.com/m3db/m3x/pool"
+
+	"github.com/cheekybits/genny/generic"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+)
+
+// nolint: structcheck
+func TestMapWithPooling(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	key := []byte("foo")
+	value := generic.Type("a")
+
+	pool := pool.NewMockBytesPool(ctrl)
+
+	m := NewMap(MapOptions{KeyCopyPool: pool})
+
+	mockPooledSlice := make([]byte, 0, 3)
+	pool.EXPECT().Get(len(key)).Return(mockPooledSlice)
+	m.Set(key, value)
+	require.Equal(t, 1, m.Len())
+
+	// Now ensure that the key is from the pool and not our original key
+	for _, entry := range m.Iter() {
+		type slice struct {
+			array unsafe.Pointer
+			len   int
+			cap   int
+		}
+
+		keyBytes := entry.Key()
+
+		rawPooledSlice := (*slice)(unsafe.Pointer(&mockPooledSlice))
+		rawKeySlice := (*slice)(unsafe.Pointer(&keyBytes))
+
+		require.True(t, rawPooledSlice.array == rawKeySlice.array)
+	}
+
+	// Now delete the key to simulate returning to pool
+	pool.EXPECT().Put(mockPooledSlice[:3])
+	m.Delete(key)
+	require.Equal(t, 0, m.Len())
+}

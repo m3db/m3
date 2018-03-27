@@ -28,12 +28,29 @@ var (
 type Bytes interface {
 	ReadWriteRef
 
-	Get() []byte
+	// Bytes returns an unchecked reference to the underlying bytes, callers
+	// should discard the reference immediately after use and the use of
+	// the reference must not extend past the lifetime of the checked bytes
+	// itself.
+	Bytes() []byte
+
+	// Cap returns capacity of the bytes.
 	Cap() int
+
+	// Len returns the length of the bytes.
 	Len() int
+
+	// Resize will resize the bytes slice, this allows for reuse of the already
+	// allocated bytes slices.
 	Resize(size int)
+
+	// Append will append a single byte to the bytes slice.
 	Append(value byte)
+
+	// Append will append bytes to the bytes slice.
 	AppendAll(values []byte)
+
+	// Reset will reset the reference referred to by the bytes.
 	Reset(v []byte)
 }
 
@@ -62,7 +79,7 @@ func NewBytes(value []byte, opts BytesOptions) Bytes {
 	return b
 }
 
-func (b *bytesRef) Get() []byte {
+func (b *bytesRef) Bytes() []byte {
 	b.IncReads()
 	v := b.value
 	b.DecReads()

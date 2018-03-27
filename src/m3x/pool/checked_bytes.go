@@ -42,6 +42,10 @@ func NewCheckedBytesPool(
 	}
 }
 
+func (p *checkedBytesPool) BytesPool() BytesPool {
+	return p.bytesPool
+}
+
 func (p *checkedBytesPool) Init() {
 	opts := checked.NewBytesOptions().
 		SetFinalizer(p)
@@ -84,7 +88,7 @@ func AppendByteChecked(
 		newBytes.IncRef()
 		newBytes.Resize(bytes.Len())
 
-		copy(newBytes.Get(), bytes.Get())
+		copy(newBytes.Bytes(), bytes.Bytes())
 
 		bytes = newBytes
 	}

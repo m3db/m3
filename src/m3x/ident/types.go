@@ -22,25 +22,22 @@
 package ident
 
 import (
-	"crypto/md5"
 	"fmt"
 
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/context"
-
-	"github.com/spaolacci/murmur3"
 )
 
-// ID represents an immutable identifier for a timeseries.
+// ID represents an immutable identifier to allow use of byte slice pooling
+// for the contents of the ID.
 type ID interface {
 	fmt.Stringer
 
 	Data() checked.Bytes
-	Hash() Hash
+	Bytes() []byte
 	Equal(value ID) bool
-
-	Finalize()
 	Reset()
+	Finalize()
 }
 
 // TagName represents the name of a timeseries tag.
@@ -72,18 +69,18 @@ type Pool interface {
 	// GetBinaryID will create a new binary ID and take reference to the bytes.
 	// When the context closes the ID will be finalized and so too will
 	// the bytes, i.e. it will take ownership of the bytes.
-	GetBinaryID(context.Context, checked.Bytes) ID
+	GetBinaryID(c context.Context, data checked.Bytes) ID
 
 	// BinaryID will create a new binary ID and take a reference to the bytes.
-	BinaryID(checked.Bytes) ID
+	BinaryID(data checked.Bytes) ID
 
 	// GetBinaryTag will create a new binary Tag and take reference to the bytes.
 	// When the context closes, the Tag will be finalized and so too will
 	// the bytes, i.e. it will take ownership of the bytes.
-	GetBinaryTag(c context.Context, name checked.Bytes, value checked.Bytes) Tag
+	GetBinaryTag(c context.Context, name, value checked.Bytes) Tag
 
 	// BinaryTag will create a new binary Tag and take a reference to the provided bytes.
-	BinaryTag(name checked.Bytes, value checked.Bytes) Tag
+	BinaryTag(name, value checked.Bytes) Tag
 
 	// GetStringID will create a new string ID and create a bytes copy of the
 	// string. When the context closes the ID will be finalized.
@@ -91,27 +88,27 @@ type Pool interface {
 
 	// StringID will create a new string ID and create a bytes copy of the
 	// string.
-	StringID(id string) ID
+	StringID(data string) ID
 
 	// GetStringTag will create a new string Tag and create a bytes copy of the
 	// string. When the context closes the ID will be finalized.
-	GetStringTag(c context.Context, name string, value string) Tag
+	GetStringTag(c context.Context, name, value string) Tag
 
 	// StringTag will create a new string Tag and create a bytes copy of the
 	// string.
-	StringTag(name string, value string) Tag
+	StringTag(name, value string) Tag
 
 	// Put an ID back in the pool.
-	Put(ID)
+	Put(id ID)
 
 	// PutTag puts a tag back in the pool.
-	PutTag(Tag)
+	PutTag(tag Tag)
 
 	// Clone replicates a given ID into a pooled ID.
-	Clone(ID) ID
+	Clone(id ID) ID
 
 	// CloneTag replicates a given Tag into a pooled Tag.
-	CloneTag(Tag) Tag
+	CloneTag(tag Tag) Tag
 }
 
 // Iterator represents an iterator over `ID` instances. It is not thread-safe.
@@ -190,21 +187,4 @@ func (tags Tags) Equal(other Tags) bool {
 		}
 	}
 	return true
-}
-
-// Hash represents a form of ID suitable to be used as map keys.
-type Hash [md5.Size]byte
-
-// HashFn is the default hashing implementation for IDs.
-func HashFn(data []byte) Hash {
-	return md5.Sum(data)
-}
-
-// Hash128 is a 128-bit hash of an ID consisting of two unsigned 64-bit ints.
-type Hash128 [2]uint64
-
-// Murmur3Hash128 computes the 128-bit hash of an id.
-func Murmur3Hash128(data []byte) Hash128 {
-	h0, h1 := murmur3.Sum128(data)
-	return Hash128{h0, h1}
 }

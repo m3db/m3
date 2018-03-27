@@ -25,6 +25,12 @@ import:
 - package: github.com/spaolacci/murmur3
   version: ^1.1.0
 
+- package: github.com/cheekybits/genny
+  version: 9127e812e1e9e501ce899a18121d316ecb52e4ba
+
+- package: github.com/cespare/xxhash
+  version: 48099fad606eafc26e3a569fad19ff510fff4df6
+
 testImport:
 - package: github.com/stretchr/testify
   version: ^1.2.0
