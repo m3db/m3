@@ -18,52 +18,58 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package persist
+package fs
 
 import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3x/ident"
 )
 
-// PrepareOptionsMatcher satisfies the gomock.Matcher interface for PrepareOptions
-type PrepareOptionsMatcher struct {
-	NsMetadata   namespace.Metadata
+// WriterOpenOptionsMatcher satisfies the gomock.Matcher interface for WriterOpenOptions
+type WriterOpenOptionsMatcher struct {
+	Namespace    ident.ID
+	BlockSize    time.Duration
 	Shard        uint32
 	BlockStart   time.Time
 	SnapshotTime time.Time
-	FilesetType  FilesetType
+	FilesetType  persist.FilesetType
 }
 
-// Matches determines whether a PrepareOptionsMatcher matches a PrepareOptions
-func (p PrepareOptionsMatcher) Matches(x interface{}) bool {
-	prepareOptions, ok := x.(PrepareOptions)
+// Matches determine whether m matches a WriterOpenOptions
+func (m WriterOpenOptionsMatcher) Matches(x interface{}) bool {
+	writerOpenOptions, ok := x.(WriterOpenOptions)
 	if !ok {
 		return false
 	}
 
-	if !p.NsMetadata.Equal(prepareOptions.NamespaceMetadata) {
+	if !m.Namespace.Equal(writerOpenOptions.Namespace) {
 		return false
 	}
-	if p.Shard != prepareOptions.Shard {
+	if m.BlockSize != writerOpenOptions.BlockSize {
 		return false
 	}
-	if !p.SnapshotTime.Equal(prepareOptions.SnapshotTime) {
+	if m.Shard != writerOpenOptions.Shard {
 		return false
 	}
-	if !p.BlockStart.Equal(prepareOptions.BlockStart) {
+	if !m.BlockStart.Equal(writerOpenOptions.BlockStart) {
 		return false
 	}
-	if p.FilesetType != prepareOptions.FilesetType {
+	if !m.SnapshotTime.Equal(writerOpenOptions.SnapshotTime) {
+		return false
+	}
+	if m.FilesetType != writerOpenOptions.FilesetType {
 		return false
 	}
 
 	return true
 }
 
-func (p PrepareOptionsMatcher) String() string {
+func (m WriterOpenOptionsMatcher) String() string {
 	return fmt.Sprintf(
-		"NSMetadata: %s, Shard: %d, BlockStart: %d, SnapshotTime: %d, FilesetType: %s",
-		p.NsMetadata.ID().String(), p.Shard, p.BlockStart.Unix(), p.SnapshotTime.Unix(), p.FilesetType)
+		"namespace: %s, blocksize: %d, shard: %d, blockstart: %d, snapshotTime: %d, filesetType: %s",
+		m.Namespace.String(), m.BlockSize, m.Shard, m.BlockStart.Unix(), m.SnapshotTime.Unix(), m.FilesetType,
+	)
 }

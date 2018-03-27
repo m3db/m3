@@ -102,7 +102,6 @@ func createInfoFiles(t *testing.T, subDirName string, namespace ident.ID, shard 
 		var infoFilePath string
 		if isSnapshot {
 			infoFilePath = snapshotPathFromTimeAndIndex(shardDir, ts, infoFileSuffix, 0)
-			fmt.Println(infoFilePath)
 		} else {
 			infoFilePath = filesetPathFromTime(shardDir, ts, infoFileSuffix)
 		}

@@ -24,15 +24,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3x/ident"
 )
 
 // ReaderOpenOptionsMatcher is a matcher for the ReaderOpenOptions struct
 type ReaderOpenOptionsMatcher struct {
-	Namespace  ident.ID
-	BlockStart time.Time
-	Shard      uint32
-	IsSnapshot bool
+	Namespace   ident.ID
+	BlockStart  time.Time
+	Shard       uint32
+	FilesetType persist.FilesetType
 }
 
 // Matches determine whether m matches a WriterOpenOptions
@@ -51,16 +52,16 @@ func (m ReaderOpenOptionsMatcher) Matches(x interface{}) bool {
 	if !m.BlockStart.Equal(readerOpenOptions.BlockStart) {
 		return false
 	}
-	// if !m.IsSnapshot == readerOpenOptions.IsSnapshot {
-	// 	return false
-	// }
+	if m.FilesetType != readerOpenOptions.FilesetType {
+		return false
+	}
 
 	return true
 }
 
 func (m ReaderOpenOptionsMatcher) String() string {
 	return fmt.Sprintf(
-		"namespace: %s, shard: %d, blockstart: %d, isSnapshot: %t",
-		m.Namespace.String(), m.Shard, m.BlockStart.Unix(), m.IsSnapshot,
+		"namespace: %s, shard: %d, blockstart: %d, filesetType: %s",
+		m.Namespace.String(), m.Shard, m.BlockStart.Unix(), m.FilesetType,
 	)
 }
