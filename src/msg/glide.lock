@@ -1,12 +1,75 @@
 hash: 2dcdc1d8794bb424ebe828931634cfa6f98f54359504735a6d21112b528953ed
-updated: 2018-03-22T17:12:39.152401-04:00
+updated: 2018-03-22T17:29:53.063967-04:00
 imports:
+- name: github.com/apache/thrift
+  version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
+  subpackages:
+  - lib/go/thrift
+- name: github.com/facebookgo/clock
+  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
+- name: github.com/go-ole/go-ole
+  version: a41e3c4b706f6ae8dfbff342b06e40fa4d2d0506
+  subpackages:
+  - oleutil
 - name: github.com/gogo/protobuf
   version: 1adfc126b41513cc696b209667c8656ea7aac67c
+- name: github.com/golang/mock
+  version: 13f360950a79f5864a972c786a10a50e44b69541
+  subpackages:
+  - gomock
 - name: github.com/golang/protobuf
   version: 925541529c1fa6821df4e44ce2723319eb2be768
+  subpackages:
+  - proto
 - name: github.com/m3db/m3x
   version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
+  subpackages:
+  - checked
+  - clock
+  - errors
+  - instrument
+  - log
+  - pool
+  - process
+  - resource
+  - retry
+- name: github.com/shirou/gopsutil
+  version: 5776ff9c7c5d063d574ef53d740f75c68b448e53
+  subpackages:
+  - cpu
+  - host
+  - internal/common
+  - mem
+  - net
+  - process
+- name: github.com/shirou/w32
+  version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
+- name: github.com/StackExchange/wmi
+  version: 5d049714c4a64225c3c79a7cf7d02f7fb5b96338
+- name: github.com/uber-go/tally
+  version: 522328b48efad0c6034dba92bf39228694e9d31f
+  subpackages:
+  - m3
+  - m3/customtransports
+  - m3/thrift
+  - m3/thriftudp
+- name: go.uber.org/atomic
+  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+- name: go.uber.org/multierr
+  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+- name: go.uber.org/zap
+  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - zapcore
+- name: golang.org/x/sys
+  version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  subpackages:
+  - unix
+  - windows
 testImports:
 - name: github.com/stretchr/testify
   version: 232e8563676cd15c3a36ba5e675ad4312ac4cb11
