@@ -146,12 +146,16 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 		infoFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, infoFileSuffix, snapshotIndex)
 		digestFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, digestFileSuffix, snapshotIndex)
 		bloomFilterFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, snapshotIndex)
+		indexFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, indexFileSuffix, snapshotIndex)
+		dataFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, dataFileSuffix, snapshotIndex)
 	case persist.FilesetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
 		checkpointFilepath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 		infoFilepath = filesetPathFromTime(shardDir, blockStart, infoFileSuffix)
 		digestFilepath = filesetPathFromTime(shardDir, blockStart, digestFileSuffix)
 		bloomFilterFilepath = filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix)
+		indexFilepath = filesetPathFromTime(shardDir, blockStart, indexFileSuffix)
+		dataFilepath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
 	default:
 		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
 	}
