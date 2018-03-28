@@ -98,7 +98,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		<-startCh
-		require.Equal(t, errFlushAlreadyInProgress, fm.Flush(now))
+		require.Equal(t, errFlushOrSnapshotAlreadyInProgress, fm.Flush(now))
 		doneCh <- struct{}{}
 	}()
 
