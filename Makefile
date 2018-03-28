@@ -166,11 +166,17 @@ test-single-integration:
 	TEST_NATIVE_POOLING=false make test-base-single-integration name=$(name)
 
 .PHONY: test-ci-unit
-test-ci-unit: test-base-ci-unit
+test-ci-unit: test-base
+	$(codecov_push) -f $(coverfile) -F unittests
+
+.PHONY: test-ci-big-unit
+test-ci-big-unit: test-big-base
+	$(codecov_push) -f $(coverfile) -F unittests
 
 .PHONY: test-ci-integration
 test-ci-integration:
 	INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	$(codecov_push) -f $(coverfile) -F integration
 
 .PHONY: clean
 clean:
