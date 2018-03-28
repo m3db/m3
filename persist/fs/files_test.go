@@ -406,6 +406,19 @@ func TestFilesetFilesBefore(t *testing.T) {
 	}
 }
 
+func TestFilesetFilesNoFiles(t *testing.T) {
+	// Make empty directory
+	shard := uint32(0)
+	dir := createTempDir(t)
+	shardDir := path.Join(dir, "data", testNs1ID.String(), strconv.Itoa(int(shard)))
+	require.NoError(t, os.MkdirAll(shardDir, 0755))
+	defer os.RemoveAll(shardDir)
+
+	res, err := filesetFiles(dir, testNs1ID, shard, filesetFilePattern)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(res))
+}
+
 func TestSnapshotFiles(t *testing.T) {
 	shard := uint32(0)
 	dir := createInfoFilesSnapshotDir(t, testNs1ID, shard, 20)
@@ -419,6 +432,24 @@ func TestSnapshotFiles(t *testing.T) {
 	}
 
 	require.Equal(t, 20, len(files.Filepaths()))
+}
+
+func TestSnapshotFilesNoFiles(t *testing.T) {
+	// Make empty directory
+	shard := uint32(0)
+	dir := createTempDir(t)
+	shardDir := path.Join(dir, "snapshots", testNs1ID.String(), strconv.Itoa(int(shard)))
+	require.NoError(t, os.MkdirAll(shardDir, 0755))
+	defer os.RemoveAll(shardDir)
+
+	files, err := SnapshotFiles(dir, testNs1ID, shard)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(files))
+	for i, snapshotFile := range files {
+		require.Equal(t, int64(i), snapshotFile.ID.BlockStart.UnixNano())
+	}
+
+	require.Equal(t, 0, len(files.Filepaths()))
 }
 
 func TestMultipleForBlockStart(t *testing.T) {
