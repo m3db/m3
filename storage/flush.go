@@ -34,38 +34,51 @@ import (
 )
 
 var (
-	errFlushAlreadyInProgress = errors.New("flush already in progress")
+	errFlushOrSnapshotAlreadyInProgress = errors.New("flush or snapshot already in progress")
 )
 
 type flushManager struct {
 	sync.RWMutex
 
-	database        database
-	opts            Options
-	pm              persist.Manager
-	flushInProgress bool
-	status          tally.Gauge
+	database database
+	opts     Options
+	pm       persist.Manager
+	// isFlushingOrSnapshotting is used to protect the flush manager against
+	// concurrent use, while flushInProgress and snapshotInProgress are more
+	// granular and are used for emitting granular gauges.
+	isFlushingOrSnapshotting bool
+	flushInProgress          bool
+	snapshotInProgress       bool
+	isFlushing               tally.Gauge
+	isSnapshotting           tally.Gauge
 }
 
 func newFlushManager(database database, scope tally.Scope) databaseFlushManager {
 	opts := database.Options()
 	return &flushManager{
-		database: database,
-		opts:     opts,
-		pm:       opts.PersistManager(),
-		status:   scope.Gauge("flush"),
+		database:       database,
+		opts:           opts,
+		pm:             opts.PersistManager(),
+		isFlushing:     scope.Gauge("flush"),
+		isSnapshotting: scope.Gauge("snapshot"),
 	}
 }
 
 func (m *flushManager) Flush(curr time.Time) error {
 	// ensure only a single flush is happening at a time
 	m.Lock()
-	if m.flushInProgress {
+	if m.isFlushingOrSnapshotting {
 		m.Unlock()
-		return errFlushAlreadyInProgress
+		return errFlushOrSnapshotAlreadyInProgress
 	}
-	m.flushInProgress = true
+	m.isFlushingOrSnapshotting = true
 	m.Unlock()
+
+	defer func() {
+		m.Lock()
+		m.isFlushingOrSnapshotting = false
+		m.Unlock()
+	}()
 
 	// create flush-er
 	flush, err := m.pm.StartFlush()
@@ -73,23 +86,22 @@ func (m *flushManager) Flush(curr time.Time) error {
 		return err
 	}
 
-	defer func() {
-		m.Lock()
-		m.flushInProgress = false
-		m.Unlock()
-	}()
-
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
 		return err
 	}
 
 	multiErr := xerrors.NewMultiError()
+	m.setFlushInProgress(true)
 	for _, ns := range namespaces {
 		// Flush first because we will only snapshot if there are no outstanding flushes
 		flushTimes := m.namespaceFlushTimes(ns, curr)
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, flushTimes, flush))
+	}
+	m.setFlushInProgress(false)
 
+	m.setSnapshotInProgress(true)
+	for _, ns := range namespaces {
 		var (
 			blockSize          = ns.Options().RetentionOptions().BlockSize()
 			snapshotBlockStart = m.snapshotBlockStart(ns, curr)
@@ -105,6 +117,7 @@ func (m *flushManager) Flush(curr time.Time) error {
 			}
 		}
 	}
+	m.setSnapshotInProgress(false)
 
 	// mark flush finished
 	multiErr = multiErr.Add(flush.Done())
@@ -117,10 +130,21 @@ func (m *flushManager) Report() {
 	m.RUnlock()
 
 	if flushInProgress {
-		m.status.Update(1)
+		m.isFlushing.Update(1)
 	} else {
-		m.status.Update(0)
+		m.isFlushing.Update(0)
 	}
+}
+
+func (m *flushManager) setFlushInProgress(b bool) {
+	m.Lock()
+	m.flushInProgress = b
+	m.Unlock()
+}
+func (m *flushManager) setSnapshotInProgress(b bool) {
+	m.Lock()
+	m.snapshotInProgress = b
+	m.Unlock()
 }
 
 func (m *flushManager) snapshotBlockStart(ns databaseNamespace, curr time.Time) time.Time {
