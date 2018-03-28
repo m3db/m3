@@ -247,13 +247,12 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		Persist: func(ident.ID, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
 	}
-	expectedErr := errors.New("error foo")
 	prepareOpts := persist.PrepareOptionsMatcher{
 		NsMetadata: s.namespace,
 		Shard:      s.shard,
 		BlockStart: blockStart,
 	}
-	flush.EXPECT().Prepare(prepareOpts).Return(prepared, expectedErr)
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
@@ -284,7 +283,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	require.True(t, closed)
 	require.NotNil(t, err)
-	require.Equal(t, "error foo\nerror bar", err.Error())
+	require.Equal(t, "error bar", err.Error())
 
 	flushState := s.FlushState(blockStart)
 	require.Equal(t, fileOpState{
