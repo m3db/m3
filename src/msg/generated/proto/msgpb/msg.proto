@@ -1,0 +1,16 @@
+syntax = "proto3";
+package msgpb;
+
+message Metadata {
+    uint64 shard = 1;
+    uint64 id = 2;
+}
+
+message Message {
+  Metadata metadata = 1;
+  bytes value = 2;
+}
+
+message Ack {
+  repeated Metadata metadata = 1;
+}
