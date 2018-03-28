@@ -1662,22 +1662,24 @@ func (s *dbShard) Flush(
 	}
 	s.RUnlock()
 
-	var multiErr xerrors.MultiError
 	prepareOpts := persist.PrepareOptions{
 		NamespaceMetadata: s.namespace,
 		Shard:             s.ID(),
 		BlockStart:        blockStart,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
-	multiErr = multiErr.Add(err)
+	if err != nil {
+		return s.markFlushStateSuccessOrError(blockStart, err)
+	}
 
 	// No action is necessary therefore we bail out early and there is no need to close.
 	if prepared.Persist == nil {
 		// NB(r): Need to mark state without mulitErr as success so IsBlockRetrievable can
 		// return true when querying if a block is retrievable for this time
-		return s.markFlushStateSuccessOrError(blockStart, multiErr.FinalError())
+		return s.markFlushStateSuccessOrError(blockStart, nil)
 	}
 
+	var multiErr xerrors.MultiError
 	tmpCtx := context.NewContext()
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		series := entry.series
@@ -1726,17 +1728,24 @@ func (s *dbShard) Snapshot(
 		FilesetType:       persist.FilesetSnapshotType,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
+	// Add the err so the defer will capture it
 	multiErr = multiErr.Add(err)
+	if err != nil {
+		return err
+	}
 
 	// No action is necessary therefore we bail out early and there is no need to close.
 	if prepared.Persist == nil {
-		// This should never happen in practice, but if it does it means the snapshot file already
-		// exists.
+		errMsg := "tried to write prepare snapshot file that already exists"
+		// This should never happen in practice since we don't check for duplicate snapshot files
+		// in the Prepare method.
 		s.logger.WithFields(
 			xlog.NewField("blockStart", blockStart),
 			xlog.NewField("snapshotStart", snapshotTime),
 			xlog.NewField("shard", s.ID()),
-		).Errorf("Tried to write prepare snapshot file that already exists")
+		).Errorf(errMsg)
+		// Add to multiErr so we can see failures in metrics
+		multiErr = multiErr.Add(errors.New(errMsg))
 		return nil
 	}
 
