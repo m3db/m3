@@ -39,14 +39,28 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+// FilesetFileIdentifier contains all the information required to identify a FilesetFile
+type FilesetFileIdentifier struct {
+	Namespace  ident.ID
+	BlockStart time.Time
+	Shard      uint32
+	// Only required for snapshot files
+	Index int
+}
+
 // WriterOpenOptions is the options struct for the Open method on the FilesetWriter
 type WriterOpenOptions struct {
-	Namespace    ident.ID
-	BlockSize    time.Duration
-	BlockStart   time.Time
+	Identifier  FilesetFileIdentifier
+	BlockSize   time.Duration
+	FilesetType persist.FilesetType
+	// Only used when writing snapshot files
+	Snapshot WriterSnapshotOptions
+}
+
+// WriterSnapshotOptions is the options struct for Open method on the FilesetWriter
+// that contains information specific to writing snapshot files
+type WriterSnapshotOptions struct {
 	SnapshotTime time.Time
-	Shard        uint32
-	FilesetType  persist.FilesetType
 }
 
 // FileSetWriter provides an unsynchronized writer for a TSDB file set
@@ -74,11 +88,8 @@ type FileSetReaderStatus struct {
 
 // ReaderOpenOptions is options struct for the reader open method.
 type ReaderOpenOptions struct {
-	Namespace     ident.ID
-	BlockStart    time.Time
-	Shard         uint32
-	FilesetType   persist.FilesetType
-	SnapshotIndex int
+	Identifier  FilesetFileIdentifier
+	FilesetType persist.FilesetType
 }
 
 // FileSetReader provides an unsynchronized reader for a TSDB file set

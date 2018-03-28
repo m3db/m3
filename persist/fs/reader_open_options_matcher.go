@@ -22,17 +22,13 @@ package fs
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/m3db/m3db/persist"
-	"github.com/m3db/m3x/ident"
 )
 
 // ReaderOpenOptionsMatcher is a matcher for the ReaderOpenOptions struct
 type ReaderOpenOptionsMatcher struct {
-	Namespace   ident.ID
-	BlockStart  time.Time
-	Shard       uint32
+	ID          FilesetFileIdentifier
 	FilesetType persist.FilesetType
 }
 
@@ -43,13 +39,13 @@ func (m ReaderOpenOptionsMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	if !m.Namespace.Equal(readerOpenOptions.Namespace) {
+	if !m.ID.Namespace.Equal(readerOpenOptions.Identifier.Namespace) {
 		return false
 	}
-	if m.Shard != readerOpenOptions.Shard {
+	if m.ID.Shard != readerOpenOptions.Identifier.Shard {
 		return false
 	}
-	if !m.BlockStart.Equal(readerOpenOptions.BlockStart) {
+	if !m.ID.BlockStart.Equal(readerOpenOptions.Identifier.BlockStart) {
 		return false
 	}
 	if m.FilesetType != readerOpenOptions.FilesetType {
@@ -62,6 +58,6 @@ func (m ReaderOpenOptionsMatcher) Matches(x interface{}) bool {
 func (m ReaderOpenOptionsMatcher) String() string {
 	return fmt.Sprintf(
 		"namespace: %s, shard: %d, blockstart: %d, filesetType: %s",
-		m.Namespace.String(), m.Shard, m.BlockStart.Unix(), m.FilesetType,
+		m.ID.Namespace.String(), m.ID.Shard, m.ID.BlockStart.Unix(), m.FilesetType,
 	)
 }

@@ -207,9 +207,11 @@ func newReader(namespace, pathPrefix, hostName string, shard uint32, start time.
 	}
 
 	openOpts := fs.ReaderOpenOptions{
-		Namespace:  ident.StringID(namespace),
-		Shard:      shard,
-		BlockStart: start,
+		Identifier: fs.FilesetFileIdentifier{
+			Namespace:  ident.StringID(namespace),
+			Shard:      shard,
+			BlockStart: start,
+		},
 	}
 	err = reader.Open(openOpts)
 	return reader, err

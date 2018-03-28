@@ -113,10 +113,12 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      0,
-		BlockStart: testWriterStart,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -124,9 +126,11 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 
 	r := newTestReader(t, filePathPrefix)
 	rOpenOpts := ReaderOpenOptions{
-		Namespace:  testNs1ID,
-		Shard:      0,
-		BlockStart: testWriterStart,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
 	}
 	err = r.Open(rOpenOpts)
 	assert.NoError(t, err)
@@ -150,10 +154,12 @@ func TestReadDataError(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      0,
-		BlockStart: testWriterStart,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
 	}
 	err = w.Open(writerOpts)
 	require.NoError(t, err)
@@ -165,9 +171,11 @@ func TestReadDataError(t *testing.T) {
 
 	r := newTestReader(t, filePathPrefix)
 	rOpenOpts := ReaderOpenOptions{
-		Namespace:  testNs1ID,
-		Shard:      0,
-		BlockStart: testWriterStart,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
 	}
 	err = r.Open(rOpenOpts)
 	assert.NoError(t, err)
@@ -199,10 +207,12 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      0,
-		BlockStart: testWriterStart,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -219,9 +229,11 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 
 	r := newTestReader(t, filePathPrefix)
 	rOpenOpts := ReaderOpenOptions{
-		Namespace:  testNs1ID,
-		Shard:      0,
-		BlockStart: testWriterStart,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
 	}
 	err = r.Open(rOpenOpts)
 	assert.NoError(t, err)
@@ -240,10 +252,12 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	shard := uint32(0)
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      shard,
-		BlockStart: testWriterStart,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: testWriterStart,
+		},
 	}
 	err := w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -256,9 +270,11 @@ func TestReadNoCheckpointFile(t *testing.T) {
 
 	r := newTestReader(t, filePathPrefix)
 	rOpenOpts := ReaderOpenOptions{
-		Namespace:  testNs1ID,
-		Shard:      shard,
-		BlockStart: testWriterStart,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: testWriterStart,
+		},
 	}
 	err = r.Open(rOpenOpts)
 	require.Equal(t, ErrCheckpointFileNotFound, err)
@@ -274,10 +290,12 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      uint32(shard),
-		BlockStart: start,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      uint32(shard),
+			BlockStart: start,
+		},
 	}
 	assert.NoError(t, w.Open(writerOpts))
 
@@ -298,9 +316,11 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 
 	r := newTestReader(t, filePathPrefix)
 	rOpenOpts := ReaderOpenOptions{
-		Namespace:  testNs1ID,
-		Shard:      shard,
-		BlockStart: time.Unix(1000, 0),
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: time.Unix(1000, 0),
+		},
 	}
 	require.Error(t, r.Open(rOpenOpts))
 }
@@ -363,10 +383,12 @@ func TestReadValidate(t *testing.T) {
 	start := time.Unix(1000, 0)
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      shard,
-		BlockStart: start,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: start,
+		},
 	}
 	require.NoError(t, w.Open(writerOpts))
 
@@ -378,9 +400,11 @@ func TestReadValidate(t *testing.T) {
 
 	r := newTestReader(t, filePathPrefix)
 	rOpenOpts := ReaderOpenOptions{
-		Namespace:  testNs1ID,
-		Shard:      shard,
-		BlockStart: start,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: start,
+		},
 	}
 	require.NoError(t, r.Open(rOpenOpts))
 	_, _, _, err := r.Read()

@@ -25,17 +25,14 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/persist"
-	"github.com/m3db/m3x/ident"
 )
 
 // WriterOpenOptionsMatcher satisfies the gomock.Matcher interface for WriterOpenOptions
 type WriterOpenOptionsMatcher struct {
-	Namespace    ident.ID
-	BlockSize    time.Duration
-	Shard        uint32
-	BlockStart   time.Time
-	SnapshotTime time.Time
-	FilesetType  persist.FilesetType
+	ID          FilesetFileIdentifier
+	BlockSize   time.Duration
+	Snapshot    WriterSnapshotOptions
+	FilesetType persist.FilesetType
 }
 
 // Matches determine whether m matches a WriterOpenOptions
@@ -45,19 +42,19 @@ func (m WriterOpenOptionsMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	if !m.Namespace.Equal(writerOpenOptions.Namespace) {
+	if !m.ID.Namespace.Equal(writerOpenOptions.Identifier.Namespace) {
 		return false
 	}
 	if m.BlockSize != writerOpenOptions.BlockSize {
 		return false
 	}
-	if m.Shard != writerOpenOptions.Shard {
+	if m.ID.Shard != writerOpenOptions.Identifier.Shard {
 		return false
 	}
-	if !m.BlockStart.Equal(writerOpenOptions.BlockStart) {
+	if !m.ID.BlockStart.Equal(writerOpenOptions.Identifier.BlockStart) {
 		return false
 	}
-	if !m.SnapshotTime.Equal(writerOpenOptions.SnapshotTime) {
+	if !m.Snapshot.SnapshotTime.Equal(writerOpenOptions.Snapshot.SnapshotTime) {
 		return false
 	}
 	if m.FilesetType != writerOpenOptions.FilesetType {
@@ -70,6 +67,7 @@ func (m WriterOpenOptionsMatcher) Matches(x interface{}) bool {
 func (m WriterOpenOptionsMatcher) String() string {
 	return fmt.Sprintf(
 		"namespace: %s, blocksize: %d, shard: %d, blockstart: %d, snapshotTime: %d, filesetType: %s",
-		m.Namespace.String(), m.BlockSize, m.Shard, m.BlockStart.Unix(), m.SnapshotTime.Unix(), m.FilesetType,
+		m.ID.Namespace.String(), m.BlockSize, m.ID.Shard, m.ID.BlockStart.Unix(),
+		m.Snapshot.SnapshotTime.Unix(), m.FilesetType,
 	)
 }

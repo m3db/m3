@@ -66,9 +66,11 @@ func TestCloner(t *testing.T) {
 		SetDecodingOptions(opts.DecodingOptions()))
 	require.NoError(t, err)
 	r1OpenOpts := fs.ReaderOpenOptions{
-		Namespace:  ident.StringID(src.Namespace),
-		Shard:      src.Shard,
-		BlockStart: src.Blockstart,
+		Identifier: fs.FilesetFileIdentifier{
+			Namespace:  ident.StringID(src.Namespace),
+			Shard:      src.Shard,
+			BlockStart: src.Blockstart,
+		},
 	}
 	require.NoError(t, r1.Open(r1OpenOpts))
 	r2, err := fs.NewReader(opts.BytesPool(), fs.NewOptions().
@@ -78,9 +80,11 @@ func TestCloner(t *testing.T) {
 		SetDecodingOptions(opts.DecodingOptions()))
 	require.NoError(t, err)
 	r2OpenOpts := fs.ReaderOpenOptions{
-		Namespace:  ident.StringID(dest.Namespace),
-		Shard:      dest.Shard,
-		BlockStart: dest.Blockstart,
+		Identifier: fs.FilesetFileIdentifier{
+			Namespace:  ident.StringID(dest.Namespace),
+			Shard:      dest.Shard,
+			BlockStart: dest.Blockstart,
+		},
 	}
 	require.NoError(t, r2.Open(r2OpenOpts))
 	for {
@@ -109,10 +113,12 @@ func writeTestData(t *testing.T, bs time.Duration, src FilesetID, opts Options) 
 		SetNewDirectoryMode(opts.DirMode()))
 	require.NoError(t, err)
 	writerOpts := fs.WriterOpenOptions{
-		Namespace:  ident.StringID(src.Namespace),
-		BlockSize:  bs,
-		Shard:      src.Shard,
-		BlockStart: src.Blockstart,
+		BlockSize: bs,
+		Identifier: fs.FilesetFileIdentifier{
+			Namespace:  ident.StringID(src.Namespace),
+			Shard:      src.Shard,
+			BlockStart: src.Blockstart,
+		},
 	}
 	require.NoError(t, w.Open(writerOpts))
 	for i := 0; i < numTestSeries; i++ {

@@ -1847,10 +1847,10 @@ func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
 
 	sort.Slice(snapshotFiles, func(i, j int) bool {
 		// Make sure they're sorted by blockStart/Index in ascending order.
-		if snapshotFiles[i].BlockStart.Equal(snapshotFiles[j].BlockStart) {
-			return snapshotFiles[i].Index < snapshotFiles[j].Index
+		if snapshotFiles[i].ID.BlockStart.Equal(snapshotFiles[j].ID.BlockStart) {
+			return snapshotFiles[i].ID.Index < snapshotFiles[j].ID.Index
 		}
-		return snapshotFiles[i].BlockStart.Before(snapshotFiles[j].BlockStart)
+		return snapshotFiles[i].ID.BlockStart.Before(snapshotFiles[j].ID.BlockStart)
 	})
 
 	filesToDelete := []string{}
@@ -1858,14 +1858,14 @@ func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
 	for i := 0; i < len(snapshotFiles); i++ {
 		curr := snapshotFiles[i]
 
-		if curr.BlockStart.Before(earliestToRetain) {
+		if curr.ID.BlockStart.Before(earliestToRetain) {
 			// Delete snapshot files for blocks that have fallen out
 			// of retention.
 			filesToDelete = append(filesToDelete, curr.AbsoluteFilepaths...)
 			continue
 		}
 
-		if s.FlushState(curr.BlockStart).Status == fileOpSuccess {
+		if s.FlushState(curr.ID.BlockStart).Status == fileOpSuccess {
 			// Delete snapshot files for any block starts that have been
 			// successfully flushed.
 			filesToDelete = append(filesToDelete, curr.AbsoluteFilepaths...)
@@ -1873,8 +1873,8 @@ func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
 		}
 
 		if i+1 < len(snapshotFiles) &&
-			snapshotFiles[i+1].BlockStart == curr.BlockStart &&
-			snapshotFiles[i+1].Index > curr.Index &&
+			snapshotFiles[i+1].ID.BlockStart == curr.ID.BlockStart &&
+			snapshotFiles[i+1].ID.Index > curr.ID.Index &&
 			snapshotFiles[i+1].HasCheckpointFile() {
 			// Delete any snapshot files which are not the most recent
 			// for that block start, but only of the set of snapshot files

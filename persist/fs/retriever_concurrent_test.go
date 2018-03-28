@@ -83,10 +83,12 @@ func newOpenTestWriter(
 ) (FileSetWriter, testCleanupFn) {
 	w := newTestWriter(t, fsOpts.FilePathPrefix())
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      shard,
-		BlockStart: start,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: start,
+		},
 	}
 	require.NoError(t, w.Open(writerOpts))
 	return w, func() {

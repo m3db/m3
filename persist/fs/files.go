@@ -50,7 +50,7 @@ type fileOpener func(filePath string) (*os.File, error)
 
 // FilesetFile represents a set of Fileset files for a given block start
 type FilesetFile struct {
-	BlockStart        time.Time
+	ID                FilesetFileIdentifier
 	AbsoluteFilepaths []string
 }
 
@@ -69,18 +69,15 @@ func (f FilesetFilesSlice) Filepaths() []string {
 }
 
 // NewFilesetFile creates a new Fileset file
-func NewFilesetFile(blockStart time.Time) FilesetFile {
+func NewFilesetFile(id FilesetFileIdentifier) FilesetFile {
 	return FilesetFile{
-		BlockStart:        blockStart,
+		ID:                id,
 		AbsoluteFilepaths: []string{},
 	}
 }
 
 // SnapshotFile represents a set of Snapshot files for a given block start
 type SnapshotFile struct {
-	// There can be multiple snapshot files with the same blockstart, so they
-	// also have an auto-incrementing index
-	Index int
 	FilesetFile
 }
 
@@ -117,12 +114,12 @@ func (f SnapshotFilesSlice) LatestForBlock(blockStart time.Time) (SnapshotFile, 
 	f.sortByTimeAndIndexAscending()
 
 	for i, curr := range f {
-		if curr.BlockStart.Equal(blockStart) {
+		if curr.ID.BlockStart.Equal(blockStart) {
 			isEnd := i == len(f)-1
 			isHighestIdx := true
 			if !isEnd {
 				next := f[i+1]
-				if next.BlockStart.Equal(blockStart) && next.Index > curr.Index {
+				if next.ID.BlockStart.Equal(blockStart) && next.ID.Index > curr.ID.Index {
 					isHighestIdx = false
 				}
 			}
@@ -138,18 +135,18 @@ func (f SnapshotFilesSlice) LatestForBlock(blockStart time.Time) (SnapshotFile, 
 
 func (f SnapshotFilesSlice) sortByTimeAndIndexAscending() {
 	sort.Slice(f, func(i, j int) bool {
-		if f[i].BlockStart.Equal(f[j].BlockStart) {
-			return f[i].Index < f[j].Index
+		if f[i].ID.BlockStart.Equal(f[j].ID.BlockStart) {
+			return f[i].ID.Index < f[j].ID.Index
 		}
 
-		return f[i].BlockStart.Before(f[j].BlockStart)
+		return f[i].ID.BlockStart.Before(f[j].ID.BlockStart)
 	})
 }
 
 // NewSnapshotFile creates a new Snapshot file
-func NewSnapshotFile(blockStart time.Time) SnapshotFile {
+func NewSnapshotFile(id FilesetFileIdentifier) SnapshotFile {
 	return SnapshotFile{
-		FilesetFile: NewFilesetFile(blockStart),
+		FilesetFile: NewFilesetFile(id),
 	}
 }
 
@@ -316,7 +313,7 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
 	digestBuf := digest.NewBuffer()
 	for i := range matched {
-		t := matched[i].BlockStart
+		t := matched[i].ID.BlockStart
 		checkpointFilePath := filesetPathFromTime(shardDir, t, checkpointFileSuffix)
 		if !FileExists(checkpointFilePath) {
 			continue
@@ -495,16 +492,24 @@ func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, patt
 		}
 
 		if latestBlockStart.IsZero() {
-			latestSnapshotFile = NewSnapshotFile(currentFileBlockStart)
+			latestSnapshotFile = NewSnapshotFile(FilesetFileIdentifier{
+				Namespace:  namespace,
+				Shard:      shard,
+				BlockStart: currentFileBlockStart,
+			})
 			latestIndex = index
 		} else if !currentFileBlockStart.Equal(latestBlockStart) || latestIndex != index {
 			snapshotFiles = append(snapshotFiles, latestSnapshotFile)
-			latestSnapshotFile = NewSnapshotFile(currentFileBlockStart)
+			latestSnapshotFile = NewSnapshotFile(FilesetFileIdentifier{
+				Namespace:  namespace,
+				Shard:      shard,
+				BlockStart: currentFileBlockStart,
+			})
 			latestIndex = index
 		}
 		latestBlockStart = currentFileBlockStart
 
-		latestSnapshotFile.Index = index
+		latestSnapshotFile.ID.Index = index
 		latestSnapshotFile.AbsoluteFilepaths = append(latestSnapshotFile.AbsoluteFilepaths, file)
 	}
 	snapshotFiles = append(snapshotFiles, latestSnapshotFile)
@@ -534,10 +539,18 @@ func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, patte
 		}
 
 		if latestBlockStart.IsZero() {
-			latestFilesetFile = NewFilesetFile(currentFileBlockStart)
+			latestFilesetFile = NewFilesetFile(FilesetFileIdentifier{
+				Namespace:  namespace,
+				Shard:      shard,
+				BlockStart: currentFileBlockStart,
+			})
 		} else if !currentFileBlockStart.Equal(latestBlockStart) {
 			filesetFiles = append(filesetFiles, latestFilesetFile)
-			latestFilesetFile = NewFilesetFile(currentFileBlockStart)
+			latestFilesetFile = NewFilesetFile(FilesetFileIdentifier{
+				Namespace:  namespace,
+				Shard:      shard,
+				BlockStart: currentFileBlockStart,
+			})
 		}
 		latestBlockStart = currentFileBlockStart
 
@@ -689,8 +702,8 @@ func NextSnapshotFileIndex(filePathPrefix string, namespace ident.ID, shard uint
 
 	var currentSnapshotIndex = -1
 	for _, snapshot := range snapshotFiles {
-		if snapshot.BlockStart.Equal(blockStart) {
-			currentSnapshotIndex = snapshot.Index
+		if snapshot.ID.BlockStart.Equal(blockStart) {
+			currentSnapshotIndex = snapshot.ID.Index
 			break
 		}
 	}

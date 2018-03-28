@@ -33,9 +33,11 @@ func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duratio
 		return fmt.Errorf("unable to create fileset reader: %v", err)
 	}
 	openOpts := fs.ReaderOpenOptions{
-		Namespace:   ident.StringID(src.Namespace),
-		Shard:       src.Shard,
-		BlockStart:  src.Blockstart,
+		Identifier: fs.FilesetFileIdentifier{
+			Namespace:  ident.StringID(src.Namespace),
+			Shard:      src.Shard,
+			BlockStart: src.Blockstart,
+		},
 		FilesetType: persist.FilesetFlushType,
 	}
 
@@ -48,10 +50,12 @@ func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duratio
 		return fmt.Errorf("unable to create fileset writer: %v", err)
 	}
 	writerOpts := fs.WriterOpenOptions{
-		Namespace:  ident.StringID(dest.Namespace),
-		BlockSize:  destBlocksize,
-		Shard:      dest.Shard,
-		BlockStart: dest.Blockstart,
+		BlockSize: destBlocksize,
+		Identifier: fs.FilesetFileIdentifier{
+			Namespace:  ident.StringID(dest.Namespace),
+			Shard:      dest.Shard,
+			BlockStart: dest.Blockstart,
+		},
 	}
 	if err := writer.Open(writerOpts); err != nil {
 		return fmt.Errorf("unable to open fileset writer: %v", err)

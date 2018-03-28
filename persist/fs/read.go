@@ -123,10 +123,10 @@ func NewReader(
 
 func (r *reader) Open(opts ReaderOpenOptions) error {
 	var (
-		namespace     = opts.Namespace
-		shard         = opts.Shard
-		blockStart    = opts.BlockStart
-		snapshotIndex = opts.SnapshotIndex
+		namespace     = opts.Identifier.Namespace
+		shard         = opts.Identifier.Shard
+		blockStart    = opts.Identifier.BlockStart
+		snapshotIndex = opts.Identifier.Index
 		err           error
 	)
 

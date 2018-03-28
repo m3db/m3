@@ -415,7 +415,7 @@ func TestSnapshotFiles(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 20, len(files))
 	for i, snapshotFile := range files {
-		require.Equal(t, int64(i), snapshotFile.BlockStart.UnixNano())
+		require.Equal(t, int64(i), snapshotFile.ID.BlockStart.UnixNano())
 	}
 
 	require.Equal(t, 20, len(files.Filepaths()))

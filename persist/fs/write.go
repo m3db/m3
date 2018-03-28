@@ -123,14 +123,17 @@ func NewWriter(opts Options) (FileSetWriter, error) {
 func (w *writer) Open(opts WriterOpenOptions) error {
 	var (
 		shardDir              string
-		fileTimestampUnixNano = opts.BlockStart
+		fileTimestampUnixNano = opts.Identifier.BlockStart
 		nextSnapshotIndex     int
 		err                   error
+		namespace             = opts.Identifier.Namespace
+		shard                 = opts.Identifier.Shard
+		blockStart            = opts.Identifier.BlockStart
 	)
 
 	w.blockSize = opts.BlockSize
-	w.start = opts.BlockStart
-	w.snapshotTime = opts.SnapshotTime
+	w.start = blockStart
+	w.snapshotTime = opts.Snapshot.SnapshotTime
 	w.currIdx = 0
 	w.currOffset = 0
 	w.err = nil
@@ -138,11 +141,11 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File
 	switch opts.FilesetType {
 	case persist.FilesetSnapshotType:
-		shardDir = ShardSnapshotsDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
+		shardDir = ShardSnapshotsDirPath(w.filePathPrefix, namespace, shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
 		}
-		nextSnapshotIndex, err = NextSnapshotFileIndex(w.filePathPrefix, opts.Namespace, opts.Shard, opts.BlockStart)
+		nextSnapshotIndex, err = NextSnapshotFileIndex(w.filePathPrefix, namespace, shard, blockStart)
 		if err != nil {
 			return err
 		}
@@ -163,7 +166,7 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 			return err
 		}
 	case persist.FilesetFlushType:
-		shardDir = ShardDataDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
+		shardDir = ShardDataDirPath(w.filePathPrefix, namespace, shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
 		}

@@ -118,9 +118,11 @@ func verifyForTime(
 	actual := make(generate.SeriesBlock, 0, len(expected))
 	for shard := range shards {
 		rOpts := fs.ReaderOpenOptions{
-			Namespace:   namespace,
-			Shard:       shard,
-			BlockStart:  timestamp,
+			Identifier: fs.FilesetFileIdentifier{
+				Namespace:  namespace,
+				Shard:      shard,
+				BlockStart: timestamp,
+			},
 			FilesetType: filesetType,
 		}
 
@@ -134,7 +136,7 @@ func verifyForTime(
 			require.NoError(t, err)
 			latest, ok := snapshotFiles.LatestForBlock(timestamp)
 			require.True(t, ok)
-			rOpts.SnapshotIndex = latest.Index
+			rOpts.Identifier.Index = latest.Index
 		}
 		require.NoError(t, reader.Open(rOpts))
 		for i := 0; i < reader.Entries(); i++ {

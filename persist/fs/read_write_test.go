@@ -53,10 +53,11 @@ func newTestWriter(t *testing.T, filePathPrefix string) FileSetWriter {
 
 func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      shard,
-		BlockStart: timestamp,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: timestamp,
+		},
 	}
 	err := w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -91,9 +92,11 @@ var readTestTypes = []readTestType{
 func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
 	for _, underTest := range readTestTypes {
 		rOpenOpts := ReaderOpenOptions{
-			Namespace:  testNs1ID,
-			Shard:      0,
-			BlockStart: timestamp,
+			Identifier: FilesetFileIdentifier{
+				Namespace:  testNs1ID,
+				Shard:      0,
+				BlockStart: timestamp,
+			},
 		}
 		err := r.Open(rOpenOpts)
 		require.NoError(t, err)
@@ -266,10 +269,11 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	shard := uint32(0)
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      shard,
-		BlockStart: testWriterStart,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: testWriterStart,
+		},
 	}
 	require.NoError(t, w.Open(writerOpts))
 
@@ -288,9 +292,11 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 
 	r := newTestReader(t, filePathPrefix)
 	rOpenOpts := ReaderOpenOptions{
-		Namespace:  testNs1ID,
-		Shard:      shard,
-		BlockStart: testWriterStart,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: testWriterStart,
+		},
 	}
 	require.Equal(t, ErrCheckpointFileNotFound, r.Open(rOpenOpts))
 
@@ -312,10 +318,12 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      0,
-		BlockStart: testWriterStart,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
 	}
 	require.NoError(t, w.Open(writerOpts))
 

@@ -57,10 +57,12 @@ func TestSeekEmptyIndex(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      0,
-		BlockStart: testWriterStart,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -86,10 +88,12 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      0,
-		BlockStart: testWriterStart,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -125,10 +129,12 @@ func TestSeekBadChecksum(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      0,
-		BlockStart: testWriterStart,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -163,10 +169,12 @@ func TestSeek(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      0,
-		BlockStart: testWriterStart,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -228,10 +236,12 @@ func TestSeekIDNotExists(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      0,
-		BlockStart: testWriterStart,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -279,10 +289,12 @@ func TestReuseSeeker(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      0,
-		BlockStart: testWriterStart.Add(-time.Hour),
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart.Add(-time.Hour),
+		},
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -293,10 +305,12 @@ func TestReuseSeeker(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	writerOpts = WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      0,
-		BlockStart: testWriterStart,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -339,10 +353,12 @@ func TestCloneSeeker(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 
 	writerOpts := WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      0,
-		BlockStart: testWriterStart.Add(-time.Hour),
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart.Add(-time.Hour),
+		},
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -353,10 +369,12 @@ func TestCloneSeeker(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	writerOpts = WriterOpenOptions{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      0,
-		BlockStart: testWriterStart,
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)

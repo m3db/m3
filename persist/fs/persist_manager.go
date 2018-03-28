@@ -246,12 +246,16 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
 	writerOpts := WriterOpenOptions{
-		Namespace:    nsID,
-		BlockSize:    blockSize,
-		Shard:        shard,
-		BlockStart:   blockStart,
-		SnapshotTime: snapshotTime,
-		FilesetType:  opts.FilesetType,
+		BlockSize: blockSize,
+		Snapshot: WriterSnapshotOptions{
+			SnapshotTime: snapshotTime,
+		},
+		FilesetType: opts.FilesetType,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  nsID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
 	}
 	if err := pm.writer.Open(writerOpts); err != nil {
 		return prepared, err

@@ -934,37 +934,53 @@ func TestShardCleanupSnapshot(t *testing.T) {
 			// Should get removed for not being in retention period
 			fs.SnapshotFile{
 				FilesetFile: fs.FilesetFile{
-					BlockStart:        pastRetention,
+					ID: fs.FilesetFileIdentifier{
+						Namespace:  namespace,
+						Shard:      shard,
+						BlockStart: pastRetention,
+						Index:      0,
+					},
 					AbsoluteFilepaths: []string{"not-in-retention"},
 				},
-				Index: 0,
 			},
 			// Should get removed for being flushed
 			fs.SnapshotFile{
 				FilesetFile: fs.FilesetFile{
-					BlockStart:        successfullyFlushed,
+					ID: fs.FilesetFileIdentifier{
+						Namespace:  namespace,
+						Shard:      shard,
+						BlockStart: successfullyFlushed,
+						Index:      0,
+					},
 					AbsoluteFilepaths: []string{"successfully-flushed"},
 				},
-				Index: 0,
 			},
 			// Should not get removed - Note that this entry precedes the
 			// next in order to ensure that the sorting logic works correctly.
 			fs.SnapshotFile{
 				FilesetFile: fs.FilesetFile{
-					BlockStart: notFlushedYet,
+					ID: fs.FilesetFileIdentifier{
+						Namespace:  namespace,
+						Shard:      shard,
+						BlockStart: notFlushedYet,
+						Index:      1,
+					},
 					// Note this filename needs to contain the word "checkpoint" to
 					// pass the HasCheckpointFile() check
 					AbsoluteFilepaths: []string{"latest-index-and-has-checkpoint"},
 				},
-				Index: 1,
 			},
 			// Should get removed because the next one has a higher index
 			fs.SnapshotFile{
 				FilesetFile: fs.FilesetFile{
-					BlockStart:        notFlushedYet,
+					ID: fs.FilesetFileIdentifier{
+						Namespace:  namespace,
+						Shard:      shard,
+						BlockStart: notFlushedYet,
+						Index:      0,
+					},
 					AbsoluteFilepaths: []string{"not-latest-index"},
 				},
-				Index: 0,
 			},
 		}, nil
 	}

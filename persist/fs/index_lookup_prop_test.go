@@ -79,10 +79,12 @@ func TestIndexLookupWriteRead(t *testing.T) {
 			return false, fmt.Errorf("err creating writer: %v, ", err)
 		}
 		writerOpts := WriterOpenOptions{
-			Namespace:  testNs1ID,
-			BlockSize:  testBlockSize,
-			Shard:      shard,
-			BlockStart: testWriterStart,
+			BlockSize: testBlockSize,
+			Identifier: FilesetFileIdentifier{
+				Namespace:  testNs1ID,
+				Shard:      shard,
+				BlockStart: testWriterStart,
+			},
 		}
 		err = w.Open(writerOpts)
 		if err != nil {

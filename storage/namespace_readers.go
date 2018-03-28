@@ -252,9 +252,11 @@ func (m *namespaceReaderManager) get(
 	// reader or newly allocated, either way need to prepare it)
 	reader := lookup.closedReader
 	openOpts := fs.ReaderOpenOptions{
-		Namespace:  m.namespace.ID(),
-		Shard:      shard,
-		BlockStart: blockStart,
+		Identifier: fs.FilesetFileIdentifier{
+			Namespace:  m.namespace.ID(),
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
 	}
 	if err := reader.Open(openOpts); err != nil {
 		return nil, err

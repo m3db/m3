@@ -111,10 +111,12 @@ func writeToDisk(
 	data := make([]checked.Bytes, 2)
 	for shard, seriesList := range seriesPerShard {
 		writerOpts := fs.WriterOpenOptions{
-			Namespace:  namespace,
-			BlockSize:  blockSize,
-			Shard:      shard,
-			BlockStart: start,
+			BlockSize: blockSize,
+			Identifier: fs.FilesetFileIdentifier{
+				Namespace:  namespace,
+				Shard:      shard,
+				BlockStart: start,
+			},
 		}
 		if err := writer.Open(writerOpts); err != nil {
 			return err

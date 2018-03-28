@@ -69,6 +69,12 @@ type PrepareOptions struct {
 	FilesetType       FilesetType
 }
 
+// PrepareSnapshotOptions is the options struct for the Prepare method that contains
+// information specific to reading snapshot files
+type PrepareSnapshotOptions struct {
+	SnapshotTime time.Time
+}
+
 // FilesetType is an enum that indicates what type of files a fileset contains
 type FilesetType int
 

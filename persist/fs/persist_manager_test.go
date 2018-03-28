@@ -153,10 +153,12 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	expectedErr := errors.New("foo")
 
 	writerOpts := WriterOpenOptionsMatcher{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      shard,
-		BlockStart: blockStart,
+		ID: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+		BlockSize: testBlockSize,
 	}
 	writer.EXPECT().Open(writerOpts).Return(expectedErr)
 
@@ -188,10 +190,12 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	writerOpts := WriterOpenOptionsMatcher{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      shard,
-		BlockStart: blockStart,
+		ID: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+		BlockSize: testBlockSize,
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil)
 
@@ -255,10 +259,12 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	writerOpts := WriterOpenOptionsMatcher{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      shard,
-		BlockStart: blockStart,
+		ID: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+		BlockSize: testBlockSize,
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil)
 
@@ -331,10 +337,12 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
 	writerOpts := WriterOpenOptionsMatcher{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      shard,
-		BlockStart: blockStart,
+		ID: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+		BlockSize: testBlockSize,
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil).Times(iter)
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).AnyTimes()
@@ -419,10 +427,12 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 	}()
 
 	writerOpts := WriterOpenOptionsMatcher{
-		Namespace:  testNs1ID,
-		BlockSize:  testBlockSize,
-		Shard:      shard,
-		BlockStart: blockStart,
+		ID: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+		BlockSize: testBlockSize,
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil)
 	prepareOpts := persist.PrepareOptions{
@@ -436,10 +446,12 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 	require.NotNil(t, prepared.Close)
 
 	writerOpts = WriterOpenOptionsMatcher{
-		Namespace:  testNs2ID,
-		BlockSize:  testBlockSize,
-		Shard:      shard,
-		BlockStart: blockStart,
+		ID: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+		BlockSize: testBlockSize,
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil)
 	prepareOpts = persist.PrepareOptions{

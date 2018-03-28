@@ -161,9 +161,11 @@ func (s *fileSystemSource) enqueueReaders(
 			}
 			t := xtime.FromNanoseconds(info.BlockStart).Round(0).UTC()
 			openOpts := fs.ReaderOpenOptions{
-				Namespace:  namespace,
-				Shard:      shard,
-				BlockStart: t,
+				Identifier: fs.FilesetFileIdentifier{
+					Namespace:  namespace,
+					Shard:      shard,
+					BlockStart: t,
+				},
 			}
 			if err := r.Open(openOpts); err != nil {
 				s.log.WithFields(

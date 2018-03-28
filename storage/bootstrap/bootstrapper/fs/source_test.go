@@ -136,10 +136,12 @@ func writeTSDBFiles(t *testing.T, dir string, namespace ident.ID, shard uint32, 
 	w, err := fs.NewWriter(newTestFsOptions(dir))
 	require.NoError(t, err)
 	writerOpts := fs.WriterOpenOptions{
-		Namespace:  namespace,
-		BlockSize:  testBlockSize,
-		Shard:      shard,
-		BlockStart: start,
+		Identifier: fs.FilesetFileIdentifier{
+			Namespace:  namespace,
+			Shard:      shard,
+			BlockStart: start,
+		},
+		BlockSize: testBlockSize,
 	}
 	require.NoError(t, w.Open(writerOpts))
 
@@ -417,9 +419,11 @@ func TestReadValidateError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 	rOpenOpts := fs.ReaderOpenOptionsMatcher{
-		Namespace:  testNs1ID,
-		Shard:      shard,
-		BlockStart: testStart,
+		ID: fs.FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: testStart,
+		},
 	}
 	reader.EXPECT().
 		Open(rOpenOpts).
@@ -469,9 +473,11 @@ func TestReadOpenError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 	rOpts := fs.ReaderOpenOptionsMatcher{
-		Namespace:  testNs1ID,
-		Shard:      shard,
-		BlockStart: testStart,
+		ID: fs.FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: testStart,
+		},
 	}
 	reader.EXPECT().
 		Open(rOpts).
@@ -512,9 +518,11 @@ func TestReadDeleteOnError(t *testing.T) {
 		"foo", []byte{0x1})
 
 	rOpts := fs.ReaderOpenOptionsMatcher{
-		Namespace:  testNs1ID,
-		Shard:      shard,
-		BlockStart: testStart,
+		ID: fs.FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: testStart,
+		},
 	}
 	gomock.InOrder(
 		reader.EXPECT().Open(rOpts).Return(nil),
