@@ -105,41 +105,6 @@ func TestPersistenceManagerPrepareDataFileExists(t *testing.T) {
 	require.Nil(t, prepared.Close)
 }
 
-func TestPersistenceManagerPrepareSnapshotFileExists(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	pm, _, _ := testManager(t, ctrl)
-	defer os.RemoveAll(pm.filePathPrefix)
-
-	shard := uint32(0)
-	blockStart := time.Unix(1000, 0)
-	shardDir := createSnapshotsShardDir(t, pm.filePathPrefix, testNs1ID, shard)
-	checkpointFilePath := snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, 0)
-	f, err := os.Create(checkpointFilePath)
-	require.NoError(t, err)
-	f.Close()
-
-	flush, err := pm.StartFlush()
-	require.NoError(t, err)
-
-	defer func() {
-		assert.NoError(t, flush.Done())
-	}()
-
-	prepareOpts := persist.PrepareOptions{
-		NamespaceMetadata: testNs1Metadata(t),
-		Shard:             shard,
-		BlockStart:        blockStart,
-		SnapshotTime:      blockStart,
-		FilesetType:       persist.FilesetSnapshotType,
-	}
-	prepared, err := flush.Prepare(prepareOpts)
-	require.NoError(t, err)
-	require.Nil(t, prepared.Persist)
-	require.Nil(t, prepared.Close)
-}
-
 func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -447,7 +412,7 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 
 	writerOpts = WriterOpenOptionsMatcher{
 		ID: FilesetFileIdentifier{
-			Namespace:  testNs1ID,
+			Namespace:  testNs2ID,
 			Shard:      shard,
 			BlockStart: blockStart,
 		},

@@ -269,15 +269,16 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 
 func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) (bool, error) {
 	var (
-		blockStart   = prepareOpts.BlockStart
-		shard        = prepareOpts.Shard
-		snapshotTime = prepareOpts.SnapshotTime
-		nsID         = prepareOpts.NamespaceMetadata.ID()
+		blockStart = prepareOpts.BlockStart
+		shard      = prepareOpts.Shard
+		nsID       = prepareOpts.NamespaceMetadata.ID()
 	)
 
 	switch prepareOpts.FilesetType {
 	case persist.FilesetSnapshotType:
-		return SnapshotFilesetExistsAt(pm.filePathPrefix, nsID, shard, snapshotTime)
+		// Snapshot files are indexed (multiple per block-start), so checking if the file
+		// already exist doesn't make much sense
+		return false, nil
 	case persist.FilesetFlushType:
 		return DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart), nil
 	default:

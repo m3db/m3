@@ -58,6 +58,7 @@ func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.T
 			Shard:      shard,
 			BlockStart: timestamp,
 		},
+		BlockSize: testBlockSize,
 	}
 	err := w.Open(writerOpts)
 	assert.NoError(t, err)
