@@ -136,7 +136,7 @@ func verifyForTime(
 			require.NoError(t, err)
 			latest, ok := snapshotFiles.LatestForBlock(timestamp)
 			require.True(t, ok)
-			rOpts.Identifier.Index = latest.Index
+			rOpts.Identifier.Index = latest.ID.Index
 		}
 		require.NoError(t, reader.Open(rOpts))
 		for i := 0; i < reader.Entries(); i++ {
