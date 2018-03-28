@@ -621,12 +621,12 @@ func (s *dbSeries) Snapshot(
 	}
 
 	var (
-		buckets  = s.buffer.Snapshot(ctx, blockStart)
+		readers  = s.buffer.Snapshot(ctx, blockStart)
 		multiErr = xerrors.NewMultiError()
 	)
 
-	for _, bucket := range buckets {
-		for _, stream := range bucket {
+	for _, reader := range readers {
+		for _, stream := range reader {
 			segment, err := stream.Segment()
 			if err != nil {
 				multiErr = multiErr.Add(err)
