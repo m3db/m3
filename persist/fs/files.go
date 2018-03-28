@@ -350,7 +350,29 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 // ReadInfoFileResult is the result of reading an info file
 type ReadInfoFileResult struct {
 	Info schema.IndexInfo
-	Err  error
+	Err  ReadInfoFileResultError
+}
+
+// ReadInfoFileResultError is the interface for obtaining information about an error
+// that occurred trying to read an info file
+type ReadInfoFileResultError interface {
+	Error() error
+	Filepath() string
+}
+
+type readInfoFileResultError struct {
+	err      error
+	filepath string
+}
+
+// Error returns the error that occurred reading the info file
+func (r readInfoFileResultError) Error() error {
+	return r.err
+}
+
+// FilePath returns the filepath for the problematic file
+func (r readInfoFileResultError) Filepath() string {
+	return r.filepath
 }
 
 // ReadInfoFiles reads all the valid info entries. Even if ReadInfoFiles returns an error,
@@ -364,12 +386,15 @@ func ReadInfoFiles(
 ) []ReadInfoFileResult {
 	var infoFileResults []ReadInfoFileResult
 	decoder := msgpack.NewDecoder(decodingOpts)
-	forEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
+	forEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(filepath string, data []byte) {
 		decoder.Reset(msgpack.NewDecoderStream(data))
 		info, err := decoder.DecodeIndexInfo()
 		infoFileResults = append(infoFileResults, ReadInfoFileResult{
 			Info: info,
-			Err:  err,
+			Err: readInfoFileResultError{
+				err:      err,
+				filepath: filepath,
+			},
 		})
 	})
 	return infoFileResults

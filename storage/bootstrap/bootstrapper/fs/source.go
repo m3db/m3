@@ -103,12 +103,13 @@ func (s *fileSystemSource) shardAvailability(
 	var tr xtime.Ranges
 	for i := 0; i < len(readInfoFilesResults); i++ {
 		result := readInfoFilesResults[i]
-		if result.Err != nil {
+		if result.Err.Error() != nil {
 			s.log.WithFields(
 				xlog.NewField("shard", shard),
 				xlog.NewField("namespace", namespace.String()),
 				xlog.NewField("error", result.Err.Error()),
 				xlog.NewField("targetRangesForShard", targetRangesForShard),
+				xlog.NewField("filepath", result.Err.Filepath()),
 			).Error("unable to read info files in shardAvailability")
 			continue
 		}
@@ -142,12 +143,13 @@ func (s *fileSystemSource) enqueueReaders(
 		readers := make([]fs.FileSetReader, 0, len(readInfoFilesResults))
 		for i := 0; i < len(readInfoFilesResults); i++ {
 			result := readInfoFilesResults[i]
-			if result.Err != nil {
+			if result.Err.Error() != nil {
 				s.log.WithFields(
 					xlog.NewField("shard", shard),
 					xlog.NewField("namespace", namespace.String()),
 					xlog.NewField("error", result.Err.Error()),
 					xlog.NewField("timeRange", tr),
+					xlog.NewField("filepath", result.Err.Filepath()),
 				).Error("unable to read info files in enqueueReaders")
 				continue
 			}

@@ -454,7 +454,7 @@ func TestMultipleForBlockStart(t *testing.T) {
 
 	latestSnapshot, ok := files.LatestForBlock(ts)
 	require.True(t, ok)
-	require.Equal(t, numSnapshotsPerBlock-1, latestSnapshot.Index)
+	require.Equal(t, numSnapshotsPerBlock-1, latestSnapshot.ID.Index)
 }
 
 func TestSnapshotFileHasCheckPointFile(t *testing.T) {
