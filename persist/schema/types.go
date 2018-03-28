@@ -20,23 +20,14 @@
 
 package schema
 
+import (
+	"github.com/m3db/m3db/persist"
+)
+
 // MajorVersion is the major schema version for a set of fileset files,
 // this is only incremented when breaking changes are introduced and
 // tooling needs to upgrade older files to newer files before a server restart
 const MajorVersion = 1
-
-// FilesetFileType is an enum that indicates what type of file the fileset files
-// on disk represent.
-type FilesetFileType int64
-
-const (
-	// FlushFileType indicates that the fileset files represent a complete data
-	// flush for a namespace/shard/blockStart combination.
-	FlushFileType FilesetFileType = iota
-	// SnapshotFileType indicates that the fileset files represent a snapshot
-	// of in-memory data for an incomplete block (of a given namespace/shard.)
-	SnapshotFileType
-)
 
 // IndexInfo stores metadata information about block filesets
 type IndexInfo struct {
@@ -47,7 +38,7 @@ type IndexInfo struct {
 	Summaries    IndexSummariesInfo
 	BloomFilter  IndexBloomFilterInfo
 	SnapshotTime int64
-	FileType     FilesetFileType
+	FileType     persist.FilesetType
 }
 
 // IndexSummariesInfo stores metadata about the summaries

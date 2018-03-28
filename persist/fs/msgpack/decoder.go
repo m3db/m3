@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/schema"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
@@ -271,7 +272,7 @@ func (dec *Decoder) decodeIndexInfoV2() schema.IndexInfo {
 	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
 
 	indexInfo.SnapshotTime = dec.decodeVarint()
-	indexInfo.FileType = schema.FilesetFileType(dec.decodeVarint())
+	indexInfo.FileType = persist.FilesetType(dec.decodeVarint())
 
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
