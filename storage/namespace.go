@@ -768,7 +768,11 @@ func (n *dbNamespace) Flush(
 	return res
 }
 
-func (n *dbNamespace) Snapshot(blockStart, callStart time.Time, flush persist.Flush) error {
+func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.Flush) error {
+	// NB(rartoul): This value can be used for emitting metrics, but should not be used
+	// for business logic.
+	callStart := n.nowFn()
+
 	n.RLock()
 	if n.bs != bootstrapped {
 		n.RUnlock()
@@ -795,12 +799,12 @@ func (n *dbNamespace) Snapshot(blockStart, callStart time.Time, flush persist.Fl
 			continue
 		}
 
-		if callStart.Sub(lastSuccessfulSnapshot) < n.opts.MinimumSnapshotInterval() {
+		if snapshotTime.Sub(lastSuccessfulSnapshot) < n.opts.MinimumSnapshotInterval() {
 			// Skip if not enough time has elapsed since the previous snapshot
 			continue
 		}
 
-		err := shard.Snapshot(blockStart, callStart, flush)
+		err := shard.Snapshot(blockStart, snapshotTime, flush)
 		if err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
