@@ -145,6 +145,8 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
 		}
+		// This method is not thread-safe, so its the callers responsibilities that they never
+		// try and write two snapshot files for the same block start at the same time.
 		nextSnapshotIndex, err = NextSnapshotFileIndex(w.filePathPrefix, namespace, shard, blockStart)
 		if err != nil {
 			return err
