@@ -122,13 +122,11 @@ func NewWriter(opts Options) (FileSetWriter, error) {
 // opening / truncating files associated with that shard for writing.
 func (w *writer) Open(opts WriterOpenOptions) error {
 	var (
-		shardDir              string
-		fileTimestampUnixNano = opts.Identifier.BlockStart
-		nextSnapshotIndex     int
-		err                   error
-		namespace             = opts.Identifier.Namespace
-		shard                 = opts.Identifier.Shard
-		blockStart            = opts.Identifier.BlockStart
+		nextSnapshotIndex int
+		err               error
+		namespace         = opts.Identifier.Namespace
+		shard             = opts.Identifier.Shard
+		blockStart        = opts.Identifier.BlockStart
 	)
 
 	w.blockSize = opts.BlockSize
@@ -138,58 +136,68 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 	w.currOffset = 0
 	w.err = nil
 
-	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File
+	var (
+		shardDir            string
+		infoFilepath        string
+		indexFilepath       string
+		summariesFilepath   string
+		bloomFilterFilepath string
+		dataFilepath        string
+		digestFilepath      string
+	)
 	switch opts.FilesetType {
 	case persist.FilesetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(w.filePathPrefix, namespace, shard)
+		// Can't do this outside of the switch statement because we need to make sure
+		// the directory exists before calling NextSnapshotFileIndex
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
 		}
+
 		// This method is not thread-safe, so its the callers responsibilities that they never
 		// try and write two snapshot files for the same block start at the same time.
 		nextSnapshotIndex, err = NextSnapshotFileIndex(w.filePathPrefix, namespace, shard, blockStart)
 		if err != nil {
 			return err
 		}
-		w.checkpointFilePath = snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, checkpointFileSuffix, nextSnapshotIndex)
 
-		err := openFiles(
-			w.openWritable,
-			map[string]**os.File{
-				snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, infoFileSuffix, nextSnapshotIndex):        &infoFd,
-				snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, indexFileSuffix, nextSnapshotIndex):       &indexFd,
-				snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, summariesFileSuffix, nextSnapshotIndex):   &summariesFd,
-				snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, bloomFilterFileSuffix, nextSnapshotIndex): &bloomFilterFd,
-				snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, dataFileSuffix, nextSnapshotIndex):        &dataFd,
-				snapshotPathFromTimeAndIndex(shardDir, fileTimestampUnixNano, digestFileSuffix, nextSnapshotIndex):      &digestFd,
-			},
-		)
-		if err != nil {
-			return err
-		}
+		w.checkpointFilePath = snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, nextSnapshotIndex)
+		infoFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, infoFileSuffix, nextSnapshotIndex)
+		indexFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, indexFileSuffix, nextSnapshotIndex)
+		summariesFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, summariesFilepath, nextSnapshotIndex)
+		bloomFilterFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, nextSnapshotIndex)
+		dataFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, dataFileSuffix, nextSnapshotIndex)
+		digestFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, digestFileSuffix, nextSnapshotIndex)
 	case persist.FilesetFlushType:
 		shardDir = ShardDataDirPath(w.filePathPrefix, namespace, shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
 		}
-		w.checkpointFilePath = filesetPathFromTime(shardDir, fileTimestampUnixNano, checkpointFileSuffix)
 
-		err := openFiles(
-			w.openWritable,
-			map[string]**os.File{
-				filesetPathFromTime(shardDir, fileTimestampUnixNano, infoFileSuffix):        &infoFd,
-				filesetPathFromTime(shardDir, fileTimestampUnixNano, indexFileSuffix):       &indexFd,
-				filesetPathFromTime(shardDir, fileTimestampUnixNano, summariesFileSuffix):   &summariesFd,
-				filesetPathFromTime(shardDir, fileTimestampUnixNano, bloomFilterFileSuffix): &bloomFilterFd,
-				filesetPathFromTime(shardDir, fileTimestampUnixNano, dataFileSuffix):        &dataFd,
-				filesetPathFromTime(shardDir, fileTimestampUnixNano, digestFileSuffix):      &digestFd,
-			},
-		)
-		if err != nil {
-			return err
-		}
+		w.checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+		infoFilepath = filesetPathFromTime(shardDir, blockStart, infoFileSuffix)
+		indexFilepath = filesetPathFromTime(shardDir, blockStart, indexFileSuffix)
+		summariesFilepath = filesetPathFromTime(shardDir, blockStart, summariesFileSuffix)
+		bloomFilterFilepath = filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix)
+		dataFilepath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
+		digestFilepath = filesetPathFromTime(shardDir, blockStart, digestFileSuffix)
 	default:
-		return fmt.Errorf("unable to open writer with fileset type: %s", opts.FilesetType)
+		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
+	}
+
+	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File
+	err = openFiles(w.openWritable,
+		map[string]**os.File{
+			infoFilepath:        &infoFd,
+			indexFilepath:       &indexFd,
+			summariesFilepath:   &summariesFd,
+			bloomFilterFilepath: &bloomFilterFd,
+			dataFilepath:        &dataFd,
+			digestFilepath:      &digestFd,
+		},
+	)
+	if err != nil {
+		return err
 	}
 
 	w.infoFdWithDigest.Reset(infoFd)

@@ -44,13 +44,6 @@ func createDataShardDir(t *testing.T, prefix string, namespace ident.ID, shard u
 	return shardDirPath
 }
 
-func createSnapshotsShardDir(t *testing.T, prefix string, namespace ident.ID, shard uint32) string {
-	shardDirPath := ShardSnapshotsDirPath(prefix, namespace, shard)
-	err := os.MkdirAll(shardDirPath, os.ModeDir|os.FileMode(0755))
-	require.Nil(t, err)
-	return shardDirPath
-}
-
 func testManager(
 	t *testing.T,
 	ctrl *gomock.Controller,
