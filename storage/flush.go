@@ -100,6 +100,10 @@ func (m *flushManager) Flush(curr time.Time) error {
 	}
 	m.setFlushInProgress(false)
 
+	// Perform two separate loops through all the namespaces so that we can emit better
+	// gauges I.E all the flushing for all the namespaces happens at once and then all
+	// the snapshotting for all the namespaces happens at once. This is also slightly
+	// better semantically because flushing should take priority over snapshotting.
 	m.setSnapshotInProgress(true)
 	for _, ns := range namespaces {
 		var (
