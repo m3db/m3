@@ -463,11 +463,6 @@ func (n *dbNamespace) Tick(c context.Cancellable) error {
 	n.metrics.tick.activeBlocks.Update(float64(r.activeBlocks))
 	n.metrics.tick.openBlocks.Update(float64(r.openBlocks))
 	n.metrics.tick.wiredBlocks.Update(float64(r.wiredBlocks))
-<<<<<<< HEAD
-	n.metrics.tick.wiredBlocksSeriesOnly.Update(float64(r.wiredBlocksSeriesOnly))
-	n.metrics.tick.wiredBlocksBufferOnly.Update(float64(r.wiredBlocksBufferOnly))
-=======
->>>>>>> Remove unnecessary metrics change
 	n.metrics.tick.unwiredBlocks.Update(float64(r.unwiredBlocks))
 	n.metrics.tick.madeExpiredBlocks.Inc(int64(r.madeExpiredBlocks))
 	n.metrics.tick.madeUnwiredBlocks.Inc(int64(r.madeUnwiredBlocks))
