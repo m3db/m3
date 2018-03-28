@@ -47,12 +47,12 @@ var (
 	}
 
 	validNamespaceOpts = nsproto.NamespaceOptions{
-		NeedsBootstrap:      true,
-		NeedsFlush:          true,
-		WritesToCommitLog:   true,
-		NeedsFilesetCleanup: true,
-		NeedsRepair:         true,
-		RetentionOptions:    &validRetentionOpts,
+		BootstrapEnabled:      true,
+		FlushEnabled:          true,
+		WritesToCommitLog:     true,
+		FilesetCleanupEnabled: true,
+		RepairEnabled:         true,
+		RetentionOptions:      &validRetentionOpts,
 	}
 
 	invalidRetentionOpts = []nsproto.RetentionOptions{
@@ -136,10 +136,10 @@ func TestFromProto(t *testing.T) {
 func TestToProto(t *testing.T) {
 	// make ns map
 	md1, err := namespace.NewMetadata(ident.StringID("ns1"),
-		namespace.NewOptions().SetNeedsBootstrap(true))
+		namespace.NewOptions().SetBootstrapEnabled(true))
 	require.NoError(t, err)
 	md2, err := namespace.NewMetadata(ident.StringID("ns2"),
-		namespace.NewOptions().SetNeedsBootstrap(false))
+		namespace.NewOptions().SetBootstrapEnabled(false))
 	require.NoError(t, err)
 	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2})
 	require.NoError(t, err)
@@ -157,11 +157,11 @@ func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOp
 	require.Equal(t, name, observed.ID().String())
 	opts := observed.Options()
 
-	require.Equal(t, expected.NeedsBootstrap, opts.NeedsBootstrap())
-	require.Equal(t, expected.NeedsFlush, opts.FlushEnabled())
+	require.Equal(t, expected.BootstrapEnabled, opts.BootstrapEnabled())
+	require.Equal(t, expected.FlushEnabled, opts.FlushEnabled())
 	require.Equal(t, expected.WritesToCommitLog, opts.WritesToCommitLog())
-	require.Equal(t, expected.NeedsFilesetCleanup, opts.CleanupEnabled())
-	require.Equal(t, expected.NeedsRepair, opts.RepairEnabled())
+	require.Equal(t, expected.FilesetCleanupEnabled, opts.CleanupEnabled())
+	require.Equal(t, expected.RepairEnabled, opts.RepairEnabled())
 
 	assertEqualRetentions(t, *expected.RetentionOptions, opts.RetentionOptions())
 }

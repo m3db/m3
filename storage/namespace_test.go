@@ -326,7 +326,7 @@ func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 
 func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
-		namespace.NewOptions().SetNeedsBootstrap(false))
+		namespace.NewOptions().SetBootstrapEnabled(false))
 	defer closer()
 	require.NoError(t, ns.Bootstrap(nil, nil))
 	require.Equal(t, bootstrapped, ns.bs)

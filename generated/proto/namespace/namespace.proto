@@ -11,15 +11,15 @@ message RetentionOptions {
 }
 
 message NamespaceOptions {
-	bool needsBootstrap      = 1;
-	bool needsFlush          = 2;
-	bool writesToCommitLog   = 3;
-	bool needsFilesetCleanup = 4;
-	bool needsRepair         = 5;
+	bool bootstrapEnabled      	= 1;
+	bool flushEnabled          	= 2;
+	bool writesToCommitLog   	= 3;
+	bool filesetCleanupEnabled 	= 4;
+	bool repairEnabled         	= 5;
 
 	RetentionOptions retentionOptions = 6;
 
-	bool needsSnapshot = 7;
+	bool snapshotEnabled = 7;
 }
 
 message Registry {

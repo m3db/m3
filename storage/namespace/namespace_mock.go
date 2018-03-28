@@ -82,28 +82,28 @@ func (_mr *MockOptionsMockRecorder) Equal(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Equal", reflect.TypeOf((*MockOptions)(nil).Equal), arg0)
 }
 
-// SetNeedsBootstrap mocks base method
-func (_m *MockOptions) SetNeedsBootstrap(value bool) Options {
-	ret := _m.ctrl.Call(_m, "SetNeedsBootstrap", value)
+// SetBootstrapEnabled mocks base method
+func (_m *MockOptions) SetBootstrapEnabled(value bool) Options {
+	ret := _m.ctrl.Call(_m, "SetBootstrapEnabled", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetNeedsBootstrap indicates an expected call of SetNeedsBootstrap
-func (_mr *MockOptionsMockRecorder) SetNeedsBootstrap(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetNeedsBootstrap", reflect.TypeOf((*MockOptions)(nil).SetNeedsBootstrap), arg0)
+// SetBootstrapEnabled indicates an expected call of SetBootstrapEnabled
+func (_mr *MockOptionsMockRecorder) SetBootstrapEnabled(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBootstrapEnabled", reflect.TypeOf((*MockOptions)(nil).SetBootstrapEnabled), arg0)
 }
 
-// NeedsBootstrap mocks base method
-func (_m *MockOptions) NeedsBootstrap() bool {
-	ret := _m.ctrl.Call(_m, "NeedsBootstrap")
+// BootstrapEnabled mocks base method
+func (_m *MockOptions) BootstrapEnabled() bool {
+	ret := _m.ctrl.Call(_m, "BootstrapEnabled")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-// NeedsBootstrap indicates an expected call of NeedsBootstrap
-func (_mr *MockOptionsMockRecorder) NeedsBootstrap() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "NeedsBootstrap", reflect.TypeOf((*MockOptions)(nil).NeedsBootstrap))
+// BootstrapEnabled indicates an expected call of BootstrapEnabled
+func (_mr *MockOptionsMockRecorder) BootstrapEnabled() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BootstrapEnabled", reflect.TypeOf((*MockOptions)(nil).BootstrapEnabled))
 }
 
 // SetFlushEnabled mocks base method

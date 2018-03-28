@@ -531,7 +531,7 @@ func defaultNamespaceProtoValue() (proto.Message, error) {
 	md, err := namespace.NewMetadata(
 		ident.StringID("metrics"),
 		namespace.NewOptions().
-			SetNeedsBootstrap(true).
+			SetBootstrapEnabled(true).
 			SetCleanupEnabled(true).
 			SetFlushEnabled(true).
 			SetRepairEnabled(true).

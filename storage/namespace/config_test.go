@@ -33,8 +33,8 @@ import (
 
 func TestRegistryConfig(t *testing.T) {
 	var (
-		needsBootstrap = false
-		config         = &MapConfiguration{
+		bootstrapEnabled = false
+		config           = &MapConfiguration{
 			Metadatas: []MetadataConfiguration{
 				MetadataConfiguration{
 					ID: "abc",
@@ -46,8 +46,8 @@ func TestRegistryConfig(t *testing.T) {
 					},
 				},
 				MetadataConfiguration{
-					ID:             "cde",
-					NeedsBootstrap: &needsBootstrap,
+					ID:               "cde",
+					BootstrapEnabled: &bootstrapEnabled,
 					Retention: retention.Configuration{
 						BlockSize:       time.Hour,
 						RetentionPeriod: time.Hour,
@@ -82,11 +82,11 @@ func TestRegistryConfig(t *testing.T) {
 func TestMetadataConfig(t *testing.T) {
 	var (
 		id                = "someLongString"
-		needsBootstrap    = true
-		needsFlush        = false
+		bootstrapEnabled  = true
+		flushEnabled      = false
 		writesToCommitLog = true
-		needsCleanup      = false
-		needsRepair       = false
+		cleanupEnabled    = false
+		repairEnabled     = false
 		retention         = retention.Configuration{
 			BlockSize:       time.Hour,
 			RetentionPeriod: time.Hour,
@@ -95,11 +95,11 @@ func TestMetadataConfig(t *testing.T) {
 		}
 		config = &MetadataConfiguration{
 			ID:                id,
-			NeedsBootstrap:    &needsBootstrap,
-			NeedsFlush:        &needsFlush,
+			BootstrapEnabled:  &bootstrapEnabled,
+			FlushEnabled:      &flushEnabled,
 			WritesToCommitLog: &writesToCommitLog,
-			NeedsCleanup:      &needsCleanup,
-			NeedsRepair:       &needsRepair,
+			CleanupEnabled:    &cleanupEnabled,
+			RepairEnabled:     &repairEnabled,
 			Retention:         retention,
 		}
 	)
@@ -109,11 +109,11 @@ func TestMetadataConfig(t *testing.T) {
 	require.Equal(t, id, metadata.ID().String())
 
 	opts := metadata.Options()
-	require.Equal(t, needsBootstrap, opts.NeedsBootstrap())
-	require.Equal(t, needsFlush, opts.FlushEnabled())
+	require.Equal(t, bootstrapEnabled, opts.BootstrapEnabled())
+	require.Equal(t, flushEnabled, opts.FlushEnabled())
 	require.Equal(t, writesToCommitLog, opts.WritesToCommitLog())
-	require.Equal(t, needsCleanup, opts.CleanupEnabled())
-	require.Equal(t, needsRepair, opts.RepairEnabled())
+	require.Equal(t, cleanupEnabled, opts.CleanupEnabled())
+	require.Equal(t, repairEnabled, opts.RepairEnabled())
 	require.Equal(t, retention.Options(), opts.RetentionOptions())
 }
 
@@ -121,33 +121,33 @@ func TestRegistryConfigFromBytes(t *testing.T) {
 	yamlBytes := []byte(`
 metadatas:
   - id: "testmetrics"
-    needsBootstrap: false
-    needsFlush: false
+    bootstrapEnabled: false
+    flushEnabled: false
     writesToCommitLog: false
-    needsCleanup: false
-    needsRepair: false
+    cleanupEnabled: false
+    repairEnabled: false
     retention:
       retentionPeriod: 8h
       blockSize: 2h
       bufferFuture: 10m
       bufferPast: 10m
   - id: "metrics-10s:2d"
-    needsBootstrap: true
-    needsFlush: true
+    bootstrapEnabled: true
+    flushEnabled: true
     writesToCommitLog: true
-    needsCleanup: true
-    needsRepair: true
+    cleanupEnabled: true
+    repairEnabled: true
     retention:
       retentionPeriod: 48h
       blockSize: 2h
       bufferFuture: 10m
       bufferPast: 10m
   - id: "metrics-1m:40d"
-    needsBootstrap: true
-    needsFlush: true
+    bootstrapEnabled: true
+    flushEnabled: true
     writesToCommitLog: true
-    needsCleanup: true
-    needsRepair: true
+    cleanupEnabled: true
+    repairEnabled: true
     retention:
       retentionPeriod: 960h
       blockSize: 12h
@@ -168,7 +168,7 @@ metadatas:
 	require.NoError(t, err)
 	require.True(t, ns.ID().Equal(testmetrics))
 	opts := ns.Options()
-	require.Equal(t, false, opts.NeedsBootstrap())
+	require.Equal(t, false, opts.BootstrapEnabled())
 	require.Equal(t, false, opts.FlushEnabled())
 	require.Equal(t, false, opts.WritesToCommitLog())
 	require.Equal(t, false, opts.CleanupEnabled())
@@ -185,7 +185,7 @@ metadatas:
 	require.NoError(t, err)
 	require.True(t, ns.ID().Equal(metrics2d))
 	opts = ns.Options()
-	require.Equal(t, true, opts.NeedsBootstrap())
+	require.Equal(t, true, opts.BootstrapEnabled())
 	require.Equal(t, true, opts.FlushEnabled())
 	require.Equal(t, true, opts.WritesToCommitLog())
 	require.Equal(t, true, opts.CleanupEnabled())
@@ -202,7 +202,7 @@ metadatas:
 	require.NoError(t, err)
 	require.True(t, ns.ID().Equal(metrics40d))
 	opts = ns.Options()
-	require.Equal(t, true, opts.NeedsBootstrap())
+	require.Equal(t, true, opts.BootstrapEnabled())
 	require.Equal(t, true, opts.FlushEnabled())
 	require.Equal(t, true, opts.WritesToCommitLog())
 	require.Equal(t, true, opts.CleanupEnabled())

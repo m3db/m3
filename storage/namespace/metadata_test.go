@@ -60,7 +60,7 @@ func TestMetadataEqualsIDsDiffer(t *testing.T) {
 func TestMetadataEqualsOptsDiffer(t *testing.T) {
 	testID := ident.StringID("some-string")
 	testOpts1 := NewOptions()
-	testOpts2 := testOpts1.SetNeedsBootstrap(!testOpts1.NeedsBootstrap())
+	testOpts2 := testOpts1.SetBootstrapEnabled(!testOpts1.BootstrapEnabled())
 	md1, err := NewMetadata(testID, testOpts1)
 	require.NoError(t, err)
 	md2, err := NewMetadata(testID, testOpts2)

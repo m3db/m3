@@ -35,11 +35,11 @@ type MapConfiguration struct {
 // MetadataConfiguration is the configuration for a single namespace
 type MetadataConfiguration struct {
 	ID                string                  `yaml:"id" validate:"nonzero"`
-	NeedsBootstrap    *bool                   `yaml:"needsBootstrap"`
-	NeedsFlush        *bool                   `yaml:"needsFlush"`
+	BootstrapEnabled  *bool                   `yaml:"bootstrapEnabled"`
+	FlushEnabled      *bool                   `yaml:"flushEnabled"`
 	WritesToCommitLog *bool                   `yaml:"writesToCommitLog"`
-	NeedsCleanup      *bool                   `yaml:"needsCleanup"`
-	NeedsRepair       *bool                   `yaml:"needsRepair"`
+	CleanupEnabled    *bool                   `yaml:"cleanupEnabled"`
+	RepairEnabled     *bool                   `yaml:"repairEnabled"`
 	Retention         retention.Configuration `yaml:"retention" validate:"nonzero"`
 }
 
@@ -60,19 +60,19 @@ func (m *MapConfiguration) Map() (Map, error) {
 func (mc *MetadataConfiguration) Metadata() (Metadata, error) {
 	ropts := mc.Retention.Options()
 	opts := NewOptions().SetRetentionOptions(ropts)
-	if v := mc.NeedsBootstrap; v != nil {
-		opts = opts.SetNeedsBootstrap(*v)
+	if v := mc.BootstrapEnabled; v != nil {
+		opts = opts.SetBootstrapEnabled(*v)
 	}
-	if v := mc.NeedsFlush; v != nil {
+	if v := mc.FlushEnabled; v != nil {
 		opts = opts.SetFlushEnabled(*v)
 	}
 	if v := mc.WritesToCommitLog; v != nil {
 		opts = opts.SetWritesToCommitLog(*v)
 	}
-	if v := mc.NeedsCleanup; v != nil {
+	if v := mc.CleanupEnabled; v != nil {
 		opts = opts.SetCleanupEnabled(*v)
 	}
-	if v := mc.NeedsRepair; v != nil {
+	if v := mc.RepairEnabled; v != nil {
 		opts = opts.SetRepairEnabled(*v)
 	}
 	return NewMetadata(ident.StringID(mc.ID), opts)

@@ -37,11 +37,11 @@ type Options interface {
 	// Equal returns true if the provide value is equal to this one
 	Equal(value Options) bool
 
-	// SetNeedsBootstrap sets whether this namespace requires bootstrapping
-	SetNeedsBootstrap(value bool) Options
+	// SetBootstrapEnabled sets whether this namespace requires bootstrapping
+	SetBootstrapEnabled(value bool) Options
 
-	// NeedsBootstrap returns whether this namespace requires bootstrapping
-	NeedsBootstrap() bool
+	// BootstrapEnabled returns whether this namespace requires bootstrapping
+	BootstrapEnabled() bool
 
 	// SetFlushEnabled sets whether the in-memory data for this namespace needs to be flushed
 	SetFlushEnabled(value bool) Options

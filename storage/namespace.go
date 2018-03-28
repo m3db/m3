@@ -206,11 +206,6 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 			activeBlocks:           tickScope.Gauge("active-blocks"),
 			openBlocks:             tickScope.Gauge("open-blocks"),
 			wiredBlocks:            tickScope.Gauge("wired-blocks"),
-<<<<<<< HEAD
-			wiredBlocksSeriesOnly:  tickScope.Gauge("wired-blocks-series-only"),
-			wiredBlocksBufferOnly:  tickScope.Gauge("wired-blocks-buffer-only"),
-=======
->>>>>>> Remove unnecessary metrics change
 			unwiredBlocks:          tickScope.Gauge("unwired-blocks"),
 			madeUnwiredBlocks:      tickScope.Counter("made-unwired-blocks"),
 			madeExpiredBlocks:      tickScope.Counter("made-expired-blocks"),
@@ -292,7 +287,7 @@ func newDatabaseNamespace(
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
 	}
 
-	n.initShards(nopts.NeedsBootstrap())
+	n.initShards(nopts.BootstrapEnabled())
 	go n.reportStatusLoop()
 
 	return n, nil
@@ -368,10 +363,10 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		if int(shard) < len(existing) && existing[shard] != nil {
 			n.shards[shard] = existing[shard]
 		} else {
-			needsBootstrap := n.nopts.NeedsBootstrap()
+			bootstrapEnabled := n.nopts.BootstrapEnabled()
 			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.reverseIndex,
-				needsBootstrap, n.opts, n.seriesOpts)
+				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.indexWriter,
+				bootstrapEnabled, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
 	}
@@ -637,7 +632,7 @@ func (n *dbNamespace) Bootstrap(
 		n.metrics.bootstrapEnd.Inc(1)
 	}()
 
-	if !n.nopts.NeedsBootstrap() {
+	if !n.nopts.BootstrapEnabled() {
 		n.metrics.bootstrap.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
