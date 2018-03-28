@@ -130,46 +130,45 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 		err           error
 	)
 
-	var shardDir string
-	var checkpointFilePath string
+	var (
+		shardDir            string
+		checkpointFilepath  string
+		infoFilepath        string
+		digestFilepath      string
+		bloomFilterFilepath string
+		indexFilepath       string
+		dataFilepath        string
+	)
 	switch opts.FilesetType {
 	case persist.FilesetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
-		checkpointFilePath = snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, snapshotIndex)
+		checkpointFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, snapshotIndex)
+		infoFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, infoFileSuffix, snapshotIndex)
+		digestFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, digestFileSuffix, snapshotIndex)
+		bloomFilterFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, snapshotIndex)
 	case persist.FilesetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
-		checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+		checkpointFilepath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+		infoFilepath = filesetPathFromTime(shardDir, blockStart, infoFileSuffix)
+		digestFilepath = filesetPathFromTime(shardDir, blockStart, digestFileSuffix)
+		bloomFilterFilepath = filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix)
 	default:
 		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
 	}
 
 	// If there is no checkpoint file, don't read the data files.
-	if err := r.readCheckpointFile(checkpointFilePath, blockStart); err != nil {
+	if err := r.readCheckpointFile(checkpointFilepath, blockStart); err != nil {
 		return err
 	}
 
 	var infoFd, digestFd *os.File
-	switch opts.FilesetType {
-	case persist.FilesetSnapshotType:
-		err := openFiles(os.Open, map[string]**os.File{
-			snapshotPathFromTimeAndIndex(shardDir, blockStart, infoFileSuffix, snapshotIndex):        &infoFd,
-			snapshotPathFromTimeAndIndex(shardDir, blockStart, digestFileSuffix, snapshotIndex):      &digestFd,
-			snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, snapshotIndex): &r.bloomFilterFd,
-		})
-		if err != nil {
-			return err
-		}
-	case persist.FilesetFlushType:
-		err := openFiles(os.Open, map[string]**os.File{
-			filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
-			filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
-			filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &r.bloomFilterFd,
-		})
-		if err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
+	err = openFiles(os.Open, map[string]**os.File{
+		infoFilepath:        &infoFd,
+		digestFilepath:      &digestFd,
+		bloomFilterFilepath: &r.bloomFilterFd,
+	})
+	if err != nil {
+		return err
 	}
 
 	r.infoFdWithDigest.Reset(infoFd)
@@ -181,37 +180,18 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 		r.digestFdWithDigestContents.Close()
 	}()
 
-	var result mmap.FilesResult
-	switch opts.FilesetType {
-	case persist.FilesetSnapshotType:
-		result, err = mmap.Files(os.Open, map[string]mmap.FileDesc{
-			snapshotPathFromTimeAndIndex(shardDir, blockStart, indexFileSuffix, snapshotIndex): mmap.FileDesc{
-				File:    &r.indexFd,
-				Bytes:   &r.indexMmap,
-				Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
-			},
-			snapshotPathFromTimeAndIndex(shardDir, blockStart, dataFileSuffix, snapshotIndex): mmap.FileDesc{
-				File:    &r.dataFd,
-				Bytes:   &r.dataMmap,
-				Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
-			},
-		})
-	case persist.FilesetFlushType:
-		result, err = mmap.Files(os.Open, map[string]mmap.FileDesc{
-			filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmap.FileDesc{
-				File:    &r.indexFd,
-				Bytes:   &r.indexMmap,
-				Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
-			},
-			filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmap.FileDesc{
-				File:    &r.dataFd,
-				Bytes:   &r.dataMmap,
-				Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
-			},
-		})
-	default:
-		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
-	}
+	result, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
+		indexFilepath: mmap.FileDesc{
+			File:    &r.indexFd,
+			Bytes:   &r.indexMmap,
+			Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
+		},
+		dataFilepath: mmap.FileDesc{
+			File:    &r.dataFd,
+			Bytes:   &r.dataMmap,
+			Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
+		},
+	})
 	if err != nil {
 		return err
 	}
