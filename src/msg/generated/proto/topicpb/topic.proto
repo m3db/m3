@@ -1,0 +1,25 @@
+syntax = "proto3";
+package topicpb;
+
+message Topic {
+  string name = 1;
+  uint32 number_of_shards = 2;
+  repeated ConsumerService consumer_services = 3;
+}
+
+message ConsumerService {
+  ServiceID service_id = 1;
+  ConsumptionType consumption_type = 2;
+}
+
+message ServiceID {
+  string name = 1;
+  string environment = 2;
+  string zone = 3;
+}
+
+enum ConsumptionType {
+  UNKNOWN = 0;
+  SHARED = 1;
+  REPLICATED = 2;
+}

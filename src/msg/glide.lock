@@ -1,5 +1,5 @@
-hash: 2dcdc1d8794bb424ebe828931634cfa6f98f54359504735a6d21112b528953ed
-updated: 2018-03-22T17:29:53.063967-04:00
+hash: b58908e85c860390a26d30aaf56f0d13632adb90ee16852092cbbaf09f47d908
+updated: 2018-03-28T23:55:20.075365-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -21,18 +21,35 @@ imports:
   version: 925541529c1fa6821df4e44ce2723319eb2be768
   subpackages:
   - proto
+- name: github.com/m3db/m3cluster
+  version: 9d94e172ccd6f4ca7f487506a47f3c85b95f8d6e
+  subpackages:
+  - client
+  - generated/proto/metadatapb
+  - generated/proto/placementpb
+  - kv
+  - kv/mem
+  - kv/util/runtime
+  - placement
+  - placement/algo
+  - placement/selector
+  - placement/service
+  - placement/storage
+  - services
+  - services/leader/campaign
+  - shard
 - name: github.com/m3db/m3x
   version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
   subpackages:
   - checked
   - clock
-  - errors
+  - close
   - instrument
   - log
   - pool
   - process
   - resource
-  - retry
+  - watch
 - name: github.com/shirou/gopsutil
   version: 5776ff9c7c5d063d574ef53d740f75c68b448e53
   subpackages:
@@ -67,6 +84,8 @@ imports:
   - zapcore
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  repo: https://github.com/golang/sys
+  vcs: git
   subpackages:
   - unix
   - windows
