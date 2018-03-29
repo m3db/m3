@@ -597,6 +597,63 @@ func TestRollupTargetSameTransform(t *testing.T) {
 	}
 }
 
+func TestNewRollupRuleHistoryJSON(t *testing.T) {
+	id := "id"
+	targets := []RollupTargetView{
+		*testRollupTargetView("target1"),
+		*testRollupTargetView("target2"),
+	}
+	hist := []*RollupRuleView{
+		testRollupRuleView(id, "name1", targets),
+		testRollupRuleView(id, "name2", targets),
+	}
+	expected := RollupRuleSnapshots{
+		RollupRules: []RollupRule{
+			{
+				ID:     id,
+				Name:   "name1",
+				Filter: "filter",
+				Targets: []RollupTarget{
+					{
+						Name:     "target1",
+						Tags:     []string{"tag"},
+						Policies: []policy.Policy{},
+					},
+					{
+						Name:     "target2",
+						Tags:     []string{"tag"},
+						Policies: []policy.Policy{},
+					},
+				},
+				CutoverMillis:       0,
+				LastUpdatedBy:       "",
+				LastUpdatedAtMillis: 0,
+			},
+			{
+				ID:     id,
+				Name:   "name2",
+				Filter: "filter",
+				Targets: []RollupTarget{
+					{
+						Name:     "target1",
+						Tags:     []string{"tag"},
+						Policies: []policy.Policy{},
+					},
+					{
+						Name:     "target2",
+						Tags:     []string{"tag"},
+						Policies: []policy.Policy{},
+					},
+				},
+				CutoverMillis:       0,
+				LastUpdatedBy:       "",
+				LastUpdatedAtMillis: 0,
+			},
+		},
+	}
+	require.EqualValues(t, expected, NewRollupRuleSnapshots(hist))
+}
+
 func testRollupTarget(name string) *RollupTarget {
 	return &RollupTarget{
 		Name:     name,
