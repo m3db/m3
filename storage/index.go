@@ -107,39 +107,22 @@ func newNamespaceIndex(
 	return idx, nil
 }
 
-func (i *nsIndex) writeBatch(inserts []nsIndexInsert) error {
-	// NB(prateek): we use a read lock to guard against mutation of the
-	// nsIndexBlock currently active, mutations within the underlying
-	// nsIndexBlock are guarded by primitives internal to it.
-	i.RLock()
-	defer i.RUnlock()
-
-	if !i.isOpenWithRLock() {
-		// NB(prateek): deliberately skip calling any of the `OnIndexFinalize` methods
-		// on the provided inserts to terminate quicker during shutdown.
-		i.metrics.InsertAfterClose.Inc(int64(len(inserts)))
-		return errDbIndexUnableToWriteClosed
-	}
-
-	var numErr int64
-	for _, insert := range inserts {
-		// FOLLOWUP(prateek): need to query before insert to ensure no duplicates && add test
-		err := i.active.segment.Insert(insert.doc)
-		if err != nil {
-			numErr++
-		} else {
-			insert.fns.OnIndexSuccess(i.active.expiryTime)
-		}
-		// NB: we need to release held resources so we un-conditionally execute the Finalize.
-		insert.fns.OnIndexFinalize()
-	}
-
-	if numErr != 0 {
-		i.metrics.AsyncInsertErrors.Inc(numErr)
-	}
-
-	return nil
-}
+// NB(prateek): including the call chains leading to this point:
+//
+// - For new entry (previously unseen in the shard):
+//     shard.WriteTagged()
+//       => shardInsertQueue.Insert()
+//       => shard.writeBatch()
+//       => index.Write()
+//       => indexQueue.Insert()
+//       => index.writeBatch()
+//
+// - For entry which exists in the shard, but needs indexing (either past
+//   the TTL or the last indexing hasn't happened/failed):
+//      shard.WriteTagged()
+//        => index.Write()
+//        => indexQueue.Insert()
+//      	=> index.writeBatch()
 
 func (i *nsIndex) Write(
 	id ident.ID,
@@ -174,6 +157,40 @@ func (i *nsIndex) Write(
 
 	if !async {
 		wg.Wait()
+	}
+
+	return nil
+}
+
+func (i *nsIndex) writeBatch(inserts []nsIndexInsert) error {
+	// NB(prateek): we use a read lock to guard against mutation of the
+	// nsIndexBlock currently active, mutations within the underlying
+	// nsIndexBlock are guarded by primitives internal to it.
+	i.RLock()
+	defer i.RUnlock()
+
+	if !i.isOpenWithRLock() {
+		// NB(prateek): deliberately skip calling any of the `OnIndexFinalize` methods
+		// on the provided inserts to terminate quicker during shutdown.
+		i.metrics.InsertAfterClose.Inc(int64(len(inserts)))
+		return errDbIndexUnableToWriteClosed
+	}
+
+	var numErr int64
+	for _, insert := range inserts {
+		// FOLLOWUP(prateek): need to query before insert to ensure no duplicates && add test
+		err := i.active.segment.Insert(insert.doc)
+		if err != nil {
+			numErr++
+		} else {
+			insert.fns.OnIndexSuccess(i.active.expiryTime)
+		}
+		// NB: we need to release held resources so we un-conditionally execute the Finalize.
+		insert.fns.OnIndexFinalize()
+	}
+
+	if numErr != 0 {
+		i.metrics.AsyncInsertErrors.Inc(numErr)
 	}
 
 	return nil
