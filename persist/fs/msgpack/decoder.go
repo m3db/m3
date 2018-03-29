@@ -85,8 +85,8 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 	if dec.err != nil {
 		return emptyIndexInfo, dec.err
 	}
-	var indexInfo schema.IndexInfo
-	indexInfo = dec.decodeIndexInfo()
+
+	indexInfo := dec.decodeIndexInfo()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyIndexInfo, dec.err
