@@ -161,6 +161,36 @@ func TestMappingRuleSort(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, string(actual))
 }
+func TestNewMappingRuleHistoryJSON(t *testing.T) {
+	id := "id"
+	hist := []*MappingRuleView{
+		testMappingRuleView(id, "name1"),
+		testMappingRuleView(id, "name2"),
+	}
+	expected := MappingRuleSnapshots{
+		MappingRules: []MappingRule{
+			{
+				ID:                  id,
+				Name:                "name1",
+				Filter:              "filter",
+				Policies:            []policy.Policy{},
+				CutoverMillis:       0,
+				LastUpdatedBy:       "",
+				LastUpdatedAtMillis: 0,
+			},
+			{
+				ID:                  id,
+				Name:                "name2",
+				Filter:              "filter",
+				Policies:            []policy.Policy{},
+				CutoverMillis:       0,
+				LastUpdatedBy:       "",
+				LastUpdatedAtMillis: 0,
+			},
+		},
+	}
+	require.EqualValues(t, expected, NewMappingRuleSnapshots(hist))
+}
 
 // nolint:unparam
 func testMappingRuleView(id, name string) *MappingRuleView {
