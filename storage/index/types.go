@@ -37,6 +37,15 @@ var (
 	ReservedFieldNameNamespace = []byte("_m3db-namespace")
 )
 
+// InsertMode specifies whether inserts are synchronous or asynchronous.
+type InsertMode byte
+
+// nolint
+const (
+	InsertSync InsertMode = iota
+	InsertAsync
+)
+
 // Query is a rich end user query to describe a set of constraints on required IDs.
 type Query struct {
 	segment.Query
@@ -73,6 +82,12 @@ type Iterator interface {
 type Options interface {
 	// Validate validates assumptions baked into the code.
 	Validate() error
+
+	// SetIndexInsertMode sets the index insert mode (sync/async).
+	SetInsertMode(value InsertMode) Options
+
+	// IndexInsertMode returns the index's insert mode (sync/async).
+	InsertMode() InsertMode
 
 	// SetClockOptions sets the clock options.
 	SetClockOptions(value clock.Options) Options

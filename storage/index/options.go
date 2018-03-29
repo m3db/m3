@@ -40,6 +40,7 @@ var (
 )
 
 type opts struct {
+	insertMode     InsertMode
 	clockOpts      clock.Options
 	instrumentOpts instrument.Options
 	memOpts        mem.Options
@@ -53,13 +54,13 @@ func NewOptions() Options {
 	wrapperPool := xpool.NewCheckedBytesWrapperPool(defaultCheckedBytesPoolInitialSize)
 	wrapperPool.Init()
 	return &opts{
+		insertMode:     InsertAsync,
 		clockOpts:      clock.NewOptions(),
 		instrumentOpts: instrument.NewOptions(),
 		memOpts:        mem.NewOptions(),
 		idPool:         idPool,
 		wrapperPool:    wrapperPool,
 	}
-
 }
 
 func (o *opts) Validate() error {
@@ -70,6 +71,16 @@ func (o *opts) Validate() error {
 		return errOptionsWrapperPoolUnspecified
 	}
 	return nil
+}
+
+func (o *opts) SetInsertMode(value InsertMode) Options {
+	opts := *o
+	opts.insertMode = value
+	return &opts
+}
+
+func (o *opts) InsertMode() InsertMode {
+	return o.insertMode
 }
 
 func (o *opts) SetClockOptions(value clock.Options) Options {

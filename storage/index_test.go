@@ -270,7 +270,7 @@ func TestDatabaseIndexInsertQuery(t *testing.T) {
 		lifecycleFns = &testLifecycleHooks{}
 	)
 	// make insert mode sync for tests
-	idx.(*dbIndex).insertMode = dbIndexInsertSync
+	idx.(*dbIndex).insertMode = index.InsertSync
 	assert.NoError(t, idx.Write(ns, id, tags, lifecycleFns))
 
 	res, err := idx.Query(ctx, index.Query{

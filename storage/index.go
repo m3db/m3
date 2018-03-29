@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -66,7 +67,7 @@ type dbIndexBlock struct {
 
 type dbIndex struct {
 	sync.RWMutex
-	insertMode dbIndexInsertMode
+	insertMode index.InsertMode
 	state      dbIndexState
 	active     dbIndexBlock
 
@@ -77,20 +78,22 @@ type dbIndex struct {
 
 // nolint: deadcode
 func newDatabaseIndex(
-	fn newDatabaseIndexInsertQueueFn,
+	newIndexQueueFn newDatabaseIndexInsertQueueFn,
 	opts index.Options,
 ) (databaseIndex, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	seg, err := mem.New(1, opts.MemSegmentOptions())
+	indexCreatedAt := opts.ClockOptions().NowFn()()
+	segmentID := segment.ID(indexCreatedAt.UnixNano())
+	seg, err := mem.New(segmentID, opts.MemSegmentOptions())
 	if err != nil {
 		return nil, err
 	}
 
 	idx := &dbIndex{
-		insertMode: dbIndexInsertAsync,
+		insertMode: opts.InsertMode(),
 		active: dbIndexBlock{
 			segment:    seg,
 			expiryTime: maxTime, // FOLLOWUP(prateek): undo hard-coding to infinite retention
@@ -99,8 +102,7 @@ func newDatabaseIndex(
 		opts:    opts,
 	}
 
-	queue := fn(idx.writeBatch,
-		opts.ClockOptions().NowFn(),
+	queue := newIndexQueueFn(idx.writeBatch, opts.ClockOptions().NowFn(),
 		opts.InstrumentOptions().MetricsScope())
 	if err := queue.Start(); err != nil {
 		return nil, err
@@ -164,7 +166,7 @@ func (i *dbIndex) Write(
 		return errDbIndexUnableToWriteClosed
 	}
 
-	async := i.insertMode == dbIndexInsertAsync
+	async := i.insertMode == index.InsertAsync
 	wg, err := i.insertQueue.Insert(d, fns)
 	i.RUnlock()
 
