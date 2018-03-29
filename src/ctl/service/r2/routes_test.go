@@ -39,7 +39,7 @@ import (
 func TestHandleRoute(t *testing.T) {
 	s := newTestService()
 	r := newTestGetRequest()
-	expected := newNamespacesJSON(&models.NamespacesView{})
+	expected := models.NewNamespaces(&models.NamespacesView{})
 	actual, err := s.handleRoute(fetchNamespaces, r, newTestInstrumentMethodMetrics())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
@@ -51,14 +51,14 @@ func TestHandleRouteNilRequest(t *testing.T) {
 	require.EqualError(t, err, errNilRequest.Error())
 }
 func TestFetchNamespacesSuccess(t *testing.T) {
-	expected := newNamespacesJSON(&models.NamespacesView{})
+	expected := models.NewNamespaces(&models.NamespacesView{})
 	actual, err := fetchNamespaces(newTestService(), newTestGetRequest())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
 
 func TestFetchNamespaceSuccess(t *testing.T) {
-	expected := newRuleSetJSON(&models.RuleSetSnapshotView{})
+	expected := models.NewRuleSet(&models.RuleSetSnapshotView{})
 	actual, err := fetchNamespace(newTestService(), newTestGetRequest())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
@@ -72,7 +72,7 @@ func TestValidateRuleSetSuccess(t *testing.T) {
 }
 
 func TestCreateNamespaceSuccess(t *testing.T) {
-	expected := newNamespaceJSON(&models.NamespaceView{})
+	expected := models.NewNamespace(&models.NamespaceView{})
 	actual, err := createNamespace(newTestService(), newTestPostRequest([]byte(`{"id": "id"}`)))
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
@@ -86,14 +86,14 @@ func TestDeleteNamespaceSuccess(t *testing.T) {
 }
 
 func TestFetchMappingRuleSuccess(t *testing.T) {
-	expected := newMappingRuleJSON(&models.MappingRuleView{})
+	expected := models.NewMappingRule(&models.MappingRuleView{})
 	actual, err := fetchMappingRule(newTestService(), newTestGetRequest())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
 
 func TestCreateMappingRuleSuccess(t *testing.T) {
-	expected := newMappingRuleJSON(&models.MappingRuleView{})
+	expected := models.NewMappingRule(&models.MappingRuleView{})
 	actual, err := createMappingRule(newTestService(), newTestPostRequest(
 		[]byte(`{"filter": "key:val", "name": "name", "policies": []}`),
 	))
@@ -102,7 +102,7 @@ func TestCreateMappingRuleSuccess(t *testing.T) {
 }
 
 func TestUpdateMappingRuleSuccess(t *testing.T) {
-	expected := newMappingRuleJSON(&models.MappingRuleView{})
+	expected := models.NewMappingRule(&models.MappingRuleView{})
 	actual, err := updateMappingRule(newTestService(), newTestPutRequest(
 		[]byte(`{"filter": "key:val", "name": "name", "policies": []}`),
 	))
@@ -118,21 +118,21 @@ func TestDeleteMappingRuleSuccess(t *testing.T) {
 }
 
 func TestFetchMappingRuleHistorySuccess(t *testing.T) {
-	expected := newMappingRuleHistoryJSON(make([]*models.MappingRuleView, 0))
+	expected := models.NewMappingRuleSnapshots(make([]*models.MappingRuleView, 0))
 	actual, err := fetchMappingRuleHistory(newTestService(), newTestGetRequest())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
 
 func TestFetchRollupRuleSuccess(t *testing.T) {
-	expected := newRollupRuleJSON(&models.RollupRuleView{})
+	expected := models.NewRollupRule(&models.RollupRuleView{})
 	actual, err := fetchRollupRule(newTestService(), newTestGetRequest())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
 
 func TestCreateRollupRuleSuccess(t *testing.T) {
-	expected := newRollupRuleJSON(&models.RollupRuleView{})
+	expected := models.NewRollupRule(&models.RollupRuleView{})
 	actual, err := createRollupRule(newTestService(), newTestPostRequest(
 		[]byte(`{"filter": "key:val", "name": "name", "targets": []}`),
 	))
@@ -141,7 +141,7 @@ func TestCreateRollupRuleSuccess(t *testing.T) {
 }
 
 func TestUpdateRollupRuleSuccess(t *testing.T) {
-	expected := newRollupRuleJSON(&models.RollupRuleView{})
+	expected := models.NewRollupRule(&models.RollupRuleView{})
 	actual, err := updateRollupRule(newTestService(), newTestPutRequest(
 		[]byte(`{"filter": "key:val", "name": "name", "targets": []}`),
 	))
@@ -157,7 +157,7 @@ func TestDeleteRollupRuleSuccess(t *testing.T) {
 }
 
 func TestFetchRollupRuleHistorySuccess(t *testing.T) {
-	expected := newRollupRuleHistoryJSON([]*models.RollupRuleView{})
+	expected := models.NewRollupRuleSnapshots([]*models.RollupRuleView{})
 	actual, err := fetchRollupRuleHistory(newTestService(), newTestGetRequest())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)

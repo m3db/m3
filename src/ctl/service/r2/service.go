@@ -25,7 +25,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/m3db/m3ctl/auth"
 	mservice "github.com/m3db/m3ctl/service"
@@ -43,7 +42,6 @@ const (
 	rollupRulePrefix  = "rollup-rules"
 	namespaceIDVar    = "namespaceID"
 	ruleIDVar         = "ruleID"
-	nanosPerMilli     = int64(time.Millisecond / time.Nanosecond)
 )
 
 var (
