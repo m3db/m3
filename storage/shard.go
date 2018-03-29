@@ -104,7 +104,7 @@ type dbShard struct {
 	increasingIndex          increasingIndex
 	seriesPool               series.DatabaseSeriesPool
 	commitLogWriter          commitLogWriter
-	indexWriter              databaseIndex
+	indexWriter              namespaceIndex
 	insertQueue              *dbShardInsertQueue
 	lookup                   map[ident.Hash]*list.Element
 	list                     *list.List
@@ -204,7 +204,7 @@ func newDatabaseShard(
 	namespaceReaderMgr databaseNamespaceReaderManager,
 	increasingIndex increasingIndex,
 	commitLogWriter commitLogWriter,
-	indexWriter databaseIndex,
+	indexWriter namespaceIndex,
 	needsBootstrap bool,
 	opts Options,
 	seriesOpts series.Options,

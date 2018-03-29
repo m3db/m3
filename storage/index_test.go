@@ -42,36 +42,36 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func testDatabaseIndexOptions() index.Options {
+func testNamespaceIndexOptions() index.Options {
 	return index.NewOptions()
 }
 
-func newTestDatabaseIndex(t *testing.T, ctrl *gomock.Controller) (databaseIndex, *MockdatabaseIndexInsertQueue) {
-	q := NewMockdatabaseIndexInsertQueue(ctrl)
-	newFn := func(fn dbIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) databaseIndexInsertQueue {
+func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (namespaceIndex, *MocknamespaceIndexInsertQueue) {
+	q := NewMocknamespaceIndexInsertQueue(ctrl)
+	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
 	q.EXPECT().Start().Return(nil)
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newDatabaseIndex(md, newFn, testDatabaseIndexOptions())
+	idx, err := newNamespaceIndex(md, newFn, testNamespaceIndexOptions())
 	assert.NoError(t, err)
 	return idx, q
 }
 
-func TestDatabaseIndexHappyPath(t *testing.T) {
+func TestNamespaceIndexHappyPath(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	q := NewMockdatabaseIndexInsertQueue(ctrl)
-	newFn := func(fn dbIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) databaseIndexInsertQueue {
+	q := NewMocknamespaceIndexInsertQueue(ctrl)
+	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
 	q.EXPECT().Start().Return(nil)
 
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newDatabaseIndex(md, newFn, testDatabaseIndexOptions())
+	idx, err := newNamespaceIndex(md, newFn, testNamespaceIndexOptions())
 	assert.NoError(t, err)
 	assert.NotNil(t, idx)
 
@@ -79,35 +79,35 @@ func TestDatabaseIndexHappyPath(t *testing.T) {
 	assert.NoError(t, idx.Close())
 }
 
-func TestDatabaseIndexStartErr(t *testing.T) {
+func TestNamespaceIndexStartErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	q := NewMockdatabaseIndexInsertQueue(ctrl)
-	newFn := func(fn dbIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) databaseIndexInsertQueue {
+	q := NewMocknamespaceIndexInsertQueue(ctrl)
+	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
 	q.EXPECT().Start().Return(fmt.Errorf("random err"))
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newDatabaseIndex(md, newFn, testDatabaseIndexOptions())
+	idx, err := newNamespaceIndex(md, newFn, testNamespaceIndexOptions())
 	assert.Error(t, err)
 	assert.Nil(t, idx)
 }
 
-func TestDatabaseIndexStopErr(t *testing.T) {
+func TestNamespaceIndexStopErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	q := NewMockdatabaseIndexInsertQueue(ctrl)
-	newFn := func(fn dbIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) databaseIndexInsertQueue {
+	q := NewMocknamespaceIndexInsertQueue(ctrl)
+	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
 	q.EXPECT().Start().Return(nil)
 
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newDatabaseIndex(md, newFn, testDatabaseIndexOptions())
+	idx, err := newNamespaceIndex(md, newFn, testNamespaceIndexOptions())
 	assert.NoError(t, err)
 	assert.NotNil(t, idx)
 
@@ -115,12 +115,12 @@ func TestDatabaseIndexStopErr(t *testing.T) {
 	assert.Error(t, idx.Close())
 }
 
-func TestDatabaseIndexInvalidDocConversion(t *testing.T) {
+func TestNamespaceIndexInvalidDocConversion(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbIdx, _ := newTestDatabaseIndex(t, ctrl)
-	idx, ok := dbIdx.(*dbIndex)
+	dbIdx, _ := newTestNamespaceIndex(t, ctrl)
+	idx, ok := dbIdx.(*nsIndex)
 	assert.True(t, ok)
 
 	id := ident.StringID("foo")
@@ -132,12 +132,12 @@ func TestDatabaseIndexInvalidDocConversion(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestDatabaseIndexInvalidDocWrite(t *testing.T) {
+func TestNamespaceIndexInvalidDocWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbIdx, _ := newTestDatabaseIndex(t, ctrl)
-	idx, ok := dbIdx.(*dbIndex)
+	dbIdx, _ := newTestNamespaceIndex(t, ctrl)
+	idx, ok := dbIdx.(*nsIndex)
 	assert.True(t, ok)
 
 	id := ident.StringID("foo")
@@ -154,12 +154,12 @@ func TestDatabaseIndexInvalidDocWrite(t *testing.T) {
 	assert.True(t, lifecycle.finalized)
 }
 
-func TestDatabaseIndexWriteAfterClose(t *testing.T) {
+func TestNamespaceIndexWriteAfterClose(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbIdx, q := newTestDatabaseIndex(t, ctrl)
-	idx, ok := dbIdx.(*dbIndex)
+	dbIdx, q := newTestNamespaceIndex(t, ctrl)
+	idx, ok := dbIdx.(*nsIndex)
 	assert.True(t, ok)
 
 	id := ident.StringID("foo")
@@ -179,12 +179,12 @@ func TestDatabaseIndexWriteAfterClose(t *testing.T) {
 	assert.True(t, lifecycle.finalized)
 }
 
-func TestDatabaseIndexWriteQueueError(t *testing.T) {
+func TestNamespaceIndexWriteQueueError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbIdx, q := newTestDatabaseIndex(t, ctrl)
-	idx, ok := dbIdx.(*dbIndex)
+	dbIdx, q := newTestNamespaceIndex(t, ctrl)
+	idx, ok := dbIdx.(*nsIndex)
 	assert.True(t, ok)
 
 	id := ident.StringID("foo")
@@ -204,12 +204,12 @@ func TestDatabaseIndexWriteQueueError(t *testing.T) {
 	assert.True(t, lifecycle.finalized)
 }
 
-func TestDatabaseIndexDocConversion(t *testing.T) {
+func TestNamespaceIndexDocConversion(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbIdx, _ := newTestDatabaseIndex(t, ctrl)
-	idx, ok := dbIdx.(*dbIndex)
+	dbIdx, _ := newTestNamespaceIndex(t, ctrl)
+	idx, ok := dbIdx.(*nsIndex)
 	assert.True(t, ok)
 
 	id := ident.StringID("foo")
@@ -226,12 +226,12 @@ func TestDatabaseIndexDocConversion(t *testing.T) {
 	assert.Equal(t, "value", string(d.Fields[1].Value))
 }
 
-func TestDatabaseIndexInsertQueueInteraction(t *testing.T) {
+func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbIdx, q := newTestDatabaseIndex(t, ctrl)
-	idx, ok := dbIdx.(*dbIndex)
+	dbIdx, q := newTestNamespaceIndex(t, ctrl)
+	idx, ok := dbIdx.(*nsIndex)
 	assert.True(t, ok)
 
 	var (
@@ -250,17 +250,17 @@ func TestDatabaseIndexInsertQueueInteraction(t *testing.T) {
 	assert.NoError(t, idx.Write(id, tags, lifecycleFns))
 }
 
-func TestDatabaseIndexInsertQuery(t *testing.T) {
+func TestNamespaceIndexInsertQuery(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	newFn := func(fn dbIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) databaseIndexInsertQueue {
-		q := newDatabaseIndexInsertQueue(fn, nowFn, s)
-		q.(*dbIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
+	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+		q := newNamespaceIndexInsertQueue(fn, nowFn, s)
+		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
 		return q
 	}
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newDatabaseIndex(md, newFn, testDatabaseIndexOptions())
+	idx, err := newNamespaceIndex(md, newFn, testNamespaceIndexOptions())
 	assert.NoError(t, err)
 	defer idx.Close()
 
@@ -273,7 +273,7 @@ func TestDatabaseIndexInsertQuery(t *testing.T) {
 		lifecycleFns = &testLifecycleHooks{}
 	)
 	// make insert mode sync for tests
-	idx.(*dbIndex).insertMode = index.InsertSync
+	idx.(*nsIndex).insertMode = index.InsertSync
 	assert.NoError(t, idx.Write(id, tags, lifecycleFns))
 
 	res, err := idx.Query(ctx, index.Query{

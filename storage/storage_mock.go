@@ -1250,43 +1250,43 @@ func (_mr *MockdatabaseShardMockRecorder) Repair(arg0, arg1, arg2 interface{}) *
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShard)(nil).Repair), arg0, arg1, arg2)
 }
 
-// MockdatabaseIndex is a mock of databaseIndex interface
-type MockdatabaseIndex struct {
+// MocknamespaceIndex is a mock of namespaceIndex interface
+type MocknamespaceIndex struct {
 	ctrl     *gomock.Controller
-	recorder *MockdatabaseIndexMockRecorder
+	recorder *MocknamespaceIndexMockRecorder
 }
 
-// MockdatabaseIndexMockRecorder is the mock recorder for MockdatabaseIndex
-type MockdatabaseIndexMockRecorder struct {
-	mock *MockdatabaseIndex
+// MocknamespaceIndexMockRecorder is the mock recorder for MocknamespaceIndex
+type MocknamespaceIndexMockRecorder struct {
+	mock *MocknamespaceIndex
 }
 
-// NewMockdatabaseIndex creates a new mock instance
-func NewMockdatabaseIndex(ctrl *gomock.Controller) *MockdatabaseIndex {
-	mock := &MockdatabaseIndex{ctrl: ctrl}
-	mock.recorder = &MockdatabaseIndexMockRecorder{mock}
+// NewMocknamespaceIndex creates a new mock instance
+func NewMocknamespaceIndex(ctrl *gomock.Controller) *MocknamespaceIndex {
+	mock := &MocknamespaceIndex{ctrl: ctrl}
+	mock.recorder = &MocknamespaceIndexMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (_m *MockdatabaseIndex) EXPECT() *MockdatabaseIndexMockRecorder {
+func (_m *MocknamespaceIndex) EXPECT() *MocknamespaceIndexMockRecorder {
 	return _m.recorder
 }
 
 // Write mocks base method
-func (_m *MockdatabaseIndex) Write(id ident.ID, tags ident.Tags, fns indexInsertLifecycleHooks) error {
+func (_m *MocknamespaceIndex) Write(id ident.ID, tags ident.Tags, fns indexInsertLifecycleHooks) error {
 	ret := _m.ctrl.Call(_m, "Write", id, tags, fns)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Write indicates an expected call of Write
-func (_mr *MockdatabaseIndexMockRecorder) Write(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Write", reflect.TypeOf((*MockdatabaseIndex)(nil).Write), arg0, arg1, arg2)
+func (_mr *MocknamespaceIndexMockRecorder) Write(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Write", reflect.TypeOf((*MocknamespaceIndex)(nil).Write), arg0, arg1, arg2)
 }
 
 // Query mocks base method
-func (_m *MockdatabaseIndex) Query(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+func (_m *MocknamespaceIndex) Query(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
 	ret := _m.ctrl.Call(_m, "Query", ctx, query, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
@@ -1294,71 +1294,71 @@ func (_m *MockdatabaseIndex) Query(ctx context.Context, query index.Query, opts 
 }
 
 // Query indicates an expected call of Query
-func (_mr *MockdatabaseIndexMockRecorder) Query(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Query", reflect.TypeOf((*MockdatabaseIndex)(nil).Query), arg0, arg1, arg2)
+func (_mr *MocknamespaceIndexMockRecorder) Query(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Query", reflect.TypeOf((*MocknamespaceIndex)(nil).Query), arg0, arg1, arg2)
 }
 
 // Close mocks base method
-func (_m *MockdatabaseIndex) Close() error {
+func (_m *MocknamespaceIndex) Close() error {
 	ret := _m.ctrl.Call(_m, "Close")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Close indicates an expected call of Close
-func (_mr *MockdatabaseIndexMockRecorder) Close() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Close", reflect.TypeOf((*MockdatabaseIndex)(nil).Close))
+func (_mr *MocknamespaceIndexMockRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Close", reflect.TypeOf((*MocknamespaceIndex)(nil).Close))
 }
 
-// MockdatabaseIndexInsertQueue is a mock of databaseIndexInsertQueue interface
-type MockdatabaseIndexInsertQueue struct {
+// MocknamespaceIndexInsertQueue is a mock of namespaceIndexInsertQueue interface
+type MocknamespaceIndexInsertQueue struct {
 	ctrl     *gomock.Controller
-	recorder *MockdatabaseIndexInsertQueueMockRecorder
+	recorder *MocknamespaceIndexInsertQueueMockRecorder
 }
 
-// MockdatabaseIndexInsertQueueMockRecorder is the mock recorder for MockdatabaseIndexInsertQueue
-type MockdatabaseIndexInsertQueueMockRecorder struct {
-	mock *MockdatabaseIndexInsertQueue
+// MocknamespaceIndexInsertQueueMockRecorder is the mock recorder for MocknamespaceIndexInsertQueue
+type MocknamespaceIndexInsertQueueMockRecorder struct {
+	mock *MocknamespaceIndexInsertQueue
 }
 
-// NewMockdatabaseIndexInsertQueue creates a new mock instance
-func NewMockdatabaseIndexInsertQueue(ctrl *gomock.Controller) *MockdatabaseIndexInsertQueue {
-	mock := &MockdatabaseIndexInsertQueue{ctrl: ctrl}
-	mock.recorder = &MockdatabaseIndexInsertQueueMockRecorder{mock}
+// NewMocknamespaceIndexInsertQueue creates a new mock instance
+func NewMocknamespaceIndexInsertQueue(ctrl *gomock.Controller) *MocknamespaceIndexInsertQueue {
+	mock := &MocknamespaceIndexInsertQueue{ctrl: ctrl}
+	mock.recorder = &MocknamespaceIndexInsertQueueMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (_m *MockdatabaseIndexInsertQueue) EXPECT() *MockdatabaseIndexInsertQueueMockRecorder {
+func (_m *MocknamespaceIndexInsertQueue) EXPECT() *MocknamespaceIndexInsertQueueMockRecorder {
 	return _m.recorder
 }
 
 // Start mocks base method
-func (_m *MockdatabaseIndexInsertQueue) Start() error {
+func (_m *MocknamespaceIndexInsertQueue) Start() error {
 	ret := _m.ctrl.Call(_m, "Start")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Start indicates an expected call of Start
-func (_mr *MockdatabaseIndexInsertQueueMockRecorder) Start() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Start", reflect.TypeOf((*MockdatabaseIndexInsertQueue)(nil).Start))
+func (_mr *MocknamespaceIndexInsertQueueMockRecorder) Start() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Start", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Start))
 }
 
 // Stop mocks base method
-func (_m *MockdatabaseIndexInsertQueue) Stop() error {
+func (_m *MocknamespaceIndexInsertQueue) Stop() error {
 	ret := _m.ctrl.Call(_m, "Stop")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Stop indicates an expected call of Stop
-func (_mr *MockdatabaseIndexInsertQueueMockRecorder) Stop() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Stop", reflect.TypeOf((*MockdatabaseIndexInsertQueue)(nil).Stop))
+func (_mr *MocknamespaceIndexInsertQueueMockRecorder) Stop() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Stop", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Stop))
 }
 
 // Insert mocks base method
-func (_m *MockdatabaseIndexInsertQueue) Insert(d doc.Document, s indexInsertLifecycleHooks) (*sync.WaitGroup, error) {
+func (_m *MocknamespaceIndexInsertQueue) Insert(d doc.Document, s indexInsertLifecycleHooks) (*sync.WaitGroup, error) {
 	ret := _m.ctrl.Call(_m, "Insert", d, s)
 	ret0, _ := ret[0].(*sync.WaitGroup)
 	ret1, _ := ret[1].(error)
@@ -1366,8 +1366,8 @@ func (_m *MockdatabaseIndexInsertQueue) Insert(d doc.Document, s indexInsertLife
 }
 
 // Insert indicates an expected call of Insert
-func (_mr *MockdatabaseIndexInsertQueueMockRecorder) Insert(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Insert", reflect.TypeOf((*MockdatabaseIndexInsertQueue)(nil).Insert), arg0, arg1)
+func (_mr *MocknamespaceIndexInsertQueueMockRecorder) Insert(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Insert", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Insert), arg0, arg1)
 }
 
 // MockindexInsertLifecycleHooks is a mock of indexInsertLifecycleHooks interface

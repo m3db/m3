@@ -44,44 +44,36 @@ var (
 	errDbIndexUnableToIndexWithReservedFieldName = errors.New("unable to index document due to usage of reserved fieldname")
 )
 
-type dbIndexState byte
+type nsIndexState byte
 
 const (
-	dbIndexStateOpen dbIndexState = iota
-	dbIndexStateClosed
+	nsIndexStateOpen nsIndexState = iota
+	nsIndexStateClosed
 )
 
-type dbIndexInsertMode byte
-
-// nolint
-const (
-	dbIndexInsertSync dbIndexInsertMode = iota
-	dbIndexInsertAsync
-)
-
-type dbIndexBlock struct {
+type nsIndexBlock struct {
 	segment    mem.Segment
 	expiryTime time.Time
 }
 
-type dbIndex struct {
+type nsIndex struct {
 	sync.RWMutex
 	insertMode index.InsertMode
-	state      dbIndexState
-	active     dbIndexBlock
+	state      nsIndexState
+	active     nsIndexBlock
 
-	insertQueue databaseIndexInsertQueue
-	metrics     dbIndexMetrics
+	insertQueue namespaceIndexInsertQueue
+	metrics     nsIndexMetrics
 	opts        index.Options
 	nsID        ident.ID
 }
 
 // nolint: deadcode
-func newDatabaseIndex(
+func newNamespaceIndex(
 	md namespace.Metadata,
-	newIndexQueueFn newDatabaseIndexInsertQueueFn,
+	newIndexQueueFn newNamespaceIndexInsertQueueFn,
 	opts index.Options,
-) (databaseIndex, error) {
+) (namespaceIndex, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -94,13 +86,13 @@ func newDatabaseIndex(
 	}
 
 	expiryTime := now.Add(md.Options().RetentionOptions().RetentionPeriod())
-	idx := &dbIndex{
+	idx := &nsIndex{
 		insertMode: opts.InsertMode(),
-		active: dbIndexBlock{
+		active: nsIndexBlock{
 			segment:    seg,
 			expiryTime: expiryTime, // FOLLOWUP(prateek): compute based on block rotation
 		},
-		metrics: newDatabaseIndexMetrics(opts.InstrumentOptions().MetricsScope()),
+		metrics: newNamespaceIndexMetrics(opts.InstrumentOptions().MetricsScope()),
 		opts:    opts,
 		nsID:    md.ID(),
 	}
@@ -115,10 +107,10 @@ func newDatabaseIndex(
 	return idx, nil
 }
 
-func (i *dbIndex) writeBatch(inserts []dbIndexInsert) error {
+func (i *nsIndex) writeBatch(inserts []nsIndexInsert) error {
 	// NB(prateek): we use a read lock to guard against mutation of the
-	// dbIndexBlock currently active, mutations within the underlying
-	// dbIndexBlock are guarded by primitives internal to it.
+	// nsIndexBlock currently active, mutations within the underlying
+	// nsIndexBlock are guarded by primitives internal to it.
 	i.RLock()
 	defer i.RUnlock()
 
@@ -149,7 +141,7 @@ func (i *dbIndex) writeBatch(inserts []dbIndexInsert) error {
 	return nil
 }
 
-func (i *dbIndex) Write(
+func (i *nsIndex) Write(
 	id ident.ID,
 	tags ident.Tags,
 	fns indexInsertLifecycleHooks,
@@ -187,7 +179,7 @@ func (i *dbIndex) Write(
 	return nil
 }
 
-func (i *dbIndex) Query(
+func (i *nsIndex) Query(
 	ctx context.Context,
 	query index.Query,
 	opts index.QueryOptions,
@@ -211,24 +203,24 @@ func (i *dbIndex) Query(
 	}, nil
 }
 
-func (i *dbIndex) isOpenWithRLock() bool {
-	return i.state == dbIndexStateOpen
+func (i *nsIndex) isOpenWithRLock() bool {
+	return i.state == nsIndexStateOpen
 
 }
 
-func (i *dbIndex) Close() error {
+func (i *nsIndex) Close() error {
 	i.Lock()
 	defer i.Unlock()
 	state := i.state
-	if state != dbIndexStateOpen {
+	if state != nsIndexStateOpen {
 		return errDbIndexAlreadyClosed
 	}
 
-	i.state = dbIndexStateClosed
+	i.state = nsIndexStateClosed
 	return i.insertQueue.Stop()
 }
 
-func (i *dbIndex) doc(id ident.ID, tags ident.Tags) (doc.Document, error) {
+func (i *nsIndex) doc(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	fields := make([]doc.Field, 0, 1+len(tags))
 	fields = append(fields, doc.Field{
 		Name:      index.ReservedFieldNameID,
@@ -255,21 +247,21 @@ func (i *dbIndex) doc(id ident.ID, tags ident.Tags) (doc.Document, error) {
 // NB(prateek): we take an independent copy of the bytes underlying
 // any ids provided, as we need to maintain the lifecycle of the indexed
 // bytes separately from the rest of the storage subsystem.
-func (i *dbIndex) clone(id ident.ID) []byte {
+func (i *nsIndex) clone(id ident.ID) []byte {
 	original := id.Data().Get()
 	clone := make([]byte, len(original))
 	copy(clone, original)
 	return clone
 }
 
-type dbIndexMetrics struct {
+type nsIndexMetrics struct {
 	AsyncInsertErrors tally.Counter
 	InsertAfterClose  tally.Counter
 	QueryAfterClose   tally.Counter
 }
 
-func newDatabaseIndexMetrics(scope tally.Scope) dbIndexMetrics {
-	return dbIndexMetrics{
+func newNamespaceIndexMetrics(scope tally.Scope) nsIndexMetrics {
+	return nsIndexMetrics{
 		AsyncInsertErrors: scope.Tagged(map[string]string{
 			"error_type": "async-insert",
 		}).Counter("index-error"),

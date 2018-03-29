@@ -34,14 +34,14 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func newTestIndexInsertQueue() *dbIndexInsertQueue {
+func newTestIndexInsertQueue() *nsIndexInsertQueue {
 	var (
-		dbIndexInsertBatchFn = func(inserts []dbIndexInsert) error { return nil }
+		nsIndexInsertBatchFn = func(inserts []nsIndexInsert) error { return nil }
 		nowFn                = time.Now
 		scope                = tally.NoopScope
 	)
 
-	q := newDatabaseIndexInsertQueue(dbIndexInsertBatchFn, nowFn, scope).(*dbIndexInsertQueue)
+	q := newNamespaceIndexInsertQueue(nsIndexInsertBatchFn, nowFn, scope).(*nsIndexInsertQueue)
 	q.indexBatchBackoff = 10 * time.Millisecond
 	return q
 }
@@ -83,10 +83,10 @@ func TestIndexInsertQueueCallback(t *testing.T) {
 	var (
 		q            = newTestIndexInsertQueue()
 		insertLock   sync.Mutex
-		insertedDocs []dbIndexInsert
+		insertedDocs []nsIndexInsert
 		callback     = &testLifecycleHooks{}
 	)
-	q.indexBatchFn = func(inserts []dbIndexInsert) error {
+	q.indexBatchFn = func(inserts []nsIndexInsert) error {
 		insertLock.Lock()
 		insertedDocs = append(insertedDocs, inserts...)
 		insertLock.Unlock()
@@ -175,7 +175,7 @@ func TestIndexInsertQueueRateLimit(t *testing.T) {
 
 func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 	var (
-		inserts  [][]dbIndexInsert
+		inserts  [][]nsIndexInsert
 		currTime = time.Now()
 		timeLock = sync.Mutex{}
 		addTime  = func(d time.Duration) {
@@ -199,7 +199,7 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 		defer timeLock.Unlock()
 		return currTime
 	}
-	q.indexBatchFn = func(value []dbIndexInsert) error {
+	q.indexBatchFn = func(value []nsIndexInsert) error {
 		inserts = append(inserts, value)
 		insertWgs[len(inserts)-1].Done()
 		insertProgressWgs[len(inserts)-1].Wait()

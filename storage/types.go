@@ -405,8 +405,8 @@ type databaseShard interface {
 	) (repair.MetadataComparisonResult, error)
 }
 
-// databaseIndex indexes database writes.
-type databaseIndex interface {
+// namespaceIndex indexes namespace writes.
+type namespaceIndex interface {
 	// Write indexes timeseries ID by provided Tags.
 	Write(
 		id ident.ID,
@@ -425,9 +425,9 @@ type databaseIndex interface {
 	Close() error
 }
 
-// databaseIndexInsertQueue is a queue used in-front of the indexing component
-// for Writes. NB: this is an interface to allow easier unit tests in databaseIndex.
-type databaseIndexInsertQueue interface {
+// namespaceIndexInsertQueue is a queue used in-front of the indexing component
+// for Writes. NB: this is an interface to allow easier unit tests in namespaceIndex.
+type namespaceIndexInsertQueue interface {
 	// Start starts accepting writes in the queue.
 	Start() error
 
@@ -442,7 +442,7 @@ type databaseIndexInsertQueue interface {
 }
 
 // indexInsertLifecycleHooks provides a set of callback hooks to allow the
-// databaseIndex to do lifecycle management of any resources retained
+// namespaceIndex to do lifecycle management of any resources retained
 // during indexing.
 type indexInsertLifecycleHooks interface {
 	// OnIndexSuccess is executed when an entry is successfully indexed. The

@@ -116,7 +116,7 @@ type dbNamespace struct {
 
 	increasingIndex increasingIndex
 	commitLogWriter commitLogWriter
-	reverseIndex    databaseIndex
+	reverseIndex    namespaceIndex
 
 	tickWorkers            xsync.WorkerPool
 	tickWorkersConcurrency int
@@ -255,7 +255,7 @@ func newDatabaseNamespace(
 
 	// FOLLOWUP(prateek): will be done in https://github.com/m3db/m3db/pull/507
 	var (
-		idx databaseIndex = nil
+		idx namespaceIndex = nil
 	)
 
 	n := &dbNamespace{

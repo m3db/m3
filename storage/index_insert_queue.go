@@ -37,12 +37,12 @@ var (
 	errNewSeriesIndexRateLimitExceeded     = errors.New("indexing new series eclipses rate limit")
 )
 
-type dbIndexInsertQueueState int
+type nsIndexInsertQueueState int
 
 const (
-	dbIndexInsertQueueStateNotOpen dbIndexInsertQueueState = iota
-	dbIndexInsertQueueStateOpen
-	dbIndexInsertQueueStateClosed
+	nsIndexInsertQueueStateNotOpen nsIndexInsertQueueState = iota
+	nsIndexInsertQueueStateOpen
+	nsIndexInsertQueueStateClosed
 )
 
 var (
@@ -50,39 +50,39 @@ var (
 	defaultIndexPerSecondLimit = 10000
 )
 
-type dbIndexInsertQueue struct {
+type nsIndexInsertQueue struct {
 	sync.RWMutex
-	state dbIndexInsertQueueState
+	state nsIndexInsertQueueState
 	// rate limits
 	indexBatchBackoff               time.Duration
 	indexPerSecondLimit             int
 	indexPerSecondLimitWindowNanos  int64
 	indexPerSecondLimitWindowValues int
 	// active batch pending execution
-	currBatch *dbIndexInsertBatch
+	currBatch *nsIndexInsertBatch
 
-	indexBatchFn dbIndexInsertBatchFn
+	indexBatchFn nsIndexInsertBatchFn
 
 	nowFn        clock.NowFn
 	sleepFn      func(time.Duration)
 	notifyInsert chan struct{}
 
-	metrics dbIndexInsertQueueMetrics
+	metrics nsIndexInsertQueueMetrics
 }
 
-type newDatabaseIndexInsertQueueFn func(
-	dbIndexInsertBatchFn, clock.NowFn, tally.Scope) databaseIndexInsertQueue
+type newNamespaceIndexInsertQueueFn func(
+	nsIndexInsertBatchFn, clock.NowFn, tally.Scope) namespaceIndexInsertQueue
 
 // FOLLOWUP(prateek): subsequent PR to wire up rate limiting to runtime.Options
 // nolint: deadcode
-func newDatabaseIndexInsertQueue(
-	indexBatchFn dbIndexInsertBatchFn,
+func newNamespaceIndexInsertQueue(
+	indexBatchFn nsIndexInsertBatchFn,
 	nowFn clock.NowFn,
 	scope tally.Scope,
-) databaseIndexInsertQueue {
-	currBatch := &dbIndexInsertBatch{}
+) namespaceIndexInsertQueue {
+	currBatch := &nsIndexInsertBatch{}
 	currBatch.Reset()
-	return &dbIndexInsertQueue{
+	return &nsIndexInsertQueue{
 		currBatch:           currBatch,
 		indexBatchBackoff:   defaultIndexBatchBackoff,
 		indexPerSecondLimit: defaultIndexPerSecondLimit,
@@ -90,13 +90,13 @@ func newDatabaseIndexInsertQueue(
 		nowFn:               nowFn,
 		sleepFn:             time.Sleep,
 		notifyInsert:        make(chan struct{}, 1),
-		metrics:             newDatabaseIndexInsertQueueMetrics(scope),
+		metrics:             newNamespaceIndexInsertQueueMetrics(scope),
 	}
 }
 
-func (q *dbIndexInsertQueue) insertLoop() {
+func (q *nsIndexInsertQueue) insertLoop() {
 	var lastInsert time.Time
-	freeBatch := &dbIndexInsertBatch{}
+	freeBatch := &nsIndexInsertBatch{}
 	freeBatch.Reset()
 	for range q.notifyInsert {
 		// Check if inserting too fast
@@ -104,9 +104,9 @@ func (q *dbIndexInsertQueue) insertLoop() {
 
 		// Rotate batches
 		var (
-			state   dbIndexInsertQueueState
+			state   nsIndexInsertQueueState
 			backoff time.Duration
-			batch   *dbIndexInsertBatch
+			batch   *nsIndexInsertBatch
 		)
 		q.Lock()
 		state = q.state
@@ -140,20 +140,20 @@ func (q *dbIndexInsertQueue) insertLoop() {
 
 		lastInsert = q.nowFn()
 
-		if state != dbIndexInsertQueueStateOpen {
+		if state != nsIndexInsertQueueStateOpen {
 			return // Break if the queue closed
 		}
 	}
 }
 
-func (q *dbIndexInsertQueue) Insert(
+func (q *nsIndexInsertQueue) Insert(
 	d doc.Document,
 	fns indexInsertLifecycleHooks,
 ) (*sync.WaitGroup, error) {
 	windowNanos := q.nowFn().Truncate(time.Second).UnixNano()
 
 	q.Lock()
-	if q.state != dbIndexInsertQueueStateOpen {
+	if q.state != nsIndexInsertQueueStateOpen {
 		q.Unlock()
 		return nil, errIndexInsertQueueNotOpen
 	}
@@ -169,7 +169,7 @@ func (q *dbIndexInsertQueue) Insert(
 			return nil, errNewSeriesIndexRateLimitExceeded
 		}
 	}
-	q.currBatch.inserts = append(q.currBatch.inserts, dbIndexInsert{
+	q.currBatch.inserts = append(q.currBatch.inserts, nsIndexInsert{
 		doc: d,
 		fns: fns,
 	})
@@ -187,28 +187,28 @@ func (q *dbIndexInsertQueue) Insert(
 	return wg, nil
 }
 
-func (q *dbIndexInsertQueue) Start() error {
+func (q *nsIndexInsertQueue) Start() error {
 	q.Lock()
 	defer q.Unlock()
 
-	if q.state != dbIndexInsertQueueStateNotOpen {
+	if q.state != nsIndexInsertQueueStateNotOpen {
 		return errIndexInsertQueueAlreadyOpenOrClosed
 	}
 
-	q.state = dbIndexInsertQueueStateOpen
+	q.state = nsIndexInsertQueueStateOpen
 	go q.insertLoop()
 	return nil
 }
 
-func (q *dbIndexInsertQueue) Stop() error {
+func (q *nsIndexInsertQueue) Stop() error {
 	q.Lock()
 	defer q.Unlock()
 
-	if q.state != dbIndexInsertQueueStateOpen {
+	if q.state != nsIndexInsertQueueStateOpen {
 		return errIndexInsertQueueNotOpen
 	}
 
-	q.state = dbIndexInsertQueueStateClosed
+	q.state = nsIndexInsertQueueStateClosed
 
 	// Final flush
 	select {
@@ -220,39 +220,39 @@ func (q *dbIndexInsertQueue) Stop() error {
 	return nil
 }
 
-type dbIndexInsertBatchFn func(inserts []dbIndexInsert) error
+type nsIndexInsertBatchFn func(inserts []nsIndexInsert) error
 
-type dbIndexInsert struct {
+type nsIndexInsert struct {
 	doc doc.Document
 	fns indexInsertLifecycleHooks
 }
 
-type dbIndexInsertBatch struct {
+type nsIndexInsertBatch struct {
 	wg      *sync.WaitGroup
-	inserts []dbIndexInsert
+	inserts []nsIndexInsert
 }
 
-var dbIndexInsertZeroed dbIndexInsert
+var nsIndexInsertZeroed nsIndexInsert
 
-func (b *dbIndexInsertBatch) Reset() {
+func (b *nsIndexInsertBatch) Reset() {
 	b.wg = &sync.WaitGroup{}
 	// We always expect to be waiting for an index
 	b.wg.Add(1)
 	for i := range b.inserts {
-		b.inserts[i] = dbIndexInsertZeroed
+		b.inserts[i] = nsIndexInsertZeroed
 	}
 	b.inserts = b.inserts[:0]
 }
 
-type dbIndexInsertQueueMetrics struct {
+type nsIndexInsertQueueMetrics struct {
 	numPending tally.Counter
 }
 
-func newDatabaseIndexInsertQueueMetrics(
+func newNamespaceIndexInsertQueueMetrics(
 	scope tally.Scope,
-) dbIndexInsertQueueMetrics {
+) nsIndexInsertQueueMetrics {
 	subScope := scope.SubScope("index-queue")
-	return dbIndexInsertQueueMetrics{
+	return nsIndexInsertQueueMetrics{
 		numPending: subScope.Counter("num-pending"),
 	}
 }
