@@ -88,10 +88,26 @@ func (f *nonMirroredSelector) SelectReplaceInstances(
 		leavingInstances = append(leavingInstances, leavingInstance)
 	}
 
+	if f.opts.AddAllCandidates() {
+		if err := f.validateReplaceInstances(candidates, leavingInstances); err != nil {
+			return nil, err
+		}
+		return candidates, nil
+	}
+
+	return f.selectReplaceInstances(candidates, leavingInstances, p)
+}
+
+// selectReplaceInstances returns a sufficient number of instances to replace the weight
+// of the leaving instances.
+func (f *nonMirroredSelector) selectReplaceInstances(
+	candidates, leavingInstances []placement.Instance,
+	p placement.Placement,
+) ([]placement.Instance, error) {
 	// Map isolation group to instances.
 	candidateGroups := buildIsolationGroupMap(candidates)
 
-	// Otherwise sort the candidate instances by the number of conflicts.
+	// Sort the candidate instances by the number of conflicts.
 	ph := algo.NewPlacementHelper(p, f.opts)
 	instances := make([]sortableValue, 0, len(candidateGroups))
 	for group, instancesInGroup := range candidateGroups {
@@ -120,10 +136,29 @@ func (f *nonMirroredSelector) SelectReplaceInstances(
 	result, leftWeight := fillWeight(groups, int(totalWeight))
 
 	if leftWeight > 0 && !f.opts.AllowPartialReplace() {
-		return nil, fmt.Errorf("could not find enough instance to replace %v, %d weight could not be replaced",
+		return nil, fmt.Errorf("could not find enough instances to replace %v, %d weight could not be replaced",
 			leavingInstances, leftWeight)
 	}
 	return result, nil
+}
+
+func (f *nonMirroredSelector) validateReplaceInstances(
+	candidates, leavingInstances []placement.Instance,
+) error {
+	var leavingWeight int
+	for _, instance := range leavingInstances {
+		leavingWeight += int(instance.Weight())
+	}
+	var candidateWeight int
+	for _, instance := range candidates {
+		candidateWeight += int(instance.Weight())
+	}
+
+	if leavingWeight > candidateWeight && !f.opts.AllowPartialReplace() {
+		return fmt.Errorf("could not find enough instances to replace %v, %d weight could not be replaced",
+			leavingInstances, leavingWeight)
+	}
+	return nil
 }
 
 func groupInstancesByConflict(instancesSortedByConflicts []sortableValue, opts placement.Options) [][]placement.Instance {
