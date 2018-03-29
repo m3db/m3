@@ -785,12 +785,12 @@ func TestAddMultipleInstances(t *testing.T) {
 		SetWeight(1)
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetIsolationGroup("r1").
+		SetIsolationGroup("r2").
 		SetEndpoint("i3").
 		SetWeight(1)
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetIsolationGroup("r2").
+		SetIsolationGroup("r4").
 		SetEndpoint("i4").
 		SetWeight(2)
 
@@ -799,21 +799,21 @@ func TestAddMultipleInstances(t *testing.T) {
 		opts               placement.Options
 		initialInstances   []placement.Instance
 		candidateInstances []placement.Instance
-		expectNumAdded     int
+		expectAdded        []placement.Instance
 	}{
 		{
 			name:               "Add Single Candidate",
 			opts:               placement.NewOptions().SetAddAllCandidates(false),
 			initialInstances:   []placement.Instance{i1.Clone(), i2.Clone()},
 			candidateInstances: []placement.Instance{i3.Clone(), i4.Clone()},
-			expectNumAdded:     1,
+			expectAdded:        []placement.Instance{i4}, // Prefer instance from different isolation group.
 		},
 		{
 			name:               "Add All Candidates",
 			opts:               placement.NewOptions().SetAddAllCandidates(true),
 			initialInstances:   []placement.Instance{i1.Clone(), i2.Clone()},
 			candidateInstances: []placement.Instance{i3.Clone(), i4.Clone()},
-			expectNumAdded:     2,
+			expectAdded:        []placement.Instance{i3, i4},
 		},
 	}
 
@@ -823,9 +823,94 @@ func TestAddMultipleInstances(t *testing.T) {
 			_, err := ps.BuildInitialPlacement(test.initialInstances, 4, 2)
 			require.NoError(t, err)
 
-			_, addedInstances, err := ps.AddInstances(test.candidateInstances)
+			_, added, err := ps.AddInstances(test.candidateInstances)
 			require.NoError(t, err)
-			require.Equal(t, test.expectNumAdded, len(addedInstances))
+			require.True(t, compareInstances(test.expectAdded, added))
+		})
+	}
+}
+
+func TestReplaceInstances(t *testing.T) {
+	i1 := placement.NewInstance().
+		SetID("i1").
+		SetIsolationGroup("r1").
+		SetEndpoint("i1").
+		SetWeight(4)
+	i2 := placement.NewInstance().
+		SetID("i2").
+		SetIsolationGroup("r2").
+		SetEndpoint("i2").
+		SetWeight(2)
+	i3 := placement.NewInstance().
+		SetID("i3").
+		SetIsolationGroup("r2").
+		SetEndpoint("i3").
+		SetWeight(2)
+	i4 := placement.NewInstance().
+		SetID("i4").
+		SetIsolationGroup("r4").
+		SetEndpoint("i4").
+		SetWeight(1)
+
+	tests := []struct {
+		name               string
+		opts               placement.Options
+		initialInstances   []placement.Instance
+		candidateInstances []placement.Instance
+		leavingIDs         []string
+		expectErr          bool
+		expectAdded        []placement.Instance
+	}{
+		{
+			name:               "Replace With Instance of Same Weight",
+			opts:               placement.NewOptions().SetAddAllCandidates(false).SetAllowPartialReplace(false),
+			initialInstances:   []placement.Instance{i1.Clone(), i2.Clone()},
+			candidateInstances: []placement.Instance{i3.Clone(), i4.Clone()},
+			leavingIDs:         []string{"i2"},
+			expectErr:          false,
+			expectAdded:        []placement.Instance{i3},
+		},
+		{
+			name:               "Add All Candidates",
+			opts:               placement.NewOptions().SetAddAllCandidates(true).SetAllowPartialReplace(false),
+			initialInstances:   []placement.Instance{i1.Clone(), i2.Clone()},
+			candidateInstances: []placement.Instance{i3.Clone(), i4.Clone()},
+			leavingIDs:         []string{"i2"},
+			expectErr:          false,
+			expectAdded:        []placement.Instance{i3, i4},
+		},
+		{
+			name:               "Not Enough Weight With Partial Replace",
+			opts:               placement.NewOptions().SetAddAllCandidates(false).SetAllowPartialReplace(true),
+			initialInstances:   []placement.Instance{i1.Clone(), i2.Clone()},
+			candidateInstances: []placement.Instance{i3.Clone(), i4.Clone()},
+			leavingIDs:         []string{"i1"},
+			expectErr:          false,
+			expectAdded:        []placement.Instance{i3, i4},
+		},
+		{
+			name:               "Not Enough Weight Without Partial Replace",
+			opts:               placement.NewOptions().SetAddAllCandidates(false).SetAllowPartialReplace(false),
+			initialInstances:   []placement.Instance{i1.Clone(), i2.Clone()},
+			candidateInstances: []placement.Instance{i3.Clone(), i4.Clone()},
+			leavingIDs:         []string{"i1"},
+			expectErr:          true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ps := NewPlacementService(NewMockStorage(), test.opts)
+			_, err := ps.BuildInitialPlacement(test.initialInstances, 4, 2)
+			require.NoError(t, err)
+
+			_, added, err := ps.ReplaceInstances(test.leavingIDs, test.candidateInstances)
+			if test.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.True(t, compareInstances(test.expectAdded, added))
 		})
 	}
 }
@@ -932,4 +1017,22 @@ func markAllInstancesAvailable(
 		err := ps.MarkInstanceAvailable(i.ID())
 		require.NoError(t, err)
 	}
+}
+
+func compareInstances(left, right []placement.Instance) bool {
+	if len(left) != len(right) {
+		return false
+	}
+
+	ids := make(map[string]struct{}, len(left))
+	for _, intce := range left {
+		ids[intce.ID()] = struct{}{}
+	}
+
+	for _, intce := range right {
+		if _, ok := ids[intce.ID()]; !ok {
+			return false
+		}
+	}
+	return true
 }

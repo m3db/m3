@@ -294,35 +294,32 @@ func TestSelectAddingInstanceForNonMirrored(t *testing.T) {
 		SetWeight(2)
 
 	tests := []struct {
-		name                  string
-		placement             placement.Placement
-		opts                  placement.Options
-		candidates            []placement.Instance
-		expectedNumAdded      int
-		expectedInstanceAdded placement.Instance
+		name        string
+		placement   placement.Placement
+		opts        placement.Options
+		candidates  []placement.Instance
+		expectAdded []placement.Instance
 	}{
 		{
-			name:                  "New Isolation Group",
-			placement:             placement.NewPlacement().SetInstances([]placement.Instance{i1}),
-			opts:                  placement.NewOptions().SetAddAllCandidates(false),
-			candidates:            []placement.Instance{i2, i3},
-			expectedNumAdded:      1,
-			expectedInstanceAdded: i2,
+			name:        "New Isolation Group",
+			placement:   placement.NewPlacement().SetInstances([]placement.Instance{i1}),
+			opts:        placement.NewOptions().SetAddAllCandidates(false),
+			candidates:  []placement.Instance{i2, i3},
+			expectAdded: []placement.Instance{i2},
 		},
 		{
-			name:                  "Least Weighted Isolation Group",
-			placement:             placement.NewPlacement().SetInstances([]placement.Instance{i1, i4}),
-			opts:                  placement.NewOptions().SetAddAllCandidates(false),
-			candidates:            []placement.Instance{i2, i3},
-			expectedNumAdded:      1,
-			expectedInstanceAdded: i2,
+			name:        "Least Weighted Isolation Group",
+			placement:   placement.NewPlacement().SetInstances([]placement.Instance{i1, i4}),
+			opts:        placement.NewOptions().SetAddAllCandidates(false),
+			candidates:  []placement.Instance{i2, i3},
+			expectAdded: []placement.Instance{i2},
 		},
 		{
-			name:             "Add All Candidates",
-			placement:        placement.NewPlacement().SetInstances([]placement.Instance{i1}),
-			opts:             placement.NewOptions().SetAddAllCandidates(true),
-			candidates:       []placement.Instance{i2, i3, i4},
-			expectedNumAdded: 3,
+			name:        "Add All Candidates",
+			placement:   placement.NewPlacement().SetInstances([]placement.Instance{i1}),
+			opts:        placement.NewOptions().SetAddAllCandidates(true),
+			candidates:  []placement.Instance{i2, i3, i4},
+			expectAdded: []placement.Instance{i2, i3, i4},
 		},
 	}
 
@@ -331,10 +328,85 @@ func TestSelectAddingInstanceForNonMirrored(t *testing.T) {
 			selector := newNonMirroredSelector(test.opts)
 			added, err := selector.SelectAddingInstances(test.candidates, test.placement)
 			require.NoError(t, err)
-			require.Equal(t, test.expectedNumAdded, len(added))
-			if test.expectedInstanceAdded != nil {
-				require.Equal(t, test.expectedInstanceAdded, added[0])
+			require.Equal(t, test.expectAdded, added)
+		})
+	}
+}
+
+func TestSelectReplaceInstanceForNonMirrored(t *testing.T) {
+	i1 := placement.NewInstance().
+		SetID("i1").
+		SetIsolationGroup("r1").
+		SetWeight(4)
+	i2 := placement.NewInstance().
+		SetID("i2").
+		SetIsolationGroup("r2").
+		SetWeight(1)
+	i3 := placement.NewInstance().
+		SetID("i3").
+		SetIsolationGroup("r1").
+		SetWeight(1)
+	i4 := placement.NewInstance().
+		SetID("i4").
+		SetIsolationGroup("r2").
+		SetWeight(2)
+
+	tests := []struct {
+		name        string
+		placement   placement.Placement
+		opts        placement.Options
+		candidates  []placement.Instance
+		leavingIDs  []string
+		expectErr   bool
+		expectAdded []placement.Instance
+	}{
+		{
+			name:        "Replace With Instance of Same Weight",
+			placement:   placement.NewPlacement().SetInstances([]placement.Instance{i1, i2}),
+			opts:        placement.NewOptions().SetAddAllCandidates(false).SetAllowPartialReplace(false),
+			candidates:  []placement.Instance{i3, i4},
+			leavingIDs:  []string{"i2"},
+			expectErr:   false,
+			expectAdded: []placement.Instance{i3},
+		},
+		{
+			name:        "Add All Candidates",
+			placement:   placement.NewPlacement().SetInstances([]placement.Instance{i1, i2}),
+			opts:        placement.NewOptions().SetAddAllCandidates(true).SetAllowPartialReplace(false),
+			candidates:  []placement.Instance{i3, i4},
+			leavingIDs:  []string{"i2"},
+			expectErr:   false,
+			expectAdded: []placement.Instance{i3, i4},
+		},
+		{
+			name:        "Not Enough Weight With Partial Replace",
+			placement:   placement.NewPlacement().SetInstances([]placement.Instance{i1, i2}),
+			opts:        placement.NewOptions().SetAddAllCandidates(false).SetAllowPartialReplace(true),
+			candidates:  []placement.Instance{i3, i4},
+			leavingIDs:  []string{"i1"},
+			expectErr:   false,
+			expectAdded: []placement.Instance{i3, i4},
+		},
+		{
+			name:       "Not Enough Weight Without Partial Replace",
+			placement:  placement.NewPlacement().SetInstances([]placement.Instance{i1, i2}),
+			opts:       placement.NewOptions().SetAddAllCandidates(false).SetAllowPartialReplace(false),
+			candidates: []placement.Instance{i3, i4},
+			leavingIDs: []string{"i1"},
+			expectErr:  true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			selector := newNonMirroredSelector(test.opts)
+			added, err := selector.SelectReplaceInstances(test.candidates, test.leavingIDs, test.placement)
+			if test.expectErr {
+				require.Error(t, err)
+				return
 			}
+			require.NoError(t, err)
+			require.Equal(t, test.expectAdded, added)
 		})
 	}
 }
