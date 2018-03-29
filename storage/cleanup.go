@@ -99,7 +99,7 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 			"encountered errors when cleaning up snapshot files for %v: %v", t, err))
 	}
 
-	if err := m.deleteInactiveDatafiles(); err != nil {
+	if err := m.deleteInactiveDataFiles(); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when deleting inactive data files for %v: %v", t, err))
 	}
@@ -158,9 +158,9 @@ func (m *cleanupManager) deleteInactiveNamespaceFiles() error {
 	return m.deleteInactiveDirectoriesFn(dataDirPath, namespaceDirNames)
 }
 
-// deleteInactiveDatafiles will delete data files for shards that the node no longer owns
+// deleteInactiveDataFiles will delete data files for shards that the node no longer owns
 // which can occur in the case of topology changes
-func (m *cleanupManager) deleteInactiveDatafiles() error {
+func (m *cleanupManager) deleteInactiveDataFiles() error {
 	return m.deleteInactiveFilesetFiles(fs.NamespaceDataDirPath)
 }
 
