@@ -1274,7 +1274,7 @@ func (_m *MocknamespaceIndex) EXPECT() *MocknamespaceIndexMockRecorder {
 }
 
 // Write mocks base method
-func (_m *MocknamespaceIndex) Write(id ident.ID, tags ident.Tags, fns indexInsertLifecycleHooks) error {
+func (_m *MocknamespaceIndex) Write(id ident.ID, tags ident.Tags, fns onIndexSeries) error {
 	ret := _m.ctrl.Call(_m, "Write", id, tags, fns)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1358,7 +1358,7 @@ func (_mr *MocknamespaceIndexInsertQueueMockRecorder) Stop() *gomock.Call {
 }
 
 // Insert mocks base method
-func (_m *MocknamespaceIndexInsertQueue) Insert(d doc.Document, s indexInsertLifecycleHooks) (*sync.WaitGroup, error) {
+func (_m *MocknamespaceIndexInsertQueue) Insert(d doc.Document, s onIndexSeries) (*sync.WaitGroup, error) {
 	ret := _m.ctrl.Call(_m, "Insert", d, s)
 	ret0, _ := ret[0].(*sync.WaitGroup)
 	ret1, _ := ret[1].(error)
@@ -1370,47 +1370,47 @@ func (_mr *MocknamespaceIndexInsertQueueMockRecorder) Insert(arg0, arg1 interfac
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Insert", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Insert), arg0, arg1)
 }
 
-// MockindexInsertLifecycleHooks is a mock of indexInsertLifecycleHooks interface
-type MockindexInsertLifecycleHooks struct {
+// MockonIndexSeries is a mock of onIndexSeries interface
+type MockonIndexSeries struct {
 	ctrl     *gomock.Controller
-	recorder *MockindexInsertLifecycleHooksMockRecorder
+	recorder *MockonIndexSeriesMockRecorder
 }
 
-// MockindexInsertLifecycleHooksMockRecorder is the mock recorder for MockindexInsertLifecycleHooks
-type MockindexInsertLifecycleHooksMockRecorder struct {
-	mock *MockindexInsertLifecycleHooks
+// MockonIndexSeriesMockRecorder is the mock recorder for MockonIndexSeries
+type MockonIndexSeriesMockRecorder struct {
+	mock *MockonIndexSeries
 }
 
-// NewMockindexInsertLifecycleHooks creates a new mock instance
-func NewMockindexInsertLifecycleHooks(ctrl *gomock.Controller) *MockindexInsertLifecycleHooks {
-	mock := &MockindexInsertLifecycleHooks{ctrl: ctrl}
-	mock.recorder = &MockindexInsertLifecycleHooksMockRecorder{mock}
+// NewMockonIndexSeries creates a new mock instance
+func NewMockonIndexSeries(ctrl *gomock.Controller) *MockonIndexSeries {
+	mock := &MockonIndexSeries{ctrl: ctrl}
+	mock.recorder = &MockonIndexSeriesMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (_m *MockindexInsertLifecycleHooks) EXPECT() *MockindexInsertLifecycleHooksMockRecorder {
+func (_m *MockonIndexSeries) EXPECT() *MockonIndexSeriesMockRecorder {
 	return _m.recorder
 }
 
 // OnIndexSuccess mocks base method
-func (_m *MockindexInsertLifecycleHooks) OnIndexSuccess(indexEntryExpiry time.Time) {
+func (_m *MockonIndexSeries) OnIndexSuccess(indexEntryExpiry time.Time) {
 	_m.ctrl.Call(_m, "OnIndexSuccess", indexEntryExpiry)
 }
 
 // OnIndexSuccess indicates an expected call of OnIndexSuccess
-func (_mr *MockindexInsertLifecycleHooksMockRecorder) OnIndexSuccess(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "OnIndexSuccess", reflect.TypeOf((*MockindexInsertLifecycleHooks)(nil).OnIndexSuccess), arg0)
+func (_mr *MockonIndexSeriesMockRecorder) OnIndexSuccess(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "OnIndexSuccess", reflect.TypeOf((*MockonIndexSeries)(nil).OnIndexSuccess), arg0)
 }
 
 // OnIndexFinalize mocks base method
-func (_m *MockindexInsertLifecycleHooks) OnIndexFinalize() {
+func (_m *MockonIndexSeries) OnIndexFinalize() {
 	_m.ctrl.Call(_m, "OnIndexFinalize")
 }
 
 // OnIndexFinalize indicates an expected call of OnIndexFinalize
-func (_mr *MockindexInsertLifecycleHooksMockRecorder) OnIndexFinalize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "OnIndexFinalize", reflect.TypeOf((*MockindexInsertLifecycleHooks)(nil).OnIndexFinalize))
+func (_mr *MockonIndexSeriesMockRecorder) OnIndexFinalize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "OnIndexFinalize", reflect.TypeOf((*MockonIndexSeries)(nil).OnIndexFinalize))
 }
 
 // MockdatabaseBootstrapManager is a mock of databaseBootstrapManager interface

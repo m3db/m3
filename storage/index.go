@@ -144,7 +144,7 @@ func (i *nsIndex) writeBatch(inserts []nsIndexInsert) error {
 func (i *nsIndex) Write(
 	id ident.ID,
 	tags ident.Tags,
-	fns indexInsertLifecycleHooks,
+	fns onIndexSeries,
 ) error {
 	d, err := i.doc(id, tags)
 	if err != nil {

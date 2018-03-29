@@ -148,7 +148,7 @@ func (q *nsIndexInsertQueue) insertLoop() {
 
 func (q *nsIndexInsertQueue) Insert(
 	d doc.Document,
-	fns indexInsertLifecycleHooks,
+	fns onIndexSeries,
 ) (*sync.WaitGroup, error) {
 	windowNanos := q.nowFn().Truncate(time.Second).UnixNano()
 
@@ -224,7 +224,7 @@ type nsIndexInsertBatchFn func(inserts []nsIndexInsert) error
 
 type nsIndexInsert struct {
 	doc doc.Document
-	fns indexInsertLifecycleHooks
+	fns onIndexSeries
 }
 
 type nsIndexInsertBatch struct {

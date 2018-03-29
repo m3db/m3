@@ -411,7 +411,7 @@ type namespaceIndex interface {
 	Write(
 		id ident.ID,
 		tags ident.Tags,
-		fns indexInsertLifecycleHooks,
+		fns onIndexSeries,
 	) error
 
 	// Query resolves the given query into known IDs.
@@ -438,13 +438,12 @@ type namespaceIndexInsertQueue interface {
 	// inserts to the index asynchronously. It executes the provided callbacks
 	// based on the result of the execution. The returned wait group can be used
 	// if the insert is required to be synchronous.
-	Insert(d doc.Document, s indexInsertLifecycleHooks) (*sync.WaitGroup, error)
+	Insert(d doc.Document, s onIndexSeries) (*sync.WaitGroup, error)
 }
 
-// indexInsertLifecycleHooks provides a set of callback hooks to allow the
-// namespaceIndex to do lifecycle management of any resources retained
-// during indexing.
-type indexInsertLifecycleHooks interface {
+// onIndexSeries provides a set of callback hooks to allow the reverse index
+// to do lifecycle management of any resources retained during indexing.
+type onIndexSeries interface {
 	// OnIndexSuccess is executed when an entry is successfully indexed. The
 	// provided value for `indexEntryExpiry` describes the TTL for the indexed
 	// entry.
