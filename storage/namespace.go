@@ -253,10 +253,6 @@ func newDatabaseNamespace(
 			metadata.ID().String(), err)
 	}
 
-	// FOLLOWUP(prateek): will be done in https://github.com/m3db/m3db/pull/507
-	var (
-		idx namespaceIndex = nil
-	)
 
 	n := &dbNamespace{
 		id:                     id,
@@ -272,7 +268,7 @@ func newDatabaseNamespace(
 		log:                    logger,
 		increasingIndex:        increasingIndex,
 		commitLogWriter:        commitLogWriter,
-		reverseIndex:           idx,
+		reverseIndex:           nil, // FOLLOWUP(prateek): will be done in https://github.com/m3db/m3db/pull/507
 		tickWorkers:            tickWorkers,
 		tickWorkersConcurrency: tickWorkersConcurrency,
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
