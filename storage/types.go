@@ -106,6 +106,7 @@ type Database interface {
 	// QueryIDs resolves the given query into known IDs.
 	QueryIDs(
 		ctx context.Context,
+		namespace ident.ID,
 		query index.Query,
 		opts index.QueryOptions,
 	) (index.QueryResults, error)
@@ -239,6 +240,13 @@ type databaseNamespace interface {
 		unit xtime.Unit,
 		annotation []byte,
 	) error
+
+	// QueryIDs resolves the given query into known IDs.
+	QueryIDs(
+		ctx context.Context,
+		query index.Query,
+		opts index.QueryOptions,
+	) (index.QueryResults, error)
 
 	// ReadEncoded reads data for given id within [start, end)
 	ReadEncoded(
@@ -401,7 +409,6 @@ type databaseShard interface {
 type databaseIndex interface {
 	// Write indexes timeseries ID by provided Tags.
 	Write(
-		namespace ident.ID,
 		id ident.ID,
 		tags ident.Tags,
 		fns indexInsertLifecycleHooks,

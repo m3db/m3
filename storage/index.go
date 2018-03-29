@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/index/segment/mem"
@@ -37,8 +38,6 @@ import (
 )
 
 var (
-	maxTime = time.Unix(1<<63-1, 0)
-
 	errDbIndexAlreadyClosed                      = errors.New("database index has already been closed")
 	errDbIndexUnableToWriteClosed                = errors.New("unable to write to database index, already closed")
 	errDbIndexUnableToQueryClosed                = errors.New("unable to query database index, already closed")
@@ -74,10 +73,12 @@ type dbIndex struct {
 	insertQueue databaseIndexInsertQueue
 	metrics     dbIndexMetrics
 	opts        index.Options
+	nsID        ident.ID
 }
 
 // nolint: deadcode
 func newDatabaseIndex(
+	md namespace.Metadata,
 	newIndexQueueFn newDatabaseIndexInsertQueueFn,
 	opts index.Options,
 ) (databaseIndex, error) {
@@ -85,21 +86,23 @@ func newDatabaseIndex(
 		return nil, err
 	}
 
-	indexCreatedAt := opts.ClockOptions().NowFn()()
-	segmentID := segment.ID(indexCreatedAt.UnixNano())
+	now := opts.ClockOptions().NowFn()()
+	segmentID := segment.ID(now.UnixNano())
 	seg, err := mem.New(segmentID, opts.MemSegmentOptions())
 	if err != nil {
 		return nil, err
 	}
 
+	expiryTime := now.Add(md.Options().RetentionOptions().RetentionPeriod())
 	idx := &dbIndex{
 		insertMode: opts.InsertMode(),
 		active: dbIndexBlock{
 			segment:    seg,
-			expiryTime: maxTime, // FOLLOWUP(prateek): undo hard-coding to infinite retention
+			expiryTime: expiryTime, // FOLLOWUP(prateek): compute based on block rotation
 		},
 		metrics: newDatabaseIndexMetrics(opts.InstrumentOptions().MetricsScope()),
 		opts:    opts,
+		nsID:    md.ID(),
 	}
 
 	queue := newIndexQueueFn(idx.writeBatch, opts.ClockOptions().NowFn(),
@@ -147,12 +150,11 @@ func (i *dbIndex) writeBatch(inserts []dbIndexInsert) error {
 }
 
 func (i *dbIndex) Write(
-	namespace ident.ID,
 	id ident.ID,
 	tags ident.Tags,
 	fns indexInsertLifecycleHooks,
 ) error {
-	d, err := i.doc(namespace, id, tags)
+	d, err := i.doc(id, tags)
 	if err != nil {
 		fns.OnIndexFinalize()
 		return err
@@ -204,7 +206,7 @@ func (i *dbIndex) Query(
 	}
 
 	return index.QueryResults{
-		Iterator:   index.NewIterator(iter, i.opts),
+		Iterator:   index.NewIterator(i.nsID, iter, i.opts),
 		Exhaustive: true,
 	}, nil
 }
@@ -226,22 +228,21 @@ func (i *dbIndex) Close() error {
 	return i.insertQueue.Stop()
 }
 
-func (i *dbIndex) doc(ns, id ident.ID, tags ident.Tags) (doc.Document, error) {
+func (i *dbIndex) doc(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	fields := make([]doc.Field, 0, 1+len(tags))
 	fields = append(fields, doc.Field{
-		Name:      index.ReservedFieldNameNamespace,
-		Value:     i.clone(ns),
+		Name:      index.ReservedFieldNameID,
+		Value:     i.clone(id),
 		ValueType: doc.StringValueType,
 	})
-	for j := 0; j < len(tags); j++ {
-		t := tags[j]
-		name := i.clone(t.Name)
-		if bytes.Equal(name, index.ReservedFieldNameNamespace) {
+	for _, tag := range tags {
+		name := i.clone(tag.Name)
+		if bytes.Equal(index.ReservedFieldNameID, name) {
 			return doc.Document{}, errDbIndexUnableToIndexWithReservedFieldName
 		}
 		fields = append(fields, doc.Field{
 			Name:      name,
-			Value:     i.clone(t.Value),
+			Value:     i.clone(tag.Value),
 			ValueType: doc.StringValueType,
 		})
 	}

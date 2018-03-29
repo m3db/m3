@@ -32,9 +32,9 @@ import (
 )
 
 var (
-	// ReservedFieldNameNamespace is the field name used to index namespace in the
+	// ReservedFieldNameID is the field name used to index the ID in the
 	// m3ninx subsytem.
-	ReservedFieldNameNamespace = []byte("_m3db-namespace")
+	ReservedFieldNameID = []byte("_m3db-id")
 )
 
 // InsertMode specifies whether inserts are synchronous or asynchronous.

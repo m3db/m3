@@ -36,23 +36,25 @@ var (
 )
 
 type idsIter struct {
+	nsID        ident.ID
 	iter        segment.ResultsIter
 	err         error
 	idPool      ident.Pool
 	wrapperPool xpool.CheckedBytesWrapperPool
 
 	currentID   ident.ID
-	currentNs   ident.ID
 	currentTags ident.Tags
 }
 
 // NewIterator returns a new Iterator backed by
 // a segment.ResultsIter.
 func NewIterator(
+	nsID ident.ID,
 	iter segment.ResultsIter,
 	opts Options,
 ) Iterator {
 	i := &idsIter{
+		nsID:        nsID,
 		iter:        iter,
 		idPool:      opts.IdentifierPool(),
 		wrapperPool: opts.CheckedBytesWrapperPool(),
@@ -74,13 +76,19 @@ func (i *idsIter) Next() bool {
 		i.err = i.iter.Err()
 		return next
 	}
+
 	d, _ := i.iter.Current()
-	i.parseAndStore(d)
+	err := i.parseAndStore(d)
+	if err != nil {
+		i.err = err
+		return false
+	}
+
 	return true
 }
 
 func (i *idsIter) Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.Tags) {
-	return i.currentNs, i.currentID, i.currentTags
+	return i.nsID, i.currentID, i.currentTags
 }
 
 func (i *idsIter) Err() error {
@@ -92,35 +100,32 @@ func (i *idsIter) release() {
 		i.currentID.Finalize()
 		i.currentID = nil
 	}
-	if i.currentNs != nil {
-		i.currentNs.Finalize()
-		i.currentNs = nil
-	}
 	if i.currentTags != nil {
 		i.currentTags.Finalize()
 		i.currentTags = nil
 	}
+	// NB(prateek): iterator doesn't own nsID so we don't finalize it here.
 }
 
 func (i *idsIter) wrapBytes(bytes []byte) checked.Bytes {
 	return i.wrapperPool.Get(bytes)
 }
 
-func (i *idsIter) parseAndStore(d doc.Document) {
-	i.currentID = i.idPool.BinaryID(i.wrapBytes(d.ID))
-	nsFound := false
+func (i *idsIter) parseAndStore(d doc.Document) error {
+	idFound := false
 	for _, f := range d.Fields {
-		if !nsFound && bytes.Equal(f.Name, ReservedFieldNameNamespace) {
-			i.currentNs = i.idPool.BinaryID(i.wrapBytes(f.Value))
-			nsFound = true
+		if !idFound && bytes.Equal(f.Name, ReservedFieldNameID) {
+			i.currentID = i.idPool.BinaryID(i.wrapBytes(f.Value))
+			idFound = true
 			continue
 		}
 		i.currentTags = append(i.currentTags,
 			i.idPool.BinaryTag(i.wrapBytes(f.Name), i.wrapBytes(f.Value)))
 	}
 
-	// should have found ns
-	if !nsFound {
-		i.err = errInvalidResultMissingNamespace
+	if !idFound {
+		return errInvalidResultMissingNamespace
 	}
+
+	return nil
 }

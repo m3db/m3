@@ -196,16 +196,16 @@ func (_mr *MockDatabaseMockRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, a
 }
 
 // QueryIDs mocks base method
-func (_m *MockDatabase) QueryIDs(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, query, opts)
+func (_m *MockDatabase) QueryIDs(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, namespace, query, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // QueryIDs indicates an expected call of QueryIDs
-func (_mr *MockDatabaseMockRecorder) QueryIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "QueryIDs", reflect.TypeOf((*MockDatabase)(nil).QueryIDs), arg0, arg1, arg2)
+func (_mr *MockDatabaseMockRecorder) QueryIDs(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "QueryIDs", reflect.TypeOf((*MockDatabase)(nil).QueryIDs), arg0, arg1, arg2, arg3)
 }
 
 // ReadEncoded mocks base method
@@ -466,16 +466,16 @@ func (_mr *MockdatabaseMockRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, a
 }
 
 // QueryIDs mocks base method
-func (_m *Mockdatabase) QueryIDs(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, query, opts)
+func (_m *Mockdatabase) QueryIDs(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, namespace, query, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // QueryIDs indicates an expected call of QueryIDs
-func (_mr *MockdatabaseMockRecorder) QueryIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "QueryIDs", reflect.TypeOf((*Mockdatabase)(nil).QueryIDs), arg0, arg1, arg2)
+func (_mr *MockdatabaseMockRecorder) QueryIDs(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "QueryIDs", reflect.TypeOf((*Mockdatabase)(nil).QueryIDs), arg0, arg1, arg2, arg3)
 }
 
 // ReadEncoded mocks base method
@@ -828,6 +828,19 @@ func (_m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, t
 // WriteTagged indicates an expected call of WriteTagged
 func (_mr *MockdatabaseNamespaceMockRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteTagged", reflect.TypeOf((*MockdatabaseNamespace)(nil).WriteTagged), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+}
+
+// QueryIDs mocks base method
+func (_m *MockdatabaseNamespace) QueryIDs(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, query, opts)
+	ret0, _ := ret[0].(index.QueryResults)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// QueryIDs indicates an expected call of QueryIDs
+func (_mr *MockdatabaseNamespaceMockRecorder) QueryIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "QueryIDs", reflect.TypeOf((*MockdatabaseNamespace)(nil).QueryIDs), arg0, arg1, arg2)
 }
 
 // ReadEncoded mocks base method
@@ -1261,15 +1274,15 @@ func (_m *MockdatabaseIndex) EXPECT() *MockdatabaseIndexMockRecorder {
 }
 
 // Write mocks base method
-func (_m *MockdatabaseIndex) Write(namespace ident.ID, id ident.ID, tags ident.Tags, fns indexInsertLifecycleHooks) error {
-	ret := _m.ctrl.Call(_m, "Write", namespace, id, tags, fns)
+func (_m *MockdatabaseIndex) Write(id ident.ID, tags ident.Tags, fns indexInsertLifecycleHooks) error {
+	ret := _m.ctrl.Call(_m, "Write", id, tags, fns)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Write indicates an expected call of Write
-func (_mr *MockdatabaseIndexMockRecorder) Write(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Write", reflect.TypeOf((*MockdatabaseIndex)(nil).Write), arg0, arg1, arg2, arg3)
+func (_mr *MockdatabaseIndexMockRecorder) Write(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Write", reflect.TypeOf((*MockdatabaseIndex)(nil).Write), arg0, arg1, arg2)
 }
 
 // Query mocks base method

@@ -25,13 +25,14 @@ import (
 	"testing"
 
 	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func newTestIterator(i *MockResultsIter) Iterator {
-	return NewIterator(i, NewOptions())
+	return NewIterator(ident.StringID("testNs"), i, NewOptions())
 }
 
 func TestIteratorEmpty(t *testing.T) {
@@ -55,11 +56,10 @@ func TestIteratorWithElements(t *testing.T) {
 		ri.EXPECT().Next().Return(true),
 		ri.EXPECT().Current().Return(
 			doc.Document{
-				ID: []byte("foo"),
 				Fields: []doc.Field{
 					doc.Field{
-						Name:  ReservedFieldNameNamespace,
-						Value: []byte("ns"),
+						Name:  ReservedFieldNameID,
+						Value: []byte("foo"),
 					},
 					doc.Field{
 						Name:  []byte("name"),
@@ -79,7 +79,7 @@ func TestIteratorWithElements(t *testing.T) {
 	iter := newTestIterator(ri)
 	require.True(t, iter.Next())
 	ns, id, tags := iter.Current()
-	require.Equal(t, "ns", ns.String())
+	require.Equal(t, "testNs", ns.String())
 	require.Equal(t, "foo", id.String())
 	require.Len(t, tags, 2)
 	require.Equal(t, "name", tags[0].Name.String())
@@ -88,6 +88,34 @@ func TestIteratorWithElements(t *testing.T) {
 	require.Equal(t, "str", tags[1].Value.String())
 	require.False(t, iter.Next())
 	require.Nil(t, iter.Err())
+}
+
+func TestIteratorWithoutID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ri := NewMockResultsIter(ctrl)
+	gomock.InOrder(
+		ri.EXPECT().Next().Return(true),
+		ri.EXPECT().Current().Return(
+			doc.Document{
+				Fields: []doc.Field{
+					doc.Field{
+						Name:  []byte("name"),
+						Value: []byte("value"),
+					},
+					doc.Field{
+						Name:  []byte("other"),
+						Value: []byte("str"),
+					},
+				},
+			}, false,
+		),
+	)
+
+	iter := newTestIterator(ri)
+	require.False(t, iter.Next())
+	require.Error(t, iter.Err())
 }
 
 func TestIteratorErr(t *testing.T) {

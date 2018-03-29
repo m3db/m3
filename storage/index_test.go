@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/context"
@@ -37,6 +38,7 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 
@@ -50,7 +52,9 @@ func newTestDatabaseIndex(t *testing.T, ctrl *gomock.Controller) (databaseIndex,
 		return q
 	}
 	q.EXPECT().Start().Return(nil)
-	idx, err := newDatabaseIndex(newFn, testDatabaseIndexOptions())
+	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	idx, err := newDatabaseIndex(md, newFn, testDatabaseIndexOptions())
 	assert.NoError(t, err)
 	return idx, q
 }
@@ -65,7 +69,9 @@ func TestDatabaseIndexHappyPath(t *testing.T) {
 	}
 	q.EXPECT().Start().Return(nil)
 
-	idx, err := newDatabaseIndex(newFn, testDatabaseIndexOptions())
+	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	idx, err := newDatabaseIndex(md, newFn, testDatabaseIndexOptions())
 	assert.NoError(t, err)
 	assert.NotNil(t, idx)
 
@@ -82,8 +88,9 @@ func TestDatabaseIndexStartErr(t *testing.T) {
 		return q
 	}
 	q.EXPECT().Start().Return(fmt.Errorf("random err"))
-
-	idx, err := newDatabaseIndex(newFn, testDatabaseIndexOptions())
+	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	idx, err := newDatabaseIndex(md, newFn, testDatabaseIndexOptions())
 	assert.Error(t, err)
 	assert.Nil(t, idx)
 }
@@ -98,7 +105,9 @@ func TestDatabaseIndexStopErr(t *testing.T) {
 	}
 	q.EXPECT().Start().Return(nil)
 
-	idx, err := newDatabaseIndex(newFn, testDatabaseIndexOptions())
+	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	idx, err := newDatabaseIndex(md, newFn, testDatabaseIndexOptions())
 	assert.NoError(t, err)
 	assert.NotNil(t, idx)
 
@@ -115,12 +124,11 @@ func TestDatabaseIndexInvalidDocConversion(t *testing.T) {
 	assert.True(t, ok)
 
 	id := ident.StringID("foo")
-	ns := ident.StringID("bar")
 	tags := ident.Tags{
-		ident.StringTag(string(index.ReservedFieldNameNamespace), "value"),
+		ident.StringTag(string(index.ReservedFieldNameID), "value"),
 	}
 
-	_, err := idx.doc(ns, id, tags)
+	_, err := idx.doc(id, tags)
 	assert.Error(t, err)
 }
 
@@ -133,13 +141,12 @@ func TestDatabaseIndexInvalidDocWrite(t *testing.T) {
 	assert.True(t, ok)
 
 	id := ident.StringID("foo")
-	ns := ident.StringID("bar")
 	tags := ident.Tags{
-		ident.StringTag(string(index.ReservedFieldNameNamespace), "value"),
+		ident.StringTag(string(index.ReservedFieldNameID), "value"),
 	}
 
 	lifecycle := &testLifecycleHooks{}
-	assert.Error(t, idx.Write(ns, id, tags, lifecycle))
+	assert.Error(t, idx.Write(id, tags, lifecycle))
 
 	// ensure lifecycle is finalized despite failure
 	lifecycle.Lock()
@@ -156,7 +163,6 @@ func TestDatabaseIndexWriteAfterClose(t *testing.T) {
 	assert.True(t, ok)
 
 	id := ident.StringID("foo")
-	ns := ident.StringID("bar")
 	tags := ident.Tags{
 		ident.StringTag("name", "value"),
 	}
@@ -165,7 +171,7 @@ func TestDatabaseIndexWriteAfterClose(t *testing.T) {
 	assert.NoError(t, idx.Close())
 
 	lifecycle := &testLifecycleHooks{}
-	assert.Error(t, idx.Write(ns, id, tags, lifecycle))
+	assert.Error(t, idx.Write(id, tags, lifecycle))
 
 	// ensure lifecycle is finalized despite failure
 	lifecycle.Lock()
@@ -182,7 +188,6 @@ func TestDatabaseIndexWriteQueueError(t *testing.T) {
 	assert.True(t, ok)
 
 	id := ident.StringID("foo")
-	ns := ident.StringID("bar")
 	tags := ident.Tags{
 		ident.StringTag("name", "value"),
 	}
@@ -191,7 +196,7 @@ func TestDatabaseIndexWriteQueueError(t *testing.T) {
 	q.EXPECT().
 		Insert(gomock.Any(), lifecycle).
 		Return(nil, fmt.Errorf("random err"))
-	assert.Error(t, idx.Write(ns, id, tags, lifecycle))
+	assert.Error(t, idx.Write(id, tags, lifecycle))
 
 	// ensure lifecycle is finalized despite failure
 	lifecycle.Lock()
@@ -208,17 +213,15 @@ func TestDatabaseIndexDocConversion(t *testing.T) {
 	assert.True(t, ok)
 
 	id := ident.StringID("foo")
-	ns := ident.StringID("bar")
 	tags := ident.Tags{
 		ident.StringTag("name", "value"),
 	}
 
-	d, err := idx.doc(ns, id, tags)
+	d, err := idx.doc(id, tags)
 	assert.NoError(t, err)
-	assert.Equal(t, "foo", string(d.ID))
 	assert.Len(t, d.Fields, 2)
-	assert.Equal(t, index.ReservedFieldNameNamespace, d.Fields[0].Name)
-	assert.Equal(t, "bar", string(d.Fields[0].Value))
+	assert.Equal(t, index.ReservedFieldNameID, d.Fields[0].Name)
+	assert.Equal(t, "foo", string(d.Fields[0].Value))
 	assert.Equal(t, "name", string(d.Fields[1].Name))
 	assert.Equal(t, "value", string(d.Fields[1].Value))
 }
@@ -233,19 +236,18 @@ func TestDatabaseIndexInsertQueueInteraction(t *testing.T) {
 
 	var (
 		id   = ident.StringID("foo")
-		ns   = ident.StringID("bar")
 		tags = ident.Tags{
 			ident.StringTag("name", "value"),
 		}
 	)
 
-	d, err := idx.doc(ns, id, tags)
+	d, err := idx.doc(id, tags)
 	assert.NoError(t, err)
 
 	var wg sync.WaitGroup
 	lifecycleFns := &testLifecycleHooks{}
 	q.EXPECT().Insert(docMatcher{d}, gomock.Any()).Return(&wg, nil)
-	assert.NoError(t, idx.Write(ns, id, tags, lifecycleFns))
+	assert.NoError(t, idx.Write(id, tags, lifecycleFns))
 }
 
 func TestDatabaseIndexInsertQuery(t *testing.T) {
@@ -256,13 +258,14 @@ func TestDatabaseIndexInsertQuery(t *testing.T) {
 		q.(*dbIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
 		return q
 	}
-	idx, err := newDatabaseIndex(newFn, testDatabaseIndexOptions())
+	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	idx, err := newDatabaseIndex(md, newFn, testDatabaseIndexOptions())
 	assert.NoError(t, err)
 	defer idx.Close()
 
 	var (
 		id   = ident.StringID("foo")
-		ns   = ident.StringID("bar")
 		tags = ident.Tags{
 			ident.StringTag("name", "value"),
 		}
@@ -271,7 +274,7 @@ func TestDatabaseIndexInsertQuery(t *testing.T) {
 	)
 	// make insert mode sync for tests
 	idx.(*dbIndex).insertMode = index.InsertSync
-	assert.NoError(t, idx.Write(ns, id, tags, lifecycleFns))
+	assert.NoError(t, idx.Write(id, tags, lifecycleFns))
 
 	res, err := idx.Query(ctx, index.Query{
 		segment.Query{
@@ -293,7 +296,7 @@ func TestDatabaseIndexInsertQuery(t *testing.T) {
 
 	cNs, cID, cTags := iter.Current()
 	assert.Equal(t, "foo", cID.String())
-	assert.Equal(t, "bar", cNs.String())
+	assert.Equal(t, defaultTestNs1ID.String(), cNs.String())
 	assert.Len(t, cTags, 1)
 	assert.Equal(t, "name", cTags[0].Name.String())
 	assert.Equal(t, "value", cTags[0].Value.String())

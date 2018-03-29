@@ -70,7 +70,7 @@ func newTestNamespaceWithIDOpts(
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
 	dopts := testDatabaseOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
-	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts)
+	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	closer := dopts.RuntimeOptionsManager().Close
 	return ns.(*dbNamespace), closer
@@ -582,7 +582,7 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 
 	dopts = dopts.SetInstrumentOptions(dopts.InstrumentOptions().
 		SetMetricsScope(scope))
-	oNs, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 
@@ -655,7 +655,7 @@ func newNeedsFlushNamespace(t *testing.T, shardNumbers []uint32) *dbNamespace {
 		return at
 	}))
 
-	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts)
+	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	return ns.(*dbNamespace)
 }
@@ -799,7 +799,7 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	oNs, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 
@@ -841,7 +841,7 @@ func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	oNs, err := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 	for _, s := range shards {
@@ -894,7 +894,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	oNs, err := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 	for _, s := range shards {
