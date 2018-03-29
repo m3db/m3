@@ -14,7 +14,7 @@ message NamespaceOptions {
 	bool bootstrapEnabled      	= 1;
 	bool flushEnabled          	= 2;
 	bool writesToCommitLog   	= 3;
-	bool filesetCleanupEnabled 	= 4;
+	bool cleanupEnabled		 	= 4;
 	bool repairEnabled         	= 5;
 
 	RetentionOptions retentionOptions = 6;

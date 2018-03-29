@@ -80,7 +80,7 @@ func ToMetadata(
 	mopts := NewOptions().
 		SetBootstrapEnabled(opts.BootstrapEnabled).
 		SetFlushEnabled(opts.FlushEnabled).
-		SetCleanupEnabled(opts.FilesetCleanupEnabled).
+		SetCleanupEnabled(opts.CleanupEnabled).
 		SetRepairEnabled(opts.RepairEnabled).
 		SetWritesToCommitLog(opts.WritesToCommitLog).
 		SetRetentionOptions(ropts)
@@ -101,12 +101,12 @@ func ToProto(m Map) *nsproto.Registry {
 	for _, md := range m.Metadatas() {
 		ropts := md.Options().RetentionOptions()
 		reg.Namespaces[md.ID().String()] = &nsproto.NamespaceOptions{
-			BootstrapEnabled:      md.Options().BootstrapEnabled(),
-			FlushEnabled:          md.Options().FlushEnabled(),
-			FilesetCleanupEnabled: md.Options().CleanupEnabled(),
-			SnapshotEnabled:       md.Options().SnapshotEnabled(),
-			RepairEnabled:         md.Options().RepairEnabled(),
-			WritesToCommitLog:     md.Options().WritesToCommitLog(),
+			BootstrapEnabled:  md.Options().BootstrapEnabled(),
+			FlushEnabled:      md.Options().FlushEnabled(),
+			CleanupEnabled:    md.Options().CleanupEnabled(),
+			SnapshotEnabled:   md.Options().SnapshotEnabled(),
+			RepairEnabled:     md.Options().RepairEnabled(),
+			WritesToCommitLog: md.Options().WritesToCommitLog(),
 			RetentionOptions: &nsproto.RetentionOptions{
 				BlockSizeNanos:                           toNanos(ropts.BlockSize()),
 				RetentionPeriodNanos:                     toNanos(ropts.RetentionPeriod()),
