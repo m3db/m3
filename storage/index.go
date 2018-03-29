@@ -120,7 +120,7 @@ func (i *dbIndex) writeBatch(inserts []dbIndexInsert) error {
 	defer i.RUnlock()
 
 	if !i.isOpenWithRLock() {
-		// NB(prateek): skip calling any of the `OnIndexFinalize` methods
+		// NB(prateek): deliberately skip calling any of the `OnIndexFinalize` methods
 		// on the provided inserts to terminate quicker during shutdown.
 		i.metrics.InsertAfterClose.Inc(int64(len(inserts)))
 		return errDbIndexUnableToWriteClosed
