@@ -21,7 +21,7 @@
 package msgpack
 
 const (
-	indexInfoVersion    = 2
+	indexInfoVersion    = 1
 	indexEntryVersion   = 1
 	indexSummaryVersion = 1
 	logInfoVersion      = 1
@@ -43,6 +43,7 @@ const (
 	logInfoType
 	logEntryType
 	logMetadataType
+	indexInfoTypeLegacyV1
 
 	// Total number of object types
 	numObjectTypes = iota
@@ -51,6 +52,7 @@ const (
 const (
 	numRootObjectFields           = 2
 	numIndexInfoFields            = 8
+	numIndexInfoFieldsLegacyV1    = 6
 	numIndexSummariesInfoFields   = 1
 	numIndexBloomFilterInfoFields = 2
 	numIndexEntryFields           = 5
@@ -82,4 +84,5 @@ func init() {
 	setNumFieldsForType(logInfoType, numLogInfoFields)
 	setNumFieldsForType(logEntryType, numLogEntryFields)
 	setNumFieldsForType(logMetadataType, numLogMetadataFields)
+	setNumFieldsForType(indexInfoTypeLegacyV1, numIndexInfoFieldsLegacyV1)
 }

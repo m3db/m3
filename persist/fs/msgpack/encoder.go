@@ -22,7 +22,6 @@ package msgpack
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/m3db/m3db/persist/schema"
 
@@ -53,18 +52,18 @@ type Encoder struct {
 	encodeArrayLenFn           encodeArrayLenFn
 	encodeBoolFn               encodeBoolFn
 
-	encodeIndexVersion int
+	encodeLegacyV1IndexInfo bool
 }
 
 // NewEncoder creates a new encoder
 func NewEncoder() *Encoder {
 	return newEncoder(newEncoderOptions{
-		encodeIndexVersion: indexInfoVersion,
+		encodeLegacyV1IndexInfo: false,
 	})
 }
 
 type newEncoderOptions struct {
-	encodeIndexVersion int
+	encodeLegacyV1IndexInfo bool
 }
 
 func newEncoder(opts newEncoderOptions) *Encoder {
@@ -84,7 +83,7 @@ func newEncoder(opts newEncoderOptions) *Encoder {
 	enc.encodeBoolFn = enc.encodeBool
 
 	// Used primarily for testing
-	enc.encodeIndexVersion = opts.encodeIndexVersion
+	enc.encodeLegacyV1IndexInfo = opts.encodeLegacyV1IndexInfo
 
 	return enc
 }
@@ -103,7 +102,7 @@ func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 	if enc.err != nil {
 		return enc.err
 	}
-	enc.encodeIndexInfo(enc.encodeIndexVersion, info)
+	enc.encodeIndexInfo(info)
 	return enc.err
 }
 
@@ -157,21 +156,19 @@ func (enc *Encoder) EncodeLogMetadata(entry schema.LogMetadata) error {
 	return enc.err
 }
 
-func (enc *Encoder) encodeIndexInfo(version int, info schema.IndexInfo) {
-	enc.encodeRootObject(version, indexInfoType)
-	if version == 1 {
+func (enc *Encoder) encodeIndexInfo(info schema.IndexInfo) {
+	enc.encodeRootObject(indexInfoVersion, indexInfoType)
+	if enc.encodeLegacyV1IndexInfo {
 		enc.encodeIndexInfoV1(info)
-	} else if version == 2 {
-		enc.encodeIndexInfoV2(info)
 	} else {
-		enc.err = fmt.Errorf("invalid index info version: %d", version)
+		enc.encodeIndexInfoV2(info)
 	}
 }
 
 // We only keep this method around for the sake of testing
 // backwards-compatbility
 func (enc *Encoder) encodeIndexInfoV1(info schema.IndexInfo) {
-	enc.encodeNumObjectFieldsForFn(indexInfoType)
+	enc.encodeNumObjectFieldsForFn(indexInfoTypeLegacyV1)
 	enc.encodeVarintFn(info.BlockStart)
 	enc.encodeVarintFn(info.BlockSize)
 	enc.encodeVarintFn(info.Entries)
@@ -181,7 +178,13 @@ func (enc *Encoder) encodeIndexInfoV1(info schema.IndexInfo) {
 }
 
 func (enc *Encoder) encodeIndexInfoV2(info schema.IndexInfo) {
-	enc.encodeIndexInfoV1(info)
+	enc.encodeNumObjectFieldsForFn(indexInfoType)
+	enc.encodeVarintFn(info.BlockStart)
+	enc.encodeVarintFn(info.BlockSize)
+	enc.encodeVarintFn(info.Entries)
+	enc.encodeVarintFn(info.MajorVersion)
+	enc.encodeIndexSummariesInfo(info.Summaries)
+	enc.encodeIndexBloomFilterInfo(info.BloomFilter)
 	enc.encodeVarintFn(info.SnapshotTime)
 	enc.encodeVarintFn(int64(info.FileType))
 }

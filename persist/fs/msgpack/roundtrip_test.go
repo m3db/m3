@@ -104,7 +104,7 @@ func TestIndexInfoRoundtrip(t *testing.T) {
 // Make sure the new decoding code can handle the old file format
 func TestIndexInfoRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	var (
-		enc = newEncoder(newEncoderOptions{encodeIndexVersion: 1})
+		enc = newEncoder(newEncoderOptions{encodeLegacyV1IndexInfo: true})
 		dec = testDecoder(t, nil)
 	)
 	enc.EncodeIndexInfo(testIndexInfo)
@@ -117,8 +117,8 @@ func TestIndexInfoRoundTripBackwardsCompatibilityV1(t *testing.T) {
 // Make sure the old decoder code can handle the new file format
 func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
 	var (
-		enc = newEncoder(newEncoderOptions{encodeIndexVersion: 2})
-		dec = newDecoder(nil, newDecoderOptions{forceDecodeIndexInfoV1: true})
+		enc = newEncoder(newEncoderOptions{encodeLegacyV1IndexInfo: false})
+		dec = testDecoder(t, nil)
 	)
 	enc.EncodeIndexInfo(testIndexInfo)
 	dec.Reset(NewDecoderStream(enc.Bytes()))
