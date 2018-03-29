@@ -28,8 +28,6 @@ import (
 	"github.com/m3db/m3cluster/kv"
 )
 
-var errConditionCheckFailed = errors.New("condition check failed")
-
 // NewStore returns a new in-process store that can be used for testing
 func NewStore() kv.TxnStore {
 	return &store{
@@ -265,7 +263,7 @@ func (s *store) Commit(conditions []kv.Condition, ops []kv.Op) (kv.Response, err
 		}
 
 		if expectedVersion != v.Version() {
-			return nil, errConditionCheckFailed
+			return nil, kv.ErrConditionCheckFailed
 		}
 	}
 

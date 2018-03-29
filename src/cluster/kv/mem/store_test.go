@@ -330,5 +330,5 @@ func TestTxn(t *testing.T) {
 		},
 	)
 	require.Error(t, err)
-	require.Equal(t, errConditionCheckFailed, err)
+	require.Equal(t, kv.ErrConditionCheckFailed, err)
 }
