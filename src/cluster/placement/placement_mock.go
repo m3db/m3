@@ -638,6 +638,64 @@ func (_mr *MockPlacementMockRecorder) Clone() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Clone", reflect.TypeOf((*MockPlacement)(nil).Clone))
 }
 
+// MockWatch is a mock of Watch interface
+type MockWatch struct {
+	ctrl     *gomock.Controller
+	recorder *MockWatchMockRecorder
+}
+
+// MockWatchMockRecorder is the mock recorder for MockWatch
+type MockWatchMockRecorder struct {
+	mock *MockWatch
+}
+
+// NewMockWatch creates a new mock instance
+func NewMockWatch(ctrl *gomock.Controller) *MockWatch {
+	mock := &MockWatch{ctrl: ctrl}
+	mock.recorder = &MockWatchMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockWatch) EXPECT() *MockWatchMockRecorder {
+	return _m.recorder
+}
+
+// C mocks base method
+func (_m *MockWatch) C() <-chan struct{} {
+	ret := _m.ctrl.Call(_m, "C")
+	ret0, _ := ret[0].(<-chan struct{})
+	return ret0
+}
+
+// C indicates an expected call of C
+func (_mr *MockWatchMockRecorder) C() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "C", reflect.TypeOf((*MockWatch)(nil).C))
+}
+
+// Get mocks base method
+func (_m *MockWatch) Get() (Placement, error) {
+	ret := _m.ctrl.Call(_m, "Get")
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Get indicates an expected call of Get
+func (_mr *MockWatchMockRecorder) Get() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Get", reflect.TypeOf((*MockWatch)(nil).Get))
+}
+
+// Close mocks base method
+func (_m *MockWatch) Close() {
+	_m.ctrl.Call(_m, "Close")
+}
+
+// Close indicates an expected call of Close
+func (_mr *MockWatchMockRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Close", reflect.TypeOf((*MockWatch)(nil).Close))
+}
+
 // MockStagedPlacementWatcher is a mock of StagedPlacementWatcher interface
 type MockStagedPlacementWatcher struct {
 	ctrl     *gomock.Controller
@@ -1586,6 +1644,19 @@ func (_mr *MockStorageMockRecorder) Placement() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Placement", reflect.TypeOf((*MockStorage)(nil).Placement))
 }
 
+// Watch mocks base method
+func (_m *MockStorage) Watch() (Watch, error) {
+	ret := _m.ctrl.Call(_m, "Watch")
+	ret0, _ := ret[0].(Watch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Watch indicates an expected call of Watch
+func (_mr *MockStorageMockRecorder) Watch() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Watch", reflect.TypeOf((*MockStorage)(nil).Watch))
+}
+
 // Delete mocks base method
 func (_m *MockStorage) Delete() error {
 	ret := _m.ctrl.Call(_m, "Delete")
@@ -1720,6 +1791,19 @@ func (_m *MockService) Placement() (Placement, int, error) {
 // Placement indicates an expected call of Placement
 func (_mr *MockServiceMockRecorder) Placement() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Placement", reflect.TypeOf((*MockService)(nil).Placement))
+}
+
+// Watch mocks base method
+func (_m *MockService) Watch() (Watch, error) {
+	ret := _m.ctrl.Call(_m, "Watch")
+	ret0, _ := ret[0].(Watch)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Watch indicates an expected call of Watch
+func (_mr *MockServiceMockRecorder) Watch() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Watch", reflect.TypeOf((*MockService)(nil).Watch))
 }
 
 // Delete mocks base method

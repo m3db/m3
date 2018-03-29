@@ -155,6 +155,14 @@ func (s *storage) Placement() (placement.Placement, int, error) {
 	return s.helper.Placement()
 }
 
+func (s *storage) Watch() (placement.Watch, error) {
+	w, err := s.store.Watch(s.key)
+	if err != nil {
+		return nil, err
+	}
+	return newPlacementWatch(w), nil
+}
+
 func (s *storage) PlacementForVersion(version int) (placement.Placement, error) {
 	return s.helper.PlacementForVersion(version)
 }

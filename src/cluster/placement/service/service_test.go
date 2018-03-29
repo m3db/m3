@@ -1000,6 +1000,10 @@ func (ms *mockStorage) Proto() (proto.Message, int, error) {
 	return nil, 0, errors.New("not implemented")
 }
 
+func (ms *mockStorage) Watch() (placement.Watch, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (ms *mockStorage) PlacementForVersion(v int) (placement.Placement, error) {
 	return nil, errors.New("not implemented")
 }

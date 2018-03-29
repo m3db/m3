@@ -468,15 +468,13 @@ func TestWatchNonBlocking(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 
-	opts = opts.SetWatchChanResetInterval(200 * time.Millisecond).SetWatchChanInitTimeout(200 * time.Millisecond)
-
-	store, err := NewStore(ec, ec, opts)
-	require.NoError(t, err)
-	c := store.(*client)
+	opts = opts.SetWatchChanResetInterval(200 * time.Millisecond).SetWatchChanInitTimeout(500 * time.Millisecond)
 
 	failTotal := 3
 	mw := mocks.NewBlackholeWatcher(ec, failTotal, func() { time.Sleep(time.Minute) })
-	c.watcher = mw
+	store, err := NewStore(ec, mw, opts)
+	require.NoError(t, err)
+	c := store.(*client)
 
 	_, err = c.Set("foo", genProto("bar1"))
 	require.NoError(t, err)
