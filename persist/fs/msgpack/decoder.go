@@ -235,7 +235,6 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 			-numFieldsAddedToIndexInfoBetweenV1AndV2)
 	}
 
-	fmt.Println(numFieldsToSkip)
 	var indexInfo schema.IndexInfo
 	indexInfo.BlockStart = dec.decodeVarint()
 	indexInfo.BlockSize = dec.decodeVarint()
