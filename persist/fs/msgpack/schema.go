@@ -49,6 +49,14 @@ const (
 )
 
 const (
+	// min number of fields specifies the minimum number of fields
+	// that an object such that the encoder won't reject it. This value
+	// should be equal to the number of fields in objects that were encoded
+	// previosly that we still want new binaries to be able to read without
+	// complaint. I.E if previous versions of M3DB wrote 4 fields for an object,
+	// and an even earlier version only wrote 3 fields, than the minimum number
+	// should be 3 if we intend to continue reading files that were written by
+	// the version that only encoded 3 fields.
 	minNumRootObjectFields           = 2
 	minNumIndexInfoFields            = 6
 	minNumIndexSummariesInfoFields   = 1
@@ -59,6 +67,10 @@ const (
 	minNumLogEntryFields             = 7
 	minNumLogMetadataFields          = 3
 
+	// curr number of fields specifies the number of fields that the current
+	// version of the M3DB will encode. This is simply used to ensure that the
+	// correct number of fields is encoded into the files. These values need
+	// to be incremened whenever we add new fields to an object.
 	currNumRootObjectFields           = 2
 	currNumIndexInfoFields            = 8
 	currNumIndexSummariesInfoFields   = 1
