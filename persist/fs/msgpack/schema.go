@@ -18,9 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE
 
+// Instructions for adding a new field to an existing object in a backwards
+// and forwards compatible way:
+// 		1. Do not change the objects type
+// 		2. Do not change the objects version
+// 		3. Modify the encoder to encode the new fields
+// 		4. Increase the constant below for the current (not minimum!) number
+// 		   of fields for that object type
+// 		5. Modify the decoder to selectively decode the new fields based on
+// 		   the actual number of fields that are encoded in the file - See the
+// 		   decodeIndexInfo function for an example
+// 		6. Write forwards/backwards compatibility tests, below are examples:
+// 				- TestIndexInfoRoundTripBackwardsCompatibilityV1
+// 				- TestIndexInfoRoundTripForwardsCompatibilityV2
+
 package msgpack
 
 const (
+	// Incrementing any of these values is a backwards-compatible change
+	// I.E the new binary will still be able to read old files (as long
+	// as the minimum number of fields for a given object is not also
+	// increased, see the comment below), but it is not a forwards-compatible
+	// change I.E old binaries will not be able to read the new files and just
+	// skip over any unrecognized fields (which they will do if this value is
+	// not incremented when adding new fields)
 	indexInfoVersion    = 1
 	indexEntryVersion   = 1
 	indexSummaryVersion = 1
@@ -33,6 +54,10 @@ type objectType int
 
 // nolint: deadcode, varcheck, unused
 const (
+	// Adding any new object types is a backwards-compatibe change I.E
+	// the new binary will still be able to read old files, but it is
+	// not a forwards-compatible change I.E old binaries will not be
+	// able to read the new files.
 	unknownType objectType = iota
 	rootObjectType
 	indexInfoType
@@ -68,7 +93,7 @@ const (
 	minNumLogMetadataFields          = 3
 
 	// curr number of fields specifies the number of fields that the current
-	// version of the M3DB will encode. This is simply used to ensure that the
+	// version of the M3DB will encode. This is used to ensure that the
 	// correct number of fields is encoded into the files. These values need
 	// to be incremened whenever we add new fields to an object.
 	currNumRootObjectFields           = 2
