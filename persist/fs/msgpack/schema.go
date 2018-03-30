@@ -54,7 +54,7 @@ type objectType int
 
 // nolint: deadcode, varcheck, unused
 const (
-	// Adding any new object types is a backwards-compatibe change I.E
+	// Adding any new object types is a backwards-compatible change I.E
 	// the new binary will still be able to read old files, but it is
 	// not a forwards-compatible change I.E old binaries will not be
 	// able to read the new files.
