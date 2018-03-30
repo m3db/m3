@@ -45,8 +45,6 @@ var (
 
 var errorUnableToDetermineNumFieldsToSkip = errors.New("unable to determine num fields to skip")
 
-const numFieldsAddedToIndexInfoBetweenV1AndV2 = 2
-
 // Decoder decodes persisted msgpack-encoded data
 type Decoder struct {
 	reader            DecoderStream
