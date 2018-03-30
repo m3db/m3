@@ -108,8 +108,8 @@ type databaseMetrics struct {
 	unknownNamespaceFetchBlocks         tally.Counter
 	unknownNamespaceFetchBlocksMetadata tally.Counter
 	unknownNamespaceQueryIDs            tally.Counter
-	queryIDsIndexDisabled               tally.Counter
-	writeTaggedIndexDisabled            tally.Counter
+	errQueryIDsIndexDisabled            tally.Counter
+	errWriteTaggedIndexDisabled         tally.Counter
 }
 
 func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
@@ -122,8 +122,8 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 		unknownNamespaceFetchBlocks:         unknownNamespaceScope.Counter("fetch-blocks"),
 		unknownNamespaceFetchBlocksMetadata: unknownNamespaceScope.Counter("fetch-blocks-metadata"),
 		unknownNamespaceQueryIDs:            unknownNamespaceScope.Counter("query-ids"),
-		queryIDsIndexDisabled:               indexDisabledScope.Counter("query-ids"),
-		writeTaggedIndexDisabled:            indexDisabledScope.Counter("write-tagged"),
+		errQueryIDsIndexDisabled:            indexDisabledScope.Counter("err-query-ids"),
+		errWriteTaggedIndexDisabled:         indexDisabledScope.Counter("err-write-tagged"),
 	}
 }
 
@@ -508,7 +508,7 @@ func (d *db) WriteTagged(
 	annotation []byte,
 ) error {
 	if !d.opts.IndexingEnabled() {
-		d.metrics.writeTaggedIndexDisabled.Inc(1)
+		d.metrics.errWriteTaggedIndexDisabled.Inc(1)
 		return errDatabaseIndexingDisabled
 	}
 
@@ -532,7 +532,7 @@ func (d *db) QueryIDs(
 	opts index.QueryOptions,
 ) (index.QueryResults, error) {
 	if !d.opts.IndexingEnabled() {
-		d.metrics.queryIDsIndexDisabled.Inc(1)
+		d.metrics.errQueryIDsIndexDisabled.Inc(1)
 		return index.QueryResults{}, errDatabaseIndexingDisabled
 	}
 

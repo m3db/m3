@@ -34,7 +34,7 @@ import (
 var (
 	errIndexInsertQueueNotOpen             = errors.New("index insert queue is not open")
 	errIndexInsertQueueAlreadyOpenOrClosed = errors.New("index insert queue already open or is closed")
-	errNewSeriesIndexRateLimitExceeded     = errors.New("indexing new series eclipses rate limit")
+	errNewSeriesIndexRateLimitExceeded     = errors.New("indexing new series exceeds rate limit")
 )
 
 type nsIndexInsertQueueState int
@@ -53,21 +53,21 @@ var (
 type nsIndexInsertQueue struct {
 	sync.RWMutex
 	state nsIndexInsertQueueState
+
 	// rate limits
 	indexBatchBackoff               time.Duration
 	indexPerSecondLimit             int
 	indexPerSecondLimitWindowNanos  int64
 	indexPerSecondLimitWindowValues int
+
 	// active batch pending execution
 	currBatch *nsIndexInsertBatch
 
 	indexBatchFn nsIndexInsertBatchFn
-
 	nowFn        clock.NowFn
 	sleepFn      func(time.Duration)
 	notifyInsert chan struct{}
-
-	metrics nsIndexInsertQueueMetrics
+	metrics      nsIndexInsertQueueMetrics
 }
 
 type newNamespaceIndexInsertQueueFn func(

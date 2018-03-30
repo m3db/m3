@@ -37,7 +37,7 @@ import (
 var (
 	errShardInsertQueueNotOpen             = errors.New("shard insert queue is not open")
 	errShardInsertQueueAlreadyOpenOrClosed = errors.New("shard insert queue already open or is closed")
-	errNewSeriesInsertRateLimitExceeded    = errors.New("shard insert of new series eclipses rate limit")
+	errNewSeriesInsertRateLimitExceeded    = errors.New("shard insert of new series exceeds rate limit")
 )
 
 type dbShardInsertQueueState int
