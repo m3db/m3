@@ -60,18 +60,22 @@ func testCapturingEncoder(t *testing.T) (*Encoder, *[]interface{}) {
 }
 
 func testExpectedResultForIndexInfo(t *testing.T, indexInfo schema.IndexInfo) []interface{} {
+	_, currRoot := numFieldsForType(rootObjectType)
+	_, currIndexInfo := numFieldsForType(indexInfoType)
+	_, currSummariesInfo := numFieldsForType(indexSummariesInfoType)
+	_, currIndexBloomFilterInfo := numFieldsForType(indexBloomFilterInfoType)
 	return []interface{}{
 		int64(indexInfoVersion),
-		numFieldsForType(rootObjectType),
+		currRoot,
 		int64(indexInfoType),
-		numFieldsForType(indexInfoType),
+		currIndexInfo,
 		indexInfo.BlockStart,
 		indexInfo.BlockSize,
 		indexInfo.Entries,
 		indexInfo.MajorVersion,
-		numFieldsForType(indexSummariesInfoType),
+		currSummariesInfo,
 		indexInfo.Summaries.Summaries,
-		numFieldsForType(indexBloomFilterInfoType),
+		currIndexBloomFilterInfo,
 		indexInfo.BloomFilter.NumElementsM,
 		indexInfo.BloomFilter.NumHashesK,
 		indexInfo.SnapshotTime,
@@ -80,11 +84,13 @@ func testExpectedResultForIndexInfo(t *testing.T, indexInfo schema.IndexInfo) []
 }
 
 func testExpectedResultForIndexEntry(t *testing.T, indexEntry schema.IndexEntry) []interface{} {
+	_, currRoot := numFieldsForType(rootObjectType)
+	_, currIndexEntry := numFieldsForType(indexEntryType)
 	return []interface{}{
 		int64(indexEntryVersion),
-		numFieldsForType(rootObjectType),
+		currRoot,
 		int64(indexEntryType),
-		numFieldsForType(indexEntryType),
+		currIndexEntry,
 		indexEntry.Index,
 		indexEntry.ID,
 		indexEntry.Size,
@@ -94,11 +100,13 @@ func testExpectedResultForIndexEntry(t *testing.T, indexEntry schema.IndexEntry)
 }
 
 func testExpectedResultForLogInfo(t *testing.T, logInfo schema.LogInfo) []interface{} {
+	_, currRoot := numFieldsForType(rootObjectType)
+	_, currLogInfo := numFieldsForType(logInfoType)
 	return []interface{}{
 		int64(logInfoVersion),
-		numFieldsForType(rootObjectType),
+		currRoot,
 		int64(logInfoType),
-		numFieldsForType(logInfoType),
+		currLogInfo,
 		logInfo.Start,
 		logInfo.Duration,
 		logInfo.Index,
@@ -106,11 +114,13 @@ func testExpectedResultForLogInfo(t *testing.T, logInfo schema.LogInfo) []interf
 }
 
 func testExpectedResultForLogEntry(t *testing.T, logEntry schema.LogEntry) []interface{} {
+	_, currRoot := numFieldsForType(rootObjectType)
+	_, currLogEntry := numFieldsForType(logEntryType)
 	return []interface{}{
 		int64(logEntryVersion),
-		numFieldsForType(rootObjectType),
+		currRoot,
 		int64(logEntryType),
-		numFieldsForType(logEntryType),
+		currLogEntry,
 		logEntry.Index,
 		logEntry.Create,
 		logEntry.Metadata,
@@ -122,11 +132,13 @@ func testExpectedResultForLogEntry(t *testing.T, logEntry schema.LogEntry) []int
 }
 
 func testExpectedResultForLogMetadata(t *testing.T, logMetadata schema.LogMetadata) []interface{} {
+	_, currRoot := numFieldsForType(rootObjectType)
+	_, currLogMetadata := numFieldsForType(logMetadataType)
 	return []interface{}{
 		int64(logMetadataVersion),
-		numFieldsForType(rootObjectType),
+		currRoot,
 		int64(logMetadataType),
-		numFieldsForType(logMetadataType),
+		currLogMetadata,
 		logMetadata.ID,
 		logMetadata.Namespace,
 		uint64(logMetadata.Shard),

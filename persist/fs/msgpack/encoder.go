@@ -168,7 +168,8 @@ func (enc *Encoder) encodeIndexInfo(info schema.IndexInfo) {
 // We only keep this method around for the sake of testing
 // backwards-compatbility
 func (enc *Encoder) encodeIndexInfoV1(info schema.IndexInfo) {
-	enc.encodeNumObjectFieldsForFn(indexInfoTypeLegacyV1)
+	// Manually encode num fields for testing purposes
+	enc.encodeArrayLenFn(minNumIndexInfoFields)
 	enc.encodeVarintFn(info.BlockStart)
 	enc.encodeVarintFn(info.BlockSize)
 	enc.encodeVarintFn(info.Entries)
@@ -254,7 +255,8 @@ func (enc *Encoder) encodeVersion(version int) {
 }
 
 func (enc *Encoder) encodeNumObjectFieldsFor(objType objectType) {
-	enc.encodeArrayLenFn(numFieldsForType(objType))
+	_, curr := numFieldsForType(objType)
+	enc.encodeArrayLenFn(curr)
 }
 
 func (enc *Encoder) encodeObjectType(objType objectType) {

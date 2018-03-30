@@ -43,46 +43,69 @@ const (
 	logInfoType
 	logEntryType
 	logMetadataType
-	indexInfoTypeLegacyV1
 
 	// Total number of object types
 	numObjectTypes = iota
 )
 
 const (
-	numRootObjectFields           = 2
-	numIndexInfoFields            = 8
-	numIndexInfoFieldsLegacyV1    = 6
-	numIndexSummariesInfoFields   = 1
-	numIndexBloomFilterInfoFields = 2
-	numIndexEntryFields           = 5
-	numIndexSummaryFields         = 3
-	numLogInfoFields              = 3
-	numLogEntryFields             = 7
-	numLogMetadataFields          = 3
+	minNumRootObjectFields           = 2
+	minNumIndexInfoFields            = 6
+	minNumIndexSummariesInfoFields   = 1
+	minNumIndexBloomFilterInfoFields = 2
+	minNumIndexEntryFields           = 5
+	minNumIndexSummaryFields         = 3
+	minNumLogInfoFields              = 3
+	minNumLogEntryFields             = 7
+	minNumLogMetadataFields          = 3
+
+	currNumRootObjectFields           = 2
+	currNumIndexInfoFields            = 8
+	currNumIndexSummariesInfoFields   = 1
+	currNumIndexBloomFilterInfoFields = 2
+	currNumIndexEntryFields           = 5
+	currNumIndexSummaryFields         = 3
+	currNumLogInfoFields              = 3
+	currNumLogEntryFields             = 7
+	currNumLogMetadataFields          = 3
 )
 
-var numObjectFields []int
+var minNumObjectFields []int
+var currNumObjectFields []int
 
-func numFieldsForType(objType objectType) int {
-	return numObjectFields[int(objType)-1]
+func numFieldsForType(objType objectType) (min, curr int) {
+	return minNumObjectFields[int(objType)-1], currNumObjectFields[int(objType)-1]
 }
 
-func setNumFieldsForType(objType objectType, numFields int) {
-	numObjectFields[int(objType)-1] = numFields
+func setMinNumObjectFieldsForType(objType objectType, numFields int) {
+	minNumObjectFields[int(objType)-1] = numFields
+}
+
+func setCurrNumObjectFieldsForType(objType objectType, numFields int) {
+	currNumObjectFields[int(objType)-1] = numFields
 }
 
 func init() {
-	numObjectFields = make([]int, int(numObjectTypes))
+	minNumObjectFields = make([]int, int(numObjectTypes))
+	currNumObjectFields = make([]int, int(numObjectTypes))
 
-	setNumFieldsForType(rootObjectType, numRootObjectFields)
-	setNumFieldsForType(indexInfoType, numIndexInfoFields)
-	setNumFieldsForType(indexSummariesInfoType, numIndexSummariesInfoFields)
-	setNumFieldsForType(indexBloomFilterInfoType, numIndexBloomFilterInfoFields)
-	setNumFieldsForType(indexEntryType, numIndexEntryFields)
-	setNumFieldsForType(indexSummaryType, numIndexSummaryFields)
-	setNumFieldsForType(logInfoType, numLogInfoFields)
-	setNumFieldsForType(logEntryType, numLogEntryFields)
-	setNumFieldsForType(logMetadataType, numLogMetadataFields)
-	setNumFieldsForType(indexInfoTypeLegacyV1, numIndexInfoFieldsLegacyV1)
+	setMinNumObjectFieldsForType(rootObjectType, minNumRootObjectFields)
+	setMinNumObjectFieldsForType(indexInfoType, minNumIndexInfoFields)
+	setMinNumObjectFieldsForType(indexSummariesInfoType, minNumIndexSummariesInfoFields)
+	setMinNumObjectFieldsForType(indexBloomFilterInfoType, minNumIndexBloomFilterInfoFields)
+	setMinNumObjectFieldsForType(indexEntryType, minNumIndexEntryFields)
+	setMinNumObjectFieldsForType(indexSummaryType, minNumIndexSummaryFields)
+	setMinNumObjectFieldsForType(logInfoType, minNumLogInfoFields)
+	setMinNumObjectFieldsForType(logEntryType, minNumLogEntryFields)
+	setMinNumObjectFieldsForType(logMetadataType, minNumLogMetadataFields)
+
+	setCurrNumObjectFieldsForType(rootObjectType, currNumRootObjectFields)
+	setCurrNumObjectFieldsForType(indexInfoType, currNumIndexInfoFields)
+	setCurrNumObjectFieldsForType(indexSummariesInfoType, currNumIndexSummariesInfoFields)
+	setCurrNumObjectFieldsForType(indexBloomFilterInfoType, currNumIndexBloomFilterInfoFields)
+	setCurrNumObjectFieldsForType(indexEntryType, currNumIndexEntryFields)
+	setCurrNumObjectFieldsForType(indexSummaryType, currNumIndexSummaryFields)
+	setCurrNumObjectFieldsForType(logInfoType, currNumLogInfoFields)
+	setCurrNumObjectFieldsForType(logEntryType, currNumLogEntryFields)
+	setCurrNumObjectFieldsForType(logMetadataType, currNumLogMetadataFields)
 }
