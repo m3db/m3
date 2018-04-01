@@ -21,8 +21,13 @@
 package msgpack
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
+	"io"
 	"math"
+	"sort"
+	"sync"
 	"testing"
 
 	"github.com/m3db/m3metrics/metric/id"
@@ -280,11 +285,6 @@ func TestWriterWriteLargeBatchTimerUsesMultipleBuffers(t *testing.T) {
 
 	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
 	w.closed = false
-	w.newLockedEncoderFn = func(msgpack.BufferedEncoderPool) *lockedEncoder {
-		return &lockedEncoder{
-			UnaggregatedEncoder: msgpack.NewUnaggregatedEncoder(msgpack.NewBufferedEncoder()),
-		}
-	}
 
 	require.NoError(t, w.Write(0, testLargeBatchTimer, testPoliciesList))
 
@@ -331,6 +331,20 @@ func TestWriterWriteBatchTimerWithPoliciesListWriteError(t *testing.T) {
 
 	require.Equal(t, errWrite, w.Write(0, testLargeBatchTimer, testPoliciesList))
 	require.Equal(t, errOnIter, numIters)
+}
+
+func TestWriterWriteBatchTimerWithPoliciesListEnqueueError(t *testing.T) {
+	errTestEnqueue := errors.New("test enqueue error")
+	opts := testServerOptions().
+		SetMaxTimerBatchSize(1).
+		SetFlushSize(1)
+	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
+	w.closed = false
+	w.queue = &mockInstanceQueue{
+		enqueueFn: func(msgpack.Buffer) error { return errTestEnqueue },
+	}
+
+	require.Equal(t, errTestEnqueue, w.Write(0, testBatchTimer, testPoliciesList))
 }
 
 func TestWriterWriteGaugeWithPoliciesList(t *testing.T) {
@@ -403,6 +417,222 @@ func TestWriterCloseSuccess(t *testing.T) {
 	require.NoError(t, w.Close())
 }
 
+func TestWriterConcurrentWriteStress(t *testing.T) {
+	params := []struct {
+		maxInputBatchSize int
+		maxTimerBatchSize int
+		flushSize         int
+	}{
+		// High likelihood of counter/gauge encoding triggering a flush in between
+		// releasing and re-acquiring locks when encoding large timer batches.
+		{
+			maxInputBatchSize: 150,
+			maxTimerBatchSize: 150,
+			flushSize:         1000,
+		},
+		// Large timer batches.
+		{
+			maxInputBatchSize: 1000,
+			maxTimerBatchSize: 140,
+			flushSize:         1440,
+		},
+	}
+
+	for _, param := range params {
+		testWriterConcurrentWriteStress(
+			t,
+			param.maxInputBatchSize,
+			param.maxTimerBatchSize,
+			param.flushSize,
+		)
+	}
+}
+
+func testWriterConcurrentWriteStress(
+	t *testing.T,
+	maxInputBatchSize int,
+	maxTimerBatchSize int,
+	flushSize int,
+) {
+	var (
+		numIter     = 10000
+		shard       = uint32(0)
+		counters    = make([]unaggregated.Counter, numIter)
+		timers      = make([]unaggregated.BatchTimer, numIter)
+		gauges      = make([]unaggregated.Gauge, numIter)
+		resultsLock sync.Mutex
+		results     [][]byte
+	)
+
+	// Construct metrics input.
+	for i := 0; i < numIter; i++ {
+		counters[i] = unaggregated.Counter{
+			ID:    []byte(fmt.Sprintf("counter%d", i)),
+			Value: int64(i),
+		}
+		gauges[i] = unaggregated.Gauge{
+			ID:    []byte(fmt.Sprintf("gauge%d", i)),
+			Value: float64(i),
+		}
+		batchSize := numIter - i
+		if batchSize > maxInputBatchSize {
+			batchSize = maxInputBatchSize
+		}
+		timerVals := make([]float64, batchSize)
+		for j := i; j < i+batchSize; j++ {
+			timerVals[j-i] = float64(j)
+		}
+		timers[i] = unaggregated.BatchTimer{
+			ID:     []byte(fmt.Sprintf("timer%d", i)),
+			Values: timerVals,
+		}
+	}
+
+	opts := testServerOptions().
+		SetMaxTimerBatchSize(maxTimerBatchSize).
+		SetFlushSize(flushSize)
+	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
+	w.closed = false
+	w.queue = &mockInstanceQueue{
+		enqueueFn: func(buf msgpack.Buffer) error {
+			bytes := buf.Bytes()
+			cloned := make([]byte, len(bytes))
+			copy(cloned, bytes)
+			resultsLock.Lock()
+			results = append(results, cloned)
+			resultsLock.Unlock()
+			return nil
+		},
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < numIter; i++ {
+			mu := unaggregated.MetricUnion{
+				Type:       unaggregated.CounterType,
+				ID:         counters[i].ID,
+				CounterVal: counters[i].Value,
+			}
+			require.NoError(t, w.Write(shard, mu, testPoliciesList))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < numIter; i++ {
+			mu := unaggregated.MetricUnion{
+				Type:          unaggregated.BatchTimerType,
+				ID:            timers[i].ID,
+				BatchTimerVal: timers[i].Values,
+			}
+			require.NoError(t, w.Write(shard, mu, testPoliciesList))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < numIter; i++ {
+			mu := unaggregated.MetricUnion{
+				Type:     unaggregated.GaugeType,
+				ID:       gauges[i].ID,
+				GaugeVal: gauges[i].Value,
+			}
+			require.NoError(t, w.Write(shard, mu, testPoliciesList))
+		}
+	}()
+
+	wg.Wait()
+	w.Flush()
+
+	var (
+		resCounters = make([]unaggregated.Counter, 0, numIter)
+		resTimers   = make([]unaggregated.BatchTimer, 0, numIter)
+		resGauges   = make([]unaggregated.Gauge, 0, numIter)
+	)
+	for i := 0; i < len(results); i++ {
+		buf := bytes.NewBuffer(results[i])
+		iter := msgpack.NewUnaggregatedIterator(buf, msgpack.NewUnaggregatedIteratorOptions())
+		for iter.Next() {
+			policiesList := iter.PoliciesList()
+			require.Equal(t, testPoliciesList, policiesList)
+			metric := cloneMetric(iter.Metric())
+			switch metric.Type {
+			case unaggregated.CounterType:
+				resCounters = append(resCounters, metric.Counter())
+			case unaggregated.BatchTimerType:
+				resTimers = append(resTimers, metric.BatchTimer())
+			case unaggregated.GaugeType:
+				resGauges = append(resGauges, metric.Gauge())
+			default:
+				require.Fail(t, "unrecognized metric type %v", metric.Type)
+			}
+		}
+		require.Equal(t, io.EOF, iter.Err())
+	}
+
+	// Sort counters for comparison purposes.
+	sort.Slice(counters, func(i, j int) bool {
+		return bytes.Compare(counters[i].ID, counters[j].ID) < 0
+	})
+	sort.Slice(resCounters, func(i, j int) bool {
+		return bytes.Compare(resCounters[i].ID, resCounters[j].ID) < 0
+	})
+	require.Equal(t, counters, resCounters)
+
+	// Sort timers for comparison purposes.
+	sort.Slice(timers, func(i, j int) bool {
+		return bytes.Compare(timers[i].ID, timers[j].ID) < 0
+	})
+	sort.Slice(resTimers, func(i, j int) bool {
+		return bytes.Compare(resTimers[i].ID, resTimers[j].ID) < 0
+	})
+	// Merge timers if necessary for comparison since they may be split into multiple batches.
+	mergedResTimers := make([]unaggregated.BatchTimer, 0, numIter)
+	curr := 0
+	for i := 0; i < len(resTimers); i++ {
+		if bytes.Equal(resTimers[curr].ID, resTimers[i].ID) {
+			continue
+		}
+		var mergedValues []float64
+		for j := curr; j < i; j++ {
+			mergedValues = append(mergedValues, resTimers[j].Values...)
+		}
+		sort.Float64s(mergedValues)
+		mergedResTimers = append(mergedResTimers, unaggregated.BatchTimer{
+			ID:     resTimers[curr].ID,
+			Values: mergedValues,
+		})
+		curr = i
+	}
+	if curr < len(resTimers) {
+		var mergedValues []float64
+		for j := curr; j < len(resTimers); j++ {
+			mergedValues = append(mergedValues, resTimers[j].Values...)
+		}
+		sort.Float64s(mergedValues)
+		mergedResTimers = append(mergedResTimers, unaggregated.BatchTimer{
+			ID:     resTimers[curr].ID,
+			Values: mergedValues,
+		})
+	}
+	require.Equal(t, timers, mergedResTimers)
+
+	// Sort gauges for comparison purposes.
+	sort.Slice(gauges, func(i, j int) bool {
+		return bytes.Compare(gauges[i].ID, gauges[j].ID) < 0
+	})
+	sort.Slice(resGauges, func(i, j int) bool {
+		return bytes.Compare(resGauges[i].ID, resGauges[j].ID) < 0
+	})
+	require.Equal(t, gauges, resGauges)
+}
+
 func TestRefCountedWriter(t *testing.T) {
 	opts := testServerOptions()
 	w := newRefCountedWriter(testPlacementInstance, opts)
@@ -411,6 +641,19 @@ func TestRefCountedWriter(t *testing.T) {
 	require.False(t, w.instanceWriter.(*writer).closed)
 	w.DecRef()
 	require.True(t, w.instanceWriter.(*writer).closed)
+}
+
+func cloneMetric(m unaggregated.MetricUnion) unaggregated.MetricUnion {
+	mu := m
+	clonedID := make(id.RawID, len(m.ID))
+	copy(clonedID, m.ID)
+	mu.ID = clonedID
+	if m.Type == unaggregated.BatchTimerType {
+		clonedTimerVal := make([]float64, len(m.BatchTimerVal))
+		copy(clonedTimerVal, m.BatchTimerVal)
+		mu.BatchTimerVal = clonedTimerVal
+	}
+	return mu
 }
 
 type encodeCounterWithPoliciesListFn func(cp unaggregated.CounterWithPoliciesList) error
