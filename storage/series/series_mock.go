@@ -30,10 +30,10 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	time0 "github.com/m3db/m3x/time"
-	"github.com/m3db/m3db/x/xio"
 
 	"github.com/golang/mock/gomock"
 )
@@ -189,9 +189,9 @@ func (_mr *MockDatabaseSeriesMockRecorder) OnRetrieveBlock(arg0, arg1, arg2 inte
 }
 
 // ReadEncoded mocks base method
-func (_m *MockDatabaseSeries) ReadEncoded(_param0 context.Context, _param1 time.Time, _param2 time.Time) ([][]xio.SegmentReader, error) {
+func (_m *MockDatabaseSeries) ReadEncoded(_param0 context.Context, _param1 time.Time, _param2 time.Time) ([][]xio.BlockReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", _param0, _param1, _param2)
-	ret0, _ := ret[0].([][]xio.SegmentReader)
+	ret0, _ := ret[0].([][]xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

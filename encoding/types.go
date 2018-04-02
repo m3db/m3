@@ -40,8 +40,8 @@ type Encoder interface {
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
 	Stream() xio.SegmentReader
 
-	// StreamLen returns the length of the encoded bytes in the encoder.
-	StreamLen() int
+	// Len returns the length of the encoded bytes in the encoder.
+	Len() int
 
 	// Reset resets the start time of the encoder and the internal state.
 	Reset(t time.Time, capacity int)
@@ -135,10 +135,12 @@ type MultiReaderIterator interface {
 	Iterator
 
 	// Reset resets the iterator to read from a slice of readers.
-	Reset(readers []io.Reader)
+	Reset(readers []xio.Reader, start, end time.Time)
 
 	// Reset resets the iterator to read from a slice of slice readers.
 	ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator)
+
+	Readers() xio.ReaderSliceOfSlicesIterator
 }
 
 // SeriesIterator is an iterator that iterates over a set of iterators from different replicas
@@ -166,7 +168,9 @@ type SeriesIterator interface {
 	// must note that this can be an array with nil entries if some replicas did not return successfully.
 	// NB: the SeriesIterator assumes ownership of the provided ids, this includes calling `id.Finalize()` upon
 	// iter.Close().
-	Reset(id ident.ID, ns ident.ID, startInclusive, endExclusive time.Time, replicas []Iterator)
+	Reset(id ident.ID, ns ident.ID, startInclusive, endExclusive time.Time, replicas []MultiReaderIterator)
+
+	Replicas() []MultiReaderIterator
 }
 
 // SeriesIterators is a collection of SeriesIterator that can close all iterators

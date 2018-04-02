@@ -73,7 +73,7 @@ func NewReaderUsingRetriever(
 func (r Reader) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
-) ([][]xio.SegmentReader, error) {
+) ([][]xio.BlockReader, error) {
 	return r.readersWithBlocksMapAndBuffer(ctx, start, end, nil, nil)
 }
 
@@ -82,9 +82,9 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 	start, end time.Time,
 	seriesBlocks block.DatabaseSeriesBlocks,
 	seriesBuffer databaseBuffer,
-) ([][]xio.SegmentReader, error) {
+) ([][]xio.BlockReader, error) {
 	// TODO(r): pool these results arrays
-	var results [][]xio.SegmentReader
+	var results [][]xio.BlockReader
 
 	if end.Before(start) {
 		return nil, xerrors.NewInvalidParamsError(errSeriesReadInvalidRange)
@@ -126,7 +126,9 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 					return nil, err
 				}
 				if stream != nil {
-					results = append(results, []xio.SegmentReader{stream})
+					results = append(results, []xio.BlockReader{
+						xio.NewBlockReader(stream, start, end),
+					})
 					// NB(r): Mark this block as read now
 					block.SetLastReadTime(now)
 					if r.onRead != nil {
@@ -150,7 +152,9 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 					return nil, err
 				}
 				if stream != nil {
-					results = append(results, []xio.SegmentReader{stream})
+					results = append(results, []xio.BlockReader{
+						xio.NewBlockReader(stream, start, end),
+					})
 				}
 			}
 		}
@@ -171,13 +175,15 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 func (r Reader) FetchBlocks(
 	ctx context.Context,
 	starts []time.Time,
+	blockDuration time.Duration,
 ) ([]block.FetchBlockResult, error) {
-	return r.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, nil, nil)
+	return r.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, blockDuration, nil, nil)
 }
 
 func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 	ctx context.Context,
 	starts []time.Time,
+	blockDuration time.Duration,
 	seriesBlocks block.DatabaseSeriesBlocks,
 	seriesBuffer databaseBuffer,
 ) ([]block.FetchBlockResult, error) {
@@ -202,14 +208,16 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 							r.id.String(), start, err))
 					res = append(res, r)
 				}
+				// stream.End()
 				if stream != nil {
-					r := block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil)
+					end := stream.End()
+					b := []xio.BlockReader{xio.NewBlockReader(stream, start, end)}
+					r := block.NewFetchBlockResult(start, b, nil)
 					res = append(res, r)
 				}
 				continue
 			}
 		}
-
 		switch {
 		case cachePolicy == CacheAll:
 			// No-op, block metadata should have been in-memory
@@ -226,7 +234,9 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 					res = append(res, r)
 				}
 				if stream != nil {
-					r := block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil)
+					end := start.Add(blockDuration)
+					b := []xio.BlockReader{xio.NewBlockReader(stream, start, end)}
+					r := block.NewFetchBlockResult(start, b, nil)
 					res = append(res, r)
 				}
 			}

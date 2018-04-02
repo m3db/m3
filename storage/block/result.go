@@ -31,7 +31,7 @@ import (
 // NewFetchBlockResult creates a new fetch block result
 func NewFetchBlockResult(
 	start time.Time,
-	readers []xio.SegmentReader,
+	readers []xio.BlockReader,
 	err error,
 ) FetchBlockResult {
 	return FetchBlockResult{

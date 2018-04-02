@@ -321,9 +321,9 @@ func (_mr *MockDatabaseBlockMockRecorder) Checksum() *gomock.Call {
 }
 
 // Stream mocks base method
-func (_m *MockDatabaseBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
+func (_m *MockDatabaseBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 	ret := _m.ctrl.Call(_m, "Stream", blocker)
-	ret0, _ := ret[0].(xio.SegmentReader)
+	ret0, _ := ret[0].(xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

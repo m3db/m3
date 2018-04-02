@@ -76,7 +76,9 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 	require.Equal(t, 2, len(r))
 	for i, readers := range r {
 		require.Equal(t, 1, len(readers))
-		assert.Equal(t, segReaders[i], readers[0])
+		segReader, err := readers[0].SegmentReader()
+		require.NoError(t, err)
+		assert.Equal(t, segReaders[i], segReader)
 	}
 }
 
@@ -122,12 +124,18 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 		start,
 		start.Add(ropts.BlockSize()),
 	}
-	r, err := reader.FetchBlocks(ctx, times)
+
+	r, err := reader.FetchBlocks(ctx, times, ropts.BlockSize())
 	require.NoError(t, err)
 	require.Equal(t, 2, len(r))
+
 	for i, result := range r {
 		assert.Equal(t, times[i], result.Start)
 		require.Equal(t, 1, len(result.Readers))
-		assert.Equal(t, segReaders[i], result.Readers[0])
+		br := result.Readers[0]
+		assert.Equal(t, times[i].Add(ropts.BlockSize()), br.End())
+		segReader, err := br.SegmentReader()
+		require.NoError(t, err)
+		assert.Equal(t, segReaders[i], segReader)
 	}
 }

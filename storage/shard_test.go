@@ -778,7 +778,7 @@ func TestShardFetchBlocksIDNotExists(t *testing.T) {
 
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
-	fetched, err := shard.FetchBlocks(ctx, ident.StringID("foo"), nil)
+	fetched, err := shard.FetchBlocks(ctx, ident.StringID("foo"), nil, time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(fetched))
 }
@@ -799,7 +799,7 @@ func TestShardFetchBlocksIDExists(t *testing.T) {
 	starts := []time.Time{now}
 	expected := []block.FetchBlockResult{block.NewFetchBlockResult(now, nil, nil)}
 	series.EXPECT().FetchBlocks(ctx, starts).Return(expected, nil)
-	res, err := shard.FetchBlocks(ctx, id, starts)
+	res, err := shard.FetchBlocks(ctx, id, starts, time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, expected, res)
 }
@@ -918,7 +918,9 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	require.Equal(t, 2, len(r))
 	for i, readers := range r {
 		require.Equal(t, 1, len(readers))
-		assert.Equal(t, segReaders[i], readers[0])
+		segReader, err := readers[0].SegmentReader()
+		require.NoError(t, err)
+		assert.Equal(t, segReaders[i], segReader)
 	}
 
 	// Check that gets cached

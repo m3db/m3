@@ -29,15 +29,16 @@ import (
 )
 
 type seriesIterator struct {
-	id        ident.ID
-	nsID      ident.ID
-	start     time.Time
-	end       time.Time
-	iters     iterators
-	err       error
-	firstNext bool
-	closed    bool
-	pool      SeriesIteratorPool
+	id               ident.ID
+	nsID             ident.ID
+	start            time.Time
+	end              time.Time
+	iters            iterators
+	multiReaderIters []MultiReaderIterator
+	err              error
+	firstNext        bool
+	closed           bool
+	pool             SeriesIteratorPool
 }
 
 // NewSeriesIterator creates a new series iterator.
@@ -46,7 +47,7 @@ func NewSeriesIterator(
 	id ident.ID,
 	nsID ident.ID,
 	startInclusive, endExclusive time.Time,
-	replicas []Iterator,
+	replicas []MultiReaderIterator,
 	pool SeriesIteratorPool,
 ) SeriesIterator {
 	it := &seriesIterator{pool: pool}
@@ -106,20 +107,27 @@ func (it *seriesIterator) Close() {
 	}
 }
 
-func (it *seriesIterator) Reset(id ident.ID, nsID ident.ID, startInclusive, endExclusive time.Time, replicas []Iterator) {
+func (it *seriesIterator) Replicas() []MultiReaderIterator {
+	return it.multiReaderIters
+}
+
+func (it *seriesIterator) Reset(id ident.ID, nsID ident.ID, startInclusive, endExclusive time.Time, replicas []MultiReaderIterator) {
 	it.id = id
 	it.nsID = nsID
 	it.start = startInclusive
 	it.end = endExclusive
 	it.iters.reset()
 	it.iters.setFilter(startInclusive, endExclusive)
+	it.multiReaderIters = it.multiReaderIters[:0]
 	it.err = nil
 	it.firstNext = true
 	it.closed = false
 	for _, replica := range replicas {
 		if !replica.Next() || !it.iters.push(replica) {
 			replica.Close()
+			continue
 		}
+		it.multiReaderIters = append(it.multiReaderIters, replica)
 	}
 }
 

@@ -385,7 +385,6 @@ func (r *blockRetriever) Stream(
 		req.onRetrieved(ts.Segment{})
 		return req, nil
 	}
-
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
 		return nil, err
@@ -531,6 +530,10 @@ func (req *retrieveRequest) onCallerOrRetrieverDone() {
 func (req *retrieveRequest) Reset(segment ts.Segment) {
 	req.reader.Reset(segment)
 	req.resultWg.Done()
+}
+
+func (req *retrieveRequest) Clone() xio.Reader {
+	return req
 }
 
 func (req *retrieveRequest) Read(b []byte) (int, error) {

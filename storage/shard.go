@@ -810,7 +810,7 @@ func (s *dbShard) ReadEncoded(
 	ctx context.Context,
 	id ident.ID,
 	start, end time.Time,
-) ([][]xio.SegmentReader, error) {
+) ([][]xio.BlockReader, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
 	if entry != nil {
@@ -1075,6 +1075,7 @@ func (s *dbShard) FetchBlocks(
 	ctx context.Context,
 	id ident.ID,
 	starts []time.Time,
+	blockDuration time.Duration,
 ) ([]block.FetchBlockResult, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
@@ -1110,7 +1111,7 @@ func (s *dbShard) FetchBlocks(
 	// the behavior of the LRU
 	var onReadCb block.OnReadBlock
 	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, onReadCb, opts)
-	return reader.FetchBlocks(ctx, starts)
+	return reader.FetchBlocks(ctx, starts, blockDuration)
 }
 
 func (s *dbShard) fetchActiveBlocksMetadata(

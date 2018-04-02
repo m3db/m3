@@ -21,6 +21,7 @@
 package encoding
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testSeries struct {
@@ -156,12 +158,12 @@ func assertTestSeriesIterator(
 	t *testing.T,
 	series testSeries,
 ) {
-	var iters []Iterator
+	var iters []MultiReaderIterator
 	for i := range series.input {
 		if series.input[i] == nil {
 			iters = append(iters, nil)
 		} else {
-			iters = append(iters, newTestIterator(series.input[i]))
+			iters = append(iters, newTestMultiIterator(series.input[i]))
 		}
 	}
 
@@ -173,12 +175,13 @@ func assertTestSeriesIterator(
 	assert.Equal(t, series.start, iter.Start())
 	assert.Equal(t, series.end, iter.End())
 	for i := 0; i < len(series.expected); i++ {
+		fmt.Println("ITERATION", i, "OF", len(series.expected))
 		next := iter.Next()
 		if series.expectedErr != nil && i == series.expectedErr.atIdx {
 			assert.Equal(t, false, next)
 			break
 		}
-		assert.Equal(t, true, next)
+		require.Equal(t, true, next)
 		dp, unit, annotation := iter.Current()
 		expected := series.expected[i]
 		assert.Equal(t, expected.value, dp.Value)
@@ -197,7 +200,7 @@ func assertTestSeriesIterator(
 	}
 	for _, iter := range iters {
 		if iter != nil {
-			assert.Equal(t, true, iter.(*testIterator).closed)
+			assert.Equal(t, true, iter.(*testMultiIterator).closed)
 		}
 	}
 }

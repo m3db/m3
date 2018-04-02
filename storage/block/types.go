@@ -72,7 +72,7 @@ type FilteredBlocksMetadataIter interface {
 // corresponding checksum and any errors encountered.
 type FetchBlockResult struct {
 	Start   time.Time
-	Readers []xio.SegmentReader
+	Readers []xio.BlockReader
 	Err     error
 }
 
@@ -154,7 +154,7 @@ type DatabaseBlock interface {
 	Checksum() uint32
 
 	// Stream returns the encoded byte stream.
-	Stream(blocker context.Context) (xio.SegmentReader, error)
+	Stream(blocker context.Context) (xio.BlockReader, error)
 
 	// Merge will merge the current block with the specified block
 	// when this block is read. Note: calling this twice

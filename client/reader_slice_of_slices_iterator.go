@@ -21,20 +21,21 @@
 package client
 
 import (
-	"io"
+	"time"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/checked"
+	xtime "github.com/m3db/m3x/time"
 )
 
 type readerSliceOfSlicesIterator struct {
-	segments       []*rpc.Segments
-	segmentReaders []xio.SegmentReader
-	idx            int
-	closed         bool
-	pool           *readerSliceOfSlicesIteratorPool
+	segments     []*rpc.Segments
+	blockReaders []xio.BlockReader
+	idx          int
+	closed       bool
+	pool         *readerSliceOfSlicesIteratorPool
 }
 
 func newReaderSliceOfSlicesIterator(
@@ -54,21 +55,23 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 
 	// Extend segment readers if not enough available
 	currLen := it.CurrentLen()
-	if len(it.segmentReaders) < currLen {
-		diff := currLen - len(it.segmentReaders)
+	if len(it.blockReaders) < currLen {
+		diff := currLen - len(it.blockReaders)
 		for i := 0; i < diff; i++ {
 			seg := ts.NewSegment(nil, nil, ts.FinalizeNone)
-			it.segmentReaders = append(it.segmentReaders, xio.NewSegmentReader(seg))
+			sr := xio.NewSegmentReader(seg)
+			br := xio.NewBlockReader(sr, it.CurrentStart(), it.CurrentEnd())
+			it.blockReaders = append(it.blockReaders, br)
 		}
 	}
 
 	// Set the segment readers to reader from current segment pieces
 	segment := it.segments[it.idx]
 	if segment.Merged != nil {
-		it.resetReader(it.segmentReaders[0], segment.Merged)
+		it.resetReader(it.blockReaders[0], segment.Merged)
 	} else {
 		for i := 0; i < currLen; i++ {
-			it.resetReader(it.segmentReaders[i], segment.Unmerged[i])
+			it.resetReader(it.blockReaders[i], segment.Unmerged[i])
 		}
 	}
 
@@ -76,12 +79,12 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 }
 
 func (it *readerSliceOfSlicesIterator) resetReader(
-	r xio.SegmentReader,
+	r xio.BlockReader,
 	seg *rpc.Segment,
 ) {
 	rseg, err := r.Segment()
 	if err != nil {
-		r.Reset(ts.Segment{})
+		r.ResetWindowed(ts.Segment{}, it.CurrentStart(), it.CurrentEnd())
 		return
 	}
 
@@ -101,7 +104,7 @@ func (it *readerSliceOfSlicesIterator) resetReader(
 	} else {
 		tail.Reset(seg.Tail)
 	}
-	r.Reset(ts.NewSegment(head, tail, ts.FinalizeNone))
+	r.ResetWindowed(ts.NewSegment(head, tail, ts.FinalizeNone), it.CurrentStart(), it.CurrentEnd())
 }
 
 func (it *readerSliceOfSlicesIterator) CurrentLen() int {
@@ -111,11 +114,34 @@ func (it *readerSliceOfSlicesIterator) CurrentLen() int {
 	return len(it.segments[it.idx].Unmerged)
 }
 
-func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) io.Reader {
+func timeConvert(ticks *int64) time.Time {
+	if ticks == nil {
+		return time.Time{}
+	}
+	return xtime.FromNormalizedTime(*ticks, time.Second)
+}
+
+func (it *readerSliceOfSlicesIterator) CurrentStart() time.Time {
+	segments := it.segments[it.idx]
+	if segments.Merged != nil {
+		return timeConvert(segments.Merged.StartTime)
+	}
+	return timeConvert(segments.Unmerged[0].StartTime)
+}
+
+func (it *readerSliceOfSlicesIterator) CurrentEnd() time.Time {
+	segments := it.segments[it.idx]
+	if segments.Merged != nil {
+		return timeConvert(segments.Merged.EndTime)
+	}
+	return timeConvert(segments.Unmerged[0].EndTime)
+}
+
+func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) xio.Reader {
 	if idx >= it.CurrentLen() {
 		return nil
 	}
-	return it.segmentReaders[idx]
+	return it.blockReaders[idx]
 }
 
 func (it *readerSliceOfSlicesIterator) Close() {
@@ -126,8 +152,8 @@ func (it *readerSliceOfSlicesIterator) Close() {
 	// Release any refs to segments
 	it.segments = nil
 	// Release any refs to segment byte slices
-	for i := range it.segmentReaders {
-		seg, err := it.segmentReaders[i].Segment()
+	for i := range it.blockReaders {
+		seg, err := it.blockReaders[i].Segment()
 		if err != nil {
 			continue
 		}

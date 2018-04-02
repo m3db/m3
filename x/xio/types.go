@@ -22,21 +22,40 @@ package xio
 
 import (
 	"io"
+	"time"
 
-	"github.com/m3db/m3x/resource"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/resource"
 )
 
-// ReaderSliceReader implements the io reader interface backed by a slice of readers
-type ReaderSliceReader interface {
+// Reader is an IO reader that can clone itself to reset the position
+// in the stream so another consumer can can begin again from the start
+type Reader interface {
 	io.Reader
 
-	Readers() []io.Reader
+	// Clone returns a clone of the underlying data reset
+	// to the start of the reader
+	Clone() Reader
+}
+
+// BlockReader implements the io reader interface backed by a segment with start and end times
+type BlockReader interface {
+	SegmentReader
+
+	Start() time.Time
+
+	End() time.Time
+
+	// ResetWindowed resets the reader to read a new segment, and updates block start and end times
+	ResetWindowed(segment ts.Segment, start, end time.Time)
+
+	// SegmentReader exposes inner segment reader
+	SegmentReader() (SegmentReader, error)
 }
 
 // SegmentReader implements the io reader interface backed by a segment
 type SegmentReader interface {
-	io.Reader
+	Reader
 	resource.Finalizer
 
 	// Segment gets the segment read by this reader
@@ -63,11 +82,15 @@ type ReaderSliceOfSlicesIterator interface {
 	// Next moves to the next item
 	Next() bool
 
+	CurrentStart() time.Time
+
+	CurrentEnd() time.Time
+
 	// CurrentLen returns the current slice of readers
 	CurrentLen() int
 
 	// CurrentAt returns the current reader in the slice of readers at an index
-	CurrentAt(idx int) io.Reader
+	CurrentAt(idx int) Reader
 
 	// Close closes the iterator
 	Close()
@@ -77,6 +100,6 @@ type ReaderSliceOfSlicesIterator interface {
 type ReaderSliceOfSlicesFromSegmentReadersIterator interface {
 	ReaderSliceOfSlicesIterator
 
-	// Reset resets the iterator with a new array of segment readers arrays
-	Reset(segments [][]SegmentReader)
+	// Reset resets the iterator with a new array of block readers arrays
+	Reset(segments [][]BlockReader)
 }

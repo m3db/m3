@@ -225,9 +225,9 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 
 	ns, closer := newTestNamespace(t)
 	defer closer()
-
+	blockSize := ns.nopts.RetentionOptions().BlockSize()
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().FetchBlocks(ctx, ident.NewIDMatcher("foo"), nil).Return(nil, nil)
+	shard.EXPECT().FetchBlocks(ctx, ident.NewIDMatcher("foo"), nil, blockSize).Return(nil, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	shard.EXPECT().IsBootstrapped().Return(true)

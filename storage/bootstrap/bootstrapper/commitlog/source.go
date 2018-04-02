@@ -22,7 +22,6 @@ package commitlog
 
 import (
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -384,7 +383,7 @@ func (s *commitLogSource) mergeSeries(
 		// Convert encoders to readers so we can use iteration helpers
 		readers := encoders.newReaders()
 		iter := multiReaderIteratorPool.Get()
-		iter.Reset(readers)
+		iter.Reset(readers, time.Time{}, time.Time{})
 
 		var err error
 		enc := encoderPool.Get()
@@ -524,7 +523,7 @@ type encoderArg struct {
 
 type encoders []encoder
 
-type ioReaders []io.Reader
+type ioReaders []xio.Reader
 
 func (e encoders) newReaders() ioReaders {
 	readers := make(ioReaders, len(e))

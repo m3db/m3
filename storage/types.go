@@ -114,7 +114,7 @@ type Database interface {
 		namespace ident.ID,
 		id ident.ID,
 		start, end time.Time,
-	) ([][]xio.SegmentReader, error)
+	) ([][]xio.BlockReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
 	FetchBlocks(
@@ -243,7 +243,7 @@ type databaseNamespace interface {
 		ctx context.Context,
 		id ident.ID,
 		start, end time.Time,
-	) ([][]xio.SegmentReader, error)
+	) ([][]xio.BlockReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
 	FetchBlocks(
@@ -344,13 +344,14 @@ type databaseShard interface {
 		ctx context.Context,
 		id ident.ID,
 		start, end time.Time,
-	) ([][]xio.SegmentReader, error)
+	) ([][]xio.BlockReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
 	FetchBlocks(
 		ctx context.Context,
 		id ident.ID,
 		starts []time.Time,
+		blockDuration time.Duration,
 	) ([]block.FetchBlockResult, error)
 
 	// FetchBlocksMetadata retrieves the blocks metadata.
