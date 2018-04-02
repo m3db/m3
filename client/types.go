@@ -283,6 +283,7 @@ type AdminSession interface {
 		namespace ident.ID,
 		shard uint32,
 		start, end time.Time,
+		consistencyLevel ReadConsistencyLevel,
 		result result.Options,
 		version FetchBlocksMetadataEndpointVersion,
 	) (PeerBlocksMetadataIter, error)
@@ -411,17 +412,17 @@ type Options interface {
 	// TopologyInitializer returns the TopologyInitializer
 	TopologyInitializer() topology.Initializer
 
-	// SetWriteConsistencyLevel sets the write consistency level
-	SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options
-
-	// WriteConsistencyLevel returns the write consistency level
-	WriteConsistencyLevel() topology.ConsistencyLevel
-
 	// SetReadConsistencyLevel sets the read consistency level
 	SetReadConsistencyLevel(value ReadConsistencyLevel) Options
 
 	// ReadConsistencyLevel returns the read consistency level
 	ReadConsistencyLevel() ReadConsistencyLevel
+
+	// SetWriteConsistencyLevel sets the write consistency level
+	SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options
+
+	// WriteConsistencyLevel returns the write consistency level
+	WriteConsistencyLevel() topology.ConsistencyLevel
 
 	// SetChannelOptions sets the channelOptions
 	SetChannelOptions(value *tchannel.ChannelOptions) Options
@@ -643,6 +644,12 @@ type AdminOptions interface {
 
 	// Origin gets the current host originating requests from
 	Origin() topology.Host
+
+	// SetBootstrapConsistencyLevel sets the bootstrap consistency level
+	SetBootstrapConsistencyLevel(value ReadConsistencyLevel) Options
+
+	// BootstrapConsistencyLevel returns the bootstrap consistency level
+	BootstrapConsistencyLevel() ReadConsistencyLevel
 
 	// SetFetchSeriesBlocksMaxBlockRetries sets the max retries for fetching series blocks
 	SetFetchSeriesBlocksMaxBlockRetries(value int) AdminOptions

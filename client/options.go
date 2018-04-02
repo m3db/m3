@@ -48,6 +48,9 @@ const (
 	// defaultReadConsistencyLevel is the default read consistency level
 	defaultReadConsistencyLevel = ReadConsistencyLevelMajority
 
+	// defaultBootstrapConsistencyLevel is the default bootstrap consistency level
+	defaultBootstrapConsistencyLevel = ReadConsistencyLevelMajority
+
 	// defaultMaxConnectionCount is the default max connection count
 	defaultMaxConnectionCount = 32
 
@@ -176,8 +179,9 @@ type options struct {
 	clockOpts                               clock.Options
 	instrumentOpts                          instrument.Options
 	topologyInitializer                     topology.Initializer
-	writeConsistencyLevel                   topology.ConsistencyLevel
 	readConsistencyLevel                    ReadConsistencyLevel
+	writeConsistencyLevel                   topology.ConsistencyLevel
+	bootstrapConsistencyLevel               ReadConsistencyLevel
 	channelOptions                          *tchannel.ChannelOptions
 	maxConnectionCount                      int
 	minConnectionCount                      int
@@ -251,6 +255,7 @@ func newOptions() *options {
 		instrumentOpts:                          instrument.NewOptions(),
 		writeConsistencyLevel:                   defaultWriteConsistencyLevel,
 		readConsistencyLevel:                    defaultReadConsistencyLevel,
+		bootstrapConsistencyLevel:               defaultBootstrapConsistencyLevel,
 		maxConnectionCount:                      defaultMaxConnectionCount,
 		minConnectionCount:                      defaultMinConnectionCount,
 		hostConnectTimeout:                      defaultHostConnectTimeout,
@@ -339,6 +344,16 @@ func (o *options) TopologyInitializer() topology.Initializer {
 	return o.topologyInitializer
 }
 
+func (o *options) SetReadConsistencyLevel(value ReadConsistencyLevel) Options {
+	opts := *o
+	opts.readConsistencyLevel = value
+	return &opts
+}
+
+func (o *options) ReadConsistencyLevel() ReadConsistencyLevel {
+	return o.readConsistencyLevel
+}
+
 func (o *options) SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
 	opts := *o
 	opts.writeConsistencyLevel = value
@@ -349,14 +364,14 @@ func (o *options) WriteConsistencyLevel() topology.ConsistencyLevel {
 	return o.writeConsistencyLevel
 }
 
-func (o *options) SetReadConsistencyLevel(value ReadConsistencyLevel) Options {
+func (o *options) SetBootstrapConsistencyLevel(value ReadConsistencyLevel) Options {
 	opts := *o
-	opts.readConsistencyLevel = value
+	opts.bootstrapConsistencyLevel = value
 	return &opts
 }
 
-func (o *options) ReadConsistencyLevel() ReadConsistencyLevel {
-	return o.readConsistencyLevel
+func (o *options) BootstrapConsistencyLevel() ReadConsistencyLevel {
+	return o.bootstrapConsistencyLevel
 }
 
 func (o *options) SetChannelOptions(value *tchannel.ChannelOptions) Options {

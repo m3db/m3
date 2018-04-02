@@ -26,12 +26,14 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
@@ -171,6 +173,7 @@ type session struct {
 	streamBlocksBatchSize            int
 	streamBlocksMetadataBatchTimeout time.Duration
 	streamBlocksBatchTimeout         time.Duration
+	bootstrapLevel                   ReadConsistencyLevel
 	metrics                          sessionMetrics
 }
 
@@ -289,6 +292,7 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
 		s.streamBlocksRetrier = opts.StreamBlocksRetrier()
+		s.bootstrapLevel = opts.BootstrapConsistencyLevel()
 	}
 
 	return s, nil
@@ -852,8 +856,8 @@ func (s *session) writeAttempt(
 	// returned from writeAttemptWithRLock.
 	state.Wait()
 
-	err = s.writeConsistencyResult(
-		majority, enqueued, enqueued-state.pending, int32(len(state.errors)), state.errors)
+	err = s.writeConsistencyResult(s.writeLevel, majority, enqueued,
+		enqueued-state.pending, int32(len(state.errors)), state.errors)
 
 	s.incWriteMetrics(err, int32(len(state.errors)))
 
@@ -1028,6 +1032,7 @@ func (s *session) fetchIDsAttempt(
 		resultErr              error
 		resultErrs             int32
 		majority               int32
+		consistencyLevel       ReadConsistencyLevel
 		fetchBatchOpsByHostIdx [][]*fetchBatchOp
 		success                = false
 	)
@@ -1075,6 +1080,7 @@ func (s *session) fetchIDsAttempt(
 	// while it is filling.
 	fetchBatchOpsByHostIdx = s.fetchBatchOpArrayArrayPool.Get()
 
+	consistencyLevel = s.readLevel
 	majority = atomic.LoadInt32(&s.majority)
 
 	// NB(prateek): namespaceAccessors tracks the number of pending accessors for nsID.
@@ -1120,7 +1126,8 @@ func (s *session) fetchIDsAttempt(
 				resultErrLock.RUnlock()
 			}
 			responded := enqueued - atomic.LoadInt32(&pending)
-			err := s.readConsistencyResult(majority, enqueued, responded, errsLen, reportErrors)
+			err := s.readConsistencyResult(consistencyLevel, majority, enqueued,
+				responded, errsLen, reportErrors)
 			s.incFetchMetrics(err, errsLen)
 			if err != nil {
 				resultErrLock.Lock()
@@ -1293,61 +1300,71 @@ func (s *session) fetchIDsAttempt(
 }
 
 func (s *session) writeConsistencyResult(
+	level topology.ConsistencyLevel,
 	majority, enqueued, responded, resultErrs int32,
 	errs []error,
 ) error {
-	if resultErrs == 0 {
-		return nil
-	}
-
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
-	switch s.writeLevel {
+	if !s.writeConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
+		return newConsistencyResultError(level, int(enqueued), int(responded), errs)
+	}
+	return nil
+}
+
+func (s *session) writeConsistencyAchieved(level topology.ConsistencyLevel, majority, enqueued, success int) bool {
+	switch level {
 	case topology.ConsistencyLevelAll:
-		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)
+		if success == enqueued { // Meets all
+			break
+		}
+		return false
 	case topology.ConsistencyLevelMajority:
 		if success >= majority { // Meets majority
 			break
 		}
-		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)
+		return false
 	case topology.ConsistencyLevelOne:
 		if success > 0 { // Meets one
 			break
 		}
-		return newConsistencyResultError(s.writeLevel, int(enqueued), int(responded), errs)
+		return false
 	}
-
-	return nil
+	return true
 }
 
 func (s *session) readConsistencyResult(
+	level ReadConsistencyLevel,
 	majority, enqueued, responded, resultErrs int32,
 	errs []error,
 ) error {
-	if resultErrs == 0 {
-		return nil
-	}
-
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
-	switch s.readLevel {
-	case ReadConsistencyLevelAll:
-		return newConsistencyResultError(s.readLevel, int(enqueued), int(responded), errs)
-	case ReadConsistencyLevelMajority:
-		if success >= majority {
-			// Meets majority
-			break
-		}
-		return newConsistencyResultError(s.readLevel, int(enqueued), int(responded), errs)
-	case ReadConsistencyLevelOne, ReadConsistencyLevelUnstrictMajority:
-		if success > 0 {
-			// Meets one
-			break
-		}
-		return newConsistencyResultError(s.readLevel, int(enqueued), int(responded), errs)
+	if !s.readConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
+		return newConsistencyResultError(level, int(enqueued), int(responded), errs)
 	}
-
 	return nil
+}
+
+func (s *session) readConsistencyAchieved(level ReadConsistencyLevel, majority, enqueued, success int) bool {
+	switch level {
+	case ReadConsistencyLevelAll:
+		if success == enqueued { // Meets all
+			break
+		}
+		return false
+	case ReadConsistencyLevelMajority:
+		if success >= majority { // Meets majority
+			break
+		}
+		return false
+	case ReadConsistencyLevelOne, ReadConsistencyLevelUnstrictMajority:
+		if success > 0 { // Meets one
+			break
+		}
+		return false
+	}
+	return true
 }
 
 func (s *session) Close() error {
@@ -1420,27 +1437,45 @@ func (s *session) Truncate(namespace ident.ID) (int64, error) {
 	return truncated, resultErr.FinalError()
 }
 
-func (s *session) peersForShard(shard uint32) ([]peer, error) {
+type peers struct {
+	peers            []peer
+	selfExcluded     bool
+	selfHostShardSet topology.HostShardSet
+}
+
+func (s *session) peersForShard(shard uint32) (peers, error) {
+	var (
+		lookupErr error
+		result    = peers{peers: make([]peer, 0, s.topoMap.Replicas())}
+	)
+
 	s.RLock()
-	peers := make([]peer, 0, s.topoMap.Replicas())
 	err := s.topoMap.RouteShardForEach(shard, func(idx int, host topology.Host) {
 		if s.origin != nil && s.origin.ID() == host.ID() {
 			// Don't include the origin host
+			result.selfExcluded = true
+			// Include the origin host shard set for help determining quorum
+			hostShardSet, ok := s.topoMap.LookupHostShardSet(host.ID())
+			if !ok {
+				lookupErr = fmt.Errorf("could not find shard set for host ID: %s", host.ID())
+			}
+			result.selfHostShardSet = hostShardSet
 			return
 		}
-		peers = append(peers, newPeer(s, host))
+		result.peers = append(result.peers, newPeer(s, host))
 	})
 	s.RUnlock()
-	if err != nil {
-		return nil, err
+	if resultErr := xerrors.FirstError(err, lookupErr); resultErr != nil {
+		return peers{}, resultErr
 	}
-	return peers, nil
+	return result, nil
 }
 
 func (s *session) FetchBlocksMetadataFromPeers(
 	namespace ident.ID,
 	shard uint32,
 	start, end time.Time,
+	consistencyLevel ReadConsistencyLevel,
 	resultOpts result.Options,
 	version FetchBlocksMetadataEndpointVersion,
 ) (PeerBlocksMetadataIter, error) {
@@ -1457,7 +1492,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 
 	go func() {
 		errCh <- s.streamBlocksMetadataFromPeers(namespace, shard,
-			peers, start, end, metadataCh, resultOpts, m, version)
+			peers, start, end, consistencyLevel, metadataCh, resultOpts, m, version)
 		close(metadataCh)
 		close(errCh)
 	}()
@@ -1479,9 +1514,10 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	}
 
 	var (
-		result   = newBulkBlocksResult(s.opts, opts)
-		doneCh   = make(chan struct{})
-		progress = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeBootstrap)
+		result           = newBulkBlocksResult(s.opts, opts)
+		doneCh           = make(chan struct{})
+		progress         = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeBootstrap)
+		consistencyLevel = s.bootstrapLevel
 	)
 
 	// Determine which peers own the specified shard
@@ -1513,7 +1549,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- s.streamBlocksMetadataFromPeers(nsMetadata.ID(), shard,
-			peers, start, end, metadataCh, opts, progress, version)
+			peers, start, end, consistencyLevel, metadataCh, opts, progress, version)
 		close(metadataCh)
 	}()
 
@@ -1532,8 +1568,8 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	default:
 		return nil, errInvalidFetchBlocksMetadataVersion
 	}
-	s.streamBlocksFromPeers(
-		nsMetadata, shard, peers, metadataCh, opts, result, progress, streamFn)
+	s.streamBlocksFromPeers(nsMetadata, shard, peers.peers, metadataCh,
+		opts, result, progress, streamFn)
 
 	// Check if an error occurred during the metadata streaming
 	if err = <-errCh; err != nil {
@@ -1570,8 +1606,8 @@ func (s *session) FetchBlocksFromPeers(
 	if err != nil {
 		return nil, err
 	}
-	peersByHost := make(map[string]peer, len(peers))
-	for _, peer := range peers {
+	peersByHost := make(map[string]peer, len(peers.peers))
+	for _, peer := range peers.peers {
 		peersByHost[peer.Host().ID()] = peer
 	}
 
@@ -1613,8 +1649,8 @@ func (s *session) FetchBlocksFromPeers(
 
 	// Begin consuming metadata and making requests
 	go func() {
-		s.streamBlocksFromPeers(nsMetadata, shard, peers,
-			metadataCh, opts, result, progress, s.passThruBlocksMetadata)
+		s.streamBlocksFromPeers(nsMetadata, shard, peers.peers, metadataCh,
+			opts, result, progress, s.passThruBlocksMetadata)
 		close(outputCh)
 		onDone(nil)
 	}()
@@ -1625,9 +1661,10 @@ func (s *session) FetchBlocksFromPeers(
 
 func (s *session) streamBlocksMetadataFromPeers(
 	namespace ident.ID,
-	shard uint32,
-	peers []peer,
+	shardID uint32,
+	peers peers,
 	start, end time.Time,
+	consistencyLevel ReadConsistencyLevel,
 	metadataCh chan<- blocksMetadata,
 	resultOpts result.Options,
 	progress *streamFromPeersMetrics,
@@ -1635,52 +1672,129 @@ func (s *session) streamBlocksMetadataFromPeers(
 ) error {
 	var (
 		wg       sync.WaitGroup
-		errLock  sync.Mutex
-		errLen   int
-		pending  int64
-		multiErr = xerrors.NewMultiError()
+		errLock  sync.RWMutex
+		errors   = make(map[int]error)
+		setError = func(idx int, err error) {
+			errLock.Lock()
+			errors[idx] = err
+			errLock.Unlock()
+		}
+		getErrors = func() []error {
+			var result []error
+			errLock.RLock()
+			for _, err := range errors {
+				if err == nil {
+					continue
+				}
+				result = append(result, err)
+			}
+			errLock.RUnlock()
+			return result
+		}
+		abortError    error
+		setAbortError = func(err error) {
+			errLock.Lock()
+			abortError = err
+			errLock.Unlock()
+		}
+		getAbortError = func() error {
+			errLock.RLock()
+			result := abortError
+			errLock.RUnlock()
+			return result
+		}
+		pending   = int64(len(peers.peers))
+		majority  = atomic.LoadInt32(&s.majority)
+		enqueued  = int32(len(peers.peers))
+		responded int32
+		success   int32
 	)
+	if peers.selfExcluded {
+		state, err := peers.selfHostShardSet.ShardSet().LookupStateByID(shardID)
+		if err == nil && state == shard.Available {
+			// If we excluded ourselves from fetching, we basically treat ourselves
+			// as a successful peer response since we can bootstrap from ourselves
+			// just fine
+			enqueued++
+			success++
+		}
+	}
 
-	pending = int64(len(peers))
 	progress.metadataFetches.Update(float64(pending))
-	for _, peer := range peers {
+	for idx, peer := range peers.peers {
+		idx := idx
 		peer := peer
 
 		wg.Add(1)
 		go func() {
-			defer wg.Done()
-			var err error
+			defer func() {
+				// Success or error counts towards a response
+				atomic.AddInt32(&responded, 1)
 
-			switch version {
-			case FetchBlocksMetadataEndpointV1:
-				err = s.streamBlocksMetadataFromPeer(namespace, shard,
-					peer, start, end, metadataCh, progress)
-			case FetchBlocksMetadataEndpointV2:
-				err = s.streamBlocksMetadataFromPeerV2(namespace, shard,
-					peer, start, end, metadataCh, resultOpts, progress)
-			// Should never happen - we validate the version before this function is
-			// ever called
-			default:
-				err = errInvalidFetchBlocksMetadataVersion
-			}
+				// Decrement pending
+				progress.metadataFetches.Update(float64(atomic.AddInt64(&pending, -1)))
 
-			if err != nil {
-				errLock.Lock()
-				defer errLock.Unlock()
-				errLen++
-				multiErr = multiErr.Add(err)
+				// Mark done
+				wg.Done()
+			}()
+
+			var currPageToken pageToken
+			condition := func() bool {
+				level := consistencyLevel
+				majority := int(majority)
+				enqueued := int(enqueued)
+				success := int(atomic.LoadInt32(&success))
+				return !s.readConsistencyAchieved(level, majority, enqueued, success) &&
+					getAbortError() == nil
 			}
-			progress.metadataFetches.Update(float64(atomic.AddInt64(&pending, -1)))
+			for condition() {
+				var err error
+				switch version {
+				case FetchBlocksMetadataEndpointV1:
+					currPageToken, err = s.streamBlocksMetadataFromPeer(namespace, shardID,
+						peer, start, end, currPageToken, metadataCh, progress)
+				case FetchBlocksMetadataEndpointV2:
+					currPageToken, err = s.streamBlocksMetadataFromPeerV2(namespace, shardID,
+						peer, start, end, currPageToken, metadataCh, resultOpts, progress)
+				default:
+					// Should never happen - we validate the version before this function is
+					// ever called
+					err = xerrors.NewNonRetryableError(errInvalidFetchBlocksMetadataVersion)
+					setError(idx, err)
+					return
+				}
+
+				// Set error or success if err is nil
+				setError(idx, err)
+
+				// Check exit criteria
+				if err != nil && xerrors.IsNonRetryableError(err) {
+					setAbortError(err)
+					return // Cannot recover from this error, so we break from the loop
+				}
+				if err == nil {
+					atomic.AddInt32(&success, 1)
+					return
+				}
+			}
 		}()
 	}
 
 	wg.Wait()
 
-	if errLen == len(peers) {
-		return multiErr.FinalError()
+	if err := getAbortError(); err != nil {
+		return err
 	}
-	return nil
+
+	errs := getErrors()
+	return s.readConsistencyResult(consistencyLevel, majority, enqueued,
+		atomic.LoadInt32(&responded), int32(len(errs)), errs)
 }
+
+// pageToken is just an opaque type that needs to be downcasted to expected
+// page token type, this makes it easy to use the page token across the two
+// versions
+type pageToken interface{}
 
 // TODO(rartoul): Delete this once we delete the V1 code path
 func (s *session) streamBlocksMetadataFromPeer(
@@ -1688,11 +1802,22 @@ func (s *session) streamBlocksMetadataFromPeer(
 	shard uint32,
 	peer peer,
 	start, end time.Time,
+	startPageToken pageToken,
 	ch chan<- blocksMetadata,
 	progress *streamFromPeersMetrics,
-) error {
+) (pageToken, error) {
+	var pageToken *int64
+	if startPageToken != nil {
+		var ok bool
+		pageToken, ok = startPageToken.(*int64)
+		if !ok {
+			err := fmt.Errorf("unexpected start page token type: %s",
+				reflect.TypeOf(startPageToken).Elem().String())
+			return nil, xerrors.NewNonRetryableError(err)
+		}
+	}
+
 	var (
-		pageToken              *int64
 		optionIncludeSizes     = true
 		optionIncludeChecksums = true
 		optionIncludeLastRead  = true
@@ -1822,10 +1947,10 @@ func (s *session) streamBlocksMetadataFromPeer(
 
 	for moreResults {
 		if err := s.streamBlocksRetrier.Attempt(fetchFn); err != nil {
-			return err
+			return pageToken, err
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 // streamBlocksMetadataFromPeerV2 has several heap allocated anonymous
@@ -1836,12 +1961,23 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 	shard uint32,
 	peer peer,
 	start, end time.Time,
+	startPageToken pageToken,
 	metadataCh chan<- blocksMetadata,
 	resultOpts result.Options,
 	progress *streamFromPeersMetrics,
-) error {
+) (pageToken, error) {
+	var pageToken []byte
+	if startPageToken != nil {
+		var ok bool
+		pageToken, ok = startPageToken.([]byte)
+		if !ok {
+			err := fmt.Errorf("unexpected start page token type: %s",
+				reflect.TypeOf(startPageToken).Elem().String())
+			return nil, xerrors.NewNonRetryableError(err)
+		}
+	}
+
 	var (
-		pageToken              []byte
 		optionIncludeSizes     = true
 		optionIncludeChecksums = true
 		optionIncludeLastRead  = true
@@ -1976,10 +2112,10 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 
 	for moreResults {
 		if err := s.streamBlocksRetrier.Attempt(fetchFn); err != nil {
-			return err
+			return pageToken, err
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 func (s *session) streamBlocksFromPeers(
@@ -2322,7 +2458,6 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 		// Only select from peers not already attempted
 		currEligible = currStart[:]
 		currID := currStart[0].id
-		currUnselected := currStart[0].unselectedBlocks()[0]
 		for i := len(currEligible) - 1; i >= 0; i-- {
 			unselected := currEligible[i].unselectedBlocks()
 			if unselected[0].reattempt.attempt == 0 {
@@ -2344,23 +2479,8 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 		}
 
 		if len(currEligible) == 0 {
-			// No current eligible peers to select from
-			finalError := true
-			if currUnselected.reattempt.failAllowed != nil && atomic.AddInt32(currUnselected.reattempt.failAllowed, -1) > 0 {
-				// Some peers may still return results so we don't report error here
-				finalError = false
-			}
-
-			if finalError {
-				m.fetchBlockFinalError.Inc(1)
-				s.log.WithFields(
-					xlog.NewField("id", currID.String()),
-					xlog.NewField("start", earliestStart),
-					xlog.NewField("attempted", currUnselected.reattempt.attempt),
-					xlog.NewField("attemptErrs", xerrors.Errors(currUnselected.reattempt.errs).Error()),
-				).Error("retries failed for streaming blocks from peers")
-			}
-
+			// No current eligible peers to select from, retry all of them again
+			currEligible = currStart[:]
 			continue
 		}
 
