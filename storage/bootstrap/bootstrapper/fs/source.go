@@ -298,7 +298,6 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		blockPool         = bopts.DatabaseBlockOptions().DatabaseBlockPool()
 		seriesCachePolicy = bopts.SeriesCachePolicy()
 	)
-
 	shard, tr, readers, err := shardReaders.shard, shardReaders.tr, shardReaders.readers, shardReaders.err
 	if err != nil {
 		s.handleErrorsAndUnfulfilled(resultLock, bootstrapResult, shard, tr, shardResult, timesWithErrors)
@@ -338,6 +337,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		var (
 			timeRange  = r.Range()
 			start      = timeRange.Start
+			blockSize  = timeRange.End.Sub(start)
 			hasError   = false
 			numEntries = r.Entries()
 		)
@@ -390,14 +390,14 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			switch seriesCachePolicy {
 			case series.CacheAll:
 				seg := ts.NewSegment(data, nil, ts.FinalizeHead)
-				seriesBlock.Reset(start, seg)
+				seriesBlock.Reset(start, blockSize, seg)
 			case series.CacheAllMetadata:
 				metadata := block.RetrievableBlockMetadata{
 					ID:       id,
 					Length:   length,
 					Checksum: checksum,
 				}
-				seriesBlock.ResetRetrievable(start, shardRetriever, metadata)
+				seriesBlock.ResetRetrievable(start, blockSize, shardRetriever, metadata)
 			default:
 				s.log.WithFields(
 					xlog.NewField("shard", shard),

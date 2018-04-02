@@ -348,15 +348,16 @@ func (r *blockRetriever) Stream(
 	ctx context.Context,
 	shard uint32,
 	id ident.ID,
-	startTime time.Time,
+	startTime, endTime time.Time,
 	onRetrieve block.OnRetrieveBlock,
-) (xio.SegmentReader, error) {
+) (xio.BlockReader, error) {
 	req := r.reqPool.Get()
 	req.shard = shard
 	// NB(r): Clone the ID as we're not positive it will stay valid throughout
 	// the lifecycle of the async request.
 	req.id = r.idPool.Clone(id)
 	req.start = startTime
+	req.end = endTime
 	req.onRetrieve = onRetrieve
 	req.resultWg.Add(1)
 
@@ -369,13 +370,13 @@ func (r *blockRetriever) Stream(
 	// This should never happen unless caller tries to use Stream() before Open()
 	if r.seekerMgr == nil {
 		r.RUnlock()
-		return nil, errNoSeekerMgr
+		return xio.EmptyBlockReader, errNoSeekerMgr
 	}
 	r.RUnlock()
 
 	bloomFilter, err := r.seekerMgr.ConcurrentIDBloomFilter(shard, startTime)
 	if err != nil {
-		return nil, err
+		return xio.EmptyBlockReader, err
 	}
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
@@ -383,12 +384,11 @@ func (r *blockRetriever) Stream(
 	if !bloomFilter.Test(id.Data().Bytes()) {
 		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data
 		req.onRetrieved(ts.Segment{})
-		return req, nil
+		return req.toBlock(), nil
 	}
-
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
-		return nil, err
+		return xio.EmptyBlockReader, err
 	}
 
 	reqs.Lock()
@@ -402,7 +402,15 @@ func (r *blockRetriever) Stream(
 		// Loop busy, already ready to consume notification
 	}
 
-	return req, nil
+	return req.toBlock(), nil
+}
+
+func (req *retrieveRequest) toBlock() xio.BlockReader {
+	return xio.BlockReader{
+		SegmentReader: req,
+		Start:         req.start,
+		End:           req.end,
+	}
 }
 
 func (r *blockRetriever) shardRequests(
@@ -492,6 +500,7 @@ type retrieveRequest struct {
 
 	id         ident.ID
 	start      time.Time
+	end        time.Time
 	onRetrieve block.OnRetrieveBlock
 
 	indexEntry IndexEntry
@@ -533,6 +542,32 @@ func (req *retrieveRequest) Reset(segment ts.Segment) {
 	req.resultWg.Done()
 }
 
+func (req *retrieveRequest) ResetWindowed(segment ts.Segment, start, end time.Time) {
+	req.Reset(segment)
+	req.start = start
+	req.end = end
+}
+
+func (req *retrieveRequest) SegmentReader() (xio.SegmentReader, error) {
+	return req.reader, nil
+}
+
+func (req *retrieveRequest) Clone() (xio.SegmentReader, error) {
+	req.resultWg.Wait() // wait until result is ready
+	if req.err != nil {
+		return nil, req.err
+	}
+	return req.reader.Clone()
+}
+
+func (req *retrieveRequest) Start() time.Time {
+	return req.start
+}
+
+func (req *retrieveRequest) End() time.Time {
+	return req.end
+}
+
 func (req *retrieveRequest) Read(b []byte) (int, error) {
 	req.resultWg.Wait()
 	if req.err != nil {
@@ -561,6 +596,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.shard = 0
 	req.id = nil
 	req.start = time.Time{}
+	req.end = time.Time{}
 	req.onRetrieve = nil
 	req.indexEntry = IndexEntry{}
 	req.reader = nil

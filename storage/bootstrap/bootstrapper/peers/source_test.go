@@ -405,7 +405,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	var fooBlocks [2]block.DatabaseBlock
 	fooBlocks[0] = block.NewMockDatabaseBlock(ctrl)
 	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().StartTime().Return(start).AnyTimes()
-	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(nil, fmt.Errorf("stream err"))
+	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(xio.EmptyBlockReader, fmt.Errorf("stream err"))
 	addResult(0, "foo", fooBlocks[0])
 
 	fooBlocks[1] = block.NewDatabaseBlock(midway,
@@ -417,10 +417,14 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockStream := xio.NewMockSegmentReader(ctrl)
 	mockStream.EXPECT().Segment().Return(ts.Segment{}, fmt.Errorf("segment err"))
 
+	b := xio.BlockReader{
+		SegmentReader: mockStream,
+	}
+
 	var barBlocks [2]block.DatabaseBlock
 	barBlocks[0] = block.NewMockDatabaseBlock(ctrl)
 	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().StartTime().Return(start).AnyTimes()
-	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(mockStream, nil)
+	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(b, nil)
 	addResult(1, "bar", barBlocks[0])
 
 	barBlocks[1] = block.NewDatabaseBlock(midway,

@@ -242,7 +242,7 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 					Length:   currBlock.Len(),
 					Checksum: currBlock.Checksum(),
 				}
-				currBlock.ResetRetrievable(start, retriever, metadata)
+				currBlock.ResetRetrievable(start, currBlock.BlockSize(), retriever, metadata)
 			default:
 				// Remove the block and it will be looked up later
 				s.blocks.RemoveBlockAt(start)
@@ -309,7 +309,7 @@ func (s *dbSeries) Write(
 func (s *dbSeries) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
-) ([][]xio.SegmentReader, error) {
+) ([][]xio.BlockReader, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
 	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.blocks, s.buffer)
@@ -499,7 +499,8 @@ func (s *dbSeries) OnRetrieveBlock(
 		Length:   segment.Len(),
 		Checksum: digest.SegmentChecksum(segment),
 	}
-	b.ResetRetrievable(startTime, s.blockRetriever, metadata)
+	blockSize := s.opts.RetentionOptions().BlockSize()
+	b.ResetRetrievable(startTime, blockSize, s.blockRetriever, metadata)
 	// Use s.id instead of id here, because id is finalized by the context whereas
 	// we rely on the G.C to reclaim s.id. This is important because the block will
 	// hold onto the id ref, and (if the LRU caching policy is enabled) the shard
@@ -592,16 +593,16 @@ func (s *dbSeries) Flush(
 		return nil
 	}
 
-	sr, err := b.Stream(ctx)
+	br, err := b.Stream(ctx)
 	s.RUnlock()
 
 	if err != nil {
 		return err
 	}
-	if sr == nil {
+	if br.IsEmpty() {
 		return nil
 	}
-	segment, err := sr.Segment()
+	segment, err := br.Segment()
 	if err != nil {
 		return err
 	}

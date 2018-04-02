@@ -93,6 +93,7 @@ func (it *readerIterator) Next() bool {
 	if it.tuChanged {
 		it.dt = 0
 	}
+
 	return it.hasNext()
 }
 

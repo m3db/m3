@@ -22,17 +22,21 @@ package xio
 
 import (
 	"io"
+	"time"
 
-	"github.com/m3db/m3x/resource"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/resource"
 )
 
-// ReaderSliceReader implements the io reader interface backed by a slice of readers
-type ReaderSliceReader interface {
-	io.Reader
-
-	Readers() []io.Reader
+// BlockReader represents a block reader backed by a SegmentReader with start and end times
+type BlockReader struct {
+	SegmentReader
+	Start time.Time
+	End   time.Time
 }
+
+// EmptyBlockReader represents the default block reader
+var EmptyBlockReader = BlockReader{}
 
 // SegmentReader implements the io reader interface backed by a segment
 type SegmentReader interface {
@@ -44,6 +48,9 @@ type SegmentReader interface {
 
 	// Reset resets the reader to read a new segment
 	Reset(segment ts.Segment)
+
+	// Clone returns a clone of the underlying data reset
+	Clone() (SegmentReader, error)
 }
 
 // SegmentReaderPool provides a pool for segment readers
@@ -63,20 +70,20 @@ type ReaderSliceOfSlicesIterator interface {
 	// Next moves to the next item
 	Next() bool
 
-	// CurrentLen returns the current slice of readers
-	CurrentLen() int
+	// Current returns the current length, start, and end time
+	Current() (length int, start, end time.Time)
 
 	// CurrentAt returns the current reader in the slice of readers at an index
-	CurrentAt(idx int) io.Reader
+	CurrentAt(idx int) BlockReader
 
 	// Close closes the iterator
 	Close()
 }
 
-// ReaderSliceOfSlicesFromSegmentReadersIterator is an iterator that iterates through an array of reader arrays
-type ReaderSliceOfSlicesFromSegmentReadersIterator interface {
+// ReaderSliceOfSlicesFromBlockReadersIterator is an iterator that iterates through an array of reader arrays
+type ReaderSliceOfSlicesFromBlockReadersIterator interface {
 	ReaderSliceOfSlicesIterator
 
-	// Reset resets the iterator with a new array of segment readers arrays
-	Reset(segments [][]SegmentReader)
+	// Reset resets the iterator with a new array of block readers arrays
+	Reset(blocks [][]BlockReader)
 }

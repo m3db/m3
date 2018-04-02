@@ -126,7 +126,7 @@ func TestSeriesWriteFlush(t *testing.T) {
 
 	stream, err := block.Stream(ctx)
 	require.NoError(t, err)
-	assertValuesEqual(t, data[:2], [][]xio.SegmentReader{[]xio.SegmentReader{
+	assertValuesEqual(t, data[:2], [][]xio.BlockReader{[]xio.BlockReader{
 		stream,
 	}}, opts)
 }
@@ -207,7 +207,7 @@ func TestSeriesFlush(t *testing.T) {
 	tail := checked.NewBytes([]byte{0x3, 0x4}, nil)
 
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(flushTime, ts.NewSegment(head, tail, ts.FinalizeNone))
+	block.Reset(flushTime, time.Hour, ts.NewSegment(head, tail, ts.FinalizeNone))
 	series.blocks.AddBlock(block)
 
 	inputs := []error{errors.New("some error"), nil}
@@ -460,6 +460,8 @@ func TestSeriesTickCacheAllMetadata(t *testing.T) {
 	series.blockRetriever = blockRetriever
 	require.NoError(t, series.Bootstrap(nil))
 
+	blockSize := time.Second * 1337
+
 	// Test case where block has been read within expiry period - won't be reset to only have metadata
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
@@ -476,13 +478,14 @@ func TestSeriesTickCacheAllMetadata(t *testing.T) {
 
 	// Test case where block has not been read within expiry period - will be reset to only have metadata
 	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().BlockSize().Return(blockSize)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() * 2))
 	b.EXPECT().Len().Return(1)
 	b.EXPECT().Checksum().Return(uint32(0))
-	b.EXPECT().ResetRetrievable(curr, blockRetriever, gomock.Any()).Return()
+	b.EXPECT().ResetRetrievable(curr, blockSize, blockRetriever, gomock.Any()).Return()
 	series.blocks.AddBlock(b)
 
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
@@ -601,10 +604,12 @@ func TestSeriesFetchBlocks(t *testing.T) {
 
 	// Set up the blocks
 	b := block.NewMockDatabaseBlock(ctrl)
-	b.EXPECT().Stream(ctx).Return(xio.NewSegmentReader(ts.Segment{}), nil)
+	b.EXPECT().Stream(ctx).Return(xio.BlockReader{
+		SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+	}, nil)
 	blocks.EXPECT().BlockAt(starts[0]).Return(b, true)
 	b = block.NewMockDatabaseBlock(ctrl)
-	b.EXPECT().Stream(ctx).Return(nil, errors.New("bar"))
+	b.EXPECT().Stream(ctx).Return(xio.EmptyBlockReader, errors.New("bar"))
 	blocks.EXPECT().BlockAt(starts[1]).Return(b, true)
 	blocks.EXPECT().BlockAt(starts[2]).Return(nil, false)
 
@@ -628,9 +633,9 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	for i := 0; i < len(starts); i++ {
 		assert.Equal(t, expectedTimes[i], res[i].Start)
 		if i == 1 {
-			assert.NotNil(t, res[i].Readers)
+			assert.NotNil(t, res[i].Blocks)
 		} else {
-			assert.Nil(t, res[i].Readers)
+			assert.Nil(t, res[i].Blocks)
 		}
 		if i == 2 {
 			assert.Error(t, res[i].Err)
@@ -777,9 +782,10 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 	require.NoError(t, err)
 
 	multiIt := opts.MultiReaderIteratorPool().Get()
-	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
+
+	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded))
 	it := encoding.NewSeriesIterator(id, nsID, ident.NewTagSliceIterator(tags),
-		qStart, qEnd, []encoding.Iterator{multiIt}, nil)
+		qStart, qEnd, []encoding.MultiReaderIterator{multiIt}, nil)
 	defer it.Close()
 
 	var actual []ts.Datapoint

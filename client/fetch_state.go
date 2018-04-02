@@ -176,7 +176,7 @@ type fetchTaggedPools interface {
 	MultiReaderIterator() encoding.MultiReaderIteratorPool
 	SeriesIterator() encoding.SeriesIteratorPool
 	MutableSeriesIterators() encoding.MutableSeriesIteratorsPool
-	IteratorArray() encoding.IteratorArrayPool
+	MultiReaderIteratorArray() encoding.MultiReaderIteratorArrayPool
 	ID() ident.Pool
 	CheckedBytesWrapper() xpool.CheckedBytesWrapperPool
 	TagDecoder() serialize.TagDecoderPool

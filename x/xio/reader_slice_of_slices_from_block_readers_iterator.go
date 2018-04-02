@@ -20,21 +20,23 @@
 
 package xio
 
-import "io"
+import (
+	"time"
+)
 
 type readerSliceOfSlicesIterator struct {
-	segments [][]SegmentReader
-	idx      int
-	len      int
-	closed   bool
+	blocks [][]BlockReader
+	idx    int
+	len    int
+	closed bool
 }
 
-// NewReaderSliceOfSlicesFromSegmentReadersIterator creates a new reader slice of slices iterator
-func NewReaderSliceOfSlicesFromSegmentReadersIterator(
-	segments [][]SegmentReader,
-) ReaderSliceOfSlicesFromSegmentReadersIterator {
+// NewReaderSliceOfSlicesFromBlockReadersIterator creates a new reader slice of slices iterator
+func NewReaderSliceOfSlicesFromBlockReadersIterator(
+	blocks [][]BlockReader,
+) ReaderSliceOfSlicesFromBlockReadersIterator {
 	it := &readerSliceOfSlicesIterator{}
-	it.Reset(segments)
+	it.Reset(blocks)
 	return it
 }
 
@@ -46,18 +48,28 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 	return true
 }
 
-func (it *readerSliceOfSlicesIterator) CurrentLen() int {
-	return len(it.segments[it.arrayIdx()])
+var timeZero = time.Time{}
+
+func (it *readerSliceOfSlicesIterator) Current() (int, time.Time, time.Time) {
+	if len(it.blocks) < it.arrayIdx() {
+		return 0, timeZero, timeZero
+	}
+	currentLen := len(it.blocks[it.arrayIdx()])
+	if currentLen == 0 {
+		return 0, timeZero, timeZero
+	}
+	currBlock := it.blocks[it.arrayIdx()][0]
+	return currentLen, currBlock.Start, currBlock.End
 }
 
-func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) io.Reader {
-	return it.segments[it.arrayIdx()][idx]
+func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) BlockReader {
+	return it.blocks[it.arrayIdx()][idx]
 }
 
-func (it *readerSliceOfSlicesIterator) Reset(segments [][]SegmentReader) {
-	it.segments = segments
+func (it *readerSliceOfSlicesIterator) Reset(blocks [][]BlockReader) {
+	it.blocks = blocks
 	it.idx = -1
-	it.len = len(segments)
+	it.len = len(blocks)
 	it.closed = false
 }
 

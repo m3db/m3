@@ -2316,9 +2316,13 @@ func (p *Segments) String() string {
 // Attributes:
 //  - Head
 //  - Tail
+//  - StartTime
+//  - EndTime
 type Segment struct {
-	Head []byte `thrift:"head,1,required" db:"head" json:"head"`
-	Tail []byte `thrift:"tail,2,required" db:"tail" json:"tail"`
+	Head      []byte `thrift:"head,1,required" db:"head" json:"head"`
+	Tail      []byte `thrift:"tail,2,required" db:"tail" json:"tail"`
+	StartTime *int64 `thrift:"startTime,3" db:"startTime" json:"startTime,omitempty"`
+	EndTime   *int64 `thrift:"endTime,4" db:"endTime" json:"endTime,omitempty"`
 }
 
 func NewSegment() *Segment {
@@ -2332,6 +2336,32 @@ func (p *Segment) GetHead() []byte {
 func (p *Segment) GetTail() []byte {
 	return p.Tail
 }
+
+var Segment_StartTime_DEFAULT int64
+
+func (p *Segment) GetStartTime() int64 {
+	if !p.IsSetStartTime() {
+		return Segment_StartTime_DEFAULT
+	}
+	return *p.StartTime
+}
+
+var Segment_EndTime_DEFAULT int64
+
+func (p *Segment) GetEndTime() int64 {
+	if !p.IsSetEndTime() {
+		return Segment_EndTime_DEFAULT
+	}
+	return *p.EndTime
+}
+func (p *Segment) IsSetStartTime() bool {
+	return p.StartTime != nil
+}
+
+func (p *Segment) IsSetEndTime() bool {
+	return p.EndTime != nil
+}
+
 func (p *Segment) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
@@ -2359,6 +2389,14 @@ func (p *Segment) Read(iprot thrift.TProtocol) error {
 				return err
 			}
 			issetTail = true
+		case 3:
+			if err := p.ReadField3(iprot); err != nil {
+				return err
+			}
+		case 4:
+			if err := p.ReadField4(iprot); err != nil {
+				return err
+			}
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -2398,6 +2436,24 @@ func (p *Segment) ReadField2(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *Segment) ReadField3(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 3: ", err)
+	} else {
+		p.StartTime = &v
+	}
+	return nil
+}
+
+func (p *Segment) ReadField4(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 4: ", err)
+	} else {
+		p.EndTime = &v
+	}
+	return nil
+}
+
 func (p *Segment) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("Segment"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -2407,6 +2463,12 @@ func (p *Segment) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField3(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField4(oprot); err != nil {
 			return err
 		}
 	}
@@ -2441,6 +2503,36 @@ func (p *Segment) writeField2(oprot thrift.TProtocol) (err error) {
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:tail: ", p), err)
+	}
+	return err
+}
+
+func (p *Segment) writeField3(oprot thrift.TProtocol) (err error) {
+	if p.IsSetStartTime() {
+		if err := oprot.WriteFieldBegin("startTime", thrift.I64, 3); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:startTime: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.StartTime)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.startTime (3) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:startTime: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *Segment) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetEndTime() {
+		if err := oprot.WriteFieldBegin("endTime", thrift.I64, 4); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:endTime: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.EndTime)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.endTime (4) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:endTime: ", p), err)
+		}
 	}
 	return err
 }

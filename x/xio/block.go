@@ -21,14 +21,32 @@
 package xio
 
 import (
+	"time"
+
 	"github.com/m3db/m3db/ts"
 )
 
-// nolint: deadcode
-type nullSegmentReader struct{}
+// CloneBlock returns a clone of the block with the underlying data reset
+func (b BlockReader) CloneBlock() (BlockReader, error) {
+	sr, err := b.SegmentReader.Clone()
+	if err != nil {
+		return EmptyBlockReader, nil
+	}
+	return BlockReader{
+		SegmentReader: sr,
+		Start:         b.Start,
+		End:           b.End,
+	}, nil
+}
 
-func (r nullSegmentReader) Read([]byte) (n int, err error) { return 0, nil }
-func (r nullSegmentReader) Segment() (ts.Segment, error)   { return ts.Segment{}, nil }
-func (r nullSegmentReader) Reset(ts.Segment)               {}
-func (r nullSegmentReader) Finalize()                      {}
-func (r nullSegmentReader) Clone() (SegmentReader, error)  { return r, nil }
+// IsEmpty returns true for the empty block
+func (b BlockReader) IsEmpty() bool {
+	return b.Start.Equal(timeZero) && b.End.Equal(timeZero) && b.SegmentReader == nil
+}
+
+// ResetWindowed resets the underlying reader window, as well as start and end times for the block
+func (b *BlockReader) ResetWindowed(segment ts.Segment, start, end time.Time) {
+	b.Reset(segment)
+	b.Start = start
+	b.End = end
+}
