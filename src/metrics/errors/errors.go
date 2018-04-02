@@ -34,3 +34,11 @@ type ValidationError string
 // NewValidationError creates a new validation error.
 func NewValidationError(str string) error { return ValidationError(str) }
 func (e ValidationError) Error() string   { return string(e) }
+
+// StaleDataError is returned when a rule modification is attempted but the
+// underlying data has changed and the change is no longer valid.
+type StaleDataError string
+
+// NewStaleDataError creates a new version mismatch error.
+func NewStaleDataError(str string) error { return StaleDataError(str) }
+func (e StaleDataError) Error() string   { return string(e) }
