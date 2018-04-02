@@ -1760,8 +1760,6 @@ func (s *session) streamBlocksMetadataFromPeers(
 					// Should never happen - we validate the version before this function is
 					// ever called
 					err = xerrors.NewNonRetryableError(errInvalidFetchBlocksMetadataVersion)
-					setError(idx, err)
-					return
 				}
 
 				// Set error or success if err is nil
