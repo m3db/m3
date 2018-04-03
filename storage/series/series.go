@@ -626,6 +626,10 @@ func (s *dbSeries) Snapshot(
 	if err != nil {
 		return err
 	}
+	if stream == nil {
+		return nil
+	}
+
 	segment, err := stream.Segment()
 	if err != nil {
 		return err
