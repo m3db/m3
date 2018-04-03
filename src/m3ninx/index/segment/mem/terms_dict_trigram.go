@@ -55,6 +55,7 @@ type trigramTermsDict struct {
 	backingDict termsDict
 }
 
+// nolint
 func newTrigramTermsDict(opts Options) termsDict {
 	return &trigramTermsDict{
 		opts:        opts,

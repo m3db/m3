@@ -27,7 +27,6 @@ import (
 )
 
 var (
-	errSearcherClosed             = errors.New("searcher is closed")
 	errSearchersNumReadersUnequal = errors.New("searchers have different number of readers")
 	errSearcherTooShort           = errors.New("searcher did not contain enough postings lists")
 )

@@ -48,7 +48,7 @@ type List interface {
 	Contains(id ID) bool
 
 	// IsEmpty returns whether the postings list is empty. Some posting lists have an
-	// optimized implementation for determing if they are empty which is faster than
+	// optimized implementation to determine if they are empty which is faster than
 	// calculating the size of the postings list.
 	IsEmpty() bool
 
@@ -97,7 +97,7 @@ type MutableList interface {
 	Reset()
 }
 
-// Iterator is an iterator over a postings list. The iterator is guarenteed to return
+// Iterator is an iterator over a postings list. The iterator is guaranteed to return
 // IDs in increasing order. It is not safe for concurrent access.
 type Iterator interface {
 	// Next returns whether the iterator has another postings ID.
