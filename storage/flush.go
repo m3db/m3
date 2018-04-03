@@ -112,7 +112,8 @@ func (m *flushManager) Flush(curr time.Time) error {
 			prevBlockStart     = snapshotBlockStart.Add(-blockSize)
 		)
 
-		// Don't perform any snapshots until the previous blocks flush has completed
+		// Only perform snapshots if the previous block (I.E the block directly before
+		// the block that we would snapshot) has been flushed.
 		if !ns.NeedsFlush(prevBlockStart, prevBlockStart) {
 			if err := ns.Snapshot(snapshotBlockStart, curr, flush); err != nil {
 				detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
