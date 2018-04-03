@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1854,13 +1855,13 @@ func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
 		return err
 	}
 
-	// sort.Slice(snapshotFiles, func(i, j int) bool {
-	// 	// Make sure they're sorted by blockStart/Index in ascending order.
-	// 	if snapshotFiles[i].ID.BlockStart.Equal(snapshotFiles[j].ID.BlockStart) {
-	// 		return snapshotFiles[i].ID.Index < snapshotFiles[j].ID.Index
-	// 	}
-	// 	return snapshotFiles[i].ID.BlockStart.Before(snapshotFiles[j].ID.BlockStart)
-	// })
+	sort.Slice(snapshotFiles, func(i, j int) bool {
+		// Make sure they're sorted by blockStart/Index in ascending order.
+		if snapshotFiles[i].ID.BlockStart.Equal(snapshotFiles[j].ID.BlockStart) {
+			return snapshotFiles[i].ID.Index < snapshotFiles[j].ID.Index
+		}
+		return snapshotFiles[i].ID.BlockStart.Before(snapshotFiles[j].ID.BlockStart)
+	})
 
 	filesToDelete := []string{}
 
