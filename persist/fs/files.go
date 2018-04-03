@@ -294,7 +294,7 @@ func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, i
 	}
 
 	if componentPosition > len(components)-1 {
-		return timeZero, 0, fmt.Errorf("malformatted filename: %s", fname)
+		return timeZero, 0, fmt.Errorf("malformed filename: %s", fname)
 	}
 
 	str := strings.Replace(components[componentPosition], fileSuffix, "", 1)
