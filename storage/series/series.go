@@ -613,35 +613,22 @@ func (s *dbSeries) Snapshot(
 	blockStart time.Time,
 	persistFn persist.Fn,
 ) error {
-	s.RLock()
-	defer s.RUnlock()
+	// Need a write lock because the buffer Snapshot method mutates
+	// state (by performing a pro-active merge).
+	s.Lock()
+	defer s.Unlock()
 
 	if s.bs != bootstrapped {
 		return errSeriesNotBootstrapped
 	}
 
-	var (
-		readers  = s.buffer.Snapshot(ctx, blockStart)
-		multiErr = xerrors.NewMultiError()
-	)
-
-	for _, reader := range readers {
-		for _, stream := range reader {
-			segment, err := stream.Segment()
-			if err != nil {
-				multiErr = multiErr.Add(err)
-				continue
-			}
-
-			err = persistFn(s.id, segment, digest.SegmentChecksum(segment))
-			if err != nil {
-				multiErr = multiErr.Add(err)
-				continue
-			}
-		}
+	stream, err := s.buffer.Snapshot(ctx, blockStart)
+	segment, err := stream.Segment()
+	if err != nil {
+		return err
 	}
 
-	return multiErr.FinalError()
+	return persistFn(s.id, segment, digest.SegmentChecksum(segment))
 }
 
 func (s *dbSeries) Close() {

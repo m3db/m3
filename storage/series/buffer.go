@@ -39,9 +39,10 @@ import (
 )
 
 var (
-	errTooFuture = errors.New("datapoint is too far in the future")
-	errTooPast   = errors.New("datapoint is too far in the past")
-	timeZero     time.Time
+	errTooFuture                   = errors.New("datapoint is too far in the future")
+	errTooPast                     = errors.New("datapoint is too far in the past")
+	errMoreThanOneStreamAfterMerge = errors.New("buffer has more than one stream after merge")
+	timeZero                       time.Time
 )
 
 const (
@@ -69,7 +70,7 @@ type databaseBuffer interface {
 		annotation []byte,
 	) error
 
-	Snapshot(ctx context.Context, blockStart time.Time) [][]xio.SegmentReader
+	Snapshot(ctx context.Context, blockStart time.Time) (xio.SegmentReader, error)
 
 	ReadEncoded(
 		ctx context.Context,
@@ -247,16 +248,14 @@ func bucketTick(now time.Time, b *dbBuffer, idx int, start time.Time) int {
 	// Perform a drain and reset if necessary
 	mergedOutOfOrderBlocks := bucketDrainAndReset(now, b, idx, start)
 
-	if b.buckets[idx].needsMerge() {
-		// Try to merge any out of order encoders to amortize the cost of a drain
-		r, err := b.buckets[idx].merge()
-		if err != nil {
-			log := b.opts.InstrumentOptions().Logger()
-			log.Errorf("buffer merge encode error: %v", err)
-		}
-		if r.merges > 0 {
-			mergedOutOfOrderBlocks++
-		}
+	// Try to merge any out of order encoders to amortize the cost of a drain
+	r, err := b.buckets[idx].merge()
+	if err != nil {
+		log := b.opts.InstrumentOptions().Logger()
+		log.Errorf("buffer merge encode error: %v", err)
+	}
+	if r.merges > 0 {
+		mergedOutOfOrderBlocks++
 	}
 
 	return mergedOutOfOrderBlocks
@@ -353,9 +352,12 @@ func (b *dbBuffer) computedForEachBucketAsc(
 	return result
 }
 
-func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) [][]xio.SegmentReader {
-	// TODO(r): pool these results arrays
-	var res [][]xio.SegmentReader
+func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) (xio.SegmentReader, error) {
+	var (
+		res xio.SegmentReader
+		err error
+	)
+
 	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
 		if !bucket.canRead() {
 			return
@@ -365,15 +367,28 @@ func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) [][]xio.S
 			return
 		}
 
+		// We need to merge all the bootstrapped blocks / encoders into a single stream for the sake
+		// of being able to persist it to disk as a single encoded stream.
+		bucket.merge()
+
 		// This operation is safe because all of the underlying resources will respect the
 		// lifecycle of the context in one way or another. The "bootstrapped blocks" that
 		// we stream from will mark their internal context as dependent on that of the passed
 		// context, and the Encoder's that we stream from actually perform a data copy and
 		// don't share a reference.
-		res = append(res, bucket.streams(ctx))
+		streams := bucket.streams(ctx)
+		if len(streams) > 1 {
+			// Should never happen as the call to merge above should result in only a single
+			// stream being present.
+			err = errMoreThanOneStreamAfterMerge
+			return
+		}
+
+		// Direct indexing is safe because canRead guarantees us at least one stream
+		res = streams[0]
 	})
 
-	return res
+	return res, err
 }
 
 func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.SegmentReader {
@@ -677,6 +692,11 @@ type mergeResult struct {
 }
 
 func (b *dbBufferBucket) merge() (mergeResult, error) {
+	if !b.needsMerge() {
+		// Save unnecessary work
+		return mergeResult{}, nil
+	}
+
 	merges := 0
 	bopts := b.opts.DatabaseBlockOptions()
 	encoder := bopts.EncoderPool().Get()
