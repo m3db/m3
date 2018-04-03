@@ -139,6 +139,12 @@ func (m *flushManager) Report() {
 	} else {
 		m.isFlushing.Update(0)
 	}
+
+	if m.snapshotInProgress {
+		m.isSnapshotting.Update(1)
+	} else {
+		m.isSnapshotting.Update(0)
+	}
 }
 
 func (m *flushManager) setFlushInProgress(b bool) {
