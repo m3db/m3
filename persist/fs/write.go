@@ -278,7 +278,6 @@ func (w *writer) writeAll(
 		}
 	}
 
-	fmt.Println("appending")
 	w.indexEntries = append(w.indexEntries, entry)
 	w.currIdx++
 
