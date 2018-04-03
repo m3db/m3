@@ -744,13 +744,13 @@ func TestBufferSnapshot(t *testing.T) {
 
 	// Check we got the right results
 	expectedData := data[:len(data)-1] // -1 because we don't expect the last datapoint
-	expected := make([]value, len(expectedData))
-	copy(expected, expectedData[:len(expectedData)])
-	sort.Sort(valuesByTime(expected))
+	expectedCopy := make([]value, len(expectedData))
+	copy(expectedCopy, expectedData)
+	sort.Sort(valuesByTime(expectedCopy))
 	actual := [][]xio.SegmentReader{[]xio.SegmentReader{
 		result,
 	}}
-	assertValuesEqual(t, expected, actual, opts)
+	assertValuesEqual(t, expectedCopy, actual, opts)
 
 	// Check internal state to make sure the merge happened and was persisted
 	encoders = encoders[:0]
