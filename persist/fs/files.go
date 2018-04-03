@@ -560,7 +560,7 @@ func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, patte
 	}
 
 	if len(byTimeAsc) == 0 {
-		return []FilesetFile{}, nil
+		return nil, nil
 	}
 
 	var (
