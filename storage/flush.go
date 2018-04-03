@@ -37,6 +37,17 @@ var (
 	errFlushOrSnapshotAlreadyInProgress = errors.New("flush or snapshot already in progress")
 )
 
+type flushManagerState int
+
+const (
+	flushManagerIdle flushManagerState = iota
+	// flushManagerNotIdle is used to protect the flush manager from concurrent use
+	// when we haven't begun either a flush or snapshot.
+	flushManagerNotIdle
+	flushManagerFlushInProgress
+	flushManagerSnapshotInProgress
+)
+
 type flushManager struct {
 	sync.RWMutex
 
@@ -46,11 +57,9 @@ type flushManager struct {
 	// isFlushingOrSnapshotting is used to protect the flush manager against
 	// concurrent use, while flushInProgress and snapshotInProgress are more
 	// granular and are used for emitting granular gauges.
-	isFlushingOrSnapshotting bool
-	flushInProgress          bool
-	snapshotInProgress       bool
-	isFlushing               tally.Gauge
-	isSnapshotting           tally.Gauge
+	state          flushManagerState
+	isFlushing     tally.Gauge
+	isSnapshotting tally.Gauge
 }
 
 func newFlushManager(database database, scope tally.Scope) databaseFlushManager {
@@ -67,16 +76,16 @@ func newFlushManager(database database, scope tally.Scope) databaseFlushManager 
 func (m *flushManager) Flush(curr time.Time) error {
 	// ensure only a single flush is happening at a time
 	m.Lock()
-	if m.isFlushingOrSnapshotting {
+	if m.state != flushManagerIdle {
 		m.Unlock()
 		return errFlushOrSnapshotAlreadyInProgress
 	}
-	m.isFlushingOrSnapshotting = true
+	m.state = flushManagerNotIdle
 	m.Unlock()
 
 	defer func() {
 		m.Lock()
-		m.isFlushingOrSnapshotting = false
+		m.state = flushManagerIdle
 		m.Unlock()
 	}()
 
@@ -131,16 +140,16 @@ func (m *flushManager) Flush(curr time.Time) error {
 
 func (m *flushManager) Report() {
 	m.RLock()
-	flushInProgress := m.flushInProgress
+	state := m.state
 	m.RUnlock()
 
-	if flushInProgress {
+	if state == flushManagerFlushInProgress {
 		m.isFlushing.Update(1)
 	} else {
 		m.isFlushing.Update(0)
 	}
 
-	if m.snapshotInProgress {
+	if state == flushManagerSnapshotInProgress {
 		m.isSnapshotting.Update(1)
 	} else {
 		m.isSnapshotting.Update(0)
@@ -149,12 +158,12 @@ func (m *flushManager) Report() {
 
 func (m *flushManager) setFlushInProgress(b bool) {
 	m.Lock()
-	m.flushInProgress = b
+	m.state = flushManagerFlushInProgress
 	m.Unlock()
 }
 func (m *flushManager) setSnapshotInProgress(b bool) {
 	m.Lock()
-	m.snapshotInProgress = b
+	m.state = flushManagerSnapshotInProgress
 	m.Unlock()
 }
 
