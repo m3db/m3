@@ -17,7 +17,6 @@ import (
 )
 
 const (
-	numTestPoints = 100
 	numTestSeries = 100
 )
 
