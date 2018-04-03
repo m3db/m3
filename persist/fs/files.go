@@ -508,7 +508,7 @@ func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, patt
 	}
 
 	if len(byTimeAsc) == 0 {
-		return []SnapshotFile{}, nil
+		return nil, nil
 	}
 
 	var (
