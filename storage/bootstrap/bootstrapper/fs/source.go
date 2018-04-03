@@ -161,7 +161,7 @@ func (s *fileSystemSource) enqueueReaders(
 				readersCh <- newShardReadersErr(shard, tr, err)
 				continue
 			}
-			t := xtime.FromNanoseconds(info.BlockStart).Round(0).UTC()
+			t := xtime.FromNanoseconds(info.BlockStart)
 			openOpts := fs.ReaderOpenOptions{
 				Identifier: fs.FilesetFileIdentifier{
 					Namespace:  namespace,
