@@ -176,7 +176,7 @@ func (s *segment) insertDoc(id postings.ID, d doc.Document) {
 	// fixed-size slice here and avoid the lock altogether.
 	if size > idx {
 		// NB(prateek): We only need a Read-lock here despite an insert operation because
-		// we're guranteed to never have conflicts with docID (it's monotonically increasing),
+		// we're guaranteed to never have conflicts with docID (it's monotonically increasing),
 		// and have checked `i.docs.data` is large enough.
 		s.docs.data[idx] = d
 		s.docs.RUnlock()
@@ -200,8 +200,6 @@ func (s *segment) insertDoc(id postings.ID, d doc.Document) {
 	s.docs.data = data
 	s.docs.data[idx] = d
 	s.docs.Unlock()
-
-	return
 }
 
 func (s *segment) insertTerms(id postings.ID, d doc.Document) error {

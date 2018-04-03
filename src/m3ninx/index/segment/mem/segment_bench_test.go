@@ -40,11 +40,15 @@ func BenchmarkSegment(b *testing.B) {
 	}{
 		{
 			name: "benchmark Insert with segment",
-			fn:   benchmarkInsertSimpleTermsDict,
+			fn:   benchmarkInsertSegment,
 		},
 		{
 			name: "benchmark matchTerm with segment",
 			fn:   benchmarkMatchTermSegment,
+		},
+		{
+			name: "benchmark matchRegex with segment",
+			fn:   benchmarkMatchRegexSegment,
 		},
 	}
 

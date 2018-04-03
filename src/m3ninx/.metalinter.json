@@ -1,0 +1,27 @@
+{
+  "Linters": {
+    "unused": {
+      "Command": "unused -tags 'big'",
+      "Pattern": "PATH:LINE:COL:MESSAGE"
+    },
+    "gosimple": {
+      "Command": "gosimple -tags 'big'",
+      "Pattern": "PATH:LINE:COL:MESSAGE"
+    }
+  },
+  "Enable": [
+    "deadcode",
+    "varcheck",
+    "structcheck",
+    "goconst",
+    "ineffassign",
+    "unconvert",
+    "misspell",
+    "golint",
+    "gosimple",
+    "unused",
+    "maligned"
+  ],
+  "Deadline": "3m",
+  "EnableGC": true
+}
