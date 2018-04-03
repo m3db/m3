@@ -80,10 +80,6 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 	}
 
 	_, numFieldsToSkip := dec.decodeRootObject(indexInfoVersion, indexInfoType)
-	if dec.err != nil {
-		return emptyIndexInfo, dec.err
-	}
-
 	indexInfo := dec.decodeIndexInfo()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
