@@ -334,11 +334,13 @@ func TestTimeAndIndexFromSnapshotFileName(t *testing.T) {
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
 
-	ts, i, err = TimeAndIndexFromSnapshotFilename("foo/bar/foo-21234567890-data-1.db")
+	ts, i, err = TimeAndIndexFromSnapshotFilename("foo/bar/fileset-21234567890-data-1.db")
 	exp = expected{time.Unix(0, 21234567890), 1}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
+	require.Equal(t, snapshotPathFromTimeAndIndex(
+		"foo/bar", exp.t, "data", exp.i), "foo/bar/fileset-21234567890-data-1.db")
 }
 
 func TestFileExists(t *testing.T) {
