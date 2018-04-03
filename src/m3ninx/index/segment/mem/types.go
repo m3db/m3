@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/postings"
-	"github.com/m3db/m3ninx/util"
 )
 
 // termsDict is an internal interface for a mutable terms dictionary.
@@ -49,8 +48,6 @@ type termsDict interface {
 // mode so we can't mock this interface if its private. Once mockgen supports mocking
 // private interfaces which contain embedded interfaces we can make this interface private.
 type ReadableSegment interface {
-	util.RefCount
-
 	// matchTerm returns the postings list of documents which match the given term exactly.
 	matchTerm(field, term []byte) (postings.List, error)
 

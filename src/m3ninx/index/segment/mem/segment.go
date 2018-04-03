@@ -25,25 +25,20 @@ import (
 	"fmt"
 	re "regexp"
 	"sync"
-	"time"
 	"unicode/utf8"
 
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index"
 	sgmt "github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/postings"
-	"github.com/m3db/m3ninx/util"
 )
 
 var (
-	errSegmentClosed     = errors.New("segment is closed")
 	errSegmentSealed     = errors.New("segment has been sealed")
 	errUnknownPostingsID = errors.New("unknown postings ID specified")
 )
 
 type segment struct {
-	util.RefCount
-
 	opts   Options
 	offset int
 
@@ -84,7 +79,6 @@ type segment struct {
 // postings IDs at offset+1.
 func NewSegment(offset postings.ID, opts Options) (sgmt.MutableSegment, error) {
 	s := &segment{
-		RefCount:  util.NewRefCount(),
 		opts:      opts,
 		offset:    int(offset) + 1, // The first ID assigned by the segment is offset + 1.
 		termsDict: newSimpleTermsDict(opts),
@@ -101,7 +95,7 @@ func (s *segment) Insert(d doc.Document) error {
 	s.state.RLock()
 	if s.state.closed {
 		s.state.RUnlock()
-		return errSegmentClosed
+		return sgmt.ErrClosed
 	}
 
 	if s.state.sealed {
@@ -138,7 +132,7 @@ func (s *segment) Reader() (index.Reader, error) {
 	s.state.RLock()
 	if s.state.closed {
 		s.state.RUnlock()
-		return nil, errSegmentClosed
+		return nil, sgmt.ErrClosed
 	}
 
 	maxID := s.ids.reader.Load()
@@ -162,21 +156,12 @@ func (s *segment) Close() error {
 	s.state.Lock()
 	if s.state.closed {
 		s.state.Unlock()
-		return errSegmentClosed
+		return sgmt.ErrClosed
 	}
 
 	s.state.sealed = true
 	s.state.closed = true
 	s.state.Unlock()
-
-	// Wait for all references to the segment to be released.
-	for {
-		if s.RefCount.NumRef() == 0 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
 	return nil
 }
 
@@ -229,24 +214,20 @@ func (s *segment) insertTerms(id postings.ID, d doc.Document) error {
 }
 
 func (s *segment) matchTerm(field, term []byte) (postings.List, error) {
-	// TODO: Consider removing the state check by requiring that matchExact is only
-	// called through a Reader which guarantees the segment is still open.
 	s.state.RLock()
 	if s.state.closed {
 		s.state.RUnlock()
-		return nil, errSegmentClosed
+		return nil, sgmt.ErrClosed
 	}
 
 	return s.termsDict.MatchTerm(field, term)
 }
 
 func (s *segment) matchRegexp(name, regexp []byte, compiled *re.Regexp) (postings.List, error) {
-	// TODO: Consider removing the state check by requiring that matchRegex is only
-	// called through a Reader which guarantees the segment is still open.
 	s.state.RLock()
 	if s.state.closed {
 		s.state.RUnlock()
-		return nil, errSegmentClosed
+		return nil, sgmt.ErrClosed
 	}
 
 	if compiled == nil {
@@ -260,12 +241,10 @@ func (s *segment) matchRegexp(name, regexp []byte, compiled *re.Regexp) (posting
 }
 
 func (s *segment) getDoc(id postings.ID) (doc.Document, error) {
-	// TODO: Consider removing the state check by requiring that getDoc is only called
-	// though a Reader which guarantees the segment is still open.
 	s.state.RLock()
 	if s.state.closed {
 		s.state.RUnlock()
-		return doc.Document{}, errSegmentClosed
+		return doc.Document{}, sgmt.ErrClosed
 	}
 
 	idx := int(id) - s.offset

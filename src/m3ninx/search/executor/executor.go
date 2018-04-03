@@ -19,3 +19,66 @@
 // THE SOFTWARE.
 
 package executor
+
+import (
+	"errors"
+	"sync"
+
+	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3ninx/index"
+	"github.com/m3db/m3ninx/search"
+)
+
+var (
+	errExecutorClosed = errors.New("executor is closed")
+)
+
+type newIteratorFn func(s search.Searcher, rs index.Readers) (doc.Iterator, error)
+
+type executor struct {
+	sync.RWMutex
+
+	newIteratorFn newIteratorFn
+	readers       index.Readers
+
+	closed bool
+}
+
+// NewExecutor returns a new Executor for executing queries.
+func NewExecutor(rs index.Readers) search.Executor {
+	return &executor{
+		newIteratorFn: newIterator,
+		readers:       rs,
+	}
+}
+
+func (e *executor) Execute(q search.Query) (doc.Iterator, error) {
+	e.RLock()
+	defer e.RUnlock()
+	if e.closed {
+		return nil, errExecutorClosed
+	}
+
+	s, err := q.Searcher(e.readers)
+	if err != nil {
+		return nil, err
+	}
+
+	iter, err := e.newIteratorFn(s, e.readers)
+	if err != nil {
+		return nil, err
+	}
+
+	return iter, nil
+}
+
+func (e *executor) Close() error {
+	e.Lock()
+	if e.closed {
+		e.Unlock()
+		return errExecutorClosed
+	}
+	e.closed = true
+	e.Unlock()
+	return e.readers.Close()
+}

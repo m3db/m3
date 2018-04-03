@@ -72,11 +72,9 @@ func TestIterator(t *testing.T) {
 
 	segment := NewMockReadableSegment(mockCtrl)
 	gomock.InOrder(
-		segment.EXPECT().IncRef(),
 		segment.EXPECT().getDoc(maxID-2).Return(docs[0], nil),
 		segment.EXPECT().getDoc(maxID-1).Return(docs[1], nil),
 		segment.EXPECT().getDoc(maxID).Return(docs[2], nil),
-		segment.EXPECT().DecRef(),
 	)
 
 	postingsIter := postings.NewMockIterator(mockCtrl)
