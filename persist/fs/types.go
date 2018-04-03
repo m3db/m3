@@ -67,7 +67,10 @@ type WriterSnapshotOptions struct {
 type FileSetWriter interface {
 	io.Closer
 
-	// Open opens the files for writing data to the given shard in the given namespace
+	// Open opens the files for writing data to the given shard in the given namespace.
+	// This method is not thread-safe, so its the callers responsibilities that they never
+	// try and write two snapshot files for the same block start at the same time or their
+	// will be a race in determining the snapshot file's index.
 	Open(opts WriterOpenOptions) error
 
 	// Write will write the id and data pair and returns an error on a write error
