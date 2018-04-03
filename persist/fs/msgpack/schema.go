@@ -34,6 +34,8 @@
 
 package msgpack
 
+import "fmt"
+
 const (
 	// Incrementing any of these values is a backwards-compatible change
 	// I.E the new binary will still be able to read old files (as long
@@ -136,6 +138,17 @@ func init() {
 	setMinNumObjectFieldsForType(logEntryType, minNumLogEntryFields)
 	setMinNumObjectFieldsForType(logMetadataType, minNumLogMetadataFields)
 
+	// Verify all current values are larger than their respective minimum values
+	mustBeGreaterThanOrEqual(currNumRootObjectFields, minNumRootObjectFields)
+	mustBeGreaterThanOrEqual(currNumIndexInfoFields, minNumIndexInfoFields)
+	mustBeGreaterThanOrEqual(currNumIndexSummariesInfoFields, minNumIndexSummariesInfoFields)
+	mustBeGreaterThanOrEqual(currNumIndexBloomFilterInfoFields, minNumIndexBloomFilterInfoFields)
+	mustBeGreaterThanOrEqual(currNumIndexEntryFields, minNumIndexEntryFields)
+	mustBeGreaterThanOrEqual(currNumIndexSummaryFields, minNumIndexSummaryFields)
+	mustBeGreaterThanOrEqual(currNumLogInfoFields, minNumLogInfoFields)
+	mustBeGreaterThanOrEqual(currNumLogEntryFields, minNumLogEntryFields)
+	mustBeGreaterThanOrEqual(currNumLogMetadataFields, minNumLogMetadataFields)
+
 	setCurrNumObjectFieldsForType(rootObjectType, currNumRootObjectFields)
 	setCurrNumObjectFieldsForType(indexInfoType, currNumIndexInfoFields)
 	setCurrNumObjectFieldsForType(indexSummariesInfoType, currNumIndexSummariesInfoFields)
@@ -145,4 +158,10 @@ func init() {
 	setCurrNumObjectFieldsForType(logInfoType, currNumLogInfoFields)
 	setCurrNumObjectFieldsForType(logEntryType, currNumLogEntryFields)
 	setCurrNumObjectFieldsForType(logMetadataType, currNumLogMetadataFields)
+}
+
+func mustBeGreaterThanOrEqual(x, y int) {
+	if x < y {
+		panic(fmt.Sprintf("expected %d to be greater than or equal to %d", x, y))
+	}
 }
