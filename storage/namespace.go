@@ -790,7 +790,7 @@ func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist
 			// each other (controlled by loop in flush manager)
 			n.log.
 				WithFields(xlog.NewField("shard", shard.ID())).
-				Errorf("tried to snapshot shard that is already snapshotting")
+				Errorf("[invariant violated] tried to snapshot shard that is already snapshotting")
 			continue
 		}
 
