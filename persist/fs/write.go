@@ -396,9 +396,16 @@ func (w *writer) writeIndexFileContents(
 	// writes to two different files during the write loop.
 	sort.Sort(w.indexEntries)
 
-	var offset int64
+	var (
+		offset int64
+		prevID []byte
+	)
 	for i := range w.indexEntries {
 		id := w.indexEntries[i].id.Data().Get()
+		if bytes.Equal(id, prevID) {
+			// Should never happen, Write() should only be called once per ID
+			return fmt.Errorf("encountered duplicate ID: %s", id)
+		}
 
 		entry := schema.IndexEntry{
 			Index:    w.indexEntries[i].index,
@@ -430,6 +437,8 @@ func (w *writer) writeIndexFileContents(
 		}
 
 		offset += int64(len(data))
+
+		prevID = id
 	}
 
 	return nil

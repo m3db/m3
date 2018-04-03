@@ -181,6 +181,37 @@ func TestSimpleReadWrite(t *testing.T) {
 	readTestData(t, r, 0, testWriterStart, entries)
 }
 
+func TestDuplicateWrite(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	entries := []testEntry{
+		{"foo", []byte{1, 2, 3}},
+		{"foo", []byte{4, 5, 6}},
+	}
+
+	w := newTestWriter(t, filePathPrefix)
+	writerOpts := WriterOpenOptions{
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
+		BlockSize: testBlockSize,
+	}
+	err := w.Open(writerOpts)
+	require.NoError(t, err)
+
+	for i := range entries {
+		require.NoError(t, w.Write(
+			ident.StringID(entries[i].id),
+			bytesRefd(entries[i].data),
+			digest.Checksum(entries[i].data)))
+	}
+	require.Equal(t, errors.New("encountered duplicate ID: foo"), w.Close())
+}
+
 func TestReadWithReusedReader(t *testing.T) {
 	dir := createTempDir(t)
 	filePathPrefix := filepath.Join(dir, "")
