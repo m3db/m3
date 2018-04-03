@@ -123,9 +123,7 @@ func writeTestData(t *testing.T, bs time.Duration, src FilesetID, opts Options) 
 	require.NoError(t, w.Open(writerOpts))
 	for i := 0; i < numTestSeries; i++ {
 		id := ident.StringID(fmt.Sprintf("testSeries.%d", i))
-		for j := 0; j < numTestPoints; j++ {
-			require.NoError(t, w.Write(id, testBytes, 1234))
-		}
+		require.NoError(t, w.Write(id, testBytes, 1234))
 	}
 	require.NoError(t, w.Close())
 }

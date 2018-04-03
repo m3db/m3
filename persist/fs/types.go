@@ -73,10 +73,12 @@ type FileSetWriter interface {
 	// will be a race in determining the snapshot file's index.
 	Open(opts WriterOpenOptions) error
 
-	// Write will write the id and data pair and returns an error on a write error
+	// Write will write the id and data pair and returns an error on a write error. Callers
+	// must not call this method with a given ID more than once.
 	Write(id ident.ID, data checked.Bytes, checksum uint32) error
 
-	// WriteAll will write the id and all byte slices and returns an error on a write error
+	// WriteAll will write the id and all byte slices and returns an error on a write error.
+	// Callers must not call this method with a given ID more than once.
 	WriteAll(id ident.ID, data []checked.Bytes, checksum uint32) error
 }
 
