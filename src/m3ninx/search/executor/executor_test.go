@@ -18,70 +18,56 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package util
+package executor
 
 import (
-	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3ninx/index"
+	"github.com/m3db/m3ninx/search"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
-func TestRefCount(t *testing.T) {
-	rc := NewRefCount()
-	assert.Equal(t, 0, rc.NumRef())
+type testIterator struct{}
 
-	var numSteps = 100
-	for i := 0; i < numSteps; i++ {
-		rc.IncRef()
-		assert.Equal(t, i+1, rc.NumRef())
-	}
+func newTestIterator() testIterator { return testIterator{} }
 
-	for i := 0; i < numSteps; i++ {
-		rc.DecRef()
-		assert.Equal(t, numSteps-i-1, rc.NumRef())
-	}
-}
+func (it testIterator) Next() bool            { return false }
+func (it testIterator) Current() doc.Document { return doc.Document{} }
+func (it testIterator) Err() error            { return nil }
+func (it testIterator) Close() error          { return nil }
 
-func TestRefCountConcurrentUpdates(t *testing.T) {
-	rc := NewRefCount()
+func TestExecutor(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
 
 	var (
-		wg      sync.WaitGroup
-		numIncs = 100
-		numDecs = 50
+		q  = search.NewMockQuery(mockCtrl)
+		r  = index.NewMockReader(mockCtrl)
+		rs = index.Readers{r}
 	)
-	wg.Add(numIncs + numDecs)
+	gomock.InOrder(
+		q.EXPECT().Searcher(rs).Return(nil, nil),
 
-	// Ensure that the reference count is high enough so that the decrements will
-	// never cause it to go negative.
-	for i := 0; i < numDecs; i++ {
-		rc.IncRef()
+		r.EXPECT().Close().Return(nil),
+	)
+
+	e := NewExecutor(rs).(*executor)
+
+	// Override newIteratorFn to return test iterator.
+	e.newIteratorFn = func(_ search.Searcher, _ index.Readers) (doc.Iterator, error) {
+		return newTestIterator(), nil
 	}
 
-	for i := 0; i < numIncs; i++ {
-		go func() {
-			rc.IncRef()
-			wg.Done()
-		}()
-	}
+	it, err := e.Execute(q)
+	require.NoError(t, err)
 
-	for i := 0; i < numDecs; i++ {
-		go func() {
-			rc.DecRef()
-			wg.Done()
-		}()
-	}
+	err = it.Close()
+	require.NoError(t, err)
 
-	wg.Wait()
-
-	assert.Equal(t, numDecs+(numIncs-numDecs), rc.NumRef())
-}
-
-func TestRefCountPanic(t *testing.T) {
-	rc := NewRefCount()
-
-	assert.Panics(t, func() {
-		rc.DecRef()
-	})
+	err = e.Close()
+	require.NoError(t, err)
 }

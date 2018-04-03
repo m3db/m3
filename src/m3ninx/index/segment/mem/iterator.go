@@ -42,7 +42,6 @@ type iterator struct {
 }
 
 func newIterator(s ReadableSegment, pi postings.Iterator, maxID postings.ID) doc.Iterator {
-	s.IncRef()
 	return &iterator{
 		segment:      s,
 		postingsIter: pi,
@@ -83,6 +82,5 @@ func (it *iterator) Close() error {
 	it.closed = true
 	it.current = doc.Document{}
 	err := it.postingsIter.Close()
-	it.segment.DecRef()
 	return err
 }

@@ -65,7 +65,11 @@ func (t *simpleTermsDict) MatchTerm(field, term []byte) (postings.List, error) {
 		// It is not an error to not have any matching values.
 		return t.opts.PostingsListPool().Get(), nil
 	}
-	return postingsMap.get(term), nil
+	pl := postingsMap.get(term)
+
+	// Return of the clone of the postings list so that its lifetime is independent of
+	// that of the terms dictionary.
+	return pl.Clone(), nil
 }
 
 func (t *simpleTermsDict) MatchRegexp(

@@ -56,48 +56,6 @@ func (_m *MockReadableSegment) EXPECT() *MockReadableSegmentMockRecorder {
 	return _m.recorder
 }
 
-// DecRef mocks base method
-func (_m *MockReadableSegment) DecRef() {
-	_m.ctrl.Call(_m, "DecRef")
-}
-
-// DecRef indicates an expected call of DecRef
-func (_mr *MockReadableSegmentMockRecorder) DecRef() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "DecRef", reflect.TypeOf((*MockReadableSegment)(nil).DecRef))
-}
-
-// IncRef mocks base method
-func (_m *MockReadableSegment) IncRef() {
-	_m.ctrl.Call(_m, "IncRef")
-}
-
-// IncRef indicates an expected call of IncRef
-func (_mr *MockReadableSegmentMockRecorder) IncRef() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "IncRef", reflect.TypeOf((*MockReadableSegment)(nil).IncRef))
-}
-
-// MoveRef mocks base method
-func (_m *MockReadableSegment) MoveRef() {
-	_m.ctrl.Call(_m, "MoveRef")
-}
-
-// MoveRef indicates an expected call of MoveRef
-func (_mr *MockReadableSegmentMockRecorder) MoveRef() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "MoveRef", reflect.TypeOf((*MockReadableSegment)(nil).MoveRef))
-}
-
-// NumRef mocks base method
-func (_m *MockReadableSegment) NumRef() int {
-	ret := _m.ctrl.Call(_m, "NumRef")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// NumRef indicates an expected call of NumRef
-func (_mr *MockReadableSegmentMockRecorder) NumRef() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "NumRef", reflect.TypeOf((*MockReadableSegment)(nil).NumRef))
-}
-
 // getDoc mocks base method
 func (_m *MockReadableSegment) getDoc(_param0 postings.ID) (doc.Document, error) {
 	ret := _m.ctrl.Call(_m, "getDoc", _param0)

@@ -44,7 +44,6 @@ type reader struct {
 }
 
 func newReader(s ReadableSegment, maxID postings.ID) index.Reader {
-	s.IncRef()
 	return &reader{
 		segment: s,
 		maxID:   maxID,
@@ -95,6 +94,5 @@ func (r *reader) Close() error {
 	}
 	r.closed = true
 	r.Unlock()
-	r.segment.DecRef()
 	return nil
 }

@@ -21,15 +21,20 @@
 package segment
 
 import (
+	"errors"
+
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index"
-	"github.com/m3db/m3ninx/util"
+)
+
+var (
+	// ErrClosed is the error returned when attempting to perform operations on a segment
+	// that has already been closed.
+	ErrClosed = errors.New("segment has been closed")
 )
 
 // Segment is a sub-collection of documents within an index.
 type Segment interface {
-	util.RefCount
-
 	// Reader returns a point-in-time accessor to search the segment.
 	Reader() (index.Reader, error)
 
