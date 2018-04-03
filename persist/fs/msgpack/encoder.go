@@ -35,7 +35,6 @@ type encodeVarUintFn func(value uint64)
 type encodeFloat64Fn func(value float64)
 type encodeBytesFn func(value []byte)
 type encodeArrayLenFn func(value int)
-type encodeBoolFn func(value bool)
 
 // Encoder encodes data in msgpack format for persistence
 type Encoder struct {
@@ -50,7 +49,6 @@ type Encoder struct {
 	encodeFloat64Fn            encodeFloat64Fn
 	encodeBytesFn              encodeBytesFn
 	encodeArrayLenFn           encodeArrayLenFn
-	encodeBoolFn               encodeBoolFn
 
 	encodeLegacyV1IndexInfo bool
 }
@@ -80,7 +78,6 @@ func newEncoder(opts newEncoderOptions) *Encoder {
 	enc.encodeFloat64Fn = enc.encodeFloat64
 	enc.encodeBytesFn = enc.encodeBytes
 	enc.encodeArrayLenFn = enc.encodeArrayLen
-	enc.encodeBoolFn = enc.encodeBool
 
 	// Used primarily for testing
 	enc.encodeLegacyV1IndexInfo = opts.encodeLegacyV1IndexInfo
@@ -296,11 +293,4 @@ func (enc *Encoder) encodeArrayLen(value int) {
 		return
 	}
 	enc.err = enc.enc.EncodeArrayLen(value)
-}
-
-func (enc *Encoder) encodeBool(value bool) {
-	if enc.err != nil {
-		return
-	}
-	enc.err = enc.enc.EncodeBool(value)
 }
