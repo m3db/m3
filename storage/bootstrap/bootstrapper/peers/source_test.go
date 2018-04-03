@@ -318,7 +318,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			}, nil)
 
 		mockPersistManager := persist.NewMockManager(ctrl)
-		mockPersistManager.EXPECT().StartFlush().Return(mockFlush, nil)
+		mockPersistManager.EXPECT().StartPersist().Return(mockFlush, nil)
 
 		opts = opts.SetPersistManager(mockPersistManager)
 
@@ -628,7 +628,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		}, nil)
 
 	mockPersistManager := persist.NewMockManager(ctrl)
-	mockPersistManager.EXPECT().StartFlush().Return(mockFlush, nil)
+	mockPersistManager.EXPECT().StartPersist().Return(mockFlush, nil)
 
 	opts = opts.SetPersistManager(mockPersistManager)
 

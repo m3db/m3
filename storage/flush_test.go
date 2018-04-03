@@ -70,7 +70,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	mockFlusher := persist.NewMockFlush(ctrl)
 	mockFlusher.EXPECT().Done().Return(nil).AnyTimes()
 	mockPersistManager := persist.NewMockManager(ctrl)
-	mockPersistManager.EXPECT().StartFlush().Do(func() {
+	mockPersistManager.EXPECT().StartPersist().Do(func() {
 		// channels used to coordinate flushing state
 		startCh <- struct{}{}
 		<-doneCh
@@ -113,7 +113,7 @@ func TestFlushManagerFlushDoneError(t *testing.T) {
 	mockFlusher := persist.NewMockFlush(ctrl)
 	mockFlusher.EXPECT().Done().Return(fakeErr).AnyTimes()
 	mockPersistManager := persist.NewMockManager(ctrl)
-	mockPersistManager.EXPECT().StartFlush().Return(mockFlusher, nil).AnyTimes()
+	mockPersistManager.EXPECT().StartPersist().Return(mockFlusher, nil).AnyTimes()
 
 	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
