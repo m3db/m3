@@ -44,8 +44,8 @@ type PreparedPersist struct {
 
 // Manager manages the internals of persisting data onto storage layer.
 type Manager interface {
-	// StartFlush begins a flush for a set of shards.
-	StartFlush() (Flush, error)
+	// StartPersist begins a flush for a set of shards.
+	StartPersist() (Flush, error)
 }
 
 // Flush is a persist flush cycle, each shard and block start permutation needs

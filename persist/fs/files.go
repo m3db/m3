@@ -137,13 +137,13 @@ func (f SnapshotFilesSlice) LatestForBlock(blockStart time.Time) (SnapshotFile, 
 }
 
 func (f SnapshotFilesSlice) sortByTimeAndIndexAscending() {
-	sort.Slice(f, func(i, j int) bool {
-		if f[i].ID.BlockStart.Equal(f[j].ID.BlockStart) {
-			return f[i].ID.Index < f[j].ID.Index
-		}
+	// sort.Slice(f, func(i, j int) bool {
+	// 	if f[i].ID.BlockStart.Equal(f[j].ID.BlockStart) {
+	// 		return f[i].ID.Index < f[j].ID.Index
+	// 	}
 
-		return f[i].ID.BlockStart.Before(f[j].ID.BlockStart)
-	})
+	// 	return f[i].ID.BlockStart.Before(f[j].ID.BlockStart)
+	// })
 }
 
 // NewSnapshotFile creates a new Snapshot file

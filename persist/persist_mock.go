@@ -52,17 +52,17 @@ func (_m *MockManager) EXPECT() *MockManagerMockRecorder {
 	return _m.recorder
 }
 
-// StartFlush mocks base method
-func (_m *MockManager) StartFlush() (Flush, error) {
-	ret := _m.ctrl.Call(_m, "StartFlush")
+// StartPersist mocks base method
+func (_m *MockManager) StartPersist() (Flush, error) {
+	ret := _m.ctrl.Call(_m, "StartPersist")
 	ret0, _ := ret[0].(Flush)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// StartFlush indicates an expected call of StartFlush
-func (_mr *MockManagerMockRecorder) StartFlush() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "StartFlush", reflect.TypeOf((*MockManager)(nil).StartFlush))
+// StartPersist indicates an expected call of StartPersist
+func (_mr *MockManagerMockRecorder) StartPersist() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "StartPersist", reflect.TypeOf((*MockManager)(nil).StartPersist))
 }
 
 // MockFlush is a mock of Flush interface

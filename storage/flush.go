@@ -81,7 +81,7 @@ func (m *flushManager) Flush(curr time.Time) error {
 	}()
 
 	// create flush-er
-	flush, err := m.pm.StartFlush()
+	flush, err := m.pm.StartPersist()
 	if err != nil {
 		return err
 	}

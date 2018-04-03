@@ -80,7 +80,7 @@ func TestPersistenceManagerPrepareDataFileExists(t *testing.T) {
 	require.NoError(t, err)
 	f.Close()
 
-	flush, err := pm.StartFlush()
+	flush, err := pm.StartPersist()
 	require.NoError(t, err)
 
 	defer func() {
@@ -120,7 +120,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	}
 	writer.EXPECT().Open(writerOpts).Return(expectedErr)
 
-	flush, err := pm.StartFlush()
+	flush, err := pm.StartPersist()
 	require.NoError(t, err)
 
 	defer func() {
@@ -167,7 +167,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	writer.EXPECT().WriteAll(id, gomock.Any(), checksum).Return(nil)
 	writer.EXPECT().Close()
 
-	flush, err := pm.StartFlush()
+	flush, err := pm.StartPersist()
 	require.NoError(t, err)
 
 	defer func() {
@@ -241,7 +241,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).Times(2)
 
-	flush, err := pm.StartFlush()
+	flush, err := pm.StartPersist()
 	require.NoError(t, err)
 
 	defer func() {
@@ -328,7 +328,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		// Reset
 		slept = time.Duration(0)
 
-		flush, err := pm.StartFlush()
+		flush, err := pm.StartPersist()
 		require.NoError(t, err)
 
 		// prepare the flush
@@ -377,7 +377,7 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 
-	flush, err := pm.StartFlush()
+	flush, err := pm.StartPersist()
 	require.NoError(t, err)
 
 	defer func() {

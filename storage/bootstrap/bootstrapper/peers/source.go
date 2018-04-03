@@ -115,17 +115,17 @@ func (s *peersSource) Read(
 			return nil, err
 		}
 
-		flush, err := persistManager.StartFlush()
+		persist, err := persistManager.StartPersist()
 		if err != nil {
 			return nil, err
 		}
 
-		defer flush.Done()
+		defer persist.Done()
 
 		incremental = true
 		blockRetriever = r
 		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(r)
-		persistFlush = flush
+		persistFlush = persist
 	}
 
 	result := result.NewBootstrapResult()
