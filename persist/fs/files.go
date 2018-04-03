@@ -44,6 +44,9 @@ const (
 	dataDirName       = "data"
 	snapshotDirName   = "snapshots"
 	commitLogsDirName = "commitlogs"
+
+	commitLogComponentPosition = 2
+	snapshotComponentPosition  = 3
 )
 
 type fileOpener func(filePath string) (*os.File, error)
@@ -276,12 +279,12 @@ func TimeFromFileName(fname string) (time.Time, error) {
 
 // TimeAndIndexFromCommitlogFilename extracts the block start and index from file name for a commitlog.
 func TimeAndIndexFromCommitlogFilename(fname string) (time.Time, int, error) {
-	return timeAndIndexFromFileName(fname, 2)
+	return timeAndIndexFromFileName(fname, commitLogComponentPosition)
 }
 
 // TimeAndIndexFromSnapshotFilename extracts the block start and index from file name for a Snapshot.
 func TimeAndIndexFromSnapshotFilename(fname string) (time.Time, int, error) {
-	return timeAndIndexFromFileName(fname, 3)
+	return timeAndIndexFromFileName(fname, snapshotComponentPosition)
 }
 
 func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, int, error) {
