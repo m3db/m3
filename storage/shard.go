@@ -1736,7 +1736,7 @@ func (s *dbShard) Snapshot(
 
 	// No action is necessary therefore we bail out early and there is no need to close.
 	if prepared.Persist == nil {
-		errMsg := "tried to write prepare snapshot file that already exists"
+		errMsg := "[invariant violated] tried to write prepare snapshot file that already exists"
 		// This should never happen in practice since we don't check for duplicate snapshot files
 		// in the Prepare method.
 		s.logger.WithFields(
