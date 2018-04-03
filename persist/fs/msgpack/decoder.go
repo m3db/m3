@@ -407,8 +407,8 @@ func (dec *Decoder) checkVersion(expected int) int {
 	return version
 }
 
-func (dec *Decoder) checkNumFieldsFor(objType objectType) (int, int, bool) {
-	actual := dec.decodeNumObjectFields()
+func (dec *Decoder) checkNumFieldsFor(objType objectType) (numToSkip int, actual int, ok bool) {
+	actual = dec.decodeNumObjectFields()
 	if dec.err != nil {
 		return 0, 0, false
 	}
@@ -418,7 +418,7 @@ func (dec *Decoder) checkNumFieldsFor(objType objectType) (int, int, bool) {
 		return 0, 0, false
 	}
 
-	numToSkip := actual - curr
+	numToSkip = actual - curr
 	if numToSkip < 0 {
 		numToSkip = 0
 	}
