@@ -6,7 +6,7 @@ import "github.com/m3db/m3metrics/rules/models"
 type RollupRuleChange struct {
 	Op       Op                 `json:"op"`
 	RuleID   *string            `json:"ruleID,omitempty"`
-	RuleData *models.RollupRule `json:"to,omitempty"`
+	RuleData *models.RollupRule `json:"ruleData,omitempty"`
 }
 
 type rollupRuleChangesByOpAscNameAscIDAsc []RollupRuleChange
