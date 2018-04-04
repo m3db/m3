@@ -52,7 +52,8 @@ import (
 )
 
 var (
-	errNamespaceAlreadyClosed = errors.New("namespace already closed")
+	errNamespaceAlreadyClosed    = errors.New("namespace already closed")
+	errNamespaceQueryIDsNilIndex = errors.New("[invariant violated] namespace reverse index is unset")
 )
 
 type commitLogWriter interface {
@@ -252,7 +253,6 @@ func newDatabaseNamespace(
 			"unable to create namespace %v, invalid series options: %v",
 			metadata.ID().String(), err)
 	}
-
 
 	n := &dbNamespace{
 		id:                     id,
@@ -503,6 +503,12 @@ func (n *dbNamespace) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResults, error) {
+	if n.reverseIndex == nil {
+		// should never happen: `database.QueryIDs` ensure it only calls `ns.QueryIDs`
+		// if indexing is enabled.
+		n.log.Errorf(errNamespaceQueryIDsNilIndex.Error())
+		return index.QueryResults{}, errNamespaceQueryIDsNilIndex
+	}
 	callStart := n.nowFn()
 	res, err := n.reverseIndex.Query(ctx, query, opts)
 	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
