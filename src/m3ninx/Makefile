@@ -3,21 +3,23 @@ include $(SELF_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail
 
-auto_gen             := .ci/auto-gen.sh
-gopath_prefix        := $(GOPATH)/src
-license_dir          := .ci/uber-licence
-license_node_modules := $(license_dir)/node_modules
-lint_check           := .ci/lint.sh
-m3ninx_package       := github.com/m3db/m3ninx
-metalint_check       := .ci/metalint.sh
-metalint_config      := .metalinter.json
-metalint_exclude     := .excludemetalint
-mockgen_package      := github.com/golang/mock/mockgen
-mocks_output_dir     := generated/mocks/mocks
-mocks_rules_dir      := generated/mocks
-proto_rules_dir      := generated/proto
-protoc_go_package    := github.com/golang/protobuf/protoc-gen-go
-vendor_prefix        := vendor
+auto_gen              := .ci/auto-gen.sh
+gopath_prefix         := $(GOPATH)/src
+license_dir           := .ci/uber-licence
+license_node_modules  := $(license_dir)/node_modules
+lint_check            := .ci/lint.sh
+m3ninx_package        := github.com/m3db/m3ninx
+metalint_check        := .ci/metalint.sh
+metalint_config       := .metalinter.json
+metalint_exclude      := .excludemetalint
+mockgen_package       := github.com/golang/mock/mockgen
+mocks_output_dir      := generated/mocks/mocks
+mocks_rules_dir       := generated/mocks
+proto_rules_dir       := generated/proto
+protoc_go_package     := github.com/golang/protobuf/protoc-gen-go
+vendor_prefix         := vendor
+genny_output_dir      := generated/generics/generics
+genny_rules_dir       := generated/generics
 
 BUILD            := $(abspath ./bin)
 GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3ninx_package))
@@ -83,8 +85,13 @@ proto-gen: install-proto-bin install-license-bin
 	@echo Generating protobuf files
 	PACKAGE=$(m3ninx_package) $(auto_gen) $(proto_output_dir) $(proto_rules_dir)
 
+.PHONY: genny-gen
+genny-gen: install-generics-bin # defined in `common.mk`
+	@echo Generating generics
+	PACKAGE=$(m3ninx_package) $(auto_gen) $(genny_output_dir) $(genny_rules_dir)
+
 .PHONY: all-gen
-all-gen: mock-gen proto-gen
+all-gen: mock-gen genny-gen
 
 .PHONY: lint
 lint:

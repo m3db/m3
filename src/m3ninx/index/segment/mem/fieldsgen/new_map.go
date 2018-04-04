@@ -18,39 +18,35 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package mem
+package fieldsgen
 
 import (
-	"regexp"
-	"testing"
+	"bytes"
 
-	"github.com/stretchr/testify/require"
+	"github.com/cespare/xxhash"
 )
 
-func TestPostingsMap(t *testing.T) {
-	opts := NewOptions()
-	pm := newPostingsMap(opts)
+// New returns a new []bytes->*postingsgen.ConcurrentMap.
+func New(initialSize int) *Map {
+	return newMap(mapOptions{
+		hash: func(k []byte) MapHash {
+			return MapHash(xxhash.Sum64(k))
+		},
+		equals:      bytes.Equal,
+		copy:        undefinedCopyFn,
+		finalize:    undefinedFinalizeFn,
+		initialSize: initialSize,
+	})
+}
 
-	require.NoError(t, pm.addID([]byte("foo"), 1))
-	require.NoError(t, pm.addID([]byte("bar"), 2))
-	require.NoError(t, pm.addID([]byte("foo"), 3))
-	require.NoError(t, pm.addID([]byte("baz"), 4))
+var undefinedCopyFn CopyFn = func([]byte) []byte {
+	// NB: intentionally not defined to force users of the map to not
+	// allocate extra copies.
+	panic("not implemented")
+}
 
-	pl := pm.get([]byte("foo"))
-	require.Equal(t, 2, pl.Len())
-	require.True(t, pl.Contains(1))
-	require.True(t, pl.Contains(3))
-
-	// No matches.
-	pl = pm.get([]byte("fizz"))
-	require.Equal(t, 0, pl.Len())
-
-	re := regexp.MustCompile("ba.*")
-	pls := pm.getRegex(re)
-	require.Equal(t, 2, len(pls))
-
-	clone := pls[0].Clone()
-	clone.Union(pls[1])
-	require.True(t, clone.Contains(2))
-	require.True(t, clone.Contains(4))
+var undefinedFinalizeFn FinalizeFn = func([]byte) {
+	// NB: intentionally not defined to force users of the map to not
+	// allocate extra copies.
+	panic("not implemented")
 }

@@ -21,14 +21,14 @@
 package mem
 
 import (
-	"github.com/m3db/m3ninx/postings/roaring"
 	"github.com/m3db/m3ninx/postings"
+	"github.com/m3db/m3ninx/postings/roaring"
 
 	"github.com/m3db/m3x/instrument"
 )
 
 const (
-	defaultInitialCapacity = 1024 * 1024
+	defaultInitialCapacity = 1024
 )
 
 // Options is a collection of knobs for an in-memory segment.
