@@ -31,7 +31,12 @@ import (
 )
 
 const (
+	// defaultCheckedBytesPoolInitialSize is the default initial size of the
+	// CheckedBytesPool.
 	defaultCheckedBytesPoolInitialSize = 128
+
+	// defaultIndexInsertMode sets the default indexing mode to synchronous.
+	defaultIndexInsertMode = InsertSync
 )
 
 var (
@@ -54,7 +59,7 @@ func NewOptions() Options {
 	wrapperPool := xpool.NewCheckedBytesWrapperPool(defaultCheckedBytesPoolInitialSize)
 	wrapperPool.Init()
 	return &opts{
-		insertMode:     InsertAsync,
+		insertMode:     defaultIndexInsertMode,
 		clockOpts:      clock.NewOptions(),
 		instrumentOpts: instrument.NewOptions(),
 		memOpts:        mem.NewOptions(),
