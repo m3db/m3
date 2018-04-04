@@ -402,7 +402,8 @@ func (w *writer) writeIndexFileContents(
 	)
 	for i := range w.indexEntries {
 		id := w.indexEntries[i].id.Data().Get()
-		if bytes.Equal(id, prevID) {
+		// Need to check if i > 0 or we can never write an empty string ID
+		if i > 0 && bytes.Equal(id, prevID) {
 			// Should never happen, Write() should only be called once per ID
 			return fmt.Errorf("encountered duplicate ID: %s", id)
 		}
