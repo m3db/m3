@@ -158,7 +158,6 @@ func calculateExpectedChecksum(t *testing.T, filePath string) uint32 {
 
 func writeTestSummariesData(w FileSetWriter, writes []generatedWrite) error {
 	for _, write := range writes {
-		fmt.Println("writing: ", write.id)
 		err := w.Write(write.id, write.data, write.checksum)
 		if err != nil {
 			return err
