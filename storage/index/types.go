@@ -34,7 +34,7 @@ import (
 var (
 	// ReservedFieldNameID is the field name used to index the ID in the
 	// m3ninx subsytem.
-	ReservedFieldNameID = []byte("_m3db-id")
+	ReservedFieldNameID = []byte("_m3db_id")
 )
 
 // InsertMode specifies whether inserts are synchronous or asynchronous.
