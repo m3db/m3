@@ -27,13 +27,13 @@ import (
 const (
 	// Using 16K which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
-	defaultDataBufferSize = 16384
+	defaultBufferSize = 16384
 )
 
 // NewBaseOptions creates a new BaseOptions.
 func NewBaseOptions() BaseOptions {
 	return &baseOptions{
-		bufferSize: defaultDataBufferSize,
+		bufferSize: defaultBufferSize,
 	}
 }
 

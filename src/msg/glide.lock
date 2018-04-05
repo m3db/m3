@@ -1,5 +1,5 @@
-hash: b58908e85c860390a26d30aaf56f0d13632adb90ee16852092cbbaf09f47d908
-updated: 2018-03-28T23:55:20.075365-04:00
+hash: ab891c8790fe2d4bae0c58f4aaeafad6f6a6ed1f93d92b0c0aeeaf610cd34626
+updated: 2018-04-05T11:46:06.771993-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -8,13 +8,13 @@ imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/go-ole/go-ole
-  version: a41e3c4b706f6ae8dfbff342b06e40fa4d2d0506
+  version: de8695c8edbf8236f30d6e1376e20b198a028d42
   subpackages:
   - oleutil
 - name: github.com/gogo/protobuf
   version: 1adfc126b41513cc696b209667c8656ea7aac67c
 - name: github.com/golang/mock
-  version: 13f360950a79f5864a972c786a10a50e44b69541
+  version: 0d6884b72b943387bb12268d5178dde0e759e49a
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
@@ -51,7 +51,7 @@ imports:
   - resource
   - watch
 - name: github.com/shirou/gopsutil
-  version: 5776ff9c7c5d063d574ef53d740f75c68b448e53
+  version: fc04d2dd9a512906a2604242b35275179e250eda
   subpackages:
   - cpu
   - host
@@ -63,6 +63,8 @@ imports:
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/StackExchange/wmi
   version: 5d049714c4a64225c3c79a7cf7d02f7fb5b96338
+- name: github.com/uber-go/atomic
+  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: github.com/uber-go/tally
   version: 522328b48efad0c6034dba92bf39228694e9d31f
   subpackages:
@@ -82,6 +84,10 @@ imports:
   - internal/color
   - internal/exit
   - zapcore
+- name: golang.org/x/net
+  version: ab5485076ff3407ad2d02db054635913f017b0ed
+  subpackages:
+  - context
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
   repo: https://github.com/golang/sys
@@ -90,8 +96,12 @@ imports:
   - unix
   - windows
 testImports:
+- name: github.com/fortytw2/leaktest
+  version: 7dad53304f9614c1c365755c1176a8e876fee3e8
 - name: github.com/stretchr/testify
   version: 232e8563676cd15c3a36ba5e675ad4312ac4cb11
   subpackages:
   - assert
   - require
+- name: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4

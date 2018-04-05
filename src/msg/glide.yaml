@@ -12,5 +12,3 @@ import:
 testImport:
 - package: github.com/stretchr/testify
   version: v1.0
-- package: github.com/golang/mock
-  version: ^1.0.0
