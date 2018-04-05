@@ -40,8 +40,8 @@ type bufferOptions struct {
 	iOpts              instrument.Options
 }
 
-// NewBufferOptions creates a BufferOptions.
-func NewBufferOptions() Options {
+// NewOptions creates Options.
+func NewOptions() Options {
 	return &bufferOptions{
 		strategy:           DropEarliest,
 		maxBufferSize:      defaultMaxBufferSize,

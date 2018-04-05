@@ -96,7 +96,7 @@ func (d *refCountedData) IsDroppedOrConsumed() bool {
 	return r
 }
 
-func (d *refCountedData) finalize(r producer.DataFinalizeReason) bool {
+func (d *refCountedData) finalize(r producer.FinalizeReason) bool {
 	d.Lock()
 	if d.isDroppedOrConsumed {
 		d.Unlock()

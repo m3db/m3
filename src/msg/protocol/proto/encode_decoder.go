@@ -40,14 +40,13 @@ func NewEncodeDecoder(
 	if opts == nil {
 		opts = NewEncodeDecoderOptions()
 	}
-	c := encdec{
+	return &encdec{
 		rw:       rw,
 		enc:      newEncoder(rw, opts.EncoderOptions()),
 		dec:      newDecoder(rw, opts.DecoderOptions()),
 		isClosed: false,
 		pool:     opts.EncodeDecoderPool(),
 	}
-	return &c
 }
 
 func (c *encdec) Encode(msg Marshaler) error {
@@ -72,7 +71,7 @@ func (c *encdec) Close() {
 }
 
 func (c *encdec) Reset(rw io.ReadWriteCloser) {
-	if rw != nil {
+	if c.rw != nil {
 		c.rw.Close()
 	}
 	c.enc.resetWriter(rw)

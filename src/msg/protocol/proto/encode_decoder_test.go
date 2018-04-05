@@ -38,7 +38,7 @@ func TestEncodeDecoderReset(t *testing.T) {
 	require.True(t, c.isClosed)
 	require.NotPanics(t, func() { c.Encode(&msgpb.Message{}) })
 
-	c.Reset(nil)
+	c.Reset(new(net.TCPConn))
 	require.False(t, c.isClosed)
 	require.NotPanics(t, func() { c.Encode(&msgpb.Message{}) })
 }

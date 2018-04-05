@@ -24,12 +24,12 @@ import (
 	"github.com/m3db/m3cluster/services"
 )
 
-// DataFinalizeReason defines the reason why the data is being finalized by Producer.
-type DataFinalizeReason int
+// FinalizeReason defines the reason why the data is being finalized by Producer.
+type FinalizeReason int
 
 const (
 	// Consumed means the data has been fully consumed.
-	Consumed DataFinalizeReason = iota
+	Consumed FinalizeReason = iota
 
 	// Dropped means the data has been dropped.
 	Dropped
@@ -48,7 +48,7 @@ type Data interface {
 	Size() uint32
 
 	// Finalize will be called by producer to indicate the end of its lifecycle.
-	Finalize(DataFinalizeReason)
+	Finalize(FinalizeReason)
 }
 
 // Producer produces data to a topic.
