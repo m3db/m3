@@ -75,7 +75,7 @@ type buffer struct {
 // NewBuffer returns a new buffer.
 func NewBuffer(opts Options) producer.Buffer {
 	if opts == nil {
-		opts = NewBufferOptions()
+		opts = NewOptions()
 	}
 	b := &buffer{
 		buffers:       list.New(),

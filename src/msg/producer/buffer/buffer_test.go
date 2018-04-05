@@ -61,7 +61,7 @@ func TestBufferWithSmallSize(t *testing.T) {
 	md := producer.NewMockData(ctrl)
 	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
 
-	b := NewBuffer(NewBufferOptions().SetMaxBufferSize(1))
+	b := NewBuffer(NewOptions().SetMaxBufferSize(1))
 	_, err := b.Add(md)
 	require.Error(t, err)
 }
@@ -73,7 +73,7 @@ func TestBufferCleanupEarliest(t *testing.T) {
 	md := producer.NewMockData(ctrl)
 	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
 
-	b := NewBuffer(NewBufferOptions())
+	b := NewBuffer(NewOptions())
 	rd, err := b.Add(md)
 	require.NoError(t, err)
 	require.Equal(t, rd.Size(), uint64(md.Size()))
@@ -93,7 +93,7 @@ func TestBufferCleanupBackground(t *testing.T) {
 	md := producer.NewMockData(ctrl)
 	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
 
-	b := NewBuffer(NewBufferOptions().
+	b := NewBuffer(NewOptions().
 		SetCleanupInterval(100 * time.Millisecond).
 		SetCloseCheckInterval(100 * time.Millisecond).
 		SetInstrumentOptions(instrument.NewOptions())).(*buffer)
@@ -124,7 +124,7 @@ func TestBufferDropEarliestOnFull(t *testing.T) {
 	md := producer.NewMockData(ctrl)
 	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
 
-	b := NewBuffer(NewBufferOptions().SetMaxBufferSize(int(3 * md.Size())))
+	b := NewBuffer(NewOptions().SetMaxBufferSize(int(3 * md.Size())))
 	rd1, err := b.Add(md)
 	require.NoError(t, err)
 	rd2, err := b.Add(md)
@@ -156,7 +156,7 @@ func TestBufferReturnErrorOnFull(t *testing.T) {
 	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
 
 	b := NewBuffer(
-		NewBufferOptions().
+		NewOptions().
 			SetMaxBufferSize(int(3 * md.Size())).
 			SetOnFullStrategy(ReturnError),
 	)
@@ -184,7 +184,7 @@ func BenchmarkProduce(b *testing.B) {
 	md.EXPECT().Finalize(producer.Dropped).AnyTimes()
 
 	buffer := NewBuffer(
-		NewBufferOptions().
+		NewOptions().
 			SetMaxBufferSize(1000 * 1000 * 200).
 			SetOnFullStrategy(DropEarliest),
 	)

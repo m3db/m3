@@ -65,7 +65,7 @@ func (_mr *MockDataMockRecorder) Bytes() *gomock.Call {
 }
 
 // Finalize mocks base method
-func (_m *MockData) Finalize(_param0 DataFinalizeReason) {
+func (_m *MockData) Finalize(_param0 FinalizeReason) {
 	_m.ctrl.Call(_m, "Finalize", _param0)
 }
 

@@ -32,10 +32,10 @@ import (
 
 func TestBaseEncodeDecodeRoundTripWithoutPool(t *testing.T) {
 	mimicTCP := bytes.NewBuffer(nil)
-	enc := newEncoder(mimicTCP, nil)
+	enc := newEncoder(mimicTCP, NewBaseOptions().SetBytesPool(nil))
 	require.Equal(t, 4, len(enc.sizeBuffer))
 	require.Equal(t, 4, cap(enc.sizeBuffer))
-	dec := newDecoder(mimicTCP, nil)
+	dec := newDecoder(mimicTCP, NewBaseOptions().SetBytesPool(nil))
 	require.Equal(t, 4, len(dec.sizeBuffer))
 	require.Equal(t, 4, cap(dec.sizeBuffer))
 	encodeMsg := msgpb.Message{
