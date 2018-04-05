@@ -1025,6 +1025,20 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	require.NoError(t, ns.Close())
 }
 
+func TestNamespaceIndexDisabledQuery(t *testing.T) {
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	ctx := context.NewContext()
+	query := index.Query{}
+	opts := index.QueryOptions{}
+
+	_, err := ns.QueryIDs(ctx, query, opts)
+	require.Error(t, err)
+
+	require.NoError(t, ns.Close())
+}
+
 func waitForStats(
 	reporter xmetrics.TestStatsReporter,
 	check func(xmetrics.TestStatsReporter) bool,
