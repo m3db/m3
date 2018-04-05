@@ -21,6 +21,7 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net/url"
@@ -39,10 +40,10 @@ import (
 )
 
 const (
-	defaultETCDDirSuffix  = "etcd"
-	defaultETCDListenHost = "http://0.0.0.0"
-	defaultETCDClientPort = 2379
-	defaultETCDServerPort = 2380
+	defaultEtcdDirSuffix  = "etcd"
+	defaultEtcdListenHost = "http://0.0.0.0"
+	defaultEtcdClientPort = 2379
+	defaultEtcdServerPort = 2380
 )
 
 // Configuration is the configuration for a M3DB node.
@@ -206,26 +207,24 @@ type HashingConfiguration struct {
 	Seed uint32 `yaml:"seed"`
 }
 
-// ETCDConfig creates a new embedded etcd config from kv config.
-func ETCDConfig(cfg Configuration) (*embed.Config, error) {
+// NewEtcdEmbedConfig creates a new embedded etcd config from kv config.
+func NewEtcdEmbedConfig(cfg Configuration) (*embed.Config, error) {
 	newKVCfg := embed.NewConfig()
-	kvCfg := cfg.EnvironmentConfig.EmbeddedServer
+	kvCfg := cfg.EnvironmentConfig.SeedNode
 
-	dir := kvCfg.Dir
+	dir := kvCfg.RootDir
 	if dir == "" {
-		dir = path.Join(cfg.Filesystem.FilePathPrefix, defaultETCDDirSuffix)
+		dir = path.Join(cfg.Filesystem.FilePathPrefix, defaultEtcdDirSuffix)
 	}
 	newKVCfg.Dir = dir
 
-	// listen-peer-urls
-	LPUrls, err := convertToURLsWithDefault(kvCfg.LPUrls, newURL(defaultETCDListenHost, defaultETCDServerPort))
+	LPUrls, err := convertToURLsWithDefault(kvCfg.ListenPeerUrls, newURL(defaultEtcdListenHost, defaultEtcdServerPort))
 	if err != nil {
 		return nil, err
 	}
 	newKVCfg.LPUrls = LPUrls
 
-	// listen-client-urls
-	LCUrls, err := convertToURLsWithDefault(kvCfg.LCUrls, newURL(defaultETCDListenHost, defaultETCDClientPort))
+	LCUrls, err := convertToURLsWithDefault(kvCfg.ListenClientUrls, newURL(defaultEtcdListenHost, defaultEtcdClientPort))
 	if err != nil {
 		return nil, err
 	}
@@ -236,34 +235,32 @@ func ETCDConfig(cfg Configuration) (*embed.Config, error) {
 		return nil, err
 	}
 
-	// initial-advertise-peer-urls
-	APUrls, err := convertToURLsWithDefault(kvCfg.APUrls, newURL(host, defaultETCDServerPort))
+	APUrls, err := convertToURLsWithDefault(kvCfg.InitialAdvertisePeerUrls, newURL(host, defaultEtcdServerPort))
 	if err != nil {
 		return nil, err
 	}
 	newKVCfg.APUrls = APUrls
 
-	// advertise-client-urls
-	ACUrls, err := convertToURLsWithDefault(kvCfg.ACUrls, newURL(host, defaultETCDClientPort))
+	ACUrls, err := convertToURLsWithDefault(kvCfg.AdvertiseClientUrls, newURL(host, defaultEtcdClientPort))
 	if err != nil {
 		return nil, err
 	}
 	newKVCfg.ACUrls = ACUrls
 
 	newKVCfg.Name = kvCfg.Name
-	newKVCfg.InitialCluster = kvCfg.InitialCluster
+	newKVCfg.InitialCluster = initialClusterString(kvCfg.InitialCluster)
 
-	copySecurityDetails := func(tls *transport.TLSInfo, ysc *environment.KVSecurity) {
+	copySecurityDetails := func(tls *transport.TLSInfo, ysc *environment.SeedNodeSecurityConfig) {
 		tls.CAFile = ysc.CAFile
 		tls.CertFile = ysc.CertFile
 		tls.KeyFile = ysc.KeyFile
 		tls.ClientCertAuth = ysc.CertAuth
 		tls.TrustedCAFile = ysc.TrustedCAFile
 	}
-	copySecurityDetails(&newKVCfg.ClientTLSInfo, &kvCfg.ClientSecurityJSON)
-	copySecurityDetails(&newKVCfg.PeerTLSInfo, &kvCfg.PeerSecurityJSON)
-	newKVCfg.ClientAutoTLS = kvCfg.ClientSecurityJSON.AutoTLS
-	newKVCfg.PeerAutoTLS = kvCfg.PeerSecurityJSON.AutoTLS
+	copySecurityDetails(&newKVCfg.ClientTLSInfo, &kvCfg.ClientTransportSecurity)
+	copySecurityDetails(&newKVCfg.PeerTLSInfo, &kvCfg.PeerTransportSecurity)
+	newKVCfg.ClientAutoTLS = kvCfg.ClientTransportSecurity.AutoTLS
+	newKVCfg.PeerAutoTLS = kvCfg.PeerTransportSecurity.AutoTLS
 
 	return newKVCfg, nil
 }
@@ -285,22 +282,30 @@ func convertToURLsWithDefault(urlStrs []string, def ...string) ([]url.URL, error
 	return []url.URL(urls), nil
 }
 
-func getHostFromHostID(initialCluster, hostID string) (string, error) {
-	if len(initialCluster) == 0 {
-		return "", errors.New("zero nodes in initialCluster")
+func initialClusterString(initialCluster []environment.SeedNode) string {
+	var buffer bytes.Buffer
+
+	for i, seedNode := range initialCluster {
+		buffer.WriteString(seedNode.HostID)
+		buffer.WriteString("=")
+		buffer.WriteString(seedNode.Endpoint)
+
+		if i < len(initialCluster)-1 {
+			buffer.WriteString(",")
+		}
 	}
 
-	nodesStr := strings.Split(initialCluster, ",")
+	return buffer.String()
+}
 
-	for _, nodeStr := range nodesStr {
-		nodeData := strings.Split(nodeStr, "=")
+func getHostFromHostID(initialCluster []environment.SeedNode, hostID string) (string, error) {
+	if len(initialCluster) == 0 {
+		return "", errors.New("zero seed nodes in initialCluster")
+	}
 
-		if len(nodeData) != 2 {
-			return "", errors.New("invalid initialCluster format")
-		}
-
-		if hostID == nodeData[0] {
-			endpoint := nodeData[1]
+	for _, seedNode := range initialCluster {
+		if hostID == seedNode.HostID {
+			endpoint := seedNode.Endpoint
 
 			colonIdx := strings.LastIndex(endpoint, ":")
 			if colonIdx == -1 {
@@ -314,37 +319,31 @@ func getHostFromHostID(initialCluster, hostID string) (string, error) {
 	return "", errors.New("host not in initialCluster list")
 }
 
-// InitialClusterToETCDEndpoints converts the etcd config initialCluster into etcdClusters config
-// for m3cluster.
-func InitialClusterToETCDEndpoints(initialCluster string) ([]string, error) {
-	if len(initialCluster) == 0 {
-		return nil, errors.New("zero nodes in initialCluster")
-	}
+// InitialClusterEndpoints returns the endpoints of the initial cluster
+func InitialClusterEndpoints(initialCluster []environment.SeedNode) ([]string, error) {
+	endpoints := make([]string, 0, len(initialCluster))
 
-	nodesStr := strings.Split(initialCluster, ",")
-	endpoints := make([]string, 0, len(nodesStr))
-
-	for _, nodeStr := range nodesStr {
-		nodeData := strings.Split(nodeStr, "=")
-
-		if len(nodeData) != 2 {
-			return nil, errors.New("invalid initialCluster format")
-		}
-
-		endpoint := nodeData[1]
+	for _, seedNode := range initialCluster {
+		endpoint := seedNode.Endpoint
 
 		colonIdx := strings.LastIndex(endpoint, ":")
 		if colonIdx == -1 {
 			return nil, errors.New("invalid initialCluster format")
 		}
 
-		endpoints = append(endpoints, newURL(endpoint[:colonIdx], defaultETCDClientPort))
+		endpoints = append(endpoints, newURL(endpoint[:colonIdx], defaultEtcdClientPort))
 	}
 
 	return endpoints, nil
 }
 
-// IsETCDNode returns whether the given hostID is an etcd node.
-func IsETCDNode(initialCluster, hostID string) bool {
-	return strings.Contains(initialCluster, hostID)
+// IsSeedNode returns whether the given hostID is an etcd node.
+func IsSeedNode(initialCluster []environment.SeedNode, hostID string) bool {
+	for _, seedNode := range initialCluster {
+		if seedNode.HostID == hostID {
+			return true
+		}
+	}
+
+	return false
 }

@@ -40,12 +40,12 @@ import (
 )
 
 const (
-	defaultSDTimeout = 5 * time.Second
+	defaultSDTimeout = 30 * time.Second
 )
 
 var (
 	errNilRetention  = errors.New("namespace retention options cannot be empty")
-	errMissingConfig = errors.New("must supply service or static config")
+	errInvalidConfig = errors.New("must supply either service or static config")
 )
 
 // Configuration is a configuration that can be used to create namespaces, a topology, and kv store
@@ -57,32 +57,39 @@ type Configuration struct {
 	Static *StaticConfiguration `yaml:"static"`
 
 	// Presence of a (etcd) server in this config denotes an embedded cluster
-	EmbeddedServer *EmbeddedKV `yaml:"embeddedServer"`
+	SeedNode *SeedNodeConfig `yaml:"seedNode"`
 
-	// NamespaceTimeout is the timeout duration for setting a namespace
-	NamespaceTimeout time.Duration `yaml:"namespaceTimeout"`
+	// NamespaceResolutionTimeout is the maximum time to wait to discover namespaces from KV
+	NamespaceResolutionTimeout time.Duration `yaml:"namespaceResolutionTimeout"`
 }
 
-// EmbeddedKV defines specific fields for the embedded kv server
-type EmbeddedKV struct {
-	Dir                string     `yaml:"dir"`
-	APUrls             []string   `yaml:"initialAdvertisePeerUrls"`
-	ACUrls             []string   `yaml:"advertiseClientUrls"`
-	LPUrls             []string   `yaml:"listenPeerUrls"`
-	LCUrls             []string   `yaml:"listenClientUrls"`
-	InitialCluster     string     `yaml:"initialCluster"`
-	Name               string     `yaml:"name"`
-	ClientSecurityJSON KVSecurity `json:"client-transport-security"`
-	PeerSecurityJSON   KVSecurity `json:"peer-transport-security"`
+// SeedNodeConfig defines fields for seed node
+type SeedNodeConfig struct {
+	RootDir                  string                 `yaml:"rootDir"`
+	InitialAdvertisePeerUrls []string               `yaml:"initialAdvertisePeerUrls"`
+	AdvertiseClientUrls      []string               `yaml:"advertiseClientUrls"`
+	ListenPeerUrls           []string               `yaml:"listenPeerUrls"`
+	ListenClientUrls         []string               `yaml:"listenClientUrls"`
+	InitialCluster           []SeedNode             `yaml:"initialCluster"`
+	Name                     string                 `yaml:"name"`
+	ClientTransportSecurity  SeedNodeSecurityConfig `json:"clientTransportSecurity"`
+	PeerTransportSecurity    SeedNodeSecurityConfig `json:"peerTransportSecurity"`
 }
 
-type KVSecurity struct {
-	CAFile        string `json:"ca-file"`
-	CertFile      string `json:"cert-file"`
-	KeyFile       string `json:"key-file"`
-	CertAuth      bool   `json:"client-cert-auth"`
-	TrustedCAFile string `json:"trusted-ca-file"`
-	AutoTLS       bool   `json:"auto-tls"`
+// SeedNode represents a seed node for the cluster
+type SeedNode struct {
+	HostID   string `yaml:"hostId"`
+	Endpoint string `yaml:"endpoint"`
+}
+
+// SeedNodeSecurityConfig contains the data used for security in seed nodes
+type SeedNodeSecurityConfig struct {
+	CAFile        string `json:"caFile"`
+	CertFile      string `json:"certFile"`
+	KeyFile       string `json:"keyFile"`
+	TrustedCAFile string `json:"trustedCaFile"`
+	CertAuth      bool   `json:"clientCertAuth"`
+	AutoTLS       bool   `json:"autoTls"`
 }
 
 // StaticConfiguration is used for running M3DB with a static config
@@ -127,10 +134,10 @@ type ConfigureResults struct {
 
 // ConfigurationParameters are options used to create new ConfigureResults
 type ConfigurationParameters struct {
-	InstrumentOpts   instrument.Options
-	HashingSeed      uint32
-	HostID           string
-	NamespaceTimeout time.Duration
+	InstrumentOpts             instrument.Options
+	HashingSeed                uint32
+	HostID                     string
+	NamespaceResolutionTimeout time.Duration
 }
 
 // Configure creates a new ConfigureResults
@@ -150,23 +157,27 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 		return emptyConfig, err
 	}
 
+	if c.Service != nil && c.Static != nil {
+		return emptyConfig, errInvalidConfig
+	}
+
 	if c.Service != nil {
-		return c.newDynamicConfigRes(configSvcClient, cfgParams)
+		return c.configureDynamic(configSvcClient, cfgParams)
 	}
 
 	if c.Static != nil {
-		return c.newStaticConfigRes(configSvcClient, cfgParams)
+		return c.configureStatic(configSvcClient, cfgParams)
 	}
 
-	return emptyConfig, errMissingConfig
+	return emptyConfig, errInvalidConfig
 }
 
-func (c Configuration) newDynamicConfigRes(configSvcClient client.Client, cfgParams ConfigurationParameters) (ConfigureResults, error) {
+func (c Configuration) configureDynamic(configSvcClient client.Client, cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	dynamicOpts := namespace.NewDynamicOptions().
 		SetInstrumentOptions(cfgParams.InstrumentOpts).
 		SetConfigServiceClient(configSvcClient).
 		SetNamespaceRegistryKey(kvconfig.NamespacesKey).
-		SetInitTimeout(cfgParams.NamespaceTimeout)
+		SetInitTimeout(cfgParams.NamespaceResolutionTimeout)
 	nsInit := namespace.NewDynamicInitializer(dynamicOpts)
 
 	serviceID := services.NewServiceID().
@@ -196,7 +207,7 @@ func (c Configuration) newDynamicConfigRes(configSvcClient client.Client, cfgPar
 	return configureResults, nil
 }
 
-func (c Configuration) newStaticConfigRes(configSvcClient client.Client, cfgParams ConfigurationParameters) (ConfigureResults, error) {
+func (c Configuration) configureStatic(configSvcClient client.Client, cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	var emptyConfig ConfigureResults
 
 	nsList := []namespace.Metadata{}

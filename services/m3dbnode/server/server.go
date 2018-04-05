@@ -75,9 +75,9 @@ import (
 )
 
 const (
-	bootstrapConfigInitTimeout = 10 * time.Second
-	serverGracefulCloseTimeout = 10 * time.Second
-	namespaceInitTimeout       = 10 * time.Minute
+	bootstrapConfigInitTimeout        = 10 * time.Second
+	serverGracefulCloseTimeout        = 10 * time.Second
+	defaultNamespaceResolutionTimeout = 30 * time.Second
 )
 
 // RunOptions provides options for running the server
@@ -89,7 +89,7 @@ type RunOptions struct {
 	// BootstrapCh is a channel to listen on to be notified of bootstrap.
 	BootstrapCh chan<- struct{}
 
-	// EmbeddedKVBootstrapCh is a channel to listen on to be notified of the embedded KV being bootstrapped.
+	// EmbeddedKVBootstrapCh is a channel to listen on to be notified that the embedded KV has bootstrapped.
 	EmbeddedKVBootstrapCh chan<- struct{}
 
 	// InterruptCh is a programmatic interrupt channel to supply to
@@ -118,9 +118,9 @@ func Run(runOpts RunOptions) {
 	}
 
 	// Presence of KV server config indicates embedded etcd cluster
-	if cfg.EnvironmentConfig.EmbeddedServer != nil {
+	if cfg.EnvironmentConfig.SeedNode != nil {
 		// Default etcd node name to HostID
-		if cfg.EnvironmentConfig.EmbeddedServer.Name == "" {
+		if cfg.EnvironmentConfig.SeedNode.Name == "" {
 			name, err := cfg.HostID.Resolve()
 			if err != nil {
 				logger.Fatal("unable to resolve HostID")
@@ -128,13 +128,14 @@ func Run(runOpts RunOptions) {
 
 			logger.Infof("setting KV server name to: %s", name)
 
-			cfg.EnvironmentConfig.EmbeddedServer.Name = name
+			cfg.EnvironmentConfig.SeedNode.Name = name
 		}
 
 		// Default etcd client clusters if not set already
 		clusters := cfg.EnvironmentConfig.Service.ETCDClusters
 		if len(clusters) == 0 {
-			endpoints, err := config.InitialClusterToETCDEndpoints(cfg.EnvironmentConfig.EmbeddedServer.InitialCluster)
+			endpoints, err := config.InitialClusterEndpoints(cfg.EnvironmentConfig.SeedNode.InitialCluster)
+
 			if err != nil {
 				logger.Fatalf("unable to create etcd clusters: %v", err)
 			}
@@ -149,10 +150,10 @@ func Run(runOpts RunOptions) {
 			}}
 		}
 
-		if config.IsETCDNode(cfg.EnvironmentConfig.EmbeddedServer.InitialCluster, cfg.EnvironmentConfig.EmbeddedServer.Name) {
+		if config.IsSeedNode(cfg.EnvironmentConfig.SeedNode.InitialCluster, cfg.EnvironmentConfig.SeedNode.Name) {
 			logger.Info("is a seed node; starting etcd server")
 
-			etcdCfg, err := config.ETCDConfig(cfg)
+			etcdCfg, err := config.NewEtcdEmbedConfig(cfg)
 			if err != nil {
 				logger.Fatalf("unable to create etcd config: %v", err)
 			}
@@ -324,15 +325,15 @@ func Run(runOpts RunOptions) {
 	if cfg.EnvironmentConfig.Static == nil {
 		logger.Info("creating dynamic config service client with m3cluster")
 
-		namespaceTimeout := cfg.EnvironmentConfig.NamespaceTimeout
-		if namespaceTimeout <= 0 {
-			namespaceTimeout = namespaceInitTimeout
+		namespaceResolutionTimeout := cfg.EnvironmentConfig.NamespaceResolutionTimeout
+		if namespaceResolutionTimeout <= 0 {
+			namespaceResolutionTimeout = defaultNamespaceResolutionTimeout
 		}
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts:   iopts,
-			HashingSeed:      cfg.Hashing.Seed,
-			NamespaceTimeout: namespaceTimeout,
+			InstrumentOpts:             iopts,
+			HashingSeed:                cfg.Hashing.Seed,
+			NamespaceResolutionTimeout: namespaceResolutionTimeout,
 		})
 		if err != nil {
 			logger.Fatalf("could not initialize dynamic config: %v", err)

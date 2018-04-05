@@ -56,21 +56,19 @@ import (
 )
 
 const (
-	hostID       = "m3dbtest01"
-	serviceName  = "m3dbnode_test"
-	serviceEnv   = "test"
-	serviceZone  = "local"
-	servicePort  = 9000
-	namespaceID  = "metrics"
-	lpURL        = "http://0.0.0.0:2380"
-	lcURL        = "http://0.0.0.0:2379"
-	apURL        = "http://localhost:2380"
-	acURL        = "http://localhost:2379"
-	etcdEndpoint = acURL
-)
-
-var (
-	initialCluster = fmt.Sprintf("%s=%s", hostID, apURL)
+	hostID                 = "m3dbtest01"
+	serviceName            = "m3dbnode_test"
+	serviceEnv             = "test"
+	serviceZone            = "local"
+	servicePort            = 9000
+	namespaceID            = "metrics"
+	lpURL                  = "http://0.0.0.0:2380"
+	lcURL                  = "http://0.0.0.0:2379"
+	apURL                  = "http://localhost:2380"
+	acURL                  = "http://localhost:2379"
+	etcdEndpoint           = acURL
+	initialClusterHostID   = hostID
+	initialClusterEndpoint = apURL
 )
 
 // TestConfig tests booting a server using file based configuration.
@@ -271,37 +269,39 @@ func TestEmbeddedConfig(t *testing.T) {
 	defer cleanupDataDir()
 
 	err = tmpl.Execute(configFd, struct {
-		HostID                string
-		LogFile               string
-		DataDir               string
-		ServicePort           string
-		ServiceName           string
-		ServiceEnv            string
-		ServiceZone           string
-		ConfigServiceCacheDir string
-		EmbeddedKVDir         string
-		LPURL                 string
-		LCURL                 string
-		APURL                 string
-		ACURL                 string
-		InitialCluster        string
-		EtcdEndpoint          string
+		HostID                 string
+		LogFile                string
+		DataDir                string
+		ServicePort            string
+		ServiceName            string
+		ServiceEnv             string
+		ServiceZone            string
+		ConfigServiceCacheDir  string
+		EmbeddedKVDir          string
+		LPURL                  string
+		LCURL                  string
+		APURL                  string
+		ACURL                  string
+		EtcdEndpoint           string
+		InitialClusterHostID   string
+		InitialClusterEndpoint string
 	}{
-		HostID:                hostID,
-		LogFile:               logFile,
-		DataDir:               dataDir,
-		ServicePort:           strconv.Itoa(int(servicePort)),
-		ServiceName:           serviceName,
-		ServiceEnv:            serviceEnv,
-		ServiceZone:           serviceZone,
-		ConfigServiceCacheDir: configServiceCacheDir,
-		EmbeddedKVDir:         embeddedKVDir,
-		LPURL:                 lpURL,
-		LCURL:                 lcURL,
-		APURL:                 apURL,
-		ACURL:                 acURL,
-		EtcdEndpoint:          etcdEndpoint,
-		InitialCluster:        initialCluster,
+		HostID:                 hostID,
+		LogFile:                logFile,
+		DataDir:                dataDir,
+		ServicePort:            strconv.Itoa(int(servicePort)),
+		ServiceName:            serviceName,
+		ServiceEnv:             serviceEnv,
+		ServiceZone:            serviceZone,
+		ConfigServiceCacheDir:  configServiceCacheDir,
+		EmbeddedKVDir:          embeddedKVDir,
+		LPURL:                  lpURL,
+		LCURL:                  lcURL,
+		APURL:                  apURL,
+		ACURL:                  acURL,
+		EtcdEndpoint:           etcdEndpoint,
+		InitialClusterHostID:   initialClusterHostID,
+		InitialClusterEndpoint: initialClusterEndpoint,
 	})
 	require.NoError(t, err)
 
@@ -622,7 +622,7 @@ config:
             - zone: {{.ServiceZone}}
               endpoints:
                   - {{.EtcdEndpoint}}
-    embeddedServer:
+    seedNode:
         listenPeerUrls:
             - {{.LPURL}}
         listenClientUrls:
@@ -632,7 +632,9 @@ config:
             - {{.APURL}}
         advertiseClientUrls:
             - {{.ACURL}}
-        initialCluster: {{.InitialCluster}}
+        initialCluster:
+            - hostId: {{.InitialClusterHostID}}
+              endpoint: {{.InitialClusterEndpoint}}
 `
 )
 
