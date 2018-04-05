@@ -65,7 +65,7 @@ func testDatabaseShard(t *testing.T, opts Options) *dbShard {
 	nsReaderMgr := newNamespaceReaderManager(metadata, tally.NoopScope, opts)
 	seriesOpts := NewSeriesOptionsFromOptions(opts, defaultTestNs1Opts.RetentionOptions())
 	return newDatabaseShard(metadata, 0, nil, nsReaderMgr,
-		&testIncreasingIndex{}, commitLogWriteNoOp, databaseIndexNoOp, true, opts, seriesOpts).(*dbShard)
+		&testIncreasingIndex{}, commitLogWriteNoOp, nil, true, opts, seriesOpts).(*dbShard)
 }
 
 func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, index uint64) *series.MockDatabaseSeries {
@@ -82,7 +82,7 @@ func TestShardDontNeedBootstrap(t *testing.T) {
 	defer closer()
 	seriesOpts := NewSeriesOptionsFromOptions(opts, testNs.Options().RetentionOptions())
 	shard := newDatabaseShard(testNs.metadata, 0, nil, nil,
-		&testIncreasingIndex{}, commitLogWriteNoOp, databaseIndexNoOp, false, opts, seriesOpts).(*dbShard)
+		&testIncreasingIndex{}, commitLogWriteNoOp, nil, false, opts, seriesOpts).(*dbShard)
 	defer shard.Close()
 
 	require.Equal(t, bootstrapped, shard.bs)

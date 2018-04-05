@@ -22,6 +22,7 @@ package storage
 
 import (
 	"bytes"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -39,6 +40,7 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/x/xcounter"
 	"github.com/m3db/m3db/x/xio"
+	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -104,6 +106,7 @@ type Database interface {
 	// QueryIDs resolves the given query into known IDs.
 	QueryIDs(
 		ctx context.Context,
+		namespace ident.ID,
 		query index.Query,
 		opts index.QueryOptions,
 	) (index.QueryResults, error)
@@ -237,6 +240,13 @@ type databaseNamespace interface {
 		unit xtime.Unit,
 		annotation []byte,
 	) error
+
+	// QueryIDs resolves the given query into known IDs.
+	QueryIDs(
+		ctx context.Context,
+		query index.Query,
+		opts index.QueryOptions,
+	) (index.QueryResults, error)
 
 	// ReadEncoded reads data for given id within [start, end)
 	ReadEncoded(
@@ -395,14 +405,13 @@ type databaseShard interface {
 	) (repair.MetadataComparisonResult, error)
 }
 
-// databaseIndex indexes database writes.
-type databaseIndex interface {
-	// Write writes a timeseries ID and Tags.
+// namespaceIndex indexes namespace writes.
+type namespaceIndex interface {
+	// Write indexes timeseries ID by provided Tags.
 	Write(
-		ctx context.Context,
-		namespace ident.ID,
 		id ident.ID,
-		tags ident.TagIterator,
+		tags ident.Tags,
+		fns onIndexSeries,
 	) error
 
 	// Query resolves the given query into known IDs.
@@ -411,6 +420,39 @@ type databaseIndex interface {
 		query index.Query,
 		opts index.QueryOptions,
 	) (index.QueryResults, error)
+
+	// Close will release the index resources and close the index.
+	Close() error
+}
+
+// namespaceIndexInsertQueue is a queue used in-front of the indexing component
+// for Writes. NB: this is an interface to allow easier unit tests in namespaceIndex.
+type namespaceIndexInsertQueue interface {
+	// Start starts accepting writes in the queue.
+	Start() error
+
+	// Stop stops accepting writes in the queue.
+	Stop() error
+
+	// Insert inserts the provided document to the index queue which processes
+	// inserts to the index asynchronously. It executes the provided callbacks
+	// based on the result of the execution. The returned wait group can be used
+	// if the insert is required to be synchronous.
+	Insert(d doc.Document, s onIndexSeries) (*sync.WaitGroup, error)
+}
+
+// onIndexSeries provides a set of callback hooks to allow the reverse index
+// to do lifecycle management of any resources retained during indexing.
+type onIndexSeries interface {
+	// OnIndexSuccess is executed when an entry is successfully indexed. The
+	// provided value for `indexEntryExpiry` describes the TTL for the indexed
+	// entry.
+	OnIndexSuccess(indexEntryExpiry time.Time)
+
+	// OnIndexFinalize is executed when the index no longer holds any references
+	// to the provided resources. It can be used to cleanup any resources held
+	// during the course of indexing.
+	OnIndexFinalize()
 }
 
 // databaseBootstrapManager manages the bootstrap process.

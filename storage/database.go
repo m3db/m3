@@ -57,6 +57,10 @@ var (
 
 	// errDatabaseIsClosed raise when trying to perform an action that requires an open database
 	errDatabaseIsClosed = errors.New("database is closed")
+
+	// errDatabaseIndexingDisabled raied when trying to perform an action that requires an index
+	// while the index is disabled.
+	errDatabaseIndexingDisabled = errors.New("database indexing is disabled")
 )
 
 type databaseState int
@@ -81,7 +85,6 @@ type db struct {
 	shardSet   sharding.ShardSet
 	namespaces map[ident.Hash]databaseNamespace
 	commitLog  commitlog.CommitLog
-	index      databaseIndex
 
 	state    databaseState
 	mediator databaseMediator
@@ -104,16 +107,23 @@ type databaseMetrics struct {
 	unknownNamespaceWriteTagged         tally.Counter
 	unknownNamespaceFetchBlocks         tally.Counter
 	unknownNamespaceFetchBlocksMetadata tally.Counter
+	unknownNamespaceQueryIDs            tally.Counter
+	errQueryIDsIndexDisabled            tally.Counter
+	errWriteTaggedIndexDisabled         tally.Counter
 }
 
 func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 	unknownNamespaceScope := scope.SubScope("unknown-namespace")
+	indexDisabledScope := scope.SubScope("index-disabled")
 	return databaseMetrics{
 		unknownNamespaceRead:                unknownNamespaceScope.Counter("read"),
 		unknownNamespaceWrite:               unknownNamespaceScope.Counter("write"),
 		unknownNamespaceWriteTagged:         unknownNamespaceScope.Counter("write-tagged"),
 		unknownNamespaceFetchBlocks:         unknownNamespaceScope.Counter("fetch-blocks"),
 		unknownNamespaceFetchBlocksMetadata: unknownNamespaceScope.Counter("fetch-blocks-metadata"),
+		unknownNamespaceQueryIDs:            unknownNamespaceScope.Counter("query-ids"),
+		errQueryIDsIndexDisabled:            indexDisabledScope.Counter("err-query-ids"),
+		errWriteTaggedIndexDisabled:         indexDisabledScope.Counter("err-write-tagged"),
 	}
 }
 
@@ -138,21 +148,12 @@ func NewDatabase(
 	scope := iopts.MetricsScope().SubScope("database")
 	logger := iopts.Logger()
 
-	index := databaseIndexNoOp
-	if opts.IndexingEnabled() {
-		index, err = newDatabaseIndex(opts)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	d := &db{
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
 		shardSet:     shardSet,
 		namespaces:   make(map[ident.Hash]databaseNamespace),
 		commitLog:    commitLog,
-		index:        index,
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope),
 		log:          logger,
@@ -330,8 +331,7 @@ func (d *db) newDatabaseNamespace(
 			return nil, err
 		}
 	}
-	return newDatabaseNamespace(md, d.shardSet, retriever,
-		d, d.commitLog, d.index, d.opts)
+	return newDatabaseNamespace(md, d.shardSet, retriever, d, d.commitLog, d.opts)
 }
 
 func (d *db) Options() Options {
@@ -507,6 +507,11 @@ func (d *db) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
+	if !d.opts.IndexingEnabled() {
+		d.metrics.errWriteTaggedIndexDisabled.Inc(1)
+		return errDatabaseIndexingDisabled
+	}
+
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceWriteTagged.Inc(1)
@@ -522,10 +527,22 @@ func (d *db) WriteTagged(
 
 func (d *db) QueryIDs(
 	ctx context.Context,
+	namespace ident.ID,
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResults, error) {
-	return d.index.Query(ctx, query, opts)
+	if !d.opts.IndexingEnabled() {
+		d.metrics.errQueryIDsIndexDisabled.Inc(1)
+		return index.QueryResults{}, errDatabaseIndexingDisabled
+	}
+
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceQueryIDs.Inc(1)
+		return index.QueryResults{}, err
+	}
+
+	return n.QueryIDs(ctx, query, opts)
 }
 
 func (d *db) ReadEncoded(
