@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/x/metrics"
@@ -74,6 +75,14 @@ func newTestNamespaceWithIDOpts(
 	require.NoError(t, err)
 	closer := dopts.RuntimeOptionsManager().Close
 	return ns.(*dbNamespace), closer
+}
+
+func newTestNamespaceWithIndex(t *testing.T, index namespaceIndex) (*dbNamespace, closer) {
+	ns, closer := newTestNamespace(t)
+	if index != nil {
+		ns.reverseIndex = index
+	}
+	return ns, closer
 }
 
 func TestNamespaceName(t *testing.T) {
@@ -971,6 +980,49 @@ func TestNamespaceCloseDoesNotLeak(t *testing.T) {
 
 	// Check the namespace no long owns any shards
 	require.Empty(t, ns.GetOwnedShards())
+}
+
+func TestNamespaceIndexInsert(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := NewMocknamespaceIndex(ctrl)
+	ns, closer := newTestNamespaceWithIndex(t, idx)
+	defer closer()
+
+	ctx := context.NewContext()
+	ts := time.Now()
+
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
+		ts, 1.0, xtime.Second, nil).Return(nil)
+	ns.shards[testShardIDs[0].ID()] = shard
+
+	err := ns.WriteTagged(ctx, ident.StringID("a"),
+		ident.EmptyTagIterator, ts, 1.0, xtime.Second, nil)
+	require.NoError(t, err)
+
+	shard.EXPECT().Close()
+	require.NoError(t, ns.Close())
+}
+
+func TestNamespaceIndexQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := NewMocknamespaceIndex(ctrl)
+	ns, closer := newTestNamespaceWithIndex(t, idx)
+	defer closer()
+
+	ctx := context.NewContext()
+	query := index.Query{}
+	opts := index.QueryOptions{}
+
+	idx.EXPECT().Query(ctx, query, opts)
+	_, err := ns.QueryIDs(ctx, query, opts)
+	require.NoError(t, err)
+
+	require.NoError(t, ns.Close())
 }
 
 func waitForStats(
