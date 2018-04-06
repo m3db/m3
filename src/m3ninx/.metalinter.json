@@ -7,9 +7,15 @@
     "gosimple": {
       "Command": "gosimple -tags 'big'",
       "Pattern": "PATH:LINE:COL:MESSAGE"
+    },
+    "gofmt": {
+      "Command": "gofmt",
+      "Pattern": "PATH:LINE:COL:MESSAGE"
     }
   },
   "Enable": [
+    "vet",
+    "gofmt",
     "deadcode",
     "varcheck",
     "structcheck",
