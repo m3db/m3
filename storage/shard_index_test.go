@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/storage/index"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -37,6 +38,35 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type reverseIndexWriteFn func(ident.ID, ident.Tags, onIndexSeries) error
+
+type stubIndexWriter struct {
+	fn reverseIndexWriteFn
+}
+
+func (s *stubIndexWriter) Write(id ident.ID, tags ident.Tags, fns onIndexSeries) error {
+	return s.fn(id, tags, fns)
+}
+
+func (s *stubIndexWriter) Query(
+	ctx context.Context,
+	query index.Query,
+	opts index.QueryOptions,
+) (index.QueryResults, error) {
+	panic("intentionally not defined in tests")
+}
+
+func (s *stubIndexWriter) Close() error {
+	panic("intentionally not defined in tests")
+}
+
+func newStubIndexWriter(fn reverseIndexWriteFn) namespaceIndex {
+	if fn == nil {
+		return nil
+	}
+	return &stubIndexWriter{fn: fn}
+}
 
 func TestShardInsertNamespaceIndex(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()

@@ -346,10 +346,6 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	}
 
 	n.Lock()
-	var indexFn reverseIndexWriteFn
-	if n.reverseIndex != nil {
-		indexFn = n.reverseIndex.Write
-	}
 	existing = n.shards
 	for _, shard := range existing {
 		if shard == nil {
@@ -367,7 +363,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		} else {
 			needsBootstrap := n.nopts.NeedsBootstrap()
 			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, indexFn,
+				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.reverseIndex,
 				needsBootstrap, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
@@ -962,15 +958,11 @@ func (n *dbNamespace) readableShardAtWithRLock(shardID uint32) (databaseShard, e
 
 func (n *dbNamespace) initShards(needBootstrap bool) {
 	n.Lock()
-	var indexFn reverseIndexWriteFn
-	if n.reverseIndex != nil {
-		indexFn = n.reverseIndex.Write
-	}
 	shards := n.shardSet.AllIDs()
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
 		dbShards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-			n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, indexFn,
+			n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.reverseIndex,
 			needBootstrap, n.opts, n.seriesOpts)
 	}
 	n.shards = dbShards

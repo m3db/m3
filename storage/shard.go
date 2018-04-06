@@ -103,7 +103,7 @@ type dbShard struct {
 	increasingIndex          increasingIndex
 	seriesPool               series.DatabaseSeriesPool
 	commitLogWriter          commitLogWriter
-	reverseIndexWriteFn      reverseIndexWriteFn
+	reverseIndex             namespaceIndex
 	insertQueue              *dbShardInsertQueue
 	lookup                   map[ident.Hash]*list.Element
 	list                     *list.List
@@ -232,7 +232,7 @@ func newDatabaseShard(
 	namespaceReaderMgr databaseNamespaceReaderManager,
 	increasingIndex increasingIndex,
 	commitLogWriter commitLogWriter,
-	reverseIndexWriteFn reverseIndexWriteFn,
+	reverseIndex namespaceIndex,
 	needsBootstrap bool,
 	opts Options,
 	seriesOpts series.Options,
@@ -241,28 +241,28 @@ func newDatabaseShard(
 		SubScope("dbshard")
 
 	s := &dbShard{
-		opts:                opts,
-		seriesOpts:          seriesOpts,
-		nowFn:               opts.ClockOptions().NowFn(),
-		state:               dbShardStateOpen,
-		namespace:           namespaceMetadata,
-		shard:               shard,
-		namespaceReaderMgr:  namespaceReaderMgr,
-		increasingIndex:     increasingIndex,
-		seriesPool:          opts.DatabaseSeriesPool(),
-		commitLogWriter:     commitLogWriter,
-		reverseIndexWriteFn: reverseIndexWriteFn,
-		lookup:              make(map[ident.Hash]*list.Element),
-		list:                list.New(),
-		filesetBeforeFn:     fs.FilesetBefore,
-		deleteFilesFn:       fs.DeleteFiles,
-		sleepFn:             time.Sleep,
-		identifierPool:      opts.IdentifierPool(),
-		contextPool:         opts.ContextPool(),
-		flushState:          newShardFlushState(),
-		tickWg:              &sync.WaitGroup{},
-		logger:              opts.InstrumentOptions().Logger(),
-		metrics:             newDatabaseShardMetrics(scope),
+		opts:               opts,
+		seriesOpts:         seriesOpts,
+		nowFn:              opts.ClockOptions().NowFn(),
+		state:              dbShardStateOpen,
+		namespace:          namespaceMetadata,
+		shard:              shard,
+		namespaceReaderMgr: namespaceReaderMgr,
+		increasingIndex:    increasingIndex,
+		seriesPool:         opts.DatabaseSeriesPool(),
+		commitLogWriter:    commitLogWriter,
+		reverseIndex:       reverseIndex,
+		lookup:             make(map[ident.Hash]*list.Element),
+		list:               list.New(),
+		filesetBeforeFn:    fs.FilesetBefore,
+		deleteFilesFn:      fs.DeleteFiles,
+		sleepFn:            time.Sleep,
+		identifierPool:     opts.IdentifierPool(),
+		contextPool:        opts.ContextPool(),
+		flushState:         newShardFlushState(),
+		tickWg:             &sync.WaitGroup{},
+		logger:             opts.InstrumentOptions().Logger(),
+		metrics:            newDatabaseShardMetrics(scope),
 	}
 	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
 		s.nowFn, scope)
@@ -825,7 +825,7 @@ func (s *dbShard) writeAndIndex(
 		needsIndex := shouldReverseIndex && entry.needsIndexUpdate(timestamp)
 		if err == nil && needsIndex {
 			entry.onIndexPrepare()
-			s.reverseIndexWriteFn(entry.series.ID(), entry.series.Tags(), entry)
+			s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), entry)
 		}
 		entry.decrementReaderWriterCount()
 		if err != nil {
@@ -1092,8 +1092,8 @@ func (s *dbShard) insertSeriesSync(
 		}
 	}
 
-	if s.reverseIndexWriteFn != nil {
-		if err := s.reverseIndexWriteFn(entry.series.ID(), entry.series.Tags(), entry); err != nil {
+	if s.reverseIndex != nil {
+		if err := s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), entry); err != nil {
 			return nil, err
 		}
 	}
@@ -1178,7 +1178,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// only index any entry that hasn't crossed the nextIndexTime
 			if entry.needsIndexUpdate(pendingIndex.timestamp) {
 				entry.onIndexPrepare()
-				s.reverseIndexWriteFn(entry.series.ID(), entry.series.Tags(), entry)
+				s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), entry)
 			}
 		}
 
