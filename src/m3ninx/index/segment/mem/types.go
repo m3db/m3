@@ -27,8 +27,8 @@ import (
 	"github.com/m3db/m3ninx/postings"
 )
 
-// termsDict is an internal interface for a mutable terms dictionary.
-type termsDict interface {
+// termsDictionary is an internal interface for a mutable terms dictionary.
+type termsDictionary interface {
 	// Insert inserts the field with the given ID into the terms dictionary.
 	Insert(field doc.Field, id postings.ID) error
 

@@ -44,16 +44,16 @@ func BenchmarkTermsDict(b *testing.B) {
 		fn   func(docs []doc.Document, b *testing.B)
 	}{
 		{
-			name: "benchmark Insert with simple terms dictionary",
-			fn:   benchmarkInsertSimpleTermsDict,
+			name: "benchmark Insert",
+			fn:   benchmarkTermsDictInsert,
 		},
 		{
-			name: "benchmark MatchTerm with simple terms dictionary",
-			fn:   benchmarkMatchTermSimpleTermsDict,
+			name: "benchmark MatchTerm",
+			fn:   benchmarkTermsDictMatchTerm,
 		},
 		{
-			name: "benchmark MatchRegex with simple terms dictionary",
-			fn:   benchmarkMatchRegexSimpleTermsDict,
+			name: "benchmark MatchRegex",
+			fn:   benchmarkTermsDictMatchRegex,
 		},
 	}
 
@@ -69,12 +69,12 @@ func BenchmarkTermsDict(b *testing.B) {
 	}
 }
 
-func benchmarkInsertSimpleTermsDict(docs []doc.Document, b *testing.B) {
+func benchmarkTermsDictInsert(docs []doc.Document, b *testing.B) {
 	b.ReportAllocs()
 
 	for n := 0; n < b.N; n++ {
 		b.StopTimer()
-		dict := newSimpleTermsDict(NewOptions().SetInitialCapacity(10))
+		dict := newTermsDict(NewOptions())
 		b.StartTimer()
 		for i, d := range docs {
 			for _, f := range d.Fields {
@@ -84,9 +84,10 @@ func benchmarkInsertSimpleTermsDict(docs []doc.Document, b *testing.B) {
 	}
 }
 
-func benchmarkMatchTermSimpleTermsDict(docs []doc.Document, b *testing.B) {
+func benchmarkTermsDictMatchTerm(docs []doc.Document, b *testing.B) {
 	b.ReportAllocs()
-	dict := newSimpleTermsDict(NewOptions().SetInitialCapacity(10))
+
+	dict := newTermsDict(NewOptions())
 	for i, d := range docs {
 		for _, f := range d.Fields {
 			dict.Insert(f, postings.ID(i))
@@ -103,9 +104,10 @@ func benchmarkMatchTermSimpleTermsDict(docs []doc.Document, b *testing.B) {
 	}
 }
 
-func benchmarkMatchRegexSimpleTermsDict(docs []doc.Document, b *testing.B) {
+func benchmarkTermsDictMatchRegex(docs []doc.Document, b *testing.B) {
 	b.ReportAllocs()
-	dict := newSimpleTermsDict(NewOptions().SetInitialCapacity(10))
+
+	dict := newTermsDict(NewOptions())
 	for i, d := range docs {
 		for _, f := range d.Fields {
 			dict.Insert(f, postings.ID(i))
