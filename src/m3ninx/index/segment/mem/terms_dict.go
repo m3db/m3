@@ -30,9 +30,8 @@ import (
 	"github.com/m3db/m3ninx/postings"
 )
 
-// simpleTermsDict uses a two-level map to model a terms dictionary. It maps a field
-// (name and value) to a postings list.
-type simpleTermsDict struct {
+// termsDict is an in-memory terms dictionary. It maps fields to postings lists.
+type termsDict struct {
 	opts Options
 
 	fields struct {
@@ -41,26 +40,26 @@ type simpleTermsDict struct {
 	}
 }
 
-func newSimpleTermsDict(opts Options) termsDict {
-	dict := &simpleTermsDict{
+func newTermsDict(opts Options) termsDictionary {
+	dict := &termsDict{
 		opts: opts,
 	}
 	dict.fields.internalMap = fieldsgen.New(opts.InitialCapacity())
 	return dict
 }
 
-func (t *simpleTermsDict) Insert(field doc.Field, id postings.ID) error {
-	postingsMap := t.getOrAddName(field.Name)
+func (d *termsDict) Insert(field doc.Field, id postings.ID) error {
+	postingsMap := d.getOrAddName(field.Name)
 	return postingsMap.Add(field.Value, id)
 }
 
-func (t *simpleTermsDict) MatchTerm(field, term []byte) (postings.List, error) {
-	t.fields.RLock()
-	postingsMap, ok := t.fields.internalMap.Get(field)
-	t.fields.RUnlock()
+func (d *termsDict) MatchTerm(field, term []byte) (postings.List, error) {
+	d.fields.RLock()
+	postingsMap, ok := d.fields.internalMap.Get(field)
+	d.fields.RUnlock()
 	if !ok {
 		// It is not an error to not have any matching values.
-		return t.opts.PostingsListPool().Get(), nil
+		return d.opts.PostingsListPool().Get(), nil
 	}
 	pl := postingsMap.Get(term)
 
@@ -69,53 +68,53 @@ func (t *simpleTermsDict) MatchTerm(field, term []byte) (postings.List, error) {
 	return pl.Clone(), nil
 }
 
-func (t *simpleTermsDict) MatchRegexp(
+func (d *termsDict) MatchRegexp(
 	field, regexp []byte,
 	compiled *re.Regexp,
 ) (postings.List, error) {
-	t.fields.RLock()
-	postingsMap, ok := t.fields.internalMap.Get(field)
-	t.fields.RUnlock()
+	d.fields.RLock()
+	postingsMap, ok := d.fields.internalMap.Get(field)
+	d.fields.RUnlock()
 	if !ok {
 		// It is not an error to not have any matching values.
-		return t.opts.PostingsListPool().Get(), nil
+		return d.opts.PostingsListPool().Get(), nil
 	}
 
 	pls := postingsMap.GetRegex(compiled)
-	union := t.opts.PostingsListPool().Get()
+	union := d.opts.PostingsListPool().Get()
 	for _, pl := range pls {
 		union.Union(pl)
 	}
 	return union, nil
 }
 
-func (t *simpleTermsDict) getOrAddName(name []byte) *postingsgen.ConcurrentMap {
+func (d *termsDict) getOrAddName(name []byte) *postingsgen.ConcurrentMap {
 	// Cheap read lock to see if it already exists.
-	t.fields.RLock()
-	postingsMap, ok := t.fields.internalMap.Get(name)
-	t.fields.RUnlock()
+	d.fields.RLock()
+	postingsMap, ok := d.fields.internalMap.Get(name)
+	d.fields.RUnlock()
 	if ok {
 		return postingsMap
 	}
 
 	// Acquire write lock and create.
-	t.fields.Lock()
-	postingsMap, ok = t.fields.internalMap.Get(name)
+	d.fields.Lock()
+	postingsMap, ok = d.fields.internalMap.Get(name)
 
 	// Check if it's been created since we last acquired the lock.
 	if ok {
-		t.fields.Unlock()
+		d.fields.Unlock()
 		return postingsMap
 	}
 
 	postingsMap = postingsgen.NewConcurrentMap(postingsgen.ConcurrentMapOpts{
-		InitialSize:      t.opts.InitialCapacity(),
-		PostingsListPool: t.opts.PostingsListPool(),
+		InitialSize:      d.opts.InitialCapacity(),
+		PostingsListPool: d.opts.PostingsListPool(),
 	})
-	t.fields.internalMap.SetUnsafe(name, postingsMap, fieldsgen.SetUnsafeOptions{
+	d.fields.internalMap.SetUnsafe(name, postingsMap, fieldsgen.SetUnsafeOptions{
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
 	})
-	t.fields.Unlock()
+	d.fields.Unlock()
 	return postingsMap
 }

@@ -65,20 +65,20 @@ var (
 	}
 )
 
-type newSimpleTermsDictFn func() *simpleTermsDict
+type newTermsDictFn func() *termsDict
 
-type simpleTermsDictionaryTestSuite struct {
+type termsDictionaryTestSuite struct {
 	suite.Suite
 
-	fn        newSimpleTermsDictFn
-	termsDict *simpleTermsDict
+	fn        newTermsDictFn
+	termsDict *termsDict
 }
 
-func (t *simpleTermsDictionaryTestSuite) SetupTest() {
+func (t *termsDictionaryTestSuite) SetupTest() {
 	t.termsDict = t.fn()
 }
 
-func (t *simpleTermsDictionaryTestSuite) TestInsert() {
+func (t *termsDictionaryTestSuite) TestInsert() {
 	props := getProperties()
 	props.Property(
 		"The dictionary should supporting inserting fields",
@@ -98,7 +98,7 @@ func (t *simpleTermsDictionaryTestSuite) TestInsert() {
 	props.TestingRun(t.T())
 }
 
-func (t *simpleTermsDictionaryTestSuite) TestMatchTerm() {
+func (t *termsDictionaryTestSuite) TestMatchTerm() {
 	props := getProperties()
 	props.Property(
 		"The dictionary should support exact match queries",
@@ -129,7 +129,7 @@ func (t *simpleTermsDictionaryTestSuite) TestMatchTerm() {
 	props.TestingRun(t.T())
 }
 
-func (t *simpleTermsDictionaryTestSuite) TestMatchTermNoResults() {
+func (t *termsDictionaryTestSuite) TestMatchTermNoResults() {
 	props := getProperties()
 	props.Property(
 		"Exact match queries which return no results are valid",
@@ -154,7 +154,7 @@ func (t *simpleTermsDictionaryTestSuite) TestMatchTermNoResults() {
 	props.TestingRun(t.T())
 }
 
-func (t *simpleTermsDictionaryTestSuite) TestMatchRegex() {
+func (t *termsDictionaryTestSuite) TestMatchRegex() {
 	props := getProperties()
 	props.Property(
 		"The dictionary should support regular expression queries",
@@ -190,7 +190,7 @@ func (t *simpleTermsDictionaryTestSuite) TestMatchRegex() {
 	props.TestingRun(t.T())
 }
 
-func (t *simpleTermsDictionaryTestSuite) TestMatchRegexNoResults() {
+func (t *termsDictionaryTestSuite) TestMatchRegexNoResults() {
 	props := getProperties()
 	props.Property(
 		"Regular expression queries which no results are valid",
@@ -221,11 +221,11 @@ func (t *simpleTermsDictionaryTestSuite) TestMatchRegexNoResults() {
 	props.TestingRun(t.T())
 }
 
-func TestSimpleTermsDictionary(t *testing.T) {
+func TestTermsDictionary(t *testing.T) {
 	opts := NewOptions()
-	suite.Run(t, &simpleTermsDictionaryTestSuite{
-		fn: func() *simpleTermsDict {
-			return newSimpleTermsDict(opts).(*simpleTermsDict)
+	suite.Run(t, &termsDictionaryTestSuite{
+		fn: func() *termsDict {
+			return newTermsDict(opts).(*termsDict)
 		},
 	})
 }
