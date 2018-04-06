@@ -7,7 +7,6 @@ auto_gen              := .ci/auto-gen.sh
 gopath_prefix         := $(GOPATH)/src
 license_dir           := .ci/uber-licence
 license_node_modules  := $(license_dir)/node_modules
-lint_check            := .ci/lint.sh
 m3ninx_package        := github.com/m3db/m3ninx
 metalint_check        := .ci/metalint.sh
 metalint_config       := .metalinter.json
@@ -53,7 +52,7 @@ $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
 .PHONY: all
-all: lint metalint test-ci-unit test-ci-integration services tools
+all: metalint test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
 
 .PHONY: install-license-bin
@@ -92,11 +91,6 @@ genny-gen: install-generics-bin # defined in `common.mk`
 
 .PHONY: all-gen
 all-gen: mock-gen genny-gen
-
-.PHONY: lint
-lint:
-	@which golint > /dev/null || go get -u github.com/golang/lint/golint
-	$(lint_check)
 
 .PHONY: metalint
 metalint: install-metalinter
