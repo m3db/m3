@@ -629,6 +629,7 @@ func (s *dbSeries) Close() {
 	// of not releasing back an ID to a pool is amortized over
 	// a long period of time.
 	s.id = nil
+	s.tags = nil
 
 	switch s.opts.CachePolicy() {
 	case CacheLRU:
