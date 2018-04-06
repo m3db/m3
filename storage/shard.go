@@ -203,6 +203,13 @@ func (entry *dbShardEntry) OnIndexFinalize() {
 	entry.decrementReaderWriterCount()
 }
 
+func (entry *dbShardEntry) onIndexPrepare() {
+	// NB(prateek): we retain the ref count on the entry while the indexing is pending,
+	// the callback executed on the entry once the indexing is completed releases this
+	// reference.
+	entry.incrementReaderWriterCount()
+}
+
 type dbShardEntryWorkFn func(entry *dbShardEntry) bool
 
 type dbShardEntryBatchWorkFn func(entries []*dbShardEntry) bool
@@ -741,7 +748,7 @@ func (s *dbShard) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	return s.writeAndIndex(ctx, id, tags, timestamp, value, unit, annotation, s.reverseIndexWriteFn)
+	return s.writeAndIndex(ctx, id, tags, timestamp, value, unit, annotation, true)
 }
 
 func (s *dbShard) Write(
@@ -753,7 +760,7 @@ func (s *dbShard) Write(
 	annotation []byte,
 ) error {
 	return s.writeAndIndex(ctx, id, ident.EmptyTagIterator, timestamp,
-		value, unit, annotation, nil)
+		value, unit, annotation, false)
 }
 
 func (s *dbShard) writeAndIndex(
@@ -764,7 +771,7 @@ func (s *dbShard) writeAndIndex(
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
-	reverseIndexWriteFn reverseIndexWriteFn,
+	shouldReverseIndex bool,
 ) error {
 	// Prepare write
 	entry, opts, err := s.tryRetrieveWritableSeries(id)
@@ -778,10 +785,9 @@ func (s *dbShard) writeAndIndex(
 	if !writable && !opts.writeNewSeriesAsync {
 		// Avoid double lookup by enqueueing insert immediately
 		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
-			hasPendingIndexing: reverseIndexWriteFn != nil,
+			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
 				timestamp: timestamp,
-				fn:        reverseIndexWriteFn,
 			},
 		})
 		if err != nil {
@@ -816,18 +822,14 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesID = entry.series.ID()
 		commitLogSeriesTags = entry.series.Tags()
 		commitLogSeriesUniqueIndex = entry.index
-		if err != nil {
-			entry.decrementReaderWriterCount()
-			return err
+		needsIndex := shouldReverseIndex && entry.needsIndexUpdate(timestamp)
+		if err == nil && needsIndex {
+			entry.onIndexPrepare()
+			s.reverseIndexWriteFn(entry.series.ID(), entry.series.Tags(), entry)
 		}
-		needsIndex := reverseIndexWriteFn != nil && entry.needsIndexUpdate(timestamp)
-		if needsIndex {
-			// NB(prateek): we retain the ref count on the entry while the indexing is pending,
-			// the callback executed on the entry once the indexing is completed releases this
-			// reference.
-			reverseIndexWriteFn(entry.series.ID(), entry.series.Tags(), entry)
-		} else {
-			entry.decrementReaderWriterCount()
+		entry.decrementReaderWriterCount()
+		if err != nil {
+			return err
 		}
 	} else {
 		// This is an asynchronous insert and write
@@ -839,10 +841,9 @@ func (s *dbShard) writeAndIndex(
 				unit:       unit,
 				annotation: annotation,
 			},
-			hasPendingIndexing: reverseIndexWriteFn != nil,
+			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
 				timestamp: timestamp,
-				fn:        reverseIndexWriteFn,
 			},
 		})
 		if err != nil {
@@ -1176,11 +1177,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			releaseEntryRef = true
 			// only index any entry that hasn't crossed the nextIndexTime
 			if entry.needsIndexUpdate(pendingIndex.timestamp) {
-				// NB(prateek): we index entries asynchronously, so if we are going to
-				// index the entry, we inc an extra ref. It is released by the indexing
-				// function callback - `entry.OnIndexFinalize`.
-				entry.incrementReaderWriterCount()
-				pendingIndex.fn(entry.series.ID(), entry.series.Tags(), entry)
+				entry.onIndexPrepare()
+				s.reverseIndexWriteFn(entry.series.ID(), entry.series.Tags(), entry)
 			}
 		}
 

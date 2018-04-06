@@ -120,7 +120,6 @@ type dbShardPendingWrite struct {
 
 type dbShardPendingIndex struct {
 	timestamp time.Time
-	fn        reverseIndexWriteFn
 }
 
 type dbShardPendingRetrievedBlock struct {
