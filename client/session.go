@@ -2735,7 +2735,7 @@ type reason int
 const (
 	reqErrReason reason = iota
 	respErrReason
-	retriesExhaustedErrReason
+	// retriesExhaustedErrReason
 )
 
 type reattemptType int
