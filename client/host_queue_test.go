@@ -124,7 +124,7 @@ func TestHostQueueWriteBatches(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, stateOpen, queue.state)
+	assert.Equal(t, statusOpen, queue.status)
 
 	// Prepare callback for writes
 	var (
@@ -203,7 +203,7 @@ func TestHostQueueWriteTaggedBatches(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, stateOpen, queue.state)
+	assert.Equal(t, statusOpen, queue.status)
 
 	// Prepare callback for writes
 	var (
@@ -294,7 +294,7 @@ func TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, stateOpen, queue.state)
+	assert.Equal(t, statusOpen, queue.status)
 
 	// Prepare callback for writes
 	var (
@@ -376,7 +376,7 @@ func TestHostQueueWriteTaggedBatchesDifferentNamespaces(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, stateOpen, queue.state)
+	assert.Equal(t, statusOpen, queue.status)
 
 	// Prepare callback for writes
 	var (
@@ -471,7 +471,7 @@ func TestHostQueueWriteBatchesNoClientAvailable(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, stateOpen, queue.state)
+	assert.Equal(t, statusOpen, queue.status)
 
 	// Prepare mocks for flush
 	nextClientErr := fmt.Errorf("an error")
@@ -516,7 +516,7 @@ func TestHostQueueWriteTaggedBatchesNoClientAvailable(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, stateOpen, queue.state)
+	assert.Equal(t, statusOpen, queue.status)
 
 	// Prepare mocks for flush
 	nextClientErr := fmt.Errorf("an error")
@@ -561,7 +561,7 @@ func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, stateOpen, queue.state)
+	assert.Equal(t, statusOpen, queue.status)
 
 	// Prepare writes
 	var wg sync.WaitGroup
@@ -633,7 +633,7 @@ func TestHostQueueWriteTaggedBatchesPartialBatchErrs(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, stateOpen, queue.state)
+	assert.Equal(t, statusOpen, queue.status)
 
 	// Prepare writes
 	var wg sync.WaitGroup
@@ -710,7 +710,7 @@ func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, stateOpen, queue.state)
+	assert.Equal(t, statusOpen, queue.status)
 
 	// Prepare writes
 	var wg sync.WaitGroup
@@ -771,7 +771,7 @@ func TestHostQueueWriteTaggedBatchesEntireBatchErr(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, stateOpen, queue.state)
+	assert.Equal(t, statusOpen, queue.status)
 
 	// Prepare writes
 	var wg sync.WaitGroup
@@ -922,7 +922,7 @@ func TestHostQueueDrainOnClose(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, stateOpen, queue.state)
+	assert.Equal(t, statusOpen, queue.status)
 
 	// Prepare callback for writes
 	var (
@@ -1003,7 +1003,7 @@ func TestHostQueueDrainOnCloseTaggedWrite(t *testing.T) {
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, stateOpen, queue.state)
+	assert.Equal(t, statusOpen, queue.status)
 
 	// Prepare callback for writes
 	var (
@@ -1098,7 +1098,7 @@ func testHostQueueFetchBatches(
 	// Open
 	mockConnPool.EXPECT().Open()
 	queue.Open()
-	assert.Equal(t, stateOpen, queue.state)
+	assert.Equal(t, statusOpen, queue.status)
 
 	// Prepare callback for fetches
 	var (

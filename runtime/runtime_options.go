@@ -25,9 +25,19 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/ratelimit"
+	"github.com/m3db/m3db/topology"
 )
 
 const (
+	// DefaultWriteConsistencyLevel is the default write consistency level
+	DefaultWriteConsistencyLevel = topology.ConsistencyLevelMajority
+
+	// DefaultReadConsistencyLevel is the default read consistency level
+	DefaultReadConsistencyLevel = topology.ReadConsistencyLevelMajority
+
+	// DefaultBootstrapConsistencyLevel is the default bootstrap consistency level
+	DefaultBootstrapConsistencyLevel = topology.ReadConsistencyLevelMajority
+
 	defaultWriteNewSeriesAsync                  = false
 	defaultWriteNewSeriesBackoffDuration        = time.Duration(0)
 	defaultWriteNewSeriesLimitPerShardPerSecond = 0
@@ -57,6 +67,9 @@ type options struct {
 	tickPerSeriesSleepDuration           time.Duration
 	tickMinimumInterval                  time.Duration
 	maxWiredBlocks                       uint
+	clientBootstrapConsistencyLevel      topology.ReadConsistencyLevel
+	clientReadConsistencyLevel           topology.ReadConsistencyLevel
+	clientWriteConsistencyLevel          topology.ConsistencyLevel
 }
 
 // NewOptions creates a new set of runtime options with defaults
@@ -70,6 +83,9 @@ func NewOptions() Options {
 		tickPerSeriesSleepDuration:           defaultTickPerSeriesSleepDuration,
 		tickMinimumInterval:                  defaultTickMinimumInterval,
 		maxWiredBlocks:                       defaultMaxWiredBlocks,
+		clientBootstrapConsistencyLevel:      DefaultBootstrapConsistencyLevel,
+		clientReadConsistencyLevel:           DefaultReadConsistencyLevel,
+		clientWriteConsistencyLevel:          DefaultWriteConsistencyLevel,
 	}
 }
 
@@ -176,4 +192,34 @@ func (o *options) SetMaxWiredBlocks(value uint) Options {
 
 func (o *options) MaxWiredBlocks() uint {
 	return o.maxWiredBlocks
+}
+
+func (o *options) SetClientBootstrapConsistencyLevel(value topology.ReadConsistencyLevel) Options {
+	opts := *o
+	opts.clientBootstrapConsistencyLevel = value
+	return &opts
+}
+
+func (o *options) ClientBootstrapConsistencyLevel() topology.ReadConsistencyLevel {
+	return o.clientBootstrapConsistencyLevel
+}
+
+func (o *options) SetClientReadConsistencyLevel(value topology.ReadConsistencyLevel) Options {
+	opts := *o
+	opts.clientReadConsistencyLevel = value
+	return &opts
+}
+
+func (o *options) ClientReadConsistencyLevel() topology.ReadConsistencyLevel {
+	return o.clientReadConsistencyLevel
+}
+
+func (o *options) SetClientWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
+	opts := *o
+	opts.clientWriteConsistencyLevel = value
+	return &opts
+}
+
+func (o *options) ClientWriteConsistencyLevel() topology.ConsistencyLevel {
+	return o.clientWriteConsistencyLevel
 }

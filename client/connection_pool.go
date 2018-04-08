@@ -64,7 +64,7 @@ type connPool struct {
 	sleepConnect       sleepFn
 	sleepHealth        sleepFn
 	sleepHealthRetry   sleepFn
-	state              state
+	status             status
 }
 
 type conn struct {
@@ -106,11 +106,11 @@ func (p *connPool) Open() {
 	p.Lock()
 	defer p.Unlock()
 
-	if p.state != stateNotOpen {
+	if p.status != statusNotOpen {
 		return
 	}
 
-	p.state = stateOpen
+	p.status = statusOpen
 
 	connectEvery := p.opts.BackgroundConnectInterval()
 	connectStutter := p.opts.BackgroundConnectStutter()
@@ -130,7 +130,7 @@ func (p *connPool) ConnectionCount() int {
 
 func (p *connPool) NextClient() (rpc.TChanNode, error) {
 	p.RLock()
-	if p.state != stateOpen {
+	if p.status != statusOpen {
 		p.RUnlock()
 		return nil, errConnectionPoolClosed
 	}
@@ -146,11 +146,11 @@ func (p *connPool) NextClient() (rpc.TChanNode, error) {
 
 func (p *connPool) Close() {
 	p.Lock()
-	if p.state != stateOpen {
+	if p.status != statusOpen {
 		p.Unlock()
 		return
 	}
-	p.state = stateClosed
+	p.status = statusClosed
 	p.Unlock()
 
 	for i := range p.pool {
@@ -164,10 +164,10 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 
 	for {
 		p.RLock()
-		state := p.state
+		state := p.status
 		poolLen := int(p.poolLen)
 		p.RUnlock()
-		if state != stateOpen {
+		if state != statusOpen {
 			return
 		}
 
@@ -194,7 +194,7 @@ func (p *connPool) connectEvery(interval time.Duration, stutter time.Duration) {
 				}
 
 				p.Lock()
-				if p.state == stateOpen {
+				if p.status == statusOpen {
 					p.pool = append(p.pool, conn{channel, client})
 					p.poolLen = int64(len(p.pool))
 				}
@@ -214,9 +214,9 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 
 	for {
 		p.RLock()
-		state := p.state
+		state := p.status
 		p.RUnlock()
-		if state != stateOpen {
+		if state != statusOpen {
 			return
 		}
 
@@ -259,7 +259,7 @@ func (p *connPool) healthCheckEvery(interval time.Duration, stutter time.Duratio
 
 					// Swap with tail and decrement pool size
 					p.Lock()
-					if p.state != stateOpen {
+					if p.status != statusOpen {
 						p.Unlock()
 						return
 					}

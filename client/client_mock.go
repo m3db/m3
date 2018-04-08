@@ -545,7 +545,7 @@ func (_mr *_MockAdminSessionRecorder) Truncate(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0)
 }
 
-func (_m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, consistencyLevel ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
+func (_m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, consistencyLevel topology.ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result, version)
 	ret0, _ := ret[0].(PeerBlockMetadataIter)
 	ret1, _ := ret[1].(error)
@@ -567,15 +567,15 @@ func (_mr *_MockAdminSessionRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1, 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBootstrapBlocksFromPeers", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
-func (_m *MockAdminSession) FetchBlocksFromPeers(namespace namespace.Metadata, shard uint32, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, metadatas, opts)
+func (_m *MockAdminSession) FetchBlocksFromPeers(namespace namespace.Metadata, shard uint32, consistencyLevel topology.ReadConsistencyLevel, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, consistencyLevel, metadatas, opts)
 	ret0, _ := ret[0].(PeerBlocksIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockAdminSessionRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksFromPeers", arg0, arg1, arg2, arg3)
+func (_mr *_MockAdminSessionRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksFromPeers", arg0, arg1, arg2, arg3, arg4)
 }
 
 // Mock of Options interface
@@ -619,24 +619,24 @@ func (_mr *_MockOptionsRecorder) SetEncodingM3TSZ() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZ")
 }
 
-func (_m *MockOptions) SetRuntimeOptions(value runtime.Options) Options {
-	ret := _m.ctrl.Call(_m, "SetRuntimeOptions", value)
+func (_m *MockOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+	ret := _m.ctrl.Call(_m, "SetRuntimeOptionsManager", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) SetRuntimeOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRuntimeOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetRuntimeOptionsManager(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRuntimeOptionsManager", arg0)
 }
 
-func (_m *MockOptions) RuntimeOptions() runtime.Options {
-	ret := _m.ctrl.Call(_m, "RuntimeOptions")
-	ret0, _ := ret[0].(runtime.Options)
+func (_m *MockOptions) RuntimeOptionsManager() runtime.OptionsManager {
+	ret := _m.ctrl.Call(_m, "RuntimeOptionsManager")
+	ret0, _ := ret[0].(runtime.OptionsManager)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) RuntimeOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "RuntimeOptions")
+func (_mr *_MockOptionsRecorder) RuntimeOptionsManager() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RuntimeOptionsManager")
 }
 
 func (_m *MockOptions) SetClockOptions(value clock.Options) Options {
@@ -699,7 +699,7 @@ func (_mr *_MockOptionsRecorder) TopologyInitializer() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyInitializer")
 }
 
-func (_m *MockOptions) SetReadConsistencyLevel(value ReadConsistencyLevel) Options {
+func (_m *MockOptions) SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options {
 	ret := _m.ctrl.Call(_m, "SetReadConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -709,9 +709,9 @@ func (_mr *_MockOptionsRecorder) SetReadConsistencyLevel(arg0 interface{}) *gomo
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetReadConsistencyLevel", arg0)
 }
 
-func (_m *MockOptions) ReadConsistencyLevel() ReadConsistencyLevel {
+func (_m *MockOptions) ReadConsistencyLevel() topology.ReadConsistencyLevel {
 	ret := _m.ctrl.Call(_m, "ReadConsistencyLevel")
-	ret0, _ := ret[0].(ReadConsistencyLevel)
+	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
 	return ret0
 }
 
@@ -839,7 +839,7 @@ func (_mr *_MockOptionsRecorder) ClusterConnectTimeout() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectTimeout")
 }
 
-func (_m *MockOptions) SetClusterConnectConsistencyLevel(value ConnectConsistencyLevel) Options {
+func (_m *MockOptions) SetClusterConnectConsistencyLevel(value topology.ConnectConsistencyLevel) Options {
 	ret := _m.ctrl.Call(_m, "SetClusterConnectConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -849,9 +849,9 @@ func (_mr *_MockOptionsRecorder) SetClusterConnectConsistencyLevel(arg0 interfac
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClusterConnectConsistencyLevel", arg0)
 }
 
-func (_m *MockOptions) ClusterConnectConsistencyLevel() ConnectConsistencyLevel {
+func (_m *MockOptions) ClusterConnectConsistencyLevel() topology.ConnectConsistencyLevel {
 	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel")
-	ret0, _ := ret[0].(ConnectConsistencyLevel)
+	ret0, _ := ret[0].(topology.ConnectConsistencyLevel)
 	return ret0
 }
 
@@ -1420,24 +1420,24 @@ func (_mr *_MockAdminOptionsRecorder) SetEncodingM3TSZ() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZ")
 }
 
-func (_m *MockAdminOptions) SetRuntimeOptions(value runtime.Options) Options {
-	ret := _m.ctrl.Call(_m, "SetRuntimeOptions", value)
+func (_m *MockAdminOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+	ret := _m.ctrl.Call(_m, "SetRuntimeOptionsManager", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) SetRuntimeOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRuntimeOptions", arg0)
+func (_mr *_MockAdminOptionsRecorder) SetRuntimeOptionsManager(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRuntimeOptionsManager", arg0)
 }
 
-func (_m *MockAdminOptions) RuntimeOptions() runtime.Options {
-	ret := _m.ctrl.Call(_m, "RuntimeOptions")
-	ret0, _ := ret[0].(runtime.Options)
+func (_m *MockAdminOptions) RuntimeOptionsManager() runtime.OptionsManager {
+	ret := _m.ctrl.Call(_m, "RuntimeOptionsManager")
+	ret0, _ := ret[0].(runtime.OptionsManager)
 	return ret0
 }
 
-func (_mr *_MockAdminOptionsRecorder) RuntimeOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "RuntimeOptions")
+func (_mr *_MockAdminOptionsRecorder) RuntimeOptionsManager() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RuntimeOptionsManager")
 }
 
 func (_m *MockAdminOptions) SetClockOptions(value clock.Options) Options {
@@ -1500,7 +1500,7 @@ func (_mr *_MockAdminOptionsRecorder) TopologyInitializer() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "TopologyInitializer")
 }
 
-func (_m *MockAdminOptions) SetReadConsistencyLevel(value ReadConsistencyLevel) Options {
+func (_m *MockAdminOptions) SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options {
 	ret := _m.ctrl.Call(_m, "SetReadConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1510,9 +1510,9 @@ func (_mr *_MockAdminOptionsRecorder) SetReadConsistencyLevel(arg0 interface{}) 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetReadConsistencyLevel", arg0)
 }
 
-func (_m *MockAdminOptions) ReadConsistencyLevel() ReadConsistencyLevel {
+func (_m *MockAdminOptions) ReadConsistencyLevel() topology.ReadConsistencyLevel {
 	ret := _m.ctrl.Call(_m, "ReadConsistencyLevel")
-	ret0, _ := ret[0].(ReadConsistencyLevel)
+	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
 	return ret0
 }
 
@@ -1640,7 +1640,7 @@ func (_mr *_MockAdminOptionsRecorder) ClusterConnectTimeout() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClusterConnectTimeout")
 }
 
-func (_m *MockAdminOptions) SetClusterConnectConsistencyLevel(value ConnectConsistencyLevel) Options {
+func (_m *MockAdminOptions) SetClusterConnectConsistencyLevel(value topology.ConnectConsistencyLevel) Options {
 	ret := _m.ctrl.Call(_m, "SetClusterConnectConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1650,9 +1650,9 @@ func (_mr *_MockAdminOptionsRecorder) SetClusterConnectConsistencyLevel(arg0 int
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClusterConnectConsistencyLevel", arg0)
 }
 
-func (_m *MockAdminOptions) ClusterConnectConsistencyLevel() ConnectConsistencyLevel {
+func (_m *MockAdminOptions) ClusterConnectConsistencyLevel() topology.ConnectConsistencyLevel {
 	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel")
-	ret0, _ := ret[0].(ConnectConsistencyLevel)
+	ret0, _ := ret[0].(topology.ConnectConsistencyLevel)
 	return ret0
 }
 
@@ -2200,9 +2200,9 @@ func (_mr *_MockAdminOptionsRecorder) Origin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Origin")
 }
 
-func (_m *MockAdminOptions) SetBootstrapConsistencyLevel(value ReadConsistencyLevel) Options {
+func (_m *MockAdminOptions) SetBootstrapConsistencyLevel(value topology.ReadConsistencyLevel) AdminOptions {
 	ret := _m.ctrl.Call(_m, "SetBootstrapConsistencyLevel", value)
-	ret0, _ := ret[0].(Options)
+	ret0, _ := ret[0].(AdminOptions)
 	return ret0
 }
 
@@ -2210,9 +2210,9 @@ func (_mr *_MockAdminOptionsRecorder) SetBootstrapConsistencyLevel(arg0 interfac
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBootstrapConsistencyLevel", arg0)
 }
 
-func (_m *MockAdminOptions) BootstrapConsistencyLevel() ReadConsistencyLevel {
+func (_m *MockAdminOptions) BootstrapConsistencyLevel() topology.ReadConsistencyLevel {
 	ret := _m.ctrl.Call(_m, "BootstrapConsistencyLevel")
-	ret0, _ := ret[0].(ReadConsistencyLevel)
+	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
 	return ret0
 }
 
@@ -2478,7 +2478,7 @@ func (_mr *_MockclientSessionRecorder) Truncate(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0)
 }
 
-func (_m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, consistencyLevel ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
+func (_m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, consistencyLevel topology.ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result, version)
 	ret0, _ := ret[0].(PeerBlockMetadataIter)
 	ret1, _ := ret[1].(error)
@@ -2500,15 +2500,15 @@ func (_mr *_MockclientSessionRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1,
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBootstrapBlocksFromPeers", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
-func (_m *MockclientSession) FetchBlocksFromPeers(namespace namespace.Metadata, shard uint32, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, metadatas, opts)
+func (_m *MockclientSession) FetchBlocksFromPeers(namespace namespace.Metadata, shard uint32, consistencyLevel topology.ReadConsistencyLevel, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, consistencyLevel, metadatas, opts)
 	ret0, _ := ret[0].(PeerBlocksIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockclientSessionRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksFromPeers", arg0, arg1, arg2, arg3)
+func (_mr *_MockclientSessionRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksFromPeers", arg0, arg1, arg2, arg3, arg4)
 }
 
 func (_m *MockclientSession) Open() error {
@@ -2836,6 +2836,14 @@ func (_m *MockenqueueChannel) get() <-chan []receivedBlockMetadata {
 
 func (_mr *_MockenqueueChannelRecorder) get() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "get")
+}
+
+func (_m *MockenqueueChannel) trackPending(amount int) {
+	_m.ctrl.Call(_m, "trackPending", amount)
+}
+
+func (_mr *_MockenqueueChannelRecorder) trackPending(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "trackPending", arg0)
 }
 
 func (_m *MockenqueueChannel) trackProcessed(amount int) {

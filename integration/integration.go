@@ -117,7 +117,7 @@ func newMultiAddrAdminClient(
 		SetOrigin(origin).
 		SetInstrumentOptions(instrumentOpts).
 		SetTopologyInitializer(topology.NewStaticInitializer(staticOptions)).
-		SetClusterConnectConsistencyLevel(client.ConnectConsistencyLevelAny).
+		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelAny).
 		SetClusterConnectTimeout(time.Second)
 
 	adminClient, err := client.NewAdminClient(clientOpts.(client.AdminOptions))

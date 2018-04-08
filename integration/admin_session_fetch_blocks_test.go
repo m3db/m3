@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -103,7 +104,7 @@ func testSetupMetadatas(
 	// Retrieve written data using the AdminSession APIs
 	// FetchMetadataBlocksFromPeers/FetchBlocksFromPeers
 	adminClient := testSetup.m3dbAdminClient
-	level := client.ReadConsistencyLevelMajority
+	level := topology.ReadConsistencyLevelMajority
 	version := client.FetchBlocksMetadataEndpointV2
 	metadatasByShard, err := m3dbClientFetchBlocksMetadata(adminClient,
 		namespace, testSetup.shardSet.AllIDs(), start, end, level, version)
@@ -168,6 +169,7 @@ func testSetupToSeriesMaps(
 ) map[xtime.UnixNano]generate.SeriesBlock {
 	seriesMap := make(map[xtime.UnixNano]generate.SeriesBlock)
 	resultOpts := newDefaulTestResultOptions(testSetup.storageOpts)
+	consistencyLevel := testSetup.storageOpts.RepairOptions().RepairConsistencyLevel()
 	iterPool := testSetup.storageOpts.ReaderIteratorPool()
 	session, err := testSetup.m3dbAdminClient.DefaultAdminSession()
 	require.NoError(t, err)
@@ -175,7 +177,7 @@ func testSetupToSeriesMaps(
 
 	for shardID, metadatas := range metadatasByShard {
 		blocksIter, err := session.FetchBlocksFromPeers(nsMetadata, shardID,
-			metadatas, resultOpts)
+			consistencyLevel, metadatas, resultOpts)
 		require.NoError(t, err)
 		require.NotNil(t, blocksIter)
 

@@ -21,9 +21,6 @@
 package client
 
 import (
-	"errors"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -45,143 +42,6 @@ import (
 
 	tchannel "github.com/uber/tchannel-go"
 )
-
-// unknown string constant, required to fix lint complaining about
-// multiple occurrences of same literal string...
-const unknown = "unknown"
-
-// ConnectConsistencyLevel is the consistency level for connecting to a cluster
-type ConnectConsistencyLevel int
-
-const (
-	// ConnectConsistencyLevelAny corresponds to connecting to any number of nodes for a given shard
-	// set, this strategy will attempt to connect to all, then the majority, then one and then none.
-	ConnectConsistencyLevelAny ConnectConsistencyLevel = iota
-
-	// ConnectConsistencyLevelNone corresponds to connecting to no nodes for a given shard set
-	ConnectConsistencyLevelNone
-
-	// ConnectConsistencyLevelOne corresponds to connecting to a single node for a given shard set
-	ConnectConsistencyLevelOne
-
-	// ConnectConsistencyLevelMajority corresponds to connecting to the majority of nodes for a given shard set
-	ConnectConsistencyLevelMajority
-
-	// ConnectConsistencyLevelAll corresponds to connecting to all of the nodes for a given shard set
-	ConnectConsistencyLevelAll
-)
-
-// String returns the consistency level as a string
-func (l ConnectConsistencyLevel) String() string {
-	switch l {
-	case ConnectConsistencyLevelAny:
-		return "any"
-	case ConnectConsistencyLevelNone:
-		return "none"
-	case ConnectConsistencyLevelOne:
-		return "one"
-	case ConnectConsistencyLevelMajority:
-		return "majority"
-	case ConnectConsistencyLevelAll:
-		return "all"
-	}
-	return unknown
-}
-
-var validConnectConsistencyLevels = []ConnectConsistencyLevel{
-	ConnectConsistencyLevelAny,
-	ConnectConsistencyLevelNone,
-	ConnectConsistencyLevelOne,
-	ConnectConsistencyLevelMajority,
-	ConnectConsistencyLevelAll,
-}
-
-var errClusterConnectConsistencyLevelUnspecified = errors.New("cluster connect consistency level not specified")
-
-// UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
-func (l *ConnectConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-	if str == "" {
-		return errClusterConnectConsistencyLevelUnspecified
-	}
-	strs := make([]string, len(validConnectConsistencyLevels))
-	for _, valid := range validConnectConsistencyLevels {
-		if str == valid.String() {
-			*l = valid
-			return nil
-		}
-		strs = append(strs, "'"+valid.String()+"'")
-	}
-	return fmt.Errorf("invalid ConnectConsistencyLevel '%s' valid types are: %s",
-		str, strings.Join(strs, ", "))
-}
-
-// ReadConsistencyLevel is the consistency level for reading from a cluster
-type ReadConsistencyLevel int
-
-const (
-	// ReadConsistencyLevelOne corresponds to reading from a single node
-	ReadConsistencyLevelOne ReadConsistencyLevel = iota
-
-	// ReadConsistencyLevelUnstrictMajority corresponds to reading from the majority of nodes
-	// but relaxing the constraint when it cannot be met, falling back to returning success when
-	// reading from at least a single node after attempting reading from the majority of nodes
-	ReadConsistencyLevelUnstrictMajority
-
-	// ReadConsistencyLevelMajority corresponds to reading from the majority of nodes
-	ReadConsistencyLevelMajority
-
-	// ReadConsistencyLevelAll corresponds to reading from all of the nodes
-	ReadConsistencyLevelAll
-)
-
-// String returns the consistency level as a string
-func (l ReadConsistencyLevel) String() string {
-	switch l {
-	case ReadConsistencyLevelOne:
-		return "one"
-	case ReadConsistencyLevelUnstrictMajority:
-		return "unstrict_majority"
-	case ReadConsistencyLevelMajority:
-		return "majority"
-	case ReadConsistencyLevelAll:
-		return "all"
-	}
-	return unknown
-}
-
-var validReadConsistencyLevels = []ReadConsistencyLevel{
-	ReadConsistencyLevelOne,
-	ReadConsistencyLevelUnstrictMajority,
-	ReadConsistencyLevelMajority,
-	ReadConsistencyLevelAll,
-}
-
-var errReadConsistencyLevelUnspecified = errors.New("read consistency level not specified")
-
-// UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
-func (l *ReadConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-	if str == "" {
-		return errReadConsistencyLevelUnspecified
-	}
-	strs := make([]string, len(validReadConsistencyLevels))
-	for _, valid := range validReadConsistencyLevels {
-		if str == valid.String() {
-			*l = valid
-			return nil
-		}
-		strs = append(strs, "'"+valid.String()+"'")
-	}
-	return fmt.Errorf("invalid ReadConsistencyLevel '%s' valid types are: %s",
-		str, strings.Join(strs, ", "))
-}
 
 // Client can create sessions to write and read to a cluster
 type Client interface {
@@ -284,7 +144,7 @@ type AdminSession interface {
 		namespace ident.ID,
 		shard uint32,
 		start, end time.Time,
-		consistencyLevel ReadConsistencyLevel,
+		consistencyLevel topology.ReadConsistencyLevel,
 		result result.Options,
 		version FetchBlocksMetadataEndpointVersion,
 	) (PeerBlockMetadataIter, error)
@@ -304,6 +164,7 @@ type AdminSession interface {
 	FetchBlocksFromPeers(
 		namespace namespace.Metadata,
 		shard uint32,
+		consistencyLevel topology.ReadConsistencyLevel,
 		metadatas []block.ReplicaMetadata,
 		opts result.Options,
 	) (PeerBlocksIter, error)
@@ -317,11 +178,11 @@ type Options interface {
 	// SetEncodingM3TSZ sets m3tsz encoding
 	SetEncodingM3TSZ() Options
 
-	// SetRuntimeOptions sets the runtime options
-	SetRuntimeOptions(value runtime.Options) Options
+	// SetRuntimeOptionsManager sets the runtime options manager, it is optional
+	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
 
-	// RuntimeOptions returns the runtime options
-	RuntimeOptions() runtime.Options
+	// RuntimeOptionsManager returns the runtime options manager, it is optional
+	RuntimeOptionsManager() runtime.OptionsManager
 
 	// SetClockOptions sets the clock options
 	SetClockOptions(value clock.Options) Options
@@ -342,10 +203,10 @@ type Options interface {
 	TopologyInitializer() topology.Initializer
 
 	// SetReadConsistencyLevel sets the read consistency level
-	SetReadConsistencyLevel(value ReadConsistencyLevel) Options
+	SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options
 
-	// ReadConsistencyLevel returns the read consistency level
-	ReadConsistencyLevel() ReadConsistencyLevel
+	// topology.ReadConsistencyLevel returns the read consistency level
+	ReadConsistencyLevel() topology.ReadConsistencyLevel
 
 	// SetWriteConsistencyLevel sets the write consistency level
 	SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options
@@ -384,10 +245,10 @@ type Options interface {
 	ClusterConnectTimeout() time.Duration
 
 	// SetClusterConnectConsistencyLevel sets the clusterConnectConsistencyLevel
-	SetClusterConnectConsistencyLevel(value ConnectConsistencyLevel) Options
+	SetClusterConnectConsistencyLevel(value topology.ConnectConsistencyLevel) Options
 
 	// ClusterConnectConsistencyLevel returns the clusterConnectConsistencyLevel
-	ClusterConnectConsistencyLevel() ConnectConsistencyLevel
+	ClusterConnectConsistencyLevel() topology.ConnectConsistencyLevel
 
 	// SetWriteRequestTimeout sets the writeRequestTimeout
 	SetWriteRequestTimeout(value time.Duration) Options
@@ -575,10 +436,10 @@ type AdminOptions interface {
 	Origin() topology.Host
 
 	// SetBootstrapConsistencyLevel sets the bootstrap consistency level
-	SetBootstrapConsistencyLevel(value ReadConsistencyLevel) Options
+	SetBootstrapConsistencyLevel(value topology.ReadConsistencyLevel) AdminOptions
 
 	// BootstrapConsistencyLevel returns the bootstrap consistency level
-	BootstrapConsistencyLevel() ReadConsistencyLevel
+	BootstrapConsistencyLevel() topology.ReadConsistencyLevel
 
 	// SetFetchSeriesBlocksMaxBlockRetries sets the max retries for fetching series blocks
 	SetFetchSeriesBlocksMaxBlockRetries(value int) AdminOptions
@@ -684,12 +545,12 @@ type peer interface {
 	BorrowConnection(fn withConnectionFn) error
 }
 
-type state int
+type status int
 
 const (
-	stateNotOpen state = iota
-	stateOpen
-	stateClosed
+	statusNotOpen status = iota
+	statusOpen
+	statusClosed
 )
 
 type op interface {
@@ -704,6 +565,7 @@ type enqueueChannel interface {
 	enqueue(peersMetadata []receivedBlockMetadata)
 	enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata)
 	get() <-chan []receivedBlockMetadata
+	trackPending(amount int)
 	trackProcessed(amount int)
 	unprocessedLen() int
 	closeOnAllProcessed()

@@ -216,7 +216,7 @@ func makeTestWrite(
 	}
 
 	clientopts := client.NewOptions().
-		SetClusterConnectConsistencyLevel(client.ConnectConsistencyLevelNone).
+		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelNone).
 		SetClusterConnectTimeout(2 * time.Second).
 		SetWriteRequestTimeout(2 * time.Second).
 		SetTopologyInitializer(topoInit)

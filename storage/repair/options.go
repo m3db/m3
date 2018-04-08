@@ -25,10 +25,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/topology"
 )
 
 const (
-	defaultRepairConsistencyLevel = client.ReadConsistencyLevelMajority
+	defaultRepairConsistencyLevel = topology.ReadConsistencyLevelMajority
 	defaultRepairInterval         = 2 * time.Hour
 	defaultRepairTimeOffset       = 30 * time.Minute
 	defaultRepairTimeJitter       = time.Hour
@@ -53,7 +54,7 @@ var (
 
 type options struct {
 	adminClient                client.AdminClient
-	repairConsistencyLevel     client.ReadConsistencyLevel
+	repairConsistencyLevel     topology.ReadConsistencyLevel
 	repairShardConcurrency     int
 	repairInterval             time.Duration
 	repairTimeOffset           time.Duration
@@ -89,13 +90,13 @@ func (o *options) AdminClient() client.AdminClient {
 	return o.adminClient
 }
 
-func (o *options) SetRepairConsistencyLevel(value client.ReadConsistencyLevel) Options {
+func (o *options) SetRepairConsistencyLevel(value topology.ReadConsistencyLevel) Options {
 	opts := *o
 	opts.repairConsistencyLevel = value
 	return &opts
 }
 
-func (o *options) RepairConsistencyLevel() client.ReadConsistencyLevel {
+func (o *options) RepairConsistencyLevel() topology.ReadConsistencyLevel {
 	return o.repairConsistencyLevel
 }
 

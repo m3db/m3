@@ -156,30 +156,26 @@ func (w *writeState) completionFn(result interface{}, err error) {
 }
 
 type writeStatePool struct {
-	pool             pool.ObjectPool
-	tagEncoderPool   serialize.TagEncoderPool
-	consistencyLevel topology.ConsistencyLevel
+	pool           pool.ObjectPool
+	tagEncoderPool serialize.TagEncoderPool
 }
 
 func newWriteStatePool(
-	consistencyLevel topology.ConsistencyLevel,
 	tagEncoderPool serialize.TagEncoderPool,
 	opts pool.ObjectPoolOptions,
 ) *writeStatePool {
 	p := pool.NewObjectPool(opts)
 	return &writeStatePool{
-		pool:             p,
-		tagEncoderPool:   tagEncoderPool,
-		consistencyLevel: consistencyLevel,
+		pool:           p,
+		tagEncoderPool: tagEncoderPool,
 	}
 }
 
 func (p *writeStatePool) Init() {
 	p.pool.Init(func() interface{} {
 		w := &writeState{
-			consistencyLevel: p.consistencyLevel,
-			pool:             p,
-			tagEncoderPool:   p.tagEncoderPool,
+			pool:           p,
+			tagEncoderPool: p.tagEncoderPool,
 		}
 		w.reset()
 		return w

@@ -158,11 +158,11 @@ type Options interface {
 
 	// SetRepairConsistencyLevel sets the repair read level consistency
 	// for which to repair shards with
-	SetRepairConsistencyLevel(value client.ReadConsistencyLevel) Options
+	SetRepairConsistencyLevel(value topology.ReadConsistencyLevel) Options
 
 	// RepairConsistencyLevel returns the repair read level consistency
 	// for which to repair shards with
-	RepairConsistencyLevel() client.ReadConsistencyLevel
+	RepairConsistencyLevel() topology.ReadConsistencyLevel
 
 	// SetRepairShardConcurrency sets the concurrency in which to repair shards with
 	SetRepairShardConcurrency(value int) Options

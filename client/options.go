@@ -44,13 +44,13 @@ import (
 
 const (
 	// defaultWriteConsistencyLevel is the default write consistency level
-	defaultWriteConsistencyLevel = topology.ConsistencyLevelMajority
+	defaultWriteConsistencyLevel = m3dbruntime.DefaultWriteConsistencyLevel
 
 	// defaultReadConsistencyLevel is the default read consistency level
-	defaultReadConsistencyLevel = ReadConsistencyLevelMajority
+	defaultReadConsistencyLevel = m3dbruntime.DefaultReadConsistencyLevel
 
 	// defaultBootstrapConsistencyLevel is the default bootstrap consistency level
-	defaultBootstrapConsistencyLevel = ReadConsistencyLevelMajority
+	defaultBootstrapConsistencyLevel = m3dbruntime.DefaultBootstrapConsistencyLevel
 
 	// defaultMaxConnectionCount is the default max connection count
 	defaultMaxConnectionCount = 32
@@ -65,7 +65,7 @@ const (
 	defaultClusterConnectTimeout = 30 * time.Second
 
 	// defaultClusterConnectConsistencyLevel is the default cluster connect consistency level
-	defaultClusterConnectConsistencyLevel = ConnectConsistencyLevelAny
+	defaultClusterConnectConsistencyLevel = topology.ConnectConsistencyLevelAny
 
 	// defaultWriteRequestTimeout is the default write request timeout
 	defaultWriteRequestTimeout = 5 * time.Second
@@ -177,19 +177,19 @@ var (
 )
 
 type options struct {
-	runtimeOpts                             m3dbruntime.Options
+	runtimeOptsMgr                          m3dbruntime.OptionsManager
 	clockOpts                               clock.Options
 	instrumentOpts                          instrument.Options
 	topologyInitializer                     topology.Initializer
-	readConsistencyLevel                    ReadConsistencyLevel
+	readConsistencyLevel                    topology.ReadConsistencyLevel
 	writeConsistencyLevel                   topology.ConsistencyLevel
-	bootstrapConsistencyLevel               ReadConsistencyLevel
+	bootstrapConsistencyLevel               topology.ReadConsistencyLevel
 	channelOptions                          *tchannel.ChannelOptions
 	maxConnectionCount                      int
 	minConnectionCount                      int
 	hostConnectTimeout                      time.Duration
 	clusterConnectTimeout                   time.Duration
-	clusterConnectConsistencyLevel          ConnectConsistencyLevel
+	clusterConnectConsistencyLevel          topology.ConnectConsistencyLevel
 	writeRequestTimeout                     time.Duration
 	fetchRequestTimeout                     time.Duration
 	truncateRequestTimeout                  time.Duration
@@ -316,14 +316,14 @@ func (o *options) SetEncodingM3TSZ() Options {
 	return &opts
 }
 
-func (o *options) SetRuntimeOptions(value m3dbruntime.Options) Options {
+func (o *options) SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Options {
 	opts := *o
-	opts.runtimeOpts = value
+	opts.runtimeOptsMgr = value
 	return &opts
 }
 
-func (o *options) RuntimeOptions() m3dbruntime.Options {
-	return o.runtimeOpts
+func (o *options) RuntimeOptionsManager() m3dbruntime.OptionsManager {
+	return o.runtimeOptsMgr
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
@@ -356,13 +356,13 @@ func (o *options) TopologyInitializer() topology.Initializer {
 	return o.topologyInitializer
 }
 
-func (o *options) SetReadConsistencyLevel(value ReadConsistencyLevel) Options {
+func (o *options) SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options {
 	opts := *o
 	opts.readConsistencyLevel = value
 	return &opts
 }
 
-func (o *options) ReadConsistencyLevel() ReadConsistencyLevel {
+func (o *options) ReadConsistencyLevel() topology.ReadConsistencyLevel {
 	return o.readConsistencyLevel
 }
 
@@ -376,13 +376,13 @@ func (o *options) WriteConsistencyLevel() topology.ConsistencyLevel {
 	return o.writeConsistencyLevel
 }
 
-func (o *options) SetBootstrapConsistencyLevel(value ReadConsistencyLevel) Options {
+func (o *options) SetBootstrapConsistencyLevel(value topology.ReadConsistencyLevel) AdminOptions {
 	opts := *o
 	opts.bootstrapConsistencyLevel = value
 	return &opts
 }
 
-func (o *options) BootstrapConsistencyLevel() ReadConsistencyLevel {
+func (o *options) BootstrapConsistencyLevel() topology.ReadConsistencyLevel {
 	return o.bootstrapConsistencyLevel
 }
 
@@ -436,13 +436,13 @@ func (o *options) ClusterConnectTimeout() time.Duration {
 	return o.clusterConnectTimeout
 }
 
-func (o *options) SetClusterConnectConsistencyLevel(value ConnectConsistencyLevel) Options {
+func (o *options) SetClusterConnectConsistencyLevel(value topology.ConnectConsistencyLevel) Options {
 	opts := *o
 	opts.clusterConnectConsistencyLevel = value
 	return &opts
 }
 
-func (o *options) ClusterConnectConsistencyLevel() ConnectConsistencyLevel {
+func (o *options) ClusterConnectConsistencyLevel() topology.ConnectConsistencyLevel {
 	return o.clusterConnectConsistencyLevel
 }
 

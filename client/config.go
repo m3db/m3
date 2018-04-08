@@ -49,10 +49,10 @@ type Configuration struct {
 	WriteConsistencyLevel topology.ConsistencyLevel `yaml:"writeConsistencyLevel"`
 
 	// ReadConsistencyLevel specifies the read consistency level.
-	ReadConsistencyLevel ReadConsistencyLevel `yaml:"readConsistencyLevel"`
+	ReadConsistencyLevel topology.ReadConsistencyLevel `yaml:"readConsistencyLevel"`
 
 	// ConnectConsistencyLevel specifies the cluster connect consistency level.
-	ConnectConsistencyLevel ConnectConsistencyLevel `yaml:"connectConsistencyLevel"`
+	ConnectConsistencyLevel topology.ConnectConsistencyLevel `yaml:"connectConsistencyLevel"`
 
 	// WriteTimeout is the write request timeout.
 	WriteTimeout time.Duration `yaml:"writeTimeout" validate:"min=0"`

@@ -31,6 +31,7 @@ import (
 	nchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
@@ -189,7 +190,7 @@ func m3dbClientFetchBlocksMetadata(
 	namespace ident.ID,
 	shards []uint32,
 	start, end time.Time,
-	consistencyLevel client.ReadConsistencyLevel,
+	consistencyLevel topology.ReadConsistencyLevel,
 	version client.FetchBlocksMetadataEndpointVersion,
 ) (map[uint32][]block.ReplicaMetadata, error) {
 	session, err := c.DefaultAdminSession()

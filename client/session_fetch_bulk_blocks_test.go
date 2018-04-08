@@ -104,6 +104,10 @@ func newResultTestOptions() result.Options {
 		SetEncoderPool(encoderPool))
 }
 
+func testPeers(v []peer) peers {
+	return peers{peers: v, majorityReplicas: topology.Majority(len(v))}
+}
+
 // TODO(rartoul): Delete when we delete the V1 code path
 func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -480,7 +484,8 @@ func fetchBlocksFromPeersTestsHelper(
 	}()
 	blockReplicasMetadata := testBlocksToBlockReplicasMetadata(t, peerBlocks, mockHostQueues[1:])
 	bootstrapOpts := newResultTestOptions()
-	result, err := session.FetchBlocksFromPeers(testsNsMetadata(t), 0, blockReplicasMetadata, bootstrapOpts)
+	result, err := session.FetchBlocksFromPeers(testsNsMetadata(t), 0, topology.ReadConsistencyLevelAll,
+		blockReplicasMetadata, bootstrapOpts)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
@@ -795,7 +800,8 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T
 	// Perform selection
 	selected, _ := session.selectPeersFromPerPeerBlockMetadatas(
 		perPeer, peerBlocksQueues, enqueueCh,
-		pooled, metrics)
+		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		testPeers(peers), pooled, metrics)
 
 	// Assert selection first peer
 	require.Equal(t, 1, len(selected))
@@ -860,7 +866,8 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataSelectAllOnDifferingChecksum
 	// Perform selection
 	selected, _ := session.selectPeersFromPerPeerBlockMetadatas(
 		perPeer, peerBlocksQueues, enqueueCh,
-		pooled, metrics)
+		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		testPeers(peers), pooled, metrics)
 
 	// Assert selection all peers
 	require.Equal(t, 3, len(selected))
@@ -911,7 +918,8 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeSinglePeer(t *testing.T)
 	// Perform selection
 	selected, _ := session.selectPeersFromPerPeerBlockMetadatas(
 		perPeer, peerBlocksQueues, enqueueCh,
-		pooled, metrics)
+		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		testPeers(peers), pooled, metrics)
 
 	// Assert selection first peer
 	require.Equal(t, 1, len(selected))
@@ -986,7 +994,8 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 	// Perform selection
 	selected, _ := session.selectPeersFromPerPeerBlockMetadatas(
 		perPeer, peerBlocksQueues, enqueueCh,
-		pooled, metrics)
+		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		testPeers(peers), pooled, metrics)
 
 	// Assert selection length
 	require.Equal(t, 1, len(selected))
@@ -1003,12 +1012,13 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 	}, selected[0].block.reattempt.attempted)
 }
 
-func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *testing.T) {
+func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidRetryWithLevelNone(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	opts := newSessionTestAdminOptions().
-		SetFetchSeriesBlocksMaxBlockRetries(0)
+		SetFetchSeriesBlocksMaxBlockRetries(0).
+		SetBootstrapConsistencyLevel(topology.ReadConsistencyLevelNone)
 	s, err := newSession(opts)
 	require.NoError(t, err)
 	session := s.(*session)
@@ -1033,6 +1043,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 			attempt:   3,
 			id:        fooID,
 			attempted: []peer{peerA, peerB, peerC},
+			errs:      []error{fmt.Errorf("errA"), fmt.Errorf("errB"), fmt.Errorf("errC")},
 		}
 		perPeer = []receivedBlockMetadata{
 			{
@@ -1063,7 +1074,8 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 	// Perform selection
 	selected, _ := session.selectPeersFromPerPeerBlockMetadatas(
 		perPeer, peerBlocksQueues, enqueueCh,
-		pooled, metrics)
+		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		testPeers(peers), pooled, metrics)
 
 	// Assert no selection
 	require.Equal(t, 0, len(selected))
@@ -1125,7 +1137,8 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataPerformsRetries(t *testing.T
 	// Perform selection
 	selected, _ := session.selectPeersFromPerPeerBlockMetadatas(
 		perPeer, peerBlocksQueues, enqueueCh,
-		pooled, metrics)
+		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		testPeers(peers), pooled, metrics)
 
 	// Assert selection
 	require.Equal(t, 1, len(selected))

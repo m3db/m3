@@ -75,8 +75,8 @@ hashing:
 	boolTrue := true
 	expected := Configuration{
 		WriteConsistencyLevel:   topology.ConsistencyLevelMajority,
-		ReadConsistencyLevel:    ReadConsistencyLevelUnstrictMajority,
-		ConnectConsistencyLevel: ConnectConsistencyLevelAny,
+		ReadConsistencyLevel:    topology.ReadConsistencyLevelUnstrictMajority,
+		ConnectConsistencyLevel: topology.ConnectConsistencyLevelAny,
 		WriteTimeout:            10 * time.Second,
 		FetchTimeout:            15 * time.Second,
 		ConnectTimeout:          20 * time.Second,

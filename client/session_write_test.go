@@ -50,7 +50,7 @@ func TestSessionWriteNotOpenError(t *testing.T) {
 	s := newDefaultTestSession(t)
 
 	err := s.Write(ident.StringID("namespace"), ident.StringID("foo"), time.Now(), 1.337, xtime.Second, nil)
-	assert.Equal(t, errSessionStateNotOpen, err)
+	assert.Equal(t, errSessionStatusNotOpen, err)
 }
 
 func TestSessionWrite(t *testing.T) {
@@ -77,7 +77,7 @@ func TestSessionWrite(t *testing.T) {
 	// Ensure consecutive opens cause errors
 	consecutiveOpenErr := session.Open()
 	assert.Error(t, consecutiveOpenErr)
-	assert.Equal(t, errSessionStateNotInitial, consecutiveOpenErr)
+	assert.Equal(t, errSessionStatusNotInitial, consecutiveOpenErr)
 
 	// Begin write
 	var resultErr error
@@ -90,8 +90,8 @@ func TestSessionWrite(t *testing.T) {
 
 	// Callback
 	enqueueWg.Wait()
-	for i := 0; i < session.topoMap.Replicas(); i++ {
-		completionFn(session.topoMap.Hosts()[0], nil)
+	for i := 0; i < session.state.topoMap.Replicas(); i++ {
+		completionFn(session.state.topoMap.Hosts()[0], nil)
 	}
 
 	// Wait for write to complete
@@ -169,9 +169,9 @@ func TestSessionWriteBadRequestErrorIsNonRetryable(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	session.RLock()
-	hosts = session.topoMap.Hosts()
-	session.RUnlock()
+	session.state.RLock()
+	hosts = session.state.topoMap.Hosts()
+	session.state.RUnlock()
 
 	err := session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
 	assert.Error(t, err)
@@ -227,9 +227,9 @@ func TestSessionWriteRetry(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	session.RLock()
-	hosts = session.topoMap.Hosts()
-	session.RUnlock()
+	session.state.RLock()
+	hosts = session.state.topoMap.Hosts()
+	session.state.RUnlock()
 
 	// Begin write
 	var resultErr error
@@ -242,8 +242,8 @@ func TestSessionWriteRetry(t *testing.T) {
 
 	// Callback
 	enqueueWg.Wait()
-	for i := 0; i < session.topoMap.Replicas(); i++ {
-		completionFn(session.topoMap.Hosts()[0], nil)
+	for i := 0; i < session.state.topoMap.Replicas(); i++ {
+		completionFn(session.state.topoMap.Hosts()[0], nil)
 	}
 
 	// Wait for write to complete
@@ -346,7 +346,7 @@ func testWriteConsistencyLevel(
 
 	// Callback
 	enqueueWg.Wait()
-	host := session.topoMap.Hosts()[0] // any host
+	host := session.state.topoMap.Hosts()[0] // any host
 	writeErr := "a specific write error"
 	for i := 0; i < success; i++ {
 		completionFn(host, nil)

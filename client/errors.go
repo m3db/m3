@@ -22,6 +22,7 @@ package client
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
@@ -146,4 +147,47 @@ func (e consistencyResultErr) numResponded() int {
 
 func (e consistencyResultErr) numSuccess() int {
 	return e.success
+}
+
+type syncAbortableErrorsMap struct {
+	sync.RWMutex
+	errors     map[int]error
+	abortError error
+}
+
+func newSyncAbortableErrorsMap() *syncAbortableErrorsMap {
+	return &syncAbortableErrorsMap{
+		errors: make(map[int]error),
+	}
+}
+
+func (e *syncAbortableErrorsMap) setError(idx int, err error) {
+	e.Lock()
+	e.errors[idx] = err
+	e.Unlock()
+}
+
+func (e *syncAbortableErrorsMap) getErrors() []error {
+	var result []error
+	e.RLock()
+	for _, err := range e.errors {
+		if err == nil {
+			continue
+		}
+		result = append(result, err)
+	}
+	e.RUnlock()
+	return result
+}
+
+func (e *syncAbortableErrorsMap) setAbortError(err error) {
+	e.Lock()
+	e.abortError = err
+	e.Unlock()
+}
+func (e *syncAbortableErrorsMap) getAbortError() error {
+	e.RLock()
+	result := e.abortError
+	e.RUnlock()
+	return result
 }
