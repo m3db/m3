@@ -386,7 +386,7 @@ func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) (xio.Segm
 		// context, and the Encoder's that we stream from actually perform a data copy and
 		// don't share a reference.
 		streams := bucket.streams(ctx)
-		if len(streams) > 1 {
+		if len(streams) != 1 {
 			// Should never happen as the call to merge above should result in only a single
 			// stream being present.
 			err = errMoreThanOneStreamAfterMerge
