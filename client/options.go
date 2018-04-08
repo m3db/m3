@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
+	m3dbruntime "github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/context"
@@ -176,6 +177,7 @@ var (
 )
 
 type options struct {
+	runtimeOpts                             m3dbruntime.Options
 	clockOpts                               clock.Options
 	instrumentOpts                          instrument.Options
 	topologyInitializer                     topology.Initializer
@@ -312,6 +314,16 @@ func (o *options) SetEncodingM3TSZ() Options {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 	return &opts
+}
+
+func (o *options) SetRuntimeOptions(value m3dbruntime.Options) Options {
+	opts := *o
+	opts.runtimeOpts = value
+	return &opts
+}
+
+func (o *options) RuntimeOptions() m3dbruntime.Options {
+	return o.runtimeOpts
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {

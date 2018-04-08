@@ -28,20 +28,17 @@ import (
 
 // NewMetadata creates a new block metadata
 func NewMetadata(
+	id ident.ID,
 	start time.Time,
 	size int64,
 	checksum *uint32,
 	lastRead time.Time,
 ) Metadata {
 	return Metadata{
+		ID:       id,
 		Start:    start,
 		Size:     size,
 		Checksum: checksum,
 		LastRead: lastRead,
 	}
-}
-
-// NewBlocksMetadata creates a new blocks metadata
-func NewBlocksMetadata(id ident.ID, blocks []Metadata) BlocksMetadata {
-	return BlocksMetadata{ID: id, Blocks: blocks}
 }

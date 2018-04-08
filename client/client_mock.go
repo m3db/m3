@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
@@ -301,55 +302,55 @@ func (_mr *_MockAdminClientRecorder) DefaultAdminSession() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "DefaultAdminSession")
 }
 
-// Mock of PeerBlocksMetadataIter interface
-type MockPeerBlocksMetadataIter struct {
+// Mock of PeerBlockMetadataIter interface
+type MockPeerBlockMetadataIter struct {
 	ctrl     *gomock.Controller
-	recorder *_MockPeerBlocksMetadataIterRecorder
+	recorder *_MockPeerBlockMetadataIterRecorder
 }
 
-// Recorder for MockPeerBlocksMetadataIter (not exported)
-type _MockPeerBlocksMetadataIterRecorder struct {
-	mock *MockPeerBlocksMetadataIter
+// Recorder for MockPeerBlockMetadataIter (not exported)
+type _MockPeerBlockMetadataIterRecorder struct {
+	mock *MockPeerBlockMetadataIter
 }
 
-func NewMockPeerBlocksMetadataIter(ctrl *gomock.Controller) *MockPeerBlocksMetadataIter {
-	mock := &MockPeerBlocksMetadataIter{ctrl: ctrl}
-	mock.recorder = &_MockPeerBlocksMetadataIterRecorder{mock}
+func NewMockPeerBlockMetadataIter(ctrl *gomock.Controller) *MockPeerBlockMetadataIter {
+	mock := &MockPeerBlockMetadataIter{ctrl: ctrl}
+	mock.recorder = &_MockPeerBlockMetadataIterRecorder{mock}
 	return mock
 }
 
-func (_m *MockPeerBlocksMetadataIter) EXPECT() *_MockPeerBlocksMetadataIterRecorder {
+func (_m *MockPeerBlockMetadataIter) EXPECT() *_MockPeerBlockMetadataIterRecorder {
 	return _m.recorder
 }
 
-func (_m *MockPeerBlocksMetadataIter) Next() bool {
+func (_m *MockPeerBlockMetadataIter) Next() bool {
 	ret := _m.ctrl.Call(_m, "Next")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-func (_mr *_MockPeerBlocksMetadataIterRecorder) Next() *gomock.Call {
+func (_mr *_MockPeerBlockMetadataIterRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockPeerBlocksMetadataIter) Current() (topology.Host, block.BlocksMetadata) {
+func (_m *MockPeerBlockMetadataIter) Current() (topology.Host, block.Metadata) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(topology.Host)
-	ret1, _ := ret[1].(block.BlocksMetadata)
+	ret1, _ := ret[1].(block.Metadata)
 	return ret0, ret1
 }
 
-func (_mr *_MockPeerBlocksMetadataIterRecorder) Current() *gomock.Call {
+func (_mr *_MockPeerBlockMetadataIterRecorder) Current() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Current")
 }
 
-func (_m *MockPeerBlocksMetadataIter) Err() error {
+func (_m *MockPeerBlockMetadataIter) Err() error {
 	ret := _m.ctrl.Call(_m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockPeerBlocksMetadataIterRecorder) Err() *gomock.Call {
+func (_mr *_MockPeerBlockMetadataIterRecorder) Err() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
 }
 
@@ -544,9 +545,9 @@ func (_mr *_MockAdminSessionRecorder) Truncate(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0)
 }
 
-func (_m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, consistencyLevel ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlocksMetadataIter, error) {
+func (_m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, consistencyLevel ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result, version)
-	ret0, _ := ret[0].(PeerBlocksMetadataIter)
+	ret0, _ := ret[0].(PeerBlockMetadataIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -575,455 +576,6 @@ func (_m *MockAdminSession) FetchBlocksFromPeers(namespace namespace.Metadata, s
 
 func (_mr *_MockAdminSessionRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksFromPeers", arg0, arg1, arg2, arg3)
-}
-
-// Mock of clientSession interface
-type MockclientSession struct {
-	ctrl     *gomock.Controller
-	recorder *_MockclientSessionRecorder
-}
-
-// Recorder for MockclientSession (not exported)
-type _MockclientSessionRecorder struct {
-	mock *MockclientSession
-}
-
-func NewMockclientSession(ctrl *gomock.Controller) *MockclientSession {
-	mock := &MockclientSession{ctrl: ctrl}
-	mock.recorder = &_MockclientSessionRecorder{mock}
-	return mock
-}
-
-func (_m *MockclientSession) EXPECT() *_MockclientSessionRecorder {
-	return _m.recorder
-}
-
-func (_m *MockclientSession) Write(namespace ident.ID, id ident.ID, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	ret := _m.ctrl.Call(_m, "Write", namespace, id, t, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockclientSessionRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
-}
-
-func (_m *MockclientSession) WriteTagged(namespace ident.ID, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	ret := _m.ctrl.Call(_m, "WriteTagged", namespace, id, tags, t, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockclientSessionRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
-}
-
-func (_m *MockclientSession) Fetch(namespace ident.ID, id ident.ID, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterator, error) {
-	ret := _m.ctrl.Call(_m, "Fetch", namespace, id, startInclusive, endExclusive)
-	ret0, _ := ret[0].(encoding.SeriesIterator)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (_mr *_MockclientSessionRecorder) Fetch(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Fetch", arg0, arg1, arg2, arg3)
-}
-
-func (_m *MockclientSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterators, error) {
-	ret := _m.ctrl.Call(_m, "FetchIDs", namespace, ids, startInclusive, endExclusive)
-	ret0, _ := ret[0].(encoding.SeriesIterators)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (_mr *_MockclientSessionRecorder) FetchIDs(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchIDs", arg0, arg1, arg2, arg3)
-}
-
-func (_m *MockclientSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (encoding.SeriesIterators, bool, error) {
-	ret := _m.ctrl.Call(_m, "FetchTagged", _param0, _param1)
-	ret0, _ := ret[0].(encoding.SeriesIterators)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-func (_mr *_MockclientSessionRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTagged", arg0, arg1)
-}
-
-func (_m *MockclientSession) FetchTaggedIDs(_param0 index.Query, _param1 index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", _param0, _param1)
-	ret0, _ := ret[0].(index.QueryResults)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (_mr *_MockclientSessionRecorder) FetchTaggedIDs(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTaggedIDs", arg0, arg1)
-}
-
-func (_m *MockclientSession) ShardID(id ident.ID) (uint32, error) {
-	ret := _m.ctrl.Call(_m, "ShardID", id)
-	ret0, _ := ret[0].(uint32)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (_mr *_MockclientSessionRecorder) ShardID(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShardID", arg0)
-}
-
-func (_m *MockclientSession) Close() error {
-	ret := _m.ctrl.Call(_m, "Close")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockclientSessionRecorder) Close() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
-}
-
-func (_m *MockclientSession) Origin() topology.Host {
-	ret := _m.ctrl.Call(_m, "Origin")
-	ret0, _ := ret[0].(topology.Host)
-	return ret0
-}
-
-func (_mr *_MockclientSessionRecorder) Origin() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Origin")
-}
-
-func (_m *MockclientSession) Replicas() int {
-	ret := _m.ctrl.Call(_m, "Replicas")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-func (_mr *_MockclientSessionRecorder) Replicas() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Replicas")
-}
-
-func (_m *MockclientSession) Truncate(namespace ident.ID) (int64, error) {
-	ret := _m.ctrl.Call(_m, "Truncate", namespace)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (_mr *_MockclientSessionRecorder) Truncate(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0)
-}
-
-func (_m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, consistencyLevel ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlocksMetadataIter, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result, version)
-	ret0, _ := ret[0].(PeerBlocksMetadataIter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (_mr *_MockclientSessionRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataFromPeers", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
-}
-
-func (_m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace namespace.Metadata, shard uint32, start time.Time, end time.Time, opts result.Options, version FetchBlocksMetadataEndpointVersion) (result.ShardResult, error) {
-	ret := _m.ctrl.Call(_m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts, version)
-	ret0, _ := ret[0].(result.ShardResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (_mr *_MockclientSessionRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBootstrapBlocksFromPeers", arg0, arg1, arg2, arg3, arg4, arg5)
-}
-
-func (_m *MockclientSession) FetchBlocksFromPeers(namespace namespace.Metadata, shard uint32, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, metadatas, opts)
-	ret0, _ := ret[0].(PeerBlocksIter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (_mr *_MockclientSessionRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksFromPeers", arg0, arg1, arg2, arg3)
-}
-
-func (_m *MockclientSession) Open() error {
-	ret := _m.ctrl.Call(_m, "Open")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockclientSessionRecorder) Open() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open")
-}
-
-// Mock of hostQueue interface
-type MockhostQueue struct {
-	ctrl     *gomock.Controller
-	recorder *_MockhostQueueRecorder
-}
-
-// Recorder for MockhostQueue (not exported)
-type _MockhostQueueRecorder struct {
-	mock *MockhostQueue
-}
-
-func NewMockhostQueue(ctrl *gomock.Controller) *MockhostQueue {
-	mock := &MockhostQueue{ctrl: ctrl}
-	mock.recorder = &_MockhostQueueRecorder{mock}
-	return mock
-}
-
-func (_m *MockhostQueue) EXPECT() *_MockhostQueueRecorder {
-	return _m.recorder
-}
-
-func (_m *MockhostQueue) Open() {
-	_m.ctrl.Call(_m, "Open")
-}
-
-func (_mr *_MockhostQueueRecorder) Open() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open")
-}
-
-func (_m *MockhostQueue) Len() int {
-	ret := _m.ctrl.Call(_m, "Len")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-func (_mr *_MockhostQueueRecorder) Len() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Len")
-}
-
-func (_m *MockhostQueue) Enqueue(op op) error {
-	ret := _m.ctrl.Call(_m, "Enqueue", op)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockhostQueueRecorder) Enqueue(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Enqueue", arg0)
-}
-
-func (_m *MockhostQueue) Host() topology.Host {
-	ret := _m.ctrl.Call(_m, "Host")
-	ret0, _ := ret[0].(topology.Host)
-	return ret0
-}
-
-func (_mr *_MockhostQueueRecorder) Host() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Host")
-}
-
-func (_m *MockhostQueue) ConnectionCount() int {
-	ret := _m.ctrl.Call(_m, "ConnectionCount")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-func (_mr *_MockhostQueueRecorder) ConnectionCount() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConnectionCount")
-}
-
-func (_m *MockhostQueue) ConnectionPool() connectionPool {
-	ret := _m.ctrl.Call(_m, "ConnectionPool")
-	ret0, _ := ret[0].(connectionPool)
-	return ret0
-}
-
-func (_mr *_MockhostQueueRecorder) ConnectionPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConnectionPool")
-}
-
-func (_m *MockhostQueue) BorrowConnection(fn withConnectionFn) error {
-	ret := _m.ctrl.Call(_m, "BorrowConnection", fn)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockhostQueueRecorder) BorrowConnection(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BorrowConnection", arg0)
-}
-
-func (_m *MockhostQueue) Close() {
-	_m.ctrl.Call(_m, "Close")
-}
-
-func (_mr *_MockhostQueueRecorder) Close() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
-}
-
-// Mock of connectionPool interface
-type MockconnectionPool struct {
-	ctrl     *gomock.Controller
-	recorder *_MockconnectionPoolRecorder
-}
-
-// Recorder for MockconnectionPool (not exported)
-type _MockconnectionPoolRecorder struct {
-	mock *MockconnectionPool
-}
-
-func NewMockconnectionPool(ctrl *gomock.Controller) *MockconnectionPool {
-	mock := &MockconnectionPool{ctrl: ctrl}
-	mock.recorder = &_MockconnectionPoolRecorder{mock}
-	return mock
-}
-
-func (_m *MockconnectionPool) EXPECT() *_MockconnectionPoolRecorder {
-	return _m.recorder
-}
-
-func (_m *MockconnectionPool) Open() {
-	_m.ctrl.Call(_m, "Open")
-}
-
-func (_mr *_MockconnectionPoolRecorder) Open() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open")
-}
-
-func (_m *MockconnectionPool) ConnectionCount() int {
-	ret := _m.ctrl.Call(_m, "ConnectionCount")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-func (_mr *_MockconnectionPoolRecorder) ConnectionCount() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConnectionCount")
-}
-
-func (_m *MockconnectionPool) NextClient() (rpc.TChanNode, error) {
-	ret := _m.ctrl.Call(_m, "NextClient")
-	ret0, _ := ret[0].(rpc.TChanNode)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (_mr *_MockconnectionPoolRecorder) NextClient() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NextClient")
-}
-
-func (_m *MockconnectionPool) Close() {
-	_m.ctrl.Call(_m, "Close")
-}
-
-func (_mr *_MockconnectionPoolRecorder) Close() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
-}
-
-// Mock of peerSource interface
-type MockpeerSource struct {
-	ctrl     *gomock.Controller
-	recorder *_MockpeerSourceRecorder
-}
-
-// Recorder for MockpeerSource (not exported)
-type _MockpeerSourceRecorder struct {
-	mock *MockpeerSource
-}
-
-func NewMockpeerSource(ctrl *gomock.Controller) *MockpeerSource {
-	mock := &MockpeerSource{ctrl: ctrl}
-	mock.recorder = &_MockpeerSourceRecorder{mock}
-	return mock
-}
-
-func (_m *MockpeerSource) EXPECT() *_MockpeerSourceRecorder {
-	return _m.recorder
-}
-
-func (_m *MockpeerSource) BorrowConnection(hostID string, fn withConnectionFn) error {
-	ret := _m.ctrl.Call(_m, "BorrowConnection", hostID, fn)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockpeerSourceRecorder) BorrowConnection(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BorrowConnection", arg0, arg1)
-}
-
-// Mock of peer interface
-type Mockpeer struct {
-	ctrl     *gomock.Controller
-	recorder *_MockpeerRecorder
-}
-
-// Recorder for Mockpeer (not exported)
-type _MockpeerRecorder struct {
-	mock *Mockpeer
-}
-
-func NewMockpeer(ctrl *gomock.Controller) *Mockpeer {
-	mock := &Mockpeer{ctrl: ctrl}
-	mock.recorder = &_MockpeerRecorder{mock}
-	return mock
-}
-
-func (_m *Mockpeer) EXPECT() *_MockpeerRecorder {
-	return _m.recorder
-}
-
-func (_m *Mockpeer) Host() topology.Host {
-	ret := _m.ctrl.Call(_m, "Host")
-	ret0, _ := ret[0].(topology.Host)
-	return ret0
-}
-
-func (_mr *_MockpeerRecorder) Host() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Host")
-}
-
-func (_m *Mockpeer) BorrowConnection(fn withConnectionFn) error {
-	ret := _m.ctrl.Call(_m, "BorrowConnection", fn)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockpeerRecorder) BorrowConnection(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "BorrowConnection", arg0)
-}
-
-// Mock of op interface
-type Mockop struct {
-	ctrl     *gomock.Controller
-	recorder *_MockopRecorder
-}
-
-// Recorder for Mockop (not exported)
-type _MockopRecorder struct {
-	mock *Mockop
-}
-
-func NewMockop(ctrl *gomock.Controller) *Mockop {
-	mock := &Mockop{ctrl: ctrl}
-	mock.recorder = &_MockopRecorder{mock}
-	return mock
-}
-
-func (_m *Mockop) EXPECT() *_MockopRecorder {
-	return _m.recorder
-}
-
-func (_m *Mockop) Size() int {
-	ret := _m.ctrl.Call(_m, "Size")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-func (_mr *_MockopRecorder) Size() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Size")
-}
-
-func (_m *Mockop) CompletionFn() completionFn {
-	ret := _m.ctrl.Call(_m, "CompletionFn")
-	ret0, _ := ret[0].(completionFn)
-	return ret0
-}
-
-func (_mr *_MockopRecorder) CompletionFn() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "CompletionFn")
 }
 
 // Mock of Options interface
@@ -1065,6 +617,26 @@ func (_m *MockOptions) SetEncodingM3TSZ() Options {
 
 func (_mr *_MockOptionsRecorder) SetEncodingM3TSZ() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZ")
+}
+
+func (_m *MockOptions) SetRuntimeOptions(value runtime.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetRuntimeOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetRuntimeOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRuntimeOptions", arg0)
+}
+
+func (_m *MockOptions) RuntimeOptions() runtime.Options {
+	ret := _m.ctrl.Call(_m, "RuntimeOptions")
+	ret0, _ := ret[0].(runtime.Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) RuntimeOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RuntimeOptions")
 }
 
 func (_m *MockOptions) SetClockOptions(value clock.Options) Options {
@@ -1846,6 +1418,26 @@ func (_m *MockAdminOptions) SetEncodingM3TSZ() Options {
 
 func (_mr *_MockAdminOptionsRecorder) SetEncodingM3TSZ() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEncodingM3TSZ")
+}
+
+func (_m *MockAdminOptions) SetRuntimeOptions(value runtime.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetRuntimeOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) SetRuntimeOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRuntimeOptions", arg0)
+}
+
+func (_m *MockAdminOptions) RuntimeOptions() runtime.Options {
+	ret := _m.ctrl.Call(_m, "RuntimeOptions")
+	ret0, _ := ret[0].(runtime.Options)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) RuntimeOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RuntimeOptions")
 }
 
 func (_m *MockAdminOptions) SetClockOptions(value clock.Options) Options {
@@ -2746,4 +2338,528 @@ func (_m *MockAdminOptions) StreamBlocksRetrier() retry.Retrier {
 
 func (_mr *_MockAdminOptionsRecorder) StreamBlocksRetrier() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "StreamBlocksRetrier")
+}
+
+// Mock of clientSession interface
+type MockclientSession struct {
+	ctrl     *gomock.Controller
+	recorder *_MockclientSessionRecorder
+}
+
+// Recorder for MockclientSession (not exported)
+type _MockclientSessionRecorder struct {
+	mock *MockclientSession
+}
+
+func NewMockclientSession(ctrl *gomock.Controller) *MockclientSession {
+	mock := &MockclientSession{ctrl: ctrl}
+	mock.recorder = &_MockclientSessionRecorder{mock}
+	return mock
+}
+
+func (_m *MockclientSession) EXPECT() *_MockclientSessionRecorder {
+	return _m.recorder
+}
+
+func (_m *MockclientSession) Write(namespace ident.ID, id ident.ID, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "Write", namespace, id, t, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockclientSessionRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
+}
+
+func (_m *MockclientSession) WriteTagged(namespace ident.ID, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "WriteTagged", namespace, id, tags, t, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockclientSessionRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+}
+
+func (_m *MockclientSession) Fetch(namespace ident.ID, id ident.ID, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterator, error) {
+	ret := _m.ctrl.Call(_m, "Fetch", namespace, id, startInclusive, endExclusive)
+	ret0, _ := ret[0].(encoding.SeriesIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockclientSessionRecorder) Fetch(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Fetch", arg0, arg1, arg2, arg3)
+}
+
+func (_m *MockclientSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterators, error) {
+	ret := _m.ctrl.Call(_m, "FetchIDs", namespace, ids, startInclusive, endExclusive)
+	ret0, _ := ret[0].(encoding.SeriesIterators)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockclientSessionRecorder) FetchIDs(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchIDs", arg0, arg1, arg2, arg3)
+}
+
+func (_m *MockclientSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (encoding.SeriesIterators, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", _param0, _param1)
+	ret0, _ := ret[0].(encoding.SeriesIterators)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockclientSessionRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTagged", arg0, arg1)
+}
+
+func (_m *MockclientSession) FetchTaggedIDs(_param0 index.Query, _param1 index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", _param0, _param1)
+	ret0, _ := ret[0].(index.QueryResults)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockclientSessionRecorder) FetchTaggedIDs(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTaggedIDs", arg0, arg1)
+}
+
+func (_m *MockclientSession) ShardID(id ident.ID) (uint32, error) {
+	ret := _m.ctrl.Call(_m, "ShardID", id)
+	ret0, _ := ret[0].(uint32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockclientSessionRecorder) ShardID(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShardID", arg0)
+}
+
+func (_m *MockclientSession) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockclientSessionRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+func (_m *MockclientSession) Origin() topology.Host {
+	ret := _m.ctrl.Call(_m, "Origin")
+	ret0, _ := ret[0].(topology.Host)
+	return ret0
+}
+
+func (_mr *_MockclientSessionRecorder) Origin() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Origin")
+}
+
+func (_m *MockclientSession) Replicas() int {
+	ret := _m.ctrl.Call(_m, "Replicas")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockclientSessionRecorder) Replicas() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Replicas")
+}
+
+func (_m *MockclientSession) Truncate(namespace ident.ID) (int64, error) {
+	ret := _m.ctrl.Call(_m, "Truncate", namespace)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockclientSessionRecorder) Truncate(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0)
+}
+
+func (_m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, consistencyLevel ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result, version)
+	ret0, _ := ret[0].(PeerBlockMetadataIter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockclientSessionRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataFromPeers", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+}
+
+func (_m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace namespace.Metadata, shard uint32, start time.Time, end time.Time, opts result.Options, version FetchBlocksMetadataEndpointVersion) (result.ShardResult, error) {
+	ret := _m.ctrl.Call(_m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts, version)
+	ret0, _ := ret[0].(result.ShardResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockclientSessionRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBootstrapBlocksFromPeers", arg0, arg1, arg2, arg3, arg4, arg5)
+}
+
+func (_m *MockclientSession) FetchBlocksFromPeers(namespace namespace.Metadata, shard uint32, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, metadatas, opts)
+	ret0, _ := ret[0].(PeerBlocksIter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockclientSessionRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksFromPeers", arg0, arg1, arg2, arg3)
+}
+
+func (_m *MockclientSession) Open() error {
+	ret := _m.ctrl.Call(_m, "Open")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockclientSessionRecorder) Open() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open")
+}
+
+// Mock of hostQueue interface
+type MockhostQueue struct {
+	ctrl     *gomock.Controller
+	recorder *_MockhostQueueRecorder
+}
+
+// Recorder for MockhostQueue (not exported)
+type _MockhostQueueRecorder struct {
+	mock *MockhostQueue
+}
+
+func NewMockhostQueue(ctrl *gomock.Controller) *MockhostQueue {
+	mock := &MockhostQueue{ctrl: ctrl}
+	mock.recorder = &_MockhostQueueRecorder{mock}
+	return mock
+}
+
+func (_m *MockhostQueue) EXPECT() *_MockhostQueueRecorder {
+	return _m.recorder
+}
+
+func (_m *MockhostQueue) Open() {
+	_m.ctrl.Call(_m, "Open")
+}
+
+func (_mr *_MockhostQueueRecorder) Open() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open")
+}
+
+func (_m *MockhostQueue) Len() int {
+	ret := _m.ctrl.Call(_m, "Len")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockhostQueueRecorder) Len() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Len")
+}
+
+func (_m *MockhostQueue) Enqueue(op op) error {
+	ret := _m.ctrl.Call(_m, "Enqueue", op)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockhostQueueRecorder) Enqueue(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Enqueue", arg0)
+}
+
+func (_m *MockhostQueue) Host() topology.Host {
+	ret := _m.ctrl.Call(_m, "Host")
+	ret0, _ := ret[0].(topology.Host)
+	return ret0
+}
+
+func (_mr *_MockhostQueueRecorder) Host() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Host")
+}
+
+func (_m *MockhostQueue) ConnectionCount() int {
+	ret := _m.ctrl.Call(_m, "ConnectionCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockhostQueueRecorder) ConnectionCount() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConnectionCount")
+}
+
+func (_m *MockhostQueue) ConnectionPool() connectionPool {
+	ret := _m.ctrl.Call(_m, "ConnectionPool")
+	ret0, _ := ret[0].(connectionPool)
+	return ret0
+}
+
+func (_mr *_MockhostQueueRecorder) ConnectionPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConnectionPool")
+}
+
+func (_m *MockhostQueue) BorrowConnection(fn withConnectionFn) error {
+	ret := _m.ctrl.Call(_m, "BorrowConnection", fn)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockhostQueueRecorder) BorrowConnection(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BorrowConnection", arg0)
+}
+
+func (_m *MockhostQueue) Close() {
+	_m.ctrl.Call(_m, "Close")
+}
+
+func (_mr *_MockhostQueueRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+// Mock of connectionPool interface
+type MockconnectionPool struct {
+	ctrl     *gomock.Controller
+	recorder *_MockconnectionPoolRecorder
+}
+
+// Recorder for MockconnectionPool (not exported)
+type _MockconnectionPoolRecorder struct {
+	mock *MockconnectionPool
+}
+
+func NewMockconnectionPool(ctrl *gomock.Controller) *MockconnectionPool {
+	mock := &MockconnectionPool{ctrl: ctrl}
+	mock.recorder = &_MockconnectionPoolRecorder{mock}
+	return mock
+}
+
+func (_m *MockconnectionPool) EXPECT() *_MockconnectionPoolRecorder {
+	return _m.recorder
+}
+
+func (_m *MockconnectionPool) Open() {
+	_m.ctrl.Call(_m, "Open")
+}
+
+func (_mr *_MockconnectionPoolRecorder) Open() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open")
+}
+
+func (_m *MockconnectionPool) ConnectionCount() int {
+	ret := _m.ctrl.Call(_m, "ConnectionCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockconnectionPoolRecorder) ConnectionCount() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConnectionCount")
+}
+
+func (_m *MockconnectionPool) NextClient() (rpc.TChanNode, error) {
+	ret := _m.ctrl.Call(_m, "NextClient")
+	ret0, _ := ret[0].(rpc.TChanNode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockconnectionPoolRecorder) NextClient() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NextClient")
+}
+
+func (_m *MockconnectionPool) Close() {
+	_m.ctrl.Call(_m, "Close")
+}
+
+func (_mr *_MockconnectionPoolRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+// Mock of peerSource interface
+type MockpeerSource struct {
+	ctrl     *gomock.Controller
+	recorder *_MockpeerSourceRecorder
+}
+
+// Recorder for MockpeerSource (not exported)
+type _MockpeerSourceRecorder struct {
+	mock *MockpeerSource
+}
+
+func NewMockpeerSource(ctrl *gomock.Controller) *MockpeerSource {
+	mock := &MockpeerSource{ctrl: ctrl}
+	mock.recorder = &_MockpeerSourceRecorder{mock}
+	return mock
+}
+
+func (_m *MockpeerSource) EXPECT() *_MockpeerSourceRecorder {
+	return _m.recorder
+}
+
+func (_m *MockpeerSource) BorrowConnection(hostID string, fn withConnectionFn) error {
+	ret := _m.ctrl.Call(_m, "BorrowConnection", hostID, fn)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockpeerSourceRecorder) BorrowConnection(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BorrowConnection", arg0, arg1)
+}
+
+// Mock of peer interface
+type Mockpeer struct {
+	ctrl     *gomock.Controller
+	recorder *_MockpeerRecorder
+}
+
+// Recorder for Mockpeer (not exported)
+type _MockpeerRecorder struct {
+	mock *Mockpeer
+}
+
+func NewMockpeer(ctrl *gomock.Controller) *Mockpeer {
+	mock := &Mockpeer{ctrl: ctrl}
+	mock.recorder = &_MockpeerRecorder{mock}
+	return mock
+}
+
+func (_m *Mockpeer) EXPECT() *_MockpeerRecorder {
+	return _m.recorder
+}
+
+func (_m *Mockpeer) Host() topology.Host {
+	ret := _m.ctrl.Call(_m, "Host")
+	ret0, _ := ret[0].(topology.Host)
+	return ret0
+}
+
+func (_mr *_MockpeerRecorder) Host() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Host")
+}
+
+func (_m *Mockpeer) BorrowConnection(fn withConnectionFn) error {
+	ret := _m.ctrl.Call(_m, "BorrowConnection", fn)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockpeerRecorder) BorrowConnection(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BorrowConnection", arg0)
+}
+
+// Mock of op interface
+type Mockop struct {
+	ctrl     *gomock.Controller
+	recorder *_MockopRecorder
+}
+
+// Recorder for Mockop (not exported)
+type _MockopRecorder struct {
+	mock *Mockop
+}
+
+func NewMockop(ctrl *gomock.Controller) *Mockop {
+	mock := &Mockop{ctrl: ctrl}
+	mock.recorder = &_MockopRecorder{mock}
+	return mock
+}
+
+func (_m *Mockop) EXPECT() *_MockopRecorder {
+	return _m.recorder
+}
+
+func (_m *Mockop) Size() int {
+	ret := _m.ctrl.Call(_m, "Size")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockopRecorder) Size() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Size")
+}
+
+func (_m *Mockop) CompletionFn() completionFn {
+	ret := _m.ctrl.Call(_m, "CompletionFn")
+	ret0, _ := ret[0].(completionFn)
+	return ret0
+}
+
+func (_mr *_MockopRecorder) CompletionFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CompletionFn")
+}
+
+// Mock of enqueueChannel interface
+type MockenqueueChannel struct {
+	ctrl     *gomock.Controller
+	recorder *_MockenqueueChannelRecorder
+}
+
+// Recorder for MockenqueueChannel (not exported)
+type _MockenqueueChannelRecorder struct {
+	mock *MockenqueueChannel
+}
+
+func NewMockenqueueChannel(ctrl *gomock.Controller) *MockenqueueChannel {
+	mock := &MockenqueueChannel{ctrl: ctrl}
+	mock.recorder = &_MockenqueueChannelRecorder{mock}
+	return mock
+}
+
+func (_m *MockenqueueChannel) EXPECT() *_MockenqueueChannelRecorder {
+	return _m.recorder
+}
+
+func (_m *MockenqueueChannel) enqueue(peersMetadata []receivedBlockMetadata) {
+	_m.ctrl.Call(_m, "enqueue", peersMetadata)
+}
+
+func (_mr *_MockenqueueChannelRecorder) enqueue(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "enqueue", arg0)
+}
+
+func (_m *MockenqueueChannel) enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata) {
+	ret := _m.ctrl.Call(_m, "enqueueDelayed", numToEnqueue)
+	ret0, _ := ret[0].(func([]receivedBlockMetadata))
+	return ret0
+}
+
+func (_mr *_MockenqueueChannelRecorder) enqueueDelayed(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "enqueueDelayed", arg0)
+}
+
+func (_m *MockenqueueChannel) get() <-chan []receivedBlockMetadata {
+	ret := _m.ctrl.Call(_m, "get")
+	ret0, _ := ret[0].(<-chan []receivedBlockMetadata)
+	return ret0
+}
+
+func (_mr *_MockenqueueChannelRecorder) get() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "get")
+}
+
+func (_m *MockenqueueChannel) trackProcessed(amount int) {
+	_m.ctrl.Call(_m, "trackProcessed", amount)
+}
+
+func (_mr *_MockenqueueChannelRecorder) trackProcessed(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "trackProcessed", arg0)
+}
+
+func (_m *MockenqueueChannel) unprocessedLen() int {
+	ret := _m.ctrl.Call(_m, "unprocessedLen")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockenqueueChannelRecorder) unprocessedLen() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "unprocessedLen")
+}
+
+func (_m *MockenqueueChannel) closeOnAllProcessed() {
+	_m.ctrl.Call(_m, "closeOnAllProcessed")
+}
+
+func (_mr *_MockenqueueChannelRecorder) closeOnAllProcessed() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "closeOnAllProcessed")
 }

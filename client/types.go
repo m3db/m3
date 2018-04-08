@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
@@ -237,15 +238,15 @@ type AdminClient interface {
 	DefaultAdminSession() (AdminSession, error)
 }
 
-// PeerBlocksMetadataIter iterates over a collection of
+// PeerBlockMetadataIter iterates over a collection of
 // blocks metadata from peers
-type PeerBlocksMetadataIter interface {
+type PeerBlockMetadataIter interface {
 	// Next returns whether there are more items in the collection
 	Next() bool
 
-	// Current returns the host and blocks metadata, which remain
-	// valid until Next() is called again.
-	Current() (topology.Host, block.BlocksMetadata)
+	// Current returns the host and block metadata, which remain
+	// valid until Next() is called again
+	Current() (topology.Host, block.Metadata)
 
 	// Err returns any error encountered
 	Err() error
@@ -257,7 +258,7 @@ type PeerBlocksIter interface {
 	Next() bool
 
 	// Current returns the metadata, and block data for a single block replica.
-	// These remain valid until Next() is called again.
+	// These remain valid until Next() is called again
 	Current() (topology.Host, ident.ID, block.DatabaseBlock)
 
 	// Err returns any error encountered
@@ -286,7 +287,7 @@ type AdminSession interface {
 		consistencyLevel ReadConsistencyLevel,
 		result result.Options,
 		version FetchBlocksMetadataEndpointVersion,
-	) (PeerBlocksMetadataIter, error)
+	) (PeerBlockMetadataIter, error)
 
 	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
 	// for each series in a best effort method from available peers
@@ -308,84 +309,6 @@ type AdminSession interface {
 	) (PeerBlocksIter, error)
 }
 
-type clientSession interface {
-	AdminSession
-
-	// Open the client session
-	Open() error
-}
-
-type hostQueue interface {
-	// Open the host queue
-	Open()
-
-	// Len returns the length of the queue
-	Len() int
-
-	// Enqueue an operation
-	Enqueue(op op) error
-
-	// Host gets the host
-	Host() topology.Host
-
-	// ConnectionCount gets the current open connection count
-	ConnectionCount() int
-
-	// ConnectionPool gets the connection pool
-	ConnectionPool() connectionPool
-
-	// BorrowConnection will borrow a connection and execute a user function
-	BorrowConnection(fn withConnectionFn) error
-
-	// Close the host queue, will flush any operations still pending
-	Close()
-}
-
-type withConnectionFn func(c rpc.TChanNode)
-
-type connectionPool interface {
-	// Open starts the connection pool connecting and health checking
-	Open()
-
-	// ConnectionCount gets the current open connection count
-	ConnectionCount() int
-
-	// NextClient gets the next client for use by the connection pool
-	NextClient() (rpc.TChanNode, error)
-
-	// Close the connection pool
-	Close()
-}
-
-type peerSource interface {
-	// BorrowConnection will borrow a connection and execute a user function
-	BorrowConnection(hostID string, fn withConnectionFn) error
-}
-
-type peer interface {
-	// Host gets the host
-	Host() topology.Host
-
-	// BorrowConnection will borrow a connection and execute a user function
-	BorrowConnection(fn withConnectionFn) error
-}
-
-type state int
-
-const (
-	stateNotOpen state = iota
-	stateOpen
-	stateClosed
-)
-
-type op interface {
-	// Size returns the effective size of inner operations
-	Size() int
-
-	// CompletionFn gets the completion function for the operation
-	CompletionFn() completionFn
-}
-
 // Options is a set of client options
 type Options interface {
 	// Validate validates the options
@@ -393,6 +316,12 @@ type Options interface {
 
 	// SetEncodingM3TSZ sets m3tsz encoding
 	SetEncodingM3TSZ() Options
+
+	// SetRuntimeOptions sets the runtime options
+	SetRuntimeOptions(value runtime.Options) Options
+
+	// RuntimeOptions returns the runtime options
+	RuntimeOptions() runtime.Options
 
 	// SetClockOptions sets the clock options
 	SetClockOptions(value clock.Options) Options
@@ -686,4 +615,96 @@ type AdminOptions interface {
 
 	// StreamBlocksRetrier returns the retrier for streaming blocks
 	StreamBlocksRetrier() xretry.Retrier
+}
+
+// The rest of these types are internal types that mocks are generated for
+// in file mode and hence need to stay in this file and refer to the other
+// types such as AdminSession.  When mocks are generated in file mode the
+// other types they reference need to be in the same file.
+
+type clientSession interface {
+	AdminSession
+
+	// Open the client session
+	Open() error
+}
+
+type hostQueue interface {
+	// Open the host queue
+	Open()
+
+	// Len returns the length of the queue
+	Len() int
+
+	// Enqueue an operation
+	Enqueue(op op) error
+
+	// Host gets the host
+	Host() topology.Host
+
+	// ConnectionCount gets the current open connection count
+	ConnectionCount() int
+
+	// ConnectionPool gets the connection pool
+	ConnectionPool() connectionPool
+
+	// BorrowConnection will borrow a connection and execute a user function
+	BorrowConnection(fn withConnectionFn) error
+
+	// Close the host queue, will flush any operations still pending
+	Close()
+}
+
+type withConnectionFn func(c rpc.TChanNode)
+
+type connectionPool interface {
+	// Open starts the connection pool connecting and health checking
+	Open()
+
+	// ConnectionCount gets the current open connection count
+	ConnectionCount() int
+
+	// NextClient gets the next client for use by the connection pool
+	NextClient() (rpc.TChanNode, error)
+
+	// Close the connection pool
+	Close()
+}
+
+type peerSource interface {
+	// BorrowConnection will borrow a connection and execute a user function
+	BorrowConnection(hostID string, fn withConnectionFn) error
+}
+
+type peer interface {
+	// Host gets the host
+	Host() topology.Host
+
+	// BorrowConnection will borrow a connection and execute a user function
+	BorrowConnection(fn withConnectionFn) error
+}
+
+type state int
+
+const (
+	stateNotOpen state = iota
+	stateOpen
+	stateClosed
+)
+
+type op interface {
+	// Size returns the effective size of inner operations
+	Size() int
+
+	// CompletionFn gets the completion function for the operation
+	CompletionFn() completionFn
+}
+
+type enqueueChannel interface {
+	enqueue(peersMetadata []receivedBlockMetadata)
+	enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata)
+	get() <-chan []receivedBlockMetadata
+	trackProcessed(amount int)
+	unprocessedLen() int
+	closeOnAllProcessed()
 }

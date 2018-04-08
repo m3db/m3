@@ -156,6 +156,14 @@ type Options interface {
 	// AdminClient returns the admin client
 	AdminClient() client.AdminClient
 
+	// SetRepairConsistencyLevel sets the repair read level consistency
+	// for which to repair shards with
+	SetRepairConsistencyLevel(value client.ReadConsistencyLevel) Options
+
+	// RepairConsistencyLevel returns the repair read level consistency
+	// for which to repair shards with
+	RepairConsistencyLevel() client.ReadConsistencyLevel
+
 	// SetRepairShardConcurrency sets the concurrency in which to repair shards with
 	SetRepairShardConcurrency(value int) Options
 

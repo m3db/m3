@@ -103,9 +103,10 @@ func testSetupMetadatas(
 	// Retrieve written data using the AdminSession APIs
 	// FetchMetadataBlocksFromPeers/FetchBlocksFromPeers
 	adminClient := testSetup.m3dbAdminClient
+	level := client.ReadConsistencyLevelMajority
 	version := client.FetchBlocksMetadataEndpointV2
 	metadatasByShard, err := m3dbClientFetchBlocksMetadata(adminClient,
-		namespace, testSetup.shardSet.AllIDs(), start, end, version)
+		namespace, testSetup.shardSet.AllIDs(), start, end, level, version)
 	require.NoError(t, err)
 	return metadatasByShard
 }

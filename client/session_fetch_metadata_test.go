@@ -33,14 +33,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testHostBlocks struct {
-	host   topology.Host
-	blocks block.BlocksMetadata
+type testHostBlock struct {
+	host  topology.Host
+	block block.Metadata
 }
 
-func TestPeerBlocksMetadataIter(t *testing.T) {
+func TestPeerBlockMetadataIter(t *testing.T) {
 	var (
-		inputCh = make(chan blocksMetadata)
+		inputCh = make(chan receivedBlockMetadata)
 		errCh   = make(chan error, 1)
 		err     = errors.New("foo")
 	)
@@ -50,16 +50,18 @@ func TestPeerBlocksMetadataIter(t *testing.T) {
 	now := time.Now()
 	checksums := []uint32{1, 2, 3}
 	lastRead := now.Add(-100 * time.Millisecond)
-	inputs := []blocksMetadata{
-		{peer: peer, id: ident.StringID("foo"), blocks: []blockMetadata{
-			{start: now, size: int64(1), checksum: &checksums[0]},
-			{start: now.Add(time.Second), size: int64(2), checksum: &checksums[1], lastRead: lastRead},
+	inputs := []receivedBlockMetadata{
+		{peer: peer, id: ident.StringID("foo"), block: blockMetadata{
+			start: now, size: int64(1), checksum: &checksums[0],
 		}},
-		{peer: peer, id: ident.StringID("bar"), blocks: []blockMetadata{
-			{start: now, size: int64(3), checksum: &checksums[2], lastRead: lastRead},
+		{peer: peer, id: ident.StringID("foo"), block: blockMetadata{
+			start: now.Add(time.Second), size: int64(2), checksum: &checksums[1], lastRead: lastRead,
 		}},
-		{peer: peer, id: ident.StringID("baz"), blocks: []blockMetadata{
-			{start: now, size: int64(4), checksum: nil, lastRead: lastRead},
+		{peer: peer, id: ident.StringID("bar"), block: blockMetadata{
+			start: now, size: int64(3), checksum: &checksums[2], lastRead: lastRead,
+		}},
+		{peer: peer, id: ident.StringID("baz"), block: blockMetadata{
+			start: now, size: int64(4), checksum: nil, lastRead: lastRead,
 		}},
 	}
 
@@ -71,44 +73,38 @@ func TestPeerBlocksMetadataIter(t *testing.T) {
 		close(inputCh)
 	}()
 
-	var actual []testHostBlocks
+	var actual []testHostBlock
 	it := newMetadataIter(inputCh, errCh)
 	for it.Next() {
-		host, blocks := it.Current()
-		var m []block.Metadata
-		for _, b := range blocks.Blocks {
-			m = append(m, block.NewMetadata(b.Start, b.Size, b.Checksum, b.LastRead))
-		}
-		actualBlocks := block.NewBlocksMetadata(blocks.ID, m)
-		actual = append(actual, testHostBlocks{host, actualBlocks})
+		host, curr := it.Current()
+		result := block.NewMetadata(curr.ID, curr.Start, curr.Size,
+			curr.Checksum, curr.LastRead)
+		actual = append(actual, testHostBlock{host, result})
 	}
 
-	expected := []testHostBlocks{
-		{h, block.NewBlocksMetadata(ident.StringID("foo"), []block.Metadata{
-			block.NewMetadata(inputs[0].blocks[0].start, inputs[0].blocks[0].size,
-				inputs[0].blocks[0].checksum, inputs[0].blocks[0].lastRead),
-			block.NewMetadata(inputs[0].blocks[1].start, inputs[0].blocks[1].size,
-				inputs[0].blocks[1].checksum, inputs[0].blocks[1].lastRead),
-		})},
-		{h, block.NewBlocksMetadata(ident.StringID("bar"), []block.Metadata{
-			block.NewMetadata(inputs[1].blocks[0].start, inputs[1].blocks[0].size,
-				inputs[1].blocks[0].checksum, inputs[1].blocks[0].lastRead),
-		})},
-		{h, block.NewBlocksMetadata(ident.StringID("baz"), []block.Metadata{
-			block.NewMetadata(inputs[2].blocks[0].start, inputs[2].blocks[0].size,
-				inputs[2].blocks[0].checksum, inputs[2].blocks[0].lastRead),
-		})},
+	expected := []testHostBlock{
+		{h, block.NewMetadata(ident.StringID("foo"),
+			inputs[0].block.start, inputs[0].block.size,
+			inputs[0].block.checksum, inputs[0].block.lastRead)},
+		{h, block.NewMetadata(ident.StringID("foo"),
+			inputs[1].block.start, inputs[1].block.size,
+			inputs[1].block.checksum, inputs[1].block.lastRead)},
+		{h, block.NewMetadata(ident.StringID("bar"),
+			inputs[2].block.start, inputs[2].block.size,
+			inputs[2].block.checksum, inputs[2].block.lastRead)},
+		{h, block.NewMetadata(ident.StringID("baz"),
+			inputs[3].block.start, inputs[3].block.size,
+			inputs[3].block.checksum, inputs[3].block.lastRead)},
 	}
 
 	require.Equal(t, len(expected), len(actual))
 	for i, expected := range expected {
 		actual := actual[i]
 		assert.Equal(t, expected.host.String(), actual.host.String())
-		assert.True(t, expected.blocks.ID.Equal(actual.blocks.ID))
-		require.Equal(t, len(expected.blocks.Blocks), len(actual.blocks.Blocks))
-		for j, expected := range expected.blocks.Blocks {
-			actual := actual.blocks.Blocks[j]
-			assert.Equal(t, expected, actual)
-		}
+		assert.True(t, expected.block.ID.Equal(actual.block.ID))
+		assert.True(t, expected.block.Start.Equal(actual.block.Start))
+		assert.Equal(t, expected.block.Size, actual.block.Size)
+		assert.Equal(t, expected.block.Checksum, actual.block.Checksum)
+		assert.True(t, expected.block.LastRead.Equal(actual.block.LastRead))
 	}
 }

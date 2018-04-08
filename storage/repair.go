@@ -119,7 +119,7 @@ func (r shardRepairer) Repair(
 	metadata.AddLocalMetadata(origin, localIter)
 
 	// Add peer metadata
-	level := client.ReadConsistencyLevelMajority
+	level := r.rpopts.RepairConsistencyLevel()
 	peerIter, err := session.FetchBlocksMetadataFromPeers(namespace, shard.ID(), start, end,
 		level, result.NewOptions(), client.FetchBlocksMetadataEndpointV2)
 	if err != nil {

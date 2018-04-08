@@ -66,7 +66,7 @@ const (
 	blocksMetadataInitialCapacity        = 64
 	blocksMetadataChannelInitialCapacity = 4096
 	gaugeReportInterval                  = 500 * time.Millisecond
-	blocksMetadataChBufSize              = 4096
+	blockMetadataChBufSize               = 4096
 )
 
 type resultTypeEnum string
@@ -167,6 +167,7 @@ type session struct {
 	fetchBatchSize                   int
 	newPeerBlocksQueueFn             newPeerBlocksQueueFn
 	reattemptStreamBlocksFromPeersFn reattemptStreamBlocksFromPeersFn
+	pickBestPeerFn                   pickBestPeerFn
 	origin                           topology.Host
 	streamBlocksMaxBlockRetries      int
 	streamBlocksWorkers              xsync.WorkerPool
@@ -217,6 +218,7 @@ type streamFromPeersMetrics struct {
 	metadataReceived           tally.Counter
 	fetchBlockSuccess          tally.Counter
 	fetchBlockError            tally.Counter
+	fetchBlockFullRetry        tally.Counter
 	fetchBlockFinalError       tally.Counter
 	fetchBlockRetriesReqError  tally.Counter
 	fetchBlockRetriesRespError tally.Counter
@@ -259,6 +261,7 @@ func newSession(opts Options) (clientSession, error) {
 		metrics:              newSessionMetrics(scope),
 	}
 	s.reattemptStreamBlocksFromPeersFn = s.streamBlocksReattemptFromPeers
+	s.pickBestPeerFn = s.streamBlocksPickBestPeer
 	writeAttemptPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.WriteOpPoolSize()).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
@@ -1316,21 +1319,18 @@ func (s *session) writeConsistencyAchieved(level topology.ConsistencyLevel, majo
 	switch level {
 	case topology.ConsistencyLevelAll:
 		if success == enqueued { // Meets all
-			break
+			return true
 		}
-		return false
 	case topology.ConsistencyLevelMajority:
 		if success >= majority { // Meets majority
-			break
+			return true
 		}
-		return false
 	case topology.ConsistencyLevelOne:
 		if success > 0 { // Meets one
-			break
+			return true
 		}
-		return false
 	}
-	return true
+	return false
 }
 
 func (s *session) readConsistencyResult(
@@ -1350,21 +1350,18 @@ func (s *session) readConsistencyAchieved(level ReadConsistencyLevel, majority, 
 	switch level {
 	case ReadConsistencyLevelAll:
 		if success == enqueued { // Meets all
-			break
+			return true
 		}
-		return false
 	case ReadConsistencyLevelMajority:
 		if success >= majority { // Meets majority
-			break
+			return true
 		}
-		return false
 	case ReadConsistencyLevelOne, ReadConsistencyLevelUnstrictMajority:
 		if success > 0 { // Meets one
-			break
+			return true
 		}
-		return false
 	}
-	return true
+	return false
 }
 
 func (s *session) Close() error {
@@ -1478,18 +1475,19 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	consistencyLevel ReadConsistencyLevel,
 	resultOpts result.Options,
 	version FetchBlocksMetadataEndpointVersion,
-) (PeerBlocksMetadataIter, error) {
+) (PeerBlockMetadataIter, error) {
 	peers, err := s.peersForShard(shard)
 	if err != nil {
 		return nil, err
 	}
 
 	var (
-		metadataCh = make(chan blocksMetadata, blocksMetadataChannelInitialCapacity)
-		errCh      = make(chan error, 1)
-		m          = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeMetadata)
+		metadataCh = make(chan receivedBlockMetadata,
+			blocksMetadataChannelInitialCapacity)
+		errCh = make(chan error, 1)
+		meta  = resultTypeMetadata
+		m     = s.newPeerMetadataStreamingProgressMetrics(shard, meta)
 	)
-
 	go func() {
 		errCh <- s.streamBlocksMetadataFromPeers(namespace, shard,
 			peers, start, end, consistencyLevel, metadataCh, resultOpts, m, version)
@@ -1543,7 +1541,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 
 	// Begin pulling metadata, if one or multiple peers fail no error will
 	// be returned from this routine as long as one peer succeeds completely
-	metadataCh := make(chan blocksMetadata, blocksMetadataChBufSize)
+	metadataCh := make(chan receivedBlockMetadata, blockMetadataChBufSize)
 	// Spin up a background goroutine which will begin streaming metadata from
 	// all the peers and pushing them into the metadatach
 	errCh := make(chan error, 1)
@@ -1558,18 +1556,8 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// not return an error and if anything goes wrong here we won't report it to
 	// the caller, but metrics and logs are emitted internally. Also note that the
 	// streamAndGroupCollectedBlocksMetadata function is injected.
-	var streamFn streamBlocksMetadataFn
-	switch version {
-	case FetchBlocksMetadataEndpointV1:
-		streamFn = s.streamAndGroupCollectedBlocksMetadata
-	case FetchBlocksMetadataEndpointV2:
-		streamFn = s.streamAndGroupCollectedBlocksMetadataV2
-	// Should never happen
-	default:
-		return nil, errInvalidFetchBlocksMetadataVersion
-	}
 	s.streamBlocksFromPeers(nsMetadata, shard, peers.peers, metadataCh,
-		opts, result, progress, streamFn)
+		opts, result, progress, s.streamAndGroupCollectedBlocksMetadata)
 
 	// Check if an error occurred during the metadata streaming
 	if err = <-errCh; err != nil {
@@ -1619,7 +1607,7 @@ func (s *session) FetchBlocksFromPeers(
 		progress.fetchBlocksFromPeers.Update(0)
 	}()
 
-	metadataCh := make(chan blocksMetadata, 4096)
+	metadataCh := make(chan receivedBlockMetadata, blockMetadataChBufSize)
 	go func() {
 		for _, rb := range metadatas {
 			peer, ok := peersByHost[rb.Host.ID()]
@@ -1631,16 +1619,14 @@ func (s *session) FetchBlocksFromPeers(
 				).Warnf("replica requested from unknown peer, skipping")
 				continue
 			}
-			metadataCh <- blocksMetadata{
+			metadataCh <- receivedBlockMetadata{
 				id:   rb.ID,
 				peer: peer,
-				blocks: []blockMetadata{
-					blockMetadata{
-						start:    rb.Start,
-						size:     rb.Size,
-						checksum: rb.Checksum,
-						lastRead: rb.LastRead,
-					},
+				block: blockMetadata{
+					start:    rb.Start,
+					size:     rb.Size,
+					checksum: rb.Checksum,
+					lastRead: rb.LastRead,
 				},
 			}
 		}
@@ -1650,7 +1636,7 @@ func (s *session) FetchBlocksFromPeers(
 	// Begin consuming metadata and making requests
 	go func() {
 		s.streamBlocksFromPeers(nsMetadata, shard, peers.peers, metadataCh,
-			opts, result, progress, s.passThruBlocksMetadata)
+			opts, result, progress, s.passThroughBlocksMetadata)
 		close(outputCh)
 		onDone(nil)
 	}()
@@ -1665,7 +1651,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 	peers peers,
 	start, end time.Time,
 	consistencyLevel ReadConsistencyLevel,
-	metadataCh chan<- blocksMetadata,
+	metadataCh chan<- receivedBlockMetadata,
 	resultOpts result.Options,
 	progress *streamFromPeersMetrics,
 	version FetchBlocksMetadataEndpointVersion,
@@ -1738,8 +1724,16 @@ func (s *session) streamBlocksMetadataFromPeers(
 				wg.Done()
 			}()
 
-			var currPageToken pageToken
+			var (
+				firstAttempt  = true
+				currPageToken pageToken
+			)
 			condition := func() bool {
+				if firstAttempt {
+					// Always attempt at least once
+					firstAttempt = false
+					return true
+				}
 				level := consistencyLevel
 				majority := int(majority)
 				enqueued := int(enqueued)
@@ -1801,7 +1795,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	peer peer,
 	start, end time.Time,
 	startPageToken pageToken,
-	ch chan<- blocksMetadata,
+	ch chan<- receivedBlockMetadata,
 	progress *streamFromPeersMetrics,
 ) (pageToken, error) {
 	var pageToken *int64
@@ -1874,22 +1868,27 @@ func (s *session) streamBlocksMetadataFromPeer(
 		}
 
 		for _, elem := range result.Elements {
-			blockMetas := make([]blockMetadata, 0, len(elem.Blocks))
+			blockID := ident.BinaryID(checked.NewBytes(elem.ID, nil))
 			for _, b := range elem.Blocks {
 				blockStart := time.Unix(0, b.Start)
 
 				// Error occurred retrieving block metadata, use default values
 				if b.Err != nil {
 					progress.metadataFetchBatchBlockErr.Inc(1)
-					blockMetas = append(blockMetas, blockMetadata{
-						start: blockStart,
-					})
 					s.log.WithFields(
 						xlog.NewField("shard", shard),
 						xlog.NewField("peer", peerStr),
 						xlog.NewField("block", blockStart),
 						xlog.NewField("error", err),
 					).Error("error occurred retrieving block metadata")
+					// Enqueue with a zerod checksum which cause a fanout fetch
+					ch <- receivedBlockMetadata{
+						peer: peer,
+						id:   blockID,
+						block: blockMetadata{
+							start: blockStart,
+						},
+					}
 					continue
 				}
 
@@ -1912,19 +1911,19 @@ func (s *session) streamBlocksMetadataFromPeer(
 					}
 				}
 
-				blockMetas = append(blockMetas, blockMetadata{
-					start:    blockStart,
-					size:     size,
-					checksum: pChecksum,
-					lastRead: lastRead,
-				})
+				ch <- receivedBlockMetadata{
+					peer: peer,
+					id:   blockID,
+					block: blockMetadata{
+						start:    blockStart,
+						size:     size,
+						checksum: pChecksum,
+						lastRead: lastRead,
+					},
+				}
+
 				// Only used for logs
 				metadataCountByBlock[xtime.ToUnixNano(blockStart)]++
-			}
-			ch <- blocksMetadata{
-				peer:   peer,
-				id:     ident.BinaryID(checked.NewBytes(elem.ID, nil)),
-				blocks: blockMetas,
 			}
 		}
 
@@ -1960,7 +1959,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 	peer peer,
 	start, end time.Time,
 	startPageToken pageToken,
-	metadataCh chan<- blocksMetadata,
+	metadataCh chan<- receivedBlockMetadata,
 	resultOpts result.Options,
 	progress *streamFromPeersMetrics,
 ) (pageToken, error) {
@@ -2046,19 +2045,20 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 			// Error occurred retrieving block metadata, use default values
 			if elem.Err != nil {
 				progress.metadataFetchBatchBlockErr.Inc(1)
-				metadataCh <- blocksMetadata{
-					peer: peer,
-					id:   clonedID,
-					blocks: []blockMetadata{
-						{start: blockStart},
-					},
-				}
 				s.log.WithFields(
 					xlog.NewField("shard", shard),
 					xlog.NewField("peer", peerStr),
 					xlog.NewField("block", blockStart),
 					xlog.NewField("error", err),
 				).Error("error occurred retrieving block metadata")
+				// Enqueue with a zerod checksum which cause a fanout fetch
+				metadataCh <- receivedBlockMetadata{
+					peer: peer,
+					id:   clonedID,
+					block: blockMetadata{
+						start: blockStart,
+					},
+				}
 				continue
 			}
 
@@ -2081,15 +2081,14 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 				}
 			}
 
-			metadataCh <- blocksMetadata{
+			metadataCh <- receivedBlockMetadata{
 				peer: peer,
 				id:   clonedID,
-				blocks: []blockMetadata{
-					{start: blockStart,
-						size:     size,
-						checksum: pChecksum,
-						lastRead: lastRead,
-					},
+				block: blockMetadata{
+					start:    blockStart,
+					size:     size,
+					checksum: pChecksum,
+					lastRead: lastRead,
 				},
 			}
 			// Only used for logs
@@ -2120,7 +2119,7 @@ func (s *session) streamBlocksFromPeers(
 	nsMetadata namespace.Metadata,
 	shard uint32,
 	peers []peer,
-	metadataCh <-chan blocksMetadata,
+	metadataCh <-chan receivedBlockMetadata,
 	opts result.Options,
 	result blocksResult,
 	progress *streamFromPeersMetrics,
@@ -2147,47 +2146,53 @@ func (s *session) streamBlocksFromPeers(
 		size := peerBlocksBatchSize
 		workers := s.streamBlocksWorkers
 		drainEvery := 100 * time.Millisecond
-		processFn := func(batch []*blocksMetadata) {
-			s.streamBlocksBatchFromPeer(
-				nsMetadata, shard, peer, batch, opts, result, enqueueCh, s.streamBlocksRetrier, progress)
-		}
-		queue := s.newPeerBlocksQueueFn(peer, size, drainEvery, workers, processFn)
+		queue := s.newPeerBlocksQueueFn(peer, size, drainEvery, workers,
+			func(batch []receivedBlockMetadata) {
+				s.streamBlocksBatchFromPeer(nsMetadata, shard, peer, batch, opts,
+					result, enqueueCh, s.streamBlocksRetrier, progress)
+			})
 		peerQueues = append(peerQueues, queue)
 	}
 
 	var (
-		currStart, currEligible []*blocksMetadata
-		blocksMetadataQueues    []blocksMetadataQueue
+		selected             []receivedBlockMetadata
+		pooled               selectPeersFromPerPeerBlockMetadatasPooledResources
+		onQueueItemProcessed = func() {
+			enqueueCh.trackProcessed(1)
+		}
 	)
 	for perPeerBlocksMetadata := range enqueueCh.get() {
 		// Filter and select which blocks to retrieve from which peers
-		s.selectBlocksForSeriesFromPeerBlocksMetadata(
-			perPeerBlocksMetadata, peerQueues,
-			currStart, currEligible, blocksMetadataQueues, progress)
+		selected, pooled = s.selectPeersFromPerPeerBlockMetadatas(
+			perPeerBlocksMetadata, peerQueues, enqueueCh,
+			pooled, progress)
 
-		// Insert work into peer queues
-		queues := uint32(blocksMetadatas(perPeerBlocksMetadata).hasBlocksLen())
-		if queues == 0 {
-			// No blocks at all available from any peers, series may have just expired
-			enqueueCh.trackProcessed(1)
+		if len(selected) == 0 {
+			onQueueItemProcessed()
 			continue
 		}
 
+		if len(selected) == 1 {
+			queue := peerQueues.findQueue(selected[0].peer)
+			queue.enqueue(selected[0], onQueueItemProcessed)
+			continue
+		}
+
+		// Need to fan out, only track this as processed once all peer
+		// queues have completed their fetches
+		peerQueueEnqueues := uint32(len(selected))
 		completed := uint32(0)
 		onDone := func() {
 			// Mark completion of work from the enqueue channel when all queues drained
-			if atomic.AddUint32(&completed, 1) != queues {
+			if atomic.AddUint32(&completed, 1) != peerQueueEnqueues {
 				return
 			}
 			enqueueCh.trackProcessed(1)
 		}
 
-		for _, peerBlocksMetadata := range perPeerBlocksMetadata {
-			if len(peerBlocksMetadata.blocks) == 0 {
-				continue // No blocks to enqueue
-			}
-			queue := peerQueues.findQueue(peerBlocksMetadata.peer)
-			queue.enqueue(peerBlocksMetadata, onDone)
+		for _, receivedBlockMetadata := range selected {
+			queue := peerQueues.findQueue(receivedBlockMetadata.peer)
+			queue.enqueue(receivedBlockMetadata, onDone)
 		}
 	}
 
@@ -2197,14 +2202,14 @@ func (s *session) streamBlocksFromPeers(
 
 type streamBlocksMetadataFn func(
 	peersLen int,
-	ch <-chan blocksMetadata,
-	enqueueCh *enqueueChannel,
+	ch <-chan receivedBlockMetadata,
+	enqueueCh enqueueChannel,
 )
 
-func (s *session) passThruBlocksMetadata(
+func (s *session) passThroughBlocksMetadata(
 	peersLen int,
-	ch <-chan blocksMetadata,
-	enqueueCh *enqueueChannel,
+	ch <-chan receivedBlockMetadata,
+	enqueueCh enqueueChannel,
 ) {
 	// Receive off of metadata channel
 	for {
@@ -2212,60 +2217,17 @@ func (s *session) passThruBlocksMetadata(
 		if !ok {
 			break
 		}
-		res := []*blocksMetadata{&m}
+		res := []receivedBlockMetadata{m}
 		enqueueCh.enqueue(res)
 	}
 }
 
 func (s *session) streamAndGroupCollectedBlocksMetadata(
 	peersLen int,
-	metadataCh <-chan blocksMetadata,
-	enqueueCh *enqueueChannel,
+	metadataCh <-chan receivedBlockMetadata,
+	enqueueCh enqueueChannel,
 ) {
-	metadata := make(map[ident.Hash]*receivedBlocks)
-
-	for {
-		m, ok := <-metadataCh
-		if !ok {
-			break
-		}
-
-		received, ok := metadata[m.id.Hash()]
-		if !ok {
-			received = &receivedBlocks{
-				results: make([]*blocksMetadata, 0, peersLen),
-			}
-			metadata[m.id.Hash()] = received
-		}
-
-		// Should never happen
-		if received.enqueued {
-			s.emitDuplicateMetadataLog(received, m)
-			continue
-		}
-		received.results = append(received.results, &m)
-
-		if len(received.results) == peersLen {
-			enqueueCh.enqueue(received.results)
-			received.enqueued = true
-		}
-	}
-
-	// Enqueue all unsubmitted received metadata
-	for _, received := range metadata {
-		if received.enqueued {
-			continue
-		}
-		enqueueCh.enqueue(received.results)
-	}
-}
-
-func (s *session) streamAndGroupCollectedBlocksMetadataV2(
-	peersLen int,
-	metadataCh <-chan blocksMetadata,
-	enqueueCh *enqueueChannel,
-) {
-	metadata := make(map[hashAndBlockStart]*receivedBlocks)
+	metadata := make(map[hashAndBlockStart]receivedBlocks)
 
 	for {
 		m, ok := <-metadataCh
@@ -2275,14 +2237,13 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 
 		key := hashAndBlockStart{
 			hash:       m.id.Hash(),
-			blockStart: m.blocks[0].start.UnixNano(),
+			blockStart: m.block.start.UnixNano(),
 		}
 		received, ok := metadata[key]
 		if !ok {
-			received = &receivedBlocks{
-				results: make([]*blocksMetadata, 0, peersLen),
+			received = receivedBlocks{
+				results: make([]receivedBlockMetadata, 0, peersLen),
 			}
-			metadata[key] = received
 		}
 
 		// The entry has already been enqueued which means the metadata we just
@@ -2305,10 +2266,10 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 		if existingIndex != -1 {
 			// If it is a duplicate, then overwrite it (always keep the most recent
 			// duplicate)
-			received.results[existingIndex] = &m
+			received.results[existingIndex] = m
 		} else {
 			// Otherwise it's not a duplicate, so its safe to append.
-			received.results = append(received.results, &m)
+			received.results = append(received.results, m)
 		}
 
 		// Since we always perform an overwrite instead of an append for duplicates
@@ -2319,6 +2280,9 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 			enqueueCh.enqueue(received.results)
 			received.enqueued = true
 		}
+
+		// Ensure tracking enqueued by setting modified result back to map
+		metadata[key] = received
 	}
 
 	// Enqueue all unenqueued received metadata. Note that these entries will have
@@ -2332,7 +2296,10 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 }
 
 // TODO(rartoul): Delete this when we delete the V1 code path
-func (s *session) emitDuplicateMetadataLog(received *receivedBlocks, metadata blocksMetadata) {
+func (s *session) emitDuplicateMetadataLog(
+	received receivedBlocks,
+	metadata receivedBlockMetadata,
+) {
 	fields := make([]xlog.Field, 0, len(received.results)+1)
 	fields = append(fields, xlog.NewField(
 		"incomingMetadata",
@@ -2345,14 +2312,17 @@ func (s *session) emitDuplicateMetadataLog(received *receivedBlocks, metadata bl
 		))
 	}
 	s.log.WithFields(fields...).Warnf(
-		"Received metadata, but peer metadata has already been submitted")
+		"received metadata, but peer metadata has already been submitted")
 }
 
 // emitDuplicateMetadataLogV2 emits a log with the details of the duplicate metadata
 // event. Note that we're unable to log the blocks themselves because they're contained
 // in a slice that is not safe for concurrent access (I.E logging them here would be
 // racey because other code could be modifying the slice)
-func (s *session) emitDuplicateMetadataLogV2(received *receivedBlocks, metadata blocksMetadata) {
+func (s *session) emitDuplicateMetadataLogV2(
+	received receivedBlocks,
+	metadata receivedBlockMetadata,
+) {
 	fields := make([]xlog.Field, 0, len(received.results)+1)
 	fields = append(fields, xlog.NewField(
 		"incomingMetadata",
@@ -2375,227 +2345,220 @@ func (s *session) emitDuplicateMetadataLogV2(received *receivedBlocks, metadata 
 	// Debug-level because this is a common enough occurrence that logging it by
 	// default would be noisy
 	s.log.WithFields(fields...).Debugf(
-		"Received metadata, but peer metadata has already been submitted")
+		"received metadata, but peer metadata has already been submitted")
 }
 
-func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
-	perPeerBlocksMetadata []*blocksMetadata,
+type pickBestPeerFn func(
+	perPeerBlockMetadata []receivedBlockMetadata,
 	peerQueues peerBlocksQueues,
-	pooledCurrStart, pooledCurrEligible []*blocksMetadata,
-	pooledBlocksMetadataQueues []blocksMetadataQueue,
-	m *streamFromPeersMetrics,
-) {
-	// Free any references the pool still has
-	for i := range pooledCurrStart {
-		pooledCurrStart[i] = nil
-	}
-	for i := range pooledCurrEligible {
-		pooledCurrEligible[i] = nil
-	}
-	var zeroed blocksMetadataQueue
-	for i := range pooledCurrEligible {
-		pooledBlocksMetadataQueues[i] = zeroed
-	}
+	resources pickBestPeerPooledResources,
+) (index int, pooled pickBestPeerPooledResources)
 
-	// Get references to pooled arrays
+type pickBestPeerPooledResources struct {
+	ranking []receivedBlockMetadataQueue
+}
+
+func (s *session) streamBlocksPickBestPeer(
+	perPeerBlockMetadata []receivedBlockMetadata,
+	peerQueues peerBlocksQueues,
+	pooled pickBestPeerPooledResources,
+) (int, pickBestPeerPooledResources) {
+	// Order by least attempts then by least outstanding blocks being fetched
+	pooled.ranking = pooled.ranking[:0]
+	for i := range perPeerBlockMetadata {
+		elem := receivedBlockMetadataQueue{
+			blockMetadata: perPeerBlockMetadata[i],
+			queue:         peerQueues.findQueue(perPeerBlockMetadata[i].peer),
+		}
+		pooled.ranking = append(pooled.ranking, elem)
+	}
+	elems := receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc(pooled.ranking)
+	sort.Stable(elems)
+
+	// Return index of the best peer
 	var (
-		currStart            = pooledCurrStart[:0]
-		currEligible         = pooledCurrEligible[:0]
-		blocksMetadataQueues = pooledBlocksMetadataQueues[:0]
+		bestPeer = pooled.ranking[0].queue.peer
+		idx      int
 	)
-
-	// Sort the per peer metadatas by peer ID for consistent results
-	sort.Sort(peerBlocksMetadataByID(perPeerBlocksMetadata))
-
-	// Sort the metadatas per peer by time and reset the selection index
-	for _, blocksMetadata := range perPeerBlocksMetadata {
-		sort.Sort(blockMetadatasByTime(blocksMetadata.blocks))
-		// Reset the selection index
-		blocksMetadata.idx = 0
-	}
-
-	// Select blocks from peers
-	for {
-		// Find the earliest start time
-		var earliestStart time.Time
-		for _, blocksMetadata := range perPeerBlocksMetadata {
-			if len(blocksMetadata.unselectedBlocks()) == 0 {
-				// No unselected blocks
-				continue
-			}
-			unselected := blocksMetadata.unselectedBlocks()
-			if earliestStart.IsZero() ||
-				unselected[0].start.Before(earliestStart) {
-				earliestStart = unselected[0].start
-			}
-		}
-
-		// Find all with the earliest start time,
-		// ordered by time so must be first of each
-		currStart = currStart[:0]
-		for _, blocksMetadata := range perPeerBlocksMetadata {
-			if len(blocksMetadata.unselectedBlocks()) == 0 {
-				// No unselected blocks
-				continue
-			}
-
-			unselected := blocksMetadata.unselectedBlocks()
-			if !unselected[0].start.Equal(earliestStart) {
-				// Not the same block
-				continue
-			}
-
-			currStart = append(currStart, blocksMetadata)
-		}
-
-		if len(currStart) == 0 {
-			// No more blocks to select from any peers
+	for i := range perPeerBlockMetadata {
+		if bestPeer == perPeerBlockMetadata[i].peer {
+			idx = i
 			break
 		}
+	}
+	return idx, pooled
+}
 
-		// Only select from peers not already attempted
-		currEligible = currStart[:]
-		currID := currStart[0].id
-		for i := len(currEligible) - 1; i >= 0; i-- {
-			unselected := currEligible[i].unselectedBlocks()
-			if unselected[0].reattempt.attempt == 0 {
-				// Not attempted yet
-				continue
-			}
+type selectPeersFromPerPeerBlockMetadatasPooledResources struct {
+	currEligible                []receivedBlockMetadata
+	result                      []receivedBlockMetadata
+	pickBestPeerPooledResources pickBestPeerPooledResources
+}
 
-			// Check if eligible
-			n := s.streamBlocksMaxBlockRetries
-			if unselected[0].reattempt.peerAttempts(currEligible[i].peer) >= n {
-				// Remove this block
-				currEligible[i].removeFirstUnselected()
-				// Swap current entry to tail
-				blocksMetadatas(currEligible).swap(i, len(currEligible)-1)
-				// Trim newly last entry
-				currEligible = currEligible[:len(currEligible)-1]
-				continue
-			}
-		}
+func (s *session) selectPeersFromPerPeerBlockMetadatas(
+	perPeerBlocksMetadata []receivedBlockMetadata,
+	peerQueues peerBlocksQueues,
+	reEnqueueCh enqueueChannel,
+	pooled selectPeersFromPerPeerBlockMetadatasPooledResources,
+	m *streamFromPeersMetrics,
+) ([]receivedBlockMetadata, selectPeersFromPerPeerBlockMetadatasPooledResources) {
+	// Get references to pooled array
+	pooled.currEligible = pooled.currEligible[:0]
+	for _, metadata := range perPeerBlocksMetadata {
+		pooled.currEligible = append(pooled.currEligible, metadata)
+	}
 
-		if len(currEligible) == 0 {
-			// No current eligible peers to select from, retry all of them again
-			currEligible = currStart[:]
+	currEligible := pooled.currEligible[:]
+
+	// Sort the per peer metadatas by peer ID for consistent results
+	sort.Sort(peerBlockMetadataByID(currEligible))
+
+
+	// Only select from peers not already attempted
+	currID := currEligible[0].id
+	currBlock := currEligible[0].block
+	for i := len(currEligible) - 1; i >= 0; i-- {
+		if currEligible[i].block.reattempt.attempt == 0 {
+			// Not attempted yet
 			continue
 		}
 
-		var (
-			singlePeer         = len(currEligible) == 1
-			sameNonNilChecksum = true
-			curChecksum        *uint32
-		)
-
-		for i := 0; i < len(currEligible); i++ {
-			unselected := currEligible[i].unselectedBlocks()
-			// If any peer has a nil checksum, this might be the most recent block
-			// and therefore not sealed so we want to merge from all peers
-			if unselected[0].checksum == nil {
-				sameNonNilChecksum = false
-				break
-			}
-			if curChecksum == nil {
-				curChecksum = unselected[0].checksum
-			} else if *curChecksum != *unselected[0].checksum {
-				sameNonNilChecksum = false
-				break
-			}
-		}
-
-		// If all the peers have the same non-nil checksum, we pick the peer with the
-		// fewest attempts and fewest outstanding requests
-		if singlePeer || sameNonNilChecksum {
-			// Prepare the reattempt peers metadata so we can retry from any of the peers on failure
-			peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currEligible))
-			for i := range currEligible {
-				unselected := currEligible[i].unselectedBlocks()
-				metadata := blockMetadataReattemptPeerMetadata{
-					peer:     currEligible[i].peer,
-					start:    unselected[0].start,
-					size:     unselected[0].size,
-					checksum: unselected[0].checksum,
-				}
-				peersMetadata = append(peersMetadata, metadata)
-			}
-
-			var bestPeer peer
-			if singlePeer {
-				bestPeer = currEligible[0].peer
-			} else {
-				// Order by least attempts then by least outstanding blocks being fetched
-				blocksMetadataQueues = blocksMetadataQueues[:0]
-				for i := range currEligible {
-					insert := blocksMetadataQueue{
-						blocksMetadata: currEligible[i],
-						queue:          peerQueues.findQueue(currEligible[i].peer),
-					}
-					blocksMetadataQueues = append(blocksMetadataQueues, insert)
-				}
-				sort.Stable(blocksMetadatasQueuesByAttemptsAscOutstandingAsc(blocksMetadataQueues))
-
-				// Select the best peer
-				bestPeer = blocksMetadataQueues[0].queue.peer
-			}
-
-			// Remove the block from all other peers and increment index for selected peer
-			for i := range currEligible {
-				peer := currEligible[i].peer
-				if peer != bestPeer {
-					currEligible[i].removeFirstUnselected()
-				} else {
-					// Select this block
-					idx := currEligible[i].idx
-					currEligible[i].idx = idx + 1
-
-					// Set the reattempt metadata
-					currEligible[i].blocks[idx].reattempt.id = currID
-					currEligible[i].blocks[idx].reattempt.attempt++
-					currEligible[i].blocks[idx].reattempt.attempted =
-						append(currEligible[i].blocks[idx].reattempt.attempted, peer)
-					currEligible[i].blocks[idx].reattempt.peersMetadata = peersMetadata
-				}
-			}
-		} else {
-			numPeers := int32(len(currEligible))
-			for i := range currEligible {
-				// Select this block
-				idx := currEligible[i].idx
-				currEligible[i].idx = idx + 1
-
-				// Set the reattempt metadata
-				// NB(xichen): each block will only be retried on the same peer because we
-				// already fan out the request to all peers. This means we merge data on
-				// a best-effort basis and only fail if we failed to read data from all peers.
-				peer := currEligible[i].peer
-				block := currEligible[i].blocks[idx]
-				currEligible[i].blocks[idx].reattempt.id = currID
-				currEligible[i].blocks[idx].reattempt.attempt++
-				currEligible[i].blocks[idx].reattempt.attempted =
-					append(currEligible[i].blocks[idx].reattempt.attempted, peer)
-				currEligible[i].blocks[idx].reattempt.failAllowed = &numPeers
-				currEligible[i].blocks[idx].reattempt.peersMetadata = []blockMetadataReattemptPeerMetadata{
-					{
-						peer:     peer,
-						start:    block.start,
-						size:     block.size,
-						checksum: block.checksum,
-					},
-				}
-			}
+		// Check if eligible
+		n := s.streamBlocksMaxBlockRetries
+		if currEligible[i].block.reattempt.peerAttempts(currEligible[i].peer) >= n {
+			// Swap current entry to tail
+			receivedBlockMetadatas(currEligible).swap(i, len(currEligible)-1)
+			// Trim newly last entry
+			currEligible = currEligible[:len(currEligible)-1]
+			continue
 		}
 	}
+
+	if len(currEligible) == 0 {
+		// No current eligible peers to select from
+		if currBlock.reattempt.failAllowed != nil && atomic.AddInt32(currBlock.reattempt.failAllowed, -1) > 0 {
+			// Some peers may still return results so we don't report
+			// error here, just skip considering this block
+			return nil, pooled
+		}
+
+		// Retry all of them again
+		errMsg := "all retries failed for streaming blocks from peers"
+		// err := fmt.Errorf(errMsg+": attempts=%d", currBlock.reattempt.attempt)
+		// reattemptReason := retriesExhaustedErrReason
+		// reattemptType := fullRetryReattemptType
+		// retryBlock := currBlock
+		// numPeers := int32(len(retryBlock.reattempt.fetchedPeersMetadata))
+		// retryBlock.reattempt.failAllowed = &numPeers
+		// s.reattemptStreamBlocksFromPeersFn([]blockMetadata{retryBlock}, reEnqueueCh,
+		// 	err, reattemptReason, reattemptType, m)
+
+		m.fetchBlockFinalError.Inc(1)
+		s.log.WithFields(
+			xlog.NewField("id", currID.String()),
+			xlog.NewField("start", currBlock.start.String()),
+			xlog.NewField("attempted", currBlock.reattempt.attempt),
+			xlog.NewField("attemptErrs", xerrors.Errors(currBlock.reattempt.errs).Error()),
+		).Error(errMsg)
+
+		return nil, pooled
+	}
+
+	var (
+		singlePeer         = len(currEligible) == 1
+		sameNonNilChecksum = true
+		curChecksum        *uint32
+	)
+	for i := range currEligible {
+		// If any peer has a nil checksum, this might be the most recent block
+		// and therefore not sealed so we want to merge from all peers
+		if currEligible[i].block.checksum == nil {
+			sameNonNilChecksum = false
+			break
+		}
+		if curChecksum == nil {
+			curChecksum = currEligible[i].block.checksum
+		} else if *curChecksum != *currEligible[i].block.checksum {
+			sameNonNilChecksum = false
+			break
+		}
+	}
+
+	// Prepare the reattempt peers metadata so we can retry from any of the peers on failure
+	peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currEligible))
+	for i := range currEligible {
+		metadata := blockMetadataReattemptPeerMetadata{
+			peer:     currEligible[i].peer,
+			start:    currEligible[i].block.start,
+			size:     currEligible[i].block.size,
+			checksum: currEligible[i].block.checksum,
+		}
+		peersMetadata = append(peersMetadata, metadata)
+	}
+
+	// If all the peers have the same non-nil checksum, we pick the peer with the
+	// fewest attempts and fewest outstanding requests
+	if singlePeer || sameNonNilChecksum {
+		var idx int
+		if singlePeer {
+			idx = 0
+		} else {
+			pooledResources := pooled.pickBestPeerPooledResources
+			idx, pooledResources = s.pickBestPeerFn(currEligible, peerQueues,
+				pooledResources)
+			pooled.pickBestPeerPooledResources = pooledResources
+		}
+
+		// Set the reattempt metadata
+		selected := currEligible[idx]
+		selected.block.reattempt.id = currID
+		selected.block.reattempt.attempt++
+		selected.block.reattempt.attempted =
+			append(selected.block.reattempt.attempted, selected.peer)
+		selected.block.reattempt.failAllowed = nil
+		selected.block.reattempt.retryPeersMetadata = peersMetadata
+		selected.block.reattempt.fetchedPeersMetadata = peersMetadata
+
+		// Return just the single peer we selected
+		currEligible = currEligible[:1]
+		currEligible[0] = selected
+	} else {
+		numPeers := int32(len(currEligible))
+		for i := range currEligible {
+			// Set the reattempt metadata
+			// NB(xichen): each block will only be retried on the same peer because we
+			// already fan out the request to all peers. This means we merge data on
+			// a best-effort basis and only fail if we failed to read data from all peers.
+			peer := currEligible[i].peer
+			block := currEligible[i].block
+			currEligible[i].block.reattempt.id = currID
+			currEligible[i].block.reattempt.attempt++
+			currEligible[i].block.reattempt.attempted =
+				append(currEligible[i].block.reattempt.attempted, peer)
+			currEligible[i].block.reattempt.failAllowed = &numPeers
+			currEligible[i].block.reattempt.retryPeersMetadata = []blockMetadataReattemptPeerMetadata{
+				{
+					peer:     peer,
+					start:    block.start,
+					size:     block.size,
+					checksum: block.checksum,
+				},
+			}
+			currEligible[i].block.reattempt.fetchedPeersMetadata = peersMetadata
+		}
+	}
+
+	return currEligible, pooled
 }
 
 func (s *session) streamBlocksBatchFromPeer(
 	namespaceMetadata namespace.Metadata,
 	shard uint32,
 	peer peer,
-	batch []*blocksMetadata,
+	batch []receivedBlockMetadata,
 	opts result.Options,
 	blocksResult blocksResult,
-	enqueueCh *enqueueChannel,
+	enqueueCh enqueueChannel,
 	retrier xretry.Retrier,
 	m *streamFromPeersMetrics,
 ) {
@@ -2603,7 +2566,7 @@ func (s *session) streamBlocksBatchFromPeer(
 	var (
 		req          = rpc.NewFetchBlocksRawRequest()
 		result       *rpc.FetchBlocksRawResult_
-		reqBlocksLen int64
+		reqBlocksLen uint
 
 		nowFn              = opts.ClockOptions().NowFn()
 		ropts              = namespaceMetadata.Options().RetentionOptions()
@@ -2613,22 +2576,21 @@ func (s *session) streamBlocksBatchFromPeer(
 	)
 	req.NameSpace = namespaceMetadata.ID().Data().Get()
 	req.Shard = int32(shard)
-	req.Elements = make([]*rpc.FetchBlocksRawRequestElement, len(batch))
+	req.Elements = make([]*rpc.FetchBlocksRawRequestElement, 0, len(batch))
 	for i := range batch {
-		starts := make([]int64, 0, len(batch[i].blocks))
-		sort.Sort(blockMetadatasByTime(batch[i].blocks))
-		for j := range batch[i].blocks {
-			blockStart := batch[i].blocks[j].start
-			if blockStart.Before(earliestBlockStart) {
-				continue // Fell out of retention while we were streaming blocks
-			}
-			starts = append(starts, blockStart.UnixNano())
+		blockStart := batch[i].block.start
+		if blockStart.Before(earliestBlockStart) {
+			continue // Fell out of retention while we were streaming blocks
 		}
-		reqBlocksLen += int64(len(starts))
-		req.Elements[i] = &rpc.FetchBlocksRawRequestElement{
+		req.Elements = append(req.Elements, &rpc.FetchBlocksRawRequestElement{
 			ID:     batch[i].id.Data().Get(),
-			Starts: starts,
-		}
+			Starts: []int64{blockStart.UnixNano()},
+		})
+		reqBlocksLen++
+	}
+	if reqBlocksLen == 0 {
+		// All blocks fell out of retention while streaming
+		return
 	}
 
 	// Attempt request
@@ -2652,11 +2614,9 @@ func (s *session) streamBlocksBatchFromPeer(
 			"stream blocks request error: error=%s, peer=%s",
 			err.Error(), peer.Host().String(),
 		)
-		for i := range batch {
-			b := batch[i].blocks
-			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, blocksErr, reqErrReason, m)
-		}
-		m.fetchBlockError.Inc(reqBlocksLen)
+		s.reattemptStreamBlocksFromPeersFn(batch, enqueueCh, blocksErr,
+			reqErrReason, nextRetryReattemptType, m)
+		m.fetchBlockError.Inc(int64(reqBlocksLen))
 		s.log.Debugf(blocksErr.Error())
 		return
 	}
@@ -2678,18 +2638,24 @@ func (s *session) streamBlocksBatchFromPeer(
 
 		id := batch[i].id
 		if !bytes.Equal(id.Data().Get(), result.Elements[i].ID) {
-			b := batch[i].blocks
 			blocksErr := fmt.Errorf(
 				"stream blocks mismatched ID: expectedID=%s, actualID=%s, indexID=%d, peer=%s",
 				batch[i].id.String(), id.String(), i, peer.Host().String(),
 			)
-			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, blocksErr, respErrReason, m)
+			b := []receivedBlockMetadata{batch[i]}
+			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, blocksErr,
+				respErrReason, nextRetryReattemptType, m)
 			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
 			s.log.Debugf(blocksErr.Error())
 			continue
 		}
 
-		missed := 0
+		if len(result.Elements[i].Blocks) == 0 {
+			// If fell out of retention during request this is healthy, otherwise
+			// missing blocks will be repaired during an active repair
+			continue
+		}
+
 		tooManyBlocksLogged := false
 		for j := range result.Elements[i].Blocks {
 			if j >= len(req.Elements[i].Starts) {
@@ -2707,15 +2673,7 @@ func (s *session) streamBlocksBatchFromPeer(
 				continue
 			}
 
-			// Index of the received block could be offset by missed blocks
-			block := result.Elements[i].Blocks[j-missed]
-
-			if block.Start != batch[i].blocks[j].start.UnixNano() {
-				// If fell out of retention during request this is healthy, otherwise
-				// missing blocks will be repaired during an active repair
-				missed++
-				continue
-			}
+			block := result.Elements[i].Blocks[j]
 
 			// Verify and if verify succeeds add the block from the peer
 			err := s.verifyFetchedBlock(block)
@@ -2724,12 +2682,13 @@ func (s *session) streamBlocksBatchFromPeer(
 			}
 
 			if err != nil {
-				failed := []blockMetadata{batch[i].blocks[j]}
+				failed := []receivedBlockMetadata{batch[i]}
 				blocksErr := fmt.Errorf(
 					"stream blocks bad block: id=%s, start=%d, error=%s, indexID=%d, indexBlock=%d, peer=%s",
 					id.String(), block.Start, err.Error(), i, j, peer.Host().String(),
 				)
-				s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, blocksErr, respErrReason, m)
+				s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, blocksErr,
+					respErrReason, nextRetryReattemptType, m)
 				m.fetchBlockError.Inc(1)
 				s.log.Debugf(blocksErr.Error())
 				continue
@@ -2776,21 +2735,31 @@ type reason int
 const (
 	reqErrReason reason = iota
 	respErrReason
+	retriesExhaustedErrReason
+)
+
+type reattemptType int
+
+const (
+	nextRetryReattemptType reattemptType = iota
+	fullRetryReattemptType
 )
 
 type reattemptStreamBlocksFromPeersFn func(
-	[]blockMetadata,
-	*enqueueChannel,
+	[]receivedBlockMetadata,
+	enqueueChannel,
 	error,
 	reason,
+	reattemptType,
 	*streamFromPeersMetrics,
 )
 
 func (s *session) streamBlocksReattemptFromPeers(
-	blocks []blockMetadata,
-	enqueueCh *enqueueChannel,
+	blocks []receivedBlockMetadata,
+	enqueueCh enqueueChannel,
 	attemptErr error,
 	reason reason,
+	reattemptType reattemptType,
 	m *streamFromPeersMetrics,
 ) {
 	switch reason {
@@ -2805,20 +2774,31 @@ func (s *session) streamBlocksReattemptFromPeers(
 	// getting done because new attempts are blocked on existing attempts completing
 	// and existing attempts are trying to enqueue into a full reattempt channel
 	enqueue := enqueueCh.enqueueDelayed(len(blocks))
-	go s.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr, enqueue)
+	go s.streamBlocksReattemptFromPeersEnqueue(blocks, attemptErr, reattemptType, enqueue)
 }
 
 func (s *session) streamBlocksReattemptFromPeersEnqueue(
-	blocks []blockMetadata,
+	blocks []receivedBlockMetadata,
 	attemptErr error,
-	enqueueFn func([]*blocksMetadata),
+	reattemptType reattemptType,
+	enqueueFn func([]receivedBlockMetadata),
 ) {
 	for i := range blocks {
+		var reattemptPeersMetadata []blockMetadataReattemptPeerMetadata
+		switch reattemptType {
+		case nextRetryReattemptType:
+			reattemptPeersMetadata = blocks[i].block.reattempt.retryPeersMetadata
+		case fullRetryReattemptType:
+			reattemptPeersMetadata = blocks[i].block.reattempt.fetchedPeersMetadata
+		}
+		if len(reattemptPeersMetadata) == 0 {
+			continue
+		}
+
 		// Reconstruct peers metadata for reattempt
-		reattemptBlocksMetadata :=
-			make([]*blocksMetadata, len(blocks[i].reattempt.peersMetadata))
-		for j := range reattemptBlocksMetadata {
-			reattempt := blocks[i].reattempt
+		reattemptBlocksMetadata := make([]receivedBlockMetadata, len(reattemptPeersMetadata))
+		for j := range reattemptPeersMetadata {
+			reattempt := blocks[i].block.reattempt
 
 			// Copy the errors for every peer so they don't shard the same error
 			// slice and therefore are not subject to race conditions when the
@@ -2828,17 +2808,16 @@ func (s *session) streamBlocksReattemptFromPeersEnqueue(
 			reattemptErrs[n] = attemptErr
 			reattempt.errs = reattemptErrs
 
-			reattemptBlocksMetadata[j] = &blocksMetadata{
-				peer: reattempt.peersMetadata[j].peer,
+			reattemptBlocksMetadata[j] = receivedBlockMetadata{
+				peer: reattemptPeersMetadata[j].peer,
 				id:   reattempt.id,
-				blocks: []blockMetadata{blockMetadata{
-					start:     reattempt.peersMetadata[j].start,
-					size:      reattempt.peersMetadata[j].size,
-					checksum:  reattempt.peersMetadata[j].checksum,
+				block: blockMetadata{
+					start:     reattemptPeersMetadata[j].start,
+					size:      reattemptPeersMetadata[j].size,
+					checksum:  reattemptPeersMetadata[j].checksum,
 					reattempt: reattempt,
-				}},
+				},
 			}
-
 		}
 		// Re-enqueue the block to be fetched
 		enqueueFn(reattemptBlocksMetadata)
@@ -3119,21 +3098,26 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 	return nil
 }
 
-type enqueueChannel struct {
-	enqueued        uint64
-	processed       uint64
-	peersMetadataCh chan []*blocksMetadata
-	closed          int64
-	metrics         *streamFromPeersMetrics
+type enqueueCh struct {
+	enqueued         uint64
+	processed        uint64
+	peersMetadataCh  chan []receivedBlockMetadata
+	closed           int64
+	enqueueDelayedFn func(peersMetadata []receivedBlockMetadata)
+	metrics          *streamFromPeersMetrics
 }
 
 const enqueueChannelDefaultLen = 32768
 
-func newEnqueueChannel(m *streamFromPeersMetrics) *enqueueChannel {
-	c := &enqueueChannel{
-		peersMetadataCh: make(chan []*blocksMetadata, enqueueChannelDefaultLen),
+func newEnqueueChannel(m *streamFromPeersMetrics) enqueueChannel {
+	c := &enqueueCh{
+		peersMetadataCh: make(chan []receivedBlockMetadata, enqueueChannelDefaultLen),
 		closed:          0,
 		metrics:         m,
+	}
+	// Allocate the enqueue delayed fn just once
+	c.enqueueDelayedFn = func(peersMetadata []receivedBlockMetadata) {
+		c.peersMetadataCh <- peersMetadata
 	}
 	go func() {
 		for atomic.LoadInt64(&c.closed) == 0 {
@@ -3144,31 +3128,29 @@ func newEnqueueChannel(m *streamFromPeersMetrics) *enqueueChannel {
 	return c
 }
 
-func (c *enqueueChannel) enqueue(peersMetadata []*blocksMetadata) {
+func (c *enqueueCh) enqueue(peersMetadata []receivedBlockMetadata) {
 	atomic.AddUint64(&c.enqueued, 1)
 	c.peersMetadataCh <- peersMetadata
 }
 
-func (c *enqueueChannel) enqueueDelayed(numToEnqueue int) func([]*blocksMetadata) {
+func (c *enqueueCh) enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata) {
 	atomic.AddUint64(&c.enqueued, uint64(numToEnqueue))
-	return func(peersMetadata []*blocksMetadata) {
-		c.peersMetadataCh <- peersMetadata
-	}
+	return c.enqueueDelayedFn
 }
 
-func (c *enqueueChannel) get() <-chan []*blocksMetadata {
+func (c *enqueueCh) get() <-chan []receivedBlockMetadata {
 	return c.peersMetadataCh
 }
 
-func (c *enqueueChannel) trackProcessed(amount int) {
+func (c *enqueueCh) trackProcessed(amount int) {
 	atomic.AddUint64(&c.processed, uint64(amount))
 }
 
-func (c *enqueueChannel) unprocessedLen() int {
+func (c *enqueueCh) unprocessedLen() int {
 	return int(atomic.LoadUint64(&c.enqueued) - atomic.LoadUint64(&c.processed))
 }
 
-func (c *enqueueChannel) closeOnAllProcessed() {
+func (c *enqueueCh) closeOnAllProcessed() {
 	defer func() {
 		atomic.StoreInt64(&c.closed, 1)
 	}()
@@ -3187,17 +3169,17 @@ func (c *enqueueChannel) closeOnAllProcessed() {
 
 type receivedBlocks struct {
 	enqueued bool
-	results  []*blocksMetadata
+	results  []receivedBlockMetadata
 }
 
-type processFn func(batch []*blocksMetadata)
+type processFn func(batch []receivedBlockMetadata)
 
 // peerBlocksQueue is a per peer queue of blocks to be retrieved from a peer
 type peerBlocksQueue struct {
 	sync.RWMutex
 	closed       bool
 	peer         peer
-	queue        []*blocksMetadata
+	queue        []receivedBlockMetadata
 	doneFns      []func()
 	assigned     uint64
 	completed    uint64
@@ -3260,22 +3242,22 @@ func (q *peerBlocksQueue) trackCompleted(amount int) {
 	atomic.AddUint64(&q.completed, uint64(amount))
 }
 
-func (q *peerBlocksQueue) enqueue(bm *blocksMetadata, doneFn func()) {
+func (q *peerBlocksQueue) enqueue(bl receivedBlockMetadata, doneFn func()) {
 	q.Lock()
 
 	if len(q.queue) == 0 && cap(q.queue) < q.maxQueueSize {
 		// Lazy initialize queue
-		q.queue = make([]*blocksMetadata, 0, q.maxQueueSize)
+		q.queue = make([]receivedBlockMetadata, 0, q.maxQueueSize)
 	}
 	if len(q.doneFns) == 0 && cap(q.doneFns) < q.maxQueueSize {
 		// Lazy initialize doneFns
 		q.doneFns = make([]func(), 0, q.maxQueueSize)
 	}
-	q.queue = append(q.queue, bm)
+	q.queue = append(q.queue, bl)
 	if doneFn != nil {
 		q.doneFns = append(q.doneFns, doneFn)
 	}
-	q.trackAssigned(len(bm.blocks))
+	q.trackAssigned(1)
 
 	// Determine if should drain immediately
 	if len(q.queue) < q.maxQueueSize {
@@ -3310,11 +3292,7 @@ func (q *peerBlocksQueue) drainWithLock() {
 			doneFns[i]()
 		}
 		// Track completed blocks
-		completed := 0
-		for i := range enqueued {
-			completed += len(enqueued[i].blocks)
-		}
-		q.trackCompleted(completed)
+		q.trackCompleted(len(enqueued))
 	})
 }
 
@@ -3335,72 +3313,42 @@ func (qs peerBlocksQueues) closeAll() {
 	}
 }
 
-type blocksMetadata struct {
-	peer peer
-	id   ident.ID
-	// TODO(rartoul): Make this not a slice once we delete the V1 code path
-	blocks []blockMetadata
-	idx    int
+type receivedBlockMetadata struct {
+	peer  peer
+	id    ident.ID
+	block blockMetadata
 }
 
-func (b blocksMetadata) unselectedBlocks() []blockMetadata {
-	if b.idx == len(b.blocks) {
-		return nil
-	}
-	return b.blocks[b.idx:]
-}
+type receivedBlockMetadatas []receivedBlockMetadata
 
-// removeFirstUnselected removes the first unselected block while maintaining
-// the original block order by shifting the blocks and overriding the block to
-// be removed
-func (b *blocksMetadata) removeFirstUnselected() {
-	blocksLen := len(b.blocks)
-	idx := b.idx
-	copy(b.blocks[idx:], b.blocks[idx+1:])
-	b.blocks = b.blocks[:blocksLen-1]
-}
+func (arr receivedBlockMetadatas) swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
 
-type blocksMetadatas []*blocksMetadata
+type peerBlockMetadataByID []receivedBlockMetadata
 
-func (arr blocksMetadatas) swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
-func (arr blocksMetadatas) hasBlocksLen() int {
-	count := 0
-	for i := range arr {
-		if arr[i] != nil && len(arr[i].blocks) > 0 {
-			count++
-		}
-	}
-	return count
-}
-
-type peerBlocksMetadataByID []*blocksMetadata
-
-func (arr peerBlocksMetadataByID) Len() int      { return len(arr) }
-func (arr peerBlocksMetadataByID) Swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
-func (arr peerBlocksMetadataByID) Less(i, j int) bool {
+func (arr peerBlockMetadataByID) Len() int      { return len(arr) }
+func (arr peerBlockMetadataByID) Swap(i, j int) { arr[i], arr[j] = arr[j], arr[i] }
+func (arr peerBlockMetadataByID) Less(i, j int) bool {
 	return strings.Compare(arr[i].peer.Host().ID(), arr[j].peer.Host().ID()) < 0
 }
 
-type blocksMetadataQueue struct {
-	blocksMetadata *blocksMetadata
-	queue          *peerBlocksQueue
+type receivedBlockMetadataQueue struct {
+	blockMetadata receivedBlockMetadata
+	queue         *peerBlocksQueue
 }
 
-type blocksMetadatasQueuesByAttemptsAscOutstandingAsc []blocksMetadataQueue
+type receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc []receivedBlockMetadataQueue
 
-func (arr blocksMetadatasQueuesByAttemptsAscOutstandingAsc) Len() int {
+func (arr receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc) Len() int {
 	return len(arr)
 }
-func (arr blocksMetadatasQueuesByAttemptsAscOutstandingAsc) Swap(i, j int) {
+func (arr receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc) Swap(i, j int) {
 	arr[i], arr[j] = arr[j], arr[i]
 }
-func (arr blocksMetadatasQueuesByAttemptsAscOutstandingAsc) Less(i, j int) bool {
+func (arr receivedBlockMetadataQueuesByAttemptsAscOutstandingAsc) Less(i, j int) bool {
 	peerI := arr[i].queue.peer
 	peerJ := arr[j].queue.peer
-	blocksI := arr[i].blocksMetadata.unselectedBlocks()
-	blocksJ := arr[j].blocksMetadata.unselectedBlocks()
-	attemptsI := blocksI[0].reattempt.peerAttempts(peerI)
-	attemptsJ := blocksJ[0].reattempt.peerAttempts(peerJ)
+	attemptsI := arr[i].blockMetadata.block.reattempt.peerAttempts(peerI)
+	attemptsJ := arr[j].blockMetadata.block.reattempt.peerAttempts(peerJ)
 	if attemptsI != attemptsJ {
 		return attemptsI < attemptsJ
 	}
@@ -3423,12 +3371,13 @@ type blockMetadata struct {
 }
 
 type blockMetadataReattempt struct {
-	attempt       int
-	failAllowed   *int32
-	id            ident.ID
-	attempted     []peer
-	errs          []error
-	peersMetadata []blockMetadataReattemptPeerMetadata
+	attempt              int
+	failAllowed          *int32
+	id                   ident.ID
+	attempted            []peer
+	errs                 []error
+	retryPeersMetadata   []blockMetadataReattemptPeerMetadata
+	fetchedPeersMetadata []blockMetadataReattemptPeerMetadata
 }
 
 type blockMetadataReattemptPeerMetadata struct {
@@ -3448,14 +3397,6 @@ func (b blockMetadataReattempt) peerAttempts(p peer) int {
 	return r
 }
 
-type blockMetadatasByTime []blockMetadata
-
-func (b blockMetadatasByTime) Len() int      { return len(b) }
-func (b blockMetadatasByTime) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
-func (b blockMetadatasByTime) Less(i, j int) bool {
-	return b[i].start.Before(b[j].start)
-}
-
 func newTimesByUnixNanos(values []int64) []time.Time {
 	result := make([]time.Time, len(values))
 	for i := range values {
@@ -3473,20 +3414,21 @@ func newTimesByRPCBlocks(values []*rpc.Block) []time.Time {
 }
 
 type metadataIter struct {
-	inputCh  <-chan blocksMetadata
+	inputCh  <-chan receivedBlockMetadata
 	errCh    <-chan error
 	host     topology.Host
-	blocks   []block.Metadata
-	metadata block.BlocksMetadata
+	metadata block.Metadata
 	done     bool
 	err      error
 }
 
-func newMetadataIter(inputCh <-chan blocksMetadata, errCh <-chan error) PeerBlocksMetadataIter {
+func newMetadataIter(
+	inputCh <-chan receivedBlockMetadata,
+	errCh <-chan error,
+) PeerBlockMetadataIter {
 	return &metadataIter{
 		inputCh: inputCh,
 		errCh:   errCh,
-		blocks:  make([]block.Metadata, 0, blocksMetadataInitialCapacity),
 	}
 }
 
@@ -3501,20 +3443,12 @@ func (it *metadataIter) Next() bool {
 		return false
 	}
 	it.host = m.peer.Host()
-	var zeroed block.Metadata
-	for i := range it.blocks {
-		it.blocks[i] = zeroed
-	}
-	it.blocks = it.blocks[:0]
-	for _, b := range m.blocks {
-		bm := block.NewMetadata(b.start, b.size, b.checksum, b.lastRead)
-		it.blocks = append(it.blocks, bm)
-	}
-	it.metadata = block.NewBlocksMetadata(m.id, it.blocks)
+	it.metadata = block.NewMetadata(m.id, m.block.start,
+		m.block.size, m.block.checksum, m.block.lastRead)
 	return true
 }
 
-func (it *metadataIter) Current() (topology.Host, block.BlocksMetadata) {
+func (it *metadataIter) Current() (topology.Host, block.Metadata) {
 	return it.host, it.metadata
 }
 

@@ -28,6 +28,7 @@ import (
 )
 
 const (
+	defaultRepairConsistencyLevel = client.ReadConsistencyLevelMajority
 	defaultRepairInterval         = 2 * time.Hour
 	defaultRepairTimeOffset       = 30 * time.Minute
 	defaultRepairTimeJitter       = time.Hour
@@ -52,6 +53,7 @@ var (
 
 type options struct {
 	adminClient                client.AdminClient
+	repairConsistencyLevel     client.ReadConsistencyLevel
 	repairShardConcurrency     int
 	repairInterval             time.Duration
 	repairTimeOffset           time.Duration
@@ -65,6 +67,7 @@ type options struct {
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
+		repairConsistencyLevel:     defaultRepairConsistencyLevel,
 		repairShardConcurrency:     defaultRepairShardConcurrency,
 		repairInterval:             defaultRepairInterval,
 		repairTimeOffset:           defaultRepairTimeOffset,
@@ -84,6 +87,16 @@ func (o *options) SetAdminClient(value client.AdminClient) Options {
 
 func (o *options) AdminClient() client.AdminClient {
 	return o.adminClient
+}
+
+func (o *options) SetRepairConsistencyLevel(value client.ReadConsistencyLevel) Options {
+	opts := *o
+	opts.repairConsistencyLevel = value
+	return &opts
+}
+
+func (o *options) RepairConsistencyLevel() client.ReadConsistencyLevel {
+	return o.repairConsistencyLevel
 }
 
 func (o *options) SetRepairShardConcurrency(value int) Options {
