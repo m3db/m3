@@ -359,6 +359,12 @@ func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) (xio.Segm
 	)
 
 	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
+		if err != nil {
+			// Something already went wrong and we want to return the error to the caller
+			// as soon as possible instead of continuing to do work.
+			return
+		}
+
 		if !bucket.canRead() {
 			return
 		}
@@ -367,9 +373,12 @@ func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) (xio.Segm
 			return
 		}
 
-		// We need to merge all the bootstrapped blocks / encoders into a single stream for the sake
-		// of being able to persist it to disk as a single encoded stream.
-		bucket.merge()
+		// We need to merge all the bootstrapped blocks / encoders into a single stream for
+		// the sake of being able to persist it to disk as a single encoded stream.
+		_, err = bucket.merge()
+		if err != nil {
+			return
+		}
 
 		// This operation is safe because all of the underlying resources will respect the
 		// lifecycle of the context in one way or another. The "bootstrapped blocks" that
