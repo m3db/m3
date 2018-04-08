@@ -124,7 +124,7 @@ type ReplicaMetadataComparer interface {
 	AddLocalMetadata(origin topology.Host, localIter block.FilteredBlocksMetadataIter)
 
 	// AddPeerMetadata adds metadata from peers
-	AddPeerMetadata(peerIter client.PeerBlocksMetadataIter) error
+	AddPeerMetadata(peerIter client.PeerBlockMetadataIter) error
 
 	// Compare returns the metadata differences between local host and peers
 	Compare() MetadataComparisonResult

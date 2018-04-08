@@ -215,24 +215,22 @@ func m3dbClientFetchBlocksMetadata(
 		}
 
 		for iter.Next() {
-			host, blocksMetadata := iter.Current()
-			idHash := blocksMetadata.ID.Hash()
+			host, blockMetadata := iter.Current()
+			idHash := blockMetadata.ID.Hash()
 			seenBlocks, ok := seen[idHash]
 			if !ok {
 				seenBlocks = make(map[xtime.UnixNano]struct{})
 				seen[idHash] = seenBlocks
 			}
-			for _, blockMetadata := range blocksMetadata.Blocks {
-				if _, ok := seenBlocks[xtime.ToUnixNano(blockMetadata.Start)]; ok {
-					continue // Already seen
-				}
-				seenBlocks[xtime.ToUnixNano(blockMetadata.Start)] = struct{}{}
-				metadatas = append(metadatas, block.ReplicaMetadata{
-					Metadata: blockMetadata,
-					Host:     host,
-					ID:       blocksMetadata.ID,
-				})
+			if _, ok := seenBlocks[xtime.ToUnixNano(blockMetadata.Start)]; ok {
+				continue // Already seen
 			}
+			seenBlocks[xtime.ToUnixNano(blockMetadata.Start)] = struct{}{}
+			metadatas = append(metadatas, block.ReplicaMetadata{
+				Metadata: blockMetadata,
+				Host:     host,
+				ID:       blockMetadata.ID,
+			})
 		}
 		if err := iter.Err(); err != nil {
 			return nil, err

@@ -181,17 +181,15 @@ func (m replicaMetadataComparer) AddLocalMetadata(origin topology.Host, localIte
 	}
 }
 
-func (m replicaMetadataComparer) AddPeerMetadata(peerIter client.PeerBlocksMetadataIter) error {
+func (m replicaMetadataComparer) AddPeerMetadata(peerIter client.PeerBlockMetadataIter) error {
 	for peerIter.Next() {
-		peer, peerBlocks := peerIter.Current()
-		blocks := m.metadata.GetOrAdd(peerBlocks.ID)
-		for _, pb := range peerBlocks.Blocks {
-			blocks.GetOrAdd(pb.Start, m.hostBlockMetadataSlicePool).Add(HostBlockMetadata{
-				Host:     peer,
-				Size:     pb.Size,
-				Checksum: pb.Checksum,
-			})
-		}
+		peer, peerBlock := peerIter.Current()
+		blocks := m.metadata.GetOrAdd(peerBlock.ID)
+		blocks.GetOrAdd(peerBlock.Start, m.hostBlockMetadataSlicePool).Add(HostBlockMetadata{
+			Host:     peer,
+			Size:     peerBlock.Size,
+			Checksum: peerBlock.Checksum,
+		})
 	}
 
 	return peerIter.Err()
