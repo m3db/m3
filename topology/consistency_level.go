@@ -50,13 +50,13 @@ const (
 func (l ConsistencyLevel) String() string {
 	switch l {
 	case consistencyLevelNone:
-		return "none"
+		return none
 	case ConsistencyLevelOne:
-		return "one"
+		return one
 	case ConsistencyLevelMajority:
-		return "majority"
+		return majority
 	case ConsistencyLevelAll:
-		return "all"
+		return all
 	}
 	return unknown
 }
@@ -116,15 +116,15 @@ const (
 func (l ConnectConsistencyLevel) String() string {
 	switch l {
 	case ConnectConsistencyLevelAny:
-		return "any"
+		return any
 	case ConnectConsistencyLevelNone:
-		return "none"
+		return none
 	case ConnectConsistencyLevelOne:
-		return "one"
+		return one
 	case ConnectConsistencyLevelMajority:
-		return "majority"
+		return majority
 	case ConnectConsistencyLevelAll:
-		return "all"
+		return all
 	}
 	return unknown
 }
@@ -186,15 +186,15 @@ const (
 func (l ReadConsistencyLevel) String() string {
 	switch l {
 	case ReadConsistencyLevelNone:
-		return "none"
+		return none
 	case ReadConsistencyLevelOne:
-		return "one"
+		return one
 	case ReadConsistencyLevelUnstrictMajority:
-		return "unstrict_majority"
+		return unstrictMajority
 	case ReadConsistencyLevelMajority:
-		return "majority"
+		return majority
 	case ReadConsistencyLevelAll:
-		return "all"
+		return all
 	}
 	return unknown
 }
@@ -230,6 +230,14 @@ func (l *ReadConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) 
 		str, strings.Join(strs, ", "))
 }
 
-// unknown string constant, required to fix lint complaining about
+// string constants, required to fix lint complaining about
 // multiple occurrences of same literal string...
-const unknown = "unknown"
+const (
+	unknown          = "unknown"
+	any              = "any"
+	all              = "all"
+	one              = "one"
+	none             = "none"
+	majority         = "majority"
+	unstrictMajority = "unstrict_majority"
+)
