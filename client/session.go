@@ -63,7 +63,6 @@ import (
 
 const (
 	clusterConnectWaitInterval           = 10 * time.Millisecond
-	blocksMetadataInitialCapacity        = 64
 	blocksMetadataChannelInitialCapacity = 4096
 	gaugeReportInterval                  = 500 * time.Millisecond
 	blockMetadataChBufSize               = 4096
