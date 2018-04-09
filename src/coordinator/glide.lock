@@ -1,5 +1,5 @@
-hash: 4abf5684d59b5d5123fbc52379d0f117180fde3124e61d8f42d59137c46388e0
-updated: 2018-03-11T03:07:17.000334-04:00
+hash: c8e0ba912adfa001b1599d6a346615bf40942fc29be60579967a744f4c00a13f
+updated: 2018-04-06T13:32:04.563600706-04:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -11,6 +11,12 @@ imports:
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
   - lib/go/thrift
+- name: github.com/beorn7/perks
+  version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
+  subpackages:
+  - quantile
+- name: github.com/cespare/xxhash
+  version: 48099fad606eafc26e3a569fad19ff510fff4df6
 - name: github.com/coreos/etcd
   version: 694728c496e22dfa5719c78ff23cc982e15bcb2f
   subpackages:
@@ -30,10 +36,19 @@ imports:
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/glycerine/go-unsnap-stream
   version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
+- name: github.com/go-kit/kit
+  version: 91c58cc7d6d770b0285fdd69949a23d817a57d13
+  subpackages:
+  - log
+  - log/level
+- name: github.com/go-logfmt/logfmt
+  version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
 - name: github.com/go-ole/go-ole
   version: a41e3c4b706f6ae8dfbff342b06e40fa4d2d0506
   subpackages:
   - oleutil
+- name: github.com/go-stack/stack
+  version: 259ab82a6cad3992b4e21ff5cac294ccb06474bc
 - name: github.com/gogo/protobuf
   version: 100ba4e885062801d56799d78530b73b178a78f3
   subpackages:
@@ -41,7 +56,7 @@ imports:
   - proto
   - protoc-gen-gogo/descriptor
 - name: github.com/golang/mock
-  version: 13f360950a79f5864a972c786a10a50e44b69541
+  version: c34cdb4725f4c3844d095133c6e40e448b86589b
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
@@ -59,6 +74,8 @@ imports:
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
   version: 53c1911da2b537f792e7cafcb446b05ffe33b996
+- name: github.com/kr/logfmt
+  version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/m3db/m3cluster
   version: ac52883b085bacbfa8441c511342d429772c8317
   subpackages:
@@ -142,8 +159,16 @@ imports:
   - watch
 - name: github.com/m3db/stackadler32
   version: bfebcd73ef6ffe0ee30489227f0330c39064b674
+- name: github.com/matttproud/golang_protobuf_extensions
+  version: c12348ce28de40eed0136aa2b644d0ee0650e56c
+  subpackages:
+  - pbutil
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
+- name: github.com/nightlyone/lockfile
+  version: 6a197d5ea61168f2ac821de2b7f011b250904900
+- name: github.com/oklog/ulid
+  version: 7e1bd8a9a281b5abdf651a430b918bb0ecdbceda
 - name: github.com/opentracing/opentracing-go
   version: 855519783f479520497c6b3445611b05fc42f009
   subpackages:
@@ -152,16 +177,55 @@ imports:
   version: e790cca94e6cc75c7064b1332e63811d4aae1a53
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
+- name: github.com/pkg/errors
+  version: 816c9085562cd7ee03e7f8188a1cfd942858cded
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
+- name: github.com/prometheus/client_golang
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+  subpackages:
+  - prometheus
+- name: github.com/prometheus/client_model
+  version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
+  subpackages:
+  - go
+- name: github.com/prometheus/common
+  version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
+  subpackages:
+  - expfmt
+  - internal/bitbucket.org/ww/goautoneg
+  - model
+- name: github.com/prometheus/procfs
+  version: 1878d9fbb537119d24b21ca07effd591627cd160
+- name: github.com/prometheus/prometheus
+  version: 998dfcbac689ae832ea64ca134fcb096f61a7f62
+  subpackages:
+  - pkg/labels
+  - pkg/textparse
+  - pkg/timestamp
+  - pkg/value
+  - promql
+  - storage
+  - storage/tsdb
+  - util/stats
+  - util/strutil
+  - util/testutil
+- name: github.com/prometheus/tsdb
+  version: bd832fc8274e8fe63999ac749daaaff9d881241f
+  subpackages:
+  - chunkenc
+  - chunks
+  - fileutil
+  - index
+  - labels
 - name: github.com/RoaringBitmap/roaring
   version: 4bbba8874933b985c9160558fddea525dde73e63
 - name: github.com/shirou/gopsutil
-  version: 5776ff9c7c5d063d574ef53d740f75c68b448e53
+  version: fc04d2dd9a512906a2604242b35275179e250eda
   subpackages:
   - cpu
   - host
