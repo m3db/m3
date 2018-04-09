@@ -46,6 +46,7 @@ metalint: install-metalinter install-linter-badtime
 .PHONY: install-licence-bin
 install-license-bin: install-vendor
 	@echo Installing node modules
+	git submodule update --init --recursive
 	[ -d $(license_node_modules) ] || (cd $(license_dir) && npm install)
 
 .PHONY: install-mockgen
