@@ -8,9 +8,11 @@ Peer streaming is managed by the M3DB client.  It fetches all blocks from peers 
 2. Compares metadata from different peers and determines the best peer(s) from which to stream the actual data
 3. Streams the block data from peers
 
-Steps 1, 2 and 3 all happen concurrently.  As metadata streams in, we begin determining which peer is the best source to stream a given block's data for a given series from, and then we begin streaming data from that peer while we continue to receive metadata.
+Steps 1, 2 and 3 all happen concurrently.  As metadata streams in, we begin determining which peer is the best source to stream a given block's data for a given series from, and then we begin streaming data from that peer while we continue to receive metadata.  If the checksum for a given series block matches all three replicas then the least loaded (in terms of outstanding requests) and recently attempted will be selected to stream from.  If the checksum differs for the series block across any of the peers then a fanout fetch of the series block is performed.
 
-In terms of error handling, if an error occurs during the metadata streaming portion for all peers, then the client will return an error. However, if something goes wrong during the data streaming portion, it will not return an error, and the function will just return as much data as it can from the peers available.  This is to combat a disaster scenario where a lot of network or load based errors occur and read availability is desired.  This in the future will be configurable so users can decide on which type of behavior they would prefer.
+In terms of error handling, the client will respect the consistency level specified for bootstrap.  This means that when fetching metadata, indefinite retry is performed until the consistency level is achieved, for instance for quorum a majority of peers must successfully return metadata.  For fetching the block data, if checksum matches from all peers then one successful fetch must occur, unless bootstrap consistency level "none" is specified, and if checksum mismatches then the specified consistency level must be achieved when the series block fetch is fanned out to peers.  Fetching block data as well will indefinitely retry until the consistency level is achieved.
+
+The client supports dynamically changing the bootstrap consistency level, which is helfpul in disaster scenarios where the consistency level cannot be achieved.  To break the indefinite streaming attempt an operator can change the consistency level to "none" and a purely best-effort will be made to fetch the metadata and correspondingly to fetch the block data.
 
 The diagram below depicts the control flow and concurrency (goroutines and channels) in detail:
 
@@ -24,7 +26,7 @@ The diagram below depicts the control flow and concurrency (goroutines and chann
                                      │
                 ┌────────────────────┘
                 │
-                ▼  
+                ▼
 ┌───────────────────────────────┐
 │         Main routine          │
 │                               │
@@ -55,24 +57,24 @@ The diagram below depicts the control flow and concurrency (goroutines and chann
                 │          │              into metadataCh              │
                 │          └───────────────────────────────────────────┘
                 ▼
-┌───────────────────────────────────────────┐                        
-│           StreamBlocksFromPeers           │                        
-│                                           │                        
-│ 1) Create a background goroutine (details │                        
-│               to the right)               │                        
-│                                           │                        
-│ 2) Create a queue per-peer which each have│                        
-│   their own internal goroutine and will   │                        
-│   stream blocks back per-series from a    │──────────┐             
-│              specific peer.               │          │             
-│                                           │          │             
+┌───────────────────────────────────────────┐
+│           StreamBlocksFromPeers           │
+│                                           │
+│ 1) Create a background goroutine (details │
+│               to the right)               │
+│                                           │
+│ 2) Create a queue per-peer which each have│
+│   their own internal goroutine and will   │
+│   stream blocks back per-series from a    │──────────┐
+│              specific peer.               │          │
+│                                           │          │
 │ 3) Loop through the enqueCh and pick an   │ Creates with metadataCh
-│appropriate peer(s) for each series (based │     and enqueueCh      
-│on whether all the peers have the same data│          │             
-│ or not) and then put that into the queue  │          │             
-│for that peer so the data will be streamed │          │             
-└───────────────────────────────────────────┘          │             
-                │                                      ▼             
+│appropriate peer(s) for each series (based │     and enqueueCh
+│on whether all the peers have the same data│          │
+│ or not) and then put that into the queue  │          │
+│for that peer so the data will be streamed │          │
+└───────────────────────────────────────────┘          │
+                │                                      ▼
                 │    ┌──────────────────────────────────────────────────────────┐
                 │    │   streamAndGroupCollectedBlocksMetadata (injected via    │
                 │    │                streamMetadataFn variable)                │
@@ -86,9 +88,9 @@ The diagram below depicts the control flow and concurrency (goroutines and chann
                 │    │(that we received from less than N peers) into the enqueCh│
                 │    │                         as well.                         │
                 │    └──────────────────────────────────────────────────────────┘
-                │              
-          For each peer        
-                │              
+                │
+          For each peer
+                │
    ┌────────────┼─────────────┐
    │            │             │
    │            │             │

@@ -1763,7 +1763,12 @@ func (s *session) streamBlocksMetadataFromPeers(
 			}()
 
 			var (
-				firstAttempt  = true
+				firstAttempt = true
+				// NB(r): currPageToken keeps the position into the pagination of the
+				// metadata from this peer, it begins as nil but if an error is
+				// returned it will likely not be nil, this lets us restart fetching
+				// if we need to (if consistency has not been achieved yet) without
+				// losing place in the pagination.
 				currPageToken pageToken
 			)
 			condition := func() bool {
@@ -1824,6 +1829,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 // pageToken is just an opaque type that needs to be downcasted to expected
 // page token type, this makes it easy to use the page token across the two
 // versions
+// TODO(r): Delete this once we delete the V1 code path
 type pageToken interface{}
 
 // TODO(rartoul): Delete this once we delete the V1 code path
@@ -2549,18 +2555,6 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 		}
 	}
 
-	// Prepare the reattempt peers metadata so we can retry from any of the peers on failure
-	peersMetadata := make([]blockMetadataReattemptPeerMetadata, 0, len(currEligible))
-	for i := range currEligible {
-		metadata := blockMetadataReattemptPeerMetadata{
-			peer:     currEligible[i].peer,
-			start:    currEligible[i].block.start,
-			size:     currEligible[i].block.size,
-			checksum: currEligible[i].block.checksum,
-		}
-		peersMetadata = append(peersMetadata, metadata)
-	}
-
 	// If all the peers have the same non-nil checksum, we pick the peer with the
 	// fewest attempts and fewest outstanding requests
 	if singlePeer || sameNonNilChecksum {
@@ -2581,8 +2575,8 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 		selected.block.reattempt.attempted =
 			append(selected.block.reattempt.attempted, selected.peer)
 		selected.block.reattempt.fanoutFetchState = nil
-		selected.block.reattempt.retryPeersMetadata = peersMetadata
-		selected.block.reattempt.fetchedPeersMetadata = peersMetadata
+		selected.block.reattempt.retryPeersMetadata = perPeerBlocksMetadata
+		selected.block.reattempt.fetchedPeersMetadata = perPeerBlocksMetadata
 
 		// Return just the single peer we selected
 		currEligible = currEligible[:1]
@@ -2595,22 +2589,21 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 			// already fan out the request to all peers. This means we merge data on
 			// a best-effort basis and only fail if we failed to reach the desired
 			// consistency level when reading data from all peers.
-			peer := currEligible[i].peer
-			block := currEligible[i].block
+			var retryFrom []receivedBlockMetadata
+			for j := range perPeerBlocksMetadata {
+				if currEligible[i].peer == perPeerBlocksMetadata[j].peer {
+					// NB(r): Take a ref to a subslice from the originally passed
+					// slice as that is not mutated, whereas currEligible is reused
+					retryFrom = perPeerBlocksMetadata[j : j+1]
+				}
+			}
 			currEligible[i].block.reattempt.id = currID
 			currEligible[i].block.reattempt.attempt++
 			currEligible[i].block.reattempt.attempted =
-				append(currEligible[i].block.reattempt.attempted, peer)
+				append(currEligible[i].block.reattempt.attempted, currEligible[i].peer)
 			currEligible[i].block.reattempt.fanoutFetchState = fanoutFetchState
-			currEligible[i].block.reattempt.retryPeersMetadata = []blockMetadataReattemptPeerMetadata{
-				{
-					peer:     peer,
-					start:    block.start,
-					size:     block.size,
-					checksum: block.checksum,
-				},
-			}
-			currEligible[i].block.reattempt.fetchedPeersMetadata = peersMetadata
+			currEligible[i].block.reattempt.retryPeersMetadata = retryFrom
+			currEligible[i].block.reattempt.fetchedPeersMetadata = perPeerBlocksMetadata
 		}
 	}
 
@@ -2708,8 +2701,8 @@ func (s *session) streamBlocksBatchFromPeer(
 				"stream blocks mismatched ID: expectedID=%s, actualID=%s, indexID=%d, peer=%s",
 				batch[i].id.String(), id.String(), i, peer.Host().String(),
 			)
-			b := []receivedBlockMetadata{batch[i]}
-			s.reattemptStreamBlocksFromPeersFn(b, enqueueCh, blocksErr,
+			failed := []receivedBlockMetadata{batch[i]}
+			s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, blocksErr,
 				respErrReason, nextRetryReattemptType, m)
 			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
 			s.log.Debugf(blocksErr.Error())
@@ -2722,24 +2715,41 @@ func (s *session) streamBlocksBatchFromPeer(
 			continue
 		}
 
-		tooManyBlocksLogged := false
-		for j := range result.Elements[i].Blocks {
-			if j >= len(req.Elements[i].Starts) {
+		// We only ever fetch a single block for a series
+		if len(result.Elements[i].Blocks) != 1 {
+			errMsg := "stream blocks returned more blocks than expected"
+			blocksErr := fmt.Errorf(errMsg+": expected=%d, actual=%d",
+				1, len(result.Elements[i].Blocks))
+			failed := []receivedBlockMetadata{batch[i]}
+			s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, blocksErr,
+				respErrReason, nextRetryReattemptType, m)
+			m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
+			s.log.WithFields(
+				xlog.NewField("id", id.String()),
+				xlog.NewField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
+				xlog.NewField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
+				xlog.NewField("peer", peer.Host().String()),
+			).Errorf(errMsg)
+			continue
+		}
+
+		for j, block := range result.Elements[i].Blocks {
+			if block.Start != batch[i].block.start.UnixNano() {
+				errMsg := "stream blocks returned different blocks than expected"
+				blocksErr := fmt.Errorf(errMsg+": expected=%s, actual=%d",
+					batch[i].block.start.String(), time.Unix(0, block.Start).String())
+				failed := []receivedBlockMetadata{batch[i]}
+				s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, blocksErr,
+					respErrReason, nextRetryReattemptType, m)
 				m.fetchBlockError.Inc(int64(len(req.Elements[i].Starts)))
-				m.fetchBlockFinalError.Inc(int64(len(req.Elements[i].Starts)))
-				if !tooManyBlocksLogged {
-					tooManyBlocksLogged = true
-					s.log.WithFields(
-						xlog.NewField("id", id.String()),
-						xlog.NewField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
-						xlog.NewField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
-						xlog.NewField("peer", peer.Host().String()),
-					).Errorf("stream blocks returned more blocks than expected")
-				}
+				s.log.WithFields(
+					xlog.NewField("id", id.String()),
+					xlog.NewField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
+					xlog.NewField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
+					xlog.NewField("peer", peer.Host().String()),
+				).Errorf(errMsg)
 				continue
 			}
-
-			block := result.Elements[i].Blocks[j]
 
 			// Verify and if verify succeeds add the block from the peer
 			err := s.verifyFetchedBlock(block)
@@ -2757,8 +2767,7 @@ func (s *session) streamBlocksBatchFromPeer(
 				failed := []receivedBlockMetadata{batch[i]}
 				blocksErr := fmt.Errorf(
 					"stream blocks bad block: id=%s, start=%d, error=%s, indexID=%d, indexBlock=%d, peer=%s",
-					id.String(), block.Start, err.Error(), i, j, peer.Host().String(),
-				)
+					id.String(), block.Start, err.Error(), i, j, peer.Host().String())
 				s.reattemptStreamBlocksFromPeersFn(failed, enqueueCh, blocksErr,
 					respErrReason, nextRetryReattemptType, m)
 				m.fetchBlockError.Inc(1)
@@ -2858,7 +2867,7 @@ func (s *session) streamBlocksReattemptFromPeersEnqueue(
 	enqueueFn func([]receivedBlockMetadata),
 ) {
 	for i := range blocks {
-		var reattemptPeersMetadata []blockMetadataReattemptPeerMetadata
+		var reattemptPeersMetadata []receivedBlockMetadata
 		switch reattemptType {
 		case nextRetryReattemptType:
 			reattemptPeersMetadata = blocks[i].block.reattempt.retryPeersMetadata
@@ -2886,14 +2895,16 @@ func (s *session) streamBlocksReattemptFromPeersEnqueue(
 				peer: reattemptPeersMetadata[j].peer,
 				id:   reattempt.id,
 				block: blockMetadata{
-					start:     reattemptPeersMetadata[j].start,
-					size:      reattemptPeersMetadata[j].size,
-					checksum:  reattemptPeersMetadata[j].checksum,
+					start:     reattemptPeersMetadata[j].block.start,
+					size:      reattemptPeersMetadata[j].block.size,
+					checksum:  reattemptPeersMetadata[j].block.checksum,
 					reattempt: reattempt,
 				},
 			}
 		}
-		// Re-enqueue the block to be fetched
+
+		// Re-enqueue the block to be fetched from all peers requested
+		// to reattempt from
 		enqueueFn(reattemptBlocksMetadata)
 	}
 }
@@ -3454,8 +3465,8 @@ type blockMetadataReattempt struct {
 	id                   ident.ID
 	attempted            []peer
 	errs                 []error
-	retryPeersMetadata   []blockMetadataReattemptPeerMetadata
-	fetchedPeersMetadata []blockMetadataReattemptPeerMetadata
+	retryPeersMetadata   []receivedBlockMetadata
+	fetchedPeersMetadata []receivedBlockMetadata
 }
 
 type blockFanoutFetchState struct {
@@ -3481,13 +3492,6 @@ func (s *blockFanoutFetchState) incrementSuccess() {
 
 func (s *blockFanoutFetchState) decrementAndReturnPending() int {
 	return int(atomic.AddInt32(&s.numPending, -1))
-}
-
-type blockMetadataReattemptPeerMetadata struct {
-	peer     peer
-	start    time.Time
-	size     int64
-	checksum *uint32
 }
 
 func (b blockMetadataReattempt) peerAttempts(p peer) int {

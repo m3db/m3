@@ -1194,8 +1194,8 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 				block: blockMetadata{
 					start: start, size: 2, reattempt: blockMetadataReattempt{
 						id: fooID,
-						retryPeersMetadata: []blockMetadataReattemptPeerMetadata{
-							{start: start, size: 2},
+						retryPeersMetadata: []receivedBlockMetadata{
+							{block: blockMetadata{start: start, size: 2}},
 						},
 					},
 				}},
@@ -1204,8 +1204,8 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 				block: blockMetadata{
 					start: start, size: 2, reattempt: blockMetadataReattempt{
 						id: barID,
-						retryPeersMetadata: []blockMetadataReattemptPeerMetadata{
-							{start: start, size: 2},
+						retryPeersMetadata: []receivedBlockMetadata{
+							{block: blockMetadata{start: start, size: 2}},
 						},
 					},
 				}},
@@ -1282,8 +1282,8 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 				block: blockMetadata{
 					start: start, size: rawBlockLen, reattempt: blockMetadataReattempt{
 						id: fooID,
-						retryPeersMetadata: []blockMetadataReattemptPeerMetadata{
-							{start: start, size: rawBlockLen, checksum: &blockChecksum},
+						retryPeersMetadata: []receivedBlockMetadata{
+							{block: blockMetadata{start: start, size: rawBlockLen, checksum: &blockChecksum}},
 						},
 					},
 				},
@@ -1293,8 +1293,8 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 				block: blockMetadata{
 					start: start, size: rawBlockLen, reattempt: blockMetadataReattempt{
 						id: barID,
-						retryPeersMetadata: []blockMetadataReattemptPeerMetadata{
-							{start: start, size: rawBlockLen, checksum: &blockChecksum},
+						retryPeersMetadata: []receivedBlockMetadata{
+							{block: blockMetadata{start: start, size: rawBlockLen, checksum: &blockChecksum}},
 						},
 					},
 				},
@@ -1304,8 +1304,8 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 				block: blockMetadata{
 					start: start.Add(blockSize), size: rawBlockLen, reattempt: blockMetadataReattempt{
 						id: barID,
-						retryPeersMetadata: []blockMetadataReattemptPeerMetadata{
-							{start: start.Add(blockSize), size: rawBlockLen, checksum: &blockChecksum},
+						retryPeersMetadata: []receivedBlockMetadata{
+							{block: blockMetadata{start: start.Add(blockSize), size: rawBlockLen, checksum: &blockChecksum}},
 						},
 					},
 				},
@@ -1426,8 +1426,8 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 				block: blockMetadata{
 					start: start, size: rawBlockLen, reattempt: blockMetadataReattempt{
 						id: fooID,
-						retryPeersMetadata: []blockMetadataReattemptPeerMetadata{
-							{start: start, size: rawBlockLen, checksum: &blockChecksum},
+						retryPeersMetadata: []receivedBlockMetadata{
+							{block: blockMetadata{start: start, size: rawBlockLen, checksum: &blockChecksum}},
 						},
 					},
 				},
@@ -1437,8 +1437,8 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 				block: blockMetadata{
 					start: start, size: rawBlockLen, reattempt: blockMetadataReattempt{
 						id: barID,
-						retryPeersMetadata: []blockMetadataReattemptPeerMetadata{
-							{start: start, size: rawBlockLen, checksum: &blockChecksum},
+						retryPeersMetadata: []receivedBlockMetadata{
+							{block: blockMetadata{start: start, size: rawBlockLen, checksum: &blockChecksum}},
 						},
 					},
 				},
@@ -1448,8 +1448,8 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 				block: blockMetadata{
 					start: start.Add(blockSize), size: rawBlockLen, reattempt: blockMetadataReattempt{
 						id: barID,
-						retryPeersMetadata: []blockMetadataReattemptPeerMetadata{
-							{start: start.Add(blockSize), size: rawBlockLen, checksum: &blockChecksum},
+						retryPeersMetadata: []receivedBlockMetadata{
+							{block: blockMetadata{start: start.Add(blockSize), size: rawBlockLen, checksum: &blockChecksum}},
 						},
 					},
 				},
