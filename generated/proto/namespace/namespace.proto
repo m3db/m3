@@ -13,7 +13,7 @@ message RetentionOptions {
 message NamespaceOptions {
     bool bootstrapEnabled      	= 1;
     bool flushEnabled          	= 2;
-    bool writesToCommitLog   	= 3;
+    bool writesToCommitLog      = 3;
     bool cleanupEnabled         = 4;
     bool repairEnabled          = 5;
 
