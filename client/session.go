@@ -378,6 +378,7 @@ func (s *session) newPeerMetadataStreamingProgressMetrics(
 		fetchBlockSuccess:          scope.Counter("fetch-block-success"),
 		fetchBlockError:            scope.Counter("fetch-block-error"),
 		fetchBlockFinalError:       scope.Counter("fetch-block-final-error"),
+		fetchBlockFullRetry:        scope.Counter("fetch-block-full-retry"),
 		fetchBlockRetriesReqError: scope.Tagged(map[string]string{
 			"reason": "request-error",
 		}).Counter("fetch-block-retries"),
@@ -2583,7 +2584,6 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 
 		// Set the reattempt metadata
 		selected := currEligible[idx]
-		selected.block.reattempt.id = currID
 		selected.block.reattempt.attempt++
 		selected.block.reattempt.attempted =
 			append(selected.block.reattempt.attempted, selected.peer)
@@ -2610,7 +2610,6 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 					retryFrom = perPeerBlocksMetadata[j : j+1]
 				}
 			}
-			currEligible[i].block.reattempt.id = currID
 			currEligible[i].block.reattempt.attempt++
 			currEligible[i].block.reattempt.attempted =
 				append(currEligible[i].block.reattempt.attempted, currEligible[i].peer)
@@ -2894,19 +2893,25 @@ func (s *session) streamBlocksReattemptFromPeersEnqueue(
 		// Reconstruct peers metadata for reattempt
 		reattemptBlocksMetadata := make([]receivedBlockMetadata, len(reattemptPeersMetadata))
 		for j := range reattemptPeersMetadata {
-			reattempt := blocks[i].block.reattempt
+			var reattempt blockMetadataReattempt
+			if reattemptType == nextRetryReattemptType {
+				// Only if a default type of retry do we want to actually want
+				// to set all the retry metadata, otherwise this re-enqueued metadata
+				// should start fresh
+				reattempt = blocks[i].block.reattempt
 
-			// Copy the errors for every peer so they don't shard the same error
-			// slice and therefore are not subject to race conditions when the
-			// error slice is modified
-			reattemptErrs := make([]error, len(reattempt.errs)+1)
-			n := copy(reattemptErrs, reattempt.errs)
-			reattemptErrs[n] = attemptErr
-			reattempt.errs = reattemptErrs
+				// Copy the errors for every peer so they don't shard the same error
+				// slice and therefore are not subject to race conditions when the
+				// error slice is modified
+				reattemptErrs := make([]error, len(reattempt.errs)+1)
+				n := copy(reattemptErrs, reattempt.errs)
+				reattemptErrs[n] = attemptErr
+				reattempt.errs = reattemptErrs
+			}
 
 			reattemptBlocksMetadata[j] = receivedBlockMetadata{
 				peer: reattemptPeersMetadata[j].peer,
-				id:   reattempt.id,
+				id:   blocks[i].id,
 				block: blockMetadata{
 					start:     reattemptPeersMetadata[j].block.start,
 					size:      reattemptPeersMetadata[j].block.size,
@@ -3475,7 +3480,6 @@ type blockMetadata struct {
 type blockMetadataReattempt struct {
 	attempt              int
 	fanoutFetchState     *blockFanoutFetchState
-	id                   ident.ID
 	attempted            []peer
 	errs                 []error
 	retryPeersMetadata   []receivedBlockMetadata

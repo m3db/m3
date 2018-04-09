@@ -756,7 +756,7 @@ func testBlocksToBlockReplicasMetadata(
 	return blockReplicas
 }
 
-func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T) {
+func TestSelectPeersFromPerPeerBlockMetadatasAllPeersSucceed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -814,7 +814,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T
 	assert.Equal(t, []peer{peerA}, selected[0].block.reattempt.attempted)
 }
 
-func TestSelectBlocksForSeriesFromPeerBlocksMetadataSelectAllOnDifferingChecksums(t *testing.T) {
+func TestSelectPeersFromPerPeerBlockMetadatasSelectAllOnDifferingChecksums(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -880,7 +880,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataSelectAllOnDifferingChecksum
 	}
 }
 
-func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeSinglePeer(t *testing.T) {
+func TestSelectPeersFromPerPeerBlockMetadatasTakeSinglePeer(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -932,7 +932,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeSinglePeer(t *testing.T)
 	assert.Equal(t, []peer{peerA}, selected[0].block.reattempt.attempted)
 }
 
-func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemptedPeers(t *testing.T) {
+func TestSelectPeersFromPerPeerBlockMetadatasAvoidsReattemptingFromAttemptedPeers(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -957,7 +957,6 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 		checksum  = uint32(2)
 		reattempt = blockMetadataReattempt{
 			attempt:   1,
-			id:        fooID,
 			attempted: []peer{peerA},
 		}
 		perPeer = []receivedBlockMetadata{
@@ -1012,7 +1011,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 	}, selected[0].block.reattempt.attempted)
 }
 
-func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidRetryWithLevelNone(t *testing.T) {
+func TestSelectPeersFromPerPeerBlockMetadatasAvoidRetryWithLevelNone(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -1041,7 +1040,6 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidRetryWithLevelNone(t *t
 		// attempted
 		reattempt = blockMetadataReattempt{
 			attempt:   3,
-			id:        fooID,
 			attempted: []peer{peerA, peerB, peerC},
 			errs:      []error{fmt.Errorf("errA"), fmt.Errorf("errB"), fmt.Errorf("errC")},
 		}
@@ -1081,7 +1079,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidRetryWithLevelNone(t *t
 	require.Equal(t, 0, len(selected))
 }
 
-func TestSelectBlocksForSeriesFromPeerBlocksMetadataPerformsRetries(t *testing.T) {
+func TestSelectPeersFromPerPeerBlockMetadatasPerformsRetries(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -1112,7 +1110,6 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataPerformsRetries(t *testing.T
 		// blocks count for peer A much higher than peer B.
 		reattempt = blockMetadataReattempt{
 			attempt:   3,
-			id:        fooID,
 			attempted: []peer{peerA, peerB, peerA},
 		}
 		perPeer = []receivedBlockMetadata{
@@ -1154,6 +1151,135 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataPerformsRetries(t *testing.T
 	}, selected[0].block.reattempt.attempted)
 }
 
+func TestSelectPeersFromPerPeerBlockMetadatasRetryOnFanoutConsistencyLevelFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions().
+		SetFetchSeriesBlocksMaxBlockRetries(0).
+		SetBootstrapConsistencyLevel(topology.ReadConsistencyLevelMajority)
+	s, err := newSession(opts)
+	require.NoError(t, err)
+	session := s.(*session)
+
+	var (
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
+		peerA            = NewMockpeer(ctrl)
+		peerB            = NewMockpeer(ctrl)
+		peerC            = NewMockpeer(ctrl)
+		peers            = preparedMockPeers(peerA, peerB, peerC)
+		enqueueCh        = NewMockenqueueChannel(ctrl)
+		peerBlocksQueues = mockPeerBlocksQueues(peers, opts)
+	)
+	defer peerBlocksQueues.closeAll()
+
+	var (
+		start     = timeZero
+		checksums = []uint32{1, 2, 3}
+		// This simulates a fanout fetch where the first peer A has returned successfully
+		// and then retries are enqueued and processed for reselection for peer B and peer C
+		// which eventually satisfies another fanout retry once processed.
+		fanoutFetchState = &blockFanoutFetchState{numPending: 2, numSuccess: 1}
+		initialPerPeer   = []receivedBlockMetadata{
+			{
+				peer: peerA,
+				id:   fooID,
+				block: blockMetadata{
+					start: start, size: 2, checksum: &checksums[0],
+				},
+			},
+			{
+				peer: peerB,
+				id:   fooID,
+				block: blockMetadata{
+					start: start, size: 2, checksum: &checksums[1],
+				},
+			},
+			{
+				peer: peerC,
+				id:   fooID,
+				block: blockMetadata{
+					start: start, size: 2, checksum: &checksums[2],
+				},
+			},
+		}
+		firstRetry = []receivedBlockMetadata{
+			{
+				peer: peerB,
+				id:   fooID,
+				block: blockMetadata{
+					start: start, size: 2, checksum: &checksums[1], reattempt: blockMetadataReattempt{
+						attempt:              1,
+						fanoutFetchState:     fanoutFetchState,
+						attempted:            []peer{peerB},
+						fetchedPeersMetadata: initialPerPeer,
+					},
+				},
+			},
+		}
+		secondRetry = []receivedBlockMetadata{
+			{
+				peer: peerC,
+				id:   fooID,
+				block: blockMetadata{
+					start: start, size: 2, checksum: &checksums[2], reattempt: blockMetadataReattempt{
+						attempt:              1,
+						fanoutFetchState:     fanoutFetchState,
+						attempted:            []peer{peerC},
+						fetchedPeersMetadata: initialPerPeer,
+					},
+				},
+			},
+		}
+		pooled = selectPeersFromPerPeerBlockMetadatasPooledResources{}
+	)
+
+	// Perform first selection
+	selected, _ := session.selectPeersFromPerPeerBlockMetadatas(
+		firstRetry, peerBlocksQueues, enqueueCh,
+		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		testPeers(peers), pooled, metrics)
+
+	// Assert selection
+	require.Equal(t, 0, len(selected))
+
+	// Before second selection expect the re-enqueue of the block
+	var wg sync.WaitGroup
+	wg.Add(1)
+	enqueueCh.EXPECT().
+		enqueueDelayed(1).
+		Return(func(reEnqueuedPerPeer []receivedBlockMetadata) {
+			defer wg.Done()
+
+			assert.Equal(t, len(initialPerPeer), len(reEnqueuedPerPeer))
+			for i := range reEnqueuedPerPeer {
+				expected := initialPerPeer[i]
+				actual := reEnqueuedPerPeer[i]
+
+				assert.True(t, expected.id.Equal(actual.id))
+				assert.Equal(t, expected.peer, actual.peer)
+				assert.Equal(t, expected.block.start, actual.block.start)
+				assert.Equal(t, expected.block.size, actual.block.size)
+				assert.Equal(t, expected.block.checksum, actual.block.checksum)
+
+				// Ensure no reattempt data is attached
+				assert.Equal(t, blockMetadataReattempt{}, actual.block.reattempt)
+			}
+		})
+
+	// Perform second selection
+	selected, _ = session.selectPeersFromPerPeerBlockMetadatas(
+		secondRetry, peerBlocksQueues, enqueueCh,
+		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		testPeers(peers), pooled, metrics)
+
+	// Assert selection
+	require.Equal(t, 0, len(selected))
+
+	// Wait for re-enqueue of the block
+	wg.Wait()
+}
+
 func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1193,7 +1319,6 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 				id: fooID,
 				block: blockMetadata{
 					start: start, size: 2, reattempt: blockMetadataReattempt{
-						id: fooID,
 						retryPeersMetadata: []receivedBlockMetadata{
 							{block: blockMetadata{start: start, size: 2}},
 						},
@@ -1203,7 +1328,6 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 				id: barID,
 				block: blockMetadata{
 					start: start, size: 2, reattempt: blockMetadataReattempt{
-						id: barID,
 						retryPeersMetadata: []receivedBlockMetadata{
 							{block: blockMetadata{start: start, size: 2}},
 						},
@@ -1281,7 +1405,6 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 				id: fooID,
 				block: blockMetadata{
 					start: start, size: rawBlockLen, reattempt: blockMetadataReattempt{
-						id: fooID,
 						retryPeersMetadata: []receivedBlockMetadata{
 							{block: blockMetadata{start: start, size: rawBlockLen, checksum: &blockChecksum}},
 						},
@@ -1292,7 +1415,6 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 				id: barID,
 				block: blockMetadata{
 					start: start, size: rawBlockLen, reattempt: blockMetadataReattempt{
-						id: barID,
 						retryPeersMetadata: []receivedBlockMetadata{
 							{block: blockMetadata{start: start, size: rawBlockLen, checksum: &blockChecksum}},
 						},
@@ -1303,7 +1425,6 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 				id: barID,
 				block: blockMetadata{
 					start: start.Add(blockSize), size: rawBlockLen, reattempt: blockMetadataReattempt{
-						id: barID,
 						retryPeersMetadata: []receivedBlockMetadata{
 							{block: blockMetadata{start: start.Add(blockSize), size: rawBlockLen, checksum: &blockChecksum}},
 						},
@@ -1425,7 +1546,6 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 				id: fooID,
 				block: blockMetadata{
 					start: start, size: rawBlockLen, reattempt: blockMetadataReattempt{
-						id: fooID,
 						retryPeersMetadata: []receivedBlockMetadata{
 							{block: blockMetadata{start: start, size: rawBlockLen, checksum: &blockChecksum}},
 						},
@@ -1436,7 +1556,6 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 				id: barID,
 				block: blockMetadata{
 					start: start, size: rawBlockLen, reattempt: blockMetadataReattempt{
-						id: barID,
 						retryPeersMetadata: []receivedBlockMetadata{
 							{block: blockMetadata{start: start, size: rawBlockLen, checksum: &blockChecksum}},
 						},
@@ -1447,7 +1566,6 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 				id: barID,
 				block: blockMetadata{
 					start: start.Add(blockSize), size: rawBlockLen, reattempt: blockMetadataReattempt{
-						id: barID,
 						retryPeersMetadata: []receivedBlockMetadata{
 							{block: blockMetadata{start: start.Add(blockSize), size: rawBlockLen, checksum: &blockChecksum}},
 						},
@@ -2342,7 +2460,6 @@ func assertEnqueueChannel(
 		}
 
 		elem := perPeerBlocksMetadata[0]
-		assert.True(t, elem.id.Equal(elem.block.reattempt.id))
 		distinct = append(distinct, elem)
 	}
 
@@ -2352,8 +2469,7 @@ func assertEnqueueChannel(
 		for _, actual := range distinct {
 			found := expected.id.Equal(actual.id) &&
 				expected.block.start.Equal(actual.block.start) &&
-				expected.block.size == actual.block.size &&
-				expected.block.reattempt.id.Equal(actual.block.reattempt.id)
+				expected.block.size == actual.block.size
 			if found {
 				matched[i] = true
 				continue
