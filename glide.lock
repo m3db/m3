@@ -1,5 +1,5 @@
-hash: c2c4f60d79e0c9ce63e1c764f14ca3bf0fdb442f243c703ec7a52b2b91848293
-updated: 2018-03-16T15:01:38.097571-04:00
+hash: 14c637d70e38596b97cdb3456f18025bdff775492d0c15ae29a6a71a050a7580
+updated: 2018-04-09T14:47:49.878778-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -55,6 +55,7 @@ imports:
   - pkg/adt
   - pkg/contention
   - pkg/cors
+  - pkg/cpuutil
   - pkg/crc
   - pkg/debugutil
   - pkg/fileutil
@@ -116,7 +117,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/golang/mock
-  version: 13f360950a79f5864a972c786a10a50e44b69541
+  version: c34cdb4725f4c3844d095133c6e40e448b86589b
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
@@ -199,8 +200,9 @@ imports:
   subpackages:
   - doc
   - index/segment
+  - index/segment/mem
 - name: github.com/m3db/m3x
-  version: ccc166c69ed74d144e82cbea9496771882d503cf
+  version: 8bfb57c2e1a57770262378f26833110fbd029d94
   vcs: git
   subpackages:
   - checked
@@ -229,6 +231,8 @@ imports:
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
   - pbutil
+- name: github.com/mschoch/smat
+  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/nu7hatch/gouuid
   version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
 - name: github.com/opentracing/opentracing-go
@@ -265,14 +269,6 @@ imports:
   version: feef008d51ad2b3778f85d387ccf91735543008d
   subpackages:
   - diffmatchpatch
-- name: github.com/shirou/gopsutil
-  version: 5776ff9c7c5d063d574ef53d740f75c68b448e53
-  subpackages:
-  - cpu
-  - internal/common
-  - mem
-  - net
-  - process
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 - name: github.com/spf13/cobra
@@ -314,6 +310,8 @@ imports:
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
   subpackages:
   - codec
+- name: github.com/willf/bitset
+  version: 988f4f24992fc745de53c42df0da6581e42a6686
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: go.uber.org/atomic
@@ -352,6 +350,12 @@ imports:
   - ipv6
   - lex/httplex
   - trace
+- name: golang.org/x/sys
+  version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  repo: https://github.com/golang/sys
+  vcs: git
+  subpackages:
+  - unix
 - name: golang.org/x/text
   version: 4ee4af566555f5fbe026368b75596286a312663a
   subpackages:
