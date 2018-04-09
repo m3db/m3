@@ -24,58 +24,58 @@ import (
 	"github.com/m3db/m3db/topology"
 )
 
-// queryableReadConsistencyLevel is a queryable value for a
+// runtimeReadConsistencyLevel is a queryable value for a
 // read consistency level, this supports it being able to change
 // dynamically or it can be just static if not required to be changed
 // during an operation.
-type queryableReadConsistencyLevel interface {
+type runtimeReadConsistencyLevel interface {
 	value() topology.ReadConsistencyLevel
 }
 
-type staticQueryableReadConsistencyLevel struct {
+type staticRuntimeReadConsistencyLevel struct {
 	val topology.ReadConsistencyLevel
 }
 
-func newStaticQueryableReadConsistencyLevel(
+func newStaticRuntimeReadConsistencyLevel(
 	value topology.ReadConsistencyLevel,
-) queryableReadConsistencyLevel {
-	return staticQueryableReadConsistencyLevel{val: value}
+) runtimeReadConsistencyLevel {
+	return staticRuntimeReadConsistencyLevel{val: value}
 }
 
-func (l staticQueryableReadConsistencyLevel) value() topology.ReadConsistencyLevel {
+func (l staticRuntimeReadConsistencyLevel) value() topology.ReadConsistencyLevel {
 	return l.val
 }
 
 // nolint: unused
-type sessionReadQueryableReadConsistencyLevel struct {
+type sessionReadRuntimeReadConsistencyLevel struct {
 	s *session
 }
 
 // nolint: deadcode,unused
-func newSessionReadQueryableReadConsistencyLevel(
+func newSessionReadRuntimeReadConsistencyLevel(
 	s *session,
-) queryableReadConsistencyLevel {
-	return sessionReadQueryableReadConsistencyLevel{s: s}
+) runtimeReadConsistencyLevel {
+	return sessionReadRuntimeReadConsistencyLevel{s: s}
 }
 
-func (l sessionReadQueryableReadConsistencyLevel) value() topology.ReadConsistencyLevel {
+func (l sessionReadRuntimeReadConsistencyLevel) value() topology.ReadConsistencyLevel {
 	l.s.state.RLock()
 	value := l.s.state.readLevel
 	l.s.state.RUnlock()
 	return value
 }
 
-type sessionBootstrapQueryableReadConsistencyLevel struct {
+type sessionBootstrapRuntimeReadConsistencyLevel struct {
 	s *session
 }
 
-func newSessionBootstrapQueryableReadConsistencyLevel(
+func newSessionBootstrapRuntimeReadConsistencyLevel(
 	s *session,
-) queryableReadConsistencyLevel {
-	return sessionBootstrapQueryableReadConsistencyLevel{s: s}
+) runtimeReadConsistencyLevel {
+	return sessionBootstrapRuntimeReadConsistencyLevel{s: s}
 }
 
-func (l sessionBootstrapQueryableReadConsistencyLevel) value() topology.ReadConsistencyLevel {
+func (l sessionBootstrapRuntimeReadConsistencyLevel) value() topology.ReadConsistencyLevel {
 	l.s.state.RLock()
 	value := l.s.state.bootstrapLevel
 	l.s.state.RUnlock()

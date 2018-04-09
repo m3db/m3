@@ -800,7 +800,7 @@ func TestSelectPeersFromPerPeerBlockMetadatasAllPeersSucceed(t *testing.T) {
 	// Perform selection
 	selected, _ := session.selectPeersFromPerPeerBlockMetadatas(
 		perPeer, peerBlocksQueues, enqueueCh,
-		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		newStaticRuntimeReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
 		testPeers(peers), pooled, metrics)
 
 	// Assert selection first peer
@@ -866,7 +866,7 @@ func TestSelectPeersFromPerPeerBlockMetadatasSelectAllOnDifferingChecksums(t *te
 	// Perform selection
 	selected, _ := session.selectPeersFromPerPeerBlockMetadatas(
 		perPeer, peerBlocksQueues, enqueueCh,
-		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		newStaticRuntimeReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
 		testPeers(peers), pooled, metrics)
 
 	// Assert selection all peers
@@ -918,7 +918,7 @@ func TestSelectPeersFromPerPeerBlockMetadatasTakeSinglePeer(t *testing.T) {
 	// Perform selection
 	selected, _ := session.selectPeersFromPerPeerBlockMetadatas(
 		perPeer, peerBlocksQueues, enqueueCh,
-		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		newStaticRuntimeReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
 		testPeers(peers), pooled, metrics)
 
 	// Assert selection first peer
@@ -993,7 +993,7 @@ func TestSelectPeersFromPerPeerBlockMetadatasAvoidsReattemptingFromAttemptedPeer
 	// Perform selection
 	selected, _ := session.selectPeersFromPerPeerBlockMetadatas(
 		perPeer, peerBlocksQueues, enqueueCh,
-		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		newStaticRuntimeReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
 		testPeers(peers), pooled, metrics)
 
 	// Assert selection length
@@ -1072,7 +1072,7 @@ func TestSelectPeersFromPerPeerBlockMetadatasAvoidRetryWithLevelNone(t *testing.
 	// Perform selection
 	selected, _ := session.selectPeersFromPerPeerBlockMetadatas(
 		perPeer, peerBlocksQueues, enqueueCh,
-		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		newStaticRuntimeReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
 		testPeers(peers), pooled, metrics)
 
 	// Assert no selection
@@ -1134,7 +1134,7 @@ func TestSelectPeersFromPerPeerBlockMetadatasPerformsRetries(t *testing.T) {
 	// Perform selection
 	selected, _ := session.selectPeersFromPerPeerBlockMetadatas(
 		perPeer, peerBlocksQueues, enqueueCh,
-		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		newStaticRuntimeReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
 		testPeers(peers), pooled, metrics)
 
 	// Assert selection
@@ -1237,7 +1237,7 @@ func TestSelectPeersFromPerPeerBlockMetadatasRetryOnFanoutConsistencyLevelFailur
 	// Perform first selection
 	selected, _ := session.selectPeersFromPerPeerBlockMetadatas(
 		firstRetry, peerBlocksQueues, enqueueCh,
-		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		newStaticRuntimeReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
 		testPeers(peers), pooled, metrics)
 
 	// Assert selection
@@ -1270,7 +1270,7 @@ func TestSelectPeersFromPerPeerBlockMetadatasRetryOnFanoutConsistencyLevelFailur
 	// Perform second selection
 	selected, _ = session.selectPeersFromPerPeerBlockMetadatas(
 		secondRetry, peerBlocksQueues, enqueueCh,
-		newStaticQueryableReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
+		newStaticRuntimeReadConsistencyLevel(opts.BootstrapConsistencyLevel()),
 		testPeers(peers), pooled, metrics)
 
 	// Assert selection

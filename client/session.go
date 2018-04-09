@@ -873,7 +873,8 @@ func (s *session) writeAttempt(
 		return timestampErr
 	}
 
-	if s.state.RLock(); s.state.status != statusOpen {
+	s.state.RLock()
+	if s.state.status != statusOpen {
 		s.state.RUnlock()
 		return errSessionStatusNotOpen
 	}
@@ -1562,7 +1563,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 		errCh = make(chan error, 1)
 		meta  = resultTypeMetadata
 		m     = s.newPeerMetadataStreamingProgressMetrics(shard, meta)
-		level = newStaticQueryableReadConsistencyLevel(consistencyLevel)
+		level = newStaticRuntimeReadConsistencyLevel(consistencyLevel)
 	)
 	go func() {
 		errCh <- s.streamBlocksMetadataFromPeers(namespace, shard,
@@ -1591,7 +1592,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 		result   = newBulkBlocksResult(s.opts, opts)
 		doneCh   = make(chan struct{})
 		progress = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeBootstrap)
-		level    = newSessionBootstrapQueryableReadConsistencyLevel(s)
+		level    = newSessionBootstrapRuntimeReadConsistencyLevel(s)
 	)
 
 	// Determine which peers own the specified shard
@@ -1653,7 +1654,7 @@ func (s *session) FetchBlocksFromPeers(
 
 	var (
 		logger   = opts.InstrumentOptions().Logger()
-		level    = newStaticQueryableReadConsistencyLevel(consistencyLevel)
+		level    = newStaticRuntimeReadConsistencyLevel(consistencyLevel)
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		outputCh = make(chan peerBlocksDatapoint, 4096)
@@ -1728,7 +1729,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 	shardID uint32,
 	peers peers,
 	start, end time.Time,
-	level queryableReadConsistencyLevel,
+	level runtimeReadConsistencyLevel,
 	metadataCh chan<- receivedBlockMetadata,
 	resultOpts result.Options,
 	progress *streamFromPeersMetrics,
@@ -1939,7 +1940,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 						xlog.NewField("block", blockStart),
 						xlog.NewField("error", err),
 					).Error("error occurred retrieving block metadata")
-					// Enqueue with a zerod checksum which cause a fanout fetch
+					// Enqueue with a zeroed checksum which triggers a fanout fetch
 					ch <- receivedBlockMetadata{
 						peer: peer,
 						id:   blockID,
@@ -2109,7 +2110,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 					xlog.NewField("block", blockStart),
 					xlog.NewField("error", err),
 				).Error("error occurred retrieving block metadata")
-				// Enqueue with a zerod checksum which cause a fanout fetch
+				// Enqueue with a zeroed checksum which triggers a fanout fetch
 				metadataCh <- receivedBlockMetadata{
 					peer: peer,
 					id:   clonedID,
@@ -2179,7 +2180,7 @@ func (s *session) streamBlocksFromPeers(
 	peers peers,
 	metadataCh <-chan receivedBlockMetadata,
 	opts result.Options,
-	consistencyLevel queryableReadConsistencyLevel,
+	consistencyLevel runtimeReadConsistencyLevel,
 	result blocksResult,
 	progress *streamFromPeersMetrics,
 	streamMetadataFn streamBlocksMetadataFn,
@@ -2449,7 +2450,7 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 	perPeerBlocksMetadata []receivedBlockMetadata,
 	peerQueues peerBlocksQueues,
 	reEnqueueCh enqueueChannel,
-	consistencyLevel queryableReadConsistencyLevel,
+	consistencyLevel runtimeReadConsistencyLevel,
 	peers peers,
 	pooled selectPeersFromPerPeerBlockMetadatasPooledResources,
 	m *streamFromPeersMetrics,
@@ -2522,7 +2523,7 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 			}
 
 			// No success, inform operator that although consistency level achieved
-			// there was a no successful fetches. This can happen if consistency
+			// there were no successful fetches. This can happen if consistency
 			// level is set to None.
 			m.fetchBlockFinalError.Inc(1)
 			s.log.WithFields(
