@@ -164,7 +164,7 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 		w.checkpointFilePath = snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, nextSnapshotIndex)
 		infoFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, infoFileSuffix, nextSnapshotIndex)
 		indexFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, indexFileSuffix, nextSnapshotIndex)
-		summariesFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, summariesFilepath, nextSnapshotIndex)
+		summariesFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, summariesFileSuffix, nextSnapshotIndex)
 		bloomFilterFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, nextSnapshotIndex)
 		dataFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, dataFileSuffix, nextSnapshotIndex)
 		digestFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, digestFileSuffix, nextSnapshotIndex)
