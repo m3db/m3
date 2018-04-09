@@ -226,6 +226,7 @@ type streamFromPeersMetrics struct {
 	metadataFetchBatchError                           tally.Counter
 	metadataFetchBatchBlockErr                        tally.Counter
 	metadataReceived                                  tally.Counter
+	metadataPeerRetry                                 tally.Counter
 	fetchBlockSuccess                                 tally.Counter
 	fetchBlockError                                   tally.Counter
 	fetchBlockFullRetry                               tally.Counter
@@ -373,6 +374,7 @@ func (s *session) newPeerMetadataStreamingProgressMetrics(
 		metadataFetchBatchError:    scope.Counter("fetch-metadata-peers-batch-error"),
 		metadataFetchBatchBlockErr: scope.Counter("fetch-metadata-peers-batch-block-err"),
 		metadataReceived:           scope.Counter("fetch-metadata-peers-received"),
+		metadataPeerRetry:          scope.Counter("fetch-metadata-peers-peer-retry"),
 		fetchBlockSuccess:          scope.Counter("fetch-block-success"),
 		fetchBlockError:            scope.Counter("fetch-block-error"),
 		fetchBlockFinalError:       scope.Counter("fetch-block-final-error"),
@@ -1361,6 +1363,8 @@ func (s *session) writeConsistencyAchieved(
 		if success > 0 { // Meets one
 			return true
 		}
+	default:
+		panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
 	}
 	return false
 }
@@ -1397,6 +1401,8 @@ func (s *session) readConsistencyAchieved(
 		}
 	case topology.ReadConsistencyLevelNone:
 		return true // Always meets none
+	default:
+		panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
 	}
 	return false
 }
@@ -1781,8 +1787,15 @@ func (s *session) streamBlocksMetadataFromPeers(
 				majority := int(majority)
 				enqueued := int(enqueued)
 				success := int(atomic.LoadInt32(&success))
-				return !s.readConsistencyAchieved(currLevel, majority, enqueued, success) &&
+
+				result := !s.readConsistencyAchieved(currLevel, majority, enqueued, success) &&
 					errs.getAbortError() == nil
+				if !result {
+					// Track that we are reattempting the fetch metadata
+					// pagination from a peer
+					progress.metadataPeerRetry.Inc(1)
+				}
+				return result
 			}
 			for condition() {
 				var err error

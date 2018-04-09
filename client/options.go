@@ -305,6 +305,26 @@ func (o *options) Validate() error {
 	if o.readerIteratorAllocate == nil {
 		return errNoReaderIteratorAllocateSet
 	}
+	if err := topology.ValidateConsistencyLevel(
+		o.writeConsistencyLevel,
+	); err != nil {
+		return err
+	}
+	if err := topology.ValidateReadConsistencyLevel(
+		o.readConsistencyLevel,
+	); err != nil {
+		return err
+	}
+	if err := topology.ValidateReadConsistencyLevel(
+		o.bootstrapConsistencyLevel,
+	); err != nil {
+		return err
+	}
+	if err := topology.ValidateConnectConsistencyLevel(
+		o.clusterConnectConsistencyLevel,
+	); err != nil {
+		return err
+	}
 	return nil
 }
 

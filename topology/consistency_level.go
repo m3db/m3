@@ -68,7 +68,29 @@ var validConsistencyLevels = []ConsistencyLevel{
 	ConsistencyLevelAll,
 }
 
-var errConsistencyLevelUnspecified = errors.New("consistency level not specified")
+var (
+	errConsistencyLevelUnspecified = errors.New("consistency level not specified")
+	errConsistencyLevelInvalid     = errors.New("consistency level invalid")
+)
+
+// ValidConsistencyLevels returns a copy of valid consistency levels
+// to avoid callers mutating the set of valid read consistency levels
+func ValidConsistencyLevels() []ConsistencyLevel {
+	result := make([]ConsistencyLevel, len(validConsistencyLevels))
+	copy(result, validConsistencyLevels)
+	return result
+}
+
+// ValidateConsistencyLevel returns nil when consistency level is valid,
+// otherwise it returns an error
+func ValidateConsistencyLevel(v ConsistencyLevel) error {
+	for _, level := range validConsistencyLevels {
+		if level == v {
+			return nil
+		}
+	}
+	return errConsistencyLevelInvalid
+}
 
 // UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
 func (l *ConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -137,7 +159,29 @@ var validConnectConsistencyLevels = []ConnectConsistencyLevel{
 	ConnectConsistencyLevelAll,
 }
 
-var errClusterConnectConsistencyLevelUnspecified = errors.New("cluster connect consistency level not specified")
+var (
+	errClusterConnectConsistencyLevelUnspecified = errors.New("cluster connect consistency level not specified")
+	errClusterConnectConsistencyLevelInvalid     = errors.New("cluster connect consistency level invalid")
+)
+
+// ValidConnectConsistencyLevels returns a copy of valid consistency levels
+// to avoid callers mutating the set of valid read consistency levels
+func ValidConnectConsistencyLevels() []ConnectConsistencyLevel {
+	result := make([]ConnectConsistencyLevel, len(validConnectConsistencyLevels))
+	copy(result, validConnectConsistencyLevels)
+	return result
+}
+
+// ValidateConnectConsistencyLevel returns nil when consistency level is valid,
+// otherwise it returns an error
+func ValidateConnectConsistencyLevel(v ConnectConsistencyLevel) error {
+	for _, level := range validConnectConsistencyLevels {
+		if level == v {
+			return nil
+		}
+	}
+	return errClusterConnectConsistencyLevelInvalid
+}
 
 // UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
 func (l *ConnectConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -207,7 +251,29 @@ var validReadConsistencyLevels = []ReadConsistencyLevel{
 	ReadConsistencyLevelAll,
 }
 
-var errReadConsistencyLevelUnspecified = errors.New("read consistency level not specified")
+var (
+	errReadConsistencyLevelUnspecified = errors.New("read consistency level not specified")
+	errReadConsistencyLevelInvalid     = errors.New("read consistency level invalid")
+)
+
+// ValidReadConsistencyLevels returns a copy of valid consistency levels
+// to avoid callers mutating the set of valid read consistency levels
+func ValidReadConsistencyLevels() []ReadConsistencyLevel {
+	result := make([]ReadConsistencyLevel, len(validReadConsistencyLevels))
+	copy(result, validReadConsistencyLevels)
+	return result
+}
+
+// ValidateReadConsistencyLevel returns nil when consistency level is valid,
+// otherwise it returns an error
+func ValidateReadConsistencyLevel(v ReadConsistencyLevel) error {
+	for _, level := range validReadConsistencyLevels {
+		if level == v {
+			return nil
+		}
+	}
+	return errReadConsistencyLevelInvalid
+}
 
 // UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
 func (l *ReadConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
