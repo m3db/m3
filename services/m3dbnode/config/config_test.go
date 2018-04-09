@@ -56,7 +56,8 @@ httpClusterListenAddress: 0.0.0.0:9003
 debugListenAddress: 0.0.0.0:9004
 
 hostID:
-    resolver: hostname
+    resolver: config
+    value: host1
 
 client:
     writeConsistencyLevel: majority
@@ -247,13 +248,12 @@ config:
         advertiseClientUrls:
             - http://1.1.1.1:2379
         initialCluster:
-            - hostId: host1
+            - hostID: host1
               endpoint: http://1.1.1.1:2380
-            - hostId: host2
+            - hostID: host2
               endpoint: http://1.1.1.2:2380
-            - hostId: host3
+            - hostID: host3
               endpoint: http://1.1.1.3:2380
-        name: host1
 hashing:
   seed: 42
 writeNewSeriesAsync: true
@@ -302,8 +302,8 @@ httpNodeListenAddress: 0.0.0.0:9002
 httpClusterListenAddress: 0.0.0.0:9003
 debugListenAddress: 0.0.0.0:9004
 hostID:
-  resolver: hostname
-  value: null
+  resolver: config
+  value: host1
   envVarName: null
 client:
   config:
@@ -511,21 +511,20 @@ config:
     listenClientUrls:
     - http://0.0.0.0:2379
     initialCluster:
-    - hostId: host1
+    - hostID: host1
       endpoint: http://1.1.1.1:2380
-    - hostId: host2
+    - hostID: host2
       endpoint: http://1.1.1.2:2380
-    - hostId: host3
+    - hostID: host3
       endpoint: http://1.1.1.3:2380
-    name: host1
-    clienttransportsecurity:
+    clientTransportSecurity:
       cafile: ""
       certfile: ""
       keyfile: ""
       trustedcafile: ""
       certauth: false
       autotls: false
-    peertransportsecurity:
+    peerTransportSecurity:
       cafile: ""
       certfile: ""
       keyfile: ""

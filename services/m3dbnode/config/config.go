@@ -212,6 +212,12 @@ func NewEtcdEmbedConfig(cfg Configuration) (*embed.Config, error) {
 	newKVCfg := embed.NewConfig()
 	kvCfg := cfg.EnvironmentConfig.SeedNode
 
+	hostID, err := cfg.HostID.Resolve()
+	if err != nil {
+		return nil, err
+	}
+	newKVCfg.Name = hostID
+
 	dir := kvCfg.RootDir
 	if dir == "" {
 		dir = path.Join(cfg.Filesystem.FilePathPrefix, defaultEtcdDirSuffix)
@@ -230,7 +236,7 @@ func NewEtcdEmbedConfig(cfg Configuration) (*embed.Config, error) {
 	}
 	newKVCfg.LCUrls = LCUrls
 
-	host, err := getHostFromHostID(kvCfg.InitialCluster, kvCfg.Name)
+	host, err := getHostFromHostID(kvCfg.InitialCluster, hostID)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +253,6 @@ func NewEtcdEmbedConfig(cfg Configuration) (*embed.Config, error) {
 	}
 	newKVCfg.ACUrls = ACUrls
 
-	newKVCfg.Name = kvCfg.Name
 	newKVCfg.InitialCluster = initialClusterString(kvCfg.InitialCluster)
 
 	copySecurityDetails := func(tls *transport.TLSInfo, ysc *environment.SeedNodeSecurityConfig) {

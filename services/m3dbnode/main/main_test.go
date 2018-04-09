@@ -633,7 +633,7 @@ config:
         advertiseClientUrls:
             - {{.ACURL}}
         initialCluster:
-            - hostId: {{.InitialClusterHostID}}
+            - hostID: {{.InitialClusterHostID}}
               endpoint: {{.InitialClusterEndpoint}}
 `
 )

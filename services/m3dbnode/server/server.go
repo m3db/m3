@@ -117,20 +117,13 @@ func Run(runOpts RunOptions) {
 		logger.Fatalf("could not connect to metrics: %v", err)
 	}
 
+	hostID, err := cfg.HostID.Resolve()
+	if err != nil {
+		logger.Fatalf("could not resolve local host ID: %v", err)
+	}
+
 	// Presence of KV server config indicates embedded etcd cluster
 	if cfg.EnvironmentConfig.SeedNode != nil {
-		// Default etcd node name to HostID
-		if cfg.EnvironmentConfig.SeedNode.Name == "" {
-			name, err := cfg.HostID.Resolve()
-			if err != nil {
-				logger.Fatal("unable to resolve HostID")
-			}
-
-			logger.Infof("setting KV server name to: %s", name)
-
-			cfg.EnvironmentConfig.SeedNode.Name = name
-		}
-
 		// Default etcd client clusters if not set already
 		clusters := cfg.EnvironmentConfig.Service.ETCDClusters
 		if len(clusters) == 0 {
@@ -150,7 +143,7 @@ func Run(runOpts RunOptions) {
 			}}
 		}
 
-		if config.IsSeedNode(cfg.EnvironmentConfig.SeedNode.InitialCluster, cfg.EnvironmentConfig.SeedNode.Name) {
+		if config.IsSeedNode(cfg.EnvironmentConfig.SeedNode.InitialCluster, hostID) {
 			logger.Info("is a seed node; starting etcd server")
 
 			etcdCfg, err := config.NewEtcdEmbedConfig(cfg)
@@ -312,11 +305,6 @@ func Run(runOpts RunOptions) {
 		logger.Fatalf("could not create persist manager: %v", err)
 	}
 	opts = opts.SetPersistManager(pm)
-
-	hostID, err := cfg.HostID.Resolve()
-	if err != nil {
-		logger.Fatalf("could not resolve local host ID: %v", err)
-	}
 
 	var (
 		envCfg environment.ConfigureResults

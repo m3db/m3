@@ -71,14 +71,13 @@ type SeedNodeConfig struct {
 	ListenPeerUrls           []string               `yaml:"listenPeerUrls"`
 	ListenClientUrls         []string               `yaml:"listenClientUrls"`
 	InitialCluster           []SeedNode             `yaml:"initialCluster"`
-	Name                     string                 `yaml:"name"`
-	ClientTransportSecurity  SeedNodeSecurityConfig `json:"clientTransportSecurity"`
-	PeerTransportSecurity    SeedNodeSecurityConfig `json:"peerTransportSecurity"`
+	ClientTransportSecurity  SeedNodeSecurityConfig `yaml:"clientTransportSecurity"`
+	PeerTransportSecurity    SeedNodeSecurityConfig `yaml:"peerTransportSecurity"`
 }
 
 // SeedNode represents a seed node for the cluster
 type SeedNode struct {
-	HostID   string `yaml:"hostId"`
+	HostID   string `yaml:"hostID"`
 	Endpoint string `yaml:"endpoint"`
 }
 
