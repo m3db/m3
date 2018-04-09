@@ -365,7 +365,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		} else {
 			bootstrapEnabled := n.nopts.BootstrapEnabled()
 			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.indexWriter,
+				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.reverseIndex,
 				bootstrapEnabled, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
