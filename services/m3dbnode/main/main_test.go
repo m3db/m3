@@ -622,7 +622,7 @@ config:
             - zone: {{.ServiceZone}}
               endpoints:
                   - {{.EtcdEndpoint}}
-    seedNode:
+    seedNodes:
         listenPeerUrls:
             - {{.LPURL}}
         listenClientUrls:

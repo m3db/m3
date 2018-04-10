@@ -237,7 +237,7 @@ config:
                   - 1.1.1.1:2379
                   - 1.1.1.2:2379
                   - 1.1.1.3:2379
-    seedNode:
+    seedNodes:
         listenPeerUrls:
             - http://0.0.0.0:2380
         listenClientUrls:
@@ -309,7 +309,7 @@ client:
   config:
     service: null
     static: null
-    seedNode: null
+    seedNodes: null
     namespaceResolutionTimeout: 0s
   writeConsistencyLevel: 2
   readConsistencyLevel: 2
@@ -500,7 +500,7 @@ config:
     m3sd:
       initTimeout: 0s
   static: null
-  seedNode:
+  seedNodes:
     rootDir: /var/lib/etcd
     initialAdvertisePeerUrls:
     - http://1.1.1.1:2380
@@ -518,19 +518,19 @@ config:
     - hostID: host3
       endpoint: http://1.1.1.3:2380
     clientTransportSecurity:
-      cafile: ""
-      certfile: ""
-      keyfile: ""
-      trustedcafile: ""
-      certauth: false
-      autotls: false
+      caFile: ""
+      certFile: ""
+      keyFile: ""
+      trustedCaFile: ""
+      clientCertAuth: false
+      autoTls: false
     peerTransportSecurity:
-      cafile: ""
-      certfile: ""
-      keyfile: ""
-      trustedcafile: ""
-      certauth: false
-      autotls: false
+      caFile: ""
+      certFile: ""
+      keyFile: ""
+      trustedCaFile: ""
+      clientCertAuth: false
+      autoTls: false
   namespaceResolutionTimeout: 0s
 hashing:
   seed: 42

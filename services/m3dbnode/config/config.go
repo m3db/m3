@@ -210,7 +210,7 @@ type HashingConfiguration struct {
 // NewEtcdEmbedConfig creates a new embedded etcd config from kv config.
 func NewEtcdEmbedConfig(cfg Configuration) (*embed.Config, error) {
 	newKVCfg := embed.NewConfig()
-	kvCfg := cfg.EnvironmentConfig.SeedNode
+	kvCfg := cfg.EnvironmentConfig.SeedNodes
 
 	hostID, err := cfg.HostID.Resolve()
 	if err != nil {

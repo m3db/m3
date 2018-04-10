@@ -57,14 +57,14 @@ type Configuration struct {
 	Static *StaticConfiguration `yaml:"static"`
 
 	// Presence of a (etcd) server in this config denotes an embedded cluster
-	SeedNode *SeedNodeConfig `yaml:"seedNode"`
+	SeedNodes *SeedNodesConfig `yaml:"seedNodes"`
 
 	// NamespaceResolutionTimeout is the maximum time to wait to discover namespaces from KV
 	NamespaceResolutionTimeout time.Duration `yaml:"namespaceResolutionTimeout"`
 }
 
-// SeedNodeConfig defines fields for seed node
-type SeedNodeConfig struct {
+// SeedNodesConfig defines fields for seed node
+type SeedNodesConfig struct {
 	RootDir                  string                 `yaml:"rootDir"`
 	InitialAdvertisePeerUrls []string               `yaml:"initialAdvertisePeerUrls"`
 	AdvertiseClientUrls      []string               `yaml:"advertiseClientUrls"`
@@ -83,12 +83,12 @@ type SeedNode struct {
 
 // SeedNodeSecurityConfig contains the data used for security in seed nodes
 type SeedNodeSecurityConfig struct {
-	CAFile        string `json:"caFile"`
-	CertFile      string `json:"certFile"`
-	KeyFile       string `json:"keyFile"`
-	TrustedCAFile string `json:"trustedCaFile"`
-	CertAuth      bool   `json:"clientCertAuth"`
-	AutoTLS       bool   `json:"autoTls"`
+	CAFile        string `yaml:"caFile"`
+	CertFile      string `yaml:"certFile"`
+	KeyFile       string `yaml:"keyFile"`
+	TrustedCAFile string `yaml:"trustedCaFile"`
+	CertAuth      bool   `yaml:"clientCertAuth"`
+	AutoTLS       bool   `yaml:"autoTls"`
 }
 
 // StaticConfiguration is used for running M3DB with a static config

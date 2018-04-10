@@ -123,11 +123,11 @@ func Run(runOpts RunOptions) {
 	}
 
 	// Presence of KV server config indicates embedded etcd cluster
-	if cfg.EnvironmentConfig.SeedNode != nil {
+	if cfg.EnvironmentConfig.SeedNodes != nil {
 		// Default etcd client clusters if not set already
 		clusters := cfg.EnvironmentConfig.Service.ETCDClusters
 		if len(clusters) == 0 {
-			endpoints, err := config.InitialClusterEndpoints(cfg.EnvironmentConfig.SeedNode.InitialCluster)
+			endpoints, err := config.InitialClusterEndpoints(cfg.EnvironmentConfig.SeedNodes.InitialCluster)
 
 			if err != nil {
 				logger.Fatalf("unable to create etcd clusters: %v", err)
@@ -135,7 +135,7 @@ func Run(runOpts RunOptions) {
 
 			zone := cfg.EnvironmentConfig.Service.Zone
 
-			logger.Infof("setting client etcd cluster to zone [%s], endpoints %v", zone, endpoints)
+			logger.Infof("using seed nodes etcd cluster: zone=%s, endpoints=%v", zone, endpoints)
 
 			cfg.EnvironmentConfig.Service.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
 				Zone:      zone,
@@ -143,7 +143,7 @@ func Run(runOpts RunOptions) {
 			}}
 		}
 
-		if config.IsSeedNode(cfg.EnvironmentConfig.SeedNode.InitialCluster, hostID) {
+		if config.IsSeedNode(cfg.EnvironmentConfig.SeedNodes.InitialCluster, hostID) {
 			logger.Info("is a seed node; starting etcd server")
 
 			etcdCfg, err := config.NewEtcdEmbedConfig(cfg)
