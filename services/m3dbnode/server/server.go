@@ -558,38 +558,26 @@ func kvWatchClientConsistencyLevels(
 		v string,
 		applyFn func(topology.ReadConsistencyLevel, m3dbruntime.Options) m3dbruntime.Options,
 	) error {
-		notFound := false
 		for _, level := range topology.ValidReadConsistencyLevels() {
 			if level.String() == v {
 				runtimeOpts := applyFn(level, runtimeOptsMgr.Get())
-				if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
-					return err
-				}
+				return runtimeOptsMgr.Update(runtimeOpts)
 			}
 		}
-		if !notFound {
-			return fmt.Errorf("invalid read consistency level set: %s", v)
-		}
-		return nil
+		return fmt.Errorf("invalid read consistency level set: %s", v)
 	}
 
 	setConsistencyLevel := func(
 		v string,
 		applyFn func(topology.ConsistencyLevel, m3dbruntime.Options) m3dbruntime.Options,
 	) error {
-		notFound := false
 		for _, level := range topology.ValidConsistencyLevels() {
 			if level.String() == v {
 				runtimeOpts := applyFn(level, runtimeOptsMgr.Get())
-				if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
-					return err
-				}
+				return runtimeOptsMgr.Update(runtimeOpts)
 			}
 		}
-		if !notFound {
-			return fmt.Errorf("invalid consistency level set: %s", v)
-		}
-		return nil
+		return fmt.Errorf("invalid consistency level set: %s", v)
 	}
 
 	kvWatchStringValue(store, logger,
@@ -658,7 +646,7 @@ func kvWatchStringValue(
 				continue
 			}
 			if err := onValue(protoValue.Value); err != nil {
-				logger.Warnf("could not process change for KV key %s: %v", err)
+				logger.Warnf("could not process change for KV key %s: %v", key, err)
 				continue
 			}
 			logger.Infof("set KV key %s: %v", key, protoValue.Value)

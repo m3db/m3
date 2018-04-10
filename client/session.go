@@ -1790,14 +1790,14 @@ func (s *session) streamBlocksMetadataFromPeers(
 				enqueued := int(enqueued)
 				success := int(atomic.LoadInt32(&success))
 
-				result := !s.readConsistencyAchieved(currLevel, majority, enqueued, success) &&
+				doRetry := !s.readConsistencyAchieved(currLevel, majority, enqueued, success) &&
 					errs.getAbortError() == nil
-				if !result {
+				if doRetry {
 					// Track that we are reattempting the fetch metadata
 					// pagination from a peer
 					progress.metadataPeerRetry.Inc(1)
 				}
-				return result
+				return doRetry
 			}
 			for condition() {
 				var err error
