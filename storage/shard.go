@@ -1688,8 +1688,14 @@ func (s *dbShard) Flush(
 		tmpCtx.Reset()
 		err := series.Flush(tmpCtx, blockStart, prepared.Persist)
 		tmpCtx.BlockingClose()
-		multiErr = multiErr.Add(err)
-		// If we encounter an error when persisting a series, we continue regardless.
+
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			// If we encounter an error when persisting a series, don't continue as
+			// the file on disk could be in a corrupt state.
+			return false
+		}
+
 		return true
 	})
 
@@ -1757,8 +1763,14 @@ func (s *dbShard) Snapshot(
 		tmpCtx.Reset()
 		err := series.Snapshot(tmpCtx, blockStart, prepared.Persist)
 		tmpCtx.BlockingClose()
-		multiErr = multiErr.Add(err)
-		// If we encounter an error when persisting a series, we continue regardless.
+
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			// If we encounter an error when persisting a series, don't continue as
+			// the file on disk could be in a corrupt state.
+			return false
+		}
+
 		return true
 	})
 
