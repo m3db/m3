@@ -201,7 +201,8 @@ func (it *filteredBlocksMetadataIter) Next() bool {
 	}
 	it.id = it.res[it.resIdx].ID
 	block := blocks[it.blockIdx]
-	it.metadata = NewMetadata(block.Start, block.Size, block.Checksum, block.LastRead)
+	it.metadata = NewMetadata(it.id, block.Start,
+		block.Size, block.Checksum, block.LastRead)
 	it.blockIdx++
 	return true
 }

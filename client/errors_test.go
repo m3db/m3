@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/topology"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/stretchr/testify/assert"
@@ -37,7 +38,7 @@ func TestConsistencyResultError(t *testing.T) {
 	}
 
 	err := consistencyResultErr{
-		level:       ReadConsistencyLevelMajority,
+		level:       topology.ReadConsistencyLevelMajority,
 		success:     1,
 		enqueued:    3,
 		responded:   3,

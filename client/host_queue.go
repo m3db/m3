@@ -53,7 +53,7 @@ type queue struct {
 	opsLastRotatedAt                           time.Time
 	opsArrayPool                               *opArrayPool
 	drainIn                                    chan []op
-	state                                      state
+	status                                     status
 }
 
 func newHostQueue(
@@ -104,11 +104,11 @@ func (q *queue) Open() {
 	q.Lock()
 	defer q.Unlock()
 
-	if q.state != stateNotOpen {
+	if q.status != statusNotOpen {
 		return
 	}
 
-	q.state = stateOpen
+	q.status = statusOpen
 
 	// Open the connection pool
 	q.connPool.Open()
@@ -136,7 +136,7 @@ func (q *queue) flushEvery(interval time.Duration) {
 		time.Sleep(sleepFor)
 
 		q.RLock()
-		if q.state != stateOpen {
+		if q.status != statusOpen {
 			q.RUnlock()
 			return
 		}
@@ -151,7 +151,7 @@ func (q *queue) flushEvery(interval time.Duration) {
 		}
 
 		q.Lock()
-		if q.state != stateOpen {
+		if q.status != statusOpen {
 			q.Unlock()
 			return
 		}
@@ -499,7 +499,7 @@ func (q *queue) Enqueue(o op) error {
 
 	var needsDrain []op
 	q.Lock()
-	if q.state != stateOpen {
+	if q.status != statusOpen {
 		q.Unlock()
 		return errQueueNotOpen(q.host.ID())
 	}
@@ -532,7 +532,7 @@ func (q *queue) ConnectionPool() connectionPool {
 
 func (q *queue) BorrowConnection(fn withConnectionFn) error {
 	q.RLock()
-	if q.state != stateOpen {
+	if q.status != statusOpen {
 		q.RUnlock()
 		return errQueueNotOpen(q.host.ID())
 	}
@@ -552,11 +552,11 @@ func (q *queue) BorrowConnection(fn withConnectionFn) error {
 
 func (q *queue) Close() {
 	q.Lock()
-	if q.state != stateOpen {
+	if q.status != statusOpen {
 		q.Unlock()
 		return
 	}
-	q.state = stateClosed
+	q.status = statusClosed
 
 	// Need to hold lock while writing to the drainIn
 	// channel to ensure it has not been closed

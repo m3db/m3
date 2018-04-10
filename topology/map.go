@@ -49,7 +49,7 @@ func NewStaticMap(opts StaticOptions) Map {
 		hostsByShard:        make([][]Host, totalShards),
 		orderedHostsByShard: make([][]orderedHost, totalShards),
 		replicas:            opts.Replicas(),
-		majority:            majority(opts.Replicas()),
+		majority:            Majority(opts.Replicas()),
 	}
 
 	for idx, hostShardSet := range hostShardSets {

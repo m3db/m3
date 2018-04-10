@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
@@ -344,64 +345,64 @@ func (_mr *MockAdminClientMockRecorder) DefaultAdminSession() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "DefaultAdminSession", reflect.TypeOf((*MockAdminClient)(nil).DefaultAdminSession))
 }
 
-// MockPeerBlocksMetadataIter is a mock of PeerBlocksMetadataIter interface
-type MockPeerBlocksMetadataIter struct {
+// MockPeerBlockMetadataIter is a mock of PeerBlockMetadataIter interface
+type MockPeerBlockMetadataIter struct {
 	ctrl     *gomock.Controller
-	recorder *MockPeerBlocksMetadataIterMockRecorder
+	recorder *MockPeerBlockMetadataIterMockRecorder
 }
 
-// MockPeerBlocksMetadataIterMockRecorder is the mock recorder for MockPeerBlocksMetadataIter
-type MockPeerBlocksMetadataIterMockRecorder struct {
-	mock *MockPeerBlocksMetadataIter
+// MockPeerBlockMetadataIterMockRecorder is the mock recorder for MockPeerBlockMetadataIter
+type MockPeerBlockMetadataIterMockRecorder struct {
+	mock *MockPeerBlockMetadataIter
 }
 
-// NewMockPeerBlocksMetadataIter creates a new mock instance
-func NewMockPeerBlocksMetadataIter(ctrl *gomock.Controller) *MockPeerBlocksMetadataIter {
-	mock := &MockPeerBlocksMetadataIter{ctrl: ctrl}
-	mock.recorder = &MockPeerBlocksMetadataIterMockRecorder{mock}
+// NewMockPeerBlockMetadataIter creates a new mock instance
+func NewMockPeerBlockMetadataIter(ctrl *gomock.Controller) *MockPeerBlockMetadataIter {
+	mock := &MockPeerBlockMetadataIter{ctrl: ctrl}
+	mock.recorder = &MockPeerBlockMetadataIterMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (_m *MockPeerBlocksMetadataIter) EXPECT() *MockPeerBlocksMetadataIterMockRecorder {
+func (_m *MockPeerBlockMetadataIter) EXPECT() *MockPeerBlockMetadataIterMockRecorder {
 	return _m.recorder
 }
 
 // Next mocks base method
-func (_m *MockPeerBlocksMetadataIter) Next() bool {
+func (_m *MockPeerBlockMetadataIter) Next() bool {
 	ret := _m.ctrl.Call(_m, "Next")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // Next indicates an expected call of Next
-func (_mr *MockPeerBlocksMetadataIterMockRecorder) Next() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Next", reflect.TypeOf((*MockPeerBlocksMetadataIter)(nil).Next))
+func (_mr *MockPeerBlockMetadataIterMockRecorder) Next() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Next", reflect.TypeOf((*MockPeerBlockMetadataIter)(nil).Next))
 }
 
 // Current mocks base method
-func (_m *MockPeerBlocksMetadataIter) Current() (topology.Host, block.BlocksMetadata) {
+func (_m *MockPeerBlockMetadataIter) Current() (topology.Host, block.Metadata) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(topology.Host)
-	ret1, _ := ret[1].(block.BlocksMetadata)
+	ret1, _ := ret[1].(block.Metadata)
 	return ret0, ret1
 }
 
 // Current indicates an expected call of Current
-func (_mr *MockPeerBlocksMetadataIterMockRecorder) Current() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Current", reflect.TypeOf((*MockPeerBlocksMetadataIter)(nil).Current))
+func (_mr *MockPeerBlockMetadataIterMockRecorder) Current() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Current", reflect.TypeOf((*MockPeerBlockMetadataIter)(nil).Current))
 }
 
 // Err mocks base method
-func (_m *MockPeerBlocksMetadataIter) Err() error {
+func (_m *MockPeerBlockMetadataIter) Err() error {
 	ret := _m.ctrl.Call(_m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Err indicates an expected call of Err
-func (_mr *MockPeerBlocksMetadataIterMockRecorder) Err() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Err", reflect.TypeOf((*MockPeerBlocksMetadataIter)(nil).Err))
+func (_mr *MockPeerBlockMetadataIterMockRecorder) Err() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Err", reflect.TypeOf((*MockPeerBlockMetadataIter)(nil).Err))
 }
 
 // MockPeerBlocksIter is a mock of PeerBlocksIter interface
@@ -628,16 +629,16 @@ func (_mr *MockAdminSessionMockRecorder) Truncate(arg0 interface{}) *gomock.Call
 }
 
 // FetchBlocksMetadataFromPeers mocks base method
-func (_m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlocksMetadataIter, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, result, version)
-	ret0, _ := ret[0].(PeerBlocksMetadataIter)
+func (_m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, consistencyLevel topology.ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result, version)
+	ret0, _ := ret[0].(PeerBlockMetadataIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchBlocksMetadataFromPeers indicates an expected call of FetchBlocksMetadataFromPeers
-func (_mr *MockAdminSessionMockRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksMetadataFromPeers", reflect.TypeOf((*MockAdminSession)(nil).FetchBlocksMetadataFromPeers), arg0, arg1, arg2, arg3, arg4, arg5)
+func (_mr *MockAdminSessionMockRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksMetadataFromPeers", reflect.TypeOf((*MockAdminSession)(nil).FetchBlocksMetadataFromPeers), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 // FetchBootstrapBlocksFromPeers mocks base method
@@ -654,541 +655,16 @@ func (_mr *MockAdminSessionMockRecorder) FetchBootstrapBlocksFromPeers(arg0, arg
 }
 
 // FetchBlocksFromPeers mocks base method
-func (_m *MockAdminSession) FetchBlocksFromPeers(namespace namespace.Metadata, shard uint32, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, metadatas, opts)
+func (_m *MockAdminSession) FetchBlocksFromPeers(namespace namespace.Metadata, shard uint32, consistencyLevel topology.ReadConsistencyLevel, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, consistencyLevel, metadatas, opts)
 	ret0, _ := ret[0].(PeerBlocksIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchBlocksFromPeers indicates an expected call of FetchBlocksFromPeers
-func (_mr *MockAdminSessionMockRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksFromPeers", reflect.TypeOf((*MockAdminSession)(nil).FetchBlocksFromPeers), arg0, arg1, arg2, arg3)
-}
-
-// MockclientSession is a mock of clientSession interface
-type MockclientSession struct {
-	ctrl     *gomock.Controller
-	recorder *MockclientSessionMockRecorder
-}
-
-// MockclientSessionMockRecorder is the mock recorder for MockclientSession
-type MockclientSessionMockRecorder struct {
-	mock *MockclientSession
-}
-
-// NewMockclientSession creates a new mock instance
-func NewMockclientSession(ctrl *gomock.Controller) *MockclientSession {
-	mock := &MockclientSession{ctrl: ctrl}
-	mock.recorder = &MockclientSessionMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (_m *MockclientSession) EXPECT() *MockclientSessionMockRecorder {
-	return _m.recorder
-}
-
-// Write mocks base method
-func (_m *MockclientSession) Write(namespace ident.ID, id ident.ID, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	ret := _m.ctrl.Call(_m, "Write", namespace, id, t, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Write indicates an expected call of Write
-func (_mr *MockclientSessionMockRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Write", reflect.TypeOf((*MockclientSession)(nil).Write), arg0, arg1, arg2, arg3, arg4, arg5)
-}
-
-// WriteTagged mocks base method
-func (_m *MockclientSession) WriteTagged(namespace ident.ID, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	ret := _m.ctrl.Call(_m, "WriteTagged", namespace, id, tags, t, value, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WriteTagged indicates an expected call of WriteTagged
-func (_mr *MockclientSessionMockRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteTagged", reflect.TypeOf((*MockclientSession)(nil).WriteTagged), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
-}
-
-// Fetch mocks base method
-func (_m *MockclientSession) Fetch(namespace ident.ID, id ident.ID, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterator, error) {
-	ret := _m.ctrl.Call(_m, "Fetch", namespace, id, startInclusive, endExclusive)
-	ret0, _ := ret[0].(encoding.SeriesIterator)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Fetch indicates an expected call of Fetch
-func (_mr *MockclientSessionMockRecorder) Fetch(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Fetch", reflect.TypeOf((*MockclientSession)(nil).Fetch), arg0, arg1, arg2, arg3)
-}
-
-// FetchIDs mocks base method
-func (_m *MockclientSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterators, error) {
-	ret := _m.ctrl.Call(_m, "FetchIDs", namespace, ids, startInclusive, endExclusive)
-	ret0, _ := ret[0].(encoding.SeriesIterators)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchIDs indicates an expected call of FetchIDs
-func (_mr *MockclientSessionMockRecorder) FetchIDs(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchIDs", reflect.TypeOf((*MockclientSession)(nil).FetchIDs), arg0, arg1, arg2, arg3)
-}
-
-// FetchTagged mocks base method
-func (_m *MockclientSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (encoding.SeriesIterators, bool, error) {
-	ret := _m.ctrl.Call(_m, "FetchTagged", _param0, _param1)
-	ret0, _ := ret[0].(encoding.SeriesIterators)
-	ret1, _ := ret[1].(bool)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// FetchTagged indicates an expected call of FetchTagged
-func (_mr *MockclientSessionMockRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTagged", reflect.TypeOf((*MockclientSession)(nil).FetchTagged), arg0, arg1)
-}
-
-// FetchTaggedIDs mocks base method
-func (_m *MockclientSession) FetchTaggedIDs(_param0 index.Query, _param1 index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", _param0, _param1)
-	ret0, _ := ret[0].(index.QueryResults)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchTaggedIDs indicates an expected call of FetchTaggedIDs
-func (_mr *MockclientSessionMockRecorder) FetchTaggedIDs(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTaggedIDs", reflect.TypeOf((*MockclientSession)(nil).FetchTaggedIDs), arg0, arg1)
-}
-
-// ShardID mocks base method
-func (_m *MockclientSession) ShardID(id ident.ID) (uint32, error) {
-	ret := _m.ctrl.Call(_m, "ShardID", id)
-	ret0, _ := ret[0].(uint32)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ShardID indicates an expected call of ShardID
-func (_mr *MockclientSessionMockRecorder) ShardID(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ShardID", reflect.TypeOf((*MockclientSession)(nil).ShardID), arg0)
-}
-
-// Close mocks base method
-func (_m *MockclientSession) Close() error {
-	ret := _m.ctrl.Call(_m, "Close")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Close indicates an expected call of Close
-func (_mr *MockclientSessionMockRecorder) Close() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Close", reflect.TypeOf((*MockclientSession)(nil).Close))
-}
-
-// Origin mocks base method
-func (_m *MockclientSession) Origin() topology.Host {
-	ret := _m.ctrl.Call(_m, "Origin")
-	ret0, _ := ret[0].(topology.Host)
-	return ret0
-}
-
-// Origin indicates an expected call of Origin
-func (_mr *MockclientSessionMockRecorder) Origin() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Origin", reflect.TypeOf((*MockclientSession)(nil).Origin))
-}
-
-// Replicas mocks base method
-func (_m *MockclientSession) Replicas() int {
-	ret := _m.ctrl.Call(_m, "Replicas")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// Replicas indicates an expected call of Replicas
-func (_mr *MockclientSessionMockRecorder) Replicas() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Replicas", reflect.TypeOf((*MockclientSession)(nil).Replicas))
-}
-
-// Truncate mocks base method
-func (_m *MockclientSession) Truncate(namespace ident.ID) (int64, error) {
-	ret := _m.ctrl.Call(_m, "Truncate", namespace)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Truncate indicates an expected call of Truncate
-func (_mr *MockclientSessionMockRecorder) Truncate(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Truncate", reflect.TypeOf((*MockclientSession)(nil).Truncate), arg0)
-}
-
-// FetchBlocksMetadataFromPeers mocks base method
-func (_m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlocksMetadataIter, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, result, version)
-	ret0, _ := ret[0].(PeerBlocksMetadataIter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchBlocksMetadataFromPeers indicates an expected call of FetchBlocksMetadataFromPeers
-func (_mr *MockclientSessionMockRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksMetadataFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBlocksMetadataFromPeers), arg0, arg1, arg2, arg3, arg4, arg5)
-}
-
-// FetchBootstrapBlocksFromPeers mocks base method
-func (_m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace namespace.Metadata, shard uint32, start time.Time, end time.Time, opts result.Options, version FetchBlocksMetadataEndpointVersion) (result.ShardResult, error) {
-	ret := _m.ctrl.Call(_m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts, version)
-	ret0, _ := ret[0].(result.ShardResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchBootstrapBlocksFromPeers indicates an expected call of FetchBootstrapBlocksFromPeers
-func (_mr *MockclientSessionMockRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBootstrapBlocksFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBootstrapBlocksFromPeers), arg0, arg1, arg2, arg3, arg4, arg5)
-}
-
-// FetchBlocksFromPeers mocks base method
-func (_m *MockclientSession) FetchBlocksFromPeers(namespace namespace.Metadata, shard uint32, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, metadatas, opts)
-	ret0, _ := ret[0].(PeerBlocksIter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchBlocksFromPeers indicates an expected call of FetchBlocksFromPeers
-func (_mr *MockclientSessionMockRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBlocksFromPeers), arg0, arg1, arg2, arg3)
-}
-
-// Open mocks base method
-func (_m *MockclientSession) Open() error {
-	ret := _m.ctrl.Call(_m, "Open")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Open indicates an expected call of Open
-func (_mr *MockclientSessionMockRecorder) Open() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Open", reflect.TypeOf((*MockclientSession)(nil).Open))
-}
-
-// MockhostQueue is a mock of hostQueue interface
-type MockhostQueue struct {
-	ctrl     *gomock.Controller
-	recorder *MockhostQueueMockRecorder
-}
-
-// MockhostQueueMockRecorder is the mock recorder for MockhostQueue
-type MockhostQueueMockRecorder struct {
-	mock *MockhostQueue
-}
-
-// NewMockhostQueue creates a new mock instance
-func NewMockhostQueue(ctrl *gomock.Controller) *MockhostQueue {
-	mock := &MockhostQueue{ctrl: ctrl}
-	mock.recorder = &MockhostQueueMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (_m *MockhostQueue) EXPECT() *MockhostQueueMockRecorder {
-	return _m.recorder
-}
-
-// Open mocks base method
-func (_m *MockhostQueue) Open() {
-	_m.ctrl.Call(_m, "Open")
-}
-
-// Open indicates an expected call of Open
-func (_mr *MockhostQueueMockRecorder) Open() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Open", reflect.TypeOf((*MockhostQueue)(nil).Open))
-}
-
-// Len mocks base method
-func (_m *MockhostQueue) Len() int {
-	ret := _m.ctrl.Call(_m, "Len")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// Len indicates an expected call of Len
-func (_mr *MockhostQueueMockRecorder) Len() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Len", reflect.TypeOf((*MockhostQueue)(nil).Len))
-}
-
-// Enqueue mocks base method
-func (_m *MockhostQueue) Enqueue(op op) error {
-	ret := _m.ctrl.Call(_m, "Enqueue", op)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Enqueue indicates an expected call of Enqueue
-func (_mr *MockhostQueueMockRecorder) Enqueue(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Enqueue", reflect.TypeOf((*MockhostQueue)(nil).Enqueue), arg0)
-}
-
-// Host mocks base method
-func (_m *MockhostQueue) Host() topology.Host {
-	ret := _m.ctrl.Call(_m, "Host")
-	ret0, _ := ret[0].(topology.Host)
-	return ret0
-}
-
-// Host indicates an expected call of Host
-func (_mr *MockhostQueueMockRecorder) Host() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Host", reflect.TypeOf((*MockhostQueue)(nil).Host))
-}
-
-// ConnectionCount mocks base method
-func (_m *MockhostQueue) ConnectionCount() int {
-	ret := _m.ctrl.Call(_m, "ConnectionCount")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// ConnectionCount indicates an expected call of ConnectionCount
-func (_mr *MockhostQueueMockRecorder) ConnectionCount() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ConnectionCount", reflect.TypeOf((*MockhostQueue)(nil).ConnectionCount))
-}
-
-// ConnectionPool mocks base method
-func (_m *MockhostQueue) ConnectionPool() connectionPool {
-	ret := _m.ctrl.Call(_m, "ConnectionPool")
-	ret0, _ := ret[0].(connectionPool)
-	return ret0
-}
-
-// ConnectionPool indicates an expected call of ConnectionPool
-func (_mr *MockhostQueueMockRecorder) ConnectionPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ConnectionPool", reflect.TypeOf((*MockhostQueue)(nil).ConnectionPool))
-}
-
-// BorrowConnection mocks base method
-func (_m *MockhostQueue) BorrowConnection(fn withConnectionFn) error {
-	ret := _m.ctrl.Call(_m, "BorrowConnection", fn)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// BorrowConnection indicates an expected call of BorrowConnection
-func (_mr *MockhostQueueMockRecorder) BorrowConnection(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BorrowConnection", reflect.TypeOf((*MockhostQueue)(nil).BorrowConnection), arg0)
-}
-
-// Close mocks base method
-func (_m *MockhostQueue) Close() {
-	_m.ctrl.Call(_m, "Close")
-}
-
-// Close indicates an expected call of Close
-func (_mr *MockhostQueueMockRecorder) Close() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Close", reflect.TypeOf((*MockhostQueue)(nil).Close))
-}
-
-// MockconnectionPool is a mock of connectionPool interface
-type MockconnectionPool struct {
-	ctrl     *gomock.Controller
-	recorder *MockconnectionPoolMockRecorder
-}
-
-// MockconnectionPoolMockRecorder is the mock recorder for MockconnectionPool
-type MockconnectionPoolMockRecorder struct {
-	mock *MockconnectionPool
-}
-
-// NewMockconnectionPool creates a new mock instance
-func NewMockconnectionPool(ctrl *gomock.Controller) *MockconnectionPool {
-	mock := &MockconnectionPool{ctrl: ctrl}
-	mock.recorder = &MockconnectionPoolMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (_m *MockconnectionPool) EXPECT() *MockconnectionPoolMockRecorder {
-	return _m.recorder
-}
-
-// Open mocks base method
-func (_m *MockconnectionPool) Open() {
-	_m.ctrl.Call(_m, "Open")
-}
-
-// Open indicates an expected call of Open
-func (_mr *MockconnectionPoolMockRecorder) Open() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Open", reflect.TypeOf((*MockconnectionPool)(nil).Open))
-}
-
-// ConnectionCount mocks base method
-func (_m *MockconnectionPool) ConnectionCount() int {
-	ret := _m.ctrl.Call(_m, "ConnectionCount")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// ConnectionCount indicates an expected call of ConnectionCount
-func (_mr *MockconnectionPoolMockRecorder) ConnectionCount() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ConnectionCount", reflect.TypeOf((*MockconnectionPool)(nil).ConnectionCount))
-}
-
-// NextClient mocks base method
-func (_m *MockconnectionPool) NextClient() (rpc.TChanNode, error) {
-	ret := _m.ctrl.Call(_m, "NextClient")
-	ret0, _ := ret[0].(rpc.TChanNode)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// NextClient indicates an expected call of NextClient
-func (_mr *MockconnectionPoolMockRecorder) NextClient() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "NextClient", reflect.TypeOf((*MockconnectionPool)(nil).NextClient))
-}
-
-// Close mocks base method
-func (_m *MockconnectionPool) Close() {
-	_m.ctrl.Call(_m, "Close")
-}
-
-// Close indicates an expected call of Close
-func (_mr *MockconnectionPoolMockRecorder) Close() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Close", reflect.TypeOf((*MockconnectionPool)(nil).Close))
-}
-
-// MockpeerSource is a mock of peerSource interface
-type MockpeerSource struct {
-	ctrl     *gomock.Controller
-	recorder *MockpeerSourceMockRecorder
-}
-
-// MockpeerSourceMockRecorder is the mock recorder for MockpeerSource
-type MockpeerSourceMockRecorder struct {
-	mock *MockpeerSource
-}
-
-// NewMockpeerSource creates a new mock instance
-func NewMockpeerSource(ctrl *gomock.Controller) *MockpeerSource {
-	mock := &MockpeerSource{ctrl: ctrl}
-	mock.recorder = &MockpeerSourceMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (_m *MockpeerSource) EXPECT() *MockpeerSourceMockRecorder {
-	return _m.recorder
-}
-
-// BorrowConnection mocks base method
-func (_m *MockpeerSource) BorrowConnection(hostID string, fn withConnectionFn) error {
-	ret := _m.ctrl.Call(_m, "BorrowConnection", hostID, fn)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// BorrowConnection indicates an expected call of BorrowConnection
-func (_mr *MockpeerSourceMockRecorder) BorrowConnection(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BorrowConnection", reflect.TypeOf((*MockpeerSource)(nil).BorrowConnection), arg0, arg1)
-}
-
-// Mockpeer is a mock of peer interface
-type Mockpeer struct {
-	ctrl     *gomock.Controller
-	recorder *MockpeerMockRecorder
-}
-
-// MockpeerMockRecorder is the mock recorder for Mockpeer
-type MockpeerMockRecorder struct {
-	mock *Mockpeer
-}
-
-// NewMockpeer creates a new mock instance
-func NewMockpeer(ctrl *gomock.Controller) *Mockpeer {
-	mock := &Mockpeer{ctrl: ctrl}
-	mock.recorder = &MockpeerMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (_m *Mockpeer) EXPECT() *MockpeerMockRecorder {
-	return _m.recorder
-}
-
-// Host mocks base method
-func (_m *Mockpeer) Host() topology.Host {
-	ret := _m.ctrl.Call(_m, "Host")
-	ret0, _ := ret[0].(topology.Host)
-	return ret0
-}
-
-// Host indicates an expected call of Host
-func (_mr *MockpeerMockRecorder) Host() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Host", reflect.TypeOf((*Mockpeer)(nil).Host))
-}
-
-// BorrowConnection mocks base method
-func (_m *Mockpeer) BorrowConnection(fn withConnectionFn) error {
-	ret := _m.ctrl.Call(_m, "BorrowConnection", fn)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// BorrowConnection indicates an expected call of BorrowConnection
-func (_mr *MockpeerMockRecorder) BorrowConnection(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BorrowConnection", reflect.TypeOf((*Mockpeer)(nil).BorrowConnection), arg0)
-}
-
-// Mockop is a mock of op interface
-type Mockop struct {
-	ctrl     *gomock.Controller
-	recorder *MockopMockRecorder
-}
-
-// MockopMockRecorder is the mock recorder for Mockop
-type MockopMockRecorder struct {
-	mock *Mockop
-}
-
-// NewMockop creates a new mock instance
-func NewMockop(ctrl *gomock.Controller) *Mockop {
-	mock := &Mockop{ctrl: ctrl}
-	mock.recorder = &MockopMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (_m *Mockop) EXPECT() *MockopMockRecorder {
-	return _m.recorder
-}
-
-// Size mocks base method
-func (_m *Mockop) Size() int {
-	ret := _m.ctrl.Call(_m, "Size")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// Size indicates an expected call of Size
-func (_mr *MockopMockRecorder) Size() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Size", reflect.TypeOf((*Mockop)(nil).Size))
-}
-
-// CompletionFn mocks base method
-func (_m *Mockop) CompletionFn() completionFn {
-	ret := _m.ctrl.Call(_m, "CompletionFn")
-	ret0, _ := ret[0].(completionFn)
-	return ret0
-}
-
-// CompletionFn indicates an expected call of CompletionFn
-func (_mr *MockopMockRecorder) CompletionFn() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "CompletionFn", reflect.TypeOf((*Mockop)(nil).CompletionFn))
+func (_mr *MockAdminSessionMockRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksFromPeers", reflect.TypeOf((*MockAdminSession)(nil).FetchBlocksFromPeers), arg0, arg1, arg2, arg3, arg4)
 }
 
 // MockOptions is a mock of Options interface
@@ -1236,6 +712,30 @@ func (_m *MockOptions) SetEncodingM3TSZ() Options {
 // SetEncodingM3TSZ indicates an expected call of SetEncodingM3TSZ
 func (_mr *MockOptionsMockRecorder) SetEncodingM3TSZ() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetEncodingM3TSZ", reflect.TypeOf((*MockOptions)(nil).SetEncodingM3TSZ))
+}
+
+// SetRuntimeOptionsManager mocks base method
+func (_m *MockOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+	ret := _m.ctrl.Call(_m, "SetRuntimeOptionsManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetRuntimeOptionsManager indicates an expected call of SetRuntimeOptionsManager
+func (_mr *MockOptionsMockRecorder) SetRuntimeOptionsManager(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetRuntimeOptionsManager", reflect.TypeOf((*MockOptions)(nil).SetRuntimeOptionsManager), arg0)
+}
+
+// RuntimeOptionsManager mocks base method
+func (_m *MockOptions) RuntimeOptionsManager() runtime.OptionsManager {
+	ret := _m.ctrl.Call(_m, "RuntimeOptionsManager")
+	ret0, _ := ret[0].(runtime.OptionsManager)
+	return ret0
+}
+
+// RuntimeOptionsManager indicates an expected call of RuntimeOptionsManager
+func (_mr *MockOptionsMockRecorder) RuntimeOptionsManager() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "RuntimeOptionsManager", reflect.TypeOf((*MockOptions)(nil).RuntimeOptionsManager))
 }
 
 // SetClockOptions mocks base method
@@ -1310,6 +810,30 @@ func (_mr *MockOptionsMockRecorder) TopologyInitializer() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TopologyInitializer", reflect.TypeOf((*MockOptions)(nil).TopologyInitializer))
 }
 
+// SetReadConsistencyLevel mocks base method
+func (_m *MockOptions) SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetReadConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetReadConsistencyLevel indicates an expected call of SetReadConsistencyLevel
+func (_mr *MockOptionsMockRecorder) SetReadConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetReadConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).SetReadConsistencyLevel), arg0)
+}
+
+// ReadConsistencyLevel mocks base method
+func (_m *MockOptions) ReadConsistencyLevel() topology.ReadConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "ReadConsistencyLevel")
+	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
+	return ret0
+}
+
+// ReadConsistencyLevel indicates an expected call of ReadConsistencyLevel
+func (_mr *MockOptionsMockRecorder) ReadConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ReadConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).ReadConsistencyLevel))
+}
+
 // SetWriteConsistencyLevel mocks base method
 func (_m *MockOptions) SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
 	ret := _m.ctrl.Call(_m, "SetWriteConsistencyLevel", value)
@@ -1332,30 +856,6 @@ func (_m *MockOptions) WriteConsistencyLevel() topology.ConsistencyLevel {
 // WriteConsistencyLevel indicates an expected call of WriteConsistencyLevel
 func (_mr *MockOptionsMockRecorder) WriteConsistencyLevel() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).WriteConsistencyLevel))
-}
-
-// SetReadConsistencyLevel mocks base method
-func (_m *MockOptions) SetReadConsistencyLevel(value ReadConsistencyLevel) Options {
-	ret := _m.ctrl.Call(_m, "SetReadConsistencyLevel", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetReadConsistencyLevel indicates an expected call of SetReadConsistencyLevel
-func (_mr *MockOptionsMockRecorder) SetReadConsistencyLevel(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetReadConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).SetReadConsistencyLevel), arg0)
-}
-
-// ReadConsistencyLevel mocks base method
-func (_m *MockOptions) ReadConsistencyLevel() ReadConsistencyLevel {
-	ret := _m.ctrl.Call(_m, "ReadConsistencyLevel")
-	ret0, _ := ret[0].(ReadConsistencyLevel)
-	return ret0
-}
-
-// ReadConsistencyLevel indicates an expected call of ReadConsistencyLevel
-func (_mr *MockOptionsMockRecorder) ReadConsistencyLevel() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ReadConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).ReadConsistencyLevel))
 }
 
 // SetChannelOptions mocks base method
@@ -1479,7 +979,7 @@ func (_mr *MockOptionsMockRecorder) ClusterConnectTimeout() *gomock.Call {
 }
 
 // SetClusterConnectConsistencyLevel mocks base method
-func (_m *MockOptions) SetClusterConnectConsistencyLevel(value ConnectConsistencyLevel) Options {
+func (_m *MockOptions) SetClusterConnectConsistencyLevel(value topology.ConnectConsistencyLevel) Options {
 	ret := _m.ctrl.Call(_m, "SetClusterConnectConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1491,9 +991,9 @@ func (_mr *MockOptionsMockRecorder) SetClusterConnectConsistencyLevel(arg0 inter
 }
 
 // ClusterConnectConsistencyLevel mocks base method
-func (_m *MockOptions) ClusterConnectConsistencyLevel() ConnectConsistencyLevel {
+func (_m *MockOptions) ClusterConnectConsistencyLevel() topology.ConnectConsistencyLevel {
 	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel")
-	ret0, _ := ret[0].(ConnectConsistencyLevel)
+	ret0, _ := ret[0].(topology.ConnectConsistencyLevel)
 	return ret0
 }
 
@@ -2173,6 +1673,30 @@ func (_mr *MockAdminOptionsMockRecorder) SetEncodingM3TSZ() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetEncodingM3TSZ", reflect.TypeOf((*MockAdminOptions)(nil).SetEncodingM3TSZ))
 }
 
+// SetRuntimeOptionsManager mocks base method
+func (_m *MockAdminOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+	ret := _m.ctrl.Call(_m, "SetRuntimeOptionsManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetRuntimeOptionsManager indicates an expected call of SetRuntimeOptionsManager
+func (_mr *MockAdminOptionsMockRecorder) SetRuntimeOptionsManager(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetRuntimeOptionsManager", reflect.TypeOf((*MockAdminOptions)(nil).SetRuntimeOptionsManager), arg0)
+}
+
+// RuntimeOptionsManager mocks base method
+func (_m *MockAdminOptions) RuntimeOptionsManager() runtime.OptionsManager {
+	ret := _m.ctrl.Call(_m, "RuntimeOptionsManager")
+	ret0, _ := ret[0].(runtime.OptionsManager)
+	return ret0
+}
+
+// RuntimeOptionsManager indicates an expected call of RuntimeOptionsManager
+func (_mr *MockAdminOptionsMockRecorder) RuntimeOptionsManager() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "RuntimeOptionsManager", reflect.TypeOf((*MockAdminOptions)(nil).RuntimeOptionsManager))
+}
+
 // SetClockOptions mocks base method
 func (_m *MockAdminOptions) SetClockOptions(value clock.Options) Options {
 	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
@@ -2245,6 +1769,30 @@ func (_mr *MockAdminOptionsMockRecorder) TopologyInitializer() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TopologyInitializer", reflect.TypeOf((*MockAdminOptions)(nil).TopologyInitializer))
 }
 
+// SetReadConsistencyLevel mocks base method
+func (_m *MockAdminOptions) SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetReadConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetReadConsistencyLevel indicates an expected call of SetReadConsistencyLevel
+func (_mr *MockAdminOptionsMockRecorder) SetReadConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetReadConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).SetReadConsistencyLevel), arg0)
+}
+
+// ReadConsistencyLevel mocks base method
+func (_m *MockAdminOptions) ReadConsistencyLevel() topology.ReadConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "ReadConsistencyLevel")
+	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
+	return ret0
+}
+
+// ReadConsistencyLevel indicates an expected call of ReadConsistencyLevel
+func (_mr *MockAdminOptionsMockRecorder) ReadConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ReadConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).ReadConsistencyLevel))
+}
+
 // SetWriteConsistencyLevel mocks base method
 func (_m *MockAdminOptions) SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
 	ret := _m.ctrl.Call(_m, "SetWriteConsistencyLevel", value)
@@ -2267,30 +1815,6 @@ func (_m *MockAdminOptions) WriteConsistencyLevel() topology.ConsistencyLevel {
 // WriteConsistencyLevel indicates an expected call of WriteConsistencyLevel
 func (_mr *MockAdminOptionsMockRecorder) WriteConsistencyLevel() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).WriteConsistencyLevel))
-}
-
-// SetReadConsistencyLevel mocks base method
-func (_m *MockAdminOptions) SetReadConsistencyLevel(value ReadConsistencyLevel) Options {
-	ret := _m.ctrl.Call(_m, "SetReadConsistencyLevel", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetReadConsistencyLevel indicates an expected call of SetReadConsistencyLevel
-func (_mr *MockAdminOptionsMockRecorder) SetReadConsistencyLevel(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetReadConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).SetReadConsistencyLevel), arg0)
-}
-
-// ReadConsistencyLevel mocks base method
-func (_m *MockAdminOptions) ReadConsistencyLevel() ReadConsistencyLevel {
-	ret := _m.ctrl.Call(_m, "ReadConsistencyLevel")
-	ret0, _ := ret[0].(ReadConsistencyLevel)
-	return ret0
-}
-
-// ReadConsistencyLevel indicates an expected call of ReadConsistencyLevel
-func (_mr *MockAdminOptionsMockRecorder) ReadConsistencyLevel() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ReadConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).ReadConsistencyLevel))
 }
 
 // SetChannelOptions mocks base method
@@ -2414,7 +1938,7 @@ func (_mr *MockAdminOptionsMockRecorder) ClusterConnectTimeout() *gomock.Call {
 }
 
 // SetClusterConnectConsistencyLevel mocks base method
-func (_m *MockAdminOptions) SetClusterConnectConsistencyLevel(value ConnectConsistencyLevel) Options {
+func (_m *MockAdminOptions) SetClusterConnectConsistencyLevel(value topology.ConnectConsistencyLevel) Options {
 	ret := _m.ctrl.Call(_m, "SetClusterConnectConsistencyLevel", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2426,9 +1950,9 @@ func (_mr *MockAdminOptionsMockRecorder) SetClusterConnectConsistencyLevel(arg0 
 }
 
 // ClusterConnectConsistencyLevel mocks base method
-func (_m *MockAdminOptions) ClusterConnectConsistencyLevel() ConnectConsistencyLevel {
+func (_m *MockAdminOptions) ClusterConnectConsistencyLevel() topology.ConnectConsistencyLevel {
 	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel")
-	ret0, _ := ret[0].(ConnectConsistencyLevel)
+	ret0, _ := ret[0].(topology.ConnectConsistencyLevel)
 	return ret0
 }
 
@@ -3085,6 +2609,30 @@ func (_mr *MockAdminOptionsMockRecorder) Origin() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Origin", reflect.TypeOf((*MockAdminOptions)(nil).Origin))
 }
 
+// SetBootstrapConsistencyLevel mocks base method
+func (_m *MockAdminOptions) SetBootstrapConsistencyLevel(value topology.ReadConsistencyLevel) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetBootstrapConsistencyLevel", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetBootstrapConsistencyLevel indicates an expected call of SetBootstrapConsistencyLevel
+func (_mr *MockAdminOptionsMockRecorder) SetBootstrapConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBootstrapConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).SetBootstrapConsistencyLevel), arg0)
+}
+
+// BootstrapConsistencyLevel mocks base method
+func (_m *MockAdminOptions) BootstrapConsistencyLevel() topology.ReadConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "BootstrapConsistencyLevel")
+	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
+	return ret0
+}
+
+// BootstrapConsistencyLevel indicates an expected call of BootstrapConsistencyLevel
+func (_mr *MockAdminOptionsMockRecorder) BootstrapConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BootstrapConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).BootstrapConsistencyLevel))
+}
+
 // SetFetchSeriesBlocksMaxBlockRetries mocks base method
 func (_m *MockAdminOptions) SetFetchSeriesBlocksMaxBlockRetries(value int) AdminOptions {
 	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksMaxBlockRetries", value)
@@ -3227,4 +2775,628 @@ func (_m *MockAdminOptions) StreamBlocksRetrier() retry.Retrier {
 // StreamBlocksRetrier indicates an expected call of StreamBlocksRetrier
 func (_mr *MockAdminOptionsMockRecorder) StreamBlocksRetrier() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "StreamBlocksRetrier", reflect.TypeOf((*MockAdminOptions)(nil).StreamBlocksRetrier))
+}
+
+// MockclientSession is a mock of clientSession interface
+type MockclientSession struct {
+	ctrl     *gomock.Controller
+	recorder *MockclientSessionMockRecorder
+}
+
+// MockclientSessionMockRecorder is the mock recorder for MockclientSession
+type MockclientSessionMockRecorder struct {
+	mock *MockclientSession
+}
+
+// NewMockclientSession creates a new mock instance
+func NewMockclientSession(ctrl *gomock.Controller) *MockclientSession {
+	mock := &MockclientSession{ctrl: ctrl}
+	mock.recorder = &MockclientSessionMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockclientSession) EXPECT() *MockclientSessionMockRecorder {
+	return _m.recorder
+}
+
+// Write mocks base method
+func (_m *MockclientSession) Write(namespace ident.ID, id ident.ID, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "Write", namespace, id, t, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Write indicates an expected call of Write
+func (_mr *MockclientSessionMockRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Write", reflect.TypeOf((*MockclientSession)(nil).Write), arg0, arg1, arg2, arg3, arg4, arg5)
+}
+
+// WriteTagged mocks base method
+func (_m *MockclientSession) WriteTagged(namespace ident.ID, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "WriteTagged", namespace, id, tags, t, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteTagged indicates an expected call of WriteTagged
+func (_mr *MockclientSessionMockRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteTagged", reflect.TypeOf((*MockclientSession)(nil).WriteTagged), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+}
+
+// Fetch mocks base method
+func (_m *MockclientSession) Fetch(namespace ident.ID, id ident.ID, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterator, error) {
+	ret := _m.ctrl.Call(_m, "Fetch", namespace, id, startInclusive, endExclusive)
+	ret0, _ := ret[0].(encoding.SeriesIterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Fetch indicates an expected call of Fetch
+func (_mr *MockclientSessionMockRecorder) Fetch(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Fetch", reflect.TypeOf((*MockclientSession)(nil).Fetch), arg0, arg1, arg2, arg3)
+}
+
+// FetchIDs mocks base method
+func (_m *MockclientSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterators, error) {
+	ret := _m.ctrl.Call(_m, "FetchIDs", namespace, ids, startInclusive, endExclusive)
+	ret0, _ := ret[0].(encoding.SeriesIterators)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchIDs indicates an expected call of FetchIDs
+func (_mr *MockclientSessionMockRecorder) FetchIDs(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchIDs", reflect.TypeOf((*MockclientSession)(nil).FetchIDs), arg0, arg1, arg2, arg3)
+}
+
+// FetchTagged mocks base method
+func (_m *MockclientSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (encoding.SeriesIterators, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", _param0, _param1)
+	ret0, _ := ret[0].(encoding.SeriesIterators)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// FetchTagged indicates an expected call of FetchTagged
+func (_mr *MockclientSessionMockRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTagged", reflect.TypeOf((*MockclientSession)(nil).FetchTagged), arg0, arg1)
+}
+
+// FetchTaggedIDs mocks base method
+func (_m *MockclientSession) FetchTaggedIDs(_param0 index.Query, _param1 index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", _param0, _param1)
+	ret0, _ := ret[0].(index.QueryResults)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchTaggedIDs indicates an expected call of FetchTaggedIDs
+func (_mr *MockclientSessionMockRecorder) FetchTaggedIDs(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTaggedIDs", reflect.TypeOf((*MockclientSession)(nil).FetchTaggedIDs), arg0, arg1)
+}
+
+// ShardID mocks base method
+func (_m *MockclientSession) ShardID(id ident.ID) (uint32, error) {
+	ret := _m.ctrl.Call(_m, "ShardID", id)
+	ret0, _ := ret[0].(uint32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ShardID indicates an expected call of ShardID
+func (_mr *MockclientSessionMockRecorder) ShardID(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ShardID", reflect.TypeOf((*MockclientSession)(nil).ShardID), arg0)
+}
+
+// Close mocks base method
+func (_m *MockclientSession) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (_mr *MockclientSessionMockRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Close", reflect.TypeOf((*MockclientSession)(nil).Close))
+}
+
+// Origin mocks base method
+func (_m *MockclientSession) Origin() topology.Host {
+	ret := _m.ctrl.Call(_m, "Origin")
+	ret0, _ := ret[0].(topology.Host)
+	return ret0
+}
+
+// Origin indicates an expected call of Origin
+func (_mr *MockclientSessionMockRecorder) Origin() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Origin", reflect.TypeOf((*MockclientSession)(nil).Origin))
+}
+
+// Replicas mocks base method
+func (_m *MockclientSession) Replicas() int {
+	ret := _m.ctrl.Call(_m, "Replicas")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Replicas indicates an expected call of Replicas
+func (_mr *MockclientSessionMockRecorder) Replicas() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Replicas", reflect.TypeOf((*MockclientSession)(nil).Replicas))
+}
+
+// Truncate mocks base method
+func (_m *MockclientSession) Truncate(namespace ident.ID) (int64, error) {
+	ret := _m.ctrl.Call(_m, "Truncate", namespace)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Truncate indicates an expected call of Truncate
+func (_mr *MockclientSessionMockRecorder) Truncate(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Truncate", reflect.TypeOf((*MockclientSession)(nil).Truncate), arg0)
+}
+
+// FetchBlocksMetadataFromPeers mocks base method
+func (_m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, consistencyLevel topology.ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result, version)
+	ret0, _ := ret[0].(PeerBlockMetadataIter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBlocksMetadataFromPeers indicates an expected call of FetchBlocksMetadataFromPeers
+func (_mr *MockclientSessionMockRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksMetadataFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBlocksMetadataFromPeers), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+}
+
+// FetchBootstrapBlocksFromPeers mocks base method
+func (_m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace namespace.Metadata, shard uint32, start time.Time, end time.Time, opts result.Options, version FetchBlocksMetadataEndpointVersion) (result.ShardResult, error) {
+	ret := _m.ctrl.Call(_m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts, version)
+	ret0, _ := ret[0].(result.ShardResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBootstrapBlocksFromPeers indicates an expected call of FetchBootstrapBlocksFromPeers
+func (_mr *MockclientSessionMockRecorder) FetchBootstrapBlocksFromPeers(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBootstrapBlocksFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBootstrapBlocksFromPeers), arg0, arg1, arg2, arg3, arg4, arg5)
+}
+
+// FetchBlocksFromPeers mocks base method
+func (_m *MockclientSession) FetchBlocksFromPeers(namespace namespace.Metadata, shard uint32, consistencyLevel topology.ReadConsistencyLevel, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, consistencyLevel, metadatas, opts)
+	ret0, _ := ret[0].(PeerBlocksIter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBlocksFromPeers indicates an expected call of FetchBlocksFromPeers
+func (_mr *MockclientSessionMockRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBlocksFromPeers), arg0, arg1, arg2, arg3, arg4)
+}
+
+// Open mocks base method
+func (_m *MockclientSession) Open() error {
+	ret := _m.ctrl.Call(_m, "Open")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Open indicates an expected call of Open
+func (_mr *MockclientSessionMockRecorder) Open() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Open", reflect.TypeOf((*MockclientSession)(nil).Open))
+}
+
+// MockhostQueue is a mock of hostQueue interface
+type MockhostQueue struct {
+	ctrl     *gomock.Controller
+	recorder *MockhostQueueMockRecorder
+}
+
+// MockhostQueueMockRecorder is the mock recorder for MockhostQueue
+type MockhostQueueMockRecorder struct {
+	mock *MockhostQueue
+}
+
+// NewMockhostQueue creates a new mock instance
+func NewMockhostQueue(ctrl *gomock.Controller) *MockhostQueue {
+	mock := &MockhostQueue{ctrl: ctrl}
+	mock.recorder = &MockhostQueueMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockhostQueue) EXPECT() *MockhostQueueMockRecorder {
+	return _m.recorder
+}
+
+// Open mocks base method
+func (_m *MockhostQueue) Open() {
+	_m.ctrl.Call(_m, "Open")
+}
+
+// Open indicates an expected call of Open
+func (_mr *MockhostQueueMockRecorder) Open() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Open", reflect.TypeOf((*MockhostQueue)(nil).Open))
+}
+
+// Len mocks base method
+func (_m *MockhostQueue) Len() int {
+	ret := _m.ctrl.Call(_m, "Len")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Len indicates an expected call of Len
+func (_mr *MockhostQueueMockRecorder) Len() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Len", reflect.TypeOf((*MockhostQueue)(nil).Len))
+}
+
+// Enqueue mocks base method
+func (_m *MockhostQueue) Enqueue(op op) error {
+	ret := _m.ctrl.Call(_m, "Enqueue", op)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Enqueue indicates an expected call of Enqueue
+func (_mr *MockhostQueueMockRecorder) Enqueue(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Enqueue", reflect.TypeOf((*MockhostQueue)(nil).Enqueue), arg0)
+}
+
+// Host mocks base method
+func (_m *MockhostQueue) Host() topology.Host {
+	ret := _m.ctrl.Call(_m, "Host")
+	ret0, _ := ret[0].(topology.Host)
+	return ret0
+}
+
+// Host indicates an expected call of Host
+func (_mr *MockhostQueueMockRecorder) Host() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Host", reflect.TypeOf((*MockhostQueue)(nil).Host))
+}
+
+// ConnectionCount mocks base method
+func (_m *MockhostQueue) ConnectionCount() int {
+	ret := _m.ctrl.Call(_m, "ConnectionCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// ConnectionCount indicates an expected call of ConnectionCount
+func (_mr *MockhostQueueMockRecorder) ConnectionCount() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ConnectionCount", reflect.TypeOf((*MockhostQueue)(nil).ConnectionCount))
+}
+
+// ConnectionPool mocks base method
+func (_m *MockhostQueue) ConnectionPool() connectionPool {
+	ret := _m.ctrl.Call(_m, "ConnectionPool")
+	ret0, _ := ret[0].(connectionPool)
+	return ret0
+}
+
+// ConnectionPool indicates an expected call of ConnectionPool
+func (_mr *MockhostQueueMockRecorder) ConnectionPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ConnectionPool", reflect.TypeOf((*MockhostQueue)(nil).ConnectionPool))
+}
+
+// BorrowConnection mocks base method
+func (_m *MockhostQueue) BorrowConnection(fn withConnectionFn) error {
+	ret := _m.ctrl.Call(_m, "BorrowConnection", fn)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BorrowConnection indicates an expected call of BorrowConnection
+func (_mr *MockhostQueueMockRecorder) BorrowConnection(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BorrowConnection", reflect.TypeOf((*MockhostQueue)(nil).BorrowConnection), arg0)
+}
+
+// Close mocks base method
+func (_m *MockhostQueue) Close() {
+	_m.ctrl.Call(_m, "Close")
+}
+
+// Close indicates an expected call of Close
+func (_mr *MockhostQueueMockRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Close", reflect.TypeOf((*MockhostQueue)(nil).Close))
+}
+
+// MockconnectionPool is a mock of connectionPool interface
+type MockconnectionPool struct {
+	ctrl     *gomock.Controller
+	recorder *MockconnectionPoolMockRecorder
+}
+
+// MockconnectionPoolMockRecorder is the mock recorder for MockconnectionPool
+type MockconnectionPoolMockRecorder struct {
+	mock *MockconnectionPool
+}
+
+// NewMockconnectionPool creates a new mock instance
+func NewMockconnectionPool(ctrl *gomock.Controller) *MockconnectionPool {
+	mock := &MockconnectionPool{ctrl: ctrl}
+	mock.recorder = &MockconnectionPoolMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockconnectionPool) EXPECT() *MockconnectionPoolMockRecorder {
+	return _m.recorder
+}
+
+// Open mocks base method
+func (_m *MockconnectionPool) Open() {
+	_m.ctrl.Call(_m, "Open")
+}
+
+// Open indicates an expected call of Open
+func (_mr *MockconnectionPoolMockRecorder) Open() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Open", reflect.TypeOf((*MockconnectionPool)(nil).Open))
+}
+
+// ConnectionCount mocks base method
+func (_m *MockconnectionPool) ConnectionCount() int {
+	ret := _m.ctrl.Call(_m, "ConnectionCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// ConnectionCount indicates an expected call of ConnectionCount
+func (_mr *MockconnectionPoolMockRecorder) ConnectionCount() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ConnectionCount", reflect.TypeOf((*MockconnectionPool)(nil).ConnectionCount))
+}
+
+// NextClient mocks base method
+func (_m *MockconnectionPool) NextClient() (rpc.TChanNode, error) {
+	ret := _m.ctrl.Call(_m, "NextClient")
+	ret0, _ := ret[0].(rpc.TChanNode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NextClient indicates an expected call of NextClient
+func (_mr *MockconnectionPoolMockRecorder) NextClient() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "NextClient", reflect.TypeOf((*MockconnectionPool)(nil).NextClient))
+}
+
+// Close mocks base method
+func (_m *MockconnectionPool) Close() {
+	_m.ctrl.Call(_m, "Close")
+}
+
+// Close indicates an expected call of Close
+func (_mr *MockconnectionPoolMockRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Close", reflect.TypeOf((*MockconnectionPool)(nil).Close))
+}
+
+// MockpeerSource is a mock of peerSource interface
+type MockpeerSource struct {
+	ctrl     *gomock.Controller
+	recorder *MockpeerSourceMockRecorder
+}
+
+// MockpeerSourceMockRecorder is the mock recorder for MockpeerSource
+type MockpeerSourceMockRecorder struct {
+	mock *MockpeerSource
+}
+
+// NewMockpeerSource creates a new mock instance
+func NewMockpeerSource(ctrl *gomock.Controller) *MockpeerSource {
+	mock := &MockpeerSource{ctrl: ctrl}
+	mock.recorder = &MockpeerSourceMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockpeerSource) EXPECT() *MockpeerSourceMockRecorder {
+	return _m.recorder
+}
+
+// BorrowConnection mocks base method
+func (_m *MockpeerSource) BorrowConnection(hostID string, fn withConnectionFn) error {
+	ret := _m.ctrl.Call(_m, "BorrowConnection", hostID, fn)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BorrowConnection indicates an expected call of BorrowConnection
+func (_mr *MockpeerSourceMockRecorder) BorrowConnection(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BorrowConnection", reflect.TypeOf((*MockpeerSource)(nil).BorrowConnection), arg0, arg1)
+}
+
+// Mockpeer is a mock of peer interface
+type Mockpeer struct {
+	ctrl     *gomock.Controller
+	recorder *MockpeerMockRecorder
+}
+
+// MockpeerMockRecorder is the mock recorder for Mockpeer
+type MockpeerMockRecorder struct {
+	mock *Mockpeer
+}
+
+// NewMockpeer creates a new mock instance
+func NewMockpeer(ctrl *gomock.Controller) *Mockpeer {
+	mock := &Mockpeer{ctrl: ctrl}
+	mock.recorder = &MockpeerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *Mockpeer) EXPECT() *MockpeerMockRecorder {
+	return _m.recorder
+}
+
+// Host mocks base method
+func (_m *Mockpeer) Host() topology.Host {
+	ret := _m.ctrl.Call(_m, "Host")
+	ret0, _ := ret[0].(topology.Host)
+	return ret0
+}
+
+// Host indicates an expected call of Host
+func (_mr *MockpeerMockRecorder) Host() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Host", reflect.TypeOf((*Mockpeer)(nil).Host))
+}
+
+// BorrowConnection mocks base method
+func (_m *Mockpeer) BorrowConnection(fn withConnectionFn) error {
+	ret := _m.ctrl.Call(_m, "BorrowConnection", fn)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BorrowConnection indicates an expected call of BorrowConnection
+func (_mr *MockpeerMockRecorder) BorrowConnection(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BorrowConnection", reflect.TypeOf((*Mockpeer)(nil).BorrowConnection), arg0)
+}
+
+// Mockop is a mock of op interface
+type Mockop struct {
+	ctrl     *gomock.Controller
+	recorder *MockopMockRecorder
+}
+
+// MockopMockRecorder is the mock recorder for Mockop
+type MockopMockRecorder struct {
+	mock *Mockop
+}
+
+// NewMockop creates a new mock instance
+func NewMockop(ctrl *gomock.Controller) *Mockop {
+	mock := &Mockop{ctrl: ctrl}
+	mock.recorder = &MockopMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *Mockop) EXPECT() *MockopMockRecorder {
+	return _m.recorder
+}
+
+// Size mocks base method
+func (_m *Mockop) Size() int {
+	ret := _m.ctrl.Call(_m, "Size")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Size indicates an expected call of Size
+func (_mr *MockopMockRecorder) Size() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Size", reflect.TypeOf((*Mockop)(nil).Size))
+}
+
+// CompletionFn mocks base method
+func (_m *Mockop) CompletionFn() completionFn {
+	ret := _m.ctrl.Call(_m, "CompletionFn")
+	ret0, _ := ret[0].(completionFn)
+	return ret0
+}
+
+// CompletionFn indicates an expected call of CompletionFn
+func (_mr *MockopMockRecorder) CompletionFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "CompletionFn", reflect.TypeOf((*Mockop)(nil).CompletionFn))
+}
+
+// MockenqueueChannel is a mock of enqueueChannel interface
+type MockenqueueChannel struct {
+	ctrl     *gomock.Controller
+	recorder *MockenqueueChannelMockRecorder
+}
+
+// MockenqueueChannelMockRecorder is the mock recorder for MockenqueueChannel
+type MockenqueueChannelMockRecorder struct {
+	mock *MockenqueueChannel
+}
+
+// NewMockenqueueChannel creates a new mock instance
+func NewMockenqueueChannel(ctrl *gomock.Controller) *MockenqueueChannel {
+	mock := &MockenqueueChannel{ctrl: ctrl}
+	mock.recorder = &MockenqueueChannelMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockenqueueChannel) EXPECT() *MockenqueueChannelMockRecorder {
+	return _m.recorder
+}
+
+// enqueue mocks base method
+func (_m *MockenqueueChannel) enqueue(peersMetadata []receivedBlockMetadata) {
+	_m.ctrl.Call(_m, "enqueue", peersMetadata)
+}
+
+// enqueue indicates an expected call of enqueue
+func (_mr *MockenqueueChannelMockRecorder) enqueue(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "enqueue", reflect.TypeOf((*MockenqueueChannel)(nil).enqueue), arg0)
+}
+
+// enqueueDelayed mocks base method
+func (_m *MockenqueueChannel) enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata) {
+	ret := _m.ctrl.Call(_m, "enqueueDelayed", numToEnqueue)
+	ret0, _ := ret[0].(func([]receivedBlockMetadata))
+	return ret0
+}
+
+// enqueueDelayed indicates an expected call of enqueueDelayed
+func (_mr *MockenqueueChannelMockRecorder) enqueueDelayed(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "enqueueDelayed", reflect.TypeOf((*MockenqueueChannel)(nil).enqueueDelayed), arg0)
+}
+
+// get mocks base method
+func (_m *MockenqueueChannel) get() <-chan []receivedBlockMetadata {
+	ret := _m.ctrl.Call(_m, "get")
+	ret0, _ := ret[0].(<-chan []receivedBlockMetadata)
+	return ret0
+}
+
+// get indicates an expected call of get
+func (_mr *MockenqueueChannelMockRecorder) get() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "get", reflect.TypeOf((*MockenqueueChannel)(nil).get))
+}
+
+// trackPending mocks base method
+func (_m *MockenqueueChannel) trackPending(amount int) {
+	_m.ctrl.Call(_m, "trackPending", amount)
+}
+
+// trackPending indicates an expected call of trackPending
+func (_mr *MockenqueueChannelMockRecorder) trackPending(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "trackPending", reflect.TypeOf((*MockenqueueChannel)(nil).trackPending), arg0)
+}
+
+// trackProcessed mocks base method
+func (_m *MockenqueueChannel) trackProcessed(amount int) {
+	_m.ctrl.Call(_m, "trackProcessed", amount)
+}
+
+// trackProcessed indicates an expected call of trackProcessed
+func (_mr *MockenqueueChannelMockRecorder) trackProcessed(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "trackProcessed", reflect.TypeOf((*MockenqueueChannel)(nil).trackProcessed), arg0)
+}
+
+// unprocessedLen mocks base method
+func (_m *MockenqueueChannel) unprocessedLen() int {
+	ret := _m.ctrl.Call(_m, "unprocessedLen")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// unprocessedLen indicates an expected call of unprocessedLen
+func (_mr *MockenqueueChannelMockRecorder) unprocessedLen() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "unprocessedLen", reflect.TypeOf((*MockenqueueChannel)(nil).unprocessedLen))
+}
+
+// closeOnAllProcessed mocks base method
+func (_m *MockenqueueChannel) closeOnAllProcessed() {
+	_m.ctrl.Call(_m, "closeOnAllProcessed")
+}
+
+// closeOnAllProcessed indicates an expected call of closeOnAllProcessed
+func (_mr *MockenqueueChannelMockRecorder) closeOnAllProcessed() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "closeOnAllProcessed", reflect.TypeOf((*MockenqueueChannel)(nil).closeOnAllProcessed))
 }

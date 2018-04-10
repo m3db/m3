@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/ratelimit"
+	"github.com/m3db/m3db/topology"
 	xclose "github.com/m3db/m3x/close"
 )
 
@@ -129,6 +130,36 @@ type Options interface {
 	// just been rotated out of the buffer but have not been flushed yet
 	// can also not be unwired. This means that the limit is best effort.
 	MaxWiredBlocks() uint
+
+	// SetClientBootstrapConsistencyLevel sets the client bootstrap
+	// consistency level used when bootstrapping from peers. Setting this
+	// will take effect immediately, and as such can be used to finish a
+	// bootstrap in an unhealthy cluster to recover read capability by setting
+	// this value to ReadConsistencyLevelNone.
+	SetClientBootstrapConsistencyLevel(value topology.ReadConsistencyLevel) Options
+
+	// ClientBootstrapConsistencyLevel returns the client bootstrap
+	// consistency level used when bootstrapping from peers. Setting this
+	// will take effect immediately, and as such can be used to finish a
+	// bootstrap in an unhealthy cluster to recover read capability by setting
+	// this value to ReadConsistencyLevelNone.
+	ClientBootstrapConsistencyLevel() topology.ReadConsistencyLevel
+
+	// SetClientReadConsistencyLevel sets the client read consistency level
+	// used when fetching data from peers for coordinated reads
+	SetClientReadConsistencyLevel(value topology.ReadConsistencyLevel) Options
+
+	// ClientReadConsistencyLevel returns the client read consistency level
+	// used when fetching data from peers for coordinated reads
+	ClientReadConsistencyLevel() topology.ReadConsistencyLevel
+
+	// SetClientWriteConsistencyLevel sets the client write consistency level
+	// used when fetching data from peers for coordinated writes
+	SetClientWriteConsistencyLevel(value topology.ConsistencyLevel) Options
+
+	// ClientWriteConsistencyLevel returns the client write consistency level
+	// used when fetching data from peers for coordinated writes
+	ClientWriteConsistencyLevel() topology.ConsistencyLevel
 }
 
 // OptionsManager updates and supplies runtime options.

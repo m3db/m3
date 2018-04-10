@@ -293,7 +293,7 @@ client:
     service: null
     static: null
   writeConsistencyLevel: 2
-  readConsistencyLevel: 1
+  readConsistencyLevel: 2
   connectConsistencyLevel: 0
   writeTimeout: 10s
   fetchTimeout: 15s

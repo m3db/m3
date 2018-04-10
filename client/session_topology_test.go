@@ -23,6 +23,7 @@ package client
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
@@ -154,6 +155,12 @@ func TestSessionTopologyChangeCreatesNewClosesOldHostQueues(t *testing.T) {
 		if ok && updated.Value() > 0 {
 			break
 		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Wait for the close to occur
+	for closedQueues.numUnique() < 1 {
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	// Assert create third and closed first

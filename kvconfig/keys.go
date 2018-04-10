@@ -32,4 +32,16 @@ const (
 	// ClusterNewSeriesInsertLimitKey is the KV config key for the runtime
 	// configuration specifying a hard limit for a cluster new series insertions.
 	ClusterNewSeriesInsertLimitKey = "m3db.node.cluster-new-series-insert-limit"
+
+	// ClientBootstrapConsistencyLevel is the KV config key for the runtime
+	// configuration specifying the client bootstrap consistency level
+	ClientBootstrapConsistencyLevel = "m3db.client.bootstrap-consistency-level"
+
+	// ClientReadConsistencyLevel is the KV config key for the runtime
+	// configuration specifying the client read consistency level
+	ClientReadConsistencyLevel = "m3db.client.read-consistency-level"
+
+	// ClientWriteConsistencyLevel is the KV config key for the runtime
+	// configuration specifying the client write consistency level
+	ClientWriteConsistencyLevel = "m3db.client.write-consistency-level"
 )

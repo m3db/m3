@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
+	m3dbruntime "github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/context"
@@ -43,10 +44,13 @@ import (
 
 const (
 	// defaultWriteConsistencyLevel is the default write consistency level
-	defaultWriteConsistencyLevel = topology.ConsistencyLevelMajority
+	defaultWriteConsistencyLevel = m3dbruntime.DefaultWriteConsistencyLevel
 
 	// defaultReadConsistencyLevel is the default read consistency level
-	defaultReadConsistencyLevel = ReadConsistencyLevelMajority
+	defaultReadConsistencyLevel = m3dbruntime.DefaultReadConsistencyLevel
+
+	// defaultBootstrapConsistencyLevel is the default bootstrap consistency level
+	defaultBootstrapConsistencyLevel = m3dbruntime.DefaultBootstrapConsistencyLevel
 
 	// defaultMaxConnectionCount is the default max connection count
 	defaultMaxConnectionCount = 32
@@ -61,7 +65,7 @@ const (
 	defaultClusterConnectTimeout = 30 * time.Second
 
 	// defaultClusterConnectConsistencyLevel is the default cluster connect consistency level
-	defaultClusterConnectConsistencyLevel = ConnectConsistencyLevelAny
+	defaultClusterConnectConsistencyLevel = topology.ConnectConsistencyLevelAny
 
 	// defaultWriteRequestTimeout is the default write request timeout
 	defaultWriteRequestTimeout = 5 * time.Second
@@ -164,7 +168,7 @@ var (
 		xretry.NewOptions().
 			SetBackoffFactor(2).
 			SetMaxRetries(3).
-			SetInitialBackoff(1 * time.Second).
+			SetInitialBackoff(2 * time.Second).
 			SetJitter(true),
 	)
 
@@ -173,17 +177,19 @@ var (
 )
 
 type options struct {
+	runtimeOptsMgr                          m3dbruntime.OptionsManager
 	clockOpts                               clock.Options
 	instrumentOpts                          instrument.Options
 	topologyInitializer                     topology.Initializer
+	readConsistencyLevel                    topology.ReadConsistencyLevel
 	writeConsistencyLevel                   topology.ConsistencyLevel
-	readConsistencyLevel                    ReadConsistencyLevel
+	bootstrapConsistencyLevel               topology.ReadConsistencyLevel
 	channelOptions                          *tchannel.ChannelOptions
 	maxConnectionCount                      int
 	minConnectionCount                      int
 	hostConnectTimeout                      time.Duration
 	clusterConnectTimeout                   time.Duration
-	clusterConnectConsistencyLevel          ConnectConsistencyLevel
+	clusterConnectConsistencyLevel          topology.ConnectConsistencyLevel
 	writeRequestTimeout                     time.Duration
 	fetchRequestTimeout                     time.Duration
 	truncateRequestTimeout                  time.Duration
@@ -251,6 +257,7 @@ func newOptions() *options {
 		instrumentOpts:                          instrument.NewOptions(),
 		writeConsistencyLevel:                   defaultWriteConsistencyLevel,
 		readConsistencyLevel:                    defaultReadConsistencyLevel,
+		bootstrapConsistencyLevel:               defaultBootstrapConsistencyLevel,
 		maxConnectionCount:                      defaultMaxConnectionCount,
 		minConnectionCount:                      defaultMinConnectionCount,
 		hostConnectTimeout:                      defaultHostConnectTimeout,
@@ -298,6 +305,26 @@ func (o *options) Validate() error {
 	if o.readerIteratorAllocate == nil {
 		return errNoReaderIteratorAllocateSet
 	}
+	if err := topology.ValidateConsistencyLevel(
+		o.writeConsistencyLevel,
+	); err != nil {
+		return err
+	}
+	if err := topology.ValidateReadConsistencyLevel(
+		o.readConsistencyLevel,
+	); err != nil {
+		return err
+	}
+	if err := topology.ValidateReadConsistencyLevel(
+		o.bootstrapConsistencyLevel,
+	); err != nil {
+		return err
+	}
+	if err := topology.ValidateConnectConsistencyLevel(
+		o.clusterConnectConsistencyLevel,
+	); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -307,6 +334,16 @@ func (o *options) SetEncodingM3TSZ() Options {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 	return &opts
+}
+
+func (o *options) SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Options {
+	opts := *o
+	opts.runtimeOptsMgr = value
+	return &opts
+}
+
+func (o *options) RuntimeOptionsManager() m3dbruntime.OptionsManager {
+	return o.runtimeOptsMgr
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
@@ -339,6 +376,16 @@ func (o *options) TopologyInitializer() topology.Initializer {
 	return o.topologyInitializer
 }
 
+func (o *options) SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options {
+	opts := *o
+	opts.readConsistencyLevel = value
+	return &opts
+}
+
+func (o *options) ReadConsistencyLevel() topology.ReadConsistencyLevel {
+	return o.readConsistencyLevel
+}
+
 func (o *options) SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
 	opts := *o
 	opts.writeConsistencyLevel = value
@@ -349,14 +396,14 @@ func (o *options) WriteConsistencyLevel() topology.ConsistencyLevel {
 	return o.writeConsistencyLevel
 }
 
-func (o *options) SetReadConsistencyLevel(value ReadConsistencyLevel) Options {
+func (o *options) SetBootstrapConsistencyLevel(value topology.ReadConsistencyLevel) AdminOptions {
 	opts := *o
-	opts.readConsistencyLevel = value
+	opts.bootstrapConsistencyLevel = value
 	return &opts
 }
 
-func (o *options) ReadConsistencyLevel() ReadConsistencyLevel {
-	return o.readConsistencyLevel
+func (o *options) BootstrapConsistencyLevel() topology.ReadConsistencyLevel {
+	return o.bootstrapConsistencyLevel
 }
 
 func (o *options) SetChannelOptions(value *tchannel.ChannelOptions) Options {
@@ -409,13 +456,13 @@ func (o *options) ClusterConnectTimeout() time.Duration {
 	return o.clusterConnectTimeout
 }
 
-func (o *options) SetClusterConnectConsistencyLevel(value ConnectConsistencyLevel) Options {
+func (o *options) SetClusterConnectConsistencyLevel(value topology.ConnectConsistencyLevel) Options {
 	opts := *o
 	opts.clusterConnectConsistencyLevel = value
 	return &opts
 }
 
-func (o *options) ClusterConnectConsistencyLevel() ConnectConsistencyLevel {
+func (o *options) ClusterConnectConsistencyLevel() topology.ConnectConsistencyLevel {
 	return o.clusterConnectConsistencyLevel
 }
 

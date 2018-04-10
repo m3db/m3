@@ -126,7 +126,10 @@ func TestShardNotAvailableTagged(t *testing.T) {
 
 func getWriteTaggedState(ctrl *gomock.Controller, s *session, w writeTaggedStub) *writeState {
 	wState := s.writeStatePool.Get()
-	wState.topoMap = s.topoMap
+	s.state.RLock()
+	wState.consistencyLevel = s.state.writeLevel
+	wState.topoMap = s.state.topoMap
+	s.state.RUnlock()
 	o := s.writeTaggedOperationPool.Get()
 	o.shardID = 0 // Any valid shardID
 	wState.op = o
@@ -153,7 +156,7 @@ func writeTaggedTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *
 		require.NoError(t, s.Close())
 	}()
 
-	host := s.topoMap.Hosts()[0] // any host
+	host := s.state.topoMap.Hosts()[0] // any host
 
 	wState := getWriteTaggedState(ctrl, s, w)
 	wState.incRef() // for the test
@@ -169,8 +172,8 @@ func writeTaggedTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *
 	// Callbacks
 
 	enqueueWg.Wait()
-	require.True(t, s.topoMap.Replicas() == sessionTestReplicas)
-	for i := 0; i < s.topoMap.Replicas(); i++ {
+	require.True(t, s.state.topoMap.Replicas() == sessionTestReplicas)
+	for i := 0; i < s.state.topoMap.Replicas(); i++ {
 		completionFn(host, nil) // maintain session state
 	}
 

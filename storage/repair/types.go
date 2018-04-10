@@ -124,7 +124,7 @@ type ReplicaMetadataComparer interface {
 	AddLocalMetadata(origin topology.Host, localIter block.FilteredBlocksMetadataIter)
 
 	// AddPeerMetadata adds metadata from peers
-	AddPeerMetadata(peerIter client.PeerBlocksMetadataIter) error
+	AddPeerMetadata(peerIter client.PeerBlockMetadataIter) error
 
 	// Compare returns the metadata differences between local host and peers
 	Compare() MetadataComparisonResult
@@ -155,6 +155,14 @@ type Options interface {
 
 	// AdminClient returns the admin client
 	AdminClient() client.AdminClient
+
+	// SetRepairConsistencyLevel sets the repair read level consistency
+	// for which to repair shards with
+	SetRepairConsistencyLevel(value topology.ReadConsistencyLevel) Options
+
+	// RepairConsistencyLevel returns the repair read level consistency
+	// for which to repair shards with
+	RepairConsistencyLevel() topology.ReadConsistencyLevel
 
 	// SetRepairShardConcurrency sets the concurrency in which to repair shards with
 	SetRepairShardConcurrency(value int) Options

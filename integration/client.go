@@ -31,6 +31,7 @@ import (
 	nchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
@@ -189,6 +190,7 @@ func m3dbClientFetchBlocksMetadata(
 	namespace ident.ID,
 	shards []uint32,
 	start, end time.Time,
+	consistencyLevel topology.ReadConsistencyLevel,
 	version client.FetchBlocksMetadataEndpointVersion,
 ) (map[uint32][]block.ReplicaMetadata, error) {
 	session, err := c.DefaultAdminSession()
@@ -208,30 +210,28 @@ func m3dbClientFetchBlocksMetadata(
 
 		var metadatas []block.ReplicaMetadata
 		iter, err := session.FetchBlocksMetadataFromPeers(namespace,
-			shardID, start, end, result.NewOptions(), version)
+			shardID, start, end, consistencyLevel, result.NewOptions(), version)
 		if err != nil {
 			return nil, err
 		}
 
 		for iter.Next() {
-			host, blocksMetadata := iter.Current()
-			idHash := blocksMetadata.ID.Hash()
+			host, blockMetadata := iter.Current()
+			idHash := blockMetadata.ID.Hash()
 			seenBlocks, ok := seen[idHash]
 			if !ok {
 				seenBlocks = make(map[xtime.UnixNano]struct{})
 				seen[idHash] = seenBlocks
 			}
-			for _, blockMetadata := range blocksMetadata.Blocks {
-				if _, ok := seenBlocks[xtime.ToUnixNano(blockMetadata.Start)]; ok {
-					continue // Already seen
-				}
-				seenBlocks[xtime.ToUnixNano(blockMetadata.Start)] = struct{}{}
-				metadatas = append(metadatas, block.ReplicaMetadata{
-					Metadata: blockMetadata,
-					Host:     host,
-					ID:       blocksMetadata.ID,
-				})
+			if _, ok := seenBlocks[xtime.ToUnixNano(blockMetadata.Start)]; ok {
+				continue // Already seen
 			}
+			seenBlocks[xtime.ToUnixNano(blockMetadata.Start)] = struct{}{}
+			metadatas = append(metadatas, block.ReplicaMetadata{
+				Metadata: blockMetadata,
+				Host:     host,
+				ID:       blockMetadata.ID,
+			})
 		}
 		if err := iter.Err(); err != nil {
 			return nil, err

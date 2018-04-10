@@ -260,7 +260,6 @@ func Run(runOpts RunOptions) {
 	var (
 		envCfg environment.ConfigureResults
 	)
-
 	switch {
 	case cfg.EnvironmentConfig.Service != nil:
 		logger.Info("creating dynamic config service client with m3cluster")
@@ -301,6 +300,9 @@ func Run(runOpts RunOptions) {
 			TopologyInitializer: envCfg.TopologyInitializer,
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
+			return opts.SetRuntimeOptionsManager(runtimeOptsMgr).(client.AdminOptions)
+		},
+		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetContextPool(opts.ContextPool()).(client.AdminOptions)
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
@@ -309,6 +311,11 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatalf("could not create m3db client: %v", err)
 	}
+
+	// Kick off runtime options manager KV watches
+	clientAdminOpts := m3dbClient.Options().(client.AdminOptions)
+	kvWatchClientConsistencyLevels(envCfg.KVStore, logger,
+		clientAdminOpts, runtimeOptsMgr)
 
 	// Set bootstrap options
 	bs, err := cfg.Bootstrap.New(opts, m3dbClient)
@@ -528,18 +535,147 @@ func kvWatchNewSeriesLimitPerShard(
 	go func() {
 		protoValue := &commonpb.Int64Proto{}
 		for range watch.C() {
-			err := watch.Get().Unmarshal(protoValue)
-			if err != nil {
-				logger.Warnf("unable to set cluster new series insert limit: %v", err)
-				continue
+			value := defaultClusterNewSeriesLimit
+			if newValue := watch.Get(); newValue != nil {
+				if err := newValue.Unmarshal(protoValue); err != nil {
+					logger.Warnf("unable to parse new cluster new series insert limit: %v", err)
+					continue
+				}
+				value = int(protoValue.Value)
 			}
 
-			value := int(protoValue.Value)
 			err = setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, value)
 			if err != nil {
 				logger.Warnf("unable to set cluster new series insert limit: %v", err)
 				continue
 			}
+		}
+	}()
+}
+
+func kvWatchClientConsistencyLevels(
+	store kv.Store,
+	logger xlog.Logger,
+	clientOpts client.AdminOptions,
+	runtimeOptsMgr m3dbruntime.OptionsManager,
+) {
+	setReadConsistencyLevel := func(
+		v string,
+		applyFn func(topology.ReadConsistencyLevel, m3dbruntime.Options) m3dbruntime.Options,
+	) error {
+		for _, level := range topology.ValidReadConsistencyLevels() {
+			if level.String() == v {
+				runtimeOpts := applyFn(level, runtimeOptsMgr.Get())
+				return runtimeOptsMgr.Update(runtimeOpts)
+			}
+		}
+		return fmt.Errorf("invalid read consistency level set: %s", v)
+	}
+
+	setConsistencyLevel := func(
+		v string,
+		applyFn func(topology.ConsistencyLevel, m3dbruntime.Options) m3dbruntime.Options,
+	) error {
+		for _, level := range topology.ValidConsistencyLevels() {
+			if level.String() == v {
+				runtimeOpts := applyFn(level, runtimeOptsMgr.Get())
+				return runtimeOptsMgr.Update(runtimeOpts)
+			}
+		}
+		return fmt.Errorf("invalid consistency level set: %s", v)
+	}
+
+	kvWatchStringValue(store, logger,
+		kvconfig.ClientBootstrapConsistencyLevel,
+		func(value string) error {
+			return setReadConsistencyLevel(value,
+				func(level topology.ReadConsistencyLevel, opts m3dbruntime.Options) m3dbruntime.Options {
+					return opts.SetClientBootstrapConsistencyLevel(level)
+				})
+		},
+		func() error {
+			return runtimeOptsMgr.Update(runtimeOptsMgr.Get().
+				SetClientBootstrapConsistencyLevel(clientOpts.BootstrapConsistencyLevel()))
+		})
+
+	kvWatchStringValue(store, logger,
+		kvconfig.ClientReadConsistencyLevel,
+		func(value string) error {
+			return setReadConsistencyLevel(value,
+				func(level topology.ReadConsistencyLevel, opts m3dbruntime.Options) m3dbruntime.Options {
+					return opts.SetClientReadConsistencyLevel(level)
+				})
+		},
+		func() error {
+			return runtimeOptsMgr.Update(runtimeOptsMgr.Get().
+				SetClientReadConsistencyLevel(clientOpts.ReadConsistencyLevel()))
+		})
+
+	kvWatchStringValue(store, logger,
+		kvconfig.ClientWriteConsistencyLevel,
+		func(value string) error {
+			return setConsistencyLevel(value,
+				func(level topology.ConsistencyLevel, opts m3dbruntime.Options) m3dbruntime.Options {
+					return opts.SetClientWriteConsistencyLevel(level)
+				})
+		},
+		func() error {
+			return runtimeOptsMgr.Update(runtimeOptsMgr.Get().
+				SetClientWriteConsistencyLevel(clientOpts.WriteConsistencyLevel()))
+		})
+}
+
+func kvWatchStringValue(
+	store kv.Store,
+	logger xlog.Logger,
+	key string,
+	onValue func(value string) error,
+	onDelete func() error,
+) {
+	protoValue := &commonpb.StringProto{}
+
+	// First try to eagerly set the value so it doesn't flap if the
+	// watch returns but not immediately for an existing value
+	value, err := store.Get(key)
+	if err != nil && err != kv.ErrNotFound {
+		logger.Errorf("could not resolve KV key %s: %v", key, err)
+	}
+	if err == nil {
+		if err := value.Unmarshal(protoValue); err != nil {
+			logger.Errorf("could not unmarshal KV key %s: %v", key, err)
+		} else if err := onValue(protoValue.Value); err != nil {
+			logger.Errorf("could not process value of KV key %s: %v", key, err)
+		} else {
+			logger.Infof("set KV key %s: %v", key, protoValue.Value)
+		}
+	}
+
+	watch, err := store.Watch(key)
+	if err != nil {
+		logger.Errorf("could not watch KV key %s: %v", key, err)
+		return
+	}
+
+	go func() {
+		for range watch.C() {
+			newValue := watch.Get()
+			if newValue == nil {
+				if err := onDelete(); err != nil {
+					logger.Warnf("could not set default for KV key %s: %v", key, err)
+				}
+				continue
+			}
+
+			err := newValue.Unmarshal(protoValue)
+			if err != nil {
+				logger.Warnf("could not unmarshal KV key %s: %v", key, err)
+				continue
+			}
+			if err := onValue(protoValue.Value); err != nil {
+				logger.Warnf("could not process change for KV key %s: %v", key, err)
+				continue
+			}
+			logger.Infof("set KV key %s: %v", key, protoValue.Value)
 		}
 	}()
 }
@@ -690,7 +826,6 @@ func withEncodingAndPoolingOptions(
 		poolOptions(policy.IteratorPool, scope.SubScope("multi-iterator-pool")))
 
 	var identifierPool ident.Pool
-
 	switch policy.Type {
 	case "simple":
 		identifierPool = ident.NewPool(
