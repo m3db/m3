@@ -143,13 +143,14 @@ type ConfigurationParameters struct {
 func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	var emptyConfig ConfigureResults
 
-	if c.Service.SDConfig.InitTimeout == 0 {
-		c.Service.SDConfig.InitTimeout = defaultSDTimeout
+	sdTimeout := defaultSDTimeout
+	if initTimeout := c.Service.SDConfig.InitTimeout; initTimeout != nil && *initTimeout != 0 {
+		sdTimeout = *initTimeout
 	}
 
 	configSvcClientOpts := c.Service.NewOptions().
 		SetInstrumentOptions(cfgParams.InstrumentOpts).
-		SetServiceDiscoveryConfig(c.Service.SDConfig)
+		SetServicesOptions(c.Service.SDConfig.NewOptions().SetInitTimeout(sdTimeout))
 	configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
 	if err != nil {
 		err = fmt.Errorf("could not create m3cluster client: %v", err)
