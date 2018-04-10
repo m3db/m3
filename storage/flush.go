@@ -83,11 +83,7 @@ func (m *flushManager) Flush(curr time.Time) error {
 	m.state = flushManagerNotIdle
 	m.Unlock()
 
-	defer func() {
-		m.Lock()
-		m.state = flushManagerIdle
-		m.Unlock()
-	}()
+	defer setState(flushManagerIdle)
 
 	// create flush-er
 	flush, err := m.pm.StartPersist()
@@ -101,19 +97,18 @@ func (m *flushManager) Flush(curr time.Time) error {
 	}
 
 	multiErr := xerrors.NewMultiError()
-	m.setFlushInProgress(true)
+	m.setState(flushManagerFlushInProgress)
 	for _, ns := range namespaces {
 		// Flush first because we will only snapshot if there are no outstanding flushes
 		flushTimes := m.namespaceFlushTimes(ns, curr)
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, flushTimes, flush))
 	}
-	m.setFlushInProgress(false)
 
 	// Perform two separate loops through all the namespaces so that we can emit better
 	// gauges I.E all the flushing for all the namespaces happens at once and then all
 	// the snapshotting for all the namespaces happens at once. This is also slightly
 	// better semantically because flushing should take priority over snapshotting.
-	m.setSnapshotInProgress(true)
+	m.setState(flushManagerSnapshotInProgress)
 	for _, ns := range namespaces {
 		var (
 			blockSize          = ns.Options().RetentionOptions().BlockSize()
@@ -131,7 +126,6 @@ func (m *flushManager) Flush(curr time.Time) error {
 			}
 		}
 	}
-	m.setSnapshotInProgress(false)
 
 	// mark flush finished
 	multiErr = multiErr.Add(flush.Done())
@@ -156,14 +150,9 @@ func (m *flushManager) Report() {
 	}
 }
 
-func (m *flushManager) setFlushInProgress(b bool) {
+func (m *flushManager) setState(state flushManagerState) {
 	m.Lock()
-	m.state = flushManagerFlushInProgress
-	m.Unlock()
-}
-func (m *flushManager) setSnapshotInProgress(b bool) {
-	m.Lock()
-	m.state = flushManagerSnapshotInProgress
+	m.state = state
 	m.Unlock()
 }
 
