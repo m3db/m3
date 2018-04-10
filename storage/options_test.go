@@ -23,6 +23,7 @@ package storage
 import (
 	"testing"
 
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 
 	"github.com/golang/mock/gomock"
@@ -43,4 +44,15 @@ func TestOptionsValidateNilRegistry(t *testing.T) {
 	dbOpts := testDatabaseOptions().
 		SetNamespaceInitializer(nil)
 	require.Error(t, dbOpts.Validate())
+}
+
+func TestOptionsValidateIndexOptions(t *testing.T) {
+	opts := testDatabaseOptions().SetIndexingEnabled(true).SetIndexOptions(nil)
+	require.Error(t, opts.Validate())
+}
+
+func TestOptionsValidateInvalidIndexOptions(t *testing.T) {
+	opts := testDatabaseOptions().SetIndexingEnabled(true).SetIndexOptions(
+		index.NewOptions().SetIdentifierPool(nil))
+	require.Error(t, opts.Validate())
 }

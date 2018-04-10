@@ -55,7 +55,7 @@ var (
 	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed
 	errDatabaseAlreadyClosed = errors.New("database is already closed")
 
-	// errDatabaseIsClosed raise when trying to perform an action that requires an open database
+	// errDatabaseIsClosed raised when trying to perform an action that requires an open database
 	errDatabaseIsClosed = errors.New("database is closed")
 
 	// errDatabaseIndexingDisabled raied when trying to perform an action that requires an index
@@ -309,7 +309,7 @@ func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 		}
 
 		// create and add to the database
-		newNs, err := d.newDatabaseNamespace(n)
+		newNs, err := d.newDatabaseNamespaceWithLock(n)
 		if err != nil {
 			return err
 		}
@@ -318,7 +318,7 @@ func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 	return nil
 }
 
-func (d *db) newDatabaseNamespace(
+func (d *db) newDatabaseNamespaceWithLock(
 	md namespace.Metadata,
 ) (databaseNamespace, error) {
 	var (
@@ -440,7 +440,7 @@ func (d *db) terminateWithLock() error {
 	}
 
 	// NB(prateek): Terminate is meant to return quickly, so we rely upon
-	// the gc to clean up any resources held by namespaces, and just set the
+	// the gc to clean up any resources held by namespaces, and just set
 	// our reference to the namespaces to nil.
 	d.namespaces = nil
 

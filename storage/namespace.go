@@ -254,6 +254,17 @@ func newDatabaseNamespace(
 			metadata.ID().String(), err)
 	}
 
+	var (
+		index namespaceIndex
+		err   error
+	)
+	if opts.IndexingEnabled() {
+		index, err = newNamespaceIndex(metadata, newNamespaceIndexInsertQueue, opts.IndexOptions())
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	n := &dbNamespace{
 		id:                     id,
 		shutdownCh:             make(chan struct{}),
@@ -268,7 +279,7 @@ func newDatabaseNamespace(
 		log:                    logger,
 		increasingIndex:        increasingIndex,
 		commitLogWriter:        commitLogWriter,
-		reverseIndex:           nil, // FOLLOWUP(prateek): will be done in https://github.com/m3db/m3db/pull/507
+		reverseIndex:           index,
 		tickWorkers:            tickWorkers,
 		tickWorkersConcurrency: tickWorkersConcurrency,
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
@@ -972,5 +983,8 @@ func (n *dbNamespace) Close() error {
 	n.namespaceReaderMgr.close()
 	n.closeShards(shards, true)
 	close(n.shutdownCh)
+	if n.reverseIndex != nil {
+		return n.reverseIndex.Close()
+	}
 	return nil
 }

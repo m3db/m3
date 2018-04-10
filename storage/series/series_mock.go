@@ -30,10 +30,10 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	time0 "github.com/m3db/m3x/time"
-	"github.com/m3db/m3db/x/xio"
 
 	"github.com/golang/mock/gomock"
 )
@@ -202,13 +202,25 @@ func (_mr *MockDatabaseSeriesMockRecorder) ReadEncoded(arg0, arg1, arg2 interfac
 }
 
 // Reset mocks base method
-func (_m *MockDatabaseSeries) Reset(_param0 ident.ID, _param1 QueryableBlockRetriever, _param2 block.OnRetrieveBlock, _param3 block.OnEvictedFromWiredList, _param4 Options) {
-	_m.ctrl.Call(_m, "Reset", _param0, _param1, _param2, _param3, _param4)
+func (_m *MockDatabaseSeries) Reset(_param0 ident.ID, _param1 ident.Tags, _param2 QueryableBlockRetriever, _param3 block.OnRetrieveBlock, _param4 block.OnEvictedFromWiredList, _param5 Options) {
+	_m.ctrl.Call(_m, "Reset", _param0, _param1, _param2, _param3, _param4, _param5)
 }
 
 // Reset indicates an expected call of Reset
-func (_mr *MockDatabaseSeriesMockRecorder) Reset(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Reset", reflect.TypeOf((*MockDatabaseSeries)(nil).Reset), arg0, arg1, arg2, arg3, arg4)
+func (_mr *MockDatabaseSeriesMockRecorder) Reset(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Reset", reflect.TypeOf((*MockDatabaseSeries)(nil).Reset), arg0, arg1, arg2, arg3, arg4, arg5)
+}
+
+// Tags mocks base method
+func (_m *MockDatabaseSeries) Tags() ident.Tags {
+	ret := _m.ctrl.Call(_m, "Tags")
+	ret0, _ := ret[0].(ident.Tags)
+	return ret0
+}
+
+// Tags indicates an expected call of Tags
+func (_mr *MockDatabaseSeriesMockRecorder) Tags() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Tags", reflect.TypeOf((*MockDatabaseSeries)(nil).Tags))
 }
 
 // Tick mocks base method

@@ -1,0 +1,392 @@
+// Copyright (c) 2018 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+package storage
+
+import (
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/persist/fs/commitlog"
+	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/ts"
+	xmetrics "github.com/m3db/m3db/x/metrics"
+	xclock "github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
+	xtime "github.com/m3db/m3x/time"
+
+	"github.com/fortytw2/leaktest"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+)
+
+func TestShardWriteSyncRefCount(t *testing.T) {
+	now := time.Now()
+	opts := testDatabaseOptions()
+
+	numCommitLogWrites := int32(0)
+	mockCommitLogWriter := commitLogWriter(commitLogWriterFn(func(
+		ctx context.Context,
+		series commitlog.Series,
+		datapoint ts.Datapoint,
+		unit xtime.Unit,
+		annotation ts.Annotation,
+	) error {
+		atomic.AddInt32(&numCommitLogWrites, 1)
+		return nil
+	}))
+
+	shard := testDatabaseShard(t, opts)
+	shard.commitLogWriter = mockCommitLogWriter
+	shard.SetRuntimeOptions(runtime.NewOptions().
+		SetWriteNewSeriesAsync(false))
+	defer shard.Close()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	assert.NoError(t,
+		shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.Write(ctx, ident.StringID("bar"), now, 2.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.Write(ctx, ident.StringID("baz"), now, 3.0, xtime.Second, nil))
+
+	// ensure all entries have no references left
+	for _, id := range []string{"foo", "bar", "baz"} {
+		shard.Lock()
+		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		shard.Unlock()
+		assert.NoError(t, err)
+		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+	}
+
+	// write already inserted series'
+	next := now.Add(time.Minute)
+	assert.NoError(t,
+		shard.Write(ctx, ident.StringID("foo"), next, 1.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.Write(ctx, ident.StringID("bar"), next, 2.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.Write(ctx, ident.StringID("baz"), next, 3.0, xtime.Second, nil))
+
+	written := xclock.WaitUntil(func() bool {
+		return atomic.LoadInt32(&numCommitLogWrites) == 6
+	}, 2*time.Second)
+	assert.True(t, written)
+
+	// ensure all entries have no references left
+	for _, id := range []string{"foo", "bar", "baz"} {
+		shard.Lock()
+		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		shard.Unlock()
+		assert.NoError(t, err)
+		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+	}
+}
+
+func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
+	mockWriteFn := func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) error {
+		onIdx.OnIndexFinalize()
+		return nil
+	}
+	testShardWriteTaggedSyncRefCount(t, mockWriteFn)
+}
+
+func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 2*time.Second)()
+	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+		q := newNamespaceIndexInsertQueue(fn, nowFn, s)
+		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
+		return q
+	}
+	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	idx, err := newNamespaceIndex(md, newFn, index.NewOptions())
+	assert.NoError(t, err)
+
+	idx.(*nsIndex).insertMode = index.InsertSync
+	defer func() {
+		assert.NoError(t, idx.Close())
+	}()
+
+	testShardWriteTaggedSyncRefCount(t, idx.Write)
+}
+
+func testShardWriteTaggedSyncRefCount(t *testing.T, reverseIndexWriteFn reverseIndexWriteFn) {
+	numCommitLogWrites := int32(0)
+	mockCommitLogWriter := commitLogWriter(commitLogWriterFn(func(
+		ctx context.Context,
+		series commitlog.Series,
+		datapoint ts.Datapoint,
+		unit xtime.Unit,
+		annotation ts.Annotation,
+	) error {
+		atomic.AddInt32(&numCommitLogWrites, 1)
+		return nil
+	}))
+
+	now := time.Now()
+	opts := testDatabaseOptions()
+
+	shard := testDatabaseShardWithIndexFn(t, opts, reverseIndexWriteFn)
+	shard.commitLogWriter = mockCommitLogWriter
+	shard.SetRuntimeOptions(runtime.NewOptions().
+		SetWriteNewSeriesAsync(false))
+	defer shard.Close()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	assert.NoError(t,
+		shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, now, 1.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, now, 2.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, now, 3.0, xtime.Second, nil))
+
+	// ensure all entries have no references left
+	for _, id := range []string{"foo", "bar", "baz"} {
+		shard.Lock()
+		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		shard.Unlock()
+		assert.NoError(t, err)
+		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+	}
+
+	// write already inserted series'
+	next := now.Add(time.Minute)
+	assert.NoError(t,
+		shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, next, 1.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, next, 2.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, next, 3.0, xtime.Second, nil))
+
+	written := xclock.WaitUntil(func() bool {
+		return atomic.LoadInt32(&numCommitLogWrites) == 6
+	}, 2*time.Second)
+	assert.True(t, written)
+
+	// ensure all entries have no references left
+	for _, id := range []string{"foo", "bar", "baz"} {
+		shard.Lock()
+		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		shard.Unlock()
+		assert.NoError(t, err)
+		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+	}
+}
+
+func TestShardWriteAsyncRefCount(t *testing.T) {
+	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+	scope, closer := tally.NewRootScope(tally.ScopeOptions{
+		Reporter: testReporter,
+	}, 100*time.Millisecond)
+	defer closer.Close()
+
+	numCommitLogWrites := int32(0)
+	mockCommitLogWriter := commitLogWriter(commitLogWriterFn(func(
+		ctx context.Context,
+		series commitlog.Series,
+		datapoint ts.Datapoint,
+		unit xtime.Unit,
+		annotation ts.Annotation,
+	) error {
+		atomic.AddInt32(&numCommitLogWrites, 1)
+		return nil
+	}))
+
+	now := time.Now()
+	opts := testDatabaseOptions()
+	opts = opts.SetInstrumentOptions(
+		opts.InstrumentOptions().
+			SetMetricsScope(scope).
+			SetReportInterval(100 * time.Millisecond))
+
+	shard := testDatabaseShard(t, opts)
+	shard.commitLogWriter = mockCommitLogWriter
+	shard.SetRuntimeOptions(runtime.NewOptions().
+		SetWriteNewSeriesAsync(true))
+	defer shard.Close()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	assert.NoError(t,
+		shard.Write(ctx, ident.StringID("foo"), now, 1.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.Write(ctx, ident.StringID("bar"), now, 2.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.Write(ctx, ident.StringID("baz"), now, 3.0, xtime.Second, nil))
+
+	inserted := xclock.WaitUntil(func() bool {
+		counter, ok := testReporter.Counters()["dbshard.insert-queue.inserts"]
+		return ok && counter == 3
+	}, 2*time.Second)
+	assert.True(t, inserted)
+
+	// ensure all entries have no references left
+	for _, id := range []string{"foo", "bar", "baz"} {
+		shard.Lock()
+		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		shard.Unlock()
+		assert.NoError(t, err)
+		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+	}
+
+	// write already inserted series'
+	next := now.Add(time.Minute)
+	assert.NoError(t,
+		shard.Write(ctx, ident.StringID("foo"), next, 1.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.Write(ctx, ident.StringID("bar"), next, 2.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.Write(ctx, ident.StringID("baz"), next, 3.0, xtime.Second, nil))
+
+	written := xclock.WaitUntil(func() bool {
+		return atomic.LoadInt32(&numCommitLogWrites) == 6
+	}, 2*time.Second)
+	assert.True(t, written)
+
+	// ensure all entries have no references left
+	for _, id := range []string{"foo", "bar", "baz"} {
+		shard.Lock()
+		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		shard.Unlock()
+		assert.NoError(t, err)
+		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+	}
+}
+
+func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
+	mockWriteFn := func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) error {
+		onIdx.OnIndexFinalize()
+		return nil
+	}
+	testShardWriteTaggedAsyncRefCount(t, mockWriteFn)
+}
+
+func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 2*time.Second)()
+	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+		q := newNamespaceIndexInsertQueue(fn, nowFn, s)
+		q.(*nsIndexInsertQueue).indexBatchBackoff = 10 * time.Millisecond
+		return q
+	}
+	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	idx, err := newNamespaceIndex(md, newFn, index.NewOptions())
+	assert.NoError(t, err)
+
+	idx.(*nsIndex).insertMode = index.InsertSync
+	defer func() {
+		assert.NoError(t, idx.Close())
+	}()
+
+	testShardWriteTaggedAsyncRefCount(t, idx.Write)
+}
+
+func testShardWriteTaggedAsyncRefCount(t *testing.T, reverseIndexWriteFn reverseIndexWriteFn) {
+	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+	scope, closer := tally.NewRootScope(tally.ScopeOptions{
+		Reporter: testReporter,
+	}, 100*time.Millisecond)
+	defer closer.Close()
+
+	numCommitLogWrites := int32(0)
+	mockCommitLogWriter := commitLogWriter(commitLogWriterFn(func(
+		ctx context.Context,
+		series commitlog.Series,
+		datapoint ts.Datapoint,
+		unit xtime.Unit,
+		annotation ts.Annotation,
+	) error {
+		atomic.AddInt32(&numCommitLogWrites, 1)
+		return nil
+	}))
+
+	now := time.Now()
+	opts := testDatabaseOptions()
+	opts = opts.SetInstrumentOptions(
+		opts.InstrumentOptions().
+			SetMetricsScope(scope).
+			SetReportInterval(100 * time.Millisecond))
+
+	shard := testDatabaseShardWithIndexFn(t, opts, reverseIndexWriteFn)
+	shard.commitLogWriter = mockCommitLogWriter
+	shard.SetRuntimeOptions(runtime.NewOptions().
+		SetWriteNewSeriesAsync(true))
+	defer shard.Close()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	assert.NoError(t,
+		shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, now, 1.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, now, 2.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, now, 3.0, xtime.Second, nil))
+
+	inserted := xclock.WaitUntil(func() bool {
+		counter, ok := testReporter.Counters()["dbshard.insert-queue.inserts"]
+		return ok && counter == 3
+	}, 2*time.Second)
+	assert.True(t, inserted)
+
+	// ensure all entries have no references left
+	for _, id := range []string{"foo", "bar", "baz"} {
+		shard.Lock()
+		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		shard.Unlock()
+		assert.NoError(t, err)
+		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+	}
+
+	// write already inserted series'
+	next := now.Add(time.Minute)
+	assert.NoError(t,
+		shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, next, 1.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, next, 2.0, xtime.Second, nil))
+	assert.NoError(t,
+		shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, next, 3.0, xtime.Second, nil))
+
+	written := xclock.WaitUntil(func() bool {
+		return atomic.LoadInt32(&numCommitLogWrites) == 6
+	}, 2*time.Second)
+	assert.True(t, written)
+
+	// ensure all entries have no references left
+	for _, id := range []string{"foo", "bar", "baz"} {
+		shard.Lock()
+		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
+		shard.Unlock()
+		assert.NoError(t, err)
+		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+	}
+}

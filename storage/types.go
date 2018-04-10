@@ -658,6 +658,12 @@ type Options interface {
 	// IndexingEnabled returns whether the indexing is enabled
 	IndexingEnabled() bool
 
+	// SetIndexOptions set the indexing options.
+	SetIndexOptions(value index.Options) Options
+
+	// IndexOptions returns the indexing options.
+	IndexOptions() index.Options
+
 	// SetRepairEnabled sets whether or not to enable the repair
 	SetRepairEnabled(b bool) Options
 

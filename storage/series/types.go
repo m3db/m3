@@ -43,6 +43,9 @@ type DatabaseSeries interface {
 	// ID returns the ID of the series
 	ID() ident.ID
 
+	// Tags return the tags of the series
+	Tags() ident.Tags
+
 	// Tick executes any updates to ensure buffer drains, blocks are flushed, etc
 	Tick() (TickResult, error)
 
@@ -95,6 +98,7 @@ type DatabaseSeries interface {
 	// Reset resets the series for reuse
 	Reset(
 		id ident.ID,
+		tags ident.Tags,
 		blockRetriever QueryableBlockRetriever,
 		onRetrieveBlock block.OnRetrieveBlock,
 		onEvictedFromWiredList block.OnEvictedFromWiredList,
