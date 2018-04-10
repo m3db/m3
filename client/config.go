@@ -153,27 +153,24 @@ func (c Configuration) NewAdminClient(
 
 	var err error
 	if envCfg.TopologyInitializer == nil {
-		switch {
-		case c.EnvironmentConfig.Service != nil:
-
+		if c.EnvironmentConfig.Service != nil {
 			envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{
 				InstrumentOpts: iopts,
 				HashingSeed:    c.HashingConfiguration.Seed,
 			})
+
 			if err != nil {
 				err = fmt.Errorf("unable to create dynamic topology initializer, err: %v", err)
 				return nil, err
 			}
-
-		case c.EnvironmentConfig.Static != nil:
-
+		} else if c.EnvironmentConfig.Static != nil {
 			envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{})
+
 			if err != nil {
 				err = fmt.Errorf("unable to create static topology initializer, err: %v", err)
 				return nil, err
 			}
-
-		default:
+		} else {
 			return nil, errConfigurationMustSupplyConfig
 		}
 	}

@@ -25,6 +25,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/m3db/m3db/environment"
 	xtest "github.com/m3db/m3db/x/test"
 	xconfig "github.com/m3db/m3x/config"
 
@@ -55,7 +56,8 @@ httpClusterListenAddress: 0.0.0.0:9003
 debugListenAddress: 0.0.0.0:9004
 
 hostID:
-    resolver: hostname
+    resolver: config
+    value: host1
 
 client:
     writeConsistencyLevel: majority
@@ -224,19 +226,34 @@ pooling:
               highWatermark: 0.02
 
 config:
-  service:
-      env: production
-      zone: us-west1
-      service: m3dbnode
-      cacheDir: /var/lib/m3kv
-      etcdClusters:
-          - zone: us-west1
-            endpoints:
-                - etcd01-us-west1:2379
-                - etcd02-us-west1:2379
-                - etcd03-us-west1:2379
-                - etcd04-us-west1:2379
-                - etcd05-us-west1:2379
+    service:
+        env: production
+        zone: embedded
+        service: m3db
+        cacheDir: /var/lib/m3kv
+        etcdClusters:
+            - zone: embedded
+              endpoints:
+                  - 1.1.1.1:2379
+                  - 1.1.1.2:2379
+                  - 1.1.1.3:2379
+    seedNodes:
+        listenPeerUrls:
+            - http://0.0.0.0:2380
+        listenClientUrls:
+            - http://0.0.0.0:2379
+        rootDir: /var/lib/etcd
+        initialAdvertisePeerUrls:
+            - http://1.1.1.1:2380
+        advertiseClientUrls:
+            - http://1.1.1.1:2379
+        initialCluster:
+            - hostID: host1
+              endpoint: http://1.1.1.1:2380
+            - hostID: host2
+              endpoint: http://1.1.1.2:2380
+            - hostID: host3
+              endpoint: http://1.1.1.3:2380
 hashing:
   seed: 42
 writeNewSeriesAsync: true
@@ -285,13 +302,15 @@ httpNodeListenAddress: 0.0.0.0:9002
 httpClusterListenAddress: 0.0.0.0:9003
 debugListenAddress: 0.0.0.0:9004
 hostID:
-  resolver: hostname
-  value: null
+  resolver: config
+  value: host1
   envVarName: null
 client:
   config:
     service: null
     static: null
+    seedNodes: null
+    namespaceResolutionTimeout: 0s
   writeConsistencyLevel: 2
   readConsistencyLevel: 2
   connectConsistencyLevel: 0
@@ -462,18 +481,16 @@ pooling:
     highWatermark: 0.02
 config:
   service:
-    zone: us-west1
+    zone: embedded
     env: production
-    service: m3dbnode
+    service: m3db
     cacheDir: /var/lib/m3kv
     etcdClusters:
-    - zone: us-west1
+    - zone: embedded
       endpoints:
-      - etcd01-us-west1:2379
-      - etcd02-us-west1:2379
-      - etcd03-us-west1:2379
-      - etcd04-us-west1:2379
-      - etcd05-us-west1:2379
+      - 1.1.1.1:2379
+      - 1.1.1.2:2379
+      - 1.1.1.3:2379
       keepAlive:
         enabled: false
         period: 0s
@@ -483,6 +500,38 @@ config:
     m3sd:
       initTimeout: null
   static: null
+  seedNodes:
+    rootDir: /var/lib/etcd
+    initialAdvertisePeerUrls:
+    - http://1.1.1.1:2380
+    advertiseClientUrls:
+    - http://1.1.1.1:2379
+    listenPeerUrls:
+    - http://0.0.0.0:2380
+    listenClientUrls:
+    - http://0.0.0.0:2379
+    initialCluster:
+    - hostID: host1
+      endpoint: http://1.1.1.1:2380
+    - hostID: host2
+      endpoint: http://1.1.1.2:2380
+    - hostID: host3
+      endpoint: http://1.1.1.3:2380
+    clientTransportSecurity:
+      caFile: ""
+      certFile: ""
+      keyFile: ""
+      trustedCaFile: ""
+      clientCertAuth: false
+      autoTls: false
+    peerTransportSecurity:
+      caFile: ""
+      certFile: ""
+      keyFile: ""
+      trustedCaFile: ""
+      clientCertAuth: false
+      autoTls: false
+  namespaceResolutionTimeout: 0s
 hashing:
   seed: 42
 writeNewSeriesAsync: true
@@ -493,4 +542,95 @@ writeNewSeriesAsync: true
 		diff := xtest.Diff(expected, actual)
 		require.FailNow(t, "reverse config did not match:\n"+diff)
 	}
+}
+
+func TestInitialClusterEndpoints(t *testing.T) {
+	seedNodes := []environment.SeedNode{
+		environment.SeedNode{
+			HostID:   "host1",
+			Endpoint: "http://1.1.1.1:2380",
+		},
+	}
+	endpoints, err := InitialClusterEndpoints(seedNodes)
+	require.NoError(t, err)
+	require.NotNil(t, endpoints)
+	require.Equal(t, 1, len(endpoints))
+	assert.Equal(t, "http://1.1.1.1:2379", endpoints[0])
+
+	seedNodes = []environment.SeedNode{
+		environment.SeedNode{
+			HostID:   "host1",
+			Endpoint: "http://1.1.1.1:2380",
+		},
+		environment.SeedNode{
+			HostID:   "host2",
+			Endpoint: "http://1.1.1.2:2380",
+		},
+		environment.SeedNode{
+			HostID:   "host3",
+			Endpoint: "http://1.1.1.3:2380",
+		},
+	}
+	endpoints, err = InitialClusterEndpoints(seedNodes)
+	require.NoError(t, err)
+	require.NotNil(t, endpoints)
+	require.Equal(t, 3, len(endpoints))
+	assert.Equal(t, "http://1.1.1.1:2379", endpoints[0])
+	assert.Equal(t, "http://1.1.1.2:2379", endpoints[1])
+	assert.Equal(t, "http://1.1.1.3:2379", endpoints[2])
+
+	seedNodes = []environment.SeedNode{}
+	endpoints, err = InitialClusterEndpoints(seedNodes)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(endpoints))
+
+	seedNodes = []environment.SeedNode{
+		environment.SeedNode{
+			HostID:   "host1",
+			Endpoint: "",
+		},
+	}
+	_, err = InitialClusterEndpoints(seedNodes)
+	require.Error(t, err)
+}
+
+func TestIsSeedNode(t *testing.T) {
+	seedNodes := []environment.SeedNode{
+		environment.SeedNode{
+			HostID:   "host1",
+			Endpoint: "http://1.1.1.1:2380",
+		},
+	}
+	res := IsSeedNode(seedNodes, "host1")
+	assert.Equal(t, true, res)
+
+	seedNodes = []environment.SeedNode{
+		environment.SeedNode{
+			HostID:   "host1",
+			Endpoint: "http://1.1.1.1:2380",
+		},
+		environment.SeedNode{
+			HostID:   "host2",
+			Endpoint: "http://1.1.1.2:2380",
+		},
+		environment.SeedNode{
+			HostID:   "host3",
+			Endpoint: "http://1.1.1.3:2380",
+		},
+	}
+	res = IsSeedNode(seedNodes, "host2")
+	assert.Equal(t, true, res)
+
+	seedNodes = []environment.SeedNode{
+		environment.SeedNode{
+			HostID:   "host1",
+			Endpoint: "http://1.1.1.1:2380",
+		},
+		environment.SeedNode{
+			HostID:   "host2",
+			Endpoint: "http://1.1.1.2:2380",
+		},
+	}
+	res = IsSeedNode(seedNodes, "host4")
+	assert.Equal(t, false, res)
 }
