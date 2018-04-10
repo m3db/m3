@@ -83,7 +83,7 @@ func (m *flushManager) Flush(curr time.Time) error {
 	m.state = flushManagerNotIdle
 	m.Unlock()
 
-	defer setState(flushManagerIdle)
+	defer m.setState(flushManagerIdle)
 
 	// create flush-er
 	flush, err := m.pm.StartPersist()
