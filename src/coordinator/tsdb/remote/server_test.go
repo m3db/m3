@@ -335,7 +335,6 @@ func TestRoundRobinClientRpc(t *testing.T) {
 	}
 	startServer(t, errHost, errStore)
 
-	// Expected order: fail, pass, fail, pass...
 	hosts := []string{errHost, host}
 	client, err := NewGrpcClient(hosts, grpc.WithBlock())
 	defer func() {
@@ -344,21 +343,31 @@ func TestRoundRobinClientRpc(t *testing.T) {
 	}()
 	require.NoError(t, err)
 
-	pause := func() { time.Sleep(time.Millisecond * 10) }
+	// Host ordering is non deterministic. Ensure round robin occurs after first result.
+	fetch, err := client.Fetch(ctx, read, readOpts)
+	if fetch == nil {
+		// Fetch called on errHost
+		assert.Equal(t, errRead.Error(), grpc.ErrorDesc(err))
 
-	pause()
-	// Fetch called on errHost
-	checkErrorFetch(ctx, t, client, read, readOpts)
+		// Write called on host
+		checkWrite(ctx, t, client, write)
 
-	pause()
-	// Write called on host
-	checkWrite(ctx, t, client, write)
+		// Write called on errHost
+		checkErrorWrite(ctx, t, client, write)
 
-	pause()
-	// Write called on errHost
-	checkErrorWrite(ctx, t, client, write)
+		// Fetch called on host
+		checkFetch(ctx, t, client, read, readOpts)
+	} else {
+		//Fetch called on host
+		checkRemoteFetch(t, fetch)
 
-	pause()
-	// Fetch called on host
-	checkFetch(ctx, t, client, read, readOpts)
+		// Fetch called on errHost
+		checkErrorFetch(ctx, t, client, read, readOpts)
+
+		// Write called on hostß
+		checkWrite(ctx, t, client, write)
+
+		// Write called on errHost
+		checkErrorWrite(ctx, t, client, write)
+	}
 }
