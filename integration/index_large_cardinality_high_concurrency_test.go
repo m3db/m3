@@ -43,7 +43,7 @@ func TestIndexLargeCardinalityHighConcurrency(t *testing.T) {
 	}
 
 	concurrency := 4
-	writeEach := 1024
+	writeEach := 128
 	maxNumTags := 10
 
 	genIDTags := func(i int, j int) (ident.ID, ident.TagIterator) {
