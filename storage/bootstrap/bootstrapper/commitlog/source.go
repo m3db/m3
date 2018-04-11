@@ -503,7 +503,6 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 				// TODO: Already called this FN, maybe should just re-use results somehow?
 				latestSnapshot, ok := snapshotFiles.LatestValidForBlock(blockStart)
 				if !ok {
-					// TODO: Ensure that the minimum is properly set for this shard/block
 					// There is no snapshot file for this shard / block combination
 					continue
 				}
@@ -511,10 +510,12 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 				// Bootstrap the snapshot file
 				reader, err := s.newReaderFn(bytesPool, fsOpts)
 				if err != nil {
-					// TODO: Probably don't want to return an err here, just emit a log and then
-					// adjust the minimum for the shard/block to read from commit log
-					// Actually maybe thats not true cause we may have deleted the commit log...
-					// Return unfulfilled?
+					// TODO: In this case we want to emit an error log, and somehow propagate that
+					// we were unable to read this snapshot file to the subsequent code which determines
+					// how much commitlog to read. We might even want to try and read the next earliest
+					// file if it exists.
+					// Actually since the commit log file no longer exists, we might just want to mark
+					// this as unfulfilled somehow and get on with it.
 					return nil, err
 				}
 				err = reader.Open(fs.ReaderOpenOptions{
@@ -527,10 +528,7 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 					FilesetType: persist.FilesetSnapshotType,
 				})
 				if err != nil {
-					// TODO: Probably don't want to return an err here, just emit a log and then
-					// adjust the minimum for the shard/block to read from commit log
-					// Actually maybe thats not true cause we may have deleted the commit log...
-					// Return unfulfilled?
+					// TODO: Same comment as above
 					return nil, err
 				}
 
@@ -680,7 +678,7 @@ func (s *commitLogSource) mergeShards(
 			var shardResult result.ShardResult
 			// TODO: Fix this possibly nil map
 			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
-				unmergedShard, snapshotShardResults[uint32(shard)], blocksPool, multiReaderIteratorPool, encoderPool, blopts)
+				unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
 			if shardResult != nil && len(shardResult.AllSeries()) > 0 {
 				// Prevent race conditions while updating bootstrapResult from multiple go-routines
 				bootstrapResultLock.Lock()
@@ -701,7 +699,6 @@ func (s *commitLogSource) mergeShards(
 
 func (s *commitLogSource) mergeShard(
 	unmergedShard encodersAndRanges,
-	snapshotShardResult result.ShardResult,
 	blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	encoderPool encoding.EncoderPool,
@@ -719,15 +716,6 @@ func (s *commitLogSource) mergeShard(
 			encoderPool,
 			blopts,
 		)
-
-		// for blockStart, block := range seriesBlocks.AllBlocks() {
-		// 	snapshotBlock, ok := snapshotShardResult.BlockAt(unmergedBlocks.id, blockStart.ToTime())
-		// 	if !ok {
-		// 		continue
-		// 	}
-
-		// 	block.Merge(snapshotBlock)
-		// }
 
 		if seriesBlocks != nil && seriesBlocks.Len() > 0 {
 			if shardResult == nil {
