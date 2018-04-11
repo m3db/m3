@@ -422,7 +422,14 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 				mostRecentSnapshotTime, err = s.snapshotTimeFn(
 					filePathPrefix, mostRecentSnapshot.ID, infoReaderBufferSize, decoder)
 				if err != nil {
-					// TODO: Emit error log
+					s.log.
+						WithFields(
+							xlog.NewField("namespace", mostRecentSnapshot.ID.Namespace),
+							xlog.NewField("blockStart", mostRecentSnapshot.ID.BlockStart),
+							xlog.NewField("shard", mostRecentSnapshot.ID.Shard),
+							xlog.NewField("index", mostRecentSnapshot.ID.Index),
+						).
+						Errorf("error resolving snapshot time for snapshot")
 					// Can't read the snapshot file for this block, then we will need to read
 					// the entire commit log for that period so we just set the most recent snapshot
 					// to the beginning of the block
@@ -449,8 +456,8 @@ func (s *commitLogSource) minimumMostRecentSnapshotTimeByBlock(
 			if !shardsTimeRanges[shard].Overlaps(blockRange) {
 				// In order for a minimum most recent snapshot to be valid, it needs to be for
 				// a block that we need to actually bootstrap for that shard. This check may
-				// seem unnecessary, but it ensures that our algorithm is correct even if we're
-				// bootstrapping different blocks for various shards.
+				// seem unnecessary, but it ensures that our algorithm doesn't do any extra work
+				// even if we're bootstrapping different blocks for various shards.
 				continue
 			}
 			if mostRecentSnapshotForShard.Before(minMostRecentSnapshot) {
@@ -479,8 +486,9 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 		for hasMore := rangeIter.Next(); hasMore; hasMore = rangeIter.Next() {
 			currRange := rangeIter.Value()
 
-			// TODO: Clean this up
-			if (currRange.End.Unix()-currRange.Start.Unix())/int64(blockSize) != 0 {
+			currRangeDuration := currRange.End.Unix() - currRange.Start.Unix()
+			isMultipleOfBlockSize := currRangeDuration/int64(blockSize) == 0
+			if !isMultipleOfBlockSize {
 				return nil, fmt.Errorf(
 					"received bootstrap range that is not multiple of blocksize, blockSize: %d, start: %d, end: %d",
 					blockSize, currRange.End.Unix(), currRange.Start.Unix())
