@@ -36,9 +36,10 @@ import (
 )
 
 var (
-	errUnknownTimeType = errors.New("unknown time type")
-	errUnknownUnit     = errors.New("unknown unit")
-	timeZero           time.Time
+	errUnknownTimeType  = errors.New("unknown time type")
+	errUnknownUnit      = errors.New("unknown unit")
+	errNilTaggedRequest = errors.New("nil write tagged request")
+	timeZero            time.Time
 )
 
 // ToTime converts a value to a time
@@ -207,7 +208,7 @@ func ToRPCTaggedResult(queryResult index.QueryResults) (*rpc.FetchTaggedResult_,
 // ToTagsIter returns a tag iterator over the given request.
 func ToTagsIter(r *rpc.WriteTaggedRequest) (ident.TagIterator, error) {
 	if r == nil {
-		return nil, errNilQuery
+		return nil, errNilTaggedRequest
 	}
 
 	return &writeTaggedIter{
