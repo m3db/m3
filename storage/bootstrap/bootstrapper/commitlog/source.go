@@ -341,7 +341,7 @@ func (s *commitLogSource) Read(
 	s.logEncodingOutcome(workerErrs, iter)
 
 	commitLogBootstrapResult := s.mergeShards(int(numShards), bopts, blopts, encoderPool, unmerged, snapshotShardResults)
-	// TODO: Need to do a proper merge here
+	// TODO: Clean this up
 	commitLogShardResults := commitLogBootstrapResult.ShardResults()
 	for shard, shardResult := range snapshotShardResults {
 		existingShardResult, ok := commitLogShardResults[shard]
@@ -450,7 +450,11 @@ func (s *commitLogSource) minimumMostRecentSnapshotTimeByBlock(
 ) map[xtime.UnixNano]time.Time {
 	minimumMostRecentSnapshotTimeByBlock := map[xtime.UnixNano]time.Time{}
 	for blockStart, mostRecentSnapshotsByShard := range mostRecentSnapshotByBlockShard {
-		minMostRecentSnapshot := blockStart.ToTime().Add(blockSize) // TODO: This is confusing, figure out how to explain it
+		// Since we're trying to find a minimum, all subsequent comparisons will be checking
+		// if the new value is less than the current value so we initialize with the maximum
+		// possible value.
+		// TODO: Should this be blockStart.ToTime().Add(blockSize).Add(bufferPast)?
+		minMostRecentSnapshot := blockStart.ToTime().Add(blockSize)
 		for shard, mostRecentSnapshotForShard := range mostRecentSnapshotsByShard {
 			blockRange := xtime.Range{Start: blockStart.ToTime(), End: blockStart.ToTime().Add(blockSize)}
 			if !shardsTimeRanges[shard].Overlaps(blockRange) {
@@ -676,7 +680,6 @@ func (s *commitLogSource) mergeShards(
 		shard, unmergedShard := shard, unmergedShard
 		mergeShardFunc := func() {
 			var shardResult result.ShardResult
-			// TODO: Fix this possibly nil map
 			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
 				unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
 			if shardResult != nil && len(shardResult.AllSeries()) > 0 {
