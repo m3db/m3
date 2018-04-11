@@ -174,17 +174,6 @@ func (m *flushManager) snapshotBlockStart(ns databaseNamespace, curr time.Time) 
 	return curr.Add(-bufferPast).Truncate(blockSize)
 }
 
-func (m *flushManager) setFlushInProgress(b bool) {
-	m.Lock()
-	m.state = flushManagerFlushInProgress
-	m.Unlock()
-}
-func (m *flushManager) setSnapshotInProgress(b bool) {
-	m.Lock()
-	m.state = flushManagerSnapshotInProgress
-	m.Unlock()
-}
-
 func (m *flushManager) flushRange(ropts retention.Options, t time.Time) (time.Time, time.Time) {
 	return retention.FlushTimeStart(ropts, t), retention.FlushTimeEnd(ropts, t)
 }
