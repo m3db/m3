@@ -50,7 +50,6 @@ func TestBaseEncodeDecodeRoundTripWithoutPool(t *testing.T) {
 	require.NoError(t, enc.Encode(&encodeMsg))
 	require.Equal(t, encodeMsg.Size(), len(enc.dataBuffer))
 	require.Equal(t, encodeMsg.Size(), cap(enc.dataBuffer))
-	require.NoError(t, enc.w.Flush())
 	require.NoError(t, dec.Decode(&decodeMsg))
 	require.Equal(t, decodeMsg.Size(), len(dec.dataBuffer))
 	require.Equal(t, encodeMsg.Size(), cap(dec.dataBuffer))
@@ -78,7 +77,6 @@ func TestBaseEncodeDecodeRoundTripWithPool(t *testing.T) {
 	require.NoError(t, enc.Encode(&encodeMsg))
 	require.Equal(t, 100, len(enc.dataBuffer))
 	require.Equal(t, 100, cap(enc.dataBuffer))
-	require.NoError(t, enc.w.Flush())
 	require.NoError(t, dec.Decode(&decodeMsg))
 	require.Equal(t, 100, len(dec.dataBuffer))
 	require.Equal(t, 100, cap(dec.dataBuffer))
@@ -99,7 +97,6 @@ func TestResetReader(t *testing.T) {
 	decodeMsg := msgpb.Message{}
 
 	require.NoError(t, enc.Encode(&encodeMsg))
-	require.NoError(t, enc.(*encoder).w.Flush())
 	require.Error(t, dec.Decode(&decodeMsg))
 	dec.(*decoder).resetReader(mimicTCP1)
 	require.NoError(t, dec.Decode(&decodeMsg))
@@ -120,11 +117,9 @@ func TestResetWriter(t *testing.T) {
 	decodeMsg := msgpb.Message{}
 
 	require.NoError(t, enc.Encode(&encodeMsg))
-	require.NoError(t, enc.(*encoder).w.Flush())
 	require.Error(t, dec.Decode(&decodeMsg))
 	enc.(*encoder).resetWriter(mimicTCP2)
 	require.NoError(t, enc.Encode(&encodeMsg))
-	require.NoError(t, enc.(*encoder).w.Flush())
 	require.NoError(t, dec.Decode(&decodeMsg))
 }
 

@@ -21,14 +21,13 @@
 package proto
 
 import (
-	"bufio"
 	"io"
 
 	"github.com/m3db/m3x/pool"
 )
 
 type encoder struct {
-	w          *bufio.Writer
+	w          io.Writer
 	sizeBuffer []byte
 	dataBuffer []byte
 	bytesPool  pool.BytesPool
@@ -45,7 +44,7 @@ func newEncoder(w io.Writer, opts BaseOptions) *encoder {
 	}
 	pool := opts.BytesPool()
 	return &encoder{
-		w:          bufio.NewWriterSize(w, opts.BufferSize()),
+		w:          w,
 		sizeBuffer: getByteSliceWithLength(sizeBufferSize, pool),
 		bytesPool:  pool,
 	}
@@ -76,5 +75,5 @@ func (e *encoder) encodeData(m Marshaler, size int) error {
 }
 
 func (e *encoder) resetWriter(w io.Writer) {
-	e.w.Reset(w)
+	e.w = w
 }

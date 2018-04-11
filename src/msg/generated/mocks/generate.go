@@ -21,4 +21,7 @@
 // mockgen rules for generating mocks for exported interfaces (reflection mode).
 //go:generate sh -c "mockgen -package=producer $PACKAGE/producer Data | mockclean -pkg $PACKAGE/producer -out $GOPATH/src/$PACKAGE/producer/data_mock.go"
 
+// mockgen rules for generating mocks for unexported interfaces (file mode).
+//go:generate sh -c "mockgen -package=writer -destination=$GOPATH/src/$PACKAGE/producer/writer/router_mock.go -source=$GOPATH/src/$PACKAGE/producer/writer/router.go"
+
 package mocks

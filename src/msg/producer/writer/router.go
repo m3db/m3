@@ -18,54 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package proto
+package writer
 
-import (
-	"net"
-	"testing"
-
-	"github.com/m3db/m3msg/generated/proto/msgpb"
-
-	"github.com/stretchr/testify/require"
-)
-
-func TestEncodeDecoderReset(t *testing.T) {
-	c := NewEncodeDecoder(nil, nil).(*encdec)
-	require.Nil(t, c.enc.w)
-	require.Nil(t, c.dec.r)
-	c.Close()
-	// Safe to close again.
-	c.Close()
-	require.True(t, c.isClosed)
-
-	conn := new(net.TCPConn)
-	c.Reset(conn)
-	require.False(t, c.isClosed)
-	require.Equal(t, conn, c.enc.w)
-	require.Equal(t, conn, c.dec.r)
-}
-
-func TestEncodeDecodeRoundTrip(t *testing.T) {
-	c := NewEncodeDecoder(
-		nil,
-		NewEncodeDecoderOptions(),
-	).(*encdec)
-
-	clientConn, serverConn := net.Pipe()
-	c.enc.resetWriter(clientConn)
-	c.dec.resetReader(serverConn)
-
-	testMsg := msgpb.Message{
-		Metadata: &msgpb.Metadata{
-			Shard: 1,
-			Id:    2,
-		},
-		Value: make([]byte, 10),
-	}
-	go func() {
-		require.NoError(t, c.Encode(&testMsg))
-	}()
-	var msg msgpb.Message
-	require.NoError(t, c.Decode(&msg))
-	require.Equal(t, testMsg, msg)
+type ackRouter interface {
+	// Ack acks the metadata.
+	Ack(ack metadata) error
 }
