@@ -178,13 +178,13 @@ func (s *commitLogSource) Read(
 	// Once we have the desired datastructure, we next need to figure out the minimum most recent snapshot
 	// for that block across all shards. This will help us determine how much of the commit log we need to
 	// read. The new datastructure we're trying to generate looks like:
-	// map[blockStart]minimumMostRecentSnapshot (accross all shards)
+	// map[blockStart]minimumMostRecentSnapshotTime (accross all shards)
 	// This structure is important because it tells us how much of the commit log we need to read for each
 	// block that we're trying to bootstrap (because the commit log is shared across all shards).
-	minimumMostRecentSnapshotByBlock := s.minimumMostRecentSnapshotByBlock(
+	minimumMostRecentSnapshotTimeByBlock := s.minimumMostRecentSnapshotTimeByBlock(
 		shardsTimeRanges, blockSize, mostRecentCompleteSnapshotTimeByBlockShard)
 
-	// Now that we have the minimum most recent snapshot for each block, we can use that data to decide how
+	// Now that we have the minimum most recent snapshot timefor each block, we can use that data to decide how
 	// much of the commit log we need to read for each block that we're bootstrapping, but first we begin
 	// by reading the snapshot files that we can.
 	// TODO: Maybe do this before other calculations above?
@@ -204,7 +204,7 @@ func (s *commitLogSource) Read(
 		bufferFuture = ns.Options().RetentionOptions().BufferFuture()
 	)
 	rangesToCheck := []xtime.Range{}
-	for blockStart, minimumMostRecentSnapshotTime := range minimumMostRecentSnapshotByBlock {
+	for blockStart, minimumMostRecentSnapshotTime := range minimumMostRecentSnapshotTimeByBlock {
 		maxBufferPastAndFuture := math.Max(float64(int(bufferPast)), float64(int(bufferFuture)))
 
 		rangesToCheck = append(rangesToCheck, xtime.Range{
@@ -436,12 +436,12 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 	return mostRecentSnapshotsByBlockShard
 }
 
-func (s *commitLogSource) minimumMostRecentSnapshotByBlock(
+func (s *commitLogSource) minimumMostRecentSnapshotTimeByBlock(
 	shardsTimeRanges result.ShardTimeRanges,
 	blockSize time.Duration,
 	mostRecentSnapshotByBlockShard map[xtime.UnixNano]map[uint32]time.Time,
 ) map[xtime.UnixNano]time.Time {
-	minimumMostRecentSnapshotByBlock := map[xtime.UnixNano]time.Time{}
+	minimumMostRecentSnapshotTimeByBlock := map[xtime.UnixNano]time.Time{}
 	for blockStart, mostRecentSnapshotsByShard := range mostRecentSnapshotByBlockShard {
 		minMostRecentSnapshot := blockStart.ToTime().Add(blockSize) // TODO: This is confusing, figure out how to explain it
 		for shard, mostRecentSnapshotForShard := range mostRecentSnapshotsByShard {
@@ -457,10 +457,10 @@ func (s *commitLogSource) minimumMostRecentSnapshotByBlock(
 				minMostRecentSnapshot = mostRecentSnapshotForShard
 			}
 		}
-		minimumMostRecentSnapshotByBlock[blockStart] = minMostRecentSnapshot
+		minimumMostRecentSnapshotTimeByBlock[blockStart] = minMostRecentSnapshot
 	}
 
-	return minimumMostRecentSnapshotByBlock
+	return minimumMostRecentSnapshotTimeByBlock
 }
 
 func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
