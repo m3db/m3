@@ -104,10 +104,10 @@ func newNamespaceProtoValue(id string) (proto.Message, error) {
 	md, err := namespace.NewMetadata(
 		ident.StringID(id),
 		namespace.NewOptions().
-			SetNeedsBootstrap(true).
-			SetNeedsFilesetCleanup(true).
-			SetNeedsFlush(true).
-			SetNeedsRepair(true).
+			SetBootstrapEnabled(true).
+			SetCleanupEnabled(true).
+			SetFlushEnabled(true).
+			SetRepairEnabled(true).
 			SetWritesToCommitLog(true).
 			SetRetentionOptions(
 				retention.NewOptions().

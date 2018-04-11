@@ -922,8 +922,8 @@ func (_mr *MockdatabaseNamespaceMockRecorder) Flush(arg0, arg1 interface{}) *gom
 }
 
 // Snapshot mocks base method
-func (_m *MockdatabaseNamespace) Snapshot(blockStart time.Time, callStart time.Time, flush persist.Flush) error {
-	ret := _m.ctrl.Call(_m, "Snapshot", blockStart, callStart, flush)
+func (_m *MockdatabaseNamespace) Snapshot(blockStart time.Time, snapshotTime time.Time, flush persist.Flush) error {
+	ret := _m.ctrl.Call(_m, "Snapshot", blockStart, snapshotTime, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
@@ -1263,15 +1263,15 @@ func (_mr *MockdatabaseShardMockRecorder) SnapshotState() *gomock.Call {
 }
 
 // CleanupSnapshots mocks base method
-func (_m *MockdatabaseShard) CleanupSnapshots() error {
-	ret := _m.ctrl.Call(_m, "CleanupSnapshots")
+func (_m *MockdatabaseShard) CleanupSnapshots(earliestToRetain time.Time) error {
+	ret := _m.ctrl.Call(_m, "CleanupSnapshots", earliestToRetain)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CleanupSnapshots indicates an expected call of CleanupSnapshots
-func (_mr *MockdatabaseShardMockRecorder) CleanupSnapshots() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "CleanupSnapshots", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupSnapshots))
+func (_mr *MockdatabaseShardMockRecorder) CleanupSnapshots(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "CleanupSnapshots", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupSnapshots), arg0)
 }
 
 // CleanupFileset mocks base method
