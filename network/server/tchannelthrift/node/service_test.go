@@ -624,7 +624,7 @@ func TestServiceWriteTagged(t *testing.T) {
 	mockDB.EXPECT().WriteTagged(ctx,
 		ident.NewIDMatcher(nsID),
 		ident.NewIDMatcher(id),
-		gomock.Any(), // TODO(prateek): create and use ident.TagIterMatcher
+		gomock.Any(),
 		at, value, xtime.Second, nil,
 	).Return(nil)
 

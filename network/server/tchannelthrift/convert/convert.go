@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
-	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
@@ -176,35 +175,6 @@ func ToRPCError(err error) *rpc.Error {
 	return tterrors.NewInternalError(err)
 }
 
-// ToRPCTaggedResult converts an index.QueryResults -> appropriate RPC types.
-func ToRPCTaggedResult(queryResult index.QueryResults) (*rpc.FetchTaggedResult_, error) {
-	result := rpc.NewFetchTaggedResult_()
-	result.Exhaustive = queryResult.Exhaustive
-	// Make Elements an initialized empty array for JSON serialization as empty array than null
-	result.Elements = make([]*rpc.FetchTaggedIDResult_, 0)
-	iter := queryResult.Iterator
-	for iter.Next() {
-		ns, id, tags := iter.Current()
-		elem := &rpc.FetchTaggedIDResult_{
-			NameSpace: ns.String(),
-			ID:        id.String(),
-		}
-		for _, t := range tags {
-			// TODO(prateek): pool TagString and ...
-			elem.Tags = append(elem.Tags, &rpc.Tag{
-				Name:  t.Name.String(),
-				Value: t.Value.String(),
-			})
-		}
-	}
-
-	if err := iter.Err(); err != nil {
-		return nil, ToRPCError(err)
-	}
-
-	return result, nil
-}
-
 // ToTagsIter returns a tag iterator over the given request.
 func ToTagsIter(r *rpc.WriteTaggedRequest) (ident.TagIterator, error) {
 	if r == nil {
@@ -217,7 +187,6 @@ func ToTagsIter(r *rpc.WriteTaggedRequest) (ident.TagIterator, error) {
 	}, nil
 }
 
-// TODO(prateek): add tests for writeTaggedIter
 // NB(prateek): writeTaggedIter is in-efficient in how it handles internal
 // allocations. Only use it for non-performance critical RPC endpoints.
 type writeTaggedIter struct {
