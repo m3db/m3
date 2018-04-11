@@ -55,7 +55,7 @@ func TestMapSingleElement(t *testing.T) {
 func TestMapMultipleElements(t *testing.T) {
 	var (
 		opts1 = NewOptions()
-		opts2 = opts1.SetNeedsRepair(true)
+		opts2 = opts1.SetRepairEnabled(true)
 		id1   = ident.StringID("someID1")
 		id2   = ident.StringID("someID2")
 	)
@@ -81,7 +81,7 @@ func TestMapMultipleElements(t *testing.T) {
 func testMap(t *testing.T) Map {
 	var (
 		opts1 = NewOptions()
-		opts2 = opts1.SetNeedsRepair(true)
+		opts2 = opts1.SetRepairEnabled(true)
 		id1   = ident.StringID("someID1")
 		id2   = ident.StringID("someID2")
 	)

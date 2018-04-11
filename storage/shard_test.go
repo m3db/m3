@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
@@ -176,8 +177,12 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	blockStart := time.Unix(21600, 0)
 	flush := persist.NewMockFlush(ctrl)
 	prepared := persist.PreparedPersist{Persist: nil}
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, nil)
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata: s.namespace,
+		Shard:      s.shard,
+		BlockStart: blockStart,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
 
 	err := s.Flush(blockStart, flush)
 	require.Nil(t, err)
@@ -204,8 +209,12 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 	prepared := persist.PreparedPersist{}
 	expectedErr := errors.New("some error")
 
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, expectedErr)
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata: s.namespace,
+		Shard:      s.shard,
+		BlockStart: blockStart,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, expectedErr)
 
 	actualErr := s.Flush(blockStart, flush)
 	require.NotNil(t, actualErr)
@@ -238,9 +247,12 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		Persist: func(ident.ID, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
 	}
-	expectedErr := errors.New("error foo")
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, expectedErr)
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata: s.namespace,
+		Shard:      s.shard,
+		BlockStart: blockStart,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
@@ -271,7 +283,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	require.True(t, closed)
 	require.NotNil(t, err)
-	require.Equal(t, "error foo\nerror bar", err.Error())
+	require.Equal(t, "error bar", err.Error())
 
 	flushState := s.FlushState(blockStart)
 	require.Equal(t, fileOpState{
@@ -301,8 +313,12 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		Close:   func() error { closed = true; return nil },
 	}
 
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, nil)
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata: s.namespace,
+		Shard:      s.shard,
+		BlockStart: blockStart,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
@@ -335,6 +351,74 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		Status:      fileOpSuccess,
 		NumFailures: 0,
 	}, flushState)
+}
+
+func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	blockStart := time.Unix(21600, 0)
+
+	s := testDatabaseShard(t, testDatabaseOptions())
+	defer s.Close()
+	s.bs = bootstrapping
+
+	flush := persist.NewMockFlush(ctrl)
+	err := s.Snapshot(blockStart, blockStart, flush)
+	require.Equal(t, errShardNotBootstrappedToSnapshot, err)
+}
+
+func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	blockStart := time.Unix(21600, 0)
+
+	s := testDatabaseShard(t, testDatabaseOptions())
+	defer s.Close()
+	s.bs = bootstrapped
+
+	var closed bool
+	flush := persist.NewMockFlush(ctrl)
+	prepared := persist.PreparedPersist{
+		Persist: func(ident.ID, ts.Segment, uint32) error { return nil },
+		Close:   func() error { closed = true; return nil },
+	}
+
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata:   s.namespace,
+		Shard:        s.shard,
+		BlockStart:   blockStart,
+		SnapshotTime: blockStart,
+		FilesetType:  persist.FilesetSnapshotType,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
+
+	snapshotted := make(map[int]struct{})
+	for i := 0; i < 2; i++ {
+		i := i
+		series := series.NewMockDatabaseSeries(ctrl)
+		series.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
+		series.EXPECT().IsEmpty().Return(false).AnyTimes()
+		series.EXPECT().
+			Snapshot(gomock.Any(), blockStart, gomock.Any()).
+			Do(func(context.Context, time.Time, persist.Fn) {
+				snapshotted[i] = struct{}{}
+			}).
+			Return(nil)
+		s.list.PushBack(&dbShardEntry{series: series})
+	}
+
+	err := s.Snapshot(blockStart, blockStart, flush)
+
+	require.Equal(t, len(snapshotted), 2)
+	for i := 0; i < 2; i++ {
+		_, ok := snapshotted[i]
+		require.True(t, ok)
+	}
+
+	require.True(t, closed)
+	require.Nil(t, err)
 }
 
 func addMockTestSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID) *series.MockDatabaseSeries {
@@ -827,6 +911,89 @@ func TestShardCleanupFileset(t *testing.T) {
 	}
 	require.NoError(t, shard.CleanupFileset(time.Now()))
 	require.Equal(t, []string{defaultTestNs1ID.String(), "0"}, deletedFiles)
+}
+
+func TestShardCleanupSnapshot(t *testing.T) {
+	var (
+		opts                = testDatabaseOptions()
+		shard               = testDatabaseShard(t, opts)
+		blockSize           = 2 * time.Hour
+		now                 = time.Now().Truncate(blockSize)
+		earliestToRetain    = now.Add(-4 * blockSize)
+		pastRetention       = earliestToRetain.Add(-blockSize)
+		successfullyFlushed = earliestToRetain
+		notFlushedYet       = earliestToRetain.Add(blockSize)
+	)
+
+	shard.markFlushStateSuccess(earliestToRetain)
+	defer shard.Close()
+
+	shard.snapshotFilesFn = func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.SnapshotFilesSlice, error) {
+		return fs.SnapshotFilesSlice{
+			// Should get removed for not being in retention period
+			fs.SnapshotFile{
+				FilesetFile: fs.FilesetFile{
+					ID: fs.FilesetFileIdentifier{
+						Namespace:  namespace,
+						Shard:      shard,
+						BlockStart: pastRetention,
+						Index:      0,
+					},
+					AbsoluteFilepaths: []string{"not-in-retention"},
+				},
+			},
+			// Should get removed for being flushed
+			fs.SnapshotFile{
+				FilesetFile: fs.FilesetFile{
+					ID: fs.FilesetFileIdentifier{
+						Namespace:  namespace,
+						Shard:      shard,
+						BlockStart: successfullyFlushed,
+						Index:      0,
+					},
+					AbsoluteFilepaths: []string{"successfully-flushed"},
+				},
+			},
+			// Should not get removed - Note that this entry precedes the
+			// next in order to ensure that the sorting logic works correctly.
+			fs.SnapshotFile{
+				FilesetFile: fs.FilesetFile{
+					ID: fs.FilesetFileIdentifier{
+						Namespace:  namespace,
+						Shard:      shard,
+						BlockStart: notFlushedYet,
+						Index:      1,
+					},
+					// Note this filename needs to contain the word "checkpoint" to
+					// pass the HasCheckpointFile() check
+					AbsoluteFilepaths: []string{"latest-index-and-has-checkpoint"},
+				},
+			},
+			// Should get removed because the next one has a higher index
+			fs.SnapshotFile{
+				FilesetFile: fs.FilesetFile{
+					ID: fs.FilesetFileIdentifier{
+						Namespace:  namespace,
+						Shard:      shard,
+						BlockStart: notFlushedYet,
+						Index:      0,
+					},
+					AbsoluteFilepaths: []string{"not-latest-index"},
+				},
+			},
+		}, nil
+	}
+
+	deletedFiles := []string{}
+	shard.deleteFilesFn = func(files []string) error {
+		deletedFiles = append(deletedFiles, files...)
+		return nil
+	}
+	require.NoError(t, shard.CleanupSnapshots(earliestToRetain))
+
+	expectedDeletedFiles := []string{
+		"not-in-retention", "successfully-flushed", "not-latest-index"}
+	require.Equal(t, expectedDeletedFiles, deletedFiles)
 }
 
 type testCloser struct {

@@ -21,6 +21,7 @@
 package persist
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/storage/namespace"
@@ -43,8 +44,8 @@ type PreparedPersist struct {
 
 // Manager manages the internals of persisting data onto storage layer.
 type Manager interface {
-	// StartFlush begins a flush for a set of shards.
-	StartFlush() (Flush, error)
+	// StartPersist begins a flush for a set of shards.
+	StartPersist() (Flush, error)
 }
 
 // Flush is a persist flush cycle, each shard and block start permutation needs
@@ -53,8 +54,44 @@ type Flush interface {
 	// Prepare prepares writing data for a given (shard, blockStart) combination,
 	// returning a PreparedPersist object and any error encountered during
 	// preparation if any.
-	Prepare(ns namespace.Metadata, shard uint32, blockStart time.Time) (PreparedPersist, error)
+	Prepare(opts PrepareOptions) (PreparedPersist, error)
 
 	// Done marks the flush as complete.
 	Done() error
 }
+
+// PrepareOptions is the options struct for the PersistManager's Prepare method.
+type PrepareOptions struct {
+	NamespaceMetadata namespace.Metadata
+	BlockStart        time.Time
+	SnapshotTime      time.Time
+	Shard             uint32
+	FilesetType       FilesetType
+}
+
+// PrepareSnapshotOptions is the options struct for the Prepare method that contains
+// information specific to reading snapshot files
+type PrepareSnapshotOptions struct {
+	SnapshotTime time.Time
+}
+
+// FilesetType is an enum that indicates what type of files a fileset contains
+type FilesetType int
+
+func (f FilesetType) String() string {
+	switch f {
+	case FilesetFlushType:
+		return "flush"
+	case FilesetSnapshotType:
+		return "snapshot"
+	}
+
+	return fmt.Sprintf("unknown: %d", f)
+}
+
+const (
+	// FilesetFlushType indicates that the fileset files contain a complete flush
+	FilesetFlushType FilesetType = iota
+	// FilesetSnapshotType indicates that the fileset files contain a snapshot
+	FilesetSnapshotType
+)

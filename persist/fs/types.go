@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
@@ -38,17 +39,46 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+// FilesetFileIdentifier contains all the information required to identify a FilesetFile
+type FilesetFileIdentifier struct {
+	Namespace  ident.ID
+	BlockStart time.Time
+	Shard      uint32
+	// Only required for snapshot files
+	Index int
+}
+
+// WriterOpenOptions is the options struct for the Open method on the FilesetWriter
+type WriterOpenOptions struct {
+	Identifier  FilesetFileIdentifier
+	BlockSize   time.Duration
+	FilesetType persist.FilesetType
+	// Only used when writing snapshot files
+	Snapshot WriterSnapshotOptions
+}
+
+// WriterSnapshotOptions is the options struct for Open method on the FilesetWriter
+// that contains information specific to writing snapshot files
+type WriterSnapshotOptions struct {
+	SnapshotTime time.Time
+}
+
 // FileSetWriter provides an unsynchronized writer for a TSDB file set
 type FileSetWriter interface {
 	io.Closer
 
-	// Open opens the files for writing data to the given shard in the given namespace
-	Open(namespace ident.ID, blockSize time.Duration, shard uint32, start time.Time) error
+	// Open opens the files for writing data to the given shard in the given namespace.
+	// This method is not thread-safe, so its the callers responsibilities that they never
+	// try and write two snapshot files for the same block start at the same time or their
+	// will be a race in determining the snapshot file's index.
+	Open(opts WriterOpenOptions) error
 
-	// Write will write the id and data pair and returns an error on a write error
+	// Write will write the id and data pair and returns an error on a write error. Callers
+	// must not call this method with a given ID more than once.
 	Write(id ident.ID, data checked.Bytes, checksum uint32) error
 
-	// WriteAll will write the id and all byte slices and returns an error on a write error
+	// WriteAll will write the id and all byte slices and returns an error on a write error.
+	// Callers must not call this method with a given ID more than once.
 	WriteAll(id ident.ID, data []checked.Bytes, checksum uint32) error
 }
 
@@ -61,12 +91,18 @@ type FileSetReaderStatus struct {
 	Open  bool
 }
 
+// ReaderOpenOptions is options struct for the reader open method.
+type ReaderOpenOptions struct {
+	Identifier  FilesetFileIdentifier
+	FilesetType persist.FilesetType
+}
+
 // FileSetReader provides an unsynchronized reader for a TSDB file set
 type FileSetReader interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
-	Open(namespace ident.ID, shard uint32, start time.Time) error
+	Open(opts ReaderOpenOptions) error
 
 	// Status returns the status of the reader
 	Status() FileSetReaderStatus

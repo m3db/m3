@@ -295,7 +295,7 @@ type options struct {
 func newTestOptions(t *testing.T) testOptions {
 	var namespaces []namespace.Metadata
 	nsOpts := namespace.NewOptions().
-		SetNeedsRepair(false).
+		SetRepairEnabled(false).
 		SetRetentionOptions(defaultIntegrationTestRetentionOpts)
 
 	for _, ns := range testNamespaces {

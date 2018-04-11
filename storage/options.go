@@ -68,6 +68,9 @@ const (
 
 	// defaultIndexingEnabled disables indexing by default
 	defaultIndexingEnabled = false
+
+	// defaultMinSnapshotInterval is the default minimum interval that must elapse between snapshots
+	defaultMinSnapshotInterval = time.Minute
 )
 
 var (
@@ -124,6 +127,7 @@ type options struct {
 	bootstrapProcess               bootstrap.Process
 	persistManager                 persist.Manager
 	maxFlushRetries                int
+	minSnapshotInterval            time.Duration
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	poolOpts                       pool.ObjectPoolOptions
 	contextPool                    context.Pool
@@ -166,6 +170,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		repairOpts:          repair.NewOptions(),
 		bootstrapProcess:    defaultBootstrapProcess,
 		maxFlushRetries:     defaultMaxFlushRetries,
+		minSnapshotInterval: defaultMinSnapshotInterval,
 		poolOpts:            poolOpts,
 		contextPool: context.NewPool(context.NewOptions().
 			SetContextPoolOptions(poolOpts).
@@ -609,4 +614,14 @@ func (o *options) SetFetchBlocksMetadataResultsPool(value block.FetchBlocksMetad
 
 func (o *options) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool {
 	return o.fetchBlocksMetadataResultsPool
+}
+
+func (o *options) SetMinimumSnapshotInterval(value time.Duration) Options {
+	opts := *o
+	opts.minSnapshotInterval = value
+	return &opts
+}
+
+func (o *options) MinimumSnapshotInterval() time.Duration {
+	return o.minSnapshotInterval
 }

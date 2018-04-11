@@ -122,13 +122,13 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 	maxWaitTime := time.Minute
 	log.Infof("waiting until data is flushed")
 	testSetup.setNowFn(testSetup.getNowFn().Add(3 * ns1BlockSize))
-	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], ns1SeriesMaps, maxWaitTime))
-	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[1], ns2SeriesMaps, maxWaitTime))
+	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], ns1SeriesMaps, maxWaitTime))
+	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[1], ns2SeriesMaps, maxWaitTime))
 	log.Infof("data has been flushed")
 
 	// Verify on-disk data match what we expect
 	log.Infof("verifying flushed data")
-	verifyFlushed(t, testSetup.shardSet, testSetup.storageOpts, testNamespaces[0], ns1SeriesMaps)
-	verifyFlushed(t, testSetup.shardSet, testSetup.storageOpts, testNamespaces[1], ns2SeriesMaps)
+	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, testNamespaces[0], ns1SeriesMaps)
+	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, testNamespaces[1], ns2SeriesMaps)
 	log.Infof("flushed data verified")
 }

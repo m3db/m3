@@ -1,6 +1,6 @@
 // +build integration
 
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -27,12 +27,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/integration/generate"
+	"github.com/m3db/m3db/persist/fs"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiskFlushSimple(t *testing.T) {
+func TestDiskSnapshotSimple(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -63,24 +64,40 @@ func TestDiskFlushSimple(t *testing.T) {
 	now := testSetup.getNowFn()
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []generate.BlockConfig{
-		{[]string{"foo", "bar"}, 100, now},
-		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
+		{[]string{"foo", "bar", "baz"}, 100, now},
 	}
 	for _, input := range inputData {
 		testSetup.setNowFn(input.Start)
 		testData := generate.Block(input)
 		seriesMaps[xtime.ToUnixNano(input.Start)] = testData
-		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
+		for _, ns := range testSetup.namespaces {
+			require.NoError(t, testSetup.writeBatch(ns.ID(), testData))
+		}
 	}
-	log.Debug("test data is now written")
 
-	// Advance time to make sure all data are flushed. Because data
-	// are flushed to disk asynchronously, need to poll to check
-	// when data are written.
-	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
+	now = testSetup.getNowFn().Add(blockSize).Add(-10 * time.Minute)
+	testSetup.setNowFn(now)
 	maxWaitTime := time.Minute
-	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], seriesMaps, maxWaitTime))
+	for _, ns := range testSetup.namespaces {
+		require.NoError(t, waitUntilSnapshotFilesFlushed(filePathPrefix, testSetup.shardSet, ns.ID(), []time.Time{now.Truncate(blockSize)}, maxWaitTime))
+		verifySnapshottedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, ns.ID(), now.Truncate(blockSize), seriesMaps)
+	}
 
-	// Verify on-disk data match what we expect
-	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, testNamespaces[0], seriesMaps)
+	oldTime := testSetup.getNowFn()
+	newTime := oldTime.Add(blockSize * 2)
+	testSetup.setNowFn(newTime)
+
+	testSetup.sleepFor10xTickMinimumInterval()
+	for _, ns := range testSetup.namespaces {
+		// Make sure new snapshotfiles are written out
+		require.NoError(t, waitUntilSnapshotFilesFlushed(filePathPrefix, testSetup.shardSet, ns.ID(), []time.Time{newTime.Truncate(blockSize)}, maxWaitTime))
+		for _, shard := range testSetup.shardSet.All() {
+			waitUntil(func() bool {
+				// Make sure old snapshot files are deleted
+				exists, err := fs.SnapshotFilesetExistsAt(filePathPrefix, ns.ID(), shard.ID(), oldTime.Truncate(blockSize))
+				require.NoError(t, err)
+				return !exists
+			}, maxWaitTime)
+		}
+	}
 }

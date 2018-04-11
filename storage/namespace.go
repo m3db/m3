@@ -135,6 +135,7 @@ type databaseNamespaceStatsLastTick struct {
 type databaseNamespaceMetrics struct {
 	bootstrap           instrument.MethodMetrics
 	flush               instrument.MethodMetrics
+	snapshot            instrument.MethodMetrics
 	write               instrument.MethodMetrics
 	writeTagged         instrument.MethodMetrics
 	read                instrument.MethodMetrics
@@ -184,6 +185,7 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 	return databaseNamespaceMetrics{
 		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
 		flush:               instrument.NewMethodMetrics(scope, "flush", samplingRate),
+		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", samplingRate),
 		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
 		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", samplingRate),
 		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
@@ -285,7 +287,7 @@ func newDatabaseNamespace(
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
 	}
 
-	n.initShards(nopts.NeedsBootstrap())
+	n.initShards(nopts.BootstrapEnabled())
 	go n.reportStatusLoop()
 
 	return n, nil
@@ -361,10 +363,10 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		if int(shard) < len(existing) && existing[shard] != nil {
 			n.shards[shard] = existing[shard]
 		} else {
-			needsBootstrap := n.nopts.NeedsBootstrap()
+			bootstrapEnabled := n.nopts.BootstrapEnabled()
 			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
 				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.reverseIndex,
-				needsBootstrap, n.opts, n.seriesOpts)
+				bootstrapEnabled, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
 	}
@@ -625,7 +627,7 @@ func (n *dbNamespace) Bootstrap(
 		n.metrics.bootstrapEnd.Inc(1)
 	}()
 
-	if !n.nopts.NeedsBootstrap() {
+	if !n.nopts.BootstrapEnabled() {
 		n.metrics.bootstrap.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -717,6 +719,8 @@ func (n *dbNamespace) Flush(
 	blockStart time.Time,
 	flush persist.Flush,
 ) error {
+	// NB(rartoul): This value can be used for emitting metrics, but should not be used
+	// for business logic.
 	callStart := n.nowFn()
 
 	n.RLock()
@@ -727,7 +731,7 @@ func (n *dbNamespace) Flush(
 	}
 	n.RUnlock()
 
-	if !n.nopts.NeedsFlush() {
+	if !n.nopts.FlushEnabled() {
 		n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -756,6 +760,55 @@ func (n *dbNamespace) Flush(
 
 	res := multiErr.FinalError()
 	n.metrics.flush.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	return res
+}
+
+func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.Flush) error {
+	// NB(rartoul): This value can be used for emitting metrics, but should not be used
+	// for business logic.
+	callStart := n.nowFn()
+
+	n.RLock()
+	if n.bs != bootstrapped {
+		n.RUnlock()
+		n.metrics.snapshot.ReportError(n.nowFn().Sub(callStart))
+		return errNamespaceNotBootstrapped
+	}
+	n.RUnlock()
+
+	if !n.nopts.SnapshotEnabled() {
+		n.metrics.snapshot.ReportSuccess(n.nowFn().Sub(callStart))
+		return nil
+	}
+
+	multiErr := xerrors.NewMultiError()
+	shards := n.GetOwnedShards()
+	for _, shard := range shards {
+		isSnapshotting, lastSuccessfulSnapshot := shard.SnapshotState()
+		if isSnapshotting {
+			// Should never happen because snapshots should never overlap
+			// each other (controlled by loop in flush manager)
+			n.log.
+				WithFields(xlog.NewField("shard", shard.ID())).
+				Errorf("[invariant violated] tried to snapshot shard that is already snapshotting")
+			continue
+		}
+
+		if snapshotTime.Sub(lastSuccessfulSnapshot) < n.opts.MinimumSnapshotInterval() {
+			// Skip if not enough time has elapsed since the previous snapshot
+			continue
+		}
+
+		err := shard.Snapshot(blockStart, snapshotTime, flush)
+		if err != nil {
+			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
+			multiErr = multiErr.Add(detailedErr)
+			// Continue with remaining shards
+		}
+	}
+
+	res := multiErr.FinalError()
+	n.metrics.snapshot.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
 	return res
 }
 
@@ -820,7 +873,7 @@ func (n *dbNamespace) Repair(
 	repairer databaseShardRepairer,
 	tr xtime.Range,
 ) error {
-	if !n.nopts.NeedsRepair() {
+	if !n.nopts.RepairEnabled() {
 		return nil
 	}
 

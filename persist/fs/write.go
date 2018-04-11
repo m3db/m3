@@ -22,6 +22,7 @@ package fs
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"os"
 	"sort"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3x/checked"
@@ -54,12 +56,13 @@ type writer struct {
 	checkpointFilePath         string
 	indexEntries               indexEntries
 
-	start      time.Time
-	currIdx    int64
-	currOffset int64
-	encoder    *msgpack.Encoder
-	digestBuf  digest.Buffer
-	err        error
+	start        time.Time
+	snapshotTime time.Time
+	currIdx      int64
+	currOffset   int64
+	encoder      *msgpack.Encoder
+	digestBuf    digest.Buffer
+	err          error
 }
 
 type indexEntry struct {
@@ -117,35 +120,83 @@ func NewWriter(opts Options) (FileSetWriter, error) {
 // Open initializes the internal state for writing to the given shard,
 // specifically creating the shard directory if it doesn't exist, and
 // opening / truncating files associated with that shard for writing.
-func (w *writer) Open(
-	namespace ident.ID,
-	blockSize time.Duration,
-	shard uint32,
-	blockStart time.Time,
-) error {
-	shardDir := ShardDirPath(w.filePathPrefix, namespace, shard)
-	if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
-		return err
-	}
-	w.blockSize = blockSize
+func (w *writer) Open(opts WriterOpenOptions) error {
+	var (
+		nextSnapshotIndex int
+		err               error
+		namespace         = opts.Identifier.Namespace
+		shard             = opts.Identifier.Shard
+		blockStart        = opts.Identifier.BlockStart
+	)
+
+	w.blockSize = opts.BlockSize
 	w.start = blockStart
+	w.snapshotTime = opts.Snapshot.SnapshotTime
 	w.currIdx = 0
 	w.currOffset = 0
-	w.checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	w.err = nil
 
+	var (
+		shardDir            string
+		infoFilepath        string
+		indexFilepath       string
+		summariesFilepath   string
+		bloomFilterFilepath string
+		dataFilepath        string
+		digestFilepath      string
+	)
+	switch opts.FilesetType {
+	case persist.FilesetSnapshotType:
+		shardDir = ShardSnapshotsDirPath(w.filePathPrefix, namespace, shard)
+		// Can't do this outside of the switch statement because we need to make sure
+		// the directory exists before calling NextSnapshotFileIndex
+		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
+			return err
+		}
+
+		// This method is not thread-safe, so its the callers responsibilities that they never
+		// try and write two snapshot files for the same block start at the same time.
+		nextSnapshotIndex, err = NextSnapshotFileIndex(w.filePathPrefix, namespace, shard, blockStart)
+		if err != nil {
+			return err
+		}
+
+		w.checkpointFilePath = snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, nextSnapshotIndex)
+		infoFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, infoFileSuffix, nextSnapshotIndex)
+		indexFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, indexFileSuffix, nextSnapshotIndex)
+		summariesFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, summariesFileSuffix, nextSnapshotIndex)
+		bloomFilterFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, nextSnapshotIndex)
+		dataFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, dataFileSuffix, nextSnapshotIndex)
+		digestFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, digestFileSuffix, nextSnapshotIndex)
+	case persist.FilesetFlushType:
+		shardDir = ShardDataDirPath(w.filePathPrefix, namespace, shard)
+		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
+			return err
+		}
+
+		w.checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+		infoFilepath = filesetPathFromTime(shardDir, blockStart, infoFileSuffix)
+		indexFilepath = filesetPathFromTime(shardDir, blockStart, indexFileSuffix)
+		summariesFilepath = filesetPathFromTime(shardDir, blockStart, summariesFileSuffix)
+		bloomFilterFilepath = filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix)
+		dataFilepath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
+		digestFilepath = filesetPathFromTime(shardDir, blockStart, digestFileSuffix)
+	default:
+		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
+	}
+
 	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File
-	if err := openFiles(
-		w.openWritable,
+	err = openFiles(w.openWritable,
 		map[string]**os.File{
-			filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
-			filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &indexFd,
-			filesetPathFromTime(shardDir, blockStart, summariesFileSuffix):   &summariesFd,
-			filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
-			filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &dataFd,
-			filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
+			infoFilepath:        &infoFd,
+			indexFilepath:       &indexFd,
+			summariesFilepath:   &summariesFd,
+			bloomFilterFilepath: &bloomFilterFd,
+			dataFilepath:        &dataFd,
+			digestFilepath:      &digestFd,
 		},
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 
@@ -345,9 +396,17 @@ func (w *writer) writeIndexFileContents(
 	// writes to two different files during the write loop.
 	sort.Sort(w.indexEntries)
 
-	var offset int64
+	var (
+		offset int64
+		prevID []byte
+	)
 	for i := range w.indexEntries {
 		id := w.indexEntries[i].id.Data().Get()
+		// Need to check if i > 0 or we can never write an empty string ID
+		if i > 0 && bytes.Equal(id, prevID) {
+			// Should never happen, Write() should only be called once per ID
+			return fmt.Errorf("encountered duplicate ID: %s", id)
+		}
 
 		entry := schema.IndexEntry{
 			Index:    w.indexEntries[i].index,
@@ -379,6 +438,8 @@ func (w *writer) writeIndexFileContents(
 		}
 
 		offset += int64(len(data))
+
+		prevID = id
 	}
 
 	return nil
@@ -426,7 +487,8 @@ func (w *writer) writeInfoFileContents(
 	summaries int,
 ) error {
 	info := schema.IndexInfo{
-		Start:        xtime.ToNanoseconds(w.start),
+		BlockStart:   xtime.ToNanoseconds(w.start),
+		SnapshotTime: xtime.ToNanoseconds(w.snapshotTime),
 		BlockSize:    int64(w.blockSize),
 		Entries:      w.currIdx,
 		MajorVersion: schema.MajorVersion,

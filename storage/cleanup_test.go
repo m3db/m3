@@ -23,11 +23,13 @@ package storage
 import (
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -91,7 +93,7 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	rOpts := retention.NewOptions().
 		SetRetentionPeriod(21600 * time.Second).
 		SetBlockSize(7200 * time.Second)
-	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts).SetNeedsFilesetCleanup(false)
+	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts).SetCleanupEnabled(false)
 
 	namespaces := make([]databaseNamespace, 0, 3)
 	for range namespaces {
@@ -121,6 +123,97 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	}
 
 	require.NoError(t, mgr.Cleanup(ts))
+}
+
+func TestCleanupDataAndSnapshotFilesetFiles(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	ts := timeFor(36000)
+
+	nsOpts := namespace.NewOptions()
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
+
+	shard := NewMockdatabaseShard(ctrl)
+	expectedEarliestToRetain := retention.FlushTimeStart(ns.Options().RetentionOptions(), ts)
+	shard.EXPECT().CleanupFileset(expectedEarliestToRetain).Return(nil)
+	shard.EXPECT().CleanupSnapshots(expectedEarliestToRetain)
+	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
+	ns.EXPECT().GetOwnedShards().Return([]databaseShard{shard}).AnyTimes()
+	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
+	namespaces := []databaseNamespace{ns}
+
+	db := newMockdatabase(ctrl, namespaces...)
+	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
+	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+
+	require.NoError(t, mgr.Cleanup(ts))
+}
+
+type deleteInactiveDirectoriesCall struct {
+	parentDirPath  string
+	activeDirNames []string
+}
+
+func TestDeleteInactiveDataAndSnapshotFilesetFiles(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	ts := timeFor(36000)
+
+	nsOpts := namespace.NewOptions().
+		SetCleanupEnabled(false)
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
+
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
+	ns.EXPECT().GetOwnedShards().Return([]databaseShard{shard}).AnyTimes()
+	ns.EXPECT().ID().Return(ident.StringID("nsID")).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
+	namespaces := []databaseNamespace{ns}
+
+	db := newMockdatabase(ctrl, namespaces...)
+	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
+	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+
+	deleteInactiveDirectoriesCalls := []deleteInactiveDirectoriesCall{}
+	deleteInactiveDirectoriesFn := func(parentDirPath string, activeDirNames []string) error {
+		deleteInactiveDirectoriesCalls = append(deleteInactiveDirectoriesCalls, deleteInactiveDirectoriesCall{
+			parentDirPath:  parentDirPath,
+			activeDirNames: activeDirNames,
+		})
+		return nil
+	}
+	mgr.deleteInactiveDirectoriesFn = deleteInactiveDirectoriesFn
+
+	require.NoError(t, mgr.Cleanup(ts))
+
+	expectedCalls := []deleteInactiveDirectoriesCall{
+		deleteInactiveDirectoriesCall{
+			parentDirPath:  "data/nsID",
+			activeDirNames: []string{"0"},
+		},
+		deleteInactiveDirectoriesCall{
+			parentDirPath:  "snapshots/nsID",
+			activeDirNames: []string{"0"},
+		},
+		deleteInactiveDirectoriesCall{
+			parentDirPath:  "data",
+			activeDirNames: []string{"nsID"},
+		},
+	}
+
+	for _, expectedCall := range expectedCalls {
+		found := false
+		for _, call := range deleteInactiveDirectoriesCalls {
+			if strings.Contains(call.parentDirPath, expectedCall.parentDirPath) &&
+				expectedCall.activeDirNames[0] == call.activeDirNames[0] {
+				found = true
+			}
+		}
+		require.Equal(t, true, found)
+	}
 }
 
 func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {

@@ -211,6 +211,18 @@ func (_mr *MockDatabaseSeriesMockRecorder) Reset(arg0, arg1, arg2, arg3, arg4, a
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Reset", reflect.TypeOf((*MockDatabaseSeries)(nil).Reset), arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
+// Snapshot mocks base method
+func (_m *MockDatabaseSeries) Snapshot(_param0 context.Context, _param1 time.Time, _param2 persist.Fn) error {
+	ret := _m.ctrl.Call(_m, "Snapshot", _param0, _param1, _param2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Snapshot indicates an expected call of Snapshot
+func (_mr *MockDatabaseSeriesMockRecorder) Snapshot(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Snapshot", reflect.TypeOf((*MockDatabaseSeries)(nil).Snapshot), arg0, arg1, arg2)
+}
+
 // Tags mocks base method
 func (_m *MockDatabaseSeries) Tags() ident.Tags {
 	ret := _m.ctrl.Call(_m, "Tags")

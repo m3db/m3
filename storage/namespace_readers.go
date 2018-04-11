@@ -149,7 +149,7 @@ func newNamespaceReaderManager(
 	opts Options,
 ) databaseNamespaceReaderManager {
 	return &namespaceReaderManager{
-		filesetExistsAtFn: fs.FilesetExistsAt,
+		filesetExistsAtFn: fs.DataFilesetExistsAt,
 		newReaderFn:       fs.NewReader,
 		namespace:         namespace,
 		fsOpts:            opts.CommitLogOptions().FilesystemOptions(),
@@ -251,7 +251,14 @@ func (m *namespaceReaderManager) get(
 	// We have a closed reader from the cache (either a cached closed
 	// reader or newly allocated, either way need to prepare it)
 	reader := lookup.closedReader
-	if err := reader.Open(m.namespace.ID(), shard, blockStart); err != nil {
+	openOpts := fs.ReaderOpenOptions{
+		Identifier: fs.FilesetFileIdentifier{
+			Namespace:  m.namespace.ID(),
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+	}
+	if err := reader.Open(openOpts); err != nil {
 		return nil, err
 	}
 

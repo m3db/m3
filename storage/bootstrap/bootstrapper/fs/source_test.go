@@ -81,19 +81,19 @@ func createTempDir(t *testing.T) string {
 }
 
 func writeInfoFile(t *testing.T, prefix string, namespace ident.ID, shard uint32, start time.Time, data []byte) {
-	shardDir := fs.ShardDirPath(prefix, namespace, shard)
+	shardDir := fs.ShardDataDirPath(prefix, namespace, shard)
 	filePath := path.Join(shardDir, fmt.Sprintf("fileset-%d-info.db", xtime.ToNanoseconds(start)))
 	writeFile(t, filePath, data)
 }
 
 func writeDataFile(t *testing.T, prefix string, namespace ident.ID, shard uint32, start time.Time, data []byte) {
-	shardDir := fs.ShardDirPath(prefix, namespace, shard)
+	shardDir := fs.ShardDataDirPath(prefix, namespace, shard)
 	filePath := path.Join(shardDir, fmt.Sprintf("fileset-%d-data.db", xtime.ToNanoseconds(start)))
 	writeFile(t, filePath, data)
 }
 
 func writeDigestFile(t *testing.T, prefix string, namespace ident.ID, shard uint32, start time.Time, data []byte) {
-	shardDir := fs.ShardDirPath(prefix, namespace, shard)
+	shardDir := fs.ShardDataDirPath(prefix, namespace, shard)
 	filePath := path.Join(shardDir, fmt.Sprintf("fileset-%d-digest.db", xtime.ToNanoseconds(start)))
 	writeFile(t, filePath, data)
 }
@@ -135,7 +135,15 @@ func writeGoodFiles(t *testing.T, dir string, namespace ident.ID, shard uint32) 
 func writeTSDBFiles(t *testing.T, dir string, namespace ident.ID, shard uint32, start time.Time, id string, data []byte) {
 	w, err := fs.NewWriter(newTestFsOptions(dir))
 	require.NoError(t, err)
-	require.NoError(t, w.Open(namespace, testBlockSize, shard, start))
+	writerOpts := fs.WriterOpenOptions{
+		Identifier: fs.FilesetFileIdentifier{
+			Namespace:  namespace,
+			Shard:      shard,
+			BlockStart: start,
+		},
+		BlockSize: testBlockSize,
+	}
+	require.NoError(t, w.Open(writerOpts))
 
 	bytes := checked.NewBytes(data, nil)
 	bytes.IncRef()
@@ -407,12 +415,18 @@ func TestReadValidateError(t *testing.T) {
 		return reader, nil
 	}
 
-	idMatcher := ident.NewIDMatcher(testNs1ID.String())
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
+	rOpenOpts := fs.ReaderOpenOptionsMatcher{
+		ID: fs.FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: testStart,
+		},
+	}
 	reader.EXPECT().
-		Open(idMatcher, shard, xtime.NewMatcher(testStart)).
+		Open(rOpenOpts).
 		Return(nil)
 	reader.EXPECT().
 		Range().
@@ -455,12 +469,18 @@ func TestReadOpenError(t *testing.T) {
 		return reader, nil
 	}
 
-	idMatcher := ident.NewIDMatcher(testNs1ID.String())
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
+	rOpts := fs.ReaderOpenOptionsMatcher{
+		ID: fs.FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: testStart,
+		},
+	}
 	reader.EXPECT().
-		Open(idMatcher, shard, xtime.NewMatcher(testStart)).
+		Open(rOpts).
 		Return(errors.New("error"))
 
 	res, err := src.Read(testNsMetadata(t), testShardTimeRanges(),
@@ -497,9 +517,15 @@ func TestReadDeleteOnError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 
-	idMatcher := ident.NewIDMatcher(testNs1ID.String())
+	rOpts := fs.ReaderOpenOptionsMatcher{
+		ID: fs.FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: testStart,
+		},
+	}
 	gomock.InOrder(
-		reader.EXPECT().Open(idMatcher, shard, xtime.NewMatcher(testStart)).Return(nil),
+		reader.EXPECT().Open(rOpts).Return(nil),
 		reader.EXPECT().
 			Range().
 			Return(xtime.Range{

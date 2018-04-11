@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
@@ -36,8 +37,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createShardDir(t *testing.T, prefix string, namespace ident.ID, shard uint32) string {
-	shardDirPath := ShardDirPath(prefix, namespace, shard)
+func createDataShardDir(t *testing.T, prefix string, namespace ident.ID, shard uint32) string {
+	shardDirPath := ShardDataDirPath(prefix, namespace, shard)
 	err := os.MkdirAll(shardDirPath, os.ModeDir|os.FileMode(0755))
 	require.Nil(t, err)
 	return shardDirPath
@@ -64,7 +65,7 @@ func testManager(
 	return manager, writer, opts
 }
 
-func TestPersistenceManagerPrepareFileExists(t *testing.T) {
+func TestPersistenceManagerPrepareDataFileExists(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -73,20 +74,25 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	shardDir := createShardDir(t, pm.filePathPrefix, testNs1ID, shard)
+	shardDir := createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
 	checkpointFilePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	f, err := os.Create(checkpointFilePath)
 	require.NoError(t, err)
 	f.Close()
 
-	flush, err := pm.StartFlush()
+	flush, err := pm.StartPersist()
 	require.NoError(t, err)
 
 	defer func() {
 		assert.NoError(t, flush.Done())
 	}()
 
-	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+	prepareOpts := persist.PrepareOptions{
+		NamespaceMetadata: testNs1Metadata(t),
+		Shard:             shard,
+		BlockStart:        blockStart,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -104,17 +110,29 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	blockStart := time.Unix(1000, 0)
 	expectedErr := errors.New("foo")
 
-	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
-		testBlockSize, shard, blockStart).Return(expectedErr)
+	writerOpts := WriterOpenOptionsMatcher{
+		ID: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+		BlockSize: testBlockSize,
+	}
+	writer.EXPECT().Open(writerOpts).Return(expectedErr)
 
-	flush, err := pm.StartFlush()
+	flush, err := pm.StartPersist()
 	require.NoError(t, err)
 
 	defer func() {
 		assert.NoError(t, flush.Done())
 	}()
 
-	prepared, err := flush.Prepare(ns1Md, shard, blockStart)
+	prepareOpts := persist.PrepareOptions{
+		NamespaceMetadata: ns1Md,
+		Shard:             shard,
+		BlockStart:        blockStart,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
 	require.Equal(t, expectedErr, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -129,8 +147,15 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
-		testBlockSize, shard, blockStart).Return(nil)
+	writerOpts := WriterOpenOptionsMatcher{
+		ID: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+		BlockSize: testBlockSize,
+	}
+	writer.EXPECT().Open(writerOpts).Return(nil)
 
 	var (
 		id       = ident.StringID("foo")
@@ -142,7 +167,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	writer.EXPECT().WriteAll(id, gomock.Any(), checksum).Return(nil)
 	writer.EXPECT().Close()
 
-	flush, err := pm.StartFlush()
+	flush, err := pm.StartPersist()
 	require.NoError(t, err)
 
 	defer func() {
@@ -154,7 +179,12 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	pm.count = 123
 	pm.bytesWritten = 100
 
-	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+	prepareOpts := persist.PrepareOptions{
+		NamespaceMetadata: testNs1Metadata(t),
+		Shard:             shard,
+		BlockStart:        blockStart,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
 	defer prepared.Close()
 
 	require.Nil(t, err)
@@ -186,8 +216,15 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
-		testBlockSize, shard, blockStart).Return(nil)
+	writerOpts := WriterOpenOptionsMatcher{
+		ID: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+		BlockSize: testBlockSize,
+	}
+	writer.EXPECT().Open(writerOpts).Return(nil)
 
 	var (
 		now      time.Time
@@ -204,7 +241,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).Times(2)
 
-	flush, err := pm.StartFlush()
+	flush, err := pm.StartPersist()
 	require.NoError(t, err)
 
 	defer func() {
@@ -212,7 +249,12 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	}()
 
 	// prepare the flush
-	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+	prepareOpts := persist.PrepareOptions{
+		NamespaceMetadata: testNs1Metadata(t),
+		Shard:             shard,
+		BlockStart:        blockStart,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
 
 	// Start persistence
@@ -252,8 +294,15 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
-	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
-		testBlockSize, shard, blockStart).Return(nil).Times(iter)
+	writerOpts := WriterOpenOptionsMatcher{
+		ID: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+		BlockSize: testBlockSize,
+	}
+	writer.EXPECT().Open(writerOpts).Return(nil).Times(iter)
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 
@@ -279,11 +328,16 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		// Reset
 		slept = time.Duration(0)
 
-		flush, err := pm.StartFlush()
+		flush, err := pm.StartPersist()
 		require.NoError(t, err)
 
 		// prepare the flush
-		prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+		prepareOpts := persist.PrepareOptions{
+			NamespaceMetadata: testNs1Metadata(t),
+			Shard:             shard,
+			BlockStart:        blockStart,
+		}
+		prepared, err := flush.Prepare(prepareOpts)
 		require.NoError(t, err)
 
 		// Start persistence
@@ -323,23 +377,47 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 
-	flush, err := pm.StartFlush()
+	flush, err := pm.StartPersist()
 	require.NoError(t, err)
 
 	defer func() {
 		assert.NoError(t, flush.Done())
 	}()
 
-	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
-		testBlockSize, shard, blockStart).Return(nil)
-	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+	writerOpts := WriterOpenOptionsMatcher{
+		ID: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+		BlockSize: testBlockSize,
+	}
+	writer.EXPECT().Open(writerOpts).Return(nil)
+	prepareOpts := persist.PrepareOptions{
+		NamespaceMetadata: testNs1Metadata(t),
+		Shard:             shard,
+		BlockStart:        blockStart,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
 
-	writer.EXPECT().Open(ident.NewIDMatcher(testNs2ID.String()),
-		testBlockSize, shard, blockStart).Return(nil)
-	prepared, err = flush.Prepare(testNs2Metadata(t), shard, blockStart)
+	writerOpts = WriterOpenOptionsMatcher{
+		ID: FilesetFileIdentifier{
+			Namespace:  testNs2ID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+		BlockSize: testBlockSize,
+	}
+	writer.EXPECT().Open(writerOpts).Return(nil)
+	prepareOpts = persist.PrepareOptions{
+		NamespaceMetadata: testNs2Metadata(t),
+		Shard:             shard,
+		BlockStart:        blockStart,
+	}
+	prepared, err = flush.Prepare(prepareOpts)
 	require.NoError(t, err)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)

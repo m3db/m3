@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/schema"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
@@ -46,10 +47,10 @@ var errorUnableToDetermineNumFieldsToSkip = errors.New("unable to determine num 
 
 // Decoder decodes persisted msgpack-encoded data
 type Decoder struct {
-	allocDecodedBytes bool
 	reader            DecoderStream
 	dec               *msgpack.Decoder
 	err               error
+	allocDecodedBytes bool
 }
 
 // NewDecoder creates a new decoder
@@ -77,7 +78,8 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 	if dec.err != nil {
 		return emptyIndexInfo, dec.err
 	}
-	numFieldsToSkip := dec.decodeRootObject(indexInfoVersion, indexInfoType)
+
+	_, numFieldsToSkip := dec.decodeRootObject(indexInfoVersion, indexInfoType)
 	indexInfo := dec.decodeIndexInfo()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -91,7 +93,7 @@ func (dec *Decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
 	}
-	numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
+	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
 	indexEntry := dec.decodeIndexEntry()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -106,7 +108,7 @@ func (dec *Decoder) DecodeIndexSummary() (
 	if dec.err != nil {
 		return emptyIndexSummary, emptyIndexSummaryToken, dec.err
 	}
-	numFieldsToSkip := dec.decodeRootObject(indexSummaryVersion, indexSummaryType)
+	_, numFieldsToSkip := dec.decodeRootObject(indexSummaryVersion, indexSummaryType)
 	indexSummary, indexSummaryMetadata := dec.decodeIndexSummary()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -120,7 +122,7 @@ func (dec *Decoder) DecodeLogInfo() (schema.LogInfo, error) {
 	if dec.err != nil {
 		return emptyLogInfo, dec.err
 	}
-	numFieldsToSkip := dec.decodeRootObject(logInfoVersion, logInfoType)
+	_, numFieldsToSkip := dec.decodeRootObject(logInfoVersion, logInfoType)
 	logInfo := dec.decodeLogInfo()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -134,7 +136,7 @@ func (dec *Decoder) DecodeLogEntry() (schema.LogEntry, error) {
 	if dec.err != nil {
 		return emptyLogEntry, dec.err
 	}
-	numFieldsToSkip := dec.decodeRootObject(logEntryVersion, logEntryType)
+	_, numFieldsToSkip := dec.decodeRootObject(logEntryVersion, logEntryType)
 	logEntry := dec.decodeLogEntry()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -158,8 +160,8 @@ func (dec *Decoder) DecodeLogEntryUniqueIndex() (DecodeLogEntryRemainingToken, u
 		return emptyLogEntryRemainingToken, 0, dec.err
 	}
 
-	numFieldsToSkip1 := dec.decodeRootObject(logEntryVersion, logEntryType)
-	numFieldsToSkip2, ok := dec.checkNumFieldsFor(logEntryType)
+	_, numFieldsToSkip1 := dec.decodeRootObject(logEntryVersion, logEntryType)
+	numFieldsToSkip2, _, ok := dec.checkNumFieldsFor(logEntryType)
 	if !ok {
 		return emptyLogEntryRemainingToken, 0, errorUnableToDetermineNumFieldsToSkip
 	}
@@ -205,7 +207,7 @@ func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 	if dec.err != nil {
 		return emptyLogMetadata, dec.err
 	}
-	numFieldsToSkip := dec.decodeRootObject(logMetadataVersion, logMetadataType)
+	_, numFieldsToSkip := dec.decodeRootObject(logMetadataVersion, logMetadataType)
 	logMetadata := dec.decodeLogMetadata()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -215,17 +217,25 @@ func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 }
 
 func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexInfoType)
+	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexInfoType)
 	if !ok {
 		return emptyIndexInfo
 	}
+
 	var indexInfo schema.IndexInfo
-	indexInfo.Start = dec.decodeVarint()
+	indexInfo.BlockStart = dec.decodeVarint()
 	indexInfo.BlockSize = dec.decodeVarint()
 	indexInfo.Entries = dec.decodeVarint()
 	indexInfo.MajorVersion = dec.decodeVarint()
 	indexInfo.Summaries = dec.decodeIndexSummariesInfo()
 	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
+
+	if actual < 8 {
+		return indexInfo
+	}
+	indexInfo.SnapshotTime = dec.decodeVarint()
+	indexInfo.FileType = persist.FilesetType(dec.decodeVarint())
+
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyIndexInfo
@@ -234,7 +244,7 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 }
 
 func (dec *Decoder) decodeIndexSummariesInfo() schema.IndexSummariesInfo {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexSummariesInfoType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(indexSummariesInfoType)
 	if !ok {
 		return emptyIndexSummariesInfo
 	}
@@ -248,7 +258,7 @@ func (dec *Decoder) decodeIndexSummariesInfo() schema.IndexSummariesInfo {
 }
 
 func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexBloomFilterInfoType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(indexBloomFilterInfoType)
 	if !ok {
 		return emptyIndexBloomFilterInfo
 	}
@@ -263,7 +273,7 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 }
 
 func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexEntryType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(indexEntryType)
 	if !ok {
 		return emptyIndexEntry
 	}
@@ -281,7 +291,7 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 }
 
 func (dec *Decoder) decodeIndexSummary() (schema.IndexSummary, IndexSummaryToken) {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexSummaryType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(indexSummaryType)
 	if !ok {
 		return emptyIndexSummary, emptyIndexSummaryToken
 	}
@@ -309,7 +319,7 @@ func (dec *Decoder) decodeIndexSummary() (schema.IndexSummary, IndexSummaryToken
 }
 
 func (dec *Decoder) decodeLogInfo() schema.LogInfo {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(logInfoType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(logInfoType)
 	if !ok {
 		return emptyLogInfo
 	}
@@ -325,7 +335,7 @@ func (dec *Decoder) decodeLogInfo() schema.LogInfo {
 }
 
 func (dec *Decoder) decodeLogEntry() schema.LogEntry {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(logEntryType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(logEntryType)
 	if !ok {
 		return emptyLogEntry
 	}
@@ -345,7 +355,7 @@ func (dec *Decoder) decodeLogEntry() schema.LogEntry {
 }
 
 func (dec *Decoder) decodeLogMetadata() schema.LogMetadata {
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(logMetadataType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(logMetadataType)
 	if !ok {
 		return emptyLogMetadata
 	}
@@ -360,47 +370,55 @@ func (dec *Decoder) decodeLogMetadata() schema.LogMetadata {
 	return logMetadata
 }
 
-func (dec *Decoder) decodeRootObject(expectedVersion int, expectedType objectType) int {
-	dec.checkVersion(expectedVersion)
+func (dec *Decoder) decodeRootObject(expectedVersion int, expectedType objectType) (version int, numFieldsToSkip int) {
+	version = dec.checkVersion(expectedVersion)
 	if dec.err != nil {
-		return 0
+		return 0, 0
 	}
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(rootObjectType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(rootObjectType)
 	if !ok {
-		return 0
+		return 0, 0
 	}
 	actualType := dec.decodeObjectType()
 	if dec.err != nil {
-		return 0
+		return 0, 0
 	}
 	if expectedType != actualType {
 		dec.err = fmt.Errorf("object type mismatch: expected %v actual %v", expectedType, actualType)
-		return 0
+		return 0, 0
 	}
-	return numFieldsToSkip
+	return version, numFieldsToSkip
 }
 
-func (dec *Decoder) checkVersion(expected int) {
+func (dec *Decoder) checkVersion(expected int) int {
 	version := int(dec.decodeVarint())
 	if dec.err != nil {
-		return
+		return 0
 	}
 	if version > expected {
 		dec.err = fmt.Errorf("version mismatch: expected %v actual %v", expected, version)
+		return 0
 	}
+
+	return version
 }
 
-func (dec *Decoder) checkNumFieldsFor(objType objectType) (int, bool) {
-	actual := dec.decodeNumObjectFields()
+func (dec *Decoder) checkNumFieldsFor(objType objectType) (numToSkip int, actual int, ok bool) {
+	actual = dec.decodeNumObjectFields()
 	if dec.err != nil {
-		return 0, false
+		return 0, 0, false
 	}
-	expected := numFieldsForType(objType)
-	if expected > actual {
-		dec.err = fmt.Errorf("number of fields mismatch: expected %d actual %d", expected, actual)
-		return 0, false
+	min, curr := numFieldsForType(objType)
+	if min > actual {
+		dec.err = fmt.Errorf("number of fields mismatch: expected minimum of %d actual %d", min, actual)
+		return 0, 0, false
 	}
-	return actual - expected, true
+
+	numToSkip = actual - curr
+	if numToSkip < 0 {
+		numToSkip = 0
+	}
+	return numToSkip, actual, true
 }
 
 func (dec *Decoder) skip(numFields int) {

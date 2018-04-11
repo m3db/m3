@@ -85,13 +85,26 @@ func createFile(t *testing.T, filePath string, b []byte) {
 	fd.Close()
 }
 
-func createInfoFiles(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
+func createInfoFilesSnapshotDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
+	return createInfoFiles(t, snapshotDirName, namespace, shard, iter, true)
+}
+
+func createInfoFilesDataDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
+	return createInfoFiles(t, dataDirName, namespace, shard, iter, false)
+}
+
+func createInfoFiles(t *testing.T, subDirName string, namespace ident.ID, shard uint32, iter int, isSnapshot bool) string {
 	dir := createTempDir(t)
-	shardDir := path.Join(dir, dataDirName, namespace.String(), strconv.Itoa(int(shard)))
+	shardDir := path.Join(dir, subDirName, namespace.String(), strconv.Itoa(int(shard)))
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
 	for i := 0; i < iter; i++ {
 		ts := time.Unix(0, int64(i))
-		infoFilePath := filesetPathFromTime(shardDir, ts, infoFileSuffix)
+		var infoFilePath string
+		if isSnapshot {
+			infoFilePath = snapshotPathFromTimeAndIndex(shardDir, ts, infoFileSuffix, 0)
+		} else {
+			infoFilePath = filesetPathFromTime(shardDir, ts, infoFileSuffix)
+		}
 		createFile(t, infoFilePath, nil)
 	}
 	return dir
@@ -170,13 +183,13 @@ func TestDeleteInactiveDirectories(t *testing.T) {
 	defer func() {
 		os.RemoveAll(tempPrefix)
 	}()
-	namespaceDir := NamespaceDirPath(tempPrefix, testNs1ID)
+	namespaceDir := NamespaceDataDirPath(tempPrefix, testNs1ID)
 
 	// Test shard deletion within a namespace
 	shards := []uint32{uint32(4), uint32(5), uint32(6)}
 	shardDirs := []string{"4", "5", "6"}
 	for _, shard := range shards {
-		shardDir := ShardDirPath(tempPrefix, testNs1ID, shard)
+		shardDir := ShardDataDirPath(tempPrefix, testNs1ID, shard)
 		err := os.MkdirAll(shardDir, defaultNewDirectoryMode)
 		require.NoError(t, err)
 
@@ -206,7 +219,7 @@ func TestForEachInfoFile(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	shardDir := ShardDirPath(dir, testNs1ID, shard)
+	shardDir := ShardDataDirPath(dir, testNs1ID, shard)
 	require.NoError(t, os.MkdirAll(shardDir, os.ModeDir|os.FileMode(0755)))
 
 	blockStart := time.Unix(0, 0)
@@ -278,29 +291,56 @@ func TestTimeFromName(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTimeAndIndexFromFileName(t *testing.T) {
-	_, _, err := TimeAndIndexFromFileName("foo/bar")
+func TestTimeAndIndexFromCommitlogFileName(t *testing.T) {
+	_, _, err := TimeAndIndexFromCommitlogFilename("foo/bar")
 	require.Error(t, err)
 	require.Equal(t, "unexpected file name foo/bar", err.Error())
 
-	_, _, err = TimeAndIndexFromFileName("foo/bar-baz")
+	_, _, err = TimeAndIndexFromCommitlogFilename("foo/bar-baz")
 	require.Error(t, err)
 
 	type expected struct {
 		t time.Time
 		i int
 	}
-	ts, i, err := TimeAndIndexFromFileName("foo-1-0.db")
+	ts, i, err := TimeAndIndexFromCommitlogFilename("foo-1-0.db")
 	exp := expected{time.Unix(0, 1), 0}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
 
-	ts, i, err = TimeAndIndexFromFileName("foo/bar/foo-21234567890-1.db")
+	ts, i, err = TimeAndIndexFromCommitlogFilename("foo/bar/foo-21234567890-1.db")
 	exp = expected{time.Unix(0, 21234567890), 1}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
+}
+
+func TestTimeAndIndexFromSnapshotFileName(t *testing.T) {
+	_, _, err := TimeAndIndexFromSnapshotFilename("foo/bar")
+	require.Error(t, err)
+	require.Equal(t, "unexpected file name foo/bar", err.Error())
+
+	_, _, err = TimeAndIndexFromSnapshotFilename("foo/bar-baz")
+	require.Error(t, err)
+
+	type expected struct {
+		t time.Time
+		i int
+	}
+	ts, i, err := TimeAndIndexFromSnapshotFilename("foo-1-data-0.db")
+	exp := expected{time.Unix(0, 1), 0}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+
+	validName := "foo/bar/fileset-21234567890-data-1.db"
+	ts, i, err = TimeAndIndexFromSnapshotFilename(validName)
+	exp = expected{time.Unix(0, 21234567890), 1}
+	require.Equal(t, exp.t, ts)
+	require.Equal(t, exp.i, i)
+	require.NoError(t, err)
+	require.Equal(t, snapshotPathFromTimeAndIndex("foo/bar", exp.t, "data", exp.i), validName)
 }
 
 func TestFileExists(t *testing.T) {
@@ -309,27 +349,27 @@ func TestFileExists(t *testing.T) {
 
 	shard := uint32(10)
 	start := time.Now()
-	shardDir := ShardDirPath(dir, testNs1ID, shard)
+	shardDir := ShardDataDirPath(dir, testNs1ID, shard)
 	err := os.MkdirAll(shardDir, defaultNewDirectoryMode)
 	require.NoError(t, err)
 
 	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
 	createDataFile(t, shardDir, start, infoFileSuffix, nil)
 	require.True(t, FileExists(infoFilePath))
-	require.False(t, FilesetExistsAt(dir, testNs1ID, uint32(shard), start))
+	require.False(t, DataFilesetExistsAt(dir, testNs1ID, uint32(shard), start))
 
 	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, nil)
 	require.True(t, FileExists(checkpointFilePath))
-	require.True(t, FilesetExistsAt(dir, testNs1ID, uint32(shard), start))
+	require.True(t, DataFilesetExistsAt(dir, testNs1ID, uint32(shard), start))
 
 	os.Remove(infoFilePath)
 	require.False(t, FileExists(infoFilePath))
 }
 
 func TestShardDirPath(t *testing.T) {
-	require.Equal(t, "foo/bar/data/testNs/12", ShardDirPath("foo/bar", testNs1ID, 12))
-	require.Equal(t, "foo/bar/data/testNs/12", ShardDirPath("foo/bar/", testNs1ID, 12))
+	require.Equal(t, "foo/bar/data/testNs/12", ShardDataDirPath("foo/bar", testNs1ID, 12))
+	require.Equal(t, "foo/bar/data/testNs/12", ShardDataDirPath("foo/bar/", testNs1ID, 12))
 }
 
 func TestFilePathFromTime(t *testing.T) {
@@ -352,7 +392,7 @@ func TestFilePathFromTime(t *testing.T) {
 
 func TestFilesetFilesBefore(t *testing.T) {
 	shard := uint32(0)
-	dir := createInfoFiles(t, testNs1ID, shard, 20)
+	dir := createInfoFilesDataDir(t, testNs1ID, shard, 20)
 	defer os.RemoveAll(dir)
 
 	cutoffIter := 8
@@ -366,6 +406,133 @@ func TestFilesetFilesBefore(t *testing.T) {
 		ts := time.Unix(0, int64(i))
 		require.Equal(t, filesetPathFromTime(shardDir, ts, infoFileSuffix), res[i])
 	}
+}
+
+func TestFilesetFilesNoFiles(t *testing.T) {
+	// Make empty directory
+	shard := uint32(0)
+	dir := createTempDir(t)
+	shardDir := path.Join(dir, "data", testNs1ID.String(), strconv.Itoa(int(shard)))
+	require.NoError(t, os.MkdirAll(shardDir, 0755))
+	defer os.RemoveAll(shardDir)
+
+	res, err := filesetFiles(dir, testNs1ID, shard, filesetFilePattern)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(res))
+}
+
+func TestSnapshotFiles(t *testing.T) {
+	shard := uint32(0)
+	dir := createInfoFilesSnapshotDir(t, testNs1ID, shard, 20)
+	defer os.RemoveAll(dir)
+
+	files, err := SnapshotFiles(dir, testNs1ID, shard)
+	require.NoError(t, err)
+	require.Equal(t, 20, len(files))
+	for i, snapshotFile := range files {
+		require.Equal(t, int64(i), snapshotFile.ID.BlockStart.UnixNano())
+	}
+
+	require.Equal(t, 20, len(files.Filepaths()))
+}
+
+func TestSnapshotFilesNoFiles(t *testing.T) {
+	// Make empty directory
+	shard := uint32(0)
+	dir := createTempDir(t)
+	shardDir := path.Join(dir, "snapshots", testNs1ID.String(), strconv.Itoa(int(shard)))
+	require.NoError(t, os.MkdirAll(shardDir, 0755))
+	defer os.RemoveAll(shardDir)
+
+	files, err := SnapshotFiles(dir, testNs1ID, shard)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(files))
+	for i, snapshotFile := range files {
+		require.Equal(t, int64(i), snapshotFile.ID.BlockStart.UnixNano())
+	}
+
+	require.Equal(t, 0, len(files.Filepaths()))
+}
+
+func TestMultipleForBlockStart(t *testing.T) {
+	numSnapshots := 20
+	numSnapshotsPerBlock := 4
+	shard := uint32(0)
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+	shardDir := path.Join(dir, snapshotDirName, testNs1ID.String(), strconv.Itoa(int(shard)))
+	require.NoError(t, os.MkdirAll(shardDir, 0755))
+
+	// Write out many files with the same blockStart, but different indices
+	ts := time.Unix(0, 0)
+	for i := 0; i < numSnapshots; i++ {
+		// Periodically update the blockStart
+		if i%numSnapshotsPerBlock == 0 {
+			ts = time.Unix(0, int64(i))
+		}
+		createFile(t, snapshotPathFromTimeAndIndex(shardDir, ts, infoFileSuffix, i%numSnapshotsPerBlock), nil)
+	}
+
+	files, err := SnapshotFiles(dir, testNs1ID, shard)
+	require.NoError(t, err)
+	require.Equal(t, 20, len(files))
+	require.Equal(t, 20, len(files.Filepaths()))
+
+	// Make sure LatestForBlock works even if the input list is not sorted properly
+	for i := range files {
+		if i+1 < len(files) {
+			files[i], files[i+1] = files[i+1], files[i]
+		}
+	}
+
+	latestSnapshot, ok := files.LatestForBlock(ts)
+	require.True(t, ok)
+	require.Equal(t, numSnapshotsPerBlock-1, latestSnapshot.ID.Index)
+}
+
+func TestSnapshotFileHasCheckPointFile(t *testing.T) {
+	require.Equal(t, true, SnapshotFile{
+		FilesetFile: FilesetFile{
+			AbsoluteFilepaths: []string{"123-checkpoint-0.db"},
+		},
+	}.HasCheckpointFile())
+
+	require.Equal(t, false, SnapshotFile{
+		FilesetFile: FilesetFile{
+			AbsoluteFilepaths: []string{"123-index-0.db"},
+		},
+	}.HasCheckpointFile())
+}
+
+func TestSnapshotDirPath(t *testing.T) {
+	require.Equal(t, "prefix/snapshots", SnapshotDirPath("prefix"))
+}
+
+func TestNamespaceSnapshotsDirPath(t *testing.T) {
+	expected := "prefix/snapshots/testNs"
+	actual := NamespaceSnapshotsDirPath("prefix", testNs1ID)
+	require.Equal(t, expected, actual)
+}
+
+func TestShardSnapshotsDirPath(t *testing.T) {
+	expected := "prefix/snapshots/testNs/0"
+	actual := ShardSnapshotsDirPath("prefix", testNs1ID, 0)
+	require.Equal(t, expected, actual)
+}
+
+func TestSnapshotFilesetExistsAt(t *testing.T) {
+	shard := uint32(0)
+	ts := time.Unix(0, 0)
+	dir := createTempDir(t)
+	shardPath := ShardSnapshotsDirPath(dir, testNs1ID, 0)
+	require.NoError(t, os.MkdirAll(shardPath, 0755))
+
+	filePath := snapshotPathFromTimeAndIndex(shardPath, ts, checkpointFileSuffix, 0)
+	createFile(t, filePath, []byte{})
+
+	exists, err := SnapshotFilesetExistsAt(dir, testNs1ID, shard, ts)
+	require.NoError(t, err)
+	require.True(t, exists)
 }
 
 func TestCommitLogFilesBefore(t *testing.T) {

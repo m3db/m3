@@ -25,9 +25,6 @@ package persist
 
 import (
 	"reflect"
-	"time"
-
-	"github.com/m3db/m3db/storage/namespace"
 
 	"github.com/golang/mock/gomock"
 )
@@ -55,17 +52,17 @@ func (_m *MockManager) EXPECT() *MockManagerMockRecorder {
 	return _m.recorder
 }
 
-// StartFlush mocks base method
-func (_m *MockManager) StartFlush() (Flush, error) {
-	ret := _m.ctrl.Call(_m, "StartFlush")
+// StartPersist mocks base method
+func (_m *MockManager) StartPersist() (Flush, error) {
+	ret := _m.ctrl.Call(_m, "StartPersist")
 	ret0, _ := ret[0].(Flush)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// StartFlush indicates an expected call of StartFlush
-func (_mr *MockManagerMockRecorder) StartFlush() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "StartFlush", reflect.TypeOf((*MockManager)(nil).StartFlush))
+// StartPersist indicates an expected call of StartPersist
+func (_mr *MockManagerMockRecorder) StartPersist() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "StartPersist", reflect.TypeOf((*MockManager)(nil).StartPersist))
 }
 
 // MockFlush is a mock of Flush interface
@@ -92,16 +89,16 @@ func (_m *MockFlush) EXPECT() *MockFlushMockRecorder {
 }
 
 // Prepare mocks base method
-func (_m *MockFlush) Prepare(ns namespace.Metadata, shard uint32, blockStart time.Time) (PreparedPersist, error) {
-	ret := _m.ctrl.Call(_m, "Prepare", ns, shard, blockStart)
+func (_m *MockFlush) Prepare(opts PrepareOptions) (PreparedPersist, error) {
+	ret := _m.ctrl.Call(_m, "Prepare", opts)
 	ret0, _ := ret[0].(PreparedPersist)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Prepare indicates an expected call of Prepare
-func (_mr *MockFlushMockRecorder) Prepare(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Prepare", reflect.TypeOf((*MockFlush)(nil).Prepare), arg0, arg1, arg2)
+func (_mr *MockFlushMockRecorder) Prepare(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Prepare", reflect.TypeOf((*MockFlush)(nil).Prepare), arg0)
 }
 
 // Done mocks base method

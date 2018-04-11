@@ -49,10 +49,22 @@ type Encoder struct {
 	encodeFloat64Fn            encodeFloat64Fn
 	encodeBytesFn              encodeBytesFn
 	encodeArrayLenFn           encodeArrayLenFn
+
+	encodeLegacyV1IndexInfo bool
 }
 
 // NewEncoder creates a new encoder
 func NewEncoder() *Encoder {
+	return newEncoder(newEncoderOptions{
+		encodeLegacyV1IndexInfo: false,
+	})
+}
+
+type newEncoderOptions struct {
+	encodeLegacyV1IndexInfo bool
+}
+
+func newEncoder(opts newEncoderOptions) *Encoder {
 	buf := bytes.NewBuffer(nil)
 	enc := &Encoder{
 		buf: buf,
@@ -66,6 +78,9 @@ func NewEncoder() *Encoder {
 	enc.encodeFloat64Fn = enc.encodeFloat64
 	enc.encodeBytesFn = enc.encodeBytes
 	enc.encodeArrayLenFn = enc.encodeArrayLen
+
+	// Used primarily for testing
+	enc.encodeLegacyV1IndexInfo = opts.encodeLegacyV1IndexInfo
 
 	return enc
 }
@@ -84,7 +99,6 @@ func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 	if enc.err != nil {
 		return enc.err
 	}
-	enc.encodeRootObject(indexInfoVersion, indexInfoType)
 	enc.encodeIndexInfo(info)
 	return enc.err
 }
@@ -140,13 +154,37 @@ func (enc *Encoder) EncodeLogMetadata(entry schema.LogMetadata) error {
 }
 
 func (enc *Encoder) encodeIndexInfo(info schema.IndexInfo) {
-	enc.encodeNumObjectFieldsForFn(indexInfoType)
-	enc.encodeVarintFn(info.Start)
+	enc.encodeRootObject(indexInfoVersion, indexInfoType)
+	if enc.encodeLegacyV1IndexInfo {
+		enc.encodeIndexInfoV1(info)
+	} else {
+		enc.encodeIndexInfoV2(info)
+	}
+}
+
+// We only keep this method around for the sake of testing
+// backwards-compatbility
+func (enc *Encoder) encodeIndexInfoV1(info schema.IndexInfo) {
+	// Manually encode num fields for testing purposes
+	enc.encodeArrayLenFn(minNumIndexInfoFields)
+	enc.encodeVarintFn(info.BlockStart)
 	enc.encodeVarintFn(info.BlockSize)
 	enc.encodeVarintFn(info.Entries)
 	enc.encodeVarintFn(info.MajorVersion)
 	enc.encodeIndexSummariesInfo(info.Summaries)
 	enc.encodeIndexBloomFilterInfo(info.BloomFilter)
+}
+
+func (enc *Encoder) encodeIndexInfoV2(info schema.IndexInfo) {
+	enc.encodeNumObjectFieldsForFn(indexInfoType)
+	enc.encodeVarintFn(info.BlockStart)
+	enc.encodeVarintFn(info.BlockSize)
+	enc.encodeVarintFn(info.Entries)
+	enc.encodeVarintFn(info.MajorVersion)
+	enc.encodeIndexSummariesInfo(info.Summaries)
+	enc.encodeIndexBloomFilterInfo(info.BloomFilter)
+	enc.encodeVarintFn(info.SnapshotTime)
+	enc.encodeVarintFn(int64(info.FileType))
 }
 
 func (enc *Encoder) encodeIndexSummariesInfo(info schema.IndexSummariesInfo) {
@@ -214,7 +252,8 @@ func (enc *Encoder) encodeVersion(version int) {
 }
 
 func (enc *Encoder) encodeNumObjectFieldsFor(objType objectType) {
-	enc.encodeArrayLenFn(numFieldsForType(objType))
+	_, curr := numFieldsForType(objType)
+	enc.encodeArrayLenFn(curr)
 }
 
 func (enc *Encoder) encodeObjectType(objType objectType) {

@@ -605,8 +605,37 @@ func (s *dbSeries) Flush(
 	if err != nil {
 		return err
 	}
-
 	return persistFn(s.id, segment, b.Checksum())
+}
+
+func (s *dbSeries) Snapshot(
+	ctx context.Context,
+	blockStart time.Time,
+	persistFn persist.Fn,
+) error {
+	// Need a write lock because the buffer Snapshot method mutates
+	// state (by performing a pro-active merge).
+	s.Lock()
+	defer s.Unlock()
+
+	if s.bs != bootstrapped {
+		return errSeriesNotBootstrapped
+	}
+
+	stream, err := s.buffer.Snapshot(ctx, blockStart)
+	if err != nil {
+		return err
+	}
+	if stream == nil {
+		return nil
+	}
+
+	segment, err := stream.Segment()
+	if err != nil {
+		return err
+	}
+
+	return persistFn(s.id, segment, digest.SegmentChecksum(segment))
 }
 
 func (s *dbSeries) Close() {
