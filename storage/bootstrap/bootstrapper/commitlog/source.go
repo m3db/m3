@@ -160,7 +160,6 @@ func (s *commitLogSource) Read(
 		snapshotFilesByShard[shard] = snapshotFiles
 	}
 
-	// TODO: This is very parallelizable
 	var (
 		bopts                = s.opts.ResultOptions()
 		bytesPool            = bopts.DatabaseBlockOptions().BytesPool()
@@ -169,7 +168,19 @@ func (s *commitLogSource) Read(
 		snapshotShardResults = make(map[uint32]result.ShardResult)
 	)
 
-	// For each block that we're bootstrapping, we need to figure out the most recent snapshot that
+	// Start off by bootstrapping the most recent and complete snapshot file for each shard for each of the
+	// blocks.
+	snapshotShardResults, err := s.bootstrapAvailableSnapshotFiles(
+		ns.ID(), shardsTimeRanges, blockSize, snapshotFilesByShard, fsOpts, bytesPool, blocksPool)
+	if err != nil {
+		return nil, err
+	}
+
+	// At this point we've bootstrapped all the snapshot files that we can, and we need
+	// to decide which commitlogs to read. In order to do that, we'll need to figure out the
+	// minimum most recent snapshot timefor each block, then we can use that information to decide
+	// how much of the commit log we need to read for each block that we're bootstrapping. To start,
+	// for each block that we're bootstrapping, we need to figure out the most recent snapshot that
 	// was taken for each shard. I.E we want to create a datastructure that looks like this:
 	// map[blockStart]map[shard]mostRecentSnapshotTime
 	mostRecentCompleteSnapshotTimeByBlockShard := s.mostRecentCompleteSnapshotTimeByBlockShard(
@@ -184,21 +195,11 @@ func (s *commitLogSource) Read(
 	minimumMostRecentSnapshotTimeByBlock := s.minimumMostRecentSnapshotTimeByBlock(
 		shardsTimeRanges, blockSize, mostRecentCompleteSnapshotTimeByBlockShard)
 
-	// Now that we have the minimum most recent snapshot timefor each block, we can use that data to decide how
-	// much of the commit log we need to read for each block that we're bootstrapping, but first we begin
-	// by reading the snapshot files that we can.
-	// TODO: Maybe do this before other calculations above?
-	snapshotShardResults, err := s.bootstrapAvailableSnapshotFiles(
-		ns.ID(), shardsTimeRanges, blockSize, snapshotFilesByShard, fsOpts, bytesPool, blocksPool)
-	if err != nil {
-		return nil, err
-	}
-
-	// At this point we've bootstrapped all the snapshot files that we can, and we need
-	// to decide which commitlogs to read. We'll construct a new predicate based on the
-	// data-structure we constructed earlier where the new predicate will check if there
-	// is any overlap between a commit log file and a temporary range we construct that
-	// begins with the minimum snapshot time and ends with the end of that block
+	// Now that we have the minimum most recent snapshot time for each block, we can use that data to decide
+	// how much of the commit log we need to read for each block that we're bootstrapping. We'll construct a
+	// new predicate based on the data-structure we constructed earlier where the new predicate will check if
+	// there is any overlap between a commit log file and a temporary range we construct that begins with the
+	// minimum snapshot time and ends with the end of that block
 	var (
 		bufferPast   = ns.Options().RetentionOptions().BufferPast()
 		bufferFuture = ns.Options().RetentionOptions().BufferFuture()
