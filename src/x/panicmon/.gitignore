@@ -1,4 +1,5 @@
 .DS_Store
+lint.log
 
 # Created by https://www.gitignore.io/api/go
 
