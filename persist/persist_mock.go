@@ -92,11 +92,12 @@ func (_m *MockFlush) EXPECT() *MockFlushMockRecorder {
 }
 
 // Prepare mocks base method
-func (_m *MockFlush) Prepare(ns namespace.Metadata, shard uint32, blockStart time.Time) (PreparedPersist, error) {
+func (_m *MockFlush) Prepare(ns namespace.Metadata, shard uint32, blockStart time.Time) (PreparedPersist, bool, error) {
 	ret := _m.ctrl.Call(_m, "Prepare", ns, shard, blockStart)
 	ret0, _ := ret[0].(PreparedPersist)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // Prepare indicates an expected call of Prepare

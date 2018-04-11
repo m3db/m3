@@ -253,7 +253,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					closes["foo"]++
 					return nil
 				},
-			}, nil)
+			}, true, nil)
 		mockFlush.EXPECT().
 			Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(0), start.Add(ropts.BlockSize())).
 			Return(persist.PreparedPersist{
@@ -268,7 +268,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					closes["bar"]++
 					return nil
 				},
-			}, nil)
+			}, true, nil)
 		mockFlush.EXPECT().
 			Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(1), start).
 			Return(persist.PreparedPersist{
@@ -283,7 +283,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					closes["baz"]++
 					return nil
 				},
-			}, nil)
+			}, true, nil)
 		mockFlush.EXPECT().
 			Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(1), start.Add(ropts.BlockSize())).
 			Return(persist.PreparedPersist{
@@ -295,7 +295,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					closes["empty"]++
 					return nil
 				},
-			}, nil)
+			}, true, nil)
 
 		mockPersistManager := persist.NewMockManager(ctrl)
 		mockPersistManager.EXPECT().StartFlush().Return(mockFlush, nil)
@@ -475,7 +475,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["foo"]++
 				return nil
 			},
-		}, nil)
+		}, true, nil)
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(0), midway).
 		Return(persist.PreparedPersist{
@@ -487,7 +487,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["foo"]++
 				return nil
 			},
-		}, nil)
+		}, true, nil)
 
 		// expect bar
 	mockFlush.EXPECT().
@@ -501,7 +501,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["bar"]++
 				return nil
 			},
-		}, nil)
+		}, true, nil)
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(1), midway).
 		Return(persist.PreparedPersist{
@@ -513,7 +513,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["bar"]++
 				return nil
 			},
-		}, nil)
+		}, true, nil)
 
 		// expect baz
 	mockFlush.EXPECT().
@@ -527,7 +527,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["baz"]++
 				return nil
 			},
-		}, nil)
+		}, true, nil)
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(2), midway).
 		Return(persist.PreparedPersist{
@@ -539,7 +539,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["baz"]++
 				return nil
 			},
-		}, nil)
+		}, true, nil)
 
 		// expect qux
 	mockFlush.EXPECT().
@@ -553,7 +553,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["qux"]++
 				return fmt.Errorf("a persist close error")
 			},
-		}, nil)
+		}, true, nil)
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(3), midway).
 		Return(persist.PreparedPersist{
@@ -565,7 +565,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				closes["qux"]++
 				return nil
 			},
-		}, nil)
+		}, true, nil)
 
 	mockPersistManager := persist.NewMockManager(ctrl)
 	mockPersistManager.EXPECT().StartFlush().Return(mockFlush, nil)
@@ -608,4 +608,163 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	assert.Equal(t, map[string]int{
 		"foo": 2, "bar": 2, "baz": 2, "qux": 2,
 	}, closes)
+}
+
+// This test was added to ensure that the peer bootstrapper properly handles the situation
+// where it has streamed data for a given namespace/shard/block combination from a peer and
+// is ready to incrementally flush it to disk, however, the fileset files already exist on
+// disk. This can happen in the sitaution where the fileset files exist, but are corrupt in
+// some manner so that time range was still marked as unfulfilled even though the files are
+// present.
+func TestPeersSourceIncrementalFlushHandlesExistingFilesetFiles(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDefaultOpts.
+		SetResultOptions(testDefaultOpts.
+			ResultOptions().
+			SetSeriesCachePolicy(series.CacheRecentlyRead),
+		)
+	testNsMd := testNamespaceMetadata(t)
+	ropts := testNsMd.Options().RetentionOptions()
+
+	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
+	midway := start.Add(ropts.BlockSize())
+	end := start.Add(2 * ropts.BlockSize())
+
+	type resultsKey struct {
+		shard uint32
+		start int64
+		end   int64
+	}
+
+	results := make(map[resultsKey]result.ShardResult)
+	addResult := func(shard uint32, id string, b block.DatabaseBlock) {
+		r := result.NewShardResult(0, opts.ResultOptions())
+		r.AddBlock(ident.StringID(id), b)
+		start := b.StartTime()
+		end := start.Add(ropts.BlockSize())
+		results[resultsKey{shard, start.UnixNano(), end.UnixNano()}] = r
+	}
+
+	// baz results
+	var bazBlocks [2]block.DatabaseBlock
+	bazBlocks[0] = block.NewDatabaseBlock(start,
+		ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
+		testBlockOpts)
+	addResult(2, "baz", bazBlocks[0])
+
+	bazBlocks[1] = block.NewDatabaseBlock(midway,
+		ts.NewSegment(checked.NewBytes([]byte{10, 11, 12}, nil), nil, ts.FinalizeNone),
+		testBlockOpts)
+	addResult(2, "baz", bazBlocks[1])
+
+	mockAdminSession := client.NewMockAdminSession(ctrl)
+
+	for key, result := range results {
+		mockAdminSession.EXPECT().
+			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
+				key.shard, time.Unix(0, key.start), time.Unix(0, key.end),
+				gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+			Return(result, nil)
+	}
+
+	mockAdminClient := client.NewMockAdminClient(ctrl)
+	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
+
+	opts = opts.SetAdminClient(mockAdminClient)
+
+	mockRetriever := block.NewMockDatabaseBlockRetriever(ctrl)
+	mockRetriever.EXPECT().CacheShardIndices(gomock.Any()).AnyTimes()
+
+	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
+	mockRetrieverMgr.EXPECT().
+		Retriever(namespace.NewMetadataMatcher(testNsMd)).
+		Return(mockRetriever, nil)
+
+	opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
+
+	mockFlush := persist.NewMockFlush(ctrl)
+	mockFlush.EXPECT().Done()
+
+	persists := make(map[string]int)
+	closes := make(map[string]int)
+
+	// expect baz
+	mockFlush.EXPECT().
+		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(2), start).
+		Return(persist.PreparedPersist{}, false, nil)
+	mockFlush.EXPECT().
+		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(2), start).
+		Return(persist.PreparedPersist{
+			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
+				persists["baz"]++
+				return nil
+			},
+			Close: func() error {
+				closes["baz"]++
+				return nil
+			}}, true, nil)
+	mockFlush.EXPECT().
+		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(2), midway).
+		Return(persist.PreparedPersist{}, false, nil).AnyTimes()
+
+	mockPersistManager := persist.NewMockManager(ctrl)
+	mockPersistManager.EXPECT().StartFlush().Return(mockFlush, nil)
+
+	opts = opts.SetPersistManager(mockPersistManager)
+
+	src := newPeersSource(opts)
+	peerSrc := src.(*peersSource)
+
+	type deleteFilesetExecution struct {
+		filePathPrefix string
+		namespace      ident.ID
+		shard          uint32
+		t              time.Time
+	}
+	deleteFilesetExecutions := []deleteFilesetExecution{}
+	peerSrc.deleteFilesetAtFn = func(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) error {
+		deleteFilesetExecutions = append(deleteFilesetExecutions, deleteFilesetExecution{
+			filePathPrefix: filePathPrefix,
+			namespace:      namespace,
+			shard:          shard,
+			t:              t,
+		})
+		return nil
+	}
+
+	target := result.ShardTimeRanges{
+		2: xtime.Ranges{}.
+			AddRange(xtime.Range{Start: start, End: midway}).
+			AddRange(xtime.Range{Start: midway, End: end}),
+	}
+
+	r, err := src.Read(testNsMd, target, testIncrementalRunOpts)
+	require.NoError(t, err)
+
+	require.Equal(t, 0, len(r.ShardResults()))
+	for i := uint32(0); i < uint32(len(target)); i++ {
+		require.True(t, r.Unfulfilled()[i].IsEmpty())
+	}
+
+	require.Equal(t, map[string]int{"baz": 1}, persists)
+	require.Equal(t, map[string]int{"baz": 1}, closes)
+
+	expectedFilePathPrefix := opts.FilesystemOptions().FilesystemOptions().FilePathPrefix()
+	expectedDeleteFilesetExecutions := []deleteFilesetExecution{
+		deleteFilesetExecution{
+			filePathPrefix: expectedFilePathPrefix,
+			namespace:      testNsMd.ID(),
+			shard:          2,
+			t:              start,
+		},
+		deleteFilesetExecution{
+			filePathPrefix: expectedFilePathPrefix,
+			namespace:      testNsMd.ID(),
+			shard:          2,
+			t:              midway,
+		},
+	}
+	require.Equal(t, expectedDeleteFilesetExecutions, deleteFilesetExecutions)
 }

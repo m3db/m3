@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )
 
@@ -45,6 +46,7 @@ var (
 
 type options struct {
 	resultOpts                         result.Options
+	fsOpts                             fs.Options
 	client                             client.AdminClient
 	defaultShardConcurrency            int
 	incrementalShardConcurrency        int
@@ -58,6 +60,7 @@ type options struct {
 func NewOptions() Options {
 	return &options{
 		resultOpts:                         result.NewOptions(),
+		fsOpts:                             fs.NewOptions(),
 		defaultShardConcurrency:            defaultDefaultShardConcurrency,
 		incrementalShardConcurrency:        defaultIncrementalShardConcurrency,
 		incrementalPersistMaxQueueSize:     defaultIncrementalPersistMaxQueueSize,
@@ -84,6 +87,16 @@ func (o *options) SetResultOptions(value result.Options) Options {
 
 func (o *options) ResultOptions() result.Options {
 	return o.resultOpts
+}
+
+func (o *options) SetFilesystemOptions(value fs.Options) Options {
+	opts := *o
+	opts.fsOpts = value
+	return &opts
+}
+
+func (o *options) FilesystemOptions() fs.Options {
+	return o.fsOpts
 }
 
 func (o *options) SetAdminClient(value client.AdminClient) Options {

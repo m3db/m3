@@ -24,6 +24,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )
 
@@ -37,6 +38,12 @@ type Options interface {
 
 	// ResultOptions returns the instrumentation options
 	ResultOptions() result.Options
+
+	// SetFilesystemOptions sets the filesystem options.
+	SetFilesystemOptions(value fs.Options) Options
+
+	// FilesystemOptions returns the filesystem options.
+	FilesystemOptions() fs.Options
 
 	// SetAdminClient sets the admin client
 	SetAdminClient(value client.AdminClient) Options

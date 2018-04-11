@@ -177,7 +177,7 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	flush := persist.NewMockFlush(ctrl)
 	prepared := persist.PreparedPersist{Persist: nil}
 	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, nil)
+		s.shard, blockStart).Return(prepared, false, nil)
 
 	err := s.Flush(blockStart, flush)
 	require.Nil(t, err)
@@ -205,7 +205,7 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 	expectedErr := errors.New("some error")
 
 	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, expectedErr)
+		s.shard, blockStart).Return(prepared, false, expectedErr)
 
 	actualErr := s.Flush(blockStart, flush)
 	require.NotNil(t, actualErr)
@@ -238,9 +238,8 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		Persist: func(ident.ID, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
 	}
-	expectedErr := errors.New("error foo")
 	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, expectedErr)
+		s.shard, blockStart).Return(prepared, true, nil)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
@@ -271,7 +270,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	require.True(t, closed)
 	require.NotNil(t, err)
-	require.Equal(t, "error foo\nerror bar", err.Error())
+	require.Equal(t, "error bar", err.Error())
 
 	flushState := s.FlushState(blockStart)
 	require.Equal(t, fileOpState{
@@ -302,7 +301,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	}
 
 	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, nil)
+		s.shard, blockStart).Return(prepared, true, nil)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
