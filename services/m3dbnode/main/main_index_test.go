@@ -37,18 +37,23 @@ import (
 	"github.com/m3db/m3db/kvconfig"
 	"github.com/m3db/m3db/services/m3dbnode/config"
 	"github.com/m3db/m3db/services/m3dbnode/server"
+	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3ninx/index/segment"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestConfig tests booting a server using file based configuration.
-func TestConfig(t *testing.T) {
+// TestIndexEnabledServer tests booting a server using file based configuration.
+func TestIndexEnabledServer(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
+
 	// Embedded kv
 	embeddedKV, err := etcd.New(etcd.NewOptions())
 	require.NoError(t, err)
@@ -58,7 +63,7 @@ func TestConfig(t *testing.T) {
 	require.NoError(t, embeddedKV.Start())
 
 	// Create config file
-	tmpl, err := template.New("config").Parse(testConfig + kvConfigPortion)
+	tmpl, err := template.New("config").Parse(indexTestConfig)
 	require.NoError(t, err)
 
 	configFd, cleanup := tempFile(t, "config.yaml")
@@ -194,7 +199,9 @@ func TestConfig(t *testing.T) {
 	}
 
 	for _, v := range values {
-		err := session.Write(ident.StringID(namespaceID), ident.StringID("foo"), v.at, v.value, v.unit, nil)
+		err := session.WriteTagged(ident.StringID(namespaceID), ident.StringID("foo"),
+			ident.NewTagIterator(ident.StringTag("foo", "bar"), ident.StringTag("baz", "foo")),
+			v.at, v.value, v.unit, nil)
 		require.NoError(t, err)
 	}
 
@@ -205,216 +212,42 @@ func TestConfig(t *testing.T) {
 	// the "end" param to fetch being exclusive
 	fetchEnd := values[len(values)-1].at.Truncate(time.Second).Add(time.Nanosecond)
 
-	iter, err := session.Fetch(ident.StringID(namespaceID), ident.StringID("foo"), fetchStart, fetchEnd)
-	require.NoError(t, err)
-
-	for _, v := range values {
-		require.True(t, iter.Next())
-		dp, unit, _ := iter.Current()
-		assert.Equal(t, v.value, dp.Value)
-		// Account for xtime.Second precision on values going in
-		expectAt := v.at.Truncate(time.Second)
-		assert.Equal(t, expectAt, dp.Timestamp)
-		assert.Equal(t, v.unit, unit)
-	}
-
-	// Wait for server to stop
-	interruptCh <- fmt.Errorf("test complete")
-	serverWg.Wait()
-}
-
-// TestEmbeddedConfig tests booting a server using an embedded KV.
-func TestEmbeddedConfig(t *testing.T) {
-	// Create config file
-	tmpl, err := template.New("config").Parse(testConfig + embeddedKVConfigPortion)
-	require.NoError(t, err)
-
-	configFd, cleanup := tempFile(t, "config.yaml")
-	defer cleanup()
-
-	logFile, cleanupLogFile := tempFileTouch(t, "m3dbnode.log")
-	defer cleanupLogFile()
-
-	configServiceCacheDir, cleanupConfigServiceCacheDir := tempDir(t, "kv")
-	defer cleanupConfigServiceCacheDir()
-
-	embeddedKVDir, cleanupEmbeddedKVDir := tempDir(t, "embedded")
-	defer cleanupEmbeddedKVDir()
-
-	dataDir, cleanupDataDir := tempDir(t, "data")
-	defer cleanupDataDir()
-
-	err = tmpl.Execute(configFd, struct {
-		HostID                 string
-		LogFile                string
-		DataDir                string
-		ServicePort            string
-		ServiceName            string
-		ServiceEnv             string
-		ServiceZone            string
-		ConfigServiceCacheDir  string
-		EmbeddedKVDir          string
-		LPURL                  string
-		LCURL                  string
-		APURL                  string
-		ACURL                  string
-		EtcdEndpoint           string
-		InitialClusterHostID   string
-		InitialClusterEndpoint string
-	}{
-		HostID:                 hostID,
-		LogFile:                logFile,
-		DataDir:                dataDir,
-		ServicePort:            strconv.Itoa(int(servicePort)),
-		ServiceName:            serviceName,
-		ServiceEnv:             serviceEnv,
-		ServiceZone:            serviceZone,
-		ConfigServiceCacheDir:  configServiceCacheDir,
-		EmbeddedKVDir:          embeddedKVDir,
-		LPURL:                  lpURL,
-		LCURL:                  lcURL,
-		APURL:                  apURL,
-		ACURL:                  acURL,
-		EtcdEndpoint:           etcdEndpoint,
-		InitialClusterHostID:   initialClusterHostID,
-		InitialClusterEndpoint: initialClusterEndpoint,
+	_, _, err = session.FetchTagged(index.Query{
+		segment.Query{
+			Conjunction: segment.AndConjunction,
+			Filters: []segment.Filter{
+				segment.Filter{
+					FieldName:        []byte("foo"),
+					FieldValueFilter: []byte("b.*"),
+					Regexp:           true,
+				},
+			},
+		},
+	}, index.QueryOptions{
+		StartInclusive: fetchStart,
+		EndExclusive:   fetchEnd,
 	})
-	require.NoError(t, err)
 
-	// Run server
-	var (
-		interruptCh           = make(chan error, 1)
-		bootstrapCh           = make(chan struct{}, 1)
-		embeddedKVBootstrapCh = make(chan struct{}, 1)
-		serverWg              sync.WaitGroup
-	)
-	serverWg.Add(1)
-	go func() {
-		server.Run(server.RunOptions{
-			ConfigFile:            configFd.Name(),
-			BootstrapCh:           bootstrapCh,
-			EmbeddedKVBootstrapCh: embeddedKVBootstrapCh,
-			InterruptCh:           interruptCh,
-		})
-		serverWg.Done()
-	}()
-
-	// Wait for embedded KV to be up
-	<-embeddedKVBootstrapCh
-
-	// Setup the placement
-	var cfg config.Configuration
-	err = xconfig.LoadFile(&cfg, configFd.Name())
-	require.NoError(t, err)
-
-	configSvcClient, err := cfg.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
-		SetLogger(xlog.NullLogger))
-	require.NoError(t, err)
-
-	svcs, err := configSvcClient.Services(services.NewOverrideOptions())
-	require.NoError(t, err)
-
-	serviceID := services.NewServiceID().
-		SetName(serviceName).
-		SetEnvironment(serviceEnv).
-		SetZone(serviceZone)
-
-	metadata := services.NewMetadata().
-		SetPort(servicePort).
-		SetLivenessInterval(time.Minute).
-		SetHeartbeatInterval(10 * time.Second)
-
-	err = svcs.SetMetadata(serviceID, metadata)
-	require.NoError(t, err)
-
-	placementOpts := placement.NewOptions().
-		SetValidZone(serviceZone)
-	placementSvc, err := svcs.PlacementService(serviceID, placementOpts)
-	require.NoError(t, err)
-
-	instance := placement.NewInstance().
-		SetID(hostID).
-		SetEndpoint(endpoint("127.0.0.1", servicePort)).
-		SetPort(servicePort).
-		SetIsolationGroup("local").
-		SetWeight(1).
-		SetZone(serviceZone)
-	instances := []placement.Instance{instance}
-	shards := 256
-	replicas := 1
-	_, err = placementSvc.BuildInitialPlacement(instances, shards, replicas)
-	require.NoError(t, err)
-
-	// Setup the namespace
-	ns, err := newNamespaceProtoValue(namespaceID)
-	require.NoError(t, err)
-
-	kvStore, err := configSvcClient.KV()
-	require.NoError(t, err)
-
-	_, err = kvStore.Set(kvconfig.NamespacesKey, ns)
-	require.NoError(t, err)
-
-	// Wait for bootstrap
-	<-bootstrapCh
-
-	// Create client, read and write some data
-	// NB(r): Make sure client config points to the root config
-	// service since we're going to instantiate the client configuration
-	// just by itself.
-	cfg.Client.EnvironmentConfig.Service = cfg.EnvironmentConfig.Service
-
-	cli, err := cfg.Client.NewClient(client.ConfigurationParameters{})
-	require.NoError(t, err)
-
-	session, err := cli.DefaultSession()
-	require.NoError(t, err)
-
-	defer session.Close()
-
-	start := time.Now().Add(-time.Minute)
-	values := []struct {
-		value float64
-		at    time.Time
-		unit  xtime.Unit
-	}{
-		{value: 1.0, at: start, unit: xtime.Second},
-		{value: 2.0, at: start.Add(1 * time.Second), unit: xtime.Second},
-		{value: 3.0, at: start.Add(2 * time.Second), unit: xtime.Second},
-	}
-
-	for _, v := range values {
-		err := session.Write(ident.StringID(namespaceID), ident.StringID("foo"), v.at, v.value, v.unit, nil)
-		require.NoError(t, err)
-	}
-
-	// Account for first value inserted at xtime.Second precision
-	fetchStart := start.Truncate(time.Second)
-
-	// Account for last value being inserted at xtime.Second and
-	// the "end" param to fetch being exclusive
-	fetchEnd := values[len(values)-1].at.Truncate(time.Second).Add(time.Nanosecond)
-
-	iter, err := session.Fetch(ident.StringID(namespaceID), ident.StringID("foo"), fetchStart, fetchEnd)
-	require.NoError(t, err)
-
-	for _, v := range values {
-		require.True(t, iter.Next())
-		dp, unit, _ := iter.Current()
-		assert.Equal(t, v.value, dp.Value)
-		// Account for xtime.Second precision on values going in
-		expectAt := v.at.Truncate(time.Second)
-		assert.Equal(t, expectAt, dp.Timestamp)
-		assert.Equal(t, v.unit, unit)
-	}
+	// FOLLOWUP(prateek): implement FetchTagged check once the `client/fetch*` APIs are implemented.
+	require.Error(t, err)
+	/*
+		for _, v := range values {
+			require.True(t, iter.Next())
+			dp, unit, _ := iter.Current()
+			assert.Equal(t, v.value, dp.Value)
+			// Account for xtime.Second precision on values going in
+			expectAt := v.at.Truncate(time.Second)
+			assert.Equal(t, expectAt, dp.Timestamp)
+			assert.Equal(t, v.unit, unit)
+		}
+	*/
 
 	// Wait for server to stop
 	interruptCh <- fmt.Errorf("test complete")
 	serverWg.Wait()
 }
 
-var (
-	testConfig = `
+var indexTestConfig = `
 logging:
     level: info
     file: {{.LogFile}}
@@ -429,10 +262,10 @@ metrics:
     runtime: simple
 
 listenAddress: 0.0.0.0:{{.ServicePort}}
-clusterListenAddress: 0.0.0.0:9001
-httpNodeListenAddress: 0.0.0.0:9002
-httpClusterListenAddress: 0.0.0.0:9003
-debugListenAddress: 0.0.0.0:9004
+clusterListenAddress: 0.0.0.0:10001
+httpNodeListenAddress: 0.0.0.0:10002
+httpClusterListenAddress: 0.0.0.0:10003
+debugListenAddress: 0.0.0.0:10004
 
 hostID:
     resolver: config
@@ -488,6 +321,9 @@ fs:
     seekReadBufferSize: 4096
     throughputLimitMbps: 100.0
     throughputCheckEvery: 128
+
+index:
+    enabled: true
 
 repair:
     enabled: false
@@ -573,9 +409,7 @@ pooling:
               size: 128
             - capacity: 4096
               size: 128
-`
 
-	kvConfigPortion = `
 config:
     service:
         env: {{.ServiceEnv}}
@@ -586,30 +420,3 @@ config:
             - zone: {{.ServiceZone}}
               endpoints: {{.EtcdEndpoints}}
 `
-
-	embeddedKVConfigPortion = `
-config:
-    service:
-        env: {{.ServiceEnv}}
-        zone: {{.ServiceZone}}
-        service: {{.ServiceName}}
-        cacheDir: {{.ConfigServiceCacheDir}}
-        etcdClusters:
-            - zone: {{.ServiceZone}}
-              endpoints:
-                  - {{.EtcdEndpoint}}
-    seedNodes:
-        listenPeerUrls:
-            - {{.LPURL}}
-        listenClientUrls:
-            - {{.LCURL}}
-        dir: {{.EmbeddedKVDir}}
-        initialAdvertisePeerUrls:
-            - {{.APURL}}
-        advertiseClientUrls:
-            - {{.ACURL}}
-        initialCluster:
-            - hostID: {{.InitialClusterHostID}}
-              endpoint: {{.InitialClusterEndpoint}}
-`
-)

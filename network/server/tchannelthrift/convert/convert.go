@@ -27,9 +27,11 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -171,4 +173,103 @@ func ToRPCError(err error) *rpc.Error {
 		return tterrors.NewBadRequestError(err)
 	}
 	return tterrors.NewInternalError(err)
+}
+
+// ToRPCTaggedResult converts an index.QueryResults -> appropriate RPC types.
+func ToRPCTaggedResult(queryResult index.QueryResults) (*rpc.FetchTaggedResult_, error) {
+	result := rpc.NewFetchTaggedResult_()
+	result.Exhaustive = queryResult.Exhaustive
+	// Make Elements an initialized empty array for JSON serialization as empty array than null
+	result.Elements = make([]*rpc.FetchTaggedIDResult_, 0)
+	iter := queryResult.Iterator
+	for iter.Next() {
+		ns, id, tags := iter.Current()
+		elem := &rpc.FetchTaggedIDResult_{
+			NameSpace: ns.String(),
+			ID:        id.String(),
+		}
+		for _, t := range tags {
+			// TODO(prateek): pool TagString and ...
+			elem.Tags = append(elem.Tags, &rpc.Tag{
+				Name:  t.Name.String(),
+				Value: t.Value.String(),
+			})
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, ToRPCError(err)
+	}
+
+	return result, nil
+}
+
+// ToTagsIter returns a tag iterator over the given request.
+func ToTagsIter(r *rpc.WriteTaggedRequest) (ident.TagIterator, error) {
+	if r == nil {
+		return nil, errNilQuery
+	}
+
+	return &writeTaggedIter{
+		rawRequest: r,
+		currentIdx: -1,
+	}, nil
+}
+
+// TODO(prateek): add tests for writeTaggedIter
+// NB(prateek): writeTaggedIter is in-efficient in how it handles internal
+// allocations. Only use it for non-performance critical RPC endpoints.
+type writeTaggedIter struct {
+	rawRequest *rpc.WriteTaggedRequest
+	currentIdx int
+	currentTag ident.Tag
+}
+
+func (w *writeTaggedIter) Next() bool {
+	w.release()
+	w.currentIdx++
+	if w.currentIdx < len(w.rawRequest.Tags) {
+		w.currentTag.Name = ident.StringID(w.rawRequest.Tags[w.currentIdx].Name)
+		w.currentTag.Value = ident.StringID(w.rawRequest.Tags[w.currentIdx].Value)
+		return true
+	}
+	return false
+}
+
+func (w *writeTaggedIter) release() {
+	if i := w.currentTag.Name; i != nil {
+		w.currentTag.Name.Finalize()
+		w.currentTag.Name = nil
+	}
+	if i := w.currentTag.Value; i != nil {
+		w.currentTag.Value.Finalize()
+		w.currentTag.Value = nil
+	}
+}
+
+func (w *writeTaggedIter) Current() ident.Tag {
+	return w.currentTag
+}
+
+func (w *writeTaggedIter) Err() error {
+	return nil
+}
+
+func (w *writeTaggedIter) Close() {
+	w.release()
+	w.currentIdx = -1
+}
+
+func (w *writeTaggedIter) Remaining() int {
+	if r := len(w.rawRequest.Tags) - 1 - w.currentIdx; r >= 0 {
+		return r
+	}
+	return 0
+}
+
+func (w *writeTaggedIter) Duplicate() ident.TagIterator {
+	return &writeTaggedIter{
+		rawRequest: w.rawRequest,
+		currentIdx: -1,
+	}
 }

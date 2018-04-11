@@ -534,6 +534,8 @@ config:
   namespaceResolutionTimeout: 0s
 hashing:
   seed: 42
+index:
+  enabled: false
 writeNewSeriesAsync: true
 `
 

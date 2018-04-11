@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"runtime/debug"
 	"testing"
 	"time"
 
@@ -93,7 +92,6 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	log.Info("blocking until namespaces have reset and deleted")
 	go func() {
 		time.Sleep(10 * time.Second)
-		debug.PrintStack()
 	}()
 	require.NoError(t, <-nsResetErr)
 

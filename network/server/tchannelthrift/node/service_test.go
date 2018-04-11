@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
@@ -598,6 +599,56 @@ func TestServiceWrite(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestServiceWriteTagged(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	var (
+		nsID      = "metrics"
+		id        = "foo"
+		tagNames  = []string{"foo", "bar", "baz"}
+		tagValues = []string{"cmon", "keep", "going"}
+		at        = time.Now().Truncate(time.Second)
+		value     = 42.42
+	)
+
+	mockDB.EXPECT().WriteTagged(ctx,
+		ident.NewIDMatcher(nsID),
+		ident.NewIDMatcher(id),
+		gomock.Any(), // TODO(prateek): create and use ident.TagIterMatcher
+		at, value, xtime.Second, nil,
+	).Return(nil)
+
+	request := &rpc.WriteTaggedRequest{
+		NameSpace: nsID,
+		ID:        id,
+		Datapoint: &rpc.Datapoint{
+			Timestamp:         at.Unix(),
+			TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
+			Value:             value,
+		},
+		Tags: []*rpc.Tag{},
+	}
+
+	for i := range tagNames {
+		request.Tags = append(request.Tags, &rpc.Tag{
+			Name:  tagNames[i],
+			Value: tagValues[i],
+		})
+	}
+	err := service.WriteTagged(tctx, request)
+	require.NoError(t, err)
+}
+
 func TestServiceWriteBatchRaw(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -647,6 +698,66 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestServiceWriteTaggedBatchRaw(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	mockDecoder := serialize.NewMockTagDecoder(ctrl)
+	mockDecoder.EXPECT().Reset(gomock.Any()).AnyTimes()
+	mockDecoder.EXPECT().Err().Return(nil).AnyTimes()
+	mockDecoder.EXPECT().Finalize().AnyTimes()
+	mockDecoderPool := serialize.NewMockTagDecoderPool(ctrl)
+	mockDecoderPool.EXPECT().Get().Return(mockDecoder).AnyTimes()
+	service.tagDecoderPool = mockDecoderPool
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	nsID := "metrics"
+
+	values := []struct {
+		id        string
+		tagEncode string
+		t         time.Time
+		v         float64
+	}{
+		{"foo", "a|b", time.Now().Truncate(time.Second), 12.34},
+		{"bar", "c|dd", time.Now().Truncate(time.Second), 42.42},
+	}
+	for _, w := range values {
+		mockDB.EXPECT().
+			WriteTagged(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(w.id),
+				mockDecoder,
+				w.t, w.v, xtime.Second, nil).
+			Return(nil)
+	}
+
+	var elements []*rpc.WriteTaggedBatchRawRequestElement
+	for _, w := range values {
+		elem := &rpc.WriteTaggedBatchRawRequestElement{
+			ID:          []byte(w.id),
+			EncodedTags: []byte(w.tagEncode),
+			Datapoint: &rpc.Datapoint{
+				Timestamp:         w.t.Unix(),
+				TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
+				Value:             w.v,
+			},
+		}
+		elements = append(elements, elem)
+	}
+
+	err := service.WriteTaggedBatchRaw(tctx, &rpc.WriteTaggedBatchRawRequest{
+		NameSpace: []byte(nsID),
+		Elements:  elements,
+	})
+	require.NoError(t, err)
+}
 func TestServiceRepair(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

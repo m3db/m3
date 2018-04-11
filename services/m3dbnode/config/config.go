@@ -114,6 +114,9 @@ type Configuration struct {
 	// The configuration for hashing
 	Hashing HashingConfiguration `yaml:"hashing"`
 
+	// The indexing configuration for the node.
+	Index IndexingConfiguration `yaml:"index"`
+
 	// Write new series asynchronously for fast ingestion of new ID bursts.
 	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
 }
@@ -205,6 +208,12 @@ type RepairPolicy struct {
 type HashingConfiguration struct {
 	// Murmur32 seed value.
 	Seed uint32 `yaml:"seed"`
+}
+
+// IndexingConfiguration is the configuration for the indexing sub-system.
+type IndexingConfiguration struct {
+	// Enabled or disabled.
+	Enabled bool `yaml:"enabled"`
 }
 
 // NewEtcdEmbedConfig creates a new embedded etcd config from kv config.
