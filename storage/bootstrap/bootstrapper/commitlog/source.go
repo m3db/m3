@@ -195,6 +195,7 @@ func (s *commitLogSource) Read(
 	minimumMostRecentSnapshotTimeByBlock := s.minimumMostRecentSnapshotTimeByBlock(
 		shardsTimeRanges, blockSize, mostRecentCompleteSnapshotTimeByBlockShard)
 
+	// TODO: Move this all into a helper?
 	// Now that we have the minimum most recent snapshot time for each block, we can use that data to decide
 	// how much of the commit log we need to read for each block that we're bootstrapping. We'll construct a
 	// new predicate based on the data-structure we constructed earlier where the new predicate will check if
@@ -216,9 +217,8 @@ func (s *commitLogSource) Read(
 		})
 	}
 
-	// TODO: Test this logic (maybe in a helper FN?)
 	readCommitlogPred := func(commitLogFileStart time.Time, commitLogFileBlockSize time.Duration) bool {
-		// Note that the rangesToCheck that we generated earlier are *logical* ranges not
+		// Note that the rangesToCheck that we generated above are *logical* ranges not
 		// physical ones. I.E a range of 12:30PM to 2:00PM means that we need all data with
 		// a timestamp between 12:30PM and 2:00PM which is strictly different than all datapoints
 		// that *arrived* between 12:30PM and 2:00PM due to the bufferFuture and bufferPast
@@ -311,7 +311,6 @@ func (s *commitLogSource) Read(
 
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
-		// continue
 		if !s.shouldEncodeSeries(unmerged, blockSize, series, dp) {
 			continue
 		}
