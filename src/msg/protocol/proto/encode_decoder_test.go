@@ -56,7 +56,7 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 	c.dec.resetReader(serverConn)
 
 	testMsg := msgpb.Message{
-		Metadata: &msgpb.Metadata{
+		Metadata: msgpb.Metadata{
 			Shard: 1,
 			Id:    2,
 		},

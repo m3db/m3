@@ -37,7 +37,7 @@ import (
 )
 
 var testMsg = msgpb.Message{
-	Metadata: &msgpb.Metadata{
+	Metadata: msgpb.Metadata{
 		Shard: 100,
 		Id:    200,
 	},
@@ -240,7 +240,7 @@ func testConsumeAndAckOnConnection(t *testing.T, conn net.Conn, opts proto.Encod
 	assert.NotNil(t, msg.Metadata)
 
 	assert.NoError(t, server.Encode(&msgpb.Ack{
-		Metadata: []*msgpb.Metadata{
+		Metadata: []msgpb.Metadata{
 			msg.Metadata,
 		},
 	}))
