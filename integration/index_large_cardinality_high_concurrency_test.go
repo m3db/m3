@@ -1,4 +1,4 @@
-// +build integration
+// +build integration_disabled
 
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -42,7 +42,7 @@ func TestIndexLargeCardinalityHighConcurrency(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
-	concurrency := 4
+	concurrency := 2
 	writeEach := 128
 	maxNumTags := 10
 
