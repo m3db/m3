@@ -21,14 +21,13 @@
 package proto
 
 import (
-	"bufio"
 	"io"
 
 	"github.com/m3db/m3x/pool"
 )
 
 type decoder struct {
-	r          *bufio.Reader
+	r          io.Reader
 	sizeBuffer []byte
 	dataBuffer []byte
 	bytesPool  pool.BytesPool
@@ -45,7 +44,7 @@ func newDecoder(r io.Reader, opts BaseOptions) *decoder {
 	}
 	pool := opts.BytesPool()
 	return &decoder{
-		r:          bufio.NewReaderSize(r, opts.BufferSize()),
+		r:          r,
 		sizeBuffer: getByteSliceWithLength(sizeBufferSize, pool),
 		bytesPool:  pool,
 	}
@@ -76,5 +75,5 @@ func (d *decoder) decodeData(m Unmarshaler, size int) error {
 }
 
 func (d *decoder) resetReader(r io.Reader) {
-	d.r.Reset(r)
+	d.r = r
 }

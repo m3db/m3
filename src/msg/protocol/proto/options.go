@@ -24,22 +24,13 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
-const (
-	// Using 16K which provides much better performance comparing
-	// to lower values like 1k ~ 8k.
-	defaultBufferSize = 16384
-)
-
 // NewBaseOptions creates a new BaseOptions.
 func NewBaseOptions() BaseOptions {
-	return &baseOptions{
-		bufferSize: defaultBufferSize,
-	}
+	return &baseOptions{}
 }
 
 type baseOptions struct {
-	bytesPool  pool.BytesPool
-	bufferSize int
+	bytesPool pool.BytesPool
 }
 
 func (opts *baseOptions) BytesPool() pool.BytesPool {
@@ -49,16 +40,6 @@ func (opts *baseOptions) BytesPool() pool.BytesPool {
 func (opts *baseOptions) SetBytesPool(value pool.BytesPool) BaseOptions {
 	o := *opts
 	o.bytesPool = value
-	return &o
-}
-
-func (opts *baseOptions) BufferSize() int {
-	return opts.bufferSize
-}
-
-func (opts *baseOptions) SetBufferSize(value int) BaseOptions {
-	o := *opts
-	o.bufferSize = value
 	return &o
 }
 

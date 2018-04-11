@@ -87,12 +87,6 @@ type BaseOptions interface {
 
 	// SetBytesPool sets the bytes pool.
 	SetBytesPool(value pool.BytesPool) BaseOptions
-
-	// BufferSize returns the size of buffer before a write or a read.
-	BufferSize() int
-
-	// SetBufferSize sets the buffer size.
-	SetBufferSize(value int) BaseOptions
 }
 
 // EncodeDecoderOptions configures an EncodeDecoder.
