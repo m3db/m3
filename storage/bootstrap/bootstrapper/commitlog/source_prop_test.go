@@ -57,7 +57,7 @@ const blockSize = 2 * time.Hour
 func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	seed := time.Now().UnixNano()
-	parameters.Rng.Seed(1337)
+	parameters.Rng.Seed(seed)
 	parameters.MinSuccessfulTests = 80
 	props := gopter.NewProperties(parameters)
 	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
@@ -71,8 +71,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 
 	props.Property("Commitlog bootstrapping properly bootstraps the entire commitlog", prop.ForAll(
 		func(input propTestInput) (bool, error) {
-			fmt.Println("bufferPast: ", input.bufferPast)
-			fmt.Println("bufferFuture: ", input.bufferFuture)
 			retentionOpts := nsOpts.RetentionOptions().
 				SetBufferPast(input.bufferPast).
 				SetBufferFuture(input.bufferFuture)
@@ -104,11 +102,11 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			go func() {
 				for range writesCh {
 					lock.Lock()
+					// TODO: Do I still need this?
 					// if !currentTime.Add(time.Millisecond).Before(startTime.Truncate(blockSize).Add(blockSize)) {
 					// 	// Make sure we never advance the current time outside of the current block that we're writing
 					// 	panic("messed up")
 					// }
-					// fmt.Println("loop setting: ", currentTime.Add(time.Millisecond))
 					currentTime = currentTime.Add(time.Millisecond)
 					lock.Unlock()
 				}
@@ -254,7 +252,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			if err != nil {
 				return false, err
 			}
-			// fmt.Println("wrote: ", numWritten)
 
 			// Instantiate a commitlog source
 			source, err := NewCommitLogBootstrapper(bootstrapOpts, nil)
@@ -310,7 +307,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	if !props.Run(reporter) {
 		t.Errorf("failed with initial seed: %d", seed)
 	}
-	// panic("hmm")
 }
 
 type propTestInput struct {
