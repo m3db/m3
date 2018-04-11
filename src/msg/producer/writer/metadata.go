@@ -28,7 +28,7 @@ type metadata struct {
 	id    uint64
 }
 
-func newMetadataFromProto(m *msgpb.Metadata) metadata {
+func newMetadataFromProto(m msgpb.Metadata) metadata {
 	return metadata{
 		shard: m.Shard,
 		id:    m.Id,

@@ -33,7 +33,7 @@ func BenchmarkEncodeDecoderRoundTrip(b *testing.B) {
 	c.enc.resetWriter(mimicTCP)
 	c.dec.resetReader(mimicTCP)
 	encodeMsg := msgpb.Message{
-		Metadata: &msgpb.Metadata{},
+		Metadata: msgpb.Metadata{},
 		Value:    make([]byte, 200),
 	}
 	decodeMsg := msgpb.Message{}
@@ -58,7 +58,7 @@ func BenchmarkBaseEncodeDecodeRoundTrip(b *testing.B) {
 	encoder := NewEncoder(mimicTCP, NewBaseOptions())
 	decoder := NewDecoder(mimicTCP, NewBaseOptions())
 	encodeMsg := msgpb.Message{
-		Metadata: &msgpb.Metadata{},
+		Metadata: msgpb.Metadata{},
 		Value:    make([]byte, 200),
 	}
 	decodeMsg := msgpb.Message{}

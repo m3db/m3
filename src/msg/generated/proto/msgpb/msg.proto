@@ -1,5 +1,8 @@
 syntax = "proto3";
+
 package msgpb;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 message Metadata {
     uint64 shard = 1;
@@ -7,10 +10,11 @@ message Metadata {
 }
 
 message Message {
-  Metadata metadata = 1;
+  Metadata metadata = 1 [(gogoproto.nullable) = false];
   bytes value = 2;
 }
 
 message Ack {
-  repeated Metadata metadata = 1;
+  repeated Metadata metadata = 1 [(gogoproto.nullable) = false];
 }
+ 
