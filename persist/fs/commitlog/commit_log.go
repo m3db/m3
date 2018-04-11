@@ -176,7 +176,6 @@ func (l *commitLog) Open() error {
 
 	if flushInterval := l.opts.FlushInterval(); flushInterval > 0 {
 		// Continually flush the commit log at given interval if set
-		// fmt.Println("Flush interval: ", flushInterval)
 		go l.flushEvery(flushInterval)
 	}
 
@@ -198,9 +197,7 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 			sleepForOverride = 0
 		}
 
-		// fmt.Println("sleeping")
 		time.Sleep(sleepFor)
-		// fmt.Println("done sleeping")
 
 		l.flushMutex.RLock()
 		lastFlushAt := l.lastFlushAt
@@ -208,10 +205,7 @@ func (l *commitLog) flushEvery(interval time.Duration) {
 
 		if sinceFlush := l.nowFn().Sub(lastFlushAt); sinceFlush < interval {
 			// Flushed already recently, sleep until we would next consider flushing
-			// fmt.Println("interval: ", interval)
-			// fmt.Println("sinceFlush: ", sinceFlush)
 			sleepForOverride = interval - sinceFlush
-			// fmt.Println("Override: ", sleepForOverride)
 			continue
 		}
 
@@ -332,7 +326,6 @@ func (l *commitLog) openWriter(now time.Time) error {
 		return err
 	}
 
-	// fmt.Println("expires at: ", start.Add(blockSize))
 	l.writerExpireAt = start.Add(blockSize)
 
 	return nil
