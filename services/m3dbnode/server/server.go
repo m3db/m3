@@ -165,7 +165,8 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	opts := storage.NewOptions()
+	opts := storage.NewOptions().
+		SetIndexingEnabled(cfg.Index.Enabled)
 
 	iopts := opts.InstrumentOptions().
 		SetLogger(logger).

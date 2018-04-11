@@ -113,7 +113,9 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		nsInit = namespace.NewStaticInitializer(opts.Namespaces())
 	}
 
-	storageOpts := storage.NewOptions().SetNamespaceInitializer(nsInit)
+	storageOpts := storage.NewOptions().
+		SetNamespaceInitializer(nsInit).
+		SetIndexingEnabled(opts.IndexingEnabled())
 
 	runtimeOptsMgr := storageOpts.RuntimeOptionsManager()
 	runtimeOpts := runtimeOptsMgr.Get().
@@ -572,12 +574,14 @@ func newNodes(
 	t *testing.T,
 	instances []services.ServiceInstance,
 	nspaces []namespace.Metadata,
+	indexingEnabled bool,
 ) (testSetups, topology.Initializer, closeFn) {
 
 	log := xlog.SimpleLogger
 	opts := newTestOptions(t).
 		SetNamespaces(nspaces).
-		SetTickMinimumInterval(3 * time.Second)
+		SetTickMinimumInterval(3 * time.Second).
+		SetIndexingEnabled(indexingEnabled)
 
 	// NB(bl): We set replication to 3 to mimic production. This can be made
 	// into a variable if needed.
