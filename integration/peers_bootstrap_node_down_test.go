@@ -85,7 +85,7 @@ func testPeersBootstrapNodeDown(
 		{[]string{"foo", "baz"}, 90, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, 90, now},
 	})
-	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
+	err = writeTestDataToDisk(namesp, setups[0], seriesMaps, false)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

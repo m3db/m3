@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -51,14 +52,19 @@ func newTestWriter(t *testing.T, filePathPrefix string) FileSetWriter {
 	return writer
 }
 
-func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
+func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry, filesetType persist.FilesetType) {
 	writerOpts := WriterOpenOptions{
 		Identifier: FilesetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: timestamp,
 		},
-		BlockSize: testBlockSize,
+		BlockSize:   testBlockSize,
+		FilesetType: filesetType,
+	}
+
+	if filesetType == persist.FilesetSnapshotType {
+		writerOpts.Snapshot.SnapshotTime = timestamp
 	}
 	err := w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -175,7 +181,7 @@ func TestSimpleReadWrite(t *testing.T) {
 	}
 
 	w := newTestWriter(t, filePathPrefix)
-	writeTestData(t, w, 0, testWriterStart, entries)
+	writeTestData(t, w, 0, testWriterStart, entries, persist.FilesetFlushType)
 
 	r := newTestReader(t, filePathPrefix)
 	readTestData(t, r, 0, testWriterStart, entries)
@@ -226,7 +232,7 @@ func TestReadWithReusedReader(t *testing.T) {
 	}
 
 	w := newTestWriter(t, filePathPrefix)
-	writeTestData(t, w, 0, testWriterStart, entries)
+	writeTestData(t, w, 0, testWriterStart, entries, persist.FilesetFlushType)
 
 	r := newTestReader(t, filePathPrefix)
 	readTestData(t, r, 0, testWriterStart, entries)
@@ -248,7 +254,7 @@ func TestInfoReadWrite(t *testing.T) {
 	}
 
 	w := newTestWriter(t, filePathPrefix)
-	writeTestData(t, w, 0, testWriterStart, entries)
+	writeTestData(t, w, 0, testWriterStart, entries, persist.FilesetFlushType)
 
 	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
 	require.Equal(t, 1, len(readInfoFileResults))
@@ -279,7 +285,7 @@ func TestReusingReaderWriter(t *testing.T) {
 	}
 	w := newTestWriter(t, filePathPrefix)
 	for i := range allEntries {
-		writeTestData(t, w, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i])
+		writeTestData(t, w, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i], persist.FilesetFlushType)
 	}
 
 	r := newTestReader(t, filePathPrefix)
@@ -332,7 +338,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	require.Equal(t, ErrCheckpointFileNotFound, r.Open(rOpenOpts))
 
 	// Now reuse the writer and validate the data are written as expected.
-	writeTestData(t, w, shard, testWriterStart, entries)
+	writeTestData(t, w, shard, testWriterStart, entries, persist.FilesetFlushType)
 	readTestData(t, r, shard, testWriterStart, entries)
 }
 

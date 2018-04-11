@@ -96,8 +96,8 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 		{[]string{"foo", "bar"}, 100, now.Add(-ns2BlockSize)},
 		{[]string{"foo", "baz"}, 50, now},
 	})
-	require.NoError(t, writeTestDataToDisk(ns1, setup, ns1SeriesMaps))
-	require.NoError(t, writeTestDataToDisk(ns2, setup, ns2SeriesMaps))
+	require.NoError(t, writeTestDataToDisk(ns1, setup, ns1SeriesMaps, false))
+	require.NoError(t, writeTestDataToDisk(ns2, setup, ns2SeriesMaps, false))
 	log.Info("generated data")
 
 	// Start the server with filesystem bootstrapper

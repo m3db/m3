@@ -26,12 +26,15 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/ident"
@@ -470,7 +473,7 @@ func TestMultipleForBlockStart(t *testing.T) {
 		if i%numSnapshotsPerBlock == 0 {
 			ts = time.Unix(0, int64(i))
 		}
-		createFile(t, snapshotPathFromTimeAndIndex(shardDir, ts, infoFileSuffix, i%numSnapshotsPerBlock), nil)
+		createFile(t, snapshotPathFromTimeAndIndex(shardDir, ts, checkpointFileSuffix, i%numSnapshotsPerBlock), nil)
 	}
 
 	files, err := SnapshotFiles(dir, testNs1ID, shard)
@@ -485,7 +488,7 @@ func TestMultipleForBlockStart(t *testing.T) {
 		}
 	}
 
-	latestSnapshot, ok := files.LatestForBlock(ts)
+	latestSnapshot, ok := files.LatestValidForBlock(ts)
 	require.True(t, ok)
 	require.Equal(t, numSnapshotsPerBlock-1, latestSnapshot.ID.Index)
 }
@@ -502,6 +505,35 @@ func TestSnapshotFileHasCheckPointFile(t *testing.T) {
 			AbsoluteFilepaths: []string{"123-index-0.db"},
 		},
 	}.HasCheckpointFile())
+}
+
+func TestSnapshotFileSnapshotTime(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	entries := []testEntry{
+		{"foo", []byte{1, 2, 3}},
+		{"bar", []byte{4, 5, 6}},
+		{"baz", make([]byte, 65536)},
+		{"cat", make([]byte, 100000)},
+		{"echo", []byte{7, 8, 9}},
+	}
+
+	// Write out snapshot file
+	w := newTestWriter(t, filePathPrefix)
+	writeTestData(t, w, 0, testWriterStart, entries, persist.FilesetSnapshotType)
+
+	// Load snapshot files
+	snapshotFiles, err := SnapshotFiles(filePathPrefix, testNs1ID, 0)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(snapshotFiles))
+
+	// Verify SnapshotTime() returns the expected time
+	decoder := msgpack.NewDecoder(nil)
+	snapshotTime, err := SnapshotTime(filePathPrefix, snapshotFiles[0].ID, 16, decoder)
+	require.NoError(t, err)
+	require.Equal(t, true, testWriterStart.Equal(snapshotTime))
 }
 
 func TestSnapshotDirPath(t *testing.T) {

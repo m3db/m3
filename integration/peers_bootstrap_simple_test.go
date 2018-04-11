@@ -82,7 +82,7 @@ func testPeerBootstrapSimple(
 		{[]string{"foo", "baz"}, 90, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, 90, now},
 	})
-	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps))
+	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps, false))
 
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())
