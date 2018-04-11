@@ -222,15 +222,13 @@ func TestTaggedAddNodeQuorumAllUp(t *testing.T) {
 
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	numWrites := numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
-	assert.True(t, numWrites == 2)
+	assert.True(t, numWrites >= 1, numWrites)
 
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
 	numWrites = numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
-	assert.True(t, numWrites == 2)
+	assert.Equal(t, 2, numWrites)
 
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
-	numWrites = numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
-	assert.True(t, numWrites == 2)
 }
 
 func makeTestWriteTagged(
