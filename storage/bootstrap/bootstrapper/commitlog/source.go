@@ -172,9 +172,7 @@ func (s *commitLogSource) Read(
 	// For each block that we're bootstrapping, we need to figure out the most recent snapshot that
 	// was taken for each shard. I.E we want to create a datastructure that looks like this:
 	// map[blockStart]map[shard]mostRecentSnapshotTime
-	// TODO: Rename variable to match method or vice versa
-	// TODO: snapshots->snapshot
-	mostRecentSnapshotsByBlockShard := s.mostRecentCompleteSnapshotPerShard(
+	mostRecentCompleteSnapshotTimeByBlockShard := s.mostRecentCompleteSnapshotTimeByBlockShard(
 		shardsTimeRanges, blockSize, snapshotFilesByShard, s.opts.CommitLogOptions().FilesystemOptions())
 
 	// Once we have the desired datastructure, we next need to figure out the minimum most recent snapshot
@@ -184,7 +182,7 @@ func (s *commitLogSource) Read(
 	// This structure is important because it tells us how much of the commit log we need to read for each
 	// block that we're trying to bootstrap (because the commit log is shared across all shards).
 	minimumMostRecentSnapshotByBlock := s.minimumMostRecentSnapshotByBlock(
-		shardsTimeRanges, blockSize, mostRecentSnapshotsByBlockShard)
+		shardsTimeRanges, blockSize, mostRecentCompleteSnapshotTimeByBlockShard)
 
 	// Now that we have the minimum most recent snapshot for each block, we can use that data to decide how
 	// much of the commit log we need to read for each block that we're bootstrapping, but first we begin
@@ -368,10 +366,10 @@ func (s *commitLogSource) Read(
 	return commitLogBootstrapResult, nil
 }
 
-// mostRecentCompleteSnapshotPerShard returns the most recent (i.e latest) complete (i.e has a checkpoint file)
+// mostRecentCompleteSnapshotTimeByBlockShard returns the most recent (i.e latest) complete (i.e has a checkpoint file)
 // snapshot for every blockStart/shard combination that we're trying to bootstrap. It returns a data structure
 // that looks like map[blockStart]map[shard]mostRecentCompleteSnapshotTime
-func (s *commitLogSource) mostRecentCompleteSnapshotPerShard(
+func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 	shardsTimeRanges result.ShardTimeRanges,
 	blockSize time.Duration,
 	snapshotFilesByShard map[uint32]fs.SnapshotFilesSlice,
