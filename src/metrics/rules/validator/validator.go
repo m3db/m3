@@ -88,7 +88,7 @@ func (v *validator) validateMappingRules(mrv map[string]*models.MappingRuleView)
 	for _, view := range mrv {
 		// Validate that no rules with the same name exist.
 		if _, exists := namesSeen[view.Name]; exists {
-			return errors.NewRuleConflictError(fmt.Sprintf("mapping rule '%s' already exists", view.Name))
+			return errors.NewInvalidInputError(fmt.Sprintf("mapping rule '%s' already exists", view.Name))
 		}
 		namesSeen[view.Name] = struct{}{}
 
@@ -123,7 +123,7 @@ func (v *validator) validateRollupRules(rrv map[string]*models.RollupRuleView) e
 	for _, view := range rrv {
 		// Validate that no rules with the same name exist.
 		if _, exists := namesSeen[view.Name]; exists {
-			return errors.NewRuleConflictError(fmt.Sprintf("rollup rule '%s' already exists", view.Name))
+			return errors.NewInvalidInputError(fmt.Sprintf("rollup rule '%s' already exists", view.Name))
 		}
 		namesSeen[view.Name] = struct{}{}
 
@@ -161,7 +161,7 @@ func (v *validator) validateRollupRules(rrv map[string]*models.RollupRuleView) e
 			// Validate that there are no conflicting rollup targets.
 			for _, seenTarget := range targetsSeen {
 				if target.SameTransform(seenTarget) {
-					return errors.NewRuleConflictError(fmt.Sprintf("rollup target with name '%s' and tags '%s' already exists", target.Name, target.Tags))
+					return errors.NewInvalidInputError(fmt.Sprintf("rollup target with name '%s' and tags '%s' already exists", target.Name, target.Tags))
 				}
 			}
 			targetsSeen = append(targetsSeen, target)
@@ -286,7 +286,7 @@ func (v *validator) wrapError(err error) error {
 	switch err.(type) {
 	// Do not wrap error for these error types so caller can take actions
 	// based on the correct error type.
-	case errors.RuleConflictError, errors.ValidationError:
+	case errors.InvalidInputError, errors.ValidationError:
 		return err
 	default:
 		return errors.NewValidationError(err.Error())

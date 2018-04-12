@@ -20,13 +20,13 @@
 
 package errors
 
-// RuleConflictError is returned when a rule modification is made that would
-// result in a conflict with the existing set of rules in the ruleset.
-type RuleConflictError string
+// InvalidInputError is returned when a rule or rule change is applied which
+// is invalid.
+type InvalidInputError string
 
-// NewRuleConflictError creates a new rule conflict error.
-func NewRuleConflictError(str string) error { return RuleConflictError(str) }
-func (e RuleConflictError) Error() string   { return string(e) }
+// NewInvalidInputError creates a new invalid input error.
+func NewInvalidInputError(str string) error { return InvalidInputError(str) }
+func (e InvalidInputError) Error() string   { return string(e) }
 
 // ValidationError is returned when validation failed.
 type ValidationError string
@@ -35,8 +35,8 @@ type ValidationError string
 func NewValidationError(str string) error { return ValidationError(str) }
 func (e ValidationError) Error() string   { return string(e) }
 
-// StaleDataError is returned when a rule modification is attempted but the
-// underlying data has changed and the change is no longer valid.
+// StaleDataError is returned when a rule modification can not be completed
+// because rule metadata is no longer valid.
 type StaleDataError string
 
 // NewStaleDataError creates a new version mismatch error.
