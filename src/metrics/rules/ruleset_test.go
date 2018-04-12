@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules/models"
+	"github.com/m3db/m3metrics/rules/models/changes"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 
@@ -2681,7 +2682,7 @@ func TestAddMappingRuleDup(t *testing.T) {
 	containedErr, ok := err.(xerrors.ContainedError)
 	require.True(t, ok)
 	err = containedErr.InnerError()
-	_, ok = err.(errors.RuleConflictError)
+	_, ok = err.(errors.InvalidInputError)
 	require.True(t, ok)
 }
 
@@ -2860,7 +2861,7 @@ func TestAddRollupRuleDup(t *testing.T) {
 	containedErr, ok := err.(xerrors.ContainedError)
 	require.True(t, ok)
 	err = containedErr.InnerError()
-	_, ok = err.(errors.RuleConflictError)
+	_, ok = err.(errors.InvalidInputError)
 	require.True(t, ok)
 }
 
@@ -3030,6 +3031,267 @@ func TestRuleSetClone(t *testing.T) {
 	rsClone.rollupRules = []*rollupRule{}
 	require.NotEqual(t, rs.mappingRules, rsClone.mappingRules)
 	require.NotEqual(t, rs.rollupRules, rsClone.rollupRules)
+}
+
+func TestApplyRuleSetChanges(t *testing.T) {
+	mutable, rs, helper, _ := initMutableTest()
+	changes := changes.RuleSetChanges{}
+	testRuleSetChangesWithAddOps(&changes, "rrID1", "mrID1")
+	testRuleSetChangesWithUpdateOps(&changes, "rollupRule1", "mappingRule1")
+	testRulesetChangesWithDeletes(&changes, "rollupRule3", "mappingRule3")
+
+	err := mutable.ApplyRuleSetChanges(
+		changes,
+		helper.NewUpdateMetadata(100, "validAuthor"),
+	)
+	require.NoError(t, err)
+
+	_, err = rs.getMappingRuleByName("mappingRuleAdd")
+	require.NoError(t, err)
+	_, err = rs.getRollupRuleByName("rollupRuleAdd")
+	require.NoError(t, err)
+
+	updatedMappingRule, err := rs.getMappingRuleByID("mappingRule1")
+	require.NoError(t, err)
+	name, err := updatedMappingRule.Name()
+	require.NoError(t, err)
+	require.Equal(t, name, "updatedMappingRule")
+	updatedRollupRule, err := rs.getRollupRuleByID("rollupRule1")
+	require.NoError(t, err)
+	name, err = updatedRollupRule.Name()
+	require.NoError(t, err)
+	require.Equal(t, name, "updatedRollupRule")
+
+	tombstonedMappingRule, err := rs.getMappingRuleByID("mappingRule3")
+	require.NoError(t, err)
+	require.True(t, tombstonedMappingRule.Tombstoned())
+	tombstonedRollupRule, err := rs.getRollupRuleByID("rollupRule3")
+	require.NoError(t, err)
+	require.True(t, tombstonedRollupRule.Tombstoned())
+}
+
+func TestApplyMappingRuleChangesAddFailure(t *testing.T) {
+	_, rs, helper, _ := initMutableTest()
+	changes := changes.RuleSetChanges{}
+	testRuleSetChangesWithAddOps(&changes, "", "mappingRule1")
+	changes.MappingRuleChanges[0].RuleData.Name = "mappingRule1.snapshot3"
+
+	err := rs.applyMappingRuleChanges(
+		changes.MappingRuleChanges,
+		helper.NewUpdateMetadata(100, "validAuthor"),
+	)
+
+	require.Error(t, err)
+	containedErr, ok := err.(xerrors.ContainedError)
+	require.True(t, ok)
+	err = containedErr.InnerError()
+	_, ok = err.(errors.InvalidInputError)
+	require.True(t, ok)
+}
+
+func TestApplyRollupRuleChangesAddFailure(t *testing.T) {
+	_, rs, helper, _ := initMutableTest()
+	changes := changes.RuleSetChanges{}
+	testRuleSetChangesWithAddOps(&changes, "rollupRule1", "")
+	changes.RollupRuleChanges[0].RuleData.Name = "rollupRule1.snapshot3"
+
+	err := rs.applyRollupRuleChanges(
+		changes.RollupRuleChanges,
+		helper.NewUpdateMetadata(100, "validAuthor"),
+	)
+
+	require.Error(t, err)
+	containedErr, ok := err.(xerrors.ContainedError)
+	require.True(t, ok)
+	err = containedErr.InnerError()
+	_, ok = err.(errors.InvalidInputError)
+	require.True(t, ok)
+}
+
+func TestApplyMappingRuleChangesDeleteFailure(t *testing.T) {
+	_, rs, helper, _ := initMutableTest()
+	changes := changes.RuleSetChanges{}
+	testRulesetChangesWithDeletes(&changes, "", "mappingRule1")
+
+	err := rs.DeleteMappingRule(
+		"mappingRule1",
+		helper.NewUpdateMetadata(time.Now().Unix(), "validAuthor"),
+	)
+	require.NoError(t, err)
+
+	err = rs.applyMappingRuleChanges(
+		changes.MappingRuleChanges,
+		helper.NewUpdateMetadata(100, "validAuthor"),
+	)
+
+	require.Error(t, err)
+	containedErr, ok := err.(xerrors.ContainedError)
+	require.True(t, ok)
+	err = containedErr.InnerError()
+	_, ok = err.(errors.InvalidInputError)
+	require.True(t, ok)
+}
+
+func TestApplyRollupRuleChangesDeleteFailure(t *testing.T) {
+	_, rs, helper, _ := initMutableTest()
+	changes := changes.RuleSetChanges{}
+	testRulesetChangesWithDeletes(&changes, "rollupRule1", "")
+
+	err := rs.DeleteRollupRule(
+		"rollupRule1",
+		helper.NewUpdateMetadata(time.Now().Unix(), "validAuthor"),
+	)
+	require.NoError(t, err)
+
+	err = rs.applyRollupRuleChanges(
+		changes.RollupRuleChanges,
+		helper.NewUpdateMetadata(100, "validAuthor"),
+	)
+
+	require.Error(t, err)
+	containedErr, ok := err.(xerrors.ContainedError)
+	require.True(t, ok)
+	err = containedErr.InnerError()
+	_, ok = err.(errors.InvalidInputError)
+	require.True(t, ok)
+}
+
+func TestApplyMappingRuleChangesUpdateFailure(t *testing.T) {
+	_, rs, helper, _ := initMutableTest()
+	changes := changes.RuleSetChanges{}
+	testRuleSetChangesWithUpdateOps(&changes, "", "invalideMappingRule")
+
+	err := rs.applyMappingRuleChanges(
+		changes.MappingRuleChanges,
+		helper.NewUpdateMetadata(100, "validAuthor"),
+	)
+	require.Error(t, err)
+	require.IsType(t, errors.NewInvalidInputError(""), err)
+}
+
+func TestApplyRollupRuleChangesUpdateFailure(t *testing.T) {
+	_, rs, helper, _ := initMutableTest()
+	changes := changes.RuleSetChanges{}
+	testRuleSetChangesWithUpdateOps(&changes, "invalidRollupRule", "")
+
+	err := rs.applyRollupRuleChanges(
+		changes.RollupRuleChanges,
+		helper.NewUpdateMetadata(100, "validAuthor"),
+	)
+	require.Error(t, err)
+	require.IsType(t, errors.NewInvalidInputError(""), err)
+}
+
+func TestApplyRollupRuleWithInvalidOp(t *testing.T) {
+	_, rs, helper, _ := initMutableTest()
+	c := changes.RuleSetChanges{}
+	c.RollupRuleChanges = append(
+		c.RollupRuleChanges,
+		changes.RollupRuleChange{},
+	)
+
+	err := rs.applyRollupRuleChanges(
+		c.RollupRuleChanges,
+		helper.NewUpdateMetadata(100, "validAuthor"),
+	)
+	require.Error(t, err)
+	require.IsType(t, errors.NewInvalidInputError(""), err)
+}
+
+func TestApplyMappingRuleWithInvalidOp(t *testing.T) {
+	_, rs, helper, _ := initMutableTest()
+	c := changes.RuleSetChanges{}
+	c.MappingRuleChanges = append(
+		c.MappingRuleChanges,
+		changes.MappingRuleChange{},
+	)
+
+	err := rs.applyMappingRuleChanges(
+		c.MappingRuleChanges,
+		helper.NewUpdateMetadata(100, "validAuthor"),
+	)
+	require.Error(t, err)
+	require.IsType(t, errors.NewInvalidInputError(""), err)
+}
+
+func testRuleSetChangesWithAddOps(rsc *changes.RuleSetChanges, rrIDToAdd, mrIDToAdd string) {
+	if rrIDToAdd != "" {
+		rsc.RollupRuleChanges = append(
+			rsc.RollupRuleChanges,
+			changes.RollupRuleChange{
+				Op: changes.AddOp,
+				RuleData: &models.RollupRule{
+					ID:   rrIDToAdd,
+					Name: "rollupRuleAdd",
+				},
+			},
+		)
+	}
+
+	if mrIDToAdd != "" {
+		rsc.MappingRuleChanges = append(
+			rsc.MappingRuleChanges,
+			changes.MappingRuleChange{
+				Op: changes.AddOp,
+				RuleData: &models.MappingRule{
+					ID:   mrIDToAdd,
+					Name: "mappingRuleAdd",
+				},
+			},
+		)
+	}
+}
+
+func testRuleSetChangesWithUpdateOps(rsc *changes.RuleSetChanges, rrIDToUpdate, mrIDToUpdate string) {
+	if rrIDToUpdate != "" {
+		rsc.RollupRuleChanges = append(
+			rsc.RollupRuleChanges,
+			changes.RollupRuleChange{
+				Op:     changes.ChangeOp,
+				RuleID: &rrIDToUpdate,
+				RuleData: &models.RollupRule{
+					ID:   rrIDToUpdate,
+					Name: "updatedRollupRule",
+				},
+			},
+		)
+	}
+
+	if mrIDToUpdate != "" {
+		rsc.MappingRuleChanges = append(
+			rsc.MappingRuleChanges,
+			changes.MappingRuleChange{
+				Op:     changes.ChangeOp,
+				RuleID: &mrIDToUpdate,
+				RuleData: &models.MappingRule{
+					ID:   mrIDToUpdate,
+					Name: "updatedMappingRule",
+				},
+			},
+		)
+	}
+}
+
+func testRulesetChangesWithDeletes(rsc *changes.RuleSetChanges, rrIDToDelete, mrIDToDelete string) {
+	if rrIDToDelete != "" {
+		rsc.RollupRuleChanges = append(
+			rsc.RollupRuleChanges,
+			changes.RollupRuleChange{
+				Op:     changes.DeleteOp,
+				RuleID: &rrIDToDelete,
+			},
+		)
+	}
+
+	if mrIDToDelete != "" {
+		rsc.MappingRuleChanges = append(
+			rsc.MappingRuleChanges,
+			changes.MappingRuleChange{
+				Op:     changes.DeleteOp,
+				RuleID: &mrIDToDelete,
+			},
+		)
+	}
 }
 
 type testMappingsData struct {

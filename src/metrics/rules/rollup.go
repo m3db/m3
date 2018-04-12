@@ -442,7 +442,7 @@ func (rc *rollupRule) markTombstoned(meta UpdateMetadata) error {
 	}
 
 	if rc.Tombstoned() {
-		return fmt.Errorf("%s is already tombstoned", n)
+		return merrors.NewInvalidInputError(fmt.Sprintf("%s is already tombstoned", n))
 	}
 
 	if len(rc.snapshots) == 0 {
@@ -470,7 +470,7 @@ func (rc *rollupRule) revive(
 		return err
 	}
 	if !rc.Tombstoned() {
-		return merrors.NewRuleConflictError(fmt.Sprintf("%s is not tombstoned", n))
+		return merrors.NewInvalidInputError(fmt.Sprintf("%s is not tombstoned", n))
 	}
 	return rc.addSnapshot(name, rawFilter, targets, meta)
 }

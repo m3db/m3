@@ -290,7 +290,7 @@ func (mc *mappingRule) markTombstoned(meta UpdateMetadata) error {
 	}
 
 	if mc.Tombstoned() {
-		return fmt.Errorf("%s is already tombstoned", n)
+		return merrors.NewInvalidInputError(fmt.Sprintf("%s is already tombstoned", n))
 	}
 	if len(mc.snapshots) == 0 {
 		return errNoRuleSnapshots
@@ -316,7 +316,7 @@ func (mc *mappingRule) revive(
 		return err
 	}
 	if !mc.Tombstoned() {
-		return merrors.NewRuleConflictError(fmt.Sprintf("%s is not tombstoned", n))
+		return merrors.NewInvalidInputError(fmt.Sprintf("%s is not tombstoned", n))
 	}
 	return mc.addSnapshot(name, rawFilter, policies, meta)
 }
