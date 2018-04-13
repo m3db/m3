@@ -46,7 +46,7 @@ func TestEmptyEncode(t *testing.T) {
 	bc, ok := e.Data()
 	require.True(t, ok)
 	require.NotNil(t, bc)
-	b := bc.Get()
+	b := bc.Bytes()
 	require.Len(t, b, 4)
 	require.Equal(t, headerMagicBytes, b[:2])
 	require.Equal(t, []byte{0x0, 0x0}, b[2:4])
@@ -90,7 +90,7 @@ func TestSimpleEncode(t *testing.T) {
 	bc, ok := e.Data()
 	require.True(t, ok)
 	require.NotNil(t, bc)
-	b := bc.Get()
+	b := bc.Bytes()
 	numExpectedBytes := 2 /* header */ + 2 /* num tags */ +
 		2 /* abc length */ + len("abc") +
 		2 /* defg length */ + len("defg") +

@@ -137,7 +137,7 @@ func TestDecodeOwnershipFinalize(t *testing.T) {
 	d.Finalize()
 	require.Equal(t, 0, wrappedBytes.NumRef())
 	wrappedBytes.IncRef()
-	require.Nil(t, wrappedBytes.Get())
+	require.Nil(t, wrappedBytes.Bytes())
 }
 
 func TestDecodeMissingValue(t *testing.T) {
@@ -173,9 +173,9 @@ func TestDecodeDuplicateLifecycle(t *testing.T) {
 	require.Equal(t, oldLen, copy.Remaining())
 
 	for copy.Next() {
-		tag := copy.Current()  // keep looping
-		tag.Name.Data().Get()  // ensure we can get values too
-		tag.Value.Data().Get() // and don't panic
+		tag := copy.Current()    // keep looping
+		tag.Name.Data().Bytes()  // ensure we can get values too
+		tag.Value.Data().Bytes() // and don't panic
 	}
 	require.NoError(t, copy.Err())
 	copy.Close()
@@ -194,9 +194,9 @@ func TestDecodeDuplicateIteration(t *testing.T) {
 	require.Equal(t, oldLen, copy.Remaining())
 
 	for copy.Next() {
-		tag := copy.Current()  // keep looping
-		tag.Name.Data().Get()  // ensure we can get values too
-		tag.Value.Data().Get() // and don't panic
+		tag := copy.Current()    // keep looping
+		tag.Name.Data().Bytes()  // ensure we can get values too
+		tag.Value.Data().Bytes() // and don't panic
 	}
 	require.NoError(t, copy.Err())
 	copy.Close()
@@ -214,7 +214,7 @@ func TestDecodeDuplicateLifecycleMocks(t *testing.T) {
 
 	rawData := testTagDecoderBytesRaw()
 	mockBytes := checked.NewMockBytes(ctrl)
-	mockBytes.EXPECT().Get().Return(rawData).AnyTimes()
+	mockBytes.EXPECT().Bytes().Return(rawData).AnyTimes()
 
 	mockBytes.EXPECT().IncRef()
 	d := newTestTagDecoder()

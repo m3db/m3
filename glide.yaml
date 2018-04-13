@@ -40,6 +40,9 @@ import:
 - package: github.com/m3db/stackadler32
   version: bfebcd73ef6ffe0ee30489227f0330c39064b674
 
+- package: github.com/cespare/xxhash
+  version: 48099fad606eafc26e3a569fad19ff510fff4df6
+
 - package: github.com/apache/thrift
   version: ~0.9.3
   subpackages:

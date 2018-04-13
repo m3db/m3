@@ -431,7 +431,7 @@ func newDecoderState() gopter.Gen {
 			if !ok {
 				return nil
 			}
-			data := checked.NewBytes(b.Get(), nil)
+			data := checked.NewBytes(b.Bytes(), nil)
 			return &multiDecoderState{
 				tags:      tags,
 				initBytes: data,

@@ -1,5 +1,5 @@
-hash: e0143ec2364fd3672cbcef7a9f14345c358bf1326d275e65ea4c27ab15a5253f
-updated: 2018-04-11T15:11:20.089841-04:00
+hash: fa7594914c3a5876c78c373c9f1be9a5168e79e67ae2ca3199870b16d2362f2a
+updated: 2018-04-13T11:46:57.34606-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -9,6 +9,8 @@ imports:
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
   subpackages:
   - quantile
+- name: github.com/cespare/xxhash
+  version: 48099fad606eafc26e3a569fad19ff510fff4df6
 - name: github.com/cockroachdb/cmux
   version: 112f0506e7743d64a6eb8fedbcff13d9979bbf92
 - name: github.com/coreos/bbolt
