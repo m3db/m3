@@ -190,7 +190,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 
 	shardResults := bootstrapResult.ShardResults()
 	for shard, results := range shardResults {
-		if len(results.AllSeries()) == 0 {
+		if results.NumSeries() == 0 {
 			delete(shardResults, shard)
 		}
 	}
@@ -225,7 +225,8 @@ func (s *fileSystemSource) handleErrorsAndUnfulfilled(
 		resultLock.Lock()
 		shardResult, ok := bootstrapResult.ShardResults()[shard]
 		if ok {
-			for _, series := range shardResult.AllSeries() {
+			for _, entry := range shardResult.AllSeries().Iter() {
+				series := entry.DatabaseSeriesBlocks()
 				for _, t := range timesWithErrors {
 					shardResult.RemoveBlockAt(series.ID, t)
 				}
@@ -341,10 +342,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				break
 			}
 
-			idHash := id.Hash()
-
 			resultLock.RLock()
-			entry, exists := shardResult.AllSeries()[idHash]
+			entry, exists := shardResult.AllSeries().Get(id)
 			resultLock.RUnlock()
 
 			if exists {

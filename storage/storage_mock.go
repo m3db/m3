@@ -1190,7 +1190,7 @@ func (_mr *MockdatabaseShardMockRecorder) FetchBlocksMetadataV2(arg0, arg1, arg2
 }
 
 // Bootstrap mocks base method
-func (_m *MockdatabaseShard) Bootstrap(bootstrappedSeries map[ident.Hash]result.DatabaseSeriesBlocks) error {
+func (_m *MockdatabaseShard) Bootstrap(bootstrappedSeries *result.Map) error {
 	ret := _m.ctrl.Call(_m, "Bootstrap", bootstrappedSeries)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -2282,6 +2282,30 @@ func (_m *MockOptions) IndexingEnabled() bool {
 // IndexingEnabled indicates an expected call of IndexingEnabled
 func (_mr *MockOptionsMockRecorder) IndexingEnabled() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "IndexingEnabled", reflect.TypeOf((*MockOptions)(nil).IndexingEnabled))
+}
+
+// SetIndexOptions mocks base method
+func (_m *MockOptions) SetIndexOptions(value index.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetIndexOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIndexOptions indicates an expected call of SetIndexOptions
+func (_mr *MockOptionsMockRecorder) SetIndexOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetIndexOptions", reflect.TypeOf((*MockOptions)(nil).SetIndexOptions), arg0)
+}
+
+// IndexOptions mocks base method
+func (_m *MockOptions) IndexOptions() index.Options {
+	ret := _m.ctrl.Call(_m, "IndexOptions")
+	ret0, _ := ret[0].(index.Options)
+	return ret0
+}
+
+// IndexOptions indicates an expected call of IndexOptions
+func (_mr *MockOptionsMockRecorder) IndexOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "IndexOptions", reflect.TypeOf((*MockOptions)(nil).IndexOptions))
 }
 
 // SetRepairEnabled mocks base method

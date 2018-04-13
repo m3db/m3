@@ -147,7 +147,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		idsPerShard    = 16
 		shardIDs       = make(map[uint32][]ident.ID)
 		dataBytesPerID = 32
-		shardData      = make(map[uint32]map[ident.Hash]map[xtime.UnixNano]checked.Bytes)
+		shardData      = make(map[uint32]map[string]map[xtime.UnixNano]checked.Bytes)
 		blockStarts    []time.Time
 	)
 	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
@@ -155,14 +155,14 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	}
 	for _, shard := range shards {
 		shardIDs[shard] = make([]ident.ID, 0, idsPerShard)
-		shardData[shard] = make(map[ident.Hash]map[xtime.UnixNano]checked.Bytes, idsPerShard)
+		shardData[shard] = make(map[string]map[xtime.UnixNano]checked.Bytes, idsPerShard)
 		for _, blockStart := range blockStarts {
 			w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart)
 			for i := 0; i < idsPerShard; i++ {
 				id := ident.StringID(fmt.Sprintf("foo.%d", i))
 				shardIDs[shard] = append(shardIDs[shard], id)
 				if _, ok := shardData[shard][id.Hash()]; !ok {
-					shardData[shard][id.Hash()] = make(map[xtime.UnixNano]checked.Bytes, len(blockStarts))
+					shardData[shard][id.String()] = make(map[xtime.UnixNano]checked.Bytes, len(blockStarts))
 				}
 
 				data := checked.NewBytes(nil, nil)

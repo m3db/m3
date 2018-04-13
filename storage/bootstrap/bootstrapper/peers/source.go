@@ -294,7 +294,8 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 ) {
 	if err == nil {
 		shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
-		for _, series := range shardResult.AllSeries() {
+		for _, entry := range shardResult.AllSeries().Iter() {
+			series := entry.DatabaseSeriesBlocks()
 			for blockStart := range series.Blocks.AllBlocks() {
 				shardBlockSeriesCounter[blockStart]++
 			}
@@ -359,7 +360,8 @@ func (s *peersSource) incrementalFlush(
 		}
 
 		var blockErr error
-		for _, s := range shardResult.AllSeries() {
+		for _, entry := range shardResult.AllSeries().Iter() {
+			s := entry.DatabaseSeriesBlocks()
 			bl, ok := s.Blocks.BlockAt(start)
 			if !ok {
 				continue
@@ -429,7 +431,8 @@ func (s *peersSource) incrementalFlush(
 		// TODO: We need this right now because nodes with older versions of M3DB will return an extra
 		// block when requesting bootstrapped blocks. Once all the clusters have been upgraded we can
 		// remove this code.
-		for _, s := range shardResult.AllSeries() {
+		for _, entry := range shardResult.AllSeries().Iter() {
+			s := entry.DatabaseSeriesBlocks()
 			bl, ok := s.Blocks.BlockAt(tr.End)
 			if !ok {
 				continue
@@ -443,7 +446,8 @@ func (s *peersSource) incrementalFlush(
 		// they will all get loaded into the shard object, and then immediately evicted on the next
 		// tick which causes unnecessary memory pressure.
 		numSeriesTriedToRemoveWithRemainingBlocks := 0
-		for _, series := range shardResult.AllSeries() {
+		for _, entry := range shardResult.AllSeries().Iter() {
+			series := entry.DatabaseSeriesBlocks()
 			numBlocksRemaining := len(series.Blocks.AllBlocks())
 			// Should never happen since we removed all the block in the previous loop and fetching
 			// bootstrap blocks should always be exclusive on the end side.

@@ -94,7 +94,7 @@ func verifyForTime(
 
 			var datapoints []ts.Datapoint
 			it := iteratorPool.Get()
-			it.Reset(bytes.NewBuffer(data.Get()))
+			it.Reset(bytes.NewBuffer(data.Bytes()))
 			for it.Next() {
 				dp, _, _ := it.Current()
 				datapoints = append(datapoints, dp)

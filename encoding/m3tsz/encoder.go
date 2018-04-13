@@ -580,7 +580,7 @@ func (enc *encoder) segment(resType resultType) ts.Segment {
 	// of the encoder data.
 	var head checked.Bytes
 	buffer, pos := enc.os.Rawbytes()
-	lastByte := buffer.Get()[length-1]
+	lastByte := buffer.Bytes()[length-1]
 	if resType == byRefResultType {
 		// Take ref from the ostream
 		head = enc.os.Discard()
@@ -598,7 +598,7 @@ func (enc *encoder) segment(resType resultType) ts.Segment {
 		defer head.DecRef()
 
 		// Copy up to last byte
-		head.AppendAll(buffer.Get()[:length-1])
+		head.AppendAll(buffer.Bytes()[:length-1])
 	}
 
 	// Take a shared ref to a known good tail

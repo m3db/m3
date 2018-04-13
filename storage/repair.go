@@ -184,7 +184,7 @@ type repairState struct {
 
 type namespaceRepairStateByTime map[xtime.UnixNano]repairState
 
-type repairStatesByNs map[ident.Hash]namespaceRepairStateByTime
+type repairStatesByNs map[string]namespaceRepairStateByTime
 
 func newRepairStates() repairStatesByNs {
 	return make(repairStatesByNs)
@@ -196,7 +196,7 @@ func (r repairStatesByNs) repairStates(
 ) (repairState, bool) {
 	var rs repairState
 
-	nsRepairState, ok := r[namespace.Hash()]
+	nsRepairState, ok := r[namespace.String()]
 	if !ok {
 		return rs, false
 	}
@@ -210,10 +210,10 @@ func (r repairStatesByNs) setRepairState(
 	t time.Time,
 	state repairState,
 ) {
-	nsRepairState, ok := r[namespace.Hash()]
+	nsRepairState, ok := r[namespace.String()]
 	if !ok {
 		nsRepairState = make(namespaceRepairStateByTime)
-		r[namespace.Hash()] = nsRepairState
+		r[namespace.String()] = nsRepairState
 	}
 	nsRepairState[xtime.ToUnixNano(t)] = state
 }
@@ -328,7 +328,7 @@ func (r *dbRepairer) namespaceRepairTimeRanges(ns databaseNamespace) xtime.Range
 	)
 
 	targetRanges := xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end})
-	for tNano := range r.repairStatesByNs[ns.ID().Hash()] {
+	for tNano := range r.repairStatesByNs[ns.ID().String()] {
 		t := tNano.ToTime()
 		if !r.needsRepair(ns.ID(), t) {
 			targetRanges = targetRanges.RemoveRange(xtime.Range{Start: t, End: t.Add(blockSize)})

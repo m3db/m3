@@ -1,5 +1,5 @@
-hash: 14c637d70e38596b97cdb3456f18025bdff775492d0c15ae29a6a71a050a7580
-updated: 2018-04-09T14:47:49.878778-04:00
+hash: e0143ec2364fd3672cbcef7a9f14345c358bf1326d275e65ea4c27ab15a5253f
+updated: 2018-04-11T15:11:20.089841-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -169,7 +169,6 @@ imports:
   - integration/etcd
   - kv
   - kv/etcd
-  - kv/mem
   - kv/util
   - kv/util/runtime
   - placement
@@ -202,7 +201,7 @@ imports:
   - index/segment
   - index/segment/mem
 - name: github.com/m3db/m3x
-  version: 8bfb57c2e1a57770262378f26833110fbd029d94
+  version: d0873c0b327bee1a4a47f1d84263a6edaebbbf66
   vcs: git
   subpackages:
   - checked

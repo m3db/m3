@@ -117,26 +117,31 @@ func (m replicaBlocksMetadata) Close() {
 }
 
 // NB(xichen): replicaSeriesMetadata is not thread-safe
-type replicaSeriesMetadata map[ident.Hash]ReplicaSeriesBlocksMetadata
+type replicaSeriesMetadata struct {
+	values *Map
+}
 
 // NewReplicaSeriesMetadata creates a new replica series metadata
 func NewReplicaSeriesMetadata() ReplicaSeriesMetadata {
-	return make(replicaSeriesMetadata, defaultReplicaSeriesMetadataCapacity)
+	return replicaSeriesMetadata{
+		values: NewMap(MapOptions{InitialSize: defaultReplicaSeriesMetadataCapacity}),
+	}
 }
 
-func (m replicaSeriesMetadata) NumSeries() int64                                   { return int64(len(m)) }
-func (m replicaSeriesMetadata) Series() map[ident.Hash]ReplicaSeriesBlocksMetadata { return m }
+func (m replicaSeriesMetadata) NumSeries() int64 { return int64(m.values.Len()) }
+func (m replicaSeriesMetadata) Series() *Map     { return m.values }
 
 func (m replicaSeriesMetadata) NumBlocks() int64 {
 	var numBlocks int64
-	for _, series := range m {
+	for _, entry := range m.values.Iter() {
+		series := entry.ReplicaSeriesBlocksMetadata()
 		numBlocks += series.Metadata.NumBlocks()
 	}
 	return numBlocks
 }
 
 func (m replicaSeriesMetadata) GetOrAdd(id ident.ID) ReplicaBlocksMetadata {
-	blocks, exists := m[id.Hash()]
+	blocks, exists := m.values.Get(id)
 	if exists {
 		return blocks.Metadata
 	}
@@ -144,12 +149,13 @@ func (m replicaSeriesMetadata) GetOrAdd(id ident.ID) ReplicaBlocksMetadata {
 		ID:       id,
 		Metadata: NewReplicaBlocksMetadata(),
 	}
-	m[id.Hash()] = blocks
+	m.values.Set(id, blocks)
 	return blocks.Metadata
 }
 
 func (m replicaSeriesMetadata) Close() {
-	for _, series := range m {
+	for _, entry := range m.values.Iter() {
+		series := entry.ReplicaSeriesBlocksMetadata()
 		series.Metadata.Close()
 	}
 }
@@ -201,7 +207,8 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 		checkSumDiff = NewReplicaSeriesMetadata()
 	)
 
-	for _, series := range m.metadata.Series() {
+	for _, entry := range m.metadata.Series().Iter() {
+		series := entry.ReplicaSeriesBlocksMetadata()
 		for _, b := range series.Metadata.Blocks() {
 			bm := b.Metadata()
 

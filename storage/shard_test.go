@@ -81,7 +81,9 @@ func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, tags id
 	series.EXPECT().ID().Return(id).AnyTimes()
 	series.EXPECT().Tags().Return(tags).AnyTimes()
 	series.EXPECT().IsEmpty().Return(false).AnyTimes()
-	shard.lookup[id.Hash()] = shard.list.PushBack(&dbShardEntry{series: series, index: index})
+	shard.Lock()
+	shard.insertNewShardEntryWithLock(&dbShardEntry{series: series, index: index})
+	shard.Unlock()
 	return series
 }
 
@@ -133,8 +135,10 @@ func TestShardBootstrapWithError(t *testing.T) {
 	barSeries := series.NewMockDatabaseSeries(ctrl)
 	barSeries.EXPECT().ID().Return(ident.StringID("bar")).AnyTimes()
 	barSeries.EXPECT().IsEmpty().Return(false).AnyTimes()
-	s.lookup[ident.StringID("foo").Hash()] = s.list.PushBack(&dbShardEntry{series: fooSeries})
-	s.lookup[ident.StringID("bar").Hash()] = s.list.PushBack(&dbShardEntry{series: barSeries})
+	s.Lock()
+	s.insertNewShardEntryWithLock(&dbShardEntry{series: fooSeries})
+	s.insertNewShardEntryWithLock(&dbShardEntry{series: barSeries})
+	s.Unlock()
 
 	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	barBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
@@ -146,10 +150,9 @@ func TestShardBootstrapWithError(t *testing.T) {
 	fooID := ident.StringID("foo")
 	barID := ident.StringID("bar")
 
-	bootstrappedSeries := map[ident.Hash]result.DatabaseSeriesBlocks{
-		fooID.Hash(): {ID: fooID, Blocks: fooBlocks},
-		barID.Hash(): {ID: barID, Blocks: barBlocks},
-	}
+	bootstrappedSeries := result.NewMap(result.MapOptions{})
+	bootstrappedSeries.Set(fooID, result.DatabaseSeriesBlocks{ID: fooID, Blocks: fooBlocks})
+	bootstrappedSeries.Set(barID, result.DatabaseSeriesBlocks{ID: barID, Blocks: barBlocks})
 
 	err := s.Bootstrap(bootstrappedSeries)
 
@@ -341,7 +344,7 @@ func addMockTestSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID) *se
 	series := series.NewMockDatabaseSeries(ctrl)
 	series.EXPECT().ID().AnyTimes().Return(id)
 	shard.Lock()
-	shard.lookup[id.Hash()] = shard.list.PushBack(&dbShardEntry{series: series})
+	shard.insertNewShardEntryWithLock(&dbShardEntry{series: series})
 	shard.Unlock()
 	return series
 }
@@ -354,8 +357,7 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 	series := series.NewDatabaseSeries(id, nil, shard.seriesOpts)
 	series.Bootstrap(nil)
 	shard.Lock()
-	shard.lookup[id.Hash()] = shard.list.PushBack(&dbShardEntry{
-		series: series, curReadWriters: count})
+	shard.insertNewShardEntryWithLock(&dbShardEntry{series: series, curReadWriters: count})
 	shard.Unlock()
 	return series
 }
@@ -530,7 +532,7 @@ func TestShardTickRace(t *testing.T) {
 	wg.Wait()
 
 	shard.RLock()
-	shardlen := len(shard.lookup)
+	shardlen := shard.lookup.Len()
 	shard.RUnlock()
 	require.Equal(t, 0, shardlen)
 }
@@ -542,7 +544,7 @@ func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	addTestSeries(shard, ident.StringID("foo"))
 	shard.Tick(context.NewNoOpCanncellable())
-	require.Equal(t, 0, len(shard.lookup))
+	require.Equal(t, 0, shard.lookup.Len())
 }
 
 // This tests ensures the shard returns an error if two ticks are triggered concurrently.
@@ -668,7 +670,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 	shard.Tick(context.NewNoOpCanncellable())
 
 	shard.RLock()
-	require.Equal(t, 0, len(shard.lookup))
+	require.Equal(t, 0, shard.lookup.Len())
 	shard.RUnlock()
 }
 
@@ -711,7 +713,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
-	require.Equal(t, 1, len(shard.lookup))
+	require.Equal(t, 1, shard.lookup.Len())
 }
 
 // This tests the scenario where tickForEachSeries finishes, and before purgeExpiredSeries
@@ -739,10 +741,10 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
-	require.Equal(t, 1, len(shard.lookup))
+	require.Equal(t, 1, shard.lookup.Len())
 
 	entry.decrementReaderWriterCount()
-	require.Equal(t, 1, len(shard.lookup))
+	require.Equal(t, 1, shard.lookup.Len())
 }
 
 func TestForEachShardEntry(t *testing.T) {

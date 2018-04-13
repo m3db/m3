@@ -165,7 +165,7 @@ func wiredListTestWiredBlocksString(l *WiredList) string { // nolint: unused
 	b := bytes.NewBuffer(nil)
 	for bl := l.root.next(); bl != &l.root; bl = bl.next() {
 		dbBlock := bl.(*dbBlock)
-		b.WriteString(fmt.Sprintf("%s\n", string(dbBlock.segment.Head.Get())))
+		b.WriteString(fmt.Sprintf("%s\n", string(dbBlock.segment.Head.Bytes())))
 	}
 	return b.String()
 }

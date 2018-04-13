@@ -88,7 +88,7 @@ func (os *ostream) grow(v byte, np int) {
 }
 
 func (os *ostream) fillUnused(v byte) {
-	os.rawBuffer.Get()[os.lastIndex()] |= v >> uint(os.pos)
+	os.rawBuffer.Bytes()[os.lastIndex()] |= v >> uint(os.pos)
 }
 
 // WriteBit writes the last bit of v.

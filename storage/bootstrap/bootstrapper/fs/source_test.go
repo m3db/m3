@@ -139,7 +139,7 @@ func writeTSDBFiles(t *testing.T, dir string, namespace ident.ID, shard uint32, 
 
 	bytes := checked.NewBytes(data, nil)
 	bytes.IncRef()
-	require.NoError(t, w.Write(ident.StringID(id), bytes, digest.Checksum(bytes.Get())))
+	require.NoError(t, w.Write(ident.StringID(id), bytes, digest.Checksum(bytes.Bytes())))
 	require.NoError(t, w.Close())
 }
 
@@ -340,22 +340,24 @@ func validateReadResults(
 	require.NotNil(t, res.ShardResults())
 	require.NotNil(t, res.ShardResults()[testShard])
 	allSeries := res.ShardResults()[testShard].AllSeries()
-	require.Equal(t, 2, len(allSeries))
+	require.Equal(t, 2, allSeries.Len())
 	require.NotNil(t, res.Unfulfilled())
 	require.NotNil(t, res.Unfulfilled()[testShard])
 	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
 
-	require.Equal(t, 2, len(allSeries))
+	require.Equal(t, 2, allSeries.Len())
 
-	ids := []ident.Hash{
-		ident.StringID("foo").Hash(), ident.StringID("bar").Hash()}
+	ids := []ident.ID{
+		ident.StringID("foo"), ident.StringID("bar")}
 	data := [][]byte{
 		{1, 2, 3},
 		{4, 5, 6},
 	}
 	times := []time.Time{testStart, testStart.Add(10 * time.Hour)}
 	for i, id := range ids {
-		allBlocks := allSeries[id].Blocks.AllBlocks()
+		series, ok := allSeries.Get(id)
+		require.True(t, ok)
+		allBlocks := series.Blocks.AllBlocks()
 		require.Equal(t, 1, len(allBlocks))
 		block := allBlocks[xtime.ToUnixNano(times[i])]
 		ctx := context.NewContext()

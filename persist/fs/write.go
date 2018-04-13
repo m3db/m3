@@ -84,7 +84,7 @@ func (e indexEntries) Len() int {
 }
 
 func (e indexEntries) Less(i, j int) bool {
-	return bytes.Compare(e[i].id.Data().Get(), e[j].id.Data().Get()) < 0
+	return bytes.Compare(e[i].id.Data().Bytes(), e[j].id.Data().Bytes()) < 0
 }
 
 func (e indexEntries) Swap(i, j int) {
@@ -222,7 +222,7 @@ func (w *writer) writeAll(
 		if d == nil {
 			continue
 		}
-		if err := w.writeData(d.Get()); err != nil {
+		if err := w.writeData(d.Bytes()); err != nil {
 			return err
 		}
 	}
@@ -347,7 +347,7 @@ func (w *writer) writeIndexFileContents(
 
 	var offset int64
 	for i := range w.indexEntries {
-		id := w.indexEntries[i].id.Data().Get()
+		id := w.indexEntries[i].id.Data().Bytes()
 
 		entry := schema.IndexEntry{
 			Index:    w.indexEntries[i].index,
@@ -395,7 +395,7 @@ func (w *writer) writeSummariesFileContents(
 
 		summary := schema.IndexSummary{
 			Index:            w.indexEntries[i].index,
-			ID:               w.indexEntries[i].id.Data().Get(),
+			ID:               w.indexEntries[i].id.Data().Bytes(),
 			IndexEntryOffset: w.indexEntries[i].indexFileOffset,
 		}
 

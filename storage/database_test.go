@@ -194,7 +194,7 @@ func dbAddNewMockNamespace(
 	ns := ident.StringID(id)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().ID().Return(ns).AnyTimes()
-	d.namespaces[ns.Hash()] = mockNamespace
+	d.namespaces.Set(ns, mockNamespace)
 	return mockNamespace
 }
 
@@ -273,7 +273,7 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 	start := end.Add(-time.Hour)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().ReadEncoded(ctx, id, start, end).Return(nil, nil)
-	d.namespaces[ns.Hash()] = mockNamespace
+	d.namespaces.Set(ns, mockNamespace)
 
 	res, err := d.ReadEncoded(ctx, ns, id, start, end)
 	require.Nil(t, res)
@@ -319,7 +319,7 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 	expected := []block.FetchBlockResult{block.NewFetchBlockResult(starts[0], nil, nil)}
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().FetchBlocks(ctx, shardID, id, starts).Return(expected, nil)
-	d.namespaces[ns.Hash()] = mockNamespace
+	d.namespaces.Set(ns, mockNamespace)
 
 	res, err := d.FetchBlocks(ctx, ns, shardID, id, starts)
 	require.Equal(t, expected, res)
@@ -390,7 +390,7 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 		EXPECT().
 		FetchBlocksMetadata(ctx, shardID, start, end, limit, pageToken, opts).
 		Return(expectedBlocks, expectedToken, nil)
-	d.namespaces[ns.Hash()] = mockNamespace
+	d.namespaces.Set(ns, mockNamespace)
 
 	res, nextToken, err := d.FetchBlocksMetadata(ctx, ns, shardID, start, end, limit, pageToken, opts)
 	require.Equal(t, expectedBlocks, res)

@@ -315,10 +315,10 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	require.Equal(t, resShard, shard)
 	require.Equal(t, int64(2), resDiff.NumSeries)
 	require.Equal(t, int64(3), resDiff.NumBlocks)
-	require.Equal(t, 0, len(resDiff.ChecksumDifferences.Series()))
+	require.Equal(t, 0, resDiff.ChecksumDifferences.Series().Len())
 	sizeDiffSeries := resDiff.SizeDifferences.Series()
-	require.Equal(t, 1, len(sizeDiffSeries))
-	series, exists := sizeDiffSeries[ident.StringID("foo").Hash()]
+	require.Equal(t, 1, sizeDiffSeries.Len())
+	series, exists := sizeDiffSeries.Get(ident.StringID("foo"))
 	require.True(t, exists)
 	blocks := series.Metadata.Blocks()
 	require.Equal(t, 1, len(blocks))

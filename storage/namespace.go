@@ -681,9 +681,11 @@ func (n *dbNamespace) Bootstrap(
 		shard := shard
 		wg.Add(1)
 		workers.Go(func() {
-			var bootstrapped map[ident.Hash]result.DatabaseSeriesBlocks
-			if result, ok := results[shard.ID()]; ok {
-				bootstrapped = result.AllSeries()
+			var bootstrapped *result.Map
+			if shardResult, ok := results[shard.ID()]; ok {
+				bootstrapped = shardResult.AllSeries()
+			} else {
+				bootstrapped = result.NewMap(result.MapOptions{})
 			}
 
 			err := shard.Bootstrap(bootstrapped)

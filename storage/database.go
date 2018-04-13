@@ -83,7 +83,7 @@ type db struct {
 
 	nsWatch    databaseNamespaceWatch
 	shardSet   sharding.ShardSet
-	namespaces map[ident.Hash]databaseNamespace
+	namespaces *databaseNamespacesMap
 	commitLog  commitlog.CommitLog
 
 	state    databaseState
@@ -152,7 +152,7 @@ func NewDatabase(
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
 		shardSet:     shardSet,
-		namespaces:   make(map[ident.Hash]databaseNamespace),
+		namespaces:   newDatabaseNamespacesMap(),
 		commitLog:    commitLog,
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope),
@@ -239,7 +239,8 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []
 	)
 
 	// check if existing namespaces exist in newNamespaces
-	for _, ns := range existing {
+	for _, entry := range existing.Iter() {
+		ns := entry.Namespace()
 		newMd, err := newNamespaces.Get(ns.ID())
 
 		// if a namespace doesn't exist in newNamespaces, mark for removal
@@ -262,7 +263,7 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []
 
 	// check for any namespaces that need to be added
 	for _, ns := range newNamespaces.Metadatas() {
-		_, exists := d.namespaces[ns.ID().Hash()]
+		_, exists := d.namespaces.Get(ns.ID())
 		if !exists {
 			adds = append(adds, ns)
 		}
@@ -303,7 +304,7 @@ func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Me
 func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 	for _, n := range namespaces {
 		// ensure namespace doesn't exist
-		_, ok := d.namespaces[n.ID().Hash()]
+		_, ok := d.namespaces.Get(n.ID())
 		if ok { // should never happen
 			return fmt.Errorf("existing namespace marked for addition: %v", n.ID().String())
 		}
@@ -313,7 +314,7 @@ func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 		if err != nil {
 			return err
 		}
-		d.namespaces[n.ID().Hash()] = newNs
+		d.namespaces.Set(n.ID(), newNs)
 	}
 	return nil
 }
@@ -343,7 +344,8 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	d.Lock()
 	defer d.Unlock()
 	d.shardSet = shardSet
-	for _, ns := range d.namespaces {
+	for _, elem := range d.namespaces.Iter() {
+		ns := elem.Namespace()
 		ns.AssignShardSet(shardSet)
 	}
 	d.queueBootstrapWithLock()
@@ -372,16 +374,15 @@ func (d *db) queueBootstrapWithLock() {
 func (d *db) Namespace(id ident.ID) (Namespace, bool) {
 	d.RLock()
 	defer d.RUnlock()
-	ns, ok := d.namespaces[id.Hash()]
-	return ns, ok
+	return d.namespaces.Get(id)
 }
 
 func (d *db) Namespaces() []Namespace {
 	d.RLock()
 	defer d.RUnlock()
-	namespaces := make([]Namespace, 0, len(d.namespaces))
-	for _, elem := range d.namespaces {
-		namespaces = append(namespaces, elem)
+	namespaces := make([]Namespace, 0, d.namespaces.Len())
+	for _, elem := range d.namespaces.Iter() {
+		namespaces = append(namespaces, elem.Namespace())
 	}
 	return namespaces
 }
@@ -442,7 +443,7 @@ func (d *db) terminateWithLock() error {
 	// NB(prateek): Terminate is meant to return quickly, so we rely upon
 	// the gc to clean up any resources held by namespaces, and just set
 	// our reference to the namespaces to nil.
-	d.namespaces = nil
+	d.namespaces.Reallocate()
 
 	// Finally close the commit log
 	return d.commitLog.Close()
@@ -643,7 +644,7 @@ func (d *db) IsOverloaded() bool {
 
 func (d *db) namespaceFor(namespace ident.ID) (databaseNamespace, error) {
 	d.RLock()
-	n, exists := d.namespaces[namespace.Hash()]
+	n, exists := d.namespaces.Get(namespace)
 	d.RUnlock()
 
 	if !exists {
@@ -653,9 +654,9 @@ func (d *db) namespaceFor(namespace ident.ID) (databaseNamespace, error) {
 }
 
 func (d *db) ownedNamespacesWithLock() []databaseNamespace {
-	namespaces := make([]databaseNamespace, 0, len(d.namespaces))
-	for _, n := range d.namespaces {
-		namespaces = append(namespaces, n)
+	namespaces := make([]databaseNamespace, 0, d.namespaces.Len())
+	for _, n := range d.namespaces.Iter() {
+		namespaces = append(namespaces, n.Namespace())
 	}
 	return namespaces
 }

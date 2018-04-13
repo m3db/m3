@@ -302,7 +302,7 @@ func newInitState(dir string, t *testing.T) *clState {
 }
 
 func (s *clState) writesArePresent(writes ...generatedWrite) error {
-	writesOnDisk := make(map[ident.Hash]map[xtime.UnixNano]generatedWrite)
+	writesOnDisk := make(map[string]map[xtime.UnixNano]generatedWrite)
 	iterOpts := IteratorOpts{
 		CommitLogOptions:      s.opts,
 		FileFilterPredicate:   ReadAllPredicate(),
@@ -316,11 +316,11 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 	defer iter.Close()
 	for iter.Next() {
 		series, datapoint, unit, annotation := iter.Current()
-		idHash := series.ID.Hash()
-		seriesMap, ok := writesOnDisk[idHash]
+		idString := series.ID.String()
+		seriesMap, ok := writesOnDisk[idString]
 		if !ok {
 			seriesMap = make(map[xtime.UnixNano]generatedWrite)
-			writesOnDisk[idHash] = seriesMap
+			writesOnDisk[idString] = seriesMap
 		}
 		seriesMap[xtime.ToUnixNano(datapoint.Timestamp)] = generatedWrite{
 			series:     series,
@@ -335,8 +335,8 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 
 	missingErr := fmt.Errorf("writesOnDisk: %+v, writes: %+v", writesOnDisk, writes)
 	for _, w := range writes {
-		idHash := w.series.ID.Hash()
-		seriesMap, ok := writesOnDisk[idHash]
+		idString := w.series.ID.String()
+		seriesMap, ok := writesOnDisk[idString]
 		if !ok {
 			return missingErr
 		}

@@ -308,7 +308,7 @@ func (r *reader) Read() (ident.ID, checked.Bytes, uint32, error) {
 		defer data.DecRef()
 	}
 
-	n, err := r.dataReader.Read(data.Get())
+	n, err := r.dataReader.Read(data.Bytes())
 	if err != nil {
 		return none, nil, 0, err
 	}

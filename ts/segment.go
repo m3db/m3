@@ -91,16 +91,16 @@ func (s *Segment) Len() int {
 func (s *Segment) Equal(other *Segment) bool {
 	var head, tail, otherHead, otherTail []byte
 	if s.Head != nil {
-		head = s.Head.Get()
+		head = s.Head.Bytes()
 	}
 	if s.Tail != nil {
-		tail = s.Tail.Get()
+		tail = s.Tail.Bytes()
 	}
 	if other.Head != nil {
-		otherHead = other.Head.Get()
+		otherHead = other.Head.Bytes()
 	}
 	if other.Tail != nil {
-		otherTail = other.Tail.Get()
+		otherTail = other.Tail.Bytes()
 	}
 	return bytes.Equal(append(head, tail...), append(otherHead, otherTail...))
 }

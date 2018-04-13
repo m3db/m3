@@ -390,7 +390,7 @@ func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
 	}
 
 	// Copy the actual data into the underlying buffer
-	underlyingBuf := buffer.Get()
+	underlyingBuf := buffer.Bytes()
 	copy(underlyingBuf, data[:entry.Size])
 
 	// NB(r): _must_ check the checksum against known checksum as the data
@@ -413,7 +413,7 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 	stream := msgpack.NewDecoderStream(s.indexMmap[offset:])
 	s.decoder.Reset(stream)
 
-	idBytes := id.Data().Get()
+	idBytes := id.Data().Bytes()
 	// Prevent panic's when we're scanning to the end of the buffer
 	for stream.Remaining() != 0 {
 		entry, err := s.decoder.DecodeIndexEntry()
