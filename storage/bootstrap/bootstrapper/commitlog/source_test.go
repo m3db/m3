@@ -713,7 +713,7 @@ func verifyBlocksAreEqual(opts Options, expectedAllBlocks, actualAllBlocks map[x
 
 			if !(expectedNext && actualNext) {
 				return fmt.Errorf(
-					"err: expectedNext was: %v, but actualNext was: %v, expectedCurr: %v, actualCurr: %v",
+					"err: expectedNext was: %v, but actualNext was: %v",
 					expectedNext,
 					actualNext,
 				)
