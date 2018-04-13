@@ -59,7 +59,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	seed := time.Now().UnixNano()
 	parameters.Rng.Seed(1)
-	parameters.MinSuccessfulTests = 20
+	parameters.MinSuccessfulTests = 40
 	props := gopter.NewProperties(parameters)
 	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
 
@@ -159,7 +159,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			compressedWritesByShards := map[uint32]map[string][]byte{}
-			fmt.Println("snapshotTime: ", input.snapshotTime)
 			for seriesID, writesForSeries := range orderedWritesBySeries {
 				shard := hashIDToShard(ident.StringID(seriesID))
 				encodersBySeries, ok := compressedWritesByShards[shard]
@@ -175,7 +174,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					// and merge them together
 					if value.arrivedAt.Before(input.snapshotTime) ||
 						value.arrivedAt.Equal(input.snapshotTime) {
-						fmt.Println("writing ", value.series.ID.String(), " to snapshot: ", value.datapoint, " arrivedAt: ", value.arrivedAt)
 						err := encoder.Encode(value.datapoint, value.unit, value.annotation)
 						if err != nil {
 							return false, err
@@ -193,7 +191,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					if err != nil {
 						return false, err
 					}
-					fmt.Println("num bytes: ", len(bytes))
 					encodersBySeries[seriesID] = bytes
 
 				}
@@ -255,15 +252,11 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						currentTime = write.arrivedAt
 						lock.Unlock()
 					}
-					fmt.Println("writing ", write.series.ID.String(), " to snapshotcommitlog ", write.datapoint.Value, " arrivedAt: ", write.arrivedAt)
 					err := log.Write(context.NewContext(), write.series, write.datapoint, write.unit, write.annotation)
 					if err != nil {
 						return false, err
 					}
-					// fmt.Println(1)
 					writesCh <- struct{}{}
-					// fmt.Println(2)
-					// numWritten++
 				}
 			}
 			err = log.Close()
@@ -312,9 +305,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				for seriesID, w := range orderedWritesBySeries {
 					fmt.Println(seriesID, " ", "series: ", hashIDToShard(ident.StringID(seriesID)), " ", w[0].series.Shard)
 				}
-				// for _, write := range input.writes {
-				// 	fmt.Println(write.arrivedAt)
-				// }
 				return false, err
 			}
 			return true, nil

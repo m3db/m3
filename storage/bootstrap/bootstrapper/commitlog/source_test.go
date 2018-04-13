@@ -386,7 +386,6 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	seg := encoder.Discard()
 	bytes := append([]byte{}, seg.Head.Get()...)
 	bytes = append([]byte{}, seg.Tail.Get()...)
-	fmt.Println("hmm: ", len(bytes))
 	mockReader.EXPECT().Read().Return(
 		foo.ID,
 		checked.NewBytes(bytes, nil),
@@ -579,7 +578,6 @@ func createExpectedShardResult(
 
 	allResults := make(map[string]*seriesShardResult)
 	for _, v := range values {
-		fmt.Println(v.s.ID)
 		shardResult, ok := expected[v.s.Shard]
 		if !ok {
 			shardResult = result.NewShardResult(0, bopts)
@@ -677,31 +675,24 @@ func verifyShardResultsAreEqual(opts Options, shard uint32, actualResult, expect
 
 func verifyBlocksAreEqual(opts Options, expectedAllBlocks, actualAllBlocks map[xtime.UnixNano]block.DatabaseBlock) error {
 	blopts := opts.ResultOptions().DatabaseBlockOptions()
-	fmt.Println(1)
 	for start, expectedBlock := range expectedAllBlocks {
-		fmt.Println(2)
 		actualBlock, ok := actualAllBlocks[start]
 		if !ok {
-			fmt.Println("returning error")
 			return fmt.Errorf("Expected block for start time: %v", start)
 		}
-		fmt.Println(3)
 
 		ctx := blopts.ContextPool().Get()
 		defer ctx.Close()
-		fmt.Println(4)
 
 		expectedStream, expectedStreamErr := expectedBlock.Stream(ctx)
 		if expectedStreamErr != nil {
 			return fmt.Errorf("err creating expected stream: %s", expectedStreamErr.Error())
 		}
-		fmt.Println(5)
 
 		actualStream, actualStreamErr := actualBlock.Stream(ctx)
 		if actualStreamErr != nil {
 			return fmt.Errorf("err creating actual stream: %s", actualStreamErr.Error())
 		}
-		fmt.Println(6)
 
 		readerIteratorPool := blopts.ReaderIteratorPool()
 
@@ -721,10 +712,6 @@ func verifyBlocksAreEqual(opts Options, expectedAllBlocks, actualAllBlocks map[x
 			}
 
 			if !(expectedNext && actualNext) {
-				expectedCurr, _, _ := expectedIter.Current()
-				actualCurr, _, _ := actualIter.Current()
-				fmt.Println("expectedCurr: ", expectedCurr)
-				fmt.Println("actualCurr: ", actualCurr)
 				return fmt.Errorf(
 					"err: expectedNext was: %v, but actualNext was: %v, expectedCurr: %v, actualCurr: %v",
 					expectedNext,
@@ -734,8 +721,6 @@ func verifyBlocksAreEqual(opts Options, expectedAllBlocks, actualAllBlocks map[x
 
 			expectedValue, expectedUnit, expectedAnnotation := expectedIter.Current()
 			actualValue, actualUnit, actualAnnotation := actualIter.Current()
-
-			fmt.Println("actal: ", actualValue)
 
 			if expectedValue.Timestamp != actualValue.Timestamp {
 				return fmt.Errorf(

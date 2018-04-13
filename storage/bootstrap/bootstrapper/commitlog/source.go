@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
@@ -39,7 +38,6 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
-	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
@@ -316,7 +314,6 @@ func (s *commitLogSource) Read(
 		if !s.shouldEncodeSeries(unmerged, blockSize, series, dp) {
 			continue
 		}
-		fmt.Println("commitlog read ", series.ID, " and: ", dp.Value)
 
 		// Distribute work such that each encoder goroutine is responsible for
 		// approximately numShards / numConc shards. This also means that all
@@ -367,7 +364,6 @@ func (s *commitLogSource) Read(
 					continue
 				}
 
-				fmt.Println("merged: ", series.ID)
 				existingBlock.Merge(dbBlock)
 			}
 		}
@@ -515,19 +511,15 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 				snapshotFiles := snapshotFilesByShard[shard]
 
 				// TODO: Already called this FN, maybe should just re-use results somehow?
-				fmt.Println("a0")
 				latestSnapshot, ok := snapshotFiles.LatestValidForBlock(blockStart)
 				if !ok {
-					fmt.Println("a1")
 					// There is no snapshot file for this shard / block combination
 					continue
 				}
-				fmt.Println("made it")
 
 				// Bootstrap the snapshot file
 				reader, err := s.newReaderFn(bytesPool, fsOpts)
 				if err != nil {
-					fmt.Println("a2")
 					// TODO: In this case we want to emit an error log, and somehow propagate that
 					// we were unable to read this snapshot file to the subsequent code which determines
 					// how much commitlog to read. We might even want to try and read the next earliest
@@ -546,17 +538,14 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 					FilesetType: persist.FilesetSnapshotType,
 				})
 				if err != nil {
-					fmt.Println("a3")
 					// TODO: Same comment as above
 					return nil, err
 				}
 
 				for {
-					fmt.Println("looping")
 					// TODO: Verify checksum?
 					id, data, _, err := reader.Read()
 					if err != nil && err != io.EOF {
-						fmt.Println("eof")
 						return nil, err
 					}
 
@@ -564,23 +553,8 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 						break
 					}
 
-					fmt.Println("not eof")
 					dbBlock := blocksPool.Get()
 					dbBlock.Reset(blockStart, ts.NewSegment(data, nil, ts.FinalizeHead))
-					reader, err := dbBlock.Stream(context.NewContext())
-					if err != nil {
-						return nil, err
-					}
-					decoder := m3tsz.NewDecoder(true, nil)
-					iter := decoder.Decode(reader)
-					for iter.Next() {
-						dp, _, _ := iter.Current()
-						fmt.Println("read from snapshot id: ", id, " value: ", dp.Value)
-					}
-
-					if iter.Err() != nil && iter.Err() != io.EOF {
-						panic(iter.Err())
-					}
 
 					shardResult.AddBlock(id, dbBlock)
 				}
