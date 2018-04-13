@@ -489,7 +489,7 @@ func fulfillTszFetchBatchOps(
 				}
 				seg := encoder.Discard()
 				op.completionFns[i]([]*rpc.Segments{&rpc.Segments{
-					Merged: &rpc.Segment{Head: seg.Head.Get(), Tail: seg.Tail.Get()},
+					Merged: &rpc.Segment{Head: seg.Head.Bytes(), Tail: seg.Tail.Bytes()},
 				}}, nil)
 				calledCompletionFn = true
 				break

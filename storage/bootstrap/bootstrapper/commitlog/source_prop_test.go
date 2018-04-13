@@ -247,5 +247,5 @@ func seriesUniqueIndex(series string) uint64 {
 
 // hashIDToShard generates a HashFn based on murmur32
 func hashIDToShard(id ident.ID) uint32 {
-	return murmur3.Sum32(id.Data().Get()) % uint32(maxShards)
+	return murmur3.Sum32(id.Data().Bytes()) % uint32(maxShards)
 }

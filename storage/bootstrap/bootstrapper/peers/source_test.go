@@ -250,7 +250,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 					persists["foo"]++
 					assert.Equal(t, "foo", id.String())
-					assert.Equal(t, []byte{1, 2, 3}, segment.Head.Get())
+					assert.Equal(t, []byte{1, 2, 3}, segment.Head.Bytes())
 					assert.Equal(t, fooBlock.Checksum(), checksum)
 					return nil
 				},
@@ -270,7 +270,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 					persists["bar"]++
 					assert.Equal(t, "bar", id.String())
-					assert.Equal(t, []byte{4, 5, 6}, segment.Head.Get())
+					assert.Equal(t, []byte{4, 5, 6}, segment.Head.Bytes())
 					assert.Equal(t, barBlock.Checksum(), checksum)
 					return nil
 				},
@@ -290,7 +290,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 					persists["baz"]++
 					assert.Equal(t, "baz", id.String())
-					assert.Equal(t, []byte{7, 8, 9}, segment.Head.Get())
+					assert.Equal(t, []byte{7, 8, 9}, segment.Head.Bytes())
 					assert.Equal(t, bazBlock.Checksum(), checksum)
 					return nil
 				},

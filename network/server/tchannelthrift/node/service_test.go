@@ -222,10 +222,10 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 		require.NoError(t, err)
 
 		if expectSegment.Head != nil {
-			expectHead = expectSegment.Head.Get()
+			expectHead = expectSegment.Head.Bytes()
 		}
 		if expectSegment.Tail != nil {
-			expectTail = expectSegment.Tail.Get()
+			expectTail = expectSegment.Tail.Bytes()
 		}
 
 		assert.Equal(t, expectHead, seg.Merged.Head)
@@ -331,10 +331,10 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 		require.NoError(t, err)
 
 		if expectSegment.Head != nil {
-			expectHead = expectSegment.Head.Get()
+			expectHead = expectSegment.Head.Bytes()
 		}
 		if expectSegment.Tail != nil {
-			expectTail = expectSegment.Tail.Get()
+			expectTail = expectSegment.Tail.Bytes()
 		}
 
 		assert.Equal(t, expectHead, seg.Merged.Head)

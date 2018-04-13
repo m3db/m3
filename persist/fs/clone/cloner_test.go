@@ -95,7 +95,7 @@ func TestCloner(t *testing.T) {
 		b1.IncRef()
 		b2.IncRef()
 		require.Equal(t, t1.String(), t2.String())
-		require.Equal(t, b1.Get(), b2.Get())
+		require.Equal(t, b1.Bytes(), b2.Bytes())
 		require.Equal(t, c1, c2)
 		b1.DecRef()
 		b2.DecRef()
