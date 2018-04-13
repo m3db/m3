@@ -462,7 +462,8 @@ func createExpectedShardResult(
 			expected[v.s.Shard] = shardResult
 		}
 
-		blocks := shardResult.AllSeries()[v.s.ID.Hash()].Blocks
+		series, _ := shardResult.AllSeries().Get(v.s.ID)
+		blocks := series.Blocks
 		blockStart := v.t.Truncate(blockSize)
 
 		r, ok := allResults[v.s.ID.String()]
@@ -510,17 +511,18 @@ func createExpectedShardResult(
 func verifyShardResultsAreEqual(opts Options, shard uint32, actualResult, expectedResult result.ShardResult) error {
 	expectedSeries := expectedResult.AllSeries()
 	actualSeries := actualResult.AllSeries()
-	if len(expectedSeries) != len(actualSeries) {
+	if expectedSeries.Len() != actualSeries.Len() {
 		return fmt.Errorf(
 			"different number of series for shard: %v . expected: %d , actual: %d",
 			shard,
-			len(expectedSeries),
-			len(actualSeries),
+			expectedSeries.Len(),
+			actualSeries.Len(),
 		)
 	}
 
-	for expectedID, expectedBlocks := range expectedSeries {
-		actualBlocks, ok := actualSeries[expectedID]
+	for _, entry := range expectedSeries.Iter() {
+		expectedID, expectedBlocks := entry.Key(), entry.DatabaseSeriesBlocks()
+		actualBlocks, ok := actualSeries.Get(expectedID)
 		if !ok {
 			return fmt.Errorf("series: %v present in expected but not actual", expectedID)
 		}
