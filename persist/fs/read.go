@@ -296,6 +296,7 @@ func (r *reader) readInfo(size int) error {
 	r.start = xtime.FromNanoseconds(info.BlockStart)
 	r.blockSize = time.Duration(info.BlockSize)
 	r.entries = int(info.Entries)
+	fmt.Println("numEntries: ", r.entries)
 	r.entriesRead = 0
 	r.metadataRead = 0
 	r.bloomFilterInfo = info.BloomFilter
@@ -319,15 +320,18 @@ func (r *reader) readIndexAndSortByOffsetAsc() error {
 
 func (r *reader) Read() (ident.ID, checked.Bytes, uint32, error) {
 	var none ident.ID
+	fmt.Println("a")
 	if r.entries > 0 && len(r.indexEntriesByOffsetAsc) < r.entries {
 		// Have not read the index yet, this is required when reading
 		// data as we need each index entry in order by by the offset ascending
 		if err := r.readIndexAndSortByOffsetAsc(); err != nil {
+			fmt.Println("b")
 			return none, nil, 0, err
 		}
 	}
 
 	if r.entriesRead >= r.entries {
+		fmt.Println("c")
 		return none, nil, 0, io.EOF
 	}
 
@@ -347,14 +351,17 @@ func (r *reader) Read() (ident.ID, checked.Bytes, uint32, error) {
 
 	n, err := r.dataReader.Read(data.Get())
 	if err != nil {
+		fmt.Println("d")
 		return none, nil, 0, err
 	}
 	if n != int(entry.Size) {
+		fmt.Println("e")
 		return none, nil, 0, errReadNotExpectedSize
 	}
 
 	r.entriesRead++
 
+	fmt.Println("f: ", string(entry.ID), " ", len(data.Get()))
 	return r.entryID(entry.ID), data, uint32(entry.Checksum), nil
 }
 

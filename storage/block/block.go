@@ -22,6 +22,7 @@ package block
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -424,7 +425,14 @@ func (dbb *databaseSeriesBlocks) AddBlock(block DatabaseBlock) {
 	if dbb.max.Equal(timeZero) || start.After(dbb.max) {
 		dbb.max = start
 	}
-	dbb.elems[xtime.ToUnixNano(start)] = block
+	_, ok := dbb.elems[xtime.ToUnixNano(start)]
+	if ok {
+		// existing.Merge(block)
+		// panic("wtf")
+		fmt.Println("not merging")
+	} else {
+		dbb.elems[xtime.ToUnixNano(start)] = block
+	}
 }
 
 func (dbb *databaseSeriesBlocks) AddSeries(other DatabaseSeriesBlocks) {

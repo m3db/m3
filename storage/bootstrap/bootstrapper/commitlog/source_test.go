@@ -163,7 +163,7 @@ func TestReadOrderedValues(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(values[:4], res.ShardResults(), opts))
+	require.NoError(t, verifyShardResultsAreCorrect(values[:4], blockSize, res.ShardResults(), opts))
 }
 
 func TestReadNamespaceFiltering(t *testing.T) {
@@ -207,7 +207,7 @@ func TestReadNamespaceFiltering(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(values[:4], res.ShardResults(), opts))
+	require.NoError(t, verifyShardResultsAreCorrect(values[:4], blockSize, res.ShardResults(), opts))
 }
 
 func TestReadUnorderedValues(t *testing.T) {
@@ -248,7 +248,7 @@ func TestReadUnorderedValues(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(values, res.ShardResults(), opts))
+	require.NoError(t, verifyShardResultsAreCorrect(values, blockSize, res.ShardResults(), opts))
 }
 
 func TestReadTrimsToRanges(t *testing.T) {
@@ -291,7 +291,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(values[1:3], res.ShardResults(), opts))
+	require.NoError(t, verifyShardResultsAreCorrect(values[1:3], blockSize, res.ShardResults(), opts))
 }
 
 // TODO: Improve this test to cover more of the logic and edge-cases
@@ -386,6 +386,7 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	seg := encoder.Discard()
 	bytes := append([]byte{}, seg.Head.Get()...)
 	bytes = append([]byte{}, seg.Tail.Get()...)
+	fmt.Println("hmm: ", len(bytes))
 	mockReader.EXPECT().Read().Return(
 		foo.ID,
 		checked.NewBytes(bytes, nil),
@@ -407,7 +408,7 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	require.Equal(t, 0, len(res.Unfulfilled()))
 	expectedValues := append([]testValue{}, commitLogValues[1:3]...)
 	expectedValues = append(expectedValues, snapshotValues...)
-	require.NoError(t, verifyShardResultsAreCorrect(expectedValues, res.ShardResults(), opts))
+	require.NoError(t, verifyShardResultsAreCorrect(expectedValues, blockSize, res.ShardResults(), opts))
 }
 
 func TestNewReadCommitLogPredicate(t *testing.T) {
@@ -523,6 +524,7 @@ type seriesShardResult struct {
 
 func verifyShardResultsAreCorrect(
 	values []testValue,
+	blockSize time.Duration,
 	actual result.ShardResults,
 	opts Options,
 ) error {
@@ -535,7 +537,7 @@ func verifyShardResultsAreCorrect(
 	}
 
 	// First create what result should be constructed for test values
-	expected, err := createExpectedShardResult(values, actual, opts)
+	expected, err := createExpectedShardResult(values, blockSize, actual, opts)
 	if err != nil {
 		return err
 	}
@@ -553,18 +555,21 @@ func verifyShardResultsAreCorrect(
 			return fmt.Errorf("shard: %d present in expected, but not actual", shard)
 		}
 
-		verifyShardResultsAreEqual(opts, shard, actualResult, expectedResult)
+		err = verifyShardResultsAreEqual(opts, shard, actualResult, expectedResult)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func createExpectedShardResult(
 	values []testValue,
+	blockSize time.Duration,
 	actual result.ShardResults,
 	opts Options,
 ) (result.ShardResults, error) {
 	bopts := opts.ResultOptions()
-	blockSize := opts.CommitLogOptions().BlockSize()
 	blopts := bopts.DatabaseBlockOptions()
 
 	expected := result.ShardResults{}
@@ -574,12 +579,16 @@ func createExpectedShardResult(
 
 	allResults := make(map[string]*seriesShardResult)
 	for _, v := range values {
+		fmt.Println(v.s.ID)
 		shardResult, ok := expected[v.s.Shard]
 		if !ok {
 			shardResult = result.NewShardResult(0, bopts)
+			expected[v.s.Shard] = shardResult
+		}
+		_, exists := shardResult.AllSeries()[v.s.ID.Hash()]
+		if !exists {
 			// Trigger blocks to be created for series
 			shardResult.AddSeries(v.s.ID, nil)
-			expected[v.s.Shard] = shardResult
 		}
 
 		blocks := shardResult.AllSeries()[v.s.ID.Hash()].Blocks
@@ -641,6 +650,7 @@ func verifyShardResultsAreEqual(opts Options, shard uint32, actualResult, expect
 
 	for expectedID, expectedBlocks := range expectedSeries {
 		actualBlocks, ok := actualSeries[expectedID]
+		id := expectedBlocks.ID
 		if !ok {
 			return fmt.Errorf("series: %v present in expected but not actual", expectedID)
 		}
@@ -649,9 +659,10 @@ func verifyShardResultsAreEqual(opts Options, shard uint32, actualResult, expect
 		actualAllBlocks := actualBlocks.Blocks.AllBlocks()
 		if len(expectedAllBlocks) != len(actualAllBlocks) {
 			return fmt.Errorf(
-				"number of expected blocks: %d does not match number of actual blocks: %d",
+				"number of expected blocks: %d does not match number of actual blocks: %d for series: %s",
 				len(expectedAllBlocks),
 				len(actualAllBlocks),
+				id.String(),
 			)
 		}
 
@@ -666,24 +677,31 @@ func verifyShardResultsAreEqual(opts Options, shard uint32, actualResult, expect
 
 func verifyBlocksAreEqual(opts Options, expectedAllBlocks, actualAllBlocks map[xtime.UnixNano]block.DatabaseBlock) error {
 	blopts := opts.ResultOptions().DatabaseBlockOptions()
-	for start, actualBlock := range actualAllBlocks {
-		expectedBlock, ok := expectedAllBlocks[start]
+	fmt.Println(1)
+	for start, expectedBlock := range expectedAllBlocks {
+		fmt.Println(2)
+		actualBlock, ok := actualAllBlocks[start]
 		if !ok {
+			fmt.Println("returning error")
 			return fmt.Errorf("Expected block for start time: %v", start)
 		}
+		fmt.Println(3)
 
 		ctx := blopts.ContextPool().Get()
 		defer ctx.Close()
+		fmt.Println(4)
 
 		expectedStream, expectedStreamErr := expectedBlock.Stream(ctx)
 		if expectedStreamErr != nil {
 			return fmt.Errorf("err creating expected stream: %s", expectedStreamErr.Error())
 		}
+		fmt.Println(5)
 
 		actualStream, actualStreamErr := actualBlock.Stream(ctx)
 		if actualStreamErr != nil {
 			return fmt.Errorf("err creating actual stream: %s", actualStreamErr.Error())
 		}
+		fmt.Println(6)
 
 		readerIteratorPool := blopts.ReaderIteratorPool()
 
@@ -703,8 +721,12 @@ func verifyBlocksAreEqual(opts Options, expectedAllBlocks, actualAllBlocks map[x
 			}
 
 			if !(expectedNext && actualNext) {
+				expectedCurr, _, _ := expectedIter.Current()
+				actualCurr, _, _ := actualIter.Current()
+				fmt.Println("expectedCurr: ", expectedCurr)
+				fmt.Println("actualCurr: ", actualCurr)
 				return fmt.Errorf(
-					"err: expectedNext was: %v, but actualNext was: %v",
+					"err: expectedNext was: %v, but actualNext was: %v, expectedCurr: %v, actualCurr: %v",
 					expectedNext,
 					actualNext,
 				)
@@ -712,6 +734,8 @@ func verifyBlocksAreEqual(opts Options, expectedAllBlocks, actualAllBlocks map[x
 
 			expectedValue, expectedUnit, expectedAnnotation := expectedIter.Current()
 			actualValue, actualUnit, actualAnnotation := actualIter.Current()
+
+			fmt.Println("actal: ", actualValue)
 
 			if expectedValue.Timestamp != actualValue.Timestamp {
 				return fmt.Errorf(

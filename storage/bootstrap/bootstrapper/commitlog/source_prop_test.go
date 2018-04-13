@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
@@ -57,8 +58,8 @@ const blockSize = 2 * time.Hour
 func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	seed := time.Now().UnixNano()
-	parameters.Rng.Seed(seed)
-	parameters.MinSuccessfulTests = 80
+	parameters.Rng.Seed(1)
+	parameters.MinSuccessfulTests = 20
 	props := gopter.NewProperties(parameters)
 	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
 
@@ -98,7 +99,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				return curr
 			}
 
-			writesCh := make(chan struct{})
+			writesCh := make(chan struct{}, 5)
 			go func() {
 				for range writesCh {
 					lock.Lock()
@@ -158,6 +159,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			compressedWritesByShards := map[uint32]map[string][]byte{}
+			fmt.Println("snapshotTime: ", input.snapshotTime)
 			for seriesID, writesForSeries := range orderedWritesBySeries {
 				shard := hashIDToShard(ident.StringID(seriesID))
 				encodersBySeries, ok := compressedWritesByShards[shard]
@@ -166,21 +168,34 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					compressedWritesByShards[shard] = encodersBySeries
 				}
 
-				encoder := m3tsz.NewEncoder(writesForSeries[0].datapoint.Timestamp, nil, true, nil)
+				encoder := m3tsz.NewEncoder(writesForSeries[0].datapoint.Timestamp, nil, true, encoding.NewOptions())
 				for _, value := range writesForSeries {
 					// Only include datapoints that are before or during the snapshot time to
 					// ensure that we properly bootstrap from both snapshot files and commit logs
 					// and merge them together
 					if value.arrivedAt.Before(input.snapshotTime) ||
 						value.arrivedAt.Equal(input.snapshotTime) {
-						encoder.Encode(value.datapoint, value.unit, value.annotation)
+						fmt.Println("writing ", value.series.ID.String(), " to snapshot: ", value.datapoint, " arrivedAt: ", value.arrivedAt)
+						err := encoder.Encode(value.datapoint, value.unit, value.annotation)
+						if err != nil {
+							return false, err
+						}
 					}
 				}
-				seg := encoder.Discard()
-				if seg.Head != nil && seg.Tail != nil {
-					bytes := append([]byte{}, seg.Head.Get()...)
-					bytes = append([]byte{}, seg.Tail.Get()...)
+				reader := encoder.Stream()
+				if reader != nil {
+					seg, err := reader.Segment()
+					if err != nil {
+						return false, err
+					}
+					bytes := make([]byte, seg.Len())
+					_, err = reader.Read(bytes)
+					if err != nil {
+						return false, err
+					}
+					fmt.Println("num bytes: ", len(bytes))
 					encodersBySeries[seriesID] = bytes
+
 				}
 				compressedWritesByShards[shard] = encodersBySeries // TODO: DO I need this?
 			}
@@ -240,11 +255,14 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						currentTime = write.arrivedAt
 						lock.Unlock()
 					}
+					fmt.Println("writing ", write.series.ID.String(), " to snapshotcommitlog ", write.datapoint.Value, " arrivedAt: ", write.arrivedAt)
 					err := log.Write(context.NewContext(), write.series, write.datapoint, write.unit, write.annotation)
 					if err != nil {
 						return false, err
 					}
+					// fmt.Println(1)
 					writesCh <- struct{}{}
+					// fmt.Println(2)
 					// numWritten++
 				}
 			}
@@ -289,14 +307,14 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			if bootstrapResult != nil {
 				shardResults = bootstrapResult.ShardResults()
 			}
-			err = verifyShardResultsAreCorrect(values, shardResults, bootstrapOpts)
+			err = verifyShardResultsAreCorrect(values, blockSize, shardResults, bootstrapOpts)
 			if err != nil {
-				for seriesID, _ := range orderedWritesBySeries {
-					fmt.Println("series: ", hashIDToShard(ident.StringID(seriesID)))
+				for seriesID, w := range orderedWritesBySeries {
+					fmt.Println(seriesID, " ", "series: ", hashIDToShard(ident.StringID(seriesID)), " ", w[0].series.Shard)
 				}
-				for _, write := range input.writes {
-					fmt.Println(write.arrivedAt)
-				}
+				// for _, write := range input.writes {
+				// 	fmt.Println(write.arrivedAt)
+				// }
 				return false, err
 			}
 			return true, nil
