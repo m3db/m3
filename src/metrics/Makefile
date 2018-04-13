@@ -24,6 +24,11 @@ auto_gen             := .ci/auto-gen.sh
 protoc_go_package    := github.com/golang/protobuf/protoc-gen-go
 proto_output_dir     := generated/proto/schema
 proto_rules_dir      := generated/proto
+mocks_output_dir     := generated/mocks/mocks
+mocks_rules_dir      := generated/mocks
+mockgen_package      := github.com/golang/mock/mockgen
+package_root         := github.com/m3db/m3metrics
+
 
 BUILD           := $(abspath ./bin)
 LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
@@ -94,6 +99,17 @@ test-ci-unit: test-internal
 .PHONY: test-ci-integration
 test-ci-integration:
 	$(test_ci_integration)
+
+.PHONY: install-mockgen
+install-mockgen: install-vendor
+	@echo Installing mockgen
+	glide install
+
+.PHONY: mock-gen
+mock-gen: install-mockgen install-license-bin install-util-mockclean
+	@echo Generating mocks
+	PACKAGE=$(package_root) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
+
 
 .PHONY: clean
 clean:
