@@ -342,12 +342,6 @@ func (s *commitLogSource) Read(
 
 	commitLogBootstrapResult := s.mergeShards(int(numShards), bopts, blopts, encoderPool, unmerged, snapshotShardResults)
 
-	// snapshotBootstrapResult := result.NewBootstrapResult()
-	// for shard, shardResult := range snapshotShardResults {
-	// 	snapshotBootstrapResult.Add(shard, shardResult, xtime.Ranges{})
-	// }
-	// return result.MergedBootstrapResult(commitLogBootstrapResult, snapshotBootstrapResult), nil
-	// // TODO: Clean this up
 	commitLogShardResults := commitLogBootstrapResult.ShardResults()
 	for shard, shardResult := range snapshotShardResults {
 		existingShardResult, ok := commitLogShardResults[shard]
