@@ -275,10 +275,28 @@ func writeTestDataToDisk(
 	metadata namespace.Metadata,
 	setup *testSetup,
 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
+	// TODO: Remove boolean and just have a separate method?
+	isSnapshot bool,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
-	writer := generate.NewWriter(setup.generatorOptions(ropts))
+	writer := generate.NewWriter(
+		setup.generatorOptions(ropts).
+			SetWriteSnapshot(isSnapshot))
 	return writer.Write(metadata.ID(), setup.shardSet, seriesMaps)
+}
+
+// nolint: deadcode
+func writeTestSnapshotsToDisk(
+	metadata namespace.Metadata,
+	setup *testSetup,
+	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
+	pred generate.WriteDatapointPredicate,
+) error {
+	ropts := metadata.Options().RetentionOptions()
+	writer := generate.NewWriter(
+		setup.generatorOptions(ropts).
+			SetWriteSnapshot(true))
+	return writer.WriteWithPredicate(metadata.ID(), setup.shardSet, seriesMaps, pred)
 }
 
 // nolint: deadcode

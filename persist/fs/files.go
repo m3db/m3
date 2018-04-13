@@ -96,6 +96,18 @@ func (s SnapshotFile) HasCheckpointFile() bool {
 	return false
 }
 
+// SnapshotTime returns the time at which the snapshot was taken
+func SnapshotTime(pathPrefix string, id FilesetFileIdentifier, readerBufferSize int, decoder *msgpack.Decoder) (time.Time, error) {
+	infoBytes, err := readSnapshotInfoFile(pathPrefix, id, readerBufferSize)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	decoder.Reset(msgpack.NewDecoderStream(infoBytes))
+	info, err := decoder.DecodeIndexInfo()
+	return time.Unix(0, info.SnapshotTime), err
+}
+
 // SnapshotFilesSlice is a slice of SnapshotFile
 type SnapshotFilesSlice []SnapshotFile
 
@@ -110,26 +122,37 @@ func (f SnapshotFilesSlice) Filepaths() []string {
 	return flattened
 }
 
-// LatestForBlock returns the latest (highest index) SnapshotFile in the
+// LatestValidForBlock returns the latest (highest index) SnapshotFile in the
 // slice for a given block start.
-func (f SnapshotFilesSlice) LatestForBlock(blockStart time.Time) (SnapshotFile, bool) {
+// TODO: More tests
+func (f SnapshotFilesSlice) LatestValidForBlock(blockStart time.Time) (SnapshotFile, bool) {
 	// Make sure we're already sorted
 	f.sortByTimeAndIndexAscending()
 
 	for i, curr := range f {
 		if curr.ID.BlockStart.Equal(blockStart) {
-			isEnd := i == len(f)-1
-			isHighestIdx := true
-			if !isEnd {
-				next := f[i+1]
-				if next.ID.BlockStart.Equal(blockStart) && next.ID.Index > curr.ID.Index {
-					isHighestIdx = false
+			// Once we've found the first snapshot with a matching blockStart,
+			// start a new scan that looks at every snapshot with that blockStart,
+			// keeps track of the best match so far, and then returns early so we
+			// don't waste time scanning snapshot files with blockStarts that are
+			// too far in the future.
+			bestSoFar := -1
+			for j := i; j < len(f); j++ {
+				curr = f[j]
+				if !curr.ID.BlockStart.Equal(blockStart) {
+					// We've checked every snapshot for the desired blockStart.
+					break
+				}
+				if curr.HasCheckpointFile() {
+					bestSoFar = j
 				}
 			}
 
-			if isEnd || isHighestIdx {
-				return curr, true
+			if bestSoFar >= 0 {
+				return f[bestSoFar], true
 			}
+
+			return SnapshotFile{}, false
 		}
 	}
 
@@ -332,13 +355,15 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 			continue
 		}
 		// Read and validate the digest file
-		digestData, err := readAndValidate(shardDir, t, digestFileSuffix, readerBufferSize, expectedDigestOfDigest)
+		digestData, err := readAndValidate(
+			filesetPathFromTime(shardDir, t, digestFileSuffix), readerBufferSize, expectedDigestOfDigest)
 		if err != nil {
 			continue
 		}
 		// Read and validate the info file
 		expectedInfoDigest := digest.ToBuffer(digestData).ReadDigest()
-		infoData, err := readAndValidate(shardDir, t, infoFileSuffix, readerBufferSize, expectedInfoDigest)
+		infoData, err := readAndValidate(
+			filesetPathFromTime(shardDir, t, infoFileSuffix), readerBufferSize, expectedInfoDigest)
 		if err != nil {
 			continue
 		}
@@ -348,6 +373,33 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 
 		fn(matched[i].AbsoluteFilepaths[0], infoData)
 	}
+}
+
+func readSnapshotInfoFile(filePathPrefix string, id FilesetFileIdentifier, readerBufferSize int) ([]byte, error) {
+	shardDir := ShardSnapshotsDirPath(filePathPrefix, id.Namespace, id.Shard)
+	checkpointFilePath := snapshotPathFromTimeAndIndex(shardDir, id.BlockStart, checkpointFileSuffix, id.Index)
+	checkpointFd, err := os.Open(checkpointFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read digest of digests from the checkpoint file
+	digestBuf := digest.NewBuffer()
+	expectedDigestOfDigest, err := digestBuf.ReadDigestFromFile(checkpointFd)
+	checkpointFd.Close()
+	if err != nil {
+		return nil, err
+	}
+	// Read and validate the digest file
+	digestData, err := readAndValidate(
+		snapshotPathFromTimeAndIndex(shardDir, id.BlockStart, digestFileSuffix, id.Index), readerBufferSize, expectedDigestOfDigest)
+	if err != nil {
+		return nil, err
+	}
+	// Read and validate the info file
+	expectedInfoDigest := digest.ToBuffer(digestData).ReadDigest()
+	return readAndValidate(
+		snapshotPathFromTimeAndIndex(shardDir, id.BlockStart, infoFileSuffix, id.Index), readerBufferSize, expectedInfoDigest)
 }
 
 // ReadInfoFileResult is the result of reading an info file
@@ -627,13 +679,10 @@ func FilesBefore(files []string, t time.Time) ([]string, error) {
 }
 
 func readAndValidate(
-	prefix string,
-	t time.Time,
-	suffix string,
+	filePath string,
 	readerBufferSize int,
 	expectedDigest uint32,
 ) ([]byte, error) {
-	filePath := filesetPathFromTime(prefix, t, suffix)
 	fd, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -708,7 +757,7 @@ func SnapshotFilesetExistsAt(prefix string, namespace ident.ID, shard uint32, bl
 		return false, err
 	}
 
-	latest, ok := snapshotFiles.LatestForBlock(blockStart)
+	latest, ok := snapshotFiles.LatestValidForBlock(blockStart)
 	if !ok {
 		return false, nil
 	}

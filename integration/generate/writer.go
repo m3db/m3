@@ -26,8 +26,10 @@ import (
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -35,6 +37,12 @@ import (
 
 type writer struct {
 	opts Options
+}
+
+type WriteDatapointPredicate func(dp ts.Datapoint) bool
+
+func WriteAllPredicate(_ ts.Datapoint) bool {
+	return true
 }
 
 // NewWriter returns a new writer
@@ -45,6 +53,15 @@ func NewWriter(opts Options) Writer {
 }
 
 func (w *writer) Write(namespace ident.ID, shardSet sharding.ShardSet, seriesMaps SeriesBlocksByStart) error {
+	return w.WriteWithPredicate(namespace, shardSet, seriesMaps, WriteAllPredicate)
+}
+
+func (w *writer) WriteWithPredicate(
+	namespace ident.ID,
+	shardSet sharding.ShardSet,
+	seriesMaps SeriesBlocksByStart,
+	pred WriteDatapointPredicate,
+) error {
 	var (
 		gOpts          = w.opts
 		blockSize      = gOpts.BlockSize()
@@ -70,7 +87,8 @@ func (w *writer) Write(namespace ident.ID, shardSet sharding.ShardSet, seriesMap
 	}
 	encoder := gOpts.EncoderPool().Get()
 	for start, data := range seriesMaps {
-		err := writeToDisk(writer, shardSet, encoder, start.ToTime(), namespace, blockSize, data)
+		err := writeToDiskWithPredicate(
+			writer, shardSet, encoder, start.ToTime(), namespace, blockSize, data, pred)
 		if err != nil {
 			return err
 		}
@@ -80,7 +98,8 @@ func (w *writer) Write(namespace ident.ID, shardSet sharding.ShardSet, seriesMap
 	// Write remaining files even for empty start periods to avoid unfulfilled ranges
 	if w.opts.WriteEmptyShards() {
 		for start := range starts {
-			err := writeToDisk(writer, shardSet, encoder, start.ToTime(), namespace, blockSize, nil)
+			err := writeToDiskWithPredicate(
+				writer, shardSet, encoder, start.ToTime(), namespace, blockSize, nil, pred)
 			if err != nil {
 				return err
 			}
@@ -98,6 +117,20 @@ func writeToDisk(
 	namespace ident.ID,
 	blockSize time.Duration,
 	seriesList SeriesBlock,
+) error {
+	return writeToDiskWithPredicate(
+		writer, shardSet, encoder, start, namespace, blockSize, seriesList, WriteAllPredicate)
+}
+
+func writeToDiskWithPredicate(
+	writer fs.FileSetWriter,
+	shardSet sharding.ShardSet,
+	encoder encoding.Encoder,
+	start time.Time,
+	namespace ident.ID,
+	blockSize time.Duration,
+	seriesList SeriesBlock,
+	pred WriteDatapointPredicate,
 ) error {
 	seriesPerShard := make(map[uint32][]Series)
 	for _, shard := range shardSet.AllIDs() {
@@ -117,6 +150,9 @@ func writeToDisk(
 				Shard:      shard,
 				BlockStart: start,
 			},
+			FilesetType: persist.FilesetSnapshotType,
+			// TODO: Fix me
+			Snapshot: fs.WriterSnapshotOptions{SnapshotTime: start},
 		}
 		if err := writer.Open(writerOpts); err != nil {
 			return err
@@ -124,8 +160,11 @@ func writeToDisk(
 		for _, series := range seriesList {
 			encoder.Reset(start, 0)
 			for _, dp := range series.Data {
-				if err := encoder.Encode(dp, xtime.Second, nil); err != nil {
-					return err
+				if pred(dp) {
+					err := encoder.Encode(dp, xtime.Second, nil)
+					if err != nil {
+						return err
+					}
 				}
 			}
 			stream := encoder.Stream()

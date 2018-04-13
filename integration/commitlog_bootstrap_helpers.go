@@ -29,8 +29,8 @@ import (
 
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/persist/fs/commitlog"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -87,7 +87,7 @@ func generateSeriesMaps(numBlocks int, starts ...time.Time) generate.SeriesBlock
 		blockConfig = append(blockConfig, generate.BlockConfig{
 			IDs:       name,
 			NumPoints: rand.Intn(100) + 1,
-			Start:     start.Add(time.Duration(i) * time.Minute),
+			Start:     start,
 		})
 	}
 	return generate.BlocksByStart(blockConfig)
@@ -99,9 +99,11 @@ func writeCommitLogData(
 	s *testSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
-	namespace ident.ID,
+	namespace namespace.Metadata,
+	// TODO: Remove this
+	genSnapshots bool,
 ) {
-	writeCommitLogDataBase(t, s, opts, data, namespace, nil)
+	writeCommitLogDataBase(t, s, opts, data, namespace, nil, nil)
 }
 
 // nolint: deadcode
@@ -110,10 +112,24 @@ func writeCommitLogDataSpecifiedTS(
 	s *testSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
-	namespace ident.ID,
+	namespace namespace.Metadata,
+	// TODO: Remove this
+	genSnapshots bool,
 	ts time.Time,
 ) {
-	writeCommitLogDataBase(t, s, opts, data, namespace, &ts)
+	writeCommitLogDataBase(t, s, opts, data, namespace, nil, &ts)
+}
+
+// nolint: deadcode
+func writeCommitLogDataWithPredicate(
+	t *testing.T,
+	s *testSetup,
+	opts commitlog.Options,
+	data generate.SeriesBlocksByStart,
+	namespace namespace.Metadata,
+	pred generate.WriteDatapointPredicate,
+) {
+	writeCommitLogDataBase(t, s, opts, data, namespace, pred, nil)
 }
 
 // nolint: deadcode
@@ -122,9 +138,13 @@ func writeCommitLogDataBase(
 	s *testSetup,
 	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
-	namespace ident.ID,
+	namespace namespace.Metadata,
+	pred generate.WriteDatapointPredicate,
 	specifiedTS *time.Time,
 ) {
+	if pred == nil {
+		pred = generate.WriteAllPredicate
+	}
 	// ensure commit log is flushing frequently
 	require.Equal(t, defaultIntegrationTestFlushInterval, opts.FlushInterval())
 
@@ -133,6 +153,7 @@ func writeCommitLogDataBase(
 		shardSet     = s.shardSet
 	)
 
+	// Write out commit log data
 	for ts, blk := range data {
 		if specifiedTS != nil {
 			s.setNowFn(*specifiedTS)
@@ -161,15 +182,31 @@ func writeCommitLogDataBase(
 			series, ok := seriesLookup[point.ID.String()]
 			require.True(t, ok)
 			cId := commitlog.Series{
-				Namespace:   namespace,
+				Namespace:   namespace.ID(),
 				Shard:       shardSet.Lookup(point.ID),
 				ID:          point.ID,
 				UniqueIndex: series.uniqueIndex,
 			}
-			require.NoError(t, commitLog.Write(ctx, cId, point.Datapoint, xtime.Second, nil))
+			if pred(point.Datapoint) {
+				require.NoError(t, commitLog.Write(ctx, cId, point.Datapoint, xtime.Second, nil))
+			}
 		}
 
 		// ensure writes finished
 		require.NoError(t, commitLog.Close())
 	}
+}
+
+func writeSnapshotsWithPredicate(
+	t *testing.T,
+	s *testSetup,
+	opts commitlog.Options,
+	data generate.SeriesBlocksByStart,
+	namespace namespace.Metadata,
+	specifiedTS *time.Time,
+	pred generate.WriteDatapointPredicate,
+) {
+	// Write out snapshots
+	err := writeTestSnapshotsToDisk(namespace, s, data, pred)
+	require.NoError(t, err)
 }

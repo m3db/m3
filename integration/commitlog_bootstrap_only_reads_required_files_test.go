@@ -78,11 +78,11 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 	now := setup.getNowFn()
 	seriesMaps := generateSeriesMaps(30, now.Add(-2*blockSize), now.Add(-blockSize))
 	log.Info("writing data")
-	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, testNamespaces[0])
+	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, ns1, false)
 	log.Info("finished writing data")
 
 	// The datapoints in this generated data are within the retention period and
-	// would oridinarly be bootstrapped, however, we intentionally write them to a
+	// would ordinarily be bootstrapped, however, we intentionally write them to a
 	// commitlog file that has a timestamp outside of the retention period. This
 	// allows us to verify the commitlog bootstrapping logic will not waste time
 	// reading commitlog files that are outside of the retention period.
@@ -94,7 +94,8 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 		setup,
 		commitLogOpts,
 		seriesMapsExpiredCommitlog,
-		testNamespaces[0],
+		ns1,
+		false,
 		now.Add(-2*ropts.RetentionPeriod()),
 	)
 	log.Info("finished writing data to commitlog file with out of range timestamp")

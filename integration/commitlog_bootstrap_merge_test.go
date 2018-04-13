@@ -129,7 +129,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		t0Nano: seriesMaps[t0Nano],
 		t1Nano: seriesMaps[t1Nano],
 	}
-	require.NoError(t, writeTestDataToDisk(ns1, setup, fsSeriesMaps))
+	require.NoError(t, writeTestDataToDisk(ns1, setup, fsSeriesMaps, false))
 
 	log.Info("writing commit logs")
 	t2Nano := xtime.ToUnixNano(t2)
@@ -137,7 +137,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		t1Nano: seriesMaps[t1Nano],
 		t2Nano: seriesMaps[t2Nano],
 	}
-	writeCommitLogData(t, setup, commitLogOpts, commitlogSeriesMaps, ns1.ID())
+	writeCommitLogData(t, setup, commitLogOpts, commitlogSeriesMaps, ns1, false)
 
 	log.Info("moving time forward and starting server")
 	setup.setNowFn(t3)

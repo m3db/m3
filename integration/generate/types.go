@@ -44,6 +44,10 @@ type SeriesBlocksByStart map[xtime.UnixNano]SeriesBlock
 type Writer interface {
 	// Write writes the data
 	Write(ns ident.ID, shards sharding.ShardSet, data SeriesBlocksByStart) error
+
+	// WriteWithPredicate writes all data that passes the predicate test
+	WriteWithPredicate(
+		ns ident.ID, shards sharding.ShardSet, data SeriesBlocksByStart, pred WriteDatapointPredicate) error
 }
 
 // Options represent the parameters needed for the Writer
@@ -101,4 +105,10 @@ type Options interface {
 
 	// EncoderPool returns the contextPool
 	EncoderPool() encoding.EncoderPool
+
+	// SetWriteSnapshot sets the contextPool
+	SetWriteSnapshot(value bool) Options
+
+	// WriteSnapshot returns the contextPool
+	WriteSnapshot() bool
 }
