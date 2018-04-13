@@ -292,6 +292,9 @@ type databaseNamespace interface {
 	// Flush flushes in-memory data
 	Flush(blockStart time.Time, flush persist.Flush) error
 
+	// Snapshot snapshots unflushed in-memory data
+	Snapshot(blockStart, snapshotTime time.Time, flush persist.Flush) error
+
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).
 	// NB: The start/end times are assumed to be aligned to block size boundary.
@@ -391,8 +394,17 @@ type databaseShard interface {
 		flush persist.Flush,
 	) error
 
+	// Snapshot snapshot's the unflushed series' in this shard.
+	Snapshot(blockStart, snapshotStart time.Time, flush persist.Flush) error
+
 	// FlushState returns the flush state for this shard at block start.
 	FlushState(blockStart time.Time) fileOpState
+
+	// SnapshotState returns the snapshot state for this shard
+	SnapshotState() (isSnapshotting bool, lastSuccessfulSnapshot time.Time)
+
+	// CleanupSnapshots cleans up snapshot files
+	CleanupSnapshots(earliestToRetain time.Time) error
 
 	// CleanupFileset cleans up fileset files
 	CleanupFileset(earliestToRetain time.Time) error
@@ -693,6 +705,12 @@ type Options interface {
 
 	// MaxFlushRetries returns the maximum number of retries when data flushing fails
 	MaxFlushRetries() int
+
+	// SetMinimumSnapshotInterval sets the minimum amount of time that must elapse between snapshots
+	SetMinimumSnapshotInterval(value time.Duration) Options
+
+	// MinimumSnapshotInterval returns the minimum amount of time that must elapse between snapshots
+	MinimumSnapshotInterval() time.Duration
 
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
 	// use when bootstrapping retrievable blocks instead of blocks

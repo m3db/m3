@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/x/xio"
@@ -39,6 +40,7 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 
@@ -48,11 +50,18 @@ import (
 
 const (
 	checkedBytesPoolSize = 65536
+	tagDecoderPoolSize   = 65536
 )
 
 var (
 	// errServerIsOverloaded raised when trying to process a request when the server is overloaded
 	errServerIsOverloaded = errors.New("server is overloaded")
+
+	// errIllegalTagValues raised when the tags specified are in-correct
+	errIllegalTagValues = errors.New("illegal tag values specified")
+
+	// errRequiresDatapoint raised when a datapoint is not provided
+	errRequiresDatapoint = fmt.Errorf("requires datapoint")
 
 	// errNotImplemented raised when attempting to execute an un-implemented method
 	errNotImplemented = errors.New("method is not implemented")
@@ -60,26 +69,32 @@ var (
 
 type serviceMetrics struct {
 	fetch               instrument.MethodMetrics
+	fetchTagged         instrument.MethodMetrics
 	write               instrument.MethodMetrics
+	writeTagged         instrument.MethodMetrics
 	fetchBlocks         instrument.MethodMetrics
 	fetchBlocksMetadata instrument.MethodMetrics
 	repair              instrument.MethodMetrics
 	truncate            instrument.MethodMetrics
 	fetchBatchRaw       instrument.BatchMethodMetrics
 	writeBatchRaw       instrument.BatchMethodMetrics
+	writeTaggedBatchRaw instrument.BatchMethodMetrics
 	overloadRejected    tally.Counter
 }
 
 func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 	return serviceMetrics{
 		fetch:               instrument.NewMethodMetrics(scope, "fetch", samplingRate),
+		fetchTagged:         instrument.NewMethodMetrics(scope, "fetchTagged", samplingRate),
 		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
+		writeTagged:         instrument.NewMethodMetrics(scope, "writeTagged", samplingRate),
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
 		repair:              instrument.NewMethodMetrics(scope, "repair", samplingRate),
 		truncate:            instrument.NewMethodMetrics(scope, "truncate", samplingRate),
 		fetchBatchRaw:       instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", samplingRate),
 		writeBatchRaw:       instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", samplingRate),
+		writeTaggedBatchRaw: instrument.NewBatchMethodMetrics(scope, "writeTaggedBatchRaw", samplingRate),
 		overloadRejected:    scope.Counter("overload-rejected"),
 	}
 }
@@ -93,6 +108,7 @@ type service struct {
 	nowFn                    clock.NowFn
 	metrics                  serviceMetrics
 	checkedBytesWrapperPool  xpool.CheckedBytesWrapperPool
+	tagDecoderPool           serialize.TagDecoderPool
 	idPool                   ident.Pool
 	blockMetadataPool        tchannelthrift.BlockMetadataPool
 	blockMetadataV2Pool      tchannelthrift.BlockMetadataV2Pool
@@ -118,12 +134,22 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 	wrapperPool := xpool.NewCheckedBytesWrapperPool(checkedBytesPoolSize)
 	wrapperPool.Init()
 
+	tagDecoderPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(tagDecoderPoolSize).
+		SetInstrumentOptions(iopts.SetMetricsScope(
+			scope.SubScope("tag-decoder-pool")))
+	tagDecoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions().
+			SetCheckedBytesWrapperPool(wrapperPool), tagDecoderPoolOpts)
+	tagDecoderPool.Init()
+
 	s := &service{
 		db:                       db,
 		opts:                     opts,
 		nowFn:                    db.Options().ClockOptions().NowFn(),
 		metrics:                  newServiceMetrics(scope, iopts.MetricsSamplingRate()),
 		checkedBytesWrapperPool:  wrapperPool,
+		tagDecoderPool:           tagDecoderPool,
 		idPool:                   db.Options().IdentifierPool(),
 		blockMetadataPool:        opts.BlockMetadataPool(),
 		blockMetadataV2Pool:      opts.BlockMetadataV2Pool(),
@@ -599,7 +625,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 
 	if req.Datapoint == nil {
 		s.metrics.write.ReportError(s.nowFn().Sub(callStart))
-		return tterrors.NewBadRequestError(fmt.Errorf("requires datapoint"))
+		return tterrors.NewBadRequestError(errRequiresDatapoint)
 	}
 
 	dp := req.Datapoint
@@ -630,7 +656,51 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 }
 
 func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) error {
-	return tterrors.NewInternalError(errNotImplemented)
+	callStart := s.nowFn()
+	ctx := tchannelthrift.Context(tctx)
+
+	if req.Datapoint == nil {
+		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
+		return tterrors.NewBadRequestError(errRequiresDatapoint)
+	}
+
+	if req.Tags == nil {
+		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
+		return tterrors.NewBadRequestError(errIllegalTagValues)
+	}
+
+	dp := req.Datapoint
+	unit, unitErr := convert.ToUnit(dp.TimestampTimeType)
+
+	if unitErr != nil {
+		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
+		return tterrors.NewBadRequestError(unitErr)
+	}
+
+	d, err := unit.Value()
+	if err != nil {
+		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
+		return tterrors.NewBadRequestError(err)
+	}
+
+	iter, err := convert.ToTagsIter(req)
+	if err != nil {
+		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
+		return tterrors.NewBadRequestError(err)
+	}
+
+	if err = s.db.WriteTagged(ctx,
+		s.idPool.GetStringID(ctx, req.NameSpace),
+		s.idPool.GetStringID(ctx, req.ID),
+		iter, xtime.FromNormalizedTime(dp.Timestamp, d),
+		dp.Value, unit, dp.Annotation); err != nil {
+		s.metrics.writeTagged.ReportError(s.nowFn().Sub(callStart))
+		return convert.ToRPCError(err)
+	}
+
+	s.metrics.writeTagged.ReportSuccess(s.nowFn().Sub(callStart))
+
+	return nil
 }
 
 func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawRequest) error {
@@ -690,7 +760,66 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 }
 
 func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
-	return tterrors.NewInternalError(errNotImplemented)
+	callStart := s.nowFn()
+	ctx := tchannelthrift.Context(tctx)
+
+	nsID := s.newID(ctx, req.NameSpace)
+
+	var (
+		errs               []*rpc.WriteBatchRawError
+		success            int
+		retryableErrors    int
+		nonRetryableErrors int
+	)
+	for i, elem := range req.Elements {
+		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
+		if unitErr != nil {
+			nonRetryableErrors++
+			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, unitErr))
+			continue
+		}
+
+		d, err := unit.Value()
+		if err != nil {
+			nonRetryableErrors++
+			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
+			continue
+		}
+
+		dec, err := s.newTagsDecoder(ctx, elem.EncodedTags)
+		if err != nil {
+			nonRetryableErrors++
+			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
+			continue
+		}
+
+		if err = s.db.WriteTagged(
+			ctx, nsID, s.newID(ctx, elem.ID), dec,
+			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
+			elem.Datapoint.Value, unit, elem.Datapoint.Annotation,
+		); err != nil && xerrors.IsInvalidParams(err) {
+			nonRetryableErrors++
+			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
+		} else if err != nil {
+			retryableErrors++
+			errs = append(errs, tterrors.NewWriteBatchRawError(i, err))
+		} else {
+			success++
+		}
+	}
+
+	s.metrics.writeTaggedBatchRaw.ReportSuccess(success)
+	s.metrics.writeTaggedBatchRaw.ReportRetryableErrors(retryableErrors)
+	s.metrics.writeTaggedBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
+	s.metrics.writeTaggedBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
+
+	if len(errs) > 0 {
+		batchErrs := rpc.NewWriteBatchRawErrors()
+		batchErrs.Errors = errs
+		return batchErrs
+	}
+
+	return nil
 }
 
 func (s *service) Repair(tctx thrift.Context) error {
@@ -857,6 +986,17 @@ func (s *service) isOverloaded() bool {
 func (s *service) newID(ctx context.Context, id []byte) ident.ID {
 	checkedBytes := s.checkedBytesWrapperPool.Get(id)
 	return s.idPool.GetBinaryID(ctx, checkedBytes)
+}
+
+func (s *service) newTagsDecoder(ctx context.Context, encodedTags []byte) (serialize.TagDecoder, error) {
+	checkedBytes := s.checkedBytesWrapperPool.Get(encodedTags)
+	dec := s.tagDecoderPool.Get()
+	ctx.RegisterFinalizer(dec)
+	dec.Reset(checkedBytes)
+	if err := dec.Err(); err != nil {
+		return nil, err
+	}
+	return dec, nil
 }
 
 func (s *service) newCloseableMetadataResult(

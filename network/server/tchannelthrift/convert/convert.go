@@ -30,13 +30,15 @@ import (
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
 
 var (
-	errUnknownTimeType = errors.New("unknown time type")
-	errUnknownUnit     = errors.New("unknown unit")
-	timeZero           time.Time
+	errUnknownTimeType  = errors.New("unknown time type")
+	errUnknownUnit      = errors.New("unknown unit")
+	errNilTaggedRequest = errors.New("nil write tagged request")
+	timeZero            time.Time
 )
 
 // ToTime converts a value to a time
@@ -171,4 +173,73 @@ func ToRPCError(err error) *rpc.Error {
 		return tterrors.NewBadRequestError(err)
 	}
 	return tterrors.NewInternalError(err)
+}
+
+// ToTagsIter returns a tag iterator over the given request.
+func ToTagsIter(r *rpc.WriteTaggedRequest) (ident.TagIterator, error) {
+	if r == nil {
+		return nil, errNilTaggedRequest
+	}
+
+	return &writeTaggedIter{
+		rawRequest: r,
+		currentIdx: -1,
+	}, nil
+}
+
+// NB(prateek): writeTaggedIter is in-efficient in how it handles internal
+// allocations. Only use it for non-performance critical RPC endpoints.
+type writeTaggedIter struct {
+	rawRequest *rpc.WriteTaggedRequest
+	currentIdx int
+	currentTag ident.Tag
+}
+
+func (w *writeTaggedIter) Next() bool {
+	w.release()
+	w.currentIdx++
+	if w.currentIdx < len(w.rawRequest.Tags) {
+		w.currentTag.Name = ident.StringID(w.rawRequest.Tags[w.currentIdx].Name)
+		w.currentTag.Value = ident.StringID(w.rawRequest.Tags[w.currentIdx].Value)
+		return true
+	}
+	return false
+}
+
+func (w *writeTaggedIter) release() {
+	if i := w.currentTag.Name; i != nil {
+		w.currentTag.Name.Finalize()
+		w.currentTag.Name = nil
+	}
+	if i := w.currentTag.Value; i != nil {
+		w.currentTag.Value.Finalize()
+		w.currentTag.Value = nil
+	}
+}
+
+func (w *writeTaggedIter) Current() ident.Tag {
+	return w.currentTag
+}
+
+func (w *writeTaggedIter) Err() error {
+	return nil
+}
+
+func (w *writeTaggedIter) Close() {
+	w.release()
+	w.currentIdx = -1
+}
+
+func (w *writeTaggedIter) Remaining() int {
+	if r := len(w.rawRequest.Tags) - 1 - w.currentIdx; r >= 0 {
+		return r
+	}
+	return 0
+}
+
+func (w *writeTaggedIter) Duplicate() ident.TagIterator {
+	return &writeTaggedIter{
+		rawRequest: w.rawRequest,
+		currentIdx: -1,
+	}
 }

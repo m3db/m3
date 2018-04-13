@@ -29,8 +29,12 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/x/xio"
+	"github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
@@ -38,7 +42,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNormalQuorumOnlyOneUp(t *testing.T) {
+func TestTaggedNormalQuorumOnlyOneUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -48,7 +52,7 @@ func TestNormalQuorumOnlyOneUp(t *testing.T) {
 	maxShard := uint32(numShards - 1)
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+	nodes, closeFn, testWrite := makeTestWriteTagged(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
@@ -58,11 +62,14 @@ func TestNormalQuorumOnlyOneUp(t *testing.T) {
 	// Writes succeed to one node
 	require.NoError(t, nodes[0].startServer())
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
+	assert.Equal(t, 1, numNodesWithTaggedWrite(t, nodes))
 	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
+	assert.Equal(t, 1, numNodesWithTaggedWrite(t, nodes))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+	assert.Equal(t, 1, numNodesWithTaggedWrite(t, nodes))
 }
 
-func TestNormalQuorumOnlyTwoUp(t *testing.T) {
+func TestTaggedNormalQuorumOnlyTwoUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -72,7 +79,7 @@ func TestNormalQuorumOnlyTwoUp(t *testing.T) {
 	maxShard := uint32(numShards - 1)
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+	nodes, closeFn, testWrite := makeTestWriteTagged(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
@@ -83,11 +90,13 @@ func TestNormalQuorumOnlyTwoUp(t *testing.T) {
 	require.NoError(t, nodes[0].startServer())
 	require.NoError(t, nodes[1].startServer())
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
+	assert.True(t, numNodesWithTaggedWrite(t, nodes) >= 1)
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
+	assert.True(t, numNodesWithTaggedWrite(t, nodes) == 2)
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
 }
 
-func TestNormalQuorumAllUp(t *testing.T) {
+func TestTaggedNormalQuorumAllUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -97,7 +106,7 @@ func TestNormalQuorumAllUp(t *testing.T) {
 	maxShard := uint32(numShards - 1)
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+	nodes, closeFn, testWrite := makeTestWriteTagged(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
@@ -109,11 +118,14 @@ func TestNormalQuorumAllUp(t *testing.T) {
 	require.NoError(t, nodes[1].startServer())
 	require.NoError(t, nodes[2].startServer())
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
+	assert.True(t, numNodesWithTaggedWrite(t, nodes) >= 1)
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
+	assert.True(t, numNodesWithTaggedWrite(t, nodes) >= 2)
 	assert.NoError(t, testWrite(topology.ConsistencyLevelAll))
+	assert.True(t, numNodesWithTaggedWrite(t, nodes) >= 3)
 }
 
-func TestAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
+func TestTaggedAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -123,7 +135,7 @@ func TestAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 	maxShard := uint32(numShards - 1)
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+	nodes, closeFn, testWrite := makeTestWriteTagged(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
@@ -134,12 +146,21 @@ func TestAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 	// No writes succeed to available nodes
 	require.NoError(t, nodes[0].startServer())
 	require.NoError(t, nodes[3].startServer())
+
 	assert.Error(t, testWrite(topology.ConsistencyLevelOne))
+	numWrites := numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	assert.True(t, numWrites == 0)
+
 	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
+	numWrites = numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	assert.True(t, numWrites == 0)
+
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+	numWrites = numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	assert.True(t, numWrites == 0)
 }
 
-func TestAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
+func TestTaggedAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -149,7 +170,7 @@ func TestAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
 	maxShard := uint32(numShards - 1)
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+	nodes, closeFn, testWrite := makeTestWriteTagged(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
@@ -161,12 +182,21 @@ func TestAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
 	require.NoError(t, nodes[0].startServer())
 	require.NoError(t, nodes[1].startServer())
 	require.NoError(t, nodes[3].startServer())
+
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
+	numWrites := numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	assert.True(t, numWrites == 1)
+
 	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
+	numWrites = numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	assert.True(t, numWrites == 1)
+
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+	numWrites = numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	assert.True(t, numWrites == 1)
 }
 
-func TestAddNodeQuorumAllUp(t *testing.T) {
+func TestTaggedAddNodeQuorumAllUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -176,7 +206,7 @@ func TestAddNodeQuorumAllUp(t *testing.T) {
 	maxShard := uint32(numShards - 1)
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+	nodes, closeFn, testWrite := makeTestWriteTagged(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
@@ -189,14 +219,19 @@ func TestAddNodeQuorumAllUp(t *testing.T) {
 	require.NoError(t, nodes[1].startServer())
 	require.NoError(t, nodes[2].startServer())
 	require.NoError(t, nodes[3].startServer())
+
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
+	numWrites := numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	assert.True(t, numWrites >= 1, numWrites)
+
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
+	numWrites = numNodesWithTaggedWrite(t, []*testSetup{nodes[1], nodes[2]})
+	assert.Equal(t, 2, numWrites)
+
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
 }
 
-type testWriteFn func(topology.ConsistencyLevel) error
-
-func makeTestWrite(
+func makeTestWriteTagged(
 	t *testing.T,
 	numShards int,
 	instances []services.ServiceInstance,
@@ -208,8 +243,8 @@ func makeTestWrite(
 	require.NoError(t, err)
 
 	nspaces := []namespace.Metadata{md}
-	nodes, topoInit, closeFn := newNodes(t, instances, nspaces, false)
-	now := nodes[0].getNowFn()
+	nodes, topoInit, closeFn := newNodes(t, instances, nspaces, true)
+	now := nodes[0].getNowFn().Add(time.Minute)
 
 	for _, node := range nodes {
 		node.opts = node.opts.SetNumShards(numShards)
@@ -228,8 +263,78 @@ func makeTestWrite(
 		s, err := c.NewSession()
 		require.NoError(t, err)
 
-		return s.Write(nspaces[0].ID(), ident.StringID("quorumTest"), now, 42, xtime.Second, nil)
+		return s.WriteTagged(nspaces[0].ID(), ident.StringID("quorumTest"),
+			ident.NewTagIterator(ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz")),
+			now, 42, xtime.Second, nil)
 	}
 
 	return nodes, closeFn, testWrite
+}
+
+func numNodesWithTaggedWrite(t *testing.T, setups testSetups) int {
+	n := 0
+	for _, s := range setups {
+		if nodeHasTaggedWrite(t, s) {
+			n++
+		}
+	}
+	return n
+}
+
+func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
+	if s.db == nil {
+		return false
+	}
+
+	ctx := context.NewContext()
+	defer ctx.BlockingClose()
+
+	results, err := s.db.QueryIDs(ctx, testNamespaces[0], index.Query{
+		segment.Query{
+			Conjunction: segment.AndConjunction,
+			Filters: []segment.Filter{
+				segment.Filter{
+					FieldName:        []byte("foo"),
+					FieldValueFilter: []byte("b.*"),
+					Regexp:           true,
+				},
+			},
+		},
+	}, index.QueryOptions{})
+
+	require.NoError(t, err)
+	iter := results.Iterator
+	idxFound := false
+	for iter.Next() {
+		_, id, tags := iter.Current()
+		if id.String() == "quorumTest" && tags.Equal(
+			ident.Tags{ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz")}) {
+			idxFound = true
+		}
+	}
+	require.NoError(t, iter.Err())
+
+	if !idxFound {
+		return false
+	}
+
+	// NB(prateek): if index has id, verify data point too
+	dpFound := false
+
+	id := ident.StringID("quorumTest")
+	start := s.getNowFn()
+	end := s.getNowFn().Add(5 * time.Minute)
+	readers, err := s.db.ReadEncoded(ctx, testNamespaces[0], id, start, end)
+	require.NoError(t, err)
+
+	mIter := s.db.Options().MultiReaderIteratorPool().Get()
+	mIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(readers))
+	defer mIter.Close()
+	for mIter.Next() {
+		dp, _, _ := mIter.Current()
+		dpFound = dpFound || 42. == dp.Value
+	}
+	require.NoError(t, mIter.Err())
+
+	return dpFound
 }

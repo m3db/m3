@@ -120,7 +120,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 	waitTimeout := 5 * time.Minute
 	filePathPrefix := setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	log.Infof("waiting till expected fileset files have been written")
-	require.NoError(t, waitUntilDataFlushed(filePathPrefix, setup.shardSet, nsID, expectedFlushedData, waitTimeout))
+	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, setup.shardSet, nsID, expectedFlushedData, waitTimeout))
 	log.Infof("expected fileset files have been written")
 
 	// stopping db

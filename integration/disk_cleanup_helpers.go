@@ -45,7 +45,7 @@ var (
 func newNamespaceDir(storageOpts storage.Options, md namespace.Metadata) string {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
-	return fs.NamespaceDirPath(filePathPrefix, md.ID())
+	return fs.NamespaceDataDirPath(filePathPrefix, md.ID())
 }
 
 // nolint: deadcode
@@ -60,7 +60,15 @@ func writeFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.M
 	writer, err := newFilesetWriter(storageOpts)
 	require.NoError(t, err)
 	for _, start := range fileTimes {
-		require.NoError(t, writer.Open(md.ID(), rOpts.BlockSize(), shard, start))
+		writerOpts := fs.WriterOpenOptions{
+			Identifier: fs.FilesetFileIdentifier{
+				Namespace:  md.ID(),
+				Shard:      shard,
+				BlockStart: start,
+			},
+			BlockSize: rOpts.BlockSize(),
+		}
+		require.NoError(t, writer.Open(writerOpts))
 		require.NoError(t, writer.Close())
 	}
 }
@@ -108,7 +116,7 @@ type cleanupTimesFileset struct {
 
 func (fset *cleanupTimesFileset) anyExist() bool {
 	for _, t := range fset.times {
-		if fs.FilesetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t) {
+		if fs.DataFilesetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t) {
 			return true
 		}
 	}
@@ -117,7 +125,7 @@ func (fset *cleanupTimesFileset) anyExist() bool {
 
 func (fset *cleanupTimesFileset) allExist() bool {
 	for _, t := range fset.times {
-		if !fs.FilesetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t) {
+		if !fs.DataFilesetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t) {
 			return false
 		}
 	}
@@ -152,7 +160,7 @@ func waitUntilDataCleanedUpExtended(
 // nolint: deadcode, unused
 func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ident.ID, waitTimeout time.Duration) error {
 	dataCleanedUp := func() bool {
-		namespaceDir := fs.NamespaceDirPath(filePathPrefix, namespace)
+		namespaceDir := fs.NamespaceDataDirPath(filePathPrefix, namespace)
 		return !fs.FileExists(namespaceDir)
 	}
 
@@ -187,10 +195,10 @@ func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespac
 }
 
 // nolint: deadcode, unused
-func waitUntilFilesetsCleanedUp(filePathPrefix string, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
+func waitUntilDataFilesetsCleanedUp(filePathPrefix string, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
 	dataCleanedUp := func() bool {
 		for _, n := range namespaces {
-			shardDir := fs.ShardDirPath(filePathPrefix, n.ID(), extraShard)
+			shardDir := fs.ShardDataDirPath(filePathPrefix, n.ID(), extraShard)
 			if fs.FileExists(shardDir) {
 				return false
 			}

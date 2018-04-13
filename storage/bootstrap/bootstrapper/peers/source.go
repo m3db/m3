@@ -115,17 +115,17 @@ func (s *peersSource) Read(
 			return nil, err
 		}
 
-		flush, err := persistManager.StartFlush()
+		persist, err := persistManager.StartPersist()
 		if err != nil {
 			return nil, err
 		}
 
-		defer flush.Done()
+		defer persist.Done()
 
 		incremental = true
 		blockRetriever = r
 		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(r)
-		persistFlush = flush
+		persistFlush = persist
 	}
 
 	result := result.NewBootstrapResult()
@@ -354,7 +354,12 @@ func (s *peersSource) incrementalFlush(
 	}
 
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
-		prepared, err := flush.Prepare(nsMetadata, shard, start)
+		prepareOpts := persist.PrepareOptions{
+			NamespaceMetadata: nsMetadata,
+			Shard:             shard,
+			BlockStart:        start,
+		}
+		prepared, err := flush.Prepare(prepareOpts)
 		if err != nil {
 			return err
 		}

@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/schema"
 
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,7 @@ import (
 
 var (
 	testIndexInfo = schema.IndexInfo{
-		Start:        time.Now().UnixNano(),
+		BlockStart:   time.Now().UnixNano(),
 		BlockSize:    int64(2 * time.Hour),
 		Entries:      2000000,
 		MajorVersion: schema.MajorVersion,
@@ -42,6 +43,8 @@ var (
 			NumElementsM: 2075674,
 			NumHashesK:   7,
 		},
+		SnapshotTime: time.Now().UnixNano(),
+		FileType:     persist.FilesetSnapshotType,
 	}
 
 	testIndexEntry = schema.IndexEntry{
@@ -95,6 +98,59 @@ func TestIndexInfoRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeIndexInfo(testIndexInfo))
+	dec.Reset(NewDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexInfo()
+	require.NoError(t, err)
+	require.Equal(t, testIndexInfo, res)
+}
+
+// Make sure the new decoding code can handle the old file format
+func TestIndexInfoRoundTripBackwardsCompatibilityV1(t *testing.T) {
+	var (
+		enc = newEncoder(newEncoderOptions{encodeLegacyV1IndexInfo: true})
+		dec = testDecoder(t, nil)
+	)
+
+	// Set the default values on the fields that did not exist in V1
+	// and then restore them at the end of the test - This is required
+	// because the new decoder won't try and read the new fields from
+	// the old file format
+	oldSnapshotTime := testIndexInfo.SnapshotTime
+	oldFileType := testIndexInfo.FileType
+	testIndexInfo.SnapshotTime = 0
+	testIndexInfo.FileType = 0
+	defer func() {
+		testIndexInfo.SnapshotTime = oldSnapshotTime
+		testIndexInfo.FileType = oldFileType
+	}()
+
+	enc.EncodeIndexInfo(testIndexInfo)
+	dec.Reset(NewDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexInfo()
+	require.NoError(t, err)
+	require.Equal(t, testIndexInfo, res)
+}
+
+// Make sure the old decoder code can handle the new file format
+func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
+	var (
+		enc = newEncoder(newEncoderOptions{encodeLegacyV1IndexInfo: false})
+		dec = testDecoder(t, nil)
+	)
+
+	// Set the default values on the fields that did not exist in V1
+	// and then restore them at the end of the test - This is required
+	// because the old decoder won't read the new fields
+	oldSnapshotTime := testIndexInfo.SnapshotTime
+	oldFileType := testIndexInfo.FileType
+	testIndexInfo.SnapshotTime = 0
+	testIndexInfo.FileType = 0
+	defer func() {
+		testIndexInfo.SnapshotTime = oldSnapshotTime
+		testIndexInfo.FileType = oldFileType
+	}()
+
+	enc.EncodeIndexInfo(testIndexInfo)
 	dec.Reset(NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexInfo()
 	require.NoError(t, err)

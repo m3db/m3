@@ -48,7 +48,7 @@ var (
 	// errNamespaceIsBootstrapping raised when trying to bootstrap a namespace that's being bootstrapped.
 	errNamespaceIsBootstrapping = errors.New("namespace is bootstrapping")
 
-	// errNamespaceNotBootstrapped raised when trying to flush data for a namespace that's not yet bootstrapped.
+	// errNamespaceNotBootstrapped raised when trying to flush/snapshot data for a namespace that's not yet bootstrapped.
 	errNamespaceNotBootstrapped = errors.New("namespace is not yet bootstrapped")
 
 	// errShardIsBootstrapping raised when trying to bootstrap a shard that's being bootstrapped.
@@ -56,6 +56,9 @@ var (
 
 	// errShardNotBootstrappedToFlush raised when trying to flush data for a shard that's not yet bootstrapped.
 	errShardNotBootstrappedToFlush = errors.New("shard is not yet bootstrapped to flush")
+
+	// errShardNotBootstrappedToSnapshot raised when trying to snapshot data for a shard that's not yet bootstrapped.
+	errShardNotBootstrappedToSnapshot = errors.New("shard is not yet bootstrapped to snapshot")
 
 	// errShardNotBootstrappedToRead raised when trying to read data for a shard that's not yet bootstrapped.
 	errShardNotBootstrappedToRead = errors.New("shard is not yet bootstrapped to read")

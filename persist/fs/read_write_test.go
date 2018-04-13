@@ -52,7 +52,15 @@ func newTestWriter(t *testing.T, filePathPrefix string) FileSetWriter {
 }
 
 func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
-	err := w.Open(testNs1ID, testBlockSize, shard, timestamp)
+	writerOpts := WriterOpenOptions{
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: timestamp,
+		},
+		BlockSize: testBlockSize,
+	}
+	err := w.Open(writerOpts)
 	assert.NoError(t, err)
 
 	for i := range entries {
@@ -84,7 +92,14 @@ var readTestTypes = []readTestType{
 // be a newly introduced reader reuse bug.
 func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
 	for _, underTest := range readTestTypes {
-		err := r.Open(testNs1ID, 0, timestamp)
+		rOpenOpts := ReaderOpenOptions{
+			Identifier: FilesetFileIdentifier{
+				Namespace:  testNs1ID,
+				Shard:      0,
+				BlockStart: timestamp,
+			},
+		}
+		err := r.Open(rOpenOpts)
 		require.NoError(t, err)
 
 		require.Equal(t, len(entries), r.Entries())
@@ -166,6 +181,37 @@ func TestSimpleReadWrite(t *testing.T) {
 	readTestData(t, r, 0, testWriterStart, entries)
 }
 
+func TestDuplicateWrite(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	entries := []testEntry{
+		{"foo", []byte{1, 2, 3}},
+		{"foo", []byte{4, 5, 6}},
+	}
+
+	w := newTestWriter(t, filePathPrefix)
+	writerOpts := WriterOpenOptions{
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
+		BlockSize: testBlockSize,
+	}
+	err := w.Open(writerOpts)
+	require.NoError(t, err)
+
+	for i := range entries {
+		require.NoError(t, w.Write(
+			ident.StringID(entries[i].id),
+			bytesRefd(entries[i].data),
+			digest.Checksum(entries[i].data)))
+	}
+	require.Equal(t, errors.New("encountered duplicate ID: foo"), w.Close())
+}
+
 func TestReadWithReusedReader(t *testing.T) {
 	dir := createTempDir(t)
 	filePathPrefix := filepath.Join(dir, "")
@@ -204,11 +250,14 @@ func TestInfoReadWrite(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writeTestData(t, w, 0, testWriterStart, entries)
 
-	infoFiles := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
-	require.Equal(t, 1, len(infoFiles))
+	readInfoFileResults := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
+	require.Equal(t, 1, len(readInfoFileResults))
+	for _, result := range readInfoFileResults {
+		require.NoError(t, result.Err.Error())
+	}
 
-	infoFile := infoFiles[0]
-	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.Start)))
+	infoFile := readInfoFileResults[0].Info
+	require.True(t, testWriterStart.Equal(xtime.FromNanoseconds(infoFile.BlockStart)))
 	require.Equal(t, testBlockSize, time.Duration(infoFile.BlockSize))
 	require.Equal(t, int64(len(entries)), infoFile.Entries)
 }
@@ -250,7 +299,14 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	}
 	w := newTestWriter(t, filePathPrefix)
 	shard := uint32(0)
-	require.NoError(t, w.Open(testNs1ID, testBlockSize, shard, testWriterStart))
+	writerOpts := WriterOpenOptions{
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: testWriterStart,
+		},
+	}
+	require.NoError(t, w.Open(writerOpts))
 
 	require.NoError(t, w.Write(
 		ident.StringID(entries[0].id),
@@ -266,7 +322,14 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	w.Close()
 
 	r := newTestReader(t, filePathPrefix)
-	require.Equal(t, ErrCheckpointFileNotFound, r.Open(testNs1ID, shard, testWriterStart))
+	rOpenOpts := ReaderOpenOptions{
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: testWriterStart,
+		},
+	}
+	require.Equal(t, ErrCheckpointFileNotFound, r.Open(rOpenOpts))
 
 	// Now reuse the writer and validate the data are written as expected.
 	writeTestData(t, w, shard, testWriterStart, entries)
@@ -285,8 +348,15 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	}
 
 	w := newTestWriter(t, filePathPrefix)
-	err := w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
-	assert.NoError(t, err)
+	writerOpts := WriterOpenOptions{
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
+	}
+	require.NoError(t, w.Open(writerOpts))
 
 	w.WriteAll(ident.StringID("foo"), []checked.Bytes{
 		checkedBytes([]byte{1, 2, 3}),

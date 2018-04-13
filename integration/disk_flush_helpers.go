@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/integration/generate"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
@@ -45,7 +46,36 @@ var (
 )
 
 // nolint: deadcode
-func waitUntilDataFlushed(
+func waitUntilSnapshotFilesFlushed(
+	filePathPrefix string,
+	shardSet sharding.ShardSet,
+	namespace ident.ID,
+	expectedSnapshotTimes []time.Time,
+	timeout time.Duration,
+) error {
+	dataFlushed := func() bool {
+		for _, shard := range shardSet.AllIDs() {
+			for _, t := range expectedSnapshotTimes {
+				exists, err := fs.SnapshotFilesetExistsAt(filePathPrefix, namespace, shard, t)
+				if err != nil {
+					panic(err)
+				}
+
+				if !exists {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	if waitUntil(dataFlushed, timeout) {
+		return nil
+	}
+	return errDiskFlushTimedOut
+}
+
+// nolint: deadcode
+func waitUntilDataFilesFlushed(
 	filePathPrefix string,
 	shardSet sharding.ShardSet,
 	namespace ident.ID,
@@ -56,7 +86,7 @@ func waitUntilDataFlushed(
 		for timestamp, seriesList := range testData {
 			for _, series := range seriesList {
 				shard := shardSet.Lookup(series.ID)
-				if !fs.FilesetExistsAt(filePathPrefix, namespace, shard, timestamp.ToTime()) {
+				if !fs.DataFilesetExistsAt(filePathPrefix, namespace, shard, timestamp.ToTime()) {
 					return false
 				}
 			}
@@ -71,11 +101,13 @@ func waitUntilDataFlushed(
 
 func verifyForTime(
 	t *testing.T,
+	storageOpts storage.Options,
 	reader fs.FileSetReader,
 	shardSet sharding.ShardSet,
 	iteratorPool encoding.ReaderIteratorPool,
 	timestamp time.Time,
 	namespace ident.ID,
+	filesetType persist.FilesetType,
 	expected generate.SeriesBlock,
 ) {
 	shards := make(map[uint32]struct{})
@@ -85,7 +117,28 @@ func verifyForTime(
 	}
 	actual := make(generate.SeriesBlock, 0, len(expected))
 	for shard := range shards {
-		require.NoError(t, reader.Open(namespace, shard, timestamp))
+		rOpts := fs.ReaderOpenOptions{
+			Identifier: fs.FilesetFileIdentifier{
+				Namespace:  namespace,
+				Shard:      shard,
+				BlockStart: timestamp,
+			},
+			FilesetType: filesetType,
+		}
+
+		if filesetType == persist.FilesetSnapshotType {
+			// If we're verifying snapshot files, then we need to identify the latest
+			// one because multiple snapshot files can exist at the same time with the
+			// same blockStart, but increasing "indexes" which indicates which one is
+			// most recent (and thus has more cumulative data).
+			filePathPrefix := storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+			snapshotFiles, err := fs.SnapshotFiles(filePathPrefix, namespace, shard)
+			require.NoError(t, err)
+			latest, ok := snapshotFiles.LatestForBlock(timestamp)
+			require.True(t, ok)
+			rOpts.Identifier.Index = latest.ID.Index
+		}
+		require.NoError(t, reader.Open(rOpts))
 		for i := 0; i < reader.Entries(); i++ {
 			id, data, _, err := reader.Read()
 			require.NoError(t, err)
@@ -117,18 +170,42 @@ func verifyForTime(
 }
 
 // nolint: deadcode
-func verifyFlushed(
+func verifyFlushedDataFiles(
 	t *testing.T,
 	shardSet sharding.ShardSet,
-	opts storage.Options,
+	storageOpts storage.Options,
 	namespace ident.ID,
 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
 ) {
-	fsOpts := opts.CommitLogOptions().FilesystemOptions()
-	reader, err := fs.NewReader(opts.BytesPool(), fsOpts)
+	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
+	reader, err := fs.NewReader(storageOpts.BytesPool(), fsOpts)
 	require.NoError(t, err)
-	iteratorPool := opts.ReaderIteratorPool()
+	iteratorPool := storageOpts.ReaderIteratorPool()
 	for timestamp, seriesList := range seriesMaps {
-		verifyForTime(t, reader, shardSet, iteratorPool, timestamp.ToTime(), namespace, seriesList)
+		verifyForTime(
+			t, storageOpts, reader, shardSet, iteratorPool, timestamp.ToTime(),
+			namespace, persist.FilesetFlushType, seriesList)
+	}
+}
+
+// nolint: deadcode
+func verifySnapshottedDataFiles(
+	t *testing.T,
+	shardSet sharding.ShardSet,
+	storageOpts storage.Options,
+	namespace ident.ID,
+	snapshotTime time.Time,
+	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
+) {
+	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
+	reader, err := fs.NewReader(storageOpts.BytesPool(), fsOpts)
+	require.NoError(t, err)
+	iteratorPool := storageOpts.ReaderIteratorPool()
+	for _, ns := range testNamespaces {
+		for _, seriesList := range seriesMaps {
+			verifyForTime(
+				t, storageOpts, reader, shardSet, iteratorPool, snapshotTime,
+				ns, persist.FilesetSnapshotType, seriesList)
+		}
 	}
 }

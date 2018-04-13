@@ -20,6 +20,10 @@
 
 package schema
 
+import (
+	"github.com/m3db/m3db/persist"
+)
+
 // MajorVersion is the major schema version for a set of fileset files,
 // this is only incremented when breaking changes are introduced and
 // tooling needs to upgrade older files to newer files before a server restart
@@ -27,12 +31,14 @@ const MajorVersion = 1
 
 // IndexInfo stores metadata information about block filesets
 type IndexInfo struct {
-	Start        int64
+	BlockStart   int64
 	BlockSize    int64
 	Entries      int64
 	MajorVersion int64
 	Summaries    IndexSummariesInfo
 	BloomFilter  IndexBloomFilterInfo
+	SnapshotTime int64
+	FileType     persist.FilesetType
 }
 
 // IndexSummariesInfo stores metadata about the summaries

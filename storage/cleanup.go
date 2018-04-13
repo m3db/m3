@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/uber-go/tally"
 )
@@ -88,14 +89,24 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 	}()
 
 	multiErr := xerrors.NewMultiError()
-	if err := m.cleanupFilesetFiles(t); err != nil {
+	if err := m.cleanupDataFiles(t); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when cleaning up fileset files for %v: %v", t, err))
+			"encountered errors when cleaning up data files for %v: %v", t, err))
 	}
 
-	if err := m.deleteInactiveFilesetFiles(); err != nil {
+	if err := m.cleanupSnapshotFiles(t); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when deleting inactive fileset files for %v: %v", t, err))
+			"encountered errors when cleaning up snapshot files for %v: %v", t, err))
+	}
+
+	if err := m.deleteInactiveDataFiles(); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when deleting inactive data files for %v: %v", t, err))
+	}
+
+	if err := m.deleteInactiveSnapshotFiles(); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when deleting inactive snapshot files for %v: %v", t, err))
 	}
 
 	if err := m.deleteInactiveNamespaceFiles(); err != nil {
@@ -147,7 +158,19 @@ func (m *cleanupManager) deleteInactiveNamespaceFiles() error {
 	return m.deleteInactiveDirectoriesFn(dataDirPath, namespaceDirNames)
 }
 
-func (m *cleanupManager) deleteInactiveFilesetFiles() error {
+// deleteInactiveDataFiles will delete data files for shards that the node no longer owns
+// which can occur in the case of topology changes
+func (m *cleanupManager) deleteInactiveDataFiles() error {
+	return m.deleteInactiveFilesetFiles(fs.NamespaceDataDirPath)
+}
+
+// deleteInactiveSnapshotFiles will delete snapshot files for shards that the node no longer owns
+// which can occur in the case of topology changes
+func (m *cleanupManager) deleteInactiveSnapshotFiles() error {
+	return m.deleteInactiveFilesetFiles(fs.NamespaceSnapshotsDirPath)
+}
+
+func (m *cleanupManager) deleteInactiveFilesetFiles(filesetFilesDirPathFn func(string, ident.ID) string) error {
 	multiErr := xerrors.NewMultiError()
 	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	namespaces, err := m.database.GetOwnedNamespaces()
@@ -156,7 +179,7 @@ func (m *cleanupManager) deleteInactiveFilesetFiles() error {
 	}
 	for _, n := range namespaces {
 		var activeShards []string
-		namespaceDirPath := fs.NamespaceDirPath(filePathPrefix, n.ID())
+		namespaceDirPath := filesetFilesDirPathFn(filePathPrefix, n.ID())
 		for _, s := range n.GetOwnedShards() {
 			shard := fmt.Sprintf("%d", s.ID())
 			activeShards = append(activeShards, shard)
@@ -167,7 +190,7 @@ func (m *cleanupManager) deleteInactiveFilesetFiles() error {
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) cleanupFilesetFiles(t time.Time) error {
+func (m *cleanupManager) cleanupDataFiles(t time.Time) error {
 	multiErr := xerrors.NewMultiError()
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
@@ -176,17 +199,44 @@ func (m *cleanupManager) cleanupFilesetFiles(t time.Time) error {
 	for _, n := range namespaces {
 		earliestToRetain := retention.FlushTimeStart(n.Options().RetentionOptions(), t)
 		shards := n.GetOwnedShards()
-		if n.Options().NeedsFilesetCleanup() {
-			multiErr = multiErr.Add(m.cleanupNamespaceFilesetFiles(earliestToRetain, shards))
+		if n.Options().CleanupEnabled() {
+			multiErr = multiErr.Add(m.cleanupNamespaceDataFiles(earliestToRetain, shards))
 		}
 	}
 	return multiErr.FinalError()
 }
 
-func (m *cleanupManager) cleanupNamespaceFilesetFiles(earliestToRetain time.Time, shards []databaseShard) error {
+func (m *cleanupManager) cleanupSnapshotFiles(t time.Time) error {
+	multiErr := xerrors.NewMultiError()
+	namespaces, err := m.database.GetOwnedNamespaces()
+	if err != nil {
+		return err
+	}
+	for _, n := range namespaces {
+		earliestToRetain := retention.FlushTimeStart(n.Options().RetentionOptions(), t)
+		shards := n.GetOwnedShards()
+		if n.Options().CleanupEnabled() {
+			multiErr = multiErr.Add(m.cleanupNamespaceSnapshotFiles(earliestToRetain, shards))
+		}
+	}
+	return multiErr.FinalError()
+}
+
+func (m *cleanupManager) cleanupNamespaceDataFiles(earliestToRetain time.Time, shards []databaseShard) error {
 	multiErr := xerrors.NewMultiError()
 	for _, shard := range shards {
 		if err := shard.CleanupFileset(earliestToRetain); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
+	return multiErr.FinalError()
+}
+
+func (m *cleanupManager) cleanupNamespaceSnapshotFiles(earliestToRetain time.Time, shards []databaseShard) error {
+	multiErr := xerrors.NewMultiError()
+	for _, shard := range shards {
+		if err := shard.CleanupSnapshots(earliestToRetain); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}

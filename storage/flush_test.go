@@ -70,7 +70,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	mockFlusher := persist.NewMockFlush(ctrl)
 	mockFlusher.EXPECT().Done().Return(nil).AnyTimes()
 	mockPersistManager := persist.NewMockManager(ctrl)
-	mockPersistManager.EXPECT().StartFlush().Do(func() {
+	mockPersistManager.EXPECT().StartPersist().Do(func() {
 		// channels used to coordinate flushing state
 		startCh <- struct{}{}
 		<-doneCh
@@ -98,7 +98,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		<-startCh
-		require.Equal(t, errFlushAlreadyInProgress, fm.Flush(now))
+		require.Equal(t, errFlushOrSnapshotAlreadyInProgress, fm.Flush(now))
 		doneCh <- struct{}{}
 	}()
 
@@ -113,7 +113,7 @@ func TestFlushManagerFlushDoneError(t *testing.T) {
 	mockFlusher := persist.NewMockFlush(ctrl)
 	mockFlusher.EXPECT().Done().Return(fakeErr).AnyTimes()
 	mockPersistManager := persist.NewMockManager(ctrl)
-	mockPersistManager.EXPECT().StartFlush().Return(mockFlusher, nil).AnyTimes()
+	mockPersistManager.EXPECT().StartPersist().Return(mockFlusher, nil).AnyTimes()
 
 	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
@@ -230,6 +230,109 @@ func TestFlushManagerNamespaceFlushTimesSomeNeedFlush(t *testing.T) {
 	require.NotEmpty(t, times)
 	sort.Sort(timesInOrder(times))
 	require.Equal(t, expectedTimes, times)
+}
+
+func TestFlushManagerFlushSnapshot(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
+	now := time.Now()
+
+	for _, ns := range []*MockdatabaseNamespace{ns1, ns2} {
+		rOpts := ns.Options().RetentionOptions()
+		blockSize := rOpts.BlockSize()
+		bufferPast := rOpts.BufferPast()
+
+		start := retention.FlushTimeStart(ns.Options().RetentionOptions(), now)
+		end := retention.FlushTimeEnd(ns.Options().RetentionOptions(), now)
+		num := numIntervals(start, end, blockSize)
+
+		for i := 0; i < num; i++ {
+			st := start.Add(time.Duration(i) * blockSize)
+			ns.EXPECT().NeedsFlush(st, st).Return(false)
+		}
+
+		currBlockStart := now.Add(-bufferPast).Truncate(blockSize)
+		prevBlockStart := currBlockStart.Add(-blockSize)
+		ns.EXPECT().NeedsFlush(prevBlockStart, prevBlockStart).Return(false)
+		ns.EXPECT().Snapshot(currBlockStart, now, gomock.Any())
+	}
+
+	require.NoError(t, fm.Flush(now))
+}
+
+func TestFlushManagerFlushNoSnapshotWhileFlushPending(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
+	now := time.Now()
+
+	for _, ns := range []*MockdatabaseNamespace{ns1, ns2} {
+		rOpts := ns.Options().RetentionOptions()
+		blockSize := rOpts.BlockSize()
+		bufferPast := rOpts.BufferPast()
+
+		start := retention.FlushTimeStart(ns.Options().RetentionOptions(), now)
+		end := retention.FlushTimeEnd(ns.Options().RetentionOptions(), now)
+		num := numIntervals(start, end, blockSize)
+
+		for i := 0; i < num; i++ {
+			st := start.Add(time.Duration(i) * blockSize)
+			ns.EXPECT().NeedsFlush(st, st).Return(false)
+		}
+
+		currBlockStart := now.Add(-bufferPast).Truncate(blockSize)
+		prevBlockStart := currBlockStart.Add(-blockSize)
+		ns.EXPECT().NeedsFlush(prevBlockStart, prevBlockStart).Return(true)
+	}
+
+	require.NoError(t, fm.Flush(now))
+}
+
+func TestFlushManagerSnapshotBlockStart(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
+	now := time.Now()
+
+	nsOpts := namespace.NewOptions()
+	rOpts := nsOpts.RetentionOptions().
+		SetBlockSize(2 * time.Hour).
+		SetBufferPast(10 * time.Minute)
+	blockSize := rOpts.BlockSize()
+	nsOpts = nsOpts.SetRetentionOptions(rOpts)
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
+
+	testCases := []struct {
+		currTime           time.Time
+		expectedBlockStart time.Time
+	}{
+		// Set comment in snapshotBlockStart for explanation of these test cases
+		{
+			currTime:           now.Truncate(blockSize).Add(30 * time.Minute),
+			expectedBlockStart: now.Truncate(blockSize),
+		},
+		{
+			currTime:           now.Truncate(blockSize).Add(119 * time.Minute),
+			expectedBlockStart: now.Truncate(blockSize),
+		},
+		{
+			currTime:           now.Truncate(blockSize).Add(129 * time.Minute),
+			expectedBlockStart: now.Truncate(blockSize),
+		},
+		{
+			currTime:           now.Truncate(blockSize).Add(130 * time.Minute),
+			expectedBlockStart: now.Truncate(blockSize).Add(blockSize),
+		},
+	}
+
+	for _, tc := range testCases {
+		require.Equal(t, tc.expectedBlockStart, fm.snapshotBlockStart(ns, tc.currTime))
+	}
 }
 
 type timesInOrder []time.Time

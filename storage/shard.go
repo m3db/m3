@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -75,6 +76,8 @@ type filesetBeforeFn func(
 	t time.Time,
 ) ([]string, error)
 
+type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.SnapshotFilesSlice, error)
+
 type tickPolicy int
 
 const (
@@ -110,10 +113,12 @@ type dbShard struct {
 	bs                       bootstrapState
 	filesetBeforeFn          filesetBeforeFn
 	deleteFilesFn            deleteFilesFn
+	snapshotFilesFn          snapshotFilesFn
 	sleepFn                  func(time.Duration)
 	identifierPool           ident.Pool
 	contextPool              context.Pool
 	flushState               shardFlushState
+	snapshotState            shardSnapshotState
 	tickWg                   *sync.WaitGroup
 	runtimeOptsListenClosers []xclose.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
@@ -225,6 +230,12 @@ func newShardFlushState() shardFlushState {
 	}
 }
 
+type shardSnapshotState struct {
+	sync.RWMutex
+	isSnapshotting         bool
+	lastSuccessfulSnapshot time.Time
+}
+
 func newDatabaseShard(
 	namespaceMetadata namespace.Metadata,
 	shard uint32,
@@ -256,6 +267,7 @@ func newDatabaseShard(
 		list:               list.New(),
 		filesetBeforeFn:    fs.FilesetBefore,
 		deleteFilesFn:      fs.DeleteFiles,
+		snapshotFilesFn:    fs.SnapshotFiles,
 		sleepFn:            time.Sleep,
 		identifierPool:     opts.IdentifierPool(),
 		contextPool:        opts.ContextPool(),
@@ -682,7 +694,6 @@ func (s *dbShard) tickAndExpire(
 			}
 			expired = expired[:0]
 		}
-
 		// Continue
 		return true
 	})
@@ -1626,10 +1637,21 @@ func (s *dbShard) Bootstrap(
 	// Now iterate flushed time ranges to determine which blocks are
 	// retrievable before servicing reads
 	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
-	entries := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
+	readInfoFilesResults := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
 		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
-	for _, info := range entries {
-		at := xtime.FromNanoseconds(info.Start)
+
+	for _, result := range readInfoFilesResults {
+		if result.Err.Error() != nil {
+			s.logger.WithFields(
+				xlog.NewField("shard", s.ID()),
+				xlog.NewField("namespace", s.namespace.ID()),
+				xlog.NewField("error", result.Err.Error()),
+				xlog.NewField("filepath", result.Err.Filepath()),
+			).Error("unable to read info files in shard bootstrap")
+			continue
+		}
+		info := result.Info
+		at := xtime.FromNanoseconds(info.BlockStart)
 		fs := s.FlushState(at)
 		if fs.Status != fileOpNotStarted {
 			continue // Already recorded progress
@@ -1656,18 +1678,24 @@ func (s *dbShard) Flush(
 	}
 	s.RUnlock()
 
-	var multiErr xerrors.MultiError
-	prepared, err := flush.Prepare(s.namespace, s.ID(), blockStart)
-	multiErr = multiErr.Add(err)
+	prepareOpts := persist.PrepareOptions{
+		NamespaceMetadata: s.namespace,
+		Shard:             s.ID(),
+		BlockStart:        blockStart,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
+	if err != nil {
+		return s.markFlushStateSuccessOrError(blockStart, err)
+	}
 
 	// No action is necessary therefore we bail out early and there is no need to close.
 	if prepared.Persist == nil {
 		// NB(r): Need to mark state without mulitErr as success so IsBlockRetrievable can
 		// return true when querying if a block is retrievable for this time
-		return s.markFlushStateSuccessOrError(blockStart, multiErr.FinalError())
+		return s.markFlushStateSuccessOrError(blockStart, nil)
 	}
 
-	// If we encounter an error when persisting a series, we continue regardless.
+	var multiErr xerrors.MultiError
 	tmpCtx := context.NewContext()
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		series := entry.series
@@ -1676,7 +1704,14 @@ func (s *dbShard) Flush(
 		tmpCtx.Reset()
 		err := series.Flush(tmpCtx, blockStart, prepared.Persist)
 		tmpCtx.BlockingClose()
-		multiErr = multiErr.Add(err)
+
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			// If we encounter an error when persisting a series, don't continue as
+			// the file on disk could be in a corrupt state.
+			return false
+		}
+
 		return true
 	})
 
@@ -1685,6 +1720,81 @@ func (s *dbShard) Flush(
 	}
 
 	return s.markFlushStateSuccessOrError(blockStart, multiErr.FinalError())
+}
+
+func (s *dbShard) Snapshot(
+	blockStart time.Time,
+	snapshotTime time.Time,
+	flush persist.Flush,
+) error {
+	// We don't snapshot data when the shard is still bootstrapping
+	s.RLock()
+	if s.bs != bootstrapped {
+		s.RUnlock()
+		return errShardNotBootstrappedToSnapshot
+	}
+	s.RUnlock()
+
+	var multiErr xerrors.MultiError
+
+	s.markIsSnapshotting()
+	defer func() {
+		s.markDoneSnapshotting(multiErr.Empty(), snapshotTime)
+	}()
+
+	prepareOpts := persist.PrepareOptions{
+		NamespaceMetadata: s.namespace,
+		Shard:             s.ID(),
+		BlockStart:        blockStart,
+		SnapshotTime:      snapshotTime,
+		FilesetType:       persist.FilesetSnapshotType,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
+	// Add the err so the defer will capture it
+	multiErr = multiErr.Add(err)
+	if err != nil {
+		return err
+	}
+
+	// No action is necessary therefore we bail out early and there is no need to close.
+	if prepared.Persist == nil {
+		errMsg := "[invariant violated] tried to write prepare snapshot file that already exists"
+		// This should never happen in practice since we don't check for duplicate snapshot files
+		// in the Prepare method.
+		s.logger.WithFields(
+			xlog.NewField("blockStart", blockStart),
+			xlog.NewField("snapshotStart", snapshotTime),
+			xlog.NewField("shard", s.ID()),
+		).Errorf(errMsg)
+		// Add to multiErr so we can see failures in metrics
+		multiErr = multiErr.Add(errors.New(errMsg))
+		return nil
+	}
+
+	tmpCtx := context.NewContext()
+	s.forEachShardEntry(func(entry *dbShardEntry) bool {
+		series := entry.series
+		// Use a temporary context here so the stream readers can be returned to
+		// pool after we finish fetching flushing the series
+		tmpCtx.Reset()
+		err := series.Snapshot(tmpCtx, blockStart, prepared.Persist)
+		tmpCtx.BlockingClose()
+
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			// If we encounter an error when persisting a series, don't continue as
+			// the file on disk could be in a corrupt state.
+			return false
+		}
+
+		return true
+	})
+
+	if err := prepared.Close(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	return multiErr.FinalError()
 }
 
 func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
@@ -1733,6 +1843,86 @@ func (s *dbShard) removeAnyFlushStatesTooEarly() {
 		}
 	}
 	s.flushState.Unlock()
+}
+
+func (s *dbShard) SnapshotState() (bool, time.Time) {
+	s.snapshotState.RLock()
+	defer s.snapshotState.RUnlock()
+	return s.snapshotState.isSnapshotting, s.snapshotState.lastSuccessfulSnapshot
+}
+
+func (s *dbShard) markIsSnapshotting() {
+	s.snapshotState.Lock()
+	s.snapshotState.isSnapshotting = true
+	s.snapshotState.Unlock()
+}
+
+func (s *dbShard) markDoneSnapshotting(success bool, completionTime time.Time) {
+	s.snapshotState.Lock()
+	s.snapshotState.isSnapshotting = false
+	if success {
+		s.snapshotState.lastSuccessfulSnapshot = completionTime
+	}
+	s.snapshotState.Unlock()
+}
+
+// CleanupSnapshots examines the snapshot files for the shard that are on disk and
+// determines which can be safely deleted. A snapshot file is safe to delete if it
+// meets one of the following criteria:
+// 		1) It contains data for a block start that is out of retention (as determined
+// 		   by the earliestToRetain argument.)
+// 		2) It contains data for a block start that has already been successfully flushed.
+// 		3) It contains data for a block start that hasn't been flushed yet, but a more
+// 		   recent set of snapshot files (higher index) exists for the same block start.
+// 		   This is because snapshot files are cumulative, so once a new one has been
+//         written out it's safe to delete any previous ones for that block start.
+func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
+	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	snapshotFiles, err := s.snapshotFilesFn(filePathPrefix, s.namespace.ID(), s.ID())
+	if err != nil {
+		return err
+	}
+
+	sort.Slice(snapshotFiles, func(i, j int) bool {
+		// Make sure they're sorted by blockStart/Index in ascending order.
+		if snapshotFiles[i].ID.BlockStart.Equal(snapshotFiles[j].ID.BlockStart) {
+			return snapshotFiles[i].ID.Index < snapshotFiles[j].ID.Index
+		}
+		return snapshotFiles[i].ID.BlockStart.Before(snapshotFiles[j].ID.BlockStart)
+	})
+
+	filesToDelete := []string{}
+
+	for i := 0; i < len(snapshotFiles); i++ {
+		curr := snapshotFiles[i]
+
+		if curr.ID.BlockStart.Before(earliestToRetain) {
+			// Delete snapshot files for blocks that have fallen out
+			// of retention.
+			filesToDelete = append(filesToDelete, curr.AbsoluteFilepaths...)
+			continue
+		}
+
+		if s.FlushState(curr.ID.BlockStart).Status == fileOpSuccess {
+			// Delete snapshot files for any block starts that have been
+			// successfully flushed.
+			filesToDelete = append(filesToDelete, curr.AbsoluteFilepaths...)
+			continue
+		}
+
+		if i+1 < len(snapshotFiles) &&
+			snapshotFiles[i+1].ID.BlockStart == curr.ID.BlockStart &&
+			snapshotFiles[i+1].ID.Index > curr.ID.Index &&
+			snapshotFiles[i+1].HasCheckpointFile() {
+			// Delete any snapshot files which are not the most recent
+			// for that block start, but only of the set of snapshot files
+			// with the higher index is complete (checkpoint file exists)
+			filesToDelete = append(filesToDelete, curr.AbsoluteFilepaths...)
+			continue
+		}
+	}
+
+	return s.deleteFilesFn(filesToDelete)
 }
 
 func (s *dbShard) CleanupFileset(earliestToRetain time.Time) error {

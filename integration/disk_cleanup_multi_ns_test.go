@@ -69,7 +69,7 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 		ns2BlockSize       = 2 * time.Hour
 		ns1ROpts           = rOpts.SetRetentionPeriod(8 * time.Hour).SetBlockSize(ns1BlockSize)
 		ns2ROpts           = rOpts.SetRetentionPeriod(6 * time.Hour).SetBlockSize(ns2BlockSize)
-		nsOpts             = namespace.NewOptions().SetNeedsFlush(false) // disabling flushing to ensure data isn't flushed during test
+		nsOpts             = namespace.NewOptions().SetFlushEnabled(false) // disabling flushing to ensure data isn't flushed during test
 	)
 
 	ns1, err := namespace.NewMetadata(testNamespaces[0], nsOpts.SetRetentionOptions(ns1ROpts))

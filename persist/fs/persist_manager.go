@@ -22,6 +22,7 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -29,7 +30,6 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/runtime"
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
@@ -45,13 +45,13 @@ type persistManagerStatus int
 
 const (
 	persistManagerIdle persistManagerStatus = iota
-	persistManagerFlushing
+	persistManagerPersisting
 )
 
 var (
-	errPersistManagerNotIdle                  = errors.New("persist manager cannot start flush, not idle")
-	errPersistManagerNotFlushing              = errors.New("persist manager cannot finish flushing, not flushing")
-	errPersistManagerCannotPrepareNotFlushing = errors.New("persist manager cannot prepare, not flushing")
+	errPersistManagerNotIdle                    = errors.New("persist manager cannot start persist, not idle")
+	errPersistManagerNotPersisting              = errors.New("persist manager cannot finish persisting, not persisting")
+	errPersistManagerCannotPrepareNotPersisting = errors.New("persist manager cannot prepare, not persisting")
 )
 
 type sleepFn func(time.Duration)
@@ -169,26 +169,26 @@ func (pm *persistManager) close() error {
 	return pm.writer.Close()
 }
 
-// StartFlush is called by the databaseFlushManager to begin the flush process
-func (pm *persistManager) StartFlush() (persist.Flush, error) {
+// StartPersist is called by the databaseFlushManager to begin the persist process
+func (pm *persistManager) StartPersist() (persist.Flush, error) {
 	pm.Lock()
 	defer pm.Unlock()
 
 	if pm.status != persistManagerIdle {
 		return nil, errPersistManagerNotIdle
 	}
-	pm.status = persistManagerFlushing
+	pm.status = persistManagerPersisting
 
 	return pm, nil
 }
 
-// Done is called by the databaseFlushManager to finish the flush process
+// Done is called by the databaseFlushManager to finish the persist process
 func (pm *persistManager) Done() error {
 	pm.Lock()
 	defer pm.Unlock()
 
-	if pm.status != persistManagerFlushing {
-		return errPersistManagerNotFlushing
+	if pm.status != persistManagerPersisting {
+		return errPersistManagerNotPersisting
 	}
 
 	// Emit timing metrics
@@ -210,35 +210,54 @@ func (pm *persistManager) reset() {
 	pm.slept = 0
 }
 
-func (pm *persistManager) Prepare(
-	nsMetadata namespace.Metadata,
-	shard uint32,
-	blockStart time.Time,
-) (persist.PreparedPersist, error) {
+// Prepare returns a prepared persist object which can be used to persist data. Note that this
+// method will return (nil, nil) if the files already exist.
+func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.PreparedPersist, error) {
 
 	var (
-		nsID     = nsMetadata.ID()
-		prepared persist.PreparedPersist
+		nsMetadata   = opts.NamespaceMetadata
+		shard        = opts.Shard
+		blockStart   = opts.BlockStart
+		snapshotTime = opts.SnapshotTime
+		nsID         = opts.NamespaceMetadata.ID()
+		prepared     persist.PreparedPersist
 	)
 
-	// ensure StartFlush has been called
+	// ensure StartPersist has been called
 	pm.RLock()
 	status := pm.status
 	pm.RUnlock()
 
-	if status != persistManagerFlushing {
-		return prepared, errPersistManagerCannotPrepareNotFlushing
+	if status != persistManagerPersisting {
+		return prepared, errPersistManagerCannotPrepareNotPersisting
 	}
 
-	// NB(xichen): if the checkpoint file for blockStart already exists, bail.
-	// This allows us to retry failed flushing attempts because they wouldn't
-	// have created the checkpoint file.
-	if FilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart) {
+	// If the checkpoint file aleady exists, bail. This allows us to retry failed attempts because
+	// they wouldn't have created the checkpoint file. This can happen in a variety of situations
+	// for flushes, but will not happen with snapshots because we generate an auto-incrementing ID
+	// for all snapshots that belong to the same block start.
+	exists, err := pm.filesetExistsAt(opts)
+	if err != nil {
+		return prepared, err
+	}
+	if exists {
 		return prepared, nil
 	}
 
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
-	if err := pm.writer.Open(nsID, blockSize, shard, blockStart); err != nil {
+	writerOpts := WriterOpenOptions{
+		BlockSize: blockSize,
+		Snapshot: WriterSnapshotOptions{
+			SnapshotTime: snapshotTime,
+		},
+		FilesetType: opts.FilesetType,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  nsID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+	}
+	if err := pm.writer.Open(writerOpts); err != nil {
 		return prepared, err
 	}
 
@@ -246,6 +265,27 @@ func (pm *persistManager) Prepare(
 	prepared.Close = pm.close
 
 	return prepared, nil
+}
+
+func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) (bool, error) {
+	var (
+		blockStart = prepareOpts.BlockStart
+		shard      = prepareOpts.Shard
+		nsID       = prepareOpts.NamespaceMetadata.ID()
+	)
+
+	switch prepareOpts.FilesetType {
+	case persist.FilesetSnapshotType:
+		// Snapshot files are indexed (multiple per block-start), so checking if the file
+		// already exist doesn't make much sense
+		return false, nil
+	case persist.FilesetFlushType:
+		return DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart), nil
+	default:
+		return false, fmt.Errorf(
+			"unable to determine if fileset exists in persist manager for fileset type: %s",
+			prepareOpts.FilesetType)
+	}
 }
 
 func (pm *persistManager) SetRuntimeOptions(value runtime.Options) {

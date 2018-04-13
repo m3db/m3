@@ -178,7 +178,7 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		return errClonesShouldNotBeOpened
 	}
 
-	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
+	shardDir := ShardDataDirPath(s.filePathPrefix, namespace, shard)
 	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd, summariesFd *os.File
 
 	// Open necessary files
@@ -337,7 +337,7 @@ func (s *seeker) readInfo(size int) error {
 		return err
 	}
 
-	s.start = xtime.FromNanoseconds(info.Start)
+	s.start = xtime.FromNanoseconds(info.BlockStart)
 	s.blockSize = time.Duration(info.BlockSize)
 	s.entries = int(info.Entries)
 	s.bloomFilterInfo = info.BloomFilter

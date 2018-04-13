@@ -34,13 +34,13 @@ type MapConfiguration struct {
 
 // MetadataConfiguration is the configuration for a single namespace
 type MetadataConfiguration struct {
-	ID                  string                  `yaml:"id" validate:"nonzero"`
-	NeedsBootstrap      *bool                   `yaml:"needsBootstrap"`
-	NeedsFlush          *bool                   `yaml:"needsFlush"`
-	WritesToCommitLog   *bool                   `yaml:"writesToCommitLog"`
-	NeedsFilesetCleanup *bool                   `yaml:"needsFilesetCleanup"`
-	NeedsRepair         *bool                   `yaml:"needsRepair"`
-	Retention           retention.Configuration `yaml:"retention" validate:"nonzero"`
+	ID                string                  `yaml:"id" validate:"nonzero"`
+	BootstrapEnabled  *bool                   `yaml:"bootstrapEnabled"`
+	FlushEnabled      *bool                   `yaml:"flushEnabled"`
+	WritesToCommitLog *bool                   `yaml:"writesToCommitLog"`
+	CleanupEnabled    *bool                   `yaml:"cleanupEnabled"`
+	RepairEnabled     *bool                   `yaml:"repairEnabled"`
+	Retention         retention.Configuration `yaml:"retention" validate:"nonzero"`
 }
 
 // Map returns a Map corresponding to the receiver struct
@@ -60,20 +60,20 @@ func (m *MapConfiguration) Map() (Map, error) {
 func (mc *MetadataConfiguration) Metadata() (Metadata, error) {
 	ropts := mc.Retention.Options()
 	opts := NewOptions().SetRetentionOptions(ropts)
-	if v := mc.NeedsBootstrap; v != nil {
-		opts = opts.SetNeedsBootstrap(*v)
+	if v := mc.BootstrapEnabled; v != nil {
+		opts = opts.SetBootstrapEnabled(*v)
 	}
-	if v := mc.NeedsFlush; v != nil {
-		opts = opts.SetNeedsFlush(*v)
+	if v := mc.FlushEnabled; v != nil {
+		opts = opts.SetFlushEnabled(*v)
 	}
 	if v := mc.WritesToCommitLog; v != nil {
 		opts = opts.SetWritesToCommitLog(*v)
 	}
-	if v := mc.NeedsFilesetCleanup; v != nil {
-		opts = opts.SetNeedsFilesetCleanup(*v)
+	if v := mc.CleanupEnabled; v != nil {
+		opts = opts.SetCleanupEnabled(*v)
 	}
-	if v := mc.NeedsRepair; v != nil {
-		opts = opts.SetNeedsRepair(*v)
+	if v := mc.RepairEnabled; v != nil {
+		opts = opts.SetRepairEnabled(*v)
 	}
 	return NewMetadata(ident.StringID(mc.ID), opts)
 }

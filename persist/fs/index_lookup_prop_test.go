@@ -33,8 +33,8 @@ import (
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/fs/msgpack"
-	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -78,11 +78,19 @@ func TestIndexLookupWriteRead(t *testing.T) {
 		if err != nil {
 			return false, fmt.Errorf("err creating writer: %v, ", err)
 		}
-		err = w.Open(testNs1ID, testBlockSize, shard, testWriterStart)
+		writerOpts := WriterOpenOptions{
+			BlockSize: testBlockSize,
+			Identifier: FilesetFileIdentifier{
+				Namespace:  testNs1ID,
+				Shard:      shard,
+				BlockStart: testWriterStart,
+			},
+		}
+		err = w.Open(writerOpts)
 		if err != nil {
 			return false, fmt.Errorf("err opening writer: %v, ", err)
 		}
-		shardDirPath := ShardDirPath(filePathPrefix, testNs1ID, shard)
+		shardDirPath := ShardDataDirPath(filePathPrefix, testNs1ID, shard)
 		err = writeTestSummariesData(w, writes)
 		if err != nil {
 			return false, fmt.Errorf("err writing test summaries data: %v, ", err)

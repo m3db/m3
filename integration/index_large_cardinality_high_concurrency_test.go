@@ -1,4 +1,4 @@
-// +build integration
+// +build integration_disabled
 
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -23,35 +23,53 @@
 package integration
 
 import (
+	"fmt"
+	"math/rand"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/integration/generate"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiskFlushSimple(t *testing.T) {
+// This test writes a larget number of unique series' with tags concurrently.
+func TestIndexLargeCardinalityHighConcurrency(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
+
+	concurrency := 2
+	writeEach := 128
+	maxNumTags := 10
+
+	genIDTags := func(i int, j int) (ident.ID, ident.TagIterator) {
+		id := fmt.Sprintf("foo.%d.%d", i, j)
+		numTags := rand.Intn(maxNumTags)
+		tags := make([]ident.Tag, 0, numTags)
+		for i := 0; i < numTags; i++ {
+			tags = append(tags, ident.StringTag(
+				fmt.Sprintf("%s.tagname.%d", id, i),
+				fmt.Sprintf("%s.tagvalue.%d", id, i),
+			))
+		}
+		return ident.StringID(id), ident.NewTagSliceIterator(tags)
+	}
+
 	// Test setup
-	testOpts := newTestOptions(t).
-		SetTickMinimumInterval(time.Second)
+	testOpts := newTestOptions(t).SetIndexingEnabled(true)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
 
 	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
-	blockSize := md.Options().RetentionOptions().BlockSize()
-	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	log.Debug("disk flush test")
 	require.NoError(t, testSetup.startServer())
-	log.Debug("server is now up")
 
 	// Stop the server
 	defer func() {
@@ -59,28 +77,36 @@ func TestDiskFlushSimple(t *testing.T) {
 		log.Debug("server is now down")
 	}()
 
-	// Write test data
-	now := testSetup.getNowFn()
-	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
-	inputData := []generate.BlockConfig{
-		{[]string{"foo", "bar"}, 100, now},
-		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
-	}
-	for _, input := range inputData {
-		testSetup.setNowFn(input.Start)
-		testData := generate.Block(input)
-		seriesMaps[xtime.ToUnixNano(input.Start)] = testData
-		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
-	}
-	log.Debug("test data is now written")
+	client := testSetup.m3dbClient
+	session, err := client.DefaultSession()
+	require.NoError(t, err)
 
-	// Advance time to make sure all data are flushed. Because data
-	// are flushed to disk asynchronously, need to poll to check
-	// when data are written.
-	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	maxWaitTime := time.Minute
-	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], seriesMaps, maxWaitTime))
+	var (
+		wg             sync.WaitGroup
+		numTotalErrors uint32
+	)
+	now := testSetup.db.Options().ClockOptions().NowFn()()
+	start := time.Now()
+	log.Info("starting data write")
 
-	// Verify on-disk data match what we expect
-	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, testNamespaces[0], seriesMaps)
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		idx := i
+		go func() {
+			numErrors := uint32(0)
+			for j := 0; j < writeEach; j++ {
+				id, tags := genIDTags(idx, j)
+				err := session.WriteTagged(md.ID(), id, tags, now, float64(1.0), xtime.Second, nil)
+				if err != nil {
+					numErrors++
+				}
+			}
+			atomic.AddUint32(&numTotalErrors, numErrors)
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
+	require.Zero(t, numTotalErrors)
+	log.Infof("test data written in %v", time.Since(start))
 }

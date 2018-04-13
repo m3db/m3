@@ -66,7 +66,7 @@ func newOpenTestBlockRetriever(
 		retriever.newSeekerMgrFn = opts.newSeekerMgrFn
 	}
 
-	nsPath := NamespaceDirPath(opts.fsOpts.FilePathPrefix(), testNs1ID)
+	nsPath := NamespaceDataDirPath(opts.fsOpts.FilePathPrefix(), testNs1ID)
 	require.NoError(t, os.MkdirAll(nsPath, opts.fsOpts.NewDirectoryMode()))
 	require.NoError(t, retriever.Open(testNs1Metadata(t)))
 
@@ -82,8 +82,15 @@ func newOpenTestWriter(
 	start time.Time,
 ) (FileSetWriter, testCleanupFn) {
 	w := newTestWriter(t, fsOpts.FilePathPrefix())
-	err := w.Open(testNs1ID, testBlockSize, shard, start)
-	require.NoError(t, err)
+	writerOpts := WriterOpenOptions{
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: start,
+		},
+	}
+	require.NoError(t, w.Open(writerOpts))
 	return w, func() {
 		assert.NoError(t, w.Close())
 	}
