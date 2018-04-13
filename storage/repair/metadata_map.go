@@ -53,6 +53,7 @@ type Map struct {
 // mapOptions is a set of options used when creating an identifier map, it is kept
 // private so that implementers of the generated map can specify their own options
 // that partially fulfill these options.
+// nolint:structcheck
 type mapOptions struct {
 	// hash is the hash function to execute when hashing a key.
 	hash hashFn
@@ -138,22 +139,6 @@ func (m *Map) Set(k ident.ID, v ReplicaSeriesBlocksMetadata) {
 	m.set(k, v, mapKeyOptions{
 		copyKey:     true,
 		finalizeKey: m.finalize != nil,
-	})
-}
-
-// SetUnsafeOptions is a set of options to use when setting a value with
-// the SetUnsafe method.
-type SetUnsafeOptions struct {
-	NoCopyKey     bool
-	NoFinalizeKey bool
-}
-
-// SetUnsafe will set the value for an identifier with unsafe options for how
-// the map treats the key.
-func (m *Map) SetUnsafe(k ident.ID, v ReplicaSeriesBlocksMetadata, opts SetUnsafeOptions) {
-	m.set(k, v, mapKeyOptions{
-		copyKey:     !opts.NoCopyKey,
-		finalizeKey: !opts.NoFinalizeKey,
 	})
 }
 

@@ -227,6 +227,8 @@ func TestReplicaMetadataComparerCompare(t *testing.T) {
 	)
 
 	metadata := NewReplicaSeriesMetadata()
+	defer metadata.Close()
+
 	inputs := []struct {
 		host        topology.Host
 		id          string

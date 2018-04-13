@@ -30,39 +30,15 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
 )
 
 // MapOptions provides options used when created the map.
 type MapOptions struct {
 	InitialSize int
-	KeyCopyPool pool.BytesPool
 }
 
 // NewMap returns a new ID to ReplicaSeriesBlocksMetadata map.
 func NewMap(opts MapOptions) *Map {
-	var (
-		copyFn     copyFn
-		finalizeFn finalizeFn
-	)
-	if pool := opts.KeyCopyPool; pool == nil {
-		copyFn = func(k ident.ID) ident.ID {
-			return id(append([]byte(nil), k.Bytes()...))
-		}
-	} else {
-		copyFn = func(k ident.ID) ident.ID {
-			bytes := k.Bytes()
-			keyLen := len(bytes)
-			pooled := pool.Get(keyLen)[:keyLen]
-			copy(pooled, bytes)
-			return id(pooled)
-		}
-		finalizeFn = func(k ident.ID) {
-			if slice, ok := k.(id); ok {
-				pool.Put(slice)
-			}
-		}
-	}
 	return newMap(mapOptions{
 		hash: func(id ident.ID) MapHash {
 			return MapHash(xxhash.Sum64(id.Bytes()))
@@ -70,8 +46,9 @@ func NewMap(opts MapOptions) *Map {
 		equals: func(x, y ident.ID) bool {
 			return x.Equal(y)
 		},
-		copy:        copyFn,
-		finalize:    finalizeFn,
+		copy: func(k ident.ID) ident.ID {
+			return id(append([]byte(nil), k.Bytes()...))
+		},
 		initialSize: opts.InitialSize,
 	})
 }
