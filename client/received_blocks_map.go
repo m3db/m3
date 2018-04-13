@@ -52,6 +52,7 @@ type recievedBlocksMap struct {
 // receivedMapOptions is a set of options used when creating an identifier map, it is kept
 // private so that implementers of the generated map can specify their own options
 // that partially fulfill these options.
+// nolint:structcheck
 type receivedMapOptions struct {
 	// hash is the hash function to execute when hashing a key.
 	hash hashFn

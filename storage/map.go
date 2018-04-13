@@ -51,6 +51,7 @@ type mapOptions struct {
 	initialSize int
 }
 
+// nolint:structcheck
 type mapKeyOptions struct {
 	copyKey     bool
 	finalizeKey bool

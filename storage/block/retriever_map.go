@@ -56,6 +56,7 @@ type retrieverMap struct {
 	lookup map[mapHash]retrieverMapEntry
 }
 
+// nolint:structcheck
 type retrieverMapOptions struct {
 	// hash is the hash function to execute when hashing a key.
 	hash hashFn

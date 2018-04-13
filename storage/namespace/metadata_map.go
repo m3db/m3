@@ -56,6 +56,7 @@ type metadataMap struct {
 	lookup map[mapHash]metadataMapEntry
 }
 
+// nolint:structcheck
 type metadataMapOptions struct {
 	// hash is the hash function to execute when hashing a key.
 	hash hashFn

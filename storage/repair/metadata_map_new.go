@@ -64,8 +64,8 @@ func NewMap(opts MapOptions) *Map {
 		}
 	}
 	return newMap(mapOptions{
-		hash: func(id ident.ID) mapHash {
-			return mapHash(xxhash.Sum64(id.Bytes()))
+		hash: func(id ident.ID) MapHash {
+			return MapHash(xxhash.Sum64(id.Bytes()))
 		},
 		equals: func(x, y ident.ID) bool {
 			return x.Equal(y)

@@ -30,8 +30,11 @@ package repair
 
 import "github.com/m3db/m3x/ident"
 
-type mapHash uint64
-type hashFn func(ident.ID) mapHash
+// MapHash is a hash of an entry in the map, this is public to support iterating
+// over the map using a native Go for loop.
+type MapHash uint64
+
+type hashFn func(ident.ID) MapHash
 type equalsFn func(ident.ID, ident.ID) bool
 type copyFn func(ident.ID) ident.ID
 type finalizeFn func(ident.ID)
@@ -44,7 +47,7 @@ type Map struct {
 	// wraps the value type and the key (used to ensure lookup is correct
 	// when dealing with collisions), we use uint64 for the hash partially
 	// because lookups of maps with uint64 keys has a fast path for Go.
-	lookup map[mapHash]MapEntry
+	lookup map[MapHash]MapEntry
 }
 
 // mapOptions is a set of options used when creating an identifier map, it is kept
@@ -109,7 +112,7 @@ func (m *Map) newMapKey(k ident.ID, opts mapKeyOptions) mapKey {
 	return key
 }
 
-func (m *Map) removeMapKey(hash mapHash, key mapKey) {
+func (m *Map) removeMapKey(hash MapHash, key mapKey) {
 	delete(m.lookup, hash)
 	if key.finalize {
 		m.finalize(key.key)
@@ -182,7 +185,7 @@ func (m *Map) set(k ident.ID, v ReplicaSeriesBlocksMetadata, opts mapKeyOptions)
 // Iter provides the underlying map to allow for using a native Go for loop
 // to iterate the map, however callers should only ever read and not write
 // the map.
-func (m *Map) Iter() map[mapHash]MapEntry {
+func (m *Map) Iter() map[MapHash]MapEntry {
 	return m.lookup
 }
 
@@ -224,8 +227,8 @@ func (m *Map) Reset() {
 // will not need to grow back to a similar size.
 func (m *Map) Reallocate() {
 	if m.initialSize > 0 {
-		m.lookup = make(map[mapHash]MapEntry, m.initialSize)
+		m.lookup = make(map[MapHash]MapEntry, m.initialSize)
 	} else {
-		m.lookup = make(map[mapHash]MapEntry)
+		m.lookup = make(map[MapHash]MapEntry)
 	}
 }
