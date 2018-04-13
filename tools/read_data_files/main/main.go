@@ -75,7 +75,7 @@ func main() {
 		}
 
 		data.IncRef()
-		iter := m3tsz.NewReaderIterator(bytes.NewReader(data.Get()), true, encodingOpts)
+		iter := m3tsz.NewReaderIterator(bytes.NewReader(data.Bytes()), true, encodingOpts)
 		for iter.Next() {
 			dp, _, _ := iter.Current()
 			// Use fmt package so it goes to stdout instead of stderr
