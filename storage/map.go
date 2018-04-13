@@ -36,6 +36,7 @@ type finalizeFn func(ident.ID)
 // mapOptions is a set of options used when creating an identifier map, it is kept
 // private so that implementers of the generated map can specify their own options
 // that partially fulfill these options.
+// nolint:structcheck
 type mapOptions struct {
 	// hash is the hash function to execute when hashing a key.
 	hash hashFn
