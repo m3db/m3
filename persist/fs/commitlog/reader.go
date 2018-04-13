@@ -345,6 +345,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		}
 
 		if !metadata.passedPredicate {
+			arg.bufPool <- arg.bytes
 			continue
 		}
 
@@ -359,6 +360,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		if len(entry.Annotation) > 0 {
 			readResponse.annotation = append([]byte(nil), entry.Annotation...)
 		}
+
 		arg.bufPool <- arg.bytes
 		outBuf <- readResponse
 	}
