@@ -2284,7 +2284,7 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 	enqueueCh enqueueChannel,
 	pool pool.BytesPool,
 ) {
-	metadata := newReceivedBlocksMap(nil)
+	metadata := newReceivedBlocksMap(pool)
 	defer metadata.Reset() // Delete all the keys and return slices to pools
 
 	for {
