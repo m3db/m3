@@ -85,7 +85,7 @@ func newShardMap() *shardMap {
 	return m
 }
 
-func (m *shardMap) newshardMapKey(k ident.ID, opts mapKeyOptions) shardMapKey {
+func (m *shardMap) newShardMapKey(k ident.ID, opts mapKeyOptions) shardMapKey {
 	key := shardMapKey{key: k, finalize: opts.finalizeKey}
 	if !opts.copyKey {
 		return key
@@ -95,7 +95,7 @@ func (m *shardMap) newshardMapKey(k ident.ID, opts mapKeyOptions) shardMapKey {
 	return key
 }
 
-func (m *shardMap) removeshardMapKey(hash mapHash, key shardMapKey) {
+func (m *shardMap) removeShardMapKey(hash mapHash, key shardMapKey) {
 	delete(m.lookup, hash)
 	if key.finalize {
 		m.finalize(key.key)
@@ -155,7 +155,7 @@ func (m *shardMap) set(k ident.ID, v *list.Element, opts mapKeyOptions) {
 	}
 
 	m.lookup[hash] = shardMapEntry{
-		key:   m.newshardMapKey(k, opts),
+		key:   m.newShardMapKey(k, opts),
 		value: v,
 	}
 }
@@ -184,7 +184,7 @@ func (m *shardMap) Delete(k ident.ID) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
-			m.removeshardMapKey(hash, entry.key)
+			m.removeShardMapKey(hash, entry.key)
 			return
 		}
 		// Linear probe to "next" to this entry (really a rehash)
@@ -196,7 +196,7 @@ func (m *shardMap) Delete(k ident.ID) {
 // allocating a new map.
 func (m *shardMap) Reset() {
 	for hash, entry := range m.lookup {
-		m.removeshardMapKey(hash, entry.key)
+		m.removeShardMapKey(hash, entry.key)
 	}
 }
 
