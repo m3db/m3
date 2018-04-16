@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestIterator(i *MockResultsIter) Iterator {
+func newTestIterator(i *doc.MockIterator) Iterator {
 	return NewIterator(ident.StringID("testNs"), i, NewOptions())
 }
 
@@ -39,7 +39,7 @@ func TestIteratorEmpty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ri := NewMockResultsIter(ctrl)
+	ri := doc.NewMockIterator(ctrl)
 	ri.EXPECT().Next().Return(false)
 	ri.EXPECT().Err().Return(nil)
 
@@ -51,7 +51,7 @@ func TestIteratorWithElements(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ri := NewMockResultsIter(ctrl)
+	ri := doc.NewMockIterator(ctrl)
 	gomock.InOrder(
 		ri.EXPECT().Next().Return(true),
 		ri.EXPECT().Current().Return(
@@ -70,7 +70,7 @@ func TestIteratorWithElements(t *testing.T) {
 						Value: []byte("str"),
 					},
 				},
-			}, false,
+			},
 		),
 		ri.EXPECT().Next().Return(false),
 		ri.EXPECT().Err().Return(nil),
@@ -94,7 +94,7 @@ func TestIteratorWithoutID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ri := NewMockResultsIter(ctrl)
+	ri := doc.NewMockIterator(ctrl)
 	gomock.InOrder(
 		ri.EXPECT().Next().Return(true),
 		ri.EXPECT().Current().Return(
@@ -109,7 +109,7 @@ func TestIteratorWithoutID(t *testing.T) {
 						Value: []byte("str"),
 					},
 				},
-			}, false,
+			},
 		),
 	)
 
@@ -122,7 +122,7 @@ func TestIteratorErr(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ri := NewMockResultsIter(ctrl)
+	ri := doc.NewMockIterator(ctrl)
 	gomock.InOrder(
 		ri.EXPECT().Next().Return(false),
 		ri.EXPECT().Err().Return(fmt.Errorf("random-error")),

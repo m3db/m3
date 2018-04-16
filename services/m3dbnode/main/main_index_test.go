@@ -38,13 +38,14 @@ import (
 	"github.com/m3db/m3db/services/m3dbnode/config"
 	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/storage/index"
-	"github.com/m3db/m3ninx/index/segment"
+	m3ninxidx "github.com/m3db/m3ninx/idx"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -212,18 +213,10 @@ func TestIndexEnabledServer(t *testing.T) {
 	// the "end" param to fetch being exclusive
 	fetchEnd := values[len(values)-1].at.Truncate(time.Second).Add(time.Nanosecond)
 
-	_, _, err = session.FetchTagged(index.Query{
-		segment.Query{
-			Conjunction: segment.AndConjunction,
-			Filters: []segment.Filter{
-				segment.Filter{
-					FieldName:        []byte("foo"),
-					FieldValueFilter: []byte("b.*"),
-					Regexp:           true,
-				},
-			},
-		},
-	}, index.QueryOptions{
+	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
+	assert.NoError(t, err)
+
+	_, _, err = session.FetchTagged(index.Query{reQuery}, index.QueryOptions{
 		StartInclusive: fetchStart,
 		EndExclusive:   fetchEnd,
 	})

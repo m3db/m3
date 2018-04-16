@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/x/xio"
-	"github.com/m3db/m3ninx/index/segment"
+	m3ninxidx "github.com/m3db/m3ninx/idx"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -289,19 +289,10 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	ctx := context.NewContext()
 	defer ctx.BlockingClose()
 
-	results, err := s.db.QueryIDs(ctx, testNamespaces[0], index.Query{
-		segment.Query{
-			Conjunction: segment.AndConjunction,
-			Filters: []segment.Filter{
-				segment.Filter{
-					FieldName:        []byte("foo"),
-					FieldValueFilter: []byte("b.*"),
-					Regexp:           true,
-				},
-			},
-		},
-	}, index.QueryOptions{})
+	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
+	assert.NoError(t, err)
 
+	results, err := s.db.QueryIDs(ctx, testNamespaces[0], index.Query{reQuery}, index.QueryOptions{})
 	require.NoError(t, err)
 	iter := results.Iterator
 	idxFound := false

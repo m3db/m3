@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 )
@@ -37,7 +36,7 @@ var (
 
 type idsIter struct {
 	nsID        ident.ID
-	iter        segment.ResultsIter
+	iter        doc.Iterator
 	err         error
 	idPool      ident.Pool
 	wrapperPool xpool.CheckedBytesWrapperPool
@@ -47,10 +46,10 @@ type idsIter struct {
 }
 
 // NewIterator returns a new Iterator backed by
-// a segment.ResultsIter.
+// a doc.Iterator.
 func NewIterator(
 	nsID ident.ID,
-	iter segment.ResultsIter,
+	iter doc.Iterator,
 	opts Options,
 ) Iterator {
 	i := &idsIter{
@@ -77,7 +76,7 @@ func (i *idsIter) Next() bool {
 		return next
 	}
 
-	d, _ := i.iter.Current()
+	d := i.iter.Current()
 	err := i.parseAndStore(d)
 	if err != nil {
 		i.err = err
