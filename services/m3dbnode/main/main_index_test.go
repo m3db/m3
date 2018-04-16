@@ -213,27 +213,43 @@ func TestIndexEnabledServer(t *testing.T) {
 	// the "end" param to fetch being exclusive
 	fetchEnd := values[len(values)-1].at.Truncate(time.Second).Add(time.Nanosecond)
 
-	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
+	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	assert.NoError(t, err)
-
-	_, _, err = session.FetchTagged(index.Query{reQuery}, index.QueryOptions{
+	iters, exhaustive, err := session.FetchTagged(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
 		StartInclusive: fetchStart,
 		EndExclusive:   fetchEnd,
 	})
+	assert.NoError(t, err)
+	assert.True(t, exhaustive)
+	assert.Equal(t, 1, iters.Len())
+	iter := iters.Iters()[0]
+	assert.Equal(t, namespaceID, iter.Namespace().String())
+	assert.Equal(t, "foo", iter.ID().String())
+	assert.True(t, ident.MustNewTagIterMatcher("foo", "bar", "baz", "foo").Matches(iter.Tags()))
+	for _, v := range values {
+		require.True(t, iter.Next())
+		dp, unit, _ := iter.Current()
+		assert.Equal(t, v.value, dp.Value)
+		// Account for xtime.Second precision on values going in
+		expectAt := v.at.Truncate(time.Second)
+		assert.Equal(t, expectAt, dp.Timestamp)
+		assert.Equal(t, v.unit, unit)
+	}
 
-	// FOLLOWUP(prateek): implement FetchTagged check once the `client/fetch*` APIs are implemented.
-	require.Error(t, err)
-	/*
-		for _, v := range values {
-			require.True(t, iter.Next())
-			dp, unit, _ := iter.Current()
-			assert.Equal(t, v.value, dp.Value)
-			// Account for xtime.Second precision on values going in
-			expectAt := v.at.Truncate(time.Second)
-			assert.Equal(t, expectAt, dp.Timestamp)
-			assert.Equal(t, v.unit, unit)
-		}
-	*/
+	result, err := session.FetchTaggedIDs(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
+		StartInclusive: fetchStart,
+		EndExclusive:   fetchEnd,
+	})
+	assert.NoError(t, err)
+	assert.True(t, result.Exhaustive)
+	indexIter := result.Iterator
+	assert.True(t, indexIter.Next())
+	nsID, tsID, tags := indexIter.Current()
+	assert.Equal(t, namespaceID, nsID.String())
+	assert.Equal(t, "foo", tsID.String())
+	assert.True(t, ident.MustNewTagIterMatcher("foo", "bar", "baz", "foo").Matches(tags))
+	assert.False(t, indexIter.Next())
+	assert.NoError(t, indexIter.Err())
 
 	// Wait for server to stop
 	interruptCh <- fmt.Errorf("test complete")
@@ -286,7 +302,7 @@ client:
 
 gcPercentage: 100
 
-writeNewSeriesAsync: true
+writeNewSeriesAsync: false
 writeNewSeriesLimitPerSecond: 1048576
 writeNewSeriesBackoffDuration: 2ms
 

@@ -48,6 +48,7 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
+	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3x/checked"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
@@ -100,7 +101,6 @@ var (
 		"fetch blocks metadata endpoint version unspecified")
 	errUnknownWriteAttemptType = errors.New(
 		"unknown write attempt type specified, internal error")
-	errNotImplemented = errors.New("not implemented")
 )
 
 var (
@@ -287,6 +287,21 @@ func newSession(opts Options) (clientSession, error) {
 		))
 	s.pools.tagEncoder = serialize.NewTagEncoderPool(opts.TagEncoderOptions(), tagEncoderPoolOpts)
 	s.pools.tagEncoder.Init()
+
+	tagDecoderPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(opts.TagDecoderPoolSize()).
+		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
+			scope.SubScope("tag-decoder-pool"),
+		))
+	s.pools.tagDecoder = serialize.NewTagDecoderPool(opts.TagDecoderOptions(), tagDecoderPoolOpts)
+	s.pools.tagDecoder.Init()
+
+	wrapperPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(opts.CheckedBytesWrapperPoolSize()).
+		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
+			scope.SubScope("client-checked-bytes-wrapper-pool")))
+	s.pools.checkedBytesWrapper = xpool.NewCheckedBytesWrapperPool(wrapperPoolOpts)
+	s.pools.checkedBytesWrapper.Init()
 
 	if opts, ok := opts.(AdminOptions); ok {
 		s.state.bootstrapLevel = opts.BootstrapConsistencyLevel()
@@ -480,6 +495,22 @@ func (s *session) Open() error {
 		))
 	s.pools.fetchBatchOp = newFetchBatchOpPool(fetchBatchOpPoolOpts, s.fetchBatchSize)
 	s.pools.fetchBatchOp.Init()
+
+	fetchTaggedOpPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(s.opts.FetchBatchOpPoolSize()).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("fetch-tagged-op-pool"),
+		))
+	s.pools.fetchTaggedOp = newFetchTaggedOpPool(fetchTaggedOpPoolOpts)
+	s.pools.fetchTaggedOp.Init()
+
+	fetchStatePoolOpts := pool.NewObjectPoolOptions().
+		SetSize(s.opts.FetchBatchOpPoolSize()).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("fetch-tagged-state-pool"),
+		))
+	s.pools.fetchState = newfetchStatePool(fetchStatePoolOpts)
+	s.pools.fetchState.Init()
 
 	seriesIteratorPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.SeriesIteratorPoolSize()).
@@ -1031,15 +1062,123 @@ func (s *session) FetchIDs(
 }
 
 func (s *session) FetchTagged(
-	q index.Query, opts index.QueryOptions,
+	ns ident.ID, q index.Query, opts index.QueryOptions,
 ) (encoding.SeriesIterators, bool, error) {
-	return nil, false, errNotImplemented
+	const fetchData = true
+	req, err := convert.ToRPCFetchTaggedRequest(ns, q, opts, fetchData)
+	if err != nil {
+		return nil, false, err
+	}
+
+	s.state.RLock()
+	if s.state.status != statusOpen {
+		s.state.RUnlock()
+		return nil, false, errSessionStatusNotOpen
+	}
+
+	fetchState, err := s.fetchTaggedAttemptWithRLock(opts.StartInclusive, opts.EndExclusive, req)
+	s.state.RUnlock()
+
+	if err != nil {
+		return nil, false, err
+	}
+
+	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
+	// returned from fetchTaggedAttemptWithRLock.
+	fetchState.Wait()
+
+	// must Unlock before calling `asEncodingSeriesIterators` as the latter needs to acquire
+	// the fetchState Lock
+	fetchState.Unlock()
+	iters, exhaustive, err := fetchState.asEncodingSeriesIterators(s.pools)
+
+	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
+	// pool if ref count == 0.
+	fetchState.decRef()
+
+	return iters, exhaustive, err
 }
 
 func (s *session) FetchTaggedIDs(
-	q index.Query, opts index.QueryOptions,
+	ns ident.ID, q index.Query, opts index.QueryOptions,
 ) (index.QueryResults, error) {
-	return index.QueryResults{}, errNotImplemented
+	const fetchData = false
+	req, err := convert.ToRPCFetchTaggedRequest(ns, q, opts, fetchData)
+	if err != nil {
+		return index.QueryResults{}, err
+	}
+
+	s.state.RLock()
+	if s.state.status != statusOpen {
+		s.state.RUnlock()
+		return index.QueryResults{}, errSessionStatusNotOpen
+	}
+
+	fetchState, err := s.fetchTaggedAttemptWithRLock(opts.StartInclusive, opts.EndExclusive, req)
+	s.state.RUnlock()
+
+	if err != nil {
+		return index.QueryResults{}, err
+	}
+
+	// it's safe to Wait() here, as we still own the lock on fetchState, after it's
+	// returned from fetchTaggedAttemptWithRLock.
+	fetchState.Wait()
+
+	// must Unlock before calling `asIndexQueryResults` as the latter needs to acquire
+	// the fetchState Lock
+	fetchState.Unlock()
+	results, err := fetchState.asIndexQueryResults(s.pools)
+
+	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
+	// pool if ref count == 0.
+	fetchState.decRef()
+
+	return results, err
+}
+
+// NB(prateek): the returned fetchState, if valid, still owns the lock. Its ownership
+// is transferred to the calling function, and is expected to manage the lifecycle of
+// of the object (including releasing the lock/decRef'ing it).
+func (s *session) fetchTaggedAttemptWithRLock(
+	startTime time.Time,
+	endTime time.Time,
+	req rpc.FetchTaggedRequest,
+) (*fetchState, error) {
+	var (
+		topoMap    = s.state.topoMap
+		op         = s.pools.fetchTaggedOp.Get()
+		fetchState = s.pools.fetchState.Get()
+	)
+
+	fetchState.incRef() // indicate current go-routine has a reference to the fetchState
+	op.incRef()         // indicate current go-routine has a reference to the op
+	op.update(req, fetchState.completionFn)
+
+	fetchState.Reset(startTime, endTime, op, topoMap, s.state.majority, s.state.readLevel)
+	fetchState.Lock()
+	for _, hq := range s.state.queues {
+		// inc to indicate the hostQueue has a reference to `op` which has a ref to the fetchState
+		fetchState.incRef()
+		if err := hq.Enqueue(op); err != nil {
+			fetchState.Unlock()
+			op.decRef()         // release the ref for the current go-routine
+			fetchState.decRef() // release the ref for the hostQueue
+			fetchState.decRef() // release the ref for the current go-routine
+
+			// NB: if this happens we have a bug, once we are in the read
+			// lock the current queues should never be closed
+			s.opts.InstrumentOptions().Logger().Errorf(
+				"[invariant violated] failed to enqueue fetchTagged: %v", err)
+			return nil, err
+		}
+	}
+
+	op.decRef() // release the ref for the current go-routine
+
+	// NB(prateek): the calling go-routine still owns the lock and a ref
+	// on the returned fetchState object.
+	return fetchState, nil
 }
 
 func (s *session) fetchIDsAttempt(
@@ -1171,7 +1310,7 @@ func (s *session) fetchIDsAttempt(
 				// due to a pending request in queue.
 				seriesID := s.pools.id.Clone(tsID)
 				namespaceID := s.pools.id.Clone(namespace)
-				iter.Reset(seriesID, namespaceID, startInclusive, endExclusive, successIters)
+				iter.Reset(seriesID, namespaceID, nil, startInclusive, endExclusive, successIters)
 				iters.SetAt(idx, iter)
 			}
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {

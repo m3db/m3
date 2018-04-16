@@ -44,7 +44,7 @@ type idsIter struct {
 	finalizerFn resource.FinalizerFn
 
 	currentID   ident.ID
-	currentTags ident.Tags
+	currentTags ident.TagIterator
 }
 
 // NewIterator returns a new Iterator backed by a doc.Iterator.
@@ -92,8 +92,7 @@ func (i *idsIter) Next() bool {
 }
 
 func (i *idsIter) Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.TagIterator) {
-	// TODO(prateek): actually use a tags iterator instead of creating an un-required ident.Tags here
-	return i.nsID, i.currentID, ident.NewTagSliceIterator(i.currentTags)
+	return i.nsID, i.currentID, i.currentTags
 }
 
 func (i *idsIter) Err() error {
@@ -106,7 +105,7 @@ func (i *idsIter) release() {
 		i.currentID = nil
 	}
 	if i.currentTags != nil {
-		i.currentTags.Finalize()
+		i.currentTags.Close()
 		i.currentTags = nil
 	}
 	// NB(prateek): iterator doesn't own nsID so we don't finalize it here.
@@ -122,15 +121,113 @@ func (i *idsIter) parseAndStore(d doc.Document) error {
 		if !idFound && bytes.Equal(f.Name, ReservedFieldNameID) {
 			i.currentID = i.idPool.BinaryID(i.wrapBytes(f.Value))
 			idFound = true
-			continue
+			break
 		}
-		i.currentTags = append(i.currentTags,
-			i.idPool.BinaryTag(i.wrapBytes(f.Name), i.wrapBytes(f.Value)))
 	}
-
 	if !idFound {
 		return errInvalidResultMissingNamespace
 	}
-
+	i.currentTags = newTagIter(d, i.idPool, i.wrapperPool)
 	return nil
 }
+
+// tagIter exposes an ident.TagIterator interface over a doc.Document.
+// NB: it skips any field marked ReservedFieldNameID.
+type tagIter struct {
+	d doc.Document
+
+	err           error
+	done          bool
+	haveRunIntoID bool
+	currentIdx    int
+	currentTag    ident.Tag
+
+	idPool      ident.Pool
+	wrapperPool xpool.CheckedBytesWrapperPool
+}
+
+func newTagIter(d doc.Document, id ident.Pool, wrapper xpool.CheckedBytesWrapperPool) ident.TagIterator {
+	return &tagIter{
+		d:           d,
+		currentIdx:  -1,
+		idPool:      id,
+		wrapperPool: wrapper,
+	}
+}
+
+func (t *tagIter) Next() bool {
+	if t.err != nil || t.done {
+		return false
+	}
+	hasNext := t.parseNext()
+	if !hasNext {
+		t.done = true
+	}
+	return hasNext
+}
+
+func (t *tagIter) parseNext() (hasNext bool) {
+	t.releaseCurrent()
+	t.currentIdx++
+	// early terminate if we know there's no more fieldsj
+	if t.currentIdx >= len(t.d.Fields) {
+		return false
+	}
+	// if there are fields, we have to ensure the next field
+	// is not using the reserved ID fieldname
+	next := t.d.Fields[t.currentIdx]
+	if bytes.Equal(ReservedFieldNameID, next.Name) {
+		t.haveRunIntoID = true
+		return t.parseNext()
+	}
+	// otherwise, we're good.
+	t.currentTag = t.idPool.BinaryTag(
+		t.wrapBytes(next.Name), t.wrapBytes(next.Value))
+	return true
+}
+
+func (t *tagIter) releaseCurrent() {
+	if t.currentTag.Name != nil {
+		t.currentTag.Name.Finalize()
+		t.currentTag.Name = nil
+	}
+	if t.currentTag.Value != nil {
+		t.currentTag.Value.Finalize()
+		t.currentTag.Value = nil
+	}
+}
+
+func (t *tagIter) Current() ident.Tag {
+	return t.currentTag
+}
+
+func (t *tagIter) Err() error {
+	return t.err
+}
+
+func (t *tagIter) Close() {
+	t.releaseCurrent()
+	t.done = true
+}
+
+func (t *tagIter) Remaining() int {
+	l := len(t.d.Fields) - t.currentIdx - 1
+	if !t.haveRunIntoID {
+		l--
+	}
+	return l
+}
+
+func (t *tagIter) Duplicate() ident.TagIterator {
+	var dupe = *t
+	if t.currentTag.Name != nil {
+		dupe.currentTag = t.idPool.CloneTag(t.currentTag)
+	}
+	return &dupe
+}
+
+func (t *tagIter) wrapBytes(bytes []byte) checked.Bytes {
+	return t.wrapperPool.Get(bytes)
+}
+
+var _ ident.TagIterator = &tagIter{}

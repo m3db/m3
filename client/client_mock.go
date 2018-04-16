@@ -195,8 +195,8 @@ func (_mr *MockSessionMockRecorder) FetchIDs(arg0, arg1, arg2, arg3 interface{})
 }
 
 // FetchTagged mocks base method
-func (_m *MockSession) FetchTagged(q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, bool, error) {
-	ret := _m.ctrl.Call(_m, "FetchTagged", q, opts)
+func (_m *MockSession) FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", namespace, q, opts)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -204,21 +204,21 @@ func (_m *MockSession) FetchTagged(q index.Query, opts index.QueryOptions) (enco
 }
 
 // FetchTagged indicates an expected call of FetchTagged
-func (_mr *MockSessionMockRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTagged", reflect.TypeOf((*MockSession)(nil).FetchTagged), arg0, arg1)
+func (_mr *MockSessionMockRecorder) FetchTagged(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTagged", reflect.TypeOf((*MockSession)(nil).FetchTagged), arg0, arg1, arg2)
 }
 
 // FetchTaggedIDs mocks base method
-func (_m *MockSession) FetchTaggedIDs(q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", q, opts)
+func (_m *MockSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", namespace, q, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchTaggedIDs indicates an expected call of FetchTaggedIDs
-func (_mr *MockSessionMockRecorder) FetchTaggedIDs(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTaggedIDs", reflect.TypeOf((*MockSession)(nil).FetchTaggedIDs), arg0, arg1)
+func (_mr *MockSessionMockRecorder) FetchTaggedIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTaggedIDs", reflect.TypeOf((*MockSession)(nil).FetchTaggedIDs), arg0, arg1, arg2)
 }
 
 // ShardID mocks base method
@@ -540,8 +540,8 @@ func (_mr *MockAdminSessionMockRecorder) FetchIDs(arg0, arg1, arg2, arg3 interfa
 }
 
 // FetchTagged mocks base method
-func (_m *MockAdminSession) FetchTagged(q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, bool, error) {
-	ret := _m.ctrl.Call(_m, "FetchTagged", q, opts)
+func (_m *MockAdminSession) FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", namespace, q, opts)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -549,21 +549,21 @@ func (_m *MockAdminSession) FetchTagged(q index.Query, opts index.QueryOptions) 
 }
 
 // FetchTagged indicates an expected call of FetchTagged
-func (_mr *MockAdminSessionMockRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTagged", reflect.TypeOf((*MockAdminSession)(nil).FetchTagged), arg0, arg1)
+func (_mr *MockAdminSessionMockRecorder) FetchTagged(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTagged", reflect.TypeOf((*MockAdminSession)(nil).FetchTagged), arg0, arg1, arg2)
 }
 
 // FetchTaggedIDs mocks base method
-func (_m *MockAdminSession) FetchTaggedIDs(q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", q, opts)
+func (_m *MockAdminSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", namespace, q, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchTaggedIDs indicates an expected call of FetchTaggedIDs
-func (_mr *MockAdminSessionMockRecorder) FetchTaggedIDs(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTaggedIDs", reflect.TypeOf((*MockAdminSession)(nil).FetchTaggedIDs), arg0, arg1)
+func (_mr *MockAdminSessionMockRecorder) FetchTaggedIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTaggedIDs", reflect.TypeOf((*MockAdminSession)(nil).FetchTaggedIDs), arg0, arg1, arg2)
 }
 
 // ShardID mocks base method
@@ -1314,6 +1314,54 @@ func (_mr *MockOptionsMockRecorder) TagEncoderPoolSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagEncoderPoolSize", reflect.TypeOf((*MockOptions)(nil).TagEncoderPoolSize))
 }
 
+// SetTagDecoderOptions mocks base method
+func (_m *MockOptions) SetTagDecoderOptions(value serialize.TagDecoderOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetTagDecoderOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagDecoderOptions indicates an expected call of SetTagDecoderOptions
+func (_mr *MockOptionsMockRecorder) SetTagDecoderOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagDecoderOptions", reflect.TypeOf((*MockOptions)(nil).SetTagDecoderOptions), arg0)
+}
+
+// TagDecoderOptions mocks base method
+func (_m *MockOptions) TagDecoderOptions() serialize.TagDecoderOptions {
+	ret := _m.ctrl.Call(_m, "TagDecoderOptions")
+	ret0, _ := ret[0].(serialize.TagDecoderOptions)
+	return ret0
+}
+
+// TagDecoderOptions indicates an expected call of TagDecoderOptions
+func (_mr *MockOptionsMockRecorder) TagDecoderOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagDecoderOptions", reflect.TypeOf((*MockOptions)(nil).TagDecoderOptions))
+}
+
+// SetTagDecoderPoolSize mocks base method
+func (_m *MockOptions) SetTagDecoderPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetTagDecoderPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagDecoderPoolSize indicates an expected call of SetTagDecoderPoolSize
+func (_mr *MockOptionsMockRecorder) SetTagDecoderPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagDecoderPoolSize", reflect.TypeOf((*MockOptions)(nil).SetTagDecoderPoolSize), arg0)
+}
+
+// TagDecoderPoolSize mocks base method
+func (_m *MockOptions) TagDecoderPoolSize() int {
+	ret := _m.ctrl.Call(_m, "TagDecoderPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TagDecoderPoolSize indicates an expected call of TagDecoderPoolSize
+func (_mr *MockOptionsMockRecorder) TagDecoderPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagDecoderPoolSize", reflect.TypeOf((*MockOptions)(nil).TagDecoderPoolSize))
+}
+
 // SetWriteBatchSize mocks base method
 func (_m *MockOptions) SetWriteBatchSize(value int) Options {
 	ret := _m.ctrl.Call(_m, "SetWriteBatchSize", value)
@@ -1432,6 +1480,30 @@ func (_m *MockOptions) FetchBatchOpPoolSize() int {
 // FetchBatchOpPoolSize indicates an expected call of FetchBatchOpPoolSize
 func (_mr *MockOptionsMockRecorder) FetchBatchOpPoolSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBatchOpPoolSize", reflect.TypeOf((*MockOptions)(nil).FetchBatchOpPoolSize))
+}
+
+// SetCheckedBytesWrapperPoolSize mocks base method
+func (_m *MockOptions) SetCheckedBytesWrapperPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetCheckedBytesWrapperPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCheckedBytesWrapperPoolSize indicates an expected call of SetCheckedBytesWrapperPoolSize
+func (_mr *MockOptionsMockRecorder) SetCheckedBytesWrapperPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetCheckedBytesWrapperPoolSize", reflect.TypeOf((*MockOptions)(nil).SetCheckedBytesWrapperPoolSize), arg0)
+}
+
+// CheckedBytesWrapperPoolSize mocks base method
+func (_m *MockOptions) CheckedBytesWrapperPoolSize() int {
+	ret := _m.ctrl.Call(_m, "CheckedBytesWrapperPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// CheckedBytesWrapperPoolSize indicates an expected call of CheckedBytesWrapperPoolSize
+func (_mr *MockOptionsMockRecorder) CheckedBytesWrapperPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "CheckedBytesWrapperPoolSize", reflect.TypeOf((*MockOptions)(nil).CheckedBytesWrapperPoolSize))
 }
 
 // SetHostQueueOpsFlushSize mocks base method
@@ -2273,6 +2345,54 @@ func (_mr *MockAdminOptionsMockRecorder) TagEncoderPoolSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagEncoderPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).TagEncoderPoolSize))
 }
 
+// SetTagDecoderOptions mocks base method
+func (_m *MockAdminOptions) SetTagDecoderOptions(value serialize.TagDecoderOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetTagDecoderOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagDecoderOptions indicates an expected call of SetTagDecoderOptions
+func (_mr *MockAdminOptionsMockRecorder) SetTagDecoderOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagDecoderOptions", reflect.TypeOf((*MockAdminOptions)(nil).SetTagDecoderOptions), arg0)
+}
+
+// TagDecoderOptions mocks base method
+func (_m *MockAdminOptions) TagDecoderOptions() serialize.TagDecoderOptions {
+	ret := _m.ctrl.Call(_m, "TagDecoderOptions")
+	ret0, _ := ret[0].(serialize.TagDecoderOptions)
+	return ret0
+}
+
+// TagDecoderOptions indicates an expected call of TagDecoderOptions
+func (_mr *MockAdminOptionsMockRecorder) TagDecoderOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagDecoderOptions", reflect.TypeOf((*MockAdminOptions)(nil).TagDecoderOptions))
+}
+
+// SetTagDecoderPoolSize mocks base method
+func (_m *MockAdminOptions) SetTagDecoderPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetTagDecoderPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagDecoderPoolSize indicates an expected call of SetTagDecoderPoolSize
+func (_mr *MockAdminOptionsMockRecorder) SetTagDecoderPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagDecoderPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetTagDecoderPoolSize), arg0)
+}
+
+// TagDecoderPoolSize mocks base method
+func (_m *MockAdminOptions) TagDecoderPoolSize() int {
+	ret := _m.ctrl.Call(_m, "TagDecoderPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TagDecoderPoolSize indicates an expected call of TagDecoderPoolSize
+func (_mr *MockAdminOptionsMockRecorder) TagDecoderPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagDecoderPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).TagDecoderPoolSize))
+}
+
 // SetWriteBatchSize mocks base method
 func (_m *MockAdminOptions) SetWriteBatchSize(value int) Options {
 	ret := _m.ctrl.Call(_m, "SetWriteBatchSize", value)
@@ -2391,6 +2511,30 @@ func (_m *MockAdminOptions) FetchBatchOpPoolSize() int {
 // FetchBatchOpPoolSize indicates an expected call of FetchBatchOpPoolSize
 func (_mr *MockAdminOptionsMockRecorder) FetchBatchOpPoolSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBatchOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).FetchBatchOpPoolSize))
+}
+
+// SetCheckedBytesWrapperPoolSize mocks base method
+func (_m *MockAdminOptions) SetCheckedBytesWrapperPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetCheckedBytesWrapperPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCheckedBytesWrapperPoolSize indicates an expected call of SetCheckedBytesWrapperPoolSize
+func (_mr *MockAdminOptionsMockRecorder) SetCheckedBytesWrapperPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetCheckedBytesWrapperPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetCheckedBytesWrapperPoolSize), arg0)
+}
+
+// CheckedBytesWrapperPoolSize mocks base method
+func (_m *MockAdminOptions) CheckedBytesWrapperPoolSize() int {
+	ret := _m.ctrl.Call(_m, "CheckedBytesWrapperPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// CheckedBytesWrapperPoolSize indicates an expected call of CheckedBytesWrapperPoolSize
+func (_mr *MockAdminOptionsMockRecorder) CheckedBytesWrapperPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "CheckedBytesWrapperPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).CheckedBytesWrapperPoolSize))
 }
 
 // SetHostQueueOpsFlushSize mocks base method
@@ -2851,8 +2995,8 @@ func (_mr *MockclientSessionMockRecorder) FetchIDs(arg0, arg1, arg2, arg3 interf
 }
 
 // FetchTagged mocks base method
-func (_m *MockclientSession) FetchTagged(q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, bool, error) {
-	ret := _m.ctrl.Call(_m, "FetchTagged", q, opts)
+func (_m *MockclientSession) FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", namespace, q, opts)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -2860,21 +3004,21 @@ func (_m *MockclientSession) FetchTagged(q index.Query, opts index.QueryOptions)
 }
 
 // FetchTagged indicates an expected call of FetchTagged
-func (_mr *MockclientSessionMockRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTagged", reflect.TypeOf((*MockclientSession)(nil).FetchTagged), arg0, arg1)
+func (_mr *MockclientSessionMockRecorder) FetchTagged(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTagged", reflect.TypeOf((*MockclientSession)(nil).FetchTagged), arg0, arg1, arg2)
 }
 
 // FetchTaggedIDs mocks base method
-func (_m *MockclientSession) FetchTaggedIDs(q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", q, opts)
+func (_m *MockclientSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", namespace, q, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchTaggedIDs indicates an expected call of FetchTaggedIDs
-func (_mr *MockclientSessionMockRecorder) FetchTaggedIDs(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTaggedIDs", reflect.TypeOf((*MockclientSession)(nil).FetchTaggedIDs), arg0, arg1)
+func (_mr *MockclientSessionMockRecorder) FetchTaggedIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTaggedIDs", reflect.TypeOf((*MockclientSession)(nil).FetchTaggedIDs), arg0, arg1, arg2)
 }
 
 // ShardID mocks base method

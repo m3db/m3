@@ -737,6 +737,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		ctx        = context.NewContext()
 		id         = ident.StringID("foo")
 		nsID       = ident.StringID("bar")
+		tags       = ident.Tags{ident.StringTag("name", "value")}
 		startValue = 1.0
 		blockSize  = opts.RetentionOptions().BlockSize()
 		numPoints  = 10
@@ -746,8 +747,8 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		expected   []ts.Datapoint
 	)
 
-	series := NewDatabaseSeries(id, nil, opts).(*dbSeries)
-	series.Reset(id, nil, nil, nil, nil, opts)
+	series := NewDatabaseSeries(id, tags, opts).(*dbSeries)
+	series.Reset(id, tags, nil, nil, nil, opts)
 
 	for iter := 0; iter < numBlocks; iter++ {
 		start := now
@@ -777,7 +778,8 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 
 	multiIt := opts.MultiReaderIteratorPool().Get()
 	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
-	it := encoding.NewSeriesIterator(id, nsID, qStart, qEnd, []encoding.Iterator{multiIt}, nil)
+	it := encoding.NewSeriesIterator(id, nsID, ident.NewTagSliceIterator(tags),
+		qStart, qEnd, []encoding.Iterator{multiIt}, nil)
 	defer it.Close()
 
 	var actual []ts.Datapoint

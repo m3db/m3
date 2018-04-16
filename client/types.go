@@ -73,10 +73,10 @@ type Session interface {
 	FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
-	FetchTagged(q index.Query, opts index.QueryOptions) (results encoding.SeriesIterators, exhaustive bool, err error)
+	FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (results encoding.SeriesIterators, exhaustive bool, err error)
 
 	// FetchTaggedIDs resolves the provided query to known IDs.
-	FetchTaggedIDs(q index.Query, opts index.QueryOptions) (index.QueryResults, error)
+	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (index.QueryResults, error)
 
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations
@@ -340,6 +340,18 @@ type Options interface {
 	// TagEncoderPoolSize returns the TagEncoderPoolSize.
 	TagEncoderPoolSize() int
 
+	// SetTagDecoderOptions sets the TagDecoderOptions.
+	SetTagDecoderOptions(value serialize.TagDecoderOptions) Options
+
+	// TagDecoderOptions returns the TagDecoderOptions.
+	TagDecoderOptions() serialize.TagDecoderOptions
+
+	// SetTagDecoderPoolSize sets the TagDecoderPoolSize.
+	SetTagDecoderPoolSize(value int) Options
+
+	// TagDecoderPoolSize returns the TagDecoderPoolSize.
+	TagDecoderPoolSize() int
+
 	// SetWriteBatchSize sets the writeBatchSize
 	// NB(r): for a write only application load this should match the host
 	// queue ops flush size so that each time a host queue is flushed it can
@@ -375,6 +387,12 @@ type Options interface {
 
 	// FetchBatchOpPoolSize returns the fetchBatchOpPoolSize
 	FetchBatchOpPoolSize() int
+
+	// SetCheckedBytesWrapperPoolSize sets the checkedBytesWrapperPoolSize
+	SetCheckedBytesWrapperPoolSize(value int) Options
+
+	// CheckedBytesWrapperPoolSize returns the checkedBytesWrapperPoolSize
+	CheckedBytesWrapperPoolSize() int
 
 	// SetHostQueueOpsFlushSize sets the hostQueueOpsFlushSize
 	SetHostQueueOpsFlushSize(value int) Options

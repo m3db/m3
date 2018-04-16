@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,37 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package encoding
+package client
 
 import (
-	"time"
+	"testing"
 
 	"github.com/m3db/m3x/pool"
+
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	timeZero time.Time
-)
+func TestFetchStatePool(t *testing.T) {
+	p := newfetchStatePool(pool.NewObjectPoolOptions().SetSize(1))
+	p.Init()
 
-type seriesIteratorPool struct {
-	pool pool.ObjectPool
-}
-
-// NewSeriesIteratorPool creates a new pool for SeriesIterators.
-func NewSeriesIteratorPool(opts pool.ObjectPoolOptions) SeriesIteratorPool {
-	return &seriesIteratorPool{pool: pool.NewObjectPool(opts)}
-}
-
-func (p *seriesIteratorPool) Init() {
-	p.pool.Init(func() interface{} {
-		return NewSeriesIterator(nil, nil, nil, timeZero, timeZero, nil, p)
-	})
-}
-
-func (p *seriesIteratorPool) Get() SeriesIterator {
-	return p.pool.Get().(SeriesIterator)
-}
-
-func (p *seriesIteratorPool) Put(iter SeriesIterator) {
-	p.pool.Put(iter)
+	s := p.Get()
+	require.Equal(t, p, s.pool)
+	require.Equal(t, int32(0), s.refCounter.n)
+	require.Nil(t, s.op)
+	require.NotNil(t, s.tagResultAccumulator)
+	p.Put(s)
 }

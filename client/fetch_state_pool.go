@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,37 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package encoding
+package client
 
-import (
-	"time"
+import "github.com/m3db/m3x/pool"
 
-	"github.com/m3db/m3x/pool"
-)
+type fetchStatePool interface {
+	Init()
+	Get() *fetchState
+	Put(*fetchState)
+}
 
-var (
-	timeZero time.Time
-)
-
-type seriesIteratorPool struct {
+type fetchStatePoolImpl struct {
 	pool pool.ObjectPool
 }
 
-// NewSeriesIteratorPool creates a new pool for SeriesIterators.
-func NewSeriesIteratorPool(opts pool.ObjectPoolOptions) SeriesIteratorPool {
-	return &seriesIteratorPool{pool: pool.NewObjectPool(opts)}
+func newfetchStatePool(opts pool.ObjectPoolOptions) fetchStatePool {
+	return &fetchStatePoolImpl{pool: pool.NewObjectPool(opts)}
 }
 
-func (p *seriesIteratorPool) Init() {
-	p.pool.Init(func() interface{} {
-		return NewSeriesIterator(nil, nil, nil, timeZero, timeZero, nil, p)
-	})
-}
-
-func (p *seriesIteratorPool) Get() SeriesIterator {
-	return p.pool.Get().(SeriesIterator)
-}
-
-func (p *seriesIteratorPool) Put(iter SeriesIterator) {
-	p.pool.Put(iter)
-}
+func (p *fetchStatePoolImpl) Init()             { p.pool.Init(func() interface{} { return newFetchState(p) }) }
+func (p *fetchStatePoolImpl) Get() *fetchState  { return p.pool.Get().(*fetchState) }
+func (p *fetchStatePoolImpl) Put(f *fetchState) { p.pool.Put(f) }
