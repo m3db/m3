@@ -47,5 +47,3 @@ m3db packages.
 (5) DTests
 TODO
 
-(6) Production shadow
-TODO
