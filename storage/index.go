@@ -223,14 +223,12 @@ func (i *nsIndex) Query(
 	i.RUnlock()
 	if err != nil {
 		exec.Close()
-		reader.Close()
 		return index.QueryResults{}, err
 	}
 
 	return index.QueryResults{
 		Iterator: index.NewIterator(i.nsID, iter, i.opts, func() {
 			exec.Close()
-			reader.Close()
 		}),
 		Exhaustive: true,
 	}, nil
