@@ -25,11 +25,6 @@ import (
 	"github.com/m3db/m3ninx/search/query"
 )
 
-// Query encapsulates a search query for an index.
-type Query struct {
-	query search.Query
-}
-
 // NewTermQuery returns a new query for finding documents which match a term exactly.
 func NewTermQuery(field, term []byte) Query {
 	return Query{
@@ -70,4 +65,14 @@ func NewDisjunctionQuery(queries ...Query) (Query, error) {
 	return Query{
 		query: query.NewDisjuctionQuery(qs),
 	}, nil
+}
+
+// Query encapsulates a search query for an index.
+type Query struct {
+	query search.Query
+}
+
+// SearchQuery returns the underlying search query for use during execution.
+func (q Query) SearchQuery() search.Query {
+	return q.query
 }
