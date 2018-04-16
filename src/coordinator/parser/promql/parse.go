@@ -50,7 +50,7 @@ func walk(node pql.Node) (parser.Transforms, parser.Edges, error) {
 		}
 
 		opTransform := parser.NewTransformFromOperation(NewOperator(n.Op), len(transforms))
-		edges = append(edges, &parser.Edge{
+		edges = append(edges, parser.Edge{
 			ParentID: transforms[len(transforms)-1].ID,
 			ChildID:  opTransform.ID,
 		})
@@ -67,11 +67,11 @@ func walk(node pql.Node) (parser.Transforms, parser.Edges, error) {
 
 	case *pql.MatrixSelector:
 		operation := NewSelectorFromMatrix(n)
-		return []*parser.Transform{parser.NewTransformFromOperation(operation, 0)}, nil, nil
+		return []parser.Transform{parser.NewTransformFromOperation(operation, 0)}, nil, nil
 
 	case *pql.VectorSelector:
 		operation := NewSelectorFromVector(n)
-		return []*parser.Transform{parser.NewTransformFromOperation(operation, 0)}, nil, nil
+		return []parser.Transform{parser.NewTransformFromOperation(operation, 0)}, nil, nil
 
 	case *pql.NumberLiteral, *pql.StringLiteral:
 
