@@ -1,5 +1,5 @@
-hash: 2baa1a92a2dd65ef470cd0a018b29dc34c7467262f88049d8ccacf7f1b556fe5
-updated: 2018-03-27T11:46:24.20797-04:00
+hash: a26ba0abf3c7a26636c280db099658512a2ba7cff3dab4ab2b207d2bfabfd13e
+updated: 2018-04-16T15:52:38.885285-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -14,9 +14,13 @@ imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/golang/mock
-  version: 13f360950a79f5864a972c786a10a50e44b69541
+  version: c34cdb4725f4c3844d095133c6e40e448b86589b
   subpackages:
   - gomock
+- name: github.com/mauricelam/genny
+  version: 9d8700bcc567cd22ea2ef42ce5835a9c80296c4a
+  subpackages:
+  - generic
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 - name: github.com/uber-go/atomic
@@ -29,19 +33,23 @@ imports:
   - m3/thrift
   - m3/thriftudp
 - name: github.com/uber-go/zap
-  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  version: eeedf312bc6c57391d84767a4cd413f02a917974
 - name: go.uber.org/atomic
   version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
   subpackages:
   - buffer
   - internal/bufferpool
   - internal/color
   - internal/exit
   - zapcore
+- name: golang.org/x/net
+  version: a35a21de978d84ffc92f010a153705b170b2f9d1
+  subpackages:
+  - context
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 - name: gopkg.in/yaml.v2

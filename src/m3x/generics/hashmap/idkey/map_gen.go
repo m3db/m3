@@ -111,11 +111,11 @@ func (e MapEntry) Value() Value {
 	return e.value
 }
 
-// newMap is a non-exported function so that when generating the source code
+// mapAlloc is a non-exported function so that when generating the source code
 // for the map you can supply a public constructor that sets the correct
 // hash, equals, copy, finalize options without users of the map needing to
 // implement them themselves.
-func newMap(opts mapOptions) *Map {
+func mapAlloc(opts mapOptions) *Map {
 	m := &Map{mapOptions: opts}
 	m.Reallocate()
 	return m

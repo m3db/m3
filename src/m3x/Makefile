@@ -23,8 +23,13 @@ m3x_package           := github.com/m3db/m3x
 mockgen_package       := github.com/golang/mock/mockgen
 mocks_output_dir      := generated/mocks/mocks
 mocks_rules_dir       := generated/mocks
-genny_package         := github.com/cheekybits/genny
-genny_package_version := 9127e812e1e9e501ce899a18121d316ecb52e4ba
+gorename_package      := golang.org/x/tools/cmd/gorename
+codegen_package       := github.com/m3db/m3x/codegen
+ifneq ($(rename_type_prefix),)
+codegen_rename_pkg    := $(codegen_package)/$(rename_type_prefix)
+codegen_rename_dir    := $(gopath_prefix)/$(codegen_rename_pkg)
+codegen_rename_types  := $(codegen_rename_dir)/types.go
+endif
 
 BUILD           := $(abspath ./bin)
 LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
@@ -91,35 +96,85 @@ mock-gen: install-mockgen install-license-bin install-util-mockclean
 	@echo Generating mocks
 	PACKAGE=$(m3x_package) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
 
-.PHONY: install-genny
-install-genny:
-	@which genny >/dev/null || (go get -u $(genny_package) && \
-		cd $(GOPATH)/src/$(genny_package)                    && \
-		git checkout $(genny_package_version)                && \
-		go install $(genny_package)                             \
-	)
-
 .PHONY: idhashmap-update
-idhashmap-update: install-genny
-	@cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg idkey gen "KeyType=ident.ID ValueType=Value" > ./idkey/map.go
+idhashmap-update: install-generics-bin
+	@cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg idkey gen "KeyType=ident.ID ValueType=Value" > ./idkey/map_gen.go
 
 .PHONY: byteshashmap-update
-byteshashmap-update: install-genny
-	@cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg byteskey gen "KeyType=[]byte ValueType=Value" > ./byteskey/map.go
+byteshashmap-update: install-generics-bin
+	@cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg byteskey gen "KeyType=[]byte ValueType=Value" > ./byteskey/map_gen.go
 
 .PHONY: hashmap-gen
-hashmap-gen: install-genny
-	@cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg $(pkg) gen "KeyType=$(key_type) ValueType=$(value_type)" > "$(out_dir:\=)/map.go"
+hashmap-gen: install-generics-bin
+	@cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg $(pkg) gen "KeyType=$(key_type) ValueType=$(value_type)" > "$(out_dir:\=)/map_gen.go"
+ifneq ($(rename_type_prefix),)
+	make hashmap-gen-rename
+endif
 
 .PHONY: idhashmap-gen
-idhashmap-gen: install-genny
-	@cd generics/hashmap/idkey && cat ./map.go | grep -v nolint | genny -pkg $(pkg) gen "Value=$(value_type)" > "$(out_dir:\=)/map.go"
-	@cd generics/hashmap/idkey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) gen "Value=$(value_type)" > "$(out_dir:\=)/new_map.go"
+idhashmap-gen: install-generics-bin
+	@cd generics/hashmap/idkey && cat ./map_gen.go | grep -v nolint | genny -pkg $(pkg) gen "Value=$(value_type)" > "$(out_dir:\=)/map_gen.go"
+	@cd generics/hashmap/idkey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) gen "Value=$(value_type)" > "$(out_dir:\=)/new_map_gen.go"
+ifneq ($(rename_type_prefix),)
+	make hashmap-gen-rename
+endif
 
 .PHONY: byteshashmap-gen
-byteshashmap-gen: install-genny
-	@cd generics/hashmap/byteskey && cat ./map.go | grep -v nolint | genny -pkg $(pkg) gen "Value=$(value_type)" > "$(out_dir:\=)/map.go"
-	@cd generics/hashmap/byteskey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) gen "Value=$(value_type)" > "$(out_dir:\=)/new_map.go"
+byteshashmap-gen: install-generics-bin
+	@cd generics/hashmap/byteskey && cat ./map_gen.go | grep -v nolint | genny -pkg $(pkg) gen "Value=$(value_type)" > "$(out_dir:\=)/map_gen.go"
+	@cd generics/hashmap/byteskey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) gen "Value=$(value_type)" > "$(out_dir:\=)/new_map_gen.go"
+ifneq ($(rename_type_prefix),)
+	make hashmap-gen-rename
+endif
+
+.PHONY: install-gorename-bin
+install-gorename-bin:
+	# Get the gorename tool for the currently installed go version (cannot pin)
+	which gorename >/dev/null || (     \
+		go get -u $(gorename_package) && \
+		go install $(gorename_package)   \
+	)
+
+.PHONY: hashmap-gen-rename
+hashmap-gen-rename: install-gorename-bin
+	# Use a staging package and gorename there to avoid build errors
+	# and make renaming fast, use a subdirectory of codegen to allow for multiple
+	# concurrent map generations at one time since gorename is quite slow
+	test -d $(codegen_rename_dir) && rm -rf $(codegen_rename_dir) || echo "No need to delete codegen"
+	mkdir -p $(codegen_rename_dir)
+	mv "$(out_dir:\=)/map_gen.go" "$(codegen_rename_dir)/map_gen.go"
+	test -f "$(out_dir:\=)/new_map_gen.go" && mv "$(out_dir:\=)/new_map_gen.go" "$(codegen_rename_dir)/new_map_gen.go" || echo "" > /dev/null
+	echo "package $(pkg)" > $(codegen_rename_types)
+	echo "" >> $(codegen_rename_types)
+	echo "type $(value_type) interface{}" >> $(codegen_rename_types)
+ifneq ($(key_type),)
+	echo "type $(key_type) interface{}" >> $(codegen_rename_types)
+endif
+	# Rename types in the staging package
+	gorename -from "\"$(codegen_rename_pkg)\".Map" -to $(rename_type_prefix)Map
+	gorename -from "\"$(codegen_rename_pkg)\".MapHash" -to $(rename_type_prefix)MapHash
+	gorename -from "\"$(codegen_rename_pkg)\".HashFn" -to $(rename_type_prefix)MapHashFn
+	gorename -from "\"$(codegen_rename_pkg)\".EqualsFn" -to $(rename_type_prefix)MapEqualsFn
+	gorename -from "\"$(codegen_rename_pkg)\".CopyFn" -to $(rename_type_prefix)MapCopyFn
+	gorename -from "\"$(codegen_rename_pkg)\".FinalizeFn" -to $(rename_type_prefix)MapFinalizeFn
+	gorename -from "\"$(codegen_rename_pkg)\".MapEntry" -to $(rename_type_prefix)MapEntry
+	gorename -from "\"$(codegen_rename_pkg)\".SetUnsafeOptions" -to $(rename_type_prefix)MapSetUnsafeOptions
+	# Add underscore to the following internal types to avoid export regardless of if new type is exported or not
+	gorename -from "\"$(codegen_rename_pkg)\".mapAlloc" -to _$(rename_type_prefix)MapAlloc
+	gorename -from "\"$(codegen_rename_pkg)\".mapOptions" -to _$(rename_type_prefix)MapOptions
+	gorename -from "\"$(codegen_rename_pkg)\".mapKey" -to _$(rename_type_prefix)MapKey
+	gorename -from "\"$(codegen_rename_pkg)\".mapKeyOptions" -to _$(rename_type_prefix)MapKeyOptions
+ifneq ($(rename_constructor),)
+	gorename -from "\"$(codegen_rename_pkg)\".NewMap" -to $(rename_constructor)
+endif
+ifneq ($(rename_constructor_options),)
+	gorename -from "\"$(codegen_rename_pkg)\".MapOptions" -to $(rename_constructor_options)
+endif
+	# Move back from staging package
+	mv "$(codegen_rename_dir)/map_gen.go" "$(out_dir:\=)/map_gen.go"
+	test -f "$(codegen_rename_dir)/new_map_gen.go" && mv "$(codegen_rename_dir)/new_map_gen.go" "$(out_dir:\=)/new_map_gen.go" || echo "" > /dev/null
+	# Cleanup staging
+	rm -rf $(codegen_rename_dir)
 
 .PHONY: clean
 clean:

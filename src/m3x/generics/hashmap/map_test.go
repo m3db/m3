@@ -33,7 +33,7 @@ import (
 // the map that is intended to be used with strings, this is useful for testing
 // the non-generated generic map source code.
 func newTestStringMap(size int) *Map {
-	return newMap(mapOptions{
+	return mapAlloc(mapOptions{
 		hash: func(key KeyType) MapHash {
 			return MapHash(xxhash.Sum64([]byte(key.(string))))
 		},

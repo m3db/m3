@@ -25,8 +25,8 @@ import:
 - package: github.com/spaolacci/murmur3
   version: ^1.1.0
 
-- package: github.com/cheekybits/genny
-  version: 9127e812e1e9e501ce899a18121d316ecb52e4ba
+- package: github.com/mauricelam/genny
+  version: 9d8700bcc567cd22ea2ef42ce5835a9c80296c4a
 
 - package: github.com/cespare/xxhash
   version: 48099fad606eafc26e3a569fad19ff510fff4df6

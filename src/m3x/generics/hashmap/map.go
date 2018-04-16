@@ -21,7 +21,7 @@
 package hashmap
 
 import (
-	"github.com/cheekybits/genny/generic"
+	"github.com/mauricelam/genny/generic"
 )
 
 // KeyType is the generic key type for use with the specialized hash map.
@@ -115,12 +115,12 @@ func (e MapEntry) Value() ValueType {
 	return e.value
 }
 
-// newMap is a non-exported function so that when generating the source code
+// mapAlloc is a non-exported function so that when generating the source code
 // for the map you can supply a public constructor that sets the correct
 // hash, equals, copy, finalize options without users of the map needing to
 // implement them themselves.
 // nolint: deadcode
-func newMap(opts mapOptions) *Map {
+func mapAlloc(opts mapOptions) *Map {
 	m := &Map{mapOptions: opts}
 	m.Reallocate()
 	return m
