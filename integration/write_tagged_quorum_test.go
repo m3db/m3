@@ -289,7 +289,7 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	ctx := context.NewContext()
 	defer ctx.BlockingClose()
 
-	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
+	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	assert.NoError(t, err)
 
 	results, err := s.db.QueryIDs(ctx, testNamespaces[0], index.Query{reQuery}, index.QueryOptions{})
