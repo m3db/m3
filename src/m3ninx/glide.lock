@@ -1,5 +1,5 @@
 hash: 4b534d26434239a1df754376d676980dea2108e18cd07aa540c87167f522e11f
-updated: 2018-04-03T13:47:48.848407692-04:00
+updated: 2018-04-04T17:42:46.439705-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -12,11 +12,11 @@ imports:
 - name: github.com/glycerine/go-unsnap-stream
   version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
 - name: github.com/golang/mock
-  version: 0d6884b72b943387bb12268d5178dde0e759e49a
+  version: 485faf39398c214ff46541e0d896cf4468ed392f
   subpackages:
   - gomock
 - name: github.com/golang/snappy
-  version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
+  version: 553a641470496b2327abcac10b36396bd98e45c9
 - name: github.com/google/codesearch
   version: a45d81b686e85d01f2838439deaf72126ccd5a96
   subpackages:
@@ -62,7 +62,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
+  version: 35aad584952c3e7020db7b839f6b102de6271f89
   subpackages:
   - buffer
   - internal/bufferpool
@@ -70,7 +70,7 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/net
-  version: 61557ac0112b576429a0df080e1c2cef5dfbb642
+  version: ab5485076ff3407ad2d02db054635913f017b0ed
   subpackages:
   - context
 testImports:
@@ -84,7 +84,7 @@ testImports:
   - gen
   - prop
 - name: github.com/pmezard/go-difflib
-  version: 792786c7400a136282c1664665ae0a8db921c6c2
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
