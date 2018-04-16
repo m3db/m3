@@ -21,14 +21,11 @@
 package mem
 
 import (
-	"bufio"
-	"encoding/json"
-	"fmt"
-	"os"
 	"regexp"
 	"testing"
 
 	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3ninx/index/util"
 	"github.com/m3db/m3ninx/postings"
 )
 
@@ -57,7 +54,7 @@ func BenchmarkTermsDict(b *testing.B) {
 		},
 	}
 
-	docs, err := readDocuments("../../../testdata/node_exporter.json", 2000)
+	docs, err := util.ReadDocs("../../util/testdata/node_exporter.json", 2000)
 	if err != nil {
 		b.Fatalf("unable to read documents for benchmarks: %v", err)
 	}
@@ -118,40 +115,4 @@ func benchmarkTermsDictMatchRegex(docs []doc.Document, b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		dict.MatchRegexp(benchTermsDictField, benchTermsDictRegexp, benchTermsDictCompiled)
 	}
-}
-
-func readDocuments(fn string, n int) ([]doc.Document, error) {
-	f, err := os.Open(fn)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	var (
-		docs    []doc.Document
-		scanner = bufio.NewScanner(f)
-	)
-	for scanner.Scan() && len(docs) < n {
-		var fieldsMap map[string]string
-		if err := json.Unmarshal(scanner.Bytes(), &fieldsMap); err != nil {
-			return nil, err
-		}
-
-		fields := make([]doc.Field, 0, len(fieldsMap))
-		for k, v := range fieldsMap {
-			fields = append(fields, doc.Field{
-				Name:  []byte(k),
-				Value: []byte(v),
-			})
-		}
-		docs = append(docs, doc.Document{
-			Fields: fields,
-		})
-	}
-
-	if len(docs) != n {
-		return nil, fmt.Errorf("requested %d metrics but found %d", n, len(docs))
-	}
-
-	return docs, nil
 }
