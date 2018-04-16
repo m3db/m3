@@ -881,9 +881,7 @@ type encodersAndRanges struct {
 }
 
 type encodersByTime struct {
-	id ident.ID
-	// int64 instead of time.Time because there is an optimized map access pattern
-	// for i64's
+	id       ident.ID
 	encoders map[xtime.UnixNano]encoders
 }
 
