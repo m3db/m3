@@ -222,11 +222,16 @@ func (i *nsIndex) Query(
 	iter, err := exec.Execute(query.Query.SearchQuery())
 	i.RUnlock()
 	if err != nil {
+		exec.Close()
+		reader.Close()
 		return index.QueryResults{}, err
 	}
 
 	return index.QueryResults{
-		Iterator:   index.NewIterator(i.nsID, iter, i.opts),
+		Iterator: index.NewIterator(i.nsID, iter, i.opts, func() {
+			exec.Close()
+			reader.Close()
+		}),
 		Exhaustive: true,
 	}, nil
 }

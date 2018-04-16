@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/resource"
 )
 
 var (
@@ -40,6 +41,7 @@ type idsIter struct {
 	err         error
 	idPool      ident.Pool
 	wrapperPool xpool.CheckedBytesWrapperPool
+	finalizerFn resource.FinalizerFn
 
 	currentID   ident.ID
 	currentTags ident.Tags
@@ -51,12 +53,14 @@ func NewIterator(
 	nsID ident.ID,
 	iter doc.Iterator,
 	opts Options,
+	finalizerFn resource.FinalizerFn,
 ) Iterator {
 	i := &idsIter{
 		nsID:        nsID,
 		iter:        iter,
 		idPool:      opts.IdentifierPool(),
 		wrapperPool: opts.CheckedBytesWrapperPool(),
+		finalizerFn: finalizerFn,
 	}
 	return i
 }
@@ -73,6 +77,7 @@ func (i *idsIter) Next() bool {
 	next := i.iter.Next()
 	if !next {
 		i.err = i.iter.Err()
+		i.finalizerFn()
 		return next
 	}
 
@@ -80,6 +85,7 @@ func (i *idsIter) Next() bool {
 	err := i.parseAndStore(d)
 	if err != nil {
 		i.err = err
+		i.finalizerFn()
 		return false
 	}
 
