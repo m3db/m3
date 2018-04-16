@@ -29,8 +29,11 @@ import (
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
+	m3ninxindex "github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/index/segment/mem"
+	"github.com/m3db/m3ninx/postings"
+	"github.com/m3db/m3ninx/search/executor"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 
@@ -52,7 +55,7 @@ const (
 )
 
 type nsIndexBlock struct {
-	segment    mem.Segment
+	segment    segment.MutableSegment
 	expiryTime time.Time
 }
 
@@ -79,8 +82,8 @@ func newNamespaceIndex(
 	}
 
 	now := opts.ClockOptions().NowFn()()
-	segmentID := segment.ID(now.UnixNano())
-	seg, err := mem.New(segmentID, opts.MemSegmentOptions())
+	postingsOffset := postings.ID(0) // FOLLOWUP(prateek): compute based on block compaction
+	seg, err := mem.NewSegment(postingsOffset, opts.MemSegmentOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -207,15 +210,26 @@ func (i *nsIndex) Query(
 		return index.QueryResults{}, errDbIndexUnableToQueryClosed
 	}
 
-	// FOLLOWUP(prateek): push down QueryOptions to restrict results
-	iter, err := i.active.segment.Query(query.Query)
-	i.RUnlock()
+	reader, err := i.active.segment.Reader()
 	if err != nil {
 		return index.QueryResults{}, err
 	}
 
+	readers := []m3ninxindex.Reader{reader}
+	exec := executor.NewExecutor(readers)
+
+	// FOLLOWUP(prateek): push down QueryOptions to restrict results
+	iter, err := exec.Execute(query.Query.SearchQuery())
+	i.RUnlock()
+	if err != nil {
+		exec.Close()
+		return index.QueryResults{}, err
+	}
+
 	return index.QueryResults{
-		Iterator:   index.NewIterator(i.nsID, iter, i.opts),
+		Iterator: index.NewIterator(i.nsID, iter, i.opts, func() {
+			exec.Close()
+		}),
 		Exhaustive: true,
 	}, nil
 }
@@ -240,9 +254,8 @@ func (i *nsIndex) Close() error {
 func (i *nsIndex) doc(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	fields := make([]doc.Field, 0, 1+len(tags))
 	fields = append(fields, doc.Field{
-		Name:      index.ReservedFieldNameID,
-		Value:     i.clone(id),
-		ValueType: doc.StringValueType,
+		Name:  index.ReservedFieldNameID,
+		Value: i.clone(id),
 	})
 	for _, tag := range tags {
 		name := i.clone(tag.Name)
@@ -250,13 +263,11 @@ func (i *nsIndex) doc(id ident.ID, tags ident.Tags) (doc.Document, error) {
 			return doc.Document{}, errDbIndexUnableToIndexWithReservedFieldName
 		}
 		fields = append(fields, doc.Field{
-			Name:      name,
-			Value:     i.clone(tag.Value),
-			ValueType: doc.StringValueType,
+			Name:  name,
+			Value: i.clone(tag.Value),
 		})
 	}
 	return doc.Document{
-		ID:     i.clone(id),
 		Fields: fields,
 	}, nil
 }

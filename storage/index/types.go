@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/x/xpool"
-	"github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3ninx/idx"
 	"github.com/m3db/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -48,7 +48,7 @@ const (
 
 // Query is a rich end user query to describe a set of constraints on required IDs.
 type Query struct {
-	segment.Query
+	idx.Query
 }
 
 // QueryOptions enables users to specify constraints on query execution.

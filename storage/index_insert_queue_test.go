@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -48,12 +47,10 @@ func newTestIndexInsertQueue() *nsIndexInsertQueue {
 
 func testDoc(i int) doc.Document {
 	return doc.Document{
-		ID: doc.ID([]byte(fmt.Sprintf("id-%d", i))),
 		Fields: []doc.Field{
 			doc.Field{
-				Name:      []byte("foo"),
-				Value:     []byte("bar"),
-				ValueType: doc.StringValueType,
+				Name:  []byte("foo"),
+				Value: []byte("bar"),
 			},
 		},
 	}

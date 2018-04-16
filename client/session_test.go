@@ -197,7 +197,7 @@ func testSessionClusterConnectConsistencyLevel(
 	expected outcome,
 ) {
 	opts := newSessionTestOptions()
-	opts = opts.SetClusterConnectTimeout(3 * clusterConnectWaitInterval)
+	opts = opts.SetClusterConnectTimeout(10 * clusterConnectWaitInterval)
 	opts = opts.SetClusterConnectConsistencyLevel(level)
 	s, err := newSession(opts)
 	assert.NoError(t, err)
