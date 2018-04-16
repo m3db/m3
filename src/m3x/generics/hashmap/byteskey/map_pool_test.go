@@ -26,8 +26,8 @@ import (
 
 	"github.com/m3db/m3x/pool"
 
-	"github.com/cheekybits/genny/generic"
 	"github.com/golang/mock/gomock"
+	"github.com/mauricelam/genny/generic"
 	"github.com/stretchr/testify/require"
 )
 

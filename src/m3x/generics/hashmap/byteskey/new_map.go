@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3x/pool"
 
 	"github.com/cespare/xxhash"
-	"github.com/cheekybits/genny/generic"
+	"github.com/mauricelam/genny/generic"
 )
 
 // Value is the generic type that needs to be specified when generating.
@@ -59,7 +59,7 @@ func NewMap(opts MapOptions) *Map {
 			pool.Put(k)
 		}
 	}
-	return newMap(mapOptions{
+	return mapAlloc(mapOptions{
 		hash: func(k []byte) MapHash {
 			return MapHash(xxhash.Sum64(k))
 		},

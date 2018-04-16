@@ -27,8 +27,8 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
-	"github.com/cheekybits/genny/generic"
 	"github.com/golang/mock/gomock"
+	"github.com/mauricelam/genny/generic"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,7 +57,7 @@ func TestMapWithPooling(t *testing.T) {
 			cap   int
 		}
 
-		keyBytes := []byte(entry.Key().(id))
+		keyBytes := []byte(entry.Key().(ident.BytesID))
 
 		rawPooledSlice := (*slice)(unsafe.Pointer(&mockPooledSlice))
 		rawKeySlice := (*slice)(unsafe.Pointer(&keyBytes))

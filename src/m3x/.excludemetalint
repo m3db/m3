@@ -1,3 +1,4 @@
 vendor/
 generated/
 _mock.go
+_gen.go

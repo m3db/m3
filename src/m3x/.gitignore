@@ -20,3 +20,5 @@ debug.test
 # Glide
 vendor/
 
+# Generated source
+codegen/
