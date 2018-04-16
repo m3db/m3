@@ -210,7 +210,15 @@ func (it *baseIterator) decodeVersion() int {
 }
 
 func (it *baseIterator) decodeObjectType() objectType {
-	return objectType(it.decodeVarint())
+	ot := objectType(it.decodeVarint())
+	if it.decodeErr != nil {
+		return unknownType
+	}
+	if !ot.isValid() {
+		it.decodeErr = fmt.Errorf("invalid object type %v", ot)
+		return unknownType
+	}
+	return ot
 }
 
 func (it *baseIterator) decodeNumObjectFields() int {
