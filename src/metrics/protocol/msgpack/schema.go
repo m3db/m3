@@ -68,7 +68,7 @@ const (
 	rawMetricWithStoragePolicyAndEncodeTimeType
 
 	// Total number of object types.
-	numObjectTypes = iota
+	numObjectTypes = iota - 1
 )
 
 const (
@@ -94,6 +94,10 @@ const (
 	numLongAggregationIDFields                       = 2
 	numPolicyFields                                  = 2
 )
+
+func (ot objectType) isValid() bool {
+	return ot > unknownType && ot <= numObjectTypes
+}
 
 // NB(xichen): use a slice instead of a map to avoid lookup overhead.
 var numObjectFields []int
