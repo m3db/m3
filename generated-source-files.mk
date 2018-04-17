@@ -7,12 +7,13 @@ install-m3x-repo: install-glide install-generics-bin
 	# Check if repository exists, if not get it
 	test -d $(m3x_package_path) || go get -u $(m3x_package)
 	test -d $(m3x_package_path)/vendor || (cd $(m3x_package_path) && glide install)
-	test "$(shell cd $(m3x_package_path) && git rev-parse --abbrev-ref HEAD)" = "master" || ( \
-		echo "m3x not on branch master" && \
-		exit 1                             \
+	test "$(shell cd $(m3x_package_path) && git diff --shortstat 2>/dev/null)" = "" || ( \
+		echo "WARNING: m3x repository is dirty, generated files might not be as expected" \
 	)
 	# If does exist but not at min version then update it
-	(cd $(m3x_package_path) && git cat-file -t $(m3x_package_min_ver) > /dev/null) || go get -u $(m3x_package)
+	(cd $(m3x_package_path) && git cat-file -t $(m3x_package_min_ver) > /dev/null) || ( \
+		echo "WARNING: m3x repository is below commit $(m3x_package_min_ver), generated files might not be as expected" \
+	)
 
 # Generation rule for all generated types
 .PHONY: genny-all

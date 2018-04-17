@@ -259,7 +259,7 @@ func (s *fileSystemSource) handleErrorsAndUnfulfilled(
 		shardResult, ok := bootstrapResult.ShardResults()[shard]
 		if ok {
 			for _, entry := range shardResult.AllSeries().Iter() {
-				series := entry.DatabaseSeriesBlocks()
+				series := entry.Value()
 				for _, t := range timesWithErrors {
 					shardResult.RemoveBlockAt(series.ID, t)
 				}

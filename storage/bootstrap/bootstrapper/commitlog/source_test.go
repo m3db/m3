@@ -521,7 +521,7 @@ func verifyShardResultsAreEqual(opts Options, shard uint32, actualResult, expect
 	}
 
 	for _, entry := range expectedSeries.Iter() {
-		expectedID, expectedBlocks := entry.Key(), entry.DatabaseSeriesBlocks()
+		expectedID, expectedBlocks := entry.Key(), entry.Value()
 		actualBlocks, ok := actualSeries.Get(expectedID)
 		if !ok {
 			return fmt.Errorf("series: %v present in expected but not actual", expectedID)

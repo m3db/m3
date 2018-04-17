@@ -134,7 +134,7 @@ func validateResult(t *testing.T, expected, actual result.BootstrapResult) {
 		as := actualShardResults[shard].AllSeries()
 		require.Equal(t, es.Len(), as.Len())
 		for _, entry := range es.Iter() {
-			id, expectedSeries := entry.Key(), entry.DatabaseSeriesBlocks()
+			id, expectedSeries := entry.Key(), entry.Value()
 			actualSeries, exists := as.Get(id)
 			require.True(t, exists)
 			validateSeries(t, expectedSeries.Blocks, actualSeries.Blocks)

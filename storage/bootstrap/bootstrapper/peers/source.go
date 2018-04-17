@@ -295,7 +295,7 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 	if err == nil {
 		shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
 		for _, entry := range shardResult.AllSeries().Iter() {
-			series := entry.DatabaseSeriesBlocks()
+			series := entry.Value()
 			for blockStart := range series.Blocks.AllBlocks() {
 				shardBlockSeriesCounter[blockStart]++
 			}
@@ -366,7 +366,7 @@ func (s *peersSource) incrementalFlush(
 
 		var blockErr error
 		for _, entry := range shardResult.AllSeries().Iter() {
-			s := entry.DatabaseSeriesBlocks()
+			s := entry.Value()
 			bl, ok := s.Blocks.BlockAt(start)
 			if !ok {
 				continue
@@ -437,7 +437,7 @@ func (s *peersSource) incrementalFlush(
 		// block when requesting bootstrapped blocks. Once all the clusters have been upgraded we can
 		// remove this code.
 		for _, entry := range shardResult.AllSeries().Iter() {
-			s := entry.DatabaseSeriesBlocks()
+			s := entry.Value()
 			bl, ok := s.Blocks.BlockAt(tr.End)
 			if !ok {
 				continue
@@ -452,7 +452,7 @@ func (s *peersSource) incrementalFlush(
 		// tick which causes unnecessary memory pressure.
 		numSeriesTriedToRemoveWithRemainingBlocks := 0
 		for _, entry := range shardResult.AllSeries().Iter() {
-			series := entry.DatabaseSeriesBlocks()
+			series := entry.Value()
 			numBlocksRemaining := len(series.Blocks.AllBlocks())
 			// Should never happen since we removed all the block in the previous loop and fetching
 			// bootstrap blocks should always be exclusive on the end side.
