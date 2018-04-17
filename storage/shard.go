@@ -219,7 +219,7 @@ type dbShardEntryWorkFn func(entry *dbShardEntry) bool
 
 type dbShardEntryBatchWorkFn func(entries []*dbShardEntry) bool
 
-type listElement *list.Element
+type shardListElement *list.Element
 
 type shardFlushState struct {
 	sync.RWMutex
@@ -1587,7 +1587,7 @@ func (s *dbShard) Bootstrap(
 
 	multiErr := xerrors.NewMultiError()
 	for _, elem := range bootstrappedSeries.Iter() {
-		dbBlocks := elem.DatabaseSeriesBlocks()
+		dbBlocks := elem.Value()
 
 		// First lookup if series already exists
 		entry, _, err := s.tryRetrieveWritableSeries(dbBlocks.ID)

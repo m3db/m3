@@ -631,6 +631,8 @@ func (s namespaceWriteBatchOpsSlice) resetAt(
 	s[index].elems = nil
 }
 
+// TODO: use genny to make namespaceWriteBatchOps and namespaceWriteTaggedBatchOps
+// share code (https://github.com/m3db/m3db/issues/531)
 type namespaceWriteTaggedBatchOps struct {
 	namespace                                  ident.ID
 	opsArrayPool                               *opArrayPool

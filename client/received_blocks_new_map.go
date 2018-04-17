@@ -21,16 +21,20 @@
 package client
 
 import (
-	"github.com/cespare/xxhash"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
+
+	"github.com/cespare/xxhash"
 )
 
 func newReceivedBlocksMap(pool pool.BytesPool) *receivedBlocksMap {
 	return _receivedBlocksMapAlloc(_receivedBlocksMapOptions{
 		hash: func(k idAndBlockStart) receivedBlocksMapHash {
-			return receivedBlocksMapHash(xxhash.Sum64(k.id.Bytes())) +
-				receivedBlocksMapHash(k.blockStart)
+			// NB(r): Similar to the standard composite key hashes for Java objects
+			hash := uint64(7)
+			hash = 31*hash + xxhash.Sum64(k.id.Bytes())
+			hash = 31*hash + uint64(k.blockStart)
+			return receivedBlocksMapHash(hash)
 		},
 		equals: func(x, y idAndBlockStart) bool {
 			return x.id.Equal(y.id) && x.blockStart == y.blockStart

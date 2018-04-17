@@ -184,6 +184,11 @@ type repairState struct {
 
 type namespaceRepairStateByTime map[xtime.UnixNano]repairState
 
+// NB(r): This uses a map[string]element instead of a generated map for
+// native ident.ID keys, this was because the call frequency is very low
+// it's not in the hot path so casting ident.ID to string isn't too expensive
+// and this data structure may very well change soon with a refactor of the
+// background repair in the works.
 type repairStatesByNs map[string]namespaceRepairStateByTime
 
 func newRepairStates() repairStatesByNs {

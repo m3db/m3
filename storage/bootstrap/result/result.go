@@ -144,7 +144,7 @@ func (sr *shardResult) AddResult(other ShardResult) {
 	}
 	otherSeries := other.AllSeries()
 	for _, entry := range otherSeries.Iter() {
-		series := entry.DatabaseSeriesBlocks()
+		series := entry.Value()
 		sr.AddSeries(series.ID, series.Blocks)
 	}
 }
@@ -186,7 +186,7 @@ func (sr *shardResult) BlockAt(id ident.ID, t time.Time) (block.DatabaseBlock, b
 // Close closes a shard result.
 func (sr *shardResult) Close() {
 	for _, entry := range sr.blocks.Iter() {
-		series := entry.DatabaseSeriesBlocks()
+		series := entry.Value()
 		series.Blocks.Close()
 	}
 }
@@ -228,7 +228,7 @@ func (r ShardResults) Equal(other ShardResults) bool {
 			return false
 		}
 		for _, entry := range allSeries.Iter() {
-			id, series := entry.Key(), entry.DatabaseSeriesBlocks()
+			id, series := entry.Key(), entry.Value()
 			otherSeries, ok := otherAllSeries.Get(id)
 			if !ok {
 				return false

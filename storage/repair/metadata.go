@@ -134,7 +134,7 @@ func (m replicaSeriesMetadata) Series() *Map     { return m.values }
 func (m replicaSeriesMetadata) NumBlocks() int64 {
 	var numBlocks int64
 	for _, entry := range m.values.Iter() {
-		series := entry.ReplicaSeriesBlocksMetadata()
+		series := entry.Value()
 		numBlocks += series.Metadata.NumBlocks()
 	}
 	return numBlocks
@@ -155,7 +155,7 @@ func (m replicaSeriesMetadata) GetOrAdd(id ident.ID) ReplicaBlocksMetadata {
 
 func (m replicaSeriesMetadata) Close() {
 	for _, entry := range m.values.Iter() {
-		series := entry.ReplicaSeriesBlocksMetadata()
+		series := entry.Value()
 		series.Metadata.Close()
 	}
 }
@@ -208,7 +208,7 @@ func (m replicaMetadataComparer) Compare() MetadataComparisonResult {
 	)
 
 	for _, entry := range m.metadata.Series().Iter() {
-		series := entry.ReplicaSeriesBlocksMetadata()
+		series := entry.Value()
 		for _, b := range series.Metadata.Blocks() {
 			bm := b.Metadata()
 
