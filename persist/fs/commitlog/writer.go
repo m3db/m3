@@ -171,8 +171,8 @@ func (w *writer) Write(
 		// If "idx" likely hasn't been written to commit log
 		// yet we need to include series metadata
 		var metadata schema.LogMetadata
-		metadata.ID = series.ID.Data().Get()
-		metadata.Namespace = series.Namespace.Data().Get()
+		metadata.ID = series.ID.Data().Bytes()
+		metadata.Namespace = series.Namespace.Data().Bytes()
 		metadata.Shard = series.Shard
 		w.metadataEncoder.Reset()
 		if err := w.metadataEncoder.EncodeLogMetadata(metadata); err != nil {

@@ -1,7 +1,7 @@
 package: github.com/m3db/m3db
 import:
 - package: github.com/m3db/m3x
-  version: 8bfb57c2e1a57770262378f26833110fbd029d94
+  version: 29bc232d9ad2e6c4a1804ccce095bb730fb1c6bc
   vcs: git
   subpackages:
   - checked
@@ -39,6 +39,9 @@ import:
 
 - package: github.com/m3db/stackadler32
   version: bfebcd73ef6ffe0ee30489227f0330c39064b674
+
+- package: github.com/cespare/xxhash
+  version: 48099fad606eafc26e3a569fad19ff510fff4df6
 
 - package: github.com/apache/thrift
   version: ~0.9.3

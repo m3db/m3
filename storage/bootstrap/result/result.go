@@ -73,10 +73,10 @@ func MergedBootstrapResult(i, j BootstrapResult) BootstrapResult {
 	}
 	sizeI, sizeJ := 0, 0
 	for _, sr := range i.ShardResults() {
-		sizeI += len(sr.AllSeries())
+		sizeI += int(sr.NumSeries())
 	}
 	for _, sr := range j.ShardResults() {
-		sizeJ += len(sr.AllSeries())
+		sizeJ += int(sr.NumSeries())
 	}
 	if sizeI >= sizeJ {
 		i.ShardResults().AddResults(j.ShardResults())
@@ -90,38 +90,41 @@ func MergedBootstrapResult(i, j BootstrapResult) BootstrapResult {
 
 type shardResult struct {
 	opts   Options
-	blocks map[ident.Hash]DatabaseSeriesBlocks
+	blocks *Map
 }
 
 // NewShardResult creates a new shard result.
 func NewShardResult(capacity int, opts Options) ShardResult {
 	return &shardResult{
-		opts:   opts,
-		blocks: make(map[ident.Hash]DatabaseSeriesBlocks, capacity),
+		opts: opts,
+		blocks: NewMap(MapOptions{
+			InitialSize: capacity,
+			KeyCopyPool: opts.DatabaseBlockOptions().BytesPool().BytesPool(),
+		}),
 	}
 }
 
 // IsEmpty returns whether the result is empty.
 func (sr *shardResult) IsEmpty() bool {
-	return len(sr.blocks) == 0
+	return sr.blocks.Len() == 0
 }
 
 // AddBlock adds a data block.
 func (sr *shardResult) AddBlock(id ident.ID, b block.DatabaseBlock) {
-	curSeries, exists := sr.blocks[id.Hash()]
+	curSeries, exists := sr.blocks.Get(id)
 	if !exists {
 		curSeries = sr.newBlocks(id)
-		sr.blocks[id.Hash()] = curSeries
+		sr.blocks.Set(id, curSeries)
 	}
 	curSeries.Blocks.AddBlock(b)
 }
 
 // AddSeries adds a single series.
 func (sr *shardResult) AddSeries(id ident.ID, rawSeries block.DatabaseSeriesBlocks) {
-	curSeries, exists := sr.blocks[id.Hash()]
+	curSeries, exists := sr.blocks.Get(id)
 	if !exists {
 		curSeries = sr.newBlocks(id)
-		sr.blocks[id.Hash()] = curSeries
+		sr.blocks.Set(id, curSeries)
 	}
 	curSeries.Blocks.AddSeries(rawSeries)
 }
@@ -140,14 +143,15 @@ func (sr *shardResult) AddResult(other ShardResult) {
 		return
 	}
 	otherSeries := other.AllSeries()
-	for _, series := range otherSeries {
+	for _, entry := range otherSeries.Iter() {
+		series := entry.Value()
 		sr.AddSeries(series.ID, series.Blocks)
 	}
 }
 
 // RemoveBlockAt removes a data block at a given timestamp
 func (sr *shardResult) RemoveBlockAt(id ident.ID, t time.Time) {
-	curSeries, exists := sr.blocks[id.Hash()]
+	curSeries, exists := sr.blocks.Get(id)
 	if !exists {
 		return
 	}
@@ -159,20 +163,20 @@ func (sr *shardResult) RemoveBlockAt(id ident.ID, t time.Time) {
 
 // RemoveSeries removes a single series of blocks.
 func (sr *shardResult) RemoveSeries(id ident.ID) {
-	delete(sr.blocks, id.Hash())
+	sr.blocks.Delete(id)
 }
 
 // AllSeries returns all series in the map.
-func (sr *shardResult) AllSeries() map[ident.Hash]DatabaseSeriesBlocks {
+func (sr *shardResult) AllSeries() *Map {
 	return sr.blocks
 }
 
 func (sr *shardResult) NumSeries() int64 {
-	return int64(len(sr.blocks))
+	return int64(sr.blocks.Len())
 }
 
 func (sr *shardResult) BlockAt(id ident.ID, t time.Time) (block.DatabaseBlock, bool) {
-	series, exists := sr.blocks[id.Hash()]
+	series, exists := sr.blocks.Get(id)
 	if !exists {
 		return nil, false
 	}
@@ -181,7 +185,8 @@ func (sr *shardResult) BlockAt(id ident.ID, t time.Time) (block.DatabaseBlock, b
 
 // Close closes a shard result.
 func (sr *shardResult) Close() {
-	for _, series := range sr.blocks {
+	for _, entry := range sr.blocks.Iter() {
+		series := entry.Value()
 		series.Blocks.Close()
 	}
 }
@@ -198,7 +203,7 @@ func (r ShardResults) NumSeries() int64 {
 // AddResults adds other shard results to the current shard results.
 func (r ShardResults) AddResults(other ShardResults) {
 	for shard, result := range other {
-		if result == nil || len(result.AllSeries()) == 0 {
+		if result == nil || result.NumSeries() == 0 {
 			continue
 		}
 		if existing, ok := r[shard]; ok {
@@ -219,11 +224,12 @@ func (r ShardResults) Equal(other ShardResults) bool {
 		}
 		allSeries := result.AllSeries()
 		otherAllSeries := otherResult.AllSeries()
-		if len(allSeries) != len(otherAllSeries) {
+		if allSeries.Len() != otherAllSeries.Len() {
 			return false
 		}
-		for id, series := range allSeries {
-			otherSeries, ok := otherAllSeries[id]
+		for _, entry := range allSeries.Iter() {
+			id, series := entry.Key(), entry.Value()
+			otherSeries, ok := otherAllSeries.Get(id)
 			if !ok {
 				return false
 			}

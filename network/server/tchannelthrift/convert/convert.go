@@ -159,7 +159,7 @@ func ToSegments(readers []xio.SegmentReader) (ToSegmentsResult, error) {
 
 func bytesRef(data checked.Bytes) []byte {
 	if data != nil {
-		return data.Get()
+		return data.Bytes()
 	}
 	return nil
 }

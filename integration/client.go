@@ -59,7 +59,7 @@ func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, names
 	for _, series := range seriesList {
 		for _, dp := range series.Data {
 			elem := &rpc.WriteBatchRawRequestElement{
-				ID: series.ID.Data().Get(),
+				ID: series.ID.Data().Bytes(),
 				Datapoint: &rpc.Datapoint{
 					Timestamp:         xtime.ToNormalizedTime(dp.Timestamp, time.Second),
 					Value:             dp.Value,
@@ -71,7 +71,10 @@ func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, names
 	}
 
 	ctx, _ := thrift.NewContext(timeout)
-	batchReq := &rpc.WriteBatchRawRequest{NameSpace: namespace.Data().Get(), Elements: elems}
+	batchReq := &rpc.WriteBatchRawRequest{
+		NameSpace: namespace.Data().Bytes(),
+		Elements:  elems,
+	}
 	return client.WriteBatchRaw(ctx, batchReq)
 }
 
@@ -201,7 +204,7 @@ func m3dbClientFetchBlocksMetadata(
 	metadatasByShard := make(map[uint32][]block.ReplicaMetadata, 10)
 
 	// iterate over all shards
-	seen := make(map[ident.Hash]map[xtime.UnixNano]struct{})
+	seen := make(map[string]map[xtime.UnixNano]struct{})
 	for _, shardID := range shards {
 		// clear seen
 		for key := range seen {
@@ -217,11 +220,11 @@ func m3dbClientFetchBlocksMetadata(
 
 		for iter.Next() {
 			host, blockMetadata := iter.Current()
-			idHash := blockMetadata.ID.Hash()
-			seenBlocks, ok := seen[idHash]
+			idString := blockMetadata.ID.String()
+			seenBlocks, ok := seen[idString]
 			if !ok {
 				seenBlocks = make(map[xtime.UnixNano]struct{})
-				seen[idHash] = seenBlocks
+				seen[idString] = seenBlocks
 			}
 			if _, ok := seenBlocks[xtime.ToUnixNano(blockMetadata.Start)]; ok {
 				continue // Already seen

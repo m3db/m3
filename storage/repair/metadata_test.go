@@ -96,13 +96,13 @@ func TestReplicaSeriesMetadataGetOrAdd(t *testing.T) {
 	// Add a series
 	m.GetOrAdd(ident.StringID("foo"))
 	series := m.Series()
-	require.Equal(t, 1, len(series))
-	_, exists := series[ident.StringID("foo").Hash()]
+	require.Equal(t, 1, series.Len())
+	_, exists := series.Get(ident.StringID("foo"))
 	require.True(t, exists)
 
 	// Add the same series and check we don't add new series
 	m.GetOrAdd(ident.StringID("foo"))
-	require.Equal(t, 1, len(m.Series()))
+	require.Equal(t, 1, m.Series().Len())
 }
 
 type testBlock struct {
@@ -115,7 +115,8 @@ func assertEqual(t *testing.T, expected []testBlock, actual ReplicaSeriesMetadat
 	require.Equal(t, len(expected), int(actual.NumBlocks()))
 
 	for _, b := range expected {
-		series := actual.Series()[b.id.Hash()]
+		series, ok := actual.Series().Get(b.id)
+		require.True(t, ok)
 		blocks := series.Metadata.Blocks()[xtime.ToUnixNano(b.ts)]
 		require.Equal(t, b.blocks, blocks.Metadata())
 	}
@@ -226,6 +227,8 @@ func TestReplicaMetadataComparerCompare(t *testing.T) {
 	)
 
 	metadata := NewReplicaSeriesMetadata()
+	defer metadata.Close()
+
 	inputs := []struct {
 		host        topology.Host
 		id          string

@@ -43,24 +43,22 @@ func NewDatabaseBlockRetrieverManager(
 ) DatabaseBlockRetrieverManager {
 	return &blockRetrieverManager{
 		newRetrieverFn: newDatabaseBlockRetrieverFn,
-		retrievers:     make(map[ident.Hash]DatabaseBlockRetriever),
+		retrievers:     newRetrieverMap(retrieverMapOptions{}),
 	}
 }
 
 type blockRetrieverManager struct {
 	sync.RWMutex
 	newRetrieverFn NewDatabaseBlockRetrieverFn
-	retrievers     map[ident.Hash]DatabaseBlockRetriever
+	retrievers     *retrieverMap
 }
 
 func (m *blockRetrieverManager) Retriever(
 	md namespace.Metadata,
 ) (DatabaseBlockRetriever, error) {
-	idHash := md.ID().Hash()
 	m.RLock()
-	retriever, ok := m.retrievers[idHash]
+	retriever, ok := m.retrievers.Get(md.ID())
 	m.RUnlock()
-
 	if ok {
 		return retriever, nil
 	}
@@ -68,7 +66,7 @@ func (m *blockRetrieverManager) Retriever(
 	m.Lock()
 	defer m.Unlock()
 
-	retriever, ok = m.retrievers[idHash]
+	retriever, ok = m.retrievers.Get(md.ID())
 	if ok {
 		return retriever, nil
 	}
@@ -79,7 +77,7 @@ func (m *blockRetrieverManager) Retriever(
 		return nil, err
 	}
 
-	m.retrievers[idHash] = retriever
+	m.retrievers.Set(md.ID(), retriever)
 	return retriever, nil
 }
 

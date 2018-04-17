@@ -249,15 +249,16 @@ type seriesDatapoint struct {
 }
 
 func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.SeriesBlocksByStart {
-	blockStartToSeriesMap := make(map[xtime.UnixNano]map[ident.Hash]generate.Series)
+	blockStartToSeriesMap := make(map[xtime.UnixNano]map[string]generate.Series)
 	for _, point := range d {
 		t := point.time
 		trunc := t.Truncate(blockSize)
 		seriesBlock, ok := blockStartToSeriesMap[xtime.ToUnixNano(trunc)]
 		if !ok {
-			seriesBlock = make(map[ident.Hash]generate.Series)
+			seriesBlock = make(map[string]generate.Series)
 		}
-		dp, ok := seriesBlock[point.series.Hash()]
+		idString := point.series.String()
+		dp, ok := seriesBlock[idString]
 		if !ok {
 			dp = generate.Series{ID: point.series}
 		}
@@ -265,7 +266,7 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 			Timestamp: t,
 			Value:     point.value,
 		})
-		seriesBlock[point.series.Hash()] = dp
+		seriesBlock[idString] = dp
 		blockStartToSeriesMap[xtime.ToUnixNano(trunc)] = seriesBlock
 	}
 

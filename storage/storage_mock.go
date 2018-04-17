@@ -1202,7 +1202,7 @@ func (_mr *MockdatabaseShardMockRecorder) FetchBlocksMetadataV2(arg0, arg1, arg2
 }
 
 // Bootstrap mocks base method
-func (_m *MockdatabaseShard) Bootstrap(bootstrappedSeries map[ident.Hash]result.DatabaseSeriesBlocks) error {
+func (_m *MockdatabaseShard) Bootstrap(bootstrappedSeries *result.Map) error {
 	ret := _m.ctrl.Call(_m, "Bootstrap", bootstrappedSeries)
 	ret0, _ := ret[0].(error)
 	return ret0

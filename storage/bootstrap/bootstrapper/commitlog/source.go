@@ -301,7 +301,7 @@ func (s *commitLogSource) mergeShards(
 			var shardResult result.ShardResult
 			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
 				unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
-			if shardResult != nil && len(shardResult.AllSeries()) > 0 {
+			if shardResult != nil && shardResult.NumSeries() > 0 {
 				// Prevent race conditions while updating bootstrapResult from multiple go-routines
 				bootstrapResultLock.Lock()
 				// Shard is a slice index so conversion to uint32 is safe

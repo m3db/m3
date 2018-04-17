@@ -103,7 +103,7 @@ type ReplicaSeriesMetadata interface {
 	NumBlocks() int64
 
 	// Series returns the series metadata
-	Series() map[ident.Hash]ReplicaSeriesBlocksMetadata
+	Series() *Map
 
 	// GetOrAdd returns the series metadata for an id, creating one if it doesn't exist
 	GetOrAdd(id ident.ID) ReplicaBlocksMetadata

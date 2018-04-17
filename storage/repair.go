@@ -184,7 +184,12 @@ type repairState struct {
 
 type namespaceRepairStateByTime map[xtime.UnixNano]repairState
 
-type repairStatesByNs map[ident.Hash]namespaceRepairStateByTime
+// NB(r): This uses a map[string]element instead of a generated map for
+// native ident.ID keys, this was because the call frequency is very low
+// it's not in the hot path so casting ident.ID to string isn't too expensive
+// and this data structure may very well change soon with a refactor of the
+// background repair in the works.
+type repairStatesByNs map[string]namespaceRepairStateByTime
 
 func newRepairStates() repairStatesByNs {
 	return make(repairStatesByNs)
@@ -196,7 +201,7 @@ func (r repairStatesByNs) repairStates(
 ) (repairState, bool) {
 	var rs repairState
 
-	nsRepairState, ok := r[namespace.Hash()]
+	nsRepairState, ok := r[namespace.String()]
 	if !ok {
 		return rs, false
 	}
@@ -210,10 +215,10 @@ func (r repairStatesByNs) setRepairState(
 	t time.Time,
 	state repairState,
 ) {
-	nsRepairState, ok := r[namespace.Hash()]
+	nsRepairState, ok := r[namespace.String()]
 	if !ok {
 		nsRepairState = make(namespaceRepairStateByTime)
-		r[namespace.Hash()] = nsRepairState
+		r[namespace.String()] = nsRepairState
 	}
 	nsRepairState[xtime.ToUnixNano(t)] = state
 }
@@ -328,7 +333,7 @@ func (r *dbRepairer) namespaceRepairTimeRanges(ns databaseNamespace) xtime.Range
 	)
 
 	targetRanges := xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end})
-	for tNano := range r.repairStatesByNs[ns.ID().Hash()] {
+	for tNano := range r.repairStatesByNs[ns.ID().String()] {
 		t := tNano.ToTime()
 		if !r.needsRepair(ns.ID(), t) {
 			targetRanges = targetRanges.RemoveRange(xtime.Range{Start: t, End: t.Add(blockSize)})

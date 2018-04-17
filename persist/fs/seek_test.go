@@ -201,14 +201,14 @@ func TestSeek(t *testing.T) {
 
 	data.IncRef()
 	defer data.DecRef()
-	assert.Equal(t, []byte{1, 2, 3}, data.Get())
+	assert.Equal(t, []byte{1, 2, 3}, data.Bytes())
 
 	data, err = s.SeekByID(ident.StringID("foo1"))
 	require.NoError(t, err)
 
 	data.IncRef()
 	defer data.DecRef()
-	assert.Equal(t, []byte{1, 2, 1}, data.Get())
+	assert.Equal(t, []byte{1, 2, 1}, data.Bytes())
 
 	_, err = s.SeekByID(ident.StringID("foo"))
 	assert.Error(t, err)
@@ -219,7 +219,7 @@ func TestSeek(t *testing.T) {
 
 	data.IncRef()
 	defer data.DecRef()
-	assert.Equal(t, []byte{1, 2, 2}, data.Get())
+	assert.Equal(t, []byte{1, 2, 2}, data.Bytes())
 
 	assert.NoError(t, s.Close())
 }
@@ -329,7 +329,7 @@ func TestReuseSeeker(t *testing.T) {
 
 	data.IncRef()
 	defer data.DecRef()
-	assert.Equal(t, []byte{1, 2, 1}, data.Get())
+	assert.Equal(t, []byte{1, 2, 1}, data.Bytes())
 
 	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
@@ -339,7 +339,7 @@ func TestReuseSeeker(t *testing.T) {
 
 	data.IncRef()
 	defer data.DecRef()
-	assert.Equal(t, []byte{1, 2, 3}, data.Get())
+	assert.Equal(t, []byte{1, 2, 3}, data.Bytes())
 }
 
 func TestCloneSeeker(t *testing.T) {
@@ -396,5 +396,5 @@ func TestCloneSeeker(t *testing.T) {
 
 	data.IncRef()
 	defer data.DecRef()
-	assert.Equal(t, []byte{1, 2, 1}, data.Get())
+	assert.Equal(t, []byte{1, 2, 1}, data.Bytes())
 }

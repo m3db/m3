@@ -98,7 +98,7 @@ func newOpenTestWriter(
 type streamResult struct {
 	ctx        context.Context
 	shard      uint32
-	id         ident.ID
+	id         string
 	blockStart time.Time
 	stream     xio.SegmentReader
 }
@@ -152,8 +152,9 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 		shards         = []uint32{0, 1, 2}
 		idsPerShard    = 16
 		shardIDs       = make(map[uint32][]ident.ID)
+		shardIDStrings = make(map[uint32][]string)
 		dataBytesPerID = 32
-		shardData      = make(map[uint32]map[ident.Hash]map[xtime.UnixNano]checked.Bytes)
+		shardData      = make(map[uint32]map[string]map[xtime.UnixNano]checked.Bytes)
 		blockStarts    []time.Time
 	)
 	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
@@ -161,14 +162,17 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	}
 	for _, shard := range shards {
 		shardIDs[shard] = make([]ident.ID, 0, idsPerShard)
-		shardData[shard] = make(map[ident.Hash]map[xtime.UnixNano]checked.Bytes, idsPerShard)
+		shardData[shard] = make(map[string]map[xtime.UnixNano]checked.Bytes, idsPerShard)
 		for _, blockStart := range blockStarts {
 			w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart)
 			for i := 0; i < idsPerShard; i++ {
-				id := ident.StringID(fmt.Sprintf("foo.%d", i))
+				idString := fmt.Sprintf("foo.%d", i)
+				shardIDStrings[shard] = append(shardIDStrings[shard], idString)
+
+				id := ident.StringID(idString)
 				shardIDs[shard] = append(shardIDs[shard], id)
-				if _, ok := shardData[shard][id.Hash()]; !ok {
-					shardData[shard][id.Hash()] = make(map[xtime.UnixNano]checked.Bytes, len(blockStarts))
+				if _, ok := shardData[shard][idString]; !ok {
+					shardData[shard][idString] = make(map[xtime.UnixNano]checked.Bytes, len(blockStarts))
 				}
 
 				data := checked.NewBytes(nil, nil)
@@ -176,9 +180,9 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				for j := 0; j < dataBytesPerID; j++ {
 					data.Append(byte(rand.Int63n(256)))
 				}
-				shardData[shard][id.Hash()][xtime.ToUnixNano(blockStart)] = data
+				shardData[shard][idString][xtime.ToUnixNano(blockStart)] = data
 
-				err := w.Write(id, data, digest.Checksum(data.Get()))
+				err := w.Write(id, data, digest.Checksum(data.Bytes()))
 				require.NoError(t, err)
 			}
 			closer()
@@ -214,6 +218,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				shard := uint32((j + shardOffset) % len(shards))
 				idIdx := uint32((j + idOffset) % len(shardIDs[shard]))
 				id := shardIDs[shard][idIdx]
+				idString := shardIDStrings[shard][idIdx]
 
 				for k := 0; k < len(blockStarts); k++ {
 					ctx := context.NewContext()
@@ -222,22 +227,23 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 					results = append(results, streamResult{
 						ctx:        ctx,
 						shard:      shard,
-						id:         id,
+						id:         idString,
 						blockStart: blockStarts[k],
 						stream:     stream,
 					})
 				}
+
 				for _, r := range results {
 					seg, err := r.stream.Segment()
 					if err != nil {
 						fmt.Printf("\nstream seg err: %v\n", err)
-						fmt.Printf("id: %s\n", r.id.String())
+						fmt.Printf("id: %s\n", r.id)
 						fmt.Printf("shard: %d\n", r.shard)
 						fmt.Printf("start: %v\n", r.blockStart.String())
 					}
 
 					require.NoError(t, err)
-					compare.Head = shardData[r.shard][r.id.Hash()][xtime.ToUnixNano(r.blockStart)]
+					compare.Head = shardData[r.shard][r.id][xtime.ToUnixNano(r.blockStart)]
 					assert.True(t, seg.Equal(&compare))
 
 					r.ctx.Close()
@@ -284,7 +290,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	data := checked.NewBytes([]byte("Hello world!"), nil)
 	data.IncRef()
 	defer data.DecRef()
-	err = w.Write(ident.StringID("exists"), data, digest.Checksum(data.Get()))
+	err = w.Write(ident.StringID("exists"), data, digest.Checksum(data.Bytes()))
 	assert.NoError(t, err)
 	closer()
 

@@ -454,7 +454,7 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 
 	for _, fetchedMetadata := range fetchedResults {
 		blocksMetadata := s.blocksMetadataPool.Get()
-		blocksMetadata.ID = fetchedMetadata.ID.Data().Get()
+		blocksMetadata.ID = fetchedMetadata.ID.Data().Bytes()
 		fetchedMetadataBlocks := fetchedMetadata.Blocks.Results()
 		blocksMetadata.Blocks = s.blockMetadataSlicePool.Get()
 
@@ -575,7 +575,7 @@ func (s *service) getBlocksMetadataV2FromResult(
 
 	for _, fetchedMetadata := range results.Results() {
 		fetchedMetadataBlocks := fetchedMetadata.Blocks.Results()
-		id := fetchedMetadata.ID.Data().Get()
+		id := fetchedMetadata.ID.Data().Bytes()
 
 		for _, fetchedMetadataBlock := range fetchedMetadataBlocks {
 			blockMetadata := s.blockMetadataV2Pool.Get()

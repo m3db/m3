@@ -276,7 +276,7 @@ func (i *nsIndex) doc(id ident.ID, tags ident.Tags) (doc.Document, error) {
 // any ids provided, as we need to maintain the lifecycle of the indexed
 // bytes separately from the rest of the storage subsystem.
 func (i *nsIndex) clone(id ident.ID) []byte {
-	original := id.Data().Get()
+	original := id.Data().Bytes()
 	clone := make([]byte, len(original))
 	copy(clone, original)
 	return clone

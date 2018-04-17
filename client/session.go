@@ -943,7 +943,7 @@ func (s *session) writeAttemptWithRLock(
 		wop := s.writeOperationPool.Get()
 		wop.namespace = nsID
 		wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
-		wop.request.ID = tsID.Data().Get()
+		wop.request.ID = tsID.Data().Bytes()
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
@@ -953,12 +953,12 @@ func (s *session) writeAttemptWithRLock(
 		wop := s.writeTaggedOperationPool.Get()
 		wop.namespace = nsID
 		wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
-		wop.request.ID = tsID.Data().Get()
+		wop.request.ID = tsID.Data().Bytes()
 		encodedTagBytes, ok := tagEncoder.Data()
 		if !ok {
 			return nil, 0, 0, errUnableToEncodeTags
 		}
-		wop.request.EncodedTags = encodedTagBytes.Get()
+		wop.request.EncodedTags = encodedTagBytes.Bytes()
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
@@ -1285,7 +1285,7 @@ func (s *session) fetchIDsAttempt(
 			}
 
 			// Append IDWithNamespace to this request
-			f.append(namespace.Data().Get(), tsID.Data().Get(), completionFn)
+			f.append(namespace.Data().Bytes(), tsID.Data().Bytes(), completionFn)
 		}); err != nil {
 			routeErr = err
 			break
@@ -1456,7 +1456,7 @@ func (s *session) Truncate(namespace ident.ID) (int64, error) {
 	)
 
 	t := &truncateOp{}
-	t.request.NameSpace = namespace.Data().Get()
+	t.request.NameSpace = namespace.Data().Bytes()
 	t.completionFn = func(result interface{}, err error) {
 		if err != nil {
 			resultErrLock.Lock()
@@ -1895,7 +1895,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	attemptFn := func(client rpc.TChanNode) error {
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
 		req := rpc.NewFetchBlocksMetadataRawRequest()
-		req.NameSpace = namespace.Data().Get()
+		req.NameSpace = namespace.Data().Bytes()
 		req.Shard = int32(shard)
 		req.RangeStart = start.UnixNano()
 		req.RangeEnd = end.UnixNano()
@@ -2062,7 +2062,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 	attemptFn := func(client rpc.TChanNode) error {
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
 		req := rpc.NewFetchBlocksMetadataRawV2Request()
-		req.NameSpace = namespace.Data().Get()
+		req.NameSpace = namespace.Data().Bytes()
 		req.Shard = int32(shard)
 		req.RangeStart = start.UnixNano()
 		req.RangeEnd = end.UnixNano()
@@ -2188,19 +2188,21 @@ func (s *session) streamBlocksFromPeers(
 	var (
 		enqueueCh           = newEnqueueChannel(progress)
 		peerBlocksBatchSize = s.streamBlocksBatchSize
+		numPeers            = len(peers.peers)
+		uncheckedBytesPool  = opts.DatabaseBlockOptions().BytesPool().BytesPool()
 	)
 
 	// Consume the incoming metadata and enqueue to the ready channel
 	// Spin up background goroutine to consume
 	go func() {
-		streamMetadataFn(len(peers.peers), metadataCh, enqueueCh)
+		streamMetadataFn(numPeers, metadataCh, enqueueCh, uncheckedBytesPool)
 		// Begin assessing the queue and how much is processed, once queue
 		// is entirely processed then we can close the enqueue channel
 		enqueueCh.closeOnAllProcessed()
 	}()
 
 	// Fetch blocks from peers as results become ready
-	peerQueues := make(peerBlocksQueues, 0, len(peers.peers))
+	peerQueues := make(peerBlocksQueues, 0, numPeers)
 	for _, peer := range peers.peers {
 		peer := peer
 		size := peerBlocksBatchSize
@@ -2256,12 +2258,14 @@ type streamBlocksMetadataFn func(
 	peersLen int,
 	ch <-chan receivedBlockMetadata,
 	enqueueCh enqueueChannel,
+	pool pool.BytesPool,
 )
 
 func (s *session) passThroughBlocksMetadata(
 	peersLen int,
 	ch <-chan receivedBlockMetadata,
 	enqueueCh enqueueChannel,
+	_ pool.BytesPool,
 ) {
 	// Receive off of metadata channel
 	for {
@@ -2278,8 +2282,10 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 	peersLen int,
 	metadataCh <-chan receivedBlockMetadata,
 	enqueueCh enqueueChannel,
+	pool pool.BytesPool,
 ) {
-	metadata := make(map[hashAndBlockStart]receivedBlocks)
+	metadata := newReceivedBlocksMap(pool)
+	defer metadata.Reset() // Delete all the keys and return slices to pools
 
 	for {
 		m, ok := <-metadataCh
@@ -2287,11 +2293,11 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 			break
 		}
 
-		key := hashAndBlockStart{
-			hash:       m.id.Hash(),
+		key := idAndBlockStart{
+			id:         m.id,
 			blockStart: m.block.start.UnixNano(),
 		}
-		received, ok := metadata[key]
+		received, ok := metadata.Get(key)
 		if !ok {
 			received = receivedBlocks{
 				results: make([]receivedBlockMetadata, 0, peersLen),
@@ -2334,12 +2340,13 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 		}
 
 		// Ensure tracking enqueued by setting modified result back to map
-		metadata[key] = received
+		metadata.Set(key, received)
 	}
 
 	// Enqueue all unenqueued received metadata. Note that these entries will have
 	// metadata from only a subset of their peers.
-	for _, received := range metadata {
+	for _, entry := range metadata.Iter() {
+		received := entry.Value()
 		if received.enqueued {
 			continue
 		}
@@ -2646,7 +2653,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		retention          = ropts.RetentionPeriod()
 		earliestBlockStart = nowFn().Add(-retention).Truncate(blockSize)
 	)
-	req.NameSpace = namespaceMetadata.ID().Data().Get()
+	req.NameSpace = namespaceMetadata.ID().Data().Bytes()
 	req.Shard = int32(shard)
 	req.Elements = make([]*rpc.FetchBlocksRawRequestElement, 0, len(batch))
 	for i := range batch {
@@ -2655,7 +2662,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			continue // Fell out of retention while we were streaming blocks
 		}
 		req.Elements = append(req.Elements, &rpc.FetchBlocksRawRequestElement{
-			ID:     batch[i].id.Data().Get(),
+			ID:     batch[i].id.Data().Bytes(),
 			Starts: []int64{blockStart.UnixNano()},
 		})
 		reqBlocksLen++
@@ -2709,7 +2716,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		}
 
 		id := batch[i].id
-		if !bytes.Equal(id.Data().Get(), result.Elements[i].ID) {
+		if !bytes.Equal(id.Data().Bytes(), result.Elements[i].ID) {
 			blocksErr := fmt.Errorf(
 				"stream blocks mismatched ID: expectedID=%s, actualID=%s, indexID=%d, peer=%s",
 				batch[i].id.String(), id.String(), i, peer.Host().String(),
@@ -3581,14 +3588,16 @@ func (it *metadataIter) Err() error {
 	return it.err
 }
 
-type hashAndBlockStart struct {
-	hash       ident.Hash
+type idAndBlockStart struct {
+	id         ident.ID
 	blockStart int64
 }
 
 // IsValidFetchBlocksMetadataEndpoint returns a bool indicating whether the
 // specified endpointVersion is valid
-func IsValidFetchBlocksMetadataEndpoint(endpointVersion FetchBlocksMetadataEndpointVersion) bool {
+func IsValidFetchBlocksMetadataEndpoint(
+	endpointVersion FetchBlocksMetadataEndpointVersion,
+) bool {
 	for _, version := range validFetchBlocksMetadataEndpoints {
 		if version == endpointVersion {
 			return true

@@ -127,14 +127,14 @@ func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Ti
 				data.IncRef()
 
 				assert.Equal(t, entries[i].id, id.String())
-				assert.True(t, bytes.Equal(entries[i].data, data.Get()))
+				assert.True(t, bytes.Equal(entries[i].data, data.Bytes()))
 				assert.Equal(t, digest.Checksum(entries[i].data), checksum)
 
 				assert.Equal(t, i+1, r.EntriesRead())
 
 				// Verify that the bloomFilter was bootstrapped properly by making sure it
 				// at least contains every ID
-				assert.True(t, bloomFilter.Test(id.Data().Get()))
+				assert.True(t, bloomFilter.Test(id.Data().Bytes()))
 
 				id.Finalize()
 				data.DecRef()
@@ -151,7 +151,7 @@ func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Ti
 
 				// Verify that the bloomFilter was bootstrapped properly by making sure it
 				// at least contains every ID
-				assert.True(t, bloomFilter.Test(id.Data().Get()))
+				assert.True(t, bloomFilter.Test(id.Data().Bytes()))
 
 				id.Finalize()
 			}

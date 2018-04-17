@@ -691,7 +691,7 @@ func assertFetchBlocksFromPeersResult(
 		seg, err := stream.Segment()
 		require.NoError(t, err)
 
-		actualData := append(seg.Head.Get(), seg.Tail.Get()...)
+		actualData := append(seg.Head.Bytes(), seg.Tail.Bytes()...)
 
 		// compare actual v expected data
 		if len(expectedData) != len(actualData) {
@@ -1476,9 +1476,13 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	assertEnqueueChannel(t, batch[2:], enqueueCh)
 
 	// Assert length of blocks result
-	assert.Equal(t, 2, len(r.result.AllSeries()))
-	assert.Equal(t, 1, r.result.AllSeries()[fooID.Hash()].Blocks.Len())
-	assert.Equal(t, 1, r.result.AllSeries()[barID.Hash()].Blocks.Len())
+	assert.Equal(t, 2, r.result.AllSeries().Len())
+	fooBlocks, ok := r.result.AllSeries().Get(fooID)
+	require.True(t, ok)
+	assert.Equal(t, 1, fooBlocks.Blocks.Len())
+	barBlocks, ok := r.result.AllSeries().Get(barID)
+	require.True(t, ok)
+	assert.Equal(t, 1, barBlocks.Blocks.Len())
 
 	assert.NoError(t, session.Close())
 }
@@ -1625,12 +1629,18 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 	assertEnqueueChannel(t, batch[1:2], enqueueCh)
 
 	// Assert length of blocks result
-	assert.Equal(t, 2, len(r.result.AllSeries()))
-	assert.Equal(t, 1, r.result.AllSeries()[fooID.Hash()].Blocks.Len())
-	_, ok := r.result.AllSeries()[fooID.Hash()].Blocks.BlockAt(start)
+	assert.Equal(t, 2, r.result.AllSeries().Len())
+
+	fooBlocks, ok := r.result.AllSeries().Get(fooID)
+	require.True(t, ok)
+	assert.Equal(t, 1, fooBlocks.Blocks.Len())
+	_, ok = fooBlocks.Blocks.BlockAt(start)
 	assert.True(t, ok)
-	assert.Equal(t, 1, r.result.AllSeries()[barID.Hash()].Blocks.Len())
-	_, ok = r.result.AllSeries()[barID.Hash()].Blocks.BlockAt(start.Add(blockSize))
+
+	barBlocks, ok := r.result.AllSeries().Get(barID)
+	require.True(t, ok)
+	assert.Equal(t, 1, barBlocks.Blocks.Len())
+	_, ok = barBlocks.Blocks.BlockAt(start.Add(blockSize))
 	assert.True(t, ok)
 
 	assert.NoError(t, session.Close())
@@ -1654,9 +1664,9 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	r.addBlockFromPeer(fooID, testHost, bl)
 
 	series := r.result.AllSeries()
-	assert.Equal(t, 1, len(series))
+	assert.Equal(t, 1, series.Len())
 
-	sl, ok := series[fooID.Hash()]
+	sl, ok := series.Get(fooID)
 	assert.True(t, ok)
 	blocks := sl.Blocks
 	assert.Equal(t, 1, blocks.Len())
@@ -1674,8 +1684,8 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	require.NoError(t, err)
 
 	// Assert block has data
-	assert.Equal(t, []byte{1, 2}, seg.Head.Get())
-	assert.Equal(t, []byte{3}, seg.Tail.Get())
+	assert.Equal(t, []byte{1, 2}, seg.Head.Bytes())
+	assert.Equal(t, []byte{3}, seg.Tail.Bytes())
 }
 
 func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
@@ -1727,7 +1737,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 			all = append(all, val)
 		}
 		result := encoder.Discard()
-		seg := &rpc.Segment{Head: result.Head.Get(), Tail: result.Tail.Get()}
+		seg := &rpc.Segment{Head: result.Head.Bytes(), Tail: result.Tail.Bytes()}
 		bl.Segments.Unmerged = append(bl.Segments.Unmerged, seg)
 	}
 
@@ -1735,9 +1745,9 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	r.addBlockFromPeer(fooID, testHost, bl)
 
 	series := r.result.AllSeries()
-	assert.Equal(t, 1, len(series))
+	assert.Equal(t, 1, series.Len())
 
-	sl, ok := series[fooID.Hash()]
+	sl, ok := series.Get(fooID)
 	assert.True(t, ok)
 	blocks := sl.Blocks
 	assert.Equal(t, 1, blocks.Len())
@@ -2070,7 +2080,7 @@ func expectFetchMetadataAndReturn(
 		)
 		for j := beginIdx; j < len(result) && j < beginIdx+batchSize; j++ {
 			elem := &rpc.BlocksMetadata{}
-			elem.ID = result[j].id.Data().Get()
+			elem.ID = result[j].id.Data().Bytes()
 			for k := 0; k < len(result[j].blocks); k++ {
 				bl := &rpc.BlockMetadata{}
 				bl.Start = result[j].blocks[k].start.UnixNano()
@@ -2122,7 +2132,7 @@ func expectFetchMetadataAndReturnV2(
 			beginIdx = i * batchSize
 		)
 		for j := beginIdx; j < len(result) && j < beginIdx+batchSize; j++ {
-			id := result[j].id.Data().Get()
+			id := result[j].id.Data().Bytes()
 			for k := 0; k < len(result[j].blocks); k++ {
 				bl := &rpc.BlockMetadataV2{}
 				bl.ID = id
@@ -2274,7 +2284,7 @@ func expectFetchBlocksAndReturn(
 		ret := &rpc.FetchBlocksRawResult_{}
 		for _, res := range result[i] {
 			blocks := &rpc.Blocks{}
-			blocks.ID = res.id.Data().Get()
+			blocks.ID = res.id.Data().Bytes()
 			for j := range res.blocks {
 				bl := &rpc.Block{}
 				bl.Start = res.blocks[j].start.UnixNano()
@@ -2399,11 +2409,11 @@ func assertFetchBootstrapBlocksResult(
 	defer ctx.Close()
 
 	series := actual.AllSeries()
-	assert.Equal(t, len(expected), len(series))
+	assert.Equal(t, len(expected), series.Len())
 
 	for i := range expected {
 		id := expected[i].id
-		entry, ok := series[id.Hash()]
+		entry, ok := series.Get(id)
 		if !ok {
 			assert.Fail(t, fmt.Sprintf("blocks for series '%s' not present", id.String()))
 			continue
@@ -2431,7 +2441,7 @@ func assertFetchBootstrapBlocksResult(
 				require.NoError(t, err)
 				seg, err := stream.Segment()
 				require.NoError(t, err)
-				actualData := append(seg.Head.Get(), seg.Tail.Get()...)
+				actualData := append(seg.Head.Bytes(), seg.Tail.Bytes()...)
 				assert.Equal(t, expectedData, actualData)
 			} else if block.segments.unmerged != nil {
 				assert.Fail(t, "unmerged comparison not supported")

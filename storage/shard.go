@@ -108,7 +108,7 @@ type dbShard struct {
 	commitLogWriter          commitLogWriter
 	reverseIndex             namespaceIndex
 	insertQueue              *dbShardInsertQueue
-	lookup                   map[ident.Hash]*list.Element
+	lookup                   *shardMap
 	list                     *list.List
 	bs                       bootstrapState
 	filesetBeforeFn          filesetBeforeFn
@@ -219,6 +219,8 @@ type dbShardEntryWorkFn func(entry *dbShardEntry) bool
 
 type dbShardEntryBatchWorkFn func(entries []*dbShardEntry) bool
 
+type shardListElement *list.Element
+
 type shardFlushState struct {
 	sync.RWMutex
 	statesByTime map[xtime.UnixNano]fileOpState
@@ -263,7 +265,7 @@ func newDatabaseShard(
 		seriesPool:         opts.DatabaseSeriesPool(),
 		commitLogWriter:    commitLogWriter,
 		reverseIndex:       reverseIndex,
-		lookup:             make(map[ident.Hash]*list.Element),
+		lookup:             newShardMap(shardMapOptions{}),
 		list:               list.New(),
 		filesetBeforeFn:    fs.FilesetBefore,
 		deleteFilesFn:      fs.DeleteFiles,
@@ -715,8 +717,8 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*dbShardEntry) {
 	s.Lock()
 	for _, entry := range expiredEntries {
 		series := entry.series
-		hash := series.ID().Hash()
-		elem, exists := s.lookup[hash]
+		id := series.ID()
+		elem, exists := s.lookup.Get(id)
 		if !exists {
 			continue
 		}
@@ -745,7 +747,7 @@ func (s *dbShard) purgeExpiredSeries(expiredEntries []*dbShardEntry) {
 		// safe to remove it.
 		series.Close()
 		s.list.Remove(elem)
-		delete(s.lookup, hash)
+		s.lookup.Delete(id)
 	}
 	s.Unlock()
 }
@@ -934,7 +936,7 @@ func (s *dbShard) lookupEntryWithLock(id ident.ID) (*dbShardEntry, *list.Element
 		// callers will not retry this operation
 		return nil, nil, xerrors.NewInvalidParamsError(errShardNotOpen)
 	}
-	elem, exists := s.lookup[id.Hash()]
+	elem, exists := s.lookup.Get(id)
 	if !exists {
 		return nil, nil, errShardEntryNotFound
 	}
@@ -1103,14 +1105,28 @@ func (s *dbShard) insertSeriesSync(
 		}
 	}
 
+	copiedID := entry.series.ID()
+	copiedTags := entry.series.Tags()
 	if s.reverseIndex != nil {
-		if err := s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), entry); err != nil {
+		if err := s.reverseIndex.Write(copiedID, copiedTags, entry); err != nil {
 			return nil, err
 		}
 	}
 
-	s.lookup[entry.series.ID().Hash()] = s.list.PushBack(entry)
+	s.insertNewShardEntryWithLock(entry)
 	return entry, nil
+}
+
+func (s *dbShard) insertNewShardEntryWithLock(entry *dbShardEntry) {
+	// Set the lookup value, we use the copied ID and since it is GC'd
+	// we explicitly set it with options to not copy the key and not to
+	// finalize it
+	copiedID := entry.series.ID()
+	listElem := s.list.PushBack(entry)
+	s.lookup.SetUnsafe(copiedID, listElem, shardMapSetUnsafeOptions{
+		NoCopyKey:     true,
+		NoFinalizeKey: true,
+	})
 }
 
 func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
@@ -1157,7 +1173,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 				s.metrics.insertAsyncBootstrapErrors.Inc(1)
 			}
 		}
-		s.lookup[entry.series.ID().Hash()] = s.list.PushBack(entry)
+		s.insertNewShardEntryWithLock(entry)
 	}
 	s.Unlock()
 
@@ -1555,7 +1571,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 }
 
 func (s *dbShard) Bootstrap(
-	bootstrappedSeries map[ident.Hash]result.DatabaseSeriesBlocks,
+	bootstrappedSeries *result.Map,
 ) error {
 	s.Lock()
 	if s.bs == bootstrapped {
@@ -1570,7 +1586,9 @@ func (s *dbShard) Bootstrap(
 	s.Unlock()
 
 	multiErr := xerrors.NewMultiError()
-	for _, dbBlocks := range bootstrappedSeries {
+	for _, elem := range bootstrappedSeries.Iter() {
+		dbBlocks := elem.Value()
+
 		// First lookup if series already exists
 		entry, _, err := s.tryRetrieveWritableSeries(dbBlocks.ID)
 		if err != nil {
