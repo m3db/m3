@@ -152,7 +152,7 @@ func NewDatabase(
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
 		shardSet:     shardSet,
-		namespaces:   newDatabaseNamespacesMap(),
+		namespaces:   newDatabaseNamespacesMap(databaseNamespacesMapOptions{}),
 		commitLog:    commitLog,
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope),
@@ -240,7 +240,7 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []
 
 	// check if existing namespaces exist in newNamespaces
 	for _, entry := range existing.Iter() {
-		ns := entry.Namespace()
+		ns := entry.databaseNamespace()
 		newMd, err := newNamespaces.Get(ns.ID())
 
 		// if a namespace doesn't exist in newNamespaces, mark for removal
@@ -345,7 +345,7 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	defer d.Unlock()
 	d.shardSet = shardSet
 	for _, elem := range d.namespaces.Iter() {
-		ns := elem.Namespace()
+		ns := elem.databaseNamespace()
 		ns.AssignShardSet(shardSet)
 	}
 	d.queueBootstrapWithLock()
@@ -382,7 +382,7 @@ func (d *db) Namespaces() []Namespace {
 	defer d.RUnlock()
 	namespaces := make([]Namespace, 0, d.namespaces.Len())
 	for _, elem := range d.namespaces.Iter() {
-		namespaces = append(namespaces, elem.Namespace())
+		namespaces = append(namespaces, elem.databaseNamespace())
 	}
 	return namespaces
 }
@@ -656,7 +656,7 @@ func (d *db) namespaceFor(namespace ident.ID) (databaseNamespace, error) {
 func (d *db) ownedNamespacesWithLock() []databaseNamespace {
 	namespaces := make([]databaseNamespace, 0, d.namespaces.Len())
 	for _, n := range d.namespaces.Iter() {
-		namespaces = append(namespaces, n.Namespace())
+		namespaces = append(namespaces, n.databaseNamespace())
 	}
 	return namespaces
 }

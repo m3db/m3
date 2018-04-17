@@ -26,57 +26,78 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package block
+package repair
 
-import (
-	"bytes"
+import "github.com/m3db/m3x/ident"
 
-	"github.com/cespare/xxhash"
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
-)
+// MapHash is the hash for a given map entry, this is public to support
+// iterating over the map using a native Go for loop.
+type MapHash uint64
 
-type mapHash uint64
+// HashFn is the hash function to execute when hashing a key.
+type HashFn func(ident.ID) MapHash
 
-type hashFn func(ident.ID) mapHash
+// EqualsFn is the equals key function to execute when detecting equality of a key.
+type EqualsFn func(ident.ID, ident.ID) bool
 
-type equalsFn func(ident.ID, ident.ID) bool
+// CopyFn is the copy key function to execute when copying the key.
+type CopyFn func(ident.ID) ident.ID
 
-type copyFn func(ident.ID) ident.ID
+// FinalizeFn is the finalize key function to execute when finished with a key.
+type FinalizeFn func(ident.ID)
 
-type finalizeFn func(ident.ID)
-
-type retrieverMap struct {
-	retrieverMapOptions
+// Map uses the genny package to provide a generic hash map that can be specialized
+// by running the following command from this root of the repository:
+// ```
+// make hashmap-gen pkg=outpkg key_type=Type value_type=Type out_dir=/tmp
+// ```
+// Or if you would like to use bytes or ident.ID as keys you can use the
+// partially specialized maps to generate your own maps as well:
+// ```
+// make byteshashmap-gen pkg=outpkg value_type=Type out_dir=/tmp
+// make idhashmap-gen pkg=outpkg value_type=Type out_dir=/tmp
+// ```
+// This will output to stdout the generated source file to use for your map.
+// It uses linear probing by incrementing the number of the hash created when
+// hashing the identifier if there is a collision.
+// Map is a value type and not an interface to allow for less painful
+// upgrades when adding/removing methods, it is not likely to need mocking so
+// an interface would not be super useful either.
+type Map struct {
+	mapOptions
 
 	// lookup uses hash of the identifier for the key and the MapEntry value
 	// wraps the value type and the key (used to ensure lookup is correct
 	// when dealing with collisions), we use uint64 for the hash partially
 	// because lookups of maps with uint64 keys has a fast path for Go.
-	lookup map[mapHash]retrieverMapEntry
+	lookup map[MapHash]MapEntry
 }
 
-// nolint:structcheck
-type retrieverMapOptions struct {
+// mapOptions is a set of options used when creating an identifier map, it is kept
+// private so that implementers of the generated map can specify their own options
+// that partially fulfill these options.
+type mapOptions struct {
 	// hash is the hash function to execute when hashing a key.
-	hash hashFn
+	hash HashFn
 	// equals is the equals key function to execute when detecting equality.
-	equals equalsFn
+	equals EqualsFn
 	// copy is the copy key function to execute when copying the key.
-	copy copyFn
+	copy CopyFn
 	// finalize is the finalize key function to execute when finished with a
 	// key, this is optional to specify.
-	finalize finalizeFn
+	finalize FinalizeFn
 	// initialSize is the initial size for the map, use zero to use Go's std map
 	// initial size and consequently is optional to specify.
 	initialSize int
 }
 
-type retrieverMapEntry struct {
+// MapEntry is an entry in the map, this is public to support iterating
+// over the map using a native Go for loop.
+type MapEntry struct {
 	// key is used to check equality on lookups to resolve collisions
 	key mapKey
 	// value type stored
-	value DatabaseBlockRetriever
+	value ReplicaSeriesBlocksMetadata
 }
 
 type mapKey struct {
@@ -85,32 +106,26 @@ type mapKey struct {
 }
 
 // Key returns the map entry key.
-func (e retrieverMapEntry) Key() ident.ID {
+func (e MapEntry) Key() ident.ID {
 	return e.key.key
 }
 
-// DatabaseBlockRetriever returns the map entry value.
-func (e retrieverMapEntry) DatabaseBlockRetriever() DatabaseBlockRetriever {
+// ReplicaSeriesBlocksMetadata returns the map entry value.
+func (e MapEntry) ReplicaSeriesBlocksMetadata() ReplicaSeriesBlocksMetadata {
 	return e.value
 }
 
-func newRetrieverMap() *retrieverMap {
-	m := &retrieverMap{retrieverMapOptions: retrieverMapOptions{
-		hash: func(id ident.ID) mapHash {
-			return mapHash(xxhash.Sum64(id.Bytes()))
-		},
-		equals: func(x, y ident.ID) bool {
-			return x.Equal(y)
-		},
-		copy: func(k ident.ID) ident.ID {
-			return id(append([]byte(nil), k.Bytes()...))
-		},
-	}}
+// mapAlloc is a non-exported function so that when generating the source code
+// for the map you can supply a public constructor that sets the correct
+// hash, equals, copy, finalize options without users of the map needing to
+// implement them themselves.
+func mapAlloc(opts mapOptions) *Map {
+	m := &Map{mapOptions: opts}
 	m.Reallocate()
 	return m
 }
 
-func (m *retrieverMap) newMapKey(k ident.ID, opts mapKeyOptions) mapKey {
+func (m *Map) newMapKey(k ident.ID, opts mapKeyOptions) mapKey {
 	key := mapKey{key: k, finalize: opts.finalizeKey}
 	if !opts.copyKey {
 		return key
@@ -120,7 +135,7 @@ func (m *retrieverMap) newMapKey(k ident.ID, opts mapKeyOptions) mapKey {
 	return key
 }
 
-func (m *retrieverMap) removeMapKey(hash mapHash, key mapKey) {
+func (m *Map) removeMapKey(hash MapHash, key mapKey) {
 	delete(m.lookup, hash)
 	if key.finalize {
 		m.finalize(key.key)
@@ -128,7 +143,7 @@ func (m *retrieverMap) removeMapKey(hash mapHash, key mapKey) {
 }
 
 // Get returns a value in the map for an identifier if found.
-func (m *retrieverMap) Get(k ident.ID) (DatabaseBlockRetriever, bool) {
+func (m *Map) Get(k ident.ID) (ReplicaSeriesBlocksMetadata, bool) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -137,15 +152,31 @@ func (m *retrieverMap) Get(k ident.ID) (DatabaseBlockRetriever, bool) {
 		// Linear probe to "next" to this entry (really a rehash)
 		hash++
 	}
-	var empty DatabaseBlockRetriever
+	var empty ReplicaSeriesBlocksMetadata
 	return empty, false
 }
 
 // Set will set the value for an identifier.
-func (m *retrieverMap) Set(k ident.ID, v DatabaseBlockRetriever) {
+func (m *Map) Set(k ident.ID, v ReplicaSeriesBlocksMetadata) {
 	m.set(k, v, mapKeyOptions{
 		copyKey:     true,
 		finalizeKey: m.finalize != nil,
+	})
+}
+
+// SetUnsafeOptions is a set of options to use when setting a value with
+// the SetUnsafe method.
+type SetUnsafeOptions struct {
+	NoCopyKey     bool
+	NoFinalizeKey bool
+}
+
+// SetUnsafe will set the value for an identifier with unsafe options for how
+// the map treats the key.
+func (m *Map) SetUnsafe(k ident.ID, v ReplicaSeriesBlocksMetadata, opts SetUnsafeOptions) {
+	m.set(k, v, mapKeyOptions{
+		copyKey:     !opts.NoCopyKey,
+		finalizeKey: !opts.NoFinalizeKey,
 	})
 }
 
@@ -154,11 +185,11 @@ type mapKeyOptions struct {
 	finalizeKey bool
 }
 
-func (m *retrieverMap) set(k ident.ID, v DatabaseBlockRetriever, opts mapKeyOptions) {
+func (m *Map) set(k ident.ID, v ReplicaSeriesBlocksMetadata, opts mapKeyOptions) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
-			m.lookup[hash] = retrieverMapEntry{
+			m.lookup[hash] = MapEntry{
 				key:   entry.key,
 				value: v,
 			}
@@ -168,7 +199,7 @@ func (m *retrieverMap) set(k ident.ID, v DatabaseBlockRetriever, opts mapKeyOpti
 		hash++
 	}
 
-	m.lookup[hash] = retrieverMapEntry{
+	m.lookup[hash] = MapEntry{
 		key:   m.newMapKey(k, opts),
 		value: v,
 	}
@@ -177,24 +208,24 @@ func (m *retrieverMap) set(k ident.ID, v DatabaseBlockRetriever, opts mapKeyOpti
 // Iter provides the underlying map to allow for using a native Go for loop
 // to iterate the map, however callers should only ever read and not write
 // the map.
-func (m *retrieverMap) Iter() map[mapHash]retrieverMapEntry {
+func (m *Map) Iter() map[MapHash]MapEntry {
 	return m.lookup
 }
 
 // Len returns the number of map entries in the map.
-func (m *retrieverMap) Len() int {
+func (m *Map) Len() int {
 	return len(m.lookup)
 }
 
 // Contains returns true if value exists for key, false otherwise, it is
 // shorthand for a call to Get that doesn't return the value.
-func (m *retrieverMap) Contains(k ident.ID) bool {
+func (m *Map) Contains(k ident.ID) bool {
 	_, ok := m.Get(k)
 	return ok
 }
 
 // Delete will remove a value set in the map for the specified key.
-func (m *retrieverMap) Delete(k ident.ID) {
+func (m *Map) Delete(k ident.ID) {
 	hash := m.hash(k)
 	for entry, ok := m.lookup[hash]; ok; entry, ok = m.lookup[hash] {
 		if m.equals(entry.key.key, k) {
@@ -208,7 +239,7 @@ func (m *retrieverMap) Delete(k ident.ID) {
 
 // Reset will reset the map by simply deleting all keys to avoid
 // allocating a new map.
-func (m *retrieverMap) Reset() {
+func (m *Map) Reset() {
 	for hash, entry := range m.lookup {
 		m.removeMapKey(hash, entry.key)
 	}
@@ -217,46 +248,10 @@ func (m *retrieverMap) Reset() {
 // Reallocate will avoid deleting all keys and reallocate a new
 // map, this is useful if you believe you have a large map and
 // will not need to grow back to a similar size.
-func (m *retrieverMap) Reallocate() {
+func (m *Map) Reallocate() {
 	if m.initialSize > 0 {
-		m.lookup = make(map[mapHash]retrieverMapEntry, m.initialSize)
+		m.lookup = make(map[MapHash]MapEntry, m.initialSize)
 	} else {
-		m.lookup = make(map[mapHash]retrieverMapEntry)
+		m.lookup = make(map[MapHash]MapEntry)
 	}
-}
-
-// id is a small utility type to avoid the heavy-ness of the true ident.ID
-// implementation when copying keys just for the use of looking up keys in
-// the map internally.
-type id []byte
-
-// var declaration to ensure package type id implements ident.ID
-var _ ident.ID = id(nil)
-
-func (v id) Data() checked.Bytes {
-	// Data is not called by the generated hashmap code, hence we don't
-	// implement this and no callers will call this as the generated code
-	// is the only user of this type.
-	panic("not implemented")
-}
-
-func (v id) Bytes() []byte {
-	return v
-}
-
-func (v id) String() string {
-	return string(v)
-}
-
-func (v id) Equal(value ident.ID) bool {
-	return bytes.Equal(value.Bytes(), v)
-}
-
-func (v id) Reset() {
-	for i := range v {
-		v[i] = byte(0)
-	}
-}
-
-func (v id) Finalize() {
 }

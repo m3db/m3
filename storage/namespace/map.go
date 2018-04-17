@@ -46,7 +46,7 @@ func NewMap(metadatas []Metadata) (Map, error) {
 	}
 
 	var (
-		ns          = newMetadataMap()
+		ns          = newMetadataMap(metadataMapOptions{})
 		ids         = make([]ident.ID, 0, len(metadatas))
 		nsMetadatas = make([]Metadata, 0, len(metadatas))
 		multiErr    xerrors.MultiError

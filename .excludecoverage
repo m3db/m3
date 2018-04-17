@@ -1,4 +1,5 @@
 _mock.go
+_gen.go
 _matcher.go
 generated/
 tools/

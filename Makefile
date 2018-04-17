@@ -8,6 +8,7 @@ gopath_prefix        := $(GOPATH)/src
 license_dir          := .ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
 m3db_package         := github.com/m3db/m3db
+m3db_package_path    := $(gopath_prefix)/$(m3db_package)
 metalint_check       := .ci/metalint.sh
 metalint_config      := .metalinter.json
 metalint_exclude     := .excludemetalint
@@ -20,6 +21,9 @@ protoc_go_package    := github.com/golang/protobuf/protoc-gen-go
 thrift_gen_package   := github.com/uber/tchannel-go
 thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
+m3x_package          := github.com/m3db/m3x
+m3x_package_path     := $(gopath_prefix)/$(m3x_package)
+m3x_package_min_ver  := d0873c0b327bee1a4a47f1d84263a6edaebbbf66
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
 
@@ -135,10 +139,111 @@ proto-gen: install-proto-bin install-license-bin
 	@echo Generating protobuf files
 	PACKAGE=$(m3db_package) $(auto_gen) $(proto_output_dir) $(proto_rules_dir)
 
+.PHONY: install-m3x-repo
+install-m3x-repo:
+	# Check if repository exists, if not get it
+	test -d $(m3x_package_path) || go get $(m3x_package)
+	# If does exist but not at min version then update it
+	(cd $(m3x_package_path) && git cat-file -t $(m3x_package_min_ver) > /dev/null) || go get -u $(m3x_package)
+
+# Map generation rule for client/receivedBlocksMap
+.PHONY: map-client-received-blocks-gen
+map-client-received-blocks-gen: install-m3x-repo
+	cd $(m3x_package_path) && make hashmap-gen \
+		pkg=client \
+		key_type=idAndBlockStart \
+		value_type=receivedBlocks \
+		out_dir=$(m3db_package_path)/client \
+		rename_type_prefix=receivedBlocks
+	# Rename generated map file
+	mv -f $(m3db_package_path)/client/map_gen.go $(m3db_package_path)/client/received_blocks_map_gen.go
+
+# Map generation rule for storage/block/retrieverMap
+.PHONY: map-storage-block-retriever-gen
+map-storage-block-retriever-gen: install-m3x-repo
+	cd $(m3x_package_path) && make idhashmap-gen \
+		pkg=block \
+		value_type=DatabaseBlockRetriever \
+		out_dir=$(m3db_package_path)/storage/block \
+		rename_type_prefix=retriever \
+		rename_constructor=newRetrieverMap \
+		rename_constructor_options=retrieverMapOptions
+	# Rename both generated map and constructor files
+	mv -f $(m3db_package_path)/storage/block/map_gen.go $(m3db_package_path)/storage/block/retriever_map_gen.go
+	mv -f $(m3db_package_path)/storage/block/new_map_gen.go $(m3db_package_path)/storage/block/retriever_new_map_gen.go
+
+# Map generation rule for storage/bootstrap/result/Map
+.PHONY: map-storage-bootstrap-result-gen
+map-storage-bootstrap-result-gen: install-m3x-repo
+	cd $(m3x_package_path) && make idhashmap-gen \
+		pkg=result \
+		value_type=DatabaseSeriesBlocks \
+		out_dir=$(m3db_package_path)/storage/bootstrap/result
+
+# Map generation rule for storage/databaseNamespacesMap
+.PHONY: map-storage-database-namespaces-gen
+map-storage-database-namespaces-gen: install-m3x-repo
+	cd $(m3x_package_path) && make idhashmap-gen \
+		pkg=storage \
+		value_type=databaseNamespace \
+		out_dir=$(m3db_package_path)/storage \
+		rename_type_prefix=databaseNamespaces \
+		rename_constructor=newDatabaseNamespacesMap \
+		rename_constructor_options=databaseNamespacesMapOptions
+	# Rename both generated map and constructor files
+	mv -f $(m3db_package_path)/storage/map_gen.go $(m3db_package_path)/storage/namespace_map_gen.go
+	mv -f $(m3db_package_path)/storage/new_map_gen.go $(m3db_package_path)/storage/namespace_new_map_gen.go
+
+# Map generation rule for storage/shardMap
+.PHONY: map-storage-shard-gen
+map-storage-shard-gen: install-m3x-repo
+	cd $(m3x_package_path) && make idhashmap-gen \
+		pkg=storage \
+		value_type=listElement \
+		out_dir=$(m3db_package_path)/storage \
+		rename_type_prefix=shard \
+		rename_constructor=newShardMap \
+		rename_constructor_options=shardMapOptions
+	# Rename both generated map and constructor files
+	mv -f $(m3db_package_path)/storage/map_gen.go $(m3db_package_path)/storage/shard_map_gen.go
+	mv -f $(m3db_package_path)/storage/new_map_gen.go $(m3db_package_path)/storage/shard_new_map_gen.go
+
+# Map generation rule for storage/namespace/metadataMap
+.PHONY: map-storage-namespace-metadata-gen
+map-storage-namespace-metadata-gen: install-m3x-repo
+	cd $(m3x_package_path) && make idhashmap-gen \
+		pkg=namespace \
+		value_type=Metadata \
+		out_dir=$(m3db_package_path)/storage/namespace \
+		rename_type_prefix=metadata \
+		rename_constructor=newMetadataMap \
+		rename_constructor_options=metadataMapOptions
+	# Rename both generated map and constructor files
+	mv -f $(m3db_package_path)/storage/namespace/map_gen.go $(m3db_package_path)/storage/namespace/metadata_map_gen.go
+	mv -f $(m3db_package_path)/storage/namespace/new_map_gen.go $(m3db_package_path)/storage/namespace/metadata_new_map_gen.go
+
+# Map generation rule for storage/repair/Map
+.PHONY: map-storage-repair-gen
+map-storage-repair-gen: install-m3x-repo
+	cd $(m3x_package_path) && make idhashmap-gen \
+		pkg=repair \
+		value_type=ReplicaSeriesBlocksMetadata \
+		out_dir=$(m3db_package_path)/storage/repair
+
+# Map generation rule for all generated maps
+.PHONY: map-all-gen
+map-all-gen: map-client-received-blocks-gen map-storage-block-retriever-gen map-storage-bootstrap-result-gen map-storage-database-namespaces-gen map-storage-shard-gen map-storage-namespace-metadata-gen map-storage-repair-gen
+
+# Tests that all currently generated maps match their contents if they were regenerated now
+.PHONY: test-map-all-gen
+test-map-all-gen: map-all-gen
+	@test "$(shell git diff --shortstat 2> /dev/null)" = "" || (echo "Check git status, there are dirty files" && exit 1)
+	@test "$(shell git status --porcelain 2>/dev/null | grep "^??")" = "" || (echo "Check git status, there are untracked files" && exit 1)
+
 .PHONY: all-gen
 # NB(prateek): order matters here, mock-gen needs to be last because we sometimes
 # generate mocks for thrift/proto generated code.
-all-gen: thrift-gen proto-gen mock-gen
+all-gen: thrift-gen proto-gen mock-gen map-all-gen
 
 .PHONY: metalint
 metalint: install-metalinter install-linter-badtime

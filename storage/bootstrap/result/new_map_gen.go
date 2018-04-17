@@ -22,69 +22,53 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package repair
+package result
 
 import (
-	"bytes"
-
 	"github.com/cespare/xxhash"
-	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
 )
 
 // MapOptions provides options used when created the map.
 type MapOptions struct {
 	InitialSize int
+	KeyCopyPool pool.BytesPool
 }
 
-// NewMap returns a new ID to ReplicaSeriesBlocksMetadata map.
+// NewMap returns a new byte keyed map.
 func NewMap(opts MapOptions) *Map {
-	return newMap(mapOptions{
+	var (
+		copyFn     CopyFn
+		finalizeFn FinalizeFn
+	)
+	if pool := opts.KeyCopyPool; pool == nil {
+		copyFn = func(k ident.ID) ident.ID {
+			return ident.BytesID(append([]byte(nil), k.Bytes()...))
+		}
+	} else {
+		copyFn = func(k ident.ID) ident.ID {
+			bytes := k.Bytes()
+			keyLen := len(bytes)
+			pooled := pool.Get(keyLen)[:keyLen]
+			copy(pooled, bytes)
+			return ident.BytesID(pooled)
+		}
+		finalizeFn = func(k ident.ID) {
+			if slice, ok := k.(ident.BytesID); ok {
+				pool.Put(slice)
+			}
+		}
+	}
+	return mapAlloc(mapOptions{
 		hash: func(id ident.ID) MapHash {
 			return MapHash(xxhash.Sum64(id.Bytes()))
 		},
 		equals: func(x, y ident.ID) bool {
 			return x.Equal(y)
 		},
-		copy: func(k ident.ID) ident.ID {
-			return id(append([]byte(nil), k.Bytes()...))
-		},
+		copy:        copyFn,
+		finalize:    finalizeFn,
 		initialSize: opts.InitialSize,
 	})
-}
-
-// id is a small utility type to avoid the heavy-ness of the true ident.ID
-// implementation when copying keys just for the use of looking up keys in
-// the map internally.
-type id []byte
-
-// var declaration to ensure package type id implements ident.ID
-var _ ident.ID = id(nil)
-
-func (v id) Data() checked.Bytes {
-	// Data is not called by the generated hashmap code, hence we don't
-	// implement this and no callers will call this as the generated code
-	// is the only user of this type.
-	panic("not implemented")
-}
-
-func (v id) Bytes() []byte {
-	return v
-}
-
-func (v id) String() string {
-	return string(v)
-}
-
-func (v id) Equal(value ident.ID) bool {
-	return bytes.Equal(value.Bytes(), v)
-}
-
-func (v id) Reset() {
-	for i := range v {
-		v[i] = byte(0)
-	}
-}
-
-func (v id) Finalize() {
 }

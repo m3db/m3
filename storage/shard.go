@@ -219,6 +219,8 @@ type dbShardEntryWorkFn func(entry *dbShardEntry) bool
 
 type dbShardEntryBatchWorkFn func(entries []*dbShardEntry) bool
 
+type listElement *list.Element
+
 type shardFlushState struct {
 	sync.RWMutex
 	statesByTime map[xtime.UnixNano]fileOpState
@@ -263,7 +265,7 @@ func newDatabaseShard(
 		seriesPool:         opts.DatabaseSeriesPool(),
 		commitLogWriter:    commitLogWriter,
 		reverseIndex:       reverseIndex,
-		lookup:             newShardMap(),
+		lookup:             newShardMap(shardMapOptions{}),
 		list:               list.New(),
 		filesetBeforeFn:    fs.FilesetBefore,
 		deleteFilesFn:      fs.DeleteFiles,
@@ -1121,7 +1123,7 @@ func (s *dbShard) insertNewShardEntryWithLock(entry *dbShardEntry) {
 	// finalize it
 	copiedID := entry.series.ID()
 	listElem := s.list.PushBack(entry)
-	s.lookup.SetUnsafe(copiedID, listElem, SetUnsafeOptions{
+	s.lookup.SetUnsafe(copiedID, listElem, shardMapSetUnsafeOptions{
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
 	})

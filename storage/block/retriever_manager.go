@@ -43,7 +43,7 @@ func NewDatabaseBlockRetrieverManager(
 ) DatabaseBlockRetrieverManager {
 	return &blockRetrieverManager{
 		newRetrieverFn: newDatabaseBlockRetrieverFn,
-		retrievers:     newRetrieverMap(),
+		retrievers:     newRetrieverMap(retrieverMapOptions{}),
 	}
 }
 
