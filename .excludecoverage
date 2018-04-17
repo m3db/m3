@@ -4,3 +4,4 @@ generated/
 tools/
 vendor/
 integration/
+testgen/
