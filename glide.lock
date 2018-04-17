@@ -197,11 +197,16 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3ninx
-  version: b2628ee8f986f6df48d3f7589d85a6f390f174a2
+  version: df3eee08112241de1bd2cbff83e61b39977cfc72
   subpackages:
   - doc
+  - index
   - index/segment
   - index/segment/mem
+  - index/segment/mem/fieldsgen
+  - index/segment/mem/postingsgen
+  - postings
+  - postings/roaring
 - name: github.com/m3db/m3x
   version: 20cb118f8f323a74c337849e02166e8c03fb68db
   vcs: git
@@ -249,7 +254,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+  version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model

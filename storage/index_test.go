@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment"
+	m3ninxidx "github.com/m3db/m3ninx/idx"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 
@@ -276,18 +276,9 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	idx.(*nsIndex).insertMode = index.InsertSync
 	assert.NoError(t, idx.Write(id, tags, lifecycleFns))
 
-	res, err := idx.Query(ctx, index.Query{
-		segment.Query{
-			Conjunction: segment.AndConjunction,
-			Filters: []segment.Filter{
-				segment.Filter{
-					FieldName:        []byte("name"),
-					FieldValueFilter: []byte("val.*"),
-					Regexp:           true,
-				},
-			},
-		},
-	}, index.QueryOptions{})
+	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
+	assert.NoError(t, err)
+	res, err := idx.Query(ctx, index.Query{reQuery}, index.QueryOptions{})
 	assert.NoError(t, err)
 
 	assert.True(t, res.Exhaustive)
@@ -309,9 +300,6 @@ type docMatcher struct{ d doc.Document }
 func (dm docMatcher) Matches(x interface{}) bool {
 	other, ok := x.(doc.Document)
 	if !ok {
-		return false
-	}
-	if !bytes.Equal(dm.d.ID, other.ID) {
 		return false
 	}
 	if len(dm.d.Fields) != len(other.Fields) {
