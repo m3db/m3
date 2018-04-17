@@ -184,6 +184,10 @@ map-storage-bootstrap-result-gen: install-m3x-repo
 		value_type=DatabaseSeriesBlocks \
 		out_dir=$(m3db_package_path)/storage/bootstrap/result
 
+# Map generation rule for storage package maps (to avoid double build when generating map source files in parallel)
+.PHONY: map-storage-gen
+map-storage-gen: map-storage-database-namespaces-gen map-storage-shard-gen
+
 # Map generation rule for storage/databaseNamespacesMap
 .PHONY: map-storage-database-namespaces-gen
 map-storage-database-namespaces-gen: install-m3x-repo
@@ -236,7 +240,7 @@ map-storage-repair-gen: install-m3x-repo
 
 # Map generation rule for all generated maps
 .PHONY: map-all-gen
-map-all-gen: map-client-received-blocks-gen map-storage-block-retriever-gen map-storage-bootstrap-result-gen map-storage-database-namespaces-gen map-storage-shard-gen map-storage-namespace-metadata-gen map-storage-repair-gen
+map-all-gen: map-client-received-blocks-gen map-storage-block-retriever-gen map-storage-bootstrap-result-gen map-storage-gen map-storage-namespace-metadata-gen map-storage-repair-gen
 
 # Tests that all currently generated maps match their contents if they were regenerated now
 .PHONY: test-map-all-gen
