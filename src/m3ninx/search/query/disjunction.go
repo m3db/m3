@@ -26,9 +26,9 @@ import (
 	"github.com/m3db/m3ninx/search/searcher"
 )
 
-// disjuctionQuery finds documents which match at least one of the given queries.
-type disjuctionQuery struct {
-	queries []search.Query
+// DisjuctionQuery finds documents which match at least one of the given queries.
+type DisjuctionQuery struct {
+	Queries []search.Query
 }
 
 // NewDisjuctionQuery constructs a new query which matches documents which match any
@@ -37,30 +37,31 @@ func NewDisjuctionQuery(queries []search.Query) search.Query {
 	qs := make([]search.Query, 0, len(queries))
 	for _, query := range queries {
 		// Merge disjunction queries into slice of top-level queries.
-		q, ok := query.(*disjuctionQuery)
+		q, ok := query.(*DisjuctionQuery)
 		if ok {
-			qs = append(qs, q.queries...)
+			qs = append(qs, q.Queries...)
 			continue
 		}
 
 		qs = append(qs, query)
 	}
-	return &disjuctionQuery{
-		queries: qs,
+	return &DisjuctionQuery{
+		Queries: qs,
 	}
 }
 
-func (q *disjuctionQuery) Searcher(rs index.Readers) (search.Searcher, error) {
-	switch len(q.queries) {
+// Searcher returns a searcher over the provided readers.
+func (q *DisjuctionQuery) Searcher(rs index.Readers) (search.Searcher, error) {
+	switch len(q.Queries) {
 	case 0:
 		return searcher.NewEmptySearcher(len(rs)), nil
 
 	case 1:
-		return q.queries[0].Searcher(rs)
+		return q.Queries[0].Searcher(rs)
 	}
 
-	srs := make(search.Searchers, 0, len(q.queries))
-	for _, q := range q.queries {
+	srs := make(search.Searchers, 0, len(q.Queries))
+	for _, q := range q.Queries {
 		sr, err := q.Searcher(rs)
 		if err != nil {
 			return nil, err

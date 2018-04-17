@@ -26,20 +26,21 @@ import (
 	"github.com/m3db/m3ninx/search/searcher"
 )
 
-// termQuery finds document which match the given term exactly.
-type termQuery struct {
-	field []byte
-	term  []byte
+// TermQuery finds document which match the given term exactly.
+type TermQuery struct {
+	Field []byte
+	Term  []byte
 }
 
 // NewTermQuery constructs a new TermQuery for the given field and term.
 func NewTermQuery(field, term []byte) search.Query {
-	return &termQuery{
-		field: field,
-		term:  term,
+	return &TermQuery{
+		Field: field,
+		Term:  term,
 	}
 }
 
-func (q *termQuery) Searcher(rs index.Readers) (search.Searcher, error) {
-	return searcher.NewTermSearcher(rs, q.field, q.term), nil
+// Searcher returns a searcher over the provided readers.
+func (q *TermQuery) Searcher(rs index.Readers) (search.Searcher, error) {
+	return searcher.NewTermSearcher(rs, q.Field, q.Term), nil
 }

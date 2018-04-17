@@ -26,9 +26,9 @@ import (
 	"github.com/m3db/m3ninx/search/searcher"
 )
 
-// conjuctionQuery finds documents which match at least one of the given queries.
-type conjuctionQuery struct {
-	queries []search.Query
+// ConjuctionQuery finds documents which match at least one of the given queries.
+type ConjuctionQuery struct {
+	Queries []search.Query
 }
 
 // NewConjuctionQuery constructs a new query which matches documents which match all
@@ -37,30 +37,31 @@ func NewConjuctionQuery(queries []search.Query) search.Query {
 	qs := make([]search.Query, 0, len(queries))
 	for _, query := range queries {
 		// Merge conjunction queries into slice of top-level queries.
-		q, ok := query.(*conjuctionQuery)
+		q, ok := query.(*ConjuctionQuery)
 		if ok {
-			qs = append(qs, q.queries...)
+			qs = append(qs, q.Queries...)
 			continue
 		}
 
 		qs = append(qs, query)
 	}
-	return &conjuctionQuery{
-		queries: qs,
+	return &ConjuctionQuery{
+		Queries: qs,
 	}
 }
 
-func (q *conjuctionQuery) Searcher(rs index.Readers) (search.Searcher, error) {
-	switch len(q.queries) {
+// Searcher returns a searcher over the provided readers.
+func (q *ConjuctionQuery) Searcher(rs index.Readers) (search.Searcher, error) {
+	switch len(q.Queries) {
 	case 0:
 		return searcher.NewEmptySearcher(len(rs)), nil
 
 	case 1:
-		return q.queries[0].Searcher(rs)
+		return q.Queries[0].Searcher(rs)
 	}
 
-	srs := make(search.Searchers, 0, len(q.queries))
-	for _, q := range q.queries {
+	srs := make(search.Searchers, 0, len(q.Queries))
+	for _, q := range q.Queries {
 		sr, err := q.Searcher(rs)
 		if err != nil {
 			return nil, err
