@@ -1,5 +1,5 @@
-hash: 189b2ca4784fe3fa927f1e9402ddd28e9e3b9b5af25dec8a4831d4d99d857970
-updated: 2018-03-09T12:30:18.072022065-05:00
+hash: 957c853fbb6daa6ed8d776008115df51b1641bc62d9e9a1efed572fcea061446
+updated: 2018-04-17T19:26:50.733420531-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -109,10 +109,6 @@ imports:
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
-- name: github.com/go-ole/go-ole
-  version: de8695c8edbf8236f30d6e1376e20b198a028d42
-  subpackages:
-  - oleutil
 - name: github.com/gogo/protobuf
   version: 100ba4e885062801d56799d78530b73b178a78f3
   subpackages:
@@ -122,7 +118,7 @@ imports:
   subpackages:
   - lru
 - name: github.com/golang/mock
-  version: 13f360950a79f5864a972c786a10a50e44b69541
+  version: c34cdb4725f4c3844d095133c6e40e448b86589b
   subpackages:
   - gomock
   - mockgen
@@ -150,7 +146,7 @@ imports:
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
 - name: github.com/m3db/m3x
-  version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
+  version: 29bc232d9ad2e6c4a1804ccce095bb730fb1c6bc
   subpackages:
   - clock
   - close
@@ -182,19 +178,6 @@ imports:
   version: a1dba9ce8baed984a2495b658c82687f8157b98f
   subpackages:
   - xfs
-- name: github.com/shirou/gopsutil
-  version: c432be29ccce470088d07eea25b3ea7e68a8afbb
-  subpackages:
-  - cpu
-  - host
-  - internal/common
-  - mem
-  - net
-  - process
-- name: github.com/shirou/w32
-  version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
-- name: github.com/StackExchange/wmi
-  version: 5d049714c4a64225c3c79a7cf7d02f7fb5b96338
 - name: github.com/uber-go/tally
   version: 522328b48efad0c6034dba92bf39228694e9d31f
   subpackages:
@@ -213,7 +196,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  version: eeedf312bc6c57391d84767a4cd413f02a917974
   subpackages:
   - buffer
   - internal/bufferpool
@@ -245,7 +228,6 @@ imports:
   vcs: git
   subpackages:
   - unix
-  - windows
 - name: golang.org/x/text
   version: 4ee4af566555f5fbe026368b75596286a312663a
   subpackages:
@@ -292,7 +274,7 @@ testImports:
   subpackages:
   - spew
 - name: github.com/fortytw2/leaktest
-  version: 7dad53304f9614c1c365755c1176a8e876fee3e8
+  version: a5ef70473c97b71626b9abeda80ee92ba2a7de9e
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
