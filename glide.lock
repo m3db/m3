@@ -1,5 +1,5 @@
-hash: b2bece5f7cb3be69a2fd35f3246a9e91e32eb60eb92b1c46fe4bc3b76b437c8e
-updated: 2018-04-16T22:51:05.241844-04:00
+hash: cc245a4652613a3a9147d47b5be5ec6bfb09bc5a3f2b9771bae4a2e846a370af
+updated: 2018-04-16T23:12:50.636069-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -213,7 +213,7 @@ imports:
   - search/query
   - search/searcher
 - name: github.com/m3db/m3x
-  version: 20cb118f8f323a74c337849e02166e8c03fb68db
+  version: cea1847616154ebc6cb9fc15f84c82b18cef5b74
   vcs: git
   subpackages:
   - checked
@@ -259,7 +259,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: c5b7fccd204277076155f10851dad72b76a49317
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
