@@ -184,9 +184,12 @@ map-storage-bootstrap-result-gen: install-m3x-repo
 		value_type=DatabaseSeriesBlocks \
 		out_dir=$(m3db_package_path)/storage/bootstrap/result
 
-# Map generation rule for storage package maps (to avoid double build when generating map source files in parallel)
+# Map generation rule for storage package maps (to avoid double build over each other
+# when generating map source files in parallel, run these sequentially)
 .PHONY: map-storage-gen
-map-storage-gen: map-storage-database-namespaces-gen map-storage-shard-gen
+map-storage-gen:
+	make map-storage-database-namespaces-gen
+	make map-storage-shard-gen
 
 # Map generation rule for storage/databaseNamespacesMap
 .PHONY: map-storage-database-namespaces-gen
