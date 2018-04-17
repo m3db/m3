@@ -28,10 +28,10 @@ import (
 	"github.com/m3db/m3ninx/search/searcher"
 )
 
-// regexpQuery finds documents which match the given regular expression.
-type regexpQuery struct {
-	field    []byte
-	regexp   []byte
+// RegexpQuery finds documents which match the given regular expression.
+type RegexpQuery struct {
+	Field    []byte
+	Regexp   []byte
 	compiled *re.Regexp
 }
 
@@ -42,13 +42,14 @@ func NewRegexpQuery(field, regexp []byte) (search.Query, error) {
 		return nil, err
 	}
 
-	return &regexpQuery{
-		field:    field,
-		regexp:   regexp,
+	return &RegexpQuery{
+		Field:    field,
+		Regexp:   regexp,
 		compiled: compiled,
 	}, nil
 }
 
-func (q *regexpQuery) Searcher(rs index.Readers) (search.Searcher, error) {
-	return searcher.NewRegexpSearcher(rs, q.field, q.regexp, q.compiled), nil
+// Searcher returns a searcher over the provided readers.
+func (q *RegexpQuery) Searcher(rs index.Readers) (search.Searcher, error) {
+	return searcher.NewRegexpSearcher(rs, q.Field, q.Regexp, q.compiled), nil
 }
