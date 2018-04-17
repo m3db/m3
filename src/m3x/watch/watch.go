@@ -32,13 +32,19 @@ var errClosed = errors.New("closed")
 
 type closer func()
 
-// Watch watches a Watchable instance, can get notification when the Watchable updates
-type Watch interface {
+// Updatable can be updated.
+type Updatable interface {
 	xclose.SimpleCloser
 
-	// C returns the notification channel
+	// C returns the notification channel for updates.
 	C() <-chan struct{}
-	// Get returns the latest value of the Watchable instance
+}
+
+// Watch watches a Watchable instance, can get notification when the Watchable updates.
+type Watch interface {
+	Updatable
+
+	// Get returns the latest value of the Watchable instance.
 	Get() interface{}
 }
 
