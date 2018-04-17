@@ -29,8 +29,8 @@ import (
 	"github.com/mauricelam/genny/generic"
 )
 
-// Value is the generic type that needs to be specified when generating.
-type Value generic.Type
+// MapValue is the generic type that needs to be specified when generating.
+type MapValue generic.Type
 
 // MapOptions provides options used when created the map.
 type MapOptions struct {
