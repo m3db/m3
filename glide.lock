@@ -1,5 +1,5 @@
-hash: 32ecc73a44d4c6e9966d25d386aafa5eb0de926389dcc5c13666d699ebb7e93c
-updated: 2018-04-16T19:27:25.114693-04:00
+hash: b2bece5f7cb3be69a2fd35f3246a9e91e32eb60eb92b1c46fe4bc3b76b437c8e
+updated: 2018-04-16T22:51:05.241844-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -200,6 +200,7 @@ imports:
   version: df3eee08112241de1bd2cbff83e61b39977cfc72
   subpackages:
   - doc
+  - idx
   - index
   - index/segment
   - index/segment/mem
@@ -207,6 +208,10 @@ imports:
   - index/segment/mem/postingsgen
   - postings
   - postings/roaring
+  - search
+  - search/executor
+  - search/query
+  - search/searcher
 - name: github.com/m3db/m3x
   version: 20cb118f8f323a74c337849e02166e8c03fb68db
   vcs: git
