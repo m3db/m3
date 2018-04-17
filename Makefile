@@ -248,7 +248,7 @@ map-all-gen: map-client-received-blocks-gen map-storage-block-retriever-gen map-
 # Tests that all currently generated maps match their contents if they were regenerated now
 .PHONY: test-map-all-gen
 test-map-all-gen: map-all-gen
-	@test "$(shell git diff --shortstat 2> /dev/null)" = "" || (git diff --no-color && echo "Check git status, there are dirty files" && exit 1)
+	@test "$(shell git diff --shortstat 2>/dev/null)" = "" || (git diff --no-color && echo "Check git status, there are dirty files" && exit 1)
 	@test "$(shell git status --porcelain 2>/dev/null | grep "^??")" = "" || (git status --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 .PHONY: all-gen
