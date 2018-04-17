@@ -140,9 +140,13 @@ proto-gen: install-proto-bin install-license-bin
 	PACKAGE=$(m3db_package) $(auto_gen) $(proto_output_dir) $(proto_rules_dir)
 
 .PHONY: install-m3x-repo
-install-m3x-repo:
+install-m3x-repo: install-glide
 	# Check if repository exists, if not get it
-	test -d $(m3x_package_path) || go get $(m3x_package)
+	test -d $(m3x_package_path) && test -d $(m3x_package_path)/vendor || ( \
+		go get -u $(m3x_package)                                          && \
+		cd $(m3x_package_path)                                            && \
+		glide install                                                        \
+	)
 	# If does exist but not at min version then update it
 	(cd $(m3x_package_path) && git cat-file -t $(m3x_package_min_ver) > /dev/null) || go get -u $(m3x_package)
 
