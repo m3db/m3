@@ -140,7 +140,7 @@ proto-gen: install-proto-bin install-license-bin
 	PACKAGE=$(m3db_package) $(auto_gen) $(proto_output_dir) $(proto_rules_dir)
 
 .PHONY: install-m3x-repo
-install-m3x-repo: install-glide
+install-m3x-repo: install-glide install-generics-bin
 	# Check if repository exists, if not get it
 	test -d $(m3x_package_path) && test -d $(m3x_package_path)/vendor || ( \
 		go get -u $(m3x_package)                                          && \
