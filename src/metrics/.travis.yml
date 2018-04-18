@@ -1,7 +1,6 @@
 language: go
 go:
-  - 1.8.3
-  - 1.9.2
+  - "1.9.x"
   - "1.10.x"
 branches:
   only:
