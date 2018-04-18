@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
-	xid "github.com/m3db/m3x/ident"
 
 	"github.com/uber-go/tally"
 )
@@ -77,15 +76,18 @@ const (
 
 type sleepFn func(time.Duration)
 
-type elemMap map[xid.Hash]*element
+type elementPtr *element
 
 type results struct {
-	elems  elemMap
+	elems  *elemMap
 	source Source
 }
 
 func newResults(source Source) results {
-	return results{elems: make(elemMap), source: source}
+	return results{
+		elems:  newElemMap(elemMapOptions{}),
+		source: source,
+	}
 }
 
 type cacheMetrics struct {
@@ -135,11 +137,11 @@ type cache struct {
 	invalidationMode  InvalidationMode
 	sleepFn           sleepFn
 
-	namespaces map[xid.Hash]results
+	namespaces *namespaceResultsMap
 	list       lockedList
 	evictCh    chan struct{}
 	deleteCh   chan struct{}
-	toDelete   []elemMap
+	toDelete   []*elemMap
 	wgWorker   sync.WaitGroup
 	closed     bool
 	closedCh   chan struct{}
@@ -159,7 +161,7 @@ func NewCache(opts Options) Cache {
 		deletionBatchSize: opts.DeletionBatchSize(),
 		invalidationMode:  opts.InvalidationMode(),
 		sleepFn:           time.Sleep,
-		namespaces:        make(map[xid.Hash]results),
+		namespaces:        newNamespaceResultsMap(namespaceResultsMapOptions{}),
 		evictCh:           make(chan struct{}, 1),
 		deleteCh:          make(chan struct{}, 1),
 		closedCh:          make(chan struct{}),
@@ -192,12 +194,11 @@ func (c *cache) Register(namespace []byte, source Source) {
 	c.Lock()
 	defer c.Unlock()
 
-	nsHash := xid.HashFn(namespace)
-	if results, exist := c.namespaces[nsHash]; !exist {
-		c.namespaces[nsHash] = newResults(source)
+	if results, exist := c.namespaces.Get(namespace); !exist {
+		c.namespaces.Set(namespace, newResults(source))
 		c.metrics.registers.Inc(1)
 	} else {
-		c.refreshWithLock(nsHash, source, results)
+		c.refreshWithLock(namespace, source, results)
 		c.metrics.registerExists.Inc(1)
 	}
 }
@@ -206,8 +207,7 @@ func (c *cache) Refresh(namespace []byte, source Source) {
 	c.Lock()
 	defer c.Unlock()
 
-	nsHash := xid.HashFn(namespace)
-	results, exist := c.namespaces[nsHash]
+	results, exist := c.namespaces.Get(namespace)
 	// NB: The namespace does not exist yet. This could happen if the source update came
 	// before its namespace is registered. It is safe to ignore this premature update
 	// because the namespace will eventually register itself and refreshes the cache.
@@ -223,7 +223,7 @@ func (c *cache) Refresh(namespace []byte, source Source) {
 		c.metrics.updateStaleSource.Inc(1)
 		return
 	}
-	c.refreshWithLock(nsHash, source, results)
+	c.refreshWithLock(namespace, source, results)
 	c.metrics.updates.Inc(1)
 }
 
@@ -231,13 +231,12 @@ func (c *cache) Unregister(namespace []byte) {
 	c.Lock()
 	defer c.Unlock()
 
-	nsHash := xid.HashFn(namespace)
-	results, exists := c.namespaces[nsHash]
+	results, exists := c.namespaces.Get(namespace)
 	if !exists {
 		c.metrics.unregisterNotExists.Inc(1)
 		return
 	}
-	delete(c.namespaces, nsHash)
+	c.namespaces.Delete(namespace)
 	c.toDelete = append(c.toDelete, results.elems)
 	c.notifyDeletion()
 	c.metrics.unregisters.Inc(1)
@@ -266,15 +265,14 @@ func (c *cache) tryGetWithLock(
 	setType setType,
 ) (rules.MatchResult, bool) {
 	res := rules.EmptyMatchResult
-	nsHash := xid.HashFn(namespace)
-	results, exists := c.namespaces[nsHash]
+	results, exists := c.namespaces.Get(namespace)
 	if !exists {
 		c.metrics.hits.Inc(1)
 		return res, true
 	}
-	idHash := xid.HashFn(id)
-	elem, exists := results.elems[idHash]
+	entry, exists := results.elems.Get(id)
 	if exists {
+		elem := (*element)(entry)
 		res = elem.result
 		// NB(xichen): the cached match result expires when a new rule takes effect.
 		// Therefore we need to check if the cache result is valid up to the end
@@ -302,12 +300,11 @@ func (c *cache) tryGetWithLock(
 	}
 	// NB(xichen): the result is either not cached, or cached but invalid, in both
 	// cases we should use the source to compute the result and set it in the cache.
-	return c.setWithLock(nsHash, idHash, id, fromNanos, toNanos, results, exists), true
+	return c.setWithLock(namespace, id, fromNanos, toNanos, results, exists), true
 }
 
 func (c *cache) setWithLock(
-	nsHash, idHash xid.Hash,
-	id []byte,
+	namespace, id []byte,
 	fromNanos, toNanos int64,
 	results results,
 	invalidate bool,
@@ -316,12 +313,12 @@ func (c *cache) setWithLock(
 	// a new cutover time and the old cached results are now invalid, therefore it's
 	// preferrable to invalidate everything to save the overhead of multiple invalidations.
 	if invalidate {
-		results = c.invalidateWithLock(nsHash, idHash, results)
+		results = c.invalidateWithLock(namespace, id, results)
 	}
 	res := results.source.ForwardMatch(id, fromNanos, toNanos)
-	newElem := &element{nsHash: nsHash, idHash: idHash, result: res}
+	newElem := newElement(namespace, id, res)
 	newElem.SetPromotionExpiry(c.newPromotionExpiry(c.nowFn()))
-	results.elems[idHash] = newElem
+	results.elems.Set(id, newElem)
 	// NB(xichen): we don't evict until the number of cached items goes
 	// above the capacity by at least the eviction batch size to amortize
 	// the eviction overhead.
@@ -334,12 +331,12 @@ func (c *cache) setWithLock(
 
 // refreshWithLock clears the existing cached results for namespace nsHash
 // and associates the namespace results with a new source.
-func (c *cache) refreshWithLock(nsHash xid.Hash, source Source, results results) {
+func (c *cache) refreshWithLock(namespace []byte, source Source, results results) {
 	c.toDelete = append(c.toDelete, results.elems)
 	c.notifyDeletion()
 	results.source = source
-	results.elems = make(elemMap)
-	c.namespaces[nsHash] = results
+	results.elems = newElemMap(elemMapOptions{})
+	c.namespaces.Set(namespace, results)
 }
 
 func (c *cache) add(elem *element) int {
@@ -364,15 +361,16 @@ func (c *cache) promote(now time.Time, elem *element) {
 	c.metrics.promotions.Inc(1)
 }
 
-func (c *cache) invalidateWithLock(nsHash xid.Hash, idHash xid.Hash, results results) results {
+func (c *cache) invalidateWithLock(namespace, id []byte, results results) results {
 	if c.invalidationMode == InvalidateAll {
 		c.toDelete = append(c.toDelete, results.elems)
 		c.notifyDeletion()
-		results.elems = make(elemMap)
-		c.namespaces[nsHash] = results
+		results.elems = newElemMap(elemMapOptions{})
+		c.namespaces.Set(namespace, results)
 	} else {
-		elem := results.elems[idHash]
-		delete(results.elems, idHash)
+		// Guaranteed to be in the map when invalidateWithLock is called
+		elem, _ := results.elems.Get(id)
+		results.elems.Delete(id)
 		c.list.Lock()
 		c.list.Remove(elem)
 		c.list.Unlock()
@@ -406,11 +404,11 @@ func (c *cache) doEvict() {
 		// will be marked as deleted so when the deletion goroutine sees and tries to
 		// delete it again, it will be a no op, at which point it will be removed from
 		// the owning map as well.
-		results, exists := c.namespaces[elem.nsHash]
+		results, exists := c.namespaces.Get(elem.namespace)
 		if !exists {
 			continue
 		}
-		delete(results.elems, elem.idHash)
+		results.elems.Delete(elem.id)
 	}
 	c.list.Unlock()
 	c.Unlock()
@@ -446,7 +444,8 @@ func (c *cache) doDelete() {
 	deleted := 0
 	c.list.Lock()
 	for _, elems := range toDelete {
-		for _, elem := range elems {
+		for _, entry := range elems.Iter() {
+			elem := entry.Value()
 			c.list.Remove(elem)
 			allDeleted++
 			deleted++

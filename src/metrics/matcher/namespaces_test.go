@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/rules"
-	xid "github.com/m3db/m3x/ident"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
@@ -61,7 +60,7 @@ func TestNamespacesWatchAndClose(t *testing.T) {
 	_, err := store.SetIfNotExists(testNamespacesKey, proto)
 	require.NoError(t, err)
 	require.NoError(t, nss.Watch())
-	require.Equal(t, 1, len(nss.rules))
+	require.Equal(t, 1, nss.rules.Len())
 	nss.Close()
 }
 
@@ -123,7 +122,7 @@ func TestNamespacesProcess(t *testing.T) {
 		rs.Value = &mockRuntimeValue{key: input.id}
 		rs.version = input.version
 		rs.tombstoned = input.tombstoned
-		nss.rules[xid.HashFn(input.namespace)] = rs
+		nss.rules.Set(input.namespace, rs)
 		c.namespaces[string(input.namespace)] = memResults{source: rs}
 	}
 
@@ -187,7 +186,7 @@ func TestNamespacesProcess(t *testing.T) {
 	nssValue, err := rules.NewNamespaces(5, update)
 	require.NoError(t, err)
 	require.NoError(t, nss.process(nssValue))
-	require.Equal(t, 5, len(nss.rules))
+	require.Equal(t, 5, nss.rules.Len())
 	require.Equal(t, 5, len(c.namespaces))
 
 	expected := []struct {
@@ -202,7 +201,7 @@ func TestNamespacesProcess(t *testing.T) {
 		{key: "/ruleset/mehNs", watched: 1, unwatched: 0},
 	}
 	for i, ns := range update.Namespaces {
-		rs, exists := nss.rules[xid.HashFn([]byte(ns.Name))]
+		rs, exists := nss.rules.Get([]byte(ns.Name))
 		ruleSet := rs.(*ruleSet)
 		require.True(t, exists)
 		require.Equal(t, expected[i].key, rs.Key())

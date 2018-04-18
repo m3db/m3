@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
-	xid "github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
@@ -63,6 +62,8 @@ type Namespaces interface {
 	// Close closes the namespaces.
 	Close()
 }
+
+type rulesNamespace rules.Namespace
 
 type namespacesMetrics struct {
 	notExists         tally.Counter
@@ -104,7 +105,7 @@ type namespaces struct {
 	onNamespaceRemovedFn OnNamespaceRemovedFn
 
 	proto   *schema.Namespaces
-	rules   map[xid.Hash]RuleSet
+	rules   *namespaceRuleSetsMap
 	metrics namespacesMetrics
 }
 
@@ -122,7 +123,7 @@ func NewNamespaces(key string, opts Options) Namespaces {
 		onNamespaceAddedFn:   opts.OnNamespaceAddedFn(),
 		onNamespaceRemovedFn: opts.OnNamespaceRemovedFn(),
 		proto:                &schema.Namespaces{},
-		rules:                make(map[xid.Hash]RuleSet),
+		rules:                newNamespaceRuleSetsMap(namespaceRuleSetsMapOptions{}),
 		metrics:              newNamespacesMetrics(instrumentOpts.MetricsScope()),
 	}
 	valueOpts := runtime.NewOptions().
@@ -159,9 +160,8 @@ func (n *namespaces) Open() error {
 }
 
 func (n *namespaces) Version(namespace []byte) int {
-	nsHash := xid.HashFn(namespace)
 	n.RLock()
-	ruleSet, exists := n.rules[nsHash]
+	ruleSet, exists := n.rules.Get(namespace)
 	n.RUnlock()
 	if !exists {
 		return kv.UninitializedVersion
@@ -191,9 +191,8 @@ func (n *namespaces) ReverseMatch(
 }
 
 func (n *namespaces) ruleSet(namespace []byte) (RuleSet, bool) {
-	nsHash := xid.HashFn(namespace)
 	n.RLock()
-	ruleSet, exists := n.rules[nsHash]
+	ruleSet, exists := n.rules.Get(namespace)
 	n.RUnlock()
 	if !exists {
 		n.metrics.notExists.Inc(1)
@@ -209,7 +208,8 @@ func (n *namespaces) Close() {
 	n.Value.Unwatch()
 
 	n.RLock()
-	for _, rs := range n.rules {
+	for _, entry := range n.rules.Iter() {
+		rs := entry.Value()
 		rs.Unwatch()
 	}
 	n.RUnlock()
@@ -234,25 +234,28 @@ func (n *namespaces) process(value interface{}) error {
 		nss        = value.(rules.Namespaces)
 		version    = nss.Version()
 		namespaces = nss.Namespaces()
-		incoming   = make(map[xid.Hash]rules.Namespace, len(namespaces))
+		incoming   = newRuleNamespacesMap(ruleNamespacesMapOptions{
+			InitialSize: len(namespaces),
+		})
 	)
 	for _, ns := range namespaces {
-		incoming[xid.HashFn(ns.Name())] = ns
+		incoming.Set(ns.Name(), rulesNamespace(ns))
 	}
 
 	n.Lock()
 	defer n.Unlock()
 
-	for nsHash, ns := range incoming {
-		nsName, snapshots := ns.Name(), ns.Snapshots()
-		ruleSet, exists := n.rules[nsHash]
+	for _, entry := range incoming.Iter() {
+		namespace, elem := entry.Key(), rules.Namespace(entry.Value())
+		nsName, snapshots := elem.Name(), elem.Snapshots()
+		ruleSet, exists := n.rules.Get(namespace)
 		if !exists {
 			instrumentOpts := n.opts.InstrumentOptions()
 			ruleSetScope := instrumentOpts.MetricsScope().SubScope("ruleset")
 			ruleSetOpts := n.opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(ruleSetScope))
-			ruleSetKey := n.ruleSetKeyFn(ns.Name())
+			ruleSetKey := n.ruleSetKeyFn(elem.Name())
 			ruleSet = newRuleSet(nsName, ruleSetKey, ruleSetOpts)
-			n.rules[nsHash] = ruleSet
+			n.rules.Set(namespace, ruleSet)
 			n.metrics.added.Inc(1)
 		}
 
@@ -290,8 +293,9 @@ func (n *namespaces) process(value interface{}) error {
 		}
 	}
 
-	for nsHash, ruleSet := range n.rules {
-		_, exists := incoming[nsHash]
+	for _, entry := range n.rules.Iter() {
+		namespace, ruleSet := entry.Key(), entry.Value()
+		_, exists := incoming.Get(namespace)
 		if exists {
 			continue
 		}
@@ -301,7 +305,7 @@ func (n *namespaces) process(value interface{}) error {
 			if n.onNamespaceRemovedFn != nil {
 				n.onNamespaceRemovedFn(ruleSet.Namespace())
 			}
-			delete(n.rules, nsHash)
+			n.rules.Delete(namespace)
 			ruleSet.Unwatch()
 			n.metrics.unwatched.Inc(1)
 		}
