@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
-	xid "github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -118,14 +117,22 @@ func TestListPushFront(t *testing.T) {
 		id := []byte(fmt.Sprintf("foo%d", i))
 		result := testValidResults[i%2]
 		inputs[iter-i-1] = testValue{namespace: namespace, id: id, result: result}
-		l.PushFront(&element{nsHash: xid.HashFn(namespace), idHash: xid.HashFn(id), result: result})
+		l.PushFront(&element{
+			namespace: namespace,
+			id:        id,
+			result:    result,
+		})
 	}
 
 	// Pushing front a nil pointer is a no-op.
 	l.PushFront(nil)
 
 	// Pushing front a deleted element is a no-op.
-	l.PushFront(&element{nsHash: xid.HashFn([]byte("deletedNs")), result: testValidResults[0], deleted: true})
+	l.PushFront(&element{
+		namespace: []byte("deletedNs"),
+		result:    testValidResults[0],
+		deleted:   true,
+	})
 
 	validateList(t, &l, inputs)
 }
@@ -141,14 +148,22 @@ func TestListPushBack(t *testing.T) {
 		id := []byte(fmt.Sprintf("foo%d", i))
 		result := testValidResults[i%2]
 		inputs[i] = testValue{namespace: namespace, id: id, result: result}
-		l.PushBack(&element{nsHash: xid.HashFn(namespace), idHash: xid.HashFn(id), result: result})
+		l.PushBack(&element{
+			namespace: namespace,
+			id:        id,
+			result:    result,
+		})
 	}
 
 	// Pushing back a nil pointer is a no-op.
 	l.PushBack(nil)
 
 	// Pushing back a deleted element is a no-op.
-	l.PushBack(&element{nsHash: xid.HashFn([]byte("deletedNs")), result: testValidResults[0], deleted: true})
+	l.PushBack(&element{
+		namespace: []byte("deletedNs"),
+		result:    testValidResults[0],
+		deleted:   true,
+	})
 
 	validateList(t, &l, inputs)
 }
@@ -164,14 +179,22 @@ func TestListRemove(t *testing.T) {
 		id := []byte(fmt.Sprintf("foo%d", i))
 		result := testValidResults[i%2]
 		inputs[i] = testValue{namespace: namespace, id: id, result: result}
-		l.PushBack(&element{nsHash: xid.HashFn(namespace), idHash: xid.HashFn(id), result: result})
+		l.PushBack(&element{
+			namespace: namespace,
+			id:        id,
+			result:    result,
+		})
 	}
 
 	// Removing a nil pointer is no-op.
 	l.Remove(nil)
 
 	// Removing a deleted element is a no-op.
-	l.Remove(&element{nsHash: xid.HashFn([]byte("deletedNs")), result: testValidResults[0], deleted: true})
+	l.Remove(&element{
+		namespace: []byte("deletedNs"),
+		result:    testValidResults[0],
+		deleted:   true,
+	})
 
 	for i := 0; i < iter; i++ {
 		elem := l.Front()
@@ -193,14 +216,22 @@ func TestListMoveToFront(t *testing.T) {
 		id := []byte(fmt.Sprintf("foo%d", i))
 		result := testValidResults[i%2]
 		inputs[i] = testValue{namespace: namespace, id: id, result: result}
-		l.PushBack(&element{nsHash: xid.HashFn(namespace), idHash: xid.HashFn(id), result: result})
+		l.PushBack(&element{
+			namespace: namespace,
+			id:        id,
+			result:    result,
+		})
 	}
 
 	// Moving a nil pointer to front is a no-op.
 	l.MoveToFront(nil)
 
 	// Moving a deleted element to front is a no-op.
-	l.MoveToFront(&element{nsHash: xid.HashFn([]byte("deletedNs")), result: testValidResults[0], deleted: true})
+	l.MoveToFront(&element{
+		namespace: []byte("deletedNs"),
+		result:    testValidResults[0],
+		deleted:   true,
+	})
 
 	// Starting from the back, moving elements to front one at a time.
 	var prev, curr, last *element
@@ -227,15 +258,12 @@ type testValue struct {
 	result    rules.MatchResult
 }
 
-func (v testValue) nsHash() xid.Hash { return xid.HashFn(v.namespace) }
-func (v testValue) idHash() xid.Hash { return xid.HashFn(v.id) }
-
 func validateList(t *testing.T, l *list, expected []testValue) {
 	require.Equal(t, len(expected), l.Len())
 	i := 0
 	for elem := l.Front(); elem != nil; elem = elem.next {
-		require.Equal(t, expected[i].nsHash(), elem.nsHash)
-		require.Equal(t, expected[i].idHash(), elem.idHash)
+		require.Equal(t, expected[i].namespace, elem.namespace)
+		require.Equal(t, expected[i].id, elem.id)
 		require.Equal(t, expected[i].result, elem.result)
 		i++
 	}

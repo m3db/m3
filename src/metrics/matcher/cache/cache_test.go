@@ -21,6 +21,7 @@
 package cache
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"math"
@@ -30,7 +31,6 @@ import (
 
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
-	xid "github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/require"
 )
@@ -94,20 +94,22 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAll(t *testing.T) {
 		{namespace: testValues[1].namespace, id: testValues[1].id, result: rules.NewMatchResult(0, now.Add(time.Second).UnixNano(), nil, nil)},
 	}
 	populateCache(c, input, now, source, populateBoth)
-	require.Equal(t, 2, len(c.namespaces[testValues[1].nsHash()].elems))
+	entry, ok := c.namespaces.Get(testValues[1].namespace)
+	require.True(t, ok)
+	require.Equal(t, 2, entry.elems.Len())
 
 	var (
 		ns         = testValues[1].namespace
-		nsHash     = xid.HashFn(ns)
 		id         = testValues[1].id
-		idHash     = testValues[1].idHash()
 		newVersion = 3
 	)
 	result := rules.NewMatchResult(0, math.MaxInt64, testMappingPoliciesList, testRollupResults)
 	source.setVersion(newVersion)
 	source.setResult(id, result)
 
-	require.Equal(t, 2, len(c.namespaces[nsHash].elems))
+	entry, ok = c.namespaces.Get(ns)
+	require.True(t, ok)
+	require.Equal(t, 2, entry.elems.Len())
 	res := c.ForwardMatch(ns, id, now.UnixNano(), now.Add(time.Minute).UnixNano())
 	require.Equal(t, result, res)
 
@@ -121,11 +123,13 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAll(t *testing.T) {
 	require.NoError(t, testWaitUntilWithTimeout(conditionFn, testWaitTimeout))
 
 	expected := []testValue{{namespace: ns, id: id, result: result}}
-	require.Equal(t, 1, len(c.namespaces))
-	require.Equal(t, 1, len(c.namespaces[nsHash].elems))
-	elem, exists := c.namespaces[nsHash].elems[idHash]
+	require.Equal(t, 1, c.namespaces.Len())
+	entry, ok = c.namespaces.Get(ns)
+	require.True(t, ok)
+	require.Equal(t, 1, entry.elems.Len())
+	elem, exists := entry.elems.Get(id)
 	require.True(t, exists)
-	require.Equal(t, elem, c.list.Front())
+	require.True(t, elem == c.list.Front())
 	validateCache(t, c, expected)
 }
 
@@ -140,20 +144,22 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAllNoEviction(t *testing.
 		{namespace: testValues[1].namespace, id: testValues[1].id, result: testExpiredResults[1]},
 	}
 	populateCache(c, input, now, source, populateBoth)
-	require.Equal(t, 2, len(c.namespaces[testValues[1].nsHash()].elems))
+	entry, ok := c.namespaces.Get(testValues[1].namespace)
+	require.True(t, ok)
+	require.Equal(t, 2, entry.elems.Len())
 
 	var (
 		ns         = testValues[1].namespace
-		nsHash     = xid.HashFn(ns)
 		id         = testValues[1].id
-		idHash     = testValues[1].idHash()
 		newVersion = 3
 	)
 	result := rules.NewMatchResult(0, math.MaxInt64, testMappingPoliciesList, testRollupResults)
 	source.setVersion(newVersion)
 	source.setResult(id, result)
 
-	require.Equal(t, 2, len(c.namespaces[nsHash].elems))
+	entry, ok = c.namespaces.Get(ns)
+	require.True(t, ok)
+	require.Equal(t, 2, entry.elems.Len())
 	res := c.ForwardMatch(ns, id, now.UnixNano(), now.UnixNano())
 	require.Equal(t, result, res)
 
@@ -167,11 +173,13 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAllNoEviction(t *testing.
 	require.NoError(t, testWaitUntilWithTimeout(conditionFn, testWaitTimeout))
 
 	expected := []testValue{{namespace: ns, id: id, result: result}}
-	require.Equal(t, 1, len(c.namespaces))
-	require.Equal(t, 1, len(c.namespaces[nsHash].elems))
-	elem, exists := c.namespaces[nsHash].elems[idHash]
+	require.Equal(t, 1, c.namespaces.Len())
+	entry, ok = c.namespaces.Get(ns)
+	require.True(t, ok)
+	require.Equal(t, 1, entry.elems.Len())
+	elem, exists := entry.elems.Get(id)
 	require.True(t, exists)
-	require.Equal(t, elem, c.list.Front())
+	require.True(t, elem == c.list.Front())
 	validateCache(t, c, expected)
 }
 
@@ -189,16 +197,16 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateOneNoEviction(t *testing.
 
 	var (
 		ns         = testValues[1].namespace
-		nsHash     = testValues[1].nsHash()
 		id         = testValues[1].id
-		idHash     = testValues[1].idHash()
 		newVersion = 3
 	)
 	result := rules.NewMatchResult(0, math.MaxInt64, testMappingPoliciesList, testRollupResults)
 	source.setVersion(newVersion)
 	source.setResult(id, result)
 
-	require.Equal(t, 2, len(c.namespaces[nsHash].elems))
+	entry, ok := c.namespaces.Get(ns)
+	require.True(t, ok)
+	require.Equal(t, 2, entry.elems.Len())
 	res := c.ForwardMatch(ns, id, now.UnixNano(), now.UnixNano())
 	require.Equal(t, result, res)
 
@@ -215,11 +223,13 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateOneNoEviction(t *testing.
 		{namespace: ns, id: id, result: result},
 		{namespace: ns, id: testValues[0].id, result: testValues[0].result},
 	}
-	require.Equal(t, 1, len(c.namespaces))
-	require.Equal(t, 2, len(c.namespaces[nsHash].elems))
-	elem, exists := c.namespaces[nsHash].elems[idHash]
+	entry, ok = c.namespaces.Get(ns)
+	require.True(t, ok)
+	require.Equal(t, 1, c.namespaces.Len())
+	require.Equal(t, 2, entry.elems.Len())
+	elem, exists := entry.elems.Get(id)
 	require.True(t, exists)
-	require.Equal(t, elem, c.list.Front())
+	require.True(t, elem == c.list.Front())
 	validateCache(t, c, expected)
 }
 
@@ -306,19 +316,19 @@ func TestCacheMatchIDNotCachedSourceValidNoEviction(t *testing.T) {
 
 	var (
 		ns     = testValues[1].namespace
-		nsHash = xid.HashFn(ns)
 		id     = testValues[1].id
-		idHash = testValues[1].idHash()
 		result = testValues[1].result
 	)
-	require.Equal(t, 0, len(c.namespaces[nsHash].elems))
+	entry, ok := c.namespaces.Get(ns)
+	require.True(t, ok)
+	require.Equal(t, 0, entry.elems.Len())
 	res := c.ForwardMatch(ns, id, now.UnixNano(), now.UnixNano())
 	require.Equal(t, result, res)
 
 	expected := []testValue{testValues[1]}
-	elem, exists := c.namespaces[nsHash].elems[idHash]
+	elem, exists := entry.elems.Get(id)
 	require.True(t, exists)
-	require.Equal(t, elem, c.list.Front())
+	require.True(t, elem == c.list.Front())
 	validateCache(t, c, expected)
 }
 
@@ -354,7 +364,7 @@ func TestCacheMatchParallel(t *testing.T) {
 	}
 	wg.Wait()
 
-	if c.list.Front().idHash == input[0].idHash() {
+	if bytes.Equal(c.list.Front().id, input[0].id) {
 		validateCache(t, c, []testValue{
 			{namespace: []byte("ns1"), id: []byte("foo"), result: newResult},
 			{namespace: []byte("ns2"), id: []byte("baz"), result: newResult},
@@ -372,17 +382,18 @@ func TestCacheRegisterNamespaceDoesNotExist(t *testing.T) {
 	c := NewCache(opts).(*cache)
 	now := time.Now()
 	c.nowFn = func() time.Time { return now }
-	require.Equal(t, 0, len(c.namespaces))
+	require.Equal(t, 0, c.namespaces.Len())
 
 	var (
 		ns     = []byte("ns")
-		nsHash = xid.HashFn(ns)
 		source = newMockSource()
 	)
 	c.Register(ns, source)
-	require.Equal(t, 1, len(c.namespaces))
-	require.Equal(t, 0, len(c.namespaces[nsHash].elems))
-	require.Equal(t, source, c.namespaces[nsHash].source)
+	require.Equal(t, 1, c.namespaces.Len())
+	entry, ok := c.namespaces.Get(ns)
+	require.True(t, ok)
+	require.Equal(t, 0, entry.elems.Len())
+	require.Equal(t, source, entry.source)
 }
 
 func TestCacheRegisterNamespaceExists(t *testing.T) {
@@ -393,10 +404,11 @@ func TestCacheRegisterNamespaceExists(t *testing.T) {
 	populateCache(c, []testValue{testValues[0]}, now, nil, populateBoth)
 
 	ns := testValues[0].namespace
-	nsHash := xid.HashFn(ns)
-	require.Equal(t, 1, len(c.namespaces))
-	require.Equal(t, 1, len(c.namespaces[nsHash].elems))
-	require.Nil(t, c.namespaces[nsHash].source)
+	require.Equal(t, 1, c.namespaces.Len())
+	entry, ok := c.namespaces.Get(ns)
+	require.True(t, ok)
+	require.Equal(t, 1, entry.elems.Len())
+	require.Nil(t, entry.source)
 
 	source := newMockSource()
 	c.Register(ns, source)
@@ -410,41 +422,44 @@ func TestCacheRegisterNamespaceExists(t *testing.T) {
 	}
 	require.NoError(t, testWaitUntilWithTimeout(conditionFn, testWaitTimeout))
 
-	require.Equal(t, 1, len(c.namespaces))
-	require.Equal(t, 0, len(c.namespaces[nsHash].elems))
-	require.Equal(t, source, c.namespaces[nsHash].source)
+	require.Equal(t, 1, c.namespaces.Len())
+	entry, ok = c.namespaces.Get(ns)
+	require.True(t, ok)
+	require.Equal(t, 0, entry.elems.Len())
+	require.Equal(t, source, entry.source)
 }
 
 func TestCacheRefreshNamespaceDoesNotExist(t *testing.T) {
 	opts := testCacheOptions()
 	c := NewCache(opts).(*cache)
-	require.Equal(t, 0, len(c.namespaces))
+	require.Equal(t, 0, c.namespaces.Len())
 
 	var (
 		ns     = []byte("ns")
 		source = newMockSource()
 	)
 	c.Refresh(ns, source)
-	require.Equal(t, 0, len(c.namespaces))
+	require.Equal(t, 0, c.namespaces.Len())
 }
 
 func TestCacheRefreshStaleSource(t *testing.T) {
 	opts := testCacheOptions()
 	c := NewCache(opts).(*cache)
-	require.Equal(t, 0, len(c.namespaces))
+	require.Equal(t, 0, c.namespaces.Len())
 
 	var (
 		ns      = []byte("ns")
-		nsHash  = xid.HashFn(ns)
 		source1 = newMockSource()
 		source2 = newMockSource()
 	)
 	c.Register(ns, source1)
-	require.Equal(t, 1, len(c.namespaces))
+	require.Equal(t, 1, c.namespaces.Len())
 
 	c.Refresh(ns, source2)
-	require.Equal(t, 1, len(c.namespaces))
-	require.Equal(t, source1, c.namespaces[nsHash].source)
+	require.Equal(t, 1, c.namespaces.Len())
+	entry, ok := c.namespaces.Get(ns)
+	require.True(t, ok)
+	require.Equal(t, source1, entry.source)
 }
 
 func TestCacheRefreshSuccess(t *testing.T) {
@@ -454,19 +469,22 @@ func TestCacheRefreshSuccess(t *testing.T) {
 	c.nowFn = func() time.Time { return now }
 
 	var (
-		ns     = testValues[0].namespace
-		nsHash = xid.HashFn(ns)
-		src    = newMockSource()
+		ns  = testValues[0].namespace
+		src = newMockSource()
 	)
 	populateCache(c, []testValue{testValues[0]}, now, src, populateBoth)
-	require.Equal(t, 1, len(c.namespaces))
-	require.Equal(t, 1, len(c.namespaces[nsHash].elems))
-	require.Equal(t, src, c.namespaces[nsHash].source)
+	require.Equal(t, 1, c.namespaces.Len())
+	entry, ok := c.namespaces.Get(ns)
+	require.True(t, ok)
+	require.Equal(t, 1, entry.elems.Len())
+	require.Equal(t, src, entry.source)
 
 	c.Refresh(ns, src)
-	require.Equal(t, 1, len(c.namespaces))
-	require.Equal(t, 0, len(c.namespaces[nsHash].elems))
-	require.Equal(t, src, c.namespaces[nsHash].source)
+	entry, ok = c.namespaces.Get(ns)
+	require.True(t, ok)
+	require.Equal(t, 1, c.namespaces.Len())
+	require.Equal(t, 0, entry.elems.Len())
+	require.Equal(t, src, entry.source)
 }
 
 func TestCacheUnregisterNamespaceDoesNotExist(t *testing.T) {
@@ -520,17 +538,17 @@ func TestCacheDeleteBatching(t *testing.T) {
 		intervals = append(intervals, d)
 	}
 
-	var elemMaps []elemMap
+	var elemMaps []*elemMap
 	for _, value := range testValues {
-		m := make(elemMap)
+		m := newElemMap(elemMapOptions{})
 		for i := 0; i < 37; i++ {
 			elem := &element{
-				nsHash:      value.nsHash(),
-				idHash:      xid.HashFn([]byte(fmt.Sprintf("%s%d", value.id, i))),
+				namespace:   value.namespace,
+				id:          []byte(fmt.Sprintf("%s%d", value.id, i)),
 				result:      value.result,
 				expiryNanos: now.UnixNano(),
 			}
-			m[elem.idHash] = elem
+			m.Set(elem.id, elem)
 			c.list.PushBack(elem)
 		}
 		elemMaps = append(elemMaps, m)
@@ -669,19 +687,19 @@ func populateCache(
 		resultSource = source
 	}
 	for _, value := range values {
-		results, exists := c.namespaces[value.nsHash()]
+		results, exists := c.namespaces.Get(value.namespace)
 		if !exists {
 			results = newResults(resultSource)
-			c.namespaces[value.nsHash()] = results
+			c.namespaces.Set(value.namespace, results)
 		}
 		if (mode & populateMap) > 0 {
 			elem := &element{
-				nsHash:      value.nsHash(),
-				idHash:      value.idHash(),
+				namespace:   value.namespace,
+				id:          value.id,
 				result:      value.result,
 				expiryNanos: expiry.UnixNano(),
 			}
-			results.elems[elem.idHash] = elem
+			results.elems.Set(elem.id, elem)
 			c.list.PushBack(elem)
 		}
 		if (mode&populateSource) > 0 && source != nil {
@@ -700,27 +718,29 @@ func validateCache(t *testing.T, c *cache, expected []testValue) {
 
 func validateNamespaces(
 	t *testing.T,
-	namespaces map[xid.Hash]results,
+	namespaces *namespaceResultsMap,
 	l *list,
 	expected []testValue,
 ) {
-	expectedNamespaces := make(map[xid.Hash][]testValue)
+	expectedNamespaces := make(map[string][]testValue)
 	for _, v := range expected {
-		expectedNamespaces[v.nsHash()] = append(expectedNamespaces[v.nsHash()], v)
+		expectedNamespaces[string(v.namespace)] = append(expectedNamespaces[string(v.namespace)], v)
 	}
-	require.Equal(t, len(expectedNamespaces), len(namespaces))
-	for namespace, results := range namespaces {
-		expectedResults, exists := expectedNamespaces[namespace]
+	require.Equal(t, len(expectedNamespaces), namespaces.Len())
+	for _, entry := range namespaces.Iter() {
+		namespace, results := entry.Key(), entry.Value()
+		expectedResults, exists := expectedNamespaces[string(namespace)]
 		require.True(t, exists)
-		validateResults(t, results.elems, l, expectedResults)
+		validateResults(t, namespace, results.elems, l, expectedResults)
 	}
 }
 
-func validateResults(t *testing.T, elems elemMap, l *list, expected []testValue) {
-	require.Equal(t, len(expected), len(elems))
+func validateResults(t *testing.T, namespace []byte, elems *elemMap, l *list, expected []testValue) {
+	require.Equal(t, len(expected), elems.Len(),
+		fmt.Sprintf("mismatch for namespace: %v", string(namespace)))
 	elemMap := make(map[*element]struct{})
 	for _, v := range expected {
-		e, exists := elems[v.idHash()]
+		e, exists := elems.Get(v.id)
 		require.True(t, exists)
 		elemMap[e] = struct{}{}
 

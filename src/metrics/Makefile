@@ -29,6 +29,7 @@ mocks_rules_dir      := generated/mocks
 mockgen_package      := github.com/golang/mock/mockgen
 package_root         := github.com/m3db/m3metrics
 
+include $(SELF_DIR)/generated-source-files.mk
 
 BUILD           := $(abspath ./bin)
 LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
@@ -110,13 +111,12 @@ mock-gen: install-mockgen install-license-bin install-util-mockclean
 	@echo Generating mocks
 	PACKAGE=$(package_root) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
 
-
 .PHONY: clean
 clean:
 	@rm -f *.html *.xml *.out *.test
 
 .PHONY: all
-all: lint metalint test-ci-unit test-ci-integration
+all: lint metalint test-ci-unit test-ci-integration test-genny-all
 	@echo Made all successfully
 
 .DEFAULT_GOAL := all

@@ -2,11 +2,20 @@ language: go
 go:
   - 1.8.3
   - 1.9.2
+  - "1.10.x"
+branches:
+  only:
+    - master
 install: make install-ci
-env:
- # Set higher timeouts for Travis
- - TEST_TIMEOUT_SCALE=20 PACKAGE=github.com/m3db/m3metrics
 sudo: required
 dist: trusty
-script:
- - make all
+env:
+  global:
+    - TEST_TIMEOUT_SCALE=20
+    - PACKAGE=github.com/m3db/m3metrics
+  matrix:
+    - MAKE_TARGET="test-ci-unit"
+    - MAKE_TARGET="test-ci-integration"
+    - MAKE_TARGET="lint metalint"
+    - MAKE_TARGET="test-genny-all"
+script: "make $MAKE_TARGET"
