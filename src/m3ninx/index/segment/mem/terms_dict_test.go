@@ -98,6 +98,34 @@ func (t *termsDictionaryTestSuite) TestInsert() {
 	props.TestingRun(t.T())
 }
 
+func (t *termsDictionaryTestSuite) TestContainsTerm() {
+	props := getProperties()
+	props.Property(
+		"The dictionary should support term lookups",
+		prop.ForAll(
+			func(f doc.Field, id postings.ID) (bool, error) {
+				err := t.termsDict.Insert(f, id)
+				if err != nil {
+					return false, fmt.Errorf("unexpected error inserting %v into terms dictionary: %v", f, err)
+				}
+
+				ok, err := t.termsDict.ContainsTerm(f.Name, []byte(f.Value))
+				if err != nil {
+					return false, fmt.Errorf("unexpexted error looking up term: %v", err)
+				}
+				if !ok {
+					return false, fmt.Errorf("id of new document '%v' is not in postings list of matching documents", id)
+				}
+
+				return true, nil
+			},
+			genField(),
+			genDocID(),
+		))
+
+	props.TestingRun(t.T())
+}
+
 func (t *termsDictionaryTestSuite) TestMatchTerm() {
 	props := getProperties()
 	props.Property(

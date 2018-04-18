@@ -32,6 +32,10 @@ type termsDictionary interface {
 	// Insert inserts the field with the given ID into the terms dictionary.
 	Insert(field doc.Field, id postings.ID) error
 
+	// ContainsTerm returns a bool indicating whether the terms dictionary contains
+	// the given term.
+	ContainsTerm(field, term []byte) (bool, error)
+
 	// MatchTerm returns the postings list corresponding to documents which match the
 	// given field term exactly.
 	MatchTerm(field, term []byte) (postings.List, error)

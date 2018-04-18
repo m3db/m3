@@ -25,11 +25,11 @@ import (
 	"fmt"
 	re "regexp"
 	"sync"
-	"unicode/utf8"
 
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index"
 	sgmt "github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3ninx/index/util"
 	"github.com/m3db/m3ninx/postings"
 )
 
@@ -39,8 +39,9 @@ var (
 )
 
 type segment struct {
-	opts   Options
-	offset int
+	opts      Options
+	offset    int
+	newUUIDFn util.NewUUIDFn
 
 	// Internal state of the segment. The allowed transitions are:
 	//   - Open -> Sealed -> Closed
@@ -81,6 +82,7 @@ func NewSegment(offset postings.ID, opts Options) (sgmt.MutableSegment, error) {
 	s := &segment{
 		opts:      opts,
 		offset:    int(offset) + 1, // The first ID assigned by the segment is offset + 1.
+		newUUIDFn: opts.NewUUIDFn(),
 		termsDict: newTermsDict(opts),
 	}
 
@@ -93,24 +95,38 @@ func NewSegment(offset postings.ID, opts Options) (sgmt.MutableSegment, error) {
 
 func (s *segment) Insert(d doc.Document) error {
 	s.state.RLock()
+	defer s.state.RUnlock()
 	if s.state.closed {
-		s.state.RUnlock()
 		return sgmt.ErrClosed
 	}
 
 	if s.state.sealed {
-		s.state.RUnlock()
 		return errSegmentSealed
 	}
 
-	// Validate that the document contains only valid UTF-8.
-	for _, f := range d.Fields {
-		if !utf8.Valid(f.Name) {
-			return fmt.Errorf("document contains invalid field name: %v", f.Name)
+	docID, err := d.Validate()
+	if err != nil {
+		return err
+	}
+
+	if docID != nil {
+		ok, err := s.termsDict.ContainsTerm(doc.IDReservedFieldName, docID)
+		if err != nil {
+			return fmt.Errorf("could not lookup document ID '%s'", docID)
 		}
-		if !utf8.Valid(f.Value) {
-			return fmt.Errorf("document contains invalid field value: %v", f.Value)
+		if ok {
+			// Index already contains this document.
+			return nil
 		}
+	} else {
+		uuid, err := s.newUUIDFn()
+		if err != nil {
+			return err
+		}
+		d.Fields = append(d.Fields, doc.Field{
+			Name:  doc.IDReservedFieldName,
+			Value: uuid,
+		})
 	}
 
 	// TODO: Consider supporting concurrent writes by relaxing the requirement that
@@ -119,12 +135,11 @@ func (s *segment) Insert(d doc.Document) error {
 
 	newID := s.ids.writer.Inc()
 	s.insertDoc(newID, d)
-	err := s.insertTerms(newID, d)
+	err = s.insertTerms(newID, d)
 	s.ids.reader.Inc()
 
 	s.ids.Unlock()
 
-	s.state.RUnlock()
 	return err
 }
 

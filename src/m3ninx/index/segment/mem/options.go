@@ -21,6 +21,7 @@
 package mem
 
 import (
+	"github.com/m3db/m3ninx/index/util"
 	"github.com/m3db/m3ninx/postings"
 	"github.com/m3db/m3ninx/postings/roaring"
 
@@ -50,12 +51,19 @@ type Options interface {
 
 	// InitialCapacity returns the initial capacity.
 	InitialCapacity() int
+
+	// SetNewUUIDFn sets the function used to generate new UUIDs.
+	SetNewUUIDFn(value util.NewUUIDFn) Options
+
+	// NewUUIDFn returns the function used to generate new UUIDs.
+	NewUUIDFn() util.NewUUIDFn
 }
 
 type opts struct {
 	iopts           instrument.Options
 	postingsPool    postings.Pool
 	initialCapacity int
+	newUUIDFn       util.NewUUIDFn
 }
 
 // NewOptions returns new options.
@@ -64,6 +72,7 @@ func NewOptions() Options {
 		iopts:           instrument.NewOptions(),
 		postingsPool:    postings.NewPool(nil, roaring.NewPostingsList),
 		initialCapacity: defaultInitialCapacity,
+		newUUIDFn:       util.NewUUID,
 	}
 }
 
@@ -95,4 +104,14 @@ func (o *opts) SetInitialCapacity(v int) Options {
 
 func (o *opts) InitialCapacity() int {
 	return o.initialCapacity
+}
+
+func (o *opts) SetNewUUIDFn(v util.NewUUIDFn) Options {
+	opts := *o
+	opts.newUUIDFn = v
+	return &opts
+}
+
+func (o *opts) NewUUIDFn() util.NewUUIDFn {
+	return o.newUUIDFn
 }

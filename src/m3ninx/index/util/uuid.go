@@ -18,47 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package postingsgen
+package util
 
 import (
-	"regexp"
-	"testing"
+	"encoding/base64"
+	"errors"
 
-	"github.com/m3db/m3ninx/postings"
-	"github.com/m3db/m3ninx/postings/roaring"
-
-	"github.com/stretchr/testify/require"
+	"github.com/satori/go.uuid"
 )
 
-func TestConcurrentMap(t *testing.T) {
-	opts := ConcurrentMapOpts{
-		InitialSize:      1024,
-		PostingsListPool: postings.NewPool(nil, roaring.NewPostingsList),
-	}
-	pm := NewConcurrentMap(opts)
+var errUUIDForbidden = errors.New("generating UUIDs is forbidden")
 
-	require.NoError(t, pm.Add([]byte("foo"), 1))
-	require.NoError(t, pm.Add([]byte("bar"), 2))
-	require.NoError(t, pm.Add([]byte("foo"), 3))
-	require.NoError(t, pm.Add([]byte("baz"), 4))
+var encodedLen = base64.StdEncoding.EncodedLen(uuid.Size)
 
-	pl, ok := pm.Get([]byte("foo"))
-	require.True(t, ok)
-	require.Equal(t, 2, pl.Len())
-	require.True(t, pl.Contains(1))
-	require.True(t, pl.Contains(3))
+// NewUUIDFn is a function for creating new UUIDs.
+type NewUUIDFn func() ([]byte, error)
 
-	_, ok = pm.Get([]byte("fizz"))
-	require.False(t, ok)
+// NewUUID returns a new UUID.
+func NewUUID() ([]byte, error) {
+	// TODO: V4 UUIDs are randomly generated. It would be more efficient to instead
+	// use time-based UUIDs so the prefixes of the UUIDs are similar. V1 UUIDs use
+	// the current timestamp and the server's MAC address but the latter isn't
+	// guaranteed to be unique since we may have multiple processes running on the
+	// same host. Elasticsearch uses Flake IDs which ensure uniqueness by requiring
+	// an initial coordination step and we may want to consider doing the same.
+	uuid := uuid.NewV4().Bytes()
 
-	re := regexp.MustCompile("ba.*")
-	pl, ok = pm.GetRegex(re)
-	require.True(t, ok)
-	require.Equal(t, 2, pl.Len())
-	require.True(t, pl.Contains(2))
-	require.True(t, pl.Contains(4))
+	buf := make([]byte, encodedLen)
+	base64.StdEncoding.Encode(buf, uuid)
+	return buf, nil
+}
 
-	re = regexp.MustCompile("abc.*")
-	_, ok = pm.GetRegex(re)
-	require.False(t, ok)
+// NewUUIDForbidden is NewUUIDFn which always returns an error in the case that
+// UUIDs are forbidden.
+func NewUUIDForbidden() ([]byte, error) {
+	return nil, errUUIDForbidden
 }
