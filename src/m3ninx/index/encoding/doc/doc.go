@@ -49,7 +49,6 @@ const (
 const initialEncoderSize = 1024
 
 var (
-	errEmptyDocument      = errors.New("cannot write an empty document")
 	errInvalidMagicNumber = errors.New("encountered invalid magic number")
 	errChecksumMismatch   = errors.New("encountered invalid checksum")
 )
@@ -81,10 +80,6 @@ func (w *writer) Open() error {
 }
 
 func (w *writer) Write(d doc.Document) error {
-	if len(d.Fields) == 0 {
-		return errEmptyDocument
-	}
-
 	w.enc.PutUvarint(uint64(len(d.Fields)))
 
 	for _, f := range d.Fields {

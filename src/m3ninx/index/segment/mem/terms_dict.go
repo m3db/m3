@@ -53,19 +53,37 @@ func (d *termsDict) Insert(field doc.Field, id postings.ID) error {
 	return postingsMap.Add(field.Value, id)
 }
 
+func (d *termsDict) ContainsTerm(field, term []byte) (bool, error) {
+	_, found, err := d.matchTerm(field, term)
+	if err != nil {
+		return false, err
+	}
+	return found, nil
+}
+
 func (d *termsDict) MatchTerm(field, term []byte) (postings.List, error) {
+	pl, found, err := d.matchTerm(field, term)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return d.opts.PostingsListPool().Get(), nil
+	}
+	return pl, nil
+}
+
+func (d *termsDict) matchTerm(field, term []byte) (postings.List, bool, error) {
 	d.fields.RLock()
 	postingsMap, ok := d.fields.internalMap.Get(field)
 	d.fields.RUnlock()
 	if !ok {
-		// It is not an error to not have any matching values.
-		return d.opts.PostingsListPool().Get(), nil
+		return nil, false, nil
 	}
-	pl := postingsMap.Get(term)
-
-	// Return of the clone of the postings list so that its lifetime is independent of
-	// that of the terms dictionary.
-	return pl.Clone(), nil
+	pl, ok := postingsMap.Get(term)
+	if !ok {
+		return nil, false, nil
+	}
+	return pl, true, nil
 }
 
 func (d *termsDict) MatchRegexp(
@@ -76,16 +94,13 @@ func (d *termsDict) MatchRegexp(
 	postingsMap, ok := d.fields.internalMap.Get(field)
 	d.fields.RUnlock()
 	if !ok {
-		// It is not an error to not have any matching values.
 		return d.opts.PostingsListPool().Get(), nil
 	}
-
-	pls := postingsMap.GetRegex(compiled)
-	union := d.opts.PostingsListPool().Get()
-	for _, pl := range pls {
-		union.Union(pl)
+	pl, ok := postingsMap.GetRegex(compiled)
+	if !ok {
+		return d.opts.PostingsListPool().Get(), nil
 	}
-	return union, nil
+	return pl, nil
 }
 
 func (d *termsDict) getOrAddName(name []byte) *postingsgen.ConcurrentMap {

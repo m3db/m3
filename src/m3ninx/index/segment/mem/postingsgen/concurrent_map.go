@@ -22,18 +22,12 @@ package postingsgen
 
 import (
 	"bytes"
-	"math"
 	"regexp"
 	"sync"
 
 	"github.com/m3db/m3ninx/postings"
 
 	"github.com/cespare/xxhash"
-)
-
-const (
-	regexpMatchFactor = 0.01
-	regexMatchMaxLen  = 1024.0
 )
 
 // ConcurrentMap is a thread-safe map from []byte -> postings.List.
@@ -92,34 +86,40 @@ func (m *ConcurrentMap) Add(key []byte, id postings.ID) error {
 }
 
 // Get returns the postings.List backing `key`.
-func (m *ConcurrentMap) Get(key []byte) postings.List {
+func (m *ConcurrentMap) Get(key []byte) (postings.List, bool) {
 	m.RLock()
 	p, ok := m.internalMap.Get(key)
 	m.RUnlock()
-	if !ok {
-		p = m.opts.PostingsListPool.Get()
+	if ok {
+		return p, true
 	}
-	return p
+	return nil, false
 }
 
-// GetRegex returns postings.List(s) backing `key` which matches the provided regexp.
-func (m *ConcurrentMap) GetRegex(re *regexp.Regexp) []postings.List {
+// GetRegex returns the union of the postings lists whose keys match the
+// provided regexp.
+func (m *ConcurrentMap) GetRegex(re *regexp.Regexp) (postings.List, bool) {
+	var pl postings.MutableList
+
 	m.RLock()
-
-	initLen := math.Min(regexpMatchFactor*float64(m.internalMap.Len()), regexMatchMaxLen)
-	ps := make([]postings.List, 0, int(initLen))
-
 	for _, mapEntry := range m.internalMap.Iter() {
 		// TODO: Evaluate lock contention caused by holding on to the read lock while
 		// evaluating this predicate.
 		// TODO: Evaluate if performing a prefix match would speed up the common case.
 		if re.Match(mapEntry.Key()) {
-			ps = append(ps, mapEntry.Value())
+			if pl == nil {
+				pl = mapEntry.Value().Clone()
+			} else {
+				pl.Union(mapEntry.Value())
+			}
 		}
 	}
-
 	m.RUnlock()
-	return ps
+
+	if pl == nil {
+		return nil, false
+	}
+	return pl, true
 }
 
 // newInternalMap returns a new []bytes->postings.MutableList map.

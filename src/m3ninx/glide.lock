@@ -1,5 +1,5 @@
-hash: 4b534d26434239a1df754376d676980dea2108e18cd07aa540c87167f522e11f
-updated: 2018-04-04T17:42:46.439705-04:00
+hash: 3bbee094dfda02f5d95e626277d4b6ae46e6a5182e288b0ea7e17591c3959e96
+updated: 2018-04-16T16:50:28.577139-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -12,19 +12,13 @@ imports:
 - name: github.com/glycerine/go-unsnap-stream
   version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
 - name: github.com/golang/mock
-  version: 485faf39398c214ff46541e0d896cf4468ed392f
+  version: c34cdb4725f4c3844d095133c6e40e448b86589b
   subpackages:
   - gomock
 - name: github.com/golang/snappy
   version: 553a641470496b2327abcac10b36396bd98e45c9
-- name: github.com/google/codesearch
-  version: a45d81b686e85d01f2838439deaf72126ccd5a96
-  subpackages:
-  - sparse
 - name: github.com/m3db/codesearch
   version: a45d81b686e85d01f2838439deaf72126ccd5a96
-  subpackages:
-  - index
 - name: github.com/m3db/m3x
   version: d0873c0b327bee1a4a47f1d84263a6edaebbbf66
   subpackages:
@@ -42,6 +36,8 @@ imports:
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/RoaringBitmap/roaring
   version: 4bbba8874933b985c9160558fddea525dde73e63
+- name: github.com/satori/go.uuid
+  version: f58768cc1a7a7e77a3bd49e98cdd21419399b6a3
 - name: github.com/tinylib/msgp
   version: 3b5c87ab5fb00c660bf85b888445d9a01db64db4
   subpackages:

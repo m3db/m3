@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,24 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package doc
+package util
 
-// Iterator provides an iterator over a collection of documents. It is NOT safe for multiple
-// goroutines to invoke methods on an Iterator simultaneously.
-type Iterator interface {
-	// Next returns a bool indicating if the iterator has any more documents
-	// to return.
-	Next() bool
+import (
+	"testing"
 
-	// Current returns the current document. It is only safe to call Current immediately
-	// after a call to Next confirms there are more elements remaining. The Document
-	// returned from Current is only valid until the following call to Next(). Callers
-	// should copy the Document if they need it live longer.
-	Current() Document
+	"github.com/stretchr/testify/require"
+)
 
-	// Err returns any errors encountered during iteration.
-	Err() error
+func TestNewUUID(t *testing.T) {
+	var (
+		numIters = 1000
+		uuids    = make(map[string]struct{}, numIters)
+	)
+	for i := 0; i < numIters; i++ {
+		uuid, err := NewUUID()
+		require.NoError(t, err)
 
-	// Close releases any internal resources used by the iterator.
-	Close() error
+		_, ok := uuids[string(uuid)]
+		require.False(t, ok)
+
+		uuids[string(uuid)] = struct{}{}
+	}
+}
+
+func TestNewUUIDForbidden(t *testing.T) {
+	_, err := NewUUIDForbidden()
+	require.Error(t, err)
 }

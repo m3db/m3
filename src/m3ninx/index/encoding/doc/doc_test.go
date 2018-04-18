@@ -33,9 +33,19 @@ import (
 
 func TestWriteReadDocuments(t *testing.T) {
 	tests := []struct {
+		name string
 		docs []doc.Document
 	}{
 		{
+			name: "empty document",
+			docs: []doc.Document{
+				doc.Document{
+					Fields: doc.Fields{},
+				},
+			},
+		},
+		{
+			name: "standard documents",
 			docs: []doc.Document{
 				doc.Document{
 					Fields: []doc.Field{
@@ -64,29 +74,32 @@ func TestWriteReadDocuments(t *testing.T) {
 			},
 		},
 		{
+			name: "node exporter metrics",
 			docs: util.MustReadDocs("../../util/testdata/node_exporter.json", 2000),
 		},
 	}
 
 	for _, test := range tests {
-		buf := new(bytes.Buffer)
+		t.Run(test.name, func(t *testing.T) {
+			buf := new(bytes.Buffer)
 
-		w := NewWriter(buf)
-		require.NoError(t, w.Open())
-		for i := 0; i < len(test.docs); i++ {
-			require.NoError(t, w.Write(test.docs[i]))
-		}
-		require.NoError(t, w.Close())
+			w := NewWriter(buf)
+			require.NoError(t, w.Open())
+			for i := 0; i < len(test.docs); i++ {
+				require.NoError(t, w.Write(test.docs[i]))
+			}
+			require.NoError(t, w.Close())
 
-		r := NewReader(buf.Bytes())
-		require.NoError(t, r.Open())
-		for i := 0; i < len(test.docs); i++ {
-			actual, err := r.Read()
-			require.NoError(t, err)
-			require.Equal(t, test.docs[i], actual)
-		}
-		_, err := r.Read()
-		require.Equal(t, io.EOF, err)
-		require.NoError(t, r.Close())
+			r := NewReader(buf.Bytes())
+			require.NoError(t, r.Open())
+			for i := 0; i < len(test.docs); i++ {
+				actual, err := r.Read()
+				require.NoError(t, err)
+				require.True(t, actual.Equal(test.docs[i]))
+			}
+			_, err := r.Read()
+			require.Equal(t, io.EOF, err)
+			require.NoError(t, r.Close())
+		})
 	}
 }
