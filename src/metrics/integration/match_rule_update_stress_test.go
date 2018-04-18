@@ -56,6 +56,10 @@ const (
 )
 
 func TestMatchWithRuleUpdatesStress(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
+
 	// Initialize the kv store with namespace and ruleset.
 	store := mem.NewStore()
 	namespaces := stressTestNamespaces()
