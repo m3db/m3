@@ -97,11 +97,10 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 		next := true
 		for next {
 			// we are at a block
-			start := perBlockSliceReaders.CurrentStart()
-			end := perBlockSliceReaders.CurrentEnd()
+			l, start, end := perBlockSliceReaders.Current()
 
 			var readers []xio.Reader
-			for i := 0; i < perBlockSliceReaders.CurrentLen(); i++ {
+			for i := 0; i < l; i++ {
 				// reader to an unmerged (or already merged) block buffer
 				reader := perBlockSliceReaders.CurrentAt(i)
 

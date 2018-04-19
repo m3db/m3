@@ -106,7 +106,7 @@ func (it *multiReaderIterator) moveToNext() {
 	}
 
 	// Add all readers to current iterators heap
-	currentLen := it.slicesIter.CurrentLen()
+	currentLen, _, _ := it.slicesIter.Current()
 	for i := 0; i < currentLen; i++ {
 		var (
 			reader = it.slicesIter.CurrentAt(i)
@@ -209,16 +209,8 @@ func (it *singleSlicesOfSlicesIterator) Next() bool {
 	return true
 }
 
-func (it *singleSlicesOfSlicesIterator) CurrentStart() time.Time {
-	return it.start
-}
-
-func (it *singleSlicesOfSlicesIterator) CurrentEnd() time.Time {
-	return it.end
-}
-
-func (it *singleSlicesOfSlicesIterator) CurrentLen() int {
-	return len(it.readers)
+func (it *singleSlicesOfSlicesIterator) Current() (int, time.Time, time.Time) {
+	return len(it.readers), it.start, it.end
 }
 
 func (it *singleSlicesOfSlicesIterator) CurrentAt(idx int) xio.Reader {

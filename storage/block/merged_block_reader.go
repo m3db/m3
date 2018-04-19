@@ -112,7 +112,13 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 }
 
 func (r *dbMergedBlockReader) Clone() xio.Reader {
-	return r
+	return newDatabaseMergedBlockReader(
+		r.blockStart,
+		r.blockEnd,
+		r.streams[0].Clone().(xio.SegmentReader),
+		r.streams[1].Clone().(xio.SegmentReader),
+		r.opts,
+	)
 }
 
 func (r *dbMergedBlockReader) Start() time.Time {

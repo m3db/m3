@@ -56,13 +56,13 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 	it.idx++
 
 	// Extend segment readers if not enough available
-	currLen := it.CurrentLen()
+	currLen, start, end := it.Current()
 	if len(it.blockReaders) < currLen {
 		diff := currLen - len(it.blockReaders)
 		for i := 0; i < diff; i++ {
 			seg := ts.NewSegment(nil, nil, ts.FinalizeNone)
 			sr := xio.NewSegmentReader(seg)
-			br := xio.NewBlockReader(sr, it.CurrentStart(), it.CurrentEnd())
+			br := xio.NewBlockReader(sr, start, end)
 			it.blockReaders = append(it.blockReaders, br)
 		}
 	}
@@ -85,8 +85,10 @@ func (it *readerSliceOfSlicesIterator) resetReader(
 	seg *rpc.Segment,
 ) {
 	rseg, err := r.Segment()
+	_, start, end := it.Current()
+
 	if err != nil {
-		r.ResetWindowed(ts.Segment{}, it.CurrentStart(), it.CurrentEnd())
+		r.ResetWindowed(ts.Segment{}, start, end)
 		return
 	}
 
@@ -106,14 +108,26 @@ func (it *readerSliceOfSlicesIterator) resetReader(
 	} else {
 		tail.Reset(seg.Tail)
 	}
-	r.ResetWindowed(ts.NewSegment(head, tail, ts.FinalizeNone), it.CurrentStart(), it.CurrentEnd())
+	r.ResetWindowed(ts.NewSegment(head, tail, ts.FinalizeNone), start, end)
 }
 
-func (it *readerSliceOfSlicesIterator) CurrentLen() int {
+func (it *readerSliceOfSlicesIterator) currentLen() int {
 	if it.segments[it.idx].Merged != nil {
 		return 1
 	}
 	return len(it.segments[it.idx].Unmerged)
+}
+
+func (it *readerSliceOfSlicesIterator) Current() (int, time.Time, time.Time) {
+	segments := it.segments[it.idx]
+	if segments.Merged != nil {
+		return 1, timeConvert(segments.Merged.StartTime), timeConvert(segments.Merged.EndTime)
+	}
+	unmerged := it.currentLen()
+	if unmerged == 0 {
+		return 0, timeZero, timeZero
+	}
+	return unmerged, timeConvert(segments.Unmerged[0].StartTime), timeConvert(segments.Unmerged[0].EndTime)
 }
 
 func timeConvert(ticks *int64) time.Time {
@@ -123,27 +137,8 @@ func timeConvert(ticks *int64) time.Time {
 	return xtime.FromNormalizedTime(*ticks, time.Nanosecond)
 }
 
-func (it *readerSliceOfSlicesIterator) CurrentStart() time.Time {
-	segments := it.segments[it.idx]
-	if segments.Merged != nil {
-		return timeConvert(segments.Merged.StartTime)
-	}
-	if len(segments.Unmerged) == 0 {
-		return timeZero
-	}
-	return timeConvert(segments.Unmerged[0].StartTime)
-}
-
-func (it *readerSliceOfSlicesIterator) CurrentEnd() time.Time {
-	segments := it.segments[it.idx]
-	if segments.Merged != nil {
-		return timeConvert(segments.Merged.EndTime)
-	}
-	return timeConvert(segments.Unmerged[0].EndTime)
-}
-
 func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) xio.Reader {
-	if idx >= it.CurrentLen() {
+	if idx >= it.currentLen() {
 		return nil
 	}
 	return it.blockReaders[idx]

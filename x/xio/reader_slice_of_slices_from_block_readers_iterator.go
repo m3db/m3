@@ -50,26 +50,16 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 
 var timeZero = time.Time{}
 
-func (it *readerSliceOfSlicesIterator) invalidTimeRequest() bool {
-	return len(it.blocks) < it.arrayIdx() || len(it.blocks[it.arrayIdx()]) == 0
-}
-
-func (it *readerSliceOfSlicesIterator) CurrentStart() time.Time {
-	if it.invalidTimeRequest() {
-		return timeZero
+func (it *readerSliceOfSlicesIterator) Current() (int, time.Time, time.Time) {
+	if len(it.blocks) < it.arrayIdx() {
+		return 0, timeZero, timeZero
 	}
-	return it.blocks[it.arrayIdx()][0].Start()
-}
-
-func (it *readerSliceOfSlicesIterator) CurrentEnd() time.Time {
-	if it.invalidTimeRequest() {
-		return timeZero
+	currentLen := len(it.blocks[it.arrayIdx()])
+	if currentLen == 0 {
+		return 0, timeZero, timeZero
 	}
-	return it.blocks[it.arrayIdx()][0].End()
-}
-
-func (it *readerSliceOfSlicesIterator) CurrentLen() int {
-	return len(it.blocks[it.arrayIdx()])
+	currBlock := it.blocks[it.arrayIdx()][0]
+	return currentLen, currBlock.Start(), currBlock.End()
 }
 
 func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) Reader {

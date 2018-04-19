@@ -86,7 +86,8 @@ func (it *testIterator) Reset(r io.Reader) {
 }
 
 func (it *testIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator) {
-	for i := 0; i < readers.CurrentLen(); i++ {
+	l, _, _ := readers.Current()
+	for i := 0; i < l; i++ {
 		r := readers.CurrentAt(i)
 		it.onReset(r)
 	}
@@ -144,7 +145,8 @@ func (it *testMultiIterator) Reset(r []xio.Reader, _, _ time.Time) {
 }
 
 func (it *testMultiIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator) {
-	for i := 0; i < readers.CurrentLen(); i++ {
+	l, _, _ := readers.Current()
+	for i := 0; i < l; i++ {
 		r := readers.CurrentAt(i)
 		it.onReset(r)
 	}
@@ -174,19 +176,12 @@ func (it *testReaderSliceOfSlicesIterator) Next() bool {
 	return true
 }
 
-func (it *testReaderSliceOfSlicesIterator) CurrentLen() int {
-	return len(it.readers[it.arrayIdx()])
+func (it *testReaderSliceOfSlicesIterator) Current() (int, time.Time, time.Time) {
+	return len(it.readers[it.arrayIdx()]), time.Time{}, time.Time{}
 }
 
 func (it *testReaderSliceOfSlicesIterator) CurrentAt(idx int) xio.Reader {
 	return it.readers[it.arrayIdx()][idx]
-}
-
-func (it *testReaderSliceOfSlicesIterator) CurrentStart() time.Time {
-	panic("ree")
-}
-func (it *testReaderSliceOfSlicesIterator) CurrentEnd() time.Time {
-	panic("ree")
 }
 
 func (it *testReaderSliceOfSlicesIterator) Close() {
