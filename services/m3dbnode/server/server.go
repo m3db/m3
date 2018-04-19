@@ -77,7 +77,8 @@ import (
 const (
 	bootstrapConfigInitTimeout        = 10 * time.Second
 	serverGracefulCloseTimeout        = 10 * time.Second
-	defaultNamespaceResolutionTimeout = 30 * time.Second
+	defaultNamespaceResolutionTimeout = time.Minute
+	defaultTopologyResolutionTimeout  = time.Minute
 )
 
 // RunOptions provides options for running the server
@@ -319,10 +320,16 @@ func Run(runOpts RunOptions) {
 			namespaceResolutionTimeout = defaultNamespaceResolutionTimeout
 		}
 
+		topologyResolutionTimeout := cfg.EnvironmentConfig.TopologyResolutionTimeout
+		if topologyResolutionTimeout <= 0 {
+			topologyResolutionTimeout = defaultTopologyResolutionTimeout
+		}
+
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
 			InstrumentOpts:             iopts,
 			HashingSeed:                cfg.Hashing.Seed,
 			NamespaceResolutionTimeout: namespaceResolutionTimeout,
+			TopologyResolutionTimeout:  topologyResolutionTimeout,
 		})
 		if err != nil {
 			logger.Fatalf("could not initialize dynamic config: %v", err)

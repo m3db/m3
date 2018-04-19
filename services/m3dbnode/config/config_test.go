@@ -311,6 +311,7 @@ client:
     static: null
     seedNodes: null
     namespaceResolutionTimeout: 0s
+    topologyResolutionTimeout: 0s
   writeConsistencyLevel: 2
   readConsistencyLevel: 2
   connectConsistencyLevel: 0
@@ -532,6 +533,7 @@ config:
       clientCertAuth: false
       autoTls: false
   namespaceResolutionTimeout: 0s
+  topologyResolutionTimeout: 0s
 hashing:
   seed: 42
 index:
