@@ -20,26 +20,48 @@
 
 package writer
 
-import "github.com/m3db/m3msg/generated/proto/msgpb"
+import (
+	"testing"
 
-// metadata is the metadata for a message.
-type metadata struct {
-	shard uint64
-	id    uint64
-}
+	"github.com/m3db/m3msg/generated/proto/msgpb"
+	"github.com/m3db/m3msg/producer"
+	"github.com/m3db/m3msg/producer/data"
+	"github.com/m3db/m3x/pool"
 
-func (m metadata) ToProto(pb *msgpb.Metadata) {
-	pb.Shard = m.shard
-	pb.Id = m.id
-}
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+)
 
-func (m *metadata) FromProto(pb msgpb.Metadata) {
-	m.shard = pb.Shard
-	m.id = pb.Id
-}
+func TestMessagePool(t *testing.T) {
+	p := newMessagePool(pool.NewObjectPoolOptions().SetSize(1))
+	p.Init()
 
-func newMetadataFromProto(pb msgpb.Metadata) metadata {
-	var m metadata
-	m.FromProto(pb)
-	return m
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	md := producer.NewMockData(ctrl)
+	rd := data.NewRefCountedData(md, nil)
+	rd.IncRef()
+
+	m := p.Get()
+	require.Nil(t, m.pb.Value)
+	md.EXPECT().Bytes().Return([]byte("foo"))
+	m.Reset(metadata{}, rd)
+	m.SetRetryAtNanos(100)
+
+	pb, ok := m.Marshaler()
+	require.True(t, ok)
+	require.Equal(t, []byte("foo"), pb.(*msgpb.Message).Value)
+
+	md.EXPECT().Finalize(producer.Consumed)
+	m.Ack()
+	require.True(t, m.IsDroppedOrConsumed())
+	p.Put(m)
+
+	m = p.Get()
+	require.True(t, m.IsDroppedOrConsumed())
+
+	md.EXPECT().Bytes().Return([]byte("foo"))
+	m.Reset(metadata{}, data.NewRefCountedData(md, nil))
+	require.False(t, m.IsDroppedOrConsumed())
 }

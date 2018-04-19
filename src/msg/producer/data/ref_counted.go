@@ -51,7 +51,7 @@ func NewRefCountedData(data producer.Data, fn OnFinalizeFn) producer.RefCountedD
 	}
 }
 
-func (d *refCountedData) Filter(fn producer.FilterFunc) bool {
+func (d *refCountedData) Accept(fn producer.FilterFunc) bool {
 	return fn(d.Data)
 }
 

@@ -130,8 +130,8 @@ type RefCountedData interface {
 	// Size returns the size of the data.
 	Size() uint64
 
-	// Filter filters the data.
-	Filter(fn FilterFunc) bool
+	// Accept returns true if the data can be accepted by the filter.
+	Accept(fn FilterFunc) bool
 
 	// IncRef increments the ref count.
 	IncRef()

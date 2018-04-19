@@ -150,12 +150,12 @@ func (c *retryableConnection) NotifyReset() {
 func (c *retryableConnection) Init() {
 	c.wg.Add(1)
 	go func() {
-		c.resetConnectionForever()
+		c.resetConnectionUntilClose()
 		c.wg.Done()
 	}()
 }
 
-func (c *retryableConnection) resetConnectionForever() {
+func (c *retryableConnection) resetConnectionUntilClose() {
 	for {
 		select {
 		case <-c.resetCh:

@@ -17,4 +17,3 @@ message Message {
 message Ack {
   repeated Metadata metadata = 1 [(gogoproto.nullable) = false];
 }
- 
