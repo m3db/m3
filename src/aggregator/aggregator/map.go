@@ -27,13 +27,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3aggregator/hash"
 	"github.com/m3db/m3aggregator/rate"
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/close"
-	xid "github.com/m3db/m3x/ident"
 
 	"github.com/uber-go/tally"
 )
@@ -51,7 +51,7 @@ var (
 
 type entryKey struct {
 	metricType unaggregated.Type
-	idHash     xid.Hash128
+	idHash     hash.Hash128
 }
 
 type hashedEntry struct {
@@ -134,7 +134,7 @@ func (m *metricMap) AddMetricWithPoliciesList(
 ) error {
 	entryKey := entryKey{
 		metricType: mu.Type,
-		idHash:     xid.Murmur3Hash128(mu.ID),
+		idHash:     hash.Murmur3Hash128(mu.ID),
 	}
 	entry, err := m.findOrCreate(entryKey)
 	if err != nil {

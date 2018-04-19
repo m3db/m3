@@ -26,13 +26,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3aggregator/hash"
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
-	xid "github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -76,7 +76,7 @@ func TestMetricMapAddMetricWithPoliciesListNoRateLimit(t *testing.T) {
 	// Add a counter metric and assert there is one entry afterwards.
 	key := entryKey{
 		metricType: unaggregated.CounterType,
-		idHash:     xid.Murmur3Hash128(testCounterID),
+		idHash:     hash.Murmur3Hash128(testCounterID),
 	}
 	require.NoError(t, m.AddMetricWithPoliciesList(testCounter, policies))
 	require.Equal(t, 1, len(m.entries))
@@ -104,7 +104,7 @@ func TestMetricMapAddMetricWithPoliciesListNoRateLimit(t *testing.T) {
 	// now two entries.
 	key2 := entryKey{
 		metricType: unaggregated.GaugeType,
-		idHash:     xid.Murmur3Hash128(testCounterID),
+		idHash:     hash.Murmur3Hash128(testCounterID),
 	}
 	metricWithDifferentType := unaggregated.MetricUnion{
 		Type:     unaggregated.GaugeType,
@@ -280,7 +280,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 	for i := 0; i < numEntries; i++ {
 		key := entryKey{
 			metricType: unaggregated.CounterType,
-			idHash:     xid.Murmur3Hash128([]byte(fmt.Sprintf("%d", i))),
+			idHash:     hash.Murmur3Hash128([]byte(fmt.Sprintf("%d", i))),
 		}
 		if i%2 == 0 {
 			m.entries[key] = m.entryList.PushBack(hashedEntry{
