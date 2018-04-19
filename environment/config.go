@@ -62,7 +62,7 @@ type Configuration struct {
 	// NamespaceResolutionTimeout is the maximum time to wait to discover namespaces from KV
 	NamespaceResolutionTimeout time.Duration `yaml:"namespaceResolutionTimeout"`
 
-	// TopologyResolutionTimeout is the maximum time to wait to discover namespaces from KV
+	// TopologyResolutionTimeout is the maximum time to wait for a topology from KV
 	TopologyResolutionTimeout time.Duration `yaml:"topologyResolutionTimeout"`
 }
 
