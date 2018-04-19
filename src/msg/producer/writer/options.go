@@ -34,11 +34,11 @@ import (
 const (
 	defaultDialTimeout               = 10 * time.Second
 	defaultMessageRetryBackoff       = 5 * time.Second
-	defaultPlacementWatchRetryDelay  = 5 * time.Second
 	defaultPlacementWatchInitTimeout = 5 * time.Second
 	defaultTopicWatchInitTimeout     = 5 * time.Second
 	defaultCloseCheckInterval        = 2 * time.Second
 	defaultConnectionResetDelay      = 2 * time.Second
+	defaultMessageRetryBatchSize     = 16 * 1024
 	// Using 16K which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
 	defaultConnectionBufferSize = 16384
@@ -190,12 +190,6 @@ type Options interface {
 	// SetServiceDiscovery sets the client to service discovery services.
 	SetServiceDiscovery(value services.Services) Options
 
-	// PlacementWatchRetryDelay returns the delay before retrying on placement watch errors.
-	PlacementWatchRetryDelay() time.Duration
-
-	// SetPlacementWatchRetryDelay sets the delay before retrying on placement watch errors.
-	SetPlacementWatchRetryDelay(value time.Duration) Options
-
 	// PlacementWatchInitTimeout returns the timeout for placement watch initialization.
 	PlacementWatchInitTimeout() time.Duration
 
@@ -213,6 +207,12 @@ type Options interface {
 
 	// SetMessageRetryBackoff sets the backoff before retrying messages.
 	SetMessageRetryBackoff(value time.Duration) Options
+
+	// MessageRetryBatchSize returns the batch size for retry.
+	MessageRetryBatchSize() int
+
+	// SetMessageRetryBatchSize sets the batch size for retry.
+	SetMessageRetryBatchSize(value int) Options
 
 	// CloseCheckInterval returns the close check interval.
 	CloseCheckInterval() time.Duration
@@ -249,13 +249,13 @@ type writerOptions struct {
 	topicName                 string
 	topicService              topic.Service
 	topicWatchInitTimeout     time.Duration
-	ackErrRetryOpts           retry.Options
+	services                  services.Services
+	placementWatchInitTimeout time.Duration
 	messageRetryBackoff       time.Duration
 	messagePoolOptions        pool.ObjectPoolOptions
-	services                  services.Services
-	placementWatchRetryDelay  time.Duration
-	placementWatchInitTimeout time.Duration
+	messageRetryBatchSize     int
 	closeCheckInterval        time.Duration
+	ackErrRetryOpts           retry.Options
 	encdecOpts                proto.EncodeDecoderOptions
 	cOpts                     ConnectionOptions
 	iOpts                     instrument.Options
@@ -264,14 +264,15 @@ type writerOptions struct {
 // NewOptions creates Options.
 func NewOptions() Options {
 	return &writerOptions{
-		ackErrRetryOpts:           retry.NewOptions(),
+		topicWatchInitTimeout:     defaultTopicWatchInitTimeout,
+		placementWatchInitTimeout: defaultPlacementWatchInitTimeout,
 		messageRetryBackoff:       defaultMessageRetryBackoff,
 		messagePoolOptions:        pool.NewObjectPoolOptions(),
-		placementWatchRetryDelay:  defaultPlacementWatchRetryDelay,
-		placementWatchInitTimeout: defaultPlacementWatchInitTimeout,
-		topicWatchInitTimeout:     defaultTopicWatchInitTimeout,
+		messageRetryBatchSize:     defaultMessageRetryBatchSize,
 		closeCheckInterval:        defaultCloseCheckInterval,
+		ackErrRetryOpts:           retry.NewOptions(),
 		encdecOpts:                proto.NewEncodeDecoderOptions(),
+		cOpts:                     NewConnectionOptions(),
 		iOpts:                     instrument.NewOptions(),
 	}
 }
@@ -316,16 +317,6 @@ func (opts *writerOptions) SetServiceDiscovery(value services.Services) Options 
 	return &o
 }
 
-func (opts *writerOptions) PlacementWatchRetryDelay() time.Duration {
-	return opts.placementWatchRetryDelay
-}
-
-func (opts *writerOptions) SetPlacementWatchRetryDelay(value time.Duration) Options {
-	o := *opts
-	o.placementWatchRetryDelay = value
-	return &o
-}
-
 func (opts *writerOptions) PlacementWatchInitTimeout() time.Duration {
 	return opts.placementWatchInitTimeout
 }
@@ -353,6 +344,16 @@ func (opts *writerOptions) MessageRetryBackoff() time.Duration {
 func (opts *writerOptions) SetMessageRetryBackoff(value time.Duration) Options {
 	o := *opts
 	o.messageRetryBackoff = value
+	return &o
+}
+
+func (opts *writerOptions) MessageRetryBatchSize() int {
+	return opts.messageRetryBatchSize
+}
+
+func (opts *writerOptions) SetMessageRetryBatchSize(value int) Options {
+	o := *opts
+	o.messageRetryBatchSize = value
 	return &o
 }
 

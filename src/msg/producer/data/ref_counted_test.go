@@ -127,10 +127,10 @@ func TestRefCountedDataFilter(t *testing.T) {
 	rd := NewRefCountedData(md, nil)
 
 	md.EXPECT().Shard().Return(uint32(0))
-	require.True(t, rd.Filter(filter))
+	require.True(t, rd.Accept(filter))
 
 	md.EXPECT().Shard().Return(uint32(1))
-	require.False(t, rd.Filter(filter))
+	require.False(t, rd.Accept(filter))
 }
 
 func TestRefCountedDataOnDropFn(t *testing.T) {

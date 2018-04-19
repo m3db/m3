@@ -20,26 +20,41 @@
 
 package writer
 
-import "github.com/m3db/m3msg/generated/proto/msgpb"
+import "github.com/m3db/m3x/pool"
 
-// metadata is the metadata for a message.
-type metadata struct {
-	shard uint64
-	id    uint64
+// messagePool is the pool for message.
+type messagePool interface {
+	// Init initializes the pool.
+	Init()
+
+	// Get gets a message from the pool.
+	Get() *message
+
+	// Put puts a message to the pool.
+	Put(m *message)
 }
 
-func (m metadata) ToProto(pb *msgpb.Metadata) {
-	pb.Shard = m.shard
-	pb.Id = m.id
+type msgPool struct {
+	pool.ObjectPool
 }
 
-func (m *metadata) FromProto(pb msgpb.Metadata) {
-	m.shard = pb.Shard
-	m.id = pb.Id
+// TODO: Remove the nolint comment after adding usage of this function.
+// nolint: deadcode
+func newMessagePool(opts pool.ObjectPoolOptions) messagePool {
+	p := pool.NewObjectPool(opts)
+	return &msgPool{p}
 }
 
-func newMetadataFromProto(pb msgpb.Metadata) metadata {
-	var m metadata
-	m.FromProto(pb)
-	return m
+func (p *msgPool) Init() {
+	p.ObjectPool.Init(func() interface{} {
+		return newMessage()
+	})
+}
+
+func (p *msgPool) Get() *message {
+	return p.ObjectPool.Get().(*message)
+}
+
+func (p *msgPool) Put(m *message) {
+	p.ObjectPool.Put(m)
 }

@@ -20,7 +20,54 @@
 
 package writer
 
+import (
+	"fmt"
+	"sync"
+)
+
 type ackRouter interface {
 	// Ack acks the metadata.
 	Ack(ack metadata) error
+
+	// Register registers a message writer.
+	Register(replicatedShardID uint64, mw messageWriter)
+
+	// Unregister removes a message writer.
+	Unregister(replicatedShardID uint64)
+}
+
+type router struct {
+	sync.RWMutex
+
+	messageWriters map[uint64]messageWriter
+}
+
+func newAckRouter(size int) ackRouter {
+	return &router{
+		messageWriters: make(map[uint64]messageWriter, size),
+	}
+}
+
+func (r *router) Ack(meta metadata) error {
+	r.RLock()
+	mw, ok := r.messageWriters[meta.shard]
+	r.RUnlock()
+	if !ok {
+		// Unexpected.
+		return fmt.Errorf("can't find shard %v", meta.shard)
+	}
+	mw.Ack(meta)
+	return nil
+}
+
+func (r *router) Register(replicatedShardID uint64, mw messageWriter) {
+	r.Lock()
+	r.messageWriters[replicatedShardID] = mw
+	r.Unlock()
+}
+
+func (r *router) Unregister(replicatedShardID uint64) {
+	r.Lock()
+	delete(r.messageWriters, replicatedShardID)
+	r.Unlock()
 }

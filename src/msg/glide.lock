@@ -1,5 +1,5 @@
-hash: ab891c8790fe2d4bae0c58f4aaeafad6f6a6ed1f93d92b0c0aeeaf610cd34626
-updated: 2018-04-05T11:46:06.771993-04:00
+hash: b55f48c0e2358de5b4595e302aa6576bcee7b170d92c806464bc04f1bc785f78
+updated: 2018-04-18T15:12:24.173677-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -7,14 +7,14 @@ imports:
   - lib/go/thrift
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
-- name: github.com/go-ole/go-ole
-  version: de8695c8edbf8236f30d6e1376e20b198a028d42
-  subpackages:
-  - oleutil
 - name: github.com/gogo/protobuf
   version: 1adfc126b41513cc696b209667c8656ea7aac67c
+  subpackages:
+  - gogoproto
+  - proto
+  - protoc-gen-gogo/descriptor
 - name: github.com/golang/mock
-  version: 0d6884b72b943387bb12268d5178dde0e759e49a
+  version: c34cdb4725f4c3844d095133c6e40e448b86589b
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
@@ -22,7 +22,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: 9d94e172ccd6f4ca7f487506a47f3c85b95f8d6e
+  version: cb17a54d6902c03790286942bafa04a188d4eeb8
   subpackages:
   - client
   - generated/proto/metadatapb
@@ -39,32 +39,21 @@ imports:
   - services/leader/campaign
   - shard
 - name: github.com/m3db/m3x
-  version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
+  version: 29bc232d9ad2e6c4a1804ccce095bb730fb1c6bc
   subpackages:
   - checked
   - clock
   - close
+  - errors
   - instrument
   - log
   - pool
   - process
   - resource
+  - retry
   - watch
-- name: github.com/shirou/gopsutil
-  version: fc04d2dd9a512906a2604242b35275179e250eda
-  subpackages:
-  - cpu
-  - host
-  - internal/common
-  - mem
-  - net
-  - process
-- name: github.com/shirou/w32
-  version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
-- name: github.com/StackExchange/wmi
-  version: 5d049714c4a64225c3c79a7cf7d02f7fb5b96338
 - name: github.com/uber-go/atomic
-  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+  version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
   version: 522328b48efad0c6034dba92bf39228694e9d31f
   subpackages:
@@ -85,19 +74,12 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/net
-  version: ab5485076ff3407ad2d02db054635913f017b0ed
+  version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
   subpackages:
   - context
-- name: golang.org/x/sys
-  version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
-  repo: https://github.com/golang/sys
-  vcs: git
-  subpackages:
-  - unix
-  - windows
 testImports:
 - name: github.com/fortytw2/leaktest
-  version: 7dad53304f9614c1c365755c1176a8e876fee3e8
+  version: a5ef70473c97b71626b9abeda80ee92ba2a7de9e
 - name: github.com/stretchr/testify
   version: 232e8563676cd15c3a36ba5e675ad4312ac4cb11
   subpackages:

@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3msg/generated/proto/msgpb"
 	"github.com/m3db/m3msg/protocol/proto"
 	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/retry"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -144,8 +145,10 @@ func TestAutoReset(t *testing.T) {
 	w.Init()
 
 	for {
-		l := len(w.c.resetCh)
-		if l == 0 {
+		w.c.connLock.RLock()
+		initialized := w.c.initialized
+		w.c.connLock.RUnlock()
+		if initialized {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -216,20 +219,26 @@ func testOptions() Options {
 	return NewOptions().
 		SetTopicName("topicName").
 		SetTopicWatchInitTimeout(100 * time.Millisecond).
+		SetPlacementWatchInitTimeout(100 * time.Millisecond).
 		SetMessagePoolOptions(pool.NewObjectPoolOptions().SetSize(1)).
 		SetMessageRetryBackoff(100 * time.Millisecond).
-		SetPlacementWatchInitTimeout(100 * time.Millisecond).
 		SetCloseCheckInterval(100 * time.Microsecond).
+		SetAckErrorRetryOptions(retry.NewOptions().SetInitialBackoff(200 * time.Millisecond).SetMaxBackoff(time.Second)).
 		SetConnectionOptions(testConnectionOptions())
 }
 
 func testConnectionOptions() ConnectionOptions {
 	return NewConnectionOptions().
+		SetRetryOptions(retry.NewOptions().SetInitialBackoff(200 * time.Millisecond).SetMaxBackoff(time.Second)).
 		SetWriteBufferSize(1).
-		SetResetDelay(0)
+		SetResetDelay(100 * time.Millisecond)
 }
 
-func testConsumeAndAckOnConnection(t *testing.T, conn net.Conn, opts proto.EncodeDecoderOptions) {
+func testConsumeAndAckOnConnection(
+	t *testing.T,
+	conn net.Conn,
+	opts proto.EncodeDecoderOptions,
+) {
 	server := proto.NewEncodeDecoder(
 		conn,
 		opts,
@@ -237,7 +246,6 @@ func testConsumeAndAckOnConnection(t *testing.T, conn net.Conn, opts proto.Encod
 
 	var msg msgpb.Message
 	assert.NoError(t, server.Decode(&msg))
-	assert.NotNil(t, msg.Metadata)
 
 	assert.NoError(t, server.Encode(&msgpb.Ack{
 		Metadata: []msgpb.Metadata{
@@ -246,7 +254,11 @@ func testConsumeAndAckOnConnection(t *testing.T, conn net.Conn, opts proto.Encod
 	}))
 }
 
-func testConsumeAndAckOnConnectionListener(t *testing.T, lis net.Listener, opts proto.EncodeDecoderOptions) {
+func testConsumeAndAckOnConnectionListener(
+	t *testing.T,
+	lis net.Listener,
+	opts proto.EncodeDecoderOptions,
+) {
 	conn, err := lis.Accept()
 	require.NoError(t, err)
 	defer conn.Close()
