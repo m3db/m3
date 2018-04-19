@@ -61,6 +61,9 @@ type Configuration struct {
 
 	// NamespaceResolutionTimeout is the maximum time to wait to discover namespaces from KV
 	NamespaceResolutionTimeout time.Duration `yaml:"namespaceResolutionTimeout"`
+
+	// TopologyResolutionTimeout is the maximum time to wait for a topology from KV
+	TopologyResolutionTimeout time.Duration `yaml:"topologyResolutionTimeout"`
 }
 
 // SeedNodesConfig defines fields for seed node
@@ -138,6 +141,7 @@ type ConfigurationParameters struct {
 	HashingSeed                uint32
 	HostID                     string
 	NamespaceResolutionTimeout time.Duration
+	TopologyResolutionTimeout  time.Duration
 }
 
 // Configure creates a new ConfigureResults
@@ -191,7 +195,8 @@ func (c Configuration) configureDynamic(configSvcClient client.Client, cfgParams
 		SetServiceID(serviceID).
 		SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
 		SetInstrumentOptions(cfgParams.InstrumentOpts).
-		SetHashGen(sharding.NewHashGenWithSeed(cfgParams.HashingSeed))
+		SetHashGen(sharding.NewHashGenWithSeed(cfgParams.HashingSeed)).
+		SetInitTimeout(cfgParams.TopologyResolutionTimeout)
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 
 	kv, err := configSvcClient.KV()
