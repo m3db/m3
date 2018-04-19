@@ -82,7 +82,7 @@ type decodedValue struct {
 }
 
 func decodedValues(results [][]xio.BlockReader, opts Options) ([]decodedValue, error) {
-	slicesIter := xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(results)
+	slicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(results)
 	iter := opts.MultiReaderIteratorPool().Get()
 	iter.ResetSliceOfSlices(slicesIter)
 	defer iter.Close()

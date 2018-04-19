@@ -96,10 +96,10 @@ type ReaderSliceOfSlicesIterator interface {
 	Close()
 }
 
-// ReaderSliceOfSlicesFromSegmentReadersIterator is an iterator that iterates through an array of reader arrays
-type ReaderSliceOfSlicesFromSegmentReadersIterator interface {
+// ReaderSliceOfSlicesFromBlockReadersIterator is an iterator that iterates through an array of reader arrays
+type ReaderSliceOfSlicesFromBlockReadersIterator interface {
 	ReaderSliceOfSlicesIterator
 
 	// Reset resets the iterator with a new array of block readers arrays
-	Reset(segments [][]BlockReader)
+	Reset(blocks [][]BlockReader)
 }

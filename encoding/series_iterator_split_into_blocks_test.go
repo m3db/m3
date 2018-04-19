@@ -18,13 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package encodingtest
+package encoding_test
 
 import (
-	"fmt"
 	"io"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
@@ -151,16 +152,20 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 		valuesIter := encoding.NewSeriesIterator(orig.Namespace(), orig.ID(),
 			filterValuesStart, filterValuesEnd, block.Replicas, nil)
 
-		fmt.Printf("block at %v with %d replicas\n", block.Start, len(block.Replicas))
+		require.Len(t, block.Replicas, 1)
 		series.Blocks[i].ValuesIterator = valuesIter
 	}
 
 	// Now show how we can iterate per block
 	for _, block := range series.Blocks {
 		iter := block.ValuesIterator
+		blockCount := 0
 		for iter.Next() {
 			dp, _, _ := iter.Current()
-			fmt.Printf("%s value at %v: %v\n", series.ID.String(), dp.Timestamp, dp.Value)
+
+			assert.Equal(t, dp.Timestamp, start.Add(time.Minute*time.Duration(blockCount)))
+			assert.Equal(t, dp.Value, float64(blockCount+1))
+			blockCount++
 		}
 		assert.NoError(t, iter.Err())
 	}

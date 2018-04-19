@@ -140,6 +140,7 @@ type MultiReaderIterator interface {
 	// Reset resets the iterator to read from a slice of slice readers.
 	ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator)
 
+	// Readers exposes the underlying ReaderSliceOfSlicesIterator for this MultiReaderIterator
 	Readers() xio.ReaderSliceOfSlicesIterator
 }
 
@@ -170,6 +171,7 @@ type SeriesIterator interface {
 	// iter.Close().
 	Reset(id ident.ID, ns ident.ID, startInclusive, endExclusive time.Time, replicas []MultiReaderIterator)
 
+	// Replicas exposes the underlying MultiReaderIterator slice for this SeriesIterator
 	Replicas() []MultiReaderIterator
 }
 

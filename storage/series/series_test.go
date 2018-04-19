@@ -776,7 +776,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 	require.NoError(t, err)
 
 	multiIt := opts.MultiReaderIteratorPool().Get()
-	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
+	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded))
 	it := encoding.NewSeriesIterator(id, nsID, qStart, qEnd, []encoding.MultiReaderIterator{multiIt}, nil)
 	defer it.Close()
 

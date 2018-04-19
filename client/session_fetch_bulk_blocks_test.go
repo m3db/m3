@@ -55,7 +55,6 @@ import (
 )
 
 var (
-	timeZero        = time.Time{}
 	blockSize       = 2 * time.Hour
 	nsID            = ident.StringID("testNs1")
 	nsRetentionOpts = retention.NewOptions().

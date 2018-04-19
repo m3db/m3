@@ -30,6 +30,8 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+var timeZero = time.Time{}
+
 type readerSliceOfSlicesIterator struct {
 	segments     []*rpc.Segments
 	blockReaders []xio.BlockReader
@@ -116,15 +118,18 @@ func (it *readerSliceOfSlicesIterator) CurrentLen() int {
 
 func timeConvert(ticks *int64) time.Time {
 	if ticks == nil {
-		return time.Time{}
+		return timeZero
 	}
-	return xtime.FromNormalizedTime(*ticks, time.Second)
+	return xtime.FromNormalizedTime(*ticks, time.Nanosecond)
 }
 
 func (it *readerSliceOfSlicesIterator) CurrentStart() time.Time {
 	segments := it.segments[it.idx]
 	if segments.Merged != nil {
 		return timeConvert(segments.Merged.StartTime)
+	}
+	if len(segments.Unmerged) == 0 {
+		return timeZero
 	}
 	return timeConvert(segments.Unmerged[0].StartTime)
 }

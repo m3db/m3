@@ -533,7 +533,11 @@ func (req *retrieveRequest) Reset(segment ts.Segment) {
 }
 
 func (req *retrieveRequest) Clone() xio.Reader {
-	return req
+	req.resultWg.Wait() // wait until result is ready
+	if req.err != nil {
+		panic("temp")
+	}
+	return req.reader.Clone()
 }
 
 func (req *retrieveRequest) Read(b []byte) (int, error) {

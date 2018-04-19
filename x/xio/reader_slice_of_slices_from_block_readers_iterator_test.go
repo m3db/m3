@@ -40,7 +40,7 @@ func TestReaderSliceOfSlicesFromBlockReadersIterator(t *testing.T) {
 		[]BlockReader{e, f},
 	}
 
-	iter := NewReaderSliceOfSlicesFromSegmentReadersIterator(readers)
+	iter := NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
 	for i := range readers {
 		assert.True(t, iter.Next())
 		assert.Equal(t, len(readers[i]), iter.CurrentLen())

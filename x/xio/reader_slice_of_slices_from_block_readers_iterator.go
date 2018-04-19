@@ -31,10 +31,10 @@ type readerSliceOfSlicesIterator struct {
 	closed bool
 }
 
-// NewReaderSliceOfSlicesFromSegmentReadersIterator creates a new reader slice of slices iterator
-func NewReaderSliceOfSlicesFromSegmentReadersIterator(
+// NewReaderSliceOfSlicesFromBlockReadersIterator creates a new reader slice of slices iterator
+func NewReaderSliceOfSlicesFromBlockReadersIterator(
 	blocks [][]BlockReader,
-) ReaderSliceOfSlicesFromSegmentReadersIterator {
+) ReaderSliceOfSlicesFromBlockReadersIterator {
 	it := &readerSliceOfSlicesIterator{}
 	it.Reset(blocks)
 	return it
@@ -48,11 +48,23 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 	return true
 }
 
+var timeZero = time.Time{}
+
+func (it *readerSliceOfSlicesIterator) invalidTimeRequest() bool {
+	return len(it.blocks) < it.arrayIdx() || len(it.blocks[it.arrayIdx()]) == 0
+}
+
 func (it *readerSliceOfSlicesIterator) CurrentStart() time.Time {
+	if it.invalidTimeRequest() {
+		return timeZero
+	}
 	return it.blocks[it.arrayIdx()][0].Start()
 }
 
 func (it *readerSliceOfSlicesIterator) CurrentEnd() time.Time {
+	if it.invalidTimeRequest() {
+		return timeZero
+	}
 	return it.blocks[it.arrayIdx()][0].End()
 }
 

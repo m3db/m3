@@ -124,8 +124,8 @@ func ToSegments(readers []xio.BlockReader) (ToSegmentsResult, error) {
 		if seg.Len() == 0 {
 			return ToSegmentsResult{}, nil
 		}
-		startTime := xtime.ToNormalizedTime(readers[0].Start(), time.Second)
-		endTime := xtime.ToNormalizedTime(readers[0].End(), time.Second)
+		startTime := xtime.ToNormalizedTime(readers[0].Start(), time.Nanosecond)
+		endTime := xtime.ToNormalizedTime(readers[0].End(), time.Nanosecond)
 		s.Merged = &rpc.Segment{
 			Head:      bytesRef(seg.Head),
 			Tail:      bytesRef(seg.Tail),
@@ -147,8 +147,8 @@ func ToSegments(readers []xio.BlockReader) (ToSegmentsResult, error) {
 		if seg.Len() == 0 {
 			continue
 		}
-		startTime := xtime.ToNormalizedTime(reader.Start(), time.Second)
-		endTime := xtime.ToNormalizedTime(reader.End(), time.Second)
+		startTime := xtime.ToNormalizedTime(reader.Start(), time.Nanosecond)
+		endTime := xtime.ToNormalizedTime(reader.End(), time.Nanosecond)
 		s.Unmerged = append(s.Unmerged, &rpc.Segment{
 			Head:      bytesRef(seg.Head),
 			Tail:      bytesRef(seg.Tail),

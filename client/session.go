@@ -2838,8 +2838,8 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 		encoder, err := b.mergeReaders(start, end, readers)
 		for _, reader := range readers {
 			// Close each reader
-			segmentReader := reader.(xio.BlockReader)
-			segmentReader.Finalize()
+			blockReader := reader.(xio.BlockReader)
+			blockReader.Finalize()
 		}
 
 		if err != nil {

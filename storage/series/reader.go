@@ -208,7 +208,6 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 							r.id.String(), start, err))
 					res = append(res, r)
 				}
-				// stream.End()
 				if stream != nil {
 					end := stream.End()
 					b := []xio.BlockReader{xio.NewBlockReader(stream, start, end)}

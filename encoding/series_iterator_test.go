@@ -21,7 +21,6 @@
 package encoding
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -175,7 +174,6 @@ func assertTestSeriesIterator(
 	assert.Equal(t, series.start, iter.Start())
 	assert.Equal(t, series.end, iter.End())
 	for i := 0; i < len(series.expected); i++ {
-		fmt.Println("ITERATION", i, "OF", len(series.expected))
 		next := iter.Next()
 		if series.expectedErr != nil && i == series.expectedErr.atIdx {
 			assert.Equal(t, false, next)
