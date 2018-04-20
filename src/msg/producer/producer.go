@@ -33,9 +33,9 @@ func NewProducer(opts Options) Producer {
 	}
 }
 
-func (p *producer) Init() {
+func (p *producer) Init() error {
 	p.Buffer.Init()
-	p.Writer.Init()
+	return p.Writer.Init()
 }
 
 func (p *producer) Produce(data Data) error {

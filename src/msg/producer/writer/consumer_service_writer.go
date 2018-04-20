@@ -22,11 +22,9 @@ package writer
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3msg/producer"
 	"github.com/m3db/m3msg/topic"
 	"github.com/m3db/m3x/log"
@@ -61,7 +59,7 @@ const (
 
 type consumerServiceWriter interface {
 	// Write writes data.
-	Write(d producer.RefCountedData) error
+	Write(d producer.RefCountedData)
 
 	// Init will initialize the consumer service writer.
 	Init(initType) error
@@ -76,26 +74,21 @@ type consumerServiceWriter interface {
 
 	// UnregisterFilter unregisters the filter for the consumer service.
 	UnregisterFilter()
-
-	// ServiceID returns the service id of the writer.
-	ServiceID() services.ServiceID
 }
 
 type consumerServiceWriterMetrics struct {
 	placementError    tally.Counter
 	placementUpdate   tally.Counter
-	invalidShard      tally.Counter
 	filterAccepted    tally.Counter
 	filterNotAccepted tally.Counter
 }
 
-func newConsumerServiceWriterMetrics(m tally.Scope) consumerServiceWriterMetrics {
+func newConsumerServiceWriterMetrics(scope tally.Scope) consumerServiceWriterMetrics {
 	return consumerServiceWriterMetrics{
-		placementUpdate:   m.Counter("placement-update"),
-		placementError:    m.Counter("placement-error"),
-		invalidShard:      m.Counter("invalid-shard"),
-		filterAccepted:    m.Counter("filter-accepted"),
-		filterNotAccepted: m.Counter("filter-not-accepted"),
+		placementUpdate:   scope.Counter("placement-update"),
+		placementError:    scope.Counter("placement-error"),
+		filterAccepted:    scope.Counter("filter-accepted"),
+		filterNotAccepted: scope.Counter("filter-not-accepted"),
 	}
 }
 
@@ -103,7 +96,6 @@ type consumerServiceWriterImpl struct {
 	sync.RWMutex
 
 	cs           topic.ConsumerService
-	numShards    uint32
 	ps           placement.Service
 	shardWriters []shardWriter
 	opts         Options
@@ -138,7 +130,6 @@ func newConsumerServiceWriter(
 	router := newAckRouter(int(numShards))
 	w := &consumerServiceWriterImpl{
 		cs:              cs,
-		numShards:       numShards,
 		ps:              ps,
 		shardWriters:    initShardWriters(router, ct, numShards, mPool, opts),
 		opts:            opts,
@@ -172,19 +163,13 @@ func initShardWriters(
 	return sws
 }
 
-func (w *consumerServiceWriterImpl) Write(d producer.RefCountedData) error {
-	shard := d.Shard()
-	if shard >= w.numShards {
-		w.m.invalidShard.Inc(1)
-		return fmt.Errorf("could not write data for shard %d which is larger than max shard id %d", shard, w.numShards)
-	}
+func (w *consumerServiceWriterImpl) Write(d producer.RefCountedData) {
 	if d.Accept(w.dataFilter) {
-		w.shardWriters[shard].Write(d)
+		w.shardWriters[d.Shard()].Write(d)
 		w.m.filterAccepted.Inc(1)
 	}
 	// It is not an error if the data does not pass the filter.
 	w.m.filterNotAccepted.Inc(1)
-	return nil
 }
 
 func (w *consumerServiceWriterImpl) Init(t initType) error {
@@ -290,10 +275,6 @@ func (w *consumerServiceWriterImpl) Close() {
 	for _, cw := range w.consumerWriters {
 		cw.Close()
 	}
-}
-
-func (w *consumerServiceWriterImpl) ServiceID() services.ServiceID {
-	return w.cs.ServiceID()
 }
 
 func (w *consumerServiceWriterImpl) RegisterFilter(filter producer.FilterFunc) {

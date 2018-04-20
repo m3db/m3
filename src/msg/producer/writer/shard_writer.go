@@ -166,17 +166,16 @@ func (w *replicatedShardWriter) UpdateInstances(
 		toBeAdded         = make(map[placement.Instance]consumerWriter, len(instances))
 		oldMessageWriters = w.messageWriters
 	)
-
 	for _, instance := range instances {
-		id := instance.Endpoint()
-		if mw, ok := oldMessageWriters[id]; ok {
-			newMessageWriters[id] = mw
+		key := instance.Endpoint()
+		if mw, ok := oldMessageWriters[key]; ok {
+			newMessageWriters[key] = mw
 			// Existing instance, try to update cutover cutoff times.
 			w.updateCutoverCutoffNanos(mw, instance)
 			continue
 		}
 		// This is a new instance.
-		toBeAdded[instance] = cws[id]
+		toBeAdded[instance] = cws[key]
 	}
 	for id, mw := range oldMessageWriters {
 		if _, ok := newMessageWriters[id]; ok {

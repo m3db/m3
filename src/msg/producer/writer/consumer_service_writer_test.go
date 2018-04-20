@@ -61,7 +61,6 @@ func TestConsumerServiceWriterWithSharedConsumer(t *testing.T) {
 	require.NoError(t, err)
 
 	csw := w.(*consumerServiceWriterImpl)
-	require.Equal(t, sid, w.ServiceID())
 
 	var (
 		lock               sync.Mutex
@@ -123,8 +122,13 @@ func TestConsumerServiceWriterWithSharedConsumer(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
 	go func() {
 		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
+		wg.Done()
 	}()
 
 	md := producer.NewMockData(ctrl)
@@ -227,7 +231,6 @@ func TestConsumerServiceWriterWithReplicatedConsumer(t *testing.T) {
 	csw := w.(*consumerServiceWriterImpl)
 	require.NoError(t, err)
 	require.NotNil(t, csw)
-	require.Equal(t, sid, w.ServiceID())
 
 	var (
 		lock               sync.Mutex
@@ -251,12 +254,19 @@ func TestConsumerServiceWriterWithReplicatedConsumer(t *testing.T) {
 		}
 	}
 
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
 	go func() {
 		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncodeDecoderOptions())
+		wg.Done()
 	}()
 
+	wg.Add(1)
 	go func() {
 		testConsumeAndAckOnConnectionListener(t, lis2, opts.EncodeDecoderOptions())
+		wg.Done()
 	}()
 
 	md := producer.NewMockData(ctrl)
@@ -302,8 +312,10 @@ func TestConsumerServiceWriterWithReplicatedConsumer(t *testing.T) {
 		}
 	}
 
+	wg.Add(1)
 	go func() {
 		testConsumeAndAckOnConnectionListener(t, lis2, opts.EncodeDecoderOptions())
+		wg.Done()
 	}()
 
 	md = producer.NewMockData(ctrl)
@@ -345,29 +357,25 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 	csw.(*consumerServiceWriterImpl).shardWriters[0] = sw0
 	csw.(*consumerServiceWriterImpl).shardWriters[1] = sw1
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Shard().Return(uint32(100))
-	require.Error(t, csw.Write(data.NewRefCountedData(md, nil)))
-
 	md0 := producer.NewMockData(ctrl)
 	md0.EXPECT().Shard().Return(uint32(0)).AnyTimes()
 	md1 := producer.NewMockData(ctrl)
 	md1.EXPECT().Shard().Return(uint32(1)).AnyTimes()
 
 	sw0.EXPECT().Write(gomock.Any())
-	require.NoError(t, csw.Write(data.NewRefCountedData(md0, nil)))
+	csw.Write(data.NewRefCountedData(md0, nil))
 	sw1.EXPECT().Write(gomock.Any())
-	require.NoError(t, csw.Write(data.NewRefCountedData(md1, nil)))
+	csw.Write(data.NewRefCountedData(md1, nil))
 
 	csw.RegisterFilter(func(data producer.Data) bool { return data.Shard() == uint32(0) })
-	require.NoError(t, csw.Write(data.NewRefCountedData(md1, nil)))
+	csw.Write(data.NewRefCountedData(md1, nil))
 
 	sw0.EXPECT().Write(gomock.Any())
-	require.NoError(t, csw.Write(data.NewRefCountedData(md0, nil)))
+	csw.Write(data.NewRefCountedData(md0, nil))
 
 	csw.UnregisterFilter()
 	sw1.EXPECT().Write(gomock.Any())
-	require.NoError(t, csw.Write(data.NewRefCountedData(md1, nil)))
+	csw.Write(data.NewRefCountedData(md1, nil))
 }
 
 func TestConsumerServiceWriterAllowInitValueErrorWithCreateWatchError(t *testing.T) {

@@ -22,6 +22,7 @@ package writer
 
 import (
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -64,8 +65,14 @@ func TestSharedShardWriter(t *testing.T) {
 
 	i1 := placement.NewInstance().SetEndpoint("i1")
 	i2 := placement.NewInstance().SetEndpoint(addr2)
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
 	go func() {
 		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
+		wg.Done()
 	}()
 
 	sw.UpdateInstances(
@@ -150,14 +157,20 @@ func TestReplicatedShardWriter(t *testing.T) {
 		SetEndpoint("i3").
 		SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)}))
 
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
 	go func() {
 		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncodeDecoderOptions())
+		wg.Done()
 	}()
 
 	sw.UpdateInstances(
 		[]placement.Instance{i1, i3},
 		cws,
 	)
+	require.Equal(t, 2, len(sw.messageWriters))
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -166,8 +179,6 @@ func TestReplicatedShardWriter(t *testing.T) {
 	md.EXPECT().Bytes().Return([]byte("foo")).Times(2)
 
 	sw.Write(data.NewRefCountedData(md, nil))
-
-	require.Equal(t, 2, len(sw.messageWriters))
 
 	mw1 := sw.messageWriters[i1.Endpoint()].(*messageWriterImpl)
 	for {
@@ -197,8 +208,10 @@ func TestReplicatedShardWriter(t *testing.T) {
 		cws,
 	)
 
+	wg.Add(1)
 	go func() {
 		testConsumeAndAckOnConnectionListener(t, lis2, opts.EncodeDecoderOptions())
+		wg.Done()
 	}()
 
 	for {
@@ -252,8 +265,13 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 		SetEndpoint(addr2).
 		SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)}))
 
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
 	go func() {
 		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncodeDecoderOptions())
+		wg.Done()
 	}()
 
 	sw.UpdateInstances(
