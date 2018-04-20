@@ -60,13 +60,16 @@ func TestNewConsumerWriter(t *testing.T) {
 	w := newConsumerWriter(lis.Addr().String(), mockRouter, opts).(*consumerWriterImpl)
 	require.Equal(t, 0, len(w.c.resetCh))
 
+	var wg sync.WaitGroup
+
+	wg.Add(1)
 	go func() {
 		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
+		wg.Done()
 	}()
 
 	require.NoError(t, w.Write(&testMsg))
 
-	var wg sync.WaitGroup
 	wg.Add(1)
 	mockRouter.EXPECT().
 		Ack(newMetadataFromProto(testMsg.Metadata)).

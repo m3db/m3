@@ -22,6 +22,7 @@ package writer
 
 import (
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,8 +44,13 @@ func TestMessageWriter(t *testing.T) {
 	addr := lis.Addr().String()
 	opts := testOptions()
 
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
 	go func() {
 		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
+		wg.Done()
 	}()
 
 	w := newMessageWriter(200, testMessagePool(opts), opts).(*messageWriterImpl)

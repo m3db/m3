@@ -63,7 +63,7 @@ type Producer interface {
 	UnregisterFilter(sid services.ServiceID)
 
 	// Init initializes a producer.
-	Init()
+	Init() error
 
 	// Close stops the producer from accepting new requests immediately.
 	// It will also block until all the data buffered in Producer has been consumed.
