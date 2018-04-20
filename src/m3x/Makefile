@@ -6,7 +6,6 @@ SHELL=/bin/bash -o pipefail
 html_report           := coverage.html
 test                  := .ci/test-cover.sh
 convert-test-data     := .ci/convert-test-data.sh
-coverfile             := cover.out
 coverage_xml          := coverage.xml
 junit_xml             := junit.xml
 test_log              := test.log
@@ -67,9 +66,8 @@ testhtml: test-internal
 	@rm -f $(test_log) &> /dev/null
 
 .PHONY: test-ci-unit
-test-ci-unit: test-internal
-	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
-	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "\x1b[31mCoveralls failed\x1b[m"
+test-ci-unit: test-base
+	$(codecov_push) -f $(coverfile)
 
 
 .PHONY: install-license-bin
