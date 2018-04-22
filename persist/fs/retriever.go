@@ -532,10 +532,10 @@ func (req *retrieveRequest) Reset(segment ts.Segment) {
 	req.resultWg.Done()
 }
 
-func (req *retrieveRequest) Clone() xio.Reader {
+func (req *retrieveRequest) Clone() (xio.Reader, error) {
 	req.resultWg.Wait() // wait until result is ready
 	if req.err != nil {
-		panic("temp")
+		return nil, req.err
 	}
 	return req.reader.Clone()
 }

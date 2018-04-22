@@ -56,10 +56,11 @@ func (_m *MockReader) EXPECT() *MockReaderMockRecorder {
 }
 
 // Clone mocks base method
-func (_m *MockReader) Clone() Reader {
+func (_m *MockReader) Clone() (Reader, error) {
 	ret := _m.ctrl.Call(_m, "Clone")
 	ret0, _ := ret[0].(Reader)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Clone indicates an expected call of Clone
@@ -104,10 +105,11 @@ func (_m *MockBlockReader) EXPECT() *MockBlockReaderMockRecorder {
 }
 
 // Clone mocks base method
-func (_m *MockBlockReader) Clone() Reader {
+func (_m *MockBlockReader) Clone() (Reader, error) {
 	ret := _m.ctrl.Call(_m, "Clone")
 	ret0, _ := ret[0].(Reader)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Clone indicates an expected call of Clone
@@ -232,10 +234,11 @@ func (_m *MockSegmentReader) EXPECT() *MockSegmentReaderMockRecorder {
 }
 
 // Clone mocks base method
-func (_m *MockSegmentReader) Clone() Reader {
+func (_m *MockSegmentReader) Clone() (Reader, error) {
 	ret := _m.ctrl.Call(_m, "Clone")
 	ret0, _ := ret[0].(Reader)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Clone indicates an expected call of Clone

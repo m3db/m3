@@ -204,6 +204,6 @@ func (r *testNoopReader) Read(p []byte) (int, error) {
 	return r.n, nil
 }
 
-func (r *testNoopReader) Clone() xio.Reader {
-	return r
+func (r *testNoopReader) Clone() (xio.Reader, error) {
+	return r, nil
 }

@@ -31,4 +31,10 @@ func (r nullSegmentReader) Read([]byte) (n int, err error) { return 0, nil }
 func (r nullSegmentReader) Segment() (ts.Segment, error)   { return ts.Segment{}, nil }
 func (r nullSegmentReader) Reset(ts.Segment)               {}
 func (r nullSegmentReader) Finalize()                      {}
-func (r nullSegmentReader) Clone() Reader                  { return r }
+func (r nullSegmentReader) Clone() (Reader, error)         { return r, nil }
+
+// nolint: deadcode
+type nullSegment struct{}
+
+func (r nullSegment) Read([]byte) (n int, err error) { return 0, nil }
+func (r nullSegment) Clone() (Reader, error)         { return r, nil }

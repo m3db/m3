@@ -21,6 +21,7 @@
 package block
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -111,14 +112,35 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 	return r.merged, nil
 }
 
-func (r *dbMergedBlockReader) Clone() xio.Reader {
+var errInvalidStreamType = errors.New("stream is unexpected type")
+
+func cloneSegmentReader(sr xio.SegmentReader) (xio.SegmentReader, error) {
+	s, err := sr.Clone()
+	if err != nil {
+		return nil, err
+	}
+	if s, ok := s.(xio.SegmentReader); ok {
+		return s, nil
+	}
+	return nil, errInvalidStreamType
+}
+
+func (r *dbMergedBlockReader) Clone() (xio.Reader, error) {
+	s1, err := cloneSegmentReader(r.streams[0])
+	if err != nil {
+		return nil, err
+	}
+	s2, err := cloneSegmentReader(r.streams[1])
+	if err != nil {
+		return nil, err
+	}
 	return newDatabaseMergedBlockReader(
 		r.blockStart,
 		r.blockEnd,
-		r.streams[0].Clone().(xio.SegmentReader),
-		r.streams[1].Clone().(xio.SegmentReader),
+		s1,
+		s2,
 		r.opts,
-	)
+	), nil
 }
 
 func (r *dbMergedBlockReader) Start() time.Time {

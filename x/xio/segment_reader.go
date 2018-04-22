@@ -37,8 +37,8 @@ func NewSegmentReader(segment ts.Segment) SegmentReader {
 	return &segmentReader{segment: segment}
 }
 
-func (sr *segmentReader) Clone() Reader {
-	return NewSegmentReader(sr.segment)
+func (sr *segmentReader) Clone() (Reader, error) {
+	return NewSegmentReader(sr.segment), nil
 }
 
 func (sr *segmentReader) Read(b []byte) (int, error) {

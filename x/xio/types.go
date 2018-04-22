@@ -35,15 +35,17 @@ type Reader interface {
 
 	// Clone returns a clone of the underlying data reset
 	// to the start of the reader
-	Clone() Reader
+	Clone() (Reader, error)
 }
 
 // BlockReader implements the io reader interface backed by a segment with start and end times
 type BlockReader interface {
 	SegmentReader
 
+	// Start returns the start time for the block this reader represents
 	Start() time.Time
 
+	// End returns the end time for the block this reader represents
 	End() time.Time
 
 	// ResetWindowed resets the reader to read a new segment, and updates block start and end times
