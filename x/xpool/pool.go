@@ -32,10 +32,8 @@ type checkedPool struct {
 
 // NewCheckedBytesWrapperPool returns a new CheckedBytesWrapperPool with the
 // defined size.
-func NewCheckedBytesWrapperPool(size int) CheckedBytesWrapperPool {
-	p := pool.NewObjectPool(
-		pool.NewObjectPoolOptions().SetSize(size))
-
+func NewCheckedBytesWrapperPool(popts pool.ObjectPoolOptions) CheckedBytesWrapperPool {
+	p := pool.NewObjectPool(popts)
 	opts := checked.NewBytesOptions().SetFinalizer(
 		checked.BytesFinalizerFn(func(b checked.Bytes) {
 			b.IncRef()

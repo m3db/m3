@@ -42,7 +42,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTaggedNormalQuorumOnlyOneUp(t *testing.T) {
+func TestWriteTaggedNormalQuorumOnlyOneUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -69,7 +69,7 @@ func TestTaggedNormalQuorumOnlyOneUp(t *testing.T) {
 	assert.Equal(t, 1, numNodesWithTaggedWrite(t, nodes))
 }
 
-func TestTaggedNormalQuorumOnlyTwoUp(t *testing.T) {
+func TestWriteTaggedNormalQuorumOnlyTwoUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -96,7 +96,7 @@ func TestTaggedNormalQuorumOnlyTwoUp(t *testing.T) {
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
 }
 
-func TestTaggedNormalQuorumAllUp(t *testing.T) {
+func TestWriteTaggedNormalQuorumAllUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -125,7 +125,7 @@ func TestTaggedNormalQuorumAllUp(t *testing.T) {
 	assert.True(t, numNodesWithTaggedWrite(t, nodes) >= 3)
 }
 
-func TestTaggedAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
+func TestWriteTaggedAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -160,7 +160,7 @@ func TestTaggedAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 	assert.True(t, numWrites == 0)
 }
 
-func TestTaggedAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
+func TestWriteTaggedAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -196,7 +196,7 @@ func TestTaggedAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) 
 	assert.True(t, numWrites == 1)
 }
 
-func TestTaggedAddNodeQuorumAllUp(t *testing.T) {
+func TestWriteTaggedAddNodeQuorumAllUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -298,10 +298,8 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	idxFound := false
 	for iter.Next() {
 		_, id, tags := iter.Current()
-		if id.String() == "quorumTest" && tags.Equal(
-			ident.Tags{ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz")}) {
-			idxFound = true
-		}
+		idxFound = idxFound || (id.String() == "quorumTest" &&
+			ident.MustNewTagIterMatcher("foo", "bar", "boo", "baz").Matches(tags))
 	}
 	require.NoError(t, iter.Err())
 

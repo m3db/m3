@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 )
 
 const (
@@ -56,7 +57,8 @@ type opts struct {
 // NewOptions returns a new index.Options object with default properties.
 func NewOptions() Options {
 	idPool := ident.NewPool(nil, nil)
-	wrapperPool := xpool.NewCheckedBytesWrapperPool(defaultCheckedBytesPoolInitialSize)
+	wrapperPool := xpool.NewCheckedBytesWrapperPool(
+		pool.NewObjectPoolOptions().SetSize(defaultCheckedBytesPoolInitialSize))
 	wrapperPool.Init()
 	return &opts{
 		insertMode:     defaultIndexInsertMode,

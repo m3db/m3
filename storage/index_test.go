@@ -288,9 +288,7 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	cNs, cID, cTags := iter.Current()
 	assert.Equal(t, "foo", cID.String())
 	assert.Equal(t, defaultTestNs1ID.String(), cNs.String())
-	assert.Len(t, cTags, 1)
-	assert.Equal(t, "name", cTags[0].Name.String())
-	assert.Equal(t, "value", cTags[0].Value.String())
+	assert.True(t, ident.MustNewTagIterMatcher("name", "value").Matches(cTags))
 	assert.False(t, iter.Next())
 	assert.Nil(t, iter.Err())
 }

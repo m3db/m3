@@ -47,8 +47,7 @@ type idsIter struct {
 	currentTags ident.Tags
 }
 
-// NewIterator returns a new Iterator backed by
-// a doc.Iterator.
+// NewIterator returns a new Iterator backed by a doc.Iterator.
 func NewIterator(
 	nsID ident.ID,
 	iter doc.Iterator,
@@ -92,8 +91,9 @@ func (i *idsIter) Next() bool {
 	return true
 }
 
-func (i *idsIter) Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.Tags) {
-	return i.nsID, i.currentID, i.currentTags
+func (i *idsIter) Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.TagIterator) {
+	// TODO(prateek): actually use a tags iterator instead of creating an un-required ident.Tags here
+	return i.nsID, i.currentID, ident.NewTagSliceIterator(i.currentTags)
 }
 
 func (i *idsIter) Err() error {

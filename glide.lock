@@ -1,5 +1,5 @@
-hash: b02669f674361cbfe8df466611da4a6567ecbf6c671269a66d1252030804bf85
-updated: 2018-04-17T16:22:25.025883-04:00
+hash: c079daf1ed13d4cb70b7b579081aecde91c13561bdfca4bcce271b13f1d6f01b
+updated: 2018-04-23T14:17:00.747366983-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -108,8 +108,6 @@ imports:
   version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
-- name: github.com/fortytw2/leaktest
-  version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/glycerine/go-unsnap-stream
@@ -149,12 +147,6 @@ imports:
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
-- name: github.com/leanovate/gopter
-  version: 9e6101e5a87586b269acf3d0d61f363e4317309f
-  subpackages:
-  - commands
-  - gen
-  - prop
 - name: github.com/m3db/bitset
   version: 07973db6b78acb62ac207d0538055e874b49d90d
 - name: github.com/m3db/bloom
@@ -197,7 +189,7 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3ninx
-  version: df3eee08112241de1bd2cbff83e61b39977cfc72
+  version: 96abb2b1b4f6ce1781177c67f2b95e0ee4eb8157
   subpackages:
   - doc
   - idx
@@ -206,6 +198,7 @@ imports:
   - index/segment/mem
   - index/segment/mem/fieldsgen
   - index/segment/mem/postingsgen
+  - index/util
   - postings
   - postings/roaring
   - search
@@ -213,7 +206,7 @@ imports:
   - search/query
   - search/searcher
 - name: github.com/m3db/m3x
-  version: 29bc232d9ad2e6c4a1804ccce095bb730fb1c6bc
+  version: 412959179ff62881144e0b1bc9d027f33275c9f8
   vcs: git
   subpackages:
   - checked
@@ -259,7 +252,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+  version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
@@ -276,6 +269,8 @@ imports:
   version: 1878d9fbb537119d24b21ca07effd591627cd160
 - name: github.com/RoaringBitmap/roaring
   version: 4bbba8874933b985c9160558fddea525dde73e63
+- name: github.com/satori/go.uuid
+  version: f58768cc1a7a7e77a3bd49e98cdd21419399b6a3
 - name: github.com/sergi/go-diff
   version: feef008d51ad2b3778f85d387ccf91735543008d
   subpackages:
@@ -322,7 +317,7 @@ imports:
   subpackages:
   - codec
 - name: github.com/willf/bitset
-  version: 988f4f24992fc745de53c42df0da6581e42a6686
+  version: 1ea0245d2bc8ce44623f24a1ae162beb06ad8cd6
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: go.uber.org/atomic
@@ -418,4 +413,19 @@ imports:
   - codes
 - name: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
-testImports: []
+testImports:
+- name: github.com/fortytw2/leaktest
+  version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
+- name: github.com/google/go-cmp
+  version: 5411ab924f9ffa6566244a9e504bc347edacffd3
+  subpackages:
+  - cmp
+  - cmp/internal/diff
+  - cmp/internal/function
+  - cmp/internal/value
+- name: github.com/leanovate/gopter
+  version: 9e6101e5a87586b269acf3d0d61f363e4317309f
+  subpackages:
+  - commands
+  - gen
+  - prop
