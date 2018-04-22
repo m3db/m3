@@ -71,9 +71,6 @@ type TagDecoder interface {
 	// Reset resets internal state to iterate over the provided bytes.
 	// NB: the TagDecoder takes ownership of the provided checked.Bytes.
 	Reset(checked.Bytes)
-
-	// Finalize releases any held resources.
-	Finalize()
 }
 
 // TagDecoderPool pools TagDecoders.

@@ -36,5 +36,5 @@ func TestTagDecoderPool(t *testing.T) {
 	d := p.Get()
 	d.Reset(testTagDecoderBytes())
 	require.NoError(t, d.Err())
-	d.Finalize()
+	d.Close()
 }

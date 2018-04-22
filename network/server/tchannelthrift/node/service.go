@@ -991,7 +991,7 @@ func (s *service) newID(ctx context.Context, id []byte) ident.ID {
 func (s *service) newTagsDecoder(ctx context.Context, encodedTags []byte) (serialize.TagDecoder, error) {
 	checkedBytes := s.checkedBytesWrapperPool.Get(encodedTags)
 	dec := s.tagDecoderPool.Get()
-	ctx.RegisterFinalizer(dec)
+	ctx.RegisterFinalizer(resource.FinalizerFn(dec.Close))
 	dec.Reset(checkedBytes)
 	if err := dec.Err(); err != nil {
 		return nil, err
