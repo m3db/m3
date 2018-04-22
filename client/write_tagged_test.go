@@ -125,17 +125,17 @@ func TestShardNotAvailableTagged(t *testing.T) {
 // utils
 
 func getWriteTaggedState(ctrl *gomock.Controller, s *session, w writeTaggedStub) *writeState {
-	wState := s.writeStatePool.Get()
+	wState := s.pools.writeState.Get()
 	s.state.RLock()
 	wState.consistencyLevel = s.state.writeLevel
 	wState.topoMap = s.state.topoMap
 	s.state.RUnlock()
-	o := s.writeTaggedOperationPool.Get()
+	o := s.pools.writeTaggedOperation.Get()
 	o.shardID = 0 // Any valid shardID
 	wState.op = o
 	wState.nsID = w.ns
 	wState.tsID = w.id
-	wState.tagEncoder = s.tagEncoderPool.Get()
+	wState.tagEncoder = s.pools.tagEncoder.Get()
 	return wState
 }
 

@@ -160,21 +160,7 @@ type session struct {
 	writeRetrier                     xretry.Retrier
 	fetchRetrier                     xretry.Retrier
 	streamBlocksRetrier              xretry.Retrier
-	contextPool                      context.Pool
-	idPool                           ident.Pool
-	writeOperationPool               *writeOperationPool
-	writeTaggedOperationPool         *writeTaggedOperationPool
-	fetchBatchOpPool                 *fetchBatchOpPool
-	fetchBatchOpArrayArrayPool       *fetchBatchOpArrayArrayPool
-	iteratorArrayPool                encoding.IteratorArrayPool
-	tagEncoderPool                   serialize.TagEncoderPool
-	readerSliceOfSlicesIteratorPool  *readerSliceOfSlicesIteratorPool
-	multiReaderIteratorPool          encoding.MultiReaderIteratorPool
-	seriesIteratorPool               encoding.SeriesIteratorPool
-	seriesIteratorsPool              encoding.MutableSeriesIteratorsPool
-	writeAttemptPool                 *writeAttemptPool
-	writeStatePool                   *writeStatePool
-	fetchAttemptPool                 *fetchAttemptPool
+	pools                            sessionPools
 	fetchBatchSize                   int
 	newPeerBlocksQueueFn             newPeerBlocksQueueFn
 	reattemptStreamBlocksFromPeersFn reattemptStreamBlocksFromPeersFn
@@ -270,9 +256,11 @@ func newSession(opts Options) (clientSession, error) {
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
 		writeRetrier:         opts.WriteRetrier(),
 		fetchRetrier:         opts.FetchRetrier(),
-		contextPool:          opts.ContextPool(),
-		idPool:               opts.IdentifierPool(),
-		metrics:              newSessionMetrics(scope),
+		pools: sessionPools{
+			context: opts.ContextPool(),
+			id:      opts.IdentifierPool(),
+		},
+		metrics: newSessionMetrics(scope),
 	}
 	s.reattemptStreamBlocksFromPeersFn = s.streamBlocksReattemptFromPeers
 	s.pickBestPeerFn = s.streamBlocksPickBestPeer
@@ -281,24 +269,24 @@ func newSession(opts Options) (clientSession, error) {
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
 			scope.SubScope("write-attempt-pool"),
 		))
-	s.writeAttemptPool = newWriteAttemptPool(s, writeAttemptPoolOpts)
-	s.writeAttemptPool.Init()
+	s.pools.writeAttempt = newWriteAttemptPool(s, writeAttemptPoolOpts)
+	s.pools.writeAttempt.Init()
 
 	fetchAttemptPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.FetchBatchOpPoolSize()).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
 			scope.SubScope("fetch-attempt-pool"),
 		))
-	s.fetchAttemptPool = newFetchAttemptPool(s, fetchAttemptPoolOpts)
-	s.fetchAttemptPool.Init()
+	s.pools.fetchAttempt = newFetchAttemptPool(s, fetchAttemptPoolOpts)
+	s.pools.fetchAttempt.Init()
 
 	tagEncoderPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.TagEncoderPoolSize()).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
 			scope.SubScope("tag-encoder-pool"),
 		))
-	s.tagEncoderPool = serialize.NewTagEncoderPool(opts.TagEncoderOptions(), tagEncoderPoolOpts)
-	s.tagEncoderPool.Init()
+	s.pools.tagEncoder = serialize.NewTagEncoderPool(opts.TagEncoderOptions(), tagEncoderPoolOpts)
+	s.pools.tagEncoder.Init()
 
 	if opts, ok := opts.(AdminOptions); ok {
 		s.state.bootstrapLevel = opts.BootstrapConsistencyLevel()
@@ -462,16 +450,16 @@ func (s *session) Open() error {
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-op-pool"),
 		))
-	s.writeOperationPool = newWriteOperationPool(writeOperationPoolOpts)
-	s.writeOperationPool.Init()
+	s.pools.writeOperation = newWriteOperationPool(writeOperationPoolOpts)
+	s.pools.writeOperation.Init()
 
 	writeTaggedOperationPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.WriteTaggedOpPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-op-tagged-pool"),
 		))
-	s.writeTaggedOperationPool = newWriteTaggedOpPool(writeTaggedOperationPoolOpts)
-	s.writeTaggedOperationPool.Init()
+	s.pools.writeTaggedOperation = newWriteTaggedOpPool(writeTaggedOperationPoolOpts)
+	s.pools.writeTaggedOperation.Init()
 
 	writeStatePoolSize := s.opts.WriteOpPoolSize()
 	if s.opts.WriteTaggedOpPoolSize() > writeStatePoolSize {
@@ -482,26 +470,26 @@ func (s *session) Open() error {
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-state-pool"),
 		))
-	s.writeStatePool = newWriteStatePool(s.tagEncoderPool, writeStatePoolOpts)
-	s.writeStatePool.Init()
+	s.pools.writeState = newWriteStatePool(s.pools.tagEncoder, writeStatePoolOpts)
+	s.pools.writeState.Init()
 
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.FetchBatchOpPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("fetch-batch-op-pool"),
 		))
-	s.fetchBatchOpPool = newFetchBatchOpPool(fetchBatchOpPoolOpts, s.fetchBatchSize)
-	s.fetchBatchOpPool.Init()
+	s.pools.fetchBatchOp = newFetchBatchOpPool(fetchBatchOpPoolOpts, s.fetchBatchSize)
+	s.pools.fetchBatchOp.Init()
 
 	seriesIteratorPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.SeriesIteratorPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("series-iterator-pool"),
 		))
-	s.seriesIteratorPool = encoding.NewSeriesIteratorPool(seriesIteratorPoolOpts)
-	s.seriesIteratorPool.Init()
-	s.seriesIteratorsPool = encoding.NewMutableSeriesIteratorsPool(s.opts.SeriesIteratorArrayPoolBuckets())
-	s.seriesIteratorsPool.Init()
+	s.pools.seriesIterator = encoding.NewSeriesIteratorPool(seriesIteratorPoolOpts)
+	s.pools.seriesIterator.Init()
+	s.pools.seriesIterators = encoding.NewMutableSeriesIteratorsPool(s.opts.SeriesIteratorArrayPoolBuckets())
+	s.pools.seriesIterators.Init()
 	s.state.status = statusOpen
 	s.state.Unlock()
 
@@ -691,40 +679,40 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("fetch-batch-op-array-array-pool"),
 		))
-	s.fetchBatchOpArrayArrayPool = newFetchBatchOpArrayArrayPool(
+	s.pools.fetchBatchOpArrayArray = newFetchBatchOpArrayArrayPool(
 		poolOpts,
 		len(queues),
 		s.opts.FetchBatchOpPoolSize()/len(queues))
-	s.fetchBatchOpArrayArrayPool.Init()
+	s.pools.fetchBatchOpArrayArray.Init()
 
-	if s.iteratorArrayPool == nil {
-		s.iteratorArrayPool = encoding.NewIteratorArrayPool([]pool.Bucket{
+	if s.pools.iteratorArray == nil {
+		s.pools.iteratorArray = encoding.NewIteratorArrayPool([]pool.Bucket{
 			pool.Bucket{
 				Capacity: replicas,
 				Count:    s.opts.SeriesIteratorPoolSize(),
 			},
 		})
-		s.iteratorArrayPool.Init()
+		s.pools.iteratorArray.Init()
 	}
-	if s.readerSliceOfSlicesIteratorPool == nil {
+	if s.pools.readerSliceOfSlicesIterator == nil {
 		size := replicas * s.opts.SeriesIteratorPoolSize()
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
 			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 				s.scope.SubScope("reader-slice-of-slices-iterator-pool"),
 			))
-		s.readerSliceOfSlicesIteratorPool = newReaderSliceOfSlicesIteratorPool(poolOpts)
-		s.readerSliceOfSlicesIteratorPool.Init()
+		s.pools.readerSliceOfSlicesIterator = newReaderSliceOfSlicesIteratorPool(poolOpts)
+		s.pools.readerSliceOfSlicesIterator.Init()
 	}
-	if s.multiReaderIteratorPool == nil {
+	if s.pools.multiReaderIterator == nil {
 		size := replicas * s.opts.SeriesIteratorPoolSize()
 		poolOpts := pool.NewObjectPoolOptions().
 			SetSize(size).
 			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 				s.scope.SubScope("multi-reader-iterator-pool"),
 			))
-		s.multiReaderIteratorPool = encoding.NewMultiReaderIteratorPool(poolOpts)
-		s.multiReaderIteratorPool.Init(s.opts.ReaderIteratorAllocate())
+		s.pools.multiReaderIterator = encoding.NewMultiReaderIteratorPool(poolOpts)
+		s.pools.multiReaderIterator.Init(s.opts.ReaderIteratorAllocate())
 	}
 	if replicas > len(s.metrics.writeNodesRespondingErrors) {
 		curr := len(s.metrics.writeNodesRespondingErrors)
@@ -825,14 +813,14 @@ func (s *session) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	w := s.writeAttemptPool.Get()
+	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = untaggedWriteAttemptType
 	w.args.namespace, w.args.id = namespace, id
 	w.args.tags = ident.EmptyTagIterator
 	w.args.t, w.args.value, w.args.unit, w.args.annotation =
 		t, value, unit, annotation
 	err := s.writeRetrier.Attempt(w.attemptFn)
-	s.writeAttemptPool.Put(w)
+	s.pools.writeAttempt.Put(w)
 	return err
 }
 
@@ -844,13 +832,13 @@ func (s *session) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	w := s.writeAttemptPool.Get()
+	w := s.pools.writeAttempt.Get()
 	w.args.attemptType = taggedWriteAttemptType
 	w.args.namespace, w.args.id, w.args.tags = namespace, id, tags
 	w.args.t, w.args.value, w.args.unit, w.args.annotation =
 		t, value, unit, annotation
 	err := s.writeRetrier.Attempt(w.attemptFn)
-	s.writeAttemptPool.Put(w)
+	s.pools.writeAttempt.Put(w)
 	return err
 }
 
@@ -926,11 +914,11 @@ func (s *session) writeAttemptWithRLock(
 	// use in the various queues. Tracking per writeAttempt isn't sufficient as
 	// we may enqueue multiple writeStates concurrently depending on retries
 	// and consistency level checks.
-	nsID := s.idPool.Clone(namespace)
-	tsID := s.idPool.Clone(id)
+	nsID := s.pools.id.Clone(namespace)
+	tsID := s.pools.id.Clone(id)
 	var tagEncoder serialize.TagEncoder
 	if wType == taggedWriteAttemptType {
-		tagEncoder = s.tagEncoderPool.Get()
+		tagEncoder = s.pools.tagEncoder.Get()
 		defer tagEncoder.Finalize()
 		if err := tagEncoder.Encode(inputTags); err != nil {
 			return nil, 0, 0, err
@@ -940,7 +928,7 @@ func (s *session) writeAttemptWithRLock(
 	var op writeOp
 	switch wType {
 	case untaggedWriteAttemptType:
-		wop := s.writeOperationPool.Get()
+		wop := s.pools.writeOperation.Get()
 		wop.namespace = nsID
 		wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
 		wop.request.ID = tsID.Data().Bytes()
@@ -950,7 +938,7 @@ func (s *session) writeAttemptWithRLock(
 		wop.request.Datapoint.Annotation = annotation
 		op = wop
 	case taggedWriteAttemptType:
-		wop := s.writeTaggedOperationPool.Get()
+		wop := s.pools.writeTaggedOperation.Get()
 		wop.namespace = nsID
 		wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
 		wop.request.ID = tsID.Data().Bytes()
@@ -969,7 +957,7 @@ func (s *session) writeAttemptWithRLock(
 		return nil, 0, 0, errUnknownWriteAttemptType
 	}
 
-	state := s.writeStatePool.Get()
+	state := s.pools.writeState.Get()
 	state.consistencyLevel = s.state.writeLevel
 	state.topoMap = s.state.topoMap
 	state.incRef()
@@ -998,7 +986,7 @@ func (s *session) writeAttemptWithRLock(
 
 			// NB(r): if this happens we have a bug, once we are in the read
 			// lock the current queues should never be closed
-			s.opts.InstrumentOptions().Logger().Errorf("failed to enqueue write: %v", err)
+			s.opts.InstrumentOptions().Logger().Errorf("[invariant violated] failed to enqueue write: %v", err)
 			return nil, 0, 0, err
 		}
 		enqueued++
@@ -1033,12 +1021,12 @@ func (s *session) FetchIDs(
 	ids ident.Iterator,
 	startInclusive, endExclusive time.Time,
 ) (encoding.SeriesIterators, error) {
-	f := s.fetchAttemptPool.Get()
+	f := s.pools.fetchAttempt.Get()
 	f.args.namespace, f.args.ids = namespace, ids
 	f.args.start, f.args.end = startInclusive, endExclusive
 	err := s.fetchRetrier.Attempt(f.attemptFn)
 	result := f.result
-	s.fetchAttemptPool.Put(f)
+	s.pools.fetchAttempt.Put(f)
 	return result, err
 }
 
@@ -1075,7 +1063,7 @@ func (s *session) fetchIDsAttempt(
 
 	// NB(prateek): need to make a copy of inputNamespace and inputIDs to control
 	// their life-cycle within this function.
-	namespace := s.idPool.Clone(inputNamespace)
+	namespace := s.pools.id.Clone(inputNamespace)
 	// First, we duplicate the iterator (only the struct referencing the underlying slice,
 	// not the slice itself). Need this to be able to iterate the original iterator
 	// multiple times in case of retries.
@@ -1097,7 +1085,7 @@ func (s *session) fetchIDsAttempt(
 		return nil, errSessionStatusNotOpen
 	}
 
-	iters := s.seriesIteratorsPool.Get(ids.Remaining())
+	iters := s.pools.seriesIterators.Get(ids.Remaining())
 	iters.Reset(ids.Remaining())
 
 	defer func() {
@@ -1114,7 +1102,7 @@ func (s *session) fetchIDsAttempt(
 	// of entries into the backing channel for the pool and will forever stall
 	// on the last few puts if any unexpected entries find their way there
 	// while it is filling.
-	fetchBatchOpsByHostIdx = s.fetchBatchOpArrayArrayPool.Get()
+	fetchBatchOpsByHostIdx = s.pools.fetchBatchOpArrayArray.Get()
 
 	consistencyLevel = s.state.readLevel
 	majority = int32(s.state.majority)
@@ -1129,7 +1117,7 @@ func (s *session) fetchIDsAttempt(
 	for idx := 0; ids.Next(); idx++ {
 		var (
 			idx  = idx // capture loop variable
-			tsID = s.idPool.Clone(ids.Current())
+			tsID = s.pools.id.Clone(ids.Current())
 
 			wgIsDone int32
 			// NB(xichen): resultsAccessors and idAccessors get initialized to number of replicas + 1
@@ -1176,18 +1164,18 @@ func (s *session) fetchIDsAttempt(
 				resultsLock.RLock()
 				successIters := results[:success]
 				resultsLock.RUnlock()
-				iter := s.seriesIteratorPool.Get()
+				iter := s.pools.seriesIterator.Get()
 				// NB(prateek): we need to allocate a copy of ident.ID to allow the seriesIterator
 				// to have control over the lifecycle of ID. We cannot allow seriesIterator
 				// to control the lifecycle of the original ident.ID, as it might still be in use
 				// due to a pending request in queue.
-				seriesID := s.idPool.Clone(tsID)
-				namespaceID := s.idPool.Clone(namespace)
+				seriesID := s.pools.id.Clone(tsID)
+				namespaceID := s.pools.id.Clone(namespace)
 				iter.Reset(seriesID, namespaceID, startInclusive, endExclusive, successIters)
 				iters.SetAt(idx, iter)
 			}
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
-				s.iteratorArrayPool.Put(results)
+				s.pools.iteratorArray.Put(results)
 			}
 			if atomic.AddInt32(&idAccessors, -1) == 0 {
 				tsID.Finalize()
@@ -1210,9 +1198,9 @@ func (s *session) fetchIDsAttempt(
 				errors = append(errors, err)
 				resultErrLock.Unlock()
 			} else {
-				slicesIter := s.readerSliceOfSlicesIteratorPool.Get()
+				slicesIter := s.pools.readerSliceOfSlicesIterator.Get()
 				slicesIter.Reset(result.([]*rpc.Segments))
-				multiIter := s.multiReaderIteratorPool.Get()
+				multiIter := s.pools.multiReaderIterator.Get()
 				multiIter.ResetSliceOfSlices(slicesIter)
 				// Results is pre-allocated after creating fetch ops for this ID below
 				resultsLock.Lock()
@@ -1245,7 +1233,7 @@ func (s *session) fetchIDsAttempt(
 			}
 
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
-				s.iteratorArrayPool.Put(results)
+				s.pools.iteratorArray.Put(results)
 			}
 			if atomic.AddInt32(&idAccessors, -1) == 0 {
 				tsID.Finalize()
@@ -1276,7 +1264,7 @@ func (s *session) fetchIDsAttempt(
 				// NB(r): Note that we defer to the host queue to take ownership
 				// of these ops and for returning the ops to the pool when done as
 				// they know when their use is complete.
-				f = s.fetchBatchOpPool.Get()
+				f = s.pools.fetchBatchOp.Get()
 				f.IncRef()
 				fetchBatchOpsByHostIdx[hostIdx] = append(fetchBatchOpsByHostIdx[hostIdx], f)
 				f.request.RangeStart = rangeStart
@@ -1292,7 +1280,7 @@ func (s *session) fetchIDsAttempt(
 		}
 
 		// Once we've enqueued we know how many to expect so retrieve and set length
-		results = s.iteratorArrayPool.Get(int(enqueued))
+		results = s.pools.iteratorArray.Get(int(enqueued))
 		results = results[:enqueued]
 	}
 
@@ -1315,7 +1303,7 @@ func (s *session) fetchIDsAttempt(
 			break
 		}
 	}
-	s.fetchBatchOpArrayArrayPool.Put(fetchBatchOpsByHostIdx)
+	s.pools.fetchBatchOpArrayArray.Put(fetchBatchOpsByHostIdx)
 	s.state.RUnlock()
 
 	if enqueueErr != nil {
@@ -1342,33 +1330,10 @@ func (s *session) writeConsistencyResult(
 ) error {
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
-	if !s.writeConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
+	if !writeConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
 		return newConsistencyResultError(level, int(enqueued), int(responded), errs)
 	}
 	return nil
-}
-
-func (s *session) writeConsistencyAchieved(
-	level topology.ConsistencyLevel,
-	majority, enqueued, success int,
-) bool {
-	switch level {
-	case topology.ConsistencyLevelAll:
-		if success == enqueued { // Meets all
-			return true
-		}
-	case topology.ConsistencyLevelMajority:
-		if success >= majority { // Meets majority
-			return true
-		}
-	case topology.ConsistencyLevelOne:
-		if success > 0 { // Meets one
-			return true
-		}
-	default:
-		panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
-	}
-	return false
 }
 
 func (s *session) readConsistencyResult(
@@ -1378,35 +1343,10 @@ func (s *session) readConsistencyResult(
 ) error {
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
-	if !s.readConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
+	if !readConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
 		return newConsistencyResultError(level, int(enqueued), int(responded), errs)
 	}
 	return nil
-}
-
-func (s *session) readConsistencyAchieved(
-	level topology.ReadConsistencyLevel,
-	majority, enqueued, success int,
-) bool {
-	switch level {
-	case topology.ReadConsistencyLevelAll:
-		if success == enqueued { // Meets all
-			return true
-		}
-	case topology.ReadConsistencyLevelMajority:
-		if success >= majority { // Meets majority
-			return true
-		}
-	case topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority:
-		if success > 0 { // Meets one
-			return true
-		}
-	case topology.ReadConsistencyLevelNone:
-		return true // Always meets none
-	default:
-		panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
-	}
-	return false
 }
 
 func (s *session) Close() error {
@@ -1790,7 +1730,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 				enqueued := int(enqueued)
 				success := int(atomic.LoadInt32(&success))
 
-				doRetry := !s.readConsistencyAchieved(currLevel, majority, enqueued, success) &&
+				doRetry := !readConsistencyAchieved(currLevel, majority, enqueued, success) &&
 					errs.getAbortError() == nil
 				if doRetry {
 					// Track that we are reattempting the fetch metadata
@@ -2038,7 +1978,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		optionIncludeChecksums = true
 		optionIncludeLastRead  = true
 		moreResults            = true
-		idPool                 = s.idPool
+		idPool                 = s.pools.id
 		bytesPool              = resultOpts.DatabaseBlockOptions().BytesPool()
 
 		// Only used for logs
@@ -2521,8 +2461,7 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 		}
 
 		level := consistencyLevel.value()
-		achievedConsistencyLevel := s.readConsistencyAchieved(level,
-			majority, enqueued, success)
+		achievedConsistencyLevel := readConsistencyAchieved(level, majority, enqueued, success)
 		if achievedConsistencyLevel {
 			if success > 0 {
 				// Some level of success met, no need to log an error

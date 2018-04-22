@@ -126,12 +126,12 @@ func TestShardNotAvailable(t *testing.T) {
 // utils
 
 func getWriteState(s *session, w writeStub) *writeState {
-	wState := s.writeStatePool.Get()
+	wState := s.pools.writeState.Get()
 	s.state.RLock()
 	wState.consistencyLevel = s.state.writeLevel
 	wState.topoMap = s.state.topoMap
 	s.state.RUnlock()
-	o := s.writeOperationPool.Get()
+	o := s.pools.writeOperation.Get()
 	o.shardID = 0 // Any valid shardID
 	wState.op = o
 	wState.nsID = w.ns
