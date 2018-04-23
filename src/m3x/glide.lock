@@ -7,10 +7,6 @@ imports:
   - lib/go/thrift
 - name: github.com/cespare/xxhash
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
-- name: github.com/cheekybits/genny
-  version: 9127e812e1e9e501ce899a18121d316ecb52e4ba
-  subpackages:
-  - generic
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/golang/mock
