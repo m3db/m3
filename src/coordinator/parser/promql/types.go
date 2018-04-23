@@ -9,19 +9,19 @@ import (
 )
 
 // NewSelectorFromVector creates a new fetchop
-func NewSelectorFromVector(n *promql.VectorSelector) parser.Operation {
+func NewSelectorFromVector(n *promql.VectorSelector) parser.Params {
 	// TODO: convert n.LabelMatchers to Matchers
 	return functions.FetchOp{Name: n.Name, Offset: n.Offset, Matchers: nil}
 }
 
 // NewSelectorFromMatrix creates a new fetchop
-func NewSelectorFromMatrix(n *promql.MatrixSelector) parser.Operation {
+func NewSelectorFromMatrix(n *promql.MatrixSelector) parser.Params {
 	// TODO: convert n.LabelMatchers to Matchers
 	return functions.FetchOp{Name: n.Name, Offset: n.Offset, Matchers: nil, Range: n.Range}
 }
 
 // NewOperator creates a new operator based on the type
-func NewOperator(opType promql.ItemType) parser.Operation {
+func NewOperator(opType promql.ItemType) parser.Params {
 	switch getOpType(opType) {
 	case functions.CountType:
 		return functions.CountOp{}

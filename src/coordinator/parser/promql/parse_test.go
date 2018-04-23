@@ -18,10 +18,10 @@ func TestDAG(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, transforms, 2)
 	assert.Equal(t, transforms[0].Op.OpType(), functions.FetchType)
-	assert.Equal(t, transforms[0].ID, parser.TransformID("0"))
-	assert.Equal(t, transforms[1].ID, parser.TransformID("1"))
+	assert.Equal(t, transforms[0].ID, parser.NodeID("0"))
+	assert.Equal(t, transforms[1].ID, parser.NodeID("1"))
 	assert.Len(t, edges, 1)
-	assert.Equal(t, edges[0].ParentID, parser.TransformID("0"), "fetch should be the parent")
-	assert.Equal(t, edges[0].ChildID, parser.TransformID("1"), "aggregation should be the child")
+	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
+	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "aggregation should be the child")
 
 }
