@@ -920,9 +920,7 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	require.Equal(t, 2, len(r))
 	for i, readers := range r {
 		require.Equal(t, 1, len(readers))
-		segReader, err := readers[0].SegmentReader()
-		require.NoError(t, err)
-		assert.Equal(t, blockReaders[i], segReader)
+		assert.Equal(t, blockReaders[i], readers[0])
 	}
 
 	// Check that gets cached

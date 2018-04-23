@@ -49,6 +49,8 @@ type dbBlock struct {
 	segment        ts.Segment
 	length         int
 
+	blockSize time.Duration
+
 	lastReadUnixNanos int64
 
 	mergeTarget DatabaseBlock
@@ -97,6 +99,7 @@ func NewDatabaseBlock(
 // NewRetrievableDatabaseBlock creates a new retrievable DatabaseBlock instance.
 func NewRetrievableDatabaseBlock(
 	start time.Time,
+	blockSize time.Duration,
 	retriever DatabaseShardBlockRetriever,
 	metadata RetrievableBlockMetadata,
 	opts Options,
@@ -105,6 +108,7 @@ func NewRetrievableDatabaseBlock(
 		opts:           opts,
 		ctx:            opts.ContextPool().Get(),
 		startUnixNanos: start.UnixNano(),
+		blockSize:      blockSize,
 		closed:         false,
 	}
 	b.resetRetrievableWithLock(retriever, metadata)
@@ -177,8 +181,8 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 	b.ctx.DependsOn(blocker)
 
 	start := b.startWithLock()
-	// todo arnikola
-	end := b.LastReadTime()
+	end := start.Add(b.blockSize)
+
 	// If the block retrieve ID is set then it must be retrieved
 	var (
 		stream             xio.SegmentReader
@@ -253,6 +257,7 @@ func (b *dbBlock) Merge(other DatabaseBlock) {
 }
 
 func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
+	// TODO(arnikola) send through new blockSize
 	b.Lock()
 	defer b.Unlock()
 	b.resetNewBlockStartWithLock(start)
@@ -264,6 +269,7 @@ func (b *dbBlock) ResetRetrievable(
 	retriever DatabaseShardBlockRetriever,
 	metadata RetrievableBlockMetadata,
 ) {
+	// TODO(arnikola) send through new blockSize
 	b.Lock()
 	defer b.Unlock()
 	b.resetNewBlockStartWithLock(start)
@@ -271,6 +277,8 @@ func (b *dbBlock) ResetRetrievable(
 }
 
 func (b *dbBlock) resetNewBlockStartWithLock(start time.Time) {
+	// TODO(arnikola) send through new blockSize
+	// b.blockSize = blockSize
 	if !b.closed {
 		b.ctx.Close()
 	}
