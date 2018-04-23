@@ -710,7 +710,7 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 	mockDecoder := serialize.NewMockTagDecoder(ctrl)
 	mockDecoder.EXPECT().Reset(gomock.Any()).AnyTimes()
 	mockDecoder.EXPECT().Err().Return(nil).AnyTimes()
-	mockDecoder.EXPECT().Finalize().AnyTimes()
+	mockDecoder.EXPECT().Close().AnyTimes()
 	mockDecoderPool := serialize.NewMockTagDecoderPool(ctrl)
 	mockDecoderPool.EXPECT().Get().Return(mockDecoder).AnyTimes()
 	service.tagDecoderPool = mockDecoderPool
