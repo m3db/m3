@@ -9,9 +9,14 @@ import (
 
 // PhysicalPlan represents the physical plan
 type PhysicalPlan struct {
-	steps      map[parser.TransformID]LogicalStep
-	pipeline   []parser.TransformID // Ordered list of steps to be performed
-	resultStep LogicalStep
+	steps      map[parser.NodeID]LogicalStep
+	pipeline   []parser.NodeID // Ordered list of steps to be performed
+	ResultStep ResultOp
+}
+
+// ResultOp is resonsible for delivering results to the clients
+type ResultOp struct {
+	Parent parser.NodeID
 }
 
 // NewPhysicalPlan is used to generate a physical plan. Its responsibilities include creating consolidation nodes, result nodes,
@@ -38,14 +43,7 @@ func (p PhysicalPlan) createResultNode() (PhysicalPlan, error) {
 		return p, err
 	}
 
-	resultNode := parser.NewTransformFromOperation(&ResultOp{}, len(p.steps)+1)
-	resultStep := LogicalStep{
-		Transform: resultNode,
-		Parents:   []parser.TransformID{leaf.ID()},
-		Children:  []parser.TransformID{},
-	}
-
-	p.resultStep = resultStep
+	p.ResultStep = ResultOp{Parent: leaf.ID()}
 	return p, nil
 }
 
@@ -71,6 +69,13 @@ func (p PhysicalPlan) leafNode() (LogicalStep, error) {
 	return leaf, nil
 }
 
+// Step gets the logical step using its unique ID in the DAG
+func (p PhysicalPlan) Step(ID parser.NodeID) (LogicalStep, bool) {
+	// Editor complains when inlining the map get
+	step, ok := p.steps[ID]
+	return step, ok
+}
+
 func (p PhysicalPlan) String() string {
-	return fmt.Sprintf("Steps: %s, Pipeline: %s, Result: %s", p.steps, p.pipeline, p.resultStep)
+	return fmt.Sprintf("Steps: %s, Pipeline: %s, Result: %s", p.steps, p.pipeline, p.ResultStep)
 }

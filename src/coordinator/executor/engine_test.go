@@ -31,6 +31,6 @@ func TestExecute(t *testing.T) {
 
 	engine := NewEngine(local.NewStorage(session, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48))))
 	go engine.Execute(context.TODO(), &storage.FetchQuery{}, &EngineOptions{}, closing, results)
-	<- results
+	<-results
 	assert.Equal(t, len(engine.tracker.queries), 1)
 }
