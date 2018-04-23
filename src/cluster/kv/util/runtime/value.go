@@ -21,30 +21,19 @@
 package runtime
 
 import (
-	"errors"
 	"fmt"
-	"sync"
-	"time"
 
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3x/log"
-)
-
-var (
-	errInitWatchTimeout = errors.New("init watch timeout")
-	errNilValue         = errors.New("nil kv value")
+	"github.com/m3db/m3x/watch"
 )
 
 // Value is a value that can be updated during runtime.
 type Value interface {
+	watch.Value
+
 	// Key is the key associated with value.
 	Key() string
-
-	// Watch starts watching for value updates.
-	Watch() error
-
-	// Unwatch stops watching for value updates.
-	Unwatch()
 }
 
 // UnmarshalFn unmarshals a kv value and extracts its payload.
@@ -53,29 +42,17 @@ type UnmarshalFn func(value kv.Value) (interface{}, error)
 // ProcessFn processes a value.
 type ProcessFn func(value interface{}) error
 
-// updateWithLockFn updates a value while holding a lock.
-type updateWithLockFn func(value kv.Value) error
-
-type valueStatus int
-
-const (
-	valueNotWatching valueStatus = iota
-	valueWatching
-)
-
 type value struct {
-	sync.RWMutex
+	watch.Value
 
-	key              string
-	store            kv.Store
-	opts             Options
-	log              log.Logger
-	unmarshalFn      UnmarshalFn
-	processFn        ProcessFn
-	updateWithLockFn updateWithLockFn
+	key         string
+	store       kv.Store
+	opts        Options
+	log         log.Logger
+	unmarshalFn UnmarshalFn
+	processFn   ProcessFn
+	updateFn    watch.ProcessFn
 
-	status    valueStatus
-	watch     kv.ValueWatch
 	currValue kv.Value
 }
 
@@ -86,87 +63,39 @@ func NewValue(
 ) Value {
 	v := &value{
 		key:         key,
-		opts:        opts,
 		store:       opts.KVStore(),
+		opts:        opts,
 		log:         opts.InstrumentOptions().Logger(),
 		unmarshalFn: opts.UnmarshalFn(),
 		processFn:   opts.ProcessFn(),
 	}
-	v.updateWithLockFn = v.updateWithLock
+	v.updateFn = v.update
+	v.initValue()
 	return v
+}
+
+func (v *value) initValue() {
+	valueOpts := watch.NewOptions().
+		SetInstrumentOptions(v.opts.InstrumentOptions()).
+		SetInitWatchTimeout(v.opts.InitWatchTimeout()).
+		SetNewUpdatableFn(v.newUpdatableFn).
+		SetGetUpdateFn(v.getUpdateFn).
+		SetProcessFn(v.updateFn)
+	v.Value = watch.NewValue(valueOpts)
 }
 
 func (v *value) Key() string { return v.key }
 
-func (v *value) Watch() error {
-	v.Lock()
-	defer v.Unlock()
-
-	if v.status == valueWatching {
-		return nil
-	}
-	watch, err := v.store.Watch(v.key)
-	if err != nil {
-		return CreateWatchError{innerError: err}
-	}
-	v.status = valueWatching
-	v.watch = watch
-
-	select {
-	case <-watch.C():
-	case <-time.After(v.opts.InitWatchTimeout()):
-		err = errInitWatchTimeout
-	}
-
-	if err == nil {
-		err = v.updateWithLockFn(watch.Get())
-	}
-
-	// NB(xichen): we want to start watching updates even though
-	// we may fail to initialize the value temporarily (e.g., during
-	// a network partition) so the value will be updated when the
-	// error condition is resolved.
-	go v.watchUpdates(v.watch)
-	if err != nil {
-		return InitValueError{innerError: err}
-	}
-	return nil
+func (v *value) newUpdatableFn() (watch.Updatable, error) {
+	return v.store.Watch(v.key)
 }
 
-func (v *value) Unwatch() {
-	v.Lock()
-	defer v.Unlock()
-
-	// If status is nil, it means we are not watching.
-	if v.status == valueNotWatching {
-		return
-	}
-	v.watch.Close()
-	v.status = valueNotWatching
-	v.watch = nil
+func (v *value) getUpdateFn(updatable watch.Updatable) (interface{}, error) {
+	return updatable.(kv.ValueWatch).Get(), nil
 }
 
-func (v *value) watchUpdates(watch kv.ValueWatch) {
-	for range watch.C() {
-		v.Lock()
-		// If we are not watching, or we are watching with a different
-		// watch because we stopped the current watch and started a new
-		// one, return immediately.
-		if v.status != valueWatching || v.watch != watch {
-			v.Unlock()
-			return
-		}
-		if err := v.updateWithLockFn(watch.Get()); err != nil {
-			v.log.Errorf("error updating value: %v", err)
-		}
-		v.Unlock()
-	}
-}
-
-func (v *value) updateWithLock(update kv.Value) error {
-	if update == nil {
-		return errNilValue
-	}
+func (v *value) update(value interface{}) error {
+	update := value.(kv.Value)
 	if v.currValue != nil && !update.IsNewer(v.currValue) {
 		v.log.Warnf("ignore kv update with version %d which is not newer than the version of the current value: %d", update.Version(), v.currValue.Version())
 		return nil
@@ -174,30 +103,11 @@ func (v *value) updateWithLock(update kv.Value) error {
 	v.log.Infof("received kv update with version %d for key %s", update.Version(), v.key)
 	latest, err := v.unmarshalFn(update)
 	if err != nil {
-		err = fmt.Errorf("error unmarshalling value for version %d: %v", update.Version(), err)
-		return err
+		return fmt.Errorf("error unmarshalling value for version %d: %v", update.Version(), err)
 	}
 	if err := v.processFn(latest); err != nil {
 		return err
 	}
 	v.currValue = update
 	return nil
-}
-
-// CreateWatchError is returned when encountering an error creating a watch.
-type CreateWatchError struct {
-	innerError error
-}
-
-func (e CreateWatchError) Error() string {
-	return fmt.Sprintf("create watch error:%v", e.innerError)
-}
-
-// InitValueError is returned when encountering an error when initializing a value.
-type InitValueError struct {
-	innerError error
-}
-
-func (e InitValueError) Error() string {
-	return fmt.Sprintf("initializing value error:%v", e.innerError)
 }
