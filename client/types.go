@@ -73,10 +73,10 @@ type Session interface {
 	FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
-	FetchTagged(index.Query, index.QueryOptions) (results encoding.SeriesIterators, exhaustive bool, err error)
+	FetchTagged(q index.Query, opts index.QueryOptions) (results encoding.SeriesIterators, exhaustive bool, err error)
 
 	// FetchTaggedIDs resolves the provided query to known IDs.
-	FetchTaggedIDs(index.Query, index.QueryOptions) (index.QueryResults, error)
+	FetchTaggedIDs(q index.Query, opts index.QueryOptions) (index.QueryResults, error)
 
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations

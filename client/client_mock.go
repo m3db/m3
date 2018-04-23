@@ -195,8 +195,8 @@ func (_mr *MockSessionMockRecorder) FetchIDs(arg0, arg1, arg2, arg3 interface{})
 }
 
 // FetchTagged mocks base method
-func (_m *MockSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (encoding.SeriesIterators, bool, error) {
-	ret := _m.ctrl.Call(_m, "FetchTagged", _param0, _param1)
+func (_m *MockSession) FetchTagged(q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", q, opts)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -209,8 +209,8 @@ func (_mr *MockSessionMockRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.
 }
 
 // FetchTaggedIDs mocks base method
-func (_m *MockSession) FetchTaggedIDs(_param0 index.Query, _param1 index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", _param0, _param1)
+func (_m *MockSession) FetchTaggedIDs(q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", q, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -540,8 +540,8 @@ func (_mr *MockAdminSessionMockRecorder) FetchIDs(arg0, arg1, arg2, arg3 interfa
 }
 
 // FetchTagged mocks base method
-func (_m *MockAdminSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (encoding.SeriesIterators, bool, error) {
-	ret := _m.ctrl.Call(_m, "FetchTagged", _param0, _param1)
+func (_m *MockAdminSession) FetchTagged(q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", q, opts)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -554,8 +554,8 @@ func (_mr *MockAdminSessionMockRecorder) FetchTagged(arg0, arg1 interface{}) *go
 }
 
 // FetchTaggedIDs mocks base method
-func (_m *MockAdminSession) FetchTaggedIDs(_param0 index.Query, _param1 index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", _param0, _param1)
+func (_m *MockAdminSession) FetchTaggedIDs(q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", q, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -2851,8 +2851,8 @@ func (_mr *MockclientSessionMockRecorder) FetchIDs(arg0, arg1, arg2, arg3 interf
 }
 
 // FetchTagged mocks base method
-func (_m *MockclientSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (encoding.SeriesIterators, bool, error) {
-	ret := _m.ctrl.Call(_m, "FetchTagged", _param0, _param1)
+func (_m *MockclientSession) FetchTagged(q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", q, opts)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -2865,8 +2865,8 @@ func (_mr *MockclientSessionMockRecorder) FetchTagged(arg0, arg1 interface{}) *g
 }
 
 // FetchTaggedIDs mocks base method
-func (_m *MockclientSession) FetchTaggedIDs(_param0 index.Query, _param1 index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", _param0, _param1)
+func (_m *MockclientSession) FetchTaggedIDs(q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", q, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1

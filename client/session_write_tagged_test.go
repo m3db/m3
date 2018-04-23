@@ -67,7 +67,7 @@ func TestSessionWriteTagged(t *testing.T) {
 	mockEncoder.EXPECT().Finalize().AnyTimes()
 	mockEncoderPool := serialize.NewMockTagEncoderPool(ctrl)
 	mockEncoderPool.EXPECT().Get().Return(mockEncoder).AnyTimes()
-	session.tagEncoderPool = mockEncoderPool
+	session.pools.tagEncoder = mockEncoderPool
 
 	var completionFn completionFn
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
@@ -250,7 +250,7 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 	mockEncoder.EXPECT().Finalize().AnyTimes()
 	mockEncoderPool := serialize.NewMockTagEncoderPool(ctrl)
 	mockEncoderPool.EXPECT().Get().Return(mockEncoder).AnyTimes()
-	session.tagEncoderPool = mockEncoderPool
+	session.pools.tagEncoder = mockEncoderPool
 
 	var hosts []topology.Host
 	var completionFn completionFn

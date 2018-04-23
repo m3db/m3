@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,34 +20,27 @@
 
 package client
 
-var (
-	testWriteBatchRawPool       writeBatchRawRequestPool
-	testWriteArrayPool          writeBatchRawRequestElementArrayPool
-	testWriteTaggedBatchRawPool writeTaggedBatchRawRequestPool
-	testWriteTaggedArrayPool    writeTaggedBatchRawRequestElementArrayPool
+import (
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/serialize"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 )
 
-func init() {
-	testWriteBatchRawPool = newWriteBatchRawRequestPool(nil)
-	testWriteBatchRawPool.Init()
-	testWriteArrayPool = newWriteBatchRawRequestElementArrayPool(nil, 0)
-	testWriteArrayPool.Init()
-	testWriteTaggedBatchRawPool = newWriteTaggedBatchRawRequestPool(nil)
-	testWriteTaggedBatchRawPool.Init()
-	testWriteTaggedArrayPool = newWriteTaggedBatchRawRequestElementArrayPool(nil, 0)
-	testWriteTaggedArrayPool.Init()
-}
-
-type hostQueueResult struct {
-	result interface{}
-	err    error
-}
-
-func newHostQueueTestOptions() Options {
-	return NewOptions().
-		SetHostQueueOpsFlushSize(4).
-		SetHostQueueOpsArrayPoolSize(4).
-		SetWriteBatchSize(4).
-		SetFetchBatchSize(4).
-		SetHostQueueOpsFlushInterval(0)
+type sessionPools struct {
+	context                     context.Pool
+	id                          ident.Pool
+	writeOperation              *writeOperationPool
+	writeTaggedOperation        *writeTaggedOperationPool
+	fetchBatchOp                *fetchBatchOpPool
+	fetchBatchOpArrayArray      *fetchBatchOpArrayArrayPool
+	iteratorArray               encoding.IteratorArrayPool
+	tagEncoder                  serialize.TagEncoderPool
+	readerSliceOfSlicesIterator *readerSliceOfSlicesIteratorPool
+	multiReaderIterator         encoding.MultiReaderIteratorPool
+	seriesIterator              encoding.SeriesIteratorPool
+	seriesIterators             encoding.MutableSeriesIteratorsPool
+	writeAttempt                *writeAttemptPool
+	writeState                  *writeStatePool
+	fetchAttempt                *fetchAttemptPool
 }
