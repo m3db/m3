@@ -1,5 +1,5 @@
 hash: 957c853fbb6daa6ed8d776008115df51b1641bc62d9e9a1efed572fcea061446
-updated: 2018-04-17T19:26:50.733420531-04:00
+updated: 2018-04-23T17:56:45.384288-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -196,7 +196,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: eeedf312bc6c57391d84767a4cd413f02a917974
+  version: 35aad584952c3e7020db7b839f6b102de6271f89
   subpackages:
   - buffer
   - internal/bufferpool
@@ -226,8 +226,6 @@ imports:
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
   repo: https://github.com/golang/sys
   vcs: git
-  subpackages:
-  - unix
 - name: golang.org/x/text
   version: 4ee4af566555f5fbe026368b75596286a312663a
   subpackages:

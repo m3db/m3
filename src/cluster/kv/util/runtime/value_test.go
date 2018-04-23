@@ -22,7 +22,6 @@ package runtime
 
 import (
 	"errors"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,7 +29,9 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/watch"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
@@ -40,15 +41,32 @@ const (
 )
 
 func TestValueWatchAlreadyWatching(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	_, rv := testValueWithMockStore(ctrl)
-	rv.status = valueWatching
+	notifyCh := make(chan struct{})
+	mockWatch := kv.NewMockValueWatch(ctrl)
+	mockWatch.EXPECT().C().Return(notifyCh).MinTimes(1)
+
+	mockStore, rv := testValueWithMockStore(ctrl)
+	mockStore.EXPECT().Watch(rv.key).Return(mockWatch, nil)
+
+	err := rv.Watch()
+	require.Error(t, err)
+
+	_, ok := err.(watch.InitValueError)
+	require.True(t, ok)
 	require.NoError(t, rv.Watch())
+
+	mockWatch.EXPECT().Close().Do(func() { close(notifyCh) })
+	rv.Unwatch()
 }
 
 func TestValueWatchCreateWatchError(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -56,14 +74,24 @@ func TestValueWatchCreateWatchError(t *testing.T) {
 	errWatch := errors.New("error creating watch")
 	store.EXPECT().Watch(rv.key).Return(nil, errWatch)
 
-	require.Equal(t, CreateWatchError{innerError: errWatch}, rv.Watch())
-	require.Equal(t, valueNotWatching, rv.status)
+	err := rv.Watch()
+	require.Error(t, err)
+
+	_, ok := err.(watch.CreateWatchError)
+	require.True(t, ok)
+	store.EXPECT().Watch(rv.key).Return(nil, errWatch)
+
+	err = rv.Watch()
+	require.Error(t, err)
+	_, ok = err.(watch.CreateWatchError)
+	require.True(t, ok)
 
 	rv.Unwatch()
-	require.Equal(t, valueNotWatching, rv.status)
 }
 
 func TestValueWatchWatchTimeout(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -71,72 +99,74 @@ func TestValueWatchWatchTimeout(t *testing.T) {
 	notifyCh := make(chan struct{})
 	mockWatch := kv.NewMockValueWatch(ctrl)
 	mockWatch.EXPECT().C().Return(notifyCh).MinTimes(1)
-	mockWatch.EXPECT().Close().Do(func() { close(notifyCh) })
 	store.EXPECT().Watch(rv.key).Return(mockWatch, nil)
 
-	require.Equal(t, InitValueError{innerError: errInitWatchTimeout}, rv.Watch())
-	require.Equal(t, valueWatching, rv.status)
+	err := rv.Watch()
+	require.Error(t, err)
+	_, ok := err.(watch.InitValueError)
+	require.True(t, ok)
 
+	mockWatch.EXPECT().Close().Do(func() { close(notifyCh) })
 	rv.Unwatch()
-	require.Equal(t, valueNotWatching, rv.status)
 }
 
 func TestValueWatchUpdateError(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	store, rv := testValueWithMockStore(ctrl)
 	errUpdate := errors.New("error updating")
-	rv.updateWithLockFn = func(kv.Value) error { return errUpdate }
+	rv.updateFn = func(interface{}) error {
+		return errUpdate
+	}
+	rv.initValue()
 	notifyCh := make(chan struct{}, 1)
 	notifyCh <- struct{}{}
 	mockWatch := kv.NewMockValueWatch(ctrl)
 	mockWatch.EXPECT().C().Return(notifyCh).MinTimes(1)
-	mockWatch.EXPECT().Get().Return(nil)
-	mockWatch.EXPECT().Close().Do(func() { close(notifyCh) })
+	mockWatch.EXPECT().Get().Return(mem.NewValue(1, nil))
 	store.EXPECT().Watch(rv.key).Return(mockWatch, nil)
 
-	require.Equal(t, InitValueError{innerError: errUpdate}, rv.Watch())
-	require.Equal(t, valueWatching, rv.status)
+	err := rv.Watch()
+	require.Error(t, err)
+	_, ok := err.(watch.InitValueError)
+	require.True(t, ok)
+	require.Contains(t, err.Error(), errUpdate.Error())
 
+	mockWatch.EXPECT().Close().Do(func() { close(notifyCh) })
 	rv.Unwatch()
-	require.Equal(t, valueNotWatching, rv.status)
 }
 
 func TestValueWatchSuccess(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	store, rv := testValueWithMockStore(ctrl)
-	rv.updateWithLockFn = func(kv.Value) error { return nil }
+	rv.updateFn = func(interface{}) error { return nil }
+	rv.initValue()
 	notifyCh := make(chan struct{}, 1)
 	notifyCh <- struct{}{}
 	mockWatch := kv.NewMockValueWatch(ctrl)
 	mockWatch.EXPECT().C().Return(notifyCh).MinTimes(1)
-	mockWatch.EXPECT().Get().Return(nil)
-	mockWatch.EXPECT().Close().Do(func() { close(notifyCh) })
+	mockWatch.EXPECT().Get().Return(mem.NewValue(1, nil))
 	store.EXPECT().Watch(rv.key).Return(mockWatch, nil)
 
 	require.NoError(t, rv.Watch())
-	require.Equal(t, valueWatching, rv.status)
 
+	mockWatch.EXPECT().Close().Do(func() { close(notifyCh) })
 	rv.Unwatch()
-	require.Equal(t, valueNotWatching, rv.status)
-}
-
-func TestValueUnwatchNotWatching(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	_, rv := testValueWithMockStore(ctrl)
-	rv.status = valueNotWatching
-	rv.Unwatch()
-	require.Equal(t, valueNotWatching, rv.status)
 }
 
 func TestValueWatchUnWatchMultipleTimes(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	store, rv := testValueWithMemStore()
-	rv.updateWithLockFn = func(kv.Value) error { return nil }
+	rv.updateFn = func(interface{}) error { return nil }
+	rv.initValue()
 	_, err := store.SetIfNotExists(testValueKey, &commonpb.BoolProto{})
 	require.NoError(t, err)
 
@@ -147,87 +177,9 @@ func TestValueWatchUnWatchMultipleTimes(t *testing.T) {
 	}
 }
 
-func TestValueWatchUpdatesError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	watchCh := make(chan struct{})
-	doneCh := make(chan struct{})
-	_, rv := testValueWithMockStore(ctrl)
-	errUpdate := errors.New("error updating")
-	rv.updateWithLockFn = func(kv.Value) error {
-		close(doneCh)
-		return errUpdate
-	}
-	watch := kv.NewMockValueWatch(ctrl)
-	watch.EXPECT().C().Return(watchCh).AnyTimes()
-	watch.EXPECT().Get().Return(nil)
-	watch.EXPECT().Close().Do(func() { close(watchCh) })
-	rv.watch = watch
-	rv.status = valueWatching
-	go rv.watchUpdates(watch)
-
-	watchCh <- struct{}{}
-	<-doneCh
-	rv.Unwatch()
-	require.Equal(t, valueNotWatching, rv.status)
-}
-
-func TestValueWatchValueUnwatched(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	_, rv := testValueWithMockStore(ctrl)
-	var updated int32
-	rv.updateWithLockFn = func(kv.Value) error { atomic.AddInt32(&updated, 1); return nil }
-	ch := make(chan struct{})
-	watch := kv.NewMockValueWatch(ctrl)
-	watch.EXPECT().C().Return(ch).AnyTimes()
-	watch.EXPECT().Get().Return(nil).AnyTimes()
-	watch.EXPECT().Close().Do(func() { close(ch) }).AnyTimes()
-	rv.watch = watch
-	rv.status = valueNotWatching
-	go rv.watchUpdates(watch)
-
-	ch <- struct{}{}
-	// Given the update goroutine a chance to run.
-	time.Sleep(100 * time.Millisecond)
-	close(ch)
-	require.Equal(t, int32(0), atomic.LoadInt32(&updated))
-}
-
-func TestValueWatchValueDifferentWatch(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	_, rv := testValueWithMockStore(ctrl)
-	var updated int32
-	rv.updateWithLockFn = func(kv.Value) error { atomic.AddInt32(&updated, 1); return nil }
-	ch := make(chan struct{})
-	watch := kv.NewMockValueWatch(ctrl)
-	watch.EXPECT().C().Return(ch).AnyTimes()
-	watch.EXPECT().Get().Return(nil).AnyTimes()
-	watch.EXPECT().Close().Do(func() { close(ch) }).AnyTimes()
-	rv.watch = kv.NewMockValueWatch(ctrl)
-	rv.status = valueWatching
-	go rv.watchUpdates(watch)
-
-	ch <- struct{}{}
-	// Given the update goroutine a chance to run.
-	time.Sleep(100 * time.Millisecond)
-	close(ch)
-	require.Equal(t, int32(0), atomic.LoadInt32(&updated))
-}
-
-func TestValueUpdateNilValueError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	_, rv := testValueWithMockStore(ctrl)
-	require.Equal(t, errNilValue, rv.updateWithLockFn(nil))
-}
-
 func TestValueUpdateStaleUpdate(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -235,11 +187,13 @@ func TestValueUpdateStaleUpdate(t *testing.T) {
 	currValue := mem.NewValue(3, nil)
 	rv.currValue = currValue
 	newValue := mem.NewValue(3, nil)
-	require.NoError(t, rv.updateWithLockFn(newValue))
+	require.NoError(t, rv.updateFn(newValue))
 	require.Equal(t, currValue, rv.currValue)
 }
 
 func TestValueUpdateUnmarshalError(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -247,11 +201,13 @@ func TestValueUpdateUnmarshalError(t *testing.T) {
 	errUnmarshal := errors.New("error unmarshaling")
 	rv.unmarshalFn = func(v kv.Value) (interface{}, error) { return nil, errUnmarshal }
 
-	require.Error(t, rv.updateWithLockFn(mem.NewValue(3, nil)))
+	require.Error(t, rv.updateFn(mem.NewValue(3, nil)))
 	require.Nil(t, rv.currValue)
 }
 
 func TestValueUpdateProcessError(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -260,11 +216,13 @@ func TestValueUpdateProcessError(t *testing.T) {
 	rv.unmarshalFn = func(v kv.Value) (interface{}, error) { return nil, nil }
 	rv.processFn = func(v interface{}) error { return errProcess }
 
-	require.Error(t, rv.updateWithLockFn(mem.NewValue(3, nil)))
+	require.Error(t, rv.updateFn(mem.NewValue(3, nil)))
 	require.Nil(t, rv.currValue)
 }
 
 func TestValueUpdateSuccess(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -278,7 +236,7 @@ func TestValueUpdateSuccess(t *testing.T) {
 	}
 
 	input := mem.NewValue(3, nil)
-	require.NoError(t, rv.updateWithLock(input))
+	require.NoError(t, rv.update(input))
 	require.Equal(t, []kv.Value{input}, outputs)
 	require.Equal(t, input, rv.currValue)
 }
