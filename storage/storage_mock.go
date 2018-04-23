@@ -1134,16 +1134,16 @@ func (_mr *MockdatabaseShardMockRecorder) ReadEncoded(arg0, arg1, arg2, arg3 int
 }
 
 // FetchBlocks mocks base method
-func (_m *MockdatabaseShard) FetchBlocks(ctx context.Context, id ident.ID, starts []time.Time, blockDuration time.Duration) ([]block.FetchBlockResult, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocks", ctx, id, starts, blockDuration)
+func (_m *MockdatabaseShard) FetchBlocks(ctx context.Context, id ident.ID, starts []time.Time) ([]block.FetchBlockResult, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocks", ctx, id, starts)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchBlocks indicates an expected call of FetchBlocks
-func (_mr *MockdatabaseShardMockRecorder) FetchBlocks(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocks", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocks), arg0, arg1, arg2, arg3)
+func (_mr *MockdatabaseShardMockRecorder) FetchBlocks(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocks", reflect.TypeOf((*MockdatabaseShard)(nil).FetchBlocks), arg0, arg1, arg2)
 }
 
 // FetchBlocksMetadata mocks base method

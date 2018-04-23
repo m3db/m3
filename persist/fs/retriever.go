@@ -348,15 +348,16 @@ func (r *blockRetriever) Stream(
 	ctx context.Context,
 	shard uint32,
 	id ident.ID,
-	startTime time.Time,
+	startTime, endTime time.Time,
 	onRetrieve block.OnRetrieveBlock,
-) (xio.SegmentReader, error) {
+) (xio.BlockReader, error) {
 	req := r.reqPool.Get()
 	req.shard = shard
 	// NB(r): Clone the ID as we're not positive it will stay valid throughout
 	// the lifecycle of the async request.
 	req.id = r.idPool.Clone(id)
 	req.start = startTime
+	req.end = endTime
 	req.onRetrieve = onRetrieve
 	req.resultWg.Add(1)
 
@@ -491,6 +492,7 @@ type retrieveRequest struct {
 
 	id         ident.ID
 	start      time.Time
+	end        time.Time
 	onRetrieve block.OnRetrieveBlock
 
 	indexEntry IndexEntry
@@ -532,12 +534,31 @@ func (req *retrieveRequest) Reset(segment ts.Segment) {
 	req.resultWg.Done()
 }
 
+func (req *retrieveRequest) ResetWindowed(segment ts.Segment, start, end time.Time) {
+	req.reader.Reset(segment)
+	req.start = start
+	req.end = end
+	// req.resultWg.Done()
+}
+
+func (req *retrieveRequest) SegmentReader() (xio.SegmentReader, error) {
+	return req.reader, nil
+}
+
 func (req *retrieveRequest) Clone() (xio.Reader, error) {
 	req.resultWg.Wait() // wait until result is ready
 	if req.err != nil {
 		return nil, req.err
 	}
 	return req.reader.Clone()
+}
+
+func (req *retrieveRequest) Start() time.Time {
+	return req.start
+}
+
+func (req *retrieveRequest) End() time.Time {
+	return req.end
 }
 
 func (req *retrieveRequest) Read(b []byte) (int, error) {
@@ -568,6 +589,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.shard = 0
 	req.id = nil
 	req.start = time.Time{}
+	req.end = time.Time{}
 	req.onRetrieve = nil
 	req.indexEntry = IndexEntry{}
 	req.reader = nil

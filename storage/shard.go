@@ -297,10 +297,12 @@ func (s *dbShard) NumSeries() int64 {
 func (s *dbShard) Stream(
 	ctx context.Context,
 	id ident.ID,
-	start time.Time,
+	blockStart time.Time,
+	blockEnd time.Time,
 	onRetrieve block.OnRetrieveBlock,
-) (xio.SegmentReader, error) {
-	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, start, onRetrieve)
+) (xio.BlockReader, error) {
+	fmt.Println(id, blockStart, blockEnd)
+	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, blockEnd, onRetrieve)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -1075,7 +1077,6 @@ func (s *dbShard) FetchBlocks(
 	ctx context.Context,
 	id ident.ID,
 	starts []time.Time,
-	blockDuration time.Duration,
 ) ([]block.FetchBlockResult, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
@@ -1111,7 +1112,7 @@ func (s *dbShard) FetchBlocks(
 	// the behavior of the LRU
 	var onReadCb block.OnReadBlock
 	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, onReadCb, opts)
-	return reader.FetchBlocks(ctx, starts, blockDuration)
+	return reader.FetchBlocks(ctx, starts)
 }
 
 func (s *dbShard) fetchActiveBlocksMetadata(

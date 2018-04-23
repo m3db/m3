@@ -177,6 +177,7 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 	b.ctx.DependsOn(blocker)
 
 	start := b.startWithLock()
+	// todo arnikola
 	end := b.LastReadTime()
 	// If the block retrieve ID is set then it must be retrieved
 	var (
@@ -187,7 +188,7 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 	)
 	if b.retriever != nil {
 		fromBlockRetriever = true
-		stream, err = b.retriever.Stream(blocker, b.retrieveID, start, b)
+		stream, err = b.retriever.Stream(blocker, b.retrieveID, start, end, b)
 		if err != nil {
 			return nil, err
 		}

@@ -265,8 +265,9 @@ type DatabaseBlockRetriever interface {
 		shard uint32,
 		id ident.ID,
 		blockStart time.Time,
+		blockEnd time.Time,
 		onRetrieve OnRetrieveBlock,
-	) (xio.SegmentReader, error)
+	) (xio.BlockReader, error)
 }
 
 // DatabaseShardBlockRetriever is a block retriever bound to a shard.
@@ -276,8 +277,9 @@ type DatabaseShardBlockRetriever interface {
 		ctx context.Context,
 		id ident.ID,
 		blockStart time.Time,
+		blockEnd time.Time,
 		onRetrieve OnRetrieveBlock,
-	) (xio.SegmentReader, error)
+	) (xio.BlockReader, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

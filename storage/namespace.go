@@ -524,8 +524,7 @@ func (n *dbNamespace) FetchBlocks(
 		return nil, err
 	}
 
-	bs := n.nopts.RetentionOptions().BlockSize()
-	res, err := shard.FetchBlocks(ctx, id, starts, bs)
+	res, err := shard.FetchBlocks(ctx, id, starts)
 	n.metrics.fetchBlocks.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }

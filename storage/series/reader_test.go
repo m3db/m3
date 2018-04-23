@@ -49,10 +49,10 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 	retriever.EXPECT().IsBlockRetrievable(start).Return(true)
 	retriever.EXPECT().IsBlockRetrievable(start.Add(ropts.BlockSize())).Return(true)
 
-	var segReaders []*xio.MockSegmentReader
+	var blockReaders []*xio.MockBlockReader
 	for i := 0; i < 2; i++ {
-		reader := xio.NewMockSegmentReader(ctrl)
-		segReaders = append(segReaders, reader)
+		reader := xio.NewMockBlockReader(ctrl)
+		blockReaders = append(blockReaders, reader)
 	}
 
 	ctx := opts.ContextPool().Get()
@@ -60,12 +60,12 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 
 	retriever.EXPECT().
 		Stream(ctx, ident.NewIDMatcher("foo"),
-			start, onRetrieveBlock).
-		Return(segReaders[0], nil)
+			start, start.Add(ropts.BlockSize()), onRetrieveBlock).
+		Return(blockReaders[0], nil)
 	retriever.EXPECT().
 		Stream(ctx, ident.NewIDMatcher("foo"),
-			start.Add(ropts.BlockSize()), onRetrieveBlock).
-		Return(segReaders[1], nil)
+			start.Add(ropts.BlockSize()), end, onRetrieveBlock).
+		Return(blockReaders[1], nil)
 
 	reader := NewReaderUsingRetriever(
 		ident.StringID("foo"), retriever, onRetrieveBlock, nil, opts)
@@ -78,7 +78,7 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 		require.Equal(t, 1, len(readers))
 		segReader, err := readers[0].SegmentReader()
 		require.NoError(t, err)
-		assert.Equal(t, segReaders[i], segReader)
+		assert.Equal(t, blockReaders[i], segReader)
 	}
 }
 
@@ -98,10 +98,12 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 	retriever.EXPECT().IsBlockRetrievable(start).Return(true)
 	retriever.EXPECT().IsBlockRetrievable(start.Add(ropts.BlockSize())).Return(true)
 
-	var segReaders []*xio.MockSegmentReader
+	var blockReaders []*xio.MockBlockReader
 	for i := 0; i < 2; i++ {
-		reader := xio.NewMockSegmentReader(ctrl)
-		segReaders = append(segReaders, reader)
+		reader := xio.NewMockBlockReader(ctrl)
+		reader.EXPECT().End().Return(start.Add(time.Duration(i+1) * ropts.BlockSize()))
+
+		blockReaders = append(blockReaders, reader)
 	}
 
 	ctx := opts.ContextPool().Get()
@@ -109,12 +111,12 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 
 	retriever.EXPECT().
 		Stream(ctx, ident.NewIDMatcher("foo"),
-			start, nil).
-		Return(segReaders[0], nil)
+			start, start.Add(ropts.BlockSize()), nil).
+		Return(blockReaders[0], nil)
 	retriever.EXPECT().
 		Stream(ctx, ident.NewIDMatcher("foo"),
-			start.Add(ropts.BlockSize()), nil).
-		Return(segReaders[1], nil)
+			start.Add(ropts.BlockSize()), end, nil).
+		Return(blockReaders[1], nil)
 
 	reader := NewReaderUsingRetriever(
 		ident.StringID("foo"), retriever, onRetrieveBlock, nil, opts)
@@ -125,7 +127,7 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 		start.Add(ropts.BlockSize()),
 	}
 
-	r, err := reader.FetchBlocks(ctx, times, ropts.BlockSize())
+	r, err := reader.FetchBlocks(ctx, times)
 	require.NoError(t, err)
 	require.Equal(t, 2, len(r))
 
@@ -134,8 +136,6 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 		require.Equal(t, 1, len(result.Readers))
 		br := result.Readers[0]
 		assert.Equal(t, times[i].Add(ropts.BlockSize()), br.End())
-		segReader, err := br.SegmentReader()
-		require.NoError(t, err)
-		assert.Equal(t, segReaders[i], segReader)
+		assert.Equal(t, blockReaders[i], br)
 	}
 }

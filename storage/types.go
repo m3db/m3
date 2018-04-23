@@ -351,7 +351,6 @@ type databaseShard interface {
 		ctx context.Context,
 		id ident.ID,
 		starts []time.Time,
-		blockDuration time.Duration,
 	) ([]block.FetchBlockResult, error)
 
 	// FetchBlocksMetadata retrieves the blocks metadata.
