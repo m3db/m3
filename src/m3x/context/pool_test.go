@@ -21,46 +21,22 @@
 package context
 
 import (
-	"github.com/m3db/m3x/pool"
+	"testing"
+
 	"github.com/m3db/m3x/resource"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type poolOfContexts struct {
-	ctxPool        pool.ObjectPool
-	finalizersPool finalizersArrayPool
-}
+func TestContextPool(t *testing.T) {
+	opts := NewOptions().SetInitPooledFinalizerCapacity(0)
+	pool := NewPool(opts)
 
-// NewPool creates a new context pool.
-func NewPool(opts Options) Pool {
-	p := &poolOfContexts{
-		ctxPool: pool.NewObjectPool(opts.ContextPoolOptions()),
-		finalizersPool: newFinalizersArrayPool(finalizersArrayPoolOpts{
-			Capacity:    opts.InitPooledFinalizerCapacity(),
-			MaxCapacity: opts.MaxPooledFinalizerCapacity(),
-			Options:     opts.FinalizerPoolOptions(),
-		}),
-	}
-
-	p.finalizersPool.Init()
-	p.ctxPool.Init(func() interface{} {
-		return newPooledContext(p)
-	})
-
-	return p
-}
-
-func (p *poolOfContexts) Get() Context {
-	return p.ctxPool.Get().(Context)
-}
-
-func (p *poolOfContexts) Put(context Context) {
-	p.ctxPool.Put(context)
-}
-
-func (p *poolOfContexts) GetFinalizers() []resource.Finalizer {
-	return p.finalizersPool.Get()
-}
-
-func (p *poolOfContexts) PutFinalizers(finalizers []resource.Finalizer) {
-	p.finalizersPool.Put(finalizers)
+	ctx := pool.Get()
+	finalizeCalled := false
+	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+		finalizeCalled = true
+	}))
+	ctx.BlockingClose()
+	assert.True(t, finalizeCalled)
 }

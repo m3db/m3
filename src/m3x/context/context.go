@@ -69,10 +69,14 @@ func (c *ctx) RegisterFinalizer(f resource.Finalizer) {
 	if c.pool != nil {
 		c.finalizers = append(c.pool.GetFinalizers(), f)
 	} else {
-		c.finalizers = append(allocateFinalizers(defaultInitFinalizersCap), f)
+		c.finalizers = append(allocateFinalizers(), f)
 	}
 
 	c.Unlock()
+}
+
+func allocateFinalizers() []resource.Finalizer {
+	return make([]resource.Finalizer, 0, defaultInitFinalizersCap)
 }
 
 func (c *ctx) DependsOn(blocker Context) {
