@@ -8,30 +8,30 @@ import (
 
 // LogicalPlan converts a DAG into a list of steps to be executed in order
 type LogicalPlan struct {
-	Steps    map[parser.TransformID]LogicalStep
-	Pipeline []parser.TransformID // Ordered list of steps to be performed
+	Steps    map[parser.NodeID]LogicalStep
+	Pipeline []parser.NodeID // Ordered list of steps to be performed
 }
 
 // LogicalStep is a single step in a logical plan
 type LogicalStep struct {
-	Parents   []parser.TransformID
-	Children  []parser.TransformID
-	Transform parser.Transform
+	Parents   []parser.NodeID
+	Children  []parser.NodeID
+	Transform parser.Node
 }
 
 // NewLogicalPlan creates a plan from the DAG structure
-func NewLogicalPlan(transforms parser.Transforms, edges parser.Edges) (LogicalPlan, error) {
+func NewLogicalPlan(transforms parser.Nodes, edges parser.Edges) (LogicalPlan, error) {
 	lp := LogicalPlan{
-		Steps:    make(map[parser.TransformID]LogicalStep),
-		Pipeline: make([]parser.TransformID, 0, len(transforms)),
+		Steps:    make(map[parser.NodeID]LogicalStep),
+		Pipeline: make([]parser.NodeID, 0, len(transforms)),
 	}
 
 	// Create all steps
 	for _, transform := range transforms {
 		lp.Steps[transform.ID] = LogicalStep{
 			Transform: transform,
-			Parents:   make([]parser.TransformID, 0, 1),
-			Children:  make([]parser.TransformID, 0, 1),
+			Parents:   make([]parser.NodeID, 0, 1),
+			Children:  make([]parser.NodeID, 0, 1),
 		}
 		lp.Pipeline = append(lp.Pipeline, transform.ID)
 	}
@@ -64,12 +64,12 @@ func (l LogicalPlan) String() string {
 
 // Clone the plan
 func (l LogicalPlan) Clone() LogicalPlan {
-	steps := make(map[parser.TransformID]LogicalStep)
+	steps := make(map[parser.NodeID]LogicalStep)
 	for id, step := range l.Steps {
 		steps[id] = step.Clone()
 	}
 
-	pipeline := make([]parser.TransformID, len(l.Pipeline))
+	pipeline := make([]parser.NodeID, len(l.Pipeline))
 	copy(pipeline, l.Pipeline)
 	return LogicalPlan{
 		Steps:    steps,
@@ -82,16 +82,16 @@ func (l LogicalStep) String() string {
 }
 
 // ID is a convenience method to expose the inner transforms' ID
-func (l LogicalStep) ID() parser.TransformID {
+func (l LogicalStep) ID() parser.NodeID {
 	return l.Transform.ID
 }
 
 // Clone the step, the transform is immutable so its left as is
 func (l LogicalStep) Clone() LogicalStep {
-	parents := make([]parser.TransformID, len(l.Parents))
+	parents := make([]parser.NodeID, len(l.Parents))
 	copy(parents, l.Parents)
 
-	children := make([]parser.TransformID, len(l.Children))
+	children := make([]parser.NodeID, len(l.Children))
 	copy(children, l.Children)
 
 	return LogicalStep{

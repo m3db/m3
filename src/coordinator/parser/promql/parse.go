@@ -21,7 +21,7 @@ func Parse(q string) (parser.Parser, error) {
 	return &promParser{expr: expr}, nil
 }
 
-func (p *promParser) DAG() (parser.Transforms, parser.Edges, error) {
+func (p *promParser) DAG() (parser.Nodes, parser.Edges, error) {
 	return walk(p.expr)
 }
 
@@ -29,7 +29,7 @@ func (p *promParser) String() string {
 	return p.expr.String()
 }
 
-func walk(node pql.Node) (parser.Transforms, parser.Edges, error) {
+func walk(node pql.Node) (parser.Nodes, parser.Edges, error) {
 	if node == nil {
 		return nil, nil, nil
 	}
@@ -67,11 +67,11 @@ func walk(node pql.Node) (parser.Transforms, parser.Edges, error) {
 
 	case *pql.MatrixSelector:
 		operation := NewSelectorFromMatrix(n)
-		return []parser.Transform{parser.NewTransformFromOperation(operation, 0)}, nil, nil
+		return []parser.Node{parser.NewTransformFromOperation(operation, 0)}, nil, nil
 
 	case *pql.VectorSelector:
 		operation := NewSelectorFromVector(n)
-		return []parser.Transform{parser.NewTransformFromOperation(operation, 0)}, nil, nil
+		return []parser.Node{parser.NewTransformFromOperation(operation, 0)}, nil, nil
 
 	case *pql.NumberLiteral, *pql.StringLiteral:
 
