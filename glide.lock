@@ -206,7 +206,7 @@ imports:
   - search/query
   - search/searcher
 - name: github.com/m3db/m3x
-  version: 412959179ff62881144e0b1bc9d027f33275c9f8
+  version: 16e10665ade1d824950683afde6d9e37c8ffc957
   vcs: git
   subpackages:
   - checked
