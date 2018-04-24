@@ -11,7 +11,6 @@ coverfile            := cover.out
 coverage_xml         := coverage.xml
 junit_xml            := junit.xml
 test_log             := test.log
-lint_check           := .ci/lint.sh
 metalint_check       := .ci/metalint.sh
 metalint_config      := .metalinter.json
 metalint_exclude     := .excludemetalint
@@ -33,11 +32,6 @@ LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 .PHONY: setup
 setup:
 	mkdir -p $(BUILD)
-
-.PHONY: lint
-lint:
-	@which golint > /dev/null || go get -u github.com/golang/lint/golint
-	$(lint_check)
 
 .PHONY: metalint
 metalint: install-metalinter install-linter-badtime
@@ -103,7 +97,7 @@ clean:
 	@rm -f *.html *.xml *.out *.test
 
 .PHONY: all
-all: lint metalint test-ci-unit test-ci-integration
+all: metalint test-ci-unit test-ci-integration
 	@echo Made all successfully
 
 .DEFAULT_GOAL := all

@@ -2,17 +2,17 @@ package: github.com/m3db/m3collector
 import:
 
 - package: github.com/m3db/m3x
-  version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
+  version: d2606268ec596e14f84f1c9dd5c06317b944692d
   subpackages:
   - clock
   - instrument
   - log
 
 - package: github.com/m3db/m3cluster
-  version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
+  version: 829d4ae9ed79c90f32122cb32464312aed39686d
 
 - package: github.com/m3db/m3metrics
-  version: d4a5c022c5f0c23489c58ef2ce360d12713f799b
+  version: 0ba7ae136279e4c5394fc46347cf9f5732352f5c
 
 - package: github.com/uber-go/tally
   version: ^3.0.0 # ie >= 3.0.0, < 4.0.0

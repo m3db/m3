@@ -5,7 +5,8 @@
     "varcheck":  { "Command": "varcheck  -tags integration" },
     "megacheck": { "Command": "megacheck -tags integration" } },
   "Enable":
-    [ "deadcode"
+    [ "golint"
+    , "deadcode"
     , "varcheck"
     , "structcheck"
     , "goconst"

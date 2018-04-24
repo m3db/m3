@@ -1,13 +1,16 @@
 language: go
 go:
-  - 1.8.3
-  - 1.9.2
+  - "1.9.x"
+  - "1.10.x"
 install: make install-ci
-env:
-  global:
-    - TEST_TIMEOUT_SCALE=20 # Set higher timeouts for Travis
-    - PACKAGE=github.com/$TRAVIS_REPO_SLUG
 sudo: required
 dist: trusty
-script:
- - make all
+env:
+  global:
+    - TEST_TIMEOUT_SCALE=20
+    - PACKAGE=github.com/m3db/m3collector
+  matrix:
+    - MAKE_TARGET="test-ci-unit"
+    - MAKE_TARGET="test-ci-integration"
+    - MAKE_TARGET="metalint"
+script: "make $MAKE_TARGET"

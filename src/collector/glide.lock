@@ -1,10 +1,12 @@
-hash: c3fde187f75f9ee9ef96f95d42399b2423cb728819ac9f48790d5f6ce8e58b52
-updated: 2018-03-15T21:48:56.386106-04:00
+hash: 02286cc73017c01f50fd19c566a19a5865f8a2d07902896ab5e1582e950dfbdf
+updated: 2018-04-24T15:56:44.007793-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
   subpackages:
   - lib/go/thrift
+- name: github.com/cespare/xxhash
+  version: 48099fad606eafc26e3a569fad19ff510fff4df6
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
@@ -13,8 +15,6 @@ imports:
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
-  subpackages:
-  - oleutil
 - name: github.com/golang/mock
   version: 77f22c2b84e452a6b76fb0d1b09c9cfb44746aa4
   subpackages:
@@ -24,7 +24,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
+  version: 829d4ae9ed79c90f32122cb32464312aed39686d
   subpackages:
   - client
   - generated/proto/metadatapb
@@ -41,7 +41,7 @@ imports:
   - services/leader/campaign
   - shard
 - name: github.com/m3db/m3metrics
-  version: d4a5c022c5f0c23489c58ef2ce360d12713f799b
+  version: 0ba7ae136279e4c5394fc46347cf9f5732352f5c
   subpackages:
   - aggregation
   - errors
@@ -57,15 +57,15 @@ imports:
   - policy
   - protocol/msgpack
   - rules
+  - rules/models
+  - rules/models/changes
 - name: github.com/m3db/m3x
-  version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
+  version: d2606268ec596e14f84f1c9dd5c06317b944692d
   subpackages:
   - checked
   - clock
   - close
-  - context
   - errors
-  - ident
   - instrument
   - log
   - net
@@ -83,14 +83,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/shirou/gopsutil
-  version: 5776ff9c7c5d063d574ef53d740f75c68b448e53
-  subpackages:
-  - cpu
-  - host
-  - internal/common
-  - mem
-  - net
-  - process
+  version: fc04d2dd9a512906a2604242b35275179e250eda
 - name: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/spaolacci/murmur3
@@ -118,7 +111,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  version: eeedf312bc6c57391d84767a4cd413f02a917974
   subpackages:
   - buffer
   - internal/bufferpool
@@ -131,13 +124,6 @@ imports:
   vcs: git
   subpackages:
   - context
-- name: golang.org/x/sys
-  version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
-  repo: https://github.com/golang/sys
-  vcs: git
-  subpackages:
-  - unix
-  - windows
 - name: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
   subpackages:
@@ -157,7 +143,7 @@ imports:
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
 - name: github.com/fortytw2/leaktest
-  version: 7dad53304f9614c1c365755c1176a8e876fee3e8
+  version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
 - name: github.com/leanovate/gopter
   version: 9e6101e5a87586b269acf3d0d61f363e4317309f
   subpackages:
