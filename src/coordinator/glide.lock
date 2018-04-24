@@ -1,5 +1,5 @@
-hash: c8e0ba912adfa001b1599d6a346615bf40942fc29be60579967a744f4c00a13f
-updated: 2018-04-06T13:32:04.563600706-04:00
+hash: a15db92df8a81d848f94a51ae99c5bae03f61196b86fdb59ac7be1a58e62735b
+updated: 2018-04-24T01:03:10.800055-04:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -62,11 +62,13 @@ imports:
 - name: github.com/golang/protobuf
   version: 1e59b77b52bf8e4b449a57e6f79f21226d571845
   subpackages:
+  - jsonpb
   - proto
   - protoc-gen-go/descriptor
   - ptypes
   - ptypes/any
   - ptypes/duration
+  - ptypes/struct
   - ptypes/timestamp
 - name: github.com/golang/snappy
   version: 553a641470496b2327abcac10b36396bd98e45c9
@@ -77,7 +79,7 @@ imports:
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/m3db/m3cluster
-  version: ac52883b085bacbfa8441c511342d429772c8317
+  version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
   subpackages:
   - client
   - client/etcd
@@ -86,7 +88,6 @@ imports:
   - generated/proto/placementpb
   - kv
   - kv/etcd
-  - kv/mem
   - kv/util/runtime
   - placement
   - placement/algo
@@ -94,14 +95,13 @@ imports:
   - placement/service
   - placement/storage
   - services
-  - services/client/etcd
   - services/heartbeat/etcd
   - services/leader
   - services/leader/campaign
   - services/leader/election
   - shard
 - name: github.com/m3db/m3db
-  version: eb29e62b58f8c77b9a9d54919c377b7a43f1fc39
+  version: 3732c30f1ccefca23d3783c8e4948911cc5ec24d
   subpackages:
   - client
   - clock
@@ -116,7 +116,10 @@ imports:
   - network/server/tchannelthrift/errors
   - network/server/tchannelthrift/node/channel
   - persist
+  - ratelimit
   - retention
+  - runtime
+  - serialize
   - sharding
   - storage/block
   - storage/bootstrap/result
@@ -127,6 +130,7 @@ imports:
   - ts
   - x/tchannel
   - x/xio
+  - x/xpool
 - name: github.com/m3db/m3metrics
   version: 17e4ddf89f2b0c8fbb16b6d5b71a871b793d2a00
   subpackages:
@@ -138,6 +142,7 @@ imports:
   subpackages:
   - doc
   - index/segment
+  - index/segment/mem
 - name: github.com/m3db/m3x
   version: 73f3a41ef5c250e122ef225893ce0ac5962456e7
   subpackages:
@@ -215,7 +220,7 @@ imports:
   - util/strutil
   - util/testutil
 - name: github.com/prometheus/tsdb
-  version: bd832fc8274e8fe63999ac749daaaff9d881241f
+  version: def6e5a57439cffe7b44a619c05bce4ac513a63e
   subpackages:
   - chunkenc
   - chunks
@@ -275,7 +280,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  version: eeedf312bc6c57391d84767a4cd413f02a917974
   subpackages:
   - buffer
   - internal/bufferpool

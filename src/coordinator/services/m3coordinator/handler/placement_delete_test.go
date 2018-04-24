@@ -23,49 +23,34 @@ package handler
 import (
 	"errors"
 	"net/http"
-	"strings"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	// ErrInvalidParams is returned when input parameters are invalid
-	ErrInvalidParams = errors.New("invalid request params")
-)
+func TestPlacementDeleteHandler(t *testing.T) {
+	mockClient, mockPlacementService := SetupPlacementTest(t)
+	handler := NewPlacementDeleteHandler(mockClient)
 
-// Error will serve an HTTP error
-func Error(w http.ResponseWriter, err error, code int) {
-	http.Error(w, err.Error(), code)
-}
+	// Test delete success
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/placement/delete", nil)
+	require.NotNil(t, req)
+	mockPlacementService.EXPECT().Delete()
+	handler.ServeHTTP(w, req)
 
-// ParseError is the error from parsing requests
-type ParseError struct {
-	inner error
-	code  int
-}
+	resp := w.Result()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-// NewParseError creates a new parse error
-func NewParseError(inner error, code int) *ParseError {
-	return &ParseError{inner, code}
-}
+	// Test delete error
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/placement/delete", nil)
+	require.NotNil(t, req)
+	mockPlacementService.EXPECT().Delete().Return(errors.New("error"))
+	handler.ServeHTTP(w, req)
 
-// Errors returns the error object
-func (e *ParseError) Error() error {
-	return e.inner
-}
-
-// Code returns the error code
-func (e *ParseError) Code() int {
-	return e.code
-}
-
-// IsInvalidParams returns true if this is an invalid params error
-func IsInvalidParams(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if strings.HasPrefix(err.Error(), ErrInvalidParams.Error()) {
-		return true
-	}
-
-	return false
+	resp = w.Result()
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 }

@@ -122,11 +122,11 @@ func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery,
 		return nil, err
 	}
 
-	iter := results.Iter
+	iter := results.Iterator
 
 	var metrics models.Metrics
 	for iter.Next() {
-		m := storage.FromM3IdentToMetric(results.Iter.Current())
+		m := storage.FromM3IdentToMetric(results.Iterator.Current())
 		metrics = append(metrics, m)
 	}
 

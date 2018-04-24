@@ -53,6 +53,12 @@ func NewSearchHandler(storage storage.Storage) http.Handler {
 func (h *SearchHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	logger := logging.WithContext(r.Context())
 
+	// Allow handler to be set up before M3DB is initialized
+	if h.store == nil {
+		WriteUninitializedResponse(w, logger)
+		return
+	}
+
 	query, rErr := h.parseBody(r)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Any("error", rErr))
@@ -114,4 +120,9 @@ func newFetchOptions(limit int) storage.FetchOptions {
 	return storage.FetchOptions{
 		Limit: limit,
 	}
+}
+
+// SetStore sets the store of the handler
+func (h *SearchHandler) SetStore(store storage.Storage) {
+	h.store = store
 }
