@@ -32,25 +32,27 @@ genny-map-all: genny-map-client-received-blocks genny-map-storage-block-retrieve
 # Map generation rule for client/receivedBlocksMap
 .PHONY: genny-map-client-received-blocks
 genny-map-client-received-blocks: install-m3x-repo
-	cd $(m3x_package_path) && make hashmap-gen \
-		pkg=client \
-		key_type=idAndBlockStart \
-		value_type=receivedBlocks \
-		out_dir=$(m3db_package_path)/client \
-		rename_type_prefix=receivedBlocks
+	cd $(m3x_package_path) && make hashmap-gen  \
+		pkg=client                                \
+		key_type=idAndBlockStart                  \
+		value_type=receivedBlocks                 \
+		target_package=$(m3db_package)/client     \
+		rename_type_prefix=receivedBlocks         \
+	  temp_suffix=temp
 	# Rename generated map f	ile
 	mv -f $(m3db_package_path)/client/map_gen.go $(m3db_package_path)/client/received_blocks_map_gen.go
 
 # Map generation rule for storage/block/retrieverMap
 .PHONY: genny-map-storage-block-retriever
 genny-map-storage-block-retriever: install-m3x-repo
-	cd $(m3x_package_path) && make idhashmap-gen \
-		pkg=block \
-		value_type=DatabaseBlockRetriever \
-		out_dir=$(m3db_package_path)/storage/block \
-		rename_type_prefix=retriever \
-		rename_constructor=newRetrieverMap \
-		rename_constructor_options=retrieverMapOptions
+	cd $(m3x_package_path) && make idhashmap-gen     \
+		pkg=block                                      \
+		value_type=DatabaseBlockRetriever              \
+		target_package=$(m3db_package)/storage/block   \
+		rename_type_prefix=retriever                   \
+		rename_constructor=newRetrieverMap             \
+		rename_constructor_options=retrieverMapOptions \
+		temp_suffix=temp
 	# Rename both generated map and constructor files
 	mv -f $(m3db_package_path)/storage/block/map_gen.go $(m3db_package_path)/storage/block/retriever_map_gen.go
 	mv -f $(m3db_package_path)/storage/block/new_map_gen.go $(m3db_package_path)/storage/block/retriever_new_map_gen.go
@@ -58,10 +60,11 @@ genny-map-storage-block-retriever: install-m3x-repo
 # Map generation rule for storage/bootstrap/result/Map
 .PHONY: genny-map-storage-bootstrap-result
 genny-map-storage-bootstrap-result: install-m3x-repo
-	cd $(m3x_package_path) && make idhashmap-gen \
-		pkg=result \
-		value_type=DatabaseSeriesBlocks \
-		out_dir=$(m3db_package_path)/storage/bootstrap/result
+	cd $(m3x_package_path) && make idhashmap-gen              \
+		pkg=result                                              \
+		value_type=DatabaseSeriesBlocks                         \
+		target_package=$(m3db_package)/storage/bootstrap/result \
+		temp_suffix=temp
 
 # Map generation rule for storage package maps (to avoid double build over each other
 # when generating map source files in parallel, run these sequentially)
@@ -73,13 +76,14 @@ genny-map-storage:
 # Map generation rule for storage/databaseNamespacesMap
 .PHONY: genny-map-storage-database-namespaces
 genny-map-storage-database-namespaces: install-m3x-repo
-	cd $(m3x_package_path) && make idhashmap-gen \
-		pkg=storage \
-		value_type=databaseNamespace \
-		out_dir=$(m3db_package_path)/storage \
-		rename_type_prefix=databaseNamespaces \
-		rename_constructor=newDatabaseNamespacesMap \
-		rename_constructor_options=databaseNamespacesMapOptions
+	cd $(m3x_package_path) && make idhashmap-gen              \
+		pkg=storage                                             \
+		value_type=databaseNamespace                            \
+		target_package=$(m3db_package)/storage                  \
+		rename_type_prefix=databaseNamespaces                   \
+		rename_constructor=newDatabaseNamespacesMap             \
+		rename_constructor_options=databaseNamespacesMapOptions \
+		temp_suffix=temp
 	# Rename both generated map and constructor files
 	mv -f $(m3db_package_path)/storage/map_gen.go $(m3db_package_path)/storage/namespace_map_gen.go
 	mv -f $(m3db_package_path)/storage/new_map_gen.go $(m3db_package_path)/storage/namespace_new_map_gen.go
@@ -88,12 +92,13 @@ genny-map-storage-database-namespaces: install-m3x-repo
 .PHONY: genny-map-storage-shard
 genny-map-storage-shard: install-m3x-repo
 	cd $(m3x_package_path) && make idhashmap-gen \
-		pkg=storage \
-		value_type=shardListElement \
-		out_dir=$(m3db_package_path)/storage \
-		rename_type_prefix=shard \
-		rename_constructor=newShardMap \
-		rename_constructor_options=shardMapOptions
+		pkg=storage                                \
+		value_type=shardListElement                \
+		target_package=$(m3db_package)/storage     \
+		rename_type_prefix=shard                   \
+		rename_constructor=newShardMap             \
+		rename_constructor_options=shardMapOptions \
+		temp_suffix=temp
 	# Rename both generated map and constructor files
 	mv -f $(m3db_package_path)/storage/map_gen.go $(m3db_package_path)/storage/shard_map_gen.go
 	mv -f $(m3db_package_path)/storage/new_map_gen.go $(m3db_package_path)/storage/shard_new_map_gen.go
@@ -101,13 +106,14 @@ genny-map-storage-shard: install-m3x-repo
 # Map generation rule for storage/namespace/metadataMap
 .PHONY: genny-map-storage-namespace-metadata
 genny-map-storage-namespace-metadata: install-m3x-repo
-	cd $(m3x_package_path) && make idhashmap-gen \
-		pkg=namespace \
-		value_type=Metadata \
-		out_dir=$(m3db_package_path)/storage/namespace \
-		rename_type_prefix=metadata \
-		rename_constructor=newMetadataMap \
-		rename_constructor_options=metadataMapOptions
+	cd $(m3x_package_path) && make idhashmap-gen       \
+		pkg=namespace                                    \
+		value_type=Metadata                              \
+		target_package=$(m3db_package)/storage/namespace \
+		rename_type_prefix=metadata                      \
+		rename_constructor=newMetadataMap                \
+		rename_constructor_options=metadataMapOptions    \
+		temp_suffix=temp
 	# Rename both generated map and constructor files
 	mv -f $(m3db_package_path)/storage/namespace/map_gen.go $(m3db_package_path)/storage/namespace/metadata_map_gen.go
 	mv -f $(m3db_package_path)/storage/namespace/new_map_gen.go $(m3db_package_path)/storage/namespace/metadata_new_map_gen.go
@@ -115,10 +121,11 @@ genny-map-storage-namespace-metadata: install-m3x-repo
 # Map generation rule for storage/repair/Map
 .PHONY: genny-map-storage-repair
 genny-map-storage-repair: install-m3x-repo
-	cd $(m3x_package_path) && make idhashmap-gen \
-		pkg=repair \
-		value_type=ReplicaSeriesBlocksMetadata \
-		out_dir=$(m3db_package_path)/storage/repair
+	cd $(m3x_package_path) && make idhashmap-gen    \
+		pkg=repair                                    \
+		value_type=ReplicaSeriesBlocksMetadata        \
+		target_package=$(m3db_package)/storage/repair \
+	  temp_suffix=temp
 
 # Map generation rule for all generated arraypools
 .PHONY: genny-arraypool-all
@@ -127,9 +134,12 @@ genny-arraypool-all: genny-arraypool-node-segments
 # arraypool generation rule for ./network/server/tchannelthrift/node/segmentsArrayPool
 .PHONY: genny-arraypool-node-segments
 genny-arraypool-node-segments: install-m3x-repo
-	cd $(m3x_package_path) && make genny-arraypool                   \
-	elem_type=*rpc.Segments rename_type_prefix=segments              \
-	rename_type_middle=Segments out_file=segments_arraypool_gen.go   \
-	out_dir=$(m3db_package_path)/network/server/tchannelthrift/node  \
-	src_package=$(m3db_package) src_package_dir=$(m3db_package_path) \
-	pkg=node rename_constructor=newSegmentsArrayPool
+	cd $(m3x_package_path) && make genny-arraypool                    \
+	pkg=node                                                          \
+	elem_type=*rpc.Segments                                           \
+	target_package=$(m3db_package)/network/server/tchannelthrift/node \
+	out_file=segments_arraypool_gen.go                                \
+	rename_type_prefix=segments                                       \
+	rename_type_middle=Segments                                       \
+	rename_constructor=newSegmentsArrayPool                           \
+	temp_suffix=temp
