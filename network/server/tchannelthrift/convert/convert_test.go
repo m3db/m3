@@ -134,7 +134,7 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 				expectedQuery, rpcQ := tc.fn(t)
 				rpcRequest := &(*requestSkeleton)
 				rpcRequest.Query = rpcQ
-				id, observedQuery, observedOpts, fetch, err := convert.FromRPCFetchTaggedRequest(rpcRequest, nil)
+				id, observedQuery, observedOpts, fetch, err := convert.FromRPCFetchTaggedRequest(rpcRequest, pools.pool)
 				require.NoError(t, err)
 				require.Equal(t, ns.String(), id.String())
 				require.True(t, index.NewQueryMatcher(index.Query{expectedQuery}).Matches(observedQuery))
