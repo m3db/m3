@@ -141,7 +141,7 @@ proto-gen: install-proto-bin install-license-bin
 .PHONY: all-gen
 # NB(prateek): order matters here, mock-gen needs to be last because we sometimes
 # generate mocks for thrift/proto generated code.
-all-gen: thrift-gen proto-gen mock-gen map-all-gen genny-all
+all-gen: thrift-gen proto-gen mock-gen genny-all
 
 .PHONY: metalint
 metalint: install-metalinter install-linter-badtime

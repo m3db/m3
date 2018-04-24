@@ -18,34 +18,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xpool
+package index
 
 import (
-	"testing"
+	"fmt"
 
-	"github.com/m3db/m3x/pool"
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3ninx/idx"
+
+	"github.com/golang/mock/gomock"
 )
 
-func testPool() CheckedBytesWrapperPool {
-	p := NewCheckedBytesWrapperPool(pool.NewObjectPoolOptions().SetSize(1))
-	p.Init()
-	return p
+// QueryMatcher is a gomock.Matcher that matches index.Query
+type QueryMatcher interface {
+	gomock.Matcher
 }
 
-func TestCheckedBytesWrapperPool(t *testing.T) {
-	initBytes := []byte("some-string")
+// NewQueryMatcher returns a new QueryMatcher
+func NewQueryMatcher(q Query) QueryMatcher {
+	return &queryMatcher{
+		query:   q,
+		matcher: idx.NewQueryMatcher(q.Query),
+	}
+}
 
-	pool := testPool()
-	cb := pool.Get(initBytes)
+type queryMatcher struct {
+	query   Query
+	matcher idx.QueryMatcher
+}
 
-	cb.IncRef()
-	require.Equal(t, initBytes, cb.Bytes())
-	cb.DecRef()
+func (m *queryMatcher) Matches(x interface{}) bool {
+	query, ok := x.(Query)
+	if !ok {
+		return false
+	}
 
-	cb.Finalize()
-	cb.IncRef()
-	require.Nil(t, cb.Bytes())
-	cb.DecRef()
-	require.Equal(t, []byte("some-string"), initBytes)
+	return m.matcher.Matches(query.Query)
+}
+
+func (m *queryMatcher) String() string {
+	return fmt.Sprintf("QueryMatcher %v", m.query)
 }

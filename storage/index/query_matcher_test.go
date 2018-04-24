@@ -18,34 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xpool
+package index_test
 
 import (
 	"testing"
 
-	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3ninx/idx"
+
 	"github.com/stretchr/testify/require"
 )
 
-func testPool() CheckedBytesWrapperPool {
-	p := NewCheckedBytesWrapperPool(pool.NewObjectPoolOptions().SetSize(1))
-	p.Init()
-	return p
-}
-
-func TestCheckedBytesWrapperPool(t *testing.T) {
-	initBytes := []byte("some-string")
-
-	pool := testPool()
-	cb := pool.Get(initBytes)
-
-	cb.IncRef()
-	require.Equal(t, initBytes, cb.Bytes())
-	cb.DecRef()
-
-	cb.Finalize()
-	cb.IncRef()
-	require.Nil(t, cb.Bytes())
-	cb.DecRef()
-	require.Equal(t, []byte("some-string"), initBytes)
+func TestQueryMatcherTermQuery(t *testing.T) {
+	tq := idx.NewTermQuery([]byte("abc"), []byte("def"))
+	q := index.Query{tq}
+	require.True(t, index.NewQueryMatcher(q).Matches(q))
 }

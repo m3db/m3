@@ -55,11 +55,11 @@ func (_m *MockIterator) EXPECT() *MockIteratorMockRecorder {
 }
 
 // Current mocks base method
-func (_m *MockIterator) Current() (ident.ID, ident.ID, ident.Tags) {
+func (_m *MockIterator) Current() (ident.ID, ident.ID, ident.TagIterator) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(ident.ID)
 	ret1, _ := ret[1].(ident.ID)
-	ret2, _ := ret[2].(ident.Tags)
+	ret2, _ := ret[2].(ident.TagIterator)
 	return ret0, ret1, ret2
 }
 

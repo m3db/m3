@@ -1,6 +1,6 @@
 m3x_package          := github.com/m3db/m3x
 m3x_package_path     := $(gopath_prefix)/$(m3x_package)
-m3x_package_min_ver  := 29bc232d9ad2e6c4a1804ccce095bb730fb1c6bc
+m3x_package_min_ver  := 412959179ff62881144e0b1bc9d027f33275c9f8
 
 .PHONY: install-m3x-repo
 install-m3x-repo: install-glide install-generics-bin
@@ -17,21 +17,17 @@ install-m3x-repo: install-glide install-generics-bin
 
 # Generation rule for all generated types
 .PHONY: genny-all
-genny-all: genny-map-all
+genny-all: genny-map-all genny-arraypool-all
 
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-genny-all
-test-genny-all: test-genny-map-all
+test-genny-all: genny-all
+	@test "$(shell git diff --shortstat 2>/dev/null)" = "" || (git diff --no-color && echo "Check git status, there are dirty files" && exit 1)
+	@test "$(shell git status --porcelain 2>/dev/null | grep "^??")" = "" || (git status --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 # Map generation rule for all generated maps
 .PHONY: genny-map-all
 genny-map-all: genny-map-client-received-blocks genny-map-storage-block-retriever genny-map-storage-bootstrap-result genny-map-storage genny-map-storage-namespace-metadata genny-map-storage-repair
-
-# Tests that all currently generated maps match their contents if they were regenerated
-.PHONY: test-genny-map-all
-test-genny-map-all: genny-map-all
-	@test "$(shell git diff --shortstat 2>/dev/null)" = "" || (git diff --no-color && echo "Check git status, there are dirty files" && exit 1)
-	@test "$(shell git status --porcelain 2>/dev/null | grep "^??")" = "" || (git status --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 # Map generation rule for client/receivedBlocksMap
 .PHONY: genny-map-client-received-blocks
@@ -123,3 +119,17 @@ genny-map-storage-repair: install-m3x-repo
 		pkg=repair \
 		value_type=ReplicaSeriesBlocksMetadata \
 		out_dir=$(m3db_package_path)/storage/repair
+
+# Map generation rule for all generated arraypools
+.PHONY: genny-arraypool-all
+genny-arraypool-all: genny-arraypool-node-segments
+
+# arraypool generation rule for ./network/server/tchannelthrift/node/segmentsArrayPool
+.PHONY: genny-arraypool-node-segments
+genny-arraypool-node-segments: install-m3x-repo
+	cd $(m3x_package_path) && make genny-arraypool                   \
+	elem_type=*rpc.Segments rename_type_prefix=segments              \
+	rename_type_middle=Segments out_file=segments_arraypool_gen.go   \
+	out_dir=$(m3db_package_path)/network/server/tchannelthrift/node  \
+	src_package=$(m3db_package) src_package_dir=$(m3db_package_path) \
+	pkg=node rename_constructor=newSegmentsArrayPool
