@@ -1,5 +1,5 @@
-hash: b55f48c0e2358de5b4595e302aa6576bcee7b170d92c806464bc04f1bc785f78
-updated: 2018-04-18T15:12:24.173677-04:00
+hash: 7e103b1322fc8209945b6df7a6e4f3a1acc5e77c23f8218f5f48efd5485edda7
+updated: 2018-04-20T16:20:07.994456-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -14,7 +14,7 @@ imports:
   - proto
   - protoc-gen-gogo/descriptor
 - name: github.com/golang/mock
-  version: c34cdb4725f4c3844d095133c6e40e448b86589b
+  version: 0d6884b72b943387bb12268d5178dde0e759e49a
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
