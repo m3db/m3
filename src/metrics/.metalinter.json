@@ -1,6 +1,7 @@
 {
   "Enable":
-    [ "deadcode"
+    [ "golint"
+    , "deadcode"
     , "varcheck"
     , "structcheck"
     , "goconst"

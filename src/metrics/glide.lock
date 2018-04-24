@@ -1,5 +1,5 @@
-hash: 5f5f01b550e57cd04085b63d63819ea53b043ae89eed1de8811a84a7307e0747
-updated: 2018-04-18T13:11:07.457948-04:00
+hash: eae468699cb0aceb2512a0a82a7dadc3138f7060378e2ac1333e619d69d9af0d
+updated: 2018-04-23T18:45:03.044666-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -18,7 +18,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: cb17a54d6902c03790286942bafa04a188d4eeb8
+  version: 829d4ae9ed79c90f32122cb32464312aed39686d
   subpackages:
   - client
   - generated/proto/commonpb
@@ -72,7 +72,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
+  version: eeedf312bc6c57391d84767a4cd413f02a917974
   subpackages:
   - buffer
   - internal/bufferpool
@@ -84,7 +84,7 @@ imports:
   subpackages:
   - context
 - name: google.golang.org/appengine
-  version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
+  version: 267c27e7492265b84fc6719503b14a1e17975d79
   subpackages:
   - datastore
   - internal

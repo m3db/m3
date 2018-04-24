@@ -28,12 +28,12 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3cluster/kv/util/runtime"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/watch"
 
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +43,7 @@ func TestMatcherCreateWatchError(t *testing.T) {
 	defer ctrl.Finish()
 
 	kvStore := kv.NewMockStore(ctrl)
-	kvStore.EXPECT().Watch(testNamespacesKey).Return(nil, runtime.CreateWatchError{})
+	kvStore.EXPECT().Watch(testNamespacesKey).Return(nil, watch.CreateWatchError{})
 	opts := NewOptions().
 		SetInitWatchTimeout(10 * time.Millisecond).
 		SetNamespacesKey(testNamespacesKey).
@@ -51,7 +51,7 @@ func TestMatcherCreateWatchError(t *testing.T) {
 
 	_, err := NewMatcher(newMemCache(), opts)
 	require.Error(t, err)
-	_, ok := err.(runtime.CreateWatchError)
+	_, ok := err.(watch.CreateWatchError)
 	require.True(t, ok)
 }
 
