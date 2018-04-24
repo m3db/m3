@@ -29,7 +29,7 @@ import (
 )
 
 // FromM3IdentToMetric converts an M3 ident metric to a coordinator metric
-func FromM3IdentToMetric(identNamespace, identID ident.ID, iterTags ident.TagIterator) *models.Metric {
+func FromM3IdentToMetric(identNamespace, identID ident.ID, iterTags ident.Tags) *models.Metric {
 	namespace := identNamespace.String()
 	id := identID.String()
 	tags := FromIdentTagsToTags(iterTags)
@@ -42,13 +42,11 @@ func FromM3IdentToMetric(identNamespace, identID ident.ID, iterTags ident.TagIte
 }
 
 // FromIdentTagsToTags converts ident tags to coordinator tags
-func FromIdentTagsToTags(iterTags ident.TagIterator) models.Tags {
-	defer iterTags.Close()
-
-	tags := make(models.Tags, iterTags.Remaining())
-	for iterTags.Next() {
-		identTag := iterTags.Current()
+func FromIdentTagsToTags(identTags ident.Tags) models.Tags {
+	tags := make(models.Tags, len(identTags))
+	for _, identTag := range identTags {
 		tags[identTag.Name.String()] = identTag.Value.String()
+		identTag.Finalize()
 	}
 	return tags
 }

@@ -40,16 +40,16 @@ const (
 )
 
 // PlacementDeleteHandler represents a handler for placement delete endpoint.
-type PlacementDeleteHandler AdminHandler
+type placementDeleteHandler AdminHandler
 
 // NewPlacementDeleteHandler returns a new instance of handler.
 func NewPlacementDeleteHandler(clusterClient m3clusterClient.Client) http.Handler {
-	return &PlacementDeleteHandler{
+	return &placementDeleteHandler{
 		clusterClient: clusterClient,
 	}
 }
 
-func (h *PlacementDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *placementDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
@@ -59,8 +59,8 @@ func (h *PlacementDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-func (h *PlacementDeleteHandler) placementDelete(ctx context.Context) error {
-	ps, err := PlacementService(h.clusterClient)
+func (h *placementDeleteHandler) placementDelete(ctx context.Context) error {
+	ps, err := PlacementService(h.clusterClient, h.config)
 	if err != nil {
 		return err
 	}

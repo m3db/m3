@@ -19,7 +19,7 @@ import:
 - package: github.com/m3db/m3x
   version: 73f3a41ef5c250e122ef225893ce0ac5962456e7
 - package: github.com/m3db/m3db
-  version: eb29e62b58f8c77b9a9d54919c377b7a43f1fc39
+  version: 3732c30f1ccefca23d3783c8e4948911cc5ec24d
   subpackages:
   - client
 - package: github.com/m3db/m3metrics
@@ -36,7 +36,8 @@ import:
   subpackages:
   - errgroup
 - package: github.com/m3db/m3cluster
-  version: ac52883b085bacbfa8441c511342d429772c8317
+  version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
+
 - package: golang.org/x/net
   version: d0aafc73d5cdc42264b0af071c261abac580695e
   subpackages:
