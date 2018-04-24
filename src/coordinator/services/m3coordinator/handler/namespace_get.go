@@ -22,68 +22,73 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/m3db/m3coordinator/generated/proto/admin"
 	"github.com/m3db/m3coordinator/util/logging"
 
 	m3clusterClient "github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/placement"
-
+	"github.com/m3db/m3cluster/kv"
+	nsproto "github.com/m3db/m3db/generated/proto/namespace"
 	"go.uber.org/zap"
 )
 
 const (
-	// PlacementGetURL is the url for the placement get handler (with the GET method).
-	PlacementGetURL = "/placement/get"
+	// NamespaceGetURL is the url for the placement get handler (with the GET method).
+	NamespaceGetURL = "/namespace/get"
 
-	// PlacementGetHTTPMethodURL is the url for the placement get handler (with the GET method).
-	PlacementGetHTTPMethodURL = "/placement"
+	// NamespaceGetHTTPMethodURL is the url for the placement get handler (with the GET method).
+	NamespaceGetHTTPMethodURL = "/namespace"
 )
 
-// placementGetHandler represents a handler for placement get endpoint.
-type placementGetHandler AdminHandler
+// namespaceGetHandler represents a handler for placement get endpoint.
+type namespaceGetHandler AdminHandler
 
-// NewPlacementGetHandler returns a new instance of handler.
-func NewPlacementGetHandler(clusterClient m3clusterClient.Client) http.Handler {
-	return &placementGetHandler{
+// NewNamespaceGetHandler returns a new instance of handler.
+func NewNamespaceGetHandler(clusterClient m3clusterClient.Client) http.Handler {
+	return &namespaceGetHandler{
 		clusterClient: clusterClient,
 	}
 }
 
-func (h *placementGetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *namespaceGetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
+	nsRegistry, err := h.namespaceGet(ctx)
 
-	placement, version, err := h.placementGet(ctx)
 	if err != nil {
-		// An error from placementGet signifies "key not found", meaning there is
-		// no placement and as such, should not be treated as an actual error to
-		// the user.
-		w.Write([]byte("no placement found\n"))
-		return
-	}
-
-	placementProto, err := placement.Proto()
-	if err != nil {
-		logger.Error("unable to get placement protobuf", zap.Any("error", err))
+		logger.Error("unable to get namespace", zap.Any("error", err))
 		Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	resp := &admin.PlacementGetResponse{
-		Placement: placementProto,
-		Version:   int32(version),
+	resp := &admin.NamespaceGetResponse{
+		Registry: &nsRegistry,
 	}
 
 	WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *placementGetHandler) placementGet(ctx context.Context) (placement.Placement, int, error) {
-	ps, err := PlacementService(h.clusterClient, h.config)
+func (h *namespaceGetHandler) namespaceGet(ctx context.Context) (nsproto.Registry, error) {
+	var emptyReg = nsproto.Registry{}
+	store, err := h.clusterClient.KV()
 	if err != nil {
-		return nil, 0, err
+		return emptyReg, err
 	}
 
-	return ps.Placement()
+	value, err := store.Get(M3DBNodeNamespacesKey)
+	if err == kv.ErrNotFound {
+		// Having no namespace should not be treated as an error
+		return emptyReg, nil
+	} else if err != nil {
+		return emptyReg, err
+	}
+
+	var protoRegistry nsproto.Registry
+
+	if err := value.Unmarshal(&protoRegistry); err != nil {
+		return emptyReg, fmt.Errorf("failed to parse namespace version %v: %v", value.Version(), err)
+	}
+	return protoRegistry, nil
 }

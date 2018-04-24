@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3coordinator/executor"
 	"github.com/m3db/m3coordinator/policy/resolver"
+	"github.com/m3db/m3coordinator/services/m3coordinator/config"
 	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
 	"github.com/m3db/m3coordinator/storage/local"
 	"github.com/m3db/m3coordinator/util/logging"
@@ -45,7 +46,7 @@ func TestPromReadGet(t *testing.T) {
 	res := httptest.NewRecorder()
 	storage := local.NewStorage(nil, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
 
-	h, err := NewHandler(storage, executor.NewEngine(storage), nil)
+	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{})
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
 	h.Router.ServeHTTP(res, req)
@@ -59,7 +60,7 @@ func TestPromReadPost(t *testing.T) {
 	res := httptest.NewRecorder()
 	storage := local.NewStorage(nil, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
 
-	h, err := NewHandler(storage, executor.NewEngine(storage), nil)
+	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{})
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
 	h.Router.ServeHTTP(res, req)

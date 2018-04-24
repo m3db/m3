@@ -51,11 +51,12 @@ func NewPromReadHandler(engine *executor.Engine) http.Handler {
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	params, err := ParseRequestParams(r)
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
-	if err != nil {
-		Error(w, err, http.StatusBadRequest)
+
+	// Allow handler to be set up before M3DB is initialized
+	if h.engine == nil {
+		WriteUninitializedResponse(w, logger)
 		return
 	}
 
@@ -63,6 +64,12 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if rErr != nil {
 		Error(w, rErr.Error(), rErr.Code())
+		return
+	}
+
+	params, err := ParseRequestParams(r)
+	if err != nil {
+		Error(w, err, http.StatusBadRequest)
 		return
 	}
 
@@ -176,4 +183,9 @@ func CloseWatcher(ctx context.Context, w http.ResponseWriter) (<-chan bool, <-ch
 	}
 
 	return doneChan, closing
+}
+
+// SetEngine sets the engine of the handler
+func (h *PromReadHandler) SetEngine(engine *executor.Engine) {
+	h.engine = engine
 }

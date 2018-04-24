@@ -81,9 +81,9 @@ func generateSearchBody(t *testing.T) io.Reader {
 	return bytes.NewReader(data)
 }
 
-func generateQueryResults(tagsIter index.TaggedIDsIter) index.QueryResults {
+func generateQueryResults(tagsIter index.Iterator) index.QueryResults {
 	return index.QueryResults{
-		Iter: tagsIter,
+		Iterator: tagsIter,
 	}
 }
 
@@ -94,18 +94,11 @@ func generateTag() ident.Tag {
 	}
 }
 
-func generateTagIters(ctrl *gomock.Controller) *index.MockTaggedIDsIter {
-	mockTagIter := ident.NewMockTagIterator(ctrl)
-	mockTagIter.EXPECT().Next().Return(true).MaxTimes(1)
-	mockTagIter.EXPECT().Next().Return(false)
-	mockTagIter.EXPECT().Current().Return(generateTag())
-	mockTagIter.EXPECT().Close()
-	mockTagIter.EXPECT().Remaining().Return(0)
-
-	mockTaggedIDsIter := index.NewMockTaggedIDsIter(ctrl)
+func generateTagIters(ctrl *gomock.Controller) *index.MockIterator {
+	mockTaggedIDsIter := index.NewMockIterator(ctrl)
 	mockTaggedIDsIter.EXPECT().Next().Return(true).MaxTimes(1)
 	mockTaggedIDsIter.EXPECT().Next().Return(false)
-	mockTaggedIDsIter.EXPECT().Current().Return(ident.StringID(testNamespace), ident.StringID(testID), mockTagIter)
+	mockTaggedIDsIter.EXPECT().Current().Return(ident.StringID(testNamespace), ident.StringID(testID), []ident.Tag{generateTag()})
 
 	return mockTaggedIDsIter
 }

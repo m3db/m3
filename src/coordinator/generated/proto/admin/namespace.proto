@@ -1,0 +1,28 @@
+
+syntax = "proto3";
+package admin;
+
+import "github.com/m3db/m3db/generated/proto/namespace/namespace.proto";
+
+message NamespaceGetResponse {
+  namespace.Registry registry = 1;
+}
+
+message NamespaceAddRequest {
+  string name = 1;
+  string retention_period = 2;
+  string block_size = 3;
+  string buffer_future = 4;
+  string buffer_past = 5;
+  bool block_data_expiry = 6;
+  string block_data_expiry_period = 7;
+  bool needs_bootstrap = 8;
+  bool needs_fileset_cleanup = 9;
+  bool needs_flush = 10;
+  bool needs_repair = 11;
+  bool writes_to_commitlog = 12;
+}
+
+message NamespaceDeleteRequest {
+  string name = 1;
+}

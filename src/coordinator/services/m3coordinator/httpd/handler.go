@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3coordinator/executor"
+	"github.com/m3db/m3coordinator/services/m3coordinator/config"
 	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/util/logging"
@@ -49,10 +50,19 @@ type Handler struct {
 	storage       storage.Storage
 	engine        *executor.Engine
 	clusterClient m3clusterClient.Client
+	config        config.Configuration
+	lazyHandlers  lazyLoadHandlers
+}
+
+// lazyLoadHandlers are handlers that get activated lazily once M3DB is instantiated
+type lazyLoadHandlers struct {
+	promRead  *handler.PromReadHandler
+	promWrite *handler.PromWriteHandler
+	search    *handler.SearchHandler
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient m3clusterClient.Client) (*Handler, error) {
+func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient m3clusterClient.Client, cfg config.Configuration) (*Handler, error) {
 	r := mux.NewRouter()
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -66,6 +76,7 @@ func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient 
 		storage:       storage,
 		engine:        engine,
 		clusterClient: clusterClient,
+		config:        cfg,
 	}
 	return h, nil
 }
@@ -73,9 +84,20 @@ func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient 
 // RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() {
 	logged := withResponseTimeLogging
-	h.Router.HandleFunc(handler.PromReadURL, logged(handler.NewPromReadHandler(h.engine)).ServeHTTP).Methods("POST")
-	h.Router.HandleFunc(handler.PromWriteURL, logged(handler.NewPromWriteHandler(h.storage)).ServeHTTP).Methods("POST")
-	h.Router.HandleFunc(handler.SearchURL, logged(handler.NewSearchHandler(h.storage)).ServeHTTP).Methods("POST")
+
+	promReadHandler := handler.NewPromReadHandler(h.engine)
+	h.lazyHandlers.promRead = promReadHandler.(*handler.PromReadHandler)
+	h.Router.HandleFunc(handler.PromReadURL, logged(promReadHandler).ServeHTTP).Methods("POST")
+
+	promWriteHandler := handler.NewPromWriteHandler(h.storage)
+	h.lazyHandlers.promWrite = promWriteHandler.(*handler.PromWriteHandler)
+	h.Router.HandleFunc(handler.PromWriteURL, logged(promWriteHandler).ServeHTTP).Methods("POST")
+
+	searchHandler := handler.NewSearchHandler(h.storage)
+	h.lazyHandlers.search = searchHandler.(*handler.SearchHandler)
+	h.Router.HandleFunc(handler.SearchURL, logged(searchHandler).ServeHTTP).Methods("POST")
+
+	h.registerProfileEndpoints()
 
 	if h.clusterClient != nil {
 		h.Router.HandleFunc(handler.PlacementInitURL, logged(handler.NewPlacementInitHandler(h.clusterClient)).ServeHTTP).Methods("POST")
@@ -85,9 +107,14 @@ func (h *Handler) RegisterRoutes() {
 
 		h.Router.HandleFunc(handler.PlacementDeleteURL, logged(handler.NewPlacementDeleteHandler(h.clusterClient)).ServeHTTP).Methods("POST")
 		h.Router.HandleFunc(handler.PlacementDeleteHTTPMethodURL, logged(handler.NewPlacementDeleteHandler(h.clusterClient)).ServeHTTP).Methods("DELETE")
-	}
 
-	h.registerProfileEndpoints()
+		h.Router.HandleFunc(handler.NamespaceGetURL, logged(handler.NewNamespaceGetHandler(h.clusterClient)).ServeHTTP).Methods("GET")
+		h.Router.HandleFunc(handler.NamespaceGetHTTPMethodURL, logged(handler.NewNamespaceGetHandler(h.clusterClient)).ServeHTTP).Methods("GET")
+
+		h.Router.HandleFunc(handler.NamespaceAddURL, logged(handler.NewNamespaceAddHandler(h.clusterClient)).ServeHTTP).Methods("POST")
+
+		h.Router.HandleFunc(handler.NamespaceDeleteURL, logged(handler.NewNamespaceDeleteHandler(h.clusterClient)).ServeHTTP).Methods("POST")
+	}
 }
 
 // Endpoints useful for profiling the service
@@ -109,4 +136,11 @@ func withResponseTimeLogging(next http.Handler) http.Handler {
 			logger.Info("finished handling request", zap.Time("time", endTime), zap.Duration("response", d), zap.String("url", r.URL.RequestURI()))
 		}
 	})
+}
+
+// LoadLazyHandlers initializes LazyHandlers post-M3DB setup
+func (h *Handler) LoadLazyHandlers(storage storage.Storage, engine *executor.Engine) {
+	h.lazyHandlers.promRead.SetEngine(engine)
+	h.lazyHandlers.promWrite.SetStore(storage)
+	h.lazyHandlers.search.SetStore(storage)
 }
