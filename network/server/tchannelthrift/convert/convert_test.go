@@ -28,8 +28,10 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3ninx/idx"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -103,36 +105,62 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 	}
 
 	type inputFn func(t *testing.T) (idx.Query, *rpc.IdxQuery)
-	testCases := []struct {
+
+	for _, pools := range []struct {
 		name string
-		fn   inputFn
+		pool convert.FetchTaggedConversionPools
 	}{
-		{"Term Query", termQueryTestCase},
-		{"Regexp Query", regexpQueryTestCase},
-		{"Conjunction Query A", conjunctionQueryATestCase},
-	}
-	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("Forward %s", tc.name), func(t *testing.T) {
-			q, rpcQ := tc.fn(t)
-			expectedReq := &(*requestSkeleton)
-			expectedReq.Query = rpcQ
-			observedReq, err := convert.ToRPCFetchTaggedRequest(ns, index.Query{q}, opts, fetchData)
-			require.NoError(t, err)
-			requireEqual(expectedReq, &observedReq)
-		})
-		t.Run(fmt.Sprintf("Backward %s", tc.name), func(t *testing.T) {
-			expectedQuery, rpcQ := tc.fn(t)
-			rpcRequest := &(*requestSkeleton)
-			rpcRequest.Query = rpcQ
-			id, observedQuery, observedOpts, fetch, err := convert.FromRPCFetchTaggedRequest(rpcRequest)
-			require.NoError(t, err)
-			require.Equal(t, ns.String(), id.String())
-			require.True(t, index.NewQueryMatcher(index.Query{expectedQuery}).Matches(observedQuery))
-			requireEqual(fetchData, fetch)
-			requireEqual(opts, observedOpts)
-		})
+		{"nil pools", nil},
+		{"valid pools", newTestPools()},
+	} {
+		testCases := []struct {
+			name string
+			fn   inputFn
+		}{
+			{"Term Query", termQueryTestCase},
+			{"Regexp Query", regexpQueryTestCase},
+			{"Conjunction Query A", conjunctionQueryATestCase},
+		}
+		for _, tc := range testCases {
+			t.Run(fmt.Sprintf("(%s pools) Forward %s", pools.name, tc.name), func(t *testing.T) {
+				q, rpcQ := tc.fn(t)
+				expectedReq := &(*requestSkeleton)
+				expectedReq.Query = rpcQ
+				observedReq, err := convert.ToRPCFetchTaggedRequest(ns, index.Query{q}, opts, fetchData)
+				require.NoError(t, err)
+				requireEqual(expectedReq, &observedReq)
+			})
+			t.Run(fmt.Sprintf("(%s pools) Backward %s", pools.name, tc.name), func(t *testing.T) {
+				expectedQuery, rpcQ := tc.fn(t)
+				rpcRequest := &(*requestSkeleton)
+				rpcRequest.Query = rpcQ
+				id, observedQuery, observedOpts, fetch, err := convert.FromRPCFetchTaggedRequest(rpcRequest, nil)
+				require.NoError(t, err)
+				require.Equal(t, ns.String(), id.String())
+				require.True(t, index.NewQueryMatcher(index.Query{expectedQuery}).Matches(observedQuery))
+				requireEqual(fetchData, fetch)
+				requireEqual(opts, observedOpts)
+			})
+		}
 	}
 }
+
+type testPools struct {
+	id      ident.Pool
+	wrapper xpool.CheckedBytesWrapperPool
+}
+
+func newTestPools() *testPools {
+	id := ident.NewPool(nil, nil)
+	wrapper := xpool.NewCheckedBytesWrapperPool(pool.NewObjectPoolOptions().SetSize(1))
+	wrapper.Init()
+	return &testPools{id, wrapper}
+}
+
+var _ convert.FetchTaggedConversionPools = &testPools{}
+
+func (t *testPools) ID() ident.Pool                                     { return t.id }
+func (t *testPools) CheckedBytesWrapper() xpool.CheckedBytesWrapperPool { return t.wrapper }
 
 func TestConvertFetchTaggedRequestNegationPending(t *testing.T) {
 	// FOLLOWUP(prateek): remove this once we add support for negation queries in m3ninx.
@@ -147,7 +175,7 @@ func TestConvertFetchTaggedRequestNegationPending(t *testing.T) {
 			},
 		},
 	}
-	_, _, _, _, err := convert.FromRPCFetchTaggedRequest(req)
+	_, _, _, _, err := convert.FromRPCFetchTaggedRequest(req, nil)
 	require.Error(t, err)
 }
 

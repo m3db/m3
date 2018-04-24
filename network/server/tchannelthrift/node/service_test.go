@@ -1029,7 +1029,7 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 	mockDecoder.EXPECT().Close().AnyTimes()
 	mockDecoderPool := serialize.NewMockTagDecoderPool(ctrl)
 	mockDecoderPool.EXPECT().Get().Return(mockDecoder).AnyTimes()
-	service.tagDecoderPool = mockDecoderPool
+	service.pools.tagDecoder = mockDecoderPool
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)

@@ -30,6 +30,7 @@ import (
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/x/xio"
+	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3ninx/idx"
 	"github.com/m3db/m3ninx/search"
 	"github.com/m3db/m3ninx/search/query"
@@ -187,9 +188,18 @@ func ToRPCError(err error) *rpc.Error {
 	return tterrors.NewInternalError(err)
 }
 
+// FetchTaggedConversionPools allows users to pass a pool for conversions.
+type FetchTaggedConversionPools interface {
+	// ID returns an ident.Pool
+	ID() ident.Pool
+
+	// CheckedBytesWrapperPool returns a CheckedBytesWrapperPool.
+	CheckedBytesWrapper() xpool.CheckedBytesWrapperPool
+}
+
 // FromRPCFetchTaggedRequest converts the rpc request type for FetchTaggedRequest into corresponding Go API types.
 func FromRPCFetchTaggedRequest(
-	req *rpc.FetchTaggedRequest,
+	req *rpc.FetchTaggedRequest, pools FetchTaggedConversionPools,
 ) (ident.ID, index.Query, index.QueryOptions, bool, error) {
 	start, rangeStartErr := ToTime(req.RangeStart, fetchTaggedTimeType)
 	if rangeStartErr != nil {
@@ -214,7 +224,14 @@ func FromRPCFetchTaggedRequest(
 		return nil, index.Query{}, index.QueryOptions{}, false, err
 	}
 
-	return ident.StringID(string(req.NameSpace)), index.Query{q}, opts, req.FetchData, nil
+	var ns ident.ID
+	if pools != nil {
+		nsBytes := pools.CheckedBytesWrapper().Get(req.NameSpace)
+		ns = pools.ID().BinaryID(nsBytes)
+	} else {
+		ns = ident.StringID(string(req.NameSpace))
+	}
+	return ns, index.Query{q}, opts, req.FetchData, nil
 }
 
 // ToRPCFetchTaggedRequest converts the Go `client/` types into rpc request type for FetchTaggedRequest.
