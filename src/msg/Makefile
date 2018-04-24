@@ -109,7 +109,7 @@ clean:
 	@rm -f *.html *.xml *.out *.test
 
 .PHONY: all
-all: lint metalint test-ci-unit
+all: metalint test-ci-unit
 	@echo make all successfully finished
 
 .DEFAULT_GOAL := all

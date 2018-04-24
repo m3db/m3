@@ -8,6 +8,8 @@ import:
   version: v1.0.0
 - package: github.com/gogo/protobuf
   version: v1.0.0
+- package: github.com/golang/mock
+  version: v1.0.1
 
 testImport:
 - package: github.com/stretchr/testify

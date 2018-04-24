@@ -62,7 +62,7 @@ type EncodeDecoder interface {
 	Close()
 
 	// Reset resets the EncodeDecoder.
-	Reset(rw io.ReadWriteCloser)
+	Reset(rw io.ReadWriter)
 }
 
 // EncodeDecoderPool is a pool of EncodeDecoders.

@@ -24,9 +24,22 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
+var (
+	defaultByteBuckets = []pool.Bucket{
+		{Capacity: 4, Count: 4},    // Number of bytes for size.
+		{Capacity: 512, Count: 2},  // Number of bytes for message.
+		{Capacity: 1024, Count: 2}, // Number of bytes for ack with 100 metadata.
+		{Capacity: 2048, Count: 1}, // Number of bytes in case of large message or ack.
+	}
+)
+
 // NewBaseOptions creates a new BaseOptions.
 func NewBaseOptions() BaseOptions {
-	return &baseOptions{}
+	pool := pool.NewBytesPool(defaultByteBuckets, nil)
+	pool.Init()
+	return &baseOptions{
+		bytesPool: pool,
+	}
 }
 
 type baseOptions struct {

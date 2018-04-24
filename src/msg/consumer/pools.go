@@ -18,58 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package proto
+package consumer
 
-import (
-	"io"
-)
+import "github.com/m3db/m3x/pool"
 
-type encdec struct {
-	rw       io.ReadWriter
-	enc      *encoder
-	dec      *decoder
-	isClosed bool
-	pool     EncodeDecoderPool
+type messagePool struct {
+	pool.ObjectPool
 }
 
-// NewEncodeDecoder creates an EncodeDecoder, the implementation is not thread safe.
-func NewEncodeDecoder(
-	rw io.ReadWriter,
-	opts EncodeDecoderOptions,
-) EncodeDecoder {
-	if opts == nil {
-		opts = NewEncodeDecoderOptions()
-	}
-	return &encdec{
-		rw:       rw,
-		enc:      newEncoder(rw, opts.EncoderOptions()),
-		dec:      newDecoder(rw, opts.DecoderOptions()),
-		isClosed: false,
-		pool:     opts.EncodeDecoderPool(),
+func newMessagePool(pOpts pool.ObjectPoolOptions) *messagePool {
+	return &messagePool{
+		ObjectPool: pool.NewObjectPool(pOpts),
 	}
 }
 
-func (c *encdec) Encode(msg Marshaler) error {
-	return c.enc.Encode(msg)
+func (p *messagePool) Init() {
+	p.ObjectPool.Init(func() interface{} {
+		return newMessage(p)
+	})
 }
 
-func (c *encdec) Decode(acks Unmarshaler) error {
-	return c.dec.Decode(acks)
+func (p *messagePool) Get() *message {
+	return p.ObjectPool.Get().(*message)
 }
 
-func (c *encdec) Close() {
-	if c.isClosed {
-		return
-	}
-	c.isClosed = true
-	if c.pool != nil {
-		c.pool.Put(c)
-	}
-}
-
-func (c *encdec) Reset(rw io.ReadWriter) {
-	c.enc.resetWriter(rw)
-	c.dec.resetReader(rw)
-	c.rw = rw
-	c.isClosed = false
+func (p *messagePool) Put(m *message) {
+	p.ObjectPool.Put(m)
 }
