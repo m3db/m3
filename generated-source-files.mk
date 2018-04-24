@@ -1,6 +1,6 @@
 m3x_package          := github.com/m3db/m3x
 m3x_package_path     := $(gopath_prefix)/$(m3x_package)
-m3x_package_min_ver  := 412959179ff62881144e0b1bc9d027f33275c9f8
+m3x_package_min_ver  := 16e10665ade1d824950683afde6d9e37c8ffc957
 
 .PHONY: install-m3x-repo
 install-m3x-repo: install-glide install-generics-bin
