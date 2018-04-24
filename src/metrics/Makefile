@@ -11,7 +11,6 @@ coverfile            := cover.out
 coverage_xml         := coverage.xml
 junit_xml            := junit.xml
 test_log             := test.log
-lint_check           := .ci/lint.sh
 metalint_check       := .ci/metalint.sh
 metalint_config      := .metalinter.json
 metalint_exclude     := .excludemetalint
@@ -57,11 +56,6 @@ proto-gen: install-proto-bin install-license-bin
 
 .PHONY: all-gen
 all-gen: proto-gen
-
-.PHONY: lint
-lint:
-	@which golint > /dev/null || go get -u github.com/golang/lint/golint
-	$(lint_check)
 
 .PHONY: metalint
 metalint: install-metalinter
@@ -116,7 +110,7 @@ clean:
 	@rm -f *.html *.xml *.out *.test
 
 .PHONY: all
-all: lint metalint test-ci-unit test-ci-integration test-genny-all
+all: metalint test-ci-unit test-ci-integration test-genny-all
 	@echo Made all successfully
 
 .DEFAULT_GOAL := all

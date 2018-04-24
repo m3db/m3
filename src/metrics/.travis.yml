@@ -2,9 +2,6 @@ language: go
 go:
   - "1.9.x"
   - "1.10.x"
-branches:
-  only:
-    - master
 install: make install-ci
 sudo: required
 dist: trusty
@@ -15,6 +12,6 @@ env:
   matrix:
     - MAKE_TARGET="test-ci-unit"
     - MAKE_TARGET="test-ci-integration"
-    - MAKE_TARGET="lint metalint"
+    - MAKE_TARGET="metalint"
     - MAKE_TARGET="test-genny-all"
 script: "make $MAKE_TARGET"

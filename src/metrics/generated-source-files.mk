@@ -40,7 +40,7 @@ genny-map-matcher-cache-elem: install-m3x-repo
 	cd $(m3x_package_path) && make byteshashmap-gen \
 		pkg=cache \
 		value_type=elementPtr \
-		out_dir=$(m3metrics_package_path)/matcher/cache \
+		target_package=$(m3metrics_package)/matcher/cache \
 		rename_type_prefix=elem \
 		rename_constructor=newElemMap \
 		rename_constructor_options=elemMapOptions
@@ -54,7 +54,7 @@ genny-map-matcher-namespace-results: install-m3x-repo
 	cd $(m3x_package_path) && make byteshashmap-gen \
 		pkg=cache \
 		value_type=results \
-		out_dir=$(m3metrics_package_path)/matcher/cache \
+		target_package=$(m3metrics_package)/matcher/cache \
 		rename_type_prefix=namespaceResults \
 		rename_constructor=newNamespaceResultsMap \
 		rename_constructor_options=namespaceResultsMapOptions
@@ -68,7 +68,7 @@ genny-map-matcher-namespace-rule-sets: install-m3x-repo
 	cd $(m3x_package_path) && make byteshashmap-gen \
 		pkg=matcher \
 		value_type=RuleSet \
-		out_dir=$(m3metrics_package_path)/matcher \
+		target_package=$(m3metrics_package)/matcher \
 		rename_type_prefix=namespaceRuleSets \
 		rename_constructor=newNamespaceRuleSetsMap \
 		rename_constructor_options=namespaceRuleSetsMapOptions
@@ -82,7 +82,7 @@ genny-map-matcher-rule-namespaces: install-m3x-repo
 	cd $(m3x_package_path) && make byteshashmap-gen \
 		pkg=matcher \
 		value_type=rulesNamespace \
-		out_dir=$(m3metrics_package_path)/matcher \
+		target_package=$(m3metrics_package)/matcher \
 		rename_type_prefix=ruleNamespaces \
 		rename_constructor=newRuleNamespacesMap \
 		rename_constructor_options=ruleNamespacesMapOptions

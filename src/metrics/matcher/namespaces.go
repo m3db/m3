@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/watch"
 
 	"github.com/uber-go/tally"
 )
@@ -142,7 +143,7 @@ func (n *namespaces) Open() error {
 		return nil
 	}
 
-	errCreateWatch, ok := err.(runtime.CreateWatchError)
+	errCreateWatch, ok := err.(watch.CreateWatchError)
 	if ok {
 		n.metrics.createWatchErrors.Inc(1)
 		return errCreateWatch
