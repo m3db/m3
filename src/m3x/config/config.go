@@ -29,31 +29,41 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-var errNoFilesToLoad = errors.New("attempt to load configuration with no files")
+var errNoFilesToLoad = errors.New("attempt to load config with no files")
 
-// LoadFile loads a config from a file.
-func LoadFile(config interface{}, fname string) error {
-	return loadFiles(config, fname)
+// Options is an options set used when parsing config.
+type Options struct {
+	DisableUnmarshalStrict bool
+	DisableValidate        bool
 }
 
-// loadFiles loads a config from list of files. If value for a property is present
-// in multiple files, the value from the last file will be applied. Validation is
-// done after merging all values.
-// TODO(cw) export this function if needed
-func loadFiles(config interface{}, fnames ...string) error {
-	if len(fnames) == 0 {
+// LoadFile loads a config from a file.
+func LoadFile(config interface{}, file string, opts Options) error {
+	return LoadFiles(config, []string{file}, opts)
+}
+
+// LoadFiles loads a config from list of files. If value for a property is
+// present in multiple files, the value from the last file will be applied.
+// Validation is done after merging all values.
+func LoadFiles(config interface{}, files []string, opts Options) error {
+	if len(files) == 0 {
 		return errNoFilesToLoad
 	}
-	for _, fname := range fnames {
-		data, err := ioutil.ReadFile(fname)
+	for _, name := range files {
+		data, err := ioutil.ReadFile(name)
 		if err != nil {
 			return err
 		}
-
-		if err := yaml.Unmarshal(data, config); err != nil {
+		unmarshal := yaml.UnmarshalStrict
+		if opts.DisableUnmarshalStrict {
+			unmarshal = yaml.Unmarshal
+		}
+		if err := unmarshal(data, config); err != nil {
 			return err
 		}
 	}
-
+	if opts.DisableValidate {
+		return nil
+	}
 	return validator.Validate(config)
 }

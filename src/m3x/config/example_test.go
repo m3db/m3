@@ -33,7 +33,8 @@ type configuration struct {
 
 func ExampleLoadFile() {
 	var cfg configuration
-	if err := config.LoadFile(&cfg, "testdata/conf.yaml"); err != nil {
+	file := "testdata/conf.yaml"
+	if err := config.LoadFile(&cfg, file, config.Options{}); err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("listenAddress: %s\n", cfg.ListenAddress)

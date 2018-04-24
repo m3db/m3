@@ -36,6 +36,21 @@ servers:
     - server1:8090
     - server2:8010
 `
+	badConfigInvalidKey = `
+unknown_key: unknown_key_value
+listen_address: localhost:4385
+buffer_space: 1024
+servers:
+    - server1:8090
+    - server2:8010
+`
+	badConfigInvalidValue = `
+listen_address: localhost:4385
+buffer_space: 254
+servers:
+    - server1:8090
+    - server2:8010
+`
 )
 
 type configuration struct {
@@ -47,17 +62,17 @@ type configuration struct {
 func TestLoadFile(t *testing.T) {
 	var cfg configuration
 
-	err := LoadFile(&cfg, "./no-config.yaml")
+	err := LoadFile(&cfg, "./no-config.yaml", Options{})
 	require.Error(t, err)
 
 	// invalid yaml file
-	err = LoadFile(&cfg, "./config.go")
+	err = LoadFile(&cfg, "./config.go", Options{})
 	require.Error(t, err)
 
 	fname := writeFile(t, goodConfig)
 	defer os.Remove(fname)
 
-	err = LoadFile(&cfg, fname)
+	err = LoadFile(&cfg, fname, Options{})
 	require.NoError(t, err)
 	require.Equal(t, "localhost:4385", cfg.ListenAddress)
 	require.Equal(t, 1024, cfg.BufferSpace)
@@ -68,28 +83,74 @@ func TestLoadWithInvalidFile(t *testing.T) {
 	var cfg configuration
 
 	// no file provided
-	err := loadFiles(&cfg)
+	err := LoadFiles(&cfg, nil, Options{})
 	require.Error(t, err)
 	require.Equal(t, errNoFilesToLoad, err)
 
 	// non-exist file provided
-	err = loadFiles(&cfg, "./no-config.yaml")
+	err = LoadFiles(&cfg, []string{"./no-config.yaml"}, Options{})
 	require.Error(t, err)
 
 	// invalid yaml file
-	err = loadFiles(&cfg, "./config.go")
+	err = LoadFiles(&cfg, []string{"./config.go"}, Options{})
 	require.Error(t, err)
 
 	fname := writeFile(t, goodConfig)
 	defer os.Remove(fname)
 
 	// non-exist file in the file list
-	err = loadFiles(&cfg, fname, "./no-config.yaml")
+	err = LoadFiles(&cfg, []string{fname, "./no-config.yaml"}, Options{})
 	require.Error(t, err)
 
 	// invalid file in the file list
-	err = loadFiles(&cfg, fname, "./config.go")
+	err = LoadFiles(&cfg, []string{fname, "./config.go"}, Options{})
 	require.Error(t, err)
+}
+
+func TestLoadFileInvalidKey(t *testing.T) {
+	var cfg configuration
+
+	fname := writeFile(t, badConfigInvalidKey)
+	defer os.Remove(fname)
+
+	err := LoadFile(&cfg, fname, Options{})
+	require.Error(t, err)
+}
+
+func TestLoadFileInvalidKeyDisableMarshalStrict(t *testing.T) {
+	var cfg configuration
+
+	fname := writeFile(t, badConfigInvalidKey)
+	defer os.Remove(fname)
+
+	err := LoadFile(&cfg, fname, Options{DisableUnmarshalStrict: true})
+	require.NoError(t, err)
+	require.Equal(t, "localhost:4385", cfg.ListenAddress)
+	require.Equal(t, 1024, cfg.BufferSpace)
+	require.Equal(t, []string{"server1:8090", "server2:8010"}, cfg.Servers)
+}
+
+func TestLoadFileInvalidValue(t *testing.T) {
+	var cfg configuration
+
+	fname := writeFile(t, badConfigInvalidValue)
+	defer os.Remove(fname)
+
+	err := LoadFile(&cfg, fname, Options{})
+	require.Error(t, err)
+}
+
+func TestLoadFileInvalidValueDisableValidate(t *testing.T) {
+	var cfg configuration
+
+	fname := writeFile(t, badConfigInvalidValue)
+	defer os.Remove(fname)
+
+	err := LoadFile(&cfg, fname, Options{DisableValidate: true})
+	require.NoError(t, err)
+	require.Equal(t, "localhost:4385", cfg.ListenAddress)
+	require.Equal(t, 254, cfg.BufferSpace)
+	require.Equal(t, []string{"server1:8090", "server2:8010"}, cfg.Servers)
 }
 
 func TestLoadFilesExtends(t *testing.T) {
@@ -106,7 +167,7 @@ servers:
 	defer os.Remove(partial)
 
 	var cfg configuration
-	err := loadFiles(&cfg, fname, partial)
+	err := LoadFiles(&cfg, []string{fname, partial}, Options{})
 	require.NoError(t, err)
 
 	require.Equal(t, "localhost:4385", cfg.ListenAddress)
@@ -135,16 +196,16 @@ func TestLoadFilesValidateOnce(t *testing.T) {
 
 	// Either config by itself will not pass validation.
 	var cfg1 configuration
-	err := loadFiles(&cfg1, fname1)
+	err := LoadFiles(&cfg1, []string{fname1}, Options{})
 	require.Error(t, err)
 
 	var cfg2 configuration
-	err = loadFiles(&cfg2, fname2)
+	err = LoadFiles(&cfg2, []string{fname2}, Options{})
 	require.Error(t, err)
 
 	// But merging load has no error.
 	var mergedCfg configuration
-	err = loadFiles(&mergedCfg, fname1, fname2)
+	err = LoadFiles(&mergedCfg, []string{fname1, fname2}, Options{})
 	require.NoError(t, err)
 
 	require.Equal(t, "localhost:8080", mergedCfg.ListenAddress)
