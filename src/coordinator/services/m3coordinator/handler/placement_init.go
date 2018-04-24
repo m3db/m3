@@ -40,17 +40,17 @@ const (
 	PlacementInitURL = "/placement/init"
 )
 
-// PlacementInitHandler represents a handler for placement init endpoint.
-type PlacementInitHandler AdminHandler
+// placementInitHandler represents a handler for placement init endpoint.
+type placementInitHandler AdminHandler
 
 // NewPlacementInitHandler returns a new instance of handler.
 func NewPlacementInitHandler(clusterClient m3clusterClient.Client) http.Handler {
-	return &PlacementInitHandler{
+	return &placementInitHandler{
 		clusterClient: clusterClient,
 	}
 }
 
-func (h *PlacementInitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *placementInitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
@@ -78,10 +78,10 @@ func (h *PlacementInitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		Placement: placementProto,
 	}
 
-	WriteJSONResponse(w, resp, logger)
+	WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *PlacementInitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *ParseError) {
+func (h *placementInitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *ParseError) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return nil, NewParseError(err, http.StatusBadRequest)
@@ -96,8 +96,8 @@ func (h *PlacementInitHandler) parseRequest(r *http.Request) (*admin.PlacementIn
 	return initReq, nil
 }
 
-func (h *PlacementInitHandler) placementInit(ctx context.Context, r *admin.PlacementInitRequest) (placement.Placement, error) {
-	ps, err := PlacementService(h.clusterClient)
+func (h *placementInitHandler) placementInit(ctx context.Context, r *admin.PlacementInitRequest) (placement.Placement, error) {
+	ps, err := PlacementService(h.clusterClient, h.config)
 	if err != nil {
 		return nil, err
 	}
