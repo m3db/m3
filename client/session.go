@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"sort"
 	"strings"
@@ -153,7 +152,7 @@ type session struct {
 	writeTaggedOperationPool         *writeTaggedOperationPool
 	fetchBatchOpPool                 *fetchBatchOpPool
 	fetchBatchOpArrayArrayPool       *fetchBatchOpArrayArrayPool
-	iteratorArrayPool                encoding.IteratorArrayPool
+	iteratorArrayPool                encoding.MultiReaderIteratorPool
 	tagEncoderPool                   serialize.TagEncoderPool
 	readerSliceOfSlicesIteratorPool  *readerSliceOfSlicesIteratorPool
 	multiReaderIteratorPool          encoding.MultiReaderIteratorPool
@@ -660,13 +659,14 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 	s.fetchBatchOpArrayArrayPool.Init()
 
 	if s.iteratorArrayPool == nil {
-		s.iteratorArrayPool = encoding.NewIteratorArrayPool([]pool.Bucket{
-			pool.Bucket{
-				Capacity: replicas,
-				Count:    s.opts.SeriesIteratorPoolSize(),
-			},
-		})
-		s.iteratorArrayPool.Init()
+		size := replicas * s.opts.SeriesIteratorPoolSize()
+		poolOpts := pool.NewObjectPoolOptions().
+			SetSize(size).
+			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+				s.scope.SubScope("multi-reader-iterator-pool"),
+			))
+		s.iteratorArrayPool = encoding.NewMultiReaderIteratorPool(poolOpts)
+		s.iteratorArrayPool.Init(s.opts.ReaderIteratorAllocate())
 	}
 	if s.readerSliceOfSlicesIteratorPool == nil {
 		size := replicas * s.opts.SeriesIteratorPoolSize()
@@ -1098,7 +1098,7 @@ func (s *session) fetchIDsAttempt(
 			resultsAccessors int32 = 1
 			idAccessors      int32 = 1
 			resultsLock      sync.RWMutex
-			results          []encoding.Iterator
+			results          []encoding.MultiReaderIterator
 			enqueued         int32
 			pending          int32
 			success          int32
@@ -1144,7 +1144,9 @@ func (s *session) fetchIDsAttempt(
 				iters.SetAt(idx, iter)
 			}
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
-				s.iteratorArrayPool.Put(results)
+				for _, result := range results {
+					s.multiReaderIteratorPool.Put(result)
+				}
 			}
 			if atomic.AddInt32(&idAccessors, -1) == 0 {
 				tsID.Finalize()
@@ -1202,7 +1204,9 @@ func (s *session) fetchIDsAttempt(
 			}
 
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
-				s.iteratorArrayPool.Put(results)
+				for _, result := range results {
+					s.multiReaderIteratorPool.Put(result)
+				}
 			}
 			if atomic.AddInt32(&idAccessors, -1) == 0 {
 				tsID.Finalize()
@@ -1249,7 +1253,10 @@ func (s *session) fetchIDsAttempt(
 		}
 
 		// Once we've enqueued we know how many to expect so retrieve and set length
-		results = s.iteratorArrayPool.Get(int(enqueued))
+		results = make([]encoding.MultiReaderIterator, 0, enqueued)
+		for i := int32(0); i < enqueued; i++ {
+			results = append(results, s.multiReaderIteratorPool.Get())
+		}
 		results = results[:enqueued]
 	}
 
@@ -2773,9 +2780,9 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 	return ts.NewSegment(head, tail, ts.FinalizeHead&ts.FinalizeTail)
 }
 
-func (b *baseBlocksResult) mergeReaders(start time.Time, readers []io.Reader) (encoding.Encoder, error) {
+func (b *baseBlocksResult) mergeReaders(start, end time.Time, readers []xio.Reader) (encoding.Encoder, error) {
 	iter := b.multiReaderIteratorPool.Get()
-	iter.Reset(readers)
+	iter.Reset(readers, start, end)
 	defer iter.Close()
 
 	encoder := b.encoderPool.Get()
@@ -2816,18 +2823,23 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 	case segments.Unmerged != nil:
 		// Must merge to provide a single block
 		segmentReaderPool := b.blockOpts.SegmentReaderPool()
-		readers := make([]io.Reader, len(segments.Unmerged))
-		for i := range segments.Unmerged {
+		readers := make([]xio.Reader, len(segments.Unmerged))
+		end := time.Time{}
+		for i, segment := range segments.Unmerged {
 			segmentReader := segmentReaderPool.Get()
-			segmentReader.Reset(b.segmentForBlock(segments.Unmerged[i]))
-			readers[i] = segmentReader
+			endTime := timeConvert(segment.EndTime)
+			blockReader := xio.NewBlockReader(segmentReader, timeConvert(segment.StartTime), endTime)
+			blockReader.Reset(b.segmentForBlock(segment))
+			readers[i] = blockReader
+			if end.Before(endTime) {
+				end = endTime
+			}
 		}
-
-		encoder, err := b.mergeReaders(start, readers)
+		encoder, err := b.mergeReaders(start, end, readers)
 		for _, reader := range readers {
 			// Close each reader
-			segmentReader := reader.(xio.SegmentReader)
-			segmentReader.Finalize()
+			blockReader := reader.(xio.BlockReader)
+			blockReader.Finalize()
 		}
 
 		if err != nil {
@@ -2983,8 +2995,8 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 			return nil
 		}
 
-		readers := []io.Reader{currReader, resultReader}
-		encoder, err := r.mergeReaders(start, readers)
+		readers := []xio.Reader{currReader, resultReader}
+		encoder, err := r.mergeReaders(start, currReader.End(), readers)
 
 		if err != nil {
 			return err

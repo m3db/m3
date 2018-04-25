@@ -394,7 +394,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	addResult(0, "foo", fooBlocks[1])
 
 	// bar results
-	mockStream := xio.NewMockSegmentReader(ctrl)
+	mockStream := xio.NewMockBlockReader(ctrl)
 	mockStream.EXPECT().Segment().Return(ts.Segment{}, fmt.Errorf("segment err"))
 
 	var barBlocks [2]block.DatabaseBlock

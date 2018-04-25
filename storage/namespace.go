@@ -519,7 +519,7 @@ func (n *dbNamespace) ReadEncoded(
 	ctx context.Context,
 	id ident.ID,
 	start, end time.Time,
-) ([][]xio.SegmentReader, error) {
+) ([][]xio.BlockReader, error) {
 	callStart := n.nowFn()
 	shard, err := n.readableShardFor(id)
 	if err != nil {
@@ -543,6 +543,7 @@ func (n *dbNamespace) FetchBlocks(
 		n.metrics.fetchBlocks.ReportError(n.nowFn().Sub(callStart))
 		return nil, err
 	}
+
 	res, err := shard.FetchBlocks(ctx, id, starts)
 	n.metrics.fetchBlocks.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err

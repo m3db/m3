@@ -108,8 +108,8 @@ type ToSegmentsResult struct {
 	Checksum *int64
 }
 
-// ToSegments converts a list of segment readers to segments.
-func ToSegments(readers []xio.SegmentReader) (ToSegmentsResult, error) {
+// ToSegments converts a list of block readers to segments.
+func ToSegments(readers []xio.BlockReader) (ToSegmentsResult, error) {
 	if len(readers) == 0 {
 		return ToSegmentsResult{}, nil
 	}
@@ -124,9 +124,13 @@ func ToSegments(readers []xio.SegmentReader) (ToSegmentsResult, error) {
 		if seg.Len() == 0 {
 			return ToSegmentsResult{}, nil
 		}
+		startTime := xtime.ToNormalizedTime(readers[0].Start(), time.Nanosecond)
+		endTime := xtime.ToNormalizedTime(readers[0].End(), time.Nanosecond)
 		s.Merged = &rpc.Segment{
-			Head: bytesRef(seg.Head),
-			Tail: bytesRef(seg.Tail),
+			Head:      bytesRef(seg.Head),
+			Tail:      bytesRef(seg.Tail),
+			StartTime: &startTime,
+			EndTime:   &endTime,
 		}
 		checksum := int64(digest.SegmentChecksum(seg))
 		return ToSegmentsResult{
@@ -143,9 +147,13 @@ func ToSegments(readers []xio.SegmentReader) (ToSegmentsResult, error) {
 		if seg.Len() == 0 {
 			continue
 		}
+		startTime := xtime.ToNormalizedTime(reader.Start(), time.Nanosecond)
+		endTime := xtime.ToNormalizedTime(reader.End(), time.Nanosecond)
 		s.Unmerged = append(s.Unmerged, &rpc.Segment{
-			Head: bytesRef(seg.Head),
-			Tail: bytesRef(seg.Tail),
+			Head:      bytesRef(seg.Head),
+			Tail:      bytesRef(seg.Tail),
+			StartTime: &startTime,
+			EndTime:   &endTime,
 		})
 	}
 	if len(s.Unmerged) == 0 {

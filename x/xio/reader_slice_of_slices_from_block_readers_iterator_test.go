@@ -22,27 +22,29 @@ package xio
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestReaderSliceOfSlicesFromSegmentReadersIterator(t *testing.T) {
-	var a, b, c, d, e, f SegmentReader
-	all := []*SegmentReader{&a, &b, &c, &d, &e, &f}
+func TestReaderSliceOfSlicesFromBlockReadersIterator(t *testing.T) {
+	var a, b, c, d, e, f BlockReader
+	all := []*BlockReader{&a, &b, &c, &d, &e, &f}
 	for _, r := range all {
-		*r = nullSegmentReader{}
+		*r = NewBlockReader(nullSegmentReader{}, time.Time{}, time.Time{})
 	}
 
-	readers := [][]SegmentReader{
-		[]SegmentReader{a, b, c},
-		[]SegmentReader{d},
-		[]SegmentReader{e, f},
+	readers := [][]BlockReader{
+		[]BlockReader{a, b, c},
+		[]BlockReader{d},
+		[]BlockReader{e, f},
 	}
 
-	iter := NewReaderSliceOfSlicesFromSegmentReadersIterator(readers)
+	iter := NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
 	for i := range readers {
 		assert.True(t, iter.Next())
-		assert.Equal(t, len(readers[i]), iter.CurrentLen())
+		l, _, _ := iter.Current()
+		assert.Len(t, readers[i], l)
 		for j, r := range readers[i] {
 			assert.Equal(t, r, iter.CurrentAt(j))
 		}

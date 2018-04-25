@@ -532,7 +532,7 @@ func (enc *encoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(segment)
 }
 
-func (enc *encoder) StreamLen() int {
+func (enc *encoder) Len() int {
 	return enc.os.Len()
 }
 

@@ -49,6 +49,8 @@ type dbBlock struct {
 	segment        ts.Segment
 	length         int
 
+	blockSize time.Duration
+
 	lastReadUnixNanos int64
 
 	mergeTarget DatabaseBlock
@@ -97,6 +99,7 @@ func NewDatabaseBlock(
 // NewRetrievableDatabaseBlock creates a new retrievable DatabaseBlock instance.
 func NewRetrievableDatabaseBlock(
 	start time.Time,
+	blockSize time.Duration,
 	retriever DatabaseShardBlockRetriever,
 	metadata RetrievableBlockMetadata,
 	opts Options,
@@ -105,6 +108,7 @@ func NewRetrievableDatabaseBlock(
 		opts:           opts,
 		ctx:            opts.ContextPool().Get(),
 		startUnixNanos: start.UnixNano(),
+		blockSize:      blockSize,
 		closed:         false,
 	}
 	b.resetRetrievableWithLock(retriever, metadata)
@@ -166,7 +170,7 @@ func (b *dbBlock) OnRetrieveBlock(
 	b.wasRetrievedFromDisk = true
 }
 
-func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
+func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 	b.RLock()
 	defer b.RUnlock()
 
@@ -176,28 +180,32 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 
 	b.ctx.DependsOn(blocker)
 
+	start := b.startWithLock()
+	end := start.Add(b.blockSize)
+
 	// If the block retrieve ID is set then it must be retrieved
 	var (
 		stream             xio.SegmentReader
+		block              xio.BlockReader
 		err                error
 		fromBlockRetriever bool
 	)
 	if b.retriever != nil {
 		fromBlockRetriever = true
-		start := b.startWithLock()
-		stream, err = b.retriever.Stream(blocker, b.retrieveID, start, b)
+		stream, err = b.retriever.Stream(blocker, b.retrieveID, start, end, b)
 		if err != nil {
 			return nil, err
 		}
 	} else {
 		stream = b.opts.SegmentReaderPool().Get()
+
 		// NB(r): We explicitly create a new segment to ensure references
 		// are taken to the bytes refs and to not finalize the bytes.
 		stream.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
 	}
 
 	if b.mergeTarget != nil {
-		var mergeStream xio.SegmentReader
+		var mergeStream xio.BlockReader
 		mergeStream, err = b.mergeTarget.Stream(blocker)
 		if err != nil {
 			stream.Finalize()
@@ -205,16 +213,18 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		}
 		// Return a lazily merged stream
 		// TODO(r): once merged reset this block with the contents of it
-		stream = newDatabaseMergedBlockReader(b.startWithLock(), stream, mergeStream, b.opts)
+		block = newDatabaseMergedBlockReader(start, end, stream, mergeStream, b.opts)
+	} else {
+		block = xio.NewBlockReader(stream, start, end)
 	}
 
 	if !fromBlockRetriever {
-		// Register the finalizer for the stream, the block retriever already
+		// Register the finalizer for the blockReader, the block retriever already
 		// registers the stream as a finalizer for the context so we only perform
 		// this if we return a stream directly from this block
-		blocker.RegisterFinalizer(stream)
+		blocker.RegisterFinalizer(block)
 	}
-	return stream, nil
+	return block, nil
 }
 
 func (b *dbBlock) IsRetrieved() bool {
@@ -247,6 +257,7 @@ func (b *dbBlock) Merge(other DatabaseBlock) {
 }
 
 func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
+	// TODO(arnikola) send through new blockSize
 	b.Lock()
 	defer b.Unlock()
 	b.resetNewBlockStartWithLock(start)
@@ -258,6 +269,7 @@ func (b *dbBlock) ResetRetrievable(
 	retriever DatabaseShardBlockRetriever,
 	metadata RetrievableBlockMetadata,
 ) {
+	// TODO(arnikola) send through new blockSize
 	b.Lock()
 	defer b.Unlock()
 	b.resetNewBlockStartWithLock(start)
@@ -265,6 +277,8 @@ func (b *dbBlock) ResetRetrievable(
 }
 
 func (b *dbBlock) resetNewBlockStartWithLock(start time.Time) {
+	// TODO(arnikola) send through new blockSize
+	// b.blockSize = blockSize
 	if !b.closed {
 		b.ctx.Close()
 	}

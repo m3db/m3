@@ -126,8 +126,8 @@ func TestSeriesWriteFlush(t *testing.T) {
 
 	stream, err := block.Stream(ctx)
 	require.NoError(t, err)
-	assertValuesEqual(t, data[:2], [][]xio.SegmentReader{[]xio.SegmentReader{
-		stream,
+	assertValuesEqual(t, data[:2], [][]xio.BlockReader{[]xio.BlockReader{
+		xio.NewBlockReader(stream, time.Time{}, time.Time{}),
 	}}, opts)
 }
 
@@ -601,7 +601,7 @@ func TestSeriesFetchBlocks(t *testing.T) {
 
 	// Set up the blocks
 	b := block.NewMockDatabaseBlock(ctrl)
-	b.EXPECT().Stream(ctx).Return(xio.NewSegmentReader(ts.Segment{}), nil)
+	b.EXPECT().Stream(ctx).Return(xio.NewBlockReader(xio.NewSegmentReader(ts.Segment{}), time.Time{}, time.Time{}), nil)
 	blocks.EXPECT().BlockAt(starts[0]).Return(b, true)
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().Stream(ctx).Return(nil, errors.New("bar"))
@@ -776,8 +776,8 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 	require.NoError(t, err)
 
 	multiIt := opts.MultiReaderIteratorPool().Get()
-	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
-	it := encoding.NewSeriesIterator(id, nsID, qStart, qEnd, []encoding.Iterator{multiIt}, nil)
+	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded))
+	it := encoding.NewSeriesIterator(id, nsID, qStart, qEnd, []encoding.MultiReaderIterator{multiIt}, nil)
 	defer it.Close()
 
 	var actual []ts.Datapoint

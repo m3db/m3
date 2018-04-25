@@ -55,7 +55,6 @@ import (
 )
 
 var (
-	timeZero        = time.Time{}
 	blockSize       = 2 * time.Hour
 	nsID            = ident.StringID("testNs1")
 	nsRetentionOpts = retention.NewOptions().
@@ -1789,7 +1788,6 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 
 	r := newBulkBlocksResult(opts, bopts)
 	r.addBlockFromPeer(fooID, testHost, bl)
-
 	series := r.result.AllSeries()
 	assert.Equal(t, 1, len(series))
 
@@ -1812,7 +1810,6 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	// Assert test values sorted match the block values
 	iter := m3tsz.NewReaderIterator(stream, intopt, eops)
 	defer iter.Close()
-
 	asserted := 0
 	for iter.Next() {
 		idx := asserted
@@ -2577,7 +2574,7 @@ func (e *testEncoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(e.data)
 }
 
-func (e *testEncoder) StreamLen() int {
+func (e *testEncoder) Len() int {
 	return e.data.Len()
 }
 

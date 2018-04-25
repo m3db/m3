@@ -550,7 +550,7 @@ func (d *db) ReadEncoded(
 	namespace ident.ID,
 	id ident.ID,
 	start, end time.Time,
-) ([][]xio.SegmentReader, error) {
+) ([][]xio.BlockReader, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)

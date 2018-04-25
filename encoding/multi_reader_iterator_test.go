@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/x/xio"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -290,12 +291,12 @@ func assertTestMultiReaderIterator(
 	}
 
 	var (
-		readers         [][]io.Reader
+		readers         [][]xio.Reader
 		entriesByReader []readerEntries
 	)
 
 	for i := range test.input {
-		var readersArray []io.Reader
+		var readersArray []xio.Reader
 		for j := range test.input[i] {
 			reader := &testNoopReader{}
 			entries := &test.input[i][j]

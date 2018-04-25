@@ -85,14 +85,85 @@ func (it *testIterator) Reset(r io.Reader) {
 	it.onReset(r)
 }
 
+func (it *testIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator) {
+	l, _, _ := readers.Current()
+	for i := 0; i < l; i++ {
+		r := readers.CurrentAt(i)
+		it.onReset(r)
+	}
+}
+
+type testMultiIterator struct {
+	values  []testValue
+	idx     int
+	closed  bool
+	err     error
+	onNext  func(oldIdx, newIdx int)
+	onReset func(r io.Reader)
+}
+
+func newTestMultiIterator(values []testValue) MultiReaderIterator {
+	return &testMultiIterator{values: values, idx: -1}
+}
+
+func (it *testMultiIterator) Next() bool {
+	if it.onNext != nil {
+		it.onNext(it.idx, it.idx+1)
+	}
+	if it.Err() != nil {
+		return false
+	}
+	if it.idx+1 >= len(it.values) {
+		return false
+	}
+	it.idx++
+	return true
+}
+
+func (it *testMultiIterator) Current() (ts.Datapoint, xtime.Unit, ts.Annotation) {
+	idx := it.idx
+	if idx == -1 {
+		idx = 0
+	}
+	v := it.values[idx]
+	dp := ts.Datapoint{Timestamp: v.t, Value: v.value}
+	return dp, v.unit, ts.Annotation(v.annotation)
+}
+
+func (it *testMultiIterator) Err() error {
+	return it.err
+}
+
+func (it *testMultiIterator) Close() {
+	it.closed = true
+}
+
+func (it *testMultiIterator) Reset(r []xio.Reader, _, _ time.Time) {
+	for _, reader := range r {
+		it.onReset(reader)
+	}
+}
+
+func (it *testMultiIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator) {
+	l, _, _ := readers.Current()
+	for i := 0; i < l; i++ {
+		r := readers.CurrentAt(i)
+		it.onReset(r)
+	}
+}
+
+func (it *testMultiIterator) Readers() xio.ReaderSliceOfSlicesIterator {
+	return nil
+}
+
 type testReaderSliceOfSlicesIterator struct {
-	readers [][]io.Reader
+	readers [][]xio.Reader
 	idx     int
 	closed  bool
 }
 
 func newTestReaderSliceOfSlicesIterator(
-	readers [][]io.Reader,
+	readers [][]xio.Reader,
 ) xio.ReaderSliceOfSlicesIterator {
 	return &testReaderSliceOfSlicesIterator{readers: readers, idx: -1}
 }
@@ -105,11 +176,11 @@ func (it *testReaderSliceOfSlicesIterator) Next() bool {
 	return true
 }
 
-func (it *testReaderSliceOfSlicesIterator) CurrentLen() int {
-	return len(it.readers[it.arrayIdx()])
+func (it *testReaderSliceOfSlicesIterator) Current() (int, time.Time, time.Time) {
+	return len(it.readers[it.arrayIdx()]), time.Time{}, time.Time{}
 }
 
-func (it *testReaderSliceOfSlicesIterator) CurrentAt(idx int) io.Reader {
+func (it *testReaderSliceOfSlicesIterator) CurrentAt(idx int) xio.Reader {
 	return it.readers[it.arrayIdx()][idx]
 }
 
@@ -131,4 +202,8 @@ type testNoopReader struct {
 
 func (r *testNoopReader) Read(p []byte) (int, error) {
 	return r.n, nil
+}
+
+func (r *testNoopReader) Clone() (xio.Reader, error) {
+	return r, nil
 }

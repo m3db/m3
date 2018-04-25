@@ -21,8 +21,8 @@
 package block
 
 import (
+	"errors"
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -35,21 +35,24 @@ type dbMergedBlockReader struct {
 	sync.RWMutex
 	opts       Options
 	blockStart time.Time
+	blockEnd   time.Time
 	streams    [2]xio.SegmentReader
-	readers    [2]io.Reader
-	merged     xio.SegmentReader
+	readers    [2]xio.Reader
+	merged     xio.BlockReader
 	encoder    encoding.Encoder
 	err        error
 }
 
 func newDatabaseMergedBlockReader(
 	blockStart time.Time,
+	blockEnd time.Time,
 	streamA, streamB xio.SegmentReader,
 	opts Options,
-) xio.SegmentReader {
+) xio.BlockReader {
 	r := &dbMergedBlockReader{
 		opts:       opts,
 		blockStart: blockStart,
+		blockEnd:   blockEnd,
 	}
 	r.streams[0] = streamA
 	r.streams[1] = streamB
@@ -58,7 +61,7 @@ func newDatabaseMergedBlockReader(
 	return r
 }
 
-func (r *dbMergedBlockReader) mergedReader() (xio.SegmentReader, error) {
+func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 	r.RLock()
 	if r.merged != nil || r.err != nil {
 		r.RUnlock()
@@ -74,7 +77,7 @@ func (r *dbMergedBlockReader) mergedReader() (xio.SegmentReader, error) {
 	}
 
 	multiIter := r.opts.MultiReaderIteratorPool().Get()
-	multiIter.Reset(r.readers[:])
+	multiIter.Reset(r.readers[:], r.blockStart, r.blockEnd)
 	defer multiIter.Close()
 
 	r.encoder = r.opts.EncoderPool().Get()
@@ -104,9 +107,48 @@ func (r *dbMergedBlockReader) mergedReader() (xio.SegmentReader, error) {
 		r.readers[i] = nil
 	}
 
-	r.merged = r.encoder.Stream()
+	r.merged = xio.NewBlockReader(r.encoder.Stream(), r.blockStart, r.blockEnd)
 
 	return r.merged, nil
+}
+
+var errInvalidStreamType = errors.New("stream is unexpected type")
+
+func cloneSegmentReader(sr xio.SegmentReader) (xio.SegmentReader, error) {
+	s, err := sr.Clone()
+	if err != nil {
+		return nil, err
+	}
+	if s, ok := s.(xio.SegmentReader); ok {
+		return s, nil
+	}
+	return nil, errInvalidStreamType
+}
+
+func (r *dbMergedBlockReader) Clone() (xio.Reader, error) {
+	s1, err := cloneSegmentReader(r.streams[0])
+	if err != nil {
+		return nil, err
+	}
+	s2, err := cloneSegmentReader(r.streams[1])
+	if err != nil {
+		return nil, err
+	}
+	return newDatabaseMergedBlockReader(
+		r.blockStart,
+		r.blockEnd,
+		s1,
+		s2,
+		r.opts,
+	), nil
+}
+
+func (r *dbMergedBlockReader) Start() time.Time {
+	return r.blockStart
+}
+
+func (r *dbMergedBlockReader) End() time.Time {
+	return r.blockEnd
 }
 
 func (r *dbMergedBlockReader) Read(b []byte) (int, error) {
@@ -125,7 +167,19 @@ func (r *dbMergedBlockReader) Segment() (ts.Segment, error) {
 	return reader.Segment()
 }
 
-func (r *dbMergedBlockReader) Reset(segment ts.Segment) {
+func (r *dbMergedBlockReader) SegmentReader() (xio.SegmentReader, error) {
+	reader, err := r.mergedReader()
+	if err != nil {
+		return nil, err
+	}
+	return reader.SegmentReader()
+}
+
+func (r *dbMergedBlockReader) Reset(_ ts.Segment) {
+	panic(fmt.Errorf("merged block reader not available for re-use"))
+}
+
+func (r *dbMergedBlockReader) ResetWindowed(_ ts.Segment, _, _ time.Time) {
 	panic(fmt.Errorf("merged block reader not available for re-use"))
 }
 

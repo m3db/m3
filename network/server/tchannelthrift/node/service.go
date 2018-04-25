@@ -192,7 +192,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	result.Datapoints = make([]*rpc.Datapoint, 0)
 
 	multiIt := s.db.Options().MultiReaderIteratorPool().Get()
-	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
+	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded))
 	defer multiIt.Close()
 
 	for multiIt.Next() {

@@ -301,7 +301,7 @@ func (s *dbSeries) Write(
 func (s *dbSeries) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
-) ([][]xio.SegmentReader, error) {
+) ([][]xio.BlockReader, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
 	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.blocks, s.buffer)

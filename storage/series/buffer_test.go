@@ -163,7 +163,6 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 	firstBucketEnd := start.Add(mins(2)).Truncate(time.Second)
 	results := buffer.ReadEncoded(ctx, firstBucketStart, firstBucketEnd)
 	assert.NotNil(t, results)
-
 	assertValuesEqual(t, []value{data[0]}, results, opts)
 
 	secondBucketStart := start.Add(mins(2)).Truncate(time.Second)
@@ -219,8 +218,8 @@ func TestBufferDrain(t *testing.T) {
 	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	require.NotNil(t, results)
 
-	assertValuesEqual(t, data[:4], [][]xio.SegmentReader{[]xio.SegmentReader{
-		requireDrainedStream(ctx, t, drained[0]),
+	assertValuesEqual(t, data[:4], [][]xio.BlockReader{[]xio.BlockReader{
+		xio.NewBlockReader(requireDrainedStream(ctx, t, drained[0]), time.Time{}, time.Time{}),
 	}}, opts)
 	assertValuesEqual(t, data[4:], results, opts)
 }
@@ -263,9 +262,9 @@ func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NotNil(t, results)
 
-	assertValuesEqual(t, data[:2], [][]xio.SegmentReader{[]xio.SegmentReader{
-		requireDrainedStream(ctx, t, drained[1]),
-		requireDrainedStream(ctx, t, drained[0]),
+	assertValuesEqual(t, data[:2], [][]xio.BlockReader{[]xio.BlockReader{
+		xio.NewBlockReader(requireDrainedStream(ctx, t, drained[1]), time.Time{}, time.Time{}),
+		xio.NewBlockReader(requireDrainedStream(ctx, t, drained[0]), time.Time{}, time.Time{}),
 	}}, opts)
 	assertValuesEqual(t, data[2:], results, opts)
 }
@@ -313,7 +312,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	assertValuesEqual(t, data, results, opts)
 
 	// Explicitly merge
-	var mergedResults [][]xio.SegmentReader
+	var mergedResults [][]xio.BlockReader
 	for i := range buffer.buckets {
 		mergedResult, err := buffer.buckets[i].discardMerged()
 		require.NoError(t, err)
@@ -322,7 +321,8 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 		require.NotNil(t, block)
 
 		if block.Len() > 0 {
-			result := []xio.SegmentReader{requireDrainedStream(ctx, t, block)}
+			blockReader := xio.NewBlockReader(requireDrainedStream(ctx, t, block), time.Time{}, time.Time{})
+			result := []xio.BlockReader{blockReader}
 			mergedResults = append(mergedResults, result)
 		}
 	}
@@ -398,8 +398,8 @@ func TestBufferBucketMerge(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	assertValuesEqual(t, expected, [][]xio.SegmentReader{[]xio.SegmentReader{
-		requireDrainedStream(ctx, t, bl),
+	assertValuesEqual(t, expected, [][]xio.BlockReader{[]xio.BlockReader{
+		xio.NewBlockReader(requireDrainedStream(ctx, t, bl), time.Time{}, time.Time{}),
 	}}, opts)
 }
 
@@ -485,7 +485,7 @@ func TestBufferFetchBlocks(t *testing.T) {
 	res := buffer.FetchBlocks(ctx, []time.Time{b.start, b.start.Add(time.Second)})
 	require.Equal(t, 1, len(res))
 	require.Equal(t, b.start, res[0].Start)
-	assertValuesEqual(t, expected, [][]xio.SegmentReader{res[0].Readers}, opts)
+	assertValuesEqual(t, expected, [][]xio.BlockReader{res[0].Readers}, opts)
 }
 
 func TestBufferFetchBlocksMetadata(t *testing.T) {

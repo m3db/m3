@@ -85,16 +85,16 @@ func (_mr *MockEncoderMockRecorder) Stream() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Stream", reflect.TypeOf((*MockEncoder)(nil).Stream))
 }
 
-// StreamLen mocks base method
-func (_m *MockEncoder) StreamLen() int {
-	ret := _m.ctrl.Call(_m, "StreamLen")
+// Len mocks base method
+func (_m *MockEncoder) Len() int {
+	ret := _m.ctrl.Call(_m, "Len")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-// StreamLen indicates an expected call of StreamLen
-func (_mr *MockEncoderMockRecorder) StreamLen() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "StreamLen", reflect.TypeOf((*MockEncoder)(nil).StreamLen))
+// Len indicates an expected call of Len
+func (_mr *MockEncoderMockRecorder) Len() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Len", reflect.TypeOf((*MockEncoder)(nil).Len))
 }
 
 // Reset mocks base method
@@ -556,13 +556,13 @@ func (_mr *MockMultiReaderIteratorMockRecorder) Close() *gomock.Call {
 }
 
 // Reset mocks base method
-func (_m *MockMultiReaderIterator) Reset(readers []io.Reader) {
-	_m.ctrl.Call(_m, "Reset", readers)
+func (_m *MockMultiReaderIterator) Reset(readers []xio.Reader, start time.Time, end time.Time) {
+	_m.ctrl.Call(_m, "Reset", readers, start, end)
 }
 
 // Reset indicates an expected call of Reset
-func (_mr *MockMultiReaderIteratorMockRecorder) Reset(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Reset", reflect.TypeOf((*MockMultiReaderIterator)(nil).Reset), arg0)
+func (_mr *MockMultiReaderIteratorMockRecorder) Reset(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Reset", reflect.TypeOf((*MockMultiReaderIterator)(nil).Reset), arg0, arg1, arg2)
 }
 
 // ResetSliceOfSlices mocks base method
@@ -573,6 +573,18 @@ func (_m *MockMultiReaderIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfS
 // ResetSliceOfSlices indicates an expected call of ResetSliceOfSlices
 func (_mr *MockMultiReaderIteratorMockRecorder) ResetSliceOfSlices(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ResetSliceOfSlices", reflect.TypeOf((*MockMultiReaderIterator)(nil).ResetSliceOfSlices), arg0)
+}
+
+// Readers mocks base method
+func (_m *MockMultiReaderIterator) Readers() xio.ReaderSliceOfSlicesIterator {
+	ret := _m.ctrl.Call(_m, "Readers")
+	ret0, _ := ret[0].(xio.ReaderSliceOfSlicesIterator)
+	return ret0
+}
+
+// Readers indicates an expected call of Readers
+func (_mr *MockMultiReaderIteratorMockRecorder) Readers() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Readers", reflect.TypeOf((*MockMultiReaderIterator)(nil).Readers))
 }
 
 // MockSeriesIterator is a mock of SeriesIterator interface
@@ -707,13 +719,25 @@ func (_mr *MockSeriesIteratorMockRecorder) End() *gomock.Call {
 }
 
 // Reset mocks base method
-func (_m *MockSeriesIterator) Reset(id ident.ID, ns ident.ID, startInclusive time.Time, endExclusive time.Time, replicas []Iterator) {
+func (_m *MockSeriesIterator) Reset(id ident.ID, ns ident.ID, startInclusive time.Time, endExclusive time.Time, replicas []MultiReaderIterator) {
 	_m.ctrl.Call(_m, "Reset", id, ns, startInclusive, endExclusive, replicas)
 }
 
 // Reset indicates an expected call of Reset
 func (_mr *MockSeriesIteratorMockRecorder) Reset(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Reset", reflect.TypeOf((*MockSeriesIterator)(nil).Reset), arg0, arg1, arg2, arg3, arg4)
+}
+
+// Replicas mocks base method
+func (_m *MockSeriesIterator) Replicas() []MultiReaderIterator {
+	ret := _m.ctrl.Call(_m, "Replicas")
+	ret0, _ := ret[0].([]MultiReaderIterator)
+	return ret0
+}
+
+// Replicas indicates an expected call of Replicas
+func (_mr *MockSeriesIteratorMockRecorder) Replicas() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Replicas", reflect.TypeOf((*MockSeriesIterator)(nil).Replicas))
 }
 
 // MockSeriesIterators is a mock of SeriesIterators interface
