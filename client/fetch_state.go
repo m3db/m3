@@ -22,6 +22,7 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -109,12 +110,24 @@ func (f *fetchState) completionFn(
 		return
 	}
 
-	done, err := f.tagResultAccumulator.Add(result, resultErr)
-	if done {
-		f.err = err
-		f.done = true
-		f.Signal()
+	opts, ok := result.(fetchTaggedResultAccumulatorOpts)
+	if !ok {
+		// should never happen
+		f.markDoneWithLock(fmt.Errorf(
+			"[invariant violated] expected result to be of type fetchTaggedResultAccumulatorOpts, received: %v", result))
+		return
 	}
+
+	done, err := f.tagResultAccumulator.Add(opts, resultErr)
+	if done {
+		f.markDoneWithLock(err)
+	}
+}
+
+func (f *fetchState) markDoneWithLock(err error) {
+	f.done = true
+	f.err = err
+	f.Signal()
 }
 
 func (f *fetchState) asIndexQueryResults(pools fetchTaggedPools) (index.QueryResults, error) {

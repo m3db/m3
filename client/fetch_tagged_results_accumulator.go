@@ -44,7 +44,7 @@ type fetchResultsAccumulator interface {
 		consistencyLevel topology.ReadConsistencyLevel)
 
 	// Add adds the provided result to the accumulator.
-	Add(result interface{}, err error) (done bool, addErr error)
+	Add(opts fetchTaggedResultAccumulatorOpts, err error) (done bool, addErr error)
 
 	// AsEncodingSeriesIterators converts the underlying response into an encoding.SeriesIterators
 	AsEncodingSeriesIterators(limit int, pools fetchTaggedPools) (
@@ -56,6 +56,11 @@ type fetchResultsAccumulator interface {
 	// Clear clears any internal state, and releases references the object
 	// has to external entities. It does not release the object itself.
 	Clear()
+}
+
+type fetchTaggedResultAccumulatorOpts struct {
+	host     topology.Host
+	response *rpc.FetchTaggedResult_
 }
 
 // make the compiler ensure the concrete type `&fetchTaggedResultAccumulator{}` implements
@@ -88,13 +93,10 @@ type fetchTaggedShardConsistencyResult struct {
 	done     bool
 }
 
-type fetchTaggedResultAccumulatorOpts struct {
-	host     topology.Host
-	response *rpc.FetchTaggedResult_
-}
-
-func (accum *fetchTaggedResultAccumulator) Add(result interface{}, resultErr error) (bool, error) {
-	opts := result.(fetchTaggedResultAccumulatorOpts)
+func (accum *fetchTaggedResultAccumulator) Add(
+	opts fetchTaggedResultAccumulatorOpts,
+	resultErr error,
+) (bool, error) {
 	host := opts.host
 	response := opts.response
 
