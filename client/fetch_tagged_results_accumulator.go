@@ -63,17 +63,17 @@ type fetchTaggedResultAccumulatorOpts struct {
 	response *rpc.FetchTaggedResult_
 }
 
-// make the compiler ensure the concrete type `&fetchTaggedResultAccumulator{}` implements
+// make the compiler ensure the concrete type `*fetchTaggedResultAccumulator` implements
 // the `fetchResultsAccumulator` interface.
 var _ fetchResultsAccumulator = &fetchTaggedResultAccumulator{}
 
 type fetchTaggedResultAccumulator struct {
 	// NB(prateek): a fetchTagged request requires we fan out to each shard in the
-	// topology. As a result, we model the response consistency per shard.
+	// topology. As a result, we track the response consistency per shard.
 	// Length of this slice == 1 + max shard id in topology
-	shardResults     []fetchTaggedShardConsistencyResult
-	numHostsPending  int32
-	numShardsPending int32
+	shardConsistencyResults []fetchTaggedShardConsistencyResult
+	numHostsPending         int32
+	numShardsPending        int32
 
 	errors     xerrors.Errors
 	responses  fetchTaggedIDResults
@@ -131,7 +131,7 @@ func (accum *fetchTaggedResultAccumulator) Add(
 		}
 
 		shardID := int(hs.ID())
-		shardResult := accum.shardResults[shardID]
+		shardResult := accum.shardConsistencyResults[shardID]
 		if shardResult.done {
 			continue // already been marked done, don't need to do anything for this shard
 		}
@@ -150,7 +150,7 @@ func (accum *fetchTaggedResultAccumulator) Add(
 		}
 
 		// update value in slice
-		accum.shardResults[shardID] = shardResult
+		accum.shardConsistencyResults[shardID] = shardResult
 	}
 
 	// success case, sufficient responses for each shard
@@ -173,7 +173,6 @@ func (accum *fetchTaggedResultAccumulator) Add(
 }
 
 func (accum *fetchTaggedResultAccumulator) Clear() {
-	accum.shardResults = accum.shardResults[:0]
 	for i := range accum.responses {
 		accum.responses[i] = nil
 	}
@@ -182,6 +181,7 @@ func (accum *fetchTaggedResultAccumulator) Clear() {
 		accum.errors[i] = nil
 	}
 	accum.errors = accum.errors[:0]
+	accum.shardConsistencyResults = accum.shardConsistencyResults[:0]
 	accum.consistencyLevel = topology.ReadConsistencyLevelNone
 	accum.majority, accum.numHostsPending, accum.numShardsPending = 0, 0, 0
 	accum.startTime, accum.endTime = time.Time{}, time.Time{}
@@ -206,12 +206,12 @@ func (accum *fetchTaggedResultAccumulator) Reset(
 
 	// expand shardResults as much as necessary
 	targetLen := 1 + int(topoMap.ShardSet().Max())
-	accum.shardResults = fetchTaggedShardConsistencyResults(accum.shardResults).initialize(targetLen)
+	accum.shardConsistencyResults = fetchTaggedShardConsistencyResults(accum.shardConsistencyResults).initialize(targetLen)
 	// initialize shardResults based on current topology
 	for _, hss := range topoMap.HostShardSets() {
 		for _, hShard := range hss.ShardSet().All() {
 			id := int(hShard.ID())
-			accum.shardResults[id].enqueued++
+			accum.shardConsistencyResults[id].enqueued++
 		}
 	}
 }
@@ -271,7 +271,7 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 		return count < limit
 	})
 
-	exhaustive := accum.exhaustive && count < limit
+	exhaustive := accum.exhaustive && count <= limit
 	return result, exhaustive, nil
 }
 
@@ -295,7 +295,7 @@ func (accum *fetchTaggedResultAccumulator) AsIndexQueryResults(
 	})
 
 	return index.QueryResults{
-		Exhaustive: accum.exhaustive && count < limit,
+		Exhaustive: accum.exhaustive && count <= limit,
 		Iterator:   iter,
 	}, nil
 }
