@@ -65,20 +65,19 @@ func (i *fetchTaggedResultsIndexIterator) Next() bool {
 		return false
 	}
 
-	// parse the current docs
-	asIdent := func(b []byte) ident.ID {
-		wb := i.pools.CheckedBytesWrapper().Get(b)
-		return i.pools.ID().BinaryID(wb)
-	}
-
 	dec := i.pools.TagDecoder().Get()
 	wb := i.pools.CheckedBytesWrapper().Get(i.backing.tags[i.currentIdx])
 	dec.Reset(wb)
 
-	i.current.tsID = asIdent(i.backing.ids[i.currentIdx])
-	i.current.nsID = asIdent(i.backing.nses[i.currentIdx])
+	i.current.tsID = i.asIdent(i.backing.ids[i.currentIdx])
+	i.current.nsID = i.asIdent(i.backing.nses[i.currentIdx])
 	i.current.tags = dec
 	return true
+}
+
+func (i *fetchTaggedResultsIndexIterator) asIdent(b []byte) ident.ID {
+	wb := i.pools.CheckedBytesWrapper().Get(b)
+	return i.pools.ID().BinaryID(wb)
 }
 
 func (i *fetchTaggedResultsIndexIterator) Close() {
