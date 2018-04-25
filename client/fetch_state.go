@@ -170,6 +170,11 @@ func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools) (encoding
 	return f.tagResultAccumulator.AsEncodingSeriesIterators(limit, pools)
 }
 
+// NB(prateek): this is backed by the sessionPools structs, but we're restricting it to a narrow
+// interface to force the fetchTagged code-paths to be explicit about the pools they need access
+// to. The alternative is to either expose the sessionPools struct (which is a worse abstraction),
+// or make a new concrete implemtation (which requires an extra alloc). Chosing the best of the
+// three options and leaving as the interface below.
 type fetchTaggedPools interface {
 	ReaderSliceOfSlicesIterator() *readerSliceOfSlicesIteratorPool
 	MultiReaderIterator() encoding.MultiReaderIteratorPool
