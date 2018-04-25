@@ -906,7 +906,7 @@ func (s *session) writeAttempt(
 		return err
 	}
 
-	// it's safe to Wait() here, as we still own the lock on state, after it's
+	// it's safe to Wait() here, as we still hold the lock on state, after it's
 	// returned from writeAttemptWithRLock.
 	state.Wait()
 
@@ -1121,7 +1121,7 @@ func (s *session) FetchTaggedIDs(
 		return index.QueryResults{}, err
 	}
 
-	// it's safe to Wait() here, as we still own the lock on fetchState, after it's
+	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
 	// returned from fetchTaggedAttemptWithRLock.
 	fetchState.Wait()
 
@@ -1137,7 +1137,7 @@ func (s *session) FetchTaggedIDs(
 	return results, err
 }
 
-// NB(prateek): the returned fetchState, if valid, still owns the lock. Its ownership
+// NB(prateek): the returned fetchState, if valid, still holds the lock. Its ownership
 // is transferred to the calling function, and is expected to manage the lifecycle of
 // of the object (including releasing the lock/decRef'ing it).
 func (s *session) fetchTaggedAttemptWithRLock(
@@ -1175,7 +1175,7 @@ func (s *session) fetchTaggedAttemptWithRLock(
 
 	op.decRef() // release the ref for the current go-routine
 
-	// NB(prateek): the calling go-routine still owns the lock and a ref
+	// NB(prateek): the calling go-routine still holds the lock and a ref
 	// on the returned fetchState object.
 	return fetchState, nil
 }
