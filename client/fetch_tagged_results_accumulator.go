@@ -304,7 +304,7 @@ type fetchTaggedShardConsistencyResults []fetchTaggedShardConsistencyResult
 
 func (res fetchTaggedShardConsistencyResults) initialize(length int) fetchTaggedShardConsistencyResults {
 	if cap(res) < length {
-		res = append(res, make(fetchTaggedShardConsistencyResults, length-cap(res))...)
+		res = make(fetchTaggedShardConsistencyResults, length)
 	}
 	res = res[:length]
 	// following compiler optimized memcpy impl:
@@ -333,19 +333,18 @@ func (results fetchTaggedIDResults) forEachID(fn forEachFetchTaggedIDFn) {
 	for i := 0; i < len(results); i++ {
 		elem := results[i]
 		if !bytes.Equal(elem.ID, lastID) {
+			lastID = elem.ID
 			// We only want to call the the forEachID fn once we have calculated the entire group,
 			// i.e. once we have gone past the last element for a given ID, but the first element
 			// in the results slice is a special case because we are always starting a new group
 			// at that point.
 			if i == 0 {
-				lastID = elem.ID
 				continue
 			}
 			continueIterating := fn(results[startIdx:i])
 			if !continueIterating {
 				return
 			}
-			lastID = elem.ID
 			startIdx = i
 		}
 	}

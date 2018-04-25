@@ -1017,7 +1017,7 @@ func (s *session) writeAttemptWithRLock(
 
 			// NB(r): if this happens we have a bug, once we are in the read
 			// lock the current queues should never be closed
-			s.opts.InstrumentOptions().Logger().Errorf("[invariant violated] failed to enqueue write: %v", err)
+			s.log.Errorf("[invariant violated] failed to enqueue write: %v", err)
 			return nil, 0, 0, err
 		}
 		enqueued++
@@ -1168,8 +1168,7 @@ func (s *session) fetchTaggedAttemptWithRLock(
 
 			// NB: if this happens we have a bug, once we are in the read
 			// lock the current queues should never be closed
-			s.opts.InstrumentOptions().Logger().Errorf(
-				"[invariant violated] failed to enqueue fetchTagged: %v", err)
+			s.log.Errorf("[invariant violated] failed to enqueue fetchTagged: %v", err)
 			return nil, err
 		}
 	}

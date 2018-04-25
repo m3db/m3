@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3x/ident"
 )
 
+// FOLLOWUP(prateek): add pooling for fetchTaggedResultsIndexIterator(s).
 type fetchTaggedResultsIndexIterator struct {
 	currentIdx int
 	err        error
