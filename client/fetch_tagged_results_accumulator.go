@@ -232,7 +232,7 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 
 	// pick the first element as they all have identical ids/tags
 	// NB: safe to assume this element exists as it's only called within
-	// a forEach lambda, which provides the guarantee that len(elems) != 0
+	// a forEachID lambda, which provides the guarantee that len(elems) != 0
 	elem := elems[0]
 
 	encodedTags := pools.CheckedBytesWrapper().Get(elem.EncodedTags)
@@ -256,7 +256,7 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 	accum.responses = fetchTaggedIDResults(results)
 
 	numElements := 0
-	accum.responses.forEach(func(_ fetchTaggedIDResults) bool {
+	accum.responses.forEachID(func(_ fetchTaggedIDResults) bool {
 		numElements++
 		return numElements < limit
 	})
@@ -264,7 +264,7 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 	result := pools.MutableSeriesIterators().Get(numElements)
 	result.Reset(numElements)
 	count := 0
-	accum.responses.forEach(func(elems fetchTaggedIDResults) bool {
+	accum.responses.forEachID(func(elems fetchTaggedIDResults) bool {
 		seriesIter := accum.sliceResponsesAsSeriesIter(pools, elems)
 		result.SetAt(count, seriesIter)
 		count++
@@ -286,7 +286,7 @@ func (accum *fetchTaggedResultAccumulator) AsIndexQueryResults(
 	results := fetchTaggedIDResultsSortedByID(accum.responses)
 	sort.Sort(results)
 	accum.responses = fetchTaggedIDResults(results)
-	accum.responses.forEach(func(elems fetchTaggedIDResults) bool {
+	accum.responses.forEachID(func(elems fetchTaggedIDResults) bool {
 		iter.backing.ids = append(iter.backing.ids, elems[0].ID)
 		iter.backing.nses = append(iter.backing.nses, elems[0].NameSpace)
 		iter.backing.tags = append(iter.backing.tags, elems[0].EncodedTags)
@@ -317,13 +317,15 @@ func (res fetchTaggedShardConsistencyResults) initialize(length int) fetchTagged
 
 type fetchTaggedIDResults []*rpc.FetchTaggedIDResult_
 
-// the returned bool indicates if the iteration should be continued
+// lambda to iterate over fetchTagged responses a single id at a time,
+// the returned bool indicates if the iteration should be continued past the
+// curent id.
 type forEachFetchTaggedIDFn func(responsesForSingleID fetchTaggedIDResults) bool
 
-// forEach iterates over the provide results, and calls `fn` on each
+// forEachID iterates over the provide results, and calls `fn` on each
 // group of responses with the same ID.
 // NB: assumes the results array being operated upon has been sorted
-func (results fetchTaggedIDResults) forEach(fn forEachFetchTaggedIDFn) {
+func (results fetchTaggedIDResults) forEachID(fn forEachFetchTaggedIDFn) {
 	var (
 		startIdx = 0
 		lastID   []byte
@@ -331,7 +333,7 @@ func (results fetchTaggedIDResults) forEach(fn forEachFetchTaggedIDFn) {
 	for i := 0; i < len(results); i++ {
 		elem := results[i]
 		if !bytes.Equal(elem.ID, lastID) {
-			// We only want to call the the forEach fn once we have calculated the entire group,
+			// We only want to call the the forEachID fn once we have calculated the entire group,
 			// i.e. once we have gone past the last element for a given ID, but the first element
 			// in the results slice is a special case because we are always starting a new group
 			// at that point.

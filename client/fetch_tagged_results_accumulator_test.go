@@ -85,7 +85,7 @@ func TestFetchTaggedForEachIDFn(t *testing.T) {
 	}
 	sort.Sort(fetchTaggedIDResultsSortedByID(input))
 	numElements := 0
-	input.forEach(func(_ fetchTaggedIDResults) bool {
+	input.forEachID(func(_ fetchTaggedIDResults) bool {
 		numElements++
 		return true
 	})
@@ -109,7 +109,7 @@ func TestFetchTaggedForEachIDFnEarlyTerminate(t *testing.T) {
 	}
 	sort.Sort(fetchTaggedIDResultsSortedByID(input))
 	numElements := 0
-	input.forEach(func(elems fetchTaggedIDResults) bool {
+	input.forEachID(func(elems fetchTaggedIDResults) bool {
 		numElements++
 		switch numElements {
 		case 1:
@@ -137,7 +137,7 @@ func TestFetchTaggedForEachIDFnNumberCalls(t *testing.T) {
 		func(results fetchTaggedIDResults) bool {
 			sort.Sort(fetchTaggedIDResultsSortedByID(results))
 			ids := make(map[string]struct{})
-			results.forEach(func(elems fetchTaggedIDResults) bool {
+			results.forEachID(func(elems fetchTaggedIDResults) bool {
 				id := elems[0].ID
 				for _, elem := range elems {
 					require.Equal(t, id, elem.ID)
