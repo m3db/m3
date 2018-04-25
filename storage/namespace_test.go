@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/x/metrics"
@@ -70,10 +71,18 @@ func newTestNamespaceWithIDOpts(
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
 	dopts := testDatabaseOptions().SetRuntimeOptionsManager(runtime.NewOptionsManager())
-	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts)
+	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	closer := dopts.RuntimeOptionsManager().Close
 	return ns.(*dbNamespace), closer
+}
+
+func newTestNamespaceWithIndex(t *testing.T, index namespaceIndex) (*dbNamespace, closer) {
+	ns, closer := newTestNamespace(t)
+	if index != nil {
+		ns.reverseIndex = index
+	}
+	return ns, closer
 }
 
 func TestNamespaceName(t *testing.T) {
@@ -581,7 +590,7 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 
 	dopts = dopts.SetInstrumentOptions(dopts.InstrumentOptions().
 		SetMetricsScope(scope))
-	oNs, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 
@@ -654,7 +663,7 @@ func newNeedsFlushNamespace(t *testing.T, shardNumbers []uint32) *dbNamespace {
 		return at
 	}))
 
-	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts)
+	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	return ns.(*dbNamespace)
 }
@@ -798,7 +807,7 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	oNs, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 
@@ -840,7 +849,7 @@ func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	oNs, err := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 	for _, s := range shards {
@@ -893,7 +902,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	oNs, err := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, nil, dopts)
+	oNs, err := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	ns := oNs.(*dbNamespace)
 	for _, s := range shards {
@@ -970,6 +979,63 @@ func TestNamespaceCloseDoesNotLeak(t *testing.T) {
 
 	// Check the namespace no long owns any shards
 	require.Empty(t, ns.GetOwnedShards())
+}
+
+func TestNamespaceIndexInsert(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := NewMocknamespaceIndex(ctrl)
+	ns, closer := newTestNamespaceWithIndex(t, idx)
+	defer closer()
+
+	ctx := context.NewContext()
+	ts := time.Now()
+
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().WriteTagged(ctx, ident.NewIDMatcher("a"), ident.EmptyTagIterator,
+		ts, 1.0, xtime.Second, nil).Return(nil)
+	ns.shards[testShardIDs[0].ID()] = shard
+
+	err := ns.WriteTagged(ctx, ident.StringID("a"),
+		ident.EmptyTagIterator, ts, 1.0, xtime.Second, nil)
+	require.NoError(t, err)
+
+	shard.EXPECT().Close()
+	require.NoError(t, ns.Close())
+}
+
+func TestNamespaceIndexQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := NewMocknamespaceIndex(ctrl)
+	ns, closer := newTestNamespaceWithIndex(t, idx)
+	defer closer()
+
+	ctx := context.NewContext()
+	query := index.Query{}
+	opts := index.QueryOptions{}
+
+	idx.EXPECT().Query(ctx, query, opts)
+	_, err := ns.QueryIDs(ctx, query, opts)
+	require.NoError(t, err)
+
+	require.NoError(t, ns.Close())
+}
+
+func TestNamespaceIndexDisabledQuery(t *testing.T) {
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	ctx := context.NewContext()
+	query := index.Query{}
+	opts := index.QueryOptions{}
+
+	_, err := ns.QueryIDs(ctx, query, opts)
+	require.Error(t, err)
+
+	require.NoError(t, ns.Close())
 }
 
 func waitForStats(

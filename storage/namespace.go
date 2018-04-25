@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
@@ -51,7 +52,8 @@ import (
 )
 
 var (
-	errNamespaceAlreadyClosed = errors.New("namespace already closed")
+	errNamespaceAlreadyClosed    = errors.New("namespace already closed")
+	errNamespaceQueryIDsNilIndex = errors.New("[invariant violated] namespace reverse index is unset")
 )
 
 type commitLogWriter interface {
@@ -115,7 +117,7 @@ type dbNamespace struct {
 
 	increasingIndex increasingIndex
 	commitLogWriter commitLogWriter
-	indexWriter     databaseIndexWriter
+	reverseIndex    namespaceIndex
 
 	tickWorkers            xsync.WorkerPool
 	tickWorkersConcurrency int
@@ -138,6 +140,7 @@ type databaseNamespaceMetrics struct {
 	read                instrument.MethodMetrics
 	fetchBlocks         instrument.MethodMetrics
 	fetchBlocksMetadata instrument.MethodMetrics
+	queryIDs            instrument.MethodMetrics
 	unfulfilled         tally.Counter
 	bootstrapStart      tally.Counter
 	bootstrapEnd        tally.Counter
@@ -186,6 +189,7 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
+		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", samplingRate),
 		unfulfilled:         scope.Counter("bootstrap.unfulfilled"),
 		bootstrapStart:      scope.Counter("bootstrap.start"),
 		bootstrapEnd:        scope.Counter("bootstrap.end"),
@@ -219,7 +223,6 @@ func newDatabaseNamespace(
 	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
 	commitLogWriter commitLogWriter,
-	indexWriter databaseIndexWriter,
 	opts Options,
 ) (databaseNamespace, error) {
 	var (
@@ -265,7 +268,7 @@ func newDatabaseNamespace(
 		log:                    logger,
 		increasingIndex:        increasingIndex,
 		commitLogWriter:        commitLogWriter,
-		indexWriter:            indexWriter,
+		reverseIndex:           nil, // FOLLOWUP(prateek): will be done in https://github.com/m3db/m3db/pull/507
 		tickWorkers:            tickWorkers,
 		tickWorkersConcurrency: tickWorkersConcurrency,
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
@@ -349,7 +352,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		} else {
 			needsBootstrap := n.nopts.NeedsBootstrap()
 			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.indexWriter,
+				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.reverseIndex,
 				needsBootstrap, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
@@ -493,6 +496,23 @@ func (n *dbNamespace) WriteTagged(
 	err = shard.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
 	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return err
+}
+
+func (n *dbNamespace) QueryIDs(
+	ctx context.Context,
+	query index.Query,
+	opts index.QueryOptions,
+) (index.QueryResults, error) {
+	if n.reverseIndex == nil {
+		// should never happen: `database.QueryIDs` ensure it only calls `ns.QueryIDs`
+		// if indexing is enabled.
+		n.log.Errorf(errNamespaceQueryIDsNilIndex.Error())
+		return index.QueryResults{}, errNamespaceQueryIDsNilIndex
+	}
+	callStart := n.nowFn()
+	res, err := n.reverseIndex.Query(ctx, query, opts)
+	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return res, err
 }
 
 func (n *dbNamespace) ReadEncoded(
@@ -932,7 +952,7 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
 		dbShards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-			n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.indexWriter,
+			n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.reverseIndex,
 			needBootstrap, n.opts, n.seriesOpts)
 	}
 	n.shards = dbShards

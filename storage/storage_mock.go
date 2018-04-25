@@ -25,6 +25,7 @@ package storage
 
 import (
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -42,6 +43,7 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/x/xcounter"
 	"github.com/m3db/m3db/x/xio"
+	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -194,16 +196,16 @@ func (_mr *MockDatabaseMockRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, a
 }
 
 // QueryIDs mocks base method
-func (_m *MockDatabase) QueryIDs(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, query, opts)
+func (_m *MockDatabase) QueryIDs(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, namespace, query, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // QueryIDs indicates an expected call of QueryIDs
-func (_mr *MockDatabaseMockRecorder) QueryIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "QueryIDs", reflect.TypeOf((*MockDatabase)(nil).QueryIDs), arg0, arg1, arg2)
+func (_mr *MockDatabaseMockRecorder) QueryIDs(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "QueryIDs", reflect.TypeOf((*MockDatabase)(nil).QueryIDs), arg0, arg1, arg2, arg3)
 }
 
 // ReadEncoded mocks base method
@@ -464,16 +466,16 @@ func (_mr *MockdatabaseMockRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, a
 }
 
 // QueryIDs mocks base method
-func (_m *Mockdatabase) QueryIDs(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, query, opts)
+func (_m *Mockdatabase) QueryIDs(ctx context.Context, namespace ident.ID, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, namespace, query, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // QueryIDs indicates an expected call of QueryIDs
-func (_mr *MockdatabaseMockRecorder) QueryIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "QueryIDs", reflect.TypeOf((*Mockdatabase)(nil).QueryIDs), arg0, arg1, arg2)
+func (_mr *MockdatabaseMockRecorder) QueryIDs(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "QueryIDs", reflect.TypeOf((*Mockdatabase)(nil).QueryIDs), arg0, arg1, arg2, arg3)
 }
 
 // ReadEncoded mocks base method
@@ -826,6 +828,19 @@ func (_m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, t
 // WriteTagged indicates an expected call of WriteTagged
 func (_mr *MockdatabaseNamespaceMockRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteTagged", reflect.TypeOf((*MockdatabaseNamespace)(nil).WriteTagged), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+}
+
+// QueryIDs mocks base method
+func (_m *MockdatabaseNamespace) QueryIDs(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, query, opts)
+	ret0, _ := ret[0].(index.QueryResults)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// QueryIDs indicates an expected call of QueryIDs
+func (_mr *MockdatabaseNamespaceMockRecorder) QueryIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "QueryIDs", reflect.TypeOf((*MockdatabaseNamespace)(nil).QueryIDs), arg0, arg1, arg2)
 }
 
 // ReadEncoded mocks base method
@@ -1235,43 +1250,43 @@ func (_mr *MockdatabaseShardMockRecorder) Repair(arg0, arg1, arg2 interface{}) *
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Repair", reflect.TypeOf((*MockdatabaseShard)(nil).Repair), arg0, arg1, arg2)
 }
 
-// MockdatabaseIndex is a mock of databaseIndex interface
-type MockdatabaseIndex struct {
+// MocknamespaceIndex is a mock of namespaceIndex interface
+type MocknamespaceIndex struct {
 	ctrl     *gomock.Controller
-	recorder *MockdatabaseIndexMockRecorder
+	recorder *MocknamespaceIndexMockRecorder
 }
 
-// MockdatabaseIndexMockRecorder is the mock recorder for MockdatabaseIndex
-type MockdatabaseIndexMockRecorder struct {
-	mock *MockdatabaseIndex
+// MocknamespaceIndexMockRecorder is the mock recorder for MocknamespaceIndex
+type MocknamespaceIndexMockRecorder struct {
+	mock *MocknamespaceIndex
 }
 
-// NewMockdatabaseIndex creates a new mock instance
-func NewMockdatabaseIndex(ctrl *gomock.Controller) *MockdatabaseIndex {
-	mock := &MockdatabaseIndex{ctrl: ctrl}
-	mock.recorder = &MockdatabaseIndexMockRecorder{mock}
+// NewMocknamespaceIndex creates a new mock instance
+func NewMocknamespaceIndex(ctrl *gomock.Controller) *MocknamespaceIndex {
+	mock := &MocknamespaceIndex{ctrl: ctrl}
+	mock.recorder = &MocknamespaceIndexMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (_m *MockdatabaseIndex) EXPECT() *MockdatabaseIndexMockRecorder {
+func (_m *MocknamespaceIndex) EXPECT() *MocknamespaceIndexMockRecorder {
 	return _m.recorder
 }
 
 // Write mocks base method
-func (_m *MockdatabaseIndex) Write(ctx context.Context, namespace ident.ID, id ident.ID, tags ident.TagIterator) error {
-	ret := _m.ctrl.Call(_m, "Write", ctx, namespace, id, tags)
+func (_m *MocknamespaceIndex) Write(id ident.ID, tags ident.Tags, fns onIndexSeries) error {
+	ret := _m.ctrl.Call(_m, "Write", id, tags, fns)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Write indicates an expected call of Write
-func (_mr *MockdatabaseIndexMockRecorder) Write(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Write", reflect.TypeOf((*MockdatabaseIndex)(nil).Write), arg0, arg1, arg2, arg3)
+func (_mr *MocknamespaceIndexMockRecorder) Write(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Write", reflect.TypeOf((*MocknamespaceIndex)(nil).Write), arg0, arg1, arg2)
 }
 
 // Query mocks base method
-func (_m *MockdatabaseIndex) Query(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+func (_m *MocknamespaceIndex) Query(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
 	ret := _m.ctrl.Call(_m, "Query", ctx, query, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
@@ -1279,8 +1294,123 @@ func (_m *MockdatabaseIndex) Query(ctx context.Context, query index.Query, opts 
 }
 
 // Query indicates an expected call of Query
-func (_mr *MockdatabaseIndexMockRecorder) Query(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Query", reflect.TypeOf((*MockdatabaseIndex)(nil).Query), arg0, arg1, arg2)
+func (_mr *MocknamespaceIndexMockRecorder) Query(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Query", reflect.TypeOf((*MocknamespaceIndex)(nil).Query), arg0, arg1, arg2)
+}
+
+// Close mocks base method
+func (_m *MocknamespaceIndex) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close
+func (_mr *MocknamespaceIndexMockRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Close", reflect.TypeOf((*MocknamespaceIndex)(nil).Close))
+}
+
+// MocknamespaceIndexInsertQueue is a mock of namespaceIndexInsertQueue interface
+type MocknamespaceIndexInsertQueue struct {
+	ctrl     *gomock.Controller
+	recorder *MocknamespaceIndexInsertQueueMockRecorder
+}
+
+// MocknamespaceIndexInsertQueueMockRecorder is the mock recorder for MocknamespaceIndexInsertQueue
+type MocknamespaceIndexInsertQueueMockRecorder struct {
+	mock *MocknamespaceIndexInsertQueue
+}
+
+// NewMocknamespaceIndexInsertQueue creates a new mock instance
+func NewMocknamespaceIndexInsertQueue(ctrl *gomock.Controller) *MocknamespaceIndexInsertQueue {
+	mock := &MocknamespaceIndexInsertQueue{ctrl: ctrl}
+	mock.recorder = &MocknamespaceIndexInsertQueueMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MocknamespaceIndexInsertQueue) EXPECT() *MocknamespaceIndexInsertQueueMockRecorder {
+	return _m.recorder
+}
+
+// Start mocks base method
+func (_m *MocknamespaceIndexInsertQueue) Start() error {
+	ret := _m.ctrl.Call(_m, "Start")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Start indicates an expected call of Start
+func (_mr *MocknamespaceIndexInsertQueueMockRecorder) Start() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Start", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Start))
+}
+
+// Stop mocks base method
+func (_m *MocknamespaceIndexInsertQueue) Stop() error {
+	ret := _m.ctrl.Call(_m, "Stop")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Stop indicates an expected call of Stop
+func (_mr *MocknamespaceIndexInsertQueueMockRecorder) Stop() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Stop", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Stop))
+}
+
+// Insert mocks base method
+func (_m *MocknamespaceIndexInsertQueue) Insert(d doc.Document, s onIndexSeries) (*sync.WaitGroup, error) {
+	ret := _m.ctrl.Call(_m, "Insert", d, s)
+	ret0, _ := ret[0].(*sync.WaitGroup)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Insert indicates an expected call of Insert
+func (_mr *MocknamespaceIndexInsertQueueMockRecorder) Insert(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Insert", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Insert), arg0, arg1)
+}
+
+// MockonIndexSeries is a mock of onIndexSeries interface
+type MockonIndexSeries struct {
+	ctrl     *gomock.Controller
+	recorder *MockonIndexSeriesMockRecorder
+}
+
+// MockonIndexSeriesMockRecorder is the mock recorder for MockonIndexSeries
+type MockonIndexSeriesMockRecorder struct {
+	mock *MockonIndexSeries
+}
+
+// NewMockonIndexSeries creates a new mock instance
+func NewMockonIndexSeries(ctrl *gomock.Controller) *MockonIndexSeries {
+	mock := &MockonIndexSeries{ctrl: ctrl}
+	mock.recorder = &MockonIndexSeriesMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockonIndexSeries) EXPECT() *MockonIndexSeriesMockRecorder {
+	return _m.recorder
+}
+
+// OnIndexSuccess mocks base method
+func (_m *MockonIndexSeries) OnIndexSuccess(indexEntryExpiry time.Time) {
+	_m.ctrl.Call(_m, "OnIndexSuccess", indexEntryExpiry)
+}
+
+// OnIndexSuccess indicates an expected call of OnIndexSuccess
+func (_mr *MockonIndexSeriesMockRecorder) OnIndexSuccess(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "OnIndexSuccess", reflect.TypeOf((*MockonIndexSeries)(nil).OnIndexSuccess), arg0)
+}
+
+// OnIndexFinalize mocks base method
+func (_m *MockonIndexSeries) OnIndexFinalize() {
+	_m.ctrl.Call(_m, "OnIndexFinalize")
+}
+
+// OnIndexFinalize indicates an expected call of OnIndexFinalize
+func (_mr *MockonIndexSeriesMockRecorder) OnIndexFinalize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "OnIndexFinalize", reflect.TypeOf((*MockonIndexSeries)(nil).OnIndexFinalize))
 }
 
 // MockdatabaseBootstrapManager is a mock of databaseBootstrapManager interface
