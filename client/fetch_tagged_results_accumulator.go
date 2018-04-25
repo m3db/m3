@@ -230,7 +230,7 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 
 	// pick the first element as they all have identical ids/tags
 	// NB: safe to assume this element exists as it's only called within
-	// a forEach lambda, whic provides the guarantee that len(elems) != 0
+	// a forEach lambda, which provides the guarantee that len(elems) != 0
 	elem := elems[0]
 
 	encodedTags := pools.CheckedBytesWrapper().Get(elem.EncodedTags)
