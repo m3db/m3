@@ -43,8 +43,8 @@ type fetchResultsAccumulator interface {
 		majority int,
 		consistencyLevel topology.ReadConsistencyLevel)
 
-	// Accumulate add the provided result to the accumulator.
-	Add(result interface{}, err error) (done bool, accumErr error)
+	// Add adds the provided result to the accumulator.
+	Add(result interface{}, err error) (done bool, addErr error)
 
 	// AsEncodingSeriesIterators converts the underlying response into an encoding.SeriesIterators
 	AsEncodingSeriesIterators(limit int, pools fetchTaggedPools) (
@@ -53,7 +53,8 @@ type fetchResultsAccumulator interface {
 	// AsIndexQueryResults converts the underlying response into an index.QueryResults
 	AsIndexQueryResults(limit int, pools fetchTaggedPools) (index.QueryResults, error)
 
-	// Clear releases any held resources.
+	// Clear clears any internal state, and releases references the object
+	// has to external entities. It does not release the object itself.
 	Clear()
 }
 
