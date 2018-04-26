@@ -323,6 +323,17 @@ func (w *messageWriterImpl) retryBatchWithLock(
 			w.mPool.Put(m)
 			continue
 		}
+		if w.isClosed {
+			// Simply ack the messages here to mark them as consumed for this
+			// message writer, this is useful when user removes a consumer service
+			// during runtime that may be unhealthy to consume the messages.
+			// So that the unacked messages for the unhealthy consumer services
+			// do not stay in memory forever.
+			w.Ack(m.Metadata())
+			w.queue.Remove(e)
+			w.mPool.Put(m)
+			continue
+		}
 		if m.RetryAtNanos() >= nowNanos {
 			continue
 		}
@@ -339,13 +350,13 @@ func (w *messageWriterImpl) Close() {
 	}
 	w.isClosed = true
 	w.Unlock()
-	// NB: Wait until all messages acked then close.
-	w.waitUntilAllMessageAcked()
+	// NB: Wait until all messages cleaned up then close.
+	w.waitUntilAllMessageRemoved()
 	close(w.doneCh)
 	w.wg.Wait()
 }
 
-func (w *messageWriterImpl) waitUntilAllMessageAcked() {
+func (w *messageWriterImpl) waitUntilAllMessageRemoved() {
 	ticker := time.NewTicker(w.opts.CloseCheckInterval())
 	defer ticker.Stop()
 

@@ -65,8 +65,6 @@ type consumerServiceWriter interface {
 	Init(initType) error
 
 	// Close closes the writer and the background watch thread.
-	// It should block until all the data for the given consumer service
-	// have been consumed.
 	Close()
 
 	// RegisterFilter registers a filter for the consumer service.

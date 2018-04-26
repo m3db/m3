@@ -42,8 +42,7 @@ type shardWriter interface {
 		cws map[string]consumerWriter,
 	)
 
-	// Close closes the writer. It should block until
-	// all the data for the given shard have been consumed.
+	// Close closes the shard writer.
 	Close()
 }
 

@@ -180,6 +180,7 @@ func (w *writer) process(update interface{}) error {
 		if err = csw.Init(w.initType); err != nil {
 			w.logger.Errorf("could not init consumer service writer for %s: %v", cs.String(), err)
 			multiErr = multiErr.Add(err)
+			// Could not initialize the consumer service, simply close it.
 			csw.Close()
 			continue
 		}

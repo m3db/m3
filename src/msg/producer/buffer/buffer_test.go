@@ -107,12 +107,42 @@ func TestBufferCleanupBackground(t *testing.T) {
 	rd.IncRef()
 	rd.DecRef()
 
-	b.Close()
+	b.Close(producer.WaitForConsumption)
 	require.Equal(t, 0, int(b.size.Load()))
 	_, err = b.Add(md)
 	require.Error(t, err)
 	// Safe to close again.
-	b.Close()
+	b.Close(producer.WaitForConsumption)
+}
+
+func TestBufferCloseDropEverything(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	md := producer.NewMockData(ctrl)
+	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
+
+	b := NewBuffer(NewOptions().
+		SetCleanupInterval(100 * time.Millisecond).
+		SetCloseCheckInterval(100 * time.Millisecond).
+		SetInstrumentOptions(instrument.NewOptions())).(*buffer)
+	rd, err := b.Add(md)
+	require.NoError(t, err)
+	require.Equal(t, rd.Size(), uint64(md.Size()))
+	require.Equal(t, rd.Size(), b.size.Load())
+
+	b.Init()
+	md.EXPECT().Finalize(producer.Dropped)
+	b.Close(producer.DropEverything)
+	for {
+		l := b.size.Load()
+		if l == 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }
 
 func TestBufferDropEarliestOnFull(t *testing.T) {
