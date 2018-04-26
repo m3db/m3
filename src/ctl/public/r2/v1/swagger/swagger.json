@@ -184,13 +184,13 @@
                 }
             }
         },
-        "/namespaces/{namespaceID}/ruleset/bulk": {
+        "/namespaces/{namespaceID}/ruleset/update": {
             "post": {
                 "tags":[
                     "namespaces"
                 ],
-                "summary": "Bulk update endpoint for ruleset changes",
-                "operationId": "bulkUpdateRuleSet",
+                "summary": "Update endpoint for a ruleset, allowing for atomic changes to an entire ruleset.",
+                "operationId": "updateRuleSet",
                 "consumes": [
                     "application/json"
                 ],
@@ -199,34 +199,34 @@
                 ],
                 "parameters": [
                     {
+                        "in": "body",
+                        "description": "The updates to the ruleset",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "rulesetChanges": {
+                                    "$ref": "#/definitions/RuleSetChanges"
+                                },
+                                "rulesetVersion": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    },
+                    {
                         "in": "path",
                         "name": "namespaceID",
                         "description": "The name of the namespace",
                         "type": "string",
                         "required": true
-                    },
-                    {
-                        "in": "body",
-                        "name": "ruleset-changes",
-                        "description": "The updates to the ruleset",
-                        "required": true,
-                        "schema": {
-                        "$ref": "#/definitions/RuleSetChanges"
-                        }
-                    },
-                    {
-                        "in": "body",
-                        "name": "ruleset-version",
-                        "description": "The ruleset version to atomically apply bulk updates against",
-                        "required": true,
-                        "type": "integer"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "The ruleset updates have been applied",
                         "schema": {
-                            "$ref": "#/definitions/ApiResponse"
+                            "$ref": "#/definitions/RuleSet"
                         }
                     },
                     "404": {
@@ -555,7 +555,7 @@
                     },
                     {
                         "in": "path",
-                        "name": "ruleId",
+                        "name": "ruleID",
                         "description": "The id of the rule",
                         "type": "string",
                         "required": true
@@ -946,14 +946,14 @@
         "RuleSetChanges": {
             "type": "object",
             "properties": {
-                "MappingRuleChanges": {
+                "mappingRuleChanges": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/MappingRuleChange"
                     },
                     "description": "list of mapping rule changes"
                 },
-                "RollupRuleChanges": {
+                "rollupRuleChanges": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/RollupRuleChange"
@@ -965,7 +965,7 @@
         "MappingRuleChange": {
             "type": "object",
             "properties": {
-                "operation": {
+                "op": {
                     "type": "string",
                     "enum": ["add", "delete", "change"],
                     "description": "type of operation on rule"
@@ -983,7 +983,7 @@
         "RollupRuleChange": {
             "type": "object",
             "properties": {
-                "operation": {
+                "op": {
                     "type": "string",
                     "enum": ["add", "delete", "change"],
                     "description": "type of operation on rule"

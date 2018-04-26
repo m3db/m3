@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package r2
+// mockgen rules for generating mocks using file mode.
+//go:generate sh -c "mockgen -package=store $PACKAGE/service/r2/store Store | mockclean -pkg $PACKAGE/store -out $GOPATH/src/$PACKAGE/service/r2/store/store_mock.go"
 
-// UpdateOptions is a set of ruleset or namespace update options.
-type UpdateOptions interface {
-	// SetAuthor sets the author for an update.
-	SetAuthor(value string) UpdateOptions
-
-	// Author returns the author for an update.
-	Author() string
-}
-
-type updateOptions struct {
-	author string
-}
-
-// NewUpdateOptions creates a new set of update options.
-func NewUpdateOptions() UpdateOptions {
-	return &updateOptions{}
-}
-
-func (o *updateOptions) SetAuthor(value string) UpdateOptions {
-	opts := *o
-	opts.author = value
-	return &opts
-}
-
-func (o *updateOptions) Author() string {
-	return o.author
-}
+package mocks

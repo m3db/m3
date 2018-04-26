@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3ctl/auth"
 	mservice "github.com/m3db/m3ctl/service"
+	"github.com/m3db/m3ctl/service/r2/store"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
@@ -47,6 +48,7 @@ const (
 var (
 	namespacePrefix     = fmt.Sprintf("%s/{%s}", namespacePath, namespaceIDVar)
 	validateRuleSetPath = fmt.Sprintf("%s/{%s}/ruleset/validate", namespacePath, namespaceIDVar)
+	updateRuleSetPath   = fmt.Sprintf("%s/{%s}/ruleset/update", namespacePath, namespaceIDVar)
 
 	mappingRuleRoot        = fmt.Sprintf("%s/%s", namespacePrefix, mappingRulePrefix)
 	mappingRuleWithIDPath  = fmt.Sprintf("%s/{%s}", mappingRuleRoot, ruleIDVar)
@@ -75,6 +77,7 @@ type serviceMetrics struct {
 	updateRollupRule        instrument.MethodMetrics
 	deleteRollupRule        instrument.MethodMetrics
 	fetchRollupRuleHistory  instrument.MethodMetrics
+	updateRuleSet           instrument.MethodMetrics
 }
 
 func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
@@ -94,6 +97,7 @@ func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 		updateRollupRule:        instrument.NewMethodMetrics(scope, "updateRollupRule", samplingRate),
 		deleteRollupRule:        instrument.NewMethodMetrics(scope, "deleteRollupRule", samplingRate),
 		fetchRollupRuleHistory:  instrument.NewMethodMetrics(scope, "fetchRollupRuleHistory", samplingRate),
+		updateRuleSet:           instrument.NewMethodMetrics(scope, "updateRuleSet", samplingRate),
 	}
 }
 
@@ -129,7 +133,7 @@ func registerRoute(router *mux.Router, path, method string, h r2Handler, hf r2Ha
 // service handles all of the endpoints for r2.
 type service struct {
 	rootPrefix  string
-	store       Store
+	store       store.Store
 	authService auth.HTTPAuthService
 	logger      log.Logger
 	nowFn       clock.NowFn
@@ -140,7 +144,7 @@ type service struct {
 func NewService(
 	rootPrefix string,
 	authService auth.HTTPAuthService,
-	store Store,
+	store store.Store,
 	iOpts instrument.Options,
 	clockOpts clock.Options,
 ) mservice.Service {
@@ -168,7 +172,8 @@ func (s *service) RegisterHandlers(router *mux.Router) error {
 		// Ruleset actions.
 		{route: route{path: namespacePrefix, method: http.MethodGet}, handler: s.fetchNamespace},
 		{route: route{path: namespacePrefix, method: http.MethodDelete}, handler: s.deleteNamespace},
-		{route: route{path: validateRuleSetPath, method: http.MethodPost}, handler: s.validateNamespace},
+		{route: route{path: validateRuleSetPath, method: http.MethodPost}, handler: s.validateRuleSet},
+		{route: route{path: updateRuleSetPath, method: http.MethodPost}, handler: s.updateRuleSet},
 
 		// Mapping Rule actions.
 		{route: route{path: mappingRuleRoot, method: http.MethodPost}, handler: s.createMappingRule},
@@ -263,12 +268,20 @@ func (s *service) createNamespace(w http.ResponseWriter, r *http.Request) error 
 	return s.sendResponse(w, http.StatusCreated, data)
 }
 
-func (s *service) validateNamespace(w http.ResponseWriter, r *http.Request) error {
+func (s *service) validateRuleSet(w http.ResponseWriter, r *http.Request) error {
 	data, err := s.handleRoute(validateRuleSet, r, s.metrics.validateRuleSet)
 	if err != nil {
 		return err
 	}
 	return writeAPIResponse(w, http.StatusOK, data.(string))
+}
+
+func (s *service) updateRuleSet(w http.ResponseWriter, r *http.Request) error {
+	data, err := s.handleRoute(updateRuleSet, r, s.metrics.updateRuleSet)
+	if err != nil {
+		return err
+	}
+	return s.sendResponse(w, http.StatusOK, data)
 }
 
 func (s *service) deleteNamespace(w http.ResponseWriter, r *http.Request) error {
@@ -364,8 +377,8 @@ type route struct {
 	method string
 }
 
-func (s *service) newUpdateOptions(r *http.Request) (UpdateOptions, error) {
-	uOpts := NewUpdateOptions()
+func (s *service) newUpdateOptions(r *http.Request) (store.UpdateOptions, error) {
+	uOpts := store.NewUpdateOptions()
 	author, err := s.authService.GetUser(r.Context())
 	if err != nil {
 		return uOpts, nil
