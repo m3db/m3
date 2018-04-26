@@ -49,27 +49,42 @@ func writeConsistencyAchieved(
 	return false
 }
 
+// readConsistencyTermination returns a bool to indicate whether sufficient
+// responses (error/success) have been received, so that we're able to decide
+// whether we will be able to satisfy the reuquest or not.
+// NB: it is not the same as `readConsistencyAchieved`.
+func readConsistencyTermination(
+	level topology.ReadConsistencyLevel,
+	majority, remaining, success int32,
+) bool {
+	doneAll := remaining == 0
+	switch level {
+	case topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelNone:
+		return success > 0 || doneAll
+	case topology.ReadConsistencyLevelMajority, topology.ReadConsistencyLevelUnstrictMajority:
+		return success >= majority || doneAll
+	case topology.ReadConsistencyLevelAll:
+		return doneAll
+	}
+	panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
+}
+
+// `readConsistencyAchieved` returns whether sufficient responses have been received
+// to reach the desired consistency.
+// NB: it is not the same as `readConsistencyTermination`.
 func readConsistencyAchieved(
 	level topology.ReadConsistencyLevel,
 	majority, enqueued, success int,
 ) bool {
 	switch level {
 	case topology.ReadConsistencyLevelAll:
-		if success == enqueued { // Meets all
-			return true
-		}
+		return success == enqueued // Meets all
 	case topology.ReadConsistencyLevelMajority:
-		if success >= majority { // Meets majority
-			return true
-		}
+		return success >= majority // Meets majority
 	case topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority:
-		if success > 0 { // Meets one
-			return true
-		}
+		return success > 0 // Meets one
 	case topology.ReadConsistencyLevelNone:
 		return true // Always meets none
-	default:
-		panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
 	}
-	return false
+	panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
 }
