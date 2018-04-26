@@ -27,9 +27,9 @@ import (
 	"github.com/m3db/m3cluster/client/etcd"
 	clusterkv "github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3ctl/auth"
-	"github.com/m3db/m3ctl/service/r2"
-	r2kv "github.com/m3db/m3ctl/service/r2/kv"
-	"github.com/m3db/m3ctl/service/r2/stub"
+	r2store "github.com/m3db/m3ctl/service/r2/store"
+	r2kv "github.com/m3db/m3ctl/service/r2/store/kv"
+	"github.com/m3db/m3ctl/service/r2/store/stub"
 	"github.com/m3db/m3metrics/rules"
 	ruleskv "github.com/m3db/m3metrics/rules/store/kv"
 	"github.com/m3db/m3metrics/rules/validator"
@@ -69,7 +69,7 @@ type r2StoreConfiguration struct {
 }
 
 // NewR2Store creates a new R2 store.
-func (c r2StoreConfiguration) NewR2Store(instrumentOpts instrument.Options) (r2.Store, error) {
+func (c r2StoreConfiguration) NewR2Store(instrumentOpts instrument.Options) (r2store.Store, error) {
 	if c.Stub {
 		return stub.NewStore(instrumentOpts), nil
 	}
@@ -103,7 +103,7 @@ type kvStoreConfig struct {
 }
 
 // NewStore creates a new KV backed R2 store.
-func (c kvStoreConfig) NewStore(instrumentOpts instrument.Options) (r2.Store, error) {
+func (c kvStoreConfig) NewStore(instrumentOpts instrument.Options) (r2store.Store, error) {
 	// Create rules store.
 	kvClient, err := c.KVClient.NewClient(instrumentOpts)
 	if err != nil {

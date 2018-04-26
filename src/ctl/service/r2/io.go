@@ -28,6 +28,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/m3db/m3metrics/rules/models/changes"
+
 	validator "gopkg.in/go-playground/validator.v9"
 )
 
@@ -80,4 +82,9 @@ func sendResponse(w http.ResponseWriter, data []byte, status int) error {
 type apiResponse struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+}
+
+type updateRuleSetRequest struct {
+	RuleSetChanges changes.RuleSetChanges `json:"rulesetChanges"`
+	RuleSetVersion int                    `json:"rulesetVersion"`
 }

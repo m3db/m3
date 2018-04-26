@@ -40,7 +40,7 @@ func fetchNamespaces(s *service, _ *http.Request) (data interface{}, err error) 
 
 func fetchNamespace(s *service, r *http.Request) (data interface{}, err error) {
 	vars := mux.Vars(r)
-	rs, err := s.store.FetchRuleSet(vars[namespaceIDVar])
+	rs, err := s.store.FetchRuleSetSnapshot(vars[namespaceIDVar])
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +88,36 @@ func validateRuleSet(s *service, r *http.Request) (data interface{}, err error) 
 		return nil, err
 	}
 	return "Ruleset is valid", nil
+}
+
+func updateRuleSet(s *service, r *http.Request) (data interface{}, err error) {
+	var req updateRuleSetRequest
+	if err := parseRequest(&req, r.Body); err != nil {
+		return nil, NewBadInputError(err.Error())
+	}
+	if len(req.RuleSetChanges.MappingRuleChanges) == 0 &&
+		len(req.RuleSetChanges.RollupRuleChanges) == 0 {
+		return nil, NewBadInputError(
+			"invalid request: no ruleset changes detected",
+		)
+	}
+
+	uOpts, err := s.newUpdateOptions(r)
+	if err != nil {
+		return nil, err
+	}
+
+	snapshot, err := s.store.UpdateRuleSet(
+		req.RuleSetChanges,
+		req.RuleSetVersion,
+		uOpts,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	rs := models.NewRuleSet(snapshot)
+	return &rs, nil
 }
 
 func deleteNamespace(s *service, r *http.Request) (data interface{}, err error) {

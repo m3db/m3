@@ -1,5 +1,5 @@
-hash: 682aa11d9812a800ca51007a74c3561b281923ce6134514ea1b7044ccc33f2da
-updated: 2018-03-29T14:21:49.065762644-04:00
+hash: e5ec323b289b7f089cbf07de1b64ad7b05df97113ec70f53a51b3a55eb717ab0
+updated: 2018-04-13T09:58:57.478011411-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -31,7 +31,7 @@ imports:
 - name: github.com/go-playground/universal-translator
   version: 71201497bace774495daed26a3874fd339e0b538
 - name: github.com/golang/mock
-  version: 13f360950a79f5864a972c786a10a50e44b69541
+  version: c34cdb4725f4c3844d095133c6e40e448b86589b
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
@@ -46,7 +46,7 @@ imports:
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
-  version: 18fca31550181693b3a834a15b74b564b3605876
+  version: 53c1911da2b537f792e7cafcb446b05ffe33b996
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
@@ -76,7 +76,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: c72d9953c08bdb0d2da5a641ed8e5b242b9d2ea3
+  version: b9180a85d76e188a542c24745f1c46dc2921281a
   subpackages:
   - aggregation
   - errors
@@ -87,6 +87,7 @@ imports:
   - policy
   - rules
   - rules/models
+  - rules/models/changes
   - rules/store/kv
   - rules/validator
   - rules/validator/namespace
@@ -148,7 +149,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
+  version: 35aad584952c3e7020db7b839f6b102de6271f89
   subpackages:
   - buffer
   - internal/bufferpool
