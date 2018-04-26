@@ -49,12 +49,10 @@ func NewPostingsList() postings.MutableList {
 	}
 }
 
-func (d *postingsList) Insert(i postings.ID) error {
+func (d *postingsList) Insert(i postings.ID) {
 	d.Lock()
 	d.bitmap.Add(uint32(i))
 	d.Unlock()
-
-	return nil
 }
 
 func (d *postingsList) Intersect(other postings.List) error {
@@ -99,11 +97,10 @@ func (d *postingsList) Union(other postings.List) error {
 	return nil
 }
 
-func (d *postingsList) RemoveRange(min, max postings.ID) error {
+func (d *postingsList) RemoveRange(min, max postings.ID) {
 	d.Lock()
 	d.bitmap.RemoveRange(uint64(min), uint64(max))
 	d.Unlock()
-	return nil
 }
 
 func (d *postingsList) Reset() {

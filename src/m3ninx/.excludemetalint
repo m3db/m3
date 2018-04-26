@@ -2,3 +2,4 @@ vendor/
 generated/
 _mock.go
 .pb.go
+index/segment/mem/idsgen/map_gen.go

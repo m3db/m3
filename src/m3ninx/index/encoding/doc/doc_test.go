@@ -48,6 +48,7 @@ func TestWriteReadDocuments(t *testing.T) {
 			name: "standard documents",
 			docs: []doc.Document{
 				doc.Document{
+					ID: []byte("831992"),
 					Fields: []doc.Field{
 						doc.Field{
 							Name:  []byte("fruit"),
@@ -60,6 +61,7 @@ func TestWriteReadDocuments(t *testing.T) {
 					},
 				},
 				doc.Document{
+					ID: []byte("080392"),
 					Fields: []doc.Field{
 						doc.Field{
 							Name:  []byte("fruit"),

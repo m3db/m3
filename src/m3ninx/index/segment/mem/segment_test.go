@@ -21,11 +21,11 @@
 package mem
 
 import (
-	"bytes"
 	re "regexp"
 	"testing"
 
 	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3ninx/index"
 
 	"github.com/stretchr/testify/require"
 )
@@ -49,14 +49,11 @@ func TestSegmentInsert(t *testing.T) {
 		{
 			name: "document with an ID",
 			input: doc.Document{
+				ID: []byte("123"),
 				Fields: []doc.Field{
 					doc.Field{
 						Name:  []byte("apple"),
 						Value: []byte("red"),
-					},
-					doc.Field{
-						Name:  doc.IDReservedFieldName,
-						Value: []byte("123"),
 					},
 				},
 			},
@@ -68,50 +65,47 @@ func TestSegmentInsert(t *testing.T) {
 			segment, err := NewSegment(0, NewOptions())
 			require.NoError(t, err)
 
-			err = segment.Insert(test.input)
+			id, err := segment.Insert(test.input)
 			require.NoError(t, err)
 
-			reader, err := segment.Reader()
+			r, err := segment.Reader()
 			require.NoError(t, err)
 
-			name, value := test.input.Fields[0].Name, test.input.Fields[0].Value
-			pl, err := reader.MatchTerm(name, value)
+			testDocument(t, test.input, r)
+
+			// The ID must be searchable.
+			pl, err := r.MatchTerm(doc.IDReservedFieldName, id)
 			require.NoError(t, err)
 
-			iter, err := reader.Docs(pl)
+			iter, err := r.Docs(pl)
 			require.NoError(t, err)
 
 			require.True(t, iter.Next())
 			actual := iter.Current()
+
 			require.True(t, compareDocs(test.input, actual))
 
-			// The document must have an ID.
-			_, ok := actual.Get(doc.IDReservedFieldName)
-			require.True(t, ok)
-
-			require.False(t, iter.Next())
-			require.NoError(t, iter.Err())
 			require.NoError(t, iter.Close())
+			require.NoError(t, r.Close())
+			require.NoError(t, segment.Close())
 		})
 	}
 }
 
-func TestSegmentInsertTwice(t *testing.T) {
+func TestSegmentInsertDuplicateID(t *testing.T) {
 	var (
 		id    = []byte("123")
 		first = doc.Document{
+			ID: id,
 			Fields: []doc.Field{
 				doc.Field{
 					Name:  []byte("apple"),
 					Value: []byte("red"),
 				},
-				doc.Field{
-					Name:  doc.IDReservedFieldName,
-					Value: id,
-				},
 			},
 		}
 		second = doc.Document{
+			ID: id,
 			Fields: []doc.Field{
 				doc.Field{
 					Name:  []byte("apple"),
@@ -121,10 +115,6 @@ func TestSegmentInsertTwice(t *testing.T) {
 					Name:  []byte("variety"),
 					Value: []byte("fuji"),
 				},
-				doc.Field{
-					Name:  doc.IDReservedFieldName,
-					Value: id,
-				},
 			},
 		}
 	)
@@ -132,16 +122,16 @@ func TestSegmentInsertTwice(t *testing.T) {
 	segment, err := NewSegment(0, NewOptions())
 	require.NoError(t, err)
 
-	err = segment.Insert(first)
+	_, err = segment.Insert(first)
 	require.NoError(t, err)
 
-	reader, err := segment.Reader()
+	r, err := segment.Reader()
 	require.NoError(t, err)
 
-	pl, err := reader.MatchTerm(doc.IDReservedFieldName, id)
+	pl, err := r.MatchTerm(doc.IDReservedFieldName, id)
 	require.NoError(t, err)
 
-	iter, err := reader.Docs(pl)
+	iter, err := r.Docs(pl)
 	require.NoError(t, err)
 
 	require.True(t, iter.Next())
@@ -152,6 +142,226 @@ func TestSegmentInsertTwice(t *testing.T) {
 	require.False(t, compareDocs(second, actual))
 
 	require.NoError(t, iter.Close())
+	require.NoError(t, r.Close())
+	require.NoError(t, segment.Close())
+}
+
+func TestSegmentInsertBatch(t *testing.T) {
+	tests := []struct {
+		name  string
+		input index.Batch
+	}{
+		{
+			name: "valid batch",
+			input: index.NewBatch(
+				[]doc.Document{
+					doc.Document{
+						Fields: []doc.Field{
+							doc.Field{
+								Name:  []byte("fruit"),
+								Value: []byte("apple"),
+							},
+							doc.Field{
+								Name:  []byte("color"),
+								Value: []byte("red"),
+							},
+						},
+					},
+					doc.Document{
+						ID: []byte("831992"),
+						Fields: []doc.Field{
+							doc.Field{
+								Name:  []byte("fruit"),
+								Value: []byte("banana"),
+							},
+							doc.Field{
+								Name:  []byte("color"),
+								Value: []byte("yellow"),
+							},
+						},
+					},
+				},
+			),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			segment, err := NewSegment(0, NewOptions())
+			require.NoError(t, err)
+
+			err = segment.InsertBatch(test.input)
+			require.NoError(t, err)
+
+			r, err := segment.Reader()
+			require.NoError(t, err)
+
+			for _, doc := range test.input.Docs {
+				testDocument(t, doc, r)
+			}
+
+			require.NoError(t, r.Close())
+			require.NoError(t, segment.Close())
+		})
+	}
+}
+
+func TestSegmentInsertBatchError(t *testing.T) {
+	tests := []struct {
+		name  string
+		input index.Batch
+	}{
+		{
+			name: "invalid document",
+			input: index.NewBatch(
+				[]doc.Document{
+					doc.Document{
+						Fields: []doc.Field{
+							doc.Field{
+								Name:  []byte("fruit"),
+								Value: []byte("apple"),
+							},
+							doc.Field{
+								Name:  []byte("color\xff"),
+								Value: []byte("red"),
+							},
+						},
+					},
+					doc.Document{
+						Fields: []doc.Field{
+							doc.Field{
+								Name:  []byte("fruit"),
+								Value: []byte("banana"),
+							},
+							doc.Field{
+								Name:  []byte("color"),
+								Value: []byte("yellow"),
+							},
+						},
+					},
+				},
+			),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			segment, err := NewSegment(0, NewOptions())
+			require.NoError(t, err)
+
+			err = segment.InsertBatch(test.input)
+			require.Error(t, err)
+			require.False(t, index.IsBatchPartialError(err))
+		})
+	}
+}
+
+func TestSegmentInsertBatchPartialError(t *testing.T) {
+	tests := []struct {
+		name  string
+		input index.Batch
+	}{
+		{
+			name: "invalid document",
+			input: index.NewBatch(
+				[]doc.Document{
+					doc.Document{
+						Fields: []doc.Field{
+							doc.Field{
+								Name:  []byte("fruit"),
+								Value: []byte("apple"),
+							},
+							doc.Field{
+								Name:  []byte("color\xff"),
+								Value: []byte("red"),
+							},
+						},
+					},
+					doc.Document{
+
+						Fields: []doc.Field{
+							doc.Field{
+								Name:  []byte("fruit"),
+								Value: []byte("banana"),
+							},
+							doc.Field{
+								Name:  []byte("color"),
+								Value: []byte("yellow"),
+							},
+						},
+					},
+				},
+				index.AllowPartialUpdates(),
+			),
+		},
+		{
+			name: "duplicate ID",
+			input: index.NewBatch(
+				[]doc.Document{
+					doc.Document{
+						ID: []byte("831992"),
+						Fields: []doc.Field{
+							doc.Field{
+								Name:  []byte("fruit"),
+								Value: []byte("apple"),
+							},
+							doc.Field{
+								Name:  []byte("color"),
+								Value: []byte("red"),
+							},
+						},
+					},
+					doc.Document{
+						ID: []byte("831992"),
+						Fields: []doc.Field{
+							doc.Field{
+								Name:  []byte("fruit"),
+								Value: []byte("banana"),
+							},
+							doc.Field{
+								Name:  []byte("color"),
+								Value: []byte("yellow"),
+							},
+						},
+					},
+				},
+				index.AllowPartialUpdates(),
+			),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			segment, err := NewSegment(0, NewOptions())
+			require.NoError(t, err)
+
+			err = segment.InsertBatch(test.input)
+			require.Error(t, err)
+			require.True(t, index.IsBatchPartialError(err))
+
+			batchErr := err.(*index.BatchPartialError)
+			idxs := batchErr.Indices()
+			failedDocs := make(map[int]struct{}, len(idxs))
+			for _, idx := range idxs {
+				failedDocs[idx] = struct{}{}
+			}
+
+			r, err := segment.Reader()
+			require.NoError(t, err)
+
+			for i, doc := range test.input.Docs {
+				_, ok := failedDocs[i]
+				if ok {
+					// Don't test documents which were not indexed.
+					continue
+				}
+				testDocument(t, doc, r)
+			}
+
+			require.NoError(t, r.Close())
+			require.NoError(t, segment.Close())
+		})
+	}
 }
 
 func TestSegmentReaderMatchExact(t *testing.T) {
@@ -169,6 +379,7 @@ func TestSegmentReaderMatchExact(t *testing.T) {
 			},
 		},
 		doc.Document{
+			ID: []byte("83"),
 			Fields: []doc.Field{
 				doc.Field{
 					Name:  []byte("fruit"),
@@ -177,10 +388,6 @@ func TestSegmentReaderMatchExact(t *testing.T) {
 				doc.Field{
 					Name:  []byte("color"),
 					Value: []byte("yellow"),
-				},
-				doc.Field{
-					Name:  doc.IDReservedFieldName,
-					Value: []byte("83"),
 				},
 			},
 		},
@@ -202,17 +409,17 @@ func TestSegmentReaderMatchExact(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, doc := range docs {
-		err = segment.Insert(doc)
+		_, err = segment.Insert(doc)
 		require.NoError(t, err)
 	}
 
-	reader, err := segment.Reader()
+	r, err := segment.Reader()
 	require.NoError(t, err)
 
-	pl, err := reader.MatchTerm([]byte("fruit"), []byte("apple"))
+	pl, err := r.MatchTerm([]byte("fruit"), []byte("apple"))
 	require.NoError(t, err)
 
-	iter, err := reader.Docs(pl)
+	iter, err := r.Docs(pl)
 	require.NoError(t, err)
 
 	actualDocs := make([]doc.Document, 0)
@@ -228,6 +435,9 @@ func TestSegmentReaderMatchExact(t *testing.T) {
 	for i := range actualDocs {
 		require.True(t, compareDocs(expectedDocs[i], actualDocs[i]))
 	}
+
+	require.NoError(t, r.Close())
+	require.NoError(t, segment.Close())
 }
 
 func TestSegmentReaderMatchRegex(t *testing.T) {
@@ -257,6 +467,7 @@ func TestSegmentReaderMatchRegex(t *testing.T) {
 			},
 		},
 		doc.Document{
+			ID: []byte("42"),
 			Fields: []doc.Field{
 				doc.Field{
 					Name:  []byte("fruit"),
@@ -266,10 +477,6 @@ func TestSegmentReaderMatchRegex(t *testing.T) {
 					Name:  []byte("color"),
 					Value: []byte("yellow"),
 				},
-				doc.Field{
-					Name:  doc.IDReservedFieldName,
-					Value: []byte("42"),
-				},
 			},
 		},
 	}
@@ -278,19 +485,19 @@ func TestSegmentReaderMatchRegex(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, doc := range docs {
-		err = segment.Insert(doc)
+		_, err = segment.Insert(doc)
 		require.NoError(t, err)
 	}
 
-	reader, err := segment.Reader()
+	r, err := segment.Reader()
 	require.NoError(t, err)
 
 	field, regexp := []byte("fruit"), []byte(".*ple")
 	compiled := re.MustCompile(string(regexp))
-	pl, err := reader.MatchRegexp(field, regexp, compiled)
+	pl, err := r.MatchRegexp(field, regexp, compiled)
 	require.NoError(t, err)
 
-	iter, err := reader.Docs(pl)
+	iter, err := r.Docs(pl)
 	require.NoError(t, err)
 
 	actualDocs := make([]doc.Document, 0)
@@ -306,47 +513,41 @@ func TestSegmentReaderMatchRegex(t *testing.T) {
 	for i := range actualDocs {
 		require.True(t, compareDocs(expectedDocs[i], actualDocs[i]))
 	}
+
+	require.NoError(t, r.Close())
+	require.NoError(t, segment.Close())
 }
 
-// compareDocs returns whether two documents are equal. If only one of the documents
-// contains an ID the ID is excluded from the comparison since it was auto-generated.
-func compareDocs(l, r doc.Document) bool {
-	lIdx, lOK := hasID(l)
-	rIdx, rOK := hasID(r)
-	if !exclusiveOr(lOK, rOK) {
-		return l.Equal(r)
-	}
-	if lOK {
-		l = removeID(l, lIdx)
-	}
-	if rOK {
-		r = removeID(r, rIdx)
-	}
-	return l.Equal(r)
-}
+func testDocument(t *testing.T, d doc.Document, r index.Reader) {
+	for _, f := range d.Fields {
+		name, value := f.Name, f.Value
+		pl, err := r.MatchTerm(name, value)
+		require.NoError(t, err)
 
-func hasID(d doc.Document) (int, bool) {
-	for i, f := range d.Fields {
-		if bytes.Equal(f.Name, doc.IDReservedFieldName) {
-			return i, true
-		}
-	}
-	return 0, false
-}
+		iter, err := r.Docs(pl)
+		require.NoError(t, err)
 
-func removeID(d doc.Document, idx int) doc.Document {
-	cp := make([]doc.Field, 0, len(d.Fields))
-	for i, f := range d.Fields {
-		if i == idx {
-			continue
-		}
-		cp = append(cp, f)
-	}
-	return doc.Document{
-		Fields: cp,
+		require.True(t, iter.Next())
+		actual := iter.Current()
+
+		// The document must have an ID.
+		hasID := actual.ID != nil
+		require.True(t, hasID)
+
+		require.True(t, compareDocs(d, actual))
+
+		require.False(t, iter.Next())
+		require.NoError(t, iter.Err())
+		require.NoError(t, iter.Close())
 	}
 }
 
-func exclusiveOr(a, b bool) bool {
-	return (a || b) && !(a && b)
+// compareDocs returns whether two documents are equal. If the actual doc contains
+// an ID but the expected doc does not then the ID is excluded from the comparison
+// since it was auto-generated.
+func compareDocs(expected, actual doc.Document) bool {
+	if actual.HasID() && !expected.HasID() {
+		actual.ID = nil
+	}
+	return expected.Equal(actual)
 }

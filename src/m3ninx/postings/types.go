@@ -76,7 +76,7 @@ type MutableList interface {
 	List
 
 	// Insert inserts the given ID into the postings list.
-	Insert(i ID) error
+	Insert(i ID)
 
 	// Intersect updates this postings list in place to contain only those DocIDs which are
 	// in both this postings list and other.
@@ -91,7 +91,7 @@ type MutableList interface {
 	Union(other List) error
 
 	// RemoveRange removes all IDs between min and max inclusive from this postings list.
-	RemoveRange(min, max ID) error
+	RemoveRange(min, max ID)
 
 	// Reset resets the internal state of the postings list.
 	Reset()

@@ -30,19 +30,19 @@ import (
 // termsDictionary is an internal interface for a mutable terms dictionary.
 type termsDictionary interface {
 	// Insert inserts the field with the given ID into the terms dictionary.
-	Insert(field doc.Field, id postings.ID) error
+	Insert(field doc.Field, id postings.ID)
 
 	// ContainsTerm returns a bool indicating whether the terms dictionary contains
 	// the given term.
-	ContainsTerm(field, term []byte) (bool, error)
+	ContainsTerm(field, term []byte) bool
 
 	// MatchTerm returns the postings list corresponding to documents which match the
 	// given field term exactly.
-	MatchTerm(field, term []byte) (postings.List, error)
+	MatchTerm(field, term []byte) postings.List
 
 	// MatchRegexp returns the postings list corresponding to documents which match the
 	// given egular expression.
-	MatchRegexp(field, regexp []byte, compiled *re.Regexp) (postings.List, error)
+	MatchRegexp(field, regexp []byte, compiled *re.Regexp) postings.List
 }
 
 // ReadableSegment is an internal interface for reading from a segment.

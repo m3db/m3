@@ -273,10 +273,8 @@ func (mr *MockMutableListMockRecorder) Equal(other interface{}) *gomock.Call {
 }
 
 // Insert mocks base method
-func (m *MockMutableList) Insert(i ID) error {
-	ret := m.ctrl.Call(m, "Insert", i)
-	ret0, _ := ret[0].(error)
-	return ret0
+func (m *MockMutableList) Insert(i ID) {
+	m.ctrl.Call(m, "Insert", i)
 }
 
 // Insert indicates an expected call of Insert
@@ -321,10 +319,8 @@ func (mr *MockMutableListMockRecorder) Union(other interface{}) *gomock.Call {
 }
 
 // RemoveRange mocks base method
-func (m *MockMutableList) RemoveRange(min, max ID) error {
-	ret := m.ctrl.Call(m, "RemoveRange", min, max)
-	ret0, _ := ret[0].(error)
-	return ret0
+func (m *MockMutableList) RemoveRange(min, max ID) {
+	m.ctrl.Call(m, "RemoveRange", min, max)
 }
 
 // RemoveRange indicates an expected call of RemoveRange

@@ -81,14 +81,10 @@ func (t *termsDictionaryTestSuite) SetupTest() {
 func (t *termsDictionaryTestSuite) TestInsert() {
 	props := getProperties()
 	props.Property(
-		"The dictionary should supporting inserting fields",
+		"The dictionary should support inserting fields",
 		prop.ForAll(
 			func(f doc.Field, id postings.ID) (bool, error) {
-				err := t.termsDict.Insert(f, id)
-				if err != nil {
-					return false, fmt.Errorf("unexpected error inserting %v into terms dictionary: %v", f, err)
-				}
-
+				t.termsDict.Insert(f, id)
 				return true, nil
 			},
 			genField(),
@@ -104,16 +100,9 @@ func (t *termsDictionaryTestSuite) TestContainsTerm() {
 		"The dictionary should support term lookups",
 		prop.ForAll(
 			func(f doc.Field, id postings.ID) (bool, error) {
-				err := t.termsDict.Insert(f, id)
-				if err != nil {
-					return false, fmt.Errorf("unexpected error inserting %v into terms dictionary: %v", f, err)
-				}
+				t.termsDict.Insert(f, id)
 
-				ok, err := t.termsDict.ContainsTerm(f.Name, []byte(f.Value))
-				if err != nil {
-					return false, fmt.Errorf("unexpexted error looking up term: %v", err)
-				}
-				if !ok {
+				if ok := t.termsDict.ContainsTerm(f.Name, []byte(f.Value)); !ok {
 					return false, fmt.Errorf("id of new document '%v' is not in postings list of matching documents", id)
 				}
 
@@ -132,15 +121,9 @@ func (t *termsDictionaryTestSuite) TestMatchTerm() {
 		"The dictionary should support exact match queries",
 		prop.ForAll(
 			func(f doc.Field, id postings.ID) (bool, error) {
-				err := t.termsDict.Insert(f, id)
-				if err != nil {
-					return false, fmt.Errorf("unexpected error inserting %v into terms dictionary: %v", f, err)
-				}
+				t.termsDict.Insert(f, id)
 
-				pl, err := t.termsDict.MatchTerm(f.Name, []byte(f.Value))
-				if err != nil {
-					return false, fmt.Errorf("unexpexted error retrieving postings list: %v", err)
-				}
+				pl := t.termsDict.MatchTerm(f.Name, []byte(f.Value))
 				if pl == nil {
 					return false, fmt.Errorf("postings list of documents matching query should not be nil")
 				}
@@ -163,10 +146,7 @@ func (t *termsDictionaryTestSuite) TestMatchTermNoResults() {
 		"Exact match queries which return no results are valid",
 		prop.ForAll(
 			func(f doc.Field) (bool, error) {
-				pl, err := t.termsDict.MatchTerm(f.Name, []byte(f.Value))
-				if err != nil {
-					return false, fmt.Errorf("unexpexted error retrieving postings list: %v", err)
-				}
+				pl := t.termsDict.MatchTerm(f.Name, []byte(f.Value))
 				if pl == nil {
 					return false, fmt.Errorf("postings list returned should not be nil")
 				}
@@ -193,15 +173,10 @@ func (t *termsDictionaryTestSuite) TestMatchRegex() {
 					regexp   = input.regexp
 					compiled = input.compiled
 				)
-				err := t.termsDict.Insert(f, id)
-				if err != nil {
-					return false, fmt.Errorf("unexpected error inserting %v into terms dictionary: %v", f, err)
-				}
 
-				pl, err := t.termsDict.MatchRegexp(f.Name, []byte(regexp), compiled)
-				if err != nil {
-					return false, fmt.Errorf("unexpexted error retrieving postings list: %v", err)
-				}
+				t.termsDict.Insert(f, id)
+
+				pl := t.termsDict.MatchRegexp(f.Name, []byte(regexp), compiled)
 				if pl == nil {
 					return false, fmt.Errorf("postings list of documents matching query should not be nil")
 				}
@@ -229,10 +204,7 @@ func (t *termsDictionaryTestSuite) TestMatchRegexNoResults() {
 					regexp   = input.regexp
 					compiled = input.compiled
 				)
-				pl, err := t.termsDict.MatchRegexp(f.Name, []byte(regexp), compiled)
-				if err != nil {
-					return false, fmt.Errorf("unexpexted error retrieving postings list: %v", err)
-				}
+				pl := t.termsDict.MatchRegexp(f.Name, []byte(regexp), compiled)
 				if pl == nil {
 					return false, fmt.Errorf("postings list returned should not be nil")
 				}

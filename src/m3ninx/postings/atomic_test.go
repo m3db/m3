@@ -30,6 +30,10 @@ func TestAtomicID(t *testing.T) {
 	atom := NewAtomicID(42)
 
 	require.Equal(t, ID(42), atom.Load(), "Load returned unexpected value")
+
 	require.Equal(t, ID(43), atom.Inc(), "Inc returned unexpected value")
 	require.Equal(t, ID(43), atom.Load(), "Load didn't return new value")
+
+	require.Equal(t, ID(47), atom.Add(4), "Add returned unexpected value")
+	require.Equal(t, ID(47), atom.Load(), "Load didn't return new value")
 }

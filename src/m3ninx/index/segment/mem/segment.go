@@ -22,224 +22,271 @@ package mem
 
 import (
 	"errors"
-	"fmt"
 	re "regexp"
 	"sync"
 
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index"
 	sgmt "github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3ninx/index/segment/mem/idsgen"
 	"github.com/m3db/m3ninx/index/util"
 	"github.com/m3db/m3ninx/postings"
 )
 
-var (
-	errSegmentSealed     = errors.New("segment has been sealed")
-	errUnknownPostingsID = errors.New("unknown postings ID specified")
-)
+// ErrDuplicateID is the error returned when a batch contains duplicate IDs.
+var ErrDuplicateID = errors.New("a batch cannot contain duplicate IDs")
 
+var errUnknownPostingsID = errors.New("unknown postings ID specified")
+
+// nolint: maligned
 type segment struct {
-	opts      Options
 	offset    int
 	newUUIDFn util.NewUUIDFn
 
-	// Internal state of the segment. The allowed transitions are:
-	//   - Open -> Sealed -> Closed
-	//   - Open -> Closed
 	state struct {
 		sync.RWMutex
-
-		sealed bool
 		closed bool
 	}
 
-	// Mapping of postings list ID to document.
+	// Mapping of postings ID to document.
 	docs struct {
 		sync.RWMutex
-
 		data []doc.Document
 	}
 
-	// Current writer and reader IDs. Writers increment the writer ID for each new
-	// document and only increment the reader ID after the document has been fully
-	// indexed by the segment. Readers do not need to acquire a lock since the writers
-	// only increment the readerID after they have finished inserting a new document.
-	// TODO(jeromefroe): Reevaluate using a big lock here which only permits a single
-	// writer at a time.
-	ids struct {
-		sync.RWMutex
-
-		writer, reader postings.AtomicID
-	}
-
-	// Mapping of field (name and value) to postings list.
+	// Mapping of term to postings list.
 	termsDict termsDictionary
+
+	writer struct {
+		sync.Mutex
+		idSet  *idsgen.Map
+		nextID postings.ID
+	}
+	readerID postings.AtomicID
 }
 
 // NewSegment returns a new in-memory mutable segment. It will start assigning
-// postings IDs at offset+1.
+// postings IDs at the provided offset.
 func NewSegment(offset postings.ID, opts Options) (sgmt.MutableSegment, error) {
 	s := &segment{
-		opts:      opts,
-		offset:    int(offset) + 1, // The first ID assigned by the segment is offset + 1.
+		offset:    int(offset),
 		newUUIDFn: opts.NewUUIDFn(),
 		termsDict: newTermsDict(opts),
+		readerID:  postings.NewAtomicID(offset),
 	}
 
 	s.docs.data = make([]doc.Document, opts.InitialCapacity())
 
-	s.ids.writer = postings.NewAtomicID(offset)
-	s.ids.reader = postings.NewAtomicID(offset)
+	s.writer.idSet = idsgen.New(256)
+	s.writer.nextID = offset
 	return s, nil
 }
 
-func (s *segment) Insert(d doc.Document) error {
+func (s *segment) Insert(d doc.Document) ([]byte, error) {
+	s.state.RLock()
+	defer s.state.RUnlock()
+	if s.state.closed {
+		return nil, sgmt.ErrClosed
+	}
+
+	{
+		s.writer.Lock()
+
+		b := index.NewBatch([]doc.Document{d})
+		if err := s.prepareDocsWithLocks(b); err != nil {
+			return nil, err
+		}
+
+		// Update the document in case we generated a UUID for it.
+		d = b.Docs[0]
+
+		s.insertDocWithLocks(d)
+		s.readerID.Inc()
+
+		s.writer.Unlock()
+	}
+
+	return d.ID, nil
+}
+
+func (s *segment) InsertBatch(b index.Batch) error {
 	s.state.RLock()
 	defer s.state.RUnlock()
 	if s.state.closed {
 		return sgmt.ErrClosed
 	}
 
-	if s.state.sealed {
-		return errSegmentSealed
-	}
+	var err error
+	{
+		s.writer.Lock()
 
-	docID, err := d.Validate()
-	if err != nil {
-		return err
-	}
-
-	if docID != nil {
-		ok, err := s.termsDict.ContainsTerm(doc.IDReservedFieldName, docID)
-		if err != nil {
-			return fmt.Errorf("could not lookup document ID '%s'", docID)
-		}
-		if ok {
-			// Index already contains this document.
-			return nil
-		}
-	} else {
-		uuid, err := s.newUUIDFn()
-		if err != nil {
+		err = s.prepareDocsWithLocks(b)
+		if err != nil && !index.IsBatchPartialError(err) {
 			return err
 		}
-		d.Fields = append(d.Fields, doc.Field{
-			Name:  doc.IDReservedFieldName,
-			Value: uuid,
-		})
+
+		for _, d := range b.Docs {
+			s.insertDocWithLocks(d)
+		}
+		s.readerID.Add(uint32(len(b.Docs)))
+
+		s.writer.Unlock()
 	}
-
-	// TODO: Consider supporting concurrent writes by relaxing the requirement that
-	// inserted documents are immediately searchable.
-	s.ids.Lock()
-
-	newID := s.ids.writer.Inc()
-	s.insertDoc(newID, d)
-	err = s.insertTerms(newID, d)
-	s.ids.reader.Inc()
-
-	s.ids.Unlock()
 
 	return err
 }
 
+// prepareDocsWithLocks ensures the given documents can be inserted into the index. It
+// must be called with the state and writer locks.
+func (s *segment) prepareDocsWithLocks(b index.Batch) error {
+	s.writer.idSet.Reset()
+
+	batchErr := index.NewBatchPartialError()
+	for i := 0; i < len(b.Docs); i++ {
+		d := b.Docs[i]
+		if err := d.Validate(); err != nil {
+			if !b.AllowPartialUpdates {
+				return err
+			}
+			batchErr.Add(err, i)
+			continue
+		}
+
+		if d.HasID() {
+			if s.termsDict.ContainsTerm(doc.IDReservedFieldName, d.ID) {
+				// The segment already contains this document so we can remove it from those
+				// we need to index.
+				b.Docs[i], b.Docs[len(b.Docs)] = b.Docs[len(b.Docs)], b.Docs[i]
+				b.Docs = b.Docs[:len(b.Docs)-1]
+
+				// Decrement the loop variable since we just removed this document.
+				i--
+				continue
+			}
+
+			if _, ok := s.writer.idSet.Get(d.ID); ok {
+				if !b.AllowPartialUpdates {
+					return ErrDuplicateID
+				}
+				batchErr.Add(ErrDuplicateID, i)
+				continue
+			}
+		} else {
+			id, err := s.newUUIDFn()
+			if err != nil {
+				if !b.AllowPartialUpdates {
+					return err
+				}
+				batchErr.Add(err, i)
+				continue
+			}
+
+			d.ID = id
+
+			// Update the document in the batch since we added an ID to it.
+			b.Docs[i] = d
+		}
+
+		s.writer.idSet.SetUnsafe(d.ID, struct{}{}, idsgen.SetUnsafeOptions{
+			NoCopyKey:     true,
+			NoFinalizeKey: true,
+		})
+	}
+
+	if batchErr.IsEmpty() {
+		return nil
+	}
+	return batchErr
+}
+
+// insertDocWithLocks inserts a document into the index. It must be called with the
+// state and writer locks.
+func (s *segment) insertDocWithLocks(d doc.Document) {
+	nextID := s.writer.nextID
+	s.indexDocWithStateLock(nextID, d)
+	s.storeDocWithStateLock(nextID, d)
+	s.writer.nextID++
+}
+
+// indexDocWithStateLock indexes the fields of a document in the segment's terms
+// dictionary. It must be called with the segment's state lock.
+func (s *segment) indexDocWithStateLock(id postings.ID, d doc.Document) error {
+	for _, f := range d.Fields {
+		s.termsDict.Insert(f, id)
+	}
+	s.termsDict.Insert(doc.Field{
+		Name:  doc.IDReservedFieldName,
+		Value: d.ID,
+	}, id)
+	return nil
+}
+
+// storeDocWithStateLock stores a documents into the segment's mapping of postings
+// IDs to documents. It must be called with the segment's state lock.
+func (s *segment) storeDocWithStateLock(id postings.ID, d doc.Document) {
+	idx := int(id) - s.offset
+
+	// Can return early if we have sufficient capacity.
+	{
+		s.docs.RLock()
+		size := len(s.docs.data)
+		if size > idx {
+			// NB(prateek): We only need a Read-lock here despite an insert operation because
+			// we're guaranteed to never have conflicts with docID (it's monotonically increasing),
+			// and have checked `i.docs.data` is large enough.
+			s.docs.data[idx] = d
+			s.docs.RUnlock()
+			return
+		}
+		s.docs.RUnlock()
+	}
+
+	// Otherwise we need to expand capacity.
+	{
+		s.docs.Lock()
+		size := len(s.docs.data)
+
+		// The slice has already been expanded since we released the lock.
+		if size > idx {
+			s.docs.data[idx] = d
+			s.docs.Unlock()
+			return
+		}
+
+		data := make([]doc.Document, 2*(size+1))
+		copy(data, s.docs.data)
+		s.docs.data = data
+		s.docs.data[idx] = d
+		s.docs.Unlock()
+	}
+}
+
 func (s *segment) Reader() (index.Reader, error) {
 	s.state.RLock()
+	defer s.state.RUnlock()
 	if s.state.closed {
-		s.state.RUnlock()
 		return nil, sgmt.ErrClosed
 	}
 
-	maxID := s.ids.reader.Load()
-	r := newReader(s, maxID)
+	limit := s.readerID.Load()
+	r := newReader(s, limit)
 	return r, nil
-}
-
-func (s *segment) Seal() error {
-	s.state.Lock()
-	if s.state.sealed {
-		s.state.Unlock()
-		return errSegmentSealed
-	}
-
-	s.state.sealed = true
-	s.state.Unlock()
-	return nil
-}
-
-func (s *segment) Close() error {
-	s.state.Lock()
-	if s.state.closed {
-		s.state.Unlock()
-		return sgmt.ErrClosed
-	}
-
-	s.state.sealed = true
-	s.state.closed = true
-	s.state.Unlock()
-	return nil
-}
-
-func (s *segment) insertDoc(id postings.ID, d doc.Document) {
-	idx := int(id) - s.offset
-
-	s.docs.RLock()
-	size := len(s.docs.data)
-
-	// Can terminate early if we have sufficient capacity.
-	// TODO: Consider enforcing a maximum capacity on the segment so that we can use a
-	// fixed-size slice here and avoid the lock altogether.
-	if size > idx {
-		// NB(prateek): We only need a Read-lock here despite an insert operation because
-		// we're guaranteed to never have conflicts with docID (it's monotonically increasing),
-		// and have checked `i.docs.data` is large enough.
-		s.docs.data[idx] = d
-		s.docs.RUnlock()
-		return
-	}
-	s.docs.RUnlock()
-
-	// Otherwise we need to expand capacity.
-	s.docs.Lock()
-	size = len(s.docs.data)
-
-	// The slice has already been expanded since we released the lock.
-	if size > idx {
-		s.docs.data[idx] = d
-		s.docs.Unlock()
-		return
-	}
-
-	data := make([]doc.Document, 2*(size+1))
-	copy(data, s.docs.data)
-	s.docs.data = data
-	s.docs.data[idx] = d
-	s.docs.Unlock()
-}
-
-func (s *segment) insertTerms(id postings.ID, d doc.Document) error {
-	for _, f := range d.Fields {
-		if err := s.termsDict.Insert(f, id); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (s *segment) matchTerm(field, term []byte) (postings.List, error) {
 	s.state.RLock()
+	defer s.state.RUnlock()
 	if s.state.closed {
-		s.state.RUnlock()
 		return nil, sgmt.ErrClosed
 	}
 
-	return s.termsDict.MatchTerm(field, term)
+	return s.termsDict.MatchTerm(field, term), nil
 }
 
 func (s *segment) matchRegexp(name, regexp []byte, compiled *re.Regexp) (postings.List, error) {
 	s.state.RLock()
+	defer s.state.RUnlock()
 	if s.state.closed {
-		s.state.RUnlock()
 		return nil, sgmt.ErrClosed
 	}
 
@@ -250,13 +297,13 @@ func (s *segment) matchRegexp(name, regexp []byte, compiled *re.Regexp) (posting
 			return nil, err
 		}
 	}
-	return s.termsDict.MatchRegexp(name, regexp, compiled)
+	return s.termsDict.MatchRegexp(name, regexp, compiled), nil
 }
 
 func (s *segment) getDoc(id postings.ID) (doc.Document, error) {
 	s.state.RLock()
+	defer s.state.RUnlock()
 	if s.state.closed {
-		s.state.RUnlock()
 		return doc.Document{}, sgmt.ErrClosed
 	}
 
@@ -271,4 +318,15 @@ func (s *segment) getDoc(id postings.ID) (doc.Document, error) {
 	s.docs.RUnlock()
 
 	return d, nil
+}
+
+func (s *segment) Close() error {
+	s.state.Lock()
+	defer s.state.Unlock()
+	if s.state.closed {
+		return sgmt.ErrClosed
+	}
+
+	s.state.closed = true
+	return nil
 }

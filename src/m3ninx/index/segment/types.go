@@ -23,13 +23,12 @@ package segment
 import (
 	"errors"
 
-	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index"
 )
 
 var (
-	// ErrClosed is the error returned when attempting to perform operations on a segment
-	// that has already been closed.
+	// ErrClosed is the error returned when attempting to perform operations on a
+	// segment that has already been closed.
 	ErrClosed = errors.New("segment has been closed")
 )
 
@@ -45,12 +44,5 @@ type Segment interface {
 // MutableSegment is a segment which can be updated.
 type MutableSegment interface {
 	Segment
-
-	// Insert inserts the given document into the segment. The document is guaranteed to be
-	// searchable once the Insert method returns.
-	Insert(d doc.Document) error
-
-	// Seal marks the segment as immutable. After Seal is called no more documents can be
-	// inserted into the segment.
-	Seal() error
+	index.Writer
 }

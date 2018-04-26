@@ -38,15 +38,15 @@ type reader struct {
 	sync.RWMutex
 
 	segment ReadableSegment
-	maxID   postings.ID
+	limit   postings.ID
 
 	closed bool
 }
 
-func newReader(s ReadableSegment, maxID postings.ID) index.Reader {
+func newReader(s ReadableSegment, limit postings.ID) index.Reader {
 	return &reader{
 		segment: s,
-		maxID:   maxID,
+		limit:   limit,
 	}
 }
 
@@ -57,10 +57,10 @@ func (r *reader) MatchTerm(field, term []byte) (postings.List, error) {
 		return nil, errSegmentReaderClosed
 	}
 
-	// A reader can return IDs in the posting list which are greater than its maximum
-	// permitted ID. The reader only guarantees that when fetching the documents associated
-	// with a postings list through a call to Docs will IDs greater than the maximum be
-	// filtered out.
+	// A reader can return IDs in the posting list which are greater than its limit.
+	// The reader only guarantees that when fetching the documents associated with a
+	// postings list through a call to Docs, IDs greater than or equal to the limit
+	// will be filtered out.
 	pl, err := r.segment.matchTerm(field, term)
 	r.RUnlock()
 	return pl, err
@@ -83,7 +83,7 @@ func (r *reader) MatchRegexp(field, regexp []byte, compiled *regexp.Regexp) (pos
 }
 
 func (r *reader) Docs(pl postings.List) (doc.Iterator, error) {
-	return newIterator(r.segment, pl.Iterator(), r.maxID), nil
+	return newIterator(r.segment, pl.Iterator(), r.limit), nil
 }
 
 func (r *reader) Close() error {
