@@ -265,6 +265,28 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 		SetEndpoint(addr2).
 		SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)}))
 
+	sw.UpdateInstances(
+		[]placement.Instance{i1, i2},
+		cws,
+	)
+
+	require.Equal(t, 2, len(sw.messageWriters))
+
+	mw1 := sw.messageWriters[i1.Endpoint()].(*messageWriterImpl)
+	mw2 := sw.messageWriters[i2.Endpoint()].(*messageWriterImpl)
+	require.Equal(t, 0, mw1.queue.Len())
+	require.Equal(t, 0, mw2.queue.Len())
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	md := producer.NewMockData(ctrl)
+	md.EXPECT().Bytes().Return([]byte("foo")).Times(2)
+
+	sw.Write(data.NewRefCountedData(md, nil))
+	require.Equal(t, 1, mw1.queue.Len())
+	require.Equal(t, 1, mw2.queue.Len())
+
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
@@ -274,22 +296,6 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 		wg.Done()
 	}()
 
-	sw.UpdateInstances(
-		[]placement.Instance{i1, i2},
-		cws,
-	)
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Bytes().Return([]byte("foo")).Times(2)
-
-	sw.Write(data.NewRefCountedData(md, nil))
-
-	require.Equal(t, 2, len(sw.messageWriters))
-
-	mw1 := sw.messageWriters[i1.Endpoint()].(*messageWriterImpl)
 	for {
 		mw1.RLock()
 		l := mw1.queue.Len()
@@ -300,16 +306,7 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	mw2 := sw.messageWriters[i2.Endpoint()].(*messageWriterImpl)
-	for {
-		mw2.RLock()
-		l := mw2.queue.Len()
-		mw2.RUnlock()
-		if l == 1 {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	require.Equal(t, 1, mw2.queue.Len())
 
 	conn, err := lis2.Accept()
 	require.NoError(t, err)
@@ -323,9 +320,6 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 		[]placement.Instance{i1},
 		cws,
 	)
-	mw2.RLock()
-	require.Equal(t, 1, mw2.queue.Len())
-	mw2.RUnlock()
 
 	require.Equal(t, 1, len(sw.messageWriters))
 

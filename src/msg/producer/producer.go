@@ -46,9 +46,12 @@ func (p *producer) Produce(data Data) error {
 	return p.Writer.Write(rd)
 }
 
-func (p *producer) Close() {
-	// Must close buffer first, it will stop receiving new writes
-	// and return when all data cleared up. We can safely close the writer after that.
-	p.Buffer.Close()
+func (p *producer) Close(ct CloseType) {
+	// NB: Must close buffer first, it will start returning errors on
+	// new writes immediately. Then if the close type is to wait for consumption
+	// it will block until all data got consumed. If the close type is to drop
+	// everything, it will drop everything buffered.
+	p.Buffer.Close(ct)
+	// Then we can close writer to clean up outstanding go routines.
 	p.Writer.Close()
 }

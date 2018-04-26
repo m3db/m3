@@ -51,6 +51,16 @@ type Data interface {
 	Finalize(FinalizeReason)
 }
 
+// CloseType decides how the producer should be closed.
+type CloseType int
+
+const (
+	// WaitForConsumption blocks the close call until all the data has been consumed.
+	WaitForConsumption CloseType = iota
+	// DropEverything will close the producer and drop all the data that has not been consumed.
+	DropEverything
+)
+
 // Producer produces data to a topic.
 type Producer interface {
 	// Produce produces the data.
@@ -66,8 +76,9 @@ type Producer interface {
 	Init() error
 
 	// Close stops the producer from accepting new requests immediately.
-	// It will also block until all the data buffered in Producer has been consumed.
-	Close()
+	// If the CloseType is WaitForConsumption, then it will block until all the data has been consumed.
+	// If the CloseType is DropEverything, then it will simply drop all the data buffered and return.
+	Close(ct CloseType)
 }
 
 // FilterFunc can filter data.
@@ -97,8 +108,9 @@ type Buffer interface {
 	Init()
 
 	// Close stops the buffer from accepting new requests immediately.
-	// It will also block until all the data buffered has been consumed.
-	Close()
+	// If the CloseType is WaitForConsumption, then it will block until all the data has been consumed.
+	// If the CloseType is DropEverything, then it will simply drop all the data buffered and return.
+	Close(ct CloseType)
 }
 
 // Writer writes all the data out to the consumer services.

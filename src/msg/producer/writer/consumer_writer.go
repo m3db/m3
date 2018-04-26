@@ -21,6 +21,7 @@
 package writer
 
 import (
+	"io"
 	"sync"
 
 	"github.com/m3db/m3msg/generated/proto/msgpb"
@@ -150,7 +151,13 @@ func (w *consumerWriterImpl) readAcks() error {
 	// NB(cw) The proto needs to be cleaned up because the gogo protobuf
 	// unmarshalling will append to the underlying slice.
 	w.ack.Metadata = w.ack.Metadata[:0]
-	if err := w.encdec.Decode(&w.ack); err != nil {
+	err := w.encdec.Decode(&w.ack)
+	if err != nil {
+		// On io.EOF, don't reset the connection but return an error
+		// so the retrier will back off and retry later.
+		if err == io.EOF {
+			return err
+		}
 		w.c.NotifyReset()
 		w.m.decodeError.Inc(1)
 		return err

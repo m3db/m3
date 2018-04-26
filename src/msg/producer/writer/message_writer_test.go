@@ -358,6 +358,29 @@ func TestNextRetryNanos(t *testing.T) {
 	require.True(t, retryAtNanos < nowNanos+2*int64(backOffDuration))
 }
 
+func TestMessageWriterCloseImmediately(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	opts := testOptions()
+	w := newMessageWriter(200, testMessagePool(opts), opts)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	md := producer.NewMockData(ctrl)
+
+	rd := data.NewRefCountedData(md, nil)
+	md.EXPECT().Finalize(producer.Consumed)
+	md.EXPECT().Bytes().Return([]byte("foo"))
+	w.Write(rd)
+
+	require.Equal(t, 1, w.(*messageWriterImpl).queue.Len())
+	w.Init()
+	w.Close()
+	require.Equal(t, 0, w.(*messageWriterImpl).queue.Len())
+	require.True(t, isEmptyWithLock(w.(*messageWriterImpl).acks))
+}
+
 func isEmptyWithLock(h *acks) bool {
 	h.Lock()
 	defer h.Unlock()

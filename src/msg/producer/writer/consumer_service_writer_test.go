@@ -252,6 +252,7 @@ func TestConsumerServiceWriterWithReplicatedConsumer(t *testing.T) {
 		if l == 3 {
 			break
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	var wg sync.WaitGroup
@@ -270,7 +271,7 @@ func TestConsumerServiceWriterWithReplicatedConsumer(t *testing.T) {
 	}()
 
 	md := producer.NewMockData(ctrl)
-	md.EXPECT().Shard().Return(uint32(1))
+	md.EXPECT().Shard().Return(uint32(1)).AnyTimes()
 	md.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
 	md.EXPECT().Finalize(producer.Consumed)
 
@@ -310,6 +311,7 @@ func TestConsumerServiceWriterWithReplicatedConsumer(t *testing.T) {
 		if l == 2 {
 			break
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	wg.Add(1)
@@ -318,11 +320,7 @@ func TestConsumerServiceWriterWithReplicatedConsumer(t *testing.T) {
 		wg.Done()
 	}()
 
-	md = producer.NewMockData(ctrl)
-	md.EXPECT().Shard().Return(uint32(1))
-	md.EXPECT().Bytes().Return([]byte("bar")).AnyTimes()
 	md.EXPECT().Finalize(producer.Consumed)
-
 	rd = data.NewRefCountedData(md, nil)
 	csw.Write(rd)
 	for {
