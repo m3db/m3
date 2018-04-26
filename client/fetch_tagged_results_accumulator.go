@@ -34,39 +34,10 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 )
 
-type fetchResultsAccumulator interface {
-	// Reset resets the accumulator for use.
-	Reset(
-		startTime time.Time,
-		endTime time.Time,
-		topoMap topology.Map,
-		majority int,
-		consistencyLevel topology.ReadConsistencyLevel)
-
-	// Add adds the provided result to the accumulator.
-	Add(opts fetchTaggedResultAccumulatorOpts, err error) (done bool, addErr error)
-
-	// AsEncodingSeriesIterators converts the underlying response into an encoding.SeriesIterators
-	AsEncodingSeriesIterators(limit int, pools fetchTaggedPools) (
-		iters encoding.SeriesIterators, exhaustive bool, err error)
-
-	// AsIndexQueryResults converts the underlying response into an index.QueryResults
-	AsIndexQueryResults(limit int, pools fetchTaggedPools) (index.QueryResults, error)
-
-	// Clear clears any internal state, and releases references the object
-	// has to external entities. It does not release the object itself.
-	Clear()
-}
-
 type fetchTaggedResultAccumulatorOpts struct {
 	host     topology.Host
 	response *rpc.FetchTaggedResult_
 }
-
-// make the compiler ensure the concrete type `*fetchTaggedResultAccumulator` implements
-// the `fetchResultsAccumulator` interface.
-var _ fetchResultsAccumulator = &fetchTaggedResultAccumulator{}
-
 type fetchTaggedResultAccumulator struct {
 	// NB(prateek): a fetchTagged request requires we fan out to each shard in the
 	// topology. As a result, we track the response consistency per shard.

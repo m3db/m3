@@ -49,7 +49,7 @@ type fetchState struct {
 	refCounter
 
 	op                   *fetchTaggedOp
-	tagResultAccumulator fetchResultsAccumulator
+	tagResultAccumulator fetchTaggedResultAccumulator
 	err                  error
 	done                 bool
 
@@ -58,7 +58,7 @@ type fetchState struct {
 
 func newFetchState(pool fetchStatePool) *fetchState {
 	f := &fetchState{
-		tagResultAccumulator: &fetchTaggedResultAccumulator{},
+		tagResultAccumulator: fetchTaggedResultAccumulator{},
 		pool:                 pool,
 	}
 	f.destructorFn = f.close // Set refCounter completion as close
