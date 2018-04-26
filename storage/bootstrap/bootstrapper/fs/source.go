@@ -358,14 +358,16 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			switch seriesCachePolicy {
 			case series.CacheAll:
 				seg := ts.NewSegment(data, nil, ts.FinalizeHead)
-				seriesBlock.Reset(start, seg)
+				// arnikola
+				seriesBlock.Reset(start, time.Hour, seg)
 			case series.CacheAllMetadata:
 				metadata := block.RetrievableBlockMetadata{
 					ID:       id,
 					Length:   length,
 					Checksum: checksum,
 				}
-				seriesBlock.ResetRetrievable(start, shardRetriever, metadata)
+				// arnikola
+				seriesBlock.ResetRetrievable(start, time.Hour, shardRetriever, metadata)
 			default:
 				s.log.WithFields(
 					xlog.NewField("shard", shard),

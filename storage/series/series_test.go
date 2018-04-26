@@ -207,7 +207,7 @@ func TestSeriesFlush(t *testing.T) {
 	tail := checked.NewBytes([]byte{0x3, 0x4}, nil)
 
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(flushTime, ts.NewSegment(head, tail, ts.FinalizeNone))
+	block.Reset(flushTime, time.Hour, ts.NewSegment(head, tail, ts.FinalizeNone))
 	series.blocks.AddBlock(block)
 
 	inputs := []error{errors.New("some error"), nil}
@@ -460,6 +460,8 @@ func TestSeriesTickCacheAllMetadata(t *testing.T) {
 	series.blockRetriever = blockRetriever
 	require.NoError(t, series.Bootstrap(nil))
 
+	blockSize := time.Second * 1337
+
 	// Test case where block has been read within expiry period - won't be reset to only have metadata
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
@@ -476,13 +478,14 @@ func TestSeriesTickCacheAllMetadata(t *testing.T) {
 
 	// Test case where block has not been read within expiry period - will be reset to only have metadata
 	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().BlockSize().Return(blockSize)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() * 2))
 	b.EXPECT().Len().Return(1)
 	b.EXPECT().Checksum().Return(uint32(0))
-	b.EXPECT().ResetRetrievable(curr, blockRetriever, gomock.Any()).Return()
+	b.EXPECT().ResetRetrievable(curr, blockSize, blockRetriever, gomock.Any()).Return()
 	series.blocks.AddBlock(b)
 
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)

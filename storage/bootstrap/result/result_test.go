@@ -225,7 +225,7 @@ func TestShardResultIsEmpty(t *testing.T) {
 	sr := NewShardResult(0, opts)
 	require.True(t, sr.IsEmpty())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(time.Now(), ts.Segment{})
+	block.Reset(time.Now(), time.Hour, ts.Segment{})
 	sr.AddBlock(ident.StringID("foo"), block)
 	require.False(t, sr.IsEmpty())
 }
@@ -244,7 +244,7 @@ func TestShardResultAddBlock(t *testing.T) {
 	}
 	for _, input := range inputs {
 		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-		block.Reset(input.timestamp, ts.Segment{})
+		block.Reset(input.timestamp, time.Hour, ts.Segment{})
 		sr.AddBlock(ident.StringID(input.id), block)
 	}
 	allSeries := sr.AllSeries()
@@ -269,7 +269,7 @@ func TestShardResultAddSeries(t *testing.T) {
 	}
 	moreSeries := block.NewDatabaseSeriesBlocks(0)
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(start, ts.Segment{})
+	block.Reset(start, time.Hour, ts.Segment{})
 	moreSeries.AddBlock(block)
 	sr.AddSeries(ident.StringID("foo"), moreSeries)
 	allSeries := sr.AllSeries()

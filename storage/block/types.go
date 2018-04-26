@@ -141,6 +141,9 @@ type DatabaseBlock interface {
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
+	// BlockSize returns the duration of the block.
+	BlockSize() time.Duration
+
 	// SetLastReadTime sets the last read time of the block.
 	SetLastReadTime(value time.Time)
 
@@ -174,12 +177,13 @@ type DatabaseBlock interface {
 	// from storage to serve as a memory cached block for reads.
 	IsCachedBlock() bool
 
-	// Reset resets the block start time and the segment.
-	Reset(startTime time.Time, segment ts.Segment)
+	// Reset resets the block start time, duration, and the segment.
+	Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment)
 
 	// ResetRetrievable resets the block to become retrievable.
 	ResetRetrievable(
 		startTime time.Time,
+		blockSize time.Duration,
 		retriever DatabaseShardBlockRetriever,
 		metadata RetrievableBlockMetadata,
 	)

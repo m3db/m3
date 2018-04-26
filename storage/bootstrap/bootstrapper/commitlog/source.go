@@ -372,7 +372,8 @@ func (s *commitLogSource) mergeSeries(
 
 		if len(encoders) == 1 {
 			pooledBlock := blocksPool.Get()
-			pooledBlock.Reset(start, encoders[0].enc.Discard())
+			// arnikola
+			pooledBlock.Reset(start, time.Hour, encoders[0].enc.Discard())
 			if seriesBlocks == nil {
 				seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
 			}
@@ -415,7 +416,8 @@ func (s *commitLogSource) mergeSeries(
 		}
 
 		pooledBlock := blocksPool.Get()
-		pooledBlock.Reset(start, enc.Discard())
+		// arnikola
+		pooledBlock.Reset(start, time.Hour, enc.Discard())
 		if seriesBlocks == nil {
 			seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
 		}

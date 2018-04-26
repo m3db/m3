@@ -742,7 +742,8 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 		// Already merged as a single encoder
 		encoder := b.encoders[0].encoder
 		newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-		newBlock.Reset(b.start, encoder.Discard())
+		blockSize := b.opts.RetentionOptions().BlockSize()
+		newBlock.Reset(b.start, blockSize, encoder.Discard())
 
 		// The single encoder is already discarded, no need to call resetEncoders
 		// just remove it from the list of encoders
@@ -777,7 +778,8 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 	merged := b.encoders[0].encoder
 
 	newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	newBlock.Reset(b.start, merged.Discard())
+	blockSize := b.opts.RetentionOptions().BlockSize()
+	newBlock.Reset(b.start, blockSize, merged.Discard())
 
 	// The merged encoder is already discarded, no need to call resetEncoders
 	// just remove it from the list of encoders

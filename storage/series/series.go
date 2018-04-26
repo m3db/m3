@@ -234,7 +234,7 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 					Length:   currBlock.Len(),
 					Checksum: currBlock.Checksum(),
 				}
-				currBlock.ResetRetrievable(start, retriever, metadata)
+				currBlock.ResetRetrievable(start, currBlock.BlockSize(), retriever, metadata)
 			default:
 				// Remove the block and it will be looked up later
 				s.blocks.RemoveBlockAt(start)
@@ -491,7 +491,8 @@ func (s *dbSeries) OnRetrieveBlock(
 		Length:   segment.Len(),
 		Checksum: digest.SegmentChecksum(segment),
 	}
-	b.ResetRetrievable(startTime, s.blockRetriever, metadata)
+	// todo arnikola
+	b.ResetRetrievable(startTime, time.Hour, s.blockRetriever, metadata)
 	// Use s.id instead of id here, because id is finalized by the context whereas
 	// we rely on the G.C to reclaim s.id. This is important because the block will
 	// hold onto the id ref, and (if the LRU caching policy is enabled) the shard

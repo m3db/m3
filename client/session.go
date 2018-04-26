@@ -2818,7 +2818,8 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 	switch {
 	case segments.Merged != nil:
 		// Unmerged, can insert directly into a single block
-		result.Reset(start, b.segmentForBlock(segments.Merged))
+		// arnikola
+		result.Reset(start, time.Hour, b.segmentForBlock(segments.Merged))
 
 	case segments.Unmerged != nil:
 		// Must merge to provide a single block
@@ -2849,7 +2850,7 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 		}
 
 		// Set the block data
-		result.Reset(start, encoder.Discard())
+		result.Reset(start, time.Hour, encoder.Discard())
 
 	default:
 		result.Close() // return block to pool
@@ -3005,7 +3006,8 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 		result.Close()
 
 		result = r.blockOpts.DatabaseBlockPool().Get()
-		result.Reset(start, encoder.Discard())
+		// arnikola
+		result.Reset(start, time.Hour, encoder.Discard())
 
 		tmpCtx.Close()
 	}

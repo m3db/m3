@@ -274,6 +274,18 @@ func (_mr *MockDatabaseBlockMockRecorder) StartTime() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "StartTime", reflect.TypeOf((*MockDatabaseBlock)(nil).StartTime))
 }
 
+// BlockSize mocks base method
+func (_m *MockDatabaseBlock) BlockSize() time.Duration {
+	ret := _m.ctrl.Call(_m, "BlockSize")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BlockSize indicates an expected call of BlockSize
+func (_mr *MockDatabaseBlockMockRecorder) BlockSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BlockSize", reflect.TypeOf((*MockDatabaseBlock)(nil).BlockSize))
+}
+
 // SetLastReadTime mocks base method
 func (_m *MockDatabaseBlock) SetLastReadTime(value time.Time) {
 	_m.ctrl.Call(_m, "SetLastReadTime", value)
@@ -380,23 +392,23 @@ func (_mr *MockDatabaseBlockMockRecorder) IsCachedBlock() *gomock.Call {
 }
 
 // Reset mocks base method
-func (_m *MockDatabaseBlock) Reset(startTime time.Time, segment ts.Segment) {
-	_m.ctrl.Call(_m, "Reset", startTime, segment)
+func (_m *MockDatabaseBlock) Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment) {
+	_m.ctrl.Call(_m, "Reset", startTime, blockSize, segment)
 }
 
 // Reset indicates an expected call of Reset
-func (_mr *MockDatabaseBlockMockRecorder) Reset(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Reset", reflect.TypeOf((*MockDatabaseBlock)(nil).Reset), arg0, arg1)
+func (_mr *MockDatabaseBlockMockRecorder) Reset(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Reset", reflect.TypeOf((*MockDatabaseBlock)(nil).Reset), arg0, arg1, arg2)
 }
 
 // ResetRetrievable mocks base method
-func (_m *MockDatabaseBlock) ResetRetrievable(startTime time.Time, retriever DatabaseShardBlockRetriever, metadata RetrievableBlockMetadata) {
-	_m.ctrl.Call(_m, "ResetRetrievable", startTime, retriever, metadata)
+func (_m *MockDatabaseBlock) ResetRetrievable(startTime time.Time, blockSize time.Duration, retriever DatabaseShardBlockRetriever, metadata RetrievableBlockMetadata) {
+	_m.ctrl.Call(_m, "ResetRetrievable", startTime, blockSize, retriever, metadata)
 }
 
 // ResetRetrievable indicates an expected call of ResetRetrievable
-func (_mr *MockDatabaseBlockMockRecorder) ResetRetrievable(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ResetRetrievable", reflect.TypeOf((*MockDatabaseBlock)(nil).ResetRetrievable), arg0, arg1, arg2)
+func (_mr *MockDatabaseBlockMockRecorder) ResetRetrievable(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ResetRetrievable", reflect.TypeOf((*MockDatabaseBlock)(nil).ResetRetrievable), arg0, arg1, arg2, arg3)
 }
 
 // Close mocks base method

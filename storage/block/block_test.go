@@ -31,6 +31,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,25 +45,26 @@ func testDatabaseSeriesBlocks() *databaseSeriesBlocks {
 	return NewDatabaseSeriesBlocks(0).(*databaseSeriesBlocks)
 }
 
-func testDatabaseSeriesBlocksWithTimes(times []time.Time) *databaseSeriesBlocks {
+func testDatabaseSeriesBlocksWithTimes(times []time.Time, sizes []time.Duration) *databaseSeriesBlocks {
 	opts := NewOptions()
 	blocks := testDatabaseSeriesBlocks()
-	for _, timestamp := range times {
+	for i := range times {
 		block := opts.DatabaseBlockPool().Get()
-		block.Reset(timestamp, ts.Segment{})
+		block.Reset(times[i], sizes[i], ts.Segment{})
 		blocks.AddBlock(block)
 	}
 	return blocks
 }
 
-func validateBlocks(t *testing.T, blocks *databaseSeriesBlocks, minTime, maxTime time.Time, expectedTimes []time.Time) {
+func validateBlocks(t *testing.T, blocks *databaseSeriesBlocks, minTime, maxTime time.Time, expectedTimes []time.Time, expectedSizes []time.Duration) {
 	require.True(t, minTime.Equal(blocks.MinTime()))
 	require.True(t, maxTime.Equal(blocks.MaxTime()))
 	allBlocks := blocks.elems
 	require.Equal(t, len(expectedTimes), len(allBlocks))
-	for _, timestamp := range expectedTimes {
-		_, exists := allBlocks[xtime.ToUnixNano(timestamp)]
+	for i, timestamp := range expectedTimes {
+		block, exists := allBlocks[xtime.ToUnixNano(timestamp)]
 		require.True(t, exists)
+		assert.Equal(t, block.BlockSize(), expectedSizes[i])
 	}
 }
 
@@ -139,7 +141,7 @@ func testDatabaseBlockWithDependentContext(
 }
 
 func TestDatabaseBlockResetNormalWithDependentContext(t *testing.T) {
-	f := func(block *dbBlock) { block.Reset(time.Now(), ts.Segment{}) }
+	f := func(block *dbBlock) { block.Reset(time.Now(), time.Hour, ts.Segment{}) }
 	af := func(t *testing.T, block *dbBlock) { require.False(t, block.closed) }
 	testDatabaseBlockWithDependentContext(t, f, af)
 }
@@ -153,8 +155,9 @@ func TestDatabaseBlockCloseNormalWithDependentContext(t *testing.T) {
 func TestDatabaseSeriesBlocksAddBlock(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(time.Second), now.Add(time.Minute), now.Add(-time.Second), now.Add(-time.Hour)}
-	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
-	validateBlocks(t, blocks, blockTimes[4], blockTimes[2], blockTimes)
+	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second, time.Microsecond, time.Millisecond}
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
+	validateBlocks(t, blocks, blockTimes[4], blockTimes[2], blockTimes, blockSizes)
 }
 
 func TestDatabaseSeriesBlocksAddSeries(t *testing.T) {
@@ -163,23 +166,35 @@ func TestDatabaseSeriesBlocksAddSeries(t *testing.T) {
 		{now, now.Add(time.Second), now.Add(time.Minute), now.Add(-time.Second), now.Add(-time.Hour)},
 		{now.Add(-time.Minute), now.Add(time.Hour)},
 	}
-	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes[0])
-	other := testDatabaseSeriesBlocksWithTimes(blockTimes[1])
+	blockSizes := [][]time.Duration{
+		{time.Minute, time.Hour, time.Second, time.Microsecond, time.Millisecond},
+		{time.Minute * 2, time.Hour * 21},
+	}
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes[0], blockSizes[0])
+	other := testDatabaseSeriesBlocksWithTimes(blockTimes[1], blockSizes[1])
 	blocks.AddSeries(other)
 	var expectedTimes []time.Time
 	for _, bt := range blockTimes {
 		expectedTimes = append(expectedTimes, bt...)
 	}
-	validateBlocks(t, blocks, expectedTimes[4], expectedTimes[6], expectedTimes)
+	var expectedSizes []time.Duration
+	for _, bt := range blockSizes {
+		expectedSizes = append(expectedSizes, bt...)
+	}
+
+	validateBlocks(t, blocks, expectedTimes[4], expectedTimes[6], expectedTimes, expectedSizes)
 }
 
 func TestDatabaseSeriesBlocksGetBlockAt(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(time.Second), now.Add(-time.Hour)}
-	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
-	for _, bt := range blockTimes {
-		_, exists := blocks.BlockAt(bt)
+	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
+
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
+	for i, bt := range blockTimes {
+		b, exists := blocks.BlockAt(bt)
 		require.True(t, exists)
+		require.Equal(t, b.BlockSize(), blockSizes[i])
 	}
 	_, exists := blocks.BlockAt(now.Add(time.Minute))
 	require.False(t, exists)
@@ -188,9 +203,11 @@ func TestDatabaseSeriesBlocksGetBlockAt(t *testing.T) {
 func TestDatabaseSeriesBlocksRemoveBlockAt(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
-	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
+	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
+
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
 	blocks.RemoveBlockAt(now.Add(-time.Hour))
-	validateBlocks(t, blocks, blockTimes[1], blockTimes[2], blockTimes)
+	validateBlocks(t, blocks, blockTimes[1], blockTimes[2], blockTimes, blockSizes)
 
 	expected := []struct {
 		min      time.Time
@@ -203,14 +220,17 @@ func TestDatabaseSeriesBlocksRemoveBlockAt(t *testing.T) {
 	}
 	for i, bt := range blockTimes {
 		blocks.RemoveBlockAt(bt)
-		validateBlocks(t, blocks, expected[i].min, expected[i].max, expected[i].allTimes)
+		blockSizes = blockSizes[1:]
+		validateBlocks(t, blocks, expected[i].min, expected[i].max, expected[i].allTimes, blockSizes)
 	}
 }
 
 func TestDatabaseSeriesBlocksRemoveAll(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
-	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
+	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
+
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
 	require.Equal(t, len(blockTimes), len(blocks.AllBlocks()))
 
 	blocks.RemoveAll()
@@ -220,7 +240,9 @@ func TestDatabaseSeriesBlocksRemoveAll(t *testing.T) {
 func TestDatabaseSeriesBlocksClose(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
-	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
+	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
+
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
 	require.Equal(t, len(blockTimes), len(blocks.AllBlocks()))
 
 	blocks.Close()
@@ -233,7 +255,9 @@ func TestDatabaseSeriesBlocksClose(t *testing.T) {
 func TestDatabaseSeriesBlocksReset(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
-	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
+	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
+
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
 	require.Equal(t, len(blockTimes), len(blocks.AllBlocks()))
 
 	blocks.Reset()

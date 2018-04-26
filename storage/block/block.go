@@ -122,6 +122,13 @@ func (b *dbBlock) StartTime() time.Time {
 	return start
 }
 
+func (b *dbBlock) BlockSize() time.Duration {
+	b.RLock()
+	size := b.blockSize
+	b.RUnlock()
+	return size
+}
+
 func (b *dbBlock) startWithLock() time.Time {
 	return time.Unix(0, b.startUnixNanos)
 }
@@ -256,34 +263,32 @@ func (b *dbBlock) Merge(other DatabaseBlock) {
 	b.Unlock()
 }
 
-func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
-	// TODO(arnikola) send through new blockSize
+func (b *dbBlock) Reset(start time.Time, blockSize time.Duration, segment ts.Segment) {
 	b.Lock()
 	defer b.Unlock()
-	b.resetNewBlockStartWithLock(start)
+	b.resetNewBlockStartWithLock(start, blockSize)
 	b.resetSegmentWithLock(segment)
 }
 
 func (b *dbBlock) ResetRetrievable(
 	start time.Time,
+	blockSize time.Duration,
 	retriever DatabaseShardBlockRetriever,
 	metadata RetrievableBlockMetadata,
 ) {
-	// TODO(arnikola) send through new blockSize
 	b.Lock()
 	defer b.Unlock()
-	b.resetNewBlockStartWithLock(start)
+	b.resetNewBlockStartWithLock(start, blockSize)
 	b.resetRetrievableWithLock(retriever, metadata)
 }
 
-func (b *dbBlock) resetNewBlockStartWithLock(start time.Time) {
-	// TODO(arnikola) send through new blockSize
-	// b.blockSize = blockSize
+func (b *dbBlock) resetNewBlockStartWithLock(start time.Time, blockSize time.Duration) {
 	if !b.closed {
 		b.ctx.Close()
 	}
 	b.ctx = b.opts.ContextPool().Get()
 	b.startUnixNanos = start.UnixNano()
+	b.blockSize = blockSize
 	atomic.StoreInt64(&b.lastReadUnixNanos, 0)
 	b.closed = false
 	b.resetMergeTargetWithLock()
