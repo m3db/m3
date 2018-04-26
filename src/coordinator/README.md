@@ -88,7 +88,7 @@ This project is released under the [MIT License](LICENSE.md).
 
 [doc-img]: https://godoc.org/github.com/m3db/m3coordinator?status.svg
 [doc]: https://godoc.org/github.com/m3db/m3coordinator
-[ci-img]: https://travis-ci.org/m3db/m3coordinator.svg?branch=master
-[ci]: https://travis-ci.org/m3db/m3coordinator
-[cov-img]: https://coveralls.io/repos/github/m3db/m3coordinator/badge.svg?branch=master&service=github
-[cov]: https://coveralls.io/github/m3db/m3coordinator?branch=master
+[ci-img]: https://semaphoreci.com/api/v1/m3db/m3coordinator/branches/master/shields_badge.svg
+[ci]: https://semaphoreci.com/m3db/m3coordinator
+[cov-img]: https://codecov.io/gh/m3db/m3coordinator/branch/master/graph/badge.svg
+[cov]: https://codecov.io/gh/m3db/m3coordinator

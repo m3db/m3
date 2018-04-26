@@ -82,7 +82,7 @@ $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
 .PHONY: all
-all: install-ci lint metalint test-ci-unit services tools
+all: metalint test-ci-unit services tools
 	@echo Made all successfully
 
 .PHONY: install-license-bin
@@ -123,45 +123,38 @@ lint:
 	$(VENDOR_ENV) $(lint_check)
 
 .PHONY: metalint
-metalint: install-metalinter
-	@($(metalint_check) $(metalint_config) $(metalint_exclude) \
-		&& echo "metalinted successfully!") || (echo "metalinter failed" && exit 1)
+metalint: install-metalinter install-linter-badtime
+	@($(metalint_check) $(metalint_config) $(metalint_exclude))
 
 .PHONY: test-internal
 test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
 	@$(VENDOR_ENV) $(test) $(coverfile) | tee $(test_log)
 
-# Do not test native pooling for now due to slow travis builds
+# Note: do not test native pooling since it's experimental/deprecated
 .PHONY: test-integration
 test-integration:
-	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false go test -v -tags=integration ./integration
-
-.PHONY: test-xml
-test-xml: test-internal
-	go-junit-report < $(test_log) > $(junit_xml)
-	gocov convert $(coverfile) | gocov-xml > $(coverage_xml)
-	@$(convert-test-data) $(coverage_xml)
-	@rm $(coverfile) &> /dev/null
+	TEST_NATIVE_POOLING=false make test-base-integration
 
 .PHONY: test
-test: test-internal
+test: test-base
+	# coverfile defined in common.mk
 	gocov convert $(coverfile) | gocov report
 
-.PHONY: testhtml
-testhtml: test-internal
-	gocov convert $(coverfile) | gocov-html > $(html_report) && open $(html_report)
-	@rm -f $(test_log) &> /dev/null
+.PHONY: test-xml
+test-xml: test-base-xml
+
+.PHONY: test-html
+test-html: test-base-html
 
 .PHONY: test-ci-unit
-test-ci-unit: test-internal
-	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
-	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "Coveralls failed"
+test-ci-unit: test-base
+	$(codecov_push) -f $(coverfile) -F unittests
 
-# Do not test native pooling for now due to slow travis builds
 .PHONY: test-ci-integration
 test-ci-integration:
-	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false $(test_ci_integration)
+	INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	$(codecov_push) -f $(coverfile) -F integration
 
 # run as: make test-one-integration test=<test_name>
 .PHONY: test-one-integration
