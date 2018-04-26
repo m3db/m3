@@ -58,7 +58,7 @@ type fetchState struct {
 
 func newFetchState(pool fetchStatePool) *fetchState {
 	f := &fetchState{
-		tagResultAccumulator: fetchTaggedResultAccumulator{},
+		tagResultAccumulator: newFetchTaggedResultAccumulator(),
 		pool:                 pool,
 	}
 	f.destructorFn = f.close // Set refCounter completion as close

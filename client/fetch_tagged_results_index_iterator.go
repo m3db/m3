@@ -76,6 +76,12 @@ func (i *fetchTaggedResultsIndexIterator) Next() bool {
 	return true
 }
 
+func (i *fetchTaggedResultsIndexIterator) addBacking(nsID, tsID, tags []byte) {
+	i.backing.nses = append(i.backing.nses, nsID)
+	i.backing.ids = append(i.backing.ids, tsID)
+	i.backing.tags = append(i.backing.tags, tags)
+}
+
 func (i *fetchTaggedResultsIndexIterator) asIdent(b []byte) ident.ID {
 	wb := i.pools.CheckedBytesWrapper().Get(b)
 	return i.pools.ID().BinaryID(wb)
