@@ -15,7 +15,8 @@
     , "misspell"
     , "unparam"
     , "megacheck"
-    , "badtime" ],
+    , "badtime"
+    , "golint" ],
   "Deadline": "3m",
   "EnableGC": true
 }
