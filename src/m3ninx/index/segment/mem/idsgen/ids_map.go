@@ -18,47 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package postingsgen
+package idsgen
 
 import (
-	"regexp"
-	"testing"
+	"bytes"
 
-	"github.com/m3db/m3ninx/postings"
-	"github.com/m3db/m3ninx/postings/roaring"
-
-	"github.com/stretchr/testify/require"
+	"github.com/cespare/xxhash"
 )
 
-func TestConcurrentMap(t *testing.T) {
-	opts := ConcurrentMapOpts{
-		InitialSize:      1024,
-		PostingsListPool: postings.NewPool(nil, roaring.NewPostingsList),
-	}
-	pm := NewConcurrentMap(opts)
+// New returns a new set of IDs.
+func New(initialSize int) *Map {
+	return newMap(mapOptions{
+		hash: func(k []byte) MapHash {
+			return MapHash(xxhash.Sum64(k))
+		},
+		equals:      bytes.Equal,
+		copy:        undefinedCopyFn,
+		finalize:    undefinedFinalizeFn,
+		initialSize: initialSize,
+	})
+}
 
-	pm.Add([]byte("foo"), 1)
-	pm.Add([]byte("bar"), 2)
-	pm.Add([]byte("foo"), 3)
-	pm.Add([]byte("baz"), 4)
+var undefinedCopyFn CopyFn = func([]byte) []byte {
+	panic("not implemented")
+}
 
-	pl, ok := pm.Get([]byte("foo"))
-	require.True(t, ok)
-	require.Equal(t, 2, pl.Len())
-	require.True(t, pl.Contains(1))
-	require.True(t, pl.Contains(3))
-
-	_, ok = pm.Get([]byte("fizz"))
-	require.False(t, ok)
-
-	re := regexp.MustCompile("ba.*")
-	pl, ok = pm.GetRegex(re)
-	require.True(t, ok)
-	require.Equal(t, 2, pl.Len())
-	require.True(t, pl.Contains(2))
-	require.True(t, pl.Contains(4))
-
-	re = regexp.MustCompile("abc.*")
-	_, ok = pm.GetRegex(re)
-	require.False(t, ok)
+var undefinedFinalizeFn FinalizeFn = func([]byte) {
+	panic("not implemented")
 }

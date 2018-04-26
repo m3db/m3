@@ -67,12 +67,23 @@ The payload comes after the header and it contains the actual documents.
 
 #### Document
 
-Each document is composed of fields. The number of fields in the document is encoded
-first as a variable-sized unsigned integer and then the fields themselves are encoded.
+Each document is composed of an ID and fields. The ID is a sequence of valid UTF-8 bytes
+and it is encoded first by encoding the length of the ID, in bytes, as a variable-sized
+unsigned integer and then encoding the actual bytes which comprise the ID. Following
+the ID are the fields. The number of fields in the document is encoded first as a
+variable-sized unsigned integer and then the fields themselves are encoded.
 
 ```
 ┌───────────────────────────┐
 │ ┌───────────────────────┐ │
+│ │     Length of ID      │ │
+│ │       (uvarint)       │ │
+│ ├───────────────────────┤ │
+│ │                       │ │
+│ │          ID           │ │
+│ │        (bytes)        │ │
+│ │                       │ │
+│ ├───────────────────────┤ │
 │ │   Number of Fields    │ │
 │ │       (uvarint)       │ │
 │ ├───────────────────────┤ │
@@ -94,8 +105,9 @@ first as a variable-sized unsigned integer and then the fields themselves are en
 #### Field
 
 Each field is composed of a name and a value. The name and value are a sequence of valid
-UTF-8 bytes and they are encoded by prefixing the sequence of bytes with its length as
-a variable-sized unsigned integer. The name is encoded first and the value second.
+UTF-8 bytes and they are encoded by encoding the length of the name (value), in bytes, as
+a variable-sized unsigned integer and then encoding the actual bytes which comprise the
+name (value). The name is encoded first and the value second.
 
 ```
 ┌───────────────────────────┐

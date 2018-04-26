@@ -39,7 +39,12 @@ func (id AtomicID) Load() ID {
 	return ID(id.internal.Load())
 }
 
-// Inc atomically increments the ID.
+// Inc atomically increments the ID and returns the new value.
 func (id AtomicID) Inc() ID {
 	return ID(id.internal.Inc())
+}
+
+// Add atomically adds n to the ID and returns the new ID.
+func (id AtomicID) Add(n uint32) ID {
+	return ID(id.internal.Add(n))
 }

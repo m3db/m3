@@ -159,6 +159,7 @@ func TestDocumentEquality(t *testing.T) {
 		{
 			name: "documents with the same fields in the same order are equal",
 			l: Document{
+				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
 						Name:  []byte("apple"),
@@ -171,6 +172,7 @@ func TestDocumentEquality(t *testing.T) {
 				},
 			},
 			r: Document{
+				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
 						Name:  []byte("apple"),
@@ -187,6 +189,7 @@ func TestDocumentEquality(t *testing.T) {
 		{
 			name: "documents with the same fields in different order are equal",
 			l: Document{
+				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
 						Name:  []byte("banana"),
@@ -199,6 +202,7 @@ func TestDocumentEquality(t *testing.T) {
 				},
 			},
 			r: Document{
+				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
 						Name:  []byte("apple"),
@@ -215,6 +219,7 @@ func TestDocumentEquality(t *testing.T) {
 		{
 			name: "documents with different fields are unequal",
 			l: Document{
+				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
 						Name:  []byte("apple"),
@@ -227,6 +232,7 @@ func TestDocumentEquality(t *testing.T) {
 				},
 			},
 			r: Document{
+				ID: []byte("831992"),
 				Fields: []Field{
 					Field{
 						Name:  []byte("apple"),
@@ -235,6 +241,28 @@ func TestDocumentEquality(t *testing.T) {
 					Field{
 						Name:  []byte("carrot"),
 						Value: []byte("orange"),
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "documents with different IDs are unequal",
+			l: Document{
+				ID: []byte("831992"),
+				Fields: []Field{
+					Field{
+						Name:  []byte("apple"),
+						Value: []byte("red"),
+					},
+				},
+			},
+			r: Document{
+				ID: []byte("080292"),
+				Fields: []Field{
+					Field{
+						Name:  []byte("apple"),
+						Value: []byte("red"),
 					},
 				},
 			},
@@ -254,7 +282,6 @@ func TestDocumentValidation(t *testing.T) {
 		name        string
 		input       Document
 		expectedErr bool
-		expectedID  []byte
 	}{
 		{
 			name:        "empty document",
@@ -286,20 +313,7 @@ func TestDocumentValidation(t *testing.T) {
 			expectedErr: true,
 		},
 		{
-			name: "valid document with ID",
-			input: Document{
-				Fields: []Field{
-					Field{
-						Name:  []byte("apple"),
-						Value: []byte("red"),
-					},
-				},
-			},
-			expectedErr: false,
-			expectedID:  nil,
-		},
-		{
-			name: "valid document with ID",
+			name: "document contains field with reserved field name",
 			input: Document{
 				Fields: []Field{
 					Field{
@@ -312,20 +326,66 @@ func TestDocumentValidation(t *testing.T) {
 					},
 				},
 			},
+			expectedErr: true,
+		},
+		{
+			name: "valid document",
+			input: Document{
+				Fields: []Field{
+					Field{
+						Name:  []byte("apple"),
+						Value: []byte("red"),
+					},
+				},
+			},
 			expectedErr: false,
-			expectedID:  []byte("123"),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			id, err := test.input.Validate()
+			err := test.input.Validate()
 			if test.expectedErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, test.expectedID, id)
+		})
+	}
+}
+
+func TestDocumentHasID(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    Document
+		expected bool
+	}{
+		{
+			name: "nil ID",
+			input: Document{
+				ID: nil,
+			},
+			expected: false,
+		},
+		{
+			name: "zero-length ID",
+			input: Document{
+				ID: make([]byte, 0, 16),
+			},
+			expected: false,
+		},
+		{
+			name: "valid ID",
+			input: Document{
+				ID: []byte("831992"),
+			},
+			expected: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, test.input.HasID())
 		})
 	}
 }

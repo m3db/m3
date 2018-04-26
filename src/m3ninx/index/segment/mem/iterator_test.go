@@ -34,7 +34,7 @@ func TestIterator(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 
-	maxID := postings.ID(41)
+	limit := postings.ID(41)
 	docs := []doc.Document{
 		doc.Document{
 			Fields: []doc.Field{
@@ -72,32 +72,27 @@ func TestIterator(t *testing.T) {
 
 	segment := NewMockReadableSegment(mockCtrl)
 	gomock.InOrder(
-		segment.EXPECT().getDoc(maxID-2).Return(docs[0], nil),
-		segment.EXPECT().getDoc(maxID-1).Return(docs[1], nil),
-		segment.EXPECT().getDoc(maxID).Return(docs[2], nil),
+		segment.EXPECT().getDoc(limit-2).Return(docs[0], nil),
+		segment.EXPECT().getDoc(limit-1).Return(docs[1], nil),
 	)
 
 	postingsIter := postings.NewMockIterator(mockCtrl)
 	gomock.InOrder(
 		postingsIter.EXPECT().Next().Return(true),
-		postingsIter.EXPECT().Current().Return(maxID-2),
+		postingsIter.EXPECT().Current().Return(limit-2),
 		postingsIter.EXPECT().Next().Return(true),
-		postingsIter.EXPECT().Current().Return(maxID-1),
+		postingsIter.EXPECT().Current().Return(limit-1),
 		postingsIter.EXPECT().Next().Return(true),
-		postingsIter.EXPECT().Current().Return(maxID),
-		postingsIter.EXPECT().Next().Return(true),
-		postingsIter.EXPECT().Current().Return(maxID+1),
+		postingsIter.EXPECT().Current().Return(limit),
 		postingsIter.EXPECT().Close().Return(nil),
 	)
 
-	it := newIterator(segment, postingsIter, maxID)
+	it := newIterator(segment, postingsIter, limit)
 
 	require.True(t, it.Next())
 	require.Equal(t, docs[0], it.Current())
 	require.True(t, it.Next())
 	require.Equal(t, docs[1], it.Current())
-	require.True(t, it.Next())
-	require.Equal(t, docs[2], it.Current())
 
 	require.False(t, it.Next())
 	require.NoError(t, it.Err())

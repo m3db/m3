@@ -48,59 +48,53 @@ func newTermsDict(opts Options) termsDictionary {
 	return dict
 }
 
-func (d *termsDict) Insert(field doc.Field, id postings.ID) error {
+func (d *termsDict) Insert(field doc.Field, id postings.ID) {
 	postingsMap := d.getOrAddName(field.Name)
-	return postingsMap.Add(field.Value, id)
+	postingsMap.Add(field.Value, id)
 }
 
-func (d *termsDict) ContainsTerm(field, term []byte) (bool, error) {
-	_, found, err := d.matchTerm(field, term)
-	if err != nil {
-		return false, err
-	}
-	return found, nil
+func (d *termsDict) ContainsTerm(field, term []byte) bool {
+	_, found := d.matchTerm(field, term)
+	return found
 }
 
-func (d *termsDict) MatchTerm(field, term []byte) (postings.List, error) {
-	pl, found, err := d.matchTerm(field, term)
-	if err != nil {
-		return nil, err
-	}
+func (d *termsDict) MatchTerm(field, term []byte) postings.List {
+	pl, found := d.matchTerm(field, term)
 	if !found {
-		return d.opts.PostingsListPool().Get(), nil
+		return d.opts.PostingsListPool().Get()
 	}
-	return pl, nil
+	return pl
 }
 
-func (d *termsDict) matchTerm(field, term []byte) (postings.List, bool, error) {
+func (d *termsDict) matchTerm(field, term []byte) (postings.List, bool) {
 	d.fields.RLock()
 	postingsMap, ok := d.fields.internalMap.Get(field)
 	d.fields.RUnlock()
 	if !ok {
-		return nil, false, nil
+		return nil, false
 	}
 	pl, ok := postingsMap.Get(term)
 	if !ok {
-		return nil, false, nil
+		return nil, false
 	}
-	return pl, true, nil
+	return pl, true
 }
 
 func (d *termsDict) MatchRegexp(
 	field, regexp []byte,
 	compiled *re.Regexp,
-) (postings.List, error) {
+) postings.List {
 	d.fields.RLock()
 	postingsMap, ok := d.fields.internalMap.Get(field)
 	d.fields.RUnlock()
 	if !ok {
-		return d.opts.PostingsListPool().Get(), nil
+		return d.opts.PostingsListPool().Get()
 	}
 	pl, ok := postingsMap.GetRegex(compiled)
 	if !ok {
-		return d.opts.PostingsListPool().Get(), nil
+		return d.opts.PostingsListPool().Get()
 	}
-	return pl, nil
+	return pl
 }
 
 func (d *termsDict) getOrAddName(name []byte) *postingsgen.ConcurrentMap {

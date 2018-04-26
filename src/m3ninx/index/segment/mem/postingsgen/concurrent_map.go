@@ -54,7 +54,7 @@ func NewConcurrentMap(opts ConcurrentMapOpts) *ConcurrentMap {
 }
 
 // Add adds the provided `id` to the postings.List backing `key`.
-func (m *ConcurrentMap) Add(key []byte, id postings.ID) error {
+func (m *ConcurrentMap) Add(key []byte, id postings.ID) {
 	// Try read lock to see if we already have a postings list for the given value.
 	m.RLock()
 	p, ok := m.internalMap.Get(key)
@@ -62,7 +62,8 @@ func (m *ConcurrentMap) Add(key []byte, id postings.ID) error {
 
 	// We have a postings list, insert the ID and move on.
 	if ok {
-		return p.Insert(id)
+		p.Insert(id)
+		return
 	}
 
 	// A corresponding postings list doesn't exist, time to acquire write lock.
@@ -72,7 +73,8 @@ func (m *ConcurrentMap) Add(key []byte, id postings.ID) error {
 	// Check if the corresponding postings list has been created since we released lock.
 	if ok {
 		m.Unlock()
-		return p.Insert(id)
+		p.Insert(id)
+		return
 	}
 
 	// Create a new posting list for the term, and insert into fieldValues.
@@ -82,7 +84,7 @@ func (m *ConcurrentMap) Add(key []byte, id postings.ID) error {
 		NoFinalizeKey: true,
 	})
 	m.Unlock()
-	return p.Insert(id)
+	p.Insert(id)
 }
 
 // Get returns the postings.List backing `key`.

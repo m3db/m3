@@ -31,15 +31,26 @@ import (
 
 // Index is a collection of searchable documents.
 type Index interface {
-	// Insert inserts the given document into the index. The document is guaranteed to be
-	// searchable once the Insert method returns.
-	Insert(d doc.Document) error
+	Writer
 
 	// Readers returns a set of readers representing a point-in-time snapshot of the index.
 	Readers() (Readers, error)
 
 	// Close closes the index and releases any internal resources.
 	Close() error
+}
+
+// Writer is used to insert documents into an index.
+type Writer interface {
+	// Insert inserts the given document into the index and returns its ID. The document
+	// is guaranteed to be searchable once the Insert method returns.
+	Insert(d doc.Document) ([]byte, error)
+
+	// InsertBatch inserts a batch of metrics into the index. The documents are guaranteed
+	// to be searchable all at once when the Batch method returns. If the batch supports
+	// partial updates and any errors are encountered on individual documents then a
+	// BatchPartialError is returned.
+	InsertBatch(b Batch) error
 }
 
 // Reader provides a point-in-time accessor to the documents in an index.

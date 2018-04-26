@@ -80,8 +80,9 @@ func (w *writer) Open() error {
 }
 
 func (w *writer) Write(d doc.Document) error {
-	w.enc.PutUvarint(uint64(len(d.Fields)))
+	w.enc.PutBytes(d.ID)
 
+	w.enc.PutUvarint(uint64(len(d.Fields)))
 	for _, f := range d.Fields {
 		w.enc.PutBytes(f.Name)
 		w.enc.PutBytes(f.Value)
@@ -228,6 +229,11 @@ func (r *reader) Read() (doc.Document, error) {
 		return doc.Document{}, io.EOF
 	}
 
+	id, err := r.dec.Bytes()
+	if err != nil {
+		return doc.Document{}, err
+	}
+
 	x, err := r.dec.Uvarint()
 	if err != nil {
 		return doc.Document{}, err
@@ -235,6 +241,7 @@ func (r *reader) Read() (doc.Document, error) {
 	n := int(x)
 
 	d := doc.Document{
+		ID:     id,
 		Fields: make([]doc.Field, n),
 	}
 
