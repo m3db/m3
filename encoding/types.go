@@ -166,7 +166,7 @@ type SeriesIterator interface {
 	// must note that this can be an array with nil entries if some replicas did not return successfully.
 	// NB: the SeriesIterator assumes ownership of the provided ids, this includes calling `id.Finalize()` upon
 	// iter.Close().
-	Reset(id ident.ID, ns ident.ID, startInclusive, endExclusive time.Time, replicas []Iterator)
+	Reset(id ident.ID, ns ident.ID, t ident.TagIterator, startInclusive, endExclusive time.Time, replicas []Iterator)
 }
 
 // SeriesIterators is a collection of SeriesIterator that can close all iterators

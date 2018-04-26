@@ -26,19 +26,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3ninx/idx"
+
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNormalQuorumOnlyOneUp(t *testing.T) {
+func TestFetchTaggedNormalQuorumOnlyOneUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -48,23 +49,23 @@ func TestNormalQuorumOnlyOneUp(t *testing.T) {
 	maxShard := uint32(numShards - 1)
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+	nodes, closeFn, testFetch := makeTestFetchTagged(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
 	})
 	defer closeFn()
 
+	// fetch succeeds from one node
 	require.NoError(t, nodes[0].startServer())
 	defer func() { require.NoError(t, nodes[0].stopServer()) }()
 
-	// Writes succeed to one node
-	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
-	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
-	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+	require.NoError(t, testFetch(topology.ReadConsistencyLevelOne))
+	require.Error(t, testFetch(topology.ReadConsistencyLevelMajority))
+	require.Error(t, testFetch(topology.ReadConsistencyLevelAll))
 }
 
-func TestNormalQuorumOnlyTwoUp(t *testing.T) {
+func TestFetchTaggedNormalQuorumOnlyTwoUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -74,7 +75,7 @@ func TestNormalQuorumOnlyTwoUp(t *testing.T) {
 	maxShard := uint32(numShards - 1)
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+	nodes, closeFn, testFetch := makeTestFetchTagged(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
@@ -87,12 +88,12 @@ func TestNormalQuorumOnlyTwoUp(t *testing.T) {
 	defer func() { require.NoError(t, nodes[1].stopServer()) }()
 
 	// Writes succeed to two nodes
-	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
-	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
-	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+	assert.NoError(t, testFetch(topology.ReadConsistencyLevelOne))
+	assert.NoError(t, testFetch(topology.ReadConsistencyLevelMajority))
+	assert.Error(t, testFetch(topology.ReadConsistencyLevelAll))
 }
 
-func TestNormalQuorumAllUp(t *testing.T) {
+func TestFetchTaggedNormalQuorumAllUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -102,7 +103,7 @@ func TestNormalQuorumAllUp(t *testing.T) {
 	maxShard := uint32(numShards - 1)
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+	nodes, closeFn, testFetch := makeTestFetchTagged(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
@@ -117,12 +118,12 @@ func TestNormalQuorumAllUp(t *testing.T) {
 	defer func() { require.NoError(t, nodes[2].stopServer()) }()
 
 	// Writes succeed to all nodes
-	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
-	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
-	assert.NoError(t, testWrite(topology.ConsistencyLevelAll))
+	assert.NoError(t, testFetch(topology.ReadConsistencyLevelOne))
+	assert.NoError(t, testFetch(topology.ReadConsistencyLevelMajority))
+	assert.NoError(t, testFetch(topology.ReadConsistencyLevelAll))
 }
 
-func TestAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
+func TestFetchTaggedAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -132,7 +133,7 @@ func TestAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 	maxShard := uint32(numShards - 1)
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+	nodes, closeFn, testFetch := makeTestFetchTagged(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
@@ -142,17 +143,16 @@ func TestAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 
 	require.NoError(t, nodes[0].startServer())
 	defer func() { require.NoError(t, nodes[0].stopServer()) }()
-
 	require.NoError(t, nodes[3].startServer())
 	defer func() { require.NoError(t, nodes[3].stopServer()) }()
 
 	// No writes succeed to available nodes
-	assert.Error(t, testWrite(topology.ConsistencyLevelOne))
-	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
-	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+	assert.Error(t, testFetch(topology.ReadConsistencyLevelOne))
+	assert.Error(t, testFetch(topology.ReadConsistencyLevelMajority))
+	assert.Error(t, testFetch(topology.ReadConsistencyLevelAll))
 }
 
-func TestAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
+func TestFetchTaggedAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -162,7 +162,7 @@ func TestAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
 	maxShard := uint32(numShards - 1)
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+	nodes, closeFn, testFetch := makeTestFetchTagged(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
@@ -171,19 +171,21 @@ func TestAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
 	defer closeFn()
 
 	require.NoError(t, nodes[0].startServer())
-	defer func() { require.NoError(t, nodes[0].stopServer()) }()
 	require.NoError(t, nodes[1].startServer())
-	defer func() { require.NoError(t, nodes[1].stopServer()) }()
 	require.NoError(t, nodes[3].startServer())
-	defer func() { require.NoError(t, nodes[3].stopServer()) }()
+	defer func() {
+		require.NoError(t, nodes[0].stopServer())
+		require.NoError(t, nodes[1].stopServer())
+		require.NoError(t, nodes[3].stopServer())
+	}()
 
 	// Writes succeed to one available node
-	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
-	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
-	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+	assert.NoError(t, testFetch(topology.ReadConsistencyLevelOne))
+	assert.Error(t, testFetch(topology.ReadConsistencyLevelMajority))
+	assert.Error(t, testFetch(topology.ReadConsistencyLevelAll))
 }
 
-func TestAddNodeQuorumAllUp(t *testing.T) {
+func TestFetchTaggedAddNodeQuorumAllUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -193,7 +195,7 @@ func TestAddNodeQuorumAllUp(t *testing.T) {
 	maxShard := uint32(numShards - 1)
 
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+	nodes, closeFn, testFetch := makeTestFetchTagged(t, numShards, []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
 		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
 		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
@@ -201,28 +203,30 @@ func TestAddNodeQuorumAllUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	defer func() { require.NoError(t, nodes[0].stopServer()) }()
-	require.NoError(t, nodes[1].startServer())
-	defer func() { require.NoError(t, nodes[1].stopServer()) }()
-	require.NoError(t, nodes[2].startServer())
-	defer func() { require.NoError(t, nodes[2].stopServer()) }()
-	require.NoError(t, nodes[3].startServer())
-	defer func() { require.NoError(t, nodes[3].stopServer()) }()
-
 	// Writes succeed to two available nodes
-	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
-	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
-	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
+	require.NoError(t, nodes[0].startServer())
+	require.NoError(t, nodes[1].startServer())
+	require.NoError(t, nodes[2].startServer())
+	require.NoError(t, nodes[3].startServer())
+	defer func() {
+		require.NoError(t, nodes[0].stopServer())
+		require.NoError(t, nodes[1].stopServer())
+		require.NoError(t, nodes[2].stopServer())
+		require.NoError(t, nodes[3].stopServer())
+	}()
+
+	assert.NoError(t, testFetch(topology.ReadConsistencyLevelOne))
+	assert.NoError(t, testFetch(topology.ReadConsistencyLevelMajority))
+	assert.Error(t, testFetch(topology.ReadConsistencyLevelAll))
 }
 
-type testWriteFn func(topology.ConsistencyLevel) error
+type testFetchFn func(topology.ReadConsistencyLevel) error
 
-func makeTestWrite(
+func makeTestFetchTagged(
 	t *testing.T,
 	numShards int,
 	instances []services.ServiceInstance,
-) (testSetups, closeFn, testWriteFn) {
+) (testSetups, closeFn, testFetchFn) {
 
 	nsOpts := namespace.NewOptions()
 	md, err := namespace.NewMetadata(testNamespaces[0],
@@ -230,9 +234,7 @@ func makeTestWrite(
 	require.NoError(t, err)
 
 	nspaces := []namespace.Metadata{md}
-	nodes, topoInit, closeFn := newNodes(t, instances, nspaces, false)
-	now := nodes[0].getNowFn()
-
+	nodes, topoInit, closeFn := newNodes(t, instances, nspaces, true)
 	for _, node := range nodes {
 		node.opts = node.opts.SetNumShards(numShards)
 	}
@@ -243,15 +245,19 @@ func makeTestWrite(
 		SetWriteRequestTimeout(2 * time.Second).
 		SetTopologyInitializer(topoInit)
 
-	testWrite := func(cLevel topology.ConsistencyLevel) error {
-		c, err := client.NewClient(clientopts.SetWriteConsistencyLevel(cLevel))
+	testFetch := func(cLevel topology.ReadConsistencyLevel) error {
+		c, err := client.NewClient(clientopts.SetReadConsistencyLevel(cLevel))
 		require.NoError(t, err)
 
 		s, err := c.NewSession()
 		require.NoError(t, err)
 
-		return s.Write(nspaces[0].ID(), ident.StringID("quorumTest"), now, 42, xtime.Second, nil)
+		q, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
+		require.NoError(t, err)
+
+		_, _, err = s.FetchTagged(nspaces[0].ID(), index.Query{q}, index.QueryOptions{})
+		return err
 	}
 
-	return nodes, closeFn, testWrite
+	return nodes, closeFn, testFetch
 }

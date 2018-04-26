@@ -94,6 +94,9 @@ const (
 	// defaultFetchBatchSize is the default fetch batch size
 	defaultFetchBatchSize = 128
 
+	// defaultCheckedBytesWrapperPoolSize is the default checkedBytesWrapperPoolSize
+	defaultCheckedBytesWrapperPoolSize = 65536
+
 	// defaultHostQueueOpsFlushSize is the default host queue ops flush size
 	defaultHostQueueOpsFlushSize = 128
 
@@ -130,6 +133,9 @@ const (
 
 	// defaultTagEncoderPoolSize is the default size of the tag encoder pool.
 	defaultTagEncoderPoolSize = 4096
+
+	// defaultTagDecoderPoolSize is the default size of the tag decoder pool.
+	defaultTagDecoderPoolSize = 4096
 
 	// defaultFetchSeriesBlocksMaxBlockRetries is the default max retries for fetch series blocks
 	// from a single peer
@@ -201,6 +207,8 @@ type options struct {
 	backgroundHealthCheckFailThrottleFactor float64
 	tagEncoderOpts                          serialize.TagEncoderOptions
 	tagEncoderPoolSize                      int
+	tagDecoderOpts                          serialize.TagDecoderOptions
+	tagDecoderPoolSize                      int
 	writeRetrier                            xretry.Retrier
 	fetchRetrier                            xretry.Retrier
 	streamBlocksRetrier                     xretry.Retrier
@@ -216,6 +224,7 @@ type options struct {
 	hostQueueOpsArrayPoolSize               int
 	seriesIteratorPoolSize                  int
 	seriesIteratorArrayPoolBuckets          []pool.Bucket
+	checkedBytesWrapperPoolSize             int
 	contextPool                             context.Pool
 	origin                                  topology.Host
 	fetchSeriesBlocksMaxBlockRetries        int
@@ -276,6 +285,8 @@ func newOptions() *options {
 		fetchRetrier:                            defaultFetchRetrier,
 		tagEncoderPoolSize:                      defaultTagEncoderPoolSize,
 		tagEncoderOpts:                          serialize.NewTagEncoderOptions(),
+		tagDecoderPoolSize:                      defaultTagDecoderPoolSize,
+		tagDecoderOpts:                          serialize.NewTagDecoderOptions(),
 		streamBlocksRetrier:                     defaultStreamBlocksRetrier,
 		writeOperationPoolSize:                  defaultWriteOpPoolSize,
 		writeTaggedOperationPoolSize:            defaultWriteTaggedOpPoolSize,
@@ -288,6 +299,7 @@ func newOptions() *options {
 		hostQueueOpsArrayPoolSize:               defaultHostQueueOpsArrayPoolSize,
 		seriesIteratorPoolSize:                  defaultSeriesIteratorPoolSize,
 		seriesIteratorArrayPoolBuckets:          defaultSeriesIteratorArrayPoolBuckets,
+		checkedBytesWrapperPoolSize:             defaultCheckedBytesWrapperPoolSize,
 		contextPool:                             contextPool,
 		fetchSeriesBlocksMaxBlockRetries:        defaultFetchSeriesBlocksMaxBlockRetries,
 		fetchSeriesBlocksBatchSize:              defaultFetchSeriesBlocksBatchSize,
@@ -596,6 +608,26 @@ func (o *options) TagEncoderPoolSize() int {
 	return o.tagEncoderPoolSize
 }
 
+func (o *options) SetTagDecoderOptions(value serialize.TagDecoderOptions) Options {
+	opts := *o
+	opts.tagDecoderOpts = value
+	return &opts
+}
+
+func (o *options) TagDecoderOptions() serialize.TagDecoderOptions {
+	return o.tagDecoderOpts
+}
+
+func (o *options) SetTagDecoderPoolSize(value int) Options {
+	opts := *o
+	opts.tagDecoderPoolSize = value
+	return &opts
+}
+
+func (o *options) TagDecoderPoolSize() int {
+	return o.tagDecoderPoolSize
+}
+
 func (o *options) SetStreamBlocksRetrier(value xretry.Retrier) AdminOptions {
 	opts := *o
 	opts.streamBlocksRetrier = value
@@ -674,6 +706,16 @@ func (o *options) SetIdentifierPool(value ident.Pool) Options {
 
 func (o *options) IdentifierPool() ident.Pool {
 	return o.identifierPool
+}
+
+func (o *options) SetCheckedBytesWrapperPoolSize(value int) Options {
+	opts := *o
+	opts.checkedBytesWrapperPoolSize = value
+	return &opts
+}
+
+func (o *options) CheckedBytesWrapperPoolSize() int {
+	return o.checkedBytesWrapperPoolSize
 }
 
 func (o *options) SetHostQueueOpsFlushSize(value int) Options {

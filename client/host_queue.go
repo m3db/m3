@@ -236,6 +236,8 @@ func (q *queue) drain() {
 				}
 			case *fetchBatchOp:
 				q.asyncFetch(v)
+			case *fetchTaggedOp:
+				q.asyncFetchTagged(v)
 			case *truncateOp:
 				q.asyncTruncate(v)
 			default:
@@ -453,6 +455,40 @@ func (q *queue) asyncFetch(op *fetchBatchOp) {
 	}()
 }
 
+func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
+	q.Add(1)
+	// TODO(r): Use a worker pool to avoid creating new go routines for async fetches
+	go func() {
+		// NB(r): Defer is slow in the hot path unfortunately
+		cleanup := func() {
+			op.decRef()
+			q.Done()
+		}
+
+		client, err := q.connPool.NextClient()
+		if err != nil {
+			// No client available
+			op.complete(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
+			cleanup()
+			return
+		}
+
+		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
+		result, err := client.FetchTagged(ctx, &op.request)
+		if err != nil {
+			op.complete(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
+			cleanup()
+			return
+		}
+
+		op.complete(fetchTaggedResultAccumulatorOpts{
+			host:     q.host,
+			response: result,
+		}, err)
+		cleanup()
+	}()
+}
+
 func (q *queue) asyncTruncate(op *truncateOp) {
 	q.Add(1)
 
@@ -486,9 +522,13 @@ func (q *queue) Len() int {
 }
 
 func (q *queue) Enqueue(o op) error {
-	if fetchOp, ok := o.(*fetchBatchOp); ok {
+	switch sOp := o.(type) {
+	case *fetchBatchOp:
 		// Need to take ownership if its a fetch batch op
-		fetchOp.IncRef()
+		sOp.IncRef()
+	case *fetchTaggedOp:
+		// Need to take ownership if its a fetch tagged op
+		sOp.incRef()
 	}
 
 	var needsDrain []op

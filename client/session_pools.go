@@ -23,6 +23,7 @@ package client
 import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/serialize"
+	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 )
@@ -34,8 +35,11 @@ type sessionPools struct {
 	writeTaggedOperation        *writeTaggedOperationPool
 	fetchBatchOp                *fetchBatchOpPool
 	fetchBatchOpArrayArray      *fetchBatchOpArrayArrayPool
+	fetchTaggedOp               fetchTaggedOpPool
+	fetchState                  fetchStatePool
 	iteratorArray               encoding.IteratorArrayPool
 	tagEncoder                  serialize.TagEncoderPool
+	tagDecoder                  serialize.TagDecoderPool
 	readerSliceOfSlicesIterator *readerSliceOfSlicesIteratorPool
 	multiReaderIterator         encoding.MultiReaderIteratorPool
 	seriesIterator              encoding.SeriesIteratorPool
@@ -43,4 +47,40 @@ type sessionPools struct {
 	writeAttempt                *writeAttemptPool
 	writeState                  *writeStatePool
 	fetchAttempt                *fetchAttemptPool
+	checkedBytesWrapper         xpool.CheckedBytesWrapperPool
+}
+
+// NB: ensure sessionPools satisfies the fetchTaggedPools interface.
+var _ fetchTaggedPools = sessionPools{}
+
+func (s sessionPools) SeriesIterator() encoding.SeriesIteratorPool {
+	return s.seriesIterator
+}
+
+func (s sessionPools) IteratorArray() encoding.IteratorArrayPool {
+	return s.iteratorArray
+}
+
+func (s sessionPools) ID() ident.Pool {
+	return s.id
+}
+
+func (s sessionPools) TagDecoder() serialize.TagDecoderPool {
+	return s.tagDecoder
+}
+
+func (s sessionPools) ReaderSliceOfSlicesIterator() *readerSliceOfSlicesIteratorPool {
+	return s.readerSliceOfSlicesIterator
+}
+
+func (s sessionPools) MultiReaderIterator() encoding.MultiReaderIteratorPool {
+	return s.multiReaderIterator
+}
+
+func (s sessionPools) CheckedBytesWrapper() xpool.CheckedBytesWrapperPool {
+	return s.checkedBytesWrapper
+}
+
+func (s sessionPools) MutableSeriesIterators() encoding.MutableSeriesIteratorsPool {
+	return s.seriesIterators
 }

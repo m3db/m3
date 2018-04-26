@@ -31,6 +31,7 @@ import (
 type seriesIterator struct {
 	id        ident.ID
 	nsID      ident.ID
+	tags      ident.TagIterator
 	start     time.Time
 	end       time.Time
 	iters     iterators
@@ -45,12 +46,13 @@ type seriesIterator struct {
 func NewSeriesIterator(
 	id ident.ID,
 	nsID ident.ID,
+	tags ident.TagIterator,
 	startInclusive, endExclusive time.Time,
 	replicas []Iterator,
 	pool SeriesIteratorPool,
 ) SeriesIterator {
 	it := &seriesIterator{pool: pool}
-	it.Reset(id, nsID, startInclusive, endExclusive, replicas)
+	it.Reset(id, nsID, tags, startInclusive, endExclusive, replicas)
 	return it
 }
 
@@ -63,7 +65,7 @@ func (it *seriesIterator) Namespace() ident.ID {
 }
 
 func (it *seriesIterator) Tags() ident.TagIterator {
-	return ident.EmptyTagIterator
+	return it.tags
 }
 
 func (it *seriesIterator) Start() time.Time {
@@ -100,15 +102,19 @@ func (it *seriesIterator) Close() {
 	it.closed = true
 	it.id.Finalize()
 	it.nsID.Finalize()
+	if it.tags != nil {
+		it.tags.Close()
+	}
 	it.iters.reset()
 	if it.pool != nil {
 		it.pool.Put(it)
 	}
 }
 
-func (it *seriesIterator) Reset(id ident.ID, nsID ident.ID, startInclusive, endExclusive time.Time, replicas []Iterator) {
+func (it *seriesIterator) Reset(id ident.ID, nsID ident.ID, tags ident.TagIterator, startInclusive, endExclusive time.Time, replicas []Iterator) {
 	it.id = id
 	it.nsID = nsID
+	it.tags = tags
 	it.start = startInclusive
 	it.end = endExclusive
 	it.iters.reset()
