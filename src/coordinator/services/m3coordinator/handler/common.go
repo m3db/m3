@@ -21,77 +21,16 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"net/http"
-	"time"
+
+	"github.com/m3db/m3coordinator/util/logging"
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
-	"github.com/golang/snappy"
 	"go.uber.org/zap"
 )
-
-const (
-	maxTimeout     = time.Minute
-	defaultTimeout = time.Second * 15
-)
-
-// RequestParams are the arguments to a call
-type RequestParams struct {
-	Timeout time.Duration
-}
-
-// ParsePromRequest parses a snappy compressed request from Prometheus
-func ParsePromRequest(r *http.Request) ([]byte, *ParseError) {
-	body := r.Body
-	if r.Body == nil {
-		err := fmt.Errorf("empty request body")
-		return nil, NewParseError(err, http.StatusBadRequest)
-	}
-	defer body.Close()
-	compressed, err := ioutil.ReadAll(body)
-
-	if err != nil {
-		return nil, NewParseError(err, http.StatusInternalServerError)
-	}
-
-	if len(compressed) == 0 {
-		return nil, NewParseError(fmt.Errorf("empty request body"), http.StatusBadRequest)
-	}
-
-	reqBuf, err := snappy.Decode(nil, compressed)
-	if err != nil {
-		return nil, NewParseError(err, http.StatusBadRequest)
-	}
-
-	return reqBuf, nil
-}
-
-// ParseRequestParams parses the input request parameters and provides useful defaults
-func ParseRequestParams(r *http.Request) (*RequestParams, error) {
-	var params RequestParams
-	timeout := r.Header.Get("timeout")
-	if timeout != "" {
-		duration, err := time.ParseDuration(timeout)
-		if err != nil {
-			return nil, fmt.Errorf("%s: invalid 'timeout': %v", ErrInvalidParams, err)
-
-		}
-
-		if duration > maxTimeout {
-			return nil, fmt.Errorf("%s: invalid 'timeout': greater than %v", ErrInvalidParams, maxTimeout)
-
-		}
-
-		params.Timeout = duration
-	} else {
-		params.Timeout = defaultTimeout
-	}
-
-	return &params, nil
-}
 
 // WriteJSONResponse writes generic data to the ResponseWriter
 func WriteJSONResponse(w http.ResponseWriter, data interface{}, logger *zap.Logger) {
@@ -124,4 +63,36 @@ func WriteProtoMsgJSONResponse(w http.ResponseWriter, data proto.Message, logger
 func WriteUninitializedResponse(w http.ResponseWriter, logger *zap.Logger) {
 	logger.Warn("attempted call before M3DB is fully initialized")
 	http.Error(w, "Unable to perform action before M3DB is fully initialized", http.StatusConflict)
+}
+
+// CloseWatcher watches for CloseNotify and context timeout. It is best effort and may sometimes not close the channel relying on gc
+func CloseWatcher(ctx context.Context, w http.ResponseWriter) (<-chan bool, <-chan bool) {
+	closing := make(chan bool)
+	logger := logging.WithContext(ctx)
+	var doneChan <-chan bool
+	if notifier, ok := w.(http.CloseNotifier); ok {
+		done := make(chan bool)
+
+		notify := notifier.CloseNotify()
+		go func() {
+			// Wait for either the request to finish
+			// or for the client to disconnect
+			select {
+			case <-done:
+			case <-notify:
+				logger.Warn("connection closed by client")
+				close(closing)
+			case <-ctx.Done():
+				// We only care about the time out case and not other cancellations
+				if ctx.Err() == context.DeadlineExceeded {
+					logger.Warn("request timed out")
+				}
+				close(closing)
+			}
+			close(done)
+		}()
+		doneChan = done
+	}
+
+	return doneChan, closing
 }

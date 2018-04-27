@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package remote
 
 import (
 	"bytes"
@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3coordinator/generated/proto/prompb"
 	"github.com/m3db/m3coordinator/mocks"
 	"github.com/m3db/m3coordinator/policy/resolver"
+	"github.com/m3db/m3coordinator/services/m3coordinator/handler/prometheus"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/storage/local"
 	"github.com/m3db/m3coordinator/tsdb"
@@ -126,7 +127,7 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 	storage := local.NewStorage(session, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
 	promRead := &PromReadHandler{engine: executor.NewEngine(storage)}
 	req := generatePromReadRequest()
-	_, err := promRead.read(context.TODO(), httptest.NewRecorder(), req, &RequestParams{Timeout: time.Hour})
+	_, err := promRead.read(context.TODO(), httptest.NewRecorder(), req, &prometheus.RequestParams{Timeout: time.Hour})
 	require.NotNil(t, err, "unable to read from storage")
 }
 
