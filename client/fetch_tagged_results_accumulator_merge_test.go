@@ -466,7 +466,7 @@ func (ts testSeries) assertMatchesEncodingIter(t *testing.T, iter encoding.Serie
 	ts.datapoints.assertMatchesEncodingIter(t, iter)
 }
 
-// TODO(prateek): migrate to m3x
+// TODO(prateek): migrate to using https://github.com/m3db/m3x/pull/147 once landed
 func assertTagsEqual(t *testing.T, exp ident.Tags, obs ident.TagIterator) {
 	require.Equal(t, len(exp), obs.Remaining())
 	i := 0

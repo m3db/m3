@@ -29,7 +29,17 @@ var (
 	fetchTaggedOpRequestZeroed = rpc.FetchTaggedRequest{}
 )
 
-type fetchTaggedOp struct {
+type fetchTaggedOp interface {
+	Size() int
+	CompletionFn() completionFn
+
+	update(req rpc.FetchTaggedRequest, fn completionFn)
+	requestLimit(defaultValue int) int
+	decRef()
+	incRef()
+}
+
+type fetchTaggedOperation struct {
 	refCounter
 	request      rpc.FetchTaggedRequest
 	completionFn completionFn
@@ -37,19 +47,22 @@ type fetchTaggedOp struct {
 	pool fetchTaggedOpPool
 }
 
-func (f *fetchTaggedOp) Size() int                  { return 1 }
-func (f *fetchTaggedOp) CompletionFn() completionFn { return f.completionFn }
+func (f *fetchTaggedOperation) Size() int                  { return 1 }
+func (f *fetchTaggedOperation) CompletionFn() completionFn { return f.completionFn }
 
-func (f *fetchTaggedOp) update(req rpc.FetchTaggedRequest, fn completionFn) {
+func (f *fetchTaggedOperation) update(req rpc.FetchTaggedRequest, fn completionFn) {
 	f.request = req
 	f.completionFn = fn
 }
 
-func (f *fetchTaggedOp) complete(result interface{}, err error) {
-	f.completionFn(result, err)
+func (f *fetchTaggedOperation) requestLimit(defaultValue int) int {
+	if f.request.Limit == nil {
+		return defaultValue
+	}
+	return int(*f.request.Limit)
 }
 
-func (f *fetchTaggedOp) close() {
+func (f *fetchTaggedOperation) close() {
 	f.completionFn = nil
 	f.request = fetchTaggedOpRequestZeroed
 	// return to pool
@@ -59,16 +72,16 @@ func (f *fetchTaggedOp) close() {
 	f.pool.Put(f)
 }
 
-func newFetchTaggedOp(p fetchTaggedOpPool) *fetchTaggedOp {
-	f := &fetchTaggedOp{pool: p}
+func newFetchTaggedOp(p fetchTaggedOpPool) *fetchTaggedOperation {
+	f := &fetchTaggedOperation{pool: p}
 	f.destructorFn = f.close
 	return f
 }
 
 type fetchTaggedOpPool interface {
 	Init()
-	Get() *fetchTaggedOp
-	Put(*fetchTaggedOp)
+	Get() fetchTaggedOp
+	Put(fetchTaggedOp)
 }
 
 type fetchTaggedOpPoolImpl struct {
@@ -82,6 +95,16 @@ func newFetchTaggedOpPool(
 	return &fetchTaggedOpPoolImpl{pool: p}
 }
 
-func (p *fetchTaggedOpPoolImpl) Init()                { p.pool.Init(func() interface{} { return newFetchTaggedOp(p) }) }
-func (p *fetchTaggedOpPoolImpl) Get() *fetchTaggedOp  { return p.pool.Get().(*fetchTaggedOp) }
-func (p *fetchTaggedOpPoolImpl) Put(f *fetchTaggedOp) { p.pool.Put(f) }
+func (p *fetchTaggedOpPoolImpl) Init() {
+	p.pool.Init(func() interface{} {
+		return newFetchTaggedOp(p)
+	})
+}
+
+func (p *fetchTaggedOpPoolImpl) Get() fetchTaggedOp {
+	return p.pool.Get().(fetchTaggedOp)
+}
+
+func (p *fetchTaggedOpPoolImpl) Put(f fetchTaggedOp) {
+	p.pool.Put(f)
+}

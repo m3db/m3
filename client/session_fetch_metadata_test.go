@@ -46,7 +46,7 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 	)
 
 	opts := newHostQueueTestOptions()
-	peer := newHostQueue(h, nil, nil, nil, nil, opts)
+	peer := newTestHostQueue(opts)
 	now := time.Now()
 	checksums := []uint32{1, 2, 3}
 	lastRead := now.Add(-100 * time.Millisecond)

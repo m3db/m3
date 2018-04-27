@@ -26,20 +26,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3ninx/idx"
-
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3ninx/idx"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestFetchTaggedNormalQuorumOnlyOneUp(t *testing.T) {
+func TestFetchTaggedQuorumNormalOnlyOneUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -57,15 +60,15 @@ func TestFetchTaggedNormalQuorumOnlyOneUp(t *testing.T) {
 	defer closeFn()
 
 	// fetch succeeds from one node
-	require.NoError(t, nodes[0].startServer())
-	defer func() { require.NoError(t, nodes[0].stopServer()) }()
+	startAndWriteTagged(t, nodes[0])
 
-	require.NoError(t, testFetch(topology.ReadConsistencyLevelOne))
-	require.Error(t, testFetch(topology.ReadConsistencyLevelMajority))
-	require.Error(t, testFetch(topology.ReadConsistencyLevelAll))
+	testFetch.assertContainsTaggedResult(t,
+		topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority)
+	testFetch.assertFailsTaggedResult(t,
+		topology.ReadConsistencyLevelAll, topology.ReadConsistencyLevelMajority)
 }
 
-func TestFetchTaggedNormalQuorumOnlyTwoUp(t *testing.T) {
+func TestFetchTaggedQuorumNormalOnlyTwoUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -82,18 +85,15 @@ func TestFetchTaggedNormalQuorumOnlyTwoUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	defer func() { require.NoError(t, nodes[0].stopServer()) }()
-	require.NoError(t, nodes[1].startServer())
-	defer func() { require.NoError(t, nodes[1].stopServer()) }()
+	startAndWriteTagged(t, nodes[0], nodes[1])
 
-	// Writes succeed to two nodes
-	assert.NoError(t, testFetch(topology.ReadConsistencyLevelOne))
-	assert.NoError(t, testFetch(topology.ReadConsistencyLevelMajority))
-	assert.Error(t, testFetch(topology.ReadConsistencyLevelAll))
+	// succeed to two nodes
+	testFetch.assertContainsTaggedResult(t, topology.ReadConsistencyLevelOne,
+		topology.ReadConsistencyLevelUnstrictMajority, topology.ReadConsistencyLevelMajority)
+	testFetch.assertFailsTaggedResult(t, topology.ReadConsistencyLevelAll)
 }
 
-func TestFetchTaggedNormalQuorumAllUp(t *testing.T) {
+func TestFetchTaggedQuorumNormalAllUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -110,20 +110,15 @@ func TestFetchTaggedNormalQuorumAllUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	defer func() { require.NoError(t, nodes[0].stopServer()) }()
-	require.NoError(t, nodes[1].startServer())
-	defer func() { require.NoError(t, nodes[1].stopServer()) }()
-	require.NoError(t, nodes[2].startServer())
-	defer func() { require.NoError(t, nodes[2].stopServer()) }()
+	startAndWriteTagged(t, nodes...)
 
-	// Writes succeed to all nodes
-	assert.NoError(t, testFetch(topology.ReadConsistencyLevelOne))
-	assert.NoError(t, testFetch(topology.ReadConsistencyLevelMajority))
-	assert.NoError(t, testFetch(topology.ReadConsistencyLevelAll))
+	// succeed to all nodes
+	testFetch.assertContainsTaggedResult(t,
+		topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority,
+		topology.ReadConsistencyLevelMajority, topology.ReadConsistencyLevelAll)
 }
 
-func TestFetchTaggedAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
+func TestFetchTaggedQuorumAddNodeOnlyLeavingInitializingUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -141,18 +136,15 @@ func TestFetchTaggedAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	defer func() { require.NoError(t, nodes[0].stopServer()) }()
-	require.NoError(t, nodes[3].startServer())
-	defer func() { require.NoError(t, nodes[3].stopServer()) }()
+	startAndWriteTagged(t, nodes[0], nodes[3])
 
-	// No writes succeed to available nodes
-	assert.Error(t, testFetch(topology.ReadConsistencyLevelOne))
-	assert.Error(t, testFetch(topology.ReadConsistencyLevelMajority))
-	assert.Error(t, testFetch(topology.ReadConsistencyLevelAll))
+	// No fetches succeed to available nodes
+	testFetch.assertFailsTaggedResult(t,
+		topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority,
+		topology.ReadConsistencyLevelMajority, topology.ReadConsistencyLevelAll)
 }
 
-func TestFetchTaggedAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
+func TestFetchTaggedQuorumAddNodeOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -170,22 +162,17 @@ func TestFetchTaggedAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testin
 	})
 	defer closeFn()
 
-	require.NoError(t, nodes[0].startServer())
-	require.NoError(t, nodes[1].startServer())
-	require.NoError(t, nodes[3].startServer())
-	defer func() {
-		require.NoError(t, nodes[0].stopServer())
-		require.NoError(t, nodes[1].stopServer())
-		require.NoError(t, nodes[3].stopServer())
-	}()
+	startAndWriteTagged(t, nodes[0], nodes[1], nodes[3])
 
-	// Writes succeed to one available node
-	assert.NoError(t, testFetch(topology.ReadConsistencyLevelOne))
-	assert.Error(t, testFetch(topology.ReadConsistencyLevelMajority))
-	assert.Error(t, testFetch(topology.ReadConsistencyLevelAll))
+	// fetches succeed to one available node
+	testFetch.assertContainsTaggedResult(t,
+		topology.ReadConsistencyLevelUnstrictMajority, topology.ReadConsistencyLevelOne)
+
+	testFetch.assertFailsTaggedResult(t,
+		topology.ReadConsistencyLevelMajority, topology.ReadConsistencyLevelAll)
 }
 
-func TestFetchTaggedAddNodeQuorumAllUp(t *testing.T) {
+func TestFetchTaggedQuorumAddNodeAllUp(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -203,30 +190,49 @@ func TestFetchTaggedAddNodeQuorumAllUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	// Writes succeed to two available nodes
-	require.NoError(t, nodes[0].startServer())
-	require.NoError(t, nodes[1].startServer())
-	require.NoError(t, nodes[2].startServer())
-	require.NoError(t, nodes[3].startServer())
-	defer func() {
-		require.NoError(t, nodes[0].stopServer())
-		require.NoError(t, nodes[1].stopServer())
-		require.NoError(t, nodes[2].stopServer())
-		require.NoError(t, nodes[3].stopServer())
-	}()
+	// fetches succeed to one available node
+	startAndWriteTagged(t, nodes...)
 
-	assert.NoError(t, testFetch(topology.ReadConsistencyLevelOne))
-	assert.NoError(t, testFetch(topology.ReadConsistencyLevelMajority))
-	assert.Error(t, testFetch(topology.ReadConsistencyLevelAll))
+	testFetch.assertContainsTaggedResult(t, topology.ReadConsistencyLevelOne,
+		topology.ReadConsistencyLevelUnstrictMajority, topology.ReadConsistencyLevelMajority)
+
+	testFetch.assertFailsTaggedResult(t, topology.ReadConsistencyLevelAll)
 }
 
-type testFetchFn func(topology.ReadConsistencyLevel) error
+type testFetchFn func(topology.ReadConsistencyLevel) (encoding.SeriesIterators, bool, error)
 
-func makeTestFetchTagged(
+func (fn testFetchFn) assertContainsTaggedResult(t *testing.T, lvls ...topology.ReadConsistencyLevel) {
+	for _, lvl := range lvls {
+		iters, exhaust, err := fn(lvl)
+		require.NoError(t, err)
+		require.True(t, exhaust)
+		require.Equal(t, 1, iters.Len())
+		iter := iters.Iters()[0]
+		require.Equal(t, testNamespaces[0].String(), iter.Namespace().String())
+		require.Equal(t, "quorumTest", iter.ID().String())
+		require.True(t, ident.MustNewTagIterMatcher("foo", "bar", "boo", "baz").Matches(iter.Tags()))
+		require.True(t, iter.Next())
+		dp, _, _ := iter.Current()
+		require.Equal(t, 42., dp.Value)
+		require.False(t, iter.Next())
+		require.NoError(t, iter.Err())
+	}
+}
+
+func (fn testFetchFn) assertFailsTaggedResult(t *testing.T, lvls ...topology.ReadConsistencyLevel) {
+	for _, lvl := range lvls {
+		_, _, err := fn(lvl)
+		assert.Error(t, err)
+	}
+}
+
+func makeMultiNodeSetup(
 	t *testing.T,
 	numShards int,
+	indexingEnabled bool,
+	asyncInserts bool,
 	instances []services.ServiceInstance,
-) (testSetups, closeFn, testFetchFn) {
+) (testSetups, closeFn, client.Options) {
 
 	nsOpts := namespace.NewOptions()
 	md, err := namespace.NewMetadata(testNamespaces[0],
@@ -234,7 +240,7 @@ func makeTestFetchTagged(
 	require.NoError(t, err)
 
 	nspaces := []namespace.Metadata{md}
-	nodes, topoInit, closeFn := newNodes(t, instances, nspaces, true)
+	nodes, topoInit, closeFn := newNodes(t, instances, nspaces, indexingEnabled, asyncInserts)
 	for _, node := range nodes {
 		node.opts = node.opts.SetNumShards(numShards)
 	}
@@ -243,9 +249,19 @@ func makeTestFetchTagged(
 		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelNone).
 		SetClusterConnectTimeout(2 * time.Second).
 		SetWriteRequestTimeout(2 * time.Second).
+		SetFetchRequestTimeout(2 * time.Second).
 		SetTopologyInitializer(topoInit)
 
-	testFetch := func(cLevel topology.ReadConsistencyLevel) error {
+	return nodes, closeFn, clientopts
+}
+
+func makeTestFetchTagged(
+	t *testing.T,
+	numShards int,
+	instances []services.ServiceInstance,
+) (testSetups, closeFn, testFetchFn) {
+	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false, instances)
+	testFetch := func(cLevel topology.ReadConsistencyLevel) (encoding.SeriesIterators, bool, error) {
 		c, err := client.NewClient(clientopts.SetReadConsistencyLevel(cLevel))
 		require.NoError(t, err)
 
@@ -255,9 +271,29 @@ func makeTestFetchTagged(
 		q, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 		require.NoError(t, err)
 
-		_, _, err = s.FetchTagged(nspaces[0].ID(), index.Query{q}, index.QueryOptions{})
-		return err
+		startTime := nodes[0].getNowFn()
+		return s.FetchTagged(testNamespaces[0],
+			index.Query{q},
+			index.QueryOptions{
+				StartInclusive: startTime.Add(-time.Minute),
+				EndExclusive:   startTime.Add(time.Minute),
+				Limit:          1,
+			})
 	}
 
 	return nodes, closeFn, testFetch
+}
+
+func startAndWriteTagged(
+	t *testing.T,
+	nodes ...*testSetup,
+) {
+	ctx := context.NewContext()
+	defer ctx.BlockingClose()
+	for _, n := range nodes {
+		require.NoError(t, n.startServer())
+		require.NoError(t, n.db.WriteTagged(ctx, testNamespaces[0], ident.StringID("quorumTest"),
+			ident.NewTagIterator(ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz")),
+			n.getNowFn(), 42, xtime.Second, nil))
+	}
 }

@@ -58,12 +58,9 @@ type queue struct {
 
 func newHostQueue(
 	host topology.Host,
-	writeBatchRawRequestPool writeBatchRawRequestPool,
-	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
-	writeTaggedBatchRawRequestPool writeTaggedBatchRawRequestPool,
-	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool,
-	opts Options,
+	hostQueueOpts hostQueueOpts,
 ) hostQueue {
+	opts := hostQueueOpts.opts
 	scope := opts.InstrumentOptions().MetricsScope().
 		SubScope("hostqueue").
 		Tagged(map[string]string{
@@ -89,10 +86,10 @@ func newHostQueue(
 		nowFn:                                      opts.ClockOptions().NowFn(),
 		host:                                       host,
 		connPool:                                   newConnectionPool(host, opts),
-		writeBatchRawRequestPool:                   writeBatchRawRequestPool,
-		writeBatchRawRequestElementArrayPool:       writeBatchRawRequestElementArrayPool,
-		writeTaggedBatchRawRequestPool:             writeTaggedBatchRawRequestPool,
-		writeTaggedBatchRawRequestElementArrayPool: writeTaggedBatchRawRequestElementArrayPool,
+		writeBatchRawRequestPool:                   hostQueueOpts.writeBatchRawRequestPool,
+		writeBatchRawRequestElementArrayPool:       hostQueueOpts.writeBatchRawRequestElementArrayPool,
+		writeTaggedBatchRawRequestPool:             hostQueueOpts.writeTaggedBatchRawRequestPool,
+		writeTaggedBatchRawRequestElementArrayPool: hostQueueOpts.writeTaggedBatchRawRequestElementArrayPool,
 		size:         size,
 		ops:          opArrayPool.Get(),
 		opsArrayPool: opArrayPool,
@@ -236,7 +233,7 @@ func (q *queue) drain() {
 				}
 			case *fetchBatchOp:
 				q.asyncFetch(v)
-			case *fetchTaggedOp:
+			case *fetchTaggedOperation:
 				q.asyncFetchTagged(v)
 			case *truncateOp:
 				q.asyncTruncate(v)
@@ -455,7 +452,7 @@ func (q *queue) asyncFetch(op *fetchBatchOp) {
 	}()
 }
 
-func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
+func (q *queue) asyncFetchTagged(op *fetchTaggedOperation) {
 	q.Add(1)
 	// TODO(r): Use a worker pool to avoid creating new go routines for async fetches
 	go func() {
@@ -468,7 +465,7 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 		client, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
-			op.complete(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
+			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
 			cleanup()
 			return
 		}
@@ -476,12 +473,12 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
 		result, err := client.FetchTagged(ctx, &op.request)
 		if err != nil {
-			op.complete(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
+			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
 			cleanup()
 			return
 		}
 
-		op.complete(fetchTaggedResultAccumulatorOpts{
+		op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
 			host:     q.host,
 			response: result,
 		}, err)
@@ -526,7 +523,7 @@ func (q *queue) Enqueue(o op) error {
 	case *fetchBatchOp:
 		// Need to take ownership if its a fetch batch op
 		sOp.IncRef()
-	case *fetchTaggedOp:
+	case *fetchTaggedOperation:
 		// Need to take ownership if its a fetch tagged op
 		sOp.incRef()
 	}

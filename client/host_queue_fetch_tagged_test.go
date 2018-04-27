@@ -41,9 +41,13 @@ func TestHostQueueDrainOnCloseFetchTagged(t *testing.T) {
 	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
-	queue := newHostQueue(h, testWriteBatchRawPool,
-		testWriteArrayPool, testWriteTaggedBatchRawPool,
-		testWriteTaggedArrayPool, opts).(*queue)
+	queue := newHostQueue(h, hostQueueOpts{
+		writeBatchRawRequestPool:                   testWriteBatchRawPool,
+		writeBatchRawRequestElementArrayPool:       testWriteArrayPool,
+		writeTaggedBatchRawRequestPool:             testWriteTaggedBatchRawPool,
+		writeTaggedBatchRawRequestElementArrayPool: testWriteTaggedArrayPool,
+		opts: opts,
+	}).(*queue)
 	queue.connPool = mockConnPool
 
 	// Open
@@ -179,9 +183,13 @@ func testHostQueueFetchTagged(
 
 	opts := newHostQueueTestOptions().
 		SetHostQueueOpsFlushInterval(time.Millisecond)
-	queue := newHostQueue(h, testWriteBatchRawPool,
-		testWriteArrayPool, testWriteTaggedBatchRawPool,
-		testWriteTaggedArrayPool, opts).(*queue)
+	queue := newHostQueue(h, hostQueueOpts{
+		writeBatchRawRequestPool:                   testWriteBatchRawPool,
+		writeBatchRawRequestElementArrayPool:       testWriteArrayPool,
+		writeTaggedBatchRawRequestPool:             testWriteTaggedBatchRawPool,
+		writeTaggedBatchRawRequestElementArrayPool: testWriteTaggedArrayPool,
+		opts: opts,
+	}).(*queue)
 	queue.connPool = mockConnPool
 
 	// Open
@@ -253,7 +261,7 @@ func testHostQueueFetchTagged(
 func testFetchTaggedOp(
 	namespace string,
 	completionFn completionFn,
-) *fetchTaggedOp {
+) *fetchTaggedOperation {
 	f := newFetchTaggedOp(nil)
 	f.incRef()
 	f.request = rpc.FetchTaggedRequest{

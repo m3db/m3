@@ -223,13 +223,17 @@ type streamFromPeersMetrics struct {
 	blocksEnqueueChannel                              tally.Gauge
 }
 
+type hostQueueOpts struct {
+	writeBatchRawRequestPool                   writeBatchRawRequestPool
+	writeBatchRawRequestElementArrayPool       writeBatchRawRequestElementArrayPool
+	writeTaggedBatchRawRequestPool             writeTaggedBatchRawRequestPool
+	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool
+	opts                                       Options
+}
+
 type newHostQueueFn func(
 	host topology.Host,
-	writeBatchRawRequestPool writeBatchRawRequestPool,
-	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
-	writeTaggedBatchRawRequestPool writeTaggedBatchRawRequestPool,
-	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool,
-	opts Options,
+	hostQueueOpts hostQueueOpts,
 ) hostQueue
 
 func newSession(opts Options) (clientSession, error) {
@@ -829,10 +833,13 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQue
 		writeTaggedBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
 	writeTaggedBatchRawRequestElementArrayPool.Init()
 
-	hostQueue := s.newHostQueueFn(host,
-		writeBatchRequestPool, writeBatchRawRequestElementArrayPool,
-		writeTaggedBatchRequestPool, writeTaggedBatchRawRequestElementArrayPool,
-		s.opts)
+	hostQueue := s.newHostQueueFn(host, hostQueueOpts{
+		writeBatchRawRequestPool:                   writeBatchRequestPool,
+		writeBatchRawRequestElementArrayPool:       writeBatchRawRequestElementArrayPool,
+		writeTaggedBatchRawRequestPool:             writeTaggedBatchRequestPool,
+		writeTaggedBatchRawRequestElementArrayPool: writeTaggedBatchRawRequestElementArrayPool,
+		opts: s.opts,
+	})
 	hostQueue.Open()
 	return hostQueue
 }
@@ -1168,8 +1175,9 @@ func (s *session) fetchTaggedAttemptWithRLock(
 
 			// NB: if this happens we have a bug, once we are in the read
 			// lock the current queues should never be closed
-			s.log.Errorf("[invariant violated] failed to enqueue fetchTagged: %v", err)
-			return nil, err
+			wrappedErr := fmt.Errorf("[invariant violated] failed to enqueue fetchTagged: %v", err)
+			s.log.Errorf(wrappedErr.Error())
+			return nil, wrappedErr
 		}
 	}
 

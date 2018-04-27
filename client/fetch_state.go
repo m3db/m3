@@ -48,7 +48,7 @@ type fetchState struct {
 	sync.Mutex
 	refCounter
 
-	op                   *fetchTaggedOp
+	op                   fetchTaggedOp
 	tagResultAccumulator fetchTaggedResultAccumulator
 	err                  error
 	done                 bool
@@ -84,8 +84,7 @@ func (f *fetchState) close() {
 func (f *fetchState) Reset(
 	startTime time.Time,
 	endTime time.Time,
-	op *fetchTaggedOp,
-	topoMap topology.Map,
+	op fetchTaggedOp, topoMap topology.Map,
 	majority int,
 	consistencyLevel topology.ReadConsistencyLevel,
 ) {
@@ -142,11 +141,7 @@ func (f *fetchState) asIndexQueryResults(pools fetchTaggedPools) (index.QueryRes
 		return index.QueryResults{}, err
 	}
 
-	limit := maxInt
-	if l := f.op.request.Limit; l != nil {
-		limit = int(*l)
-	}
-
+	limit := f.op.requestLimit(maxInt)
 	return f.tagResultAccumulator.AsIndexQueryResults(limit, pools)
 }
 
@@ -162,11 +157,7 @@ func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools) (encoding
 		return nil, false, err
 	}
 
-	limit := maxInt
-	if l := f.op.request.Limit; l != nil {
-		limit = int(*l)
-	}
-
+	limit := f.op.requestLimit(maxInt)
 	return f.tagResultAccumulator.AsEncodingSeriesIterators(limit, pools)
 }
 

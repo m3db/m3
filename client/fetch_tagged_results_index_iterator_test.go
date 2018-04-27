@@ -38,13 +38,8 @@ func TestFetchTaggedResultsIndexIterator(t *testing.T) {
 	encPool := serialize.NewTagEncoderPool(opts, popts)
 	encPool.Init()
 
-	for _, tc := range []struct {
-		name string
-		nses []ident.ID
-		ids  []ident.ID
-		tags []ident.TagIterator
-	}{
-		{
+	for _, tc := range []testCase{
+		testCase{
 			"testcase0",
 			[]ident.ID{ident.StringID("ns0"), ident.StringID("ns1"), ident.StringID("ns2")},
 			[]ident.ID{ident.StringID("id0"), ident.StringID("id1"), ident.StringID("id2")},
@@ -83,7 +78,14 @@ func TestFetchTaggedResultsIndexIterator(t *testing.T) {
 	}
 }
 
-// TODO(prateek): migrate this to m3x
+type testCase struct {
+	name string
+	nses []ident.ID
+	ids  []ident.ID
+	tags []ident.TagIterator
+}
+
+// TODO(prateek): migrate to using https://github.com/m3db/m3x/pull/147 once landed
 func newTagIterMatcher(t *testing.T, iter ident.TagIterator) ident.TagIterMatcher {
 	tags := make([]string, 0, 2*iter.Remaining())
 	for iter.Next() {

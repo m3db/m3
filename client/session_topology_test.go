@@ -112,18 +112,14 @@ func TestSessionTopologyChangeCreatesNewClosesOldHostQueues(t *testing.T) {
 	session := s.(*session)
 	session.newHostQueueFn = func(
 		host topology.Host,
-		_ writeBatchRawRequestPool,
-		_ writeBatchRawRequestElementArrayPool,
-		_ writeTaggedBatchRawRequestPool,
-		_ writeTaggedBatchRawRequestElementArrayPool,
-		opts Options,
+		opts hostQueueOpts,
 	) hostQueue {
 		queue := NewMockhostQueue(ctrl)
 		createdQueues.add(host.ID(), queue)
 
 		queue.EXPECT().Open()
 		queue.EXPECT().Host().Return(host).AnyTimes()
-		queue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).AnyTimes()
+		queue.EXPECT().ConnectionCount().Return(opts.opts.MinConnectionCount()).AnyTimes()
 		queue.EXPECT().Close().Do(func() {
 			closedQueues.add(host.ID(), queue)
 		})

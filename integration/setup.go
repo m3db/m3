@@ -583,13 +583,15 @@ func newNodes(
 	instances []services.ServiceInstance,
 	nspaces []namespace.Metadata,
 	indexingEnabled bool,
+	asyncInserts bool,
 ) (testSetups, topology.Initializer, closeFn) {
 
 	log := xlog.SimpleLogger
 	opts := newTestOptions(t).
 		SetNamespaces(nspaces).
 		SetTickMinimumInterval(3 * time.Second).
-		SetIndexingEnabled(indexingEnabled)
+		SetIndexingEnabled(indexingEnabled).
+		SetWriteNewSeriesAsync(asyncInserts)
 
 	// NB(bl): We set replication to 3 to mimic production. This can be made
 	// into a variable if needed.

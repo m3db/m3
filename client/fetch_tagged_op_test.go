@@ -33,7 +33,7 @@ func TestFetchTaggedOpPool(t *testing.T) {
 	p := newFetchTaggedOpPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init()
 
-	op := p.Get()
+	op := p.Get().(*fetchTaggedOperation)
 	require.Equal(t, p, op.pool)
 	p.Put(op)
 }
@@ -56,14 +56,14 @@ func TestFetchTaggedOp(t *testing.T) {
 		count++
 	}
 	op.update(rpc.FetchTaggedRequest{}, fn)
-	op.complete(inter, err)
+	op.CompletionFn()(inter, err)
 	require.Equal(t, 1, count)
 }
 
 func TestFetchTaggedOpPoolInteraction(t *testing.T) {
 	p := newFetchTaggedOpPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init()
-	op := p.Get()
+	op := p.Get().(*fetchTaggedOperation)
 
 	testPool := &testFetchTaggedOpPool{t, op, false}
 	op.pool = testPool
@@ -77,17 +77,17 @@ func TestFetchTaggedOpPoolInteraction(t *testing.T) {
 
 type testFetchTaggedOpPool struct {
 	t          *testing.T
-	expectedOp *fetchTaggedOp
+	expectedOp fetchTaggedOp
 	called     bool
 }
 
 var _ fetchTaggedOpPool = &testFetchTaggedOpPool{}
 
-func (p *testFetchTaggedOpPool) Put(o *fetchTaggedOp) {
+func (p *testFetchTaggedOpPool) Put(o fetchTaggedOp) {
 	require.False(p.t, p.called)
 	p.called = true
 	require.Equal(p.t, p.expectedOp, o)
 }
 
-func (p *testFetchTaggedOpPool) Init()               { panic("not implemented") }
-func (p *testFetchTaggedOpPool) Get() *fetchTaggedOp { panic("not implemented") }
+func (p *testFetchTaggedOpPool) Init()              { panic("not implemented") }
+func (p *testFetchTaggedOpPool) Get() fetchTaggedOp { panic("not implemented") }
