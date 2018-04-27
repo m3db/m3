@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package remote
 
 import (
 	"context"
@@ -27,6 +27,8 @@ import (
 
 	"github.com/m3db/m3coordinator/executor"
 	"github.com/m3db/m3coordinator/generated/proto/prompb"
+	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
+	"github.com/m3db/m3coordinator/services/m3coordinator/handler/prometheus"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/util/logging"
 
@@ -36,8 +38,8 @@ import (
 )
 
 const (
-	// PromReadURL is the url for prom read handler
-	PromReadURL = "/api/v1/prom/read"
+	// PromReadURL is the url for remote prom read handler
+	PromReadURL = "/api/v1/prom/remote/read"
 )
 
 // PromReadHandler represents a handler for prometheus read endpoint.
@@ -56,27 +58,27 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Allow handler to be set up before M3DB is initialized
 	if h.engine == nil {
-		WriteUninitializedResponse(w, logger)
+		handler.WriteUninitializedResponse(w, logger)
 		return
 	}
 
 	req, rErr := h.parseRequest(r)
 
 	if rErr != nil {
-		Error(w, rErr.Error(), rErr.Code())
+		handler.Error(w, rErr.Error(), rErr.Code())
 		return
 	}
 
-	params, err := ParseRequestParams(r)
+	params, err := prometheus.ParseRequestParams(r)
 	if err != nil {
-		Error(w, err, http.StatusBadRequest)
+		handler.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
 	result, err := h.read(ctx, w, req, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Any("error", err))
-		Error(w, err, http.StatusInternalServerError)
+		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -87,7 +89,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, err := proto.Marshal(resp)
 	if err != nil {
 		logger.Error("unable to marshal read results to protobuf", zap.Any("error", err))
-		Error(w, err, http.StatusInternalServerError)
+		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -97,26 +99,26 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
 		logger.Error("unable to encode read results to snappy", zap.Any("err", err))
-		Error(w, err, http.StatusInternalServerError)
+		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 }
 
-func (h *PromReadHandler) parseRequest(r *http.Request) (*prompb.ReadRequest, *ParseError) {
-	reqBuf, err := ParsePromRequest(r)
+func (h *PromReadHandler) parseRequest(r *http.Request) (*prompb.ReadRequest, *handler.ParseError) {
+	reqBuf, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
 		return nil, err
 	}
 
 	var req prompb.ReadRequest
 	if err := proto.Unmarshal(reqBuf, &req); err != nil {
-		return nil, NewParseError(err, http.StatusBadRequest)
+		return nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return &req, nil
 }
 
-func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, r *prompb.ReadRequest, params *RequestParams) ([]*prompb.QueryResult, error) {
+func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, r *prompb.ReadRequest, params *prometheus.RequestParams) ([]*prompb.QueryResult, error) {
 	// TODO: Handle multi query use case
 	if len(r.Queries) != 1 {
 		return nil, fmt.Errorf("prometheus read endpoint currently only supports one query at a time")
@@ -135,7 +137,7 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, r 
 
 	opts := &executor.EngineOptions{}
 	// Detect clients closing connections
-	abortCh, closingCh := CloseWatcher(ctx, w)
+	abortCh, closingCh := handler.CloseWatcher(ctx, w)
 	opts.AbortCh = abortCh
 
 	go h.engine.Execute(ctx, query, opts, closingCh, results)
@@ -151,38 +153,6 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, r 
 	}
 
 	return promResults, nil
-}
-
-// CloseWatcher watches for CloseNotify and context timeout. It is best effort and may sometimes not close the channel relying on gc
-func CloseWatcher(ctx context.Context, w http.ResponseWriter) (<-chan bool, <-chan bool) {
-	closing := make(chan bool)
-	logger := logging.WithContext(ctx)
-	var doneChan <-chan bool
-	if notifier, ok := w.(http.CloseNotifier); ok {
-		done := make(chan bool)
-
-		notify := notifier.CloseNotify()
-		go func() {
-			// Wait for either the request to finish
-			// or for the client to disconnect
-			select {
-			case <-done:
-			case <-notify:
-				logger.Warn("connection closed by client")
-				close(closing)
-			case <-ctx.Done():
-				// We only care about the time out case and not other cancellations
-				if ctx.Err() == context.DeadlineExceeded {
-					logger.Warn("request timed out")
-				}
-				close(closing)
-			}
-			close(done)
-		}()
-		doneChan = done
-	}
-
-	return doneChan, closing
 }
 
 // SetEngine sets the engine of the handler

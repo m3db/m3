@@ -18,13 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package remote
 
 import (
 	"context"
 	"net/http"
 
 	"github.com/m3db/m3coordinator/generated/proto/prompb"
+	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
+	"github.com/m3db/m3coordinator/services/m3coordinator/handler/prometheus"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/util/execution"
 	"github.com/m3db/m3coordinator/util/logging"
@@ -55,31 +57,31 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Allow handler to be set up before M3DB is initialized
 	if h.store == nil {
-		WriteUninitializedResponse(w, logger)
+		handler.WriteUninitializedResponse(w, logger)
 		return
 	}
 
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
-		Error(w, rErr.Error(), rErr.Code())
+		handler.Error(w, rErr.Error(), rErr.Code())
 		return
 	}
 	if err := h.write(r.Context(), req); err != nil {
 		logging.WithContext(r.Context()).Error("Write error", zap.Any("err", err))
-		Error(w, err, http.StatusInternalServerError)
+		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 }
 
-func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, *ParseError) {
-	reqBuf, err := ParsePromRequest(r)
+func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, *handler.ParseError) {
+	reqBuf, err := prometheus.ParsePromCompressedRequest(r)
 	if err != nil {
 		return nil, err
 	}
 
 	var req prompb.WriteRequest
 	if err := proto.Unmarshal(reqBuf, &req); err != nil {
-		return nil, NewParseError(err, http.StatusBadRequest)
+		return nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return &req, nil
