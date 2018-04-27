@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/topology/testutil"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
@@ -210,7 +211,7 @@ func TestClusterAddOneNode(t *testing.T) {
 	log.Debug("resharding to initialize shards on second node")
 	svc.SetInstances(instances.add)
 	svcs.NotifyServiceUpdate("m3db")
-	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(midShard+1, maxShard))
+	waitUntilHasBootstrappedShardsExactly(setups[1].db, testutil.Uint32Range(midShard+1, maxShard))
 
 	log.Debug("waiting for shards to be marked initialized")
 	allMarkedAvailable := func(
@@ -248,8 +249,8 @@ func TestClusterAddOneNode(t *testing.T) {
 	log.Debug("resharding to shed shards from first node")
 	svc.SetInstances(instances.added)
 	svcs.NotifyServiceUpdate("m3db")
-	waitUntilHasBootstrappedShardsExactly(setups[0].db, newShardsRange(minShard, midShard))
-	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(midShard+1, maxShard))
+	waitUntilHasBootstrappedShardsExactly(setups[0].db, testutil.Uint32Range(minShard, midShard))
+	waitUntilHasBootstrappedShardsExactly(setups[1].db, testutil.Uint32Range(midShard+1, maxShard))
 
 	log.Debug("verifying data in servers matches expected data set")
 

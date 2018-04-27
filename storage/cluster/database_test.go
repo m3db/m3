@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/topology/testutil"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -51,10 +52,10 @@ func TestDatabaseOpenClose(t *testing.T) {
 	mockStorageDB, restore := mockNewStorageDatabase(ctrl)
 	defer restore()
 
-	viewsCh := make(chan topoView, 64)
+	viewsCh := make(chan testutil.TopologyView, 64)
 	defer close(viewsCh)
 
-	viewsCh <- newTopoView(1, map[string][]shard.Shard{
+	viewsCh <- testutil.NewTopologyView(1, map[string][]shard.Shard{
 		"testhost": sharding.NewShards([]uint32{0, 1, 2}, shard.Available),
 	})
 
@@ -79,10 +80,10 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 	mockStorageDB, restore := mockNewStorageDatabase(ctrl)
 	defer restore()
 
-	viewsCh := make(chan topoView, 64)
+	viewsCh := make(chan testutil.TopologyView, 64)
 	defer close(viewsCh)
 
-	viewsCh <- newTopoView(1, map[string][]shard.Shard{
+	viewsCh <- testutil.NewTopologyView(1, map[string][]shard.Shard{
 		"testhost0": sharding.NewShards([]uint32{0, 1}, shard.Available),
 		"testhost1": sharding.NewShards([]uint32{2, 3}, shard.Available),
 	})
@@ -152,7 +153,7 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 		})
 
 	// Enqueue the update
-	viewsCh <- newTopoView(1, updatedView)
+	viewsCh <- testutil.NewTopologyView(1, updatedView)
 
 	// Wait for the update to propagate, consume the first notification
 	// from the initial read and then the second that should come after
@@ -176,10 +177,10 @@ func TestDatabaseOpenUpdatesShardSetBeforeOpen(t *testing.T) {
 	mockStorageDB, restore := mockNewStorageDatabase(ctrl)
 	defer restore()
 
-	viewsCh := make(chan topoView, 64)
+	viewsCh := make(chan testutil.TopologyView, 64)
 	defer close(viewsCh)
 
-	viewsCh <- newTopoView(1, map[string][]shard.Shard{
+	viewsCh <- testutil.NewTopologyView(1, map[string][]shard.Shard{
 		"testhost0": append(sharding.NewShards([]uint32{0, 1}, shard.Available),
 			sharding.NewShards([]uint32{2, 3}, shard.Leaving)...),
 		"testhost1": sharding.NewShards([]uint32{2, 3}, shard.Initializing),
@@ -208,7 +209,7 @@ func TestDatabaseOpenUpdatesShardSetBeforeOpen(t *testing.T) {
 		})
 
 	// Enqueue the update
-	viewsCh <- newTopoView(1, updatedView)
+	viewsCh <- testutil.NewTopologyView(1, updatedView)
 
 	// Wait for the update to propagate, consume the first notification
 	// from the initial read and then the second that should come after
@@ -244,10 +245,10 @@ func TestDatabaseEmptyShardSet(t *testing.T) {
 	})
 	defer restore()
 
-	viewsCh := make(chan topoView, 64)
+	viewsCh := make(chan testutil.TopologyView, 64)
 	defer close(viewsCh)
 
-	viewsCh <- newTopoView(1, map[string][]shard.Shard{
+	viewsCh <- testutil.NewTopologyView(1, map[string][]shard.Shard{
 		"testhost0": sharding.NewShards([]uint32{0}, shard.Available),
 		"testhost1": sharding.NewShards([]uint32{1}, shard.Available),
 		"testhost2": sharding.NewShards([]uint32{2}, shard.Available),
@@ -266,10 +267,10 @@ func TestDatabaseOpenTwiceError(t *testing.T) {
 	mockStorageDB, restore := mockNewStorageDatabase(ctrl)
 	defer restore()
 
-	viewsCh := make(chan topoView, 64)
+	viewsCh := make(chan testutil.TopologyView, 64)
 	defer close(viewsCh)
 
-	viewsCh <- newTopoView(1, map[string][]shard.Shard{
+	viewsCh <- testutil.NewTopologyView(1, map[string][]shard.Shard{
 		"testhost": sharding.NewShards([]uint32{0, 1, 2}, shard.Available),
 	})
 
@@ -299,10 +300,10 @@ func TestDatabaseCloseTwiceError(t *testing.T) {
 	mockStorageDB, restore := mockNewStorageDatabase(ctrl)
 	defer restore()
 
-	viewsCh := make(chan topoView, 64)
+	viewsCh := make(chan testutil.TopologyView, 64)
 	defer close(viewsCh)
 
-	viewsCh <- newTopoView(1, map[string][]shard.Shard{
+	viewsCh <- testutil.NewTopologyView(1, map[string][]shard.Shard{
 		"testhost": sharding.NewShards([]uint32{0, 1, 2}, shard.Available),
 	})
 
@@ -332,10 +333,10 @@ func TestDatabaseOpenCanRetry(t *testing.T) {
 	mockStorageDB, restore := mockNewStorageDatabase(ctrl)
 	defer restore()
 
-	viewsCh := make(chan topoView, 64)
+	viewsCh := make(chan testutil.TopologyView, 64)
 	defer close(viewsCh)
 
-	viewsCh <- newTopoView(1, map[string][]shard.Shard{
+	viewsCh <- testutil.NewTopologyView(1, map[string][]shard.Shard{
 		"testhost": sharding.NewShards([]uint32{0, 1, 2}, shard.Available),
 	})
 
@@ -368,10 +369,10 @@ func TestDatabaseCloseCanRetry(t *testing.T) {
 	mockStorageDB, restore := mockNewStorageDatabase(ctrl)
 	defer restore()
 
-	viewsCh := make(chan topoView, 64)
+	viewsCh := make(chan testutil.TopologyView, 64)
 	defer close(viewsCh)
 
-	viewsCh <- newTopoView(1, map[string][]shard.Shard{
+	viewsCh <- testutil.NewTopologyView(1, map[string][]shard.Shard{
 		"testhost": sharding.NewShards([]uint32{0, 1, 2}, shard.Available),
 	})
 
