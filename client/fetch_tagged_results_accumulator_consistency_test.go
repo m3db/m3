@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/topology/testutil"
+	tu "github.com/m3db/m3db/topology/testutil"
 )
 
 var (
@@ -39,10 +39,10 @@ var (
 
 func TestFetchTaggedResultsAccumulatorAnyResponseShouldTerminateConsistencyLevelOneSimpleTopo(t *testing.T) {
 	// rf=3, 30 shards total; three identical hosts
-	topoMap := testutil.MustNewTopologyMap(3, map[string][]shard.Shard{
-		"testhost0": testutil.ShardsRange(0, 29, shard.Available),
-		"testhost1": testutil.ShardsRange(0, 29, shard.Available),
-		"testhost2": testutil.ShardsRange(0, 29, shard.Available),
+	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
+		"testhost0": tu.ShardsRange(0, 29, shard.Available),
+		"testhost1": tu.ShardsRange(0, 29, shard.Available),
+		"testhost2": tu.ShardsRange(0, 29, shard.Available),
 	})
 
 	// any response should satisfy consistency lvl one
@@ -87,10 +87,10 @@ func TestFetchTaggedResultsAccumulatorAnyResponseShouldTerminateConsistencyLevel
 
 func TestFetchTaggedResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) {
 	// rf=3, 30 shards total; three identical hosts
-	topoMap := testutil.MustNewTopologyMap(3, map[string][]shard.Shard{
-		"testhost0": testutil.ShardsRange(0, 29, shard.Available),
-		"testhost1": testutil.ShardsRange(0, 29, shard.Initializing),
-		"testhost2": testutil.ShardsRange(0, 29, shard.Available),
+	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
+		"testhost0": tu.ShardsRange(0, 29, shard.Available),
+		"testhost1": tu.ShardsRange(0, 29, shard.Initializing),
+		"testhost2": tu.ShardsRange(0, 29, shard.Available),
 	})
 
 	// responses from testhost1 should not count towards success
@@ -180,10 +180,10 @@ func TestFetchTaggedResultsAccumulatorShardAvailabilityIsEnforced(t *testing.T) 
 
 func TestFetchTaggedResultsAccumulatorAnyResponseShouldTerminateConsistencyLevelOneComplexTopo(t *testing.T) {
 	// rf=3, 30 shards total; 2 identical hosts, one additional host with a subset of all shards
-	topoMap := testutil.MustNewTopologyMap(3, map[string][]shard.Shard{
-		"testhost0": testutil.ShardsRange(0, 29, shard.Available),
-		"testhost1": testutil.ShardsRange(0, 29, shard.Available),
-		"testhost2": testutil.ShardsRange(10, 20, shard.Available),
+	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
+		"testhost0": tu.ShardsRange(0, 29, shard.Available),
+		"testhost1": tu.ShardsRange(0, 29, shard.Available),
+		"testhost2": tu.ShardsRange(10, 20, shard.Available),
 	})
 
 	// a single response from a host with partial shards isn't enough
@@ -203,10 +203,10 @@ func TestFetchTaggedResultsAccumulatorAnyResponseShouldTerminateConsistencyLevel
 
 func TestFetchTaggedResultsAccumulatorConsistencyUnstrictMajority(t *testing.T) {
 	// rf=3, 30 shards total; three identical hosts
-	topoMap := testutil.MustNewTopologyMap(3, map[string][]shard.Shard{
-		"testhost0": testutil.ShardsRange(0, 29, shard.Available),
-		"testhost1": testutil.ShardsRange(0, 29, shard.Available),
-		"testhost2": testutil.ShardsRange(0, 29, shard.Available),
+	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
+		"testhost0": tu.ShardsRange(0, 29, shard.Available),
+		"testhost1": tu.ShardsRange(0, 29, shard.Available),
+		"testhost2": tu.ShardsRange(0, 29, shard.Available),
 	})
 
 	// two success responses should succeed immediately
@@ -274,13 +274,49 @@ func TestFetchTaggedResultsAccumulatorConsistencyUnstrictMajority(t *testing.T) 
 	}.run()
 }
 
+func TestFetchTaggedResultsAccumulatorConsistencyUnstrictMajorityComplexTopo(t *testing.T) {
+	// rf=3, 30 shards total; three identical hosts
+	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
+		"testhost0": tu.ShardsRange(0, 29, shard.Initializing),
+		"testhost1": tu.ShardsRange(0, 29, shard.Available),
+		"testhost2": tu.ShardsRange(0, 29, shard.Available),
+		"testhost3": tu.ShardsRange(0, 29, shard.Leaving),
+	})
+
+	// one success responses should succeed
+	testFetchTaggedWorkflow{
+		t:       t,
+		topoMap: topoMap,
+		level:   topology.ReadConsistencyLevelUnstrictMajority,
+		steps: []testFetchTaggedWorklowStep{
+			testFetchTaggedWorklowStep{
+				hostname: "testhost0",
+				response: &testFetchTaggedSuccessResponse,
+			},
+			testFetchTaggedWorklowStep{
+				hostname: "testhost1",
+				response: &testFetchTaggedSuccessResponse,
+			},
+			testFetchTaggedWorklowStep{
+				hostname: "testhost2",
+				err:      errTestFetchTagged,
+			},
+			testFetchTaggedWorklowStep{
+				hostname:     "testhost3",
+				response:     &testFetchTaggedSuccessResponse,
+				expectedDone: true,
+			},
+		},
+	}.run()
+}
+
 func TestFetchTaggedResultsAccumulatorComplextTopoUnstrictMajorityPartialResponses(t *testing.T) {
 	// rf=3, 30 shards total; 2 identical "complete hosts", 2 additional hosts which together comprise a "complete" host.
-	topoMap := testutil.MustNewTopologyMap(3, map[string][]shard.Shard{
-		"testhost0": testutil.ShardsRange(0, 29, shard.Available),
-		"testhost1": testutil.ShardsRange(0, 29, shard.Available),
-		"testhost2": testutil.ShardsRange(15, 29, shard.Available),
-		"testhost3": testutil.ShardsRange(0, 14, shard.Available),
+	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
+		"testhost0": tu.ShardsRange(0, 29, shard.Available),
+		"testhost1": tu.ShardsRange(0, 29, shard.Available),
+		"testhost2": tu.ShardsRange(15, 29, shard.Available),
+		"testhost3": tu.ShardsRange(0, 14, shard.Available),
 	})
 
 	// response from testhost2+testhost3 should be sufficient
@@ -312,11 +348,11 @@ func TestFetchTaggedResultsAccumulatorComplextTopoUnstrictMajorityPartialRespons
 
 func TestFetchTaggedResultsAccumulatorComplexIncompleteTopoUnstrictMajorityPartialResponses(t *testing.T) {
 	// rf=3, 30 shards total; 2 identical "complete hosts", 2 additional hosts which do not comprise a complete host.
-	topoMap := testutil.MustNewTopologyMap(3, map[string][]shard.Shard{
-		"testhost0": testutil.ShardsRange(0, 29, shard.Available),
-		"testhost1": testutil.ShardsRange(0, 29, shard.Available),
-		"testhost2": testutil.ShardsRange(15, 27, shard.Available),
-		"testhost3": testutil.ShardsRange(0, 14, shard.Available),
+	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
+		"testhost0": tu.ShardsRange(0, 29, shard.Available),
+		"testhost1": tu.ShardsRange(0, 29, shard.Available),
+		"testhost2": tu.ShardsRange(15, 27, shard.Available),
+		"testhost3": tu.ShardsRange(0, 14, shard.Available),
 	})
 
 	// response from testhost2+testhost3 should be in-sufficient, as they're not complete together
@@ -349,10 +385,10 @@ func TestFetchTaggedResultsAccumulatorComplexIncompleteTopoUnstrictMajorityParti
 
 func TestFetchTaggedResultsAccumulatorReadConsitencyLevelMajority(t *testing.T) {
 	// rf=3, 30 shards total; three identical hosts
-	topoMap := testutil.MustNewTopologyMap(3, map[string][]shard.Shard{
-		"testhost0": testutil.ShardsRange(0, 29, shard.Available),
-		"testhost1": testutil.ShardsRange(0, 29, shard.Available),
-		"testhost2": testutil.ShardsRange(0, 29, shard.Available),
+	topoMap := tu.MustNewTopologyMap(3, map[string][]shard.Shard{
+		"testhost0": tu.ShardsRange(0, 29, shard.Available),
+		"testhost1": tu.ShardsRange(0, 29, shard.Available),
+		"testhost2": tu.ShardsRange(0, 29, shard.Available),
 	})
 
 	// any single success response should not satisfy consistency majority

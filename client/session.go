@@ -513,7 +513,7 @@ func (s *session) Open() error {
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("fetch-tagged-state-pool"),
 		))
-	s.pools.fetchState = newfetchStatePool(fetchStatePoolOpts)
+	s.pools.fetchState = newFetchStatePool(fetchStatePoolOpts)
 	s.pools.fetchState.Init()
 
 	seriesIteratorPoolOpts := pool.NewObjectPoolOptions().
@@ -1175,8 +1175,9 @@ func (s *session) fetchTaggedAttemptWithRLock(
 
 			// NB: if this happens we have a bug, once we are in the read
 			// lock the current queues should never be closed
-			s.log.Errorf("[invariant violated] failed to enqueue fetchTagged: %v", err)
-			return nil, err
+			wrappedErr := fmt.Errorf("[invariant violated] failed to enqueue fetchTagged: %v", err)
+			s.log.Errorf(wrappedErr.Error())
+			return nil, wrappedErr
 		}
 	}
 

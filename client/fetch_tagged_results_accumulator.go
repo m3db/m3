@@ -82,6 +82,13 @@ func (accum *fetchTaggedResultAccumulator) Add(
 	host := opts.host
 	response := opts.response
 
+	if host == nil {
+		// should never happen, guarding against incompatible changes to the `client` package.
+		doneAccumulating := true
+		err := fmt.Errorf("[invariant violated] nil host in fetchState completionFn")
+		return doneAccumulating, xerrors.NewNonRetryableError(err)
+	}
+
 	hostShardSet, ok := accum.topoMap.LookupHostShardSet(host.ID())
 	if !ok {
 		// should never happen, as we've taken a reference to the
@@ -103,22 +110,23 @@ func (accum *fetchTaggedResultAccumulator) Add(
 		}
 	}
 
+	// FOLLOWUP(prateek): once we transmit the shards successfully satisfied by a response, the
+	// for loop below needs to be updated to filter the `hostShardSet` to only include those
+	// in the response. More details in https://github.com/m3db/m3db/issues/550.
 	for _, hs := range hostShardSet.ShardSet().All() {
-		if hs.State() != shard.Available {
-			// Currently, we only accept responses from shard's which are available
-			// NB: as a possible enhancement, we could accept a response from
-			// a shard that's not available if we tracked response pairs from
-			// a LEAVING+INITIALIZING shard; this would help during node replaces.
-			continue
-		}
-
 		shardID := int(hs.ID())
 		shardResult := accum.shardConsistencyResults[shardID]
 		if shardResult.done {
 			continue // already been marked done, don't need to do anything for this shard
 		}
 
-		if resultErr == nil {
+		if hs.State() != shard.Available {
+			// Currently, we only accept responses from shard's which are available
+			// NB: as a possible enhancement, we could accept a response from
+			// a shard that's not available if we tracked response pairs from
+			// a LEAVING+INITIALIZING shard; this would help during node replaces.
+			shardResult.errors++
+		} else if resultErr == nil {
 			shardResult.success++
 		} else {
 			shardResult.errors++

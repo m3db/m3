@@ -29,7 +29,7 @@ import (
 )
 
 func TestFetchStatePoolInvalidInteraction(t *testing.T) {
-	p := newfetchStatePool(pool.NewObjectPoolOptions().SetSize(1))
+	p := newFetchStatePool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init()
 	s := p.Get()
 
@@ -44,7 +44,7 @@ func TestFetchStatePoolInvalidInteraction(t *testing.T) {
 }
 
 func TestFetchStatePoolValidInteraction(t *testing.T) {
-	p := newfetchStatePool(pool.NewObjectPoolOptions().SetSize(1))
+	p := newFetchStatePool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init()
 	s := p.Get()
 

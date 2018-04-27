@@ -45,8 +45,11 @@ func (f *fetchTaggedOp) update(req rpc.FetchTaggedRequest, fn completionFn) {
 	f.completionFn = fn
 }
 
-func (f *fetchTaggedOp) complete(result interface{}, err error) {
-	f.completionFn(result, err)
+func (f *fetchTaggedOp) requestLimit(defaultValue int) int {
+	if f.request.Limit == nil {
+		return defaultValue
+	}
+	return int(*f.request.Limit)
 }
 
 func (f *fetchTaggedOp) close() {
@@ -82,6 +85,16 @@ func newFetchTaggedOpPool(
 	return &fetchTaggedOpPoolImpl{pool: p}
 }
 
-func (p *fetchTaggedOpPoolImpl) Init()                { p.pool.Init(func() interface{} { return newFetchTaggedOp(p) }) }
-func (p *fetchTaggedOpPoolImpl) Get() *fetchTaggedOp  { return p.pool.Get().(*fetchTaggedOp) }
-func (p *fetchTaggedOpPoolImpl) Put(f *fetchTaggedOp) { p.pool.Put(f) }
+func (p *fetchTaggedOpPoolImpl) Init() {
+	p.pool.Init(func() interface{} {
+		return newFetchTaggedOp(p)
+	})
+}
+
+func (p *fetchTaggedOpPoolImpl) Get() *fetchTaggedOp {
+	return p.pool.Get().(*fetchTaggedOp)
+}
+
+func (p *fetchTaggedOpPoolImpl) Put(f *fetchTaggedOp) {
+	p.pool.Put(f)
+}
