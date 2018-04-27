@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/topology/testutil"
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
@@ -287,30 +288,14 @@ func concatShards(a, b shard.Shards) shard.Shards {
 	return shard.NewShards(all)
 }
 
-func newShardsRange(from, to uint32) []uint32 {
-	var ids []uint32
-	for i := from; i <= to; i++ {
-		ids = append(ids, i)
-	}
-	return ids
-}
-
-func newClusterShards(ids []uint32, s shard.State) shard.Shards {
-	var shards []shard.Shard
-	for _, id := range ids {
-		shards = append(shards, shard.NewShard(id).SetState(s))
-	}
-	return shard.NewShards(shards)
-}
-
 // nolint: deadcode
 func newClusterShardsRange(from, to uint32, s shard.State) shard.Shards {
-	return newClusterShards(newShardsRange(from, to), s)
+	return shard.NewShards(testutil.ShardsRange(from, to, s))
 }
 
 // nolint: deadcode
 func newClusterEmptyShardsRange() shard.Shards {
-	return newClusterShards(nil, shard.Available)
+	return shard.NewShards(testutil.Shards(nil, shard.Available))
 }
 
 // nolint: deadcode
