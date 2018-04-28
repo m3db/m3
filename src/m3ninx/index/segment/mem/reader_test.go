@@ -49,7 +49,7 @@ func TestReaderMatchExact(t *testing.T) {
 		segment.EXPECT().matchTerm(name, value).Return(postingsList, nil),
 	)
 
-	reader := newReader(segment, maxID)
+	reader := newReader(segment, readerDocRange{0, maxID})
 
 	actual, err := reader.MatchTerm(name, value)
 	require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestReaderMatchRegex(t *testing.T) {
 		segment.EXPECT().matchRegexp(name, regexp, compiled).Return(postingsList, nil),
 	)
 
-	reader := newReader(segment, maxID)
+	reader := newReader(segment, readerDocRange{0, maxID})
 
 	actual, err := reader.MatchRegexp(name, regexp, compiled)
 	require.NoError(t, err)
@@ -120,9 +120,56 @@ func TestReaderDocs(t *testing.T) {
 	postingsList.Insert(postings.ID(47))
 	postingsList.Insert(postings.ID(57)) // IDs past maxID should be ignored.
 
-	reader := newReader(segment, maxID)
+	reader := newReader(segment, readerDocRange{0, maxID})
 
 	iter, err := reader.Docs(postingsList)
+	require.NoError(t, err)
+
+	actualDocs := make([]doc.Document, 0, len(docs))
+	for iter.Next() {
+		actualDocs = append(actualDocs, iter.Current())
+	}
+
+	require.NoError(t, iter.Err())
+	require.NoError(t, iter.Close())
+
+	require.Equal(t, docs, actualDocs)
+
+	require.NoError(t, reader.Close())
+}
+
+func TestReaderAllDocs(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	maxID := postings.ID(2)
+	docs := []doc.Document{
+		doc.Document{
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("apple"),
+					Value: []byte("red"),
+				},
+			},
+		},
+		doc.Document{
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("banana"),
+					Value: []byte("yellow"),
+				},
+			},
+		},
+	}
+
+	segment := NewMockReadableSegment(mockCtrl)
+	gomock.InOrder(
+		segment.EXPECT().getDoc(postings.ID(0)).Return(docs[0], nil),
+		segment.EXPECT().getDoc(postings.ID(1)).Return(docs[1], nil),
+	)
+
+	reader := newReader(segment, readerDocRange{0, maxID})
+	iter, err := reader.AllDocs()
 	require.NoError(t, err)
 
 	actualDocs := make([]doc.Document, 0, len(docs))

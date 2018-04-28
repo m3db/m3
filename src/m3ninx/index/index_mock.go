@@ -57,6 +57,19 @@ func (m *MockReader) EXPECT() *MockReaderMockRecorder {
 	return m.recorder
 }
 
+// AllDocs mocks base method
+func (m *MockReader) AllDocs() (doc.Iterator, error) {
+	ret := m.ctrl.Call(m, "AllDocs")
+	ret0, _ := ret[0].(doc.Iterator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AllDocs indicates an expected call of AllDocs
+func (mr *MockReaderMockRecorder) AllDocs() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllDocs", reflect.TypeOf((*MockReader)(nil).AllDocs))
+}
+
 // Close mocks base method
 func (m *MockReader) Close() error {
 	ret := m.ctrl.Call(m, "Close")
