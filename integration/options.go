@@ -78,6 +78,9 @@ const (
 
 	// defaultIndexingEnabled disables indexing by default.
 	defaulIndexingEnabled = false
+
+	// defaultWriteNewSeriesAsync inserts, and index series' synchronously by default.
+	defaultWriteNewSeriesAsync = false
 )
 
 var (
@@ -260,6 +263,12 @@ type testOptions interface {
 
 	// IndexingEnabled returns whether indexing is enabled.
 	IndexingEnabled() bool
+
+	// SetWriteNewSeriesAsync sets whether we insert/index asynchronously.
+	SetWriteNewSeriesAsync(bool) testOptions
+
+	// WriteNewSeriesAsync returns whether we insert/index asynchronously.
+	WriteNewSeriesAsync() bool
 }
 
 type options struct {
@@ -290,6 +299,7 @@ type options struct {
 	useTChannelClientForWriting        bool
 	useTChannelClientForTruncation     bool
 	indexingEnabled                    bool
+	writeNewSeriesAsync                bool
 }
 
 func newTestOptions(t *testing.T) testOptions {
@@ -323,6 +333,7 @@ func newTestOptions(t *testing.T) testOptions {
 		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
 		indexingEnabled:                defaulIndexingEnabled,
+		writeNewSeriesAsync:            defaultWriteNewSeriesAsync,
 	}
 }
 
@@ -596,4 +607,14 @@ func (o *options) SetIndexingEnabled(value bool) testOptions {
 
 func (o *options) IndexingEnabled() bool {
 	return o.indexingEnabled
+}
+
+func (o *options) SetWriteNewSeriesAsync(value bool) testOptions {
+	opts := *o
+	opts.writeNewSeriesAsync = value
+	return &opts
+}
+
+func (o *options) WriteNewSeriesAsync() bool {
+	return o.writeNewSeriesAsync
 }

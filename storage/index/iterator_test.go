@@ -85,11 +85,8 @@ func TestIteratorWithElements(t *testing.T) {
 		ri.EXPECT().Next().Return(true),
 		ri.EXPECT().Current().Return(
 			doc.Document{
+				ID: []byte("foo"),
 				Fields: []doc.Field{
-					doc.Field{
-						Name:  ReservedFieldNameID,
-						Value: []byte("foo"),
-					},
 					doc.Field{
 						Name:  []byte("name"),
 						Value: []byte("value"),

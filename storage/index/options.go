@@ -43,6 +43,7 @@ const (
 var (
 	errOptionsIdentifierPoolUnspecified = errors.New("identifier pool is unset")
 	errOptionsWrapperPoolUnspecified    = errors.New("checkedbyteswrapper pool is unset")
+	errIDGenerationDisabled             = errors.New("id generation is disabled")
 )
 
 type opts struct {
@@ -54,6 +55,8 @@ type opts struct {
 	wrapperPool    xpool.CheckedBytesWrapperPool
 }
 
+var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
+
 // NewOptions returns a new index.Options object with default properties.
 func NewOptions() Options {
 	idPool := ident.NewPool(nil, nil)
@@ -64,7 +67,7 @@ func NewOptions() Options {
 		insertMode:     defaultIndexInsertMode,
 		clockOpts:      clock.NewOptions(),
 		instrumentOpts: instrument.NewOptions(),
-		memOpts:        mem.NewOptions(),
+		memOpts:        mem.NewOptions().SetNewUUIDFn(undefinedUUIDFn),
 		idPool:         idPool,
 		wrapperPool:    wrapperPool,
 	}

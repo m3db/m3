@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/cluster"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/topology"
@@ -117,10 +118,17 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		SetNamespaceInitializer(nsInit).
 		SetIndexingEnabled(opts.IndexingEnabled())
 
+	indexMode := index.InsertSync
+	if opts.WriteNewSeriesAsync() {
+		indexMode = index.InsertAsync
+	}
+	storageOpts = storageOpts.SetIndexOptions(storageOpts.IndexOptions().SetInsertMode(indexMode))
+
 	runtimeOptsMgr := storageOpts.RuntimeOptionsManager()
 	runtimeOpts := runtimeOptsMgr.Get().
 		SetTickMinimumInterval(opts.TickMinimumInterval()).
-		SetMaxWiredBlocks(opts.MaxWiredBlocks())
+		SetMaxWiredBlocks(opts.MaxWiredBlocks()).
+		SetWriteNewSeriesAsync(opts.WriteNewSeriesAsync())
 	if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
 		return nil, err
 	}

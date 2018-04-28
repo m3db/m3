@@ -74,7 +74,6 @@ type newNamespaceIndexInsertQueueFn func(
 	nsIndexInsertBatchFn, clock.NowFn, tally.Scope) namespaceIndexInsertQueue
 
 // FOLLOWUP(prateek): subsequent PR to wire up rate limiting to runtime.Options
-// nolint: deadcode
 func newNamespaceIndexInsertQueue(
 	indexBatchFn nsIndexInsertBatchFn,
 	nowFn clock.NowFn,
