@@ -23,6 +23,7 @@ package index
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3ninx/doc"
@@ -32,7 +33,7 @@ import (
 )
 
 var (
-	errInvalidResultMissingNamespace = errors.New("corrupt data, unable to extract namespace")
+	errInvalidResultMissingID = errors.New("corrupt data, unable to extract id")
 )
 
 type idsIter struct {
@@ -116,17 +117,10 @@ func (i *idsIter) wrapBytes(bytes []byte) checked.Bytes {
 }
 
 func (i *idsIter) parseAndStore(d doc.Document) error {
-	idFound := false
-	for _, f := range d.Fields {
-		if !idFound && bytes.Equal(f.Name, ReservedFieldNameID) {
-			i.currentID = i.idPool.BinaryID(i.wrapBytes(f.Value))
-			idFound = true
-			break
-		}
+	if len(d.ID) == 0 {
+		return errInvalidResultMissingID
 	}
-	if !idFound {
-		return errInvalidResultMissingNamespace
-	}
+	i.currentID = i.idPool.BinaryID(i.wrapBytes(d.ID))
 	i.currentTags = newTagIter(d, i.idPool, i.wrapperPool)
 	return nil
 }
@@ -136,11 +130,10 @@ func (i *idsIter) parseAndStore(d doc.Document) error {
 type tagIter struct {
 	d doc.Document
 
-	err           error
-	done          bool
-	haveRunIntoID bool
-	currentIdx    int
-	currentTag    ident.Tag
+	err        error
+	done       bool
+	currentIdx int
+	currentTag ident.Tag
 
 	idPool      ident.Pool
 	wrapperPool xpool.CheckedBytesWrapperPool
@@ -177,8 +170,8 @@ func (t *tagIter) parseNext() (hasNext bool) {
 	// is not using the reserved ID fieldname
 	next := t.d.Fields[t.currentIdx]
 	if bytes.Equal(ReservedFieldNameID, next.Name) {
-		t.haveRunIntoID = true
-		return t.parseNext()
+		t.err = fmt.Errorf("invalid tag field name: %v", ReservedFieldNameID)
+		return false
 	}
 	// otherwise, we're good.
 	t.currentTag = t.idPool.BinaryTag(
@@ -212,9 +205,6 @@ func (t *tagIter) Close() {
 
 func (t *tagIter) Remaining() int {
 	l := len(t.d.Fields) - t.currentIdx - 1
-	if !t.haveRunIntoID {
-		l--
-	}
 	return l
 }
 

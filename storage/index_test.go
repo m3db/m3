@@ -219,11 +219,10 @@ func TestNamespaceIndexDocConversion(t *testing.T) {
 
 	d, err := idx.doc(id, tags)
 	assert.NoError(t, err)
-	assert.Len(t, d.Fields, 2)
-	assert.Equal(t, index.ReservedFieldNameID, d.Fields[0].Name)
-	assert.Equal(t, "foo", string(d.Fields[0].Value))
-	assert.Equal(t, "name", string(d.Fields[1].Name))
-	assert.Equal(t, "value", string(d.Fields[1].Value))
+	assert.Len(t, d.Fields, 1)
+	assert.Equal(t, "foo", string(d.ID))
+	assert.Equal(t, "name", string(d.Fields[0].Name))
+	assert.Equal(t, "value", string(d.Fields[0].Value))
 }
 
 func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {

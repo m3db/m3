@@ -1,5 +1,5 @@
-// +build integration_disabled
-
+// +build integration
+//
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -24,15 +24,20 @@ package integration
 
 import (
 	"fmt"
-	"math/rand"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3ninx/idx"
+	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,13 +47,12 @@ func TestIndexLargeCardinalityHighConcurrency(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
-	concurrency := 2
-	writeEach := 128
-	maxNumTags := 10
+	concurrency := 10
+	writeEach := 100
+	numTags := 10
 
 	genIDTags := func(i int, j int) (ident.ID, ident.TagIterator) {
 		id := fmt.Sprintf("foo.%d.%d", i, j)
-		numTags := rand.Intn(maxNumTags)
 		tags := make([]ident.Tag, 0, numTags)
 		for i := 0; i < numTags; i++ {
 			tags = append(tags, ident.StringTag(
@@ -60,12 +64,21 @@ func TestIndexLargeCardinalityHighConcurrency(t *testing.T) {
 	}
 
 	// Test setup
-	testOpts := newTestOptions(t).SetIndexingEnabled(true)
+	md, err := namespace.NewMetadata(testNamespaces[0],
+		namespace.NewOptions().
+			SetRetentionOptions(defaultIntegrationTestRetentionOpts).
+			SetCleanupEnabled(false).
+			SetSnapshotEnabled(false).
+			SetFlushEnabled(false))
+	require.NoError(t, err)
+
+	testOpts := newTestOptions(t).
+		SetNamespaces([]namespace.Metadata{md}).
+		SetIndexingEnabled(true).
+		SetWriteNewSeriesAsync(true)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
-
-	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
@@ -82,7 +95,7 @@ func TestIndexLargeCardinalityHighConcurrency(t *testing.T) {
 	require.NoError(t, err)
 
 	var (
-		wg             sync.WaitGroup
+		insertWg       sync.WaitGroup
 		numTotalErrors uint32
 	)
 	now := testSetup.db.Options().ClockOptions().NowFn()()
@@ -90,7 +103,7 @@ func TestIndexLargeCardinalityHighConcurrency(t *testing.T) {
 	log.Info("starting data write")
 
 	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
+		insertWg.Add(1)
 		idx := i
 		go func() {
 			numErrors := uint32(0)
@@ -102,11 +115,78 @@ func TestIndexLargeCardinalityHighConcurrency(t *testing.T) {
 				}
 			}
 			atomic.AddUint32(&numTotalErrors, numErrors)
-			wg.Done()
+			insertWg.Done()
 		}()
 	}
 
-	wg.Wait()
+	insertWg.Wait()
 	require.Zero(t, numTotalErrors)
 	log.Infof("test data written in %v", time.Since(start))
+	log.Infof("waiting to see if data is indexed")
+
+	var (
+		fetchWg sync.WaitGroup
+	)
+	for i := 0; i < concurrency; i++ {
+		fetchWg.Add(1)
+		idx := i
+		go func() {
+			id, tags := genIDTags(idx, writeEach-1)
+			indexed := xclock.WaitUntil(func() bool {
+				found := isIndexed(t, session, md.ID(), id, tags)
+				return found
+			}, 5*time.Second)
+			assert.True(t, indexed)
+			fetchWg.Done()
+		}()
+	}
+	fetchWg.Wait()
+	log.Infof("data is indexed in %v", time.Since(start))
+}
+
+func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) bool {
+	q := newQuery(t, tags)
+	results, err := s.FetchTaggedIDs(ns, index.Query{q}, index.QueryOptions{
+		StartInclusive: time.Now(),
+		EndExclusive:   time.Now(),
+		Limit:          10})
+	if err != nil {
+		return false
+	}
+	iter := results.Iterator
+	if !iter.Next() {
+		return false
+	}
+	cuNs, cuID, cuTag := iter.Current()
+	if ns.String() != cuNs.String() {
+		return false
+	}
+	if id.String() != cuID.String() {
+		return false
+	}
+	return newTagIterMatcher(tags).Matches(cuTag)
+}
+
+func newQuery(t *testing.T, tags ident.TagIterator) idx.Query {
+	tags = tags.Duplicate()
+	filters := make([]idx.Query, 0, tags.Remaining())
+	for tags.Next() {
+		tag := tags.Current()
+		tq := idx.NewTermQuery(tag.Name.Bytes(), tag.Value.Bytes())
+		filters = append(filters, tq)
+		break // TODO(prateek): remove this line once the fix for conjunction searchers is landed.
+	}
+	q, err := idx.NewConjunctionQuery(filters...)
+	require.NoError(t, err)
+	return q
+}
+
+func newTagIterMatcher(tags ident.TagIterator) ident.TagIterMatcher {
+	tags = tags.Duplicate()
+	vals := make([]string, 0, tags.Remaining()*2)
+	for tags.Next() {
+		t := tags.Current()
+		vals = append(vals, t.Name.String(), t.Value.String())
+	}
+	return ident.MustNewTagIterMatcher(vals...)
 }
