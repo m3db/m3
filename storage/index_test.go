@@ -300,6 +300,55 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	assert.Nil(t, iter.Err())
 }
 
+func TestNamespaceIndexBatchInsertPartialError(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 2*time.Second)()
+
+	testQueue := &testNsIndexInsertQueue{}
+	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+		return testQueue
+	}
+
+	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	idx, err := newNamespaceIndex(md, newFn, testNamespaceIndexOptions())
+	assert.NoError(t, err)
+	defer idx.Close()
+
+	idx.(*nsIndex).insertMode = index.InsertAsync
+	ts := idx.(*nsIndex).active.expiryTime
+
+	writes := []struct {
+		id        ident.ID
+		tags      ident.Tags
+		lifecycle *testLifecycleHooks
+	}{
+		{ident.StringID("foo"), ident.Tags{ident.StringTag("n1", "v1")}, &testLifecycleHooks{}},
+		{ident.StringID("foo"), ident.Tags{ident.StringTag("n1", "v1")}, &testLifecycleHooks{}},
+		{ident.StringID("bar"), ident.Tags{ident.StringTag("n2", "v2")}, &testLifecycleHooks{}},
+	}
+	for _, w := range writes {
+		assert.NoError(t, idx.Write(w.id, w.tags, w.lifecycle))
+	}
+
+	// perform insertions in batch
+	testQueue.doInsertions(t, idx.(*nsIndex))
+
+	// ensure all lifecycles are finalized
+	for k, w := range writes {
+		w.lifecycle.Lock()
+		assert.True(t, w.lifecycle.finalized)
+		switch k {
+		case 0:
+			fallthrough
+		case 2:
+			assert.Equal(t, ts.UnixNano(), w.lifecycle.writeTime.UnixNano())
+		default:
+			assert.Equal(t, time.Time{}, w.lifecycle.writeTime)
+		}
+		w.lifecycle.Unlock()
+	}
+}
+
 type docMatcher struct{ d doc.Document }
 
 func (dm docMatcher) Matches(x interface{}) bool {
@@ -345,4 +394,62 @@ func (t *testLifecycleHooks) OnIndexFinalize() {
 	}
 	t.finalized = true
 	t.Unlock()
+}
+
+type testNsIndexInsertQueue struct {
+	sync.Mutex
+
+	started bool
+	stopped bool
+	batch   nsIndexInsertBatch
+}
+
+func (i *testNsIndexInsertQueue) Start() error {
+	i.Lock()
+	defer i.Unlock()
+
+	if i.started {
+		return fmt.Errorf("already started")
+	}
+	if i.stopped {
+		return fmt.Errorf("already stopped")
+	}
+	i.started = true
+	i.batch.Reset()
+	return nil
+}
+
+func (i *testNsIndexInsertQueue) Stop() error {
+	i.Lock()
+	defer i.Unlock()
+	if i.stopped {
+		return fmt.Errorf("already stopped")
+	}
+	if !i.started {
+		return fmt.Errorf("not started")
+	}
+	i.stopped = true
+	return nil
+}
+
+func (i *testNsIndexInsertQueue) Insert(d doc.Document, s onIndexSeries) (*sync.WaitGroup, error) {
+	i.Lock()
+	defer i.Unlock()
+	if !i.started {
+		return nil, fmt.Errorf("not started")
+	}
+	if i.stopped {
+		return nil, fmt.Errorf("already stopped")
+	}
+
+	i.batch.inserts = append(i.batch.inserts, nsIndexInsert{d, s})
+	return i.batch.wg, nil
+}
+
+func (i *testNsIndexInsertQueue) doInsertions(t *testing.T, idx *nsIndex) {
+	i.Lock()
+	defer i.Unlock()
+	err := idx.writeBatch(i.batch.inserts)
+	i.batch.Reset()
+	assert.NoError(t, err)
 }
