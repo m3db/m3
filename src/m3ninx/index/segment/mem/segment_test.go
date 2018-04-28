@@ -364,6 +364,129 @@ func TestSegmentInsertBatchPartialError(t *testing.T) {
 	}
 }
 
+func TestSegmentInsertBatchPartialErrorInvalidDoc(t *testing.T) {
+	b1 := index.NewBatch(
+		[]doc.Document{
+			doc.Document{
+				ID: []byte("abc"),
+				Fields: []doc.Field{
+					doc.Field{
+						Name:  []byte("fruit"),
+						Value: []byte("apple"),
+					},
+					doc.Field{
+						Name:  []byte("color\xff"),
+						Value: []byte("red"),
+					},
+				},
+			},
+			doc.Document{
+				ID: []byte("abc"),
+				Fields: []doc.Field{
+					doc.Field{
+						Name:  []byte("fruit"),
+						Value: []byte("banana"),
+					},
+					doc.Field{
+						Name:  []byte("color"),
+						Value: []byte("yellow"),
+					},
+				},
+			},
+		},
+		index.AllowPartialUpdates(),
+	)
+	segment, err := NewSegment(0, NewOptions())
+	require.NoError(t, err)
+
+	err = segment.InsertBatch(b1)
+	require.Error(t, err)
+	require.True(t, index.IsBatchPartialError(err))
+	be := err.(*index.BatchPartialError)
+	require.Len(t, be.Indices(), 1)
+	require.Equal(t, be.Indices()[0], 0)
+
+	r, err := segment.Reader()
+	require.NoError(t, err)
+	iter, err := r.AllDocs()
+	require.NoError(t, err)
+	require.True(t, iter.Next())
+	require.Equal(t, b1.Docs[1], iter.Current())
+	require.False(t, iter.Next())
+	require.NoError(t, iter.Close())
+	require.NoError(t, r.Close())
+	require.NoError(t, segment.Close())
+}
+
+func TestSegmentInsertBatchPartialErrorAlreadyIndexing(t *testing.T) {
+	b1 := index.NewBatch(
+		[]doc.Document{
+			doc.Document{
+				ID: []byte("abc"),
+				Fields: []doc.Field{
+					doc.Field{
+						Name:  []byte("fruit"),
+						Value: []byte("apple"),
+					},
+					doc.Field{
+						Name:  []byte("color"),
+						Value: []byte("red"),
+					},
+				},
+			},
+		},
+		index.AllowPartialUpdates())
+
+	b2 := index.NewBatch(
+		[]doc.Document{
+			doc.Document{
+				ID: []byte("abc"),
+				Fields: []doc.Field{
+					doc.Field{
+						Name:  []byte("fruit"),
+						Value: []byte("apple"),
+					},
+					doc.Field{
+						Name:  []byte("color"),
+						Value: []byte("red"),
+					},
+				},
+			},
+			doc.Document{
+				ID: []byte("cdef"),
+				Fields: []doc.Field{
+					doc.Field{
+						Name:  []byte("color"),
+						Value: []byte("blue"),
+					},
+				},
+			},
+			doc.Document{
+				ID: []byte("cdef"),
+				Fields: []doc.Field{
+					doc.Field{
+						Name:  []byte("color"),
+						Value: []byte("blue"),
+					},
+				},
+			},
+		},
+		index.AllowPartialUpdates())
+
+	segment, err := NewSegment(0, NewOptions())
+	require.NoError(t, err)
+
+	err = segment.InsertBatch(b1)
+	require.NoError(t, err)
+
+	err = segment.InsertBatch(b2)
+	require.Error(t, err)
+	require.True(t, index.IsBatchPartialError(err))
+	ind := err.(*index.BatchPartialError).Indices()
+	require.Len(t, ind, 1)
+	require.Equal(t, 2, ind[0])
+}
+
 func TestSegmentReaderMatchExact(t *testing.T) {
 	docs := []doc.Document{
 		doc.Document{
