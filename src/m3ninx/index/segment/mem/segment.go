@@ -269,7 +269,10 @@ func (s *segment) Reader() (index.Reader, error) {
 	}
 
 	limit := s.readerID.Load()
-	r := newReader(s, limit)
+	r := newReader(s, readerDocRange{
+		startInclusive: postings.ID(s.offset),
+		endExclusive:   limit,
+	})
 	return r, nil
 }
 

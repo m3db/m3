@@ -38,15 +38,20 @@ type reader struct {
 	sync.RWMutex
 
 	segment ReadableSegment
-	limit   postings.ID
+	limits  readerDocRange
 
 	closed bool
 }
 
-func newReader(s ReadableSegment, limit postings.ID) index.Reader {
+type readerDocRange struct {
+	startInclusive postings.ID
+	endExclusive   postings.ID
+}
+
+func newReader(s ReadableSegment, limits readerDocRange) index.Reader {
 	return &reader{
 		segment: s,
-		limit:   limit,
+		limits:  limits,
 	}
 }
 
@@ -82,8 +87,24 @@ func (r *reader) MatchRegexp(field, regexp []byte, compiled *regexp.Regexp) (pos
 	return pl, err
 }
 
+func (r *reader) docIter(iter postings.Iterator) (doc.Iterator, error) {
+	r.RLock()
+	if r.closed {
+		r.RUnlock()
+		return nil, errSegmentReaderClosed
+	}
+	di := newIterator(r.segment, iter, r.limits.endExclusive)
+	r.RUnlock()
+	return di, nil
+}
+
 func (r *reader) Docs(pl postings.List) (doc.Iterator, error) {
-	return newIterator(r.segment, pl.Iterator(), r.limit), nil
+	return r.docIter(pl.Iterator())
+}
+
+func (r *reader) AllDocs() (doc.Iterator, error) {
+	pi := postings.NewRangeIterator(r.limits.startInclusive, r.limits.endExclusive)
+	return r.docIter(pi)
 }
 
 func (r *reader) Close() error {

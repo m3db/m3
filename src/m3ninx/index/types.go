@@ -63,8 +63,11 @@ type Reader interface {
 	MatchRegexp(field, regexp []byte, compiled *regexp.Regexp) (postings.List, error)
 
 	// Docs returns an iterator over the documents whose IDs are in the provided
-	//  postings list.
+	// postings list.
 	Docs(pl postings.List) (doc.Iterator, error)
+
+	// AllDocs returns an iterator over the documents known to the `Reader`.
+	AllDocs() (doc.Iterator, error)
 
 	// Close closes the reader and releases any internal resources.
 	Close() error

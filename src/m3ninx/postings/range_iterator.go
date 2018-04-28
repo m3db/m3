@@ -18,69 +18,52 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package mem
+package postings
 
-import (
-	"errors"
-
-	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/postings"
-)
+import "errors"
 
 var (
-	errIteratorClosed = errors.New("iterator has been closed")
+	errRangerIterClosed = errors.New("iterator has already been closed")
 )
 
-type iterator struct {
-	segment      ReadableSegment
-	postingsIter postings.Iterator
-	endExclusive postings.ID
-
-	closed  bool
-	current doc.Document
-	err     error
+type rangeIter struct {
+	startInclusive ID
+	endExclusive   ID
+	closed         bool
+	started        bool
 }
 
-func newIterator(s ReadableSegment, pi postings.Iterator, endExclusive postings.ID) doc.Iterator {
-	return &iterator{
-		segment:      s,
-		postingsIter: pi,
-		endExclusive: endExclusive,
+// NewRangeIterator returns a new Iterator over the specified range.
+func NewRangeIterator(startInclusive, endExclusive ID) Iterator {
+	return &rangeIter{
+		startInclusive: startInclusive,
+		endExclusive:   endExclusive,
 	}
 }
 
-func (it *iterator) Next() bool {
-	if it.closed || it.err != nil || !it.postingsIter.Next() {
+func (r *rangeIter) Next() bool {
+	if r.closed {
 		return false
 	}
-	id := it.postingsIter.Current()
-	if id >= it.endExclusive {
-		return false
+	if r.started {
+		r.startInclusive++
 	}
-
-	d, err := it.segment.getDoc(id)
-	if err != nil {
-		it.err = err
-		return false
-	}
-	it.current = d
-	return true
+	r.started = true
+	return r.startInclusive < r.endExclusive
 }
 
-func (it *iterator) Current() doc.Document {
-	return it.current
+func (r *rangeIter) Current() ID {
+	return r.startInclusive
 }
 
-func (it *iterator) Err() error {
-	return it.err
+func (r *rangeIter) Err() error {
+	return nil
 }
 
-func (it *iterator) Close() error {
-	if it.closed {
-		return errIteratorClosed
+func (r *rangeIter) Close() error {
+	if r.closed {
+		return errRangerIterClosed
 	}
-	it.closed = true
-	it.current = doc.Document{}
-	err := it.postingsIter.Close()
-	return err
+	r.closed = true
+	return nil
 }

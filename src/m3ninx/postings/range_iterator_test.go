@@ -18,69 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package mem
+package postings
 
 import (
-	"errors"
+	"testing"
 
-	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/postings"
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	errIteratorClosed = errors.New("iterator has been closed")
-)
-
-type iterator struct {
-	segment      ReadableSegment
-	postingsIter postings.Iterator
-	endExclusive postings.ID
-
-	closed  bool
-	current doc.Document
-	err     error
+func TestRangeIterator(t *testing.T) {
+	iter := NewRangeIterator(0, 2)
+	require.True(t, iter.Next())
+	require.Equal(t, ID(0), iter.Current())
+	require.True(t, iter.Next())
+	require.Equal(t, ID(1), iter.Current())
+	require.False(t, iter.Next())
+	require.NoError(t, iter.Err())
+	require.NoError(t, iter.Close())
+	require.Error(t, iter.Close())
+}
+func TestRangeIteratorEmpty(t *testing.T) {
+	iter := NewRangeIterator(3, 2)
+	require.False(t, iter.Next())
+	require.NoError(t, iter.Err())
+	require.NoError(t, iter.Close())
+	require.Error(t, iter.Close())
 }
 
-func newIterator(s ReadableSegment, pi postings.Iterator, endExclusive postings.ID) doc.Iterator {
-	return &iterator{
-		segment:      s,
-		postingsIter: pi,
-		endExclusive: endExclusive,
-	}
-}
-
-func (it *iterator) Next() bool {
-	if it.closed || it.err != nil || !it.postingsIter.Next() {
-		return false
-	}
-	id := it.postingsIter.Current()
-	if id >= it.endExclusive {
-		return false
-	}
-
-	d, err := it.segment.getDoc(id)
-	if err != nil {
-		it.err = err
-		return false
-	}
-	it.current = d
-	return true
-}
-
-func (it *iterator) Current() doc.Document {
-	return it.current
-}
-
-func (it *iterator) Err() error {
-	return it.err
-}
-
-func (it *iterator) Close() error {
-	if it.closed {
-		return errIteratorClosed
-	}
-	it.closed = true
-	it.current = doc.Document{}
-	err := it.postingsIter.Close()
-	return err
+func TestRangeIteratorEmptyIdentical(t *testing.T) {
+	iter := NewRangeIterator(2, 2)
+	require.False(t, iter.Next())
+	require.NoError(t, iter.Err())
+	require.NoError(t, iter.Close())
+	require.Error(t, iter.Close())
 }
