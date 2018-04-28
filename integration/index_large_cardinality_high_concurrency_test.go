@@ -174,7 +174,6 @@ func newQuery(t *testing.T, tags ident.TagIterator) idx.Query {
 		tag := tags.Current()
 		tq := idx.NewTermQuery(tag.Name.Bytes(), tag.Value.Bytes())
 		filters = append(filters, tq)
-		break // TODO(prateek): remove this line once the fix for conjunction searchers is landed.
 	}
 	q, err := idx.NewConjunctionQuery(filters...)
 	require.NoError(t, err)
