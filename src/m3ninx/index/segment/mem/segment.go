@@ -125,10 +125,17 @@ func (s *segment) InsertBatch(b index.Batch) error {
 			return err
 		}
 
+		numInserts := uint32(0)
 		for _, d := range b.Docs {
+			// NB(prateek): we override a document to have no ID when
+			// it doesn't need to be inserted.
+			if !d.HasID() {
+				continue
+			}
+			numInserts++
 			s.insertDocWithLocks(d)
 		}
-		s.readerID.Add(uint32(len(b.Docs)))
+		s.readerID.Add(numInserts)
 
 		s.writer.Unlock()
 	}
@@ -140,8 +147,11 @@ func (s *segment) InsertBatch(b index.Batch) error {
 // must be called with the state and writer locks.
 func (s *segment) prepareDocsWithLocks(b index.Batch) error {
 	s.writer.idSet.Reset()
+	var (
+		batchErr = index.NewBatchPartialError()
+		emptyDoc doc.Document
+	)
 
-	batchErr := index.NewBatchPartialError()
 	for i := 0; i < len(b.Docs); i++ {
 		d := b.Docs[i]
 		if err := d.Validate(); err != nil {
@@ -149,6 +159,7 @@ func (s *segment) prepareDocsWithLocks(b index.Batch) error {
 				return err
 			}
 			batchErr.Add(err, i)
+			b.Docs[i] = emptyDoc
 			continue
 		}
 
@@ -156,11 +167,7 @@ func (s *segment) prepareDocsWithLocks(b index.Batch) error {
 			if s.termsDict.ContainsTerm(doc.IDReservedFieldName, d.ID) {
 				// The segment already contains this document so we can remove it from those
 				// we need to index.
-				b.Docs[i], b.Docs[len(b.Docs)] = b.Docs[len(b.Docs)], b.Docs[i]
-				b.Docs = b.Docs[:len(b.Docs)-1]
-
-				// Decrement the loop variable since we just removed this document.
-				i--
+				b.Docs[i] = emptyDoc
 				continue
 			}
 
@@ -169,6 +176,7 @@ func (s *segment) prepareDocsWithLocks(b index.Batch) error {
 					return ErrDuplicateID
 				}
 				batchErr.Add(ErrDuplicateID, i)
+				b.Docs[i] = emptyDoc
 				continue
 			}
 		} else {
@@ -178,6 +186,7 @@ func (s *segment) prepareDocsWithLocks(b index.Batch) error {
 					return err
 				}
 				batchErr.Add(err, i)
+				b.Docs[i] = emptyDoc
 				continue
 			}
 
