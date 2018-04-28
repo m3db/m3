@@ -69,5 +69,5 @@ func (q *ConjuctionQuery) Searcher(rs index.Readers) (search.Searcher, error) {
 		srs = append(srs, sr)
 	}
 
-	return searcher.NewConjunctionSearcher(srs)
+	return searcher.NewConjunctionSearcher(len(rs), srs)
 }

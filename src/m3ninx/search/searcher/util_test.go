@@ -52,25 +52,28 @@ func TestValidateSearchers(t *testing.T) {
 	)
 
 	tests := []struct {
-		name      string
-		ss        search.Searchers
-		expectErr bool
+		name       string
+		numReaders int
+		searchers  search.Searchers
+		expectErr  bool
 	}{
 		{
-			name:      "all searchers have the same length",
-			ss:        firstTestSeachers,
-			expectErr: false,
+			name:       "valid",
+			numReaders: 3,
+			searchers:  firstTestSeachers,
+			expectErr:  false,
 		},
 		{
-			name:      "all searchers do not have the same length",
-			ss:        secondTestSeachers,
-			expectErr: true,
+			name:       "invalid",
+			numReaders: 3,
+			searchers:  secondTestSeachers,
+			expectErr:  true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := validateSearchers(test.ss)
+			err := validateSearchers(test.numReaders, test.searchers)
 			if test.expectErr {
 				assert.Error(t, err)
 				return

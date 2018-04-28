@@ -69,5 +69,5 @@ func (q *DisjuctionQuery) Searcher(rs index.Readers) (search.Searcher, error) {
 		srs = append(srs, sr)
 	}
 
-	return searcher.NewDisjunctionSearcher(srs)
+	return searcher.NewDisjunctionSearcher(len(rs), srs)
 }
