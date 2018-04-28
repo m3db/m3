@@ -26,8 +26,8 @@ import (
 )
 
 type disjunctionSearcher struct {
-	searchers search.Searchers
-	len       int
+	searchers  search.Searchers
+	numReaders int
 
 	idx  int
 	curr postings.List
@@ -36,20 +36,20 @@ type disjunctionSearcher struct {
 
 // NewDisjunctionSearcher returns a new Searcher which matches documents which are matched
 // by any of the given Searchers. It is not safe for concurrent access.
-func NewDisjunctionSearcher(ss search.Searchers) (search.Searcher, error) {
-	if err := validateSearchers(ss); err != nil {
+func NewDisjunctionSearcher(numReaders int, searchers search.Searchers) (search.Searcher, error) {
+	if err := validateSearchers(numReaders, searchers); err != nil {
 		return nil, err
 	}
 
 	return &disjunctionSearcher{
-		searchers: ss,
-		len:       len(ss),
-		idx:       -1,
+		searchers:  searchers,
+		numReaders: numReaders,
+		idx:        -1,
 	}, nil
 }
 
 func (s *disjunctionSearcher) Next() bool {
-	if s.err != nil || s.idx == s.len-1 {
+	if s.err != nil || s.idx == s.numReaders-1 {
 		return false
 	}
 
@@ -87,5 +87,5 @@ func (s *disjunctionSearcher) Err() error {
 }
 
 func (s *disjunctionSearcher) NumReaders() int {
-	return s.len
+	return s.numReaders
 }

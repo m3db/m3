@@ -51,27 +51,40 @@ func TestDisjunctionSearcher(t *testing.T) {
 	secondPL2.Insert(postings.ID(72))
 	secondSearcher := search.NewMockSearcher(mockCtrl)
 
+	// Third searcher.
+	thirdPL1 := roaring.NewPostingsList()
+	thirdPL1.Insert(postings.ID(53))
+	thirdPL2 := roaring.NewPostingsList()
+	thirdPL2.Insert(postings.ID(72))
+	thirdPL2.Insert(postings.ID(89))
+	thirdSearcher := search.NewMockSearcher(mockCtrl)
+
+	numReaders := 2
 	gomock.InOrder(
-		// The mock Searchers have 2 readers.
-		firstSearcher.EXPECT().NumReaders().Return(2),
-		secondSearcher.EXPECT().NumReaders().Return(2),
+		firstSearcher.EXPECT().NumReaders().Return(numReaders),
+		secondSearcher.EXPECT().NumReaders().Return(numReaders),
+		thirdSearcher.EXPECT().NumReaders().Return(numReaders),
 
 		// Get the postings lists for the first Reader.
 		firstSearcher.EXPECT().Next().Return(true),
 		firstSearcher.EXPECT().Current().Return(firstPL1),
 		secondSearcher.EXPECT().Next().Return(true),
 		secondSearcher.EXPECT().Current().Return(secondPL1),
+		thirdSearcher.EXPECT().Next().Return(true),
+		thirdSearcher.EXPECT().Current().Return(thirdPL1),
 
 		// Get the postings lists for the second Reader.
 		firstSearcher.EXPECT().Next().Return(true),
 		firstSearcher.EXPECT().Current().Return(firstPL2),
 		secondSearcher.EXPECT().Next().Return(true),
 		secondSearcher.EXPECT().Current().Return(secondPL2),
+		thirdSearcher.EXPECT().Next().Return(true),
+		thirdSearcher.EXPECT().Current().Return(thirdPL2),
 	)
 
-	searchers := []search.Searcher{firstSearcher, secondSearcher}
+	searchers := []search.Searcher{firstSearcher, secondSearcher, thirdSearcher}
 
-	s, err := NewDisjunctionSearcher(searchers)
+	s, err := NewDisjunctionSearcher(numReaders, searchers)
 	require.NoError(t, err)
 
 	// Ensure the searcher is searching over two readers.
@@ -82,6 +95,7 @@ func TestDisjunctionSearcher(t *testing.T) {
 
 	expected := firstPL1.Clone()
 	expected.Union(secondPL1)
+	expected.Union(thirdPL1)
 	require.True(t, s.Current().Equal(expected))
 
 	// Test the postings list from the second Reader.
@@ -89,6 +103,7 @@ func TestDisjunctionSearcher(t *testing.T) {
 
 	expected = firstPL2.Clone()
 	expected.Union(secondPL2)
+	expected.Union(thirdPL2)
 	require.True(t, s.Current().Equal(expected))
 
 	require.False(t, s.Next())

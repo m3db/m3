@@ -22,23 +22,20 @@ package searcher
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/m3db/m3ninx/search"
 )
 
 var (
-	errSearchersNumReadersUnequal = errors.New("searchers have different number of readers")
-	errSearcherTooShort           = errors.New("searcher did not contain enough postings lists")
+	errSearcherTooShort = errors.New("searcher did not contain enough postings lists")
 )
 
-func validateSearchers(ss search.Searchers) error {
-	var numReaders int
-	if len(ss) > 0 {
-		numReaders = ss[0].NumReaders()
-		for _, s := range ss[1:] {
-			if s.NumReaders() != numReaders {
-				return errSearchersNumReadersUnequal
-			}
+func validateSearchers(numReaders int, searchers search.Searchers) error {
+	for _, s := range searchers {
+		n := s.NumReaders()
+		if n != numReaders {
+			return fmt.Errorf("searcher has %v readers, expected %v", n, numReaders)
 		}
 	}
 	return nil

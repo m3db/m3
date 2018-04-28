@@ -46,42 +46,58 @@ func TestConjunctionSearcher(t *testing.T) {
 	// Second searcher.
 	secondPL1 := roaring.NewPostingsList()
 	secondPL1.Insert(postings.ID(53))
+	secondPL1.Insert(postings.ID(50))
 	secondPL2 := roaring.NewPostingsList()
 	secondPL2.Insert(postings.ID(64))
 	secondPL2.Insert(postings.ID(72))
 	secondSearcher := search.NewMockSearcher(mockCtrl)
 
+	// Third searcher.
+	thirdPL1 := roaring.NewPostingsList()
+	thirdPL1.Insert(postings.ID(42))
+	thirdPL1.Insert(postings.ID(53))
+	thirdPL2 := roaring.NewPostingsList()
+	thirdPL2.Insert(postings.ID(64))
+	thirdPL2.Insert(postings.ID(89))
+	thirdSearcher := search.NewMockSearcher(mockCtrl)
+
+	numReaders := 2
 	gomock.InOrder(
-		// The mock Searchers have 2 readers.
-		firstSearcher.EXPECT().NumReaders().Return(2),
-		secondSearcher.EXPECT().NumReaders().Return(2),
+		firstSearcher.EXPECT().NumReaders().Return(numReaders),
+		secondSearcher.EXPECT().NumReaders().Return(numReaders),
+		thirdSearcher.EXPECT().NumReaders().Return(numReaders),
 
 		// Get the postings lists for the first Reader.
 		firstSearcher.EXPECT().Next().Return(true),
 		firstSearcher.EXPECT().Current().Return(firstPL1),
 		secondSearcher.EXPECT().Next().Return(true),
 		secondSearcher.EXPECT().Current().Return(secondPL1),
+		thirdSearcher.EXPECT().Next().Return(true),
+		thirdSearcher.EXPECT().Current().Return(thirdPL1),
 
 		// Get the postings lists for the second Reader.
 		firstSearcher.EXPECT().Next().Return(true),
 		firstSearcher.EXPECT().Current().Return(firstPL2),
 		secondSearcher.EXPECT().Next().Return(true),
 		secondSearcher.EXPECT().Current().Return(secondPL2),
+		thirdSearcher.EXPECT().Next().Return(true),
+		thirdSearcher.EXPECT().Current().Return(thirdPL2),
 	)
 
-	searchers := []search.Searcher{firstSearcher, secondSearcher}
+	searchers := []search.Searcher{firstSearcher, secondSearcher, thirdSearcher}
 
-	s, err := NewConjunctionSearcher(searchers)
+	s, err := NewConjunctionSearcher(numReaders, searchers)
 	require.NoError(t, err)
 
 	// Ensure the searcher is searching over two readers.
-	require.Equal(t, 2, s.NumReaders())
+	require.Equal(t, numReaders, s.NumReaders())
 
 	// Test the postings list from the first Reader.
 	require.True(t, s.Next())
 
 	expected := firstPL1.Clone()
 	expected.Intersect(secondPL1)
+	expected.Intersect(thirdPL1)
 	require.True(t, s.Current().Equal(expected))
 
 	// Test the postings list from the second Reader.
@@ -89,6 +105,7 @@ func TestConjunctionSearcher(t *testing.T) {
 
 	expected = firstPL2.Clone()
 	expected.Intersect(secondPL2)
+	expected.Intersect(thirdPL2)
 	require.True(t, s.Current().Equal(expected))
 
 	require.False(t, s.Next())
