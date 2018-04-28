@@ -273,7 +273,15 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	)
 	// make insert mode sync for tests
 	idx.(*nsIndex).insertMode = index.InsertSync
+	ts := idx.(*nsIndex).active.expiryTime
 	assert.NoError(t, idx.Write(id, tags, lifecycleFns))
+
+	// ensure lifecycle is finalized
+	lifecycleFns.Lock()
+	defer lifecycleFns.Unlock()
+	assert.True(t, lifecycleFns.finalized)
+	// ensure lifecycle is marked success
+	assert.Equal(t, ts.UnixNano(), lifecycleFns.writeTime.UnixNano())
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
 	assert.NoError(t, err)
