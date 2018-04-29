@@ -402,8 +402,7 @@ func (s *peersSource) incrementalFlush(
 					Length:   bl.Len(),
 					Checksum: bl.Checksum(),
 				}
-				// arnikola
-				bl.ResetRetrievable(start, time.Hour, shardRetriever, metadata)
+				bl.ResetRetrievable(start, blockSize, shardRetriever, metadata)
 			default:
 				// Not caching the series or metadata in memory so finalize the block,
 				// better to do this as we loop through to make blocks return to the

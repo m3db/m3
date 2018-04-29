@@ -175,7 +175,7 @@ func (s *commitLogSource) Read(
 	wg.Wait()
 	s.logEncodingOutcome(workerErrs, iter)
 
-	return s.mergeShards(int(numShards), bopts, blopts, encoderPool, unmerged), nil
+	return s.mergeShards(int(numShards), bopts, blockSize, blopts, encoderPool, unmerged), nil
 }
 
 func (s *commitLogSource) startM3TSZEncodingWorker(
@@ -272,6 +272,7 @@ func (s *commitLogSource) shouldEncodeSeries(
 func (s *commitLogSource) mergeShards(
 	numShards int,
 	bopts result.Options,
+	blockSize time.Duration,
 	blopts block.Options,
 	encoderPool encoding.EncoderPool,
 	unmerged []encodersAndRanges,
@@ -299,7 +300,7 @@ func (s *commitLogSource) mergeShards(
 		mergeShardFunc := func() {
 			var shardResult result.ShardResult
 			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
-				unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
+				unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blockSize, blopts)
 			if shardResult != nil && len(shardResult.AllSeries()) > 0 {
 				// Prevent race conditions while updating bootstrapResult from multiple go-routines
 				bootstrapResultLock.Lock()
@@ -323,6 +324,7 @@ func (s *commitLogSource) mergeShard(
 	blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	encoderPool encoding.EncoderPool,
+	blockSize time.Duration,
 	blopts block.Options,
 ) (result.ShardResult, int, int) {
 	var shardResult result.ShardResult
@@ -335,6 +337,7 @@ func (s *commitLogSource) mergeShard(
 			blocksPool,
 			multiReaderIteratorPool,
 			encoderPool,
+			blockSize,
 			blopts,
 		)
 
@@ -356,6 +359,7 @@ func (s *commitLogSource) mergeSeries(
 	blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	encoderPool encoding.EncoderPool,
+	blockSize time.Duration,
 	blopts block.Options,
 ) (block.DatabaseSeriesBlocks, int, int) {
 	var seriesBlocks block.DatabaseSeriesBlocks
@@ -372,8 +376,7 @@ func (s *commitLogSource) mergeSeries(
 
 		if len(encoders) == 1 {
 			pooledBlock := blocksPool.Get()
-			// arnikola
-			pooledBlock.Reset(start, time.Hour, encoders[0].enc.Discard())
+			pooledBlock.Reset(start, blockSize, encoders[0].enc.Discard())
 			if seriesBlocks == nil {
 				seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
 			}
@@ -416,8 +419,7 @@ func (s *commitLogSource) mergeSeries(
 		}
 
 		pooledBlock := blocksPool.Get()
-		// arnikola
-		pooledBlock.Reset(start, time.Hour, enc.Discard())
+		pooledBlock.Reset(start, blockSize, enc.Discard())
 		if seriesBlocks == nil {
 			seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
 		}

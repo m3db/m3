@@ -2609,7 +2609,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			// Verify and if verify succeeds add the block from the peer
 			err := s.verifyFetchedBlock(block)
 			if err == nil {
-				err = blocksResult.addBlockFromPeer(id, peer.Host(), block)
+				err = blocksResult.addBlockFromPeer(id, peer.Host(), blockSize, block)
 			}
 
 			if err != nil {
@@ -2735,7 +2735,7 @@ func (s *session) streamBlocksReattemptFromPeersEnqueue(
 }
 
 type blocksResult interface {
-	addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error
+	addBlockFromPeer(id ident.ID, peer topology.Host, blockSize time.Duration, block *rpc.Block) error
 }
 
 type baseBlocksResult struct {
@@ -2803,7 +2803,7 @@ func (b *baseBlocksResult) mergeReaders(start, end time.Time, readers []xio.Read
 	return encoder, nil
 }
 
-func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlock, error) {
+func (b *baseBlocksResult) newDatabaseBlock(blockSize time.Duration, block *rpc.Block) (block.DatabaseBlock, error) {
 	var (
 		start    = time.Unix(0, block.Start)
 		segments = block.Segments
@@ -2818,8 +2818,7 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 	switch {
 	case segments.Merged != nil:
 		// Unmerged, can insert directly into a single block
-		// arnikola
-		result.Reset(start, time.Hour, b.segmentForBlock(segments.Merged))
+		result.Reset(start, blockSize, b.segmentForBlock(segments.Merged))
 
 	case segments.Unmerged != nil:
 		// Must merge to provide a single block
@@ -2850,7 +2849,7 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 		}
 
 		// Set the block data
-		result.Reset(start, time.Hour, encoder.Discard())
+		result.Reset(start, blockSize, encoder.Discard())
 
 	default:
 		result.Close() // return block to pool
@@ -2882,8 +2881,8 @@ type peerBlocksDatapoint struct {
 	block block.DatabaseBlock
 }
 
-func (s *streamBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error {
-	result, err := s.newDatabaseBlock(block)
+func (s *streamBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blockSize time.Duration, block *rpc.Block) error {
+	result, err := s.newDatabaseBlock(blockSize, block)
 	if err != nil {
 		return err
 	}
@@ -2953,9 +2952,9 @@ func newBulkBlocksResult(
 	}
 }
 
-func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error {
+func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blockSize time.Duration, block *rpc.Block) error {
 	start := time.Unix(0, block.Start)
-	result, err := r.newDatabaseBlock(block)
+	result, err := r.newDatabaseBlock(blockSize, block)
 	if err != nil {
 		return err
 	}
@@ -3006,8 +3005,9 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 		result.Close()
 
 		result = r.blockOpts.DatabaseBlockPool().Get()
-		// arnikola
-		result.Reset(start, time.Hour, encoder.Discard())
+		blockSize := resultReader.End().Sub(start)
+
+		result.Reset(start, blockSize, encoder.Discard())
 
 		tmpCtx.Close()
 	}
