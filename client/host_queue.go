@@ -58,12 +58,9 @@ type queue struct {
 
 func newHostQueue(
 	host topology.Host,
-	writeBatchRawRequestPool writeBatchRawRequestPool,
-	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
-	writeTaggedBatchRawRequestPool writeTaggedBatchRawRequestPool,
-	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool,
-	opts Options,
+	hostQueueOpts hostQueueOpts,
 ) hostQueue {
+	opts := hostQueueOpts.opts
 	scope := opts.InstrumentOptions().MetricsScope().
 		SubScope("hostqueue").
 		Tagged(map[string]string{
@@ -89,10 +86,10 @@ func newHostQueue(
 		nowFn:                                      opts.ClockOptions().NowFn(),
 		host:                                       host,
 		connPool:                                   newConnectionPool(host, opts),
-		writeBatchRawRequestPool:                   writeBatchRawRequestPool,
-		writeBatchRawRequestElementArrayPool:       writeBatchRawRequestElementArrayPool,
-		writeTaggedBatchRawRequestPool:             writeTaggedBatchRawRequestPool,
-		writeTaggedBatchRawRequestElementArrayPool: writeTaggedBatchRawRequestElementArrayPool,
+		writeBatchRawRequestPool:                   hostQueueOpts.writeBatchRawRequestPool,
+		writeBatchRawRequestElementArrayPool:       hostQueueOpts.writeBatchRawRequestElementArrayPool,
+		writeTaggedBatchRawRequestPool:             hostQueueOpts.writeTaggedBatchRawRequestPool,
+		writeTaggedBatchRawRequestElementArrayPool: hostQueueOpts.writeTaggedBatchRawRequestElementArrayPool,
 		size:         size,
 		ops:          opArrayPool.Get(),
 		opsArrayPool: opArrayPool,

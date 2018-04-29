@@ -206,11 +206,7 @@ func testSessionClusterConnectConsistencyLevel(
 	var failingConns int32
 	session.newHostQueueFn = func(
 		host topology.Host,
-		writeBatchRawRequestPool writeBatchRawRequestPool,
-		writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
-		writeTaggedBatchRawRequestPool writeTaggedBatchRawRequestPool,
-		writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool,
-		opts Options,
+		opts hostQueueOpts,
 	) hostQueue {
 		hostQueue := NewMockhostQueue(ctrl)
 		hostQueue.EXPECT().Open().Times(1)
@@ -218,7 +214,7 @@ func testSessionClusterConnectConsistencyLevel(
 		if atomic.AddInt32(&failingConns, 1) <= int32(failures) {
 			hostQueue.EXPECT().ConnectionCount().Return(0).AnyTimes()
 		} else {
-			min := opts.MinConnectionCount()
+			min := opts.opts.MinConnectionCount()
 			hostQueue.EXPECT().ConnectionCount().Return(min).AnyTimes()
 		}
 		hostQueue.EXPECT().Close().AnyTimes()
@@ -246,11 +242,7 @@ func mockHostQueues(
 	idx := 0
 	s.newHostQueueFn = func(
 		host topology.Host,
-		writeBatchRawRequestPool writeBatchRawRequestPool,
-		writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
-		writeTaggedBatchRawRequestPool writeTaggedBatchRawRequestPool,
-		writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool,
-		opts Options,
+		opts hostQueueOpts,
 	) hostQueue {
 		// Make a copy of the enqueue fns for each host
 		hostEnqueueFns := make([]testEnqueueFn, len(enqueueFns))
@@ -262,7 +254,7 @@ func mockHostQueues(
 		hostQueue.EXPECT().Host().Return(host).AnyTimes()
 		// Take two attempts to establish min connection count
 		hostQueue.EXPECT().ConnectionCount().Return(0).Times(sessionTestShards)
-		hostQueue.EXPECT().ConnectionCount().Return(opts.MinConnectionCount()).Times(sessionTestShards)
+		hostQueue.EXPECT().ConnectionCount().Return(opts.opts.MinConnectionCount()).Times(sessionTestShards)
 		var expectNextEnqueueFn func(fns []testEnqueueFn)
 		expectNextEnqueueFn = func(fns []testEnqueueFn) {
 			fn := fns[0]
