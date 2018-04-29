@@ -34,16 +34,6 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
-func newTestHostQueue(opts Options) *queue {
-	return newHostQueue(h, hostQueueOpts{
-		writeBatchRawRequestPool:                   testWriteBatchRawPool,
-		writeBatchRawRequestElementArrayPool:       testWriteArrayPool,
-		writeTaggedBatchRawRequestPool:             testWriteTaggedBatchRawPool,
-		writeTaggedBatchRawRequestElementArrayPool: testWriteTaggedArrayPool,
-		opts: opts,
-	}).(*queue)
-}
-
 func TestHostQueueWriteErrorBeforeOpen(t *testing.T) {
 	opts := newHostQueueTestOptions()
 	queue := newTestHostQueue(opts)

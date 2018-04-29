@@ -142,13 +142,7 @@ func testHostQueueFetchBatches(
 	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
-	queue := newHostQueue(h, hostQueueOpts{
-		writeBatchRawRequestPool:                   testWriteBatchRawPool,
-		writeBatchRawRequestElementArrayPool:       testWriteArrayPool,
-		writeTaggedBatchRawRequestPool:             testWriteTaggedBatchRawPool,
-		writeTaggedBatchRawRequestElementArrayPool: testWriteTaggedArrayPool,
-		opts: opts,
-	}).(*queue)
+	queue := newTestHostQueue(opts)
 	queue.connPool = mockConnPool
 
 	// Open

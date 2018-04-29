@@ -102,6 +102,16 @@ func applySessionTestOptions(opts Options) Options {
 				SetHostShardSets(sessionTestHostAndShards(shardSet))))
 }
 
+func newTestHostQueue(opts Options) *queue {
+	return newHostQueue(h, hostQueueOpts{
+		writeBatchRawRequestPool:                   testWriteBatchRawPool,
+		writeBatchRawRequestElementArrayPool:       testWriteArrayPool,
+		writeTaggedBatchRawRequestPool:             testWriteTaggedBatchRawPool,
+		writeTaggedBatchRawRequestElementArrayPool: testWriteTaggedArrayPool,
+		opts: opts,
+	}).(*queue)
+}
+
 func TestSessionCreationFailure(t *testing.T) {
 	topoOpts := topology.NewDynamicOptions()
 	topoInit := topology.NewDynamicInitializer(topoOpts)
