@@ -43,6 +43,8 @@ type fetchTaggedResultsIndexIterator struct {
 		ids  [][]byte
 		tags [][]byte
 	}
+
+	pool *fetchTaggedResultsIndexIteratorPool
 }
 
 // make the compiler ensure the concrete type `&fetchTaggedResultsIndexIterator{}` implements
@@ -89,9 +91,30 @@ func (i *fetchTaggedResultsIndexIterator) asIdent(b []byte) ident.ID {
 
 func (i *fetchTaggedResultsIndexIterator) Close() {
 	i.release()
-	i.backing.nses = nil
-	i.backing.ids = nil
-	i.backing.tags = nil
+
+	if i.pool == nil {
+		i.backing.nses = nil
+		i.backing.ids = nil
+		i.backing.tags = nil
+		return
+	}
+
+	for idx := range i.backing.nses {
+		i.backing.nses[idx] = nil
+	}
+	i.backing.nses = i.backing.nses[:0]
+
+	for idx := range i.backing.ids {
+		i.backing.ids[idx] = nil
+	}
+	i.backing.ids = i.backing.ids[:0]
+
+	for idx := range i.backing.tags {
+		i.backing.tags[idx] = nil
+	}
+	i.backing.tags = i.backing.tags[:0]
+
+	i.pool.Put(i)
 }
 
 func (i *fetchTaggedResultsIndexIterator) release() {
