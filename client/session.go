@@ -284,6 +284,14 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.fetchAttempt = newFetchAttemptPool(s, fetchAttemptPoolOpts)
 	s.pools.fetchAttempt.Init()
 
+	fetchTaggedAttemptPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(opts.FetchBatchOpPoolSize()).
+		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
+			scope.SubScope("fetch-tagged-attempt-pool"),
+		))
+	s.pools.fetchTaggedAttempt = newFetchTaggedAttemptPool(s, fetchTaggedAttemptPoolOpts)
+	s.pools.fetchTaggedAttempt.Init()
+
 	tagEncoderPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.TagEncoderPoolSize()).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
@@ -1071,10 +1079,32 @@ func (s *session) FetchIDs(
 func (s *session) FetchTagged(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
 ) (encoding.SeriesIterators, bool, error) {
+	f := s.pools.fetchTaggedAttempt.Get()
+	f.args.ns = ns
+	f.args.query = q
+	f.args.opts = opts
+	err := s.fetchRetrier.Attempt(f.dataAttemptFn)
+	iters, exhaustive := f.dataResultIters, f.dataResultExhaustive
+	s.pools.fetchTaggedAttempt.Put(f)
+	return iters, exhaustive, err
+}
+
+func (s *session) fetchTaggedAttempt(
+	ns ident.ID, q index.Query, opts index.QueryOptions,
+) (encoding.SeriesIterators, bool, error) {
+	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
+	// of the hostQueues responding is less than the lifecycle of the current method.
+	nsClone := s.pools.id.Clone(ns)
+
 	const fetchData = true
-	req, err := convert.ToRPCFetchTaggedRequest(ns, q, opts, fetchData)
+	// FOLLOWUP(prateek): currently both `index.Query` and the returned request depened on
+	// native, un-pooled types; so we do not Clone() either. We will start doing so
+	// once https://github.com/m3db/m3ninx/issues/42 lands. Including transferring ownership
+	// of the Clone()'d value to the `fetchState`.
+	req, err := convert.ToRPCFetchTaggedRequest(nsClone, q, opts, fetchData)
 	if err != nil {
-		return nil, false, err
+		nsClone.Finalize()
+		return nil, false, xerrors.NewNonRetryableError(err)
 	}
 
 	s.state.RLock()
@@ -1083,7 +1113,7 @@ func (s *session) FetchTagged(
 		return nil, false, errSessionStatusNotOpen
 	}
 
-	fetchState, err := s.fetchTaggedAttemptWithRLock(opts.StartInclusive, opts.EndExclusive, req)
+	fetchState, err := s.fetchTaggedAttemptWithRLock(nsClone, opts.StartInclusive, opts.EndExclusive, req)
 	s.state.RUnlock()
 
 	if err != nil {
@@ -1109,10 +1139,32 @@ func (s *session) FetchTagged(
 func (s *session) FetchTaggedIDs(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
 ) (index.QueryResults, error) {
+	f := s.pools.fetchTaggedAttempt.Get()
+	f.args.ns = ns
+	f.args.query = q
+	f.args.opts = opts
+	err := s.fetchRetrier.Attempt(f.idsAttemptFn)
+	result := f.idsResult
+	s.pools.fetchTaggedAttempt.Put(f)
+	return result, err
+}
+
+func (s *session) fetchTaggedIDsAttempt(
+	ns ident.ID, q index.Query, opts index.QueryOptions,
+) (index.QueryResults, error) {
+	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
+	// of the hostQueues responding is less than the lifecycle of the current method.
+	nsClone := s.pools.id.Clone(ns)
+
 	const fetchData = false
-	req, err := convert.ToRPCFetchTaggedRequest(ns, q, opts, fetchData)
+	// FOLLOWUP(prateek): currently both `index.Query` and the returned request depened on
+	// native, un-pooled types; so we do not Clone() either. We will start doing so
+	// once https://github.com/m3db/m3ninx/issues/42 lands. Including transferring ownership
+	// of the Clone()'d value to the `fetchState`.
+	req, err := convert.ToRPCFetchTaggedRequest(nsClone, q, opts, fetchData)
 	if err != nil {
-		return index.QueryResults{}, err
+		nsClone.Finalize()
+		return index.QueryResults{}, xerrors.NewNonRetryableError(err)
 	}
 
 	s.state.RLock()
@@ -1121,7 +1173,7 @@ func (s *session) FetchTaggedIDs(
 		return index.QueryResults{}, errSessionStatusNotOpen
 	}
 
-	fetchState, err := s.fetchTaggedAttemptWithRLock(opts.StartInclusive, opts.EndExclusive, req)
+	fetchState, err := s.fetchTaggedAttemptWithRLock(nsClone, opts.StartInclusive, opts.EndExclusive, req)
 	s.state.RUnlock()
 
 	if err != nil {
@@ -1148,6 +1200,7 @@ func (s *session) FetchTaggedIDs(
 // is transferred to the calling function, and is expected to manage the lifecycle of
 // of the object (including releasing the lock/decRef'ing it).
 func (s *session) fetchTaggedAttemptWithRLock(
+	nsID ident.ID,
 	startTime time.Time,
 	endTime time.Time,
 	req rpc.FetchTaggedRequest,
@@ -1157,6 +1210,8 @@ func (s *session) fetchTaggedAttemptWithRLock(
 		op         = s.pools.fetchTaggedOp.Get()
 		fetchState = s.pools.fetchState.Get()
 	)
+
+	fetchState.nsID = nsID // transfer ownership of nsID to `fetchState`
 
 	fetchState.incRef() // indicate current go-routine has a reference to the fetchState
 	op.incRef()         // indicate current go-routine has a reference to the op

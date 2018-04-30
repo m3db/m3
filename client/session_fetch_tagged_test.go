@@ -31,7 +31,9 @@ import (
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3ninx/idx"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	xretry "github.com/m3db/m3x/retry"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -49,7 +51,8 @@ func TestSessionFetchTaggedUnsupportedQuery(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSessionTestOptions()
+	opts := newSessionTestOptions().
+		SetFetchRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(1)))
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 
@@ -59,6 +62,7 @@ func TestSessionFetchTaggedUnsupportedQuery(t *testing.T) {
 		index.QueryOptions{},
 	)
 	assert.Error(t, err)
+	assert.True(t, xerrors.IsNonRetryableError(err))
 
 	_, err = s.FetchTaggedIDs(
 		ident.StringID("namespace"),
@@ -66,6 +70,7 @@ func TestSessionFetchTaggedUnsupportedQuery(t *testing.T) {
 		index.QueryOptions{},
 	)
 	assert.Error(t, err)
+	assert.True(t, xerrors.IsNonRetryableError(err))
 }
 
 func TestSessionFetchTaggedNotOpenError(t *testing.T) {
@@ -392,6 +397,124 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 	assert.True(t, stubOpPool.retrieved)
 	assert.Equal(t, int32(0), stubOpPool.op.refCounter.n)
 	stubOpPool.Unlock()
+}
+
+func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestOptions().
+		SetReadConsistencyLevel(topology.ReadConsistencyLevelAll).
+		SetFetchRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(1)))
+
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
+
+	start := time.Now().Truncate(time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	var (
+		numPoints = 100
+		sg0       = newTestSerieses(1, 5)
+		sg1       = newTestSerieses(6, 10)
+		sg2       = newTestSerieses(11, 15)
+		th        = newTestFetchTaggedHelper(t)
+	)
+	sg0.addDatapoints(numPoints, start, end)
+	sg1.addDatapoints(numPoints, start, end)
+	sg2.addDatapoints(numPoints, start, end)
+
+	topoInit := opts.TopologyInitializer()
+	topoWatch, err := topoInit.Init()
+	require.NoError(t, err)
+	topoMap := topoWatch.Get()
+	require.Equal(t, 3, topoMap.HostsLen()) // the code below assumes this
+	mockExtendedHostQueues(
+		t, ctrl, session, sessionTestReplicas,
+		testHostQueueOpsByHost{
+			testHostName(0): &testHostQueueOps{
+				enqueues: []testEnqueue{
+					testEnqueue{
+						enqueueFn: func(idx int, op op) {
+							go func() {
+								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+									host: topoMap.Hosts()[idx],
+								}, fmt.Errorf("random-err-0"))
+							}()
+						},
+					},
+					testEnqueue{
+						enqueueFn: func(idx int, op op) {
+							go func() {
+								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+									host:     topoMap.Hosts()[idx],
+									response: sg0.toRPCResult(th, start, true),
+								}, nil)
+							}()
+						},
+					},
+				},
+			},
+			testHostName(1): &testHostQueueOps{
+				enqueues: []testEnqueue{
+					testEnqueue{
+						enqueueFn: func(idx int, op op) {
+							go func() {
+								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+									host: topoMap.Hosts()[idx],
+								}, fmt.Errorf("random-err-1"))
+							}()
+						},
+					},
+					testEnqueue{
+						enqueueFn: func(idx int, op op) {
+							go func() {
+								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+									host:     topoMap.Hosts()[idx],
+									response: sg1.toRPCResult(th, start, false),
+								}, nil)
+							}()
+						},
+					},
+				},
+			},
+			testHostName(2): &testHostQueueOps{
+				enqueues: []testEnqueue{
+					testEnqueue{
+						enqueueFn: func(idx int, op op) {
+							go func() {
+								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+									host: topoMap.Hosts()[idx],
+								}, fmt.Errorf("random-err-2"))
+							}()
+						},
+					},
+					testEnqueue{
+						enqueueFn: func(idx int, op op) {
+							go func() {
+								op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
+									host:     topoMap.Hosts()[idx],
+									response: sg2.toRPCResult(th, start, true),
+								}, nil)
+							}()
+						},
+					},
+				},
+			},
+		})
+
+	assert.NoError(t, session.Open())
+
+	iters, exhaust, err := session.FetchTagged(ident.StringID("namespace"),
+		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
+	assert.NoError(t, err)
+	assert.False(t, exhaust)
+	expected := append(sg0, sg1...)
+	expected = append(expected, sg2...)
+	expected.assertMatchesEncodingIters(t, iters)
+
+	assert.NoError(t, session.Close())
 }
 
 type testEnqueue struct {

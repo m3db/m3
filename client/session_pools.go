@@ -47,6 +47,7 @@ type sessionPools struct {
 	writeAttempt                *writeAttemptPool
 	writeState                  *writeStatePool
 	fetchAttempt                *fetchAttemptPool
+	fetchTaggedAttempt          *fetchTaggedAttemptPool
 	checkedBytesWrapper         xpool.CheckedBytesWrapperPool
 }
 
