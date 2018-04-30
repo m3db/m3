@@ -38,6 +38,13 @@ type fetchTaggedResultAccumulatorOpts struct {
 	host     topology.Host
 	response *rpc.FetchTaggedResult_
 }
+
+func newFetchTaggedResultAccumulator() fetchTaggedResultAccumulator {
+	accum := fetchTaggedResultAccumulator{}
+	accum.Clear()
+	return accum
+}
+
 type fetchTaggedResultAccumulator struct {
 	// NB(prateek): a fetchTagged request requires we fan out to each shard in the
 	// topology. As a result, we track the response consistency per shard.
@@ -64,23 +71,16 @@ type fetchTaggedShardConsistencyResult struct {
 	done     bool
 }
 
+func (rs fetchTaggedShardConsistencyResult) pending() int32 {
+	return int32(rs.enqueued - (rs.success + rs.errors))
+}
+
 func (accum *fetchTaggedResultAccumulator) Add(
 	opts fetchTaggedResultAccumulatorOpts,
 	resultErr error,
 ) (bool, error) {
 	host := opts.host
 	response := opts.response
-
-	accum.numHostsPending--
-	if resultErr != nil {
-		accum.errors = append(accum.errors, xerrors.NewRenamedError(resultErr,
-			fmt.Errorf("error fetching tagged from host %s", host.ID())))
-	} else {
-		accum.exhaustive = accum.exhaustive && response.Exhaustive
-		for _, elem := range response.Elements {
-			accum.responses = append(accum.responses, elem)
-		}
-	}
 
 	hostShardSet, ok := accum.topoMap.LookupHostShardSet(host.ID())
 	if !ok {
@@ -90,6 +90,17 @@ func (accum *fetchTaggedResultAccumulator) Add(
 		err := fmt.Errorf(
 			"[invariant violated] missing host shard in fetchState completionFn: %s", host.ID())
 		return doneAccumulating, xerrors.NewNonRetryableError(err)
+	}
+
+	accum.numHostsPending--
+	if resultErr != nil {
+		accum.errors = append(accum.errors, xerrors.NewRenamedError(resultErr,
+			fmt.Errorf("error fetching tagged from host %s: %v", host.ID(), resultErr)))
+	} else {
+		accum.exhaustive = accum.exhaustive && response.Exhaustive
+		for _, elem := range response.Elements {
+			accum.responses = append(accum.responses, elem)
+		}
 	}
 
 	for _, hs := range hostShardSet.ShardSet().All() {
@@ -113,11 +124,16 @@ func (accum *fetchTaggedResultAccumulator) Add(
 			shardResult.errors++
 		}
 
-		shardResult.done = readConsistencyAchieved(accum.consistencyLevel, accum.majority,
-			int(shardResult.enqueued), int(shardResult.success))
-
-		if shardResult.done {
-			accum.numShardsPending--
+		pending := shardResult.pending()
+		if readConsistencyTermination(accum.consistencyLevel, int32(accum.majority), pending, int32(shardResult.success)) {
+			shardResult.done = true
+			if readConsistencyAchieved(accum.consistencyLevel, accum.majority, int(shardResult.enqueued), int(shardResult.success)) {
+				accum.numShardsPending--
+			}
+			// NB(prateek): if !readConsistencyAchieved, we have sufficient information to fail the entire request, because we
+			// will never be able to satisfy the consistency requirement on the current shard. We explicitly chose not to,
+			// instead waiting till all the hosts return a response. This is to reduce the load we would put on the cluster
+			// due to retries.
 		}
 
 		// update value in slice
@@ -157,6 +173,7 @@ func (accum *fetchTaggedResultAccumulator) Clear() {
 	accum.majority, accum.numHostsPending, accum.numShardsPending = 0, 0, 0
 	accum.startTime, accum.endTime = time.Time{}, time.Time{}
 	accum.topoMap = nil
+	accum.exhaustive = true
 }
 
 func (accum *fetchTaggedResultAccumulator) Reset(
@@ -177,7 +194,8 @@ func (accum *fetchTaggedResultAccumulator) Reset(
 
 	// expand shardResults as much as necessary
 	targetLen := 1 + int(topoMap.ShardSet().Max())
-	accum.shardConsistencyResults = fetchTaggedShardConsistencyResults(accum.shardConsistencyResults).initialize(targetLen)
+	accum.shardConsistencyResults = fetchTaggedShardConsistencyResults(
+		accum.shardConsistencyResults).initialize(targetLen)
 	// initialize shardResults based on current topology
 	for _, hss := range topoMap.HostShardSets() {
 		for _, hShard := range hss.ShardSet().All() {
@@ -227,7 +245,7 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 	accum.responses = fetchTaggedIDResults(results)
 
 	numElements := 0
-	accum.responses.forEachID(func(_ fetchTaggedIDResults) bool {
+	accum.responses.forEachID(func(_ fetchTaggedIDResults, _ bool) bool {
 		numElements++
 		return numElements < limit
 	})
@@ -235,14 +253,16 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 	result := pools.MutableSeriesIterators().Get(numElements)
 	result.Reset(numElements)
 	count := 0
-	accum.responses.forEachID(func(elems fetchTaggedIDResults) bool {
+	moreElems := false
+	accum.responses.forEachID(func(elems fetchTaggedIDResults, hasMore bool) bool {
 		seriesIter := accum.sliceResponsesAsSeriesIter(pools, elems)
 		result.SetAt(count, seriesIter)
 		count++
+		moreElems = hasMore
 		return count < limit
 	})
 
-	exhaustive := accum.exhaustive && count <= limit
+	exhaustive := accum.exhaustive && count <= limit && !moreElems
 	return result, exhaustive, nil
 }
 
@@ -251,22 +271,22 @@ func (accum *fetchTaggedResultAccumulator) AsIndexQueryResults(
 	pools fetchTaggedPools,
 ) (index.QueryResults, error) {
 	var (
-		iter  = newFetchTaggedResultsIndexIterator(pools)
-		count = 0
+		iter      = newFetchTaggedResultsIndexIterator(pools)
+		count     = 0
+		moreElems = false
 	)
 	results := fetchTaggedIDResultsSortedByID(accum.responses)
 	sort.Sort(results)
 	accum.responses = fetchTaggedIDResults(results)
-	accum.responses.forEachID(func(elems fetchTaggedIDResults) bool {
-		iter.backing.ids = append(iter.backing.ids, elems[0].ID)
-		iter.backing.nses = append(iter.backing.nses, elems[0].NameSpace)
-		iter.backing.tags = append(iter.backing.tags, elems[0].EncodedTags)
+	accum.responses.forEachID(func(elems fetchTaggedIDResults, hasMore bool) bool {
+		iter.addBacking(elems[0].NameSpace, elems[0].ID, elems[0].EncodedTags)
 		count++
+		moreElems = hasMore
 		return count < limit
 	})
 
 	return index.QueryResults{
-		Exhaustive: accum.exhaustive && count <= limit,
+		Exhaustive: accum.exhaustive && count <= limit && !moreElems,
 		Iterator:   iter,
 	}, nil
 }
@@ -288,10 +308,10 @@ func (res fetchTaggedShardConsistencyResults) initialize(length int) fetchTagged
 
 type fetchTaggedIDResults []*rpc.FetchTaggedIDResult_
 
-// lambda to iterate over fetchTagged responses a single id at a time,
-// the returned bool indicates if the iteration should be continued past the
-// curent id.
-type forEachFetchTaggedIDFn func(responsesForSingleID fetchTaggedIDResults) bool
+// lambda to iterate over fetchTagged responses a single id at a time, `hasMore` indicates
+// if there are more results to iterate after the current batch of elements. the returned
+// bool indicates if the iteration should be continued past the curent batch.
+type forEachFetchTaggedIDFn func(responsesForSingleID fetchTaggedIDResults, hasMore bool) (continueIterating bool)
 
 // forEachID iterates over the provide results, and calls `fn` on each
 // group of responses with the same ID.
@@ -312,7 +332,7 @@ func (results fetchTaggedIDResults) forEachID(fn forEachFetchTaggedIDFn) {
 			if i == 0 {
 				continue
 			}
-			continueIterating := fn(results[startIdx:i])
+			continueIterating := fn(results[startIdx:i], i < len(results))
 			if !continueIterating {
 				return
 			}
@@ -321,7 +341,7 @@ func (results fetchTaggedIDResults) forEachID(fn forEachFetchTaggedIDFn) {
 	}
 	// spill over
 	if startIdx < len(results) {
-		fn(results[startIdx:])
+		fn(results[startIdx:], false)
 	}
 }
 
