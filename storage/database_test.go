@@ -45,12 +45,12 @@ import (
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 	xwatch "github.com/m3db/m3x/watch"
-	"github.com/uber-go/tally"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 var (
