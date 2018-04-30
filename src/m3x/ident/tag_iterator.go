@@ -20,9 +20,37 @@
 
 package ident
 
+import "errors"
+
+var (
+	errInvalidNumberInputsToIteratorMatcher = errors.New("inputs must be specified in name-value pairs (i.e. divisible by 2)")
+)
+
 // NewTagIterator returns a new TagIterator over the given Tags.
 func NewTagIterator(tags ...Tag) TagIterator {
 	return NewTagSliceIterator(tags)
+}
+
+// MustNewTagStringsIterator returns a TagIterator over a slice of strings,
+// panic'ing if it encounters an error.
+func MustNewTagStringsIterator(inputs ...string) TagIterator {
+	iter, err := NewTagStringsIterator(inputs...)
+	if err != nil {
+		panic(err.Error())
+	}
+	return iter
+}
+
+// NewTagStringsIterator returns a TagIterator over a slice of strings.
+func NewTagStringsIterator(inputs ...string) (TagIterator, error) {
+	if len(inputs)%2 != 0 {
+		return nil, errInvalidNumberInputsToIteratorMatcher
+	}
+	tags := make(Tags, 0, len(inputs)/2)
+	for i := 0; i < len(inputs); i += 2 {
+		tags = append(tags, StringTag(inputs[i], inputs[i+1]))
+	}
+	return NewTagSliceIterator(tags), nil
 }
 
 // NewTagSliceIterator returns a TagIterator over a slice.

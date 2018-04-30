@@ -64,6 +64,11 @@ func (t *Tag) Finalize() {
 	}
 }
 
+// Equal returns whether the two tags are equal.
+func (t Tag) Equal(value Tag) bool {
+	return t.Name.Equal(value.Name) && t.Value.Equal(value.Value)
+}
+
 // Pool represents an automatic pool of `ident` objects.
 type Pool interface {
 	// GetBinaryID will create a new binary ID and take reference to the bytes.

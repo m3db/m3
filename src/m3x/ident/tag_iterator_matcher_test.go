@@ -34,37 +34,34 @@ func TestTagIteratorMatcher(t *testing.T) {
 	iter := ident.NewTagIterator(
 		ident.StringTag("hello", "there"),
 		ident.StringTag("foo", "bar"))
-	matcher, err := ident.NewTagIterMatcher("hello", "there", "foo", "bar")
-	assert.NoError(t, err)
+	matcher := ident.NewTagIterMatcher(iter)
 	assert.True(t, matcher.Matches(iter))
 }
 
-func TestTagIteratorMatcherNotMatching(t *testing.T) {
-	matcher, err := ident.NewTagIterMatcher()
-	assert.NoError(t, err)
+func TestTagIteratorMatcherNotMatchingWrongType(t *testing.T) {
+	matcher := ident.NewTagIterMatcher(ident.EmptyTagIterator)
 	assert.False(t, matcher.Matches(1))
+}
 
-	iter := ident.NewTagIterator(ident.StringTag("hello", "there"))
-	assert.False(t, matcher.Matches(iter))
-
-	matcher, err = ident.NewTagIterMatcher("hello", "fail")
-	assert.NoError(t, err)
-	iter = ident.NewTagIterator(ident.StringTag("hello", "there"))
-	assert.False(t, matcher.Matches(iter))
-
-	matcher, err = ident.NewTagIterMatcher("fail", "there")
-	assert.NoError(t, err)
-	iter = ident.NewTagIterator(ident.StringTag("hello", "there"))
+func TestTagIteratorMatcherNotMatchingEmpty(t *testing.T) {
+	iter := ident.MustNewTagStringsIterator("hello", "there")
+	matcher := ident.NewTagIterMatcher(ident.EmptyTagIterator)
 	assert.False(t, matcher.Matches(iter))
 }
 
-func TestTagIteratorMatcherInvalid(t *testing.T) {
-	assert.Panics(t, func() {
-		ident.MustNewTagIterMatcher("hello")
-	})
-	assert.Panics(t, func() {
-		ident.MustNewTagIterMatcher("hello", "a", "b")
-	})
+func TestTagIteratorMatcherNotMatchingTagName(t *testing.T) {
+	iter := ident.MustNewTagStringsIterator("hello", "there")
+	matcher := ident.NewTagIterMatcher(iter)
+	otherIter := ident.MustNewTagStringsIterator("hello", "other")
+	assert.True(t, matcher.Matches(iter))
+	assert.False(t, matcher.Matches(otherIter))
+}
+
+func TestTagIteratorMatcherNotMatchingTagValue(t *testing.T) {
+	iter := ident.MustNewTagStringsIterator("hello", "there")
+	matcher := ident.NewTagIterMatcher(iter)
+	otherIter := ident.MustNewTagStringsIterator("fail", "there")
+	assert.False(t, matcher.Matches(otherIter))
 }
 
 func TestTagIteratorMatcherErrCase(t *testing.T) {
@@ -79,12 +76,7 @@ func TestTagIteratorMatcherErrCase(t *testing.T) {
 		iter.EXPECT().Next().Return(false),
 		iter.EXPECT().Err().Return(fmt.Errorf("random error")),
 	)
-	matcher, err := ident.NewTagIterMatcher("a", "b")
-	assert.NoError(t, err)
+	mIter := ident.MustNewTagStringsIterator("a", "b")
+	matcher := ident.NewTagIterMatcher(mIter)
 	assert.False(t, matcher.Matches(iter))
-}
-
-func TestTagIteratorMatcherString(t *testing.T) {
-	matcher := ident.MustNewTagIterMatcher("hello", "there")
-	println(matcher.String())
 }
