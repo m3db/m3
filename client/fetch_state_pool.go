@@ -32,10 +32,22 @@ type fetchStatePoolImpl struct {
 	pool pool.ObjectPool
 }
 
-func newfetchStatePool(opts pool.ObjectPoolOptions) fetchStatePool {
-	return &fetchStatePoolImpl{pool: pool.NewObjectPool(opts)}
+func newFetchStatePool(opts pool.ObjectPoolOptions) fetchStatePool {
+	return &fetchStatePoolImpl{
+		pool: pool.NewObjectPool(opts),
+	}
 }
 
-func (p *fetchStatePoolImpl) Init()             { p.pool.Init(func() interface{} { return newFetchState(p) }) }
-func (p *fetchStatePoolImpl) Get() *fetchState  { return p.pool.Get().(*fetchState) }
-func (p *fetchStatePoolImpl) Put(f *fetchState) { p.pool.Put(f) }
+func (p *fetchStatePoolImpl) Init() {
+	p.pool.Init(func() interface{} {
+		return newFetchState(p)
+	})
+}
+
+func (p *fetchStatePoolImpl) Get() *fetchState {
+	return p.pool.Get().(*fetchState)
+}
+
+func (p *fetchStatePoolImpl) Put(f *fetchState) {
+	p.pool.Put(f)
+}

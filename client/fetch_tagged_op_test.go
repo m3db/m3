@@ -56,7 +56,7 @@ func TestFetchTaggedOp(t *testing.T) {
 		count++
 	}
 	op.update(rpc.FetchTaggedRequest{}, fn)
-	op.complete(inter, err)
+	op.CompletionFn()(inter, err)
 	require.Equal(t, 1, count)
 }
 

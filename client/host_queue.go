@@ -465,7 +465,7 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 		client, err := q.connPool.NextClient()
 		if err != nil {
 			// No client available
-			op.complete(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
+			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
 			cleanup()
 			return
 		}
@@ -473,12 +473,12 @@ func (q *queue) asyncFetchTagged(op *fetchTaggedOp) {
 		ctx, _ := thrift.NewContext(q.opts.FetchRequestTimeout())
 		result, err := client.FetchTagged(ctx, &op.request)
 		if err != nil {
-			op.complete(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
+			op.CompletionFn()(fetchTaggedResultAccumulatorOpts{host: q.host}, err)
 			cleanup()
 			return
 		}
 
-		op.complete(fetchTaggedResultAccumulatorOpts{
+		op.CompletionFn()(fetchTaggedResultAccumulatorOpts{
 			host:     q.host,
 			response: result,
 		}, err)
