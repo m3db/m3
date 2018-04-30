@@ -41,9 +41,7 @@ func TestHostQueueDrainOnCloseFetchTagged(t *testing.T) {
 	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
-	queue := newHostQueue(h, testWriteBatchRawPool,
-		testWriteArrayPool, testWriteTaggedBatchRawPool,
-		testWriteTaggedArrayPool, opts).(*queue)
+	queue := newTestHostQueue(opts)
 	queue.connPool = mockConnPool
 
 	// Open
@@ -179,9 +177,7 @@ func testHostQueueFetchTagged(
 
 	opts := newHostQueueTestOptions().
 		SetHostQueueOpsFlushInterval(time.Millisecond)
-	queue := newHostQueue(h, testWriteBatchRawPool,
-		testWriteArrayPool, testWriteTaggedBatchRawPool,
-		testWriteTaggedArrayPool, opts).(*queue)
+	queue := newTestHostQueue(opts)
 	queue.connPool = mockConnPool
 
 	// Open

@@ -223,13 +223,17 @@ type streamFromPeersMetrics struct {
 	blocksEnqueueChannel                              tally.Gauge
 }
 
+type hostQueueOpts struct {
+	writeBatchRawRequestPool                   writeBatchRawRequestPool
+	writeBatchRawRequestElementArrayPool       writeBatchRawRequestElementArrayPool
+	writeTaggedBatchRawRequestPool             writeTaggedBatchRawRequestPool
+	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool
+	opts                                       Options
+}
+
 type newHostQueueFn func(
 	host topology.Host,
-	writeBatchRawRequestPool writeBatchRawRequestPool,
-	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
-	writeTaggedBatchRawRequestPool writeTaggedBatchRawRequestPool,
-	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool,
-	opts Options,
+	hostQueueOpts hostQueueOpts,
 ) hostQueue
 
 func newSession(opts Options) (clientSession, error) {
@@ -829,10 +833,13 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQue
 		writeTaggedBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
 	writeTaggedBatchRawRequestElementArrayPool.Init()
 
-	hostQueue := s.newHostQueueFn(host,
-		writeBatchRequestPool, writeBatchRawRequestElementArrayPool,
-		writeTaggedBatchRequestPool, writeTaggedBatchRawRequestElementArrayPool,
-		s.opts)
+	hostQueue := s.newHostQueueFn(host, hostQueueOpts{
+		writeBatchRawRequestPool:                   writeBatchRequestPool,
+		writeBatchRawRequestElementArrayPool:       writeBatchRawRequestElementArrayPool,
+		writeTaggedBatchRawRequestPool:             writeTaggedBatchRequestPool,
+		writeTaggedBatchRawRequestElementArrayPool: writeTaggedBatchRawRequestElementArrayPool,
+		opts: s.opts,
+	})
 	hostQueue.Open()
 	return hostQueue
 }
