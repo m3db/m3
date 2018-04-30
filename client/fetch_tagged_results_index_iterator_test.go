@@ -77,19 +77,8 @@ func TestFetchTaggedResultsIndexIterator(t *testing.T) {
 				expNs, expID, expTags := tc.nses[i], tc.ids[i], tc.tags[i].Duplicate()
 				require.Equal(t, expNs.String(), obsNs.String())
 				require.Equal(t, expID.String(), obsID.String())
-				require.True(t, newTagIterMatcher(t, expTags).Matches(obsTags))
+				require.True(t, ident.NewTagIterMatcher(expTags).Matches(obsTags))
 			}
 		})
 	}
-}
-
-// TODO(prateek): migrate this to m3x
-func newTagIterMatcher(t *testing.T, iter ident.TagIterator) ident.TagIterMatcher {
-	tags := make([]string, 0, 2*iter.Remaining())
-	for iter.Next() {
-		t := iter.Current()
-		tags = append(tags, t.Name.String(), t.Value.String())
-	}
-	require.NoError(t, iter.Err())
-	return ident.MustNewTagIterMatcher(tags...)
 }

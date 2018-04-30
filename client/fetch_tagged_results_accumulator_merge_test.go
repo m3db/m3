@@ -462,23 +462,9 @@ func (ts testSeries) nsplit(n int) []testSeries {
 func (ts testSeries) assertMatchesEncodingIter(t *testing.T, iter encoding.SeriesIterator) {
 	require.Equal(t, ts.ns.String(), iter.Namespace().String())
 	require.Equal(t, ts.id.String(), iter.ID().String())
-	assertTagsEqual(t, ts.tags, iter.Tags())
+	require.True(t, ident.NewTagIterMatcher(
+		ident.NewTagSliceIterator(ts.tags)).Matches(iter.Tags()))
 	ts.datapoints.assertMatchesEncodingIter(t, iter)
-}
-
-// TODO(prateek): migrate to m3x
-func assertTagsEqual(t *testing.T, exp ident.Tags, obs ident.TagIterator) {
-	require.Equal(t, len(exp), obs.Remaining())
-	i := 0
-	for obs.Next() {
-		ot := obs.Current()
-		et := exp[i]
-		require.Equal(t, et.Name.String(), ot.Name.String())
-		require.Equal(t, et.Value.String(), ot.Value.String())
-		i++
-	}
-	require.Equal(t, len(exp), i)
-	require.NoError(t, obs.Err())
 }
 
 func (ts testSeries) matcherOption() index.IteratorMatcherOption {
