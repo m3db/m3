@@ -398,21 +398,32 @@ func (ts *testSetup) generatorOptions(ropts retention.Options) generate.Options 
 		SetEncoderPool(storageOpts.EncoderPool())
 }
 
-func (ts *testSetup) serverIsUp() bool {
+func (ts *testSetup) serverIsBootstrapped() bool {
 	resp, err := ts.health()
 	return err == nil && resp.Bootstrapped
 }
 
-func (ts *testSetup) serverIsDown() bool {
+func (ts *testSetup) serverIsUp() bool {
 	_, err := ts.health()
-	return err != nil
+	return err == nil
+}
+
+func (ts *testSetup) serverIsDown() bool {
+	return !ts.serverIsUp()
+}
+
+func (ts *testSetup) waitUntilServerIsBootstrapped() error {
+	if waitUntil(ts.serverIsBootstrapped, ts.opts.ServerStateChangeTimeout()) {
+		return nil
+	}
+	return errServerStartTimedOut
 }
 
 func (ts *testSetup) waitUntilServerIsUp() error {
 	if waitUntil(ts.serverIsUp, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
-	return errServerStartTimedOut
+	return errServerStopTimedOut
 }
 
 func (ts *testSetup) waitUntilServerIsDown() error {
@@ -478,7 +489,7 @@ func (ts *testSetup) startServer() error {
 
 	go func() {
 		select {
-		case resultCh <- ts.waitUntilServerIsUp():
+		case resultCh <- ts.waitUntilServerIsBootstrapped():
 		default:
 		}
 	}()
@@ -546,9 +557,23 @@ func (ts *testSetup) close() {
 	}
 }
 
+func (ts *testSetup) mustSetTickMinimumInterval(tickMinInterval time.Duration) {
+	runtimeMgr := ts.storageOpts.RuntimeOptionsManager()
+	existingOptions := runtimeMgr.Get()
+	newOptions := existingOptions.SetTickMinimumInterval(100 * time.Millisecond)
+	err := runtimeMgr.Update(newOptions)
+	if err != nil {
+		panic(fmt.Sprintf("err setting tick minimum interval: %v", err))
+	}
+}
+
 // convenience wrapper used to ensure a tick occurs
 func (ts *testSetup) sleepFor10xTickMinimumInterval() {
-	time.Sleep(ts.opts.TickMinimumInterval() * 10)
+	// Check the runtime options manager instead of relying on ts.opts
+	// because the tick interval can change at runtime.
+	runtimeMgr := ts.storageOpts.RuntimeOptionsManager()
+	opts := runtimeMgr.Get()
+	time.Sleep(opts.TickMinimumInterval() * 10)
 }
 
 type testSetups []*testSetup
@@ -622,7 +647,7 @@ func newNodes(
 	nodeClose := func() { // Clean up running servers at end of test
 		log.Debug("servers closing")
 		nodes.parallel(func(s *testSetup) {
-			if s.serverIsUp() {
+			if s.serverIsBootstrapped() {
 				require.NoError(t, s.stopServer())
 			}
 		})

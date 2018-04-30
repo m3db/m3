@@ -264,16 +264,16 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		if i == 1 {
 			expectedErr = errors.New("error bar")
 		}
-		series := series.NewMockDatabaseSeries(ctrl)
-		series.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
-		series.EXPECT().IsEmpty().Return(false).AnyTimes()
-		series.EXPECT().
+		curr := series.NewMockDatabaseSeries(ctrl)
+		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
+		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
+		curr.EXPECT().
 			Flush(gomock.Any(), blockStart, gomock.Any()).
 			Do(func(context.Context, time.Time, persist.Fn) {
 				flushed[i] = struct{}{}
 			}).
-			Return(expectedErr)
-		s.list.PushBack(&dbShardEntry{series: series})
+			Return(series.FlushErr, expectedErr)
+		s.list.PushBack(&dbShardEntry{series: curr})
 	}
 
 	err := s.Flush(blockStart, flush)
@@ -326,16 +326,16 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
 		i := i
-		series := series.NewMockDatabaseSeries(ctrl)
-		series.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
-		series.EXPECT().IsEmpty().Return(false).AnyTimes()
-		series.EXPECT().
+		curr := series.NewMockDatabaseSeries(ctrl)
+		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
+		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
+		curr.EXPECT().
 			Flush(gomock.Any(), blockStart, gomock.Any()).
 			Do(func(context.Context, time.Time, persist.Fn) {
 				flushed[i] = struct{}{}
 			}).
-			Return(nil)
-		s.list.PushBack(&dbShardEntry{series: series})
+			Return(series.FlushedToDisk, nil)
+		s.list.PushBack(&dbShardEntry{series: curr})
 	}
 
 	err := s.Flush(blockStart, flush)

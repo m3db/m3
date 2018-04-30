@@ -191,6 +191,9 @@ func (mgr *tickManager) Tick(forceType forceType) error {
 			break
 		}
 		mgr.sleepFn(interval)
+		// Check again at the end of each sleep to see if it
+		// has changed.
+		min = mgr.runtimeOpts.values().tickMinInterval
 	}
 
 	end := mgr.nowFn()

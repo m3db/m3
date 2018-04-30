@@ -65,6 +65,7 @@ func newMediatorMetrics(scope tally.Scope) mediatorMetrics {
 
 type mediator struct {
 	sync.RWMutex
+	database database
 	databaseBootstrapManager
 	databaseFileSystemManager
 	databaseTickManager
@@ -81,6 +82,7 @@ type mediator struct {
 func newMediator(database database, opts Options) (databaseMediator, error) {
 	scope := opts.InstrumentOptions().MetricsScope()
 	d := &mediator{
+		database: database,
 		opts:     opts,
 		nowFn:    opts.ClockOptions().NowFn(),
 		sleepFn:  time.Sleep,
@@ -131,16 +133,34 @@ func (m *mediator) EnableFileOps() {
 	m.databaseFileSystemManager.Enable()
 }
 
+// Tick mediates the relationship between ticks and flushes/snapshots/cleanups.
+//
+// For example, the requirements to perform a flush are:
+// 		1) currentTime > blockStart.Add(blockSize).Add(bufferPast)
+// 		2) node is not bootstrapping (technically shard is not bootstrapping)
+// 		3) at least one complete tick has occurred since blockStart.Add(blockSize).Add(bufferPast)
+//		4) at least one complete tick has occurred since bootstrap completed (can be the same tick
+// 		   that satisfies condition #3)
+//
+// The mediator helps ensure conditions #3 and #4 are met by measuring the tickStart time and the shard bootstrap
+// states *before* the tick, and then propagating those values to downstream components so they can use that
+// information to make decisions about whether to flush / snapshot / run cleanups.
 func (m *mediator) Tick(runType runType, forceType forceType) error {
-	start := m.nowFn()
+	tickStart := m.nowFn()
+	dbBootstrapStates, err := m.databaseBootstrapStates()
+	if err != nil {
+		return err
+	}
+
 	if err := m.databaseTickManager.Tick(forceType); err != nil {
 		return err
 	}
+
 	// NB(r): Cleanup and/or flush if required to cleanup files and/or
 	// flush blocks to disk. Note this has to run after the tick as
 	// blocks may only have just become available during a tick beginning
 	// from the tick begin marker.
-	m.databaseFileSystemManager.Run(start, runType, forceType)
+	m.databaseFileSystemManager.Run(tickStart, dbBootstrapStates, syncRun, forceType)
 	return nil
 }
 
@@ -199,3 +219,33 @@ func (m *mediator) reportLoop() {
 		}
 	}
 }
+
+func (m *mediator) databaseBootstrapStates() (databaseBootstrapStates, error) {
+	namespaces, err := m.database.GetOwnedNamespaces()
+	if err != nil {
+		return databaseBootstrapStates{}, err
+	}
+
+	states := databaseBootstrapStates{
+		namespaceBootstrapStates: make(map[string]shardBootstrapStates, len(namespaces)),
+	}
+
+	for _, namespace := range namespaces {
+		nsState := make(shardBootstrapStates)
+
+		for _, shard := range namespace.GetOwnedShards() {
+			nsState[shard.ID()] = shard.IsBootstrapped()
+		}
+		states.namespaceBootstrapStates[namespace.ID().String()] = nsState
+	}
+
+	return states, nil
+}
+
+// databaseBootstrapStates storse a snapshot of the bootstrap state for all shards across all
+// namespaces at a given moment in time.
+type databaseBootstrapStates struct {
+	namespaceBootstrapStates map[string]shardBootstrapStates
+}
+
+type shardBootstrapStates map[uint32]bool

@@ -1691,12 +1691,19 @@ func (s *dbShard) Flush(
 
 	var multiErr xerrors.MultiError
 	tmpCtx := context.NewContext()
+
+	var (
+		// Debug
+		numBlockDoesNotExist  = 0
+		numStreamDoesNotExist = 0
+	)
+
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
-		series := entry.series
+		curr := entry.series
 		// Use a temporary context here so the stream readers can be returned to
-		// pool after we finish fetching flushing the series
+		// the pool after we finish fetching flushing the series.
 		tmpCtx.Reset()
-		err := series.Flush(tmpCtx, blockStart, prepared.Persist)
+		flushOutcome, err := curr.Flush(tmpCtx, blockStart, prepared.Persist)
 		tmpCtx.BlockingClose()
 
 		if err != nil {
@@ -1706,8 +1713,23 @@ func (s *dbShard) Flush(
 			return false
 		}
 
+		// Debug
+		if flushOutcome == series.BlockDoesNotExist {
+			numBlockDoesNotExist++
+		}
+		if flushOutcome == series.StreamDoesNotExist {
+			numStreamDoesNotExist++
+		}
+
 		return true
 	})
+
+	// Debug
+	s.logger.WithFields(
+		xlog.NewField("shard", s.ID()),
+		xlog.NewField("numBlockDoesNotExist", numBlockDoesNotExist),
+		xlog.NewField("numStreamDoesNotExist", numStreamDoesNotExist),
+	).Debug("shard flush outcome")
 
 	if err := prepared.Close(); err != nil {
 		multiErr = multiErr.Add(err)

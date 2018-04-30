@@ -290,7 +290,11 @@ type databaseNamespace interface {
 	) error
 
 	// Flush flushes in-memory data
-	Flush(blockStart time.Time, flush persist.Flush) error
+	Flush(
+		blockStart time.Time,
+		shardoBootstrapStates shardBootstrapStates,
+		flush persist.Flush,
+	) error
 
 	// Snapshot snapshots unflushed in-memory data
 	Snapshot(blockStart, snapshotTime time.Time, flush persist.Flush) error
@@ -482,7 +486,7 @@ type databaseBootstrapManager interface {
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
-	Flush(t time.Time) error
+	Flush(tickStart time.Time, dbBootstrapStates databaseBootstrapStates) error
 
 	// Report reports runtime information
 	Report()
@@ -503,7 +507,7 @@ type databaseFileSystemManager interface {
 	Cleanup(t time.Time) error
 
 	// Flush flushes in-memory data to persistent storage.
-	Flush(t time.Time) error
+	Flush(t time.Time, dbBootstrapStates databaseBootstrapStates) error
 
 	// Disable disables the filesystem manager and prevents it from
 	// performing file operations, returns the current file operation status
@@ -517,7 +521,12 @@ type databaseFileSystemManager interface {
 
 	// Run attempts to perform all filesystem-related operations,
 	// returning true if those operations are performed, and false otherwise
-	Run(t time.Time, runType runType, forceType forceType) bool
+	Run(
+		t time.Time,
+		dbBootstrapStates databaseBootstrapStates,
+		runType runType,
+		forceType forceType,
+	) bool
 
 	// Report reports runtime information
 	Report()

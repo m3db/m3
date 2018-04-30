@@ -719,6 +719,7 @@ func (n *dbNamespace) Bootstrap(
 
 func (n *dbNamespace) Flush(
 	blockStart time.Time,
+	shardBootstrapStates shardBootstrapStates,
 	flush persist.Flush,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
@@ -747,6 +748,22 @@ func (n *dbNamespace) Flush(
 	multiErr := xerrors.NewMultiError()
 	shards := n.GetOwnedShards()
 	for _, shard := range shards {
+		// This is different than calling shard.IsBootstrapped() because it was determined
+		// before the start of the tick that preceded this flush, meaning it can be reliably
+		// used to determine if all of the bootstrapped blocks have been merged / drained (ticked)
+		// and are ready to be flushed.
+		shardWasBootstrappedBeforeTick, ok := shardBootstrapStates[shard.ID()]
+		if !ok {
+			// We probably don't own this shard anymore.
+			continue
+		}
+
+		if !shardWasBootstrappedBeforeTick {
+			// No guarantee that all bootstrapped blocks have been rotated out of the
+			// series buffer buckets, so we wait until the next opportunity.
+			continue
+		}
+
 		// skip flushing if the shard has already flushed data for the `blockStart`
 		if s := shard.FlushState(blockStart); s.Status == fileOpSuccess {
 			continue

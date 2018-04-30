@@ -25,7 +25,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
@@ -148,6 +151,119 @@ func TestDatabaseBlockCloseNormalWithDependentContext(t *testing.T) {
 	f := func(block *dbBlock) { block.Close() }
 	af := func(t *testing.T, block *dbBlock) { require.True(t, block.closed) }
 	testDatabaseBlockWithDependentContext(t, f, af)
+}
+
+type segmentReaderFinalizeCounter struct {
+	xio.SegmentReader
+	// Use a pointer so we can update it from the Finalize method
+	// which must not be a pointer receiver (in order to satisfy
+	// the interface)
+	finalizeCount *int
+}
+
+func (r segmentReaderFinalizeCounter) Finalize() {
+	*r.finalizeCount++
+}
+
+// TestDatabaseBlockMerge lazily merges two blocks and verifies that the correct
+// data is returned, as well as that the underlying streams are not double-finalized
+// (regression test).
+func TestDatabaseBlockMerge(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Test data
+	curr := time.Now()
+	data := []ts.Datapoint{
+		ts.Datapoint{
+			Timestamp: curr,
+			Value:     0,
+		},
+		ts.Datapoint{
+			Timestamp: curr.Add(time.Second),
+			Value:     1,
+		},
+	}
+
+	// Mock segment reader pool so we count the number of Finalize() calls
+	segmentReaders := []segmentReaderFinalizeCounter{}
+	mockSegmentReaderPool := xio.NewMockSegmentReaderPool(ctrl)
+	getCall := mockSegmentReaderPool.EXPECT().Get()
+	getCall.DoAndReturn(func() xio.SegmentReader {
+		val := 0
+		reader := segmentReaderFinalizeCounter{
+			xio.NewSegmentReader(ts.Segment{}),
+			&val,
+		}
+		segmentReaders = append(segmentReaders, reader)
+		return reader
+	}).AnyTimes()
+
+	// Setup
+	blockOpts := NewOptions().SetSegmentReaderPool(mockSegmentReaderPool)
+	encodingOpts := encoding.NewOptions()
+
+	// Create the two blocks we plan to merge
+	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
+	encoder.Encode(data[0], xtime.Second, nil)
+	seg := encoder.Discard()
+	block1 := NewDatabaseBlock(data[0].Timestamp, seg, blockOpts).(*dbBlock)
+
+	encoder.Reset(data[1].Timestamp, 10)
+	encoder.Encode(data[1], xtime.Second, nil)
+	seg = encoder.Discard()
+	block2 := NewDatabaseBlock(data[1].Timestamp, seg, blockOpts).(*dbBlock)
+
+	// Lazily merge the two blocks
+	block1.Merge(block2)
+
+	// Try and read the data back and verify it looks good
+	depCtx := block1.opts.ContextPool().Get()
+	stream, err := block1.Stream(depCtx)
+	require.NoError(t, err)
+	seg, err = stream.Segment()
+	require.NoError(t, err)
+	reader := xio.NewSegmentReader(seg)
+	iter := m3tsz.NewReaderIterator(reader, true, encodingOpts)
+
+	i := 0
+	for iter.Next() {
+		dp, _, _ := iter.Current()
+		require.True(t, data[i].Equal(dp))
+		i++
+	}
+	require.NoError(t, iter.Err())
+
+	// Make sure each segment reader was only finalized once
+	require.Equal(t, 2, len(segmentReaders))
+	depCtx.BlockingClose()
+	for _, segmentReader := range segmentReaders {
+		require.Equal(t, 1, *segmentReader.finalizeCount)
+	}
+}
+
+func TestDatabaseBlockMergeErrorFromDisk(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup
+	var (
+		curr      = time.Now()
+		blockOpts = NewOptions()
+	)
+
+	// Create the two blocks we plan to merge
+	block1 := NewDatabaseBlock(curr, ts.Segment{}, blockOpts).(*dbBlock)
+	block2 := NewDatabaseBlock(curr, ts.Segment{}, blockOpts).(*dbBlock)
+
+	// Mark only block 2 as retrieved from disk so we can make sure it checks
+	// the block that is being merged, as well as the one that is being merged
+	// into.
+	block2.wasRetrievedFromDisk = true
+
+	require.Equal(t, false, block1.wasRetrievedFromDisk)
+	require.Equal(t, errTriedToMergeBlockFromDisk, block1.Merge(block2))
+	require.Equal(t, errTriedToMergeBlockFromDisk, block2.Merge(block1))
 }
 
 func TestDatabaseSeriesBlocksAddBlock(t *testing.T) {

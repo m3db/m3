@@ -35,7 +35,8 @@ import (
 )
 
 var (
-	errReadFromClosedBlock = errors.New("attempt to read from a closed block")
+	errReadFromClosedBlock       = errors.New("attempt to read from a closed block")
+	errTriedToMergeBlockFromDisk = errors.New("[invariant violated] tried to merge a block that was retrieved from disk")
 
 	timeZero = time.Time{}
 )
@@ -178,12 +179,10 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 
 	// If the block retrieve ID is set then it must be retrieved
 	var (
-		stream             xio.SegmentReader
-		err                error
-		fromBlockRetriever bool
+		stream xio.SegmentReader
+		err    error
 	)
 	if b.retriever != nil {
-		fromBlockRetriever = true
 		start := b.startWithLock()
 		stream, err = b.retriever.Stream(blocker, b.retrieveID, start, b)
 		if err != nil {
@@ -194,26 +193,28 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		// NB(r): We explicitly create a new segment to ensure references
 		// are taken to the bytes refs and to not finalize the bytes.
 		stream.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
-	}
-
-	if b.mergeTarget != nil {
-		var mergeStream xio.SegmentReader
-		mergeStream, err = b.mergeTarget.Stream(blocker)
-		if err != nil {
-			stream.Finalize()
-			return nil, err
-		}
-		// Return a lazily merged stream
-		// TODO(r): once merged reset this block with the contents of it
-		stream = newDatabaseMergedBlockReader(b.startWithLock(), stream, mergeStream, b.opts)
-	}
-
-	if !fromBlockRetriever {
-		// Register the finalizer for the stream, the block retriever already
-		// registers the stream as a finalizer for the context so we only perform
-		// this if we return a stream directly from this block
 		blocker.RegisterFinalizer(stream)
 	}
+
+	if b.mergeTarget == nil {
+		return stream, nil
+	}
+
+	var mergeStream xio.SegmentReader
+	mergeStream, err = b.mergeTarget.Stream(blocker)
+	if err != nil {
+		stream.Finalize()
+		return nil, err
+	}
+
+	// Return a lazily merged stream
+	// TODO(r): once merged reset this block with the contents of it
+	stream = newDatabaseMergedBlockReader(b.startWithLock(),
+		mergeableStream{stream: stream, finalize: false},      // already registered above
+		mergeableStream{stream: mergeStream, finalize: false}, // already registered by recursive call
+		b.opts)
+	blocker.RegisterFinalizer(stream)
+
 	return stream, nil
 }
 
@@ -239,11 +240,19 @@ func (b *dbBlock) IsCachedBlock() bool {
 	return !retrieved || wasRetrieved
 }
 
-func (b *dbBlock) Merge(other DatabaseBlock) {
+func (b *dbBlock) Merge(other DatabaseBlock) error {
 	b.Lock()
+	if b.wasRetrievedFromDisk || other.WasRetrievedFromDisk() {
+		// We use Merge to lazily merge blocks that eventually need to be flushed to disk
+		// If we try to perform a merge on blocks that were retrieved from disk then we've
+		// violated an invariant and probably have a bug that is causing data loss.
+		b.Unlock()
+		return errTriedToMergeBlockFromDisk
+	}
 	b.resetMergeTargetWithLock()
 	b.mergeTarget = other
 	b.Unlock()
+	return nil
 }
 
 func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {

@@ -401,26 +401,33 @@ func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
 	// lock already. Executing the drain method occurs during a write if the
 	// buffer needs to drain or if tick is called and series explicitly asks
 	// the buffer to drain ready buckets.
-	s.mergeBlockWithLock(s.blocks, newBlock)
+	iOpts := s.opts.InstrumentOptions()
+	scope := iOpts.MetricsScope().SubScope("series-buffer-drain")
+	err := s.mergeBlockWithLock(newBlock)
+	if err != nil {
+		iOpts.Logger().WithFields(
+			xlog.NewField("id", s.id.String()),
+			xlog.NewField("blockStart", newBlock.StartTime()),
+			xlog.NewField("err", err.Error()),
+		).Errorf("error trying to drain series buffer")
+		scope.Counter("buffer-drain-error").Inc(1)
+	}
+	iOpts.MetricsScope().Counter("buffer-drained").Inc(1) // Debug
 }
 
-func (s *dbSeries) mergeBlockWithLock(
-	blocks block.DatabaseSeriesBlocks,
-	newBlock block.DatabaseBlock,
-) {
+func (s *dbSeries) mergeBlockWithLock(newBlock block.DatabaseBlock) error {
 	blockStart := newBlock.StartTime()
 
 	// If we don't have an existing block just insert the new block.
-	existingBlock, ok := blocks.BlockAt(blockStart)
+	existingBlock, ok := s.blocks.BlockAt(blockStart)
 	if !ok {
+		// No existing block, we're safe to just add it.
 		s.addBlockWithLock(newBlock)
-		return
+		return nil
 	}
 
-	// We are performing this in a lock, cannot wait for the existing
-	// block potentially to be retrieved from disk, lazily merge the stream.
-	newBlock.Merge(existingBlock)
-	s.addBlockWithLock(newBlock)
+	// There is already an existing block, perform a (lazy) merge.
+	return existingBlock.Merge(newBlock)
 }
 
 func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
@@ -433,7 +440,7 @@ func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 // data in memory during bootstrapping. If that becomes a problem, we could
 // bootstrap in batches, e.g., drain and reset the buffer, drain the streams,
 // then repeat, until len(s.pendingBootstrap) is below a given threshold.
-func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
+func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -443,41 +450,56 @@ func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 	if s.bs == bootstrapping {
 		return errSeriesIsBootstrapping
 	}
-
-	s.bs = bootstrapping
-	existingBlocks := s.blocks
-
-	multiErr := xerrors.NewMultiError()
-	if blocks == nil {
-		// If no data to bootstrap from then fallback to the empty blocks map
-		blocks = existingBlocks
-	} else {
-		// Request the in-memory buffer to drain and reset so that the start times
-		// of the blocks in the buckets are set to the latest valid times
-		s.buffer.DrainAndReset()
-
-		// If any received data falls within the buffer then we emplace it there
-		min, _ := s.buffer.MinMax()
-		for tNano, block := range blocks.AllBlocks() {
-			t := tNano.ToTime()
-			if !t.Before(min) {
-				if err := s.buffer.Bootstrap(block); err != nil {
-					multiErr = multiErr.Add(s.newBootstrapBlockError(block, err))
-				}
-				blocks.RemoveBlockAt(t)
-			}
-		}
-
-		// If we're overwriting the blocks then merge any existing blocks
-		// already drained
-		for _, existingBlock := range existingBlocks.AllBlocks() {
-			s.mergeBlockWithLock(blocks, existingBlock)
-		}
+	if bootstrappedBlocks == nil {
+		s.bs = bootstrapped
+		return nil
 	}
 
-	s.blocks = blocks
-	s.bs = bootstrapped
+	s.bs = bootstrapping
 
+	// Request the in-memory buffer to drain and reset so that the start times
+	// of the blocks in the buckets are set to the latest valid times
+	s.buffer.DrainAndReset()
+	min, _, err := s.buffer.MinMax()
+	if err != nil {
+		return err
+	}
+
+	var (
+		numBlocksMovedToBuffer = int64(0) // Debug
+		numBlocksMerged        = int64(0) // Debug
+		multiErr               = xerrors.NewMultiError()
+	)
+	for tNano, block := range bootstrappedBlocks.AllBlocks() {
+		t := tNano.ToTime()
+		// If there is a writable, undrained series buffer bucket then store the block
+		// there and it will be merged / drained as part of the usual lifecycle.
+		if !t.Before(min) {
+			if err := s.buffer.Bootstrap(block); err != nil {
+				multiErr = multiErr.Add(s.newBootstrapBlockError(block, err))
+			}
+			numBlocksMovedToBuffer++
+			continue
+		}
+
+		// If we're unable to put the blocks in an active series buffer bucket, then store them
+		// in the series block, merging with any existing blocks if necessary. There could be an
+		// existing block in the situation that currentTime > blockStart.Add(blockSize).Add(bufferPast),
+		// in which case the series buffer buckets may have been drained and rotated into a block, but
+		// still exist in memory because a flush hasn't occurred yet.
+		err := s.mergeBlockWithLock(block)
+		if err != nil {
+			return err
+		}
+		numBlocksMerged++
+	}
+
+	// Debug
+	scope := s.opts.InstrumentOptions().MetricsScope().SubScope("series-bootstrap")
+	scope.Counter("blocks-to-buffer").Inc(numBlocksMovedToBuffer)
+	scope.Counter("blocks-merged").Inc(numBlocksMerged)
+
+	s.bs = bootstrapped
 	return multiErr.FinalError()
 }
 
@@ -576,7 +598,7 @@ func (s *dbSeries) Flush(
 	ctx context.Context,
 	blockStart time.Time,
 	persistFn persist.Fn,
-) error {
+) (FlushOutcome, error) {
 	// NB(r): Do not use defer here as we need to make sure the
 	// call to sr.Segment() which may fetch data from disk is not
 	// blocking the series lock.
@@ -584,28 +606,35 @@ func (s *dbSeries) Flush(
 
 	if s.bs != bootstrapped {
 		s.RUnlock()
-		return errSeriesNotBootstrapped
+		return FlushErr, errSeriesNotBootstrapped
 	}
+
 	b, exists := s.blocks.BlockAt(blockStart)
 	if !exists {
 		s.RUnlock()
-		return nil
+		return BlockDoesNotExist, nil
 	}
 
 	sr, err := b.Stream(ctx)
 	s.RUnlock()
 
 	if err != nil {
-		return err
+		return FlushErr, err
 	}
 	if sr == nil {
-		return nil
+		return StreamDoesNotExist, nil
 	}
 	segment, err := sr.Segment()
 	if err != nil {
-		return err
+		return FlushErr, err
 	}
-	return persistFn(s.id, segment, b.Checksum())
+
+	err = persistFn(s.id, segment, b.Checksum())
+	if err != nil {
+		return FlushErr, err
+	}
+
+	return FlushedToDisk, nil
 }
 
 func (s *dbSeries) Snapshot(
@@ -706,3 +735,18 @@ func (s *dbSeries) Reset(
 	s.onRetrieveBlock = onRetrieveBlock
 	s.blockOnEvictedFromWiredList = onEvictedFromWiredList
 }
+
+// FlushOutcome is an enum that provides more context about the outcome
+// of series.Flush() to the caller.
+type FlushOutcome int
+
+const (
+	// FlushErr is just a default value that can be returned when we're also returning an error
+	FlushErr FlushOutcome = iota
+	// BlockDoesNotExist indicates that the series did not have a block for the specified flush blockStart.
+	BlockDoesNotExist
+	// StreamDoesNotExist indicates that the block did not have an underlying stream.
+	StreamDoesNotExist
+	// FlushedToDisk indicates that a block existed and was flushed to disk successfully.
+	FlushedToDisk
+)

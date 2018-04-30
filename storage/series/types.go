@@ -90,7 +90,7 @@ type DatabaseSeries interface {
 	Bootstrap(blocks block.DatabaseSeriesBlocks) error
 
 	// Flush flushes the data blocks of this series for a given start time
-	Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error
+	Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) (FlushOutcome, error)
 
 	// Snapshot snapshots the buffer buckets of this series for any data that has
 	// not been rotated into a block yet

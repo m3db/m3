@@ -40,6 +40,7 @@ import (
 
 var (
 	errMoreThanOneStreamAfterMerge = errors.New("buffer has more than one stream after merge")
+	errNoAvailableBuckets          = errors.New("buffer has no available buckets")
 	timeZero                       time.Time
 )
 
@@ -90,7 +91,10 @@ type databaseBuffer interface {
 
 	Stats() bufferStats
 
-	MinMax() (time.Time, time.Time)
+	// MinMax returns the minimum and maximum blockstarts for the buckets
+	// that are contained within the buffer. These ranges exclude buckets
+	// that have already been drained (as those buckets are no longer in use.)
+	MinMax() (time.Time, time.Time, error)
 
 	Tick() bufferTickResult
 
@@ -155,17 +159,23 @@ func bucketResetStart(now time.Time, b *dbBuffer, idx int, start time.Time) int 
 	return 1
 }
 
-func (b *dbBuffer) MinMax() (time.Time, time.Time) {
+func (b *dbBuffer) MinMax() (time.Time, time.Time, error) {
 	var min, max time.Time
 	for i := range b.buckets {
-		if min.IsZero() || b.buckets[i].start.Before(min) {
+		if (min.IsZero() || b.buckets[i].start.Before(min)) && !b.buckets[i].drained {
 			min = b.buckets[i].start
 		}
-		if max.IsZero() || b.buckets[i].start.After(max) {
+		if max.IsZero() || b.buckets[i].start.After(max) && !b.buckets[i].drained {
 			max = b.buckets[i].start
 		}
 	}
-	return min, max
+
+	var err error
+	if min.IsZero() || max.IsZero() {
+		// Should never happen
+		err = errNoAvailableBuckets
+	}
+	return min, max, err
 }
 
 func (b *dbBuffer) Write(
@@ -309,6 +319,12 @@ func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) error {
 	bootstrapped := false
 	for i := range b.buckets {
 		if b.buckets[i].start.Equal(blockStart) {
+			if b.buckets[i].drained {
+				return fmt.Errorf(
+					"block at %s cannot be bootstrapped by buffer because its already drained",
+					blockStart.String(),
+				)
+			}
 			b.buckets[i].bootstrap(bl)
 			bootstrapped = true
 			break

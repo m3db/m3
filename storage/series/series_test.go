@@ -191,8 +191,9 @@ func TestSeriesFlushNoBlock(t *testing.T) {
 	series := NewDatabaseSeries(ident.StringID("foo"), nil, opts).(*dbSeries)
 	assert.NoError(t, series.Bootstrap(nil))
 	flushTime := time.Unix(7200, 0)
-	err := series.Flush(nil, flushTime, nil)
+	outcome, err := series.Flush(nil, flushTime, nil)
 	require.Nil(t, err)
+	require.Equal(t, BlockDoesNotExist, outcome)
 }
 
 func TestSeriesFlush(t *testing.T) {
@@ -214,9 +215,14 @@ func TestSeriesFlush(t *testing.T) {
 	for _, input := range inputs {
 		persistFn := func(id ident.ID, segment ts.Segment, checksum uint32) error { return input }
 		ctx := context.NewContext()
-		err := series.Flush(ctx, flushTime, persistFn)
+		outcome, err := series.Flush(ctx, flushTime, persistFn)
 		ctx.BlockingClose()
 		require.Equal(t, input, err)
+		if input == nil {
+			require.Equal(t, FlushedToDisk, outcome)
+		} else {
+			require.Equal(t, FlushErr, outcome)
+		}
 	}
 }
 
@@ -558,7 +564,7 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 
 	buffer := NewMockdatabaseBuffer(ctrl)
 	buffer.EXPECT().DrainAndReset()
-	buffer.EXPECT().MinMax().Return(bufferMin, bufferMax)
+	buffer.EXPECT().MinMax().Return(bufferMin, bufferMax, nil)
 	series.buffer = buffer
 
 	errBlockStart := bufferMin
@@ -572,6 +578,7 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	// Add block that will succeed
 	bl = block.NewMockDatabaseBlock(ctrl)
 	bl.EXPECT().StartTime().Return(bufferMin.Add(-blockSize)).AnyTimes()
+	bl.EXPECT().SetOnEvictedFromWiredList(nil)
 	blocks.AddBlock(bl)
 
 	// Expect to fail the bootstrap for block destined for buffer

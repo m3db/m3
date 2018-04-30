@@ -696,6 +696,7 @@ func TestDatabaseIndexEnabled(t *testing.T) {
 
 	d.opts = d.opts.SetIndexingEnabled(true)
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any()).Return(nil).AnyTimes()
 	require.NoError(t, d.Open())
 

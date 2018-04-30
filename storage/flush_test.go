@@ -91,14 +91,14 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	// go routine 1 should successfully flush
 	go func() {
 		defer wg.Done()
-		require.NoError(t, fm.Flush(now))
+		require.NoError(t, fm.Flush(now, databaseBootstrapStates{}))
 	}()
 
 	// go routine 2 should indicate already flushing
 	go func() {
 		defer wg.Done()
 		<-startCh
-		require.Equal(t, errFlushOrSnapshotAlreadyInProgress, fm.Flush(now))
+		require.Equal(t, errFlushOrSnapshotAlreadyInProgress, fm.Flush(now, databaseBootstrapStates{}))
 		doneCh <- struct{}{}
 	}()
 
@@ -124,7 +124,7 @@ func TestFlushManagerFlushDoneError(t *testing.T) {
 	fm.pm = mockPersistManager
 
 	now := time.Unix(0, 0)
-	require.EqualError(t, fakeErr, fm.Flush(now).Error())
+	require.EqualError(t, fakeErr, fm.Flush(now, databaseBootstrapStates{}).Error())
 }
 
 func TestFlushManagerFlushTimeStart(t *testing.T) {
@@ -259,7 +259,13 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 		ns.EXPECT().Snapshot(currBlockStart, now, gomock.Any())
 	}
 
-	require.NoError(t, fm.Flush(now))
+	bootstrapStates := databaseBootstrapStates{
+		namespaceBootstrapStates: map[string]shardBootstrapStates{
+			ns1.ID().String(): shardBootstrapStates{},
+			ns2.ID().String(): shardBootstrapStates{},
+		},
+	}
+	require.NoError(t, fm.Flush(now, bootstrapStates))
 }
 
 func TestFlushManagerFlushNoSnapshotWhileFlushPending(t *testing.T) {
@@ -288,7 +294,13 @@ func TestFlushManagerFlushNoSnapshotWhileFlushPending(t *testing.T) {
 		ns.EXPECT().NeedsFlush(prevBlockStart, prevBlockStart).Return(true)
 	}
 
-	require.NoError(t, fm.Flush(now))
+	bootstrapStates := databaseBootstrapStates{
+		namespaceBootstrapStates: map[string]shardBootstrapStates{
+			ns1.ID().String(): shardBootstrapStates{},
+			ns2.ID().String(): shardBootstrapStates{},
+		},
+	}
+	require.NoError(t, fm.Flush(now, bootstrapStates))
 }
 
 func TestFlushManagerSnapshotBlockStart(t *testing.T) {
