@@ -95,7 +95,7 @@ type finalizersArr []resource.Finalizer
 
 func (elems finalizersArr) grow(n int) []resource.Finalizer {
 	if cap(elems) < n {
-		elems = append(elems, make([]resource.Finalizer, n-cap(elems))...)
+		elems = make([]resource.Finalizer, n)
 	}
 	elems = elems[:n]
 	// following compiler optimized memcpy impl
