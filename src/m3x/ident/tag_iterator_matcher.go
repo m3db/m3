@@ -21,14 +21,9 @@
 package ident
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/golang/mock/gomock"
-)
-
-var (
-	errInvalidNumberInputsToIteratorMatcher = errors.New("inputs must be specified in name-value pairs (i.e. divisible by 2)")
 )
 
 // TagIterMatcher is a gomock.Matcher that matches TagIterator
@@ -37,25 +32,12 @@ type TagIterMatcher interface {
 }
 
 // NewTagIterMatcher returns a new TagIterMatcher
-func NewTagIterMatcher(inputs ...string) (TagIterMatcher, error) {
-	if len(inputs)%2 != 0 {
-		return nil, errInvalidNumberInputsToIteratorMatcher
-	}
-	return &tagIterMatcher{inputs: inputs}, nil
-}
-
-// MustNewTagIterMatcher returns a new TagIterMatcher, panic'ing if
-// it's unable to do so.
-func MustNewTagIterMatcher(inputs ...string) TagIterMatcher {
-	iter, err := NewTagIterMatcher(inputs...)
-	if err != nil {
-		panic(err.Error())
-	}
-	return iter
+func NewTagIterMatcher(iter TagIterator) TagIterMatcher {
+	return &tagIterMatcher{iter: iter}
 }
 
 type tagIterMatcher struct {
-	inputs []string
+	iter TagIterator
 }
 
 func (m *tagIterMatcher) Matches(x interface{}) bool {
@@ -63,31 +45,28 @@ func (m *tagIterMatcher) Matches(x interface{}) bool {
 	if !ok {
 		return false
 	}
-	t = t.Duplicate()
-	i := 0
-	for i < len(m.inputs) {
-		name, value := m.inputs[i], m.inputs[i+1]
-		i += 2
-		if !t.Next() {
+	// duplicate to ensure the both iterators can be re-used again
+	obs := t.Duplicate()
+	exp := m.iter.Duplicate()
+	for exp.Next() {
+		if !obs.Next() {
 			return false
 		}
-		current := t.Current()
-		if name != current.Name.String() {
-			return false
-		}
-		if value != current.Value.String() {
+		obsCurrent := obs.Current()
+		expCurrent := exp.Current()
+		if !expCurrent.Equal(obsCurrent) {
 			return false
 		}
 	}
-	if t.Next() {
+	if obs.Next() {
 		return false
 	}
-	if t.Err() != nil {
+	if exp.Err() != obs.Err() {
 		return false
 	}
 	return true
 }
 
 func (m *tagIterMatcher) String() string {
-	return fmt.Sprintf("tagIter %v", m.inputs)
+	return fmt.Sprintf("tagIter %v", m.iter)
 }

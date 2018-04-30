@@ -34,6 +34,25 @@ func testTags() Tags {
 	}
 }
 
+func TestTagStringIteratorInvalid(t *testing.T) {
+	require.Panics(t, func() {
+		MustNewTagStringsIterator("hello")
+	})
+	require.Panics(t, func() {
+		MustNewTagStringsIterator("hello", "a", "b")
+	})
+}
+
+func TestTagStringIteratorValid(t *testing.T) {
+	iter, err := NewTagStringsIterator("hello", "there")
+	require.NoError(t, err)
+	require.True(t, iter.Next())
+	require.True(t, StringTag("hello", "there").Equal(iter.Current()))
+	require.False(t, iter.Next())
+	require.NoError(t, iter.Err())
+	iter.Close()
+}
+
 func TestTagSliceIterator(t *testing.T) {
 	expected := map[string]string{
 		"foo":   "bar",
