@@ -98,7 +98,7 @@ type elemArr []elemType
 // nolint
 func (elems elemArr) grow(n int) []elemType {
 	if cap(elems) < n {
-		elems = append(elems, make([]elemType, n-cap(elems))...)
+		elems = make([]elemType, n)
 	}
 	elems = elems[:n]
 	// following compiler optimized memcpy impl
