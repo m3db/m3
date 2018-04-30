@@ -79,10 +79,11 @@ func (m *iteratorMatcher) init(opts []IteratorMatcherOption) error {
 		if ok {
 			return fmt.Errorf("duplicate id: %s", o.ID)
 		}
-		matcher, err := ident.NewTagIterMatcher(o.Tags...)
+		iter, err := ident.NewTagStringsIterator(o.Tags...)
 		if err != nil {
 			return err
 		}
+		matcher := ident.NewTagIterMatcher(iter)
 		idMap[o.ID] = matcher
 	}
 	return nil

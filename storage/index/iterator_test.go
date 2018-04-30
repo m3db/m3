@@ -107,8 +107,8 @@ func TestIteratorWithElements(t *testing.T) {
 	ns, id, tags := iter.Current()
 	require.Equal(t, "testNs", ns.String())
 	require.Equal(t, "foo", id.String())
-	require.True(t, ident.MustNewTagIterMatcher("name", "value",
-		"other", "str").Matches(tags))
+	require.True(t, ident.NewTagIterMatcher(
+		ident.MustNewTagStringsIterator("name", "value", "other", "str")).Matches(tags))
 	require.False(t, iter.Next())
 	require.Nil(t, iter.Err())
 	require.True(t, finalizerCalled)

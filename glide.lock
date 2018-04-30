@@ -1,5 +1,5 @@
-hash: c079daf1ed13d4cb70b7b579081aecde91c13561bdfca4bcce271b13f1d6f01b
-updated: 2018-04-23T14:17:00.747366983-04:00
+hash: a2f572df5bbbecc1d3ee3d949f77aa46028123ed4bf85170730612154a375195
+updated: 2018-04-30T09:24:07.284273563-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -197,6 +197,7 @@ imports:
   - index/segment
   - index/segment/mem
   - index/segment/mem/fieldsgen
+  - index/segment/mem/idsgen
   - index/segment/mem/postingsgen
   - index/util
   - postings
@@ -206,7 +207,7 @@ imports:
   - search/query
   - search/searcher
 - name: github.com/m3db/m3x
-  version: 16e10665ade1d824950683afde6d9e37c8ffc957
+  version: 8b6af4a07e85110c755db7707809f49b9438d96b
   vcs: git
   subpackages:
   - checked
@@ -412,7 +413,7 @@ imports:
   subpackages:
   - codes
 - name: gopkg.in/yaml.v2
-  version: a83829b6f1293c91addabc89d0571c246397bbf4
+  version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
 testImports:
 - name: github.com/fortytw2/leaktest
   version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
