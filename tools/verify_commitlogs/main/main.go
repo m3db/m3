@@ -264,7 +264,7 @@ func main() {
 	for shard, result := range result.ShardResults() {
 		log.WithFields(
 			xlog.NewField("shard", shard),
-			xlog.NewField("series", len(result.AllSeries())),
+			xlog.NewField("series", result.AllSeries().Len()),
 		).Infof("shard result")
 	}
 }

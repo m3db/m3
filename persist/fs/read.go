@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/x/mmap"
@@ -120,21 +121,57 @@ func NewReader(
 	}, nil
 }
 
-func (r *reader) Open(namespace ident.ID, shard uint32, blockStart time.Time) error {
-	var err error
+func (r *reader) Open(opts ReaderOpenOptions) error {
+	var (
+		namespace     = opts.Identifier.Namespace
+		shard         = opts.Identifier.Shard
+		blockStart    = opts.Identifier.BlockStart
+		snapshotIndex = opts.Identifier.Index
+		err           error
+	)
+
+	var (
+		shardDir            string
+		checkpointFilepath  string
+		infoFilepath        string
+		digestFilepath      string
+		bloomFilterFilepath string
+		indexFilepath       string
+		dataFilepath        string
+	)
+	switch opts.FilesetType {
+	case persist.FilesetSnapshotType:
+		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
+		checkpointFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, snapshotIndex)
+		infoFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, infoFileSuffix, snapshotIndex)
+		digestFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, digestFileSuffix, snapshotIndex)
+		bloomFilterFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, snapshotIndex)
+		indexFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, indexFileSuffix, snapshotIndex)
+		dataFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, dataFileSuffix, snapshotIndex)
+	case persist.FilesetFlushType:
+		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
+		checkpointFilepath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+		infoFilepath = filesetPathFromTime(shardDir, blockStart, infoFileSuffix)
+		digestFilepath = filesetPathFromTime(shardDir, blockStart, digestFileSuffix)
+		bloomFilterFilepath = filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix)
+		indexFilepath = filesetPathFromTime(shardDir, blockStart, indexFileSuffix)
+		dataFilepath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
+	default:
+		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
+	}
 
 	// If there is no checkpoint file, don't read the data files.
-	shardDir := ShardDirPath(r.filePathPrefix, namespace, shard)
-	if err := r.readCheckpointFile(shardDir, blockStart); err != nil {
+	if err := r.readCheckpointFile(checkpointFilepath, blockStart); err != nil {
 		return err
 	}
 
 	var infoFd, digestFd *os.File
-	if err := openFiles(os.Open, map[string]**os.File{
-		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
-		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
-		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &r.bloomFilterFd,
-	}); err != nil {
+	err = openFiles(os.Open, map[string]**os.File{
+		infoFilepath:        &infoFd,
+		digestFilepath:      &digestFd,
+		bloomFilterFilepath: &r.bloomFilterFd,
+	})
+	if err != nil {
 		return err
 	}
 
@@ -148,12 +185,12 @@ func (r *reader) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 	}()
 
 	result, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
-		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmap.FileDesc{
+		indexFilepath: mmap.FileDesc{
 			File:    &r.indexFd,
 			Bytes:   &r.indexMmap,
 			Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
 		},
-		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmap.FileDesc{
+		dataFilepath: mmap.FileDesc{
 			File:    &r.dataFd,
 			Bytes:   &r.dataMmap,
 			Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
@@ -162,6 +199,7 @@ func (r *reader) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 	if err != nil {
 		return err
 	}
+
 	if warning := result.Warning; warning != nil {
 		logger := r.opts.InstrumentOptions().Logger()
 		logger.Warnf("warning while mmapping files in reader: %s",
@@ -206,8 +244,7 @@ func (r *reader) Status() FileSetReaderStatus {
 	}
 }
 
-func (r *reader) readCheckpointFile(shardDir string, blockStart time.Time) error {
-	filePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+func (r *reader) readCheckpointFile(filePath string, blockStart time.Time) error {
 	if !FileExists(filePath) {
 		return ErrCheckpointFileNotFound
 	}
@@ -256,7 +293,7 @@ func (r *reader) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
-	r.start = xtime.FromNanoseconds(info.Start)
+	r.start = xtime.FromNanoseconds(info.BlockStart)
 	r.blockSize = time.Duration(info.BlockSize)
 	r.entries = int(info.Entries)
 	r.entriesRead = 0
@@ -308,7 +345,7 @@ func (r *reader) Read() (ident.ID, checked.Bytes, uint32, error) {
 		defer data.DecRef()
 	}
 
-	n, err := r.dataReader.Read(data.Get())
+	n, err := r.dataReader.Read(data.Bytes())
 	if err != nil {
 		return none, nil, 0, err
 	}

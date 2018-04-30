@@ -921,6 +921,18 @@ func (_mr *MockdatabaseNamespaceMockRecorder) Flush(arg0, arg1 interface{}) *gom
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Flush", reflect.TypeOf((*MockdatabaseNamespace)(nil).Flush), arg0, arg1)
 }
 
+// Snapshot mocks base method
+func (_m *MockdatabaseNamespace) Snapshot(blockStart time.Time, snapshotTime time.Time, flush persist.Flush) error {
+	ret := _m.ctrl.Call(_m, "Snapshot", blockStart, snapshotTime, flush)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Snapshot indicates an expected call of Snapshot
+func (_mr *MockdatabaseNamespaceMockRecorder) Snapshot(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseNamespace)(nil).Snapshot), arg0, arg1, arg2)
+}
+
 // NeedsFlush mocks base method
 func (_m *MockdatabaseNamespace) NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool {
 	ret := _m.ctrl.Call(_m, "NeedsFlush", alignedInclusiveStart, alignedInclusiveEnd)
@@ -1190,7 +1202,7 @@ func (_mr *MockdatabaseShardMockRecorder) FetchBlocksMetadataV2(arg0, arg1, arg2
 }
 
 // Bootstrap mocks base method
-func (_m *MockdatabaseShard) Bootstrap(bootstrappedSeries map[ident.Hash]result.DatabaseSeriesBlocks) error {
+func (_m *MockdatabaseShard) Bootstrap(bootstrappedSeries *result.Map) error {
 	ret := _m.ctrl.Call(_m, "Bootstrap", bootstrappedSeries)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1213,6 +1225,18 @@ func (_mr *MockdatabaseShardMockRecorder) Flush(arg0, arg1 interface{}) *gomock.
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Flush", reflect.TypeOf((*MockdatabaseShard)(nil).Flush), arg0, arg1)
 }
 
+// Snapshot mocks base method
+func (_m *MockdatabaseShard) Snapshot(blockStart time.Time, snapshotStart time.Time, flush persist.Flush) error {
+	ret := _m.ctrl.Call(_m, "Snapshot", blockStart, snapshotStart, flush)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Snapshot indicates an expected call of Snapshot
+func (_mr *MockdatabaseShardMockRecorder) Snapshot(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Snapshot", reflect.TypeOf((*MockdatabaseShard)(nil).Snapshot), arg0, arg1, arg2)
+}
+
 // FlushState mocks base method
 func (_m *MockdatabaseShard) FlushState(blockStart time.Time) fileOpState {
 	ret := _m.ctrl.Call(_m, "FlushState", blockStart)
@@ -1223,6 +1247,31 @@ func (_m *MockdatabaseShard) FlushState(blockStart time.Time) fileOpState {
 // FlushState indicates an expected call of FlushState
 func (_mr *MockdatabaseShardMockRecorder) FlushState(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FlushState", reflect.TypeOf((*MockdatabaseShard)(nil).FlushState), arg0)
+}
+
+// SnapshotState mocks base method
+func (_m *MockdatabaseShard) SnapshotState() (bool, time.Time) {
+	ret := _m.ctrl.Call(_m, "SnapshotState")
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(time.Time)
+	return ret0, ret1
+}
+
+// SnapshotState indicates an expected call of SnapshotState
+func (_mr *MockdatabaseShardMockRecorder) SnapshotState() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SnapshotState", reflect.TypeOf((*MockdatabaseShard)(nil).SnapshotState))
+}
+
+// CleanupSnapshots mocks base method
+func (_m *MockdatabaseShard) CleanupSnapshots(earliestToRetain time.Time) error {
+	ret := _m.ctrl.Call(_m, "CleanupSnapshots", earliestToRetain)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CleanupSnapshots indicates an expected call of CleanupSnapshots
+func (_mr *MockdatabaseShardMockRecorder) CleanupSnapshots(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "CleanupSnapshots", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupSnapshots), arg0)
 }
 
 // CleanupFileset mocks base method
@@ -2284,6 +2333,30 @@ func (_mr *MockOptionsMockRecorder) IndexingEnabled() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "IndexingEnabled", reflect.TypeOf((*MockOptions)(nil).IndexingEnabled))
 }
 
+// SetIndexOptions mocks base method
+func (_m *MockOptions) SetIndexOptions(value index.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetIndexOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIndexOptions indicates an expected call of SetIndexOptions
+func (_mr *MockOptionsMockRecorder) SetIndexOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetIndexOptions", reflect.TypeOf((*MockOptions)(nil).SetIndexOptions), arg0)
+}
+
+// IndexOptions mocks base method
+func (_m *MockOptions) IndexOptions() index.Options {
+	ret := _m.ctrl.Call(_m, "IndexOptions")
+	ret0, _ := ret[0].(index.Options)
+	return ret0
+}
+
+// IndexOptions indicates an expected call of IndexOptions
+func (_mr *MockOptionsMockRecorder) IndexOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "IndexOptions", reflect.TypeOf((*MockOptions)(nil).IndexOptions))
+}
+
 // SetRepairEnabled mocks base method
 func (_m *MockOptions) SetRepairEnabled(b bool) Options {
 	ret := _m.ctrl.Call(_m, "SetRepairEnabled", b)
@@ -2402,6 +2475,30 @@ func (_m *MockOptions) MaxFlushRetries() int {
 // MaxFlushRetries indicates an expected call of MaxFlushRetries
 func (_mr *MockOptionsMockRecorder) MaxFlushRetries() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "MaxFlushRetries", reflect.TypeOf((*MockOptions)(nil).MaxFlushRetries))
+}
+
+// SetMinimumSnapshotInterval mocks base method
+func (_m *MockOptions) SetMinimumSnapshotInterval(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetMinimumSnapshotInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMinimumSnapshotInterval indicates an expected call of SetMinimumSnapshotInterval
+func (_mr *MockOptionsMockRecorder) SetMinimumSnapshotInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetMinimumSnapshotInterval", reflect.TypeOf((*MockOptions)(nil).SetMinimumSnapshotInterval), arg0)
+}
+
+// MinimumSnapshotInterval mocks base method
+func (_m *MockOptions) MinimumSnapshotInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "MinimumSnapshotInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// MinimumSnapshotInterval indicates an expected call of MinimumSnapshotInterval
+func (_mr *MockOptionsMockRecorder) MinimumSnapshotInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "MinimumSnapshotInterval", reflect.TypeOf((*MockOptions)(nil).MinimumSnapshotInterval))
 }
 
 // SetDatabaseBlockRetrieverManager mocks base method

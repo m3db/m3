@@ -90,7 +90,7 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 	}
 	seg := encoder.Discard()
 	respSegments := []*rpc.Segments{&rpc.Segments{
-		Merged: &rpc.Segment{Head: seg.Head.Get(), Tail: seg.Tail.Get()},
+		Merged: &rpc.Segment{Head: seg.Head.Bytes(), Tail: seg.Tail.Bytes()},
 	}}
 	respElements := make([]*rpc.FetchRawResult_, maxIDs)
 	for i := range respElements {

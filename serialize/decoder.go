@@ -56,7 +56,7 @@ func newTagDecoder(opts TagDecoderOptions, pool TagDecoderPool) TagDecoder {
 func (d *decoder) Reset(b checked.Bytes) {
 	d.checkedData = b
 	d.checkedData.IncRef()
-	d.data = d.checkedData.Get()
+	d.data = d.checkedData.Bytes()
 
 	header, err := d.decodeUInt16()
 	if err != nil {
@@ -84,7 +84,7 @@ func (d *decoder) Reset(b checked.Bytes) {
 }
 
 func (d *decoder) Next() bool {
-	d.release()
+	d.releaseCurrent()
 	if d.err != nil || d.remaining <= 0 {
 		return false
 	}
@@ -157,7 +157,7 @@ func (d *decoder) Err() error {
 	return d.err
 }
 
-func (d *decoder) release() {
+func (d *decoder) releaseCurrent() {
 	if n := d.current.Name; n != nil {
 		n.Finalize()
 		d.checkedData.DecRef() // indicate we've released the extra ref
@@ -175,8 +175,8 @@ func (d *decoder) Remaining() int {
 	return d.remaining
 }
 
-func (d *decoder) Close() {
-	d.release()
+func (d *decoder) close() {
+	d.releaseCurrent()
 	d.data = nil
 	d.err = nil
 	d.remaining = 0
@@ -190,8 +190,8 @@ func (d *decoder) Close() {
 	d.checkedData = nil
 }
 
-func (d *decoder) Finalize() {
-	d.Close()
+func (d *decoder) Close() {
+	d.close()
 	if d.pool == nil {
 		return
 	}
@@ -199,9 +199,9 @@ func (d *decoder) Finalize() {
 }
 
 func (d *decoder) cloneCurrent() ident.Tag {
-	name := d.opts.CheckedBytesWrapperPool().Get(d.current.Name.Data().Get())
+	name := d.opts.CheckedBytesWrapperPool().Get(d.current.Name.Data().Bytes())
 	d.checkedData.IncRef()
-	value := d.opts.CheckedBytesWrapperPool().Get(d.current.Value.Data().Get())
+	value := d.opts.CheckedBytesWrapperPool().Get(d.current.Value.Data().Bytes())
 	d.checkedData.IncRef()
 	return ident.BinaryTag(name, value)
 }

@@ -24,10 +24,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/topology/testutil"
 	xwatch "github.com/m3db/m3x/watch"
 
 	"github.com/golang/mock/gomock"
@@ -63,59 +63,6 @@ func setNewStorageDatabase(fn newStorageDatabaseFn) restoreFn {
 	}
 }
 
-type topoView struct {
-	hashFn     sharding.HashFn
-	assignment map[string][]shard.Shard
-	replicas   int
-}
-
-func newTopoView(
-	replicas int,
-	assignment map[string][]shard.Shard,
-) topoView {
-	total := 0
-	for _, shards := range assignment {
-		total += len(shards)
-	}
-
-	return topoView{
-		hashFn:     sharding.DefaultHashFn(total / replicas),
-		assignment: assignment,
-		replicas:   replicas,
-	}
-}
-
-func (v topoView) newStaticMap() topology.Map {
-	var (
-		hostShardSets []topology.HostShardSet
-		allShards     []shard.Shard
-		unique        = make(map[uint32]struct{})
-	)
-
-	for hostID, assignedShards := range v.assignment {
-		shardSet, _ := sharding.NewShardSet(assignedShards, v.hashFn)
-		host := topology.NewHost(hostID, fmt.Sprintf("%s:9000", hostID))
-		hostShardSet := topology.NewHostShardSet(host, shardSet)
-		hostShardSets = append(hostShardSets, hostShardSet)
-		for _, s := range assignedShards {
-			if _, ok := unique[s.ID()]; !ok {
-				unique[s.ID()] = struct{}{}
-				uniqueShard := shard.NewShard(s.ID()).SetState(shard.Available)
-				allShards = append(allShards, uniqueShard)
-			}
-		}
-	}
-
-	shardSet, _ := sharding.NewShardSet(allShards, v.hashFn)
-
-	opts := topology.NewStaticOptions().
-		SetHostShardSets(hostShardSets).
-		SetReplicas(v.replicas).
-		SetShardSet(shardSet)
-
-	return topology.NewStaticMap(opts)
-}
-
 type mockTopoInitProperties struct {
 	topology         *topology.MockDynamicTopology
 	propogateViewsCh chan struct{}
@@ -124,7 +71,7 @@ type mockTopoInitProperties struct {
 func newMockTopoInit(
 	t *testing.T,
 	ctrl *gomock.Controller,
-	viewsCh <-chan topoView,
+	viewsCh <-chan testutil.TopologyView,
 ) (
 	*topology.MockInitializer,
 	mockTopoInitProperties,
@@ -143,7 +90,8 @@ func newMockTopoInit(
 				break
 			}
 
-			m := v.newStaticMap()
+			m, err := v.Map()
+			require.NoError(t, err)
 			watch.Update(m)
 
 			propogateViewsCh <- struct{}{}

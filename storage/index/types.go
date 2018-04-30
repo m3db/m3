@@ -25,7 +25,8 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/x/xpool"
-	"github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3ninx/idx"
 	"github.com/m3db/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -34,7 +35,7 @@ import (
 var (
 	// ReservedFieldNameID is the field name used to index the ID in the
 	// m3ninx subsytem.
-	ReservedFieldNameID = []byte("_m3db_id")
+	ReservedFieldNameID = doc.IDReservedFieldName
 )
 
 // InsertMode specifies whether inserts are synchronous or asynchronous.
@@ -48,7 +49,7 @@ const (
 
 // Query is a rich end user query to describe a set of constraints on required IDs.
 type Query struct {
-	segment.Query
+	idx.Query
 }
 
 // QueryOptions enables users to specify constraints on query execution.
@@ -72,7 +73,7 @@ type Iterator interface {
 
 	// Current returns the ID, Tags and Namespace for a single timeseries.
 	// These remain valid until Next() is called again.
-	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.Tags)
+	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.TagIterator)
 
 	// Err returns any error encountered
 	Err() error

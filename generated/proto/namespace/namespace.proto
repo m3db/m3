@@ -2,24 +2,26 @@ syntax = "proto3";
 package namespace;
 
 message RetentionOptions {
-	int64 retentionPeriodNanos = 1;
-	int64 blockSizeNanos       = 2;
-	int64 bufferFutureNanos    = 3;
-	int64 bufferPastNanos      = 4;
-	bool  blockDataExpiry      = 5;
-	int64 blockDataExpiryAfterNotAccessPeriodNanos = 6;
+    int64 retentionPeriodNanos = 1;
+    int64 blockSizeNanos       = 2;
+    int64 bufferFutureNanos    = 3;
+    int64 bufferPastNanos      = 4;
+    bool  blockDataExpiry      = 5;
+    int64 blockDataExpiryAfterNotAccessPeriodNanos = 6;
 }
 
 message NamespaceOptions {
-	bool needsBootstrap      = 1;
-	bool needsFlush          = 2;
-	bool writesToCommitLog   = 3;
-	bool needsFilesetCleanup = 4;
-	bool needsRepair         = 5;
+    bool bootstrapEnabled      = 1;
+    bool flushEnabled          = 2;
+    bool writesToCommitLog     = 3;
+    bool cleanupEnabled        = 4;
+    bool repairEnabled         = 5;
 
-	RetentionOptions retentionOptions = 6;
+    RetentionOptions retentionOptions = 6;
+
+    bool snapshotEnabled = 7;
 }
 
 message Registry {
-	map<string, NamespaceOptions> namespaces = 1;
+    map<string, NamespaceOptions> namespaces = 1;
 }

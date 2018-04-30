@@ -47,10 +47,10 @@ func (sr *segmentReader) Read(b []byte) (int, error) {
 	}
 	var head, tail []byte
 	if b := sr.segment.Head; b != nil {
-		head = b.Get()
+		head = b.Bytes()
 	}
 	if b := sr.segment.Tail; b != nil {
-		tail = b.Get()
+		tail = b.Bytes()
 	}
 	nh, nt := len(head), len(tail)
 	if sr.si >= nh+nt {

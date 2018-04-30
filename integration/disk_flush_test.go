@@ -79,8 +79,8 @@ func TestDiskFlushSimple(t *testing.T) {
 	// when data are written.
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
 	maxWaitTime := time.Minute
-	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], seriesMaps, maxWaitTime))
+	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], seriesMaps, maxWaitTime))
 
 	// Verify on-disk data match what we expect
-	verifyFlushed(t, testSetup.shardSet, testSetup.storageOpts, testNamespaces[0], seriesMaps)
+	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, testNamespaces[0], seriesMaps)
 }

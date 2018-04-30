@@ -20,7 +20,10 @@
 
 package serialize
 
-import "github.com/m3db/m3db/x/xpool"
+import (
+	"github.com/m3db/m3db/x/xpool"
+	"github.com/m3db/m3x/pool"
+)
 
 const (
 	// defaultCheckBytesWrapperPoolSize is the default size of the checked.Bytes
@@ -35,7 +38,8 @@ type decodeOpts struct {
 
 // NewTagDecoderOptions returns a new TagDecoderOptions.
 func NewTagDecoderOptions() TagDecoderOptions {
-	pool := xpool.NewCheckedBytesWrapperPool(defaultCheckBytesWrapperPoolSize)
+	pool := xpool.NewCheckedBytesWrapperPool(
+		pool.NewObjectPoolOptions().SetSize(defaultCheckBytesWrapperPoolSize))
 	pool.Init()
 	return &decodeOpts{
 		wrapperPool: pool,

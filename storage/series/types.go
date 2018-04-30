@@ -43,6 +43,9 @@ type DatabaseSeries interface {
 	// ID returns the ID of the series
 	ID() ident.ID
 
+	// Tags return the tags of the series
+	Tags() ident.Tags
+
 	// Tick executes any updates to ensure buffer drains, blocks are flushed, etc
 	Tick() (TickResult, error)
 
@@ -89,12 +92,17 @@ type DatabaseSeries interface {
 	// Flush flushes the data blocks of this series for a given start time
 	Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error
 
+	// Snapshot snapshots the buffer buckets of this series for any data that has
+	// not been rotated into a block yet
+	Snapshot(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error
+
 	// Close will close the series and if pooled returned to the pool
 	Close()
 
 	// Reset resets the series for reuse
 	Reset(
 		id ident.ID,
+		tags ident.Tags,
 		blockRetriever QueryableBlockRetriever,
 		onRetrieveBlock block.OnRetrieveBlock,
 		onEvictedFromWiredList block.OnEvictedFromWiredList,

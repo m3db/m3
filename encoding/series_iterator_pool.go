@@ -41,7 +41,7 @@ func NewSeriesIteratorPool(opts pool.ObjectPoolOptions) SeriesIteratorPool {
 
 func (p *seriesIteratorPool) Init() {
 	p.pool.Init(func() interface{} {
-		return NewSeriesIterator(nil, nil, timeZero, timeZero, nil, p)
+		return NewSeriesIterator(nil, nil, nil, timeZero, timeZero, nil, p)
 	})
 }
 

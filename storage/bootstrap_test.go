@@ -22,6 +22,7 @@ package storage
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -63,6 +64,62 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	require.NotNil(t, err)
 	require.Equal(t, "an error", err.Error())
 	require.Equal(t, bootstrapped, bsm.state)
+}
+
+func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	now := time.Now()
+	opts = opts.
+		SetBootstrapProcess(nil).
+		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+			return now
+		}))
+
+	m := NewMockdatabaseMediator(ctrl)
+	m.EXPECT().DisableFileOps()
+	m.EXPECT().EnableFileOps().AnyTimes()
+
+	db := NewMockdatabase(ctrl)
+
+	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
+
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().Options().Return(namespace.NewOptions()).Times(2)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	ns.EXPECT().
+		Bootstrap(nil, gomock.Any()).
+		Return(nil).
+		Do(func(arg0, arg1 interface{}) {
+			defer wg.Done()
+
+			// Enqueue the second bootstrap
+			err := bsm.Bootstrap()
+			assert.Error(t, err)
+			assert.Equal(t, errBootstrapEnqueued, err)
+			assert.False(t, bsm.IsBootstrapped())
+			bsm.RLock()
+			assert.Equal(t, true, bsm.hasPending)
+			bsm.RUnlock()
+
+			// Expect the second bootstrap call
+			ns.EXPECT().Bootstrap(nil, gomock.Any()).Return(nil)
+		})
+	ns.EXPECT().
+		ID().
+		Return(ident.StringID("test")).
+		Times(2)
+	db.EXPECT().
+		GetOwnedNamespaces().
+		Return([]databaseNamespace{ns}, nil).
+		Times(2)
+
+	err := bsm.Bootstrap()
+	require.Nil(t, err)
 }
 
 func TestDatabaseBootstrapTargetRanges(t *testing.T) {

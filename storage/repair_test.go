@@ -267,18 +267,17 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		Return(expectedResults, nil, nil)
 	shard.EXPECT().ID().Return(shardID).AnyTimes()
 
-	peerIter := client.NewMockPeerBlocksMetadataIter(ctrl)
+	peerIter := client.NewMockPeerBlockMetadataIter(ctrl)
 	inputBlocks := []struct {
 		host topology.Host
-		meta block.BlocksMetadata
+		meta block.Metadata
 	}{
-		{topology.NewHost("1", "addr1"), block.NewBlocksMetadata(ident.StringID("foo"), []block.Metadata{
-			block.NewMetadata(now.Add(30*time.Minute), sizes[0], &checksums[0], lastRead),
-			block.NewMetadata(now.Add(time.Hour), sizes[0], &checksums[1], lastRead),
-		})},
-		{topology.NewHost("1", "addr1"), block.NewBlocksMetadata(ident.StringID("bar"), []block.Metadata{
-			block.NewMetadata(now.Add(30*time.Minute), sizes[2], &checksums[2], lastRead),
-		})},
+		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("foo"),
+			now.Add(30*time.Minute), sizes[0], &checksums[0], lastRead)},
+		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("foo"),
+			now.Add(time.Hour), sizes[0], &checksums[1], lastRead)},
+		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("bar"),
+			now.Add(30*time.Minute), sizes[2], &checksums[2], lastRead)},
 	}
 
 	gomock.InOrder(
@@ -286,12 +285,14 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		peerIter.EXPECT().Current().Return(inputBlocks[0].host, inputBlocks[0].meta),
 		peerIter.EXPECT().Next().Return(true),
 		peerIter.EXPECT().Current().Return(inputBlocks[1].host, inputBlocks[1].meta),
+		peerIter.EXPECT().Next().Return(true),
+		peerIter.EXPECT().Current().Return(inputBlocks[2].host, inputBlocks[2].meta),
 		peerIter.EXPECT().Next().Return(false),
 		peerIter.EXPECT().Err().Return(nil),
 	)
 	session.EXPECT().
-		FetchBlocksMetadataFromPeers(namespace, shardID,
-			start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV2).
+		FetchBlocksMetadataFromPeers(namespace, shardID, start, end,
+			rpOpts.RepairConsistencyLevel(), gomock.Any(), client.FetchBlocksMetadataEndpointV2).
 		Return(peerIter, nil)
 
 	var (
@@ -314,10 +315,10 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	require.Equal(t, resShard, shard)
 	require.Equal(t, int64(2), resDiff.NumSeries)
 	require.Equal(t, int64(3), resDiff.NumBlocks)
-	require.Equal(t, 0, len(resDiff.ChecksumDifferences.Series()))
+	require.Equal(t, 0, resDiff.ChecksumDifferences.Series().Len())
 	sizeDiffSeries := resDiff.SizeDifferences.Series()
-	require.Equal(t, 1, len(sizeDiffSeries))
-	series, exists := sizeDiffSeries[ident.StringID("foo").Hash()]
+	require.Equal(t, 1, sizeDiffSeries.Len())
+	series, exists := sizeDiffSeries.Get(ident.StringID("foo"))
 	require.True(t, exists)
 	blocks := series.Metadata.Blocks()
 	require.Equal(t, 1, len(blocks))

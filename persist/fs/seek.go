@@ -178,7 +178,7 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		return errClonesShouldNotBeOpened
 	}
 
-	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
+	shardDir := ShardDataDirPath(s.filePathPrefix, namespace, shard)
 	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd, summariesFd *os.File
 
 	// Open necessary files
@@ -337,7 +337,7 @@ func (s *seeker) readInfo(size int) error {
 		return err
 	}
 
-	s.start = xtime.FromNanoseconds(info.Start)
+	s.start = xtime.FromNanoseconds(info.BlockStart)
 	s.blockSize = time.Duration(info.BlockSize)
 	s.entries = int(info.Entries)
 	s.bloomFilterInfo = info.BloomFilter
@@ -390,7 +390,7 @@ func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
 	}
 
 	// Copy the actual data into the underlying buffer
-	underlyingBuf := buffer.Get()
+	underlyingBuf := buffer.Bytes()
 	copy(underlyingBuf, data[:entry.Size])
 
 	// NB(r): _must_ check the checksum against known checksum as the data
@@ -413,7 +413,7 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 	stream := msgpack.NewDecoderStream(s.indexMmap[offset:])
 	s.decoder.Reset(stream)
 
-	idBytes := id.Data().Get()
+	idBytes := id.Data().Bytes()
 	// Prevent panic's when we're scanning to the end of the buffer
 	for stream.Remaining() != 0 {
 		entry, err := s.decoder.DecodeIndexEntry()

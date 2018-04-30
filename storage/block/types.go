@@ -38,16 +38,11 @@ import (
 
 // Metadata captures block metadata
 type Metadata struct {
+	ID       ident.ID
 	Start    time.Time
 	Size     int64
 	Checksum *uint32
 	LastRead time.Time
-}
-
-// BlocksMetadata contains blocks metadata from a peer
-type BlocksMetadata struct {
-	ID     ident.ID
-	Blocks []Metadata
 }
 
 // ReplicaMetadata captures block metadata along with corresponding peer identifier

@@ -88,10 +88,10 @@ func genMetadata() gopter.Gen {
 			retention = values[2].(retention.Options)
 		)
 		md, err := namespace.NewMetadata(ident.StringID(id), namespace.NewOptions().
-			SetNeedsBootstrap(bools[0]).
-			SetNeedsFilesetCleanup(bools[1]).
-			SetNeedsFlush(bools[2]).
-			SetNeedsRepair(bools[3]).
+			SetBootstrapEnabled(bools[0]).
+			SetCleanupEnabled(bools[1]).
+			SetFlushEnabled(bools[2]).
+			SetRepairEnabled(bools[3]).
 			SetWritesToCommitLog(bools[4]).
 			SetRetentionOptions(retention))
 		if err != nil {

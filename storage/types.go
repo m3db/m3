@@ -202,7 +202,7 @@ type NamespacesByID []Namespace
 func (n NamespacesByID) Len() int      { return len(n) }
 func (n NamespacesByID) Swap(i, j int) { n[i], n[j] = n[j], n[i] }
 func (n NamespacesByID) Less(i, j int) bool {
-	return bytes.Compare(n[i].ID().Data().Get(), n[j].ID().Data().Get()) < 0
+	return bytes.Compare(n[i].ID().Data().Bytes(), n[j].ID().Data().Bytes()) < 0
 }
 
 type databaseNamespace interface {
@@ -291,6 +291,9 @@ type databaseNamespace interface {
 
 	// Flush flushes in-memory data
 	Flush(blockStart time.Time, flush persist.Flush) error
+
+	// Snapshot snapshots unflushed in-memory data
+	Snapshot(blockStart, snapshotTime time.Time, flush persist.Flush) error
 
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).
@@ -382,7 +385,7 @@ type databaseShard interface {
 	) (block.FetchBlocksMetadataResults, PageToken, error)
 
 	Bootstrap(
-		bootstrappedSeries map[ident.Hash]result.DatabaseSeriesBlocks,
+		bootstrappedSeries *result.Map,
 	) error
 
 	// Flush flushes the series' in this shard.
@@ -391,8 +394,17 @@ type databaseShard interface {
 		flush persist.Flush,
 	) error
 
+	// Snapshot snapshot's the unflushed series' in this shard.
+	Snapshot(blockStart, snapshotStart time.Time, flush persist.Flush) error
+
 	// FlushState returns the flush state for this shard at block start.
 	FlushState(blockStart time.Time) fileOpState
+
+	// SnapshotState returns the snapshot state for this shard
+	SnapshotState() (isSnapshotting bool, lastSuccessfulSnapshot time.Time)
+
+	// CleanupSnapshots cleans up snapshot files
+	CleanupSnapshots(earliestToRetain time.Time) error
 
 	// CleanupFileset cleans up fileset files
 	CleanupFileset(earliestToRetain time.Time) error
@@ -658,6 +670,12 @@ type Options interface {
 	// IndexingEnabled returns whether the indexing is enabled
 	IndexingEnabled() bool
 
+	// SetIndexOptions set the indexing options.
+	SetIndexOptions(value index.Options) Options
+
+	// IndexOptions returns the indexing options.
+	IndexOptions() index.Options
+
 	// SetRepairEnabled sets whether or not to enable the repair
 	SetRepairEnabled(b bool) Options
 
@@ -687,6 +705,12 @@ type Options interface {
 
 	// MaxFlushRetries returns the maximum number of retries when data flushing fails
 	MaxFlushRetries() int
+
+	// SetMinimumSnapshotInterval sets the minimum amount of time that must elapse between snapshots
+	SetMinimumSnapshotInterval(value time.Duration) Options
+
+	// MinimumSnapshotInterval returns the minimum amount of time that must elapse between snapshots
+	MinimumSnapshotInterval() time.Duration
 
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
 	// use when bootstrapping retrievable blocks instead of blocks

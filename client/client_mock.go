@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
@@ -194,8 +195,8 @@ func (_mr *MockSessionMockRecorder) FetchIDs(arg0, arg1, arg2, arg3 interface{})
 }
 
 // FetchTagged mocks base method
-func (_m *MockSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (encoding.SeriesIterators, bool, error) {
-	ret := _m.ctrl.Call(_m, "FetchTagged", _param0, _param1)
+func (_m *MockSession) FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", namespace, q, opts)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -203,21 +204,21 @@ func (_m *MockSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptio
 }
 
 // FetchTagged indicates an expected call of FetchTagged
-func (_mr *MockSessionMockRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTagged", reflect.TypeOf((*MockSession)(nil).FetchTagged), arg0, arg1)
+func (_mr *MockSessionMockRecorder) FetchTagged(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTagged", reflect.TypeOf((*MockSession)(nil).FetchTagged), arg0, arg1, arg2)
 }
 
 // FetchTaggedIDs mocks base method
-func (_m *MockSession) FetchTaggedIDs(_param0 index.Query, _param1 index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", _param0, _param1)
+func (_m *MockSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", namespace, q, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchTaggedIDs indicates an expected call of FetchTaggedIDs
-func (_mr *MockSessionMockRecorder) FetchTaggedIDs(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTaggedIDs", reflect.TypeOf((*MockSession)(nil).FetchTaggedIDs), arg0, arg1)
+func (_mr *MockSessionMockRecorder) FetchTaggedIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTaggedIDs", reflect.TypeOf((*MockSession)(nil).FetchTaggedIDs), arg0, arg1, arg2)
 }
 
 // ShardID mocks base method
@@ -344,64 +345,64 @@ func (_mr *MockAdminClientMockRecorder) DefaultAdminSession() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "DefaultAdminSession", reflect.TypeOf((*MockAdminClient)(nil).DefaultAdminSession))
 }
 
-// MockPeerBlocksMetadataIter is a mock of PeerBlocksMetadataIter interface
-type MockPeerBlocksMetadataIter struct {
+// MockPeerBlockMetadataIter is a mock of PeerBlockMetadataIter interface
+type MockPeerBlockMetadataIter struct {
 	ctrl     *gomock.Controller
-	recorder *MockPeerBlocksMetadataIterMockRecorder
+	recorder *MockPeerBlockMetadataIterMockRecorder
 }
 
-// MockPeerBlocksMetadataIterMockRecorder is the mock recorder for MockPeerBlocksMetadataIter
-type MockPeerBlocksMetadataIterMockRecorder struct {
-	mock *MockPeerBlocksMetadataIter
+// MockPeerBlockMetadataIterMockRecorder is the mock recorder for MockPeerBlockMetadataIter
+type MockPeerBlockMetadataIterMockRecorder struct {
+	mock *MockPeerBlockMetadataIter
 }
 
-// NewMockPeerBlocksMetadataIter creates a new mock instance
-func NewMockPeerBlocksMetadataIter(ctrl *gomock.Controller) *MockPeerBlocksMetadataIter {
-	mock := &MockPeerBlocksMetadataIter{ctrl: ctrl}
-	mock.recorder = &MockPeerBlocksMetadataIterMockRecorder{mock}
+// NewMockPeerBlockMetadataIter creates a new mock instance
+func NewMockPeerBlockMetadataIter(ctrl *gomock.Controller) *MockPeerBlockMetadataIter {
+	mock := &MockPeerBlockMetadataIter{ctrl: ctrl}
+	mock.recorder = &MockPeerBlockMetadataIterMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (_m *MockPeerBlocksMetadataIter) EXPECT() *MockPeerBlocksMetadataIterMockRecorder {
+func (_m *MockPeerBlockMetadataIter) EXPECT() *MockPeerBlockMetadataIterMockRecorder {
 	return _m.recorder
 }
 
 // Next mocks base method
-func (_m *MockPeerBlocksMetadataIter) Next() bool {
+func (_m *MockPeerBlockMetadataIter) Next() bool {
 	ret := _m.ctrl.Call(_m, "Next")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
 // Next indicates an expected call of Next
-func (_mr *MockPeerBlocksMetadataIterMockRecorder) Next() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Next", reflect.TypeOf((*MockPeerBlocksMetadataIter)(nil).Next))
+func (_mr *MockPeerBlockMetadataIterMockRecorder) Next() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Next", reflect.TypeOf((*MockPeerBlockMetadataIter)(nil).Next))
 }
 
 // Current mocks base method
-func (_m *MockPeerBlocksMetadataIter) Current() (topology.Host, block.BlocksMetadata) {
+func (_m *MockPeerBlockMetadataIter) Current() (topology.Host, block.Metadata) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(topology.Host)
-	ret1, _ := ret[1].(block.BlocksMetadata)
+	ret1, _ := ret[1].(block.Metadata)
 	return ret0, ret1
 }
 
 // Current indicates an expected call of Current
-func (_mr *MockPeerBlocksMetadataIterMockRecorder) Current() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Current", reflect.TypeOf((*MockPeerBlocksMetadataIter)(nil).Current))
+func (_mr *MockPeerBlockMetadataIterMockRecorder) Current() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Current", reflect.TypeOf((*MockPeerBlockMetadataIter)(nil).Current))
 }
 
 // Err mocks base method
-func (_m *MockPeerBlocksMetadataIter) Err() error {
+func (_m *MockPeerBlockMetadataIter) Err() error {
 	ret := _m.ctrl.Call(_m, "Err")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Err indicates an expected call of Err
-func (_mr *MockPeerBlocksMetadataIterMockRecorder) Err() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Err", reflect.TypeOf((*MockPeerBlocksMetadataIter)(nil).Err))
+func (_mr *MockPeerBlockMetadataIterMockRecorder) Err() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Err", reflect.TypeOf((*MockPeerBlockMetadataIter)(nil).Err))
 }
 
 // MockPeerBlocksIter is a mock of PeerBlocksIter interface
@@ -539,8 +540,8 @@ func (_mr *MockAdminSessionMockRecorder) FetchIDs(arg0, arg1, arg2, arg3 interfa
 }
 
 // FetchTagged mocks base method
-func (_m *MockAdminSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (encoding.SeriesIterators, bool, error) {
-	ret := _m.ctrl.Call(_m, "FetchTagged", _param0, _param1)
+func (_m *MockAdminSession) FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", namespace, q, opts)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -548,21 +549,21 @@ func (_m *MockAdminSession) FetchTagged(_param0 index.Query, _param1 index.Query
 }
 
 // FetchTagged indicates an expected call of FetchTagged
-func (_mr *MockAdminSessionMockRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTagged", reflect.TypeOf((*MockAdminSession)(nil).FetchTagged), arg0, arg1)
+func (_mr *MockAdminSessionMockRecorder) FetchTagged(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTagged", reflect.TypeOf((*MockAdminSession)(nil).FetchTagged), arg0, arg1, arg2)
 }
 
 // FetchTaggedIDs mocks base method
-func (_m *MockAdminSession) FetchTaggedIDs(_param0 index.Query, _param1 index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", _param0, _param1)
+func (_m *MockAdminSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", namespace, q, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchTaggedIDs indicates an expected call of FetchTaggedIDs
-func (_mr *MockAdminSessionMockRecorder) FetchTaggedIDs(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTaggedIDs", reflect.TypeOf((*MockAdminSession)(nil).FetchTaggedIDs), arg0, arg1)
+func (_mr *MockAdminSessionMockRecorder) FetchTaggedIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTaggedIDs", reflect.TypeOf((*MockAdminSession)(nil).FetchTaggedIDs), arg0, arg1, arg2)
 }
 
 // ShardID mocks base method
@@ -628,16 +629,16 @@ func (_mr *MockAdminSessionMockRecorder) Truncate(arg0 interface{}) *gomock.Call
 }
 
 // FetchBlocksMetadataFromPeers mocks base method
-func (_m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlocksMetadataIter, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, result, version)
-	ret0, _ := ret[0].(PeerBlocksMetadataIter)
+func (_m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, consistencyLevel topology.ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result, version)
+	ret0, _ := ret[0].(PeerBlockMetadataIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchBlocksMetadataFromPeers indicates an expected call of FetchBlocksMetadataFromPeers
-func (_mr *MockAdminSessionMockRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksMetadataFromPeers", reflect.TypeOf((*MockAdminSession)(nil).FetchBlocksMetadataFromPeers), arg0, arg1, arg2, arg3, arg4, arg5)
+func (_mr *MockAdminSessionMockRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksMetadataFromPeers", reflect.TypeOf((*MockAdminSession)(nil).FetchBlocksMetadataFromPeers), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 // FetchBootstrapBlocksFromPeers mocks base method
@@ -654,16 +655,2270 @@ func (_mr *MockAdminSessionMockRecorder) FetchBootstrapBlocksFromPeers(arg0, arg
 }
 
 // FetchBlocksFromPeers mocks base method
-func (_m *MockAdminSession) FetchBlocksFromPeers(namespace namespace.Metadata, shard uint32, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, metadatas, opts)
+func (_m *MockAdminSession) FetchBlocksFromPeers(namespace namespace.Metadata, shard uint32, consistencyLevel topology.ReadConsistencyLevel, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, consistencyLevel, metadatas, opts)
 	ret0, _ := ret[0].(PeerBlocksIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchBlocksFromPeers indicates an expected call of FetchBlocksFromPeers
-func (_mr *MockAdminSessionMockRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksFromPeers", reflect.TypeOf((*MockAdminSession)(nil).FetchBlocksFromPeers), arg0, arg1, arg2, arg3)
+func (_mr *MockAdminSessionMockRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksFromPeers", reflect.TypeOf((*MockAdminSession)(nil).FetchBlocksFromPeers), arg0, arg1, arg2, arg3, arg4)
+}
+
+// MockOptions is a mock of Options interface
+type MockOptions struct {
+	ctrl     *gomock.Controller
+	recorder *MockOptionsMockRecorder
+}
+
+// MockOptionsMockRecorder is the mock recorder for MockOptions
+type MockOptionsMockRecorder struct {
+	mock *MockOptions
+}
+
+// NewMockOptions creates a new mock instance
+func NewMockOptions(ctrl *gomock.Controller) *MockOptions {
+	mock := &MockOptions{ctrl: ctrl}
+	mock.recorder = &MockOptionsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockOptions) EXPECT() *MockOptionsMockRecorder {
+	return _m.recorder
+}
+
+// Validate mocks base method
+func (_m *MockOptions) Validate() error {
+	ret := _m.ctrl.Call(_m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Validate indicates an expected call of Validate
+func (_mr *MockOptionsMockRecorder) Validate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Validate", reflect.TypeOf((*MockOptions)(nil).Validate))
+}
+
+// SetEncodingM3TSZ mocks base method
+func (_m *MockOptions) SetEncodingM3TSZ() Options {
+	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZ")
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetEncodingM3TSZ indicates an expected call of SetEncodingM3TSZ
+func (_mr *MockOptionsMockRecorder) SetEncodingM3TSZ() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetEncodingM3TSZ", reflect.TypeOf((*MockOptions)(nil).SetEncodingM3TSZ))
+}
+
+// SetRuntimeOptionsManager mocks base method
+func (_m *MockOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+	ret := _m.ctrl.Call(_m, "SetRuntimeOptionsManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetRuntimeOptionsManager indicates an expected call of SetRuntimeOptionsManager
+func (_mr *MockOptionsMockRecorder) SetRuntimeOptionsManager(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetRuntimeOptionsManager", reflect.TypeOf((*MockOptions)(nil).SetRuntimeOptionsManager), arg0)
+}
+
+// RuntimeOptionsManager mocks base method
+func (_m *MockOptions) RuntimeOptionsManager() runtime.OptionsManager {
+	ret := _m.ctrl.Call(_m, "RuntimeOptionsManager")
+	ret0, _ := ret[0].(runtime.OptionsManager)
+	return ret0
+}
+
+// RuntimeOptionsManager indicates an expected call of RuntimeOptionsManager
+func (_mr *MockOptionsMockRecorder) RuntimeOptionsManager() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "RuntimeOptionsManager", reflect.TypeOf((*MockOptions)(nil).RuntimeOptionsManager))
+}
+
+// SetClockOptions mocks base method
+func (_m *MockOptions) SetClockOptions(value clock.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClockOptions indicates an expected call of SetClockOptions
+func (_mr *MockOptionsMockRecorder) SetClockOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClockOptions", reflect.TypeOf((*MockOptions)(nil).SetClockOptions), arg0)
+}
+
+// ClockOptions mocks base method
+func (_m *MockOptions) ClockOptions() clock.Options {
+	ret := _m.ctrl.Call(_m, "ClockOptions")
+	ret0, _ := ret[0].(clock.Options)
+	return ret0
+}
+
+// ClockOptions indicates an expected call of ClockOptions
+func (_mr *MockOptionsMockRecorder) ClockOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClockOptions", reflect.TypeOf((*MockOptions)(nil).ClockOptions))
+}
+
+// SetInstrumentOptions mocks base method
+func (_m *MockOptions) SetInstrumentOptions(value instrument.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetInstrumentOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetInstrumentOptions indicates an expected call of SetInstrumentOptions
+func (_mr *MockOptionsMockRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockOptions)(nil).SetInstrumentOptions), arg0)
+}
+
+// InstrumentOptions mocks base method
+func (_m *MockOptions) InstrumentOptions() instrument.Options {
+	ret := _m.ctrl.Call(_m, "InstrumentOptions")
+	ret0, _ := ret[0].(instrument.Options)
+	return ret0
+}
+
+// InstrumentOptions indicates an expected call of InstrumentOptions
+func (_mr *MockOptionsMockRecorder) InstrumentOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "InstrumentOptions", reflect.TypeOf((*MockOptions)(nil).InstrumentOptions))
+}
+
+// SetTopologyInitializer mocks base method
+func (_m *MockOptions) SetTopologyInitializer(value topology.Initializer) Options {
+	ret := _m.ctrl.Call(_m, "SetTopologyInitializer", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTopologyInitializer indicates an expected call of SetTopologyInitializer
+func (_mr *MockOptionsMockRecorder) SetTopologyInitializer(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTopologyInitializer", reflect.TypeOf((*MockOptions)(nil).SetTopologyInitializer), arg0)
+}
+
+// TopologyInitializer mocks base method
+func (_m *MockOptions) TopologyInitializer() topology.Initializer {
+	ret := _m.ctrl.Call(_m, "TopologyInitializer")
+	ret0, _ := ret[0].(topology.Initializer)
+	return ret0
+}
+
+// TopologyInitializer indicates an expected call of TopologyInitializer
+func (_mr *MockOptionsMockRecorder) TopologyInitializer() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TopologyInitializer", reflect.TypeOf((*MockOptions)(nil).TopologyInitializer))
+}
+
+// SetReadConsistencyLevel mocks base method
+func (_m *MockOptions) SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetReadConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetReadConsistencyLevel indicates an expected call of SetReadConsistencyLevel
+func (_mr *MockOptionsMockRecorder) SetReadConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetReadConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).SetReadConsistencyLevel), arg0)
+}
+
+// ReadConsistencyLevel mocks base method
+func (_m *MockOptions) ReadConsistencyLevel() topology.ReadConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "ReadConsistencyLevel")
+	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
+	return ret0
+}
+
+// ReadConsistencyLevel indicates an expected call of ReadConsistencyLevel
+func (_mr *MockOptionsMockRecorder) ReadConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ReadConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).ReadConsistencyLevel))
+}
+
+// SetWriteConsistencyLevel mocks base method
+func (_m *MockOptions) SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteConsistencyLevel indicates an expected call of SetWriteConsistencyLevel
+func (_mr *MockOptionsMockRecorder) SetWriteConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).SetWriteConsistencyLevel), arg0)
+}
+
+// WriteConsistencyLevel mocks base method
+func (_m *MockOptions) WriteConsistencyLevel() topology.ConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "WriteConsistencyLevel")
+	ret0, _ := ret[0].(topology.ConsistencyLevel)
+	return ret0
+}
+
+// WriteConsistencyLevel indicates an expected call of WriteConsistencyLevel
+func (_mr *MockOptionsMockRecorder) WriteConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).WriteConsistencyLevel))
+}
+
+// SetChannelOptions mocks base method
+func (_m *MockOptions) SetChannelOptions(value *tchannel_go.ChannelOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetChannelOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetChannelOptions indicates an expected call of SetChannelOptions
+func (_mr *MockOptionsMockRecorder) SetChannelOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetChannelOptions", reflect.TypeOf((*MockOptions)(nil).SetChannelOptions), arg0)
+}
+
+// ChannelOptions mocks base method
+func (_m *MockOptions) ChannelOptions() *tchannel_go.ChannelOptions {
+	ret := _m.ctrl.Call(_m, "ChannelOptions")
+	ret0, _ := ret[0].(*tchannel_go.ChannelOptions)
+	return ret0
+}
+
+// ChannelOptions indicates an expected call of ChannelOptions
+func (_mr *MockOptionsMockRecorder) ChannelOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ChannelOptions", reflect.TypeOf((*MockOptions)(nil).ChannelOptions))
+}
+
+// SetMaxConnectionCount mocks base method
+func (_m *MockOptions) SetMaxConnectionCount(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetMaxConnectionCount", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMaxConnectionCount indicates an expected call of SetMaxConnectionCount
+func (_mr *MockOptionsMockRecorder) SetMaxConnectionCount(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetMaxConnectionCount", reflect.TypeOf((*MockOptions)(nil).SetMaxConnectionCount), arg0)
+}
+
+// MaxConnectionCount mocks base method
+func (_m *MockOptions) MaxConnectionCount() int {
+	ret := _m.ctrl.Call(_m, "MaxConnectionCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// MaxConnectionCount indicates an expected call of MaxConnectionCount
+func (_mr *MockOptionsMockRecorder) MaxConnectionCount() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "MaxConnectionCount", reflect.TypeOf((*MockOptions)(nil).MaxConnectionCount))
+}
+
+// SetMinConnectionCount mocks base method
+func (_m *MockOptions) SetMinConnectionCount(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetMinConnectionCount", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMinConnectionCount indicates an expected call of SetMinConnectionCount
+func (_mr *MockOptionsMockRecorder) SetMinConnectionCount(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetMinConnectionCount", reflect.TypeOf((*MockOptions)(nil).SetMinConnectionCount), arg0)
+}
+
+// MinConnectionCount mocks base method
+func (_m *MockOptions) MinConnectionCount() int {
+	ret := _m.ctrl.Call(_m, "MinConnectionCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// MinConnectionCount indicates an expected call of MinConnectionCount
+func (_mr *MockOptionsMockRecorder) MinConnectionCount() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "MinConnectionCount", reflect.TypeOf((*MockOptions)(nil).MinConnectionCount))
+}
+
+// SetHostConnectTimeout mocks base method
+func (_m *MockOptions) SetHostConnectTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetHostConnectTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostConnectTimeout indicates an expected call of SetHostConnectTimeout
+func (_mr *MockOptionsMockRecorder) SetHostConnectTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostConnectTimeout", reflect.TypeOf((*MockOptions)(nil).SetHostConnectTimeout), arg0)
+}
+
+// HostConnectTimeout mocks base method
+func (_m *MockOptions) HostConnectTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "HostConnectTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// HostConnectTimeout indicates an expected call of HostConnectTimeout
+func (_mr *MockOptionsMockRecorder) HostConnectTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostConnectTimeout", reflect.TypeOf((*MockOptions)(nil).HostConnectTimeout))
+}
+
+// SetClusterConnectTimeout mocks base method
+func (_m *MockOptions) SetClusterConnectTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetClusterConnectTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClusterConnectTimeout indicates an expected call of SetClusterConnectTimeout
+func (_mr *MockOptionsMockRecorder) SetClusterConnectTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClusterConnectTimeout", reflect.TypeOf((*MockOptions)(nil).SetClusterConnectTimeout), arg0)
+}
+
+// ClusterConnectTimeout mocks base method
+func (_m *MockOptions) ClusterConnectTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "ClusterConnectTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// ClusterConnectTimeout indicates an expected call of ClusterConnectTimeout
+func (_mr *MockOptionsMockRecorder) ClusterConnectTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClusterConnectTimeout", reflect.TypeOf((*MockOptions)(nil).ClusterConnectTimeout))
+}
+
+// SetClusterConnectConsistencyLevel mocks base method
+func (_m *MockOptions) SetClusterConnectConsistencyLevel(value topology.ConnectConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetClusterConnectConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClusterConnectConsistencyLevel indicates an expected call of SetClusterConnectConsistencyLevel
+func (_mr *MockOptionsMockRecorder) SetClusterConnectConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClusterConnectConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).SetClusterConnectConsistencyLevel), arg0)
+}
+
+// ClusterConnectConsistencyLevel mocks base method
+func (_m *MockOptions) ClusterConnectConsistencyLevel() topology.ConnectConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel")
+	ret0, _ := ret[0].(topology.ConnectConsistencyLevel)
+	return ret0
+}
+
+// ClusterConnectConsistencyLevel indicates an expected call of ClusterConnectConsistencyLevel
+func (_mr *MockOptionsMockRecorder) ClusterConnectConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClusterConnectConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).ClusterConnectConsistencyLevel))
+}
+
+// SetWriteRequestTimeout mocks base method
+func (_m *MockOptions) SetWriteRequestTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteRequestTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteRequestTimeout indicates an expected call of SetWriteRequestTimeout
+func (_mr *MockOptionsMockRecorder) SetWriteRequestTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteRequestTimeout", reflect.TypeOf((*MockOptions)(nil).SetWriteRequestTimeout), arg0)
+}
+
+// WriteRequestTimeout mocks base method
+func (_m *MockOptions) WriteRequestTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "WriteRequestTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// WriteRequestTimeout indicates an expected call of WriteRequestTimeout
+func (_mr *MockOptionsMockRecorder) WriteRequestTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteRequestTimeout", reflect.TypeOf((*MockOptions)(nil).WriteRequestTimeout))
+}
+
+// SetFetchRequestTimeout mocks base method
+func (_m *MockOptions) SetFetchRequestTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchRequestTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchRequestTimeout indicates an expected call of SetFetchRequestTimeout
+func (_mr *MockOptionsMockRecorder) SetFetchRequestTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchRequestTimeout", reflect.TypeOf((*MockOptions)(nil).SetFetchRequestTimeout), arg0)
+}
+
+// FetchRequestTimeout mocks base method
+func (_m *MockOptions) FetchRequestTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "FetchRequestTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// FetchRequestTimeout indicates an expected call of FetchRequestTimeout
+func (_mr *MockOptionsMockRecorder) FetchRequestTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchRequestTimeout", reflect.TypeOf((*MockOptions)(nil).FetchRequestTimeout))
+}
+
+// SetTruncateRequestTimeout mocks base method
+func (_m *MockOptions) SetTruncateRequestTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetTruncateRequestTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTruncateRequestTimeout indicates an expected call of SetTruncateRequestTimeout
+func (_mr *MockOptionsMockRecorder) SetTruncateRequestTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTruncateRequestTimeout", reflect.TypeOf((*MockOptions)(nil).SetTruncateRequestTimeout), arg0)
+}
+
+// TruncateRequestTimeout mocks base method
+func (_m *MockOptions) TruncateRequestTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "TruncateRequestTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// TruncateRequestTimeout indicates an expected call of TruncateRequestTimeout
+func (_mr *MockOptionsMockRecorder) TruncateRequestTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TruncateRequestTimeout", reflect.TypeOf((*MockOptions)(nil).TruncateRequestTimeout))
+}
+
+// SetBackgroundConnectInterval mocks base method
+func (_m *MockOptions) SetBackgroundConnectInterval(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundConnectInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundConnectInterval indicates an expected call of SetBackgroundConnectInterval
+func (_mr *MockOptionsMockRecorder) SetBackgroundConnectInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundConnectInterval", reflect.TypeOf((*MockOptions)(nil).SetBackgroundConnectInterval), arg0)
+}
+
+// BackgroundConnectInterval mocks base method
+func (_m *MockOptions) BackgroundConnectInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundConnectInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundConnectInterval indicates an expected call of BackgroundConnectInterval
+func (_mr *MockOptionsMockRecorder) BackgroundConnectInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundConnectInterval", reflect.TypeOf((*MockOptions)(nil).BackgroundConnectInterval))
+}
+
+// SetBackgroundConnectStutter mocks base method
+func (_m *MockOptions) SetBackgroundConnectStutter(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundConnectStutter", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundConnectStutter indicates an expected call of SetBackgroundConnectStutter
+func (_mr *MockOptionsMockRecorder) SetBackgroundConnectStutter(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundConnectStutter", reflect.TypeOf((*MockOptions)(nil).SetBackgroundConnectStutter), arg0)
+}
+
+// BackgroundConnectStutter mocks base method
+func (_m *MockOptions) BackgroundConnectStutter() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundConnectStutter")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundConnectStutter indicates an expected call of BackgroundConnectStutter
+func (_mr *MockOptionsMockRecorder) BackgroundConnectStutter() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundConnectStutter", reflect.TypeOf((*MockOptions)(nil).BackgroundConnectStutter))
+}
+
+// SetBackgroundHealthCheckInterval mocks base method
+func (_m *MockOptions) SetBackgroundHealthCheckInterval(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckInterval indicates an expected call of SetBackgroundHealthCheckInterval
+func (_mr *MockOptionsMockRecorder) SetBackgroundHealthCheckInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckInterval", reflect.TypeOf((*MockOptions)(nil).SetBackgroundHealthCheckInterval), arg0)
+}
+
+// BackgroundHealthCheckInterval mocks base method
+func (_m *MockOptions) BackgroundHealthCheckInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundHealthCheckInterval indicates an expected call of BackgroundHealthCheckInterval
+func (_mr *MockOptionsMockRecorder) BackgroundHealthCheckInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckInterval", reflect.TypeOf((*MockOptions)(nil).BackgroundHealthCheckInterval))
+}
+
+// SetBackgroundHealthCheckStutter mocks base method
+func (_m *MockOptions) SetBackgroundHealthCheckStutter(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckStutter", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckStutter indicates an expected call of SetBackgroundHealthCheckStutter
+func (_mr *MockOptionsMockRecorder) SetBackgroundHealthCheckStutter(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckStutter", reflect.TypeOf((*MockOptions)(nil).SetBackgroundHealthCheckStutter), arg0)
+}
+
+// BackgroundHealthCheckStutter mocks base method
+func (_m *MockOptions) BackgroundHealthCheckStutter() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckStutter")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundHealthCheckStutter indicates an expected call of BackgroundHealthCheckStutter
+func (_mr *MockOptionsMockRecorder) BackgroundHealthCheckStutter() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckStutter", reflect.TypeOf((*MockOptions)(nil).BackgroundHealthCheckStutter))
+}
+
+// SetBackgroundHealthCheckFailLimit mocks base method
+func (_m *MockOptions) SetBackgroundHealthCheckFailLimit(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckFailLimit", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckFailLimit indicates an expected call of SetBackgroundHealthCheckFailLimit
+func (_mr *MockOptionsMockRecorder) SetBackgroundHealthCheckFailLimit(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckFailLimit", reflect.TypeOf((*MockOptions)(nil).SetBackgroundHealthCheckFailLimit), arg0)
+}
+
+// BackgroundHealthCheckFailLimit mocks base method
+func (_m *MockOptions) BackgroundHealthCheckFailLimit() int {
+	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckFailLimit")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// BackgroundHealthCheckFailLimit indicates an expected call of BackgroundHealthCheckFailLimit
+func (_mr *MockOptionsMockRecorder) BackgroundHealthCheckFailLimit() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckFailLimit", reflect.TypeOf((*MockOptions)(nil).BackgroundHealthCheckFailLimit))
+}
+
+// SetBackgroundHealthCheckFailThrottleFactor mocks base method
+func (_m *MockOptions) SetBackgroundHealthCheckFailThrottleFactor(value float64) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckFailThrottleFactor", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckFailThrottleFactor indicates an expected call of SetBackgroundHealthCheckFailThrottleFactor
+func (_mr *MockOptionsMockRecorder) SetBackgroundHealthCheckFailThrottleFactor(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckFailThrottleFactor", reflect.TypeOf((*MockOptions)(nil).SetBackgroundHealthCheckFailThrottleFactor), arg0)
+}
+
+// BackgroundHealthCheckFailThrottleFactor mocks base method
+func (_m *MockOptions) BackgroundHealthCheckFailThrottleFactor() float64 {
+	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckFailThrottleFactor")
+	ret0, _ := ret[0].(float64)
+	return ret0
+}
+
+// BackgroundHealthCheckFailThrottleFactor indicates an expected call of BackgroundHealthCheckFailThrottleFactor
+func (_mr *MockOptionsMockRecorder) BackgroundHealthCheckFailThrottleFactor() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckFailThrottleFactor", reflect.TypeOf((*MockOptions)(nil).BackgroundHealthCheckFailThrottleFactor))
+}
+
+// SetWriteRetrier mocks base method
+func (_m *MockOptions) SetWriteRetrier(value retry.Retrier) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteRetrier", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteRetrier indicates an expected call of SetWriteRetrier
+func (_mr *MockOptionsMockRecorder) SetWriteRetrier(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteRetrier", reflect.TypeOf((*MockOptions)(nil).SetWriteRetrier), arg0)
+}
+
+// WriteRetrier mocks base method
+func (_m *MockOptions) WriteRetrier() retry.Retrier {
+	ret := _m.ctrl.Call(_m, "WriteRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
+	return ret0
+}
+
+// WriteRetrier indicates an expected call of WriteRetrier
+func (_mr *MockOptionsMockRecorder) WriteRetrier() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteRetrier", reflect.TypeOf((*MockOptions)(nil).WriteRetrier))
+}
+
+// SetFetchRetrier mocks base method
+func (_m *MockOptions) SetFetchRetrier(value retry.Retrier) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchRetrier", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchRetrier indicates an expected call of SetFetchRetrier
+func (_mr *MockOptionsMockRecorder) SetFetchRetrier(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchRetrier", reflect.TypeOf((*MockOptions)(nil).SetFetchRetrier), arg0)
+}
+
+// FetchRetrier mocks base method
+func (_m *MockOptions) FetchRetrier() retry.Retrier {
+	ret := _m.ctrl.Call(_m, "FetchRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
+	return ret0
+}
+
+// FetchRetrier indicates an expected call of FetchRetrier
+func (_mr *MockOptionsMockRecorder) FetchRetrier() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchRetrier", reflect.TypeOf((*MockOptions)(nil).FetchRetrier))
+}
+
+// SetTagEncoderOptions mocks base method
+func (_m *MockOptions) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetTagEncoderOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagEncoderOptions indicates an expected call of SetTagEncoderOptions
+func (_mr *MockOptionsMockRecorder) SetTagEncoderOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagEncoderOptions", reflect.TypeOf((*MockOptions)(nil).SetTagEncoderOptions), arg0)
+}
+
+// TagEncoderOptions mocks base method
+func (_m *MockOptions) TagEncoderOptions() serialize.TagEncoderOptions {
+	ret := _m.ctrl.Call(_m, "TagEncoderOptions")
+	ret0, _ := ret[0].(serialize.TagEncoderOptions)
+	return ret0
+}
+
+// TagEncoderOptions indicates an expected call of TagEncoderOptions
+func (_mr *MockOptionsMockRecorder) TagEncoderOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagEncoderOptions", reflect.TypeOf((*MockOptions)(nil).TagEncoderOptions))
+}
+
+// SetTagEncoderPoolSize mocks base method
+func (_m *MockOptions) SetTagEncoderPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetTagEncoderPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagEncoderPoolSize indicates an expected call of SetTagEncoderPoolSize
+func (_mr *MockOptionsMockRecorder) SetTagEncoderPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagEncoderPoolSize", reflect.TypeOf((*MockOptions)(nil).SetTagEncoderPoolSize), arg0)
+}
+
+// TagEncoderPoolSize mocks base method
+func (_m *MockOptions) TagEncoderPoolSize() int {
+	ret := _m.ctrl.Call(_m, "TagEncoderPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TagEncoderPoolSize indicates an expected call of TagEncoderPoolSize
+func (_mr *MockOptionsMockRecorder) TagEncoderPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagEncoderPoolSize", reflect.TypeOf((*MockOptions)(nil).TagEncoderPoolSize))
+}
+
+// SetTagDecoderOptions mocks base method
+func (_m *MockOptions) SetTagDecoderOptions(value serialize.TagDecoderOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetTagDecoderOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagDecoderOptions indicates an expected call of SetTagDecoderOptions
+func (_mr *MockOptionsMockRecorder) SetTagDecoderOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagDecoderOptions", reflect.TypeOf((*MockOptions)(nil).SetTagDecoderOptions), arg0)
+}
+
+// TagDecoderOptions mocks base method
+func (_m *MockOptions) TagDecoderOptions() serialize.TagDecoderOptions {
+	ret := _m.ctrl.Call(_m, "TagDecoderOptions")
+	ret0, _ := ret[0].(serialize.TagDecoderOptions)
+	return ret0
+}
+
+// TagDecoderOptions indicates an expected call of TagDecoderOptions
+func (_mr *MockOptionsMockRecorder) TagDecoderOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagDecoderOptions", reflect.TypeOf((*MockOptions)(nil).TagDecoderOptions))
+}
+
+// SetTagDecoderPoolSize mocks base method
+func (_m *MockOptions) SetTagDecoderPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetTagDecoderPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagDecoderPoolSize indicates an expected call of SetTagDecoderPoolSize
+func (_mr *MockOptionsMockRecorder) SetTagDecoderPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagDecoderPoolSize", reflect.TypeOf((*MockOptions)(nil).SetTagDecoderPoolSize), arg0)
+}
+
+// TagDecoderPoolSize mocks base method
+func (_m *MockOptions) TagDecoderPoolSize() int {
+	ret := _m.ctrl.Call(_m, "TagDecoderPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TagDecoderPoolSize indicates an expected call of TagDecoderPoolSize
+func (_mr *MockOptionsMockRecorder) TagDecoderPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagDecoderPoolSize", reflect.TypeOf((*MockOptions)(nil).TagDecoderPoolSize))
+}
+
+// SetWriteBatchSize mocks base method
+func (_m *MockOptions) SetWriteBatchSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteBatchSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteBatchSize indicates an expected call of SetWriteBatchSize
+func (_mr *MockOptionsMockRecorder) SetWriteBatchSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteBatchSize", reflect.TypeOf((*MockOptions)(nil).SetWriteBatchSize), arg0)
+}
+
+// WriteBatchSize mocks base method
+func (_m *MockOptions) WriteBatchSize() int {
+	ret := _m.ctrl.Call(_m, "WriteBatchSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WriteBatchSize indicates an expected call of WriteBatchSize
+func (_mr *MockOptionsMockRecorder) WriteBatchSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteBatchSize", reflect.TypeOf((*MockOptions)(nil).WriteBatchSize))
+}
+
+// SetFetchBatchSize mocks base method
+func (_m *MockOptions) SetFetchBatchSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchBatchSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchBatchSize indicates an expected call of SetFetchBatchSize
+func (_mr *MockOptionsMockRecorder) SetFetchBatchSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchBatchSize", reflect.TypeOf((*MockOptions)(nil).SetFetchBatchSize), arg0)
+}
+
+// FetchBatchSize mocks base method
+func (_m *MockOptions) FetchBatchSize() int {
+	ret := _m.ctrl.Call(_m, "FetchBatchSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// FetchBatchSize indicates an expected call of FetchBatchSize
+func (_mr *MockOptionsMockRecorder) FetchBatchSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBatchSize", reflect.TypeOf((*MockOptions)(nil).FetchBatchSize))
+}
+
+// SetWriteOpPoolSize mocks base method
+func (_m *MockOptions) SetWriteOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteOpPoolSize indicates an expected call of SetWriteOpPoolSize
+func (_mr *MockOptionsMockRecorder) SetWriteOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteOpPoolSize", reflect.TypeOf((*MockOptions)(nil).SetWriteOpPoolSize), arg0)
+}
+
+// WriteOpPoolSize mocks base method
+func (_m *MockOptions) WriteOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "WriteOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WriteOpPoolSize indicates an expected call of WriteOpPoolSize
+func (_mr *MockOptionsMockRecorder) WriteOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteOpPoolSize", reflect.TypeOf((*MockOptions)(nil).WriteOpPoolSize))
+}
+
+// SetWriteTaggedOpPoolSize mocks base method
+func (_m *MockOptions) SetWriteTaggedOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteTaggedOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteTaggedOpPoolSize indicates an expected call of SetWriteTaggedOpPoolSize
+func (_mr *MockOptionsMockRecorder) SetWriteTaggedOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteTaggedOpPoolSize", reflect.TypeOf((*MockOptions)(nil).SetWriteTaggedOpPoolSize), arg0)
+}
+
+// WriteTaggedOpPoolSize mocks base method
+func (_m *MockOptions) WriteTaggedOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "WriteTaggedOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WriteTaggedOpPoolSize indicates an expected call of WriteTaggedOpPoolSize
+func (_mr *MockOptionsMockRecorder) WriteTaggedOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteTaggedOpPoolSize", reflect.TypeOf((*MockOptions)(nil).WriteTaggedOpPoolSize))
+}
+
+// SetFetchBatchOpPoolSize mocks base method
+func (_m *MockOptions) SetFetchBatchOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchBatchOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchBatchOpPoolSize indicates an expected call of SetFetchBatchOpPoolSize
+func (_mr *MockOptionsMockRecorder) SetFetchBatchOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchBatchOpPoolSize", reflect.TypeOf((*MockOptions)(nil).SetFetchBatchOpPoolSize), arg0)
+}
+
+// FetchBatchOpPoolSize mocks base method
+func (_m *MockOptions) FetchBatchOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "FetchBatchOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// FetchBatchOpPoolSize indicates an expected call of FetchBatchOpPoolSize
+func (_mr *MockOptionsMockRecorder) FetchBatchOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBatchOpPoolSize", reflect.TypeOf((*MockOptions)(nil).FetchBatchOpPoolSize))
+}
+
+// SetCheckedBytesWrapperPoolSize mocks base method
+func (_m *MockOptions) SetCheckedBytesWrapperPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetCheckedBytesWrapperPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCheckedBytesWrapperPoolSize indicates an expected call of SetCheckedBytesWrapperPoolSize
+func (_mr *MockOptionsMockRecorder) SetCheckedBytesWrapperPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetCheckedBytesWrapperPoolSize", reflect.TypeOf((*MockOptions)(nil).SetCheckedBytesWrapperPoolSize), arg0)
+}
+
+// CheckedBytesWrapperPoolSize mocks base method
+func (_m *MockOptions) CheckedBytesWrapperPoolSize() int {
+	ret := _m.ctrl.Call(_m, "CheckedBytesWrapperPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// CheckedBytesWrapperPoolSize indicates an expected call of CheckedBytesWrapperPoolSize
+func (_mr *MockOptionsMockRecorder) CheckedBytesWrapperPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "CheckedBytesWrapperPoolSize", reflect.TypeOf((*MockOptions)(nil).CheckedBytesWrapperPoolSize))
+}
+
+// SetHostQueueOpsFlushSize mocks base method
+func (_m *MockOptions) SetHostQueueOpsFlushSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetHostQueueOpsFlushSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueOpsFlushSize indicates an expected call of SetHostQueueOpsFlushSize
+func (_mr *MockOptionsMockRecorder) SetHostQueueOpsFlushSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostQueueOpsFlushSize", reflect.TypeOf((*MockOptions)(nil).SetHostQueueOpsFlushSize), arg0)
+}
+
+// HostQueueOpsFlushSize mocks base method
+func (_m *MockOptions) HostQueueOpsFlushSize() int {
+	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// HostQueueOpsFlushSize indicates an expected call of HostQueueOpsFlushSize
+func (_mr *MockOptionsMockRecorder) HostQueueOpsFlushSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostQueueOpsFlushSize", reflect.TypeOf((*MockOptions)(nil).HostQueueOpsFlushSize))
+}
+
+// SetHostQueueOpsFlushInterval mocks base method
+func (_m *MockOptions) SetHostQueueOpsFlushInterval(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetHostQueueOpsFlushInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueOpsFlushInterval indicates an expected call of SetHostQueueOpsFlushInterval
+func (_mr *MockOptionsMockRecorder) SetHostQueueOpsFlushInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostQueueOpsFlushInterval", reflect.TypeOf((*MockOptions)(nil).SetHostQueueOpsFlushInterval), arg0)
+}
+
+// HostQueueOpsFlushInterval mocks base method
+func (_m *MockOptions) HostQueueOpsFlushInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// HostQueueOpsFlushInterval indicates an expected call of HostQueueOpsFlushInterval
+func (_mr *MockOptionsMockRecorder) HostQueueOpsFlushInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostQueueOpsFlushInterval", reflect.TypeOf((*MockOptions)(nil).HostQueueOpsFlushInterval))
+}
+
+// SetContextPool mocks base method
+func (_m *MockOptions) SetContextPool(value context.Pool) Options {
+	ret := _m.ctrl.Call(_m, "SetContextPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetContextPool indicates an expected call of SetContextPool
+func (_mr *MockOptionsMockRecorder) SetContextPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetContextPool", reflect.TypeOf((*MockOptions)(nil).SetContextPool), arg0)
+}
+
+// ContextPool mocks base method
+func (_m *MockOptions) ContextPool() context.Pool {
+	ret := _m.ctrl.Call(_m, "ContextPool")
+	ret0, _ := ret[0].(context.Pool)
+	return ret0
+}
+
+// ContextPool indicates an expected call of ContextPool
+func (_mr *MockOptionsMockRecorder) ContextPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ContextPool", reflect.TypeOf((*MockOptions)(nil).ContextPool))
+}
+
+// SetIdentifierPool mocks base method
+func (_m *MockOptions) SetIdentifierPool(value ident.Pool) Options {
+	ret := _m.ctrl.Call(_m, "SetIdentifierPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIdentifierPool indicates an expected call of SetIdentifierPool
+func (_mr *MockOptionsMockRecorder) SetIdentifierPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetIdentifierPool", reflect.TypeOf((*MockOptions)(nil).SetIdentifierPool), arg0)
+}
+
+// IdentifierPool mocks base method
+func (_m *MockOptions) IdentifierPool() ident.Pool {
+	ret := _m.ctrl.Call(_m, "IdentifierPool")
+	ret0, _ := ret[0].(ident.Pool)
+	return ret0
+}
+
+// IdentifierPool indicates an expected call of IdentifierPool
+func (_mr *MockOptionsMockRecorder) IdentifierPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "IdentifierPool", reflect.TypeOf((*MockOptions)(nil).IdentifierPool))
+}
+
+// SetHostQueueOpsArrayPoolSize mocks base method
+func (_m *MockOptions) SetHostQueueOpsArrayPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetHostQueueOpsArrayPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueOpsArrayPoolSize indicates an expected call of SetHostQueueOpsArrayPoolSize
+func (_mr *MockOptionsMockRecorder) SetHostQueueOpsArrayPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostQueueOpsArrayPoolSize", reflect.TypeOf((*MockOptions)(nil).SetHostQueueOpsArrayPoolSize), arg0)
+}
+
+// HostQueueOpsArrayPoolSize mocks base method
+func (_m *MockOptions) HostQueueOpsArrayPoolSize() int {
+	ret := _m.ctrl.Call(_m, "HostQueueOpsArrayPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// HostQueueOpsArrayPoolSize indicates an expected call of HostQueueOpsArrayPoolSize
+func (_mr *MockOptionsMockRecorder) HostQueueOpsArrayPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostQueueOpsArrayPoolSize", reflect.TypeOf((*MockOptions)(nil).HostQueueOpsArrayPoolSize))
+}
+
+// SetSeriesIteratorPoolSize mocks base method
+func (_m *MockOptions) SetSeriesIteratorPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetSeriesIteratorPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSeriesIteratorPoolSize indicates an expected call of SetSeriesIteratorPoolSize
+func (_mr *MockOptionsMockRecorder) SetSeriesIteratorPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetSeriesIteratorPoolSize", reflect.TypeOf((*MockOptions)(nil).SetSeriesIteratorPoolSize), arg0)
+}
+
+// SeriesIteratorPoolSize mocks base method
+func (_m *MockOptions) SeriesIteratorPoolSize() int {
+	ret := _m.ctrl.Call(_m, "SeriesIteratorPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// SeriesIteratorPoolSize indicates an expected call of SeriesIteratorPoolSize
+func (_mr *MockOptionsMockRecorder) SeriesIteratorPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SeriesIteratorPoolSize", reflect.TypeOf((*MockOptions)(nil).SeriesIteratorPoolSize))
+}
+
+// SetSeriesIteratorArrayPoolBuckets mocks base method
+func (_m *MockOptions) SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
+	ret := _m.ctrl.Call(_m, "SetSeriesIteratorArrayPoolBuckets", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSeriesIteratorArrayPoolBuckets indicates an expected call of SetSeriesIteratorArrayPoolBuckets
+func (_mr *MockOptionsMockRecorder) SetSeriesIteratorArrayPoolBuckets(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetSeriesIteratorArrayPoolBuckets", reflect.TypeOf((*MockOptions)(nil).SetSeriesIteratorArrayPoolBuckets), arg0)
+}
+
+// SeriesIteratorArrayPoolBuckets mocks base method
+func (_m *MockOptions) SeriesIteratorArrayPoolBuckets() []pool.Bucket {
+	ret := _m.ctrl.Call(_m, "SeriesIteratorArrayPoolBuckets")
+	ret0, _ := ret[0].([]pool.Bucket)
+	return ret0
+}
+
+// SeriesIteratorArrayPoolBuckets indicates an expected call of SeriesIteratorArrayPoolBuckets
+func (_mr *MockOptionsMockRecorder) SeriesIteratorArrayPoolBuckets() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SeriesIteratorArrayPoolBuckets", reflect.TypeOf((*MockOptions)(nil).SeriesIteratorArrayPoolBuckets))
+}
+
+// SetReaderIteratorAllocate mocks base method
+func (_m *MockOptions) SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options {
+	ret := _m.ctrl.Call(_m, "SetReaderIteratorAllocate", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetReaderIteratorAllocate indicates an expected call of SetReaderIteratorAllocate
+func (_mr *MockOptionsMockRecorder) SetReaderIteratorAllocate(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetReaderIteratorAllocate", reflect.TypeOf((*MockOptions)(nil).SetReaderIteratorAllocate), arg0)
+}
+
+// ReaderIteratorAllocate mocks base method
+func (_m *MockOptions) ReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
+	ret := _m.ctrl.Call(_m, "ReaderIteratorAllocate")
+	ret0, _ := ret[0].(encoding.ReaderIteratorAllocate)
+	return ret0
+}
+
+// ReaderIteratorAllocate indicates an expected call of ReaderIteratorAllocate
+func (_mr *MockOptionsMockRecorder) ReaderIteratorAllocate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ReaderIteratorAllocate", reflect.TypeOf((*MockOptions)(nil).ReaderIteratorAllocate))
+}
+
+// MockAdminOptions is a mock of AdminOptions interface
+type MockAdminOptions struct {
+	ctrl     *gomock.Controller
+	recorder *MockAdminOptionsMockRecorder
+}
+
+// MockAdminOptionsMockRecorder is the mock recorder for MockAdminOptions
+type MockAdminOptionsMockRecorder struct {
+	mock *MockAdminOptions
+}
+
+// NewMockAdminOptions creates a new mock instance
+func NewMockAdminOptions(ctrl *gomock.Controller) *MockAdminOptions {
+	mock := &MockAdminOptions{ctrl: ctrl}
+	mock.recorder = &MockAdminOptionsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockAdminOptions) EXPECT() *MockAdminOptionsMockRecorder {
+	return _m.recorder
+}
+
+// Validate mocks base method
+func (_m *MockAdminOptions) Validate() error {
+	ret := _m.ctrl.Call(_m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Validate indicates an expected call of Validate
+func (_mr *MockAdminOptionsMockRecorder) Validate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Validate", reflect.TypeOf((*MockAdminOptions)(nil).Validate))
+}
+
+// SetEncodingM3TSZ mocks base method
+func (_m *MockAdminOptions) SetEncodingM3TSZ() Options {
+	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZ")
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetEncodingM3TSZ indicates an expected call of SetEncodingM3TSZ
+func (_mr *MockAdminOptionsMockRecorder) SetEncodingM3TSZ() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetEncodingM3TSZ", reflect.TypeOf((*MockAdminOptions)(nil).SetEncodingM3TSZ))
+}
+
+// SetRuntimeOptionsManager mocks base method
+func (_m *MockAdminOptions) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+	ret := _m.ctrl.Call(_m, "SetRuntimeOptionsManager", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetRuntimeOptionsManager indicates an expected call of SetRuntimeOptionsManager
+func (_mr *MockAdminOptionsMockRecorder) SetRuntimeOptionsManager(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetRuntimeOptionsManager", reflect.TypeOf((*MockAdminOptions)(nil).SetRuntimeOptionsManager), arg0)
+}
+
+// RuntimeOptionsManager mocks base method
+func (_m *MockAdminOptions) RuntimeOptionsManager() runtime.OptionsManager {
+	ret := _m.ctrl.Call(_m, "RuntimeOptionsManager")
+	ret0, _ := ret[0].(runtime.OptionsManager)
+	return ret0
+}
+
+// RuntimeOptionsManager indicates an expected call of RuntimeOptionsManager
+func (_mr *MockAdminOptionsMockRecorder) RuntimeOptionsManager() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "RuntimeOptionsManager", reflect.TypeOf((*MockAdminOptions)(nil).RuntimeOptionsManager))
+}
+
+// SetClockOptions mocks base method
+func (_m *MockAdminOptions) SetClockOptions(value clock.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClockOptions indicates an expected call of SetClockOptions
+func (_mr *MockAdminOptionsMockRecorder) SetClockOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClockOptions", reflect.TypeOf((*MockAdminOptions)(nil).SetClockOptions), arg0)
+}
+
+// ClockOptions mocks base method
+func (_m *MockAdminOptions) ClockOptions() clock.Options {
+	ret := _m.ctrl.Call(_m, "ClockOptions")
+	ret0, _ := ret[0].(clock.Options)
+	return ret0
+}
+
+// ClockOptions indicates an expected call of ClockOptions
+func (_mr *MockAdminOptionsMockRecorder) ClockOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClockOptions", reflect.TypeOf((*MockAdminOptions)(nil).ClockOptions))
+}
+
+// SetInstrumentOptions mocks base method
+func (_m *MockAdminOptions) SetInstrumentOptions(value instrument.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetInstrumentOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetInstrumentOptions indicates an expected call of SetInstrumentOptions
+func (_mr *MockAdminOptionsMockRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockAdminOptions)(nil).SetInstrumentOptions), arg0)
+}
+
+// InstrumentOptions mocks base method
+func (_m *MockAdminOptions) InstrumentOptions() instrument.Options {
+	ret := _m.ctrl.Call(_m, "InstrumentOptions")
+	ret0, _ := ret[0].(instrument.Options)
+	return ret0
+}
+
+// InstrumentOptions indicates an expected call of InstrumentOptions
+func (_mr *MockAdminOptionsMockRecorder) InstrumentOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "InstrumentOptions", reflect.TypeOf((*MockAdminOptions)(nil).InstrumentOptions))
+}
+
+// SetTopologyInitializer mocks base method
+func (_m *MockAdminOptions) SetTopologyInitializer(value topology.Initializer) Options {
+	ret := _m.ctrl.Call(_m, "SetTopologyInitializer", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTopologyInitializer indicates an expected call of SetTopologyInitializer
+func (_mr *MockAdminOptionsMockRecorder) SetTopologyInitializer(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTopologyInitializer", reflect.TypeOf((*MockAdminOptions)(nil).SetTopologyInitializer), arg0)
+}
+
+// TopologyInitializer mocks base method
+func (_m *MockAdminOptions) TopologyInitializer() topology.Initializer {
+	ret := _m.ctrl.Call(_m, "TopologyInitializer")
+	ret0, _ := ret[0].(topology.Initializer)
+	return ret0
+}
+
+// TopologyInitializer indicates an expected call of TopologyInitializer
+func (_mr *MockAdminOptionsMockRecorder) TopologyInitializer() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TopologyInitializer", reflect.TypeOf((*MockAdminOptions)(nil).TopologyInitializer))
+}
+
+// SetReadConsistencyLevel mocks base method
+func (_m *MockAdminOptions) SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetReadConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetReadConsistencyLevel indicates an expected call of SetReadConsistencyLevel
+func (_mr *MockAdminOptionsMockRecorder) SetReadConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetReadConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).SetReadConsistencyLevel), arg0)
+}
+
+// ReadConsistencyLevel mocks base method
+func (_m *MockAdminOptions) ReadConsistencyLevel() topology.ReadConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "ReadConsistencyLevel")
+	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
+	return ret0
+}
+
+// ReadConsistencyLevel indicates an expected call of ReadConsistencyLevel
+func (_mr *MockAdminOptionsMockRecorder) ReadConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ReadConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).ReadConsistencyLevel))
+}
+
+// SetWriteConsistencyLevel mocks base method
+func (_m *MockAdminOptions) SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteConsistencyLevel indicates an expected call of SetWriteConsistencyLevel
+func (_mr *MockAdminOptionsMockRecorder) SetWriteConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteConsistencyLevel), arg0)
+}
+
+// WriteConsistencyLevel mocks base method
+func (_m *MockAdminOptions) WriteConsistencyLevel() topology.ConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "WriteConsistencyLevel")
+	ret0, _ := ret[0].(topology.ConsistencyLevel)
+	return ret0
+}
+
+// WriteConsistencyLevel indicates an expected call of WriteConsistencyLevel
+func (_mr *MockAdminOptionsMockRecorder) WriteConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).WriteConsistencyLevel))
+}
+
+// SetChannelOptions mocks base method
+func (_m *MockAdminOptions) SetChannelOptions(value *tchannel_go.ChannelOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetChannelOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetChannelOptions indicates an expected call of SetChannelOptions
+func (_mr *MockAdminOptionsMockRecorder) SetChannelOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetChannelOptions", reflect.TypeOf((*MockAdminOptions)(nil).SetChannelOptions), arg0)
+}
+
+// ChannelOptions mocks base method
+func (_m *MockAdminOptions) ChannelOptions() *tchannel_go.ChannelOptions {
+	ret := _m.ctrl.Call(_m, "ChannelOptions")
+	ret0, _ := ret[0].(*tchannel_go.ChannelOptions)
+	return ret0
+}
+
+// ChannelOptions indicates an expected call of ChannelOptions
+func (_mr *MockAdminOptionsMockRecorder) ChannelOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ChannelOptions", reflect.TypeOf((*MockAdminOptions)(nil).ChannelOptions))
+}
+
+// SetMaxConnectionCount mocks base method
+func (_m *MockAdminOptions) SetMaxConnectionCount(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetMaxConnectionCount", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMaxConnectionCount indicates an expected call of SetMaxConnectionCount
+func (_mr *MockAdminOptionsMockRecorder) SetMaxConnectionCount(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetMaxConnectionCount", reflect.TypeOf((*MockAdminOptions)(nil).SetMaxConnectionCount), arg0)
+}
+
+// MaxConnectionCount mocks base method
+func (_m *MockAdminOptions) MaxConnectionCount() int {
+	ret := _m.ctrl.Call(_m, "MaxConnectionCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// MaxConnectionCount indicates an expected call of MaxConnectionCount
+func (_mr *MockAdminOptionsMockRecorder) MaxConnectionCount() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "MaxConnectionCount", reflect.TypeOf((*MockAdminOptions)(nil).MaxConnectionCount))
+}
+
+// SetMinConnectionCount mocks base method
+func (_m *MockAdminOptions) SetMinConnectionCount(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetMinConnectionCount", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetMinConnectionCount indicates an expected call of SetMinConnectionCount
+func (_mr *MockAdminOptionsMockRecorder) SetMinConnectionCount(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetMinConnectionCount", reflect.TypeOf((*MockAdminOptions)(nil).SetMinConnectionCount), arg0)
+}
+
+// MinConnectionCount mocks base method
+func (_m *MockAdminOptions) MinConnectionCount() int {
+	ret := _m.ctrl.Call(_m, "MinConnectionCount")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// MinConnectionCount indicates an expected call of MinConnectionCount
+func (_mr *MockAdminOptionsMockRecorder) MinConnectionCount() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "MinConnectionCount", reflect.TypeOf((*MockAdminOptions)(nil).MinConnectionCount))
+}
+
+// SetHostConnectTimeout mocks base method
+func (_m *MockAdminOptions) SetHostConnectTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetHostConnectTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostConnectTimeout indicates an expected call of SetHostConnectTimeout
+func (_mr *MockAdminOptionsMockRecorder) SetHostConnectTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostConnectTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetHostConnectTimeout), arg0)
+}
+
+// HostConnectTimeout mocks base method
+func (_m *MockAdminOptions) HostConnectTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "HostConnectTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// HostConnectTimeout indicates an expected call of HostConnectTimeout
+func (_mr *MockAdminOptionsMockRecorder) HostConnectTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostConnectTimeout", reflect.TypeOf((*MockAdminOptions)(nil).HostConnectTimeout))
+}
+
+// SetClusterConnectTimeout mocks base method
+func (_m *MockAdminOptions) SetClusterConnectTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetClusterConnectTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClusterConnectTimeout indicates an expected call of SetClusterConnectTimeout
+func (_mr *MockAdminOptionsMockRecorder) SetClusterConnectTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClusterConnectTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetClusterConnectTimeout), arg0)
+}
+
+// ClusterConnectTimeout mocks base method
+func (_m *MockAdminOptions) ClusterConnectTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "ClusterConnectTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// ClusterConnectTimeout indicates an expected call of ClusterConnectTimeout
+func (_mr *MockAdminOptionsMockRecorder) ClusterConnectTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClusterConnectTimeout", reflect.TypeOf((*MockAdminOptions)(nil).ClusterConnectTimeout))
+}
+
+// SetClusterConnectConsistencyLevel mocks base method
+func (_m *MockAdminOptions) SetClusterConnectConsistencyLevel(value topology.ConnectConsistencyLevel) Options {
+	ret := _m.ctrl.Call(_m, "SetClusterConnectConsistencyLevel", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetClusterConnectConsistencyLevel indicates an expected call of SetClusterConnectConsistencyLevel
+func (_mr *MockAdminOptionsMockRecorder) SetClusterConnectConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClusterConnectConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).SetClusterConnectConsistencyLevel), arg0)
+}
+
+// ClusterConnectConsistencyLevel mocks base method
+func (_m *MockAdminOptions) ClusterConnectConsistencyLevel() topology.ConnectConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel")
+	ret0, _ := ret[0].(topology.ConnectConsistencyLevel)
+	return ret0
+}
+
+// ClusterConnectConsistencyLevel indicates an expected call of ClusterConnectConsistencyLevel
+func (_mr *MockAdminOptionsMockRecorder) ClusterConnectConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClusterConnectConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).ClusterConnectConsistencyLevel))
+}
+
+// SetWriteRequestTimeout mocks base method
+func (_m *MockAdminOptions) SetWriteRequestTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteRequestTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteRequestTimeout indicates an expected call of SetWriteRequestTimeout
+func (_mr *MockAdminOptionsMockRecorder) SetWriteRequestTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteRequestTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteRequestTimeout), arg0)
+}
+
+// WriteRequestTimeout mocks base method
+func (_m *MockAdminOptions) WriteRequestTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "WriteRequestTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// WriteRequestTimeout indicates an expected call of WriteRequestTimeout
+func (_mr *MockAdminOptionsMockRecorder) WriteRequestTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteRequestTimeout", reflect.TypeOf((*MockAdminOptions)(nil).WriteRequestTimeout))
+}
+
+// SetFetchRequestTimeout mocks base method
+func (_m *MockAdminOptions) SetFetchRequestTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchRequestTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchRequestTimeout indicates an expected call of SetFetchRequestTimeout
+func (_mr *MockAdminOptionsMockRecorder) SetFetchRequestTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchRequestTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchRequestTimeout), arg0)
+}
+
+// FetchRequestTimeout mocks base method
+func (_m *MockAdminOptions) FetchRequestTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "FetchRequestTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// FetchRequestTimeout indicates an expected call of FetchRequestTimeout
+func (_mr *MockAdminOptionsMockRecorder) FetchRequestTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchRequestTimeout", reflect.TypeOf((*MockAdminOptions)(nil).FetchRequestTimeout))
+}
+
+// SetTruncateRequestTimeout mocks base method
+func (_m *MockAdminOptions) SetTruncateRequestTimeout(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetTruncateRequestTimeout", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTruncateRequestTimeout indicates an expected call of SetTruncateRequestTimeout
+func (_mr *MockAdminOptionsMockRecorder) SetTruncateRequestTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTruncateRequestTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetTruncateRequestTimeout), arg0)
+}
+
+// TruncateRequestTimeout mocks base method
+func (_m *MockAdminOptions) TruncateRequestTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "TruncateRequestTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// TruncateRequestTimeout indicates an expected call of TruncateRequestTimeout
+func (_mr *MockAdminOptionsMockRecorder) TruncateRequestTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TruncateRequestTimeout", reflect.TypeOf((*MockAdminOptions)(nil).TruncateRequestTimeout))
+}
+
+// SetBackgroundConnectInterval mocks base method
+func (_m *MockAdminOptions) SetBackgroundConnectInterval(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundConnectInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundConnectInterval indicates an expected call of SetBackgroundConnectInterval
+func (_mr *MockAdminOptionsMockRecorder) SetBackgroundConnectInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundConnectInterval", reflect.TypeOf((*MockAdminOptions)(nil).SetBackgroundConnectInterval), arg0)
+}
+
+// BackgroundConnectInterval mocks base method
+func (_m *MockAdminOptions) BackgroundConnectInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundConnectInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundConnectInterval indicates an expected call of BackgroundConnectInterval
+func (_mr *MockAdminOptionsMockRecorder) BackgroundConnectInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundConnectInterval", reflect.TypeOf((*MockAdminOptions)(nil).BackgroundConnectInterval))
+}
+
+// SetBackgroundConnectStutter mocks base method
+func (_m *MockAdminOptions) SetBackgroundConnectStutter(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundConnectStutter", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundConnectStutter indicates an expected call of SetBackgroundConnectStutter
+func (_mr *MockAdminOptionsMockRecorder) SetBackgroundConnectStutter(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundConnectStutter", reflect.TypeOf((*MockAdminOptions)(nil).SetBackgroundConnectStutter), arg0)
+}
+
+// BackgroundConnectStutter mocks base method
+func (_m *MockAdminOptions) BackgroundConnectStutter() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundConnectStutter")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundConnectStutter indicates an expected call of BackgroundConnectStutter
+func (_mr *MockAdminOptionsMockRecorder) BackgroundConnectStutter() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundConnectStutter", reflect.TypeOf((*MockAdminOptions)(nil).BackgroundConnectStutter))
+}
+
+// SetBackgroundHealthCheckInterval mocks base method
+func (_m *MockAdminOptions) SetBackgroundHealthCheckInterval(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckInterval indicates an expected call of SetBackgroundHealthCheckInterval
+func (_mr *MockAdminOptionsMockRecorder) SetBackgroundHealthCheckInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckInterval", reflect.TypeOf((*MockAdminOptions)(nil).SetBackgroundHealthCheckInterval), arg0)
+}
+
+// BackgroundHealthCheckInterval mocks base method
+func (_m *MockAdminOptions) BackgroundHealthCheckInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundHealthCheckInterval indicates an expected call of BackgroundHealthCheckInterval
+func (_mr *MockAdminOptionsMockRecorder) BackgroundHealthCheckInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckInterval", reflect.TypeOf((*MockAdminOptions)(nil).BackgroundHealthCheckInterval))
+}
+
+// SetBackgroundHealthCheckStutter mocks base method
+func (_m *MockAdminOptions) SetBackgroundHealthCheckStutter(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckStutter", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckStutter indicates an expected call of SetBackgroundHealthCheckStutter
+func (_mr *MockAdminOptionsMockRecorder) SetBackgroundHealthCheckStutter(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckStutter", reflect.TypeOf((*MockAdminOptions)(nil).SetBackgroundHealthCheckStutter), arg0)
+}
+
+// BackgroundHealthCheckStutter mocks base method
+func (_m *MockAdminOptions) BackgroundHealthCheckStutter() time.Duration {
+	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckStutter")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BackgroundHealthCheckStutter indicates an expected call of BackgroundHealthCheckStutter
+func (_mr *MockAdminOptionsMockRecorder) BackgroundHealthCheckStutter() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckStutter", reflect.TypeOf((*MockAdminOptions)(nil).BackgroundHealthCheckStutter))
+}
+
+// SetBackgroundHealthCheckFailLimit mocks base method
+func (_m *MockAdminOptions) SetBackgroundHealthCheckFailLimit(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckFailLimit", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckFailLimit indicates an expected call of SetBackgroundHealthCheckFailLimit
+func (_mr *MockAdminOptionsMockRecorder) SetBackgroundHealthCheckFailLimit(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckFailLimit", reflect.TypeOf((*MockAdminOptions)(nil).SetBackgroundHealthCheckFailLimit), arg0)
+}
+
+// BackgroundHealthCheckFailLimit mocks base method
+func (_m *MockAdminOptions) BackgroundHealthCheckFailLimit() int {
+	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckFailLimit")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// BackgroundHealthCheckFailLimit indicates an expected call of BackgroundHealthCheckFailLimit
+func (_mr *MockAdminOptionsMockRecorder) BackgroundHealthCheckFailLimit() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckFailLimit", reflect.TypeOf((*MockAdminOptions)(nil).BackgroundHealthCheckFailLimit))
+}
+
+// SetBackgroundHealthCheckFailThrottleFactor mocks base method
+func (_m *MockAdminOptions) SetBackgroundHealthCheckFailThrottleFactor(value float64) Options {
+	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckFailThrottleFactor", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetBackgroundHealthCheckFailThrottleFactor indicates an expected call of SetBackgroundHealthCheckFailThrottleFactor
+func (_mr *MockAdminOptionsMockRecorder) SetBackgroundHealthCheckFailThrottleFactor(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckFailThrottleFactor", reflect.TypeOf((*MockAdminOptions)(nil).SetBackgroundHealthCheckFailThrottleFactor), arg0)
+}
+
+// BackgroundHealthCheckFailThrottleFactor mocks base method
+func (_m *MockAdminOptions) BackgroundHealthCheckFailThrottleFactor() float64 {
+	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckFailThrottleFactor")
+	ret0, _ := ret[0].(float64)
+	return ret0
+}
+
+// BackgroundHealthCheckFailThrottleFactor indicates an expected call of BackgroundHealthCheckFailThrottleFactor
+func (_mr *MockAdminOptionsMockRecorder) BackgroundHealthCheckFailThrottleFactor() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckFailThrottleFactor", reflect.TypeOf((*MockAdminOptions)(nil).BackgroundHealthCheckFailThrottleFactor))
+}
+
+// SetWriteRetrier mocks base method
+func (_m *MockAdminOptions) SetWriteRetrier(value retry.Retrier) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteRetrier", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteRetrier indicates an expected call of SetWriteRetrier
+func (_mr *MockAdminOptionsMockRecorder) SetWriteRetrier(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteRetrier", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteRetrier), arg0)
+}
+
+// WriteRetrier mocks base method
+func (_m *MockAdminOptions) WriteRetrier() retry.Retrier {
+	ret := _m.ctrl.Call(_m, "WriteRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
+	return ret0
+}
+
+// WriteRetrier indicates an expected call of WriteRetrier
+func (_mr *MockAdminOptionsMockRecorder) WriteRetrier() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteRetrier", reflect.TypeOf((*MockAdminOptions)(nil).WriteRetrier))
+}
+
+// SetFetchRetrier mocks base method
+func (_m *MockAdminOptions) SetFetchRetrier(value retry.Retrier) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchRetrier", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchRetrier indicates an expected call of SetFetchRetrier
+func (_mr *MockAdminOptionsMockRecorder) SetFetchRetrier(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchRetrier", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchRetrier), arg0)
+}
+
+// FetchRetrier mocks base method
+func (_m *MockAdminOptions) FetchRetrier() retry.Retrier {
+	ret := _m.ctrl.Call(_m, "FetchRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
+	return ret0
+}
+
+// FetchRetrier indicates an expected call of FetchRetrier
+func (_mr *MockAdminOptionsMockRecorder) FetchRetrier() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchRetrier", reflect.TypeOf((*MockAdminOptions)(nil).FetchRetrier))
+}
+
+// SetTagEncoderOptions mocks base method
+func (_m *MockAdminOptions) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetTagEncoderOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagEncoderOptions indicates an expected call of SetTagEncoderOptions
+func (_mr *MockAdminOptionsMockRecorder) SetTagEncoderOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagEncoderOptions", reflect.TypeOf((*MockAdminOptions)(nil).SetTagEncoderOptions), arg0)
+}
+
+// TagEncoderOptions mocks base method
+func (_m *MockAdminOptions) TagEncoderOptions() serialize.TagEncoderOptions {
+	ret := _m.ctrl.Call(_m, "TagEncoderOptions")
+	ret0, _ := ret[0].(serialize.TagEncoderOptions)
+	return ret0
+}
+
+// TagEncoderOptions indicates an expected call of TagEncoderOptions
+func (_mr *MockAdminOptionsMockRecorder) TagEncoderOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagEncoderOptions", reflect.TypeOf((*MockAdminOptions)(nil).TagEncoderOptions))
+}
+
+// SetTagEncoderPoolSize mocks base method
+func (_m *MockAdminOptions) SetTagEncoderPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetTagEncoderPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagEncoderPoolSize indicates an expected call of SetTagEncoderPoolSize
+func (_mr *MockAdminOptionsMockRecorder) SetTagEncoderPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagEncoderPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetTagEncoderPoolSize), arg0)
+}
+
+// TagEncoderPoolSize mocks base method
+func (_m *MockAdminOptions) TagEncoderPoolSize() int {
+	ret := _m.ctrl.Call(_m, "TagEncoderPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TagEncoderPoolSize indicates an expected call of TagEncoderPoolSize
+func (_mr *MockAdminOptionsMockRecorder) TagEncoderPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagEncoderPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).TagEncoderPoolSize))
+}
+
+// SetTagDecoderOptions mocks base method
+func (_m *MockAdminOptions) SetTagDecoderOptions(value serialize.TagDecoderOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetTagDecoderOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagDecoderOptions indicates an expected call of SetTagDecoderOptions
+func (_mr *MockAdminOptionsMockRecorder) SetTagDecoderOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagDecoderOptions", reflect.TypeOf((*MockAdminOptions)(nil).SetTagDecoderOptions), arg0)
+}
+
+// TagDecoderOptions mocks base method
+func (_m *MockAdminOptions) TagDecoderOptions() serialize.TagDecoderOptions {
+	ret := _m.ctrl.Call(_m, "TagDecoderOptions")
+	ret0, _ := ret[0].(serialize.TagDecoderOptions)
+	return ret0
+}
+
+// TagDecoderOptions indicates an expected call of TagDecoderOptions
+func (_mr *MockAdminOptionsMockRecorder) TagDecoderOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagDecoderOptions", reflect.TypeOf((*MockAdminOptions)(nil).TagDecoderOptions))
+}
+
+// SetTagDecoderPoolSize mocks base method
+func (_m *MockAdminOptions) SetTagDecoderPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetTagDecoderPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagDecoderPoolSize indicates an expected call of SetTagDecoderPoolSize
+func (_mr *MockAdminOptionsMockRecorder) SetTagDecoderPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagDecoderPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetTagDecoderPoolSize), arg0)
+}
+
+// TagDecoderPoolSize mocks base method
+func (_m *MockAdminOptions) TagDecoderPoolSize() int {
+	ret := _m.ctrl.Call(_m, "TagDecoderPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TagDecoderPoolSize indicates an expected call of TagDecoderPoolSize
+func (_mr *MockAdminOptionsMockRecorder) TagDecoderPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagDecoderPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).TagDecoderPoolSize))
+}
+
+// SetWriteBatchSize mocks base method
+func (_m *MockAdminOptions) SetWriteBatchSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteBatchSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteBatchSize indicates an expected call of SetWriteBatchSize
+func (_mr *MockAdminOptionsMockRecorder) SetWriteBatchSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteBatchSize", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteBatchSize), arg0)
+}
+
+// WriteBatchSize mocks base method
+func (_m *MockAdminOptions) WriteBatchSize() int {
+	ret := _m.ctrl.Call(_m, "WriteBatchSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WriteBatchSize indicates an expected call of WriteBatchSize
+func (_mr *MockAdminOptionsMockRecorder) WriteBatchSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteBatchSize", reflect.TypeOf((*MockAdminOptions)(nil).WriteBatchSize))
+}
+
+// SetFetchBatchSize mocks base method
+func (_m *MockAdminOptions) SetFetchBatchSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchBatchSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchBatchSize indicates an expected call of SetFetchBatchSize
+func (_mr *MockAdminOptionsMockRecorder) SetFetchBatchSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchBatchSize", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchBatchSize), arg0)
+}
+
+// FetchBatchSize mocks base method
+func (_m *MockAdminOptions) FetchBatchSize() int {
+	ret := _m.ctrl.Call(_m, "FetchBatchSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// FetchBatchSize indicates an expected call of FetchBatchSize
+func (_mr *MockAdminOptionsMockRecorder) FetchBatchSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBatchSize", reflect.TypeOf((*MockAdminOptions)(nil).FetchBatchSize))
+}
+
+// SetWriteOpPoolSize mocks base method
+func (_m *MockAdminOptions) SetWriteOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteOpPoolSize indicates an expected call of SetWriteOpPoolSize
+func (_mr *MockAdminOptionsMockRecorder) SetWriteOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteOpPoolSize), arg0)
+}
+
+// WriteOpPoolSize mocks base method
+func (_m *MockAdminOptions) WriteOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "WriteOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WriteOpPoolSize indicates an expected call of WriteOpPoolSize
+func (_mr *MockAdminOptionsMockRecorder) WriteOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).WriteOpPoolSize))
+}
+
+// SetWriteTaggedOpPoolSize mocks base method
+func (_m *MockAdminOptions) SetWriteTaggedOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteTaggedOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteTaggedOpPoolSize indicates an expected call of SetWriteTaggedOpPoolSize
+func (_mr *MockAdminOptionsMockRecorder) SetWriteTaggedOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteTaggedOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteTaggedOpPoolSize), arg0)
+}
+
+// WriteTaggedOpPoolSize mocks base method
+func (_m *MockAdminOptions) WriteTaggedOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "WriteTaggedOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WriteTaggedOpPoolSize indicates an expected call of WriteTaggedOpPoolSize
+func (_mr *MockAdminOptionsMockRecorder) WriteTaggedOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteTaggedOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).WriteTaggedOpPoolSize))
+}
+
+// SetFetchBatchOpPoolSize mocks base method
+func (_m *MockAdminOptions) SetFetchBatchOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetFetchBatchOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFetchBatchOpPoolSize indicates an expected call of SetFetchBatchOpPoolSize
+func (_mr *MockAdminOptionsMockRecorder) SetFetchBatchOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchBatchOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchBatchOpPoolSize), arg0)
+}
+
+// FetchBatchOpPoolSize mocks base method
+func (_m *MockAdminOptions) FetchBatchOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "FetchBatchOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// FetchBatchOpPoolSize indicates an expected call of FetchBatchOpPoolSize
+func (_mr *MockAdminOptionsMockRecorder) FetchBatchOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBatchOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).FetchBatchOpPoolSize))
+}
+
+// SetCheckedBytesWrapperPoolSize mocks base method
+func (_m *MockAdminOptions) SetCheckedBytesWrapperPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetCheckedBytesWrapperPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetCheckedBytesWrapperPoolSize indicates an expected call of SetCheckedBytesWrapperPoolSize
+func (_mr *MockAdminOptionsMockRecorder) SetCheckedBytesWrapperPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetCheckedBytesWrapperPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetCheckedBytesWrapperPoolSize), arg0)
+}
+
+// CheckedBytesWrapperPoolSize mocks base method
+func (_m *MockAdminOptions) CheckedBytesWrapperPoolSize() int {
+	ret := _m.ctrl.Call(_m, "CheckedBytesWrapperPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// CheckedBytesWrapperPoolSize indicates an expected call of CheckedBytesWrapperPoolSize
+func (_mr *MockAdminOptionsMockRecorder) CheckedBytesWrapperPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "CheckedBytesWrapperPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).CheckedBytesWrapperPoolSize))
+}
+
+// SetHostQueueOpsFlushSize mocks base method
+func (_m *MockAdminOptions) SetHostQueueOpsFlushSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetHostQueueOpsFlushSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueOpsFlushSize indicates an expected call of SetHostQueueOpsFlushSize
+func (_mr *MockAdminOptionsMockRecorder) SetHostQueueOpsFlushSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostQueueOpsFlushSize", reflect.TypeOf((*MockAdminOptions)(nil).SetHostQueueOpsFlushSize), arg0)
+}
+
+// HostQueueOpsFlushSize mocks base method
+func (_m *MockAdminOptions) HostQueueOpsFlushSize() int {
+	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// HostQueueOpsFlushSize indicates an expected call of HostQueueOpsFlushSize
+func (_mr *MockAdminOptionsMockRecorder) HostQueueOpsFlushSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostQueueOpsFlushSize", reflect.TypeOf((*MockAdminOptions)(nil).HostQueueOpsFlushSize))
+}
+
+// SetHostQueueOpsFlushInterval mocks base method
+func (_m *MockAdminOptions) SetHostQueueOpsFlushInterval(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetHostQueueOpsFlushInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueOpsFlushInterval indicates an expected call of SetHostQueueOpsFlushInterval
+func (_mr *MockAdminOptionsMockRecorder) SetHostQueueOpsFlushInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostQueueOpsFlushInterval", reflect.TypeOf((*MockAdminOptions)(nil).SetHostQueueOpsFlushInterval), arg0)
+}
+
+// HostQueueOpsFlushInterval mocks base method
+func (_m *MockAdminOptions) HostQueueOpsFlushInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// HostQueueOpsFlushInterval indicates an expected call of HostQueueOpsFlushInterval
+func (_mr *MockAdminOptionsMockRecorder) HostQueueOpsFlushInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostQueueOpsFlushInterval", reflect.TypeOf((*MockAdminOptions)(nil).HostQueueOpsFlushInterval))
+}
+
+// SetContextPool mocks base method
+func (_m *MockAdminOptions) SetContextPool(value context.Pool) Options {
+	ret := _m.ctrl.Call(_m, "SetContextPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetContextPool indicates an expected call of SetContextPool
+func (_mr *MockAdminOptionsMockRecorder) SetContextPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetContextPool", reflect.TypeOf((*MockAdminOptions)(nil).SetContextPool), arg0)
+}
+
+// ContextPool mocks base method
+func (_m *MockAdminOptions) ContextPool() context.Pool {
+	ret := _m.ctrl.Call(_m, "ContextPool")
+	ret0, _ := ret[0].(context.Pool)
+	return ret0
+}
+
+// ContextPool indicates an expected call of ContextPool
+func (_mr *MockAdminOptionsMockRecorder) ContextPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ContextPool", reflect.TypeOf((*MockAdminOptions)(nil).ContextPool))
+}
+
+// SetIdentifierPool mocks base method
+func (_m *MockAdminOptions) SetIdentifierPool(value ident.Pool) Options {
+	ret := _m.ctrl.Call(_m, "SetIdentifierPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIdentifierPool indicates an expected call of SetIdentifierPool
+func (_mr *MockAdminOptionsMockRecorder) SetIdentifierPool(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetIdentifierPool", reflect.TypeOf((*MockAdminOptions)(nil).SetIdentifierPool), arg0)
+}
+
+// IdentifierPool mocks base method
+func (_m *MockAdminOptions) IdentifierPool() ident.Pool {
+	ret := _m.ctrl.Call(_m, "IdentifierPool")
+	ret0, _ := ret[0].(ident.Pool)
+	return ret0
+}
+
+// IdentifierPool indicates an expected call of IdentifierPool
+func (_mr *MockAdminOptionsMockRecorder) IdentifierPool() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "IdentifierPool", reflect.TypeOf((*MockAdminOptions)(nil).IdentifierPool))
+}
+
+// SetHostQueueOpsArrayPoolSize mocks base method
+func (_m *MockAdminOptions) SetHostQueueOpsArrayPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetHostQueueOpsArrayPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetHostQueueOpsArrayPoolSize indicates an expected call of SetHostQueueOpsArrayPoolSize
+func (_mr *MockAdminOptionsMockRecorder) SetHostQueueOpsArrayPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostQueueOpsArrayPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetHostQueueOpsArrayPoolSize), arg0)
+}
+
+// HostQueueOpsArrayPoolSize mocks base method
+func (_m *MockAdminOptions) HostQueueOpsArrayPoolSize() int {
+	ret := _m.ctrl.Call(_m, "HostQueueOpsArrayPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// HostQueueOpsArrayPoolSize indicates an expected call of HostQueueOpsArrayPoolSize
+func (_mr *MockAdminOptionsMockRecorder) HostQueueOpsArrayPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostQueueOpsArrayPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).HostQueueOpsArrayPoolSize))
+}
+
+// SetSeriesIteratorPoolSize mocks base method
+func (_m *MockAdminOptions) SetSeriesIteratorPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetSeriesIteratorPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSeriesIteratorPoolSize indicates an expected call of SetSeriesIteratorPoolSize
+func (_mr *MockAdminOptionsMockRecorder) SetSeriesIteratorPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetSeriesIteratorPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetSeriesIteratorPoolSize), arg0)
+}
+
+// SeriesIteratorPoolSize mocks base method
+func (_m *MockAdminOptions) SeriesIteratorPoolSize() int {
+	ret := _m.ctrl.Call(_m, "SeriesIteratorPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// SeriesIteratorPoolSize indicates an expected call of SeriesIteratorPoolSize
+func (_mr *MockAdminOptionsMockRecorder) SeriesIteratorPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SeriesIteratorPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SeriesIteratorPoolSize))
+}
+
+// SetSeriesIteratorArrayPoolBuckets mocks base method
+func (_m *MockAdminOptions) SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
+	ret := _m.ctrl.Call(_m, "SetSeriesIteratorArrayPoolBuckets", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetSeriesIteratorArrayPoolBuckets indicates an expected call of SetSeriesIteratorArrayPoolBuckets
+func (_mr *MockAdminOptionsMockRecorder) SetSeriesIteratorArrayPoolBuckets(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetSeriesIteratorArrayPoolBuckets", reflect.TypeOf((*MockAdminOptions)(nil).SetSeriesIteratorArrayPoolBuckets), arg0)
+}
+
+// SeriesIteratorArrayPoolBuckets mocks base method
+func (_m *MockAdminOptions) SeriesIteratorArrayPoolBuckets() []pool.Bucket {
+	ret := _m.ctrl.Call(_m, "SeriesIteratorArrayPoolBuckets")
+	ret0, _ := ret[0].([]pool.Bucket)
+	return ret0
+}
+
+// SeriesIteratorArrayPoolBuckets indicates an expected call of SeriesIteratorArrayPoolBuckets
+func (_mr *MockAdminOptionsMockRecorder) SeriesIteratorArrayPoolBuckets() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SeriesIteratorArrayPoolBuckets", reflect.TypeOf((*MockAdminOptions)(nil).SeriesIteratorArrayPoolBuckets))
+}
+
+// SetReaderIteratorAllocate mocks base method
+func (_m *MockAdminOptions) SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options {
+	ret := _m.ctrl.Call(_m, "SetReaderIteratorAllocate", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetReaderIteratorAllocate indicates an expected call of SetReaderIteratorAllocate
+func (_mr *MockAdminOptionsMockRecorder) SetReaderIteratorAllocate(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetReaderIteratorAllocate", reflect.TypeOf((*MockAdminOptions)(nil).SetReaderIteratorAllocate), arg0)
+}
+
+// ReaderIteratorAllocate mocks base method
+func (_m *MockAdminOptions) ReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
+	ret := _m.ctrl.Call(_m, "ReaderIteratorAllocate")
+	ret0, _ := ret[0].(encoding.ReaderIteratorAllocate)
+	return ret0
+}
+
+// ReaderIteratorAllocate indicates an expected call of ReaderIteratorAllocate
+func (_mr *MockAdminOptionsMockRecorder) ReaderIteratorAllocate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ReaderIteratorAllocate", reflect.TypeOf((*MockAdminOptions)(nil).ReaderIteratorAllocate))
+}
+
+// SetOrigin mocks base method
+func (_m *MockAdminOptions) SetOrigin(value topology.Host) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetOrigin", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetOrigin indicates an expected call of SetOrigin
+func (_mr *MockAdminOptionsMockRecorder) SetOrigin(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetOrigin", reflect.TypeOf((*MockAdminOptions)(nil).SetOrigin), arg0)
+}
+
+// Origin mocks base method
+func (_m *MockAdminOptions) Origin() topology.Host {
+	ret := _m.ctrl.Call(_m, "Origin")
+	ret0, _ := ret[0].(topology.Host)
+	return ret0
+}
+
+// Origin indicates an expected call of Origin
+func (_mr *MockAdminOptionsMockRecorder) Origin() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Origin", reflect.TypeOf((*MockAdminOptions)(nil).Origin))
+}
+
+// SetBootstrapConsistencyLevel mocks base method
+func (_m *MockAdminOptions) SetBootstrapConsistencyLevel(value topology.ReadConsistencyLevel) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetBootstrapConsistencyLevel", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetBootstrapConsistencyLevel indicates an expected call of SetBootstrapConsistencyLevel
+func (_mr *MockAdminOptionsMockRecorder) SetBootstrapConsistencyLevel(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBootstrapConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).SetBootstrapConsistencyLevel), arg0)
+}
+
+// BootstrapConsistencyLevel mocks base method
+func (_m *MockAdminOptions) BootstrapConsistencyLevel() topology.ReadConsistencyLevel {
+	ret := _m.ctrl.Call(_m, "BootstrapConsistencyLevel")
+	ret0, _ := ret[0].(topology.ReadConsistencyLevel)
+	return ret0
+}
+
+// BootstrapConsistencyLevel indicates an expected call of BootstrapConsistencyLevel
+func (_mr *MockAdminOptionsMockRecorder) BootstrapConsistencyLevel() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BootstrapConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).BootstrapConsistencyLevel))
+}
+
+// SetFetchSeriesBlocksMaxBlockRetries mocks base method
+func (_m *MockAdminOptions) SetFetchSeriesBlocksMaxBlockRetries(value int) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksMaxBlockRetries", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetFetchSeriesBlocksMaxBlockRetries indicates an expected call of SetFetchSeriesBlocksMaxBlockRetries
+func (_mr *MockAdminOptionsMockRecorder) SetFetchSeriesBlocksMaxBlockRetries(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchSeriesBlocksMaxBlockRetries", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchSeriesBlocksMaxBlockRetries), arg0)
+}
+
+// FetchSeriesBlocksMaxBlockRetries mocks base method
+func (_m *MockAdminOptions) FetchSeriesBlocksMaxBlockRetries() int {
+	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksMaxBlockRetries")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// FetchSeriesBlocksMaxBlockRetries indicates an expected call of FetchSeriesBlocksMaxBlockRetries
+func (_mr *MockAdminOptionsMockRecorder) FetchSeriesBlocksMaxBlockRetries() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchSeriesBlocksMaxBlockRetries", reflect.TypeOf((*MockAdminOptions)(nil).FetchSeriesBlocksMaxBlockRetries))
+}
+
+// SetFetchSeriesBlocksBatchSize mocks base method
+func (_m *MockAdminOptions) SetFetchSeriesBlocksBatchSize(value int) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksBatchSize", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetFetchSeriesBlocksBatchSize indicates an expected call of SetFetchSeriesBlocksBatchSize
+func (_mr *MockAdminOptionsMockRecorder) SetFetchSeriesBlocksBatchSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchSeriesBlocksBatchSize", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchSeriesBlocksBatchSize), arg0)
+}
+
+// FetchSeriesBlocksBatchSize mocks base method
+func (_m *MockAdminOptions) FetchSeriesBlocksBatchSize() int {
+	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksBatchSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// FetchSeriesBlocksBatchSize indicates an expected call of FetchSeriesBlocksBatchSize
+func (_mr *MockAdminOptionsMockRecorder) FetchSeriesBlocksBatchSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchSeriesBlocksBatchSize", reflect.TypeOf((*MockAdminOptions)(nil).FetchSeriesBlocksBatchSize))
+}
+
+// SetFetchSeriesBlocksMetadataBatchTimeout mocks base method
+func (_m *MockAdminOptions) SetFetchSeriesBlocksMetadataBatchTimeout(value time.Duration) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksMetadataBatchTimeout", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetFetchSeriesBlocksMetadataBatchTimeout indicates an expected call of SetFetchSeriesBlocksMetadataBatchTimeout
+func (_mr *MockAdminOptionsMockRecorder) SetFetchSeriesBlocksMetadataBatchTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchSeriesBlocksMetadataBatchTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchSeriesBlocksMetadataBatchTimeout), arg0)
+}
+
+// FetchSeriesBlocksMetadataBatchTimeout mocks base method
+func (_m *MockAdminOptions) FetchSeriesBlocksMetadataBatchTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksMetadataBatchTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// FetchSeriesBlocksMetadataBatchTimeout indicates an expected call of FetchSeriesBlocksMetadataBatchTimeout
+func (_mr *MockAdminOptionsMockRecorder) FetchSeriesBlocksMetadataBatchTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchSeriesBlocksMetadataBatchTimeout", reflect.TypeOf((*MockAdminOptions)(nil).FetchSeriesBlocksMetadataBatchTimeout))
+}
+
+// SetFetchSeriesBlocksBatchTimeout mocks base method
+func (_m *MockAdminOptions) SetFetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksBatchTimeout", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetFetchSeriesBlocksBatchTimeout indicates an expected call of SetFetchSeriesBlocksBatchTimeout
+func (_mr *MockAdminOptionsMockRecorder) SetFetchSeriesBlocksBatchTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchSeriesBlocksBatchTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchSeriesBlocksBatchTimeout), arg0)
+}
+
+// FetchSeriesBlocksBatchTimeout mocks base method
+func (_m *MockAdminOptions) FetchSeriesBlocksBatchTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksBatchTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// FetchSeriesBlocksBatchTimeout indicates an expected call of FetchSeriesBlocksBatchTimeout
+func (_mr *MockAdminOptionsMockRecorder) FetchSeriesBlocksBatchTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchSeriesBlocksBatchTimeout", reflect.TypeOf((*MockAdminOptions)(nil).FetchSeriesBlocksBatchTimeout))
+}
+
+// SetFetchSeriesBlocksBatchConcurrency mocks base method
+func (_m *MockAdminOptions) SetFetchSeriesBlocksBatchConcurrency(value int) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksBatchConcurrency", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetFetchSeriesBlocksBatchConcurrency indicates an expected call of SetFetchSeriesBlocksBatchConcurrency
+func (_mr *MockAdminOptionsMockRecorder) SetFetchSeriesBlocksBatchConcurrency(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchSeriesBlocksBatchConcurrency", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchSeriesBlocksBatchConcurrency), arg0)
+}
+
+// FetchSeriesBlocksBatchConcurrency mocks base method
+func (_m *MockAdminOptions) FetchSeriesBlocksBatchConcurrency() int {
+	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksBatchConcurrency")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// FetchSeriesBlocksBatchConcurrency indicates an expected call of FetchSeriesBlocksBatchConcurrency
+func (_mr *MockAdminOptionsMockRecorder) FetchSeriesBlocksBatchConcurrency() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchSeriesBlocksBatchConcurrency", reflect.TypeOf((*MockAdminOptions)(nil).FetchSeriesBlocksBatchConcurrency))
+}
+
+// SetStreamBlocksRetrier mocks base method
+func (_m *MockAdminOptions) SetStreamBlocksRetrier(value retry.Retrier) AdminOptions {
+	ret := _m.ctrl.Call(_m, "SetStreamBlocksRetrier", value)
+	ret0, _ := ret[0].(AdminOptions)
+	return ret0
+}
+
+// SetStreamBlocksRetrier indicates an expected call of SetStreamBlocksRetrier
+func (_mr *MockAdminOptionsMockRecorder) SetStreamBlocksRetrier(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetStreamBlocksRetrier", reflect.TypeOf((*MockAdminOptions)(nil).SetStreamBlocksRetrier), arg0)
+}
+
+// StreamBlocksRetrier mocks base method
+func (_m *MockAdminOptions) StreamBlocksRetrier() retry.Retrier {
+	ret := _m.ctrl.Call(_m, "StreamBlocksRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
+	return ret0
+}
+
+// StreamBlocksRetrier indicates an expected call of StreamBlocksRetrier
+func (_mr *MockAdminOptionsMockRecorder) StreamBlocksRetrier() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "StreamBlocksRetrier", reflect.TypeOf((*MockAdminOptions)(nil).StreamBlocksRetrier))
 }
 
 // MockclientSession is a mock of clientSession interface
@@ -740,8 +2995,8 @@ func (_mr *MockclientSessionMockRecorder) FetchIDs(arg0, arg1, arg2, arg3 interf
 }
 
 // FetchTagged mocks base method
-func (_m *MockclientSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (encoding.SeriesIterators, bool, error) {
-	ret := _m.ctrl.Call(_m, "FetchTagged", _param0, _param1)
+func (_m *MockclientSession) FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (encoding.SeriesIterators, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", namespace, q, opts)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -749,21 +3004,21 @@ func (_m *MockclientSession) FetchTagged(_param0 index.Query, _param1 index.Quer
 }
 
 // FetchTagged indicates an expected call of FetchTagged
-func (_mr *MockclientSessionMockRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTagged", reflect.TypeOf((*MockclientSession)(nil).FetchTagged), arg0, arg1)
+func (_mr *MockclientSessionMockRecorder) FetchTagged(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTagged", reflect.TypeOf((*MockclientSession)(nil).FetchTagged), arg0, arg1, arg2)
 }
 
 // FetchTaggedIDs mocks base method
-func (_m *MockclientSession) FetchTaggedIDs(_param0 index.Query, _param1 index.QueryOptions) (index.QueryResults, error) {
-	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", _param0, _param1)
+func (_m *MockclientSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", namespace, q, opts)
 	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchTaggedIDs indicates an expected call of FetchTaggedIDs
-func (_mr *MockclientSessionMockRecorder) FetchTaggedIDs(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTaggedIDs", reflect.TypeOf((*MockclientSession)(nil).FetchTaggedIDs), arg0, arg1)
+func (_mr *MockclientSessionMockRecorder) FetchTaggedIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchTaggedIDs", reflect.TypeOf((*MockclientSession)(nil).FetchTaggedIDs), arg0, arg1, arg2)
 }
 
 // ShardID mocks base method
@@ -829,16 +3084,16 @@ func (_mr *MockclientSessionMockRecorder) Truncate(arg0 interface{}) *gomock.Cal
 }
 
 // FetchBlocksMetadataFromPeers mocks base method
-func (_m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlocksMetadataIter, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, result, version)
-	ret0, _ := ret[0].(PeerBlocksMetadataIter)
+func (_m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, consistencyLevel topology.ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result, version)
+	ret0, _ := ret[0].(PeerBlockMetadataIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchBlocksMetadataFromPeers indicates an expected call of FetchBlocksMetadataFromPeers
-func (_mr *MockclientSessionMockRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksMetadataFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBlocksMetadataFromPeers), arg0, arg1, arg2, arg3, arg4, arg5)
+func (_mr *MockclientSessionMockRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksMetadataFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBlocksMetadataFromPeers), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 // FetchBootstrapBlocksFromPeers mocks base method
@@ -855,16 +3110,16 @@ func (_mr *MockclientSessionMockRecorder) FetchBootstrapBlocksFromPeers(arg0, ar
 }
 
 // FetchBlocksFromPeers mocks base method
-func (_m *MockclientSession) FetchBlocksFromPeers(namespace namespace.Metadata, shard uint32, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
-	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, metadatas, opts)
+func (_m *MockclientSession) FetchBlocksFromPeers(namespace namespace.Metadata, shard uint32, consistencyLevel topology.ReadConsistencyLevel, metadatas []block.ReplicaMetadata, opts result.Options) (PeerBlocksIter, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksFromPeers", namespace, shard, consistencyLevel, metadatas, opts)
 	ret0, _ := ret[0].(PeerBlocksIter)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchBlocksFromPeers indicates an expected call of FetchBlocksFromPeers
-func (_mr *MockclientSessionMockRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBlocksFromPeers), arg0, arg1, arg2, arg3)
+func (_mr *MockclientSessionMockRecorder) FetchBlocksFromPeers(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBlocksFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBlocksFromPeers), arg0, arg1, arg2, arg3, arg4)
 }
 
 // Open mocks base method
@@ -1191,2040 +3446,101 @@ func (_mr *MockopMockRecorder) CompletionFn() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "CompletionFn", reflect.TypeOf((*Mockop)(nil).CompletionFn))
 }
 
-// MockOptions is a mock of Options interface
-type MockOptions struct {
+// MockenqueueChannel is a mock of enqueueChannel interface
+type MockenqueueChannel struct {
 	ctrl     *gomock.Controller
-	recorder *MockOptionsMockRecorder
+	recorder *MockenqueueChannelMockRecorder
 }
 
-// MockOptionsMockRecorder is the mock recorder for MockOptions
-type MockOptionsMockRecorder struct {
-	mock *MockOptions
+// MockenqueueChannelMockRecorder is the mock recorder for MockenqueueChannel
+type MockenqueueChannelMockRecorder struct {
+	mock *MockenqueueChannel
 }
 
-// NewMockOptions creates a new mock instance
-func NewMockOptions(ctrl *gomock.Controller) *MockOptions {
-	mock := &MockOptions{ctrl: ctrl}
-	mock.recorder = &MockOptionsMockRecorder{mock}
+// NewMockenqueueChannel creates a new mock instance
+func NewMockenqueueChannel(ctrl *gomock.Controller) *MockenqueueChannel {
+	mock := &MockenqueueChannel{ctrl: ctrl}
+	mock.recorder = &MockenqueueChannelMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (_m *MockOptions) EXPECT() *MockOptionsMockRecorder {
+func (_m *MockenqueueChannel) EXPECT() *MockenqueueChannelMockRecorder {
 	return _m.recorder
 }
 
-// Validate mocks base method
-func (_m *MockOptions) Validate() error {
-	ret := _m.ctrl.Call(_m, "Validate")
-	ret0, _ := ret[0].(error)
+// enqueue mocks base method
+func (_m *MockenqueueChannel) enqueue(peersMetadata []receivedBlockMetadata) {
+	_m.ctrl.Call(_m, "enqueue", peersMetadata)
+}
+
+// enqueue indicates an expected call of enqueue
+func (_mr *MockenqueueChannelMockRecorder) enqueue(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "enqueue", reflect.TypeOf((*MockenqueueChannel)(nil).enqueue), arg0)
+}
+
+// enqueueDelayed mocks base method
+func (_m *MockenqueueChannel) enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata) {
+	ret := _m.ctrl.Call(_m, "enqueueDelayed", numToEnqueue)
+	ret0, _ := ret[0].(func([]receivedBlockMetadata))
 	return ret0
 }
 
-// Validate indicates an expected call of Validate
-func (_mr *MockOptionsMockRecorder) Validate() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Validate", reflect.TypeOf((*MockOptions)(nil).Validate))
+// enqueueDelayed indicates an expected call of enqueueDelayed
+func (_mr *MockenqueueChannelMockRecorder) enqueueDelayed(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "enqueueDelayed", reflect.TypeOf((*MockenqueueChannel)(nil).enqueueDelayed), arg0)
 }
 
-// SetEncodingM3TSZ mocks base method
-func (_m *MockOptions) SetEncodingM3TSZ() Options {
-	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZ")
-	ret0, _ := ret[0].(Options)
+// get mocks base method
+func (_m *MockenqueueChannel) get() <-chan []receivedBlockMetadata {
+	ret := _m.ctrl.Call(_m, "get")
+	ret0, _ := ret[0].(<-chan []receivedBlockMetadata)
 	return ret0
 }
 
-// SetEncodingM3TSZ indicates an expected call of SetEncodingM3TSZ
-func (_mr *MockOptionsMockRecorder) SetEncodingM3TSZ() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetEncodingM3TSZ", reflect.TypeOf((*MockOptions)(nil).SetEncodingM3TSZ))
+// get indicates an expected call of get
+func (_mr *MockenqueueChannelMockRecorder) get() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "get", reflect.TypeOf((*MockenqueueChannel)(nil).get))
 }
 
-// SetClockOptions mocks base method
-func (_m *MockOptions) SetClockOptions(value clock.Options) Options {
-	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
+// trackPending mocks base method
+func (_m *MockenqueueChannel) trackPending(amount int) {
+	_m.ctrl.Call(_m, "trackPending", amount)
 }
 
-// SetClockOptions indicates an expected call of SetClockOptions
-func (_mr *MockOptionsMockRecorder) SetClockOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClockOptions", reflect.TypeOf((*MockOptions)(nil).SetClockOptions), arg0)
+// trackPending indicates an expected call of trackPending
+func (_mr *MockenqueueChannelMockRecorder) trackPending(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "trackPending", reflect.TypeOf((*MockenqueueChannel)(nil).trackPending), arg0)
 }
 
-// ClockOptions mocks base method
-func (_m *MockOptions) ClockOptions() clock.Options {
-	ret := _m.ctrl.Call(_m, "ClockOptions")
-	ret0, _ := ret[0].(clock.Options)
-	return ret0
+// trackProcessed mocks base method
+func (_m *MockenqueueChannel) trackProcessed(amount int) {
+	_m.ctrl.Call(_m, "trackProcessed", amount)
 }
 
-// ClockOptions indicates an expected call of ClockOptions
-func (_mr *MockOptionsMockRecorder) ClockOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClockOptions", reflect.TypeOf((*MockOptions)(nil).ClockOptions))
+// trackProcessed indicates an expected call of trackProcessed
+func (_mr *MockenqueueChannelMockRecorder) trackProcessed(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "trackProcessed", reflect.TypeOf((*MockenqueueChannel)(nil).trackProcessed), arg0)
 }
 
-// SetInstrumentOptions mocks base method
-func (_m *MockOptions) SetInstrumentOptions(value instrument.Options) Options {
-	ret := _m.ctrl.Call(_m, "SetInstrumentOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetInstrumentOptions indicates an expected call of SetInstrumentOptions
-func (_mr *MockOptionsMockRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockOptions)(nil).SetInstrumentOptions), arg0)
-}
-
-// InstrumentOptions mocks base method
-func (_m *MockOptions) InstrumentOptions() instrument.Options {
-	ret := _m.ctrl.Call(_m, "InstrumentOptions")
-	ret0, _ := ret[0].(instrument.Options)
-	return ret0
-}
-
-// InstrumentOptions indicates an expected call of InstrumentOptions
-func (_mr *MockOptionsMockRecorder) InstrumentOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "InstrumentOptions", reflect.TypeOf((*MockOptions)(nil).InstrumentOptions))
-}
-
-// SetTopologyInitializer mocks base method
-func (_m *MockOptions) SetTopologyInitializer(value topology.Initializer) Options {
-	ret := _m.ctrl.Call(_m, "SetTopologyInitializer", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetTopologyInitializer indicates an expected call of SetTopologyInitializer
-func (_mr *MockOptionsMockRecorder) SetTopologyInitializer(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTopologyInitializer", reflect.TypeOf((*MockOptions)(nil).SetTopologyInitializer), arg0)
-}
-
-// TopologyInitializer mocks base method
-func (_m *MockOptions) TopologyInitializer() topology.Initializer {
-	ret := _m.ctrl.Call(_m, "TopologyInitializer")
-	ret0, _ := ret[0].(topology.Initializer)
-	return ret0
-}
-
-// TopologyInitializer indicates an expected call of TopologyInitializer
-func (_mr *MockOptionsMockRecorder) TopologyInitializer() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TopologyInitializer", reflect.TypeOf((*MockOptions)(nil).TopologyInitializer))
-}
-
-// SetWriteConsistencyLevel mocks base method
-func (_m *MockOptions) SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
-	ret := _m.ctrl.Call(_m, "SetWriteConsistencyLevel", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWriteConsistencyLevel indicates an expected call of SetWriteConsistencyLevel
-func (_mr *MockOptionsMockRecorder) SetWriteConsistencyLevel(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).SetWriteConsistencyLevel), arg0)
-}
-
-// WriteConsistencyLevel mocks base method
-func (_m *MockOptions) WriteConsistencyLevel() topology.ConsistencyLevel {
-	ret := _m.ctrl.Call(_m, "WriteConsistencyLevel")
-	ret0, _ := ret[0].(topology.ConsistencyLevel)
-	return ret0
-}
-
-// WriteConsistencyLevel indicates an expected call of WriteConsistencyLevel
-func (_mr *MockOptionsMockRecorder) WriteConsistencyLevel() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).WriteConsistencyLevel))
-}
-
-// SetReadConsistencyLevel mocks base method
-func (_m *MockOptions) SetReadConsistencyLevel(value ReadConsistencyLevel) Options {
-	ret := _m.ctrl.Call(_m, "SetReadConsistencyLevel", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetReadConsistencyLevel indicates an expected call of SetReadConsistencyLevel
-func (_mr *MockOptionsMockRecorder) SetReadConsistencyLevel(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetReadConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).SetReadConsistencyLevel), arg0)
-}
-
-// ReadConsistencyLevel mocks base method
-func (_m *MockOptions) ReadConsistencyLevel() ReadConsistencyLevel {
-	ret := _m.ctrl.Call(_m, "ReadConsistencyLevel")
-	ret0, _ := ret[0].(ReadConsistencyLevel)
-	return ret0
-}
-
-// ReadConsistencyLevel indicates an expected call of ReadConsistencyLevel
-func (_mr *MockOptionsMockRecorder) ReadConsistencyLevel() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ReadConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).ReadConsistencyLevel))
-}
-
-// SetChannelOptions mocks base method
-func (_m *MockOptions) SetChannelOptions(value *tchannel_go.ChannelOptions) Options {
-	ret := _m.ctrl.Call(_m, "SetChannelOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetChannelOptions indicates an expected call of SetChannelOptions
-func (_mr *MockOptionsMockRecorder) SetChannelOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetChannelOptions", reflect.TypeOf((*MockOptions)(nil).SetChannelOptions), arg0)
-}
-
-// ChannelOptions mocks base method
-func (_m *MockOptions) ChannelOptions() *tchannel_go.ChannelOptions {
-	ret := _m.ctrl.Call(_m, "ChannelOptions")
-	ret0, _ := ret[0].(*tchannel_go.ChannelOptions)
-	return ret0
-}
-
-// ChannelOptions indicates an expected call of ChannelOptions
-func (_mr *MockOptionsMockRecorder) ChannelOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ChannelOptions", reflect.TypeOf((*MockOptions)(nil).ChannelOptions))
-}
-
-// SetMaxConnectionCount mocks base method
-func (_m *MockOptions) SetMaxConnectionCount(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetMaxConnectionCount", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetMaxConnectionCount indicates an expected call of SetMaxConnectionCount
-func (_mr *MockOptionsMockRecorder) SetMaxConnectionCount(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetMaxConnectionCount", reflect.TypeOf((*MockOptions)(nil).SetMaxConnectionCount), arg0)
-}
-
-// MaxConnectionCount mocks base method
-func (_m *MockOptions) MaxConnectionCount() int {
-	ret := _m.ctrl.Call(_m, "MaxConnectionCount")
+// unprocessedLen mocks base method
+func (_m *MockenqueueChannel) unprocessedLen() int {
+	ret := _m.ctrl.Call(_m, "unprocessedLen")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-// MaxConnectionCount indicates an expected call of MaxConnectionCount
-func (_mr *MockOptionsMockRecorder) MaxConnectionCount() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "MaxConnectionCount", reflect.TypeOf((*MockOptions)(nil).MaxConnectionCount))
+// unprocessedLen indicates an expected call of unprocessedLen
+func (_mr *MockenqueueChannelMockRecorder) unprocessedLen() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "unprocessedLen", reflect.TypeOf((*MockenqueueChannel)(nil).unprocessedLen))
 }
 
-// SetMinConnectionCount mocks base method
-func (_m *MockOptions) SetMinConnectionCount(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetMinConnectionCount", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
+// closeOnAllProcessed mocks base method
+func (_m *MockenqueueChannel) closeOnAllProcessed() {
+	_m.ctrl.Call(_m, "closeOnAllProcessed")
 }
 
-// SetMinConnectionCount indicates an expected call of SetMinConnectionCount
-func (_mr *MockOptionsMockRecorder) SetMinConnectionCount(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetMinConnectionCount", reflect.TypeOf((*MockOptions)(nil).SetMinConnectionCount), arg0)
-}
-
-// MinConnectionCount mocks base method
-func (_m *MockOptions) MinConnectionCount() int {
-	ret := _m.ctrl.Call(_m, "MinConnectionCount")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// MinConnectionCount indicates an expected call of MinConnectionCount
-func (_mr *MockOptionsMockRecorder) MinConnectionCount() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "MinConnectionCount", reflect.TypeOf((*MockOptions)(nil).MinConnectionCount))
-}
-
-// SetHostConnectTimeout mocks base method
-func (_m *MockOptions) SetHostConnectTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetHostConnectTimeout", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetHostConnectTimeout indicates an expected call of SetHostConnectTimeout
-func (_mr *MockOptionsMockRecorder) SetHostConnectTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostConnectTimeout", reflect.TypeOf((*MockOptions)(nil).SetHostConnectTimeout), arg0)
-}
-
-// HostConnectTimeout mocks base method
-func (_m *MockOptions) HostConnectTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "HostConnectTimeout")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// HostConnectTimeout indicates an expected call of HostConnectTimeout
-func (_mr *MockOptionsMockRecorder) HostConnectTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostConnectTimeout", reflect.TypeOf((*MockOptions)(nil).HostConnectTimeout))
-}
-
-// SetClusterConnectTimeout mocks base method
-func (_m *MockOptions) SetClusterConnectTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetClusterConnectTimeout", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetClusterConnectTimeout indicates an expected call of SetClusterConnectTimeout
-func (_mr *MockOptionsMockRecorder) SetClusterConnectTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClusterConnectTimeout", reflect.TypeOf((*MockOptions)(nil).SetClusterConnectTimeout), arg0)
-}
-
-// ClusterConnectTimeout mocks base method
-func (_m *MockOptions) ClusterConnectTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "ClusterConnectTimeout")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// ClusterConnectTimeout indicates an expected call of ClusterConnectTimeout
-func (_mr *MockOptionsMockRecorder) ClusterConnectTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClusterConnectTimeout", reflect.TypeOf((*MockOptions)(nil).ClusterConnectTimeout))
-}
-
-// SetClusterConnectConsistencyLevel mocks base method
-func (_m *MockOptions) SetClusterConnectConsistencyLevel(value ConnectConsistencyLevel) Options {
-	ret := _m.ctrl.Call(_m, "SetClusterConnectConsistencyLevel", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetClusterConnectConsistencyLevel indicates an expected call of SetClusterConnectConsistencyLevel
-func (_mr *MockOptionsMockRecorder) SetClusterConnectConsistencyLevel(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClusterConnectConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).SetClusterConnectConsistencyLevel), arg0)
-}
-
-// ClusterConnectConsistencyLevel mocks base method
-func (_m *MockOptions) ClusterConnectConsistencyLevel() ConnectConsistencyLevel {
-	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel")
-	ret0, _ := ret[0].(ConnectConsistencyLevel)
-	return ret0
-}
-
-// ClusterConnectConsistencyLevel indicates an expected call of ClusterConnectConsistencyLevel
-func (_mr *MockOptionsMockRecorder) ClusterConnectConsistencyLevel() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClusterConnectConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).ClusterConnectConsistencyLevel))
-}
-
-// SetWriteRequestTimeout mocks base method
-func (_m *MockOptions) SetWriteRequestTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetWriteRequestTimeout", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWriteRequestTimeout indicates an expected call of SetWriteRequestTimeout
-func (_mr *MockOptionsMockRecorder) SetWriteRequestTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteRequestTimeout", reflect.TypeOf((*MockOptions)(nil).SetWriteRequestTimeout), arg0)
-}
-
-// WriteRequestTimeout mocks base method
-func (_m *MockOptions) WriteRequestTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "WriteRequestTimeout")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// WriteRequestTimeout indicates an expected call of WriteRequestTimeout
-func (_mr *MockOptionsMockRecorder) WriteRequestTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteRequestTimeout", reflect.TypeOf((*MockOptions)(nil).WriteRequestTimeout))
-}
-
-// SetFetchRequestTimeout mocks base method
-func (_m *MockOptions) SetFetchRequestTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetFetchRequestTimeout", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetFetchRequestTimeout indicates an expected call of SetFetchRequestTimeout
-func (_mr *MockOptionsMockRecorder) SetFetchRequestTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchRequestTimeout", reflect.TypeOf((*MockOptions)(nil).SetFetchRequestTimeout), arg0)
-}
-
-// FetchRequestTimeout mocks base method
-func (_m *MockOptions) FetchRequestTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "FetchRequestTimeout")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// FetchRequestTimeout indicates an expected call of FetchRequestTimeout
-func (_mr *MockOptionsMockRecorder) FetchRequestTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchRequestTimeout", reflect.TypeOf((*MockOptions)(nil).FetchRequestTimeout))
-}
-
-// SetTruncateRequestTimeout mocks base method
-func (_m *MockOptions) SetTruncateRequestTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetTruncateRequestTimeout", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetTruncateRequestTimeout indicates an expected call of SetTruncateRequestTimeout
-func (_mr *MockOptionsMockRecorder) SetTruncateRequestTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTruncateRequestTimeout", reflect.TypeOf((*MockOptions)(nil).SetTruncateRequestTimeout), arg0)
-}
-
-// TruncateRequestTimeout mocks base method
-func (_m *MockOptions) TruncateRequestTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "TruncateRequestTimeout")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// TruncateRequestTimeout indicates an expected call of TruncateRequestTimeout
-func (_mr *MockOptionsMockRecorder) TruncateRequestTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TruncateRequestTimeout", reflect.TypeOf((*MockOptions)(nil).TruncateRequestTimeout))
-}
-
-// SetBackgroundConnectInterval mocks base method
-func (_m *MockOptions) SetBackgroundConnectInterval(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetBackgroundConnectInterval", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBackgroundConnectInterval indicates an expected call of SetBackgroundConnectInterval
-func (_mr *MockOptionsMockRecorder) SetBackgroundConnectInterval(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundConnectInterval", reflect.TypeOf((*MockOptions)(nil).SetBackgroundConnectInterval), arg0)
-}
-
-// BackgroundConnectInterval mocks base method
-func (_m *MockOptions) BackgroundConnectInterval() time.Duration {
-	ret := _m.ctrl.Call(_m, "BackgroundConnectInterval")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// BackgroundConnectInterval indicates an expected call of BackgroundConnectInterval
-func (_mr *MockOptionsMockRecorder) BackgroundConnectInterval() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundConnectInterval", reflect.TypeOf((*MockOptions)(nil).BackgroundConnectInterval))
-}
-
-// SetBackgroundConnectStutter mocks base method
-func (_m *MockOptions) SetBackgroundConnectStutter(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetBackgroundConnectStutter", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBackgroundConnectStutter indicates an expected call of SetBackgroundConnectStutter
-func (_mr *MockOptionsMockRecorder) SetBackgroundConnectStutter(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundConnectStutter", reflect.TypeOf((*MockOptions)(nil).SetBackgroundConnectStutter), arg0)
-}
-
-// BackgroundConnectStutter mocks base method
-func (_m *MockOptions) BackgroundConnectStutter() time.Duration {
-	ret := _m.ctrl.Call(_m, "BackgroundConnectStutter")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// BackgroundConnectStutter indicates an expected call of BackgroundConnectStutter
-func (_mr *MockOptionsMockRecorder) BackgroundConnectStutter() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundConnectStutter", reflect.TypeOf((*MockOptions)(nil).BackgroundConnectStutter))
-}
-
-// SetBackgroundHealthCheckInterval mocks base method
-func (_m *MockOptions) SetBackgroundHealthCheckInterval(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckInterval", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBackgroundHealthCheckInterval indicates an expected call of SetBackgroundHealthCheckInterval
-func (_mr *MockOptionsMockRecorder) SetBackgroundHealthCheckInterval(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckInterval", reflect.TypeOf((*MockOptions)(nil).SetBackgroundHealthCheckInterval), arg0)
-}
-
-// BackgroundHealthCheckInterval mocks base method
-func (_m *MockOptions) BackgroundHealthCheckInterval() time.Duration {
-	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckInterval")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// BackgroundHealthCheckInterval indicates an expected call of BackgroundHealthCheckInterval
-func (_mr *MockOptionsMockRecorder) BackgroundHealthCheckInterval() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckInterval", reflect.TypeOf((*MockOptions)(nil).BackgroundHealthCheckInterval))
-}
-
-// SetBackgroundHealthCheckStutter mocks base method
-func (_m *MockOptions) SetBackgroundHealthCheckStutter(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckStutter", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBackgroundHealthCheckStutter indicates an expected call of SetBackgroundHealthCheckStutter
-func (_mr *MockOptionsMockRecorder) SetBackgroundHealthCheckStutter(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckStutter", reflect.TypeOf((*MockOptions)(nil).SetBackgroundHealthCheckStutter), arg0)
-}
-
-// BackgroundHealthCheckStutter mocks base method
-func (_m *MockOptions) BackgroundHealthCheckStutter() time.Duration {
-	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckStutter")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// BackgroundHealthCheckStutter indicates an expected call of BackgroundHealthCheckStutter
-func (_mr *MockOptionsMockRecorder) BackgroundHealthCheckStutter() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckStutter", reflect.TypeOf((*MockOptions)(nil).BackgroundHealthCheckStutter))
-}
-
-// SetBackgroundHealthCheckFailLimit mocks base method
-func (_m *MockOptions) SetBackgroundHealthCheckFailLimit(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckFailLimit", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBackgroundHealthCheckFailLimit indicates an expected call of SetBackgroundHealthCheckFailLimit
-func (_mr *MockOptionsMockRecorder) SetBackgroundHealthCheckFailLimit(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckFailLimit", reflect.TypeOf((*MockOptions)(nil).SetBackgroundHealthCheckFailLimit), arg0)
-}
-
-// BackgroundHealthCheckFailLimit mocks base method
-func (_m *MockOptions) BackgroundHealthCheckFailLimit() int {
-	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckFailLimit")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// BackgroundHealthCheckFailLimit indicates an expected call of BackgroundHealthCheckFailLimit
-func (_mr *MockOptionsMockRecorder) BackgroundHealthCheckFailLimit() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckFailLimit", reflect.TypeOf((*MockOptions)(nil).BackgroundHealthCheckFailLimit))
-}
-
-// SetBackgroundHealthCheckFailThrottleFactor mocks base method
-func (_m *MockOptions) SetBackgroundHealthCheckFailThrottleFactor(value float64) Options {
-	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckFailThrottleFactor", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBackgroundHealthCheckFailThrottleFactor indicates an expected call of SetBackgroundHealthCheckFailThrottleFactor
-func (_mr *MockOptionsMockRecorder) SetBackgroundHealthCheckFailThrottleFactor(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckFailThrottleFactor", reflect.TypeOf((*MockOptions)(nil).SetBackgroundHealthCheckFailThrottleFactor), arg0)
-}
-
-// BackgroundHealthCheckFailThrottleFactor mocks base method
-func (_m *MockOptions) BackgroundHealthCheckFailThrottleFactor() float64 {
-	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckFailThrottleFactor")
-	ret0, _ := ret[0].(float64)
-	return ret0
-}
-
-// BackgroundHealthCheckFailThrottleFactor indicates an expected call of BackgroundHealthCheckFailThrottleFactor
-func (_mr *MockOptionsMockRecorder) BackgroundHealthCheckFailThrottleFactor() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckFailThrottleFactor", reflect.TypeOf((*MockOptions)(nil).BackgroundHealthCheckFailThrottleFactor))
-}
-
-// SetWriteRetrier mocks base method
-func (_m *MockOptions) SetWriteRetrier(value retry.Retrier) Options {
-	ret := _m.ctrl.Call(_m, "SetWriteRetrier", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWriteRetrier indicates an expected call of SetWriteRetrier
-func (_mr *MockOptionsMockRecorder) SetWriteRetrier(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteRetrier", reflect.TypeOf((*MockOptions)(nil).SetWriteRetrier), arg0)
-}
-
-// WriteRetrier mocks base method
-func (_m *MockOptions) WriteRetrier() retry.Retrier {
-	ret := _m.ctrl.Call(_m, "WriteRetrier")
-	ret0, _ := ret[0].(retry.Retrier)
-	return ret0
-}
-
-// WriteRetrier indicates an expected call of WriteRetrier
-func (_mr *MockOptionsMockRecorder) WriteRetrier() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteRetrier", reflect.TypeOf((*MockOptions)(nil).WriteRetrier))
-}
-
-// SetFetchRetrier mocks base method
-func (_m *MockOptions) SetFetchRetrier(value retry.Retrier) Options {
-	ret := _m.ctrl.Call(_m, "SetFetchRetrier", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetFetchRetrier indicates an expected call of SetFetchRetrier
-func (_mr *MockOptionsMockRecorder) SetFetchRetrier(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchRetrier", reflect.TypeOf((*MockOptions)(nil).SetFetchRetrier), arg0)
-}
-
-// FetchRetrier mocks base method
-func (_m *MockOptions) FetchRetrier() retry.Retrier {
-	ret := _m.ctrl.Call(_m, "FetchRetrier")
-	ret0, _ := ret[0].(retry.Retrier)
-	return ret0
-}
-
-// FetchRetrier indicates an expected call of FetchRetrier
-func (_mr *MockOptionsMockRecorder) FetchRetrier() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchRetrier", reflect.TypeOf((*MockOptions)(nil).FetchRetrier))
-}
-
-// SetTagEncoderOptions mocks base method
-func (_m *MockOptions) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
-	ret := _m.ctrl.Call(_m, "SetTagEncoderOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetTagEncoderOptions indicates an expected call of SetTagEncoderOptions
-func (_mr *MockOptionsMockRecorder) SetTagEncoderOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagEncoderOptions", reflect.TypeOf((*MockOptions)(nil).SetTagEncoderOptions), arg0)
-}
-
-// TagEncoderOptions mocks base method
-func (_m *MockOptions) TagEncoderOptions() serialize.TagEncoderOptions {
-	ret := _m.ctrl.Call(_m, "TagEncoderOptions")
-	ret0, _ := ret[0].(serialize.TagEncoderOptions)
-	return ret0
-}
-
-// TagEncoderOptions indicates an expected call of TagEncoderOptions
-func (_mr *MockOptionsMockRecorder) TagEncoderOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagEncoderOptions", reflect.TypeOf((*MockOptions)(nil).TagEncoderOptions))
-}
-
-// SetTagEncoderPoolSize mocks base method
-func (_m *MockOptions) SetTagEncoderPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetTagEncoderPoolSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetTagEncoderPoolSize indicates an expected call of SetTagEncoderPoolSize
-func (_mr *MockOptionsMockRecorder) SetTagEncoderPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagEncoderPoolSize", reflect.TypeOf((*MockOptions)(nil).SetTagEncoderPoolSize), arg0)
-}
-
-// TagEncoderPoolSize mocks base method
-func (_m *MockOptions) TagEncoderPoolSize() int {
-	ret := _m.ctrl.Call(_m, "TagEncoderPoolSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// TagEncoderPoolSize indicates an expected call of TagEncoderPoolSize
-func (_mr *MockOptionsMockRecorder) TagEncoderPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagEncoderPoolSize", reflect.TypeOf((*MockOptions)(nil).TagEncoderPoolSize))
-}
-
-// SetWriteBatchSize mocks base method
-func (_m *MockOptions) SetWriteBatchSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetWriteBatchSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWriteBatchSize indicates an expected call of SetWriteBatchSize
-func (_mr *MockOptionsMockRecorder) SetWriteBatchSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteBatchSize", reflect.TypeOf((*MockOptions)(nil).SetWriteBatchSize), arg0)
-}
-
-// WriteBatchSize mocks base method
-func (_m *MockOptions) WriteBatchSize() int {
-	ret := _m.ctrl.Call(_m, "WriteBatchSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// WriteBatchSize indicates an expected call of WriteBatchSize
-func (_mr *MockOptionsMockRecorder) WriteBatchSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteBatchSize", reflect.TypeOf((*MockOptions)(nil).WriteBatchSize))
-}
-
-// SetFetchBatchSize mocks base method
-func (_m *MockOptions) SetFetchBatchSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetFetchBatchSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetFetchBatchSize indicates an expected call of SetFetchBatchSize
-func (_mr *MockOptionsMockRecorder) SetFetchBatchSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchBatchSize", reflect.TypeOf((*MockOptions)(nil).SetFetchBatchSize), arg0)
-}
-
-// FetchBatchSize mocks base method
-func (_m *MockOptions) FetchBatchSize() int {
-	ret := _m.ctrl.Call(_m, "FetchBatchSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// FetchBatchSize indicates an expected call of FetchBatchSize
-func (_mr *MockOptionsMockRecorder) FetchBatchSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBatchSize", reflect.TypeOf((*MockOptions)(nil).FetchBatchSize))
-}
-
-// SetWriteOpPoolSize mocks base method
-func (_m *MockOptions) SetWriteOpPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetWriteOpPoolSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWriteOpPoolSize indicates an expected call of SetWriteOpPoolSize
-func (_mr *MockOptionsMockRecorder) SetWriteOpPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteOpPoolSize", reflect.TypeOf((*MockOptions)(nil).SetWriteOpPoolSize), arg0)
-}
-
-// WriteOpPoolSize mocks base method
-func (_m *MockOptions) WriteOpPoolSize() int {
-	ret := _m.ctrl.Call(_m, "WriteOpPoolSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// WriteOpPoolSize indicates an expected call of WriteOpPoolSize
-func (_mr *MockOptionsMockRecorder) WriteOpPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteOpPoolSize", reflect.TypeOf((*MockOptions)(nil).WriteOpPoolSize))
-}
-
-// SetWriteTaggedOpPoolSize mocks base method
-func (_m *MockOptions) SetWriteTaggedOpPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetWriteTaggedOpPoolSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWriteTaggedOpPoolSize indicates an expected call of SetWriteTaggedOpPoolSize
-func (_mr *MockOptionsMockRecorder) SetWriteTaggedOpPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteTaggedOpPoolSize", reflect.TypeOf((*MockOptions)(nil).SetWriteTaggedOpPoolSize), arg0)
-}
-
-// WriteTaggedOpPoolSize mocks base method
-func (_m *MockOptions) WriteTaggedOpPoolSize() int {
-	ret := _m.ctrl.Call(_m, "WriteTaggedOpPoolSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// WriteTaggedOpPoolSize indicates an expected call of WriteTaggedOpPoolSize
-func (_mr *MockOptionsMockRecorder) WriteTaggedOpPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteTaggedOpPoolSize", reflect.TypeOf((*MockOptions)(nil).WriteTaggedOpPoolSize))
-}
-
-// SetFetchBatchOpPoolSize mocks base method
-func (_m *MockOptions) SetFetchBatchOpPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetFetchBatchOpPoolSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetFetchBatchOpPoolSize indicates an expected call of SetFetchBatchOpPoolSize
-func (_mr *MockOptionsMockRecorder) SetFetchBatchOpPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchBatchOpPoolSize", reflect.TypeOf((*MockOptions)(nil).SetFetchBatchOpPoolSize), arg0)
-}
-
-// FetchBatchOpPoolSize mocks base method
-func (_m *MockOptions) FetchBatchOpPoolSize() int {
-	ret := _m.ctrl.Call(_m, "FetchBatchOpPoolSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// FetchBatchOpPoolSize indicates an expected call of FetchBatchOpPoolSize
-func (_mr *MockOptionsMockRecorder) FetchBatchOpPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBatchOpPoolSize", reflect.TypeOf((*MockOptions)(nil).FetchBatchOpPoolSize))
-}
-
-// SetHostQueueOpsFlushSize mocks base method
-func (_m *MockOptions) SetHostQueueOpsFlushSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetHostQueueOpsFlushSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetHostQueueOpsFlushSize indicates an expected call of SetHostQueueOpsFlushSize
-func (_mr *MockOptionsMockRecorder) SetHostQueueOpsFlushSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostQueueOpsFlushSize", reflect.TypeOf((*MockOptions)(nil).SetHostQueueOpsFlushSize), arg0)
-}
-
-// HostQueueOpsFlushSize mocks base method
-func (_m *MockOptions) HostQueueOpsFlushSize() int {
-	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// HostQueueOpsFlushSize indicates an expected call of HostQueueOpsFlushSize
-func (_mr *MockOptionsMockRecorder) HostQueueOpsFlushSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostQueueOpsFlushSize", reflect.TypeOf((*MockOptions)(nil).HostQueueOpsFlushSize))
-}
-
-// SetHostQueueOpsFlushInterval mocks base method
-func (_m *MockOptions) SetHostQueueOpsFlushInterval(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetHostQueueOpsFlushInterval", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetHostQueueOpsFlushInterval indicates an expected call of SetHostQueueOpsFlushInterval
-func (_mr *MockOptionsMockRecorder) SetHostQueueOpsFlushInterval(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostQueueOpsFlushInterval", reflect.TypeOf((*MockOptions)(nil).SetHostQueueOpsFlushInterval), arg0)
-}
-
-// HostQueueOpsFlushInterval mocks base method
-func (_m *MockOptions) HostQueueOpsFlushInterval() time.Duration {
-	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushInterval")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// HostQueueOpsFlushInterval indicates an expected call of HostQueueOpsFlushInterval
-func (_mr *MockOptionsMockRecorder) HostQueueOpsFlushInterval() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostQueueOpsFlushInterval", reflect.TypeOf((*MockOptions)(nil).HostQueueOpsFlushInterval))
-}
-
-// SetContextPool mocks base method
-func (_m *MockOptions) SetContextPool(value context.Pool) Options {
-	ret := _m.ctrl.Call(_m, "SetContextPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetContextPool indicates an expected call of SetContextPool
-func (_mr *MockOptionsMockRecorder) SetContextPool(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetContextPool", reflect.TypeOf((*MockOptions)(nil).SetContextPool), arg0)
-}
-
-// ContextPool mocks base method
-func (_m *MockOptions) ContextPool() context.Pool {
-	ret := _m.ctrl.Call(_m, "ContextPool")
-	ret0, _ := ret[0].(context.Pool)
-	return ret0
-}
-
-// ContextPool indicates an expected call of ContextPool
-func (_mr *MockOptionsMockRecorder) ContextPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ContextPool", reflect.TypeOf((*MockOptions)(nil).ContextPool))
-}
-
-// SetIdentifierPool mocks base method
-func (_m *MockOptions) SetIdentifierPool(value ident.Pool) Options {
-	ret := _m.ctrl.Call(_m, "SetIdentifierPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetIdentifierPool indicates an expected call of SetIdentifierPool
-func (_mr *MockOptionsMockRecorder) SetIdentifierPool(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetIdentifierPool", reflect.TypeOf((*MockOptions)(nil).SetIdentifierPool), arg0)
-}
-
-// IdentifierPool mocks base method
-func (_m *MockOptions) IdentifierPool() ident.Pool {
-	ret := _m.ctrl.Call(_m, "IdentifierPool")
-	ret0, _ := ret[0].(ident.Pool)
-	return ret0
-}
-
-// IdentifierPool indicates an expected call of IdentifierPool
-func (_mr *MockOptionsMockRecorder) IdentifierPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "IdentifierPool", reflect.TypeOf((*MockOptions)(nil).IdentifierPool))
-}
-
-// SetHostQueueOpsArrayPoolSize mocks base method
-func (_m *MockOptions) SetHostQueueOpsArrayPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetHostQueueOpsArrayPoolSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetHostQueueOpsArrayPoolSize indicates an expected call of SetHostQueueOpsArrayPoolSize
-func (_mr *MockOptionsMockRecorder) SetHostQueueOpsArrayPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostQueueOpsArrayPoolSize", reflect.TypeOf((*MockOptions)(nil).SetHostQueueOpsArrayPoolSize), arg0)
-}
-
-// HostQueueOpsArrayPoolSize mocks base method
-func (_m *MockOptions) HostQueueOpsArrayPoolSize() int {
-	ret := _m.ctrl.Call(_m, "HostQueueOpsArrayPoolSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// HostQueueOpsArrayPoolSize indicates an expected call of HostQueueOpsArrayPoolSize
-func (_mr *MockOptionsMockRecorder) HostQueueOpsArrayPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostQueueOpsArrayPoolSize", reflect.TypeOf((*MockOptions)(nil).HostQueueOpsArrayPoolSize))
-}
-
-// SetSeriesIteratorPoolSize mocks base method
-func (_m *MockOptions) SetSeriesIteratorPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetSeriesIteratorPoolSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetSeriesIteratorPoolSize indicates an expected call of SetSeriesIteratorPoolSize
-func (_mr *MockOptionsMockRecorder) SetSeriesIteratorPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetSeriesIteratorPoolSize", reflect.TypeOf((*MockOptions)(nil).SetSeriesIteratorPoolSize), arg0)
-}
-
-// SeriesIteratorPoolSize mocks base method
-func (_m *MockOptions) SeriesIteratorPoolSize() int {
-	ret := _m.ctrl.Call(_m, "SeriesIteratorPoolSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// SeriesIteratorPoolSize indicates an expected call of SeriesIteratorPoolSize
-func (_mr *MockOptionsMockRecorder) SeriesIteratorPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SeriesIteratorPoolSize", reflect.TypeOf((*MockOptions)(nil).SeriesIteratorPoolSize))
-}
-
-// SetSeriesIteratorArrayPoolBuckets mocks base method
-func (_m *MockOptions) SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
-	ret := _m.ctrl.Call(_m, "SetSeriesIteratorArrayPoolBuckets", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetSeriesIteratorArrayPoolBuckets indicates an expected call of SetSeriesIteratorArrayPoolBuckets
-func (_mr *MockOptionsMockRecorder) SetSeriesIteratorArrayPoolBuckets(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetSeriesIteratorArrayPoolBuckets", reflect.TypeOf((*MockOptions)(nil).SetSeriesIteratorArrayPoolBuckets), arg0)
-}
-
-// SeriesIteratorArrayPoolBuckets mocks base method
-func (_m *MockOptions) SeriesIteratorArrayPoolBuckets() []pool.Bucket {
-	ret := _m.ctrl.Call(_m, "SeriesIteratorArrayPoolBuckets")
-	ret0, _ := ret[0].([]pool.Bucket)
-	return ret0
-}
-
-// SeriesIteratorArrayPoolBuckets indicates an expected call of SeriesIteratorArrayPoolBuckets
-func (_mr *MockOptionsMockRecorder) SeriesIteratorArrayPoolBuckets() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SeriesIteratorArrayPoolBuckets", reflect.TypeOf((*MockOptions)(nil).SeriesIteratorArrayPoolBuckets))
-}
-
-// SetReaderIteratorAllocate mocks base method
-func (_m *MockOptions) SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options {
-	ret := _m.ctrl.Call(_m, "SetReaderIteratorAllocate", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetReaderIteratorAllocate indicates an expected call of SetReaderIteratorAllocate
-func (_mr *MockOptionsMockRecorder) SetReaderIteratorAllocate(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetReaderIteratorAllocate", reflect.TypeOf((*MockOptions)(nil).SetReaderIteratorAllocate), arg0)
-}
-
-// ReaderIteratorAllocate mocks base method
-func (_m *MockOptions) ReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
-	ret := _m.ctrl.Call(_m, "ReaderIteratorAllocate")
-	ret0, _ := ret[0].(encoding.ReaderIteratorAllocate)
-	return ret0
-}
-
-// ReaderIteratorAllocate indicates an expected call of ReaderIteratorAllocate
-func (_mr *MockOptionsMockRecorder) ReaderIteratorAllocate() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ReaderIteratorAllocate", reflect.TypeOf((*MockOptions)(nil).ReaderIteratorAllocate))
-}
-
-// MockAdminOptions is a mock of AdminOptions interface
-type MockAdminOptions struct {
-	ctrl     *gomock.Controller
-	recorder *MockAdminOptionsMockRecorder
-}
-
-// MockAdminOptionsMockRecorder is the mock recorder for MockAdminOptions
-type MockAdminOptionsMockRecorder struct {
-	mock *MockAdminOptions
-}
-
-// NewMockAdminOptions creates a new mock instance
-func NewMockAdminOptions(ctrl *gomock.Controller) *MockAdminOptions {
-	mock := &MockAdminOptions{ctrl: ctrl}
-	mock.recorder = &MockAdminOptionsMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (_m *MockAdminOptions) EXPECT() *MockAdminOptionsMockRecorder {
-	return _m.recorder
-}
-
-// Validate mocks base method
-func (_m *MockAdminOptions) Validate() error {
-	ret := _m.ctrl.Call(_m, "Validate")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Validate indicates an expected call of Validate
-func (_mr *MockAdminOptionsMockRecorder) Validate() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Validate", reflect.TypeOf((*MockAdminOptions)(nil).Validate))
-}
-
-// SetEncodingM3TSZ mocks base method
-func (_m *MockAdminOptions) SetEncodingM3TSZ() Options {
-	ret := _m.ctrl.Call(_m, "SetEncodingM3TSZ")
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetEncodingM3TSZ indicates an expected call of SetEncodingM3TSZ
-func (_mr *MockAdminOptionsMockRecorder) SetEncodingM3TSZ() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetEncodingM3TSZ", reflect.TypeOf((*MockAdminOptions)(nil).SetEncodingM3TSZ))
-}
-
-// SetClockOptions mocks base method
-func (_m *MockAdminOptions) SetClockOptions(value clock.Options) Options {
-	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetClockOptions indicates an expected call of SetClockOptions
-func (_mr *MockAdminOptionsMockRecorder) SetClockOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClockOptions", reflect.TypeOf((*MockAdminOptions)(nil).SetClockOptions), arg0)
-}
-
-// ClockOptions mocks base method
-func (_m *MockAdminOptions) ClockOptions() clock.Options {
-	ret := _m.ctrl.Call(_m, "ClockOptions")
-	ret0, _ := ret[0].(clock.Options)
-	return ret0
-}
-
-// ClockOptions indicates an expected call of ClockOptions
-func (_mr *MockAdminOptionsMockRecorder) ClockOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClockOptions", reflect.TypeOf((*MockAdminOptions)(nil).ClockOptions))
-}
-
-// SetInstrumentOptions mocks base method
-func (_m *MockAdminOptions) SetInstrumentOptions(value instrument.Options) Options {
-	ret := _m.ctrl.Call(_m, "SetInstrumentOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetInstrumentOptions indicates an expected call of SetInstrumentOptions
-func (_mr *MockAdminOptionsMockRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetInstrumentOptions", reflect.TypeOf((*MockAdminOptions)(nil).SetInstrumentOptions), arg0)
-}
-
-// InstrumentOptions mocks base method
-func (_m *MockAdminOptions) InstrumentOptions() instrument.Options {
-	ret := _m.ctrl.Call(_m, "InstrumentOptions")
-	ret0, _ := ret[0].(instrument.Options)
-	return ret0
-}
-
-// InstrumentOptions indicates an expected call of InstrumentOptions
-func (_mr *MockAdminOptionsMockRecorder) InstrumentOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "InstrumentOptions", reflect.TypeOf((*MockAdminOptions)(nil).InstrumentOptions))
-}
-
-// SetTopologyInitializer mocks base method
-func (_m *MockAdminOptions) SetTopologyInitializer(value topology.Initializer) Options {
-	ret := _m.ctrl.Call(_m, "SetTopologyInitializer", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetTopologyInitializer indicates an expected call of SetTopologyInitializer
-func (_mr *MockAdminOptionsMockRecorder) SetTopologyInitializer(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTopologyInitializer", reflect.TypeOf((*MockAdminOptions)(nil).SetTopologyInitializer), arg0)
-}
-
-// TopologyInitializer mocks base method
-func (_m *MockAdminOptions) TopologyInitializer() topology.Initializer {
-	ret := _m.ctrl.Call(_m, "TopologyInitializer")
-	ret0, _ := ret[0].(topology.Initializer)
-	return ret0
-}
-
-// TopologyInitializer indicates an expected call of TopologyInitializer
-func (_mr *MockAdminOptionsMockRecorder) TopologyInitializer() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TopologyInitializer", reflect.TypeOf((*MockAdminOptions)(nil).TopologyInitializer))
-}
-
-// SetWriteConsistencyLevel mocks base method
-func (_m *MockAdminOptions) SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options {
-	ret := _m.ctrl.Call(_m, "SetWriteConsistencyLevel", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWriteConsistencyLevel indicates an expected call of SetWriteConsistencyLevel
-func (_mr *MockAdminOptionsMockRecorder) SetWriteConsistencyLevel(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteConsistencyLevel), arg0)
-}
-
-// WriteConsistencyLevel mocks base method
-func (_m *MockAdminOptions) WriteConsistencyLevel() topology.ConsistencyLevel {
-	ret := _m.ctrl.Call(_m, "WriteConsistencyLevel")
-	ret0, _ := ret[0].(topology.ConsistencyLevel)
-	return ret0
-}
-
-// WriteConsistencyLevel indicates an expected call of WriteConsistencyLevel
-func (_mr *MockAdminOptionsMockRecorder) WriteConsistencyLevel() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).WriteConsistencyLevel))
-}
-
-// SetReadConsistencyLevel mocks base method
-func (_m *MockAdminOptions) SetReadConsistencyLevel(value ReadConsistencyLevel) Options {
-	ret := _m.ctrl.Call(_m, "SetReadConsistencyLevel", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetReadConsistencyLevel indicates an expected call of SetReadConsistencyLevel
-func (_mr *MockAdminOptionsMockRecorder) SetReadConsistencyLevel(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetReadConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).SetReadConsistencyLevel), arg0)
-}
-
-// ReadConsistencyLevel mocks base method
-func (_m *MockAdminOptions) ReadConsistencyLevel() ReadConsistencyLevel {
-	ret := _m.ctrl.Call(_m, "ReadConsistencyLevel")
-	ret0, _ := ret[0].(ReadConsistencyLevel)
-	return ret0
-}
-
-// ReadConsistencyLevel indicates an expected call of ReadConsistencyLevel
-func (_mr *MockAdminOptionsMockRecorder) ReadConsistencyLevel() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ReadConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).ReadConsistencyLevel))
-}
-
-// SetChannelOptions mocks base method
-func (_m *MockAdminOptions) SetChannelOptions(value *tchannel_go.ChannelOptions) Options {
-	ret := _m.ctrl.Call(_m, "SetChannelOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetChannelOptions indicates an expected call of SetChannelOptions
-func (_mr *MockAdminOptionsMockRecorder) SetChannelOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetChannelOptions", reflect.TypeOf((*MockAdminOptions)(nil).SetChannelOptions), arg0)
-}
-
-// ChannelOptions mocks base method
-func (_m *MockAdminOptions) ChannelOptions() *tchannel_go.ChannelOptions {
-	ret := _m.ctrl.Call(_m, "ChannelOptions")
-	ret0, _ := ret[0].(*tchannel_go.ChannelOptions)
-	return ret0
-}
-
-// ChannelOptions indicates an expected call of ChannelOptions
-func (_mr *MockAdminOptionsMockRecorder) ChannelOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ChannelOptions", reflect.TypeOf((*MockAdminOptions)(nil).ChannelOptions))
-}
-
-// SetMaxConnectionCount mocks base method
-func (_m *MockAdminOptions) SetMaxConnectionCount(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetMaxConnectionCount", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetMaxConnectionCount indicates an expected call of SetMaxConnectionCount
-func (_mr *MockAdminOptionsMockRecorder) SetMaxConnectionCount(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetMaxConnectionCount", reflect.TypeOf((*MockAdminOptions)(nil).SetMaxConnectionCount), arg0)
-}
-
-// MaxConnectionCount mocks base method
-func (_m *MockAdminOptions) MaxConnectionCount() int {
-	ret := _m.ctrl.Call(_m, "MaxConnectionCount")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// MaxConnectionCount indicates an expected call of MaxConnectionCount
-func (_mr *MockAdminOptionsMockRecorder) MaxConnectionCount() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "MaxConnectionCount", reflect.TypeOf((*MockAdminOptions)(nil).MaxConnectionCount))
-}
-
-// SetMinConnectionCount mocks base method
-func (_m *MockAdminOptions) SetMinConnectionCount(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetMinConnectionCount", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetMinConnectionCount indicates an expected call of SetMinConnectionCount
-func (_mr *MockAdminOptionsMockRecorder) SetMinConnectionCount(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetMinConnectionCount", reflect.TypeOf((*MockAdminOptions)(nil).SetMinConnectionCount), arg0)
-}
-
-// MinConnectionCount mocks base method
-func (_m *MockAdminOptions) MinConnectionCount() int {
-	ret := _m.ctrl.Call(_m, "MinConnectionCount")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// MinConnectionCount indicates an expected call of MinConnectionCount
-func (_mr *MockAdminOptionsMockRecorder) MinConnectionCount() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "MinConnectionCount", reflect.TypeOf((*MockAdminOptions)(nil).MinConnectionCount))
-}
-
-// SetHostConnectTimeout mocks base method
-func (_m *MockAdminOptions) SetHostConnectTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetHostConnectTimeout", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetHostConnectTimeout indicates an expected call of SetHostConnectTimeout
-func (_mr *MockAdminOptionsMockRecorder) SetHostConnectTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostConnectTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetHostConnectTimeout), arg0)
-}
-
-// HostConnectTimeout mocks base method
-func (_m *MockAdminOptions) HostConnectTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "HostConnectTimeout")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// HostConnectTimeout indicates an expected call of HostConnectTimeout
-func (_mr *MockAdminOptionsMockRecorder) HostConnectTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostConnectTimeout", reflect.TypeOf((*MockAdminOptions)(nil).HostConnectTimeout))
-}
-
-// SetClusterConnectTimeout mocks base method
-func (_m *MockAdminOptions) SetClusterConnectTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetClusterConnectTimeout", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetClusterConnectTimeout indicates an expected call of SetClusterConnectTimeout
-func (_mr *MockAdminOptionsMockRecorder) SetClusterConnectTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClusterConnectTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetClusterConnectTimeout), arg0)
-}
-
-// ClusterConnectTimeout mocks base method
-func (_m *MockAdminOptions) ClusterConnectTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "ClusterConnectTimeout")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// ClusterConnectTimeout indicates an expected call of ClusterConnectTimeout
-func (_mr *MockAdminOptionsMockRecorder) ClusterConnectTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClusterConnectTimeout", reflect.TypeOf((*MockAdminOptions)(nil).ClusterConnectTimeout))
-}
-
-// SetClusterConnectConsistencyLevel mocks base method
-func (_m *MockAdminOptions) SetClusterConnectConsistencyLevel(value ConnectConsistencyLevel) Options {
-	ret := _m.ctrl.Call(_m, "SetClusterConnectConsistencyLevel", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetClusterConnectConsistencyLevel indicates an expected call of SetClusterConnectConsistencyLevel
-func (_mr *MockAdminOptionsMockRecorder) SetClusterConnectConsistencyLevel(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetClusterConnectConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).SetClusterConnectConsistencyLevel), arg0)
-}
-
-// ClusterConnectConsistencyLevel mocks base method
-func (_m *MockAdminOptions) ClusterConnectConsistencyLevel() ConnectConsistencyLevel {
-	ret := _m.ctrl.Call(_m, "ClusterConnectConsistencyLevel")
-	ret0, _ := ret[0].(ConnectConsistencyLevel)
-	return ret0
-}
-
-// ClusterConnectConsistencyLevel indicates an expected call of ClusterConnectConsistencyLevel
-func (_mr *MockAdminOptionsMockRecorder) ClusterConnectConsistencyLevel() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ClusterConnectConsistencyLevel", reflect.TypeOf((*MockAdminOptions)(nil).ClusterConnectConsistencyLevel))
-}
-
-// SetWriteRequestTimeout mocks base method
-func (_m *MockAdminOptions) SetWriteRequestTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetWriteRequestTimeout", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWriteRequestTimeout indicates an expected call of SetWriteRequestTimeout
-func (_mr *MockAdminOptionsMockRecorder) SetWriteRequestTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteRequestTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteRequestTimeout), arg0)
-}
-
-// WriteRequestTimeout mocks base method
-func (_m *MockAdminOptions) WriteRequestTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "WriteRequestTimeout")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// WriteRequestTimeout indicates an expected call of WriteRequestTimeout
-func (_mr *MockAdminOptionsMockRecorder) WriteRequestTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteRequestTimeout", reflect.TypeOf((*MockAdminOptions)(nil).WriteRequestTimeout))
-}
-
-// SetFetchRequestTimeout mocks base method
-func (_m *MockAdminOptions) SetFetchRequestTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetFetchRequestTimeout", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetFetchRequestTimeout indicates an expected call of SetFetchRequestTimeout
-func (_mr *MockAdminOptionsMockRecorder) SetFetchRequestTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchRequestTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchRequestTimeout), arg0)
-}
-
-// FetchRequestTimeout mocks base method
-func (_m *MockAdminOptions) FetchRequestTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "FetchRequestTimeout")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// FetchRequestTimeout indicates an expected call of FetchRequestTimeout
-func (_mr *MockAdminOptionsMockRecorder) FetchRequestTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchRequestTimeout", reflect.TypeOf((*MockAdminOptions)(nil).FetchRequestTimeout))
-}
-
-// SetTruncateRequestTimeout mocks base method
-func (_m *MockAdminOptions) SetTruncateRequestTimeout(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetTruncateRequestTimeout", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetTruncateRequestTimeout indicates an expected call of SetTruncateRequestTimeout
-func (_mr *MockAdminOptionsMockRecorder) SetTruncateRequestTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTruncateRequestTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetTruncateRequestTimeout), arg0)
-}
-
-// TruncateRequestTimeout mocks base method
-func (_m *MockAdminOptions) TruncateRequestTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "TruncateRequestTimeout")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// TruncateRequestTimeout indicates an expected call of TruncateRequestTimeout
-func (_mr *MockAdminOptionsMockRecorder) TruncateRequestTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TruncateRequestTimeout", reflect.TypeOf((*MockAdminOptions)(nil).TruncateRequestTimeout))
-}
-
-// SetBackgroundConnectInterval mocks base method
-func (_m *MockAdminOptions) SetBackgroundConnectInterval(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetBackgroundConnectInterval", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBackgroundConnectInterval indicates an expected call of SetBackgroundConnectInterval
-func (_mr *MockAdminOptionsMockRecorder) SetBackgroundConnectInterval(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundConnectInterval", reflect.TypeOf((*MockAdminOptions)(nil).SetBackgroundConnectInterval), arg0)
-}
-
-// BackgroundConnectInterval mocks base method
-func (_m *MockAdminOptions) BackgroundConnectInterval() time.Duration {
-	ret := _m.ctrl.Call(_m, "BackgroundConnectInterval")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// BackgroundConnectInterval indicates an expected call of BackgroundConnectInterval
-func (_mr *MockAdminOptionsMockRecorder) BackgroundConnectInterval() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundConnectInterval", reflect.TypeOf((*MockAdminOptions)(nil).BackgroundConnectInterval))
-}
-
-// SetBackgroundConnectStutter mocks base method
-func (_m *MockAdminOptions) SetBackgroundConnectStutter(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetBackgroundConnectStutter", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBackgroundConnectStutter indicates an expected call of SetBackgroundConnectStutter
-func (_mr *MockAdminOptionsMockRecorder) SetBackgroundConnectStutter(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundConnectStutter", reflect.TypeOf((*MockAdminOptions)(nil).SetBackgroundConnectStutter), arg0)
-}
-
-// BackgroundConnectStutter mocks base method
-func (_m *MockAdminOptions) BackgroundConnectStutter() time.Duration {
-	ret := _m.ctrl.Call(_m, "BackgroundConnectStutter")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// BackgroundConnectStutter indicates an expected call of BackgroundConnectStutter
-func (_mr *MockAdminOptionsMockRecorder) BackgroundConnectStutter() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundConnectStutter", reflect.TypeOf((*MockAdminOptions)(nil).BackgroundConnectStutter))
-}
-
-// SetBackgroundHealthCheckInterval mocks base method
-func (_m *MockAdminOptions) SetBackgroundHealthCheckInterval(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckInterval", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBackgroundHealthCheckInterval indicates an expected call of SetBackgroundHealthCheckInterval
-func (_mr *MockAdminOptionsMockRecorder) SetBackgroundHealthCheckInterval(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckInterval", reflect.TypeOf((*MockAdminOptions)(nil).SetBackgroundHealthCheckInterval), arg0)
-}
-
-// BackgroundHealthCheckInterval mocks base method
-func (_m *MockAdminOptions) BackgroundHealthCheckInterval() time.Duration {
-	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckInterval")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// BackgroundHealthCheckInterval indicates an expected call of BackgroundHealthCheckInterval
-func (_mr *MockAdminOptionsMockRecorder) BackgroundHealthCheckInterval() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckInterval", reflect.TypeOf((*MockAdminOptions)(nil).BackgroundHealthCheckInterval))
-}
-
-// SetBackgroundHealthCheckStutter mocks base method
-func (_m *MockAdminOptions) SetBackgroundHealthCheckStutter(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckStutter", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBackgroundHealthCheckStutter indicates an expected call of SetBackgroundHealthCheckStutter
-func (_mr *MockAdminOptionsMockRecorder) SetBackgroundHealthCheckStutter(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckStutter", reflect.TypeOf((*MockAdminOptions)(nil).SetBackgroundHealthCheckStutter), arg0)
-}
-
-// BackgroundHealthCheckStutter mocks base method
-func (_m *MockAdminOptions) BackgroundHealthCheckStutter() time.Duration {
-	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckStutter")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// BackgroundHealthCheckStutter indicates an expected call of BackgroundHealthCheckStutter
-func (_mr *MockAdminOptionsMockRecorder) BackgroundHealthCheckStutter() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckStutter", reflect.TypeOf((*MockAdminOptions)(nil).BackgroundHealthCheckStutter))
-}
-
-// SetBackgroundHealthCheckFailLimit mocks base method
-func (_m *MockAdminOptions) SetBackgroundHealthCheckFailLimit(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckFailLimit", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBackgroundHealthCheckFailLimit indicates an expected call of SetBackgroundHealthCheckFailLimit
-func (_mr *MockAdminOptionsMockRecorder) SetBackgroundHealthCheckFailLimit(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckFailLimit", reflect.TypeOf((*MockAdminOptions)(nil).SetBackgroundHealthCheckFailLimit), arg0)
-}
-
-// BackgroundHealthCheckFailLimit mocks base method
-func (_m *MockAdminOptions) BackgroundHealthCheckFailLimit() int {
-	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckFailLimit")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// BackgroundHealthCheckFailLimit indicates an expected call of BackgroundHealthCheckFailLimit
-func (_mr *MockAdminOptionsMockRecorder) BackgroundHealthCheckFailLimit() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckFailLimit", reflect.TypeOf((*MockAdminOptions)(nil).BackgroundHealthCheckFailLimit))
-}
-
-// SetBackgroundHealthCheckFailThrottleFactor mocks base method
-func (_m *MockAdminOptions) SetBackgroundHealthCheckFailThrottleFactor(value float64) Options {
-	ret := _m.ctrl.Call(_m, "SetBackgroundHealthCheckFailThrottleFactor", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetBackgroundHealthCheckFailThrottleFactor indicates an expected call of SetBackgroundHealthCheckFailThrottleFactor
-func (_mr *MockAdminOptionsMockRecorder) SetBackgroundHealthCheckFailThrottleFactor(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBackgroundHealthCheckFailThrottleFactor", reflect.TypeOf((*MockAdminOptions)(nil).SetBackgroundHealthCheckFailThrottleFactor), arg0)
-}
-
-// BackgroundHealthCheckFailThrottleFactor mocks base method
-func (_m *MockAdminOptions) BackgroundHealthCheckFailThrottleFactor() float64 {
-	ret := _m.ctrl.Call(_m, "BackgroundHealthCheckFailThrottleFactor")
-	ret0, _ := ret[0].(float64)
-	return ret0
-}
-
-// BackgroundHealthCheckFailThrottleFactor indicates an expected call of BackgroundHealthCheckFailThrottleFactor
-func (_mr *MockAdminOptionsMockRecorder) BackgroundHealthCheckFailThrottleFactor() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BackgroundHealthCheckFailThrottleFactor", reflect.TypeOf((*MockAdminOptions)(nil).BackgroundHealthCheckFailThrottleFactor))
-}
-
-// SetWriteRetrier mocks base method
-func (_m *MockAdminOptions) SetWriteRetrier(value retry.Retrier) Options {
-	ret := _m.ctrl.Call(_m, "SetWriteRetrier", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWriteRetrier indicates an expected call of SetWriteRetrier
-func (_mr *MockAdminOptionsMockRecorder) SetWriteRetrier(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteRetrier", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteRetrier), arg0)
-}
-
-// WriteRetrier mocks base method
-func (_m *MockAdminOptions) WriteRetrier() retry.Retrier {
-	ret := _m.ctrl.Call(_m, "WriteRetrier")
-	ret0, _ := ret[0].(retry.Retrier)
-	return ret0
-}
-
-// WriteRetrier indicates an expected call of WriteRetrier
-func (_mr *MockAdminOptionsMockRecorder) WriteRetrier() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteRetrier", reflect.TypeOf((*MockAdminOptions)(nil).WriteRetrier))
-}
-
-// SetFetchRetrier mocks base method
-func (_m *MockAdminOptions) SetFetchRetrier(value retry.Retrier) Options {
-	ret := _m.ctrl.Call(_m, "SetFetchRetrier", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetFetchRetrier indicates an expected call of SetFetchRetrier
-func (_mr *MockAdminOptionsMockRecorder) SetFetchRetrier(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchRetrier", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchRetrier), arg0)
-}
-
-// FetchRetrier mocks base method
-func (_m *MockAdminOptions) FetchRetrier() retry.Retrier {
-	ret := _m.ctrl.Call(_m, "FetchRetrier")
-	ret0, _ := ret[0].(retry.Retrier)
-	return ret0
-}
-
-// FetchRetrier indicates an expected call of FetchRetrier
-func (_mr *MockAdminOptionsMockRecorder) FetchRetrier() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchRetrier", reflect.TypeOf((*MockAdminOptions)(nil).FetchRetrier))
-}
-
-// SetTagEncoderOptions mocks base method
-func (_m *MockAdminOptions) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
-	ret := _m.ctrl.Call(_m, "SetTagEncoderOptions", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetTagEncoderOptions indicates an expected call of SetTagEncoderOptions
-func (_mr *MockAdminOptionsMockRecorder) SetTagEncoderOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagEncoderOptions", reflect.TypeOf((*MockAdminOptions)(nil).SetTagEncoderOptions), arg0)
-}
-
-// TagEncoderOptions mocks base method
-func (_m *MockAdminOptions) TagEncoderOptions() serialize.TagEncoderOptions {
-	ret := _m.ctrl.Call(_m, "TagEncoderOptions")
-	ret0, _ := ret[0].(serialize.TagEncoderOptions)
-	return ret0
-}
-
-// TagEncoderOptions indicates an expected call of TagEncoderOptions
-func (_mr *MockAdminOptionsMockRecorder) TagEncoderOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagEncoderOptions", reflect.TypeOf((*MockAdminOptions)(nil).TagEncoderOptions))
-}
-
-// SetTagEncoderPoolSize mocks base method
-func (_m *MockAdminOptions) SetTagEncoderPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetTagEncoderPoolSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetTagEncoderPoolSize indicates an expected call of SetTagEncoderPoolSize
-func (_mr *MockAdminOptionsMockRecorder) SetTagEncoderPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagEncoderPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetTagEncoderPoolSize), arg0)
-}
-
-// TagEncoderPoolSize mocks base method
-func (_m *MockAdminOptions) TagEncoderPoolSize() int {
-	ret := _m.ctrl.Call(_m, "TagEncoderPoolSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// TagEncoderPoolSize indicates an expected call of TagEncoderPoolSize
-func (_mr *MockAdminOptionsMockRecorder) TagEncoderPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagEncoderPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).TagEncoderPoolSize))
-}
-
-// SetWriteBatchSize mocks base method
-func (_m *MockAdminOptions) SetWriteBatchSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetWriteBatchSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWriteBatchSize indicates an expected call of SetWriteBatchSize
-func (_mr *MockAdminOptionsMockRecorder) SetWriteBatchSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteBatchSize", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteBatchSize), arg0)
-}
-
-// WriteBatchSize mocks base method
-func (_m *MockAdminOptions) WriteBatchSize() int {
-	ret := _m.ctrl.Call(_m, "WriteBatchSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// WriteBatchSize indicates an expected call of WriteBatchSize
-func (_mr *MockAdminOptionsMockRecorder) WriteBatchSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteBatchSize", reflect.TypeOf((*MockAdminOptions)(nil).WriteBatchSize))
-}
-
-// SetFetchBatchSize mocks base method
-func (_m *MockAdminOptions) SetFetchBatchSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetFetchBatchSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetFetchBatchSize indicates an expected call of SetFetchBatchSize
-func (_mr *MockAdminOptionsMockRecorder) SetFetchBatchSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchBatchSize", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchBatchSize), arg0)
-}
-
-// FetchBatchSize mocks base method
-func (_m *MockAdminOptions) FetchBatchSize() int {
-	ret := _m.ctrl.Call(_m, "FetchBatchSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// FetchBatchSize indicates an expected call of FetchBatchSize
-func (_mr *MockAdminOptionsMockRecorder) FetchBatchSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBatchSize", reflect.TypeOf((*MockAdminOptions)(nil).FetchBatchSize))
-}
-
-// SetWriteOpPoolSize mocks base method
-func (_m *MockAdminOptions) SetWriteOpPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetWriteOpPoolSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWriteOpPoolSize indicates an expected call of SetWriteOpPoolSize
-func (_mr *MockAdminOptionsMockRecorder) SetWriteOpPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteOpPoolSize), arg0)
-}
-
-// WriteOpPoolSize mocks base method
-func (_m *MockAdminOptions) WriteOpPoolSize() int {
-	ret := _m.ctrl.Call(_m, "WriteOpPoolSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// WriteOpPoolSize indicates an expected call of WriteOpPoolSize
-func (_mr *MockAdminOptionsMockRecorder) WriteOpPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).WriteOpPoolSize))
-}
-
-// SetWriteTaggedOpPoolSize mocks base method
-func (_m *MockAdminOptions) SetWriteTaggedOpPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetWriteTaggedOpPoolSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetWriteTaggedOpPoolSize indicates an expected call of SetWriteTaggedOpPoolSize
-func (_mr *MockAdminOptionsMockRecorder) SetWriteTaggedOpPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteTaggedOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteTaggedOpPoolSize), arg0)
-}
-
-// WriteTaggedOpPoolSize mocks base method
-func (_m *MockAdminOptions) WriteTaggedOpPoolSize() int {
-	ret := _m.ctrl.Call(_m, "WriteTaggedOpPoolSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// WriteTaggedOpPoolSize indicates an expected call of WriteTaggedOpPoolSize
-func (_mr *MockAdminOptionsMockRecorder) WriteTaggedOpPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteTaggedOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).WriteTaggedOpPoolSize))
-}
-
-// SetFetchBatchOpPoolSize mocks base method
-func (_m *MockAdminOptions) SetFetchBatchOpPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetFetchBatchOpPoolSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetFetchBatchOpPoolSize indicates an expected call of SetFetchBatchOpPoolSize
-func (_mr *MockAdminOptionsMockRecorder) SetFetchBatchOpPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchBatchOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchBatchOpPoolSize), arg0)
-}
-
-// FetchBatchOpPoolSize mocks base method
-func (_m *MockAdminOptions) FetchBatchOpPoolSize() int {
-	ret := _m.ctrl.Call(_m, "FetchBatchOpPoolSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// FetchBatchOpPoolSize indicates an expected call of FetchBatchOpPoolSize
-func (_mr *MockAdminOptionsMockRecorder) FetchBatchOpPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchBatchOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).FetchBatchOpPoolSize))
-}
-
-// SetHostQueueOpsFlushSize mocks base method
-func (_m *MockAdminOptions) SetHostQueueOpsFlushSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetHostQueueOpsFlushSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetHostQueueOpsFlushSize indicates an expected call of SetHostQueueOpsFlushSize
-func (_mr *MockAdminOptionsMockRecorder) SetHostQueueOpsFlushSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostQueueOpsFlushSize", reflect.TypeOf((*MockAdminOptions)(nil).SetHostQueueOpsFlushSize), arg0)
-}
-
-// HostQueueOpsFlushSize mocks base method
-func (_m *MockAdminOptions) HostQueueOpsFlushSize() int {
-	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// HostQueueOpsFlushSize indicates an expected call of HostQueueOpsFlushSize
-func (_mr *MockAdminOptionsMockRecorder) HostQueueOpsFlushSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostQueueOpsFlushSize", reflect.TypeOf((*MockAdminOptions)(nil).HostQueueOpsFlushSize))
-}
-
-// SetHostQueueOpsFlushInterval mocks base method
-func (_m *MockAdminOptions) SetHostQueueOpsFlushInterval(value time.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetHostQueueOpsFlushInterval", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetHostQueueOpsFlushInterval indicates an expected call of SetHostQueueOpsFlushInterval
-func (_mr *MockAdminOptionsMockRecorder) SetHostQueueOpsFlushInterval(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostQueueOpsFlushInterval", reflect.TypeOf((*MockAdminOptions)(nil).SetHostQueueOpsFlushInterval), arg0)
-}
-
-// HostQueueOpsFlushInterval mocks base method
-func (_m *MockAdminOptions) HostQueueOpsFlushInterval() time.Duration {
-	ret := _m.ctrl.Call(_m, "HostQueueOpsFlushInterval")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// HostQueueOpsFlushInterval indicates an expected call of HostQueueOpsFlushInterval
-func (_mr *MockAdminOptionsMockRecorder) HostQueueOpsFlushInterval() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostQueueOpsFlushInterval", reflect.TypeOf((*MockAdminOptions)(nil).HostQueueOpsFlushInterval))
-}
-
-// SetContextPool mocks base method
-func (_m *MockAdminOptions) SetContextPool(value context.Pool) Options {
-	ret := _m.ctrl.Call(_m, "SetContextPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetContextPool indicates an expected call of SetContextPool
-func (_mr *MockAdminOptionsMockRecorder) SetContextPool(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetContextPool", reflect.TypeOf((*MockAdminOptions)(nil).SetContextPool), arg0)
-}
-
-// ContextPool mocks base method
-func (_m *MockAdminOptions) ContextPool() context.Pool {
-	ret := _m.ctrl.Call(_m, "ContextPool")
-	ret0, _ := ret[0].(context.Pool)
-	return ret0
-}
-
-// ContextPool indicates an expected call of ContextPool
-func (_mr *MockAdminOptionsMockRecorder) ContextPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ContextPool", reflect.TypeOf((*MockAdminOptions)(nil).ContextPool))
-}
-
-// SetIdentifierPool mocks base method
-func (_m *MockAdminOptions) SetIdentifierPool(value ident.Pool) Options {
-	ret := _m.ctrl.Call(_m, "SetIdentifierPool", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetIdentifierPool indicates an expected call of SetIdentifierPool
-func (_mr *MockAdminOptionsMockRecorder) SetIdentifierPool(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetIdentifierPool", reflect.TypeOf((*MockAdminOptions)(nil).SetIdentifierPool), arg0)
-}
-
-// IdentifierPool mocks base method
-func (_m *MockAdminOptions) IdentifierPool() ident.Pool {
-	ret := _m.ctrl.Call(_m, "IdentifierPool")
-	ret0, _ := ret[0].(ident.Pool)
-	return ret0
-}
-
-// IdentifierPool indicates an expected call of IdentifierPool
-func (_mr *MockAdminOptionsMockRecorder) IdentifierPool() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "IdentifierPool", reflect.TypeOf((*MockAdminOptions)(nil).IdentifierPool))
-}
-
-// SetHostQueueOpsArrayPoolSize mocks base method
-func (_m *MockAdminOptions) SetHostQueueOpsArrayPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetHostQueueOpsArrayPoolSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetHostQueueOpsArrayPoolSize indicates an expected call of SetHostQueueOpsArrayPoolSize
-func (_mr *MockAdminOptionsMockRecorder) SetHostQueueOpsArrayPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetHostQueueOpsArrayPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetHostQueueOpsArrayPoolSize), arg0)
-}
-
-// HostQueueOpsArrayPoolSize mocks base method
-func (_m *MockAdminOptions) HostQueueOpsArrayPoolSize() int {
-	ret := _m.ctrl.Call(_m, "HostQueueOpsArrayPoolSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// HostQueueOpsArrayPoolSize indicates an expected call of HostQueueOpsArrayPoolSize
-func (_mr *MockAdminOptionsMockRecorder) HostQueueOpsArrayPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "HostQueueOpsArrayPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).HostQueueOpsArrayPoolSize))
-}
-
-// SetSeriesIteratorPoolSize mocks base method
-func (_m *MockAdminOptions) SetSeriesIteratorPoolSize(value int) Options {
-	ret := _m.ctrl.Call(_m, "SetSeriesIteratorPoolSize", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetSeriesIteratorPoolSize indicates an expected call of SetSeriesIteratorPoolSize
-func (_mr *MockAdminOptionsMockRecorder) SetSeriesIteratorPoolSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetSeriesIteratorPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetSeriesIteratorPoolSize), arg0)
-}
-
-// SeriesIteratorPoolSize mocks base method
-func (_m *MockAdminOptions) SeriesIteratorPoolSize() int {
-	ret := _m.ctrl.Call(_m, "SeriesIteratorPoolSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// SeriesIteratorPoolSize indicates an expected call of SeriesIteratorPoolSize
-func (_mr *MockAdminOptionsMockRecorder) SeriesIteratorPoolSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SeriesIteratorPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SeriesIteratorPoolSize))
-}
-
-// SetSeriesIteratorArrayPoolBuckets mocks base method
-func (_m *MockAdminOptions) SetSeriesIteratorArrayPoolBuckets(value []pool.Bucket) Options {
-	ret := _m.ctrl.Call(_m, "SetSeriesIteratorArrayPoolBuckets", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetSeriesIteratorArrayPoolBuckets indicates an expected call of SetSeriesIteratorArrayPoolBuckets
-func (_mr *MockAdminOptionsMockRecorder) SetSeriesIteratorArrayPoolBuckets(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetSeriesIteratorArrayPoolBuckets", reflect.TypeOf((*MockAdminOptions)(nil).SetSeriesIteratorArrayPoolBuckets), arg0)
-}
-
-// SeriesIteratorArrayPoolBuckets mocks base method
-func (_m *MockAdminOptions) SeriesIteratorArrayPoolBuckets() []pool.Bucket {
-	ret := _m.ctrl.Call(_m, "SeriesIteratorArrayPoolBuckets")
-	ret0, _ := ret[0].([]pool.Bucket)
-	return ret0
-}
-
-// SeriesIteratorArrayPoolBuckets indicates an expected call of SeriesIteratorArrayPoolBuckets
-func (_mr *MockAdminOptionsMockRecorder) SeriesIteratorArrayPoolBuckets() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SeriesIteratorArrayPoolBuckets", reflect.TypeOf((*MockAdminOptions)(nil).SeriesIteratorArrayPoolBuckets))
-}
-
-// SetReaderIteratorAllocate mocks base method
-func (_m *MockAdminOptions) SetReaderIteratorAllocate(value encoding.ReaderIteratorAllocate) Options {
-	ret := _m.ctrl.Call(_m, "SetReaderIteratorAllocate", value)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetReaderIteratorAllocate indicates an expected call of SetReaderIteratorAllocate
-func (_mr *MockAdminOptionsMockRecorder) SetReaderIteratorAllocate(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetReaderIteratorAllocate", reflect.TypeOf((*MockAdminOptions)(nil).SetReaderIteratorAllocate), arg0)
-}
-
-// ReaderIteratorAllocate mocks base method
-func (_m *MockAdminOptions) ReaderIteratorAllocate() encoding.ReaderIteratorAllocate {
-	ret := _m.ctrl.Call(_m, "ReaderIteratorAllocate")
-	ret0, _ := ret[0].(encoding.ReaderIteratorAllocate)
-	return ret0
-}
-
-// ReaderIteratorAllocate indicates an expected call of ReaderIteratorAllocate
-func (_mr *MockAdminOptionsMockRecorder) ReaderIteratorAllocate() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "ReaderIteratorAllocate", reflect.TypeOf((*MockAdminOptions)(nil).ReaderIteratorAllocate))
-}
-
-// SetOrigin mocks base method
-func (_m *MockAdminOptions) SetOrigin(value topology.Host) AdminOptions {
-	ret := _m.ctrl.Call(_m, "SetOrigin", value)
-	ret0, _ := ret[0].(AdminOptions)
-	return ret0
-}
-
-// SetOrigin indicates an expected call of SetOrigin
-func (_mr *MockAdminOptionsMockRecorder) SetOrigin(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetOrigin", reflect.TypeOf((*MockAdminOptions)(nil).SetOrigin), arg0)
-}
-
-// Origin mocks base method
-func (_m *MockAdminOptions) Origin() topology.Host {
-	ret := _m.ctrl.Call(_m, "Origin")
-	ret0, _ := ret[0].(topology.Host)
-	return ret0
-}
-
-// Origin indicates an expected call of Origin
-func (_mr *MockAdminOptionsMockRecorder) Origin() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Origin", reflect.TypeOf((*MockAdminOptions)(nil).Origin))
-}
-
-// SetFetchSeriesBlocksMaxBlockRetries mocks base method
-func (_m *MockAdminOptions) SetFetchSeriesBlocksMaxBlockRetries(value int) AdminOptions {
-	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksMaxBlockRetries", value)
-	ret0, _ := ret[0].(AdminOptions)
-	return ret0
-}
-
-// SetFetchSeriesBlocksMaxBlockRetries indicates an expected call of SetFetchSeriesBlocksMaxBlockRetries
-func (_mr *MockAdminOptionsMockRecorder) SetFetchSeriesBlocksMaxBlockRetries(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchSeriesBlocksMaxBlockRetries", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchSeriesBlocksMaxBlockRetries), arg0)
-}
-
-// FetchSeriesBlocksMaxBlockRetries mocks base method
-func (_m *MockAdminOptions) FetchSeriesBlocksMaxBlockRetries() int {
-	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksMaxBlockRetries")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// FetchSeriesBlocksMaxBlockRetries indicates an expected call of FetchSeriesBlocksMaxBlockRetries
-func (_mr *MockAdminOptionsMockRecorder) FetchSeriesBlocksMaxBlockRetries() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchSeriesBlocksMaxBlockRetries", reflect.TypeOf((*MockAdminOptions)(nil).FetchSeriesBlocksMaxBlockRetries))
-}
-
-// SetFetchSeriesBlocksBatchSize mocks base method
-func (_m *MockAdminOptions) SetFetchSeriesBlocksBatchSize(value int) AdminOptions {
-	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksBatchSize", value)
-	ret0, _ := ret[0].(AdminOptions)
-	return ret0
-}
-
-// SetFetchSeriesBlocksBatchSize indicates an expected call of SetFetchSeriesBlocksBatchSize
-func (_mr *MockAdminOptionsMockRecorder) SetFetchSeriesBlocksBatchSize(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchSeriesBlocksBatchSize", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchSeriesBlocksBatchSize), arg0)
-}
-
-// FetchSeriesBlocksBatchSize mocks base method
-func (_m *MockAdminOptions) FetchSeriesBlocksBatchSize() int {
-	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksBatchSize")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// FetchSeriesBlocksBatchSize indicates an expected call of FetchSeriesBlocksBatchSize
-func (_mr *MockAdminOptionsMockRecorder) FetchSeriesBlocksBatchSize() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchSeriesBlocksBatchSize", reflect.TypeOf((*MockAdminOptions)(nil).FetchSeriesBlocksBatchSize))
-}
-
-// SetFetchSeriesBlocksMetadataBatchTimeout mocks base method
-func (_m *MockAdminOptions) SetFetchSeriesBlocksMetadataBatchTimeout(value time.Duration) AdminOptions {
-	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksMetadataBatchTimeout", value)
-	ret0, _ := ret[0].(AdminOptions)
-	return ret0
-}
-
-// SetFetchSeriesBlocksMetadataBatchTimeout indicates an expected call of SetFetchSeriesBlocksMetadataBatchTimeout
-func (_mr *MockAdminOptionsMockRecorder) SetFetchSeriesBlocksMetadataBatchTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchSeriesBlocksMetadataBatchTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchSeriesBlocksMetadataBatchTimeout), arg0)
-}
-
-// FetchSeriesBlocksMetadataBatchTimeout mocks base method
-func (_m *MockAdminOptions) FetchSeriesBlocksMetadataBatchTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksMetadataBatchTimeout")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// FetchSeriesBlocksMetadataBatchTimeout indicates an expected call of FetchSeriesBlocksMetadataBatchTimeout
-func (_mr *MockAdminOptionsMockRecorder) FetchSeriesBlocksMetadataBatchTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchSeriesBlocksMetadataBatchTimeout", reflect.TypeOf((*MockAdminOptions)(nil).FetchSeriesBlocksMetadataBatchTimeout))
-}
-
-// SetFetchSeriesBlocksBatchTimeout mocks base method
-func (_m *MockAdminOptions) SetFetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions {
-	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksBatchTimeout", value)
-	ret0, _ := ret[0].(AdminOptions)
-	return ret0
-}
-
-// SetFetchSeriesBlocksBatchTimeout indicates an expected call of SetFetchSeriesBlocksBatchTimeout
-func (_mr *MockAdminOptionsMockRecorder) SetFetchSeriesBlocksBatchTimeout(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchSeriesBlocksBatchTimeout", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchSeriesBlocksBatchTimeout), arg0)
-}
-
-// FetchSeriesBlocksBatchTimeout mocks base method
-func (_m *MockAdminOptions) FetchSeriesBlocksBatchTimeout() time.Duration {
-	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksBatchTimeout")
-	ret0, _ := ret[0].(time.Duration)
-	return ret0
-}
-
-// FetchSeriesBlocksBatchTimeout indicates an expected call of FetchSeriesBlocksBatchTimeout
-func (_mr *MockAdminOptionsMockRecorder) FetchSeriesBlocksBatchTimeout() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchSeriesBlocksBatchTimeout", reflect.TypeOf((*MockAdminOptions)(nil).FetchSeriesBlocksBatchTimeout))
-}
-
-// SetFetchSeriesBlocksBatchConcurrency mocks base method
-func (_m *MockAdminOptions) SetFetchSeriesBlocksBatchConcurrency(value int) AdminOptions {
-	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksBatchConcurrency", value)
-	ret0, _ := ret[0].(AdminOptions)
-	return ret0
-}
-
-// SetFetchSeriesBlocksBatchConcurrency indicates an expected call of SetFetchSeriesBlocksBatchConcurrency
-func (_mr *MockAdminOptionsMockRecorder) SetFetchSeriesBlocksBatchConcurrency(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetFetchSeriesBlocksBatchConcurrency", reflect.TypeOf((*MockAdminOptions)(nil).SetFetchSeriesBlocksBatchConcurrency), arg0)
-}
-
-// FetchSeriesBlocksBatchConcurrency mocks base method
-func (_m *MockAdminOptions) FetchSeriesBlocksBatchConcurrency() int {
-	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksBatchConcurrency")
-	ret0, _ := ret[0].(int)
-	return ret0
-}
-
-// FetchSeriesBlocksBatchConcurrency indicates an expected call of FetchSeriesBlocksBatchConcurrency
-func (_mr *MockAdminOptionsMockRecorder) FetchSeriesBlocksBatchConcurrency() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchSeriesBlocksBatchConcurrency", reflect.TypeOf((*MockAdminOptions)(nil).FetchSeriesBlocksBatchConcurrency))
-}
-
-// SetStreamBlocksRetrier mocks base method
-func (_m *MockAdminOptions) SetStreamBlocksRetrier(value retry.Retrier) AdminOptions {
-	ret := _m.ctrl.Call(_m, "SetStreamBlocksRetrier", value)
-	ret0, _ := ret[0].(AdminOptions)
-	return ret0
-}
-
-// SetStreamBlocksRetrier indicates an expected call of SetStreamBlocksRetrier
-func (_mr *MockAdminOptionsMockRecorder) SetStreamBlocksRetrier(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetStreamBlocksRetrier", reflect.TypeOf((*MockAdminOptions)(nil).SetStreamBlocksRetrier), arg0)
-}
-
-// StreamBlocksRetrier mocks base method
-func (_m *MockAdminOptions) StreamBlocksRetrier() retry.Retrier {
-	ret := _m.ctrl.Call(_m, "StreamBlocksRetrier")
-	ret0, _ := ret[0].(retry.Retrier)
-	return ret0
-}
-
-// StreamBlocksRetrier indicates an expected call of StreamBlocksRetrier
-func (_mr *MockAdminOptionsMockRecorder) StreamBlocksRetrier() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "StreamBlocksRetrier", reflect.TypeOf((*MockAdminOptions)(nil).StreamBlocksRetrier))
+// closeOnAllProcessed indicates an expected call of closeOnAllProcessed
+func (_mr *MockenqueueChannelMockRecorder) closeOnAllProcessed() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "closeOnAllProcessed", reflect.TypeOf((*MockenqueueChannel)(nil).closeOnAllProcessed))
 }

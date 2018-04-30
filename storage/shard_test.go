@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
@@ -60,19 +61,30 @@ func (i *testIncreasingIndex) nextIndex() uint64 {
 }
 
 func testDatabaseShard(t *testing.T, opts Options) *dbShard {
+	return testDatabaseShardWithIndexFn(t, opts, nil)
+}
+
+func testDatabaseShardWithIndexFn(
+	t *testing.T,
+	opts Options,
+	fn reverseIndexWriteFn,
+) *dbShard {
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
 	nsReaderMgr := newNamespaceReaderManager(metadata, tally.NoopScope, opts)
 	seriesOpts := NewSeriesOptionsFromOptions(opts, defaultTestNs1Opts.RetentionOptions())
 	return newDatabaseShard(metadata, 0, nil, nsReaderMgr,
-		&testIncreasingIndex{}, commitLogWriteNoOp, nil, true, opts, seriesOpts).(*dbShard)
+		&testIncreasingIndex{}, commitLogWriteNoOp, newStubIndexWriter(fn), true, opts, seriesOpts).(*dbShard)
 }
 
-func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, index uint64) *series.MockDatabaseSeries {
+func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, tags ident.Tags, index uint64) *series.MockDatabaseSeries {
 	series := series.NewMockDatabaseSeries(ctrl)
 	series.EXPECT().ID().Return(id).AnyTimes()
+	series.EXPECT().Tags().Return(tags).AnyTimes()
 	series.EXPECT().IsEmpty().Return(false).AnyTimes()
-	shard.lookup[id.Hash()] = shard.list.PushBack(&dbShardEntry{series: series, index: index})
+	shard.Lock()
+	shard.insertNewShardEntryWithLock(&dbShardEntry{series: series, index: index})
+	shard.Unlock()
 	return series
 }
 
@@ -124,8 +136,10 @@ func TestShardBootstrapWithError(t *testing.T) {
 	barSeries := series.NewMockDatabaseSeries(ctrl)
 	barSeries.EXPECT().ID().Return(ident.StringID("bar")).AnyTimes()
 	barSeries.EXPECT().IsEmpty().Return(false).AnyTimes()
-	s.lookup[ident.StringID("foo").Hash()] = s.list.PushBack(&dbShardEntry{series: fooSeries})
-	s.lookup[ident.StringID("bar").Hash()] = s.list.PushBack(&dbShardEntry{series: barSeries})
+	s.Lock()
+	s.insertNewShardEntryWithLock(&dbShardEntry{series: fooSeries})
+	s.insertNewShardEntryWithLock(&dbShardEntry{series: barSeries})
+	s.Unlock()
 
 	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	barBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
@@ -137,10 +151,9 @@ func TestShardBootstrapWithError(t *testing.T) {
 	fooID := ident.StringID("foo")
 	barID := ident.StringID("bar")
 
-	bootstrappedSeries := map[ident.Hash]result.DatabaseSeriesBlocks{
-		fooID.Hash(): {ID: fooID, Blocks: fooBlocks},
-		barID.Hash(): {ID: barID, Blocks: barBlocks},
-	}
+	bootstrappedSeries := result.NewMap(result.MapOptions{})
+	bootstrappedSeries.Set(fooID, result.DatabaseSeriesBlocks{ID: fooID, Blocks: fooBlocks})
+	bootstrappedSeries.Set(barID, result.DatabaseSeriesBlocks{ID: barID, Blocks: barBlocks})
 
 	err := s.Bootstrap(bootstrappedSeries)
 
@@ -167,8 +180,12 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	blockStart := time.Unix(21600, 0)
 	flush := persist.NewMockFlush(ctrl)
 	prepared := persist.PreparedPersist{Persist: nil}
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, nil)
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata: s.namespace,
+		Shard:      s.shard,
+		BlockStart: blockStart,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
 
 	err := s.Flush(blockStart, flush)
 	require.Nil(t, err)
@@ -195,8 +212,12 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 	prepared := persist.PreparedPersist{}
 	expectedErr := errors.New("some error")
 
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, expectedErr)
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata: s.namespace,
+		Shard:      s.shard,
+		BlockStart: blockStart,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, expectedErr)
 
 	actualErr := s.Flush(blockStart, flush)
 	require.NotNil(t, actualErr)
@@ -229,9 +250,12 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		Persist: func(ident.ID, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
 	}
-	expectedErr := errors.New("error foo")
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, expectedErr)
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata: s.namespace,
+		Shard:      s.shard,
+		BlockStart: blockStart,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
@@ -262,7 +286,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	require.True(t, closed)
 	require.NotNil(t, err)
-	require.Equal(t, "error foo\nerror bar", err.Error())
+	require.Equal(t, "error bar", err.Error())
 
 	flushState := s.FlushState(blockStart)
 	require.Equal(t, fileOpState{
@@ -292,8 +316,12 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		Close:   func() error { closed = true; return nil },
 	}
 
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, nil)
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata: s.namespace,
+		Shard:      s.shard,
+		BlockStart: blockStart,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
@@ -328,11 +356,79 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	}, flushState)
 }
 
+func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	blockStart := time.Unix(21600, 0)
+
+	s := testDatabaseShard(t, testDatabaseOptions())
+	defer s.Close()
+	s.bs = bootstrapping
+
+	flush := persist.NewMockFlush(ctrl)
+	err := s.Snapshot(blockStart, blockStart, flush)
+	require.Equal(t, errShardNotBootstrappedToSnapshot, err)
+}
+
+func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	blockStart := time.Unix(21600, 0)
+
+	s := testDatabaseShard(t, testDatabaseOptions())
+	defer s.Close()
+	s.bs = bootstrapped
+
+	var closed bool
+	flush := persist.NewMockFlush(ctrl)
+	prepared := persist.PreparedPersist{
+		Persist: func(ident.ID, ts.Segment, uint32) error { return nil },
+		Close:   func() error { closed = true; return nil },
+	}
+
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata:   s.namespace,
+		Shard:        s.shard,
+		BlockStart:   blockStart,
+		SnapshotTime: blockStart,
+		FilesetType:  persist.FilesetSnapshotType,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
+
+	snapshotted := make(map[int]struct{})
+	for i := 0; i < 2; i++ {
+		i := i
+		series := series.NewMockDatabaseSeries(ctrl)
+		series.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
+		series.EXPECT().IsEmpty().Return(false).AnyTimes()
+		series.EXPECT().
+			Snapshot(gomock.Any(), blockStart, gomock.Any()).
+			Do(func(context.Context, time.Time, persist.Fn) {
+				snapshotted[i] = struct{}{}
+			}).
+			Return(nil)
+		s.list.PushBack(&dbShardEntry{series: series})
+	}
+
+	err := s.Snapshot(blockStart, blockStart, flush)
+
+	require.Equal(t, len(snapshotted), 2)
+	for i := 0; i < 2; i++ {
+		_, ok := snapshotted[i]
+		require.True(t, ok)
+	}
+
+	require.True(t, closed)
+	require.Nil(t, err)
+}
+
 func addMockTestSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID) *series.MockDatabaseSeries {
 	series := series.NewMockDatabaseSeries(ctrl)
 	series.EXPECT().ID().AnyTimes().Return(id)
 	shard.Lock()
-	shard.lookup[id.Hash()] = shard.list.PushBack(&dbShardEntry{series: series})
+	shard.insertNewShardEntryWithLock(&dbShardEntry{series: series})
 	shard.Unlock()
 	return series
 }
@@ -342,11 +438,10 @@ func addTestSeries(shard *dbShard, id ident.ID) series.DatabaseSeries {
 }
 
 func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.DatabaseSeries {
-	series := series.NewDatabaseSeries(id, shard.seriesOpts)
+	series := series.NewDatabaseSeries(id, nil, shard.seriesOpts)
 	series.Bootstrap(nil)
 	shard.Lock()
-	shard.lookup[id.Hash()] = shard.list.PushBack(&dbShardEntry{
-		series: series, curReadWriters: count})
+	shard.insertNewShardEntryWithLock(&dbShardEntry{series: series, curReadWriters: count})
 	shard.Unlock()
 	return series
 }
@@ -521,7 +616,7 @@ func TestShardTickRace(t *testing.T) {
 	wg.Wait()
 
 	shard.RLock()
-	shardlen := len(shard.lookup)
+	shardlen := shard.lookup.Len()
 	shard.RUnlock()
 	require.Equal(t, 0, shardlen)
 }
@@ -533,7 +628,7 @@ func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	addTestSeries(shard, ident.StringID("foo"))
 	shard.Tick(context.NewNoOpCanncellable())
-	require.Equal(t, 0, len(shard.lookup))
+	require.Equal(t, 0, shard.lookup.Len())
 }
 
 // This tests ensures the shard returns an error if two ticks are triggered concurrently.
@@ -659,7 +754,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 	shard.Tick(context.NewNoOpCanncellable())
 
 	shard.RLock()
-	require.Equal(t, 0, len(shard.lookup))
+	require.Equal(t, 0, shard.lookup.Len())
 	shard.RUnlock()
 }
 
@@ -688,7 +783,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	id := ident.StringID("foo")
-	s := addMockSeries(ctrl, shard, id, 0)
+	s := addMockSeries(ctrl, shard, id, nil, 0)
 	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place just after tick for this series
 		s.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
@@ -702,7 +797,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
-	require.Equal(t, 1, len(shard.lookup))
+	require.Equal(t, 1, shard.lookup.Len())
 }
 
 // This tests the scenario where tickForEachSeries finishes, and before purgeExpiredSeries
@@ -718,11 +813,11 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	id := ident.StringID("foo")
-	s := addMockSeries(ctrl, shard, id, 0)
+	s := addMockSeries(ctrl, shard, id, nil, 0)
 	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place and staying open just after tick for this series
 		var err error
-		entry, err = shard.writableSeries(id)
+		entry, err = shard.writableSeries(id, ident.EmptyTagIterator)
 		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
@@ -730,10 +825,10 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
-	require.Equal(t, 1, len(shard.lookup))
+	require.Equal(t, 1, shard.lookup.Len())
 
 	entry.decrementReaderWriterCount()
-	require.Equal(t, 1, len(shard.lookup))
+	require.Equal(t, 1, shard.lookup.Len())
 }
 
 func TestForEachShardEntry(t *testing.T) {
@@ -794,7 +889,7 @@ func TestShardFetchBlocksIDExists(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	id := ident.StringID("foo")
-	series := addMockSeries(ctrl, shard, id, 0)
+	series := addMockSeries(ctrl, shard, id, nil, 0)
 	now := time.Now()
 	starts := []time.Time{now}
 	expected := []block.FetchBlockResult{block.NewFetchBlockResult(now, nil, nil)}
@@ -818,6 +913,89 @@ func TestShardCleanupFileset(t *testing.T) {
 	}
 	require.NoError(t, shard.CleanupFileset(time.Now()))
 	require.Equal(t, []string{defaultTestNs1ID.String(), "0"}, deletedFiles)
+}
+
+func TestShardCleanupSnapshot(t *testing.T) {
+	var (
+		opts                = testDatabaseOptions()
+		shard               = testDatabaseShard(t, opts)
+		blockSize           = 2 * time.Hour
+		now                 = time.Now().Truncate(blockSize)
+		earliestToRetain    = now.Add(-4 * blockSize)
+		pastRetention       = earliestToRetain.Add(-blockSize)
+		successfullyFlushed = earliestToRetain
+		notFlushedYet       = earliestToRetain.Add(blockSize)
+	)
+
+	shard.markFlushStateSuccess(earliestToRetain)
+	defer shard.Close()
+
+	shard.snapshotFilesFn = func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.SnapshotFilesSlice, error) {
+		return fs.SnapshotFilesSlice{
+			// Should get removed for not being in retention period
+			fs.SnapshotFile{
+				FilesetFile: fs.FilesetFile{
+					ID: fs.FilesetFileIdentifier{
+						Namespace:  namespace,
+						Shard:      shard,
+						BlockStart: pastRetention,
+						Index:      0,
+					},
+					AbsoluteFilepaths: []string{"not-in-retention"},
+				},
+			},
+			// Should get removed for being flushed
+			fs.SnapshotFile{
+				FilesetFile: fs.FilesetFile{
+					ID: fs.FilesetFileIdentifier{
+						Namespace:  namespace,
+						Shard:      shard,
+						BlockStart: successfullyFlushed,
+						Index:      0,
+					},
+					AbsoluteFilepaths: []string{"successfully-flushed"},
+				},
+			},
+			// Should not get removed - Note that this entry precedes the
+			// next in order to ensure that the sorting logic works correctly.
+			fs.SnapshotFile{
+				FilesetFile: fs.FilesetFile{
+					ID: fs.FilesetFileIdentifier{
+						Namespace:  namespace,
+						Shard:      shard,
+						BlockStart: notFlushedYet,
+						Index:      1,
+					},
+					// Note this filename needs to contain the word "checkpoint" to
+					// pass the HasCheckpointFile() check
+					AbsoluteFilepaths: []string{"latest-index-and-has-checkpoint"},
+				},
+			},
+			// Should get removed because the next one has a higher index
+			fs.SnapshotFile{
+				FilesetFile: fs.FilesetFile{
+					ID: fs.FilesetFileIdentifier{
+						Namespace:  namespace,
+						Shard:      shard,
+						BlockStart: notFlushedYet,
+						Index:      0,
+					},
+					AbsoluteFilepaths: []string{"not-latest-index"},
+				},
+			},
+		}, nil
+	}
+
+	deletedFiles := []string{}
+	shard.deleteFilesFn = func(files []string) error {
+		deletedFiles = append(deletedFiles, files...)
+		return nil
+	}
+	require.NoError(t, shard.CleanupSnapshots(earliestToRetain))
+
+	expectedDeletedFiles := []string{
+		"not-in-retention", "successfully-flushed", "not-latest-index"}
+	require.Equal(t, expectedDeletedFiles, deletedFiles)
 }
 
 type testCloser struct {
@@ -948,6 +1126,37 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 
 	assert.False(t, entry.series.IsEmpty())
 	assert.Equal(t, 2, entry.series.NumActiveBlocks())
+}
+
+func TestShardNewInvalidShardEntry(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	shard := testDatabaseShard(t, testDatabaseOptions())
+	defer shard.Close()
+
+	iter := ident.NewMockTagIterator(ctrl)
+	gomock.InOrder(
+		iter.EXPECT().Duplicate().Return(iter),
+		iter.EXPECT().Remaining().Return(0),
+		iter.EXPECT().Next().Return(false),
+		iter.EXPECT().Err().Return(fmt.Errorf("random err")),
+		iter.EXPECT().Close(),
+	)
+
+	_, err := shard.newShardEntry(ident.StringID("abc"), iter)
+	require.Error(t, err)
+}
+
+func TestShardNewValidShardEntry(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	shard := testDatabaseShard(t, testDatabaseOptions())
+	defer shard.Close()
+
+	_, err := shard.newShardEntry(ident.StringID("abc"), ident.EmptyTagIterator)
+	require.NoError(t, err)
 }
 
 func TestShardIterateBatchSize(t *testing.T) {

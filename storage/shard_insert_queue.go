@@ -97,8 +97,10 @@ type dbShardInsertBatch struct {
 type dbShardInsertAsyncOptions struct {
 	pendingWrite          dbShardPendingWrite
 	pendingRetrievedBlock dbShardPendingRetrievedBlock
+	pendingIndex          dbShardPendingIndex
 
 	hasPendingWrite          bool
+	hasPendingIndexing       bool
 	hasPendingRetrievedBlock bool
 }
 
@@ -114,6 +116,10 @@ type dbShardPendingWrite struct {
 	value      float64
 	unit       xtime.Unit
 	annotation []byte
+}
+
+type dbShardPendingIndex struct {
+	timestamp time.Time
 }
 
 type dbShardPendingRetrievedBlock struct {

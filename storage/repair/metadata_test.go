@@ -96,13 +96,13 @@ func TestReplicaSeriesMetadataGetOrAdd(t *testing.T) {
 	// Add a series
 	m.GetOrAdd(ident.StringID("foo"))
 	series := m.Series()
-	require.Equal(t, 1, len(series))
-	_, exists := series[ident.StringID("foo").Hash()]
+	require.Equal(t, 1, series.Len())
+	_, exists := series.Get(ident.StringID("foo"))
 	require.True(t, exists)
 
 	// Add the same series and check we don't add new series
 	m.GetOrAdd(ident.StringID("foo"))
-	require.Equal(t, 1, len(m.Series()))
+	require.Equal(t, 1, m.Series().Len())
 }
 
 type testBlock struct {
@@ -115,7 +115,8 @@ func assertEqual(t *testing.T, expected []testBlock, actual ReplicaSeriesMetadat
 	require.Equal(t, len(expected), int(actual.NumBlocks()))
 
 	for _, b := range expected {
-		series := actual.Series()[b.id.Hash()]
+		series, ok := actual.Series().Get(b.id)
+		require.True(t, ok)
 		blocks := series.Metadata.Blocks()[xtime.ToUnixNano(b.ts)]
 		require.Equal(t, b.blocks, blocks.Metadata())
 	}
@@ -128,22 +129,19 @@ func TestReplicaMetadataComparerAddLocalMetadata(t *testing.T) {
 	origin := topology.NewHost("foo", "addrFoo")
 	now := time.Now()
 	localIter := block.NewMockFilteredBlocksMetadataIter(ctrl)
-	inputBlocks := []struct {
-		id   ident.ID
-		meta block.Metadata
-	}{
-		{ident.StringID("foo"), block.NewMetadata(now, int64(0), new(uint32), time.Time{})},
-		{ident.StringID("foo"), block.NewMetadata(now.Add(time.Second), int64(2), new(uint32), time.Time{})},
-		{ident.StringID("bar"), block.NewMetadata(now, int64(4), nil, time.Time{})},
+	inputBlocks := []block.Metadata{
+		block.NewMetadata(ident.StringID("foo"), now, int64(0), new(uint32), time.Time{}),
+		block.NewMetadata(ident.StringID("foo"), now.Add(time.Second), int64(2), new(uint32), time.Time{}),
+		block.NewMetadata(ident.StringID("bar"), now, int64(4), nil, time.Time{}),
 	}
 
 	gomock.InOrder(
 		localIter.EXPECT().Next().Return(true),
-		localIter.EXPECT().Current().Return(inputBlocks[0].id, inputBlocks[0].meta),
+		localIter.EXPECT().Current().Return(inputBlocks[0].ID, inputBlocks[0]),
 		localIter.EXPECT().Next().Return(true),
-		localIter.EXPECT().Current().Return(inputBlocks[1].id, inputBlocks[1].meta),
+		localIter.EXPECT().Current().Return(inputBlocks[1].ID, inputBlocks[1]),
 		localIter.EXPECT().Next().Return(true),
-		localIter.EXPECT().Current().Return(inputBlocks[2].id, inputBlocks[2].meta),
+		localIter.EXPECT().Current().Return(inputBlocks[2].ID, inputBlocks[2]),
 		localIter.EXPECT().Next().Return(false),
 	)
 
@@ -151,9 +149,9 @@ func TestReplicaMetadataComparerAddLocalMetadata(t *testing.T) {
 	m.AddLocalMetadata(origin, localIter)
 
 	expected := []testBlock{
-		{inputBlocks[0].id, inputBlocks[0].meta.Start, []HostBlockMetadata{{origin, inputBlocks[0].meta.Size, inputBlocks[0].meta.Checksum}}},
-		{inputBlocks[1].id, inputBlocks[1].meta.Start, []HostBlockMetadata{{origin, inputBlocks[1].meta.Size, inputBlocks[1].meta.Checksum}}},
-		{inputBlocks[2].id, inputBlocks[2].meta.Start, []HostBlockMetadata{{origin, inputBlocks[2].meta.Size, inputBlocks[2].meta.Checksum}}},
+		{inputBlocks[0].ID, inputBlocks[0].Start, []HostBlockMetadata{{origin, inputBlocks[0].Size, inputBlocks[0].Checksum}}},
+		{inputBlocks[1].ID, inputBlocks[1].Start, []HostBlockMetadata{{origin, inputBlocks[1].Size, inputBlocks[1].Checksum}}},
+		{inputBlocks[2].ID, inputBlocks[2].Start, []HostBlockMetadata{{origin, inputBlocks[2].Size, inputBlocks[2].Checksum}}},
 	}
 	assertEqual(t, expected, m.metadata)
 }
@@ -163,34 +161,30 @@ func TestReplicaMetadataComparerAddPeerMetadata(t *testing.T) {
 	defer ctrl.Finish()
 
 	now := time.Now()
-	peerIter := client.NewMockPeerBlocksMetadataIter(ctrl)
+	peerIter := client.NewMockPeerBlockMetadataIter(ctrl)
 	inputBlocks := []struct {
 		host topology.Host
-		meta block.BlocksMetadata
+		meta block.Metadata
 	}{
 		{
 			host: topology.NewHost("1", "addr1"),
-			meta: block.NewBlocksMetadata(ident.StringID("foo"), []block.Metadata{
-				block.NewMetadata(now, int64(0), new(uint32), time.Time{}),
-			}),
+			meta: block.NewMetadata(ident.StringID("foo"), now,
+				int64(0), new(uint32), time.Time{}),
 		},
 		{
 			host: topology.NewHost("1", "addr1"),
-			meta: block.NewBlocksMetadata(ident.StringID("foo"), []block.Metadata{
-				block.NewMetadata(now.Add(time.Second), int64(1), new(uint32), time.Time{}),
-			}),
+			meta: block.NewMetadata(ident.StringID("foo"), now.Add(time.Second),
+				int64(1), new(uint32), time.Time{}),
 		},
 		{
 			host: topology.NewHost("2", "addr2"),
-			meta: block.NewBlocksMetadata(ident.StringID("foo"), []block.Metadata{
-				block.NewMetadata(now, int64(2), nil, time.Time{}),
-			}),
+			meta: block.NewMetadata(ident.StringID("foo"), now,
+				int64(2), nil, time.Time{}),
 		},
 		{
 			host: topology.NewHost("2", "addr2"),
-			meta: block.NewBlocksMetadata(ident.StringID("bar"), []block.Metadata{
-				block.NewMetadata(now.Add(time.Second), int64(3), nil, time.Time{}),
-			}),
+			meta: block.NewMetadata(ident.StringID("bar"), now.Add(time.Second),
+				int64(3), nil, time.Time{}),
 		},
 	}
 	expectedErr := errors.New("some error")
@@ -212,15 +206,15 @@ func TestReplicaMetadataComparerAddPeerMetadata(t *testing.T) {
 	require.Equal(t, expectedErr, m.AddPeerMetadata(peerIter))
 
 	expected := []testBlock{
-		{ident.StringID("foo"), inputBlocks[0].meta.Blocks[0].Start, []HostBlockMetadata{
-			{inputBlocks[0].host, inputBlocks[0].meta.Blocks[0].Size, inputBlocks[0].meta.Blocks[0].Checksum},
-			{inputBlocks[2].host, inputBlocks[2].meta.Blocks[0].Size, inputBlocks[2].meta.Blocks[0].Checksum},
+		{ident.StringID("foo"), inputBlocks[0].meta.Start, []HostBlockMetadata{
+			{inputBlocks[0].host, inputBlocks[0].meta.Size, inputBlocks[0].meta.Checksum},
+			{inputBlocks[2].host, inputBlocks[2].meta.Size, inputBlocks[2].meta.Checksum},
 		}},
-		{ident.StringID("foo"), inputBlocks[1].meta.Blocks[0].Start, []HostBlockMetadata{
-			{inputBlocks[1].host, inputBlocks[1].meta.Blocks[0].Size, inputBlocks[1].meta.Blocks[0].Checksum},
+		{ident.StringID("foo"), inputBlocks[1].meta.Start, []HostBlockMetadata{
+			{inputBlocks[1].host, inputBlocks[1].meta.Size, inputBlocks[1].meta.Checksum},
 		}},
-		{ident.StringID("bar"), inputBlocks[3].meta.Blocks[0].Start, []HostBlockMetadata{
-			{inputBlocks[3].host, inputBlocks[3].meta.Blocks[0].Size, inputBlocks[3].meta.Blocks[0].Checksum},
+		{ident.StringID("bar"), inputBlocks[3].meta.Start, []HostBlockMetadata{
+			{inputBlocks[3].host, inputBlocks[3].meta.Size, inputBlocks[3].meta.Checksum},
 		}},
 	}
 	assertEqual(t, expected, m.metadata)
@@ -233,6 +227,8 @@ func TestReplicaMetadataComparerCompare(t *testing.T) {
 	)
 
 	metadata := NewReplicaSeriesMetadata()
+	defer metadata.Close()
+
 	inputs := []struct {
 		host        topology.Host
 		id          string

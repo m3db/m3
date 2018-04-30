@@ -23,11 +23,12 @@ package xpool
 import (
 	"testing"
 
+	"github.com/m3db/m3x/pool"
 	"github.com/stretchr/testify/require"
 )
 
 func testPool() CheckedBytesWrapperPool {
-	p := NewCheckedBytesWrapperPool(1)
+	p := NewCheckedBytesWrapperPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init()
 	return p
 }
@@ -39,12 +40,12 @@ func TestCheckedBytesWrapperPool(t *testing.T) {
 	cb := pool.Get(initBytes)
 
 	cb.IncRef()
-	require.Equal(t, initBytes, cb.Get())
+	require.Equal(t, initBytes, cb.Bytes())
 	cb.DecRef()
 
 	cb.Finalize()
 	cb.IncRef()
-	require.Nil(t, cb.Get())
+	require.Nil(t, cb.Bytes())
 	cb.DecRef()
 	require.Equal(t, []byte("some-string"), initBytes)
 }

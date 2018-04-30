@@ -325,7 +325,7 @@ func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 
 func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
-		namespace.NewOptions().SetNeedsBootstrap(false))
+		namespace.NewOptions().SetBootstrapEnabled(false))
 	defer closer()
 	require.NoError(t, ns.Bootstrap(nil, nil))
 	require.Equal(t, bootstrapped, ns.bs)
@@ -358,7 +358,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
-		shard.EXPECT().Bootstrap(nil).Return(errs[i])
+		shard.EXPECT().Bootstrap(gomock.Any()).Return(errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
@@ -405,7 +405,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
 		shard.EXPECT().ID().Return(testShard.ID()).AnyTimes()
-		shard.EXPECT().Bootstrap(nil).Return(nil)
+		shard.EXPECT().Bootstrap(gomock.Any()).Return(nil)
 		ns.shards[testShard.ID()] = shard
 	}
 	for _, testShard := range alreadyBootstrapped {
@@ -425,9 +425,10 @@ func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 }
 
 func TestNamespaceFlushDontNeedFlush(t *testing.T) {
-	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
-		namespace.NewOptions().SetNeedsFlush(false))
-	defer closer()
+	ns, close := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
+		namespace.NewOptions().SetFlushEnabled(false))
+	defer close()
+
 	ns.bs = bootstrapped
 	require.NoError(t, ns.Flush(time.Now(), nil))
 }
@@ -461,7 +462,77 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 	require.NoError(t, ns.Flush(blockStart, nil))
 }
 
-func TestNamespaceFlushAllShards(t *testing.T) {
+type snapshotTestCase struct {
+	isSnapshotting   bool
+	expectSnapshot   bool
+	lastSnapshotTime func(blockStart time.Time, blockSize time.Duration) time.Time
+	snapshotErr      error
+}
+
+func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	ns, close := newTestNamespace(t)
+	defer close()
+
+	ns.bs = bootstrapping
+
+	blockSize := ns.Options().RetentionOptions().BlockSize()
+	blockStart := time.Now().Truncate(blockSize)
+	require.Equal(t, errNamespaceNotBootstrapped, ns.Snapshot(blockStart, blockStart, nil))
+}
+
+func TestNamespaceSnapshotNotEnoughTimeSinceLastSnapshot(t *testing.T) {
+	shardMethodResults := []snapshotTestCase{
+		snapshotTestCase{
+			isSnapshotting: false,
+			expectSnapshot: false,
+			lastSnapshotTime: func(curr time.Time, blockSize time.Duration) time.Time {
+				return curr
+			},
+			snapshotErr: nil,
+		},
+		snapshotTestCase{
+			isSnapshotting: false,
+			expectSnapshot: true,
+			lastSnapshotTime: func(curr time.Time, blockSize time.Duration) time.Time {
+				return curr.Add(-2 * defaultMinSnapshotInterval)
+			},
+			snapshotErr: nil,
+		},
+	}
+	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
+}
+
+func TestNamespaceSnapshotShardIsSnapshotting(t *testing.T) {
+	shardMethodResults := []snapshotTestCase{
+		snapshotTestCase{isSnapshotting: false, snapshotErr: nil, expectSnapshot: true},
+		snapshotTestCase{isSnapshotting: true, snapshotErr: nil, expectSnapshot: false},
+	}
+	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
+}
+
+func TestNamespaceSnapshotAllShardsSuccess(t *testing.T) {
+	shardMethodResults := []snapshotTestCase{
+		snapshotTestCase{isSnapshotting: false, snapshotErr: nil, expectSnapshot: true},
+		snapshotTestCase{isSnapshotting: false, snapshotErr: nil, expectSnapshot: true},
+	}
+	require.NoError(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
+}
+
+func TestNamespaceSnapshotShardError(t *testing.T) {
+	shardMethodResults := []snapshotTestCase{
+		snapshotTestCase{isSnapshotting: false, snapshotErr: nil, expectSnapshot: true},
+		snapshotTestCase{isSnapshotting: false, snapshotErr: errors.New("err"), expectSnapshot: true},
+	}
+	require.Error(t, testSnapshotWithShardSnapshotErrs(t, shardMethodResults))
+}
+
+func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapshotTestCase) error {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -471,20 +542,30 @@ func TestNamespaceFlushAllShards(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	ns.bs = bootstrapped
-	blockStart := time.Now().Truncate(ns.Options().RetentionOptions().BlockSize())
+	now := time.Now()
+	ns.nowFn = func() time.Time {
+		return now
+	}
+	blockSize := ns.Options().RetentionOptions().BlockSize()
+	blockStart := now.Truncate(blockSize)
 
-	errs := []error{nil, errors.New("foo")}
-	for i := range errs {
+	for i, tc := range shardMethodResults {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().FlushState(blockStart).Return(fileOpState{Status: fileOpNotStarted})
-		shard.EXPECT().Flush(blockStart, nil).Return(errs[i])
-		if errs[i] != nil {
-			shard.EXPECT().ID().Return(testShardIDs[i].ID())
+		var lastSnapshotTime time.Time
+		if tc.lastSnapshotTime == nil {
+			lastSnapshotTime = blockStart.Add(-blockSize)
+		} else {
+			lastSnapshotTime = tc.lastSnapshotTime(now, blockSize)
+		}
+		shard.EXPECT().SnapshotState().Return(tc.isSnapshotting, lastSnapshotTime)
+		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
+		if tc.expectSnapshot {
+			shard.EXPECT().Snapshot(blockStart, now, nil).Return(tc.snapshotErr)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
-	require.Error(t, ns.Flush(blockStart, nil))
+	return ns.Snapshot(blockStart, now, nil)
 }
 
 func TestNamespaceTruncate(t *testing.T) {
@@ -1002,6 +1083,7 @@ func TestNamespaceIndexInsert(t *testing.T) {
 	require.NoError(t, err)
 
 	shard.EXPECT().Close()
+	idx.EXPECT().Close().Return(nil)
 	require.NoError(t, ns.Close())
 }
 
@@ -1021,6 +1103,7 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	_, err := ns.QueryIDs(ctx, query, opts)
 	require.NoError(t, err)
 
+	idx.EXPECT().Close().Return(nil)
 	require.NoError(t, ns.Close())
 }
 

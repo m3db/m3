@@ -5,6 +5,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3x/ident"
 )
@@ -31,7 +32,16 @@ func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duratio
 	if err != nil {
 		return fmt.Errorf("unable to create fileset reader: %v", err)
 	}
-	if err := reader.Open(ident.StringID(src.Namespace), src.Shard, src.Blockstart); err != nil {
+	openOpts := fs.ReaderOpenOptions{
+		Identifier: fs.FilesetFileIdentifier{
+			Namespace:  ident.StringID(src.Namespace),
+			Shard:      src.Shard,
+			BlockStart: src.Blockstart,
+		},
+		FilesetType: persist.FilesetFlushType,
+	}
+
+	if err := reader.Open(openOpts); err != nil {
 		return fmt.Errorf("unable to read source fileset: %v", err)
 	}
 
@@ -39,7 +49,15 @@ func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duratio
 	if err != nil {
 		return fmt.Errorf("unable to create fileset writer: %v", err)
 	}
-	if err := writer.Open(ident.StringID(dest.Namespace), destBlocksize, dest.Shard, dest.Blockstart); err != nil {
+	writerOpts := fs.WriterOpenOptions{
+		BlockSize: destBlocksize,
+		Identifier: fs.FilesetFileIdentifier{
+			Namespace:  ident.StringID(dest.Namespace),
+			Shard:      dest.Shard,
+			BlockStart: dest.Blockstart,
+		},
+	}
+	if err := writer.Open(writerOpts); err != nil {
 		return fmt.Errorf("unable to open fileset writer: %v", err)
 	}
 

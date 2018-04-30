@@ -55,8 +55,8 @@ type ShardResult interface {
 	// or nil if there is no such block.
 	BlockAt(id ident.ID, t time.Time) (block.DatabaseBlock, bool)
 
-	// AllSeries returns all series of blocks.
-	AllSeries() map[ident.Hash]DatabaseSeriesBlocks
+	// AllSeries returns a map of all series with their associated blocks.
+	AllSeries() *Map
 
 	// NumSeries returns the number of distinct series'.
 	NumSeries() int64

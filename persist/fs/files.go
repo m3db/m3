@@ -42,10 +42,116 @@ var timeZero time.Time
 
 const (
 	dataDirName       = "data"
+	snapshotDirName   = "snapshots"
 	commitLogsDirName = "commitlogs"
+
+	commitLogComponentPosition = 2
+	snapshotComponentPosition  = 3
 )
 
 type fileOpener func(filePath string) (*os.File, error)
+
+// FilesetFile represents a set of Fileset files for a given block start
+type FilesetFile struct {
+	ID                FilesetFileIdentifier
+	AbsoluteFilepaths []string
+}
+
+// FilesetFilesSlice is a slice of FilesetFile
+type FilesetFilesSlice []FilesetFile
+
+// Filepaths flattens a slice of FilesetFiles to a single slice of filepaths.
+// All paths returned are absolute.
+func (f FilesetFilesSlice) Filepaths() []string {
+	flattened := []string{}
+	for _, fileset := range f {
+		flattened = append(flattened, fileset.AbsoluteFilepaths...)
+	}
+
+	return flattened
+}
+
+// NewFilesetFile creates a new Fileset file
+func NewFilesetFile(id FilesetFileIdentifier) FilesetFile {
+	return FilesetFile{
+		ID:                id,
+		AbsoluteFilepaths: []string{},
+	}
+}
+
+// SnapshotFile represents a set of Snapshot files for a given block start
+type SnapshotFile struct {
+	FilesetFile
+}
+
+// HasCheckpointFile returns a bool indicating whether the given set of
+// snapshot files has a checkpoint file.
+func (s SnapshotFile) HasCheckpointFile() bool {
+	for _, fileName := range s.AbsoluteFilepaths {
+		if strings.Contains(fileName, checkpointFileSuffix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// SnapshotFilesSlice is a slice of SnapshotFile
+type SnapshotFilesSlice []SnapshotFile
+
+// Filepaths flattens a slice of SnapshotFiles to a single slice of filepaths.
+// All paths returned are absolute.
+func (f SnapshotFilesSlice) Filepaths() []string {
+	flattened := []string{}
+	for _, snapshot := range f {
+		flattened = append(flattened, snapshot.AbsoluteFilepaths...)
+	}
+
+	return flattened
+}
+
+// LatestForBlock returns the latest (highest index) SnapshotFile in the
+// slice for a given block start.
+func (f SnapshotFilesSlice) LatestForBlock(blockStart time.Time) (SnapshotFile, bool) {
+	// Make sure we're already sorted
+	f.sortByTimeAndIndexAscending()
+
+	for i, curr := range f {
+		if curr.ID.BlockStart.Equal(blockStart) {
+			isEnd := i == len(f)-1
+			isHighestIdx := true
+			if !isEnd {
+				next := f[i+1]
+				if next.ID.BlockStart.Equal(blockStart) && next.ID.Index > curr.ID.Index {
+					isHighestIdx = false
+				}
+			}
+
+			if isEnd || isHighestIdx {
+				return curr, true
+			}
+		}
+	}
+
+	return SnapshotFile{}, false
+}
+
+func (f SnapshotFilesSlice) sortByTimeAndIndexAscending() {
+	sort.Slice(f, func(i, j int) bool {
+		if f[i].ID.BlockStart.Equal(f[j].ID.BlockStart) {
+			return f[i].ID.Index < f[j].ID.Index
+		}
+
+		return f[i].ID.BlockStart.Before(f[j].ID.BlockStart)
+	})
+}
+
+// NewSnapshotFile creates a new Snapshot file
+func NewSnapshotFile(id FilesetFileIdentifier) SnapshotFile {
+	return SnapshotFile{
+		FilesetFile: NewFilesetFile(id),
+	}
+}
 
 func openFiles(opener fileOpener, fds map[string]**os.File) error {
 	var firstErr error
@@ -122,16 +228,30 @@ func (a byTimeAscending) Less(i, j int) bool {
 	return ti.Before(tj)
 }
 
-// byTimeAndIndexAscending sorts files by their block start times and index in ascending
-// order. If the files do not have block start times or indexes in their names, the result
-// is undefined.
-type byTimeAndIndexAscending []string
+// commitlogsByTimeAndIndexAscending sorts commitlogs by their block start times and index in ascending
+// order. If the files do not have block start times or indexes in their names, the result is undefined.
+type commitlogsByTimeAndIndexAscending []string
 
-func (a byTimeAndIndexAscending) Len() int      { return len(a) }
-func (a byTimeAndIndexAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a byTimeAndIndexAscending) Less(i, j int) bool {
-	ti, ii, _ := TimeAndIndexFromFileName(a[i])
-	tj, ij, _ := TimeAndIndexFromFileName(a[j])
+func (a commitlogsByTimeAndIndexAscending) Len() int      { return len(a) }
+func (a commitlogsByTimeAndIndexAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a commitlogsByTimeAndIndexAscending) Less(i, j int) bool {
+	ti, ii, _ := TimeAndIndexFromCommitlogFilename(a[i])
+	tj, ij, _ := TimeAndIndexFromCommitlogFilename(a[j])
+	if ti.Before(tj) {
+		return true
+	}
+	return ti.Equal(tj) && ii < ij
+}
+
+// snapshotsByTimeAndIndexAscending sorts snapshots by their block start times and index in ascending
+// order. If the files do not have block start times or indexes in their names, the result is undefined.
+type snapshotsByTimeAndIndexAscending []string
+
+func (a snapshotsByTimeAndIndexAscending) Len() int      { return len(a) }
+func (a snapshotsByTimeAndIndexAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a snapshotsByTimeAndIndexAscending) Less(i, j int) bool {
+	ti, ii, _ := TimeAndIndexFromSnapshotFilename(a[i])
+	tj, ij, _ := TimeAndIndexFromSnapshotFilename(a[j])
 	if ti.Before(tj) {
 		return true
 	}
@@ -157,13 +277,27 @@ func TimeFromFileName(fname string) (time.Time, error) {
 	return t, err
 }
 
-// TimeAndIndexFromFileName extracts the block start and index from file name.
-func TimeAndIndexFromFileName(fname string) (time.Time, int, error) {
+// TimeAndIndexFromCommitlogFilename extracts the block start and index from file name for a commitlog.
+func TimeAndIndexFromCommitlogFilename(fname string) (time.Time, int, error) {
+	return timeAndIndexFromFileName(fname, commitLogComponentPosition)
+}
+
+// TimeAndIndexFromSnapshotFilename extracts the block start and index from file name for a Snapshot.
+func TimeAndIndexFromSnapshotFilename(fname string) (time.Time, int, error) {
+	return timeAndIndexFromFileName(fname, snapshotComponentPosition)
+}
+
+func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, int, error) {
 	components, t, err := componentsAndTimeFromFileName(fname)
 	if err != nil {
 		return timeZero, 0, err
 	}
-	str := strings.Replace(components[2], fileSuffix, "", 1)
+
+	if componentPosition > len(components)-1 {
+		return timeZero, 0, fmt.Errorf("malformed filename: %s", fname)
+	}
+
+	str := strings.Replace(components[componentPosition], fileSuffix, "", 1)
 	index, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
 		return timeZero, 0, err
@@ -179,13 +313,10 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 		return
 	}
 
-	shardDir := ShardDirPath(filePathPrefix, namespace, shard)
+	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
 	digestBuf := digest.NewBuffer()
 	for i := range matched {
-		t, err := TimeFromFileName(matched[i])
-		if err != nil {
-			continue
-		}
+		t := matched[i].ID.BlockStart
 		checkpointFilePath := filesetPathFromTime(shardDir, t, checkpointFileSuffix)
 		if !FileExists(checkpointFilePath) {
 			continue
@@ -211,29 +342,71 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 		if err != nil {
 			continue
 		}
-		fn(matched[i], infoData)
+		if len(matched[i].AbsoluteFilepaths) != 1 {
+			continue
+		}
+
+		fn(matched[i].AbsoluteFilepaths[0], infoData)
 	}
 }
 
-// ReadInfoFiles reads all the valid info entries.
+// ReadInfoFileResult is the result of reading an info file
+type ReadInfoFileResult struct {
+	Info schema.IndexInfo
+	Err  ReadInfoFileResultError
+}
+
+// ReadInfoFileResultError is the interface for obtaining information about an error
+// that occurred trying to read an info file
+type ReadInfoFileResultError interface {
+	Error() error
+	Filepath() string
+}
+
+type readInfoFileResultError struct {
+	err      error
+	filepath string
+}
+
+// Error returns the error that occurred reading the info file
+func (r readInfoFileResultError) Error() error {
+	return r.err
+}
+
+// FilePath returns the filepath for the problematic file
+func (r readInfoFileResultError) Filepath() string {
+	return r.filepath
+}
+
+// ReadInfoFiles reads all the valid info entries. Even if ReadInfoFiles returns an error,
+// there may be some valid entries in the returned slice.
 func ReadInfoFiles(
 	filePathPrefix string,
 	namespace ident.ID,
 	shard uint32,
 	readerBufferSize int,
 	decodingOpts msgpack.DecodingOptions,
-) []schema.IndexInfo {
-	var indexEntries []schema.IndexInfo
+) []ReadInfoFileResult {
+	var infoFileResults []ReadInfoFileResult
 	decoder := msgpack.NewDecoder(decodingOpts)
-	forEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
+	forEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(filepath string, data []byte) {
 		decoder.Reset(msgpack.NewDecoderStream(data))
 		info, err := decoder.DecodeIndexInfo()
-		if err != nil {
-			return
-		}
-		indexEntries = append(indexEntries, info)
+		infoFileResults = append(infoFileResults, ReadInfoFileResult{
+			Info: info,
+			Err: readInfoFileResultError{
+				err:      err,
+				filepath: filepath,
+			},
+		})
 	})
-	return indexEntries
+	return infoFileResults
+}
+
+// SnapshotFiles returns a slice of all the names for all the fileset files
+// for a given namespace and shard combination.
+func SnapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32) (SnapshotFilesSlice, error) {
+	return snapshotFiles(filePathPrefix, namespace, shard, filesetFilePattern)
 }
 
 // FilesetBefore returns all the fileset files whose timestamps are earlier than a given time.
@@ -242,7 +415,7 @@ func FilesetBefore(filePathPrefix string, namespace ident.ID, shard uint32, t ti
 	if err != nil {
 		return nil, err
 	}
-	return filesBefore(matched, t)
+	return FilesBefore(matched.Filepaths(), t)
 }
 
 // DeleteInactiveDirectories deletes any directories that are not currently active, as defined by the
@@ -285,7 +458,7 @@ func CommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return filesBefore(commitLogs, t)
+	return FilesBefore(commitLogs, t)
 }
 
 type toSortableFn func(files []string) sort.Interface
@@ -324,20 +497,115 @@ func findSubDirectoriesAndPaths(directoryPath string) (directoryNamesToPaths, er
 	return subDirectoriesToPaths, nil
 }
 
-func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, pattern string) ([]string, error) {
-	shardDir := ShardDirPath(filePathPrefix, namespace, shard)
-	return findFiles(shardDir, pattern, func(files []string) sort.Interface {
+func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, pattern string) ([]SnapshotFile, error) {
+	shardDir := ShardSnapshotsDirPath(filePathPrefix, namespace, shard)
+	byTimeAsc, err := findFiles(shardDir, pattern, func(files []string) sort.Interface {
+		return snapshotsByTimeAndIndexAscending(files)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(byTimeAsc) == 0 {
+		return nil, nil
+	}
+
+	var (
+		latestBlockStart   time.Time
+		latestIndex        int
+		latestSnapshotFile SnapshotFile
+		snapshotFiles      = []SnapshotFile{}
+	)
+	for _, file := range byTimeAsc {
+		currentFileBlockStart, index, err := TimeAndIndexFromSnapshotFilename(file)
+		if err != nil {
+			return nil, err
+		}
+
+		if latestBlockStart.IsZero() {
+			latestSnapshotFile = NewSnapshotFile(FilesetFileIdentifier{
+				Namespace:  namespace,
+				Shard:      shard,
+				BlockStart: currentFileBlockStart,
+			})
+			latestIndex = index
+		} else if !currentFileBlockStart.Equal(latestBlockStart) || latestIndex != index {
+			snapshotFiles = append(snapshotFiles, latestSnapshotFile)
+			latestSnapshotFile = NewSnapshotFile(FilesetFileIdentifier{
+				Namespace:  namespace,
+				Shard:      shard,
+				BlockStart: currentFileBlockStart,
+			})
+			latestIndex = index
+		}
+		latestBlockStart = currentFileBlockStart
+
+		latestSnapshotFile.ID.Index = index
+		latestSnapshotFile.AbsoluteFilepaths = append(latestSnapshotFile.AbsoluteFilepaths, file)
+	}
+	snapshotFiles = append(snapshotFiles, latestSnapshotFile)
+
+	return snapshotFiles, nil
+}
+
+func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, pattern string) (FilesetFilesSlice, error) {
+	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
+	byTimeAsc, err := findFiles(shardDir, pattern, func(files []string) sort.Interface {
 		return byTimeAscending(files)
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(byTimeAsc) == 0 {
+		return nil, nil
+	}
+
+	var (
+		latestBlockStart  time.Time
+		latestFilesetFile FilesetFile
+		filesetFiles      = []FilesetFile{}
+	)
+	for _, file := range byTimeAsc {
+		currentFileBlockStart, err := TimeFromFileName(file)
+		if err != nil {
+			return nil, err
+		}
+
+		if latestBlockStart.IsZero() {
+			latestFilesetFile = NewFilesetFile(FilesetFileIdentifier{
+				Namespace:  namespace,
+				Shard:      shard,
+				BlockStart: currentFileBlockStart,
+			})
+		} else if !currentFileBlockStart.Equal(latestBlockStart) {
+			filesetFiles = append(filesetFiles, latestFilesetFile)
+			latestFilesetFile = NewFilesetFile(FilesetFileIdentifier{
+				Namespace:  namespace,
+				Shard:      shard,
+				BlockStart: currentFileBlockStart,
+			})
+		}
+		latestBlockStart = currentFileBlockStart
+
+		latestFilesetFile.AbsoluteFilepaths = append(latestFilesetFile.AbsoluteFilepaths, file)
+	}
+	filesetFiles = append(filesetFiles, latestFilesetFile)
+
+	return filesetFiles, nil
 }
 
 func commitlogFiles(commitLogsDir string, pattern string) ([]string, error) {
 	return findFiles(commitLogsDir, pattern, func(files []string) sort.Interface {
-		return byTimeAndIndexAscending(files)
+		return commitlogsByTimeAndIndexAscending(files)
 	})
 }
 
-func filesBefore(files []string, t time.Time) ([]string, error) {
+// FilesBefore filters the list of files down to those whose name indicate they are
+// before a given time period. Mutates the provided slice.
+func FilesBefore(files []string, t time.Time) ([]string, error) {
 	var (
 		j        int
 		multiErr xerrors.MultiError
@@ -394,14 +662,30 @@ func DataDirPath(prefix string) string {
 	return path.Join(prefix, dataDirName)
 }
 
-// NamespaceDirPath returns the path to a given namespace.
-func NamespaceDirPath(prefix string, namespace ident.ID) string {
+// SnapshotDirPath returns the path to the snapshot directory belong to a db
+func SnapshotDirPath(prefix string) string {
+	return path.Join(prefix, snapshotDirName)
+}
+
+// NamespaceDataDirPath returns the path to the data directory for a given namespace.
+func NamespaceDataDirPath(prefix string, namespace ident.ID) string {
 	return path.Join(prefix, dataDirName, namespace.String())
 }
 
-// ShardDirPath returns the path to a given shard.
-func ShardDirPath(prefix string, namespace ident.ID, shard uint32) string {
-	namespacePath := NamespaceDirPath(prefix, namespace)
+// NamespaceSnapshotsDirPath returns the path to the snapshots directory for a given namespace.
+func NamespaceSnapshotsDirPath(prefix string, namespace ident.ID) string {
+	return path.Join(prefix, snapshotDirName, namespace.String())
+}
+
+// ShardDataDirPath returns the path to the data directory for a given shard.
+func ShardDataDirPath(prefix string, namespace ident.ID, shard uint32) string {
+	namespacePath := NamespaceDataDirPath(prefix, namespace)
+	return path.Join(namespacePath, strconv.Itoa(int(shard)))
+}
+
+// ShardSnapshotsDirPath returns the path to the snapshots directory for a given shard.
+func ShardSnapshotsDirPath(prefix string, namespace ident.ID, shard uint32) string {
+	namespacePath := NamespaceSnapshotsDirPath(prefix, namespace)
 	return path.Join(namespacePath, strconv.Itoa(int(shard)))
 }
 
@@ -410,11 +694,26 @@ func CommitLogsDirPath(prefix string) string {
 	return path.Join(prefix, commitLogsDirName)
 }
 
-// FilesetExistsAt determines whether a data file exists for the given namespace, shard, and block start time.
-func FilesetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) bool {
-	shardDir := ShardDirPath(prefix, namespace, shard)
+// DataFilesetExistsAt determines whether data fileset files exist for the given namespace, shard, and block start time.
+func DataFilesetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) bool {
+	shardDir := ShardDataDirPath(prefix, namespace, shard)
 	checkpointFile := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	return FileExists(checkpointFile)
+}
+
+// SnapshotFilesetExistsAt determines whether snapshot fileset files exist for the given namespace, shard, and block start time.
+func SnapshotFilesetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) (bool, error) {
+	snapshotFiles, err := SnapshotFiles(prefix, namespace, shard)
+	if err != nil {
+		return false, err
+	}
+
+	latest, ok := snapshotFiles.LatestForBlock(blockStart)
+	if !ok {
+		return false, nil
+	}
+
+	return latest.HasCheckpointFile(), nil
 }
 
 // NextCommitLogsFile returns the next commit logs file.
@@ -427,6 +726,25 @@ func NextCommitLogsFile(prefix string, start time.Time) (string, int) {
 			return filePath, i
 		}
 	}
+}
+
+// NextSnapshotFileIndex returns the next snapshot file index for a given
+// namespace/shard/blockStart combination.
+func NextSnapshotFileIndex(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (int, error) {
+	snapshotFiles, err := SnapshotFiles(filePathPrefix, namespace, shard)
+	if err != nil {
+		return -1, err
+	}
+
+	var currentSnapshotIndex = -1
+	for _, snapshot := range snapshotFiles {
+		if snapshot.ID.BlockStart.Equal(blockStart) {
+			currentSnapshotIndex = snapshot.ID.Index
+			break
+		}
+	}
+
+	return currentSnapshotIndex + 1, nil
 }
 
 // FileExists returns whether a file at the given path exists.
@@ -442,5 +760,10 @@ func OpenWritable(filePath string, perm os.FileMode) (*os.File, error) {
 
 func filesetPathFromTime(prefix string, t time.Time, suffix string) string {
 	name := fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, t.UnixNano(), separator, suffix, fileSuffix)
+	return path.Join(prefix, name)
+}
+
+func snapshotPathFromTimeAndIndex(prefix string, t time.Time, suffix string, index int) string {
+	name := fmt.Sprintf("%s%s%d%s%s%s%d%s", filesetFilePrefix, separator, t.UnixNano(), separator, suffix, separator, index, fileSuffix)
 	return path.Join(prefix, name)
 }

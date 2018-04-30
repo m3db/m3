@@ -52,7 +52,7 @@ func TestSessionWriteTaggedNotOpenError(t *testing.T) {
 
 	err := s.WriteTagged(ident.StringID("namespace"), ident.StringID("foo"),
 		ident.EmptyTagIterator, time.Now(), 1.337, xtime.Second, nil)
-	assert.Equal(t, errSessionStateNotOpen, err)
+	assert.Equal(t, errSessionStatusNotOpen, err)
 }
 
 func TestSessionWriteTagged(t *testing.T) {
@@ -67,7 +67,7 @@ func TestSessionWriteTagged(t *testing.T) {
 	mockEncoder.EXPECT().Finalize().AnyTimes()
 	mockEncoderPool := serialize.NewMockTagEncoderPool(ctrl)
 	mockEncoderPool.EXPECT().Get().Return(mockEncoder).AnyTimes()
-	session.tagEncoderPool = mockEncoderPool
+	session.pools.tagEncoder = mockEncoderPool
 
 	var completionFn completionFn
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
@@ -76,7 +76,7 @@ func TestSessionWriteTagged(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, w.ns.String(), write.namespace.String())
 		assert.Equal(t, w.id.String(), string(write.request.ID))
-		assert.Equal(t, testEncodeTags(w.tags).Get(), write.request.EncodedTags)
+		assert.Equal(t, testEncodeTags(w.tags).Bytes(), write.request.EncodedTags)
 		assert.Equal(t, w.value, write.request.Datapoint.Value)
 		assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
 		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
@@ -88,7 +88,7 @@ func TestSessionWriteTagged(t *testing.T) {
 	// Ensure consecutive opens cause errors
 	consecutiveOpenErr := session.Open()
 	assert.Error(t, consecutiveOpenErr)
-	assert.Equal(t, errSessionStateNotInitial, consecutiveOpenErr)
+	assert.Equal(t, errSessionStatusNotInitial, consecutiveOpenErr)
 
 	// Begin write
 	var resultErr error
@@ -102,8 +102,8 @@ func TestSessionWriteTagged(t *testing.T) {
 
 	// Callback
 	enqueueWg.Wait()
-	for i := 0; i < session.topoMap.Replicas(); i++ {
-		completionFn(session.topoMap.Hosts()[0], nil)
+	for i := 0; i < session.state.topoMap.Replicas(); i++ {
+		completionFn(session.state.topoMap.Hosts()[0], nil)
 	}
 
 	// Wait for write to complete
@@ -225,9 +225,9 @@ func TestSessionWriteTaggedBadRequestErrorIsNonRetryable(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	session.RLock()
-	hosts = session.topoMap.Hosts()
-	session.RUnlock()
+	session.state.RLock()
+	hosts = session.state.topoMap.Hosts()
+	session.state.RUnlock()
 
 	err := session.WriteTagged(
 		w.ns, w.id, ident.NewTagSliceIterator(w.tags), w.t, w.value, w.unit, w.annotation)
@@ -250,7 +250,7 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 	mockEncoder.EXPECT().Finalize().AnyTimes()
 	mockEncoderPool := serialize.NewMockTagEncoderPool(ctrl)
 	mockEncoderPool.EXPECT().Get().Return(mockEncoder).AnyTimes()
-	session.tagEncoderPool = mockEncoderPool
+	session.pools.tagEncoder = mockEncoderPool
 
 	var hosts []topology.Host
 	var completionFn completionFn
@@ -267,7 +267,7 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 			write, ok := op.(*writeTaggedOperation)
 			assert.True(t, ok)
 			assert.Equal(t, w.id.String(), string(write.request.ID))
-			assert.Equal(t, string(testEncodeTags(w.tags).Get()), string(write.request.EncodedTags))
+			assert.Equal(t, string(testEncodeTags(w.tags).Bytes()), string(write.request.EncodedTags))
 			assert.Equal(t, w.value, write.request.Datapoint.Value)
 			assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
 			assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
@@ -278,9 +278,9 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	session.RLock()
-	hosts = session.topoMap.Hosts()
-	session.RUnlock()
+	session.state.RLock()
+	hosts = session.state.topoMap.Hosts()
+	session.state.RUnlock()
 
 	// Begin write
 	var resultErr error
@@ -294,8 +294,8 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 
 	// Callback
 	enqueueWg.Wait()
-	for i := 0; i < session.topoMap.Replicas(); i++ {
-		completionFn(session.topoMap.Hosts()[0], nil)
+	for i := 0; i < session.state.topoMap.Replicas(); i++ {
+		completionFn(session.state.topoMap.Hosts()[0], nil)
 	}
 
 	// Wait for write to complete
@@ -384,7 +384,7 @@ func testWriteTaggedConsistencyLevel(
 
 	// Callback
 	enqueueWg.Wait()
-	host := session.topoMap.Hosts()[0] // any host
+	host := session.state.topoMap.Hosts()[0] // any host
 	writeErr := "a specific write error"
 	for i := 0; i < success; i++ {
 		completionFn(host, nil)

@@ -21,14 +21,12 @@
 package client
 
 import (
-	"errors"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
@@ -44,143 +42,6 @@ import (
 
 	tchannel "github.com/uber/tchannel-go"
 )
-
-// unknown string constant, required to fix lint complaining about
-// multiple occurrences of same literal string...
-const unknown = "unknown"
-
-// ConnectConsistencyLevel is the consistency level for connecting to a cluster
-type ConnectConsistencyLevel int
-
-const (
-	// ConnectConsistencyLevelAny corresponds to connecting to any number of nodes for a given shard
-	// set, this strategy will attempt to connect to all, then the majority, then one and then none.
-	ConnectConsistencyLevelAny ConnectConsistencyLevel = iota
-
-	// ConnectConsistencyLevelNone corresponds to connecting to no nodes for a given shard set
-	ConnectConsistencyLevelNone
-
-	// ConnectConsistencyLevelOne corresponds to connecting to a single node for a given shard set
-	ConnectConsistencyLevelOne
-
-	// ConnectConsistencyLevelMajority corresponds to connecting to the majority of nodes for a given shard set
-	ConnectConsistencyLevelMajority
-
-	// ConnectConsistencyLevelAll corresponds to connecting to all of the nodes for a given shard set
-	ConnectConsistencyLevelAll
-)
-
-// String returns the consistency level as a string
-func (l ConnectConsistencyLevel) String() string {
-	switch l {
-	case ConnectConsistencyLevelAny:
-		return "any"
-	case ConnectConsistencyLevelNone:
-		return "none"
-	case ConnectConsistencyLevelOne:
-		return "one"
-	case ConnectConsistencyLevelMajority:
-		return "majority"
-	case ConnectConsistencyLevelAll:
-		return "all"
-	}
-	return unknown
-}
-
-var validConnectConsistencyLevels = []ConnectConsistencyLevel{
-	ConnectConsistencyLevelAny,
-	ConnectConsistencyLevelNone,
-	ConnectConsistencyLevelOne,
-	ConnectConsistencyLevelMajority,
-	ConnectConsistencyLevelAll,
-}
-
-var errClusterConnectConsistencyLevelUnspecified = errors.New("cluster connect consistency level not specified")
-
-// UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
-func (l *ConnectConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-	if str == "" {
-		return errClusterConnectConsistencyLevelUnspecified
-	}
-	strs := make([]string, len(validConnectConsistencyLevels))
-	for _, valid := range validConnectConsistencyLevels {
-		if str == valid.String() {
-			*l = valid
-			return nil
-		}
-		strs = append(strs, "'"+valid.String()+"'")
-	}
-	return fmt.Errorf("invalid ConnectConsistencyLevel '%s' valid types are: %s",
-		str, strings.Join(strs, ", "))
-}
-
-// ReadConsistencyLevel is the consistency level for reading from a cluster
-type ReadConsistencyLevel int
-
-const (
-	// ReadConsistencyLevelOne corresponds to reading from a single node
-	ReadConsistencyLevelOne ReadConsistencyLevel = iota
-
-	// ReadConsistencyLevelUnstrictMajority corresponds to reading from the majority of nodes
-	// but relaxing the constraint when it cannot be met, falling back to returning success when
-	// reading from at least a single node after attempting reading from the majority of nodes
-	ReadConsistencyLevelUnstrictMajority
-
-	// ReadConsistencyLevelMajority corresponds to reading from the majority of nodes
-	ReadConsistencyLevelMajority
-
-	// ReadConsistencyLevelAll corresponds to reading from all of the nodes
-	ReadConsistencyLevelAll
-)
-
-// String returns the consistency level as a string
-func (l ReadConsistencyLevel) String() string {
-	switch l {
-	case ReadConsistencyLevelOne:
-		return "one"
-	case ReadConsistencyLevelUnstrictMajority:
-		return "unstrict_majority"
-	case ReadConsistencyLevelMajority:
-		return "majority"
-	case ReadConsistencyLevelAll:
-		return "all"
-	}
-	return unknown
-}
-
-var validReadConsistencyLevels = []ReadConsistencyLevel{
-	ReadConsistencyLevelOne,
-	ReadConsistencyLevelUnstrictMajority,
-	ReadConsistencyLevelMajority,
-	ReadConsistencyLevelAll,
-}
-
-var errReadConsistencyLevelUnspecified = errors.New("read consistency level not specified")
-
-// UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
-func (l *ReadConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-	if str == "" {
-		return errReadConsistencyLevelUnspecified
-	}
-	strs := make([]string, len(validReadConsistencyLevels))
-	for _, valid := range validReadConsistencyLevels {
-		if str == valid.String() {
-			*l = valid
-			return nil
-		}
-		strs = append(strs, "'"+valid.String()+"'")
-	}
-	return fmt.Errorf("invalid ReadConsistencyLevel '%s' valid types are: %s",
-		str, strings.Join(strs, ", "))
-}
 
 // Client can create sessions to write and read to a cluster
 type Client interface {
@@ -212,10 +73,10 @@ type Session interface {
 	FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
-	FetchTagged(index.Query, index.QueryOptions) (results encoding.SeriesIterators, exhaustive bool, err error)
+	FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (results encoding.SeriesIterators, exhaustive bool, err error)
 
 	// FetchTaggedIDs resolves the provided query to known IDs.
-	FetchTaggedIDs(index.Query, index.QueryOptions) (index.QueryResults, error)
+	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (index.QueryResults, error)
 
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations
@@ -237,15 +98,15 @@ type AdminClient interface {
 	DefaultAdminSession() (AdminSession, error)
 }
 
-// PeerBlocksMetadataIter iterates over a collection of
+// PeerBlockMetadataIter iterates over a collection of
 // blocks metadata from peers
-type PeerBlocksMetadataIter interface {
+type PeerBlockMetadataIter interface {
 	// Next returns whether there are more items in the collection
 	Next() bool
 
-	// Current returns the host and blocks metadata, which remain
-	// valid until Next() is called again.
-	Current() (topology.Host, block.BlocksMetadata)
+	// Current returns the host and block metadata, which remain
+	// valid until Next() is called again
+	Current() (topology.Host, block.Metadata)
 
 	// Err returns any error encountered
 	Err() error
@@ -257,7 +118,7 @@ type PeerBlocksIter interface {
 	Next() bool
 
 	// Current returns the metadata, and block data for a single block replica.
-	// These remain valid until Next() is called again.
+	// These remain valid until Next() is called again
 	Current() (topology.Host, ident.ID, block.DatabaseBlock)
 
 	// Err returns any error encountered
@@ -283,9 +144,10 @@ type AdminSession interface {
 		namespace ident.ID,
 		shard uint32,
 		start, end time.Time,
+		consistencyLevel topology.ReadConsistencyLevel,
 		result result.Options,
 		version FetchBlocksMetadataEndpointVersion,
-	) (PeerBlocksMetadataIter, error)
+	) (PeerBlockMetadataIter, error)
 
 	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
 	// for each series in a best effort method from available peers
@@ -302,87 +164,10 @@ type AdminSession interface {
 	FetchBlocksFromPeers(
 		namespace namespace.Metadata,
 		shard uint32,
+		consistencyLevel topology.ReadConsistencyLevel,
 		metadatas []block.ReplicaMetadata,
 		opts result.Options,
 	) (PeerBlocksIter, error)
-}
-
-type clientSession interface {
-	AdminSession
-
-	// Open the client session
-	Open() error
-}
-
-type hostQueue interface {
-	// Open the host queue
-	Open()
-
-	// Len returns the length of the queue
-	Len() int
-
-	// Enqueue an operation
-	Enqueue(op op) error
-
-	// Host gets the host
-	Host() topology.Host
-
-	// ConnectionCount gets the current open connection count
-	ConnectionCount() int
-
-	// ConnectionPool gets the connection pool
-	ConnectionPool() connectionPool
-
-	// BorrowConnection will borrow a connection and execute a user function
-	BorrowConnection(fn withConnectionFn) error
-
-	// Close the host queue, will flush any operations still pending
-	Close()
-}
-
-type withConnectionFn func(c rpc.TChanNode)
-
-type connectionPool interface {
-	// Open starts the connection pool connecting and health checking
-	Open()
-
-	// ConnectionCount gets the current open connection count
-	ConnectionCount() int
-
-	// NextClient gets the next client for use by the connection pool
-	NextClient() (rpc.TChanNode, error)
-
-	// Close the connection pool
-	Close()
-}
-
-type peerSource interface {
-	// BorrowConnection will borrow a connection and execute a user function
-	BorrowConnection(hostID string, fn withConnectionFn) error
-}
-
-type peer interface {
-	// Host gets the host
-	Host() topology.Host
-
-	// BorrowConnection will borrow a connection and execute a user function
-	BorrowConnection(fn withConnectionFn) error
-}
-
-type state int
-
-const (
-	stateNotOpen state = iota
-	stateOpen
-	stateClosed
-)
-
-type op interface {
-	// Size returns the effective size of inner operations
-	Size() int
-
-	// CompletionFn gets the completion function for the operation
-	CompletionFn() completionFn
 }
 
 // Options is a set of client options
@@ -392,6 +177,12 @@ type Options interface {
 
 	// SetEncodingM3TSZ sets m3tsz encoding
 	SetEncodingM3TSZ() Options
+
+	// SetRuntimeOptionsManager sets the runtime options manager, it is optional
+	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
+
+	// RuntimeOptionsManager returns the runtime options manager, it is optional
+	RuntimeOptionsManager() runtime.OptionsManager
 
 	// SetClockOptions sets the clock options
 	SetClockOptions(value clock.Options) Options
@@ -411,17 +202,17 @@ type Options interface {
 	// TopologyInitializer returns the TopologyInitializer
 	TopologyInitializer() topology.Initializer
 
+	// SetReadConsistencyLevel sets the read consistency level
+	SetReadConsistencyLevel(value topology.ReadConsistencyLevel) Options
+
+	// topology.ReadConsistencyLevel returns the read consistency level
+	ReadConsistencyLevel() topology.ReadConsistencyLevel
+
 	// SetWriteConsistencyLevel sets the write consistency level
 	SetWriteConsistencyLevel(value topology.ConsistencyLevel) Options
 
 	// WriteConsistencyLevel returns the write consistency level
 	WriteConsistencyLevel() topology.ConsistencyLevel
-
-	// SetReadConsistencyLevel sets the read consistency level
-	SetReadConsistencyLevel(value ReadConsistencyLevel) Options
-
-	// ReadConsistencyLevel returns the read consistency level
-	ReadConsistencyLevel() ReadConsistencyLevel
 
 	// SetChannelOptions sets the channelOptions
 	SetChannelOptions(value *tchannel.ChannelOptions) Options
@@ -454,10 +245,10 @@ type Options interface {
 	ClusterConnectTimeout() time.Duration
 
 	// SetClusterConnectConsistencyLevel sets the clusterConnectConsistencyLevel
-	SetClusterConnectConsistencyLevel(value ConnectConsistencyLevel) Options
+	SetClusterConnectConsistencyLevel(value topology.ConnectConsistencyLevel) Options
 
 	// ClusterConnectConsistencyLevel returns the clusterConnectConsistencyLevel
-	ClusterConnectConsistencyLevel() ConnectConsistencyLevel
+	ClusterConnectConsistencyLevel() topology.ConnectConsistencyLevel
 
 	// SetWriteRequestTimeout sets the writeRequestTimeout
 	SetWriteRequestTimeout(value time.Duration) Options
@@ -549,6 +340,18 @@ type Options interface {
 	// TagEncoderPoolSize returns the TagEncoderPoolSize.
 	TagEncoderPoolSize() int
 
+	// SetTagDecoderOptions sets the TagDecoderOptions.
+	SetTagDecoderOptions(value serialize.TagDecoderOptions) Options
+
+	// TagDecoderOptions returns the TagDecoderOptions.
+	TagDecoderOptions() serialize.TagDecoderOptions
+
+	// SetTagDecoderPoolSize sets the TagDecoderPoolSize.
+	SetTagDecoderPoolSize(value int) Options
+
+	// TagDecoderPoolSize returns the TagDecoderPoolSize.
+	TagDecoderPoolSize() int
+
 	// SetWriteBatchSize sets the writeBatchSize
 	// NB(r): for a write only application load this should match the host
 	// queue ops flush size so that each time a host queue is flushed it can
@@ -584,6 +387,12 @@ type Options interface {
 
 	// FetchBatchOpPoolSize returns the fetchBatchOpPoolSize
 	FetchBatchOpPoolSize() int
+
+	// SetCheckedBytesWrapperPoolSize sets the checkedBytesWrapperPoolSize
+	SetCheckedBytesWrapperPoolSize(value int) Options
+
+	// CheckedBytesWrapperPoolSize returns the checkedBytesWrapperPoolSize
+	CheckedBytesWrapperPoolSize() int
 
 	// SetHostQueueOpsFlushSize sets the hostQueueOpsFlushSize
 	SetHostQueueOpsFlushSize(value int) Options
@@ -644,6 +453,12 @@ type AdminOptions interface {
 	// Origin gets the current host originating requests from
 	Origin() topology.Host
 
+	// SetBootstrapConsistencyLevel sets the bootstrap consistency level
+	SetBootstrapConsistencyLevel(value topology.ReadConsistencyLevel) AdminOptions
+
+	// BootstrapConsistencyLevel returns the bootstrap consistency level
+	BootstrapConsistencyLevel() topology.ReadConsistencyLevel
+
 	// SetFetchSeriesBlocksMaxBlockRetries sets the max retries for fetching series blocks
 	SetFetchSeriesBlocksMaxBlockRetries(value int) AdminOptions
 
@@ -679,4 +494,97 @@ type AdminOptions interface {
 
 	// StreamBlocksRetrier returns the retrier for streaming blocks
 	StreamBlocksRetrier() xretry.Retrier
+}
+
+// The rest of these types are internal types that mocks are generated for
+// in file mode and hence need to stay in this file and refer to the other
+// types such as AdminSession.  When mocks are generated in file mode the
+// other types they reference need to be in the same file.
+
+type clientSession interface {
+	AdminSession
+
+	// Open the client session
+	Open() error
+}
+
+type hostQueue interface {
+	// Open the host queue
+	Open()
+
+	// Len returns the length of the queue
+	Len() int
+
+	// Enqueue an operation
+	Enqueue(op op) error
+
+	// Host gets the host
+	Host() topology.Host
+
+	// ConnectionCount gets the current open connection count
+	ConnectionCount() int
+
+	// ConnectionPool gets the connection pool
+	ConnectionPool() connectionPool
+
+	// BorrowConnection will borrow a connection and execute a user function
+	BorrowConnection(fn withConnectionFn) error
+
+	// Close the host queue, will flush any operations still pending
+	Close()
+}
+
+type withConnectionFn func(c rpc.TChanNode)
+
+type connectionPool interface {
+	// Open starts the connection pool connecting and health checking
+	Open()
+
+	// ConnectionCount gets the current open connection count
+	ConnectionCount() int
+
+	// NextClient gets the next client for use by the connection pool
+	NextClient() (rpc.TChanNode, error)
+
+	// Close the connection pool
+	Close()
+}
+
+type peerSource interface {
+	// BorrowConnection will borrow a connection and execute a user function
+	BorrowConnection(hostID string, fn withConnectionFn) error
+}
+
+type peer interface {
+	// Host gets the host
+	Host() topology.Host
+
+	// BorrowConnection will borrow a connection and execute a user function
+	BorrowConnection(fn withConnectionFn) error
+}
+
+type status int
+
+const (
+	statusNotOpen status = iota
+	statusOpen
+	statusClosed
+)
+
+type op interface {
+	// Size returns the effective size of inner operations
+	Size() int
+
+	// CompletionFn gets the completion function for the operation
+	CompletionFn() completionFn
+}
+
+type enqueueChannel interface {
+	enqueue(peersMetadata []receivedBlockMetadata)
+	enqueueDelayed(numToEnqueue int) func([]receivedBlockMetadata)
+	get() <-chan []receivedBlockMetadata
+	trackPending(amount int)
+	trackProcessed(amount int)
+	unprocessedLen() int
+	closeOnAllProcessed()
 }

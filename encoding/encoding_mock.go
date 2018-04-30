@@ -719,13 +719,13 @@ func (_mr *MockSeriesIteratorMockRecorder) End() *gomock.Call {
 }
 
 // Reset mocks base method
-func (_m *MockSeriesIterator) Reset(id ident.ID, ns ident.ID, startInclusive time.Time, endExclusive time.Time, replicas []MultiReaderIterator) {
-	_m.ctrl.Call(_m, "Reset", id, ns, startInclusive, endExclusive, replicas)
+func (_m *MockSeriesIterator) Reset(id ident.ID, ns ident.ID, t ident.TagIterator, startInclusive time.Time, endExclusive time.Time, replicas []MultiReaderIterator) {
+	_m.ctrl.Call(_m, "Reset", id, ns, t, startInclusive, endExclusive, replicas)
 }
 
 // Reset indicates an expected call of Reset
-func (_mr *MockSeriesIteratorMockRecorder) Reset(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Reset", reflect.TypeOf((*MockSeriesIterator)(nil).Reset), arg0, arg1, arg2, arg3, arg4)
+func (_mr *MockSeriesIteratorMockRecorder) Reset(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Reset", reflect.TypeOf((*MockSeriesIterator)(nil).Reset), arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
 // Replicas mocks base method

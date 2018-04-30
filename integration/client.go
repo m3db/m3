@@ -31,6 +31,7 @@ import (
 	nchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
@@ -58,7 +59,7 @@ func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, names
 	for _, series := range seriesList {
 		for _, dp := range series.Data {
 			elem := &rpc.WriteBatchRawRequestElement{
-				ID: series.ID.Data().Get(),
+				ID: series.ID.Data().Bytes(),
 				Datapoint: &rpc.Datapoint{
 					Timestamp:         xtime.ToNormalizedTime(dp.Timestamp, time.Second),
 					Value:             dp.Value,
@@ -70,7 +71,10 @@ func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, names
 	}
 
 	ctx, _ := thrift.NewContext(timeout)
-	batchReq := &rpc.WriteBatchRawRequest{NameSpace: namespace.Data().Get(), Elements: elems}
+	batchReq := &rpc.WriteBatchRawRequest{
+		NameSpace: namespace.Data().Bytes(),
+		Elements:  elems,
+	}
 	return client.WriteBatchRaw(ctx, batchReq)
 }
 
@@ -189,6 +193,7 @@ func m3dbClientFetchBlocksMetadata(
 	namespace ident.ID,
 	shards []uint32,
 	start, end time.Time,
+	consistencyLevel topology.ReadConsistencyLevel,
 	version client.FetchBlocksMetadataEndpointVersion,
 ) (map[uint32][]block.ReplicaMetadata, error) {
 	session, err := c.DefaultAdminSession()
@@ -199,7 +204,7 @@ func m3dbClientFetchBlocksMetadata(
 	metadatasByShard := make(map[uint32][]block.ReplicaMetadata, 10)
 
 	// iterate over all shards
-	seen := make(map[ident.Hash]map[xtime.UnixNano]struct{})
+	seen := make(map[string]map[xtime.UnixNano]struct{})
 	for _, shardID := range shards {
 		// clear seen
 		for key := range seen {
@@ -208,30 +213,28 @@ func m3dbClientFetchBlocksMetadata(
 
 		var metadatas []block.ReplicaMetadata
 		iter, err := session.FetchBlocksMetadataFromPeers(namespace,
-			shardID, start, end, result.NewOptions(), version)
+			shardID, start, end, consistencyLevel, result.NewOptions(), version)
 		if err != nil {
 			return nil, err
 		}
 
 		for iter.Next() {
-			host, blocksMetadata := iter.Current()
-			idHash := blocksMetadata.ID.Hash()
-			seenBlocks, ok := seen[idHash]
+			host, blockMetadata := iter.Current()
+			idString := blockMetadata.ID.String()
+			seenBlocks, ok := seen[idString]
 			if !ok {
 				seenBlocks = make(map[xtime.UnixNano]struct{})
-				seen[idHash] = seenBlocks
+				seen[idString] = seenBlocks
 			}
-			for _, blockMetadata := range blocksMetadata.Blocks {
-				if _, ok := seenBlocks[xtime.ToUnixNano(blockMetadata.Start)]; ok {
-					continue // Already seen
-				}
-				seenBlocks[xtime.ToUnixNano(blockMetadata.Start)] = struct{}{}
-				metadatas = append(metadatas, block.ReplicaMetadata{
-					Metadata: blockMetadata,
-					Host:     host,
-					ID:       blocksMetadata.ID,
-				})
+			if _, ok := seenBlocks[xtime.ToUnixNano(blockMetadata.Start)]; ok {
+				continue // Already seen
 			}
+			seenBlocks[xtime.ToUnixNano(blockMetadata.Start)] = struct{}{}
+			metadatas = append(metadatas, block.ReplicaMetadata{
+				Metadata: blockMetadata,
+				Host:     host,
+				ID:       blockMetadata.ID,
+			})
 		}
 		if err := iter.Err(); err != nil {
 			return nil, err

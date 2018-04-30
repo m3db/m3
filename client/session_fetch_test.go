@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"
 	xerrors "github.com/m3db/m3x/errors"
@@ -101,7 +102,7 @@ func TestSessionFetchNotOpenError(t *testing.T) {
 
 	_, err = s.Fetch(ident.StringID("namespace"), ident.StringID("foo"), time.Now().Add(-time.Hour), time.Now())
 	assert.Error(t, err)
-	assert.Equal(t, errSessionStateNotOpen, err)
+	assert.Equal(t, errSessionStatusNotOpen, err)
 }
 
 func TestSessionFetchIDs(t *testing.T) {
@@ -269,9 +270,9 @@ func TestSessionFetchReadConsistencyLevelAll(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	testFetchConsistencyLevel(t, ctrl, ReadConsistencyLevelAll, 0, outcomeSuccess)
+	testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelAll, 0, outcomeSuccess)
 	for i := 1; i <= 3; i++ {
-		testFetchConsistencyLevel(t, ctrl, ReadConsistencyLevelAll, i, outcomeFail)
+		testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelAll, i, outcomeFail)
 	}
 }
 
@@ -280,10 +281,10 @@ func TestSessionFetchReadConsistencyLevelMajority(t *testing.T) {
 	defer ctrl.Finish()
 
 	for i := 0; i <= 1; i++ {
-		testFetchConsistencyLevel(t, ctrl, ReadConsistencyLevelMajority, i, outcomeSuccess)
+		testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelMajority, i, outcomeSuccess)
 	}
 	for i := 2; i <= 3; i++ {
-		testFetchConsistencyLevel(t, ctrl, ReadConsistencyLevelMajority, i, outcomeFail)
+		testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelMajority, i, outcomeFail)
 	}
 }
 
@@ -292,9 +293,9 @@ func TestSessionFetchReadConsistencyLevelUnstrictMajority(t *testing.T) {
 	defer ctrl.Finish()
 
 	for i := 0; i <= 2; i++ {
-		testFetchConsistencyLevel(t, ctrl, ReadConsistencyLevelUnstrictMajority, i, outcomeSuccess)
+		testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelUnstrictMajority, i, outcomeSuccess)
 	}
-	testFetchConsistencyLevel(t, ctrl, ReadConsistencyLevelUnstrictMajority, 3, outcomeFail)
+	testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelUnstrictMajority, 3, outcomeFail)
 }
 
 func TestSessionFetchReadConsistencyLevelOne(t *testing.T) {
@@ -302,15 +303,15 @@ func TestSessionFetchReadConsistencyLevelOne(t *testing.T) {
 	defer ctrl.Finish()
 
 	for i := 0; i <= 2; i++ {
-		testFetchConsistencyLevel(t, ctrl, ReadConsistencyLevelOne, i, outcomeSuccess)
+		testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelOne, i, outcomeSuccess)
 	}
-	testFetchConsistencyLevel(t, ctrl, ReadConsistencyLevelOne, 3, outcomeFail)
+	testFetchConsistencyLevel(t, ctrl, topology.ReadConsistencyLevelOne, 3, outcomeFail)
 }
 
 func testFetchConsistencyLevel(
 	t *testing.T,
 	ctrl *gomock.Controller,
-	level ReadConsistencyLevel,
+	level topology.ReadConsistencyLevel,
 	failures int,
 	expected outcome,
 ) {
@@ -488,7 +489,7 @@ func fulfillTszFetchBatchOps(
 				}
 				seg := encoder.Discard()
 				op.completionFns[i]([]*rpc.Segments{&rpc.Segments{
-					Merged: &rpc.Segment{Head: seg.Head.Get(), Tail: seg.Tail.Get()},
+					Merged: &rpc.Segment{Head: seg.Head.Bytes(), Tail: seg.Tail.Bytes()},
 				}}, nil)
 				calledCompletionFn = true
 				break

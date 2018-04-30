@@ -32,7 +32,9 @@ import (
 
 var errInstanceHasNoShardsAssignment = errors.New("invalid instance with no shards assigned")
 
-func majority(replicas int) int {
+// Majority returns the majority required to successfully return when
+// querying a majority of a set of replicas
+func Majority(replicas int) int {
 	return int(math.Ceil(0.5 * float64(replicas+1)))
 }
 

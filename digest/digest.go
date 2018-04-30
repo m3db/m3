@@ -38,10 +38,10 @@ func NewDigest() stackadler32.Digest {
 func SegmentChecksum(segment ts.Segment) uint32 {
 	d := stackadler32.NewDigest()
 	if segment.Head != nil {
-		d = d.Update(segment.Head.Get())
+		d = d.Update(segment.Head.Bytes())
 	}
 	if segment.Tail != nil {
-		d = d.Update(segment.Tail.Get())
+		d = d.Update(segment.Tail.Bytes())
 	}
 	return d.Sum32()
 }

@@ -248,9 +248,13 @@ func TestShardResultAddBlock(t *testing.T) {
 		sr.AddBlock(ident.StringID(input.id), block)
 	}
 	allSeries := sr.AllSeries()
-	require.Len(t, allSeries, 2)
-	require.Equal(t, 2, allSeries[ident.StringID("foo").Hash()].Blocks.Len())
-	require.Equal(t, 1, allSeries[ident.StringID("bar").Hash()].Blocks.Len())
+	require.Equal(t, 2, allSeries.Len())
+	fooBlocks, ok := allSeries.Get(ident.StringID("foo"))
+	require.True(t, ok)
+	require.Equal(t, 2, fooBlocks.Blocks.Len())
+	barBlocks, ok := allSeries.Get(ident.StringID("bar"))
+	require.True(t, ok)
+	require.Equal(t, 1, barBlocks.Blocks.Len())
 }
 
 func TestShardResultAddSeries(t *testing.T) {
@@ -273,9 +277,13 @@ func TestShardResultAddSeries(t *testing.T) {
 	moreSeries.AddBlock(block)
 	sr.AddSeries(ident.StringID("foo"), moreSeries)
 	allSeries := sr.AllSeries()
-	require.Len(t, allSeries, 2)
-	require.Equal(t, 1, allSeries[ident.StringID("foo").Hash()].Blocks.Len())
-	require.Equal(t, 0, allSeries[ident.StringID("bar").Hash()].Blocks.Len())
+	require.Equal(t, 2, allSeries.Len())
+	fooBlocks, ok := allSeries.Get(ident.StringID("foo"))
+	require.True(t, ok)
+	require.Equal(t, 1, fooBlocks.Blocks.Len())
+	barBlocks, ok := allSeries.Get(ident.StringID("bar"))
+	require.True(t, ok)
+	require.Equal(t, 0, barBlocks.Blocks.Len())
 }
 
 func TestShardResultAddResult(t *testing.T) {
@@ -287,7 +295,7 @@ func TestShardResultAddResult(t *testing.T) {
 	other.AddSeries(ident.StringID("foo"), block.NewDatabaseSeriesBlocks(0))
 	other.AddSeries(ident.StringID("bar"), block.NewDatabaseSeriesBlocks(0))
 	sr.AddResult(other)
-	require.Len(t, sr.AllSeries(), 2)
+	require.Equal(t, 2, sr.AllSeries().Len())
 }
 
 func TestShardResultNumSeries(t *testing.T) {
@@ -315,11 +323,11 @@ func TestShardResultRemoveSeries(t *testing.T) {
 	for _, input := range inputs {
 		sr.AddSeries(ident.StringID(input.id), input.series)
 	}
-	require.Equal(t, 2, len(sr.AllSeries()))
+	require.Equal(t, 2, sr.AllSeries().Len())
 	sr.RemoveSeries(ident.StringID("foo"))
-	require.Equal(t, 1, len(sr.AllSeries()))
+	require.Equal(t, 1, sr.AllSeries().Len())
 	sr.RemoveSeries(ident.StringID("nonexistent"))
-	require.Equal(t, 1, len(sr.AllSeries()))
+	require.Equal(t, 1, sr.AllSeries().Len())
 }
 
 func TestShardTimeRangesIsEmpty(t *testing.T) {

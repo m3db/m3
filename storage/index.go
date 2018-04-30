@@ -29,8 +29,11 @@ import (
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
+	m3ninxindex "github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/index/segment/mem"
+	"github.com/m3db/m3ninx/postings"
+	"github.com/m3db/m3ninx/search/executor"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 
@@ -52,7 +55,7 @@ const (
 )
 
 type nsIndexBlock struct {
-	segment    mem.Segment
+	segment    segment.MutableSegment
 	expiryTime time.Time
 }
 
@@ -68,7 +71,6 @@ type nsIndex struct {
 	nsID        ident.ID
 }
 
-// nolint: deadcode
 func newNamespaceIndex(
 	md namespace.Metadata,
 	newIndexQueueFn newNamespaceIndexInsertQueueFn,
@@ -79,8 +81,8 @@ func newNamespaceIndex(
 	}
 
 	now := opts.ClockOptions().NowFn()()
-	segmentID := segment.ID(now.UnixNano())
-	seg, err := mem.New(segmentID, opts.MemSegmentOptions())
+	postingsOffset := postings.ID(0) // FOLLOWUP(prateek): compute based on block compaction
+	seg, err := mem.NewSegment(postingsOffset, opts.MemSegmentOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +145,8 @@ func (i *nsIndex) Write(
 		return errDbIndexUnableToWriteClosed
 	}
 
-	async := i.insertMode == index.InsertAsync
+	// NB(prateek): retrieving insertMode here while we have the RLock.
+	insertMode := i.insertMode
 	wg, err := i.insertQueue.Insert(d, fns)
 	i.RUnlock()
 
@@ -154,8 +157,7 @@ func (i *nsIndex) Write(
 
 	// once the write has been queued in the indexInsertQueue, it assumes
 	// responsibility for calling the lifecycle resource hooks.
-
-	if !async {
+	if insertMode != index.InsertAsync {
 		wg.Wait()
 	}
 
@@ -176,21 +178,62 @@ func (i *nsIndex) writeBatch(inserts []nsIndexInsert) error {
 		return errDbIndexUnableToWriteClosed
 	}
 
-	var numErr int64
+	// TODO(prateek): docs array pooling
+	batch := m3ninxindex.Batch{
+		Docs:                make([]doc.Document, 0, len(inserts)),
+		AllowPartialUpdates: true,
+	}
 	for _, insert := range inserts {
-		// FOLLOWUP(prateek): need to query before insert to ensure no duplicates && add test
-		err := i.active.segment.Insert(insert.doc)
-		if err != nil {
-			numErr++
-		} else {
+		batch.Docs = append(batch.Docs, insert.doc)
+	}
+
+	err := i.active.segment.InsertBatch(batch)
+	if err == nil {
+		for idx, insert := range inserts {
 			insert.fns.OnIndexSuccess(i.active.expiryTime)
+			insert.fns.OnIndexFinalize()
+			batch.Docs[idx] = doc.Document{}
 		}
-		// NB: we need to release held resources so we un-conditionally execute the Finalize.
+		return nil
+	}
+
+	partialErr, ok := err.(*m3ninxindex.BatchPartialError)
+	if !ok {
+		// should never happen
+		i.opts.InstrumentOptions().Logger().Errorf(
+			"[invariant violated] received non BatchPartialError from m3ninx InsertBatch. %T", err)
+		// NB: marking all the inserts as failure, cause we don't know which ones failed
+		for _, insert := range inserts {
+			insert.fns.OnIndexFinalize()
+			insert.doc = doc.Document{}
+			insert.fns = nil
+		}
+		return nil
+	}
+
+	// first finalize all the responses which were errors, and mark them
+	// nil to indicate they're done.
+	numErr := len(partialErr.Indices())
+	for _, idx := range partialErr.Indices() {
+		inserts[idx].fns.OnIndexFinalize()
+		inserts[idx].fns = nil
+		inserts[idx].doc = doc.Document{}
+	}
+
+	// mark all non-error inserts success, so we don't repeatedly index them,
+	// and then finalize any held references.
+	for _, insert := range inserts {
+		if insert.fns == nil {
+			continue
+		}
+		insert.fns.OnIndexSuccess(i.active.expiryTime)
 		insert.fns.OnIndexFinalize()
+		insert.fns = nil
+		insert.doc = doc.Document{}
 	}
 
 	if numErr != 0 {
-		i.metrics.AsyncInsertErrors.Inc(numErr)
+		i.metrics.AsyncInsertErrors.Inc(int64(numErr))
 	}
 
 	return nil
@@ -202,34 +245,42 @@ func (i *nsIndex) Query(
 	opts index.QueryOptions,
 ) (index.QueryResults, error) {
 	i.RLock()
+	defer i.RUnlock()
 	if !i.isOpenWithRLock() {
-		i.RUnlock()
 		return index.QueryResults{}, errDbIndexUnableToQueryClosed
 	}
 
-	// FOLLOWUP(prateek): push down QueryOptions to restrict results
-	iter, err := i.active.segment.Query(query.Query)
-	i.RUnlock()
+	reader, err := i.active.segment.Reader()
 	if err != nil {
 		return index.QueryResults{}, err
 	}
 
+	readers := []m3ninxindex.Reader{reader}
+	exec := executor.NewExecutor(readers)
+
+	// FOLLOWUP(prateek): push down QueryOptions to restrict results
+	iter, err := exec.Execute(query.Query.SearchQuery())
+	if err != nil {
+		exec.Close()
+		return index.QueryResults{}, err
+	}
+
 	return index.QueryResults{
-		Iterator:   index.NewIterator(i.nsID, iter, i.opts),
+		Iterator: index.NewIterator(i.nsID, iter, i.opts, func() {
+			exec.Close()
+		}),
 		Exhaustive: true,
 	}, nil
 }
 
 func (i *nsIndex) isOpenWithRLock() bool {
 	return i.state == nsIndexStateOpen
-
 }
 
 func (i *nsIndex) Close() error {
 	i.Lock()
 	defer i.Unlock()
-	state := i.state
-	if state != nsIndexStateOpen {
+	if !i.isOpenWithRLock() {
 		return errDbIndexAlreadyClosed
 	}
 
@@ -238,21 +289,15 @@ func (i *nsIndex) Close() error {
 }
 
 func (i *nsIndex) doc(id ident.ID, tags ident.Tags) (doc.Document, error) {
-	fields := make([]doc.Field, 0, 1+len(tags))
-	fields = append(fields, doc.Field{
-		Name:      index.ReservedFieldNameID,
-		Value:     i.clone(id),
-		ValueType: doc.StringValueType,
-	})
+	fields := make([]doc.Field, 0, len(tags))
 	for _, tag := range tags {
-		name := i.clone(tag.Name)
-		if bytes.Equal(index.ReservedFieldNameID, name) {
+		if bytes.Equal(index.ReservedFieldNameID, tag.Name.Bytes()) {
 			return doc.Document{}, errDbIndexUnableToIndexWithReservedFieldName
 		}
+		name := i.clone(tag.Name)
 		fields = append(fields, doc.Field{
-			Name:      name,
-			Value:     i.clone(tag.Value),
-			ValueType: doc.StringValueType,
+			Name:  name,
+			Value: i.clone(tag.Value),
 		})
 	}
 	return doc.Document{
@@ -265,7 +310,7 @@ func (i *nsIndex) doc(id ident.ID, tags ident.Tags) (doc.Document, error) {
 // any ids provided, as we need to maintain the lifecycle of the indexed
 // bytes separately from the rest of the storage subsystem.
 func (i *nsIndex) clone(id ident.ID) []byte {
-	original := id.Data().Get()
+	original := id.Data().Bytes()
 	clone := make([]byte, len(original))
 	copy(clone, original)
 	return clone

@@ -126,9 +126,12 @@ func TestShardNotAvailable(t *testing.T) {
 // utils
 
 func getWriteState(s *session, w writeStub) *writeState {
-	wState := s.writeStatePool.Get()
-	wState.topoMap = s.topoMap
-	o := s.writeOperationPool.Get()
+	wState := s.pools.writeState.Get()
+	s.state.RLock()
+	wState.consistencyLevel = s.state.writeLevel
+	wState.topoMap = s.state.topoMap
+	s.state.RUnlock()
+	o := s.pools.writeOperation.Get()
 	o.shardID = 0 // Any valid shardID
 	wState.op = o
 	wState.nsID = w.ns
@@ -137,7 +140,9 @@ func getWriteState(s *session, w writeStub) *writeState {
 }
 
 func setShardStates(t *testing.T, s *session, host topology.Host, state shard.State) {
-	hostShardSet, ok := s.topoMap.LookupHostShardSet(host.ID())
+	s.state.RLock()
+	hostShardSet, ok := s.state.topoMap.LookupHostShardSet(host.ID())
+	s.state.RUnlock()
 	require.True(t, ok)
 
 	for _, hostShard := range hostShardSet.ShardSet().All() {
@@ -168,7 +173,7 @@ func writeTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *sessio
 		require.NoError(t, s.Close())
 	}()
 
-	host := s.topoMap.Hosts()[0] // any host
+	host := s.state.topoMap.Hosts()[0] // any host
 
 	wState := getWriteState(s, w)
 	wState.incRef() // for the test
@@ -184,8 +189,8 @@ func writeTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *sessio
 	// Callbacks
 
 	enqueueWg.Wait()
-	require.True(t, s.topoMap.Replicas() == sessionTestReplicas)
-	for i := 0; i < s.topoMap.Replicas(); i++ {
+	require.True(t, s.state.topoMap.Replicas() == sessionTestReplicas)
+	for i := 0; i < s.state.topoMap.Replicas(); i++ {
 		completionFn(host, nil) // maintain session state
 	}
 

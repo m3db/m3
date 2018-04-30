@@ -314,7 +314,7 @@ func (r *blockRetriever) fetchBatch(
 			if data != nil {
 				dataCopy := r.bytesPool.Get(data.Len())
 				onRetrieveSeg = ts.NewSegment(dataCopy, nil, ts.FinalizeHead)
-				dataCopy.AppendAll(data.Get())
+				dataCopy.AppendAll(data.Bytes())
 			}
 		}
 
@@ -381,7 +381,7 @@ func (r *blockRetriever) Stream(
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately
-	if !bloomFilter.Test(id.Data().Get()) {
+	if !bloomFilter.Test(id.Data().Bytes()) {
 		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data
 		req.onRetrieved(ts.Segment{})
 		return req, nil

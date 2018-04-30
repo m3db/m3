@@ -677,3 +677,96 @@ func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
 	// Ensure single encoder again
 	assert.Equal(t, 1, len(encoders))
 }
+
+func TestBufferSnapshot(t *testing.T) {
+	// Setup
+	var (
+		drained []block.DatabaseBlock
+		drainFn = func(b block.DatabaseBlock) {
+			drained = append(drained, b)
+		}
+		opts      = newBufferTestOptions()
+		rops      = opts.RetentionOptions()
+		blockSize = rops.BlockSize()
+		curr      = time.Now().Truncate(blockSize)
+		start     = curr
+		buffer    = newDatabaseBuffer(drainFn).(*dbBuffer)
+	)
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer.Reset(opts)
+
+	// Create test data to perform out of order writes that will create two in-order
+	// encoders so we can verify that Snapshot will perform a merge
+	data := []value{
+		{curr, 1, xtime.Second, nil},
+		{curr.Add(mins(0.5)), 2, xtime.Second, nil},
+		{curr.Add(mins(0.5)).Add(-5 * time.Second), 3, xtime.Second, nil},
+		{curr.Add(mins(1.0)), 4, xtime.Second, nil},
+		{curr.Add(mins(1.5)), 5, xtime.Second, nil},
+		{curr.Add(mins(1.5)).Add(-5 * time.Second), 6, xtime.Second, nil},
+
+		// Add one write for a different block to make sure Snapshot only returns
+		// date for the requested block
+		{curr.Add(blockSize), 6, xtime.Second, nil},
+	}
+
+	// Perform the writes
+	for _, v := range data {
+		curr = v.timestamp
+		ctx := context.NewContext()
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
+		ctx.Close()
+	}
+
+	// Verify internal state
+	var encoders []encoding.Encoder
+	for i := range buffer.buckets {
+		if !buffer.buckets[i].start.Equal(start) {
+			continue
+		}
+		// Current bucket encoders should all have data in them
+		for j := range buffer.buckets[i].encoders {
+			encoder := buffer.buckets[i].encoders[j].encoder
+			assert.NotNil(t, encoder.Stream())
+
+			encoders = append(encoders, encoder)
+		}
+	}
+	assert.Equal(t, 2, len(encoders))
+
+	// Perform a snapshot
+	ctx := context.NewContext()
+	defer ctx.Close()
+	result, err := buffer.Snapshot(ctx, start)
+	assert.NoError(t, err)
+
+	// Check we got the right results
+	expectedData := data[:len(data)-1] // -1 because we don't expect the last datapoint
+	expectedCopy := make([]value, len(expectedData))
+	copy(expectedCopy, expectedData)
+	sort.Sort(valuesByTime(expectedCopy))
+	actual := [][]xio.BlockReader{{
+		xio.NewBlockReader(result, time.Time{}, time.Time{}),
+	}}
+	assertValuesEqual(t, expectedCopy, actual, opts)
+
+	// Check internal state to make sure the merge happened and was persisted
+	encoders = encoders[:0]
+	for i := range buffer.buckets {
+		if !buffer.buckets[i].start.Equal(start) {
+			continue
+		}
+		// Current bucket encoders should all have data in them
+		for j := range buffer.buckets[i].encoders {
+			encoder := buffer.buckets[i].encoders[j].encoder
+			assert.NotNil(t, encoder.Stream())
+
+			encoders = append(encoders, encoder)
+		}
+	}
+
+	// Ensure single encoder again
+	assert.Equal(t, 1, len(encoders))
+}

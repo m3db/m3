@@ -47,7 +47,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not create new reader: %v", err)
 	}
-	err = reader.Open(ident.StringID(*optNamespace), *optShard, time.Unix(0, *optBlockstart))
+
+	openOpts := fs.ReaderOpenOptions{
+		Identifier: fs.FilesetFileIdentifier{
+			Namespace:  ident.StringID(*optNamespace),
+			Shard:      *optShard,
+			BlockStart: time.Unix(0, *optBlockstart),
+		},
+	}
+
+	err = reader.Open(openOpts)
 	if err != nil {
 		log.Fatalf("unable to open reader: %v", err)
 	}
@@ -66,7 +75,7 @@ func main() {
 		}
 
 		data.IncRef()
-		iter := m3tsz.NewReaderIterator(bytes.NewReader(data.Get()), true, encodingOpts)
+		iter := m3tsz.NewReaderIterator(bytes.NewReader(data.Bytes()), true, encodingOpts)
 		for iter.Next() {
 			dp, _, _ := iter.Current()
 			// Use fmt package so it goes to stdout instead of stderr

@@ -44,7 +44,6 @@ func TestEmptyDecode(t *testing.T) {
 	require.False(t, d.Next())
 	require.NoError(t, d.Err())
 	d.Close()
-	d.Finalize()
 }
 
 func TestDecodeHeaderMissing(t *testing.T) {
@@ -57,7 +56,6 @@ func TestDecodeHeaderMissing(t *testing.T) {
 	require.False(t, d.Next())
 	require.Error(t, d.Err())
 	d.Close()
-	d.Finalize()
 }
 
 func TestDecodeSimple(t *testing.T) {
@@ -80,7 +78,6 @@ func TestDecodeSimple(t *testing.T) {
 	require.NoError(t, d.Err())
 
 	d.Close()
-	d.Finalize()
 }
 
 func TestDecodeTooManyTags(t *testing.T) {
@@ -134,10 +131,10 @@ func TestDecodeOwnershipFinalize(t *testing.T) {
 	require.False(t, d.Next())
 	require.Error(t, d.Err())
 
-	d.Finalize()
+	d.Close()
 	require.Equal(t, 0, wrappedBytes.NumRef())
 	wrappedBytes.IncRef()
-	require.Nil(t, wrappedBytes.Get())
+	require.Nil(t, wrappedBytes.Bytes())
 }
 
 func TestDecodeMissingValue(t *testing.T) {
@@ -173,13 +170,13 @@ func TestDecodeDuplicateLifecycle(t *testing.T) {
 	require.Equal(t, oldLen, copy.Remaining())
 
 	for copy.Next() {
-		tag := copy.Current()  // keep looping
-		tag.Name.Data().Get()  // ensure we can get values too
-		tag.Value.Data().Get() // and don't panic
+		tag := copy.Current()    // keep looping
+		tag.Name.Data().Bytes()  // ensure we can get values too
+		tag.Value.Data().Bytes() // and don't panic
 	}
 	require.NoError(t, copy.Err())
 	copy.Close()
-	d.Finalize()
+	d.Close()
 }
 
 func TestDecodeDuplicateIteration(t *testing.T) {
@@ -194,9 +191,9 @@ func TestDecodeDuplicateIteration(t *testing.T) {
 	require.Equal(t, oldLen, copy.Remaining())
 
 	for copy.Next() {
-		tag := copy.Current()  // keep looping
-		tag.Name.Data().Get()  // ensure we can get values too
-		tag.Value.Data().Get() // and don't panic
+		tag := copy.Current()    // keep looping
+		tag.Name.Data().Bytes()  // ensure we can get values too
+		tag.Value.Data().Bytes() // and don't panic
 	}
 	require.NoError(t, copy.Err())
 	copy.Close()
@@ -204,7 +201,7 @@ func TestDecodeDuplicateIteration(t *testing.T) {
 	dec := d.(*decoder)
 	require.True(t, dec.checkedData.NumRef() >= 3, fmt.Sprintf("%d", dec.checkedData.NumRef()))
 	require.NotPanics(t, func() {
-		d.Finalize()
+		d.Close()
 	})
 }
 
@@ -214,7 +211,7 @@ func TestDecodeDuplicateLifecycleMocks(t *testing.T) {
 
 	rawData := testTagDecoderBytesRaw()
 	mockBytes := checked.NewMockBytes(ctrl)
-	mockBytes.EXPECT().Get().Return(rawData).AnyTimes()
+	mockBytes.EXPECT().Bytes().Return(rawData).AnyTimes()
 
 	mockBytes.EXPECT().IncRef()
 	d := newTestTagDecoder()
@@ -245,7 +242,6 @@ func TestDecodeDuplicateLifecycleMocks(t *testing.T) {
 	mockBytes.EXPECT().DecRef()
 	mockBytes.EXPECT().NumRef().Return(3)
 	d.Close()
-	d.Finalize()
 
 	mockBytes.EXPECT().DecRef().Times(2)
 	mockBytes.EXPECT().IncRef().Times(2)

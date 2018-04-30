@@ -33,8 +33,8 @@ import (
 
 func TestRegistryConfig(t *testing.T) {
 	var (
-		needsBootstrap = false
-		config         = &MapConfiguration{
+		bootstrapEnabled = false
+		config           = &MapConfiguration{
 			Metadatas: []MetadataConfiguration{
 				MetadataConfiguration{
 					ID: "abc",
@@ -46,8 +46,8 @@ func TestRegistryConfig(t *testing.T) {
 					},
 				},
 				MetadataConfiguration{
-					ID:             "cde",
-					NeedsBootstrap: &needsBootstrap,
+					ID:               "cde",
+					BootstrapEnabled: &bootstrapEnabled,
 					Retention: retention.Configuration{
 						BlockSize:       time.Hour,
 						RetentionPeriod: time.Hour,
@@ -81,26 +81,26 @@ func TestRegistryConfig(t *testing.T) {
 
 func TestMetadataConfig(t *testing.T) {
 	var (
-		id                  = "someLongString"
-		needsBootstrap      = true
-		needsFlush          = false
-		writesToCommitLog   = true
-		needsFilesetCleanup = false
-		needsRepair         = false
-		retention           = retention.Configuration{
+		id                = "someLongString"
+		bootstrapEnabled  = true
+		flushEnabled      = false
+		writesToCommitLog = true
+		cleanupEnabled    = false
+		repairEnabled     = false
+		retention         = retention.Configuration{
 			BlockSize:       time.Hour,
 			RetentionPeriod: time.Hour,
 			BufferFuture:    time.Minute,
 			BufferPast:      time.Minute,
 		}
 		config = &MetadataConfiguration{
-			ID:                  id,
-			NeedsBootstrap:      &needsBootstrap,
-			NeedsFlush:          &needsFlush,
-			WritesToCommitLog:   &writesToCommitLog,
-			NeedsFilesetCleanup: &needsFilesetCleanup,
-			NeedsRepair:         &needsRepair,
-			Retention:           retention,
+			ID:                id,
+			BootstrapEnabled:  &bootstrapEnabled,
+			FlushEnabled:      &flushEnabled,
+			WritesToCommitLog: &writesToCommitLog,
+			CleanupEnabled:    &cleanupEnabled,
+			RepairEnabled:     &repairEnabled,
+			Retention:         retention,
 		}
 	)
 
@@ -109,11 +109,11 @@ func TestMetadataConfig(t *testing.T) {
 	require.Equal(t, id, metadata.ID().String())
 
 	opts := metadata.Options()
-	require.Equal(t, needsBootstrap, opts.NeedsBootstrap())
-	require.Equal(t, needsFlush, opts.NeedsFlush())
+	require.Equal(t, bootstrapEnabled, opts.BootstrapEnabled())
+	require.Equal(t, flushEnabled, opts.FlushEnabled())
 	require.Equal(t, writesToCommitLog, opts.WritesToCommitLog())
-	require.Equal(t, needsFilesetCleanup, opts.NeedsFilesetCleanup())
-	require.Equal(t, needsRepair, opts.NeedsRepair())
+	require.Equal(t, cleanupEnabled, opts.CleanupEnabled())
+	require.Equal(t, repairEnabled, opts.RepairEnabled())
 	require.Equal(t, retention.Options(), opts.RetentionOptions())
 }
 
@@ -121,33 +121,33 @@ func TestRegistryConfigFromBytes(t *testing.T) {
 	yamlBytes := []byte(`
 metadatas:
   - id: "testmetrics"
-    needsBootstrap: false
-    needsFlush: false
+    bootstrapEnabled: false
+    flushEnabled: false
     writesToCommitLog: false
-    needsFilesetCleanup: false
-    needsRepair: false
+    cleanupEnabled: false
+    repairEnabled: false
     retention:
       retentionPeriod: 8h
       blockSize: 2h
       bufferFuture: 10m
       bufferPast: 10m
   - id: "metrics-10s:2d"
-    needsBootstrap: true
-    needsFlush: true
+    bootstrapEnabled: true
+    flushEnabled: true
     writesToCommitLog: true
-    needsFilesetCleanup: true
-    needsRepair: true
+    cleanupEnabled: true
+    repairEnabled: true
     retention:
       retentionPeriod: 48h
       blockSize: 2h
       bufferFuture: 10m
       bufferPast: 10m
   - id: "metrics-1m:40d"
-    needsBootstrap: true
-    needsFlush: true
+    bootstrapEnabled: true
+    flushEnabled: true
     writesToCommitLog: true
-    needsFilesetCleanup: true
-    needsRepair: true
+    cleanupEnabled: true
+    repairEnabled: true
     retention:
       retentionPeriod: 960h
       blockSize: 12h
@@ -168,11 +168,11 @@ metadatas:
 	require.NoError(t, err)
 	require.True(t, ns.ID().Equal(testmetrics))
 	opts := ns.Options()
-	require.Equal(t, false, opts.NeedsBootstrap())
-	require.Equal(t, false, opts.NeedsFlush())
+	require.Equal(t, false, opts.BootstrapEnabled())
+	require.Equal(t, false, opts.FlushEnabled())
 	require.Equal(t, false, opts.WritesToCommitLog())
-	require.Equal(t, false, opts.NeedsFilesetCleanup())
-	require.Equal(t, false, opts.NeedsRepair())
+	require.Equal(t, false, opts.CleanupEnabled())
+	require.Equal(t, false, opts.RepairEnabled())
 	testRetentionOpts := retention.NewOptions().
 		SetRetentionPeriod(8 * time.Hour).
 		SetBlockSize(2 * time.Hour).
@@ -185,11 +185,11 @@ metadatas:
 	require.NoError(t, err)
 	require.True(t, ns.ID().Equal(metrics2d))
 	opts = ns.Options()
-	require.Equal(t, true, opts.NeedsBootstrap())
-	require.Equal(t, true, opts.NeedsFlush())
+	require.Equal(t, true, opts.BootstrapEnabled())
+	require.Equal(t, true, opts.FlushEnabled())
 	require.Equal(t, true, opts.WritesToCommitLog())
-	require.Equal(t, true, opts.NeedsFilesetCleanup())
-	require.Equal(t, true, opts.NeedsRepair())
+	require.Equal(t, true, opts.CleanupEnabled())
+	require.Equal(t, true, opts.RepairEnabled())
 	testRetentionOpts = retention.NewOptions().
 		SetRetentionPeriod(48 * time.Hour).
 		SetBlockSize(2 * time.Hour).
@@ -202,11 +202,11 @@ metadatas:
 	require.NoError(t, err)
 	require.True(t, ns.ID().Equal(metrics40d))
 	opts = ns.Options()
-	require.Equal(t, true, opts.NeedsBootstrap())
-	require.Equal(t, true, opts.NeedsFlush())
+	require.Equal(t, true, opts.BootstrapEnabled())
+	require.Equal(t, true, opts.FlushEnabled())
 	require.Equal(t, true, opts.WritesToCommitLog())
-	require.Equal(t, true, opts.NeedsFilesetCleanup())
-	require.Equal(t, true, opts.NeedsRepair())
+	require.Equal(t, true, opts.CleanupEnabled())
+	require.Equal(t, true, opts.RepairEnabled())
 	testRetentionOpts = retention.NewOptions().
 		SetRetentionPeriod(960 * time.Hour).
 		SetBlockSize(12 * time.Hour).

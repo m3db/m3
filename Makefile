@@ -8,6 +8,7 @@ gopath_prefix        := $(GOPATH)/src
 license_dir          := .ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
 m3db_package         := github.com/m3db/m3db
+m3db_package_path    := $(gopath_prefix)/$(m3db_package)
 metalint_check       := .ci/metalint.sh
 metalint_config      := .metalinter.json
 metalint_exclude     := .excludemetalint
@@ -22,6 +23,8 @@ thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
+
+include $(SELF_DIR)/generated-source-files.mk
 
 BUILD            := $(abspath ./bin)
 GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package))
@@ -138,7 +141,7 @@ proto-gen: install-proto-bin install-license-bin
 .PHONY: all-gen
 # NB(prateek): order matters here, mock-gen needs to be last because we sometimes
 # generate mocks for thrift/proto generated code.
-all-gen: thrift-gen proto-gen mock-gen
+all-gen: thrift-gen proto-gen mock-gen genny-all
 
 .PHONY: metalint
 metalint: install-metalinter install-linter-badtime

@@ -166,7 +166,7 @@ func assertTestSeriesIterator(
 		}
 	}
 
-	iter := NewSeriesIterator(ident.StringID(series.id), ident.StringID(series.nsID), series.start, series.end, iters, nil)
+	iter := NewSeriesIterator(ident.StringID(series.id), ident.StringID(series.nsID), ident.EmptyTagIterator, series.start, series.end, iters, nil)
 	defer iter.Close()
 
 	assert.Equal(t, series.id, iter.ID().String())

@@ -5,7 +5,7 @@ coverage:
 
   status:
     project:
-      default: off
+      default: on
       unittests:
         flags: unittests
       integration:

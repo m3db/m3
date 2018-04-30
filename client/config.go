@@ -49,10 +49,10 @@ type Configuration struct {
 	WriteConsistencyLevel topology.ConsistencyLevel `yaml:"writeConsistencyLevel"`
 
 	// ReadConsistencyLevel specifies the read consistency level.
-	ReadConsistencyLevel ReadConsistencyLevel `yaml:"readConsistencyLevel"`
+	ReadConsistencyLevel topology.ReadConsistencyLevel `yaml:"readConsistencyLevel"`
 
 	// ConnectConsistencyLevel specifies the cluster connect consistency level.
-	ConnectConsistencyLevel ConnectConsistencyLevel `yaml:"connectConsistencyLevel"`
+	ConnectConsistencyLevel topology.ConnectConsistencyLevel `yaml:"connectConsistencyLevel"`
 
 	// WriteTimeout is the write request timeout.
 	WriteTimeout time.Duration `yaml:"writeTimeout" validate:"min=0"`
@@ -153,27 +153,24 @@ func (c Configuration) NewAdminClient(
 
 	var err error
 	if envCfg.TopologyInitializer == nil {
-		switch {
-		case c.EnvironmentConfig.Service != nil:
-
+		if c.EnvironmentConfig.Service != nil {
 			envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{
 				InstrumentOpts: iopts,
 				HashingSeed:    c.HashingConfiguration.Seed,
 			})
+
 			if err != nil {
 				err = fmt.Errorf("unable to create dynamic topology initializer, err: %v", err)
 				return nil, err
 			}
-
-		case c.EnvironmentConfig.Static != nil:
-
+		} else if c.EnvironmentConfig.Static != nil {
 			envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{})
+
 			if err != nil {
 				err = fmt.Errorf("unable to create static topology initializer, err: %v", err)
 				return nil, err
 			}
-
-		default:
+		} else {
 			return nil, errConfigurationMustSupplyConfig
 		}
 	}

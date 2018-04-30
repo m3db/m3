@@ -84,7 +84,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 	multiReader := encoding.NewMultiReaderIterator(iterAlloc, nil)
 	multiReader.Reset([]xio.Reader{reader}, blockStart, blockEnd)
 
-	orig := encoding.NewSeriesIterator(ident.StringID("foo"), ident.StringID("namespace"),
+	orig := encoding.NewSeriesIterator(ident.StringID("foo"), ident.StringID("namespace"), nil,
 		start, end, []encoding.MultiReaderIterator{multiReader}, nil)
 
 	// Construct a per block view of the series
@@ -150,7 +150,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 			filterValuesEnd = block.End
 		}
 
-		valuesIter := encoding.NewSeriesIterator(orig.Namespace(), orig.ID(),
+		valuesIter := encoding.NewSeriesIterator(orig.Namespace(), orig.ID(), orig.Tags(),
 			filterValuesStart, filterValuesEnd, block.Replicas, nil)
 
 		require.Len(t, block.Replicas, 1)

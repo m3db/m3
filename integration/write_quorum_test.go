@@ -55,8 +55,10 @@ func TestNormalQuorumOnlyOneUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	// Writes succeed to one node
 	require.NoError(t, nodes[0].startServer())
+	defer func() { require.NoError(t, nodes[0].stopServer()) }()
+
+	// Writes succeed to one node
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
@@ -79,9 +81,12 @@ func TestNormalQuorumOnlyTwoUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	// Writes succeed to two nodes
 	require.NoError(t, nodes[0].startServer())
+	defer func() { require.NoError(t, nodes[0].stopServer()) }()
 	require.NoError(t, nodes[1].startServer())
+	defer func() { require.NoError(t, nodes[1].stopServer()) }()
+
+	// Writes succeed to two nodes
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
@@ -104,10 +109,14 @@ func TestNormalQuorumAllUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	// Writes succeed to all nodes
 	require.NoError(t, nodes[0].startServer())
+	defer func() { require.NoError(t, nodes[0].stopServer()) }()
 	require.NoError(t, nodes[1].startServer())
+	defer func() { require.NoError(t, nodes[1].stopServer()) }()
 	require.NoError(t, nodes[2].startServer())
+	defer func() { require.NoError(t, nodes[2].stopServer()) }()
+
+	// Writes succeed to all nodes
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.NoError(t, testWrite(topology.ConsistencyLevelAll))
@@ -131,9 +140,13 @@ func TestAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	// No writes succeed to available nodes
 	require.NoError(t, nodes[0].startServer())
+	defer func() { require.NoError(t, nodes[0].stopServer()) }()
+
 	require.NoError(t, nodes[3].startServer())
+	defer func() { require.NoError(t, nodes[3].stopServer()) }()
+
+	// No writes succeed to available nodes
 	assert.Error(t, testWrite(topology.ConsistencyLevelOne))
 	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
@@ -157,10 +170,14 @@ func TestAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	// Writes succeed to one available node
 	require.NoError(t, nodes[0].startServer())
+	defer func() { require.NoError(t, nodes[0].stopServer()) }()
 	require.NoError(t, nodes[1].startServer())
+	defer func() { require.NoError(t, nodes[1].stopServer()) }()
 	require.NoError(t, nodes[3].startServer())
+	defer func() { require.NoError(t, nodes[3].stopServer()) }()
+
+	// Writes succeed to one available node
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.Error(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
@@ -184,11 +201,16 @@ func TestAddNodeQuorumAllUp(t *testing.T) {
 	})
 	defer closeFn()
 
-	// Writes succeed to two available nodes
 	require.NoError(t, nodes[0].startServer())
+	defer func() { require.NoError(t, nodes[0].stopServer()) }()
 	require.NoError(t, nodes[1].startServer())
+	defer func() { require.NoError(t, nodes[1].stopServer()) }()
 	require.NoError(t, nodes[2].startServer())
+	defer func() { require.NoError(t, nodes[2].stopServer()) }()
 	require.NoError(t, nodes[3].startServer())
+	defer func() { require.NoError(t, nodes[3].stopServer()) }()
+
+	// Writes succeed to two available nodes
 	assert.NoError(t, testWrite(topology.ConsistencyLevelOne))
 	assert.NoError(t, testWrite(topology.ConsistencyLevelMajority))
 	assert.Error(t, testWrite(topology.ConsistencyLevelAll))
@@ -208,7 +230,7 @@ func makeTestWrite(
 	require.NoError(t, err)
 
 	nspaces := []namespace.Metadata{md}
-	nodes, topoInit, closeFn := newNodes(t, instances, nspaces)
+	nodes, topoInit, closeFn := newNodes(t, instances, nspaces, false)
 	now := nodes[0].getNowFn()
 
 	for _, node := range nodes {
@@ -216,7 +238,7 @@ func makeTestWrite(
 	}
 
 	clientopts := client.NewOptions().
-		SetClusterConnectConsistencyLevel(client.ConnectConsistencyLevelNone).
+		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelNone).
 		SetClusterConnectTimeout(2 * time.Second).
 		SetWriteRequestTimeout(2 * time.Second).
 		SetTopologyInitializer(topoInit)

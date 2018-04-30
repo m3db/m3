@@ -62,7 +62,8 @@ type dbSeries struct {
 	// series ID before changing ownership semantics (e.g.
 	// pooling the ID rather than releasing it to the GC on
 	// calling series.Reset()).
-	id ident.ID
+	id   ident.ID
+	tags ident.Tags
 
 	buffer                      databaseBuffer
 	blocks                      block.DatabaseSeriesBlocks
@@ -74,9 +75,9 @@ type dbSeries struct {
 }
 
 // NewDatabaseSeries creates a new database series
-func NewDatabaseSeries(id ident.ID, opts Options) DatabaseSeries {
+func NewDatabaseSeries(id ident.ID, tags ident.Tags, opts Options) DatabaseSeries {
 	s := newDatabaseSeries()
-	s.Reset(id, nil, nil, nil, opts)
+	s.Reset(id, tags, nil, nil, nil, opts)
 	return s
 }
 
@@ -108,6 +109,13 @@ func (s *dbSeries) ID() ident.ID {
 	id := s.id
 	s.RUnlock()
 	return id
+}
+
+func (s *dbSeries) Tags() ident.Tags {
+	s.RLock()
+	tags := s.tags
+	s.RUnlock()
+	return tags
 }
 
 func (s *dbSeries) Tick() (TickResult, error) {
@@ -598,8 +606,37 @@ func (s *dbSeries) Flush(
 	if err != nil {
 		return err
 	}
-
 	return persistFn(s.id, segment, b.Checksum())
+}
+
+func (s *dbSeries) Snapshot(
+	ctx context.Context,
+	blockStart time.Time,
+	persistFn persist.Fn,
+) error {
+	// Need a write lock because the buffer Snapshot method mutates
+	// state (by performing a pro-active merge).
+	s.Lock()
+	defer s.Unlock()
+
+	if s.bs != bootstrapped {
+		return errSeriesNotBootstrapped
+	}
+
+	stream, err := s.buffer.Snapshot(ctx, blockStart)
+	if err != nil {
+		return err
+	}
+	if stream == nil {
+		return nil
+	}
+
+	segment, err := stream.Segment()
+	if err != nil {
+		return err
+	}
+
+	return persistFn(s.id, segment, digest.SegmentChecksum(segment))
 }
 
 func (s *dbSeries) Close() {
@@ -622,6 +659,7 @@ func (s *dbSeries) Close() {
 	// of not releasing back an ID to a pool is amortized over
 	// a long period of time.
 	s.id = nil
+	s.tags = nil
 
 	switch s.opts.CachePolicy() {
 	case CacheLRU:
@@ -650,6 +688,7 @@ func (s *dbSeries) Close() {
 
 func (s *dbSeries) Reset(
 	id ident.ID,
+	tags ident.Tags,
 	blockRetriever QueryableBlockRetriever,
 	onRetrieveBlock block.OnRetrieveBlock,
 	onEvictedFromWiredList block.OnEvictedFromWiredList,
@@ -659,6 +698,7 @@ func (s *dbSeries) Reset(
 	defer s.Unlock()
 
 	s.id = id
+	s.tags = tags
 	s.blocks.Reset()
 	s.buffer.Reset(opts)
 	s.opts = opts

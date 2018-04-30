@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3x/ident"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -59,11 +60,6 @@ func TestSortFetchBlockMetadataResultByTimeAscending(t *testing.T) {
 	require.Equal(t, expected, res.Results())
 }
 
-type testValue struct {
-	id       string
-	metadata Metadata
-}
-
 func TestFilteredBlocksMetadataIter(t *testing.T) {
 	now := time.Now()
 	sizes := []int64{1, 2, 3}
@@ -81,20 +77,35 @@ func TestFilteredBlocksMetadataIter(t *testing.T) {
 				NewFetchBlockMetadataResult(now.Add(2*time.Second), 0, nil, lastRead, nil),
 			}, nil)),
 	}
+
 	res := newPooledFetchBlocksMetadataResults(nil, nil)
 	for _, input := range inputs {
 		res.Add(input)
 	}
+
 	iter := NewFilteredBlocksMetadataIter(res)
-	var actual []testValue
+
+	var actual []Metadata
 	for iter.Next() {
-		id, metadata := iter.Current()
-		actual = append(actual, testValue{id.String(), metadata})
+		_, metadata := iter.Current()
+		actual = append(actual, metadata)
 	}
-	expected := []testValue{
-		{"foo", NewMetadata(now.Add(-time.Second), sizes[0], &checksums[0], lastRead)},
-		{"bar", NewMetadata(now, sizes[1], &checksums[1], lastRead)},
-		{"bar", NewMetadata(now.Add(2*time.Second), int64(0), nil, lastRead)},
+
+	expected := []Metadata{
+		NewMetadata(ident.StringID("foo"), now.Add(-time.Second),
+			sizes[0], &checksums[0], lastRead),
+		NewMetadata(ident.StringID("bar"), now,
+			sizes[1], &checksums[1], lastRead),
+		NewMetadata(ident.StringID("bar"), now.Add(2*time.Second),
+			int64(0), nil, lastRead),
 	}
-	require.Equal(t, expected, actual)
+
+	require.Equal(t, len(expected), len(actual))
+	for i := range expected {
+		assert.True(t, expected[i].ID.Equal(actual[i].ID))
+		assert.True(t, expected[i].Start.Equal(actual[i].Start))
+		assert.Equal(t, expected[i].Size, actual[i].Size)
+		assert.Equal(t, expected[i].Checksum, actual[i].Checksum)
+		assert.Equal(t, expected[i].LastRead, actual[i].LastRead)
+	}
 }

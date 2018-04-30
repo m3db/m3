@@ -33,7 +33,8 @@ func testGenEncodeNumObjectFieldsForFn(
 ) encodeNumObjectFieldsForFn {
 	return func(objType objectType) {
 		if objType == targetType {
-			enc.encodeArrayLenFn(numFieldsForType(objType) + delta)
+			_, curr := numFieldsForType(objType)
+			enc.encodeArrayLenFn(curr + delta)
 			return
 		}
 		enc.encodeNumObjectFieldsFor(objType)

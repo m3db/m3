@@ -135,12 +135,12 @@ struct Segment {
 }
 
 struct FetchTaggedRequest {
-	1: required IdxQuery query
-	2: required i64 rangeStart
-	3: required i64 rangeEnd
-	4: required bool fetchData
-	5: optional i64 limit
-	6: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
+	1: required binary nameSpace
+	2: required IdxQuery query
+	3: required i64 rangeStart
+	4: required i64 rangeEnd
+	5: required bool fetchData
+	6: optional i64 limit
 }
 
 struct IdxQuery {
@@ -154,8 +154,8 @@ enum BooleanOperator {
 }
 
 struct IdxTagFilter {
-	1: required string tagName
-	2: required string tagValueFilter
+	1: required binary tagName
+	2: required binary tagValueFilter
 	3: required bool negate
 	4: required bool regexp
 }
@@ -166,11 +166,11 @@ struct FetchTaggedResult {
 }
 
 struct FetchTaggedIDResult {
-	1: required string id
-	2: required string nameSpace
-	3: required list<Tag> tags
-	5: optional list<Datapoint> datapoints
-	6: optional Error err
+	1: required binary id
+	2: required binary nameSpace
+	3: required binary encodedTags
+	4: optional list<Segments> segments
+	5: optional Error err
 }
 
 struct FetchBlocksRawRequest {

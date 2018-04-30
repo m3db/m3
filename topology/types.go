@@ -21,9 +21,6 @@
 package topology
 
 import (
-	"errors"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/m3db/m3cluster/client"
@@ -134,71 +131,6 @@ type Map interface {
 
 // RouteForEachFn is a function to execute for each routed to host
 type RouteForEachFn func(idx int, host Host)
-
-// ConsistencyLevel is the consistency level for cluster operations
-type ConsistencyLevel int
-
-// nolint: deadcode, varcheck, unused
-const (
-	consistencyLevelNone ConsistencyLevel = iota
-
-	// ConsistencyLevelOne corresponds to a single node participating
-	// for an operation to succeed
-	ConsistencyLevelOne
-
-	// ConsistencyLevelMajority corresponds to the majority of nodes participating
-	// for an operation to succeed
-	ConsistencyLevelMajority
-
-	// ConsistencyLevelAll corresponds to all nodes participating
-	// for an operation to succeed
-	ConsistencyLevelAll
-)
-
-// String returns the consistency level as a string
-func (l ConsistencyLevel) String() string {
-	switch l {
-	case consistencyLevelNone:
-		return "none"
-	case ConsistencyLevelOne:
-		return "one"
-	case ConsistencyLevelMajority:
-		return "majority"
-	case ConsistencyLevelAll:
-		return "all"
-	}
-	return "unknown"
-}
-
-var validConsistencyLevels = []ConsistencyLevel{
-	consistencyLevelNone,
-	ConsistencyLevelOne,
-	ConsistencyLevelMajority,
-	ConsistencyLevelAll,
-}
-
-var errConsistencyLevelUnspecified = errors.New("consistency level not specified")
-
-// UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
-func (l *ConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-	if str == "" {
-		return errConsistencyLevelUnspecified
-	}
-	strs := make([]string, len(validConsistencyLevels))
-	for _, valid := range validConsistencyLevels {
-		if str == valid.String() {
-			*l = valid
-			return nil
-		}
-		strs = append(strs, "'"+valid.String()+"'")
-	}
-	return fmt.Errorf("invalid ConsistencyLevel '%s' valid types are: %s",
-		str, strings.Join(strs, ", "))
-}
 
 // StaticConfiguration is used for standing up M3DB with a static topology
 type StaticConfiguration struct {

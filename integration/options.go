@@ -75,6 +75,12 @@ const (
 
 	// defaultMaxWiredBlocks is the default max number of wired blocks to keep in memory at once
 	defaultMaxWiredBlocks = 10
+
+	// defaultIndexingEnabled disables indexing by default.
+	defaulIndexingEnabled = false
+
+	// defaultWriteNewSeriesAsync inserts, and index series' synchronously by default.
+	defaultWriteNewSeriesAsync = false
 )
 
 var (
@@ -251,6 +257,18 @@ type testOptions interface {
 
 	// SetMaxWiredBlocks sets the maximum number of wired blocks to keep in memory using the LRU cache.
 	SetMaxWiredBlocks(value uint) testOptions
+
+	// SetIndexingEnabled sets whether indexing is enabled.
+	SetIndexingEnabled(bool) testOptions
+
+	// IndexingEnabled returns whether indexing is enabled.
+	IndexingEnabled() bool
+
+	// SetWriteNewSeriesAsync sets whether we insert/index asynchronously.
+	SetWriteNewSeriesAsync(bool) testOptions
+
+	// WriteNewSeriesAsync returns whether we insert/index asynchronously.
+	WriteNewSeriesAsync() bool
 }
 
 type options struct {
@@ -272,20 +290,22 @@ type options struct {
 	truncateRequestTimeout             time.Duration
 	workerPoolSize                     int
 	clusterDatabaseTopologyInitializer topology.Initializer
-	useTChannelClientForReading        bool
-	useTChannelClientForWriting        bool
-	useTChannelClientForTruncation     bool
 	blockRetrieverManager              block.DatabaseBlockRetrieverManager
 	verifySeriesDebugFilePathPrefix    string
 	writeConsistencyLevel              topology.ConsistencyLevel
 	numShards                          int
 	maxWiredBlocks                     uint
+	useTChannelClientForReading        bool
+	useTChannelClientForWriting        bool
+	useTChannelClientForTruncation     bool
+	indexingEnabled                    bool
+	writeNewSeriesAsync                bool
 }
 
 func newTestOptions(t *testing.T) testOptions {
 	var namespaces []namespace.Metadata
 	nsOpts := namespace.NewOptions().
-		SetNeedsRepair(false).
+		SetRepairEnabled(false).
 		SetRetentionOptions(defaultIntegrationTestRetentionOpts)
 
 	for _, ns := range testNamespaces {
@@ -306,12 +326,14 @@ func newTestOptions(t *testing.T) testOptions {
 		writeRequestTimeout:            defaultWriteRequestTimeout,
 		truncateRequestTimeout:         defaultTruncateRequestTimeout,
 		workerPoolSize:                 defaultWorkerPoolSize,
-		useTChannelClientForReading:    defaultUseTChannelClientForReading,
-		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
-		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
 		writeConsistencyLevel:          defaultWriteConsistencyLevel,
 		numShards:                      defaultNumShards,
 		maxWiredBlocks:                 defaultMaxWiredBlocks,
+		useTChannelClientForReading:    defaultUseTChannelClientForReading,
+		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
+		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
+		indexingEnabled:                defaulIndexingEnabled,
+		writeNewSeriesAsync:            defaultWriteNewSeriesAsync,
 	}
 }
 
@@ -365,7 +387,6 @@ func (o *options) SetID(value string) testOptions {
 func (o *options) ID() string {
 	return o.id
 }
-
 func (o *options) SetTickMinimumInterval(value time.Duration) testOptions {
 	opts := *o
 	opts.tickMinimumInterval = value
@@ -576,4 +597,24 @@ func (o *options) SetMaxWiredBlocks(value uint) testOptions {
 	opts := *o
 	opts.maxWiredBlocks = value
 	return &opts
+}
+
+func (o *options) SetIndexingEnabled(value bool) testOptions {
+	opts := *o
+	opts.indexingEnabled = value
+	return &opts
+}
+
+func (o *options) IndexingEnabled() bool {
+	return o.indexingEnabled
+}
+
+func (o *options) SetWriteNewSeriesAsync(value bool) testOptions {
+	opts := *o
+	opts.writeNewSeriesAsync = value
+	return &opts
+}
+
+func (o *options) WriteNewSeriesAsync() bool {
+	return o.writeNewSeriesAsync
 }

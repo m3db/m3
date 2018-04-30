@@ -33,35 +33,34 @@ var (
 )
 
 type nsMap struct {
-	namespaces map[ident.Hash]Metadata
+	namespaces *metadataMap
 	ids        []ident.ID
 	metadatas  []Metadata
 }
 
-// NewMap returns a new registry containing provided metadatas
+// NewMap returns a new registry containing provided metadatas,
+// providing a consistent order.
 func NewMap(metadatas []Metadata) (Map, error) {
 	if len(metadatas) == 0 {
 		return nil, errEmptyMetadatas
 	}
 
 	var (
-		ns          = make(map[ident.Hash]Metadata, len(metadatas))
+		ns          = newMetadataMap(metadataMapOptions{})
 		ids         = make([]ident.ID, 0, len(metadatas))
 		nsMetadatas = make([]Metadata, 0, len(metadatas))
-		idsMap      = make(map[ident.Hash]struct{})
 		multiErr    xerrors.MultiError
 	)
 	for _, m := range metadatas {
 		id := m.ID()
 		ids = append(ids, id)
 		nsMetadatas = append(nsMetadatas, m)
-		ns[id.Hash()] = m
 
-		if _, ok := idsMap[id.Hash()]; ok {
+		if _, ok := ns.Get(id); ok {
 			multiErr = multiErr.Add(fmt.Errorf(
 				"namespace ids must be unique, duplicate found: %v", id.String()))
 		}
-		idsMap[id.Hash()] = struct{}{}
+		ns.Set(id, m)
 	}
 
 	if err := multiErr.FinalError(); err != nil {
@@ -76,8 +75,7 @@ func NewMap(metadatas []Metadata) (Map, error) {
 }
 
 func (r *nsMap) Get(namespace ident.ID) (Metadata, error) {
-	idHash := namespace.Hash()
-	metadata, ok := r.namespaces[idHash]
+	metadata, ok := r.namespaces.Get(namespace)
 	if !ok {
 		return nil, fmt.Errorf("unable to find namespace (%v) in registry", namespace.String())
 	}

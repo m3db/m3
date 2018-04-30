@@ -26,39 +26,44 @@ import (
 
 const (
 	// Namespace requires bootstrapping by default
-	defaultNeedsBootstrap = true
+	defaultBootstrapEnabled = true
 
 	// Namespace requires flushing by default
-	defaultNeedsFlush = true
+	defaultFlushEnabled = true
+
+	// Namespace requires snapshotting by default
+	defaultSnapshotEnabled = true
 
 	// Namespace writes go to commit logs by default
 	defaultWritesToCommitLog = true
 
-	// Namespace requires fileset cleanup by default
-	defaultNeedsFilesetCleanup = true
+	// Namespace requires fileset/snapshot cleanup by default
+	defaultCleanupEnabled = true
 
 	// Namespace requires repair by default
-	defaultNeedsRepair = true
+	defaultRepairEnabled = true
 )
 
 type options struct {
-	needsBootstrap      bool
-	needsFlush          bool
-	writesToCommitLog   bool
-	needsFilesetCleanup bool
-	needsRepair         bool
-	retentionOpts       retention.Options
+	bootstrapEnabled  bool
+	flushEnabled      bool
+	snapshotEnabled   bool
+	writesToCommitLog bool
+	cleanupEnabled    bool
+	repairEnabled     bool
+	retentionOpts     retention.Options
 }
 
 // NewOptions creates a new namespace options
 func NewOptions() Options {
 	return &options{
-		needsBootstrap:      defaultNeedsBootstrap,
-		needsFlush:          defaultNeedsFlush,
-		writesToCommitLog:   defaultWritesToCommitLog,
-		needsFilesetCleanup: defaultNeedsFilesetCleanup,
-		needsRepair:         defaultNeedsRepair,
-		retentionOpts:       retention.NewOptions(),
+		bootstrapEnabled:  defaultBootstrapEnabled,
+		flushEnabled:      defaultFlushEnabled,
+		snapshotEnabled:   defaultSnapshotEnabled,
+		writesToCommitLog: defaultWritesToCommitLog,
+		cleanupEnabled:    defaultCleanupEnabled,
+		repairEnabled:     defaultRepairEnabled,
+		retentionOpts:     retention.NewOptions(),
 	}
 }
 
@@ -67,32 +72,42 @@ func (o *options) Validate() error {
 }
 
 func (o *options) Equal(value Options) bool {
-	return o.needsBootstrap == value.NeedsBootstrap() &&
-		o.needsFlush == value.NeedsFlush() &&
+	return o.bootstrapEnabled == value.BootstrapEnabled() &&
+		o.flushEnabled == value.FlushEnabled() &&
 		o.writesToCommitLog == value.WritesToCommitLog() &&
-		o.needsFilesetCleanup == value.NeedsFilesetCleanup() &&
-		o.needsRepair == value.NeedsRepair() &&
+		o.cleanupEnabled == value.CleanupEnabled() &&
+		o.repairEnabled == value.RepairEnabled() &&
 		o.retentionOpts.Equal(value.RetentionOptions())
 }
 
-func (o *options) SetNeedsBootstrap(value bool) Options {
+func (o *options) SetBootstrapEnabled(value bool) Options {
 	opts := *o
-	opts.needsBootstrap = value
+	opts.bootstrapEnabled = value
 	return &opts
 }
 
-func (o *options) NeedsBootstrap() bool {
-	return o.needsBootstrap
+func (o *options) BootstrapEnabled() bool {
+	return o.bootstrapEnabled
 }
 
-func (o *options) SetNeedsFlush(value bool) Options {
+func (o *options) SetFlushEnabled(value bool) Options {
 	opts := *o
-	opts.needsFlush = value
+	opts.flushEnabled = value
 	return &opts
 }
 
-func (o *options) NeedsFlush() bool {
-	return o.needsFlush
+func (o *options) FlushEnabled() bool {
+	return o.flushEnabled
+}
+
+func (o *options) SetSnapshotEnabled(value bool) Options {
+	opts := *o
+	opts.snapshotEnabled = value
+	return &opts
+}
+
+func (o *options) SnapshotEnabled() bool {
+	return o.snapshotEnabled
 }
 
 func (o *options) SetWritesToCommitLog(value bool) Options {
@@ -105,24 +120,24 @@ func (o *options) WritesToCommitLog() bool {
 	return o.writesToCommitLog
 }
 
-func (o *options) SetNeedsFilesetCleanup(value bool) Options {
+func (o *options) SetCleanupEnabled(value bool) Options {
 	opts := *o
-	opts.needsFilesetCleanup = value
+	opts.cleanupEnabled = value
 	return &opts
 }
 
-func (o *options) NeedsFilesetCleanup() bool {
-	return o.needsFilesetCleanup
+func (o *options) CleanupEnabled() bool {
+	return o.cleanupEnabled
 }
 
-func (o *options) SetNeedsRepair(value bool) Options {
+func (o *options) SetRepairEnabled(value bool) Options {
 	opts := *o
-	opts.needsRepair = value
+	opts.repairEnabled = value
 	return &opts
 }
 
-func (o *options) NeedsRepair() bool {
-	return o.needsRepair
+func (o *options) RepairEnabled() bool {
+	return o.repairEnabled
 }
 
 func (o *options) SetRetentionOptions(value retention.Options) Options {

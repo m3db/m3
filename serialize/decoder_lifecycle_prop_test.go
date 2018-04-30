@@ -112,9 +112,9 @@ var decoderCommandsFunctor = func(t *testing.T) *commands.ProtoCommands {
 		},
 		DestroySystemUnderTestFunc: func(s commands.SystemUnderTest) {
 			sys := s.(*multiDecoderSystem)
-			sys.primary.Finalize()
+			sys.primary.Close()
 			for _, dupe := range sys.duplicates {
-				dupe.Finalize()
+				dupe.Close()
 			}
 		},
 		InitialStateGen: newDecoderState(),
@@ -431,7 +431,7 @@ func newDecoderState() gopter.Gen {
 			if !ok {
 				return nil
 			}
-			data := checked.NewBytes(b.Get(), nil)
+			data := checked.NewBytes(b.Bytes(), nil)
 			return &multiDecoderState{
 				tags:      tags,
 				initBytes: data,

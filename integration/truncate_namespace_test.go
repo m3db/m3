@@ -102,7 +102,7 @@ func TestTruncateNamespace(t *testing.T) {
 
 	log.Debugf("truncate namespace %s", testNamespaces[0])
 	truncateReq := rpc.NewTruncateRequest()
-	truncateReq.NameSpace = testNamespaces[0].Data().Get()
+	truncateReq.NameSpace = testNamespaces[0].Data().Bytes()
 	truncated, err := testSetup.truncate(truncateReq)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), truncated)

@@ -99,6 +99,9 @@ type Series struct {
 	// ID is the series identifier
 	ID ident.ID
 
+	// Tags are the series tags
+	Tags ident.Tags // FOLLOWUP(prateek): wire Tags to commit log writer
+
 	// Shard is the shard the series belongs to
 	Shard uint32
 }

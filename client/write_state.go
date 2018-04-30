@@ -63,11 +63,17 @@ type writeState struct {
 	pool           *writeStatePool
 }
 
-func (w *writeState) reset() {
-	// Set refCounter completion as close
+func newWriteState(
+	encoderPool serialize.TagEncoderPool,
+	pool *writeStatePool,
+) *writeState {
+	w := &writeState{
+		pool:           pool,
+		tagEncoderPool: encoderPool,
+	}
 	w.destructorFn = w.close
-	// Set the embedded condition locker to the embedded mutex
 	w.L = w
+	return w
 }
 
 func (w *writeState) close() {
@@ -156,33 +162,24 @@ func (w *writeState) completionFn(result interface{}, err error) {
 }
 
 type writeStatePool struct {
-	pool             pool.ObjectPool
-	tagEncoderPool   serialize.TagEncoderPool
-	consistencyLevel topology.ConsistencyLevel
+	pool           pool.ObjectPool
+	tagEncoderPool serialize.TagEncoderPool
 }
 
 func newWriteStatePool(
-	consistencyLevel topology.ConsistencyLevel,
 	tagEncoderPool serialize.TagEncoderPool,
 	opts pool.ObjectPoolOptions,
 ) *writeStatePool {
 	p := pool.NewObjectPool(opts)
 	return &writeStatePool{
-		pool:             p,
-		tagEncoderPool:   tagEncoderPool,
-		consistencyLevel: consistencyLevel,
+		pool:           p,
+		tagEncoderPool: tagEncoderPool,
 	}
 }
 
 func (p *writeStatePool) Init() {
 	p.pool.Init(func() interface{} {
-		w := &writeState{
-			consistencyLevel: p.consistencyLevel,
-			pool:             p,
-			tagEncoderPool:   p.tagEncoderPool,
-		}
-		w.reset()
-		return w
+		return newWriteState(p.tagEncoderPool, p)
 	})
 }
 

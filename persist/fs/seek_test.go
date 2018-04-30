@@ -56,7 +56,15 @@ func TestSeekEmptyIndex(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
+	writerOpts := WriterOpenOptions{
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
+	}
+	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
@@ -79,7 +87,15 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
+	writerOpts := WriterOpenOptions{
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
+	}
+	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
@@ -112,7 +128,15 @@ func TestSeekBadChecksum(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
+	writerOpts := WriterOpenOptions{
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
+	}
+	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 
 	// Write data with wrong checksum
@@ -144,7 +168,15 @@ func TestSeek(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
+	writerOpts := WriterOpenOptions{
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
+	}
+	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ident.StringID("foo1"),
@@ -169,14 +201,14 @@ func TestSeek(t *testing.T) {
 
 	data.IncRef()
 	defer data.DecRef()
-	assert.Equal(t, []byte{1, 2, 3}, data.Get())
+	assert.Equal(t, []byte{1, 2, 3}, data.Bytes())
 
 	data, err = s.SeekByID(ident.StringID("foo1"))
 	require.NoError(t, err)
 
 	data.IncRef()
 	defer data.DecRef()
-	assert.Equal(t, []byte{1, 2, 1}, data.Get())
+	assert.Equal(t, []byte{1, 2, 1}, data.Bytes())
 
 	_, err = s.SeekByID(ident.StringID("foo"))
 	assert.Error(t, err)
@@ -187,7 +219,7 @@ func TestSeek(t *testing.T) {
 
 	data.IncRef()
 	defer data.DecRef()
-	assert.Equal(t, []byte{1, 2, 2}, data.Get())
+	assert.Equal(t, []byte{1, 2, 2}, data.Bytes())
 
 	assert.NoError(t, s.Close())
 }
@@ -203,7 +235,15 @@ func TestSeekIDNotExists(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
+	writerOpts := WriterOpenOptions{
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
+	}
+	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ident.StringID("foo10"),
@@ -248,7 +288,15 @@ func TestReuseSeeker(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 
-	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart.Add(-time.Hour))
+	writerOpts := WriterOpenOptions{
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart.Add(-time.Hour),
+		},
+	}
+	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),
@@ -256,7 +304,15 @@ func TestReuseSeeker(t *testing.T) {
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
 
-	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
+	writerOpts = WriterOpenOptions{
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
+	}
+	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),
@@ -273,7 +329,7 @@ func TestReuseSeeker(t *testing.T) {
 
 	data.IncRef()
 	defer data.DecRef()
-	assert.Equal(t, []byte{1, 2, 1}, data.Get())
+	assert.Equal(t, []byte{1, 2, 1}, data.Bytes())
 
 	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
@@ -283,7 +339,7 @@ func TestReuseSeeker(t *testing.T) {
 
 	data.IncRef()
 	defer data.DecRef()
-	assert.Equal(t, []byte{1, 2, 3}, data.Get())
+	assert.Equal(t, []byte{1, 2, 3}, data.Bytes())
 }
 
 func TestCloneSeeker(t *testing.T) {
@@ -296,7 +352,15 @@ func TestCloneSeeker(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 
-	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart.Add(-time.Hour))
+	writerOpts := WriterOpenOptions{
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart.Add(-time.Hour),
+		},
+	}
+	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),
@@ -304,7 +368,15 @@ func TestCloneSeeker(t *testing.T) {
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
 
-	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
+	writerOpts = WriterOpenOptions{
+		BlockSize: testBlockSize,
+		Identifier: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      0,
+			BlockStart: testWriterStart,
+		},
+	}
+	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),
@@ -324,5 +396,5 @@ func TestCloneSeeker(t *testing.T) {
 
 	data.IncRef()
 	defer data.DecRef()
-	assert.Equal(t, []byte{1, 2, 1}, data.Get())
+	assert.Equal(t, []byte{1, 2, 1}, data.Bytes())
 }

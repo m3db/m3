@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/kv"
-	m3clusterkvmem "github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/kvconfig"
@@ -39,9 +39,13 @@ import (
 	"github.com/m3db/m3x/instrument"
 )
 
+const (
+	defaultSDTimeout = 30 * time.Second
+)
+
 var (
 	errNilRetention  = errors.New("namespace retention options cannot be empty")
-	errMissingConfig = errors.New("must supply service or static config")
+	errInvalidConfig = errors.New("must supply either service or static config")
 )
 
 // Configuration is a configuration that can be used to create namespaces, a topology, and kv store
@@ -51,6 +55,43 @@ type Configuration struct {
 
 	// StaticConfiguration is used for running M3DB with a static config
 	Static *StaticConfiguration `yaml:"static"`
+
+	// Presence of a (etcd) server in this config denotes an embedded cluster
+	SeedNodes *SeedNodesConfig `yaml:"seedNodes"`
+
+	// NamespaceResolutionTimeout is the maximum time to wait to discover namespaces from KV
+	NamespaceResolutionTimeout time.Duration `yaml:"namespaceResolutionTimeout"`
+
+	// TopologyResolutionTimeout is the maximum time to wait for a topology from KV
+	TopologyResolutionTimeout time.Duration `yaml:"topologyResolutionTimeout"`
+}
+
+// SeedNodesConfig defines fields for seed node
+type SeedNodesConfig struct {
+	RootDir                  string                 `yaml:"rootDir"`
+	InitialAdvertisePeerUrls []string               `yaml:"initialAdvertisePeerUrls"`
+	AdvertiseClientUrls      []string               `yaml:"advertiseClientUrls"`
+	ListenPeerUrls           []string               `yaml:"listenPeerUrls"`
+	ListenClientUrls         []string               `yaml:"listenClientUrls"`
+	InitialCluster           []SeedNode             `yaml:"initialCluster"`
+	ClientTransportSecurity  SeedNodeSecurityConfig `yaml:"clientTransportSecurity"`
+	PeerTransportSecurity    SeedNodeSecurityConfig `yaml:"peerTransportSecurity"`
+}
+
+// SeedNode represents a seed node for the cluster
+type SeedNode struct {
+	HostID   string `yaml:"hostID"`
+	Endpoint string `yaml:"endpoint"`
+}
+
+// SeedNodeSecurityConfig contains the data used for security in seed nodes
+type SeedNodeSecurityConfig struct {
+	CAFile        string `yaml:"caFile"`
+	CertFile      string `yaml:"certFile"`
+	KeyFile       string `yaml:"keyFile"`
+	TrustedCAFile string `yaml:"trustedCaFile"`
+	CertAuth      bool   `yaml:"clientCertAuth"`
+	AutoTLS       bool   `yaml:"autoTls"`
 }
 
 // StaticConfiguration is used for running M3DB with a static config
@@ -69,11 +110,12 @@ type StaticNamespaceConfiguration struct {
 
 // StaticNamespaceOptions sets namespace options- if nil, default is used
 type StaticNamespaceOptions struct {
-	NeedsBootstrap      bool `yaml:"needsBootstrap"`
-	NeedsFlush          bool `yaml:"needsFlush"`
-	WritesToCommitLog   bool `yaml:"writesToCommitLog"`
-	NeedsFilesetCleanup bool `yaml:"needsFilesetCleanup"`
-	NeedsRepair         bool `yaml:"needsRepair"`
+	BootstrapEnabled  bool `yaml:"bootstrapEnabled"`
+	FlushEnabled      bool `yaml:"flushEnabled"`
+	SnapshotEnabled   bool `yaml:"snapshotEnabled"`
+	WritesToCommitLog bool `yaml:"writesToCommitLog"`
+	CleanupEnabled    bool `yaml:"cleanupEnabled"`
+	RepairEnabled     bool `yaml:"repairEnabled"`
 }
 
 // StaticNamespaceRetention sets the retention per namespace (required)
@@ -95,112 +137,138 @@ type ConfigureResults struct {
 
 // ConfigurationParameters are options used to create new ConfigureResults
 type ConfigurationParameters struct {
-	InstrumentOpts instrument.Options
-	HashingSeed    uint32
-	HostID         string
+	InstrumentOpts             instrument.Options
+	HashingSeed                uint32
+	HostID                     string
+	NamespaceResolutionTimeout time.Duration
+	TopologyResolutionTimeout  time.Duration
 }
 
 // Configure creates a new ConfigureResults
 func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureResults, error) {
-
 	var emptyConfig ConfigureResults
 
-	switch {
-	case c.Service != nil:
-		configSvcClientOpts := c.Service.NewOptions().
-			SetInstrumentOptions(cfgParams.InstrumentOpts)
-		configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
-		if err != nil {
-			err = fmt.Errorf("could not create m3cluster client: %v", err)
-			return emptyConfig, err
-		}
-
-		dynamicOpts := namespace.NewDynamicOptions().
-			SetInstrumentOptions(cfgParams.InstrumentOpts).
-			SetConfigServiceClient(configSvcClient).
-			SetNamespaceRegistryKey(kvconfig.NamespacesKey)
-		nsInit := namespace.NewDynamicInitializer(dynamicOpts)
-
-		serviceID := services.NewServiceID().
-			SetName(c.Service.Service).
-			SetEnvironment(c.Service.Env).
-			SetZone(c.Service.Zone)
-
-		topoOpts := topology.NewDynamicOptions().
-			SetConfigServiceClient(configSvcClient).
-			SetServiceID(serviceID).
-			SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
-			SetInstrumentOptions(cfgParams.InstrumentOpts).
-			SetHashGen(sharding.NewHashGenWithSeed(cfgParams.HashingSeed))
-		topoInit := topology.NewDynamicInitializer(topoOpts)
-
-		kv, err := configSvcClient.KV()
-		if err != nil {
-			err = fmt.Errorf("could not create KV client, %v", err)
-			return emptyConfig, err
-		}
-
-		configureResults := ConfigureResults{
-			NamespaceInitializer: nsInit,
-			TopologyInitializer:  topoInit,
-			KVStore:              kv,
-		}
-		return configureResults, nil
-
-	case c.Static != nil:
-		nsList := []namespace.Metadata{}
-		for _, ns := range c.Static.Namespaces {
-			md, err := newNamespaceMetadata(ns)
-			if err != nil {
-				err = fmt.Errorf("unable to create metadata for static config: %v", err)
-				return emptyConfig, err
-			}
-			nsList = append(nsList, md)
-		}
-
-		nsInitStatic := namespace.NewStaticInitializer(nsList)
-
-		shardSet, hostShardSets, err := newStaticShardSet(c.Static.TopologyConfig.Shards, c.Static.TopologyConfig.Hosts)
-		if err != nil {
-			err = fmt.Errorf("unable to create shard set for static config: %v", err)
-			return emptyConfig, err
-		}
-		staticOptions := topology.NewStaticOptions().
-			SetHostShardSets(hostShardSets).
-			SetShardSet(shardSet)
-
-		numHosts := len(c.Static.TopologyConfig.Hosts)
-		numReplicas := c.Static.TopologyConfig.Replicas
-
-		switch numReplicas {
-		case 0:
-			if numHosts != 1 {
-				err := fmt.Errorf("number of hosts (%d) must be 1 if replicas is not set", numHosts)
-				return emptyConfig, err
-			}
-			staticOptions = staticOptions.SetReplicas(1)
-		default:
-			if numHosts != numReplicas {
-				err := fmt.Errorf("number of hosts (%d) not equal to number of replicas (%d)", numHosts, numReplicas)
-				return emptyConfig, err
-			}
-			staticOptions = staticOptions.SetReplicas(c.Static.TopologyConfig.Replicas)
-		}
-
-		topoInit := topology.NewStaticInitializer(staticOptions)
-
-		kv := m3clusterkvmem.NewStore()
-
-		configureResults := ConfigureResults{
-			NamespaceInitializer: nsInitStatic,
-			TopologyInitializer:  topoInit,
-			KVStore:              kv,
-		}
-		return configureResults, nil
-
-	default:
-		return emptyConfig, errMissingConfig
+	sdTimeout := defaultSDTimeout
+	if initTimeout := c.Service.SDConfig.InitTimeout; initTimeout != nil && *initTimeout != 0 {
+		sdTimeout = *initTimeout
 	}
+
+	configSvcClientOpts := c.Service.NewOptions().
+		SetInstrumentOptions(cfgParams.InstrumentOpts).
+		SetServicesOptions(c.Service.SDConfig.NewOptions().SetInitTimeout(sdTimeout))
+	configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
+	if err != nil {
+		err = fmt.Errorf("could not create m3cluster client: %v", err)
+		return emptyConfig, err
+	}
+
+	if c.Service != nil && c.Static != nil {
+		return emptyConfig, errInvalidConfig
+	}
+
+	if c.Service != nil {
+		return c.configureDynamic(configSvcClient, cfgParams)
+	}
+
+	if c.Static != nil {
+		return c.configureStatic(configSvcClient, cfgParams)
+	}
+
+	return emptyConfig, errInvalidConfig
+}
+
+func (c Configuration) configureDynamic(configSvcClient client.Client, cfgParams ConfigurationParameters) (ConfigureResults, error) {
+	dynamicOpts := namespace.NewDynamicOptions().
+		SetInstrumentOptions(cfgParams.InstrumentOpts).
+		SetConfigServiceClient(configSvcClient).
+		SetNamespaceRegistryKey(kvconfig.NamespacesKey).
+		SetInitTimeout(cfgParams.NamespaceResolutionTimeout)
+	nsInit := namespace.NewDynamicInitializer(dynamicOpts)
+
+	serviceID := services.NewServiceID().
+		SetName(c.Service.Service).
+		SetEnvironment(c.Service.Env).
+		SetZone(c.Service.Zone)
+
+	topoOpts := topology.NewDynamicOptions().
+		SetConfigServiceClient(configSvcClient).
+		SetServiceID(serviceID).
+		SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
+		SetInstrumentOptions(cfgParams.InstrumentOpts).
+		SetHashGen(sharding.NewHashGenWithSeed(cfgParams.HashingSeed)).
+		SetInitTimeout(cfgParams.TopologyResolutionTimeout)
+	topoInit := topology.NewDynamicInitializer(topoOpts)
+
+	kv, err := configSvcClient.KV()
+	if err != nil {
+		err = fmt.Errorf("could not create KV client, %v", err)
+		return ConfigureResults{}, err
+	}
+
+	configureResults := ConfigureResults{
+		NamespaceInitializer: nsInit,
+		TopologyInitializer:  topoInit,
+		KVStore:              kv,
+	}
+	return configureResults, nil
+}
+
+func (c Configuration) configureStatic(configSvcClient client.Client, cfgParams ConfigurationParameters) (ConfigureResults, error) {
+	var emptyConfig ConfigureResults
+
+	nsList := []namespace.Metadata{}
+	for _, ns := range c.Static.Namespaces {
+		md, err := newNamespaceMetadata(ns)
+		if err != nil {
+			err = fmt.Errorf("unable to create metadata for static config: %v", err)
+			return emptyConfig, err
+		}
+		nsList = append(nsList, md)
+	}
+
+	nsInitStatic := namespace.NewStaticInitializer(nsList)
+
+	shardSet, hostShardSets, err := newStaticShardSet(c.Static.TopologyConfig.Shards, c.Static.TopologyConfig.Hosts)
+	if err != nil {
+		err = fmt.Errorf("unable to create shard set for static config: %v", err)
+		return emptyConfig, err
+	}
+	staticOptions := topology.NewStaticOptions().
+		SetHostShardSets(hostShardSets).
+		SetShardSet(shardSet)
+
+	numHosts := len(c.Static.TopologyConfig.Hosts)
+	numReplicas := c.Static.TopologyConfig.Replicas
+
+	switch numReplicas {
+	case 0:
+		if numHosts != 1 {
+			err := fmt.Errorf("number of hosts (%d) must be 1 if replicas is not set", numHosts)
+			return emptyConfig, err
+		}
+		staticOptions = staticOptions.SetReplicas(1)
+	default:
+		if numHosts != numReplicas {
+			err := fmt.Errorf("number of hosts (%d) not equal to number of replicas (%d)", numHosts, numReplicas)
+			return emptyConfig, err
+		}
+		staticOptions = staticOptions.SetReplicas(c.Static.TopologyConfig.Replicas)
+	}
+
+	topoInit := topology.NewStaticInitializer(staticOptions)
+
+	kv, err := configSvcClient.KV()
+	if err != nil {
+		err = fmt.Errorf("could not create KV client, %v", err)
+		return emptyConfig, err
+	}
+
+	configureResults := ConfigureResults{
+		NamespaceInitializer: nsInitStatic,
+		TopologyInitializer:  topoInit,
+		KVStore:              kv,
+	}
+	return configureResults, nil
 }
 
 func newStaticShardSet(numShards int, hosts []topology.HostShardConfig) (sharding.ShardSet, []topology.HostShardSet, error) {
@@ -236,20 +304,22 @@ func newNamespaceMetadata(cfg StaticNamespaceConfiguration) (namespace.Metadata,
 	}
 	if cfg.Options == nil {
 		cfg.Options = &StaticNamespaceOptions{
-			NeedsBootstrap:      true,
-			NeedsFilesetCleanup: true,
-			NeedsFlush:          true,
-			NeedsRepair:         true,
-			WritesToCommitLog:   true,
+			BootstrapEnabled:  true,
+			CleanupEnabled:    true,
+			FlushEnabled:      true,
+			SnapshotEnabled:   true,
+			RepairEnabled:     true,
+			WritesToCommitLog: true,
 		}
 	}
 	md, err := namespace.NewMetadata(
 		ident.StringID(cfg.Name),
 		namespace.NewOptions().
-			SetNeedsBootstrap(cfg.Options.NeedsBootstrap).
-			SetNeedsFilesetCleanup(cfg.Options.NeedsFilesetCleanup).
-			SetNeedsFlush(cfg.Options.NeedsFlush).
-			SetNeedsRepair(cfg.Options.NeedsRepair).
+			SetBootstrapEnabled(cfg.Options.BootstrapEnabled).
+			SetCleanupEnabled(cfg.Options.CleanupEnabled).
+			SetFlushEnabled(cfg.Options.FlushEnabled).
+			SetSnapshotEnabled(cfg.Options.SnapshotEnabled).
+			SetRepairEnabled(cfg.Options.RepairEnabled).
 			SetWritesToCommitLog(cfg.Options.WritesToCommitLog).
 			SetRetentionOptions(
 				retention.NewOptions().
