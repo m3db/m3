@@ -164,7 +164,7 @@ func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags id
 	if id.String() != cuID.String() {
 		return false
 	}
-	return newTagIterMatcher(tags).Matches(cuTag)
+	return ident.NewTagIterMatcher(tags).Matches(cuTag)
 }
 
 func newQuery(t *testing.T, tags ident.TagIterator) idx.Query {
@@ -178,14 +178,4 @@ func newQuery(t *testing.T, tags ident.TagIterator) idx.Query {
 	q, err := idx.NewConjunctionQuery(filters...)
 	require.NoError(t, err)
 	return q
-}
-
-func newTagIterMatcher(tags ident.TagIterator) ident.TagIterMatcher {
-	tags = tags.Duplicate()
-	vals := make([]string, 0, tags.Remaining()*2)
-	for tags.Next() {
-		t := tags.Current()
-		vals = append(vals, t.Name.String(), t.Value.String())
-	}
-	return ident.MustNewTagIterMatcher(vals...)
 }

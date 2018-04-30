@@ -96,7 +96,7 @@ func (t TLSConfiguration) Credentials() (credentials.TransportCredentials, error
 // New constructs a Configuration object from the path specified
 func New(m3emConfigPath string) (*Configuration, error) {
 	var conf Configuration
-	if err := xconfig.LoadFile(&conf, m3emConfigPath); err != nil {
+	if err := xconfig.LoadFile(&conf, m3emConfigPath, xconfig.Options{}); err != nil {
 		return nil, err
 	}
 

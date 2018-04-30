@@ -104,7 +104,7 @@ func TestIndexEnabledServer(t *testing.T) {
 
 	// Setup the placement
 	var cfg config.Configuration
-	err = xconfig.LoadFile(&cfg, configFd.Name())
+	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
 	configSvcClient, err := cfg.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
@@ -225,7 +225,8 @@ func TestIndexEnabledServer(t *testing.T) {
 	iter := iters.Iters()[0]
 	assert.Equal(t, namespaceID, iter.Namespace().String())
 	assert.Equal(t, "foo", iter.ID().String())
-	assert.True(t, ident.MustNewTagIterMatcher("foo", "bar", "baz", "foo").Matches(iter.Tags()))
+	assert.True(t, ident.NewTagIterMatcher(
+		ident.MustNewTagStringsIterator("foo", "bar", "baz", "foo")).Matches(iter.Tags()))
 	for _, v := range values {
 		require.True(t, iter.Next())
 		dp, unit, _ := iter.Current()
@@ -247,7 +248,8 @@ func TestIndexEnabledServer(t *testing.T) {
 	nsID, tsID, tags := indexIter.Current()
 	assert.Equal(t, namespaceID, nsID.String())
 	assert.Equal(t, "foo", tsID.String())
-	assert.True(t, ident.MustNewTagIterMatcher("foo", "bar", "baz", "foo").Matches(tags))
+	assert.True(t, ident.NewTagIterMatcher(
+		ident.MustNewTagStringsIterator("foo", "bar", "baz", "foo")).Matches(tags))
 	assert.False(t, indexIter.Next())
 	assert.NoError(t, indexIter.Err())
 
@@ -268,7 +270,7 @@ metrics:
         env: production
         includeHost: true
     samplingRate: 0.01
-    runtime: simple
+    extended: simple
 
 listenAddress: 0.0.0.0:{{.ServicePort}}
 clusterListenAddress: 0.0.0.0:10001
@@ -283,7 +285,7 @@ hostID:
 client:
     writeConsistencyLevel: majority
     readConsistencyLevel: unstrict_majority
-    clusterConnectConsistencyLevel: any
+    connectConsistencyLevel: any
     writeTimeout: 10s
     fetchTimeout: 15s
     connectTimeout: 20s

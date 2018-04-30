@@ -298,8 +298,8 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	idxFound := false
 	for iter.Next() {
 		_, id, tags := iter.Current()
-		idxFound = idxFound || (id.String() == "quorumTest" &&
-			ident.MustNewTagIterMatcher("foo", "bar", "boo", "baz").Matches(tags))
+		idxFound = idxFound || (id.String() == "quorumTest" && ident.NewTagIterMatcher(
+			ident.MustNewTagStringsIterator("foo", "bar", "boo", "baz")).Matches(tags))
 	}
 	require.NoError(t, iter.Err())
 

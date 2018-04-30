@@ -38,7 +38,7 @@ func TestConfiguration(t *testing.T) {
 	in := `
 writeConsistencyLevel: majority
 readConsistencyLevel: unstrict_majority
-clusterConnectConsistencyLevel: any
+connectConsistencyLevel: any
 writeTimeout: 10s
 fetchTimeout: 15s
 connectTimeout: 20s
@@ -69,7 +69,7 @@ hashing:
 	require.NoError(t, err)
 
 	var cfg Configuration
-	err = xconfig.LoadFile(&cfg, fd.Name())
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
 	boolTrue := true

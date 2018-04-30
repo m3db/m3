@@ -102,7 +102,7 @@ type RunOptions struct {
 // configuration file.
 func Run(runOpts RunOptions) {
 	var cfg config.Configuration
-	if err := xconfig.LoadFile(&cfg, runOpts.ConfigFile); err != nil {
+	if err := xconfig.LoadFile(&cfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
 		fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
 	}
 
