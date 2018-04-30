@@ -37,12 +37,15 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
+	xmetrics "github.com/m3db/m3db/x/metrics"
+	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 	xwatch "github.com/m3db/m3x/watch"
+	"github.com/uber-go/tally"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -161,12 +164,19 @@ func newMockdatabase(ctrl *gomock.Controller, ns ...databaseNamespace) *Mockdata
 	return db
 }
 
-func newTestDatabase(t *testing.T, ctrl *gomock.Controller, bs bootstrapState) (*db, nsMapCh) {
+func newTestDatabase(t *testing.T, ctrl *gomock.Controller, bs bootstrapState) (*db, nsMapCh, xmetrics.TestStatsReporter) {
+	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+	scope, _ := tally.NewRootScope(tally.ScopeOptions{
+		Reporter: testReporter,
+	}, 100*time.Millisecond)
+
 	mapCh := make(nsMapCh, 10)
 	mapCh <- testNamespaceMap(t)
 
-	opts := testDatabaseOptions().
-		SetRepairEnabled(true).
+	opts := testDatabaseOptions()
+	opts = opts.SetInstrumentOptions(
+		opts.InstrumentOptions().SetMetricsScope(scope)).
+		SetRepairEnabled(false).
 		SetIndexingEnabled(false).
 		SetRepairOptions(testRepairOptions(ctrl)).
 		SetNamespaceInitializer(newMockNsInitializer(t, ctrl, mapCh))
@@ -183,7 +193,7 @@ func newTestDatabase(t *testing.T, ctrl *gomock.Controller, bs bootstrapState) (
 	bsm.state = bs
 	m.databaseBootstrapManager = bsm
 
-	return d, mapCh
+	return d, mapCh, testReporter
 }
 
 func dbAddNewMockNamespace(
@@ -202,7 +212,7 @@ func TestDatabaseOpen(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapNotStarted)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapNotStarted)
 	defer func() {
 		close(mapCh)
 		leaktest.CheckTimeout(t, time.Second)()
@@ -216,7 +226,7 @@ func TestDatabaseClose(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
 	defer func() {
 		close(mapCh)
 		leaktest.CheckTimeout(t, time.Second)()
@@ -230,7 +240,7 @@ func TestDatabaseTerminate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
 	defer func() {
 		close(mapCh)
 		leaktest.CheckTimeout(t, time.Second)()
@@ -247,7 +257,7 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -262,7 +272,7 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -287,7 +297,7 @@ func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -306,7 +316,7 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -346,7 +356,7 @@ func TestDatabaseFetchBlocksMetadataShardNotOwned(t *testing.T) {
 			IncludeLastRead:  true,
 		}
 	)
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -377,7 +387,7 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 		}
 	)
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -402,7 +412,7 @@ func TestDatabaseNamespaces(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -422,7 +432,7 @@ func TestGetOwnedNamespacesErrorIfClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -438,7 +448,7 @@ func TestDatabaseAssignShardSet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -469,7 +479,7 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -504,11 +514,11 @@ func TestDatabaseRemoveNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, testReporter := newTestDatabase(t, ctrl, bootstrapped)
 	require.NoError(t, d.Open())
 	defer func() {
-		require.NoError(t, d.Close())
 		close(mapCh)
+		require.NoError(t, d.Close())
 		leaktest.CheckTimeout(t, time.Second)()
 	}()
 
@@ -531,22 +541,28 @@ func TestDatabaseRemoveNamespace(t *testing.T) {
 	// wait till the update has propagated
 	<-updateCh
 	<-updateCh
-	time.Sleep(10 * time.Millisecond)
 
-	// now check the expected ns exists
-	nses = d.Namespaces()
-	require.Len(t, nses, 2)
+	// the updateCh gets are in-sufficient to determine the update has been applied
+	// to the database, they only measure if the watch itself has been updated. It
+	// can take a few ms until the DB finds those values.
+	require.True(t, xclock.WaitUntil(func() bool {
+		counter, ok := testReporter.Counters()["database.namespace-watch.updates"]
+		return ok && counter == 1
+	}, 2*time.Second))
+	require.True(t, xclock.WaitUntil(func() bool {
+		return len(d.Namespaces()) == 2
+	}, 2*time.Second))
 }
 
 func TestDatabaseAddNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, testReporter := newTestDatabase(t, ctrl, bootstrapped)
 	require.NoError(t, d.Open())
 	defer func() {
-		require.NoError(t, d.Close())
 		close(mapCh)
+		require.NoError(t, d.Close())
 		leaktest.CheckTimeout(t, time.Second)()
 	}()
 
@@ -573,7 +589,17 @@ func TestDatabaseAddNamespace(t *testing.T) {
 	// wait till the update has propagated
 	<-updateCh
 	<-updateCh
-	time.Sleep(10 * time.Millisecond)
+
+	// the updateCh gets are in-sufficient to determine the update has been applied
+	// to the database, they only measure if the watch itself has been updated. It
+	// can take a few ms until the DB finds those values.
+	require.True(t, xclock.WaitUntil(func() bool {
+		counter, ok := testReporter.Counters()["database.namespace-watch.updates"]
+		return ok && counter == 1
+	}, 2*time.Second))
+	require.True(t, xclock.WaitUntil(func() bool {
+		return len(d.Namespaces()) == 3
+	}, 2*time.Second))
 
 	// ensure the expected namespaces exist
 	nses = d.Namespaces()
@@ -593,11 +619,11 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
 	require.NoError(t, d.Open())
 	defer func() {
-		require.NoError(t, d.Close())
 		close(mapCh)
+		require.NoError(t, d.Close())
 		leaktest.CheckTimeout(t, time.Second)()
 	}()
 
@@ -640,7 +666,7 @@ func TestDatabaseIndexDisabled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapNotStarted)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapNotStarted)
 	defer func() {
 		close(mapCh)
 	}()
@@ -663,7 +689,7 @@ func TestDatabaseIndexEnabled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh := newTestDatabase(t, ctrl, bootstrapNotStarted)
+	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapNotStarted)
 	defer func() {
 		close(mapCh)
 	}()
