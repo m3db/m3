@@ -437,7 +437,7 @@ func IndexSnapshotFiles(filePathPrefix string, namespace ident.ID) (SnapshotFile
 }
 
 // FilesetAt returns a FilesetFile for the given namespace/shard/blockStart combination if it exists.
-func FilesetAt(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) (FilesetFile, bool, error) {
+func FilesetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (FilesetFile, bool, error) {
 	matched, err := filesetFiles(filePathPrefix, namespace, shard, filesetFilePattern)
 	if err != nil {
 		return FilesetFile{}, false, err
@@ -445,11 +445,14 @@ func FilesetAt(filePathPrefix string, namespace ident.ID, shard uint32, t time.T
 
 	matched.sortByTimeAscending()
 	for i, fileset := range matched {
-		if fileset.ID.BlockStart.Equal(t) {
+		if fileset.ID.BlockStart.Equal(blockStart) {
 			nextIdx := i + 1
-			if nextIdx < len(matched) && matched[nextIdx].ID.BlockStart.Equal(t) {
+			if nextIdx < len(matched) && matched[nextIdx].ID.BlockStart.Equal(blockStart) {
 				// Should never happen
-				return FilesetFile{}, false, fmt.Errorf("found multiple fileset files for blockStart: %d", t.Unix())
+				return FilesetFile{}, false, fmt.Errorf(
+					"found multiple fileset files for blockStart: %d",
+					blockStart.Unix(),
+				)
 			}
 
 			return fileset, true, nil
