@@ -175,7 +175,7 @@ func newDefaultBootstrappableTestSetups(
 	for i := 0; i < replicas; i++ {
 		var (
 			instance                   = i
-			usingPeersBoostrapper      = !setupOpts[i].disablePeersBootstrapper
+			usingPeersBootsrapper      = !setupOpts[i].disablePeersBootstrapper
 			bootstrapBlocksBatchSize   = setupOpts[i].bootstrapBlocksBatchSize
 			bootstrapBlocksConcurrency = setupOpts[i].bootstrapBlocksConcurrency
 			topologyInitializer        = setupOpts[i].topologyInitializer
@@ -211,7 +211,14 @@ func newDefaultBootstrappableTestSetups(
 		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
 		var peersBootstrapper bootstrap.Bootstrapper
 
-		if usingPeersBoostrapper {
+		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+		filePathPrefix := fsOpts.FilePathPrefix()
+		bfsOpts := bfs.NewOptions().
+			SetResultOptions(bsOpts).
+			SetFilesystemOptions(fsOpts).
+			SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
+
+		if usingPeersBootsrapper {
 			adminOpts := client.NewAdminOptions()
 			if bootstrapBlocksBatchSize > 0 {
 				adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
@@ -232,6 +239,7 @@ func newDefaultBootstrappableTestSetups(
 				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).
+				SetFilesystemOptions(bfsOpts).
 				SetAdminClient(adminClient).
 				SetFetchBlocksMetadataEndpointVersion(setupOpts[i].fetchBlocksMetadataEndpointVersion).
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
@@ -244,13 +252,6 @@ func newDefaultBootstrappableTestSetups(
 		} else {
 			peersBootstrapper = noOpAll
 		}
-
-		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-		filePathPrefix := fsOpts.FilePathPrefix()
-		bfsOpts := bfs.NewOptions().
-			SetResultOptions(bsOpts).
-			SetFilesystemOptions(fsOpts).
-			SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
 
 		fsBootstrapper := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, peersBootstrapper)
 		setup.storageOpts = setup.storageOpts.
