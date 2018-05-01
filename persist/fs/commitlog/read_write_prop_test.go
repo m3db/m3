@@ -384,7 +384,7 @@ func genWrite() gopter.Gen {
 				ID:          ident.StringID(id),
 				Namespace:   ident.StringID(ns),
 				Shard:       shard,
-				UniqueIndex: uniqueID(id),
+				UniqueIndex: uniqueID(ns, id),
 			},
 			datapoint: ts.Datapoint{
 				Timestamp: t,
@@ -398,20 +398,36 @@ func genWrite() gopter.Gen {
 type globalMetricIdx struct {
 	sync.Mutex
 
-	idx     uint64
-	idToIdx map[string]uint64
+	idx uint64
+	// NB(prateek): we use a map from ns -> series id (string) -> unique uint64, to
+	// ensure we assign a unique value to each series/ns combination. Further, we
+	// also ensure the value is consistent. i.e. repeated generations of the same
+	// id/ns retrieve the same uint64 as earlier.
+	idToIdx map[string]map[string]uint64
 }
 
 var metricIdx = globalMetricIdx{
-	idToIdx: make(map[string]uint64),
+	idToIdx: make(map[string]map[string]uint64),
 }
 
-func uniqueID(s string) uint64 {
+func uniqueID(ns, s string) uint64 {
 	metricIdx.Lock()
 	defer metricIdx.Unlock()
 
+	nsMap, ok := metricIdx.idToIdx[ns]
+	if !ok {
+		nsMap = make(map[string]uint64)
+		metricIdx.idToIdx[ns] = nsMap
+	}
+
+	i, ok := nsMap[s]
+	if ok {
+		return i
+	}
+
 	idx := metricIdx.idx
 	metricIdx.idx++
-	metricIdx.idToIdx[s] = idx
+
+	nsMap[s] = idx
 	return idx
 }
