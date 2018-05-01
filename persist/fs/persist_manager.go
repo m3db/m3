@@ -212,7 +212,7 @@ func (pm *persistManager) reset() {
 
 // Prepare returns a prepared persist object which can be used to persist data. Note that this
 // method will return (nil, nil) if the files already exist.
-func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.PreparedPersist, bool, error) {
+func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.PreparedPersist, error) {
 
 	var (
 		nsMetadata   = opts.NamespaceMetadata
@@ -229,22 +229,22 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 	pm.RUnlock()
 
 	if status != persistManagerPersisting {
-		return prepared, false, errPersistManagerCannotPrepareNotPersisting
+		return prepared, errPersistManagerCannotPrepareNotPersisting
 	}
 
 	exists, err := pm.filesetExistsAt(opts)
 	if err != nil {
-		return prepared, false, err
+		return prepared, err
 	}
 
 	if exists && !opts.DeleteIfExists {
-		return prepared, false, nil
+		return prepared, nil
 	}
 
 	if exists && opts.DeleteIfExists {
 		err := DeleteFilesetAt(pm.opts.FilePathPrefix(), nsID, shard, blockStart)
 		if err != nil {
-			return prepared, false, err
+			return prepared, err
 		}
 	}
 
@@ -262,13 +262,13 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 		},
 	}
 	if err := pm.writer.Open(writerOpts); err != nil {
-		return prepared, false, err
+		return prepared, err
 	}
 
 	prepared.Persist = pm.persist
 	prepared.Close = pm.close
 
-	return prepared, true, nil
+	return prepared, nil
 }
 
 func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) (bool, error) {

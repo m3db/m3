@@ -54,7 +54,7 @@ type Flush interface {
 	// Prepare prepares writing data for a given (shard, blockStart) combination,
 	// returning a PreparedPersist object and any error encountered during
 	// preparation if any.
-	Prepare(opts PrepareOptions) (PreparedPersist, bool, error)
+	Prepare(opts PrepareOptions) (PreparedPersist, error)
 
 	// Done marks the flush as complete.
 	Done() error

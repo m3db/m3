@@ -92,11 +92,10 @@ func TestPersistenceManagerPrepareDataFileExistsNoDelete(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, ok, err := flush.Prepare(prepareOpts)
+	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
-	require.False(t, ok)
 }
 
 func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {
@@ -138,9 +137,8 @@ func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {
 		BlockStart:        blockStart,
 		DeleteIfExists:    true,
 	}
-	prepared, ok, err := flush.Prepare(prepareOpts)
+	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
-	require.True(t, ok)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
 
@@ -182,11 +180,10 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, ok, err := flush.Prepare(prepareOpts)
+	prepared, err := flush.Prepare(prepareOpts)
 	require.Equal(t, expectedErr, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
-	require.False(t, ok)
 }
 
 func TestPersistenceManagerPrepareSuccess(t *testing.T) {
@@ -235,11 +232,10 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, ok, err := flush.Prepare(prepareOpts)
+	prepared, err := flush.Prepare(prepareOpts)
 	defer prepared.Close()
 
 	require.Nil(t, err)
-	require.True(t, ok)
 
 	require.Nil(t, prepared.Persist(id, segment, checksum))
 
@@ -306,9 +302,8 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, ok, err := flush.Prepare(prepareOpts)
+	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
-	require.True(t, ok)
 
 	// Start persistence
 	now = time.Now()
@@ -390,9 +385,8 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 			Shard:             shard,
 			BlockStart:        blockStart,
 		}
-		prepared, ok, err := flush.Prepare(prepareOpts)
+		prepared, err := flush.Prepare(prepareOpts)
 		require.NoError(t, err)
-		require.True(t, ok)
 
 		// Start persistence
 		now = time.Now()
@@ -452,9 +446,8 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, ok, err := flush.Prepare(prepareOpts)
+	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
-	require.True(t, ok)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
 
@@ -472,9 +465,8 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, ok, err = flush.Prepare(prepareOpts)
+	prepared, err = flush.Prepare(prepareOpts)
 	require.NoError(t, err)
-	require.True(t, ok)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
 }
