@@ -284,8 +284,8 @@ func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) (b
 		// Snapshot files are indexed (multiple per block-start), so checking if the file
 		// already exist doesn't make much sense
 		return false, nil
-	case persist.FileSetFlushType:
-		return DataFileSetExistsAt(pm.filePathPrefix, nsID, shard, blockStart), nil
+	case persist.FilesetFlushType:
+		return DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart)
 	default:
 		return false, fmt.Errorf(
 			"unable to determine if fileset exists in persist manager for fileset type: %s",
