@@ -118,7 +118,8 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 				log.Infof("waiting to see if data is indexed")
 
 				var (
-					fetchWg sync.WaitGroup
+					indexTimeout = 10 * time.Second
+					fetchWg      sync.WaitGroup
 				)
 				for i := 0; i < concurrency; i++ {
 					fetchWg.Add(1)
@@ -128,8 +129,8 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 						indexed := xclock.WaitUntil(func() bool {
 							found := isIndexed(t, session, testNamespaces[0], id, tags)
 							return found
-						}, 5*time.Second)
-						assert.True(t, indexed)
+						}, indexTimeout)
+						assert.True(t, indexed, "timed out waiting for index retrieval")
 						fetchWg.Done()
 					}()
 				}
