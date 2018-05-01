@@ -120,7 +120,7 @@ genny-map-storage-repair: install-m3x-repo
 		value_type=ReplicaSeriesBlocksMetadata        \
 		target_package=$(m3db_package)/storage/repair
 
-# Map generation rule for all generated arraypools
+# generation rule for all generated arraypools
 .PHONY: genny-arraypool-all
 genny-arraypool-all: genny-arraypool-node-segments
 
@@ -135,3 +135,17 @@ genny-arraypool-node-segments: install-m3x-repo
 	rename_type_prefix=segments                                       \
 	rename_type_middle=Segments                                       \
 	rename_constructor=newSegmentsArrayPool
+
+# generation rule for all generated leakcheckpools
+.PHONY: genny-leakcheckpool-all
+genny-leakcheckpool-all: genny-fetch-tagged-attempt-leakcheckpool
+
+# arraypool generation rule for ./client/debugFetchTaggedAttempOol
+.PHONY: genny-fetch-tagged-attempt-leakcheckpool
+genny-fetch-tagged-attempt-leakcheckpool: install-m3x-repo
+	cd $(m3x_package_path) && make genny-leakcheckpool      \
+	pkg=client                                              \
+	elem_type=*fetchTaggedAttempt                           \
+	elem_type_pool=*fetchTaggedAttempt                      \
+	target_package=$(m3db_package)/client                   \
+	out_file=fetch_tagged_attempt_leakcheckpool_gen_test.go

@@ -23,7 +23,6 @@ package client
 import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/storage/index"
-	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
@@ -63,12 +62,6 @@ func (f *fetchTaggedAttempt) performIDsAttempt() error {
 	result, err := f.session.fetchTaggedIDsAttempt(
 		f.args.ns, f.args.query, f.args.opts)
 	f.idsResult = result
-
-	if IsBadRequestError(err) {
-		// Do not retry bad request errors
-		err = xerrors.NewNonRetryableError(err)
-	}
-
 	return err
 }
 
@@ -76,10 +69,6 @@ func (f *fetchTaggedAttempt) performDataAttempt() error {
 	var err error
 	f.dataResultIters, f.dataResultExhaustive, err = f.session.fetchTaggedAttempt(
 		f.args.ns, f.args.query, f.args.opts)
-	if IsBadRequestError(err) {
-		// Do not retry bad request errors
-		err = xerrors.NewNonRetryableError(err)
-	}
 	return err
 }
 
