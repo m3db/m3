@@ -384,7 +384,7 @@ func genWrite() gopter.Gen {
 				ID:          ident.StringID(id),
 				Namespace:   ident.StringID(ns),
 				Shard:       shard,
-				UniqueIndex: uniqueID(id),
+				UniqueIndex: uniqueID(ns, id),
 			},
 			datapoint: ts.Datapoint{
 				Timestamp: t,
@@ -399,19 +399,31 @@ type globalMetricIdx struct {
 	sync.Mutex
 
 	idx     uint64
-	idToIdx map[string]uint64
+	idToIdx map[string]map[string]uint64
 }
 
 var metricIdx = globalMetricIdx{
-	idToIdx: make(map[string]uint64),
+	idToIdx: make(map[string]map[string]uint64),
 }
 
-func uniqueID(s string) uint64 {
+func uniqueID(ns, s string) uint64 {
 	metricIdx.Lock()
 	defer metricIdx.Unlock()
 
+	nsMap, ok := metricIdx.idToIdx[ns]
+	if !ok {
+		nsMap = make(map[string]uint64)
+		metricIdx.idToIdx[ns] = nsMap
+	}
+
+	i, ok := nsMap[s]
+	if ok {
+		return i
+	}
+
 	idx := metricIdx.idx
 	metricIdx.idx++
-	metricIdx.idToIdx[s] = idx
+
+	nsMap[s] = idx
 	return idx
 }
