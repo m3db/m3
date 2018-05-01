@@ -21,7 +21,6 @@
 package fs
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/rand"
 	"io"
@@ -98,6 +97,10 @@ func TestIndexSimpleReadWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	readTestIndexSegments(t, ctrl, reader, testSegments)
+
+	err = reader.Validate()
+	require.NoError(t, err)
+
 	err = reader.Close()
 	require.NoError(t, err)
 }
@@ -115,10 +118,6 @@ func newTestIndexReader(t *testing.T, filePathPrefix string) IndexFileSetReader 
 		SetFilePathPrefix(filePathPrefix))
 	require.NoError(t, err)
 	return reader
-}
-
-func defaultBufferedReaderSize() int {
-	return bufio.NewReader(nil).Size()
 }
 
 func randDataFactorOfBuffSize(t *testing.T, factor float64) []byte {
