@@ -37,6 +37,11 @@ type elemType generic.Type
 // for `elemType` instances.
 type elemTypeEqualsFn func(a, b elemType) bool
 
+// elemTypeGetHookFn allows users to override properties on items
+// retrieved from the backing pools before returning in the Get()
+// path.
+type elemTypeGetHookFn func(elemType) elemType
+
 // elemTypePool is the backing pool wrapped by the debug pool.
 type elemTypePool interface {
 	generic.Type
@@ -50,6 +55,7 @@ type elemTypePool interface {
 type leakcheckElemTypePoolOpts struct {
 	DisallowUntrackedPuts bool
 	EqualsFn              elemTypeEqualsFn
+	GetHookFn             elemTypeGetHookFn
 }
 
 // newLeakcheckElemTypePool returns a new leakcheckElemTypePool.
@@ -94,6 +100,9 @@ func (p *leakcheckElemTypePool) Get() elemType {
 	defer p.Unlock()
 
 	e := p.elemTypePool.Get()
+	if fn := p.opts.GetHookFn; fn != nil {
+		e = fn(e)
+	}
 
 	p.NumGets++
 	item := leakcheckElemType{

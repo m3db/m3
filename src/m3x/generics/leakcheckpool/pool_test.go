@@ -171,3 +171,21 @@ func TestCheckExtended(t *testing.T) {
 	val := debugPool.Get()
 	debugPool.Put(val)
 }
+
+func TestGetHookFn(t *testing.T) {
+	var (
+		x = elemType(1)
+	)
+
+	getFn := func() elemType { return x }
+	putFn := func(elemType) {}
+
+	debugPool := newLeakcheckElemTypePool(leakcheckElemTypePoolOpts{
+		GetHookFn: func(e elemType) elemType { return nil },
+	}, &testElemTypePool{getFn: getFn, putFn: putFn})
+	defer debugPool.Check(t)
+	val := debugPool.Get()
+	require.Nil(t, val)
+	require.NotNil(t, x)
+	debugPool.Put(val)
+}
