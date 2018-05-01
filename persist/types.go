@@ -61,6 +61,7 @@ type Flush interface {
 }
 
 // PrepareOptions is the options struct for the PersistManager's Prepare method.
+// nolint: maligned
 type PrepareOptions struct {
 	NamespaceMetadata namespace.Metadata
 	BlockStart        time.Time

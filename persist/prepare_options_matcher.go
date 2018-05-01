@@ -28,12 +28,13 @@ import (
 )
 
 // PrepareOptionsMatcher satisfies the gomock.Matcher interface for PrepareOptions
+// nolint: maligned
 type PrepareOptionsMatcher struct {
-	NsMetadata   namespace.Metadata
-	Shard        uint32
-	BlockStart   time.Time
-	SnapshotTime time.Time
-	FilesetType  FilesetType
+	NsMetadata     namespace.Metadata
+	Shard          uint32
+	BlockStart     time.Time
+	SnapshotTime   time.Time
+	FilesetType    FilesetType
 	DeleteIfExists bool
 }
 
