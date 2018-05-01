@@ -748,6 +748,6 @@ const (
 // and emit metrics instead of the series itself having to store additional fields (which
 // would be costly because we have millions of them.)
 type BootstrapResult struct {
-	NumBlocksMovedToBuffer int
-	NumBlocksMerged        int
+	NumBlocksMovedToBuffer int64
+	NumBlocksMerged        int64
 }

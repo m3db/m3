@@ -141,16 +141,20 @@ type dbShardRuntimeOptions struct {
 }
 
 type dbShardMetrics struct {
-	create                     tally.Counter
-	close                      tally.Counter
-	closeStart                 tally.Counter
-	closeLatency               tally.Timer
-	insertAsyncInsertErrors    tally.Counter
-	insertAsyncBootstrapErrors tally.Counter
-	insertAsyncWriteErrors     tally.Counter
+	create                        tally.Counter
+	close                         tally.Counter
+	closeStart                    tally.Counter
+	closeLatency                  tally.Timer
+	insertAsyncInsertErrors       tally.Counter
+	insertAsyncBootstrapErrors    tally.Counter
+	insertAsyncWriteErrors        tally.Counter
+	seriesBootstrapBlocksToBuffer tally.Counter
+	seriesBootstrapBlocksMerged   tally.Counter
 }
 
 func newDatabaseShardMetrics(scope tally.Scope) dbShardMetrics {
+	seriesBootstrapScope := scope.SubScope("series-bootstrap")
+
 	return dbShardMetrics{
 		create:       scope.Counter("create"),
 		close:        scope.Counter("close"),
@@ -165,6 +169,8 @@ func newDatabaseShardMetrics(scope tally.Scope) dbShardMetrics {
 		insertAsyncWriteErrors: scope.Tagged(map[string]string{
 			"error_type": "write-value",
 		}).Counter("insert-async.errors"),
+		seriesBootstrapBlocksToBuffer: seriesBootstrapScope.Counter("blocks-to-buffer"),
+		seriesBootstrapBlocksMerged:   seriesBootstrapScope.Counter("blocks-merged"),
 	}
 }
 
@@ -1579,6 +1585,11 @@ func (s *dbShard) Bootstrap(
 	s.bs = bootstrapping
 	s.Unlock()
 
+	var (
+		// Debug
+		numBlocksMovedToBuffer = int64(0)
+		numBlocksMerged        = int64(0)
+	)
 	multiErr := xerrors.NewMultiError()
 	for _, elem := range bootstrappedSeries.Iter() {
 		dbBlocks := elem.Value()
@@ -1601,14 +1612,20 @@ func (s *dbShard) Bootstrap(
 			}
 		}
 
-		_, err = entry.series.Bootstrap(dbBlocks.Blocks)
+		bsResult, err := entry.series.Bootstrap(dbBlocks.Blocks)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
+		numBlocksMovedToBuffer += bsResult.NumBlocksMovedToBuffer
+		numBlocksMerged += bsResult.NumBlocksMerged
 
 		// Always decrement the writer count, avoid continue on bootstrap error
 		entry.decrementReaderWriterCount()
 	}
+
+	// Debug
+	s.metrics.seriesBootstrapBlocksToBuffer.Inc(numBlocksMovedToBuffer)
+	s.metrics.seriesBootstrapBlocksMerged.Inc(numBlocksMerged)
 
 	// From this point onwards, all newly created series that aren't in
 	// the existing map should be considered bootstrapped because they
