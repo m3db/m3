@@ -10,16 +10,20 @@ message RetentionOptions {
     int64 blockDataExpiryAfterNotAccessPeriodNanos = 6;
 }
 
+message IndexOptions {
+    bool  enabled        = 1;
+    int64 blockSizeNanos = 2;
+}
+
 message NamespaceOptions {
-    bool bootstrapEnabled      = 1;
-    bool flushEnabled          = 2;
-    bool writesToCommitLog     = 3;
-    bool cleanupEnabled        = 4;
-    bool repairEnabled         = 5;
-
+    bool bootstrapEnabled             = 1;
+    bool flushEnabled                 = 2;
+    bool writesToCommitLog            = 3;
+    bool cleanupEnabled               = 4;
+    bool repairEnabled                = 5;
     RetentionOptions retentionOptions = 6;
-
-    bool snapshotEnabled = 7;
+    bool snapshotEnabled              = 7;
+    IndexOptions indexOptions         = 8;
 }
 
 message Registry {

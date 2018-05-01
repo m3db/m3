@@ -23,6 +23,7 @@ package namespace_test
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"testing"
 	"time"
 
@@ -59,7 +60,10 @@ func TestConvert(t *testing.T) {
 		},
 		genMap(),
 	))
-	props.TestingRun(t)
+	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
+	if !props.Run(reporter) {
+		t.Errorf("failed with initial seed: %d", 0) // seed)
+	}
 }
 
 // map generator
@@ -79,7 +83,7 @@ func genMap() gopter.Gen {
 func genMetadata() gopter.Gen {
 	return gopter.CombineGens(
 		gen.Identifier(),
-		gen.SliceOfN(5, gen.Bool()),
+		gen.SliceOfN(6, gen.Bool()),
 		genRetention(),
 	).Map(func(values []interface{}) namespace.Metadata {
 		var (
@@ -93,9 +97,13 @@ func genMetadata() gopter.Gen {
 			SetFlushEnabled(bools[2]).
 			SetRepairEnabled(bools[3]).
 			SetWritesToCommitLog(bools[4]).
-			SetRetentionOptions(retention))
+			SetRetentionOptions(retention).
+			SetIndexOptions(namespace.NewIndexOptions().
+				SetEnabled(bools[5]).
+				SetBlockSize(retention.BlockSize())))
 		if err != nil {
 			panic(err.Error())
+			return nil
 		}
 		return md
 	})

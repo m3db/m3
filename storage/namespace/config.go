@@ -22,6 +22,7 @@ package namespace
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3x/ident"
@@ -30,17 +31,6 @@ import (
 // MapConfiguration is the configuration for a registry of namespaces
 type MapConfiguration struct {
 	Metadatas []MetadataConfiguration `yaml:"metadatas" validate:"nonzero"`
-}
-
-// MetadataConfiguration is the configuration for a single namespace
-type MetadataConfiguration struct {
-	ID                string                  `yaml:"id" validate:"nonzero"`
-	BootstrapEnabled  *bool                   `yaml:"bootstrapEnabled"`
-	FlushEnabled      *bool                   `yaml:"flushEnabled"`
-	WritesToCommitLog *bool                   `yaml:"writesToCommitLog"`
-	CleanupEnabled    *bool                   `yaml:"cleanupEnabled"`
-	RepairEnabled     *bool                   `yaml:"repairEnabled"`
-	Retention         retention.Configuration `yaml:"retention" validate:"nonzero"`
 }
 
 // Map returns a Map corresponding to the receiver struct
@@ -56,10 +46,25 @@ func (m *MapConfiguration) Map() (Map, error) {
 	return NewMap(metadatas)
 }
 
+// MetadataConfiguration is the configuration for a single namespace
+type MetadataConfiguration struct {
+	ID                string                  `yaml:"id" validate:"nonzero"`
+	BootstrapEnabled  *bool                   `yaml:"bootstrapEnabled"`
+	FlushEnabled      *bool                   `yaml:"flushEnabled"`
+	WritesToCommitLog *bool                   `yaml:"writesToCommitLog"`
+	CleanupEnabled    *bool                   `yaml:"cleanupEnabled"`
+	RepairEnabled     *bool                   `yaml:"repairEnabled"`
+	Retention         retention.Configuration `yaml:"retention" validate:"nonzero"`
+	Index             IndexConfiguration      `yaml:"index" validate:"nonzero"`
+}
+
 // Metadata returns a Metadata corresponding to the receiver struct
 func (mc *MetadataConfiguration) Metadata() (Metadata, error) {
+	iopts := mc.Index.Options()
 	ropts := mc.Retention.Options()
-	opts := NewOptions().SetRetentionOptions(ropts)
+	opts := NewOptions().
+		SetRetentionOptions(ropts).
+		SetIndexOptions(iopts)
 	if v := mc.BootstrapEnabled; v != nil {
 		opts = opts.SetBootstrapEnabled(*v)
 	}
@@ -76,4 +81,17 @@ func (mc *MetadataConfiguration) Metadata() (Metadata, error) {
 		opts = opts.SetRepairEnabled(*v)
 	}
 	return NewMetadata(ident.StringID(mc.ID), opts)
+}
+
+// IndexConfiguration controls the knobs to tweak indexing configuration.
+type IndexConfiguration struct {
+	Enabled   bool          `yaml:"enabled" validate:"nonzero"`
+	BlockSize time.Duration `yaml:"blockSize" validate:"nonzero"`
+}
+
+// Options returns the IndexOptions corresponding to the receiver struct.
+func (ic *IndexConfiguration) Options() IndexOptions {
+	return NewIndexOptions().
+		SetEnabled(ic.Enabled).
+		SetBlockSize(ic.BlockSize)
 }

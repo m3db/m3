@@ -78,6 +78,30 @@ type Options interface {
 
 	// RetentionOptions returns the retention options for this namespace
 	RetentionOptions() retention.Options
+
+	// SetIndexOptions sets the IndexOptions.
+	SetIndexOptions(value IndexOptions) Options
+
+	// IndexOptions returns the IndexOptions.
+	IndexOptions() IndexOptions
+}
+
+// IndexOptions controls the indexing options for a namespace.
+type IndexOptions interface {
+	// Equal returns true if the provide value is equal to this one.
+	Equal(value IndexOptions) bool
+
+	// SetEnabled sets whether indexing is enabled.
+	SetEnabled(value bool) IndexOptions
+
+	// Enabled returns whether indexing is enabled.
+	Enabled() bool
+
+	// SetBlockSize returns the block size.
+	SetBlockSize(value time.Duration) IndexOptions
+
+	// BlockSize returns the block size.
+	BlockSize() time.Duration
 }
 
 // Metadata represents namespace metadata information
