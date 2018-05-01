@@ -292,7 +292,7 @@ type databaseNamespace interface {
 	// Flush flushes in-memory data
 	Flush(
 		blockStart time.Time,
-		shardoBootstrapStates shardBootstrapStates,
+		shardBootstrapStates shardBootstrapStates,
 		flush persist.Flush,
 	) error
 
