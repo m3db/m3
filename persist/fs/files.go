@@ -782,7 +782,7 @@ func CommitLogsDirPath(prefix string) string {
 	return path.Join(prefix, commitLogsDirName)
 }
 
-// DataFilesetExistsAt determines whether data fileset files exist for the given namespace, shard, and block start time.
+// DataFilesetExistsAt determines whether data fileset files exist for the given namespace, shard, and block start.
 func DataFilesetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) (bool, error) {
 	_, ok, err := FilesetAt(prefix, namespace, shard, blockStart)
 	if err != nil {
