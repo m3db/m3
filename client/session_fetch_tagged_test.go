@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -234,14 +235,14 @@ func TestSessionFetchTaggedIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 
 	numStateAllocs := 0
 	leakStatePool.CheckExtended(t, func(e leakcheckFetchState) {
-		require.Equal(t, int32(0), e.Value.refCounter.n, string(e.GetStacktrace))
+		require.Equal(t, int32(0), atomic.LoadInt32(&e.Value.refCounter.n), string(e.GetStacktrace))
 		numStateAllocs++
 	})
 	require.Equal(t, 1, numStateAllocs)
 
 	numOpAllocs := 0
 	leakOpPool.CheckExtended(t, func(e leakcheckFetchTaggedOp) {
-		require.Equal(t, int32(0), e.Value.refCounter.n, string(e.GetStacktrace))
+		require.Equal(t, int32(0), atomic.LoadInt32(&e.Value.refCounter.n), string(e.GetStacktrace))
 		numOpAllocs++
 	})
 	require.Equal(t, 1, numOpAllocs)
@@ -389,14 +390,14 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 
 	numStateAllocs := 0
 	leakStatePool.CheckExtended(t, func(e leakcheckFetchState) {
-		require.Equal(t, int32(0), e.Value.refCounter.n, string(e.GetStacktrace))
+		require.Equal(t, int32(0), atomic.LoadInt32(&e.Value.refCounter.n), string(e.GetStacktrace))
 		numStateAllocs++
 	})
 	require.Equal(t, 1, numStateAllocs)
 
 	numOpAllocs := 0
 	leakOpPool.CheckExtended(t, func(e leakcheckFetchTaggedOp) {
-		require.Equal(t, int32(0), e.Value.refCounter.n, string(e.GetStacktrace))
+		require.Equal(t, int32(0), atomic.LoadInt32(&e.Value.refCounter.n), string(e.GetStacktrace))
 		numOpAllocs++
 	})
 	require.Equal(t, 1, numOpAllocs)
@@ -522,14 +523,14 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 
 	numStateAllocs := 0
 	leakStatePool.CheckExtended(t, func(e leakcheckFetchState) {
-		require.Equal(t, int32(0), e.Value.refCounter.n, string(e.GetStacktrace))
+		require.Equal(t, int32(0), atomic.LoadInt32(&e.Value.refCounter.n), string(e.GetStacktrace))
 		numStateAllocs++
 	})
 	require.Equal(t, 2, numStateAllocs)
 
 	numOpAllocs := 0
 	leakOpPool.CheckExtended(t, func(e leakcheckFetchTaggedOp) {
-		require.Equal(t, int32(0), e.Value.refCounter.n, string(e.GetStacktrace))
+		require.Equal(t, int32(0), atomic.LoadInt32(&e.Value.refCounter.n), string(e.GetStacktrace))
 		numOpAllocs++
 	})
 	require.Equal(t, 2, numOpAllocs)
