@@ -231,12 +231,8 @@ func TestSessionFetchTaggedIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 	// NB: stubbing needs to be done after session.Open
-	leakStatePool := newLeakcheckFetchStatePool(leakcheckFetchStatePoolOpts{}, session.pools.fetchState)
-	leakStatePool.opts.GetHookFn = func(f *fetchState) *fetchState { f.pool = leakStatePool; return f }
-	session.pools.fetchState = leakStatePool
-	leakOpPool := newLeakcheckFetchTaggedOpPool(leakcheckFetchTaggedOpPoolOpts{}, session.pools.fetchTaggedOp)
-	leakOpPool.opts.GetHookFn = func(f *fetchTaggedOp) *fetchTaggedOp { f.pool = leakOpPool; return f }
-	session.pools.fetchTaggedOp = leakOpPool
+	leakStatePool := injectLeakcheckFetchStatePool(session)
+	leakOpPool := injectLeakcheckFetchTaggedOpPool(session)
 
 	_, err = session.FetchTaggedIDs(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
@@ -385,12 +381,8 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 	assert.NoError(t, session.Open())
 
 	// NB: stubbing needs to be done after session.Open
-	leakStatePool := newLeakcheckFetchStatePool(leakcheckFetchStatePoolOpts{}, session.pools.fetchState)
-	leakStatePool.opts.GetHookFn = func(f *fetchState) *fetchState { f.pool = leakStatePool; return f }
-	session.pools.fetchState = leakStatePool
-	leakOpPool := newLeakcheckFetchTaggedOpPool(leakcheckFetchTaggedOpPoolOpts{}, session.pools.fetchTaggedOp)
-	leakOpPool.opts.GetHookFn = func(f *fetchTaggedOp) *fetchTaggedOp { f.pool = leakOpPool; return f }
-	session.pools.fetchTaggedOp = leakOpPool
+	leakStatePool := injectLeakcheckFetchStatePool(session)
+	leakOpPool := injectLeakcheckFetchTaggedOpPool(session)
 
 	iters, exhaust, err := session.FetchTagged(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
@@ -525,13 +517,8 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 	assert.NoError(t, session.Open())
 
 	// NB: stubbing needs to be done after session.Open
-	leakStatePool := newLeakcheckFetchStatePool(leakcheckFetchStatePoolOpts{}, session.pools.fetchState)
-	leakStatePool.opts.GetHookFn = func(f *fetchState) *fetchState { f.pool = leakStatePool; return f }
-	session.pools.fetchState = leakStatePool
-	leakOpPool := newLeakcheckFetchTaggedOpPool(leakcheckFetchTaggedOpPoolOpts{}, session.pools.fetchTaggedOp)
-	leakOpPool.opts.GetHookFn = func(f *fetchTaggedOp) *fetchTaggedOp { f.pool = leakOpPool; return f }
-	session.pools.fetchTaggedOp = leakOpPool
-
+	leakStatePool := injectLeakcheckFetchStatePool(session)
+	leakOpPool := injectLeakcheckFetchTaggedOpPool(session)
 	iters, exhaust, err := session.FetchTagged(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.NoError(t, err)
@@ -555,6 +542,20 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 	require.Equal(t, 2, numOpAllocs)
 
 	assert.NoError(t, session.Close())
+}
+
+func injectLeakcheckFetchStatePool(session *session) *leakcheckFetchStatePool {
+	leakStatePool := newLeakcheckFetchStatePool(leakcheckFetchStatePoolOpts{}, session.pools.fetchState)
+	leakStatePool.opts.GetHookFn = func(f *fetchState) *fetchState { f.pool = leakStatePool; return f }
+	session.pools.fetchState = leakStatePool
+	return leakStatePool
+}
+
+func injectLeakcheckFetchTaggedOpPool(session *session) *leakcheckFetchTaggedOpPool {
+	leakOpPool := newLeakcheckFetchTaggedOpPool(leakcheckFetchTaggedOpPoolOpts{}, session.pools.fetchTaggedOp)
+	leakOpPool.opts.GetHookFn = func(f *fetchTaggedOp) *fetchTaggedOp { f.pool = leakOpPool; return f }
+	session.pools.fetchTaggedOp = leakOpPool
+	return leakOpPool
 }
 
 type testEnqueue struct {
