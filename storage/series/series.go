@@ -483,7 +483,7 @@ func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) erro
 		// still exist in memory because a flush hasn't occurred yet.
 		err := s.mergeBlockWithLock(block)
 		if err != nil {
-			return err
+			multiErr = multiErr.Add(s.newBootstrapBlockError(block, err))
 		}
 		numBlocksMerged++
 	}
