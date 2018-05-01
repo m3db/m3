@@ -398,7 +398,11 @@ func genWrite() gopter.Gen {
 type globalMetricIdx struct {
 	sync.Mutex
 
-	idx     uint64
+	idx uint64
+	// NB(prateek): we use a map from ns -> series id (string) -> unique uint64, to
+	// ensure we assign a unique value to each series/ns combination. Further, we
+	// also ensure the value is consistent. i.e. repeated generations of the same
+	// id/ns retrieve the same uint64 as earlier.
 	idToIdx map[string]map[string]uint64
 }
 
