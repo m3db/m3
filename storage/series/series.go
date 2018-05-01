@@ -42,7 +42,6 @@ type bootstrapState int
 
 const (
 	bootstrapNotStarted bootstrapState = iota
-	bootstrapping
 	bootstrapped
 )
 
@@ -50,8 +49,8 @@ var (
 	// ErrSeriesAllDatapointsExpired is returned on tick when all datapoints are expired
 	ErrSeriesAllDatapointsExpired = errors.New("series datapoints are all expired")
 
-	errSeriesIsBootstrapping = errors.New("series is bootstrapping")
-	errSeriesNotBootstrapped = errors.New("series is not yet bootstrapped")
+	errSeriesAlreadyBootstrapped = errors.New("series is already bootstrapped")
+	errSeriesNotBootstrapped     = errors.New("series is not yet bootstrapped")
 )
 
 type dbSeries struct {
@@ -442,20 +441,15 @@ func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 // then repeat, until len(s.pendingBootstrap) is below a given threshold.
 func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) error {
 	s.Lock()
-	defer s.Unlock()
+	defer s.bootstrapComplete()
 
 	if s.bs == bootstrapped {
-		return nil
-	}
-	if s.bs == bootstrapping {
-		return errSeriesIsBootstrapping
-	}
-	if bootstrappedBlocks == nil {
-		s.bs = bootstrapped
-		return nil
+		return errSeriesAlreadyBootstrapped
 	}
 
-	s.bs = bootstrapping
+	if bootstrappedBlocks == nil {
+		return nil
+	}
 
 	// Request the in-memory buffer to drain and reset so that the start times
 	// of the blocks in the buckets are set to the latest valid times
@@ -501,6 +495,11 @@ func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) erro
 
 	s.bs = bootstrapped
 	return multiErr.FinalError()
+}
+
+func (s *dbSeries) bootstrapComplete() {
+	s.Unlock()
+	s.bs = bootstrapped
 }
 
 func (s *dbSeries) OnRetrieveBlock(
