@@ -80,7 +80,7 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 		shard uint32,
 		blockStart time.Time,
 	) (DataFileSetSeeker, error) {
-		mock := NewMockFileSetSeeker(ctrl)
+		mock := NewMockDataFileSetSeeker(ctrl)
 		mock.EXPECT().Open(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mock.EXPECT().ConcurrentClone().Return(mock, nil)
 		for i := 0; i < NewBlockRetrieverOptions().FetchConcurrency(); i++ {
@@ -152,7 +152,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			return nil
 		}
 
-		mock := NewMockFileSetSeeker(ctrl)
+		mock := NewMockDataFileSetSeeker(ctrl)
 		mock.EXPECT().Close().Return(nil)
 		mocks := []borrowableSeeker{}
 		mocks = append(mocks, borrowableSeeker{seeker: mock})

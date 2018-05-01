@@ -240,14 +240,6 @@ type RetrievableDataBlockSegmentReader interface {
 	xio.SegmentReader
 }
 
-// IndexFilesetFileIdentifier is an index file set identifier
-type IndexFilesetFileIdentifier struct {
-	Namespace  ident.ID
-	BlockStart time.Time
-	// Only required for snapshot files
-	Index int
-}
-
 // IndexWriterSnapshotOptions is a set of options for writing an index file set snapshot.
 type IndexWriterSnapshotOptions struct {
 	SnapshotTime time.Time
@@ -255,7 +247,7 @@ type IndexWriterSnapshotOptions struct {
 
 // IndexWriterOpenOptions is a set of options when opening an index file set writer.
 type IndexWriterOpenOptions struct {
-	Identifier  IndexFilesetFileIdentifier
+	Identifier  FileSetFileIdentifier
 	BlockSize   time.Duration
 	FilesetType persist.FileSetType
 	// Only used when writing snapshot files
@@ -266,8 +258,10 @@ type IndexWriterOpenOptions struct {
 type IndexFileSetWriter interface {
 	io.Closer
 
+	// Open the index file set writer.
 	Open(opts IndexWriterOpenOptions) error
 
+	// WriteSegmentFileSet writes a index segment file set.
 	WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) error
 }
 
@@ -291,6 +285,7 @@ type IndexSegmentFile interface {
 	io.Reader
 	io.Closer
 
+	// SegmentFileType returns the segment file type.
 	SegmentFileType() IndexSegmentFileType
 
 	// Bytes will be valid until the segment file is closed.
@@ -299,7 +294,7 @@ type IndexSegmentFile interface {
 
 // IndexReaderOpenOptions is the index file set reader open options.
 type IndexReaderOpenOptions struct {
-	Identifier  IndexFilesetFileIdentifier
+	Identifier  FileSetFileIdentifier
 	FilesetType persist.FileSetType
 }
 
@@ -307,14 +302,21 @@ type IndexReaderOpenOptions struct {
 type IndexFileSetReader interface {
 	io.Closer
 
+	// Open the index file set reader.
 	Open(opts IndexReaderOpenOptions) error
+
+	// SegmentFileSets returns the number of segment file sets.
+	SegmentFileSets() int
 
 	// ReadSegmentFileSet returns the next segment file set or an error.
 	// It will return io.EOF error when no more file sets remain.
-	// The IndexSegmentFileSet will only be valid until the next read
-	// or until the reader is closed if no consequent read is made.
+	// The IndexSegmentFileSet will only be valid before it's closed,
+	// after that calls to Read or Bytes on it will have unexpected results.
 	ReadSegmentFileSet() (IndexSegmentFileSet, error)
 
+	// Validate returns whether all checksums were matched as expected,
+	// it must be called after reading all the segment file sets otherwise
+	// it returns an error.
 	Validate() error
 }
 

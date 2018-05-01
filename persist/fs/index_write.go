@@ -142,6 +142,13 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 }
 
 func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) error {
+	// Always close the files
+	defer func() {
+		for _, file := range segmentFileSet.Files() {
+			file.Close()
+		}
+	}()
+
 	if w.err != nil {
 		return w.err
 	}
@@ -171,7 +178,7 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) er
 
 		filePath := filesetIndexSegmentFilePathFromTime(w.namespaceDir, w.start,
 			idx, IndexSegmentFileType(segFileType))
-		if !FileExists(filePath) {
+		if FileExists(filePath) {
 			err := fmt.Errorf("segment file type already exists at %s", filePath)
 			return w.markSegmentWriteError(segType, segFileType, err)
 		}
@@ -199,7 +206,7 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) er
 		})
 	}
 
-	w.segments = append(w.segments)
+	w.segments = append(w.segments, seg)
 	return nil
 }
 
@@ -279,30 +286,13 @@ func (w *indexWriter) Close() error {
 	if err != nil {
 		return err
 	}
-
 	err = ioutil.WriteFile(w.digestFilePath, digestsFileData, w.newFileMode)
 	if err != nil {
 		return err
 	}
 
 	// Write checkpoint file
-	fd, err := OpenWritable(w.checkpointFilePath, w.newFileMode)
-	if err != nil {
-		return err
-	}
-
-	bufferSize := w.opts.WriterBufferSize()
-	digestBuffer := digest.NewFdWithDigestContentsWriter(bufferSize)
-	digestBuffer.Reset(fd)
-	err = digestBuffer.WriteDigests(digest.Checksum(digestsFileData))
-	if err != nil {
-		return err
-	}
-	if err := digestBuffer.Close(); err != nil {
-		// NB(r): intentionally skipping fd.Close() error, as failure
-		// to write takes precedence over failure to close the file
-		fd.Close()
-		return err
-	}
-	return fd.Close()
+	digestBuffer := digest.NewBuffer()
+	digestBuffer.WriteDigest(digest.Checksum(digestsFileData))
+	return ioutil.WriteFile(w.checkpointFilePath, digestBuffer, w.newFileMode)
 }
