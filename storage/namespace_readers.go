@@ -61,7 +61,7 @@ type databaseNamespaceReaderManager interface {
 	filesetExistsAt(
 		shard uint32,
 		blockStart time.Time,
-	) bool
+	) (bool, error)
 
 	get(
 		shard uint32,
@@ -81,7 +81,7 @@ type fsFileSetExistsAtFn func(
 	namespace ident.ID,
 	shard uint32,
 	blockStart time.Time,
-) bool
+) (bool, error)
 
 type fsNewReaderFn func(
 	bytesPool pool.CheckedBytesPool,
@@ -163,7 +163,7 @@ func newNamespaceReaderManager(
 func (m *namespaceReaderManager) filesetExistsAt(
 	shard uint32,
 	blockStart time.Time,
-) bool {
+) (bool, error) {
 	return m.filesetExistsAtFn(m.fsOpts.FilePathPrefix(),
 		m.namespace.ID(), shard, blockStart)
 }

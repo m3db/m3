@@ -1467,7 +1467,10 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	// Work backwards while in requested range and not before retention
 	for !blockStart.Before(start) &&
 		!blockStart.Before(retention.FlushTimeStart(ropts, s.nowFn())) {
-		exists := s.namespaceReaderMgr.filesetExistsAt(s.shard, blockStart)
+		exists, err := s.namespaceReaderMgr.filesetExistsAt(s.shard, blockStart)
+		if err != nil {
+			return nil, nil, err
+		}
 		if !exists {
 			// No fileset files here
 			blockStart = blockStart.Add(-1 * blockSize)
