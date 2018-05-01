@@ -52,6 +52,7 @@ var (
 	errPersistManagerNotIdle                    = errors.New("persist manager cannot start persist, not idle")
 	errPersistManagerNotPersisting              = errors.New("persist manager cannot finish persisting, not persisting")
 	errPersistManagerCannotPrepareNotPersisting = errors.New("persist manager cannot prepare, not persisting")
+	errPersistManagerFilesetAlreadyExists       = errors.New("persist manager cannot prepare, fileset already exists")
 )
 
 type sleepFn func(time.Duration)
@@ -238,7 +239,7 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 	}
 
 	if exists && !opts.DeleteIfExists {
-		return prepared, nil
+		return prepared, errPersistManagerFilesetAlreadyExists
 	}
 
 	if exists && opts.DeleteIfExists {

@@ -93,7 +93,7 @@ func TestPersistenceManagerPrepareDataFileExistsNoDelete(t *testing.T) {
 		BlockStart:        blockStart,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
-	require.NoError(t, err)
+	require.Equal(t, errPersistManagerFilesetAlreadyExists, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
 }
