@@ -1,6 +1,6 @@
 m3x_package          := github.com/m3db/m3x
 m3x_package_path     := $(gopath_prefix)/$(m3x_package)
-m3x_package_min_ver  := 16e10665ade1d824950683afde6d9e37c8ffc957
+m3x_package_min_ver  := 65607134244391c697a9d6c971fbdb8256132f03
 
 .PHONY: install-m3x-repo
 install-m3x-repo: install-glide install-generics-bin
@@ -17,8 +17,7 @@ install-m3x-repo: install-glide install-generics-bin
 
 # Generation rule for all generated types
 .PHONY: genny-all
-genny-all: genny-map-all genny-arraypool-all
-# genny-leakcheckpool-all # TODO(prateek): need to enable this once m3x updates
+genny-all: genny-map-all genny-arraypool-all genny-leakcheckpool-all
 
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-genny-all
@@ -175,6 +174,6 @@ genny-leakcheckpool-fetch-tagged-op: install-m3x-repo
 	cd $(m3x_package_path) && make genny-leakcheckpool  \
 	pkg=client                                          \
 	elem_type=*fetchTaggedOp                            \
-	elem_type_pool=*fetchTaggedOpPool                   \
+	elem_type_pool=fetchTaggedOpPool                    \
 	target_package=$(m3db_package)/client               \
 	out_file=fetch_tagged_op_leakcheckpool_gen_test.go
