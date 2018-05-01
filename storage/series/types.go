@@ -87,7 +87,7 @@ type DatabaseSeries interface {
 	IsBootstrapped() bool
 
 	// Bootstrap merges the raw series bootstrapped along with any buffered data
-	Bootstrap(blocks block.DatabaseSeriesBlocks) error
+	Bootstrap(blocks block.DatabaseSeriesBlocks) (BootstrapResult, error)
 
 	// Flush flushes the data blocks of this series for a given start time
 	Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) (FlushOutcome, error)

@@ -440,16 +440,17 @@ func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 // data in memory during bootstrapping. If that becomes a problem, we could
 // bootstrap in batches, e.g., drain and reset the buffer, drain the streams,
 // then repeat, until len(s.pendingBootstrap) is below a given threshold.
-func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) error {
+func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) (BootstrapResult, error) {
 	s.Lock()
 	defer s.bootstrapComplete()
 
+	var result BootstrapResult
 	if s.bs == bootstrapped {
-		return errSeriesAlreadyBootstrapped
+		return result, errSeriesAlreadyBootstrapped
 	}
 
 	if bootstrappedBlocks == nil {
-		return nil
+		return result, nil
 	}
 
 	// Request the in-memory buffer to drain and reset so that the start times
@@ -457,13 +458,11 @@ func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) erro
 	s.buffer.DrainAndReset()
 	min, _, err := s.buffer.MinMax()
 	if err != nil {
-		return err
+		return result, err
 	}
 
 	var (
-		numBlocksMovedToBuffer = int64(0) // Debug
-		numBlocksMerged        = int64(0) // Debug
-		multiErr               = xerrors.NewMultiError()
+		multiErr = xerrors.NewMultiError()
 	)
 	for tNano, block := range bootstrappedBlocks.AllBlocks() {
 		t := tNano.ToTime()
@@ -473,7 +472,7 @@ func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) erro
 			if err := s.buffer.Bootstrap(block); err != nil {
 				multiErr = multiErr.Add(s.newBootstrapBlockError(block, err))
 			}
-			numBlocksMovedToBuffer++
+			result.NumBlocksMovedToBuffer++
 			continue
 		}
 
@@ -486,16 +485,11 @@ func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) erro
 		if err != nil {
 			multiErr = multiErr.Add(s.newBootstrapBlockError(block, err))
 		}
-		numBlocksMerged++
+		result.NumBlocksMerged++
 	}
 
-	// Debug
-	scope := s.opts.InstrumentOptions().MetricsScope().SubScope("series-bootstrap")
-	scope.Counter("blocks-to-buffer").Inc(numBlocksMovedToBuffer)
-	scope.Counter("blocks-merged").Inc(numBlocksMerged)
-
 	s.bs = bootstrapped
-	return multiErr.FinalError()
+	return result, multiErr.FinalError()
 }
 
 func (s *dbSeries) bootstrapComplete() {
@@ -748,3 +742,12 @@ const (
 	// FlushedToDisk indicates that a block existed and was flushed to disk successfully.
 	FlushedToDisk
 )
+
+// BootstrapResult contains information about the result of bootstrapping a series.
+// It is returned from the series Bootstrap method primarily so the caller can aggregate
+// and emit metrics instead of the series itself having to store additional fields (which
+// would be costly because we have millions of them.)
+type BootstrapResult struct {
+	NumBlocksMovedToBuffer int
+	NumBlocksMerged        int
+}
