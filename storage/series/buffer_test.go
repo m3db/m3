@@ -286,6 +286,36 @@ func TestBufferMinMax(t *testing.T) {
 	require.Equal(t, expectedMax.Sub(expectedMin), blockSize)
 }
 
+func TestBufferBootstrapAlreadyDrained(t *testing.T) {
+	// Setup
+	drainFn := func(b block.DatabaseBlock) {}
+	var (
+		opts   = newBufferTestOptions()
+		rops   = opts.RetentionOptions()
+		start  = time.Now().Truncate(rops.BlockSize())
+		curr   = start
+		buffer = newDatabaseBuffer(drainFn).(*dbBuffer)
+	)
+
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer.Reset(opts)
+
+	bucketStart := buffer.buckets[0].start
+	dbBlock := block.NewDatabaseBlock(bucketStart, ts.Segment{}, block.NewOptions())
+
+	// Make sure multiple adds dont cause an error
+	require.NoError(t, buffer.Bootstrap(dbBlock))
+	require.NoError(t, buffer.Bootstrap(dbBlock))
+
+	buffer.buckets[0].drained = true
+
+	// Should return an error because we dont want to add bootstrapped blocks to
+	// a bucket that is already drained because they'll never get flushed.
+	require.Error(t, buffer.Bootstrap(dbBlock))
+}
+
 func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 	var drained []block.DatabaseBlock
 	drainFn := func(b block.DatabaseBlock) {

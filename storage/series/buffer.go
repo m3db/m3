@@ -170,12 +170,11 @@ func (b *dbBuffer) MinMax() (time.Time, time.Time, error) {
 		}
 	}
 
-	var err error
 	if min.IsZero() || max.IsZero() {
 		// Should never happen
-		err = errNoAvailableBuckets
+		return time.Time{}, time.Time{}, errNoAvailableBuckets
 	}
-	return min, max, err
+	return min, max, nil
 }
 
 func (b *dbBuffer) Write(
