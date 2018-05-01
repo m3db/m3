@@ -715,15 +715,14 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		s.opts.FetchBatchOpPoolSize()/len(queues))
 	s.pools.fetchBatchOpArrayArray.Init()
 
-	if s.pools.iteratorArray == nil {
-		size := replicas * s.opts.SeriesIteratorPoolSize()
-		poolOpts := pool.NewObjectPoolOptions().
-			SetSize(size).
-			SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
-				s.scope.SubScope("iterator-pool"),
-			))
-		s.pools.iteratorArray = encoding.NewMultiReaderIteratorPool(poolOpts)
-		s.pools.iteratorArray.Init(s.opts.ReaderIteratorAllocate())
+	if s.pools.multiReaderIteratorArray == nil {
+		s.pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool([]pool.Bucket{
+			pool.Bucket{
+				Capacity: replicas,
+				Count:    s.opts.SeriesIteratorPoolSize(),
+			},
+		})
+		s.pools.multiReaderIteratorArray.Init()
 	}
 	if s.pools.readerSliceOfSlicesIterator == nil {
 		size := replicas * s.opts.SeriesIteratorPoolSize()
@@ -1313,9 +1312,7 @@ func (s *session) fetchIDsAttempt(
 				iters.SetAt(idx, iter)
 			}
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
-				for _, result := range results {
-					s.pools.iteratorArray.Put(result)
-				}
+				s.pools.multiReaderIteratorArray.Put(results)
 			}
 			if atomic.AddInt32(&idAccessors, -1) == 0 {
 				tsID.Finalize()
@@ -1360,9 +1357,7 @@ func (s *session) fetchIDsAttempt(
 			}
 
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
-				for _, result := range results {
-					s.pools.iteratorArray.Put(result)
-				}
+				s.pools.multiReaderIteratorArray.Put(results)
 			}
 			if atomic.AddInt32(&idAccessors, -1) == 0 {
 				tsID.Finalize()
@@ -1409,10 +1404,7 @@ func (s *session) fetchIDsAttempt(
 		}
 
 		// Once we've enqueued we know how many to expect so retrieve and set length
-		results = make([]encoding.MultiReaderIterator, 0, enqueued)
-		for i := int32(0); i < enqueued; i++ {
-			results = append(results, s.pools.iteratorArray.Get())
-		}
+		results = s.pools.multiReaderIteratorArray.Get(int(enqueued))
 		results = results[:enqueued]
 	}
 
@@ -3110,8 +3102,8 @@ func (b *baseBlocksResult) newDatabaseBlock(blockSize time.Duration, block *rpc.
 		encoder, err := b.mergeReaders(start, end, readers)
 		for _, reader := range readers {
 			// Close each reader
-			segmentReader := reader.(xio.BlockReader)
-			segmentReader.Finalize()
+			blockReader := reader.(xio.BlockReader)
+			blockReader.Finalize()
 		}
 
 		if err != nil {

@@ -124,6 +124,11 @@ func (it *seriesIterator) Reset(id ident.ID, nsID ident.ID, tags ident.TagIterat
 	it.end = endExclusive
 	it.iters.reset()
 	it.iters.setFilter(startInclusive, endExclusive)
+
+	for idx := range it.multiReaderIters {
+		it.multiReaderIters[idx] = nil
+	}
+
 	it.multiReaderIters = it.multiReaderIters[:0]
 	it.err = nil
 	it.firstNext = true

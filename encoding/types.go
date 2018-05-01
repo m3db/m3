@@ -298,14 +298,14 @@ type MutableSeriesIteratorsPool interface {
 	Put(iters MutableSeriesIterators)
 }
 
-// IteratorArrayPool provides a pool for Iterator arrays
-type IteratorArrayPool interface {
+// MultiReaderIteratorArrayPool provides a pool for MultiReaderIterator arrays
+type MultiReaderIteratorArrayPool interface {
 	// Init initializes the pool
 	Init()
 
 	// Get provides a Iterator array from the pool
-	Get(size int) []Iterator
+	Get(size int) []MultiReaderIterator
 
 	// Put returns a Iterator array to the pool
-	Put(iters []Iterator)
+	Put(iters []MultiReaderIterator)
 }

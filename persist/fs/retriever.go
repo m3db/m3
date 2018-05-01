@@ -535,10 +535,9 @@ func (req *retrieveRequest) Reset(segment ts.Segment) {
 }
 
 func (req *retrieveRequest) ResetWindowed(segment ts.Segment, start, end time.Time) {
-	req.reader.Reset(segment)
+	req.Reset(segment)
 	req.start = start
 	req.end = end
-	// req.resultWg.Done()
 }
 
 func (req *retrieveRequest) SegmentReader() (xio.SegmentReader, error) {

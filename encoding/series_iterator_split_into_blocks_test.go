@@ -26,8 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/ts"
@@ -37,6 +35,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type Series struct {

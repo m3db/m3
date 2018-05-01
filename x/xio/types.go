@@ -85,7 +85,7 @@ type ReaderSliceOfSlicesIterator interface {
 	Next() bool
 
 	// Current returns the current length, start, and end time
-	Current() (int, time.Time, time.Time)
+	Current() (length int, start, end time.Time)
 
 	// CurrentAt returns the current reader in the slice of readers at an index
 	CurrentAt(idx int) Reader
