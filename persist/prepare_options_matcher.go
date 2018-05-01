@@ -34,6 +34,7 @@ type PrepareOptionsMatcher struct {
 	BlockStart   time.Time
 	SnapshotTime time.Time
 	FilesetType  FilesetType
+	DeleteIfExists bool
 }
 
 // Matches determines whether a PrepareOptionsMatcher matches a PrepareOptions
@@ -58,12 +59,15 @@ func (p PrepareOptionsMatcher) Matches(x interface{}) bool {
 	if p.FilesetType != prepareOptions.FilesetType {
 		return false
 	}
+	if p.DeleteIfExists != prepareOptions.DeleteIfExists {
+		return false
+	}
 
 	return true
 }
 
 func (p PrepareOptionsMatcher) String() string {
 	return fmt.Sprintf(
-		"NSMetadata: %s, Shard: %d, BlockStart: %d, SnapshotTime: %d, FilesetType: %s",
-		p.NsMetadata.ID().String(), p.Shard, p.BlockStart.Unix(), p.SnapshotTime.Unix(), p.FilesetType)
+		"NSMetadata: %s, Shard: %d, BlockStart: %d, SnapshotTime: %d, FilesetType: %s, DeleteIfExists: %t",
+		p.NsMetadata.ID().String(), p.Shard, p.BlockStart.Unix(), p.SnapshotTime.Unix(), p.FilesetType, p.DeleteIfExists)
 }
