@@ -21,8 +21,11 @@
 package fs
 
 import (
+	"bufio"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/m3db/m3db/digest"
@@ -34,11 +37,20 @@ const (
 	indexFileSetMajorVersion = 1
 )
 
+var (
+	// fileSubTypeRegex allows what can be used for a file sub type,
+	// explicitly cannot use "-" as that is our file set file name separator,
+	// also we ensure that callers must use lower cased strings.
+	fileSubTypeRegex = regexp.MustCompile("^[a-z_]+$")
+)
+
 type indexWriter struct {
 	opts             Options
 	filePathPrefix   string
 	newFileMode      os.FileMode
 	newDirectoryMode os.FileMode
+	readerBuf        *bufio.Reader
+	fdWithDigest     digest.FdWithDigestWriter
 
 	err          error
 	blockSize    time.Duration
@@ -47,6 +59,7 @@ type indexWriter struct {
 	fileType     persist.FileSetType
 	segments     []writtenIndexSegment
 
+	namespaceDir       string
 	checkpointFilePath string
 	infoFilePath       string
 	digestFilePath     string
@@ -70,11 +83,14 @@ func NewIndexWriter(opts Options) (IndexFileSetWriter, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
+	bufferSize := opts.WriterBufferSize()
 	return &indexWriter{
 		opts:             opts,
 		filePathPrefix:   opts.FilePathPrefix(),
 		newFileMode:      opts.NewFileMode(),
 		newDirectoryMode: opts.NewDirectoryMode(),
+		readerBuf:        bufio.NewReader(nil),
+		fdWithDigest:     digest.NewFdWithDigestWriter(bufferSize),
 	}, nil
 }
 
@@ -82,7 +98,6 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	var (
 		nextSnapshotIndex int
 		err               error
-		namespaceDir      string
 		namespace         = opts.Identifier.Namespace
 		blockStart        = opts.Identifier.BlockStart
 	)
@@ -94,10 +109,10 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 
 	switch opts.FilesetType {
 	case persist.FileSetSnapshotType:
-		namespaceDir = NamespaceIndexSnapshotDirPath(w.filePathPrefix, namespace)
+		w.namespaceDir = NamespaceIndexSnapshotDirPath(w.filePathPrefix, namespace)
 		// Can't do this outside of the switch statement because we need to make sure
 		// the directory exists before calling NextSnapshotFileIndex
-		if err := os.MkdirAll(namespaceDir, w.newDirectoryMode); err != nil {
+		if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
 			return err
 		}
 
@@ -109,19 +124,19 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 		}
 
 		w.fileType = persist.FileSetSnapshotType
-		w.checkpointFilePath = snapshotPathFromTimeAndIndex(namespaceDir, blockStart, checkpointFileSuffix, nextSnapshotIndex)
-		w.infoFilePath = snapshotPathFromTimeAndIndex(namespaceDir, blockStart, infoFileSuffix, nextSnapshotIndex)
-		w.digestFilePath = snapshotPathFromTimeAndIndex(namespaceDir, blockStart, digestFileSuffix, nextSnapshotIndex)
+		w.checkpointFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, checkpointFileSuffix, nextSnapshotIndex)
+		w.infoFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, infoFileSuffix, nextSnapshotIndex)
+		w.digestFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, digestFileSuffix, nextSnapshotIndex)
 	case persist.FileSetFlushType:
-		namespaceDir = NamespaceIndexDataDirPath(w.filePathPrefix, namespace)
-		if err := os.MkdirAll(namespaceDir, w.newDirectoryMode); err != nil {
+		w.namespaceDir = NamespaceIndexDataDirPath(w.filePathPrefix, namespace)
+		if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
 			return err
 		}
 
 		w.fileType = persist.FileSetFlushType
-		w.checkpointFilePath = filesetPathFromTime(namespaceDir, blockStart, checkpointFileSuffix)
-		w.infoFilePath = filesetPathFromTime(namespaceDir, blockStart, infoFileSuffix)
-		w.digestFilePath = filesetPathFromTime(namespaceDir, blockStart, digestFileSuffix)
+		w.checkpointFilePath = filesetPathFromTime(w.namespaceDir, blockStart, checkpointFileSuffix)
+		w.infoFilePath = filesetPathFromTime(w.namespaceDir, blockStart, infoFileSuffix)
+		w.digestFilePath = filesetPathFromTime(w.namespaceDir, blockStart, digestFileSuffix)
 	}
 	return nil
 }
@@ -131,7 +146,70 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) er
 		return w.err
 	}
 
+	segType := string(segmentFileSet.SegmentType())
+	if segType == "" || !fileSubTypeRegex.MatchString(segType) {
+		err := fmt.Errorf("invalid segment type must match pattern=%s",
+			fileSubTypeRegex.String())
+		return w.markSegmentWriteError(segType, "", err)
+	}
+
+	seg := writtenIndexSegment{
+		segmentType:  segmentFileSet.SegmentType(),
+		majorVersion: segmentFileSet.MajorVersion(),
+		minorVersion: segmentFileSet.MinorVersion(),
+		metadata:     segmentFileSet.SegmentMetadata(),
+	}
+
+	idx := len(w.segments)
+	for _, file := range segmentFileSet.Files() {
+		segFileType := string(file.SegmentFileType())
+		if segFileType == "" || !fileSubTypeRegex.MatchString(segFileType) {
+			err := fmt.Errorf("invalid segment file type must match pattern=%s",
+				fileSubTypeRegex.String())
+			return w.markSegmentWriteError(segType, segFileType, err)
+		}
+
+		filePath := filesetIndexSegmentFilePathFromTime(w.namespaceDir, w.start,
+			idx, IndexSegmentFileType(segFileType))
+		if !FileExists(filePath) {
+			err := fmt.Errorf("segment file type already exists at %s", filePath)
+			return w.markSegmentWriteError(segType, segFileType, err)
+		}
+
+		fd, err := OpenWritable(filePath, w.newFileMode)
+		if err != nil {
+			return w.markSegmentWriteError(segType, segFileType, err)
+		}
+
+		// Use buffered IO reader to write the file in case the reader
+		// returns small chunks of data
+		w.readerBuf.Reset(file)
+		w.fdWithDigest.Reset(fd)
+		digest := w.fdWithDigest.Digest()
+		if _, err := w.readerBuf.WriteTo(w.fdWithDigest); err != nil {
+			return w.markSegmentWriteError(segType, segFileType, err)
+		}
+		if err := w.fdWithDigest.Close(); err != nil {
+			return w.markSegmentWriteError(segType, segFileType, err)
+		}
+
+		seg.files = append(seg.files, writtenIndexSegmentFile{
+			segmentFileType: file.SegmentFileType(),
+			digest:          digest.Sum32(),
+		})
+	}
+
+	w.segments = append(w.segments)
 	return nil
+}
+
+func (w *indexWriter) markSegmentWriteError(
+	segType, segFileType string,
+	err error,
+) error {
+	w.err = fmt.Errorf("failed to write segment_type=%s, segment_file_type=%s: %v",
+		segType, segFileType, err)
+	return w.err
 }
 
 func (w *indexWriter) infoFileData() ([]byte, error) {
@@ -141,6 +219,21 @@ func (w *indexWriter) infoFileData() ([]byte, error) {
 		BlockSize:    int64(w.blockSize),
 		FileType:     int64(w.fileType),
 		SnapshotTime: w.snapshotTime.UnixNano(),
+	}
+	for _, segment := range w.segments {
+		segmentInfo := &index.IndexInfo_SegmentInfo{
+			Type:         string(segment.segmentType),
+			MajorVersion: int64(segment.majorVersion),
+			MinorVersion: int64(segment.minorVersion),
+			Metadata:     segment.metadata,
+		}
+		for _, file := range segment.files {
+			fileInfo := &index.IndexInfo_SegmentFileInfo{
+				FileType: string(file.segmentFileType),
+			}
+			segmentInfo.Files = append(segmentInfo.Files, fileInfo)
+		}
+		info.Segments = append(info.Segments, segmentInfo)
 	}
 	return info.Marshal()
 }

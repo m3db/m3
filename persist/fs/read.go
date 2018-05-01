@@ -161,7 +161,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	}
 
 	// If there is no checkpoint file, don't read the data files.
-	if err := r.readCheckpointFile(checkpointFilepath, blockStart); err != nil {
+	if err := r.readCheckpointFile(checkpointFilepath); err != nil {
 		return err
 	}
 
@@ -244,7 +244,7 @@ func (r *reader) Status() DataFileSetReaderStatus {
 	}
 }
 
-func (r *reader) readCheckpointFile(filePath string, blockStart time.Time) error {
+func (r *reader) readCheckpointFile(filePath string) error {
 	if !FileExists(filePath) {
 		return ErrCheckpointFileNotFound
 	}

@@ -830,3 +830,20 @@ func snapshotPathFromTimeAndIndex(prefix string, t time.Time, suffix string, ind
 	name := fmt.Sprintf("%s%s%d%s%s%s%d%s", filesetFilePrefix, separator, t.UnixNano(), separator, suffix, separator, index, fileSuffix)
 	return path.Join(prefix, name)
 }
+
+func filesetIndexSegmentFilePathFromTime(
+	prefix string,
+	t time.Time,
+	segmentIndex int,
+	segmentFileType IndexSegmentFileType,
+) string {
+	idx := strconv.Itoa(segmentIndex)
+	suffix := fmt.Sprintf(
+		"%s%s%s"+
+			"%s"+
+			"%s",
+		segmentFilesetFilePrefix, separator, idx,
+		separator,
+		segmentFileType)
+	return filesetPathFromTime(prefix, t, suffix)
+}

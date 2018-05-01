@@ -21,16 +21,17 @@
 package fs
 
 const (
-	infoFileSuffix        = "info"
-	indexFileSuffix       = "index"
-	summariesFileSuffix   = "summaries"
-	bloomFilterFileSuffix = "bloomfilter"
-	dataFileSuffix        = "data"
-	digestFileSuffix      = "digest"
-	checkpointFileSuffix  = "checkpoint"
-	filesetFilePrefix     = "fileset"
-	commitLogFilePrefix   = "commitlog"
-	fileSuffix            = ".db"
+	infoFileSuffix           = "info"
+	indexFileSuffix          = "index"
+	summariesFileSuffix      = "summaries"
+	bloomFilterFileSuffix    = "bloomfilter"
+	dataFileSuffix           = "data"
+	digestFileSuffix         = "digest"
+	checkpointFileSuffix     = "checkpoint"
+	filesetFilePrefix        = "fileset"
+	commitLogFilePrefix      = "commitlog"
+	segmentFilesetFilePrefix = "segment"
+	fileSuffix               = ".db"
 
 	separator                    = "-"
 	infoFilePattern              = filesetFilePrefix + separator + "[0-9]*" + separator + infoFileSuffix + fileSuffix
