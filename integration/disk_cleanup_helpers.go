@@ -116,7 +116,12 @@ type cleanupTimesFileSet struct {
 
 func (fset *cleanupTimesFileSet) anyExist() bool {
 	for _, t := range fset.times {
-		if fs.DataFileSetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t) {
+		exists, err := fs.DataFilesetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t)
+		if err != nil {
+			panic(err)
+		}
+
+		if exists {
 			return true
 		}
 	}
@@ -125,11 +130,14 @@ func (fset *cleanupTimesFileSet) anyExist() bool {
 
 func (fset *cleanupTimesFileSet) allExist() bool {
 	for _, t := range fset.times {
-		if !fs.DataFileSetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t) {
+		exists, err := fs.DataFilesetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t)
+		if err != nil {
+			panic(err)
+		}
+
+		if !exists {
 			return false
 		}
-	}
-	return true
 }
 
 func waitUntilDataCleanedUpExtended(
