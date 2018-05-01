@@ -21,12 +21,12 @@
 package storage
 
 import (
-	"bytes"
 	"errors"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3ninx/index"
@@ -36,15 +36,15 @@ import (
 	"github.com/m3db/m3ninx/search/executor"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/resource"
 
 	"github.com/uber-go/tally"
 )
 
 var (
-	errDbIndexAlreadyClosed                      = errors.New("database index has already been closed")
-	errDbIndexUnableToWriteClosed                = errors.New("unable to write to database index, already closed")
-	errDbIndexUnableToQueryClosed                = errors.New("unable to query database index, already closed")
-	errDbIndexUnableToIndexWithReservedFieldName = errors.New("unable to index document due to usage of reserved fieldname")
+	errDbIndexAlreadyClosed       = errors.New("database index has already been closed")
+	errDbIndexUnableToWriteClosed = errors.New("unable to write to database index, already closed")
+	errDbIndexUnableToQueryClosed = errors.New("unable to query database index, already closed")
 )
 
 type nsIndexState byte
@@ -131,7 +131,7 @@ func (i *nsIndex) Write(
 	tags ident.Tags,
 	fns onIndexSeries,
 ) error {
-	d, err := i.doc(id, tags)
+	d, err := convert.FromMetric(id, tags)
 	if err != nil {
 		fns.OnIndexFinalize()
 		return err
@@ -265,10 +265,15 @@ func (i *nsIndex) Query(
 		return index.QueryResults{}, err
 	}
 
+	idxIter := index.NewIterator(i.nsID, iter, i.opts)
+
+	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
+		idxIter.Finalize()
+		exec.Close()
+	}))
+
 	return index.QueryResults{
-		Iterator: index.NewIterator(i.nsID, iter, i.opts, func() {
-			exec.Close()
-		}),
+		Iterator:   idxIter,
 		Exhaustive: true,
 	}, nil
 }
@@ -286,34 +291,6 @@ func (i *nsIndex) Close() error {
 
 	i.state = nsIndexStateClosed
 	return i.insertQueue.Stop()
-}
-
-func (i *nsIndex) doc(id ident.ID, tags ident.Tags) (doc.Document, error) {
-	fields := make([]doc.Field, 0, len(tags))
-	for _, tag := range tags {
-		if bytes.Equal(index.ReservedFieldNameID, tag.Name.Bytes()) {
-			return doc.Document{}, errDbIndexUnableToIndexWithReservedFieldName
-		}
-		name := i.clone(tag.Name)
-		fields = append(fields, doc.Field{
-			Name:  name,
-			Value: i.clone(tag.Value),
-		})
-	}
-	return doc.Document{
-		ID:     i.clone(id),
-		Fields: fields,
-	}, nil
-}
-
-// NB(prateek): we take an independent copy of the bytes underlying
-// any ids provided, as we need to maintain the lifecycle of the indexed
-// bytes separately from the rest of the storage subsystem.
-func (i *nsIndex) clone(id ident.ID) []byte {
-	original := id.Data().Bytes()
-	clone := make([]byte, len(original))
-	copy(clone, original)
-	return clone
 }
 
 type nsIndexMetrics struct {

@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
 	m3ninxidx "github.com/m3db/m3ninx/idx"
@@ -115,23 +116,6 @@ func TestNamespaceIndexStopErr(t *testing.T) {
 	assert.Error(t, idx.Close())
 }
 
-func TestNamespaceIndexInvalidDocConversion(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	dbIdx, _ := newTestNamespaceIndex(t, ctrl)
-	idx, ok := dbIdx.(*nsIndex)
-	assert.True(t, ok)
-
-	id := ident.StringID("foo")
-	tags := ident.Tags{
-		ident.StringTag(string(index.ReservedFieldNameID), "value"),
-	}
-
-	_, err := idx.doc(id, tags)
-	assert.Error(t, err)
-}
-
 func TestNamespaceIndexInvalidDocWrite(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -204,27 +188,6 @@ func TestNamespaceIndexWriteQueueError(t *testing.T) {
 	assert.True(t, lifecycle.finalized)
 }
 
-func TestNamespaceIndexDocConversion(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	dbIdx, _ := newTestNamespaceIndex(t, ctrl)
-	idx, ok := dbIdx.(*nsIndex)
-	assert.True(t, ok)
-
-	id := ident.StringID("foo")
-	tags := ident.Tags{
-		ident.StringTag("name", "value"),
-	}
-
-	d, err := idx.doc(id, tags)
-	assert.NoError(t, err)
-	assert.Len(t, d.Fields, 1)
-	assert.Equal(t, "foo", string(d.ID))
-	assert.Equal(t, "name", string(d.Fields[0].Name))
-	assert.Equal(t, "value", string(d.Fields[0].Value))
-}
-
 func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -240,7 +203,7 @@ func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 		}
 	)
 
-	d, err := idx.doc(id, tags)
+	d, err := convert.FromMetric(id, tags)
 	assert.NoError(t, err)
 
 	var wg sync.WaitGroup
