@@ -469,6 +469,29 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 	require.NoError(t, ns.Flush(blockStart, shardBootstrapStates, nil))
 }
 
+func TestNamespaceFlushSkipShardNotBootstrappedBeforeTick(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	ns.bs = bootstrapped
+	blockStart := time.Now().Truncate(ns.Options().RetentionOptions().BlockSize())
+
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(testShardIDs[0].ID())
+	ns.shards[testShardIDs[0].ID()] = shard
+
+	shardBootstrapStates := shardBootstrapStates{}
+	shardBootstrapStates[testShardIDs[0].ID()] = false
+
+	require.NoError(t, ns.Flush(blockStart, shardBootstrapStates, nil))
+}
+
 type snapshotTestCase struct {
 	isSnapshotting   bool
 	expectSnapshot   bool
