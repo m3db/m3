@@ -335,8 +335,10 @@ func (mr *MockDatabaseBlockMockRecorder) Stream(blocker interface{}) *gomock.Cal
 }
 
 // Merge mocks base method
-func (m *MockDatabaseBlock) Merge(other DatabaseBlock) {
-	m.ctrl.Call(m, "Merge", other)
+func (m *MockDatabaseBlock) Merge(other DatabaseBlock) error {
+	ret := m.ctrl.Call(m, "Merge", other)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Merge indicates an expected call of Merge

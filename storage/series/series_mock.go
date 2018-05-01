@@ -110,10 +110,11 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksMetadata(arg0, arg1, arg2, 
 }
 
 // Flush mocks base method
-func (m *MockDatabaseSeries) Flush(arg0 context.Context, arg1 time.Time, arg2 persist.Fn) error {
+func (m *MockDatabaseSeries) Flush(arg0 context.Context, arg1 time.Time, arg2 persist.Fn) (FlushOutcome, error) {
 	ret := m.ctrl.Call(m, "Flush", arg0, arg1, arg2)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(FlushOutcome)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Flush indicates an expected call of Flush
