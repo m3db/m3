@@ -560,7 +560,7 @@ func (ts *testSetup) close() {
 func (ts *testSetup) mustSetTickMinimumInterval(tickMinInterval time.Duration) {
 	runtimeMgr := ts.storageOpts.RuntimeOptionsManager()
 	existingOptions := runtimeMgr.Get()
-	newOptions := existingOptions.SetTickMinimumInterval(100 * time.Millisecond)
+	newOptions := existingOptions.SetTickMinimumInterval(tickMinInterval)
 	err := runtimeMgr.Update(newOptions)
 	if err != nil {
 		panic(fmt.Sprintf("err setting tick minimum interval: %v", err))
