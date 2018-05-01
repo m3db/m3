@@ -402,7 +402,6 @@ func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
 	// buffer needs to drain or if tick is called and series explicitly asks
 	// the buffer to drain ready buckets.
 	iOpts := s.opts.InstrumentOptions()
-	scope := iOpts.MetricsScope().SubScope("series-buffer-drain")
 	err := s.mergeBlockWithLock(newBlock)
 	if err != nil {
 		iOpts.Logger().WithFields(
@@ -410,9 +409,10 @@ func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
 			xlog.NewField("blockStart", newBlock.StartTime()),
 			xlog.NewField("err", err.Error()),
 		).Errorf("error trying to drain series buffer")
-		scope.Counter("buffer-drain-error").Inc(1)
+		// Allocating metric here is ok because this code-path should never
+		// happen anyways.
+		iOpts.MetricsScope().SubScope("series-buffer-drain")
 	}
-	iOpts.MetricsScope().Counter("buffer-drained").Inc(1) // Debug
 }
 
 func (s *dbSeries) mergeBlockWithLock(newBlock block.DatabaseBlock) error {
