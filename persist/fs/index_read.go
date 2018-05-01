@@ -43,7 +43,6 @@ type indexReader struct {
 	logger         xlog.Logger
 
 	start        time.Time
-	blockSize    time.Duration
 	namespaceDir string
 
 	currIdx                int
