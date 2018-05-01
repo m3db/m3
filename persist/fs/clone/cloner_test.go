@@ -64,7 +64,7 @@ func TestCloner(t *testing.T) {
 		SetInfoReaderBufferSize(opts.BufferSize()).
 		SetDecodingOptions(opts.DecodingOptions()))
 	require.NoError(t, err)
-	r1OpenOpts := fs.ReaderOpenOptions{
+	r1OpenOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.DataFileSetFileIdentifier{
 			Namespace:  ident.StringID(src.Namespace),
 			Shard:      src.Shard,
@@ -78,7 +78,7 @@ func TestCloner(t *testing.T) {
 		SetInfoReaderBufferSize(opts.BufferSize()).
 		SetDecodingOptions(opts.DecodingOptions()))
 	require.NoError(t, err)
-	r2OpenOpts := fs.ReaderOpenOptions{
+	r2OpenOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.DataFileSetFileIdentifier{
 			Namespace:  ident.StringID(dest.Namespace),
 			Shard:      dest.Shard,

@@ -121,7 +121,7 @@ func NewReader(
 	}, nil
 }
 
-func (r *reader) Open(opts ReaderOpenOptions) error {
+func (r *reader) Open(opts DataReaderOpenOptions) error {
 	var (
 		namespace     = opts.Identifier.Namespace
 		shard         = opts.Identifier.Shard

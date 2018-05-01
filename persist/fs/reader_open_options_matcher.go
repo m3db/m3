@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3db/persist"
 )
 
-// ReaderOpenOptionsMatcher is a matcher for the ReaderOpenOptions struct
+// ReaderOpenOptionsMatcher is a matcher for the DataReaderOpenOptions struct
 type ReaderOpenOptionsMatcher struct {
 	ID          DataFileSetFileIdentifier
 	FileSetType persist.FileSetType
@@ -34,7 +34,7 @@ type ReaderOpenOptionsMatcher struct {
 
 // Matches determine whether m matches a DataWriterOpenOptions
 func (m ReaderOpenOptionsMatcher) Matches(x interface{}) bool {
-	readerOpenOptions, ok := x.(ReaderOpenOptions)
+	readerOpenOptions, ok := x.(DataReaderOpenOptions)
 	if !ok {
 		return false
 	}

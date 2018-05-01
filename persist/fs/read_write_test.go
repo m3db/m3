@@ -92,7 +92,7 @@ var readTestTypes = []readTestType{
 // be a newly introduced reader reuse bug.
 func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
 	for _, underTest := range readTestTypes {
-		rOpenOpts := ReaderOpenOptions{
+		rOpenOpts := DataReaderOpenOptions{
 			Identifier: DataFileSetFileIdentifier{
 				Namespace:  testNs1ID,
 				Shard:      0,
@@ -322,7 +322,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	w.Close()
 
 	r := newTestReader(t, filePathPrefix)
-	rOpenOpts := ReaderOpenOptions{
+	rOpenOpts := DataReaderOpenOptions{
 		Identifier: DataFileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,

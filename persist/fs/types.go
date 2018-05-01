@@ -54,12 +54,12 @@ type DataWriterOpenOptions struct {
 	BlockSize   time.Duration
 	FileSetType persist.FileSetType
 	// Only used when writing snapshot files
-	Snapshot WriterSnapshotOptions
+	Snapshot DataWriterSnapshotOptions
 }
 
-// WriterSnapshotOptions is the options struct for Open method on the DataFileSetWriter
+// DataWriterSnapshotOptions is the options struct for Open method on the DataFileSetWriter
 // that contains information specific to writing snapshot files
-type WriterSnapshotOptions struct {
+type DataWriterSnapshotOptions struct {
 	SnapshotTime time.Time
 }
 
@@ -91,8 +91,8 @@ type DataFileSetReaderStatus struct {
 	Open  bool
 }
 
-// ReaderOpenOptions is options struct for the reader open method.
-type ReaderOpenOptions struct {
+// DataReaderOpenOptions is options struct for the reader open method.
+type DataReaderOpenOptions struct {
 	Identifier  DataFileSetFileIdentifier
 	FileSetType persist.FileSetType
 }
@@ -102,7 +102,7 @@ type DataFileSetReader interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
-	Open(opts ReaderOpenOptions) error
+	Open(opts DataReaderOpenOptions) error
 
 	// Status returns the status of the reader
 	Status() DataFileSetReaderStatus
@@ -141,8 +141,8 @@ type DataFileSetReader interface {
 	MetadataRead() int
 }
 
-// FileSetSeeker provides an out of order reader for a TSDB file set
-type FileSetSeeker interface {
+// DataFileSetSeeker provides an out of order reader for a TSDB file set
+type DataFileSetSeeker interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
@@ -179,30 +179,30 @@ type FileSetSeeker interface {
 	// (mmaps), but that is capable of seeking independently. The original can continue
 	// to be used after the clones are closed, but the clones cannot be used after the
 	// original is closed.
-	ConcurrentClone() (ConcurrentFileSetSeeker, error)
+	ConcurrentClone() (ConcurrentDataFileSetSeeker, error)
 }
 
-// ConcurrentFileSetSeeker is a limited interface that is returned when ConcurrentClone() is called on FileSetSeeker.
+// ConcurrentDataFileSetSeeker is a limited interface that is returned when ConcurrentClone() is called on DataFileSetSeeker.
 // The clones can be used together concurrently and share underlying resources. Clones are no
 // longer usable once the original has been closed.
-type ConcurrentFileSetSeeker interface {
+type ConcurrentDataFileSetSeeker interface {
 	io.Closer
 
-	// SeekByID is the same as in FileSetSeeker
+	// SeekByID is the same as in DataFileSetSeeker
 	SeekByID(id ident.ID) (data checked.Bytes, err error)
 
-	// SeekByIndexEntry is the same as in FileSetSeeker
+	// SeekByIndexEntry is the same as in DataFileSetSeeker
 	SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error)
 
-	// SeekIndexEntry is the same as in FileSetSeeker
+	// SeekIndexEntry is the same as in DataFileSetSeeker
 	SeekIndexEntry(id ident.ID) (IndexEntry, error)
 
-	// ConcurrentIDBloomFilter is the same as in FileSetSeeker
+	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
 }
 
-// FileSetSeekerManager provides management of seekers for a TSDB namespace.
-type FileSetSeekerManager interface {
+// DataFileSetSeekerManager provides management of seekers for a TSDB namespace.
+type DataFileSetSeekerManager interface {
 	io.Closer
 
 	// Open opens the seekers for a given namespace.
@@ -213,18 +213,18 @@ type FileSetSeekerManager interface {
 	CacheShardIndices(shards []uint32) error
 
 	// Borrow returns an open seeker for a given shard and block start time.
-	Borrow(shard uint32, start time.Time) (ConcurrentFileSetSeeker, error)
+	Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error)
 
 	// Return returns an open seeker for a given shard and block start time.
-	Return(shard uint32, start time.Time, seeker ConcurrentFileSetSeeker) error
+	Return(shard uint32, start time.Time, seeker ConcurrentDataFileSetSeeker) error
 
 	// ConcurrentIDBloomFilter returns a concurrent ID bloom filter for a given
 	// shard and block start time
 	ConcurrentIDBloomFilter(shard uint32, start time.Time) (*ManagedConcurrentBloomFilter, error)
 }
 
-// BlockRetriever provides a block retriever for TSDB file sets
-type BlockRetriever interface {
+// DataBlockRetriever provides a block retriever for TSDB file sets
+type DataBlockRetriever interface {
 	io.Closer
 	block.DatabaseBlockRetriever
 
@@ -232,8 +232,8 @@ type BlockRetriever interface {
 	Open(md namespace.Metadata) error
 }
 
-// RetrievableBlockSegmentReader is a retrievable block reader
-type RetrievableBlockSegmentReader interface {
+// RetrievableDataBlockSegmentReader is a retrievable block reader
+type RetrievableDataBlockSegmentReader interface {
 	xio.SegmentReader
 }
 

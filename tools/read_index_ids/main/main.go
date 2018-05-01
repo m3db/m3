@@ -40,7 +40,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not create new reader: %v", err)
 	}
-	openOpts := fs.ReaderOpenOptions{
+	openOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.DataFileSetFileIdentifier{
 			Namespace:  ident.StringID(*optNamespace),
 			Shard:      *optShard,

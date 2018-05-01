@@ -162,7 +162,7 @@ func (s *fileSystemSource) enqueueReaders(
 				continue
 			}
 			t := xtime.FromNanoseconds(info.BlockStart)
-			openOpts := fs.ReaderOpenOptions{
+			openOpts := fs.DataReaderOpenOptions{
 				Identifier: fs.DataFileSetFileIdentifier{
 					Namespace:  namespace,
 					Shard:      shard,

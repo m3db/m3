@@ -66,7 +66,7 @@ type newSeekerMgrFn func(
 	bytesPool pool.CheckedBytesPool,
 	opts Options,
 	fetchConcurrency int,
-) FileSetSeekerManager
+) DataFileSetSeekerManager
 
 const (
 	blockRetrieverNotOpen blockRetrieverStatus = iota
@@ -90,7 +90,7 @@ type blockRetriever struct {
 
 	status                     blockRetrieverStatus
 	reqsByShardIdx             []*shardRetrieveRequests
-	seekerMgr                  FileSetSeekerManager
+	seekerMgr                  DataFileSetSeekerManager
 	notifyFetch                chan struct{}
 	fetchLoopsShouldShutdownCh chan struct{}
 	fetchLoopsHaveShutdownCh   chan struct{}
@@ -100,7 +100,7 @@ type blockRetriever struct {
 func NewBlockRetriever(
 	opts BlockRetrieverOptions,
 	fsOpts Options,
-) BlockRetriever {
+) DataBlockRetriever {
 	segmentReaderPool := opts.SegmentReaderPool()
 	reqPoolOpts := opts.RequestPoolOptions()
 	reqPool := newRetrieveRequestPool(segmentReaderPool, reqPoolOpts)
@@ -159,7 +159,7 @@ func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 	return nil
 }
 
-func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
+func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 	var (
 		inFlight      []*retrieveRequest
 		currBatchReqs []*retrieveRequest
@@ -255,7 +255,7 @@ func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 }
 
 func (r *blockRetriever) fetchBatch(
-	seekerMgr FileSetSeekerManager,
+	seekerMgr DataFileSetSeekerManager,
 	shard uint32,
 	blockStart time.Time,
 	reqs []*retrieveRequest,

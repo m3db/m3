@@ -125,7 +125,7 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	r := newTestReader(t, filePathPrefix)
-	rOpenOpts := ReaderOpenOptions{
+	rOpenOpts := DataReaderOpenOptions{
 		Identifier: DataFileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
@@ -170,7 +170,7 @@ func TestReadDataError(t *testing.T) {
 	require.NoError(t, w.Close())
 
 	r := newTestReader(t, filePathPrefix)
-	rOpenOpts := ReaderOpenOptions{
+	rOpenOpts := DataReaderOpenOptions{
 		Identifier: DataFileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
@@ -228,7 +228,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	assert.NoError(t, os.Truncate(dataFile, 1))
 
 	r := newTestReader(t, filePathPrefix)
-	rOpenOpts := ReaderOpenOptions{
+	rOpenOpts := DataReaderOpenOptions{
 		Identifier: DataFileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
@@ -269,7 +269,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	os.Remove(checkpointFile)
 
 	r := newTestReader(t, filePathPrefix)
-	rOpenOpts := ReaderOpenOptions{
+	rOpenOpts := DataReaderOpenOptions{
 		Identifier: DataFileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
@@ -315,7 +315,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	}
 
 	r := newTestReader(t, filePathPrefix)
-	rOpenOpts := ReaderOpenOptions{
+	rOpenOpts := DataReaderOpenOptions{
 		Identifier: DataFileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
@@ -399,7 +399,7 @@ func TestReadValidate(t *testing.T) {
 	require.NoError(t, w.Close())
 
 	r := newTestReader(t, filePathPrefix)
-	rOpenOpts := ReaderOpenOptions{
+	rOpenOpts := DataReaderOpenOptions{
 		Identifier: DataFileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,

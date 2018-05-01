@@ -31,7 +31,7 @@ import (
 type DataWriterOpenOptionsMatcher struct {
 	ID          DataFileSetFileIdentifier
 	BlockSize   time.Duration
-	Snapshot    WriterSnapshotOptions
+	Snapshot    DataWriterSnapshotOptions
 	FileSetType persist.FileSetType
 }
 

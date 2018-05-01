@@ -247,7 +247,7 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: blockSize,
-		Snapshot: WriterSnapshotOptions{
+		Snapshot: DataWriterSnapshotOptions{
 			SnapshotTime: snapshotTime,
 		},
 		FileSetType: opts.FileSetType,

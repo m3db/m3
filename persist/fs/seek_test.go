@@ -35,7 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestSeeker(filePathPrefix string) FileSetSeeker {
+func newTestSeeker(filePathPrefix string) DataFileSetSeeker {
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
 		Capacity: 1024,
 		Count:    10,

@@ -206,7 +206,7 @@ func newReader(namespace, pathPrefix, hostName string, shard uint32, start time.
 		return nil, err
 	}
 
-	openOpts := fs.ReaderOpenOptions{
+	openOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.DataFileSetFileIdentifier{
 			Namespace:  ident.StringID(namespace),
 			Shard:      shard,

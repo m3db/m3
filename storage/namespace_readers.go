@@ -251,7 +251,7 @@ func (m *namespaceReaderManager) get(
 	// We have a closed reader from the cache (either a cached closed
 	// reader or newly allocated, either way need to prepare it)
 	reader := lookup.closedReader
-	openOpts := fs.ReaderOpenOptions{
+	openOpts := fs.DataReaderOpenOptions{
 		Identifier: fs.DataFileSetFileIdentifier{
 			Namespace:  m.namespace.ID(),
 			Shard:      shard,
