@@ -393,7 +393,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 		Shard:        s.shard,
 		BlockStart:   blockStart,
 		SnapshotTime: blockStart,
-		FilesetType:  persist.FilesetSnapshotType,
+		FileSetType:  persist.FileSetSnapshotType,
 	}
 	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
 
@@ -899,7 +899,7 @@ func TestShardFetchBlocksIDExists(t *testing.T) {
 	require.Equal(t, expected, res)
 }
 
-func TestShardCleanupFileset(t *testing.T) {
+func TestShardCleanupFileSet(t *testing.T) {
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
@@ -911,7 +911,7 @@ func TestShardCleanupFileset(t *testing.T) {
 		deletedFiles = append(deletedFiles, files...)
 		return nil
 	}
-	require.NoError(t, shard.CleanupFileset(time.Now()))
+	require.NoError(t, shard.CleanupFileSet(time.Now()))
 	require.Equal(t, []string{defaultTestNs1ID.String(), "0"}, deletedFiles)
 }
 
@@ -934,8 +934,8 @@ func TestShardCleanupSnapshot(t *testing.T) {
 		return fs.SnapshotFilesSlice{
 			// Should get removed for not being in retention period
 			fs.SnapshotFile{
-				FilesetFile: fs.FilesetFile{
-					ID: fs.FilesetFileIdentifier{
+				FileSetFile: fs.FileSetFile{
+					ID: fs.DataFileSetFileIdentifier{
 						Namespace:  namespace,
 						Shard:      shard,
 						BlockStart: pastRetention,
@@ -946,8 +946,8 @@ func TestShardCleanupSnapshot(t *testing.T) {
 			},
 			// Should get removed for being flushed
 			fs.SnapshotFile{
-				FilesetFile: fs.FilesetFile{
-					ID: fs.FilesetFileIdentifier{
+				FileSetFile: fs.FileSetFile{
+					ID: fs.DataFileSetFileIdentifier{
 						Namespace:  namespace,
 						Shard:      shard,
 						BlockStart: successfullyFlushed,
@@ -959,8 +959,8 @@ func TestShardCleanupSnapshot(t *testing.T) {
 			// Should not get removed - Note that this entry precedes the
 			// next in order to ensure that the sorting logic works correctly.
 			fs.SnapshotFile{
-				FilesetFile: fs.FilesetFile{
-					ID: fs.FilesetFileIdentifier{
+				FileSetFile: fs.FileSetFile{
+					ID: fs.DataFileSetFileIdentifier{
 						Namespace:  namespace,
 						Shard:      shard,
 						BlockStart: notFlushedYet,
@@ -973,8 +973,8 @@ func TestShardCleanupSnapshot(t *testing.T) {
 			},
 			// Should get removed because the next one has a higher index
 			fs.SnapshotFile{
-				FilesetFile: fs.FilesetFile{
-					ID: fs.FilesetFileIdentifier{
+				FileSetFile: fs.FileSetFile{
+					ID: fs.DataFileSetFileIdentifier{
 						Namespace:  namespace,
 						Shard:      shard,
 						BlockStart: notFlushedYet,

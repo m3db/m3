@@ -27,47 +27,47 @@ import (
 	"github.com/m3db/m3db/persist"
 )
 
-// WriterOpenOptionsMatcher satisfies the gomock.Matcher interface for WriterOpenOptions
-type WriterOpenOptionsMatcher struct {
-	ID          FilesetFileIdentifier
+// DataWriterOpenOptionsMatcher satisfies the gomock.Matcher interface for DataWriterOpenOptions
+type DataWriterOpenOptionsMatcher struct {
+	ID          DataFileSetFileIdentifier
 	BlockSize   time.Duration
 	Snapshot    WriterSnapshotOptions
-	FilesetType persist.FilesetType
+	FileSetType persist.FileSetType
 }
 
-// Matches determine whether m matches a WriterOpenOptions
-func (m WriterOpenOptionsMatcher) Matches(x interface{}) bool {
-	writerOpenOptions, ok := x.(WriterOpenOptions)
+// Matches determine whether m matches a DataWriterOpenOptions
+func (m DataWriterOpenOptionsMatcher) Matches(x interface{}) bool {
+	DataWriterOpenOptions, ok := x.(DataWriterOpenOptions)
 	if !ok {
 		return false
 	}
 
-	if !m.ID.Namespace.Equal(writerOpenOptions.Identifier.Namespace) {
+	if !m.ID.Namespace.Equal(DataWriterOpenOptions.Identifier.Namespace) {
 		return false
 	}
-	if m.BlockSize != writerOpenOptions.BlockSize {
+	if m.BlockSize != DataWriterOpenOptions.BlockSize {
 		return false
 	}
-	if m.ID.Shard != writerOpenOptions.Identifier.Shard {
+	if m.ID.Shard != DataWriterOpenOptions.Identifier.Shard {
 		return false
 	}
-	if !m.ID.BlockStart.Equal(writerOpenOptions.Identifier.BlockStart) {
+	if !m.ID.BlockStart.Equal(DataWriterOpenOptions.Identifier.BlockStart) {
 		return false
 	}
-	if !m.Snapshot.SnapshotTime.Equal(writerOpenOptions.Snapshot.SnapshotTime) {
+	if !m.Snapshot.SnapshotTime.Equal(DataWriterOpenOptions.Snapshot.SnapshotTime) {
 		return false
 	}
-	if m.FilesetType != writerOpenOptions.FilesetType {
+	if m.FileSetType != DataWriterOpenOptions.FileSetType {
 		return false
 	}
 
 	return true
 }
 
-func (m WriterOpenOptionsMatcher) String() string {
+func (m DataWriterOpenOptionsMatcher) String() string {
 	return fmt.Sprintf(
 		"namespace: %s, blocksize: %d, shard: %d, blockstart: %d, snapshotTime: %d, filesetType: %s",
 		m.ID.Namespace.String(), m.BlockSize, m.ID.Shard, m.ID.BlockStart.Unix(),
-		m.Snapshot.SnapshotTime.Unix(), m.FilesetType,
+		m.Snapshot.SnapshotTime.Unix(), m.FileSetType,
 	)
 }

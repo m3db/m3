@@ -95,7 +95,7 @@ func (e indexEntries) Swap(i, j int) {
 }
 
 // NewWriter returns a new writer for a filePathPrefix
-func NewWriter(opts Options) (FileSetWriter, error) {
+func NewWriter(opts Options) (DataFileSetWriter, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func NewWriter(opts Options) (FileSetWriter, error) {
 // Open initializes the internal state for writing to the given shard,
 // specifically creating the shard directory if it doesn't exist, and
 // opening / truncating files associated with that shard for writing.
-func (w *writer) Open(opts WriterOpenOptions) error {
+func (w *writer) Open(opts DataWriterOpenOptions) error {
 	var (
 		nextSnapshotIndex int
 		err               error
@@ -145,8 +145,8 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 		dataFilepath        string
 		digestFilepath      string
 	)
-	switch opts.FilesetType {
-	case persist.FilesetSnapshotType:
+	switch opts.FileSetType {
+	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(w.filePathPrefix, namespace, shard)
 		// Can't do this outside of the switch statement because we need to make sure
 		// the directory exists before calling NextSnapshotFileIndex
@@ -168,7 +168,7 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 		bloomFilterFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, nextSnapshotIndex)
 		dataFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, dataFileSuffix, nextSnapshotIndex)
 		digestFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, digestFileSuffix, nextSnapshotIndex)
-	case persist.FilesetFlushType:
+	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(w.filePathPrefix, namespace, shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
@@ -182,7 +182,7 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 		dataFilepath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
 		digestFilepath = filesetPathFromTime(shardDir, blockStart, digestFileSuffix)
 	default:
-		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
+		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
 	}
 
 	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File

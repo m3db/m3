@@ -56,7 +56,7 @@ func waitUntilSnapshotFilesFlushed(
 	dataFlushed := func() bool {
 		for _, shard := range shardSet.AllIDs() {
 			for _, t := range expectedSnapshotTimes {
-				exists, err := fs.SnapshotFilesetExistsAt(filePathPrefix, namespace, shard, t)
+				exists, err := fs.SnapshotFileSetExistsAt(filePathPrefix, namespace, shard, t)
 				if err != nil {
 					panic(err)
 				}
@@ -86,7 +86,7 @@ func waitUntilDataFilesFlushed(
 		for timestamp, seriesList := range testData {
 			for _, series := range seriesList {
 				shard := shardSet.Lookup(series.ID)
-				if !fs.DataFilesetExistsAt(filePathPrefix, namespace, shard, timestamp.ToTime()) {
+				if !fs.DataFileSetExistsAt(filePathPrefix, namespace, shard, timestamp.ToTime()) {
 					return false
 				}
 			}
@@ -102,12 +102,12 @@ func waitUntilDataFilesFlushed(
 func verifyForTime(
 	t *testing.T,
 	storageOpts storage.Options,
-	reader fs.FileSetReader,
+	reader fs.DataFileSetReader,
 	shardSet sharding.ShardSet,
 	iteratorPool encoding.ReaderIteratorPool,
 	timestamp time.Time,
 	namespace ident.ID,
-	filesetType persist.FilesetType,
+	filesetType persist.FileSetType,
 	expected generate.SeriesBlock,
 ) {
 	shards := make(map[uint32]struct{})
@@ -118,15 +118,15 @@ func verifyForTime(
 	actual := make(generate.SeriesBlock, 0, len(expected))
 	for shard := range shards {
 		rOpts := fs.ReaderOpenOptions{
-			Identifier: fs.FilesetFileIdentifier{
+			Identifier: fs.DataFileSetFileIdentifier{
 				Namespace:  namespace,
 				Shard:      shard,
 				BlockStart: timestamp,
 			},
-			FilesetType: filesetType,
+			FileSetType: filesetType,
 		}
 
-		if filesetType == persist.FilesetSnapshotType {
+		if filesetType == persist.FileSetSnapshotType {
 			// If we're verifying snapshot files, then we need to identify the latest
 			// one because multiple snapshot files can exist at the same time with the
 			// same blockStart, but increasing "indexes" which indicates which one is
@@ -184,7 +184,7 @@ func verifyFlushedDataFiles(
 	for timestamp, seriesList := range seriesMaps {
 		verifyForTime(
 			t, storageOpts, reader, shardSet, iteratorPool, timestamp.ToTime(),
-			namespace, persist.FilesetFlushType, seriesList)
+			namespace, persist.FileSetFlushType, seriesList)
 	}
 }
 
@@ -205,7 +205,7 @@ func verifySnapshottedDataFiles(
 		for _, seriesList := range seriesMaps {
 			verifyForTime(
 				t, storageOpts, reader, shardSet, iteratorPool, snapshotTime,
-				ns, persist.FilesetSnapshotType, seriesList)
+				ns, persist.FileSetSnapshotType, seriesList)
 		}
 	}
 }

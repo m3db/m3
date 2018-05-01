@@ -34,7 +34,7 @@ func TestCloner(t *testing.T) {
 	srcBlockSize := time.Hour
 	srcData := path.Join(dir, "src")
 	require.NoError(t, os.Mkdir(srcData, opts.DirMode()))
-	src := FilesetID{
+	src := FileSetID{
 		PathPrefix: srcData,
 		Namespace:  "testns-src",
 		Shard:      123,
@@ -48,7 +48,7 @@ func TestCloner(t *testing.T) {
 	destBlockSize := 2 * time.Hour
 	clonedData := path.Join(dir, "clone")
 	require.NoError(t, os.Mkdir(clonedData, opts.DirMode()))
-	dest := FilesetID{
+	dest := FileSetID{
 		PathPrefix: clonedData,
 		Namespace:  "testns-dest",
 		Shard:      321,
@@ -65,7 +65,7 @@ func TestCloner(t *testing.T) {
 		SetDecodingOptions(opts.DecodingOptions()))
 	require.NoError(t, err)
 	r1OpenOpts := fs.ReaderOpenOptions{
-		Identifier: fs.FilesetFileIdentifier{
+		Identifier: fs.DataFileSetFileIdentifier{
 			Namespace:  ident.StringID(src.Namespace),
 			Shard:      src.Shard,
 			BlockStart: src.Blockstart,
@@ -79,7 +79,7 @@ func TestCloner(t *testing.T) {
 		SetDecodingOptions(opts.DecodingOptions()))
 	require.NoError(t, err)
 	r2OpenOpts := fs.ReaderOpenOptions{
-		Identifier: fs.FilesetFileIdentifier{
+		Identifier: fs.DataFileSetFileIdentifier{
 			Namespace:  ident.StringID(dest.Namespace),
 			Shard:      dest.Shard,
 			BlockStart: dest.Blockstart,
@@ -104,16 +104,16 @@ func TestCloner(t *testing.T) {
 	require.NoError(t, r2.Close())
 }
 
-func writeTestData(t *testing.T, bs time.Duration, src FilesetID, opts Options) {
+func writeTestData(t *testing.T, bs time.Duration, src FileSetID, opts Options) {
 	w, err := fs.NewWriter(fs.NewOptions().
 		SetFilePathPrefix(src.PathPrefix).
 		SetWriterBufferSize(opts.BufferSize()).
 		SetNewFileMode(opts.FileMode()).
 		SetNewDirectoryMode(opts.DirMode()))
 	require.NoError(t, err)
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := fs.DataWriterOpenOptions{
 		BlockSize: bs,
-		Identifier: fs.FilesetFileIdentifier{
+		Identifier: fs.DataFileSetFileIdentifier{
 			Namespace:  ident.StringID(src.Namespace),
 			Shard:      src.Shard,
 			BlockStart: src.Blockstart,

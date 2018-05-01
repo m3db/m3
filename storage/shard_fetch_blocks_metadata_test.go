@@ -212,8 +212,8 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 		writer, err := fs.NewWriter(fsOpts)
 		require.NoError(t, err)
 
-		writerOpts := fs.WriterOpenOptions{
-			Identifier: fs.FilesetFileIdentifier{
+		writerOpts := fs.DataWriterOpenOptions{
+			Identifier: fs.DataFileSetFileIdentifier{
 				Namespace:  shard.namespace.ID(),
 				Shard:      shard.shard,
 				BlockStart: at,

@@ -49,7 +49,7 @@ func main() {
 	}
 
 	openOpts := fs.ReaderOpenOptions{
-		Identifier: fs.FilesetFileIdentifier{
+		Identifier: fs.DataFileSetFileIdentifier{
 			Namespace:  ident.StringID(*optNamespace),
 			Shard:      *optShard,
 			BlockStart: time.Unix(0, *optBlockstart),

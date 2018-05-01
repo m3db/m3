@@ -91,7 +91,7 @@ func (w *writer) Write(namespace ident.ID, shardSet sharding.ShardSet, seriesMap
 }
 
 func writeToDisk(
-	writer fs.FileSetWriter,
+	writer fs.DataFileSetWriter,
 	shardSet sharding.ShardSet,
 	encoder encoding.Encoder,
 	start time.Time,
@@ -110,9 +110,9 @@ func writeToDisk(
 	}
 	data := make([]checked.Bytes, 2)
 	for shard, seriesList := range seriesPerShard {
-		writerOpts := fs.WriterOpenOptions{
+		writerOpts := fs.DataWriterOpenOptions{
 			BlockSize: blockSize,
-			Identifier: fs.FilesetFileIdentifier{
+			Identifier: fs.DataFileSetFileIdentifier{
 				Namespace:  namespace,
 				Shard:      shard,
 				BlockStart: start,

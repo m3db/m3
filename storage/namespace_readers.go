@@ -67,16 +67,16 @@ type databaseNamespaceReaderManager interface {
 		shard uint32,
 		blockStart time.Time,
 		position readerPosition,
-	) (fs.FileSetReader, error)
+	) (fs.DataFileSetReader, error)
 
-	put(reader fs.FileSetReader)
+	put(reader fs.DataFileSetReader)
 
 	tick()
 
 	close()
 }
 
-type fsFilesetExistsAtFn func(
+type fsFileSetExistsAtFn func(
 	prefix string,
 	namespace ident.ID,
 	shard uint32,
@@ -86,12 +86,12 @@ type fsFilesetExistsAtFn func(
 type fsNewReaderFn func(
 	bytesPool pool.CheckedBytesPool,
 	opts fs.Options,
-) (fs.FileSetReader, error)
+) (fs.DataFileSetReader, error)
 
 type namespaceReaderManager struct {
 	sync.Mutex
 
-	filesetExistsAtFn fsFilesetExistsAtFn
+	filesetExistsAtFn fsFileSetExistsAtFn
 	newReaderFn       fsNewReaderFn
 
 	namespace namespace.Metadata
@@ -118,7 +118,7 @@ type readerPosition struct {
 }
 
 type cachedReader struct {
-	reader         fs.FileSetReader
+	reader         fs.DataFileSetReader
 	ticksSinceUsed int
 }
 
@@ -149,7 +149,7 @@ func newNamespaceReaderManager(
 	opts Options,
 ) databaseNamespaceReaderManager {
 	return &namespaceReaderManager{
-		filesetExistsAtFn: fs.DataFilesetExistsAt,
+		filesetExistsAtFn: fs.DataFileSetExistsAt,
 		newReaderFn:       fs.NewReader,
 		namespace:         namespace,
 		fsOpts:            opts.CommitLogOptions().FilesystemOptions(),
@@ -169,19 +169,19 @@ func (m *namespaceReaderManager) filesetExistsAt(
 }
 
 type cachedReaderForKeyResult struct {
-	openReader   fs.FileSetReader
-	closedReader fs.FileSetReader
+	openReader   fs.DataFileSetReader
+	closedReader fs.DataFileSetReader
 }
 
 func (m *namespaceReaderManager) pushClosedReaderWithLock(
-	reader fs.FileSetReader,
+	reader fs.DataFileSetReader,
 ) {
 	m.closedReaders = append(m.closedReaders, cachedReader{
 		reader: reader,
 	})
 }
 
-func (m *namespaceReaderManager) popClosedReaderWithLock() fs.FileSetReader {
+func (m *namespaceReaderManager) popClosedReaderWithLock() fs.DataFileSetReader {
 	idx := len(m.closedReaders) - 1
 	reader := m.closedReaders[idx].reader
 	// Zero refs from element in slice and shrink slice
@@ -233,7 +233,7 @@ func (m *namespaceReaderManager) get(
 	shard uint32,
 	blockStart time.Time,
 	position readerPosition,
-) (fs.FileSetReader, error) {
+) (fs.DataFileSetReader, error) {
 	key := cachedOpenReaderKey{
 		shard:      shard,
 		blockStart: xtime.ToUnixNano(blockStart),
@@ -252,7 +252,7 @@ func (m *namespaceReaderManager) get(
 	// reader or newly allocated, either way need to prepare it)
 	reader := lookup.closedReader
 	openOpts := fs.ReaderOpenOptions{
-		Identifier: fs.FilesetFileIdentifier{
+		Identifier: fs.DataFileSetFileIdentifier{
 			Namespace:  m.namespace.ID(),
 			Shard:      shard,
 			BlockStart: blockStart,
@@ -287,7 +287,7 @@ func (m *namespaceReaderManager) get(
 	return reader, nil
 }
 
-func (m *namespaceReaderManager) put(reader fs.FileSetReader) {
+func (m *namespaceReaderManager) put(reader fs.DataFileSetReader) {
 	status := reader.Status()
 
 	m.Lock()

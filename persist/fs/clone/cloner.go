@@ -15,13 +15,13 @@ type cloner struct {
 }
 
 // New creates a new fileset cloner
-func New(opts Options) FilesetCloner {
+func New(opts Options) FileSetCloner {
 	return &cloner{
 		opts: opts,
 	}
 }
 
-func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duration) error {
+func (c *cloner) Clone(src FileSetID, dest FileSetID, destBlocksize time.Duration) error {
 	fsopts := fs.NewOptions().
 		SetDataReaderBufferSize(c.opts.BufferSize()).
 		SetInfoReaderBufferSize(c.opts.BufferSize()).
@@ -33,12 +33,12 @@ func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duratio
 		return fmt.Errorf("unable to create fileset reader: %v", err)
 	}
 	openOpts := fs.ReaderOpenOptions{
-		Identifier: fs.FilesetFileIdentifier{
+		Identifier: fs.DataFileSetFileIdentifier{
 			Namespace:  ident.StringID(src.Namespace),
 			Shard:      src.Shard,
 			BlockStart: src.Blockstart,
 		},
-		FilesetType: persist.FilesetFlushType,
+		FileSetType: persist.FileSetFlushType,
 	}
 
 	if err := reader.Open(openOpts); err != nil {
@@ -49,9 +49,9 @@ func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duratio
 	if err != nil {
 		return fmt.Errorf("unable to create fileset writer: %v", err)
 	}
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := fs.DataWriterOpenOptions{
 		BlockSize: destBlocksize,
-		Identifier: fs.FilesetFileIdentifier{
+		Identifier: fs.DataFileSetFileIdentifier{
 			Namespace:  ident.StringID(dest.Namespace),
 			Shard:      dest.Shard,
 			BlockStart: dest.Blockstart,

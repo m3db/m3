@@ -311,7 +311,7 @@ func (s *seeker) setUnreadBuffer(buf []byte) {
 }
 
 func (s *seeker) readDigest() error {
-	fsDigests, err := readFilesetDigests(s.digestFdWithDigestContents)
+	fsDigests, err := readFileSetDigests(s.digestFdWithDigestContents)
 	if err != nil {
 		return err
 	}

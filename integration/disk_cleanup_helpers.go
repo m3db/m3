@@ -49,19 +49,19 @@ func newNamespaceDir(storageOpts storage.Options, md namespace.Metadata) string 
 }
 
 // nolint: deadcode
-func newFilesetWriter(storageOpts storage.Options) (fs.FileSetWriter, error) {
+func newDataFileSetWriter(storageOpts storage.Options) (fs.DataFileSetWriter, error) {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	return fs.NewWriter(fsOpts)
 }
 
 // nolint: deadcode
-func writeFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
+func writeFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
 	rOpts := md.Options().RetentionOptions()
-	writer, err := newFilesetWriter(storageOpts)
+	writer, err := newDataFileSetWriter(storageOpts)
 	require.NoError(t, err)
 	for _, start := range fileTimes {
-		writerOpts := fs.WriterOpenOptions{
-			Identifier: fs.FilesetFileIdentifier{
+		writerOpts := fs.DataWriterOpenOptions{
+			Identifier: fs.DataFileSetFileIdentifier{
 				Namespace:  md.ID(),
 				Shard:      shard,
 				BlockStart: start,
@@ -107,25 +107,25 @@ func (c *cleanupTimesCommitLog) allExist() bool {
 	return true
 }
 
-type cleanupTimesFileset struct {
+type cleanupTimesFileSet struct {
 	filePathPrefix string
 	namespace      ident.ID
 	shard          uint32
 	times          []time.Time
 }
 
-func (fset *cleanupTimesFileset) anyExist() bool {
+func (fset *cleanupTimesFileSet) anyExist() bool {
 	for _, t := range fset.times {
-		if fs.DataFilesetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t) {
+		if fs.DataFileSetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t) {
 			return true
 		}
 	}
 	return false
 }
 
-func (fset *cleanupTimesFileset) allExist() bool {
+func (fset *cleanupTimesFileSet) allExist() bool {
 	for _, t := range fset.times {
-		if !fs.DataFilesetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t) {
+		if !fs.DataFileSetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t) {
 			return false
 		}
 	}
@@ -133,7 +133,7 @@ func (fset *cleanupTimesFileset) allExist() bool {
 }
 
 func waitUntilDataCleanedUpExtended(
-	filesetFiles []cleanupTimesFileset,
+	filesetFiles []cleanupTimesFileSet,
 	commitlog cleanupTimesCommitLog,
 	timeout time.Duration,
 ) error {
@@ -195,7 +195,7 @@ func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespac
 }
 
 // nolint: deadcode, unused
-func waitUntilDataFilesetsCleanedUp(filePathPrefix string, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
+func waitUntilDataFileSetsCleanedUp(filePathPrefix string, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
 	dataCleanedUp := func() bool {
 		for _, n := range namespaces {
 			shardDir := fs.ShardDataDirPath(filePathPrefix, n.ID(), extraShard)
@@ -215,8 +215,8 @@ func waitUntilDataFilesetsCleanedUp(filePathPrefix string, namespaces []storage.
 // nolint: deadcode
 func waitUntilDataCleanedUp(filePathPrefix string, namespace ident.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
 	return waitUntilDataCleanedUpExtended(
-		[]cleanupTimesFileset{
-			cleanupTimesFileset{
+		[]cleanupTimesFileSet{
+			cleanupTimesFileSet{
 				filePathPrefix: filePathPrefix,
 				namespace:      namespace,
 				shard:          shard,

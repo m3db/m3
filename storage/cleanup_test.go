@@ -125,7 +125,7 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	require.NoError(t, mgr.Cleanup(ts))
 }
 
-func TestCleanupDataAndSnapshotFilesetFiles(t *testing.T) {
+func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	ts := timeFor(36000)
@@ -136,7 +136,7 @@ func TestCleanupDataAndSnapshotFilesetFiles(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	expectedEarliestToRetain := retention.FlushTimeStart(ns.Options().RetentionOptions(), ts)
-	shard.EXPECT().CleanupFileset(expectedEarliestToRetain).Return(nil)
+	shard.EXPECT().CleanupFileSet(expectedEarliestToRetain).Return(nil)
 	shard.EXPECT().CleanupSnapshots(expectedEarliestToRetain)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{shard}).AnyTimes()
@@ -156,7 +156,7 @@ type deleteInactiveDirectoriesCall struct {
 	activeDirNames []string
 }
 
-func TestDeleteInactiveDataAndSnapshotFilesetFiles(t *testing.T) {
+func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	ts := timeFor(36000)

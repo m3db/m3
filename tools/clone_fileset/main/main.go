@@ -34,13 +34,13 @@ func main() {
 	}
 
 	log := xlog.NewLogger(os.Stderr)
-	src := clone.FilesetID{
+	src := clone.FileSetID{
 		PathPrefix: *optSrcPathPrefix,
 		Namespace:  *optSrcNamespace,
 		Shard:      uint32(*optSrcShard),
 		Blockstart: xtime.FromNanoseconds(*optSrcBlockstart),
 	}
-	dest := clone.FilesetID{
+	dest := clone.FileSetID{
 		PathPrefix: *optDestPathPrefix,
 		Namespace:  *optDestNamespace,
 		Shard:      uint32(*optDestShard),

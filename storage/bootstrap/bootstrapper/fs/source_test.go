@@ -135,8 +135,8 @@ func writeGoodFiles(t *testing.T, dir string, namespace ident.ID, shard uint32) 
 func writeTSDBFiles(t *testing.T, dir string, namespace ident.ID, shard uint32, start time.Time, id string, data []byte) {
 	w, err := fs.NewWriter(newTestFsOptions(dir))
 	require.NoError(t, err)
-	writerOpts := fs.WriterOpenOptions{
-		Identifier: fs.FilesetFileIdentifier{
+	writerOpts := fs.DataWriterOpenOptions{
+		Identifier: fs.DataFileSetFileIdentifier{
 			Namespace:  namespace,
 			Shard:      shard,
 			BlockStart: start,
@@ -408,12 +408,12 @@ func TestReadValidateError(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	reader := fs.NewMockFileSetReader(ctrl)
+	reader := fs.NewMockDataFileSetReader(ctrl)
 	src := newFileSystemSource(dir, testDefaultOpts).(*fileSystemSource)
 	src.newReaderFn = func(
 		b pool.CheckedBytesPool,
 		opts fs.Options,
-	) (fs.FileSetReader, error) {
+	) (fs.DataFileSetReader, error) {
 		return reader, nil
 	}
 
@@ -421,7 +421,7 @@ func TestReadValidateError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 	rOpenOpts := fs.ReaderOpenOptionsMatcher{
-		ID: fs.FilesetFileIdentifier{
+		ID: fs.DataFileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: testStart,
@@ -462,12 +462,12 @@ func TestReadOpenError(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	reader := fs.NewMockFileSetReader(ctrl)
+	reader := fs.NewMockDataFileSetReader(ctrl)
 	src := newFileSystemSource(dir, testDefaultOpts).(*fileSystemSource)
 	src.newReaderFn = func(
 		b pool.CheckedBytesPool,
 		opts fs.Options,
-	) (fs.FileSetReader, error) {
+	) (fs.DataFileSetReader, error) {
 		return reader, nil
 	}
 
@@ -475,7 +475,7 @@ func TestReadOpenError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 	rOpts := fs.ReaderOpenOptionsMatcher{
-		ID: fs.FilesetFileIdentifier{
+		ID: fs.DataFileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: testStart,
@@ -506,12 +506,12 @@ func TestReadDeleteOnError(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	reader := fs.NewMockFileSetReader(ctrl)
+	reader := fs.NewMockDataFileSetReader(ctrl)
 	src := newFileSystemSource(dir, testDefaultOpts).(*fileSystemSource)
 	src.newReaderFn = func(
 		b pool.CheckedBytesPool,
 		opts fs.Options,
-	) (fs.FileSetReader, error) {
+	) (fs.DataFileSetReader, error) {
 		return reader, nil
 	}
 
@@ -520,7 +520,7 @@ func TestReadDeleteOnError(t *testing.T) {
 		"foo", []byte{0x1})
 
 	rOpts := fs.ReaderOpenOptionsMatcher{
-		ID: fs.FilesetFileIdentifier{
+		ID: fs.DataFileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: testStart,

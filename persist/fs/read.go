@@ -65,7 +65,7 @@ type reader struct {
 
 	indexFd                 *os.File
 	indexMmap               []byte
-	indexDecoderStream      filesetReaderDecoderStream
+	indexDecoderStream      dataFileSetReaderDecoderStream
 	indexEntriesByOffsetAsc []schema.IndexEntry
 
 	dataFd     *os.File
@@ -97,7 +97,7 @@ type reader struct {
 func NewReader(
 	bytesPool pool.CheckedBytesPool,
 	opts Options,
-) (FileSetReader, error) {
+) (DataFileSetReader, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
@@ -139,8 +139,8 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 		indexFilepath       string
 		dataFilepath        string
 	)
-	switch opts.FilesetType {
-	case persist.FilesetSnapshotType:
+	switch opts.FileSetType {
+	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
 		checkpointFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, snapshotIndex)
 		infoFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, infoFileSuffix, snapshotIndex)
@@ -148,7 +148,7 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 		bloomFilterFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, snapshotIndex)
 		indexFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, indexFileSuffix, snapshotIndex)
 		dataFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, dataFileSuffix, snapshotIndex)
-	case persist.FilesetFlushType:
+	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
 		checkpointFilepath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 		infoFilepath = filesetPathFromTime(shardDir, blockStart, infoFileSuffix)
@@ -157,7 +157,7 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 		indexFilepath = filesetPathFromTime(shardDir, blockStart, indexFileSuffix)
 		dataFilepath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
 	default:
-		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
+		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
 	}
 
 	// If there is no checkpoint file, don't read the data files.
@@ -235,8 +235,8 @@ func (r *reader) Open(opts ReaderOpenOptions) error {
 	return nil
 }
 
-func (r *reader) Status() FileSetReaderStatus {
-	return FileSetReaderStatus{
+func (r *reader) Status() DataFileSetReaderStatus {
+	return DataFileSetReaderStatus{
 		Open:       r.open,
 		Namespace:  r.namespace,
 		Shard:      r.shard,
@@ -262,7 +262,7 @@ func (r *reader) readCheckpointFile(filePath string, blockStart time.Time) error
 }
 
 func (r *reader) readDigest() error {
-	fsDigests, err := readFilesetDigests(r.digestFdWithDigestContents)
+	fsDigests, err := readFileSetDigests(r.digestFdWithDigestContents)
 	if err != nil {
 		return err
 	}

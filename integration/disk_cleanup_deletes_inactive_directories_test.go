@@ -73,7 +73,7 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 
 	// Check filesets are good to go
 	go func() {
-		fsCleanupErr <- waitUntilDataFilesetsCleanedUp(filePathPrefix,
+		fsCleanupErr <- waitUntilDataFileSetsCleanedUp(filePathPrefix,
 			testSetup.db.Namespaces(), extraShard.ID(), fsWaitTimeout)
 	}()
 	log.Info("blocking until file cleanup is received")

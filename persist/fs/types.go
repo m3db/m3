@@ -39,8 +39,8 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-// FilesetFileIdentifier contains all the information required to identify a FilesetFile
-type FilesetFileIdentifier struct {
+// DataFileSetFileIdentifier contains all the information required to identify a FileSetFile
+type DataFileSetFileIdentifier struct {
 	Namespace  ident.ID
 	BlockStart time.Time
 	Shard      uint32
@@ -48,30 +48,30 @@ type FilesetFileIdentifier struct {
 	Index int
 }
 
-// WriterOpenOptions is the options struct for the Open method on the FilesetWriter
-type WriterOpenOptions struct {
-	Identifier  FilesetFileIdentifier
+// DataWriterOpenOptions is the options struct for the Open method on the DataFileSetWriter
+type DataWriterOpenOptions struct {
+	Identifier  DataFileSetFileIdentifier
 	BlockSize   time.Duration
-	FilesetType persist.FilesetType
+	FileSetType persist.FileSetType
 	// Only used when writing snapshot files
 	Snapshot WriterSnapshotOptions
 }
 
-// WriterSnapshotOptions is the options struct for Open method on the FilesetWriter
+// WriterSnapshotOptions is the options struct for Open method on the DataFileSetWriter
 // that contains information specific to writing snapshot files
 type WriterSnapshotOptions struct {
 	SnapshotTime time.Time
 }
 
-// FileSetWriter provides an unsynchronized writer for a TSDB file set
-type FileSetWriter interface {
+// DataFileSetWriter provides an unsynchronized writer for a TSDB file set
+type DataFileSetWriter interface {
 	io.Closer
 
 	// Open opens the files for writing data to the given shard in the given namespace.
 	// This method is not thread-safe, so its the callers responsibilities that they never
 	// try and write two snapshot files for the same block start at the same time or their
 	// will be a race in determining the snapshot file's index.
-	Open(opts WriterOpenOptions) error
+	Open(opts DataWriterOpenOptions) error
 
 	// Write will write the id and data pair and returns an error on a write error. Callers
 	// must not call this method with a given ID more than once.
@@ -82,8 +82,8 @@ type FileSetWriter interface {
 	WriteAll(id ident.ID, data []checked.Bytes, checksum uint32) error
 }
 
-// FileSetReaderStatus describes the status of a file set reader
-type FileSetReaderStatus struct {
+// DataFileSetReaderStatus describes the status of a file set reader
+type DataFileSetReaderStatus struct {
 	Namespace  ident.ID
 	BlockStart time.Time
 
@@ -93,19 +93,19 @@ type FileSetReaderStatus struct {
 
 // ReaderOpenOptions is options struct for the reader open method.
 type ReaderOpenOptions struct {
-	Identifier  FilesetFileIdentifier
-	FilesetType persist.FilesetType
+	Identifier  DataFileSetFileIdentifier
+	FileSetType persist.FileSetType
 }
 
-// FileSetReader provides an unsynchronized reader for a TSDB file set
-type FileSetReader interface {
+// DataFileSetReader provides an unsynchronized reader for a TSDB file set
+type DataFileSetReader interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
 	Open(opts ReaderOpenOptions) error
 
 	// Status returns the status of the reader
-	Status() FileSetReaderStatus
+	Status() DataFileSetReaderStatus
 
 	// Read returns the next id, data, checksum tuple or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
