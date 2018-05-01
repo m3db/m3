@@ -112,7 +112,7 @@ func writeToDisk(
 	for shard, seriesList := range seriesPerShard {
 		writerOpts := fs.DataWriterOpenOptions{
 			BlockSize: blockSize,
-			Identifier: fs.FileSetFileIdentifier{
+			Identifier: fs.FilesetFileIdentifier{
 				Namespace:  namespace,
 				Shard:      shard,
 				BlockStart: start,

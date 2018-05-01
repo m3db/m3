@@ -136,7 +136,7 @@ func writeTSDBFiles(t *testing.T, dir string, namespace ident.ID, shard uint32, 
 	w, err := fs.NewWriter(newTestFsOptions(dir))
 	require.NoError(t, err)
 	writerOpts := fs.DataWriterOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
+		Identifier: fs.FilesetFileIdentifier{
 			Namespace:  namespace,
 			Shard:      shard,
 			BlockStart: start,
@@ -421,7 +421,7 @@ func TestReadValidateError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 	rOpenOpts := fs.ReaderOpenOptionsMatcher{
-		ID: fs.FileSetFileIdentifier{
+		ID: fs.FilesetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: testStart,
@@ -475,7 +475,7 @@ func TestReadOpenError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 	rOpts := fs.ReaderOpenOptionsMatcher{
-		ID: fs.FileSetFileIdentifier{
+		ID: fs.FilesetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: testStart,
@@ -520,7 +520,7 @@ func TestReadDeleteOnError(t *testing.T) {
 		"foo", []byte{0x1})
 
 	rOpts := fs.ReaderOpenOptionsMatcher{
-		ID: fs.FileSetFileIdentifier{
+		ID: fs.FilesetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: testStart,

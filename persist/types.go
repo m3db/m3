@@ -54,7 +54,7 @@ type Flush interface {
 	// Prepare prepares writing data for a given (shard, blockStart) combination,
 	// returning a PreparedPersist object and any error encountered during
 	// preparation if any.
-	Prepare(opts PrepareOptions) (PreparedPersist, error)
+	Prepare(opts PrepareOptions) (PreparedPersist, bool, error)
 
 	// Done marks the flush as complete.
 	Done() error
@@ -66,7 +66,8 @@ type PrepareOptions struct {
 	BlockStart        time.Time
 	SnapshotTime      time.Time
 	Shard             uint32
-	FileSetType       FileSetType
+	FilesetType       FilesetType
+	DeleteIfExists    bool
 }
 
 // PrepareSnapshotOptions is the options struct for the Prepare method that contains
@@ -75,10 +76,10 @@ type PrepareSnapshotOptions struct {
 	SnapshotTime time.Time
 }
 
-// FileSetType is an enum that indicates what type of files a fileset contains
-type FileSetType int
+// FilesetType is an enum that indicates what type of files a fileset contains
+type FilesetType int
 
-func (f FileSetType) String() string {
+func (f FilesetType) String() string {
 	switch f {
 	case FileSetFlushType:
 		return "flush"
@@ -91,7 +92,7 @@ func (f FileSetType) String() string {
 
 const (
 	// FileSetFlushType indicates that the fileset files contain a complete flush
-	FileSetFlushType FileSetType = iota
+	FileSetFlushType FilesetType = iota
 	// FileSetSnapshotType indicates that the fileset files contain a snapshot
 	FileSetSnapshotType
 )

@@ -65,7 +65,7 @@ func testManager(
 	return manager, writer, opts
 }
 
-func TestPersistenceManagerPrepareDataFileExists(t *testing.T) {
+func TestPersistenceManagerPrepareDataFileExistsNoDelete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -92,10 +92,60 @@ func TestPersistenceManagerPrepareDataFileExists(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, err := flush.Prepare(prepareOpts)
+	prepared, ok, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
+	require.False(t, ok)
+}
+
+func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	pm, writer, _ := testManager(t, ctrl)
+	defer os.RemoveAll(pm.filePathPrefix)
+
+	shard := uint32(0)
+	blockStart := time.Unix(1000, 0)
+
+	writerOpts := DataWriterOpenOptionsMatcher{
+		ID: FilesetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+		BlockSize: testBlockSize,
+	}
+	writer.EXPECT().Open(writerOpts).Return(nil)
+
+	shardDir := createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
+	checkpointFilePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	f, err := os.Create(checkpointFilePath)
+	require.NoError(t, err)
+	f.Close()
+
+	flush, err := pm.StartPersist()
+	require.NoError(t, err)
+
+	defer func() {
+		assert.NoError(t, flush.Done())
+	}()
+
+	prepareOpts := persist.PrepareOptions{
+		NamespaceMetadata: testNs1Metadata(t),
+		Shard:             shard,
+		BlockStart:        blockStart,
+		DeleteIfExists:    true,
+	}
+	prepared, ok, err := flush.Prepare(prepareOpts)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.NotNil(t, prepared.Persist)
+	require.NotNil(t, prepared.Close)
+
+	_, err = os.Open(checkpointFilePath)
+	require.True(t, os.IsNotExist(err))
 }
 
 func TestPersistenceManagerPrepareOpenError(t *testing.T) {
@@ -111,7 +161,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	expectedErr := errors.New("foo")
 
 	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: FileSetFileIdentifier{
+		ID: FilesetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
@@ -132,10 +182,11 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, err := flush.Prepare(prepareOpts)
+	prepared, ok, err := flush.Prepare(prepareOpts)
 	require.Equal(t, expectedErr, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
+	require.False(t, ok)
 }
 
 func TestPersistenceManagerPrepareSuccess(t *testing.T) {
@@ -148,7 +199,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: FileSetFileIdentifier{
+		ID: FilesetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
@@ -184,10 +235,11 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, err := flush.Prepare(prepareOpts)
+	prepared, ok, err := flush.Prepare(prepareOpts)
 	defer prepared.Close()
 
 	require.Nil(t, err)
+	require.True(t, ok)
 
 	require.Nil(t, prepared.Persist(id, segment, checksum))
 
@@ -217,7 +269,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: FileSetFileIdentifier{
+		ID: FilesetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
@@ -254,8 +306,9 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, err := flush.Prepare(prepareOpts)
+	prepared, ok, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
+	require.True(t, ok)
 
 	// Start persistence
 	now = time.Now()
@@ -295,7 +348,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
 	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: FileSetFileIdentifier{
+		ID: FilesetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
@@ -337,8 +390,9 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 			Shard:             shard,
 			BlockStart:        blockStart,
 		}
-		prepared, err := flush.Prepare(prepareOpts)
+		prepared, ok, err := flush.Prepare(prepareOpts)
 		require.NoError(t, err)
+		require.True(t, ok)
 
 		// Start persistence
 		now = time.Now()
@@ -385,7 +439,7 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 	}()
 
 	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: FileSetFileIdentifier{
+		ID: FilesetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
@@ -398,13 +452,14 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, err := flush.Prepare(prepareOpts)
+	prepared, ok, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
+	require.True(t, ok)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
 
 	writerOpts = DataWriterOpenOptionsMatcher{
-		ID: FileSetFileIdentifier{
+		ID: FilesetFileIdentifier{
 			Namespace:  testNs2ID,
 			Shard:      shard,
 			BlockStart: blockStart,
@@ -417,8 +472,9 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, err = flush.Prepare(prepareOpts)
+	prepared, ok, err = flush.Prepare(prepareOpts)
 	require.NoError(t, err)
+	require.True(t, ok)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
 }

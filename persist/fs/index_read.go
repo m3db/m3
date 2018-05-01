@@ -44,7 +44,7 @@ type indexReader struct {
 
 	namespaceDir  string
 	start         time.Time
-	fileSetType   persist.FileSetType
+	fileSetType   persist.FilesetType
 	snapshotIndex int
 
 	currIdx                int
@@ -102,9 +102,9 @@ func (r *indexReader) Open(opts IndexReaderOpenOptions) error {
 		digestFilepath     string
 	)
 	r.start = opts.Identifier.BlockStart
-	r.fileSetType = opts.FileSetType
+	r.fileSetType = opts.FilesetType
 	r.snapshotIndex = opts.Identifier.Index
-	switch opts.FileSetType {
+	switch opts.FilesetType {
 	case persist.FileSetSnapshotType:
 		r.namespaceDir = NamespaceIndexSnapshotDirPath(r.filePathPrefix, namespace)
 		checkpointFilepath = snapshotPathFromTimeAndIndex(r.namespaceDir, r.start, checkpointFileSuffix, r.snapshotIndex)
@@ -116,7 +116,7 @@ func (r *indexReader) Open(opts IndexReaderOpenOptions) error {
 		infoFilepath = filesetPathFromTime(r.namespaceDir, r.start, infoFileSuffix)
 		digestFilepath = filesetPathFromTime(r.namespaceDir, r.start, digestFileSuffix)
 	default:
-		return fmt.Errorf("cannot open index reader for fileset type: %s", opts.FileSetType)
+		return fmt.Errorf("cannot open index reader for fileset type: %s", opts.FilesetType)
 	}
 
 	// If there is no checkpoint file, don't read the index files.

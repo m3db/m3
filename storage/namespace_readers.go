@@ -252,7 +252,7 @@ func (m *namespaceReaderManager) get(
 	// reader or newly allocated, either way need to prepare it)
 	reader := lookup.closedReader
 	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
+		Identifier: fs.FilesetFileIdentifier{
 			Namespace:  m.namespace.ID(),
 			Shard:      shard,
 			BlockStart: blockStart,

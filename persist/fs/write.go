@@ -145,7 +145,7 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 		dataFilepath        string
 		digestFilepath      string
 	)
-	switch opts.FileSetType {
+	switch opts.FilesetType {
 	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(w.filePathPrefix, namespace, shard)
 		// Can't do this outside of the switch statement because we need to make sure
@@ -182,7 +182,7 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 		dataFilepath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
 		digestFilepath = filesetPathFromTime(shardDir, blockStart, digestFileSuffix)
 	default:
-		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
+		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
 	}
 
 	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File

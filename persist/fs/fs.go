@@ -30,7 +30,7 @@ const (
 	checkpointFileSuffix     = "checkpoint"
 	filesetFilePrefix        = "fileset"
 	commitLogFilePrefix      = "commitlog"
-	segmentFileSetFilePrefix = "segment"
+	segmentFilesetFilePrefix = "segment"
 	fileSuffix               = ".db"
 
 	separator                    = "-"

@@ -161,16 +161,16 @@ func (m *cleanupManager) deleteInactiveNamespaceFiles() error {
 // deleteInactiveDataFiles will delete data files for shards that the node no longer owns
 // which can occur in the case of topology changes
 func (m *cleanupManager) deleteInactiveDataFiles() error {
-	return m.deleteInactiveFileSetFiles(fs.NamespaceDataDirPath)
+	return m.deleteInactiveFilesetFiles(fs.NamespaceDataDirPath)
 }
 
 // deleteInactiveSnapshotFiles will delete snapshot files for shards that the node no longer owns
 // which can occur in the case of topology changes
 func (m *cleanupManager) deleteInactiveSnapshotFiles() error {
-	return m.deleteInactiveFileSetFiles(fs.NamespaceSnapshotsDirPath)
+	return m.deleteInactiveFilesetFiles(fs.NamespaceSnapshotsDirPath)
 }
 
-func (m *cleanupManager) deleteInactiveFileSetFiles(filesetFilesDirPathFn func(string, ident.ID) string) error {
+func (m *cleanupManager) deleteInactiveFilesetFiles(filesetFilesDirPathFn func(string, ident.ID) string) error {
 	multiErr := xerrors.NewMultiError()
 	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	namespaces, err := m.database.GetOwnedNamespaces()

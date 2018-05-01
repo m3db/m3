@@ -390,14 +390,14 @@ func TestFilePathFromTime(t *testing.T) {
 	}
 }
 
-func TestFileSetFilesBefore(t *testing.T) {
+func TestFilesetFilesBefore(t *testing.T) {
 	shard := uint32(0)
 	dir := createInfoFilesDataDir(t, testNs1ID, shard, 20)
 	defer os.RemoveAll(dir)
 
 	cutoffIter := 8
 	cutoff := time.Unix(0, int64(cutoffIter))
-	res, err := FileSetBefore(dir, testNs1ID, shard, cutoff)
+	res, err := FilesetBefore(dir, testNs1ID, shard, cutoff)
 	require.NoError(t, err)
 	require.Equal(t, cutoffIter, len(res))
 
@@ -408,7 +408,55 @@ func TestFileSetFilesBefore(t *testing.T) {
 	}
 }
 
-func TestFileSetFilesNoFiles(t *testing.T) {
+func TestFilesetAt(t *testing.T) {
+	shard := uint32(0)
+	numIters := 20
+	dir := createInfoFilesDataDir(t, testNs1ID, shard, numIters)
+	defer os.RemoveAll(dir)
+
+	for i := 0; i < numIters; i++ {
+		timestamp := time.Unix(0, int64(i))
+		res, ok, err := FilesetAt(dir, testNs1ID, shard, timestamp)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, timestamp, res.ID.BlockStart)
+	}
+}
+
+func TestDeleteFilesetAt(t *testing.T) {
+	shard := uint32(0)
+	numIters := 20
+	dir := createInfoFilesDataDir(t, testNs1ID, shard, numIters)
+	defer os.RemoveAll(dir)
+
+	for i := 0; i < numIters; i++ {
+		timestamp := time.Unix(0, int64(i))
+		res, ok, err := FilesetAt(dir, testNs1ID, shard, timestamp)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, timestamp, res.ID.BlockStart)
+
+		err = DeleteFilesetAt(dir, testNs1ID, shard, timestamp)
+		require.NoError(t, err)
+
+		res, ok, err = FilesetAt(dir, testNs1ID, shard, timestamp)
+		require.NoError(t, err)
+		require.False(t, ok)
+	}
+}
+
+func TestFilesetAtNotExist(t *testing.T) {
+	shard := uint32(0)
+	dir := createInfoFilesDataDir(t, testNs1ID, shard, 0)
+	defer os.RemoveAll(dir)
+
+	timestamp := time.Unix(0, 0)
+	_, ok, err := FilesetAt(dir, testNs1ID, shard, timestamp)
+	require.NoError(t, err)
+	require.False(t, ok)
+}
+
+func TestFilesetFilesNoFiles(t *testing.T) {
 	// Make empty directory
 	shard := uint32(0)
 	dir := createTempDir(t)
@@ -492,13 +540,13 @@ func TestMultipleForBlockStart(t *testing.T) {
 
 func TestSnapshotFileHasCheckPointFile(t *testing.T) {
 	require.Equal(t, true, SnapshotFile{
-		FileSetFile: FileSetFile{
+		FilesetFile: FilesetFile{
 			AbsoluteFilepaths: []string{"123-checkpoint-0.db"},
 		},
 	}.HasCheckpointFile())
 
 	require.Equal(t, false, SnapshotFile{
-		FileSetFile: FileSetFile{
+		FilesetFile: FilesetFile{
 			AbsoluteFilepaths: []string{"123-index-0.db"},
 		},
 	}.HasCheckpointFile())

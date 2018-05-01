@@ -55,13 +55,13 @@ func newDataFileSetWriter(storageOpts storage.Options) (fs.DataFileSetWriter, er
 }
 
 // nolint: deadcode
-func writeFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
+func writeFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
 	rOpts := md.Options().RetentionOptions()
 	writer, err := newDataFileSetWriter(storageOpts)
 	require.NoError(t, err)
 	for _, start := range fileTimes {
 		writerOpts := fs.DataWriterOpenOptions{
-			Identifier: fs.FileSetFileIdentifier{
+			Identifier: fs.FilesetFileIdentifier{
 				Namespace:  md.ID(),
 				Shard:      shard,
 				BlockStart: start,

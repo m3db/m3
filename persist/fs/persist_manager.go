@@ -212,7 +212,7 @@ func (pm *persistManager) reset() {
 
 // Prepare returns a prepared persist object which can be used to persist data. Note that this
 // method will return (nil, nil) if the files already exist.
-func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.PreparedPersist, error) {
+func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.PreparedPersist, bool, error) {
 
 	var (
 		nsMetadata   = opts.NamespaceMetadata
@@ -229,19 +229,23 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 	pm.RUnlock()
 
 	if status != persistManagerPersisting {
-		return prepared, errPersistManagerCannotPrepareNotPersisting
+		return prepared, false, errPersistManagerCannotPrepareNotPersisting
 	}
 
-	// If the checkpoint file aleady exists, bail. This allows us to retry failed attempts because
-	// they wouldn't have created the checkpoint file. This can happen in a variety of situations
-	// for flushes, but will not happen with snapshots because we generate an auto-incrementing ID
-	// for all snapshots that belong to the same block start.
 	exists, err := pm.filesetExistsAt(opts)
 	if err != nil {
-		return prepared, err
+		return prepared, false, err
 	}
-	if exists {
-		return prepared, nil
+
+	if exists && !opts.DeleteIfExists {
+		return prepared, false, nil
+	}
+
+	if exists && opts.DeleteIfExists {
+		err := DeleteFilesetAt(pm.opts.FilePathPrefix(), nsID, shard, blockStart)
+		if err != nil {
+			return prepared, false, err
+		}
 	}
 
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
@@ -250,21 +254,21 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 		Snapshot: DataWriterSnapshotOptions{
 			SnapshotTime: snapshotTime,
 		},
-		FileSetType: opts.FileSetType,
-		Identifier: FileSetFileIdentifier{
+		FilesetType: opts.FilesetType,
+		Identifier: FilesetFileIdentifier{
 			Namespace:  nsID,
 			Shard:      shard,
 			BlockStart: blockStart,
 		},
 	}
 	if err := pm.writer.Open(writerOpts); err != nil {
-		return prepared, err
+		return prepared, false, err
 	}
 
 	prepared.Persist = pm.persist
 	prepared.Close = pm.close
 
-	return prepared, nil
+	return prepared, true, nil
 }
 
 func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) (bool, error) {
@@ -274,7 +278,7 @@ func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) (b
 		nsID       = prepareOpts.NamespaceMetadata.ID()
 	)
 
-	switch prepareOpts.FileSetType {
+	switch prepareOpts.FilesetType {
 	case persist.FileSetSnapshotType:
 		// Snapshot files are indexed (multiple per block-start), so checking if the file
 		// already exist doesn't make much sense
@@ -284,7 +288,7 @@ func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) (b
 	default:
 		return false, fmt.Errorf(
 			"unable to determine if fileset exists in persist manager for fileset type: %s",
-			prepareOpts.FileSetType)
+			prepareOpts.FilesetType)
 	}
 }
 

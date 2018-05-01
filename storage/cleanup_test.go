@@ -125,7 +125,7 @@ func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	require.NoError(t, mgr.Cleanup(ts))
 }
 
-func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
+func TestCleanupDataAndSnapshotFilesetFiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	ts := timeFor(36000)
@@ -156,7 +156,7 @@ type deleteInactiveDirectoriesCall struct {
 	activeDirNames []string
 }
 
-func TestDeleteInactiveDataAndSnapshotFileSetFiles(t *testing.T) {
+func TestDeleteInactiveDataAndSnapshotFilesetFiles(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	ts := timeFor(36000)

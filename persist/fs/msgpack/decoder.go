@@ -234,7 +234,7 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 		return indexInfo
 	}
 	indexInfo.SnapshotTime = dec.decodeVarint()
-	indexInfo.FileType = persist.FileSetType(dec.decodeVarint())
+	indexInfo.FileType = persist.FilesetType(dec.decodeVarint())
 
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {

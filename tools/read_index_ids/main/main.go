@@ -41,7 +41,7 @@ func main() {
 		log.Fatalf("could not create new reader: %v", err)
 	}
 	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FileSetFileIdentifier{
+		Identifier: fs.FilesetFileIdentifier{
 			Namespace:  ident.StringID(*optNamespace),
 			Shard:      *optShard,
 			BlockStart: time.Unix(0, *optBlockstart),

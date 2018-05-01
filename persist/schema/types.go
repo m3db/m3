@@ -38,7 +38,7 @@ type IndexInfo struct {
 	Summaries    IndexSummariesInfo
 	BloomFilter  IndexBloomFilterInfo
 	SnapshotTime int64
-	FileType     persist.FileSetType
+	FileType     persist.FilesetType
 }
 
 // IndexSummariesInfo stores metadata about the summaries

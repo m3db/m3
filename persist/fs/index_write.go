@@ -47,7 +47,7 @@ type indexWriter struct {
 	err           error
 	blockSize     time.Duration
 	start         time.Time
-	fileSetType   persist.FileSetType
+	fileSetType   persist.FilesetType
 	snapshotTime  time.Time
 	snapshotIndex int
 	segments      []writtenIndexSegment
@@ -96,11 +96,11 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	w.err = nil
 	w.blockSize = opts.BlockSize
 	w.start = blockStart
-	w.fileSetType = opts.FileSetType
+	w.fileSetType = opts.FilesetType
 	w.snapshotTime = opts.Snapshot.SnapshotTime
 	w.segments = nil
 
-	switch opts.FileSetType {
+	switch opts.FilesetType {
 	case persist.FileSetSnapshotType:
 		w.namespaceDir = NamespaceIndexSnapshotDirPath(w.filePathPrefix, namespace)
 		// Can't do this outside of the switch statement because we need to make sure
@@ -129,7 +129,7 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 		w.infoFilePath = filesetPathFromTime(w.namespaceDir, blockStart, infoFileSuffix)
 		w.digestFilePath = filesetPathFromTime(w.namespaceDir, blockStart, digestFileSuffix)
 	default:
-		return fmt.Errorf("cannot open index writer for fileset type: %s", opts.FileSetType)
+		return fmt.Errorf("cannot open index writer for fileset type: %s", opts.FilesetType)
 	}
 	return nil
 }

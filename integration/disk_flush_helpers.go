@@ -107,7 +107,7 @@ func verifyForTime(
 	iteratorPool encoding.ReaderIteratorPool,
 	timestamp time.Time,
 	namespace ident.ID,
-	filesetType persist.FileSetType,
+	filesetType persist.FilesetType,
 	expected generate.SeriesBlock,
 ) {
 	shards := make(map[uint32]struct{})
@@ -118,12 +118,12 @@ func verifyForTime(
 	actual := make(generate.SeriesBlock, 0, len(expected))
 	for shard := range shards {
 		rOpts := fs.DataReaderOpenOptions{
-			Identifier: fs.FileSetFileIdentifier{
+			Identifier: fs.FilesetFileIdentifier{
 				Namespace:  namespace,
 				Shard:      shard,
 				BlockStart: timestamp,
 			},
-			FileSetType: filesetType,
+			FilesetType: filesetType,
 		}
 
 		if filesetType == persist.FileSetSnapshotType {
