@@ -249,7 +249,7 @@ type IndexWriterSnapshotOptions struct {
 type IndexWriterOpenOptions struct {
 	Identifier  FileSetFileIdentifier
 	BlockSize   time.Duration
-	FilesetType persist.FileSetType
+	FileSetType persist.FileSetType
 	// Only used when writing snapshot files
 	Snapshot IndexWriterSnapshotOptions
 }
@@ -295,7 +295,7 @@ type IndexSegmentFile interface {
 // IndexReaderOpenOptions is the index file set reader open options.
 type IndexReaderOpenOptions struct {
 	Identifier  FileSetFileIdentifier
-	FilesetType persist.FileSetType
+	FileSetType persist.FileSetType
 }
 
 // IndexFileSetReader is an index file set reader.

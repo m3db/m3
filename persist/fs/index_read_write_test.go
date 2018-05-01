@@ -60,7 +60,7 @@ func TestIndexSimpleReadWrite(t *testing.T) {
 	err := writer.Open(IndexWriterOpenOptions{
 		Identifier:  fileSetID,
 		BlockSize:   blockSize,
-		FilesetType: persist.FileSetFlushType,
+		FileSetType: persist.FileSetFlushType,
 	})
 	require.NoError(t, err)
 
@@ -93,7 +93,7 @@ func TestIndexSimpleReadWrite(t *testing.T) {
 	reader := newTestIndexReader(t, filePathPrefix)
 	err = reader.Open(IndexReaderOpenOptions{
 		Identifier:  fileSetID,
-		FilesetType: persist.FileSetFlushType,
+		FileSetType: persist.FileSetFlushType,
 	})
 	require.NoError(t, err)
 

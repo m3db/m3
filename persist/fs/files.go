@@ -842,7 +842,7 @@ func filesetIndexSegmentFilePathFromTime(
 		"%s%s%s"+
 			"%s"+
 			"%s",
-		segmentFilesetFilePrefix, separator, idx,
+		segmentFileSetFilePrefix, separator, idx,
 		separator,
 		segmentFileType)
 	return filesetPathFromTime(prefix, t, suffix)

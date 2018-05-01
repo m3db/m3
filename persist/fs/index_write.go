@@ -107,7 +107,7 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	w.snapshotTime = opts.Snapshot.SnapshotTime
 	w.segments = nil
 
-	switch opts.FilesetType {
+	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		w.namespaceDir = NamespaceIndexSnapshotDirPath(w.filePathPrefix, namespace)
 		// Can't do this outside of the switch statement because we need to make sure
