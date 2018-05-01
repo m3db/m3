@@ -69,6 +69,8 @@ type testBootstrapperSourceOptions struct {
 	read      func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.BootstrapResult, error)
 }
 
+var _ bootstrap.Source = &testBootstrapperSource{}
+
 type testBootstrapperSource struct {
 	can       func(bootstrap.Strategy) bool
 	available func(namespace.Metadata, result.ShardTimeRanges) result.ShardTimeRanges
