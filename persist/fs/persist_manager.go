@@ -251,7 +251,7 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 			SnapshotTime: snapshotTime,
 		},
 		FileSetType: opts.FileSetType,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  nsID,
 			Shard:      shard,
 			BlockStart: blockStart,

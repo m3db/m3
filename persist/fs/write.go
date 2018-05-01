@@ -94,7 +94,7 @@ func (e indexEntries) Swap(i, j int) {
 	e[i], e[j] = e[j], e[i]
 }
 
-// NewWriter returns a new writer for a filePathPrefix
+// NewWriter returns a new writer with options.
 func NewWriter(opts Options) (DataFileSetWriter, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err

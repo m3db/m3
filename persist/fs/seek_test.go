@@ -58,7 +58,7 @@ func TestSeekEmptyIndex(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -89,7 +89,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -130,7 +130,7 @@ func TestSeekBadChecksum(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -170,7 +170,7 @@ func TestSeek(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -237,7 +237,7 @@ func TestSeekIDNotExists(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -290,7 +290,7 @@ func TestReuseSeeker(t *testing.T) {
 
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart.Add(-time.Hour),
@@ -306,7 +306,7 @@ func TestReuseSeeker(t *testing.T) {
 
 	writerOpts = DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -354,7 +354,7 @@ func TestCloneSeeker(t *testing.T) {
 
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart.Add(-time.Hour),
@@ -370,7 +370,7 @@ func TestCloneSeeker(t *testing.T) {
 
 	writerOpts = DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,

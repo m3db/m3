@@ -1,0 +1,38 @@
+syntax = "proto3";
+package index;
+
+message IndexInfo {
+  message SegmentFileInfo {
+    string fileType = 1;
+  }
+
+  message SegmentInfo {
+    string type = 1;
+    int64 majorVersion = 2;
+    int64 minorVersion = 3;
+    bytes metadata = 4;
+    repeated SegmentFileInfo files = 5;
+  }
+
+  int64 majorVersion = 1;
+	int64 blockStart = 2;
+  int64 blockSize = 3;
+  int64 fileType = 4;
+  int64 snapshotTime = 5;
+  repeated SegmentInfo segments = 6;
+}
+
+message IndexDigests {
+  message SegmentFileDigest {
+    string fileType = 1;
+    uint32 digest = 2;
+  }
+
+  message SegmentDigest {
+    string type = 1;
+    repeated SegmentFileDigest files = 2;
+  }
+
+  uint32 infoDigest = 1;
+  repeated SegmentDigest segmentDigests = 2;
+}

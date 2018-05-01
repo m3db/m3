@@ -213,7 +213,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 		require.NoError(t, err)
 
 		writerOpts := fs.DataWriterOpenOptions{
-			Identifier: fs.DataFileSetFileIdentifier{
+			Identifier: fs.FileSetFileIdentifier{
 				Namespace:  shard.namespace.ID(),
 				Shard:      shard.shard,
 				BlockStart: at,

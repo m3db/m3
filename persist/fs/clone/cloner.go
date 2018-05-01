@@ -33,7 +33,7 @@ func (c *cloner) Clone(src FileSetID, dest FileSetID, destBlocksize time.Duratio
 		return fmt.Errorf("unable to create fileset reader: %v", err)
 	}
 	openOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.DataFileSetFileIdentifier{
+		Identifier: fs.FileSetFileIdentifier{
 			Namespace:  ident.StringID(src.Namespace),
 			Shard:      src.Shard,
 			BlockStart: src.Blockstart,
@@ -51,7 +51,7 @@ func (c *cloner) Clone(src FileSetID, dest FileSetID, destBlocksize time.Duratio
 	}
 	writerOpts := fs.DataWriterOpenOptions{
 		BlockSize: destBlocksize,
-		Identifier: fs.DataFileSetFileIdentifier{
+		Identifier: fs.FileSetFileIdentifier{
 			Namespace:  ident.StringID(dest.Namespace),
 			Shard:      dest.Shard,
 			BlockStart: dest.Blockstart,

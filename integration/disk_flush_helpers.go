@@ -118,7 +118,7 @@ func verifyForTime(
 	actual := make(generate.SeriesBlock, 0, len(expected))
 	for shard := range shards {
 		rOpts := fs.DataReaderOpenOptions{
-			Identifier: fs.DataFileSetFileIdentifier{
+			Identifier: fs.FileSetFileIdentifier{
 				Namespace:  namespace,
 				Shard:      shard,
 				BlockStart: timestamp,

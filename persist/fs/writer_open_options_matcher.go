@@ -29,7 +29,7 @@ import (
 
 // DataWriterOpenOptionsMatcher satisfies the gomock.Matcher interface for DataWriterOpenOptions
 type DataWriterOpenOptionsMatcher struct {
-	ID          DataFileSetFileIdentifier
+	ID          FileSetFileIdentifier
 	BlockSize   time.Duration
 	Snapshot    DataWriterSnapshotOptions
 	FileSetType persist.FileSetType

@@ -61,7 +61,7 @@ func writeFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.M
 	require.NoError(t, err)
 	for _, start := range fileTimes {
 		writerOpts := fs.DataWriterOpenOptions{
-			Identifier: fs.DataFileSetFileIdentifier{
+			Identifier: fs.FileSetFileIdentifier{
 				Namespace:  md.ID(),
 				Shard:      shard,
 				BlockStart: start,

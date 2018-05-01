@@ -114,7 +114,7 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -126,7 +126,7 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 
 	r := newTestReader(t, filePathPrefix)
 	rOpenOpts := DataReaderOpenOptions{
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -155,7 +155,7 @@ func TestReadDataError(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -171,7 +171,7 @@ func TestReadDataError(t *testing.T) {
 
 	r := newTestReader(t, filePathPrefix)
 	rOpenOpts := DataReaderOpenOptions{
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -208,7 +208,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -229,7 +229,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 
 	r := newTestReader(t, filePathPrefix)
 	rOpenOpts := DataReaderOpenOptions{
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -253,7 +253,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	shard := uint32(0)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: testWriterStart,
@@ -270,7 +270,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 
 	r := newTestReader(t, filePathPrefix)
 	rOpenOpts := DataReaderOpenOptions{
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: testWriterStart,
@@ -291,7 +291,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      uint32(shard),
 			BlockStart: start,
@@ -316,7 +316,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 
 	r := newTestReader(t, filePathPrefix)
 	rOpenOpts := DataReaderOpenOptions{
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: time.Unix(1000, 0),
@@ -384,7 +384,7 @@ func TestReadValidate(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: start,
@@ -400,7 +400,7 @@ func TestReadValidate(t *testing.T) {
 
 	r := newTestReader(t, filePathPrefix)
 	rOpenOpts := DataReaderOpenOptions{
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: start,

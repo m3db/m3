@@ -95,3 +95,23 @@ const (
 	// FileSetSnapshotType indicates that the fileset files contain a snapshot
 	FileSetSnapshotType
 )
+
+// FileSetContentType is an enum that indicates what the contents of files a fileset contains
+type FileSetContentType int
+
+func (f FileSetContentType) String() string {
+	switch f {
+	case FileSetDataContentType:
+		return "data"
+	case FileSetIndexContentType:
+		return "index"
+	}
+	return fmt.Sprintf("unknown: %d", f)
+}
+
+const (
+	// FileSetDataContentType indicates that the fileset files contents is time series data
+	FileSetDataContentType FileSetContentType = iota
+	// FileSetIndexContentType indicates that the fileset files contain time series index metadata
+	FileSetIndexContentType
+)

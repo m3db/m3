@@ -111,7 +111,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	expectedErr := errors.New("foo")
 
 	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: DataFileSetFileIdentifier{
+		ID: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
@@ -148,7 +148,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: DataFileSetFileIdentifier{
+		ID: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
@@ -217,7 +217,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: DataFileSetFileIdentifier{
+		ID: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
@@ -295,7 +295,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
 	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: DataFileSetFileIdentifier{
+		ID: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
@@ -385,7 +385,7 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 	}()
 
 	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: DataFileSetFileIdentifier{
+		ID: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
@@ -404,7 +404,7 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 	require.NotNil(t, prepared.Close)
 
 	writerOpts = DataWriterOpenOptionsMatcher{
-		ID: DataFileSetFileIdentifier{
+		ID: FileSetFileIdentifier{
 			Namespace:  testNs2ID,
 			Shard:      shard,
 			BlockStart: blockStart,

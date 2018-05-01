@@ -53,7 +53,7 @@ func newTestWriter(t *testing.T, filePathPrefix string) DataFileSetWriter {
 
 func writeTestData(t *testing.T, w DataFileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
 	writerOpts := DataWriterOpenOptions{
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: timestamp,
@@ -93,7 +93,7 @@ var readTestTypes = []readTestType{
 func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
 	for _, underTest := range readTestTypes {
 		rOpenOpts := DataReaderOpenOptions{
-			Identifier: DataFileSetFileIdentifier{
+			Identifier: FileSetFileIdentifier{
 				Namespace:  testNs1ID,
 				Shard:      0,
 				BlockStart: timestamp,
@@ -193,7 +193,7 @@ func TestDuplicateWrite(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -300,7 +300,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	shard := uint32(0)
 	writerOpts := DataWriterOpenOptions{
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: testWriterStart,
@@ -323,7 +323,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 
 	r := newTestReader(t, filePathPrefix)
 	rOpenOpts := DataReaderOpenOptions{
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: testWriterStart,
@@ -350,7 +350,7 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: DataFileSetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,

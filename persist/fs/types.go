@@ -39,20 +39,23 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-// DataFileSetFileIdentifier contains all the information required to identify a FileSetFile
-type DataFileSetFileIdentifier struct {
-	Namespace  ident.ID
-	BlockStart time.Time
-	Shard      uint32
+// FileSetFileIdentifier contains all the information required to identify a FileSetFile
+type FileSetFileIdentifier struct {
+	FileSetContentType persist.FileSetContentType
+	Namespace          ident.ID
+	BlockStart         time.Time
+	// Only required for data content files
+	Shard uint32
 	// Only required for snapshot files
 	Index int
 }
 
 // DataWriterOpenOptions is the options struct for the Open method on the DataFileSetWriter
 type DataWriterOpenOptions struct {
-	Identifier  DataFileSetFileIdentifier
-	BlockSize   time.Duration
-	FileSetType persist.FileSetType
+	FileSetType        persist.FileSetType
+	FileSetContentType persist.FileSetContentType
+	Identifier         FileSetFileIdentifier
+	BlockSize          time.Duration
 	// Only used when writing snapshot files
 	Snapshot DataWriterSnapshotOptions
 }
@@ -93,7 +96,7 @@ type DataFileSetReaderStatus struct {
 
 // DataReaderOpenOptions is options struct for the reader open method.
 type DataReaderOpenOptions struct {
-	Identifier  DataFileSetFileIdentifier
+	Identifier  FileSetFileIdentifier
 	FileSetType persist.FileSetType
 }
 
@@ -235,6 +238,84 @@ type DataBlockRetriever interface {
 // RetrievableDataBlockSegmentReader is a retrievable block reader
 type RetrievableDataBlockSegmentReader interface {
 	xio.SegmentReader
+}
+
+// IndexFilesetFileIdentifier is an index file set identifier
+type IndexFilesetFileIdentifier struct {
+	Namespace  ident.ID
+	BlockStart time.Time
+	// Only required for snapshot files
+	Index int
+}
+
+// IndexWriterSnapshotOptions is a set of options for writing an index file set snapshot.
+type IndexWriterSnapshotOptions struct {
+	SnapshotTime time.Time
+}
+
+// IndexWriterOpenOptions is a set of options when opening an index file set writer.
+type IndexWriterOpenOptions struct {
+	Identifier  IndexFilesetFileIdentifier
+	BlockSize   time.Duration
+	FilesetType persist.FileSetType
+	// Only used when writing snapshot files
+	Snapshot IndexWriterSnapshotOptions
+}
+
+// IndexFileSetWriter is a index file set writer.
+type IndexFileSetWriter interface {
+	io.Closer
+
+	Open(opts IndexWriterOpenOptions) error
+
+	WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) error
+}
+
+// IndexSegmentType is the type of an index file set.
+type IndexSegmentType string
+
+// IndexSegmentFileType is the type of a file in an index file set.
+type IndexSegmentFileType string
+
+// IndexSegmentFileSet is an index segment file set.
+type IndexSegmentFileSet interface {
+	SegmentType() IndexSegmentType
+	MajorVersion() int
+	MinorVersion() int
+	SegmentMetadata() []byte
+	Files() []IndexSegmentFile
+}
+
+// IndexSegmentFile is a file in an index segment file set.
+type IndexSegmentFile interface {
+	io.Reader
+	io.Closer
+
+	SegmentFileType() IndexSegmentFileType
+
+	// Bytes will be valid until the segment file is closed.
+	Bytes() ([]byte, error)
+}
+
+// IndexReaderOpenOptions is the index file set reader open options.
+type IndexReaderOpenOptions struct {
+	Identifier  IndexFilesetFileIdentifier
+	FilesetType persist.FileSetType
+}
+
+// IndexFileSetReader is an index file set reader.
+type IndexFileSetReader interface {
+	io.Closer
+
+	Open(opts IndexReaderOpenOptions) error
+
+	// ReadSegmentFileSet returns the next segment file set or an error.
+	// It will return io.EOF error when no more file sets remain.
+	// The IndexSegmentFileSet will only be valid until the next read
+	// or until the reader is closed if no consequent read is made.
+	ReadSegmentFileSet() (IndexSegmentFileSet, error)
+
+	Validate() error
 }
 
 // Options represents the options for filesystem persistence

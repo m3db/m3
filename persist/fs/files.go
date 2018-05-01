@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	xclose "github.com/m3db/m3x/close"
@@ -42,6 +43,7 @@ var timeZero time.Time
 
 const (
 	dataDirName       = "data"
+	indexDirName      = "index"
 	snapshotDirName   = "snapshots"
 	commitLogsDirName = "commitlogs"
 
@@ -53,7 +55,7 @@ type fileOpener func(filePath string) (*os.File, error)
 
 // FileSetFile represents a set of FileSet files for a given block start
 type FileSetFile struct {
-	ID                DataFileSetFileIdentifier
+	ID                FileSetFileIdentifier
 	AbsoluteFilepaths []string
 }
 
@@ -72,7 +74,7 @@ func (f FileSetFilesSlice) Filepaths() []string {
 }
 
 // NewFileSetFile creates a new FileSet file
-func NewFileSetFile(id DataFileSetFileIdentifier) FileSetFile {
+func NewFileSetFile(id FileSetFileIdentifier) FileSetFile {
 	return FileSetFile{
 		ID:                id,
 		AbsoluteFilepaths: []string{},
@@ -147,7 +149,7 @@ func (f SnapshotFilesSlice) sortByTimeAndIndexAscending() {
 }
 
 // NewSnapshotFile creates a new Snapshot file
-func NewSnapshotFile(id DataFileSetFileIdentifier) SnapshotFile {
+func NewSnapshotFile(id FileSetFileIdentifier) SnapshotFile {
 	return SnapshotFile{
 		FileSetFile: NewFileSetFile(id),
 	}
@@ -406,7 +408,24 @@ func ReadInfoFiles(
 // SnapshotFiles returns a slice of all the names for all the fileset files
 // for a given namespace and shard combination.
 func SnapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32) (SnapshotFilesSlice, error) {
-	return snapshotFiles(filePathPrefix, namespace, shard, filesetFilePattern)
+	return snapshotFiles(snapshotFilesSelector{
+		contentType:    persist.FileSetDataContentType,
+		filePathPrefix: filePathPrefix,
+		namespace:      namespace,
+		shard:          shard,
+		pattern:        filesetFilePattern,
+	})
+}
+
+// IndexSnapshotFiles returns a slice of all the names for all the index fileset files
+// for a given namespace.
+func IndexSnapshotFiles(filePathPrefix string, namespace ident.ID) (SnapshotFilesSlice, error) {
+	return snapshotFiles(snapshotFilesSelector{
+		contentType:    persist.FileSetIndexContentType,
+		filePathPrefix: filePathPrefix,
+		namespace:      namespace,
+		pattern:        filesetFilePattern,
+	})
 }
 
 // FileSetBefore returns all the fileset files whose timestamps are earlier than a given time.
@@ -497,12 +516,27 @@ func findSubDirectoriesAndPaths(directoryPath string) (directoryNamesToPaths, er
 	return subDirectoriesToPaths, nil
 }
 
-func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, pattern string) ([]SnapshotFile, error) {
-	shardDir := ShardSnapshotsDirPath(filePathPrefix, namespace, shard)
-	byTimeAsc, err := findFiles(shardDir, pattern, func(files []string) sort.Interface {
+type snapshotFilesSelector struct {
+	contentType    persist.FileSetContentType
+	filePathPrefix string
+	namespace      ident.ID
+	shard          uint32
+	pattern        string
+}
+
+func snapshotFiles(args snapshotFilesSelector) ([]SnapshotFile, error) {
+	var dir string
+	switch args.contentType {
+	case persist.FileSetDataContentType:
+		dir = ShardSnapshotsDirPath(args.filePathPrefix, args.namespace, args.shard)
+	case persist.FileSetIndexContentType:
+		dir = NamespaceIndexSnapshotDirPath(args.filePathPrefix, args.namespace)
+	default:
+		return nil, fmt.Errorf("unknown content type: %d", args.contentType)
+	}
+	byTimeAsc, err := findFiles(dir, args.pattern, func(files []string) sort.Interface {
 		return snapshotsByTimeAndIndexAscending(files)
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -524,17 +558,17 @@ func snapshotFiles(filePathPrefix string, namespace ident.ID, shard uint32, patt
 		}
 
 		if latestBlockStart.IsZero() {
-			latestSnapshotFile = NewSnapshotFile(DataFileSetFileIdentifier{
-				Namespace:  namespace,
-				Shard:      shard,
+			latestSnapshotFile = NewSnapshotFile(FileSetFileIdentifier{
+				Namespace:  args.namespace,
+				Shard:      args.shard,
 				BlockStart: currentFileBlockStart,
 			})
 			latestIndex = index
 		} else if !currentFileBlockStart.Equal(latestBlockStart) || latestIndex != index {
 			snapshotFiles = append(snapshotFiles, latestSnapshotFile)
-			latestSnapshotFile = NewSnapshotFile(DataFileSetFileIdentifier{
-				Namespace:  namespace,
-				Shard:      shard,
+			latestSnapshotFile = NewSnapshotFile(FileSetFileIdentifier{
+				Namespace:  args.namespace,
+				Shard:      args.shard,
 				BlockStart: currentFileBlockStart,
 			})
 			latestIndex = index
@@ -575,14 +609,14 @@ func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, patte
 		}
 
 		if latestBlockStart.IsZero() {
-			latestFileSetFile = NewFileSetFile(DataFileSetFileIdentifier{
+			latestFileSetFile = NewFileSetFile(FileSetFileIdentifier{
 				Namespace:  namespace,
 				Shard:      shard,
 				BlockStart: currentFileBlockStart,
 			})
 		} else if !currentFileBlockStart.Equal(latestBlockStart) {
 			filesetFiles = append(filesetFiles, latestFileSetFile)
-			latestFileSetFile = NewFileSetFile(DataFileSetFileIdentifier{
+			latestFileSetFile = NewFileSetFile(FileSetFileIdentifier{
 				Namespace:  namespace,
 				Shard:      shard,
 				BlockStart: currentFileBlockStart,
@@ -677,6 +711,16 @@ func NamespaceSnapshotsDirPath(prefix string, namespace ident.ID) string {
 	return path.Join(prefix, snapshotDirName, namespace.String())
 }
 
+// NamespaceIndexDataDirPath returns the path to the data directory for a given namespace.
+func NamespaceIndexDataDirPath(prefix string, namespace ident.ID) string {
+	return path.Join(prefix, indexDirName, dataDirName, namespace.String())
+}
+
+// NamespaceIndexSnapshotDirPath returns the path to the data directory for a given namespace.
+func NamespaceIndexSnapshotDirPath(prefix string, namespace ident.ID) string {
+	return path.Join(prefix, indexDirName, snapshotDirName, namespace.String())
+}
+
 // ShardDataDirPath returns the path to the data directory for a given shard.
 func ShardDataDirPath(prefix string, namespace ident.ID, shard uint32) string {
 	namespacePath := NamespaceDataDirPath(prefix, namespace)
@@ -732,6 +776,25 @@ func NextCommitLogsFile(prefix string, start time.Time) (string, int) {
 // namespace/shard/blockStart combination.
 func NextSnapshotFileIndex(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (int, error) {
 	snapshotFiles, err := SnapshotFiles(filePathPrefix, namespace, shard)
+	if err != nil {
+		return -1, err
+	}
+
+	var currentSnapshotIndex = -1
+	for _, snapshot := range snapshotFiles {
+		if snapshot.ID.BlockStart.Equal(blockStart) {
+			currentSnapshotIndex = snapshot.ID.Index
+			break
+		}
+	}
+
+	return currentSnapshotIndex + 1, nil
+}
+
+// NextIndexSnapshotFileIndex returns the next snapshot file index for a given
+// namespace/shard/blockStart combination.
+func NextIndexSnapshotFileIndex(filePathPrefix string, namespace ident.ID, blockStart time.Time) (int, error) {
+	snapshotFiles, err := IndexSnapshotFiles(filePathPrefix, namespace)
 	if err != nil {
 		return -1, err
 	}

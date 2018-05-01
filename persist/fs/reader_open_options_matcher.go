@@ -28,7 +28,7 @@ import (
 
 // ReaderOpenOptionsMatcher is a matcher for the DataReaderOpenOptions struct
 type ReaderOpenOptionsMatcher struct {
-	ID          DataFileSetFileIdentifier
+	ID          FileSetFileIdentifier
 	FileSetType persist.FileSetType
 }
 

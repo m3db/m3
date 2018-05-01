@@ -935,7 +935,7 @@ func TestShardCleanupSnapshot(t *testing.T) {
 			// Should get removed for not being in retention period
 			fs.SnapshotFile{
 				FileSetFile: fs.FileSetFile{
-					ID: fs.DataFileSetFileIdentifier{
+					ID: fs.FileSetFileIdentifier{
 						Namespace:  namespace,
 						Shard:      shard,
 						BlockStart: pastRetention,
@@ -947,7 +947,7 @@ func TestShardCleanupSnapshot(t *testing.T) {
 			// Should get removed for being flushed
 			fs.SnapshotFile{
 				FileSetFile: fs.FileSetFile{
-					ID: fs.DataFileSetFileIdentifier{
+					ID: fs.FileSetFileIdentifier{
 						Namespace:  namespace,
 						Shard:      shard,
 						BlockStart: successfullyFlushed,
@@ -960,7 +960,7 @@ func TestShardCleanupSnapshot(t *testing.T) {
 			// next in order to ensure that the sorting logic works correctly.
 			fs.SnapshotFile{
 				FileSetFile: fs.FileSetFile{
-					ID: fs.DataFileSetFileIdentifier{
+					ID: fs.FileSetFileIdentifier{
 						Namespace:  namespace,
 						Shard:      shard,
 						BlockStart: notFlushedYet,
@@ -974,7 +974,7 @@ func TestShardCleanupSnapshot(t *testing.T) {
 			// Should get removed because the next one has a higher index
 			fs.SnapshotFile{
 				FileSetFile: fs.FileSetFile{
-					ID: fs.DataFileSetFileIdentifier{
+					ID: fs.FileSetFileIdentifier{
 						Namespace:  namespace,
 						Shard:      shard,
 						BlockStart: notFlushedYet,
