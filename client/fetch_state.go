@@ -48,6 +48,7 @@ type fetchState struct {
 	sync.Mutex
 	refCounter
 
+	nsID                 ident.ID
 	op                   *fetchTaggedOp
 	tagResultAccumulator fetchTaggedResultAccumulator
 	err                  error
@@ -67,6 +68,10 @@ func newFetchState(pool fetchStatePool) *fetchState {
 }
 
 func (f *fetchState) close() {
+	if f.nsID != nil {
+		f.nsID.Finalize()
+		f.nsID = nil
+	}
 	if f.op != nil {
 		f.op.decRef()
 		f.op = nil
