@@ -284,12 +284,12 @@ func newSession(opts Options) (clientSession, error) {
 	s.pools.fetchAttempt = newFetchAttemptPool(s, fetchAttemptPoolOpts)
 	s.pools.fetchAttempt.Init()
 
-	fetchTaggedAttemptPoolOpts := pool.NewObjectPoolOptions().
+	fetchTaggedAttemptPoolImplOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.FetchBatchOpPoolSize()).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
 			scope.SubScope("fetch-tagged-attempt-pool"),
 		))
-	s.pools.fetchTaggedAttempt = newFetchTaggedAttemptPool(s, fetchTaggedAttemptPoolOpts)
+	s.pools.fetchTaggedAttempt = newFetchTaggedAttemptPool(s, fetchTaggedAttemptPoolImplOpts)
 	s.pools.fetchTaggedAttempt.Init()
 
 	tagEncoderPoolOpts := pool.NewObjectPoolOptions().

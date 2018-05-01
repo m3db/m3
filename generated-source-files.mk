@@ -138,11 +138,11 @@ genny-arraypool-node-segments: install-m3x-repo
 
 # generation rule for all generated leakcheckpools
 .PHONY: genny-leakcheckpool-all
-genny-leakcheckpool-all: genny-fetch-tagged-attempt-leakcheckpool
+genny-leakcheckpool-all: genny-leakcheckpool-fetch-tagged-attempt
 
-# arraypool generation rule for ./client/debugFetchTaggedAttempOol
+# leakcheckpool generation rule for ./client/fetchTaggedAttemptPool
 .PHONY: genny-fetch-tagged-attempt-leakcheckpool
-genny-fetch-tagged-attempt-leakcheckpool: install-m3x-repo
+genny-leakcheckpool-fetch-tagged-attempt: install-m3x-repo
 	cd $(m3x_package_path) && make genny-leakcheckpool      \
 	pkg=client                                              \
 	elem_type=*fetchTaggedAttempt                           \

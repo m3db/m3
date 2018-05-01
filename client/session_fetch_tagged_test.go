@@ -56,6 +56,12 @@ func TestSessionFetchTaggedUnsupportedQuery(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 
+	session, ok := s.(*session)
+	assert.True(t, ok)
+	leakPool := newLeakcheckFetchTaggedAttemptPool(leakcheckFetchTaggedAttemptPoolOpts{},
+		session.pools.fetchTaggedAttempt)
+	session.pools.fetchTaggedAttempt = leakPool
+
 	_, _, err = s.FetchTagged(
 		ident.StringID("namespace"),
 		index.Query{},
@@ -64,6 +70,12 @@ func TestSessionFetchTaggedUnsupportedQuery(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsNonRetryableError(err))
 
+	leakPool.Lock()
+	assert.Equal(t, 1, leakPool.NumGets)
+	assert.Equal(t, 1, leakPool.NumPuts)
+	assert.Empty(t, leakPool.PendingItems)
+	leakPool.Unlock()
+
 	_, err = s.FetchTaggedIDs(
 		ident.StringID("namespace"),
 		index.Query{},
@@ -71,6 +83,12 @@ func TestSessionFetchTaggedUnsupportedQuery(t *testing.T) {
 	)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsNonRetryableError(err))
+
+	leakPool.Lock()
+	assert.Equal(t, 2, leakPool.NumGets)
+	assert.Equal(t, 2, leakPool.NumPuts)
+	assert.Empty(t, leakPool.PendingItems)
+	leakPool.Unlock()
 }
 
 func TestSessionFetchTaggedNotOpenError(t *testing.T) {

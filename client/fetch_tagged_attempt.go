@@ -72,7 +72,13 @@ func (f *fetchTaggedAttempt) performDataAttempt() error {
 	return err
 }
 
-type fetchTaggedAttemptPool struct {
+type fetchTaggedAttemptPool interface {
+	Init()
+	Get() *fetchTaggedAttempt
+	Put(*fetchTaggedAttempt)
+}
+
+type fetchTaggedAttemptPoolImpl struct {
 	pool    pool.ObjectPool
 	session *session
 }
@@ -80,12 +86,12 @@ type fetchTaggedAttemptPool struct {
 func newFetchTaggedAttemptPool(
 	session *session,
 	opts pool.ObjectPoolOptions,
-) *fetchTaggedAttemptPool {
+) fetchTaggedAttemptPool {
 	p := pool.NewObjectPool(opts)
-	return &fetchTaggedAttemptPool{pool: p, session: session}
+	return &fetchTaggedAttemptPoolImpl{pool: p, session: session}
 }
 
-func (p *fetchTaggedAttemptPool) Init() {
+func (p *fetchTaggedAttemptPoolImpl) Init() {
 	p.pool.Init(func() interface{} {
 		f := &fetchTaggedAttempt{session: p.session}
 		// NB(prateek): Bind fn once to avoid creating receiver
@@ -97,11 +103,11 @@ func (p *fetchTaggedAttemptPool) Init() {
 	})
 }
 
-func (p *fetchTaggedAttemptPool) Get() *fetchTaggedAttempt {
+func (p *fetchTaggedAttemptPoolImpl) Get() *fetchTaggedAttempt {
 	return p.pool.Get().(*fetchTaggedAttempt)
 }
 
-func (p *fetchTaggedAttemptPool) Put(f *fetchTaggedAttempt) {
+func (p *fetchTaggedAttemptPoolImpl) Put(f *fetchTaggedAttempt) {
 	f.reset()
 	p.pool.Put(f)
 }
