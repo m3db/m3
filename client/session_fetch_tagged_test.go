@@ -58,10 +58,11 @@ func TestSessionFetchTaggedUnsupportedQuery(t *testing.T) {
 
 	session, ok := s.(*session)
 	assert.True(t, ok)
-	leakPool := newLeakcheckFetchTaggedAttemptPool(leakcheckFetchTaggedAttemptPoolOpts{},
-		session.pools.fetchTaggedAttempt)
-	session.pools.fetchTaggedAttempt = leakPool
 
+	mockHostQueues(ctrl, session, sessionTestReplicas, nil)
+	assert.NoError(t, session.Open())
+
+	leakPool := injectLeakcheckFetchTaggedAttempPool(session)
 	_, _, err = s.FetchTagged(
 		ident.StringID("namespace"),
 		index.Query{},
@@ -79,6 +80,8 @@ func TestSessionFetchTaggedUnsupportedQuery(t *testing.T) {
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsNonRetryableError(err))
 	leakPool.Check(t)
+
+	assert.NoError(t, session.Close())
 }
 
 func TestSessionFetchTaggedNotOpenError(t *testing.T) {
@@ -532,6 +535,12 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 	require.Equal(t, 2, numOpAllocs)
 
 	assert.NoError(t, session.Close())
+}
+
+func injectLeakcheckFetchTaggedAttempPool(session *session) *leakcheckFetchTaggedAttemptPool {
+	leakPool := newLeakcheckFetchTaggedAttemptPool(leakcheckFetchTaggedAttemptPoolOpts{}, session.pools.fetchTaggedAttempt)
+	session.pools.fetchTaggedAttempt = leakPool
+	return leakPool
 }
 
 func injectLeakcheckFetchStatePool(session *session) *leakcheckFetchStatePool {
