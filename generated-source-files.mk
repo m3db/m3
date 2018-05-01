@@ -154,7 +154,7 @@ genny-leakcheckpool-fetch-tagged-attempt: install-m3x-repo
 	cd $(m3x_package_path) && make genny-leakcheckpool      \
 	pkg=client                                              \
 	elem_type=*fetchTaggedAttempt                           \
-	elem_type_pool=*fetchTaggedAttempt                      \
+	elem_type_pool=fetchTaggedAttemptPool                   \
 	target_package=$(m3db_package)/client                   \
 	out_file=fetch_tagged_attempt_leakcheckpool_gen_test.go
 
