@@ -1099,7 +1099,8 @@ func (s *dbShard) insertSeriesSync(
 	}
 
 	if s.newSeriesBootstrapped {
-		if err := entry.series.Bootstrap(nil); err != nil {
+		_, err := entry.series.Bootstrap(nil)
+		if err != nil {
 			entry = nil // Don't increment the writer count for this series
 			return nil, err
 		}
@@ -1161,7 +1162,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
 		if s.newSeriesBootstrapped {
-			if err := entry.series.Bootstrap(nil); err != nil {
+			_, err := entry.series.Bootstrap(nil)
+			if err != nil {
 				s.metrics.insertAsyncBootstrapErrors.Inc(1)
 			}
 		}
@@ -1599,7 +1601,7 @@ func (s *dbShard) Bootstrap(
 			}
 		}
 
-		err = entry.series.Bootstrap(dbBlocks.Blocks)
+		_, err = entry.series.Bootstrap(dbBlocks.Blocks)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
@@ -1623,7 +1625,7 @@ func (s *dbShard) Bootstrap(
 		if series.IsBootstrapped() {
 			return true
 		}
-		err := series.Bootstrap(nil)
+		_, err := series.Bootstrap(nil)
 		multiErr = multiErr.Add(err)
 		return true
 	})
@@ -1692,12 +1694,7 @@ func (s *dbShard) Flush(
 	var multiErr xerrors.MultiError
 	tmpCtx := context.NewContext()
 
-	var (
-		// Debug
-		numBlockDoesNotExist  = 0
-		numStreamDoesNotExist = 0
-	)
-
+	numBlockDoesNotExist := 0 // Debug
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		curr := entry.series
 		// Use a temporary context here so the stream readers can be returned to
@@ -1717,9 +1714,6 @@ func (s *dbShard) Flush(
 		if flushOutcome == series.BlockDoesNotExist {
 			numBlockDoesNotExist++
 		}
-		if flushOutcome == series.StreamDoesNotExist {
-			numStreamDoesNotExist++
-		}
 
 		return true
 	})
@@ -1728,7 +1722,6 @@ func (s *dbShard) Flush(
 	s.logger.WithFields(
 		xlog.NewField("shard", s.ID()),
 		xlog.NewField("numBlockDoesNotExist", numBlockDoesNotExist),
-		xlog.NewField("numStreamDoesNotExist", numStreamDoesNotExist),
 	).Debug("shard flush outcome")
 
 	if err := prepared.Close(); err != nil {

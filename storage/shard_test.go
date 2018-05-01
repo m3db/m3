@@ -143,9 +143,9 @@ func TestShardBootstrapWithError(t *testing.T) {
 
 	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	barBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	fooSeries.EXPECT().Bootstrap(fooBlocks).Return(nil)
+	fooSeries.EXPECT().Bootstrap(fooBlocks).Return(series.BootstrapResult{}, nil)
 	fooSeries.EXPECT().IsBootstrapped().Return(true)
-	barSeries.EXPECT().Bootstrap(barBlocks).Return(errors.New("series error"))
+	barSeries.EXPECT().Bootstrap(barBlocks).Return(series.BootstrapResult{}, errors.New("series error"))
 	barSeries.EXPECT().IsBootstrapped().Return(true)
 
 	fooID := ident.StringID("foo")
