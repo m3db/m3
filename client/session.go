@@ -1097,7 +1097,7 @@ func (s *session) fetchTaggedAttempt(
 	nsClone := s.pools.id.Clone(ns)
 
 	const fetchData = true
-	// FOLLOWUP(prateek): currently both `index.Query` and the returned request depened on
+	// FOLLOWUP(prateek): currently both `index.Query` and the returned request depend on
 	// native, un-pooled types; so we do not Clone() either. We will start doing so
 	// once https://github.com/m3db/m3ninx/issues/42 lands. Including transferring ownership
 	// of the Clone()'d value to the `fetchState`.
@@ -1157,7 +1157,7 @@ func (s *session) fetchTaggedIDsAttempt(
 	nsClone := s.pools.id.Clone(ns)
 
 	const fetchData = false
-	// FOLLOWUP(prateek): currently both `index.Query` and the returned request depened on
+	// FOLLOWUP(prateek): currently both `index.Query` and the returned request depend on
 	// native, un-pooled types; so we do not Clone() either. We will start doing so
 	// once https://github.com/m3db/m3ninx/issues/42 lands. Including transferring ownership
 	// of the Clone()'d value to the `fetchState`.
