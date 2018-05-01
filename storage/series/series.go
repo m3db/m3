@@ -51,6 +51,7 @@ var (
 
 	errSeriesAlreadyBootstrapped = errors.New("series is already bootstrapped")
 	errSeriesNotBootstrapped     = errors.New("series is not yet bootstrapped")
+	errStreamDidNotExistForBlock = errors.New("stream did not exist for block")
 )
 
 type dbSeries struct {
@@ -621,7 +622,7 @@ func (s *dbSeries) Flush(
 		return FlushErr, err
 	}
 	if sr == nil {
-		return StreamDoesNotExist, nil
+		return FlushErr, errStreamDidNotExistForBlock
 	}
 	segment, err := sr.Segment()
 	if err != nil {
@@ -744,8 +745,6 @@ const (
 	FlushErr FlushOutcome = iota
 	// BlockDoesNotExist indicates that the series did not have a block for the specified flush blockStart.
 	BlockDoesNotExist
-	// StreamDoesNotExist indicates that the block did not have an underlying stream.
-	StreamDoesNotExist
 	// FlushedToDisk indicates that a block existed and was flushed to disk successfully.
 	FlushedToDisk
 )
