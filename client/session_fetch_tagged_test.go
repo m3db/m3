@@ -231,31 +231,31 @@ func TestSessionFetchTaggedIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 	// NB: stubbing needs to be done after session.Open
-	stubStatePool := &stubFetchStatePool{
-		fetchStatePool: session.pools.fetchState,
-		t:              t,
-	}
-	session.pools.fetchState = stubStatePool
-	stubOpPool := &stubFetchTaggedOpPool{
-		fetchTaggedOpPool: session.pools.fetchTaggedOp,
-		t:                 t,
-	}
-	session.pools.fetchTaggedOp = stubOpPool
+	leakStatePool := newLeakcheckFetchStatePool(leakcheckFetchStatePoolOpts{}, session.pools.fetchState)
+	leakStatePool.opts.GetHookFn = func(f *fetchState) *fetchState { f.pool = leakStatePool; return f }
+	session.pools.fetchState = leakStatePool
+	leakOpPool := newLeakcheckFetchTaggedOpPool(leakcheckFetchTaggedOpPoolOpts{}, session.pools.fetchTaggedOp)
+	leakOpPool.opts.GetHookFn = func(f *fetchTaggedOp) *fetchTaggedOp { f.pool = leakOpPool; return f }
+	session.pools.fetchTaggedOp = leakOpPool
 
 	_, err = session.FetchTaggedIDs(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.NoError(t, session.Close())
 
-	stubStatePool.Lock()
-	assert.True(t, stubStatePool.retrieved)
-	assert.Equal(t, int32(0), stubStatePool.state.refCounter.n)
-	stubStatePool.Unlock()
+	numStateAllocs := 0
+	leakStatePool.CheckExtended(t, func(e leakcheckFetchState) {
+		require.Equal(t, int32(0), e.Value.refCounter.n, string(e.GetStacktrace))
+		numStateAllocs++
+	})
+	require.Equal(t, 1, numStateAllocs)
 
-	stubOpPool.Lock()
-	assert.True(t, stubOpPool.retrieved)
-	assert.Equal(t, int32(0), stubOpPool.op.refCounter.n)
-	stubOpPool.Unlock()
+	numOpAllocs := 0
+	leakOpPool.CheckExtended(t, func(e leakcheckFetchTaggedOp) {
+		require.Equal(t, int32(0), e.Value.refCounter.n, string(e.GetStacktrace))
+		numOpAllocs++
+	})
+	require.Equal(t, 1, numOpAllocs)
 }
 
 func TestSessionFetchTaggedIDsEnqueueErr(t *testing.T) {
@@ -385,16 +385,12 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 	assert.NoError(t, session.Open())
 
 	// NB: stubbing needs to be done after session.Open
-	stubStatePool := &stubFetchStatePool{
-		fetchStatePool: session.pools.fetchState,
-		t:              t,
-	}
-	session.pools.fetchState = stubStatePool
-	stubOpPool := &stubFetchTaggedOpPool{
-		fetchTaggedOpPool: session.pools.fetchTaggedOp,
-		t:                 t,
-	}
-	session.pools.fetchTaggedOp = stubOpPool
+	leakStatePool := newLeakcheckFetchStatePool(leakcheckFetchStatePoolOpts{}, session.pools.fetchState)
+	leakStatePool.opts.GetHookFn = func(f *fetchState) *fetchState { f.pool = leakStatePool; return f }
+	session.pools.fetchState = leakStatePool
+	leakOpPool := newLeakcheckFetchTaggedOpPool(leakcheckFetchTaggedOpPoolOpts{}, session.pools.fetchTaggedOp)
+	leakOpPool.opts.GetHookFn = func(f *fetchTaggedOp) *fetchTaggedOp { f.pool = leakOpPool; return f }
+	session.pools.fetchTaggedOp = leakOpPool
 
 	iters, exhaust, err := session.FetchTagged(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
@@ -406,15 +402,19 @@ func TestSessionFetchTaggedMergeTest(t *testing.T) {
 
 	assert.NoError(t, session.Close())
 
-	stubStatePool.Lock()
-	assert.True(t, stubStatePool.retrieved)
-	assert.Equal(t, int32(0), stubStatePool.state.refCounter.n)
-	stubStatePool.Unlock()
+	numStateAllocs := 0
+	leakStatePool.CheckExtended(t, func(e leakcheckFetchState) {
+		require.Equal(t, int32(0), e.Value.refCounter.n, string(e.GetStacktrace))
+		numStateAllocs++
+	})
+	require.Equal(t, 1, numStateAllocs)
 
-	stubOpPool.Lock()
-	assert.True(t, stubOpPool.retrieved)
-	assert.Equal(t, int32(0), stubOpPool.op.refCounter.n)
-	stubOpPool.Unlock()
+	numOpAllocs := 0
+	leakOpPool.CheckExtended(t, func(e leakcheckFetchTaggedOp) {
+		require.Equal(t, int32(0), e.Value.refCounter.n, string(e.GetStacktrace))
+		numOpAllocs++
+	})
+	require.Equal(t, 1, numOpAllocs)
 }
 
 func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
@@ -524,6 +524,14 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
+	// NB: stubbing needs to be done after session.Open
+	leakStatePool := newLeakcheckFetchStatePool(leakcheckFetchStatePoolOpts{}, session.pools.fetchState)
+	leakStatePool.opts.GetHookFn = func(f *fetchState) *fetchState { f.pool = leakStatePool; return f }
+	session.pools.fetchState = leakStatePool
+	leakOpPool := newLeakcheckFetchTaggedOpPool(leakcheckFetchTaggedOpPoolOpts{}, session.pools.fetchTaggedOp)
+	leakOpPool.opts.GetHookFn = func(f *fetchTaggedOp) *fetchTaggedOp { f.pool = leakOpPool; return f }
+	session.pools.fetchTaggedOp = leakOpPool
+
 	iters, exhaust, err := session.FetchTagged(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.NoError(t, err)
@@ -531,6 +539,20 @@ func TestSessionFetchTaggedMergeWithRetriesTest(t *testing.T) {
 	expected := append(sg0, sg1...)
 	expected = append(expected, sg2...)
 	expected.assertMatchesEncodingIters(t, iters)
+
+	numStateAllocs := 0
+	leakStatePool.CheckExtended(t, func(e leakcheckFetchState) {
+		require.Equal(t, int32(0), e.Value.refCounter.n, string(e.GetStacktrace))
+		numStateAllocs++
+	})
+	require.Equal(t, 2, numStateAllocs)
+
+	numOpAllocs := 0
+	leakOpPool.CheckExtended(t, func(e leakcheckFetchTaggedOp) {
+		require.Equal(t, int32(0), e.Value.refCounter.n, string(e.GetStacktrace))
+		numOpAllocs++
+	})
+	require.Equal(t, 2, numOpAllocs)
 
 	assert.NoError(t, session.Close())
 }
@@ -601,72 +623,4 @@ func mockExtendedHostQueues(
 		hostQueue.EXPECT().Close()
 		return hostQueue
 	}
-}
-
-// fetchStatePool implementation stubbed out for testing ref counting
-type stubFetchStatePool struct {
-	sync.Mutex
-	state     *fetchState
-	retrieved bool
-
-	fetchStatePool fetchStatePool
-	t              *testing.T
-}
-
-var _ fetchStatePool = &stubFetchStatePool{}
-
-func (p *stubFetchStatePool) Init() { panic("not implemented") }
-
-func (p *stubFetchStatePool) Get() *fetchState {
-	p.Lock()
-	defer p.Unlock()
-
-	require.False(p.t, p.retrieved)
-	require.Nil(p.t, p.state)
-
-	p.retrieved = true
-	p.state = p.fetchStatePool.Get()
-	return p.state
-}
-
-func (p *stubFetchStatePool) Put(s *fetchState) {
-	p.Lock()
-	defer p.Unlock()
-
-	require.True(p.t, p.retrieved)
-	require.Equal(p.t, p.state, s)
-}
-
-// fetchTaggedOpPool implementation stubbed out for testing ref counting
-type stubFetchTaggedOpPool struct {
-	sync.Mutex
-	op        *fetchTaggedOp
-	retrieved bool
-
-	fetchTaggedOpPool fetchTaggedOpPool
-	t                 *testing.T
-}
-
-var _ fetchTaggedOpPool = &stubFetchTaggedOpPool{}
-
-func (p *stubFetchTaggedOpPool) Init() { panic("not implemented") }
-
-func (p *stubFetchTaggedOpPool) Get() *fetchTaggedOp {
-	p.Lock()
-	defer p.Unlock()
-
-	require.False(p.t, p.retrieved)
-	require.Nil(p.t, p.op)
-
-	p.retrieved = true
-	p.op = p.fetchTaggedOpPool.Get()
-	return p.op
-}
-
-func (p *stubFetchTaggedOpPool) Put(op *fetchTaggedOp) {
-	p.Lock()
-	defer p.Unlock()
-
-	require.True(p.t, p.retrieved)
-	require.Equal(p.t, p.op, op)
 }

@@ -36,69 +36,69 @@ import (
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// fetchTaggedAttemptEqualsFn allows users to override equality checks
-// for `fetchTaggedAttempt` instances.
-type fetchTaggedAttemptEqualsFn func(a, b *fetchTaggedAttempt) bool
+// fetchTaggedOpEqualsFn allows users to override equality checks
+// for `fetchTaggedOp` instances.
+type fetchTaggedOpEqualsFn func(a, b *fetchTaggedOp) bool
 
-// fetchTaggedAttemptGetHookFn allows users to override properties on items
+// fetchTaggedOpGetHookFn allows users to override properties on items
 // retrieved from the backing pools before returning in the Get()
 // path.
-type fetchTaggedAttemptGetHookFn func(*fetchTaggedAttempt) *fetchTaggedAttempt
+type fetchTaggedOpGetHookFn func(*fetchTaggedOp) *fetchTaggedOp
 
-// leakcheckFetchTaggedAttemptPoolOpts allows users to override default behaviour.
-type leakcheckFetchTaggedAttemptPoolOpts struct {
+// leakcheckFetchTaggedOpPoolOpts allows users to override default behaviour.
+type leakcheckFetchTaggedOpPoolOpts struct {
 	DisallowUntrackedPuts bool
-	EqualsFn              fetchTaggedAttemptEqualsFn
-	GetHookFn             fetchTaggedAttemptGetHookFn
+	EqualsFn              fetchTaggedOpEqualsFn
+	GetHookFn             fetchTaggedOpGetHookFn
 }
 
-// newLeakcheckFetchTaggedAttemptPool returns a new leakcheckFetchTaggedAttemptPool.
-func newLeakcheckFetchTaggedAttemptPool(opts leakcheckFetchTaggedAttemptPoolOpts, backingPool fetchTaggedAttemptPool) *leakcheckFetchTaggedAttemptPool {
+// newLeakcheckFetchTaggedOpPool returns a new leakcheckFetchTaggedOpPool.
+func newLeakcheckFetchTaggedOpPool(opts leakcheckFetchTaggedOpPoolOpts, backingPool fetchTaggedOpPool) *leakcheckFetchTaggedOpPool {
 	if opts.EqualsFn == nil {
 		// NB(prateek): fall-back to == in the worst case
-		opts.EqualsFn = func(a, b *fetchTaggedAttempt) bool {
+		opts.EqualsFn = func(a, b *fetchTaggedOp) bool {
 			return a == b
 		}
 	}
-	return &leakcheckFetchTaggedAttemptPool{opts: opts, fetchTaggedAttemptPool: backingPool}
+	return &leakcheckFetchTaggedOpPool{opts: opts, fetchTaggedOpPool: backingPool}
 }
 
-// leakcheckFetchTaggedAttemptPool wraps the underlying fetchTaggedAttemptPool to make it easier to
+// leakcheckFetchTaggedOpPool wraps the underlying fetchTaggedOpPool to make it easier to
 // track leaks/allocs.
-type leakcheckFetchTaggedAttemptPool struct {
+type leakcheckFetchTaggedOpPool struct {
 	sync.Mutex
-	fetchTaggedAttemptPool
+	fetchTaggedOpPool
 	NumGets      int
 	NumPuts      int
-	PendingItems []leakcheckFetchTaggedAttempt
-	AllGetItems  []leakcheckFetchTaggedAttempt
+	PendingItems []leakcheckFetchTaggedOp
+	AllGetItems  []leakcheckFetchTaggedOp
 
-	opts leakcheckFetchTaggedAttemptPoolOpts
+	opts leakcheckFetchTaggedOpPoolOpts
 }
 
-// leakcheckFetchTaggedAttempt wraps `fetchTaggedAttempt` instances along with their last Get() paths.
-type leakcheckFetchTaggedAttempt struct {
-	Value         *fetchTaggedAttempt
+// leakcheckFetchTaggedOp wraps `fetchTaggedOp` instances along with their last Get() paths.
+type leakcheckFetchTaggedOp struct {
+	Value         *fetchTaggedOp
 	GetStacktrace []byte // GetStacktrace is the stacktrace for the Get() of this item
 }
 
-func (p *leakcheckFetchTaggedAttemptPool) Init() {
+func (p *leakcheckFetchTaggedOpPool) Init() {
 	p.Lock()
 	defer p.Unlock()
-	p.fetchTaggedAttemptPool.Init()
+	p.fetchTaggedOpPool.Init()
 }
 
-func (p *leakcheckFetchTaggedAttemptPool) Get() *fetchTaggedAttempt {
+func (p *leakcheckFetchTaggedOpPool) Get() *fetchTaggedOp {
 	p.Lock()
 	defer p.Unlock()
 
-	e := p.fetchTaggedAttemptPool.Get()
+	e := p.fetchTaggedOpPool.Get()
 	if fn := p.opts.GetHookFn; fn != nil {
 		e = fn(e)
 	}
 
 	p.NumGets++
-	item := leakcheckFetchTaggedAttempt{
+	item := leakcheckFetchTaggedOp{
 		Value:         e,
 		GetStacktrace: debug.Stack(),
 	}
@@ -108,7 +108,7 @@ func (p *leakcheckFetchTaggedAttemptPool) Get() *fetchTaggedAttempt {
 	return e
 }
 
-func (p *leakcheckFetchTaggedAttemptPool) Put(value *fetchTaggedAttempt) {
+func (p *leakcheckFetchTaggedOpPool) Put(value *fetchTaggedOp) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -130,11 +130,11 @@ func (p *leakcheckFetchTaggedAttemptPool) Put(value *fetchTaggedAttempt) {
 	}
 	p.NumPuts++
 
-	p.fetchTaggedAttemptPool.Put(value)
+	p.fetchTaggedOpPool.Put(value)
 }
 
 // Check ensures there are no leaks.
-func (p *leakcheckFetchTaggedAttemptPool) Check(t *testing.T) {
+func (p *leakcheckFetchTaggedOpPool) Check(t *testing.T) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -142,10 +142,10 @@ func (p *leakcheckFetchTaggedAttemptPool) Check(t *testing.T) {
 	require.Empty(t, p.PendingItems)
 }
 
-type leakcheckFetchTaggedAttemptFn func(e leakcheckFetchTaggedAttempt)
+type leakcheckFetchTaggedOpFn func(e leakcheckFetchTaggedOp)
 
 // CheckExtended ensures there are no leaks, and executes the specified fn
-func (p *leakcheckFetchTaggedAttemptPool) CheckExtended(t *testing.T, fn leakcheckFetchTaggedAttemptFn) {
+func (p *leakcheckFetchTaggedOpPool) CheckExtended(t *testing.T, fn leakcheckFetchTaggedOpFn) {
 	p.Check(t)
 	p.Lock()
 	defer p.Unlock()

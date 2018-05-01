@@ -18,6 +18,7 @@ install-m3x-repo: install-glide install-generics-bin
 # Generation rule for all generated types
 .PHONY: genny-all
 genny-all: genny-map-all genny-arraypool-all
+# genny-leakcheckpool-all # TODO(prateek): need to enable this once m3x updates
 
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-genny-all
@@ -27,7 +28,13 @@ test-genny-all: genny-all
 
 # Map generation rule for all generated maps
 .PHONY: genny-map-all
-genny-map-all: genny-map-client-received-blocks genny-map-storage-block-retriever genny-map-storage-bootstrap-result genny-map-storage genny-map-storage-namespace-metadata genny-map-storage-repair
+genny-map-all:                         \
+	genny-map-client-received-blocks     \
+	genny-map-storage-block-retriever    \
+	genny-map-storage-bootstrap-result   \
+	genny-map-storage                    \
+	genny-map-storage-namespace-metadata \
+	genny-map-storage-repair
 
 # Map generation rule for client/receivedBlocksMap
 .PHONY: genny-map-client-received-blocks
@@ -138,10 +145,12 @@ genny-arraypool-node-segments: install-m3x-repo
 
 # generation rule for all generated leakcheckpools
 .PHONY: genny-leakcheckpool-all
-genny-leakcheckpool-all: genny-leakcheckpool-fetch-tagged-attempt
+genny-leakcheckpool-all: genny-leakcheckpool-fetch-tagged-attempt \
+	genny-leakcheckpool-fetch-state                                 \
+	genny-leakcheckpool-fetch-tagged-op
 
 # leakcheckpool generation rule for ./client/fetchTaggedAttemptPool
-.PHONY: genny-fetch-tagged-attempt-leakcheckpool
+.PHONY: genny-leakcheckpool-fetch-tagged-attempt
 genny-leakcheckpool-fetch-tagged-attempt: install-m3x-repo
 	cd $(m3x_package_path) && make genny-leakcheckpool      \
 	pkg=client                                              \
@@ -149,3 +158,23 @@ genny-leakcheckpool-fetch-tagged-attempt: install-m3x-repo
 	elem_type_pool=*fetchTaggedAttempt                      \
 	target_package=$(m3db_package)/client                   \
 	out_file=fetch_tagged_attempt_leakcheckpool_gen_test.go
+
+# leakcheckpool generation rule for ./client/fetchStatePool
+.PHONY: genny-leakcheckpool-fetch-state
+genny-leakcheckpool-fetch-state: install-m3x-repo
+	cd $(m3x_package_path) && make genny-leakcheckpool \
+	pkg=client                                         \
+	elem_type=*fetchState                              \
+	elem_type_pool=fetchStatePool                      \
+	target_package=$(m3db_package)/client              \
+	out_file=fetch_state_leakcheckpool_gen_test.go
+
+# leakcheckpool generation rule for ./client/fetchTaggedOp
+.PHONY: genny-leakcheckpool-fetch-tagged-op
+genny-leakcheckpool-fetch-tagged-op: install-m3x-repo
+	cd $(m3x_package_path) && make genny-leakcheckpool  \
+	pkg=client                                          \
+	elem_type=*fetchTaggedOp                            \
+	elem_type_pool=*fetchTaggedOpPool                   \
+	target_package=$(m3db_package)/client               \
+	out_file=fetch_tagged_op_leakcheckpool_gen_test.go
