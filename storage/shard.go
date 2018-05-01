@@ -1682,13 +1682,6 @@ func (s *dbShard) Flush(
 		return s.markFlushStateSuccessOrError(blockStart, err)
 	}
 
-	// No action is necessary therefore we bail out early and there is no need to close.
-	if prepared.Persist == nil {
-		// NB(r): Need to mark state without mulitErr as success so IsBlockRetrievable can
-		// return true when querying if a block is retrievable for this time
-		return s.markFlushStateSuccessOrError(blockStart, nil)
-	}
-
 	var multiErr xerrors.MultiError
 	tmpCtx := context.NewContext()
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
