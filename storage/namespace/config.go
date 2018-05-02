@@ -55,7 +55,7 @@ type MetadataConfiguration struct {
 	CleanupEnabled    *bool                   `yaml:"cleanupEnabled"`
 	RepairEnabled     *bool                   `yaml:"repairEnabled"`
 	Retention         retention.Configuration `yaml:"retention" validate:"nonzero"`
-	Index             IndexConfiguration      `yaml:"index" validate:"nonzero"`
+	Index             IndexConfiguration      `yaml:"index"`
 }
 
 // Metadata returns a Metadata corresponding to the receiver struct
