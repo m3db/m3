@@ -83,7 +83,7 @@ type ShardResult interface {
 // DatabaseSeriesBlocks represents a series of blocks and a associated series ID.
 type DatabaseSeriesBlocks struct {
 	ID     ident.ID
-	Tags   ident.Tags // FOLLOWUP(prateek): retrieve tags during bootstrap process, and insert into index
+	Tags   ident.Tags
 	Blocks block.DatabaseSeriesBlocks
 }
 
