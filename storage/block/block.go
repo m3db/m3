@@ -154,9 +154,15 @@ func (b *dbBlock) Checksum() (uint32, error) {
 	// Need to force a merge so that we can calculate the new checksum and return that.
 	b.Lock()
 	defer b.Unlock()
-	ctx := b.opts.ContextPool().Get()
-	defer ctx.Close()
-	targetStream, err := b.mergeTarget.Stream(ctx)
+	// Have to check again since we gave up the lock temporarily
+	if b.mergeTarget != nil {
+		return b.checksum, nil
+	}
+
+	tempCtx := b.opts.ContextPool().Get()
+	defer tempCtx.Close()
+
+	targetStream, err := b.mergeTarget.Stream(tempCtx)
 	if err != nil {
 		return 0, err
 	}
@@ -164,27 +170,30 @@ func (b *dbBlock) Checksum() (uint32, error) {
 	var stream xio.SegmentReader
 	if b.retriever != nil {
 		start := b.startWithLock()
-		stream, err = b.retriever.Stream(ctx, b.retrieveID, start, b)
+		stream, err = b.retriever.Stream(tempCtx, b.retrieveID, start, b)
 		if err != nil {
 			return 0, err
 		}
 	} else {
 		stream = b.opts.SegmentReaderPool().Get()
-		// NB(r): We explicitly create a new segment to ensure references
-		// are taken to the bytes refs and to not finalize the bytes.
-		stream.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
-		ctx.RegisterFinalizer(stream)
+		// Finalize head and tail because we're going to set a new segment when we're done
+		stream.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeHead|ts.FinalizeTail))
 	}
 
-	stream = newDatabaseMergedBlockReader(b.startWithLock(),
+	// mergedStream will be finalized by the block when its reset/closed because
+	// we call resetSegmentWithLock on it below.
+	mergedStream := newDatabaseMergedBlockReader(b.startWithLock(),
 		mergeableStream{stream: stream, finalize: false},       // already registered above
 		mergeableStream{stream: targetStream, finalize: false}, // already registered by recursive call
 		b.opts)
-	segment, err := stream.Segment()
+	segment, err := mergedStream.Segment()
 	if err != nil {
 		return 0, err
 	}
-	ctx.RegisterFinalizer(stream)   // ????
+
+	// Do this here so we don't finalize the bytes if we were actually gonna return early with an error.
+	tempCtx.RegisterFinalizer(stream)
+	b.resetMergeTargetWithLock()
 	b.resetSegmentWithLock(segment) // Recalculates b.checksum
 	return b.checksum, nil
 }
@@ -234,14 +243,14 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		// NB(r): We explicitly create a new segment to ensure references
 		// are taken to the bytes refs and to not finalize the bytes.
 		stream.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
-		blocker.RegisterFinalizer(stream)
 	}
 
 	if b.mergeTarget == nil {
+		blocker.RegisterFinalizer(stream)
 		return stream, nil
 	}
 
-	mergeStream, err := b.mergeTarget.Stream(blocker)
+	targetStream, err := b.mergeTarget.Stream(blocker)
 	if err != nil {
 		stream.Finalize()
 		return nil, err
@@ -249,12 +258,26 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 
 	// Return a lazily merged stream
 	// TODO(r): once merged reset this block with the contents of it
-	stream = newDatabaseMergedBlockReader(b.startWithLock(),
-		mergeableStream{stream: stream, finalize: false},      // already registered above
-		mergeableStream{stream: mergeStream, finalize: false}, // already registered by recursive call
+	mergedStream := newDatabaseMergedBlockReader(b.startWithLock(),
+		mergeableStream{stream: stream, finalize: false},       // already registered above
+		mergeableStream{stream: targetStream, finalize: false}, // already registered by recursive call
 		b.opts)
-	blocker.RegisterFinalizer(stream)
+	mergedSegment, err := mergedStream.Segment()
+	if err != nil {
+		return nil, err
+	}
 
+	streamSegment, err := stream.Segment()
+	if err != nil {
+		return nil, err
+	}
+	head, tail := streamSegment.Head, streamSegment.Tail
+	head.Finalize()
+	tail.Finalize()
+	stream.Finalize()
+
+	b.resetMergeTargetWithLock()
+	b.resetSegmentWithLock(mergedSegment)
 	return stream, nil
 }
 

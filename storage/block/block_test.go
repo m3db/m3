@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/ts"
@@ -235,6 +236,10 @@ func TestDatabaseBlockMerge(t *testing.T) {
 		i++
 	}
 	require.NoError(t, iter.Err())
+
+	mergedChecksum, err := block1.Checksum()
+	require.NoError(t, err)
+	require.Equal(t, digest.SegmentChecksum(seg), mergedChecksum)
 
 	// Make sure each segment reader was only finalized once
 	require.Equal(t, 2, len(segmentReaders))
