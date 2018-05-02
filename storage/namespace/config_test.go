@@ -54,6 +54,10 @@ func TestRegistryConfig(t *testing.T) {
 						BufferFuture:    time.Minute,
 						BufferPast:      time.Minute,
 					},
+					Index: IndexConfiguration{
+						Enabled:   true,
+						BlockSize: time.Hour,
+					},
 				},
 			},
 		}
@@ -93,6 +97,10 @@ func TestMetadataConfig(t *testing.T) {
 			BufferFuture:    time.Minute,
 			BufferPast:      time.Minute,
 		}
+		index = IndexConfiguration{
+			Enabled:   true,
+			BlockSize: time.Hour,
+		}
 		config = &MetadataConfiguration{
 			ID:                id,
 			BootstrapEnabled:  &bootstrapEnabled,
@@ -101,6 +109,7 @@ func TestMetadataConfig(t *testing.T) {
 			CleanupEnabled:    &cleanupEnabled,
 			RepairEnabled:     &repairEnabled,
 			Retention:         retention,
+			Index:             index,
 		}
 	)
 
@@ -115,6 +124,7 @@ func TestMetadataConfig(t *testing.T) {
 	require.Equal(t, cleanupEnabled, opts.CleanupEnabled())
 	require.Equal(t, repairEnabled, opts.RepairEnabled())
 	require.Equal(t, retention.Options(), opts.RetentionOptions())
+	require.Equal(t, index.Options(), opts.IndexOptions())
 }
 
 func TestRegistryConfigFromBytes(t *testing.T) {
@@ -153,6 +163,9 @@ metadatas:
       blockSize: 12h
       bufferFuture: 10m
       bufferPast: 10m
+    index:
+      enabled: true
+      blockSize: 24h
 `)
 
 	var conf MapConfiguration
@@ -173,6 +186,7 @@ metadatas:
 	require.Equal(t, false, opts.WritesToCommitLog())
 	require.Equal(t, false, opts.CleanupEnabled())
 	require.Equal(t, false, opts.RepairEnabled())
+	require.Equal(t, false, opts.IndexOptions().Enabled())
 	testRetentionOpts := retention.NewOptions().
 		SetRetentionPeriod(8 * time.Hour).
 		SetBlockSize(2 * time.Hour).
@@ -190,6 +204,7 @@ metadatas:
 	require.Equal(t, true, opts.WritesToCommitLog())
 	require.Equal(t, true, opts.CleanupEnabled())
 	require.Equal(t, true, opts.RepairEnabled())
+	require.Equal(t, false, opts.IndexOptions().Enabled())
 	testRetentionOpts = retention.NewOptions().
 		SetRetentionPeriod(48 * time.Hour).
 		SetBlockSize(2 * time.Hour).
@@ -207,6 +222,8 @@ metadatas:
 	require.Equal(t, true, opts.WritesToCommitLog())
 	require.Equal(t, true, opts.CleanupEnabled())
 	require.Equal(t, true, opts.RepairEnabled())
+	require.Equal(t, true, opts.IndexOptions().Enabled())
+	require.Equal(t, 24*time.Hour, opts.IndexOptions().BlockSize())
 	testRetentionOpts = retention.NewOptions().
 		SetRetentionPeriod(960 * time.Hour).
 		SetBlockSize(12 * time.Hour).

@@ -37,6 +37,11 @@ var (
 		return int64(time.Duration(mins) * time.Minute / time.Nanosecond)
 	}
 
+	validIndexOpts = nsproto.IndexOptions{
+		Enabled:        true,
+		BlockSizeNanos: toNanos(600), // 10h
+	}
+
 	validRetentionOpts = nsproto.RetentionOptions{
 		RetentionPeriodNanos:                     toNanos(1200), // 20h
 		BlockSizeNanos:                           toNanos(120),  // 2h
@@ -46,13 +51,24 @@ var (
 		BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 	}
 
-	validNamespaceOpts = nsproto.NamespaceOptions{
-		BootstrapEnabled:  true,
-		FlushEnabled:      true,
-		WritesToCommitLog: true,
-		CleanupEnabled:    true,
-		RepairEnabled:     true,
-		RetentionOptions:  &validRetentionOpts,
+	validNamespaceOpts = []nsproto.NamespaceOptions{
+		nsproto.NamespaceOptions{
+			BootstrapEnabled:  true,
+			FlushEnabled:      true,
+			WritesToCommitLog: true,
+			CleanupEnabled:    true,
+			RepairEnabled:     true,
+			RetentionOptions:  &validRetentionOpts,
+		},
+		nsproto.NamespaceOptions{
+			BootstrapEnabled:  true,
+			FlushEnabled:      true,
+			WritesToCommitLog: true,
+			CleanupEnabled:    true,
+			RepairEnabled:     true,
+			RetentionOptions:  &validRetentionOpts,
+			IndexOptions:      &validIndexOpts,
+		},
 	}
 
 	invalidRetentionOpts = []nsproto.RetentionOptions{
@@ -92,33 +108,41 @@ func TestNamespaceToRetentionInvalid(t *testing.T) {
 }
 
 func TestToNamespaceValid(t *testing.T) {
-	nsOpts, err := namespace.ToMetadata("abc", &validNamespaceOpts)
-	require.NoError(t, err)
-	assertEqualMetadata(t, "abc", validNamespaceOpts, nsOpts)
+	for _, nsopts := range validNamespaceOpts {
+		nsOpts, err := namespace.ToMetadata("abc", &nsopts)
+		require.NoError(t, err)
+		assertEqualMetadata(t, "abc", nsopts, nsOpts)
+	}
 }
 
 func TestToNamespaceInvalid(t *testing.T) {
-	_, err := namespace.ToMetadata("", &validNamespaceOpts)
-	require.Error(t, err)
-
-	opts := validNamespaceOpts
-	opts.RetentionOptions = nil
-	_, err = namespace.ToMetadata("abc", &opts)
-	require.Error(t, err)
-
-	for _, ro := range invalidRetentionOpts {
-		opts := validNamespaceOpts
-		opts.RetentionOptions = &ro
-		_, err = namespace.ToMetadata("abc", &opts)
+	for _, nsopts := range validNamespaceOpts {
+		_, err := namespace.ToMetadata("", &nsopts)
 		require.Error(t, err)
+	}
+
+	for _, nsopts := range validNamespaceOpts {
+		opts := nsopts
+		opts.RetentionOptions = nil
+		_, err := namespace.ToMetadata("abc", &opts)
+		require.Error(t, err)
+	}
+
+	for _, nsopts := range validNamespaceOpts {
+		for _, ro := range invalidRetentionOpts {
+			opts := nsopts
+			opts.RetentionOptions = &ro
+			_, err := namespace.ToMetadata("abc", &opts)
+			require.Error(t, err)
+		}
 	}
 }
 
 func TestFromProto(t *testing.T) {
 	validRegistry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
-			"testns1": &validNamespaceOpts,
-			"testns2": &validNamespaceOpts,
+			"testns1": &validNamespaceOpts[0],
+			"testns2": &validNamespaceOpts[1],
 		},
 	}
 	nsMap, err := namespace.FromProto(validRegistry)
@@ -126,11 +150,11 @@ func TestFromProto(t *testing.T) {
 
 	md1, err := nsMap.Get(ident.StringID("testns1"))
 	require.NoError(t, err)
-	assertEqualMetadata(t, "testns1", validNamespaceOpts, md1)
+	assertEqualMetadata(t, "testns1", validNamespaceOpts[0], md1)
 
 	md2, err := nsMap.Get(ident.StringID("testns2"))
 	require.NoError(t, err)
-	assertEqualMetadata(t, "testns2", validNamespaceOpts, md2)
+	assertEqualMetadata(t, "testns2", validNamespaceOpts[1], md2)
 }
 
 func TestToProto(t *testing.T) {
