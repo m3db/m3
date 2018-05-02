@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"regexp"
 	"time"
 
 	"github.com/m3db/m3db/digest"
@@ -35,13 +34,6 @@ import (
 
 const (
 	indexFileSetMajorVersion = 1
-)
-
-var (
-	// fileSubTypeRegex allows what can be used for a file sub type,
-	// explicitly cannot use "-" as that is our file set file name separator,
-	// also we ensure that callers must use lower cased strings.
-	fileSubTypeRegex = regexp.MustCompile("^[a-z_]+$")
 )
 
 type indexWriter struct {
@@ -153,15 +145,13 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) er
 		return w.err
 	}
 
-	segType := string(segmentFileSet.SegmentType())
-	if segType == "" || !fileSubTypeRegex.MatchString(segType) {
-		err := fmt.Errorf("invalid segment type must match pattern=%s",
-			fileSubTypeRegex.String())
+	segType := segmentFileSet.SegmentType()
+	if err := segType.Validate(); err != nil {
 		return w.markSegmentWriteError(segType, "", err)
 	}
 
 	seg := writtenIndexSegment{
-		segmentType:  segmentFileSet.SegmentType(),
+		segmentType:  segType,
 		majorVersion: segmentFileSet.MajorVersion(),
 		minorVersion: segmentFileSet.MinorVersion(),
 		metadata:     segmentFileSet.SegmentMetadata(),
@@ -169,15 +159,13 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) er
 
 	idx := len(w.segments)
 	for _, file := range segmentFileSet.Files() {
-		segFileType := string(file.SegmentFileType())
-		if segFileType == "" || !fileSubTypeRegex.MatchString(segFileType) {
-			err := fmt.Errorf("invalid segment file type must match pattern=%s",
-				fileSubTypeRegex.String())
+		segFileType := file.SegmentFileType()
+		if err := segFileType.Validate(); err != nil {
 			return w.markSegmentWriteError(segType, segFileType, err)
 		}
 
 		filePath := filesetIndexSegmentFilePathFromTime(w.namespaceDir, w.start,
-			idx, IndexSegmentFileType(segFileType))
+			idx, segFileType)
 		if FileExists(filePath) {
 			err := fmt.Errorf("segment file type already exists at %s", filePath)
 			return w.markSegmentWriteError(segType, segFileType, err)
@@ -211,7 +199,8 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) er
 }
 
 func (w *indexWriter) markSegmentWriteError(
-	segType, segFileType string,
+	segType IndexSegmentType,
+	segFileType IndexSegmentFileType,
 	err error,
 ) error {
 	w.err = fmt.Errorf("failed to write segment_type=%s, segment_file_type=%s: %v",
@@ -228,15 +217,15 @@ func (w *indexWriter) infoFileData() ([]byte, error) {
 		SnapshotTime: w.snapshotTime.UnixNano(),
 	}
 	for _, segment := range w.segments {
-		segmentInfo := &index.IndexInfo_SegmentInfo{
-			Type:         string(segment.segmentType),
+		segmentInfo := &index.SegmentInfo{
+			SegmentType:  string(segment.segmentType),
 			MajorVersion: int64(segment.majorVersion),
 			MinorVersion: int64(segment.minorVersion),
 			Metadata:     segment.metadata,
 		}
 		for _, file := range segment.files {
-			fileInfo := &index.IndexInfo_SegmentFileInfo{
-				FileType: string(file.segmentFileType),
+			fileInfo := &index.SegmentFileInfo{
+				SegmentFileType: string(file.segmentFileType),
 			}
 			segmentInfo.Files = append(segmentInfo.Files, fileInfo)
 		}
@@ -250,13 +239,13 @@ func (w *indexWriter) digestsFileData(infoFileData []byte) ([]byte, error) {
 		InfoDigest: digest.Checksum(infoFileData),
 	}
 	for _, segment := range w.segments {
-		segmentDigest := &index.IndexDigests_SegmentDigest{
-			Type: string(segment.segmentType),
+		segmentDigest := &index.SegmentDigest{
+			SegmentType: string(segment.segmentType),
 		}
 		for _, file := range segment.files {
-			fileDigest := &index.IndexDigests_SegmentFileDigest{
-				FileType: string(file.segmentFileType),
-				Digest:   file.digest,
+			fileDigest := &index.SegmentFileDigest{
+				SegmentFileType: string(file.segmentFileType),
+				Digest:          file.digest,
 			}
 			segmentDigest.Files = append(segmentDigest.Files, fileDigest)
 		}

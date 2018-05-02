@@ -838,12 +838,7 @@ func filesetIndexSegmentFilePathFromTime(
 	segmentFileType IndexSegmentFileType,
 ) string {
 	idx := strconv.Itoa(segmentIndex)
-	suffix := fmt.Sprintf(
-		"%s%s%s"+
-			"%s"+
-			"%s",
-		segmentFileSetFilePrefix, separator, idx,
-		separator,
-		segmentFileType)
+	suffix := fmt.Sprintf("%s%s%s%s%s", segmentFileSetFilePrefix,
+		separator, idx, separator, segmentFileType)
 	return filesetPathFromTime(prefix, t, suffix)
 }

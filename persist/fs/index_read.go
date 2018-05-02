@@ -182,7 +182,7 @@ func (r *indexReader) ReadSegmentFileSet() (IndexSegmentFileSet, error) {
 			files: make([]IndexSegmentFile, 0, len(segment.Files)),
 		}
 		digests = indexReaderReadSegmentDigests{
-			segmentType: IndexSegmentType(segment.Type),
+			segmentType: IndexSegmentType(segment.SegmentType),
 		}
 	)
 	closeFiles := func() {
@@ -191,7 +191,7 @@ func (r *indexReader) ReadSegmentFileSet() (IndexSegmentFileSet, error) {
 		}
 	}
 	for _, file := range segment.Files {
-		fileType := IndexSegmentFileType(file.FileType)
+		fileType := IndexSegmentFileType(file.SegmentFileType)
 
 		filePath := filesetIndexSegmentFilePathFromTime(r.namespaceDir, r.start,
 			r.currIdx, fileType)
@@ -307,12 +307,12 @@ func (r *indexReader) Close() error {
 var _ IndexSegmentFileSet = readableIndexSegmentFileSet{}
 
 type readableIndexSegmentFileSet struct {
-	info  *index.IndexInfo_SegmentInfo
+	info  *index.SegmentInfo
 	files []IndexSegmentFile
 }
 
 func (s readableIndexSegmentFileSet) SegmentType() IndexSegmentType {
-	return IndexSegmentType(s.info.Type)
+	return IndexSegmentType(s.info.SegmentType)
 }
 
 func (s readableIndexSegmentFileSet) MajorVersion() int {

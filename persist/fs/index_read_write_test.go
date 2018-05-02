@@ -21,12 +21,14 @@
 package fs
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/rand"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -215,4 +217,21 @@ func readTestIndexSegments(
 	// Ensure last read is io.EOF
 	_, err := reader.ReadSegmentFileSet()
 	require.Equal(t, io.EOF, err)
+}
+
+var (
+	defaultBufferedReaderLock sync.Mutex
+	defaultBufferedReader     *bufio.Reader
+)
+
+func defaultBufferedReaderSize() int {
+	// Pre go1.10 it wasn't possible to query the size of the buffered reader
+	// however in go1.10 it is possible
+	defaultBufferedReaderLock.Lock()
+	defer defaultBufferedReaderLock.Unlock()
+
+	if defaultBufferedReader == nil {
+		defaultBufferedReader = bufio.NewReader(nil)
+	}
+	return defaultBufferedReader.Size()
 }

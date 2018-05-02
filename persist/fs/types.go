@@ -21,8 +21,10 @@
 package fs
 
 import (
+	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -37,6 +39,13 @@ import (
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
+)
+
+var (
+	// fileSubTypeRegex allows what can be used for a file sub type,
+	// explicitly cannot use "-" as that is our file set file name separator,
+	// also we ensure that callers must use lower cased strings.
+	fileSubTypeRegex = regexp.MustCompile("^[a-z_]+$")
 )
 
 // FileSetFileIdentifier contains all the information required to identify a FileSetFile
@@ -268,8 +277,30 @@ type IndexFileSetWriter interface {
 // IndexSegmentType is the type of an index file set.
 type IndexSegmentType string
 
+// Validate validates whether the string value is a valid segment type
+// and contains only lowercase a-z and underscore characters.
+func (t IndexSegmentType) Validate() error {
+	s := string(t)
+	if t == "" || !fileSubTypeRegex.MatchString(s) {
+		return fmt.Errorf("invalid segment type must match pattern=%s",
+			fileSubTypeRegex.String())
+	}
+	return nil
+}
+
 // IndexSegmentFileType is the type of a file in an index file set.
 type IndexSegmentFileType string
+
+// Validate validates whether the string value is a valid segment file type
+// and contains only lowercase a-z and underscore characters.
+func (t IndexSegmentFileType) Validate() error {
+	s := string(t)
+	if t == "" || !fileSubTypeRegex.MatchString(s) {
+		return fmt.Errorf("invalid segment file type must match pattern=%s",
+			fileSubTypeRegex.String())
+	}
+	return nil
+}
 
 // IndexSegmentFileSet is an index segment file set.
 type IndexSegmentFileSet interface {
