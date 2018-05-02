@@ -1696,7 +1696,7 @@ func (s *dbShard) Flush(
 	var multiErr xerrors.MultiError
 	tmpCtx := context.NewContext()
 
-	numBlockDoesNotExist := 0
+	flushResult := dbShardFlushResult{}
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		curr := entry.series
 		// Use a temporary context here so the stream readers can be returned to
@@ -1712,17 +1712,12 @@ func (s *dbShard) Flush(
 			return false
 		}
 
-		if flushOutcome == series.BlockDoesNotExist {
-			numBlockDoesNotExist++
-		}
+		flushResult.update(flushOutcome)
 
 		return true
 	})
 
-	s.logger.WithFields(
-		xlog.NewField("shard", s.ID()),
-		xlog.NewField("numBlockDoesNotExist", numBlockDoesNotExist),
-	).Debug("shard flush outcome")
+	s.logFlushResult(flushResult)
 
 	if err := prepared.Close(); err != nil {
 		multiErr = multiErr.Add(err)
@@ -1970,7 +1965,14 @@ func (s *dbShard) emitBootstrapResult(r dbShardBootstrapResult) {
 	s.metrics.seriesBootstrapBlocksMerged.Inc(r.numBlocksMerged)
 }
 
-// dbShardBootstrapResult is a helper struct for keeping track of result of bootstrapping all the
+func (s *dbShard) logFlushResult(r dbShardFlushResult) {
+	s.logger.WithFields(
+		xlog.NewField("shard", s.ID()),
+		xlog.NewField("numBlockDoesNotExist", r.numBlockDoesNotExist),
+	).Debug("shard flush outcome")
+}
+
+// dbShardBootstrapResult is a helper struct for keeping track of the result of bootstrapping all the
 // series in the shard.
 type dbShardBootstrapResult struct {
 	numBlocksMovedToBuffer int64
@@ -1980,4 +1982,16 @@ type dbShardBootstrapResult struct {
 func (r *dbShardBootstrapResult) update(u series.BootstrapResult) {
 	r.numBlocksMovedToBuffer += u.NumBlocksMovedToBuffer
 	r.numBlocksMerged += u.NumBlocksMerged
+}
+
+// dbShardFlushResult is a helper struct for keeping track of the result of flushing all the
+// series in the shard.
+type dbShardFlushResult struct {
+	numBlockDoesNotExist int64
+}
+
+func (r *dbShardFlushResult) update(u series.FlushOutcome) {
+	if u == series.BlockDoesNotExist {
+		r.numBlockDoesNotExist++
+	}
 }
