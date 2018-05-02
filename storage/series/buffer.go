@@ -40,7 +40,7 @@ import (
 
 var (
 	errMoreThanOneStreamAfterMerge = errors.New("buffer has more than one stream after merge")
-	errNoAvailableBuckets          = errors.New("buffer has no available buckets")
+	errNoAvailableBuckets          = errors.New("[invariant violated] buffer has no available buckets")
 	timeZero                       time.Time
 )
 

@@ -200,8 +200,7 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		return stream, nil
 	}
 
-	var mergeStream xio.SegmentReader
-	mergeStream, err = b.mergeTarget.Stream(blocker)
+	mergeStream, err := b.mergeTarget.Stream(blocker)
 	if err != nil {
 		stream.Finalize()
 		return nil, err
