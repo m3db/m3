@@ -87,7 +87,7 @@ func (i *fetchTaggedResultsIndexIterator) asIdent(b []byte) ident.ID {
 	return i.pools.ID().BinaryID(wb)
 }
 
-func (i *fetchTaggedResultsIndexIterator) Close() {
+func (i *fetchTaggedResultsIndexIterator) Finalize() {
 	i.release()
 	i.backing.nses = nil
 	i.backing.ids = nil

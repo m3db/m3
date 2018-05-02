@@ -1,0 +1,190 @@
+// Copyright (c) 2018 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+package convert
+
+import (
+	"bytes"
+	"errors"
+
+	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
+)
+
+var (
+	errUnableToConvertReservedFieldName = errors.New("unable to convert metric due to use of reserved fieldname")
+	errInvalidResultMissingID           = errors.New("corrupt data, unable to extract id")
+)
+
+var (
+	// ReservedFieldNameID is the field name used to index the ID in the
+	// m3ninx subsytem.
+	ReservedFieldNameID = doc.IDReservedFieldName
+)
+
+// FromMetric converts the provided metric id+tags into a document.
+func FromMetric(id ident.ID, tags ident.Tags) (doc.Document, error) {
+	fields := make([]doc.Field, 0, len(tags))
+	for _, tag := range tags {
+		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
+			return doc.Document{}, errUnableToConvertReservedFieldName
+		}
+		name := clone(tag.Name)
+		fields = append(fields, doc.Field{
+			Name:  name,
+			Value: clone(tag.Value),
+		})
+	}
+	return doc.Document{
+		ID:     clone(id),
+		Fields: fields,
+	}, nil
+}
+
+// NB(prateek): we take an independent copy of the bytes underlying
+// any ids provided, as we need to maintain the lifecycle of the indexed
+// bytes separately from the rest of the storage subsystem.
+func clone(id ident.ID) []byte {
+	original := id.Data().Bytes()
+	clone := make([]byte, len(original))
+	copy(clone, original)
+	return clone
+}
+
+// Opts are the pools required for conversions.
+type Opts struct {
+	IdentPool        ident.Pool
+	CheckedBytesPool pool.CheckedBytesPool
+}
+
+// wrapBytes wraps the provided bytes into an ident.ID backed by pooled types,
+// such that calling Finalize() on the returned type returns the resources to
+// the pools.
+func (o Opts) wrapBytes(b []byte) ident.ID {
+	cb := o.CheckedBytesPool.Get(len(b))
+	cb.IncRef()
+	cb.AppendAll(b)
+	id := o.IdentPool.BinaryID(cb)
+	// release held reference so now the only reference to the bytes is owned by `id`
+	cb.DecRef()
+	return id
+}
+
+// ToMetric converts the provided doc to metric id+tags.
+func ToMetric(d doc.Document, opts Opts) (ident.ID, ident.TagIterator, error) {
+	if len(d.ID) == 0 {
+		return nil, nil, errInvalidResultMissingID
+	}
+	return opts.wrapBytes(d.ID), newTagIter(d, opts), nil
+}
+
+// tagIter exposes an ident.TagIterator interface over a doc.Document.
+type tagIter struct {
+	docFields doc.Fields
+
+	err        error
+	done       bool
+	currentIdx int
+	currentTag ident.Tag
+
+	opts Opts
+}
+
+// NB: force tagIter to implement the ident.TagIterator interface.
+var _ ident.TagIterator = &tagIter{}
+
+func newTagIter(d doc.Document, opts Opts) ident.TagIterator {
+	return &tagIter{
+		docFields:  d.Fields,
+		currentIdx: -1,
+		opts:       opts,
+	}
+}
+
+func (t *tagIter) Next() bool {
+	if t.err != nil || t.done {
+		return false
+	}
+	hasNext := t.parseNext()
+	if !hasNext {
+		t.done = true
+	}
+	return hasNext
+}
+
+func (t *tagIter) parseNext() (hasNext bool) {
+	t.releaseCurrent()
+	t.currentIdx++
+	// early terminate if we know there's no more fields
+	if t.currentIdx >= len(t.docFields) {
+		return false
+	}
+	// if there are fields, we have to ensure the next field
+	// is not using the reserved ID fieldname
+	next := t.docFields[t.currentIdx]
+	if bytes.Equal(ReservedFieldNameID, next.Name) {
+		t.err = errUnableToConvertReservedFieldName
+		return false
+	}
+	// otherwise, we're good.
+	t.currentTag = ident.Tag{
+		Name:  t.opts.wrapBytes(next.Name),
+		Value: t.opts.wrapBytes(next.Value),
+	}
+	return true
+}
+
+func (t *tagIter) releaseCurrent() {
+	if t.currentTag.Name != nil {
+		t.currentTag.Name.Finalize()
+		t.currentTag.Name = nil
+	}
+	if t.currentTag.Value != nil {
+		t.currentTag.Value.Finalize()
+		t.currentTag.Value = nil
+	}
+}
+
+func (t *tagIter) Current() ident.Tag {
+	return t.currentTag
+}
+
+func (t *tagIter) Err() error {
+	return t.err
+}
+
+func (t *tagIter) Close() {
+	t.releaseCurrent()
+	t.done = true
+}
+
+func (t *tagIter) Remaining() int {
+	l := len(t.docFields) - (t.currentIdx + 1)
+	return l
+}
+
+func (t *tagIter) Duplicate() ident.TagIterator {
+	var dupe = *t
+	if t.currentTag.Name != nil {
+		dupe.currentTag = t.opts.IdentPool.CloneTag(t.currentTag)
+	}
+	return &dupe
+}
