@@ -309,7 +309,6 @@ func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentRead
 	if err != nil {
 		return nil, err
 	}
-	ctx.RegisterFinalizer(mergedStream)
 
 	b.resetMergeTargetWithLock()
 	b.resetSegmentWithLock(mergedSegment)
