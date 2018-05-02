@@ -145,7 +145,7 @@ func (b *dbBlock) Len() int {
 
 func (b *dbBlock) Checksum() (uint32, error) {
 	// Infinite loop because we release the RLock before we call Stream() and
-	// we can't assume that another merge target isn't added inbetween b.Stream()
+	// we can't assume that another merge target isn't added in-between b.Stream()
 	// returning and us checking the checksum again.
 	for {
 		b.RLock()
@@ -159,6 +159,7 @@ func (b *dbBlock) Checksum() (uint32, error) {
 
 		tempCtx := b.opts.ContextPool().Get()
 		defer tempCtx.Close()
+		// Rely on the stream method to handle merging / recalculating the checksum.
 		_, err := b.Stream(tempCtx)
 		if err != nil {
 			return 0, err
