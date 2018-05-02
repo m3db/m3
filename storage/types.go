@@ -495,7 +495,7 @@ type databaseBootstrapManager interface {
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
-	Flush(tickStart time.Time, dbBootstrapStates DatabaseBootstrapState) error
+	Flush(tickStart time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error
 
 	// Report reports runtime information
 	Report()
@@ -516,7 +516,7 @@ type databaseFileSystemManager interface {
 	Cleanup(t time.Time) error
 
 	// Flush flushes in-memory data to persistent storage.
-	Flush(t time.Time, dbBootstrapStates DatabaseBootstrapState) error
+	Flush(t time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error
 
 	// Disable disables the filesystem manager and prevents it from
 	// performing file operations, returns the current file operation status
@@ -532,7 +532,7 @@ type databaseFileSystemManager interface {
 	// returning true if those operations are performed, and false otherwise
 	Run(
 		t time.Time,
-		dbBootstrapStates DatabaseBootstrapState,
+		dbBootstrapStateAtTickStart DatabaseBootstrapState,
 		runType runType,
 		forceType forceType,
 	) bool

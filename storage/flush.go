@@ -75,7 +75,7 @@ func newFlushManager(database database, scope tally.Scope) databaseFlushManager 
 
 func (m *flushManager) Flush(
 	tickStart time.Time,
-	dbBootstrapStates DatabaseBootstrapState,
+	dbBootstrapStateAtTickStart DatabaseBootstrapState,
 ) error {
 	// ensure only a single flush is happening at a time
 	m.Lock()
@@ -104,7 +104,7 @@ func (m *flushManager) Flush(
 	for _, ns := range namespaces {
 		// Flush first because we will only snapshot if there are no outstanding flushes
 		flushTimes := m.namespaceFlushTimes(ns, tickStart)
-		shardBootstrapTimes, ok := dbBootstrapStates.NamespaceBootstrapStates[ns.ID().String()]
+		shardBootstrapTimes, ok := dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
 		if !ok {
 			// Could happen if namespaces are added / removed.
 			return fmt.Errorf(

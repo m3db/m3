@@ -147,7 +147,7 @@ func (m *mediator) EnableFileOps() {
 // information to make decisions about whether to flush / snapshot / run cleanups.
 func (m *mediator) Tick(runType runType, forceType forceType) error {
 	tickStart := m.nowFn()
-	dbBootstrapStates := m.database.BootstrapState()
+	dbBootstrapStateAtTickStart := m.database.BootstrapState()
 
 	if err := m.databaseTickManager.Tick(forceType); err != nil {
 		return err
@@ -157,7 +157,7 @@ func (m *mediator) Tick(runType runType, forceType forceType) error {
 	// flush blocks to disk. Note this has to run after the tick as
 	// blocks may only have just become available during a tick beginning
 	// from the tick begin marker.
-	m.databaseFileSystemManager.Run(tickStart, dbBootstrapStates, syncRun, forceType)
+	m.databaseFileSystemManager.Run(tickStart, dbBootstrapStateAtTickStart, syncRun, forceType)
 	return nil
 }
 

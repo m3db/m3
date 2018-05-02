@@ -719,7 +719,7 @@ func (n *dbNamespace) Bootstrap(
 
 func (n *dbNamespace) Flush(
 	blockStart time.Time,
-	ShardBootstrapStates ShardBootstrapStates,
+	shardBootstrapStatesAtTickStart ShardBootstrapStates,
 	flush persist.Flush,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
@@ -752,7 +752,7 @@ func (n *dbNamespace) Flush(
 		// before the start of the tick that preceded this flush, meaning it can be reliably
 		// used to determine if all of the bootstrapped blocks have been merged / drained (ticked)
 		// and are ready to be flushed.
-		shardBootstrapStateBeforeTick, ok := ShardBootstrapStates[shard.ID()]
+		shardBootstrapStateBeforeTick, ok := shardBootstrapStatesAtTickStart[shard.ID()]
 		if !ok || shardBootstrapStateBeforeTick != Bootstrapped {
 			// We don't own this shard anymore (!ok) or the shard was not bootstrapped
 			// before the previous tick which means that we have no guarantee that all
