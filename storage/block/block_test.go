@@ -247,6 +247,8 @@ func TestDatabaseBlockMerge(t *testing.T) {
 	// Make sure each segment reader was only finalized once
 	require.Equal(t, 2, len(segmentReaders))
 	depCtx.BlockingClose()
+	block1.Close()
+	block2.Close()
 	for _, segmentReader := range segmentReaders {
 		require.Equal(t, 1, *segmentReader.finalizeCount)
 	}
