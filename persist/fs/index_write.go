@@ -44,12 +44,13 @@ type indexWriter struct {
 	readerBuf        *bufio.Reader
 	fdWithDigest     digest.FdWithDigestWriter
 
-	err          error
-	blockSize    time.Duration
-	start        time.Time
-	snapshotTime time.Time
-	fileType     persist.FileSetType
-	segments     []writtenIndexSegment
+	err           error
+	blockSize     time.Duration
+	start         time.Time
+	fileSetType   persist.FileSetType
+	snapshotTime  time.Time
+	snapshotIndex int
+	segments      []writtenIndexSegment
 
 	namespaceDir       string
 	checkpointFilePath string
@@ -88,14 +89,14 @@ func NewIndexWriter(opts Options) (IndexFileSetWriter, error) {
 
 func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	var (
-		nextSnapshotIndex int
-		err               error
-		namespace         = opts.Identifier.Namespace
-		blockStart        = opts.Identifier.BlockStart
+		namespace  = opts.Identifier.Namespace
+		blockStart = opts.Identifier.BlockStart
+		err        error
 	)
 	w.err = nil
 	w.blockSize = opts.BlockSize
 	w.start = blockStart
+	w.fileSetType = opts.FileSetType
 	w.snapshotTime = opts.Snapshot.SnapshotTime
 	w.segments = nil
 
@@ -110,25 +111,25 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 
 		// This method is not thread-safe, so its the callers responsibilities that they never
 		// try and write two snapshot files for the same block start at the same time.
-		nextSnapshotIndex, err = NextIndexSnapshotFileIndex(w.filePathPrefix, namespace, blockStart)
+		w.snapshotIndex, err = NextIndexSnapshotFileIndex(w.filePathPrefix, namespace, blockStart)
 		if err != nil {
 			return err
 		}
 
-		w.fileType = persist.FileSetSnapshotType
-		w.checkpointFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, checkpointFileSuffix, nextSnapshotIndex)
-		w.infoFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, infoFileSuffix, nextSnapshotIndex)
-		w.digestFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, digestFileSuffix, nextSnapshotIndex)
+		w.checkpointFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, checkpointFileSuffix, w.snapshotIndex)
+		w.infoFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, infoFileSuffix, w.snapshotIndex)
+		w.digestFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, digestFileSuffix, w.snapshotIndex)
 	case persist.FileSetFlushType:
 		w.namespaceDir = NamespaceIndexDataDirPath(w.filePathPrefix, namespace)
 		if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
 			return err
 		}
 
-		w.fileType = persist.FileSetFlushType
 		w.checkpointFilePath = filesetPathFromTime(w.namespaceDir, blockStart, checkpointFileSuffix)
 		w.infoFilePath = filesetPathFromTime(w.namespaceDir, blockStart, infoFileSuffix)
 		w.digestFilePath = filesetPathFromTime(w.namespaceDir, blockStart, digestFileSuffix)
+	default:
+		return fmt.Errorf("cannot open index writer for fileset type: %s", opts.FileSetType)
 	}
 	return nil
 }
@@ -164,8 +165,18 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) er
 			return w.markSegmentWriteError(segType, segFileType, err)
 		}
 
-		filePath := filesetIndexSegmentFilePathFromTime(w.namespaceDir, w.start,
-			idx, segFileType)
+		var filePath string
+		switch w.fileSetType {
+		case persist.FileSetSnapshotType:
+			filePath = snapshotIndexSegmentFilePathFromTimeAndIndex(w.namespaceDir, w.start,
+				idx, segFileType, w.snapshotIndex)
+		case persist.FileSetFlushType:
+			filePath = filesetIndexSegmentFilePathFromTime(w.namespaceDir, w.start,
+				idx, segFileType)
+		default:
+			err := fmt.Errorf("unknown fileset type: %s", w.fileSetType)
+			return w.markSegmentWriteError(segType, segFileType, err)
+		}
 		if FileExists(filePath) {
 			err := fmt.Errorf("segment file type already exists at %s", filePath)
 			return w.markSegmentWriteError(segType, segFileType, err)
@@ -213,7 +224,7 @@ func (w *indexWriter) infoFileData() ([]byte, error) {
 		MajorVersion: indexFileSetMajorVersion,
 		BlockStart:   w.start.UnixNano(),
 		BlockSize:    int64(w.blockSize),
-		FileType:     int64(w.fileType),
+		FileType:     int64(w.fileSetType),
 		SnapshotTime: w.snapshotTime.UnixNano(),
 	}
 	for _, segment := range w.segments {

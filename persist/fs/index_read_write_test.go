@@ -40,27 +40,51 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIndexSimpleReadWrite(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+type indexWriteTestSetup struct {
+	now            time.Time
+	rootDir        string
+	filePathPrefix string
+	blockSize      time.Duration
+	blockStart     time.Time
+	fileSetID      FileSetFileIdentifier
+}
 
+func newIndexWriteTestSetup(t *testing.T) indexWriteTestSetup {
+	now := time.Now().UTC()
 	dir := createTempDir(t)
 	filePathPrefix := filepath.Join(dir, "")
-	defer os.RemoveAll(dir)
-
-	now := time.Now().UTC()
-	blockSize := 2 * time.Hour
+	blockSize := 12 * time.Hour
 	blockStart := now.Truncate(blockSize)
 	fileSetID := FileSetFileIdentifier{
 		FileSetContentType: persist.FileSetIndexContentType,
 		Namespace:          ident.StringID("metrics"),
 		BlockStart:         blockStart,
 	}
+	return indexWriteTestSetup{
+		now:            now,
+		rootDir:        dir,
+		filePathPrefix: filePathPrefix,
+		blockSize:      blockSize,
+		blockStart:     blockStart,
+		fileSetID:      fileSetID,
+	}
+}
 
-	writer := newTestIndexWriter(t, filePathPrefix)
+func (s indexWriteTestSetup) cleanup() {
+	os.RemoveAll(s.rootDir)
+}
+
+func TestIndexSimpleReadWrite(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	test := newIndexWriteTestSetup(t)
+	defer test.cleanup()
+
+	writer := newTestIndexWriter(t, test.filePathPrefix)
 	err := writer.Open(IndexWriterOpenOptions{
-		Identifier:  fileSetID,
-		BlockSize:   blockSize,
+		Identifier:  test.fileSetID,
+		BlockSize:   test.blockSize,
 		FileSetType: persist.FileSetFlushType,
 	})
 	require.NoError(t, err)
@@ -91,9 +115,9 @@ func TestIndexSimpleReadWrite(t *testing.T) {
 	err = writer.Close()
 	require.NoError(t, err)
 
-	reader := newTestIndexReader(t, filePathPrefix)
+	reader := newTestIndexReader(t, test.filePathPrefix)
 	err = reader.Open(IndexReaderOpenOptions{
-		Identifier:  fileSetID,
+		Identifier:  test.fileSetID,
 		FileSetType: persist.FileSetFlushType,
 	})
 	require.NoError(t, err)
