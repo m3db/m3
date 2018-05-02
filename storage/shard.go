@@ -1576,11 +1576,9 @@ func (s *dbShard) Bootstrap(
 	s.Unlock()
 
 	var (
-		// Debug
-		numBlocksMovedToBuffer = int64(0)
-		numBlocksMerged        = int64(0)
+		shardBootstrapResult = dbShardBootstrapResult{}
+		multiErr             = xerrors.NewMultiError()
 	)
-	multiErr := xerrors.NewMultiError()
 	for _, elem := range bootstrappedSeries.Iter() {
 		dbBlocks := elem.Value()
 
@@ -1606,16 +1604,13 @@ func (s *dbShard) Bootstrap(
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
-		numBlocksMovedToBuffer += bsResult.NumBlocksMovedToBuffer
-		numBlocksMerged += bsResult.NumBlocksMerged
+		shardBootstrapResult.update(bsResult)
 
 		// Always decrement the writer count, avoid continue on bootstrap error
 		entry.decrementReaderWriterCount()
 	}
 
-	// Debug
-	s.metrics.seriesBootstrapBlocksToBuffer.Inc(numBlocksMovedToBuffer)
-	s.metrics.seriesBootstrapBlocksMerged.Inc(numBlocksMerged)
+	s.emitBootstrapResult(shardBootstrapResult)
 
 	// From this point onwards, all newly created series that aren't in
 	// the existing map should be considered bootstrapped because they
@@ -1701,7 +1696,7 @@ func (s *dbShard) Flush(
 	var multiErr xerrors.MultiError
 	tmpCtx := context.NewContext()
 
-	numBlockDoesNotExist := 0 // Debug
+	numBlockDoesNotExist := 0
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		curr := entry.series
 		// Use a temporary context here so the stream readers can be returned to
@@ -1717,7 +1712,6 @@ func (s *dbShard) Flush(
 			return false
 		}
 
-		// Debug
 		if flushOutcome == series.BlockDoesNotExist {
 			numBlockDoesNotExist++
 		}
@@ -1725,7 +1719,6 @@ func (s *dbShard) Flush(
 		return true
 	})
 
-	// Debug
 	s.logger.WithFields(
 		xlog.NewField("shard", s.ID()),
 		xlog.NewField("numBlockDoesNotExist", numBlockDoesNotExist),
@@ -1970,4 +1963,21 @@ func (s *dbShard) BootstrapState() BootstrapState {
 	bs := s.bs
 	s.RUnlock()
 	return bs
+}
+
+func (s *dbShard) emitBootstrapResult(r dbShardBootstrapResult) {
+	s.metrics.seriesBootstrapBlocksToBuffer.Inc(r.numBlocksMovedToBuffer)
+	s.metrics.seriesBootstrapBlocksMerged.Inc(r.numBlocksMerged)
+}
+
+// dbShardBootstrapResult is a helper struct for keeping track of result of bootstrapping all the
+// series in the shard.
+type dbShardBootstrapResult struct {
+	numBlocksMovedToBuffer int64
+	numBlocksMerged        int64
+}
+
+func (r *dbShardBootstrapResult) update(u series.BootstrapResult) {
+	r.numBlocksMovedToBuffer += u.NumBlocksMovedToBuffer
+	r.numBlocksMerged += u.NumBlocksMerged
 }
