@@ -166,6 +166,8 @@ func (b *dbBlock) Checksum() (uint32, error) {
 		return 0, err
 	}
 
+	// This will merge the existing stream with the merge target's stream,
+	// as well as recalculate and store the new checksum
 	_, err = b.forceMergeWithLock(tempCtx, stream)
 	if err != nil {
 		return 0, err
