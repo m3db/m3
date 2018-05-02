@@ -21,6 +21,7 @@
 package bootstrapper
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -50,8 +51,9 @@ func testNsMetadata(t *testing.T) namespace.Metadata {
 }
 
 type testBlockEntry struct {
-	id string
-	t  time.Time
+	id   string
+	tags []string
+	t    time.Time
 }
 
 type testShardResult struct {
@@ -80,7 +82,15 @@ func shardResult(entries ...testBlockEntry) result.ShardResult {
 	for _, entry := range entries {
 		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 		block.Reset(entry.t, ts.Segment{})
-		res.AddBlock(ident.StringID(entry.id), block)
+
+		if len(entry.tags)%2 != 0 {
+			panic(fmt.Sprintf("entry tags must be of even length: %v", entry.tags))
+		}
+		tags := make(ident.Tags, 0, len(entry.tags))
+		for idx := 0; idx < len(entry.tags); idx += 2 {
+			tags = append(tags, ident.StringTag(entry.tags[idx], entry.tags[idx+1]))
+		}
+		res.AddBlock(ident.StringID(entry.id), tags, block)
 	}
 	return res
 }
@@ -231,7 +241,7 @@ func TestBaseBootstrapperCurrentNoUnfulfilled(t *testing.T) {
 
 	targetRanges := testShardTimeRanges()
 	result := testResult(map[uint32]testShardResult{
-		testShard: {result: shardResult(testBlockEntry{"foo", testTargetStart})},
+		testShard: {result: shardResult(testBlockEntry{"foo", nil, testTargetStart})},
 	})
 
 	source.EXPECT().
@@ -253,9 +263,9 @@ func TestBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T) {
 
 	testNs := testNsMetadata(t)
 	entries := []testBlockEntry{
-		{"foo", testTargetStart},
-		{"foo", testTargetStart.Add(time.Hour)},
-		{"bar", testTargetStart.Add(time.Hour)},
+		{"foo", []string{"foo", "foe"}, testTargetStart},
+		{"foo", []string{"foo", "foe"}, testTargetStart.Add(time.Hour)},
+		{"bar", []string{"bar", "baz"}, testTargetStart.Add(time.Hour)},
 	}
 	targetRanges := testShardTimeRanges()
 	currUnfulfilled := xtime.Ranges{}.AddRange(xtime.Range{
@@ -303,7 +313,7 @@ func testBasebootstrapperNext(t *testing.T, nextUnfulfilled result.ShardTimeRang
 
 	targetRanges := testShardTimeRanges()
 	nextResult := testResult(map[uint32]testShardResult{
-		testShard: {result: shardResult(testBlockEntry{"foo", testTargetStart})},
+		testShard: {result: shardResult(testBlockEntry{"foo", []string{"foo", "foe"}, testTargetStart})},
 	})
 
 	source.EXPECT().
@@ -346,10 +356,10 @@ func TestBaseBootstrapperBoth(t *testing.T) {
 
 	testNs := testNsMetadata(t)
 	entries := []testBlockEntry{
-		{"foo", testTargetStart},
-		{"foo", testTargetStart.Add(time.Hour)},
-		{"bar", testTargetStart.Add(time.Hour)},
-		{"baz", testTargetStart},
+		{"foo", []string{"foo", "foe"}, testTargetStart},
+		{"foo", []string{"foo", "foe"}, testTargetStart.Add(time.Hour)},
+		{"bar", []string{"bar", "bah"}, testTargetStart.Add(time.Hour)},
+		{"baz", []string{"baz", "zab"}, testTargetStart},
 	}
 
 	ranges := []xtime.Range{

@@ -3271,7 +3271,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 		r.Lock()
 		currBlock, exists := r.result.BlockAt(id, start)
 		if !exists {
-			r.result.AddBlock(id, result)
+			r.result.AddBlock(id, nil, result) // FOLLOWUP(prateek): include tags during block metadata exchange
 			r.Unlock()
 			break
 		}
