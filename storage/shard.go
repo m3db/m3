@@ -1991,7 +1991,7 @@ type dbShardFlushResult struct {
 }
 
 func (r *dbShardFlushResult) update(u series.FlushOutcome) {
-	if u == series.BlockDoesNotExist {
+	if u == series.FlushOutcomeBlockDoesNotExist {
 		r.numBlockDoesNotExist++
 	}
 }

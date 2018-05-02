@@ -411,7 +411,7 @@ func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
 		).Errorf("error trying to drain series buffer")
 		// Allocating metric here is ok because this code-path should never
 		// happen anyways.
-		iOpts.MetricsScope().SubScope("series-buffer-drain")
+		iOpts.MetricsScope().SubScope("series-buffer-drain").Counter("error").Inc(1)
 	}
 }
 
@@ -600,35 +600,35 @@ func (s *dbSeries) Flush(
 
 	if s.bs != bootstrapped {
 		s.RUnlock()
-		return FlushErr, errSeriesNotBootstrapped
+		return FlushOutcomeErr, errSeriesNotBootstrapped
 	}
 
 	b, exists := s.blocks.BlockAt(blockStart)
 	if !exists {
 		s.RUnlock()
-		return BlockDoesNotExist, nil
+		return FlushOutcomeBlockDoesNotExist, nil
 	}
 
 	sr, err := b.Stream(ctx)
 	s.RUnlock()
 
 	if err != nil {
-		return FlushErr, err
+		return FlushOutcomeErr, err
 	}
 	if sr == nil {
-		return FlushErr, errStreamDidNotExistForBlock
+		return FlushOutcomeErr, errStreamDidNotExistForBlock
 	}
 	segment, err := sr.Segment()
 	if err != nil {
-		return FlushErr, err
+		return FlushOutcomeErr, err
 	}
 
 	err = persistFn(s.id, segment, b.Checksum())
 	if err != nil {
-		return FlushErr, err
+		return FlushOutcomeErr, err
 	}
 
-	return FlushedToDisk, nil
+	return FlushOutcomeFlushedToDisk, nil
 }
 
 func (s *dbSeries) Snapshot(
@@ -728,26 +728,4 @@ func (s *dbSeries) Reset(
 	s.blockRetriever = blockRetriever
 	s.onRetrieveBlock = onRetrieveBlock
 	s.blockOnEvictedFromWiredList = onEvictedFromWiredList
-}
-
-// FlushOutcome is an enum that provides more context about the outcome
-// of series.Flush() to the caller.
-type FlushOutcome int
-
-const (
-	// FlushErr is just a default value that can be returned when we're also returning an error
-	FlushErr FlushOutcome = iota
-	// BlockDoesNotExist indicates that the series did not have a block for the specified flush blockStart.
-	BlockDoesNotExist
-	// FlushedToDisk indicates that a block existed and was flushed to disk successfully.
-	FlushedToDisk
-)
-
-// BootstrapResult contains information about the result of bootstrapping a series.
-// It is returned from the series Bootstrap method primarily so the caller can aggregate
-// and emit metrics instead of the series itself having to store additional fields (which
-// would be costly because we have millions of them.)
-type BootstrapResult struct {
-	NumBlocksMovedToBuffer int64
-	NumBlocksMerged        int64
 }

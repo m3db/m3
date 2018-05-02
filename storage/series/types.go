@@ -165,6 +165,28 @@ type DatabaseSeriesPool interface {
 	Put(block DatabaseSeries)
 }
 
+// FlushOutcome is an enum that provides more context about the outcome
+// of series.Flush() to the caller.
+type FlushOutcome int
+
+const (
+	// FlushOutcomeErr is just a default value that can be returned when we're also returning an error
+	FlushOutcomeErr FlushOutcome = iota
+	// FlushOutcomeBlockDoesNotExist indicates that the series did not have a block for the specified flush blockStart.
+	FlushOutcomeBlockDoesNotExist
+	// FlushOutcomeFlushedToDisk indicates that a block existed and was flushed to disk successfully.
+	FlushOutcomeFlushedToDisk
+)
+
+// BootstrapResult contains information about the result of bootstrapping a series.
+// It is returned from the series Bootstrap method primarily so the caller can aggregate
+// and emit metrics instead of the series itself having to store additional fields (which
+// would be costly because we have millions of them.)
+type BootstrapResult struct {
+	NumBlocksMovedToBuffer int64
+	NumBlocksMerged        int64
+}
+
 // Options represents the options for series
 type Options interface {
 	// Validate validates the options
