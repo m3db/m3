@@ -156,8 +156,6 @@ func (b *dbBlock) Checksum() (uint32, error) {
 	// Since we released the lock temporarily we need to check again.
 	hasMergeTarget = b.mergeTarget != nil
 	if !hasMergeTarget {
-		checksum = b.checksum
-		b.Unlock()
 		return b.checksum, nil
 	}
 
