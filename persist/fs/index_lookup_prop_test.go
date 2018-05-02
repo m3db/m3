@@ -78,9 +78,9 @@ func TestIndexLookupWriteRead(t *testing.T) {
 		if err != nil {
 			return false, fmt.Errorf("err creating writer: %v, ", err)
 		}
-		writerOpts := WriterOpenOptions{
+		writerOpts := DataWriterOpenOptions{
 			BlockSize: testBlockSize,
-			Identifier: FilesetFileIdentifier{
+			Identifier: FileSetFileIdentifier{
 				Namespace:  testNs1ID,
 				Shard:      shard,
 				BlockStart: testWriterStart,
@@ -156,7 +156,7 @@ func calculateExpectedChecksum(t *testing.T, filePath string) uint32 {
 	return digest.Checksum(fileBytes)
 }
 
-func writeTestSummariesData(w FileSetWriter, writes []generatedWrite) error {
+func writeTestSummariesData(w DataFileSetWriter, writes []generatedWrite) error {
 	for _, write := range writes {
 		err := w.Write(write.id, write.data, write.checksum)
 		if err != nil {

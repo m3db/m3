@@ -134,8 +134,8 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 	log.Infof("creating commit log and fileset files")
 	shard := uint32(0)
 	writeCommitLogs(t, filePathPrefix, commitLogTimes)
-	writeFilesetFiles(t, testSetup.storageOpts, ns1, shard, ns1Times)
-	writeFilesetFiles(t, testSetup.storageOpts, ns2, shard, ns2Times)
+	writeFileSetFiles(t, testSetup.storageOpts, ns1, shard, ns1Times)
+	writeFileSetFiles(t, testSetup.storageOpts, ns2, shard, ns2Times)
 
 	// Move now forward by 12 hours, and see if the expected files have been deleted
 	testSetup.setNowFn(end)
@@ -144,14 +144,14 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 	log.Infof("waiting until data is cleaned up")
 	waitTimeout := 60 * time.Second
 	require.NoError(t, waitUntilDataCleanedUpExtended(
-		[]cleanupTimesFileset{
-			cleanupTimesFileset{
+		[]cleanupTimesFileSet{
+			cleanupTimesFileSet{
 				filePathPrefix: filePathPrefix,
 				namespace:      testNamespaces[0],
 				shard:          shard,
 				times:          ns1TimesToRemove,
 			},
-			cleanupTimesFileset{
+			cleanupTimesFileSet{
 				filePathPrefix: filePathPrefix,
 				namespace:      testNamespaces[1],
 				shard:          shard,
@@ -167,7 +167,7 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 
 	// check files we still expect exist
 	log.Infof("asserting expected data files exist")
-	ns1ExpectedFiles := cleanupTimesFileset{
+	ns1ExpectedFiles := cleanupTimesFileSet{
 		filePathPrefix: filePathPrefix,
 		namespace:      testNamespaces[0],
 		shard:          shard,
@@ -175,7 +175,7 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 	}
 	require.True(t, ns1ExpectedFiles.allExist(), "ns1 expected fileset files do not exist")
 
-	ns2ExpectedFiles := cleanupTimesFileset{
+	ns2ExpectedFiles := cleanupTimesFileSet{
 		filePathPrefix: filePathPrefix,
 		namespace:      testNamespaces[1],
 		shard:          shard,

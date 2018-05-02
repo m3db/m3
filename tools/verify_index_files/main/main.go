@@ -125,7 +125,7 @@ func main() {
 	}
 }
 
-func seriesChecksumsFromReader(reader fs.FileSetReader, host string, shard uint32, block int64) seriesChecksums {
+func seriesChecksumsFromReader(reader fs.DataFileSetReader, host string, shard uint32, block int64) seriesChecksums {
 	seriesMap := seriesMap{}
 	seriesChecksums := seriesChecksums{
 		host:   host,
@@ -199,15 +199,15 @@ func mergeMaps(seriesMaps ...seriesMap) seriesMap {
 	return merged
 }
 
-func newReader(namespace, pathPrefix, hostName string, shard uint32, start time.Time) (fs.FileSetReader, error) {
+func newReader(namespace, pathPrefix, hostName string, shard uint32, start time.Time) (fs.DataFileSetReader, error) {
 	fsOpts := fs.NewOptions().SetFilePathPrefix(path.Join(pathPrefix, hostName))
 	reader, err := fs.NewReader(bytesPool, fsOpts)
 	if err != nil {
 		return nil, err
 	}
 
-	openOpts := fs.ReaderOpenOptions{
-		Identifier: fs.FilesetFileIdentifier{
+	openOpts := fs.DataReaderOpenOptions{
+		Identifier: fs.FileSetFileIdentifier{
 			Namespace:  ident.StringID(namespace),
 			Shard:      shard,
 			BlockStart: start,

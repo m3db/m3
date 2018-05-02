@@ -26,15 +26,15 @@ import (
 	"github.com/m3db/m3db/persist"
 )
 
-// ReaderOpenOptionsMatcher is a matcher for the ReaderOpenOptions struct
+// ReaderOpenOptionsMatcher is a matcher for the DataReaderOpenOptions struct
 type ReaderOpenOptionsMatcher struct {
-	ID          FilesetFileIdentifier
-	FilesetType persist.FilesetType
+	ID          FileSetFileIdentifier
+	FileSetType persist.FileSetType
 }
 
-// Matches determine whether m matches a WriterOpenOptions
+// Matches determine whether m matches a DataWriterOpenOptions
 func (m ReaderOpenOptionsMatcher) Matches(x interface{}) bool {
-	readerOpenOptions, ok := x.(ReaderOpenOptions)
+	readerOpenOptions, ok := x.(DataReaderOpenOptions)
 	if !ok {
 		return false
 	}
@@ -48,7 +48,7 @@ func (m ReaderOpenOptionsMatcher) Matches(x interface{}) bool {
 	if !m.ID.BlockStart.Equal(readerOpenOptions.Identifier.BlockStart) {
 		return false
 	}
-	if m.FilesetType != readerOpenOptions.FilesetType {
+	if m.FileSetType != readerOpenOptions.FileSetType {
 		return false
 	}
 
@@ -58,6 +58,6 @@ func (m ReaderOpenOptionsMatcher) Matches(x interface{}) bool {
 func (m ReaderOpenOptionsMatcher) String() string {
 	return fmt.Sprintf(
 		"namespace: %s, shard: %d, blockstart: %d, filesetType: %s",
-		m.ID.Namespace.String(), m.ID.Shard, m.ID.BlockStart.Unix(), m.FilesetType,
+		m.ID.Namespace.String(), m.ID.Shard, m.ID.BlockStart.Unix(), m.FileSetType,
 	)
 }

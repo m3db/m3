@@ -79,8 +79,8 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 	m.newOpenSeekerFn = func(
 		shard uint32,
 		blockStart time.Time,
-	) (FileSetSeeker, error) {
-		mock := NewMockFileSetSeeker(ctrl)
+	) (DataFileSetSeeker, error) {
+		mock := NewMockDataFileSetSeeker(ctrl)
 		mock.EXPECT().Open(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mock.EXPECT().ConcurrentClone().Return(mock, nil)
 		for i := 0; i < NewBlockRetrieverOptions().FetchConcurrency(); i++ {
@@ -152,7 +152,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			return nil
 		}
 
-		mock := NewMockFileSetSeeker(ctrl)
+		mock := NewMockDataFileSetSeeker(ctrl)
 		mock.EXPECT().Close().Return(nil)
 		mocks := []borrowableSeeker{}
 		mocks = append(mocks, borrowableSeeker{seeker: mock})
@@ -174,7 +174,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	}
 
 	metadata := testNs1Metadata(t)
-	seekers := []ConcurrentFileSetSeeker{}
+	seekers := []ConcurrentDataFileSetSeeker{}
 
 	require.NoError(t, m.Open(metadata))
 	// Steps is a series of steps for the test. It is guaranteed that at least

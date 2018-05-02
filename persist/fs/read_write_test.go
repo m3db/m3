@@ -43,7 +43,7 @@ type testEntry struct {
 	data []byte
 }
 
-func newTestWriter(t *testing.T, filePathPrefix string) FileSetWriter {
+func newTestWriter(t *testing.T, filePathPrefix string) DataFileSetWriter {
 	writer, err := NewWriter(NewOptions().
 		SetFilePathPrefix(filePathPrefix).
 		SetWriterBufferSize(testWriterBufferSize))
@@ -51,9 +51,9 @@ func newTestWriter(t *testing.T, filePathPrefix string) FileSetWriter {
 	return writer
 }
 
-func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
-	writerOpts := WriterOpenOptions{
-		Identifier: FilesetFileIdentifier{
+func writeTestData(t *testing.T, w DataFileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
+	writerOpts := DataWriterOpenOptions{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: timestamp,
@@ -90,10 +90,10 @@ var readTestTypes = []readTestType{
 // reading the metadata the second time.
 // If it starts to fail during the pass that reads just the metadata it could
 // be a newly introduced reader reuse bug.
-func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
+func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
 	for _, underTest := range readTestTypes {
-		rOpenOpts := ReaderOpenOptions{
-			Identifier: FilesetFileIdentifier{
+		rOpenOpts := DataReaderOpenOptions{
+			Identifier: FileSetFileIdentifier{
 				Namespace:  testNs1ID,
 				Shard:      0,
 				BlockStart: timestamp,
@@ -192,8 +192,8 @@ func TestDuplicateWrite(t *testing.T) {
 	}
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := WriterOpenOptions{
-		Identifier: FilesetFileIdentifier{
+	writerOpts := DataWriterOpenOptions{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -299,8 +299,8 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	}
 	w := newTestWriter(t, filePathPrefix)
 	shard := uint32(0)
-	writerOpts := WriterOpenOptions{
-		Identifier: FilesetFileIdentifier{
+	writerOpts := DataWriterOpenOptions{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: testWriterStart,
@@ -322,8 +322,8 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	w.Close()
 
 	r := newTestReader(t, filePathPrefix)
-	rOpenOpts := ReaderOpenOptions{
-		Identifier: FilesetFileIdentifier{
+	rOpenOpts := DataReaderOpenOptions{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: testWriterStart,
@@ -348,9 +348,9 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	}
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := WriterOpenOptions{
+	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: FilesetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,

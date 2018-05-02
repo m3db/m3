@@ -40,16 +40,16 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-type newFileSetReaderFn func(
+type newDataFileSetReaderFn func(
 	bytesPool pool.CheckedBytesPool,
 	opts fs.Options,
-) (fs.FileSetReader, error)
+) (fs.DataFileSetReader, error)
 
 type fileSystemSource struct {
 	opts        Options
 	fsopts      fs.Options
 	log         xlog.Logger
-	newReaderFn newFileSetReaderFn
+	newReaderFn newDataFileSetReaderFn
 	processors  xsync.WorkerPool
 }
 
@@ -140,7 +140,7 @@ func (s *fileSystemSource) enqueueReaders(
 			continue
 		}
 
-		readers := make([]fs.FileSetReader, 0, len(readInfoFilesResults))
+		readers := make([]fs.DataFileSetReader, 0, len(readInfoFilesResults))
 		for i := 0; i < len(readInfoFilesResults); i++ {
 			result := readInfoFilesResults[i]
 			if result.Err.Error() != nil {
@@ -162,8 +162,8 @@ func (s *fileSystemSource) enqueueReaders(
 				continue
 			}
 			t := xtime.FromNanoseconds(info.BlockStart)
-			openOpts := fs.ReaderOpenOptions{
-				Identifier: fs.FilesetFileIdentifier{
+			openOpts := fs.DataReaderOpenOptions{
+				Identifier: fs.FileSetFileIdentifier{
 					Namespace:  namespace,
 					Shard:      shard,
 					BlockStart: t,
@@ -535,7 +535,7 @@ func (s *fileSystemSource) Read(
 	// Create a reader pool once per bootstrap as we don't really want to
 	// allocate and keep around readers outside of the bootstrapping process,
 	// hence why its created on demand each time.
-	readerPool := newReaderPool(func() (fs.FileSetReader, error) {
+	readerPool := newReaderPool(func() (fs.DataFileSetReader, error) {
 		return s.newReaderFn(bytesPool, s.fsopts)
 	})
 	readersCh := make(chan shardReaders)
@@ -546,11 +546,11 @@ func (s *fileSystemSource) Read(
 type shardReaders struct {
 	shard   uint32
 	tr      xtime.Ranges
-	readers []fs.FileSetReader
+	readers []fs.DataFileSetReader
 	err     error
 }
 
-func newShardReaders(shard uint32, tr xtime.Ranges, readers []fs.FileSetReader) shardReaders {
+func newShardReaders(shard uint32, tr xtime.Ranges, readers []fs.DataFileSetReader) shardReaders {
 	return shardReaders{
 		shard:   shard,
 		tr:      tr,
@@ -571,16 +571,16 @@ func newShardReadersErr(shard uint32, tr xtime.Ranges, err error) shardReaders {
 type readerPool struct {
 	sync.Mutex
 	alloc  readerPoolAllocFn
-	values []fs.FileSetReader
+	values []fs.DataFileSetReader
 }
 
-type readerPoolAllocFn func() (fs.FileSetReader, error)
+type readerPoolAllocFn func() (fs.DataFileSetReader, error)
 
 func newReaderPool(alloc readerPoolAllocFn) *readerPool {
 	return &readerPool{alloc: alloc}
 }
 
-func (p *readerPool) get() (fs.FileSetReader, error) {
+func (p *readerPool) get() (fs.DataFileSetReader, error) {
 	p.Lock()
 	if len(p.values) == 0 {
 		p.Unlock()
@@ -594,7 +594,7 @@ func (p *readerPool) get() (fs.FileSetReader, error) {
 	return value, nil
 }
 
-func (p *readerPool) put(r fs.FileSetReader) {
+func (p *readerPool) put(r fs.DataFileSetReader) {
 	p.Lock()
 	p.values = append(p.values, r)
 	p.Unlock()

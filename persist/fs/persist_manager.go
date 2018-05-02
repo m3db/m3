@@ -65,7 +65,7 @@ type persistManager struct {
 	filePathPrefix string
 	nowFn          clock.NowFn
 	sleepFn        sleepFn
-	writer         FileSetWriter
+	writer         DataFileSetWriter
 	// segmentHolder is a two-item slice that's reused to hold pointers to the
 	// head and the tail of each segment so we don't need to allocate memory
 	// and gc it shortly after.
@@ -245,13 +245,13 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 	}
 
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
-	writerOpts := WriterOpenOptions{
+	writerOpts := DataWriterOpenOptions{
 		BlockSize: blockSize,
-		Snapshot: WriterSnapshotOptions{
+		Snapshot: DataWriterSnapshotOptions{
 			SnapshotTime: snapshotTime,
 		},
-		FilesetType: opts.FilesetType,
-		Identifier: FilesetFileIdentifier{
+		FileSetType: opts.FileSetType,
+		Identifier: FileSetFileIdentifier{
 			Namespace:  nsID,
 			Shard:      shard,
 			BlockStart: blockStart,
@@ -274,17 +274,17 @@ func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) (b
 		nsID       = prepareOpts.NamespaceMetadata.ID()
 	)
 
-	switch prepareOpts.FilesetType {
-	case persist.FilesetSnapshotType:
+	switch prepareOpts.FileSetType {
+	case persist.FileSetSnapshotType:
 		// Snapshot files are indexed (multiple per block-start), so checking if the file
 		// already exist doesn't make much sense
 		return false, nil
-	case persist.FilesetFlushType:
-		return DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart), nil
+	case persist.FileSetFlushType:
+		return DataFileSetExistsAt(pm.filePathPrefix, nsID, shard, blockStart), nil
 	default:
 		return false, fmt.Errorf(
 			"unable to determine if fileset exists in persist manager for fileset type: %s",
-			prepareOpts.FilesetType)
+			prepareOpts.FileSetType)
 	}
 }
 

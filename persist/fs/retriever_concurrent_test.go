@@ -79,11 +79,11 @@ func newOpenTestWriter(
 	fsOpts Options,
 	shard uint32,
 	start time.Time,
-) (FileSetWriter, testCleanupFn) {
+) (DataFileSetWriter, testCleanupFn) {
 	w := newTestWriter(t, fsOpts.FilePathPrefix())
-	writerOpts := WriterOpenOptions{
+	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: FilesetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: start,

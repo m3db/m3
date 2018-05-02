@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3db/persist/fs/msgpack"
 )
 
-type filesetReaderDecoderStream interface {
+type dataFileSetReaderDecoderStream interface {
 	msgpack.DecoderStream
 
 	// reader returns the underlying reader with access to the
@@ -46,7 +46,7 @@ type readerDecoderStream struct {
 	unreadByte       int
 }
 
-func newReaderDecoderStream() filesetReaderDecoderStream {
+func newReaderDecoderStream() dataFileSetReaderDecoderStream {
 	return &readerDecoderStream{
 		readerWithDigest: digest.NewReaderWithDigest(nil),
 		bytesReader:      bytes.NewReader(nil),

@@ -21,8 +21,10 @@
 package fs
 
 import (
+	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -39,39 +41,49 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-// FilesetFileIdentifier contains all the information required to identify a FilesetFile
-type FilesetFileIdentifier struct {
-	Namespace  ident.ID
-	BlockStart time.Time
-	Shard      uint32
+var (
+	// fileSubTypeRegex allows what can be used for a file sub type,
+	// explicitly cannot use "-" as that is our file set file name separator,
+	// also we ensure that callers must use lower cased strings.
+	fileSubTypeRegex = regexp.MustCompile("^[a-z_]+$")
+)
+
+// FileSetFileIdentifier contains all the information required to identify a FileSetFile
+type FileSetFileIdentifier struct {
+	FileSetContentType persist.FileSetContentType
+	Namespace          ident.ID
+	BlockStart         time.Time
+	// Only required for data content files
+	Shard uint32
 	// Only required for snapshot files
 	Index int
 }
 
-// WriterOpenOptions is the options struct for the Open method on the FilesetWriter
-type WriterOpenOptions struct {
-	Identifier  FilesetFileIdentifier
-	BlockSize   time.Duration
-	FilesetType persist.FilesetType
+// DataWriterOpenOptions is the options struct for the Open method on the DataFileSetWriter
+type DataWriterOpenOptions struct {
+	FileSetType        persist.FileSetType
+	FileSetContentType persist.FileSetContentType
+	Identifier         FileSetFileIdentifier
+	BlockSize          time.Duration
 	// Only used when writing snapshot files
-	Snapshot WriterSnapshotOptions
+	Snapshot DataWriterSnapshotOptions
 }
 
-// WriterSnapshotOptions is the options struct for Open method on the FilesetWriter
+// DataWriterSnapshotOptions is the options struct for Open method on the DataFileSetWriter
 // that contains information specific to writing snapshot files
-type WriterSnapshotOptions struct {
+type DataWriterSnapshotOptions struct {
 	SnapshotTime time.Time
 }
 
-// FileSetWriter provides an unsynchronized writer for a TSDB file set
-type FileSetWriter interface {
+// DataFileSetWriter provides an unsynchronized writer for a TSDB file set
+type DataFileSetWriter interface {
 	io.Closer
 
 	// Open opens the files for writing data to the given shard in the given namespace.
 	// This method is not thread-safe, so its the callers responsibilities that they never
 	// try and write two snapshot files for the same block start at the same time or their
 	// will be a race in determining the snapshot file's index.
-	Open(opts WriterOpenOptions) error
+	Open(opts DataWriterOpenOptions) error
 
 	// Write will write the id and data pair and returns an error on a write error. Callers
 	// must not call this method with a given ID more than once.
@@ -82,8 +94,8 @@ type FileSetWriter interface {
 	WriteAll(id ident.ID, data []checked.Bytes, checksum uint32) error
 }
 
-// FileSetReaderStatus describes the status of a file set reader
-type FileSetReaderStatus struct {
+// DataFileSetReaderStatus describes the status of a file set reader
+type DataFileSetReaderStatus struct {
 	Namespace  ident.ID
 	BlockStart time.Time
 
@@ -91,21 +103,21 @@ type FileSetReaderStatus struct {
 	Open  bool
 }
 
-// ReaderOpenOptions is options struct for the reader open method.
-type ReaderOpenOptions struct {
-	Identifier  FilesetFileIdentifier
-	FilesetType persist.FilesetType
+// DataReaderOpenOptions is options struct for the reader open method.
+type DataReaderOpenOptions struct {
+	Identifier  FileSetFileIdentifier
+	FileSetType persist.FileSetType
 }
 
-// FileSetReader provides an unsynchronized reader for a TSDB file set
-type FileSetReader interface {
+// DataFileSetReader provides an unsynchronized reader for a TSDB file set
+type DataFileSetReader interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
-	Open(opts ReaderOpenOptions) error
+	Open(opts DataReaderOpenOptions) error
 
 	// Status returns the status of the reader
-	Status() FileSetReaderStatus
+	Status() DataFileSetReaderStatus
 
 	// Read returns the next id, data, checksum tuple or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
@@ -141,8 +153,8 @@ type FileSetReader interface {
 	MetadataRead() int
 }
 
-// FileSetSeeker provides an out of order reader for a TSDB file set
-type FileSetSeeker interface {
+// DataFileSetSeeker provides an out of order reader for a TSDB file set
+type DataFileSetSeeker interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
@@ -179,30 +191,30 @@ type FileSetSeeker interface {
 	// (mmaps), but that is capable of seeking independently. The original can continue
 	// to be used after the clones are closed, but the clones cannot be used after the
 	// original is closed.
-	ConcurrentClone() (ConcurrentFileSetSeeker, error)
+	ConcurrentClone() (ConcurrentDataFileSetSeeker, error)
 }
 
-// ConcurrentFileSetSeeker is a limited interface that is returned when ConcurrentClone() is called on FileSetSeeker.
+// ConcurrentDataFileSetSeeker is a limited interface that is returned when ConcurrentClone() is called on DataFileSetSeeker.
 // The clones can be used together concurrently and share underlying resources. Clones are no
 // longer usable once the original has been closed.
-type ConcurrentFileSetSeeker interface {
+type ConcurrentDataFileSetSeeker interface {
 	io.Closer
 
-	// SeekByID is the same as in FileSetSeeker
+	// SeekByID is the same as in DataFileSetSeeker
 	SeekByID(id ident.ID) (data checked.Bytes, err error)
 
-	// SeekByIndexEntry is the same as in FileSetSeeker
+	// SeekByIndexEntry is the same as in DataFileSetSeeker
 	SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error)
 
-	// SeekIndexEntry is the same as in FileSetSeeker
+	// SeekIndexEntry is the same as in DataFileSetSeeker
 	SeekIndexEntry(id ident.ID) (IndexEntry, error)
 
-	// ConcurrentIDBloomFilter is the same as in FileSetSeeker
+	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
 }
 
-// FileSetSeekerManager provides management of seekers for a TSDB namespace.
-type FileSetSeekerManager interface {
+// DataFileSetSeekerManager provides management of seekers for a TSDB namespace.
+type DataFileSetSeekerManager interface {
 	io.Closer
 
 	// Open opens the seekers for a given namespace.
@@ -213,18 +225,18 @@ type FileSetSeekerManager interface {
 	CacheShardIndices(shards []uint32) error
 
 	// Borrow returns an open seeker for a given shard and block start time.
-	Borrow(shard uint32, start time.Time) (ConcurrentFileSetSeeker, error)
+	Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error)
 
 	// Return returns an open seeker for a given shard and block start time.
-	Return(shard uint32, start time.Time, seeker ConcurrentFileSetSeeker) error
+	Return(shard uint32, start time.Time, seeker ConcurrentDataFileSetSeeker) error
 
 	// ConcurrentIDBloomFilter returns a concurrent ID bloom filter for a given
 	// shard and block start time
 	ConcurrentIDBloomFilter(shard uint32, start time.Time) (*ManagedConcurrentBloomFilter, error)
 }
 
-// BlockRetriever provides a block retriever for TSDB file sets
-type BlockRetriever interface {
+// DataBlockRetriever provides a block retriever for TSDB file sets
+type DataBlockRetriever interface {
 	io.Closer
 	block.DatabaseBlockRetriever
 
@@ -232,9 +244,111 @@ type BlockRetriever interface {
 	Open(md namespace.Metadata) error
 }
 
-// RetrievableBlockSegmentReader is a retrievable block reader
-type RetrievableBlockSegmentReader interface {
+// RetrievableDataBlockSegmentReader is a retrievable block reader
+type RetrievableDataBlockSegmentReader interface {
 	xio.SegmentReader
+}
+
+// IndexWriterSnapshotOptions is a set of options for writing an index file set snapshot.
+type IndexWriterSnapshotOptions struct {
+	SnapshotTime time.Time
+}
+
+// IndexWriterOpenOptions is a set of options when opening an index file set writer.
+type IndexWriterOpenOptions struct {
+	Identifier  FileSetFileIdentifier
+	BlockSize   time.Duration
+	FileSetType persist.FileSetType
+	// Only used when writing snapshot files
+	Snapshot IndexWriterSnapshotOptions
+}
+
+// IndexFileSetWriter is a index file set writer.
+type IndexFileSetWriter interface {
+	io.Closer
+
+	// Open the index file set writer.
+	Open(opts IndexWriterOpenOptions) error
+
+	// WriteSegmentFileSet writes a index segment file set.
+	WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) error
+}
+
+// IndexSegmentType is the type of an index file set.
+type IndexSegmentType string
+
+// Validate validates whether the string value is a valid segment type
+// and contains only lowercase a-z and underscore characters.
+func (t IndexSegmentType) Validate() error {
+	s := string(t)
+	if t == "" || !fileSubTypeRegex.MatchString(s) {
+		return fmt.Errorf("invalid segment type must match pattern=%s",
+			fileSubTypeRegex.String())
+	}
+	return nil
+}
+
+// IndexSegmentFileType is the type of a file in an index file set.
+type IndexSegmentFileType string
+
+// Validate validates whether the string value is a valid segment file type
+// and contains only lowercase a-z and underscore characters.
+func (t IndexSegmentFileType) Validate() error {
+	s := string(t)
+	if t == "" || !fileSubTypeRegex.MatchString(s) {
+		return fmt.Errorf("invalid segment file type must match pattern=%s",
+			fileSubTypeRegex.String())
+	}
+	return nil
+}
+
+// IndexSegmentFileSet is an index segment file set.
+type IndexSegmentFileSet interface {
+	SegmentType() IndexSegmentType
+	MajorVersion() int
+	MinorVersion() int
+	SegmentMetadata() []byte
+	Files() []IndexSegmentFile
+}
+
+// IndexSegmentFile is a file in an index segment file set.
+type IndexSegmentFile interface {
+	io.Reader
+	io.Closer
+
+	// SegmentFileType returns the segment file type.
+	SegmentFileType() IndexSegmentFileType
+
+	// Bytes will be valid until the segment file is closed.
+	Bytes() ([]byte, error)
+}
+
+// IndexReaderOpenOptions is the index file set reader open options.
+type IndexReaderOpenOptions struct {
+	Identifier  FileSetFileIdentifier
+	FileSetType persist.FileSetType
+}
+
+// IndexFileSetReader is an index file set reader.
+type IndexFileSetReader interface {
+	io.Closer
+
+	// Open the index file set reader.
+	Open(opts IndexReaderOpenOptions) error
+
+	// SegmentFileSets returns the number of segment file sets.
+	SegmentFileSets() int
+
+	// ReadSegmentFileSet returns the next segment file set or an error.
+	// It will return io.EOF error when no more file sets remain.
+	// The IndexSegmentFileSet will only be valid before it's closed,
+	// after that calls to Read or Bytes on it will have unexpected results.
+	ReadSegmentFileSet() (IndexSegmentFileSet, error)
+
+	// Validate returns whether all checksums were matched as expected,
+	// it must be called after reading all the segment file sets otherwise
+	// it returns an error.
+	Validate() error
 }
 
 // Options represents the options for filesystem persistence

@@ -406,8 +406,8 @@ type databaseShard interface {
 	// CleanupSnapshots cleans up snapshot files
 	CleanupSnapshots(earliestToRetain time.Time) error
 
-	// CleanupFileset cleans up fileset files
-	CleanupFileset(earliestToRetain time.Time) error
+	// CleanupFileSet cleans up fileset files
+	CleanupFileSet(earliestToRetain time.Time) error
 
 	// Repair repairs the shard data for a given time
 	Repair(
