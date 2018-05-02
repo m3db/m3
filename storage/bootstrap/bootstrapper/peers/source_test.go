@@ -342,17 +342,23 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 			block, ok := r.ShardResults()[0].BlockAt(ident.StringID("foo"), start)
 			require.True(t, ok)
-			assertBlockChecksum(t, checksum, fooBlock)
+			fooBlockChecksum, err := fooBlock.Checksum()
+			require.NoError(t, err)
+			assertBlockChecksum(t, fooBlockChecksum, block)
 			assert.False(t, block.IsRetrieved())
 
 			block, ok = r.ShardResults()[0].BlockAt(ident.StringID("bar"), start.Add(ropts.BlockSize()))
 			require.True(t, ok)
-			assertBlockChecksum(t, checksum, barBlock)
+			barBlockChecksum, err := barBlock.Checksum()
+			require.NoError(t, err)
+			assertBlockChecksum(t, barBlockChecksum, block)
 			assert.False(t, block.IsRetrieved())
 
 			block, ok = r.ShardResults()[1].BlockAt(ident.StringID("baz"), start)
 			require.True(t, ok)
-			assertBlockChecksum(t, checksum, bazBlock)
+			bazBlockChecksum, err := bazBlock.Checksum()
+			require.NoError(t, err)
+			assertBlockChecksum(t, bazBlockChecksum, block)
 			assert.False(t, block.IsRetrieved())
 		} else {
 			assert.Equal(t, 0, len(r.ShardResults()))
@@ -670,7 +676,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	}, closes)
 }
 
-func assertBlockChecksum(t, expectedChecksum, block) {
+func assertBlockChecksum(t *testing.T, expectedChecksum uint32, block block.DatabaseBlock) {
 	checksum, err := block.Checksum()
 	require.NoError(t, err)
 	require.Equal(t, expectedChecksum, checksum)

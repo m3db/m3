@@ -826,7 +826,7 @@ type DatabaseBootstrapState struct {
 	NamespaceBootstrapStates NamespaceBootstrapStates
 }
 
-// NamespaceBootstrapStates stores a snapshot of the bootstrap state for all shards accross a
+// NamespaceBootstrapStates stores a snapshot of the bootstrap state for all shards across a
 // number of namespaces at a given moment in time.
 type NamespaceBootstrapStates map[string]ShardBootstrapStates
 

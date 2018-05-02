@@ -227,7 +227,7 @@ func TestSeriesFlush(t *testing.T) {
 		if input == nil {
 			require.Equal(t, FlushOutcomeFlushedToDisk, outcome)
 		} else {
-			require.Equal(t, FlushOutcomeFlushErr, outcome)
+			require.Equal(t, FlushOutcomeErr, outcome)
 		}
 	}
 }
@@ -714,7 +714,8 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	series.blocks = mockBlocks
 	series.buffer = buffer
 
-	res := series.FetchBlocksMetadata(ctx, start, end, fetchOpts)
+	res, err := series.FetchBlocksMetadata(ctx, start, end, fetchOpts)
+	require.NoError(t, err)
 	require.Equal(t, "bar", res.ID.String())
 
 	metadata := res.Blocks.Results()
