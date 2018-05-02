@@ -22,7 +22,6 @@ package block
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -144,27 +143,38 @@ func (b *dbBlock) Len() int {
 }
 
 func (b *dbBlock) Checksum() (uint32, error) {
-	// Infinite loop because we release the RLock before we call Stream() and
-	// we can't assume that another merge target isn't added in-between b.Stream()
-	// returning and us checking the checksum again.
-	for {
-		b.RLock()
-		checksum := b.checksum
-		hasMergeTarget := b.mergeTarget != nil
-		b.RUnlock()
+	b.RLock()
+	checksum := b.checksum
+	hasMergeTarget := b.mergeTarget != nil
+	b.RUnlock()
 
-		if !hasMergeTarget {
-			return checksum, nil
-		}
-
-		tempCtx := b.opts.ContextPool().Get()
-		defer tempCtx.Close()
-		// Rely on the stream method to handle merging / recalculating the checksum.
-		_, err := b.Stream(tempCtx)
-		if err != nil {
-			return 0, err
-		}
+	if !hasMergeTarget {
+		return checksum, nil
 	}
+
+	b.Lock()
+	defer b.Unlock()
+	// Since we released the lock temporarily we need to check again.
+	hasMergeTarget = b.mergeTarget != nil
+	if !hasMergeTarget {
+		checksum = b.checksum
+		b.Unlock()
+		return b.checksum, nil
+	}
+
+	tempCtx := b.opts.ContextPool().Get()
+
+	stream, err := b.stream(tempCtx)
+	if err != nil {
+		return 0, err
+	}
+
+	_, err = b.forceMergeWithLock(tempCtx, stream)
+	if err != nil {
+		return 0, err
+	}
+
+	return b.checksum, nil
 }
 
 func (b *dbBlock) OnRetrieveBlock(
@@ -196,59 +206,16 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 
 	b.ctx.DependsOn(blocker)
 
-	// If the block retrieve ID is set then it must be retrieved
-	var (
-		stream xio.SegmentReader
-		err    error
-	)
-	if b.retriever != nil {
-		start := b.startWithLock()
-		stream, err = b.retriever.Stream(blocker, b.retrieveID, start, b)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		stream = b.opts.SegmentReaderPool().Get()
-		// NB(r): We explicitly create a new segment to ensure references
-		// are taken to the bytes refs and to not finalize the bytes.
-		if b.mergeTarget == nil {
-			stream.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
-		} else {
-			// If we're gonna do a force-merge, then use the existing segment because we
-			// want to finalize it and the underlying bytes when we're done. We don't need
-			// to worry about the double-finalize with the existing b.ctx because the segment
-			// Finalize() method is idempotent.
-			stream.Reset(b.segment)
-		}
+	stream, err := b.stream(blocker)
+	if err != nil {
+		return nil, err
 	}
 
 	if b.mergeTarget == nil {
-		blocker.RegisterFinalizer(stream)
 		return stream, nil
 	}
 
-	targetStream, err := b.mergeTarget.Stream(blocker)
-	if err != nil {
-		stream.Finalize()
-		return nil, err
-	}
-
-	mergedStream := newDatabaseMergedBlockReader(b.startWithLock(),
-		mergeableStream{stream: stream, finalize: false},       // already registered above
-		mergeableStream{stream: targetStream, finalize: false}, // already registered by recursive call
-		b.opts)
-	mergedSegment, err := mergedStream.Segment()
-	if err != nil {
-		return nil, err
-	}
-
-	// Delay finalization until this point to make sure we don't prematurely finalize and
-	// then leave the block in a corrupt state if we return early with an error.
-	blocker.RegisterFinalizer(stream)
-
-	b.resetMergeTargetWithLock()
-	b.resetSegmentWithLock(mergedSegment)
-	return mergedStream, nil
+	return b.forceMergeWithLock(blocker, stream)
 }
 
 func (b *dbBlock) IsRetrieved() bool {
@@ -306,20 +273,49 @@ func (b *dbBlock) ResetRetrievable(
 	b.resetRetrievableWithLock(retriever, metadata)
 }
 
-// func (b *dbBlock) getMergedStream(ctx context.Context, stream xio.SegmentReader) (xio.SegmentReader, error) {
-// 	targetStream, err := b.mergeTarget.Stream(ctx)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func (b *dbBlock) stream(ctx context.Context) (xio.SegmentReader, error) {
+	b.ctx.DependsOn(ctx)
 
-// 	// Return a lazily merged stream
-// 	// TODO(r): once merged reset this block with the contents of it
-// 	mergedStream := newDatabaseMergedBlockReader(b.startWithLock(),
-// 		mergeableStream{stream: stream, finalize: false},       // already registered above
-// 		mergeableStream{stream: targetStream, finalize: false}, // already registered by Stream call above
-// 		b.opts)
-// 	blocker.RegisterFinalizer(merged)
-// }
+	// If the block retrieve ID is set then it must be retrieved
+	var (
+		stream xio.SegmentReader
+		err    error
+	)
+	if b.retriever != nil {
+		start := b.startWithLock()
+		stream, err = b.retriever.Stream(ctx, b.retrieveID, start, b)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		stream = b.opts.SegmentReaderPool().Get()
+		stream.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
+		ctx.RegisterFinalizer(stream)
+	}
+
+	return stream, nil
+}
+
+func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentReader) (xio.SegmentReader, error) {
+	targetStream, err := b.mergeTarget.Stream(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	mergedStream := newDatabaseMergedBlockReader(b.startWithLock(),
+		mergeableStream{stream: stream, finalize: false},       // Should have been marked for finalization by the caller
+		mergeableStream{stream: targetStream, finalize: false}, // Already marked for finalization by the Stream() call above
+		b.opts)
+	mergedSegment, err := mergedStream.Segment()
+	if err != nil {
+		return nil, err
+	}
+	ctx.RegisterFinalizer(mergedStream)
+
+	b.resetMergeTargetWithLock()
+	b.resetSegmentWithLock(mergedSegment)
+	return mergedStream, nil
+}
 
 func (b *dbBlock) resetNewBlockStartWithLock(start time.Time) {
 	if !b.closed {
@@ -336,7 +332,6 @@ func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 	b.segment = seg
 	b.length = seg.Len()
 	b.checksum = digest.SegmentChecksum(seg)
-	fmt.Println("set checksum again")
 
 	b.retriever = nil
 	b.retrieveID = nil
