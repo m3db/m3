@@ -413,7 +413,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			if exists {
 				entry.Blocks.AddBlock(seriesBlock)
 			} else {
-				shardResult.AddBlock(id, seriesBlock)
+				shardResult.AddBlock(id, nil, seriesBlock) // FOLLOWUP(prateek): retrieve tags in fs reader
 			}
 			resultLock.Unlock()
 		}
