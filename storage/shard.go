@@ -1599,7 +1599,7 @@ func (s *dbShard) Bootstrap(
 			// Synchronously insert to avoid waiting for
 			// the insert queue potential delayed insert
 			entry, err = s.insertSeriesSync(dbBlocks.ID,
-				ident.EmptyTagIterator, // FOLLOWUP(prateek): retrieve tags during bootstrap process, and insert into index
+				ident.NewTagSliceIterator(dbBlocks.Tags),
 				insertSyncIncReaderWriterCount)
 			if err != nil {
 				multiErr = multiErr.Add(err)
