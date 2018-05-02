@@ -45,6 +45,7 @@ import (
 	"github.com/m3db/m3db/x/xcounter"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -1384,15 +1385,15 @@ func (m *MocknamespaceIndex) EXPECT() *MocknamespaceIndexMockRecorder {
 }
 
 // Write mocks base method
-func (m *MocknamespaceIndex) Write(id ident.ID, tags ident.Tags, fns index.OnIndexSeries) error {
-	ret := m.ctrl.Call(m, "Write", id, tags, fns)
+func (m *MocknamespaceIndex) Write(id ident.ID, tags ident.Tags, timestamp time.Time, fns index.OnIndexSeries) error {
+	ret := m.ctrl.Call(m, "Write", id, tags, timestamp, fns)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Write indicates an expected call of Write
-func (mr *MocknamespaceIndexMockRecorder) Write(id, tags, fns interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MocknamespaceIndex)(nil).Write), id, tags, fns)
+func (mr *MocknamespaceIndexMockRecorder) Write(id, tags, timestamp, fns interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MocknamespaceIndex)(nil).Write), id, tags, timestamp, fns)
 }
 
 // Query mocks base method
@@ -1406,6 +1407,31 @@ func (m *MocknamespaceIndex) Query(ctx context.Context, query index.Query, opts 
 // Query indicates an expected call of Query
 func (mr *MocknamespaceIndexMockRecorder) Query(ctx, query, opts interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MocknamespaceIndex)(nil).Query), ctx, query, opts)
+}
+
+// Bootstrap mocks base method
+func (m *MocknamespaceIndex) Bootstrap(segmentsByBlockStart map[time0.UnixNano][]segment.Segment) error {
+	ret := m.ctrl.Call(m, "Bootstrap", segmentsByBlockStart)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Bootstrap indicates an expected call of Bootstrap
+func (mr *MocknamespaceIndexMockRecorder) Bootstrap(segmentsByBlockStart interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MocknamespaceIndex)(nil).Bootstrap), segmentsByBlockStart)
+}
+
+// Tick mocks base method
+func (m *MocknamespaceIndex) Tick(c context.Cancellable) (namespaceIndexTickResult, error) {
+	ret := m.ctrl.Call(m, "Tick", c)
+	ret0, _ := ret[0].(namespaceIndexTickResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Tick indicates an expected call of Tick
+func (mr *MocknamespaceIndexMockRecorder) Tick(c interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MocknamespaceIndex)(nil).Tick), c)
 }
 
 // Close mocks base method
@@ -1468,16 +1494,16 @@ func (mr *MocknamespaceIndexInsertQueueMockRecorder) Stop() *gomock.Call {
 }
 
 // Insert mocks base method
-func (m *MocknamespaceIndexInsertQueue) Insert(d doc.Document, s index.OnIndexSeries) (*sync.WaitGroup, error) {
-	ret := m.ctrl.Call(m, "Insert", d, s)
+func (m *MocknamespaceIndexInsertQueue) Insert(blockStart time.Time, d doc.Document, s index.OnIndexSeries) (*sync.WaitGroup, error) {
+	ret := m.ctrl.Call(m, "Insert", blockStart, d, s)
 	ret0, _ := ret[0].(*sync.WaitGroup)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Insert indicates an expected call of Insert
-func (mr *MocknamespaceIndexInsertQueueMockRecorder) Insert(d, s interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Insert), d, s)
+func (mr *MocknamespaceIndexInsertQueueMockRecorder) Insert(blockStart, d, s interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Insert), blockStart, d, s)
 }
 
 // MockdatabaseBootstrapManager is a mock of databaseBootstrapManager interface

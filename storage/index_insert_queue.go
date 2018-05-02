@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3ninx/doc"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -147,6 +148,7 @@ func (q *nsIndexInsertQueue) insertLoop() {
 }
 
 func (q *nsIndexInsertQueue) Insert(
+	blockStart time.Time,
 	d doc.Document,
 	fns index.OnIndexSeries,
 ) (*sync.WaitGroup, error) {
@@ -170,6 +172,7 @@ func (q *nsIndexInsertQueue) Insert(
 		}
 	}
 	q.currBatch.inserts = append(q.currBatch.inserts, index.WriteBatchEntry{
+		BlockStart:    xtime.ToUnixNano(blockStart),
 		Document:      d,
 		OnIndexSeries: fns,
 	})
@@ -216,11 +219,13 @@ func (q *nsIndexInsertQueue) Stop() error {
 	default:
 		// Loop busy, already ready to consume notification
 	}
+	// FOLLOWUP(prateek): we need to wait until this queue is drained before
+	// we can correctly return success/failure.
 
 	return nil
 }
 
-type nsIndexInsertBatchFn func(inserts []index.WriteBatchEntry) error
+type nsIndexInsertBatchFn func(inserts []index.WriteBatchEntry)
 
 type nsIndexInsertBatch struct {
 	wg      *sync.WaitGroup

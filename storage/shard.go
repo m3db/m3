@@ -835,7 +835,7 @@ func (s *dbShard) writeAndIndex(
 		needsIndex := shouldReverseIndex && entry.needsIndexUpdate(timestamp)
 		if err == nil && needsIndex {
 			entry.onIndexPrepare()
-			err = s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), entry)
+			err = s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), timestamp, entry)
 		}
 		entry.decrementReaderWriterCount()
 		if err != nil {
@@ -1196,7 +1196,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// only index any entry that hasn't crossed the nextIndexTime
 			if entry.needsIndexUpdate(pendingIndex.timestamp) {
 				entry.onIndexPrepare()
-				s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), entry)
+				s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), pendingIndex.timestamp, entry)
 			}
 		}
 

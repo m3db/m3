@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3db/x/xcounter"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -433,6 +434,7 @@ type namespaceIndex interface {
 	Write(
 		id ident.ID,
 		tags ident.Tags,
+		timestamp time.Time,
 		fns index.OnIndexSeries,
 	) error
 
@@ -443,8 +445,27 @@ type namespaceIndex interface {
 		opts index.QueryOptions,
 	) (index.QueryResults, error)
 
+	// Bootstrap bootstraps the index the provided segments.
+	Bootstrap(
+		segmentsByBlockStart map[xtime.UnixNano][]segment.Segment,
+	) error
+
+	// Tick performs internal house keeping in the index, including block rotation,
+	// data eviction, and so on.
+	Tick(c context.Cancellable) (namespaceIndexTickResult, error)
+
 	// Close will release the index resources and close the index.
 	Close() error
+}
+
+// namespaceIndexTickResult are details about the work performed by the namespaceIndex
+// during a Tick().
+type namespaceIndexTickResult struct {
+	NumBlocks        int64
+	NumBlocksSealed  int64
+	NumBlocksEvicted int64
+	NumSegments      int64
+	NumTotalDocs     int64
 }
 
 // namespaceIndexInsertQueue is a queue used in-front of the indexing component
@@ -460,7 +481,7 @@ type namespaceIndexInsertQueue interface {
 	// inserts to the index asynchronously. It executes the provided callbacks
 	// based on the result of the execution. The returned wait group can be used
 	// if the insert is required to be synchronous.
-	Insert(d doc.Document, s index.OnIndexSeries) (*sync.WaitGroup, error)
+	Insert(blockStart time.Time, d doc.Document, s index.OnIndexSeries) (*sync.WaitGroup, error)
 }
 
 // databaseBootstrapManager manages the bootstrap process.

@@ -154,6 +154,9 @@ type Block interface {
 	// addition of segments via Bootstrap().
 	Seal() error
 
+	// IsSealed returns whether this block was sealed.
+	IsSealed() bool
+
 	// Close will release any held resources and close the Block.
 	Close() error
 }
