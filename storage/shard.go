@@ -1264,13 +1264,14 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 	limit int64,
 	indexCursor int64,
 	opts series.FetchBlocksMetadataOptions,
-) (block.FetchBlocksMetadataResults, *int64) {
+) (block.FetchBlocksMetadataResults, *int64, error) {
 	var (
 		res             = s.opts.FetchBlocksMetadataResultsPool().Get()
 		tmpCtx          = context.NewContext()
 		nextIndexCursor *int64
 	)
 
+	var loopErr error
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		// Break out of the iteration loop once we've accumulated enough entries.
 		if int64(len(res.Results())) >= limit {
@@ -1287,8 +1288,12 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 		// Use a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching the metadata for this series.
 		tmpCtx.Reset()
-		metadata := entry.series.FetchBlocksMetadata(tmpCtx, start, end, opts)
+		metadata, err := entry.series.FetchBlocksMetadata(tmpCtx, start, end, opts)
 		tmpCtx.BlockingClose()
+		if err != nil {
+			loopErr = err
+			return false
+		}
 
 		// If the blocksMetadata is empty, the series have no data within the specified
 		// time range so we don't return it to the client
@@ -1306,7 +1311,7 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 		return true
 	})
 
-	return res, nextIndexCursor
+	return res, nextIndexCursor, loopErr
 }
 
 func (s *dbShard) FetchBlocksMetadata(
@@ -1334,9 +1339,8 @@ func (s *dbShard) FetchBlocksMetadata(
 		FetchBlocksMetadataOptions: opts,
 		IncludeCachedBlocks:        true,
 	}
-	result, nextPageToken := s.fetchActiveBlocksMetadata(ctx, start, end,
+	return s.fetchActiveBlocksMetadata(ctx, start, end,
 		limit, pageToken, seriesFetchBlocksMetadataOpts)
-	return result, nextPageToken, nil
 }
 
 func (s *dbShard) FetchBlocksMetadataV2(
@@ -1371,8 +1375,12 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			FetchBlocksMetadataOptions: opts,
 			IncludeCachedBlocks:        true,
 		}
-		result, nextIndexCursor := s.fetchActiveBlocksMetadata(ctx, start, end,
+		result, nextIndexCursor, err := s.fetchActiveBlocksMetadata(ctx, start, end,
 			limit, indexCursor, seriesFetchBlocksMetadataOpts)
+		if err != nil {
+			return result, nil, err
+		}
+
 		if nextIndexCursor == nil {
 			// No more results and only enacting active phase since we are using
 			// series policy that caches all block metadata in memory
@@ -1421,8 +1429,12 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			FetchBlocksMetadataOptions: opts,
 			IncludeCachedBlocks:        false,
 		}
-		result, nextIndexCursor := s.fetchActiveBlocksMetadata(ctx, start, end,
+		result, nextIndexCursor, err := s.fetchActiveBlocksMetadata(ctx, start, end,
 			limit, indexCursor, seriesFetchBlocksMetadataOpts)
+		if err != nil {
+			return result, nil, err
+		}
+
 		// Encode the next page token
 		if nextIndexCursor == nil {
 			// Next phase, no more results from active series

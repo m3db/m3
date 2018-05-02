@@ -310,10 +310,11 @@ func (mr *MockDatabaseBlockMockRecorder) Len() *gomock.Call {
 }
 
 // Checksum mocks base method
-func (m *MockDatabaseBlock) Checksum() uint32 {
+func (m *MockDatabaseBlock) Checksum() (uint32, error) {
 	ret := m.ctrl.Call(m, "Checksum")
 	ret0, _ := ret[0].(uint32)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Checksum indicates an expected call of Checksum

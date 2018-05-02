@@ -198,7 +198,7 @@ func TestSeriesFlushNoBlock(t *testing.T) {
 	flushTime := time.Unix(7200, 0)
 	outcome, err := series.Flush(nil, flushTime, nil)
 	require.Nil(t, err)
-	require.Equal(t, BlockDoesNotExist, outcome)
+	require.Equal(t, FlushOutcomeBlockDoesNotExist, outcome)
 }
 
 func TestSeriesFlush(t *testing.T) {
@@ -225,9 +225,9 @@ func TestSeriesFlush(t *testing.T) {
 		ctx.BlockingClose()
 		require.Equal(t, input, err)
 		if input == nil {
-			require.Equal(t, FlushedToDisk, outcome)
+			require.Equal(t, FlushOutcomeFlushedToDisk, outcome)
 		} else {
-			require.Equal(t, FlushErr, outcome)
+			require.Equal(t, FlushOutcomeFlushErr, outcome)
 		}
 	}
 }
@@ -500,7 +500,7 @@ func TestSeriesTickCacheAllMetadata(t *testing.T) {
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() * 2))
 	b.EXPECT().Len().Return(1)
-	b.EXPECT().Checksum().Return(uint32(0))
+	b.EXPECT().Checksum().Return(uint32(0), nil)
 	b.EXPECT().ResetRetrievable(curr, blockRetriever, gomock.Any()).Return()
 	series.blocks.AddBlock(b)
 
@@ -682,7 +682,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	expectedSegment := ts.NewSegment(head, tail, ts.FinalizeNone)
 	b.EXPECT().Len().Return(expectedSegment.Len())
 	expectedChecksum := digest.SegmentChecksum(expectedSegment)
-	b.EXPECT().Checksum().Return(expectedChecksum)
+	b.EXPECT().Checksum().Return(expectedChecksum, nil)
 	expectedLastRead := time.Now()
 	b.EXPECT().LastReadTime().Return(expectedLastRead)
 	b.EXPECT().IsCachedBlock().Return(false)

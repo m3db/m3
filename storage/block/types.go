@@ -146,7 +146,7 @@ type DatabaseBlock interface {
 	Len() int
 
 	// Checksum returns the block checksum.
-	Checksum() uint32
+	Checksum() (uint32, error)
 
 	// Stream returns the encoded byte stream.
 	Stream(blocker context.Context) (xio.SegmentReader, error)

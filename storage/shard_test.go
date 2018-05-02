@@ -285,7 +285,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 			Do(func(context.Context, time.Time, persist.Fn) {
 				flushed[i] = struct{}{}
 			}).
-			Return(series.FlushErr, expectedErr)
+			Return(series.FlushOutcomeErr, expectedErr)
 		s.list.PushBack(&dbShardEntry{series: curr})
 	}
 
@@ -347,7 +347,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 			Do(func(context.Context, time.Time, persist.Fn) {
 				flushed[i] = struct{}{}
 			}).
-			Return(series.FlushedToDisk, nil)
+			Return(series.FlushOutcomeFlushedToDisk, nil)
 		s.list.PushBack(&dbShardEntry{series: curr})
 	}
 

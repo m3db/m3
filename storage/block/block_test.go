@@ -100,7 +100,9 @@ func TestDatabaseBlockChecksum(t *testing.T) {
 	block := testDatabaseBlock(ctrl)
 	block.checksum = uint32(10)
 
-	require.Equal(t, block.checksum, block.Checksum())
+	checksum, err := block.Checksum()
+	require.NoError(t, err)
+	require.Equal(t, block.checksum, checksum)
 }
 
 type testDatabaseBlockFn func(block *dbBlock)

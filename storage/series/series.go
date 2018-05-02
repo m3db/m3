@@ -126,7 +126,10 @@ func (s *dbSeries) Tick() (TickResult, error) {
 	bufferResult := s.buffer.Tick()
 	r.MergedOutOfOrderBlocks = bufferResult.mergedOutOfOrderBlocks
 
-	update := s.updateBlocksWithLock()
+	update, err := s.updateBlocksWithLock()
+	if err != nil {
+		return r, err
+	}
 	r.TickStatus = update.TickStatus
 	r.MadeExpiredBlocks, r.MadeUnwiredBlocks =
 		update.madeExpiredBlocks, update.madeUnwiredBlocks
@@ -145,7 +148,7 @@ type updateBlocksResult struct {
 	madeUnwiredBlocks int
 }
 
-func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
+func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 	var (
 		result       updateBlocksResult
 		now          = s.now()
@@ -237,10 +240,14 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 				// NB(r): Each block needs shared ref to the series ID
 				// or else each block needs to have a copy of the ID
 				id := s.id
+				checksum, err := currBlock.Checksum()
+				if err != nil {
+					return result, err
+				}
 				metadata := block.RetrievableBlockMetadata{
 					ID:       id,
 					Length:   currBlock.Len(),
-					Checksum: currBlock.Checksum(),
+					Checksum: checksum,
 				}
 				currBlock.ResetRetrievable(start, retriever, metadata)
 			default:
@@ -265,7 +272,7 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 	result.WiredBlocks += bufferStats.wiredBlocks
 	result.OpenBlocks += bufferStats.openBlocks
 
-	return result
+	return result, nil
 }
 
 func (s *dbSeries) IsEmpty() bool {
@@ -336,7 +343,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 	ctx context.Context,
 	start, end time.Time,
 	opts FetchBlocksMetadataOptions,
-) block.FetchBlocksMetadataResult {
+) (block.FetchBlocksMetadataResult, error) {
 	blockSize := s.opts.RetentionOptions().BlockSize()
 	res := s.opts.FetchBlockMetadataResultsPool().Get()
 
@@ -366,7 +373,10 @@ func (s *dbSeries) FetchBlocksMetadata(
 			size = int64(b.Len())
 		}
 		if opts.IncludeChecksums {
-			v := b.Checksum()
+			v, err := b.Checksum()
+			if err != nil {
+				return block.FetchBlocksMetadataResult{}, err
+			}
 			checksum = &v
 		}
 		if opts.IncludeLastRead {
@@ -393,7 +403,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 
 	res.Sort()
 
-	return block.NewFetchBlocksMetadataResult(id, res)
+	return block.NewFetchBlocksMetadataResult(id, res), nil
 }
 
 func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
@@ -622,7 +632,11 @@ func (s *dbSeries) Flush(
 		return FlushOutcomeErr, err
 	}
 
-	err = persistFn(s.id, segment, b.Checksum())
+	checksum, err := b.Checksum()
+	if err != nil {
+		return FlushOutcomeErr, err
+	}
+	err = persistFn(s.id, segment, checksum)
 	if err != nil {
 		return FlushOutcomeErr, err
 	}

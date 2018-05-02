@@ -141,11 +141,52 @@ func (b *dbBlock) Len() int {
 	return length
 }
 
-func (b *dbBlock) Checksum() uint32 {
+func (b *dbBlock) Checksum() (uint32, error) {
 	b.RLock()
 	checksum := b.checksum
+	hasMergeTarget := b.mergeTarget != nil
 	b.RUnlock()
-	return checksum
+
+	if !hasMergeTarget {
+		return checksum, nil
+	}
+
+	// Need to force a merge so that we can calculate the new checksum and return that.
+	b.Lock()
+	defer b.Unlock()
+	ctx := b.opts.ContextPool().Get()
+	defer ctx.Close()
+	targetStream, err := b.mergeTarget.Stream(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	var stream xio.SegmentReader
+	if b.retriever != nil {
+		start := b.startWithLock()
+		stream, err = b.retriever.Stream(ctx, b.retrieveID, start, b)
+		if err != nil {
+			return 0, err
+		}
+	} else {
+		stream = b.opts.SegmentReaderPool().Get()
+		// NB(r): We explicitly create a new segment to ensure references
+		// are taken to the bytes refs and to not finalize the bytes.
+		stream.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
+		ctx.RegisterFinalizer(stream)
+	}
+
+	stream = newDatabaseMergedBlockReader(b.startWithLock(),
+		mergeableStream{stream: stream, finalize: false},       // already registered above
+		mergeableStream{stream: targetStream, finalize: false}, // already registered by recursive call
+		b.opts)
+	segment, err := stream.Segment()
+	if err != nil {
+		return 0, err
+	}
+	ctx.RegisterFinalizer(stream)   // ????
+	b.resetSegmentWithLock(segment) // Recalculates b.checksum
+	return b.checksum, nil
 }
 
 func (b *dbBlock) OnRetrieveBlock(
@@ -271,6 +312,21 @@ func (b *dbBlock) ResetRetrievable(
 	b.resetNewBlockStartWithLock(start)
 	b.resetRetrievableWithLock(retriever, metadata)
 }
+
+// func (b *dbBlock) getMergedStream(ctx context.Context, stream xio.SegmentReader) (xio.SegmentReader, error) {
+// 	targetStream, err := b.mergeTarget.Stream(ctx)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	// Return a lazily merged stream
+// 	// TODO(r): once merged reset this block with the contents of it
+// 	mergedStream := newDatabaseMergedBlockReader(b.startWithLock(),
+// 		mergeableStream{stream: stream, finalize: false},       // already registered above
+// 		mergeableStream{stream: targetStream, finalize: false}, // already registered by Stream call above
+// 		b.opts)
+// 	blocker.RegisterFinalizer(merged)
+// }
 
 func (b *dbBlock) resetNewBlockStartWithLock(start time.Time) {
 	if !b.closed {

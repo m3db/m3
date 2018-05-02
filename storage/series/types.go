@@ -75,7 +75,7 @@ type DatabaseSeries interface {
 		ctx context.Context,
 		start, end time.Time,
 		opts FetchBlocksMetadataOptions,
-	) block.FetchBlocksMetadataResult
+	) (block.FetchBlocksMetadataResult, error)
 
 	// IsEmpty returns whether series is empty
 	IsEmpty() bool
