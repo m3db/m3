@@ -21,6 +21,8 @@
 package idx
 
 import (
+	"errors"
+
 	"github.com/m3db/m3ninx/search"
 	"github.com/m3db/m3ninx/search/query"
 )
@@ -41,6 +43,11 @@ func NewRegexpQuery(field, regexp []byte) (Query, error) {
 	return Query{
 		query: q,
 	}, nil
+}
+
+// NewNegationQuery returns a new query for finding documents which don't match a given query.
+func NewNegationQuery(q Query) (Query, error) {
+	return Query{}, errors.New("not implemented")
 }
 
 // NewConjunctionQuery returns a new query for finding documents which match each of the
