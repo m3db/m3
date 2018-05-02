@@ -23,6 +23,7 @@ package namespace
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3db/retention"
 
@@ -37,6 +38,17 @@ func TestOptionsEquals(t *testing.T) {
 	o2 := NewOptions()
 	require.True(t, o1.Equal(o2))
 	require.True(t, o2.Equal(o1))
+}
+
+func TestOptionsEqualsIndexOpts(t *testing.T) {
+	o1 := NewOptions()
+	o2 := o1.SetIndexOptions(
+		o1.IndexOptions().SetBlockSize(
+			o1.IndexOptions().BlockSize() * 2))
+	require.True(t, o1.Equal(o1))
+	require.True(t, o2.Equal(o2))
+	require.False(t, o1.Equal(o2))
+	require.False(t, o2.Equal(o1))
 }
 
 func TestOptionsEqualsRetention(t *testing.T) {
@@ -70,11 +82,39 @@ func TestOptionsValidate(t *testing.T) {
 	defer ctrl.Finish()
 
 	rOpts := retention.NewMockOptions(ctrl)
-	o1 := NewOptions().SetRetentionOptions(rOpts)
+	iOpts := NewMockIndexOptions(ctrl)
+	o1 := NewOptions().
+		SetRetentionOptions(rOpts).
+		SetIndexOptions(iOpts)
+
+	iOpts.EXPECT().Enabled().Return(true).AnyTimes()
 
 	rOpts.EXPECT().Validate().Return(nil)
+	rOpts.EXPECT().RetentionPeriod().Return(time.Hour)
+	iOpts.EXPECT().BlockSize().Return(time.Hour)
 	require.NoError(t, o1.Validate())
+
+	rOpts.EXPECT().Validate().Return(nil)
+	rOpts.EXPECT().RetentionPeriod().Return(time.Hour)
+	iOpts.EXPECT().BlockSize().Return(2 * time.Hour)
+	require.Error(t, o1.Validate())
 
 	rOpts.EXPECT().Validate().Return(fmt.Errorf("test error"))
 	require.Error(t, o1.Validate())
+}
+
+func TestOptionsValidateNoIndexing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	rOpts := retention.NewMockOptions(ctrl)
+	iOpts := NewMockIndexOptions(ctrl)
+	o1 := NewOptions().
+		SetRetentionOptions(rOpts).
+		SetIndexOptions(iOpts)
+
+	iOpts.EXPECT().Enabled().Return(false).AnyTimes()
+
+	rOpts.EXPECT().Validate().Return(nil)
+	require.NoError(t, o1.Validate())
 }

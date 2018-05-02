@@ -21,6 +21,8 @@
 package namespace
 
 import (
+	"errors"
+
 	"github.com/m3db/m3db/retention"
 )
 
@@ -44,6 +46,10 @@ const (
 	defaultRepairEnabled = true
 )
 
+var (
+	errIndexBlockSizeTooLarge = errors.New("index block size needs to be <= namespace retention period")
+)
+
 type options struct {
 	bootstrapEnabled  bool
 	flushEnabled      bool
@@ -52,6 +58,7 @@ type options struct {
 	cleanupEnabled    bool
 	repairEnabled     bool
 	retentionOpts     retention.Options
+	indexOpts         IndexOptions
 }
 
 // NewOptions creates a new namespace options
@@ -64,11 +71,21 @@ func NewOptions() Options {
 		cleanupEnabled:    defaultCleanupEnabled,
 		repairEnabled:     defaultRepairEnabled,
 		retentionOpts:     retention.NewOptions(),
+		indexOpts:         NewIndexOptions(),
 	}
 }
 
 func (o *options) Validate() error {
-	return o.retentionOpts.Validate()
+	if err := o.retentionOpts.Validate(); err != nil {
+		return err
+	}
+	if !o.indexOpts.Enabled() {
+		return nil
+	}
+	if o.retentionOpts.RetentionPeriod() < o.indexOpts.BlockSize() {
+		return errIndexBlockSizeTooLarge
+	}
+	return nil
 }
 
 func (o *options) Equal(value Options) bool {
@@ -77,7 +94,8 @@ func (o *options) Equal(value Options) bool {
 		o.writesToCommitLog == value.WritesToCommitLog() &&
 		o.cleanupEnabled == value.CleanupEnabled() &&
 		o.repairEnabled == value.RepairEnabled() &&
-		o.retentionOpts.Equal(value.RetentionOptions())
+		o.retentionOpts.Equal(value.RetentionOptions()) &&
+		o.indexOpts.Equal(value.IndexOptions())
 }
 
 func (o *options) SetBootstrapEnabled(value bool) Options {
@@ -148,4 +166,14 @@ func (o *options) SetRetentionOptions(value retention.Options) Options {
 
 func (o *options) RetentionOptions() retention.Options {
 	return o.retentionOpts
+}
+
+func (o *options) SetIndexOptions(value IndexOptions) Options {
+	opts := *o
+	opts.indexOpts = value
+	return &opts
+}
+
+func (o *options) IndexOptions() IndexOptions {
+	return o.indexOpts
 }
