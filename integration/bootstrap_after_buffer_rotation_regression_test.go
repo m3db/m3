@@ -164,7 +164,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		signalCh <- struct{}{}
 		signalCh <- struct{}{}
 	}()
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.startServer()) // Blocks until bootstrap is complete
 
 	defer func() {
 		require.NoError(t, setup.stopServer())

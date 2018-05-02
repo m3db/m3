@@ -109,7 +109,7 @@ type dbNamespace struct {
 	seriesOpts         series.Options
 	nowFn              clock.NowFn
 	log                xlog.Logger
-	bs                 bootstrapState
+	bs                 BootstrapState
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -610,19 +610,19 @@ func (n *dbNamespace) Bootstrap(
 	callStart := n.nowFn()
 
 	n.Lock()
-	if n.bs == bootstrapping {
+	if n.bs == Bootstrapping {
 		n.Unlock()
 		n.metrics.bootstrap.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceIsBootstrapping
 	}
-	n.bs = bootstrapping
+	n.bs = Bootstrapping
 	n.Unlock()
 
 	n.metrics.bootstrapStart.Inc(1)
 
 	defer func() {
 		n.Lock()
-		n.bs = bootstrapped
+		n.bs = Bootstrapped
 		n.Unlock()
 		n.metrics.bootstrapEnd.Inc(1)
 	}()
@@ -719,7 +719,7 @@ func (n *dbNamespace) Bootstrap(
 
 func (n *dbNamespace) Flush(
 	blockStart time.Time,
-	shardBootstrapStates shardBootstrapStates,
+	ShardBootstrapStates ShardBootstrapStates,
 	flush persist.Flush,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
@@ -727,7 +727,7 @@ func (n *dbNamespace) Flush(
 	callStart := n.nowFn()
 
 	n.RLock()
-	if n.bs != bootstrapped {
+	if n.bs != Bootstrapped {
 		n.RUnlock()
 		n.metrics.flush.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
@@ -752,8 +752,8 @@ func (n *dbNamespace) Flush(
 		// before the start of the tick that preceded this flush, meaning it can be reliably
 		// used to determine if all of the bootstrapped blocks have been merged / drained (ticked)
 		// and are ready to be flushed.
-		shardWasBootstrappedBeforeTick, ok := shardBootstrapStates[shard.ID()]
-		if !ok || !shardWasBootstrappedBeforeTick {
+		shardBootstrapStateBeforeTick, ok := ShardBootstrapStates[shard.ID()]
+		if !ok || shardBootstrapStateBeforeTick != Bootstrapped {
 			// We don't own this shard anymore (!ok) or the shard was not bootstrapped
 			// before the previous tick which means that we have no guarantee that all
 			// bootstrapped blocks have been rotated out of the series buffer buckets,
@@ -785,7 +785,7 @@ func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist
 	callStart := n.nowFn()
 
 	n.RLock()
-	if n.bs != bootstrapped {
+	if n.bs != Bootstrapped {
 		n.RUnlock()
 		n.metrics.snapshot.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
@@ -1056,4 +1056,13 @@ func (n *dbNamespace) Close() error {
 		return n.reverseIndex.Close()
 	}
 	return nil
+}
+
+func (n *dbNamespace) BootstrapState() ShardBootstrapStates {
+	ownedShards := n.GetOwnedShards()
+	shardStates := make(ShardBootstrapStates, len(ownedShards))
+	for _, shard := range ownedShards {
+		shardStates[shard.ID()] = shard.BootstrapState()
+	}
+	return shardStates
 }

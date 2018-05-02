@@ -147,10 +147,7 @@ func (m *mediator) EnableFileOps() {
 // information to make decisions about whether to flush / snapshot / run cleanups.
 func (m *mediator) Tick(runType runType, forceType forceType) error {
 	tickStart := m.nowFn()
-	dbBootstrapStates, err := m.databaseBootstrapStates()
-	if err != nil {
-		return err
-	}
+	dbBootstrapStates := m.database.BootstrapState()
 
 	if err := m.databaseTickManager.Tick(forceType); err != nil {
 		return err
@@ -219,33 +216,3 @@ func (m *mediator) reportLoop() {
 		}
 	}
 }
-
-func (m *mediator) databaseBootstrapStates() (databaseBootstrapStates, error) {
-	namespaces, err := m.database.GetOwnedNamespaces()
-	if err != nil {
-		return databaseBootstrapStates{}, err
-	}
-
-	states := databaseBootstrapStates{
-		namespaceBootstrapStates: make(map[string]shardBootstrapStates, len(namespaces)),
-	}
-
-	for _, namespace := range namespaces {
-		nsState := make(shardBootstrapStates)
-
-		for _, shard := range namespace.GetOwnedShards() {
-			nsState[shard.ID()] = shard.IsBootstrapped()
-		}
-		states.namespaceBootstrapStates[namespace.ID().String()] = nsState
-	}
-
-	return states, nil
-}
-
-// databaseBootstrapStates storse a snapshot of the bootstrap state for all shards across all
-// namespaces at a given moment in time.
-type databaseBootstrapStates struct {
-	namespaceBootstrapStates map[string]shardBootstrapStates
-}
-
-type shardBootstrapStates map[uint32]bool

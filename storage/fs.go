@@ -112,7 +112,7 @@ func (m *fileSystemManager) Status() fileOpStatus {
 
 func (m *fileSystemManager) Run(
 	t time.Time,
-	dbBootstrapStates databaseBootstrapStates,
+	dbBootstrapStates DatabaseBootstrapState,
 	runType runType,
 	forceType forceType,
 ) bool {

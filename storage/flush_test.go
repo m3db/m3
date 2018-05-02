@@ -91,14 +91,14 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	// go routine 1 should successfully flush
 	go func() {
 		defer wg.Done()
-		require.NoError(t, fm.Flush(now, databaseBootstrapStates{}))
+		require.NoError(t, fm.Flush(now, DatabaseBootstrapState{}))
 	}()
 
 	// go routine 2 should indicate already flushing
 	go func() {
 		defer wg.Done()
 		<-startCh
-		require.Equal(t, errFlushOrSnapshotAlreadyInProgress, fm.Flush(now, databaseBootstrapStates{}))
+		require.Equal(t, errFlushOrSnapshotAlreadyInProgress, fm.Flush(now, DatabaseBootstrapState{}))
 		doneCh <- struct{}{}
 	}()
 
@@ -124,7 +124,7 @@ func TestFlushManagerFlushDoneError(t *testing.T) {
 	fm.pm = mockPersistManager
 
 	now := time.Unix(0, 0)
-	require.EqualError(t, fakeErr, fm.Flush(now, databaseBootstrapStates{}).Error())
+	require.EqualError(t, fakeErr, fm.Flush(now, DatabaseBootstrapState{}).Error())
 }
 
 func TestFlushManagerFlushTimeStart(t *testing.T) {
@@ -259,10 +259,10 @@ func TestFlushManagerFlushSnapshot(t *testing.T) {
 		ns.EXPECT().Snapshot(currBlockStart, now, gomock.Any())
 	}
 
-	bootstrapStates := databaseBootstrapStates{
-		namespaceBootstrapStates: map[string]shardBootstrapStates{
-			ns1.ID().String(): shardBootstrapStates{},
-			ns2.ID().String(): shardBootstrapStates{},
+	bootstrapStates := DatabaseBootstrapState{
+		NamespaceBootstrapStates: map[string]ShardBootstrapStates{
+			ns1.ID().String(): ShardBootstrapStates{},
+			ns2.ID().String(): ShardBootstrapStates{},
 		},
 	}
 	require.NoError(t, fm.Flush(now, bootstrapStates))
@@ -294,10 +294,10 @@ func TestFlushManagerFlushNoSnapshotWhileFlushPending(t *testing.T) {
 		ns.EXPECT().NeedsFlush(prevBlockStart, prevBlockStart).Return(true)
 	}
 
-	bootstrapStates := databaseBootstrapStates{
-		namespaceBootstrapStates: map[string]shardBootstrapStates{
-			ns1.ID().String(): shardBootstrapStates{},
-			ns2.ID().String(): shardBootstrapStates{},
+	bootstrapStates := DatabaseBootstrapState{
+		NamespaceBootstrapStates: map[string]ShardBootstrapStates{
+			ns1.ID().String(): ShardBootstrapStates{},
+			ns2.ID().String(): ShardBootstrapStates{},
 		},
 	}
 	require.NoError(t, fm.Flush(now, bootstrapStates))

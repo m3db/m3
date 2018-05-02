@@ -35,15 +35,6 @@ import (
 	"github.com/uber-go/tally"
 )
 
-type bootstrapState int
-
-// nolint: deadcode
-const (
-	bootstrapNotStarted bootstrapState = iota
-	bootstrapping
-	bootstrapped
-)
-
 var (
 	// errNamespaceIsBootstrapping raised when trying to bootstrap a namespace that's being bootstrapped.
 	errNamespaceIsBootstrapping = errors.New("namespace is bootstrapping")
@@ -76,7 +67,7 @@ type bootstrapManager struct {
 	log        xlog.Logger
 	nowFn      clock.NowFn
 	process    bootstrap.Process
-	state      bootstrapState
+	state      BootstrapState
 	hasPending bool
 	status     tally.Gauge
 }
@@ -102,13 +93,13 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 	m.RLock()
 	state := m.state
 	m.RUnlock()
-	return state == bootstrapped
+	return state == Bootstrapped
 }
 
 func (m *bootstrapManager) Bootstrap() error {
 	m.Lock()
 	switch m.state {
-	case bootstrapping:
+	case Bootstrapping:
 		// NB(r): Already bootstrapping, now a consequent bootstrap
 		// request comes in - we queue this up to bootstrap again
 		// once the current bootstrap has completed.
@@ -119,7 +110,7 @@ func (m *bootstrapManager) Bootstrap() error {
 		m.Unlock()
 		return errBootstrapEnqueued
 	default:
-		m.state = bootstrapping
+		m.state = Bootstrapping
 	}
 	m.Unlock()
 
@@ -142,7 +133,7 @@ func (m *bootstrapManager) Bootstrap() error {
 			// New bootstrap calls should now enqueue another pending bootstrap
 			m.hasPending = false
 		} else {
-			m.state = bootstrapped
+			m.state = Bootstrapped
 		}
 		m.Unlock()
 

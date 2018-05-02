@@ -110,7 +110,7 @@ type dbShard struct {
 	insertQueue              *dbShardInsertQueue
 	lookup                   *shardMap
 	list                     *list.List
-	bs                       bootstrapState
+	bs                       BootstrapState
 	filesetBeforeFn          filesetBeforeFn
 	deleteFilesFn            deleteFilesFn
 	snapshotFilesFn          snapshotFilesFn
@@ -299,7 +299,7 @@ func newDatabaseShard(
 	s.insertQueue.Start()
 
 	if !needsBootstrap {
-		s.bs = bootstrapped
+		s.bs = Bootstrapped
 		s.newSeriesBootstrapped = true
 	}
 
@@ -522,18 +522,8 @@ func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn)
 	return nil
 }
 
-func (s *dbShard) IsBootstrapping() bool {
-	s.RLock()
-	state := s.bs
-	s.RUnlock()
-	return state == bootstrapping
-}
-
 func (s *dbShard) IsBootstrapped() bool {
-	s.RLock()
-	state := s.bs
-	s.RUnlock()
-	return state == bootstrapped
+	return s.BootstrapState() == Bootstrapped
 }
 
 func (s *dbShard) Close() error {
@@ -1574,15 +1564,15 @@ func (s *dbShard) Bootstrap(
 	bootstrappedSeries *result.Map,
 ) error {
 	s.Lock()
-	if s.bs == bootstrapped {
+	if s.bs == Bootstrapped {
 		s.Unlock()
 		return nil
 	}
-	if s.bs == bootstrapping {
+	if s.bs == Bootstrapping {
 		s.Unlock()
 		return errShardIsBootstrapping
 	}
-	s.bs = bootstrapping
+	s.bs = Bootstrapping
 	s.Unlock()
 
 	var (
@@ -1673,7 +1663,7 @@ func (s *dbShard) Bootstrap(
 	}
 
 	s.Lock()
-	s.bs = bootstrapped
+	s.bs = Bootstrapped
 	s.Unlock()
 
 	return multiErr.FinalError()
@@ -1685,7 +1675,7 @@ func (s *dbShard) Flush(
 ) error {
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
-	if s.bs != bootstrapped {
+	if s.bs != Bootstrapped {
 		s.RUnlock()
 		return errShardNotBootstrappedToFlush
 	}
@@ -1755,7 +1745,7 @@ func (s *dbShard) Snapshot(
 ) error {
 	// We don't snapshot data when the shard is still bootstrapping
 	s.RLock()
-	if s.bs != bootstrapped {
+	if s.bs != Bootstrapped {
 		s.RUnlock()
 		return errShardNotBootstrappedToSnapshot
 	}
@@ -1973,4 +1963,11 @@ func (s *dbShard) Repair(
 	repairer databaseShardRepairer,
 ) (repair.MetadataComparisonResult, error) {
 	return repairer.Repair(ctx, s.namespace.ID(), tr, s)
+}
+
+func (s *dbShard) BootstrapState() BootstrapState {
+	s.RLock()
+	bs := s.bs
+	s.RUnlock()
+	return bs
 }

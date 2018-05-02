@@ -168,6 +168,9 @@ type Database interface {
 
 	// Truncate truncates data for the given namespace
 	Truncate(namespace ident.ID) (int64, error)
+
+	// BootstrapState captures and returns a snapshot of the databases' bootstrap state.
+	BootstrapState() DatabaseBootstrapState
 }
 
 // database is the internal database interface
@@ -292,7 +295,7 @@ type databaseNamespace interface {
 	// Flush flushes in-memory data
 	Flush(
 		blockStart time.Time,
-		shardBootstrapStates shardBootstrapStates,
+		ShardBootstrapStates ShardBootstrapStates,
 		flush persist.Flush,
 	) error
 
@@ -309,6 +312,9 @@ type databaseNamespace interface {
 
 	// Repair repairs the namespace data for a given time range
 	Repair(repairer databaseShardRepairer, tr xtime.Range) error
+
+	// BootstrapState captures and returns a snapshot of the namespaces' bootstrap state.
+	BootstrapState() ShardBootstrapStates
 }
 
 // Shard is a time series database shard
@@ -321,6 +327,9 @@ type Shard interface {
 
 	// IsBootstrapped returns whether the shard is already bootstrapped
 	IsBootstrapped() bool
+
+	// BootstrapState returns the shards' bootstrap state.
+	BootstrapState() BootstrapState
 }
 
 type databaseShard interface {
@@ -486,7 +495,7 @@ type databaseBootstrapManager interface {
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
-	Flush(tickStart time.Time, dbBootstrapStates databaseBootstrapStates) error
+	Flush(tickStart time.Time, dbBootstrapStates DatabaseBootstrapState) error
 
 	// Report reports runtime information
 	Report()
@@ -507,7 +516,7 @@ type databaseFileSystemManager interface {
 	Cleanup(t time.Time) error
 
 	// Flush flushes in-memory data to persistent storage.
-	Flush(t time.Time, dbBootstrapStates databaseBootstrapStates) error
+	Flush(t time.Time, dbBootstrapStates DatabaseBootstrapState) error
 
 	// Disable disables the filesystem manager and prevents it from
 	// performing file operations, returns the current file operation status
@@ -523,7 +532,7 @@ type databaseFileSystemManager interface {
 	// returning true if those operations are performed, and false otherwise
 	Run(
 		t time.Time,
-		dbBootstrapStates databaseBootstrapStates,
+		dbBootstrapStates DatabaseBootstrapState,
 		runType runType,
 		forceType forceType,
 	) bool
@@ -810,3 +819,27 @@ type Options interface {
 	// FetchBlocksMetadataResultsPool returns the fetchBlocksMetadataResultsPool
 	FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool
 }
+
+// DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all
+// namespaces at a given moment in time.
+type DatabaseBootstrapState struct {
+	NamespaceBootstrapStates NamespaceBootstrapStates
+}
+
+// NamespaceBootstrapStates stores a snapshot of the bootstrap state for all shards accross a
+// number of namespaces at a given moment in time.
+type NamespaceBootstrapStates map[string]ShardBootstrapStates
+
+// ShardBootstrapStates stores a snapshot of the bootstrap state for all shards for a given
+// namespace.
+type ShardBootstrapStates map[uint32]BootstrapState
+
+// BootstrapState is an enum representing the possible bootstrap states for a shard.
+type BootstrapState int
+
+// nolint: deadcode
+const (
+	BootstrapNotStarted BootstrapState = iota
+	Bootstrapping
+	Bootstrapped
+)

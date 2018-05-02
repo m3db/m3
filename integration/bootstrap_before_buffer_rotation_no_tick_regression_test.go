@@ -179,7 +179,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 		signalCh <- struct{}{}
 		signalCh <- struct{}{}
 	}()
-	require.NoError(t, setup.startServer())
+	require.NoError(t, setup.startServer()) // Blocks until bootstrap is complete
 
 	// Now that bootstrapping has completed, re-enable ticking so that flushing can take place
 	setup.mustSetTickMinimumInterval(100 * time.Millisecond)
