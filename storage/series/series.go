@@ -442,7 +442,10 @@ func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 // then repeat, until len(s.pendingBootstrap) is below a given threshold.
 func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) (BootstrapResult, error) {
 	s.Lock()
-	defer s.bootstrapComplete()
+	defer func() {
+		s.bs = bootstrapped
+		s.Unlock()
+	}()
 
 	var result BootstrapResult
 	if s.bs == bootstrapped {
@@ -480,7 +483,8 @@ func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) (Boo
 		// in the series block, merging with any existing blocks if necessary. There could be an
 		// existing block in the situation that currentTime > blockStart.Add(blockSize).Add(bufferPast),
 		// in which case the series buffer buckets may have been drained and rotated into a block, but
-		// still exist in memory because a flush hasn't occurred yet.
+		// still exist in memory because a flush hasn't occurred yet (we guarantee this by not allowing flushes
+		// until we're bootstrapped.)
 		err := s.mergeBlockWithLock(block)
 		if err != nil {
 			multiErr = multiErr.Add(s.newBootstrapBlockError(block, err))
@@ -490,11 +494,6 @@ func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) (Boo
 
 	s.bs = bootstrapped
 	return result, multiErr.FinalError()
-}
-
-func (s *dbSeries) bootstrapComplete() {
-	s.Unlock()
-	s.bs = bootstrapped
 }
 
 func (s *dbSeries) OnRetrieveBlock(

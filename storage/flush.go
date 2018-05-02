@@ -107,8 +107,9 @@ func (m *flushManager) Flush(
 		shardBootstrapTimes, ok := dbBootstrapStateAtTickStart.NamespaceBootstrapStates[ns.ID().String()]
 		if !ok {
 			// Could happen if namespaces are added / removed.
-			return fmt.Errorf(
-				"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String())
+			multiErr = multiErr.Add(fmt.Errorf(
+				"tried to flush ns: %s, but did not have shard bootstrap times", ns.ID().String()))
+			continue
 		}
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, shardBootstrapTimes, flushTimes, flush))
 	}
