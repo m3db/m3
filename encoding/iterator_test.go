@@ -138,7 +138,7 @@ func (it *testMultiIterator) Close() {
 	it.closed = true
 }
 
-func (it *testMultiIterator) Reset(r []xio.Reader, _, _ time.Time) {
+func (it *testMultiIterator) Reset(r []xio.SegmentReader, _, _ time.Time) {
 	for _, reader := range r {
 		it.onReset(reader)
 	}
@@ -157,13 +157,13 @@ func (it *testMultiIterator) Readers() xio.ReaderSliceOfSlicesIterator {
 }
 
 type testReaderSliceOfSlicesIterator struct {
-	readers [][]xio.Reader
+	readers [][]xio.SegmentReader
 	idx     int
 	closed  bool
 }
 
 func newTestReaderSliceOfSlicesIterator(
-	readers [][]xio.Reader,
+	readers [][]xio.SegmentReader,
 ) xio.ReaderSliceOfSlicesIterator {
 	return &testReaderSliceOfSlicesIterator{readers: readers, idx: -1}
 }
@@ -180,7 +180,7 @@ func (it *testReaderSliceOfSlicesIterator) Current() (int, time.Time, time.Time)
 	return len(it.readers[it.arrayIdx()]), time.Time{}, time.Time{}
 }
 
-func (it *testReaderSliceOfSlicesIterator) CurrentAt(idx int) xio.Reader {
+func (it *testReaderSliceOfSlicesIterator) CurrentAt(idx int) xio.SegmentReader {
 	return it.readers[it.arrayIdx()][idx]
 }
 
@@ -200,10 +200,8 @@ type testNoopReader struct {
 	n int // return for "n", also required so that each struct construction has its address
 }
 
-func (r *testNoopReader) Read(p []byte) (int, error) {
-	return r.n, nil
-}
-
-func (r *testNoopReader) Clone() (xio.Reader, error) {
-	return r, nil
-}
+func (r *testNoopReader) Read(p []byte) (int, error)        { return r.n, nil }
+func (r *testNoopReader) Segment() (ts.Segment, error)      { return ts.Segment{}, nil }
+func (r *testNoopReader) Reset(ts.Segment)                  {}
+func (r *testNoopReader) Finalize()                         {}
+func (r *testNoopReader) Clone() (xio.SegmentReader, error) { return r, nil }

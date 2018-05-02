@@ -62,7 +62,7 @@ func (it *readerSliceOfSlicesIterator) Current() (int, time.Time, time.Time) {
 	return currentLen, currBlock.Start(), currBlock.End()
 }
 
-func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) Reader {
+func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) SegmentReader {
 	return it.blocks[it.arrayIdx()][idx]
 }
 

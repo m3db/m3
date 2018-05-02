@@ -527,7 +527,7 @@ type encoderArg struct {
 
 type encoders []encoder
 
-type ioReaders []xio.Reader
+type ioReaders []xio.SegmentReader
 
 func (e encoders) newReaders() ioReaders {
 	readers := make(ioReaders, len(e))

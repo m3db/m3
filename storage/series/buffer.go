@@ -730,7 +730,7 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 
 	start := b.start
 	end := start.Add(b.opts.RetentionOptions().BlockSize())
-	readers := make([]xio.Reader, 0, len(b.encoders)+len(b.bootstrapped))
+	readers := make([]xio.SegmentReader, 0, len(b.encoders)+len(b.bootstrapped))
 	streams := make([]xio.BlockReader, 0, len(b.encoders))
 	for i := range b.encoders {
 		if s := b.encoders[i].encoder.Stream(); s != nil {

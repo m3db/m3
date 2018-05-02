@@ -28,16 +28,6 @@ import (
 	"github.com/m3db/m3x/resource"
 )
 
-// Reader is an IO reader that can clone itself to reset the position
-// in the stream so another consumer can can begin again from the start
-type Reader interface {
-	io.Reader
-
-	// Clone returns a clone of the underlying data reset
-	// to the start of the reader
-	Clone() (Reader, error)
-}
-
 // BlockReader implements the io reader interface backed by a segment with start and end times
 type BlockReader interface {
 	SegmentReader
@@ -57,7 +47,7 @@ type BlockReader interface {
 
 // SegmentReader implements the io reader interface backed by a segment
 type SegmentReader interface {
-	Reader
+	io.Reader
 	resource.Finalizer
 
 	// Segment gets the segment read by this reader
@@ -65,6 +55,9 @@ type SegmentReader interface {
 
 	// Reset resets the reader to read a new segment
 	Reset(segment ts.Segment)
+
+	// Clone returns a clone of the underlying data reset
+	Clone() (SegmentReader, error)
 }
 
 // SegmentReaderPool provides a pool for segment readers
@@ -88,7 +81,7 @@ type ReaderSliceOfSlicesIterator interface {
 	Current() (length int, start, end time.Time)
 
 	// CurrentAt returns the current reader in the slice of readers at an index
-	CurrentAt(idx int) Reader
+	CurrentAt(idx int) SegmentReader
 
 	// Close closes the iterator
 	Close()

@@ -3044,7 +3044,7 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 	return ts.NewSegment(head, tail, ts.FinalizeHead&ts.FinalizeTail)
 }
 
-func (b *baseBlocksResult) mergeReaders(start, end time.Time, readers []xio.Reader) (encoding.Encoder, error) {
+func (b *baseBlocksResult) mergeReaders(start, end time.Time, readers []xio.SegmentReader) (encoding.Encoder, error) {
 	iter := b.multiReaderIteratorPool.Get()
 	iter.Reset(readers, start, end)
 	defer iter.Close()
@@ -3087,7 +3087,7 @@ func (b *baseBlocksResult) newDatabaseBlock(blockSize time.Duration, block *rpc.
 	case segments.Unmerged != nil:
 		// Must merge to provide a single block
 		segmentReaderPool := b.blockOpts.SegmentReaderPool()
-		readers := make([]xio.Reader, len(segments.Unmerged))
+		readers := make([]xio.SegmentReader, len(segments.Unmerged))
 		end := time.Time{}
 		for i, segment := range segments.Unmerged {
 			segmentReader := segmentReaderPool.Get()
@@ -3259,7 +3259,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 			return nil
 		}
 
-		readers := []xio.Reader{currReader, resultReader}
+		readers := []xio.SegmentReader{currReader, resultReader}
 		encoder, err := r.mergeReaders(start, currReader.End(), readers)
 
 		if err != nil {

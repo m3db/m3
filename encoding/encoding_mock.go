@@ -556,7 +556,7 @@ func (_mr *MockMultiReaderIteratorMockRecorder) Close() *gomock.Call {
 }
 
 // Reset mocks base method
-func (_m *MockMultiReaderIterator) Reset(readers []xio.Reader, start time.Time, end time.Time) {
+func (_m *MockMultiReaderIterator) Reset(readers []xio.SegmentReader, start time.Time, end time.Time) {
 	_m.ctrl.Call(_m, "Reset", readers, start, end)
 }
 
@@ -1403,57 +1403,57 @@ func (_mr *MockMutableSeriesIteratorsPoolMockRecorder) Put(arg0 interface{}) *go
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Put", reflect.TypeOf((*MockMutableSeriesIteratorsPool)(nil).Put), arg0)
 }
 
-// MockIteratorArrayPool is a mock of IteratorArrayPool interface
-type MockIteratorArrayPool struct {
+// MockMultiReaderIteratorArrayPool is a mock of MultiReaderIteratorArrayPool interface
+type MockMultiReaderIteratorArrayPool struct {
 	ctrl     *gomock.Controller
-	recorder *MockIteratorArrayPoolMockRecorder
+	recorder *MockMultiReaderIteratorArrayPoolMockRecorder
 }
 
-// MockIteratorArrayPoolMockRecorder is the mock recorder for MockIteratorArrayPool
-type MockIteratorArrayPoolMockRecorder struct {
-	mock *MockIteratorArrayPool
+// MockMultiReaderIteratorArrayPoolMockRecorder is the mock recorder for MockMultiReaderIteratorArrayPool
+type MockMultiReaderIteratorArrayPoolMockRecorder struct {
+	mock *MockMultiReaderIteratorArrayPool
 }
 
-// NewMockIteratorArrayPool creates a new mock instance
-func NewMockIteratorArrayPool(ctrl *gomock.Controller) *MockIteratorArrayPool {
-	mock := &MockIteratorArrayPool{ctrl: ctrl}
-	mock.recorder = &MockIteratorArrayPoolMockRecorder{mock}
+// NewMockMultiReaderIteratorArrayPool creates a new mock instance
+func NewMockMultiReaderIteratorArrayPool(ctrl *gomock.Controller) *MockMultiReaderIteratorArrayPool {
+	mock := &MockMultiReaderIteratorArrayPool{ctrl: ctrl}
+	mock.recorder = &MockMultiReaderIteratorArrayPoolMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (_m *MockIteratorArrayPool) EXPECT() *MockIteratorArrayPoolMockRecorder {
+func (_m *MockMultiReaderIteratorArrayPool) EXPECT() *MockMultiReaderIteratorArrayPoolMockRecorder {
 	return _m.recorder
 }
 
 // Init mocks base method
-func (_m *MockIteratorArrayPool) Init() {
+func (_m *MockMultiReaderIteratorArrayPool) Init() {
 	_m.ctrl.Call(_m, "Init")
 }
 
 // Init indicates an expected call of Init
-func (_mr *MockIteratorArrayPoolMockRecorder) Init() *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Init", reflect.TypeOf((*MockIteratorArrayPool)(nil).Init))
+func (_mr *MockMultiReaderIteratorArrayPoolMockRecorder) Init() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Init", reflect.TypeOf((*MockMultiReaderIteratorArrayPool)(nil).Init))
 }
 
 // Get mocks base method
-func (_m *MockIteratorArrayPool) Get(size int) []Iterator {
+func (_m *MockMultiReaderIteratorArrayPool) Get(size int) []MultiReaderIterator {
 	ret := _m.ctrl.Call(_m, "Get", size)
-	ret0, _ := ret[0].([]Iterator)
+	ret0, _ := ret[0].([]MultiReaderIterator)
 	return ret0
 }
 
 // Get indicates an expected call of Get
-func (_mr *MockIteratorArrayPoolMockRecorder) Get(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Get", reflect.TypeOf((*MockIteratorArrayPool)(nil).Get), arg0)
+func (_mr *MockMultiReaderIteratorArrayPoolMockRecorder) Get(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Get", reflect.TypeOf((*MockMultiReaderIteratorArrayPool)(nil).Get), arg0)
 }
 
 // Put mocks base method
-func (_m *MockIteratorArrayPool) Put(iters []Iterator) {
+func (_m *MockMultiReaderIteratorArrayPool) Put(iters []MultiReaderIterator) {
 	_m.ctrl.Call(_m, "Put", iters)
 }
 
 // Put indicates an expected call of Put
-func (_mr *MockIteratorArrayPoolMockRecorder) Put(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Put", reflect.TypeOf((*MockIteratorArrayPool)(nil).Put), arg0)
+func (_mr *MockMultiReaderIteratorArrayPoolMockRecorder) Put(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Put", reflect.TypeOf((*MockMultiReaderIteratorArrayPool)(nil).Put), arg0)
 }

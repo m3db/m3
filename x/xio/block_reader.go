@@ -21,13 +21,10 @@
 package xio
 
 import (
-	"errors"
 	"time"
 
 	"github.com/m3db/m3db/ts"
 )
-
-var errInvalidInternalReader = errors.New("blockReader.reader is unexpected type")
 
 type blockReader struct {
 	reader SegmentReader
@@ -40,15 +37,12 @@ func NewBlockReader(reader SegmentReader, start, end time.Time) BlockReader {
 	return &blockReader{reader: reader, start: start, end: end}
 }
 
-func (r *blockReader) Clone() (Reader, error) {
+func (r *blockReader) Clone() (SegmentReader, error) {
 	reader, err := r.reader.Clone()
 	if err != nil {
 		return nil, err
 	}
-	if sr, ok := reader.(SegmentReader); ok {
-		return NewBlockReader(sr, r.start, r.end), nil
-	}
-	return nil, errInvalidInternalReader
+	return NewBlockReader(reader, r.start, r.end), nil
 }
 
 func (r *blockReader) Start() time.Time {

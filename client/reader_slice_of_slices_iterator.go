@@ -137,7 +137,7 @@ func timeConvert(ticks *int64) time.Time {
 	return xtime.FromNormalizedTime(*ticks, time.Nanosecond)
 }
 
-func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) xio.Reader {
+func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) xio.SegmentReader {
 	if idx >= it.currentLen() {
 		return nil
 	}

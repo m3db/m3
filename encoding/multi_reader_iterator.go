@@ -159,7 +159,7 @@ func (it *multiReaderIterator) Readers() xio.ReaderSliceOfSlicesIterator {
 	return it.slicesIter
 }
 
-func (it *multiReaderIterator) Reset(readers []xio.Reader, start, end time.Time) {
+func (it *multiReaderIterator) Reset(readers []xio.SegmentReader, start, end time.Time) {
 	it.singleSlicesIter.readers = readers
 	it.singleSlicesIter.firstNext = true
 	it.singleSlicesIter.closed = false
@@ -194,7 +194,7 @@ func (it *multiReaderIterator) Close() {
 }
 
 type singleSlicesOfSlicesIterator struct {
-	readers   []xio.Reader
+	readers   []xio.SegmentReader
 	firstNext bool
 	closed    bool
 	start     time.Time
@@ -213,7 +213,7 @@ func (it *singleSlicesOfSlicesIterator) Current() (int, time.Time, time.Time) {
 	return len(it.readers), it.start, it.end
 }
 
-func (it *singleSlicesOfSlicesIterator) CurrentAt(idx int) xio.Reader {
+func (it *singleSlicesOfSlicesIterator) CurrentAt(idx int) xio.SegmentReader {
 	return it.readers[idx]
 }
 

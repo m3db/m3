@@ -81,7 +81,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 	reader := xio.NewSegmentReader(segment)
 
 	multiReader := encoding.NewMultiReaderIterator(iterAlloc, nil)
-	multiReader.Reset([]xio.Reader{reader}, blockStart, blockEnd)
+	multiReader.Reset([]xio.SegmentReader{reader}, blockStart, blockEnd)
 
 	orig := encoding.NewSeriesIterator(ident.StringID("foo"), ident.StringID("namespace"), nil,
 		start, end, []encoding.MultiReaderIterator{multiReader}, nil)
@@ -99,7 +99,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 			// we are at a block
 			l, start, end := perBlockSliceReaders.Current()
 
-			var readers []xio.Reader
+			var readers []xio.SegmentReader
 			for i := 0; i < l; i++ {
 				// reader to an unmerged (or already merged) block buffer
 				reader := perBlockSliceReaders.CurrentAt(i)

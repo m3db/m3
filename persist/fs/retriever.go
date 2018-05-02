@@ -544,7 +544,7 @@ func (req *retrieveRequest) SegmentReader() (xio.SegmentReader, error) {
 	return req.reader, nil
 }
 
-func (req *retrieveRequest) Clone() (xio.Reader, error) {
+func (req *retrieveRequest) Clone() (xio.SegmentReader, error) {
 	req.resultWg.Wait() // wait until result is ready
 	if req.err != nil {
 		return nil, req.err

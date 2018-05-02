@@ -58,11 +58,6 @@ func TestBlockReaderClone(t *testing.T) {
 	require.Nil(t, r)
 	require.Equal(t, err, errTest)
 
-	sr.EXPECT().Clone().Return(nullSegment{}, nil).Times(1)
-	r, err = br.Clone()
-	require.Nil(t, r)
-	require.Equal(t, err, errInvalidInternalReader)
-
 	sr.EXPECT().Clone().Return(sr, nil).Times(1)
 	r, err = br.Clone()
 	require.NoError(t, err)

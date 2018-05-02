@@ -291,12 +291,12 @@ func assertTestMultiReaderIterator(
 	}
 
 	var (
-		readers         [][]xio.Reader
+		readers         [][]xio.SegmentReader
 		entriesByReader []readerEntries
 	)
 
 	for i := range test.input {
-		var readersArray []xio.Reader
+		var readersArray []xio.SegmentReader
 		for j := range test.input[i] {
 			reader := &testNoopReader{}
 			entries := &test.input[i][j]
