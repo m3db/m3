@@ -239,6 +239,7 @@ func TestDatabaseBlockMerge(t *testing.T) {
 	}
 	require.NoError(t, iter.Err())
 
+	// Make sure the checksum was updated
 	mergedChecksum, err := block1.Checksum()
 	require.NoError(t, err)
 	require.Equal(t, digest.SegmentChecksum(seg), mergedChecksum)
@@ -273,6 +274,75 @@ func TestDatabaseBlockMergeErrorFromDisk(t *testing.T) {
 	require.Equal(t, false, block1.wasRetrievedFromDisk)
 	require.Equal(t, errTriedToMergeBlockFromDisk, block1.Merge(block2))
 	require.Equal(t, errTriedToMergeBlockFromDisk, block2.Merge(block1))
+}
+
+// TestDatabaseBlockChecksumMergesAndRecalculates makes sure that the Checksum method
+// will check if a lazy-merge is pending, and if so perform it and recalculate the checksum.
+func TestDatabaseBlockChecksumMergesAndRecalculates(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Test data
+	curr := time.Now()
+	data := []ts.Datapoint{
+		ts.Datapoint{
+			Timestamp: curr,
+			Value:     0,
+		},
+		ts.Datapoint{
+			Timestamp: curr.Add(time.Second),
+			Value:     1,
+		},
+	}
+
+	// Setup
+	blockOpts := NewOptions()
+	encodingOpts := encoding.NewOptions()
+
+	// Create the two blocks we plan to merge
+	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
+	encoder.Encode(data[0], xtime.Second, nil)
+	seg := encoder.Discard()
+	block1 := NewDatabaseBlock(data[0].Timestamp, seg, blockOpts).(*dbBlock)
+
+	encoder.Reset(data[1].Timestamp, 10)
+	encoder.Encode(data[1], xtime.Second, nil)
+	seg = encoder.Discard()
+	block2 := NewDatabaseBlock(data[1].Timestamp, seg, blockOpts).(*dbBlock)
+
+	// Keep track of the old checksum so we can make sure it changed
+	oldChecksum, err := block1.Checksum()
+	require.NoError(t, err)
+
+	// Lazily merge the two blocks
+	block1.Merge(block2)
+
+	// Make sure the checksum was updated
+	newChecksum, err := block1.Checksum()
+	require.NoError(t, err)
+	require.NotEqual(t, oldChecksum, newChecksum)
+
+	// Try and read the data back and verify it looks good
+	depCtx := block1.opts.ContextPool().Get()
+	stream, err := block1.Stream(depCtx)
+	require.NoError(t, err)
+	seg, err = stream.Segment()
+	require.NoError(t, err)
+	reader := xio.NewSegmentReader(seg)
+	iter := m3tsz.NewReaderIterator(reader, true, encodingOpts)
+
+	i := 0
+	for iter.Next() {
+		dp, _, _ := iter.Current()
+		require.True(t, data[i].Equal(dp))
+		i++
+	}
+	require.NoError(t, iter.Err())
+
+	// Make sure the new checksum is correct
+	mergedChecksum, err := block1.Checksum()
+	require.NoError(t, err)
+	require.Equal(t, digest.SegmentChecksum(seg), mergedChecksum)
 }
 
 func TestDatabaseSeriesBlocksAddBlock(t *testing.T) {
