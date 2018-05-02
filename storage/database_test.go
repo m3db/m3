@@ -698,6 +698,7 @@ func TestDatabaseIndexEnabled(t *testing.T) {
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	require.NoError(t, d.Open())
 
 	ctx := context.NewContext()
