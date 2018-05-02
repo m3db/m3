@@ -33,7 +33,6 @@ import (
 var (
 	errRetentionNil = errors.New("retention options must be set")
 	errNamespaceNil = errors.New("namespace options must be set")
-	errIndexNil     = errors.New("index options must be set")
 )
 
 func fromNanos(n int64) time.Duration {

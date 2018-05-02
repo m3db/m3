@@ -37,6 +37,7 @@ type indexOpts struct {
 	blockSize time.Duration
 }
 
+// NewIndexOptions returns a new IndexOptions.
 func NewIndexOptions() IndexOptions {
 	return &indexOpts{
 		enabled:   defaultIndexEnabled,
