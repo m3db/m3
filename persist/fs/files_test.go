@@ -375,14 +375,14 @@ func TestFileExists(t *testing.T) {
 	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
 	createDataFile(t, shardDir, start, infoFileSuffix, nil)
 	require.True(t, FileExists(infoFilePath))
-	exists, err := DataFilesetExistsAt(dir, testNs1ID, uint32(shard), start)
+	exists, err := DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start)
 	require.NoError(t, err)
 	require.False(t, exists)
 
 	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, nil)
 	require.True(t, FileExists(checkpointFilePath))
-	exists, err = DataFilesetExistsAt(dir, testNs1ID, uint32(shard), start)
+	exists, err = DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start)
 	require.NoError(t, err)
 	require.True(t, exists)
 
@@ -413,14 +413,14 @@ func TestFilePathFromTime(t *testing.T) {
 	}
 }
 
-func TestFilesetFilesBefore(t *testing.T) {
+func TestFileSetFilesBefore(t *testing.T) {
 	shard := uint32(0)
 	dir := createInfoFilesDataDir(t, testNs1ID, shard, 20)
 	defer os.RemoveAll(dir)
 
 	cutoffIter := 8
 	cutoff := time.Unix(0, int64(cutoffIter))
-	res, err := FilesetBefore(dir, testNs1ID, shard, cutoff)
+	res, err := FileSetBefore(dir, testNs1ID, shard, cutoff)
 	require.NoError(t, err)
 	require.Equal(t, cutoffIter, len(res))
 
@@ -431,7 +431,7 @@ func TestFilesetFilesBefore(t *testing.T) {
 	}
 }
 
-func TestFilesetAt(t *testing.T) {
+func TestFileSetAt(t *testing.T) {
 	shard := uint32(0)
 	numIters := 20
 	dir := createCheckpointFilesDataDir(t, testNs1ID, shard, numIters)
@@ -439,14 +439,14 @@ func TestFilesetAt(t *testing.T) {
 
 	for i := 0; i < numIters; i++ {
 		timestamp := time.Unix(0, int64(i))
-		res, ok, err := FilesetAt(dir, testNs1ID, shard, timestamp)
+		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.Equal(t, timestamp, res.ID.BlockStart)
 	}
 }
 
-func TestFilesetAtIgnoresWithoutCheckpoint(t *testing.T) {
+func TestFileSetAtIgnoresWithoutCheckpoint(t *testing.T) {
 	shard := uint32(0)
 	numIters := 20
 	dir := createInfoFilesDataDir(t, testNs1ID, shard, numIters)
@@ -454,13 +454,13 @@ func TestFilesetAtIgnoresWithoutCheckpoint(t *testing.T) {
 
 	for i := 0; i < numIters; i++ {
 		timestamp := time.Unix(0, int64(i))
-		_, ok, err := FilesetAt(dir, testNs1ID, shard, timestamp)
+		_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
 		require.NoError(t, err)
 		require.False(t, ok)
 	}
 }
 
-func TestDeleteFilesetAt(t *testing.T) {
+func TestDeleteFileSetAt(t *testing.T) {
 	shard := uint32(0)
 	numIters := 20
 	dir := createCheckpointFilesDataDir(t, testNs1ID, shard, numIters)
@@ -468,32 +468,32 @@ func TestDeleteFilesetAt(t *testing.T) {
 
 	for i := 0; i < numIters; i++ {
 		timestamp := time.Unix(0, int64(i))
-		res, ok, err := FilesetAt(dir, testNs1ID, shard, timestamp)
+		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.Equal(t, timestamp, res.ID.BlockStart)
 
-		err = DeleteFilesetAt(dir, testNs1ID, shard, timestamp)
+		err = DeleteFileSetAt(dir, testNs1ID, shard, timestamp)
 		require.NoError(t, err)
 
-		res, ok, err = FilesetAt(dir, testNs1ID, shard, timestamp)
+		res, ok, err = FileSetAt(dir, testNs1ID, shard, timestamp)
 		require.NoError(t, err)
 		require.False(t, ok)
 	}
 }
 
-func TestFilesetAtNotExist(t *testing.T) {
+func TestFileSetAtNotExist(t *testing.T) {
 	shard := uint32(0)
 	dir := createInfoFilesDataDir(t, testNs1ID, shard, 0)
 	defer os.RemoveAll(dir)
 
 	timestamp := time.Unix(0, 0)
-	_, ok, err := FilesetAt(dir, testNs1ID, shard, timestamp)
+	_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
 	require.NoError(t, err)
 	require.False(t, ok)
 }
 
-func TestFilesetFilesNoFiles(t *testing.T) {
+func TestFileSetFilesNoFiles(t *testing.T) {
 	// Make empty directory
 	shard := uint32(0)
 	dir := createTempDir(t)
@@ -577,13 +577,13 @@ func TestMultipleForBlockStart(t *testing.T) {
 
 func TestSnapshotFileHasCheckPointFile(t *testing.T) {
 	require.Equal(t, true, SnapshotFile{
-		FilesetFile: FilesetFile{
+		FileSetFile: FileSetFile{
 			AbsoluteFilepaths: []string{"123-checkpoint-0.db"},
 		},
 	}.HasCheckpointFile())
 
 	require.Equal(t, false, SnapshotFile{
-		FilesetFile: FilesetFile{
+		FileSetFile: FileSetFile{
 			AbsoluteFilepaths: []string{"123-index-0.db"},
 		},
 	}.HasCheckpointFile())

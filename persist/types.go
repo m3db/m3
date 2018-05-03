@@ -67,7 +67,7 @@ type PrepareOptions struct {
 	BlockStart        time.Time
 	SnapshotTime      time.Time
 	Shard             uint32
-	FilesetType       FilesetType
+	FileSetType       FileSetType
 	DeleteIfExists    bool
 }
 
@@ -77,12 +77,12 @@ type PrepareSnapshotOptions struct {
 	SnapshotTime time.Time
 }
 
-// FilesetType is an enum that indicates what type of files a fileset contains
-type FilesetType int
+// FileSetType is an enum that indicates what type of files a fileset contains
+type FileSetType int
 
-func (f FilesetType) String() string {
+func (f FileSetType) String() string {
 	switch f {
-	case FilesetFlushType:
+	case FileSetFlushType:
 		return "flush"
 	case FileSetSnapshotType:
 		return "snapshot"
@@ -92,8 +92,8 @@ func (f FilesetType) String() string {
 }
 
 const (
-	// FilesetFlushType indicates that the fileset files contain a complete flush
-	FilesetFlushType FilesetType = iota
+	// FileSetFlushType indicates that the fileset files contain a complete flush
+	FileSetFlushType FileSetType = iota
 	// FileSetSnapshotType indicates that the fileset files contain a snapshot
 	FileSetSnapshotType
 )

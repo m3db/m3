@@ -360,7 +360,7 @@ func (m *seekerManager) newOpenSeeker(
 	shard uint32,
 	blockStart time.Time,
 ) (DataFileSetSeeker, error) {
-	exists, err := DataFilesetExistsAt(m.filePathPrefix, m.namespace, shard, blockStart)
+	exists, err := DataFileSetExistsAt(m.filePathPrefix, m.namespace, shard, blockStart)
 	if err != nil {
 		return nil, err
 	}

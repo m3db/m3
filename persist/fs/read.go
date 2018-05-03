@@ -139,7 +139,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		indexFilepath       string
 		dataFilepath        string
 	)
-	switch opts.FilesetType {
+	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
 		checkpointFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, snapshotIndex)
@@ -148,7 +148,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		bloomFilterFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, snapshotIndex)
 		indexFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, indexFileSuffix, snapshotIndex)
 		dataFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, dataFileSuffix, snapshotIndex)
-	case persist.FilesetFlushType:
+	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
 		checkpointFilepath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 		infoFilepath = filesetPathFromTime(shardDir, blockStart, infoFileSuffix)
@@ -157,7 +157,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		indexFilepath = filesetPathFromTime(shardDir, blockStart, indexFileSuffix)
 		dataFilepath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
 	default:
-		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
+		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
 	}
 
 	// If there is no checkpoint file, don't read the data files.

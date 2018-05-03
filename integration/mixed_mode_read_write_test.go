@@ -143,7 +143,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 	setup.setNowFn(setup.getNowFn().Add(20 * time.Minute))
 	// data from hour 15 is now outdated, ensure the file has been cleaned up
 	log.Infof("waiting till expired fileset files have been cleanedup")
-	require.NoError(t, waitUntilFilesetFilesCleanedUp(setup, nsID, blkStart15, waitTimeout))
+	require.NoError(t, waitUntilFileSetFilesCleanedUp(setup, nsID, blkStart15, waitTimeout))
 	log.Infof("fileset files have been cleaned up")
 
 	// stopping db
@@ -163,7 +163,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 	log.Infof("verified data in database equals expected data")
 }
 
-func waitUntilFilesetFilesCleanedUp(
+func waitUntilFileSetFilesCleanedUp(
 	setup *testSetup,
 	namespace ident.ID,
 	toDelete time.Time,

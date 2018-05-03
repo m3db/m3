@@ -145,7 +145,7 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 		dataFilepath        string
 		digestFilepath      string
 	)
-	switch opts.FilesetType {
+	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(w.filePathPrefix, namespace, shard)
 		// Can't do this outside of the switch statement because we need to make sure
@@ -168,7 +168,7 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 		bloomFilterFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, nextSnapshotIndex)
 		dataFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, dataFileSuffix, nextSnapshotIndex)
 		digestFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, digestFileSuffix, nextSnapshotIndex)
-	case persist.FilesetFlushType:
+	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(w.filePathPrefix, namespace, shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
@@ -182,7 +182,7 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 		dataFilepath = filesetPathFromTime(shardDir, blockStart, dataFileSuffix)
 		digestFilepath = filesetPathFromTime(shardDir, blockStart, digestFileSuffix)
 	default:
-		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FilesetType)
+		return fmt.Errorf("unable to open reader with fileset type: %s", opts.FileSetType)
 	}
 
 	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File

@@ -29,10 +29,10 @@ import (
 
 // DataWriterOpenOptionsMatcher satisfies the gomock.Matcher interface for DataWriterOpenOptions
 type DataWriterOpenOptionsMatcher struct {
-	ID          FilesetFileIdentifier
+	ID          FileSetFileIdentifier
 	BlockSize   time.Duration
 	Snapshot    DataWriterSnapshotOptions
-	FilesetType persist.FilesetType
+	FileSetType persist.FileSetType
 }
 
 // Matches determine whether m matches a DataWriterOpenOptions
@@ -57,7 +57,7 @@ func (m DataWriterOpenOptionsMatcher) Matches(x interface{}) bool {
 	if !m.Snapshot.SnapshotTime.Equal(DataWriterOpenOptions.Snapshot.SnapshotTime) {
 		return false
 	}
-	if m.FilesetType != DataWriterOpenOptions.FilesetType {
+	if m.FileSetType != DataWriterOpenOptions.FileSetType {
 		return false
 	}
 
@@ -68,6 +68,6 @@ func (m DataWriterOpenOptionsMatcher) String() string {
 	return fmt.Sprintf(
 		"namespace: %s, blocksize: %d, shard: %d, blockstart: %d, snapshotTime: %d, filesetType: %s",
 		m.ID.Namespace.String(), m.BlockSize, m.ID.Shard, m.ID.BlockStart.Unix(),
-		m.Snapshot.SnapshotTime.Unix(), m.FilesetType,
+		m.Snapshot.SnapshotTime.Unix(), m.FileSetType,
 	)
 }

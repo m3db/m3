@@ -6,7 +6,7 @@ The primary unit of long-term storage for M3DB are fileset files which store com
 
 They are flushed to disk after a block time window becomes unreachable, that is the end of the time window for which that block can no longer be written to.  If a process is killed before it has a chance to flush the data for the current time window to disk it must be restored from the commit log (or a peer that is responsible for the same shard if replication factor is larger than 1.)
 
-## Filesets
+## FileSets
 
 A fileset has the following files:
 
@@ -51,4 +51,4 @@ A fileset has the following files:
 
 In the diagram above you can see that the data file stores compressed blocks for a given shard / block start combination. The index file (which is sorted by ID and thus can be binary searched or scanned) can be used to find the offset of a specific ID.
 
-Fileset files will be kept for every shard / block start combination that is within the retention period. Once the files fall out of the period defined in the configurable namespace retention period they will be deleted.
+FileSet files will be kept for every shard / block start combination that is within the retention period. Once the files fall out of the period defined in the configurable namespace retention period they will be deleted.

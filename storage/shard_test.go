@@ -363,7 +363,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 		Shard:        s.shard,
 		BlockStart:   blockStart,
 		SnapshotTime: blockStart,
-		FilesetType:  persist.FileSetSnapshotType,
+		FileSetType:  persist.FileSetSnapshotType,
 	}
 	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
 
@@ -904,8 +904,8 @@ func TestShardCleanupSnapshot(t *testing.T) {
 		return fs.SnapshotFilesSlice{
 			// Should get removed for not being in retention period
 			fs.SnapshotFile{
-				FilesetFile: fs.FilesetFile{
-					ID: fs.FilesetFileIdentifier{
+				FileSetFile: fs.FileSetFile{
+					ID: fs.FileSetFileIdentifier{
 						Namespace:  namespace,
 						Shard:      shard,
 						BlockStart: pastRetention,
@@ -916,8 +916,8 @@ func TestShardCleanupSnapshot(t *testing.T) {
 			},
 			// Should get removed for being flushed
 			fs.SnapshotFile{
-				FilesetFile: fs.FilesetFile{
-					ID: fs.FilesetFileIdentifier{
+				FileSetFile: fs.FileSetFile{
+					ID: fs.FileSetFileIdentifier{
 						Namespace:  namespace,
 						Shard:      shard,
 						BlockStart: successfullyFlushed,
@@ -929,8 +929,8 @@ func TestShardCleanupSnapshot(t *testing.T) {
 			// Should not get removed - Note that this entry precedes the
 			// next in order to ensure that the sorting logic works correctly.
 			fs.SnapshotFile{
-				FilesetFile: fs.FilesetFile{
-					ID: fs.FilesetFileIdentifier{
+				FileSetFile: fs.FileSetFile{
+					ID: fs.FileSetFileIdentifier{
 						Namespace:  namespace,
 						Shard:      shard,
 						BlockStart: notFlushedYet,
@@ -943,8 +943,8 @@ func TestShardCleanupSnapshot(t *testing.T) {
 			},
 			// Should get removed because the next one has a higher index
 			fs.SnapshotFile{
-				FilesetFile: fs.FilesetFile{
-					ID: fs.FilesetFileIdentifier{
+				FileSetFile: fs.FileSetFile{
+					ID: fs.FileSetFileIdentifier{
 						Namespace:  namespace,
 						Shard:      shard,
 						BlockStart: notFlushedYet,

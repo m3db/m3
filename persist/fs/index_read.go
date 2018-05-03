@@ -44,7 +44,7 @@ type indexReader struct {
 
 	namespaceDir  string
 	start         time.Time
-	fileSetType   persist.FilesetType
+	fileSetType   persist.FileSetType
 	snapshotIndex int
 
 	currIdx                int
@@ -102,21 +102,21 @@ func (r *indexReader) Open(opts IndexReaderOpenOptions) error {
 		digestFilepath     string
 	)
 	r.start = opts.Identifier.BlockStart
-	r.fileSetType = opts.FilesetType
+	r.fileSetType = opts.FileSetType
 	r.snapshotIndex = opts.Identifier.Index
-	switch opts.FilesetType {
+	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		r.namespaceDir = NamespaceIndexSnapshotDirPath(r.filePathPrefix, namespace)
 		checkpointFilepath = snapshotPathFromTimeAndIndex(r.namespaceDir, r.start, checkpointFileSuffix, r.snapshotIndex)
 		infoFilepath = snapshotPathFromTimeAndIndex(r.namespaceDir, r.start, infoFileSuffix, r.snapshotIndex)
 		digestFilepath = snapshotPathFromTimeAndIndex(r.namespaceDir, r.start, digestFileSuffix, r.snapshotIndex)
-	case persist.FilesetFlushType:
+	case persist.FileSetFlushType:
 		r.namespaceDir = NamespaceIndexDataDirPath(r.filePathPrefix, namespace)
 		checkpointFilepath = filesetPathFromTime(r.namespaceDir, r.start, checkpointFileSuffix)
 		infoFilepath = filesetPathFromTime(r.namespaceDir, r.start, infoFileSuffix)
 		digestFilepath = filesetPathFromTime(r.namespaceDir, r.start, digestFileSuffix)
 	default:
-		return fmt.Errorf("cannot open index reader for fileset type: %s", opts.FilesetType)
+		return fmt.Errorf("cannot open index reader for fileset type: %s", opts.FileSetType)
 	}
 
 	// If there is no checkpoint file, don't read the index files.
@@ -201,7 +201,7 @@ func (r *indexReader) ReadSegmentFileSet() (IndexSegmentFileSet, error) {
 		case persist.FileSetSnapshotType:
 			filePath = snapshotIndexSegmentFilePathFromTimeAndIndex(r.namespaceDir, r.start,
 				r.currIdx, segFileType, r.snapshotIndex)
-		case persist.FilesetFlushType:
+		case persist.FileSetFlushType:
 			filePath = filesetIndexSegmentFilePathFromTime(r.namespaceDir, r.start,
 				r.currIdx, segFileType)
 		default:

@@ -52,7 +52,7 @@ var (
 	errPersistManagerNotIdle                    = errors.New("persist manager cannot start persist, not idle")
 	errPersistManagerNotPersisting              = errors.New("persist manager cannot finish persisting, not persisting")
 	errPersistManagerCannotPrepareNotPersisting = errors.New("persist manager cannot prepare, not persisting")
-	errPersistManagerFilesetAlreadyExists       = errors.New("persist manager cannot prepare, fileset already exists")
+	errPersistManagerFileSetAlreadyExists       = errors.New("persist manager cannot prepare, fileset already exists")
 )
 
 type sleepFn func(time.Duration)
@@ -239,11 +239,11 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 	}
 
 	if exists && !opts.DeleteIfExists {
-		return prepared, errPersistManagerFilesetAlreadyExists
+		return prepared, errPersistManagerFileSetAlreadyExists
 	}
 
 	if exists && opts.DeleteIfExists {
-		err := DeleteFilesetAt(pm.opts.FilePathPrefix(), nsID, shard, blockStart)
+		err := DeleteFileSetAt(pm.opts.FilePathPrefix(), nsID, shard, blockStart)
 		if err != nil {
 			return prepared, err
 		}
@@ -255,8 +255,8 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 		Snapshot: DataWriterSnapshotOptions{
 			SnapshotTime: snapshotTime,
 		},
-		FilesetType: opts.FilesetType,
-		Identifier: FilesetFileIdentifier{
+		FileSetType: opts.FileSetType,
+		Identifier: FileSetFileIdentifier{
 			Namespace:  nsID,
 			Shard:      shard,
 			BlockStart: blockStart,
@@ -279,17 +279,17 @@ func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) (b
 		nsID       = prepareOpts.NamespaceMetadata.ID()
 	)
 
-	switch prepareOpts.FilesetType {
+	switch prepareOpts.FileSetType {
 	case persist.FileSetSnapshotType:
 		// Snapshot files are indexed (multiple per block-start), so checking if the file
 		// already exist doesn't make much sense
 		return false, nil
-	case persist.FilesetFlushType:
-		return DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart)
+	case persist.FileSetFlushType:
+		return DataFileSetExistsAt(pm.filePathPrefix, nsID, shard, blockStart)
 	default:
 		return false, fmt.Errorf(
 			"unable to determine if fileset exists in persist manager for fileset type: %s",
-			prepareOpts.FilesetType)
+			prepareOpts.FileSetType)
 	}
 }
 

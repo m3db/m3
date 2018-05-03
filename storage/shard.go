@@ -1737,7 +1737,7 @@ func (s *dbShard) Snapshot(
 		Shard:             s.ID(),
 		BlockStart:        blockStart,
 		SnapshotTime:      snapshotTime,
-		FilesetType:       persist.FileSetSnapshotType,
+		FileSetType:       persist.FileSetSnapshotType,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	// Add the err so the defer will capture it

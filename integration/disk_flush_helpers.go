@@ -86,7 +86,7 @@ func waitUntilDataFilesFlushed(
 		for timestamp, seriesList := range testData {
 			for _, series := range seriesList {
 				shard := shardSet.Lookup(series.ID)
-				exists, err := fs.DataFilesetExistsAt(filePathPrefix, namespace, shard, timestamp.ToTime())
+				exists, err := fs.DataFileSetExistsAt(filePathPrefix, namespace, shard, timestamp.ToTime())
 				if err != nil {
 					panic(err)
 				}
@@ -112,7 +112,7 @@ func verifyForTime(
 	iteratorPool encoding.ReaderIteratorPool,
 	timestamp time.Time,
 	namespace ident.ID,
-	filesetType persist.FilesetType,
+	filesetType persist.FileSetType,
 	expected generate.SeriesBlock,
 ) {
 	shards := make(map[uint32]struct{})
@@ -123,12 +123,12 @@ func verifyForTime(
 	actual := make(generate.SeriesBlock, 0, len(expected))
 	for shard := range shards {
 		rOpts := fs.DataReaderOpenOptions{
-			Identifier: fs.FilesetFileIdentifier{
+			Identifier: fs.FileSetFileIdentifier{
 				Namespace:  namespace,
 				Shard:      shard,
 				BlockStart: timestamp,
 			},
-			FilesetType: filesetType,
+			FileSetType: filesetType,
 		}
 
 		if filesetType == persist.FileSetSnapshotType {
@@ -189,7 +189,7 @@ func verifyFlushedDataFiles(
 	for timestamp, seriesList := range seriesMaps {
 		verifyForTime(
 			t, storageOpts, reader, shardSet, iteratorPool, timestamp.ToTime(),
-			namespace, persist.FilesetFlushType, seriesList)
+			namespace, persist.FileSetFlushType, seriesList)
 	}
 }
 

@@ -47,7 +47,7 @@ type indexWriter struct {
 	err           error
 	blockSize     time.Duration
 	start         time.Time
-	fileSetType   persist.FilesetType
+	fileSetType   persist.FileSetType
 	snapshotTime  time.Time
 	snapshotIndex int
 	segments      []writtenIndexSegment
@@ -96,11 +96,11 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	w.err = nil
 	w.blockSize = opts.BlockSize
 	w.start = blockStart
-	w.fileSetType = opts.FilesetType
+	w.fileSetType = opts.FileSetType
 	w.snapshotTime = opts.Snapshot.SnapshotTime
 	w.segments = nil
 
-	switch opts.FilesetType {
+	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		w.namespaceDir = NamespaceIndexSnapshotDirPath(w.filePathPrefix, namespace)
 		// Can't do this outside of the switch statement because we need to make sure
@@ -119,7 +119,7 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 		w.checkpointFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, checkpointFileSuffix, w.snapshotIndex)
 		w.infoFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, infoFileSuffix, w.snapshotIndex)
 		w.digestFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, digestFileSuffix, w.snapshotIndex)
-	case persist.FilesetFlushType:
+	case persist.FileSetFlushType:
 		w.namespaceDir = NamespaceIndexDataDirPath(w.filePathPrefix, namespace)
 		if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
 			return err
@@ -129,7 +129,7 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 		w.infoFilePath = filesetPathFromTime(w.namespaceDir, blockStart, infoFileSuffix)
 		w.digestFilePath = filesetPathFromTime(w.namespaceDir, blockStart, digestFileSuffix)
 	default:
-		return fmt.Errorf("cannot open index writer for fileset type: %s", opts.FilesetType)
+		return fmt.Errorf("cannot open index writer for fileset type: %s", opts.FileSetType)
 	}
 	return nil
 }
@@ -170,7 +170,7 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) er
 		case persist.FileSetSnapshotType:
 			filePath = snapshotIndexSegmentFilePathFromTimeAndIndex(w.namespaceDir, w.start,
 				idx, segFileType, w.snapshotIndex)
-		case persist.FilesetFlushType:
+		case persist.FileSetFlushType:
 			filePath = filesetIndexSegmentFilePathFromTime(w.namespaceDir, w.start,
 				idx, segFileType)
 		default:

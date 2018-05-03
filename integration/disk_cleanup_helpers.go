@@ -55,13 +55,13 @@ func newDataFileSetWriter(storageOpts storage.Options) (fs.DataFileSetWriter, er
 }
 
 // nolint: deadcode
-func writeFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
+func writeFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
 	rOpts := md.Options().RetentionOptions()
 	writer, err := newDataFileSetWriter(storageOpts)
 	require.NoError(t, err)
 	for _, start := range fileTimes {
 		writerOpts := fs.DataWriterOpenOptions{
-			Identifier: fs.FilesetFileIdentifier{
+			Identifier: fs.FileSetFileIdentifier{
 				Namespace:  md.ID(),
 				Shard:      shard,
 				BlockStart: start,
@@ -116,7 +116,7 @@ type cleanupTimesFileSet struct {
 
 func (fset *cleanupTimesFileSet) anyExist() bool {
 	for _, t := range fset.times {
-		exists, err := fs.DataFilesetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t)
+		exists, err := fs.DataFileSetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t)
 		if err != nil {
 			panic(err)
 		}
@@ -130,7 +130,7 @@ func (fset *cleanupTimesFileSet) anyExist() bool {
 
 func (fset *cleanupTimesFileSet) allExist() bool {
 	for _, t := range fset.times {
-		exists, err := fs.DataFilesetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t)
+		exists, err := fs.DataFileSetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t)
 		if err != nil {
 			panic(err)
 		}

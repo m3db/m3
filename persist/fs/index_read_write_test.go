@@ -46,7 +46,7 @@ type indexWriteTestSetup struct {
 	filePathPrefix string
 	blockSize      time.Duration
 	blockStart     time.Time
-	fileSetID      FilesetFileIdentifier
+	fileSetID      FileSetFileIdentifier
 }
 
 func newIndexWriteTestSetup(t *testing.T) indexWriteTestSetup {
@@ -55,7 +55,7 @@ func newIndexWriteTestSetup(t *testing.T) indexWriteTestSetup {
 	filePathPrefix := filepath.Join(dir, "")
 	blockSize := 12 * time.Hour
 	blockStart := now.Truncate(blockSize)
-	fileSetID := FilesetFileIdentifier{
+	fileSetID := FileSetFileIdentifier{
 		FileSetContentType: persist.FileSetIndexContentType,
 		Namespace:          ident.StringID("metrics"),
 		BlockStart:         blockStart,
@@ -85,7 +85,7 @@ func TestIndexSimpleReadWrite(t *testing.T) {
 	err := writer.Open(IndexWriterOpenOptions{
 		Identifier:  test.fileSetID,
 		BlockSize:   test.blockSize,
-		FilesetType: persist.FilesetFlushType,
+		FileSetType: persist.FileSetFlushType,
 	})
 	require.NoError(t, err)
 
@@ -118,7 +118,7 @@ func TestIndexSimpleReadWrite(t *testing.T) {
 	reader := newTestIndexReader(t, test.filePathPrefix)
 	err = reader.Open(IndexReaderOpenOptions{
 		Identifier:  test.fileSetID,
-		FilesetType: persist.FilesetFlushType,
+		FileSetType: persist.FileSetFlushType,
 	})
 	require.NoError(t, err)
 

@@ -65,7 +65,7 @@ func TestCloner(t *testing.T) {
 		SetDecodingOptions(opts.DecodingOptions()))
 	require.NoError(t, err)
 	r1OpenOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FilesetFileIdentifier{
+		Identifier: fs.FileSetFileIdentifier{
 			Namespace:  ident.StringID(src.Namespace),
 			Shard:      src.Shard,
 			BlockStart: src.Blockstart,
@@ -79,7 +79,7 @@ func TestCloner(t *testing.T) {
 		SetDecodingOptions(opts.DecodingOptions()))
 	require.NoError(t, err)
 	r2OpenOpts := fs.DataReaderOpenOptions{
-		Identifier: fs.FilesetFileIdentifier{
+		Identifier: fs.FileSetFileIdentifier{
 			Namespace:  ident.StringID(dest.Namespace),
 			Shard:      dest.Shard,
 			BlockStart: dest.Blockstart,
@@ -113,7 +113,7 @@ func writeTestData(t *testing.T, bs time.Duration, src FileSetID, opts Options) 
 	require.NoError(t, err)
 	writerOpts := fs.DataWriterOpenOptions{
 		BlockSize: bs,
-		Identifier: fs.FilesetFileIdentifier{
+		Identifier: fs.FileSetFileIdentifier{
 			Namespace:  ident.StringID(src.Namespace),
 			Shard:      src.Shard,
 			BlockStart: src.Blockstart,

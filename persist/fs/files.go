@@ -53,15 +53,15 @@ const (
 
 type fileOpener func(filePath string) (*os.File, error)
 
-// FilesetFile represents a set of FileSet files for a given block start
-type FilesetFile struct {
-	ID                FilesetFileIdentifier
+// FileSetFile represents a set of FileSet files for a given block start
+type FileSetFile struct {
+	ID                FileSetFileIdentifier
 	AbsoluteFilepaths []string
 }
 
 // HasCheckpointFile returns a bool indicating whether the given set of
 // snapshot files has a checkpoint file.
-func (f FilesetFile) HasCheckpointFile() bool {
+func (f FileSetFile) HasCheckpointFile() bool {
 	for _, fileName := range f.AbsoluteFilepaths {
 		if strings.Contains(fileName, checkpointFileSuffix) {
 			return true
@@ -71,12 +71,12 @@ func (f FilesetFile) HasCheckpointFile() bool {
 	return false
 }
 
-// FilesetFilesSlice is a slice of FilesetFile
-type FilesetFilesSlice []FilesetFile
+// FileSetFilesSlice is a slice of FileSetFile
+type FileSetFilesSlice []FileSetFile
 
-// Filepaths flattens a slice of FilesetFiles to a single slice of filepaths.
+// Filepaths flattens a slice of FileSetFiles to a single slice of filepaths.
 // All paths returned are absolute.
-func (f FilesetFilesSlice) Filepaths() []string {
+func (f FileSetFilesSlice) Filepaths() []string {
 	flattened := []string{}
 	for _, fileset := range f {
 		flattened = append(flattened, fileset.AbsoluteFilepaths...)
@@ -85,17 +85,17 @@ func (f FilesetFilesSlice) Filepaths() []string {
 	return flattened
 }
 
-// ignores the index in the FilesetFileIdentifier because fileset files should
+// ignores the index in the FileSetFileIdentifier because fileset files should
 // always have index 0.
-func (f FilesetFilesSlice) sortByTimeAscending() {
+func (f FileSetFilesSlice) sortByTimeAscending() {
 	sort.Slice(f, func(i, j int) bool {
 		return f[i].ID.BlockStart.Before(f[j].ID.BlockStart)
 	})
 }
 
-// NewFilesetFile creates a new Fileset file
-func NewFilesetFile(id FilesetFileIdentifier) FilesetFile {
-	return FilesetFile{
+// NewFileSetFile creates a new FileSet file
+func NewFileSetFile(id FileSetFileIdentifier) FileSetFile {
+	return FileSetFile{
 		ID:                id,
 		AbsoluteFilepaths: []string{},
 	}
@@ -103,7 +103,7 @@ func NewFilesetFile(id FilesetFileIdentifier) FilesetFile {
 
 // SnapshotFile represents a set of Snapshot files for a given block start
 type SnapshotFile struct {
-	FilesetFile
+	FileSetFile
 }
 
 // SnapshotFilesSlice is a slice of SnapshotFile
@@ -157,9 +157,9 @@ func (f SnapshotFilesSlice) sortByTimeAndIndexAscending() {
 }
 
 // NewSnapshotFile creates a new Snapshot file
-func NewSnapshotFile(id FilesetFileIdentifier) SnapshotFile {
+func NewSnapshotFile(id FileSetFileIdentifier) SnapshotFile {
 	return SnapshotFile{
-		FilesetFile: NewFilesetFile(id),
+		FileSetFile: NewFileSetFile(id),
 	}
 }
 
@@ -436,11 +436,11 @@ func IndexSnapshotFiles(filePathPrefix string, namespace ident.ID) (SnapshotFile
 	})
 }
 
-// FilesetAt returns a FilesetFile for the given namespace/shard/blockStart combination if it exists.
-func FilesetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (FilesetFile, bool, error) {
+// FileSetAt returns a FileSetFile for the given namespace/shard/blockStart combination if it exists.
+func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (FileSetFile, bool, error) {
 	matched, err := filesetFiles(filePathPrefix, namespace, shard, filesetFilePattern)
 	if err != nil {
-		return FilesetFile{}, false, err
+		return FileSetFile{}, false, err
 	}
 
 	matched.sortByTimeAscending()
@@ -449,7 +449,7 @@ func FilesetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockSta
 			nextIdx := i + 1
 			if nextIdx < len(matched) && matched[nextIdx].ID.BlockStart.Equal(blockStart) {
 				// Should never happen
-				return FilesetFile{}, false, fmt.Errorf(
+				return FileSetFile{}, false, fmt.Errorf(
 					"found multiple fileset files for blockStart: %d",
 					blockStart.Unix(),
 				)
@@ -463,12 +463,12 @@ func FilesetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockSta
 		}
 	}
 
-	return FilesetFile{}, false, nil
+	return FileSetFile{}, false, nil
 }
 
-// DeleteFilesetAt deletes a FilesetFile for a given namespace/shard/blockStart combination if it exists.
-func DeleteFilesetAt(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) error {
-	fileset, ok, err := FilesetAt(filePathPrefix, namespace, shard, t)
+// DeleteFileSetAt deletes a FileSetFile for a given namespace/shard/blockStart combination if it exists.
+func DeleteFileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) error {
+	fileset, ok, err := FileSetAt(filePathPrefix, namespace, shard, t)
 	if err != nil {
 		return err
 	}
@@ -479,8 +479,8 @@ func DeleteFilesetAt(filePathPrefix string, namespace ident.ID, shard uint32, t 
 	return DeleteFiles(fileset.AbsoluteFilepaths)
 }
 
-// FilesetBefore returns all the fileset files whose timestamps are earlier than a given time.
-func FilesetBefore(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) ([]string, error) {
+// FileSetBefore returns all the fileset files whose timestamps are earlier than a given time.
+func FileSetBefore(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) ([]string, error) {
 	matched, err := filesetFiles(filePathPrefix, namespace, shard, filesetFilePattern)
 	if err != nil {
 		return nil, err
@@ -609,7 +609,7 @@ func snapshotFiles(args snapshotFilesSelector) ([]SnapshotFile, error) {
 		}
 
 		if latestBlockStart.IsZero() {
-			latestSnapshotFile = NewSnapshotFile(FilesetFileIdentifier{
+			latestSnapshotFile = NewSnapshotFile(FileSetFileIdentifier{
 				Namespace:  args.namespace,
 				Shard:      args.shard,
 				BlockStart: currentFileBlockStart,
@@ -617,7 +617,7 @@ func snapshotFiles(args snapshotFilesSelector) ([]SnapshotFile, error) {
 			latestIndex = index
 		} else if !currentFileBlockStart.Equal(latestBlockStart) || latestIndex != index {
 			snapshotFiles = append(snapshotFiles, latestSnapshotFile)
-			latestSnapshotFile = NewSnapshotFile(FilesetFileIdentifier{
+			latestSnapshotFile = NewSnapshotFile(FileSetFileIdentifier{
 				Namespace:  args.namespace,
 				Shard:      args.shard,
 				BlockStart: currentFileBlockStart,
@@ -634,7 +634,7 @@ func snapshotFiles(args snapshotFilesSelector) ([]SnapshotFile, error) {
 	return snapshotFiles, nil
 }
 
-func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, pattern string) (FilesetFilesSlice, error) {
+func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, pattern string) (FileSetFilesSlice, error) {
 	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
 	byTimeAsc, err := findFiles(shardDir, pattern, func(files []string) sort.Interface {
 		return byTimeAscending(files)
@@ -650,8 +650,8 @@ func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, patte
 
 	var (
 		latestBlockStart  time.Time
-		latestFilesetFile FilesetFile
-		filesetFiles      = []FilesetFile{}
+		latestFileSetFile FileSetFile
+		filesetFiles      = []FileSetFile{}
 	)
 	for _, file := range byTimeAsc {
 		currentFileBlockStart, err := TimeFromFileName(file)
@@ -660,14 +660,14 @@ func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, patte
 		}
 
 		if latestBlockStart.IsZero() {
-			latestFilesetFile = NewFilesetFile(FilesetFileIdentifier{
+			latestFileSetFile = NewFileSetFile(FileSetFileIdentifier{
 				Namespace:  namespace,
 				Shard:      shard,
 				BlockStart: currentFileBlockStart,
 			})
 		} else if !currentFileBlockStart.Equal(latestBlockStart) {
-			filesetFiles = append(filesetFiles, latestFilesetFile)
-			latestFilesetFile = NewFilesetFile(FilesetFileIdentifier{
+			filesetFiles = append(filesetFiles, latestFileSetFile)
+			latestFileSetFile = NewFileSetFile(FileSetFileIdentifier{
 				Namespace:  namespace,
 				Shard:      shard,
 				BlockStart: currentFileBlockStart,
@@ -675,9 +675,9 @@ func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, patte
 		}
 		latestBlockStart = currentFileBlockStart
 
-		latestFilesetFile.AbsoluteFilepaths = append(latestFilesetFile.AbsoluteFilepaths, file)
+		latestFileSetFile.AbsoluteFilepaths = append(latestFileSetFile.AbsoluteFilepaths, file)
 	}
-	filesetFiles = append(filesetFiles, latestFilesetFile)
+	filesetFiles = append(filesetFiles, latestFileSetFile)
 
 	return filesetFiles, nil
 }
@@ -789,9 +789,9 @@ func CommitLogsDirPath(prefix string) string {
 	return path.Join(prefix, commitLogsDirName)
 }
 
-// DataFilesetExistsAt determines whether data fileset files exist for the given namespace, shard, and block start.
-func DataFilesetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) (bool, error) {
-	_, ok, err := FilesetAt(prefix, namespace, shard, blockStart)
+// DataFileSetExistsAt determines whether data fileset files exist for the given namespace, shard, and block start.
+func DataFileSetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) (bool, error) {
+	_, ok, err := FileSetAt(prefix, namespace, shard, blockStart)
 	if err != nil {
 		return false, err
 	}
@@ -891,7 +891,7 @@ func filesetIndexSegmentFileSuffixFromTime(
 	segmentIndex int,
 	segmentFileType IndexSegmentFileType,
 ) string {
-	return fmt.Sprintf("%s%s%d%s%s", segmentFilesetFilePrefix,
+	return fmt.Sprintf("%s%s%d%s%s", segmentFileSetFilePrefix,
 		separator, segmentIndex, separator, segmentFileType)
 }
 

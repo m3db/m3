@@ -48,8 +48,8 @@ var (
 	fileSubTypeRegex = regexp.MustCompile("^[a-z_]+$")
 )
 
-// FilesetFileIdentifier contains all the information required to identify a FilesetFile
-type FilesetFileIdentifier struct {
+// FileSetFileIdentifier contains all the information required to identify a FileSetFile
+type FileSetFileIdentifier struct {
 	FileSetContentType persist.FileSetContentType
 	Namespace          ident.ID
 	BlockStart         time.Time
@@ -61,9 +61,9 @@ type FilesetFileIdentifier struct {
 
 // DataWriterOpenOptions is the options struct for the Open method on the DataFileSetWriter
 type DataWriterOpenOptions struct {
-	FilesetType        persist.FilesetType
+	FileSetType        persist.FileSetType
 	FileSetContentType persist.FileSetContentType
-	Identifier         FilesetFileIdentifier
+	Identifier         FileSetFileIdentifier
 	BlockSize          time.Duration
 	// Only used when writing snapshot files
 	Snapshot DataWriterSnapshotOptions
@@ -105,8 +105,8 @@ type DataFileSetReaderStatus struct {
 
 // DataReaderOpenOptions is options struct for the reader open method.
 type DataReaderOpenOptions struct {
-	Identifier  FilesetFileIdentifier
-	FilesetType persist.FilesetType
+	Identifier  FileSetFileIdentifier
+	FileSetType persist.FileSetType
 }
 
 // DataFileSetReader provides an unsynchronized reader for a TSDB file set
@@ -256,9 +256,9 @@ type IndexWriterSnapshotOptions struct {
 
 // IndexWriterOpenOptions is a set of options when opening an index file set writer.
 type IndexWriterOpenOptions struct {
-	Identifier  FilesetFileIdentifier
+	Identifier  FileSetFileIdentifier
 	BlockSize   time.Duration
-	FilesetType persist.FilesetType
+	FileSetType persist.FileSetType
 	// Only used when writing snapshot files
 	Snapshot IndexWriterSnapshotOptions
 }
@@ -325,8 +325,8 @@ type IndexSegmentFile interface {
 
 // IndexReaderOpenOptions is the index file set reader open options.
 type IndexReaderOpenOptions struct {
-	Identifier  FilesetFileIdentifier
-	FilesetType persist.FilesetType
+	Identifier  FileSetFileIdentifier
+	FileSetType persist.FileSetType
 }
 
 // IndexFileSetReader is an index file set reader.

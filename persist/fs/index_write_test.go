@@ -88,7 +88,7 @@ func TestSnapshotIndexWriter(t *testing.T) {
 		err := writer.Open(IndexWriterOpenOptions{
 			Identifier:  fileSetID,
 			BlockSize:   test.blockSize,
-			FilesetType: persist.FileSetSnapshotType,
+			FileSetType: persist.FileSetSnapshotType,
 			Snapshot: IndexWriterSnapshotOptions{
 				SnapshotTime: snapshot.snapshotTime,
 			},
@@ -133,7 +133,7 @@ func TestSnapshotIndexWriter(t *testing.T) {
 
 		err = reader.Open(IndexReaderOpenOptions{
 			Identifier:  fileSetID,
-			FilesetType: persist.FileSetSnapshotType,
+			FileSetType: persist.FileSetSnapshotType,
 		})
 		require.NoError(t, err)
 

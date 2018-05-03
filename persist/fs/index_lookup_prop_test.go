@@ -80,7 +80,7 @@ func TestIndexLookupWriteRead(t *testing.T) {
 		}
 		writerOpts := DataWriterOpenOptions{
 			BlockSize: testBlockSize,
-			Identifier: FilesetFileIdentifier{
+			Identifier: FileSetFileIdentifier{
 				Namespace:  testNs1ID,
 				Shard:      shard,
 				BlockStart: testWriterStart,
