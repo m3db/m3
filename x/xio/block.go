@@ -21,31 +21,32 @@
 package xio
 
 import (
-	"testing"
+	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/m3db/m3db/ts"
 )
 
-func TestReaderSliceOfSlicesFromSegmentReadersIterator(t *testing.T) {
-	var a, b, c, d, e, f SegmentReader
-	all := []*SegmentReader{&a, &b, &c, &d, &e, &f}
-	for _, r := range all {
-		*r = nullSegmentReader{}
+// CloneBlock returns a clone of the block with the underlying data reset
+func (b Block) CloneBlock() (Block, error) {
+	sr, err := b.SegmentReader.Clone()
+	if err != nil {
+		return EmptyBlock, nil
 	}
+	return Block{
+		SegmentReader: sr,
+		Start:         b.Start,
+		End:           b.End,
+	}, nil
+}
 
-	readers := [][]SegmentReader{
-		[]SegmentReader{a, b, c},
-		[]SegmentReader{d},
-		[]SegmentReader{e, f},
-	}
+// IsEmpty returns true for the empty block
+func (b Block) IsEmpty() bool {
+	return b.Start.Equal(timeZero) && b.End.Equal(timeZero) && b.SegmentReader == nil
+}
 
-	iter := NewReaderSliceOfSlicesFromSegmentReadersIterator(readers)
-	for i := range readers {
-		assert.True(t, iter.Next())
-		assert.Equal(t, len(readers[i]), iter.CurrentLen())
-		for j, r := range readers[i] {
-			assert.Equal(t, r, iter.CurrentAt(j))
-		}
-	}
-	assert.False(t, iter.Next())
+// ResetWindowed resets the underlying reader window, as well as start and end times for the block
+func (b *Block) ResetWindowed(segment ts.Segment, start, end time.Time) {
+	b.Reset(segment)
+	b.Start = start
+	b.End = end
 }

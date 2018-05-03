@@ -37,7 +37,7 @@ type sessionPools struct {
 	fetchBatchOpArrayArray      *fetchBatchOpArrayArrayPool
 	fetchTaggedOp               fetchTaggedOpPool
 	fetchState                  fetchStatePool
-	iteratorArray               encoding.IteratorArrayPool
+	multiReaderIteratorArray    encoding.MultiReaderIteratorArrayPool
 	tagEncoder                  serialize.TagEncoderPool
 	tagDecoder                  serialize.TagDecoderPool
 	readerSliceOfSlicesIterator *readerSliceOfSlicesIteratorPool
@@ -58,8 +58,8 @@ func (s sessionPools) SeriesIterator() encoding.SeriesIteratorPool {
 	return s.seriesIterator
 }
 
-func (s sessionPools) IteratorArray() encoding.IteratorArrayPool {
-	return s.iteratorArray
+func (s sessionPools) MultiReaderIteratorArray() encoding.MultiReaderIteratorArrayPool {
+	return s.multiReaderIteratorArray
 }
 
 func (s sessionPools) ID() ident.Pool {

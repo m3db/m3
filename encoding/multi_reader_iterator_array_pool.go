@@ -34,19 +34,19 @@ import (
 // array pool.
 
 // TODO(r): instrument this to tune pooling
-type iteratorArrayPool struct {
+type multiReaderIteratorArrayPool struct {
 	sizesAsc          []pool.Bucket
-	buckets           []iteratorArrayPoolBucket
+	buckets           []multiReaderIteratorArrayPoolBucket
 	maxBucketCapacity int
 }
 
-type iteratorArrayPoolBucket struct {
+type multiReaderIteratorArrayPoolBucket struct {
 	capacity int
-	values   chan []Iterator
+	values   chan []MultiReaderIterator
 }
 
-// NewIteratorArrayPool creates a new pool
-func NewIteratorArrayPool(sizes []pool.Bucket) IteratorArrayPool {
+// NewMultiReaderIteratorArrayPool creates a new pool
+func NewMultiReaderIteratorArrayPool(sizes []pool.Bucket) MultiReaderIteratorArrayPool {
 	sizesAsc := make([]pool.Bucket, len(sizes))
 	copy(sizesAsc, sizes)
 	sort.Sort(pool.BucketByCapacity(sizesAsc))
@@ -54,18 +54,18 @@ func NewIteratorArrayPool(sizes []pool.Bucket) IteratorArrayPool {
 	if len(sizesAsc) != 0 {
 		maxBucketCapacity = sizesAsc[len(sizesAsc)-1].Capacity
 	}
-	return &iteratorArrayPool{sizesAsc: sizesAsc, maxBucketCapacity: maxBucketCapacity}
+	return &multiReaderIteratorArrayPool{sizesAsc: sizesAsc, maxBucketCapacity: maxBucketCapacity}
 }
 
-func (p *iteratorArrayPool) alloc(capacity int) []Iterator {
-	return make([]Iterator, 0, capacity)
+func (p *multiReaderIteratorArrayPool) alloc(capacity int) []MultiReaderIterator {
+	return make([]MultiReaderIterator, 0, capacity)
 }
 
-func (p *iteratorArrayPool) Init() {
-	buckets := make([]iteratorArrayPoolBucket, len(p.sizesAsc))
+func (p *multiReaderIteratorArrayPool) Init() {
+	buckets := make([]multiReaderIteratorArrayPoolBucket, len(p.sizesAsc))
 	for i := range p.sizesAsc {
 		buckets[i].capacity = p.sizesAsc[i].Capacity
-		buckets[i].values = make(chan []Iterator, p.sizesAsc[i].Count)
+		buckets[i].values = make(chan []MultiReaderIterator, p.sizesAsc[i].Count)
 		for j := 0; j < p.sizesAsc[i].Count; j++ {
 			buckets[i].values <- p.alloc(p.sizesAsc[i].Capacity)
 		}
@@ -73,7 +73,7 @@ func (p *iteratorArrayPool) Init() {
 	p.buckets = buckets
 }
 
-func (p *iteratorArrayPool) Get(capacity int) []Iterator {
+func (p *multiReaderIteratorArrayPool) Get(capacity int) []MultiReaderIterator {
 	if capacity > p.maxBucketCapacity {
 		return p.alloc(capacity)
 	}
@@ -92,7 +92,7 @@ func (p *iteratorArrayPool) Get(capacity int) []Iterator {
 	return p.alloc(capacity)
 }
 
-func (p *iteratorArrayPool) Put(array []Iterator) {
+func (p *multiReaderIteratorArrayPool) Put(array []MultiReaderIterator) {
 	capacity := cap(array)
 	if capacity > p.maxBucketCapacity {
 		return

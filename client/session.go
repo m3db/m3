@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"reflect"
 	"sort"
@@ -728,14 +727,14 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		s.opts.FetchBatchOpPoolSize()/len(queues))
 	s.pools.fetchBatchOpArrayArray.Init()
 
-	if s.pools.iteratorArray == nil {
-		s.pools.iteratorArray = encoding.NewIteratorArrayPool([]pool.Bucket{
+	if s.pools.multiReaderIteratorArray == nil {
+		s.pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool([]pool.Bucket{
 			pool.Bucket{
 				Capacity: replicas,
 				Count:    s.opts.SeriesIteratorPoolSize(),
 			},
 		})
-		s.pools.iteratorArray.Init()
+		s.pools.multiReaderIteratorArray.Init()
 	}
 	if s.pools.readerSliceOfSlicesIterator == nil {
 		size := replicas * s.opts.SeriesIteratorPoolSize()
@@ -1314,7 +1313,7 @@ func (s *session) fetchIDsAttempt(
 			resultsAccessors int32 = 1
 			idAccessors      int32 = 1
 			resultsLock      sync.RWMutex
-			results          []encoding.Iterator
+			results          []encoding.MultiReaderIterator
 			enqueued         int32
 			pending          int32
 			success          int32
@@ -1361,7 +1360,7 @@ func (s *session) fetchIDsAttempt(
 				iters.SetAt(idx, iter)
 			}
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
-				s.pools.iteratorArray.Put(results)
+				s.pools.multiReaderIteratorArray.Put(results)
 			}
 			if atomic.AddInt32(&idAccessors, -1) == 0 {
 				tsID.Finalize()
@@ -1406,7 +1405,7 @@ func (s *session) fetchIDsAttempt(
 			}
 
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
-				s.pools.iteratorArray.Put(results)
+				s.pools.multiReaderIteratorArray.Put(results)
 			}
 			if atomic.AddInt32(&idAccessors, -1) == 0 {
 				tsID.Finalize()
@@ -1453,7 +1452,7 @@ func (s *session) fetchIDsAttempt(
 		}
 
 		// Once we've enqueued we know how many to expect so retrieve and set length
-		results = s.pools.iteratorArray.Get(int(enqueued))
+		results = s.pools.multiReaderIteratorArray.Get(int(enqueued))
 		results = results[:enqueued]
 	}
 
@@ -2886,7 +2885,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			// Verify and if verify succeeds add the block from the peer
 			err := s.verifyFetchedBlock(block)
 			if err == nil {
-				err = blocksResult.addBlockFromPeer(id, peer.Host(), block)
+				err = blocksResult.addBlockFromPeer(id, peer.Host(), blockSize, block)
 
 				// NB(r): Track a fanned out block fetch success if added block
 				fanout := batch[i].block.reattempt.fanoutFetchState
@@ -3048,7 +3047,7 @@ func (s *session) streamBlocksReattemptFromPeersEnqueue(
 }
 
 type blocksResult interface {
-	addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error
+	addBlockFromPeer(id ident.ID, peer topology.Host, blockSize time.Duration, block *rpc.Block) error
 }
 
 type baseBlocksResult struct {
@@ -3093,9 +3092,9 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 	return ts.NewSegment(head, tail, ts.FinalizeHead&ts.FinalizeTail)
 }
 
-func (b *baseBlocksResult) mergeReaders(start time.Time, readers []io.Reader) (encoding.Encoder, error) {
+func (b *baseBlocksResult) mergeReaders(start, end time.Time, readers []xio.SegmentReader) (encoding.Encoder, error) {
 	iter := b.multiReaderIteratorPool.Get()
-	iter.Reset(readers)
+	iter.Reset(readers, start, end)
 	defer iter.Close()
 
 	encoder := b.encoderPool.Get()
@@ -3116,7 +3115,7 @@ func (b *baseBlocksResult) mergeReaders(start time.Time, readers []io.Reader) (e
 	return encoder, nil
 }
 
-func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlock, error) {
+func (b *baseBlocksResult) newDatabaseBlock(blockSize time.Duration, block *rpc.Block) (block.DatabaseBlock, error) {
 	var (
 		start    = time.Unix(0, block.Start)
 		segments = block.Segments
@@ -3131,23 +3130,32 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 	switch {
 	case segments.Merged != nil:
 		// Unmerged, can insert directly into a single block
-		result.Reset(start, b.segmentForBlock(segments.Merged))
+		result.Reset(start, blockSize, b.segmentForBlock(segments.Merged))
 
 	case segments.Unmerged != nil:
 		// Must merge to provide a single block
 		segmentReaderPool := b.blockOpts.SegmentReaderPool()
-		readers := make([]io.Reader, len(segments.Unmerged))
-		for i := range segments.Unmerged {
+		readers := make([]xio.SegmentReader, len(segments.Unmerged))
+		end := time.Time{}
+		for i, segment := range segments.Unmerged {
 			segmentReader := segmentReaderPool.Get()
-			segmentReader.Reset(b.segmentForBlock(segments.Unmerged[i]))
-			readers[i] = segmentReader
+			endTime := timeConvert(segment.EndTime)
+			blockReader := xio.Block{
+				SegmentReader: segmentReader,
+				Start:         timeConvert(segment.StartTime),
+				End:           endTime,
+			}
+			blockReader.Reset(b.segmentForBlock(segment))
+			readers[i] = blockReader
+			if end.Before(endTime) {
+				end = endTime
+			}
 		}
-
-		encoder, err := b.mergeReaders(start, readers)
+		encoder, err := b.mergeReaders(start, end, readers)
 		for _, reader := range readers {
 			// Close each reader
-			segmentReader := reader.(xio.SegmentReader)
-			segmentReader.Finalize()
+			blockReader := reader.(xio.Block)
+			blockReader.Finalize()
 		}
 
 		if err != nil {
@@ -3157,7 +3165,7 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 		}
 
 		// Set the block data
-		result.Reset(start, encoder.Discard())
+		result.Reset(start, blockSize, encoder.Discard())
 
 	default:
 		result.Close() // return block to pool
@@ -3189,8 +3197,8 @@ type peerBlocksDatapoint struct {
 	block block.DatabaseBlock
 }
 
-func (s *streamBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error {
-	result, err := s.newDatabaseBlock(block)
+func (s *streamBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blockSize time.Duration, block *rpc.Block) error {
+	result, err := s.newDatabaseBlock(blockSize, block)
 	if err != nil {
 		return err
 	}
@@ -3260,9 +3268,9 @@ func newBulkBlocksResult(
 	}
 }
 
-func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error {
+func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blockSize time.Duration, block *rpc.Block) error {
 	start := time.Unix(0, block.Start)
-	result, err := r.newDatabaseBlock(block)
+	result, err := r.newDatabaseBlock(blockSize, block)
 	if err != nil {
 		return err
 	}
@@ -3291,7 +3299,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 
 		// If there are no data in the current block, there is no
 		// need to merge
-		if currReader == nil {
+		if currReader.IsEmpty() {
 			continue
 		}
 
@@ -3299,12 +3307,12 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 		if err != nil {
 			return err
 		}
-		if resultReader == nil {
+		if resultReader.IsEmpty() {
 			return nil
 		}
 
-		readers := []io.Reader{currReader, resultReader}
-		encoder, err := r.mergeReaders(start, readers)
+		readers := []xio.SegmentReader{currReader, resultReader}
+		encoder, err := r.mergeReaders(start, currReader.End, readers)
 
 		if err != nil {
 			return err
@@ -3313,7 +3321,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 		result.Close()
 
 		result = r.blockOpts.DatabaseBlockPool().Get()
-		result.Reset(start, encoder.Discard())
+		result.Reset(start, blockSize, encoder.Discard())
 
 		tmpCtx.Close()
 	}

@@ -525,7 +525,11 @@ func (td testDatapoints) toRPCSegments(th testFetchTaggedHelper, start time.Time
 	if reader == nil {
 		return nil
 	}
-	res, err := convert.ToSegments([]xio.SegmentReader{reader})
+	res, err := convert.ToSegments([]xio.Block{
+		xio.Block{
+			SegmentReader: reader,
+		},
+	})
 	require.NoError(th.t, err)
 	return []*rpc.Segments{res.Segments}
 }

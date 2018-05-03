@@ -21,14 +21,34 @@
 package xio
 
 import (
-	"github.com/m3db/m3db/ts"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-// nolint: deadcode
-type nullSegmentReader struct{}
+func TestReaderSliceOfSlicesFromBlockReadersIterator(t *testing.T) {
+	var a, b, c, d, e, f Block
+	all := []Block{a, b, c, d, e, f}
+	for i := range all {
+		all[i] = Block{
+			SegmentReader: nullSegmentReader{},
+		}
+	}
 
-func (r nullSegmentReader) Read([]byte) (n int, err error) { return 0, nil }
-func (r nullSegmentReader) Segment() (ts.Segment, error)   { return ts.Segment{}, nil }
-func (r nullSegmentReader) Reset(ts.Segment)               {}
-func (r nullSegmentReader) Finalize()                      {}
-func (r nullSegmentReader) Clone() (SegmentReader, error)  { return r, nil }
+	readers := [][]Block{
+		[]Block{a, b, c},
+		[]Block{d},
+		[]Block{e, f},
+	}
+
+	iter := NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
+	for i := range readers {
+		assert.True(t, iter.Next())
+		l, _, _ := iter.Current()
+		assert.Len(t, readers[i], l)
+		for j, r := range readers[i] {
+			assert.Equal(t, r, iter.CurrentAt(j))
+		}
+	}
+	assert.False(t, iter.Next())
+}

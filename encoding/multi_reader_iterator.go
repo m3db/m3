@@ -22,7 +22,7 @@ package encoding
 
 import (
 	"errors"
-	"io"
+	"time"
 
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
@@ -52,7 +52,7 @@ func NewMultiReaderIterator(
 	pool MultiReaderIteratorPool,
 ) MultiReaderIterator {
 	it := &multiReaderIterator{pool: pool, iteratorAlloc: iteratorAlloc}
-	it.Reset(nil)
+	it.Reset(nil, time.Time{}, time.Time{})
 	return it
 }
 
@@ -106,7 +106,7 @@ func (it *multiReaderIterator) moveToNext() {
 	}
 
 	// Add all readers to current iterators heap
-	currentLen := it.slicesIter.CurrentLen()
+	currentLen, _, _ := it.slicesIter.Current()
 	for i := 0; i < currentLen; i++ {
 		var (
 			reader = it.slicesIter.CurrentAt(i)
@@ -155,10 +155,16 @@ func (it *multiReaderIterator) Err() error {
 	return it.err
 }
 
-func (it *multiReaderIterator) Reset(readers []io.Reader) {
-	it.singleSlicesIter.readers = readers
+func (it *multiReaderIterator) Readers() xio.ReaderSliceOfSlicesIterator {
+	return it.slicesIter
+}
+
+func (it *multiReaderIterator) Reset(blocks []xio.SegmentReader, start, end time.Time) {
+	it.singleSlicesIter.readers = blocks
 	it.singleSlicesIter.firstNext = true
 	it.singleSlicesIter.closed = false
+	it.singleSlicesIter.start = start
+	it.singleSlicesIter.end = end
 	it.ResetSliceOfSlices(&it.singleSlicesIter)
 }
 
@@ -188,9 +194,11 @@ func (it *multiReaderIterator) Close() {
 }
 
 type singleSlicesOfSlicesIterator struct {
-	readers   []io.Reader
+	readers   []xio.SegmentReader
 	firstNext bool
 	closed    bool
+	start     time.Time
+	end       time.Time
 }
 
 func (it *singleSlicesOfSlicesIterator) Next() bool {
@@ -201,12 +209,16 @@ func (it *singleSlicesOfSlicesIterator) Next() bool {
 	return true
 }
 
-func (it *singleSlicesOfSlicesIterator) CurrentLen() int {
-	return len(it.readers)
+func (it *singleSlicesOfSlicesIterator) Current() (int, time.Time, time.Time) {
+	return len(it.readers), it.start, it.end
 }
 
-func (it *singleSlicesOfSlicesIterator) CurrentAt(idx int) io.Reader {
-	return it.readers[idx]
+func (it *singleSlicesOfSlicesIterator) CurrentAt(idx int) xio.Block {
+	return xio.Block{
+		SegmentReader: it.readers[idx],
+		Start:         it.start,
+		End:           it.end,
+	}
 }
 
 func (it *singleSlicesOfSlicesIterator) Close() {

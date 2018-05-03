@@ -1066,29 +1066,35 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 		ts.NewSegment(checked.NewBytes([]byte("baz"), nil), nil, ts.FinalizeNone),
 	}
 
-	var segReaders []*xio.MockSegmentReader
+	var blockReaders []xio.Block
 	for range segments {
 		reader := xio.NewMockSegmentReader(ctrl)
-		segReaders = append(segReaders, reader)
+		block := xio.Block{
+			SegmentReader: reader,
+		}
+
+		blockReaders = append(blockReaders, block)
 	}
 
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
+	mid := start.Add(ropts.BlockSize())
+
 	retriever.EXPECT().
 		Stream(ctx, shard.shard, ident.NewIDMatcher("foo"),
-			start, shard.seriesOnRetrieveBlock).
-		Do(func(ctx context.Context, shard uint32, id ident.ID, at time.Time, onRetrieve block.OnRetrieveBlock) {
+			start, mid, shard.seriesOnRetrieveBlock).
+		Do(func(ctx context.Context, shard uint32, id ident.ID, at, end time.Time, onRetrieve block.OnRetrieveBlock) {
 			go onRetrieve.OnRetrieveBlock(id, at, segments[0])
 		}).
-		Return(segReaders[0], nil)
+		Return(blockReaders[0], nil)
 	retriever.EXPECT().
 		Stream(ctx, shard.shard, ident.NewIDMatcher("foo"),
-			start.Add(ropts.BlockSize()), shard.seriesOnRetrieveBlock).
-		Do(func(ctx context.Context, shard uint32, id ident.ID, at time.Time, onRetrieve block.OnRetrieveBlock) {
+			mid, end, shard.seriesOnRetrieveBlock).
+		Do(func(ctx context.Context, shard uint32, id ident.ID, at, end time.Time, onRetrieve block.OnRetrieveBlock) {
 			go onRetrieve.OnRetrieveBlock(id, at, segments[1])
 		}).
-		Return(segReaders[1], nil)
+		Return(blockReaders[1], nil)
 
 	// Check reads as expected
 	r, err := shard.ReadEncoded(ctx, ident.StringID("foo"), start, end)
@@ -1096,7 +1102,7 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	require.Equal(t, 2, len(r))
 	for i, readers := range r {
 		require.Equal(t, 1, len(readers))
-		assert.Equal(t, segReaders[i], readers[0])
+		assert.Equal(t, blockReaders[i], readers[0])
 	}
 
 	// Check that gets cached

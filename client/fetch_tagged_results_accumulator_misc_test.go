@@ -232,8 +232,8 @@ func newTestFetchTaggedPools() testFetchTaggedPools {
 	pools.mutableSeriesIter = encoding.NewMutableSeriesIteratorsPool(nil)
 	pools.mutableSeriesIter.Init()
 
-	pools.iteratorArray = encoding.NewIteratorArrayPool(nil)
-	pools.iteratorArray.Init()
+	pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool(nil)
+	pools.multiReaderIteratorArray.Init()
 
 	pools.id = ident.NewPool(nil, opts)
 
@@ -250,14 +250,14 @@ func newTestFetchTaggedPools() testFetchTaggedPools {
 var _ fetchTaggedPools = testFetchTaggedPools{}
 
 type testFetchTaggedPools struct {
-	readerSlices        *readerSliceOfSlicesIteratorPool
-	multiReader         encoding.MultiReaderIteratorPool
-	seriesIter          encoding.SeriesIteratorPool
-	mutableSeriesIter   encoding.MutableSeriesIteratorsPool
-	iteratorArray       encoding.IteratorArrayPool
-	id                  ident.Pool
-	checkedBytesWrapper xpool.CheckedBytesWrapperPool
-	tagDecoder          serialize.TagDecoderPool
+	readerSlices             *readerSliceOfSlicesIteratorPool
+	multiReader              encoding.MultiReaderIteratorPool
+	seriesIter               encoding.SeriesIteratorPool
+	mutableSeriesIter        encoding.MutableSeriesIteratorsPool
+	multiReaderIteratorArray encoding.MultiReaderIteratorArrayPool
+	id                       ident.Pool
+	checkedBytesWrapper      xpool.CheckedBytesWrapperPool
+	tagDecoder               serialize.TagDecoderPool
 }
 
 func (p testFetchTaggedPools) ReaderSliceOfSlicesIterator() *readerSliceOfSlicesIteratorPool {
@@ -276,8 +276,8 @@ func (p testFetchTaggedPools) MutableSeriesIterators() encoding.MutableSeriesIte
 	return p.mutableSeriesIter
 }
 
-func (p testFetchTaggedPools) IteratorArray() encoding.IteratorArrayPool {
-	return p.iteratorArray
+func (p testFetchTaggedPools) MultiReaderIteratorArray() encoding.MultiReaderIteratorArrayPool {
+	return p.multiReaderIteratorArray
 }
 
 func (p testFetchTaggedPools) ID() ident.Pool {

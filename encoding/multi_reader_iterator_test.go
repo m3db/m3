@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/x/xio"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -290,23 +291,26 @@ func assertTestMultiReaderIterator(
 	}
 
 	var (
-		readers         [][]io.Reader
+		blocks          [][]xio.Block
 		entriesByReader []readerEntries
 	)
 
 	for i := range test.input {
-		var readersArray []io.Reader
+		var blocksArray []xio.Block
 		for j := range test.input[i] {
 			reader := &testNoopReader{}
 			entries := &test.input[i][j]
+			block := xio.Block{
+				SegmentReader: reader,
+			}
 			entriesByReader = append(entriesByReader, readerEntries{
-				reader:  reader,
+				reader:  block,
 				entries: entries,
 			})
-			readersArray = append(readersArray, reader)
+			blocksArray = append(blocksArray, block)
 		}
 
-		readers = append(readers, readersArray)
+		blocks = append(blocks, blocksArray)
 	}
 
 	var testIterators []*testIterator
@@ -342,7 +346,7 @@ func assertTestMultiReaderIterator(
 	}
 
 	iter := NewMultiReaderIterator(iteratorAlloc, nil)
-	slicesIter := newTestReaderSliceOfSlicesIterator(readers)
+	slicesIter := newTestReaderSliceOfSlicesIterator(blocks)
 	iter.ResetSliceOfSlices(slicesIter)
 
 	for i := 0; i < len(test.expected); i++ {

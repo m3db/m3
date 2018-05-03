@@ -299,7 +299,7 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	require.NoError(t, err)
 
 	mIter := s.db.Options().MultiReaderIteratorPool().Get()
-	mIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(readers))
+	mIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers))
 	defer mIter.Close()
 	for mIter.Next() {
 		dp, _, _ := mIter.Current()

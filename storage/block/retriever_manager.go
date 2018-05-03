@@ -102,10 +102,11 @@ func (r *shardBlockRetriever) Stream(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
+	blockEnd time.Time,
 	onRetrieve OnRetrieveBlock,
-) (xio.SegmentReader, error) {
+) (xio.Block, error) {
 	return r.DatabaseBlockRetriever.Stream(ctx, r.shard, id,
-		blockStart, onRetrieve)
+		blockStart, blockEnd, onRetrieve)
 }
 
 type shardBlockRetrieverManager struct {
