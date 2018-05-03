@@ -30,29 +30,34 @@ const (
 	// NoOpNoneBootstrapperName is the name of the noOpNoneBootstrapper
 	NoOpNoneBootstrapperName = "noop-none"
 
-	// NoOpAllBootstrapperName is the name of the noOpAllBootstrapper
+	// NoOpAllBootstrapperName is the name of the noOpAllBootstrapperProvider
 	NoOpAllBootstrapperName = "noop-all"
 )
 
-var (
-	defaultNoOpNoneBootstrapper = &noOpNoneBootstrapper{}
-	defaultNoOpAllBootstrapper  = &noOpAllBootstrapper{}
-)
-
-// noOpNoneBootstrapper is the no-op bootstrapper that doesn't
+// noOpNoneBootstrapperProvider is the no-op bootstrapper provider that doesn't
 // know how to bootstrap any time ranges.
-type noOpNoneBootstrapper struct{}
+type noOpNoneBootstrapperProvider struct{}
 
-// NewNoOpNoneBootstrapper creates a new noOpNoneBootstrapper.
-func NewNoOpNoneBootstrapper() bootstrap.Bootstrapper {
-	return defaultNoOpNoneBootstrapper
+// NewNoOpNoneBootstrapperProvider creates a new noOpNoneBootstrapper.
+func NewNoOpNoneBootstrapperProvider() bootstrap.BootstrapperProvider {
+	return noOpNoneBootstrapperProvider{}
 }
 
-func (noop *noOpNoneBootstrapper) Can(strategy bootstrap.Strategy) bool {
+func (noop noOpNoneBootstrapperProvider) Provide() bootstrap.Bootstrapper {
+	return noOpNoneBootstrapper{}
+}
+
+func (noop noOpNoneBootstrapperProvider) String() string {
+	return NoOpNoneBootstrapperName
+}
+
+type noOpNoneBootstrapper struct{}
+
+func (noop noOpNoneBootstrapper) Can(strategy bootstrap.Strategy) bool {
 	return true
 }
 
-func (noop *noOpNoneBootstrapper) Bootstrap(
+func (noop noOpNoneBootstrapper) Bootstrap(
 	_ namespace.Metadata,
 	targetRanges result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
@@ -62,24 +67,34 @@ func (noop *noOpNoneBootstrapper) Bootstrap(
 	return res, nil
 }
 
-func (noop *noOpNoneBootstrapper) String() string {
+func (noop noOpNoneBootstrapper) String() string {
 	return NoOpNoneBootstrapperName
 }
 
-// noOpAllBootstrapper is the no-op bootstrapper that pretends
+// noOpAllBootstrapperProvider is the no-op bootstrapper provider that pretends
 // it can bootstrap any time ranges.
-type noOpAllBootstrapper struct{}
+type noOpAllBootstrapperProvider struct{}
 
-// NewNoOpAllBootstrapper creates a new noOpAllBootstrapper.
-func NewNoOpAllBootstrapper() bootstrap.Bootstrapper {
-	return defaultNoOpAllBootstrapper
+// NewNoOpAllBootstrapperProvider creates a new noOpAllBootstrapperProvider.
+func NewNoOpAllBootstrapperProvider() bootstrap.BootstrapperProvider {
+	return noOpAllBootstrapperProvider{}
 }
 
-func (noop *noOpAllBootstrapper) Can(strategy bootstrap.Strategy) bool {
+func (noop noOpAllBootstrapperProvider) Provide() bootstrap.Bootstrapper {
+	return noOpAllBootstrapper{}
+}
+
+func (noop noOpAllBootstrapperProvider) String() string {
+	return NoOpAllBootstrapperName
+}
+
+type noOpAllBootstrapper struct{}
+
+func (noop noOpAllBootstrapper) Can(strategy bootstrap.Strategy) bool {
 	return true
 }
 
-func (noop *noOpAllBootstrapper) Bootstrap(
+func (noop noOpAllBootstrapper) Bootstrap(
 	_ namespace.Metadata,
 	_ result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
@@ -87,6 +102,6 @@ func (noop *noOpAllBootstrapper) Bootstrap(
 	return result.NewBootstrapResult(), nil
 }
 
-func (noop *noOpAllBootstrapper) String() string {
+func (noop noOpAllBootstrapper) String() string {
 	return NoOpAllBootstrapperName
 }

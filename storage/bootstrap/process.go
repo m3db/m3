@@ -29,47 +29,59 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-// bootstrapProcess represents the bootstrapping process.
-type bootstrapProcess struct {
+// bootstrapProcessProvider is the bootstrapping process provider.
+type bootstrapProcessProvider struct {
 	sync.RWMutex
+	opts                 result.Options
+	log                  xlog.Logger
+	bootstrapperProvider BootstrapperProvider
+}
+
+// NewProcessProvider creates a new bootstrap process provider.
+func NewProcessProvider(
+	bootstrapperProvider BootstrapperProvider,
+	opts result.Options,
+) ProcessProvider {
+	return &bootstrapProcessProvider{
+		opts:                 opts,
+		log:                  opts.InstrumentOptions().Logger(),
+		bootstrapperProvider: bootstrapperProvider,
+	}
+}
+
+func (b *bootstrapProcessProvider) SetBootstrapperProvider(bootstrapperProvider BootstrapperProvider) {
+	b.Lock()
+	defer b.Unlock()
+	b.bootstrapperProvider = bootstrapperProvider
+}
+
+func (b *bootstrapProcessProvider) BootstrapperProvider() BootstrapperProvider {
+	b.RLock()
+	defer b.RUnlock()
+	return b.bootstrapperProvider
+}
+
+func (b *bootstrapProcessProvider) Provide() Process {
+	b.RLock()
+	defer b.RUnlock()
+	return bootstrapProcess{
+		opts:         b.opts,
+		log:          b.log,
+		bootstrapper: b.bootstrapperProvider.Provide(),
+	}
+}
+
+type bootstrapProcess struct {
 	opts         result.Options
 	log          xlog.Logger
 	bootstrapper Bootstrapper
 }
 
-// NewProcess creates a new bootstrap process.
-func NewProcess(
-	bootstrapper Bootstrapper,
-	opts result.Options,
-) Process {
-	return &bootstrapProcess{
-		opts:         opts,
-		log:          opts.InstrumentOptions().Logger(),
-		bootstrapper: bootstrapper,
-	}
-}
-
-func (b *bootstrapProcess) SetBootstrapper(bootstrapper Bootstrapper) {
-	b.Lock()
-	defer b.Unlock()
-	b.bootstrapper = bootstrapper
-}
-
-func (b *bootstrapProcess) Bootstrapper() Bootstrapper {
-	b.RLock()
-	defer b.RUnlock()
-	return b.bootstrapper
-}
-
-func (b *bootstrapProcess) Run(
+func (b bootstrapProcess) Run(
 	nsMetadata namespace.Metadata,
 	shards []uint32,
 	targetRanges []TargetRange,
 ) (result.BootstrapResult, error) {
-	b.RLock()
-	bootstrapper := b.bootstrapper
-	b.RUnlock()
-
 	namespace := nsMetadata.ID()
 	bootstrapResult := result.NewBootstrapResult()
 	for _, target := range targetRanges {
@@ -100,7 +112,7 @@ func (b *bootstrapProcess) Run(
 			opts = NewRunOptions()
 		}
 
-		res, err := bootstrapper.Bootstrap(nsMetadata, shardsTimeRanges, opts)
+		res, err := b.bootstrapper.Bootstrap(nsMetadata, shardsTimeRanges, opts)
 
 		logFields = append(logFields, xlog.NewField("took", nowFn().Sub(begin).String()))
 		if err != nil {

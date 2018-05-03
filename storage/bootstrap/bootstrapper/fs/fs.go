@@ -30,21 +30,36 @@ const (
 	FileSystemBootstrapperName = "filesystem"
 )
 
-type fileSystemBootstrapper struct {
-	bootstrap.Bootstrapper
+type fileSystemBootstrapperProvider struct {
+	opts Options
+	next bootstrap.BootstrapperProvider
 }
 
-// NewFileSystemBootstrapper creates a new bootstrapper to bootstrap from on-disk files.
-func NewFileSystemBootstrapper(
-	prefix string,
+// NewFileSystemBootstrapperProvider creates a new bootstrapper to bootstrap from on-disk files.
+func NewFileSystemBootstrapperProvider(
 	opts Options,
-	next bootstrap.Bootstrapper,
-) bootstrap.Bootstrapper {
-	src := newFileSystemSource(prefix, opts)
+	next bootstrap.BootstrapperProvider,
+) bootstrap.BootstrapperProvider {
+	return fileSystemBootstrapperProvider{
+		opts: opts,
+		next: next,
+	}
+}
+
+func (p fileSystemBootstrapperProvider) Provide() bootstrap.Bootstrapper {
+	src := newFileSystemSource(p.opts)
 	b := &fileSystemBootstrapper{}
 	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(b.String(),
-		src, opts.ResultOptions(), next)
+		src, p.opts.ResultOptions(), p.next.Provide())
 	return b
+}
+
+func (p fileSystemBootstrapperProvider) String() string {
+	return FileSystemBootstrapperName
+}
+
+type fileSystemBootstrapper struct {
+	bootstrap.Bootstrapper
 }
 
 func (fsb *fileSystemBootstrapper) String() string {

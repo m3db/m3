@@ -237,7 +237,7 @@ func main() {
 	log.Infof("bootstrapping")
 
 	// Don't bootstrap anything else
-	next := bootstrapper.NewNoOpAllBootstrapper()
+	next := bootstrapper.NewNoOpAllBootstrapperProvider()
 	source, err := commitlogsrc.NewCommitLogBootstrapper(opts, next)
 	if err != nil {
 		log.Fatal(err.Error())

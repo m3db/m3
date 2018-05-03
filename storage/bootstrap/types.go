@@ -26,16 +26,25 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-// Process represents the bootstrap process. Note that a bootstrap process can and will
+// ProcessProvider constructs a bootstrap process that can execute a
+// bootstrap run.
+type ProcessProvider interface {
+	// SetBootstrapper sets the bootstrapper provider to use when running the
+	// process.
+	SetBootstrapperProvider(bootstrapper BootstrapperProvider)
+
+	// Bootstrapper returns the current bootstrappe provider to use when
+	// running the process.
+	BootstrapperProvider() BootstrapperProvider
+
+	// Provide constructs a bootstrap process.
+	Provide() Process
+}
+
+// ProcessProvider represents the bootstrap process. Note that a bootstrap process can and will
 // be reused so it is important to not rely on state stored in the bootstrap itself
 // with the mindset that it will always be set to default values from the constructor.
 type Process interface {
-	// SetBootstrapper sets the bootstrapper to use when running the process.
-	SetBootstrapper(bootstrapper Bootstrapper)
-
-	// Bootstrapper returns the current bootstrapper to use when running the process.
-	Bootstrapper() Bootstrapper
-
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
 	Run(
 		ns namespace.Metadata,
@@ -62,6 +71,23 @@ type RunOptions interface {
 	// Incremental returns whether this bootstrap should be an incremental
 	// that saves intermediate results to durable storage or not.
 	Incremental() bool
+
+	// SetIndexingEnabled sets whether indexing is enabled which determines
+	// whether the bootstrap result should return a bootstrap index result.
+	SetIndexingEnabled(value bool) RunOptions
+
+	// IndexingEnabled returns whether indexing is enabled which determines
+	// whether the bootstrap result should return a bootstrap index result.
+	IndexingEnabled() bool
+}
+
+// BootstrapperProvider constructs a bootstrapper.
+type BootstrapperProvider interface {
+	// String returns the name of the bootstrapper.
+	String() string
+
+	// Provide constructs a bootstrapper.
+	Provide() Bootstrapper
 }
 
 // Strategy describes a bootstrap strategy.

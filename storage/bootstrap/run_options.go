@@ -24,16 +24,22 @@ const (
 	// defaultIncremental declares the intent to by default not perform an
 	// incremental bootstrap.
 	defaultIncremental = false
+
+	// defaultIndexingEnabled declares the intent that unless specified indexing
+	// is disabled.
+	defaultIndexingEnabled = false
 )
 
 type runOptions struct {
-	incremental bool
+	incremental     bool
+	indexingEnabled bool
 }
 
 // NewRunOptions creates new bootstrap run options
 func NewRunOptions() RunOptions {
 	return &runOptions{
-		incremental: defaultIncremental,
+		incremental:     defaultIncremental,
+		indexingEnabled: defaultIndexingEnabled,
 	}
 }
 
@@ -45,4 +51,14 @@ func (o *runOptions) SetIncremental(value bool) RunOptions {
 
 func (o *runOptions) Incremental() bool {
 	return o.incremental
+}
+
+func (o *runOptions) SetIndexingEnabled(value bool) RunOptions {
+	opts := *o
+	opts.indexingEnabled = value
+	return &opts
+}
+
+func (o *runOptions) IndexingEnabled() bool {
+	return o.indexingEnabled
 }

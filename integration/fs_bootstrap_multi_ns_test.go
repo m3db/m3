@@ -68,7 +68,7 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
 
-	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
 		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
 	bfsOpts := fs.NewOptions().
@@ -76,7 +76,7 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 		SetFilesystemOptions(fsOpts).
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
 
-	bs := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
+	bs := fs.NewFileSystemBootstrapperProvider(filePathPrefix, bfsOpts, noOpAll)
 	process := bootstrap.NewProcess(bs, bsOpts)
 
 	setup.storageOpts = setup.storageOpts.

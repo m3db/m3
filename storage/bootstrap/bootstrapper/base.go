@@ -52,9 +52,9 @@ func NewBaseBootstrapper(
 ) bootstrap.Bootstrapper {
 	bs := next
 	if next == nil {
-		bs = NewNoOpNoneBootstrapper()
+		bs = NewNoOpNoneBootstrapperProvider().Provide()
 	}
-	return &baseBootstrapper{
+	return baseBootstrapper{
 		opts: opts,
 		log:  opts.InstrumentOptions().Logger(),
 		name: name,
@@ -63,11 +63,11 @@ func NewBaseBootstrapper(
 	}
 }
 
-func (b *baseBootstrapper) Can(strategy bootstrap.Strategy) bool {
+func (b baseBootstrapper) Can(strategy bootstrap.Strategy) bool {
 	return b.src.Can(strategy)
 }
 
-func (b *baseBootstrapper) Bootstrap(
+func (b baseBootstrapper) Bootstrap(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
@@ -179,6 +179,6 @@ func (b *baseBootstrapper) Bootstrap(
 }
 
 // String returns the name of the bootstrapper.
-func (b *baseBootstrapper) String() string {
+func (b baseBootstrapper) String() string {
 	return baseBootstrapperName
 }

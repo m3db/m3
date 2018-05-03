@@ -208,7 +208,7 @@ func newDefaultBootstrappableTestSetups(
 		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(instrumentOpts)
 
 		bsOpts := newDefaulTestResultOptions(setup.storageOpts)
-		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+		noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 		var peersBootstrapper bootstrap.Bootstrapper
 
 		if usingPeersBoostrapper {
@@ -252,7 +252,7 @@ func newDefaultBootstrappableTestSetups(
 			SetFilesystemOptions(fsOpts).
 			SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
 
-		fsBootstrapper := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, peersBootstrapper)
+		fsBootstrapper := bfs.NewFileSystemBootstrapperProvider(filePathPrefix, bfsOpts, peersBootstrapper)
 		setup.storageOpts = setup.storageOpts.
 			SetBootstrapProcess(bootstrap.NewProcess(fsBootstrapper, bsOpts))
 

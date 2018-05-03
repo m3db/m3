@@ -688,11 +688,11 @@ type Options interface {
 	// RepairOptions returns the repair options
 	RepairOptions() repair.Options
 
-	// SetBootstrapProcess sets the bootstrap process for the database
-	SetBootstrapProcess(value bootstrap.Process) Options
+	// SetBootstrapProcessProvider sets the bootstrap process for the database
+	SetBootstrapProcessProvider(value bootstrap.ProcessProvider) Options
 
-	// BootstrapProcess returns the bootstrap process for the database
-	BootstrapProcess() bootstrap.Process
+	// BootstrapProcessProvider returns the bootstrap process for the database
+	BootstrapProcessProvider() bootstrap.ProcessProvider
 
 	// SetPersistManager sets the persistence manager
 	SetPersistManager(value persist.Manager) Options

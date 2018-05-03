@@ -33,6 +33,63 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
+// MockProcessProvider is a mock of ProcessProvider interface
+type MockProcessProvider struct {
+	ctrl     *gomock.Controller
+	recorder *MockProcessProviderMockRecorder
+}
+
+// MockProcessProviderMockRecorder is the mock recorder for MockProcessProvider
+type MockProcessProviderMockRecorder struct {
+	mock *MockProcessProvider
+}
+
+// NewMockProcessProvider creates a new mock instance
+func NewMockProcessProvider(ctrl *gomock.Controller) *MockProcessProvider {
+	mock := &MockProcessProvider{ctrl: ctrl}
+	mock.recorder = &MockProcessProviderMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockProcessProvider) EXPECT() *MockProcessProviderMockRecorder {
+	return m.recorder
+}
+
+// SetBootstrapperProvider mocks base method
+func (m *MockProcessProvider) SetBootstrapperProvider(bootstrapper BootstrapperProvider) {
+	m.ctrl.Call(m, "SetBootstrapperProvider", bootstrapper)
+}
+
+// SetBootstrapperProvider indicates an expected call of SetBootstrapperProvider
+func (mr *MockProcessProviderMockRecorder) SetBootstrapperProvider(bootstrapper interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBootstrapperProvider", reflect.TypeOf((*MockProcessProvider)(nil).SetBootstrapperProvider), bootstrapper)
+}
+
+// BootstrapperProvider mocks base method
+func (m *MockProcessProvider) BootstrapperProvider() BootstrapperProvider {
+	ret := m.ctrl.Call(m, "BootstrapperProvider")
+	ret0, _ := ret[0].(BootstrapperProvider)
+	return ret0
+}
+
+// BootstrapperProvider indicates an expected call of BootstrapperProvider
+func (mr *MockProcessProviderMockRecorder) BootstrapperProvider() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapperProvider", reflect.TypeOf((*MockProcessProvider)(nil).BootstrapperProvider))
+}
+
+// Provide mocks base method
+func (m *MockProcessProvider) Provide() Process {
+	ret := m.ctrl.Call(m, "Provide")
+	ret0, _ := ret[0].(Process)
+	return ret0
+}
+
+// Provide indicates an expected call of Provide
+func (mr *MockProcessProviderMockRecorder) Provide() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Provide", reflect.TypeOf((*MockProcessProvider)(nil).Provide))
+}
+
 // MockProcess is a mock of Process interface
 type MockProcess struct {
 	ctrl     *gomock.Controller
@@ -54,28 +111,6 @@ func NewMockProcess(ctrl *gomock.Controller) *MockProcess {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockProcess) EXPECT() *MockProcessMockRecorder {
 	return m.recorder
-}
-
-// SetBootstrapper mocks base method
-func (m *MockProcess) SetBootstrapper(bootstrapper Bootstrapper) {
-	m.ctrl.Call(m, "SetBootstrapper", bootstrapper)
-}
-
-// SetBootstrapper indicates an expected call of SetBootstrapper
-func (mr *MockProcessMockRecorder) SetBootstrapper(bootstrapper interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBootstrapper", reflect.TypeOf((*MockProcess)(nil).SetBootstrapper), bootstrapper)
-}
-
-// Bootstrapper mocks base method
-func (m *MockProcess) Bootstrapper() Bootstrapper {
-	ret := m.ctrl.Call(m, "Bootstrapper")
-	ret0, _ := ret[0].(Bootstrapper)
-	return ret0
-}
-
-// Bootstrapper indicates an expected call of Bootstrapper
-func (mr *MockProcessMockRecorder) Bootstrapper() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrapper", reflect.TypeOf((*MockProcess)(nil).Bootstrapper))
 }
 
 // Run mocks base method
@@ -138,6 +173,77 @@ func (mr *MockRunOptionsMockRecorder) Incremental() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Incremental", reflect.TypeOf((*MockRunOptions)(nil).Incremental))
 }
 
+// SetIndexingEnabled mocks base method
+func (m *MockRunOptions) SetIndexingEnabled(value bool) RunOptions {
+	ret := m.ctrl.Call(m, "SetIndexingEnabled", value)
+	ret0, _ := ret[0].(RunOptions)
+	return ret0
+}
+
+// SetIndexingEnabled indicates an expected call of SetIndexingEnabled
+func (mr *MockRunOptionsMockRecorder) SetIndexingEnabled(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexingEnabled", reflect.TypeOf((*MockRunOptions)(nil).SetIndexingEnabled), value)
+}
+
+// IndexingEnabled mocks base method
+func (m *MockRunOptions) IndexingEnabled() bool {
+	ret := m.ctrl.Call(m, "IndexingEnabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IndexingEnabled indicates an expected call of IndexingEnabled
+func (mr *MockRunOptionsMockRecorder) IndexingEnabled() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexingEnabled", reflect.TypeOf((*MockRunOptions)(nil).IndexingEnabled))
+}
+
+// MockBootstrapperProvider is a mock of BootstrapperProvider interface
+type MockBootstrapperProvider struct {
+	ctrl     *gomock.Controller
+	recorder *MockBootstrapperProviderMockRecorder
+}
+
+// MockBootstrapperProviderMockRecorder is the mock recorder for MockBootstrapperProvider
+type MockBootstrapperProviderMockRecorder struct {
+	mock *MockBootstrapperProvider
+}
+
+// NewMockBootstrapperProvider creates a new mock instance
+func NewMockBootstrapperProvider(ctrl *gomock.Controller) *MockBootstrapperProvider {
+	mock := &MockBootstrapperProvider{ctrl: ctrl}
+	mock.recorder = &MockBootstrapperProviderMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockBootstrapperProvider) EXPECT() *MockBootstrapperProviderMockRecorder {
+	return m.recorder
+}
+
+// String mocks base method
+func (m *MockBootstrapperProvider) String() string {
+	ret := m.ctrl.Call(m, "String")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// String indicates an expected call of String
+func (mr *MockBootstrapperProviderMockRecorder) String() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockBootstrapperProvider)(nil).String))
+}
+
+// Provide mocks base method
+func (m *MockBootstrapperProvider) Provide() Bootstrapper {
+	ret := m.ctrl.Call(m, "Provide")
+	ret0, _ := ret[0].(Bootstrapper)
+	return ret0
+}
+
+// Provide indicates an expected call of Provide
+func (mr *MockBootstrapperProviderMockRecorder) Provide() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Provide", reflect.TypeOf((*MockBootstrapperProvider)(nil).Provide))
+}
+
 // MockBootstrapper is a mock of Bootstrapper interface
 type MockBootstrapper struct {
 	ctrl     *gomock.Controller
@@ -196,6 +302,41 @@ func (m *MockBootstrapper) Bootstrap(ns namespace.Metadata, shardsTimeRanges res
 // Bootstrap indicates an expected call of Bootstrap
 func (mr *MockBootstrapperMockRecorder) Bootstrap(ns, shardsTimeRanges, opts interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockBootstrapper)(nil).Bootstrap), ns, shardsTimeRanges, opts)
+}
+
+// MockSourceProvider is a mock of SourceProvider interface
+type MockSourceProvider struct {
+	ctrl     *gomock.Controller
+	recorder *MockSourceProviderMockRecorder
+}
+
+// MockSourceProviderMockRecorder is the mock recorder for MockSourceProvider
+type MockSourceProviderMockRecorder struct {
+	mock *MockSourceProvider
+}
+
+// NewMockSourceProvider creates a new mock instance
+func NewMockSourceProvider(ctrl *gomock.Controller) *MockSourceProvider {
+	mock := &MockSourceProvider{ctrl: ctrl}
+	mock.recorder = &MockSourceProviderMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockSourceProvider) EXPECT() *MockSourceProviderMockRecorder {
+	return m.recorder
+}
+
+// Provide mocks base method
+func (m *MockSourceProvider) Provide() Source {
+	ret := m.ctrl.Call(m, "Provide")
+	ret0, _ := ret[0].(Source)
+	return ret0
+}
+
+// Provide indicates an expected call of Provide
+func (mr *MockSourceProviderMockRecorder) Provide() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Provide", reflect.TypeOf((*MockSourceProvider)(nil).Provide))
 }
 
 // MockSource is a mock of Source interface

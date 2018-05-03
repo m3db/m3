@@ -53,12 +53,12 @@ type fileSystemSource struct {
 	processors  xsync.WorkerPool
 }
 
-func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
+func newFileSystemSource(opts Options) bootstrap.Source {
 	processors := xsync.NewWorkerPool(opts.NumProcessors())
 	processors.Init()
 	return &fileSystemSource{
 		opts:        opts,
-		fsopts:      opts.FilesystemOptions().SetFilePathPrefix(prefix),
+		fsopts:      opts.FilesystemOptions(),
 		log:         opts.ResultOptions().InstrumentOptions().Logger(),
 		newReaderFn: fs.NewReader,
 		processors:  processors,

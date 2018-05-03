@@ -87,9 +87,9 @@ type BootstrapPeersConfiguration struct {
 func (bsc BootstrapConfiguration) New(
 	opts storage.Options,
 	adminClient client.AdminClient,
-) (bootstrap.Process, error) {
+) (bootstrap.ProcessProvider, error) {
 	var (
-		bs  bootstrap.Bootstrapper
+		bs  bootstrap.BootstrapperProvider
 		err error
 	)
 
@@ -102,18 +102,17 @@ func (bsc BootstrapConfiguration) New(
 	for i := len(bsc.Bootstrappers) - 1; i >= 0; i-- {
 		switch bsc.Bootstrappers[i] {
 		case bootstrapper.NoOpAllBootstrapperName:
-			bs = bootstrapper.NewNoOpAllBootstrapper()
+			bs = bootstrapper.NewNoOpAllBootstrapperProvider()
 		case bootstrapper.NoOpNoneBootstrapperName:
-			bs = bootstrapper.NewNoOpNoneBootstrapper()
+			bs = bootstrapper.NewNoOpNoneBootstrapperProvider()
 		case fs.FileSystemBootstrapperName:
 			fsopts := opts.CommitLogOptions().FilesystemOptions()
-			filePathPrefix := fsopts.FilePathPrefix()
 			fsbopts := fs.NewOptions().
 				SetResultOptions(rsopts).
 				SetFilesystemOptions(fsopts).
 				SetNumProcessors(bsc.fsNumProcessors()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager())
-			bs = fs.NewFileSystemBootstrapper(filePathPrefix, fsbopts, bs)
+			bs = fs.NewFileSystemBootstrapperProvider(fsbopts, bs)
 		case commitlog.CommitLogBootstrapperName:
 			copts := commitlog.NewOptions().
 				SetResultOptions(rsopts).
@@ -138,5 +137,5 @@ func (bsc BootstrapConfiguration) New(
 		}
 	}
 
-	return bootstrap.NewProcess(bs, rsopts), nil
+	return bootstrap.NewProcessProvider(bs, rsopts), nil
 }

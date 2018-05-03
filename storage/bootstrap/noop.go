@@ -25,21 +25,27 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 )
 
-type noOpBootstrapProcess struct{}
+type noOpBootstrapProcessProvider struct{}
 
-// NewNoOpProcess creates a no-op bootstrap process.
-func NewNoOpProcess() Process {
-	return &noOpBootstrapProcess{}
+// NewNoOpProcessProvider creates a no-op bootstrap process proivder.
+func NewNoOpProcessProvider() ProcessProvider {
+	return noOpBootstrapProcess{}
 }
 
-func (b *noOpBootstrapProcess) SetBootstrapper(bootstrapper Bootstrapper) {
+func (b noOpBootstrapProcess) SetBootstrapperProvider(provider BootstrapperProvider) {
 }
 
-func (b *noOpBootstrapProcess) Bootstrapper() Bootstrapper {
+func (b noOpBootstrapProcess) BootstrapperProvider() BootstrapperProvider {
 	return nil
 }
 
-func (b *noOpBootstrapProcess) Run(
+func (b noOpBootstrapProcess) Provide() Process {
+	return noOpBootstrapProcess{}
+}
+
+type noOpBootstrapProcess struct{}
+
+func (b noOpBootstrapProcess) Run(
 	ns namespace.Metadata,
 	shards []uint32,
 	targetRanges []TargetRange,
