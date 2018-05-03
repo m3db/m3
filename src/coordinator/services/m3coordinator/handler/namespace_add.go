@@ -177,10 +177,10 @@ func metadataFromRequest(r *admin.NamespaceAddRequest) (namespace.Metadata, erro
 	}
 
 	opts := namespace.NewOptions().
-		SetNeedsBootstrap(r.NeedsBootstrap).
-		SetNeedsFlush(r.NeedsFlush).
-		SetNeedsFilesetCleanup(r.NeedsFilesetCleanup).
-		SetNeedsRepair(r.NeedsRepair).
+		SetBootstrapEnabled(r.BootstrapEnabled).
+		SetFlushEnabled(r.FlushEnabled).
+		SetCleanupEnabled(r.CleanupEnabled).
+		SetRepairEnabled(r.RepairEnabled).
 		SetWritesToCommitLog(r.WritesToCommitlog).
 		SetRetentionOptions(ropts)
 

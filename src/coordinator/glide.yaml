@@ -1,7 +1,7 @@
 package: github.com/m3db/m3coordinator
 import:
 - package: github.com/golang/protobuf
-  version: 1e59b77b52bf8e4b449a57e6f79f21226d571845
+  version: 5a0f697c9ed9d68fef0116532c6e05cfeae00e55
   subpackages:
   - proto
 - package: github.com/golang/snappy
@@ -9,7 +9,7 @@ import:
 - package: github.com/gorilla/mux
   version: ^1.6.0
 - package: go.uber.org/zap
-  version: ^1.7.1
+  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
 - package: github.com/pborman/uuid
   version: ^1.1.0
 - package: gopkg.in/alecthomas/kingpin.v2
@@ -17,9 +17,9 @@ import:
 - package: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 - package: github.com/m3db/m3x
-  version: 73f3a41ef5c250e122ef225893ce0ac5962456e7
+  version: 16e10665ade1d824950683afde6d9e37c8ffc957
 - package: github.com/m3db/m3db
-  version: 3732c30f1ccefca23d3783c8e4948911cc5ec24d
+  version: 3502804fd854b770eba72bb0811e9ad5b9114e50
   subpackages:
   - client
 - package: github.com/m3db/m3metrics
@@ -27,7 +27,7 @@ import:
   subpackages:
   - policy
 - package: github.com/m3db/m3ninx
-  version: b2628ee8f986f6df48d3f7589d85a6f390f174a2
+  version: 96abb2b1b4f6ce1781177c67f2b95e0ee4eb8157
 - package: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - package: github.com/golang/mock
@@ -39,7 +39,7 @@ import:
   version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
 
 - package: golang.org/x/net
-  version: d0aafc73d5cdc42264b0af071c261abac580695e
+  version: ab5485076ff3407ad2d02db054635913f017b0ed
   subpackages:
   - http2
 - package: github.com/prometheus/prometheus
