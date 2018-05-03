@@ -189,7 +189,7 @@ func verifyFlushedDataFiles(
 	for timestamp, seriesList := range seriesMaps {
 		verifyForTime(
 			t, storageOpts, reader, shardSet, iteratorPool, timestamp.ToTime(),
-			namespace, persist.FileSetFlushType, seriesList)
+			namespace, persist.FilesetFlushType, seriesList)
 	}
 }
 

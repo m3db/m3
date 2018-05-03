@@ -82,7 +82,7 @@ type FilesetType int
 
 func (f FilesetType) String() string {
 	switch f {
-	case FileSetFlushType:
+	case FilesetFlushType:
 		return "flush"
 	case FileSetSnapshotType:
 		return "snapshot"
@@ -92,8 +92,8 @@ func (f FilesetType) String() string {
 }
 
 const (
-	// FileSetFlushType indicates that the fileset files contain a complete flush
-	FileSetFlushType FilesetType = iota
+	// FilesetFlushType indicates that the fileset files contain a complete flush
+	FilesetFlushType FilesetType = iota
 	// FileSetSnapshotType indicates that the fileset files contain a snapshot
 	FileSetSnapshotType
 )

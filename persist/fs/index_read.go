@@ -110,7 +110,7 @@ func (r *indexReader) Open(opts IndexReaderOpenOptions) error {
 		checkpointFilepath = snapshotPathFromTimeAndIndex(r.namespaceDir, r.start, checkpointFileSuffix, r.snapshotIndex)
 		infoFilepath = snapshotPathFromTimeAndIndex(r.namespaceDir, r.start, infoFileSuffix, r.snapshotIndex)
 		digestFilepath = snapshotPathFromTimeAndIndex(r.namespaceDir, r.start, digestFileSuffix, r.snapshotIndex)
-	case persist.FileSetFlushType:
+	case persist.FilesetFlushType:
 		r.namespaceDir = NamespaceIndexDataDirPath(r.filePathPrefix, namespace)
 		checkpointFilepath = filesetPathFromTime(r.namespaceDir, r.start, checkpointFileSuffix)
 		infoFilepath = filesetPathFromTime(r.namespaceDir, r.start, infoFileSuffix)
@@ -201,7 +201,7 @@ func (r *indexReader) ReadSegmentFileSet() (IndexSegmentFileSet, error) {
 		case persist.FileSetSnapshotType:
 			filePath = snapshotIndexSegmentFilePathFromTimeAndIndex(r.namespaceDir, r.start,
 				r.currIdx, segFileType, r.snapshotIndex)
-		case persist.FileSetFlushType:
+		case persist.FilesetFlushType:
 			filePath = filesetIndexSegmentFilePathFromTime(r.namespaceDir, r.start,
 				r.currIdx, segFileType)
 		default:

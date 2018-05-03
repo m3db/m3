@@ -119,7 +119,7 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 		w.checkpointFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, checkpointFileSuffix, w.snapshotIndex)
 		w.infoFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, infoFileSuffix, w.snapshotIndex)
 		w.digestFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, digestFileSuffix, w.snapshotIndex)
-	case persist.FileSetFlushType:
+	case persist.FilesetFlushType:
 		w.namespaceDir = NamespaceIndexDataDirPath(w.filePathPrefix, namespace)
 		if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
 			return err
@@ -170,7 +170,7 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) er
 		case persist.FileSetSnapshotType:
 			filePath = snapshotIndexSegmentFilePathFromTimeAndIndex(w.namespaceDir, w.start,
 				idx, segFileType, w.snapshotIndex)
-		case persist.FileSetFlushType:
+		case persist.FilesetFlushType:
 			filePath = filesetIndexSegmentFilePathFromTime(w.namespaceDir, w.start,
 				idx, segFileType)
 		default:

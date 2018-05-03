@@ -148,7 +148,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		bloomFilterFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, snapshotIndex)
 		indexFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, indexFileSuffix, snapshotIndex)
 		dataFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, dataFileSuffix, snapshotIndex)
-	case persist.FileSetFlushType:
+	case persist.FilesetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
 		checkpointFilepath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 		infoFilepath = filesetPathFromTime(shardDir, blockStart, infoFileSuffix)

@@ -38,7 +38,7 @@ func (c *cloner) Clone(src FileSetID, dest FileSetID, destBlocksize time.Duratio
 			Shard:      src.Shard,
 			BlockStart: src.Blockstart,
 		},
-		FilesetType: persist.FileSetFlushType,
+		FilesetType: persist.FilesetFlushType,
 	}
 
 	if err := reader.Open(openOpts); err != nil {
