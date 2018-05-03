@@ -62,7 +62,7 @@ func TestFilesystemBootstrap(t *testing.T) {
 	defer setup.close()
 
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-	filePathPrefix := fsOpts.FilePathPrefix()
+
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
 		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
@@ -70,11 +70,11 @@ func TestFilesystemBootstrap(t *testing.T) {
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
-	bs := fs.NewFileSystemBootstrapperProvider(filePathPrefix, bfsOpts, noOpAll)
-	process := bootstrap.NewProcess(bs, bsOpts)
+	bs := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
+	processProvider := bootstrap.NewProcessProvider(bs, bsOpts)
 
 	setup.storageOpts = setup.storageOpts.
-		SetBootstrapProcess(process)
+		SetBootstrapProcessProvider(processProvider)
 
 	// Write test data
 	now := setup.getNowFn()

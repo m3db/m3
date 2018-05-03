@@ -117,7 +117,7 @@ func (bsc BootstrapConfiguration) New(
 			copts := commitlog.NewOptions().
 				SetResultOptions(rsopts).
 				SetCommitLogOptions(opts.CommitLogOptions())
-			bs, err = commitlog.NewCommitLogBootstrapper(copts, bs)
+			bs, err = commitlog.NewCommitLogBootstrapperProvider(copts, bs)
 			if err != nil {
 				return nil, err
 			}
@@ -128,7 +128,7 @@ func (bsc BootstrapConfiguration) New(
 				SetPersistManager(opts.PersistManager()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
 				SetFetchBlocksMetadataEndpointVersion(bsc.peersFetchBlocksMetadataEndpointVersion())
-			bs, err = peers.NewPeersBootstrapper(popts, bs)
+			bs, err = peers.NewPeersBootstrapperProvider(popts, bs)
 			if err != nil {
 				return nil, err
 			}

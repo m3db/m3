@@ -75,10 +75,10 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
 		SetCommitLogOptions(commitLogOpts)
-	bs, err := bcl.NewCommitLogBootstrapper(bclOpts, noOpAll)
+	bs, err := bcl.NewCommitLogBootstrapperProvider(bclOpts, noOpAll)
 	require.NoError(t, err)
-	process := bootstrap.NewProcess(bs, bsOpts)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)
+	processProvider := bootstrap.NewProcessProvider(bs, bsOpts)
+	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(processProvider)
 
 	log := setup.storageOpts.InstrumentOptions().Logger()
 

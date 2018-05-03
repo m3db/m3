@@ -209,7 +209,7 @@ func newDefaultBootstrappableTestSetups(
 
 		bsOpts := newDefaulTestResultOptions(setup.storageOpts)
 		noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-		var peersBootstrapper bootstrap.Bootstrapper
+		var peersBootstrapper bootstrap.BootstrapperProvider
 
 		if usingPeersBoostrapper {
 			adminOpts := client.NewAdminOptions()
@@ -239,22 +239,21 @@ func newDefaultBootstrappableTestSetups(
 				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
 				SetPersistManager(setup.storageOpts.PersistManager())
 
-			peersBootstrapper, err = peers.NewPeersBootstrapper(peersOpts, noOpAll)
+			peersBootstrapper, err = peers.NewPeersBootstrapperProvider(peersOpts, noOpAll)
 			require.NoError(t, err)
 		} else {
 			peersBootstrapper = noOpAll
 		}
 
 		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-		filePathPrefix := fsOpts.FilePathPrefix()
 		bfsOpts := bfs.NewOptions().
 			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts).
 			SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
 
-		fsBootstrapper := bfs.NewFileSystemBootstrapperProvider(filePathPrefix, bfsOpts, peersBootstrapper)
+		fsBootstrapper := bfs.NewFileSystemBootstrapperProvider(bfsOpts, peersBootstrapper)
 		setup.storageOpts = setup.storageOpts.
-			SetBootstrapProcess(bootstrap.NewProcess(fsBootstrapper, bsOpts))
+			SetBootstrapProcessProvider(bootstrap.NewProcessProvider(fsBootstrapper, bsOpts))
 
 		setups = append(setups, setup)
 		appendCleanupFn(func() {

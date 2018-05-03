@@ -35,8 +35,9 @@ type commitLogBootstrapperProvider struct {
 	next bootstrap.BootstrapperProvider
 }
 
-// NewCommitLogBootstrapper creates a new bootstrapper to bootstrap from commit log files.
-func NewCommitLogBootstrapper(
+// NewCommitLogBootstrapperProvider creates a new bootstrapper provider
+// to bootstrap from commit log files.
+func NewCommitLogBootstrapperProvider(
 	opts Options,
 	next bootstrap.BootstrapperProvider,
 ) (bootstrap.BootstrapperProvider, error) {
@@ -59,7 +60,6 @@ func (p commitLogBootstrapperProvider) Provide() bootstrap.Bootstrapper {
 func (p commitLogBootstrapperProvider) String() string {
 	return CommitLogBootstrapperName
 }
-
 
 type commitLogBootstrapper struct {
 	bootstrap.Bootstrapper

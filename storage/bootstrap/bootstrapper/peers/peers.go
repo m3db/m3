@@ -37,8 +37,9 @@ type peersBootstrapperProvider struct {
 	next bootstrap.BootstrapperProvider
 }
 
-// NewPeersBootstrapper creates a new bootstrapper to bootstrap from peers
-func NewPeersBootstrapper(
+// NewPeersBootstrapperProvider creates a new bootstrapper provider
+// to bootstrap from peers.
+func NewPeersBootstrapperProvider(
 	opts Options,
 	next bootstrap.BootstrapperProvider,
 ) (bootstrap.BootstrapperProvider, error) {
