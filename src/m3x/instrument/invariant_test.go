@@ -36,5 +36,5 @@ func ExampleInvariantViolatedMetricInvocation() {
 	counters := testScope.Snapshot().Counters()
 	counter := counters[instrument.InvariantViolatedMetricName+"+"]
 	fmt.Println(counter.Name(), counter.Value())
-	// Output: invariant-violated 1
+	// Output: invariant_violated 1
 }
