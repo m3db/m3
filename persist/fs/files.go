@@ -59,6 +59,18 @@ type FilesetFile struct {
 	AbsoluteFilepaths []string
 }
 
+// HasCheckpointFile returns a bool indicating whether the given set of
+// snapshot files has a checkpoint file.
+func (f FilesetFile) HasCheckpointFile() bool {
+	for _, fileName := range f.AbsoluteFilepaths {
+		if strings.Contains(fileName, checkpointFileSuffix) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // FilesetFilesSlice is a slice of FilesetFile
 type FilesetFilesSlice []FilesetFile
 
@@ -92,18 +104,6 @@ func NewFilesetFile(id FilesetFileIdentifier) FilesetFile {
 // SnapshotFile represents a set of Snapshot files for a given block start
 type SnapshotFile struct {
 	FilesetFile
-}
-
-// HasCheckpointFile returns a bool indicating whether the given set of
-// snapshot files has a checkpoint file.
-func (s SnapshotFile) HasCheckpointFile() bool {
-	for _, fileName := range s.AbsoluteFilepaths {
-		if strings.Contains(fileName, checkpointFileSuffix) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // SnapshotFilesSlice is a slice of SnapshotFile
@@ -453,6 +453,10 @@ func FilesetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockSta
 					"found multiple fileset files for blockStart: %d",
 					blockStart.Unix(),
 				)
+			}
+
+			if !fileset.HasCheckpointFile() {
+				continue
 			}
 
 			return fileset, true, nil
