@@ -277,10 +277,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	assert.Equal(t, now.UnixNano(), entry.reverseIndex.nextWriteTimeNanos)
 }
 
-// TODO(prateek): wire tests above to use the field `ts`
-// nolint
 type testIndexWrite struct {
 	id   ident.ID
 	tags ident.Tags
-	ts   time.Time
 }
