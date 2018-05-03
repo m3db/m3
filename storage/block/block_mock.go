@@ -333,9 +333,9 @@ func (_mr *MockDatabaseBlockMockRecorder) Checksum() *gomock.Call {
 }
 
 // Stream mocks base method
-func (_m *MockDatabaseBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
+func (_m *MockDatabaseBlock) Stream(blocker context.Context) (xio.Block, error) {
 	ret := _m.ctrl.Call(_m, "Stream", blocker)
-	ret0, _ := ret[0].(xio.BlockReader)
+	ret0, _ := ret[0].(xio.Block)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -757,9 +757,9 @@ func (_mr *MockDatabaseBlockRetrieverMockRecorder) CacheShardIndices(arg0 interf
 }
 
 // Stream mocks base method
-func (_m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, blockEnd time.Time, onRetrieve OnRetrieveBlock) (xio.BlockReader, error) {
+func (_m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, blockEnd time.Time, onRetrieve OnRetrieveBlock) (xio.Block, error) {
 	ret := _m.ctrl.Call(_m, "Stream", ctx, shard, id, blockStart, blockEnd, onRetrieve)
-	ret0, _ := ret[0].(xio.BlockReader)
+	ret0, _ := ret[0].(xio.Block)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -793,9 +793,9 @@ func (_m *MockDatabaseShardBlockRetriever) EXPECT() *MockDatabaseShardBlockRetri
 }
 
 // Stream mocks base method
-func (_m *MockDatabaseShardBlockRetriever) Stream(ctx context.Context, id ident.ID, blockStart time.Time, blockEnd time.Time, onRetrieve OnRetrieveBlock) (xio.BlockReader, error) {
+func (_m *MockDatabaseShardBlockRetriever) Stream(ctx context.Context, id ident.ID, blockStart time.Time, blockEnd time.Time, onRetrieve OnRetrieveBlock) (xio.Block, error) {
 	ret := _m.ctrl.Call(_m, "Stream", ctx, id, blockStart, blockEnd, onRetrieve)
-	ret0, _ := ret[0].(xio.BlockReader)
+	ret0, _ := ret[0].(xio.Block)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

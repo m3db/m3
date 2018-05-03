@@ -22,22 +22,23 @@ package xio
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestReaderSliceOfSlicesFromBlockReadersIterator(t *testing.T) {
-	var a, b, c, d, e, f BlockReader
-	all := []*BlockReader{&a, &b, &c, &d, &e, &f}
-	for _, r := range all {
-		*r = NewBlockReader(nullSegmentReader{}, time.Time{}, time.Time{})
+	var a, b, c, d, e, f Block
+	all := []Block{a, b, c, d, e, f}
+	for i := range all {
+		all[i] = Block{
+			SegmentReader: nullSegmentReader{},
+		}
 	}
 
-	readers := [][]BlockReader{
-		[]BlockReader{a, b, c},
-		[]BlockReader{d},
-		[]BlockReader{e, f},
+	readers := [][]Block{
+		[]Block{a, b, c},
+		[]Block{d},
+		[]Block{e, f},
 	}
 
 	iter := NewReaderSliceOfSlicesFromBlockReadersIterator(readers)

@@ -49,10 +49,12 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 	retriever.EXPECT().IsBlockRetrievable(start).Return(true)
 	retriever.EXPECT().IsBlockRetrievable(start.Add(ropts.BlockSize())).Return(true)
 
-	var blockReaders []*xio.MockBlockReader
+	var blockReaders []xio.Block
 	for i := 0; i < 2; i++ {
-		reader := xio.NewMockBlockReader(ctrl)
-		blockReaders = append(blockReaders, reader)
+		reader := xio.NewMockSegmentReader(ctrl)
+		blockReaders = append(blockReaders, xio.Block{
+			SegmentReader: reader,
+		})
 	}
 
 	ctx := opts.ContextPool().Get()
@@ -96,12 +98,17 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 	retriever.EXPECT().IsBlockRetrievable(start).Return(true)
 	retriever.EXPECT().IsBlockRetrievable(start.Add(ropts.BlockSize())).Return(true)
 
-	var blockReaders []*xio.MockBlockReader
+	var blockReaders []xio.Block
 	for i := 0; i < 2; i++ {
-		reader := xio.NewMockBlockReader(ctrl)
-		reader.EXPECT().End().Return(start.Add(time.Duration(i+1) * ropts.BlockSize()))
+		reader := xio.NewMockSegmentReader(ctrl)
 
-		blockReaders = append(blockReaders, reader)
+		block := xio.Block{
+			SegmentReader: reader,
+			Start:         start,
+			End:           start.Add(time.Duration(i+1) * ropts.BlockSize()),
+		}
+
+		blockReaders = append(blockReaders, block)
 	}
 
 	ctx := opts.ContextPool().Get()
@@ -131,9 +138,9 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 
 	for i, result := range r {
 		assert.Equal(t, times[i], result.Start)
-		require.Equal(t, 1, len(result.Readers))
-		br := result.Readers[0]
-		assert.Equal(t, times[i].Add(ropts.BlockSize()), br.End())
+		require.Equal(t, 1, len(result.Blocks))
+		br := result.Blocks[0]
+		assert.Equal(t, times[i].Add(ropts.BlockSize()), br.End)
 		assert.Equal(t, blockReaders[i], br)
 	}
 }

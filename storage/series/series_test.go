@@ -126,8 +126,8 @@ func TestSeriesWriteFlush(t *testing.T) {
 
 	stream, err := block.Stream(ctx)
 	require.NoError(t, err)
-	assertValuesEqual(t, data[:2], [][]xio.BlockReader{[]xio.BlockReader{
-		xio.NewBlockReader(stream, time.Time{}, time.Time{}),
+	assertValuesEqual(t, data[:2], [][]xio.Block{[]xio.Block{
+		stream,
 	}}, opts)
 }
 
@@ -604,10 +604,12 @@ func TestSeriesFetchBlocks(t *testing.T) {
 
 	// Set up the blocks
 	b := block.NewMockDatabaseBlock(ctrl)
-	b.EXPECT().Stream(ctx).Return(xio.NewBlockReader(xio.NewSegmentReader(ts.Segment{}), time.Time{}, time.Time{}), nil)
+	b.EXPECT().Stream(ctx).Return(xio.Block{
+		SegmentReader: xio.NewSegmentReader(ts.Segment{}),
+	}, nil)
 	blocks.EXPECT().BlockAt(starts[0]).Return(b, true)
 	b = block.NewMockDatabaseBlock(ctrl)
-	b.EXPECT().Stream(ctx).Return(nil, errors.New("bar"))
+	b.EXPECT().Stream(ctx).Return(xio.EmptyBlock, errors.New("bar"))
 	blocks.EXPECT().BlockAt(starts[1]).Return(b, true)
 	blocks.EXPECT().BlockAt(starts[2]).Return(nil, false)
 
@@ -631,9 +633,9 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	for i := 0; i < len(starts); i++ {
 		assert.Equal(t, expectedTimes[i], res[i].Start)
 		if i == 1 {
-			assert.NotNil(t, res[i].Readers)
+			assert.NotNil(t, res[i].Blocks)
 		} else {
-			assert.Nil(t, res[i].Readers)
+			assert.Nil(t, res[i].Blocks)
 		}
 		if i == 2 {
 			assert.Error(t, res[i].Err)

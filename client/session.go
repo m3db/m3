@@ -3092,7 +3092,11 @@ func (b *baseBlocksResult) newDatabaseBlock(blockSize time.Duration, block *rpc.
 		for i, segment := range segments.Unmerged {
 			segmentReader := segmentReaderPool.Get()
 			endTime := timeConvert(segment.EndTime)
-			blockReader := xio.NewBlockReader(segmentReader, timeConvert(segment.StartTime), endTime)
+			blockReader := xio.Block{
+				SegmentReader: segmentReader,
+				Start:         timeConvert(segment.StartTime),
+				End:           endTime,
+			}
 			blockReader.Reset(b.segmentForBlock(segment))
 			readers[i] = blockReader
 			if end.Before(endTime) {
@@ -3102,7 +3106,7 @@ func (b *baseBlocksResult) newDatabaseBlock(blockSize time.Duration, block *rpc.
 		encoder, err := b.mergeReaders(start, end, readers)
 		for _, reader := range readers {
 			// Close each reader
-			blockReader := reader.(xio.BlockReader)
+			blockReader := reader.(xio.Block)
 			blockReader.Finalize()
 		}
 
@@ -3247,7 +3251,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 
 		// If there are no data in the current block, there is no
 		// need to merge
-		if currReader == nil {
+		if currReader.IsEmpty() {
 			continue
 		}
 
@@ -3255,12 +3259,12 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 		if err != nil {
 			return err
 		}
-		if resultReader == nil {
+		if resultReader.IsEmpty() {
 			return nil
 		}
 
 		readers := []xio.SegmentReader{currReader, resultReader}
-		encoder, err := r.mergeReaders(start, currReader.End(), readers)
+		encoder, err := r.mergeReaders(start, currReader.End, readers)
 
 		if err != nil {
 			return err

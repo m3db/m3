@@ -84,9 +84,9 @@ func (_mr *MockdatabaseBufferMockRecorder) Snapshot(arg0, arg1 interface{}) *gom
 }
 
 // ReadEncoded mocks base method
-func (_m *MockdatabaseBuffer) ReadEncoded(ctx context.Context, start time.Time, end time.Time) [][]xio.BlockReader {
+func (_m *MockdatabaseBuffer) ReadEncoded(ctx context.Context, start time.Time, end time.Time) [][]xio.Block {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, start, end)
-	ret0, _ := ret[0].([][]xio.BlockReader)
+	ret0, _ := ret[0].([][]xio.Block)
 	return ret0
 }
 

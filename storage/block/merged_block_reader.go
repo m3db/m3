@@ -37,7 +37,7 @@ type dbMergedBlockReader struct {
 	blockEnd   time.Time
 	streams    [2]xio.SegmentReader
 	readers    [2]xio.SegmentReader
-	merged     xio.BlockReader
+	merged     xio.Block
 	encoder    encoding.Encoder
 	err        error
 }
@@ -47,7 +47,7 @@ func newDatabaseMergedBlockReader(
 	blockEnd time.Time,
 	streamA, streamB xio.SegmentReader,
 	opts Options,
-) xio.BlockReader {
+) xio.Block {
 	r := &dbMergedBlockReader{
 		opts:       opts,
 		blockStart: blockStart,
@@ -57,12 +57,16 @@ func newDatabaseMergedBlockReader(
 	r.streams[1] = streamB
 	r.readers[0] = streamA
 	r.readers[1] = streamB
-	return r
+	return xio.Block{
+		SegmentReader: r,
+		Start:         blockStart,
+		End:           blockEnd,
+	}
 }
 
-func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
+func (r *dbMergedBlockReader) mergedReader() (xio.Block, error) {
 	r.RLock()
-	if r.merged != nil || r.err != nil {
+	if !r.merged.IsEmpty() || r.err != nil {
 		r.RUnlock()
 		return r.merged, r.err
 	}
@@ -71,7 +75,7 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 	r.Lock()
 	defer r.Unlock()
 
-	if r.merged != nil || r.err != nil {
+	if !r.merged.IsEmpty() || r.err != nil {
 		return r.merged, r.err
 	}
 
@@ -88,13 +92,13 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 		if err != nil {
 			r.encoder.Close()
 			r.err = err
-			return nil, err
+			return xio.EmptyBlock, err
 		}
 	}
 	if err := multiIter.Err(); err != nil {
 		r.encoder.Close()
 		r.err = err
-		return nil, err
+		return xio.EmptyBlock, err
 	}
 
 	// Release references to the existing streams
@@ -106,7 +110,11 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 		r.readers[i] = nil
 	}
 
-	r.merged = xio.NewBlockReader(r.encoder.Stream(), r.blockStart, r.blockEnd)
+	r.merged = xio.Block{
+		SegmentReader: r.encoder.Stream(),
+		Start:         r.blockStart,
+		End:           r.blockEnd,
+	}
 
 	return r.merged, nil
 }
@@ -158,7 +166,7 @@ func (r *dbMergedBlockReader) SegmentReader() (xio.SegmentReader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return reader.SegmentReader()
+	return reader.SegmentReader, nil
 }
 
 func (r *dbMergedBlockReader) Reset(_ ts.Segment) {
@@ -186,10 +194,10 @@ func (r *dbMergedBlockReader) Finalize() {
 		}
 	}
 
-	if r.merged != nil {
+	if !r.merged.IsEmpty() {
 		r.merged.Finalize()
 	}
-	r.merged = nil
+	r.merged = xio.EmptyBlock
 
 	if r.encoder != nil {
 		r.encoder.Close()

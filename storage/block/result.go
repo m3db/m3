@@ -31,13 +31,13 @@ import (
 // NewFetchBlockResult creates a new fetch block result
 func NewFetchBlockResult(
 	start time.Time,
-	readers []xio.BlockReader,
+	blocks []xio.Block,
 	err error,
 ) FetchBlockResult {
 	return FetchBlockResult{
-		Start:   start,
-		Readers: readers,
-		Err:     err,
+		Start:  start,
+		Blocks: blocks,
+		Err:    err,
 	}
 }
 

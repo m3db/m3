@@ -62,7 +62,7 @@ type DatabaseSeries interface {
 	ReadEncoded(
 		ctx context.Context,
 		start, end time.Time,
-	) ([][]xio.BlockReader, error)
+	) ([][]xio.Block, error)
 
 	// FetchBlocks returns data blocks given a list of block start times
 	FetchBlocks(

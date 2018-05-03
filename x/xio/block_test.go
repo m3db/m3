@@ -25,34 +25,80 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/ts"
-
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3db/ts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	start   = time.Now()
+	start   = time.Now().Truncate(time.Minute)
 	end     = start.Add(time.Minute)
 	errTest = fmt.Errorf("err")
 )
 
-func buildBlockReader(t *testing.T) (BlockReader, *MockSegmentReader) {
+func buildBlock(t *testing.T) (Block, *MockSegmentReader) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	reader := NewMockSegmentReader(ctrl)
-	return NewBlockReader(reader, start, end), reader
+	return Block{reader, start, end}, reader
+}
+
+func TestCloneBlock(t *testing.T) {
+	b := EmptyBlock
+
+	assert.True(t, b.IsEmpty())
+
+	assert.True(t, Block{}.IsEmpty())
+	b, sr := buildBlock(t)
+
+	var p []byte
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	reader := NewMockSegmentReader(ctrl)
+
+	seg := ts.Segment{}
+	startReset := start.Add(time.Hour)
+	endReset := end.Add(time.Hour)
+
+	reader.EXPECT().Read(p).Return(1337, nil).Times(1)
+	sr.EXPECT().Read(p).Return(0, errTest).Times(1)
+	sr.EXPECT().Read(p).Return(100, nil).Times(1)
+	sr.EXPECT().Clone().Return(reader, nil)
+	sr.EXPECT().Reset(seg).Return().Times(1)
+
+	read, err := b.Read(p)
+	require.Equal(t, read, 0)
+	require.Equal(t, err, errTest)
+
+	read, err = b.Read(p)
+	require.Equal(t, read, 100)
+	require.NoError(t, err)
+
+	b2, err := b.CloneBlock()
+	require.NoError(t, err)
+
+	b.ResetWindowed(seg, startReset, endReset)
+	require.Equal(t, b.Start, startReset)
+	require.Equal(t, b.End, endReset)
+
+	require.Equal(t, b2.Start, start)
+	require.Equal(t, b2.End, end)
+
+	read, err = b2.Read(p)
+
+	require.Equal(t, read, 1337)
+	require.NoError(t, err)
 }
 
 func TestBlockReaderStartEnd(t *testing.T) {
-	br, _ := buildBlockReader(t)
-	assert.Equal(t, br.Start(), start)
-	assert.Equal(t, br.End(), end)
+	br, _ := buildBlock(t)
+	assert.Equal(t, br.Start, start)
+	assert.Equal(t, br.End, end)
 }
 
 func TestBlockReaderClone(t *testing.T) {
-	br, sr := buildBlockReader(t)
+	br, sr := buildBlock(t)
 	sr.EXPECT().Clone().Return(nil, errTest).Times(1)
 	r, err := br.Clone()
 	require.Nil(t, r)
@@ -62,18 +108,13 @@ func TestBlockReaderClone(t *testing.T) {
 	r, err = br.Clone()
 	require.NoError(t, err)
 
-	br, ok := r.(BlockReader)
-	require.True(t, ok)
-	s, err := br.SegmentReader()
-	require.NoError(t, err)
-
-	require.Equal(t, s, sr)
-	require.Equal(t, br.Start(), start)
-	require.Equal(t, br.End(), end)
+	require.Equal(t, r, sr)
+	require.Equal(t, br.Start, start)
+	require.Equal(t, br.End, end)
 }
 
 func TestBlockReaderRead(t *testing.T) {
-	br, sr := buildBlockReader(t)
+	br, sr := buildBlock(t)
 
 	var p []byte
 
@@ -89,13 +130,13 @@ func TestBlockReaderRead(t *testing.T) {
 }
 
 func TestBlockReaderFinalize(t *testing.T) {
-	br, sr := buildBlockReader(t)
+	br, sr := buildBlock(t)
 	sr.EXPECT().Finalize().Times(1)
 	br.Finalize()
 }
 
 func TestBlockReaderSegment(t *testing.T) {
-	br, sr := buildBlockReader(t)
+	br, sr := buildBlock(t)
 	segment := ts.Segment{}
 	sr.EXPECT().Segment().Return(segment, errTest).Times(1)
 	_, err := br.Segment()
@@ -108,19 +149,38 @@ func TestBlockReaderSegment(t *testing.T) {
 }
 
 func TestBlockReaderReset(t *testing.T) {
-	br, sr := buildBlockReader(t)
+	br, sr := buildBlock(t)
 	segment := ts.Segment{}
 	sr.EXPECT().Reset(segment).Times(1)
 	br.Reset(segment)
 }
 
 func TestBlockReaderResetWindowed(t *testing.T) {
-	br, sr := buildBlockReader(t)
+	br, sr := buildBlock(t)
 	segment := ts.Segment{}
 	sr.EXPECT().Reset(segment).Times(1)
 	startReset := start.Add(time.Hour)
 	endReset := end.Add(time.Hour)
 	br.ResetWindowed(segment, startReset, endReset)
-	require.Equal(t, br.Start(), startReset)
-	require.Equal(t, br.End(), endReset)
+	require.Equal(t, br.Start, startReset)
+	require.Equal(t, br.End, endReset)
+}
+
+func TestBlockIsEmpty(t *testing.T) {
+	assert.True(t, EmptyBlock.IsEmpty())
+	assert.True(t, Block{}.IsEmpty())
+
+	assert.False(t, Block{
+		Start: start,
+	}.IsEmpty())
+	assert.False(t, Block{
+		End: end,
+	}.IsEmpty())
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	reader := NewMockSegmentReader(ctrl)
+	assert.False(t, Block{
+		SegmentReader: reader,
+	}.IsEmpty())
 }

@@ -157,19 +157,19 @@ func (it *testMultiIterator) Readers() xio.ReaderSliceOfSlicesIterator {
 }
 
 type testReaderSliceOfSlicesIterator struct {
-	readers [][]xio.SegmentReader
-	idx     int
-	closed  bool
+	blocks [][]xio.Block
+	idx    int
+	closed bool
 }
 
 func newTestReaderSliceOfSlicesIterator(
-	readers [][]xio.SegmentReader,
+	blocks [][]xio.Block,
 ) xio.ReaderSliceOfSlicesIterator {
-	return &testReaderSliceOfSlicesIterator{readers: readers, idx: -1}
+	return &testReaderSliceOfSlicesIterator{blocks: blocks, idx: -1}
 }
 
 func (it *testReaderSliceOfSlicesIterator) Next() bool {
-	if !(it.idx+1 < len(it.readers)) {
+	if !(it.idx+1 < len(it.blocks)) {
 		return false
 	}
 	it.idx++
@@ -177,11 +177,11 @@ func (it *testReaderSliceOfSlicesIterator) Next() bool {
 }
 
 func (it *testReaderSliceOfSlicesIterator) Current() (int, time.Time, time.Time) {
-	return len(it.readers[it.arrayIdx()]), time.Time{}, time.Time{}
+	return len(it.blocks[it.arrayIdx()]), time.Time{}, time.Time{}
 }
 
-func (it *testReaderSliceOfSlicesIterator) CurrentAt(idx int) xio.SegmentReader {
-	return it.readers[it.arrayIdx()][idx]
+func (it *testReaderSliceOfSlicesIterator) CurrentAt(idx int) xio.Block {
+	return it.blocks[it.arrayIdx()][idx]
 }
 
 func (it *testReaderSliceOfSlicesIterator) Close() {

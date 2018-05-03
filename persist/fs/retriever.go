@@ -350,7 +350,7 @@ func (r *blockRetriever) Stream(
 	id ident.ID,
 	startTime, endTime time.Time,
 	onRetrieve block.OnRetrieveBlock,
-) (xio.BlockReader, error) {
+) (xio.Block, error) {
 	req := r.reqPool.Get()
 	req.shard = shard
 	// NB(r): Clone the ID as we're not positive it will stay valid throughout
@@ -370,13 +370,13 @@ func (r *blockRetriever) Stream(
 	// This should never happen unless caller tries to use Stream() before Open()
 	if r.seekerMgr == nil {
 		r.RUnlock()
-		return nil, errNoSeekerMgr
+		return xio.EmptyBlock, errNoSeekerMgr
 	}
 	r.RUnlock()
 
 	bloomFilter, err := r.seekerMgr.ConcurrentIDBloomFilter(shard, startTime)
 	if err != nil {
-		return nil, err
+		return xio.EmptyBlock, err
 	}
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
@@ -384,11 +384,11 @@ func (r *blockRetriever) Stream(
 	if !bloomFilter.Test(id.Data().Bytes()) {
 		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data
 		req.onRetrieved(ts.Segment{})
-		return req, nil
+		return req.toBlock(), nil
 	}
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
-		return nil, err
+		return xio.EmptyBlock, err
 	}
 
 	reqs.Lock()
@@ -402,7 +402,15 @@ func (r *blockRetriever) Stream(
 		// Loop busy, already ready to consume notification
 	}
 
-	return req, nil
+	return req.toBlock(), nil
+}
+
+func (req *retrieveRequest) toBlock() xio.Block {
+	return xio.Block{
+		SegmentReader: req,
+		Start:         req.start,
+		End:           req.end,
+	}
 }
 
 func (r *blockRetriever) shardRequests(

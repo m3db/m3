@@ -177,12 +177,12 @@ func (b *dbBlock) OnRetrieveBlock(
 	b.wasRetrievedFromDisk = true
 }
 
-func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
+func (b *dbBlock) Stream(blocker context.Context) (xio.Block, error) {
 	b.RLock()
 	defer b.RUnlock()
 
 	if b.closed {
-		return nil, errReadFromClosedBlock
+		return xio.EmptyBlock, errReadFromClosedBlock
 	}
 
 	b.ctx.DependsOn(blocker)
@@ -193,7 +193,7 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 	// If the block retrieve ID is set then it must be retrieved
 	var (
 		stream             xio.SegmentReader
-		block              xio.BlockReader
+		block              xio.Block
 		err                error
 		fromBlockRetriever bool
 	)
@@ -201,7 +201,7 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 		fromBlockRetriever = true
 		stream, err = b.retriever.Stream(blocker, b.retrieveID, start, end, b)
 		if err != nil {
-			return nil, err
+			return xio.EmptyBlock, err
 		}
 	} else {
 		stream = b.opts.SegmentReaderPool().Get()
@@ -212,17 +212,21 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 	}
 
 	if b.mergeTarget != nil {
-		var mergeStream xio.BlockReader
+		var mergeStream xio.Block
 		mergeStream, err = b.mergeTarget.Stream(blocker)
 		if err != nil {
 			stream.Finalize()
-			return nil, err
+			return xio.EmptyBlock, err
 		}
 		// Return a lazily merged stream
 		// TODO(r): once merged reset this block with the contents of it
 		block = newDatabaseMergedBlockReader(start, end, stream, mergeStream, b.opts)
 	} else {
-		block = xio.NewBlockReader(stream, start, end)
+		block = xio.Block{
+			SegmentReader: stream,
+			Start:         start,
+			End:           end,
+		}
 	}
 
 	if !fromBlockRetriever {

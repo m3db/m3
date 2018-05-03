@@ -556,8 +556,8 @@ func (_mr *MockMultiReaderIteratorMockRecorder) Close() *gomock.Call {
 }
 
 // Reset mocks base method
-func (_m *MockMultiReaderIterator) Reset(readers []xio.SegmentReader, start time.Time, end time.Time) {
-	_m.ctrl.Call(_m, "Reset", readers, start, end)
+func (_m *MockMultiReaderIterator) Reset(blocks []xio.SegmentReader, start time.Time, end time.Time) {
+	_m.ctrl.Call(_m, "Reset", blocks, start, end)
 }
 
 // Reset indicates an expected call of Reset

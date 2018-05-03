@@ -1681,8 +1681,8 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	require.NotNil(t, stream)
 
 	// block reader has correct start and end time
-	assert.Equal(t, start, stream.Start())
-	assert.Equal(t, start.Add(blockSize), stream.End())
+	assert.Equal(t, start, stream.Start)
+	assert.Equal(t, start.Add(blockSize), stream.End)
 
 	seg, err := stream.Segment()
 	require.NoError(t, err)

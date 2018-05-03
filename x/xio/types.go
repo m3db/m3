@@ -28,22 +28,15 @@ import (
 	"github.com/m3db/m3x/resource"
 )
 
-// BlockReader implements the io reader interface backed by a segment with start and end times
-type BlockReader interface {
+// Block implements the io reader interface backed by a segment with start and end times
+type Block struct {
 	SegmentReader
-
-	// Start returns the start time for the block this reader represents
-	Start() time.Time
-
-	// End returns the end time for the block this reader represents
-	End() time.Time
-
-	// ResetWindowed resets the reader to read a new segment, and updates block start and end times
-	ResetWindowed(segment ts.Segment, start, end time.Time)
-
-	// SegmentReader exposes inner segment reader
-	SegmentReader() (SegmentReader, error)
+	Start time.Time
+	End   time.Time
 }
+
+// EmptyBlock represents the default block
+var EmptyBlock = Block{}
 
 // SegmentReader implements the io reader interface backed by a segment
 type SegmentReader interface {
@@ -81,7 +74,7 @@ type ReaderSliceOfSlicesIterator interface {
 	Current() (length int, start, end time.Time)
 
 	// CurrentAt returns the current reader in the slice of readers at an index
-	CurrentAt(idx int) SegmentReader
+	CurrentAt(idx int) Block
 
 	// Close closes the iterator
 	Close()
@@ -92,5 +85,5 @@ type ReaderSliceOfSlicesFromBlockReadersIterator interface {
 	ReaderSliceOfSlicesIterator
 
 	// Reset resets the iterator with a new array of block readers arrays
-	Reset(blocks [][]BlockReader)
+	Reset(blocks [][]Block)
 }

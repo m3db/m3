@@ -73,7 +73,7 @@ func NewReaderUsingRetriever(
 func (r Reader) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
-) ([][]xio.BlockReader, error) {
+) ([][]xio.Block, error) {
 	return r.readersWithBlocksMapAndBuffer(ctx, start, end, nil, nil)
 }
 
@@ -82,9 +82,9 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 	start, end time.Time,
 	seriesBlocks block.DatabaseSeriesBlocks,
 	seriesBuffer databaseBuffer,
-) ([][]xio.BlockReader, error) {
+) ([][]xio.Block, error) {
 	// TODO(r): pool these results arrays
-	var results [][]xio.BlockReader
+	var results [][]xio.Block
 
 	if end.Before(start) {
 		return nil, xerrors.NewInvalidParamsError(errSeriesReadInvalidRange)
@@ -121,12 +121,12 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 			if block, ok := seriesBlocks.BlockAt(blockAt); ok {
 				// Block served from in-memory or in-memory metadata
 				// will defer to disk read
-				stream, err := block.Stream(ctx)
+				streamedBlock, err := block.Stream(ctx)
 				if err != nil {
 					return nil, err
 				}
-				if stream != nil {
-					results = append(results, []xio.BlockReader{stream})
+				if !streamedBlock.IsEmpty() {
+					results = append(results, []xio.Block{streamedBlock})
 					// NB(r): Mark this block as read now
 					block.SetLastReadTime(now)
 					if r.onRead != nil {
@@ -145,12 +145,12 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		case r.retriever != nil:
 			// Try to stream from disk
 			if r.retriever.IsBlockRetrievable(blockAt) {
-				stream, err := r.retriever.Stream(ctx, r.id, blockAt, blockAt.Add(size), r.onRetrieve)
+				streamedBlock, err := r.retriever.Stream(ctx, r.id, blockAt, blockAt.Add(size), r.onRetrieve)
 				if err != nil {
 					return nil, err
 				}
-				if stream != nil {
-					results = append(results, []xio.BlockReader{stream})
+				if !streamedBlock.IsEmpty() {
+					results = append(results, []xio.Block{streamedBlock})
 				}
 			}
 		}
@@ -195,15 +195,15 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 	for _, start := range starts {
 		if seriesBlocks != nil {
 			if b, exists := seriesBlocks.BlockAt(start); exists {
-				stream, err := b.Stream(ctx)
+				streamedBlock, err := b.Stream(ctx)
 				if err != nil {
 					r := block.NewFetchBlockResult(start, nil,
 						fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
 							r.id.String(), start, err))
 					res = append(res, r)
 				}
-				if stream != nil {
-					b := []xio.BlockReader{stream}
+				if !streamedBlock.IsEmpty() {
+					b := []xio.Block{streamedBlock}
 					r := block.NewFetchBlockResult(start, b, nil)
 					res = append(res, r)
 				}
@@ -220,15 +220,15 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 			if r.retriever.IsBlockRetrievable(start) {
 				blockSize := r.opts.RetentionOptions().BlockSize()
 				end := start.Add(blockSize)
-				stream, err := r.retriever.Stream(ctx, r.id, start, end, onRetrieve)
+				streamedBlock, err := r.retriever.Stream(ctx, r.id, start, end, onRetrieve)
 				if err != nil {
 					r := block.NewFetchBlockResult(start, nil,
 						fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
 							r.id.String(), start, err))
 					res = append(res, r)
 				}
-				if stream != nil {
-					b := []xio.BlockReader{stream}
+				if !streamedBlock.IsEmpty() {
+					b := []xio.Block{streamedBlock}
 					r := block.NewFetchBlockResult(start, b, nil)
 					res = append(res, r)
 				}

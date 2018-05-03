@@ -66,9 +66,9 @@ type FilteredBlocksMetadataIter interface {
 // FetchBlockResult captures the block start time, the readers for the underlying streams, the
 // corresponding checksum and any errors encountered.
 type FetchBlockResult struct {
-	Start   time.Time
-	Readers []xio.BlockReader
-	Err     error
+	Start  time.Time
+	Blocks []xio.Block
+	Err    error
 }
 
 // FetchBlocksMetadataOptions are options used when fetching blocks metadata.
@@ -152,7 +152,7 @@ type DatabaseBlock interface {
 	Checksum() uint32
 
 	// Stream returns the encoded byte stream.
-	Stream(blocker context.Context) (xio.BlockReader, error)
+	Stream(blocker context.Context) (xio.Block, error)
 
 	// Merge will merge the current block with the specified block
 	// when this block is read. Note: calling this twice
@@ -266,7 +266,7 @@ type DatabaseBlockRetriever interface {
 		blockStart time.Time,
 		blockEnd time.Time,
 		onRetrieve OnRetrieveBlock,
-	) (xio.BlockReader, error)
+	) (xio.Block, error)
 }
 
 // DatabaseShardBlockRetriever is a block retriever bound to a shard.
@@ -278,7 +278,7 @@ type DatabaseShardBlockRetriever interface {
 		blockStart time.Time,
 		blockEnd time.Time,
 		onRetrieve OnRetrieveBlock,
-	) (xio.BlockReader, error)
+	) (xio.Block, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

@@ -106,6 +106,11 @@ func (it *seriesIterator) Close() {
 	if it.tags != nil {
 		it.tags.Close()
 	}
+
+	for idx := range it.multiReaderIters {
+		it.multiReaderIters[idx] = nil
+	}
+
 	it.iters.reset()
 	if it.pool != nil {
 		it.pool.Put(it)
@@ -124,11 +129,6 @@ func (it *seriesIterator) Reset(id ident.ID, nsID ident.ID, tags ident.TagIterat
 	it.end = endExclusive
 	it.iters.reset()
 	it.iters.setFilter(startInclusive, endExclusive)
-
-	for idx := range it.multiReaderIters {
-		it.multiReaderIters[idx] = nil
-	}
-
 	it.multiReaderIters = it.multiReaderIters[:0]
 	it.err = nil
 	it.firstNext = true

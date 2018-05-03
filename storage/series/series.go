@@ -309,7 +309,7 @@ func (s *dbSeries) Write(
 func (s *dbSeries) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
-) ([][]xio.BlockReader, error) {
+) ([][]xio.Block, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
 	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.blocks, s.buffer)
@@ -593,16 +593,16 @@ func (s *dbSeries) Flush(
 		return nil
 	}
 
-	sr, err := b.Stream(ctx)
+	br, err := b.Stream(ctx)
 	s.RUnlock()
 
 	if err != nil {
 		return err
 	}
-	if sr == nil {
+	if br.IsEmpty() {
 		return nil
 	}
-	segment, err := sr.Segment()
+	segment, err := br.Segment()
 	if err != nil {
 		return err
 	}

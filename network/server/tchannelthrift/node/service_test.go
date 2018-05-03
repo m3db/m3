@@ -124,9 +124,11 @@ func TestServiceFetch(t *testing.T) {
 
 	mockDB.EXPECT().
 		ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher("foo"), start, end).
-		Return([][]xio.BlockReader{
-			[]xio.BlockReader{
-				xio.NewBlockReader(enc.Stream(), time.Time{}, time.Time{}),
+		Return([][]xio.Block{
+			[]xio.Block{
+				xio.Block{
+					SegmentReader: enc.Stream(),
+				},
 			},
 		}, nil)
 
@@ -196,9 +198,11 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
-			Return([][]xio.BlockReader{
-				[]xio.BlockReader{
-					xio.NewBlockReader(enc.Stream(), time.Time{}, time.Time{}),
+			Return([][]xio.Block{
+				[]xio.Block{
+					xio.Block{
+						SegmentReader: enc.Stream(),
+					},
 				},
 			}, nil)
 	}
@@ -296,8 +300,12 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 		checksum := digest.SegmentChecksum(seg)
 		checksums[id] = checksum
 
-		expectedBlockReader := []xio.BlockReader{
-			xio.NewBlockReader(enc.Stream(), start, start),
+		expectedBlockReader := []xio.Block{
+			xio.Block{
+				SegmentReader: enc.Stream(),
+				Start:         start,
+				End:           start,
+			},
 		}
 
 		mockDB.EXPECT().
@@ -623,8 +631,10 @@ func TestServiceFetchTagged(t *testing.T) {
 		streams[id] = enc.Stream()
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
-			Return([][]xio.BlockReader{{
-				xio.NewBlockReader(xio.SegmentReader(enc.Stream()), time.Time{}, time.Time{}),
+			Return([][]xio.Block{{
+				xio.Block{
+					SegmentReader: enc.Stream(),
+				},
 			}}, nil)
 	}
 

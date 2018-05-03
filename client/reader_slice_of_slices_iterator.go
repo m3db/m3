@@ -34,7 +34,7 @@ var timeZero = time.Time{}
 
 type readerSliceOfSlicesIterator struct {
 	segments     []*rpc.Segments
-	blockReaders []xio.BlockReader
+	blockReaders []xio.Block
 	idx          int
 	closed       bool
 	pool         *readerSliceOfSlicesIteratorPool
@@ -62,7 +62,11 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 		for i := 0; i < diff; i++ {
 			seg := ts.NewSegment(nil, nil, ts.FinalizeNone)
 			sr := xio.NewSegmentReader(seg)
-			br := xio.NewBlockReader(sr, start, end)
+			br := xio.Block{
+				SegmentReader: sr,
+				Start:         start,
+				End:           end,
+			}
 			it.blockReaders = append(it.blockReaders, br)
 		}
 	}
@@ -81,7 +85,7 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 }
 
 func (it *readerSliceOfSlicesIterator) resetReader(
-	r xio.BlockReader,
+	r xio.Block,
 	seg *rpc.Segment,
 ) {
 	rseg, err := r.Segment()
@@ -137,9 +141,9 @@ func timeConvert(ticks *int64) time.Time {
 	return xtime.FromNormalizedTime(*ticks, time.Nanosecond)
 }
 
-func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) xio.SegmentReader {
+func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) xio.Block {
 	if idx >= it.currentLen() {
-		return nil
+		return xio.EmptyBlock
 	}
 	return it.blockReaders[idx]
 }

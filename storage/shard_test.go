@@ -1066,10 +1066,14 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 		ts.NewSegment(checked.NewBytes([]byte("baz"), nil), nil, ts.FinalizeNone),
 	}
 
-	var blockReaders []*xio.MockBlockReader
+	var blockReaders []xio.Block
 	for range segments {
-		reader := xio.NewMockBlockReader(ctrl)
-		blockReaders = append(blockReaders, reader)
+		reader := xio.NewMockSegmentReader(ctrl)
+		block := xio.Block{
+			SegmentReader: reader,
+		}
+
+		blockReaders = append(blockReaders, block)
 	}
 
 	ctx := opts.ContextPool().Get()

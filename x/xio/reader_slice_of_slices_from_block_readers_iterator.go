@@ -25,7 +25,7 @@ import (
 )
 
 type readerSliceOfSlicesIterator struct {
-	blocks [][]BlockReader
+	blocks [][]Block
 	idx    int
 	len    int
 	closed bool
@@ -33,7 +33,7 @@ type readerSliceOfSlicesIterator struct {
 
 // NewReaderSliceOfSlicesFromBlockReadersIterator creates a new reader slice of slices iterator
 func NewReaderSliceOfSlicesFromBlockReadersIterator(
-	blocks [][]BlockReader,
+	blocks [][]Block,
 ) ReaderSliceOfSlicesFromBlockReadersIterator {
 	it := &readerSliceOfSlicesIterator{}
 	it.Reset(blocks)
@@ -59,14 +59,14 @@ func (it *readerSliceOfSlicesIterator) Current() (int, time.Time, time.Time) {
 		return 0, timeZero, timeZero
 	}
 	currBlock := it.blocks[it.arrayIdx()][0]
-	return currentLen, currBlock.Start(), currBlock.End()
+	return currentLen, currBlock.Start, currBlock.End
 }
 
-func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) SegmentReader {
+func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) Block {
 	return it.blocks[it.arrayIdx()][idx]
 }
 
-func (it *readerSliceOfSlicesIterator) Reset(blocks [][]BlockReader) {
+func (it *readerSliceOfSlicesIterator) Reset(blocks [][]Block) {
 	it.blocks = blocks
 	it.idx = -1
 	it.len = len(blocks)

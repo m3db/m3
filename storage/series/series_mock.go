@@ -189,9 +189,9 @@ func (_mr *MockDatabaseSeriesMockRecorder) OnRetrieveBlock(arg0, arg1, arg2 inte
 }
 
 // ReadEncoded mocks base method
-func (_m *MockDatabaseSeries) ReadEncoded(_param0 context.Context, _param1 time.Time, _param2 time.Time) ([][]xio.BlockReader, error) {
+func (_m *MockDatabaseSeries) ReadEncoded(_param0 context.Context, _param1 time.Time, _param2 time.Time) ([][]xio.Block, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", _param0, _param1, _param2)
-	ret0, _ := ret[0].([][]xio.BlockReader)
+	ret0, _ := ret[0].([][]xio.Block)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -296,9 +296,9 @@ func (_mr *MockQueryableBlockRetrieverMockRecorder) IsBlockRetrievable(arg0 inte
 }
 
 // Stream mocks base method
-func (_m *MockQueryableBlockRetriever) Stream(_param0 context.Context, _param1 ident.ID, _param2 time.Time, _param3 time.Time, _param4 block.OnRetrieveBlock) (xio.BlockReader, error) {
+func (_m *MockQueryableBlockRetriever) Stream(_param0 context.Context, _param1 ident.ID, _param2 time.Time, _param3 time.Time, _param4 block.OnRetrieveBlock) (xio.Block, error) {
 	ret := _m.ctrl.Call(_m, "Stream", _param0, _param1, _param2, _param3, _param4)
-	ret0, _ := ret[0].(xio.BlockReader)
+	ret0, _ := ret[0].(xio.Block)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -26,55 +26,27 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
-type blockReader struct {
-	reader SegmentReader
-	start  time.Time
-	end    time.Time
-}
-
-// NewBlockReader creates a new segment reader along with a specified segment.
-func NewBlockReader(reader SegmentReader, start, end time.Time) BlockReader {
-	return &blockReader{reader: reader, start: start, end: end}
-}
-
-func (r *blockReader) Clone() (SegmentReader, error) {
-	reader, err := r.reader.Clone()
+// CloneBlock returns a clone of the block with the underlying data reset
+func (b Block) CloneBlock() (Block, error) {
+	sr, err := b.SegmentReader.Clone()
 	if err != nil {
-		return nil, err
+		return EmptyBlock, nil
 	}
-	return NewBlockReader(reader, r.start, r.end), nil
+	return Block{
+		SegmentReader: sr,
+		Start:         b.Start,
+		End:           b.End,
+	}, nil
 }
 
-func (r *blockReader) Start() time.Time {
-	return r.start
+// IsEmpty returns true for the empty block
+func (b Block) IsEmpty() bool {
+	return b == EmptyBlock
 }
 
-func (r *blockReader) End() time.Time {
-	return r.end
-}
-
-func (r *blockReader) Read(b []byte) (int, error) {
-	return r.reader.Read(b)
-}
-
-func (r *blockReader) Segment() (ts.Segment, error) {
-	return r.reader.Segment()
-}
-
-func (r *blockReader) Reset(segment ts.Segment) {
-	r.reader.Reset(segment)
-}
-
-func (r *blockReader) ResetWindowed(segment ts.Segment, start, end time.Time) {
-	r.reader.Reset(segment)
-	r.start = start
-	r.end = end
-}
-
-func (r *blockReader) Finalize() {
-	r.reader.Finalize()
-}
-
-func (r *blockReader) SegmentReader() (SegmentReader, error) {
-	return r.reader, nil
+// ResetWindowed resets the underlying reader window, as well as start and end times for the block
+func (b *Block) ResetWindowed(segment ts.Segment, start, end time.Time) {
+	b.Reset(segment)
+	b.Start = start
+	b.End = end
 }

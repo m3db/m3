@@ -81,7 +81,7 @@ type decodedValue struct {
 	annotation []byte
 }
 
-func decodedValues(results [][]xio.BlockReader, opts Options) ([]decodedValue, error) {
+func decodedValues(results [][]xio.Block, opts Options) ([]decodedValue, error) {
 	slicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(results)
 	iter := opts.MultiReaderIteratorPool().Get()
 	iter.ResetSliceOfSlices(slicesIter)
@@ -99,7 +99,7 @@ func decodedValues(results [][]xio.BlockReader, opts Options) ([]decodedValue, e
 	return all, nil
 }
 
-func assertValuesEqual(t *testing.T, values []value, results [][]xio.BlockReader, opts Options) {
+func assertValuesEqual(t *testing.T, values []value, results [][]xio.Block, opts Options) {
 	decodedValues, err := decodedValues(results, opts)
 
 	assert.NoError(t, err)

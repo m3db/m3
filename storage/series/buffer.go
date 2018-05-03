@@ -74,7 +74,7 @@ type databaseBuffer interface {
 	ReadEncoded(
 		ctx context.Context,
 		start, end time.Time,
-	) [][]xio.BlockReader
+	) [][]xio.Block
 
 	FetchBlocks(
 		ctx context.Context,
@@ -399,9 +399,9 @@ func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) (xio.Segm
 	return res, err
 }
 
-func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.BlockReader {
+func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.Block {
 	// TODO(r): pool these results arrays
-	var res [][]xio.BlockReader
+	var res [][]xio.Block
 	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
 		if !bucket.canRead() {
 			return
@@ -612,18 +612,18 @@ func (b *dbBufferBucket) write(
 	return nil
 }
 
-func (b *dbBufferBucket) streams(ctx context.Context) []xio.BlockReader {
+func (b *dbBufferBucket) streams(ctx context.Context) []xio.Block {
 	// NB(r): Ensure we don't call any closers before the operation
 	// started by the passed context completes.
 	b.ctx.DependsOn(ctx)
 
-	streams := make([]xio.BlockReader, 0, len(b.bootstrapped)+len(b.encoders))
+	streams := make([]xio.Block, 0, len(b.bootstrapped)+len(b.encoders))
 
 	for i := range b.bootstrapped {
 		if b.bootstrapped[i].Len() == 0 {
 			continue
 		}
-		if s, err := b.bootstrapped[i].Stream(ctx); err == nil && s != nil {
+		if s, err := b.bootstrapped[i].Stream(ctx); err == nil && !s.IsEmpty() {
 			// NB(r): block stream method will register the stream closer already
 			streams = append(streams, s)
 		}
@@ -632,7 +632,11 @@ func (b *dbBufferBucket) streams(ctx context.Context) []xio.BlockReader {
 		start := b.start
 		end := start.Add(b.opts.RetentionOptions().BlockSize())
 		if s := b.encoders[i].encoder.Stream(); s != nil {
-			br := xio.NewBlockReader(s, start, end)
+			br := xio.Block{
+				SegmentReader: s,
+				Start:         start,
+				End:           end,
+			}
 			ctx.RegisterFinalizer(br)
 			streams = append(streams, br)
 		}
@@ -731,11 +735,15 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 	start := b.start
 	end := start.Add(b.opts.RetentionOptions().BlockSize())
 	readers := make([]xio.SegmentReader, 0, len(b.encoders)+len(b.bootstrapped))
-	streams := make([]xio.BlockReader, 0, len(b.encoders))
+	streams := make([]xio.Block, 0, len(b.encoders))
 	for i := range b.encoders {
 		if s := b.encoders[i].encoder.Stream(); s != nil {
 			merges++
-			br := xio.NewBlockReader(s, start, end)
+			br := xio.Block{
+				SegmentReader: s,
+				Start:         start,
+				End:           end,
+			}
 			readers = append(readers, br)
 			streams = append(streams, br)
 		}
@@ -756,10 +764,10 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 	}()
 
 	for i := range b.bootstrapped {
-		stream, err := b.bootstrapped[i].Stream(ctx)
-		if err == nil && stream != nil {
+		block, err := b.bootstrapped[i].Stream(ctx)
+		if err == nil && !block.IsEmpty() {
 			merges++
-			readers = append(readers, stream)
+			readers = append(readers, block)
 		}
 	}
 

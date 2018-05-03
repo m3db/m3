@@ -343,7 +343,7 @@ func (s *dbShard) Stream(
 	blockStart time.Time,
 	blockEnd time.Time,
 	onRetrieve block.OnRetrieveBlock,
-) (xio.BlockReader, error) {
+) (xio.Block, error) {
 	fmt.Println(id, blockStart, blockEnd)
 	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, blockEnd, onRetrieve)
 }
@@ -896,7 +896,7 @@ func (s *dbShard) ReadEncoded(
 	ctx context.Context,
 	id ident.ID,
 	start, end time.Time,
-) ([][]xio.BlockReader, error) {
+) ([][]xio.Block, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
 	if entry != nil {
