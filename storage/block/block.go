@@ -297,6 +297,9 @@ func (b *dbBlock) stream(ctx context.Context) (xio.SegmentReader, error) {
 	return stream, nil
 }
 
+// TODO(rartoul): The existing ctx is still holding a reference to the old segment so that will hang around
+// and waste memory until the block is closed. We could improve this by swapping out the underlying ctx with
+// a new one, allowing us to close the old one and release the old segment, freeing memory.
 func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentReader) (xio.SegmentReader, error) {
 	targetStream, err := b.mergeTarget.Stream(ctx)
 	if err != nil {
