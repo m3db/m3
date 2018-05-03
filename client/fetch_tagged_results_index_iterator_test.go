@@ -56,7 +56,7 @@ func TestFetchTaggedResultsIndexIterator(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			iter := newFetchTaggedResultsIndexIterator(pools)
+			iter := newTaggedIDsIterator(pools)
 			// initialize iter
 			for i := range tc.nses {
 				ns := tc.nses[i]
