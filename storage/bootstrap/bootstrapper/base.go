@@ -74,114 +74,20 @@ func (b baseBootstrapper) Can(strategy bootstrap.Strategy) bool {
 }
 
 func (b baseBootstrapper) BootstrapData(
-	ns namespace.Metadata,
+	namespace namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
-
-	available := b.src.AvailableData(ns, shardsTimeRanges)
-	remaining := shardsTimeRanges.Copy()
-	remaining.Subtract(available)
-
-	var (
-		wg                     sync.WaitGroup
-		currResult, nextResult result.DataBootstrapResult
-		currErr, nextErr       error
-	)
-	if !remaining.IsEmpty() &&
-		b.Can(bootstrap.BootstrapParallel) &&
-		b.next.Can(bootstrap.BootstrapParallel) {
-		// If ranges can be bootstrapped now from the next source then begin attempt now
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			nextResult, nextErr = b.next.BootstrapData(ns, remaining, opts)
-		}()
-	}
-
-	min, max := available.MinMax()
-	logFields := []xlog.Field{
-		xlog.NewField("source", b.name),
-		xlog.NewField("from", min.String()),
-		xlog.NewField("to", max.String()),
-		xlog.NewField("range", max.Sub(min).String()),
-		xlog.NewField("shards", len(available)),
-		xlog.NewField("namespace", ns.ID().String()),
-	}
-	b.log.WithFields(logFields...).Infof("bootstrapping from source starting")
-
-	nowFn := b.opts.ClockOptions().NowFn()
-	begin := nowFn()
-
-	currResult, currErr = b.src.ReadData(ns, available, opts)
-
-	logFields = append(logFields, xlog.NewField("took", nowFn().Sub(begin).String()))
-	if currErr != nil {
-		logFields = append(logFields, xlog.NewField("error", currErr.Error()))
-		b.log.WithFields(logFields...).Infof("bootstrapping from source completed with error")
-	} else {
-		var numSeries int64
-		if currResult != nil {
-			numSeries = currResult.ShardResults().NumSeries()
-		}
-		logFields = append(logFields, xlog.NewField("numSeries", numSeries))
-		b.log.WithFields(logFields...).Infof("bootstrapping from source completed successfully")
-	}
-
-	wg.Wait()
-	if err := xerrors.FirstError(currErr, nextErr); err != nil {
+	step := newBootstrapDataStep(namespace, shardsTimeRanges,
+		b.src, b.next, opts)
+	err := b.runBootstrapStep(namespace, step)
+	if err != nil {
 		return nil, err
 	}
-
-	if currResult == nil {
-		currResult = result.NewDataBootstrapResult()
-	}
-
-	var (
-		mergedResult         = currResult
-		currUnfulfilled      = currResult.Unfulfilled()
-		firstNextUnfulfilled result.ShardTimeRanges
-	)
-	if nextResult != nil {
-		// Union the results
-		mergedResult.ShardResults().AddResults(nextResult.ShardResults())
-		// Save the first next unfulfilled time ranges
-		firstNextUnfulfilled = nextResult.Unfulfilled()
-	} else {
-		// Union just the unfulfilled ranges from current and the remaining ranges
-		currUnfulfilled.AddRanges(remaining)
-	}
-
-	// If there are some time ranges the current bootstrapper could not fulfill,
-	// pass it along to the next bootstrapper
-	if !currUnfulfilled.IsEmpty() {
-		nextResult, nextErr = b.next.BootstrapData(ns, currUnfulfilled, opts)
-		if nextErr != nil {
-			return nil, nextErr
-		}
-
-		if nextResult != nil {
-			// Union the results
-			mergedResult.ShardResults().AddResults(nextResult.ShardResults())
-
-			// Set the unfulfilled ranges and don't use a union considering the
-			// next bootstrapper was asked to fulfill all outstanding ranges of
-			// the current bootstrapper
-			mergedResult.SetUnfulfilled(nextResult.Unfulfilled())
-		}
-	}
-
-	if nextResult != nil {
-		// Make sure to add any unfulfilled time ranges from the
-		// first time the next bootstrapper was asked to execute if it was
-		// executed in parallel
-		mergedResult.Unfulfilled().AddRanges(firstNextUnfulfilled)
-	}
-
-	return mergedResult, nil
+	return step.result(), nil
 }
 
 func (b baseBootstrapper) BootstrapIndex(
@@ -193,4 +99,64 @@ func (b baseBootstrapper) BootstrapIndex(
 	// an interface the mergability logic, etc of both indexbootstrapresult
 	// and databootstrapresult and use same code (poor mans generics solution)
 	return result.NewIndexBootstrapResult(), nil
+}
+
+func (b baseBootstrapper) runBootstrapStep(
+	namespace namespace.Metadata,
+	step bootstrapStep,
+) error {
+	var (
+		prepareResult    = step.prepare()
+		wg               sync.WaitGroup
+		currStatus       bootstrapStepStatus
+		currErr, nextErr error
+	)
+	if !prepareResult.canFulfillAllWithCurr &&
+		b.Can(bootstrap.BootstrapParallel) &&
+		b.next.Can(bootstrap.BootstrapParallel) {
+		// If ranges can be bootstrapped now from the next source then begin attempt now
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, nextErr = step.runNextStep()
+		}()
+	}
+
+	logFields := append([]xlog.Field{
+		xlog.NewField("source", b.name),
+		xlog.NewField("namespace", namespace.ID().String()),
+	}, prepareResult.logFields...)
+	b.log.WithFields(logFields...).Infof("bootstrapping from source starting")
+
+	nowFn := b.opts.ClockOptions().NowFn()
+	begin := nowFn()
+
+	currStatus, currErr = step.runCurrStep()
+
+	logFields = append(logFields, xlog.NewField("took", nowFn().Sub(begin).String()))
+	if currErr != nil {
+		logFields = append(logFields, xlog.NewField("error", currErr.Error()))
+		b.log.WithFields(logFields...).Infof("bootstrapping from source completed with error")
+	} else {
+		logFields = append(logFields, currStatus.logFields...)
+		b.log.WithFields(logFields...).Infof("bootstrapping from source completed successfully")
+	}
+
+	wg.Wait()
+	if err := xerrors.FirstError(currErr, nextErr); err != nil {
+		return err
+	}
+
+	currStatus = step.mergeResults()
+
+	// If there are some time ranges the current bootstrapper could not fulfill,
+	// pass it along to the next bootstrapper
+	if !currStatus.fulfilledAll {
+		_, lastErr := step.runLastStepAfterMergeResults()
+		if lastErr != nil {
+			return lastErr
+		}
+	}
+
+	return nil
 }
