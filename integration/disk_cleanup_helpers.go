@@ -139,6 +139,8 @@ func (fset *cleanupTimesFileSet) allExist() bool {
 			return false
 		}
 	}
+
+	return true
 }
 
 func waitUntilDataCleanedUpExtended(
