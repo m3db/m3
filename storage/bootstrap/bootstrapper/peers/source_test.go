@@ -119,7 +119,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 
 	goodResult := result.NewShardResult(0, opts.ResultOptions())
 	fooBlock := block.NewDatabaseBlock(start, ts.Segment{}, testBlockOpts)
-	goodResult.AddBlock(ident.StringID("foo"), fooBlock)
+	goodResult.AddBlock(ident.StringID("foo"), ident.Tags{ident.StringTag("foo", "oof")}, fooBlock)
 	badErr := fmt.Errorf("an error")
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
@@ -189,15 +189,15 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		barBlock := block.NewDatabaseBlock(start.Add(ropts.BlockSize()),
 			ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
-		shard0ResultBlock1.AddBlock(ident.StringID("foo"), fooBlock)
-		shard0ResultBlock2.AddBlock(ident.StringID("bar"), barBlock)
+		shard0ResultBlock1.AddBlock(ident.StringID("foo"), ident.Tags{ident.StringTag("foo", "oof")}, fooBlock)
+		shard0ResultBlock2.AddBlock(ident.StringID("bar"), ident.Tags{ident.StringTag("bar", "rab")}, barBlock)
 
 		shard1ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
 		shard1ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
 		bazBlock := block.NewDatabaseBlock(start,
 			ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
-		shard1ResultBlock1.AddBlock(ident.StringID("baz"), bazBlock)
+		shard1ResultBlock1.AddBlock(ident.StringID("baz"), ident.Tags{ident.StringTag("baz", "zab")}, bazBlock)
 
 		mockAdminSession := client.NewMockAdminSession(ctrl)
 		mockAdminSession.EXPECT().
@@ -395,7 +395,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	results := make(map[resultsKey]result.ShardResult)
 	addResult := func(shard uint32, id string, b block.DatabaseBlock) {
 		r := result.NewShardResult(0, opts.ResultOptions())
-		r.AddBlock(ident.StringID(id), b)
+		r.AddBlock(ident.StringID(id), ident.Tags{ident.StringTag(id, id)}, b)
 		start := b.StartTime()
 		end := start.Add(ropts.BlockSize())
 		results[resultsKey{shard, start.UnixNano(), end.UnixNano()}] = r

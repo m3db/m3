@@ -356,12 +356,12 @@ func TestFileExists(t *testing.T) {
 	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
 	createDataFile(t, shardDir, start, infoFileSuffix, nil)
 	require.True(t, FileExists(infoFilePath))
-	require.False(t, DataFilesetExistsAt(dir, testNs1ID, uint32(shard), start))
+	require.False(t, DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start))
 
 	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, nil)
 	require.True(t, FileExists(checkpointFilePath))
-	require.True(t, DataFilesetExistsAt(dir, testNs1ID, uint32(shard), start))
+	require.True(t, DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start))
 
 	os.Remove(infoFilePath)
 	require.False(t, FileExists(infoFilePath))
@@ -390,14 +390,14 @@ func TestFilePathFromTime(t *testing.T) {
 	}
 }
 
-func TestFilesetFilesBefore(t *testing.T) {
+func TestFileSetFilesBefore(t *testing.T) {
 	shard := uint32(0)
 	dir := createInfoFilesDataDir(t, testNs1ID, shard, 20)
 	defer os.RemoveAll(dir)
 
 	cutoffIter := 8
 	cutoff := time.Unix(0, int64(cutoffIter))
-	res, err := FilesetBefore(dir, testNs1ID, shard, cutoff)
+	res, err := FileSetBefore(dir, testNs1ID, shard, cutoff)
 	require.NoError(t, err)
 	require.Equal(t, cutoffIter, len(res))
 
@@ -408,7 +408,7 @@ func TestFilesetFilesBefore(t *testing.T) {
 	}
 }
 
-func TestFilesetFilesNoFiles(t *testing.T) {
+func TestFileSetFilesNoFiles(t *testing.T) {
 	// Make empty directory
 	shard := uint32(0)
 	dir := createTempDir(t)
@@ -492,13 +492,13 @@ func TestMultipleForBlockStart(t *testing.T) {
 
 func TestSnapshotFileHasCheckPointFile(t *testing.T) {
 	require.Equal(t, true, SnapshotFile{
-		FilesetFile: FilesetFile{
+		FileSetFile: FileSetFile{
 			AbsoluteFilepaths: []string{"123-checkpoint-0.db"},
 		},
 	}.HasCheckpointFile())
 
 	require.Equal(t, false, SnapshotFile{
-		FilesetFile: FilesetFile{
+		FileSetFile: FileSetFile{
 			AbsoluteFilepaths: []string{"123-index-0.db"},
 		},
 	}.HasCheckpointFile())
@@ -520,7 +520,7 @@ func TestShardSnapshotsDirPath(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func TestSnapshotFilesetExistsAt(t *testing.T) {
+func TestSnapshotFileSetExistsAt(t *testing.T) {
 	shard := uint32(0)
 	ts := time.Unix(0, 0)
 	dir := createTempDir(t)
@@ -530,7 +530,7 @@ func TestSnapshotFilesetExistsAt(t *testing.T) {
 	filePath := snapshotPathFromTimeAndIndex(shardPath, ts, checkpointFileSuffix, 0)
 	createFile(t, filePath, []byte{})
 
-	exists, err := SnapshotFilesetExistsAt(dir, testNs1ID, shard, ts)
+	exists, err := SnapshotFileSetExistsAt(dir, testNs1ID, shard, ts)
 	require.NoError(t, err)
 	require.True(t, exists)
 }

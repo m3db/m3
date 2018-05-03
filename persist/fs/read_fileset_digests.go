@@ -35,7 +35,7 @@ type filesetDigests struct {
 }
 
 // note that caller is responsible for calling Validate()
-func readFilesetDigests(
+func readFileSetDigests(
 	digestFdWithDigestContents digest.FdWithDigestContentsReader,
 ) (filesetDigests, error) {
 	var (

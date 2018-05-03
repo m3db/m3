@@ -116,7 +116,7 @@ func NewSeeker(
 	keepUnreadBuf bool,
 	decodingOpts msgpack.DecodingOptions,
 	opts Options,
-) FileSetSeeker {
+) DataFileSetSeeker {
 	return newSeeker(seekerOpts{
 		filePathPrefix: filePathPrefix,
 		dataBufferSize: dataBufferSize,
@@ -144,7 +144,7 @@ type seekerOpts struct {
 // on the seeker for use by the seeker manager for efficient
 // multi-seeker use.
 type fileSetSeeker interface {
-	FileSetSeeker
+	DataFileSetSeeker
 
 	// unreadBuffer returns the unread buffer
 	unreadBuffer() []byte
@@ -311,7 +311,7 @@ func (s *seeker) setUnreadBuffer(buf []byte) {
 }
 
 func (s *seeker) readDigest() error {
-	fsDigests, err := readFilesetDigests(s.digestFdWithDigestContents)
+	fsDigests, err := readFileSetDigests(s.digestFdWithDigestContents)
 	if err != nil {
 		return err
 	}
@@ -477,7 +477,7 @@ func (s *seeker) Close() error {
 	return multiErr.FinalError()
 }
 
-func (s *seeker) ConcurrentClone() (ConcurrentFileSetSeeker, error) {
+func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 	// indexLookup is not concurrency safe, but a parent and its clone can be used
 	// concurrently safely.
 	indexLookupClone, err := s.indexLookup.concurrentClone()

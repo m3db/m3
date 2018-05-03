@@ -35,7 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestSeeker(filePathPrefix string) FileSetSeeker {
+func newTestSeeker(filePathPrefix string) DataFileSetSeeker {
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
 		Capacity: 1024,
 		Count:    10,
@@ -56,9 +56,9 @@ func TestSeekEmptyIndex(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := WriterOpenOptions{
+	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: FilesetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -87,9 +87,9 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := WriterOpenOptions{
+	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: FilesetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -128,9 +128,9 @@ func TestSeekBadChecksum(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := WriterOpenOptions{
+	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: FilesetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -168,9 +168,9 @@ func TestSeek(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := WriterOpenOptions{
+	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: FilesetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -235,9 +235,9 @@ func TestSeekIDNotExists(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := WriterOpenOptions{
+	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: FilesetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -288,9 +288,9 @@ func TestReuseSeeker(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 
-	writerOpts := WriterOpenOptions{
+	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: FilesetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart.Add(-time.Hour),
@@ -304,9 +304,9 @@ func TestReuseSeeker(t *testing.T) {
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
 
-	writerOpts = WriterOpenOptions{
+	writerOpts = DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: FilesetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,
@@ -352,9 +352,9 @@ func TestCloneSeeker(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 
-	writerOpts := WriterOpenOptions{
+	writerOpts := DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: FilesetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart.Add(-time.Hour),
@@ -368,9 +368,9 @@ func TestCloneSeeker(t *testing.T) {
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
 
-	writerOpts = WriterOpenOptions{
+	writerOpts = DataWriterOpenOptions{
 		BlockSize: testBlockSize,
-		Identifier: FilesetFileIdentifier{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      0,
 			BlockStart: testWriterStart,

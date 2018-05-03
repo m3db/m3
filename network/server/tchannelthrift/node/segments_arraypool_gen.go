@@ -95,7 +95,7 @@ type segmentsArr []*rpc.Segments
 
 func (elems segmentsArr) grow(n int) []*rpc.Segments {
 	if cap(elems) < n {
-		elems = append(elems, make([]*rpc.Segments, n-cap(elems))...)
+		elems = make([]*rpc.Segments, n)
 	}
 	elems = elems[:n]
 	// following compiler optimized memcpy impl

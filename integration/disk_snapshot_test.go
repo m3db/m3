@@ -94,7 +94,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 		for _, shard := range testSetup.shardSet.All() {
 			waitUntil(func() bool {
 				// Make sure old snapshot files are deleted
-				exists, err := fs.SnapshotFilesetExistsAt(filePathPrefix, ns.ID(), shard.ID(), oldTime.Truncate(blockSize))
+				exists, err := fs.SnapshotFileSetExistsAt(filePathPrefix, ns.ID(), shard.ID(), oldTime.Truncate(blockSize))
 				require.NoError(t, err)
 				return !exists
 			}, maxWaitTime)

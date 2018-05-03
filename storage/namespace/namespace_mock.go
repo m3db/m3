@@ -250,6 +250,113 @@ func (_mr *MockOptionsMockRecorder) RetentionOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "RetentionOptions", reflect.TypeOf((*MockOptions)(nil).RetentionOptions))
 }
 
+// SetIndexOptions mocks base method
+func (_m *MockOptions) SetIndexOptions(value IndexOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetIndexOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIndexOptions indicates an expected call of SetIndexOptions
+func (_mr *MockOptionsMockRecorder) SetIndexOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetIndexOptions", reflect.TypeOf((*MockOptions)(nil).SetIndexOptions), arg0)
+}
+
+// IndexOptions mocks base method
+func (_m *MockOptions) IndexOptions() IndexOptions {
+	ret := _m.ctrl.Call(_m, "IndexOptions")
+	ret0, _ := ret[0].(IndexOptions)
+	return ret0
+}
+
+// IndexOptions indicates an expected call of IndexOptions
+func (_mr *MockOptionsMockRecorder) IndexOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "IndexOptions", reflect.TypeOf((*MockOptions)(nil).IndexOptions))
+}
+
+// MockIndexOptions is a mock of IndexOptions interface
+type MockIndexOptions struct {
+	ctrl     *gomock.Controller
+	recorder *MockIndexOptionsMockRecorder
+}
+
+// MockIndexOptionsMockRecorder is the mock recorder for MockIndexOptions
+type MockIndexOptionsMockRecorder struct {
+	mock *MockIndexOptions
+}
+
+// NewMockIndexOptions creates a new mock instance
+func NewMockIndexOptions(ctrl *gomock.Controller) *MockIndexOptions {
+	mock := &MockIndexOptions{ctrl: ctrl}
+	mock.recorder = &MockIndexOptionsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (_m *MockIndexOptions) EXPECT() *MockIndexOptionsMockRecorder {
+	return _m.recorder
+}
+
+// Equal mocks base method
+func (_m *MockIndexOptions) Equal(value IndexOptions) bool {
+	ret := _m.ctrl.Call(_m, "Equal", value)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Equal indicates an expected call of Equal
+func (_mr *MockIndexOptionsMockRecorder) Equal(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Equal", reflect.TypeOf((*MockIndexOptions)(nil).Equal), arg0)
+}
+
+// SetEnabled mocks base method
+func (_m *MockIndexOptions) SetEnabled(value bool) IndexOptions {
+	ret := _m.ctrl.Call(_m, "SetEnabled", value)
+	ret0, _ := ret[0].(IndexOptions)
+	return ret0
+}
+
+// SetEnabled indicates an expected call of SetEnabled
+func (_mr *MockIndexOptionsMockRecorder) SetEnabled(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetEnabled", reflect.TypeOf((*MockIndexOptions)(nil).SetEnabled), arg0)
+}
+
+// Enabled mocks base method
+func (_m *MockIndexOptions) Enabled() bool {
+	ret := _m.ctrl.Call(_m, "Enabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Enabled indicates an expected call of Enabled
+func (_mr *MockIndexOptionsMockRecorder) Enabled() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Enabled", reflect.TypeOf((*MockIndexOptions)(nil).Enabled))
+}
+
+// SetBlockSize mocks base method
+func (_m *MockIndexOptions) SetBlockSize(value time.Duration) IndexOptions {
+	ret := _m.ctrl.Call(_m, "SetBlockSize", value)
+	ret0, _ := ret[0].(IndexOptions)
+	return ret0
+}
+
+// SetBlockSize indicates an expected call of SetBlockSize
+func (_mr *MockIndexOptionsMockRecorder) SetBlockSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetBlockSize", reflect.TypeOf((*MockIndexOptions)(nil).SetBlockSize), arg0)
+}
+
+// BlockSize mocks base method
+func (_m *MockIndexOptions) BlockSize() time.Duration {
+	ret := _m.ctrl.Call(_m, "BlockSize")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BlockSize indicates an expected call of BlockSize
+func (_mr *MockIndexOptionsMockRecorder) BlockSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "BlockSize", reflect.TypeOf((*MockIndexOptions)(nil).BlockSize))
+}
+
 // MockMetadata is a mock of Metadata interface
 type MockMetadata struct {
 	ctrl     *gomock.Controller

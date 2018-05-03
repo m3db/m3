@@ -44,7 +44,7 @@ var (
 			NumHashesK:   7,
 		},
 		SnapshotTime: time.Now().UnixNano(),
-		FileType:     persist.FilesetSnapshotType,
+		FileType:     persist.FileSetSnapshotType,
 	}
 
 	testIndexEntry = schema.IndexEntry{

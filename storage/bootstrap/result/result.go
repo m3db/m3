@@ -110,29 +110,30 @@ func (sr *shardResult) IsEmpty() bool {
 }
 
 // AddBlock adds a data block.
-func (sr *shardResult) AddBlock(id ident.ID, b block.DatabaseBlock) {
+func (sr *shardResult) AddBlock(id ident.ID, tags ident.Tags, b block.DatabaseBlock) {
 	curSeries, exists := sr.blocks.Get(id)
 	if !exists {
-		curSeries = sr.newBlocks(id)
+		curSeries = sr.newBlocks(id, tags)
 		sr.blocks.Set(id, curSeries)
 	}
 	curSeries.Blocks.AddBlock(b)
 }
 
 // AddSeries adds a single series.
-func (sr *shardResult) AddSeries(id ident.ID, rawSeries block.DatabaseSeriesBlocks) {
+func (sr *shardResult) AddSeries(id ident.ID, tags ident.Tags, rawSeries block.DatabaseSeriesBlocks) {
 	curSeries, exists := sr.blocks.Get(id)
 	if !exists {
-		curSeries = sr.newBlocks(id)
+		curSeries = sr.newBlocks(id, tags)
 		sr.blocks.Set(id, curSeries)
 	}
 	curSeries.Blocks.AddSeries(rawSeries)
 }
 
-func (sr *shardResult) newBlocks(id ident.ID) DatabaseSeriesBlocks {
+func (sr *shardResult) newBlocks(id ident.ID, tags ident.Tags) DatabaseSeriesBlocks {
 	size := sr.opts.NewBlocksLen()
 	return DatabaseSeriesBlocks{
 		ID:     id,
+		Tags:   tags,
 		Blocks: block.NewDatabaseSeriesBlocks(size),
 	}
 }
@@ -145,7 +146,7 @@ func (sr *shardResult) AddResult(other ShardResult) {
 	otherSeries := other.AllSeries()
 	for _, entry := range otherSeries.Iter() {
 		series := entry.Value()
-		sr.AddSeries(series.ID, series.Blocks)
+		sr.AddSeries(series.ID, series.Tags, series.Blocks)
 	}
 }
 

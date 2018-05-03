@@ -47,7 +47,7 @@ metrics:
         env: production
         includeHost: true
     samplingRate: 0.01
-    runtime: simple
+    extended: simple
 
 listenAddress: 0.0.0.0:9000
 clusterListenAddress: 0.0.0.0:9001
@@ -62,7 +62,7 @@ hostID:
 client:
     writeConsistencyLevel: majority
     readConsistencyLevel: unstrict_majority
-    clusterConnectConsistencyLevel: any
+    connectConsistencyLevel: any
     writeTimeout: 10s
     fetchTimeout: 15s
     connectTimeout: 20s
@@ -271,7 +271,7 @@ writeNewSeriesAsync: true
 
 	// Verify is valid
 	var cfg Configuration
-	err = xconfig.LoadFile(&cfg, fd.Name())
+	err = xconfig.LoadFile(&cfg, fd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
 	// Verify a reverse output of the data matches what we expect
@@ -294,7 +294,7 @@ metrics:
     packetSize: 0
     includeHost: true
   samplingRate: 0.01
-  extended: null
+  extended: 1
   sanitization: null
 listenAddress: 0.0.0.0:9000
 clusterListenAddress: 0.0.0.0:9001

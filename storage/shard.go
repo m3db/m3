@@ -267,7 +267,7 @@ func newDatabaseShard(
 		reverseIndex:       reverseIndex,
 		lookup:             newShardMap(shardMapOptions{}),
 		list:               list.New(),
-		filesetBeforeFn:    fs.FilesetBefore,
+		filesetBeforeFn:    fs.FileSetBefore,
 		deleteFilesFn:      fs.DeleteFiles,
 		snapshotFilesFn:    fs.SnapshotFiles,
 		sleepFn:            time.Sleep,
@@ -1601,7 +1601,7 @@ func (s *dbShard) Bootstrap(
 			// Synchronously insert to avoid waiting for
 			// the insert queue potential delayed insert
 			entry, err = s.insertSeriesSync(dbBlocks.ID,
-				ident.EmptyTagIterator, // FOLLOWUP(prateek): retrieve tags during bootstrap process, and insert into index
+				ident.NewTagSliceIterator(dbBlocks.Tags),
 				insertSyncIncReaderWriterCount)
 			if err != nil {
 				multiErr = multiErr.Add(err)
@@ -1751,7 +1751,7 @@ func (s *dbShard) Snapshot(
 		Shard:             s.ID(),
 		BlockStart:        blockStart,
 		SnapshotTime:      snapshotTime,
-		FilesetType:       persist.FilesetSnapshotType,
+		FileSetType:       persist.FileSetSnapshotType,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	// Add the err so the defer will capture it
@@ -1929,7 +1929,7 @@ func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
 	return s.deleteFilesFn(filesToDelete)
 }
 
-func (s *dbShard) CleanupFileset(earliestToRetain time.Time) error {
+func (s *dbShard) CleanupFileSet(earliestToRetain time.Time) error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	multiErr := xerrors.NewMultiError()
 	expired, err := s.filesetBeforeFn(filePathPrefix, s.namespace.ID(), s.ID(), earliestToRetain)

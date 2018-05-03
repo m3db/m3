@@ -24,7 +24,6 @@ import (
 	"errors"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -32,17 +31,13 @@ import (
 )
 
 const (
-	// defaultCheckedBytesPoolInitialSize is the default initial size of the
-	// CheckedBytesPool.
-	defaultCheckedBytesPoolInitialSize = 128
-
 	// defaultIndexInsertMode sets the default indexing mode to synchronous.
 	defaultIndexInsertMode = InsertSync
 )
 
 var (
 	errOptionsIdentifierPoolUnspecified = errors.New("identifier pool is unset")
-	errOptionsWrapperPoolUnspecified    = errors.New("checkedbyteswrapper pool is unset")
+	errOptionsBytesPoolUnspecified      = errors.New("checkedbytes pool is unset")
 	errIDGenerationDisabled             = errors.New("id generation is disabled")
 )
 
@@ -52,24 +47,25 @@ type opts struct {
 	instrumentOpts instrument.Options
 	memOpts        mem.Options
 	idPool         ident.Pool
-	wrapperPool    xpool.CheckedBytesWrapperPool
+	bytesPool      pool.CheckedBytesPool
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
 
 // NewOptions returns a new index.Options object with default properties.
 func NewOptions() Options {
-	idPool := ident.NewPool(nil, nil)
-	wrapperPool := xpool.NewCheckedBytesWrapperPool(
-		pool.NewObjectPoolOptions().SetSize(defaultCheckedBytesPoolInitialSize))
-	wrapperPool.Init()
+	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
+	})
+	bytesPool.Init()
+	idPool := ident.NewPool(bytesPool, nil)
 	return &opts{
 		insertMode:     defaultIndexInsertMode,
 		clockOpts:      clock.NewOptions(),
 		instrumentOpts: instrument.NewOptions(),
 		memOpts:        mem.NewOptions().SetNewUUIDFn(undefinedUUIDFn),
+		bytesPool:      bytesPool,
 		idPool:         idPool,
-		wrapperPool:    wrapperPool,
 	}
 }
 
@@ -77,8 +73,8 @@ func (o *opts) Validate() error {
 	if o.idPool == nil {
 		return errOptionsIdentifierPoolUnspecified
 	}
-	if o.wrapperPool == nil {
-		return errOptionsWrapperPoolUnspecified
+	if o.bytesPool == nil {
+		return errOptionsBytesPoolUnspecified
 	}
 	return nil
 }
@@ -135,12 +131,12 @@ func (o *opts) IdentifierPool() ident.Pool {
 	return o.idPool
 }
 
-func (o *opts) SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options {
+func (o *opts) SetCheckedBytesPool(value pool.CheckedBytesPool) Options {
 	opts := *o
-	opts.wrapperPool = value
+	opts.bytesPool = value
 	return &opts
 }
 
-func (o *opts) CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool {
-	return o.wrapperPool
+func (o *opts) CheckedBytesPool() pool.CheckedBytesPool {
+	return o.bytesPool
 }

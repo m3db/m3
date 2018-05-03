@@ -161,16 +161,16 @@ func (m *cleanupManager) deleteInactiveNamespaceFiles() error {
 // deleteInactiveDataFiles will delete data files for shards that the node no longer owns
 // which can occur in the case of topology changes
 func (m *cleanupManager) deleteInactiveDataFiles() error {
-	return m.deleteInactiveFilesetFiles(fs.NamespaceDataDirPath)
+	return m.deleteInactiveFileSetFiles(fs.NamespaceDataDirPath)
 }
 
 // deleteInactiveSnapshotFiles will delete snapshot files for shards that the node no longer owns
 // which can occur in the case of topology changes
 func (m *cleanupManager) deleteInactiveSnapshotFiles() error {
-	return m.deleteInactiveFilesetFiles(fs.NamespaceSnapshotsDirPath)
+	return m.deleteInactiveFileSetFiles(fs.NamespaceSnapshotsDirPath)
 }
 
-func (m *cleanupManager) deleteInactiveFilesetFiles(filesetFilesDirPathFn func(string, ident.ID) string) error {
+func (m *cleanupManager) deleteInactiveFileSetFiles(filesetFilesDirPathFn func(string, ident.ID) string) error {
 	multiErr := xerrors.NewMultiError()
 	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	namespaces, err := m.database.GetOwnedNamespaces()
@@ -225,7 +225,7 @@ func (m *cleanupManager) cleanupSnapshotFiles(t time.Time) error {
 func (m *cleanupManager) cleanupNamespaceDataFiles(earliestToRetain time.Time, shards []databaseShard) error {
 	multiErr := xerrors.NewMultiError()
 	for _, shard := range shards {
-		if err := shard.CleanupFileset(earliestToRetain); err != nil {
+		if err := shard.CleanupFileSet(earliestToRetain); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}

@@ -62,10 +62,10 @@ type ShardResult interface {
 	NumSeries() int64
 
 	// AddBlock adds a data block.
-	AddBlock(id ident.ID, block block.DatabaseBlock)
+	AddBlock(id ident.ID, tags ident.Tags, block block.DatabaseBlock)
 
 	// AddSeries adds a single series of blocks.
-	AddSeries(id ident.ID, rawSeries block.DatabaseSeriesBlocks)
+	AddSeries(id ident.ID, tags ident.Tags, rawSeries block.DatabaseSeriesBlocks)
 
 	// AddResult adds a shard result.
 	AddResult(other ShardResult)
@@ -83,6 +83,7 @@ type ShardResult interface {
 // DatabaseSeriesBlocks represents a series of blocks and a associated series ID.
 type DatabaseSeriesBlocks struct {
 	ID     ident.ID
+	Tags   ident.Tags
 	Blocks block.DatabaseSeriesBlocks
 }
 

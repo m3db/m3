@@ -51,7 +51,7 @@ type openAnyUnopenSeekersFn func(*seekersByTime) error
 type newOpenSeekerFn func(
 	shard uint32,
 	blockStart time.Time,
-) (FileSetSeeker, error)
+) (DataFileSetSeeker, error)
 
 type seekerManagerStatus int
 
@@ -98,7 +98,7 @@ type seekersAndBloom struct {
 
 // borrowableSeeker is just a seeker with an additional field for keeping track of whether or not it has been borrowed.
 type borrowableSeeker struct {
-	seeker     ConcurrentFileSetSeeker
+	seeker     ConcurrentDataFileSetSeeker
 	isBorrowed bool
 }
 
@@ -119,7 +119,7 @@ func NewSeekerManager(
 	bytesPool pool.CheckedBytesPool,
 	opts Options,
 	fetchConcurrency int,
-) FileSetSeekerManager {
+) DataFileSetSeekerManager {
 	m := &seekerManager{
 		bytesPool:           bytesPool,
 		filePathPrefix:      opts.FilePathPrefix(),
@@ -191,7 +191,7 @@ func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (
 	return seekersAndBloom.bloomFilter, err
 }
 
-func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentFileSetSeeker, error) {
+func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentDataFileSetSeeker, error) {
 	byTime := m.seekersByTime(shard)
 
 	byTime.Lock()
@@ -226,7 +226,7 @@ func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentFileSet
 	return availableSeeker.seeker, nil
 }
 
-func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentFileSetSeeker) error {
+func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentDataFileSetSeeker) error {
 	byTime := m.seekersByTime(shard)
 
 	byTime.Lock()
@@ -234,7 +234,7 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentF
 
 	startNano := xtime.ToUnixNano(start)
 	seekersAndBloom, ok := byTime.seekers[startNano]
-	// Should never happen - This either means that the caller (BlockRetriever) is trying to return seekers
+	// Should never happen - This either means that the caller (DataBlockRetriever) is trying to return seekers
 	// that it never requested, OR its trying to return seekers after the openCloseLoop has already
 	// determined that they were all no longer in use and safe to close. Either way it indicates there is
 	// a bug in the code.
@@ -359,8 +359,8 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 func (m *seekerManager) newOpenSeeker(
 	shard uint32,
 	blockStart time.Time,
-) (FileSetSeeker, error) {
-	if !DataFilesetExistsAt(m.filePathPrefix, m.namespace, shard, blockStart) {
+) (DataFileSetSeeker, error) {
+	if !DataFileSetExistsAt(m.filePathPrefix, m.namespace, shard, blockStart) {
 		return nil, errSeekerManagerFileSetNotFound
 	}
 

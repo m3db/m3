@@ -1,3 +1,5 @@
+// +build big
+//
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -17,8 +19,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-// +build big
 
 package main_test
 
@@ -98,7 +98,7 @@ func TestConfig(t *testing.T) {
 
 	// Setup the placement
 	var cfg config.Configuration
-	err = xconfig.LoadFile(&cfg, configFd.Name())
+	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
 	configSvcClient, err := cfg.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
@@ -304,7 +304,7 @@ func TestEmbeddedConfig(t *testing.T) {
 
 	// Setup the placement
 	var cfg config.Configuration
-	err = xconfig.LoadFile(&cfg, configFd.Name())
+	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
 	configSvcClient, err := cfg.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
@@ -426,7 +426,7 @@ metrics:
         env: production
         includeHost: true
     samplingRate: 0.01
-    runtime: simple
+    extended: simple
 
 listenAddress: 0.0.0.0:{{.ServicePort}}
 clusterListenAddress: 0.0.0.0:9001
@@ -441,7 +441,7 @@ hostID:
 client:
     writeConsistencyLevel: majority
     readConsistencyLevel: unstrict_majority
-    clusterConnectConsistencyLevel: any
+    connectConsistencyLevel: any
     writeTimeout: 10s
     fetchTimeout: 15s
     connectTimeout: 20s
@@ -599,11 +599,11 @@ config:
               endpoints:
                   - {{.EtcdEndpoint}}
     seedNodes:
+        rootDir: {{.EmbeddedKVDir}}
         listenPeerUrls:
             - {{.LPURL}}
         listenClientUrls:
             - {{.LCURL}}
-        dir: {{.EmbeddedKVDir}}
         initialAdvertisePeerUrls:
             - {{.APURL}}
         advertiseClientUrls:

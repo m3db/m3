@@ -1274,16 +1274,16 @@ func (_mr *MockdatabaseShardMockRecorder) CleanupSnapshots(arg0 interface{}) *go
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "CleanupSnapshots", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupSnapshots), arg0)
 }
 
-// CleanupFileset mocks base method
-func (_m *MockdatabaseShard) CleanupFileset(earliestToRetain time.Time) error {
-	ret := _m.ctrl.Call(_m, "CleanupFileset", earliestToRetain)
+// CleanupFileSet mocks base method
+func (_m *MockdatabaseShard) CleanupFileSet(earliestToRetain time.Time) error {
+	ret := _m.ctrl.Call(_m, "CleanupFileSet", earliestToRetain)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// CleanupFileset indicates an expected call of CleanupFileset
-func (_mr *MockdatabaseShardMockRecorder) CleanupFileset(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "CleanupFileset", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupFileset), arg0)
+// CleanupFileSet indicates an expected call of CleanupFileSet
+func (_mr *MockdatabaseShardMockRecorder) CleanupFileSet(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "CleanupFileSet", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupFileSet), arg0)
 }
 
 // Repair mocks base method

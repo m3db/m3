@@ -80,6 +80,16 @@ func (_mr *MockIteratorMockRecorder) Err() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Err", reflect.TypeOf((*MockIterator)(nil).Err))
 }
 
+// Finalize mocks base method
+func (_m *MockIterator) Finalize() {
+	_m.ctrl.Call(_m, "Finalize")
+}
+
+// Finalize indicates an expected call of Finalize
+func (_mr *MockIteratorMockRecorder) Finalize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Finalize", reflect.TypeOf((*MockIterator)(nil).Finalize))
+}
+
 // Next mocks base method
 func (_m *MockIterator) Next() bool {
 	ret := _m.ctrl.Call(_m, "Next")

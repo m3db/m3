@@ -8,19 +8,19 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
-// FilesetID is the collection of identifiers required to
+// FileSetID is the collection of identifiers required to
 // uniquely identify a fileset
-type FilesetID struct {
+type FileSetID struct {
 	PathPrefix string
 	Namespace  string
 	Shard      uint32
 	Blockstart time.Time
 }
 
-// FilesetCloner clones a given fileset
-type FilesetCloner interface {
+// FileSetCloner clones a given fileset
+type FileSetCloner interface {
 	// Clone clones the given fileset
-	Clone(src FilesetID, dest FilesetID, destBlocksize time.Duration) error
+	Clone(src FileSetID, dest FileSetID, destBlocksize time.Duration) error
 }
 
 // Options represents the knobs available while cloning

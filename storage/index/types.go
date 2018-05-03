@@ -24,12 +24,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/idx"
 	"github.com/m3db/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 )
 
 var (
@@ -68,15 +68,18 @@ type QueryResults struct {
 // Iterator iterates over a collection of IDs with associated
 // tags and namespace.
 type Iterator interface {
-	// Next returns whether there are more items in the collection
+	// Next returns whether there are more items in the collection.
 	Next() bool
 
 	// Current returns the ID, Tags and Namespace for a single timeseries.
 	// These remain valid until Next() is called again.
 	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.TagIterator)
 
-	// Err returns any error encountered
+	// Err returns any error encountered.
 	Err() error
+
+	// Finalize releases any held resources.
+	Finalize()
 }
 
 // Options control the Indexing knobs.
@@ -114,9 +117,9 @@ type Options interface {
 	// IdentifierPool returns the identifier pool.
 	IdentifierPool() ident.Pool
 
-	// SetCheckedBytesWrapperPool sets the checked bytes wrapper pool.
-	SetCheckedBytesWrapperPool(value xpool.CheckedBytesWrapperPool) Options
+	// SetCheckedBytesPool sets the checked bytes pool.
+	SetCheckedBytesPool(value pool.CheckedBytesPool) Options
 
-	// CheckedBytesWrapperPool returns the checked bytes wrapper pool.
-	CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool
+	// CheckedBytesPool returns the checked bytes pool.
+	CheckedBytesPool() pool.CheckedBytesPool
 }

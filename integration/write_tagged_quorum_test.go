@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/index"
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/x/xio"
 	m3ninxidx "github.com/m3db/m3ninx/idx"
@@ -236,25 +235,7 @@ func makeTestWriteTagged(
 	numShards int,
 	instances []services.ServiceInstance,
 ) (testSetups, closeFn, testWriteFn) {
-
-	nsOpts := namespace.NewOptions()
-	md, err := namespace.NewMetadata(testNamespaces[0],
-		nsOpts.SetRetentionOptions(nsOpts.RetentionOptions().SetRetentionPeriod(6*time.Hour)))
-	require.NoError(t, err)
-
-	nspaces := []namespace.Metadata{md}
-	nodes, topoInit, closeFn := newNodes(t, instances, nspaces, true)
-	now := nodes[0].getNowFn().Add(time.Minute)
-
-	for _, node := range nodes {
-		node.opts = node.opts.SetNumShards(numShards)
-	}
-
-	clientopts := client.NewOptions().
-		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelNone).
-		SetClusterConnectTimeout(2 * time.Second).
-		SetWriteRequestTimeout(2 * time.Second).
-		SetTopologyInitializer(topoInit)
+	nodes, closeFn, clientopts := makeMultiNodeSetup(t, numShards, true, false, instances)
 
 	testWrite := func(cLevel topology.ConsistencyLevel) error {
 		c, err := client.NewClient(clientopts.SetWriteConsistencyLevel(cLevel))
@@ -263,7 +244,8 @@ func makeTestWriteTagged(
 		s, err := c.NewSession()
 		require.NoError(t, err)
 
-		return s.WriteTagged(nspaces[0].ID(), ident.StringID("quorumTest"),
+		now := nodes[0].getNowFn().Add(time.Minute)
+		return s.WriteTagged(testNamespaces[0], ident.StringID("quorumTest"),
 			ident.NewTagIterator(ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz")),
 			now, 42, xtime.Second, nil)
 	}
@@ -298,8 +280,8 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	idxFound := false
 	for iter.Next() {
 		_, id, tags := iter.Current()
-		idxFound = idxFound || (id.String() == "quorumTest" &&
-			ident.MustNewTagIterMatcher("foo", "bar", "boo", "baz").Matches(tags))
+		idxFound = idxFound || (id.String() == "quorumTest" && ident.NewTagIterMatcher(
+			ident.MustNewTagStringsIterator("foo", "bar", "boo", "baz")).Matches(tags))
 	}
 	require.NoError(t, iter.Err())
 

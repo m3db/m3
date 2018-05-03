@@ -222,13 +222,17 @@ type streamFromPeersMetrics struct {
 	blocksEnqueueChannel                              tally.Gauge
 }
 
+type hostQueueOpts struct {
+	writeBatchRawRequestPool                   writeBatchRawRequestPool
+	writeBatchRawRequestElementArrayPool       writeBatchRawRequestElementArrayPool
+	writeTaggedBatchRawRequestPool             writeTaggedBatchRawRequestPool
+	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool
+	opts                                       Options
+}
+
 type newHostQueueFn func(
 	host topology.Host,
-	writeBatchRawRequestPool writeBatchRawRequestPool,
-	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
-	writeTaggedBatchRawRequestPool writeTaggedBatchRawRequestPool,
-	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool,
-	opts Options,
+	hostQueueOpts hostQueueOpts,
 ) hostQueue
 
 func newSession(opts Options) (clientSession, error) {
@@ -278,6 +282,14 @@ func newSession(opts Options) (clientSession, error) {
 		))
 	s.pools.fetchAttempt = newFetchAttemptPool(s, fetchAttemptPoolOpts)
 	s.pools.fetchAttempt.Init()
+
+	fetchTaggedAttemptPoolImplOpts := pool.NewObjectPoolOptions().
+		SetSize(opts.FetchBatchOpPoolSize()).
+		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
+			scope.SubScope("fetch-tagged-attempt-pool"),
+		))
+	s.pools.fetchTaggedAttempt = newFetchTaggedAttemptPool(s, fetchTaggedAttemptPoolImplOpts)
+	s.pools.fetchTaggedAttempt.Init()
 
 	tagEncoderPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.TagEncoderPoolSize()).
@@ -508,7 +520,7 @@ func (s *session) Open() error {
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("fetch-tagged-state-pool"),
 		))
-	s.pools.fetchState = newfetchStatePool(fetchStatePoolOpts)
+	s.pools.fetchState = newFetchStatePool(fetchStatePoolOpts)
 	s.pools.fetchState.Init()
 
 	seriesIteratorPoolOpts := pool.NewObjectPoolOptions().
@@ -828,10 +840,13 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQue
 		writeTaggedBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
 	writeTaggedBatchRawRequestElementArrayPool.Init()
 
-	hostQueue := s.newHostQueueFn(host,
-		writeBatchRequestPool, writeBatchRawRequestElementArrayPool,
-		writeTaggedBatchRequestPool, writeTaggedBatchRawRequestElementArrayPool,
-		s.opts)
+	hostQueue := s.newHostQueueFn(host, hostQueueOpts{
+		writeBatchRawRequestPool:                   writeBatchRequestPool,
+		writeBatchRawRequestElementArrayPool:       writeBatchRawRequestElementArrayPool,
+		writeTaggedBatchRawRequestPool:             writeTaggedBatchRequestPool,
+		writeTaggedBatchRawRequestElementArrayPool: writeTaggedBatchRawRequestElementArrayPool,
+		opts: s.opts,
+	})
 	hostQueue.Open()
 	return hostQueue
 }
@@ -1063,19 +1078,27 @@ func (s *session) FetchIDs(
 func (s *session) FetchTagged(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
 ) (encoding.SeriesIterators, bool, error) {
-	const fetchData = true
-	req, err := convert.ToRPCFetchTaggedRequest(ns, q, opts, fetchData)
-	if err != nil {
-		return nil, false, err
-	}
+	f := s.pools.fetchTaggedAttempt.Get()
+	f.args.ns = ns
+	f.args.query = q
+	f.args.opts = opts
+	err := s.fetchRetrier.Attempt(f.dataAttemptFn)
+	iters, exhaustive := f.dataResultIters, f.dataResultExhaustive
+	s.pools.fetchTaggedAttempt.Put(f)
+	return iters, exhaustive, err
+}
 
+func (s *session) fetchTaggedAttempt(
+	ns ident.ID, q index.Query, opts index.QueryOptions,
+) (encoding.SeriesIterators, bool, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
 		return nil, false, errSessionStatusNotOpen
 	}
 
-	fetchState, err := s.fetchTaggedAttemptWithRLock(opts.StartInclusive, opts.EndExclusive, req)
+	const fetchData = true
+	fetchState, err := s.fetchTaggedAttemptWithRLock(ns, q, opts, fetchData)
 	s.state.RUnlock()
 
 	if err != nil {
@@ -1101,19 +1124,27 @@ func (s *session) FetchTagged(
 func (s *session) FetchTaggedIDs(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
 ) (index.QueryResults, error) {
-	const fetchData = false
-	req, err := convert.ToRPCFetchTaggedRequest(ns, q, opts, fetchData)
-	if err != nil {
-		return index.QueryResults{}, err
-	}
+	f := s.pools.fetchTaggedAttempt.Get()
+	f.args.ns = ns
+	f.args.query = q
+	f.args.opts = opts
+	err := s.fetchRetrier.Attempt(f.idsAttemptFn)
+	result := f.idsResult
+	s.pools.fetchTaggedAttempt.Put(f)
+	return result, err
+}
 
+func (s *session) fetchTaggedIDsAttempt(
+	ns ident.ID, q index.Query, opts index.QueryOptions,
+) (index.QueryResults, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
 		return index.QueryResults{}, errSessionStatusNotOpen
 	}
 
-	fetchState, err := s.fetchTaggedAttemptWithRLock(opts.StartInclusive, opts.EndExclusive, req)
+	const fetchData = false
+	fetchState, err := s.fetchTaggedAttemptWithRLock(ns, q, opts, fetchData)
 	s.state.RUnlock()
 
 	if err != nil {
@@ -1140,21 +1171,37 @@ func (s *session) FetchTaggedIDs(
 // is transferred to the calling function, and is expected to manage the lifecycle of
 // of the object (including releasing the lock/decRef'ing it).
 func (s *session) fetchTaggedAttemptWithRLock(
-	startTime time.Time,
-	endTime time.Time,
-	req rpc.FetchTaggedRequest,
+	ns ident.ID,
+	q index.Query,
+	opts index.QueryOptions,
+	fetchData bool,
 ) (*fetchState, error) {
+	// NB(prateek): we have to clone the namespace, as we cannot guarantee the lifecycle
+	// of the hostQueues responding is less than the lifecycle of the current method.
+	nsClone := s.pools.id.Clone(ns)
+
+	// FOLLOWUP(prateek): currently both `index.Query` and the returned request depend on
+	// native, un-pooled types; so we do not Clone() either. We will start doing so
+	// once https://github.com/m3db/m3ninx/issues/42 lands. Including transferring ownership
+	// of the Clone()'d value to the `fetchState`.
+	req, err := convert.ToRPCFetchTaggedRequest(nsClone, q, opts, fetchData)
+	if err != nil {
+		nsClone.Finalize()
+		return nil, xerrors.NewNonRetryableError(err)
+	}
+
 	var (
 		topoMap    = s.state.topoMap
 		op         = s.pools.fetchTaggedOp.Get()
 		fetchState = s.pools.fetchState.Get()
 	)
 
-	fetchState.incRef() // indicate current go-routine has a reference to the fetchState
-	op.incRef()         // indicate current go-routine has a reference to the op
+	fetchState.nsID = nsClone // transfer ownership to `fetchState`
+	fetchState.incRef()       // indicate current go-routine has a reference to the fetchState
+	op.incRef()               // indicate current go-routine has a reference to the op
 	op.update(req, fetchState.completionFn)
 
-	fetchState.Reset(startTime, endTime, op, topoMap, s.state.majority, s.state.readLevel)
+	fetchState.Reset(opts.StartInclusive, opts.EndExclusive, op, topoMap, s.state.majority, s.state.readLevel)
 	fetchState.Lock()
 	for _, hq := range s.state.queues {
 		// inc to indicate the hostQueue has a reference to `op` which has a ref to the fetchState
@@ -1167,8 +1214,9 @@ func (s *session) fetchTaggedAttemptWithRLock(
 
 			// NB: if this happens we have a bug, once we are in the read
 			// lock the current queues should never be closed
-			s.log.Errorf("[invariant violated] failed to enqueue fetchTagged: %v", err)
-			return nil, err
+			wrappedErr := fmt.Errorf("[invariant violated] failed to enqueue fetchTagged: %v", err)
+			s.log.Errorf(wrappedErr.Error())
+			return nil, wrappedErr
 		}
 	}
 
@@ -3231,7 +3279,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 		r.Lock()
 		currBlock, exists := r.result.BlockAt(id, start)
 		if !exists {
-			r.result.AddBlock(id, result)
+			r.result.AddBlock(id, nil, result) // FOLLOWUP(prateek): include tags during block metadata exchange
 			r.Unlock()
 			break
 		}

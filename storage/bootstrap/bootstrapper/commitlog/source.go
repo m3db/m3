@@ -345,7 +345,7 @@ func (s *commitLogSource) mergeShard(
 			if shardResult == nil {
 				shardResult = result.NewShardResult(len(unmergedShard.encodersBySeries), s.opts.ResultOptions())
 			}
-			shardResult.AddSeries(unmergedBlocks.id, seriesBlocks)
+			shardResult.AddSeries(unmergedBlocks.id, nil, seriesBlocks) // FOLLOWUP(prateek): include tags in commit log reader
 		}
 
 		numShardEmptyErrs += numSeriesEmptyErrs

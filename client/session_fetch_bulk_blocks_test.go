@@ -1875,11 +1875,7 @@ func (qs MockHostQueues) newHostQueueFn() newHostQueueFn {
 	idx := uint64(0)
 	return func(
 		host topology.Host,
-		writeBatchRawRequestPool writeBatchRawRequestPool,
-		writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
-		writeTaggedBatchRawRequestPool writeTaggedBatchRawRequestPool,
-		writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool,
-		opts Options,
+		opts hostQueueOpts,
 	) hostQueue {
 		return qs[atomic.AddUint64(&idx, 1)-1]
 	}

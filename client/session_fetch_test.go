@@ -135,7 +135,7 @@ func TestSessionFetchIDs(t *testing.T) {
 		}},
 	})
 
-	fetchBatchOps, enqueueWg := prepareEnqueues(t, ctrl, session, fetches)
+	fetchBatchOps, enqueueWg := prepareTestFetchEnqueues(t, ctrl, session, fetches)
 
 	go func() {
 		// Fulfill fetch ops once enqueued
@@ -175,7 +175,7 @@ func TestSessionFetchIDsWithRetries(t *testing.T) {
 		}},
 	})
 
-	successBatchOps, enqueueWg := prepareEnqueuesWithErrors(t, ctrl, session, fetches)
+	successBatchOps, enqueueWg := prepareTestFetchEnqueuesWithErrors(t, ctrl, session, fetches)
 
 	go func() {
 		// Fulfill success fetch ops once all are enqueued
@@ -214,7 +214,7 @@ func TestSessionFetchIDsTrimsWindowsInTimeWindow(t *testing.T) {
 		}},
 	})
 
-	fetchBatchOps, enqueueWg := prepareEnqueues(t, ctrl, session, fetches)
+	fetchBatchOps, enqueueWg := prepareTestFetchEnqueues(t, ctrl, session, fetches)
 
 	go func() {
 		// Fulfill fetch ops once enqueued
@@ -342,7 +342,7 @@ func testFetchConsistencyLevel(
 		}},
 	})
 
-	fetchBatchOps, enqueueWg := prepareEnqueues(t, ctrl, session, fetches)
+	fetchBatchOps, enqueueWg := prepareTestFetchEnqueues(t, ctrl, session, fetches)
 
 	go func() {
 		// Fulfill fetch ops once enqueued
@@ -395,7 +395,7 @@ func testFetchConsistencyLevel(
 	}
 }
 
-func prepareEnqueuesWithErrors(
+func prepareTestFetchEnqueuesWithErrors(
 	t *testing.T,
 	ctrl *gomock.Controller,
 	session *session,
@@ -427,7 +427,7 @@ func prepareEnqueuesWithErrors(
 	return &successBatchOps, enqueueWg
 }
 
-func prepareEnqueues(
+func prepareTestFetchEnqueues(
 	t *testing.T,
 	ctrl *gomock.Controller,
 	session *session,

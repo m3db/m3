@@ -21,28 +21,21 @@
 package index
 
 import (
-	"bytes"
-	"errors"
-	"fmt"
-
-	"github.com/m3db/m3db/x/xpool"
+	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/resource"
 )
 
 var (
-	errInvalidResultMissingID = errors.New("corrupt data, unable to extract id")
+	idsIterZeroed = idsIter{}
 )
 
 type idsIter struct {
-	nsID        ident.ID
-	iter        doc.Iterator
-	err         error
-	idPool      ident.Pool
-	wrapperPool xpool.CheckedBytesWrapperPool
-	finalizerFn resource.FinalizerFn
+	copts convert.Opts
+
+	nsID ident.ID
+	iter doc.Iterator
+	err  error
 
 	currentID   ident.ID
 	currentTags ident.TagIterator
@@ -53,21 +46,21 @@ func NewIterator(
 	nsID ident.ID,
 	iter doc.Iterator,
 	opts Options,
-	finalizerFn resource.FinalizerFn,
 ) Iterator {
 	i := &idsIter{
-		nsID:        nsID,
-		iter:        iter,
-		idPool:      opts.IdentifierPool(),
-		wrapperPool: opts.CheckedBytesWrapperPool(),
-		finalizerFn: finalizerFn,
+		nsID: nsID,
+		iter: iter,
+		copts: convert.Opts{
+			IdentPool:        opts.IdentifierPool(),
+			CheckedBytesPool: opts.CheckedBytesPool(),
+		},
 	}
 	return i
 }
 
 func (i *idsIter) Next() bool {
 	// release any held resources
-	i.release()
+	i.releaseCurrent()
 
 	if i.err != nil {
 		return false
@@ -77,18 +70,18 @@ func (i *idsIter) Next() bool {
 	next := i.iter.Next()
 	if !next {
 		i.err = i.iter.Err()
-		i.finalizerFn()
 		return next
 	}
 
 	d := i.iter.Current()
-	err := i.parseAndStore(d)
+	id, tags, err := convert.ToMetric(d, i.copts)
 	if err != nil {
 		i.err = err
-		i.finalizerFn()
 		return false
 	}
 
+	i.currentID = id
+	i.currentTags = tags
 	return true
 }
 
@@ -100,7 +93,13 @@ func (i *idsIter) Err() error {
 	return i.err
 }
 
-func (i *idsIter) release() {
+func (i *idsIter) Finalize() {
+	i.releaseCurrent()
+	*i = idsIterZeroed
+	// TODO(prateek): implement idsIter pooling
+}
+
+func (i *idsIter) releaseCurrent() {
 	if i.currentID != nil {
 		i.currentID.Finalize()
 		i.currentID = nil
@@ -111,113 +110,3 @@ func (i *idsIter) release() {
 	}
 	// NB(prateek): iterator doesn't own nsID so we don't finalize it here.
 }
-
-func (i *idsIter) wrapBytes(bytes []byte) checked.Bytes {
-	return i.wrapperPool.Get(bytes)
-}
-
-func (i *idsIter) parseAndStore(d doc.Document) error {
-	if len(d.ID) == 0 {
-		return errInvalidResultMissingID
-	}
-	i.currentID = i.idPool.BinaryID(i.wrapBytes(d.ID))
-	i.currentTags = newTagIter(d, i.idPool, i.wrapperPool)
-	return nil
-}
-
-// tagIter exposes an ident.TagIterator interface over a doc.Document.
-// NB: it skips any field marked ReservedFieldNameID.
-type tagIter struct {
-	d doc.Document
-
-	err        error
-	done       bool
-	currentIdx int
-	currentTag ident.Tag
-
-	idPool      ident.Pool
-	wrapperPool xpool.CheckedBytesWrapperPool
-}
-
-func newTagIter(d doc.Document, id ident.Pool, wrapper xpool.CheckedBytesWrapperPool) ident.TagIterator {
-	return &tagIter{
-		d:           d,
-		currentIdx:  -1,
-		idPool:      id,
-		wrapperPool: wrapper,
-	}
-}
-
-func (t *tagIter) Next() bool {
-	if t.err != nil || t.done {
-		return false
-	}
-	hasNext := t.parseNext()
-	if !hasNext {
-		t.done = true
-	}
-	return hasNext
-}
-
-func (t *tagIter) parseNext() (hasNext bool) {
-	t.releaseCurrent()
-	t.currentIdx++
-	// early terminate if we know there's no more fieldsj
-	if t.currentIdx >= len(t.d.Fields) {
-		return false
-	}
-	// if there are fields, we have to ensure the next field
-	// is not using the reserved ID fieldname
-	next := t.d.Fields[t.currentIdx]
-	if bytes.Equal(ReservedFieldNameID, next.Name) {
-		t.err = fmt.Errorf("invalid tag field name: %v", ReservedFieldNameID)
-		return false
-	}
-	// otherwise, we're good.
-	t.currentTag = t.idPool.BinaryTag(
-		t.wrapBytes(next.Name), t.wrapBytes(next.Value))
-	return true
-}
-
-func (t *tagIter) releaseCurrent() {
-	if t.currentTag.Name != nil {
-		t.currentTag.Name.Finalize()
-		t.currentTag.Name = nil
-	}
-	if t.currentTag.Value != nil {
-		t.currentTag.Value.Finalize()
-		t.currentTag.Value = nil
-	}
-}
-
-func (t *tagIter) Current() ident.Tag {
-	return t.currentTag
-}
-
-func (t *tagIter) Err() error {
-	return t.err
-}
-
-func (t *tagIter) Close() {
-	t.releaseCurrent()
-	t.done = true
-}
-
-func (t *tagIter) Remaining() int {
-	l := len(t.d.Fields) - t.currentIdx - 1
-	return l
-}
-
-func (t *tagIter) Duplicate() ident.TagIterator {
-	var dupe = *t
-	if t.currentTag.Name != nil {
-		dupe.currentTag = t.idPool.CloneTag(t.currentTag)
-	}
-	return &dupe
-}
-
-func (t *tagIter) wrapBytes(bytes []byte) checked.Bytes {
-	return t.wrapperPool.Get(bytes)
-}
-
-var _ ident.TagIterator = &tagIter{}

@@ -37,19 +37,13 @@ import (
 
 func TestHostQueueWriteTaggedErrorBeforeOpen(t *testing.T) {
 	opts := newHostQueueTestOptions()
-	queue := newHostQueue(h, testWriteBatchRawPool,
-		testWriteArrayPool, testWriteTaggedBatchRawPool,
-		testWriteTaggedArrayPool, opts)
-
+	queue := newTestHostQueue(opts)
 	assert.Error(t, queue.Enqueue(&writeTaggedOperation{}))
 }
 
 func TestHostQueueWriteTaggedErrorAfterClose(t *testing.T) {
 	opts := newHostQueueTestOptions()
-	queue := newHostQueue(h, testWriteBatchRawPool,
-		testWriteArrayPool, testWriteTaggedBatchRawPool,
-		testWriteTaggedArrayPool, opts)
-
+	queue := newTestHostQueue(opts)
 	queue.Open()
 	queue.Close()
 
@@ -63,9 +57,7 @@ func TestHostQueueWriteTaggedBatches(t *testing.T) {
 	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
-	queue := newHostQueue(h, testWriteBatchRawPool,
-		testWriteArrayPool, testWriteTaggedBatchRawPool,
-		testWriteTaggedArrayPool, opts).(*queue)
+	queue := newTestHostQueue(opts)
 	queue.connPool = mockConnPool
 
 	// Open
@@ -154,9 +146,7 @@ func TestHostQueueWriteTaggedBatchesDifferentNamespaces(t *testing.T) {
 	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
-	queue := newHostQueue(h, testWriteBatchRawPool,
-		testWriteArrayPool, testWriteTaggedBatchRawPool,
-		testWriteTaggedArrayPool, opts).(*queue)
+	queue := newTestHostQueue(opts)
 	queue.connPool = mockConnPool
 
 	// Open
@@ -249,9 +239,7 @@ func TestHostQueueWriteTaggedBatchesNoClientAvailable(t *testing.T) {
 
 	opts := newHostQueueTestOptions()
 	opts = opts.SetHostQueueOpsFlushInterval(time.Millisecond)
-	queue := newHostQueue(h, testWriteBatchRawPool,
-		testWriteArrayPool, testWriteTaggedBatchRawPool,
-		testWriteTaggedArrayPool, opts).(*queue)
+	queue := newTestHostQueue(opts)
 	queue.connPool = mockConnPool
 
 	// Open
@@ -294,9 +282,7 @@ func TestHostQueueWriteTaggedBatchesPartialBatchErrs(t *testing.T) {
 
 	opts := newHostQueueTestOptions()
 	opts = opts.SetHostQueueOpsFlushSize(2)
-	queue := newHostQueue(h, testWriteBatchRawPool,
-		testWriteArrayPool, testWriteTaggedBatchRawPool,
-		testWriteTaggedArrayPool, opts).(*queue)
+	queue := newTestHostQueue(opts)
 	queue.connPool = mockConnPool
 
 	// Open
@@ -371,9 +357,7 @@ func TestHostQueueWriteTaggedBatchesEntireBatchErr(t *testing.T) {
 
 	opts := newHostQueueTestOptions()
 	opts = opts.SetHostQueueOpsFlushSize(2)
-	queue := newHostQueue(h, testWriteBatchRawPool,
-		testWriteArrayPool, testWriteTaggedBatchRawPool,
-		testWriteTaggedArrayPool, opts).(*queue)
+	queue := newTestHostQueue(opts)
 	queue.connPool = mockConnPool
 
 	// Open
@@ -432,9 +416,7 @@ func TestHostQueueDrainOnCloseTaggedWrite(t *testing.T) {
 	mockConnPool := NewMockconnectionPool(ctrl)
 
 	opts := newHostQueueTestOptions()
-	queue := newHostQueue(h, testWriteBatchRawPool,
-		testWriteArrayPool, testWriteTaggedBatchRawPool,
-		testWriteTaggedArrayPool, opts).(*queue)
+	queue := newTestHostQueue(opts)
 	queue.connPool = mockConnPool
 
 	// Open

@@ -35,16 +35,16 @@ var (
 	errNamespaceNil = errors.New("namespace options must be set")
 )
 
+func fromNanos(n int64) time.Duration {
+	return xtime.FromNormalizedDuration(n, time.Nanosecond)
+}
+
 // ToRetention converts nsproto.RetentionOptions to retention.Options
 func ToRetention(
 	ro *nsproto.RetentionOptions,
 ) (retention.Options, error) {
 	if ro == nil {
 		return nil, errRetentionNil
-	}
-
-	fromNanos := func(n int64) time.Duration {
-		return xtime.FromNormalizedDuration(n, time.Nanosecond)
 	}
 
 	ropts := retention.NewOptions().
@@ -63,6 +63,21 @@ func ToRetention(
 	return ropts, nil
 }
 
+// ToIndexOptions converts nsproto.IndexOptions to IndexOptions
+func ToIndexOptions(
+	io *nsproto.IndexOptions,
+) (IndexOptions, error) {
+	iopts := NewIndexOptions().SetEnabled(false)
+	if io == nil {
+		return iopts, nil
+	}
+
+	iopts = iopts.SetEnabled(io.Enabled).
+		SetBlockSize(fromNanos(io.BlockSizeNanos))
+
+	return iopts, nil
+}
+
 // ToMetadata converts nsproto.Options to Metadata
 func ToMetadata(
 	id string,
@@ -77,13 +92,19 @@ func ToMetadata(
 		return nil, err
 	}
 
+	iopts, err := ToIndexOptions(opts.IndexOptions)
+	if err != nil {
+		return nil, err
+	}
+
 	mopts := NewOptions().
 		SetBootstrapEnabled(opts.BootstrapEnabled).
 		SetFlushEnabled(opts.FlushEnabled).
 		SetCleanupEnabled(opts.CleanupEnabled).
 		SetRepairEnabled(opts.RepairEnabled).
 		SetWritesToCommitLog(opts.WritesToCommitLog).
-		SetRetentionOptions(ropts)
+		SetRetentionOptions(ropts).
+		SetIndexOptions(iopts)
 
 	return NewMetadata(ident.StringID(id), mopts)
 }
@@ -100,6 +121,7 @@ func ToProto(m Map) *nsproto.Registry {
 
 	for _, md := range m.Metadatas() {
 		ropts := md.Options().RetentionOptions()
+		iopts := md.Options().IndexOptions()
 		reg.Namespaces[md.ID().String()] = &nsproto.NamespaceOptions{
 			BootstrapEnabled:  md.Options().BootstrapEnabled(),
 			FlushEnabled:      md.Options().FlushEnabled(),
@@ -114,6 +136,10 @@ func ToProto(m Map) *nsproto.Registry {
 				BufferPastNanos:                          toNanos(ropts.BufferPast()),
 				BlockDataExpiry:                          ropts.BlockDataExpiry(),
 				BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(ropts.BlockDataExpiryAfterNotAccessedPeriod()),
+			},
+			IndexOptions: &nsproto.IndexOptions{
+				Enabled:        iopts.Enabled(),
+				BlockSizeNanos: toNanos(iopts.BlockSize()),
 			},
 		}
 	}

@@ -48,6 +48,7 @@ type fetchState struct {
 	sync.Mutex
 	refCounter
 
+	nsID                 ident.ID
 	op                   *fetchTaggedOp
 	tagResultAccumulator fetchTaggedResultAccumulator
 	err                  error
@@ -58,7 +59,7 @@ type fetchState struct {
 
 func newFetchState(pool fetchStatePool) *fetchState {
 	f := &fetchState{
-		tagResultAccumulator: fetchTaggedResultAccumulator{},
+		tagResultAccumulator: newFetchTaggedResultAccumulator(),
 		pool:                 pool,
 	}
 	f.destructorFn = f.close // Set refCounter completion as close
@@ -67,6 +68,10 @@ func newFetchState(pool fetchStatePool) *fetchState {
 }
 
 func (f *fetchState) close() {
+	if f.nsID != nil {
+		f.nsID.Finalize()
+		f.nsID = nil
+	}
 	if f.op != nil {
 		f.op.decRef()
 		f.op = nil
@@ -84,8 +89,7 @@ func (f *fetchState) close() {
 func (f *fetchState) Reset(
 	startTime time.Time,
 	endTime time.Time,
-	op *fetchTaggedOp,
-	topoMap topology.Map,
+	op *fetchTaggedOp, topoMap topology.Map,
 	majority int,
 	consistencyLevel topology.ReadConsistencyLevel,
 ) {
@@ -142,11 +146,7 @@ func (f *fetchState) asIndexQueryResults(pools fetchTaggedPools) (index.QueryRes
 		return index.QueryResults{}, err
 	}
 
-	limit := maxInt
-	if l := f.op.request.Limit; l != nil {
-		limit = int(*l)
-	}
-
+	limit := f.op.requestLimit(maxInt)
 	return f.tagResultAccumulator.AsIndexQueryResults(limit, pools)
 }
 
@@ -162,11 +162,7 @@ func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools) (encoding
 		return nil, false, err
 	}
 
-	limit := maxInt
-	if l := f.op.request.Limit; l != nil {
-		limit = int(*l)
-	}
-
+	limit := f.op.requestLimit(maxInt)
 	return f.tagResultAccumulator.AsEncodingSeriesIterators(limit, pools)
 }
 

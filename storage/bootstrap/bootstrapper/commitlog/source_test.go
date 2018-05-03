@@ -458,7 +458,7 @@ func createExpectedShardResult(
 		if !ok {
 			shardResult = result.NewShardResult(0, bopts)
 			// Trigger blocks to be created for series
-			shardResult.AddSeries(v.s.ID, nil)
+			shardResult.AddSeries(v.s.ID, nil, nil)
 			expected[v.s.Shard] = shardResult
 		}
 
