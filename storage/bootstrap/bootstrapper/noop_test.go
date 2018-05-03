@@ -26,18 +26,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNoOpNoneBootstrapperBootstrap(t *testing.T) {
+func TestNoOpNoneBootstrapperBootstrapProvider(t *testing.T) {
 	bs := NewNoOpNoneBootstrapperProvider()
 	ranges := testShardTimeRanges()
-	res, err := bs.Bootstrap(testNsMetadata(t), ranges, testDefaultRunOpts)
+	res, err := bs.Provide().Bootstrap(testNsMetadata(t), ranges, testDefaultRunOpts)
 	require.Equal(t, ranges, res.Unfulfilled())
 	require.Nil(t, err)
 }
 
-func TestNoOpAllBootstrapperBootstrap(t *testing.T) {
+func TestNoOpAllBootstrapperBootstrapProvider(t *testing.T) {
 	bs := NewNoOpAllBootstrapperProvider()
 	ranges := testShardTimeRanges()
-	res, err := bs.Bootstrap(testNsMetadata(t), ranges, testDefaultRunOpts)
+	res, err := bs.Provide().Bootstrap(testNsMetadata(t), ranges, testDefaultRunOpts)
 	require.True(t, res.Unfulfilled().IsEmpty())
 	require.Nil(t, err)
 }

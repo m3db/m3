@@ -40,15 +40,13 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 
 	opts := testDatabaseOptions()
 	now := time.Now()
-	opts = opts.
-		SetBootstrapProcess(nil).
-		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-			return now
-		}))
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return now
+	}))
 
 	ns := NewMockdatabaseNamespace(ctrl)
 	ns.EXPECT().Options().Return(namespace.NewOptions())
-	ns.EXPECT().Bootstrap(nil, gomock.Any()).Return(fmt.Errorf("an error"))
+	ns.EXPECT().Bootstrap(gomock.Any(), gomock.Any()).Return(fmt.Errorf("an error"))
 	ns.EXPECT().ID().Return(ident.StringID("test"))
 	namespaces := []databaseNamespace{ns}
 
@@ -72,11 +70,9 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 
 	opts := testDatabaseOptions()
 	now := time.Now()
-	opts = opts.
-		SetBootstrapProcess(nil).
-		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-			return now
-		}))
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return now
+	}))
 
 	m := NewMockdatabaseMediator(ctrl)
 	m.EXPECT().DisableFileOps()
@@ -92,7 +88,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	ns.EXPECT().
-		Bootstrap(nil, gomock.Any()).
+		Bootstrap(gomock.Any(), gomock.Any()).
 		Return(nil).
 		Do(func(arg0, arg1 interface{}) {
 			defer wg.Done()
@@ -107,7 +103,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 			bsm.RUnlock()
 
 			// Expect the second bootstrap call
-			ns.EXPECT().Bootstrap(nil, gomock.Any()).Return(nil)
+			ns.EXPECT().Bootstrap(gomock.Any(), gomock.Any()).Return(nil)
 		})
 	ns.EXPECT().
 		ID().
@@ -131,11 +127,9 @@ func TestDatabaseBootstrapTargetRanges(t *testing.T) {
 	require.NoError(t, err)
 	ropts := ns.Options().RetentionOptions()
 	now := time.Now().Truncate(ropts.BlockSize()).Add(8 * time.Minute)
-	opts = opts.
-		SetBootstrapProcess(nil).
-		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-			return now
-		}))
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return now
+	}))
 
 	db := NewMockdatabase(ctrl)
 	bsm := newBootstrapManager(db, nil, opts).(*bootstrapManager)

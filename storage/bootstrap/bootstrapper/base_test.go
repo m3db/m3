@@ -61,11 +61,11 @@ type testShardResult struct {
 	unfulfilled xtime.Ranges
 }
 
-func testBaseBootstrapper(t *testing.T, ctrl *gomock.Controller) (*bootstrap.MockSource, *bootstrap.MockBootstrapper, *baseBootstrapper) {
+func testBaseBootstrapper(t *testing.T, ctrl *gomock.Controller) (*bootstrap.MockSource, *bootstrap.MockBootstrapper, baseBootstrapper) {
 	source := bootstrap.NewMockSource(ctrl)
 	opts := result.NewOptions()
 	next := bootstrap.NewMockBootstrapper(ctrl)
-	return source, next, NewBaseBootstrapper("mock", source, opts, next).(*baseBootstrapper)
+	return source, next, NewBaseBootstrapper("mock", source, opts, next).(baseBootstrapper)
 }
 
 func testTargetRanges() xtime.Ranges {
