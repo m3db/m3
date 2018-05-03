@@ -56,7 +56,8 @@ func waitUntilSnapshotFilesFlushed(
 	dataFlushed := func() bool {
 		for _, shard := range shardSet.AllIDs() {
 			for _, t := range expectedSnapshotTimes {
-				exists, err := fs.SnapshotFileSetExistsAt(filePathPrefix, namespace, shard, t)
+				exists, err := fs.SnapshotFileSetExistsAt(
+					filePathPrefix, namespace, shard, t)
 				if err != nil {
 					panic(err)
 				}
@@ -86,7 +87,8 @@ func waitUntilDataFilesFlushed(
 		for timestamp, seriesList := range testData {
 			for _, series := range seriesList {
 				shard := shardSet.Lookup(series.ID)
-				exists, err := fs.DataFileSetExistsAt(filePathPrefix, namespace, shard, timestamp.ToTime())
+				exists, err := fs.DataFileSetExistsAt(
+					filePathPrefix, namespace, shard, timestamp.ToTime())
 				if err != nil {
 					panic(err)
 				}
