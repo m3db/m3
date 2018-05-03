@@ -41,7 +41,7 @@ func (b Block) CloneBlock() (Block, error) {
 
 // IsEmpty returns true for the empty block
 func (b Block) IsEmpty() bool {
-	return b == EmptyBlock
+	return b.Start.Equal(timeZero) && b.End.Equal(timeZero) && b.SegmentReader == nil
 }
 
 // ResetWindowed resets the underlying reader window, as well as start and end times for the block
