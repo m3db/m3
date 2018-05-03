@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -114,11 +115,12 @@ func (m *MockProcess) EXPECT() *MockProcessMockRecorder {
 }
 
 // Run mocks base method
-func (m *MockProcess) Run(ns namespace.Metadata, shards []uint32, targetRanges []TargetRange) (result.BootstrapResult, error) {
+func (m *MockProcess) Run(ns namespace.Metadata, shards []uint32, targetRanges []TargetRange) (result.DataBootstrapResult, result.IndexBootstrapResult, error) {
 	ret := m.ctrl.Call(m, "Run", ns, shards, targetRanges)
-	ret0, _ := ret[0].(result.BootstrapResult)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(result.DataBootstrapResult)
+	ret1, _ := ret[1].(result.IndexBootstrapResult)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // Run indicates an expected call of Run
@@ -291,52 +293,30 @@ func (mr *MockBootstrapperMockRecorder) Can(strategy interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Can", reflect.TypeOf((*MockBootstrapper)(nil).Can), strategy)
 }
 
-// Bootstrap mocks base method
-func (m *MockBootstrapper) Bootstrap(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.BootstrapResult, error) {
-	ret := m.ctrl.Call(m, "Bootstrap", ns, shardsTimeRanges, opts)
-	ret0, _ := ret[0].(result.BootstrapResult)
+// BootstrapData mocks base method
+func (m *MockBootstrapper) BootstrapData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.DataBootstrapResult, error) {
+	ret := m.ctrl.Call(m, "BootstrapData", ns, shardsTimeRanges, opts)
+	ret0, _ := ret[0].(result.DataBootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Bootstrap indicates an expected call of Bootstrap
-func (mr *MockBootstrapperMockRecorder) Bootstrap(ns, shardsTimeRanges, opts interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockBootstrapper)(nil).Bootstrap), ns, shardsTimeRanges, opts)
+// BootstrapData indicates an expected call of BootstrapData
+func (mr *MockBootstrapperMockRecorder) BootstrapData(ns, shardsTimeRanges, opts interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapData", reflect.TypeOf((*MockBootstrapper)(nil).BootstrapData), ns, shardsTimeRanges, opts)
 }
 
-// MockSourceProvider is a mock of SourceProvider interface
-type MockSourceProvider struct {
-	ctrl     *gomock.Controller
-	recorder *MockSourceProviderMockRecorder
+// BootstrapIndex mocks base method
+func (m *MockBootstrapper) BootstrapIndex(ns namespace.Metadata, timeRanges time.Ranges, opts RunOptions) (result.IndexBootstrapResult, error) {
+	ret := m.ctrl.Call(m, "BootstrapIndex", ns, timeRanges, opts)
+	ret0, _ := ret[0].(result.IndexBootstrapResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// MockSourceProviderMockRecorder is the mock recorder for MockSourceProvider
-type MockSourceProviderMockRecorder struct {
-	mock *MockSourceProvider
-}
-
-// NewMockSourceProvider creates a new mock instance
-func NewMockSourceProvider(ctrl *gomock.Controller) *MockSourceProvider {
-	mock := &MockSourceProvider{ctrl: ctrl}
-	mock.recorder = &MockSourceProviderMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockSourceProvider) EXPECT() *MockSourceProviderMockRecorder {
-	return m.recorder
-}
-
-// Provide mocks base method
-func (m *MockSourceProvider) Provide() Source {
-	ret := m.ctrl.Call(m, "Provide")
-	ret0, _ := ret[0].(Source)
-	return ret0
-}
-
-// Provide indicates an expected call of Provide
-func (mr *MockSourceProviderMockRecorder) Provide() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Provide", reflect.TypeOf((*MockSourceProvider)(nil).Provide))
+// BootstrapIndex indicates an expected call of BootstrapIndex
+func (mr *MockBootstrapperMockRecorder) BootstrapIndex(ns, timeRanges, opts interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapIndex", reflect.TypeOf((*MockBootstrapper)(nil).BootstrapIndex), ns, timeRanges, opts)
 }
 
 // MockSource is a mock of Source interface
@@ -374,27 +354,52 @@ func (mr *MockSourceMockRecorder) Can(strategy interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Can", reflect.TypeOf((*MockSource)(nil).Can), strategy)
 }
 
-// Available mocks base method
-func (m *MockSource) Available(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges) result.ShardTimeRanges {
-	ret := m.ctrl.Call(m, "Available", ns, shardsTimeRanges)
+// AvailableData mocks base method
+func (m *MockSource) AvailableData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges) result.ShardTimeRanges {
+	ret := m.ctrl.Call(m, "AvailableData", ns, shardsTimeRanges)
 	ret0, _ := ret[0].(result.ShardTimeRanges)
 	return ret0
 }
 
-// Available indicates an expected call of Available
-func (mr *MockSourceMockRecorder) Available(ns, shardsTimeRanges interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Available", reflect.TypeOf((*MockSource)(nil).Available), ns, shardsTimeRanges)
+// AvailableData indicates an expected call of AvailableData
+func (mr *MockSourceMockRecorder) AvailableData(ns, shardsTimeRanges interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailableData", reflect.TypeOf((*MockSource)(nil).AvailableData), ns, shardsTimeRanges)
 }
 
-// Read mocks base method
-func (m *MockSource) Read(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.BootstrapResult, error) {
-	ret := m.ctrl.Call(m, "Read", ns, shardsTimeRanges, opts)
-	ret0, _ := ret[0].(result.BootstrapResult)
+// ReadData mocks base method
+func (m *MockSource) ReadData(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.DataBootstrapResult, error) {
+	ret := m.ctrl.Call(m, "ReadData", ns, shardsTimeRanges, opts)
+	ret0, _ := ret[0].(result.DataBootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Read indicates an expected call of Read
-func (mr *MockSourceMockRecorder) Read(ns, shardsTimeRanges, opts interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Read", reflect.TypeOf((*MockSource)(nil).Read), ns, shardsTimeRanges, opts)
+// ReadData indicates an expected call of ReadData
+func (mr *MockSourceMockRecorder) ReadData(ns, shardsTimeRanges, opts interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadData", reflect.TypeOf((*MockSource)(nil).ReadData), ns, shardsTimeRanges, opts)
+}
+
+// AvailableIndex mocks base method
+func (m *MockSource) AvailableIndex(ns namespace.Metadata, timeRanges time.Ranges) time.Ranges {
+	ret := m.ctrl.Call(m, "AvailableIndex", ns, timeRanges)
+	ret0, _ := ret[0].(time.Ranges)
+	return ret0
+}
+
+// AvailableIndex indicates an expected call of AvailableIndex
+func (mr *MockSourceMockRecorder) AvailableIndex(ns, timeRanges interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AvailableIndex", reflect.TypeOf((*MockSource)(nil).AvailableIndex), ns, timeRanges)
+}
+
+// ReadIndex mocks base method
+func (m *MockSource) ReadIndex(ns namespace.Metadata, timeRanges time.Ranges, opts RunOptions) (result.IndexBootstrapResult, error) {
+	ret := m.ctrl.Call(m, "ReadIndex", ns, timeRanges, opts)
+	ret0, _ := ret[0].(result.IndexBootstrapResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadIndex indicates an expected call of ReadIndex
+func (mr *MockSourceMockRecorder) ReadIndex(ns, timeRanges, opts interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadIndex", reflect.TypeOf((*MockSource)(nil).ReadIndex), ns, timeRanges, opts)
 }
