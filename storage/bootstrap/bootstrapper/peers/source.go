@@ -360,8 +360,8 @@ func (s *peersSource) incrementalFlush(
 			BlockStart:        start,
 			// If we've peer bootstrapped this shard/block combination AND the fileset
 			// already exists on disk, then that means either:
-			// 		1) The Filesystem bootstrapper was unable to bootstrap the fileset
-			// 		   files on disk, even though they have a checkpoint file. This
+			//      1) The Filesystem bootstrapper was unable to bootstrap the fileset
+			//         files on disk, even though they have a checkpoint file. This
 			//         could either be the result of data corruption, or a
 			//         backwards-incompatible change to the file-format.
 			// 		2) The Filesystem bootstrapper is not enabled, in which case it makes
