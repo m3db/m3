@@ -55,7 +55,7 @@ func filterFunc(output bool) filter.Storage {
 func fakeIterator() encoding.SeriesIterator {
 	id := ident.StringID("id")
 	namespace := ident.StringID("metrics")
-	return encoding.NewSeriesIterator(id, namespace, time.Now(), time.Now(), nil, nil)
+	return encoding.NewSeriesIterator(id, namespace, nil, time.Now(), time.Now(), nil, nil)
 }
 
 type fetchResponse struct {
@@ -80,8 +80,8 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	session2 := client.NewMockSession(ctrl)
 	session1.EXPECT().Fetch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(response[0].result, response[0].err)
 	session2.EXPECT().Fetch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(response[len(response)-1].result, response[len(response)-1].err)
-	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any()).Return(index.QueryResults{}, errors.ErrNotImplemented)
-	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any()).Return(index.QueryResults{}, errors.ErrNotImplemented)
+	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(index.QueryResults{}, errors.ErrNotImplemented)
+	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(index.QueryResults{}, errors.ErrNotImplemented)
 	stores := []storage.Storage{
 		local.NewStorage(session1, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48))),
 		local.NewStorage(session2, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48))),
