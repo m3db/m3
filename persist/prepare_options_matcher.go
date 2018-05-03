@@ -22,20 +22,12 @@ package persist
 
 import (
 	"fmt"
-	"time"
-
-	"github.com/m3db/m3db/storage/namespace"
 )
 
 // PrepareOptionsMatcher satisfies the gomock.Matcher interface for PrepareOptions
 // nolint: maligned
 type PrepareOptionsMatcher struct {
-	NsMetadata     namespace.Metadata
-	Shard          uint32
-	BlockStart     time.Time
-	SnapshotTime   time.Time
-	FileSetType    FileSetType
-	DeleteIfExists bool
+	PrepareOptions
 }
 
 // Matches determines whether a PrepareOptionsMatcher matches a PrepareOptions
@@ -45,7 +37,7 @@ func (p PrepareOptionsMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
-	if !p.NsMetadata.Equal(prepareOptions.NamespaceMetadata) {
+	if !p.NamespaceMetadata.Equal(prepareOptions.NamespaceMetadata) {
 		return false
 	}
 	if p.Shard != prepareOptions.Shard {
@@ -70,5 +62,5 @@ func (p PrepareOptionsMatcher) Matches(x interface{}) bool {
 func (p PrepareOptionsMatcher) String() string {
 	return fmt.Sprintf(
 		"NSMetadata: %s, Shard: %d, BlockStart: %d, SnapshotTime: %d, FileSetType: %s, DeleteIfExists: %t",
-		p.NsMetadata.ID().String(), p.Shard, p.BlockStart.Unix(), p.SnapshotTime.Unix(), p.FileSetType, p.DeleteIfExists)
+		p.NamespaceMetadata.ID().String(), p.Shard, p.BlockStart.Unix(), p.SnapshotTime.Unix(), p.FileSetType, p.DeleteIfExists)
 }
