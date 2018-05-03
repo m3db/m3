@@ -78,11 +78,11 @@ func TestNamespaceGetHandler(t *testing.T) {
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
 			"test": &nsproto.NamespaceOptions{
-				NeedsBootstrap:      true,
-				NeedsFlush:          true,
-				WritesToCommitLog:   true,
-				NeedsFilesetCleanup: false,
-				NeedsRepair:         false,
+				BootstrapEnabled:  true,
+				FlushEnabled:      true,
+				WritesToCommitLog: true,
+				CleanupEnabled:    false,
+				RepairEnabled:     false,
 				RetentionOptions: &nsproto.RetentionOptions{
 					RetentionPeriodNanos:                     172800000000000,
 					BlockSizeNanos:                           7200000000000,
@@ -104,5 +104,5 @@ func TestNamespaceGetHandler(t *testing.T) {
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"test\":{\"needsBootstrap\":true,\"needsFlush\":true,\"writesToCommitLog\":true,\"needsFilesetCleanup\":false,\"needsRepair\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"3600000000000\"}}}}}", string(body))
+	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"test\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":false,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"3600000000000\"},\"snapshotEnabled\":false}}}}", string(body))
 }

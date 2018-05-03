@@ -67,11 +67,11 @@ func TestNamespaceDeleteHandlerDeleteAll(t *testing.T) {
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
 			"testNamespace": &nsproto.NamespaceOptions{
-				NeedsBootstrap:      true,
-				NeedsFlush:          true,
-				WritesToCommitLog:   true,
-				NeedsFilesetCleanup: false,
-				NeedsRepair:         false,
+				BootstrapEnabled:  true,
+				FlushEnabled:      true,
+				WritesToCommitLog: true,
+				CleanupEnabled:    false,
+				RepairEnabled:     false,
 				RetentionOptions: &nsproto.RetentionOptions{
 					RetentionPeriodNanos:                     172800000000000,
 					BlockSizeNanos:                           7200000000000,
@@ -110,11 +110,11 @@ func TestNamespaceDeleteHandler(t *testing.T) {
 	registry := nsproto.Registry{
 		Namespaces: map[string]*nsproto.NamespaceOptions{
 			"otherNamespace": &nsproto.NamespaceOptions{
-				NeedsBootstrap:      true,
-				NeedsFlush:          true,
-				WritesToCommitLog:   true,
-				NeedsFilesetCleanup: false,
-				NeedsRepair:         false,
+				BootstrapEnabled:  true,
+				FlushEnabled:      true,
+				WritesToCommitLog: true,
+				CleanupEnabled:    false,
+				RepairEnabled:     false,
 				RetentionOptions: &nsproto.RetentionOptions{
 					RetentionPeriodNanos:                     172800000000000,
 					BlockSizeNanos:                           7200000000000,
@@ -125,11 +125,11 @@ func TestNamespaceDeleteHandler(t *testing.T) {
 				},
 			},
 			"testNamespace": &nsproto.NamespaceOptions{
-				NeedsBootstrap:      true,
-				NeedsFlush:          true,
-				WritesToCommitLog:   true,
-				NeedsFilesetCleanup: false,
-				NeedsRepair:         false,
+				BootstrapEnabled:  true,
+				FlushEnabled:      true,
+				WritesToCommitLog: true,
+				CleanupEnabled:    false,
+				RepairEnabled:     false,
 				RetentionOptions: &nsproto.RetentionOptions{
 					RetentionPeriodNanos:                     172800000000000,
 					BlockSizeNanos:                           7200000000000,

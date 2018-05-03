@@ -115,9 +115,16 @@ func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery,
 	default:
 	}
 
-	m3query := storage.FetchQueryToM3Query(query)
+	m3query, err := storage.FetchQueryToM3Query(query)
+	if err != nil {
+		return nil, err
+	}
+
+	id := ident.StringID(s.namespace)
 	opts := storage.FetchOptionsToM3Options(options, query)
-	results, err := s.session.FetchTaggedIDs(m3query, opts)
+
+	results, err := s.session.FetchTaggedIDs(id, m3query, opts)
+	defer id.Finalize()
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +133,11 @@ func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery,
 
 	var metrics models.Metrics
 	for iter.Next() {
-		m := storage.FromM3IdentToMetric(results.Iterator.Current())
+		m, err := storage.FromM3IdentToMetric(results.Iterator.Current())
+		if err != nil {
+			return nil, err
+		}
+
 		metrics = append(metrics, m)
 	}
 

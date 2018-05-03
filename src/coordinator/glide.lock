@@ -1,5 +1,5 @@
-hash: a15db92df8a81d848f94a51ae99c5bae03f61196b86fdb59ac7be1a58e62735b
-updated: 2018-04-24T21:07:47.037070585-04:00
+hash: 2fa01ea433aaa8b515c0fb91a9456e36be15e14ff24e479af652b721b298d320
+updated: 2018-04-27T18:14:26.541156-04:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -43,10 +43,6 @@ imports:
   - log/level
 - name: github.com/go-logfmt/logfmt
   version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
-- name: github.com/go-ole/go-ole
-  version: a41e3c4b706f6ae8dfbff342b06e40fa4d2d0506
-  subpackages:
-  - oleutil
 - name: github.com/go-stack/stack
   version: 259ab82a6cad3992b4e21ff5cac294ccb06474bc
 - name: github.com/gogo/protobuf
@@ -60,7 +56,7 @@ imports:
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: 1e59b77b52bf8e4b449a57e6f79f21226d571845
+  version: 5a0f697c9ed9d68fef0116532c6e05cfeae00e55
   subpackages:
   - jsonpb
   - proto
@@ -101,7 +97,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3db
-  version: 3732c30f1ccefca23d3783c8e4948911cc5ec24d
+  version: 3502804fd854b770eba72bb0811e9ad5b9114e50
   subpackages:
   - client
   - clock
@@ -138,13 +134,23 @@ imports:
   - metric
   - policy
 - name: github.com/m3db/m3ninx
-  version: b2628ee8f986f6df48d3f7589d85a6f390f174a2
+  version: 96abb2b1b4f6ce1781177c67f2b95e0ee4eb8157
   subpackages:
   - doc
+  - idx
+  - index
   - index/segment
   - index/segment/mem
+  - index/segment/mem/fieldsgen
+  - index/segment/mem/postingsgen
+  - index/util
+  - postings
+  - postings/roaring
+  - search
+  - search/query
+  - search/searcher
 - name: github.com/m3db/m3x
-  version: 73f3a41ef5c250e122ef225893ce0ac5962456e7
+  version: 16e10665ade1d824950683afde6d9e37c8ffc957
   subpackages:
   - checked
   - clock
@@ -183,7 +189,7 @@ imports:
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pkg/errors
-  version: 2b3a18b5f0fb6b4f9190549597d3f962c02bc5eb
+  version: 816c9085562cd7ee03e7f8188a1cfd942858cded
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
@@ -191,7 +197,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+  version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
@@ -229,21 +235,10 @@ imports:
   - labels
 - name: github.com/RoaringBitmap/roaring
   version: 4bbba8874933b985c9160558fddea525dde73e63
-- name: github.com/shirou/gopsutil
-  version: fc04d2dd9a512906a2604242b35275179e250eda
-  subpackages:
-  - cpu
-  - host
-  - internal/common
-  - mem
-  - net
-  - process
-- name: github.com/shirou/w32
-  version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
+- name: github.com/satori/go.uuid
+  version: f58768cc1a7a7e77a3bd49e98cdd21419399b6a3
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
-- name: github.com/StackExchange/wmi
-  version: 5d049714c4a64225c3c79a7cf7d02f7fb5b96338
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
@@ -280,7 +275,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: eeedf312bc6c57391d84767a4cd413f02a917974
+  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
   subpackages:
   - buffer
   - internal/bufferpool
@@ -288,7 +283,7 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/net
-  version: d0aafc73d5cdc42264b0af071c261abac580695e
+  version: ab5485076ff3407ad2d02db054635913f017b0ed
   subpackages:
   - bpf
   - context
@@ -303,7 +298,7 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sync
-  version: 1d60e4601c6fd243af51cc01ddf169918a5407ca
+  version: fd80eb99c8f653c847d294a001bdf2a3a6f768f5
   subpackages:
   - errgroup
 - name: golang.org/x/sys
@@ -312,7 +307,6 @@ imports:
   vcs: git
   subpackages:
   - unix
-  - windows
 - name: golang.org/x/text
   version: 4ee4af566555f5fbe026368b75596286a312663a
   subpackages:
