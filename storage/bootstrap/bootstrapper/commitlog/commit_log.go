@@ -51,12 +51,19 @@ func NewCommitLogBootstrapperProvider(
 }
 
 func (p commitLogBootstrapperProvider) Provide() bootstrap.Bootstrapper {
-	src := newCommitLogSource(p.opts)
-	b := &commitLogBootstrapper{}
+	var (
+		src  = newCommitLogSource(p.opts)
+		b    = &commitLogBootstrapper{}
+		next bootstrap.Bootstrapper
+	)
+	if p.next != nil {
+		next = p.next.Provide()
+	}
 	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(b.String(),
-		src, p.opts.ResultOptions(), p.next.Provide())
+		src, p.opts.ResultOptions(), next)
 	return b
 }
+
 func (p commitLogBootstrapperProvider) String() string {
 	return CommitLogBootstrapperName
 }

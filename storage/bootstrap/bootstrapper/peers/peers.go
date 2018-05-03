@@ -53,10 +53,16 @@ func NewPeersBootstrapperProvider(
 }
 
 func (p peersBootstrapperProvider) Provide() bootstrap.Bootstrapper {
-	src := newPeersSource(p.opts)
-	b := &peersBootstrapper{}
+	var (
+		src  = newPeersSource(p.opts)
+		b    = &peersBootstrapper{}
+		next bootstrap.Bootstrapper
+	)
+	if p.next != nil {
+		next = p.next.Provide()
+	}
 	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(b.String(),
-		src, p.opts.ResultOptions(), p.next.Provide())
+		src, p.opts.ResultOptions(), next)
 	return b
 }
 
