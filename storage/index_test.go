@@ -249,3 +249,45 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	assert.False(t, iter.Next())
 	assert.Nil(t, iter.Err())
 }
+
+func TestNamespaceIndexBatchInsertPartialError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := NewMocknamespaceIndexInsertQueue(ctrl)
+	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+		return q
+	}
+	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+
+	q.EXPECT().Start().Return(nil)
+	idx, err := newNamespaceIndex(md, newFn, testNamespaceIndexOptions())
+	assert.NoError(t, err)
+	defer func() {
+		q.EXPECT().Stop().Return(nil)
+		idx.Close()
+	}()
+
+	idx.(*nsIndex).insertMode = index.InsertAsync
+
+	writes := []struct {
+		id            ident.ID
+		tags          ident.Tags
+		lifecycle     *MockonIndexSeries
+		expectSuccess bool
+	}{
+		{ident.StringID("foo"), ident.Tags{ident.StringTag("n1", "v1")}, NewMockonIndexSeries(ctrl), true},
+		{ident.StringID("foo"), ident.Tags{ident.StringTag("n1", "v1")}, NewMockonIndexSeries(ctrl), true},
+		{ident.StringID("bar"), ident.Tags{ident.StringTag("n2", "v2")}, NewMockonIndexSeries(ctrl), false},
+	}
+	for _, w := range writes {
+		d, err := convert.FromMetric(w.id, w.tags)
+		assert.NoError(t, err)
+		q.EXPECT().Insert(doc.NewDocumentMatcher(d), w.lifecycle).Return(nil, nil)
+	}
+
+	for _, w := range writes {
+		assert.NoError(t, idx.Write(w.id, w.tags, w.lifecycle))
+	}
+}
