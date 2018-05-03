@@ -60,7 +60,7 @@ type FileSetFile struct {
 }
 
 // HasCheckpointFile returns a bool indicating whether the given set of
-// snapshot files has a checkpoint file.
+// fileset files has a checkpoint file.
 func (f FileSetFile) HasCheckpointFile() bool {
 	for _, fileName := range f.AbsoluteFilepaths {
 		if strings.Contains(fileName, checkpointFileSuffix) {
