@@ -24,6 +24,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
+	xtime "github.com/m3db/m3x/time"
 )
 
 const (
@@ -51,24 +52,37 @@ func (noop noOpNoneBootstrapperProvider) String() string {
 	return NoOpNoneBootstrapperName
 }
 
+// Compilation of this statement ensures struct implements the interface.
+var _ bootstrap.Bootstrapper = noOpNoneBootstrapper{}
+
 type noOpNoneBootstrapper struct{}
+
+func (noop noOpNoneBootstrapper) String() string {
+	return NoOpNoneBootstrapperName
+}
 
 func (noop noOpNoneBootstrapper) Can(strategy bootstrap.Strategy) bool {
 	return true
 }
 
-func (noop noOpNoneBootstrapper) Bootstrap(
+func (noop noOpNoneBootstrapper) BootstrapData(
 	_ namespace.Metadata,
 	targetRanges result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
-) (result.BootstrapResult, error) {
-	res := result.NewBootstrapResult()
+) (result.DataBootstrapResult, error) {
+	res := result.NewDataBootstrapResult()
 	res.SetUnfulfilled(targetRanges)
 	return res, nil
 }
 
-func (noop noOpNoneBootstrapper) String() string {
-	return NoOpNoneBootstrapperName
+func (noop noOpNoneBootstrapper) BootstrapIndex(
+	ns namespace.Metadata,
+	timeRanges xtime.Ranges,
+	opts bootstrap.RunOptions,
+) (result.IndexBootstrapResult, error) {
+	res := result.NewIndexBootstrapResult()
+	res.SetUnfulfilled(timeRanges)
+	return res, nil
 }
 
 // noOpAllBootstrapperProvider is the no-op bootstrapper provider that pretends
@@ -88,20 +102,31 @@ func (noop noOpAllBootstrapperProvider) String() string {
 	return NoOpAllBootstrapperName
 }
 
+// Compilation of this statement ensures struct implements the interface.
+var _ bootstrap.Bootstrapper = noOpAllBootstrapper{}
+
 type noOpAllBootstrapper struct{}
+
+func (noop noOpAllBootstrapper) String() string {
+	return NoOpAllBootstrapperName
+}
 
 func (noop noOpAllBootstrapper) Can(strategy bootstrap.Strategy) bool {
 	return true
 }
 
-func (noop noOpAllBootstrapper) Bootstrap(
+func (noop noOpAllBootstrapper) BootstrapData(
 	_ namespace.Metadata,
 	_ result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
-) (result.BootstrapResult, error) {
-	return result.NewBootstrapResult(), nil
+) (result.DataBootstrapResult, error) {
+	return result.NewDataBootstrapResult(), nil
 }
 
-func (noop noOpAllBootstrapper) String() string {
-	return NoOpAllBootstrapperName
+func (noop noOpAllBootstrapper) BootstrapIndex(
+	ns namespace.Metadata,
+	timeRanges xtime.Ranges,
+	opts bootstrap.RunOptions,
+) (result.IndexBootstrapResult, error) {
+	return result.NewIndexBootstrapResult(), nil
 }

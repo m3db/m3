@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,39 +18,4 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrap
-
-import (
-	"github.com/m3db/m3db/storage/bootstrap/result"
-	"github.com/m3db/m3db/storage/namespace"
-)
-
-type noOpBootstrapProcessProvider struct{}
-
-// NewNoOpProcessProvider creates a no-op bootstrap process proivder.
-func NewNoOpProcessProvider() ProcessProvider {
-	return noOpBootstrapProcess{}
-}
-
-func (b noOpBootstrapProcess) SetBootstrapperProvider(provider BootstrapperProvider) {
-}
-
-func (b noOpBootstrapProcess) BootstrapperProvider() BootstrapperProvider {
-	return nil
-}
-
-func (b noOpBootstrapProcess) Provide() Process {
-	return noOpBootstrapProcess{}
-}
-
-type noOpBootstrapProcess struct{}
-
-func (b noOpBootstrapProcess) Run(
-	ns namespace.Metadata,
-	shards []uint32,
-	targetRanges []TargetRange,
-) (result.DataBootstrapResult, result.IndexBootstrapResult, error) {
-	dataResult := result.NewDataBootstrapResult()
-	indexResult := result.NewIndexBootstrapResult()
-	return dataResult, indexResult, nil
-}
+package result

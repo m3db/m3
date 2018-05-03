@@ -83,7 +83,7 @@ func testOptions() Options {
 func TestAvailableEmptyRangeError(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts)
-	res := src.Available(testNsMetadata(t), result.ShardTimeRanges{})
+	res := src.AvailableData(testNsMetadata(t), result.ShardTimeRanges{})
 	require.True(t, result.ShardTimeRanges{}.Equal(res))
 }
 
@@ -92,7 +92,7 @@ func TestReadEmpty(t *testing.T) {
 
 	src := newCommitLogSource(opts)
 
-	res, err := src.Read(testNsMetadata(t), result.ShardTimeRanges{},
+	res, err := src.ReadData(testNsMetadata(t), result.ShardTimeRanges{},
 		testDefaultRunOpts)
 	require.Nil(t, res)
 	require.Nil(t, err)

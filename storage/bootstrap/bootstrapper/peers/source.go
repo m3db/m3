@@ -69,7 +69,7 @@ func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
 	return false
 }
 
-func (s *peersSource) Available(
+func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
@@ -77,11 +77,11 @@ func (s *peersSource) Available(
 	return shardsTimeRanges
 }
 
-func (s *peersSource) Read(
+func (s *peersSource) ReadData(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
-) (result.BootstrapResult, error) {
+) (result.DataBootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
@@ -128,7 +128,7 @@ func (s *peersSource) Read(
 		persistFlush = persist
 	}
 
-	result := result.NewBootstrapResult()
+	result := result.NewDataBootstrapResult()
 	session, err := s.opts.AdminClient().DefaultAdminSession()
 	if err != nil {
 		s.log.Errorf("peers bootstrapper cannot get default admin session: %v", err)
@@ -200,7 +200,7 @@ func (s *peersSource) startIncrementalQueueWorkerLoop(
 	doneCh chan struct{},
 	incrementalQueue chan incrementalFlush,
 	persistFlush persist.Flush,
-	bootstrapResult result.BootstrapResult,
+	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
 ) {
 	// If performing an incremental bootstrap then flush one
@@ -241,7 +241,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	nsMetadata namespace.Metadata,
 	session client.AdminSession,
 	bopts result.Options,
-	bootstrapResult result.BootstrapResult,
+	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
 	incremental bool,
 	incrementalQueue chan incrementalFlush,
@@ -490,4 +490,25 @@ func (s *peersSource) cacheShardIndices(
 	}
 
 	return blockRetriever.CacheShardIndices(shards)
+}
+
+func (s *peersSource) AvailableIndex(
+	ns namespace.Metadata,
+	timeRanges xtime.Ranges,
+) xtime.Ranges {
+	// Peers should be able to fulfill all data
+	return timeRanges
+}
+
+func (s *peersSource) ReadIndex(
+	ns namespace.Metadata,
+	timeRanges xtime.Ranges,
+	opts bootstrap.RunOptions,
+) (result.IndexBootstrapResult, error) {
+	// FOLLOWUP(r): implement the peers source returning
+	// index segments that are streamed from peers as required.
+	// Try to cache some series metadata on the peers source itself
+	// from work done in ReadData(...) to help avoid rereading as
+	// much as possible.
+	return result.NewIndexBootstrapResult(), nil
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	xerrors "github.com/m3db/m3x/errors"
 	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 )
 
 const (
@@ -63,26 +64,31 @@ func NewBaseBootstrapper(
 	}
 }
 
+// String returns the name of the bootstrapper.
+func (b baseBootstrapper) String() string {
+	return baseBootstrapperName
+}
+
 func (b baseBootstrapper) Can(strategy bootstrap.Strategy) bool {
 	return b.src.Can(strategy)
 }
 
-func (b baseBootstrapper) Bootstrap(
+func (b baseBootstrapper) BootstrapData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
-) (result.BootstrapResult, error) {
+) (result.DataBootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
 
-	available := b.src.Available(ns, shardsTimeRanges)
+	available := b.src.AvailableData(ns, shardsTimeRanges)
 	remaining := shardsTimeRanges.Copy()
 	remaining.Subtract(available)
 
 	var (
 		wg                     sync.WaitGroup
-		currResult, nextResult result.BootstrapResult
+		currResult, nextResult result.DataBootstrapResult
 		currErr, nextErr       error
 	)
 	if !remaining.IsEmpty() &&
@@ -92,7 +98,7 @@ func (b baseBootstrapper) Bootstrap(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			nextResult, nextErr = b.next.Bootstrap(ns, remaining, opts)
+			nextResult, nextErr = b.next.BootstrapData(ns, remaining, opts)
 		}()
 	}
 
@@ -110,7 +116,7 @@ func (b baseBootstrapper) Bootstrap(
 	nowFn := b.opts.ClockOptions().NowFn()
 	begin := nowFn()
 
-	currResult, currErr = b.src.Read(ns, available, opts)
+	currResult, currErr = b.src.ReadData(ns, available, opts)
 
 	logFields = append(logFields, xlog.NewField("took", nowFn().Sub(begin).String()))
 	if currErr != nil {
@@ -131,7 +137,7 @@ func (b baseBootstrapper) Bootstrap(
 	}
 
 	if currResult == nil {
-		currResult = result.NewBootstrapResult()
+		currResult = result.NewDataBootstrapResult()
 	}
 
 	var (
@@ -152,7 +158,7 @@ func (b baseBootstrapper) Bootstrap(
 	// If there are some time ranges the current bootstrapper could not fulfill,
 	// pass it along to the next bootstrapper
 	if !currUnfulfilled.IsEmpty() {
-		nextResult, nextErr = b.next.Bootstrap(ns, currUnfulfilled, opts)
+		nextResult, nextErr = b.next.BootstrapData(ns, currUnfulfilled, opts)
 		if nextErr != nil {
 			return nil, nextErr
 		}
@@ -178,7 +184,13 @@ func (b baseBootstrapper) Bootstrap(
 	return mergedResult, nil
 }
 
-// String returns the name of the bootstrapper.
-func (b baseBootstrapper) String() string {
-	return baseBootstrapperName
+func (b baseBootstrapper) BootstrapIndex(
+	ns namespace.Metadata,
+	timeRanges xtime.Ranges,
+	opts bootstrap.RunOptions,
+) (result.IndexBootstrapResult, error) {
+	// FOLLOWUP(r): implement the parallelization part, maybe wrap up in
+	// an interface the mergability logic, etc of both indexbootstrapresult
+	// and databootstrapresult and use same code (poor mans generics solution)
+	return result.NewIndexBootstrapResult(), nil
 }

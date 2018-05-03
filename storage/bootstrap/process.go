@@ -81,9 +81,9 @@ func (b bootstrapProcess) Run(
 	nsMetadata namespace.Metadata,
 	shards []uint32,
 	targetRanges []TargetRange,
-) (result.BootstrapResult, error) {
+) (result.DataBootstrapResult, result.IndexBootstrapResult, error) {
 	namespace := nsMetadata.ID()
-	bootstrapResult := result.NewBootstrapResult()
+	bootstrapResult := result.NewDataBootstrapResult()
 	for _, target := range targetRanges {
 		shardsTimeRanges := make(result.ShardTimeRanges, len(shards))
 
@@ -112,18 +112,18 @@ func (b bootstrapProcess) Run(
 			opts = NewRunOptions()
 		}
 
-		res, err := b.bootstrapper.Bootstrap(nsMetadata, shardsTimeRanges, opts)
+		res, err := b.bootstrapper.BootstrapData(nsMetadata, shardsTimeRanges, opts)
 
 		logFields = append(logFields, xlog.NewField("took", nowFn().Sub(begin).String()))
 		if err != nil {
 			logFields = append(logFields, xlog.NewField("error", err.Error()))
 			b.log.WithFields(logFields...).Infof("bootstrapping shards for range completed with error")
-			return nil, err
+			return nil, nil, err
 		}
 
 		b.log.WithFields(logFields...).Infof("bootstrapping shards for range completed successfully")
 		bootstrapResult = result.MergedBootstrapResult(bootstrapResult, res)
 	}
 
-	return bootstrapResult, nil
+	return bootstrapResult, nil, nil
 }

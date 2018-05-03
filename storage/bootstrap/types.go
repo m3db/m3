@@ -41,7 +41,7 @@ type ProcessProvider interface {
 	Provide() Process
 }
 
-// ProcessProvider represents the bootstrap process. Note that a bootstrap process can and will
+// Process represents the bootstrap process. Note that a bootstrap process can and will
 // be reused so it is important to not rely on state stored in the bootstrap itself
 // with the mindset that it will always be set to default values from the constructor.
 type Process interface {
@@ -50,7 +50,11 @@ type Process interface {
 		ns namespace.Metadata,
 		shards []uint32,
 		targetRanges []TargetRange,
-	) (result.BootstrapResult, error)
+	) (
+		result.DataBootstrapResult,
+		result.IndexBootstrapResult,
+		error,
+	)
 }
 
 // TargetRange is a bootstrap target range.
@@ -110,15 +114,25 @@ type Bootstrapper interface {
 	// Can returns whether a specific bootstrapper strategy can be applied.
 	Can(strategy Strategy) bool
 
-	// Bootstrap performs bootstrapping for the given time ranges, returning the bootstrapped
+	// BootstrapData performs bootstrapping of data for the given time ranges, returning the bootstrapped
 	// series data and the time ranges it's unable to fulfill in parallel. A bootstrapper
 	// should only return an error should it want to entirely cancel the bootstrapping of the
 	// node, i.e. non-recoverable situation like not being able to read from the filesystem.
-	Bootstrap(
+	BootstrapData(
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
 		opts RunOptions,
-	) (result.BootstrapResult, error)
+	) (result.DataBootstrapResult, error)
+
+	// BootstrapIndex performs bootstrapping of index blocks for the given time ranges, returning
+	// the bootstrapped index blocks and the time ranges it's unable to fulfill in parallel. A bootstrapper
+	// should only return an error should it want to entirely cancel the bootstrapping of the
+	// node, i.e. non-recoverable situation like not being able to read from the filesystem.
+	BootstrapIndex(
+		ns namespace.Metadata,
+		timeRanges xtime.Ranges,
+		opts RunOptions,
+	) (result.IndexBootstrapResult, error)
 }
 
 // Source represents a bootstrap source. Note that a source can and will be reused so
@@ -128,19 +142,32 @@ type Source interface {
 	// Can returns whether a specific bootstrapper strategy can be applied.
 	Can(strategy Strategy) bool
 
-	// Available returns what time ranges are available for a given set of shards.
-	Available(
+	// AvailableData returns what time ranges are available for bootstrapping a given set of shards.
+	AvailableData(
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
 	) result.ShardTimeRanges
 
-	// Read returns raw series for a given set of shards & specified time ranges and
+	// ReadData returns raw series for a given set of shards & specified time ranges and
 	// the time ranges it's unable to fulfill. A bootstrapper source should only return
 	// an error should it want to entirely cancel the bootstrapping of the node,
 	// i.e. non-recoverable situation like not being able to read from the filesystem.
-	Read(
+	ReadData(
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
 		opts RunOptions,
-	) (result.BootstrapResult, error)
+	) (result.DataBootstrapResult, error)
+
+	// AvailableIndex returns what time ranges are available for bootstrapping.
+	AvailableIndex(
+		ns namespace.Metadata,
+		timeRanges xtime.Ranges,
+	) xtime.Ranges
+
+	// ReadIndex returns series index blocks.
+	ReadIndex(
+		ns namespace.Metadata,
+		timeRanges xtime.Ranges,
+		opts RunOptions,
+	) (result.IndexBootstrapResult, error)
 }

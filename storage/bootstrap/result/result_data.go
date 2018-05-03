@@ -31,40 +31,40 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-type bootstrapResult struct {
+type dataBootstrapResult struct {
 	results     ShardResults
 	unfulfilled ShardTimeRanges
 }
 
-// NewBootstrapResult creates a new result.
-func NewBootstrapResult() BootstrapResult {
-	return &bootstrapResult{
+// NewDataBootstrapResult creates a new result.
+func NewDataBootstrapResult() DataBootstrapResult {
+	return &dataBootstrapResult{
 		results:     make(ShardResults),
 		unfulfilled: make(ShardTimeRanges),
 	}
 }
 
-func (r *bootstrapResult) ShardResults() ShardResults {
+func (r *dataBootstrapResult) ShardResults() ShardResults {
 	return r.results
 }
 
-func (r *bootstrapResult) Unfulfilled() ShardTimeRanges {
+func (r *dataBootstrapResult) Unfulfilled() ShardTimeRanges {
 	return r.unfulfilled
 }
 
-func (r *bootstrapResult) Add(shard uint32, result ShardResult, unfulfilled xtime.Ranges) {
+func (r *dataBootstrapResult) Add(shard uint32, result ShardResult, unfulfilled xtime.Ranges) {
 	r.results.AddResults(ShardResults{shard: result})
 	r.unfulfilled.AddRanges(ShardTimeRanges{shard: unfulfilled})
 }
 
-func (r *bootstrapResult) SetUnfulfilled(unfulfilled ShardTimeRanges) {
+func (r *dataBootstrapResult) SetUnfulfilled(unfulfilled ShardTimeRanges) {
 	r.unfulfilled = unfulfilled
 }
 
 // MergedBootstrapResult returns a merged result of two bootstrap results.
 // It is a mutating function that mutates the larger result by adding the
 // smaller result to it and then finally returns the mutated result.
-func MergedBootstrapResult(i, j BootstrapResult) BootstrapResult {
+func MergedBootstrapResult(i, j DataBootstrapResult) DataBootstrapResult {
 	if i == nil {
 		return j
 	}
@@ -316,8 +316,8 @@ func (r ShardTimeRanges) AddRanges(other ShardTimeRanges) {
 
 // ToUnfulfilledResult will return a result that is comprised of wholly
 // unfufilled time ranges from the set of shard time ranges.
-func (r ShardTimeRanges) ToUnfulfilledResult() BootstrapResult {
-	result := NewBootstrapResult()
+func (r ShardTimeRanges) ToUnfulfilledResult() DataBootstrapResult {
+	result := NewDataBootstrapResult()
 	for shard, ranges := range r {
 		result.Add(shard, nil, ranges)
 	}

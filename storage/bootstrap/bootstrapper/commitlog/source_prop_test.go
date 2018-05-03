@@ -125,7 +125,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Perform the bootstrap
-			result, err := source.Bootstrap(md, shardTimeRanges, testDefaultRunOpts)
+			result, err := source.BootstrapData(md, shardTimeRanges, testDefaultRunOpts)
 			if err != nil {
 				return false, err
 			}
