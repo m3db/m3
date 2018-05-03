@@ -30,17 +30,15 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/storage/block"
+	m3dberrors "github.com/m3db/m3db/storage/errors"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 )
 
 var (
-	errTooFuture                   = errors.New("datapoint is too far in the future")
-	errTooPast                     = errors.New("datapoint is too far in the past")
 	errMoreThanOneStreamAfterMerge = errors.New("buffer has more than one stream after merge")
 	timeZero                       time.Time
 )
@@ -181,10 +179,10 @@ func (b *dbBuffer) Write(
 	futureLimit := now.Add(1 * b.bufferFuture)
 	pastLimit := now.Add(-1 * b.bufferPast)
 	if !futureLimit.After(timestamp) {
-		return xerrors.NewInvalidParamsError(errTooFuture)
+		return m3dberrors.ErrTooFuture
 	}
 	if !pastLimit.Before(timestamp) {
-		return xerrors.NewInvalidParamsError(errTooPast)
+		return m3dberrors.ErrTooPast
 	}
 
 	bucketStart := timestamp.Truncate(b.blockSize)

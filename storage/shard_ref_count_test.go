@@ -38,6 +38,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -109,11 +110,14 @@ func TestShardWriteSyncRefCount(t *testing.T) {
 }
 
 func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
-	mockWriteFn := func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) error {
-		onIdx.OnIndexFinalize()
-		return nil
-	}
-	testShardWriteTaggedSyncRefCount(t, mockWriteFn)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	idx := NewMocknamespaceIndex(ctrl)
+	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) {
+			onIdx.OnIndexFinalize()
+		}).Return(nil).AnyTimes()
+	testShardWriteTaggedSyncRefCount(t, idx)
 }
 
 func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
@@ -133,10 +137,10 @@ func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 		assert.NoError(t, idx.Close())
 	}()
 
-	testShardWriteTaggedSyncRefCount(t, idx.Write)
+	testShardWriteTaggedSyncRefCount(t, idx)
 }
 
-func testShardWriteTaggedSyncRefCount(t *testing.T, reverseIndexWriteFn reverseIndexWriteFn) {
+func testShardWriteTaggedSyncRefCount(t *testing.T, idx namespaceIndex) {
 	numCommitLogWrites := int32(0)
 	mockCommitLogWriter := commitLogWriter(commitLogWriterFn(func(
 		ctx context.Context,
@@ -152,7 +156,7 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, reverseIndexWriteFn reverseI
 	now := time.Now()
 	opts := testDatabaseOptions()
 
-	shard := testDatabaseShardWithIndexFn(t, opts, reverseIndexWriteFn)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx)
 	shard.commitLogWriter = mockCommitLogWriter
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetWriteNewSeriesAsync(false))
@@ -283,11 +287,14 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 }
 
 func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
-	mockWriteFn := func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) error {
-		onIdx.OnIndexFinalize()
-		return nil
-	}
-	testShardWriteTaggedAsyncRefCount(t, mockWriteFn)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	idx := NewMocknamespaceIndex(ctrl)
+	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) {
+			onIdx.OnIndexFinalize()
+		}).Return(nil).AnyTimes()
+	testShardWriteTaggedAsyncRefCount(t, idx)
 }
 
 func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
@@ -307,10 +314,10 @@ func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
 		assert.NoError(t, idx.Close())
 	}()
 
-	testShardWriteTaggedAsyncRefCount(t, idx.Write)
+	testShardWriteTaggedAsyncRefCount(t, idx)
 }
 
-func testShardWriteTaggedAsyncRefCount(t *testing.T, reverseIndexWriteFn reverseIndexWriteFn) {
+func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex) {
 	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{
 		Reporter: testReporter,
@@ -336,7 +343,7 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, reverseIndexWriteFn reverse
 			SetMetricsScope(scope).
 			SetReportInterval(100 * time.Millisecond))
 
-	shard := testDatabaseShardWithIndexFn(t, opts, reverseIndexWriteFn)
+	shard := testDatabaseShardWithIndexFn(t, opts, idx)
 	shard.commitLogWriter = mockCommitLogWriter
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetWriteNewSeriesAsync(true))

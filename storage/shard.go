@@ -838,7 +838,7 @@ func (s *dbShard) writeAndIndex(
 		needsIndex := shouldReverseIndex && entry.needsIndexUpdate(timestamp)
 		if err == nil && needsIndex {
 			entry.onIndexPrepare()
-			s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), entry)
+			err = s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), entry)
 		}
 		entry.decrementReaderWriterCount()
 		if err != nil {
@@ -1101,14 +1101,6 @@ func (s *dbShard) insertSeriesSync(
 	if s.newSeriesBootstrapped {
 		if err := entry.series.Bootstrap(nil); err != nil {
 			entry = nil // Don't increment the writer count for this series
-			return nil, err
-		}
-	}
-
-	copiedID := entry.series.ID()
-	copiedTags := entry.series.Tags()
-	if s.reverseIndex != nil {
-		if err := s.reverseIndex.Write(copiedID, copiedTags, entry); err != nil {
 			return nil, err
 		}
 	}
