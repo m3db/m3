@@ -167,7 +167,7 @@ func (b *dbBlock) Checksum() (uint32, error) {
 	}
 
 	// This will merge the existing stream with the merge target's stream,
-	// as well as recalculate and store the new checksum
+	// as well as recalculate and store the new checksum.
 	_, err = b.forceMergeWithLock(tempCtx, stream)
 	if err != nil {
 		return 0, err
@@ -214,6 +214,8 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		return stream, nil
 	}
 
+	// This will merge the existing stream with the merge target's stream,
+	// as well as recalculate and store the new checksum.
 	return b.forceMergeWithLock(blocker, stream)
 }
 
