@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"bytes"
 	"fmt"
 	"sync"
 	"testing"
@@ -129,13 +128,9 @@ func TestNamespaceIndexInvalidDocWrite(t *testing.T) {
 		ident.StringTag(string(index.ReservedFieldNameID), "value"),
 	}
 
-	lifecycle := &testLifecycleHooks{}
+	lifecycle := NewMockonIndexSeries(ctrl)
+	lifecycle.EXPECT().OnIndexFinalize()
 	assert.Error(t, idx.Write(id, tags, lifecycle))
-
-	// ensure lifecycle is finalized despite failure
-	lifecycle.Lock()
-	defer lifecycle.Unlock()
-	assert.True(t, lifecycle.finalized)
 }
 
 func TestNamespaceIndexWriteAfterClose(t *testing.T) {
@@ -154,13 +149,9 @@ func TestNamespaceIndexWriteAfterClose(t *testing.T) {
 	q.EXPECT().Stop().Return(nil)
 	assert.NoError(t, idx.Close())
 
-	lifecycle := &testLifecycleHooks{}
+	lifecycle := NewMockonIndexSeries(ctrl)
+	lifecycle.EXPECT().OnIndexFinalize()
 	assert.Error(t, idx.Write(id, tags, lifecycle))
-
-	// ensure lifecycle is finalized despite failure
-	lifecycle.Lock()
-	defer lifecycle.Unlock()
-	assert.True(t, lifecycle.finalized)
 }
 
 func TestNamespaceIndexWriteQueueError(t *testing.T) {
@@ -176,16 +167,12 @@ func TestNamespaceIndexWriteQueueError(t *testing.T) {
 		ident.StringTag("name", "value"),
 	}
 
-	lifecycle := &testLifecycleHooks{}
+	lifecycle := NewMockonIndexSeries(ctrl)
+	lifecycle.EXPECT().OnIndexFinalize()
 	q.EXPECT().
 		Insert(gomock.Any(), lifecycle).
 		Return(nil, fmt.Errorf("random err"))
 	assert.Error(t, idx.Write(id, tags, lifecycle))
-
-	// ensure lifecycle is finalized despite failure
-	lifecycle.Lock()
-	defer lifecycle.Unlock()
-	assert.True(t, lifecycle.finalized)
 }
 
 func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
@@ -207,12 +194,14 @@ func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 	assert.NoError(t, err)
 
 	var wg sync.WaitGroup
-	lifecycleFns := &testLifecycleHooks{}
-	q.EXPECT().Insert(docMatcher{d}, gomock.Any()).Return(&wg, nil)
-	assert.NoError(t, idx.Write(id, tags, lifecycleFns))
+	lifecycle := NewMockonIndexSeries(ctrl)
+	q.EXPECT().Insert(doc.NewDocumentMatcher(d), gomock.Any()).Return(&wg, nil)
+	assert.NoError(t, idx.Write(id, tags, lifecycle))
 }
 
 func TestNamespaceIndexInsertQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
@@ -232,19 +221,16 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 			ident.StringTag("name", "value"),
 		}
 		ctx          = context.NewContext()
-		lifecycleFns = &testLifecycleHooks{}
+		lifecycleFns = NewMockonIndexSeries(ctrl)
 	)
 	// make insert mode sync for tests
 	idx.(*nsIndex).insertMode = index.InsertSync
+	// TODO(prateek): re-wire these tests to not use `latestBlock` or something?
 	ts := idx.(*nsIndex).active.expiryTime
-	assert.NoError(t, idx.Write(id, tags, lifecycleFns))
 
-	// ensure lifecycle is finalized
-	lifecycleFns.Lock()
-	defer lifecycleFns.Unlock()
-	assert.True(t, lifecycleFns.finalized)
-	// ensure lifecycle is marked success
-	assert.Equal(t, ts.UnixNano(), lifecycleFns.writeTime.UnixNano())
+	lifecycleFns.EXPECT().OnIndexFinalize()
+	lifecycleFns.EXPECT().OnIndexSuccess(ts)
+	assert.NoError(t, idx.Write(id, tags, lifecycleFns))
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
 	assert.NoError(t, err)
@@ -262,158 +248,4 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 		ident.MustNewTagStringsIterator("name", "value")).Matches(cTags))
 	assert.False(t, iter.Next())
 	assert.Nil(t, iter.Err())
-}
-
-func TestNamespaceIndexBatchInsertPartialError(t *testing.T) {
-	defer leaktest.CheckTimeout(t, 2*time.Second)()
-
-	testQueue := &testNsIndexInsertQueue{}
-	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
-		return testQueue
-	}
-
-	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
-	require.NoError(t, err)
-	idx, err := newNamespaceIndex(md, newFn, testNamespaceIndexOptions())
-	assert.NoError(t, err)
-	defer idx.Close()
-
-	idx.(*nsIndex).insertMode = index.InsertAsync
-	ts := idx.(*nsIndex).active.expiryTime
-
-	writes := []struct {
-		id        ident.ID
-		tags      ident.Tags
-		lifecycle *testLifecycleHooks
-	}{
-		{ident.StringID("foo"), ident.Tags{ident.StringTag("n1", "v1")}, &testLifecycleHooks{}},
-		{ident.StringID("foo"), ident.Tags{ident.StringTag("n1", "v1")}, &testLifecycleHooks{}},
-		{ident.StringID("bar"), ident.Tags{ident.StringTag("n2", "v2")}, &testLifecycleHooks{}},
-	}
-	for _, w := range writes {
-		assert.NoError(t, idx.Write(w.id, w.tags, w.lifecycle))
-	}
-
-	// perform insertions in batch
-	testQueue.doInsertions(t, idx.(*nsIndex))
-
-	// ensure all lifecycles are finalized
-	for k, w := range writes {
-		w.lifecycle.Lock()
-		assert.True(t, w.lifecycle.finalized)
-		switch k {
-		case 0:
-			fallthrough
-		case 2:
-			assert.Equal(t, ts.UnixNano(), w.lifecycle.writeTime.UnixNano())
-		default:
-			assert.Equal(t, time.Time{}, w.lifecycle.writeTime)
-		}
-		w.lifecycle.Unlock()
-	}
-}
-
-type docMatcher struct{ d doc.Document }
-
-func (dm docMatcher) Matches(x interface{}) bool {
-	other, ok := x.(doc.Document)
-	if !ok {
-		return false
-	}
-	if len(dm.d.Fields) != len(other.Fields) {
-		return false
-	}
-	for i := range dm.d.Fields {
-		if !bytes.Equal(dm.d.Fields[i].Name, other.Fields[i].Name) {
-			return false
-		}
-		if !bytes.Equal(dm.d.Fields[i].Value, other.Fields[i].Value) {
-			return false
-		}
-	}
-	return true
-}
-
-func (dm docMatcher) String() string {
-	return fmt.Sprintf("doc is %+v", dm.d)
-}
-
-type testLifecycleHooks struct {
-	sync.Mutex
-	writeTime time.Time
-	finalized bool
-}
-
-func (t *testLifecycleHooks) OnIndexSuccess(ts time.Time) {
-	t.Lock()
-	t.writeTime = ts
-	t.Unlock()
-}
-
-func (t *testLifecycleHooks) OnIndexFinalize() {
-	t.Lock()
-	if t.finalized {
-		// fine to do as it's only used during tests
-		panic("already finalized")
-	}
-	t.finalized = true
-	t.Unlock()
-}
-
-type testNsIndexInsertQueue struct {
-	sync.Mutex
-
-	started bool
-	stopped bool
-	batch   nsIndexInsertBatch
-}
-
-func (i *testNsIndexInsertQueue) Start() error {
-	i.Lock()
-	defer i.Unlock()
-
-	if i.started {
-		return fmt.Errorf("already started")
-	}
-	if i.stopped {
-		return fmt.Errorf("already stopped")
-	}
-	i.started = true
-	i.batch.Reset()
-	return nil
-}
-
-func (i *testNsIndexInsertQueue) Stop() error {
-	i.Lock()
-	defer i.Unlock()
-	if i.stopped {
-		return fmt.Errorf("already stopped")
-	}
-	if !i.started {
-		return fmt.Errorf("not started")
-	}
-	i.stopped = true
-	return nil
-}
-
-func (i *testNsIndexInsertQueue) Insert(d doc.Document, s onIndexSeries) (*sync.WaitGroup, error) {
-	i.Lock()
-	defer i.Unlock()
-	if !i.started {
-		return nil, fmt.Errorf("not started")
-	}
-	if i.stopped {
-		return nil, fmt.Errorf("already stopped")
-	}
-
-	i.batch.inserts = append(i.batch.inserts, nsIndexInsert{d, s})
-	return i.batch.wg, nil
-}
-
-func (i *testNsIndexInsertQueue) doInsertions(t *testing.T, idx *nsIndex) {
-	i.Lock()
-	defer i.Unlock()
-	err := idx.writeBatch(i.batch.inserts)
-	i.batch.Reset()
-	assert.NoError(t, err)
 }
