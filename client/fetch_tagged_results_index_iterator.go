@@ -22,12 +22,11 @@ package client
 
 import (
 	"github.com/m3db/m3db/serialize"
-	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3x/ident"
 )
 
-// FOLLOWUP(prateek): add pooling for fetchTaggedResultsIndexIterator(s).
-type fetchTaggedResultsIndexIterator struct {
+// FOLLOWUP(prateek): add pooling for taggedIDsIterator(s).
+type taggedIDsIterator struct {
 	currentIdx int
 	err        error
 	pools      fetchTaggedPools
@@ -45,18 +44,18 @@ type fetchTaggedResultsIndexIterator struct {
 	}
 }
 
-// make the compiler ensure the concrete type `&fetchTaggedResultsIndexIterator{}` implements
-// the `index.Iterator` interface.
-var _ index.Iterator = &fetchTaggedResultsIndexIterator{}
+// make the compiler ensure the concrete type `&taggedIDsIterator{}` implements
+// the `TaggedIDsIterator` interface.
+var _ TaggedIDsIterator = &taggedIDsIterator{}
 
-func newFetchTaggedResultsIndexIterator(pools fetchTaggedPools) *fetchTaggedResultsIndexIterator {
-	return &fetchTaggedResultsIndexIterator{
+func newTaggedIDsIterator(pools fetchTaggedPools) *taggedIDsIterator {
+	return &taggedIDsIterator{
 		currentIdx: -1,
 		pools:      pools,
 	}
 }
 
-func (i *fetchTaggedResultsIndexIterator) Next() bool {
+func (i *taggedIDsIterator) Next() bool {
 	if i.err != nil || i.currentIdx >= len(i.backing.ids) {
 		return false
 	}
@@ -76,25 +75,25 @@ func (i *fetchTaggedResultsIndexIterator) Next() bool {
 	return true
 }
 
-func (i *fetchTaggedResultsIndexIterator) addBacking(nsID, tsID, tags []byte) {
+func (i *taggedIDsIterator) addBacking(nsID, tsID, tags []byte) {
 	i.backing.nses = append(i.backing.nses, nsID)
 	i.backing.ids = append(i.backing.ids, tsID)
 	i.backing.tags = append(i.backing.tags, tags)
 }
 
-func (i *fetchTaggedResultsIndexIterator) asIdent(b []byte) ident.ID {
+func (i *taggedIDsIterator) asIdent(b []byte) ident.ID {
 	wb := i.pools.CheckedBytesWrapper().Get(b)
 	return i.pools.ID().BinaryID(wb)
 }
 
-func (i *fetchTaggedResultsIndexIterator) Finalize() {
+func (i *taggedIDsIterator) Finalize() {
 	i.release()
 	i.backing.nses = nil
 	i.backing.ids = nil
 	i.backing.tags = nil
 }
 
-func (i *fetchTaggedResultsIndexIterator) release() {
+func (i *taggedIDsIterator) release() {
 	if id := i.current.nsID; id != nil {
 		id.Finalize()
 		i.current.nsID = nil
@@ -109,10 +108,10 @@ func (i *fetchTaggedResultsIndexIterator) release() {
 	}
 }
 
-func (i *fetchTaggedResultsIndexIterator) Current() (ident.ID, ident.ID, ident.TagIterator) {
+func (i *taggedIDsIterator) Current() (ident.ID, ident.ID, ident.TagIterator) {
 	return i.current.nsID, i.current.tsID, i.current.tags
 }
 
-func (i *fetchTaggedResultsIndexIterator) Err() error {
+func (i *taggedIDsIterator) Err() error {
 	return i.err
 }

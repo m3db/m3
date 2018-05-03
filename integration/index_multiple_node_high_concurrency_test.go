@@ -142,14 +142,13 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 
 func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) bool {
 	q := newQuery(t, tags)
-	results, err := s.FetchTaggedIDs(ns, index.Query{q}, index.QueryOptions{
+	iter, _, err := s.FetchTaggedIDs(ns, index.Query{q}, index.QueryOptions{
 		StartInclusive: time.Now(),
 		EndExclusive:   time.Now(),
 		Limit:          10})
 	if err != nil {
 		return false
 	}
-	iter := results.Iterator
 	if !iter.Next() {
 		return false
 	}

@@ -76,7 +76,7 @@ type Session interface {
 	FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (results encoding.SeriesIterators, exhaustive bool, err error)
 
 	// FetchTaggedIDs resolves the provided query to known IDs.
-	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (index.QueryResults, error)
+	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (iter TaggedIDsIterator, exhaustive bool, err error)
 
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations
@@ -85,6 +85,22 @@ type Session interface {
 
 	// Close the session
 	Close() error
+}
+
+// TaggedIDsIterator iterates over a collection of IDs with associated tags and namespace.
+type TaggedIDsIterator interface {
+	// Next returns whether there are more items in the collection.
+	Next() bool
+
+	// Current returns the ID, Tags and Namespace for a single timeseries.
+	// These remain valid until Next() is called again.
+	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.TagIterator)
+
+	// Err returns any error encountered.
+	Err() error
+
+	// Finalize releases any held resources.
+	Finalize()
 }
 
 // AdminClient can create administration sessions

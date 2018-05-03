@@ -36,11 +36,11 @@ type fetchTaggedAttempt struct {
 	args    fetchTaggedAttemptArgs
 	session *session
 
-	idsAttemptFn xretry.Fn
-	idsResult    index.QueryResults
-
+	idsAttemptFn         xretry.Fn
 	dataAttemptFn        xretry.Fn
+	idsResultIter        TaggedIDsIterator
 	dataResultIters      encoding.SeriesIterators
+	idsResultExhaustive  bool
 	dataResultExhaustive bool
 }
 
@@ -53,15 +53,16 @@ type fetchTaggedAttemptArgs struct {
 func (f *fetchTaggedAttempt) reset() {
 	f.args = fetchTaggedAttemptArgsZeroed
 
-	f.idsResult = index.QueryResults{}
+	f.idsResultIter = nil
+	f.idsResultExhaustive = false
 	f.dataResultIters = nil
 	f.dataResultExhaustive = false
 }
 
 func (f *fetchTaggedAttempt) performIDsAttempt() error {
-	result, err := f.session.fetchTaggedIDsAttempt(
+	var err error
+	f.idsResultIter, f.idsResultExhaustive, err = f.session.fetchTaggedIDsAttempt(
 		f.args.ns, f.args.query, f.args.opts)
-	f.idsResult = result
 	return err
 }
 
