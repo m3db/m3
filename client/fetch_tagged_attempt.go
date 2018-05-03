@@ -36,12 +36,11 @@ type fetchTaggedAttempt struct {
 	args    fetchTaggedAttemptArgs
 	session *session
 
-	idsAttemptFn        xretry.Fn
-	idsResultIter       TaggedIDsIterator
-	idsResultExhaustive bool
-
+	idsAttemptFn         xretry.Fn
 	dataAttemptFn        xretry.Fn
+	idsResultIter        TaggedIDsIterator
 	dataResultIters      encoding.SeriesIterators
+	idsResultExhaustive  bool
 	dataResultExhaustive bool
 }
 
