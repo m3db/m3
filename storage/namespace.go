@@ -1059,10 +1059,12 @@ func (n *dbNamespace) Close() error {
 }
 
 func (n *dbNamespace) BootstrapState() ShardBootstrapStates {
-	ownedShards := n.GetOwnedShards()
-	shardStates := make(ShardBootstrapStates, len(ownedShards))
-	for _, shard := range ownedShards {
-		shardStates[shard.ID()] = shard.BootstrapState()
+	n.RLock()
+	shards := n.shardSet.AllIDs()
+	shardStates := make(ShardBootstrapStates, len(shards))
+	for _, shard := range shards {
+		shardStates[shard] = n.shards[shard].BootstrapState()
 	}
+	n.RUnlock()
 	return shardStates
 }
