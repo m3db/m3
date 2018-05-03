@@ -94,11 +94,23 @@ func generateTag() ident.Tag {
 	}
 }
 
+func generateTagIterator(ctrl *gomock.Controller) ident.TagIterator {
+	mockTagIterator := ident.NewMockTagIterator(ctrl)
+	mockTagIterator.EXPECT().Remaining().Return(1)
+	mockTagIterator.EXPECT().Next().Return(true).MaxTimes(1)
+	mockTagIterator.EXPECT().Current().Return(generateTag())
+	mockTagIterator.EXPECT().Next().Return(false)
+	mockTagIterator.EXPECT().Err().Return(nil)
+	mockTagIterator.EXPECT().Close()
+
+	return mockTagIterator
+}
+
 func generateTagIters(ctrl *gomock.Controller) *index.MockIterator {
 	mockTaggedIDsIter := index.NewMockIterator(ctrl)
 	mockTaggedIDsIter.EXPECT().Next().Return(true).MaxTimes(1)
 	mockTaggedIDsIter.EXPECT().Next().Return(false)
-	mockTaggedIDsIter.EXPECT().Current().Return(ident.StringID(testNamespace), ident.StringID(testID), []ident.Tag{generateTag()})
+	mockTaggedIDsIter.EXPECT().Current().Return(ident.StringID(testNamespace), ident.StringID(testID), generateTagIterator(ctrl))
 
 	return mockTaggedIDsIter
 }
@@ -110,7 +122,7 @@ func searchServer(t *testing.T) *SearchHandler {
 	mockTaggedIDsIter := generateTagIters(ctrl)
 
 	session := client.NewMockSession(ctrl)
-	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any()).Return(generateQueryResults(mockTaggedIDsIter), nil)
+	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(generateQueryResults(mockTaggedIDsIter), nil)
 
 	storage := local.NewStorage(session, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
 	search := &SearchHandler{store: storage}
