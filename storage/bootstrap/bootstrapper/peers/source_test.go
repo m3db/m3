@@ -75,7 +75,8 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 
 	r, err := src.ReadData(nsMetdata, target, testDefaultRunOpts)
 	assert.NoError(t, err)
-	assert.Nil(t, r)
+	assert.Equal(t, 0, len(r.ShardResults()))
+	assert.True(t, r.Unfulfilled().IsEmpty())
 }
 
 func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {

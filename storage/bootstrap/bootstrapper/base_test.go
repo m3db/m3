@@ -226,11 +226,13 @@ func TestBaseBootstrapperEmptyRange(t *testing.T) {
 	// Test non-nil empty range
 	res, err := base.BootstrapData(testNs, map[uint32]xtime.Ranges{}, testDefaultRunOpts)
 	require.NoError(t, err)
-	require.Nil(t, res)
+	require.Equal(t, 0, len(res.ShardResults()))
+	require.True(t, res.Unfulfilled().IsEmpty())
 
 	res, err = base.BootstrapData(testNs, nil, testDefaultRunOpts)
 	require.NoError(t, err)
-	require.Nil(t, res)
+	require.Equal(t, 0, len(res.ShardResults()))
+	require.True(t, res.Unfulfilled().IsEmpty())
 }
 
 func TestBaseBootstrapperCurrentNoUnfulfilled(t *testing.T) {
