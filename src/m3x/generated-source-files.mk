@@ -77,10 +77,13 @@ hashmap-gen-rename: install-gorename
 	@if [ -d $(temp_outdir) ] ; then echo "temp directory $(temp_outdir) exists, failing" ; exit 1 ; fi
 	mkdir -p $(temp_outdir)
 	[ ! -f $(out_dir)/new_map_gen.go ] || mv $(out_dir)/new_map_gen.go $(temp_outdir)/new_map_gen.go
+ifeq ($(rename_nogen_types),)
+	# allow users to short circuit the generation of types.go if they don't need it.
 	echo 'package $(pkg)' > $(temp_outdir)/types.go
 	echo '' >> $(temp_outdir)/types.go
 	[[ $(value_type) = struct* ]] || echo 'type $(value_type) interface{}' >> $(temp_outdir)/types.go
 	[ "$(key_type)" == "" ] || echo "type $(key_type) interface{}" >> $(temp_outdir)/types.go
+endif
 	mv $(out_dir)/map_gen.go $(temp_outdir)/map_gen.go
 	make hashmap-gen-rename-helper
 	mv $(temp_outdir)/map_gen.go $(out_dir)/map_gen.go
