@@ -1378,7 +1378,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		result, nextIndexCursor, err := s.fetchActiveBlocksMetadata(ctx, start, end,
 			limit, indexCursor, seriesFetchBlocksMetadataOpts)
 		if err != nil {
-			return result, nil, err
+			return nil, nil, err
 		}
 
 		if nextIndexCursor == nil {
@@ -1432,7 +1432,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		result, nextIndexCursor, err := s.fetchActiveBlocksMetadata(ctx, start, end,
 			limit, indexCursor, seriesFetchBlocksMetadataOpts)
 		if err != nil {
-			return result, nil, err
+			return nil, nil, err
 		}
 
 		// Encode the next page token
