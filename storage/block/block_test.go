@@ -313,7 +313,7 @@ func TestDatabaseBlockMergeChained(t *testing.T) {
 
 	// Lazily merge two blocks into block1
 	block1.Merge(block2)
-	block2.Merge(block3)
+	block1.Merge(block3)
 
 	// Try and read the data back and verify it looks good
 	depCtx := block1.opts.ContextPool().Get()
