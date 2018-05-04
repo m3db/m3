@@ -48,9 +48,9 @@ type noOpBootstrapProcess struct{}
 func (b noOpBootstrapProcess) Run(
 	ns namespace.Metadata,
 	shards []uint32,
-	targetRanges []TargetRange,
-) (result.DataBootstrapResult, result.IndexBootstrapResult, error) {
-	dataResult := result.NewDataBootstrapResult()
-	indexResult := result.NewIndexBootstrapResult()
-	return dataResult, indexResult, nil
+) (ProcessResult, error) {
+	return ProcessResult{
+		DataResult:  result.NewDataBootstrapResult(),
+		IndexResult: result.NewIndexBootstrapResult(),
+	}, nil
 }

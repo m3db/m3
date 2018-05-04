@@ -46,15 +46,13 @@ type ProcessProvider interface {
 // with the mindset that it will always be set to default values from the constructor.
 type Process interface {
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
-	Run(
-		ns namespace.Metadata,
-		shards []uint32,
-		targetRanges []TargetRange,
-	) (
-		result.DataBootstrapResult,
-		result.IndexBootstrapResult,
-		error,
-	)
+	Run(ns namespace.Metadata, shards []uint32) (ProcessResult, error)
+}
+
+// ProcessResult is the result of a bootstrap process.
+type ProcessResult struct {
+	DataResult  result.DataBootstrapResult
+	IndexResult result.IndexBootstrapResult
 }
 
 // TargetRange is a bootstrap target range.
@@ -75,14 +73,6 @@ type RunOptions interface {
 	// Incremental returns whether this bootstrap should be an incremental
 	// that saves intermediate results to durable storage or not.
 	Incremental() bool
-
-	// SetIndexingEnabled sets whether indexing is enabled which determines
-	// whether the bootstrap result should return a bootstrap index result.
-	SetIndexingEnabled(value bool) RunOptions
-
-	// IndexingEnabled returns whether indexing is enabled which determines
-	// whether the bootstrap result should return a bootstrap index result.
-	IndexingEnabled() bool
 }
 
 // BootstrapperProvider constructs a bootstrapper.
@@ -130,7 +120,7 @@ type Bootstrapper interface {
 	// node, i.e. non-recoverable situation like not being able to read from the filesystem.
 	BootstrapIndex(
 		ns namespace.Metadata,
-		timeRanges xtime.Ranges,
+		shardsTimeRanges result.ShardTimeRanges,
 		opts RunOptions,
 	) (result.IndexBootstrapResult, error)
 }
@@ -161,13 +151,13 @@ type Source interface {
 	// AvailableIndex returns what time ranges are available for bootstrapping.
 	AvailableIndex(
 		ns namespace.Metadata,
-		timeRanges xtime.Ranges,
-	) xtime.Ranges
+		shardsTimeRanges result.ShardTimeRanges,
+	) result.ShardTimeRanges
 
 	// ReadIndex returns series index blocks.
 	ReadIndex(
 		ns namespace.Metadata,
-		timeRanges xtime.Ranges,
+		shardsTimeRanges result.ShardTimeRanges,
 		opts RunOptions,
 	) (result.IndexBootstrapResult, error)
 }

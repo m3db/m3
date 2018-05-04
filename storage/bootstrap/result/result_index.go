@@ -24,20 +24,19 @@ import (
 	"time"
 
 	"github.com/m3db/m3ninx/index/segment"
-	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
 
 type indexBootstrapResult struct {
 	results     IndexResults
-	unfulfilled xtime.Ranges
+	unfulfilled ShardTimeRanges
 }
 
 // NewIndexBootstrapResult returns a new index bootstrap result.
 func NewIndexBootstrapResult() IndexBootstrapResult {
 	return &indexBootstrapResult{
 		results:     make(IndexResults),
-		unfulfilled: xtime.Ranges{},
+		unfulfilled: make(ShardTimeRanges),
 	}
 }
 
@@ -45,20 +44,21 @@ func (r *indexBootstrapResult) IndexResults() IndexResults {
 	return r.results
 }
 
-func (r *indexBootstrapResult) Unfulfilled() xtime.Ranges {
+func (r *indexBootstrapResult) Unfulfilled() ShardTimeRanges {
 	return r.unfulfilled
 }
 
-func (r *indexBootstrapResult) SetUnfulfilled(unfulfilled xtime.Ranges) {
+func (r *indexBootstrapResult) SetUnfulfilled(unfulfilled ShardTimeRanges) {
 	r.unfulfilled = unfulfilled
 }
 
-func (r *indexBootstrapResult) Add(block IndexBlock, unfulfilled xtime.Ranges) {
+func (r *indexBootstrapResult) Add(block IndexBlock, unfulfilled ShardTimeRanges) {
 	r.results.Add(block)
 	r.unfulfilled.AddRanges(unfulfilled)
 }
 
-// Add will add an index block to the collection, merging if one already exists.
+// Add will add an index block to the collection, merging if one already
+// exists.
 func (r IndexResults) Add(block IndexBlock) {
 	// Merge results
 	blockStart := xtime.ToUnixNano(block.BlockStart())
@@ -67,19 +67,52 @@ func (r IndexResults) Add(block IndexBlock) {
 		r[blockStart] = block
 		return
 	}
-	r[blockStart] = existing.Merged(block.segments, block.notIndexed)
+	r[blockStart] = existing.Merged(block)
+}
+
+// AddResults will add another set of index results to the collection, merging
+// if index blocks already exists.
+func (r IndexResults) AddResults(other IndexResults) {
+	for _, block := range other {
+		r.Add(block)
+	}
+}
+
+// MergedIndexBootstrapResult returns a merged result of two bootstrap results.
+// It is a mutating function that mutates the larger result by adding the
+// smaller result to it and then finally returns the mutated result.
+func MergedIndexBootstrapResult(i, j IndexBootstrapResult) IndexBootstrapResult {
+	if i == nil {
+		return j
+	}
+	if j == nil {
+		return i
+	}
+	sizeI, sizeJ := 0, 0
+	for _, ir := range i.IndexResults() {
+		sizeI += len(ir.Segments())
+	}
+	for _, ir := range j.IndexResults() {
+		sizeJ += len(ir.Segments())
+	}
+	if sizeI >= sizeJ {
+		i.IndexResults().AddResults(j.IndexResults())
+		i.Unfulfilled().AddRanges(j.Unfulfilled())
+		return i
+	}
+	j.IndexResults().AddResults(i.IndexResults())
+	j.Unfulfilled().AddRanges(i.Unfulfilled())
+	return j
 }
 
 // NewIndexBlock returns a new bootstrap index block result.
 func NewIndexBlock(
 	blockStart time.Time,
 	segments []segment.Segment,
-	notIndexed map[string]SeriesNotIndexed,
 ) IndexBlock {
 	return IndexBlock{
 		blockStart: blockStart,
 		segments:   segments,
-		notIndexed: notIndexed,
 	}
 }
 
@@ -93,39 +126,11 @@ func (b IndexBlock) Segments() []segment.Segment {
 	return b.segments
 }
 
-// NotIndexed returns the not indexed series.
-func (b IndexBlock) NotIndexed() map[string]SeriesNotIndexed {
-	return b.notIndexed
-}
-
-// Merged returns a new merged index block, it mutates the current
-// not indexed series map however to avoid allocating a new map.
-func (b IndexBlock) Merged(
-	segments []segment.Segment,
-	notIndexed map[string]SeriesNotIndexed,
-) IndexBlock {
+// Merged returns a new merged index block, currently it just appends the
+// list of segments from the other index block and the caller merges
+// as they see necessary.
+func (b IndexBlock) Merged(other IndexBlock) IndexBlock {
 	r := b
-	r.segments = append(r.segments, segments...)
-	for _, entry := range notIndexed {
-		r.notIndexed[entry.ID().String()] = entry
-	}
+	r.segments = append(r.segments, other.segments...)
 	return r
-}
-
-// NewSeriesNotIndexed returns a new not indexed series.
-func NewSeriesNotIndexed(
-	id ident.ID,
-	tags ident.Tags,
-) SeriesNotIndexed {
-	return SeriesNotIndexed{id: id, tags: tags}
-}
-
-// ID returns the series ID.
-func (s SeriesNotIndexed) ID() ident.ID {
-	return s.id
-}
-
-// Tags returns the series tags.
-func (s SeriesNotIndexed) Tags() ident.Tags {
-	return s.tags
 }

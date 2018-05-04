@@ -61,10 +61,10 @@ func (r *dataBootstrapResult) SetUnfulfilled(unfulfilled ShardTimeRanges) {
 	r.unfulfilled = unfulfilled
 }
 
-// MergedBootstrapResult returns a merged result of two bootstrap results.
+// MergedDataBootstrapResult returns a merged result of two bootstrap results.
 // It is a mutating function that mutates the larger result by adding the
 // smaller result to it and then finally returns the mutated result.
-func MergedBootstrapResult(i, j DataBootstrapResult) DataBootstrapResult {
+func MergedDataBootstrapResult(i, j DataBootstrapResult) DataBootstrapResult {
 	if i == nil {
 		return j
 	}

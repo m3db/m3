@@ -23,14 +23,11 @@ package storage
 import (
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap"
 	xerrors "github.com/m3db/m3x/errors"
 	xlog "github.com/m3db/m3x/log"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -171,39 +168,7 @@ func (m *bootstrapManager) Report() {
 	}
 }
 
-func (m *bootstrapManager) targetRanges(at time.Time, ropts retention.Options) []bootstrap.TargetRange {
-	start := at.Add(-ropts.RetentionPeriod()).
-		Truncate(ropts.BlockSize())
-	midPoint := at.
-		Add(-ropts.BlockSize()).
-		Add(-ropts.BufferPast()).
-		Truncate(ropts.BlockSize()).
-		// NB(r): Since "end" is exclusive we need to add a
-		// an extra block size when specifying the end time.
-		Add(ropts.BlockSize())
-	cutover := at.Add(ropts.BufferFuture()).
-		Truncate(ropts.BlockSize()).
-		Add(ropts.BlockSize())
-
-	// NB(r): We want the large initial time range bootstrapped to
-	// bootstrap incrementally so we don't keep the full raw
-	// data in process until we finish bootstrapping which could
-	// cause the process to OOM.
-	return []bootstrap.TargetRange{
-		{
-			Range:      xtime.Range{Start: start, End: midPoint},
-			RunOptions: bootstrap.NewRunOptions().SetIncremental(true),
-		},
-		{
-			Range:      xtime.Range{Start: midPoint, End: cutover},
-			RunOptions: bootstrap.NewRunOptions().SetIncremental(false),
-		},
-	}
-}
-
 func (m *bootstrapManager) bootstrap() error {
-	bootstrapStart := m.nowFn()
-
 	// NB(r): construct new instance of the bootstrap process to avoid
 	// state being kept around by bootstrappers.
 	process := m.processProvider.Provide()
@@ -217,10 +182,8 @@ func (m *bootstrapManager) bootstrap() error {
 		return err
 	}
 	for _, namespace := range namespaces {
-		rOpts := namespace.Options().RetentionOptions()
-		targetRanges := m.targetRanges(bootstrapStart, rOpts)
 		start := m.nowFn()
-		if err := namespace.Bootstrap(process, targetRanges); err != nil {
+		if err := namespace.Bootstrap(process); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 		end := m.nowFn()

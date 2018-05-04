@@ -284,10 +284,7 @@ type databaseNamespace interface {
 	) (block.FetchBlocksMetadataResults, PageToken, error)
 
 	// Bootstrap performs bootstrapping
-	Bootstrap(
-		process bootstrap.Process,
-		targetRanges []bootstrap.TargetRange,
-	) error
+	Bootstrap(process bootstrap.Process) error
 
 	// Flush flushes in-memory data
 	Flush(blockStart time.Time, flush persist.Flush) error
@@ -688,10 +685,10 @@ type Options interface {
 	// RepairOptions returns the repair options
 	RepairOptions() repair.Options
 
-	// SetBootstrapProcessProvider sets the bootstrap process for the database
+	// SetBootstrapProcessProvider sets the bootstrap process provider for the database
 	SetBootstrapProcessProvider(value bootstrap.ProcessProvider) Options
 
-	// BootstrapProcessProvider returns the bootstrap process for the database
+	// BootstrapProcessProvider returns the bootstrap process provider for the database
 	BootstrapProcessProvider() bootstrap.ProcessProvider
 
 	// SetPersistManager sets the persistence manager

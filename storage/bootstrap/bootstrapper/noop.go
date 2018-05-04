@@ -24,7 +24,6 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
-	xtime "github.com/m3db/m3x/time"
 )
 
 const (
@@ -77,11 +76,11 @@ func (noop noOpNoneBootstrapper) BootstrapData(
 
 func (noop noOpNoneBootstrapper) BootstrapIndex(
 	ns namespace.Metadata,
-	timeRanges xtime.Ranges,
+	targetRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
 	res := result.NewIndexBootstrapResult()
-	res.SetUnfulfilled(timeRanges)
+	res.SetUnfulfilled(targetRanges)
 	return res, nil
 }
 
@@ -124,9 +123,9 @@ func (noop noOpAllBootstrapper) BootstrapData(
 }
 
 func (noop noOpAllBootstrapper) BootstrapIndex(
-	ns namespace.Metadata,
-	timeRanges xtime.Ranges,
-	opts bootstrap.RunOptions,
+	_ namespace.Metadata,
+	_ result.ShardTimeRanges,
+	_ bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
 	return result.NewIndexBootstrapResult(), nil
 }

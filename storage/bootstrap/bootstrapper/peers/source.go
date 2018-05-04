@@ -494,15 +494,15 @@ func (s *peersSource) cacheShardIndices(
 
 func (s *peersSource) AvailableIndex(
 	ns namespace.Metadata,
-	timeRanges xtime.Ranges,
-) xtime.Ranges {
+	shardsTimeRanges result.ShardTimeRanges,
+) result.ShardTimeRanges {
 	// Peers should be able to fulfill all data
-	return timeRanges
+	return shardsTimeRanges
 }
 
 func (s *peersSource) ReadIndex(
 	ns namespace.Metadata,
-	timeRanges xtime.Ranges,
+	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
 	// FOLLOWUP(r): implement the peers source returning

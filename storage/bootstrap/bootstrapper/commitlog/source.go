@@ -468,17 +468,17 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 
 func (s *commitLogSource) AvailableIndex(
 	ns namespace.Metadata,
-	timeRanges xtime.Ranges,
-) xtime.Ranges {
+	shardsTimeRanges result.ShardTimeRanges,
+) result.ShardTimeRanges {
 	// Commit log bootstrapper is a last ditch effort, so fulfill all
 	// time ranges requested even if not enough data, just to succeed
 	// the bootstrap
-	return timeRanges
+	return shardsTimeRanges
 }
 
 func (s *commitLogSource) ReadIndex(
 	ns namespace.Metadata,
-	timeRanges xtime.Ranges,
+	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
 	// FOLLOWUP(r): implement the commit log source returning

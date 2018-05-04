@@ -546,16 +546,16 @@ func (s *fileSystemSource) ReadData(
 
 func (s *fileSystemSource) AvailableIndex(
 	ns namespace.Metadata,
-	timeRanges xtime.Ranges,
-) xtime.Ranges {
+	shardsTimeRanges result.ShardTimeRanges,
+) result.ShardTimeRanges {
 	// FOLLOWUP(r): implement the filesystem source returning
 	// index segments that are available on disk for the time range required.
-	return timeRanges
+	return shardsTimeRanges
 }
 
 func (s *fileSystemSource) ReadIndex(
 	ns namespace.Metadata,
-	timeRanges xtime.Ranges,
+	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
 	// FOLLOWUP(r): implement the filesystem source returning

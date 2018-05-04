@@ -20,22 +20,23 @@
 
 package bootstrapper
 
-import xlog "github.com/m3db/m3x/log"
+import (
+	"github.com/m3db/m3db/storage/bootstrap/result"
+	xlog "github.com/m3db/m3x/log"
+)
 
 type bootstrapStep interface {
-	prepare() bootstrapStepPreparedResult
-	runCurrStep() (bootstrapStepStatus, error)
-	runNextStep() (bootstrapStepStatus, error)
-	mergeResults() bootstrapStepStatus
-	runLastStepAfterMergeResults() (bootstrapStepStatus, error)
+	prepare(totalRanges result.ShardTimeRanges) bootstrapStepPreparedResult
+	runCurrStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
+	runNextStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
+	mergeResults(totalUnfulfilled result.ShardTimeRanges)
 }
 
 type bootstrapStepPreparedResult struct {
-	canFulfillAllWithCurr bool
-	logFields             []xlog.Field
+	currAvailable result.ShardTimeRanges
 }
 
 type bootstrapStepStatus struct {
-	fulfilledAll bool
-	logFields    []xlog.Field
+	fulfilled result.ShardTimeRanges
+	logFields []xlog.Field
 }

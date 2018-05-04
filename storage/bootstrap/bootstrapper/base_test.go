@@ -25,15 +25,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3ninx/index/segment"
+
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -315,8 +319,11 @@ func testBasebootstrapperNext(t *testing.T, nextUnfulfilled result.ShardTimeRang
 
 	targetRanges := testShardTimeRanges()
 	nextResult := testResult(map[uint32]testShardResult{
-		testShard: {result: shardResult(testBlockEntry{"foo", []string{"foo", "foe"}, testTargetStart})},
+		testShard: {
+			result: shardResult(testBlockEntry{"foo", []string{"foo", "foe"}, testTargetStart}),
+		},
 	})
+	nextResult.SetUnfulfilled(nextUnfulfilled)
 
 	source.EXPECT().
 		AvailableData(testNs, targetRanges).
@@ -421,4 +428,75 @@ func TestBaseBootstrapperBoth(t *testing.T) {
 		},
 	})
 	validateResult(t, expectedResult, res)
+}
+
+func TestBaseBootstrapperIndexHalfCurrentHalfNext(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	source, next, base := testBaseBootstrapper(t, ctrl)
+	testNs := testNsMetadata(t)
+
+	targetRanges := map[uint32]xtime.Ranges{
+		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+			Start: testTargetStart,
+			End:   testTargetStart.Add(2 * time.Hour),
+		}),
+	}
+	firstHalf := map[uint32]xtime.Ranges{
+		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+			Start: testTargetStart,
+			End:   testTargetStart.Add(1 * time.Hour),
+		}),
+	}
+	secondHalf := map[uint32]xtime.Ranges{
+		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+			Start: testTargetStart.Add(1 * time.Hour),
+			End:   testTargetStart.Add(2 * time.Hour),
+		}),
+	}
+
+	segFirst, err := mem.NewSegment(0, mem.NewOptions())
+	require.NoError(t, err)
+
+	segSecond, err := mem.NewSegment(0, mem.NewOptions())
+	require.NoError(t, err)
+
+	currResult := result.NewIndexBootstrapResult()
+	currResult.Add(result.NewIndexBlock(testTargetStart, []segment.Segment{
+		segFirst,
+	}), nil)
+	nextResult := result.NewIndexBootstrapResult()
+	nextResult.Add(result.NewIndexBlock(testTargetStart.Add(1*time.Hour), []segment.Segment{
+		segSecond,
+	}), nil)
+
+	source.EXPECT().Can(bootstrap.BootstrapParallel).Return(false)
+	source.EXPECT().
+		AvailableIndex(testNs, shardTimeRangesMatcher{targetRanges}).
+		Return(firstHalf)
+	source.EXPECT().
+		ReadIndex(testNs, shardTimeRangesMatcher{firstHalf}, testDefaultRunOpts).
+		Return(currResult, nil)
+
+	next.EXPECT().
+		BootstrapIndex(testNs, shardTimeRangesMatcher{secondHalf}, testDefaultRunOpts).
+		Return(nextResult, nil)
+
+	res, err := base.BootstrapIndex(testNs, targetRanges, testDefaultRunOpts)
+	require.NoError(t, err)
+
+	assert.True(t, res.Unfulfilled().IsEmpty())
+	assert.Equal(t, 2, len(res.IndexResults()))
+
+	first, ok := res.IndexResults()[xtime.ToUnixNano(testTargetStart)]
+	assert.True(t, ok)
+	assert.True(t, first.BlockStart().Equal(testTargetStart))
+	require.Equal(t, 1, len(first.Segments()))
+	assert.True(t, segFirst == first.Segments()[0])
+
+	second, ok := res.IndexResults()[xtime.ToUnixNano(testTargetStart.Add(time.Hour))]
+	assert.True(t, ok)
+	assert.True(t, second.BlockStart().Equal(testTargetStart.Add(time.Hour)))
+	require.Equal(t, 1, len(second.Segments()))
+	assert.True(t, segSecond == second.Segments()[0])
 }

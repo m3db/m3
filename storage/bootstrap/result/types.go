@@ -53,13 +53,13 @@ type IndexBootstrapResult interface {
 	IndexResults() IndexResults
 
 	// Unfulfilled is the unfulfilled time ranges for the bootstrap.
-	Unfulfilled() xtime.Ranges
+	Unfulfilled() ShardTimeRanges
 
 	// SetUnfulfilled sets the current unfulfilled shard time ranges.
-	SetUnfulfilled(unfulfilled xtime.Ranges)
+	SetUnfulfilled(unfulfilled ShardTimeRanges)
 
 	// Add adds an index block result.
-	Add(block IndexBlock, unfulfilled xtime.Ranges)
+	Add(block IndexBlock, unfulfilled ShardTimeRanges)
 }
 
 // IndexResults is a set of index blocks indexed by block start.
@@ -69,14 +69,6 @@ type IndexResults map[xtime.UnixNano]IndexBlock
 type IndexBlock struct {
 	blockStart time.Time
 	segments   []segment.Segment
-	notIndexed map[string]SeriesNotIndexed // TODO(r): create map specifically for this case
-}
-
-// SeriesNotIndexed contains the bootstrap data structures for a
-// series that is not indexed by a complete segment yet.
-type SeriesNotIndexed struct {
-	id   ident.ID
-	tags ident.Tags
 }
 
 // ShardResult returns the bootstrap result for a shard.

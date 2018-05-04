@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	xerrors "github.com/m3db/m3x/errors"
 	xlog "github.com/m3db/m3x/log"
-	xtime "github.com/m3db/m3x/time"
 )
 
 const (
@@ -81,9 +80,8 @@ func (b baseBootstrapper) BootstrapData(
 	if shardsTimeRanges.IsEmpty() {
 		return result.NewDataBootstrapResult(), nil
 	}
-	step := newBootstrapDataStep(namespace, shardsTimeRanges,
-		b.src, b.next, opts)
-	err := b.runBootstrapStep(namespace, step)
+	step := newBootstrapDataStep(namespace, b.src, b.next, opts)
+	err := b.runBootstrapStep(namespace, shardsTimeRanges, step)
 	if err != nil {
 		return nil, err
 	}
@@ -91,47 +89,63 @@ func (b baseBootstrapper) BootstrapData(
 }
 
 func (b baseBootstrapper) BootstrapIndex(
-	ns namespace.Metadata,
-	timeRanges xtime.Ranges,
+	namespace namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
-	// FOLLOWUP(r): implement the parallelization part, maybe wrap up in
-	// an interface the mergability logic, etc of both indexbootstrapresult
-	// and databootstrapresult and use same code (poor mans generics solution)
-	return result.NewIndexBootstrapResult(), nil
+	if shardsTimeRanges.IsEmpty() {
+		return result.NewIndexBootstrapResult(), nil
+	}
+	step := newBootstrapIndexStep(namespace, b.src, b.next, opts)
+	err := b.runBootstrapStep(namespace, shardsTimeRanges, step)
+	if err != nil {
+		return nil, err
+	}
+	return step.result(), nil
 }
 
 func (b baseBootstrapper) runBootstrapStep(
 	namespace namespace.Metadata,
+	totalRanges result.ShardTimeRanges,
 	step bootstrapStep,
 ) error {
 	var (
-		prepareResult    = step.prepare()
-		wg               sync.WaitGroup
-		currStatus       bootstrapStepStatus
-		currErr, nextErr error
+		prepareResult          = step.prepare(totalRanges)
+		wg                     sync.WaitGroup
+		currStatus, nextStatus bootstrapStepStatus
+		currErr, nextErr       error
+		nextAttempted          bool
 	)
-	if !prepareResult.canFulfillAllWithCurr &&
+	currRanges := prepareResult.currAvailable
+	nextRanges := totalRanges.Copy()
+	nextRanges.Subtract(currRanges)
+	if !nextRanges.IsEmpty() &&
 		b.Can(bootstrap.BootstrapParallel) &&
 		b.next.Can(bootstrap.BootstrapParallel) {
 		// If ranges can be bootstrapped now from the next source then begin attempt now
+		nextAttempted = true
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, nextErr = step.runNextStep()
+			nextStatus, nextErr = step.runNextStep(nextRanges)
 		}()
 	}
 
-	logFields := append([]xlog.Field{
+	min, max := currRanges.MinMax()
+	logFields := []xlog.Field{
 		xlog.NewField("source", b.name),
 		xlog.NewField("namespace", namespace.ID().String()),
-	}, prepareResult.logFields...)
+		xlog.NewField("from", min.String()),
+		xlog.NewField("to", max.String()),
+		xlog.NewField("range", max.Sub(min).String()),
+		xlog.NewField("shards", len(currRanges)),
+	}
 	b.log.WithFields(logFields...).Infof("bootstrapping from source starting")
 
 	nowFn := b.opts.ClockOptions().NowFn()
 	begin := nowFn()
 
-	currStatus, currErr = step.runCurrStep()
+	currStatus, currErr = step.runCurrStep(currRanges)
 
 	logFields = append(logFields, xlog.NewField("took", nowFn().Sub(begin).String()))
 	if currErr != nil {
@@ -147,15 +161,35 @@ func (b baseBootstrapper) runBootstrapStep(
 		return err
 	}
 
-	currStatus = step.mergeResults()
+	fulfilledRanges := result.ShardTimeRanges{}
+	fulfilledRanges.AddRanges(currStatus.fulfilled)
+	fulfilledRanges.AddRanges(nextStatus.fulfilled)
+	unfulfilled := totalRanges.Copy()
+	unfulfilled.Subtract(fulfilledRanges)
+
+	step.mergeResults(unfulfilled)
+
+	unattemptedNextRanges := currRanges.Copy()
+	unattemptedNextRanges.Subtract(currStatus.fulfilled)
+	if !nextAttempted {
+		// If we have never attempted the next time range then we want to also
+		// attempt the ranges we didn't even try to attempt
+		unattemptedNextRanges.AddRanges(nextRanges)
+	}
 
 	// If there are some time ranges the current bootstrapper could not fulfill,
-	// pass it along to the next bootstrapper
-	if !currStatus.fulfilledAll {
-		_, lastErr := step.runLastStepAfterMergeResults()
-		if lastErr != nil {
-			return lastErr
+	// that we can attempt then pass it along to the next bootstrapper.
+	// NB(r): We explicitly do not ask the next bootstrapper to retry ranges
+	// it could not fulfill as it's unlikely to be able to now.
+	if !unattemptedNextRanges.IsEmpty() {
+		nextStatus, nextErr = step.runNextStep(unattemptedNextRanges)
+		if nextErr != nil {
+			return nextErr
 		}
+
+		unfulfilledFinal := unfulfilled.Copy()
+		unfulfilledFinal.Subtract(nextStatus.fulfilled)
+		step.mergeResults(unfulfilledFinal)
 	}
 
 	return nil

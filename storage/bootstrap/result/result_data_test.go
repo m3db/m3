@@ -203,7 +203,7 @@ func TestResultAddResult(t *testing.T) {
 		End:   start.Add(8 * testBlockSize),
 	}))
 
-	r := MergedBootstrapResult(rs[0], rs[1])
+	r := MergedDataBootstrapResult(rs[0], rs[1])
 
 	srMerged := NewShardResult(0, opts)
 	srMerged.AddBlock(ident.StringID("foo"), fooTags, blocks[0])
