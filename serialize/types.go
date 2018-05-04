@@ -32,6 +32,7 @@ var (
 	headerMagicNumber uint16 = 10101
 )
 
+// TODO: Fix all the writing for the TagEncoderPools
 // TagEncoder encodes provided Tag iterators.
 type TagEncoder interface {
 	// Encode encodes the provided iterator into it's internal byte stream.
@@ -118,6 +119,7 @@ type TagDecoderOptions interface {
 	TagSerializationLimits() TagSerializationLimits
 }
 
+// TODO: Add option to disable these entirely.
 // TagSerializationLimits sets the limits around tag serialization.
 type TagSerializationLimits interface {
 	// SetMaxNumberTags sets the maximum number of tags allowed.

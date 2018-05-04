@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
@@ -95,6 +96,9 @@ func NewOptions() Options {
 		bytesPool: pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 			return pool.NewBytesPool(s, nil)
 		}),
+		tagEncoderPool: serialize.NewTagEncoderPool(
+			serialize.NewTagEncoderOptions(), pool.NewObjectPoolOptions(),
+		),
 		readConcurrency: defaultReadConcurrency,
 	}
 	o.bytesPool.Init()
