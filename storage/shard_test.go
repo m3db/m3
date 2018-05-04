@@ -97,8 +97,21 @@ func TestShardDontNeedBootstrap(t *testing.T) {
 		&testIncreasingIndex{}, commitLogWriteNoOp, nil, false, opts, seriesOpts).(*dbShard)
 	defer shard.Close()
 
-	require.Equal(t, bootstrapped, shard.bs)
+	require.Equal(t, Bootstrapped, shard.bs)
 	require.True(t, shard.newSeriesBootstrapped)
+}
+
+func TestShardBootstrapState(t *testing.T) {
+	opts := testDatabaseOptions()
+	testNs, closer := newTestNamespace(t)
+	defer closer()
+	seriesOpts := NewSeriesOptionsFromOptions(opts, testNs.Options().RetentionOptions())
+	shard := newDatabaseShard(testNs.metadata, 0, nil, nil,
+		&testIncreasingIndex{}, commitLogWriteNoOp, nil, false, opts, seriesOpts).(*dbShard)
+	defer shard.Close()
+
+	require.Equal(t, Bootstrapped, shard.bs)
+	require.Equal(t, Bootstrapped, shard.BootstrapState())
 }
 
 func TestShardFlushStateNotStarted(t *testing.T) {
@@ -143,9 +156,9 @@ func TestShardBootstrapWithError(t *testing.T) {
 
 	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
 	barBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	fooSeries.EXPECT().Bootstrap(fooBlocks).Return(nil)
+	fooSeries.EXPECT().Bootstrap(fooBlocks).Return(series.BootstrapResult{}, nil)
 	fooSeries.EXPECT().IsBootstrapped().Return(true)
-	barSeries.EXPECT().Bootstrap(barBlocks).Return(errors.New("series error"))
+	barSeries.EXPECT().Bootstrap(barBlocks).Return(series.BootstrapResult{}, errors.New("series error"))
 	barSeries.EXPECT().IsBootstrapped().Return(true)
 
 	fooID := ident.StringID("foo")
@@ -159,13 +172,13 @@ func TestShardBootstrapWithError(t *testing.T) {
 
 	require.NotNil(t, err)
 	require.Equal(t, "series error", err.Error())
-	require.Equal(t, bootstrapped, s.bs)
+	require.Equal(t, Bootstrapped, s.bs)
 }
 
 func TestShardFlushDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
-	s.bs = bootstrapping
+	s.bs = Bootstrapping
 	err := s.Flush(time.Now(), nil)
 	require.Equal(t, err, errShardNotBootstrappedToFlush)
 }
@@ -176,7 +189,7 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
-	s.bs = bootstrapped
+	s.bs = Bootstrapped
 	blockStart := time.Unix(21600, 0)
 	flush := persist.NewMockFlush(ctrl)
 	prepared := persist.PreparedPersist{Persist: nil}
@@ -206,7 +219,7 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
-	s.bs = bootstrapped
+	s.bs = Bootstrapped
 	blockStart := time.Unix(21600, 0)
 	flush := persist.NewMockFlush(ctrl)
 	prepared := persist.PreparedPersist{}
@@ -238,7 +251,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
-	s.bs = bootstrapped
+	s.bs = Bootstrapped
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
 		Status:      fileOpFailed,
 		NumFailures: 1,
@@ -264,16 +277,16 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		if i == 1 {
 			expectedErr = errors.New("error bar")
 		}
-		series := series.NewMockDatabaseSeries(ctrl)
-		series.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
-		series.EXPECT().IsEmpty().Return(false).AnyTimes()
-		series.EXPECT().
+		curr := series.NewMockDatabaseSeries(ctrl)
+		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
+		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
+		curr.EXPECT().
 			Flush(gomock.Any(), blockStart, gomock.Any()).
 			Do(func(context.Context, time.Time, persist.Fn) {
 				flushed[i] = struct{}{}
 			}).
-			Return(expectedErr)
-		s.list.PushBack(&dbShardEntry{series: series})
+			Return(series.FlushOutcomeErr, expectedErr)
+		s.list.PushBack(&dbShardEntry{series: curr})
 	}
 
 	err := s.Flush(blockStart, flush)
@@ -303,7 +316,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
-	s.bs = bootstrapped
+	s.bs = Bootstrapped
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
 		Status:      fileOpFailed,
 		NumFailures: 1,
@@ -326,16 +339,16 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
 		i := i
-		series := series.NewMockDatabaseSeries(ctrl)
-		series.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
-		series.EXPECT().IsEmpty().Return(false).AnyTimes()
-		series.EXPECT().
+		curr := series.NewMockDatabaseSeries(ctrl)
+		curr.EXPECT().ID().Return(ident.StringID("foo" + strconv.Itoa(i))).AnyTimes()
+		curr.EXPECT().IsEmpty().Return(false).AnyTimes()
+		curr.EXPECT().
 			Flush(gomock.Any(), blockStart, gomock.Any()).
 			Do(func(context.Context, time.Time, persist.Fn) {
 				flushed[i] = struct{}{}
 			}).
-			Return(nil)
-		s.list.PushBack(&dbShardEntry{series: series})
+			Return(series.FlushOutcomeFlushedToDisk, nil)
+		s.list.PushBack(&dbShardEntry{series: curr})
 	}
 
 	err := s.Flush(blockStart, flush)
@@ -364,7 +377,7 @@ func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
 
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
-	s.bs = bootstrapping
+	s.bs = Bootstrapping
 
 	flush := persist.NewMockFlush(ctrl)
 	err := s.Snapshot(blockStart, blockStart, flush)
@@ -379,7 +392,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
-	s.bs = bootstrapped
+	s.bs = Bootstrapped
 
 	var closed bool
 	flush := persist.NewMockFlush(ctrl)

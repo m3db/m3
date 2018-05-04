@@ -30,5 +30,10 @@ type Datapoint struct {
 	Value     float64
 }
 
+// Equal returns whether one Datapoint is equal to another
+func (d Datapoint) Equal(x Datapoint) bool {
+	return d.Timestamp.Equal(x.Timestamp) && d.Value == x.Value
+}
+
 // Annotation represents information used to annotate datapoints.
 type Annotation []byte

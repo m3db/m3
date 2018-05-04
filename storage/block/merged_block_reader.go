@@ -35,16 +35,21 @@ type dbMergedBlockReader struct {
 	sync.RWMutex
 	opts       Options
 	blockStart time.Time
-	streams    [2]xio.SegmentReader
+	streams    [2]mergeableStream
 	readers    [2]io.Reader
 	merged     xio.SegmentReader
 	encoder    encoding.Encoder
 	err        error
 }
 
+type mergeableStream struct {
+	stream   xio.SegmentReader
+	finalize bool
+}
+
 func newDatabaseMergedBlockReader(
 	blockStart time.Time,
-	streamA, streamB xio.SegmentReader,
+	streamA, streamB mergeableStream,
 	opts Options,
 ) xio.SegmentReader {
 	r := &dbMergedBlockReader{
@@ -53,8 +58,8 @@ func newDatabaseMergedBlockReader(
 	}
 	r.streams[0] = streamA
 	r.streams[1] = streamB
-	r.readers[0] = streamA
-	r.readers[1] = streamB
+	r.readers[0] = streamA.stream
+	r.readers[1] = streamB.stream
 	return r
 }
 
@@ -97,8 +102,10 @@ func (r *dbMergedBlockReader) mergedReader() (xio.SegmentReader, error) {
 
 	// Release references to the existing streams
 	for i := range r.streams {
-		r.streams[i].Finalize()
-		r.streams[i] = nil
+		if r.streams[i].stream != nil && r.streams[i].finalize {
+			r.streams[i].stream.Finalize()
+		}
+		r.streams[i].stream = nil
 	}
 	for i := range r.readers {
 		r.readers[i] = nil
@@ -135,10 +142,10 @@ func (r *dbMergedBlockReader) Finalize() {
 	r.blockStart = time.Time{}
 
 	for i := range r.streams {
-		if r.streams[i] != nil {
-			r.streams[i].Finalize()
-			r.streams[i] = nil
+		if r.streams[i].stream != nil && r.streams[i].finalize {
+			r.streams[i].stream.Finalize()
 		}
+		r.streams[i].stream = nil
 	}
 	for i := range r.readers {
 		if r.readers[i] != nil {

@@ -251,7 +251,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					persists["foo"]++
 					assert.Equal(t, "foo", id.String())
 					assert.Equal(t, []byte{1, 2, 3}, segment.Head.Bytes())
-					assert.Equal(t, fooBlock.Checksum(), checksum)
+					assertBlockChecksum(t, checksum, fooBlock)
 					return nil
 				},
 				Close: func() error {
@@ -271,7 +271,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					persists["bar"]++
 					assert.Equal(t, "bar", id.String())
 					assert.Equal(t, []byte{4, 5, 6}, segment.Head.Bytes())
-					assert.Equal(t, barBlock.Checksum(), checksum)
+					assertBlockChecksum(t, checksum, barBlock)
 					return nil
 				},
 				Close: func() error {
@@ -291,7 +291,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					persists["baz"]++
 					assert.Equal(t, "baz", id.String())
 					assert.Equal(t, []byte{7, 8, 9}, segment.Head.Bytes())
-					assert.Equal(t, bazBlock.Checksum(), checksum)
+					assertBlockChecksum(t, checksum, bazBlock)
 					return nil
 				},
 				Close: func() error {
@@ -342,17 +342,23 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 			block, ok := r.ShardResults()[0].BlockAt(ident.StringID("foo"), start)
 			require.True(t, ok)
-			assert.Equal(t, fooBlock.Checksum(), block.Checksum())
+			fooBlockChecksum, err := fooBlock.Checksum()
+			require.NoError(t, err)
+			assertBlockChecksum(t, fooBlockChecksum, block)
 			assert.False(t, block.IsRetrieved())
 
 			block, ok = r.ShardResults()[0].BlockAt(ident.StringID("bar"), start.Add(ropts.BlockSize()))
 			require.True(t, ok)
-			assert.Equal(t, barBlock.Checksum(), block.Checksum())
+			barBlockChecksum, err := barBlock.Checksum()
+			require.NoError(t, err)
+			assertBlockChecksum(t, barBlockChecksum, block)
 			assert.False(t, block.IsRetrieved())
 
 			block, ok = r.ShardResults()[1].BlockAt(ident.StringID("baz"), start)
 			require.True(t, ok)
-			assert.Equal(t, bazBlock.Checksum(), block.Checksum())
+			bazBlockChecksum, err := bazBlock.Checksum()
+			require.NoError(t, err)
+			assertBlockChecksum(t, bazBlockChecksum, block)
 			assert.False(t, block.IsRetrieved())
 		} else {
 			assert.Equal(t, 0, len(r.ShardResults()))
@@ -668,4 +674,10 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	assert.Equal(t, map[string]int{
 		"foo": 2, "bar": 2, "baz": 2, "qux": 2,
 	}, closes)
+}
+
+func assertBlockChecksum(t *testing.T, expectedChecksum uint32, block block.DatabaseBlock) {
+	checksum, err := block.Checksum()
+	require.NoError(t, err)
+	require.Equal(t, expectedChecksum, checksum)
 }
