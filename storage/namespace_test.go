@@ -1159,18 +1159,16 @@ func TestNamespaceBootstrapState(t *testing.T) {
 	defer closer()
 
 	shard0 := NewMockdatabaseShard(ctrl)
-	shard0.EXPECT().ID().Return(uint32(1))
 	shard0.EXPECT().BootstrapState().Return(Bootstrapped)
 	ns.shards[0] = shard0
 
 	shard1 := NewMockdatabaseShard(ctrl)
-	shard1.EXPECT().ID().Return(uint32(2))
 	shard1.EXPECT().BootstrapState().Return(Bootstrapping)
 	ns.shards[1] = shard1
 
 	require.Equal(t, ShardBootstrapStates{
-		1: Bootstrapped,
-		2: Bootstrapping,
+		0: Bootstrapped,
+		1: Bootstrapping,
 	}, ns.BootstrapState())
 }
 
