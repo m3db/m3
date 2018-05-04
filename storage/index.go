@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3ninx/search/executor"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/resource"
 
 	"github.com/uber-go/tally"
 )
@@ -265,17 +264,70 @@ func (i *nsIndex) Query(
 		return index.QueryResults{}, err
 	}
 
-	idxIter := index.NewIterator(i.nsID, iter, i.opts)
+	var (
+		results    = i.opts.ResultsPool().Get()
+		size       = results.Size()
+		brokeEarly = false
+	)
+	results.Reset(i.nsID)
+	ctx.RegisterFinalizer(results)
 
-	ctx.RegisterFinalizer(resource.FinalizerFn(func() {
-		idxIter.Finalize()
-		exec.Close()
-	}))
+	execCloser := safeCloser{closable: exec}
+	iterCloser := safeCloser{closable: iter}
 
+	defer func() {
+		iterCloser.Close()
+		execCloser.Close()
+	}()
+
+	for iter.Next() {
+		// FOLLOWUP(prateek): as part of the runtime options wiring, also set a server side max limit which
+		// super-seeds the user requested limit. Paranoia can be a good thing.
+		if opts.Limit > 0 && size >= opts.Limit {
+			brokeEarly = true
+			break
+		}
+		d := iter.Current()
+		_, size, err = results.Add(d)
+		if err != nil {
+			return index.QueryResults{}, err
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return index.QueryResults{}, err
+	}
+
+	if err := iterCloser.Close(); err != nil {
+		return index.QueryResults{}, err
+	}
+
+	if err := execCloser.Close(); err != nil {
+		return index.QueryResults{}, err
+	}
+
+	exhaustive := !brokeEarly
 	return index.QueryResults{
-		Iterator:   idxIter,
-		Exhaustive: true,
+		Results:    results,
+		Exhaustive: exhaustive,
 	}, nil
+}
+
+type safeCloser struct {
+	closable
+	closed bool
+}
+
+func (c *safeCloser) Close() error {
+	if c.closed {
+		return nil
+	}
+	c.closed = true
+	return c.closable.Close()
+}
+
+type closable interface {
+	Close() error
 }
 
 func (i *nsIndex) isOpenWithRLock() bool {

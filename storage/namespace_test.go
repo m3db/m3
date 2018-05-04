@@ -54,9 +54,9 @@ var (
 	testShardIDs = sharding.NewShards([]uint32{0, 1}, shard.Available)
 )
 
-type closer func()
+type closerFn func()
 
-func newTestNamespace(t *testing.T) (*dbNamespace, closer) {
+func newTestNamespace(t *testing.T) (*dbNamespace, closerFn) {
 	return newTestNamespaceWithIDOpts(t, defaultTestNs1ID, defaultTestNs1Opts)
 }
 
@@ -64,7 +64,7 @@ func newTestNamespaceWithIDOpts(
 	t *testing.T,
 	nsID ident.ID,
 	opts namespace.Options,
-) (*dbNamespace, closer) {
+) (*dbNamespace, closerFn) {
 	metadata, err := namespace.NewMetadata(nsID, opts)
 	require.NoError(t, err)
 	hashFn := func(identifier ident.ID) uint32 { return testShardIDs[0].ID() }
@@ -77,7 +77,7 @@ func newTestNamespaceWithIDOpts(
 	return ns.(*dbNamespace), closer
 }
 
-func newTestNamespaceWithIndex(t *testing.T, index namespaceIndex) (*dbNamespace, closer) {
+func newTestNamespaceWithIndex(t *testing.T, index namespaceIndex) (*dbNamespace, closerFn) {
 	ns, closer := newTestNamespace(t)
 	if index != nil {
 		ns.reverseIndex = index
