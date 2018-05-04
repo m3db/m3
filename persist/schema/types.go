@@ -92,4 +92,5 @@ type LogMetadata struct {
 	ID        []byte
 	Namespace []byte
 	Shard     uint32
+	Tags      []byte
 }

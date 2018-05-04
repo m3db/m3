@@ -82,6 +82,7 @@ var (
 		ID:        []byte("testLogMetadata"),
 		Namespace: []byte("testNamespace"),
 		Shard:     123,
+		Tags:      []byte("testLogMetadataTags"),
 	}
 )
 
