@@ -1062,6 +1062,9 @@ func (n *dbNamespace) BootstrapState() ShardBootstrapStates {
 	n.RLock()
 	shardStates := make(ShardBootstrapStates, len(n.shards))
 	for _, shard := range n.shards {
+		if shard == nil {
+			continue
+		}
 		shardStates[shard.ID()] = shard.BootstrapState()
 	}
 	n.RUnlock()
