@@ -118,17 +118,25 @@ func (p *simplePool) StringTag(name string, value string) Tag {
 	}
 }
 
+func (p *simplePool) cloneBytes(b []byte) checked.Bytes {
+	newData := p.bytesPool.Get(len(b))
+	newData.IncRef()
+	newData.AppendAll(b)
+	return newData
+}
+
 func (p *simplePool) Clone(existing ID) ID {
 	id := p.pool.Get().(*id)
 
-	data := existing.Data()
-	data.IncRef()
-
-	newData := p.bytesPool.Get(data.Len())
-	newData.IncRef()
-	newData.AppendAll(data.Bytes())
-
-	data.DecRef()
+	var newData checked.Bytes
+	if idBytes, ok := existing.(BytesID); ok {
+		newData = p.cloneBytes(idBytes)
+	} else {
+		data := existing.Data()
+		data.IncRef()
+		newData = p.cloneBytes(data.Bytes())
+		data.DecRef()
+	}
 
 	id.pool, id.data = p, newData
 
