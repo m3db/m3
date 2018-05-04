@@ -251,7 +251,11 @@ func (b *dbBlock) Merge(other DatabaseBlock) error {
 		return errTriedToMergeBlockFromDisk
 	}
 	b.resetMergeTargetWithLock()
-	b.mergeTarget = other
+	if b.mergeTarget == nil {
+		b.mergeTarget = other
+	} else {
+		b.mergeTarget.Merge(other)
+	}
 	b.Unlock()
 	return nil
 }
