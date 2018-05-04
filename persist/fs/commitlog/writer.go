@@ -27,12 +27,15 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3x/ident"
+
 	"github.com/m3db/bitset"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -93,6 +96,7 @@ type writer struct {
 	seen               *bitset.BitSet
 	logEncoder         *msgpack.Encoder
 	metadataEncoder    *msgpack.Encoder
+	tagEncoder         serialize.TagEncoder
 }
 
 func newCommitLogWriter(
@@ -112,6 +116,7 @@ func newCommitLogWriter(
 		seen:               bitset.NewBitSet(defaultBitSetLength),
 		logEncoder:         msgpack.NewEncoder(),
 		metadataEncoder:    msgpack.NewEncoder(),
+		tagEncoder:         opts.TagEncoderPool().Get(),
 	}
 }
 
@@ -168,12 +173,24 @@ func (w *writer) Write(
 
 	seen := w.seen.Test(uint(series.UniqueIndex))
 	if !seen {
+		tags := series.Tags
+		w.tagEncoder.Reset()
+		// TODO: Avoid allocating this iterator over and over again?
+		err := w.tagEncoder.Encode(ident.NewTagIterator(tags...))
+		if err != nil {
+			return err
+		}
+		// TODO: What is second argument for?
+		encodedTags, _ := w.tagEncoder.Data()
+
+		// w.tagEncoder.Encode
 		// If "idx" likely hasn't been written to commit log
 		// yet we need to include series metadata
 		var metadata schema.LogMetadata
 		metadata.ID = series.ID.Data().Bytes()
 		metadata.Namespace = series.Namespace.Data().Bytes()
 		metadata.Shard = series.Shard
+		metadata.Tags = encodedTags.Bytes()
 		w.metadataEncoder.Reset()
 		if err := w.metadataEncoder.EncodeLogMetadata(metadata); err != nil {
 			return err

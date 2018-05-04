@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -176,6 +177,12 @@ type Options interface {
 
 	// ReadConcurrency returns the concurrency of the reader
 	ReadConcurrency() int
+
+	// SetTagEncoderPool sets the TagEncoderPool to use for retrieving TagEncoders.
+	SetTagEncoderPool(value serialize.TagEncoderPool) Options
+
+	// TagEncoderPool returns the TagEncoderPool to use for retrieving TagEncoders.
+	TagEncoderPool() serialize.TagEncoderPool
 }
 
 // FileFilterPredicate is a predicate that allows the caller to determine
