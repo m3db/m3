@@ -16,18 +16,18 @@ genny-map-all: idhashmap-update byteshashmap-update
 
 .PHONY: idhashmap-update
 idhashmap-update: install-generics-bin
-	cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg idkey gen "KeyType=ident.ID ValueType=MapValue" > ./idkey/map_gen.go
+	cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg idkey -ast gen "KeyType=ident.ID ValueType=MapValue" > ./idkey/map_gen.go
 
 .PHONY: byteshashmap-update
 byteshashmap-update: install-generics-bin
-	cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg byteskey gen "KeyType=[]byte ValueType=MapValue" > ./byteskey/map_gen.go
+	cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg byteskey -ast gen "KeyType=[]byte ValueType=MapValue" > ./byteskey/map_gen.go
 
 # NB(prateek): `target_package` should not have a trailing slash
 # generic targets meant to be re-used by other users
 .PHONY: hashmap-gen
 hashmap-gen: install-generics-bin
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
-	cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg $(pkg) gen "KeyType=$(key_type) ValueType=$(value_type)" > "$(out_dir)/map_gen.go"
+	cd generics/hashmap && cat ./map.go | grep -v nolint | genny -pkg $(pkg) -ast gen "KeyType=$(key_type) ValueType=$(value_type)" > "$(out_dir)/map_gen.go"
 ifneq ($(rename_type_prefix),)
 	make hashmap-gen-rename
 endif
@@ -35,8 +35,8 @@ endif
 .PHONY: idhashmap-gen
 idhashmap-gen: install-generics-bin
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
-	cd generics/hashmap/idkey && cat ./map_gen.go | grep -v nolint | genny -pkg $(pkg) gen "MapValue=$(value_type)" > "$(out_dir:\=)/map_gen.go"
-	cd generics/hashmap/idkey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) gen "MapValue=$(value_type)" > "$(out_dir:\=)/new_map_gen.go"
+	cd generics/hashmap/idkey && cat ./map_gen.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/map_gen.go"
+	cd generics/hashmap/idkey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/new_map_gen.go"
 ifneq ($(rename_type_prefix),)
 	make hashmap-gen-rename
 endif
@@ -44,8 +44,8 @@ endif
 .PHONY: byteshashmap-gen
 byteshashmap-gen: install-generics-bin
 	$(eval out_dir=$(gopath_prefix)/$(target_package))
-	cd generics/hashmap/byteskey && cat ./map_gen.go | grep -v nolint | genny -pkg $(pkg) gen "MapValue=$(value_type)" > "$(out_dir:\=)/map_gen.go"
-	cd generics/hashmap/byteskey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) gen "MapValue=$(value_type)" > "$(out_dir:\=)/new_map_gen.go"
+	cd generics/hashmap/byteskey && cat ./map_gen.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/map_gen.go"
+	cd generics/hashmap/byteskey && cat ./new_map.go | grep -v nolint | genny -pkg $(pkg) -ast gen "MapValue=$(value_type)" > "$(out_dir:\=)/new_map_gen.go"
 ifneq ($(rename_type_prefix),)
 	make hashmap-gen-rename
 endif
@@ -79,7 +79,7 @@ hashmap-gen-rename: install-gorename
 	[ ! -f $(out_dir)/new_map_gen.go ] || mv $(out_dir)/new_map_gen.go $(temp_outdir)/new_map_gen.go
 	echo 'package $(pkg)' > $(temp_outdir)/types.go
 	echo '' >> $(temp_outdir)/types.go
-	echo 'type $(value_type) interface{}' >> $(temp_outdir)/types.go
+	[[ $(value_type) = struct* ]] || echo 'type $(value_type) interface{}' >> $(temp_outdir)/types.go
 	[ "$(key_type)" == "" ] || echo "type $(key_type) interface{}" >> $(temp_outdir)/types.go
 	mv $(out_dir)/map_gen.go $(temp_outdir)/map_gen.go
 	make hashmap-gen-rename-helper
