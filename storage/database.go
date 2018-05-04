@@ -642,6 +642,21 @@ func (d *db) IsOverloaded() bool {
 	return d.errors.Count(d.errWindow) > d.errThreshold
 }
 
+func (d *db) BootstrapState() DatabaseBootstrapState {
+	nsBootstrapStates := NamespaceBootstrapStates{}
+
+	d.RLock()
+	for _, n := range d.namespaces.Iter() {
+		ns := n.Value()
+		nsBootstrapStates[ns.ID().String()] = ns.BootstrapState()
+	}
+	d.RUnlock()
+
+	return DatabaseBootstrapState{
+		NamespaceBootstrapStates: nsBootstrapStates,
+	}
+}
+
 func (d *db) namespaceFor(namespace ident.ID) (databaseNamespace, error) {
 	d.RLock()
 	n, exists := d.namespaces.Get(namespace)

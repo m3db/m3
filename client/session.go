@@ -1124,24 +1124,24 @@ func (s *session) fetchTaggedAttempt(
 
 func (s *session) FetchTaggedIDs(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (index.QueryResults, error) {
+) (TaggedIDsIterator, bool, error) {
 	f := s.pools.fetchTaggedAttempt.Get()
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
 	err := s.fetchRetrier.Attempt(f.idsAttemptFn)
-	result := f.idsResult
+	iter, exhaustive := f.idsResultIter, f.idsResultExhaustive
 	s.pools.fetchTaggedAttempt.Put(f)
-	return result, err
+	return iter, exhaustive, err
 }
 
 func (s *session) fetchTaggedIDsAttempt(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (index.QueryResults, error) {
+) (TaggedIDsIterator, bool, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
-		return index.QueryResults{}, errSessionStatusNotOpen
+		return nil, false, errSessionStatusNotOpen
 	}
 
 	const fetchData = false
@@ -1149,7 +1149,7 @@ func (s *session) fetchTaggedIDsAttempt(
 	s.state.RUnlock()
 
 	if err != nil {
-		return index.QueryResults{}, err
+		return nil, false, err
 	}
 
 	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
@@ -1159,13 +1159,13 @@ func (s *session) fetchTaggedIDsAttempt(
 	// must Unlock before calling `asIndexQueryResults` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	results, err := fetchState.asIndexQueryResults(s.pools)
+	iter, exhaustive, err := fetchState.asTaggedIDsIterator(s.pools)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
 	fetchState.decRef()
 
-	return results, err
+	return iter, exhaustive, err
 }
 
 // NB(prateek): the returned fetchState, if valid, still holds the lock. Its ownership

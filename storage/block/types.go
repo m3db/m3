@@ -146,7 +146,7 @@ type DatabaseBlock interface {
 	Len() int
 
 	// Checksum returns the block checksum.
-	Checksum() uint32
+	Checksum() (uint32, error)
 
 	// Stream returns the encoded byte stream.
 	Stream(blocker context.Context) (xio.SegmentReader, error)
@@ -155,7 +155,7 @@ type DatabaseBlock interface {
 	// when this block is read. Note: calling this twice
 	// will simply overwrite the target for the block to merge with
 	// rather than merging three blocks together.
-	Merge(other DatabaseBlock)
+	Merge(other DatabaseBlock) error
 
 	// IsRetrieved returns whether the block is already retrieved. Only
 	// meaningful in the context of the CacheAllMetadata series caching policy.

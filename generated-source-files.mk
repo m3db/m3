@@ -33,7 +33,8 @@ genny-map-all:                         \
 	genny-map-storage-bootstrap-result   \
 	genny-map-storage                    \
 	genny-map-storage-namespace-metadata \
-	genny-map-storage-repair
+	genny-map-storage-repair             \
+	genny-map-storage-index-results
 
 # Map generation rule for client/receivedBlocksMap
 .PHONY: genny-map-client-received-blocks
@@ -126,6 +127,19 @@ genny-map-storage-repair: install-m3x-repo
 		value_type=ReplicaSeriesBlocksMetadata        \
 		target_package=$(m3db_package)/storage/repair
 
+# Map generation rule for storage/index/ResultsMap
+.PHONY: genny-map-storage-index-results
+genny-map-storage-index-results: install-m3x-repo
+	cd $(m3x_package_path) && make hashmap-gen     \
+		pkg=index                                    \
+		key_type=ident.ID                            \
+		value_type=ident.Tags                        \
+		target_package=$(m3db_package)/storage/index \
+		rename_nogen_types=forsure                   \
+		rename_type_prefix=Results
+	# Rename generated map file
+	mv -f $(m3db_package_path)/storage/index/map_gen.go $(m3db_package_path)/storage/index/results_map_gen.go
+
 # generation rule for all generated arraypools
 .PHONY: genny-arraypool-all
 genny-arraypool-all: genny-arraypool-node-segments
@@ -141,6 +155,18 @@ genny-arraypool-node-segments: install-m3x-repo
 	rename_type_prefix=segments                                       \
 	rename_type_middle=Segments                                       \
 	rename_constructor=newSegmentsArrayPool
+
+# arraypool generation rule for ./storage/index/tagArrayPool
+.PHONY: genny-arraypool-storage-index-tag
+genny-arraypool-storage-index-tag: install-m3x-repo
+	cd $(m3x_package_path) && make genny-arraypool \
+	pkg=index                                      \
+	elem_type=ident.Tag                            \
+	target_package=$(m3db_package)/storage/index   \
+	out_file=tag_arraypool_gen.go                  \
+	rename_type_prefix=Tag                         \
+	rename_type_middle=Tag                         \
+	rename_constructor=NewTagArrayPool
 
 # generation rule for all generated leakcheckpools
 .PHONY: genny-leakcheckpool-all

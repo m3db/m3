@@ -210,11 +210,12 @@ func (mr *MockSessionMockRecorder) FetchTagged(namespace, q, opts interface{}) *
 }
 
 // FetchTaggedIDs mocks base method
-func (m *MockSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+func (m *MockSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (TaggedIDsIterator, bool, error) {
 	ret := m.ctrl.Call(m, "FetchTaggedIDs", namespace, q, opts)
-	ret0, _ := ret[0].(index.QueryResults)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(TaggedIDsIterator)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // FetchTaggedIDs indicates an expected call of FetchTaggedIDs
@@ -245,6 +246,77 @@ func (m *MockSession) Close() error {
 // Close indicates an expected call of Close
 func (mr *MockSessionMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSession)(nil).Close))
+}
+
+// MockTaggedIDsIterator is a mock of TaggedIDsIterator interface
+type MockTaggedIDsIterator struct {
+	ctrl     *gomock.Controller
+	recorder *MockTaggedIDsIteratorMockRecorder
+}
+
+// MockTaggedIDsIteratorMockRecorder is the mock recorder for MockTaggedIDsIterator
+type MockTaggedIDsIteratorMockRecorder struct {
+	mock *MockTaggedIDsIterator
+}
+
+// NewMockTaggedIDsIterator creates a new mock instance
+func NewMockTaggedIDsIterator(ctrl *gomock.Controller) *MockTaggedIDsIterator {
+	mock := &MockTaggedIDsIterator{ctrl: ctrl}
+	mock.recorder = &MockTaggedIDsIteratorMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockTaggedIDsIterator) EXPECT() *MockTaggedIDsIteratorMockRecorder {
+	return m.recorder
+}
+
+// Next mocks base method
+func (m *MockTaggedIDsIterator) Next() bool {
+	ret := m.ctrl.Call(m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Next indicates an expected call of Next
+func (mr *MockTaggedIDsIteratorMockRecorder) Next() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockTaggedIDsIterator)(nil).Next))
+}
+
+// Current mocks base method
+func (m *MockTaggedIDsIterator) Current() (ident.ID, ident.ID, ident.TagIterator) {
+	ret := m.ctrl.Call(m, "Current")
+	ret0, _ := ret[0].(ident.ID)
+	ret1, _ := ret[1].(ident.ID)
+	ret2, _ := ret[2].(ident.TagIterator)
+	return ret0, ret1, ret2
+}
+
+// Current indicates an expected call of Current
+func (mr *MockTaggedIDsIteratorMockRecorder) Current() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockTaggedIDsIterator)(nil).Current))
+}
+
+// Err mocks base method
+func (m *MockTaggedIDsIterator) Err() error {
+	ret := m.ctrl.Call(m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Err indicates an expected call of Err
+func (mr *MockTaggedIDsIteratorMockRecorder) Err() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockTaggedIDsIterator)(nil).Err))
+}
+
+// Finalize mocks base method
+func (m *MockTaggedIDsIterator) Finalize() {
+	m.ctrl.Call(m, "Finalize")
+}
+
+// Finalize indicates an expected call of Finalize
+func (mr *MockTaggedIDsIteratorMockRecorder) Finalize() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Finalize", reflect.TypeOf((*MockTaggedIDsIterator)(nil).Finalize))
 }
 
 // MockAdminClient is a mock of AdminClient interface
@@ -555,11 +627,12 @@ func (mr *MockAdminSessionMockRecorder) FetchTagged(namespace, q, opts interface
 }
 
 // FetchTaggedIDs mocks base method
-func (m *MockAdminSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+func (m *MockAdminSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (TaggedIDsIterator, bool, error) {
 	ret := m.ctrl.Call(m, "FetchTaggedIDs", namespace, q, opts)
-	ret0, _ := ret[0].(index.QueryResults)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(TaggedIDsIterator)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // FetchTaggedIDs indicates an expected call of FetchTaggedIDs
@@ -3010,11 +3083,12 @@ func (mr *MockclientSessionMockRecorder) FetchTagged(namespace, q, opts interfac
 }
 
 // FetchTaggedIDs mocks base method
-func (m *MockclientSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+func (m *MockclientSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (TaggedIDsIterator, bool, error) {
 	ret := m.ctrl.Call(m, "FetchTaggedIDs", namespace, q, opts)
-	ret0, _ := ret[0].(index.QueryResults)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(TaggedIDsIterator)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // FetchTaggedIDs indicates an expected call of FetchTaggedIDs

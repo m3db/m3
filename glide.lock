@@ -189,7 +189,7 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3ninx
-  version: 76d721aadbfcffcd1782c31c976467f53c82f30a
+  version: ec549cce11a6dbe4046dd96ac76df015e8d34f79
   subpackages:
   - doc
   - idx
@@ -207,7 +207,7 @@ imports:
   - search/query
   - search/searcher
 - name: github.com/m3db/m3x
-  version: 65607134244391c697a9d6c971fbdb8256132f03
+  version: 04f23ee000fdef43b2260cf99dd751e8b9cd3dca
   vcs: git
   subpackages:
   - checked

@@ -63,10 +63,11 @@ func (m *MockDatabaseSeries) EXPECT() *MockDatabaseSeriesMockRecorder {
 }
 
 // Bootstrap mocks base method
-func (m *MockDatabaseSeries) Bootstrap(arg0 block.DatabaseSeriesBlocks) error {
+func (m *MockDatabaseSeries) Bootstrap(arg0 block.DatabaseSeriesBlocks) (BootstrapResult, error) {
 	ret := m.ctrl.Call(m, "Bootstrap", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(BootstrapResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Bootstrap indicates an expected call of Bootstrap
@@ -98,10 +99,11 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocks(arg0, arg1 interface{}) *g
 }
 
 // FetchBlocksMetadata mocks base method
-func (m *MockDatabaseSeries) FetchBlocksMetadata(arg0 context.Context, arg1, arg2 time.Time, arg3 FetchBlocksMetadataOptions) block.FetchBlocksMetadataResult {
+func (m *MockDatabaseSeries) FetchBlocksMetadata(arg0 context.Context, arg1, arg2 time.Time, arg3 FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResult, error) {
 	ret := m.ctrl.Call(m, "FetchBlocksMetadata", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResult)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // FetchBlocksMetadata indicates an expected call of FetchBlocksMetadata
@@ -110,10 +112,11 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksMetadata(arg0, arg1, arg2, 
 }
 
 // Flush mocks base method
-func (m *MockDatabaseSeries) Flush(arg0 context.Context, arg1 time.Time, arg2 persist.Fn) error {
+func (m *MockDatabaseSeries) Flush(arg0 context.Context, arg1 time.Time, arg2 persist.Fn) (FlushOutcome, error) {
 	ret := m.ctrl.Call(m, "Flush", arg0, arg1, arg2)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(FlushOutcome)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Flush indicates an expected call of Flush

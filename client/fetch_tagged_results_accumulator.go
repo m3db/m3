@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/topology"
 	xerrors "github.com/m3db/m3x/errors"
 )
@@ -274,12 +273,12 @@ func (accum *fetchTaggedResultAccumulator) AsEncodingSeriesIterators(
 	return result, exhaustive, nil
 }
 
-func (accum *fetchTaggedResultAccumulator) AsIndexQueryResults(
+func (accum *fetchTaggedResultAccumulator) AsTaggedIDsIterator(
 	limit int,
 	pools fetchTaggedPools,
-) (index.QueryResults, error) {
+) (TaggedIDsIterator, bool, error) {
 	var (
-		iter      = newFetchTaggedResultsIndexIterator(pools)
+		iter      = newTaggedIDsIterator(pools)
 		count     = 0
 		moreElems = false
 	)
@@ -293,10 +292,8 @@ func (accum *fetchTaggedResultAccumulator) AsIndexQueryResults(
 		return count < limit
 	})
 
-	return index.QueryResults{
-		Exhaustive: accum.exhaustive && count <= limit && !moreElems,
-		Iterator:   iter,
-	}, nil
+	exhaustive := accum.exhaustive && count <= limit && !moreElems
+	return iter, exhaustive, nil
 }
 
 type fetchTaggedShardConsistencyResults []fetchTaggedShardConsistencyResult

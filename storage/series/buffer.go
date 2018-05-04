@@ -30,18 +30,17 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/storage/block"
+	m3dberrors "github.com/m3db/m3db/storage/errors"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/context"
-	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 )
 
 var (
-	errTooFuture                   = errors.New("datapoint is too far in the future")
-	errTooPast                     = errors.New("datapoint is too far in the past")
 	errMoreThanOneStreamAfterMerge = errors.New("buffer has more than one stream after merge")
+	errNoAvailableBuckets          = errors.New("[invariant violated] buffer has no available buckets")
 	timeZero                       time.Time
 )
 
@@ -92,7 +91,10 @@ type databaseBuffer interface {
 
 	Stats() bufferStats
 
-	MinMax() (time.Time, time.Time)
+	// MinMax returns the minimum and maximum blockstarts for the buckets
+	// that are contained within the buffer. These ranges exclude buckets
+	// that have already been drained (as those buckets are no longer in use.)
+	MinMax() (time.Time, time.Time, error)
 
 	Tick() bufferTickResult
 
@@ -157,17 +159,22 @@ func bucketResetStart(now time.Time, b *dbBuffer, idx int, start time.Time) int 
 	return 1
 }
 
-func (b *dbBuffer) MinMax() (time.Time, time.Time) {
+func (b *dbBuffer) MinMax() (time.Time, time.Time, error) {
 	var min, max time.Time
 	for i := range b.buckets {
-		if min.IsZero() || b.buckets[i].start.Before(min) {
+		if (min.IsZero() || b.buckets[i].start.Before(min)) && !b.buckets[i].drained {
 			min = b.buckets[i].start
 		}
-		if max.IsZero() || b.buckets[i].start.After(max) {
+		if max.IsZero() || b.buckets[i].start.After(max) && !b.buckets[i].drained {
 			max = b.buckets[i].start
 		}
 	}
-	return min, max
+
+	if min.IsZero() || max.IsZero() {
+		// Should never happen
+		return time.Time{}, time.Time{}, errNoAvailableBuckets
+	}
+	return min, max, nil
 }
 
 func (b *dbBuffer) Write(
@@ -181,10 +188,10 @@ func (b *dbBuffer) Write(
 	futureLimit := now.Add(1 * b.bufferFuture)
 	pastLimit := now.Add(-1 * b.bufferPast)
 	if !futureLimit.After(timestamp) {
-		return xerrors.NewInvalidParamsError(errTooFuture)
+		return m3dberrors.ErrTooFuture
 	}
 	if !pastLimit.Before(timestamp) {
-		return xerrors.NewInvalidParamsError(errTooPast)
+		return m3dberrors.ErrTooPast
 	}
 
 	bucketStart := timestamp.Truncate(b.blockSize)
@@ -311,6 +318,12 @@ func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) error {
 	bootstrapped := false
 	for i := range b.buckets {
 		if b.buckets[i].start.Equal(blockStart) {
+			if b.buckets[i].drained {
+				return fmt.Errorf(
+					"block at %s cannot be bootstrapped by buffer because its already drained",
+					blockStart.String(),
+				)
+			}
 			b.buckets[i].bootstrap(bl)
 			bootstrapped = true
 			break

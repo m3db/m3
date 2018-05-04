@@ -387,7 +387,14 @@ func (s *peersSource) incrementalFlush(
 				break
 			}
 
-			err = prepared.Persist(s.ID, segment, bl.Checksum())
+			checksum, err := bl.Checksum()
+			if err != nil {
+				tmpCtx.BlockingClose()
+				blockErr = err
+				break
+			}
+
+			err = prepared.Persist(s.ID, segment, checksum)
 			tmpCtx.BlockingClose()
 			if err != nil {
 				blockErr = err // Need to call prepared.Close, avoid return
@@ -407,7 +414,7 @@ func (s *peersSource) incrementalFlush(
 				metadata := block.RetrievableBlockMetadata{
 					ID:       s.ID,
 					Length:   bl.Len(),
-					Checksum: bl.Checksum(),
+					Checksum: checksum,
 				}
 				bl.ResetRetrievable(start, shardRetriever, metadata)
 			default:
