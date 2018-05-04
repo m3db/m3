@@ -21,7 +21,6 @@
 package client
 
 import (
-	"bytes"
 	"fmt"
 	"testing"
 	"time"
@@ -32,7 +31,6 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	"github.com/m3db/m3db/serialize"
-	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/topology/testutil"
 	"github.com/m3db/m3db/ts"
@@ -293,34 +291,6 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 	// ensure iters are valid after the lifecycle of the accumulator
 	accum.Clear()
 	sg0.assertMatchesEncodingIters(t, iters)
-}
-
-// debugIter is useful for tests, leaving in for now.
-// nolint
-type debugIter struct {
-	index.Iterator
-}
-
-// nolint
-func (d debugIter) String() string {
-	iter := d.Iterator
-	var buffer bytes.Buffer
-	for iter.Next() {
-		ns, id, tags := iter.Current()
-		buffer.WriteString(fmt.Sprintf("ns: %v\n", ns.String()))
-		buffer.WriteString(fmt.Sprintf("id: %v\n", id.String()))
-		for tags.Next() {
-			t := tags.Current()
-			buffer.WriteString(fmt.Sprintf("tag: [ name = %v, value = %v ]\n", t.Name.String(), t.Value.String()))
-		}
-		if err := tags.Err(); err != nil {
-			buffer.WriteString(fmt.Sprintf("tag-err: %v\n", err))
-		}
-	}
-	if err := iter.Err(); err != nil {
-		buffer.WriteString(fmt.Sprintf("err: %v\n", err))
-	}
-	return buffer.String()
 }
 
 type testFetchTaggedWorkflow struct {

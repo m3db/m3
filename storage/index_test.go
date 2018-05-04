@@ -238,16 +238,13 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.True(t, res.Exhaustive)
-	iter := res.Iterator
-	assert.True(t, iter.Next())
-
-	cNs, cID, cTags := iter.Current()
-	assert.Equal(t, "foo", cID.String())
-	assert.Equal(t, defaultTestNs1ID.String(), cNs.String())
+	results := res.Results
+	assert.Equal(t, "testns1", results.Namespace().String())
+	tags, ok := results.Map().Get(ident.StringID("foo"))
+	assert.True(t, ok)
 	assert.True(t, ident.NewTagIterMatcher(
-		ident.MustNewTagStringsIterator("name", "value")).Matches(cTags))
-	assert.False(t, iter.Next())
-	assert.Nil(t, iter.Err())
+		ident.MustNewTagStringsIterator("name", "value")).Matches(
+		ident.NewTagSliceIterator(tags)))
 }
 
 func TestNamespaceIndexBatchInsertPartialError(t *testing.T) {
