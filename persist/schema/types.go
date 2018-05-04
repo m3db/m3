@@ -78,8 +78,8 @@ type LogInfo struct {
 
 // LogEntry stores per-entry data in a commit log
 type LogEntry struct {
-	Create     int64
 	Index      uint64
+	Create     int64
 	Metadata   []byte
 	Timestamp  int64
 	Value      float64
