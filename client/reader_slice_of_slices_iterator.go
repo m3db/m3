@@ -55,7 +55,7 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 	}
 	it.idx++
 
-	// Extend segment readers if not enough available
+	// Extend block readers if not enough available
 	currLen, start, end := it.Current()
 	if len(it.blockReaders) < currLen {
 		diff := currLen - len(it.blockReaders)

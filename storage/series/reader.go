@@ -125,7 +125,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 				if err != nil {
 					return nil, err
 				}
-				if !streamedBlock.IsEmpty() {
+				if streamedBlock.IsNotEmpty() {
 					results = append(results, []xio.BlockReader{streamedBlock})
 					// NB(r): Mark this block as read now
 					block.SetLastReadTime(now)
@@ -149,7 +149,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 				if err != nil {
 					return nil, err
 				}
-				if !streamedBlock.IsEmpty() {
+				if streamedBlock.IsNotEmpty() {
 					results = append(results, []xio.BlockReader{streamedBlock})
 				}
 			}
@@ -202,7 +202,7 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 							r.id.String(), start, err))
 					res = append(res, r)
 				}
-				if !streamedBlock.IsEmpty() {
+				if streamedBlock.IsNotEmpty() {
 					b := []xio.BlockReader{streamedBlock}
 					r := block.NewFetchBlockResult(start, b, nil)
 					res = append(res, r)
@@ -227,7 +227,7 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 							r.id.String(), start, err))
 					res = append(res, r)
 				}
-				if !streamedBlock.IsEmpty() {
+				if streamedBlock.IsNotEmpty() {
 					b := []xio.BlockReader{streamedBlock}
 					r := block.NewFetchBlockResult(start, b, nil)
 					res = append(res, r)

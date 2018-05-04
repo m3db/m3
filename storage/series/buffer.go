@@ -623,7 +623,7 @@ func (b *dbBufferBucket) streams(ctx context.Context) []xio.BlockReader {
 		if b.bootstrapped[i].Len() == 0 {
 			continue
 		}
-		if s, err := b.bootstrapped[i].Stream(ctx); err == nil && !s.IsEmpty() {
+		if s, err := b.bootstrapped[i].Stream(ctx); err == nil && s.IsNotEmpty() {
 			// NB(r): block stream method will register the stream closer already
 			streams = append(streams, s)
 		}

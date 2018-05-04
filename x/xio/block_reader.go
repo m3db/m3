@@ -44,6 +44,11 @@ func (b BlockReader) IsEmpty() bool {
 	return b.Start.Equal(timeZero) && b.End.Equal(timeZero) && b.SegmentReader == nil
 }
 
+// IsNotEmpty returns false for the empty block
+func (b BlockReader) IsNotEmpty() bool {
+	return !b.IsEmpty()
+}
+
 // ResetWindowed resets the underlying reader window, as well as start and end times for the block
 func (b *BlockReader) ResetWindowed(segment ts.Segment, start, end time.Time) {
 	b.Reset(segment)

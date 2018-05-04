@@ -344,7 +344,6 @@ func (s *dbShard) Stream(
 	blockEnd time.Time,
 	onRetrieve block.OnRetrieveBlock,
 ) (xio.BlockReader, error) {
-	fmt.Println(id, blockStart, blockEnd)
 	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, blockEnd, onRetrieve)
 }
 

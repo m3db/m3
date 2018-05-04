@@ -179,10 +179,27 @@ func TestBlockIsEmpty(t *testing.T) {
 		End: end,
 	}.IsEmpty())
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	reader := NewMockSegmentReader(ctrl)
+	block, reader := buildBlock(t)
 	assert.False(t, BlockReader{
 		SegmentReader: reader,
 	}.IsEmpty())
+	assert.False(t, block.IsEmpty())
+}
+
+func TestBlockIsNotEmpty(t *testing.T) {
+	assert.False(t, EmptyBlockReader.IsNotEmpty())
+	assert.False(t, BlockReader{}.IsNotEmpty())
+
+	assert.True(t, BlockReader{
+		Start: start,
+	}.IsNotEmpty())
+	assert.True(t, BlockReader{
+		End: end,
+	}.IsNotEmpty())
+
+	block, reader := buildBlock(t)
+	assert.True(t, BlockReader{
+		SegmentReader: reader,
+	}.IsNotEmpty())
+	assert.True(t, block.IsNotEmpty())
 }

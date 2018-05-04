@@ -66,7 +66,7 @@ func newDatabaseMergedBlockReader(
 
 func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 	r.RLock()
-	if !r.merged.IsEmpty() || r.err != nil {
+	if r.merged.IsNotEmpty() || r.err != nil {
 		r.RUnlock()
 		return r.merged, r.err
 	}
@@ -75,7 +75,7 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 	r.Lock()
 	defer r.Unlock()
 
-	if !r.merged.IsEmpty() || r.err != nil {
+	if r.merged.IsNotEmpty() || r.err != nil {
 		return r.merged, r.err
 	}
 
@@ -194,7 +194,7 @@ func (r *dbMergedBlockReader) Finalize() {
 		}
 	}
 
-	if !r.merged.IsEmpty() {
+	if r.merged.IsNotEmpty() {
 		r.merged.Finalize()
 	}
 	r.merged = xio.EmptyBlockReader
