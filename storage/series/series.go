@@ -128,6 +128,7 @@ func (s *dbSeries) Tick() (TickResult, error) {
 
 	update, err := s.updateBlocksWithLock()
 	if err != nil {
+		s.Unlock()
 		return r, err
 	}
 	r.TickStatus = update.TickStatus
