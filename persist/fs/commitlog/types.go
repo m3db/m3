@@ -183,6 +183,18 @@ type Options interface {
 
 	// TagEncoderPool returns the TagEncoderPool to use for retrieving TagEncoders.
 	TagEncoderPool() serialize.TagEncoderPool
+
+	// SetTagDecoderPool sets the TagDecoderPool to use for retrieving TagEncoders.
+	SetTagDecoderPool(value serialize.TagDecoderPool) Options
+
+	// TagDecoderPool returns the TagDecoderPool to use for retrieving TagEncoders.
+	TagDecoderPool() serialize.TagDecoderPool
+
+	// SetIdentifierPool sets the IdentifierPool to use for pooling identifiers.
+	SetIdentifierPool(value ident.Pool) Options
+
+	// IdentifierPool returns the IdentifierPool to use for pooling identifiers.
+	IdentifierPool() ident.Pool
 }
 
 // FileFilterPredicate is a predicate that allows the caller to determine

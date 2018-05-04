@@ -318,7 +318,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 		// If the log entry has associated metadata, decode that as well
 		if len(entry.Metadata) != 0 {
-			err := r.decodeAndHandleMetadata(metadataLookup, metadataDecoder, metadataDecoderStream, entry)
+			err := r.decodeAndHandleMetadata(
+				metadataLookup, metadataDecoder, metadataDecoderStream, entry)
 			if err != nil {
 				r.handleDecoderLoopIterationEnd(arg, outBuf, response, err)
 				continue
@@ -394,7 +395,6 @@ func (r *reader) decodeAndHandleMetadata(
 	if ok {
 		// If the metadata already exists, we can skip this step
 		return nil
-
 	}
 
 	id := r.checkedBytesPool.Get(len(decoded.ID))
@@ -405,12 +405,34 @@ func (r *reader) decodeAndHandleMetadata(
 	namespace.IncRef()
 	namespace.AppendAll(decoded.Namespace)
 
+	tagsBytes := r.checkedBytesPool.Get(len(decoded.Tags))
+	tagsBytes.IncRef()
+	tagsBytes.AppendAll(decoded.Tags)
+	tagsBytes.DecRef()
+	tagDecoder := r.opts.TagDecoderPool().Get()
+	tagDecoder.Reset(tagsBytes)
+
+	// TODO: Pool this
+	tags := make(ident.Tags, 0, tagDecoder.Remaining())
+	for tagDecoder.Next() {
+		curr := tagDecoder.Current()
+		clone := r.opts.IdentifierPool().CloneTag(curr)
+		tags = append(tags, clone)
+	}
+	err = tagDecoder.Err()
+	if err != nil {
+		return err
+	}
+
+	tagDecoder.Close()
 	metadata := Series{
 		UniqueIndex: entry.Index,
 		ID:          ident.BinaryID(id),
 		Namespace:   ident.BinaryID(namespace),
 		Shard:       decoded.Shard,
+		Tags:        tags,
 	}
+
 	metadataLookup[entry.Index] = seriesMetadata{
 		Series:          metadata,
 		passedPredicate: r.seriesPredicate(metadata.ID, metadata.Namespace),

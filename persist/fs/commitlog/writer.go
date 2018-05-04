@@ -183,7 +183,6 @@ func (w *writer) Write(
 		// TODO: What is second argument for?
 		encodedTags, _ := w.tagEncoder.Data()
 
-		// w.tagEncoder.Encode
 		// If "idx" likely hasn't been written to commit log
 		// yet we need to include series metadata
 		var metadata schema.LogMetadata
