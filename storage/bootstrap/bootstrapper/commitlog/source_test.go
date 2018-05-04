@@ -94,8 +94,9 @@ func TestReadEmpty(t *testing.T) {
 
 	res, err := src.ReadData(testNsMetadata(t), result.ShardTimeRanges{},
 		testDefaultRunOpts)
-	require.Nil(t, res)
-	require.Nil(t, err)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(res.ShardResults()))
+	require.True(t, res.Unfulfilled().IsEmpty())
 }
 
 func TestReadErrorOnNewIteratorError(t *testing.T) {
@@ -111,7 +112,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 		Start: time.Now(),
 		End:   time.Now().Add(time.Hour),
 	})
-	res, err := src.Read(testNsMetadata(t), result.ShardTimeRanges{0: ranges},
+	res, err := src.ReadData(testNsMetadata(t), result.ShardTimeRanges{0: ranges},
 		testDefaultRunOpts)
 	require.Error(t, err)
 	require.Nil(t, res)
@@ -153,7 +154,7 @@ func TestReadOrderedValues(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(md, targetRanges, testDefaultRunOpts)
+	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
@@ -197,7 +198,7 @@ func TestReadNamespaceFiltering(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(md, targetRanges, testDefaultRunOpts)
+	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
@@ -238,7 +239,7 @@ func TestReadUnorderedValues(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(md, targetRanges, testDefaultRunOpts)
+	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
@@ -278,7 +279,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(md, targetRanges, testDefaultRunOpts)
+	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))

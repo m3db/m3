@@ -265,7 +265,8 @@ func TestReadEmptyRangeErr(t *testing.T) {
 	src := newFileSystemSource(newTestOptions("foo"))
 	res, err := src.ReadData(testNsMetadata(t), nil, testDefaultRunOpts)
 	require.NoError(t, err)
-	require.Nil(t, res)
+	require.Equal(t, 0, len(res.ShardResults()))
+	require.True(t, res.Unfulfilled().IsEmpty())
 }
 
 func TestReadPatternError(t *testing.T) {
@@ -274,7 +275,8 @@ func TestReadPatternError(t *testing.T) {
 		map[uint32]xtime.Ranges{testShard: xtime.Ranges{}},
 		testDefaultRunOpts)
 	require.NoError(t, err)
-	require.Nil(t, res)
+	require.Equal(t, 0, len(res.ShardResults()))
+	require.True(t, res.Unfulfilled().IsEmpty())
 }
 
 func TestReadNilTimeRanges(t *testing.T) {
@@ -446,7 +448,7 @@ func TestReadValidateError(t *testing.T) {
 	reader.EXPECT().Validate().Return(errors.New("foo"))
 	reader.EXPECT().Close().Return(nil)
 
-	res, err := src.Read(testNsMetadata(t), testShardTimeRanges(),
+	res, err := src.ReadData(testNsMetadata(t), testShardTimeRanges(),
 		testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
@@ -490,7 +492,7 @@ func TestReadOpenError(t *testing.T) {
 		Open(rOpts).
 		Return(errors.New("error"))
 
-	res, err := src.Read(testNsMetadata(t), testShardTimeRanges(),
+	res, err := src.ReadData(testNsMetadata(t), testShardTimeRanges(),
 		testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
@@ -556,7 +558,7 @@ func TestReadDeleteOnError(t *testing.T) {
 		reader.EXPECT().Close().Return(nil),
 	)
 
-	res, err := src.Read(testNsMetadata(t), testShardTimeRanges(),
+	res, err := src.ReadData(testNsMetadata(t), testShardTimeRanges(),
 		testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)

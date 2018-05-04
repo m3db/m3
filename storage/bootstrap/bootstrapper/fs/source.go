@@ -463,14 +463,15 @@ func (s *fileSystemSource) ReadData(
 	shardsTimeRanges result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
-	nsID := md.ID()
-
 	if shardsTimeRanges.IsEmpty() {
-		return nil, nil
+		return result.NewDataBootstrapResult(), nil
 	}
 
-	var blockRetriever block.DatabaseBlockRetriever
-	blockRetrieverMgr := s.opts.DatabaseBlockRetrieverManager()
+	var (
+		nsID              = md.ID()
+		blockRetrieverMgr = s.opts.DatabaseBlockRetrieverManager()
+		blockRetriever    block.DatabaseBlockRetriever
+	)
 	if blockRetrieverMgr != nil {
 		s.log.WithFields(
 			xlog.NewField("namespace", nsID.String()),
@@ -506,7 +507,7 @@ func (s *fileSystemSource) ReadData(
 		if blockRetriever == nil {
 			return nil, fmt.Errorf(
 				"missing block retriever when using series cache metadata for namespace: %s",
-				md.ID().String())
+				nsID.String())
 		}
 	default:
 		// Unless we're caching all series (or all series metadata) in memory, we

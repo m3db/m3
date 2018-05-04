@@ -86,7 +86,7 @@ func (s *commitLogSource) ReadData(
 	_ bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
-		return nil, nil
+		return result.NewDataBootstrapResult(), nil
 	}
 
 	readCommitLogPredicate := newReadCommitLogPredicate(ns, shardsTimeRanges, s.opts)
