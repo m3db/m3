@@ -62,10 +62,10 @@ type newExecutorFn func() (search.Executor, error)
 
 type block struct {
 	sync.RWMutex
-	state blockState
-
+	state                blockState
 	bootstrappedSegments []segment.Segment
 	segment              segment.MutableSegment
+	writeBatch           m3ninxindex.Batch
 
 	newExecutorFn newExecutorFn
 	startTime     time.Time
@@ -91,6 +91,9 @@ func NewBlock(
 	b := &block{
 		state:   blockStateOpen,
 		segment: seg,
+		writeBatch: m3ninxindex.Batch{
+			AllowPartialUpdates: true,
+		},
 
 		startTime: startTime,
 		endTime:   startTime.Add(blockSize),
@@ -110,9 +113,27 @@ func (b *block) EndTime() time.Time {
 	return b.endTime
 }
 
+func (b *block) updateWriteBatchWithLock(inserts []WriteBatchEntry) {
+	for _, insert := range inserts {
+		b.writeBatch.Docs = append(b.writeBatch.Docs, insert.Document)
+	}
+}
+
+func (b *block) resetWriteBatchWithLock() {
+	var emptyDoc doc.Document
+	for i := range b.writeBatch.Docs {
+		b.writeBatch.Docs[i] = emptyDoc
+	}
+	b.writeBatch.Docs = b.writeBatch.Docs[:0]
+}
+
 func (b *block) WriteBatch(inserts []WriteBatchEntry) (WriteBatchResult, error) {
-	b.RLock()
-	defer b.RUnlock()
+	b.Lock()
+	defer func() {
+		b.resetWriteBatchWithLock()
+		b.Unlock()
+	}()
+
 	if b.state != blockStateOpen {
 		// NB: releasing all references to inserts
 		for _, insert := range inserts {
@@ -123,21 +144,12 @@ func (b *block) WriteBatch(inserts []WriteBatchEntry) (WriteBatchResult, error) 
 		}, writeBatchErrorInvalidState(b.state)
 	}
 
-	// FOLLOWUP(prateek): docs array pooling
-	batch := m3ninxindex.Batch{
-		Docs:                make([]doc.Document, 0, len(inserts)),
-		AllowPartialUpdates: true,
-	}
-	for _, insert := range inserts {
-		batch.Docs = append(batch.Docs, insert.Document)
-	}
-
-	err := b.segment.InsertBatch(batch)
+	b.updateWriteBatchWithLock(inserts)
+	err := b.segment.InsertBatch(b.writeBatch)
 	if err == nil {
-		for idx, insert := range inserts {
+		for _, insert := range inserts {
 			insert.OnIndexSeries.OnIndexSuccess(b.endTime)
 			insert.OnIndexSeries.OnIndexFinalize()
-			batch.Docs[idx] = doc.Document{}
 		}
 		return WriteBatchResult{
 			NumSuccess: int64(len(inserts)),
@@ -193,7 +205,7 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 		success = false
 	)
 
-	// cleanup in case shit breaks
+	// cleanup in case any of the readers below fail.
 	defer func() {
 		if !success {
 			for _, reader := range readers {
