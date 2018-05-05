@@ -57,11 +57,12 @@ func (m *MockResults) EXPECT() *MockResultsMockRecorder {
 }
 
 // Add mocks base method
-func (m *MockResults) Add(arg0 doc.Document) (bool, error) {
+func (m *MockResults) Add(arg0 doc.Document) (bool, int, error) {
 	ret := m.ctrl.Call(m, "Add", arg0)
 	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // Add indicates an expected call of Add
@@ -111,4 +112,16 @@ func (m *MockResults) Reset(arg0 ident.ID) {
 // Reset indicates an expected call of Reset
 func (mr *MockResultsMockRecorder) Reset(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockResults)(nil).Reset), arg0)
+}
+
+// Size mocks base method
+func (m *MockResults) Size() int {
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// Size indicates an expected call of Size
+func (mr *MockResultsMockRecorder) Size() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockResults)(nil).Size))
 }
