@@ -60,6 +60,33 @@ func TestTagSliceIterator(t *testing.T) {
 		"and":   "done",
 	}
 	iter := NewTagSliceIterator(testTags())
+	testTagIteratorValues(t, expected, iter)
+}
+
+func TestTagSliceIteratorReset(t *testing.T) {
+	iter := NewTagSliceIterator(Tags{
+		StringTag("foo", "bar"),
+		StringTag("qux", "qaz"),
+	})
+	testTagIteratorValues(t, map[string]string{
+		"foo": "bar",
+		"qux": "qaz",
+	}, iter)
+	iter.Reset(Tags{
+		StringTag("foo", "bar"),
+		StringTag("baz", "qux"),
+	})
+	testTagIteratorValues(t, map[string]string{
+		"foo": "bar",
+		"baz": "qux",
+	}, iter)
+}
+
+func testTagIteratorValues(
+	t *testing.T,
+	expected map[string]string,
+	iter TagIterator,
+) {
 	require.Equal(t, len(expected), iter.Remaining())
 	for iter.Next() {
 		c := iter.Current()
