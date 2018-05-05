@@ -29,17 +29,17 @@ type noOpBootstrapProcessProvider struct{}
 
 // NewNoOpProcessProvider creates a no-op bootstrap process proivder.
 func NewNoOpProcessProvider() ProcessProvider {
-	return noOpBootstrapProcess{}
+	return noOpBootstrapProcessProvider{}
 }
 
-func (b noOpBootstrapProcess) SetBootstrapperProvider(provider BootstrapperProvider) {
+func (b noOpBootstrapProcessProvider) SetBootstrapperProvider(provider BootstrapperProvider) {
 }
 
-func (b noOpBootstrapProcess) BootstrapperProvider() BootstrapperProvider {
+func (b noOpBootstrapProcessProvider) BootstrapperProvider() BootstrapperProvider {
 	return nil
 }
 
-func (b noOpBootstrapProcess) Provide() Process {
+func (b noOpBootstrapProcessProvider) Provide() Process {
 	return noOpBootstrapProcess{}
 }
 
