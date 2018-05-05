@@ -34,6 +34,9 @@ var (
 
 // Segment is a sub-collection of documents within an index.
 type Segment interface {
+	// Size returns the number of documents within the Segment.
+	Size() int64
+
 	// Reader returns a point-in-time accessor to search the segment.
 	Reader() (index.Reader, error)
 

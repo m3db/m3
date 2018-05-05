@@ -64,9 +64,11 @@ func TestSegmentInsert(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			segment, err := NewSegment(0, NewOptions())
 			require.NoError(t, err)
+			require.Equal(t, int64(0), segment.Size())
 
 			id, err := segment.Insert(test.input)
 			require.NoError(t, err)
+			require.Equal(t, int64(1), segment.Size())
 
 			r, err := segment.Reader()
 			require.NoError(t, err)
@@ -121,9 +123,11 @@ func TestSegmentInsertDuplicateID(t *testing.T) {
 
 	segment, err := NewSegment(0, NewOptions())
 	require.NoError(t, err)
+	require.Equal(t, int64(0), segment.Size())
 
 	_, err = segment.Insert(first)
 	require.NoError(t, err)
+	require.Equal(t, int64(1), segment.Size())
 
 	r, err := segment.Reader()
 	require.NoError(t, err)
@@ -189,9 +193,11 @@ func TestSegmentInsertBatch(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			segment, err := NewSegment(0, NewOptions())
 			require.NoError(t, err)
+			require.Equal(t, int64(0), segment.Size())
 
 			err = segment.InsertBatch(test.input)
 			require.NoError(t, err)
+			require.Equal(t, int64(len(test.input.Docs)), segment.Size())
 
 			r, err := segment.Reader()
 			require.NoError(t, err)
@@ -247,11 +253,13 @@ func TestSegmentInsertBatchError(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			segment, err := NewSegment(0, NewOptions())
+			require.Equal(t, int64(0), segment.Size())
 			require.NoError(t, err)
 
 			err = segment.InsertBatch(test.input)
 			require.Error(t, err)
 			require.False(t, index.IsBatchPartialError(err))
+			require.Equal(t, int64(0), segment.Size())
 		})
 	}
 }
@@ -334,10 +342,12 @@ func TestSegmentInsertBatchPartialError(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			segment, err := NewSegment(0, NewOptions())
 			require.NoError(t, err)
+			require.Equal(t, int64(0), segment.Size())
 
 			err = segment.InsertBatch(test.input)
 			require.Error(t, err)
 			require.True(t, index.IsBatchPartialError(err))
+			require.Equal(t, int64(1), segment.Size())
 
 			batchErr := err.(*index.BatchPartialError)
 			idxs := batchErr.Indices()
