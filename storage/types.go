@@ -287,7 +287,7 @@ type databaseNamespace interface {
 	) (block.FetchBlocksMetadataResults, PageToken, error)
 
 	// Bootstrap performs bootstrapping
-	Bootstrap(process bootstrap.Process) error
+	Bootstrap(start time.Time, process bootstrap.Process) error
 
 	// Flush flushes in-memory data
 	Flush(

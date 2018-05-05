@@ -26,6 +26,7 @@ package bootstrap
 
 import (
 	"reflect"
+	"time"
 
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
@@ -114,16 +115,16 @@ func (m *MockProcess) EXPECT() *MockProcessMockRecorder {
 }
 
 // Run mocks base method
-func (m *MockProcess) Run(ns namespace.Metadata, shards []uint32) (ProcessResult, error) {
-	ret := m.ctrl.Call(m, "Run", ns, shards)
+func (m *MockProcess) Run(start time.Time, ns namespace.Metadata, shards []uint32) (ProcessResult, error) {
+	ret := m.ctrl.Call(m, "Run", start, ns, shards)
 	ret0, _ := ret[0].(ProcessResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Run indicates an expected call of Run
-func (mr *MockProcessMockRecorder) Run(ns, shards interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockProcess)(nil).Run), ns, shards)
+func (mr *MockProcessMockRecorder) Run(start, ns, shards interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockProcess)(nil).Run), start, ns, shards)
 }
 
 // MockRunOptions is a mock of RunOptions interface

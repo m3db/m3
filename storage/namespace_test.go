@@ -321,14 +321,14 @@ func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	ns.bs = Bootstrapping
-	require.Equal(t, errNamespaceIsBootstrapping, ns.Bootstrap(nil))
+	require.Equal(t, errNamespaceIsBootstrapping, ns.Bootstrap(time.Now(), nil))
 }
 
 func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
 		namespace.NewOptions().SetBootstrapEnabled(false))
 	defer closer()
-	require.NoError(t, ns.Bootstrap(nil))
+	require.NoError(t, ns.Bootstrap(time.Now(), nil))
 	require.Equal(t, Bootstrapped, ns.bs)
 }
 
@@ -338,10 +338,13 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 
 	ns, closer := newTestNamespace(t)
 	defer closer()
+
+	start := time.Now()
+
 	errs := []error{nil, errors.New("foo")}
 	bs := bootstrap.NewMockProcess(ctrl)
 	bs.EXPECT().
-		Run(ns.metadata, sharding.IDs(testShardIDs)).
+		Run(start, ns.metadata, sharding.IDs(testShardIDs)).
 		Return(bootstrap.ProcessResult{
 			DataResult:  result.NewDataBootstrapResult(),
 			IndexResult: result.NewIndexBootstrapResult(),
@@ -354,7 +357,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
-	require.Equal(t, "foo", ns.Bootstrap(bs).Error())
+	require.Equal(t, "foo", ns.Bootstrap(start, bs).Error())
 	require.Equal(t, Bootstrapped, ns.bs)
 }
 
@@ -376,9 +379,12 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 
 	ns, closer := newTestNamespace(t)
 	defer closer()
+
+	start := time.Now()
+
 	bs := bootstrap.NewMockProcess(ctrl)
 	bs.EXPECT().
-		Run(ns.metadata, sharding.IDs(needsBootstrap)).
+		Run(start, ns.metadata, sharding.IDs(needsBootstrap)).
 		Return(bootstrap.ProcessResult{
 			DataResult:  result.NewDataBootstrapResult(),
 			IndexResult: result.NewIndexBootstrapResult(),
@@ -397,7 +403,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 		ns.shards[testShard.ID()] = shard
 	}
 
-	require.NoError(t, ns.Bootstrap(bs))
+	require.NoError(t, ns.Bootstrap(start, bs))
 	require.Equal(t, Bootstrapped, ns.bs)
 }
 

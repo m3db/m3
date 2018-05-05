@@ -923,15 +923,15 @@ func (mr *MockdatabaseNamespaceMockRecorder) FetchBlocksMetadataV2(ctx, shardID,
 }
 
 // Bootstrap mocks base method
-func (m *MockdatabaseNamespace) Bootstrap(process bootstrap.Process) error {
-	ret := m.ctrl.Call(m, "Bootstrap", process)
+func (m *MockdatabaseNamespace) Bootstrap(start time.Time, process bootstrap.Process) error {
+	ret := m.ctrl.Call(m, "Bootstrap", start, process)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseNamespaceMockRecorder) Bootstrap(process interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).Bootstrap), process)
+func (mr *MockdatabaseNamespaceMockRecorder) Bootstrap(start, process interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).Bootstrap), start, process)
 }
 
 // Flush mocks base method

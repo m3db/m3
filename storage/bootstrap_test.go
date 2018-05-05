@@ -44,7 +44,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	}))
 
 	ns := NewMockdatabaseNamespace(ctrl)
-	ns.EXPECT().Bootstrap(gomock.Any()).Return(fmt.Errorf("an error"))
+	ns.EXPECT().Bootstrap(now, gomock.Any()).Return(fmt.Errorf("an error"))
 	ns.EXPECT().ID().Return(ident.StringID("test"))
 	namespaces := []databaseNamespace{ns}
 
@@ -85,9 +85,9 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	ns.EXPECT().
-		Bootstrap(gomock.Any()).
+		Bootstrap(now, gomock.Any()).
 		Return(nil).
-		Do(func(arg0 interface{}) {
+		Do(func(arg0, arg1 interface{}) {
 			defer wg.Done()
 
 			// Enqueue the second bootstrap
@@ -100,7 +100,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 			bsm.RUnlock()
 
 			// Expect the second bootstrap call
-			ns.EXPECT().Bootstrap(gomock.Any()).Return(nil)
+			ns.EXPECT().Bootstrap(now, gomock.Any()).Return(nil)
 		})
 	ns.EXPECT().
 		ID().

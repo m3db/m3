@@ -90,17 +90,16 @@ type bootstrapProcess struct {
 }
 
 func (b bootstrapProcess) Run(
+	start time.Time,
 	namespace namespace.Metadata,
 	shards []uint32,
 ) (ProcessResult, error) {
-	now := b.nowFn()
-
-	dataResult, err := b.bootstrapData(now, namespace, shards)
+	dataResult, err := b.bootstrapData(start, namespace, shards)
 	if err != nil {
 		return ProcessResult{}, err
 	}
 
-	indexResult, err := b.bootstrapIndex(now, namespace, shards)
+	indexResult, err := b.bootstrapIndex(start, namespace, shards)
 	if err != nil {
 		return ProcessResult{}, err
 	}
@@ -148,6 +147,11 @@ func (b bootstrapProcess) bootstrapIndex(
 	bootstrapResult := result.NewIndexBootstrapResult()
 	ropts := namespace.Options().RetentionOptions()
 	idxopts := namespace.Options().IndexOptions()
+	if !idxopts.Enabled() {
+		// NB(r): If indexing not enable we just return an empty result
+		return result.NewIndexBootstrapResult(), nil
+	}
+
 	targetRanges := b.targetRangesForIndex(at, ropts, idxopts)
 	for _, target := range targetRanges {
 		logFields := b.logFields(bootstrapIndexRunType, namespace,

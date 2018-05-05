@@ -21,6 +21,8 @@
 package bootstrap
 
 import (
+	"time"
+
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 )
@@ -46,6 +48,7 @@ func (b noOpBootstrapProcessProvider) Provide() Process {
 type noOpBootstrapProcess struct{}
 
 func (b noOpBootstrapProcess) Run(
+	start time.Time,
 	ns namespace.Metadata,
 	shards []uint32,
 ) (ProcessResult, error) {

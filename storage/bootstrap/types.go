@@ -21,6 +21,8 @@
 package bootstrap
 
 import (
+	"time"
+
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	xtime "github.com/m3db/m3x/time"
@@ -46,7 +48,7 @@ type ProcessProvider interface {
 // with the mindset that it will always be set to default values from the constructor.
 type Process interface {
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
-	Run(ns namespace.Metadata, shards []uint32) (ProcessResult, error)
+	Run(start time.Time, ns namespace.Metadata, shards []uint32) (ProcessResult, error)
 }
 
 // ProcessResult is the result of a bootstrap process.

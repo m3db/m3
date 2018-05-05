@@ -172,15 +172,17 @@ func (m *bootstrapManager) bootstrap() error {
 	if err != nil {
 		return err
 	}
+
+	startBootstrap := m.nowFn()
 	for _, namespace := range namespaces {
-		start := m.nowFn()
-		if err := namespace.Bootstrap(process); err != nil {
+		startNamespaceBootstrap := m.nowFn()
+		if err := namespace.Bootstrap(startBootstrap, process); err != nil {
 			multiErr = multiErr.Add(err)
 		}
-		end := m.nowFn()
+		took := m.nowFn().Sub(startNamespaceBootstrap)
 		m.log.WithFields(
 			xlog.NewField("namespace", namespace.ID().String()),
-			xlog.NewField("duration", end.Sub(start).String()),
+			xlog.NewField("duration", took.String()),
 		).Info("bootstrap finished")
 	}
 

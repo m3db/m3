@@ -300,6 +300,11 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		storageOpts = storageOpts.SetDatabaseBlockOptions(blockOpts)
 	}
 
+	// Set debugging options if environment vars set
+	if debugFilePrefix := os.Getenv("TEST_DEBUG_FILE_PREFIX"); debugFilePrefix != "" {
+		opts = opts.SetVerifySeriesDebugFilePathPrefix(debugFilePrefix)
+	}
+
 	return &testSetup{
 		t:               t,
 		opts:            opts,

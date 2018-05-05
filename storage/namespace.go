@@ -603,7 +603,7 @@ func (n *dbNamespace) FetchBlocksMetadataV2(
 	return res, nextPageToken, err
 }
 
-func (n *dbNamespace) Bootstrap(process bootstrap.Process) error {
+func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) error {
 	callStart := n.nowFn()
 
 	n.Lock()
@@ -648,7 +648,7 @@ func (n *dbNamespace) Bootstrap(process bootstrap.Process) error {
 		shardIDs[i] = shard.ID()
 	}
 
-	bootstrapResult, err := process.Run(n.metadata, shardIDs)
+	bootstrapResult, err := process.Run(start, n.metadata, shardIDs)
 	if err != nil {
 		n.log.Errorf("bootstrap for namespace %s aborted due to error: %v",
 			n.id.String(), err)
