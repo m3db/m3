@@ -26,10 +26,13 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/idx"
+	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/index/segment/mem"
+	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	xtime "github.com/m3db/m3x/time"
 )
 
 var (
@@ -104,6 +107,112 @@ type ResultsPool interface {
 
 	// Put returns the provide value to the pool.
 	Put(value Results)
+}
+
+// OnIndexSeries provides a set of callback hooks to allow the reverse index
+// to do lifecycle management of any resources retained during indexing.
+type OnIndexSeries interface {
+	// OnIndexSuccess is executed when an entry is successfully indexed. The
+	// provided value for `indexEntryExpiry` describes the TTL for the indexed
+	// entry.
+	OnIndexSuccess(indexEntryExpiry time.Time)
+
+	// OnIndexFinalize is executed when the index no longer holds any references
+	// to the provided resources. It can be used to cleanup any resources held
+	// during the course of indexing.
+	OnIndexFinalize()
+}
+
+// Block represents a collection of segments. Each `Block` is a complete reverse
+// index for a period of time defined by [StartTime, EndTime).
+type Block interface {
+	// StartTime returns the start time of the period this Block indexes.
+	StartTime() time.Time
+
+	// EndTime returns the end time of the period this Block indexes.
+	EndTime() time.Time
+
+	// WriteBatch writes a batch of provided entries.
+	WriteBatch([]WriteBatchEntry) (WriteBatchResult, error)
+
+	// Query resolves the given query into known IDs.
+	Query(
+		query Query,
+		opts QueryOptions,
+		results Results,
+	) (exhaustive bool, err error)
+
+	// Bootstrap bootstraps the index the provided segments.
+	Bootstrap(
+		segments []segment.Segment,
+	) error
+
+	// Tick does internal house keeping operations.
+	Tick(c context.Cancellable) (BlockTickResult, error)
+
+	// Seal prevents the block from taking any more writes, but, it still permits
+	// addition of segments via Bootstrap().
+	Seal() error
+
+	// Close will release any held resources and close the Block.
+	Close() error
+}
+
+// WriteBatchEntry captures a document to index, and the lifecycle hooks to call thereafter.
+type WriteBatchEntry struct {
+	BlockStart    xtime.UnixNano
+	Document      doc.Document
+	OnIndexSeries OnIndexSeries
+}
+
+// WriteBatchResult returns statistics about the WriteBatch execution.
+type WriteBatchResult struct {
+	NumSuccess int64
+	NumError   int64
+}
+
+// BlockTickResult returns statistics about tick.
+type BlockTickResult struct {
+	NumSegments int64
+	NumDocs     int64
+}
+
+// WriteBatchEntryByBlockStart implements sort.Interface for WriteBatchEntry slices
+// based on the BlockStart field.
+type WriteBatchEntryByBlockStart []WriteBatchEntry
+
+func (w WriteBatchEntryByBlockStart) Len() int           { return len(w) }
+func (w WriteBatchEntryByBlockStart) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
+func (w WriteBatchEntryByBlockStart) Less(i, j int) bool { return w[i].BlockStart < w[j].BlockStart }
+
+// ForEachBlockStartFn is lambda to iterate over WriteBatchEntry(s) a single blockStart at a time.
+type ForEachBlockStartFn func(blockStart xtime.UnixNano, writes []WriteBatchEntry)
+
+// ForEachBlockStart iterates over the provided WriteBatchEntryByBlockStart, and calls `fn` on each
+// group of elements with the same blockStart.
+func (w WriteBatchEntryByBlockStart) ForEachBlockStart(fn ForEachBlockStartFn) {
+	var (
+		startIdx  = 0
+		lastNanos xtime.UnixNano
+	)
+	for i := 0; i < len(w); i++ {
+		elem := w[i]
+		if elem.BlockStart != lastNanos {
+			lastNanos = elem.BlockStart
+			// We only want to call the the ForEachBlockStartFn once we have calculated the entire group,
+			// i.e. once we have gone past the last element for a given blockStart, but the first element
+			// in the slice is a special case because we are always starting a new group at that point.
+			if i == 0 {
+				continue
+			}
+			fn(w[startIdx].BlockStart, w[startIdx:i])
+			startIdx = i
+		}
+	}
+	// spill over
+	if startIdx < len(w) {
+		fn(w[startIdx].BlockStart, w[startIdx:])
+	}
 }
 
 // Options control the Indexing knobs.

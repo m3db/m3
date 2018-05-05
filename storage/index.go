@@ -23,17 +23,10 @@ package storage
 import (
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3ninx/doc"
-	m3ninxindex "github.com/m3db/m3ninx/index"
-	"github.com/m3db/m3ninx/index/segment"
-	"github.com/m3db/m3ninx/index/segment/mem"
-	"github.com/m3db/m3ninx/postings"
-	"github.com/m3db/m3ninx/search/executor"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 
@@ -53,16 +46,11 @@ const (
 	nsIndexStateClosed
 )
 
-type nsIndexBlock struct {
-	segment    segment.MutableSegment
-	expiryTime time.Time
-}
-
 type nsIndex struct {
 	sync.RWMutex
 	insertMode index.InsertMode
 	state      nsIndexState
-	active     nsIndexBlock
+	active     index.Block
 
 	insertQueue namespaceIndexInsertQueue
 	metrics     nsIndexMetrics
@@ -80,22 +68,19 @@ func newNamespaceIndex(
 	}
 
 	now := opts.ClockOptions().NowFn()()
-	postingsOffset := postings.ID(0) // FOLLOWUP(prateek): compute based on block compaction
-	seg, err := mem.NewSegment(postingsOffset, opts.MemSegmentOptions())
+	indexBlockSize := md.Options().IndexOptions().BlockSize()
+	start := now.Truncate(indexBlockSize)
+	blk, err := index.NewBlock(start, indexBlockSize, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	expiryTime := now.Add(md.Options().RetentionOptions().RetentionPeriod())
 	idx := &nsIndex{
 		insertMode: opts.InsertMode(),
-		active: nsIndexBlock{
-			segment:    seg,
-			expiryTime: expiryTime, // FOLLOWUP(prateek): compute based on block rotation
-		},
-		metrics: newNamespaceIndexMetrics(opts.InstrumentOptions().MetricsScope()),
-		opts:    opts,
-		nsID:    md.ID(),
+		active:     blk,
+		metrics:    newNamespaceIndexMetrics(opts.InstrumentOptions().MetricsScope()),
+		opts:       opts,
+		nsID:       md.ID(),
 	}
 
 	queue := newIndexQueueFn(idx.writeBatch, opts.ClockOptions().NowFn(),
@@ -128,7 +113,7 @@ func newNamespaceIndex(
 func (i *nsIndex) Write(
 	id ident.ID,
 	tags ident.Tags,
-	fns onIndexSeries,
+	fns index.OnIndexSeries,
 ) error {
 	d, err := convert.FromMetric(id, tags)
 	if err != nil {
@@ -163,7 +148,7 @@ func (i *nsIndex) Write(
 	return nil
 }
 
-func (i *nsIndex) writeBatch(inserts []nsIndexInsert) error {
+func (i *nsIndex) writeBatch(inserts []index.WriteBatchEntry) error {
 	// NB(prateek): we use a read lock to guard against mutation of the
 	// nsIndexBlock currently active, mutations within the underlying
 	// nsIndexBlock are guarded by primitives internal to it.
@@ -177,65 +162,10 @@ func (i *nsIndex) writeBatch(inserts []nsIndexInsert) error {
 		return errDbIndexUnableToWriteClosed
 	}
 
-	// TODO(prateek): docs array pooling
-	batch := m3ninxindex.Batch{
-		Docs:                make([]doc.Document, 0, len(inserts)),
-		AllowPartialUpdates: true,
-	}
-	for _, insert := range inserts {
-		batch.Docs = append(batch.Docs, insert.doc)
-	}
-
-	err := i.active.segment.InsertBatch(batch)
-	if err == nil {
-		for idx, insert := range inserts {
-			insert.fns.OnIndexSuccess(i.active.expiryTime)
-			insert.fns.OnIndexFinalize()
-			batch.Docs[idx] = doc.Document{}
-		}
-		return nil
-	}
-
-	partialErr, ok := err.(*m3ninxindex.BatchPartialError)
-	if !ok {
-		// should never happen
-		i.opts.InstrumentOptions().Logger().Errorf(
-			"[invariant violated] received non BatchPartialError from m3ninx InsertBatch. %T", err)
-		// NB: marking all the inserts as failure, cause we don't know which ones failed
-		for _, insert := range inserts {
-			insert.fns.OnIndexFinalize()
-			insert.doc = doc.Document{}
-			insert.fns = nil
-		}
-		return nil
-	}
-
-	// first finalize all the responses which were errors, and mark them
-	// nil to indicate they're done.
-	numErr := len(partialErr.Indices())
-	for _, idx := range partialErr.Indices() {
-		inserts[idx].fns.OnIndexFinalize()
-		inserts[idx].fns = nil
-		inserts[idx].doc = doc.Document{}
-	}
-
-	// mark all non-error inserts success, so we don't repeatedly index them,
-	// and then finalize any held references.
-	for _, insert := range inserts {
-		if insert.fns == nil {
-			continue
-		}
-		insert.fns.OnIndexSuccess(i.active.expiryTime)
-		insert.fns.OnIndexFinalize()
-		insert.fns = nil
-		insert.doc = doc.Document{}
-	}
-
-	if numErr != 0 {
-		i.metrics.AsyncInsertErrors.Inc(int64(numErr))
-	}
-
-	return nil
+	// NB: index.Block assumes responsibility for calling all the OnIndexSeries methods
+	// when WriteBatch is called up on it. Both on success and on failure.
+	_, err := i.active.WriteBatch(inserts)
+	return err
 }
 
 func (i *nsIndex) Query(
@@ -249,85 +179,20 @@ func (i *nsIndex) Query(
 		return index.QueryResults{}, errDbIndexUnableToQueryClosed
 	}
 
-	reader, err := i.active.segment.Reader()
-	if err != nil {
-		return index.QueryResults{}, err
-	}
-
-	readers := []m3ninxindex.Reader{reader}
-	exec := executor.NewExecutor(readers)
-
-	// FOLLOWUP(prateek): push down QueryOptions to restrict results
-	iter, err := exec.Execute(query.Query.SearchQuery())
-	if err != nil {
-		exec.Close()
-		return index.QueryResults{}, err
-	}
-
-	var (
-		results    = i.opts.ResultsPool().Get()
-		size       = results.Size()
-		brokeEarly = false
-	)
+	results := i.opts.ResultsPool().Get()
 	results.Reset(i.nsID)
 	ctx.RegisterFinalizer(results)
 
-	execCloser := safeCloser{closable: exec}
-	iterCloser := safeCloser{closable: iter}
+	// FOLLOWUP(prateek): as part of the runtime options wiring, also set a
+	// server side max limit which super-seeds the user requested limit.
+	// If we do override the limit, we should log the query and the updated
+	// limit to disk. Paranoia can be a good thing.
 
-	defer func() {
-		iterCloser.Close()
-		execCloser.Close()
-	}()
-
-	for iter.Next() {
-		// FOLLOWUP(prateek): as part of the runtime options wiring, also set a server side max limit which
-		// super-seeds the user requested limit. Paranoia can be a good thing.
-		if opts.Limit > 0 && size >= opts.Limit {
-			brokeEarly = true
-			break
-		}
-		d := iter.Current()
-		_, size, err = results.Add(d)
-		if err != nil {
-			return index.QueryResults{}, err
-		}
-	}
-
-	if err := iter.Err(); err != nil {
-		return index.QueryResults{}, err
-	}
-
-	if err := iterCloser.Close(); err != nil {
-		return index.QueryResults{}, err
-	}
-
-	if err := execCloser.Close(); err != nil {
-		return index.QueryResults{}, err
-	}
-
-	exhaustive := !brokeEarly
+	exhaustive, err := i.active.Query(query, opts, results)
 	return index.QueryResults{
 		Results:    results,
 		Exhaustive: exhaustive,
-	}, nil
-}
-
-type safeCloser struct {
-	closable
-	closed bool
-}
-
-func (c *safeCloser) Close() error {
-	if c.closed {
-		return nil
-	}
-	c.closed = true
-	return c.closable.Close()
-}
-
-type closable interface {
-	Close() error
+	}, err
 }
 
 func (i *nsIndex) isOpenWithRLock() bool {

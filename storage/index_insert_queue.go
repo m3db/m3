@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3ninx/doc"
 
 	"github.com/uber-go/tally"
@@ -147,7 +148,7 @@ func (q *nsIndexInsertQueue) insertLoop() {
 
 func (q *nsIndexInsertQueue) Insert(
 	d doc.Document,
-	fns onIndexSeries,
+	fns index.OnIndexSeries,
 ) (*sync.WaitGroup, error) {
 	windowNanos := q.nowFn().Truncate(time.Second).UnixNano()
 
@@ -168,9 +169,9 @@ func (q *nsIndexInsertQueue) Insert(
 			return nil, errNewSeriesIndexRateLimitExceeded
 		}
 	}
-	q.currBatch.inserts = append(q.currBatch.inserts, nsIndexInsert{
-		doc: d,
-		fns: fns,
+	q.currBatch.inserts = append(q.currBatch.inserts, index.WriteBatchEntry{
+		Document:      d,
+		OnIndexSeries: fns,
 	})
 	wg := q.currBatch.wg
 	q.Unlock()
@@ -219,19 +220,14 @@ func (q *nsIndexInsertQueue) Stop() error {
 	return nil
 }
 
-type nsIndexInsertBatchFn func(inserts []nsIndexInsert) error
-
-type nsIndexInsert struct {
-	doc doc.Document
-	fns onIndexSeries
-}
+type nsIndexInsertBatchFn func(inserts []index.WriteBatchEntry) error
 
 type nsIndexInsertBatch struct {
 	wg      *sync.WaitGroup
-	inserts []nsIndexInsert
+	inserts []index.WriteBatchEntry
 }
 
-var nsIndexInsertZeroed nsIndexInsert
+var nsIndexInsertZeroed index.WriteBatchEntry
 
 func (b *nsIndexInsertBatch) Reset() {
 	b.wg = &sync.WaitGroup{}

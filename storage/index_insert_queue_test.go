@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3ninx/doc"
 
 	"github.com/fortytw2/leaktest"
@@ -36,7 +37,7 @@ import (
 
 func newTestIndexInsertQueue() *nsIndexInsertQueue {
 	var (
-		nsIndexInsertBatchFn = func(inserts []nsIndexInsert) error { return nil }
+		nsIndexInsertBatchFn = func(inserts []index.WriteBatchEntry) error { return nil }
 		nowFn                = time.Now
 		scope                = tally.NoopScope
 	)
@@ -84,10 +85,10 @@ func TestIndexInsertQueueCallback(t *testing.T) {
 	var (
 		q            = newTestIndexInsertQueue()
 		insertLock   sync.Mutex
-		insertedDocs []nsIndexInsert
-		callback     = NewMockonIndexSeries(ctrl)
+		insertedDocs []index.WriteBatchEntry
+		callback     = index.NewMockOnIndexSeries(ctrl)
 	)
-	q.indexBatchFn = func(inserts []nsIndexInsert) error {
+	q.indexBatchFn = func(inserts []index.WriteBatchEntry) error {
 		insertLock.Lock()
 		insertedDocs = append(insertedDocs, inserts...)
 		insertLock.Unlock()
@@ -105,7 +106,7 @@ func TestIndexInsertQueueCallback(t *testing.T) {
 	insertLock.Lock()
 	defer insertLock.Unlock()
 	assert.Len(t, insertedDocs, 1)
-	assert.Equal(t, d, insertedDocs[0].doc)
+	assert.Equal(t, d, insertedDocs[0].Document)
 }
 
 func TestIndexInsertQueueRateLimit(t *testing.T) {
@@ -129,7 +130,7 @@ func TestIndexInsertQueueRateLimit(t *testing.T) {
 	}
 
 	q.indexPerSecondLimit = 2
-	callback := NewMockonIndexSeries(ctrl)
+	callback := index.NewMockOnIndexSeries(ctrl)
 
 	assert.NoError(t, q.Start())
 	defer func() {
@@ -180,7 +181,7 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	var (
-		inserts  [][]nsIndexInsert
+		inserts  [][]index.WriteBatchEntry
 		currTime = time.Now()
 		timeLock = sync.Mutex{}
 		addTime  = func(d time.Duration) {
@@ -204,7 +205,7 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 		defer timeLock.Unlock()
 		return currTime
 	}
-	q.indexBatchFn = func(value []nsIndexInsert) error {
+	q.indexBatchFn = func(value []index.WriteBatchEntry) error {
 		inserts = append(inserts, value)
 		insertWgs[len(inserts)-1].Done()
 		insertProgressWgs[len(inserts)-1].Wait()
@@ -212,7 +213,7 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 	}
 
 	q.indexBatchBackoff = backoff
-	callback := NewMockonIndexSeries(ctrl)
+	callback := index.NewMockOnIndexSeries(ctrl)
 
 	var slept time.Duration
 	var numSleeps int

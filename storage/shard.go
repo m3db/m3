@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
@@ -202,8 +203,8 @@ func (entry *dbShardEntry) needsIndexUpdate(writeTime time.Time) bool {
 	return atomic.LoadInt64(&entry.reverseIndex.nextWriteTimeNanos) < writeTime.UnixNano()
 }
 
-// ensure dbShardEntry satisfies the `onIndexSeries` interface.
-var _ onIndexSeries = &dbShardEntry{}
+// ensure dbShardEntry satisfies the `index.OnIndexSeries` interface.
+var _ index.OnIndexSeries = &dbShardEntry{}
 
 func (entry *dbShardEntry) OnIndexSuccess(nextWriteTime time.Time) {
 	atomic.StoreInt64(&entry.reverseIndex.nextWriteTimeNanos, nextWriteTime.UnixNano())

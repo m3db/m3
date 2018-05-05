@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/storage/index"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -51,7 +52,7 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 	defer ctrl.Finish()
 	idx := NewMocknamespaceIndex(ctrl)
 	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) {
+		func(id ident.ID, tags ident.Tags, onIdx index.OnIndexSeries) {
 			lock.Lock()
 			indexWrites = append(indexWrites, testIndexWrite{id: id, tags: tags})
 			lock.Unlock()
@@ -99,7 +100,7 @@ func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 	defer ctrl.Finish()
 	idx := NewMocknamespaceIndex(ctrl)
 	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) {
+		func(id ident.ID, tags ident.Tags, onIdx index.OnIndexSeries) {
 			lock.Lock()
 			indexWrites = append(indexWrites, testIndexWrite{id: id, tags: tags})
 			lock.Unlock()
@@ -168,7 +169,7 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 	nextWriteTime := time.Now().Add(time.Hour)
 	idx := NewMocknamespaceIndex(ctrl)
 	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) {
+		func(id ident.ID, tags ident.Tags, onIdx index.OnIndexSeries) {
 			onIdx.OnIndexSuccess(nextWriteTime) // i.e. mark that the entry should not be indexed for an hour at least
 			onIdx.OnIndexFinalize()
 			current := atomic.AddInt32(&numCalls, 1)
@@ -231,7 +232,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	defer ctrl.Finish()
 	idx := NewMocknamespaceIndex(ctrl)
 	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) {
+		func(id ident.ID, tags ident.Tags, onIdx index.OnIndexSeries) {
 			nowLock.Lock()
 			now = now.Add(time.Hour)
 			nowLock.Unlock()
