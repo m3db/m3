@@ -158,6 +158,15 @@ type TagIterator interface {
 	Duplicate() TagIterator
 }
 
+// TagSliceIterator represents a TagIterator that can be reset with a slice
+// of tags.  It is not thread-safe.
+type TagSliceIterator interface {
+	TagIterator
+
+	// Reset allows the tag iterator to be reused with a new set of tags.
+	Reset(tags Tags)
+}
+
 // IDs is a collection of ID instances.
 type IDs []ID
 
