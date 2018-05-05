@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,22 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ts
+package errors
 
 import (
-	"time"
+	"errors"
+
+	xerrors "github.com/m3db/m3x/errors"
 )
 
-// A Datapoint is a single data value reported at a given time.
-type Datapoint struct {
-	Timestamp time.Time
-	Value     float64
-}
+var (
+	// ErrTooFuture is returned for a write which is too far in the future.
+	ErrTooFuture = xerrors.NewInvalidParamsError(errors.New("datapoint is too far in the future"))
 
-// Equal returns whether one Datapoint is equal to another
-func (d Datapoint) Equal(x Datapoint) bool {
-	return d.Timestamp.Equal(x.Timestamp) && d.Value == x.Value
-}
-
-// Annotation represents information used to annotate datapoints.
-type Annotation []byte
+	// ErrTooPast is returned for a write which is too far in the past.
+	ErrTooPast = xerrors.NewInvalidParamsError(errors.New("datapoint is too far in the past"))
+)

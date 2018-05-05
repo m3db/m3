@@ -63,7 +63,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 
 	require.NotNil(t, err)
 	require.Equal(t, "an error", err.Error())
-	require.Equal(t, bootstrapped, bsm.state)
+	require.Equal(t, Bootstrapped, bsm.state)
 }
 
 func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {

@@ -21,11 +21,10 @@
 // mockgen rules for generating mocks for exported interfaces (reflection mode)
 
 //go:generate sh -c "mockgen -package=fs $PACKAGE/persist/fs DataFileSetWriter,DataFileSetReader,DataFileSetSeeker,IndexFileSetWriter,IndexFileSetReader,IndexSegmentFileSet,IndexSegmentFile | mockclean -pkg $PACKAGE/persist/fs -out $GOPATH/src/$PACKAGE/persist/fs/fs_mock.go"
-//go:generate sh -c "mockgen -package=xio $PACKAGE/x/xio SegmentReader | mockclean -pkg $PACKAGE/x/xio -out $GOPATH/src/$PACKAGE/x/xio/io_mock.go"
-
+//go:generate sh -c "mockgen -package=xio $PACKAGE/x/xio ReaderSliceReader,SegmentReader,SegmentReaderPool | mockclean -pkg $PACKAGE/x/xio -out $GOPATH/src/$PACKAGE/x/xio/io_mock.go"
 //go:generate sh -c "mockgen -package=digest -destination=$GOPATH/src/$PACKAGE/digest/digest_mock.go $PACKAGE/digest ReaderWithDigest"
 //go:generate sh -c "mockgen -package=series $PACKAGE/storage/series DatabaseSeries,QueryableBlockRetriever | mockclean -pkg $PACKAGE/storage/series -out $GOPATH/src/$PACKAGE/storage/series/series_mock.go"
-//go:generate sh -c "mockgen -package=index $PACKAGE/storage/index Iterator | mockclean -pkg $PACKAGE/storage/index -out $GOPATH/src/$PACKAGE/storage/index/index_mock.go"
+//go:generate sh -c "mockgen -package=index $PACKAGE/storage/index Results | mockclean -pkg $PACKAGE/storage/index -out $GOPATH/src/$PACKAGE/storage/index/index_mock.go"
 //go:generate sh -c "mockgen -package=serialize $PACKAGE/serialize TagEncoder,TagEncoderPool,TagDecoder,TagDecoderPool | mockclean -pkg $PACKAGE/serialize -out $GOPATH/src/$PACKAGE/serialize/serialize_mock.go"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode)

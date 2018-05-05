@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3ninx/doc"
 
 	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -77,11 +78,14 @@ func TestIndexInsertQueueLifecycleLeaks(t *testing.T) {
 
 func TestIndexInsertQueueCallback(t *testing.T) {
 	defer leaktest.CheckTimeout(t, time.Second)()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		q            = newTestIndexInsertQueue()
 		insertLock   sync.Mutex
 		insertedDocs []nsIndexInsert
-		callback     = &testLifecycleHooks{}
+		callback     = NewMockonIndexSeries(ctrl)
 	)
 	q.indexBatchFn = func(inserts []nsIndexInsert) error {
 		insertLock.Lock()
@@ -105,6 +109,8 @@ func TestIndexInsertQueueCallback(t *testing.T) {
 }
 
 func TestIndexInsertQueueRateLimit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 	defer leaktest.CheckTimeout(t, time.Second)()
 	var (
 		currTime = time.Now().Truncate(time.Second)
@@ -123,7 +129,7 @@ func TestIndexInsertQueueRateLimit(t *testing.T) {
 	}
 
 	q.indexPerSecondLimit = 2
-	callback := &testLifecycleHooks{}
+	callback := NewMockonIndexSeries(ctrl)
 
 	assert.NoError(t, q.Start())
 	defer func() {
@@ -171,6 +177,8 @@ func TestIndexInsertQueueRateLimit(t *testing.T) {
 }
 
 func TestIndexInsertQueueBatchBackoff(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 	var (
 		inserts  [][]nsIndexInsert
 		currTime = time.Now()
@@ -204,7 +212,7 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 	}
 
 	q.indexBatchBackoff = backoff
-	callback := &testLifecycleHooks{}
+	callback := NewMockonIndexSeries(ctrl)
 
 	var slept time.Duration
 	var numSleeps int

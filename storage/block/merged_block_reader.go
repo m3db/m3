@@ -35,17 +35,33 @@ type dbMergedBlockReader struct {
 	opts       Options
 	blockStart time.Time
 	blockEnd   time.Time
-	streams    [2]xio.SegmentReader
+	streams    [2]mergeableStream
 	readers    [2]xio.SegmentReader
 	merged     xio.BlockReader
 	encoder    encoding.Encoder
 	err        error
 }
 
+type mergeableStream struct {
+	stream   xio.SegmentReader
+	finalize bool
+}
+
+func (ms mergeableStream) clone() (mergeableStream, error) {
+	stream, err := ms.stream.Clone()
+	if err != nil {
+		return mergeableStream{}, err
+	}
+	return mergeableStream{
+		stream:   stream,
+		finalize: ms.finalize,
+	}, nil
+}
+
 func newDatabaseMergedBlockReader(
 	blockStart time.Time,
 	blockEnd time.Time,
-	streamA, streamB xio.SegmentReader,
+	streamA, streamB mergeableStream,
 	opts Options,
 ) xio.BlockReader {
 	r := &dbMergedBlockReader{
@@ -55,8 +71,8 @@ func newDatabaseMergedBlockReader(
 	}
 	r.streams[0] = streamA
 	r.streams[1] = streamB
-	r.readers[0] = streamA
-	r.readers[1] = streamB
+	r.readers[0] = streamA.stream
+	r.readers[1] = streamB.stream
 	return xio.BlockReader{
 		SegmentReader: r,
 		Start:         blockStart,
@@ -103,8 +119,10 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 
 	// Release references to the existing streams
 	for i := range r.streams {
-		r.streams[i].Finalize()
-		r.streams[i] = nil
+		if r.streams[i].stream != nil && r.streams[i].finalize {
+			r.streams[i].stream.Finalize()
+		}
+		r.streams[i].stream = nil
 	}
 	for i := range r.readers {
 		r.readers[i] = nil
@@ -120,11 +138,11 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 }
 
 func (r *dbMergedBlockReader) Clone() (xio.SegmentReader, error) {
-	s0, err := r.streams[0].Clone()
+	s0, err := r.streams[0].clone()
 	if err != nil {
 		return nil, err
 	}
-	s1, err := r.streams[1].Clone()
+	s1, err := r.streams[1].clone()
 	if err != nil {
 		return nil, err
 	}
@@ -183,10 +201,10 @@ func (r *dbMergedBlockReader) Finalize() {
 	r.blockStart = time.Time{}
 
 	for i := range r.streams {
-		if r.streams[i] != nil {
-			r.streams[i].Finalize()
-			r.streams[i] = nil
+		if r.streams[i].stream != nil && r.streams[i].finalize {
+			r.streams[i].stream.Finalize()
 		}
+		r.streams[i].stream = nil
 	}
 	for i := range r.readers {
 		if r.readers[i] != nil {

@@ -54,9 +54,9 @@ var (
 	testShardIDs = sharding.NewShards([]uint32{0, 1}, shard.Available)
 )
 
-type closer func()
+type closerFn func()
 
-func newTestNamespace(t *testing.T) (*dbNamespace, closer) {
+func newTestNamespace(t *testing.T) (*dbNamespace, closerFn) {
 	return newTestNamespaceWithIDOpts(t, defaultTestNs1ID, defaultTestNs1Opts)
 }
 
@@ -64,7 +64,7 @@ func newTestNamespaceWithIDOpts(
 	t *testing.T,
 	nsID ident.ID,
 	opts namespace.Options,
-) (*dbNamespace, closer) {
+) (*dbNamespace, closerFn) {
 	metadata, err := namespace.NewMetadata(nsID, opts)
 	require.NoError(t, err)
 	hashFn := func(identifier ident.ID) uint32 { return testShardIDs[0].ID() }
@@ -77,7 +77,7 @@ func newTestNamespaceWithIDOpts(
 	return ns.(*dbNamespace), closer
 }
 
-func newTestNamespaceWithIndex(t *testing.T, index namespaceIndex) (*dbNamespace, closer) {
+func newTestNamespaceWithIndex(t *testing.T, index namespaceIndex) (*dbNamespace, closerFn) {
 	ns, closer := newTestNamespace(t)
 	if index != nil {
 		ns.reverseIndex = index
@@ -319,7 +319,7 @@ func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
 func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
-	ns.bs = bootstrapping
+	ns.bs = Bootstrapping
 	require.Equal(t, errNamespaceIsBootstrapping, ns.Bootstrap(nil, nil))
 }
 
@@ -328,7 +328,7 @@ func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 		namespace.NewOptions().SetBootstrapEnabled(false))
 	defer closer()
 	require.NoError(t, ns.Bootstrap(nil, nil))
-	require.Equal(t, bootstrapped, ns.bs)
+	require.Equal(t, Bootstrapped, ns.bs)
 }
 
 func TestNamespaceBootstrapAllShards(t *testing.T) {
@@ -363,7 +363,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 	}
 
 	require.Equal(t, "foo", ns.Bootstrap(bs, ranges).Error())
-	require.Equal(t, bootstrapped, ns.bs)
+	require.Equal(t, Bootstrapped, ns.bs)
 }
 
 func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
@@ -415,13 +415,13 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	}
 
 	require.NoError(t, ns.Bootstrap(bs, ranges))
-	require.Equal(t, bootstrapped, ns.bs)
+	require.Equal(t, Bootstrapped, ns.bs)
 }
 
 func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
-	require.Equal(t, errNamespaceNotBootstrapped, ns.Flush(time.Now(), nil))
+	require.Equal(t, errNamespaceNotBootstrapped, ns.Flush(time.Now(), nil, nil))
 }
 
 func TestNamespaceFlushDontNeedFlush(t *testing.T) {
@@ -429,8 +429,8 @@ func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 		namespace.NewOptions().SetFlushEnabled(false))
 	defer close()
 
-	ns.bs = bootstrapped
-	require.NoError(t, ns.Flush(time.Now(), nil))
+	ns.bs = Bootstrapped
+	require.NoError(t, ns.Flush(time.Now(), nil, nil))
 }
 
 func TestNamespaceFlushSkipFlushed(t *testing.T) {
@@ -443,7 +443,7 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 
-	ns.bs = bootstrapped
+	ns.bs = Bootstrapped
 	blockStart := time.Now().Truncate(ns.Options().RetentionOptions().BlockSize())
 
 	states := []fileOpState{
@@ -452,6 +452,7 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 	}
 	for i, s := range states {
 		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().ID().Return(testShardIDs[i].ID())
 		shard.EXPECT().FlushState(blockStart).Return(s)
 		if s.Status != fileOpSuccess {
 			shard.EXPECT().Flush(blockStart, nil).Return(nil)
@@ -459,7 +460,35 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
-	require.NoError(t, ns.Flush(blockStart, nil))
+	ShardBootstrapStates := ShardBootstrapStates{}
+	for i := range states {
+		ShardBootstrapStates[testShardIDs[i].ID()] = Bootstrapped
+	}
+
+	require.NoError(t, ns.Flush(blockStart, ShardBootstrapStates, nil))
+}
+
+func TestNamespaceFlushSkipShardNotBootstrappedBeforeTick(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	ns.bs = Bootstrapped
+	blockStart := time.Now().Truncate(ns.Options().RetentionOptions().BlockSize())
+
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().ID().Return(testShardIDs[0].ID())
+	ns.shards[testShardIDs[0].ID()] = shard
+
+	ShardBootstrapStates := ShardBootstrapStates{}
+	ShardBootstrapStates[testShardIDs[0].ID()] = Bootstrapping
+
+	require.NoError(t, ns.Flush(blockStart, ShardBootstrapStates, nil))
 }
 
 type snapshotTestCase struct {
@@ -479,7 +508,7 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 	ns, close := newTestNamespace(t)
 	defer close()
 
-	ns.bs = bootstrapping
+	ns.bs = Bootstrapping
 
 	blockSize := ns.Options().RetentionOptions().BlockSize()
 	blockStart := time.Now().Truncate(blockSize)
@@ -541,7 +570,7 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 
 	ns, closer := newTestNamespace(t)
 	defer closer()
-	ns.bs = bootstrapped
+	ns.bs = Bootstrapped
 	now := time.Now()
 	ns.nowFn = func() time.Time {
 		return now
@@ -1119,6 +1148,29 @@ func TestNamespaceIndexDisabledQuery(t *testing.T) {
 	require.Error(t, err)
 
 	require.NoError(t, ns.Close())
+}
+
+func TestNamespaceBootstrapState(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ns, closer := newTestNamespace(t)
+	defer closer()
+
+	shard0 := NewMockdatabaseShard(ctrl)
+	shard0.EXPECT().ID().Return(uint32(0))
+	shard0.EXPECT().BootstrapState().Return(Bootstrapped)
+	ns.shards[0] = shard0
+
+	shard1 := NewMockdatabaseShard(ctrl)
+	shard1.EXPECT().ID().Return(uint32(1))
+	shard1.EXPECT().BootstrapState().Return(Bootstrapping)
+	ns.shards[1] = shard1
+
+	require.Equal(t, ShardBootstrapStates{
+		0: Bootstrapped,
+		1: Bootstrapping,
+	}, ns.BootstrapState())
 }
 
 func waitForStats(

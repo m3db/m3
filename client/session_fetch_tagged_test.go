@@ -73,7 +73,7 @@ func TestSessionFetchTaggedUnsupportedQuery(t *testing.T) {
 	assert.True(t, xerrors.IsNonRetryableError(err))
 	leakPool.Check(t)
 
-	_, err = s.FetchTaggedIDs(
+	_, _, err = s.FetchTaggedIDs(
 		ident.StringID("namespace"),
 		index.Query{},
 		index.QueryOptions{},
@@ -99,7 +99,7 @@ func TestSessionFetchTaggedNotOpenError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, errSessionStatusNotOpen, err)
 
-	_, err = s.FetchTaggedIDs(ident.StringID("namespace"),
+	_, _, err = s.FetchTaggedIDs(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(t0, t0))
 	assert.Error(t, err)
 	assert.Equal(t, errSessionStatusNotOpen, err)
@@ -127,7 +127,7 @@ func TestSessionFetchTaggedIDsGuardAgainstInvalidCall(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, err = session.FetchTaggedIDs(ident.StringID("namespace"),
+	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "[invariant violated]"))
@@ -156,7 +156,7 @@ func TestSessionFetchTaggedIDsGuardAgainstNilHost(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, err = session.FetchTaggedIDs(ident.StringID("namespace"),
+	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "[invariant violated]"))
@@ -186,7 +186,7 @@ func TestSessionFetchTaggedIDsGuardAgainstInvalidHost(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, err = session.FetchTaggedIDs(ident.StringID("namespace"),
+	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "[invariant violated]"))
@@ -228,7 +228,7 @@ func TestSessionFetchTaggedIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 	leakStatePool := injectLeakcheckFetchStatePool(session)
 	leakOpPool := injectLeakcheckFetchTaggedOpPool(session)
 
-	_, err = session.FetchTaggedIDs(ident.StringID("namespace"),
+	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.NoError(t, session.Close())
@@ -289,7 +289,7 @@ func TestSessionFetchTaggedIDsEnqueueErr(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, err = session.FetchTaggedIDs(ident.StringID("namespace"),
+	_, _, err = session.FetchTaggedIDs(ident.StringID("namespace"),
 		testSessionFetchTaggedQuery, testSessionFetchTaggedQueryOpts(start, end))
 	assert.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "[invariant violated]"))

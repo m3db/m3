@@ -61,25 +61,49 @@ type QueryOptions struct {
 
 // QueryResults is the collection of results for a query.
 type QueryResults struct {
-	Iterator   Iterator
+	Results    Results
 	Exhaustive bool
 }
 
-// Iterator iterates over a collection of IDs with associated
-// tags and namespace.
-type Iterator interface {
-	// Next returns whether there are more items in the collection.
-	Next() bool
+// Results is a collection of results for a query.
+type Results interface {
+	// Namespace returns the namespace associated with the result.
+	Namespace() ident.ID
 
-	// Current returns the ID, Tags and Namespace for a single timeseries.
-	// These remain valid until Next() is called again.
-	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.TagIterator)
+	// Map returns a map from seriesID -> seriesTags, comprising index results.
+	Map() *ResultsMap
 
-	// Err returns any error encountered.
-	Err() error
+	// Reset resets the Results object to initial state.
+	Reset(nsID ident.ID)
 
-	// Finalize releases any held resources.
+	// Finalize releases any resources held by the Results object,
+	// including returning it to a backing pool.
 	Finalize()
+
+	// Size returns the number of IDs tracked.
+	Size() int
+
+	// Add converts the provided document to a metric and adds it to the results.
+	// This method makes a copy of the bytes backing the document, so the original
+	// may be modified after this function returns without affecting the results map.
+	// NB: it returns a bool to indicate if the doc was added (it won't be added
+	// if it already existed in the ResultsMap).
+	Add(d doc.Document) (added bool, size int, err error)
+}
+
+// ResultsAllocator allocates Results types.
+type ResultsAllocator func() Results
+
+// ResultsPool allows users to pool `Results` types.
+type ResultsPool interface {
+	// Init initialized the results pool.
+	Init(alloc ResultsAllocator)
+
+	// Get retrieves a Results object for use.
+	Get() Results
+
+	// Put returns the provide value to the pool.
+	Put(value Results)
 }
 
 // Options control the Indexing knobs.
@@ -122,4 +146,16 @@ type Options interface {
 
 	// CheckedBytesPool returns the checked bytes pool.
 	CheckedBytesPool() pool.CheckedBytesPool
+
+	// SetResultsPool updates the results pool.
+	SetResultsPool(values ResultsPool) Options
+
+	// ResultsPool returns the results pool.
+	ResultsPool() ResultsPool
+
+	// SetTagArrayPool updates the tag array pool.
+	SetTagArrayPool(value TagArrayPool) Options
+
+	// TagArrayPool updates the tag array pool.
+	TagArrayPool() TagArrayPool
 }

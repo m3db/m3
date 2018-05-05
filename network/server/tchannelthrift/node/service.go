@@ -308,12 +308,14 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	response := &rpc.FetchTaggedResult_{
 		Exhaustive: queryResult.Exhaustive,
 	}
-	iter := queryResult.Iterator
-	for iter.Next() {
-		nsID, tsID, tags := iter.Current()
+	results := queryResult.Results
+	nsID := results.Namespace()
+	for _, entry := range results.Map().Iter() {
+		tsID := entry.Key()
+		tags := entry.Value()
 		enc := s.pools.tagEncoder.Get()
 		ctx.RegisterFinalizer(enc)
-		if err := enc.Encode(tags); err != nil {
+		if err := enc.Encode(ident.NewTagSliceIterator(tags)); err != nil {
 			// should never happen
 			wrappedErr := xerrors.NewRenamedError(err, fmt.Errorf("unable to encode tags"))
 			s.logger.Warnf("[invariant violated] %v", wrappedErr)
@@ -344,11 +346,6 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 			continue
 		}
 		elem.Segments = segments
-	}
-
-	if err := iter.Err(); err != nil {
-		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
-		return nil, tterrors.NewInternalError(convert.ToRPCError(err))
 	}
 
 	s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))

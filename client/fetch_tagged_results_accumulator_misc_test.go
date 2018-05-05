@@ -52,11 +52,11 @@ func TestFetchTaggedResultsAccumulatorClearResetsState(t *testing.T) {
 	require.Equal(t, 0, iter.Len())
 	iter.Close()
 
-	results, err := accum.AsIndexQueryResults(100, pools)
+	resultsIter, resultsExhaustive, err := accum.AsTaggedIDsIterator(100, pools)
 	require.NoError(t, err)
-	require.True(t, results.Exhaustive)
-	require.False(t, results.Iterator.Next())
-	require.NoError(t, results.Iterator.Err())
+	require.True(t, resultsExhaustive)
+	require.False(t, resultsIter.Next())
+	require.NoError(t, resultsIter.Err())
 }
 
 func TestFetchTaggedShardConsistencyResultsInitializeLength(t *testing.T) {

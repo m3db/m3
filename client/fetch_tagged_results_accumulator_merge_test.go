@@ -21,7 +21,6 @@
 package client
 
 import (
-	"bytes"
 	"fmt"
 	"testing"
 	"time"
@@ -32,7 +31,6 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	"github.com/m3db/m3db/serialize"
-	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/topology/testutil"
 	"github.com/m3db/m3db/ts"
@@ -87,25 +85,25 @@ func TestFetchTaggedResultsAccumulatorIdsMerge(t *testing.T) {
 	accum := workflow.run()
 
 	// not really restricting, ensuring we don't have extra results
-	results, err := accum.AsIndexQueryResults(10, th.pools)
+	resultsIter, resultsExhaustive, err := accum.AsTaggedIDsIterator(10, th.pools)
 	require.NoError(t, err)
-	require.True(t, results.Exhaustive)
-	matcher := index.MustNewIteratorMatcher(ts1.matcherOption(), ts2.matcherOption())
-	require.True(t, matcher.Matches(results.Iterator))
+	require.True(t, resultsExhaustive)
+	matcher := MustNewTaggedIDsIteratorMatcher(ts1.matcherOption(), ts2.matcherOption())
+	require.True(t, matcher.Matches(resultsIter))
 
 	// restrict to 2 elements, i.e. same as above; doing this to check off by ones
-	results, err = accum.AsIndexQueryResults(2, th.pools)
+	resultsIter, resultsExhaustive, err = accum.AsTaggedIDsIterator(2, th.pools)
 	require.NoError(t, err)
-	require.True(t, results.Exhaustive)
-	matcher = index.MustNewIteratorMatcher(ts1.matcherOption(), ts2.matcherOption())
-	require.True(t, matcher.Matches(results.Iterator))
+	require.True(t, resultsExhaustive)
+	matcher = MustNewTaggedIDsIteratorMatcher(ts1.matcherOption(), ts2.matcherOption())
+	require.True(t, matcher.Matches(resultsIter))
 
 	// restrict to 1 elements, ensuring we actually limit the responses
-	results, err = accum.AsIndexQueryResults(1, th.pools)
+	resultsIter, resultsExhaustive, err = accum.AsTaggedIDsIterator(1, th.pools)
 	require.NoError(t, err)
-	require.False(t, results.Exhaustive)
-	matcher = index.MustNewIteratorMatcher(ts1.matcherOption())
-	require.True(t, matcher.Matches(results.Iterator))
+	require.False(t, resultsExhaustive)
+	matcher = MustNewTaggedIDsIteratorMatcher(ts1.matcherOption())
+	require.True(t, matcher.Matches(resultsIter))
 }
 
 func TestFetchTaggedResultsAccumulatorIdsMergeUnstrictMajority(t *testing.T) {
@@ -137,11 +135,11 @@ func TestFetchTaggedResultsAccumulatorIdsMergeUnstrictMajority(t *testing.T) {
 	}
 	accum := workflow.run()
 
-	results, err := accum.AsIndexQueryResults(10, th.pools)
+	resultsIter, resultsExhaustive, err := accum.AsTaggedIDsIterator(10, th.pools)
 	require.NoError(t, err)
-	require.False(t, results.Exhaustive)
+	require.False(t, resultsExhaustive)
 	matcher := newTestSerieses(1, 10).indexMatcher()
-	require.True(t, matcher.Matches(results.Iterator))
+	require.True(t, matcher.Matches(resultsIter))
 }
 
 func TestFetchTaggedResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *testing.T) {
@@ -173,11 +171,11 @@ func TestFetchTaggedResultsAccumulatorIdsMergeReportsExhaustiveCorrectly(t *test
 	}
 	accum := workflow.run()
 
-	results, err := accum.AsIndexQueryResults(100, th.pools)
+	resultsIter, resultsExhaustive, err := accum.AsTaggedIDsIterator(100, th.pools)
 	require.NoError(t, err)
-	require.False(t, results.Exhaustive)
+	require.False(t, resultsExhaustive)
 	matcher := newTestSerieses(1, 15).indexMatcher()
-	require.True(t, matcher.Matches(results.Iterator))
+	require.True(t, matcher.Matches(resultsIter))
 
 	iters, exhaust, err := accum.AsEncodingSeriesIterators(100, th.pools)
 	require.NoError(t, err)
@@ -227,11 +225,11 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapoints(t *testing.T) {
 	}
 	accum := workflow.run()
 
-	results, err := accum.AsIndexQueryResults(8, th.pools)
+	resultsIter, resultsExhaustive, err := accum.AsTaggedIDsIterator(8, th.pools)
 	require.NoError(t, err)
-	require.False(t, results.Exhaustive)
+	require.False(t, resultsExhaustive)
 	matcher := newTestSerieses(1, 8).indexMatcher()
-	require.True(t, matcher.Matches(results.Iterator))
+	require.True(t, matcher.Matches(resultsIter))
 
 	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools)
 	require.NoError(t, err)
@@ -281,11 +279,11 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 	}
 	accum := workflow.run()
 
-	results, err := accum.AsIndexQueryResults(8, th.pools)
+	resultsIter, resultsExhaustive, err := accum.AsTaggedIDsIterator(8, th.pools)
 	require.NoError(t, err)
-	require.False(t, results.Exhaustive)
+	require.False(t, resultsExhaustive)
 	matcher := newTestSerieses(1, 8).indexMatcher()
-	require.True(t, matcher.Matches(results.Iterator))
+	require.True(t, matcher.Matches(resultsIter))
 
 	iters, exhaust, err := accum.AsEncodingSeriesIterators(10, th.pools)
 	require.NoError(t, err)
@@ -293,34 +291,6 @@ func TestFetchTaggedResultsAccumulatorSeriesItersDatapointsNSplit(t *testing.T) 
 	// ensure iters are valid after the lifecycle of the accumulator
 	accum.Clear()
 	sg0.assertMatchesEncodingIters(t, iters)
-}
-
-// debugIter is useful for tests, leaving in for now.
-// nolint
-type debugIter struct {
-	index.Iterator
-}
-
-// nolint
-func (d debugIter) String() string {
-	iter := d.Iterator
-	var buffer bytes.Buffer
-	for iter.Next() {
-		ns, id, tags := iter.Current()
-		buffer.WriteString(fmt.Sprintf("ns: %v\n", ns.String()))
-		buffer.WriteString(fmt.Sprintf("id: %v\n", id.String()))
-		for tags.Next() {
-			t := tags.Current()
-			buffer.WriteString(fmt.Sprintf("tag: [ name = %v, value = %v ]\n", t.Name.String(), t.Value.String()))
-		}
-		if err := tags.Err(); err != nil {
-			buffer.WriteString(fmt.Sprintf("tag-err: %v\n", err))
-		}
-	}
-	if err := iter.Err(); err != nil {
-		buffer.WriteString(fmt.Sprintf("err: %v\n", err))
-	}
-	return buffer.String()
 }
 
 type testFetchTaggedWorkflow struct {
@@ -393,12 +363,12 @@ func (ts testSerieses) assertMatchesEncodingIters(t *testing.T, iters encoding.S
 }
 
 // nolint
-func (ts testSerieses) indexMatcher() index.IteratorMatcher {
-	opts := make([]index.IteratorMatcherOption, 0, len(ts))
+func (ts testSerieses) indexMatcher() TaggedIDsIteratorMatcher {
+	opts := make([]TaggedIDsIteratorMatcherOption, 0, len(ts))
 	for _, s := range ts {
 		opts = append(opts, s.matcherOption())
 	}
-	return index.MustNewIteratorMatcher(opts...)
+	return MustNewTaggedIDsIteratorMatcher(opts...)
 }
 
 func (ts testSerieses) toRPCResult(th testFetchTaggedHelper, start time.Time, exhaustive bool) *rpc.FetchTaggedResult_ {
@@ -467,12 +437,12 @@ func (ts testSeries) assertMatchesEncodingIter(t *testing.T, iter encoding.Serie
 	ts.datapoints.assertMatchesEncodingIter(t, iter)
 }
 
-func (ts testSeries) matcherOption() index.IteratorMatcherOption {
+func (ts testSeries) matcherOption() TaggedIDsIteratorMatcherOption {
 	tags := make([]string, 0, len(ts.tags)*2)
 	for _, t := range ts.tags {
 		tags = append(tags, t.Name.String(), t.Value.String())
 	}
-	return index.IteratorMatcherOption{
+	return TaggedIDsIteratorMatcherOption{
 		Namespace: ts.ns.String(),
 		ID:        ts.id.String(),
 		Tags:      tags,

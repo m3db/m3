@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,22 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package ts
+package index
 
-import (
-	"time"
-)
+import "github.com/m3db/m3x/pool"
 
-// A Datapoint is a single data value reported at a given time.
-type Datapoint struct {
-	Timestamp time.Time
-	Value     float64
+type resultsPool struct {
+	pool pool.ObjectPool
 }
 
-// Equal returns whether one Datapoint is equal to another
-func (d Datapoint) Equal(x Datapoint) bool {
-	return d.Timestamp.Equal(x.Timestamp) && d.Value == x.Value
+// NewResultsPool creates a new ResultsPool.
+func NewResultsPool(opts pool.ObjectPoolOptions) ResultsPool {
+	return &resultsPool{pool: pool.NewObjectPool(opts)}
 }
 
-// Annotation represents information used to annotate datapoints.
-type Annotation []byte
+func (p *resultsPool) Init(alloc ResultsAllocator) {
+	p.pool.Init(func() interface{} {
+		return alloc()
+	})
+}
+
+func (p *resultsPool) Get() Results {
+	return p.pool.Get().(Results)
+}
+
+func (p *resultsPool) Put(value Results) {
+	p.pool.Put(value)
+}

@@ -71,7 +71,7 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 		if i == 2 {
 			series.EXPECT().
 				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
-				Return(block.NewFetchBlocksMetadataResult(id, block.NewFetchBlockMetadataResults()))
+				Return(block.NewFetchBlocksMetadataResult(id, block.NewFetchBlockMetadataResults()), nil)
 		} else if i > 2 && i <= 7 {
 			ids = append(ids, id)
 			blocks := block.NewFetchBlockMetadataResults()
@@ -79,7 +79,7 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 			blocks.Add(block.NewFetchBlockMetadataResult(at, 0, nil, lastRead, nil))
 			series.EXPECT().
 				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
-				Return(block.NewFetchBlocksMetadataResult(id, blocks))
+				Return(block.NewFetchBlocksMetadataResult(id, blocks), nil)
 		}
 	}
 
@@ -125,7 +125,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 		if i == startCursor {
 			series.EXPECT().
 				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
-				Return(block.NewFetchBlocksMetadataResult(id, block.NewFetchBlockMetadataResults()))
+				Return(block.NewFetchBlocksMetadataResult(id, block.NewFetchBlockMetadataResults()), nil)
 		} else if i > startCursor && i <= startCursor+fetchLimit {
 			ids = append(ids, id)
 			blocks := block.NewFetchBlockMetadataResults()
@@ -133,7 +133,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 			blocks.Add(block.NewFetchBlockMetadataResult(at, 0, nil, lastRead, nil))
 			series.EXPECT().
 				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
-				Return(block.NewFetchBlocksMetadataResult(id, blocks))
+				Return(block.NewFetchBlocksMetadataResult(id, blocks), nil)
 		}
 	}
 
@@ -266,7 +266,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 		blocks.Add(blockMetadataResult)
 		series.EXPECT().
 			FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
-			Return(block.NewFetchBlocksMetadataResult(id, blocks))
+			Return(block.NewFetchBlocksMetadataResult(id, blocks), nil)
 
 		// Add to the expected blocks result
 		expected[id.String()] = append(expected[id.String()], blockMetadataResult)
