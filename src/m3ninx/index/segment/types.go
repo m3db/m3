@@ -37,6 +37,9 @@ type Segment interface {
 	// Size returns the number of documents within the Segment.
 	Size() int64
 
+	// ContainsID returns a bool indicating if the Segment contains the provided ID.
+	ContainsID(docID []byte) (bool, error)
+
 	// Reader returns a point-in-time accessor to search the segment.
 	Reader() (index.Reader, error)
 
