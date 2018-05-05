@@ -68,6 +68,19 @@ func (mr *MockSegmentMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockSegment)(nil).Close))
 }
 
+// ContainsID mocks base method
+func (m *MockSegment) ContainsID(arg0 []byte) (bool, error) {
+	ret := m.ctrl.Call(m, "ContainsID", arg0)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ContainsID indicates an expected call of ContainsID
+func (mr *MockSegmentMockRecorder) ContainsID(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsID", reflect.TypeOf((*MockSegment)(nil).ContainsID), arg0)
+}
+
 // Reader mocks base method
 func (m *MockSegment) Reader() (index.Reader, error) {
 	ret := m.ctrl.Call(m, "Reader")
@@ -79,6 +92,18 @@ func (m *MockSegment) Reader() (index.Reader, error) {
 // Reader indicates an expected call of Reader
 func (mr *MockSegmentMockRecorder) Reader() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reader", reflect.TypeOf((*MockSegment)(nil).Reader))
+}
+
+// Size mocks base method
+func (m *MockSegment) Size() int64 {
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// Size indicates an expected call of Size
+func (mr *MockSegmentMockRecorder) Size() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockSegment)(nil).Size))
 }
 
 // MockMutableSegment is a mock of MutableSegment interface
@@ -114,6 +139,19 @@ func (m *MockMutableSegment) Close() error {
 // Close indicates an expected call of Close
 func (mr *MockMutableSegmentMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockMutableSegment)(nil).Close))
+}
+
+// ContainsID mocks base method
+func (m *MockMutableSegment) ContainsID(arg0 []byte) (bool, error) {
+	ret := m.ctrl.Call(m, "ContainsID", arg0)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ContainsID indicates an expected call of ContainsID
+func (mr *MockMutableSegmentMockRecorder) ContainsID(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsID", reflect.TypeOf((*MockMutableSegment)(nil).ContainsID), arg0)
 }
 
 // Insert mocks base method
@@ -152,4 +190,16 @@ func (m *MockMutableSegment) Reader() (index.Reader, error) {
 // Reader indicates an expected call of Reader
 func (mr *MockMutableSegmentMockRecorder) Reader() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reader", reflect.TypeOf((*MockMutableSegment)(nil).Reader))
+}
+
+// Size mocks base method
+func (m *MockMutableSegment) Size() int64 {
+	ret := m.ctrl.Call(m, "Size")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// Size indicates an expected call of Size
+func (mr *MockMutableSegmentMockRecorder) Size() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockMutableSegment)(nil).Size))
 }

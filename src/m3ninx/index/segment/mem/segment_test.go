@@ -69,6 +69,9 @@ func TestSegmentInsert(t *testing.T) {
 			id, err := segment.Insert(test.input)
 			require.NoError(t, err)
 			require.Equal(t, int64(1), segment.Size())
+			ok, err := segment.ContainsID(id)
+			require.NoError(t, err)
+			require.True(t, ok)
 
 			r, err := segment.Reader()
 			require.NoError(t, err)
@@ -125,8 +128,11 @@ func TestSegmentInsertDuplicateID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(0), segment.Size())
 
-	_, err = segment.Insert(first)
+	id, err = segment.Insert(first)
 	require.NoError(t, err)
+	ok, err := segment.ContainsID(id)
+	require.NoError(t, err)
+	require.True(t, ok)
 	require.Equal(t, int64(1), segment.Size())
 
 	r, err := segment.Reader()
@@ -415,6 +421,67 @@ func TestSegmentInsertBatchPartialErrorInvalidDoc(t *testing.T) {
 	be := err.(*index.BatchPartialError)
 	require.Len(t, be.Indices(), 1)
 	require.Equal(t, be.Indices()[0], 0)
+
+	r, err := segment.Reader()
+	require.NoError(t, err)
+	iter, err := r.AllDocs()
+	require.NoError(t, err)
+	require.True(t, iter.Next())
+	require.Equal(t, b1.Docs[1], iter.Current())
+	require.False(t, iter.Next())
+	require.NoError(t, iter.Close())
+	require.NoError(t, r.Close())
+	require.NoError(t, segment.Close())
+}
+
+func TestSegmentContainsID(t *testing.T) {
+	b1 := index.NewBatch(
+		[]doc.Document{
+			doc.Document{
+				ID: []byte("abc"),
+				Fields: []doc.Field{
+					doc.Field{
+						Name:  []byte("fruit"),
+						Value: []byte("apple"),
+					},
+					doc.Field{
+						Name:  []byte("color\xff"),
+						Value: []byte("red"),
+					},
+				},
+			},
+			doc.Document{
+				ID: []byte("abc"),
+				Fields: []doc.Field{
+					doc.Field{
+						Name:  []byte("fruit"),
+						Value: []byte("banana"),
+					},
+					doc.Field{
+						Name:  []byte("color"),
+						Value: []byte("yellow"),
+					},
+				},
+			},
+		},
+		index.AllowPartialUpdates(),
+	)
+	segment, err := NewSegment(0, NewOptions())
+	require.NoError(t, err)
+	ok, err := segment.ContainsID([]byte("abc"))
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	err = segment.InsertBatch(b1)
+	require.Error(t, err)
+	require.True(t, index.IsBatchPartialError(err))
+	be := err.(*index.BatchPartialError)
+	require.Len(t, be.Indices(), 1)
+	require.Equal(t, be.Indices()[0], 0)
+
+	ok, err = segment.ContainsID([]byte("abc"))
+	require.NoError(t, err)
+	require.True(t, ok)
 
 	r, err := segment.Reader()
 	require.NoError(t, err)
