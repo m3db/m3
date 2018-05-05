@@ -433,7 +433,7 @@ type namespaceIndex interface {
 	Write(
 		id ident.ID,
 		tags ident.Tags,
-		fns onIndexSeries,
+		fns index.OnIndexSeries,
 	) error
 
 	// Query resolves the given query into known IDs.
@@ -460,21 +460,7 @@ type namespaceIndexInsertQueue interface {
 	// inserts to the index asynchronously. It executes the provided callbacks
 	// based on the result of the execution. The returned wait group can be used
 	// if the insert is required to be synchronous.
-	Insert(d doc.Document, s onIndexSeries) (*sync.WaitGroup, error)
-}
-
-// onIndexSeries provides a set of callback hooks to allow the reverse index
-// to do lifecycle management of any resources retained during indexing.
-type onIndexSeries interface {
-	// OnIndexSuccess is executed when an entry is successfully indexed. The
-	// provided value for `indexEntryExpiry` describes the TTL for the indexed
-	// entry.
-	OnIndexSuccess(indexEntryExpiry time.Time)
-
-	// OnIndexFinalize is executed when the index no longer holds any references
-	// to the provided resources. It can be used to cleanup any resources held
-	// during the course of indexing.
-	OnIndexFinalize()
+	Insert(d doc.Document, s index.OnIndexSeries) (*sync.WaitGroup, error)
 }
 
 // databaseBootstrapManager manages the bootstrap process.

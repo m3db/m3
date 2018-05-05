@@ -114,7 +114,7 @@ func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
 	defer ctrl.Finish()
 	idx := NewMocknamespaceIndex(ctrl)
 	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) {
+		func(id ident.ID, tags ident.Tags, onIdx index.OnIndexSeries) {
 			onIdx.OnIndexFinalize()
 		}).Return(nil).AnyTimes()
 	testShardWriteTaggedSyncRefCount(t, idx)
@@ -291,7 +291,7 @@ func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 	defer ctrl.Finish()
 	idx := NewMocknamespaceIndex(ctrl)
 	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) {
+		func(id ident.ID, tags ident.Tags, onIdx index.OnIndexSeries) {
 			onIdx.OnIndexFinalize()
 		}).Return(nil).AnyTimes()
 	testShardWriteTaggedAsyncRefCount(t, idx)

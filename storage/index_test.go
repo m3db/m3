@@ -128,7 +128,7 @@ func TestNamespaceIndexInvalidDocWrite(t *testing.T) {
 		ident.StringTag(string(index.ReservedFieldNameID), "value"),
 	}
 
-	lifecycle := NewMockonIndexSeries(ctrl)
+	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize()
 	assert.Error(t, idx.Write(id, tags, lifecycle))
 }
@@ -149,7 +149,7 @@ func TestNamespaceIndexWriteAfterClose(t *testing.T) {
 	q.EXPECT().Stop().Return(nil)
 	assert.NoError(t, idx.Close())
 
-	lifecycle := NewMockonIndexSeries(ctrl)
+	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize()
 	assert.Error(t, idx.Write(id, tags, lifecycle))
 }
@@ -167,7 +167,7 @@ func TestNamespaceIndexWriteQueueError(t *testing.T) {
 		ident.StringTag("name", "value"),
 	}
 
-	lifecycle := NewMockonIndexSeries(ctrl)
+	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize()
 	q.EXPECT().
 		Insert(gomock.Any(), lifecycle).
@@ -194,7 +194,7 @@ func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 	assert.NoError(t, err)
 
 	var wg sync.WaitGroup
-	lifecycle := NewMockonIndexSeries(ctrl)
+	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	q.EXPECT().Insert(doc.NewDocumentMatcher(d), gomock.Any()).Return(&wg, nil)
 	assert.NoError(t, idx.Write(id, tags, lifecycle))
 }
@@ -221,12 +221,12 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 			ident.StringTag("name", "value"),
 		}
 		ctx          = context.NewContext()
-		lifecycleFns = NewMockonIndexSeries(ctrl)
+		lifecycleFns = index.NewMockOnIndexSeries(ctrl)
 	)
 	// make insert mode sync for tests
 	idx.(*nsIndex).insertMode = index.InsertSync
 	// TODO(prateek): re-wire these tests to not use `latestBlock` or something?
-	ts := idx.(*nsIndex).active.expiryTime
+	ts := idx.(*nsIndex).active.EndTime()
 
 	lifecycleFns.EXPECT().OnIndexFinalize()
 	lifecycleFns.EXPECT().OnIndexSuccess(ts)
@@ -271,12 +271,12 @@ func TestNamespaceIndexBatchInsertPartialError(t *testing.T) {
 	writes := []struct {
 		id            ident.ID
 		tags          ident.Tags
-		lifecycle     *MockonIndexSeries
+		lifecycle     *index.MockOnIndexSeries
 		expectSuccess bool
 	}{
-		{ident.StringID("foo"), ident.Tags{ident.StringTag("n1", "v1")}, NewMockonIndexSeries(ctrl), true},
-		{ident.StringID("foo"), ident.Tags{ident.StringTag("n1", "v1")}, NewMockonIndexSeries(ctrl), true},
-		{ident.StringID("bar"), ident.Tags{ident.StringTag("n2", "v2")}, NewMockonIndexSeries(ctrl), false},
+		{ident.StringID("foo"), ident.Tags{ident.StringTag("n1", "v1")}, index.NewMockOnIndexSeries(ctrl), true},
+		{ident.StringID("foo"), ident.Tags{ident.StringTag("n1", "v1")}, index.NewMockOnIndexSeries(ctrl), true},
+		{ident.StringID("bar"), ident.Tags{ident.StringTag("n2", "v2")}, index.NewMockOnIndexSeries(ctrl), false},
 	}
 	for _, w := range writes {
 		d, err := convert.FromMetric(w.id, w.tags)
