@@ -35,7 +35,7 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 	opts := testDatabaseOptions().SetRepairEnabled(false)
 	now := time.Now()
 	opts = opts.
-		SetBootstrapProcess(nil).
+		SetBootstrapProcessProvider(nil).
 		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 			return now
 		}))
@@ -63,7 +63,7 @@ func TestDatabaseMediatorDisableFileOps(t *testing.T) {
 	opts := testDatabaseOptions().SetRepairEnabled(false)
 	now := time.Now()
 	opts = opts.
-		SetBootstrapProcess(nil).
+		SetBootstrapProcessProvider(nil).
 		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 			return now
 		}))

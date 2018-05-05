@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,26 +18,4 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package bootstrapper
-
-import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
-)
-
-func TestNoOpNoneBootstrapperBootstrapProvider(t *testing.T) {
-	bs := NewNoOpNoneBootstrapperProvider()
-	ranges := testShardTimeRanges()
-	res, err := bs.Provide().BootstrapData(testNsMetadata(t), ranges, testDefaultRunOpts)
-	require.Equal(t, ranges, res.Unfulfilled())
-	require.Nil(t, err)
-}
-
-func TestNoOpAllBootstrapperBootstrapProvider(t *testing.T) {
-	bs := NewNoOpAllBootstrapperProvider()
-	ranges := testShardTimeRanges()
-	res, err := bs.Provide().BootstrapData(testNsMetadata(t), ranges, testDefaultRunOpts)
-	require.True(t, res.Unfulfilled().IsEmpty())
-	require.Nil(t, err)
-}
+package result

@@ -60,15 +60,15 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
 	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
 
-	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
 		SetCommitLogOptions(commitLogOpts)
-	bs, err := bcl.NewCommitLogBootstrapper(bclOpts, noOpAll)
+	bs, err := bcl.NewCommitLogBootstrapperProvider(bclOpts, noOpAll)
 	require.NoError(t, err)
-	process := bootstrap.NewProcess(bs, bsOpts)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)
+	processProvider := bootstrap.NewProcessProvider(bs, bsOpts)
+	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(processProvider)
 
 	log := setup.storageOpts.InstrumentOptions().Logger()
 	log.Info("commit log bootstrap test")

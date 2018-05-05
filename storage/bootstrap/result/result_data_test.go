@@ -64,7 +64,7 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 	srs[0].AddBlock(ident.StringID("foo"), fooTags, blocks[1])
 	srs[1].AddBlock(ident.StringID("bar"), barTags, blocks[2])
 
-	r := NewBootstrapResult()
+	r := NewDataBootstrapResult()
 	r.Add(0, srs[0], xtime.Ranges{})
 	r.Add(0, srs[1], xtime.Ranges{})
 
@@ -73,7 +73,7 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 	srMerged.AddBlock(ident.StringID("foo"), fooTags, blocks[1])
 	srMerged.AddBlock(ident.StringID("bar"), barTags, blocks[2])
 
-	merged := NewBootstrapResult()
+	merged := NewDataBootstrapResult()
 	merged.Add(0, srMerged, xtime.Ranges{})
 
 	assert.True(t, r.ShardResults().Equal(merged.ShardResults()))
@@ -82,7 +82,7 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 func TestResultAddMergesUnfulfilled(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 
-	r := NewBootstrapResult()
+	r := NewDataBootstrapResult()
 
 	r.Add(0, nil, xtime.Ranges{}.AddRange(xtime.Range{
 		Start: start,
@@ -108,7 +108,7 @@ func TestResultAddMergesUnfulfilled(t *testing.T) {
 func TestResultSetUnfulfilled(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 
-	r := NewBootstrapResult()
+	r := NewDataBootstrapResult()
 	r.SetUnfulfilled(ShardTimeRanges{
 		0: xtime.Ranges{}.AddRange(xtime.Range{
 			Start: start,
@@ -158,7 +158,7 @@ func TestResultNumSeries(t *testing.T) {
 	srs[0].AddBlock(ident.StringID("foo"), fooTags, blocks[1])
 	srs[1].AddBlock(ident.StringID("bar"), barTags, blocks[2])
 
-	r := NewBootstrapResult()
+	r := NewDataBootstrapResult()
 	r.Add(0, srs[0], xtime.Ranges{})
 	r.Add(1, srs[1], xtime.Ranges{})
 
@@ -188,9 +188,9 @@ func TestResultAddResult(t *testing.T) {
 	srs[0].AddBlock(ident.StringID("foo"), fooTags, blocks[1])
 	srs[1].AddBlock(ident.StringID("bar"), barTags, blocks[2])
 
-	rs := []BootstrapResult{
-		NewBootstrapResult(),
-		NewBootstrapResult(),
+	rs := []DataBootstrapResult{
+		NewDataBootstrapResult(),
+		NewDataBootstrapResult(),
 	}
 
 	rs[0].Add(0, srs[0], xtime.Ranges{}.AddRange(xtime.Range{
@@ -203,7 +203,7 @@ func TestResultAddResult(t *testing.T) {
 		End:   start.Add(8 * testBlockSize),
 	}))
 
-	r := MergedBootstrapResult(rs[0], rs[1])
+	r := MergedDataBootstrapResult(rs[0], rs[1])
 
 	srMerged := NewShardResult(0, opts)
 	srMerged.AddBlock(ident.StringID("foo"), fooTags, blocks[0])

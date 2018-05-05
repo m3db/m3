@@ -321,14 +321,14 @@ func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 	ns.bs = Bootstrapping
-	require.Equal(t, errNamespaceIsBootstrapping, ns.Bootstrap(nil, nil))
+	require.Equal(t, errNamespaceIsBootstrapping, ns.Bootstrap(time.Now(), nil))
 }
 
 func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
 		namespace.NewOptions().SetBootstrapEnabled(false))
 	defer closer()
-	require.NoError(t, ns.Bootstrap(nil, nil))
+	require.NoError(t, ns.Bootstrap(time.Now(), nil))
 	require.Equal(t, Bootstrapped, ns.bs)
 }
 
@@ -336,25 +336,19 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	writeStart := time.Now()
-	ranges := []bootstrap.TargetRange{
-		{Range: xtime.Range{
-			Start: writeStart.Add(-time.Hour),
-			End:   writeStart.Add(-10 * time.Minute),
-		}},
-		{Range: xtime.Range{
-			Start: writeStart.Add(-10 * time.Minute),
-			End:   writeStart.Add(2 * time.Minute),
-		}},
-	}
-
 	ns, closer := newTestNamespace(t)
 	defer closer()
+
+	start := time.Now()
+
 	errs := []error{nil, errors.New("foo")}
 	bs := bootstrap.NewMockProcess(ctrl)
 	bs.EXPECT().
-		Run(ns.metadata, sharding.IDs(testShardIDs), ranges).
-		Return(result.NewBootstrapResult(), nil)
+		Run(start, ns.metadata, sharding.IDs(testShardIDs)).
+		Return(bootstrap.ProcessResult{
+			DataResult:  result.NewDataBootstrapResult(),
+			IndexResult: result.NewIndexBootstrapResult(),
+		}, nil)
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
@@ -363,25 +357,13 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
-	require.Equal(t, "foo", ns.Bootstrap(bs, ranges).Error())
+	require.Equal(t, "foo", ns.Bootstrap(start, bs).Error())
 	require.Equal(t, Bootstrapped, ns.bs)
 }
 
 func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-
-	writeStart := time.Now()
-	ranges := []bootstrap.TargetRange{
-		{Range: xtime.Range{
-			Start: writeStart.Add(-time.Hour),
-			End:   writeStart.Add(-10 * time.Minute),
-		}},
-		{Range: xtime.Range{
-			Start: writeStart.Add(-10 * time.Minute),
-			End:   writeStart.Add(2 * time.Minute),
-		}},
-	}
 
 	var needsBootstrap, alreadyBootstrapped []shard.Shard
 	for i, shard := range testShardIDs {
@@ -397,10 +379,16 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 
 	ns, closer := newTestNamespace(t)
 	defer closer()
+
+	start := time.Now()
+
 	bs := bootstrap.NewMockProcess(ctrl)
 	bs.EXPECT().
-		Run(ns.metadata, sharding.IDs(needsBootstrap), ranges).
-		Return(result.NewBootstrapResult(), nil)
+		Run(start, ns.metadata, sharding.IDs(needsBootstrap)).
+		Return(bootstrap.ProcessResult{
+			DataResult:  result.NewDataBootstrapResult(),
+			IndexResult: result.NewIndexBootstrapResult(),
+		}, nil)
 
 	for _, testShard := range needsBootstrap {
 		shard := NewMockdatabaseShard(ctrl)
@@ -415,7 +403,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 		ns.shards[testShard.ID()] = shard
 	}
 
-	require.NoError(t, ns.Bootstrap(bs, ranges))
+	require.NoError(t, ns.Bootstrap(start, bs))
 	require.Equal(t, Bootstrapped, ns.bs)
 }
 

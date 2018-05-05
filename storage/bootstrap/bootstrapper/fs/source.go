@@ -53,12 +53,12 @@ type fileSystemSource struct {
 	processors  xsync.WorkerPool
 }
 
-func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
+func newFileSystemSource(opts Options) bootstrap.Source {
 	processors := xsync.NewWorkerPool(opts.NumProcessors())
 	processors.Init()
 	return &fileSystemSource{
 		opts:        opts,
-		fsopts:      opts.FilesystemOptions().SetFilePathPrefix(prefix),
+		fsopts:      opts.FilesystemOptions(),
 		log:         opts.ResultOptions().InstrumentOptions().Logger(),
 		newReaderFn: fs.NewReader,
 		processors:  processors,
@@ -73,7 +73,7 @@ func (s *fileSystemSource) Can(strategy bootstrap.Strategy) bool {
 	return false
 }
 
-func (s *fileSystemSource) Available(
+func (s *fileSystemSource) AvailableData(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
@@ -197,12 +197,12 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	readerPool *readerPool,
 	retriever block.DatabaseBlockRetriever,
 	readersCh <-chan shardReaders,
-) result.BootstrapResult {
+) result.DataBootstrapResult {
 	var (
 		wg                sync.WaitGroup
 		resultLock        = &sync.RWMutex{}
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
-		bootstrapResult   = result.NewBootstrapResult()
+		bootstrapResult   = result.NewDataBootstrapResult()
 		bopts             = s.opts.ResultOptions()
 	)
 
@@ -237,7 +237,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 // as unfulfilled
 func (s *fileSystemSource) handleErrorsAndUnfulfilled(
 	resultLock *sync.RWMutex,
-	bootstrapResult result.BootstrapResult,
+	bootstrapResult result.DataBootstrapResult,
 	shard uint32,
 	remainingRanges xtime.Ranges,
 	shardResult result.ShardResult,
@@ -285,7 +285,7 @@ func (s *fileSystemSource) handleErrorsAndUnfulfilled(
 
 func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	resultLock *sync.RWMutex,
-	bootstrapResult result.BootstrapResult,
+	bootstrapResult result.DataBootstrapResult,
 	bopts result.Options,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
 	shardReaders shardReaders,
@@ -458,19 +458,20 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		resultLock, bootstrapResult, shard, tr, shardResult, timesWithErrors)
 }
 
-func (s *fileSystemSource) Read(
+func (s *fileSystemSource) ReadData(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
-) (result.BootstrapResult, error) {
-	nsID := md.ID()
-
+) (result.DataBootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
-		return nil, nil
+		return result.NewDataBootstrapResult(), nil
 	}
 
-	var blockRetriever block.DatabaseBlockRetriever
-	blockRetrieverMgr := s.opts.DatabaseBlockRetrieverManager()
+	var (
+		nsID              = md.ID()
+		blockRetrieverMgr = s.opts.DatabaseBlockRetrieverManager()
+		blockRetriever    block.DatabaseBlockRetriever
+	)
 	if blockRetrieverMgr != nil {
 		s.log.WithFields(
 			xlog.NewField("namespace", nsID.String()),
@@ -506,12 +507,12 @@ func (s *fileSystemSource) Read(
 		if blockRetriever == nil {
 			return nil, fmt.Errorf(
 				"missing block retriever when using series cache metadata for namespace: %s",
-				md.ID().String())
+				nsID.String())
 		}
 	default:
 		// Unless we're caching all series (or all series metadata) in memory, we
 		// return just the availability of the files we have
-		bootstrapResult := result.NewBootstrapResult()
+		bootstrapResult := result.NewDataBootstrapResult()
 		unfulfilled := bootstrapResult.Unfulfilled()
 		for shard, ranges := range shardsTimeRanges {
 			if ranges.IsEmpty() {
@@ -541,6 +542,25 @@ func (s *fileSystemSource) Read(
 	readersCh := make(chan shardReaders)
 	go s.enqueueReaders(nsID, shardsTimeRanges, readerPool, readersCh)
 	return s.bootstrapFromReaders(readerPool, blockRetriever, readersCh), nil
+}
+
+func (s *fileSystemSource) AvailableIndex(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+) result.ShardTimeRanges {
+	// FOLLOWUP(r): implement the filesystem source returning
+	// index segments that are available on disk for the time range required.
+	return shardsTimeRanges
+}
+
+func (s *fileSystemSource) ReadIndex(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+	opts bootstrap.RunOptions,
+) (result.IndexBootstrapResult, error) {
+	// FOLLOWUP(r): implement the filesystem source returning
+	// index segments that are available on disk for the time range required.
+	return result.NewIndexBootstrapResult(), nil
 }
 
 type shardReaders struct {

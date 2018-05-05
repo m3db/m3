@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,23 +21,22 @@
 package bootstrapper
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3db/storage/bootstrap/result"
+	xlog "github.com/m3db/m3x/log"
 )
 
-func TestNoOpNoneBootstrapperBootstrapProvider(t *testing.T) {
-	bs := NewNoOpNoneBootstrapperProvider()
-	ranges := testShardTimeRanges()
-	res, err := bs.Provide().BootstrapData(testNsMetadata(t), ranges, testDefaultRunOpts)
-	require.Equal(t, ranges, res.Unfulfilled())
-	require.Nil(t, err)
+type bootstrapStep interface {
+	prepare(totalRanges result.ShardTimeRanges) bootstrapStepPreparedResult
+	runCurrStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
+	runNextStep(targetRanges result.ShardTimeRanges) (bootstrapStepStatus, error)
+	mergeResults(totalUnfulfilled result.ShardTimeRanges)
 }
 
-func TestNoOpAllBootstrapperBootstrapProvider(t *testing.T) {
-	bs := NewNoOpAllBootstrapperProvider()
-	ranges := testShardTimeRanges()
-	res, err := bs.Provide().BootstrapData(testNsMetadata(t), ranges, testDefaultRunOpts)
-	require.True(t, res.Unfulfilled().IsEmpty())
-	require.Nil(t, err)
+type bootstrapStepPreparedResult struct {
+	currAvailable result.ShardTimeRanges
+}
+
+type bootstrapStepStatus struct {
+	fulfilled result.ShardTimeRanges
+	logFields []xlog.Field
 }

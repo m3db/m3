@@ -94,10 +94,11 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Instantiate a commitlog source
-			source, err := NewCommitLogBootstrapper(bootstrapOpts, nil)
+			provider, err := NewCommitLogBootstrapperProvider(bootstrapOpts, nil)
 			if err != nil {
 				return false, err
 			}
+			source := provider.Provide()
 
 			// Determine time range to bootstrap
 			md := testNsMetadata(t)
@@ -124,7 +125,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Perform the bootstrap
-			result, err := source.Bootstrap(md, shardTimeRanges, testDefaultRunOpts)
+			result, err := source.BootstrapData(md, shardTimeRanges, testDefaultRunOpts)
 			if err != nil {
 				return false, err
 			}

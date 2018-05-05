@@ -25,15 +25,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3ninx/index/segment"
+
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -61,11 +65,11 @@ type testShardResult struct {
 	unfulfilled xtime.Ranges
 }
 
-func testBaseBootstrapper(t *testing.T, ctrl *gomock.Controller) (*bootstrap.MockSource, *bootstrap.MockBootstrapper, *baseBootstrapper) {
+func testBaseBootstrapper(t *testing.T, ctrl *gomock.Controller) (*bootstrap.MockSource, *bootstrap.MockBootstrapper, baseBootstrapper) {
 	source := bootstrap.NewMockSource(ctrl)
 	opts := result.NewOptions()
 	next := bootstrap.NewMockBootstrapper(ctrl)
-	return source, next, NewBaseBootstrapper("mock", source, opts, next).(*baseBootstrapper)
+	return source, next, NewBaseBootstrapper("mock", source, opts, next).(baseBootstrapper)
 }
 
 func testTargetRanges() xtime.Ranges {
@@ -95,8 +99,8 @@ func shardResult(entries ...testBlockEntry) result.ShardResult {
 	return res
 }
 
-func testResult(results map[uint32]testShardResult) result.BootstrapResult {
-	result := result.NewBootstrapResult()
+func testResult(results map[uint32]testShardResult) result.DataBootstrapResult {
+	result := result.NewDataBootstrapResult()
 	for shard, entry := range results {
 		result.Add(shard, entry.result, entry.unfulfilled)
 	}
@@ -126,7 +130,7 @@ func validateSeries(t *testing.T, expectedSeries, actualSeries block.DatabaseSer
 	}
 }
 
-func validateResult(t *testing.T, expected, actual result.BootstrapResult) {
+func validateResult(t *testing.T, expected, actual result.DataBootstrapResult) {
 	if expected == nil {
 		require.Nil(t, actual)
 		return
@@ -224,13 +228,15 @@ func TestBaseBootstrapperEmptyRange(t *testing.T) {
 	testNs := testNsMetadata(t)
 
 	// Test non-nil empty range
-	res, err := base.Bootstrap(testNs, map[uint32]xtime.Ranges{}, testDefaultRunOpts)
+	res, err := base.BootstrapData(testNs, map[uint32]xtime.Ranges{}, testDefaultRunOpts)
 	require.NoError(t, err)
-	require.Nil(t, res)
+	require.Equal(t, 0, len(res.ShardResults()))
+	require.True(t, res.Unfulfilled().IsEmpty())
 
-	res, err = base.Bootstrap(testNs, nil, testDefaultRunOpts)
+	res, err = base.BootstrapData(testNs, nil, testDefaultRunOpts)
 	require.NoError(t, err)
-	require.Nil(t, res)
+	require.Equal(t, 0, len(res.ShardResults()))
+	require.True(t, res.Unfulfilled().IsEmpty())
 }
 
 func TestBaseBootstrapperCurrentNoUnfulfilled(t *testing.T) {
@@ -245,13 +251,13 @@ func TestBaseBootstrapperCurrentNoUnfulfilled(t *testing.T) {
 	})
 
 	source.EXPECT().
-		Available(testNs, targetRanges).
+		AvailableData(testNs, targetRanges).
 		Return(targetRanges)
 	source.EXPECT().
-		Read(testNs, targetRanges, testDefaultRunOpts).
+		ReadData(testNs, targetRanges, testDefaultRunOpts).
 		Return(result, nil)
 
-	res, err := base.Bootstrap(testNs, targetRanges, testDefaultRunOpts)
+	res, err := base.BootstrapData(testNs, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	validateResult(t, result, res)
 }
@@ -283,13 +289,13 @@ func TestBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T) {
 	})
 
 	source.EXPECT().
-		Available(testNs, targetRanges).
+		AvailableData(testNs, targetRanges).
 		Return(targetRanges)
 	source.EXPECT().
-		Read(testNs, targetRanges, testDefaultRunOpts).
+		ReadData(testNs, targetRanges, testDefaultRunOpts).
 		Return(currResult, nil)
 	next.EXPECT().
-		Bootstrap(testNs, shardTimeRangesMatcher{nextTargetRanges},
+		BootstrapData(testNs, shardTimeRangesMatcher{nextTargetRanges},
 			testDefaultRunOpts).
 		Return(nextResult, nil)
 
@@ -297,7 +303,7 @@ func TestBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T) {
 		testShard: {result: shardResult(entries...)},
 	})
 
-	res, err := base.Bootstrap(testNs, targetRanges, testDefaultRunOpts)
+	res, err := base.BootstrapData(testNs, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	validateResult(t, expectedResult, res)
 }
@@ -313,22 +319,25 @@ func testBasebootstrapperNext(t *testing.T, nextUnfulfilled result.ShardTimeRang
 
 	targetRanges := testShardTimeRanges()
 	nextResult := testResult(map[uint32]testShardResult{
-		testShard: {result: shardResult(testBlockEntry{"foo", []string{"foo", "foe"}, testTargetStart})},
+		testShard: {
+			result: shardResult(testBlockEntry{"foo", []string{"foo", "foe"}, testTargetStart}),
+		},
 	})
+	nextResult.SetUnfulfilled(nextUnfulfilled)
 
 	source.EXPECT().
-		Available(testNs, targetRanges).
+		AvailableData(testNs, targetRanges).
 		Return(nil)
 	source.EXPECT().
-		Read(testNs, shardTimeRangesMatcher{nil},
+		ReadData(testNs, shardTimeRangesMatcher{nil},
 			testDefaultRunOpts).
 		Return(nil, nil)
 	next.EXPECT().
-		Bootstrap(testNs, shardTimeRangesMatcher{targetRanges},
+		BootstrapData(testNs, shardTimeRangesMatcher{targetRanges},
 			testDefaultRunOpts).
 		Return(nextResult, nil)
 
-	res, err := base.Bootstrap(testNs, targetRanges,
+	res, err := base.BootstrapData(testNs, targetRanges,
 		testDefaultRunOpts)
 	require.NoError(t, err)
 	validateResult(t, nextResult, res)
@@ -394,22 +403,22 @@ func TestBaseBootstrapperBoth(t *testing.T) {
 	})
 
 	source.EXPECT().Can(bootstrap.BootstrapParallel).Return(true)
-	source.EXPECT().Available(testNs, targetRanges).Return(availableRanges)
+	source.EXPECT().AvailableData(testNs, targetRanges).Return(availableRanges)
 	source.EXPECT().
-		Read(testNs, shardTimeRangesMatcher{availableRanges},
+		ReadData(testNs, shardTimeRangesMatcher{availableRanges},
 			testDefaultRunOpts).
 		Return(currResult, nil)
 	next.EXPECT().Can(bootstrap.BootstrapParallel).Return(true)
 	next.EXPECT().
-		Bootstrap(testNs, shardTimeRangesMatcher{remainingRanges},
+		BootstrapData(testNs, shardTimeRangesMatcher{remainingRanges},
 			testDefaultRunOpts).
 		Return(nextResult, nil)
 	next.EXPECT().
-		Bootstrap(testNs, shardTimeRangesMatcher{currResult.Unfulfilled()},
+		BootstrapData(testNs, shardTimeRangesMatcher{currResult.Unfulfilled()},
 			testDefaultRunOpts).
 		Return(fallBackResult, nil)
 
-	res, err := base.Bootstrap(testNs, targetRanges, testDefaultRunOpts)
+	res, err := base.BootstrapData(testNs, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 
 	expectedResult := testResult(map[uint32]testShardResult{
@@ -419,4 +428,75 @@ func TestBaseBootstrapperBoth(t *testing.T) {
 		},
 	})
 	validateResult(t, expectedResult, res)
+}
+
+func TestBaseBootstrapperIndexHalfCurrentHalfNext(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	source, next, base := testBaseBootstrapper(t, ctrl)
+	testNs := testNsMetadata(t)
+
+	targetRanges := map[uint32]xtime.Ranges{
+		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+			Start: testTargetStart,
+			End:   testTargetStart.Add(2 * time.Hour),
+		}),
+	}
+	firstHalf := map[uint32]xtime.Ranges{
+		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+			Start: testTargetStart,
+			End:   testTargetStart.Add(1 * time.Hour),
+		}),
+	}
+	secondHalf := map[uint32]xtime.Ranges{
+		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+			Start: testTargetStart.Add(1 * time.Hour),
+			End:   testTargetStart.Add(2 * time.Hour),
+		}),
+	}
+
+	segFirst, err := mem.NewSegment(0, mem.NewOptions())
+	require.NoError(t, err)
+
+	segSecond, err := mem.NewSegment(0, mem.NewOptions())
+	require.NoError(t, err)
+
+	currResult := result.NewIndexBootstrapResult()
+	currResult.Add(result.NewIndexBlock(testTargetStart, []segment.Segment{
+		segFirst,
+	}), nil)
+	nextResult := result.NewIndexBootstrapResult()
+	nextResult.Add(result.NewIndexBlock(testTargetStart.Add(1*time.Hour), []segment.Segment{
+		segSecond,
+	}), nil)
+
+	source.EXPECT().Can(bootstrap.BootstrapParallel).Return(false)
+	source.EXPECT().
+		AvailableIndex(testNs, shardTimeRangesMatcher{targetRanges}).
+		Return(firstHalf)
+	source.EXPECT().
+		ReadIndex(testNs, shardTimeRangesMatcher{firstHalf}, testDefaultRunOpts).
+		Return(currResult, nil)
+
+	next.EXPECT().
+		BootstrapIndex(testNs, shardTimeRangesMatcher{secondHalf}, testDefaultRunOpts).
+		Return(nextResult, nil)
+
+	res, err := base.BootstrapIndex(testNs, targetRanges, testDefaultRunOpts)
+	require.NoError(t, err)
+
+	assert.True(t, res.Unfulfilled().IsEmpty())
+	assert.Equal(t, 2, len(res.IndexResults()))
+
+	first, ok := res.IndexResults()[xtime.ToUnixNano(testTargetStart)]
+	assert.True(t, ok)
+	assert.True(t, first.BlockStart().Equal(testTargetStart))
+	require.Equal(t, 1, len(first.Segments()))
+	assert.True(t, segFirst == first.Segments()[0])
+
+	second, ok := res.IndexResults()[xtime.ToUnixNano(testTargetStart.Add(time.Hour))]
+	assert.True(t, ok)
+	assert.True(t, second.BlockStart().Equal(testTargetStart.Add(time.Hour)))
+	require.Equal(t, 1, len(second.Segments()))
+	assert.True(t, segSecond == second.Segments()[0])
 }

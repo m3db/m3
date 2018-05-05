@@ -923,15 +923,15 @@ func (mr *MockdatabaseNamespaceMockRecorder) FetchBlocksMetadataV2(ctx, shardID,
 }
 
 // Bootstrap mocks base method
-func (m *MockdatabaseNamespace) Bootstrap(process bootstrap.Process, targetRanges []bootstrap.TargetRange) error {
-	ret := m.ctrl.Call(m, "Bootstrap", process, targetRanges)
+func (m *MockdatabaseNamespace) Bootstrap(start time.Time, process bootstrap.Process) error {
+	ret := m.ctrl.Call(m, "Bootstrap", start, process)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MockdatabaseNamespaceMockRecorder) Bootstrap(process, targetRanges interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).Bootstrap), process, targetRanges)
+func (mr *MockdatabaseNamespaceMockRecorder) Bootstrap(start, process interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockdatabaseNamespace)(nil).Bootstrap), start, process)
 }
 
 // Flush mocks base method
@@ -2466,28 +2466,28 @@ func (mr *MockOptionsMockRecorder) RepairOptions() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RepairOptions", reflect.TypeOf((*MockOptions)(nil).RepairOptions))
 }
 
-// SetBootstrapProcess mocks base method
-func (m *MockOptions) SetBootstrapProcess(value bootstrap.Process) Options {
-	ret := m.ctrl.Call(m, "SetBootstrapProcess", value)
+// SetBootstrapProcessProvider mocks base method
+func (m *MockOptions) SetBootstrapProcessProvider(value bootstrap.ProcessProvider) Options {
+	ret := m.ctrl.Call(m, "SetBootstrapProcessProvider", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-// SetBootstrapProcess indicates an expected call of SetBootstrapProcess
-func (mr *MockOptionsMockRecorder) SetBootstrapProcess(value interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBootstrapProcess", reflect.TypeOf((*MockOptions)(nil).SetBootstrapProcess), value)
+// SetBootstrapProcessProvider indicates an expected call of SetBootstrapProcessProvider
+func (mr *MockOptionsMockRecorder) SetBootstrapProcessProvider(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetBootstrapProcessProvider", reflect.TypeOf((*MockOptions)(nil).SetBootstrapProcessProvider), value)
 }
 
-// BootstrapProcess mocks base method
-func (m *MockOptions) BootstrapProcess() bootstrap.Process {
-	ret := m.ctrl.Call(m, "BootstrapProcess")
-	ret0, _ := ret[0].(bootstrap.Process)
+// BootstrapProcessProvider mocks base method
+func (m *MockOptions) BootstrapProcessProvider() bootstrap.ProcessProvider {
+	ret := m.ctrl.Call(m, "BootstrapProcessProvider")
+	ret0, _ := ret[0].(bootstrap.ProcessProvider)
 	return ret0
 }
 
-// BootstrapProcess indicates an expected call of BootstrapProcess
-func (mr *MockOptionsMockRecorder) BootstrapProcess() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapProcess", reflect.TypeOf((*MockOptions)(nil).BootstrapProcess))
+// BootstrapProcessProvider indicates an expected call of BootstrapProcessProvider
+func (mr *MockOptionsMockRecorder) BootstrapProcessProvider() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BootstrapProcessProvider", reflect.TypeOf((*MockOptions)(nil).BootstrapProcessProvider))
 }
 
 // SetPersistManager mocks base method

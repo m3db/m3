@@ -123,23 +123,27 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 	bootstrapCommitlogOpts := bcl.NewOptions().
 		SetResultOptions(bootstrapOpts).
 		SetCommitLogOptions(commitLogOpts)
-	commitlogBootstrapper, err := bcl.NewCommitLogBootstrapper(bootstrapCommitlogOpts, nil)
+	commitlogBootstrapperProvider, err := bcl.NewCommitLogBootstrapperProvider(bootstrapCommitlogOpts, nil)
 	require.NoError(t, err)
 
 	// Setup the test bootstrapper to only return success when a signal is sent.
 	signalCh := make(chan struct{})
 	test := newTestBootstrapperSource(testBootstrapperSourceOptions{
-		read: func(_ namespace.Metadata, shardTimeRanges result.ShardTimeRanges, _ bootstrap.RunOptions) (result.BootstrapResult, error) {
+		readData: func(
+			_ namespace.Metadata,
+			shardTimeRanges result.ShardTimeRanges,
+			_ bootstrap.RunOptions,
+		) (result.DataBootstrapResult, error) {
 			<-signalCh
-			result := result.NewBootstrapResult()
+			result := result.NewDataBootstrapResult()
 			// Mark all as unfulfilled so the commitlog bootstrapper will be called after
 			result.SetUnfulfilled(shardTimeRanges)
 			return result, nil
 		},
-	}, bootstrapOpts, commitlogBootstrapper)
+	}, bootstrapOpts, commitlogBootstrapperProvider.Provide())
 
-	process := bootstrap.NewProcess(test, bootstrapOpts)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)
+	process := bootstrap.NewProcessProvider(test, bootstrapOpts)
+	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	// Start a background goroutine which will wait until the server is started,
 	// issue a single write into the active block, change the time to be far enough

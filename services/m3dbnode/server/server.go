@@ -383,7 +383,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatalf("could not create bootstrap process: %v", err)
 	}
 
-	opts = opts.SetBootstrapProcess(bs)
+	opts = opts.SetBootstrapProcessProvider(bs)
 
 	timeout := bootstrapConfigInitTimeout
 	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
@@ -400,7 +400,7 @@ func Run(runOpts RunOptions) {
 				return
 			}
 
-			bs.SetBootstrapper(updated.Bootstrapper())
+			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
 		})
 
 	// Set repair options

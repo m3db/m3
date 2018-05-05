@@ -74,8 +74,8 @@ const (
 )
 
 var (
-	// defaultBootstrapProcess is the default bootstrap for the database
-	defaultBootstrapProcess = bootstrap.NewNoOpProcess()
+	// defaultBootstrapProcessProvider is the default bootstrap provider for the database
+	defaultBootstrapProcessProvider = bootstrap.NewNoOpProcessProvider()
 
 	// defaultPoolOptions are the pool options used by default
 	defaultPoolOptions pool.ObjectPoolOptions
@@ -124,7 +124,7 @@ type options struct {
 	repairOpts                     repair.Options
 	newEncoderFn                   encoding.NewEncoderFn
 	newDecoderFn                   encoding.NewDecoderFn
-	bootstrapProcess               bootstrap.Process
+	bootstrapProcessProvider       bootstrap.ProcessProvider
 	persistManager                 persist.Manager
 	maxFlushRetries                int
 	minSnapshotInterval            time.Duration
@@ -156,22 +156,22 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	bytesPool.Init()
 	seriesOpts := series.NewOptions()
 	o := &options{
-		clockOpts:           clock.NewOptions(),
-		instrumentOpts:      instrument.NewOptions(),
-		blockOpts:           block.NewOptions(),
-		commitLogOpts:       commitlog.NewOptions(),
-		runtimeOptsMgr:      runtime.NewOptionsManager(),
-		errCounterOpts:      xcounter.NewOptions(),
-		errWindowForLoad:    defaultErrorWindowForLoad,
-		errThresholdForLoad: defaultErrorThresholdForLoad,
-		indexingEnabled:     defaultIndexingEnabled,
-		indexOpts:           index.NewOptions(),
-		repairEnabled:       defaultRepairEnabled,
-		repairOpts:          repair.NewOptions(),
-		bootstrapProcess:    defaultBootstrapProcess,
-		maxFlushRetries:     defaultMaxFlushRetries,
-		minSnapshotInterval: defaultMinSnapshotInterval,
-		poolOpts:            poolOpts,
+		clockOpts:                clock.NewOptions(),
+		instrumentOpts:           instrument.NewOptions(),
+		blockOpts:                block.NewOptions(),
+		commitLogOpts:            commitlog.NewOptions(),
+		runtimeOptsMgr:           runtime.NewOptionsManager(),
+		errCounterOpts:           xcounter.NewOptions(),
+		errWindowForLoad:         defaultErrorWindowForLoad,
+		errThresholdForLoad:      defaultErrorThresholdForLoad,
+		indexingEnabled:          defaultIndexingEnabled,
+		indexOpts:                index.NewOptions(),
+		repairEnabled:            defaultRepairEnabled,
+		repairOpts:               repair.NewOptions(),
+		bootstrapProcessProvider: defaultBootstrapProcessProvider,
+		maxFlushRetries:          defaultMaxFlushRetries,
+		minSnapshotInterval:      defaultMinSnapshotInterval,
+		poolOpts:                 poolOpts,
 		contextPool: context.NewPool(context.NewOptions().
 			SetContextPoolOptions(poolOpts).
 			SetFinalizerPoolOptions(poolOpts)),
@@ -455,14 +455,14 @@ func (o *options) NewDecoderFn() encoding.NewDecoderFn {
 	return o.newDecoderFn
 }
 
-func (o *options) SetBootstrapProcess(value bootstrap.Process) Options {
+func (o *options) SetBootstrapProcessProvider(value bootstrap.ProcessProvider) Options {
 	opts := *o
-	opts.bootstrapProcess = value
+	opts.bootstrapProcessProvider = value
 	return &opts
 }
 
-func (o *options) BootstrapProcess() bootstrap.Process {
-	return o.bootstrapProcess
+func (o *options) BootstrapProcessProvider() bootstrap.ProcessProvider {
+	return o.bootstrapProcessProvider
 }
 
 func (o *options) SetPersistManager(value persist.Manager) Options {

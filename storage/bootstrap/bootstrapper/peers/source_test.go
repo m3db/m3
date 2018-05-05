@@ -70,12 +70,13 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 	nsMetdata := testNamespaceMetadata(t)
 
 	target := result.ShardTimeRanges{}
-	available := src.Available(nsMetdata, target)
+	available := src.AvailableData(nsMetdata, target)
 	assert.Equal(t, target, available)
 
-	r, err := src.Read(nsMetdata, target, testDefaultRunOpts)
+	r, err := src.ReadData(nsMetdata, target, testDefaultRunOpts)
 	assert.NoError(t, err)
-	assert.Nil(t, r)
+	assert.Equal(t, 0, len(r.ShardResults()))
+	assert.True(t, r.Unfulfilled().IsEmpty())
 }
 
 func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
@@ -101,7 +102,7 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 		1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
 	}
 
-	_, err := src.Read(nsMetadata, target, testDefaultRunOpts)
+	_, err := src.ReadData(nsMetadata, target, testDefaultRunOpts)
 	require.Error(t, err)
 	assert.Equal(t, expectedErr, err)
 }
@@ -144,7 +145,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 		1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
 	}
 
-	r, err := src.Read(nsMetadata, target, testDefaultRunOpts)
+	r, err := src.ReadData(nsMetadata, target, testDefaultRunOpts)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 1, len(r.ShardResults()))
@@ -329,7 +330,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
 		}
 
-		r, err := src.Read(testNsMd, target, testIncrementalRunOpts)
+		r, err := src.ReadData(testNsMd, target, testIncrementalRunOpts)
 		assert.NoError(t, err)
 
 		require.True(t, r.Unfulfilled()[0].IsEmpty())
@@ -655,7 +656,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 			AddRange(xtime.Range{Start: midway, End: end}),
 	}
 
-	r, err := src.Read(testNsMd, target, testIncrementalRunOpts)
+	r, err := src.ReadData(testNsMd, target, testIncrementalRunOpts)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 0, len(r.ShardResults()))

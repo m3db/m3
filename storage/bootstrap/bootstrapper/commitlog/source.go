@@ -70,7 +70,7 @@ func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
 	return false
 }
 
-func (s *commitLogSource) Available(
+func (s *commitLogSource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
@@ -80,13 +80,13 @@ func (s *commitLogSource) Available(
 	return shardsTimeRanges
 }
 
-func (s *commitLogSource) Read(
+func (s *commitLogSource) ReadData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
-) (result.BootstrapResult, error) {
+) (result.DataBootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
-		return nil, nil
+		return result.NewDataBootstrapResult(), nil
 	}
 
 	readCommitLogPredicate := newReadCommitLogPredicate(ns, shardsTimeRanges, s.opts)
@@ -276,11 +276,11 @@ func (s *commitLogSource) mergeShards(
 	blopts block.Options,
 	encoderPool encoding.EncoderPool,
 	unmerged []encodersAndRanges,
-) result.BootstrapResult {
+) result.DataBootstrapResult {
 	var (
 		shardErrs               = make([]int, numShards)
 		shardEmptyErrs          = make([]int, numShards)
-		bootstrapResult         = result.NewBootstrapResult()
+		bootstrapResult         = result.NewDataBootstrapResult()
 		blocksPool              = bopts.DatabaseBlockOptions().DatabaseBlockPool()
 		multiReaderIteratorPool = blopts.MultiReaderIteratorPool()
 		// Controls how many shards can be merged in parallel
@@ -464,6 +464,32 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 	if emptyErrSum > 0 {
 		s.log.Errorf("error bootstrapping from commit log: %d empty unmerged blocks errors", emptyErrSum)
 	}
+}
+
+func (s *commitLogSource) AvailableIndex(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+) result.ShardTimeRanges {
+	// Commit log bootstrapper is a last ditch effort, so fulfill all
+	// time ranges requested even if not enough data, just to succeed
+	// the bootstrap
+	return shardsTimeRanges
+}
+
+func (s *commitLogSource) ReadIndex(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+	opts bootstrap.RunOptions,
+) (result.IndexBootstrapResult, error) {
+	// FOLLOWUP(r): implement the commit log source returning
+	// not indexed series metadata for the time range required.
+	// Try to cache some data on the commit log source itself
+	// from work done in ReadData(...) to help avoid rereading as
+	// much as possible.
+	// Also: it's now possible to cache the metadata and data
+	// for all namespaces in the first call to ReadData(...) since
+	// the source is used across all namespaces and then discarded after.
+	return result.NewIndexBootstrapResult(), nil
 }
 
 func newReadCommitLogPredicate(

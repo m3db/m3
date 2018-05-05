@@ -603,10 +603,7 @@ func (n *dbNamespace) FetchBlocksMetadataV2(
 	return res, nextPageToken, err
 }
 
-func (n *dbNamespace) Bootstrap(
-	process bootstrap.Process,
-	targetRanges []bootstrap.TargetRange,
-) error {
+func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) error {
 	callStart := n.nowFn()
 
 	n.Lock()
@@ -651,7 +648,7 @@ func (n *dbNamespace) Bootstrap(
 		shardIDs[i] = shard.ID()
 	}
 
-	bootstrapResult, err := process.Run(n.metadata, shardIDs, targetRanges)
+	bootstrapResult, err := process.Run(start, n.metadata, shardIDs)
 	if err != nil {
 		n.log.Errorf("bootstrap for namespace %s aborted due to error: %v",
 			n.id.String(), err)
@@ -663,11 +660,7 @@ func (n *dbNamespace) Bootstrap(
 	workers := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
 	workers.Init()
 
-	var numSeries int64
-	if bootstrapResult != nil {
-		numSeries = bootstrapResult.ShardResults().NumSeries()
-	}
-
+	numSeries := bootstrapResult.DataResult.ShardResults().NumSeries()
 	n.log.WithFields(
 		xlog.NewField("numShards", len(shards)),
 		xlog.NewField("numSeries", numSeries),
@@ -675,7 +668,7 @@ func (n *dbNamespace) Bootstrap(
 
 	var (
 		multiErr = xerrors.NewMultiError()
-		results  = bootstrapResult.ShardResults()
+		results  = bootstrapResult.DataResult.ShardResults()
 		mutex    sync.Mutex
 		wg       sync.WaitGroup
 	)
@@ -703,10 +696,10 @@ func (n *dbNamespace) Bootstrap(
 	wg.Wait()
 
 	// Counter, tag this with namespace
-	unfulfilled := int64(len(bootstrapResult.Unfulfilled()))
+	unfulfilled := int64(len(bootstrapResult.DataResult.Unfulfilled()))
 	n.metrics.unfulfilled.Inc(unfulfilled)
 	if unfulfilled > 0 {
-		str := bootstrapResult.Unfulfilled().SummaryString()
+		str := bootstrapResult.DataResult.Unfulfilled().SummaryString()
 		msgFmt := "bootstrap for namespace %s completed with unfulfilled ranges: %s"
 		multiErr = multiErr.Add(fmt.Errorf(msgFmt, n.id.String(), str))
 		n.log.Errorf(msgFmt, n.id.String(), str)

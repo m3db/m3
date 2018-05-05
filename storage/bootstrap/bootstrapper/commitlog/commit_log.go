@@ -30,24 +30,46 @@ const (
 	CommitLogBootstrapperName = "commitlog"
 )
 
-type commitLogBootstrapper struct {
-	bootstrap.Bootstrapper
+type commitLogBootstrapperProvider struct {
+	opts Options
+	next bootstrap.BootstrapperProvider
 }
 
-// NewCommitLogBootstrapper creates a new bootstrapper to bootstrap from commit log files.
-func NewCommitLogBootstrapper(
+// NewCommitLogBootstrapperProvider creates a new bootstrapper provider
+// to bootstrap from commit log files.
+func NewCommitLogBootstrapperProvider(
 	opts Options,
-	next bootstrap.Bootstrapper,
-) (bootstrap.Bootstrapper, error) {
+	next bootstrap.BootstrapperProvider,
+) (bootstrap.BootstrapperProvider, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
+	return commitLogBootstrapperProvider{
+		opts: opts,
+		next: next,
+	}, nil
+}
 
-	src := newCommitLogSource(opts)
-	b := &commitLogBootstrapper{}
+func (p commitLogBootstrapperProvider) Provide() bootstrap.Bootstrapper {
+	var (
+		src  = newCommitLogSource(p.opts)
+		b    = &commitLogBootstrapper{}
+		next bootstrap.Bootstrapper
+	)
+	if p.next != nil {
+		next = p.next.Provide()
+	}
 	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(b.String(),
-		src, opts.ResultOptions(), next)
-	return b, nil
+		src, p.opts.ResultOptions(), next)
+	return b
+}
+
+func (p commitLogBootstrapperProvider) String() string {
+	return CommitLogBootstrapperName
+}
+
+type commitLogBootstrapper struct {
+	bootstrap.Bootstrapper
 }
 
 func (*commitLogBootstrapper) String() string {
