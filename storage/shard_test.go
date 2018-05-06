@@ -260,7 +260,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	var closed bool
 	flush := persist.NewMockFlush(ctrl)
 	prepared := persist.PreparedPersist{
-		Persist: func(ident.ID, ts.Segment, uint32) error { return nil },
+		Persist: func(ident.ID, ident.Tags, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
 	}
 	prepareOpts := persist.PrepareOptionsMatcher{
@@ -325,7 +325,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	var closed bool
 	flush := persist.NewMockFlush(ctrl)
 	prepared := persist.PreparedPersist{
-		Persist: func(ident.ID, ts.Segment, uint32) error { return nil },
+		Persist: func(ident.ID, ident.Tags, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
 	}
 
@@ -397,7 +397,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 	var closed bool
 	flush := persist.NewMockFlush(ctrl)
 	prepared := persist.PreparedPersist{
-		Persist: func(ident.ID, ts.Segment, uint32) error { return nil },
+		Persist: func(ident.ID, ident.Tags, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
 	}
 
@@ -1092,14 +1092,14 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 		Stream(ctx, shard.shard, ident.NewIDMatcher("foo"),
 			start, shard.seriesOnRetrieveBlock).
 		Do(func(ctx context.Context, shard uint32, id ident.ID, at time.Time, onRetrieve block.OnRetrieveBlock) {
-			go onRetrieve.OnRetrieveBlock(id, at, segments[0])
+			go onRetrieve.OnRetrieveBlock(id, ident.EmptyTagIterator, at, segments[0])
 		}).
 		Return(segReaders[0], nil)
 	retriever.EXPECT().
 		Stream(ctx, shard.shard, ident.NewIDMatcher("foo"),
 			start.Add(ropts.BlockSize()), shard.seriesOnRetrieveBlock).
 		Do(func(ctx context.Context, shard uint32, id ident.ID, at time.Time, onRetrieve block.OnRetrieveBlock) {
-			go onRetrieve.OnRetrieveBlock(id, at, segments[1])
+			go onRetrieve.OnRetrieveBlock(id, ident.EmptyTagIterator, at, segments[1])
 		}).
 		Return(segReaders[1], nil)
 

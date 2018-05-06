@@ -50,7 +50,7 @@ func testManager(
 ) (*persistManager, *MockDataFileSetWriter, Options) {
 	dir := createTempDir(t)
 
-	opts := NewOptions().
+	opts := testDefaultOpts.
 		SetFilePathPrefix(dir).
 		SetWriterBufferSize(10)
 
@@ -159,12 +159,13 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 
 	var (
 		id       = ident.StringID("foo")
+		tags     = ident.Tags{ident.StringTag("bar", "baz")}
 		head     = checked.NewBytes([]byte{0x1, 0x2}, nil)
 		tail     = checked.NewBytes([]byte{0x3, 0x4}, nil)
 		segment  = ts.NewSegment(head, tail, ts.FinalizeNone)
 		checksum = digest.SegmentChecksum(segment)
 	)
-	writer.EXPECT().WriteAll(id, gomock.Any(), checksum).Return(nil)
+	writer.EXPECT().WriteAll(id, tags, gomock.Any(), checksum).Return(nil)
 	writer.EXPECT().Close()
 
 	flush, err := pm.StartPersist()
@@ -189,7 +190,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 
 	require.Nil(t, err)
 
-	require.Nil(t, prepared.Persist(id, segment, checksum))
+	require.Nil(t, prepared.Persist(id, tags, segment, checksum))
 
 	require.True(t, pm.start.Equal(now))
 	require.Equal(t, 124, pm.count)
@@ -230,6 +231,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 		now      time.Time
 		slept    time.Duration
 		id       = ident.StringID("foo")
+		tags     = ident.Tags{ident.StringTag("bar", "baz")}
 		head     = checked.NewBytes([]byte{0x1, 0x2}, nil)
 		tail     = checked.NewBytes([]byte{0x3}, nil)
 		segment  = ts.NewSegment(head, tail, ts.FinalizeNone)
@@ -239,7 +241,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
-	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).Times(2)
+	writer.EXPECT().WriteAll(id, tags, pm.segmentHolder, checksum).Return(nil).Times(2)
 
 	flush, err := pm.StartPersist()
 	require.NoError(t, err)
@@ -259,11 +261,11 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 
 	// Start persistence
 	now = time.Now()
-	require.NoError(t, prepared.Persist(id, segment, checksum))
+	require.NoError(t, prepared.Persist(id, tags, segment, checksum))
 
 	// Advance time and write again
 	now = now.Add(time.Millisecond)
-	require.NoError(t, prepared.Persist(id, segment, checksum))
+	require.NoError(t, prepared.Persist(id, tags, segment, checksum))
 
 	// Check there is no rate limiting
 	require.Equal(t, time.Duration(0), slept)
@@ -303,7 +305,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		BlockSize: testBlockSize,
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil).Times(iter)
-	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).AnyTimes()
+	writer.EXPECT().WriteAll(id, nil, pm.segmentHolder, checksum).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 
 	// Enable rate limiting
@@ -342,21 +344,21 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 
 		// Start persistence
 		now = time.Now()
-		require.NoError(t, prepared.Persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, nil, segment, checksum))
 
 		// Assert we don't rate limit if the count is not enough yet
-		require.NoError(t, prepared.Persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, nil, segment, checksum))
 		require.Equal(t, time.Duration(0), slept)
 
 		// Advance time and check we rate limit if the disk throughput exceeds the limit
 		now = now.Add(time.Microsecond)
-		require.NoError(t, prepared.Persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, nil, segment, checksum))
 		require.Equal(t, time.Duration(1861), slept)
 
 		// Advance time and check we don't rate limit if the disk throughput is below the limit
-		require.NoError(t, prepared.Persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, nil, segment, checksum))
 		now = now.Add(time.Second - time.Microsecond)
-		require.NoError(t, prepared.Persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, nil, segment, checksum))
 		require.Equal(t, time.Duration(1861), slept)
 
 		require.Equal(t, int64(15), pm.bytesWritten)

@@ -132,7 +132,7 @@ func TestIndexSimpleReadWrite(t *testing.T) {
 }
 
 func newTestIndexWriter(t *testing.T, filePathPrefix string) IndexFileSetWriter {
-	writer, err := NewIndexWriter(NewOptions().
+	writer, err := NewIndexWriter(testDefaultOpts.
 		SetFilePathPrefix(filePathPrefix).
 		SetWriterBufferSize(testWriterBufferSize))
 	require.NoError(t, err)
@@ -140,7 +140,7 @@ func newTestIndexWriter(t *testing.T, filePathPrefix string) IndexFileSetWriter 
 }
 
 func newTestIndexReader(t *testing.T, filePathPrefix string) IndexFileSetReader {
-	reader, err := NewIndexReader(NewOptions().
+	reader, err := NewIndexReader(testDefaultOpts.
 		SetFilePathPrefix(filePathPrefix))
 	require.NoError(t, err)
 	return reader

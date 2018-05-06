@@ -101,9 +101,10 @@ type seeker struct {
 // IndexEntry is an entry from the index file which can be passed to
 // SeekUsingIndexEntry to seek to the data for that entry
 type IndexEntry struct {
-	Size     uint32
-	Checksum uint32
-	Offset   int64
+	Size        uint32
+	Checksum    uint32
+	Offset      int64
+	EncodedTags []byte
 }
 
 // NewSeeker returns a new seeker.
@@ -425,9 +426,10 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 		comparison := bytes.Compare(entry.ID, idBytes)
 		if comparison == 0 {
 			return IndexEntry{
-				Size:     uint32(entry.Size),
-				Checksum: uint32(entry.Checksum),
-				Offset:   entry.Offset,
+				Size:        uint32(entry.Size),
+				Checksum:    uint32(entry.Checksum),
+				Offset:      entry.Offset,
+				EncodedTags: entry.EncodedTags,
 			}, nil
 		}
 

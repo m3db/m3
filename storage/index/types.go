@@ -23,6 +23,8 @@ package index
 import (
 	"time"
 
+	"github.com/m3db/m3ninx/index/segment"
+
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/idx"
@@ -105,6 +107,9 @@ type ResultsPool interface {
 	// Put returns the provide value to the pool.
 	Put(value Results)
 }
+
+// MutableSegmentAllocator allocates a new MutableSegment type.
+type MutableSegmentAllocator func() (segment.MutableSegment, error)
 
 // Options control the Indexing knobs.
 type Options interface {

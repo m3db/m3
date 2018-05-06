@@ -238,7 +238,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 
 			bytes := checked.NewBytes(data, nil)
 			bytes.IncRef()
-			err = writer.Write(id, bytes, checksum)
+			err = writer.Write(id, nil, bytes, checksum)
 			require.NoError(t, err)
 
 			blockMetadataResult := block.NewFetchBlockMetadataResult(at,

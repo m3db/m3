@@ -83,27 +83,27 @@ func (mr *MockDataFileSetWriterMockRecorder) Open(arg0 interface{}) *gomock.Call
 }
 
 // Write mocks base method
-func (m *MockDataFileSetWriter) Write(arg0 ident.ID, arg1 checked.Bytes, arg2 uint32) error {
-	ret := m.ctrl.Call(m, "Write", arg0, arg1, arg2)
+func (m *MockDataFileSetWriter) Write(arg0 ident.ID, arg1 ident.Tags, arg2 checked.Bytes, arg3 uint32) error {
+	ret := m.ctrl.Call(m, "Write", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Write indicates an expected call of Write
-func (mr *MockDataFileSetWriterMockRecorder) Write(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockDataFileSetWriter)(nil).Write), arg0, arg1, arg2)
+func (mr *MockDataFileSetWriterMockRecorder) Write(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MockDataFileSetWriter)(nil).Write), arg0, arg1, arg2, arg3)
 }
 
 // WriteAll mocks base method
-func (m *MockDataFileSetWriter) WriteAll(arg0 ident.ID, arg1 []checked.Bytes, arg2 uint32) error {
-	ret := m.ctrl.Call(m, "WriteAll", arg0, arg1, arg2)
+func (m *MockDataFileSetWriter) WriteAll(arg0 ident.ID, arg1 ident.Tags, arg2 []checked.Bytes, arg3 uint32) error {
+	ret := m.ctrl.Call(m, "WriteAll", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WriteAll indicates an expected call of WriteAll
-func (mr *MockDataFileSetWriterMockRecorder) WriteAll(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteAll", reflect.TypeOf((*MockDataFileSetWriter)(nil).WriteAll), arg0, arg1, arg2)
+func (mr *MockDataFileSetWriterMockRecorder) WriteAll(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteAll", reflect.TypeOf((*MockDataFileSetWriter)(nil).WriteAll), arg0, arg1, arg2, arg3)
 }
 
 // MockDataFileSetReader is a mock of DataFileSetReader interface
@@ -202,13 +202,14 @@ func (mr *MockDataFileSetReaderMockRecorder) Range() *gomock.Call {
 }
 
 // Read mocks base method
-func (m *MockDataFileSetReader) Read() (ident.ID, checked.Bytes, uint32, error) {
+func (m *MockDataFileSetReader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
 	ret := m.ctrl.Call(m, "Read")
 	ret0, _ := ret[0].(ident.ID)
-	ret1, _ := ret[1].(checked.Bytes)
-	ret2, _ := ret[2].(uint32)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
+	ret1, _ := ret[1].(ident.TagIterator)
+	ret2, _ := ret[2].(checked.Bytes)
+	ret3, _ := ret[3].(uint32)
+	ret4, _ := ret[4].(error)
+	return ret0, ret1, ret2, ret3, ret4
 }
 
 // Read indicates an expected call of Read
@@ -230,13 +231,14 @@ func (mr *MockDataFileSetReaderMockRecorder) ReadBloomFilter() *gomock.Call {
 }
 
 // ReadMetadata mocks base method
-func (m *MockDataFileSetReader) ReadMetadata() (ident.ID, int, uint32, error) {
+func (m *MockDataFileSetReader) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error) {
 	ret := m.ctrl.Call(m, "ReadMetadata")
 	ret0, _ := ret[0].(ident.ID)
-	ret1, _ := ret[1].(int)
-	ret2, _ := ret[2].(uint32)
-	ret3, _ := ret[3].(error)
-	return ret0, ret1, ret2, ret3
+	ret1, _ := ret[1].(ident.TagIterator)
+	ret2, _ := ret[2].(int)
+	ret3, _ := ret[3].(uint32)
+	ret4, _ := ret[4].(error)
+	return ret0, ret1, ret2, ret3, ret4
 }
 
 // ReadMetadata indicates an expected call of ReadMetadata

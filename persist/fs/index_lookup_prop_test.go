@@ -65,7 +65,9 @@ func TestIndexLookupWriteRead(t *testing.T) {
 		filePathPrefix := filepath.Join(dir, "")
 		defer os.RemoveAll(dir)
 
-		options := NewOptions().
+		// NB(r): Use testDefaultOpts to avoid allocing pools each
+		// time we derive options
+		options := testDefaultOpts.
 			// Make sure that every index entry is also in the summaries file for the
 			// sake of verifying behavior
 			SetIndexSummariesPercent(1).
@@ -228,7 +230,7 @@ func readIndexFileOffsets(shardDirPath string, numEntries int, start time.Time) 
 	}
 
 	decoderStream := msgpack.NewDecoderStream(buf)
-	decoder := msgpack.NewDecoder(NewOptions().DecodingOptions())
+	decoder := msgpack.NewDecoder(testDefaultOpts.DecodingOptions())
 	decoder.Reset(decoderStream)
 
 	summariesOffsets := map[string]int64{}

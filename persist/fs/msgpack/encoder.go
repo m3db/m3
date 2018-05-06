@@ -50,18 +50,21 @@ type Encoder struct {
 	encodeBytesFn              encodeBytesFn
 	encodeArrayLenFn           encodeArrayLenFn
 
-	encodeLegacyV1IndexInfo bool
+	encodeLegacyV1IndexInfo  bool
+	encodeLegacyV1IndexEntry bool
 }
 
 // NewEncoder creates a new encoder
 func NewEncoder() *Encoder {
 	return newEncoder(newEncoderOptions{
-		encodeLegacyV1IndexInfo: false,
+		encodeLegacyV1IndexInfo:  false,
+		encodeLegacyV1IndexEntry: false,
 	})
 }
 
 type newEncoderOptions struct {
-	encodeLegacyV1IndexInfo bool
+	encodeLegacyV1IndexInfo  bool
+	encodeLegacyV1IndexEntry bool
 }
 
 func newEncoder(opts newEncoderOptions) *Encoder {
@@ -81,6 +84,7 @@ func newEncoder(opts newEncoderOptions) *Encoder {
 
 	// Used primarily for testing
 	enc.encodeLegacyV1IndexInfo = opts.encodeLegacyV1IndexInfo
+	enc.encodeLegacyV1IndexEntry = opts.encodeLegacyV1IndexEntry
 
 	return enc
 }
@@ -109,7 +113,7 @@ func (enc *Encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 		return enc.err
 	}
 	enc.encodeRootObject(indexEntryVersion, indexEntryType)
-	enc.encodeIndexEntry(entry)
+	enc.encodeIndexEntryV2(entry)
 	return enc.err
 }
 
@@ -198,13 +202,27 @@ func (enc *Encoder) encodeIndexBloomFilterInfo(info schema.IndexBloomFilterInfo)
 	enc.encodeVarintFn(info.NumHashesK)
 }
 
-func (enc *Encoder) encodeIndexEntry(entry schema.IndexEntry) {
+// We only keep this method around for the sake of testing
+// backwards-compatbility
+func (enc *Encoder) encodeIndexEntryV1(entry schema.IndexEntry) {
+	// Manually encode num fields for testing purposes
+	enc.encodeArrayLenFn(minNumIndexEntryFields)
+	enc.encodeVarintFn(entry.Index)
+	enc.encodeBytesFn(entry.ID)
+	enc.encodeVarintFn(entry.Size)
+	enc.encodeVarintFn(entry.Offset)
+	enc.encodeVarintFn(entry.Checksum)
+}
+
+func (enc *Encoder) encodeIndexEntryV2(entry schema.IndexEntry) {
+	// Manually encode num fields for testing purposes
 	enc.encodeNumObjectFieldsForFn(indexEntryType)
 	enc.encodeVarintFn(entry.Index)
 	enc.encodeBytesFn(entry.ID)
 	enc.encodeVarintFn(entry.Size)
 	enc.encodeVarintFn(entry.Offset)
 	enc.encodeVarintFn(entry.Checksum)
+	enc.encodeBytesFn(entry.EncodedTags)
 }
 
 func (enc *Encoder) encodeIndexSummary(summary schema.IndexSummary) {
