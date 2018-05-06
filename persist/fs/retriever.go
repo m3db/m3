@@ -348,7 +348,7 @@ func (r *blockRetriever) Stream(
 	ctx context.Context,
 	shard uint32,
 	id ident.ID,
-	startTime, endTime time.Time,
+	startTime time.Time,
 	onRetrieve block.OnRetrieveBlock,
 ) (xio.BlockReader, error) {
 	req := r.reqPool.Get()
@@ -357,7 +357,8 @@ func (r *blockRetriever) Stream(
 	// the lifecycle of the async request.
 	req.id = r.idPool.Clone(id)
 	req.start = startTime
-	req.end = endTime
+	req.end = startTime.Add(r.nsMetadata.Options().RetentionOptions().BlockSize())
+
 	req.onRetrieve = onRetrieve
 	req.resultWg.Add(1)
 

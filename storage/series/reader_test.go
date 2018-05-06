@@ -62,11 +62,11 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 
 	retriever.EXPECT().
 		Stream(ctx, ident.NewIDMatcher("foo"),
-			start, start.Add(ropts.BlockSize()), onRetrieveBlock).
+			start, onRetrieveBlock).
 		Return(blockReaders[0], nil)
 	retriever.EXPECT().
 		Stream(ctx, ident.NewIDMatcher("foo"),
-			start.Add(ropts.BlockSize()), end, onRetrieveBlock).
+			start.Add(ropts.BlockSize()), onRetrieveBlock).
 		Return(blockReaders[1], nil)
 
 	reader := NewReaderUsingRetriever(
@@ -116,11 +116,11 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 
 	retriever.EXPECT().
 		Stream(ctx, ident.NewIDMatcher("foo"),
-			start, start.Add(ropts.BlockSize()), nil).
+			start, nil).
 		Return(blockReaders[0], nil)
 	retriever.EXPECT().
 		Stream(ctx, ident.NewIDMatcher("foo"),
-			start.Add(ropts.BlockSize()), end, nil).
+			start.Add(ropts.BlockSize()), nil).
 		Return(blockReaders[1], nil)
 
 	reader := NewReaderUsingRetriever(

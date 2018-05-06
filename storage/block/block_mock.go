@@ -761,16 +761,16 @@ func (mr *MockDatabaseBlockRetrieverMockRecorder) CacheShardIndices(shards inter
 }
 
 // Stream mocks base method
-func (m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ident.ID, blockStart, blockEnd time.Time, onRetrieve OnRetrieveBlock) (xio.BlockReader, error) {
-	ret := m.ctrl.Call(m, "Stream", ctx, shard, id, blockStart, blockEnd, onRetrieve)
+func (m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (xio.BlockReader, error) {
+	ret := m.ctrl.Call(m, "Stream", ctx, shard, id, blockStart, onRetrieve)
 	ret0, _ := ret[0].(xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Stream indicates an expected call of Stream
-func (mr *MockDatabaseBlockRetrieverMockRecorder) Stream(ctx, shard, id, blockStart, blockEnd, onRetrieve interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).Stream), ctx, shard, id, blockStart, blockEnd, onRetrieve)
+func (mr *MockDatabaseBlockRetrieverMockRecorder) Stream(ctx, shard, id, blockStart, onRetrieve interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).Stream), ctx, shard, id, blockStart, onRetrieve)
 }
 
 // MockDatabaseShardBlockRetriever is a mock of DatabaseShardBlockRetriever interface
@@ -797,16 +797,16 @@ func (m *MockDatabaseShardBlockRetriever) EXPECT() *MockDatabaseShardBlockRetrie
 }
 
 // Stream mocks base method
-func (m *MockDatabaseShardBlockRetriever) Stream(ctx context.Context, id ident.ID, blockStart, blockEnd time.Time, onRetrieve OnRetrieveBlock) (xio.BlockReader, error) {
-	ret := m.ctrl.Call(m, "Stream", ctx, id, blockStart, blockEnd, onRetrieve)
+func (m *MockDatabaseShardBlockRetriever) Stream(ctx context.Context, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (xio.BlockReader, error) {
+	ret := m.ctrl.Call(m, "Stream", ctx, id, blockStart, onRetrieve)
 	ret0, _ := ret[0].(xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Stream indicates an expected call of Stream
-func (mr *MockDatabaseShardBlockRetrieverMockRecorder) Stream(ctx, id, blockStart, blockEnd, onRetrieve interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockDatabaseShardBlockRetriever)(nil).Stream), ctx, id, blockStart, blockEnd, onRetrieve)
+func (mr *MockDatabaseShardBlockRetrieverMockRecorder) Stream(ctx, id, blockStart, onRetrieve interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockDatabaseShardBlockRetriever)(nil).Stream), ctx, id, blockStart, onRetrieve)
 }
 
 // MockDatabaseBlockRetrieverManager is a mock of DatabaseBlockRetrieverManager interface

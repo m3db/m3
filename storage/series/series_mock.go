@@ -300,14 +300,14 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) IsBlockRetrievable(arg0 inter
 }
 
 // Stream mocks base method
-func (m *MockQueryableBlockRetriever) Stream(arg0 context.Context, arg1 ident.ID, arg2, arg3 time.Time, arg4 block.OnRetrieveBlock) (xio.BlockReader, error) {
-	ret := m.ctrl.Call(m, "Stream", arg0, arg1, arg2, arg3, arg4)
+func (m *MockQueryableBlockRetriever) Stream(arg0 context.Context, arg1 ident.ID, arg2 time.Time, arg3 block.OnRetrieveBlock) (xio.BlockReader, error) {
+	ret := m.ctrl.Call(m, "Stream", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Stream indicates an expected call of Stream
-func (mr *MockQueryableBlockRetrieverMockRecorder) Stream(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).Stream), arg0, arg1, arg2, arg3, arg4)
+func (mr *MockQueryableBlockRetrieverMockRecorder) Stream(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockQueryableBlockRetriever)(nil).Stream), arg0, arg1, arg2, arg3)
 }

@@ -557,13 +557,13 @@ func (mr *MockMultiReaderIteratorMockRecorder) Close() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockMultiReaderIterator) Reset(blocks []xio.SegmentReader, start, end time.Time) {
-	m.ctrl.Call(m, "Reset", blocks, start, end)
+func (m *MockMultiReaderIterator) Reset(readers []xio.SegmentReader, start, end time.Time) {
+	m.ctrl.Call(m, "Reset", readers, start, end)
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockMultiReaderIteratorMockRecorder) Reset(blocks, start, end interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMultiReaderIterator)(nil).Reset), blocks, start, end)
+func (mr *MockMultiReaderIteratorMockRecorder) Reset(readers, start, end interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMultiReaderIterator)(nil).Reset), readers, start, end)
 }
 
 // ResetSliceOfSlices mocks base method

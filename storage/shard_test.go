@@ -1096,15 +1096,15 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 
 	retriever.EXPECT().
 		Stream(ctx, shard.shard, ident.NewIDMatcher("foo"),
-			start, mid, shard.seriesOnRetrieveBlock).
-		Do(func(ctx context.Context, shard uint32, id ident.ID, at, end time.Time, onRetrieve block.OnRetrieveBlock) {
+			start, shard.seriesOnRetrieveBlock).
+		Do(func(ctx context.Context, shard uint32, id ident.ID, at time.Time, onRetrieve block.OnRetrieveBlock) {
 			go onRetrieve.OnRetrieveBlock(id, at, segments[0])
 		}).
 		Return(blockReaders[0], nil)
 	retriever.EXPECT().
 		Stream(ctx, shard.shard, ident.NewIDMatcher("foo"),
-			mid, end, shard.seriesOnRetrieveBlock).
-		Do(func(ctx context.Context, shard uint32, id ident.ID, at, end time.Time, onRetrieve block.OnRetrieveBlock) {
+			mid, shard.seriesOnRetrieveBlock).
+		Do(func(ctx context.Context, shard uint32, id ident.ID, at time.Time, onRetrieve block.OnRetrieveBlock) {
 			go onRetrieve.OnRetrieveBlock(id, at, segments[1])
 		}).
 		Return(blockReaders[1], nil)

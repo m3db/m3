@@ -222,7 +222,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 				for k := 0; k < len(blockStarts); k++ {
 					ctx := context.NewContext()
-					stream, err := retriever.Stream(ctx, shard, id, blockStarts[k], time.Time{}, nil)
+					stream, err := retriever.Stream(ctx, shard, id, blockStarts[k], nil)
 					require.NoError(t, err)
 					results = append(results, streamResult{
 						ctx:        ctx,
@@ -298,7 +298,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 	segmentReader, err := retriever.Stream(ctx, shard,
-		ident.StringID("not-exists"), blockStart, time.Time{}, nil)
+		ident.StringID("not-exists"), blockStart, nil)
 	assert.NoError(t, err)
 
 	segment, err := segmentReader.Segment()

@@ -347,10 +347,9 @@ func (s *dbShard) Stream(
 	ctx context.Context,
 	id ident.ID,
 	blockStart time.Time,
-	blockEnd time.Time,
 	onRetrieve block.OnRetrieveBlock,
 ) (xio.BlockReader, error) {
-	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, blockEnd, onRetrieve)
+	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, onRetrieve)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever

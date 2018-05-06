@@ -294,7 +294,6 @@ func (b *dbBlock) stream(ctx context.Context) (xio.BlockReader, error) {
 	b.ctx.DependsOn(ctx)
 
 	start := b.startWithLock()
-	end := start.Add(b.blockSize)
 
 	// If the block retrieve ID is set then it must be retrieved
 	var (
@@ -302,18 +301,19 @@ func (b *dbBlock) stream(ctx context.Context) (xio.BlockReader, error) {
 		err         error
 	)
 	if b.retriever != nil {
-		blockReader, err = b.retriever.Stream(ctx, b.retrieveID, start, end, b)
+		blockReader, err = b.retriever.Stream(ctx, b.retrieveID, start, b)
 		if err != nil {
 			return xio.EmptyBlockReader, err
 		}
 	} else {
+		segmentReader := b.opts.SegmentReaderPool().Get()
 		blockReader = xio.BlockReader{
-			SegmentReader: b.opts.SegmentReaderPool().Get(),
+			SegmentReader: segmentReader,
 			Start:         start,
-			End:           end,
+			End:           start.Add(b.blockSize),
 		}
 		blockReader.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
-		ctx.RegisterFinalizer(blockReader)
+		ctx.RegisterFinalizer(segmentReader)
 	}
 
 	return blockReader, nil
