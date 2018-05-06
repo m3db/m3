@@ -102,7 +102,7 @@ const (
 	currNumIndexInfoFields            = 8
 	currNumIndexSummariesInfoFields   = 1
 	currNumIndexBloomFilterInfoFields = 2
-	currNumIndexEntryFields           = 5
+	currNumIndexEntryFields           = 6
 	currNumIndexSummaryFields         = 3
 	currNumLogInfoFields              = 3
 	currNumLogEntryFields             = 7

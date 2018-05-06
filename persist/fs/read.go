@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/x/mmap"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
@@ -81,6 +82,7 @@ type reader struct {
 	decoder         *msgpack.Decoder
 	digestBuf       digest.Buffer
 	bytesPool       pool.CheckedBytesPool
+	tagDecoderPool  serialize.TagDecoderPool
 
 	expectedInfoDigest        uint32
 	expectedIndexDigest       uint32
@@ -118,6 +120,7 @@ func NewReader(
 		decoder:                    msgpack.NewDecoder(opts.DecodingOptions()),
 		digestBuf:                  digest.NewBuffer(),
 		bytesPool:                  bytesPool,
+		tagDecoderPool:             opts.TagDecoderPool(),
 	}, nil
 }
 
@@ -317,18 +320,17 @@ func (r *reader) readIndexAndSortByOffsetAsc() error {
 	return nil
 }
 
-func (r *reader) Read() (ident.ID, checked.Bytes, uint32, error) {
-	var none ident.ID
+func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, error) {
 	if r.entries > 0 && len(r.indexEntriesByOffsetAsc) < r.entries {
 		// Have not read the index yet, this is required when reading
 		// data as we need each index entry in order by by the offset ascending
 		if err := r.readIndexAndSortByOffsetAsc(); err != nil {
-			return none, nil, 0, err
+			return nil, nil, nil, 0, err
 		}
 	}
 
 	if r.entriesRead >= r.entries {
-		return none, nil, 0, io.EOF
+		return nil, nil, nil, 0, io.EOF
 	}
 
 	entry := r.indexEntriesByOffsetAsc[r.entriesRead]
@@ -347,27 +349,33 @@ func (r *reader) Read() (ident.ID, checked.Bytes, uint32, error) {
 
 	n, err := r.dataReader.Read(data.Bytes())
 	if err != nil {
-		return none, nil, 0, err
+		return nil, nil, nil, 0, err
 	}
 	if n != int(entry.Size) {
-		return none, nil, 0, errReadNotExpectedSize
+		return nil, nil, nil, 0, errReadNotExpectedSize
 	}
 
-	r.entriesRead++
+	id := r.entryID(entry.ID)
+	tags := r.entryEncodedTags(entry.EncodedTags)
 
-	return r.entryID(entry.ID), data, uint32(entry.Checksum), nil
+	r.entriesRead++
+	return id, tags, data, uint32(entry.Checksum), nil
 }
 
-func (r *reader) ReadMetadata() (id ident.ID, length int, checksum uint32, err error) {
-	var none ident.ID
+func (r *reader) ReadMetadata() (id ident.ID, tags ident.TagIterator, length int, checksum uint32, err error) {
 	if r.metadataRead >= r.entries {
-		return none, 0, 0, io.EOF
+		err = io.EOF
+		return
 	}
 
 	entry := r.indexEntriesByOffsetAsc[r.metadataRead]
+	id = r.entryID(entry.ID)
+	tags = r.entryEncodedTags(entry.EncodedTags)
+	length = int(entry.Size)
+	checksum = uint32(entry.Checksum)
 
 	r.metadataRead++
-	return r.entryID(entry.ID), int(entry.Size), uint32(entry.Checksum), nil
+	return
 }
 
 func (r *reader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
@@ -380,21 +388,31 @@ func (r *reader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
 	)
 }
 
-func (r *reader) entryID(id []byte) ident.ID {
-	var idClone checked.Bytes
+func (r *reader) entryBytes(bytes []byte) checked.Bytes {
+	var bytesClone checked.Bytes
 	if r.bytesPool != nil {
-		idClone = r.bytesPool.Get(len(id))
-		idClone.IncRef()
-		defer idClone.DecRef()
+		bytesClone = r.bytesPool.Get(len(bytes))
 	} else {
-		idClone = checked.NewBytes(make([]byte, 0, len(id)), nil)
-		idClone.IncRef()
-		defer idClone.DecRef()
+		bytesClone = checked.NewBytes(make([]byte, 0, len(bytes)), nil)
 	}
+	bytesClone.IncRef()
+	bytesClone.AppendAll(bytes)
+	bytesClone.DecRef()
+	return bytesClone
+}
 
-	idClone.AppendAll(id)
+func (r *reader) entryID(id []byte) ident.ID {
+	return ident.BinaryID(r.entryBytes(id))
+}
 
-	return ident.BinaryID(idClone)
+func (r *reader) entryEncodedTags(encodedTags []byte) ident.TagIterator {
+	if len(encodedTags) == 0 {
+		// No tags set for this entry, return an empty tag iterator
+		return ident.EmptyTagIterator
+	}
+	decoder := r.tagDecoderPool.Get()
+	decoder.Reset(r.entryBytes(encodedTags))
+	return decoder
 }
 
 // NB(xichen): Validate should be called after all data is read because
@@ -469,6 +487,7 @@ func (r *reader) Close() error {
 	decoder := r.decoder
 	digestBuf := r.digestBuf
 	bytesPool := r.bytesPool
+	tagDecoderPool := r.tagDecoderPool
 	indexEntriesByOffsetAsc := r.indexEntriesByOffsetAsc
 
 	// Reset struct
@@ -486,6 +505,7 @@ func (r *reader) Close() error {
 	r.decoder = decoder
 	r.digestBuf = digestBuf
 	r.bytesPool = bytesPool
+	r.tagDecoderPool = tagDecoderPool
 	r.indexEntriesByOffsetAsc = indexEntriesByOffsetAsc
 
 	return multiErr.FinalError()

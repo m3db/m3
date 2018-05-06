@@ -96,6 +96,7 @@ func testExpectedResultForIndexEntry(t *testing.T, indexEntry schema.IndexEntry)
 		indexEntry.Size,
 		indexEntry.Offset,
 		indexEntry.Checksum,
+		indexEntry.EncodedTags,
 	}
 }
 

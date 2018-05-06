@@ -254,13 +254,13 @@ func (m *MockDatabaseBlock) EXPECT() *MockDatabaseBlockMockRecorder {
 }
 
 // OnRetrieveBlock mocks base method
-func (m *MockDatabaseBlock) OnRetrieveBlock(id ident.ID, startTime time.Time, segment ts.Segment) {
-	m.ctrl.Call(m, "OnRetrieveBlock", id, startTime, segment)
+func (m *MockDatabaseBlock) OnRetrieveBlock(id ident.ID, tags ident.TagIterator, startTime time.Time, segment ts.Segment) {
+	m.ctrl.Call(m, "OnRetrieveBlock", id, tags, startTime, segment)
 }
 
 // OnRetrieveBlock indicates an expected call of OnRetrieveBlock
-func (mr *MockDatabaseBlockMockRecorder) OnRetrieveBlock(id, startTime, segment interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnRetrieveBlock", reflect.TypeOf((*MockDatabaseBlock)(nil).OnRetrieveBlock), id, startTime, segment)
+func (mr *MockDatabaseBlockMockRecorder) OnRetrieveBlock(id, tags, startTime, segment interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnRetrieveBlock", reflect.TypeOf((*MockDatabaseBlock)(nil).OnRetrieveBlock), id, tags, startTime, segment)
 }
 
 // StartTime mocks base method
@@ -671,13 +671,13 @@ func (m *MockOnRetrieveBlock) EXPECT() *MockOnRetrieveBlockMockRecorder {
 }
 
 // OnRetrieveBlock mocks base method
-func (m *MockOnRetrieveBlock) OnRetrieveBlock(id ident.ID, startTime time.Time, segment ts.Segment) {
-	m.ctrl.Call(m, "OnRetrieveBlock", id, startTime, segment)
+func (m *MockOnRetrieveBlock) OnRetrieveBlock(id ident.ID, tags ident.TagIterator, startTime time.Time, segment ts.Segment) {
+	m.ctrl.Call(m, "OnRetrieveBlock", id, tags, startTime, segment)
 }
 
 // OnRetrieveBlock indicates an expected call of OnRetrieveBlock
-func (mr *MockOnRetrieveBlockMockRecorder) OnRetrieveBlock(id, startTime, segment interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnRetrieveBlock", reflect.TypeOf((*MockOnRetrieveBlock)(nil).OnRetrieveBlock), id, startTime, segment)
+func (mr *MockOnRetrieveBlockMockRecorder) OnRetrieveBlock(id, tags, startTime, segment interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnRetrieveBlock", reflect.TypeOf((*MockOnRetrieveBlock)(nil).OnRetrieveBlock), id, tags, startTime, segment)
 }
 
 // MockOnReadBlock is a mock of OnReadBlock interface

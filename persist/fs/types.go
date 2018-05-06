@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/x/xio"
@@ -87,11 +88,11 @@ type DataFileSetWriter interface {
 
 	// Write will write the id and data pair and returns an error on a write error. Callers
 	// must not call this method with a given ID more than once.
-	Write(id ident.ID, data checked.Bytes, checksum uint32) error
+	Write(id ident.ID, tags ident.Tags, data checked.Bytes, checksum uint32) error
 
 	// WriteAll will write the id and all byte slices and returns an error on a write error.
 	// Callers must not call this method with a given ID more than once.
-	WriteAll(id ident.ID, data []checked.Bytes, checksum uint32) error
+	WriteAll(id ident.ID, tags ident.Tags, data []checked.Bytes, checksum uint32) error
 }
 
 // DataFileSetReaderStatus describes the status of a file set reader
@@ -121,11 +122,15 @@ type DataFileSetReader interface {
 
 	// Read returns the next id, data, checksum tuple or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
-	Read() (id ident.ID, data checked.Bytes, checksum uint32, err error)
+	// Note: make sure to finalize the ID, close the Tags and finalize the Data when done with
+	// them so they can be returned to their respective pools.
+	Read() (id ident.ID, tags ident.TagIterator, data checked.Bytes, checksum uint32, err error)
 
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
-	ReadMetadata() (id ident.ID, length int, checksum uint32, err error)
+	// Note: make sure to finalize the ID, and close the Tags when done with them so they can
+	// be returned to their respective pools.
+	ReadMetadata() (id ident.ID, tags ident.TagIterator, length int, checksum uint32, err error)
 
 	// ReadBloomFilter returns the bloom filter stored on disk in a container object that is safe
 	// for concurrent use and has a Close() method for releasing resources when done.
@@ -447,6 +452,18 @@ type Options interface {
 
 	// MmapHugeTLBThreshold returns the threshold when to use mmap huge pages for mmap'd files on linux
 	MmapHugeTLBThreshold() int64
+
+	// SetTagEncoderPool sets the tag encoder pool
+	SetTagEncoderPool(value serialize.TagEncoderPool) Options
+
+	// TagEncoderPool returns the tag encoder pool
+	TagEncoderPool() serialize.TagEncoderPool
+
+	// SetTagDecoderPool sets the tag decoder pool
+	SetTagDecoderPool(value serialize.TagDecoderPool) Options
+
+	// TagDecoderPool returns the tag decoder pool
+	TagDecoderPool() serialize.TagDecoderPool
 }
 
 // BlockRetrieverOptions represents the options for block retrieval

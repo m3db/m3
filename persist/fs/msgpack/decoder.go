@@ -273,16 +273,23 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 }
 
 func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
-	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(indexEntryType)
+	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexEntryType)
 	if !ok {
 		return emptyIndexEntry
 	}
+
 	var indexEntry schema.IndexEntry
 	indexEntry.Index = dec.decodeVarint()
 	indexEntry.ID, _, _ = dec.decodeBytes()
 	indexEntry.Size = dec.decodeVarint()
 	indexEntry.Offset = dec.decodeVarint()
 	indexEntry.Checksum = dec.decodeVarint()
+
+	if actual < 6 {
+		return indexEntry
+	}
+	indexEntry.EncodedTags, _, _ = dec.decodeBytes()
+
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyIndexEntry

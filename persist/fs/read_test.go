@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/x/mmap"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
@@ -49,9 +50,11 @@ const (
 )
 
 var (
-	testWriterStart = time.Now()
-	testBlockSize   = 2 * time.Hour
-	testBytesPool   pool.CheckedBytesPool
+	testWriterStart    = time.Now()
+	testBlockSize      = 2 * time.Hour
+	testDefaultOpts    = NewOptions() // To avoid allocing pools each test exec
+	testBytesPool      pool.CheckedBytesPool
+	testTagDecoderPool serialize.TagDecoderPool
 )
 
 // NB(r): This is kind of brittle, but basically msgpack expects a buffered
@@ -86,10 +89,13 @@ func init() {
 		return pool.NewBytesPool(s, nil)
 	})
 	testBytesPool.Init()
+	testTagDecoderPool = serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(), pool.NewObjectPoolOptions())
+	testTagDecoderPool.Init()
 }
 
 func newTestReader(t *testing.T, filePathPrefix string) DataFileSetReader {
-	reader, err := NewReader(testBytesPool, NewOptions().
+	reader, err := NewReader(testBytesPool, testDefaultOpts.
 		SetFilePathPrefix(filePathPrefix).
 		SetInfoReaderBufferSize(testReaderBufferSize).
 		SetDataReaderBufferSize(testReaderBufferSize))
@@ -135,7 +141,7 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	err = r.Open(rOpenOpts)
 	assert.NoError(t, err)
 
-	_, _, _, err = r.Read()
+	_, _, _, _, err = r.Read()
 	assert.Error(t, err)
 
 	assert.NoError(t, r.Close())
@@ -165,6 +171,7 @@ func TestReadDataError(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, w.Write(
 		ident.StringID("foo"),
+		nil,
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	require.NoError(t, w.Close())
@@ -189,7 +196,7 @@ func TestReadDataError(t *testing.T) {
 	mockReader.EXPECT().Read(gomock.Any()).Return(0, fmt.Errorf("an error"))
 	reader.dataReader = mockReader
 
-	_, _, _, err = r.Read()
+	_, _, _, _, err = r.Read()
 	assert.Error(t, err)
 
 	// Cleanly close
@@ -220,6 +227,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),
+		nil,
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -238,7 +246,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	err = r.Open(rOpenOpts)
 	assert.NoError(t, err)
 
-	_, _, _, err = r.Read()
+	_, _, _, _, err = r.Read()
 	assert.Error(t, err)
 	assert.Equal(t, errReadNotExpectedSize, err)
 
@@ -301,6 +309,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),
+		nil,
 		bytesRefd([]byte{0x1}),
 		digest.Checksum([]byte{0x1})))
 	assert.NoError(t, w.Close())
@@ -394,6 +403,7 @@ func TestReadValidate(t *testing.T) {
 
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),
+		nil,
 		bytesRefd([]byte{0x1}),
 		digest.Checksum([]byte{0x1})))
 	require.NoError(t, w.Close())
@@ -407,7 +417,7 @@ func TestReadValidate(t *testing.T) {
 		},
 	}
 	require.NoError(t, r.Open(rOpenOpts))
-	_, _, _, err := r.Read()
+	_, _, _, _, err := r.Read()
 	require.NoError(t, err)
 
 	// Mutate expected data checksum to simulate data corruption

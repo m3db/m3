@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/ident"
@@ -149,4 +150,10 @@ type Options interface {
 
 	// SeriesCachePolicy returns the series cache policy.
 	SeriesCachePolicy() series.CachePolicy
+
+	// SetIndexMutableSegmentAllocator sets the index mutable segment allocator.
+	SetIndexMutableSegmentAllocator(value index.MutableSegmentAllocator) Options
+
+	// IndexMutableSegmentAllocator returns the index mutable segment allocator.
+	IndexMutableSegmentAllocator() index.MutableSegmentAllocator
 }

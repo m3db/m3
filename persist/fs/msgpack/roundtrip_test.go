@@ -48,11 +48,12 @@ var (
 	}
 
 	testIndexEntry = schema.IndexEntry{
-		Index:    234,
-		ID:       []byte("testIndexEntry"),
-		Size:     5456,
-		Offset:   2390423,
-		Checksum: 134245634534,
+		Index:       234,
+		ID:          []byte("testIndexEntry"),
+		Size:        5456,
+		Offset:      2390423,
+		Checksum:    134245634534,
+		EncodedTags: []byte("testEncodedTags"),
 	}
 
 	testIndexSummary = schema.IndexSummary{
@@ -163,6 +164,53 @@ func TestIndexEntryRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
+	dec.Reset(NewDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexEntry()
+	require.NoError(t, err)
+	require.Equal(t, testIndexEntry, res)
+}
+
+// Make sure the new decoding code can handle the old file format
+func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
+	var (
+		enc = newEncoder(newEncoderOptions{encodeLegacyV1IndexEntry: true})
+		dec = testDecoder(t, nil)
+	)
+
+	// Set the default values on the fields that did not exist in V1
+	// and then restore them at the end of the test - This is required
+	// because the new decoder won't try and read the new fields from
+	// the old file format
+	oldEncodedTags := testIndexEntry.EncodedTags
+	testIndexEntry.EncodedTags = nil
+	defer func() {
+		testIndexEntry.EncodedTags = oldEncodedTags
+	}()
+
+	enc.EncodeIndexEntry(testIndexEntry)
+	dec.Reset(NewDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexEntry()
+	require.NoError(t, err)
+	require.Equal(t, testIndexEntry, res)
+}
+
+// Make sure the old decoder code can handle the new file format
+func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
+	var (
+		enc = newEncoder(newEncoderOptions{encodeLegacyV1IndexEntry: false})
+		dec = testDecoder(t, nil)
+	)
+
+	// Set the default values on the fields that did not exist in V1
+	// and then restore them at the end of the test - This is required
+	// because the old decoder won't read the new fields
+	oldEncodedTags := testIndexEntry.EncodedTags
+	testIndexEntry.EncodedTags = nil
+	defer func() {
+		testIndexEntry.EncodedTags = oldEncodedTags
+	}()
+
+	enc.EncodeIndexEntry(testIndexEntry)
 	dec.Reset(NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry()
 	require.NoError(t, err)

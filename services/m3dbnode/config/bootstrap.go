@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index"
 )
 
 var (
@@ -89,15 +90,15 @@ func (bsc BootstrapConfiguration) New(
 	adminClient client.AdminClient,
 ) (bootstrap.ProcessProvider, error) {
 	var (
-		bs  bootstrap.BootstrapperProvider
-		err error
+		bs     bootstrap.BootstrapperProvider
+		err    error
+		iopts  = opts.InstrumentOptions()
+		rsopts = result.NewOptions().
+			SetInstrumentOptions(opts.InstrumentOptions()).
+			SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
+			SetSeriesCachePolicy(opts.SeriesCachePolicy()).
+			SetIndexMutableSegmentAllocator(index.NewDefaultMutableSegmentAllocator(iopts))
 	)
-
-	rsopts := result.NewOptions().
-		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
-		SetSeriesCachePolicy(opts.SeriesCachePolicy())
-
 	// Start from the end of the list because the bootstrappers are ordered by precedence in descending order.
 	for i := len(bsc.Bootstrappers) - 1; i >= 0; i-- {
 		switch bsc.Bootstrappers[i] {
@@ -111,7 +112,8 @@ func (bsc BootstrapConfiguration) New(
 				SetResultOptions(rsopts).
 				SetFilesystemOptions(fsopts).
 				SetNumProcessors(bsc.fsNumProcessors()).
-				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager())
+				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
+				SetIdentifierPool(opts.IdentifierPool())
 			bs = fs.NewFileSystemBootstrapperProvider(fsbopts, bs)
 		case commitlog.CommitLogBootstrapperName:
 			copts := commitlog.NewOptions().

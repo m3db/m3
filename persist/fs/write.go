@@ -22,6 +22,7 @@ package fs
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -33,9 +34,15 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
+)
+
+var (
+	errWriterEncodeTagsDataNotAccessible = errors.New(
+		"failed to encode tags: cannot get data")
 )
 
 type writer struct {
@@ -56,18 +63,21 @@ type writer struct {
 	checkpointFilePath         string
 	indexEntries               indexEntries
 
-	start        time.Time
-	snapshotTime time.Time
-	currIdx      int64
-	currOffset   int64
-	encoder      *msgpack.Encoder
-	digestBuf    digest.Buffer
-	err          error
+	start              time.Time
+	snapshotTime       time.Time
+	currIdx            int64
+	currOffset         int64
+	encoder            *msgpack.Encoder
+	digestBuf          digest.Buffer
+	singleCheckedBytes []checked.Bytes
+	tagEncoderPool     serialize.TagEncoderPool
+	err                error
 }
 
 type indexEntry struct {
 	index           int64
 	id              ident.ID
+	tags            ident.Tags
 	dataFileOffset  int64
 	indexFileOffset int64
 	size            uint32
@@ -114,6 +124,8 @@ func NewWriter(opts Options) (DataFileSetWriter, error) {
 		digestFdWithDigestContents:      digest.NewFdWithDigestContentsWriter(bufferSize),
 		encoder:                         msgpack.NewEncoder(),
 		digestBuf:                       digest.NewBuffer(),
+		singleCheckedBytes:              make([]checked.Bytes, 1),
+		tagEncoderPool:                  opts.TagEncoderPool(),
 	}, nil
 }
 
@@ -224,14 +236,17 @@ func (w *writer) writeData(data []byte) error {
 
 func (w *writer) Write(
 	id ident.ID,
+	tags ident.Tags,
 	data checked.Bytes,
 	checksum uint32,
 ) error {
-	return w.WriteAll(id, []checked.Bytes{data}, checksum)
+	w.singleCheckedBytes[0] = data
+	return w.WriteAll(id, tags, w.singleCheckedBytes, checksum)
 }
 
 func (w *writer) WriteAll(
 	id ident.ID,
+	tags ident.Tags,
 	data []checked.Bytes,
 	checksum uint32,
 ) error {
@@ -239,7 +254,7 @@ func (w *writer) WriteAll(
 		return w.err
 	}
 
-	if err := w.writeAll(id, data, checksum); err != nil {
+	if err := w.writeAll(id, tags, data, checksum); err != nil {
 		w.err = err
 		return err
 	}
@@ -248,6 +263,7 @@ func (w *writer) WriteAll(
 
 func (w *writer) writeAll(
 	id ident.ID,
+	tags ident.Tags,
 	data []checked.Bytes,
 	checksum uint32,
 ) error {
@@ -265,6 +281,7 @@ func (w *writer) writeAll(
 	entry := indexEntry{
 		index:          w.currIdx,
 		id:             id,
+		tags:           tags,
 		dataFileOffset: w.currOffset,
 		size:           uint32(size),
 		checksum:       checksum,
@@ -383,6 +400,10 @@ func (w *writer) writeIndexRelatedFiles() error {
 	return w.writeInfoFileContents(bloomFilter, summaries)
 }
 
+type tagsIter struct {
+	tags ident.Tags
+}
+
 func (w *writer) writeIndexFileContents(
 	bloomFilter *bloom.BloomFilter,
 	summaryEvery int,
@@ -397,9 +418,12 @@ func (w *writer) writeIndexFileContents(
 	sort.Sort(w.indexEntries)
 
 	var (
-		offset int64
-		prevID []byte
+		offset      int64
+		prevID      []byte
+		tagsIter    = ident.NewTagSliceIterator(nil)
+		tagsEncoder = w.tagEncoderPool.Get()
 	)
+	defer tagsEncoder.Finalize()
 	for i := range w.indexEntries {
 		id := w.indexEntries[i].id.Data().Bytes()
 		// Need to check if i > 0 or we can never write an empty string ID
@@ -408,12 +432,27 @@ func (w *writer) writeIndexFileContents(
 			return fmt.Errorf("encountered duplicate ID: %s", id)
 		}
 
+		var encodedTags []byte
+		if tags := w.indexEntries[i].tags; tags != nil {
+			tagsIter.Reset(tags)
+			tagsEncoder.Reset()
+			if err := tagsEncoder.Encode(tagsIter); err != nil {
+				return err
+			}
+			data, ok := tagsEncoder.Data()
+			if !ok {
+				return errWriterEncodeTagsDataNotAccessible
+			}
+			encodedTags = data.Bytes()
+		}
+
 		entry := schema.IndexEntry{
-			Index:    w.indexEntries[i].index,
-			ID:       id,
-			Size:     int64(w.indexEntries[i].size),
-			Offset:   w.indexEntries[i].dataFileOffset,
-			Checksum: int64(w.indexEntries[i].checksum),
+			Index:       w.indexEntries[i].index,
+			ID:          id,
+			Size:        int64(w.indexEntries[i].size),
+			Offset:      w.indexEntries[i].dataFileOffset,
+			Checksum:    int64(w.indexEntries[i].checksum),
+			EncodedTags: encodedTags,
 		}
 
 		w.encoder.Reset()

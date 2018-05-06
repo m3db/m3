@@ -125,19 +125,30 @@ func writeGoodFiles(t *testing.T, dir string, namespace ident.ID, shard uint32) 
 	inputs := []struct {
 		start time.Time
 		id    string
+		tags  map[string]string
 		data  []byte
 	}{
-		{testStart, "foo", []byte{1, 2, 3}},
-		{testStart.Add(10 * time.Hour), "bar", []byte{4, 5, 6}},
-		{testStart.Add(20 * time.Hour), "baz", []byte{7, 8, 9}},
+		{testStart, "foo", map[string]string{"n": "0"}, []byte{1, 2, 3}},
+		{testStart.Add(10 * time.Hour), "bar", map[string]string{"n": "1"}, []byte{4, 5, 6}},
+		{testStart.Add(20 * time.Hour), "baz", nil, []byte{7, 8, 9}},
 	}
 
 	for _, input := range inputs {
-		writeTSDBFiles(t, dir, namespace, shard, input.start, input.id, input.data)
+		writeTSDBFiles(t, dir, namespace, shard, input.start,
+			input.id, input.tags, input.data)
 	}
 }
 
-func writeTSDBFiles(t *testing.T, dir string, namespace ident.ID, shard uint32, start time.Time, id string, data []byte) {
+func writeTSDBFiles(
+	t *testing.T,
+	dir string,
+	namespace ident.ID,
+	shard uint32,
+	start time.Time,
+	id string,
+	tags map[string]string,
+	data []byte,
+) {
 	w, err := fs.NewWriter(newTestFsOptions(dir))
 	require.NoError(t, err)
 	writerOpts := fs.DataWriterOpenOptions{
@@ -150,9 +161,16 @@ func writeTSDBFiles(t *testing.T, dir string, namespace ident.ID, shard uint32, 
 	}
 	require.NoError(t, w.Open(writerOpts))
 
+	var seriesTags ident.Tags
+	for name, value := range tags {
+		seriesTags = append(seriesTags, ident.StringTag(name, value))
+	}
+
 	bytes := checked.NewBytes(data, nil)
 	bytes.IncRef()
-	require.NoError(t, w.Write(ident.StringID(id), bytes, digest.Checksum(bytes.Bytes())))
+
+	require.NoError(t, w.Write(ident.StringID(id), seriesTags,
+		bytes, digest.Checksum(bytes.Bytes())))
 	require.NoError(t, w.Close())
 }
 
@@ -194,7 +212,7 @@ func TestAvailableReadInfoError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", nil, []byte{0x1})
 	// Intentionally corrupt the info file
 	writeInfoFile(t, dir, testNs1ID, shard, testStart, []byte{0x1, 0x2})
 
@@ -209,7 +227,7 @@ func TestAvailableDigestOfDigestMismatch(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", nil, []byte{0x1})
 	// Intentionally corrupt the digest file
 	writeDigestFile(t, dir, testNs1ID, shard, testStart, nil)
 
@@ -299,7 +317,7 @@ func TestReadOpenFileError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", nil, []byte{0x1})
 	// Intentionally truncate the info file
 	writeInfoFile(t, dir, testNs1ID, shard, testStart, nil)
 
@@ -322,7 +340,7 @@ func TestReadDataCorruptionError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", nil, []byte{0x1})
 	// Intentionally corrupt the data file
 	writeDataFile(t, dir, testNs1ID, shard, testStart, []byte{0x2})
 
@@ -426,7 +444,7 @@ func TestReadValidateError(t *testing.T) {
 
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
-		"foo", []byte{0x1})
+		"foo", nil, []byte{0x1})
 	rOpenOpts := fs.ReaderOpenOptionsMatcher{
 		ID: fs.FileSetFileIdentifier{
 			Namespace:  testNs1ID,
@@ -480,7 +498,7 @@ func TestReadOpenError(t *testing.T) {
 
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
-		"foo", []byte{0x1})
+		"foo", nil, []byte{0x1})
 	rOpts := fs.ReaderOpenOptionsMatcher{
 		ID: fs.FileSetFileIdentifier{
 			Namespace:  testNs1ID,
@@ -524,7 +542,7 @@ func TestReadDeleteOnError(t *testing.T) {
 
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
-		"foo", []byte{0x1})
+		"foo", nil, []byte{0x1})
 
 	rOpts := fs.ReaderOpenOptionsMatcher{
 		ID: fs.FileSetFileIdentifier{
@@ -570,4 +588,13 @@ func TestReadDeleteOnError(t *testing.T) {
 		{Start: testStart, End: testStart.Add(11 * time.Hour)},
 	}
 	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
+}
+
+func TestReadTags(t *testing.T) {
+	// TODO(r): Add test that tests the normal bootstrap case with
+	// series cache policy All returns tags for series
+}
+
+func TestBootstrapIndex(t *testing.T) {
+	// TODO(r): Add test to bootstrap index segments
 }
