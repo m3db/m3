@@ -22,15 +22,19 @@ package storage
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 
 func TestShardInsertQueueBatchBackoff(t *testing.T) {
+	defer leaktest.CheckTimeout(t, time.Second)()
+
 	var (
 		inserts  [][]dbShardInsert
 		currTime = time.Now()
@@ -120,6 +124,8 @@ func TestShardInsertQueueBatchBackoff(t *testing.T) {
 }
 
 func TestShardInsertQueueRateLimit(t *testing.T) {
+	defer leaktest.CheckTimeout(t, time.Second)()
+
 	var (
 		currTime = time.Now().Truncate(time.Second)
 		timeLock = sync.Mutex{}
@@ -182,4 +188,29 @@ func TestShardInsertQueueRateLimit(t *testing.T) {
 	assert.Equal(t, expectedCurrWindow, q.insertPerSecondLimitWindowNanos)
 	assert.Equal(t, 1, q.insertPerSecondLimitWindowValues)
 	q.Unlock()
+}
+
+func TestShardInsertQueueFlushedOnClose(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 5*time.Second)()
+
+	var (
+		numInsertExpected = 10
+		numInsertObserved int64
+		currTime          = time.Now().Truncate(time.Second)
+	)
+
+	q := newDatabaseShardInsertQueue(func(value []dbShardInsert) error {
+		atomic.AddInt64(&numInsertObserved, int64(len(value)))
+		return nil
+	}, func() time.Time { return currTime }, tally.NoopScope)
+
+	require.NoError(t, q.Start())
+
+	for i := 0; i < numInsertExpected; i++ {
+		_, err := q.Insert(dbShardInsert{})
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, q.Stop())
+	require.Equal(t, int64(numInsertExpected), atomic.LoadInt64(&numInsertObserved))
 }

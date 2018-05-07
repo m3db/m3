@@ -65,6 +65,7 @@ type dbShardInsertQueue struct {
 
 	currBatch    *dbShardInsertBatch
 	notifyInsert chan struct{}
+	closeCh      chan struct{}
 
 	metrics dbShardInsertQueueMetrics
 }
@@ -169,6 +170,7 @@ func newDatabaseShardInsertQueue(
 		sleepFn:            time.Sleep,
 		currBatch:          currBatch,
 		notifyInsert:       make(chan struct{}, 1),
+		closeCh:            make(chan struct{}, 1),
 		metrics:            newDatabaseShardInsertQueueMetrics(subscope),
 	}
 }
@@ -181,6 +183,10 @@ func (q *dbShardInsertQueue) SetRuntimeOptions(value runtime.Options) {
 }
 
 func (q *dbShardInsertQueue) insertLoop() {
+	defer func() {
+		close(q.closeCh)
+	}()
+
 	var lastInsert time.Time
 	freeBatch := &dbShardInsertBatch{}
 	freeBatch.reset()
@@ -247,13 +253,14 @@ func (q *dbShardInsertQueue) Start() error {
 
 func (q *dbShardInsertQueue) Stop() error {
 	q.Lock()
-	defer q.Unlock()
 
 	if q.state != dbShardInsertQueueStateOpen {
+		q.Unlock()
 		return errShardInsertQueueNotOpen
 	}
 
 	q.state = dbShardInsertQueueStateClosed
+	q.Unlock()
 
 	// Final flush
 	select {
@@ -261,8 +268,9 @@ func (q *dbShardInsertQueue) Stop() error {
 	default:
 		// Loop busy, already ready to consume notification
 	}
-	// FOLLOWUP(prateek): we need to wait until this queue is drained before
-	// we can correctly return success/failure.
+
+	// wait till other go routine is done
+	<-q.closeCh
 
 	return nil
 }

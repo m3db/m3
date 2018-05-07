@@ -22,6 +22,7 @@ package storage
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -269,4 +270,28 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 
 	// allow third batch to complete
 	insertProgressWgs[2].Done()
+}
+
+func TestIndexInsertQueueFlushedOnClose(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 5*time.Second)()
+
+	var (
+		numInsertExpected = 10
+		numInsertObserved int64
+		currTime          = time.Now().Truncate(time.Second)
+	)
+
+	q := newNamespaceIndexInsertQueue(func(value []index.WriteBatchEntry) {
+		atomic.AddInt64(&numInsertObserved, int64(len(value)))
+	}, func() time.Time { return currTime }, tally.NoopScope)
+
+	require.NoError(t, q.Start())
+
+	for i := 0; i < numInsertExpected; i++ {
+		_, err := q.Insert(time.Time{}, doc.Document{}, nil)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, q.Stop())
+	require.Equal(t, int64(numInsertExpected), atomic.LoadInt64(&numInsertObserved))
 }

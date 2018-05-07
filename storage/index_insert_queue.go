@@ -69,7 +69,9 @@ type nsIndexInsertQueue struct {
 	nowFn        clock.NowFn
 	sleepFn      func(time.Duration)
 	notifyInsert chan struct{}
-	metrics      nsIndexInsertQueueMetrics
+	closeCh      chan struct{}
+
+	metrics nsIndexInsertQueueMetrics
 }
 
 type newNamespaceIndexInsertQueueFn func(
@@ -91,11 +93,16 @@ func newNamespaceIndexInsertQueue(
 		nowFn:               nowFn,
 		sleepFn:             time.Sleep,
 		notifyInsert:        make(chan struct{}, 1),
+		closeCh:             make(chan struct{}, 1),
 		metrics:             newNamespaceIndexInsertQueueMetrics(scope),
 	}
 }
 
 func (q *nsIndexInsertQueue) insertLoop() {
+	defer func() {
+		close(q.closeCh)
+	}()
+
 	var lastInsert time.Time
 	freeBatch := &nsIndexInsertBatch{}
 	freeBatch.Reset()
@@ -205,13 +212,14 @@ func (q *nsIndexInsertQueue) Start() error {
 
 func (q *nsIndexInsertQueue) Stop() error {
 	q.Lock()
-	defer q.Unlock()
 
 	if q.state != nsIndexInsertQueueStateOpen {
+		q.Unlock()
 		return errIndexInsertQueueNotOpen
 	}
 
 	q.state = nsIndexInsertQueueStateClosed
+	q.Unlock()
 
 	// Final flush
 	select {
@@ -219,8 +227,9 @@ func (q *nsIndexInsertQueue) Stop() error {
 	default:
 		// Loop busy, already ready to consume notification
 	}
-	// FOLLOWUP(prateek): we need to wait until this queue is drained before
-	// we can correctly return success/failure.
+
+	// wait till other go routine is done
+	<-q.closeCh
 
 	return nil
 }
