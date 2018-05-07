@@ -58,6 +58,20 @@ func TestDecodeHeaderMissing(t *testing.T) {
 	d.Close()
 }
 
+func TestDecodeResetsErrState(t *testing.T) {
+	var b []byte
+	b = append(b, []byte{0x0, 0x0}...)
+	b = append(b, []byte{0x0, 0x0}...)
+
+	d := newTestTagDecoder()
+	d.Reset(wrapAsCheckedBytes(b))
+	require.False(t, d.Next())
+	require.Error(t, d.Err())
+
+	d.Reset(testTagDecoderBytes())
+	require.NoError(t, d.Err())
+}
+
 func TestDecodeSimple(t *testing.T) {
 	b := testTagDecoderBytes()
 	d := newTestTagDecoder()

@@ -54,6 +54,7 @@ func newTagDecoder(opts TagDecoderOptions, pool TagDecoderPool) TagDecoder {
 }
 
 func (d *decoder) Reset(b checked.Bytes) {
+	d.resetForReuse()
 	d.checkedData = b
 	d.checkedData.IncRef()
 	d.data = d.checkedData.Bytes()
@@ -175,7 +176,7 @@ func (d *decoder) Remaining() int {
 	return d.remaining
 }
 
-func (d *decoder) close() {
+func (d *decoder) resetForReuse() {
 	d.releaseCurrent()
 	d.data = nil
 	d.err = nil
@@ -191,7 +192,7 @@ func (d *decoder) close() {
 }
 
 func (d *decoder) Close() {
-	d.close()
+	d.resetForReuse()
 	if d.pool == nil {
 		return
 	}
