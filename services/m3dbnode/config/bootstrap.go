@@ -115,7 +115,7 @@ func (bsc BootstrapConfiguration) New(
 				SetFilesystemOptions(fsOpts).
 				SetNumProcessors(bsc.fsNumProcessors()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager())
-			bs = bfs.NewFileSystemBootstrapperProvider(filePathPrefix, fsbopts, bs)
+			bs = bfs.NewFileSystemBootstrapperProvider(fsbopts, bs)
 		case commitlog.CommitLogBootstrapperName:
 			copts := commitlog.NewOptions().
 				SetResultOptions(rsOpts).
