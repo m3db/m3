@@ -264,9 +264,13 @@ func TestConsumerServiceWriterWithReplicatedConsumer(t *testing.T) {
 		wg.Done()
 	}()
 
+	conn, err := lis2.Accept()
+	require.NoError(t, err)
+	defer conn.Close()
+
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis2, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnection(t, conn, opts.EncodeDecoderOptions())
 		wg.Done()
 	}()
 
@@ -316,7 +320,7 @@ func TestConsumerServiceWriterWithReplicatedConsumer(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis2, opts.EncodeDecoderOptions())
+		testConsumeAndAckOnConnection(t, conn, opts.EncodeDecoderOptions())
 		wg.Done()
 	}()
 

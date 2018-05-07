@@ -21,7 +21,6 @@
 package writer
 
 import (
-	"io"
 	"sync"
 
 	"github.com/m3db/m3msg/generated/proto/msgpb"
@@ -153,11 +152,6 @@ func (w *consumerWriterImpl) readAcks() error {
 	w.ack.Metadata = w.ack.Metadata[:0]
 	err := w.encdec.Decode(&w.ack)
 	if err != nil {
-		// On io.EOF, don't reset the connection but return an error
-		// so the retrier will back off and retry later.
-		if err == io.EOF {
-			return err
-		}
 		w.c.NotifyReset()
 		w.m.decodeError.Inc(1)
 		return err
