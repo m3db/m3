@@ -21,6 +21,7 @@
 package commitlog
 
 import (
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 )
@@ -31,14 +32,16 @@ const (
 )
 
 type commitLogBootstrapperProvider struct {
-	opts Options
-	next bootstrap.BootstrapperProvider
+	opts       Options
+	inspection fs.Inspection
+	next       bootstrap.BootstrapperProvider
 }
 
 // NewCommitLogBootstrapperProvider creates a new bootstrapper provider
 // to bootstrap from commit log files.
 func NewCommitLogBootstrapperProvider(
 	opts Options,
+	inspection fs.Inspection,
 	next bootstrap.BootstrapperProvider,
 ) (bootstrap.BootstrapperProvider, error) {
 	if err := opts.Validate(); err != nil {
@@ -52,7 +55,7 @@ func NewCommitLogBootstrapperProvider(
 
 func (p commitLogBootstrapperProvider) Provide() bootstrap.Bootstrapper {
 	var (
-		src  = newCommitLogSource(p.opts)
+		src  = newCommitLogSource(p.opts, p.inspection)
 		b    = &commitLogBootstrapper{}
 		next bootstrap.Bootstrapper
 	)

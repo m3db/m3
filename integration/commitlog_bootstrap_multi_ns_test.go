@@ -70,16 +70,6 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
 	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
 
-	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
-	bclOpts := bcl.NewOptions().
-		SetResultOptions(bsOpts).
-		SetCommitLogOptions(commitLogOpts)
-	bs, err := bcl.NewCommitLogBootstrapperProvider(bclOpts, noOpAll)
-	require.NoError(t, err)
-	processProvider := bootstrap.NewProcessProvider(bs, bsOpts)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(processProvider)
-
 	log := setup.storageOpts.InstrumentOptions().Logger()
 
 	// Write test data for ns1
@@ -108,6 +98,18 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	log.Info("writing data - ns2")
 	writeCommitLogData(t, setup, commitLogOpts, ns2SeriesMap, testNamespaces[1])
 	log.Info("written data - ns2")
+
+	// Setup bootstrapper after writing data so filesystem inspection can find it
+	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
+	bclOpts := bcl.NewOptions().
+		SetResultOptions(bsOpts).
+		SetCommitLogOptions(commitLogOpts)
+	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	bs, err := bcl.NewCommitLogBootstrapperProvider(bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
+	require.NoError(t, err)
+	process := bootstrap.NewProcess(bs, bsOpts)
+	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)
 
 	later := now.Add(4 * ns1BlockSize)
 	setup.setNowFn(later)

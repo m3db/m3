@@ -300,12 +300,10 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 	)
 
 	for arg := range inBuf {
-		readResponse := readResponse{}
+		response := readResponse{}
 		// If there is a pre-existing error, just pipe it through
 		if arg.err != nil {
-			readResponse.resultErr = arg.err
-			arg.bufPool <- arg.bytes
-			outBuf <- readResponse
+			r.handleDecoderLoopIterationEnd(arg, outBuf, response, arg.err)
 			continue
 		}
 
@@ -314,9 +312,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		decoder.Reset(decoderStream)
 		entry, err := decoder.DecodeLogEntryRemaining(arg.decodeRemainingToken, arg.uniqueIndex)
 		if err != nil {
-			readResponse.resultErr = err
-			arg.bufPool <- arg.bytes
-			outBuf <- readResponse
+			r.handleDecoderLoopIterationEnd(arg, outBuf, response, err)
 			continue
 		}
 
@@ -324,9 +320,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		if len(entry.Metadata) != 0 {
 			err := r.decodeAndHandleMetadata(metadataLookup, metadataDecoder, metadataDecoderStream, entry)
 			if err != nil {
-				readResponse.resultErr = err
-				arg.bufPool <- arg.bytes
-				outBuf <- readResponse
+				r.handleDecoderLoopIterationEnd(arg, outBuf, response, err)
 				continue
 			}
 		}
@@ -338,29 +332,29 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			// even though we are performing parallel decoding, the work is distributed to the workers
 			// based on the series unique index which means that all commit log entries for a given
 			// series are decoded in-order by a single decoder loop.
-			readResponse.resultErr = errCommitLogReaderMissingMetadata
-			arg.bufPool <- arg.bytes
-			outBuf <- readResponse
+			r.handleDecoderLoopIterationEnd(arg, outBuf, response, errCommitLogReaderMissingMetadata)
 			continue
 		}
 
 		if !metadata.passedPredicate {
+			// Pass nil for outBuf because we don't want to send a readResponse along since this
+			// was just a series that the caller didn't want us to read.
+			r.handleDecoderLoopIterationEnd(arg, nil, response, nil)
 			continue
 		}
 
-		readResponse.series = metadata.Series
+		response.series = metadata.Series
 
-		readResponse.datapoint = ts.Datapoint{
+		response.datapoint = ts.Datapoint{
 			Timestamp: time.Unix(0, entry.Timestamp),
 			Value:     entry.Value,
 		}
-		readResponse.unit = xtime.Unit(byte(entry.Unit))
+		response.unit = xtime.Unit(byte(entry.Unit))
 		// Copy annotation to prevent reference to pooled byte slice
 		if len(entry.Annotation) > 0 {
-			readResponse.annotation = append([]byte(nil), entry.Annotation...)
+			response.annotation = append([]byte(nil), entry.Annotation...)
 		}
-		arg.bufPool <- arg.bytes
-		outBuf <- readResponse
+		r.handleDecoderLoopIterationEnd(arg, outBuf, response, nil)
 	}
 
 	r.metadata.Lock()
@@ -373,6 +367,14 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		close(outBuf)
 	}
 	r.metadata.Unlock()
+}
+
+func (r *reader) handleDecoderLoopIterationEnd(arg decoderArg, outBuf chan<- readResponse, response readResponse, err error) {
+	arg.bufPool <- arg.bytes
+	if outBuf != nil {
+		response.resultErr = err
+		outBuf <- response
+	}
 }
 
 func (r *reader) decodeAndHandleMetadata(

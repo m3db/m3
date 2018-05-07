@@ -83,25 +83,6 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
 	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
 
-	// commit log bootstrapper
-	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
-	bclOpts := bcl.NewOptions().
-		SetResultOptions(bsOpts).
-		SetCommitLogOptions(commitLogOpts)
-	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapperProvider(bclOpts, noOpAll)
-	require.NoError(t, err)
-	// fs bootstrapper
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-	bfsOpts := fs.NewOptions().
-		SetResultOptions(bsOpts).
-		SetFilesystemOptions(fsOpts).
-		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
-	fsBootstrapper := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
-	// bootstrapper storage opts
-	processProvider := bootstrap.NewProcessProvider(fsBootstrapper, bsOpts)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(processProvider)
-
 	log := setup.storageOpts.InstrumentOptions().Logger()
 	log.Info("commit log + fs merge bootstrap test")
 
@@ -137,6 +118,27 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		t2Nano: seriesMaps[t2Nano],
 	}
 	writeCommitLogData(t, setup, commitLogOpts, commitlogSeriesMaps, ns1.ID())
+
+	// commit log bootstrapper (must be after writing out commitlog files so inspection finds files)
+	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
+	bclOpts := bcl.NewOptions().
+		SetResultOptions(bsOpts).
+		SetCommitLogOptions(commitLogOpts)
+	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+
+	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapperProvider(bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
+	require.NoError(t, err)
+	// fs bootstrapper
+	filePathPrefix := fsOpts.FilePathPrefix()
+	bfsOpts := fs.NewOptions().
+		SetResultOptions(bsOpts).
+		SetFilesystemOptions(fsOpts).
+		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
+	fsBootstrapper := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, commitLogBootstrapper)
+	// bootstrapper storage opts
+	process := bootstrap.NewProcess(fsBootstrapper, bsOpts)
+	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)
 
 	log.Info("moving time forward and starting server")
 	setup.setNowFn(t3)

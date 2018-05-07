@@ -200,7 +200,7 @@ func newTestCommitLog(t *testing.T, opts Options) *commitLog {
 
 	// Ensure files present
 	fsopts := opts.FilesystemOptions()
-	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
+	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	assert.NoError(t, err)
 	assert.True(t, len(files) == 1)
 
@@ -452,7 +452,7 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 
 	// Assert commitlog file exists and retrieve path
 	fsopts := opts.FilesystemOptions()
-	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
+	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(files))
 
@@ -498,12 +498,12 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 
 	// Make sure multiple commitlog files were generated
 	fsopts := opts.FilesystemOptions()
-	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
+	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	assert.NoError(t, err)
 	assert.True(t, len(files) == 3)
 
 	// This predicate should eliminate the first commitlog file
-	commitLogPredicate := func(entryTime time.Time, entryDuration time.Duration) bool {
+	commitLogPredicate := func(_ string, entryTime time.Time, _ time.Duration) bool {
 		return entryTime.After(alignedStart)
 	}
 
@@ -637,7 +637,7 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 
 	// Ensure files present for each block size time window
 	fsopts := opts.FilesystemOptions()
-	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
+	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	assert.NoError(t, err)
 	assert.True(t, len(files) == len(writes))
 

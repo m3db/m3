@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -46,6 +47,7 @@ type newIteratorFn func(opts commitlog.IteratorOpts) (commitlog.Iterator, error)
 
 type commitLogSource struct {
 	opts          Options
+	inspection    fs.Inspection
 	log           xlog.Logger
 	newIteratorFn newIteratorFn
 }
@@ -55,9 +57,10 @@ type encoder struct {
 	enc         encoding.Encoder
 }
 
-func newCommitLogSource(opts Options) bootstrap.Source {
+func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source {
 	return &commitLogSource{
 		opts:          opts,
+		inspection:    inspection,
 		log:           opts.ResultOptions().InstrumentOptions().Logger(),
 		newIteratorFn: commitlog.NewIterator,
 	}
@@ -89,7 +92,7 @@ func (s *commitLogSource) ReadData(
 		return result.NewDataBootstrapResult(), nil
 	}
 
-	readCommitLogPredicate := newReadCommitLogPredicate(ns, shardsTimeRanges, s.opts)
+	readCommitLogPredicate := newReadCommitLogPredicate(ns, shardsTimeRanges, s.opts, s.inspection)
 	readSeriesPredicate := newReadSeriesPredicate(ns)
 	iterOpts := commitlog.IteratorOpts{
 		CommitLogOptions:      s.opts.CommitLogOptions(),
@@ -496,6 +499,7 @@ func newReadCommitLogPredicate(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts Options,
+	inspection fs.Inspection,
 ) commitlog.FileFilterPredicate {
 	// Minimum and maximum times for which we want to bootstrap
 	shardMin, shardMax := shardsTimeRanges.MinMax()
@@ -509,7 +513,19 @@ func newReadCommitLogPredicate(
 	bufferPast := ns.Options().RetentionOptions().BufferPast()
 	bufferFuture := ns.Options().RetentionOptions().BufferFuture()
 
-	return func(entryTime time.Time, entryDuration time.Duration) bool {
+	// commitlogFilesPresentBeforeStart is a set of all the commitlog files that were
+	// on disk before the node started.
+	commitlogFilesPresentBeforeStart := inspection.CommitLogFilesSet()
+
+	return func(name string, entryTime time.Time, entryDuration time.Duration) bool {
+		_, ok := commitlogFilesPresentBeforeStart[name]
+		if !ok {
+			// If the file wasn't on disk before the node started then it only contains
+			// writes that are already in memory (and in-fact the file may be actively
+			// being written to.)
+			return false
+		}
+
 		// If there is any amount of overlap between the commitlog range and the
 		// shardRange then we need to read the commitlog file
 		return xtime.Range{

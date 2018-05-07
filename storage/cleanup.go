@@ -69,7 +69,7 @@ func newCleanupManager(database database, scope tally.Scope) databaseCleanupMana
 		nowFn:                       opts.ClockOptions().NowFn(),
 		filePathPrefix:              filePathPrefix,
 		commitLogsDir:               commitLogsDir,
-		commitLogFilesBeforeFn:      fs.CommitLogFilesBefore,
+		commitLogFilesBeforeFn:      fs.SortedCommitLogFilesBefore,
 		commitLogFilesForTimeFn:     fs.CommitLogFilesForTime,
 		deleteFilesFn:               fs.DeleteFiles,
 		deleteInactiveDirectoriesFn: fs.DeleteInactiveDirectories,
