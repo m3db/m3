@@ -70,6 +70,7 @@ type fileSystemSource struct {
 	opts        Options
 	fsopts      fs.Options
 	log         xlog.Logger
+	idPool      ident.Pool
 	newReaderFn newDataFileSetReaderFn
 	processors  xsync.WorkerPool
 }
@@ -81,6 +82,7 @@ func newFileSystemSource(opts Options) bootstrap.Source {
 		opts:        opts,
 		fsopts:      opts.FilesystemOptions(),
 		log:         opts.ResultOptions().InstrumentOptions().Logger(),
+		idPool:      opts.IdentifierPool(),
 		newReaderFn: fs.NewReader,
 		processors:  processors,
 	}
@@ -350,7 +352,7 @@ func (s *fileSystemSource) tagsFromTagsIter(
 	tags := make(ident.Tags, 0, iter.Remaining())
 	for iter.Next() {
 		curr := iter.Current()
-		tags = append(tags, s.opts.IdentifierPool().CloneTag(curr))
+		tags = append(tags, s.idPool.CloneTag(curr))
 	}
 	return tags, iter.Err()
 }

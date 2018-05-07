@@ -48,11 +48,13 @@ func NewOptions() Options {
 	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})
+	bytesPool.Init()
+	idPool := ident.NewPool(bytesPool, pool.NewObjectPoolOptions())
 	return &options{
 		resultOpts:     result.NewOptions(),
 		fsOpts:         fs.NewOptions(),
 		numProcessors:  defaultNumProcessors,
-		identifierPool: ident.NewPool(bytesPool, pool.NewObjectPoolOptions()),
+		identifierPool: idPool,
 	}
 }
 

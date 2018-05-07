@@ -160,7 +160,7 @@ func calculateExpectedChecksum(t *testing.T, filePath string) uint32 {
 
 func writeTestSummariesData(w DataFileSetWriter, writes []generatedWrite) error {
 	for _, write := range writes {
-		err := w.Write(write.id, write.data, write.checksum)
+		err := w.Write(write.id, write.tags, write.data, write.checksum)
 		if err != nil {
 			return err
 		}
@@ -177,6 +177,7 @@ type propTestInput struct {
 
 type generatedWrite struct {
 	id       ident.ID
+	tags     ident.Tags
 	data     checked.Bytes
 	checksum uint32
 }
@@ -208,14 +209,27 @@ func genWrite() gopter.Gen {
 		// gopter will generate random strings, but some of them may be duplicates
 		// (which can't normally happen for IDs and breaks this codepath), so we
 		// filter down to unique inputs
+		// ID
 		gen.AnyString(),
+		// Tag 1
+		gen.AnyString(),
+		gen.AnyString(),
+		// Tag 2
+		gen.AnyString(),
+		gen.AnyString(),
+		// Data
 		gen.SliceOfN(100, gen.UInt8()),
 	).Map(func(vals []interface{}) generatedWrite {
 		id := vals[0].(string)
-		data := vals[1].([]byte)
+		tags := []ident.Tag{
+			ident.StringTag(vals[1].(string), vals[2].(string)),
+			ident.StringTag(vals[3].(string), vals[4].(string)),
+		}
+		data := vals[5].([]byte)
 
 		return generatedWrite{
 			id:       ident.StringID(id),
+			tags:     tags,
 			data:     bytesRefd(data),
 			checksum: digest.Checksum(data),
 		}
