@@ -171,7 +171,6 @@ func writeCommitLogDataBase(
 	}
 }
 
-// nolint: deadcode
 func mustInspectFilesystem(fsOpts fs.Options) fs.Inspection {
 	inspection, err := fs.InspectFilesystem(fsOpts)
 	if err != nil {

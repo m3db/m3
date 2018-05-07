@@ -97,7 +97,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			if err != nil {
 				return false, err
 			}
-			source, err := NewCommitLogBootstrapperProvider(bootstrapOpts, inspection, nil)
+			provider, err := NewCommitLogBootstrapperProvider(bootstrapOpts, inspection, nil)
 			if err != nil {
 				return false, err
 			}
