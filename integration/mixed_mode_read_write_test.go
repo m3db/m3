@@ -219,7 +219,9 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
 		SetCommitLogOptions(commitLogOpts)
-	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapperProvider(bclOpts, noOpAll)
+
+	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapperProvider(
+		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
 	require.NoError(t, err)
 
 	// fs bootstrapper
@@ -227,7 +229,8 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
-	fsBootstrapper := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
+	fsBootstrapper := fs.NewFileSystemBootstrapperProvider(
+		sbfsOpts, mustInspectFilesystem(fsOpts), commitLogBootstrapper)
 
 	// bootstrapper storage opts
 	processProvider := bootstrap.NewProcessProvider(fsBootstrapper, bsOpts)

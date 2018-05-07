@@ -127,7 +127,8 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		SetCommitLogOptions(commitLogOpts)
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 
-	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapperProvider(bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
+	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapperProvider(
+		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
 	require.NoError(t, err)
 	// fs bootstrapper
 	filePathPrefix := fsOpts.FilePathPrefix()
@@ -135,7 +136,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
-	fsBootstrapper := fs.NewFileSystemBootstrapperProvider(filePathPrefix, bfsOpts, commitLogBootstrapper)
+	fsBootstrapper := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
 	// bootstrapper storage opts
 	process := bootstrap.NewProcessProvider(fsBootstrapper, bsOpts)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)

@@ -75,16 +75,17 @@ func TestCommitLogBootstrap(t *testing.T) {
 	log.Info("finished writing data")
 
 	// Setup bootstrapper after writing data so filesystem inspection can find it.
-	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
 		SetCommitLogOptions(commitLogOpts)
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-	bs, err := bcl.NewCommitLogBootstrapperProvider(bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
+	bs, err := bcl.NewCommitLogBootstrapperProvider(
+		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
 	require.NoError(t, err)
-	process := bootstrap.NewProcess(bs, bsOpts)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)
+	process := bootstrap.NewProcessProvider(bs, bsOpts)
+	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	setup.setNowFn(now)
 	// Start the server with filesystem bootstrapper
