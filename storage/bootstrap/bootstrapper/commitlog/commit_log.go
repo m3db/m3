@@ -48,8 +48,9 @@ func NewCommitLogBootstrapperProvider(
 		return nil, err
 	}
 	return commitLogBootstrapperProvider{
-		opts: opts,
-		next: next,
+		opts:       opts,
+		inspection: inspection,
+		next:       next,
 	}, nil
 }
 

@@ -65,6 +65,7 @@ func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source
 		newIteratorFn: commitlog.NewIterator,
 	}
 }
+
 func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
 	switch strategy {
 	case bootstrap.BootstrapSequential:
@@ -92,7 +93,8 @@ func (s *commitLogSource) ReadData(
 		return result.NewDataBootstrapResult(), nil
 	}
 
-	readCommitLogPredicate := newReadCommitLogPredicate(ns, shardsTimeRanges, s.opts, s.inspection)
+	readCommitLogPredicate := newReadCommitLogPredicate(
+		ns, shardsTimeRanges, s.opts, s.inspection)
 	readSeriesPredicate := newReadSeriesPredicate(ns)
 	iterOpts := commitlog.IteratorOpts{
 		CommitLogOptions:      s.opts.CommitLogOptions(),
