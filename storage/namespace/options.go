@@ -92,6 +92,7 @@ func (o *options) Equal(value Options) bool {
 	return o.bootstrapEnabled == value.BootstrapEnabled() &&
 		o.flushEnabled == value.FlushEnabled() &&
 		o.writesToCommitLog == value.WritesToCommitLog() &&
+		o.snapshotEnabled == value.SnapshotEnabled() &&
 		o.cleanupEnabled == value.CleanupEnabled() &&
 		o.repairEnabled == value.RepairEnabled() &&
 		o.retentionOpts.Equal(value.RetentionOptions()) &&
