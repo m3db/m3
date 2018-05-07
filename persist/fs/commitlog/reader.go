@@ -420,6 +420,7 @@ func (r *reader) decodeAndHandleMetadata(
 	}
 	err = tagDecoder.Err()
 	if err != nil {
+		tagDecoder.Close()
 		return err
 	}
 
