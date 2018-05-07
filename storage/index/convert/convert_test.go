@@ -54,12 +54,34 @@ func TestFromMetricInvalid(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestFromMetricIteratorInvalid(t *testing.T) {
+	id := ident.StringID("foo")
+	tags := ident.Tags{
+		ident.StringTag(string(convert.ReservedFieldNameID), "value"),
+	}
+	_, err := convert.FromMetricIter(id, ident.NewTagSliceIterator(tags))
+	assert.Error(t, err)
+}
+
 func TestFromMetricValid(t *testing.T) {
 	id := ident.StringID("foo")
 	tags := ident.Tags{
 		ident.StringTag("bar", "baz"),
 	}
 	d, err := convert.FromMetric(id, tags)
+	assert.NoError(t, err)
+	assert.Equal(t, "foo", string(d.ID))
+	assert.Len(t, d.Fields, 1)
+	assert.Equal(t, "bar", string(d.Fields[0].Name))
+	assert.Equal(t, "baz", string(d.Fields[0].Value))
+}
+
+func TestFromMetricIterValid(t *testing.T) {
+	id := ident.StringID("foo")
+	tags := ident.Tags{
+		ident.StringTag("bar", "baz"),
+	}
+	d, err := convert.FromMetricIter(id, ident.NewTagSliceIterator(tags))
 	assert.NoError(t, err)
 	assert.Equal(t, "foo", string(d.ID))
 	assert.Len(t, d.Fields, 1)
