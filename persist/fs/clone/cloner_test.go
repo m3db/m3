@@ -1,3 +1,23 @@
+// Copyright (c) 2018 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 package clone
 
 import (
@@ -87,14 +107,32 @@ func TestCloner(t *testing.T) {
 	}
 	require.NoError(t, r2.Open(r2OpenOpts))
 	for {
-		t1, b1, c1, e1 := r1.Read()
-		t2, b2, c2, e2 := r2.Read()
+		t1, a1, b1, c1, e1 := r1.Read()
+		t2, a2, b2, c2, e2 := r2.Read()
 		if e1 == e2 && e1 == io.EOF {
 			break
 		}
+
+		require.NoError(t, e1)
+		require.NoError(t, e2)
+
 		b1.IncRef()
 		b2.IncRef()
 		require.Equal(t, t1.String(), t2.String())
+		require.Equal(t, a1.Remaining(), a2.Remaining())
+		numTags, numTagsMatched := a1.Remaining(), 0
+		for a1.Next() && a2.Next() {
+			tag0 := a1.Current()
+			tag1 := a2.Current()
+			require.Equal(t, tag0.Name.String(), tag1.Name.String())
+			require.Equal(t, tag0.Value.String(), tag1.Value.String())
+			numTagsMatched++
+		}
+		require.NoError(t, a1.Err())
+		require.NoError(t, a2.Err())
+		a1.Close()
+		a2.Close()
+		require.Equal(t, numTags, numTagsMatched)
 		require.Equal(t, b1.Bytes(), b2.Bytes())
 		require.Equal(t, c1, c2)
 		b1.DecRef()
@@ -121,8 +159,15 @@ func writeTestData(t *testing.T, bs time.Duration, src FileSetID, opts Options) 
 	}
 	require.NoError(t, w.Open(writerOpts))
 	for i := 0; i < numTestSeries; i++ {
-		id := ident.StringID(fmt.Sprintf("testSeries.%d", i))
-		require.NoError(t, w.Write(id, testBytes, 1234))
+		id := ident.StringID(fmt.Sprintf("test-series.%d", i))
+		var tags ident.Tags
+		if i%2 == 0 {
+			tags = ident.Tags{
+				ident.StringTag("foo", "bar"),
+				ident.StringTag("qux", "qaz"),
+			}
+		}
+		require.NoError(t, w.Write(id, tags, testBytes, 1234))
 	}
 	require.NoError(t, w.Close())
 }
