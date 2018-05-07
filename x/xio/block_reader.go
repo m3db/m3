@@ -30,7 +30,7 @@ import (
 func (b BlockReader) CloneBlock() (BlockReader, error) {
 	sr, err := b.SegmentReader.Clone()
 	if err != nil {
-		return EmptyBlockReader, nil
+		return EmptyBlockReader, err
 	}
 	return BlockReader{
 		SegmentReader: sr,
