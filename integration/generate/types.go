@@ -22,6 +22,7 @@ type BlockConfig struct {
 // Series represents a generated series of data
 type Series struct {
 	ID   ident.ID
+	Tags ident.Tags
 	Data []ts.Datapoint
 }
 

@@ -140,8 +140,19 @@ func verifyForTime(
 		}
 		require.NoError(t, reader.Open(rOpts))
 		for i := 0; i < reader.Entries(); i++ {
-			id, data, _, err := reader.Read()
+			id, tagsIter, data, _, err := reader.Read()
 			require.NoError(t, err)
+
+			var tags ident.Tags
+			if tagsLen := tagsIter.Remaining(); tagsLen > 0 {
+				tags = make(ident.Tags, 0, tagsLen)
+				for tagsIter.Next() {
+					curr := tagsIter.Current()
+					tags = append(tags, ident.StringTag(curr.Name.String(), curr.Value.String()))
+				}
+				require.NoError(t, tagsIter.Err())
+				tagsIter.Close()
+			}
 
 			data.IncRef()
 
@@ -157,6 +168,7 @@ func verifyForTime(
 
 			actual = append(actual, generate.Series{
 				ID:   id,
+				Tags: tags,
 				Data: datapoints,
 			})
 
