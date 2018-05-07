@@ -460,7 +460,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 
 				if err == nil && !exists {
 					resultLock.Lock()
-					exists, err := indexBlockSegment.ContainsID(idBytes)
+					exists, err = indexBlockSegment.ContainsID(idBytes)
 					if err == nil && !exists {
 						d := doc.Document{
 							ID:     append([]byte(nil), idBytes...),

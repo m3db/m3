@@ -400,10 +400,6 @@ func (w *writer) writeIndexRelatedFiles() error {
 	return w.writeInfoFileContents(bloomFilter, summaries)
 }
 
-type tagsIter struct {
-	tags ident.Tags
-}
-
 func (w *writer) writeIndexFileContents(
 	bloomFilter *bloom.BloomFilter,
 	summaryEvery int,

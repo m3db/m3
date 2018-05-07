@@ -103,7 +103,12 @@ func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 	if enc.err != nil {
 		return enc.err
 	}
-	enc.encodeIndexInfo(info)
+	enc.encodeRootObject(indexInfoVersion, indexInfoType)
+	if enc.encodeLegacyV1IndexInfo {
+		enc.encodeIndexInfoV1(info)
+	} else {
+		enc.encodeIndexInfoV2(info)
+	}
 	return enc.err
 }
 
@@ -113,7 +118,11 @@ func (enc *Encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 		return enc.err
 	}
 	enc.encodeRootObject(indexEntryVersion, indexEntryType)
-	enc.encodeIndexEntryV2(entry)
+	if enc.encodeLegacyV1IndexInfo {
+		enc.encodeIndexEntryV1(entry)
+	} else {
+		enc.encodeIndexEntryV2(entry)
+	}
 	return enc.err
 }
 
@@ -155,15 +164,6 @@ func (enc *Encoder) EncodeLogMetadata(entry schema.LogMetadata) error {
 	enc.encodeRootObject(logMetadataVersion, logMetadataType)
 	enc.encodeLogMetadata(entry)
 	return enc.err
-}
-
-func (enc *Encoder) encodeIndexInfo(info schema.IndexInfo) {
-	enc.encodeRootObject(indexInfoVersion, indexInfoType)
-	if enc.encodeLegacyV1IndexInfo {
-		enc.encodeIndexInfoV1(info)
-	} else {
-		enc.encodeIndexInfoV2(info)
-	}
 }
 
 // We only keep this method around for the sake of testing
