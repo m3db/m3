@@ -821,7 +821,10 @@ type ShardBootstrapStates map[uint32]BootstrapState
 type BootstrapState int
 
 const (
+	// BootstrapNotStarted indicates bootstrap has not been started yet.
 	BootstrapNotStarted BootstrapState = iota
+	// Bootstrapping indicates bootstrap process is in progress.
 	Bootstrapping
+	// Bootstrapped indicates a bootstrap process has completed.
 	Bootstrapped
 )
