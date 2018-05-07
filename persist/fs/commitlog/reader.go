@@ -417,7 +417,7 @@ func (r *reader) decodeAndHandleMetadata(
 		tagDecoder := r.opts.TagDecoderPool().Get()
 		tagDecoder.Reset(tagsBytes)
 
-		tags := make(ident.Tags, 0, tagDecoder.Remaining())
+		tags = make(ident.Tags, 0, tagDecoder.Remaining())
 		for tagDecoder.Next() {
 			curr := tagDecoder.Current()
 			clone := r.opts.IdentifierPool().CloneTag(curr)
