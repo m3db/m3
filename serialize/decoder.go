@@ -54,6 +54,7 @@ func newTagDecoder(opts TagDecoderOptions, pool TagDecoderPool) TagDecoder {
 }
 
 func (d *decoder) Reset(b checked.Bytes) {
+	d.resetForReuse()
 	d.checkedData = b
 	d.checkedData.IncRef()
 	d.data = d.checkedData.Bytes()
@@ -76,7 +77,7 @@ func (d *decoder) Reset(b checked.Bytes) {
 	}
 
 	if limit := d.opts.TagSerializationLimits().MaxNumberTags(); remain > limit {
-		d.err = fmt.Errorf("too many tags [ limit = %d, observed = %d]", limit, remain)
+		d.err = fmt.Errorf("too many tags [ limit = %d, observed = %d ]", limit, remain)
 		return
 	}
 
@@ -127,7 +128,7 @@ func (d *decoder) decodeID() (ident.ID, error) {
 	}
 
 	if limit := d.opts.TagSerializationLimits().MaxTagLiteralLength(); l > limit {
-		return nil, fmt.Errorf("tag literal too long [ limit = %d, observed = %d]", limit, int(l))
+		return nil, fmt.Errorf("tag literal too long [ limit = %d, observed = %d ]", limit, int(l))
 	}
 
 	if len(d.data) < int(l) {
@@ -175,7 +176,7 @@ func (d *decoder) Remaining() int {
 	return d.remaining
 }
 
-func (d *decoder) close() {
+func (d *decoder) resetForReuse() {
 	d.releaseCurrent()
 	d.data = nil
 	d.err = nil
@@ -191,7 +192,7 @@ func (d *decoder) close() {
 }
 
 func (d *decoder) Close() {
-	d.close()
+	d.resetForReuse()
 	if d.pool == nil {
 		return
 	}
