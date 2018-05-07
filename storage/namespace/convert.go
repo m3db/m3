@@ -103,6 +103,7 @@ func ToMetadata(
 		SetCleanupEnabled(opts.CleanupEnabled).
 		SetRepairEnabled(opts.RepairEnabled).
 		SetWritesToCommitLog(opts.WritesToCommitLog).
+		SetSnapshotEnabled(opts.SnapshotEnabled).
 		SetRetentionOptions(ropts).
 		SetIndexOptions(iopts)
 

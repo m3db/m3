@@ -83,7 +83,7 @@ func genMap() gopter.Gen {
 func genMetadata() gopter.Gen {
 	return gopter.CombineGens(
 		gen.Identifier(),
-		gen.SliceOfN(6, gen.Bool()),
+		gen.SliceOfN(7, gen.Bool()),
 		genRetention(),
 	).Map(func(values []interface{}) namespace.Metadata {
 		var (
@@ -97,9 +97,10 @@ func genMetadata() gopter.Gen {
 			SetFlushEnabled(bools[2]).
 			SetRepairEnabled(bools[3]).
 			SetWritesToCommitLog(bools[4]).
+			SetSnapshotEnabled(bools[5]).
 			SetRetentionOptions(retention).
 			SetIndexOptions(namespace.NewIndexOptions().
-				SetEnabled(bools[5]).
+				SetEnabled(bools[6]).
 				SetBlockSize(retention.BlockSize())))
 		if err != nil {
 			panic(err.Error())

@@ -270,7 +270,6 @@ func newDefaultBootstrappableTestSetups(
 	}
 }
 
-// nolint: deadcode
 func writeTestDataToDisk(
 	metadata namespace.Metadata,
 	setup *testSetup,
@@ -281,23 +280,19 @@ func writeTestDataToDisk(
 	return writer.Write(metadata.ID(), setup.shardSet, seriesMaps)
 }
 
-// nolint: deadcode
 func concatShards(a, b shard.Shards) shard.Shards {
 	all := append(a.All(), b.All()...)
 	return shard.NewShards(all)
 }
 
-// nolint: deadcode
 func newClusterShardsRange(from, to uint32, s shard.State) shard.Shards {
 	return shard.NewShards(testutil.ShardsRange(from, to, s))
 }
 
-// nolint: deadcode
 func newClusterEmptyShardsRange() shard.Shards {
 	return shard.NewShards(testutil.Shards(nil, shard.Available))
 }
 
-// nolint: deadcode
 func waitUntilHasBootstrappedShardsExactly(
 	db storage.Database,
 	shards []uint32,

@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,45 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package digest
+package fs
 
 import (
-	"io/ioutil"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-type mockDigest struct {
-	b      []byte
-	digest uint32
-	err    error
-}
-
-func (md *mockDigest) Write(p []byte) (n int, err error) {
-	if md.err != nil {
-		return 0, md.err
-	}
-	md.b = append(md.b, p...)
-	return len(p), nil
-}
-
-func (md *mockDigest) Sum(b []byte) []byte { return nil }
-func (md *mockDigest) Reset()              {}
-func (md *mockDigest) ResetTo(v uint32)    {}
-func (md *mockDigest) Size() int           { return 0 }
-func (md *mockDigest) BlockSize() int      { return 0 }
-func (md *mockDigest) Sum32() uint32       { return md.digest }
-
-func createTestFdWithDigest(t *testing.T) (*os.File, *mockDigest) {
-	fd := createTempFile(t)
-	md := &mockDigest{}
-	return fd, md
-}
-
-func createTempFile(t *testing.T) *os.File {
-	fd, err := ioutil.TempFile("", "testfile")
+func TestInspectFilesystem(t *testing.T) {
+	dir := createCommitLogFiles(t, 20, 1)
+	opts := NewOptions().SetFilePathPrefix(dir)
+	inspection, err := InspectFilesystem(opts)
 	require.NoError(t, err)
-	return fd
+
+	sorted, err := SortedCommitLogFiles(CommitLogsDirPath(dir))
+	require.NoError(t, err)
+	require.Equal(t, sorted, inspection.SortedCommitLogFiles)
+
+	set := inspection.CommitLogFilesSet()
+	require.Equal(t, len(sorted), len(set))
+	for _, file := range sorted {
+		_, ok := set[file]
+		require.True(t, ok)
+	}
 }

@@ -41,20 +41,18 @@ var (
 	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
 )
 
-// nolint: deadcode, unused
+// nolint: unused
 func newNamespaceDir(storageOpts storage.Options, md namespace.Metadata) string {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
 	return fs.NamespaceDataDirPath(filePathPrefix, md.ID())
 }
 
-// nolint: deadcode
 func newDataFileSetWriter(storageOpts storage.Options) (fs.DataFileSetWriter, error) {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	return fs.NewWriter(fsOpts)
 }
 
-// nolint: deadcode
 func writeFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
 	rOpts := md.Options().RetentionOptions()
 	writer, err := newDataFileSetWriter(storageOpts)
@@ -73,7 +71,6 @@ func writeFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.M
 	}
 }
 
-// nolint: deadcode
 func writeCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time) {
 	for _, start := range fileTimes {
 		commitLogFile, _ := fs.NextCommitLogsFile(filePathPrefix, start)
@@ -157,7 +154,7 @@ func waitUntilDataCleanedUpExtended(
 	return errDataCleanupTimedOut
 }
 
-// nolint: deadcode, unused
+// nolint: unused
 func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ident.ID, waitTimeout time.Duration) error {
 	dataCleanedUp := func() bool {
 		namespaceDir := fs.NamespaceDataDirPath(filePathPrefix, namespace)
@@ -170,7 +167,7 @@ func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ident.ID, wai
 	return errDataCleanupTimedOut
 }
 
-// nolint: deadcode, unused
+// nolint: unused
 func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespace.Metadata, newShardSet sharding.ShardSet) (*testSetup, error) {
 	err := testSetup.stopServer()
 	if err != nil {
@@ -194,7 +191,7 @@ func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespac
 	return resetSetup, nil
 }
 
-// nolint: deadcode, unused
+// nolint: unused
 func waitUntilDataFileSetsCleanedUp(filePathPrefix string, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
 	dataCleanedUp := func() bool {
 		for _, n := range namespaces {
@@ -212,7 +209,6 @@ func waitUntilDataFileSetsCleanedUp(filePathPrefix string, namespaces []storage.
 	return errDataCleanupTimedOut
 }
 
-// nolint: deadcode
 func waitUntilDataCleanedUp(filePathPrefix string, namespace ident.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
 	return waitUntilDataCleanedUpExtended(
 		[]cleanupTimesFileSet{
@@ -230,7 +226,6 @@ func waitUntilDataCleanedUp(filePathPrefix string, namespace ident.ID, shard uin
 		timeout)
 }
 
-// nolint: deadcode
 func getTimes(start time.Time, end time.Time, intervalSize time.Duration) []time.Time {
 	totalPeriod := end.Sub(start)
 	numPeriods := int(totalPeriod / intervalSize)

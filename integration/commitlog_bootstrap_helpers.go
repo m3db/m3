@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/integration/generate"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -74,7 +75,6 @@ func randStringRunes(n int) string {
 	return string(b)
 }
 
-// nolint: deadcode
 func generateSeriesMaps(numBlocks int, starts ...time.Time) generate.SeriesBlocksByStart {
 	blockConfig := []generate.BlockConfig{}
 	for i := 0; i < numBlocks; i++ {
@@ -93,7 +93,6 @@ func generateSeriesMaps(numBlocks int, starts ...time.Time) generate.SeriesBlock
 	return generate.BlocksByStart(blockConfig)
 }
 
-// nolint: deadcode
 func writeCommitLogData(
 	t *testing.T,
 	s *testSetup,
@@ -104,7 +103,6 @@ func writeCommitLogData(
 	writeCommitLogDataBase(t, s, opts, data, namespace, nil)
 }
 
-// nolint: deadcode
 func writeCommitLogDataSpecifiedTS(
 	t *testing.T,
 	s *testSetup,
@@ -116,7 +114,6 @@ func writeCommitLogDataSpecifiedTS(
 	writeCommitLogDataBase(t, s, opts, data, namespace, &ts)
 }
 
-// nolint: deadcode
 func writeCommitLogDataBase(
 	t *testing.T,
 	s *testSetup,
@@ -172,4 +169,13 @@ func writeCommitLogDataBase(
 		// ensure writes finished
 		require.NoError(t, commitLog.Close())
 	}
+}
+
+func mustInspectFilesystem(fsOpts fs.Options) fs.Inspection {
+	inspection, err := fs.InspectFilesystem(fsOpts)
+	if err != nil {
+		panic(err)
+	}
+
+	return inspection
 }
