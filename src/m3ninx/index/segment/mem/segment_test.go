@@ -154,6 +154,9 @@ func TestSegmentInsertDuplicateID(t *testing.T) {
 	require.NoError(t, iter.Close())
 	require.NoError(t, r.Close())
 	require.NoError(t, segment.Close())
+
+	// ensure segment returns size == 0 once it's closed.
+	require.Equal(t, int64(0), segment.Size())
 }
 
 func TestSegmentInsertBatch(t *testing.T) {

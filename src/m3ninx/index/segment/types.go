@@ -34,7 +34,8 @@ var (
 
 // Segment is a sub-collection of documents within an index.
 type Segment interface {
-	// Size returns the number of documents within the Segment.
+	// Size returns the number of documents within the Segment. It returns
+	// 0 if the Segment has been closed.
 	Size() int64
 
 	// ContainsID returns a bool indicating if the Segment contains the provided ID.
