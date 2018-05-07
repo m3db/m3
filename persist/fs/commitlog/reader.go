@@ -294,6 +294,7 @@ func (r *reader) readLoop() {
 
 func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse) {
 	var (
+<<<<<<< HEAD
 		decodingOpts           = r.opts.FilesystemOptions().DecodingOptions()
 		decoder                = msgpack.NewDecoder(decodingOpts)
 		decoderStream          = msgpack.NewDecoderStream(nil)
@@ -309,6 +310,17 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		tagDecoderCheckedBytes.Finalize()
 		tagDecoder.Close()
 	}()
+=======
+		decodingOpts          = r.opts.FilesystemOptions().DecodingOptions()
+		decoder               = msgpack.NewDecoder(decodingOpts)
+		decoderStream         = msgpack.NewDecoderStream(nil)
+		metadataDecoder       = msgpack.NewDecoder(decodingOpts)
+		metadataDecoderStream = msgpack.NewDecoderStream(nil)
+		metadataLookup        = make(map[uint64]seriesMetadata)
+		tagDecoder            = r.opts.TagDecoderPool().Get()
+	)
+	defer tagDecoder.Close()
+>>>>>>> Reuse tag decoder in each decoder loop
 
 	for arg := range inBuf {
 		response := readResponse{}
@@ -329,8 +341,13 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 		// If the log entry has associated metadata, decode that as well
 		if len(entry.Metadata) != 0 {
+<<<<<<< HEAD
 			err := r.decodeAndHandleMetadata(metadataLookup, metadataDecoder, metadataDecoderStream,
 				tagDecoder, tagDecoderCheckedBytes, entry)
+=======
+			err := r.decodeAndHandleMetadata(
+				metadataLookup, metadataDecoder, metadataDecoderStream, tagDecoder, entry)
+>>>>>>> Reuse tag decoder in each decoder loop
 			if err != nil {
 				r.handleDecoderLoopIterationEnd(arg, outBuf, response, err)
 				continue
