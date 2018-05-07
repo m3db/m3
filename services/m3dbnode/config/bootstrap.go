@@ -109,7 +109,6 @@ func (bsc BootstrapConfiguration) New(
 		case bootstrapper.NoOpNoneBootstrapperName:
 			bs = bootstrapper.NewNoOpNoneBootstrapperProvider()
 		case bfs.FileSystemBootstrapperName:
-			filePathPrefix := fsOpts.FilePathPrefix()
 			fsbopts := bfs.NewOptions().
 				SetResultOptions(rsOpts).
 				SetFilesystemOptions(fsOpts).
