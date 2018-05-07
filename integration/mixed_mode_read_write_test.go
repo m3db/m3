@@ -229,8 +229,7 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
-	fsBootstrapper := fs.NewFileSystemBootstrapperProvider(
-		sbfsOpts, mustInspectFilesystem(fsOpts), commitLogBootstrapper)
+	fsBootstrapper := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
 
 	// bootstrapper storage opts
 	processProvider := bootstrap.NewProcessProvider(fsBootstrapper, bsOpts)
