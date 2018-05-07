@@ -144,5 +144,5 @@ func (bsc BootstrapConfiguration) New(
 		}
 	}
 
-	return bootstrap.NewProcessProvider(bs, rsopts), nil
+	return bootstrap.NewProcessProvider(bs, rsOpts), nil
 }
