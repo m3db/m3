@@ -53,7 +53,7 @@ func main() {
 	}
 
 	for {
-		id, _, _, err := reader.ReadMetadata()
+		id, _, _, _, err := reader.ReadMetadata()
 		if err == io.EOF {
 			break
 		}

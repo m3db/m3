@@ -446,6 +446,12 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			if run == bootstrapIndexRunType {
 				// If performing index run, then simply read the metadata and add to segment
 				id, tagsIter, _, _, err := r.ReadMetadata()
+				if err != nil {
+					s.log.Errorf("unable read metadata: %v", err)
+					hasError = true
+					continue
+				}
+
 				idBytes := id.Bytes()
 
 				resultLock.RLock()

@@ -62,7 +62,7 @@ func main() {
 	}
 
 	for {
-		id, data, _, err := reader.Read()
+		id, _, data, _, err := reader.Read()
 		if err == io.EOF {
 			break
 		}

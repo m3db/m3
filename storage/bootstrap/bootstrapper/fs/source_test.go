@@ -558,21 +558,21 @@ func TestReadDeleteOnError(t *testing.T) {
 			Return(xtime.Range{
 				Start: testStart,
 				End:   testStart.Add(2 * time.Hour),
-			}),
-		reader.EXPECT().Entries().Return(2),
+			}).AnyTimes(),
+		reader.EXPECT().Entries().Return(2).AnyTimes(),
 		reader.EXPECT().
 			Range().
 			Return(xtime.Range{
 				Start: testStart,
 				End:   testStart.Add(2 * time.Hour),
-			}),
-		reader.EXPECT().Entries().Return(2),
+			}).AnyTimes(),
+		reader.EXPECT().Entries().Return(2).AnyTimes(),
 		reader.EXPECT().
 			Read().
-			Return(ident.StringID("foo"), nil, digest.Checksum(nil), nil),
+			Return(ident.StringID("foo"), ident.EmptyTagIterator, nil, digest.Checksum(nil), nil),
 		reader.EXPECT().
 			Read().
-			Return(ident.StringID("bar"), nil, uint32(0), errors.New("foo")),
+			Return(ident.StringID("bar"), ident.EmptyTagIterator, nil, uint32(0), errors.New("foo")),
 		reader.EXPECT().Close().Return(nil),
 	)
 
