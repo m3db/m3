@@ -131,7 +131,6 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
 	require.NoError(t, err)
 	// fs bootstrapper
-	filePathPrefix := fsOpts.FilePathPrefix()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
