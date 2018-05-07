@@ -107,7 +107,7 @@ func (bsc BootstrapConfiguration) New(
 		case bootstrapper.NoOpAllBootstrapperName:
 			bs = bootstrapper.NewNoOpAllBootstrapperProvider()
 		case bootstrapper.NoOpNoneBootstrapperName:
-			bs = bootstrapper.NewNoOpNoneBootstrapper()
+			bs = bootstrapper.NewNoOpNoneBootstrapperProvider()
 		case bfs.FileSystemBootstrapperName:
 			filePathPrefix := fsOpts.FilePathPrefix()
 			fsbopts := bfs.NewOptions().
@@ -115,7 +115,7 @@ func (bsc BootstrapConfiguration) New(
 				SetFilesystemOptions(fsOpts).
 				SetNumProcessors(bsc.fsNumProcessors()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager())
-			bs = bfs.NewFileSystemBootstrapper(filePathPrefix, fsbopts, bs)
+			bs = bfs.NewFileSystemBootstrapperProvider(filePathPrefix, fsbopts, bs)
 		case commitlog.CommitLogBootstrapperName:
 			copts := commitlog.NewOptions().
 				SetResultOptions(rsOpts).
