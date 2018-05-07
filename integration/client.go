@@ -187,7 +187,6 @@ func m3dbClientTruncate(c client.Client, req *rpc.TruncateRequest) (int64, error
 	return adminSession.Truncate(ident.BinaryID(checked.NewBytes(req.NameSpace, nil)))
 }
 
-// nolint: deadcode
 func m3dbClientFetchBlocksMetadata(
 	c client.AdminClient,
 	namespace ident.ID,

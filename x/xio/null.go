@@ -22,7 +22,6 @@ package xio
 
 import "github.com/m3db/m3db/ts"
 
-// nolint: deadcode
 type nullSegmentReader struct{}
 
 func (r nullSegmentReader) Read(p []byte) (n int, err error) { return 0, nil }

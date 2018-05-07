@@ -820,9 +820,11 @@ type ShardBootstrapStates map[uint32]BootstrapState
 // BootstrapState is an enum representing the possible bootstrap states for a shard.
 type BootstrapState int
 
-// nolint: deadcode
 const (
+	// BootstrapNotStarted indicates bootstrap has not been started yet.
 	BootstrapNotStarted BootstrapState = iota
+	// Bootstrapping indicates bootstrap process is in progress.
 	Bootstrapping
+	// Bootstrapped indicates a bootstrap process has completed.
 	Bootstrapped
 )

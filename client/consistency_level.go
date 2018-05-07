@@ -51,7 +51,7 @@ type sessionReadRuntimeReadConsistencyLevel struct {
 	s *session
 }
 
-// nolint: deadcode,unused
+// nolint: unused
 func newSessionReadRuntimeReadConsistencyLevel(
 	s *session,
 ) runtimeReadConsistencyLevel {
