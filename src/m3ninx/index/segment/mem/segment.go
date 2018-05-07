@@ -83,7 +83,14 @@ func NewSegment(offset postings.ID, opts Options) (sgmt.MutableSegment, error) {
 }
 
 func (s *segment) Size() int64 {
-	return int64(s.readerID.Load()) - int64(s.offset)
+	s.state.RLock()
+	closed := s.state.closed
+	size := int64(s.readerID.Load()) - int64(s.offset)
+	s.state.RUnlock()
+	if closed {
+		return 0
+	}
+	return size
 }
 
 func (s *segment) ContainsID(id []byte) (bool, error) {
