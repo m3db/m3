@@ -77,7 +77,7 @@ func (d *decoder) Reset(b checked.Bytes) {
 	}
 
 	if limit := d.opts.TagSerializationLimits().MaxNumberTags(); remain > limit {
-		d.err = fmt.Errorf("too many tags [ limit = %d, observed = %d]", limit, remain)
+		d.err = fmt.Errorf("too many tags [ limit = %d, observed = %d ]", limit, remain)
 		return
 	}
 
