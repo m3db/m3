@@ -32,6 +32,7 @@ import (
 
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
@@ -297,7 +298,9 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		metadataDecoder       = msgpack.NewDecoder(decodingOpts)
 		metadataDecoderStream = msgpack.NewDecoderStream(nil)
 		metadataLookup        = make(map[uint64]seriesMetadata)
+		tagDecoder            = r.opts.TagDecoderPool().Get()
 	)
+	defer tagDecoder.Close()
 
 	for arg := range inBuf {
 		response := readResponse{}
@@ -319,7 +322,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// If the log entry has associated metadata, decode that as well
 		if len(entry.Metadata) != 0 {
 			err := r.decodeAndHandleMetadata(
-				metadataLookup, metadataDecoder, metadataDecoderStream, entry)
+				metadataLookup, metadataDecoder, metadataDecoderStream, tagDecoder, entry)
 			if err != nil {
 				r.handleDecoderLoopIterationEnd(arg, outBuf, response, err)
 				continue
@@ -382,6 +385,7 @@ func (r *reader) decodeAndHandleMetadata(
 	metadataLookup map[uint64]seriesMetadata,
 	metadataDecoder *msgpack.Decoder,
 	metadataDecoderStream msgpack.DecoderStream,
+	tagDecoder serialize.TagDecoder,
 	entry schema.LogEntry,
 ) error {
 	metadataDecoderStream.Reset(entry.Metadata)
@@ -414,7 +418,6 @@ func (r *reader) decodeAndHandleMetadata(
 		tagsBytes.IncRef()
 		tagsBytes.AppendAll(decoded.Tags)
 		tagsBytes.DecRef()
-		tagDecoder := r.opts.TagDecoderPool().Get()
 		tagDecoder.Reset(tagsBytes)
 
 		tags = make(ident.Tags, 0, tagDecoder.Remaining())
@@ -425,11 +428,8 @@ func (r *reader) decodeAndHandleMetadata(
 		}
 		err = tagDecoder.Err()
 		if err != nil {
-			tagDecoder.Close()
 			return err
 		}
-
-		tagDecoder.Close()
 	}
 
 	metadata := Series{
