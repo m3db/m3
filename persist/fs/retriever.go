@@ -539,7 +539,7 @@ func (req *retrieveRequest) onCallerOrRetrieverDone() {
 	req.id = nil
 	if req.tags != nil {
 		req.tags.Close()
-		req.tags = nil
+		req.tags = ident.EmptyTagIterator
 	}
 	req.reader.Finalize()
 	req.reader = nil

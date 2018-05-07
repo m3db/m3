@@ -119,20 +119,7 @@ func TestCloner(t *testing.T) {
 		b1.IncRef()
 		b2.IncRef()
 		require.Equal(t, t1.String(), t2.String())
-		require.Equal(t, a1.Remaining(), a2.Remaining())
-		numTags, numTagsMatched := a1.Remaining(), 0
-		for a1.Next() && a2.Next() {
-			tag0 := a1.Current()
-			tag1 := a2.Current()
-			require.Equal(t, tag0.Name.String(), tag1.Name.String())
-			require.Equal(t, tag0.Value.String(), tag1.Value.String())
-			numTagsMatched++
-		}
-		require.NoError(t, a1.Err())
-		require.NoError(t, a2.Err())
-		a1.Close()
-		a2.Close()
-		require.Equal(t, numTags, numTagsMatched)
+		require.True(t, ident.NewTagIterMatcher(a1).Matches(a2))
 		require.Equal(t, b1.Bytes(), b2.Bytes())
 		require.Equal(t, c1, c2)
 		b1.DecRef()

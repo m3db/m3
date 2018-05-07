@@ -45,12 +45,13 @@ type options struct {
 func NewOptions() Options {
 	iopts := instrument.NewOptions()
 	return &options{
-		clockOpts:               clock.NewOptions(),
-		instrumentOpts:          iopts,
-		blockOpts:               block.NewOptions(),
-		newBlocksLen:            defaultNewBlocksLen,
-		seriesCachePolicy:       series.DefaultCachePolicy,
-		mutableSegmentAllocator: index.NewDefaultMutableSegmentAllocator(iopts),
+		clockOpts:         clock.NewOptions(),
+		instrumentOpts:    iopts,
+		blockOpts:         block.NewOptions(),
+		newBlocksLen:      defaultNewBlocksLen,
+		seriesCachePolicy: series.DefaultCachePolicy,
+		mutableSegmentAllocator: index.NewDefaultMutableSegmentAllocator(index.NewOptions().
+			SetInstrumentOptions(iopts)),
 	}
 }
 

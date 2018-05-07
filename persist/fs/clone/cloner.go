@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/ident/testutil"
 )
 
 type cloner struct {
@@ -90,17 +91,9 @@ func (c *cloner) Clone(src FileSetID, dest FileSetID, destBlocksize time.Duratio
 			return fmt.Errorf("unexpected error while reading data: %v", err)
 		}
 
-		var tags ident.Tags
-		if tagsLen := tagsIter.Remaining(); tagsLen > 0 {
-			tags = make(ident.Tags, 0, tagsLen)
-			for tagsIter.Next() {
-				curr := tagsIter.Current()
-				tags = append(tags, ident.StringTag(curr.Name.String(), curr.Value.String()))
-			}
-			if err := tagsIter.Err(); err != nil {
-				return fmt.Errorf("unable to decode tags: %v", err)
-			}
-			tagsIter.Close()
+		tags, err := testutil.NewTagsFromTagIterator(tagsIter)
+		if err != nil {
+			return err
 		}
 
 		data.IncRef()

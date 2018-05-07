@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/ident/testutil"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -143,16 +144,8 @@ func verifyForTime(
 			id, tagsIter, data, _, err := reader.Read()
 			require.NoError(t, err)
 
-			var tags ident.Tags
-			if tagsLen := tagsIter.Remaining(); tagsLen > 0 {
-				tags = make(ident.Tags, 0, tagsLen)
-				for tagsIter.Next() {
-					curr := tagsIter.Current()
-					tags = append(tags, ident.StringTag(curr.Name.String(), curr.Value.String()))
-				}
-				require.NoError(t, tagsIter.Err())
-				tagsIter.Close()
-			}
+			tags, err := testutil.NewTagsFromTagIterator(tagsIter)
+			require.NoError(t, err)
 
 			data.IncRef()
 

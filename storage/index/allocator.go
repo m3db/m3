@@ -23,16 +23,14 @@ package index
 import (
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/index/segment/mem"
-	"github.com/m3db/m3x/instrument"
 )
 
 // NewDefaultMutableSegmentAllocator returns a default mutable segment
 // allocator.
 func NewDefaultMutableSegmentAllocator(
-	iopts instrument.Options,
+	opts Options,
 ) MutableSegmentAllocator {
-	opts := mem.NewOptions().SetInstrumentOptions(iopts)
 	return func() (segment.MutableSegment, error) {
-		return mem.NewSegment(0, opts)
+		return mem.NewSegment(0, opts.MemSegmentOptions())
 	}
 }

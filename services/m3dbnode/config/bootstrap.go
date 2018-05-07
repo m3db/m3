@@ -92,12 +92,11 @@ func (bsc BootstrapConfiguration) New(
 	var (
 		bs     bootstrap.BootstrapperProvider
 		err    error
-		iopts  = opts.InstrumentOptions()
 		rsopts = result.NewOptions().
 			SetInstrumentOptions(opts.InstrumentOptions()).
 			SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 			SetSeriesCachePolicy(opts.SeriesCachePolicy()).
-			SetIndexMutableSegmentAllocator(index.NewDefaultMutableSegmentAllocator(iopts))
+			SetIndexMutableSegmentAllocator(index.NewDefaultMutableSegmentAllocator(opts.IndexOptions()))
 	)
 	// Start from the end of the list because the bootstrappers are ordered by precedence in descending order.
 	for i := len(bsc.Bootstrappers) - 1; i >= 0; i-- {

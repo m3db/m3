@@ -355,8 +355,8 @@ func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, err
 		return nil, nil, nil, 0, errReadNotExpectedSize
 	}
 
-	id := r.entryID(entry.ID)
-	tags := r.entryEncodedTags(entry.EncodedTags)
+	id := r.entryClonedID(entry.ID)
+	tags := r.entryClonedEncodedTagsTagIter(entry.EncodedTags)
 
 	r.entriesRead++
 	return id, tags, data, uint32(entry.Checksum), nil
@@ -369,8 +369,8 @@ func (r *reader) ReadMetadata() (id ident.ID, tags ident.TagIterator, length int
 	}
 
 	entry := r.indexEntriesByOffsetAsc[r.metadataRead]
-	id = r.entryID(entry.ID)
-	tags = r.entryEncodedTags(entry.EncodedTags)
+	id = r.entryClonedID(entry.ID)
+	tags = r.entryClonedEncodedTagsTagIter(entry.EncodedTags)
 	length = int(entry.Size)
 	checksum = uint32(entry.Checksum)
 
@@ -388,7 +388,7 @@ func (r *reader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
 	)
 }
 
-func (r *reader) entryBytes(bytes []byte) checked.Bytes {
+func (r *reader) entryClonedBytes(bytes []byte) checked.Bytes {
 	var bytesClone checked.Bytes
 	if r.bytesPool != nil {
 		bytesClone = r.bytesPool.Get(len(bytes))
@@ -401,17 +401,17 @@ func (r *reader) entryBytes(bytes []byte) checked.Bytes {
 	return bytesClone
 }
 
-func (r *reader) entryID(id []byte) ident.ID {
-	return ident.BinaryID(r.entryBytes(id))
+func (r *reader) entryClonedID(id []byte) ident.ID {
+	return ident.BinaryID(r.entryClonedBytes(id))
 }
 
-func (r *reader) entryEncodedTags(encodedTags []byte) ident.TagIterator {
+func (r *reader) entryClonedEncodedTagsTagIter(encodedTags []byte) ident.TagIterator {
 	if len(encodedTags) == 0 {
 		// No tags set for this entry, return an empty tag iterator
 		return ident.EmptyTagIterator
 	}
 	decoder := r.tagDecoderPool.Get()
-	decoder.Reset(r.entryBytes(encodedTags))
+	decoder.Reset(r.entryClonedBytes(encodedTags))
 	return decoder
 }
 
