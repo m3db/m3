@@ -405,26 +405,33 @@ func (r *reader) decodeAndHandleMetadata(
 	namespace.IncRef()
 	namespace.AppendAll(decoded.Namespace)
 
-	tagsBytes := r.checkedBytesPool.Get(len(decoded.Tags))
-	tagsBytes.IncRef()
-	tagsBytes.AppendAll(decoded.Tags)
-	tagsBytes.DecRef()
-	tagDecoder := r.opts.TagDecoderPool().Get()
-	tagDecoder.Reset(tagsBytes)
+	var (
+		tags        ident.Tags
+		tagBytesLen = len(decoded.Tags)
+	)
+	if tagBytesLen != 0 {
+		tagsBytes := r.checkedBytesPool.Get(len(decoded.Tags))
+		tagsBytes.IncRef()
+		tagsBytes.AppendAll(decoded.Tags)
+		tagsBytes.DecRef()
+		tagDecoder := r.opts.TagDecoderPool().Get()
+		tagDecoder.Reset(tagsBytes)
 
-	tags := make(ident.Tags, 0, tagDecoder.Remaining())
-	for tagDecoder.Next() {
-		curr := tagDecoder.Current()
-		clone := r.opts.IdentifierPool().CloneTag(curr)
-		tags = append(tags, clone)
-	}
-	err = tagDecoder.Err()
-	if err != nil {
+		tags := make(ident.Tags, 0, tagDecoder.Remaining())
+		for tagDecoder.Next() {
+			curr := tagDecoder.Current()
+			clone := r.opts.IdentifierPool().CloneTag(curr)
+			tags = append(tags, clone)
+		}
+		err = tagDecoder.Err()
+		if err != nil {
+			tagDecoder.Close()
+			return err
+		}
+
 		tagDecoder.Close()
-		return err
 	}
 
-	tagDecoder.Close()
 	metadata := Series{
 		UniqueIndex: entry.Index,
 		ID:          ident.BinaryID(id),
