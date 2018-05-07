@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 )
 
-// nolint: deadcode
 func newTestBootstrapperSource(
 	opts testBootstrapperSourceOptions,
 	resultOpts result.Options,

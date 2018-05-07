@@ -74,7 +74,6 @@ func randStringRunes(n int) string {
 	return string(b)
 }
 
-// nolint: deadcode
 func generateSeriesMaps(numBlocks int, starts ...time.Time) generate.SeriesBlocksByStart {
 	blockConfig := []generate.BlockConfig{}
 	for i := 0; i < numBlocks; i++ {
@@ -93,7 +92,6 @@ func generateSeriesMaps(numBlocks int, starts ...time.Time) generate.SeriesBlock
 	return generate.BlocksByStart(blockConfig)
 }
 
-// nolint: deadcode
 func writeCommitLogData(
 	t *testing.T,
 	s *testSetup,
@@ -104,7 +102,6 @@ func writeCommitLogData(
 	writeCommitLogDataBase(t, s, opts, data, namespace, nil)
 }
 
-// nolint: deadcode
 func writeCommitLogDataSpecifiedTS(
 	t *testing.T,
 	s *testSetup,
@@ -116,7 +113,6 @@ func writeCommitLogDataSpecifiedTS(
 	writeCommitLogDataBase(t, s, opts, data, namespace, &ts)
 }
 
-// nolint: deadcode
 func writeCommitLogDataBase(
 	t *testing.T,
 	s *testSetup,
