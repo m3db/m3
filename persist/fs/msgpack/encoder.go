@@ -118,7 +118,7 @@ func (enc *Encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 		return enc.err
 	}
 	enc.encodeRootObject(indexEntryVersion, indexEntryType)
-	if enc.encodeLegacyV1IndexInfo {
+	if enc.encodeLegacyV1IndexEntry {
 		enc.encodeIndexEntryV1(entry)
 	} else {
 		enc.encodeIndexEntryV2(entry)
