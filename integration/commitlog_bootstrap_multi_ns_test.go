@@ -100,7 +100,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	log.Info("written data - ns2")
 
 	// Setup bootstrapper after writing data so filesystem inspection can find it
-	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
@@ -108,8 +108,8 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 	bs, err := bcl.NewCommitLogBootstrapperProvider(bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
 	require.NoError(t, err)
-	process := bootstrap.NewProcess(bs, bsOpts)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)
+	process := bootstrap.NewProcessProvider(bs, bsOpts)
+	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	later := now.Add(4 * ns1BlockSize)
 	setup.setNowFn(later)

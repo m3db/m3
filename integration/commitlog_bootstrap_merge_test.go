@@ -120,7 +120,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	writeCommitLogData(t, setup, commitLogOpts, commitlogSeriesMaps, ns1.ID())
 
 	// commit log bootstrapper (must be after writing out commitlog files so inspection finds files)
-	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
@@ -135,10 +135,10 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
-	fsBootstrapper := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, commitLogBootstrapper)
+	fsBootstrapper := fs.NewFileSystemBootstrapperProvider(filePathPrefix, bfsOpts, commitLogBootstrapper)
 	// bootstrapper storage opts
-	process := bootstrap.NewProcess(fsBootstrapper, bsOpts)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)
+	process := bootstrap.NewProcessProvider(fsBootstrapper, bsOpts)
+	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	log.Info("moving time forward and starting server")
 	setup.setNowFn(t3)
