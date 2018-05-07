@@ -206,8 +206,8 @@ func newTestCommitLog(t *testing.T, opts Options) *commitLog {
 	// Ensure files present
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
-	assert.NoError(t, err)
-	assert.True(t, len(files) == 1)
+	require.NoError(t, err)
+	require.True(t, len(files) == 1)
 
 	return commitLog
 }
@@ -463,8 +463,8 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	// Assert commitlog file exists and retrieve path
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(files))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(files))
 
 	// Assert commitlog cannot be opened more than once
 	reader := newCommitLogReader(opts, ReadAllSeriesPredicate())
@@ -509,8 +509,8 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 	// Make sure multiple commitlog files were generated
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
-	assert.NoError(t, err)
-	assert.True(t, len(files) == 3)
+	require.NoError(t, err)
+	require.True(t, len(files) == 3)
 
 	// This predicate should eliminate the first commitlog file
 	commitLogPredicate := func(_ string, entryTime time.Time, _ time.Duration) bool {
@@ -648,8 +648,8 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 	// Ensure files present for each block size time window
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
-	assert.NoError(t, err)
-	assert.True(t, len(files) == len(writes))
+	require.NoError(t, err)
+	require.True(t, len(files) == len(writes))
 
 	// Close and consequently flush
 	require.NoError(t, commitLog.Close())
