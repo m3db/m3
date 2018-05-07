@@ -78,7 +78,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 
 	// startup server
 	log.Debug("starting server")
-	startServerWthNewInspection(t, opts, setup)
+	startServerWithNewInspection(t, opts, setup)
 	log.Debug("server is now up")
 
 	// Stop the server
@@ -134,7 +134,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 	// recreate the db from the data files and commit log
 	// should contain data from 15:30 - 17:59 on disk and 18:00 - 18:50 in mem
 	log.Infof("re-opening database & bootstrapping")
-	startServerWthNewInspection(t, opts, setup)
+	startServerWithNewInspection(t, opts, setup)
 	log.Infof("verifying data in database equals expected data")
 	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
 	log.Infof("verified data in database equals expected data")
@@ -153,7 +153,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 
 	// recreate the db from the data files and commit log
 	log.Infof("re-opening database & bootstrapping")
-	startServerWthNewInspection(t, opts, setup)
+	startServerWithNewInspection(t, opts, setup)
 
 	// verify in-memory data matches what we expect
 	// should contain data from 16:00 - 17:59 on disk and 18:00 - 18:50 in mem
@@ -165,7 +165,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 
 // We use this helper method to start the server so that a new filesystem
 // inspection and commitlog bootstrapper are generated each time.
-func startServerWthNewInspection(
+func startServerWithNewInspection(
 	t *testing.T,
 	opts testOptions,
 	setup *testSetup,
