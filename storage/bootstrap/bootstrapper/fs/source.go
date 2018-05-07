@@ -631,46 +631,36 @@ func (s *fileSystemSource) read(
 	run runType,
 ) (*runResult, error) {
 	var (
-		nsID           = md.ID()
-		blockRetriever block.DatabaseBlockRetriever
+		nsID              = md.ID()
+		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
+		blockRetriever    block.DatabaseBlockRetriever
 	)
 	if shardsTimeRanges.IsEmpty() {
 		return newRunResult(), nil
 	}
 
 	if run == bootstrapDataRunType {
-		// NB(r): We can only need to cache shard indices and possibly shortcut
-		// the reading of filesets if we are doing a data bootstrap, otherwise
-		// we need to look at the filesets.
-		blockRetrieverMgr := s.opts.DatabaseBlockRetrieverManager()
-		if blockRetrieverMgr != nil {
-			s.log.WithFields(
-				xlog.NewField("namespace", nsID.String()),
-			).Infof("filesystem bootstrapper resolving block retriever")
-
-			var err error
-			blockRetriever, err = blockRetrieverMgr.Retriever(md)
-			if err != nil {
-				return nil, err
-			}
-
-			s.log.WithFields(
-				xlog.NewField("namespace", nsID.String()),
-				xlog.NewField("shards", len(shardsTimeRanges)),
-			).Infof("filesystem bootstrapper caching block retriever shard indices")
-
+		// NB(r): We only need to cache shard indices and marks blocks as
+		// fulfilled when bootstrapping data, because the data can be retrieved
+		// lazily from disk during reads.
+		// On the other hand, if we're bootstrapping the index then currently we
+		// need to rebuild it from scratch by reading all the IDs/tags until
+		// we can natively bootstrap persisted segments from disk and compact them
+		// with series metadata from other shards if topology has changed.
+		if mgr := s.opts.DatabaseBlockRetrieverManager(); mgr != nil {
 			shards := make([]uint32, 0, len(shardsTimeRanges))
 			for shard := range shardsTimeRanges {
 				shards = append(shards, shard)
 			}
-
-			err = blockRetriever.CacheShardIndices(shards)
+			var err error
+			blockRetriever, err = s.resolveBlockRetrieverAndCacheDataShardIndices(md,
+				mgr, shards)
 			if err != nil {
 				return nil, err
 			}
 		}
 
-		switch s.opts.ResultOptions().SeriesCachePolicy() {
+		switch seriesCachePolicy {
 		case series.CacheAll:
 			// No checks necessary
 		case series.CacheAllMetadata:
@@ -683,18 +673,8 @@ func (s *fileSystemSource) read(
 		default:
 			// Unless we're caching all series (or all series metadata) in memory, we
 			// return just the availability of the files we have
-			runResult := newRunResult()
-			unfulfilled := runResult.data.Unfulfilled()
-			for shard, ranges := range shardsTimeRanges {
-				if ranges.IsEmpty() {
-					continue
-				}
-				availability := s.shardAvailability(md.ID(), shard, ranges)
-				remaining := ranges.RemoveRanges(availability)
-				runResult.data.Add(shard, nil, remaining)
-			}
-			runResult.data.SetUnfulfilled(unfulfilled)
-			return runResult, nil
+			result := s.bootstrapDataRunResultFromAvailability(md, shardsTimeRanges)
+			return result, nil
 		}
 	}
 
@@ -714,6 +694,57 @@ func (s *fileSystemSource) read(
 	readersCh := make(chan shardReaders)
 	go s.enqueueReaders(nsID, shardsTimeRanges, readerPool, readersCh)
 	return s.bootstrapFromReaders(md, run, readerPool, blockRetriever, readersCh), nil
+}
+
+func (s *fileSystemSource) resolveBlockRetrieverAndCacheDataShardIndices(
+	md namespace.Metadata,
+	blockRetrieverMgr block.DatabaseBlockRetrieverManager,
+	shards []uint32,
+) (
+	block.DatabaseBlockRetriever,
+	error,
+) {
+	var blockRetriever block.DatabaseBlockRetriever
+
+	s.log.WithFields(
+		xlog.NewField("namespace", md.ID().String()),
+	).Infof("filesystem bootstrapper resolving block retriever")
+
+	var err error
+	blockRetriever, err = blockRetrieverMgr.Retriever(md)
+	if err != nil {
+		return nil, err
+	}
+
+	s.log.WithFields(
+		xlog.NewField("namespace", md.ID().String()),
+		xlog.NewField("shards", len(shards)),
+	).Infof("filesystem bootstrapper caching block retriever shard indices")
+
+	err = blockRetriever.CacheShardIndices(shards)
+	if err != nil {
+		return nil, err
+	}
+
+	return blockRetriever, nil
+}
+
+func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
+	md namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+) *runResult {
+	runResult := newRunResult()
+	unfulfilled := runResult.data.Unfulfilled()
+	for shard, ranges := range shardsTimeRanges {
+		if ranges.IsEmpty() {
+			continue
+		}
+		availability := s.shardAvailability(md.ID(), shard, ranges)
+		remaining := ranges.RemoveRanges(availability)
+		runResult.data.Add(shard, nil, remaining)
+	}
+	runResult.data.SetUnfulfilled(unfulfilled)
+	return runResult
 }
 
 type shardReaders struct {
