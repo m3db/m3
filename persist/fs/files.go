@@ -460,20 +460,20 @@ func DeleteInactiveDirectories(parentDirectoryPath string, activeDirectories []s
 	return DeleteDirectories(toDelete)
 }
 
-// CommitLogFiles returns all the commit log files in the commit logs directory.
-func CommitLogFiles(commitLogsDir string) ([]string, error) {
-	return commitlogFiles(commitLogsDir, commitLogFilePattern)
+// SortedCommitLogFiles returns all the commit log files in the commit logs directory.
+func SortedCommitLogFiles(commitLogsDir string) ([]string, error) {
+	return sortedCommitlogFiles(commitLogsDir, commitLogFilePattern)
 }
 
 // CommitLogFilesForTime returns all the commit log files for a given time.
 func CommitLogFilesForTime(commitLogsDir string, t time.Time) ([]string, error) {
 	commitLogFileForTimePattern := fmt.Sprintf(commitLogFileForTimeTemplate, t.UnixNano())
-	return commitlogFiles(commitLogsDir, commitLogFileForTimePattern)
+	return sortedCommitlogFiles(commitLogsDir, commitLogFileForTimePattern)
 }
 
-// CommitLogFilesBefore returns all the commit log files whose timestamps are earlier than a given time.
-func CommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
-	commitLogs, err := CommitLogFiles(commitLogsDir)
+// SortedCommitLogFilesBefore returns all the commit log files whose timestamps are earlier than a given time.
+func SortedCommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
+	commitLogs, err := SortedCommitLogFiles(commitLogsDir)
 	if err != nil {
 		return nil, err
 	}
@@ -631,7 +631,7 @@ func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, patte
 	return filesetFiles, nil
 }
 
-func commitlogFiles(commitLogsDir string, pattern string) ([]string, error) {
+func sortedCommitlogFiles(commitLogsDir string, pattern string) ([]string, error) {
 	return findFiles(commitLogsDir, pattern, func(files []string) sort.Interface {
 		return commitlogsByTimeAndIndexAscending(files)
 	})

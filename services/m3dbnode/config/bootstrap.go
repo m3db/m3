@@ -26,11 +26,12 @@ import (
 	"runtime"
 
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/commitlog"
-	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
+	bfs "github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )
@@ -93,10 +94,12 @@ func (bsc BootstrapConfiguration) New(
 		err error
 	)
 
-	rsopts := result.NewOptions().
+	rsOpts := result.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetSeriesCachePolicy(opts.SeriesCachePolicy())
+
+	fsOpts := opts.CommitLogOptions().FilesystemOptions()
 
 	// Start from the end of the list because the bootstrappers are ordered by precedence in descending order.
 	for i := len(bsc.Bootstrappers) - 1; i >= 0; i-- {
@@ -105,25 +108,28 @@ func (bsc BootstrapConfiguration) New(
 			bs = bootstrapper.NewNoOpAllBootstrapperProvider()
 		case bootstrapper.NoOpNoneBootstrapperName:
 			bs = bootstrapper.NewNoOpNoneBootstrapperProvider()
-		case fs.FileSystemBootstrapperName:
-			fsopts := opts.CommitLogOptions().FilesystemOptions()
-			fsbopts := fs.NewOptions().
-				SetResultOptions(rsopts).
-				SetFilesystemOptions(fsopts).
+		case bfs.FileSystemBootstrapperName:
+			fsbopts := bfs.NewOptions().
+				SetResultOptions(rsOpts).
+				SetFilesystemOptions(fsOpts).
 				SetNumProcessors(bsc.fsNumProcessors()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager())
-			bs = fs.NewFileSystemBootstrapperProvider(fsbopts, bs)
+			bs = bfs.NewFileSystemBootstrapperProvider(fsbopts, bs)
 		case commitlog.CommitLogBootstrapperName:
 			copts := commitlog.NewOptions().
-				SetResultOptions(rsopts).
+				SetResultOptions(rsOpts).
 				SetCommitLogOptions(opts.CommitLogOptions())
-			bs, err = commitlog.NewCommitLogBootstrapperProvider(copts, bs)
+			inspection, err := fs.InspectFilesystem(fsOpts)
+			if err != nil {
+				return nil, err
+			}
+			bs, err = commitlog.NewCommitLogBootstrapperProvider(copts, inspection, bs)
 			if err != nil {
 				return nil, err
 			}
 		case peers.PeersBootstrapperName:
 			popts := peers.NewOptions().
-				SetResultOptions(rsopts).
+				SetResultOptions(rsOpts).
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
@@ -137,5 +143,5 @@ func (bsc BootstrapConfiguration) New(
 		}
 	}
 
-	return bootstrap.NewProcessProvider(bs, rsopts), nil
+	return bootstrap.NewProcessProvider(bs, rsOpts), nil
 }

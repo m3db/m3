@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/integration/generate"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -168,4 +169,13 @@ func writeCommitLogDataBase(
 		// ensure writes finished
 		require.NoError(t, commitLog.Close())
 	}
+}
+
+func mustInspectFilesystem(fsOpts fs.Options) fs.Inspection {
+	inspection, err := fs.InspectFilesystem(fsOpts)
+	if err != nil {
+		panic(err)
+	}
+
+	return inspection
 }

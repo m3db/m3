@@ -110,7 +110,9 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 	bootstrapCommitlogOpts := bcl.NewOptions().
 		SetResultOptions(bootstrapOpts).
 		SetCommitLogOptions(commitLogOpts)
-	commitlogBootstrapperProvider, err := bcl.NewCommitLogBootstrapperProvider(bootstrapCommitlogOpts, nil)
+	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	commitlogBootstrapperProvider, err := bcl.NewCommitLogBootstrapperProvider(
+		bootstrapCommitlogOpts, mustInspectFilesystem(fsOpts), nil)
 	require.NoError(t, err)
 
 	// Setup the test bootstrapper to only return success when a signal is sent.
