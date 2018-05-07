@@ -1,5 +1,5 @@
-hash: a2f572df5bbbecc1d3ee3d949f77aa46028123ed4bf85170730612154a375195
-updated: 2018-04-30T09:24:07.284273563-04:00
+hash: 124d166053476550bef409f59deaf9cd7964494b50330e128665dbeb067bf244
+updated: 2018-05-07T16:01:33.626820249-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -207,7 +207,7 @@ imports:
   - search/query
   - search/searcher
 - name: github.com/m3db/m3x
-  version: 04f23ee000fdef43b2260cf99dd751e8b9cd3dca
+  version: f591af0fb913df0f2e8ecf6995d4aa406c4c13e0
   vcs: git
   subpackages:
   - checked
@@ -253,7 +253,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: c5b7fccd204277076155f10851dad72b76a49317
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
@@ -294,7 +294,7 @@ imports:
   subpackages:
   - msgp
 - name: github.com/uber-go/atomic
-  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
   version: 522328b48efad0c6034dba92bf39228694e9d31f
   subpackages:
@@ -322,7 +322,7 @@ imports:
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: go.uber.org/atomic
-  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
