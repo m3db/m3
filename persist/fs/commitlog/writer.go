@@ -57,6 +57,7 @@ const (
 
 var (
 	errCommitLogWriterAlreadyOpen = errors.New("commit log writer already open")
+	errTagEncoderDataNotAvailable = errors.New("tag iterator data not available")
 
 	endianness = binary.LittleEndian
 )
@@ -173,15 +174,25 @@ func (w *writer) Write(
 
 	seen := w.seen.Test(uint(series.UniqueIndex))
 	if !seen {
-		tags := series.Tags
-		w.tagEncoder.Reset()
-		// TODO: Avoid allocating this iterator over and over again?
-		err := w.tagEncoder.Encode(ident.NewTagIterator(tags...))
-		if err != nil {
-			return err
+		var (
+			tags        = series.Tags
+			encodedTags []byte
+		)
+
+		if tags != nil {
+			w.tagEncoder.Reset()
+			err := w.tagEncoder.Encode(ident.NewTagIterator(tags...))
+			if err != nil {
+				return err
+			}
+
+			encodedTagsChecked, ok := w.tagEncoder.Data()
+			if !ok {
+				return errTagEncoderDataNotAvailable
+			}
+
+			encodedTags = encodedTagsChecked.Bytes()
 		}
-		// TODO: What is second argument for?
-		encodedTags, _ := w.tagEncoder.Data()
 
 		// If "idx" likely hasn't been written to commit log
 		// yet we need to include series metadata
@@ -189,7 +200,7 @@ func (w *writer) Write(
 		metadata.ID = series.ID.Data().Bytes()
 		metadata.Namespace = series.Namespace.Data().Bytes()
 		metadata.Shard = series.Shard
-		metadata.Tags = encodedTags.Bytes()
+		metadata.Tags = encodedTags
 		w.metadataEncoder.Reset()
 		if err := w.metadataEncoder.EncodeLogMetadata(metadata); err != nil {
 			return err
