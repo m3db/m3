@@ -339,7 +339,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		if !metadata.passedPredicate {
 			// Pass nil for outBuf because we don't want to send a readResponse along since this
 			// was just a series that the caller didn't want us to read.
-			r.handleDecoderLoopIterationEnd(arg, nil, response, nil)
+			r.handleDecoderLoopIterationEnd(arg, nil, readResponse{}, nil)
 			continue
 		}
 
