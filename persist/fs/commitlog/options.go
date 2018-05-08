@@ -27,7 +27,6 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
@@ -77,8 +76,6 @@ type options struct {
 	flushInterval    time.Duration
 	backlogQueueSize int
 	bytesPool        pool.CheckedBytesPool
-	tagEncoderPool   serialize.TagEncoderPool
-	tagDecoderPool   serialize.TagDecoderPool
 	identPool        ident.Pool
 	readConcurrency  int
 }
@@ -98,17 +95,9 @@ func NewOptions() Options {
 		bytesPool: pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 			return pool.NewBytesPool(s, nil)
 		}),
-		tagEncoderPool: serialize.NewTagEncoderPool(
-			serialize.NewTagEncoderOptions(), pool.NewObjectPoolOptions(),
-		),
-		tagDecoderPool: serialize.NewTagDecoderPool(
-			serialize.NewTagDecoderOptions(), pool.NewObjectPoolOptions(),
-		),
 		readConcurrency: defaultReadConcurrency,
 	}
 	o.bytesPool.Init()
-	o.tagEncoderPool.Init()
-	o.tagDecoderPool.Init()
 
 	o.identPool = ident.NewPool(o.bytesPool, pool.NewObjectPoolOptions())
 	return o
@@ -241,26 +230,6 @@ func (o *options) SetReadConcurrency(concurrency int) Options {
 
 func (o *options) ReadConcurrency() int {
 	return o.readConcurrency
-}
-
-func (o *options) SetTagEncoderPool(value serialize.TagEncoderPool) Options {
-	opts := *o
-	opts.tagEncoderPool = value
-	return &opts
-}
-
-func (o *options) TagEncoderPool() serialize.TagEncoderPool {
-	return o.tagEncoderPool
-}
-
-func (o *options) SetTagDecoderPool(value serialize.TagDecoderPool) Options {
-	opts := *o
-	opts.tagDecoderPool = value
-	return &opts
-}
-
-func (o *options) TagDecoderPool() serialize.TagDecoderPool {
-	return o.tagDecoderPool
 }
 
 func (o *options) SetIdentifierPool(value ident.Pool) Options {

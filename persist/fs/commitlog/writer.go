@@ -106,6 +106,7 @@ func newCommitLogWriter(
 	opts Options,
 ) commitLogWriter {
 	shouldFsync := opts.Strategy() == StrategyWriteWait
+
 	return &writer{
 		filePathPrefix:     opts.FilesystemOptions().FilePathPrefix(),
 		newFileMode:        opts.FilesystemOptions().NewFileMode(),
@@ -118,7 +119,7 @@ func newCommitLogWriter(
 		seen:               bitset.NewBitSet(defaultBitSetLength),
 		logEncoder:         msgpack.NewEncoder(),
 		metadataEncoder:    msgpack.NewEncoder(),
-		tagEncoder:         opts.TagEncoderPool().Get(),
+		tagEncoder:         opts.FilesystemOptions().TagEncoderPool().Get(),
 		tagSliceIter:       ident.NewTagSliceIterator(nil),
 	}
 }

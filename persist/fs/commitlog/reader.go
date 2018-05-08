@@ -298,7 +298,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		metadataDecoder       = msgpack.NewDecoder(decodingOpts)
 		metadataDecoderStream = msgpack.NewDecoderStream(nil)
 		metadataLookup        = make(map[uint64]seriesMetadata)
-		tagDecoder            = r.opts.TagDecoderPool().Get()
+		tagDecoder            = r.opts.FilesystemOptions().TagDecoderPool().Get()
 	)
 	defer tagDecoder.Close()
 

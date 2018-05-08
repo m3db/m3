@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -177,18 +176,6 @@ type Options interface {
 
 	// ReadConcurrency returns the concurrency of the reader
 	ReadConcurrency() int
-
-	// SetTagEncoderPool sets the TagEncoderPool to use for retrieving TagEncoders.
-	SetTagEncoderPool(value serialize.TagEncoderPool) Options
-
-	// TagEncoderPool returns the TagEncoderPool to use for retrieving TagEncoders.
-	TagEncoderPool() serialize.TagEncoderPool
-
-	// SetTagDecoderPool sets the TagDecoderPool to use for retrieving TagEncoders.
-	SetTagDecoderPool(value serialize.TagDecoderPool) Options
-
-	// TagDecoderPool returns the TagDecoderPool to use for retrieving TagEncoders.
-	TagDecoderPool() serialize.TagDecoderPool
 
 	// SetIdentifierPool sets the IdentifierPool to use for pooling identifiers.
 	SetIdentifierPool(value ident.Pool) Options
