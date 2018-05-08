@@ -130,6 +130,13 @@ type databaseNamespaceStatsLastTick struct {
 	sync.RWMutex
 	activeSeries int64
 	activeBlocks int64
+	index        databaseNamespaceIndexStatsLastTick
+}
+
+type databaseNamespaceIndexStatsLastTick struct {
+	numDocs     int64
+	numBlocks   int64
+	numSegments int64
 }
 
 type databaseNamespaceMetrics struct {
@@ -167,6 +174,15 @@ type databaseNamespaceTickMetrics struct {
 	madeExpiredBlocks      tally.Counter
 	mergedOutOfOrderBlocks tally.Counter
 	errors                 tally.Counter
+	index                  databaseNamespaceIndexTickMetrics
+}
+
+type databaseNamespaceIndexTickMetrics struct {
+	numBlocks        tally.Gauge
+	numDocs          tally.Gauge
+	numSegments      tally.Gauge
+	numBlocksSealed  tally.Counter
+	numBlocksEvicted tally.Counter
 }
 
 // databaseNamespaceStatusMetrics are metrics emitted at a fixed interval
@@ -176,12 +192,21 @@ type databaseNamespaceTickMetrics struct {
 type databaseNamespaceStatusMetrics struct {
 	activeSeries tally.Gauge
 	activeBlocks tally.Gauge
+	index        databaseNamespaceIndexStatusMetrics
+}
+
+type databaseNamespaceIndexStatusMetrics struct {
+	numDocs     tally.Gauge
+	numBlocks   tally.Gauge
+	numSegments tally.Gauge
 }
 
 func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databaseNamespaceMetrics {
 	shardsScope := scope.SubScope("dbnamespace").SubScope("shards")
 	tickScope := scope.SubScope("tick")
+	indexTickScope := tickScope.SubScope("index")
 	statusScope := scope.SubScope("status")
+	indexStatusScope := statusScope.SubScope("index")
 	return databaseNamespaceMetrics{
 		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
 		flush:               instrument.NewMethodMetrics(scope, "flush", samplingRate),
@@ -211,10 +236,22 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 			madeExpiredBlocks:      tickScope.Counter("made-expired-blocks"),
 			mergedOutOfOrderBlocks: tickScope.Counter("merged-out-of-order-blocks"),
 			errors:                 tickScope.Counter("errors"),
+			index: databaseNamespaceIndexTickMetrics{
+				numDocs:          indexTickScope.Gauge("num-docs"),
+				numBlocks:        indexTickScope.Gauge("num-blocks"),
+				numSegments:      indexTickScope.Gauge("num-segments"),
+				numBlocksSealed:  indexTickScope.Counter("num-blocks-sealed"),
+				numBlocksEvicted: indexTickScope.Counter("num-blocks-evicted"),
+			},
 		},
 		status: databaseNamespaceStatusMetrics{
 			activeSeries: statusScope.Gauge("active-series"),
 			activeBlocks: statusScope.Gauge("active-blocks"),
+			index: databaseNamespaceIndexStatusMetrics{
+				numDocs:     indexStatusScope.Gauge("num-docs"),
+				numBlocks:   indexStatusScope.Gauge("num-blocks"),
+				numSegments: indexStatusScope.Gauge("num-segments"),
+			},
 		},
 	}
 }
@@ -261,7 +298,7 @@ func newDatabaseNamespace(
 		err   error
 	)
 	if opts.IndexingEnabled() {
-		index, err = newNamespaceIndex(metadata, newNamespaceIndexInsertQueue, opts.IndexOptions())
+		index, err = newNamespaceIndex(metadata, opts.IndexOptions())
 		if err != nil {
 			return nil, err
 		}
@@ -305,6 +342,9 @@ func (n *dbNamespace) reportStatusLoop() {
 			n.statsLastTick.RLock()
 			n.metrics.status.activeSeries.Update(float64(n.statsLastTick.activeSeries))
 			n.metrics.status.activeBlocks.Update(float64(n.statsLastTick.activeBlocks))
+			n.metrics.status.index.numDocs.Update(float64(n.statsLastTick.index.numDocs))
+			n.metrics.status.index.numBlocks.Update(float64(n.statsLastTick.index.numBlocks))
+			n.metrics.status.index.numSegments.Update(float64(n.statsLastTick.index.numSegments))
 			n.statsLastTick.RUnlock()
 		}
 	}
@@ -419,7 +459,7 @@ func (n *dbNamespace) Tick(c context.Cancellable) error {
 		return nil
 	}
 
-	// Tick through the shards sequentially to avoid parallel data flushes
+	// Tick through the shards at a capped level of concurrency
 	var (
 		r        tickResult
 		multiErr xerrors.MultiError
@@ -447,6 +487,18 @@ func (n *dbNamespace) Tick(c context.Cancellable) error {
 
 	wg.Wait()
 
+	// Tick namespaceIndex if it exists
+	var (
+		indexTickResults namespaceIndexTickResult
+		err              error
+	)
+	if idx := n.reverseIndex; idx != nil {
+		indexTickResults, err = idx.Tick(c)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+
 	// NB: we early terminate here to ensure we are not reporting metrics
 	// based on in-accurate/partial tick results.
 	if err := multiErr.FinalError(); err != nil || c.IsCancelled() {
@@ -456,6 +508,11 @@ func (n *dbNamespace) Tick(c context.Cancellable) error {
 	n.statsLastTick.Lock()
 	n.statsLastTick.activeSeries = int64(r.activeSeries)
 	n.statsLastTick.activeBlocks = int64(r.activeBlocks)
+	n.statsLastTick.index = databaseNamespaceIndexStatsLastTick{
+		numDocs:     indexTickResults.NumTotalDocs,
+		numBlocks:   indexTickResults.NumBlocks,
+		numSegments: indexTickResults.NumSegments,
+	}
 	n.statsLastTick.Unlock()
 
 	n.metrics.tick.activeSeries.Update(float64(r.activeSeries))
@@ -467,6 +524,11 @@ func (n *dbNamespace) Tick(c context.Cancellable) error {
 	n.metrics.tick.madeExpiredBlocks.Inc(int64(r.madeExpiredBlocks))
 	n.metrics.tick.madeUnwiredBlocks.Inc(int64(r.madeUnwiredBlocks))
 	n.metrics.tick.mergedOutOfOrderBlocks.Inc(int64(r.mergedOutOfOrderBlocks))
+	n.metrics.tick.index.numDocs.Update(float64(indexTickResults.NumTotalDocs))
+	n.metrics.tick.index.numBlocks.Update(float64(indexTickResults.NumBlocks))
+	n.metrics.tick.index.numSegments.Update(float64(indexTickResults.NumSegments))
+	n.metrics.tick.index.numBlocksEvicted.Inc(indexTickResults.NumBlocksEvicted)
+	n.metrics.tick.index.numBlocksSealed.Inc(indexTickResults.NumBlocksSealed)
 	n.metrics.tick.errors.Inc(int64(r.errors))
 
 	return nil

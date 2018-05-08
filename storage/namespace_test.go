@@ -1125,6 +1125,20 @@ func TestNamespaceIndexQuery(t *testing.T) {
 	require.NoError(t, ns.Close())
 }
 
+func TestNamespaceTicksIndex(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	idx := NewMocknamespaceIndex(ctrl)
+	ns, closer := newTestNamespaceWithIndex(t, idx)
+	defer closer()
+
+	ctx := context.NewCancellable()
+	idx.EXPECT().Tick(ctx).Return(namespaceIndexTickResult{}, nil)
+	err := ns.Tick(ctx)
+	require.NoError(t, err)
+}
+
 func TestNamespaceIndexDisabledQuery(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()

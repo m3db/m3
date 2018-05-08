@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3ninx/search/executor"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
-	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/instrument"
 )
 
 var (
@@ -47,7 +47,7 @@ var (
 	errBlockAlreadyClosed           = errors.New("unable to close, block already closed")
 
 	errUnableToSealBlockIllegalStateFmtString  = "unable to seal, index block state: %v"
-	errUnableToWriteBlockUnknownStateFmtString = "[invariant violated] unable to write, unknown index block state: %v"
+	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
 )
 
 type blockState byte
@@ -71,7 +71,6 @@ type block struct {
 	startTime     time.Time
 	endTime       time.Time
 	opts          Options
-	logger        xlog.Logger
 }
 
 // NewBlock returns a new Block, representing a complete reverse index for the
@@ -98,7 +97,6 @@ func NewBlock(
 		startTime: startTime,
 		endTime:   startTime.Add(blockSize),
 		opts:      opts,
-		logger:    opts.InstrumentOptions().Logger(),
 	}
 	b.newExecutorFn = b.executorWithRLock
 
@@ -141,7 +139,7 @@ func (b *block) WriteBatch(inserts []WriteBatchEntry) (WriteBatchResult, error) 
 		}
 		return WriteBatchResult{
 			NumError: int64(len(inserts)),
-		}, writeBatchErrorInvalidState(b.state)
+		}, b.writeBatchErrorInvalidState(b.state)
 	}
 
 	b.updateWriteBatchWithLock(inserts)
@@ -157,19 +155,15 @@ func (b *block) WriteBatch(inserts []WriteBatchEntry) (WriteBatchResult, error) 
 	}
 
 	partialErr, ok := err.(*m3ninxindex.BatchPartialError)
-	if !ok {
-		// should never happen
-		b.logger.Errorf(
-			"[invariant violated] received non BatchPartialError from m3ninx InsertBatch [%T]", err)
+	if !ok { // should never happen
+		err := b.unknownWriteBatchInvariantError(err)
 		// NB: marking all the inserts as failure, cause we don't know which ones failed
 		for _, insert := range inserts {
 			insert.OnIndexSeries.OnIndexFinalize()
 			insert.Document = doc.Document{}
 			insert.OnIndexSeries = nil
 		}
-		return WriteBatchResult{
-			NumError: int64(len(inserts)),
-		}, fmt.Errorf("unexpected error: %v", err)
+		return WriteBatchResult{NumError: int64(len(inserts))}, err
 	}
 
 	// first finalize all the responses which were errors, and mark them
@@ -360,6 +354,12 @@ func (b *block) Seal() error {
 	return nil
 }
 
+func (b *block) IsSealed() bool {
+	b.RLock()
+	defer b.RUnlock()
+	return b.state == blockStateSealed
+}
+
 func (b *block) Close() error {
 	b.Lock()
 	defer b.Unlock()
@@ -377,13 +377,21 @@ func (b *block) Close() error {
 	return multiErr.FinalError()
 }
 
-func writeBatchErrorInvalidState(state blockState) error {
+func (b *block) writeBatchErrorInvalidState(state blockState) error {
 	switch state {
 	case blockStateClosed:
 		return errUnableToWriteBlockClosed
 	case blockStateSealed:
 		return errUnableToWriteBlockSealed
-	default:
-		return fmt.Errorf(errUnableToWriteBlockUnknownStateFmtString, state)
+	default: // should never happen
+		err := fmt.Errorf(errUnableToWriteBlockUnknownStateFmtString, state)
+		instrument.EmitInvariantViolationAndGetLogger(b.opts.InstrumentOptions()).Errorf(err.Error())
+		return err
 	}
+}
+
+func (b *block) unknownWriteBatchInvariantError(err error) error {
+	wrappedErr := fmt.Errorf("received non BatchPartialError from m3ninx InsertBatch [%T]", err)
+	instrument.EmitInvariantViolationAndGetLogger(b.opts.InstrumentOptions()).Errorf(wrappedErr.Error())
+	return wrappedErr
 }

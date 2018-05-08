@@ -184,5 +184,8 @@ func genIDTags(i int, j int, numTags int) (ident.ID, ident.TagIterator) {
 			fmt.Sprintf("%s.tagvalue.%d", id, i),
 		))
 	}
+	tags = append(tags,
+		ident.StringTag("commoni", fmt.Sprintf("%d", i)),
+		ident.StringTag("shared", "shared"))
 	return ident.StringID(id), ident.NewTagSliceIterator(tags)
 }
