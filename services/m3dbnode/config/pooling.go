@@ -98,7 +98,6 @@ type PoolingPolicy struct {
 
 	// The policy for the index.ResultsPool
 	IndexResultsPool PoolPolicy `yaml:"indexResultsPool"`
-
 	// The policy for the TagEncoderPool
 	TagEncoderPool PoolPolicy `yaml:"tagEncoderPool"`
 
