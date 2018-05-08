@@ -29,7 +29,9 @@ A fileset has the following files:
 │- Major Version      │  │- Index Entry Offset ├──┘  │- Checksum           │
 │- Summaries (Num)    │  └─────────────────────┘     │- Data Entry Offset  ├──┐
 │- BloomFilter (K/M)  │                              │- Encoded Tags       |  |
-└─────────────────────┘                              └─────────────────────┘  │
+│- Snapshot Time      │                              └─────────────────────┘  │
+│- Type (Flush/Snap)  │                                                       │
+└─────────────────────┘                                                       │
                                                                               │
                          ┌─────────────────────┐  ┌───────────────────────────┘
 ┌─────────────────────┐  │  Bloom Filter File  │  │

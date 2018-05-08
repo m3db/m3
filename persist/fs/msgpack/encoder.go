@@ -170,7 +170,7 @@ func (enc *Encoder) EncodeLogMetadata(entry schema.LogMetadata) error {
 // backwards-compatbility
 func (enc *Encoder) encodeIndexInfoV1(info schema.IndexInfo) {
 	// Manually encode num fields for testing purposes
-	enc.encodeArrayLenFn(minNumIndexInfoFields)
+	enc.encodeArrayLenFn(6) // v1 had 6 fields
 	enc.encodeVarintFn(info.BlockStart)
 	enc.encodeVarintFn(info.BlockSize)
 	enc.encodeVarintFn(info.Entries)
@@ -206,7 +206,7 @@ func (enc *Encoder) encodeIndexBloomFilterInfo(info schema.IndexBloomFilterInfo)
 // backwards-compatbility
 func (enc *Encoder) encodeIndexEntryV1(entry schema.IndexEntry) {
 	// Manually encode num fields for testing purposes
-	enc.encodeArrayLenFn(minNumIndexEntryFields)
+	enc.encodeArrayLenFn(5) // v1 had 5 fields
 	enc.encodeVarintFn(entry.Index)
 	enc.encodeBytesFn(entry.ID)
 	enc.encodeVarintFn(entry.Size)
@@ -215,7 +215,6 @@ func (enc *Encoder) encodeIndexEntryV1(entry schema.IndexEntry) {
 }
 
 func (enc *Encoder) encodeIndexEntryV2(entry schema.IndexEntry) {
-	// Manually encode num fields for testing purposes
 	enc.encodeNumObjectFieldsForFn(indexEntryType)
 	enc.encodeVarintFn(entry.Index)
 	enc.encodeBytesFn(entry.ID)
