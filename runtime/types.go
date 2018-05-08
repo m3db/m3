@@ -44,6 +44,7 @@ type Options interface {
 	// as after a write is finished you are not guaranteed to read it back immediately
 	// due to inserts into the shard map being buffered. The write is however written
 	// to the commit log before completing so it is considered durable.
+	// NB: this affects both the shard insert queues, and the index insert queues.
 	SetWriteNewSeriesAsync(value bool) Options
 
 	// WriteNewSeriesAsync returns whether to write new series asynchronously or not,
@@ -51,6 +52,7 @@ type Options interface {
 	// as after a write is finished you are not guaranteed to read it back immediately
 	// due to inserts into the shard map being buffered. The write is however written
 	// to the commit log before completing so it is considered durable.
+	// NB: this affects both the shard insert queues, and the index insert queues.
 	WriteNewSeriesAsync() bool
 
 	// SetWriteNewSeriesBackoffDuration sets the insert backoff duration during
@@ -76,6 +78,30 @@ type Options interface {
 	// limit is primarily offered to defend against unintentional bursts of new
 	// time series being inserted.
 	WriteNewSeriesLimitPerShardPerSecond() int
+
+	// SetIndexNewSeriesBackoffDuration sets the insert backoff duration during
+	// periods of heavy insertions, this backoff helps gather larger batches
+	// to insert into the index in a single batch requiring far less write lock
+	// acquisitions.
+	SetIndexNewSeriesBackoffDuration(value time.Duration) Options
+
+	// IndexNewSeriesBackoffDuration returns the insert backoff duration during
+	// periods of heavy insertions, this backoff helps gather larger batches
+	// to insert into the index in a single batch requiring far less write lock
+	// acquisitions.
+	IndexNewSeriesBackoffDuration() time.Duration
+
+	// SetIndexNewSeriesLimitPerSecond sets the index rate limit per second,
+	// setting to zero disables any rate limit for new series indexing. This rate
+	// limit is primarily offered to defend against unintentional bursts of new
+	// time series being indexed.
+	SetIndexNewSeriesLimitPerSecond(value int) Options
+
+	// IndexNewSeriesLimitPerSecond returns the index rate limit per second,
+	// setting to zero disables any rate limit for new series indexing. This rate
+	// limit is primarily offered to defend against unintentional bursts of new
+	// time series being indexed.
+	IndexNewSeriesLimitPerSecond() int
 
 	// SetTickSeriesBatchSize sets the batch size to process series together
 	// during a tick before yielding and sleeping the per series duration

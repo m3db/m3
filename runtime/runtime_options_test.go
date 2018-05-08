@@ -22,6 +22,7 @@ package runtime
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -29,4 +30,12 @@ import (
 func TestRuntimeOptionsDefaultsIsValid(t *testing.T) {
 	v := NewOptions()
 	assert.NoError(t, v.Validate())
+}
+
+func TestRuntimeOptionsIndexOptsValid(t *testing.T) {
+	v := NewOptions().SetIndexNewSeriesBackoffDuration(-1 * time.Second)
+	assert.Error(t, v.Validate())
+
+	v = NewOptions().SetIndexNewSeriesLimitPerSecond(-1)
+	assert.Error(t, v.Validate())
 }

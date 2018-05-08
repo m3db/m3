@@ -41,6 +41,8 @@ const (
 	defaultWriteNewSeriesAsync                  = false
 	defaultWriteNewSeriesBackoffDuration        = time.Duration(0)
 	defaultWriteNewSeriesLimitPerShardPerSecond = 0
+	defaultIndexNewSeriesBackoffDuration        = time.Duration(0)
+	defaultIndexNewSeriesLimitPerSecond         = 0
 	defaultTickSeriesBatchSize                  = 512
 	defaultTickPerSeriesSleepDuration           = 100 * time.Microsecond
 	defaultTickMinimumInterval                  = time.Minute
@@ -50,8 +52,12 @@ const (
 var (
 	errWriteNewSeriesBackoffDurationIsNegative = errors.New(
 		"write new series backoff duration cannot be negative")
+	errIndexNewSeriesBackoffDurationIsNegative = errors.New(
+		"index new series backoff duration cannot be negative")
 	errWriteNewSeriesLimitPerShardPerSecondIsNegative = errors.New(
 		"write new series limit per shard per cannot be negative")
+	errIndexNewSeriesLimitPerSecondIsNegative = errors.New(
+		"index new series limit per shard per cannot be negative")
 	errTickSeriesBatchSizeMustBePositive = errors.New(
 		"tick series batch size must be positive")
 	errTickPerSeriesSleepDurationMustBePositive = errors.New(
@@ -63,6 +69,8 @@ type options struct {
 	writeNewSeriesAsync                  bool
 	writeNewSeriesBackoffDuration        time.Duration
 	writeNewSeriesLimitPerShardPerSecond int
+	indexNewSeriesBackoffDuration        time.Duration
+	indexNewSeriesLimitPerSecond         int
 	tickSeriesBatchSize                  int
 	tickPerSeriesSleepDuration           time.Duration
 	tickMinimumInterval                  time.Duration
@@ -79,6 +87,8 @@ func NewOptions() Options {
 		writeNewSeriesAsync:                  defaultWriteNewSeriesAsync,
 		writeNewSeriesBackoffDuration:        defaultWriteNewSeriesBackoffDuration,
 		writeNewSeriesLimitPerShardPerSecond: defaultWriteNewSeriesLimitPerShardPerSecond,
+		indexNewSeriesBackoffDuration:        defaultIndexNewSeriesBackoffDuration,
+		indexNewSeriesLimitPerSecond:         defaultIndexNewSeriesLimitPerSecond,
 		tickSeriesBatchSize:                  defaultTickSeriesBatchSize,
 		tickPerSeriesSleepDuration:           defaultTickPerSeriesSleepDuration,
 		tickMinimumInterval:                  defaultTickMinimumInterval,
@@ -95,10 +105,21 @@ func (o *options) Validate() error {
 		return errWriteNewSeriesBackoffDurationIsNegative
 	}
 
+	// indexNewSeriesBackoffDuration can be zero to specify no backoff
+	if o.indexNewSeriesBackoffDuration < 0 {
+		return errIndexNewSeriesBackoffDurationIsNegative
+	}
+
 	// writeNewSeriesLimitPerShardPerSecond can be zero to specify that
 	// no limit should be enforced
 	if o.writeNewSeriesLimitPerShardPerSecond < 0 {
 		return errWriteNewSeriesLimitPerShardPerSecondIsNegative
+	}
+
+	// indexNewSeriesLimitPerSecond can be zero to specify that
+	// no limit should be enforced
+	if o.indexNewSeriesLimitPerSecond < 0 {
+		return errIndexNewSeriesLimitPerSecondIsNegative
 	}
 
 	if !(o.tickSeriesBatchSize > 0) {
@@ -152,6 +173,26 @@ func (o *options) SetWriteNewSeriesLimitPerShardPerSecond(value int) Options {
 
 func (o *options) WriteNewSeriesLimitPerShardPerSecond() int {
 	return o.writeNewSeriesLimitPerShardPerSecond
+}
+
+func (o *options) SetIndexNewSeriesBackoffDuration(value time.Duration) Options {
+	opts := *o
+	opts.indexNewSeriesBackoffDuration = value
+	return &opts
+}
+
+func (o *options) IndexNewSeriesBackoffDuration() time.Duration {
+	return o.indexNewSeriesBackoffDuration
+}
+
+func (o *options) SetIndexNewSeriesLimitPerSecond(value int) Options {
+	opts := *o
+	opts.indexNewSeriesLimitPerSecond = value
+	return &opts
+}
+
+func (o *options) IndexNewSeriesLimitPerSecond() int {
+	return o.indexNewSeriesLimitPerSecond
 }
 
 func (o *options) SetTickSeriesBatchSize(value int) Options {
