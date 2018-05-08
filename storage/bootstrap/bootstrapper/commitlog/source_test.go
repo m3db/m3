@@ -21,7 +21,6 @@
 package commitlog
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -446,6 +445,14 @@ func verifyShardResultsAreCorrect(
 	actual result.ShardResults,
 	opts Options,
 ) error {
+	if actual == nil {
+		if len(values) == 0 {
+			return nil
+		}
+
+		return fmt.Errorf(
+			"shard result is nil, but expected: %d values", len(values))
+	}
 	// First create what result should be constructed for test values
 	expected, err := createExpectedShardResult(values, actual, opts)
 	if err != nil {
@@ -454,15 +461,22 @@ func verifyShardResultsAreCorrect(
 
 	// Assert the values
 	if len(expected) != len(actual) {
-		return errors.New("number of shards do not match")
+		return fmt.Errorf(
+			"number of shards do not match, expected: %d, but got: %d",
+			len(expected), len(actual),
+		)
 	}
+
 	for shard, expectedResult := range expected {
 		actualResult, ok := actual[shard]
 		if !ok {
 			return fmt.Errorf("shard: %d present in expected, but not actual", shard)
 		}
 
-		verifyShardResultsAreEqual(opts, shard, actualResult, expectedResult)
+		err = verifyShardResultsAreEqual(opts, shard, actualResult, expectedResult)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -485,10 +499,14 @@ func createExpectedShardResult(
 	for _, v := range values {
 		shardResult, ok := expected[v.s.Shard]
 		if !ok {
+			fmt.Println("Adding series for Shard: ", v.s.Shard)
 			shardResult = result.NewShardResult(0, bopts)
-			// Trigger blocks to be created for series
-			shardResult.AddSeries(v.s.ID, nil, nil)
 			expected[v.s.Shard] = shardResult
+		}
+		_, exists := shardResult.AllSeries().Get(v.s.ID)
+		if !exists {
+			// Trigger blocks to be created for series
+			shardResult.AddSeries(v.s.ID, v.s.Tags, nil)
 		}
 
 		series, _ := shardResult.AllSeries().Get(v.s.ID)
@@ -565,9 +583,10 @@ func verifyShardResultsAreEqual(opts Options, shard uint32, actualResult, expect
 		actualAllBlocks := actualBlocks.Blocks.AllBlocks()
 		if len(expectedAllBlocks) != len(actualAllBlocks) {
 			return fmt.Errorf(
-				"number of expected blocks: %d does not match number of actual blocks: %d",
+				"number of expected blocks: %d does not match number of actual blocks: %d for series: %s",
 				len(expectedAllBlocks),
 				len(actualAllBlocks),
+				expectedID,
 			)
 		}
 

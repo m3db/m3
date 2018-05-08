@@ -306,7 +306,7 @@ func (s *commitLogSource) mergeShards(
 		mergeShardFunc := func() {
 			var shardResult result.ShardResult
 			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
-				unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
+				shard, unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
 			if shardResult != nil && shardResult.NumSeries() > 0 {
 				// Prevent race conditions while updating bootstrapResult from multiple go-routines
 				bootstrapResultLock.Lock()
@@ -326,6 +326,7 @@ func (s *commitLogSource) mergeShards(
 }
 
 func (s *commitLogSource) mergeShard(
+	shard int,
 	unmergedShard encodersAndRanges,
 	blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
@@ -349,7 +350,8 @@ func (s *commitLogSource) mergeShard(
 			if shardResult == nil {
 				shardResult = result.NewShardResult(len(unmergedShard.encodersBySeries), s.opts.ResultOptions())
 			}
-			shardResult.AddSeries(unmergedBlocks.id, nil, seriesBlocks) // FOLLOWUP(prateek): include tags in commit log reader
+			fmt.Printf("adding %v to %v\n", unmergedBlocks.id, shard)
+			shardResult.AddSeries(unmergedBlocks.id, unmergedBlocks.tags, seriesBlocks)
 		}
 
 		numShardEmptyErrs += numSeriesEmptyErrs
