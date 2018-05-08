@@ -340,7 +340,6 @@ func TestErrRpc(t *testing.T) {
 }
 
 func TestRoundRobinClientRpc(t *testing.T) {
-	t.Skip("skipping failing test for now")
 	ctx, read, write, readOpts, host := createCtxReadWriteOpts(t)
 	store := &mockStorage{
 		t:     t,
@@ -356,7 +355,7 @@ func TestRoundRobinClientRpc(t *testing.T) {
 	}
 	startServer(t, errHost, errStore)
 
-	hosts := []string{errHost, host}
+	hosts := []string{host, errHost}
 	client, err := NewGrpcClient(hosts, grpc.WithBlock())
 	defer func() {
 		err = client.Close()
@@ -364,31 +363,43 @@ func TestRoundRobinClientRpc(t *testing.T) {
 	}()
 	require.NoError(t, err)
 
-	// Host ordering is non deterministic. Ensure round robin occurs after first result.
-	fetch, err := client.Fetch(ctx, read, readOpts)
-	if fetch == nil {
-		// Fetch called on errHost
-		assert.Equal(t, errRead.Error(), grpc.ErrorDesc(err))
+	// Host ordering is not always deterministic; retry several times to ensure at least one
+	// call is made to both hosts. Giving 10 attempts per host should remove flakiness while guaranteeing
+	// round robin behaviour
+	attempts := 20
 
-		// Write called on host
-		checkWrite(ctx, t, client, write)
-
-		// Write called on errHost
-		checkErrorWrite(ctx, t, client, write)
-
-		// Fetch called on host
-		checkFetch(ctx, t, client, read, readOpts)
-	} else {
-		//Fetch called on host
-		checkRemoteFetch(t, fetch)
-
-		// Fetch called on errHost
-		checkErrorFetch(ctx, t, client, read, readOpts)
-
-		// Write called on hostß
-		checkWrite(ctx, t, client, write)
-
-		// Write called on errHost
-		checkErrorWrite(ctx, t, client, write)
+	hitHost, hitErrHost := false, false
+	for i := 0; i < attempts; i++ {
+		fetch, err := client.Fetch(ctx, read, readOpts)
+		if fetch == nil {
+			assert.Equal(t, errRead.Error(), grpc.ErrorDesc(err))
+			hitErrHost = true
+		} else {
+			checkRemoteFetch(t, fetch)
+			hitHost = true
+		}
+		if hitHost && hitErrHost {
+			break
+		}
 	}
+
+	assert.True(t, hitHost, "round robin did not fetch from host")
+	assert.True(t, hitErrHost, "round robin did not fetch from error host")
+
+	hitHost, hitErrHost = false, false
+	for i := 0; i < attempts; i++ {
+		err := client.Write(ctx, write)
+		if err != nil {
+			assert.Equal(t, errWrite.Error(), grpc.ErrorDesc(err))
+			hitErrHost = true
+		} else {
+			hitHost = true
+		}
+		if hitHost && hitErrHost {
+			break
+		}
+	}
+
+	assert.True(t, hitHost, "round robin did not write to host")
+	assert.True(t, hitErrHost, "round robin did not write to error host")
 }
