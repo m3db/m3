@@ -239,7 +239,7 @@ func TestSessionWriteTaggedBadRequestErrorIsNonRetryable(t *testing.T) {
 }
 
 func TestSessionWriteTaggedRetry(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	session := newRetryEnabledTestSession(t).(*session)
@@ -248,7 +248,7 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 	mockEncoder := serialize.NewMockTagEncoder(ctrl)
 	mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags), true).AnyTimes()
 	mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil).AnyTimes()
-	mockEncoder.EXPECT().Finalize().AnyTimes()
+	mockEncoder.EXPECT().Finalize().Times(2)
 	mockEncoderPool := serialize.NewMockTagEncoderPool(ctrl)
 	mockEncoderPool.EXPECT().Get().Return(mockEncoder).AnyTimes()
 	session.pools.tagEncoder = mockEncoderPool
