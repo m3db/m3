@@ -232,7 +232,7 @@ func genWrite(start time.Time, ns string) gopter.Gen {
 	})
 }
 
-type globalMetricIdx struct {
+type globalSeriesRegistry struct {
 	sync.Mutex
 
 	idx      uint64
@@ -240,33 +240,33 @@ type globalMetricIdx struct {
 	idToTags map[string]ident.Tags
 }
 
-var metricIdx = globalMetricIdx{
+var seriesRegistry = globalSeriesRegistry{
 	idToIdx:  make(map[string]uint64),
 	idToTags: make(map[string]ident.Tags),
 }
 
 // seriesUniqueIndex ensures that each string series ID maps to exactly one UniqueIndex
 func seriesUniqueIndex(series string) uint64 {
-	metricIdx.Lock()
-	defer metricIdx.Unlock()
+	seriesRegistry.Lock()
+	defer seriesRegistry.Unlock()
 
-	idx, ok := metricIdx.idToIdx[series]
+	idx, ok := seriesRegistry.idToIdx[series]
 	if ok {
 		return idx
 	}
 
-	idx = metricIdx.idx
-	metricIdx.idx++
-	metricIdx.idToIdx[series] = idx
+	idx = seriesRegistry.idx
+	seriesRegistry.idx++
+	seriesRegistry.idToIdx[series] = idx
 	return idx
 }
 
-// seriesUniqueTag ensures that each string series ID maps to the same set of tags
+// seriesUniqueTag ensures that each string series ID ALWAYS maps to the same set of tags
 func seriesUniqueTags(seriesID, proposedTagKey, proposedTagVal string, includeTags bool) ident.Tags {
-	metricIdx.Lock()
-	defer metricIdx.Unlock()
+	seriesRegistry.Lock()
+	defer seriesRegistry.Unlock()
 
-	tags, ok := metricIdx.idToTags[seriesID]
+	tags, ok := seriesRegistry.idToTags[seriesID]
 	if ok {
 		return tags
 	}
@@ -274,7 +274,7 @@ func seriesUniqueTags(seriesID, proposedTagKey, proposedTagVal string, includeTa
 	if includeTags {
 		tags = ident.Tags{ident.StringTag(proposedTagKey, proposedTagVal)}
 	}
-	metricIdx.idToTags[seriesID] = tags
+	seriesRegistry.idToTags[seriesID] = tags
 	return tags
 }
 
