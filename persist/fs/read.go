@@ -356,7 +356,7 @@ func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, err
 	}
 
 	id := r.entryClonedID(entry.ID)
-	tags := r.entryClonedEncodedTagsTagIter(entry.EncodedTags)
+	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
 
 	r.entriesRead++
 	return id, tags, data, uint32(entry.Checksum), nil
@@ -369,7 +369,7 @@ func (r *reader) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error
 
 	entry := r.indexEntriesByOffsetAsc[r.metadataRead]
 	id := r.entryClonedID(entry.ID)
-	tags := r.entryClonedEncodedTagsTagIter(entry.EncodedTags)
+	tags := r.entryClonedEncodedTagsIter(entry.EncodedTags)
 	length := int(entry.Size)
 	checksum := uint32(entry.Checksum)
 
@@ -404,7 +404,7 @@ func (r *reader) entryClonedID(id []byte) ident.ID {
 	return ident.BinaryID(r.entryClonedBytes(id))
 }
 
-func (r *reader) entryClonedEncodedTagsTagIter(encodedTags []byte) ident.TagIterator {
+func (r *reader) entryClonedEncodedTagsIter(encodedTags []byte) ident.TagIterator {
 	if len(encodedTags) == 0 {
 		// No tags set for this entry, return an empty tag iterator
 		return ident.EmptyTagIterator
