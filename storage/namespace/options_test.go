@@ -91,15 +91,36 @@ func TestOptionsValidate(t *testing.T) {
 
 	rOpts.EXPECT().Validate().Return(nil)
 	rOpts.EXPECT().RetentionPeriod().Return(time.Hour)
+	rOpts.EXPECT().BlockSize().Return(time.Hour)
 	iOpts.EXPECT().BlockSize().Return(time.Hour)
 	require.NoError(t, o1.Validate())
 
 	rOpts.EXPECT().Validate().Return(nil)
 	rOpts.EXPECT().RetentionPeriod().Return(time.Hour)
+	rOpts.EXPECT().BlockSize().Return(time.Hour)
 	iOpts.EXPECT().BlockSize().Return(2 * time.Hour)
 	require.Error(t, o1.Validate())
 
 	rOpts.EXPECT().Validate().Return(fmt.Errorf("test error"))
+	require.Error(t, o1.Validate())
+}
+
+func TestOptionsValidateMultiple(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	rOpts := retention.NewMockOptions(ctrl)
+	iOpts := NewMockIndexOptions(ctrl)
+	o1 := NewOptions().
+		SetRetentionOptions(rOpts).
+		SetIndexOptions(iOpts)
+
+	iOpts.EXPECT().Enabled().Return(true).AnyTimes()
+
+	rOpts.EXPECT().Validate().Return(nil)
+	rOpts.EXPECT().RetentionPeriod().Return(4 * time.Hour).AnyTimes()
+	rOpts.EXPECT().BlockSize().Return(2 * time.Hour).AnyTimes()
+	iOpts.EXPECT().BlockSize().Return(3 * time.Hour).AnyTimes()
 	require.Error(t, o1.Validate())
 }
 
