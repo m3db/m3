@@ -187,13 +187,13 @@ pooling:
         lowWatermark: 0.01
         highWatermark: 0.02
     tagArrayPool:
-        size: 4096
+        size: 65536
         capacity: 8
         maxCapacity: 32
         lowWatermark: 0.01
         highWatermark: 0.02
     indexResultsPool:
-        size: 4096
+        size: 8192
         lowWatermark: 0.01
         highWatermark: 0.02
     identifierPool:
@@ -491,13 +491,13 @@ pooling:
     lowWatermark: 0.01
     highWatermark: 0.02
   tagArrayPool:
-    size: 4096
+    size: 65536
     capacity: 8
     maxCapacity: 32
     lowWatermark: 0.01
     highWatermark: 0.02
   indexResultsPool:
-    size: 4096
+    size: 8192
     lowWatermark: 0.01
     highWatermark: 0.02
 config:
