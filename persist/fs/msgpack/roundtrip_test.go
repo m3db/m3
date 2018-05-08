@@ -148,10 +148,16 @@ func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
 	testIndexInfo.FileType = 0
 
 	enc.EncodeIndexInfo(testIndexInfo)
+
+	// Make sure to zero them before we compare, but after we have
+	// encoded the data
+	testIndexInfo.SnapshotTime = 0
+	testIndexInfo.FileType = 0
 	defer func() {
 		testIndexInfo.SnapshotTime = currSnapshotTime
 		testIndexInfo.FileType = currFileType
 	}()
+
 	dec.Reset(NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexInfo()
 	require.NoError(t, err)
