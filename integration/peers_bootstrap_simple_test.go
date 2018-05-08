@@ -71,11 +71,6 @@ func testPeerBootstrapSimple(
 	// Make sure we have multiple blocks of data for multiple series to exercise
 	// the grouping and aggregating logic in the client peer bootstrapping process
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{IDs: []string{"foo", "bar"}, NumPoints: 180, Start: now.Add(-4 * blockSize)},
-		{IDs: []string{"foo", "bar"}, NumPoints: 180, Start: now.Add(-3 * blockSize)},
-		{IDs: []string{"foo", "bar"}, NumPoints: 180, Start: now.Add(-2 * blockSize)},
-		{IDs: []string{"foo", "bar"}, NumPoints: 180, Start: now.Add(-blockSize)},
-		{IDs: []string{"foo", "bar"}, NumPoints: 180, Start: now},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-4 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-3 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-2 * blockSize)},
