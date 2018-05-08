@@ -65,8 +65,12 @@ func TestTruncateNamespace(t *testing.T) {
 		namespace ident.ID
 		conf      generate.BlockConfig
 	}{
-		{testNamespaces[0], generate.BlockConfig{[]string{"foo"}, 100, now}},
-		{testNamespaces[1], generate.BlockConfig{[]string{"bar"}, 50, now.Add(blockSize)}},
+		{testNamespaces[0], generate.BlockConfig{
+			IDs: []string{"foo"}, NumPoints: 100, Start: now},
+		},
+		{testNamespaces[1], generate.BlockConfig{
+			IDs: []string{"bar"}, NumPoints: 50, Start: now.Add(blockSize)},
+		},
 	}
 	for _, input := range inputData {
 		testSetup.setNowFn(input.conf.Start)

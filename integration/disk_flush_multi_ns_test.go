@@ -85,14 +85,14 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 	// test data for ns1
 	ns1SeriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	ns1InputData := []generate.BlockConfig{
-		{[]string{"foo", "bar"}, 100, now},
-		{[]string{"foo", "baz"}, 50, now.Add(ns1BlockSize)},
+		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
+		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now.Add(ns1BlockSize)},
 	}
 
 	// test data for ns2
 	ns2SeriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	ns2InputData := []generate.BlockConfig{
-		{[]string{"foo", "bar"}, 20, now},
+		{IDs: []string{"foo", "bar"}, NumPoints: 20, Start: now},
 	}
 
 	for _, ns1Input := range ns1InputData {

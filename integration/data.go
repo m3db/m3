@@ -39,7 +39,13 @@ import (
 
 type readableSeries struct {
 	ID   string
+	Tags []readableSeriesTag
 	Data []ts.Datapoint
+}
+
+type readableSeriesTag struct {
+	Name  string
+	Value string
 }
 
 type readableSeriesList []readableSeries
@@ -77,6 +83,7 @@ func verifySeriesMapForRange(
 		require.NoError(t, err)
 		actual[i] = generate.Series{
 			ID:   s.ID,
+			Tags: s.Tags,
 			Data: fetched,
 		}
 	}
@@ -97,7 +104,18 @@ func writeVerifyDebugOutput(t *testing.T, filePath string, start, end time.Time,
 
 	list := make(readableSeriesList, 0, len(series))
 	for i := range series {
-		list = append(list, readableSeries{ID: series[i].ID.String(), Data: series[i].Data})
+		tags := make([]readableSeriesTag, len(series[i].Tags))
+		for _, tag := range series[i].Tags {
+			tags = append(tags, readableSeriesTag{
+				Name:  tag.Name.String(),
+				Value: tag.Value.String(),
+			})
+		}
+		list = append(list, readableSeries{
+			ID:   series[i].ID.String(),
+			Tags: tags,
+			Data: series[i].Data,
+		})
 	}
 
 	data, err := json.MarshalIndent(struct {

@@ -495,6 +495,8 @@ func (i *nsIndex) Query(
 			break
 		}
 
+		fmt.Printf("\n\n!! issuing query against block %v\n\n", block.StartTime())
+
 		exhaustive, err = block.Query(query, opts, results)
 		if err != nil {
 			return index.QueryResults{}, err
