@@ -55,6 +55,7 @@ import (
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/cluster"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
@@ -166,9 +167,7 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	opts := storage.NewOptions().
-		SetIndexingEnabled(cfg.Index.Enabled)
-
+	opts := storage.NewOptions()
 	iopts := opts.InstrumentOptions().
 		SetLogger(logger).
 		SetMetricsScope(scope).
@@ -191,6 +190,15 @@ func Run(runOpts RunOptions) {
 	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
 		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
 	}
+
+	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
+	indexOpts := opts.IndexOptions()
+	insertMode := index.InsertSync
+	if cfg.WriteNewSeriesAsync {
+		insertMode = index.InsertAsync
+	}
+	opts = opts.SetIndexOptions(
+		indexOpts.SetInsertMode(insertMode))
 
 	if tick := cfg.Tick; tick != nil {
 		runtimeOpts = runtimeOpts.
@@ -969,7 +977,27 @@ func withEncodingAndPoolingOptions(
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetBytesPool(bytesPool))
 
-	return opts
+	// options related to the indexing sub-system
+	tagArrPool := index.NewTagArrayPool(index.TagArrayPoolOpts{
+		Options:     maxCapacityPoolOptions(policy.TagArrayPool, scope.SubScope("tag-array-pool")),
+		Capacity:    policy.TagArrayPool.Capacity,
+		MaxCapacity: policy.TagArrayPool.MaxCapacity,
+	})
+	tagArrPool.Init()
+
+	resultsPool := index.NewResultsPool(poolOptions(policy.IndexResultsPool,
+		scope.SubScope("index-results-pool")))
+	indexOpts := opts.IndexOptions().
+		SetInstrumentOptions(iopts).
+		SetMemSegmentOptions(
+			opts.IndexOptions().MemSegmentOptions().SetInstrumentOptions(iopts)).
+		SetIdentifierPool(identifierPool).
+		SetCheckedBytesPool(bytesPool).
+		SetTagArrayPool(tagArrPool).
+		SetResultsPool(resultsPool)
+	resultsPool.Init(func() index.Results { return index.NewResults(indexOpts) })
+
+	return opts.SetIndexOptions(indexOpts)
 }
 
 func poolOptions(
@@ -995,6 +1023,27 @@ func poolOptions(
 
 func capacityPoolOptions(
 	policy config.CapacityPoolPolicy,
+	scope tally.Scope,
+) pool.ObjectPoolOptions {
+	opts := pool.NewObjectPoolOptions()
+	if policy.Size > 0 {
+		opts = opts.SetSize(policy.Size)
+		if policy.RefillLowWaterMark > 0 &&
+			policy.RefillHighWaterMark > 0 &&
+			policy.RefillHighWaterMark > policy.RefillLowWaterMark {
+			opts = opts.SetRefillLowWatermark(policy.RefillLowWaterMark)
+			opts = opts.SetRefillHighWatermark(policy.RefillHighWaterMark)
+		}
+	}
+	if scope != nil {
+		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
+			SetMetricsScope(scope))
+	}
+	return opts
+}
+
+func maxCapacityPoolOptions(
+	policy config.MaxCapacityPoolPolicy,
 	scope tally.Scope,
 ) pool.ObjectPoolOptions {
 	opts := pool.NewObjectPoolOptions()

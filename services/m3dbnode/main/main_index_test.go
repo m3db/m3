@@ -146,7 +146,7 @@ func TestIndexEnabledServer(t *testing.T) {
 	require.NoError(t, err)
 
 	// Setup the namespace
-	ns, err := newNamespaceProtoValue(namespaceID)
+	ns, err := newNamespaceWithIndexProtoValue(namespaceID, true)
 	require.NoError(t, err)
 
 	kvStore, err := configSvcClient.KV()
@@ -331,9 +331,6 @@ fs:
     seekReadBufferSize: 4096
     throughputLimitMbps: 100.0
     throughputCheckEvery: 128
-
-index:
-    enabled: true
 
 repair:
     enabled: false

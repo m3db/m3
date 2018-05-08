@@ -115,8 +115,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	}
 
 	storageOpts := storage.NewOptions().
-		SetNamespaceInitializer(nsInit).
-		SetIndexingEnabled(opts.IndexingEnabled())
+		SetNamespaceInitializer(nsInit)
 
 	indexMode := index.InsertSync
 	if opts.WriteNewSeriesAsync() {
@@ -610,7 +609,6 @@ func newNodes(
 	t *testing.T,
 	instances []services.ServiceInstance,
 	nspaces []namespace.Metadata,
-	indexingEnabled bool,
 	asyncInserts bool,
 ) (testSetups, topology.Initializer, closeFn) {
 
@@ -618,7 +616,6 @@ func newNodes(
 	opts := newTestOptions(t).
 		SetNamespaces(nspaces).
 		SetTickMinimumInterval(3 * time.Second).
-		SetIndexingEnabled(indexingEnabled).
 		SetWriteNewSeriesAsync(asyncInserts)
 
 	// NB(bl): We set replication to 3 to mimic production. This can be made

@@ -53,7 +53,7 @@ import (
 
 var (
 	errNamespaceAlreadyClosed    = errors.New("namespace already closed")
-	errNamespaceQueryIDsNilIndex = errors.New("[invariant violated] namespace reverse index is unset")
+	errNamespaceIndexingDisabled = errors.New("namespace indexing is disabled")
 )
 
 type commitLogWriter interface {
@@ -297,7 +297,7 @@ func newDatabaseNamespace(
 		index namespaceIndex
 		err   error
 	)
-	if opts.IndexingEnabled() {
+	if metadata.Options().IndexOptions().Enabled() {
 		index, err = newNamespaceIndex(metadata, opts.IndexOptions())
 		if err != nil {
 			return nil, err
@@ -563,6 +563,10 @@ func (n *dbNamespace) WriteTagged(
 	annotation []byte,
 ) error {
 	callStart := n.nowFn()
+	if n.reverseIndex == nil { // only happens if indexing is enabled.
+		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
+		return errNamespaceIndexingDisabled
+	}
 	shard, err := n.shardFor(id)
 	if err != nil {
 		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
@@ -578,13 +582,11 @@ func (n *dbNamespace) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResults, error) {
-	if n.reverseIndex == nil {
-		// should never happen: `database.QueryIDs` ensure it only calls `ns.QueryIDs`
-		// if indexing is enabled.
-		n.log.Errorf(errNamespaceQueryIDsNilIndex.Error())
-		return index.QueryResults{}, errNamespaceQueryIDsNilIndex
-	}
 	callStart := n.nowFn()
+	if n.reverseIndex == nil { // only happens if indexing is enabled.
+		n.metrics.queryIDs.ReportError(n.nowFn().Sub(callStart))
+		return index.QueryResults{}, errNamespaceIndexingDisabled
+	}
 	res, err := n.reverseIndex.Query(ctx, query, opts)
 	n.metrics.queryIDs.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err

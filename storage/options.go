@@ -215,14 +215,12 @@ func (o *options) Validate() error {
 	}
 
 	// validate indexing options
-	if o.IndexingEnabled() {
-		iOpts := o.IndexOptions()
-		if iOpts == nil {
-			return errIndexOptionsNotSet
-		}
-		if err := iOpts.Validate(); err != nil {
-			return fmt.Errorf("unable to validate index options, err: %v", err)
-		}
+	iOpts := o.IndexOptions()
+	if iOpts == nil {
+		return errIndexOptionsNotSet
+	}
+	if err := iOpts.Validate(); err != nil {
+		return fmt.Errorf("unable to validate index options, err: %v", err)
 	}
 
 	// validate that persist manager is present, if not return
@@ -331,16 +329,6 @@ func (o *options) SetErrorThresholdForLoad(value int64) Options {
 
 func (o *options) ErrorThresholdForLoad() int64 {
 	return o.errThresholdForLoad
-}
-
-func (o *options) SetIndexingEnabled(b bool) Options {
-	opts := *o
-	opts.indexingEnabled = b
-	return &opts
-}
-
-func (o *options) IndexingEnabled() bool {
-	return o.indexingEnabled
 }
 
 func (o *options) SetIndexOptions(value index.Options) Options {

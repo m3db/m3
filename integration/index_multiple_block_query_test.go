@@ -72,12 +72,12 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 					SetBufferFuture(bufferFuture).
 					SetBlockSize(dataBlockSize)).
 			SetIndexOptions(
-				namespace.NewIndexOptions().SetBlockSize(indexBlockSize)))
+				namespace.NewIndexOptions().
+					SetBlockSize(indexBlockSize).SetEnabled(true)))
 	require.NoError(t, err)
 
 	testOpts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{md}).
-		SetIndexingEnabled(true).
 		SetWriteNewSeriesAsync(true)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)

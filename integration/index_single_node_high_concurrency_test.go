@@ -65,12 +65,12 @@ func TestIndexSingleNodeHighConcurrency(t *testing.T) {
 						SetRetentionOptions(defaultIntegrationTestRetentionOpts).
 						SetCleanupEnabled(false).
 						SetSnapshotEnabled(false).
-						SetFlushEnabled(false))
+						SetFlushEnabled(false).
+						SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true)))
 				require.NoError(t, err)
 
 				testOpts := newTestOptions(t).
 					SetNamespaces([]namespace.Metadata{md}).
-					SetIndexingEnabled(true).
 					SetWriteNewSeriesAsync(true)
 				testSetup, err := newTestSetup(t, testOpts, nil)
 				require.NoError(t, err)
