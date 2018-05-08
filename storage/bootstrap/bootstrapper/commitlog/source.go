@@ -207,6 +207,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		if !ok {
 			unmergedSeries = encodersByTime{
 				id:       series.ID,
+				tags:     series.Tags,
 				encoders: make(map[xtime.UnixNano]encoders)}
 			unmergedShard[series.UniqueIndex] = unmergedSeries
 		}
@@ -550,7 +551,8 @@ type encodersAndRanges struct {
 }
 
 type encodersByTime struct {
-	id ident.ID
+	id   ident.ID
+	tags ident.Tags
 	// int64 instead of time.Time because there is an optimized map access pattern
 	// for i64's
 	encoders map[xtime.UnixNano]encoders

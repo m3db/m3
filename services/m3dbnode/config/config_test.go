@@ -196,6 +196,14 @@ pooling:
         size: 8192
         lowWatermark: 0.01
         highWatermark: 0.02
+    tagEncoderPool:
+        size: 8192
+        lowWatermark: 0.01
+        highWatermark: 0.02
+    tagDecoderPool:
+        size: 8192
+        lowWatermark: 0.01
+        highWatermark: 0.02
     identifierPool:
         size: 9437184
         lowWatermark: 0.01
@@ -497,6 +505,14 @@ pooling:
     lowWatermark: 0.01
     highWatermark: 0.02
   indexResultsPool:
+    size: 8192
+    lowWatermark: 0.01
+    highWatermark: 0.02
+  tagEncoderPool:
+    size: 8192
+    lowWatermark: 0.01
+    highWatermark: 0.02
+  tagDecoderPool:
     size: 8192
     lowWatermark: 0.01
     highWatermark: 0.02

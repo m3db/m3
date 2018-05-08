@@ -556,6 +556,11 @@ func verifyShardResultsAreEqual(opts Options, shard uint32, actualResult, expect
 			return fmt.Errorf("series: %v present in expected but not actual", expectedID)
 		}
 
+		if !expectedBlocks.Tags.Equal(actualBlocks.Tags) {
+			return fmt.Errorf(
+				"series: %v present in expected and actual, but tags do not match", expectedID)
+		}
+
 		expectedAllBlocks := expectedBlocks.Blocks.AllBlocks()
 		actualAllBlocks := actualBlocks.Blocks.AllBlocks()
 		if len(expectedAllBlocks) != len(actualAllBlocks) {
