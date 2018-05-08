@@ -101,6 +101,10 @@ func endpoint(ip string, port uint32) string {
 }
 
 func newNamespaceProtoValue(id string) (proto.Message, error) {
+	return newNamespaceWithIndexProtoValue(id, false)
+}
+
+func newNamespaceWithIndexProtoValue(id string, indexEnabled bool) (proto.Message, error) {
 	md, err := namespace.NewMetadata(
 		ident.StringID(id),
 		namespace.NewOptions().
@@ -112,7 +116,11 @@ func newNamespaceProtoValue(id string) (proto.Message, error) {
 			SetRetentionOptions(
 				retention.NewOptions().
 					SetBlockSize(1*time.Hour).
-					SetRetentionPeriod(24*time.Hour)))
+					SetRetentionPeriod(24*time.Hour)).
+			SetIndexOptions(
+				namespace.NewIndexOptions().
+					SetBlockSize(6*time.Hour).
+					SetEnabled(indexEnabled)))
 	if err != nil {
 		return nil, err
 	}

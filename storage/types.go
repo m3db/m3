@@ -686,12 +686,6 @@ type Options interface {
 	// ErrorThresholdForLoad returns the error threshold for load
 	ErrorThresholdForLoad() int64
 
-	// SetIndexingEnabled sets whether or not to enable indexing
-	SetIndexingEnabled(b bool) Options
-
-	// IndexingEnabled returns whether the indexing is enabled
-	IndexingEnabled() bool
-
 	// SetIndexOptions set the indexing options.
 	SetIndexOptions(value index.Options) Options
 

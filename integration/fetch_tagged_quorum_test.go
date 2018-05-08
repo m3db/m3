@@ -237,11 +237,12 @@ func makeMultiNodeSetup(
 
 	nsOpts := namespace.NewOptions()
 	md, err := namespace.NewMetadata(testNamespaces[0],
-		nsOpts.SetRetentionOptions(nsOpts.RetentionOptions().SetRetentionPeriod(6*time.Hour)))
+		nsOpts.SetRetentionOptions(nsOpts.RetentionOptions().SetRetentionPeriod(6*time.Hour)).
+			SetIndexOptions(namespace.NewIndexOptions().SetEnabled(indexingEnabled)))
 	require.NoError(t, err)
 
 	nspaces := []namespace.Metadata{md}
-	nodes, topoInit, closeFn := newNodes(t, instances, nspaces, indexingEnabled, asyncInserts)
+	nodes, topoInit, closeFn := newNodes(t, instances, nspaces, asyncInserts)
 	for _, node := range nodes {
 		node.opts = node.opts.SetNumShards(numShards)
 	}

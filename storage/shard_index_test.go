@@ -42,7 +42,7 @@ import (
 
 func TestShardInsertNamespaceIndex(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
-	opts := testDatabaseOptions().SetIndexingEnabled(true)
+	opts := testDatabaseOptions()
 
 	lock := sync.Mutex{}
 	indexWrites := []testIndexWrite{}
@@ -92,7 +92,7 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	opts := testDatabaseOptions().SetIndexingEnabled(true)
+	opts := testDatabaseOptions()
 	lock := sync.RWMutex{}
 	indexWrites := []testIndexWrite{}
 
@@ -165,7 +165,7 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	var numCalls int32
-	opts := testDatabaseOptions().SetIndexingEnabled(true)
+	opts := testDatabaseOptions()
 	nextWriteTime := time.Now().Add(time.Hour)
 	idx := NewMocknamespaceIndex(ctrl)
 	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
@@ -219,7 +219,6 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	now := time.Now()
 
 	opts := testDatabaseOptions().
-		SetIndexingEnabled(true).
 		SetClockOptions(clock.NewOptions().SetNowFn(
 			func() time.Time {
 				nowLock.Lock()
