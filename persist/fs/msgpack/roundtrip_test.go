@@ -137,10 +137,8 @@ func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
 	// Set the default values on the fields that did not exist in V1
 	// and then restore them at the end of the test - This is required
 	// because the old decoder won't read the new fields
-	oldSnapshotTime := testIndexInfo.SnapshotTime
-	oldFileType := testIndexInfo.FileType
-	testIndexInfo.SnapshotTime = 0
-	testIndexInfo.FileType = 0
+	currSnapshotTime := testIndexInfo.SnapshotTime
+	currFileType := testIndexInfo.FileType
 
 	enc.EncodeIndexInfo(testIndexInfo)
 
@@ -149,11 +147,10 @@ func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
 	testIndexInfo.SnapshotTime = 0
 	testIndexInfo.FileType = 0
 	defer func() {
-		testIndexInfo.SnapshotTime = oldSnapshotTime
-		testIndexInfo.FileType = oldFileType
+		testIndexInfo.SnapshotTime = currSnapshotTime
+		testIndexInfo.FileType = currFileType
 	}()
 
-	enc.EncodeIndexInfo(testIndexInfo)
 	dec.Reset(NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexInfo()
 	require.NoError(t, err)
