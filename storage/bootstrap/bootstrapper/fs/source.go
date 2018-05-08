@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
@@ -473,18 +474,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 					resultLock.Lock()
 					exists, err = indexBlockSegment.ContainsID(idBytes)
 					if err == nil && !exists {
-						d := doc.Document{
-							ID:     append([]byte(nil), idBytes...),
-							Fields: make(doc.Fields, 0, tagsIter.Remaining()),
-						}
-						for tagsIter.Next() {
-							curr := tagsIter.Current()
-							d.Fields = append(d.Fields, doc.Field{
-								Name:  append([]byte(nil), curr.Name.Bytes()...),
-								Value: append([]byte(nil), curr.Value.Bytes()...),
-							})
-						}
-						err = tagsIter.Err()
+						var d doc.Document
+						d, err = convert.FromMetricIter(id, tagsIter)
 						if err == nil {
 							_, err = indexBlockSegment.Insert(d)
 						}
