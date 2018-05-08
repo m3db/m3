@@ -27,6 +27,8 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
 )
 
 var (
@@ -38,14 +40,21 @@ type options struct {
 	fsOpts                fs.Options
 	numProcessors         int
 	blockRetrieverManager block.DatabaseBlockRetrieverManager
+	identifierPool        ident.Pool
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
+	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
+	})
+	bytesPool.Init()
+	idPool := ident.NewPool(bytesPool, pool.NewObjectPoolOptions())
 	return &options{
-		resultOpts:    result.NewOptions(),
-		fsOpts:        fs.NewOptions(),
-		numProcessors: defaultNumProcessors,
+		resultOpts:     result.NewOptions(),
+		fsOpts:         fs.NewOptions(),
+		numProcessors:  defaultNumProcessors,
+		identifierPool: idPool,
 	}
 }
 
@@ -89,4 +98,14 @@ func (o *options) SetDatabaseBlockRetrieverManager(
 
 func (o *options) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
 	return o.blockRetrieverManager
+}
+
+func (o *options) SetIdentifierPool(value ident.Pool) Options {
+	opts := *o
+	opts.identifierPool = value
+	return &opts
+}
+
+func (o *options) IdentifierPool() ident.Pool {
+	return o.identifierPool
 }

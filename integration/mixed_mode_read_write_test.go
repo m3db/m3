@@ -78,7 +78,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 
 	// startup server
 	log.Debug("starting server")
-	require.NoError(t, setup.startServer())
+	startServerWithNewInspection(t, opts, setup)
 	log.Debug("server is now up")
 
 	// Stop the server
@@ -134,7 +134,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 	// recreate the db from the data files and commit log
 	// should contain data from 15:30 - 17:59 on disk and 18:00 - 18:50 in mem
 	log.Infof("re-opening database & bootstrapping")
-	require.NoError(t, setup.startServer())
+	startServerWithNewInspection(t, opts, setup)
 	log.Infof("verifying data in database equals expected data")
 	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
 	log.Infof("verified data in database equals expected data")
@@ -153,7 +153,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 
 	// recreate the db from the data files and commit log
 	log.Infof("re-opening database & bootstrapping")
-	require.NoError(t, setup.startServer())
+	startServerWithNewInspection(t, opts, setup)
 
 	// verify in-memory data matches what we expect
 	// should contain data from 16:00 - 17:59 on disk and 18:00 - 18:50 in mem
@@ -161,6 +161,17 @@ func TestMixedModeReadWrite(t *testing.T) {
 	log.Infof("verifying data in database equals expected data")
 	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
 	log.Infof("verified data in database equals expected data")
+}
+
+// We use this helper method to start the server so that a new filesystem
+// inspection and commitlog bootstrapper are generated each time.
+func startServerWithNewInspection(
+	t *testing.T,
+	opts testOptions,
+	setup *testSetup,
+) {
+	setCommitLogAndFilesystemBootstrapper(t, opts, setup)
+	require.NoError(t, setup.startServer())
 }
 
 func waitUntilFileSetFilesCleanedUp(
@@ -189,6 +200,12 @@ func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts testO
 	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
 
+	setCommitLogAndFilesystemBootstrapper(t, opts, setup)
+
+	return setup
+}
+
+func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup *testSetup) *testSetup {
 	commitLogOpts := setup.storageOpts.CommitLogOptions()
 	fsOpts := commitLogOpts.FilesystemOptions()
 
@@ -197,25 +214,26 @@ func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts testO
 	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
 
 	// commit log bootstrapper
-	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
 		SetCommitLogOptions(commitLogOpts)
-	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapper(bclOpts, noOpAll)
+
+	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapperProvider(
+		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
 	require.NoError(t, err)
 
 	// fs bootstrapper
-	filePathPrefix := fsOpts.FilePathPrefix()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
-	fsBootstrapper := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, commitLogBootstrapper)
+	fsBootstrapper := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
 
 	// bootstrapper storage opts
-	process := bootstrap.NewProcess(fsBootstrapper, bsOpts)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)
+	processProvider := bootstrap.NewProcessProvider(fsBootstrapper, bsOpts)
+	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(processProvider)
 
 	return setup
 }

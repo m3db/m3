@@ -43,8 +43,8 @@ func newTestSeeker(filePathPrefix string) DataFileSetSeeker {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
-	return NewSeeker(
-		filePathPrefix, testReaderBufferSize, testReaderBufferSize, testReaderBufferSize, bytesPool, false, nil, NewOptions())
+	return NewSeeker(filePathPrefix, testReaderBufferSize, testReaderBufferSize,
+		testReaderBufferSize, bytesPool, false, nil, testDefaultOpts)
 }
 
 func TestSeekEmptyIndex(t *testing.T) {
@@ -101,6 +101,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),
+		ident.Tags(nil),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -142,6 +143,7 @@ func TestSeekBadChecksum(t *testing.T) {
 	// Write data with wrong checksum
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),
+		ident.Tags(nil),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 4})))
 	assert.NoError(t, w.Close())
@@ -180,14 +182,17 @@ func TestSeek(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ident.StringID("foo1"),
+		ident.Tags{ident.StringTag("num", "1")},
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Write(
 		ident.StringID("foo2"),
+		ident.Tags{ident.StringTag("num", "2")},
 		bytesRefd([]byte{1, 2, 2}),
 		digest.Checksum([]byte{1, 2, 2})))
 	assert.NoError(t, w.Write(
 		ident.StringID("foo3"),
+		ident.Tags{ident.StringTag("num", "3")},
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -247,14 +252,17 @@ func TestSeekIDNotExists(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ident.StringID("foo10"),
+		ident.Tags(nil),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Write(
 		ident.StringID("foo20"),
+		ident.Tags(nil),
 		bytesRefd([]byte{1, 2, 2}),
 		digest.Checksum([]byte{1, 2, 2})))
 	assert.NoError(t, w.Write(
 		ident.StringID("foo30"),
+		ident.Tags(nil),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -300,6 +308,7 @@ func TestReuseSeeker(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),
+		ident.Tags(nil),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
@@ -316,6 +325,7 @@ func TestReuseSeeker(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),
+		ident.Tags(nil),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -364,6 +374,7 @@ func TestCloneSeeker(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),
+		ident.Tags(nil),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
@@ -380,6 +391,7 @@ func TestCloneSeeker(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),
+		ident.Tags(nil),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())

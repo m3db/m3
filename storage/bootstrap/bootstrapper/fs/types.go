@@ -24,6 +24,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3x/ident"
 )
 
 // Options represents the options for bootstrapping from the filesystem.
@@ -62,4 +63,10 @@ type Options interface {
 	// use when bootstrapping retrievable blocks instead of blocks
 	// containing data.
 	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
+
+	// SetIdentifierPool sets the identifier pool.
+	SetIdentifierPool(value ident.Pool) Options
+
+	// IdentifierPool returns the identifier pool.
+	IdentifierPool() ident.Pool
 }

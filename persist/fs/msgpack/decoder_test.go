@@ -43,8 +43,8 @@ func testGenEncodeNumObjectFieldsForFn(
 
 func TestDecodeNewerVersionThanExpected(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 
 	// Intentionally bump client-side version
@@ -85,8 +85,8 @@ func TestDecodeNewerVersionThanExpected(t *testing.T) {
 
 func TestDecodeRootObjectMoreFieldsThanExpected(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 
 	// Intentionally bump number of fields for the root object
@@ -103,8 +103,8 @@ func TestDecodeRootObjectMoreFieldsThanExpected(t *testing.T) {
 
 func TestDecodeIndexInfoMoreFieldsThanExpected(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 
 	// Intentionally bump number of fields for the index info object
@@ -121,8 +121,8 @@ func TestDecodeIndexInfoMoreFieldsThanExpected(t *testing.T) {
 
 func TestDecodeIndexEntryMoreFieldsThanExpected(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 
 	// Intentionally bump number of fields for the index entry object
@@ -139,8 +139,8 @@ func TestDecodeIndexEntryMoreFieldsThanExpected(t *testing.T) {
 
 func TestDecodeLogInfoMoreFieldsThanExpected(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 
 	// Intentionally bump number of fields for the log info object
@@ -157,8 +157,8 @@ func TestDecodeLogInfoMoreFieldsThanExpected(t *testing.T) {
 
 func TestDecodeLogEntryMoreFieldsThanExpected(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 
 	// Intentionally bump number of fields for the log entry object
@@ -175,8 +175,8 @@ func TestDecodeLogEntryMoreFieldsThanExpected(t *testing.T) {
 
 func TestDecodeLogMetadataMoreFieldsThanExpected(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 
 	// Intentionally bump number of fields for the log metadata object
@@ -193,8 +193,8 @@ func TestDecodeLogMetadataMoreFieldsThanExpected(t *testing.T) {
 
 func TestDecodeLogEntryFewerFieldsThanExpected(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 
 	// Intentionally bump number of fields for the log entry object
@@ -209,8 +209,8 @@ func TestDecodeLogEntryFewerFieldsThanExpected(t *testing.T) {
 
 func TestDecodeBytesNoAlloc(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
@@ -229,8 +229,8 @@ func TestDecodeBytesNoAlloc(t *testing.T) {
 
 func TestDecodeBytesAllocNew(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, NewDecodingOptions().SetAllocDecodedBytes(true))
+		enc = NewEncoder()
+		dec = NewDecoder(NewDecodingOptions().SetAllocDecodedBytes(true))
 	)
 
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))

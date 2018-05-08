@@ -237,11 +237,17 @@ func main() {
 	log.Infof("bootstrapping")
 
 	// Don't bootstrap anything else
-	next := bootstrapper.NewNoOpAllBootstrapper()
-	source, err := commitlogsrc.NewCommitLogBootstrapper(opts, next)
+	next := bootstrapper.NewNoOpAllBootstrapperProvider()
+	inspection, err := fs.InspectFilesystem(fsOpts)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+	provider, err := commitlogsrc.NewCommitLogBootstrapperProvider(opts, inspection, next)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	source := provider.Provide()
 
 	nsID := ident.StringID(namespaceStr)
 	runOpts := bootstrap.NewRunOptions().
@@ -251,7 +257,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	result, err := source.Bootstrap(nsMetadata, shardTimeRanges, runOpts)
+	result, err := source.BootstrapData(nsMetadata, shardTimeRanges, runOpts)
 	if err != nil {
 		log.Fatalf("failed to bootstrap: %v", err)
 	}

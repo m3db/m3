@@ -23,6 +23,7 @@ package result
 import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3x/instrument"
 )
@@ -32,21 +33,23 @@ const (
 )
 
 type options struct {
-	clockOpts         clock.Options
-	instrumentOpts    instrument.Options
-	blockOpts         block.Options
-	newBlocksLen      int
-	seriesCachePolicy series.CachePolicy
+	clockOpts               clock.Options
+	instrumentOpts          instrument.Options
+	blockOpts               block.Options
+	newBlocksLen            int
+	seriesCachePolicy       series.CachePolicy
+	mutableSegmentAllocator index.MutableSegmentAllocator
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		clockOpts:         clock.NewOptions(),
-		instrumentOpts:    instrument.NewOptions(),
-		blockOpts:         block.NewOptions(),
-		newBlocksLen:      defaultNewBlocksLen,
-		seriesCachePolicy: series.DefaultCachePolicy,
+		clockOpts:               clock.NewOptions(),
+		instrumentOpts:          instrument.NewOptions(),
+		blockOpts:               block.NewOptions(),
+		newBlocksLen:            defaultNewBlocksLen,
+		seriesCachePolicy:       series.DefaultCachePolicy,
+		mutableSegmentAllocator: index.NewDefaultMutableSegmentAllocator(index.NewOptions()),
 	}
 }
 
@@ -98,4 +101,14 @@ func (o *options) SetSeriesCachePolicy(value series.CachePolicy) Options {
 
 func (o *options) SeriesCachePolicy() series.CachePolicy {
 	return o.seriesCachePolicy
+}
+
+func (o *options) SetIndexMutableSegmentAllocator(value index.MutableSegmentAllocator) Options {
+	opts := *o
+	opts.mutableSegmentAllocator = value
+	return &opts
+}
+
+func (o *options) IndexMutableSegmentAllocator() index.MutableSegmentAllocator {
+	return o.mutableSegmentAllocator
 }

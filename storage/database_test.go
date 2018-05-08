@@ -177,7 +177,6 @@ func newTestDatabase(t *testing.T, ctrl *gomock.Controller, bs BootstrapState) (
 	opts = opts.SetInstrumentOptions(
 		opts.InstrumentOptions().SetMetricsScope(scope)).
 		SetRepairEnabled(false).
-		SetIndexingEnabled(false).
 		SetRepairOptions(testRepairOptions(ctrl)).
 		SetNamespaceInitializer(newMockNsInitializer(t, ctrl, mapCh))
 
@@ -662,7 +661,7 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	require.Equal(t, defaultTestNs2Opts, ns2.Options())
 }
 
-func TestDatabaseIndexDisabled(t *testing.T) {
+func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -671,30 +670,6 @@ func TestDatabaseIndexDisabled(t *testing.T) {
 		close(mapCh)
 	}()
 
-	require.NoError(t, d.Open())
-
-	err := d.WriteTagged(context.NewContext(), ident.StringID("a"),
-		ident.StringID("b"), ident.EmptyTagIterator, time.Time{},
-		1.0, xtime.Second, nil)
-	require.EqualError(t, err, errDatabaseIndexingDisabled.Error())
-
-	_, err = d.QueryIDs(context.NewContext(), ident.StringID("abc"),
-		index.Query{}, index.QueryOptions{})
-	require.EqualError(t, err, errDatabaseIndexingDisabled.Error())
-
-	require.NoError(t, d.Close())
-}
-
-func TestDatabaseIndexEnabled(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
-	defer func() {
-		close(mapCh)
-	}()
-
-	d.opts = d.opts.SetIndexingEnabled(true)
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any()).Return(nil).AnyTimes()

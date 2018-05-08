@@ -115,8 +115,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	}
 
 	storageOpts := storage.NewOptions().
-		SetNamespaceInitializer(nsInit).
-		SetIndexingEnabled(opts.IndexingEnabled())
+		SetNamespaceInitializer(nsInit)
 
 	indexMode := index.InsertSync
 	if opts.WriteNewSeriesAsync() {
@@ -298,6 +297,11 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		})
 		blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 		storageOpts = storageOpts.SetDatabaseBlockOptions(blockOpts)
+	}
+
+	// Set debugging options if environment vars set
+	if debugFilePrefix := os.Getenv("TEST_DEBUG_FILE_PREFIX"); debugFilePrefix != "" {
+		opts = opts.SetVerifySeriesDebugFilePathPrefix(debugFilePrefix)
 	}
 
 	return &testSetup{
@@ -592,7 +596,6 @@ func (ts testSetups) parallel(fn func(s *testSetup)) {
 }
 
 // node generates service instances with reasonable defaults
-// nolint: deadcode
 func node(t *testing.T, n int, shards shard.Shards) services.ServiceInstance {
 	require.True(t, n < 250) // keep ports sensible
 	return services.NewServiceInstance().
@@ -602,12 +605,10 @@ func node(t *testing.T, n int, shards shard.Shards) services.ServiceInstance {
 }
 
 // newNodes creates a set of testSetups with reasonable defaults
-// nolint: deadcode
 func newNodes(
 	t *testing.T,
 	instances []services.ServiceInstance,
 	nspaces []namespace.Metadata,
-	indexingEnabled bool,
 	asyncInserts bool,
 ) (testSetups, topology.Initializer, closeFn) {
 
@@ -615,7 +616,6 @@ func newNodes(
 	opts := newTestOptions(t).
 		SetNamespaces(nspaces).
 		SetTickMinimumInterval(3 * time.Second).
-		SetIndexingEnabled(indexingEnabled).
 		SetWriteNewSeriesAsync(asyncInserts)
 
 	// NB(bl): We set replication to 3 to mimic production. This can be made

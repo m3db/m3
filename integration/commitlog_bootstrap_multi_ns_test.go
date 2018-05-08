@@ -70,25 +70,15 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
 	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
 
-	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
-	bclOpts := bcl.NewOptions().
-		SetResultOptions(bsOpts).
-		SetCommitLogOptions(commitLogOpts)
-	bs, err := bcl.NewCommitLogBootstrapper(bclOpts, noOpAll)
-	require.NoError(t, err)
-	process := bootstrap.NewProcess(bs, bsOpts)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)
-
 	log := setup.storageOpts.InstrumentOptions().Logger()
 
 	// Write test data for ns1
 	log.Info("generating data - ns1")
 	now := setup.getNowFn()
 	ns1SeriesMap := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{"foo", "bar"}, 20, now.Add(ns1BlockSize)},
-		{[]string{"bar", "baz"}, 50, now.Add(2 * ns1BlockSize)},
-		{[]string{"and", "one"}, 40, now.Add(3 * ns1BlockSize)},
+		{IDs: []string{"foo", "bar"}, NumPoints: 20, Start: now.Add(ns1BlockSize)},
+		{IDs: []string{"bar", "baz"}, NumPoints: 50, Start: now.Add(2 * ns1BlockSize)},
+		{IDs: []string{"and", "one"}, NumPoints: 40, Start: now.Add(3 * ns1BlockSize)},
 	})
 
 	setup.namespaceMetadataOrFail(testNamespaces[0])
@@ -99,15 +89,28 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	// Write test data for ns2
 	log.Info("generating data - ns2")
 	ns2SeriesMap := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{"abc", "def"}, 20, now.Add(ns2BlockSize)},
-		{[]string{"xyz", "lmn"}, 50, now.Add(2 * ns2BlockSize)},
-		{[]string{"cat", "hax"}, 80, now.Add(3 * ns2BlockSize)},
-		{[]string{"why", "this"}, 40, now.Add(4 * ns2BlockSize)},
+		{IDs: []string{"abc", "def"}, NumPoints: 20, Start: now.Add(ns2BlockSize)},
+		{IDs: []string{"xyz", "lmn"}, NumPoints: 50, Start: now.Add(2 * ns2BlockSize)},
+		{IDs: []string{"cat", "hax"}, NumPoints: 80, Start: now.Add(3 * ns2BlockSize)},
+		{IDs: []string{"why", "this"}, NumPoints: 40, Start: now.Add(4 * ns2BlockSize)},
 	})
 	setup.namespaceMetadataOrFail(testNamespaces[1])
 	log.Info("writing data - ns2")
 	writeCommitLogData(t, setup, commitLogOpts, ns2SeriesMap, testNamespaces[1])
 	log.Info("written data - ns2")
+
+	// Setup bootstrapper after writing data so filesystem inspection can find it
+	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
+	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
+	bclOpts := bcl.NewOptions().
+		SetResultOptions(bsOpts).
+		SetCommitLogOptions(commitLogOpts)
+	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	bs, err := bcl.NewCommitLogBootstrapperProvider(
+		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
+	require.NoError(t, err)
+	process := bootstrap.NewProcessProvider(bs, bsOpts)
+	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	later := now.Add(4 * ns1BlockSize)
 	setup.setNowFn(later)

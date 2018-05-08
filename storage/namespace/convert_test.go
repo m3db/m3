@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/ident"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -175,6 +176,45 @@ func TestToProto(t *testing.T) {
 	// NB(prateek): expected/observed are inverted here
 	assertEqualMetadata(t, "ns1", *(reg.Namespaces["ns1"]), md1)
 	assertEqualMetadata(t, "ns2", *(reg.Namespaces["ns2"]), md2)
+}
+
+func TestToProtoSnapshotEnabled(t *testing.T) {
+	md, err := namespace.NewMetadata(
+		ident.StringID("ns1"),
+		namespace.NewOptions().
+			// Don't use default value
+			SetSnapshotEnabled(!namespace.NewOptions().SnapshotEnabled()),
+	)
+
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md})
+	require.NoError(t, err)
+
+	reg := namespace.ToProto(nsMap)
+	require.Len(t, reg.Namespaces, 1)
+	assert.Equal(t,
+		!namespace.NewOptions().SnapshotEnabled(),
+		reg.Namespaces["ns1"].SnapshotEnabled,
+	)
+}
+
+func TestFromProtoSnapshotEnabled(t *testing.T) {
+	validRegistry := nsproto.Registry{
+		Namespaces: map[string]*nsproto.NamespaceOptions{
+			"testns1": &nsproto.NamespaceOptions{
+				// Use non-default value
+				SnapshotEnabled: !namespace.NewOptions().SnapshotEnabled(),
+				// Retention must be set
+				RetentionOptions: &validRetentionOpts,
+			},
+		},
+	}
+	nsMap, err := namespace.FromProto(validRegistry)
+	require.NoError(t, err)
+
+	md, err := nsMap.Get(ident.StringID("testns1"))
+	require.NoError(t, err)
+	assert.Equal(t, !namespace.NewOptions().SnapshotEnabled(), md.Options().SnapshotEnabled())
 }
 
 func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOptions, observed namespace.Metadata) {

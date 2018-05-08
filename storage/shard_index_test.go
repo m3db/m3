@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/storage/index"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -41,7 +42,7 @@ import (
 
 func TestShardInsertNamespaceIndex(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
-	opts := testDatabaseOptions().SetIndexingEnabled(true)
+	opts := testDatabaseOptions()
 
 	lock := sync.Mutex{}
 	indexWrites := []testIndexWrite{}
@@ -50,8 +51,8 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	idx := NewMocknamespaceIndex(ctrl)
-	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) {
+	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(id ident.ID, tags ident.Tags, ts time.Time, onIdx index.OnIndexSeries) {
 			lock.Lock()
 			indexWrites = append(indexWrites, testIndexWrite{id: id, tags: tags})
 			lock.Unlock()
@@ -91,15 +92,15 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
-	opts := testDatabaseOptions().SetIndexingEnabled(true)
+	opts := testDatabaseOptions()
 	lock := sync.RWMutex{}
 	indexWrites := []testIndexWrite{}
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	idx := NewMocknamespaceIndex(ctrl)
-	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) {
+	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(id ident.ID, tags ident.Tags, ts time.Time, onIdx index.OnIndexSeries) {
 			lock.Lock()
 			indexWrites = append(indexWrites, testIndexWrite{id: id, tags: tags})
 			lock.Unlock()
@@ -164,11 +165,11 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 2*time.Second)()
 
 	var numCalls int32
-	opts := testDatabaseOptions().SetIndexingEnabled(true)
+	opts := testDatabaseOptions()
 	nextWriteTime := time.Now().Add(time.Hour)
 	idx := NewMocknamespaceIndex(ctrl)
-	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) {
+	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(id ident.ID, tags ident.Tags, ts time.Time, onIdx index.OnIndexSeries) {
 			onIdx.OnIndexSuccess(nextWriteTime) // i.e. mark that the entry should not be indexed for an hour at least
 			onIdx.OnIndexFinalize()
 			current := atomic.AddInt32(&numCalls, 1)
@@ -218,7 +219,6 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	now := time.Now()
 
 	opts := testDatabaseOptions().
-		SetIndexingEnabled(true).
 		SetClockOptions(clock.NewOptions().SetNowFn(
 			func() time.Time {
 				nowLock.Lock()
@@ -230,8 +230,8 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	idx := NewMocknamespaceIndex(ctrl)
-	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) {
+	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(id ident.ID, tags ident.Tags, ts time.Time, onIdx index.OnIndexSeries) {
 			nowLock.Lock()
 			now = now.Add(time.Hour)
 			nowLock.Unlock()
@@ -277,7 +277,10 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	assert.Equal(t, now.UnixNano(), entry.reverseIndex.nextWriteTimeNanos)
 }
 
+// TODO(prateek): wire tests above to use the field `ts`
+// nolint
 type testIndexWrite struct {
 	id   ident.ID
 	tags ident.Tags
+	ts   time.Time
 }

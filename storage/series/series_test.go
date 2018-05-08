@@ -219,7 +219,9 @@ func TestSeriesFlush(t *testing.T) {
 
 	inputs := []error{errors.New("some error"), nil}
 	for _, input := range inputs {
-		persistFn := func(id ident.ID, segment ts.Segment, checksum uint32) error { return input }
+		persistFn := func(_ ident.ID, _ ident.Tags, _ ts.Segment, _ uint32) error {
+			return input
+		}
 		ctx := context.NewContext()
 		outcome, err := series.Flush(ctx, flushTime, persistFn)
 		ctx.BlockingClose()

@@ -21,7 +21,6 @@
 package block
 
 import (
-	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -225,7 +224,6 @@ func TestDatabaseBlockMerge(t *testing.T) {
 
 	// Try and read the data back and verify it looks good
 	depCtx := block1.opts.ContextPool().Get()
-	fmt.Println("streaming!")
 	stream, err := block1.Stream(depCtx)
 	require.NoError(t, err)
 	seg, err = stream.Segment()
@@ -319,7 +317,6 @@ func TestDatabaseBlockMergeChained(t *testing.T) {
 
 	// Try and read the data back and verify it looks good
 	depCtx := block1.opts.ContextPool().Get()
-	fmt.Println("streaming!")
 	stream, err := block1.Stream(depCtx)
 	require.NoError(t, err)
 	seg, err = stream.Segment()

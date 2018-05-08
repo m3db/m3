@@ -92,6 +92,12 @@ type PoolingPolicy struct {
 
 	// The policy for the blocksMetadataSlicePool pool
 	BlocksMetadataSlicePool CapacityPoolPolicy `yaml:"blocksMetadataSlicePool"`
+
+	// The policy for the tagArray pool
+	TagArrayPool MaxCapacityPoolPolicy `yaml:"tagArrayPool"`
+
+	// The policy for the index.ResultsPool
+	IndexResultsPool PoolPolicy `yaml:"indexResultsPool"`
 }
 
 // PoolPolicy specifies a single pool policy.
@@ -114,6 +120,25 @@ type CapacityPoolPolicy struct {
 
 	// The capacity of items in the pool
 	Capacity int `yaml:"capacity"`
+
+	// The low watermark to start refilling the pool, if zero none
+	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
+
+	// The high watermark to stop refilling the pool, if zero none
+	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
+}
+
+// MaxCapacityPoolPolicy specifies a single pool policy that has a
+// per element capacity, and a maximum allowed capacity as well.
+type MaxCapacityPoolPolicy struct {
+	// The size of the pool
+	Size int `yaml:"size"`
+
+	// The capacity of items in the pool
+	Capacity int `yaml:"capacity"`
+
+	// The max capacity of items in the pool
+	MaxCapacity int `yaml:"maxCapacity"`
 
 	// The low watermark to start refilling the pool, if zero none
 	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`

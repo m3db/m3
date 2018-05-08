@@ -62,25 +62,25 @@ func TestFilesystemBootstrap(t *testing.T) {
 	defer setup.close()
 
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-	filePathPrefix := fsOpts.FilePathPrefix()
-	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+
+	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
 		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
-	bs := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
-	process := bootstrap.NewProcess(bs, bsOpts)
+	bs := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
+	processProvider := bootstrap.NewProcessProvider(bs, bsOpts)
 
 	setup.storageOpts = setup.storageOpts.
-		SetBootstrapProcess(process)
+		SetBootstrapProcessProvider(processProvider)
 
 	// Write test data
 	now := setup.getNowFn()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
-		{[]string{"foo", "baz"}, 50, now},
+		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-blockSize)},
+		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now},
 	})
 	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps))
 	require.NoError(t, writeTestDataToDisk(ns2, setup, nil))

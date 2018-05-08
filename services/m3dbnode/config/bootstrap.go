@@ -26,13 +26,15 @@ import (
 	"runtime"
 
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/commitlog"
-	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
+	bfs "github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index"
 )
 
 var (
@@ -87,49 +89,55 @@ type BootstrapPeersConfiguration struct {
 func (bsc BootstrapConfiguration) New(
 	opts storage.Options,
 	adminClient client.AdminClient,
-) (bootstrap.Process, error) {
+) (bootstrap.ProcessProvider, error) {
 	var (
-		bs  bootstrap.Bootstrapper
+		bs  bootstrap.BootstrapperProvider
 		err error
 	)
 
-	rsopts := result.NewOptions().
+	rsOpts := result.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
-		SetSeriesCachePolicy(opts.SeriesCachePolicy())
+		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
+		SetIndexMutableSegmentAllocator(index.NewDefaultMutableSegmentAllocator(opts.IndexOptions()))
+
+	fsOpts := opts.CommitLogOptions().FilesystemOptions()
 
 	// Start from the end of the list because the bootstrappers are ordered by precedence in descending order.
 	for i := len(bsc.Bootstrappers) - 1; i >= 0; i-- {
 		switch bsc.Bootstrappers[i] {
 		case bootstrapper.NoOpAllBootstrapperName:
-			bs = bootstrapper.NewNoOpAllBootstrapper()
+			bs = bootstrapper.NewNoOpAllBootstrapperProvider()
 		case bootstrapper.NoOpNoneBootstrapperName:
-			bs = bootstrapper.NewNoOpNoneBootstrapper()
-		case fs.FileSystemBootstrapperName:
-			fsopts := opts.CommitLogOptions().FilesystemOptions()
-			filePathPrefix := fsopts.FilePathPrefix()
-			fsbopts := fs.NewOptions().
-				SetResultOptions(rsopts).
-				SetFilesystemOptions(fsopts).
+			bs = bootstrapper.NewNoOpNoneBootstrapperProvider()
+		case bfs.FileSystemBootstrapperName:
+			fsbopts := bfs.NewOptions().
+				SetResultOptions(rsOpts).
+				SetFilesystemOptions(fsOpts).
 				SetNumProcessors(bsc.fsNumProcessors()).
-				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager())
-			bs = fs.NewFileSystemBootstrapper(filePathPrefix, fsbopts, bs)
+				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
+				SetIdentifierPool(opts.IdentifierPool())
+			bs = bfs.NewFileSystemBootstrapperProvider(fsbopts, bs)
 		case commitlog.CommitLogBootstrapperName:
 			copts := commitlog.NewOptions().
-				SetResultOptions(rsopts).
+				SetResultOptions(rsOpts).
 				SetCommitLogOptions(opts.CommitLogOptions())
-			bs, err = commitlog.NewCommitLogBootstrapper(copts, bs)
+			inspection, err := fs.InspectFilesystem(fsOpts)
+			if err != nil {
+				return nil, err
+			}
+			bs, err = commitlog.NewCommitLogBootstrapperProvider(copts, inspection, bs)
 			if err != nil {
 				return nil, err
 			}
 		case peers.PeersBootstrapperName:
 			popts := peers.NewOptions().
-				SetResultOptions(rsopts).
+				SetResultOptions(rsOpts).
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
 				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
 				SetFetchBlocksMetadataEndpointVersion(bsc.peersFetchBlocksMetadataEndpointVersion())
-			bs, err = peers.NewPeersBootstrapper(popts, bs)
+			bs, err = peers.NewPeersBootstrapperProvider(popts, bs)
 			if err != nil {
 				return nil, err
 			}
@@ -138,5 +146,5 @@ func (bsc BootstrapConfiguration) New(
 		}
 	}
 
-	return bootstrap.NewProcess(bs, rsopts), nil
+	return bootstrap.NewProcessProvider(bs, rsOpts), nil
 }

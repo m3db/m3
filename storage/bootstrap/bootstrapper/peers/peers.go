@@ -32,24 +32,46 @@ const (
 	PeersBootstrapperName = "peers"
 )
 
-type peersBootstrapper struct {
-	bootstrap.Bootstrapper
+type peersBootstrapperProvider struct {
+	opts Options
+	next bootstrap.BootstrapperProvider
 }
 
-// NewPeersBootstrapper creates a new bootstrapper to bootstrap from peers
-func NewPeersBootstrapper(
+// NewPeersBootstrapperProvider creates a new bootstrapper provider
+// to bootstrap from peers.
+func NewPeersBootstrapperProvider(
 	opts Options,
-	next bootstrap.Bootstrapper,
-) (bootstrap.Bootstrapper, error) {
+	next bootstrap.BootstrapperProvider,
+) (bootstrap.BootstrapperProvider, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, fmt.Errorf("unable to validate peer options: %v", err)
 	}
+	return peersBootstrapperProvider{
+		opts: opts,
+		next: next,
+	}, nil
+}
 
-	src := newPeersSource(opts)
-	b := &peersBootstrapper{}
+func (p peersBootstrapperProvider) Provide() bootstrap.Bootstrapper {
+	var (
+		src  = newPeersSource(p.opts)
+		b    = &peersBootstrapper{}
+		next bootstrap.Bootstrapper
+	)
+	if p.next != nil {
+		next = p.next.Provide()
+	}
 	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(b.String(),
-		src, opts.ResultOptions(), next)
-	return b, nil
+		src, p.opts.ResultOptions(), next)
+	return b
+}
+
+func (p peersBootstrapperProvider) String() string {
+	return PeersBootstrapperName
+}
+
+type peersBootstrapper struct {
+	bootstrap.Bootstrapper
 }
 
 func (*peersBootstrapper) String() string {

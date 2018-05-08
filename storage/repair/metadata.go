@@ -40,7 +40,6 @@ type hostBlockMetadataSlice struct {
 	pool     HostBlockMetadataSlicePool
 }
 
-// nolint: deadcode
 func newHostBlockMetadataSlice() HostBlockMetadataSlice {
 	return &hostBlockMetadataSlice{}
 }

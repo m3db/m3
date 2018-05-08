@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/ident/testutil"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -45,7 +46,6 @@ var (
 	errDiskFlushTimedOut = errors.New("flushing data to disk took too long")
 )
 
-// nolint: deadcode
 func waitUntilSnapshotFilesFlushed(
 	filePathPrefix string,
 	shardSet sharding.ShardSet,
@@ -74,7 +74,6 @@ func waitUntilSnapshotFilesFlushed(
 	return errDiskFlushTimedOut
 }
 
-// nolint: deadcode
 func waitUntilDataFilesFlushed(
 	filePathPrefix string,
 	shardSet sharding.ShardSet,
@@ -140,7 +139,10 @@ func verifyForTime(
 		}
 		require.NoError(t, reader.Open(rOpts))
 		for i := 0; i < reader.Entries(); i++ {
-			id, data, _, err := reader.Read()
+			id, tagsIter, data, _, err := reader.Read()
+			require.NoError(t, err)
+
+			tags, err := testutil.NewTagsFromTagIterator(tagsIter)
 			require.NoError(t, err)
 
 			data.IncRef()
@@ -157,6 +159,7 @@ func verifyForTime(
 
 			actual = append(actual, generate.Series{
 				ID:   id,
+				Tags: tags,
 				Data: datapoints,
 			})
 
@@ -169,7 +172,6 @@ func verifyForTime(
 	compareSeriesList(t, expected, actual)
 }
 
-// nolint: deadcode
 func verifyFlushedDataFiles(
 	t *testing.T,
 	shardSet sharding.ShardSet,
@@ -188,7 +190,6 @@ func verifyFlushedDataFiles(
 	}
 }
 
-// nolint: deadcode
 func verifySnapshottedDataFiles(
 	t *testing.T,
 	shardSet sharding.ShardSet,

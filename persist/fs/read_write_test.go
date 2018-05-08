@@ -25,6 +25,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
@@ -40,11 +41,36 @@ import (
 
 type testEntry struct {
 	id   string
+	tags map[string]string
 	data []byte
 }
 
+func (e testEntry) ID() ident.ID {
+	return ident.StringID(e.id)
+}
+
+func (e testEntry) Tags() ident.Tags {
+	if e.tags == nil {
+		return nil
+	}
+
+	// Return in sorted order for deterministic order
+	var keys []string
+	for key := range e.tags {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	var tags ident.Tags
+	for _, key := range keys {
+		tags = append(tags, ident.StringTag(key, e.tags[key]))
+	}
+
+	return tags
+}
+
 func newTestWriter(t *testing.T, filePathPrefix string) DataFileSetWriter {
-	writer, err := NewWriter(NewOptions().
+	writer, err := NewWriter(testDefaultOpts.
 		SetFilePathPrefix(filePathPrefix).
 		SetWriterBufferSize(testWriterBufferSize))
 	require.NoError(t, err)
@@ -65,7 +91,8 @@ func writeTestData(t *testing.T, w DataFileSetWriter, shard uint32, timestamp ti
 
 	for i := range entries {
 		assert.NoError(t, w.Write(
-			ident.StringID(entries[i].id),
+			entries[i].ID(),
+			entries[i].Tags(),
 			bytesRefd(entries[i].data),
 			digest.Checksum(entries[i].data)))
 	}
@@ -121,12 +148,18 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 		for i := 0; i < r.Entries(); i++ {
 			switch underTest {
 			case readTestTypeData:
-				id, data, checksum, err := r.Read()
+				id, tags, data, checksum, err := r.Read()
 				require.NoError(t, err)
 
 				data.IncRef()
 
+				// Assert id
 				assert.Equal(t, entries[i].id, id.String())
+
+				// Assert tags
+				tagMatcher := ident.NewTagIterMatcher(ident.NewTagSliceIterator(entries[i].Tags()))
+				assert.True(t, tagMatcher.Matches(tags))
+
 				assert.True(t, bytes.Equal(entries[i].data, data.Bytes()))
 				assert.Equal(t, digest.Checksum(entries[i].data), checksum)
 
@@ -137,13 +170,20 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 				assert.True(t, bloomFilter.Test(id.Data().Bytes()))
 
 				id.Finalize()
+				tags.Close()
 				data.DecRef()
 				data.Finalize()
 			case readTestTypeMetadata:
-				id, length, checksum, err := r.ReadMetadata()
+				id, tags, length, checksum, err := r.ReadMetadata()
 				require.NoError(t, err)
 
+				// Assert id
 				assert.True(t, id.Equal(id))
+
+				// Assert tags
+				tagMatcher := ident.NewTagIterMatcher(ident.NewTagSliceIterator(entries[i].Tags()))
+				assert.True(t, tagMatcher.Matches(tags))
+
 				assert.Equal(t, digest.Checksum(entries[i].data), checksum)
 				assert.Equal(t, len(entries[i].data), length)
 
@@ -154,6 +194,7 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 				assert.True(t, bloomFilter.Test(id.Data().Bytes()))
 
 				id.Finalize()
+				tags.Close()
 			}
 		}
 
@@ -167,11 +208,14 @@ func TestSimpleReadWrite(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	entries := []testEntry{
-		{"foo", []byte{1, 2, 3}},
-		{"bar", []byte{4, 5, 6}},
-		{"baz", make([]byte, 65536)},
-		{"cat", make([]byte, 100000)},
-		{"echo", []byte{7, 8, 9}},
+		{"foo", nil, []byte{1, 2, 3}},
+		{"bar", nil, []byte{4, 5, 6}},
+		{"baz", nil, make([]byte, 65536)},
+		{"cat", nil, make([]byte, 100000)},
+		{"foo+bar=baz,qux=qaz", map[string]string{
+			"bar": "baz",
+			"qux": "qaz",
+		}, []byte{7, 8, 9}},
 	}
 
 	w := newTestWriter(t, filePathPrefix)
@@ -187,8 +231,8 @@ func TestDuplicateWrite(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	entries := []testEntry{
-		{"foo", []byte{1, 2, 3}},
-		{"foo", []byte{4, 5, 6}},
+		{"foo", nil, []byte{1, 2, 3}},
+		{"foo", nil, []byte{4, 5, 6}},
 	}
 
 	w := newTestWriter(t, filePathPrefix)
@@ -205,7 +249,8 @@ func TestDuplicateWrite(t *testing.T) {
 
 	for i := range entries {
 		require.NoError(t, w.Write(
-			ident.StringID(entries[i].id),
+			entries[i].ID(),
+			entries[i].Tags(),
 			bytesRefd(entries[i].data),
 			digest.Checksum(entries[i].data)))
 	}
@@ -218,11 +263,14 @@ func TestReadWithReusedReader(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	entries := []testEntry{
-		{"foo", []byte{1, 2, 3}},
-		{"bar", []byte{4, 5, 6}},
-		{"baz", make([]byte, 65536)},
-		{"cat", make([]byte, 100000)},
-		{"echo", []byte{7, 8, 9}},
+		{"foo", nil, []byte{1, 2, 3}},
+		{"bar", nil, []byte{4, 5, 6}},
+		{"baz", nil, make([]byte, 65536)},
+		{"cat", nil, make([]byte, 100000)},
+		{"foo+bar=baz,qux=qaz", map[string]string{
+			"bar": "baz",
+			"qux": "qaz",
+		}, []byte{7, 8, 9}},
 	}
 
 	w := newTestWriter(t, filePathPrefix)
@@ -240,11 +288,14 @@ func TestInfoReadWrite(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	entries := []testEntry{
-		{"foo", []byte{1, 2, 3}},
-		{"bar", []byte{4, 5, 6}},
-		{"baz", make([]byte, 65536)},
-		{"cat", make([]byte, 100000)},
-		{"echo", []byte{7, 8, 9}},
+		{"foo", nil, []byte{1, 2, 3}},
+		{"bar", nil, []byte{4, 5, 6}},
+		{"baz", nil, make([]byte, 65536)},
+		{"cat", nil, make([]byte, 100000)},
+		{"foo+bar=baz,qux=qaz", map[string]string{
+			"bar": "baz",
+			"qux": "qaz",
+		}, []byte{7, 8, 9}},
 	}
 
 	w := newTestWriter(t, filePathPrefix)
@@ -269,11 +320,11 @@ func TestReusingReaderWriter(t *testing.T) {
 
 	allEntries := [][]testEntry{
 		{
-			{"foo", []byte{1, 2, 3}},
-			{"bar", []byte{4, 5, 6}},
+			{"foo", nil, []byte{1, 2, 3}},
+			{"bar", nil, []byte{4, 5, 6}},
 		},
 		{
-			{"baz", []byte{7, 8, 9}},
+			{"baz", nil, []byte{7, 8, 9}},
 		},
 		{},
 	}
@@ -294,8 +345,8 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	entries := []testEntry{
-		{"foo", []byte{1, 2, 3}},
-		{"bar", []byte{4, 5, 6}},
+		{"foo", nil, []byte{1, 2, 3}},
+		{"bar", nil, []byte{4, 5, 6}},
 	}
 	w := newTestWriter(t, filePathPrefix)
 	shard := uint32(0)
@@ -309,14 +360,16 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	require.NoError(t, w.Open(writerOpts))
 
 	require.NoError(t, w.Write(
-		ident.StringID(entries[0].id),
+		entries[0].ID(),
+		entries[0].Tags(),
 		bytesRefd(entries[0].data),
 		digest.Checksum(entries[0].data)))
 
 	// Intentionally force a writer error.
 	w.(*writer).err = errors.New("foo")
 	require.Equal(t, "foo", w.Write(
-		ident.StringID(entries[1].id),
+		entries[1].ID(),
+		entries[1].Tags(),
 		bytesRefd(entries[1].data),
 		digest.Checksum(entries[1].data)).Error())
 	w.Close()
@@ -358,7 +411,7 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	}
 	require.NoError(t, w.Open(writerOpts))
 
-	w.WriteAll(ident.StringID("foo"), []checked.Bytes{
+	w.WriteAll(ident.StringID("foo"), nil, []checked.Bytes{
 		checkedBytes([]byte{1, 2, 3}),
 		nil,
 		checkedBytes([]byte{4, 5, 6}),
@@ -368,6 +421,6 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 
 	r := newTestReader(t, filePathPrefix)
 	readTestData(t, r, 0, testWriterStart, []testEntry{
-		{"foo", []byte{1, 2, 3, 4, 5, 6}},
+		{"foo", nil, []byte{1, 2, 3, 4, 5, 6}},
 	})
 }

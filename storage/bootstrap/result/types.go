@@ -25,14 +25,16 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/series"
+	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 )
 
-// BootstrapResult is the result of a bootstrap.
-type BootstrapResult interface {
+// DataBootstrapResult is the result of a bootstrap of series data.
+type DataBootstrapResult interface {
 	// ShardResults is the results of all shards for the bootstrap.
 	ShardResults() ShardResults
 
@@ -44,6 +46,30 @@ type BootstrapResult interface {
 
 	// SetUnfulfilled sets the current unfulfilled shard time ranges.
 	SetUnfulfilled(unfulfilled ShardTimeRanges)
+}
+
+// IndexBootstrapResult is the result of a bootstrap of series index metadata.
+type IndexBootstrapResult interface {
+	// Blocks returns a map of all index block results.
+	IndexResults() IndexResults
+
+	// Unfulfilled is the unfulfilled time ranges for the bootstrap.
+	Unfulfilled() ShardTimeRanges
+
+	// SetUnfulfilled sets the current unfulfilled shard time ranges.
+	SetUnfulfilled(unfulfilled ShardTimeRanges)
+
+	// Add adds an index block result.
+	Add(block IndexBlock, unfulfilled ShardTimeRanges)
+}
+
+// IndexResults is a set of index blocks indexed by block start.
+type IndexResults map[xtime.UnixNano]IndexBlock
+
+// IndexBlock contains the bootstrap data structures for an index block.
+type IndexBlock struct {
+	blockStart time.Time
+	segments   []segment.Segment
 }
 
 // ShardResult returns the bootstrap result for a shard.
@@ -124,4 +150,10 @@ type Options interface {
 
 	// SeriesCachePolicy returns the series cache policy.
 	SeriesCachePolicy() series.CachePolicy
+
+	// SetIndexMutableSegmentAllocator sets the index mutable segment allocator.
+	SetIndexMutableSegmentAllocator(value index.MutableSegmentAllocator) Options
+
+	// IndexMutableSegmentAllocator returns the index mutable segment allocator.
+	IndexMutableSegmentAllocator() index.MutableSegmentAllocator
 }

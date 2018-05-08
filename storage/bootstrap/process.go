@@ -22,96 +22,269 @@ package bootstrap
 
 import (
 	"sync"
+	"time"
 
+	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
 
-// bootstrapProcess represents the bootstrapping process.
-type bootstrapProcess struct {
+// bootstrapProcessProvider is the bootstrapping process provider.
+type bootstrapProcessProvider struct {
 	sync.RWMutex
+	opts                 result.Options
+	log                  xlog.Logger
+	bootstrapperProvider BootstrapperProvider
+}
+
+type bootstrapRunType string
+
+const (
+	bootstrapDataRunType  = bootstrapRunType("bootstrap-data")
+	bootstrapIndexRunType = bootstrapRunType("bootstrap-index")
+)
+
+// NewProcessProvider creates a new bootstrap process provider.
+func NewProcessProvider(
+	bootstrapperProvider BootstrapperProvider,
+	opts result.Options,
+) ProcessProvider {
+	return &bootstrapProcessProvider{
+		opts:                 opts,
+		log:                  opts.InstrumentOptions().Logger(),
+		bootstrapperProvider: bootstrapperProvider,
+	}
+}
+
+func (b *bootstrapProcessProvider) SetBootstrapperProvider(bootstrapperProvider BootstrapperProvider) {
+	b.Lock()
+	defer b.Unlock()
+	b.bootstrapperProvider = bootstrapperProvider
+}
+
+func (b *bootstrapProcessProvider) BootstrapperProvider() BootstrapperProvider {
+	b.RLock()
+	defer b.RUnlock()
+	return b.bootstrapperProvider
+}
+
+func (b *bootstrapProcessProvider) Provide() Process {
+	b.RLock()
+	defer b.RUnlock()
+	return bootstrapProcess{
+		opts:         b.opts,
+		nowFn:        b.opts.ClockOptions().NowFn(),
+		log:          b.log,
+		bootstrapper: b.bootstrapperProvider.Provide(),
+	}
+}
+
+type bootstrapProcess struct {
 	opts         result.Options
+	nowFn        clock.NowFn
 	log          xlog.Logger
 	bootstrapper Bootstrapper
 }
 
-// NewProcess creates a new bootstrap process.
-func NewProcess(
-	bootstrapper Bootstrapper,
-	opts result.Options,
-) Process {
-	return &bootstrapProcess{
-		opts:         opts,
-		log:          opts.InstrumentOptions().Logger(),
-		bootstrapper: bootstrapper,
-	}
-}
-
-func (b *bootstrapProcess) SetBootstrapper(bootstrapper Bootstrapper) {
-	b.Lock()
-	defer b.Unlock()
-	b.bootstrapper = bootstrapper
-}
-
-func (b *bootstrapProcess) Bootstrapper() Bootstrapper {
-	b.RLock()
-	defer b.RUnlock()
-	return b.bootstrapper
-}
-
-func (b *bootstrapProcess) Run(
-	nsMetadata namespace.Metadata,
+func (b bootstrapProcess) Run(
+	start time.Time,
+	namespace namespace.Metadata,
 	shards []uint32,
-	targetRanges []TargetRange,
-) (result.BootstrapResult, error) {
-	b.RLock()
-	bootstrapper := b.bootstrapper
-	b.RUnlock()
+) (ProcessResult, error) {
+	dataResult, err := b.bootstrapData(start, namespace, shards)
+	if err != nil {
+		return ProcessResult{}, err
+	}
 
-	namespace := nsMetadata.ID()
-	bootstrapResult := result.NewBootstrapResult()
+	indexResult, err := b.bootstrapIndex(start, namespace, shards)
+	if err != nil {
+		return ProcessResult{}, err
+	}
+
+	return ProcessResult{
+		DataResult:  dataResult,
+		IndexResult: indexResult,
+	}, nil
+}
+
+func (b bootstrapProcess) bootstrapData(
+	at time.Time,
+	namespace namespace.Metadata,
+	shards []uint32,
+) (result.DataBootstrapResult, error) {
+	bootstrapResult := result.NewDataBootstrapResult()
+	ropts := namespace.Options().RetentionOptions()
+	targetRanges := b.targetRangesForData(at, ropts)
 	for _, target := range targetRanges {
-		shardsTimeRanges := make(result.ShardTimeRanges, len(shards))
+		logFields := b.logFields(bootstrapDataRunType, namespace,
+			shards, target.Range)
+		b.logBootstrapRun(logFields)
 
-		window := target.Range
+		begin := b.nowFn()
+		shardsTimeRanges := b.newShardTimeRanges(target.Range, shards)
+		res, err := b.bootstrapper.BootstrapData(namespace,
+			shardsTimeRanges, target.RunOptions)
 
-		r := xtime.Ranges{}.AddRange(window)
-		for _, s := range shards {
-			shardsTimeRanges[s] = r
-		}
-
-		logFields := []xlog.Field{
-			xlog.NewField("bootstrapper", b.bootstrapper.String()),
-			xlog.NewField("namespace", namespace.String()),
-			xlog.NewField("numShards", len(shards)),
-			xlog.NewField("from", window.Start.String()),
-			xlog.NewField("to", window.End.String()),
-			xlog.NewField("range", window.End.Sub(window.Start).String()),
-		}
-		b.log.WithFields(logFields...).Infof("bootstrapping shards for range starting")
-
-		nowFn := b.opts.ClockOptions().NowFn()
-		begin := nowFn()
-
-		opts := target.RunOptions
-		if opts == nil {
-			opts = NewRunOptions()
-		}
-
-		res, err := bootstrapper.Bootstrap(nsMetadata, shardsTimeRanges, opts)
-
-		logFields = append(logFields, xlog.NewField("took", nowFn().Sub(begin).String()))
+		b.logBootstrapResult(logFields, err, begin)
 		if err != nil {
-			logFields = append(logFields, xlog.NewField("error", err.Error()))
-			b.log.WithFields(logFields...).Infof("bootstrapping shards for range completed with error")
 			return nil, err
 		}
 
-		b.log.WithFields(logFields...).Infof("bootstrapping shards for range completed successfully")
-		bootstrapResult = result.MergedBootstrapResult(bootstrapResult, res)
+		bootstrapResult = result.MergedDataBootstrapResult(bootstrapResult, res)
 	}
 
 	return bootstrapResult, nil
+}
+
+func (b bootstrapProcess) bootstrapIndex(
+	at time.Time,
+	namespace namespace.Metadata,
+	shards []uint32,
+) (result.IndexBootstrapResult, error) {
+	bootstrapResult := result.NewIndexBootstrapResult()
+	ropts := namespace.Options().RetentionOptions()
+	idxopts := namespace.Options().IndexOptions()
+	if !idxopts.Enabled() {
+		// NB(r): If indexing not enable we just return an empty result
+		return result.NewIndexBootstrapResult(), nil
+	}
+
+	targetRanges := b.targetRangesForIndex(at, ropts, idxopts)
+	for _, target := range targetRanges {
+		logFields := b.logFields(bootstrapIndexRunType, namespace,
+			shards, target.Range)
+		b.logBootstrapRun(logFields)
+
+		begin := b.nowFn()
+		shardsTimeRanges := b.newShardTimeRanges(target.Range, shards)
+		res, err := b.bootstrapper.BootstrapIndex(namespace,
+			shardsTimeRanges, target.RunOptions)
+
+		b.logBootstrapResult(logFields, err, begin)
+		if err != nil {
+			return nil, err
+		}
+
+		bootstrapResult = result.MergedIndexBootstrapResult(bootstrapResult, res)
+	}
+
+	return bootstrapResult, nil
+}
+
+func (b bootstrapProcess) logFields(
+	runType bootstrapRunType,
+	namespace namespace.Metadata,
+	shards []uint32,
+	window xtime.Range,
+) []xlog.Field {
+	return []xlog.Field{
+		xlog.NewField("run", string(runType)),
+		xlog.NewField("bootstrapper", b.bootstrapper.String()),
+		xlog.NewField("namespace", namespace.ID().String()),
+		xlog.NewField("numShards", len(shards)),
+		xlog.NewField("from", window.Start.String()),
+		xlog.NewField("to", window.End.String()),
+		xlog.NewField("range", window.End.Sub(window.Start).String()),
+	}
+}
+
+func (b bootstrapProcess) newShardTimeRanges(
+	window xtime.Range,
+	shards []uint32,
+) result.ShardTimeRanges {
+	shardsTimeRanges := make(result.ShardTimeRanges, len(shards))
+	ranges := xtime.Ranges{}.AddRange(window)
+	for _, s := range shards {
+		shardsTimeRanges[s] = ranges
+	}
+	return shardsTimeRanges
+}
+
+func (b bootstrapProcess) logBootstrapRun(
+	logFields []xlog.Field,
+) {
+	b.log.WithFields(logFields...).Infof("bootstrapping shards for range starting")
+}
+
+func (b bootstrapProcess) logBootstrapResult(
+	logFields []xlog.Field,
+	err error,
+	begin time.Time,
+) {
+	logFields = append(logFields, xlog.NewField("took", b.nowFn().Sub(begin).String()))
+	if err != nil {
+		logFields = append(logFields, xlog.NewField("error", err.Error()))
+		b.log.WithFields(logFields...).Infof("bootstrapping shards for range completed with error")
+		return
+	}
+
+	b.log.WithFields(logFields...).Infof("bootstrapping shards for range completed successfully")
+}
+
+func (b bootstrapProcess) targetRangesForData(
+	at time.Time,
+	ropts retention.Options,
+) []TargetRange {
+	return b.targetRanges(at, targetRangesOptions{
+		retentionPeriod: ropts.RetentionPeriod(),
+		blockSize:       ropts.BlockSize(),
+		bufferPast:      ropts.BufferPast(),
+		bufferFuture:    ropts.BufferFuture(),
+	})
+}
+
+func (b bootstrapProcess) targetRangesForIndex(
+	at time.Time,
+	ropts retention.Options,
+	idxopts namespace.IndexOptions,
+) []TargetRange {
+	return b.targetRanges(at, targetRangesOptions{
+		retentionPeriod: ropts.RetentionPeriod(),
+		blockSize:       idxopts.BlockSize(),
+		bufferPast:      ropts.BufferPast(),
+		bufferFuture:    ropts.BufferFuture(),
+	})
+}
+
+type targetRangesOptions struct {
+	retentionPeriod time.Duration
+	blockSize       time.Duration
+	bufferPast      time.Duration
+	bufferFuture    time.Duration
+}
+
+func (b bootstrapProcess) targetRanges(
+	at time.Time,
+	opts targetRangesOptions,
+) []TargetRange {
+	start := at.Add(-opts.retentionPeriod).
+		Truncate(opts.blockSize)
+	midPoint := at.
+		Add(-opts.blockSize).
+		Add(-opts.bufferPast).
+		Truncate(opts.blockSize).
+		// NB(r): Since "end" is exclusive we need to add a
+		// an extra block size when specifying the end time.
+		Add(opts.blockSize)
+	cutover := at.Add(opts.bufferFuture).
+		Truncate(opts.blockSize).
+		Add(opts.blockSize)
+
+	// NB(r): We want the large initial time range bootstrapped to
+	// bootstrap incrementally so we don't keep the full raw
+	// data in process until we finish bootstrapping which could
+	// cause the process to OOM.
+	return []TargetRange{
+		{
+			Range:      xtime.Range{Start: start, End: midPoint},
+			RunOptions: NewRunOptions().SetIncremental(true),
+		},
+		{
+			Range:      xtime.Range{Start: midPoint, End: cutover},
+			RunOptions: NewRunOptions().SetIncremental(false),
+		},
+	}
 }

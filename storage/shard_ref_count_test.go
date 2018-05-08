@@ -113,8 +113,8 @@ func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	idx := NewMocknamespaceIndex(ctrl)
-	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) {
+	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(id ident.ID, tags ident.Tags, ts time.Time, onIdx index.OnIndexSeries) {
 			onIdx.OnIndexFinalize()
 		}).Return(nil).AnyTimes()
 	testShardWriteTaggedSyncRefCount(t, idx)
@@ -129,10 +129,10 @@ func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 	}
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndex(md, newFn, index.NewOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn,
+		index.NewOptions().SetInsertMode(index.InsertSync))
 	assert.NoError(t, err)
 
-	idx.(*nsIndex).insertMode = index.InsertSync
 	defer func() {
 		assert.NoError(t, idx.Close())
 	}()
@@ -290,8 +290,8 @@ func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	idx := NewMocknamespaceIndex(ctrl)
-	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, onIdx onIndexSeries) {
+	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
+		func(id ident.ID, tags ident.Tags, ts time.Time, onIdx index.OnIndexSeries) {
 			onIdx.OnIndexFinalize()
 		}).Return(nil).AnyTimes()
 	testShardWriteTaggedAsyncRefCount(t, idx)
@@ -306,10 +306,10 @@ func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
 	}
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndex(md, newFn, index.NewOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn,
+		index.NewOptions().SetInsertMode(index.InsertSync))
 	assert.NoError(t, err)
 
-	idx.(*nsIndex).insertMode = index.InsertSync
 	defer func() {
 		assert.NoError(t, idx.Close())
 	}()

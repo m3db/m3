@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -45,6 +46,7 @@ type newIteratorFn func(opts commitlog.IteratorOpts) (commitlog.Iterator, error)
 
 type commitLogSource struct {
 	opts          Options
+	inspection    fs.Inspection
 	log           xlog.Logger
 	newIteratorFn newIteratorFn
 }
@@ -54,13 +56,15 @@ type encoder struct {
 	enc         encoding.Encoder
 }
 
-func newCommitLogSource(opts Options) bootstrap.Source {
+func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source {
 	return &commitLogSource{
 		opts:          opts,
+		inspection:    inspection,
 		log:           opts.ResultOptions().InstrumentOptions().Logger(),
 		newIteratorFn: commitlog.NewIterator,
 	}
 }
+
 func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
 	switch strategy {
 	case bootstrap.BootstrapSequential:
@@ -69,7 +73,7 @@ func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
 	return false
 }
 
-func (s *commitLogSource) Available(
+func (s *commitLogSource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
@@ -79,16 +83,17 @@ func (s *commitLogSource) Available(
 	return shardsTimeRanges
 }
 
-func (s *commitLogSource) Read(
+func (s *commitLogSource) ReadData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
-) (result.BootstrapResult, error) {
+) (result.DataBootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
-		return nil, nil
+		return result.NewDataBootstrapResult(), nil
 	}
 
-	readCommitLogPredicate := newReadCommitLogPredicate(ns, shardsTimeRanges, s.opts)
+	readCommitLogPredicate := newReadCommitLogPredicate(
+		ns, shardsTimeRanges, s.opts, s.inspection)
 	readSeriesPredicate := newReadSeriesPredicate(ns)
 	iterOpts := commitlog.IteratorOpts{
 		CommitLogOptions:      s.opts.CommitLogOptions(),
@@ -276,11 +281,11 @@ func (s *commitLogSource) mergeShards(
 	blopts block.Options,
 	encoderPool encoding.EncoderPool,
 	unmerged []encodersAndRanges,
-) result.BootstrapResult {
+) result.DataBootstrapResult {
 	var (
 		shardErrs               = make([]int, numShards)
 		shardEmptyErrs          = make([]int, numShards)
-		bootstrapResult         = result.NewBootstrapResult()
+		bootstrapResult         = result.NewDataBootstrapResult()
 		blocksPool              = bopts.DatabaseBlockOptions().DatabaseBlockPool()
 		multiReaderIteratorPool = blopts.MultiReaderIteratorPool()
 		// Controls how many shards can be merged in parallel
@@ -469,10 +474,37 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 	}
 }
 
+func (s *commitLogSource) AvailableIndex(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+) result.ShardTimeRanges {
+	// Commit log bootstrapper is a last ditch effort, so fulfill all
+	// time ranges requested even if not enough data, just to succeed
+	// the bootstrap
+	return shardsTimeRanges
+}
+
+func (s *commitLogSource) ReadIndex(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+	opts bootstrap.RunOptions,
+) (result.IndexBootstrapResult, error) {
+	// FOLLOWUP(r): implement the commit log source returning
+	// not indexed series metadata for the time range required.
+	// Try to cache some data on the commit log source itself
+	// from work done in ReadData(...) to help avoid rereading as
+	// much as possible.
+	// Also: it's now possible to cache the metadata and data
+	// for all namespaces in the first call to ReadData(...) since
+	// the source is used across all namespaces and then discarded after.
+	return result.NewIndexBootstrapResult(), nil
+}
+
 func newReadCommitLogPredicate(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts Options,
+	inspection fs.Inspection,
 ) commitlog.FileFilterPredicate {
 	// Minimum and maximum times for which we want to bootstrap
 	shardMin, shardMax := shardsTimeRanges.MinMax()
@@ -486,7 +518,19 @@ func newReadCommitLogPredicate(
 	bufferPast := ns.Options().RetentionOptions().BufferPast()
 	bufferFuture := ns.Options().RetentionOptions().BufferFuture()
 
-	return func(entryTime time.Time, entryDuration time.Duration) bool {
+	// commitlogFilesPresentBeforeStart is a set of all the commitlog files that were
+	// on disk before the node started.
+	commitlogFilesPresentBeforeStart := inspection.CommitLogFilesSet()
+
+	return func(name string, entryTime time.Time, entryDuration time.Duration) bool {
+		_, ok := commitlogFilesPresentBeforeStart[name]
+		if !ok {
+			// If the file wasn't on disk before the node started then it only contains
+			// writes that are already in memory (and in-fact the file may be actively
+			// being written to.)
+			return false
+		}
+
 		// If there is any amount of overlap between the commitlog range and the
 		// shardRange then we need to read the commitlog file
 		return xtime.Range{

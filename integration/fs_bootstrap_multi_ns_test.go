@@ -66,9 +66,8 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 	defer setup.close()
 
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-	filePathPrefix := fsOpts.FilePathPrefix()
 
-	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
 		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
 	bfsOpts := fs.NewOptions().
@@ -76,11 +75,11 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 		SetFilesystemOptions(fsOpts).
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
 
-	bs := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
-	process := bootstrap.NewProcess(bs, bsOpts)
+	bs := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
+	processProvider := bootstrap.NewProcessProvider(bs, bsOpts)
 
 	setup.storageOpts = setup.storageOpts.
-		SetBootstrapProcess(process)
+		SetBootstrapProcessProvider(processProvider)
 
 	log := setup.storageOpts.InstrumentOptions().Logger()
 
@@ -88,13 +87,13 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 	// Write test data
 	now := setup.getNowFn()
 	ns1SeriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{"foo", "bar"}, 100, now.Add(-ns1BlockSize)},
-		{[]string{"foo", "baz"}, 50, now},
+		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-ns1BlockSize)},
+		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now},
 	})
 	ns2SeriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{"bar", "baz"}, 100, now.Add(-2 * ns2BlockSize)},
-		{[]string{"foo", "bar"}, 100, now.Add(-ns2BlockSize)},
-		{[]string{"foo", "baz"}, 50, now},
+		{IDs: []string{"bar", "baz"}, NumPoints: 100, Start: now.Add(-2 * ns2BlockSize)},
+		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-ns2BlockSize)},
+		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now},
 	})
 	require.NoError(t, writeTestDataToDisk(ns1, setup, ns1SeriesMaps))
 	require.NoError(t, writeTestDataToDisk(ns2, setup, ns2SeriesMaps))

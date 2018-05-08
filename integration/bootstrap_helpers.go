@@ -29,8 +29,11 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 )
 
-// nolint: deadcode
-func newTestBootstrapperSource(opts testBootstrapperSourceOptions, resultOpts result.Options, next bootstrap.Bootstrapper) bootstrap.Bootstrapper {
+func newTestBootstrapperSource(
+	opts testBootstrapperSourceOptions,
+	resultOpts result.Options,
+	next bootstrap.Bootstrapper,
+) bootstrap.BootstrapperProvider {
 	src := testBootstrapperSource{}
 	if opts.can != nil {
 		src.can = opts.can
@@ -38,25 +41,55 @@ func newTestBootstrapperSource(opts testBootstrapperSourceOptions, resultOpts re
 		src.can = func(bootstrap.Strategy) bool { return true }
 	}
 
-	if opts.available != nil {
-		src.available = opts.available
+	if opts.availableData != nil {
+		src.availableData = opts.availableData
 	} else {
-		src.available = func(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges) result.ShardTimeRanges {
+		src.availableData = func(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges) result.ShardTimeRanges {
 			return shardsTimeRanges
 		}
 	}
 
-	if opts.read != nil {
-		src.read = opts.read
+	if opts.readData != nil {
+		src.readData = opts.readData
 	} else {
-		src.read = func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.BootstrapResult, error) {
-			return result.NewBootstrapResult(), nil
+		src.readData = func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error) {
+			return result.NewDataBootstrapResult(), nil
+		}
+	}
+
+	if opts.availableIndex != nil {
+		src.availableIndex = opts.availableIndex
+	} else {
+		src.availableIndex = func(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges) result.ShardTimeRanges {
+			return shardsTimeRanges
+		}
+	}
+
+	if opts.readIndex != nil {
+		src.readIndex = opts.readIndex
+	} else {
+		src.readIndex = func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.IndexBootstrapResult, error) {
+			return result.NewIndexBootstrapResult(), nil
 		}
 	}
 
 	b := &testBootstrapper{}
 	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(src.String(), src, resultOpts, next)
-	return b
+	return testBootstrapperProvider{Bootstrapper: b}
+}
+
+var _ bootstrap.BootstrapperProvider = &testBootstrapperProvider{}
+
+type testBootstrapperProvider struct {
+	bootstrap.Bootstrapper
+}
+
+func (p testBootstrapperProvider) String() string {
+	return p.Bootstrapper.String()
+}
+
+func (p testBootstrapperProvider) Provide() bootstrap.Bootstrapper {
+	return p.Bootstrapper
 }
 
 type testBootstrapper struct {
@@ -64,36 +97,55 @@ type testBootstrapper struct {
 }
 
 type testBootstrapperSourceOptions struct {
-	can       func(bootstrap.Strategy) bool
-	available func(namespace.Metadata, result.ShardTimeRanges) result.ShardTimeRanges
-	read      func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.BootstrapResult, error)
+	can            func(bootstrap.Strategy) bool
+	availableData  func(namespace.Metadata, result.ShardTimeRanges) result.ShardTimeRanges
+	readData       func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error)
+	availableIndex func(namespace.Metadata, result.ShardTimeRanges) result.ShardTimeRanges
+	readIndex      func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.IndexBootstrapResult, error)
 }
 
 var _ bootstrap.Source = &testBootstrapperSource{}
 
 type testBootstrapperSource struct {
-	can       func(bootstrap.Strategy) bool
-	available func(namespace.Metadata, result.ShardTimeRanges) result.ShardTimeRanges
-	read      func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.BootstrapResult, error)
+	can            func(bootstrap.Strategy) bool
+	availableData  func(namespace.Metadata, result.ShardTimeRanges) result.ShardTimeRanges
+	readData       func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.DataBootstrapResult, error)
+	availableIndex func(namespace.Metadata, result.ShardTimeRanges) result.ShardTimeRanges
+	readIndex      func(namespace.Metadata, result.ShardTimeRanges, bootstrap.RunOptions) (result.IndexBootstrapResult, error)
 }
 
 func (t testBootstrapperSource) Can(strategy bootstrap.Strategy) bool {
 	return t.can(strategy)
 }
 
-func (t testBootstrapperSource) Available(
+func (t testBootstrapperSource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
-	return t.available(ns, shardsTimeRanges)
+	return t.availableData(ns, shardsTimeRanges)
 }
 
-func (t testBootstrapperSource) Read(
+func (t testBootstrapperSource) ReadData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
-) (result.BootstrapResult, error) {
-	return t.read(ns, shardsTimeRanges, opts)
+) (result.DataBootstrapResult, error) {
+	return t.readData(ns, shardsTimeRanges, opts)
+}
+
+func (t testBootstrapperSource) AvailableIndex(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+) result.ShardTimeRanges {
+	return t.availableIndex(ns, shardsTimeRanges)
+}
+
+func (t testBootstrapperSource) ReadIndex(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+	opts bootstrap.RunOptions,
+) (result.IndexBootstrapResult, error) {
+	return t.readIndex(ns, shardsTimeRanges, opts)
 }
 
 func (t testBootstrapperSource) String() string {

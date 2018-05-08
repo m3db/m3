@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
@@ -202,8 +203,8 @@ func (entry *dbShardEntry) needsIndexUpdate(writeTime time.Time) bool {
 	return atomic.LoadInt64(&entry.reverseIndex.nextWriteTimeNanos) < writeTime.UnixNano()
 }
 
-// ensure dbShardEntry satisfies the `onIndexSeries` interface.
-var _ onIndexSeries = &dbShardEntry{}
+// ensure dbShardEntry satisfies the `index.OnIndexSeries` interface.
+var _ index.OnIndexSeries = &dbShardEntry{}
 
 func (entry *dbShardEntry) OnIndexSuccess(nextWriteTime time.Time) {
 	atomic.StoreInt64(&entry.reverseIndex.nextWriteTimeNanos, nextWriteTime.UnixNano())
@@ -367,6 +368,7 @@ func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 
 func (s *dbShard) OnRetrieveBlock(
 	id ident.ID,
+	tags ident.TagIterator,
 	startTime time.Time,
 	segment ts.Segment,
 ) {
@@ -383,13 +385,11 @@ func (s *dbShard) OnRetrieveBlock(
 	}
 
 	if entry != nil {
-		entry.series.OnRetrieveBlock(id, startTime, segment)
+		entry.series.OnRetrieveBlock(id, tags, startTime, segment)
 		return
 	}
 
-	// Insert batched with the retrieved block
-	// FOLLOWUP(prateek): Need to retrieve tags during the block retrieval path too
-	entry, err = s.newShardEntry(id, ident.EmptyTagIterator)
+	entry, err = s.newShardEntry(id, tags)
 	if err != nil {
 		// should never happen
 		s.logger.WithFields(
@@ -399,13 +399,18 @@ func (s *dbShard) OnRetrieveBlock(
 		return
 	}
 
+	// NB(r): Do not need to specify that needs to be indexed as series would
+	// have been already been indexed when it was written
 	copiedID := entry.series.ID()
+	// TODO(r): Pool the slice iterators here.
+	copiedTags := ident.NewTagSliceIterator(entry.series.Tags())
 	s.insertQueue.Insert(dbShardInsert{
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
 			hasPendingRetrievedBlock: true,
 			pendingRetrievedBlock: dbShardPendingRetrievedBlock{
 				id:      copiedID,
+				tags:    copiedTags,
 				start:   startTime,
 				segment: segment,
 			},
@@ -757,7 +762,8 @@ func (s *dbShard) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	return s.writeAndIndex(ctx, id, tags, timestamp, value, unit, annotation, true)
+	return s.writeAndIndex(ctx, id, tags, timestamp,
+		value, unit, annotation, true)
 }
 
 func (s *dbShard) Write(
@@ -834,7 +840,7 @@ func (s *dbShard) writeAndIndex(
 		needsIndex := shouldReverseIndex && entry.needsIndexUpdate(timestamp)
 		if err == nil && needsIndex {
 			entry.onIndexPrepare()
-			err = s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), entry)
+			err = s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), timestamp, entry)
 		}
 		entry.decrementReaderWriterCount()
 		if err != nil {
@@ -1047,7 +1053,7 @@ func (s *dbShard) insertSeriesAsyncBatched(
 
 type insertSyncType uint8
 
-// nolint: deadcode, varcheck, unused
+// nolint: varcheck, unused
 const (
 	insertSync insertSyncType = iota
 	insertSyncIncReaderWriterCount
@@ -1195,14 +1201,14 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// only index any entry that hasn't crossed the nextIndexTime
 			if entry.needsIndexUpdate(pendingIndex.timestamp) {
 				entry.onIndexPrepare()
-				s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), entry)
+				s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), pendingIndex.timestamp, entry)
 			}
 		}
 
 		if inserts[i].opts.hasPendingRetrievedBlock {
 			releaseEntryRef = true
 			block := inserts[i].opts.pendingRetrievedBlock
-			entry.series.OnRetrieveBlock(block.id, block.start, block.segment)
+			entry.series.OnRetrieveBlock(block.id, block.tags, block.start, block.segment)
 		}
 
 		if releaseEntryRef {
@@ -1508,7 +1514,8 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		}
 
 		for numResults < limit {
-			id, size, checksum, err := reader.ReadMetadata()
+			// FOLLOWUP(r): Return the tags as part of the metadata to peers.
+			id, _, size, checksum, err := reader.ReadMetadata()
 			if err == io.EOF {
 				// Clean end of volume, we can break now
 				if err := reader.Close(); err != nil {

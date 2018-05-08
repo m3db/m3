@@ -180,7 +180,7 @@ type Options interface {
 
 // FileFilterPredicate is a predicate that allows the caller to determine
 // which commitlogs the iterator should read from
-type FileFilterPredicate func(entryTime time.Time, entryDuration time.Duration) bool
+type FileFilterPredicate func(name string, entryTime time.Time, entryDuration time.Duration) bool
 
 // SeriesFilterPredicate is a predicate that determines whether datapoints for a given series
 // should be returned from the Commit log reader. The predicate is pushed down to the

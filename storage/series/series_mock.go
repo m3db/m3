@@ -183,13 +183,13 @@ func (mr *MockDatabaseSeriesMockRecorder) OnEvictedFromWiredList(arg0, arg1 inte
 }
 
 // OnRetrieveBlock mocks base method
-func (m *MockDatabaseSeries) OnRetrieveBlock(arg0 ident.ID, arg1 time.Time, arg2 ts.Segment) {
-	m.ctrl.Call(m, "OnRetrieveBlock", arg0, arg1, arg2)
+func (m *MockDatabaseSeries) OnRetrieveBlock(arg0 ident.ID, arg1 ident.TagIterator, arg2 time.Time, arg3 ts.Segment) {
+	m.ctrl.Call(m, "OnRetrieveBlock", arg0, arg1, arg2, arg3)
 }
 
 // OnRetrieveBlock indicates an expected call of OnRetrieveBlock
-func (mr *MockDatabaseSeriesMockRecorder) OnRetrieveBlock(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnRetrieveBlock", reflect.TypeOf((*MockDatabaseSeries)(nil).OnRetrieveBlock), arg0, arg1, arg2)
+func (mr *MockDatabaseSeriesMockRecorder) OnRetrieveBlock(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnRetrieveBlock", reflect.TypeOf((*MockDatabaseSeries)(nil).OnRetrieveBlock), arg0, arg1, arg2, arg3)
 }
 
 // ReadEncoded mocks base method

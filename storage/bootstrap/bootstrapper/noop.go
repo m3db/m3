@@ -30,63 +30,102 @@ const (
 	// NoOpNoneBootstrapperName is the name of the noOpNoneBootstrapper
 	NoOpNoneBootstrapperName = "noop-none"
 
-	// NoOpAllBootstrapperName is the name of the noOpAllBootstrapper
+	// NoOpAllBootstrapperName is the name of the noOpAllBootstrapperProvider
 	NoOpAllBootstrapperName = "noop-all"
 )
 
-var (
-	defaultNoOpNoneBootstrapper = &noOpNoneBootstrapper{}
-	defaultNoOpAllBootstrapper  = &noOpAllBootstrapper{}
-)
-
-// noOpNoneBootstrapper is the no-op bootstrapper that doesn't
+// noOpNoneBootstrapperProvider is the no-op bootstrapper provider that doesn't
 // know how to bootstrap any time ranges.
-type noOpNoneBootstrapper struct{}
+type noOpNoneBootstrapperProvider struct{}
 
-// NewNoOpNoneBootstrapper creates a new noOpNoneBootstrapper.
-func NewNoOpNoneBootstrapper() bootstrap.Bootstrapper {
-	return defaultNoOpNoneBootstrapper
+// NewNoOpNoneBootstrapperProvider creates a new noOpNoneBootstrapper.
+func NewNoOpNoneBootstrapperProvider() bootstrap.BootstrapperProvider {
+	return noOpNoneBootstrapperProvider{}
 }
 
-func (noop *noOpNoneBootstrapper) Can(strategy bootstrap.Strategy) bool {
+func (noop noOpNoneBootstrapperProvider) Provide() bootstrap.Bootstrapper {
+	return noOpNoneBootstrapper{}
+}
+
+func (noop noOpNoneBootstrapperProvider) String() string {
+	return NoOpNoneBootstrapperName
+}
+
+// Compilation of this statement ensures struct implements the interface.
+var _ bootstrap.Bootstrapper = noOpNoneBootstrapper{}
+
+type noOpNoneBootstrapper struct{}
+
+func (noop noOpNoneBootstrapper) String() string {
+	return NoOpNoneBootstrapperName
+}
+
+func (noop noOpNoneBootstrapper) Can(strategy bootstrap.Strategy) bool {
 	return true
 }
 
-func (noop *noOpNoneBootstrapper) Bootstrap(
+func (noop noOpNoneBootstrapper) BootstrapData(
 	_ namespace.Metadata,
 	targetRanges result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
-) (result.BootstrapResult, error) {
-	res := result.NewBootstrapResult()
+) (result.DataBootstrapResult, error) {
+	res := result.NewDataBootstrapResult()
 	res.SetUnfulfilled(targetRanges)
 	return res, nil
 }
 
-func (noop *noOpNoneBootstrapper) String() string {
-	return NoOpNoneBootstrapperName
+func (noop noOpNoneBootstrapper) BootstrapIndex(
+	ns namespace.Metadata,
+	targetRanges result.ShardTimeRanges,
+	opts bootstrap.RunOptions,
+) (result.IndexBootstrapResult, error) {
+	res := result.NewIndexBootstrapResult()
+	res.SetUnfulfilled(targetRanges)
+	return res, nil
 }
 
-// noOpAllBootstrapper is the no-op bootstrapper that pretends
+// noOpAllBootstrapperProvider is the no-op bootstrapper provider that pretends
 // it can bootstrap any time ranges.
+type noOpAllBootstrapperProvider struct{}
+
+// NewNoOpAllBootstrapperProvider creates a new noOpAllBootstrapperProvider.
+func NewNoOpAllBootstrapperProvider() bootstrap.BootstrapperProvider {
+	return noOpAllBootstrapperProvider{}
+}
+
+func (noop noOpAllBootstrapperProvider) Provide() bootstrap.Bootstrapper {
+	return noOpAllBootstrapper{}
+}
+
+func (noop noOpAllBootstrapperProvider) String() string {
+	return NoOpAllBootstrapperName
+}
+
+// Compilation of this statement ensures struct implements the interface.
+var _ bootstrap.Bootstrapper = noOpAllBootstrapper{}
+
 type noOpAllBootstrapper struct{}
 
-// NewNoOpAllBootstrapper creates a new noOpAllBootstrapper.
-func NewNoOpAllBootstrapper() bootstrap.Bootstrapper {
-	return defaultNoOpAllBootstrapper
+func (noop noOpAllBootstrapper) String() string {
+	return NoOpAllBootstrapperName
 }
 
-func (noop *noOpAllBootstrapper) Can(strategy bootstrap.Strategy) bool {
+func (noop noOpAllBootstrapper) Can(strategy bootstrap.Strategy) bool {
 	return true
 }
 
-func (noop *noOpAllBootstrapper) Bootstrap(
+func (noop noOpAllBootstrapper) BootstrapData(
 	_ namespace.Metadata,
 	_ result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
-) (result.BootstrapResult, error) {
-	return result.NewBootstrapResult(), nil
+) (result.DataBootstrapResult, error) {
+	return result.NewDataBootstrapResult(), nil
 }
 
-func (noop *noOpAllBootstrapper) String() string {
-	return NoOpAllBootstrapperName
+func (noop noOpAllBootstrapper) BootstrapIndex(
+	_ namespace.Metadata,
+	_ result.ShardTimeRanges,
+	_ bootstrap.RunOptions,
+) (result.IndexBootstrapResult, error) {
+	return result.NewIndexBootstrapResult(), nil
 }

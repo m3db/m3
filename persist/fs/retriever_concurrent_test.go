@@ -127,7 +127,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 	filePathPrefix := filepath.Join(dir, "")
-	fsOpts := NewOptions().SetFilePathPrefix(filePathPrefix)
+	fsOpts := testDefaultOpts.SetFilePathPrefix(filePathPrefix)
 
 	fetchConcurrency := 4
 	seekConcurrency := 4 * fetchConcurrency
@@ -182,7 +182,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				}
 				shardData[shard][idString][xtime.ToUnixNano(blockStart)] = data
 
-				err := w.Write(id, data, digest.Checksum(data.Bytes()))
+				err := w.Write(id, nil, data, digest.Checksum(data.Bytes()))
 				require.NoError(t, err)
 			}
 			closer()
@@ -272,7 +272,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 
 	// Setup constants and config
-	fsOpts := NewOptions().SetFilePathPrefix(filePathPrefix)
+	fsOpts := testDefaultOpts.SetFilePathPrefix(filePathPrefix)
 	rOpts := testNs1Metadata(t).Options().RetentionOptions()
 	shard := uint32(0)
 	blockStart := time.Now().Truncate(rOpts.BlockSize())
@@ -290,7 +290,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	data := checked.NewBytes([]byte("Hello world!"), nil)
 	data.IncRef()
 	defer data.DecRef()
-	err = w.Write(ident.StringID("exists"), data, digest.Checksum(data.Bytes()))
+	err = w.Write(ident.StringID("exists"), nil, data, digest.Checksum(data.Bytes()))
 	assert.NoError(t, err)
 	closer()
 

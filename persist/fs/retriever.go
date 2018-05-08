@@ -290,6 +290,8 @@ func (r *blockRetriever) fetchBatch(
 	}
 	sort.Sort(retrieveRequestByOffsetAsc(reqs))
 
+	tagDecoderPool := r.fsOpts.TagDecoderPool()
+
 	// Seek and execute all requests
 	for _, req := range reqs {
 		var data checked.Bytes
@@ -305,7 +307,9 @@ func (r *blockRetriever) fetchBatch(
 			}
 		}
 
-		var seg, onRetrieveSeg ts.Segment
+		var (
+			seg, onRetrieveSeg ts.Segment
+		)
 		if data != nil {
 			seg = ts.NewSegment(data, nil, ts.FinalizeHead)
 		}
@@ -321,6 +325,15 @@ func (r *blockRetriever) fetchBatch(
 				onRetrieveSeg = ts.NewSegment(dataCopy, nil, ts.FinalizeHead)
 				dataCopy.AppendAll(data.Bytes())
 			}
+			if tags := req.indexEntry.EncodedTags; len(tags) != 0 {
+				tagsCopy := r.bytesPool.Get(len(tags))
+				tagsCopy.IncRef()
+				tagsCopy.AppendAll(req.indexEntry.EncodedTags)
+				tagsCopy.DecRef()
+				decoder := tagDecoderPool.Get()
+				decoder.Reset(tagsCopy)
+				req.tags = decoder
+			}
 		}
 
 		// Complete request
@@ -334,7 +347,7 @@ func (r *blockRetriever) fetchBatch(
 
 		go func(r *retrieveRequest) {
 			// Call the onRetrieve callback and finalize
-			r.onRetrieve.OnRetrieveBlock(r.id, r.start, onRetrieveSeg)
+			r.onRetrieve.OnRetrieveBlock(r.id, r.tags, r.start, onRetrieveSeg)
 			r.onCallerOrRetrieverDone()
 		}(req)
 	}
@@ -507,6 +520,7 @@ type retrieveRequest struct {
 	pool *reqPool
 
 	id         ident.ID
+	tags       ident.TagIterator
 	start      time.Time
 	blockSize  time.Duration
 	onRetrieve block.OnRetrieveBlock
@@ -540,6 +554,10 @@ func (req *retrieveRequest) onCallerOrRetrieverDone() {
 	}
 	req.id.Finalize()
 	req.id = nil
+	if req.tags != nil {
+		req.tags.Close()
+		req.tags = ident.EmptyTagIterator
+	}
 	req.reader.Finalize()
 	req.reader = nil
 	req.pool.Put(req)
@@ -603,6 +621,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.finalizes = 0
 	req.shard = 0
 	req.id = nil
+	req.tags = ident.EmptyTagIterator
 	req.start = time.Time{}
 	req.blockSize = 0
 	req.onRetrieve = nil

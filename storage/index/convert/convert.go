@@ -59,6 +59,29 @@ func FromMetric(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	}, nil
 }
 
+// FromMetricIter converts the provided metric id+tags into a document.
+func FromMetricIter(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
+	fields := make([]doc.Field, 0, tags.Remaining())
+	for tags.Next() {
+		tag := tags.Current()
+		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
+			return doc.Document{}, errUnableToConvertReservedFieldName
+		}
+		name := clone(tag.Name)
+		fields = append(fields, doc.Field{
+			Name:  name,
+			Value: clone(tag.Value),
+		})
+	}
+	if err := tags.Err(); err != nil {
+		return doc.Document{}, err
+	}
+	return doc.Document{
+		ID:     clone(id),
+		Fields: fields,
+	}, nil
+}
+
 // NB(prateek): we take an independent copy of the bytes underlying
 // any ids provided, as we need to maintain the lifecycle of the indexed
 // bytes separately from the rest of the storage subsystem.

@@ -509,6 +509,7 @@ func (s *dbSeries) Bootstrap(bootstrappedBlocks block.DatabaseSeriesBlocks) (Boo
 
 func (s *dbSeries) OnRetrieveBlock(
 	id ident.ID,
+	tags ident.TagIterator,
 	startTime time.Time,
 	segment ts.Segment,
 ) {
@@ -534,7 +535,7 @@ func (s *dbSeries) OnRetrieveBlock(
 	// Also note that ResetRetrievable will mark the block as not retrieved from disk,
 	// but OnRetrieveBlock will then properly mark it as retrieved from disk so subsequent
 	// calls to WasRetrievedFromDisk will return true.
-	b.OnRetrieveBlock(s.id, startTime, segment)
+	b.OnRetrieveBlock(s.id, tags, startTime, segment)
 
 	// NB(r): Blocks retrieved have been triggered by a read, so set the last
 	// read time as now so caching policies are followed.
@@ -604,25 +605,19 @@ func (s *dbSeries) Flush(
 	blockStart time.Time,
 	persistFn persist.Fn,
 ) (FlushOutcome, error) {
-	// NB(r): Do not use defer here as we need to make sure the
-	// call to sr.Segment() which may fetch data from disk is not
-	// blocking the series lock.
 	s.RLock()
+	defer s.RUnlock()
 
 	if s.bs != bootstrapped {
-		s.RUnlock()
 		return FlushOutcomeErr, errSeriesNotBootstrapped
 	}
 
 	b, exists := s.blocks.BlockAt(blockStart)
 	if !exists {
-		s.RUnlock()
 		return FlushOutcomeBlockDoesNotExist, nil
 	}
 
 	br, err := b.Stream(ctx)
-	s.RUnlock()
-
 	if err != nil {
 		return FlushOutcomeErr, err
 	}
@@ -638,7 +633,7 @@ func (s *dbSeries) Flush(
 	if err != nil {
 		return FlushOutcomeErr, err
 	}
-	err = persistFn(s.id, segment, checksum)
+	err = persistFn(s.id, s.tags, segment, checksum)
 	if err != nil {
 		return FlushOutcomeErr, err
 	}
@@ -673,7 +668,7 @@ func (s *dbSeries) Snapshot(
 		return err
 	}
 
-	return persistFn(s.id, segment, digest.SegmentChecksum(segment))
+	return persistFn(s.id, s.tags, segment, digest.SegmentChecksum(segment))
 }
 
 func (s *dbSeries) Close() {

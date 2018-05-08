@@ -37,7 +37,7 @@ var (
 )
 
 func testCapturingEncoder(t *testing.T) (*Encoder, *[]interface{}) {
-	encoder := testEncoder(t)
+	encoder := NewEncoder()
 
 	var result []interface{}
 	encoder.encodeVarintFn = func(value int64) {
@@ -96,6 +96,7 @@ func testExpectedResultForIndexEntry(t *testing.T, indexEntry schema.IndexEntry)
 		indexEntry.Size,
 		indexEntry.Offset,
 		indexEntry.Checksum,
+		indexEntry.EncodedTags,
 	}
 }
 

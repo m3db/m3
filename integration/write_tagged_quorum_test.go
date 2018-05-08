@@ -274,7 +274,11 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	assert.NoError(t, err)
 
-	res, err := s.db.QueryIDs(ctx, testNamespaces[0], index.Query{reQuery}, index.QueryOptions{})
+	now := s.getNowFn()
+	res, err := s.db.QueryIDs(ctx, testNamespaces[0], index.Query{reQuery}, index.QueryOptions{
+		StartInclusive: now.Add(-2 * time.Minute),
+		EndExclusive:   now.Add(2 * time.Minute),
+	})
 	require.NoError(t, err)
 	results := res.Results
 	require.Equal(t, testNamespaces[0].String(), results.Namespace().String())

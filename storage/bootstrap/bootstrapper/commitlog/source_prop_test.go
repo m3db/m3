@@ -1,5 +1,3 @@
-// +build big
-
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -66,9 +64,10 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}()
 
 			// Configure the commitlog to use the test directory and set the blocksize
+			fsOpts := fs.NewOptions().SetFilePathPrefix(dir)
 			commitLogOpts := commitlog.NewOptions().
 				SetBlockSize(2 * time.Hour).
-				SetFilesystemOptions(fs.NewOptions().SetFilePathPrefix(dir))
+				SetFilesystemOptions(fsOpts)
 			bootstrapOpts := testOptions().SetCommitLogOptions(commitLogOpts)
 
 			// Instantiate commitlog
@@ -94,10 +93,15 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Instantiate a commitlog source
-			source, err := NewCommitLogBootstrapper(bootstrapOpts, nil)
+			inspection, err := fs.InspectFilesystem(fsOpts)
 			if err != nil {
 				return false, err
 			}
+			provider, err := NewCommitLogBootstrapperProvider(bootstrapOpts, inspection, nil)
+			if err != nil {
+				return false, err
+			}
+			source := provider.Provide()
 
 			// Determine time range to bootstrap
 			md := testNsMetadata(t)
@@ -124,7 +128,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Perform the bootstrap
-			result, err := source.Bootstrap(md, shardTimeRanges, testDefaultRunOpts)
+			result, err := source.BootstrapData(md, shardTimeRanges, testDefaultRunOpts)
 			if err != nil {
 				return false, err
 			}

@@ -22,88 +22,187 @@ package storage
 
 import (
 	"errors"
+	"fmt"
+	"sort"
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/bootstrap/result"
+	m3dberrors "github.com/m3db/m3db/storage/errors"
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
-	m3ninxindex "github.com/m3db/m3ninx/index"
-	"github.com/m3db/m3ninx/index/segment"
-	"github.com/m3db/m3ninx/index/segment/mem"
-	"github.com/m3db/m3ninx/postings"
-	"github.com/m3db/m3ninx/search/executor"
 	"github.com/m3db/m3x/context"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
+	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )
 
 var (
-	errDbIndexAlreadyClosed       = errors.New("database index has already been closed")
-	errDbIndexUnableToWriteClosed = errors.New("unable to write to database index, already closed")
-	errDbIndexUnableToQueryClosed = errors.New("unable to query database index, already closed")
+	errDbIndexAlreadyClosed               = errors.New("database index has already been closed")
+	errDbIndexUnableToWriteClosed         = errors.New("unable to write to database index, already closed")
+	errDbIndexUnableToQueryClosed         = errors.New("unable to query database index, already closed")
+	errDbIndexTerminatingTickCancellation = errors.New("terminating tick early due to cancellation")
+	errDbIndexIsBootstrapping             = errors.New("index is already bootstrapping")
 )
 
-type nsIndexState byte
+// nolint: maligned
+type nsIndex struct {
+	state nsIndexState
 
-const (
-	nsIndexStateOpen nsIndexState = iota
-	nsIndexStateClosed
-)
+	// all the vars below this line are not modified past the ctor
+	// and don't require a lock when being accessed.
+	nowFn           clock.NowFn
+	blockSize       time.Duration
+	retentionPeriod time.Duration
+	bufferPast      time.Duration
+	bufferFuture    time.Duration
 
-type nsIndexBlock struct {
-	segment    segment.MutableSegment
-	expiryTime time.Time
+	newBlockFn newBlockFn
+	logger     xlog.Logger
+	opts       index.Options
+	metrics    nsIndexMetrics
+	nsMetadata namespace.Metadata
 }
 
-type nsIndex struct {
-	sync.RWMutex
-	insertMode index.InsertMode
-	state      nsIndexState
-	active     nsIndexBlock
+type nsIndexState struct {
+	sync.RWMutex // NB: guards all variables in this struct
+
+	closed         bool
+	bootstrapState BootstrapState
+	runtimeOpts    nsIndexRuntimeOptions
 
 	insertQueue namespaceIndexInsertQueue
-	metrics     nsIndexMetrics
-	opts        index.Options
-	nsID        ident.ID
+
+	// NB: `latestBlock` v `blocksByTime`: blocksByTime contains all the blocks known to `nsIndex`.
+	// `latestBlock` refers to the block with greatest StartTime within blocksByTime. We do this
+	// to skip accessing the map blocksByTime in the vast majority of write/query requests. It's
+	// lazily updated, so it can point to an older element until a Tick()/write rotates it.
+	blocksByTime map[xtime.UnixNano]index.Block
+	latestBlock  index.Block
+
+	// NB: `blockStartsDescOrder` contains the keys from the map `blocksByTime` in reverse
+	// chronological order. This is used at query time to enforce determinism about results
+	// returned.
+	blockStartsDescOrder []xtime.UnixNano
 }
 
+// NB: nsIndexRuntimeOptions does not contain its own mutex as some of the variables
+// are needed for each index write which already at least acquires read lock from
+// nsIndex mutex, so to keep the lock acquisitions to a minimum these are protected
+// under the same nsIndex mutex.
+type nsIndexRuntimeOptions struct {
+	insertMode    index.InsertMode
+	maxQueryLimit int64
+}
+
+type newBlockFn func(time.Time, time.Duration, index.Options) (index.Block, error)
+
+// newNamespaceIndex returns a new namespaceIndex for the provided namespace.
 func newNamespaceIndex(
-	md namespace.Metadata,
+	nsMD namespace.Metadata,
+	opts index.Options,
+) (namespaceIndex, error) {
+	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
+		md:              nsMD,
+		indexOpts:       opts,
+		newIndexQueueFn: newNamespaceIndexInsertQueue,
+		newBlockFn:      index.NewBlock,
+	})
+}
+
+// newNamespaceIndexWithInsertQueueFn is a ctor used in tests to override the insert queue.
+func newNamespaceIndexWithInsertQueueFn(
+	nsMD namespace.Metadata,
 	newIndexQueueFn newNamespaceIndexInsertQueueFn,
 	opts index.Options,
 ) (namespaceIndex, error) {
+	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
+		md:              nsMD,
+		indexOpts:       opts,
+		newIndexQueueFn: newIndexQueueFn,
+		newBlockFn:      index.NewBlock,
+	})
+}
+
+// newNamespaceIndexWithNewBlockFn is a ctor used in tests to inject blocks.
+func newNamespaceIndexWithNewBlockFn(
+	nsMD namespace.Metadata,
+	newBlockFn newBlockFn,
+	opts index.Options,
+) (namespaceIndex, error) {
+	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
+		md:              nsMD,
+		indexOpts:       opts,
+		newIndexQueueFn: newNamespaceIndexInsertQueue,
+		newBlockFn:      newBlockFn,
+	})
+}
+
+type newNamespaceIndexOpts struct {
+	md              namespace.Metadata
+	indexOpts       index.Options
+	newIndexQueueFn newNamespaceIndexInsertQueueFn
+	newBlockFn      newBlockFn
+}
+
+// newNamespaceIndexWithOptions returns a new namespaceIndex with the provided configuration options.
+func newNamespaceIndexWithOptions(
+	newIndexOpts newNamespaceIndexOpts,
+) (namespaceIndex, error) {
+	var (
+		nsMD            = newIndexOpts.md
+		opts            = newIndexOpts.indexOpts
+		newIndexQueueFn = newIndexOpts.newIndexQueueFn
+		newBlockFn      = newIndexOpts.newBlockFn
+	)
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	now := opts.ClockOptions().NowFn()()
-	postingsOffset := postings.ID(0) // FOLLOWUP(prateek): compute based on block compaction
-	seg, err := mem.NewSegment(postingsOffset, opts.MemSegmentOptions())
-	if err != nil {
-		return nil, err
-	}
-
-	expiryTime := now.Add(md.Options().RetentionOptions().RetentionPeriod())
+	nowFn := opts.ClockOptions().NowFn()
 	idx := &nsIndex{
-		insertMode: opts.InsertMode(),
-		active: nsIndexBlock{
-			segment:    seg,
-			expiryTime: expiryTime, // FOLLOWUP(prateek): compute based on block rotation
+		state: nsIndexState{
+			runtimeOpts: nsIndexRuntimeOptions{
+				insertMode: opts.InsertMode(), // FOLLOWUP(prateek): wire to allow this to be tweaked at runtime
+			},
+			blocksByTime: make(map[xtime.UnixNano]index.Block),
 		},
-		metrics: newNamespaceIndexMetrics(opts.InstrumentOptions().MetricsScope()),
-		opts:    opts,
-		nsID:    md.ID(),
+
+		nowFn:           nowFn,
+		blockSize:       nsMD.Options().IndexOptions().BlockSize(),
+		retentionPeriod: nsMD.Options().RetentionOptions().RetentionPeriod(),
+		bufferPast:      nsMD.Options().RetentionOptions().BufferPast(),
+		bufferFuture:    nsMD.Options().RetentionOptions().BufferFuture(),
+
+		newBlockFn: newBlockFn,
+		opts:       opts,
+		logger:     opts.InstrumentOptions().Logger(),
+		metrics:    newNamespaceIndexMetrics(opts.InstrumentOptions().MetricsScope()),
+		nsMetadata: nsMD,
 	}
 
-	queue := newIndexQueueFn(idx.writeBatch, opts.ClockOptions().NowFn(),
-		opts.InstrumentOptions().MetricsScope())
+	// allocate indexing queue and start it up.
+	queue := newIndexQueueFn(idx.writeBatch, nowFn, opts.InstrumentOptions().MetricsScope())
 	if err := queue.Start(); err != nil {
 		return nil, err
 	}
-	idx.insertQueue = queue
+	idx.state.insertQueue = queue
+
+	// allocate the current block to ensure we're able to index as soon as we return
+	currentBlock := nowFn().Truncate(idx.blockSize)
+	idx.state.RLock()
+	defer idx.state.RUnlock()
+	if _, err := idx.ensureBlockPresentWithRLock(currentBlock); err != nil {
+		return nil, err
+	}
 
 	return idx, nil
 }
@@ -128,114 +227,221 @@ func newNamespaceIndex(
 func (i *nsIndex) Write(
 	id ident.ID,
 	tags ident.Tags,
-	fns onIndexSeries,
+	timestamp time.Time,
+	fns index.OnIndexSeries,
 ) error {
+	// Ensure timestamp is not too old/new based on retention policies.
+	now := i.nowFn()
+	futureLimit := now.Add(1 * i.bufferFuture)
+	pastLimit := now.Add(-1 * i.bufferPast)
+
+	if !futureLimit.After(timestamp) {
+		fns.OnIndexFinalize()
+		return m3dberrors.ErrTooFuture
+	}
+
+	if !pastLimit.Before(timestamp) {
+		fns.OnIndexFinalize()
+		return m3dberrors.ErrTooPast
+	}
+
+	// Ensure metric can be converted to a valid document
 	d, err := convert.FromMetric(id, tags)
 	if err != nil {
 		fns.OnIndexFinalize()
 		return err
 	}
 
-	i.RLock()
+	indexBlockStart := timestamp.Truncate(i.blockSize)
+	return i.queueWrite(indexBlockStart, d, fns)
+}
+
+func (i *nsIndex) queueWrite(
+	indexBlockStart time.Time,
+	d doc.Document,
+	fns index.OnIndexSeries,
+) error {
+	i.state.RLock()
 	if !i.isOpenWithRLock() {
-		i.RUnlock()
+		i.state.RUnlock()
 		i.metrics.InsertAfterClose.Inc(1)
 		fns.OnIndexFinalize()
 		return errDbIndexUnableToWriteClosed
 	}
 
 	// NB(prateek): retrieving insertMode here while we have the RLock.
-	insertMode := i.insertMode
-	wg, err := i.insertQueue.Insert(d, fns)
-	i.RUnlock()
+	insertMode := i.state.runtimeOpts.insertMode
+	wg, err := i.state.insertQueue.Insert(indexBlockStart, d, fns)
 
+	// release the lock because we don't need it past this point.
+	i.state.RUnlock()
+
+	// if we're unable to index, we still have to finalize the reference we hold.
 	if err != nil {
 		fns.OnIndexFinalize()
 		return err
 	}
-
 	// once the write has been queued in the indexInsertQueue, it assumes
-	// responsibility for calling the lifecycle resource hooks.
+	// responsibility for calling the resource hooks.
+
+	// wait/terminate depending on if we are indexing synchronously or not.
 	if insertMode != index.InsertAsync {
+		// FOLLOWUP(prateek): to correctly propagate indexing error to the user in
+		// the sync case, we need a mechanism to receive notifications from
+		// the index insert queue path. Some ways to do this:
+		// (0) alloc a slice for the errors in queue, and return a wait group
+		// the slice and an index into the slice.
+		// (1) provide an error channel as input to i.insertQueue.Insert, and
+		// guarantee that receives a value on success/failure in the async
+		// insertion code path. We could eliminate the wait group if we did that.
+		// (2) we could provide an OnIndexError callback within OnIndexSeries,
+		// again ensuring it was called upon failure, and cache the error within
+		// the dbShardEntry. Then we're guaranteed that the error would be set
+		// once wg.Wait returns, and the shard insert code-paths would be able
+		// to retrieve the error from the dbShardEntry. Not pretty, but probably
+		// a lot cheaper than (1).
 		wg.Wait()
 	}
 
 	return nil
 }
 
-func (i *nsIndex) writeBatch(inserts []nsIndexInsert) error {
+// NB: this function is called by the namespaceIndexInsertQueue.
+// FOLLOWUP(prateek): propagate error back up from here to the indexInsertQueue
+// so that we can notify users of success/failure correctly in the case of
+// sync'd inserts.
+func (i *nsIndex) writeBatch(inserts []index.WriteBatchEntry) {
 	// NB(prateek): we use a read lock to guard against mutation of the
-	// nsIndexBlock currently active, mutations within the underlying
-	// nsIndexBlock are guarded by primitives internal to it.
-	i.RLock()
-	defer i.RUnlock()
+	// indexBlocks, mutations within the underlying blocks are guarded
+	// by primitives internal to it.
+	i.state.RLock()
+	defer i.state.RUnlock()
 
 	if !i.isOpenWithRLock() {
 		// NB(prateek): deliberately skip calling any of the `OnIndexFinalize` methods
 		// on the provided inserts to terminate quicker during shutdown.
 		i.metrics.InsertAfterClose.Inc(int64(len(inserts)))
-		return errDbIndexUnableToWriteClosed
 	}
 
-	// TODO(prateek): docs array pooling
-	batch := m3ninxindex.Batch{
-		Docs:                make([]doc.Document, 0, len(inserts)),
-		AllowPartialUpdates: true,
-	}
-	for _, insert := range inserts {
-		batch.Docs = append(batch.Docs, insert.doc)
-	}
+	// we sort the inserts by which block they're applicable for, and do the inserts
+	// for each block.
+	writesByBlockStart := index.WriteBatchEntryByBlockStart(inserts)
+	sort.Sort(writesByBlockStart)
+	writesByBlockStart.ForEachBlockStart(i.writeBatchForBlockStartWithRLock)
+}
 
-	err := i.active.segment.InsertBatch(batch)
-	if err == nil {
-		for idx, insert := range inserts {
-			insert.fns.OnIndexSuccess(i.active.expiryTime)
-			insert.fns.OnIndexFinalize()
-			batch.Docs[idx] = doc.Document{}
-		}
-		return nil
-	}
-
-	partialErr, ok := err.(*m3ninxindex.BatchPartialError)
-	if !ok {
-		// should never happen
-		i.opts.InstrumentOptions().Logger().Errorf(
-			"[invariant violated] received non BatchPartialError from m3ninx InsertBatch. %T", err)
-		// NB: marking all the inserts as failure, cause we don't know which ones failed
+func (i *nsIndex) writeBatchForBlockStartWithRLock(
+	blockStart xtime.UnixNano, inserts []index.WriteBatchEntry,
+) {
+	// ensure we have an index block for the specified blockStart.
+	block, err := i.ensureBlockPresentWithRLock(blockStart.ToTime())
+	if err != nil {
 		for _, insert := range inserts {
-			insert.fns.OnIndexFinalize()
-			insert.doc = doc.Document{}
-			insert.fns = nil
+			insert.OnIndexSeries.OnIndexFinalize()
 		}
-		return nil
+		i.logger.WithFields(
+			xlog.NewField("blockStart", blockStart),
+			xlog.NewField("numWrites", len(inserts)),
+			xlog.NewField("err", err.Error()),
+		).Error("unable to write to index, dropping inserts.")
+		i.metrics.AsyncInsertErrors.Inc(int64(len(inserts)))
+		return
 	}
 
-	// first finalize all the responses which were errors, and mark them
-	// nil to indicate they're done.
-	numErr := len(partialErr.Indices())
-	for _, idx := range partialErr.Indices() {
-		inserts[idx].fns.OnIndexFinalize()
-		inserts[idx].fns = nil
-		inserts[idx].doc = doc.Document{}
+	// i.e. we have the block and the inserts, perform the writes.
+	result, err := block.WriteBatch(inserts)
+	// NB: we don't need to do anything to the OnIndexSeries refs in `inserts` at this point,
+	// the index.Block WriteBatch assumes responsibility for calling the appropriate methods.
+	if numErr := result.NumError; numErr != 0 {
+		i.metrics.AsyncInsertErrors.Inc(numErr)
 	}
+	if err != nil {
+		i.logger.Errorf("unable to write to index, dropping inserts. [%v]", err)
+	}
+}
 
-	// mark all non-error inserts success, so we don't repeatedly index them,
-	// and then finalize any held references.
-	for _, insert := range inserts {
-		if insert.fns == nil {
+// Bootstrap bootstraps the index with the provide blocks.
+func (i *nsIndex) Bootstrap(
+	bootstrapResults result.IndexResults,
+) error {
+	i.state.Lock()
+	if i.state.bootstrapState == Bootstrapping {
+		i.state.Unlock()
+		return errDbIndexIsBootstrapping
+	}
+	i.state.bootstrapState = Bootstrapping
+	i.state.Unlock()
+
+	i.state.RLock()
+	defer func() {
+		i.state.RUnlock()
+		i.state.Lock()
+		i.state.bootstrapState = Bootstrapped
+		i.state.Unlock()
+	}()
+
+	var multiErr xerrors.MultiError
+	for blockStart, block := range bootstrapResults {
+		segments := block.Segments()
+		block, err := i.ensureBlockPresentWithRLock(blockStart.ToTime())
+		if err != nil { // should never happen
+			multiErr = multiErr.Add(i.unableToAllocBlockInvariantError(err))
 			continue
 		}
-		insert.fns.OnIndexSuccess(i.active.expiryTime)
-		insert.fns.OnIndexFinalize()
-		insert.fns = nil
-		insert.doc = doc.Document{}
+		if err := block.Bootstrap(segments); err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
 
-	if numErr != 0 {
-		i.metrics.AsyncInsertErrors.Inc(int64(numErr))
+	return multiErr.FinalError()
+}
+
+func (i *nsIndex) Tick(c context.Cancellable) (namespaceIndexTickResult, error) {
+	var (
+		result                     = namespaceIndexTickResult{}
+		now                        = i.nowFn()
+		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, now)
+		lastSealableBlockStart     = retention.FlushTimeEndForBlockSize(i.blockSize, now.Add(-i.bufferPast))
+	)
+
+	i.state.Lock()
+	defer func() {
+		i.updateBlockStartsWithLock()
+		i.state.Unlock()
+	}()
+
+	result.NumBlocks = int64(len(i.state.blocksByTime))
+
+	var multiErr xerrors.MultiError
+	for blockStart, block := range i.state.blocksByTime {
+		if c.IsCancelled() {
+			multiErr = multiErr.Add(errDbIndexTerminatingTickCancellation)
+			return result, multiErr.FinalError()
+		}
+
+		// drop any blocks past the retention period
+		if blockStart.ToTime().Before(earliestBlockStartToRetain) {
+			multiErr = multiErr.Add(block.Close())
+			delete(i.state.blocksByTime, blockStart)
+			result.NumBlocksEvicted++
+			result.NumBlocks--
+			continue
+		}
+
+		// tick any blocks we're going to retain
+		blockTickResult, tickErr := block.Tick(c)
+		multiErr = multiErr.Add(tickErr)
+		result.NumSegments += blockTickResult.NumSegments
+		result.NumTotalDocs += blockTickResult.NumDocs
+
+		// seal any blocks that are sealable
+		if !blockStart.ToTime().After(lastSealableBlockStart) && !block.IsSealed() {
+			multiErr = multiErr.Add(block.Seal())
+			result.NumBlocksSealed++
+		}
 	}
 
-	return nil
+	return result, multiErr.FinalError()
 }
 
 func (i *nsIndex) Query(
@@ -243,106 +449,192 @@ func (i *nsIndex) Query(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResults, error) {
-	i.RLock()
-	defer i.RUnlock()
+	i.state.RLock()
+	defer i.state.RUnlock()
 	if !i.isOpenWithRLock() {
 		return index.QueryResults{}, errDbIndexUnableToQueryClosed
 	}
 
-	reader, err := i.active.segment.Reader()
-	if err != nil {
-		return index.QueryResults{}, err
-	}
-
-	readers := []m3ninxindex.Reader{reader}
-	exec := executor.NewExecutor(readers)
-
-	// FOLLOWUP(prateek): push down QueryOptions to restrict results
-	iter, err := exec.Execute(query.Query.SearchQuery())
-	if err != nil {
-		exec.Close()
-		return index.QueryResults{}, err
+	// override query response limit if needed.
+	if i.state.runtimeOpts.maxQueryLimit > 0 && (opts.Limit == 0 ||
+		int64(opts.Limit) > i.state.runtimeOpts.maxQueryLimit) {
+		i.logger.Debugf("overriding query response limit, requested: %d, max-allowed: %d",
+			opts.Limit, i.state.runtimeOpts.maxQueryLimit) // FOLLOWUP(prateek): log query too once it's serializable.
+		opts.Limit = int(i.state.runtimeOpts.maxQueryLimit)
 	}
 
 	var (
+		exhaustive = true
 		results    = i.opts.ResultsPool().Get()
-		size       = results.Size()
-		brokeEarly = false
+		err        error
 	)
-	results.Reset(i.nsID)
+	results.Reset(i.nsMetadata.ID())
 	ctx.RegisterFinalizer(results)
 
-	execCloser := safeCloser{closable: exec}
-	iterCloser := safeCloser{closable: iter}
+	// Chunk the query request into bounds based on applicable blocks and
+	// execute the requests to each of them; and merge results.
+	queryRange := xtime.Ranges{}.AddRange(xtime.Range{
+		Start: opts.StartInclusive, End: opts.EndExclusive})
 
-	defer func() {
-		iterCloser.Close()
-		execCloser.Close()
-	}()
+	// iterate known blocks in a defined order of time (newest first) to enforce
+	// some determinism about the results returned.
+	for _, start := range i.state.blockStartsDescOrder {
+		block, ok := i.state.blocksByTime[start]
+		if !ok { // should never happen
+			return index.QueryResults{}, i.missingBlockInvariantError(start)
+		}
 
-	for iter.Next() {
-		// FOLLOWUP(prateek): as part of the runtime options wiring, also set a server side max limit which
-		// super-seeds the user requested limit. Paranoia can be a good thing.
-		if opts.Limit > 0 && size >= opts.Limit {
-			brokeEarly = true
+		// ensure the block has data requested by the query
+		blockRange := xtime.Range{Start: block.StartTime(), End: block.EndTime()}
+		if !queryRange.Overlaps(blockRange) {
+			continue
+		}
+
+		// terminate early if we know we don't need any more results
+		if opts.Limit > 0 && results.Size() >= opts.Limit {
+			exhaustive = false
 			break
 		}
-		d := iter.Current()
-		_, size, err = results.Add(d)
+
+		exhaustive, err = block.Query(query, opts, results)
 		if err != nil {
 			return index.QueryResults{}, err
 		}
+
+		if !exhaustive {
+			// i.e. block had more data but we stopped early, we know
+			// we have hit the limit and don't need to query any more.
+			break
+		}
+
+		// terminate if queryRange doesn't need any more data
+		queryRange = queryRange.RemoveRange(blockRange)
+		if queryRange.IsEmpty() {
+			break
+		}
 	}
 
-	if err := iter.Err(); err != nil {
-		return index.QueryResults{}, err
-	}
+	// FOLLOWUP(prateek): do the above operation with controllable parallelism to optimize
+	// for latency at the cost of higher mem-usage.
 
-	if err := iterCloser.Close(); err != nil {
-		return index.QueryResults{}, err
-	}
-
-	if err := execCloser.Close(); err != nil {
-		return index.QueryResults{}, err
-	}
-
-	exhaustive := !brokeEarly
 	return index.QueryResults{
-		Results:    results,
 		Exhaustive: exhaustive,
+		Results:    results,
 	}, nil
 }
 
-type safeCloser struct {
-	closable
-	closed bool
-}
-
-func (c *safeCloser) Close() error {
-	if c.closed {
-		return nil
+// ensureBlockPresentWithRLock guarantees an index.Block exists for the specified
+// blockStart, allocating one if it does not. It returns the desired block, or
+// error if it's unable to do so.
+func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (index.Block, error) {
+	// check if the current latest block matches the required block, this
+	// is the usual path and can short circuit the rest of the logic in this
+	// function in most cases.
+	if i.state.latestBlock != nil && i.state.latestBlock.StartTime().Equal(blockStart) {
+		return i.state.latestBlock, nil
 	}
-	c.closed = true
-	return c.closable.Close()
+
+	// check if exists in the map (this can happen if the latestBlock has not
+	// been rotated yet).
+	blockStartNanos := xtime.ToUnixNano(blockStart)
+	if block, ok := i.state.blocksByTime[blockStartNanos]; ok {
+		return block, nil
+	}
+
+	// i.e. block start does not exist, so we have to alloc.
+	// we release the RLock (the function is called with this lock), and acquire
+	// the write lock to do the extra allocation.
+	i.state.RUnlock()
+	i.state.Lock()
+
+	// need to guarantee all exit paths from the function leave with the RLock
+	// so we release the write lock and re-acquire a read lock.
+	defer func() {
+		i.state.Unlock()
+		i.state.RLock()
+	}()
+
+	// re-check if exists in the map (another routine did the alloc)
+	if block, ok := i.state.blocksByTime[blockStartNanos]; ok {
+		return block, nil
+	}
+
+	// ok now we know for sure we have to alloc
+	block, err := i.newBlockFn(blockStart, i.blockSize, i.opts)
+	if err != nil { // unable to allocate the block, should never happen.
+		return nil, i.unableToAllocBlockInvariantError(err)
+	}
+
+	// add to tracked blocks map
+	i.state.blocksByTime[blockStartNanos] = block
+
+	// update ordered blockStarts slice, and latestBlock
+	i.updateBlockStartsWithLock()
+	return block, nil
 }
 
-type closable interface {
-	Close() error
+func (i *nsIndex) updateBlockStartsWithLock() {
+	// update ordered blockStarts slice
+	var (
+		latestBlockStart xtime.UnixNano
+		latestBlock      index.Block
+	)
+
+	blockStarts := make([]xtime.UnixNano, 0, len(i.state.blocksByTime))
+	for ts, block := range i.state.blocksByTime {
+		if ts >= latestBlockStart {
+			latestBlock = block
+		}
+		blockStarts = append(blockStarts, ts)
+	}
+
+	// order in desc order (i.e. reverse chronological)
+	sort.Slice(blockStarts, func(i, j int) bool {
+		return blockStarts[i] > blockStarts[j]
+	})
+	i.state.blockStartsDescOrder = blockStarts
+
+	// rotate latestBlock
+	i.state.latestBlock = latestBlock
 }
 
 func (i *nsIndex) isOpenWithRLock() bool {
-	return i.state == nsIndexStateOpen
+	return !i.state.closed
 }
 
 func (i *nsIndex) Close() error {
-	i.Lock()
-	defer i.Unlock()
+	i.state.Lock()
+	defer i.state.Unlock()
 	if !i.isOpenWithRLock() {
 		return errDbIndexAlreadyClosed
 	}
+	i.state.closed = true
 
-	i.state = nsIndexStateClosed
-	return i.insertQueue.Stop()
+	var multiErr xerrors.MultiError
+	multiErr = multiErr.Add(i.state.insertQueue.Stop())
+
+	for t := range i.state.blocksByTime {
+		blk := i.state.blocksByTime[t]
+		multiErr = multiErr.Add(blk.Close())
+	}
+
+	i.state.latestBlock = nil
+	i.state.blocksByTime = nil
+	i.state.blockStartsDescOrder = nil
+
+	return multiErr.FinalError()
+}
+
+func (i *nsIndex) missingBlockInvariantError(t xtime.UnixNano) error {
+	err := fmt.Errorf("index query did not find block %d despite seeing it in slice", t)
+	instrument.EmitInvariantViolationAndGetLogger(i.opts.InstrumentOptions()).Errorf(err.Error())
+	return err
+}
+
+func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
+	ierr := fmt.Errorf("index unable to allocate block: %v", err)
+	instrument.EmitInvariantViolationAndGetLogger(i.opts.InstrumentOptions()).Errorf(ierr.Error())
+	return ierr
 }
 
 type nsIndexMetrics struct {
@@ -358,9 +650,9 @@ func newNamespaceIndexMetrics(scope tally.Scope) nsIndexMetrics {
 		}).Counter("index-error"),
 		InsertAfterClose: scope.Tagged(map[string]string{
 			"error_type": "insert-closed",
-		}).Counter("index-error"),
+		}).Counter("insert-after-close"),
 		QueryAfterClose: scope.Tagged(map[string]string{
 			"error_type": "query-closed",
-		}).Counter("index-error"),
+		}).Counter("query-after-error"),
 	}
 }
