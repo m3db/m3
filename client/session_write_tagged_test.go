@@ -63,12 +63,15 @@ func TestSessionWriteTagged(t *testing.T) {
 	w := newWriteTaggedStub()
 	session := newDefaultTestSession(t).(*session)
 	mockEncoder := serialize.NewMockTagEncoder(ctrl)
-	mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags), true).AnyTimes()
-	mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil).AnyTimes()
-	mockEncoder.EXPECT().Finalize()
 	mockEncoderPool := serialize.NewMockTagEncoderPool(ctrl)
-	mockEncoderPool.EXPECT().Get().Return(mockEncoder).AnyTimes()
 	session.pools.tagEncoder = mockEncoderPool
+
+	gomock.InOrder(
+		mockEncoderPool.EXPECT().Get().Return(mockEncoder),
+		mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil),
+		mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags), true),
+		mockEncoder.EXPECT().Finalize(),
+	)
 
 	var completionFn completionFn
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
@@ -246,12 +249,19 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 	w := newWriteTaggedStub()
 
 	mockEncoder := serialize.NewMockTagEncoder(ctrl)
-	mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags), true).AnyTimes()
-	mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil).AnyTimes()
-	mockEncoder.EXPECT().Finalize().Times(2)
 	mockEncoderPool := serialize.NewMockTagEncoderPool(ctrl)
-	mockEncoderPool.EXPECT().Get().Return(mockEncoder).AnyTimes()
 	session.pools.tagEncoder = mockEncoderPool
+
+	gomock.InOrder(
+		mockEncoderPool.EXPECT().Get().Return(mockEncoder),
+		mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil),
+		mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags), true),
+		mockEncoder.EXPECT().Finalize(),
+		mockEncoderPool.EXPECT().Get().Return(mockEncoder),
+		mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil),
+		mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags), true),
+		mockEncoder.EXPECT().Finalize(),
+	)
 
 	var hosts []topology.Host
 	var completionFn completionFn
