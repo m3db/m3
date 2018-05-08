@@ -27,8 +27,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3x/ident"
-
 	"github.com/m3db/bitset"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/digest"
