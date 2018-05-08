@@ -35,7 +35,7 @@ type encodeOpts struct {
 func NewTagEncoderOptions() TagEncoderOptions {
 	return &encodeOpts{
 		initialCapacity: defaultInitialCapacity,
-		limits:          NewMaxTagSerializationLimits(),
+		limits:          NewTagSerializationLimits(),
 	}
 }
 
