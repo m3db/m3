@@ -987,9 +987,7 @@ func withEncodingAndPoolingOptions(
 		SetDatabaseSeriesPool(seriesPool)
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
 		SetBytesPool(bytesPool).
-		SetIdentifierPool(identifierPool).
-		SetTagEncoderPool(tagEncoderPool).
-		SetTagDecoderPool(tagDecoderPool))
+		SetIdentifierPool(identifierPool))
 
 	// options related to the indexing sub-system
 	tagArrPool := index.NewTagArrayPool(index.TagArrayPoolOpts{
