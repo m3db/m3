@@ -1648,20 +1648,23 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := newResultTestOptions()
-	blockSize := time.Minute
+	start := time.Now().Truncate(time.Hour)
 
-	start := time.Now().Truncate(blockSize)
+	blockSize := time.Minute
+	bs := int64(blockSize)
+	rpcBlockSize := &bs
 
 	bl := &rpc.Block{
 		Start: start.UnixNano(),
 		Segments: &rpc.Segments{Merged: &rpc.Segment{
-			Head: []byte{1, 2},
-			Tail: []byte{3},
+			Head:      []byte{1, 2},
+			Tail:      []byte{3},
+			BlockSize: rpcBlockSize,
 		}},
 	}
 
 	r := newBulkBlocksResult(opts, bopts)
-	r.addBlockFromPeer(fooID, testHost, blockSize, bl)
+	r.addBlockFromPeer(fooID, testHost, bl)
 
 	series := r.result.AllSeries()
 	assert.Equal(t, 1, series.Len())
@@ -1680,9 +1683,9 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 
-	// block reader has correct start and end time
+	// block reader has correct start time and block size
 	assert.Equal(t, start, stream.Start)
-	assert.Equal(t, start.Add(blockSize), stream.End)
+	assert.Equal(t, blockSize, stream.BlockSize)
 
 	seg, err := stream.Segment()
 	require.NoError(t, err)
@@ -1745,10 +1748,8 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		bl.Segments.Unmerged = append(bl.Segments.Unmerged, seg)
 	}
 
-	blockDuration := time.Hour
-
 	r := newBulkBlocksResult(opts, bopts)
-	r.addBlockFromPeer(fooID, testHost, blockDuration, bl)
+	r.addBlockFromPeer(fooID, testHost, bl)
 	series := r.result.AllSeries()
 	assert.Equal(t, 1, series.Len())
 
@@ -1793,7 +1794,7 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 	r := newBulkBlocksResult(opts, bopts)
 
 	bl := &rpc.Block{Start: time.Now().UnixNano()}
-	err := r.addBlockFromPeer(fooID, testHost, time.Hour, bl)
+	err := r.addBlockFromPeer(fooID, testHost, bl)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
 }
@@ -1804,7 +1805,7 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 	r := newBulkBlocksResult(opts, bopts)
 
 	bl := &rpc.Block{Start: time.Now().UnixNano(), Segments: &rpc.Segments{}}
-	err := r.addBlockFromPeer(fooID, testHost, time.Hour, bl)
+	err := r.addBlockFromPeer(fooID, testHost, bl)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
 }

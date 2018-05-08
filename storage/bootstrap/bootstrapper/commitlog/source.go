@@ -387,7 +387,7 @@ func (s *commitLogSource) mergeSeries(
 		// Convert encoders to readers so we can use iteration helpers
 		readers := encoders.newReaders()
 		iter := multiReaderIteratorPool.Get()
-		iter.Reset(readers, time.Time{}, time.Time{})
+		iter.Reset(readers, time.Time{}, 0)
 
 		var err error
 		enc := encoderPool.Get()

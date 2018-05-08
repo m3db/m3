@@ -45,7 +45,7 @@ type Series struct {
 
 type SeriesBlock struct {
 	Start          time.Time
-	End            time.Time
+	BlockSize      time.Duration
 	Replicas       []encoding.MultiReaderIterator
 	ValuesIterator encoding.SeriesIterator
 }
@@ -76,12 +76,11 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 	segment := encoder.Discard()
 
 	blockStart := start.Truncate(blockSize)
-	blockEnd := blockStart.Add(blockSize)
 
 	reader := xio.NewSegmentReader(segment)
 
 	multiReader := encoding.NewMultiReaderIterator(iterAlloc, nil)
-	multiReader.Reset([]xio.SegmentReader{reader}, blockStart, blockEnd)
+	multiReader.Reset([]xio.SegmentReader{reader}, blockStart, blockSize)
 
 	orig := encoding.NewSeriesIterator(ident.StringID("foo"), ident.StringID("namespace"),
 		ident.NewTagSliceIterator(ident.Tags{}), start, end, []encoding.MultiReaderIterator{multiReader}, nil)
@@ -97,12 +96,12 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 		next := true
 		for next {
 			// we are at a block
-			l, start, end := perBlockSliceReaders.Current()
+			l, start, bs := perBlockSliceReaders.CurrentReaders()
 
 			var readers []xio.SegmentReader
 			for i := 0; i < l; i++ {
 				// reader to an unmerged (or already merged) block buffer
-				reader := perBlockSliceReaders.CurrentAt(i)
+				reader := perBlockSliceReaders.CurrentReaderAt(i)
 
 				// import to clone the reader as we need its position reset before
 				// we use the contents of it again
@@ -113,7 +112,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 			}
 
 			iter := encoding.NewMultiReaderIterator(iterAlloc, nil)
-			iter.Reset(readers, start, end)
+			iter.Reset(readers, start, bs)
 
 			inserted := false
 			for i := range series.Blocks {
@@ -125,9 +124,9 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 			}
 			if !inserted {
 				series.Blocks = append(series.Blocks, SeriesBlock{
-					Start:    start,
-					End:      end,
-					Replicas: []encoding.MultiReaderIterator{iter},
+					Start:     start,
+					BlockSize: bs,
+					Replicas:  []encoding.MultiReaderIterator{iter},
 				})
 			}
 
@@ -144,9 +143,11 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 			filterValuesStart = block.Start
 		}
 
+		end := block.Start.Add(block.BlockSize)
+
 		filterValuesEnd := orig.End()
-		if block.End.Before(filterValuesEnd) {
-			filterValuesEnd = block.End
+		if end.Before(filterValuesEnd) {
+			filterValuesEnd = end
 		}
 
 		valuesIter := encoding.NewSeriesIterator(orig.Namespace(), orig.ID(), orig.Tags(),

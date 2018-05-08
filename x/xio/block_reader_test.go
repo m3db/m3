@@ -32,16 +32,16 @@ import (
 )
 
 var (
-	start   = time.Now().Truncate(time.Minute)
-	end     = start.Add(time.Minute)
-	errTest = fmt.Errorf("err")
+	start     = time.Now().Truncate(time.Minute)
+	blockSize = time.Minute
+	errTest   = fmt.Errorf("err")
 )
 
 func buildBlock(t *testing.T) (BlockReader, *MockSegmentReader) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	reader := NewMockSegmentReader(ctrl)
-	return BlockReader{reader, start, end}, reader
+	return BlockReader{reader, start, blockSize}, reader
 }
 
 func TestCloneBlock(t *testing.T) {
@@ -50,8 +50,6 @@ func TestCloneBlock(t *testing.T) {
 
 	var p []byte
 	seg := ts.Segment{}
-	startReset := start.Add(time.Hour)
-	endReset := end.Add(time.Hour)
 
 	reader := NewMockSegmentReader(ctrl)
 	reader.EXPECT().Read(p).Return(0, errTest).Times(1)
@@ -66,7 +64,7 @@ func TestCloneBlock(t *testing.T) {
 	b := BlockReader{
 		SegmentReader: reader,
 		Start:         start,
-		End:           end,
+		BlockSize:     blockSize,
 	}
 
 	read, err := b.Read(p)
@@ -80,12 +78,15 @@ func TestCloneBlock(t *testing.T) {
 	b2, err := b.CloneBlock()
 	require.NoError(t, err)
 
-	b.ResetWindowed(seg, startReset, endReset)
+	startReset := start.Add(time.Hour)
+	blockSizeReset := time.Hour * 5
+
+	b.ResetWindowed(seg, startReset, blockSizeReset)
 	require.Equal(t, b.Start, startReset)
-	require.Equal(t, b.End, endReset)
+	require.Equal(t, b.BlockSize, blockSizeReset)
 
 	require.Equal(t, b2.Start, start)
-	require.Equal(t, b2.End, end)
+	require.Equal(t, b2.BlockSize, blockSize)
 
 	read, err = b2.Read(p)
 
@@ -96,7 +97,7 @@ func TestCloneBlock(t *testing.T) {
 func TestBlockReaderStartEnd(t *testing.T) {
 	br, _ := buildBlock(t)
 	assert.Equal(t, br.Start, start)
-	assert.Equal(t, br.End, end)
+	assert.Equal(t, br.BlockSize, blockSize)
 }
 
 func TestBlockReaderClone(t *testing.T) {
@@ -112,7 +113,7 @@ func TestBlockReaderClone(t *testing.T) {
 
 	require.Equal(t, r, sr)
 	require.Equal(t, br.Start, start)
-	require.Equal(t, br.End, end)
+	require.Equal(t, br.BlockSize, blockSize)
 }
 
 func TestBlockReaderRead(t *testing.T) {
@@ -162,10 +163,10 @@ func TestBlockReaderResetWindowed(t *testing.T) {
 	segment := ts.Segment{}
 	sr.EXPECT().Reset(segment).Times(1)
 	startReset := start.Add(time.Hour)
-	endReset := end.Add(time.Hour)
-	br.ResetWindowed(segment, startReset, endReset)
+	blockSizeReset := time.Hour * 5
+	br.ResetWindowed(segment, startReset, blockSizeReset)
 	require.Equal(t, br.Start, startReset)
-	require.Equal(t, br.End, endReset)
+	require.Equal(t, br.BlockSize, blockSizeReset)
 }
 
 func TestBlockIsEmpty(t *testing.T) {
@@ -176,7 +177,7 @@ func TestBlockIsEmpty(t *testing.T) {
 		Start: start,
 	}.IsEmpty())
 	assert.False(t, BlockReader{
-		End: end,
+		BlockSize: blockSize,
 	}.IsEmpty())
 
 	block, reader := buildBlock(t)
@@ -194,7 +195,7 @@ func TestBlockIsNotEmpty(t *testing.T) {
 		Start: start,
 	}.IsNotEmpty())
 	assert.True(t, BlockReader{
-		End: end,
+		BlockSize: blockSize,
 	}.IsNotEmpty())
 
 	block, reader := buildBlock(t)

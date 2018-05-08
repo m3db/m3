@@ -306,7 +306,6 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 			xio.BlockReader{
 				SegmentReader: enc.Stream(),
 				Start:         start,
-				End:           start,
 			},
 		}
 

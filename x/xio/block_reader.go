@@ -35,13 +35,13 @@ func (b BlockReader) CloneBlock() (BlockReader, error) {
 	return BlockReader{
 		SegmentReader: sr,
 		Start:         b.Start,
-		End:           b.End,
+		BlockSize:     b.BlockSize,
 	}, nil
 }
 
 // IsEmpty returns true for the empty block
 func (b BlockReader) IsEmpty() bool {
-	return b.Start.Equal(timeZero) && b.End.Equal(timeZero) && b.SegmentReader == nil
+	return b.SegmentReader == nil && b.Start.Equal(timeZero) && b.BlockSize == 0
 }
 
 // IsNotEmpty returns false for the empty block
@@ -49,9 +49,9 @@ func (b BlockReader) IsNotEmpty() bool {
 	return !b.IsEmpty()
 }
 
-// ResetWindowed resets the underlying reader window, as well as start and end times for the block
-func (b *BlockReader) ResetWindowed(segment ts.Segment, start, end time.Time) {
+// ResetWindowed resets the underlying reader window, as well as start time and blockSize for the block
+func (b *BlockReader) ResetWindowed(segment ts.Segment, start time.Time, blockSize time.Duration) {
 	b.Reset(segment)
 	b.Start = start
-	b.End = end
+	b.BlockSize = blockSize
 }

@@ -28,11 +28,11 @@ import (
 	"github.com/m3db/m3x/resource"
 )
 
-// BlockReader represents a block reader backed by a SegmentReader with start and end times
+// BlockReader represents a block reader backed by a SegmentReader with start time and block size
 type BlockReader struct {
 	SegmentReader
-	Start time.Time
-	End   time.Time
+	Start     time.Time
+	BlockSize time.Duration
 }
 
 // EmptyBlockReader represents the default block reader
@@ -70,11 +70,11 @@ type ReaderSliceOfSlicesIterator interface {
 	// Next moves to the next item
 	Next() bool
 
-	// Current returns the current length, start, and end time
-	Current() (length int, start, end time.Time)
+	// CurrentReaders returns the current length, start time, and block size
+	CurrentReaders() (length int, start time.Time, blockSize time.Duration)
 
-	// CurrentAt returns the current reader in the slice of readers at an index
-	CurrentAt(idx int) BlockReader
+	// CurrentReaderAt returns the current reader in the slice of readers at an index
+	CurrentReaderAt(idx int) BlockReader
 
 	// Close closes the iterator
 	Close()

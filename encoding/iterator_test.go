@@ -86,9 +86,9 @@ func (it *testIterator) Reset(r io.Reader) {
 }
 
 func (it *testIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator) {
-	l, _, _ := readers.Current()
+	l, _, _ := readers.CurrentReaders()
 	for i := 0; i < l; i++ {
-		r := readers.CurrentAt(i)
+		r := readers.CurrentReaderAt(i)
 		it.onReset(r)
 	}
 }
@@ -138,16 +138,16 @@ func (it *testMultiIterator) Close() {
 	it.closed = true
 }
 
-func (it *testMultiIterator) Reset(r []xio.SegmentReader, _, _ time.Time) {
+func (it *testMultiIterator) Reset(r []xio.SegmentReader, _ time.Time, _ time.Duration) {
 	for _, reader := range r {
 		it.onReset(reader)
 	}
 }
 
 func (it *testMultiIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator) {
-	l, _, _ := readers.Current()
+	l, _, _ := readers.CurrentReaders()
 	for i := 0; i < l; i++ {
-		r := readers.CurrentAt(i)
+		r := readers.CurrentReaderAt(i)
 		it.onReset(r)
 	}
 }
@@ -176,11 +176,11 @@ func (it *testReaderSliceOfSlicesIterator) Next() bool {
 	return true
 }
 
-func (it *testReaderSliceOfSlicesIterator) Current() (int, time.Time, time.Time) {
-	return len(it.blocks[it.arrayIdx()]), time.Time{}, time.Time{}
+func (it *testReaderSliceOfSlicesIterator) CurrentReaders() (int, time.Time, time.Duration) {
+	return len(it.blocks[it.arrayIdx()]), time.Time{}, 0
 }
 
-func (it *testReaderSliceOfSlicesIterator) CurrentAt(idx int) xio.BlockReader {
+func (it *testReaderSliceOfSlicesIterator) CurrentReaderAt(idx int) xio.BlockReader {
 	return it.blocks[it.arrayIdx()][idx]
 }
 

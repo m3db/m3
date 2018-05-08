@@ -52,7 +52,7 @@ func NewMultiReaderIterator(
 	pool MultiReaderIteratorPool,
 ) MultiReaderIterator {
 	it := &multiReaderIterator{pool: pool, iteratorAlloc: iteratorAlloc}
-	it.Reset(nil, time.Time{}, time.Time{})
+	it.Reset(nil, time.Time{}, 0)
 	return it
 }
 
@@ -106,10 +106,10 @@ func (it *multiReaderIterator) moveToNext() {
 	}
 
 	// Add all readers to current iterators heap
-	currentLen, _, _ := it.slicesIter.Current()
+	currentLen, _, _ := it.slicesIter.CurrentReaders()
 	for i := 0; i < currentLen; i++ {
 		var (
-			reader = it.slicesIter.CurrentAt(i)
+			reader = it.slicesIter.CurrentReaderAt(i)
 			iter   = it.iteratorAlloc(reader)
 		)
 		if iter.Next() {
@@ -159,12 +159,12 @@ func (it *multiReaderIterator) Readers() xio.ReaderSliceOfSlicesIterator {
 	return it.slicesIter
 }
 
-func (it *multiReaderIterator) Reset(blocks []xio.SegmentReader, start, end time.Time) {
+func (it *multiReaderIterator) Reset(blocks []xio.SegmentReader, start time.Time, blockSize time.Duration) {
 	it.singleSlicesIter.readers = blocks
 	it.singleSlicesIter.firstNext = true
 	it.singleSlicesIter.closed = false
 	it.singleSlicesIter.start = start
-	it.singleSlicesIter.end = end
+	it.singleSlicesIter.blockSize = blockSize
 	it.ResetSliceOfSlices(&it.singleSlicesIter)
 }
 
@@ -198,7 +198,7 @@ type singleSlicesOfSlicesIterator struct {
 	firstNext bool
 	closed    bool
 	start     time.Time
-	end       time.Time
+	blockSize time.Duration
 }
 
 func (it *singleSlicesOfSlicesIterator) Next() bool {
@@ -209,15 +209,15 @@ func (it *singleSlicesOfSlicesIterator) Next() bool {
 	return true
 }
 
-func (it *singleSlicesOfSlicesIterator) Current() (int, time.Time, time.Time) {
-	return len(it.readers), it.start, it.end
+func (it *singleSlicesOfSlicesIterator) CurrentReaders() (int, time.Time, time.Duration) {
+	return len(it.readers), it.start, it.blockSize
 }
 
-func (it *singleSlicesOfSlicesIterator) CurrentAt(idx int) xio.BlockReader {
+func (it *singleSlicesOfSlicesIterator) CurrentReaderAt(idx int) xio.BlockReader {
 	return xio.BlockReader{
 		SegmentReader: it.readers[idx],
 		Start:         it.start,
-		End:           it.end,
+		BlockSize:     it.blockSize,
 	}
 }
 

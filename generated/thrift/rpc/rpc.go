@@ -2317,12 +2317,12 @@ func (p *Segments) String() string {
 //  - Head
 //  - Tail
 //  - StartTime
-//  - EndTime
+//  - BlockSize
 type Segment struct {
 	Head      []byte `thrift:"head,1,required" db:"head" json:"head"`
 	Tail      []byte `thrift:"tail,2,required" db:"tail" json:"tail"`
 	StartTime *int64 `thrift:"startTime,3" db:"startTime" json:"startTime,omitempty"`
-	EndTime   *int64 `thrift:"endTime,4" db:"endTime" json:"endTime,omitempty"`
+	BlockSize *int64 `thrift:"blockSize,4" db:"blockSize" json:"blockSize,omitempty"`
 }
 
 func NewSegment() *Segment {
@@ -2346,20 +2346,20 @@ func (p *Segment) GetStartTime() int64 {
 	return *p.StartTime
 }
 
-var Segment_EndTime_DEFAULT int64
+var Segment_BlockSize_DEFAULT int64
 
-func (p *Segment) GetEndTime() int64 {
-	if !p.IsSetEndTime() {
-		return Segment_EndTime_DEFAULT
+func (p *Segment) GetBlockSize() int64 {
+	if !p.IsSetBlockSize() {
+		return Segment_BlockSize_DEFAULT
 	}
-	return *p.EndTime
+	return *p.BlockSize
 }
 func (p *Segment) IsSetStartTime() bool {
 	return p.StartTime != nil
 }
 
-func (p *Segment) IsSetEndTime() bool {
-	return p.EndTime != nil
+func (p *Segment) IsSetBlockSize() bool {
+	return p.BlockSize != nil
 }
 
 func (p *Segment) Read(iprot thrift.TProtocol) error {
@@ -2449,7 +2449,7 @@ func (p *Segment) ReadField4(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadI64(); err != nil {
 		return thrift.PrependError("error reading field 4: ", err)
 	} else {
-		p.EndTime = &v
+		p.BlockSize = &v
 	}
 	return nil
 }
@@ -2523,15 +2523,15 @@ func (p *Segment) writeField3(oprot thrift.TProtocol) (err error) {
 }
 
 func (p *Segment) writeField4(oprot thrift.TProtocol) (err error) {
-	if p.IsSetEndTime() {
-		if err := oprot.WriteFieldBegin("endTime", thrift.I64, 4); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:endTime: ", p), err)
+	if p.IsSetBlockSize() {
+		if err := oprot.WriteFieldBegin("blockSize", thrift.I64, 4); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:blockSize: ", p), err)
 		}
-		if err := oprot.WriteI64(int64(*p.EndTime)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.endTime (4) field write error: ", p), err)
+		if err := oprot.WriteI64(int64(*p.BlockSize)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.blockSize (4) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:endTime: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:blockSize: ", p), err)
 		}
 	}
 	return err

@@ -50,6 +50,7 @@ import (
 	 _ "github.com/m3db/m3db/storage/bootstrap/bootstrapper/peers"
 	 _ "github.com/m3db/m3db/storage/bootstrap/result"
 	 _ "github.com/m3db/m3db/storage/cluster"
+	 _ "github.com/m3db/m3db/storage/errors"
 	 _ "github.com/m3db/m3db/storage/index"
 	 _ "github.com/m3db/m3db/storage/index/convert"
 	 _ "github.com/m3db/m3db/storage/namespace"

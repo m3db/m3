@@ -56,7 +56,7 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 	it.idx++
 
 	// Extend block readers if not enough available
-	currLen, start, end := it.Current()
+	currLen, start, blockSize := it.CurrentReaders()
 	if len(it.blockReaders) < currLen {
 		diff := currLen - len(it.blockReaders)
 		for i := 0; i < diff; i++ {
@@ -65,7 +65,7 @@ func (it *readerSliceOfSlicesIterator) Next() bool {
 			br := xio.BlockReader{
 				SegmentReader: sr,
 				Start:         start,
-				End:           end,
+				BlockSize:     blockSize,
 			}
 			it.blockReaders = append(it.blockReaders, br)
 		}
@@ -89,7 +89,7 @@ func (it *readerSliceOfSlicesIterator) resetReader(
 	seg *rpc.Segment,
 ) {
 	rseg, err := r.Segment()
-	_, start, end := it.Current()
+	_, start, end := it.CurrentReaders()
 
 	if err != nil {
 		r.ResetWindowed(ts.Segment{}, start, end)
@@ -122,16 +122,16 @@ func (it *readerSliceOfSlicesIterator) currentLen() int {
 	return len(it.segments[it.idx].Unmerged)
 }
 
-func (it *readerSliceOfSlicesIterator) Current() (int, time.Time, time.Time) {
+func (it *readerSliceOfSlicesIterator) CurrentReaders() (int, time.Time, time.Duration) {
 	segments := it.segments[it.idx]
 	if segments.Merged != nil {
-		return 1, timeConvert(segments.Merged.StartTime), timeConvert(segments.Merged.EndTime)
+		return 1, timeConvert(segments.Merged.StartTime), durationConvert(segments.Merged.BlockSize)
 	}
 	unmerged := it.currentLen()
 	if unmerged == 0 {
-		return 0, timeZero, timeZero
+		return 0, timeZero, 0
 	}
-	return unmerged, timeConvert(segments.Unmerged[0].StartTime), timeConvert(segments.Unmerged[0].EndTime)
+	return unmerged, timeConvert(segments.Unmerged[0].StartTime), durationConvert(segments.Unmerged[0].BlockSize)
 }
 
 func timeConvert(ticks *int64) time.Time {
@@ -141,7 +141,14 @@ func timeConvert(ticks *int64) time.Time {
 	return xtime.FromNormalizedTime(*ticks, time.Nanosecond)
 }
 
-func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) xio.BlockReader {
+func durationConvert(duration *int64) time.Duration {
+	if duration == nil {
+		return 0
+	}
+	return xtime.FromNormalizedDuration(*duration, time.Nanosecond)
+}
+
+func (it *readerSliceOfSlicesIterator) CurrentReaderAt(idx int) xio.BlockReader {
 	if idx >= it.currentLen() {
 		return xio.EmptyBlockReader
 	}

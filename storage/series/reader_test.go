@@ -105,7 +105,7 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 		block := xio.BlockReader{
 			SegmentReader: reader,
 			Start:         start,
-			End:           start.Add(time.Duration(i+1) * ropts.BlockSize()),
+			BlockSize:     ropts.BlockSize() * time.Duration(i+1),
 		}
 
 		blockReaders = append(blockReaders, block)
@@ -140,7 +140,7 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 		assert.Equal(t, times[i], result.Start)
 		require.Equal(t, 1, len(result.Blocks))
 		br := result.Blocks[0]
-		assert.Equal(t, times[i].Add(ropts.BlockSize()), br.End)
+		assert.Equal(t, ropts.BlockSize()*time.Duration(i+1), br.BlockSize)
 		assert.Equal(t, blockReaders[i], br)
 	}
 }

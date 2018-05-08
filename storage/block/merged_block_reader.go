@@ -34,7 +34,7 @@ type dbMergedBlockReader struct {
 	sync.RWMutex
 	opts       Options
 	blockStart time.Time
-	blockEnd   time.Time
+	blockSize  time.Duration
 	streams    [2]mergeableStream
 	readers    [2]xio.SegmentReader
 	merged     xio.BlockReader
@@ -60,14 +60,14 @@ func (ms mergeableStream) clone() (mergeableStream, error) {
 
 func newDatabaseMergedBlockReader(
 	blockStart time.Time,
-	blockEnd time.Time,
+	blockSize time.Duration,
 	streamA, streamB mergeableStream,
 	opts Options,
 ) xio.BlockReader {
 	r := &dbMergedBlockReader{
 		opts:       opts,
 		blockStart: blockStart,
-		blockEnd:   blockEnd,
+		blockSize:  blockSize,
 	}
 	r.streams[0] = streamA
 	r.streams[1] = streamB
@@ -76,7 +76,7 @@ func newDatabaseMergedBlockReader(
 	return xio.BlockReader{
 		SegmentReader: r,
 		Start:         blockStart,
-		End:           blockEnd,
+		BlockSize:     blockSize,
 	}
 }
 
@@ -96,7 +96,7 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 	}
 
 	multiIter := r.opts.MultiReaderIteratorPool().Get()
-	multiIter.Reset(r.readers[:], r.blockStart, r.blockEnd)
+	multiIter.Reset(r.readers[:], r.blockStart, r.blockSize)
 	defer multiIter.Close()
 
 	r.encoder = r.opts.EncoderPool().Get()
@@ -131,7 +131,7 @@ func (r *dbMergedBlockReader) mergedReader() (xio.BlockReader, error) {
 	r.merged = xio.BlockReader{
 		SegmentReader: r.encoder.Stream(),
 		Start:         r.blockStart,
-		End:           r.blockEnd,
+		BlockSize:     r.blockSize,
 	}
 
 	return r.merged, nil
@@ -148,7 +148,7 @@ func (r *dbMergedBlockReader) Clone() (xio.SegmentReader, error) {
 	}
 	return newDatabaseMergedBlockReader(
 		r.blockStart,
-		r.blockEnd,
+		r.blockSize,
 		s0,
 		s1,
 		r.opts,
@@ -159,8 +159,8 @@ func (r *dbMergedBlockReader) Start() time.Time {
 	return r.blockStart
 }
 
-func (r *dbMergedBlockReader) End() time.Time {
-	return r.blockEnd
+func (r *dbMergedBlockReader) BlockSize() time.Duration {
+	return r.blockSize
 }
 
 func (r *dbMergedBlockReader) Read(b []byte) (int, error) {

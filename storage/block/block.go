@@ -310,7 +310,7 @@ func (b *dbBlock) stream(ctx context.Context) (xio.BlockReader, error) {
 		blockReader = xio.BlockReader{
 			SegmentReader: segmentReader,
 			Start:         start,
-			End:           start.Add(b.blockSize),
+			BlockSize:     b.blockSize,
 		}
 		blockReader.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
 		ctx.RegisterFinalizer(segmentReader)
@@ -328,8 +328,7 @@ func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentRead
 		return xio.EmptyBlockReader, err
 	}
 	start := b.startWithLock()
-	end := start.Add(b.blockSize)
-	mergedBlockReader := newDatabaseMergedBlockReader(start, end,
+	mergedBlockReader := newDatabaseMergedBlockReader(start, b.blockSize,
 		mergeableStream{stream: stream, finalize: false},       // Should have been marked for finalization by the caller
 		mergeableStream{stream: targetStream, finalize: false}, // Already marked for finalization by the Stream() call above
 		b.opts)

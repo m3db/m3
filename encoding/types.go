@@ -135,7 +135,7 @@ type MultiReaderIterator interface {
 	Iterator
 
 	// Reset resets the iterator to read from a slice of readers.
-	Reset(readers []xio.SegmentReader, start, end time.Time)
+	Reset(readers []xio.SegmentReader, start time.Time, blockSize time.Duration)
 
 	// Reset resets the iterator to read from a slice of slice readers.
 	ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator)

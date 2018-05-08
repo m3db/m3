@@ -88,6 +88,8 @@ type blockRetriever struct {
 	idPool     ident.Pool
 	nsMetadata namespace.Metadata
 
+	blockSize time.Duration
+
 	status                     blockRetrieverStatus
 	reqsByShardIdx             []*shardRetrieveRequests
 	seekerMgr                  DataFileSetSeekerManager
@@ -138,6 +140,9 @@ func (r *blockRetriever) Open(ns namespace.Metadata) error {
 	r.nsMetadata = ns
 	r.status = blockRetrieverOpen
 	r.seekerMgr = seekerMgr
+
+	// Cache blockSize result
+	r.blockSize = ns.Options().RetentionOptions().BlockSize()
 
 	for i := 0; i < r.opts.FetchConcurrency(); i++ {
 		go r.fetchLoop(seekerMgr)
@@ -357,7 +362,7 @@ func (r *blockRetriever) Stream(
 	// the lifecycle of the async request.
 	req.id = r.idPool.Clone(id)
 	req.start = startTime
-	req.end = startTime.Add(r.nsMetadata.Options().RetentionOptions().BlockSize())
+	req.blockSize = r.blockSize
 
 	req.onRetrieve = onRetrieve
 	req.resultWg.Add(1)
@@ -410,7 +415,7 @@ func (req *retrieveRequest) toBlock() xio.BlockReader {
 	return xio.BlockReader{
 		SegmentReader: req,
 		Start:         req.start,
-		End:           req.end,
+		BlockSize:     req.blockSize,
 	}
 }
 
@@ -469,6 +474,8 @@ func (r *blockRetriever) Close() error {
 	}
 	r.nsMetadata = nil
 	r.status = blockRetrieverClosed
+
+	r.blockSize = 0
 	r.Unlock()
 
 	close(r.fetchLoopsShouldShutdownCh)
@@ -501,7 +508,7 @@ type retrieveRequest struct {
 
 	id         ident.ID
 	start      time.Time
-	end        time.Time
+	blockSize  time.Duration
 	onRetrieve block.OnRetrieveBlock
 
 	indexEntry IndexEntry
@@ -543,10 +550,10 @@ func (req *retrieveRequest) Reset(segment ts.Segment) {
 	req.resultWg.Done()
 }
 
-func (req *retrieveRequest) ResetWindowed(segment ts.Segment, start, end time.Time) {
+func (req *retrieveRequest) ResetWindowed(segment ts.Segment, start time.Time, blockSize time.Duration) {
 	req.Reset(segment)
 	req.start = start
-	req.end = end
+	req.blockSize = blockSize
 }
 
 func (req *retrieveRequest) SegmentReader() (xio.SegmentReader, error) {
@@ -565,8 +572,8 @@ func (req *retrieveRequest) Start() time.Time {
 	return req.start
 }
 
-func (req *retrieveRequest) End() time.Time {
-	return req.end
+func (req *retrieveRequest) BlockSize() time.Duration {
+	return req.blockSize
 }
 
 func (req *retrieveRequest) Read(b []byte) (int, error) {
@@ -597,7 +604,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.shard = 0
 	req.id = nil
 	req.start = time.Time{}
-	req.end = time.Time{}
+	req.blockSize = 0
 	req.onRetrieve = nil
 	req.indexEntry = IndexEntry{}
 	req.reader = nil
