@@ -27,8 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3ninx/idx"
-
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
@@ -38,6 +36,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3ninx/idx"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/assert"
@@ -158,7 +157,7 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	end := now.Add(blockSize)
 	queryOpts := index.QueryOptions{StartInclusive: start, EndExclusive: end}
 
-	// Match all new_*r* from namespace 1
+	// Match all new_*r*
 	regexpQuery, err := idx.NewRegexpQuery([]byte("city"), []byte("^new_.*r.*$"))
 	require.NoError(t, err)
 	iter, exhausitive, err := session.FetchTaggedIDs(ns1.ID(),
@@ -172,7 +171,7 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 		expected:    []generate.Series{fooSeries, barSeries},
 	})
 
-	// Match all *e*e* from namespace 2
+	// Match all *e*e*
 	regexpQuery, err = idx.NewRegexpQuery([]byte("city"), []byte("^.*e.*e.*$"))
 	require.NoError(t, err)
 	iter, exhausitive, err = session.FetchTaggedIDs(ns1.ID(),

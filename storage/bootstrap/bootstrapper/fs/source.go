@@ -321,7 +321,7 @@ func (s *fileSystemSource) handleErrorsAndUnfulfilled(
 		// as they are additive and get merged together with results from other
 		// bootstrappers by just appending the result (unlike data bootstrap
 		// results that when merged replace the block with the current block).
-		// It would also be difficult to remove only series that was added to the
+		// It would also be difficult to remove only series that were added to the
 		// index block as results from data files can be subsets of the index block
 		// and there's no way to definitively delete the entry we added as a result
 		// of just this data file failing.
@@ -575,15 +575,14 @@ func (s *fileSystemSource) readNextEntryAndIndex(
 	}
 
 	d, err := convert.FromMetricIter(id, tagsIter)
+	release()
 	if err != nil {
-		release()
 		return err
 	}
 
 	runResult.Lock()
-	exists, err = segment.ContainsID(idBytes)
+	exists, err = segment.ContainsID(d.ID)
 	// ID and tags no longer required below
-	release()
 	if err != nil {
 		runResult.Unlock()
 		return err
