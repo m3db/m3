@@ -293,7 +293,6 @@ func Run(runOpts RunOptions) {
 	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
 
-	// TODO: Propoagate tag encoder / decoder pools to FS/Commitlog options
 	// Apply pooling options
 	opts = withEncodingAndPoolingOptions(logger, opts, cfg.PoolingPolicy)
 
