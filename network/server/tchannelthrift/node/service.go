@@ -153,23 +153,6 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 	wrapperPool := xpool.NewCheckedBytesWrapperPool(wrapperPoolOpts)
 	wrapperPool.Init()
 
-	tagEncoderPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(tagEncoderPoolSize).
-		SetInstrumentOptions(iopts.SetMetricsScope(
-			scope.SubScope("tag-encoder-pool")))
-	tagEncoderPool := serialize.NewTagEncoderPool(
-		serialize.NewTagEncoderOptions(), tagEncoderPoolOpts)
-	tagEncoderPool.Init()
-
-	tagDecoderPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(tagDecoderPoolSize).
-		SetInstrumentOptions(iopts.SetMetricsScope(
-			scope.SubScope("tag-decoder-pool")))
-	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions().
-			SetCheckedBytesWrapperPool(wrapperPool), tagDecoderPoolOpts)
-	tagDecoderPool.Init()
-
 	segmentPool := newSegmentsArrayPool(segmentsArrayPoolOpts{
 		Capacity:    initSegmentArrayPoolLength,
 		MaxCapacity: maxSegmentArrayPooledLength,
@@ -188,8 +171,8 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 		metrics: newServiceMetrics(scope, iopts.MetricsSamplingRate()),
 		pools: pools{
 			checkedBytesWrapper:  wrapperPool,
-			tagEncoder:           tagEncoderPool,
-			tagDecoder:           tagDecoderPool,
+			tagEncoder:           opts.TagEncoderPool(),
+			tagDecoder:           opts.TagDecoderPool(),
 			id:                   db.Options().IdentifierPool(),
 			segmentsArray:        segmentPool,
 			blockMetadata:        opts.BlockMetadataPool(),

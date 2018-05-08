@@ -281,6 +281,7 @@ func Run(runOpts RunOptions) {
 	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
 
+	// TODO: Propoagate tag encoder / decoder pools to FS/Commitlog options
 	// Apply pooling options
 	opts = withEncodingAndPoolingOptions(logger, opts, cfg.PoolingPolicy)
 
@@ -441,12 +442,20 @@ func Run(runOpts RunOptions) {
 	blocksMetadataSlicePool := tchannelthrift.NewBlocksMetadataSlicePool(
 		capacityPoolOptions(policy.BlocksMetadataSlicePool, scope.SubScope("blocks-metadata-slice-pool")),
 		policy.BlocksMetadataSlicePool.Capacity)
+	tagEncoderPool := serialize.NewTagEncoderPool(
+		serialize.NewTagEncoderOptions(),
+		poolOptions(policy.TagEncoderPool, scope.SubScope("tag-encoder-pool")))
+	tagDecoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(),
+		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
 
 	ttopts := tchannelthrift.NewOptions().
 		SetBlockMetadataPool(blockMetadataPool).
 		SetBlockMetadataSlicePool(blockMetadataSlicePool).
 		SetBlocksMetadataPool(blocksMetadataPool).
-		SetBlocksMetadataSlicePool(blocksMetadataSlicePool)
+		SetBlocksMetadataSlicePool(blocksMetadataSlicePool).
+		SetTagEncoderPool(tagEncoderPool).
+		SetTagDecoderPool(tagDecoderPool)
 
 	db, err := cluster.NewDatabase(hostID, envCfg.TopologyInitializer, opts)
 	if err != nil {
@@ -972,13 +981,6 @@ func withEncodingAndPoolingOptions(
 		SetFetchBlockMetadataResultsPool(opts.FetchBlockMetadataResultsPool())
 	seriesPool := series.NewDatabaseSeriesPool(
 		poolOptions(policy.SeriesPool, scope.SubScope("series-pool")))
-
-	tagEncoderPool := serialize.NewTagEncoderPool(
-		serialize.NewTagEncoderOptions(),
-		poolOptions(policy.TagEncoderPool, scope.SubScope("tag-encoder-pool")))
-	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(),
-		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
 
 	opts = opts.
 		SetSeriesOptions(seriesOpts).

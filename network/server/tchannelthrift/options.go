@@ -20,6 +20,11 @@
 
 package tchannelthrift
 
+import (
+	"github.com/m3db/m3db/serialize"
+	"github.com/m3db/m3x/pool"
+)
+
 type options struct {
 	blockMetadataPool        BlockMetadataPool
 	blockMetadataV2Pool      BlockMetadataV2Pool
@@ -27,10 +32,22 @@ type options struct {
 	blockMetadataV2SlicePool BlockMetadataV2SlicePool
 	blocksMetadataPool       BlocksMetadataPool
 	blocksMetadataSlicePool  BlocksMetadataSlicePool
+	tagEncoderPool           serialize.TagEncoderPool
+	tagDecoderPool           serialize.TagDecoderPool
 }
 
 // NewOptions creates new options
 func NewOptions() Options {
+	tagEncoderPool := serialize.NewTagEncoderPool(
+		serialize.NewTagEncoderOptions(), pool.NewObjectPoolOptions(),
+	)
+	tagDecoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(), pool.NewObjectPoolOptions(),
+	)
+
+	tagEncoderPool.Init()
+	tagDecoderPool.Init()
+
 	return &options{
 		blockMetadataPool:        NewBlockMetadataPool(nil),
 		blockMetadataV2Pool:      NewBlockMetadataV2Pool(nil),
@@ -38,6 +55,8 @@ func NewOptions() Options {
 		blockMetadataV2SlicePool: NewBlockMetadataV2SlicePool(nil, 0),
 		blocksMetadataPool:       NewBlocksMetadataPool(nil),
 		blocksMetadataSlicePool:  NewBlocksMetadataSlicePool(nil, 0),
+		tagEncoderPool:           tagEncoderPool,
+		tagDecoderPool:           tagDecoderPool,
 	}
 }
 
@@ -99,4 +118,24 @@ func (o *options) SetBlocksMetadataSlicePool(value BlocksMetadataSlicePool) Opti
 
 func (o *options) BlocksMetadataSlicePool() BlocksMetadataSlicePool {
 	return o.blocksMetadataSlicePool
+}
+
+func (o *options) SetTagEncoderPool(value serialize.TagEncoderPool) Options {
+	opts := *o
+	opts.tagEncoderPool = value
+	return &opts
+}
+
+func (o *options) TagEncoderPool() serialize.TagEncoderPool {
+	return o.tagEncoderPool
+}
+
+func (o *options) SetTagDecoderPool(value serialize.TagDecoderPool) Options {
+	opts := *o
+	opts.tagDecoderPool = value
+	return &opts
+}
+
+func (o *options) TagDecoderPool() serialize.TagDecoderPool {
+	return o.tagDecoderPool
 }
