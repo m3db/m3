@@ -25,6 +25,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
@@ -52,10 +53,19 @@ func (e testEntry) Tags() ident.Tags {
 	if e.tags == nil {
 		return nil
 	}
-	var tags ident.Tags
-	for key, value := range e.tags {
-		tags = append(tags, ident.StringTag(key, value))
+
+	// Return in sorted order for deterministic order
+	var keys []string
+	for key := range e.tags {
+		keys = append(keys, key)
 	}
+	sort.Strings(keys)
+
+	var tags ident.Tags
+	for _, key := range keys {
+		tags = append(tags, ident.StringTag(key, e.tags[key]))
+	}
+
 	return tags
 }
 
