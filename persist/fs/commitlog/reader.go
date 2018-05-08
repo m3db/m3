@@ -420,10 +420,10 @@ func (r *reader) decodeAndHandleMetadata(
 
 	var (
 		tags        ident.Tags
-		tagBytesLen = len(decoded.Tags)
+		tagBytesLen = len(decoded.EncodedTags)
 	)
 	if tagBytesLen != 0 {
-		tagDecoderCheckedBytes.Reset(decoded.Tags)
+		tagDecoderCheckedBytes.Reset(decoded.EncodedTags)
 		tagDecoder.Reset(tagDecoderCheckedBytes)
 
 		tags = make(ident.Tags, 0, tagDecoder.Remaining())

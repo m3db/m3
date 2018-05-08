@@ -143,7 +143,7 @@ func testExpectedResultForLogMetadata(t *testing.T, logMetadata schema.LogMetada
 		logMetadata.ID,
 		logMetadata.Namespace,
 		uint64(logMetadata.Shard),
-		logMetadata.Tags,
+		logMetadata.EncodedTags,
 	}
 }
 

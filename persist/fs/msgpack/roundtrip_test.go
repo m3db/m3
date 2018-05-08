@@ -79,10 +79,10 @@ var (
 	}
 
 	testLogMetadata = schema.LogMetadata{
-		ID:        []byte("testLogMetadata"),
-		Namespace: []byte("testNamespace"),
-		Shard:     123,
-		Tags:      []byte("testLogMetadataTags"),
+		ID:          []byte("testLogMetadata"),
+		Namespace:   []byte("testNamespace"),
+		Shard:       123,
+		EncodedTags: []byte("testLogMetadataTags"),
 	}
 )
 

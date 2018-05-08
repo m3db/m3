@@ -89,8 +89,8 @@ type LogEntry struct {
 
 // LogMetadata stores metadata information about a commit log
 type LogMetadata struct {
-	ID        []byte
-	Namespace []byte
-	Shard     uint32
-	Tags      []byte
+	ID          []byte
+	Namespace   []byte
+	Shard       uint32
+	EncodedTags []byte
 }

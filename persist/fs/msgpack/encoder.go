@@ -260,7 +260,7 @@ func (enc *Encoder) encodeLogMetadata(metadata schema.LogMetadata) {
 	enc.encodeBytesFn(metadata.ID)
 	enc.encodeBytesFn(metadata.Namespace)
 	enc.encodeVarUintFn(uint64(metadata.Shard))
-	enc.encodeBytesFn(metadata.Tags)
+	enc.encodeBytesFn(metadata.EncodedTags)
 }
 
 func (enc *Encoder) encodeRootObject(version int, objType objectType) {

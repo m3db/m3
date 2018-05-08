@@ -203,7 +203,7 @@ func (w *writer) Write(
 		metadata.ID = series.ID.Data().Bytes()
 		metadata.Namespace = series.Namespace.Data().Bytes()
 		metadata.Shard = series.Shard
-		metadata.Tags = encodedTags
+		metadata.EncodedTags = encodedTags
 		w.metadataEncoder.Reset()
 		if err := w.metadataEncoder.EncodeLogMetadata(metadata); err != nil {
 			return err
