@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
@@ -43,11 +42,6 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-type newDataFileSetReaderFn func(
-	bytesPool pool.CheckedBytesPool,
-	opts fs.Options,
-) (fs.DataFileSetReader, error)
-
 type runType int
 
 const (
@@ -55,17 +49,10 @@ const (
 	bootstrapIndexRunType
 )
 
-type runResult struct {
-	data  result.DataBootstrapResult
-	index result.IndexBootstrapResult
-}
-
-func newRunResult() *runResult {
-	return &runResult{
-		data:  result.NewDataBootstrapResult(),
-		index: result.NewIndexBootstrapResult(),
-	}
-}
+type newDataFileSetReaderFn func(
+	bytesPool pool.CheckedBytesPool,
+	opts fs.Options,
+) (fs.DataFileSetReader, error)
 
 type fileSystemSource struct {
 	opts        Options
@@ -263,13 +250,11 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	readersCh <-chan shardReaders,
 ) *runResult {
 	var (
-		wg                sync.WaitGroup
-		resultLock        = &sync.RWMutex{}
-		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 		runResult         = newRunResult()
 		resultOpts        = s.opts.ResultOptions()
+		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
+		wg                sync.WaitGroup
 	)
-
 	if retriever != nil {
 		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(retriever)
 	}
@@ -278,7 +263,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 		shardReaders := shardReaders
 		wg.Add(1)
 		s.processors.Go(func() {
-			s.loadShardReadersDataIntoShardResult(ns, run, runResult, resultLock,
+			s.loadShardReadersDataIntoShardResult(ns, run, runResult,
 				resultOpts, shardRetrieverMgr, shardReaders, readerPool)
 			wg.Done()
 		})
@@ -300,7 +285,6 @@ func (s *fileSystemSource) bootstrapFromReaders(
 // it looks at any remaining (unfulfilled) ranges and makes sure they're marked
 // as unfulfilled
 func (s *fileSystemSource) handleErrorsAndUnfulfilled(
-	resultLock *sync.RWMutex,
 	runResult *runResult,
 	shard uint32,
 	remainingRanges xtime.Ranges,
@@ -313,12 +297,16 @@ func (s *fileSystemSource) handleErrorsAndUnfulfilled(
 	// the current implementation saves the extra overhead of merging temporary map with the
 	// final result.
 	if len(timesWithErrors) > 0 {
+		timesWithErrorsString := make([]string, len(timesWithErrors))
+		for i := range timesWithErrors {
+			timesWithErrorsString[i] = timesWithErrors[i].String()
+		}
 		s.log.WithFields(
 			xlog.NewField("shard", shard),
-			xlog.NewField("timesWithErrors", timesWithErrors),
+			xlog.NewField("timesWithErrors", timesWithErrorsString),
 		).Info("deleting entries from results for times with errors")
 
-		resultLock.Lock()
+		runResult.Lock()
 		// Delete all affected times from the data results.
 		shardResult, ok := runResult.data.ShardResults()[shard]
 		if ok {
@@ -337,11 +325,11 @@ func (s *fileSystemSource) handleErrorsAndUnfulfilled(
 		// index block as results from data files can be subsets of the index block
 		// and there's no way to definitively delete the entry we added as a result
 		// of just this data file failing.
-		resultLock.Unlock()
+		runResult.Unlock()
 	}
 
 	if !remainingRanges.IsEmpty() {
-		resultLock.Lock()
+		runResult.Lock()
 		for _, unfulfilled := range []result.ShardTimeRanges{
 			runResult.data.Unfulfilled(),
 			runResult.index.Unfulfilled(),
@@ -354,7 +342,7 @@ func (s *fileSystemSource) handleErrorsAndUnfulfilled(
 			}
 			unfulfilled[shard] = shardUnfulfilled
 		}
-		resultLock.Unlock()
+		runResult.Unlock()
 	}
 }
 
@@ -373,8 +361,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	ns namespace.Metadata,
 	run runType,
 	runResult *runResult,
-	resultLock *sync.RWMutex,
-	bopts result.Options,
+	ropts result.Options,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
 	shardReaders shardReaders,
 	readerPool *readerPool,
@@ -382,17 +369,16 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	var (
 		timesWithErrors   []time.Time
 		shardResult       result.ShardResult
-		shardSeries       *result.Map
 		shardRetriever    block.DatabaseShardBlockRetriever
-		blockPool         = bopts.DatabaseBlockOptions().DatabaseBlockPool()
-		seriesCachePolicy = bopts.SeriesCachePolicy()
+		blockPool         = ropts.DatabaseBlockOptions().DatabaseBlockPool()
+		seriesCachePolicy = ropts.SeriesCachePolicy()
 		indexBlockSegment segment.MutableSegment
 	)
 
-	shard, tr, readers, err := shardReaders.shard, shardReaders.tr, shardReaders.readers, shardReaders.err
+	sr := shardReaders
+	shard, tr, readers, err := sr.shard, sr.tr, sr.readers, sr.err
 	if err != nil {
-		s.handleErrorsAndUnfulfilled(resultLock, runResult, shard,
-			tr, timesWithErrors)
+		s.handleErrorsAndUnfulfilled(runResult, shard, tr, timesWithErrors)
 		return
 	}
 
@@ -401,8 +387,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	}
 	if seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
 		s.log.Errorf("shard retriever missing for shard: %d", shard)
-		s.handleErrorsAndUnfulfilled(resultLock, runResult, shard,
-			tr, timesWithErrors)
+		s.handleErrorsAndUnfulfilled(runResult, shard, tr, timesWithErrors)
 		return
 	}
 
@@ -410,209 +395,61 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		var (
 			timeRange = r.Range()
 			start     = timeRange.Start
-			hasError  bool
+			err       error
 		)
 		switch run {
 		case bootstrapDataRunType:
-			if shardResult == nil {
-				resultLock.RLock()
-				results := runResult.data.ShardResults()
-				var exists bool
-				shardResult, exists = results[shard]
-				resultLock.RUnlock()
-
-				if !exists {
-					resultLock.Lock()
-					shardResult, exists = results[shard]
-					if !exists {
-						// NB(r): Wait until we have a reader to initialize the shard result
-						// to be able to somewhat estimate the size of it.
-						shardResult = result.NewShardResult(r.Entries(), bopts)
-						results[shard] = shardResult
-					}
-					resultLock.Unlock()
-				}
-
-				shardSeries = shardResult.AllSeries()
-			}
+			capacity := r.Entries()
+			shardResult = runResult.getOrAddDataShardResult(shard, capacity, ropts)
 		case bootstrapIndexRunType:
-			resultLock.Lock()
-			results := runResult.index.IndexResults()
-			indexBlockSegment, err = results.GetOrAddSegment(start,
-				ns.Options().IndexOptions(), bopts)
-			resultLock.Unlock()
-			if err != nil {
-				s.log.Errorf("unable to create index segment: %v", err)
-				hasError = true
-			}
+			indexBlockSegment, err = runResult.getOrAddIndexSegment(start, ns, ropts)
 		default:
 			// Unreachable unless an internal method calls with a run type casted from int
 			panic(fmt.Errorf("invalid run type: %d", run))
 		}
 
-		var numEntries int
-		if !hasError {
-			numEntries = r.Entries()
-		}
-		for i := 0; i < numEntries; i++ {
-			if run == bootstrapIndexRunType {
-				// If performing index run, then simply read the metadata and add to segment
-				id, tagsIter, _, _, err := r.ReadMetadata()
-				if err != nil {
-					s.log.Errorf("unable read metadata: %v", err)
-					hasError = true
-					break
-				}
-
-				idBytes := id.Bytes()
-
-				resultLock.RLock()
-				exists, err := indexBlockSegment.ContainsID(idBytes)
-				resultLock.RUnlock()
-
-				if err == nil && !exists {
-					resultLock.Lock()
-					exists, err = indexBlockSegment.ContainsID(idBytes)
-					if err == nil && !exists {
-						var d doc.Document
-						d, err = convert.FromMetricIter(id, tagsIter)
-						if err == nil {
-							_, err = indexBlockSegment.Insert(d)
-						}
-					}
-					resultLock.Unlock()
-				}
-
-				// Finalize the ID and tags
-				id.Finalize()
-				tagsIter.Close()
-
-				if err != nil {
-					s.log.Errorf("unable to add doc to segment: %v", err)
-					hasError = true
-				}
-				continue
-			}
-
-			var (
-				seriesBlock = blockPool.Get()
-				id          ident.ID
-				tagsIter    ident.TagIterator
-				data        checked.Bytes
-				length      int
-				checksum    uint32
-				err         error
-			)
-			switch seriesCachePolicy {
-			case series.CacheAll:
-				id, tagsIter, data, checksum, err = r.Read()
-			case series.CacheAllMetadata:
-				id, tagsIter, length, checksum, err = r.ReadMetadata()
+		numEntries := r.Entries()
+		for i := 0; err == nil && i < numEntries; i++ {
+			switch run {
+			case bootstrapDataRunType:
+				err = s.readNextEntryAndRecordBlock(r, runResult, start, shardResult,
+					shardRetriever, blockPool, seriesCachePolicy)
+			case bootstrapIndexRunType:
+				// We can just read the entry and index if performing an index run
+				err = s.readNextEntryAndIndex(r, runResult, indexBlockSegment)
 			default:
-				s.log.WithFields(
-					xlog.NewField("shard", shard),
-					xlog.NewField("seriesCachePolicy", seriesCachePolicy.String()),
-				).Error("invalid series cache policy: expected CacheAll or CacheAllMetadata")
-				hasError = true
+				// Unreachable unless an internal method calls with a run type casted from int
+				panic(fmt.Errorf("invalid run type: %d", run))
 			}
-			if hasError {
-				break
-			}
-
-			if err != nil {
-				s.log.WithFields(
-					xlog.NewField("shard", shard),
-					xlog.NewField("error", err.Error()),
-				).Error("reading data file failed")
-				hasError = true
-				break
-			}
-
-			var (
-				entry  result.DatabaseSeriesBlocks
-				tags   ident.Tags
-				exists bool
-			)
-			resultLock.RLock()
-			entry, exists = shardSeries.Get(id)
-			resultLock.RUnlock()
-
-			if exists {
-				// NB(r): In the case the series is already inserted
-				// we can avoid holding onto this ID and use the already
-				// allocated ID.
-				id.Finalize()
-				id = entry.ID
-				tags = entry.Tags
-			} else {
-				tags, err = s.tagsFromTagsIter(tagsIter)
-				if err != nil {
-					s.log.Errorf("unable to decode tags: %v", err)
-					hasError = true
-				}
-			}
-			tagsIter.Close()
-			if hasError {
-				break
-			}
-
-			switch seriesCachePolicy {
-			case series.CacheAll:
-				seg := ts.NewSegment(data, nil, ts.FinalizeHead)
-				seriesBlock.Reset(start, seg)
-			case series.CacheAllMetadata:
-				metadata := block.RetrievableBlockMetadata{
-					ID:       id,
-					Length:   length,
-					Checksum: checksum,
-				}
-				seriesBlock.ResetRetrievable(start, shardRetriever, metadata)
-			default:
-				s.log.WithFields(
-					xlog.NewField("shard", shard),
-					xlog.NewField("seriesCachePolicy", seriesCachePolicy.String()),
-				).Error("invalid series cache policy: expected CacheAll or CacheAllMetadata")
-				hasError = true
-			}
-			if hasError {
-				break
-			}
-
-			resultLock.Lock()
-			if exists {
-				entry.Blocks.AddBlock(seriesBlock)
-			} else {
-				shardResult.AddBlock(id, tags, seriesBlock)
-			}
-			resultLock.Unlock()
 		}
 
-		if run == bootstrapDataRunType && !hasError {
+		if err == nil {
 			var validateErr error
-			switch seriesCachePolicy {
-			case series.CacheAll:
-				validateErr = r.Validate()
-			case series.CacheAllMetadata:
+			switch run {
+			case bootstrapDataRunType:
+				switch seriesCachePolicy {
+				case series.CacheAll:
+					validateErr = r.Validate()
+				case series.CacheAllMetadata:
+					validateErr = r.ValidateMetadata()
+				default:
+					err = fmt.Errorf("invalid series cache policy: %s", seriesCachePolicy.String())
+				}
+			case bootstrapIndexRunType:
 				validateErr = r.ValidateMetadata()
 			default:
-				s.log.WithFields(
-					xlog.NewField("shard", shard),
-					xlog.NewField("seriesCachePolicy", seriesCachePolicy.String()),
-				).Error("invalid series cache policy: expected CacheAll or CacheAllMetadata")
-				hasError = true
+				// Unreachable unless an internal method calls with a run type casted from int
+				panic(fmt.Errorf("invalid run type: %d", run))
 			}
 			if validateErr != nil {
-				s.log.WithFields(
-					xlog.NewField("shard", shard),
-					xlog.NewField("error", validateErr.Error()),
-				).Error("data validation failed")
-				hasError = true
+				err = fmt.Errorf("data validation failed: %v", validateErr)
 			}
 		}
 
-		if !hasError {
+		if err == nil {
 			tr = tr.RemoveRange(timeRange)
 		} else {
+			s.log.Errorf("%v", err)
 			timesWithErrors = append(timesWithErrors, timeRange.Start)
 		}
 	}
@@ -623,8 +460,142 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 	}
 
-	s.handleErrorsAndUnfulfilled(resultLock, runResult, shard,
-		tr, timesWithErrors)
+	s.handleErrorsAndUnfulfilled(runResult, shard, tr, timesWithErrors)
+}
+
+func (s *fileSystemSource) readNextEntryAndRecordBlock(
+	r fs.DataFileSetReader,
+	runResult *runResult,
+	blockStart time.Time,
+	shardResult result.ShardResult,
+	shardRetriever block.DatabaseShardBlockRetriever,
+	blockPool block.DatabaseBlockPool,
+	seriesCachePolicy series.CachePolicy,
+) error {
+	var (
+		seriesBlock = blockPool.Get()
+		id          ident.ID
+		tagsIter    ident.TagIterator
+		data        checked.Bytes
+		length      int
+		checksum    uint32
+		err         error
+	)
+	switch seriesCachePolicy {
+	case series.CacheAll:
+		id, tagsIter, data, checksum, err = r.Read()
+	case series.CacheAllMetadata:
+		id, tagsIter, length, checksum, err = r.ReadMetadata()
+	default:
+		err = fmt.Errorf("invalid series cache policy: %s", seriesCachePolicy.String())
+	}
+	if err != nil {
+		return fmt.Errorf("error reading data file: %v", err)
+	}
+
+	var (
+		entry  result.DatabaseSeriesBlocks
+		tags   ident.Tags
+		exists bool
+	)
+	runResult.RLock()
+	entry, exists = shardResult.AllSeries().Get(id)
+	runResult.RUnlock()
+
+	if exists {
+		// NB(r): In the case the series is already inserted
+		// we can avoid holding onto this ID and use the already
+		// allocated ID.
+		id.Finalize()
+		id = entry.ID
+		tags = entry.Tags
+	} else {
+		tags, err = s.tagsFromTagsIter(tagsIter)
+		if err != nil {
+			return fmt.Errorf("unable to decode tags: %v", err)
+		}
+	}
+	tagsIter.Close()
+
+	switch seriesCachePolicy {
+	case series.CacheAll:
+		seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+		seriesBlock.Reset(blockStart, seg)
+	case series.CacheAllMetadata:
+		metadata := block.RetrievableBlockMetadata{
+			ID:       id,
+			Length:   length,
+			Checksum: checksum,
+		}
+		seriesBlock.ResetRetrievable(blockStart, shardRetriever, metadata)
+	default:
+		return fmt.Errorf("invalid series cache policy: %s", seriesCachePolicy.String())
+	}
+
+	runResult.Lock()
+	if exists {
+		entry.Blocks.AddBlock(seriesBlock)
+	} else {
+		shardResult.AddBlock(id, tags, seriesBlock)
+	}
+	runResult.Unlock()
+	return nil
+}
+
+func (s *fileSystemSource) readNextEntryAndIndex(
+	r fs.DataFileSetReader,
+	runResult *runResult,
+	segment segment.MutableSegment,
+) error {
+	// If performing index run, then simply read the metadata and add to segment
+	id, tagsIter, _, _, err := r.ReadMetadata()
+	if err != nil {
+		return err
+	}
+
+	// NB(r): Avoiding defer in the hot path here
+	release := func() {
+		// Finalize the ID and tags
+		id.Finalize()
+		tagsIter.Close()
+	}
+
+	idBytes := id.Bytes()
+
+	runResult.RLock()
+	exists, err := segment.ContainsID(idBytes)
+	runResult.RUnlock()
+	if err != nil {
+		release()
+		return err
+	}
+	if exists {
+		release()
+		return nil
+	}
+
+	d, err := convert.FromMetricIter(id, tagsIter)
+	if err != nil {
+		release()
+		return err
+	}
+
+	runResult.Lock()
+	exists, err = segment.ContainsID(idBytes)
+	// ID and tags no longer required below
+	release()
+	if err != nil {
+		runResult.Unlock()
+		return err
+	}
+	if exists {
+		runResult.Unlock()
+		return nil
+	}
+	_, err = segment.Insert(d)
+	runResult.Unlock()
+
+	return err
 }
 
 func (s *fileSystemSource) read(
@@ -804,4 +775,55 @@ func (p *readerPool) put(r fs.DataFileSetReader) {
 	p.Lock()
 	p.values = append(p.values, r)
 	p.Unlock()
+}
+
+type runResult struct {
+	sync.RWMutex
+	data  result.DataBootstrapResult
+	index result.IndexBootstrapResult
+}
+
+func newRunResult() *runResult {
+	return &runResult{
+		data:  result.NewDataBootstrapResult(),
+		index: result.NewIndexBootstrapResult(),
+	}
+}
+
+func (r *runResult) getOrAddDataShardResult(
+	shard uint32,
+	capacity int,
+	ropts result.Options,
+) result.ShardResult {
+	// Only called once per shard so ok to acquire write lock immediately
+	r.Lock()
+	defer r.Unlock()
+
+	dataResults := r.data.ShardResults()
+	shardResult, exists := dataResults[shard]
+	if exists {
+		return shardResult
+	}
+
+	// NB(r): Wait until we have a reader to initialize the shard result
+	// to be able to somewhat estimate the size of it.
+	shardResult = result.NewShardResult(capacity, ropts)
+	dataResults[shard] = shardResult
+
+	return shardResult
+}
+
+func (r *runResult) getOrAddIndexSegment(
+	start time.Time,
+	ns namespace.Metadata,
+	ropts result.Options,
+) (segment.MutableSegment, error) {
+	// Only called once per shard so ok to acquire write lock immediately
+	r.Lock()
+	defer r.Unlock()
+
+	indexResults := r.index.IndexResults()
+	indexBlockSegment, err := indexResults.GetOrAddSegment(start,
+		ns.Options().IndexOptions(), ropts)
+	return indexBlockSegment, err
 }

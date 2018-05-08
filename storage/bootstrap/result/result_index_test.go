@@ -21,17 +21,56 @@
 package result
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/index/segment"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIndexResultAddMergesExistingSegments(t *testing.T) {
+func TestIndexResultGetOrAddSegment(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	created := segment.NewMockMutableSegment(ctrl)
+	allocated := 0
+	opts := NewOptions().
+		SetIndexMutableSegmentAllocator(func() (segment.MutableSegment, error) {
+			allocated++
+			return created, nil
+		})
+
+	now := time.Now()
+	blockSize := time.Hour
+	idxOpts := namespace.NewIndexOptions().SetBlockSize(blockSize)
+	aligned := now.Truncate(blockSize)
+
+	results := IndexResults{}
+	seg, err := results.GetOrAddSegment(aligned.Add(time.Minute), idxOpts, opts)
+	require.NoError(t, err)
+	require.True(t, seg == created)
+	require.Equal(t, 1, len(results))
+
+	seg, err = results.GetOrAddSegment(aligned.Add(2*time.Minute), idxOpts, opts)
+	require.NoError(t, err)
+	require.True(t, seg == created)
+	require.Equal(t, 1, len(results))
+
+	seg, err = results.GetOrAddSegment(aligned.Add(blockSize), idxOpts, opts)
+	require.NoError(t, err)
+	require.True(t, seg == created)
+	require.Equal(t, 2, len(results))
+
+	// Total allocs should've only been two
+	require.Equal(t, 2, allocated)
+}
+
+func TestIndexResultMergeMergesExistingSegments(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -48,14 +87,16 @@ func TestIndexResultAddMergesExistingSegments(t *testing.T) {
 
 	times := []time.Time{start, start.Add(testBlockSize)}
 
-	r := NewIndexBootstrapResult()
-	r.Add(NewIndexBlock(times[0], []segment.Segment{segments[0]}), nil)
-	r.Add(NewIndexBlock(times[0], []segment.Segment{segments[1]}), nil)
-	r.Add(NewIndexBlock(times[1], []segment.Segment{segments[2], segments[3]}), nil)
+	first := NewIndexBootstrapResult()
+	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[0]}), nil)
+	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[1]}), nil)
+	first.Add(NewIndexBlock(times[1], []segment.Segment{segments[2], segments[3]}), nil)
 
-	merged := NewIndexBootstrapResult()
-	merged.Add(NewIndexBlock(times[0], []segment.Segment{segments[4]}), nil)
-	merged.Add(NewIndexBlock(times[1], []segment.Segment{segments[5]}), nil)
+	second := NewIndexBootstrapResult()
+	second.Add(NewIndexBlock(times[0], []segment.Segment{segments[4]}), nil)
+	second.Add(NewIndexBlock(times[1], []segment.Segment{segments[5]}), nil)
+
+	merged := MergedIndexBootstrapResult(first, second)
 
 	expected := NewIndexBootstrapResult()
 	expected.Add(NewIndexBlock(times[0], []segment.Segment{segments[0], segments[1], segments[4]}), nil)
@@ -66,23 +107,18 @@ func TestIndexResultAddMergesExistingSegments(t *testing.T) {
 
 func segmentsInResultsSame(a, b IndexResults) bool {
 	if len(a) != len(b) {
-		// ``
-		fmt.Printf("not same len\n")
 		return false
 	}
 	for t, block := range a {
 		otherBlock, ok := b[t]
 		if !ok {
-			fmt.Printf("no block at time %v\n", time.Unix(0, int64(t)).String())
 			return false
 		}
 		if len(block.Segments()) != len(otherBlock.Segments()) {
-			fmt.Printf("block segment len not match at %v\n", time.Unix(0, int64(t)).String())
 			return false
 		}
 		for i, s := range block.Segments() {
 			if s != otherBlock.Segments()[i] {
-				fmt.Printf("block segment not match at %v idx %d\n", time.Unix(0, int64(t)).String(), i)
 				return false
 			}
 		}
