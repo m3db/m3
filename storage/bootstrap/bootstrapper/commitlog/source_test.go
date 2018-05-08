@@ -455,7 +455,6 @@ func createExpectedShardResult(
 	for _, v := range values {
 		shardResult, ok := expected[v.s.Shard]
 		if !ok {
-			fmt.Println("Adding series for Shard: ", v.s.Shard)
 			shardResult = result.NewShardResult(0, bopts)
 			expected[v.s.Shard] = shardResult
 		}
