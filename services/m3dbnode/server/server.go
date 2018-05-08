@@ -445,9 +445,11 @@ func Run(runOpts RunOptions) {
 	tagEncoderPool := serialize.NewTagEncoderPool(
 		serialize.NewTagEncoderOptions(),
 		poolOptions(policy.TagEncoderPool, scope.SubScope("tag-encoder-pool")))
+	tagEncoderPool.Init()
 	tagDecoderPool := serialize.NewTagDecoderPool(
 		serialize.NewTagDecoderOptions(),
 		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
+	tagDecoderPool.Init()
 
 	ttopts := tchannelthrift.NewOptions().
 		SetBlockMetadataPool(blockMetadataPool).
