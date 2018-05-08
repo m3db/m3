@@ -47,6 +47,7 @@ const (
 )
 
 var (
+	errIndexBlockSizePositive                       = errors.New("index block size must positive")
 	errIndexBlockSizeTooLarge                       = errors.New("index block size needs to be <= namespace retention period")
 	errIndexBlockSizeMustBeAMultipleOfDataBlockSize = errors.New("index block size must be a multiple of data block size")
 )
@@ -88,6 +89,9 @@ func (o *options) Validate() error {
 		dataBlockSize  = o.retentionOpts.BlockSize()
 		indexBlockSize = o.indexOpts.BlockSize()
 	)
+	if indexBlockSize <= 0 {
+		return errIndexBlockSizePositive
+	}
 	if retention < indexBlockSize {
 		return errIndexBlockSizeTooLarge
 	}
