@@ -757,15 +757,26 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 
 	wg.Wait()
 
-	// Counter, tag this with namespace
-	unfulfilled := int64(len(bootstrapResult.DataResult.Unfulfilled()))
-	n.metrics.unfulfilled.Inc(unfulfilled)
-	if unfulfilled > 0 {
-		str := bootstrapResult.DataResult.Unfulfilled().SummaryString()
-		msgFmt := "bootstrap for namespace %s completed with unfulfilled ranges: %s"
-		multiErr = multiErr.Add(fmt.Errorf(msgFmt, n.id.String(), str))
-		n.log.Errorf(msgFmt, n.id.String(), str)
+	if n.reverseIndex != nil {
+		err := n.reverseIndex.Bootstrap(bootstrapResult.IndexResult.IndexResults())
+		multiErr = multiErr.Add(err)
 	}
+
+	markAnyUnfulfilled := func(label string, unfulfilled result.ShardTimeRanges) {
+		shardsUnfulfilled := int64(len(unfulfilled))
+		n.metrics.unfulfilled.Inc(shardsUnfulfilled)
+		if shardsUnfulfilled > 0 {
+			str := unfulfilled.SummaryString()
+			err := fmt.Errorf("bootstrap completed with unfulfilled ranges: %s", str)
+			multiErr = multiErr.Add(err)
+			n.log.WithFields(
+				xlog.NewField("namespace", n.id.String()),
+				xlog.NewField("bootstrap-type", label),
+			).Errorf(err.Error())
+		}
+	}
+	markAnyUnfulfilled("data", bootstrapResult.DataResult.Unfulfilled())
+	markAnyUnfulfilled("index", bootstrapResult.IndexResult.Unfulfilled())
 
 	err = multiErr.FinalError()
 	n.metrics.bootstrap.ReportSuccessOrError(err, n.nowFn().Sub(callStart))

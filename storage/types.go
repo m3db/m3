@@ -41,7 +41,6 @@ import (
 	"github.com/m3db/m3db/x/xcounter"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -447,7 +446,7 @@ type namespaceIndex interface {
 
 	// Bootstrap bootstraps the index the provided segments.
 	Bootstrap(
-		segmentsByBlockStart map[xtime.UnixNano][]segment.Segment,
+		bootstrapResults result.IndexResults,
 	) error
 
 	// Tick performs internal house keeping in the index, including block rotation,

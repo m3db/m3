@@ -69,7 +69,8 @@ func Block(conf BlockConfig) SeriesBlock {
 func BlocksByStart(confs []BlockConfig) SeriesBlocksByStart {
 	seriesMaps := make(map[xtime.UnixNano]SeriesBlock)
 	for _, conf := range confs {
-		seriesMaps[xtime.ToUnixNano(conf.Start)] = Block(conf)
+		key := xtime.ToUnixNano(conf.Start)
+		seriesMaps[key] = append(seriesMaps[key], Block(conf)...)
 	}
 	return seriesMaps
 }
