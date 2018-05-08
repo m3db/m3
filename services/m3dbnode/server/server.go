@@ -51,6 +51,7 @@ import (
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
 	m3dbruntime "github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/services/m3dbnode/config"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
@@ -971,11 +972,22 @@ func withEncodingAndPoolingOptions(
 		SetFetchBlockMetadataResultsPool(opts.FetchBlockMetadataResultsPool())
 	seriesPool := series.NewDatabaseSeriesPool(
 		poolOptions(policy.SeriesPool, scope.SubScope("series-pool")))
+
+	tagEncoderPool := serialize.NewTagEncoderPool(
+		serialize.NewTagEncoderOptions(),
+		poolOptions(policy.TagEncoderPool, scope.SubScope("tag-encoder-pool")))
+	tagDecoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(),
+		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
+
 	opts = opts.
 		SetSeriesOptions(seriesOpts).
 		SetDatabaseSeriesPool(seriesPool)
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
-		SetBytesPool(bytesPool))
+		SetBytesPool(bytesPool).
+		SetIdentifierPool(identifierPool).
+		SetTagEncoderPool(tagEncoderPool).
+		SetTagDecoderPool(tagDecoderPool))
 
 	// options related to the indexing sub-system
 	tagArrPool := index.NewTagArrayPool(index.TagArrayPoolOpts{
