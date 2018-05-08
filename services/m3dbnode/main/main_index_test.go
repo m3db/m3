@@ -303,9 +303,10 @@ client:
 
 gcPercentage: 100
 
-writeNewSeriesAsync: false
-writeNewSeriesLimitPerSecond: 1048576
-writeNewSeriesBackoffDuration: 2ms
+insert:
+    writeNewSeriesAsync: false
+    writeNewSeriesLimitPerSecond: 1048576
+    writeNewSeriesBackoffDuration: 2ms
 
 bootstrap:
     bootstrappers:

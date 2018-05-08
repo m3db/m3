@@ -185,8 +185,8 @@ func Run(runOpts RunOptions) {
 			SetLimitEnabled(true).
 			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbps).
 			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEvery)).
-		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
-		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
+		SetWriteNewSeriesAsync(cfg.Insert.WriteNewSeriesAsync).
+		SetWriteNewSeriesBackoffDuration(cfg.Insert.WriteNewSeriesBackoffDuration)
 	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
 		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
 	}
@@ -194,7 +194,7 @@ func Run(runOpts RunOptions) {
 	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
 	indexOpts := opts.IndexOptions()
 	insertMode := index.InsertSync
-	if cfg.WriteNewSeriesAsync {
+	if cfg.Insert.WriteNewSeriesAsync {
 		insertMode = index.InsertAsync
 	}
 	opts = opts.SetIndexOptions(
@@ -518,7 +518,7 @@ func Run(runOpts RunOptions) {
 
 		// Only set the write new series limit after bootstrapping
 		kvWatchNewSeriesLimitPerShard(envCfg.KVStore, logger, topo,
-			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
+			runtimeOptsMgr, cfg.Insert.WriteNewSeriesLimitPerSecond)
 	}()
 
 	// Handle interrupt
