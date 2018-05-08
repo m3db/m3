@@ -85,18 +85,10 @@ var (
 	}
 )
 
-func testEncoder(t *testing.T) *Encoder {
-	return NewEncoder()
-}
-
-func testDecoder(t *testing.T, opts DecodingOptions) *Decoder {
-	return NewDecoder(opts)
-}
-
 func TestIndexInfoRoundtrip(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 	require.NoError(t, enc.EncodeIndexInfo(testIndexInfo))
 	dec.Reset(NewDecoderStream(enc.Bytes()))
@@ -108,21 +100,22 @@ func TestIndexInfoRoundtrip(t *testing.T) {
 // Make sure the new decoding code can handle the old file format
 func TestIndexInfoRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	var (
-		enc = newEncoder(newEncoderOptions{encodeLegacyV1IndexInfo: true})
-		dec = testDecoder(t, nil)
+		opts = legacyEncodingOptions{encodeLegacyV1IndexInfo: true}
+		enc  = newEncoder(opts)
+		dec  = newDecoder(opts, nil)
 	)
 
 	// Set the default values on the fields that did not exist in V1
 	// and then restore them at the end of the test - This is required
 	// because the new decoder won't try and read the new fields from
 	// the old file format
-	oldSnapshotTime := testIndexInfo.SnapshotTime
-	oldFileType := testIndexInfo.FileType
+	currSnapshotTime := testIndexInfo.SnapshotTime
+	currFileType := testIndexInfo.FileType
 	testIndexInfo.SnapshotTime = 0
 	testIndexInfo.FileType = 0
 	defer func() {
-		testIndexInfo.SnapshotTime = oldSnapshotTime
-		testIndexInfo.FileType = oldFileType
+		testIndexInfo.SnapshotTime = currSnapshotTime
+		testIndexInfo.FileType = currFileType
 	}()
 
 	enc.EncodeIndexInfo(testIndexInfo)
@@ -135,23 +128,28 @@ func TestIndexInfoRoundTripBackwardsCompatibilityV1(t *testing.T) {
 // Make sure the old decoder code can handle the new file format
 func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
 	var (
-		enc = newEncoder(newEncoderOptions{encodeLegacyV1IndexInfo: false})
-		dec = testDecoder(t, nil)
+		opts = legacyEncodingOptions{decodeLegacyV1IndexInfo: true}
+		enc  = newEncoder(opts)
+		dec  = newDecoder(opts, nil)
 	)
 
 	// Set the default values on the fields that did not exist in V1
 	// and then restore them at the end of the test - This is required
 	// because the old decoder won't read the new fields
-	oldSnapshotTime := testIndexInfo.SnapshotTime
-	oldFileType := testIndexInfo.FileType
+	currSnapshotTime := testIndexInfo.SnapshotTime
+	currFileType := testIndexInfo.FileType
+
+	enc.EncodeIndexInfo(testIndexInfo)
+
+	// Make sure to zero them before we compare, but after we have
+	// encoded the data
 	testIndexInfo.SnapshotTime = 0
 	testIndexInfo.FileType = 0
 	defer func() {
-		testIndexInfo.SnapshotTime = oldSnapshotTime
-		testIndexInfo.FileType = oldFileType
+		testIndexInfo.SnapshotTime = currSnapshotTime
+		testIndexInfo.FileType = currFileType
 	}()
 
-	enc.EncodeIndexInfo(testIndexInfo)
 	dec.Reset(NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexInfo()
 	require.NoError(t, err)
@@ -160,8 +158,8 @@ func TestIndexInfoRoundTripForwardsCompatibilityV2(t *testing.T) {
 
 func TestIndexEntryRoundtrip(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
 	dec.Reset(NewDecoderStream(enc.Bytes()))
@@ -173,18 +171,19 @@ func TestIndexEntryRoundtrip(t *testing.T) {
 // Make sure the new decoding code can handle the old file format
 func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	var (
-		enc = newEncoder(newEncoderOptions{encodeLegacyV1IndexEntry: true})
-		dec = testDecoder(t, nil)
+		opts = legacyEncodingOptions{encodeLegacyV1IndexEntry: true}
+		enc  = newEncoder(opts)
+		dec  = newDecoder(opts, nil)
 	)
 
 	// Set the default values on the fields that did not exist in V1
 	// and then restore them at the end of the test - This is required
 	// because the new decoder won't try and read the new fields from
 	// the old file format
-	oldEncodedTags := testIndexEntry.EncodedTags
+	currEncodedTags := testIndexEntry.EncodedTags
 	testIndexEntry.EncodedTags = nil
 	defer func() {
-		testIndexEntry.EncodedTags = oldEncodedTags
+		testIndexEntry.EncodedTags = currEncodedTags
 	}()
 
 	enc.EncodeIndexEntry(testIndexEntry)
@@ -197,20 +196,25 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 // Make sure the old decoder code can handle the new file format
 func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 	var (
-		enc = newEncoder(newEncoderOptions{encodeLegacyV1IndexEntry: false})
-		dec = testDecoder(t, nil)
+		opts = legacyEncodingOptions{decodeLegacyV1IndexEntry: true}
+		enc  = newEncoder(opts)
+		dec  = newDecoder(opts, nil)
 	)
 
 	// Set the default values on the fields that did not exist in V1
 	// and then restore them at the end of the test - This is required
 	// because the old decoder won't read the new fields
-	oldEncodedTags := testIndexEntry.EncodedTags
-	testIndexEntry.EncodedTags = nil
-	defer func() {
-		testIndexEntry.EncodedTags = oldEncodedTags
-	}()
+	currEncodedTags := testIndexEntry.EncodedTags
 
 	enc.EncodeIndexEntry(testIndexEntry)
+
+	// Make sure to zero them before we compare, but after we have
+	// encoded the data
+	testIndexEntry.EncodedTags = nil
+	defer func() {
+		testIndexEntry.EncodedTags = currEncodedTags
+	}()
+
 	dec.Reset(NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry()
 	require.NoError(t, err)
@@ -219,8 +223,8 @@ func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 
 func TestIndexSummaryRoundtrip(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 	require.NoError(t, enc.EncodeIndexSummary(testIndexSummary))
 	dec.Reset(NewDecoderStream(enc.Bytes()))
@@ -231,8 +235,8 @@ func TestIndexSummaryRoundtrip(t *testing.T) {
 
 func TestLogInfoRoundtrip(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 	require.NoError(t, enc.EncodeLogInfo(testLogInfo))
 	dec.Reset(NewDecoderStream(enc.Bytes()))
@@ -243,8 +247,8 @@ func TestLogInfoRoundtrip(t *testing.T) {
 
 func TestLogEntryRoundtrip(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 	require.NoError(t, enc.EncodeLogEntry(testLogEntry))
 	dec.Reset(NewDecoderStream(enc.Bytes()))
@@ -279,8 +283,8 @@ func BenchmarkLogEntryDecoder(b *testing.B) {
 
 func TestLogEntryRoundtripUniqueIndexAndRemaining(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 	require.NoError(t, enc.EncodeLogEntry(testLogEntry))
 	dec.Reset(NewDecoderStream(enc.Bytes()))
@@ -296,8 +300,8 @@ func TestLogEntryRoundtripUniqueIndexAndRemaining(t *testing.T) {
 
 func TestLogMetadataRoundtrip(t *testing.T) {
 	var (
-		enc = testEncoder(t)
-		dec = testDecoder(t, nil)
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
 	require.NoError(t, enc.EncodeLogMetadata(testLogMetadata))
 	dec.Reset(NewDecoderStream(enc.Bytes()))
@@ -308,8 +312,8 @@ func TestLogMetadataRoundtrip(t *testing.T) {
 
 func TestMultiTypeRoundtripStress(t *testing.T) {
 	var (
-		enc    = testEncoder(t)
-		dec    = testDecoder(t, nil)
+		enc    = NewEncoder()
+		dec    = NewDecoder(nil)
 		iter   = 10000
 		res    interface{}
 		err    error

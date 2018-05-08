@@ -51,10 +51,16 @@ type Decoder struct {
 	dec               *msgpack.Decoder
 	err               error
 	allocDecodedBytes bool
+
+	legacy legacyEncodingOptions
 }
 
 // NewDecoder creates a new decoder
 func NewDecoder(opts DecodingOptions) *Decoder {
+	return newDecoder(defaultlegacyEncodingOptions, opts)
+}
+
+func newDecoder(legacy legacyEncodingOptions, opts DecodingOptions) *Decoder {
 	if opts == nil {
 		opts = NewDecodingOptions()
 	}
@@ -63,6 +69,7 @@ func NewDecoder(opts DecodingOptions) *Decoder {
 		allocDecodedBytes: opts.AllocDecodedBytes(),
 		reader:            reader,
 		dec:               msgpack.NewDecoder(reader),
+		legacy:            legacy,
 	}
 }
 
@@ -161,7 +168,7 @@ func (dec *Decoder) DecodeLogEntryUniqueIndex() (DecodeLogEntryRemainingToken, u
 	}
 
 	_, numFieldsToSkip1 := dec.decodeRootObject(logEntryVersion, logEntryType)
-	numFieldsToSkip2, _, ok := dec.checkNumFieldsFor(logEntryType)
+	numFieldsToSkip2, _, ok := dec.checkNumFieldsFor(logEntryType, checkNumFieldsOptions{})
 	if !ok {
 		return emptyLogEntryRemainingToken, 0, errorUnableToDetermineNumFieldsToSkip
 	}
@@ -217,7 +224,14 @@ func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 }
 
 func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
-	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexInfoType)
+	var opts checkNumFieldsOptions
+	if dec.legacy.decodeLegacyV1IndexInfo {
+		// v1 had 6 fields
+		opts.override = true
+		opts.numExpectedMinFields = 6
+		opts.numExpectedCurrFields = 6
+	}
+	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexInfoType, opts)
 	if !ok {
 		return emptyIndexInfo
 	}
@@ -230,21 +244,20 @@ func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.Summaries = dec.decodeIndexSummariesInfo()
 	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
 
-	if actual < 8 {
+	if dec.legacy.decodeLegacyV1IndexInfo || actual < 8 {
+		dec.skip(numFieldsToSkip)
 		return indexInfo
 	}
+
 	indexInfo.SnapshotTime = dec.decodeVarint()
 	indexInfo.FileType = persist.FileSetType(dec.decodeVarint())
 
 	dec.skip(numFieldsToSkip)
-	if dec.err != nil {
-		return emptyIndexInfo
-	}
 	return indexInfo
 }
 
 func (dec *Decoder) decodeIndexSummariesInfo() schema.IndexSummariesInfo {
-	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(indexSummariesInfoType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(indexSummariesInfoType, checkNumFieldsOptions{})
 	if !ok {
 		return emptyIndexSummariesInfo
 	}
@@ -258,7 +271,7 @@ func (dec *Decoder) decodeIndexSummariesInfo() schema.IndexSummariesInfo {
 }
 
 func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
-	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(indexBloomFilterInfoType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(indexBloomFilterInfoType, checkNumFieldsOptions{})
 	if !ok {
 		return emptyIndexBloomFilterInfo
 	}
@@ -273,7 +286,14 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 }
 
 func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
-	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexEntryType)
+	var opts checkNumFieldsOptions
+	if dec.legacy.decodeLegacyV1IndexInfo {
+		// v1 had 5 fields
+		opts.override = true
+		opts.numExpectedMinFields = 5
+		opts.numExpectedCurrFields = 5
+	}
+	numFieldsToSkip, actual, ok := dec.checkNumFieldsFor(indexEntryType, opts)
 	if !ok {
 		return emptyIndexEntry
 	}
@@ -285,20 +305,19 @@ func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 	indexEntry.Offset = dec.decodeVarint()
 	indexEntry.Checksum = dec.decodeVarint()
 
-	if actual < 6 {
+	if dec.legacy.decodeLegacyV1IndexEntry || actual < 6 {
+		dec.skip(numFieldsToSkip)
 		return indexEntry
 	}
+
 	indexEntry.EncodedTags, _, _ = dec.decodeBytes()
 
 	dec.skip(numFieldsToSkip)
-	if dec.err != nil {
-		return emptyIndexEntry
-	}
 	return indexEntry
 }
 
 func (dec *Decoder) decodeIndexSummary() (schema.IndexSummary, IndexSummaryToken) {
-	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(indexSummaryType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(indexSummaryType, checkNumFieldsOptions{})
 	if !ok {
 		return emptyIndexSummary, emptyIndexSummaryToken
 	}
@@ -326,7 +345,7 @@ func (dec *Decoder) decodeIndexSummary() (schema.IndexSummary, IndexSummaryToken
 }
 
 func (dec *Decoder) decodeLogInfo() schema.LogInfo {
-	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(logInfoType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(logInfoType, checkNumFieldsOptions{})
 	if !ok {
 		return emptyLogInfo
 	}
@@ -342,7 +361,7 @@ func (dec *Decoder) decodeLogInfo() schema.LogInfo {
 }
 
 func (dec *Decoder) decodeLogEntry() schema.LogEntry {
-	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(logEntryType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(logEntryType, checkNumFieldsOptions{})
 	if !ok {
 		return emptyLogEntry
 	}
@@ -362,7 +381,7 @@ func (dec *Decoder) decodeLogEntry() schema.LogEntry {
 }
 
 func (dec *Decoder) decodeLogMetadata() schema.LogMetadata {
-	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(logMetadataType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(logMetadataType, checkNumFieldsOptions{})
 	if !ok {
 		return emptyLogMetadata
 	}
@@ -382,7 +401,7 @@ func (dec *Decoder) decodeRootObject(expectedVersion int, expectedType objectTyp
 	if dec.err != nil {
 		return 0, 0
 	}
-	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(rootObjectType)
+	numFieldsToSkip, _, ok := dec.checkNumFieldsFor(rootObjectType, checkNumFieldsOptions{})
 	if !ok {
 		return 0, 0
 	}
@@ -410,12 +429,25 @@ func (dec *Decoder) checkVersion(expected int) int {
 	return version
 }
 
-func (dec *Decoder) checkNumFieldsFor(objType objectType) (numToSkip int, actual int, ok bool) {
+type checkNumFieldsOptions struct {
+	override              bool
+	numExpectedMinFields  int
+	numExpectedCurrFields int
+}
+
+func (dec *Decoder) checkNumFieldsFor(
+	objType objectType,
+	opts checkNumFieldsOptions,
+) (numToSkip int, actual int, ok bool) {
 	actual = dec.decodeNumObjectFields()
 	if dec.err != nil {
 		return 0, 0, false
 	}
 	min, curr := numFieldsForType(objType)
+	if opts.override {
+		min = opts.numExpectedMinFields
+		curr = opts.numExpectedCurrFields
+	}
 	if min > actual {
 		dec.err = fmt.Errorf("number of fields mismatch: expected minimum of %d actual %d", min, actual)
 		return 0, 0, false

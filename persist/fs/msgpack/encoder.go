@@ -50,24 +50,29 @@ type Encoder struct {
 	encodeBytesFn              encodeBytesFn
 	encodeArrayLenFn           encodeArrayLenFn
 
+	legacy legacyEncodingOptions
+}
+
+type legacyEncodingOptions struct {
 	encodeLegacyV1IndexInfo  bool
 	encodeLegacyV1IndexEntry bool
+	decodeLegacyV1IndexInfo  bool
+	decodeLegacyV1IndexEntry bool
+}
+
+var defaultlegacyEncodingOptions = legacyEncodingOptions{
+	encodeLegacyV1IndexInfo:  false,
+	encodeLegacyV1IndexEntry: false,
+	decodeLegacyV1IndexInfo:  false,
+	decodeLegacyV1IndexEntry: false,
 }
 
 // NewEncoder creates a new encoder
 func NewEncoder() *Encoder {
-	return newEncoder(newEncoderOptions{
-		encodeLegacyV1IndexInfo:  false,
-		encodeLegacyV1IndexEntry: false,
-	})
+	return newEncoder(defaultlegacyEncodingOptions)
 }
 
-type newEncoderOptions struct {
-	encodeLegacyV1IndexInfo  bool
-	encodeLegacyV1IndexEntry bool
-}
-
-func newEncoder(opts newEncoderOptions) *Encoder {
+func newEncoder(legacy legacyEncodingOptions) *Encoder {
 	buf := bytes.NewBuffer(nil)
 	enc := &Encoder{
 		buf: buf,
@@ -83,8 +88,7 @@ func newEncoder(opts newEncoderOptions) *Encoder {
 	enc.encodeArrayLenFn = enc.encodeArrayLen
 
 	// Used primarily for testing
-	enc.encodeLegacyV1IndexInfo = opts.encodeLegacyV1IndexInfo
-	enc.encodeLegacyV1IndexEntry = opts.encodeLegacyV1IndexEntry
+	enc.legacy = legacy
 
 	return enc
 }
@@ -104,7 +108,7 @@ func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 		return enc.err
 	}
 	enc.encodeRootObject(indexInfoVersion, indexInfoType)
-	if enc.encodeLegacyV1IndexInfo {
+	if enc.legacy.encodeLegacyV1IndexInfo {
 		enc.encodeIndexInfoV1(info)
 	} else {
 		enc.encodeIndexInfoV2(info)
@@ -118,7 +122,7 @@ func (enc *Encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 		return enc.err
 	}
 	enc.encodeRootObject(indexEntryVersion, indexEntryType)
-	if enc.encodeLegacyV1IndexEntry {
+	if enc.legacy.encodeLegacyV1IndexEntry {
 		enc.encodeIndexEntryV1(entry)
 	} else {
 		enc.encodeIndexEntryV2(entry)

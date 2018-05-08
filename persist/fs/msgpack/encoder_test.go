@@ -37,7 +37,7 @@ var (
 )
 
 func testCapturingEncoder(t *testing.T) (*Encoder, *[]interface{}) {
-	encoder := testEncoder(t)
+	encoder := NewEncoder()
 
 	var result []interface{}
 	encoder.encodeVarintFn = func(value int64) {
