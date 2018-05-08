@@ -34,6 +34,7 @@ import (
 	bfs "github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index"
 )
 
 var (
@@ -97,7 +98,8 @@ func (bsc BootstrapConfiguration) New(
 	rsOpts := result.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
-		SetSeriesCachePolicy(opts.SeriesCachePolicy())
+		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
+		SetIndexMutableSegmentAllocator(index.NewDefaultMutableSegmentAllocator(opts.IndexOptions()))
 
 	fsOpts := opts.CommitLogOptions().FilesystemOptions()
 
@@ -113,7 +115,8 @@ func (bsc BootstrapConfiguration) New(
 				SetResultOptions(rsOpts).
 				SetFilesystemOptions(fsOpts).
 				SetNumProcessors(bsc.fsNumProcessors()).
-				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager())
+				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
+				SetIdentifierPool(opts.IdentifierPool())
 			bs = bfs.NewFileSystemBootstrapperProvider(fsbopts, bs)
 		case commitlog.CommitLogBootstrapperName:
 			copts := commitlog.NewOptions().

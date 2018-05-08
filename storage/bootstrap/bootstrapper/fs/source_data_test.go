@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"sort"
 	"testing"
 	"time"
 
@@ -51,6 +52,7 @@ var (
 	testNs1ID             = ident.StringID("testNs")
 	testStart             = time.Now()
 	testBlockSize         = 2 * time.Hour
+	testIndexBlockSize    = 4 * time.Hour
 	testFileMode          = os.FileMode(0666)
 	testDirMode           = os.ModeDir | os.FileMode(0755)
 	testWriterBufferSize  = 10
@@ -74,7 +76,11 @@ func newTestFsOptions(filePathPrefix string) fs.Options {
 
 func testNsMetadata(t *testing.T) namespace.Metadata {
 	ropts := retention.NewOptions().SetBlockSize(testBlockSize)
-	md, err := namespace.NewMetadata(testNs1ID, namespace.NewOptions().SetRetentionOptions(ropts))
+	md, err := namespace.NewMetadata(testNs1ID, namespace.NewOptions().
+		SetRetentionOptions(ropts).
+		SetIndexOptions(namespace.NewIndexOptions().
+			SetEnabled(true).
+			SetBlockSize(testIndexBlockSize)))
 	require.NoError(t, err)
 	return md
 }
@@ -125,19 +131,34 @@ func writeGoodFiles(t *testing.T, dir string, namespace ident.ID, shard uint32) 
 	inputs := []struct {
 		start time.Time
 		id    string
+		tags  map[string]string
 		data  []byte
 	}{
-		{testStart, "foo", []byte{1, 2, 3}},
-		{testStart.Add(10 * time.Hour), "bar", []byte{4, 5, 6}},
-		{testStart.Add(20 * time.Hour), "baz", []byte{7, 8, 9}},
+		{testStart, "foo", map[string]string{"n": "0"}, []byte{1, 2, 3}},
+		{testStart.Add(10 * time.Hour), "bar", map[string]string{"n": "1"}, []byte{4, 5, 6}},
+		{testStart.Add(20 * time.Hour), "baz", nil, []byte{7, 8, 9}},
 	}
 
 	for _, input := range inputs {
-		writeTSDBFiles(t, dir, namespace, shard, input.start, input.id, input.data)
+		writeTSDBFiles(t, dir, namespace, shard, input.start,
+			[]testSeries{{input.id, input.tags, input.data}})
 	}
 }
 
-func writeTSDBFiles(t *testing.T, dir string, namespace ident.ID, shard uint32, start time.Time, id string, data []byte) {
+type testSeries struct {
+	id   string
+	tags map[string]string
+	data []byte
+}
+
+func writeTSDBFiles(
+	t *testing.T,
+	dir string,
+	namespace ident.ID,
+	shard uint32,
+	start time.Time,
+	series []testSeries,
+) {
 	w, err := fs.NewWriter(newTestFsOptions(dir))
 	require.NoError(t, err)
 	writerOpts := fs.DataWriterOpenOptions{
@@ -150,10 +171,30 @@ func writeTSDBFiles(t *testing.T, dir string, namespace ident.ID, shard uint32, 
 	}
 	require.NoError(t, w.Open(writerOpts))
 
-	bytes := checked.NewBytes(data, nil)
-	bytes.IncRef()
-	require.NoError(t, w.Write(ident.StringID(id), bytes, digest.Checksum(bytes.Bytes())))
+	for _, v := range series {
+		bytes := checked.NewBytes(v.data, nil)
+		bytes.IncRef()
+		require.NoError(t, w.Write(ident.StringID(v.id),
+			sortedTagsFromTagsMap(v.tags), bytes, digest.Checksum(bytes.Bytes())))
+		bytes.DecRef()
+	}
+
 	require.NoError(t, w.Close())
+}
+
+func sortedTagsFromTagsMap(tags map[string]string) ident.Tags {
+	var (
+		seriesTags ident.Tags
+		tagNames   []string
+	)
+	for name := range tags {
+		tagNames = append(tagNames, name)
+	}
+	sort.Strings(tagNames)
+	for _, name := range tagNames {
+		seriesTags = append(seriesTags, ident.StringTag(name, tags[name]))
+	}
+	return seriesTags
 }
 
 func rangesArray(ranges xtime.Ranges) []xtime.Range {
@@ -194,7 +235,9 @@ func TestAvailableReadInfoError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
+		{"foo", nil, []byte{0x1}},
+	})
 	// Intentionally corrupt the info file
 	writeInfoFile(t, dir, testNs1ID, shard, testStart, []byte{0x1, 0x2})
 
@@ -209,7 +252,9 @@ func TestAvailableDigestOfDigestMismatch(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
+		{"foo", nil, []byte{0x1}},
+	})
 	// Intentionally corrupt the digest file
 	writeDigestFile(t, dir, testNs1ID, shard, testStart, nil)
 
@@ -299,7 +344,9 @@ func TestReadOpenFileError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
+		{"foo", nil, []byte{0x1}},
+	})
 	// Intentionally truncate the info file
 	writeInfoFile(t, dir, testNs1ID, shard, testStart, nil)
 
@@ -322,7 +369,9 @@ func TestReadDataCorruptionError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
+		{"foo", nil, []byte{0x1}},
+	})
 	// Intentionally corrupt the data file
 	writeDataFile(t, dir, testNs1ID, shard, testStart, []byte{0x2})
 
@@ -425,8 +474,9 @@ func TestReadValidateError(t *testing.T) {
 	}
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
-		"foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
+		{"foo", nil, []byte{0x1}},
+	})
 	rOpenOpts := fs.ReaderOpenOptionsMatcher{
 		ID: fs.FileSetFileIdentifier{
 			Namespace:  testNs1ID,
@@ -479,8 +529,9 @@ func TestReadOpenError(t *testing.T) {
 	}
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
-		"foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
+		{"foo", nil, []byte{0x1}},
+	})
 	rOpts := fs.ReaderOpenOptionsMatcher{
 		ID: fs.FileSetFileIdentifier{
 			Namespace:  testNs1ID,
@@ -523,8 +574,9 @@ func TestReadDeleteOnError(t *testing.T) {
 	}
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
-		"foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
+		{"foo", nil, []byte{0x1}},
+	})
 
 	rOpts := fs.ReaderOpenOptionsMatcher{
 		ID: fs.FileSetFileIdentifier{
@@ -540,21 +592,21 @@ func TestReadDeleteOnError(t *testing.T) {
 			Return(xtime.Range{
 				Start: testStart,
 				End:   testStart.Add(2 * time.Hour),
-			}),
-		reader.EXPECT().Entries().Return(2),
+			}).AnyTimes(),
+		reader.EXPECT().Entries().Return(2).AnyTimes(),
 		reader.EXPECT().
 			Range().
 			Return(xtime.Range{
 				Start: testStart,
 				End:   testStart.Add(2 * time.Hour),
-			}),
-		reader.EXPECT().Entries().Return(2),
+			}).AnyTimes(),
+		reader.EXPECT().Entries().Return(2).AnyTimes(),
 		reader.EXPECT().
 			Read().
-			Return(ident.StringID("foo"), nil, digest.Checksum(nil), nil),
+			Return(ident.StringID("foo"), ident.EmptyTagIterator, nil, digest.Checksum(nil), nil),
 		reader.EXPECT().
 			Read().
-			Return(ident.StringID("bar"), nil, uint32(0), errors.New("foo")),
+			Return(ident.StringID("bar"), ident.EmptyTagIterator, nil, uint32(0), errors.New("foo")),
 		reader.EXPECT().Close().Return(nil),
 	)
 
@@ -570,4 +622,36 @@ func TestReadDeleteOnError(t *testing.T) {
 		{Start: testStart, End: testStart.Add(11 * time.Hour)},
 	}
 	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
+}
+
+func TestReadTags(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	id := "foo"
+	tags := map[string]string{
+		"bar": "baz",
+		"qux": "qaz",
+	}
+	data := []byte{0x1}
+
+	writeTSDBFiles(t, dir, testNs1ID, testShard, testStart, []testSeries{
+		{id, tags, data},
+	})
+
+	src := newFileSystemSource(newTestOptions(dir))
+	res, err := src.ReadData(testNsMetadata(t), testShardTimeRanges(),
+		testDefaultRunOpts)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, len(res.ShardResults()))
+	require.NotNil(t, res.ShardResults()[testShard])
+
+	series := res.ShardResults()[testShard]
+	require.Equal(t, int64(1), series.NumSeries())
+
+	fooSeries, ok := series.AllSeries().Get(ident.StringID(id))
+	require.True(t, ok)
+	require.True(t, fooSeries.ID.Equal(ident.StringID(id)))
+	require.True(t, fooSeries.Tags.Equal(sortedTagsFromTagsMap(tags)))
 }

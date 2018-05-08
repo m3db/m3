@@ -50,21 +50,29 @@ type Encoder struct {
 	encodeBytesFn              encodeBytesFn
 	encodeArrayLenFn           encodeArrayLenFn
 
-	encodeLegacyV1IndexInfo bool
+	legacy legacyEncodingOptions
+}
+
+type legacyEncodingOptions struct {
+	encodeLegacyV1IndexInfo  bool
+	encodeLegacyV1IndexEntry bool
+	decodeLegacyV1IndexInfo  bool
+	decodeLegacyV1IndexEntry bool
+}
+
+var defaultlegacyEncodingOptions = legacyEncodingOptions{
+	encodeLegacyV1IndexInfo:  false,
+	encodeLegacyV1IndexEntry: false,
+	decodeLegacyV1IndexInfo:  false,
+	decodeLegacyV1IndexEntry: false,
 }
 
 // NewEncoder creates a new encoder
 func NewEncoder() *Encoder {
-	return newEncoder(newEncoderOptions{
-		encodeLegacyV1IndexInfo: false,
-	})
+	return newEncoder(defaultlegacyEncodingOptions)
 }
 
-type newEncoderOptions struct {
-	encodeLegacyV1IndexInfo bool
-}
-
-func newEncoder(opts newEncoderOptions) *Encoder {
+func newEncoder(legacy legacyEncodingOptions) *Encoder {
 	buf := bytes.NewBuffer(nil)
 	enc := &Encoder{
 		buf: buf,
@@ -80,7 +88,7 @@ func newEncoder(opts newEncoderOptions) *Encoder {
 	enc.encodeArrayLenFn = enc.encodeArrayLen
 
 	// Used primarily for testing
-	enc.encodeLegacyV1IndexInfo = opts.encodeLegacyV1IndexInfo
+	enc.legacy = legacy
 
 	return enc
 }
@@ -99,7 +107,12 @@ func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 	if enc.err != nil {
 		return enc.err
 	}
-	enc.encodeIndexInfo(info)
+	enc.encodeRootObject(indexInfoVersion, indexInfoType)
+	if enc.legacy.encodeLegacyV1IndexInfo {
+		enc.encodeIndexInfoV1(info)
+	} else {
+		enc.encodeIndexInfoV2(info)
+	}
 	return enc.err
 }
 
@@ -109,7 +122,11 @@ func (enc *Encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 		return enc.err
 	}
 	enc.encodeRootObject(indexEntryVersion, indexEntryType)
-	enc.encodeIndexEntry(entry)
+	if enc.legacy.encodeLegacyV1IndexEntry {
+		enc.encodeIndexEntryV1(entry)
+	} else {
+		enc.encodeIndexEntryV2(entry)
+	}
 	return enc.err
 }
 
@@ -153,20 +170,11 @@ func (enc *Encoder) EncodeLogMetadata(entry schema.LogMetadata) error {
 	return enc.err
 }
 
-func (enc *Encoder) encodeIndexInfo(info schema.IndexInfo) {
-	enc.encodeRootObject(indexInfoVersion, indexInfoType)
-	if enc.encodeLegacyV1IndexInfo {
-		enc.encodeIndexInfoV1(info)
-	} else {
-		enc.encodeIndexInfoV2(info)
-	}
-}
-
 // We only keep this method around for the sake of testing
 // backwards-compatbility
 func (enc *Encoder) encodeIndexInfoV1(info schema.IndexInfo) {
 	// Manually encode num fields for testing purposes
-	enc.encodeArrayLenFn(minNumIndexInfoFields)
+	enc.encodeArrayLenFn(6) // v1 had 6 fields
 	enc.encodeVarintFn(info.BlockStart)
 	enc.encodeVarintFn(info.BlockSize)
 	enc.encodeVarintFn(info.Entries)
@@ -198,13 +206,26 @@ func (enc *Encoder) encodeIndexBloomFilterInfo(info schema.IndexBloomFilterInfo)
 	enc.encodeVarintFn(info.NumHashesK)
 }
 
-func (enc *Encoder) encodeIndexEntry(entry schema.IndexEntry) {
+// We only keep this method around for the sake of testing
+// backwards-compatbility
+func (enc *Encoder) encodeIndexEntryV1(entry schema.IndexEntry) {
+	// Manually encode num fields for testing purposes
+	enc.encodeArrayLenFn(5) // v1 had 5 fields
+	enc.encodeVarintFn(entry.Index)
+	enc.encodeBytesFn(entry.ID)
+	enc.encodeVarintFn(entry.Size)
+	enc.encodeVarintFn(entry.Offset)
+	enc.encodeVarintFn(entry.Checksum)
+}
+
+func (enc *Encoder) encodeIndexEntryV2(entry schema.IndexEntry) {
 	enc.encodeNumObjectFieldsForFn(indexEntryType)
 	enc.encodeVarintFn(entry.Index)
 	enc.encodeBytesFn(entry.ID)
 	enc.encodeVarintFn(entry.Size)
 	enc.encodeVarintFn(entry.Offset)
 	enc.encodeVarintFn(entry.Checksum)
+	enc.encodeBytesFn(entry.EncodedTags)
 }
 
 func (enc *Encoder) encodeIndexSummary(summary schema.IndexSummary) {

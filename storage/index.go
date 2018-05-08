@@ -29,12 +29,12 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	m3dberrors "github.com/m3db/m3db/storage/errors"
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
@@ -362,7 +362,7 @@ func (i *nsIndex) writeBatchForBlockStartWithRLock(
 
 // Bootstrap bootstraps the index with the provide blocks.
 func (i *nsIndex) Bootstrap(
-	segmentsByBlockStart map[xtime.UnixNano][]segment.Segment,
+	bootstrapResults result.IndexResults,
 ) error {
 	i.state.Lock()
 	if i.state.bootstrapState == Bootstrapping {
@@ -381,7 +381,8 @@ func (i *nsIndex) Bootstrap(
 	}()
 
 	var multiErr xerrors.MultiError
-	for blockStart, segments := range segmentsByBlockStart {
+	for blockStart, block := range bootstrapResults {
+		segments := block.Segments()
 		block, err := i.ensureBlockPresentWithRLock(blockStart.ToTime())
 		if err != nil { // should never happen
 			multiErr = multiErr.Add(i.unableToAllocBlockInvariantError(err))

@@ -45,7 +45,6 @@ import (
 	"github.com/m3db/m3db/x/xcounter"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -1410,15 +1409,15 @@ func (mr *MocknamespaceIndexMockRecorder) Query(ctx, query, opts interface{}) *g
 }
 
 // Bootstrap mocks base method
-func (m *MocknamespaceIndex) Bootstrap(segmentsByBlockStart map[time0.UnixNano][]segment.Segment) error {
-	ret := m.ctrl.Call(m, "Bootstrap", segmentsByBlockStart)
+func (m *MocknamespaceIndex) Bootstrap(bootstrapResults result.IndexResults) error {
+	ret := m.ctrl.Call(m, "Bootstrap", bootstrapResults)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Bootstrap indicates an expected call of Bootstrap
-func (mr *MocknamespaceIndexMockRecorder) Bootstrap(segmentsByBlockStart interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MocknamespaceIndex)(nil).Bootstrap), segmentsByBlockStart)
+func (mr *MocknamespaceIndexMockRecorder) Bootstrap(bootstrapResults interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MocknamespaceIndex)(nil).Bootstrap), bootstrapResults)
 }
 
 // Tick mocks base method

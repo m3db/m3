@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
@@ -233,14 +234,14 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
-	bootstrapSegments := map[xtime.UnixNano][]segment.Segment{
-		t0Nanos: []segment.Segment{seg1},
-		t1Nanos: []segment.Segment{seg2, seg3},
+	bootstrapResults := result.IndexResults{
+		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}),
+		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}),
 	}
 
-	b0.EXPECT().Bootstrap(bootstrapSegments[t0Nanos]).Return(nil)
-	b1.EXPECT().Bootstrap(bootstrapSegments[t1Nanos]).Return(nil)
-	require.NoError(t, idx.Bootstrap(bootstrapSegments))
+	b0.EXPECT().Bootstrap(bootstrapResults[t0Nanos].Segments()).Return(nil)
+	b1.EXPECT().Bootstrap(bootstrapResults[t1Nanos].Segments()).Return(nil)
+	require.NoError(t, idx.Bootstrap(bootstrapResults))
 }
 
 func TestNamespaceIndexTickExpire(t *testing.T) {
@@ -402,14 +403,14 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	seg1 := segment.NewMockSegment(ctrl)
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
-	bootstrapSegments := map[xtime.UnixNano][]segment.Segment{
-		t0Nanos: []segment.Segment{seg1},
-		t1Nanos: []segment.Segment{seg2, seg3},
+	bootstrapResults := result.IndexResults{
+		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}),
+		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}),
 	}
 
-	b0.EXPECT().Bootstrap(bootstrapSegments[t0Nanos]).Return(nil)
-	b1.EXPECT().Bootstrap(bootstrapSegments[t1Nanos]).Return(nil)
-	require.NoError(t, idx.Bootstrap(bootstrapSegments))
+	b0.EXPECT().Bootstrap(bootstrapResults[t0Nanos].Segments()).Return(nil)
+	b1.EXPECT().Bootstrap(bootstrapResults[t1Nanos].Segments()).Return(nil)
+	require.NoError(t, idx.Bootstrap(bootstrapResults))
 
 	// only queries as much as is needed (wrt to time)
 	ctx := context.NewContext()

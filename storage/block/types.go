@@ -214,6 +214,7 @@ type OnEvictedFromWiredList interface {
 type OnRetrieveBlock interface {
 	OnRetrieveBlock(
 		id ident.ID,
+		tags ident.TagIterator,
 		startTime time.Time,
 		segment ts.Segment,
 	)

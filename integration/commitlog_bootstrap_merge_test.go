@@ -94,9 +94,9 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		t3 = t2.Add(ns1BlockSize)
 	)
 	blockConfigs := []generate.BlockConfig{
-		{[]string{"foo", "bar"}, 20, t0},
-		{[]string{"nah", "baz"}, 50, t1},
-		{[]string{"hax", "ord"}, 30, t2},
+		{IDs: []string{"foo", "bar"}, NumPoints: 20, Start: t0},
+		{IDs: []string{"nah", "baz"}, NumPoints: 50, Start: t1},
+		{IDs: []string{"hax", "ord"}, NumPoints: 30, Start: t2},
 	}
 	log.Info("generating data")
 	seriesMaps := generate.BlocksByStart(blockConfigs)

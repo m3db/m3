@@ -23,6 +23,7 @@ package result
 import (
 	"time"
 
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/index/segment"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -76,6 +77,41 @@ func (r IndexResults) AddResults(other IndexResults) {
 	for _, block := range other {
 		r.Add(block)
 	}
+}
+
+// GetOrAddSegment get or create a new mutable segment.
+func (r IndexResults) GetOrAddSegment(
+	t time.Time,
+	idxopts namespace.IndexOptions,
+	opts Options,
+) (segment.MutableSegment, error) {
+	// NB(r): The reason we can align by the retention block size and guarantee
+	// there is only one entry for this time is because index blocks must be a
+	// positive multiple of the data block size, making it easy to map a data
+	// block entry to at most one index block entry.
+	blockStart := t.Truncate(idxopts.BlockSize())
+	blockStartNanos := xtime.ToUnixNano(blockStart)
+
+	block, exists := r[blockStartNanos]
+	if !exists {
+		block = NewIndexBlock(blockStart, nil)
+		r[blockStartNanos] = block
+	}
+	for _, seg := range block.Segments() {
+		if mutable, ok := seg.(segment.MutableSegment); ok {
+			return mutable, nil
+		}
+	}
+
+	alloc := opts.IndexMutableSegmentAllocator()
+	mutable, err := alloc()
+	if err != nil {
+		return nil, err
+	}
+
+	segments := []segment.Segment{mutable}
+	r[blockStartNanos] = block.Merged(NewIndexBlock(blockStart, segments))
+	return mutable, nil
 }
 
 // MergedIndexBootstrapResult returns a merged result of two bootstrap results.

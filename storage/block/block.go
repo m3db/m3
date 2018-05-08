@@ -178,6 +178,7 @@ func (b *dbBlock) Checksum() (uint32, error) {
 
 func (b *dbBlock) OnRetrieveBlock(
 	id ident.ID,
+	_ ident.TagIterator,
 	startTime time.Time,
 	segment ts.Segment,
 ) {

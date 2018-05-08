@@ -64,7 +64,7 @@ func TestDiskSnapshotSimple(t *testing.T) {
 	now := testSetup.getNowFn()
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []generate.BlockConfig{
-		{[]string{"foo", "bar", "baz"}, 100, now},
+		{IDs: []string{"foo", "bar", "baz"}, NumPoints: 100, Start: now},
 	}
 	for _, input := range inputData {
 		testSetup.setNowFn(input.Start)

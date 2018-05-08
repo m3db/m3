@@ -1,5 +1,5 @@
 hash: 124d166053476550bef409f59deaf9cd7964494b50330e128665dbeb067bf244
-updated: 2018-05-07T16:01:33.626820249-04:00
+updated: 2018-05-07T16:31:01.787723-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -218,6 +218,7 @@ imports:
   - context
   - errors
   - ident
+  - ident/testutil
   - instrument
   - log
   - pool

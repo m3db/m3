@@ -368,6 +368,7 @@ func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 
 func (s *dbShard) OnRetrieveBlock(
 	id ident.ID,
+	tags ident.TagIterator,
 	startTime time.Time,
 	segment ts.Segment,
 ) {
@@ -384,13 +385,11 @@ func (s *dbShard) OnRetrieveBlock(
 	}
 
 	if entry != nil {
-		entry.series.OnRetrieveBlock(id, startTime, segment)
+		entry.series.OnRetrieveBlock(id, tags, startTime, segment)
 		return
 	}
 
-	// Insert batched with the retrieved block
-	// FOLLOWUP(prateek): Need to retrieve tags during the block retrieval path too
-	entry, err = s.newShardEntry(id, ident.EmptyTagIterator)
+	entry, err = s.newShardEntry(id, tags)
 	if err != nil {
 		// should never happen
 		s.logger.WithFields(
@@ -400,13 +399,18 @@ func (s *dbShard) OnRetrieveBlock(
 		return
 	}
 
+	// NB(r): Do not need to specify that needs to be indexed as series would
+	// have been already been indexed when it was written
 	copiedID := entry.series.ID()
+	// TODO(r): Pool the slice iterators here.
+	copiedTags := ident.NewTagSliceIterator(entry.series.Tags())
 	s.insertQueue.Insert(dbShardInsert{
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
 			hasPendingRetrievedBlock: true,
 			pendingRetrievedBlock: dbShardPendingRetrievedBlock{
 				id:      copiedID,
+				tags:    copiedTags,
 				start:   startTime,
 				segment: segment,
 			},
@@ -758,7 +762,8 @@ func (s *dbShard) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	return s.writeAndIndex(ctx, id, tags, timestamp, value, unit, annotation, true)
+	return s.writeAndIndex(ctx, id, tags, timestamp,
+		value, unit, annotation, true)
 }
 
 func (s *dbShard) Write(
@@ -1203,7 +1208,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		if inserts[i].opts.hasPendingRetrievedBlock {
 			releaseEntryRef = true
 			block := inserts[i].opts.pendingRetrievedBlock
-			entry.series.OnRetrieveBlock(block.id, block.start, block.segment)
+			entry.series.OnRetrieveBlock(block.id, block.tags, block.start, block.segment)
 		}
 
 		if releaseEntryRef {
@@ -1509,7 +1514,8 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		}
 
 		for numResults < limit {
-			id, size, checksum, err := reader.ReadMetadata()
+			// FOLLOWUP(r): Return the tags as part of the metadata to peers.
+			id, _, size, checksum, err := reader.ReadMetadata()
 			if err == io.EOF {
 				// Clean end of volume, we can break now
 				if err := reader.Close(); err != nil {

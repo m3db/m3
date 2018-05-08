@@ -139,7 +139,8 @@ func writeToDisk(
 			data[0] = segment.Head
 			data[1] = segment.Tail
 			checksum := digest.SegmentChecksum(segment)
-			if err := writer.WriteAll(series.ID, data, checksum); err != nil {
+			err = writer.WriteAll(series.ID, series.Tags, data, checksum)
+			if err != nil {
 				return err
 			}
 		}

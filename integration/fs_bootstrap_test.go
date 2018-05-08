@@ -79,8 +79,8 @@ func TestFilesystemBootstrap(t *testing.T) {
 	// Write test data
 	now := setup.getNowFn()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
-		{[]string{"foo", "baz"}, 50, now},
+		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now.Add(-blockSize)},
+		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now},
 	})
 	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps))
 	require.NoError(t, writeTestDataToDisk(ns2, setup, nil))

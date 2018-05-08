@@ -82,8 +82,8 @@ func testPeersBootstrapMergeLocal(
 	completeAt := now.Add(180 * time.Second)
 	blockSize := retentionOpts.BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{"foo", "bar"}, 180, now.Add(-blockSize)},
-		{[]string{"foo", "baz"}, int(completeAt.Sub(now) / time.Second), now},
+		{IDs: []string{"foo", "bar"}, NumPoints: 180, Start: now.Add(-blockSize)},
+		{IDs: []string{"foo", "baz"}, NumPoints: int(completeAt.Sub(now) / time.Second), Start: now},
 	})
 	firstNodeSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{}
 	directWritesSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{}

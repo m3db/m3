@@ -394,7 +394,7 @@ func (s *peersSource) incrementalFlush(
 				break
 			}
 
-			err = prepared.Persist(s.ID, segment, checksum)
+			err = prepared.Persist(s.ID, s.Tags, segment, checksum)
 			tmpCtx.BlockingClose()
 			if err != nil {
 				blockErr = err // Need to call prepared.Close, avoid return

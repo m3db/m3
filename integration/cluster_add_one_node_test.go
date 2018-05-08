@@ -152,8 +152,8 @@ func TestClusterAddOneNode(t *testing.T) {
 	now := setups[0].getNowFn()
 	blockSize := namesp.Options().RetentionOptions().BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{ids[0].str, ids[1].str}, 180, now.Add(-blockSize)},
-		{[]string{ids[0].str, ids[2].str}, 90, now},
+		{IDs: []string{ids[0].str, ids[1].str}, NumPoints: 180, Start: now.Add(-blockSize)},
+		{IDs: []string{ids[0].str, ids[2].str}, NumPoints: 90, Start: now},
 	})
 	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
 	require.NoError(t, err)

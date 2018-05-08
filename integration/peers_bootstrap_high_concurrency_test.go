@@ -88,10 +88,10 @@ func testPeersBootstrapHighConcurrency(
 	now := setups[0].getNowFn()
 	blockSize := retentionOpts.BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{shardIDs, 3, now.Add(-3 * blockSize)},
-		{shardIDs, 3, now.Add(-2 * blockSize)},
-		{shardIDs, 3, now.Add(-blockSize)},
-		{shardIDs, 3, now},
+		{IDs: shardIDs, NumPoints: 3, Start: now.Add(-3 * blockSize)},
+		{IDs: shardIDs, NumPoints: 3, Start: now.Add(-2 * blockSize)},
+		{IDs: shardIDs, NumPoints: 3, Start: now.Add(-blockSize)},
+		{IDs: shardIDs, NumPoints: 3, Start: now},
 	})
 	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
 	require.NoError(t, err)

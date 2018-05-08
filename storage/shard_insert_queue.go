@@ -125,6 +125,7 @@ type dbShardPendingIndex struct {
 
 type dbShardPendingRetrievedBlock struct {
 	id      ident.ID
+	tags    ident.TagIterator
 	start   time.Time
 	segment ts.Segment
 }

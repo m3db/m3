@@ -109,6 +109,9 @@ type ResultsPool interface {
 	Put(value Results)
 }
 
+// MutableSegmentAllocator allocates a new MutableSegment type.
+type MutableSegmentAllocator func() (segment.MutableSegment, error)
+
 // OnIndexSeries provides a set of callback hooks to allow the reverse index
 // to do lifecycle management of any resources retained during indexing.
 type OnIndexSeries interface {
