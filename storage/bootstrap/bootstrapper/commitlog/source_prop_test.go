@@ -200,6 +200,10 @@ func genWrite(start time.Time, ns string) gopter.Gen {
 		gen.Identifier(),
 		// Tag val
 		gen.Identifier(),
+		// Boolean indicating whether or not to include tags for this series. We want to
+		// sometimes not include tags to ensure that the commitlog writer/readers can
+		// handle both series that have tags and those that don't.
+		gen.Bool(),
 		gen.TimeRange(start, 15*time.Minute),
 		// M3TSZ is lossy, so we want to avoid very large numbers with high amounts of precision
 		gen.Float64Range(-9999999, 99999999),
@@ -207,13 +211,14 @@ func genWrite(start time.Time, ns string) gopter.Gen {
 		id := val[0].(string)
 		tagKey := val[1].(string)
 		tagVal := val[2].(string)
-		t := val[3].(time.Time)
-		v := val[4].(float64)
+		includeTags := val[3].(bool)
+		t := val[4].(time.Time)
+		v := val[5].(float64)
 
 		return generatedWrite{
 			series: commitlog.Series{
 				ID:          ident.StringID(id),
-				Tags:        seriesUniqueTags(id, tagKey, tagVal),
+				Tags:        seriesUniqueTags(id, tagKey, tagVal, includeTags),
 				Namespace:   ident.StringID(ns),
 				Shard:       hashIDToShard(ident.StringID(id)),
 				UniqueIndex: seriesUniqueIndex(id),
@@ -257,7 +262,7 @@ func seriesUniqueIndex(series string) uint64 {
 }
 
 // seriesUniqueTag ensures that each string series ID maps to the same set of tags
-func seriesUniqueTags(seriesID, proposedTagKey, proposedTagVal string) ident.Tags {
+func seriesUniqueTags(seriesID, proposedTagKey, proposedTagVal string, includeTags bool) ident.Tags {
 	metricIdx.Lock()
 	defer metricIdx.Unlock()
 
@@ -266,7 +271,9 @@ func seriesUniqueTags(seriesID, proposedTagKey, proposedTagVal string) ident.Tag
 		return tags
 	}
 
-	tags = ident.Tags{ident.StringTag(proposedTagKey, proposedTagVal)}
+	if includeTags {
+		tags = ident.Tags{ident.StringTag(proposedTagKey, proposedTagVal)}
+	}
 	metricIdx.idToTags[seriesID] = tags
 	return tags
 }
