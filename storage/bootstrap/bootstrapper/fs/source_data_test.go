@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"sort"
 	"testing"
 	"time"
 
@@ -51,6 +52,7 @@ var (
 	testNs1ID             = ident.StringID("testNs")
 	testStart             = time.Now()
 	testBlockSize         = 2 * time.Hour
+	testIndexBlockSize    = 4 * time.Hour
 	testFileMode          = os.FileMode(0666)
 	testDirMode           = os.ModeDir | os.FileMode(0755)
 	testWriterBufferSize  = 10
@@ -74,7 +76,11 @@ func newTestFsOptions(filePathPrefix string) fs.Options {
 
 func testNsMetadata(t *testing.T) namespace.Metadata {
 	ropts := retention.NewOptions().SetBlockSize(testBlockSize)
-	md, err := namespace.NewMetadata(testNs1ID, namespace.NewOptions().SetRetentionOptions(ropts))
+	md, err := namespace.NewMetadata(testNs1ID, namespace.NewOptions().
+		SetRetentionOptions(ropts).
+		SetIndexOptions(namespace.NewIndexOptions().
+			SetEnabled(true).
+			SetBlockSize(testIndexBlockSize)))
 	require.NoError(t, err)
 	return md
 }
@@ -135,8 +141,14 @@ func writeGoodFiles(t *testing.T, dir string, namespace ident.ID, shard uint32) 
 
 	for _, input := range inputs {
 		writeTSDBFiles(t, dir, namespace, shard, input.start,
-			input.id, input.tags, input.data)
+			[]testSeries{{input.id, input.tags, input.data}})
 	}
+}
+
+type testSeries struct {
+	id   string
+	tags map[string]string
+	data []byte
 }
 
 func writeTSDBFiles(
@@ -145,9 +157,7 @@ func writeTSDBFiles(
 	namespace ident.ID,
 	shard uint32,
 	start time.Time,
-	id string,
-	tags map[string]string,
-	data []byte,
+	series []testSeries,
 ) {
 	w, err := fs.NewWriter(newTestFsOptions(dir))
 	require.NoError(t, err)
@@ -161,17 +171,30 @@ func writeTSDBFiles(
 	}
 	require.NoError(t, w.Open(writerOpts))
 
-	var seriesTags ident.Tags
-	for name, value := range tags {
-		seriesTags = append(seriesTags, ident.StringTag(name, value))
+	for _, v := range series {
+		bytes := checked.NewBytes(v.data, nil)
+		bytes.IncRef()
+		require.NoError(t, w.Write(ident.StringID(v.id),
+			sortedTagsFromTagsMap(v.tags), bytes, digest.Checksum(bytes.Bytes())))
+		bytes.DecRef()
 	}
 
-	bytes := checked.NewBytes(data, nil)
-	bytes.IncRef()
-
-	require.NoError(t, w.Write(ident.StringID(id), seriesTags,
-		bytes, digest.Checksum(bytes.Bytes())))
 	require.NoError(t, w.Close())
+}
+
+func sortedTagsFromTagsMap(tags map[string]string) ident.Tags {
+	var (
+		seriesTags ident.Tags
+		tagNames   []string
+	)
+	for name := range tags {
+		tagNames = append(tagNames, name)
+	}
+	sort.Strings(tagNames)
+	for _, name := range tagNames {
+		seriesTags = append(seriesTags, ident.StringTag(name, tags[name]))
+	}
+	return seriesTags
 }
 
 func rangesArray(ranges xtime.Ranges) []xtime.Range {
@@ -212,7 +235,9 @@ func TestAvailableReadInfoError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", nil, []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
+		{"foo", nil, []byte{0x1}},
+	})
 	// Intentionally corrupt the info file
 	writeInfoFile(t, dir, testNs1ID, shard, testStart, []byte{0x1, 0x2})
 
@@ -227,7 +252,9 @@ func TestAvailableDigestOfDigestMismatch(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", nil, []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
+		{"foo", nil, []byte{0x1}},
+	})
 	// Intentionally corrupt the digest file
 	writeDigestFile(t, dir, testNs1ID, shard, testStart, nil)
 
@@ -317,7 +344,9 @@ func TestReadOpenFileError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", nil, []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
+		{"foo", nil, []byte{0x1}},
+	})
 	// Intentionally truncate the info file
 	writeInfoFile(t, dir, testNs1ID, shard, testStart, nil)
 
@@ -340,7 +369,9 @@ func TestReadDataCorruptionError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", nil, []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
+		{"foo", nil, []byte{0x1}},
+	})
 	// Intentionally corrupt the data file
 	writeDataFile(t, dir, testNs1ID, shard, testStart, []byte{0x2})
 
@@ -443,8 +474,9 @@ func TestReadValidateError(t *testing.T) {
 	}
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
-		"foo", nil, []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
+		{"foo", nil, []byte{0x1}},
+	})
 	rOpenOpts := fs.ReaderOpenOptionsMatcher{
 		ID: fs.FileSetFileIdentifier{
 			Namespace:  testNs1ID,
@@ -497,8 +529,9 @@ func TestReadOpenError(t *testing.T) {
 	}
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
-		"foo", nil, []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
+		{"foo", nil, []byte{0x1}},
+	})
 	rOpts := fs.ReaderOpenOptionsMatcher{
 		ID: fs.FileSetFileIdentifier{
 			Namespace:  testNs1ID,
@@ -541,8 +574,9 @@ func TestReadDeleteOnError(t *testing.T) {
 	}
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
-		"foo", nil, []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
+		{"foo", nil, []byte{0x1}},
+	})
 
 	rOpts := fs.ReaderOpenOptionsMatcher{
 		ID: fs.FileSetFileIdentifier{
@@ -591,10 +625,33 @@ func TestReadDeleteOnError(t *testing.T) {
 }
 
 func TestReadTags(t *testing.T) {
-	// TODO(r): Add test that tests the normal bootstrap case with
-	// series cache policy All returns tags for series
-}
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
 
-func TestBootstrapIndex(t *testing.T) {
-	// TODO(r): Add test to bootstrap index segments
+	id := "foo"
+	tags := map[string]string{
+		"bar": "baz",
+		"qux": "qaz",
+	}
+	data := []byte{0x1}
+
+	writeTSDBFiles(t, dir, testNs1ID, testShard, testStart, []testSeries{
+		{id, tags, data},
+	})
+
+	src := newFileSystemSource(newTestOptions(dir))
+	res, err := src.ReadData(testNsMetadata(t), testShardTimeRanges(),
+		testDefaultRunOpts)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, len(res.ShardResults()))
+	require.NotNil(t, res.ShardResults()[testShard])
+
+	series := res.ShardResults()[testShard]
+	require.Equal(t, int64(1), series.NumSeries())
+
+	fooSeries, ok := series.AllSeries().Get(ident.StringID(id))
+	require.True(t, ok)
+	require.True(t, fooSeries.ID.Equal(ident.StringID(id)))
+	require.True(t, fooSeries.Tags.Equal(sortedTagsFromTagsMap(tags)))
 }

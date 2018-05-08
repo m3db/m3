@@ -87,6 +87,7 @@ func (r IndexResults) GetOrAddSegment(
 ) (segment.MutableSegment, error) {
 	blockStart := t.Truncate(idxopts.BlockSize())
 	blockStartNanos := xtime.ToUnixNano(blockStart)
+
 	block, exists := r[blockStartNanos]
 	if !exists {
 		block = NewIndexBlock(blockStart, nil)

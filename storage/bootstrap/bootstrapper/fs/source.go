@@ -127,7 +127,7 @@ func (s *fileSystemSource) ReadIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
-	r, err := s.read(md, shardsTimeRanges, bootstrapDataRunType)
+	r, err := s.read(md, shardsTimeRanges, bootstrapIndexRunType)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +266,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 		resultLock        = &sync.RWMutex{}
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 		runResult         = newRunResult()
-		bopts             = s.opts.ResultOptions()
+		resultOpts        = s.opts.ResultOptions()
 	)
 
 	if retriever != nil {
@@ -277,9 +277,9 @@ func (s *fileSystemSource) bootstrapFromReaders(
 		shardReaders := shardReaders
 		wg.Add(1)
 		s.processors.Go(func() {
-			defer wg.Done()
 			s.loadShardReadersDataIntoShardResult(ns, run, runResult, resultLock,
-				bopts, shardRetrieverMgr, shardReaders, readerPool)
+				resultOpts, shardRetrieverMgr, shardReaders, readerPool)
+			wg.Done()
 		})
 	}
 	wg.Wait()
@@ -303,7 +303,6 @@ func (s *fileSystemSource) handleErrorsAndUnfulfilled(
 	runResult *runResult,
 	shard uint32,
 	remainingRanges xtime.Ranges,
-	shardResult result.ShardResult,
 	timesWithErrors []time.Time,
 ) {
 	// NB(xichen): this is the exceptional case where we encountered errors due to files
@@ -319,6 +318,7 @@ func (s *fileSystemSource) handleErrorsAndUnfulfilled(
 		).Info("deleting entries from results for times with errors")
 
 		resultLock.Lock()
+		// Delete all affected times from the data results.
 		shardResult, ok := runResult.data.ShardResults()[shard]
 		if ok {
 			for _, entry := range shardResult.AllSeries().Iter() {
@@ -328,20 +328,31 @@ func (s *fileSystemSource) handleErrorsAndUnfulfilled(
 				}
 			}
 		}
+		// NB(r): We explicitly do not remove entries from the index results
+		// as they are additive and get merged together with results from other
+		// bootstrappers by just appending the result (unlike data bootstrap
+		// results that when merged replace the block with the current block).
+		// It would also be difficult to remove only series that was added to the
+		// index block as results from data files can be subsets of the index block
+		// and there's no way to definitively delete the entry we added as a result
+		// of just this data file failing.
 		resultLock.Unlock()
 	}
 
 	if !remainingRanges.IsEmpty() {
 		resultLock.Lock()
-		unfulfilled := runResult.data.Unfulfilled()
-		shardUnfulfilled, ok := unfulfilled[shard]
-		if !ok {
-			shardUnfulfilled = xtime.Ranges{}.AddRanges(remainingRanges)
-		} else {
-			shardUnfulfilled = shardUnfulfilled.AddRanges(remainingRanges)
+		for _, unfulfilled := range []result.ShardTimeRanges{
+			runResult.data.Unfulfilled(),
+			runResult.index.Unfulfilled(),
+		} {
+			shardUnfulfilled, ok := unfulfilled[shard]
+			if !ok {
+				shardUnfulfilled = xtime.Ranges{}.AddRanges(remainingRanges)
+			} else {
+				shardUnfulfilled = shardUnfulfilled.AddRanges(remainingRanges)
+			}
+			unfulfilled[shard] = shardUnfulfilled
 		}
-
-		unfulfilled[shard] = shardUnfulfilled
 		resultLock.Unlock()
 	}
 }
@@ -379,8 +390,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 
 	shard, tr, readers, err := shardReaders.shard, shardReaders.tr, shardReaders.readers, shardReaders.err
 	if err != nil {
-		s.handleErrorsAndUnfulfilled(resultLock, runResult, shard, tr,
-			shardResult, timesWithErrors)
+		s.handleErrorsAndUnfulfilled(resultLock, runResult, shard,
+			tr, timesWithErrors)
 		return
 	}
 
@@ -389,8 +400,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	}
 	if seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
 		s.log.Errorf("shard retriever missing for shard: %d", shard)
-		s.handleErrorsAndUnfulfilled(resultLock, runResult, shard, tr,
-			shardResult, timesWithErrors)
+		s.handleErrorsAndUnfulfilled(resultLock, runResult, shard,
+			tr, timesWithErrors)
 		return
 	}
 
@@ -449,7 +460,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				if err != nil {
 					s.log.Errorf("unable read metadata: %v", err)
 					hasError = true
-					continue
+					break
 				}
 
 				idBytes := id.Bytes()
@@ -585,7 +596,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			resultLock.Unlock()
 		}
 
-		if !hasError {
+		if run == bootstrapDataRunType && !hasError {
 			var validateErr error
 			switch seriesCachePolicy {
 			case series.CacheAll:
@@ -622,7 +633,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	}
 
 	s.handleErrorsAndUnfulfilled(resultLock, runResult, shard,
-		tr, shardResult, timesWithErrors)
+		tr, timesWithErrors)
 }
 
 func (s *fileSystemSource) read(

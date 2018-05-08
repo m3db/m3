@@ -147,15 +147,8 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 				assert.Equal(t, entries[i].id, id.String())
 
 				// Assert tags
-				if entries[i].tags != nil {
-					require.NotNil(t, tags)
-					require.Equal(t, len(entries[i].tags), tags.Remaining())
-					for tags.Next() {
-						curr := tags.Current()
-						assert.Equal(t, entries[i].tags[curr.Name.String()], curr.Value.String())
-					}
-					assert.Equal(t, 0, tags.Remaining())
-				}
+				tagMatcher := ident.NewTagIterMatcher(ident.NewTagSliceIterator(entries[i].Tags()))
+				assert.True(t, tagMatcher.Matches(tags))
 
 				assert.True(t, bytes.Equal(entries[i].data, data.Bytes()))
 				assert.Equal(t, digest.Checksum(entries[i].data), checksum)
@@ -167,9 +160,7 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 				assert.True(t, bloomFilter.Test(id.Data().Bytes()))
 
 				id.Finalize()
-				if tags != nil {
-					tags.Close()
-				}
+				tags.Close()
 				data.DecRef()
 				data.Finalize()
 			case readTestTypeMetadata:
@@ -180,15 +171,8 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 				assert.True(t, id.Equal(id))
 
 				// Assert tags
-				if entries[i].tags != nil {
-					require.NotNil(t, tags)
-					require.Equal(t, len(entries[i].tags), tags.Remaining())
-					for tags.Next() {
-						curr := tags.Current()
-						assert.Equal(t, entries[i].tags[curr.Name.String()], curr.Value.String())
-					}
-					assert.Equal(t, 0, tags.Remaining())
-				}
+				tagMatcher := ident.NewTagIterMatcher(ident.NewTagSliceIterator(entries[i].Tags()))
+				assert.True(t, tagMatcher.Matches(tags))
 
 				assert.Equal(t, digest.Checksum(entries[i].data), checksum)
 				assert.Equal(t, len(entries[i].data), length)
@@ -200,9 +184,7 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 				assert.True(t, bloomFilter.Test(id.Data().Bytes()))
 
 				id.Finalize()
-				if tags != nil {
-					tags.Close()
-				}
+				tags.Close()
 			}
 		}
 

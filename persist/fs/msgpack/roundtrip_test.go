@@ -214,8 +214,6 @@ func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 	dec.Reset(NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry()
 	require.NoError(t, err)
-
-	expected
 	require.Equal(t, testIndexEntry, res)
 }
 

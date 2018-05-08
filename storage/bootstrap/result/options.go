@@ -43,15 +43,13 @@ type options struct {
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
-	iopts := instrument.NewOptions()
 	return &options{
-		clockOpts:         clock.NewOptions(),
-		instrumentOpts:    iopts,
-		blockOpts:         block.NewOptions(),
-		newBlocksLen:      defaultNewBlocksLen,
-		seriesCachePolicy: series.DefaultCachePolicy,
-		mutableSegmentAllocator: index.NewDefaultMutableSegmentAllocator(index.NewOptions().
-			SetInstrumentOptions(iopts)),
+		clockOpts:               clock.NewOptions(),
+		instrumentOpts:          instrument.NewOptions(),
+		blockOpts:               block.NewOptions(),
+		newBlocksLen:            defaultNewBlocksLen,
+		seriesCachePolicy:       series.DefaultCachePolicy,
+		mutableSegmentAllocator: index.NewDefaultMutableSegmentAllocator(index.NewOptions()),
 	}
 }
 

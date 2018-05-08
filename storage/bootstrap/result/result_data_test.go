@@ -40,7 +40,7 @@ func testResultOptions() Options {
 	return NewOptions()
 }
 
-func TestResultAddMergesExistingShardResults(t *testing.T) {
+func TestDataResultAddMergesExistingShardResults(t *testing.T) {
 	opts := testResultOptions()
 	blopts := opts.DatabaseBlockOptions()
 
@@ -79,7 +79,7 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 	assert.True(t, r.ShardResults().Equal(merged.ShardResults()))
 }
 
-func TestResultAddMergesUnfulfilled(t *testing.T) {
+func TestDataResultAddMergesUnfulfilled(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 
 	r := NewDataBootstrapResult()

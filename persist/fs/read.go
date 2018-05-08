@@ -362,20 +362,19 @@ func (r *reader) Read() (ident.ID, ident.TagIterator, checked.Bytes, uint32, err
 	return id, tags, data, uint32(entry.Checksum), nil
 }
 
-func (r *reader) ReadMetadata() (id ident.ID, tags ident.TagIterator, length int, checksum uint32, err error) {
+func (r *reader) ReadMetadata() (ident.ID, ident.TagIterator, int, uint32, error) {
 	if r.metadataRead >= r.entries {
-		err = io.EOF
-		return
+		return nil, nil, 0, 0, io.EOF
 	}
 
 	entry := r.indexEntriesByOffsetAsc[r.metadataRead]
-	id = r.entryClonedID(entry.ID)
-	tags = r.entryClonedEncodedTagsTagIter(entry.EncodedTags)
-	length = int(entry.Size)
-	checksum = uint32(entry.Checksum)
+	id := r.entryClonedID(entry.ID)
+	tags := r.entryClonedEncodedTagsTagIter(entry.EncodedTags)
+	length := int(entry.Size)
+	checksum := uint32(entry.Checksum)
 
 	r.metadataRead++
-	return
+	return id, tags, length, checksum, nil
 }
 
 func (r *reader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
