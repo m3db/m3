@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	xtest "github.com/m3db/m3x/test"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -56,7 +57,7 @@ func TestSessionWriteTaggedNotOpenError(t *testing.T) {
 }
 
 func TestSessionWriteTagged(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	w := newWriteTaggedStub()
@@ -64,7 +65,7 @@ func TestSessionWriteTagged(t *testing.T) {
 	mockEncoder := serialize.NewMockTagEncoder(ctrl)
 	mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags), true).AnyTimes()
 	mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil).AnyTimes()
-	mockEncoder.EXPECT().Finalize().AnyTimes()
+	mockEncoder.EXPECT().Finalize()
 	mockEncoderPool := serialize.NewMockTagEncoderPool(ctrl)
 	mockEncoderPool.EXPECT().Get().Return(mockEncoder).AnyTimes()
 	session.pools.tagEncoder = mockEncoderPool
