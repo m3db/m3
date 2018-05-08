@@ -261,6 +261,8 @@ func (q *dbShardInsertQueue) Stop() error {
 	default:
 		// Loop busy, already ready to consume notification
 	}
+	// FOLLOWUP(prateek): we need to wait until this queue is drained before
+	// we can correctly return success/failure.
 
 	return nil
 }

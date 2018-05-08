@@ -54,7 +54,7 @@ func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (namespaceInde
 	q.EXPECT().Start().Return(nil)
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndex(md, newFn, testNamespaceIndexOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testNamespaceIndexOptions())
 	assert.NoError(t, err)
 	return idx, q
 }
@@ -71,7 +71,7 @@ func TestNamespaceIndexHappyPath(t *testing.T) {
 
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndex(md, newFn, testNamespaceIndexOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testNamespaceIndexOptions())
 	assert.NoError(t, err)
 	assert.NotNil(t, idx)
 
@@ -90,7 +90,7 @@ func TestNamespaceIndexStartErr(t *testing.T) {
 	q.EXPECT().Start().Return(fmt.Errorf("random err"))
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndex(md, newFn, testNamespaceIndexOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testNamespaceIndexOptions())
 	assert.Error(t, err)
 	assert.Nil(t, idx)
 }
@@ -107,7 +107,7 @@ func TestNamespaceIndexStopErr(t *testing.T) {
 
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndex(md, newFn, testNamespaceIndexOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testNamespaceIndexOptions())
 	assert.NoError(t, err)
 	assert.NotNil(t, idx)
 
@@ -130,7 +130,7 @@ func TestNamespaceIndexInvalidDocWrite(t *testing.T) {
 
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize()
-	assert.Error(t, idx.Write(id, tags, lifecycle))
+	assert.Error(t, idx.Write(id, tags, time.Time{}, lifecycle))
 }
 
 func TestNamespaceIndexWriteAfterClose(t *testing.T) {
@@ -151,7 +151,7 @@ func TestNamespaceIndexWriteAfterClose(t *testing.T) {
 
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize()
-	assert.Error(t, idx.Write(id, tags, lifecycle))
+	assert.Error(t, idx.Write(id, tags, time.Time{}, lifecycle))
 }
 
 func TestNamespaceIndexWriteQueueError(t *testing.T) {
@@ -170,9 +170,57 @@ func TestNamespaceIndexWriteQueueError(t *testing.T) {
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize()
 	q.EXPECT().
-		Insert(gomock.Any(), lifecycle).
+		Insert(gomock.Any(), gomock.Any(), lifecycle).
 		Return(nil, fmt.Errorf("random err"))
-	assert.Error(t, idx.Write(id, tags, lifecycle))
+	assert.Error(t, idx.Write(id, tags, time.Now(), lifecycle))
+}
+
+func TestNamespaceIndexInsertRetentionPeriod(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		nowLock sync.Mutex
+		now     = time.Now()
+		nowFn   = func() time.Time {
+			nowLock.Lock()
+			n := now
+			nowLock.Unlock()
+			return n
+		}
+	)
+
+	q := NewMocknamespaceIndexInsertQueue(ctrl)
+	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
+		return q
+	}
+	q.EXPECT().Start().Return(nil)
+	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+
+	opts := testNamespaceIndexOptions()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
+	dbIdx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, opts)
+	assert.NoError(t, err)
+
+	idx, ok := dbIdx.(*nsIndex)
+	assert.True(t, ok)
+
+	var (
+		id   = ident.StringID("foo")
+		tags = ident.Tags{
+			ident.StringTag("name", "value"),
+		}
+		lifecycle = index.NewMockOnIndexSeries(ctrl)
+	)
+
+	tooOld := now.Add(-1 * idx.bufferPast).Add(-1 * time.Second)
+	lifecycle.EXPECT().OnIndexFinalize()
+	assert.Error(t, idx.Write(id, tags, tooOld, lifecycle))
+
+	tooNew := now.Add(1 * idx.bufferFuture).Add(1 * time.Second)
+	lifecycle.EXPECT().OnIndexFinalize()
+	assert.Error(t, idx.Write(id, tags, tooNew, lifecycle))
 }
 
 func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
@@ -190,13 +238,14 @@ func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 		}
 	)
 
+	now := time.Now()
 	d, err := convert.FromMetric(id, tags)
 	assert.NoError(t, err)
 
 	var wg sync.WaitGroup
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
-	q.EXPECT().Insert(doc.NewDocumentMatcher(d), gomock.Any()).Return(&wg, nil)
-	assert.NoError(t, idx.Write(id, tags, lifecycle))
+	q.EXPECT().Insert(gomock.Any(), doc.NewDocumentMatcher(d), gomock.Any()).Return(&wg, nil)
+	assert.NoError(t, idx.Write(id, tags, now, lifecycle))
 }
 
 func TestNamespaceIndexInsertQuery(t *testing.T) {
@@ -211,30 +260,33 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	}
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndex(md, newFn, testNamespaceIndexOptions())
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testNamespaceIndexOptions().
+		SetInsertMode(index.InsertSync))
 	assert.NoError(t, err)
 	defer idx.Close()
 
 	var (
-		id   = ident.StringID("foo")
-		tags = ident.Tags{
+		indexState = idx.(*nsIndex).state
+		ts         = indexState.latestBlock.EndTime()
+		now        = time.Now()
+		id         = ident.StringID("foo")
+		tags       = ident.Tags{
 			ident.StringTag("name", "value"),
 		}
 		ctx          = context.NewContext()
 		lifecycleFns = index.NewMockOnIndexSeries(ctrl)
 	)
-	// make insert mode sync for tests
-	idx.(*nsIndex).insertMode = index.InsertSync
-	// TODO(prateek): re-wire these tests to not use `latestBlock` or something?
-	ts := idx.(*nsIndex).active.EndTime()
 
 	lifecycleFns.EXPECT().OnIndexFinalize()
 	lifecycleFns.EXPECT().OnIndexSuccess(ts)
-	assert.NoError(t, idx.Write(id, tags, lifecycleFns))
+	assert.NoError(t, idx.Write(id, tags, now, lifecycleFns))
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
 	assert.NoError(t, err)
-	res, err := idx.Query(ctx, index.Query{reQuery}, index.QueryOptions{})
+	res, err := idx.Query(ctx, index.Query{reQuery}, index.QueryOptions{
+		StartInclusive: now.Add(-1 * time.Minute),
+		EndExclusive:   now.Add(1 * time.Minute),
+	})
 	assert.NoError(t, err)
 
 	assert.True(t, res.Exhaustive)
@@ -245,46 +297,4 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	assert.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("name", "value")).Matches(
 		ident.NewTagSliceIterator(tags)))
-}
-
-func TestNamespaceIndexBatchInsertPartialError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	q := NewMocknamespaceIndexInsertQueue(ctrl)
-	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
-		return q
-	}
-	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
-	require.NoError(t, err)
-
-	q.EXPECT().Start().Return(nil)
-	idx, err := newNamespaceIndex(md, newFn, testNamespaceIndexOptions())
-	assert.NoError(t, err)
-	defer func() {
-		q.EXPECT().Stop().Return(nil)
-		idx.Close()
-	}()
-
-	idx.(*nsIndex).insertMode = index.InsertAsync
-
-	writes := []struct {
-		id            ident.ID
-		tags          ident.Tags
-		lifecycle     *index.MockOnIndexSeries
-		expectSuccess bool
-	}{
-		{ident.StringID("foo"), ident.Tags{ident.StringTag("n1", "v1")}, index.NewMockOnIndexSeries(ctrl), true},
-		{ident.StringID("foo"), ident.Tags{ident.StringTag("n1", "v1")}, index.NewMockOnIndexSeries(ctrl), true},
-		{ident.StringID("bar"), ident.Tags{ident.StringTag("n2", "v2")}, index.NewMockOnIndexSeries(ctrl), false},
-	}
-	for _, w := range writes {
-		d, err := convert.FromMetric(w.id, w.tags)
-		assert.NoError(t, err)
-		q.EXPECT().Insert(doc.NewDocumentMatcher(d), w.lifecycle).Return(nil, nil)
-	}
-
-	for _, w := range writes {
-		assert.NoError(t, idx.Write(w.id, w.tags, w.lifecycle))
-	}
 }
