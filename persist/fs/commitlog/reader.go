@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
@@ -134,6 +135,7 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 		decoderBufs = append(decoderBufs, chanBufs)
 	}
 	outBuf := make(chan readResponse, decoderOutBufChanSize*numConc)
+
 	reader := &reader{
 		opts:              opts,
 		numConc:           int64(numConc),
@@ -292,15 +294,21 @@ func (r *reader) readLoop() {
 
 func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse) {
 	var (
-		decodingOpts          = r.opts.FilesystemOptions().DecodingOptions()
-		decoder               = msgpack.NewDecoder(decodingOpts)
-		decoderStream         = msgpack.NewDecoderStream(nil)
-		metadataDecoder       = msgpack.NewDecoder(decodingOpts)
-		metadataDecoderStream = msgpack.NewDecoderStream(nil)
-		metadataLookup        = make(map[uint64]seriesMetadata)
-		tagDecoder            = r.opts.FilesystemOptions().TagDecoderPool().Get()
+		decodingOpts           = r.opts.FilesystemOptions().DecodingOptions()
+		decoder                = msgpack.NewDecoder(decodingOpts)
+		decoderStream          = msgpack.NewDecoderStream(nil)
+		metadataDecoder        = msgpack.NewDecoder(decodingOpts)
+		metadataDecoderStream  = msgpack.NewDecoderStream(nil)
+		metadataLookup         = make(map[uint64]seriesMetadata)
+		tagDecoder             = r.opts.FilesystemOptions().TagDecoderPool().Get()
+		tagDecoderCheckedBytes = checked.NewBytes(nil, nil)
 	)
-	defer tagDecoder.Close()
+	tagDecoderCheckedBytes.IncRef()
+	defer func() {
+		tagDecoderCheckedBytes.DecRef()
+		tagDecoderCheckedBytes.Finalize()
+		tagDecoder.Close()
+	}()
 
 	for arg := range inBuf {
 		response := readResponse{}
@@ -321,8 +329,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 		// If the log entry has associated metadata, decode that as well
 		if len(entry.Metadata) != 0 {
-			err := r.decodeAndHandleMetadata(
-				metadataLookup, metadataDecoder, metadataDecoderStream, tagDecoder, entry)
+			err := r.decodeAndHandleMetadata(metadataLookup, metadataDecoder, metadataDecoderStream,
+				tagDecoder, tagDecoderCheckedBytes, entry)
 			if err != nil {
 				r.handleDecoderLoopIterationEnd(arg, outBuf, response, err)
 				continue
@@ -386,6 +394,7 @@ func (r *reader) decodeAndHandleMetadata(
 	metadataDecoder *msgpack.Decoder,
 	metadataDecoderStream msgpack.DecoderStream,
 	tagDecoder serialize.TagDecoder,
+	tagDecoderCheckedBytes checked.Bytes,
 	entry schema.LogEntry,
 ) error {
 	metadataDecoderStream.Reset(entry.Metadata)
@@ -414,11 +423,8 @@ func (r *reader) decodeAndHandleMetadata(
 		tagBytesLen = len(decoded.Tags)
 	)
 	if tagBytesLen != 0 {
-		tagsBytes := r.checkedBytesPool.Get(len(decoded.Tags))
-		tagsBytes.IncRef()
-		tagsBytes.AppendAll(decoded.Tags)
-		tagsBytes.DecRef()
-		tagDecoder.Reset(tagsBytes)
+		tagDecoderCheckedBytes.Reset(decoded.Tags)
+		tagDecoder.Reset(tagDecoderCheckedBytes)
 
 		tags = make(ident.Tags, 0, tagDecoder.Remaining())
 		for tagDecoder.Next() {
@@ -513,5 +519,6 @@ func (r *reader) close() error {
 	if r.chunkReader.fd == nil {
 		return nil
 	}
+
 	return r.chunkReader.fd.Close()
 }
