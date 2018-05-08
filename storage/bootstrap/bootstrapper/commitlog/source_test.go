@@ -162,50 +162,6 @@ func TestReadOrderedValues(t *testing.T) {
 	require.NoError(t, verifyShardResultsAreCorrect(values[:4], res.ShardResults(), opts))
 }
 
-func TestReadNamespaceFiltering(t *testing.T) {
-	opts := testOptions()
-	md := testNsMetadata(t)
-	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
-
-	blockSize := md.Options().RetentionOptions().BlockSize()
-	now := time.Now()
-	start := now.Truncate(blockSize).Add(-blockSize)
-	end := now
-
-	// Request a little after the start of data, because always reading full blocks
-	// it should return the entire block beginning from "start"
-	require.True(t, blockSize >= minCommitLogRetention)
-	ranges := xtime.Ranges{}
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(time.Minute),
-		End:   end,
-	})
-
-	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
-	bar := commitlog.Series{Namespace: testNamespaceID, Shard: 1, ID: ident.StringID("bar")}
-	baz := commitlog.Series{Namespace: ident.StringID("someID"), Shard: 0, ID: ident.StringID("baz")}
-
-	values := []testValue{
-		{foo, start, 1.0, xtime.Second, nil},
-		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
-		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
-		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, nil},
-		// "baz" is in another namespace should not be returned
-		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
-	}
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
-		return newTestCommitLogIterator(values, nil), nil
-	}
-
-	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.Equal(t, 2, len(res.ShardResults()))
-	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(values[:4], res.ShardResults(), opts))
-}
-
 func TestReadUnorderedValues(t *testing.T) {
 	opts := testOptions()
 	md := testNsMetadata(t)
