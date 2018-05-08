@@ -119,7 +119,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	end := start.Add(ropts.BlockSize())
 
 	goodResult := result.NewShardResult(0, opts.ResultOptions())
-	fooBlock := block.NewDatabaseBlock(start, ts.Segment{}, testBlockOpts)
+	fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(), ts.Segment{}, testBlockOpts)
 	goodResult.AddBlock(ident.StringID("foo"), ident.Tags{ident.StringTag("foo", "oof")}, fooBlock)
 	badErr := fmt.Errorf("an error")
 
@@ -163,6 +163,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	rangeIter := r.Unfulfilled()[1].Iter()
 	require.True(t, rangeIter.Next())
 	require.Equal(t, xtime.Range{Start: start, End: end}, rangeIter.Value())
+	require.Equal(t, ropts.BlockSize(), block.BlockSize())
 }
 
 func TestPeersSourceIncrementalRun(t *testing.T) {
@@ -184,10 +185,10 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 		shard0ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
 		shard0ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
-		fooBlock := block.NewDatabaseBlock(start,
+		fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
 			ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
-		barBlock := block.NewDatabaseBlock(start.Add(ropts.BlockSize()),
+		barBlock := block.NewDatabaseBlock(start.Add(ropts.BlockSize()), ropts.BlockSize(),
 			ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
 		shard0ResultBlock1.AddBlock(ident.StringID("foo"), ident.Tags{ident.StringTag("foo", "oof")}, fooBlock)
@@ -195,7 +196,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 		shard1ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
 		shard1ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
-		bazBlock := block.NewDatabaseBlock(start,
+		bazBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
 			ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
 		shard1ResultBlock1.AddBlock(ident.StringID("baz"), ident.Tags{ident.StringTag("baz", "zab")}, bazBlock)
@@ -415,7 +416,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(xio.EmptyBlockReader, fmt.Errorf("stream err"))
 	addResult(0, "foo", fooBlocks[0])
 
-	fooBlocks[1] = block.NewDatabaseBlock(midway,
+	fooBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 	addResult(0, "foo", fooBlocks[1])
@@ -434,31 +435,31 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(b, nil)
 	addResult(1, "bar", barBlocks[0])
 
-	barBlocks[1] = block.NewDatabaseBlock(midway,
+	barBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 	addResult(1, "bar", barBlocks[1])
 
 	// baz results
 	var bazBlocks [2]block.DatabaseBlock
-	bazBlocks[0] = block.NewDatabaseBlock(start,
+	bazBlocks[0] = block.NewDatabaseBlock(start, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 	addResult(2, "baz", bazBlocks[0])
 
-	bazBlocks[1] = block.NewDatabaseBlock(midway,
+	bazBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{10, 11, 12}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 	addResult(2, "baz", bazBlocks[1])
 
 	// qux results
 	var quxBlocks [2]block.DatabaseBlock
-	quxBlocks[0] = block.NewDatabaseBlock(start,
+	quxBlocks[0] = block.NewDatabaseBlock(start, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{13, 14, 15}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 	addResult(3, "qux", quxBlocks[0])
 
-	quxBlocks[1] = block.NewDatabaseBlock(midway,
+	quxBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{16, 17, 18}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 	addResult(3, "qux", quxBlocks[1])

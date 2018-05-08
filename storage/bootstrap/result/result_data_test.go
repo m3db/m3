@@ -47,9 +47,9 @@ func TestDataResultAddMergesExistingShardResults(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(1*testBlockSize), ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(2*testBlockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts),
 	}
 
 	srs := []ShardResult{
@@ -141,9 +141,9 @@ func TestResultNumSeries(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(1*testBlockSize), ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(2*testBlockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts),
 	}
 
 	srs := []ShardResult{
@@ -172,9 +172,9 @@ func TestResultAddResult(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(1*testBlockSize), ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(2*testBlockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts),
 	}
 
 	srs := []ShardResult{

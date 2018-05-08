@@ -82,6 +82,7 @@ type listState struct {
 // NewDatabaseBlock creates a new DatabaseBlock instance.
 func NewDatabaseBlock(
 	start time.Time,
+	blockSize time.Duration,
 	segment ts.Segment,
 	opts Options,
 ) DatabaseBlock {
@@ -89,6 +90,7 @@ func NewDatabaseBlock(
 		opts:           opts,
 		ctx:            opts.ContextPool().Get(),
 		startUnixNanos: start.UnixNano(),
+		blockSize:      blockSize,
 		closed:         false,
 	}
 	if segment.Len() > 0 {

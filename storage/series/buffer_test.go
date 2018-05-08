@@ -304,7 +304,7 @@ func TestBufferBootstrapAlreadyDrained(t *testing.T) {
 	buffer.Reset(opts)
 
 	bucketStart := buffer.buckets[0].start
-	dbBlock := block.NewDatabaseBlock(bucketStart, ts.Segment{}, block.NewOptions())
+	dbBlock := block.NewDatabaseBlock(bucketStart, 0, ts.Segment{}, block.NewOptions())
 
 	// Make sure multiple adds dont cause an error
 	require.NoError(t, buffer.Bootstrap(dbBlock))
@@ -524,7 +524,7 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	require.NoError(t, err)
 
 	blopts := opts.DatabaseBlockOptions()
-	newBlock := block.NewDatabaseBlock(curr, encoder.Discard(), blopts)
+	newBlock := block.NewDatabaseBlock(curr, 0, encoder.Discard(), blopts)
 	b.bootstrapped = append(b.bootstrapped, newBlock)
 	ctx := opts.ContextPool().Get()
 	stream, err := b.bootstrapped[0].Stream(ctx)

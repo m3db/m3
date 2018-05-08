@@ -41,7 +41,7 @@ import (
 
 func testDatabaseBlock(ctrl *gomock.Controller) *dbBlock {
 	opts := NewOptions()
-	b := NewDatabaseBlock(time.Now(), ts.Segment{}, opts).(*dbBlock)
+	b := NewDatabaseBlock(time.Now(), 0, ts.Segment{}, opts).(*dbBlock)
 	return b
 }
 
@@ -189,6 +189,10 @@ func TestDatabaseBlockMerge(t *testing.T) {
 			Value:     1,
 		},
 	}
+	durations := []time.Duration{
+		time.Minute,
+		time.Hour,
+	}
 
 	// Mock segment reader pool so we count the number of Finalize() calls
 	segmentReaders := []segmentReaderFinalizeCounter{}
@@ -212,15 +216,18 @@ func TestDatabaseBlockMerge(t *testing.T) {
 	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
 	encoder.Encode(data[0], xtime.Second, nil)
 	seg := encoder.Discard()
-	block1 := NewDatabaseBlock(data[0].Timestamp, seg, blockOpts).(*dbBlock)
+	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts).(*dbBlock)
 
 	encoder.Reset(data[1].Timestamp, 10)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
-	block2 := NewDatabaseBlock(data[1].Timestamp, seg, blockOpts).(*dbBlock)
+	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts).(*dbBlock)
 
 	// Lazily merge the two blocks
 	block1.Merge(block2)
+
+	// BlockSize should not change
+	require.Equal(t, durations[0], block1.BlockSize())
 
 	// Try and read the data back and verify it looks good
 	depCtx := block1.opts.ContextPool().Get()
@@ -276,6 +283,11 @@ func TestDatabaseBlockMergeChained(t *testing.T) {
 			Value:     2,
 		},
 	}
+	durations := []time.Duration{
+		time.Second,
+		time.Minute,
+		time.Hour,
+	}
 
 	// Mock segment reader pool so we count the number of Finalize() calls
 	segmentReaders := []segmentReaderFinalizeCounter{}
@@ -299,21 +311,24 @@ func TestDatabaseBlockMergeChained(t *testing.T) {
 	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
 	encoder.Encode(data[0], xtime.Second, nil)
 	seg := encoder.Discard()
-	block1 := NewDatabaseBlock(data[0].Timestamp, seg, blockOpts).(*dbBlock)
+	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts).(*dbBlock)
 
 	encoder.Reset(data[1].Timestamp, 10)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
-	block2 := NewDatabaseBlock(data[1].Timestamp, seg, blockOpts).(*dbBlock)
+	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts).(*dbBlock)
 
 	encoder.Reset(data[2].Timestamp, 10)
 	encoder.Encode(data[2], xtime.Second, nil)
 	seg = encoder.Discard()
-	block3 := NewDatabaseBlock(data[2].Timestamp, seg, blockOpts).(*dbBlock)
+	block3 := NewDatabaseBlock(data[2].Timestamp, durations[2], seg, blockOpts).(*dbBlock)
 
 	// Lazily merge two blocks into block1
 	block1.Merge(block2)
 	block1.Merge(block3)
+
+	// BlockSize should not change
+	require.Equal(t, durations[0], block1.BlockSize())
 
 	// Try and read the data back and verify it looks good
 	depCtx := block1.opts.ContextPool().Get()
@@ -358,8 +373,8 @@ func TestDatabaseBlockMergeErrorFromDisk(t *testing.T) {
 	)
 
 	// Create the two blocks we plan to merge
-	block1 := NewDatabaseBlock(curr, ts.Segment{}, blockOpts).(*dbBlock)
-	block2 := NewDatabaseBlock(curr, ts.Segment{}, blockOpts).(*dbBlock)
+	block1 := NewDatabaseBlock(curr, 0, ts.Segment{}, blockOpts).(*dbBlock)
+	block2 := NewDatabaseBlock(curr, 0, ts.Segment{}, blockOpts).(*dbBlock)
 
 	// Mark only block 2 as retrieved from disk so we can make sure it checks
 	// the block that is being merged, as well as the one that is being merged
@@ -389,6 +404,10 @@ func TestDatabaseBlockChecksumMergesAndRecalculates(t *testing.T) {
 			Value:     1,
 		},
 	}
+	durations := []time.Duration{
+		time.Minute,
+		time.Hour,
+	}
 
 	// Setup
 	blockOpts := NewOptions()
@@ -398,12 +417,12 @@ func TestDatabaseBlockChecksumMergesAndRecalculates(t *testing.T) {
 	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
 	encoder.Encode(data[0], xtime.Second, nil)
 	seg := encoder.Discard()
-	block1 := NewDatabaseBlock(data[0].Timestamp, seg, blockOpts).(*dbBlock)
+	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts).(*dbBlock)
 
 	encoder.Reset(data[1].Timestamp, 10)
 	encoder.Encode(data[1], xtime.Second, nil)
 	seg = encoder.Discard()
-	block2 := NewDatabaseBlock(data[1].Timestamp, seg, blockOpts).(*dbBlock)
+	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts).(*dbBlock)
 
 	// Keep track of the old checksum so we can make sure it changed
 	oldChecksum, err := block1.Checksum()
@@ -411,6 +430,9 @@ func TestDatabaseBlockChecksumMergesAndRecalculates(t *testing.T) {
 
 	// Lazily merge the two blocks
 	block1.Merge(block2)
+
+	// BlockSize should not change
+	require.Equal(t, durations[0], block1.BlockSize())
 
 	// Make sure the checksum was updated
 	newChecksum, err := block1.Checksum()
