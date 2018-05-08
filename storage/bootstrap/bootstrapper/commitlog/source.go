@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
@@ -500,7 +501,78 @@ func (s *commitLogSource) ReadIndex(
 	// Also: it's now possible to cache the metadata and data
 	// for all namespaces in the first call to ReadData(...) since
 	// the source is used across all namespaces and then discarded after.
-	return result.NewIndexBootstrapResult(), nil
+	if shardsTimeRanges.IsEmpty() {
+		return result.NewIndexBootstrapResult(), nil
+	}
+
+	readCommitLogPredicate := newReadCommitLogPredicate(
+		ns, shardsTimeRanges, s.opts, s.inspection)
+	readSeriesPredicate := newReadSeriesPredicate(ns)
+	iterOpts := commitlog.IteratorOpts{
+		CommitLogOptions:      s.opts.CommitLogOptions(),
+		FileFilterPredicate:   readCommitLogPredicate,
+		SeriesFilterPredicate: readSeriesPredicate,
+	}
+	iter, err := s.newIteratorFn(iterOpts)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
+	}
+
+	defer iter.Close()
+
+	var (
+		// +1 so we can use the shard number as an index throughout without constantly
+		// remembering to subtract 1 to convert to zero-based indexing
+		numShards = s.findHighestShard(shardsTimeRanges) + 1
+	)
+
+	metadataByShard := make([]metadataByUniqueIndex, numShards)
+	for shard := range shardsTimeRanges {
+		metadataByShard[shard] = metadataByUniqueIndex{
+			idxToMetadata: make(map[uint64]seriesMetadata),
+		}
+	}
+
+	indexResult := result.NewIndexBootstrapResult()
+	indexResults := indexResult.IndexResults()
+
+	for iter.Next() {
+		series, dp, _, _ := iter.Current()
+		if int(series.Shard) >= len(metadataByShard) {
+			panic(series.Shard)
+		}
+
+		metadataByShard[series.Shard].idxToMetadata[series.UniqueIndex] = seriesMetadata{
+			id:   series.ID,
+			tags: series.Tags,
+		}
+
+		segment, err := indexResults.GetOrAddSegment(
+			dp.Timestamp, ns.Options().IndexOptions(), s.opts.ResultOptions())
+		if err != nil {
+			return nil, err
+		}
+
+		exists, err := segment.ContainsID(series.ID.Data().Bytes())
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			continue
+		}
+
+		d, err := convert.FromMetric(series.ID, series.Tags)
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = segment.Insert(d)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return indexResult, nil
 }
 
 func newReadCommitLogPredicate(
@@ -553,6 +625,15 @@ func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredica
 type encodersAndRanges struct {
 	encodersBySeries map[uint64]encodersByTime
 	ranges           xtime.Ranges
+}
+
+type metadataByUniqueIndex struct {
+	idxToMetadata map[uint64]seriesMetadata
+}
+
+type seriesMetadata struct {
+	id   ident.ID
+	tags ident.Tags
 }
 
 type encodersByTime struct {
