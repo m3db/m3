@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	xtest "github.com/m3db/m3x/test"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -56,18 +57,21 @@ func TestSessionWriteTaggedNotOpenError(t *testing.T) {
 }
 
 func TestSessionWriteTagged(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	w := newWriteTaggedStub()
 	session := newDefaultTestSession(t).(*session)
 	mockEncoder := serialize.NewMockTagEncoder(ctrl)
-	mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags), true).AnyTimes()
-	mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil).AnyTimes()
-	mockEncoder.EXPECT().Finalize().AnyTimes()
 	mockEncoderPool := serialize.NewMockTagEncoderPool(ctrl)
-	mockEncoderPool.EXPECT().Get().Return(mockEncoder).AnyTimes()
 	session.pools.tagEncoder = mockEncoderPool
+
+	gomock.InOrder(
+		mockEncoderPool.EXPECT().Get().Return(mockEncoder),
+		mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil),
+		mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags), true),
+		mockEncoder.EXPECT().Finalize(),
+	)
 
 	var completionFn completionFn
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
@@ -238,19 +242,26 @@ func TestSessionWriteTaggedBadRequestErrorIsNonRetryable(t *testing.T) {
 }
 
 func TestSessionWriteTaggedRetry(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	session := newRetryEnabledTestSession(t).(*session)
 	w := newWriteTaggedStub()
 
 	mockEncoder := serialize.NewMockTagEncoder(ctrl)
-	mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags), true).AnyTimes()
-	mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil).AnyTimes()
-	mockEncoder.EXPECT().Finalize().AnyTimes()
 	mockEncoderPool := serialize.NewMockTagEncoderPool(ctrl)
-	mockEncoderPool.EXPECT().Get().Return(mockEncoder).AnyTimes()
 	session.pools.tagEncoder = mockEncoderPool
+
+	gomock.InOrder(
+		mockEncoderPool.EXPECT().Get().Return(mockEncoder),
+		mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil),
+		mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags), true),
+		mockEncoder.EXPECT().Finalize(),
+		mockEncoderPool.EXPECT().Get().Return(mockEncoder),
+		mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil),
+		mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags), true),
+		mockEncoder.EXPECT().Finalize(),
+	)
 
 	var hosts []topology.Host
 	var completionFn completionFn

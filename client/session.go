@@ -965,8 +965,8 @@ func (s *session) writeAttemptWithRLock(
 	var tagEncoder serialize.TagEncoder
 	if wType == taggedWriteAttemptType {
 		tagEncoder = s.pools.tagEncoder.Get()
-		defer tagEncoder.Finalize()
 		if err := tagEncoder.Encode(inputTags); err != nil {
+			tagEncoder.Finalize()
 			return nil, 0, 0, err
 		}
 	}
