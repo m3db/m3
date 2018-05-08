@@ -196,7 +196,7 @@ func genWrite(start time.Time, ns string) gopter.Gen {
 	return gopter.CombineGens(
 		// Identifier
 		gen.Identifier(),
-		// Tag key/valS
+		// Tag key/val
 		gen.Identifier(),
 		gen.Identifier(),
 		// Boolean indicating whether or not to include tags for this series. We want to
