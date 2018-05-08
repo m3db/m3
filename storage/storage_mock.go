@@ -2352,30 +2352,6 @@ func (mr *MockOptionsMockRecorder) ErrorThresholdForLoad() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ErrorThresholdForLoad", reflect.TypeOf((*MockOptions)(nil).ErrorThresholdForLoad))
 }
 
-// SetIndexingEnabled mocks base method
-func (m *MockOptions) SetIndexingEnabled(b bool) Options {
-	ret := m.ctrl.Call(m, "SetIndexingEnabled", b)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-// SetIndexingEnabled indicates an expected call of SetIndexingEnabled
-func (mr *MockOptionsMockRecorder) SetIndexingEnabled(b interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexingEnabled", reflect.TypeOf((*MockOptions)(nil).SetIndexingEnabled), b)
-}
-
-// IndexingEnabled mocks base method
-func (m *MockOptions) IndexingEnabled() bool {
-	ret := m.ctrl.Call(m, "IndexingEnabled")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IndexingEnabled indicates an expected call of IndexingEnabled
-func (mr *MockOptionsMockRecorder) IndexingEnabled() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexingEnabled", reflect.TypeOf((*MockOptions)(nil).IndexingEnabled))
-}
-
 // SetIndexOptions mocks base method
 func (m *MockOptions) SetIndexOptions(value index.Options) Options {
 	ret := m.ctrl.Call(m, "SetIndexOptions", value)

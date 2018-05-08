@@ -62,8 +62,7 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	opts := newTestOptions(t).
 		SetCommitLogRetentionPeriod(rOpts.RetentionPeriod()).
 		SetCommitLogBlockSize(blockSize).
-		SetNamespaces([]namespace.Metadata{ns1, ns2}).
-		SetIndexingEnabled(true)
+		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	// Test setup
 	setup, err := newTestSetup(t, opts, nil)
