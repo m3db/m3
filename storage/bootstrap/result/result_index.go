@@ -85,7 +85,7 @@ func (r IndexResults) GetOrAddSegment(
 	idxopts namespace.IndexOptions,
 	opts Options,
 ) (segment.MutableSegment, error) {
-	// NB(r): The reason we can align by the retention block size and guarentee
+	// NB(r): The reason we can align by the retention block size and guarantee
 	// there is only one entry for this time is because index blocks must be a
 	// positive multiple of the data block size, making it easy to map a data
 	// block entry to at most one index block entry.

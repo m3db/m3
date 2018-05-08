@@ -385,8 +385,11 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	if shardRetrieverMgr != nil {
 		shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
 	}
-	if seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
-		s.log.Errorf("shard retriever missing for shard: %d", shard)
+	if run == bootstrapDataRunType && seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
+		s.log.WithFields(
+			xlog.NewField("has-shard-retriever-mgr", shardRetrieverMgr != nil),
+			xlog.NewField("has-shard-retriever", shardRetriever != nil),
+		).Errorf("shard retriever missing for shard: %d", shard)
 		s.handleErrorsAndUnfulfilled(runResult, shard, tr, timesWithErrors)
 		return
 	}
@@ -653,7 +656,7 @@ func (s *fileSystemSource) read(
 	s.log.WithFields(
 		xlog.NewField("shards", len(shardsTimeRanges)),
 		xlog.NewField("concurrency", s.opts.NumProcessors()),
-		xlog.NewField("metadataOnly", blockRetriever != nil),
+		xlog.NewField("metadata-only", blockRetriever != nil),
 	).Infof("filesystem bootstrapper bootstrapping shards for ranges")
 	bytesPool := s.opts.ResultOptions().DatabaseBlockOptions().BytesPool()
 
