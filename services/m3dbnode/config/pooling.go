@@ -72,25 +72,25 @@ type PoolingPolicy struct {
 	// The policy for the Identifier pool
 	IdentifierPool PoolPolicy `yaml:"identifierPool"`
 
-	// The policy for the fetchBlockMetadataResult pool
+	// The policy for the FetchBlockMetadataResult pool
 	FetchBlockMetadataResultsPool CapacityPoolPolicy `yaml:"fetchBlockMetadataResultsPool"`
 
-	// The policy for the fetchBlocksMetadataResultsPool pool
+	// The policy for the FetchBlocksMetadataResults pool
 	FetchBlocksMetadataResultsPool CapacityPoolPolicy `yaml:"fetchBlocksMetadataResultsPool"`
 
-	// The policy for the hostBlockMetadataSlicePool pool
+	// The policy for the HostBlockMetadataSlice pool
 	HostBlockMetadataSlicePool CapacityPoolPolicy `yaml:"hostBlockMetadataSlicePool"`
 
-	// The policy for the blockMetadataPool pool
+	// The policy for the BlockMetadat pool
 	BlockMetadataPool PoolPolicy `yaml:"blockMetadataPool"`
 
-	// The policy for the blockMetadataSlicePool pool
+	// The policy for the BlockMetadataSlice pool
 	BlockMetadataSlicePool CapacityPoolPolicy `yaml:"blockMetadataSlicePool"`
 
-	// The policy for the blocksMetadataPool pool
+	// The policy for the BlocksMetadata pool
 	BlocksMetadataPool PoolPolicy `yaml:"blocksMetadataPool"`
 
-	// The policy for the blocksMetadataSlicePool pool
+	// The policy for the BlocksMetadataSlice pool
 	BlocksMetadataSlicePool CapacityPoolPolicy `yaml:"blocksMetadataSlicePool"`
 
 	// The policy for the tagArray pool
@@ -98,6 +98,12 @@ type PoolingPolicy struct {
 
 	// The policy for the index.ResultsPool
 	IndexResultsPool PoolPolicy `yaml:"indexResultsPool"`
+
+	// The policy for the TagEncoderPool
+	TagEncoderPool PoolPolicy `yaml:"tagEncoderPool"`
+
+	// The policy for the TagDecoderPool
+	TagDecoderPool PoolPolicy `yaml:"tagDecoderPool"`
 }
 
 // PoolPolicy specifies a single pool policy.

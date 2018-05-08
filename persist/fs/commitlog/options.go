@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )
@@ -75,6 +76,7 @@ type options struct {
 	flushInterval    time.Duration
 	backlogQueueSize int
 	bytesPool        pool.CheckedBytesPool
+	identPool        ident.Pool
 	readConcurrency  int
 }
 
@@ -96,6 +98,8 @@ func NewOptions() Options {
 		readConcurrency: defaultReadConcurrency,
 	}
 	o.bytesPool.Init()
+
+	o.identPool = ident.NewPool(o.bytesPool, pool.NewObjectPoolOptions())
 	return o
 }
 
@@ -226,4 +230,14 @@ func (o *options) SetReadConcurrency(concurrency int) Options {
 
 func (o *options) ReadConcurrency() int {
 	return o.readConcurrency
+}
+
+func (o *options) SetIdentifierPool(value ident.Pool) Options {
+	opts := *o
+	opts.identPool = value
+	return &opts
+}
+
+func (o *options) IdentifierPool() ident.Pool {
+	return o.identPool
 }

@@ -207,6 +207,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		if !ok {
 			unmergedSeries = encodersByTime{
 				id:       series.ID,
+				tags:     series.Tags,
 				encoders: make(map[xtime.UnixNano]encoders)}
 			unmergedShard[series.UniqueIndex] = unmergedSeries
 		}
@@ -305,7 +306,7 @@ func (s *commitLogSource) mergeShards(
 		mergeShardFunc := func() {
 			var shardResult result.ShardResult
 			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
-				unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
+				shard, unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
 			if shardResult != nil && shardResult.NumSeries() > 0 {
 				// Prevent race conditions while updating bootstrapResult from multiple go-routines
 				bootstrapResultLock.Lock()
@@ -325,6 +326,7 @@ func (s *commitLogSource) mergeShards(
 }
 
 func (s *commitLogSource) mergeShard(
+	shard int,
 	unmergedShard encodersAndRanges,
 	blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
@@ -348,7 +350,7 @@ func (s *commitLogSource) mergeShard(
 			if shardResult == nil {
 				shardResult = result.NewShardResult(len(unmergedShard.encodersBySeries), s.opts.ResultOptions())
 			}
-			shardResult.AddSeries(unmergedBlocks.id, nil, seriesBlocks) // FOLLOWUP(prateek): include tags in commit log reader
+			shardResult.AddSeries(unmergedBlocks.id, unmergedBlocks.tags, seriesBlocks)
 		}
 
 		numShardEmptyErrs += numSeriesEmptyErrs
@@ -550,7 +552,8 @@ type encodersAndRanges struct {
 }
 
 type encodersByTime struct {
-	id ident.ID
+	id   ident.ID
+	tags ident.Tags
 	// int64 instead of time.Time because there is an optimized map access pattern
 	// for i64's
 	encoders map[xtime.UnixNano]encoders

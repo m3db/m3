@@ -389,6 +389,7 @@ func (dec *Decoder) decodeLogMetadata() schema.LogMetadata {
 	logMetadata.ID, _, _ = dec.decodeBytes()
 	logMetadata.Namespace, _, _ = dec.decodeBytes()
 	logMetadata.Shard = uint32(dec.decodeVarUint())
+	logMetadata.EncodedTags, _, _ = dec.decodeBytes()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyLogMetadata
