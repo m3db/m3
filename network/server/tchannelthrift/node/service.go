@@ -51,8 +51,6 @@ import (
 
 const (
 	checkedBytesPoolSize        = 65536
-	tagEncoderPoolSize          = 65536
-	tagDecoderPoolSize          = 65536
 	segmentArrayPoolSize        = 65536
 	initSegmentArrayPoolLength  = 4
 	maxSegmentArrayPooledLength = 32

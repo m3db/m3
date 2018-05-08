@@ -827,6 +827,6 @@ var (
 	testTag3 = ident.StringTag("name3", "val3")
 
 	testTags1 = ident.Tags{testTag1}
-	testTags2 = ident.Tags{testTag1}
-	testTags3 = ident.Tags{testTag1}
+	testTags2 = ident.Tags{testTag2}
+	testTags3 = ident.Tags{testTag3}
 )
