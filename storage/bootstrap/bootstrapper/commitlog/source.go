@@ -350,7 +350,6 @@ func (s *commitLogSource) mergeShard(
 			if shardResult == nil {
 				shardResult = result.NewShardResult(len(unmergedShard.encodersBySeries), s.opts.ResultOptions())
 			}
-			fmt.Printf("adding %v to %v\n", unmergedBlocks.id, shard)
 			shardResult.AddSeries(unmergedBlocks.id, unmergedBlocks.tags, seriesBlocks)
 		}
 
