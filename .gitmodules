@@ -1,3 +1,6 @@
 [submodule ".ci"]
 	path = .ci
 	url = https://github.com/m3db/ci-scripts.git
+[submodule "genconfig/jsonnet"]
+	path = genconfig/jsonnet
+	url = git@github.com:google/jsonnet.git

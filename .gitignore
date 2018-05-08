@@ -18,6 +18,9 @@ vendor/
 # Build binaries
 bin/
 
+# Config output
+out/
+
 # Debug binaries
 debug
 debug.test
