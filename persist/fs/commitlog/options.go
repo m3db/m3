@@ -263,14 +263,12 @@ func (o *options) TagDecoderPool() serialize.TagDecoderPool {
 	return o.tagDecoderPool
 }
 
-// SetIdentifierPool sets the IdentifierPool to use for pooling identifiers.
 func (o *options) SetIdentifierPool(value ident.Pool) Options {
 	opts := *o
 	opts.identPool = value
 	return &opts
 }
 
-// IdentifierPool returns the IdentifierPool to use for pooling identifiers.
 func (o *options) IdentifierPool() ident.Pool {
 	return o.identPool
 }
