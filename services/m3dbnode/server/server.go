@@ -240,6 +240,16 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
+	policy := cfg.PoolingPolicy
+	tagEncoderPool := serialize.NewTagEncoderPool(
+		serialize.NewTagEncoderOptions(),
+		poolOptions(policy.TagEncoderPool, scope.SubScope("tag-encoder-pool")))
+	tagEncoderPool.Init()
+	tagDecoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(),
+		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
+	tagDecoderPool.Init()
+
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
@@ -253,7 +263,9 @@ func Run(runOpts RunOptions) {
 		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSize).
 		SetMmapEnableHugeTLB(shouldUseHugeTLB).
 		SetMmapHugeTLBThreshold(mmapCfg.HugeTLB.Threshold).
-		SetRuntimeOptionsManager(runtimeOptsMgr)
+		SetRuntimeOptionsManager(runtimeOptsMgr).
+		SetTagEncoderPool(tagEncoderPool).
+		SetTagDecoderPool(tagDecoderPool)
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
@@ -414,7 +426,6 @@ func Run(runOpts RunOptions) {
 		})
 
 	// Set repair options
-	policy := cfg.PoolingPolicy
 	hostBlockMetadataSlicePool := repair.NewHostBlockMetadataSlicePool(
 		capacityPoolOptions(policy.HostBlockMetadataSlicePool,
 			scope.SubScope("host-block-metadata-slice-pool")),
@@ -442,14 +453,6 @@ func Run(runOpts RunOptions) {
 	blocksMetadataSlicePool := tchannelthrift.NewBlocksMetadataSlicePool(
 		capacityPoolOptions(policy.BlocksMetadataSlicePool, scope.SubScope("blocks-metadata-slice-pool")),
 		policy.BlocksMetadataSlicePool.Capacity)
-	tagEncoderPool := serialize.NewTagEncoderPool(
-		serialize.NewTagEncoderOptions(),
-		poolOptions(policy.TagEncoderPool, scope.SubScope("tag-encoder-pool")))
-	tagEncoderPool.Init()
-	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(),
-		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
-	tagDecoderPool.Init()
 
 	ttopts := tchannelthrift.NewOptions().
 		SetBlockMetadataPool(blockMetadataPool).
