@@ -398,7 +398,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		var (
 			timeRange = r.Range()
 			start     = timeRange.Start
-			blockSize = timeRange.End.Sub(start)
+			blockSize = ns.Options().RetentionOptions().BlockSize()
 			err       error
 		)
 		switch run {

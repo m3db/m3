@@ -3307,7 +3307,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 			return nil
 		}
 
-		readers := []xio.SegmentReader{currReader, resultReader}
+		readers := []xio.SegmentReader{currReader.SegmentReader, resultReader.SegmentReader}
 		blockSize := currReader.BlockSize
 
 		encoder, err := r.mergeReaders(start, blockSize, readers)
