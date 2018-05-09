@@ -303,6 +303,8 @@ func (s *commitLogSource) shouldEncodeSeriesForIndex(
 		End:   indexBlockEnd,
 	}
 
+	fmt.Println(indexBlockRange)
+	fmt.Println(rangesToBootstrap)
 	return rangesToBootstrap.Overlaps(indexBlockRange)
 }
 
@@ -567,10 +569,10 @@ func (s *commitLogSource) ReadIndex(
 	indexResult := result.NewIndexBootstrapResult()
 	indexResults := indexResult.IndexResults()
 
+	indexBlockSize := ns.Options().IndexOptions().BlockSize()
 	for iter.Next() {
 		series, dp, _, _ := iter.Current()
-		if int(series.Shard) >= len(metadataByShard) {
-			// We're not trying to bootstrap this shard
+		if !s.shouldEncodeSeriesForIndex(metadataByShard, indexBlockSize, series.Shard, dp.Timestamp) {
 			continue
 		}
 

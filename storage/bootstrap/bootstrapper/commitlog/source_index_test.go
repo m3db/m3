@@ -76,6 +76,8 @@ func TestBootstrapIndex(t *testing.T) {
 	baz := commitlog.Series{Namespace: testNamespaceID, Shard: 2, ID: ident.StringID("baz"), Tags: bazTags}
 	// Make sure we can handle series that don't have tags
 	unindexed := commitlog.Series{Namespace: testNamespaceID, Shard: 3, ID: ident.StringID("unindexed"), Tags: nil}
+	// Make sure we skip series that are not within the bootstrap range
+	outOfRange := commitlog.Series{Namespace: testNamespaceID, Shard: 3, ID: ident.StringID("outOfRange"), Tags: nil}
 
 	values := []testValue{
 		{foo, start, 1.0, xtime.Second, nil},
@@ -85,6 +87,7 @@ func TestBootstrapIndex(t *testing.T) {
 		{baz, start.Add(2 * dataBlockSize), 1.0, xtime.Second, nil},
 		{baz, start.Add(2 * dataBlockSize), 2.0, xtime.Second, nil},
 		{unindexed, start.Add(2 * dataBlockSize), 1.0, xtime.Second, nil},
+		{outOfRange, start.Add(-blockSize), 1.0, xtime.Second, nil},
 	}
 
 	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
@@ -93,16 +96,16 @@ func TestBootstrapIndex(t *testing.T) {
 
 	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(-2 * dataBlockSize),
-		End:   start.Add(-dataBlockSize),
-	})
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(-dataBlockSize),
-		End:   start,
-	})
-	ranges = ranges.AddRange(xtime.Range{
 		Start: start,
 		End:   start.Add(dataBlockSize),
+	})
+	ranges = ranges.AddRange(xtime.Range{
+		Start: start.Add(dataBlockSize),
+		End:   start.Add(2 * dataBlockSize),
+	})
+	ranges = ranges.AddRange(xtime.Range{
+		Start: start.Add(2 * dataBlockSize),
+		End:   start.Add(3 * dataBlockSize),
 	})
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges, 2: ranges, 3: ranges}
@@ -117,13 +120,20 @@ func TestBootstrapIndex(t *testing.T) {
 
 	expectedIndexBlocks := map[xtime.UnixNano]map[string]map[string]string{}
 	for _, value := range values {
+		if value.s.ID.Equal(outOfRange.ID) {
+			// Don't expect the out of range series to be included
+			continue
+		}
+
 		indexBlockStart := value.t.Truncate(indexBlockSize)
 		expectedSeries, ok := expectedIndexBlocks[xtime.ToUnixNano(indexBlockStart)]
 		if !ok {
 			expectedSeries = map[string]map[string]string{}
 			expectedIndexBlocks[xtime.ToUnixNano(indexBlockStart)] = expectedSeries
 		}
+
 		seriesID := string(value.s.ID.Bytes())
+
 		existingTags, ok := expectedSeries[seriesID]
 		if !ok {
 			existingTags = map[string]string{}
