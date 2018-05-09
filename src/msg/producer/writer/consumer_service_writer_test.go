@@ -34,8 +34,10 @@ import (
 	"github.com/m3db/m3cluster/placement/storage"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3msg/generated/proto/msgpb"
 	"github.com/m3db/m3msg/producer"
 	"github.com/m3db/m3msg/producer/data"
+	"github.com/m3db/m3msg/protocol/proto"
 	"github.com/m3db/m3msg/topic"
 	"github.com/m3db/m3x/watch"
 
@@ -255,25 +257,6 @@ func TestConsumerServiceWriterWithReplicatedConsumer(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
-	wg.Add(1)
-	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncodeDecoderOptions())
-		wg.Done()
-	}()
-
-	conn, err := lis2.Accept()
-	require.NoError(t, err)
-	defer conn.Close()
-
-	wg.Add(1)
-	go func() {
-		testConsumeAndAckOnConnection(t, conn, opts.EncodeDecoderOptions())
-		wg.Done()
-	}()
-
 	md := producer.NewMockData(ctrl)
 	md.EXPECT().Shard().Return(uint32(1)).AnyTimes()
 	md.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
@@ -281,6 +264,20 @@ func TestConsumerServiceWriterWithReplicatedConsumer(t *testing.T) {
 
 	rd := data.NewRefCountedData(md, nil)
 	csw.Write(rd)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncodeDecoderOptions())
+		wg.Done()
+	}()
+
+	wg.Add(1)
+	go func() {
+		testConsumeAndAckOnConnectionListener(t, lis2, opts.EncodeDecoderOptions())
+		wg.Done()
+	}()
+	wg.Wait()
+
 	for {
 		if rd.IsDroppedOrConsumed() {
 			break
@@ -318,10 +315,31 @@ func TestConsumerServiceWriterWithReplicatedConsumer(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	wg.Add(1)
 	go func() {
-		testConsumeAndAckOnConnection(t, conn, opts.EncodeDecoderOptions())
-		wg.Done()
+		for {
+			conn, err := lis2.Accept()
+			if err != nil {
+				return
+			}
+
+			server := proto.NewEncodeDecoder(
+				conn,
+				opts.EncodeDecoderOptions(),
+			)
+
+			var msg msgpb.Message
+			err = server.Decode(&msg)
+			if err != nil {
+				conn.Close()
+				continue
+			}
+			server.Encode(&msgpb.Ack{
+				Metadata: []msgpb.Metadata{
+					msg.Metadata,
+				},
+			})
+			conn.Close()
+		}
 	}()
 
 	md.EXPECT().Finalize(producer.Consumed)

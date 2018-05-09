@@ -127,17 +127,11 @@ func (w *consumerWriterImpl) readAcksUntilClose() {
 		case <-w.doneCh:
 			return
 		default:
-			w.readAcksWithRetry()
+			w.retrier.AttemptWhile(
+				w.readAckContinueFn,
+				w.readAcks,
+			)
 		}
-	}
-}
-
-func (w *consumerWriterImpl) readAcksWithRetry() {
-	if err := w.retrier.AttemptWhile(
-		w.readAckContinueFn,
-		w.readAcks,
-	); err != nil {
-		w.logger.Errorf("could not read acks from %s, will retry later: %v", w.addr, err)
 	}
 }
 
