@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3ninx/doc"
 	xtime "github.com/m3db/m3x/time"
@@ -48,8 +49,8 @@ const (
 )
 
 var (
-	defaultIndexBatchBackoff   = time.Second
-	defaultIndexPerSecondLimit = 10000
+	defaultIndexBatchBackoff   = time.Millisecond
+	defaultIndexPerSecondLimit = 100000
 )
 
 type nsIndexInsertQueue struct {
@@ -96,6 +97,13 @@ func newNamespaceIndexInsertQueue(
 		closeCh:             make(chan struct{}, 1),
 		metrics:             newNamespaceIndexInsertQueueMetrics(scope),
 	}
+}
+
+func (q *nsIndexInsertQueue) SetRuntimeOptions(value runtime.Options) {
+	q.Lock()
+	q.indexBatchBackoff = value.IndexNewSeriesBackoffDuration()
+	q.indexPerSecondLimit = value.IndexNewSeriesLimitPerSecond()
+	q.Unlock()
 }
 
 func (q *nsIndexInsertQueue) insertLoop() {

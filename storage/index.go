@@ -29,12 +29,14 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	m3dberrors "github.com/m3db/m3db/storage/errors"
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
+	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
@@ -92,6 +94,9 @@ type nsIndexState struct {
 	// chronological order. This is used at query time to enforce determinism about results
 	// returned.
 	blockStartsDescOrder []xtime.UnixNano
+
+	// runtime options listeners
+	runtimeOptsListenClosers []xclose.SimpleCloser
 }
 
 // NB: nsIndexRuntimeOptions does not contain its own mutex as some of the variables
@@ -108,11 +113,11 @@ type newBlockFn func(time.Time, time.Duration, index.Options) (index.Block, erro
 // newNamespaceIndex returns a new namespaceIndex for the provided namespace.
 func newNamespaceIndex(
 	nsMD namespace.Metadata,
-	opts index.Options,
+	opts Options,
 ) (namespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
-		indexOpts:       opts,
+		storageOpts:     opts,
 		newIndexQueueFn: newNamespaceIndexInsertQueue,
 		newBlockFn:      index.NewBlock,
 	})
@@ -122,11 +127,11 @@ func newNamespaceIndex(
 func newNamespaceIndexWithInsertQueueFn(
 	nsMD namespace.Metadata,
 	newIndexQueueFn newNamespaceIndexInsertQueueFn,
-	opts index.Options,
+	opts Options,
 ) (namespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
-		indexOpts:       opts,
+		storageOpts:     opts,
 		newIndexQueueFn: newIndexQueueFn,
 		newBlockFn:      index.NewBlock,
 	})
@@ -136,11 +141,11 @@ func newNamespaceIndexWithInsertQueueFn(
 func newNamespaceIndexWithNewBlockFn(
 	nsMD namespace.Metadata,
 	newBlockFn newBlockFn,
-	opts index.Options,
+	opts Options,
 ) (namespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
-		indexOpts:       opts,
+		storageOpts:     opts,
 		newIndexQueueFn: newNamespaceIndexInsertQueue,
 		newBlockFn:      newBlockFn,
 	})
@@ -148,7 +153,7 @@ func newNamespaceIndexWithNewBlockFn(
 
 type newNamespaceIndexOpts struct {
 	md              namespace.Metadata
-	indexOpts       index.Options
+	storageOpts     Options
 	newIndexQueueFn newNamespaceIndexInsertQueueFn
 	newBlockFn      newBlockFn
 }
@@ -159,7 +164,7 @@ func newNamespaceIndexWithOptions(
 ) (namespaceIndex, error) {
 	var (
 		nsMD            = newIndexOpts.md
-		opts            = newIndexOpts.indexOpts
+		opts            = newIndexOpts.storageOpts.IndexOptions()
 		newIndexQueueFn = newIndexOpts.newIndexQueueFn
 		newBlockFn      = newIndexOpts.newBlockFn
 	)
@@ -191,6 +196,16 @@ func newNamespaceIndexWithOptions(
 
 	// allocate indexing queue and start it up.
 	queue := newIndexQueueFn(idx.writeBatch, nowFn, opts.InstrumentOptions().MetricsScope())
+
+	registerRuntimeOptionsListener := func(listener runtime.OptionsListener) {
+		elem := newIndexOpts.storageOpts.RuntimeOptionsManager().RegisterListener(listener)
+		idx.state.runtimeOptsListenClosers = append(idx.state.runtimeOptsListenClosers, elem)
+	}
+	registerRuntimeOptionsListener(idx)
+	registerRuntimeOptionsListener(queue)
+
+	// start the insert queue after registering the runtime options listeners
+	// as they can fire at any point
 	if err := queue.Start(); err != nil {
 		return nil, err
 	}
@@ -205,6 +220,19 @@ func newNamespaceIndexWithOptions(
 	}
 
 	return idx, nil
+}
+
+func (i *nsIndex) SetRuntimeOptions(value runtime.Options) {
+	i.state.Lock()
+	insertMode := index.InsertSync
+	if value.WriteNewSeriesAsync() {
+		insertMode = index.InsertAsync
+	}
+	i.state.runtimeOpts = nsIndexRuntimeOptions{
+		insertMode:    insertMode,
+		maxQueryLimit: int64(value.IndexResponseLimit()),
+	}
+	i.state.Unlock()
 }
 
 // NB(prateek): including the call chains leading to this point:
@@ -612,6 +640,10 @@ func (i *nsIndex) Close() error {
 
 	var multiErr xerrors.MultiError
 	multiErr = multiErr.Add(i.state.insertQueue.Stop())
+
+	for _, closer := range i.state.runtimeOptsListenClosers {
+		closer.Close()
+	}
 
 	for t := range i.state.blocksByTime {
 		blk := i.state.blocksByTime[t]

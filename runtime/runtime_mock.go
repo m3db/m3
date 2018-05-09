@@ -166,6 +166,54 @@ func (mr *MockOptionsMockRecorder) WriteNewSeriesLimitPerShardPerSecond() *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteNewSeriesLimitPerShardPerSecond", reflect.TypeOf((*MockOptions)(nil).WriteNewSeriesLimitPerShardPerSecond))
 }
 
+// SetIndexNewSeriesBackoffDuration mocks base method
+func (m *MockOptions) SetIndexNewSeriesBackoffDuration(value time.Duration) Options {
+	ret := m.ctrl.Call(m, "SetIndexNewSeriesBackoffDuration", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIndexNewSeriesBackoffDuration indicates an expected call of SetIndexNewSeriesBackoffDuration
+func (mr *MockOptionsMockRecorder) SetIndexNewSeriesBackoffDuration(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexNewSeriesBackoffDuration", reflect.TypeOf((*MockOptions)(nil).SetIndexNewSeriesBackoffDuration), value)
+}
+
+// IndexNewSeriesBackoffDuration mocks base method
+func (m *MockOptions) IndexNewSeriesBackoffDuration() time.Duration {
+	ret := m.ctrl.Call(m, "IndexNewSeriesBackoffDuration")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// IndexNewSeriesBackoffDuration indicates an expected call of IndexNewSeriesBackoffDuration
+func (mr *MockOptionsMockRecorder) IndexNewSeriesBackoffDuration() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexNewSeriesBackoffDuration", reflect.TypeOf((*MockOptions)(nil).IndexNewSeriesBackoffDuration))
+}
+
+// SetIndexNewSeriesLimitPerSecond mocks base method
+func (m *MockOptions) SetIndexNewSeriesLimitPerSecond(value int) Options {
+	ret := m.ctrl.Call(m, "SetIndexNewSeriesLimitPerSecond", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIndexNewSeriesLimitPerSecond indicates an expected call of SetIndexNewSeriesLimitPerSecond
+func (mr *MockOptionsMockRecorder) SetIndexNewSeriesLimitPerSecond(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIndexNewSeriesLimitPerSecond", reflect.TypeOf((*MockOptions)(nil).SetIndexNewSeriesLimitPerSecond), value)
+}
+
+// IndexNewSeriesLimitPerSecond mocks base method
+func (m *MockOptions) IndexNewSeriesLimitPerSecond() int {
+	ret := m.ctrl.Call(m, "IndexNewSeriesLimitPerSecond")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// IndexNewSeriesLimitPerSecond indicates an expected call of IndexNewSeriesLimitPerSecond
+func (mr *MockOptionsMockRecorder) IndexNewSeriesLimitPerSecond() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexNewSeriesLimitPerSecond", reflect.TypeOf((*MockOptions)(nil).IndexNewSeriesLimitPerSecond))
+}
+
 // SetTickSeriesBatchSize mocks base method
 func (m *MockOptions) SetTickSeriesBatchSize(value int) Options {
 	ret := m.ctrl.Call(m, "SetTickSeriesBatchSize", value)

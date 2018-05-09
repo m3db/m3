@@ -298,7 +298,7 @@ func newDatabaseNamespace(
 		err   error
 	)
 	if metadata.Options().IndexOptions().Enabled() {
-		index, err = newNamespaceIndex(metadata, opts.IndexOptions())
+		index, err = newNamespaceIndex(metadata, opts)
 		if err != nil {
 			return nil, err
 		}

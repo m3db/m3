@@ -78,11 +78,8 @@ type Configuration struct {
 	// The initial garbage collection target percentage.
 	GCPercentage int `yaml:"gcPercentage" validate:"max=100"`
 
-	// Write new series limit per second to limit overwhelming during new ID bursts.
-	WriteNewSeriesLimitPerSecond int `yaml:"writeNewSeriesLimitPerSecond"`
-
-	// Write new series backoff between batches of new series insertions.
-	WriteNewSeriesBackoffDuration time.Duration `yaml:"writeNewSeriesBackoffDuration"`
+	// The insertion configuration.
+	Insert InsertConfiguration `yaml:"insert"`
 
 	// The tick configuration, omit this to use default settings.
 	Tick *TickConfiguration `yaml:"tick"`
@@ -113,9 +110,25 @@ type Configuration struct {
 
 	// The configuration for hashing
 	Hashing HashingConfiguration `yaml:"hashing"`
+}
 
+// InsertConfiguration are the configuration options related to insertion
+// into m3db.
+type InsertConfiguration struct {
 	// Write new series asynchronously for fast ingestion of new ID bursts.
 	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
+
+	// Write new series limit per second to limit overwhelming during new ID bursts.
+	WriteNewSeriesLimitPerSecond int `yaml:"writeNewSeriesLimitPerSecond"`
+
+	// Write new series backoff between batches of new series insertions.
+	WriteNewSeriesBackoffDuration time.Duration `yaml:"writeNewSeriesBackoffDuration"`
+
+	// Index new series limit per second to limit overwhelming during new ID bursts.
+	IndexNewSeriesLimitPerSecond int `yaml:"indexNewSeriesLimitPerSecond"`
+
+	// Index new series backoff between batches of new series indexing ops.
+	IndexNewSeriesBackoffDuration time.Duration `yaml:"indexNewSeriesBackoffDuration"`
 }
 
 // TickConfiguration is the tick configuration for background processing of

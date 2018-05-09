@@ -129,8 +129,7 @@ func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 	}
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn,
-		index.NewOptions().SetInsertMode(index.InsertSync))
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions())
 	assert.NoError(t, err)
 
 	defer func() {
@@ -165,12 +164,17 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, idx namespaceIndex) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
+	tags := ident.NewTagSliceIterator(ident.Tags{
+		ident.StringTag("abc", "def"),
+		ident.StringTag("ghi", "jkl"),
+	})
+
 	assert.NoError(t,
-		shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, now, 1.0, xtime.Second, nil))
+		shard.WriteTagged(ctx, ident.StringID("foo"), tags.Duplicate(), now, 1.0, xtime.Second, nil))
 	assert.NoError(t,
-		shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, now, 2.0, xtime.Second, nil))
+		shard.WriteTagged(ctx, ident.StringID("bar"), tags.Duplicate(), now, 2.0, xtime.Second, nil))
 	assert.NoError(t,
-		shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, now, 3.0, xtime.Second, nil))
+		shard.WriteTagged(ctx, ident.StringID("baz"), tags.Duplicate(), now, 3.0, xtime.Second, nil))
 
 	// ensure all entries have no references left
 	for _, id := range []string{"foo", "bar", "baz"} {
@@ -184,11 +188,11 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, idx namespaceIndex) {
 	// write already inserted series'
 	next := now.Add(time.Minute)
 	assert.NoError(t,
-		shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, next, 1.0, xtime.Second, nil))
+		shard.WriteTagged(ctx, ident.StringID("foo"), tags.Duplicate(), next, 1.0, xtime.Second, nil))
 	assert.NoError(t,
-		shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, next, 2.0, xtime.Second, nil))
+		shard.WriteTagged(ctx, ident.StringID("bar"), tags.Duplicate(), next, 2.0, xtime.Second, nil))
 	assert.NoError(t,
-		shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, next, 3.0, xtime.Second, nil))
+		shard.WriteTagged(ctx, ident.StringID("baz"), tags.Duplicate(), next, 3.0, xtime.Second, nil))
 
 	written := xclock.WaitUntil(func() bool {
 		return atomic.LoadInt32(&numCommitLogWrites) == 6
@@ -306,8 +310,7 @@ func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
 	}
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn,
-		index.NewOptions().SetInsertMode(index.InsertSync))
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions())
 	assert.NoError(t, err)
 
 	defer func() {
@@ -352,12 +355,17 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
+	tags := ident.NewTagSliceIterator(ident.Tags{
+		ident.StringTag("abc", "def"),
+		ident.StringTag("ghi", "jkl"),
+	})
+
 	assert.NoError(t,
-		shard.WriteTagged(ctx, ident.StringID("foo"), ident.EmptyTagIterator, now, 1.0, xtime.Second, nil))
+		shard.WriteTagged(ctx, ident.StringID("foo"), tags.Duplicate(), now, 1.0, xtime.Second, nil))
 	assert.NoError(t,
-		shard.WriteTagged(ctx, ident.StringID("bar"), ident.EmptyTagIterator, now, 2.0, xtime.Second, nil))
+		shard.WriteTagged(ctx, ident.StringID("bar"), tags.Duplicate(), now, 2.0, xtime.Second, nil))
 	assert.NoError(t,
-		shard.WriteTagged(ctx, ident.StringID("baz"), ident.EmptyTagIterator, now, 3.0, xtime.Second, nil))
+		shard.WriteTagged(ctx, ident.StringID("baz"), tags.Duplicate(), now, 3.0, xtime.Second, nil))
 
 	inserted := xclock.WaitUntil(func() bool {
 		counter, ok := testReporter.Counters()["dbshard.insert-queue.inserts"]

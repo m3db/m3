@@ -189,7 +189,7 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3ninx
-  version: d0c2c4f2c5ab39db2382a6ea7f479abe568589cf
+  version: dfc866670356101f7f95719df95c6240bdbd1c00
   subpackages:
   - doc
   - idx

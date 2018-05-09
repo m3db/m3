@@ -84,8 +84,12 @@ client:
 
 gcPercentage: 100
 
-writeNewSeriesLimitPerSecond: 1048576
-writeNewSeriesBackoffDuration: 2ms
+insert:
+  writeNewSeriesAsync: true
+  writeNewSeriesLimitPerSecond: 1048576
+  writeNewSeriesBackoffDuration: 2ms
+  indexNewSeriesLimitPerSecond: 1048576
+  indexNewSeriesBackoffDuration: 2ms
 
 bootstrap:
     bootstrappers:
@@ -274,7 +278,6 @@ config:
               endpoint: http://1.1.1.3:2380
 hashing:
   seed: 42
-writeNewSeriesAsync: true
 `
 
 	fd, err := ioutil.TempFile("", "config.yaml")
@@ -355,8 +358,12 @@ client:
   hashing:
     seed: 42
 gcPercentage: 100
-writeNewSeriesLimitPerSecond: 1048576
-writeNewSeriesBackoffDuration: 2ms
+insert:
+  writeNewSeriesAsync: true
+  writeNewSeriesLimitPerSecond: 1048576
+  writeNewSeriesBackoffDuration: 2ms
+  indexNewSeriesLimitPerSecond: 1048576
+  indexNewSeriesBackoffDuration: 2ms
 tick: null
 bootstrap:
   bootstrappers:
@@ -572,7 +579,6 @@ config:
   topologyResolutionTimeout: 0s
 hashing:
   seed: 42
-writeNewSeriesAsync: true
 `
 
 	actual := string(data)
