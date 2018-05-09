@@ -21,6 +21,7 @@
 package commitlog
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -123,13 +124,12 @@ func TestBootstrapIndex(t *testing.T) {
 			expectedIndexBlocks[xtime.ToUnixNano(indexBlockStart)] = expectedSeries
 		}
 		seriesID := string(value.s.ID.Bytes())
+		existingTags, ok := expectedSeries[seriesID]
+		if !ok {
+			existingTags = map[string]string{}
+			expectedSeries[seriesID] = existingTags
+		}
 		for _, tag := range value.s.Tags {
-			existingTags, ok := expectedSeries[seriesID]
-			if !ok {
-				existingTags = map[string]string{}
-				expectedSeries[seriesID] = existingTags
-			}
-
 			existingTags[tag.Name.String()] = tag.Value.String()
 		}
 	}
@@ -153,8 +153,7 @@ func TestBootstrapIndex(t *testing.T) {
 				require.False(t, ok)
 				matches[string(curr.ID)] = struct{}{}
 
-				tags, ok := expected[string(curr.ID)]
-				require.True(t, ok)
+				tags := expected[string(curr.ID)]
 
 				matchingTags := map[string]struct{}{}
 				for _, tag := range curr.Fields {
@@ -172,6 +171,8 @@ func TestBootstrapIndex(t *testing.T) {
 			require.NoError(t, docs.Err())
 			require.NoError(t, docs.Close())
 
+			fmt.Println(expected)
+			fmt.Println(matches)
 			require.Equal(t, len(expected), len(matches))
 		}
 	}

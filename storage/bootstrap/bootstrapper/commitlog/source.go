@@ -152,7 +152,7 @@ func (s *commitLogSource) ReadData(
 
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
-		if !s.shouldEncodeSeries(unmerged, blockSize, series, dp) {
+		if !s.shouldEncodeSeriesForData(unmerged, blockSize, series, dp) {
 			continue
 		}
 
@@ -246,9 +246,9 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 	wg.Done()
 }
 
-func (s *commitLogSource) shouldEncodeSeries(
+func (s *commitLogSource) shouldEncodeSeriesForData(
 	unmerged []encodersAndRanges,
-	blockSize time.Duration,
+	dataBlockSize time.Duration,
 	series commitlog.Series,
 	dp ts.Datapoint,
 ) bool {
@@ -266,14 +266,44 @@ func (s *commitLogSource) shouldEncodeSeries(
 	}
 
 	// Check if the block corresponds to the time-range that we're trying to bootstrap
-	blockStart := dp.Timestamp.Truncate(blockSize)
-	blockEnd := blockStart.Add(blockSize)
+	blockStart := dp.Timestamp.Truncate(dataBlockSize)
+	blockEnd := blockStart.Add(dataBlockSize)
 	blockRange := xtime.Range{
 		Start: blockStart,
 		End:   blockEnd,
 	}
 
 	return ranges.Overlaps(blockRange)
+}
+
+func (s *commitLogSource) shouldEncodeSeriesForIndex(
+	metadatasByShard []metadataByUniqueIndex,
+	indexBlockSize time.Duration,
+	shard uint32,
+	ts time.Time,
+) bool {
+	if int(shard) >= len(metadatasByShard) {
+		// Not trying to bootstrap this shard
+		return false
+	}
+
+	rangesToBootstrap := metadatasByShard[shard].ranges
+	if rangesToBootstrap.IsEmpty() {
+		// No ShardTimeRanges were provided for this shard, so we're not
+		// bootstrapping it.
+		return false
+	}
+
+	// Check if the timestamp corresponds to one of the index blocks we're
+	// trying to bootstrap.
+	indexBlockStart := ts.Truncate(indexBlockSize)
+	indexBlockEnd := indexBlockStart.Add(indexBlockSize)
+	indexBlockRange := xtime.Range{
+		Start: indexBlockStart,
+		End:   indexBlockEnd,
+	}
+
+	return rangesToBootstrap.Overlaps(indexBlockRange)
 }
 
 func (s *commitLogSource) mergeShards(
@@ -527,9 +557,10 @@ func (s *commitLogSource) ReadIndex(
 	)
 
 	metadataByShard := make([]metadataByUniqueIndex, numShards)
-	for shard := range shardsTimeRanges {
+	for shard, ranges := range shardsTimeRanges {
 		metadataByShard[shard] = metadataByUniqueIndex{
 			idxToMetadata: make(map[uint64]seriesMetadata),
+			ranges:        ranges,
 		}
 	}
 
@@ -539,7 +570,8 @@ func (s *commitLogSource) ReadIndex(
 	for iter.Next() {
 		series, dp, _, _ := iter.Current()
 		if int(series.Shard) >= len(metadataByShard) {
-			panic(series.Shard)
+			// We're not trying to bootstrap this shard
+			continue
 		}
 
 		metadataByShard[series.Shard].idxToMetadata[series.UniqueIndex] = seriesMetadata{
@@ -629,6 +661,7 @@ type encodersAndRanges struct {
 
 type metadataByUniqueIndex struct {
 	idxToMetadata map[uint64]seriesMetadata
+	ranges        xtime.Ranges
 }
 
 type seriesMetadata struct {
