@@ -21,6 +21,7 @@
 package query
 
 import (
+	"fmt"
 	re "regexp"
 
 	"github.com/m3db/m3ninx/index"
@@ -52,4 +53,8 @@ func NewRegexpQuery(field, regexp []byte) (search.Query, error) {
 // Searcher returns a searcher over the provided readers.
 func (q *RegexpQuery) Searcher(rs index.Readers) (search.Searcher, error) {
 	return searcher.NewRegexpSearcher(rs, q.Field, q.Regexp, q.compiled), nil
+}
+
+func (q *RegexpQuery) String() string {
+	return fmt.Sprintf("regexp(%s, %s)", q.Field, q.Regexp)
 }

@@ -105,6 +105,18 @@ func (m *MockQuery) EXPECT() *MockQueryMockRecorder {
 	return m.recorder
 }
 
+// String mocks base method
+func (m *MockQuery) String() string {
+	ret := m.ctrl.Call(m, "String")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// String indicates an expected call of String
+func (mr *MockQueryMockRecorder) String() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "String", reflect.TypeOf((*MockQuery)(nil).String))
+}
+
 // Searcher mocks base method
 func (m *MockQuery) Searcher(rs index.Readers) (Searcher, error) {
 	ret := m.ctrl.Call(m, "Searcher", rs)

@@ -21,6 +21,8 @@
 package search
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/postings"
@@ -37,6 +39,8 @@ type Executor interface {
 
 // Query is a search query for documents.
 type Query interface {
+	fmt.Stringer
+
 	// Searcher returns a Searcher for executing the query over a set of Readers.
 	Searcher(rs index.Readers) (Searcher, error)
 }

@@ -21,32 +21,46 @@
 package query
 
 import (
-	"fmt"
+	"testing"
 
-	"github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/search"
-	"github.com/m3db/m3ninx/search/searcher"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
-// TermQuery finds document which match the given term exactly.
-type TermQuery struct {
-	Field []byte
-	Term  []byte
-}
+func TestJoin(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
 
-// NewTermQuery constructs a new TermQuery for the given field and term.
-func NewTermQuery(field, term []byte) search.Query {
-	return &TermQuery{
-		Field: field,
-		Term:  term,
+	query := search.NewMockQuery(mockCtrl)
+	query.EXPECT().String().AnyTimes().Return("query")
+
+	tests := []struct {
+		name     string
+		input    []search.Query
+		expected string
+	}{
+		{
+			name:     "0 queries",
+			input:    nil,
+			expected: "",
+		},
+		{
+			name:     "1 query",
+			input:    []search.Query{query},
+			expected: "query",
+		},
+		{
+			name:     "multiple queries",
+			input:    []search.Query{query, query, query},
+			expected: "query, query, query",
+		},
 	}
-}
 
-// Searcher returns a searcher over the provided readers.
-func (q *TermQuery) Searcher(rs index.Readers) (search.Searcher, error) {
-	return searcher.NewTermSearcher(rs, q.Field, q.Term), nil
-}
-
-func (q *TermQuery) String() string {
-	return fmt.Sprintf("term(%s, %s)", q.Field, q.Term)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, join(test.input))
+		})
+	}
 }
