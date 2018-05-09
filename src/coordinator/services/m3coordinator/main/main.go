@@ -32,7 +32,6 @@ import (
 
 	"github.com/m3db/m3coordinator/executor"
 	"github.com/m3db/m3coordinator/policy/filter"
-	"github.com/m3db/m3coordinator/policy/resolver"
 	"github.com/m3db/m3coordinator/services/m3coordinator/config"
 	"github.com/m3db/m3coordinator/services/m3coordinator/httpd"
 	"github.com/m3db/m3coordinator/storage"
@@ -45,9 +44,7 @@ import (
 	m3clusterClient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3metrics/policy"
 	xconfig "github.com/m3db/m3x/config"
-	xtime "github.com/m3db/m3x/time"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -55,7 +52,8 @@ import (
 )
 
 var (
-	namespace = "metrics"
+	namespace  = "metrics"
+	resolution = time.Minute
 )
 
 type m3config struct {
@@ -195,7 +193,7 @@ func startGrpcServer(logger *zap.Logger, storage storage.Storage, flags *m3confi
 // Setup all the storages
 func setupStorages(logger *zap.Logger, session client.Session, flags *m3config) (storage.Storage, func()) {
 	cleanup := func() {}
-	localStorage := local.NewStorage(session, namespace, resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
+	localStorage := local.NewStorage(session, namespace, resolution)
 	stores := []storage.Storage{localStorage}
 	if flags.rpcEnabled {
 		logger.Info("rpc enabled")

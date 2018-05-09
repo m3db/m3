@@ -116,6 +116,10 @@ func (s *mockStorage) Type() storage.Type {
 	return storage.Type(0)
 }
 
+func (s *mockStorage) Close() error {
+	return nil
+}
+
 func checkMultipleRemoteFetch(t *testing.T, res *storage.FetchResult, numResults int) {
 	assert.False(t, res.LocalOnly)
 	require.Len(t, res.SeriesList, numResults)
@@ -310,6 +314,10 @@ func (s *errStorage) Write(ctx context.Context, query *storage.WriteQuery) error
 
 func (s *errStorage) Type() storage.Type {
 	return storage.Type(-1)
+}
+
+func (s *errStorage) Close() error {
+	return nil
 }
 
 func TestEmptyAddressListErrors(t *testing.T) {

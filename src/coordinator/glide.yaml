@@ -19,7 +19,7 @@ import:
 - package: github.com/m3db/m3x
   version: 16e10665ade1d824950683afde6d9e37c8ffc957
 - package: github.com/m3db/m3db
-  version: 3502804fd854b770eba72bb0811e9ad5b9114e50
+  version: 76f42b9389c110cd0631cd26bdcbc5ec80a1cc69
   subpackages:
   - client
 - package: github.com/m3db/m3metrics

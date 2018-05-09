@@ -32,18 +32,14 @@ import (
 	"time"
 
 	"github.com/m3db/m3coordinator/models"
-	"github.com/m3db/m3coordinator/policy/resolver"
 	"github.com/m3db/m3coordinator/storage"
-	"github.com/m3db/m3coordinator/storage/local"
+	"github.com/m3db/m3coordinator/test"
+	"github.com/m3db/m3coordinator/test/local"
 	"github.com/m3db/m3coordinator/util/logging"
 
-	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/storage/index"
-	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
-
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3x/ident"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -87,30 +83,12 @@ func generateQueryResults(tagsIter index.Iterator) index.QueryResults {
 	}
 }
 
-func generateTag() ident.Tag {
-	return ident.Tag{
-		Name:  ident.StringID("foo"),
-		Value: ident.StringID("bar"),
-	}
-}
-
-func generateTagIterator(ctrl *gomock.Controller) ident.TagIterator {
-	mockTagIterator := ident.NewMockTagIterator(ctrl)
-	mockTagIterator.EXPECT().Remaining().Return(1)
-	mockTagIterator.EXPECT().Next().Return(true).MaxTimes(1)
-	mockTagIterator.EXPECT().Current().Return(generateTag())
-	mockTagIterator.EXPECT().Next().Return(false)
-	mockTagIterator.EXPECT().Err().Return(nil)
-	mockTagIterator.EXPECT().Close()
-
-	return mockTagIterator
-}
-
 func generateTagIters(ctrl *gomock.Controller) *index.MockIterator {
 	mockTaggedIDsIter := index.NewMockIterator(ctrl)
 	mockTaggedIDsIter.EXPECT().Next().Return(true).MaxTimes(1)
 	mockTaggedIDsIter.EXPECT().Next().Return(false)
-	mockTaggedIDsIter.EXPECT().Current().Return(ident.StringID(testNamespace), ident.StringID(testID), generateTagIterator(ctrl))
+	mockTaggedIDsIter.EXPECT().Current().Return(ident.StringID(testNamespace),
+		ident.StringID(testID), test.GenerateSingleSampleTagIterator(ctrl, test.GenerateTag()))
 
 	return mockTaggedIDsIter
 }
@@ -121,10 +99,8 @@ func searchServer(t *testing.T) *SearchHandler {
 
 	mockTaggedIDsIter := generateTagIters(ctrl)
 
-	session := client.NewMockSession(ctrl)
+	storage, session := local.NewStorageAndSession(ctrl)
 	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(generateQueryResults(mockTaggedIDsIter), nil)
-
-	storage := local.NewStorage(session, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
 	search := &SearchHandler{store: storage}
 
 	return search

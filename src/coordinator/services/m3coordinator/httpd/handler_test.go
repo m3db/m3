@@ -24,18 +24,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3coordinator/executor"
-	"github.com/m3db/m3coordinator/policy/resolver"
 	"github.com/m3db/m3coordinator/services/m3coordinator/config"
 	"github.com/m3db/m3coordinator/services/m3coordinator/handler/prometheus/native"
 	"github.com/m3db/m3coordinator/services/m3coordinator/handler/prometheus/remote"
-	"github.com/m3db/m3coordinator/storage/local"
+	"github.com/m3db/m3coordinator/test/local"
 	"github.com/m3db/m3coordinator/util/logging"
-
-	"github.com/m3db/m3metrics/policy"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +41,8 @@ func TestPromRemoteReadGet(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", remote.PromReadURL, nil)
 	res := httptest.NewRecorder()
-	storage := local.NewStorage(nil, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
+	ctrl := gomock.NewController(t)
+	storage, _ := local.NewStorageAndSession(ctrl)
 
 	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{})
 	require.NoError(t, err, "unable to setup handler")
@@ -59,7 +56,8 @@ func TestPromRemoteReadPost(t *testing.T) {
 
 	req, _ := http.NewRequest("POST", remote.PromReadURL, nil)
 	res := httptest.NewRecorder()
-	storage := local.NewStorage(nil, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
+	ctrl := gomock.NewController(t)
+	storage, _ := local.NewStorageAndSession(ctrl)
 
 	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{})
 	require.NoError(t, err, "unable to setup handler")
@@ -73,7 +71,8 @@ func TestPromNativeReadGet(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", native.PromReadURL, nil)
 	res := httptest.NewRecorder()
-	storage := local.NewStorage(nil, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
+	ctrl := gomock.NewController(t)
+	storage, _ := local.NewStorageAndSession(ctrl)
 
 	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{})
 	require.NoError(t, err, "unable to setup handler")
@@ -87,7 +86,8 @@ func TestPromNativeReadPost(t *testing.T) {
 
 	req, _ := http.NewRequest("POST", native.PromReadURL, nil)
 	res := httptest.NewRecorder()
-	storage := local.NewStorage(nil, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
+	ctrl := gomock.NewController(t)
+	storage, _ := local.NewStorageAndSession(ctrl)
 
 	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{})
 	require.NoError(t, err, "unable to setup handler")

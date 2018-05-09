@@ -29,6 +29,9 @@ import (
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/ts"
 	"github.com/m3db/m3coordinator/util/execution"
+	"github.com/m3db/m3coordinator/util/logging"
+
+	"go.uber.org/zap"
 )
 
 type fanoutStorage struct {
@@ -108,6 +111,19 @@ func (s *fanoutStorage) Write(ctx context.Context, query *storage.WriteQuery) er
 
 func (s *fanoutStorage) Type() storage.Type {
 	return storage.TypeMultiDC
+}
+
+func (s *fanoutStorage) Close() error {
+	var lastErr error
+	for idx, store := range s.stores {
+		// Keep going on error to close all storages
+		if err := store.Close(); err != nil {
+			logging.WithContext(nil).Error("unable to close storage", zap.Int("store", int(store.Type())), zap.Int("index", idx))
+			lastErr = err
+		}
+	}
+
+	return lastErr
 }
 
 func filterStores(stores []storage.Storage, filterPolicy filter.Storage, query storage.Query) []storage.Storage {
