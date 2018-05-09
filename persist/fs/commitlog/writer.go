@@ -33,7 +33,9 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -54,6 +56,7 @@ const (
 
 var (
 	errCommitLogWriterAlreadyOpen = errors.New("commit log writer already open")
+	errTagEncoderDataNotAvailable = errors.New("tag iterator data not available")
 
 	endianness = binary.LittleEndian
 )
@@ -93,6 +96,8 @@ type writer struct {
 	seen               *bitset.BitSet
 	logEncoder         *msgpack.Encoder
 	metadataEncoder    *msgpack.Encoder
+	tagEncoder         serialize.TagEncoder
+	tagSliceIter       ident.TagSliceIterator
 }
 
 func newCommitLogWriter(
@@ -100,6 +105,7 @@ func newCommitLogWriter(
 	opts Options,
 ) commitLogWriter {
 	shouldFsync := opts.Strategy() == StrategyWriteWait
+
 	return &writer{
 		filePathPrefix:     opts.FilesystemOptions().FilePathPrefix(),
 		newFileMode:        opts.FilesystemOptions().NewFileMode(),
@@ -112,6 +118,8 @@ func newCommitLogWriter(
 		seen:               bitset.NewBitSet(defaultBitSetLength),
 		logEncoder:         msgpack.NewEncoder(),
 		metadataEncoder:    msgpack.NewEncoder(),
+		tagEncoder:         opts.FilesystemOptions().TagEncoderPool().Get(),
+		tagSliceIter:       ident.NewTagSliceIterator(nil),
 	}
 }
 
@@ -168,12 +176,34 @@ func (w *writer) Write(
 
 	seen := w.seen.Test(uint(series.UniqueIndex))
 	if !seen {
+		var (
+			tags        = series.Tags
+			encodedTags []byte
+		)
+
+		if tags != nil {
+			w.tagSliceIter.Reset(tags)
+			w.tagEncoder.Reset()
+			err := w.tagEncoder.Encode(w.tagSliceIter)
+			if err != nil {
+				return err
+			}
+
+			encodedTagsChecked, ok := w.tagEncoder.Data()
+			if !ok {
+				return errTagEncoderDataNotAvailable
+			}
+
+			encodedTags = encodedTagsChecked.Bytes()
+		}
+
 		// If "idx" likely hasn't been written to commit log
 		// yet we need to include series metadata
 		var metadata schema.LogMetadata
 		metadata.ID = series.ID.Data().Bytes()
 		metadata.Namespace = series.Namespace.Data().Bytes()
 		metadata.Shard = series.Shard
+		metadata.EncodedTags = encodedTags
 		w.metadataEncoder.Reset()
 		if err := w.metadataEncoder.EncodeLogMetadata(metadata); err != nil {
 			return err

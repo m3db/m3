@@ -42,7 +42,6 @@ import (
 
 	mclock "github.com/facebookgo/clock"
 	"github.com/fortytw2/leaktest"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -62,7 +61,7 @@ func newTestOptions(
 	tally.TestScope,
 ) {
 	dir, err := ioutil.TempDir("", "foo")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var c mclock.Clock
 	if overrides.clock != nil {
@@ -97,7 +96,7 @@ func newTestOptions(
 
 func cleanup(t *testing.T, opts Options) {
 	filePathPrefix := opts.FilesystemOptions().FilePathPrefix()
-	assert.NoError(t, os.RemoveAll(filePathPrefix))
+	require.NoError(t, os.RemoveAll(filePathPrefix))
 }
 
 type testWrite struct {
@@ -112,12 +111,14 @@ type testWrite struct {
 func testSeries(
 	uniqueIndex uint64,
 	id string,
+	tags ident.Tags,
 	shard uint32,
 ) Series {
 	return Series{
 		UniqueIndex: uniqueIndex,
 		Namespace:   ident.StringID("testNS"),
 		ID:          ident.StringID(id),
+		Tags:        tags,
 		Shard:       shard,
 	}
 }
@@ -129,13 +130,17 @@ func (w testWrite) assert(
 	unit xtime.Unit,
 	annotation []byte,
 ) {
-	assert.Equal(t, w.series.UniqueIndex, series.UniqueIndex)
-	assert.True(t, w.series.ID.Equal(series.ID), fmt.Sprintf("write ID '%s' does not match actual ID '%s'", w.series.ID.String(), series.ID.String()))
-	assert.Equal(t, w.series.Shard, series.Shard)
-	assert.True(t, w.t.Equal(datapoint.Timestamp))
-	assert.Equal(t, datapoint.Value, datapoint.Value)
-	assert.Equal(t, w.u, unit)
-	assert.Equal(t, w.a, annotation)
+	require.Equal(t, w.series.UniqueIndex, series.UniqueIndex)
+	require.True(t, w.series.ID.Equal(series.ID), fmt.Sprintf("write ID '%s' does not match actual ID '%s'", w.series.ID.String(), series.ID.String()))
+	require.Equal(t, w.series.Shard, series.Shard)
+
+	require.Equal(t, len(w.series.Tags), len(series.Tags))
+	require.True(t, w.series.Tags.Equal(series.Tags))
+
+	require.True(t, w.t.Equal(datapoint.Timestamp))
+	require.Equal(t, datapoint.Value, datapoint.Value)
+	require.Equal(t, w.u, unit)
+	require.Equal(t, w.a, annotation)
 }
 
 func snapshotCounterValue(
@@ -196,13 +201,13 @@ func newTestCommitLog(t *testing.T, opts Options) *commitLog {
 	commitLogI, err := NewCommitLog(opts)
 	require.NoError(t, err)
 	commitLog := commitLogI.(*commitLog)
-	assert.NoError(t, commitLog.Open())
+	require.NoError(t, commitLog.Open())
 
 	// Ensure files present
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
-	assert.NoError(t, err)
-	assert.True(t, len(files) == 1)
+	require.NoError(t, err)
+	require.True(t, len(files) == 1)
 
 	return commitLog
 }
@@ -251,9 +256,9 @@ func writeCommitLogs(
 			err := commitLog.Write(ctx, series, datapoint, write.u, write.a)
 
 			if write.expectedErr != nil {
-				assert.True(t, strings.Contains(fmt.Sprintf("%v", err), fmt.Sprintf("%v", write.expectedErr)))
+				require.True(t, strings.Contains(fmt.Sprintf("%v", err), fmt.Sprintf("%v", write.expectedErr)))
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		}()
 	}
@@ -298,7 +303,7 @@ func assertCommitLogWritesByIterating(t *testing.T, l *commitLog, writes []testW
 		SeriesFilterPredicate: ReadAllSeriesPredicate(),
 	}
 	iter, err := NewIterator(iterOpts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer iter.Close()
 
 	// Convert the writes to be in-order, but keyed by series ID because the
@@ -326,7 +331,7 @@ func assertCommitLogWritesByIterating(t *testing.T, l *commitLog, writes []testW
 		writesBySeries[series.ID.String()] = seriesWrites
 	}
 
-	assert.NoError(t, iter.Err())
+	require.NoError(t, iter.Err())
 }
 
 func setupCloseOnFail(t *testing.T, l *commitLog) *sync.WaitGroup {
@@ -334,7 +339,7 @@ func setupCloseOnFail(t *testing.T, l *commitLog) *sync.WaitGroup {
 	wg.Add(1)
 	l.commitLogFailFn = func(err error) {
 		go func() { l.closeErr <- nil }()
-		assert.NoError(t, l.Close())
+		require.NoError(t, l.Close())
 		wg.Done()
 	}
 	return &wg
@@ -349,15 +354,15 @@ func TestCommitLogWrite(t *testing.T) {
 	commitLog := newTestCommitLog(t, opts)
 
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Second, []byte{1, 2, 3}, nil},
-		{testSeries(1, "foo.baz", 150), time.Now(), 456.789, xtime.Second, nil, nil},
+		{testSeries(0, "foo.bar", ident.Tags{ident.StringTag("name1", "val1")}, 127), time.Now(), 123.456, xtime.Second, []byte{1, 2, 3}, nil},
+		{testSeries(1, "foo.baz", ident.Tags{ident.StringTag("name2", "val2")}, 150), time.Now(), 456.789, xtime.Second, nil, nil},
 	}
 
 	// Call write sync
 	writeCommitLogs(t, scope, commitLog, writes).Wait()
 
 	// Close the commit log and consequently flush
-	assert.NoError(t, commitLog.Close())
+	require.NoError(t, commitLog.Close())
 
 	// Assert writes occurred by reading the commit log
 	assertCommitLogWritesByIterating(t, commitLog, writes)
@@ -388,7 +393,12 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	allSeries := []Series{}
 	for i := 0; i < 200; i++ {
 		willNotHaveMetadata := !(i%2 == 0)
-		allSeries = append(allSeries, testSeries(uint64(i), "hax", uint32(i%100)))
+		allSeries = append(allSeries, testSeries(
+			uint64(i),
+			"hax",
+			ident.Tags{ident.StringTag("name", "val")},
+			uint32(i%100),
+		))
 		if willNotHaveMetadata {
 			bitSet.Set(uint(i))
 		}
@@ -407,7 +417,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	writeCommitLogs(t, scope, commitLog, writes).Wait()
 
 	// Close the commit log and consequently flush
-	assert.NoError(t, commitLog.Close())
+	require.NoError(t, commitLog.Close())
 
 	// Make sure we don't panic / deadlock
 	iterOpts := IteratorOpts{
@@ -416,13 +426,13 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 		SeriesFilterPredicate: ReadAllSeriesPredicate(),
 	}
 	iter, err := NewIterator(iterOpts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	for iter.Next() {
-		assert.NoError(t, iter.Err())
+		require.NoError(t, iter.Err())
 	}
-	assert.Equal(t, errCommitLogReaderMissingMetadata, iter.Err())
+	require.Equal(t, errCommitLogReaderMissingMetadata, iter.Err())
 	iter.Close()
-	assert.NoError(t, commitLog.Close())
+	require.NoError(t, commitLog.Close())
 }
 
 func TestCommitLogReaderIsNotReusable(t *testing.T) {
@@ -437,15 +447,15 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	commitLog := newTestCommitLog(t, opts)
 
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Second, []byte{1, 2, 3}, nil},
-		{testSeries(1, "foo.baz", 150), time.Now(), 456.789, xtime.Second, nil, nil},
+		{testSeries(0, "foo.bar", testTags1, 127), time.Now(), 123.456, xtime.Second, []byte{1, 2, 3}, nil},
+		{testSeries(1, "foo.baz", testTags2, 150), time.Now(), 456.789, xtime.Second, nil, nil},
 	}
 
 	// Call write sync
 	writeCommitLogs(t, scope, commitLog, writes).Wait()
 
 	// Close the commit log and consequently flush
-	assert.NoError(t, commitLog.Close())
+	require.NoError(t, commitLog.Close())
 
 	// Assert writes occurred by reading the commit log
 	assertCommitLogWritesByIterating(t, commitLog, writes)
@@ -453,16 +463,16 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	// Assert commitlog file exists and retrieve path
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(files))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(files))
 
 	// Assert commitlog cannot be opened more than once
 	reader := newCommitLogReader(opts, ReadAllSeriesPredicate())
 	_, _, _, err = reader.Open(files[0])
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	reader.Close()
 	_, _, _, err = reader.Open(files[0])
-	assert.Equal(t, errCommitLogReaderIsNotReusable, err)
+	require.Equal(t, errCommitLogReaderIsNotReusable, err)
 }
 
 func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
@@ -477,9 +487,9 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 
 	// Writes spaced apart by block size
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", 127), alignedStart, 123.456, xtime.Millisecond, nil, nil},
-		{testSeries(1, "foo.baz", 150), alignedStart.Add(1 * blockSize), 456.789, xtime.Millisecond, nil, nil},
-		{testSeries(2, "foo.qux", 291), alignedStart.Add(2 * blockSize), 789.123, xtime.Millisecond, nil, nil},
+		{testSeries(0, "foo.bar", testTags1, 127), alignedStart, 123.456, xtime.Millisecond, nil, nil},
+		{testSeries(1, "foo.baz", testTags2, 150), alignedStart.Add(1 * blockSize), 456.789, xtime.Millisecond, nil, nil},
+		{testSeries(2, "foo.qux", testTags3, 291), alignedStart.Add(2 * blockSize), 789.123, xtime.Millisecond, nil, nil},
 	}
 	defer cleanup(t, opts)
 
@@ -494,13 +504,13 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 	}
 
 	// Close the commit log and consequently flush
-	assert.NoError(t, commitLog.Close())
+	require.NoError(t, commitLog.Close())
 
 	// Make sure multiple commitlog files were generated
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
-	assert.NoError(t, err)
-	assert.True(t, len(files) == 3)
+	require.NoError(t, err)
+	require.True(t, len(files) == 3)
 
 	// This predicate should eliminate the first commitlog file
 	commitLogPredicate := func(_ string, entryTime time.Time, _ time.Duration) bool {
@@ -515,9 +525,9 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 		SeriesFilterPredicate: ReadAllSeriesPredicate(),
 	}
 	iter, err := NewIterator(iterOpts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	iterStruct := iter.(*iterator)
-	assert.True(t, len(iterStruct.files) == 2)
+	require.True(t, len(iterStruct.files) == 2)
 }
 
 func TestCommitLogWriteBehind(t *testing.T) {
@@ -529,16 +539,16 @@ func TestCommitLogWriteBehind(t *testing.T) {
 	commitLog := newTestCommitLog(t, opts)
 
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
-		{testSeries(1, "foo.baz", 150), time.Now(), 456.789, xtime.Millisecond, nil, nil},
-		{testSeries(2, "foo.qux", 291), time.Now(), 789.123, xtime.Millisecond, nil, nil},
+		{testSeries(0, "foo.bar", testTags1, 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
+		{testSeries(1, "foo.baz", testTags2, 150), time.Now(), 456.789, xtime.Millisecond, nil, nil},
+		{testSeries(2, "foo.qux", testTags3, 291), time.Now(), 789.123, xtime.Millisecond, nil, nil},
 	}
 
 	// Call write behind
 	writeCommitLogs(t, scope, commitLog, writes)
 
 	// Close the commit log and consequently flush
-	assert.NoError(t, commitLog.Close())
+	require.NoError(t, commitLog.Close())
 
 	// Assert writes occurred by reading the commit log
 	assertCommitLogWritesByIterating(t, commitLog, writes)
@@ -549,17 +559,17 @@ func TestCommitLogWriteErrorOnClosed(t *testing.T) {
 	defer cleanup(t, opts)
 
 	commitLog := newTestCommitLog(t, opts)
-	assert.NoError(t, commitLog.Close())
+	require.NoError(t, commitLog.Close())
 
-	series := testSeries(0, "foo.bar", 127)
+	series := testSeries(0, "foo.bar", testTags1, 127)
 	datapoint := ts.Datapoint{Timestamp: time.Now(), Value: 123.456}
 
 	ctx := context.NewContext()
 	defer ctx.Close()
 
 	err := commitLog.Write(ctx, series, datapoint, xtime.Millisecond, nil)
-	assert.Error(t, err)
-	assert.Equal(t, errCommitLogClosed, err)
+	require.Error(t, err)
+	require.Equal(t, errCommitLogClosed, err)
 }
 
 func TestCommitLogWriteErrorOnFull(t *testing.T) {
@@ -577,7 +587,7 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 
 	// Test filling queue
 	var writes []testWrite
-	series := testSeries(0, "foo.bar", 127)
+	series := testSeries(0, "foo.bar", testTags1, 127)
 	dp := ts.Datapoint{Timestamp: time.Now(), Value: 123.456}
 	unit := xtime.Millisecond
 
@@ -587,7 +597,7 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 	for {
 		if err := commitLog.Write(ctx, series, dp, unit, nil); err != nil {
 			// Ensure queue full error
-			assert.Equal(t, ErrCommitLogQueueFull, err)
+			require.Equal(t, ErrCommitLogQueueFull, err)
 			break
 		}
 		writes = append(writes, testWrite{series, dp.Timestamp, dp.Value, unit, nil, nil})
@@ -598,7 +608,7 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 	}
 
 	// Close and consequently flush
-	assert.NoError(t, commitLog.Close())
+	require.NoError(t, commitLog.Close())
 
 	// Assert write flushed by reading the commit log
 	assertCommitLogWritesByIterating(t, commitLog, writes)
@@ -619,9 +629,9 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 
 	// Writes spaced apart by block size
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", 127), alignedStart, 123.456, xtime.Millisecond, nil, nil},
-		{testSeries(1, "foo.baz", 150), alignedStart.Add(1 * blockSize), 456.789, xtime.Millisecond, nil, nil},
-		{testSeries(2, "foo.qux", 291), alignedStart.Add(2 * blockSize), 789.123, xtime.Millisecond, nil, nil},
+		{testSeries(0, "foo.bar", testTags1, 127), alignedStart, 123.456, xtime.Millisecond, nil, nil},
+		{testSeries(1, "foo.baz", testTags2, 150), alignedStart.Add(1 * blockSize), 456.789, xtime.Millisecond, nil, nil},
+		{testSeries(2, "foo.qux", testTags3, 291), alignedStart.Add(2 * blockSize), 789.123, xtime.Millisecond, nil, nil},
 	}
 
 	for _, write := range writes {
@@ -638,11 +648,11 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 	// Ensure files present for each block size time window
 	fsopts := opts.FilesystemOptions()
 	files, err := fs.SortedCommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
-	assert.NoError(t, err)
-	assert.True(t, len(files) == len(writes))
+	require.NoError(t, err)
+	require.True(t, len(files) == len(writes))
 
 	// Close and consequently flush
-	assert.NoError(t, commitLog.Close())
+	require.NoError(t, commitLog.Close())
 
 	// Assert write flushed by reading the commit log
 	assertCommitLogWritesByIterating(t, commitLog, writes)
@@ -683,12 +693,12 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 		return writer
 	}
 
-	assert.NoError(t, commitLog.Open())
+	require.NoError(t, commitLog.Open())
 
 	wg := setupCloseOnFail(t, commitLog)
 
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
+		{testSeries(0, "foo.bar", testTags1, 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
 
 	writeCommitLogs(t, scope, commitLog, writes)
@@ -697,8 +707,8 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 
 	// Check stats
 	errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
-	assert.True(t, ok)
-	assert.Equal(t, int64(1), errors.Value())
+	require.True(t, ok)
+	require.Equal(t, int64(1), errors.Value())
 }
 
 func TestCommitLogFailOnOpenError(t *testing.T) {
@@ -732,7 +742,7 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 		return writer
 	}
 
-	assert.NoError(t, commitLog.Open())
+	require.NoError(t, commitLog.Open())
 
 	wg := setupCloseOnFail(t, commitLog)
 
@@ -744,7 +754,7 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	}()
 
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
+		{testSeries(0, "foo.bar", testTags1, 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
 
 	writeCommitLogs(t, scope, commitLog, writes)
@@ -753,12 +763,12 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 
 	// Check stats
 	errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
-	assert.True(t, ok)
-	assert.Equal(t, int64(1), errors.Value())
+	require.True(t, ok)
+	require.Equal(t, int64(1), errors.Value())
 
 	openErrors, ok := snapshotCounterValue(scope, "commitlog.writes.open-errors")
-	assert.True(t, ok)
-	assert.Equal(t, int64(1), openErrors.Value())
+	require.True(t, ok)
+	require.Equal(t, int64(1), openErrors.Value())
 }
 
 func TestCommitLogFailOnFlushError(t *testing.T) {
@@ -789,12 +799,12 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 		return writer
 	}
 
-	assert.NoError(t, commitLog.Open())
+	require.NoError(t, commitLog.Open())
 
 	wg := setupCloseOnFail(t, commitLog)
 
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
+		{testSeries(0, "foo.bar", testTags1, 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
 
 	writeCommitLogs(t, scope, commitLog, writes)
@@ -803,10 +813,20 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 
 	// Check stats
 	errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
-	assert.True(t, ok)
-	assert.Equal(t, int64(1), errors.Value())
+	require.True(t, ok)
+	require.Equal(t, int64(1), errors.Value())
 
 	flushErrors, ok := snapshotCounterValue(scope, "commitlog.writes.flush-errors")
-	assert.True(t, ok)
-	assert.Equal(t, int64(1), flushErrors.Value())
+	require.True(t, ok)
+	require.Equal(t, int64(1), flushErrors.Value())
 }
+
+var (
+	testTag1 = ident.StringTag("name1", "val1")
+	testTag2 = ident.StringTag("name2", "val2")
+	testTag3 = ident.StringTag("name3", "val3")
+
+	testTags1 = ident.Tags{testTag1}
+	testTags2 = ident.Tags{testTag2}
+	testTags3 = ident.Tags{testTag3}
+)

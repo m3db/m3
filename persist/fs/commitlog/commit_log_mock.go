@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	time0 "github.com/m3db/m3x/time"
@@ -467,4 +468,28 @@ func (m *MockOptions) ReadConcurrency() int {
 // ReadConcurrency indicates an expected call of ReadConcurrency
 func (mr *MockOptionsMockRecorder) ReadConcurrency() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadConcurrency", reflect.TypeOf((*MockOptions)(nil).ReadConcurrency))
+}
+
+// SetIdentifierPool mocks base method
+func (m *MockOptions) SetIdentifierPool(value ident.Pool) Options {
+	ret := m.ctrl.Call(m, "SetIdentifierPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetIdentifierPool indicates an expected call of SetIdentifierPool
+func (mr *MockOptionsMockRecorder) SetIdentifierPool(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetIdentifierPool", reflect.TypeOf((*MockOptions)(nil).SetIdentifierPool), value)
+}
+
+// IdentifierPool mocks base method
+func (m *MockOptions) IdentifierPool() ident.Pool {
+	ret := m.ctrl.Call(m, "IdentifierPool")
+	ret0, _ := ret[0].(ident.Pool)
+	return ret0
+}
+
+// IdentifierPool indicates an expected call of IdentifierPool
+func (mr *MockOptionsMockRecorder) IdentifierPool() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IdentifierPool", reflect.TypeOf((*MockOptions)(nil).IdentifierPool))
 }
