@@ -32,10 +32,12 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"github.com/stretchr/testify/require"
 )
 
 func TestShardTickReadFnRace(t *testing.T) {
@@ -131,4 +133,131 @@ func anyIDs() gopter.Gen {
 			}
 			return ids
 		})
+}
+
+func TestShardTickWriteRace(t *testing.T) {
+	shard, opts := propTestDatabaseShard(t, 10)
+	defer func() {
+		shard.Close()
+		opts.RuntimeOptionsManager().Close()
+	}()
+
+	ids := []ident.ID{}
+	for i := 0; i < 1; i++ {
+		ids = append(ids, ident.StringID(fmt.Sprintf("foo.%d", i)))
+	}
+
+	var (
+		numRoutines = 1 + /* Fetch */ +1 /* Tick */ + len(ids) /* Write(s) */
+		barrier     = make(chan struct{}, numRoutines)
+		wg          sync.WaitGroup
+	)
+
+	wg.Add(numRoutines)
+
+	for _, id := range ids {
+		id := id
+		go func() {
+			<-barrier
+			ctx := context.NewContext()
+			now := time.Now()
+			require.NoError(t, shard.Write(ctx, id, now, 1.0, xtime.Second, nil))
+			ctx.BlockingClose()
+			wg.Done()
+		}()
+	}
+
+	go func() {
+		<-barrier
+		fetchBlocksMetadataV2ShardFn(shard)
+		wg.Done()
+	}()
+
+	go func() {
+		<-barrier
+		shard.Tick(context.NewNoOpCanncellable())
+		wg.Done()
+	}()
+
+	for i := 0; i < numRoutines; i++ {
+		barrier <- struct{}{}
+	}
+
+	wg.Wait()
+}
+
+func TestShardTickWriteReadRace(t *testing.T) {
+	parameters := gopter.DefaultTestParameters()
+	// seed := time.Now().UnixNano() // int64(1521412723796005124)
+	seed := int64(1521412723796005124)
+	parameters.MinSuccessfulTests = 100
+	parameters.MaxSize = 40
+	parameters.MaxDiscardRatio = 20
+	parameters.Rng = rand.New(rand.NewSource(seed))
+	properties := gopter.NewProperties(parameters)
+
+	properties.Property("Concurrent Tick, Write & Read doesn't panic", prop.ForAll(
+		func(ids []ident.ID, tickBatchSize uint8, expireBatchLength uint8, fn testShardReadFn) (bool, error) {
+			testShardTickWriteFnRace(t, ids, int(expireBatchLength), int(tickBatchSize), fn)
+			return true, nil
+		},
+		anyIDs().WithLabel("ids"),
+		gen.UInt8().WithLabel("expireBatchLength").SuchThat(func(x uint8) bool { return x > 0 }),
+		gen.UInt8().WithLabel("tickBatchSize").SuchThat(func(x uint8) bool { return x > 0 }),
+		gen.OneConstOf(fetchBlocksMetadataShardFn, fetchBlocksMetadataV2ShardFn),
+	))
+
+	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
+	if !properties.Run(reporter) {
+		t.Errorf("failed with initial seed: %d", seed)
+	}
+}
+
+func testShardTickWriteFnRace(t *testing.T, ids []ident.ID, expireLen int, tickBatchSize int, fn testShardReadFn) {
+	shard, opts := propTestDatabaseShard(t, tickBatchSize)
+	defer func() {
+		shard.Close()
+		opts.RuntimeOptionsManager().Close()
+	}()
+
+	shard.Lock()
+	shard.testListIterBatchSize = expireLen
+	shard.Unlock()
+
+	var (
+		numRoutines = 1 /* Fetch */ + 1 /* Tick */ + len(ids) /* Write(s) */
+		barrier     = make(chan struct{}, numRoutines)
+		wg          sync.WaitGroup
+	)
+
+	wg.Add(numRoutines)
+
+	for _, id := range ids {
+		id := id
+		go func() {
+			<-barrier
+			ctx := context.NewContext()
+			now := time.Now()
+			require.NoError(t, shard.Write(ctx, id, now, 1.0, xtime.Second, nil))
+			wg.Done()
+		}()
+	}
+
+	go func() {
+		<-barrier
+		shard.Tick(context.NewNoOpCanncellable())
+		wg.Done()
+	}()
+
+	go func() {
+		<-barrier
+		fn(shard)
+		wg.Done()
+	}()
+
+	for i := 0; i < numRoutines; i++ {
+		barrier <- struct{}{}
+	}
+
+	wg.Wait()
 }

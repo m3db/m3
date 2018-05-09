@@ -402,7 +402,8 @@ func (s *dbSeries) FetchBlocksMetadata(
 
 	res.Sort()
 
-	// NB(r): Since ID and Tags are garbage collected we can safely return refs.
+	// NB(r): Since ID and Tags are garbage collected we can safely
+	// return refs.
 	return block.NewFetchBlocksMetadataResult(s.id,
 		ident.NewTagSliceIterator(s.tags), res), nil
 }

@@ -164,8 +164,14 @@ func (s *fetchBlocksMetadataResults) Reset() {
 
 func (s *fetchBlocksMetadataResults) Close() {
 	for i := range s.results {
-		s.results[i].ID.Finalize()
+		// NB(r): We explicitly do not finalize ID or Tags as
+		// some of them are refs to series in memory right now.
+		// For ID and Tags coming from disk callers can use the context
+		// to register finalizers for these types.
+		s.results[i].ID = nil
+		s.results[i].Tags = nil
 		s.results[i].Blocks.Close()
+		s.results[i].Blocks = nil
 	}
 	if s.pool != nil {
 		s.pool.Put(s)
