@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3coordinator/errors"
 	"github.com/m3db/m3coordinator/models"
-	"github.com/m3db/m3coordinator/policy/resolver"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/ts"
 	"github.com/m3db/m3coordinator/util/execution"
@@ -41,22 +40,17 @@ const (
 )
 
 type localStorage struct {
-	session        client.Session
-	namespace      string
-	policyResolver resolver.PolicyResolver
+	session       client.Session
+	namespace     ident.ID
+	millisPerStep int64
 }
 
 // NewStorage creates a new local Storage instance.
-func NewStorage(session client.Session, namespace string, policyResolver resolver.PolicyResolver) storage.Storage {
-	return &localStorage{session: session, namespace: namespace, policyResolver: policyResolver}
+func NewStorage(session client.Session, namespace string, resolution time.Duration) storage.Storage {
+	return &localStorage{session: session, namespace: ident.StringID(namespace), millisPerStep: stepFromResolution(resolution)}
 }
 
 func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.FetchResult, error) {
-	fetchReqs, err := s.policyResolver.Resolve(ctx, query.TagMatchers, query.Start, query.End)
-	if err != nil {
-		return nil, err
-	}
-
 	// Check if the query was interrupted.
 	select {
 	case <-ctx.Done():
@@ -66,40 +60,44 @@ func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, opt
 	default:
 	}
 
-	req := fetchReqs[0]
-	reqRange := req.Ranges[0]
-	id := ident.StringID(req.ID)
-	namespace := ident.StringID(s.namespace)
-	iter, err := s.session.Fetch(namespace, id, reqRange.Start, reqRange.End)
+	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
 		return nil, err
 	}
 
-	defer iter.Close()
-
-	result := make([]ts.Datapoint, 0, initRawFetchAllocSize)
-	for iter.Next() {
-		dp, _, _ := iter.Current()
-		result = append(result, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
-	}
-
-	millisPerStep := int(reqRange.StoragePolicy.Resolution().Window / time.Millisecond)
-	values := ts.NewValues(ctx, millisPerStep, len(result))
-
-	// TODO: Figure out consolidation here
-	for i, v := range result {
-		values.SetValueAt(i, v.Value)
-	}
-
-	// TODO: Get the correct metric name
-	tags, err := query.TagMatchers.ToTags()
+	opts := storage.FetchOptionsToM3Options(options, query)
+	// TODO (nikunj): Handle second return param
+	iters, _, err := s.session.FetchTagged(s.namespace, m3query, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	series := ts.NewSeries(ctx, tags.ID(), reqRange.Start, values, tags)
-	seriesList := make([]*ts.Series, 1)
-	seriesList[0] = series
+	defer iters.Close()
+
+	seriesList := make([]*ts.Series, iters.Len())
+	for i, iter := range iters.Iters() {
+		metric, err := storage.FromM3IdentToMetric(s.namespace, iter.ID(), iter.Tags())
+		if err != nil {
+			return nil, err
+		}
+
+		result := make([]ts.Datapoint, 0, initRawFetchAllocSize)
+		for iter.Next() {
+			dp, _, _ := iter.Current()
+			result = append(result, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
+		}
+
+		values := ts.NewValues(ctx, int(s.millisPerStep), len(result))
+
+		// TODO (nikunj): Figure out consolidation here
+		for i, v := range result {
+			values.SetValueAt(i, v.Value)
+		}
+
+		series := ts.NewSeries(ctx, metric.ID, query.Start, values, metric.Tags)
+		seriesList[i] = series
+	}
+
 	return &storage.FetchResult{
 		SeriesList: seriesList,
 	}, nil
@@ -120,11 +118,9 @@ func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery,
 		return nil, err
 	}
 
-	id := ident.StringID(s.namespace)
 	opts := storage.FetchOptionsToM3Options(options, query)
 
-	results, err := s.session.FetchTaggedIDs(id, m3query, opts)
-	defer id.Finalize()
+	results, err := s.session.FetchTaggedIDs(s.namespace, m3query, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -181,8 +177,7 @@ func (w *writeRequest) Process(ctx context.Context) error {
 	common := w.writeRequestCommon
 	store := common.store
 	id := ident.StringID(common.id)
-	namespace := ident.StringID(store.namespace)
-	return store.session.Write(namespace, id, w.timestamp, w.value, common.unit, common.annotation)
+	return store.session.Write(store.namespace, id, w.timestamp, w.value, common.unit, common.annotation)
 }
 
 type writeRequestCommon struct {
@@ -204,4 +199,13 @@ func newWriteRequest(writeRequestCommon *writeRequestCommon, timestamp time.Time
 		timestamp:          timestamp,
 		value:              value,
 	}
+}
+
+func (s *localStorage) Close() error {
+	s.namespace.Finalize()
+	return nil
+}
+
+func stepFromResolution(resolution time.Duration) int64 {
+	return xtime.ToNormalizedDuration(resolution, time.Millisecond)
 }

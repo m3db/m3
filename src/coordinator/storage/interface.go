@@ -49,6 +49,8 @@ type Storage interface {
 	Appender
 	// Type identifies the type of the underlying storage
 	Type() Type
+	// Close is used to close the underlying storage and free up resources
+	Close() error
 }
 
 // Query is an interface for a M3DB query

@@ -53,3 +53,7 @@ func (s *remoteStorage) Write(ctx context.Context, query *storage.WriteQuery) er
 func (s *remoteStorage) Type() storage.Type {
 	return storage.TypeRemoteDC
 }
+
+func (s *remoteStorage) Close() error {
+	return nil
+}
