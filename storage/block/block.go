@@ -50,6 +50,8 @@ type dbBlock struct {
 	segment        ts.Segment
 	length         int
 
+	blockSize time.Duration
+
 	lastReadUnixNanos int64
 
 	mergeTarget DatabaseBlock
@@ -80,6 +82,7 @@ type listState struct {
 // NewDatabaseBlock creates a new DatabaseBlock instance.
 func NewDatabaseBlock(
 	start time.Time,
+	blockSize time.Duration,
 	segment ts.Segment,
 	opts Options,
 ) DatabaseBlock {
@@ -87,6 +90,7 @@ func NewDatabaseBlock(
 		opts:           opts,
 		ctx:            opts.ContextPool().Get(),
 		startUnixNanos: start.UnixNano(),
+		blockSize:      blockSize,
 		closed:         false,
 	}
 	if segment.Len() > 0 {
@@ -98,6 +102,7 @@ func NewDatabaseBlock(
 // NewRetrievableDatabaseBlock creates a new retrievable DatabaseBlock instance.
 func NewRetrievableDatabaseBlock(
 	start time.Time,
+	blockSize time.Duration,
 	retriever DatabaseShardBlockRetriever,
 	metadata RetrievableBlockMetadata,
 	opts Options,
@@ -106,6 +111,7 @@ func NewRetrievableDatabaseBlock(
 		opts:           opts,
 		ctx:            opts.ContextPool().Get(),
 		startUnixNanos: start.UnixNano(),
+		blockSize:      blockSize,
 		closed:         false,
 	}
 	b.resetRetrievableWithLock(retriever, metadata)
@@ -117,6 +123,13 @@ func (b *dbBlock) StartTime() time.Time {
 	start := b.startWithLock()
 	b.RUnlock()
 	return start
+}
+
+func (b *dbBlock) BlockSize() time.Duration {
+	b.RLock()
+	size := b.blockSize
+	b.RUnlock()
+	return size
 }
 
 func (b *dbBlock) startWithLock() time.Time {
@@ -196,19 +209,18 @@ func (b *dbBlock) OnRetrieveBlock(
 	b.wasRetrievedFromDisk = true
 }
 
-func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
+func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 	b.RLock()
 	defer b.RUnlock()
 
 	if b.closed {
-		return nil, errReadFromClosedBlock
+		return xio.EmptyBlockReader, errReadFromClosedBlock
 	}
 
 	b.ctx.DependsOn(blocker)
-
 	stream, err := b.stream(blocker)
 	if err != nil {
-		return nil, err
+		return xio.EmptyBlockReader, err
 	}
 
 	if b.mergeTarget == nil {
@@ -262,76 +274,84 @@ func (b *dbBlock) Merge(other DatabaseBlock) error {
 	return nil
 }
 
-func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
+func (b *dbBlock) Reset(start time.Time, blockSize time.Duration, segment ts.Segment) {
 	b.Lock()
 	defer b.Unlock()
-	b.resetNewBlockStartWithLock(start)
+	b.resetNewBlockStartWithLock(start, blockSize)
 	b.resetSegmentWithLock(segment)
 }
 
 func (b *dbBlock) ResetRetrievable(
 	start time.Time,
+	blockSize time.Duration,
 	retriever DatabaseShardBlockRetriever,
 	metadata RetrievableBlockMetadata,
 ) {
 	b.Lock()
 	defer b.Unlock()
-	b.resetNewBlockStartWithLock(start)
+	b.resetNewBlockStartWithLock(start, blockSize)
 	b.resetRetrievableWithLock(retriever, metadata)
 }
 
-func (b *dbBlock) stream(ctx context.Context) (xio.SegmentReader, error) {
+func (b *dbBlock) stream(ctx context.Context) (xio.BlockReader, error) {
 	b.ctx.DependsOn(ctx)
+
+	start := b.startWithLock()
 
 	// If the block retrieve ID is set then it must be retrieved
 	var (
-		stream xio.SegmentReader
-		err    error
+		blockReader xio.BlockReader
+		err         error
 	)
 	if b.retriever != nil {
-		start := b.startWithLock()
-		stream, err = b.retriever.Stream(ctx, b.retrieveID, start, b)
+		blockReader, err = b.retriever.Stream(ctx, b.retrieveID, start, b)
 		if err != nil {
-			return nil, err
+			return xio.EmptyBlockReader, err
 		}
 	} else {
-		stream = b.opts.SegmentReaderPool().Get()
-		stream.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
-		ctx.RegisterFinalizer(stream)
+		segmentReader := b.opts.SegmentReaderPool().Get()
+		blockReader = xio.BlockReader{
+			SegmentReader: segmentReader,
+			Start:         start,
+			BlockSize:     b.blockSize,
+		}
+		blockReader.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
+		ctx.RegisterFinalizer(segmentReader)
 	}
 
-	return stream, nil
+	return blockReader, nil
 }
 
 // TODO(rartoul): The existing ctx is still holding a reference to the old segment so that will hang around
 // and waste memory until the block is closed. We could improve this by swapping out the underlying ctx with
 // a new one, allowing us to close the old one and release the old segment, freeing memory.
-func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentReader) (xio.SegmentReader, error) {
+func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentReader) (xio.BlockReader, error) {
 	targetStream, err := b.mergeTarget.Stream(ctx)
 	if err != nil {
-		return nil, err
+		return xio.EmptyBlockReader, err
 	}
-
-	mergedStream := newDatabaseMergedBlockReader(b.startWithLock(),
+	start := b.startWithLock()
+	mergedBlockReader := newDatabaseMergedBlockReader(start, b.blockSize,
 		mergeableStream{stream: stream, finalize: false},       // Should have been marked for finalization by the caller
 		mergeableStream{stream: targetStream, finalize: false}, // Already marked for finalization by the Stream() call above
 		b.opts)
-	mergedSegment, err := mergedStream.Segment()
+	mergedSegment, err := mergedBlockReader.Segment()
 	if err != nil {
-		return nil, err
+		return xio.EmptyBlockReader, err
 	}
 
 	b.resetMergeTargetWithLock()
 	b.resetSegmentWithLock(mergedSegment)
-	return mergedStream, nil
+	return mergedBlockReader, nil
 }
 
-func (b *dbBlock) resetNewBlockStartWithLock(start time.Time) {
+func (b *dbBlock) resetNewBlockStartWithLock(start time.Time, blockSize time.Duration) {
 	if !b.closed {
 		b.ctx.Close()
 	}
 	b.ctx = b.opts.ContextPool().Get()
 	b.startUnixNanos = start.UnixNano()
+	b.blockSize = blockSize
 	atomic.StoreInt64(&b.lastReadUnixNanos, 0)
 	b.closed = false
 	b.resetMergeTargetWithLock()

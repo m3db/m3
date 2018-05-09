@@ -55,7 +55,6 @@ import (
 )
 
 var (
-	timeZero        = time.Time{}
 	blockSize       = 2 * time.Hour
 	nsID            = ident.StringID("testNs1")
 	nsRetentionOpts = retention.NewOptions().
@@ -1649,14 +1648,18 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := newResultTestOptions()
+	start := time.Now().Truncate(time.Hour)
 
-	start := time.Now()
+	blockSize := time.Minute
+	bs := int64(blockSize)
+	rpcBlockSize := &bs
 
 	bl := &rpc.Block{
 		Start: start.UnixNano(),
 		Segments: &rpc.Segments{Merged: &rpc.Segment{
-			Head: []byte{1, 2},
-			Tail: []byte{3},
+			Head:      []byte{1, 2},
+			Tail:      []byte{3},
+			BlockSize: rpcBlockSize,
 		}},
 	}
 
@@ -1679,6 +1682,10 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	stream, err := result.Stream(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
+
+	// block reader has correct start time and block size
+	assert.Equal(t, start, stream.Start)
+	assert.Equal(t, blockSize, stream.BlockSize)
 
 	seg, err := stream.Segment()
 	require.NoError(t, err)
@@ -1743,7 +1750,6 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 
 	r := newBulkBlocksResult(opts, bopts)
 	r.addBlockFromPeer(fooID, testHost, bl)
-
 	series := r.result.AllSeries()
 	assert.Equal(t, 1, series.Len())
 
@@ -1766,7 +1772,6 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	// Assert test values sorted match the block values
 	iter := m3tsz.NewReaderIterator(stream, intopt, eops)
 	defer iter.Close()
-
 	asserted := 0
 	for iter.Next() {
 		idx := asserted
@@ -2504,7 +2509,7 @@ func (e *testEncoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(e.data)
 }
 
-func (e *testEncoder) StreamLen() int {
+func (e *testEncoder) Len() int {
 	return e.data.Len()
 }
 

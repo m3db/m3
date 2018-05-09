@@ -398,6 +398,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		var (
 			timeRange = r.Range()
 			start     = timeRange.Start
+			blockSize = ns.Options().RetentionOptions().BlockSize()
 			err       error
 		)
 		switch run {
@@ -415,7 +416,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		for i := 0; err == nil && i < numEntries; i++ {
 			switch run {
 			case bootstrapDataRunType:
-				err = s.readNextEntryAndRecordBlock(r, runResult, start, shardResult,
+				err = s.readNextEntryAndRecordBlock(r, runResult, start, blockSize, shardResult,
 					shardRetriever, blockPool, seriesCachePolicy)
 			case bootstrapIndexRunType:
 				// We can just read the entry and index if performing an index run
@@ -470,6 +471,7 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 	r fs.DataFileSetReader,
 	runResult *runResult,
 	blockStart time.Time,
+	blockSize time.Duration,
 	shardResult result.ShardResult,
 	shardRetriever block.DatabaseShardBlockRetriever,
 	blockPool block.DatabaseBlockPool,
@@ -523,14 +525,14 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 	switch seriesCachePolicy {
 	case series.CacheAll:
 		seg := ts.NewSegment(data, nil, ts.FinalizeHead)
-		seriesBlock.Reset(blockStart, seg)
+		seriesBlock.Reset(blockStart, blockSize, seg)
 	case series.CacheAllMetadata:
 		metadata := block.RetrievableBlockMetadata{
 			ID:       id,
 			Length:   length,
 			Checksum: checksum,
 		}
-		seriesBlock.ResetRetrievable(blockStart, shardRetriever, metadata)
+		seriesBlock.ResetRetrievable(blockStart, blockSize, shardRetriever, metadata)
 	default:
 		return fmt.Errorf("invalid series cache policy: %s", seriesCachePolicy.String())
 	}

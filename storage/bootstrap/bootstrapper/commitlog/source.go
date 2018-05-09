@@ -22,7 +22,6 @@ package commitlog
 
 import (
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -181,7 +180,7 @@ func (s *commitLogSource) ReadData(
 	wg.Wait()
 	s.logEncodingOutcome(workerErrs, iter)
 
-	return s.mergeShards(int(numShards), bopts, blopts, encoderPool, unmerged), nil
+	return s.mergeShards(int(numShards), bopts, blockSize, blopts, encoderPool, unmerged), nil
 }
 
 func (s *commitLogSource) startM3TSZEncodingWorker(
@@ -279,6 +278,7 @@ func (s *commitLogSource) shouldEncodeSeries(
 func (s *commitLogSource) mergeShards(
 	numShards int,
 	bopts result.Options,
+	blockSize time.Duration,
 	blopts block.Options,
 	encoderPool encoding.EncoderPool,
 	unmerged []encodersAndRanges,
@@ -306,7 +306,8 @@ func (s *commitLogSource) mergeShards(
 		mergeShardFunc := func() {
 			var shardResult result.ShardResult
 			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
-				shard, unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
+				shard, unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blockSize, blopts)
+
 			if shardResult != nil && shardResult.NumSeries() > 0 {
 				// Prevent race conditions while updating bootstrapResult from multiple go-routines
 				bootstrapResultLock.Lock()
@@ -331,6 +332,7 @@ func (s *commitLogSource) mergeShard(
 	blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	encoderPool encoding.EncoderPool,
+	blockSize time.Duration,
 	blopts block.Options,
 ) (result.ShardResult, int, int) {
 	var shardResult result.ShardResult
@@ -343,6 +345,7 @@ func (s *commitLogSource) mergeShard(
 			blocksPool,
 			multiReaderIteratorPool,
 			encoderPool,
+			blockSize,
 			blopts,
 		)
 
@@ -364,6 +367,7 @@ func (s *commitLogSource) mergeSeries(
 	blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	encoderPool encoding.EncoderPool,
+	blockSize time.Duration,
 	blopts block.Options,
 ) (block.DatabaseSeriesBlocks, int, int) {
 	var seriesBlocks block.DatabaseSeriesBlocks
@@ -380,7 +384,7 @@ func (s *commitLogSource) mergeSeries(
 
 		if len(encoders) == 1 {
 			pooledBlock := blocksPool.Get()
-			pooledBlock.Reset(start, encoders[0].enc.Discard())
+			pooledBlock.Reset(start, blockSize, encoders[0].enc.Discard())
 			if seriesBlocks == nil {
 				seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
 			}
@@ -391,7 +395,7 @@ func (s *commitLogSource) mergeSeries(
 		// Convert encoders to readers so we can use iteration helpers
 		readers := encoders.newReaders()
 		iter := multiReaderIteratorPool.Get()
-		iter.Reset(readers)
+		iter.Reset(readers, time.Time{}, 0)
 
 		var err error
 		enc := encoderPool.Get()
@@ -423,7 +427,7 @@ func (s *commitLogSource) mergeSeries(
 		}
 
 		pooledBlock := blocksPool.Get()
-		pooledBlock.Reset(start, enc.Discard())
+		pooledBlock.Reset(start, blockSize, enc.Discard())
 		if seriesBlocks == nil {
 			seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
 		}
@@ -571,7 +575,7 @@ type encoderArg struct {
 
 type encoders []encoder
 
-type ioReaders []io.Reader
+type ioReaders []xio.SegmentReader
 
 func (e encoders) newReaders() ioReaders {
 	readers := make(ioReaders, len(e))

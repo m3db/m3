@@ -86,16 +86,16 @@ func (mr *MockEncoderMockRecorder) Stream() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockEncoder)(nil).Stream))
 }
 
-// StreamLen mocks base method
-func (m *MockEncoder) StreamLen() int {
-	ret := m.ctrl.Call(m, "StreamLen")
+// Len mocks base method
+func (m *MockEncoder) Len() int {
+	ret := m.ctrl.Call(m, "Len")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-// StreamLen indicates an expected call of StreamLen
-func (mr *MockEncoderMockRecorder) StreamLen() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamLen", reflect.TypeOf((*MockEncoder)(nil).StreamLen))
+// Len indicates an expected call of Len
+func (mr *MockEncoderMockRecorder) Len() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Len", reflect.TypeOf((*MockEncoder)(nil).Len))
 }
 
 // Reset mocks base method
@@ -557,13 +557,13 @@ func (mr *MockMultiReaderIteratorMockRecorder) Close() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockMultiReaderIterator) Reset(readers []io.Reader) {
-	m.ctrl.Call(m, "Reset", readers)
+func (m *MockMultiReaderIterator) Reset(readers []xio.SegmentReader, start time.Time, blockSize time.Duration) {
+	m.ctrl.Call(m, "Reset", readers, start, blockSize)
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockMultiReaderIteratorMockRecorder) Reset(readers interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMultiReaderIterator)(nil).Reset), readers)
+func (mr *MockMultiReaderIteratorMockRecorder) Reset(readers, start, blockSize interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockMultiReaderIterator)(nil).Reset), readers, start, blockSize)
 }
 
 // ResetSliceOfSlices mocks base method
@@ -574,6 +574,18 @@ func (m *MockMultiReaderIterator) ResetSliceOfSlices(readers xio.ReaderSliceOfSl
 // ResetSliceOfSlices indicates an expected call of ResetSliceOfSlices
 func (mr *MockMultiReaderIteratorMockRecorder) ResetSliceOfSlices(readers interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetSliceOfSlices", reflect.TypeOf((*MockMultiReaderIterator)(nil).ResetSliceOfSlices), readers)
+}
+
+// Readers mocks base method
+func (m *MockMultiReaderIterator) Readers() xio.ReaderSliceOfSlicesIterator {
+	ret := m.ctrl.Call(m, "Readers")
+	ret0, _ := ret[0].(xio.ReaderSliceOfSlicesIterator)
+	return ret0
+}
+
+// Readers indicates an expected call of Readers
+func (mr *MockMultiReaderIteratorMockRecorder) Readers() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Readers", reflect.TypeOf((*MockMultiReaderIterator)(nil).Readers))
 }
 
 // MockSeriesIterator is a mock of SeriesIterator interface
@@ -708,13 +720,25 @@ func (mr *MockSeriesIteratorMockRecorder) End() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockSeriesIterator) Reset(id, ns ident.ID, t ident.TagIterator, startInclusive, endExclusive time.Time, replicas []Iterator) {
+func (m *MockSeriesIterator) Reset(id, ns ident.ID, t ident.TagIterator, startInclusive, endExclusive time.Time, replicas []MultiReaderIterator) {
 	m.ctrl.Call(m, "Reset", id, ns, t, startInclusive, endExclusive, replicas)
 }
 
 // Reset indicates an expected call of Reset
 func (mr *MockSeriesIteratorMockRecorder) Reset(id, ns, t, startInclusive, endExclusive, replicas interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockSeriesIterator)(nil).Reset), id, ns, t, startInclusive, endExclusive, replicas)
+}
+
+// Replicas mocks base method
+func (m *MockSeriesIterator) Replicas() []MultiReaderIterator {
+	ret := m.ctrl.Call(m, "Replicas")
+	ret0, _ := ret[0].([]MultiReaderIterator)
+	return ret0
+}
+
+// Replicas indicates an expected call of Replicas
+func (mr *MockSeriesIteratorMockRecorder) Replicas() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Replicas", reflect.TypeOf((*MockSeriesIterator)(nil).Replicas))
 }
 
 // MockSeriesIterators is a mock of SeriesIterators interface
@@ -1380,57 +1404,57 @@ func (mr *MockMutableSeriesIteratorsPoolMockRecorder) Put(iters interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockMutableSeriesIteratorsPool)(nil).Put), iters)
 }
 
-// MockIteratorArrayPool is a mock of IteratorArrayPool interface
-type MockIteratorArrayPool struct {
+// MockMultiReaderIteratorArrayPool is a mock of MultiReaderIteratorArrayPool interface
+type MockMultiReaderIteratorArrayPool struct {
 	ctrl     *gomock.Controller
-	recorder *MockIteratorArrayPoolMockRecorder
+	recorder *MockMultiReaderIteratorArrayPoolMockRecorder
 }
 
-// MockIteratorArrayPoolMockRecorder is the mock recorder for MockIteratorArrayPool
-type MockIteratorArrayPoolMockRecorder struct {
-	mock *MockIteratorArrayPool
+// MockMultiReaderIteratorArrayPoolMockRecorder is the mock recorder for MockMultiReaderIteratorArrayPool
+type MockMultiReaderIteratorArrayPoolMockRecorder struct {
+	mock *MockMultiReaderIteratorArrayPool
 }
 
-// NewMockIteratorArrayPool creates a new mock instance
-func NewMockIteratorArrayPool(ctrl *gomock.Controller) *MockIteratorArrayPool {
-	mock := &MockIteratorArrayPool{ctrl: ctrl}
-	mock.recorder = &MockIteratorArrayPoolMockRecorder{mock}
+// NewMockMultiReaderIteratorArrayPool creates a new mock instance
+func NewMockMultiReaderIteratorArrayPool(ctrl *gomock.Controller) *MockMultiReaderIteratorArrayPool {
+	mock := &MockMultiReaderIteratorArrayPool{ctrl: ctrl}
+	mock.recorder = &MockMultiReaderIteratorArrayPoolMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockIteratorArrayPool) EXPECT() *MockIteratorArrayPoolMockRecorder {
+func (m *MockMultiReaderIteratorArrayPool) EXPECT() *MockMultiReaderIteratorArrayPoolMockRecorder {
 	return m.recorder
 }
 
 // Init mocks base method
-func (m *MockIteratorArrayPool) Init() {
+func (m *MockMultiReaderIteratorArrayPool) Init() {
 	m.ctrl.Call(m, "Init")
 }
 
 // Init indicates an expected call of Init
-func (mr *MockIteratorArrayPoolMockRecorder) Init() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockIteratorArrayPool)(nil).Init))
+func (mr *MockMultiReaderIteratorArrayPoolMockRecorder) Init() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Init", reflect.TypeOf((*MockMultiReaderIteratorArrayPool)(nil).Init))
 }
 
 // Get mocks base method
-func (m *MockIteratorArrayPool) Get(size int) []Iterator {
+func (m *MockMultiReaderIteratorArrayPool) Get(size int) []MultiReaderIterator {
 	ret := m.ctrl.Call(m, "Get", size)
-	ret0, _ := ret[0].([]Iterator)
+	ret0, _ := ret[0].([]MultiReaderIterator)
 	return ret0
 }
 
 // Get indicates an expected call of Get
-func (mr *MockIteratorArrayPoolMockRecorder) Get(size interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockIteratorArrayPool)(nil).Get), size)
+func (mr *MockMultiReaderIteratorArrayPoolMockRecorder) Get(size interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockMultiReaderIteratorArrayPool)(nil).Get), size)
 }
 
 // Put mocks base method
-func (m *MockIteratorArrayPool) Put(iters []Iterator) {
+func (m *MockMultiReaderIteratorArrayPool) Put(iters []MultiReaderIterator) {
 	m.ctrl.Call(m, "Put", iters)
 }
 
 // Put indicates an expected call of Put
-func (mr *MockIteratorArrayPoolMockRecorder) Put(iters interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockIteratorArrayPool)(nil).Put), iters)
+func (mr *MockMultiReaderIteratorArrayPoolMockRecorder) Put(iters interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockMultiReaderIteratorArrayPool)(nil).Put), iters)
 }

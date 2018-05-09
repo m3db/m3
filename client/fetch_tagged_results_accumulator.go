@@ -217,7 +217,7 @@ func (accum *fetchTaggedResultAccumulator) sliceResponsesAsSeriesIter(
 	elems fetchTaggedIDResults,
 ) encoding.SeriesIterator {
 	numElems := len(elems)
-	iters := pools.IteratorArray().Get(numElems)[:numElems]
+	iters := pools.MultiReaderIteratorArray().Get(numElems)[:numElems]
 	for idx, elem := range elems {
 		slicesIter := pools.ReaderSliceOfSlicesIterator().Get()
 		slicesIter.Reset(elem.Segments)
