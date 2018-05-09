@@ -34,6 +34,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type expectedIndexBlock struct {
+	series []seriesIDAndTag
+}
+
+type seriesIDAndTag struct {
+	ID   ident.ID
+	Tags ident.Tags
+}
+
 func TestBootstrapIndex(t *testing.T) {
 	var (
 		opts             = testOptions()
@@ -98,6 +107,69 @@ func TestBootstrapIndex(t *testing.T) {
 
 	// Data blockSize is 2 hours and index blockSize is four hours so the data blocks
 	// will span two different index blocks.
-	require.Equal(t, 2, len(res.IndexResults()))
+	indexResults := res.IndexResults()
+	require.Equal(t, 2, len(indexResults))
 	require.Equal(t, 0, len(res.Unfulfilled()))
+
+	expectedIndexBlocks := map[xtime.UnixNano]map[string]map[string]string{}
+	for _, value := range values {
+		indexBlockStart := value.t.Truncate(indexBlockSize)
+		expectedSeries, ok := expectedIndexBlocks[xtime.ToUnixNano(indexBlockStart)]
+		if !ok {
+			expectedSeries = map[string]map[string]string{}
+			expectedIndexBlocks[xtime.ToUnixNano(indexBlockStart)] = expectedSeries
+		}
+		seriesID := string(value.s.ID.Bytes())
+		for _, tag := range value.s.Tags {
+			existingTags, ok := expectedSeries[seriesID]
+			if !ok {
+				existingTags = map[string]string{}
+				expectedSeries[seriesID] = existingTags
+			}
+
+			existingTags[tag.Name.String()] = tag.Value.String()
+		}
+	}
+
+	for indexBlockStart, expected := range expectedIndexBlocks {
+		indexBlock, ok := indexResults[indexBlockStart]
+		require.True(t, ok)
+
+		for _, seg := range indexBlock.Segments() {
+			reader, err := seg.Reader()
+			require.NoError(t, err)
+
+			docs, err := reader.AllDocs()
+			require.NoError(t, err)
+
+			matches := map[string]struct{}{}
+			for docs.Next() {
+				curr := docs.Current()
+
+				_, ok := matches[string(curr.ID)]
+				require.False(t, ok)
+				matches[string(curr.ID)] = struct{}{}
+
+				tags, ok := expected[string(curr.ID)]
+				require.True(t, ok)
+
+				matchingTags := map[string]struct{}{}
+				for _, tag := range curr.Fields {
+					_, ok := matchingTags[string(tag.Name)]
+					require.False(t, ok)
+					matchingTags[string(tag.Name)] = struct{}{}
+
+					tagValue, ok := tags[string(tag.Name)]
+					require.True(t, ok)
+
+					require.Equal(t, tagValue, string(tag.Value))
+				}
+				require.Equal(t, len(tags), len(matchingTags))
+			}
+			require.NoError(t, docs.Err())
+			require.NoError(t, docs.Close())
+
+			require.Equal(t, len(expected), len(matches))
+		}
+	}
 }
