@@ -30,15 +30,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3coordinator/executor"
-	"github.com/m3db/m3coordinator/mocks"
-	"github.com/m3db/m3coordinator/policy/resolver"
 	"github.com/m3db/m3coordinator/services/m3coordinator/handler/prometheus"
-	"github.com/m3db/m3coordinator/storage/local"
+	"github.com/m3db/m3coordinator/test/local"
 	"github.com/m3db/m3coordinator/util/logging"
-
-	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3metrics/policy"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -51,7 +45,8 @@ const (
 
 func TestPromReadParsing(t *testing.T) {
 	logging.InitWithCores(nil)
-	storage := local.NewStorage(nil, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
+	ctrl := gomock.NewController(t)
+	storage, _ := local.NewStorageAndSession(ctrl)
 	promRead := &PromReadHandler{engine: executor.NewEngine(storage)}
 
 	req, _ := http.NewRequest("GET", createURL().String(), nil)
@@ -63,7 +58,8 @@ func TestPromReadParsing(t *testing.T) {
 
 func TestPromReadNotImplemented(t *testing.T) {
 	logging.InitWithCores(nil)
-	storage := local.NewStorage(nil, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
+	ctrl := gomock.NewController(t)
+	storage, _ := local.NewStorageAndSession(ctrl)
 	promRead := &PromReadHandler{engine: executor.NewEngine(storage)}
 	req, _ := http.NewRequest("GET", createURL().String(), nil)
 
@@ -80,10 +76,7 @@ func TestPromReadEndpoint(t *testing.T) {
 	// No calls expected on session object
 	req, _ := http.NewRequest("GET", createURL().String(), nil)
 	res := httptest.NewRecorder()
-	session := client.NewMockSession(ctrl)
-	mockResolver := mocks.NewMockPolicyResolver(gomock.NewController(t))
-
-	storage := local.NewStorage(session, "metrics", mockResolver)
+	storage, _ := local.NewStorageAndSession(ctrl)
 	engine := executor.NewEngine(storage)
 	promRead := &PromReadHandler{engine: engine}
 

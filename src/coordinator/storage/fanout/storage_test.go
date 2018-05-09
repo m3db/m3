@@ -28,18 +28,15 @@ import (
 
 	"github.com/m3db/m3coordinator/errors"
 	"github.com/m3db/m3coordinator/policy/filter"
-	"github.com/m3db/m3coordinator/policy/resolver"
 	"github.com/m3db/m3coordinator/storage"
-	"github.com/m3db/m3coordinator/storage/local"
+	"github.com/m3db/m3coordinator/test"
+	"github.com/m3db/m3coordinator/test/local"
 	"github.com/m3db/m3coordinator/ts"
 	"github.com/m3db/m3coordinator/util/logging"
 
-	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/storage/index"
-	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -52,14 +49,16 @@ func filterFunc(output bool) filter.Storage {
 	}
 }
 
-func fakeIterator() encoding.SeriesIterator {
+func fakeIterator(t *testing.T) encoding.SeriesIterators {
 	id := ident.StringID("id")
 	namespace := ident.StringID("metrics")
-	return encoding.NewSeriesIterator(id, namespace, nil, time.Now(), time.Now(), nil, nil)
+	return encoding.NewSeriesIterators([]encoding.SeriesIterator{
+		encoding.NewSeriesIterator(id, namespace, test.GenerateSingleSampleTagIterator(gomock.NewController(t), test.GenerateTag()),
+			time.Now(), time.Now(), nil, nil)}, nil)
 }
 
 type fetchResponse struct {
-	result encoding.SeriesIterator
+	result encoding.SeriesIterators
 	err    error
 }
 
@@ -76,15 +75,15 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	}
 
 	ctrl := gomock.NewController(t)
-	session1 := client.NewMockSession(ctrl)
-	session2 := client.NewMockSession(ctrl)
-	session1.EXPECT().Fetch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(response[0].result, response[0].err)
-	session2.EXPECT().Fetch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(response[len(response)-1].result, response[len(response)-1].err)
+	store1, session1 := local.NewStorageAndSession(ctrl)
+	store2, session2 := local.NewStorageAndSession(ctrl)
+
+	session1.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(response[0].result, true, response[0].err)
+	session2.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(response[len(response)-1].result, true, response[len(response)-1].err)
 	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(index.QueryResults{}, errors.ErrNotImplemented)
 	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(index.QueryResults{}, errors.ErrNotImplemented)
 	stores := []storage.Storage{
-		local.NewStorage(session1, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48))),
-		local.NewStorage(session2, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48))),
+		store1, store2,
 	}
 
 	store := NewStorage(stores, filterFunc(output), filterFunc(output))
@@ -94,13 +93,12 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage {
 	setup()
 	ctrl := gomock.NewController(t)
-	session1 := client.NewMockSession(ctrl)
-	session2 := client.NewMockSession(ctrl)
+	store1, session1 := local.NewStorageAndSession(ctrl)
+	store2, session2 := local.NewStorageAndSession(ctrl)
 	session1.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[0])
 	session2.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[len(errs)-1])
 	stores := []storage.Storage{
-		local.NewStorage(session1, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48))),
-		local.NewStorage(session2, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48))),
+		store1, store2,
 	}
 	store := NewStorage(stores, filterFunc(output), filterFunc(output))
 	return store
@@ -121,10 +119,11 @@ func TestFanoutReadError(t *testing.T) {
 }
 
 func TestFanoutReadSuccess(t *testing.T) {
-	store := setupFanoutRead(t, true, &fetchResponse{result: fakeIterator()}, &fetchResponse{result: fakeIterator()})
+	store := setupFanoutRead(t, true, &fetchResponse{result: fakeIterator(t)}, &fetchResponse{result: fakeIterator(t)})
 	res, err := store.Fetch(context.TODO(), &storage.FetchQuery{}, &storage.FetchOptions{})
 	require.NoError(t, err, "no error on read")
 	assert.NotNil(t, res)
+	assert.NoError(t, store.Close())
 }
 
 func TestFanoutSearchEmpty(t *testing.T) {
