@@ -276,7 +276,7 @@ func (s *commitLogSource) shouldEncodeSeriesForData(
 	return ranges.Overlaps(blockRange)
 }
 
-func (s *commitLogSource) shouldEncodeSeriesForIndex(
+func (s *commitLogSource) shouldIncludeInIndex(
 	shard uint32,
 	ts time.Time,
 	highestShard uint32,
@@ -571,7 +571,7 @@ func (s *commitLogSource) ReadIndex(
 	indexBlockSize := ns.Options().IndexOptions().BlockSize()
 	for iter.Next() {
 		series, dp, _, _ := iter.Current()
-		if !s.shouldEncodeSeriesForIndex(
+		if !s.shouldIncludeInIndex(
 			series.Shard, dp.Timestamp, highestShard, indexBlockSize, bootstrapRangesByShard) {
 			continue
 		}
