@@ -134,7 +134,7 @@ func TestBootstrapIndex(t *testing.T) {
 		}
 	}
 
-	for indexBlockStart, expected := range expectedIndexBlocks {
+	for indexBlockStart, expectedSeries := range expectedIndexBlocks {
 		indexBlock, ok := indexResults[indexBlockStart]
 		require.True(t, ok)
 
@@ -145,33 +145,32 @@ func TestBootstrapIndex(t *testing.T) {
 			docs, err := reader.AllDocs()
 			require.NoError(t, err)
 
-			matches := map[string]struct{}{}
+			seenSeries := map[string]struct{}{}
 			for docs.Next() {
 				curr := docs.Current()
 
-				_, ok := matches[string(curr.ID)]
+				_, ok := seenSeries[string(curr.ID)]
 				require.False(t, ok)
-				matches[string(curr.ID)] = struct{}{}
+				seenSeries[string(curr.ID)] = struct{}{}
 
-				tags := expected[string(curr.ID)]
-
+				expectedTags := expectedSeries[string(curr.ID)]
 				matchingTags := map[string]struct{}{}
 				for _, tag := range curr.Fields {
 					_, ok := matchingTags[string(tag.Name)]
 					require.False(t, ok)
 					matchingTags[string(tag.Name)] = struct{}{}
 
-					tagValue, ok := tags[string(tag.Name)]
+					tagValue, ok := expectedTags[string(tag.Name)]
 					require.True(t, ok)
 
 					require.Equal(t, tagValue, string(tag.Value))
 				}
-				require.Equal(t, len(tags), len(matchingTags))
+				require.Equal(t, len(expectedTags), len(matchingTags))
 			}
 			require.NoError(t, docs.Err())
 			require.NoError(t, docs.Close())
 
-			require.Equal(t, len(expected), len(matches))
+			require.Equal(t, len(expectedSeries), len(seenSeries))
 		}
 	}
 }
