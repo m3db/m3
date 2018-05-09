@@ -18,72 +18,92 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package placement
 
 import (
-	"context"
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/m3db/m3coordinator/generated/proto/admin"
+	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
 	"github.com/m3db/m3coordinator/util/logging"
 
-	m3clusterClient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/placement"
 
 	"go.uber.org/zap"
 )
 
 const (
-	// PlacementGetURL is the url for the placement get handler (with the GET method).
-	PlacementGetURL = "/placement/get"
-
-	// PlacementGetHTTPMethodURL is the url for the placement get handler (with the GET method).
-	PlacementGetHTTPMethodURL = "/placement"
+	// AddURL is the url for the placement add handler (with the POST method).
+	AddURL = "/placement/add"
 )
 
-// placementGetHandler represents a handler for placement get endpoint.
-type placementGetHandler AdminHandler
+// addHandler represents a handler for placement add endpoint.
+type addHandler Handler
 
-// NewPlacementGetHandler returns a new instance of handler.
-func NewPlacementGetHandler(clusterClient m3clusterClient.Client) http.Handler {
-	return &placementGetHandler{
-		clusterClient: clusterClient,
-	}
+// NewAddHandler returns a new instance of a placement add handler.
+func NewAddHandler(service placement.Service) http.Handler {
+	return &addHandler{service: service}
 }
 
-func (h *placementGetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	placement, version, err := h.placementGet(ctx)
+	req, rErr := h.parseRequest(r)
+	if rErr != nil {
+		handler.Error(w, rErr.Error(), rErr.Code())
+		return
+	}
+
+	placement, err := h.add(req)
 	if err != nil {
-		// An error from placementGet signifies "key not found", meaning there is
-		// no placement and as such, should not be treated as an actual error to
-		// the user.
-		w.Write([]byte("no placement found\n"))
+		logger.Error("unable to add placement", zap.Any("error", err))
+		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	placementProto, err := placement.Proto()
 	if err != nil {
 		logger.Error("unable to get placement protobuf", zap.Any("error", err))
-		Error(w, err, http.StatusInternalServerError)
+		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
-		Version:   int32(version),
 	}
 
-	WriteProtoMsgJSONResponse(w, resp, logger)
+	handler.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *placementGetHandler) placementGet(ctx context.Context) (placement.Placement, int, error) {
-	ps, err := PlacementService(h.clusterClient, h.config)
+func (h *addHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, *handler.ParseError) {
+	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return nil, 0, err
+		return nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
-	return ps.Placement()
+	defer r.Body.Close()
+
+	addReq := new(admin.PlacementAddRequest)
+	if err := json.Unmarshal(body, addReq); err != nil {
+		return nil, handler.NewParseError(err, http.StatusBadRequest)
+	}
+
+	return addReq, nil
+}
+
+func (h *addHandler) add(r *admin.PlacementAddRequest) (placement.Placement, error) {
+	instances, err := ConvertInstancesProto(r.Instances)
+	if err != nil {
+		return nil, err
+	}
+
+	newPlacement, _, err := h.service.AddInstances(instances)
+	if err != nil {
+		return nil, err
+	}
+
+	return newPlacement, nil
 }

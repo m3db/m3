@@ -18,21 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package placement
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3coordinator/services/m3coordinator/config"
+	"github.com/m3db/m3coordinator/util/logging"
 
 	m3clusterClient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
-	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
-	nsproto "github.com/m3db/m3db/generated/proto/namespace"
-	"github.com/m3db/m3db/storage/namespace"
+
+	"github.com/gorilla/mux"
 )
 
 const (
@@ -44,19 +42,15 @@ const (
 
 	// DefaultServiceZone is the default service ID zone
 	DefaultServiceZone = "embedded"
-
-	// M3DBNodeNamespacesKey is the KV key that holds namespaces
-	M3DBNodeNamespacesKey = "m3db.node.namespaces"
 )
 
-// AdminHandler represents a generic handler for admin endpoints.
-type AdminHandler struct {
-	clusterClient m3clusterClient.Client
-	config        config.Configuration
+// Handler represents a generic handler for placement endpoints.
+type Handler struct {
+	service placement.Service
 }
 
-// PlacementService gets a placement service from an m3cluster client
-func PlacementService(clusterClient m3clusterClient.Client, cfg config.Configuration) (placement.Service, error) {
+// Service gets a placement service from m3cluster client
+func Service(clusterClient m3clusterClient.Client, cfg config.Configuration) (placement.Service, error) {
 	cs, err := clusterClient.Services(services.NewOverrideOptions())
 	if err != nil {
 		return nil, err
@@ -112,26 +106,13 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 	return res, nil
 }
 
-func currentNamespaceMetadata(store kv.Store) ([]namespace.Metadata, error) {
-	value, err := store.Get(M3DBNodeNamespacesKey)
+// RegisterRoutes registers the placement routes
+func RegisterRoutes(r *mux.Router, service placement.Service) {
+	logged := logging.WithResponseTimeLogging
 
-	if err != nil {
-		if err == kv.ErrNotFound {
-			return []namespace.Metadata{}, nil
-		}
-
-		return nil, err
-	}
-
-	var protoRegistry nsproto.Registry
-	if err := value.Unmarshal(&protoRegistry); err != nil {
-		return nil, fmt.Errorf("unable to parse value, err: %v", err)
-	}
-
-	nsMap, err := namespace.FromProto(protoRegistry)
-	if err != nil {
-		return nil, err
-	}
-
-	return nsMap.Metadatas(), nil
+	r.HandleFunc(InitURL, logged(NewInitHandler(service)).ServeHTTP).Methods("POST")
+	r.HandleFunc(GetURL, logged(NewGetHandler(service)).ServeHTTP).Methods("GET")
+	r.HandleFunc(DeleteAllURL, logged(NewDeleteAllHandler(service)).ServeHTTP).Methods("DELETE")
+	r.HandleFunc(AddURL, logged(NewAddHandler(service)).ServeHTTP).Methods("POST")
+	r.HandleFunc(DeleteURL, logged(NewDeleteHandler(service)).ServeHTTP).Methods("DELETE")
 }

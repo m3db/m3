@@ -18,47 +18,50 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package placement
 
 import (
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/placement"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNamespaceAddHandler(t *testing.T) {
-	mockClient, mockKV, _ := SetupNamespaceTest(t)
-	handler := NewNamespaceAddHandler(mockClient)
+func TestPlacementAddHandler(t *testing.T) {
+	mockPlacementService := SetupPlacementTest(t)
+	handler := NewAddHandler(mockPlacementService)
+
+	// Test add failure
 	w := httptest.NewRecorder()
-
-	jsonInput := `
-		{
-			"name": "testNamespace",
-			"retention_period": "48h",
-			"block_size": "2h",
-			"buffer_future": "10m",
-			"buffer_past": "5m",
-			"needs_fileset_cleanup": false
-		}
-	`
-
-	req := httptest.NewRequest("POST", "/namespace/add", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/placement/add", strings.NewReader("{\"instances\":[]}"))
 	require.NotNil(t, req)
 
-	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
-	mockKV.EXPECT().Set(M3DBNodeNamespacesKey, gomock.Not(nil)).Return(1, nil)
+	mockPlacementService.EXPECT().AddInstances(gomock.Any()).Return(placement.NewPlacement(), nil, errors.New("no new instances found in the valid zone"))
 	handler.ServeHTTP(w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, "no new instances found in the valid zone\n", string(body))
+
+	// Test add success
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest("POST", "/placement/add", strings.NewReader("{\"instances\":[{\"id\": \"host1\",\"isolation_group\": \"rack1\",\"zone\": \"test\",\"weight\": 1,\"endpoint\": \"http://host1:1234\",\"hostname\": \"host1\",\"port\": 1234}]}"))
+	require.NotNil(t, req)
+
+	mockPlacementService.EXPECT().AddInstances(gomock.Not(nil)).Return(placement.NewPlacement(), nil, nil)
+	handler.ServeHTTP(w, req)
+
+	resp = w.Result()
+	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":false,\"flushEnabled\":false,\"writesToCommitLog\":false,\"cleanupEnabled\":false,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"300000000000\",\"blockDataExpiry\":false,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\"},\"snapshotEnabled\":true}}}}", string(body))
+	assert.Equal(t, "{\"placement\":{\"instances\":{},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}", string(body))
 }

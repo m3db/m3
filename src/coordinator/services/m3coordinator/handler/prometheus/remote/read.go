@@ -56,12 +56,6 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	// Allow handler to be set up before M3DB is initialized
-	if h.engine == nil {
-		handler.WriteUninitializedResponse(w, logger)
-		return
-	}
-
 	req, rErr := h.parseRequest(r)
 
 	if rErr != nil {
@@ -153,9 +147,4 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, r 
 	}
 
 	return promResults, nil
-}
-
-// SetEngine sets the engine of the handler
-func (h *PromReadHandler) SetEngine(engine *executor.Engine) {
-	h.engine = engine
 }

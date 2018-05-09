@@ -53,14 +53,6 @@ func NewPromWriteHandler(store storage.Storage) http.Handler {
 }
 
 func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	logger := logging.WithContext(r.Context())
-
-	// Allow handler to be set up before M3DB is initialized
-	if h.store == nil {
-		handler.WriteUninitializedResponse(w, logger)
-		return
-	}
-
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
 		handler.Error(w, rErr.Error(), rErr.Code())
@@ -109,9 +101,4 @@ func newLocalWriteRequest(writeQuery *storage.WriteQuery, store storage.Storage)
 		store:      store,
 		writeQuery: writeQuery,
 	}
-}
-
-// SetStore sets the store of the handler
-func (h *PromWriteHandler) SetStore(store storage.Storage) {
-	h.store = store
 }

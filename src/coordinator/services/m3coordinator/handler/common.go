@@ -52,7 +52,6 @@ func WriteProtoMsgJSONResponse(w http.ResponseWriter, data proto.Message, logger
 
 	w.Header().Set("Content-Type", "application/json")
 	err := marshaler.Marshal(w, data)
-
 	if err != nil {
 		logger.Error("unable to marshal json", zap.Any("error", err))
 		Error(w, err, http.StatusInternalServerError)

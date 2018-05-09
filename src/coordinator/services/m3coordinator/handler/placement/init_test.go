@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package placement
 
 import (
 	"errors"
@@ -37,8 +37,8 @@ import (
 )
 
 func TestPlacementInitHandler(t *testing.T) {
-	mockClient, mockPlacementService := SetupPlacementTest(t)
-	handler := NewPlacementInitHandler(mockClient)
+	mockPlacementService := SetupPlacementTest(t)
+	handler := NewInitHandler(mockPlacementService)
 
 	// Test placement init success
 	w := httptest.NewRecorder()
