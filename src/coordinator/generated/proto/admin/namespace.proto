@@ -22,7 +22,3 @@ message NamespaceAddRequest {
   bool repair_enabled = 11;
   bool writes_to_commitlog = 12;
 }
-
-message NamespaceDeleteRequest {
-  string name = 1;
-}

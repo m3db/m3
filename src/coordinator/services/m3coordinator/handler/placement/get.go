@@ -18,52 +18,57 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package placement
 
 import (
-	"context"
 	"net/http"
 
+	"github.com/m3db/m3coordinator/generated/proto/admin"
+	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
 	"github.com/m3db/m3coordinator/util/logging"
 
-	m3clusterClient "github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3cluster/placement"
 
 	"go.uber.org/zap"
 )
 
 const (
-	// PlacementDeleteURL is the url for the placement delete handler (with the POST method).
-	PlacementDeleteURL = "/placement/delete"
-
-	// PlacementDeleteHTTPMethodURL is the url for the placement delete handler (with the DELETE method).
-	PlacementDeleteHTTPMethodURL = "/placement"
+	// GetURL is the url for the placement get handler (with the GET method).
+	GetURL = "/placement"
 )
 
-// PlacementDeleteHandler represents a handler for placement delete endpoint.
-type placementDeleteHandler AdminHandler
+// getHandler represents a handler for placement get endpoint.
+type getHandler Handler
 
-// NewPlacementDeleteHandler returns a new instance of handler.
-func NewPlacementDeleteHandler(clusterClient m3clusterClient.Client) http.Handler {
-	return &placementDeleteHandler{
-		clusterClient: clusterClient,
-	}
+// NewGetHandler returns a new instance of a placement get handler.
+func NewGetHandler(service placement.Service) http.Handler {
+	return &getHandler{service: service}
 }
 
-func (h *placementDeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	if err := h.placementDelete(ctx); err != nil {
-		logger.Error("unable to delete placement", zap.Any("error", err))
-		Error(w, err, http.StatusInternalServerError)
-	}
-}
-
-func (h *placementDeleteHandler) placementDelete(ctx context.Context) error {
-	ps, err := PlacementService(h.clusterClient, h.config)
+	placement, version, err := h.service.Placement()
 	if err != nil {
-		return err
+		// An error from `get` signifies "key not found", meaning there is
+		// no placement and as such, should not be treated as an actual error to
+		// the user.
+		w.Write([]byte("no placement found\n"))
+		return
 	}
 
-	return ps.Delete()
+	placementProto, err := placement.Proto()
+	if err != nil {
+		logger.Error("unable to get placement protobuf", zap.Any("error", err))
+		handler.Error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	resp := &admin.PlacementGetResponse{
+		Placement: placementProto,
+		Version:   int32(version),
+	}
+
+	handler.WriteProtoMsgJSONResponse(w, resp, logger)
 }

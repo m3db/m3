@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package namespace
 
 import (
 	"io/ioutil"
@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3coordinator/util/logging"
 
-	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
 
@@ -37,23 +36,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func SetupNamespaceTest(t *testing.T) (*client.MockClient, *kv.MockStore, *gomock.Controller) {
+func SetupNamespaceTest(t *testing.T) (*kv.MockStore, *gomock.Controller) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockClient := client.NewMockClient(ctrl)
-	require.NotNil(t, mockClient)
+
 	mockKV := kv.NewMockStore(ctrl)
 	require.NotNil(t, mockKV)
-	mockClient.EXPECT().KV().Return(mockKV, nil).AnyTimes()
 
-	return mockClient, mockKV, ctrl
+	return mockKV, ctrl
 }
 
 func TestNamespaceGetHandler(t *testing.T) {
-	mockClient, mockKV, ctrl := SetupNamespaceTest(t)
-	handler := NewNamespaceGetHandler(mockClient)
+	mockKV, ctrl := SetupNamespaceTest(t)
+	getHandler := NewGetHandler(mockKV)
 
 	// Test no namespace
 	w := httptest.NewRecorder()
@@ -62,7 +59,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
-	handler.ServeHTTP(w, req)
+	getHandler.ServeHTTP(w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
@@ -99,7 +96,7 @@ func TestNamespaceGetHandler(t *testing.T) {
 	mockValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).SetArg(0, registry)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
-	handler.ServeHTTP(w, req)
+	getHandler.ServeHTTP(w, req)
 
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)

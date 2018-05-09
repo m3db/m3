@@ -46,7 +46,8 @@ func TestPromRemoteReadGet(t *testing.T) {
 
 	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{})
 	require.NoError(t, err, "unable to setup handler")
-	h.RegisterRoutes()
+	err = h.RegisterRoutes()
+	require.NoError(t, err, "unable to register routes")
 	h.Router.ServeHTTP(res, req)
 	require.Equal(t, res.Code, http.StatusMethodNotAllowed, "GET method not defined")
 }
@@ -61,7 +62,8 @@ func TestPromRemoteReadPost(t *testing.T) {
 
 	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{})
 	require.NoError(t, err, "unable to setup handler")
-	h.RegisterRoutes()
+	err = h.RegisterRoutes()
+	require.NoError(t, err, "unable to register routes")
 	h.Router.ServeHTTP(res, req)
 	require.Equal(t, res.Code, http.StatusBadRequest, "Empty request")
 }
