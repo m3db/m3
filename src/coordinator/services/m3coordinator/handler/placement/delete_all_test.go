@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package placement
 
 import (
 	"errors"
@@ -30,9 +30,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPlacementDeleteHandler(t *testing.T) {
-	mockClient, mockPlacementService := SetupPlacementTest(t)
-	handler := NewPlacementDeleteHandler(mockClient)
+func TestPlacementDeleteAllHandler(t *testing.T) {
+	mockPlacementService := SetupPlacementTest(t)
+	handler := NewDeleteAllHandler(mockPlacementService)
 
 	// Test delete success
 	w := httptest.NewRecorder()
