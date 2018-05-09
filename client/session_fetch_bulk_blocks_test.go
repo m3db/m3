@@ -63,9 +63,7 @@ var (
 	fooID    = ident.StringID("foo")
 	fooTags  = ident.Tags{ident.StringTag("aaa", "bbb")}
 	barID    = ident.StringID("bar")
-	barTags  = ident.Tags{}
 	bazID    = ident.StringID("baz")
-	bazTags  = ident.Tags{ident.StringTag("ccc", "ddd")}
 	testHost = topology.NewHost("testhost", "testhost:9000")
 )
 
