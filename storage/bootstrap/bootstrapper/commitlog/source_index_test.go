@@ -35,15 +35,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type expectedIndexBlock struct {
-	series []seriesIDAndTag
-}
-
-type seriesIDAndTag struct {
-	ID   ident.ID
-	Tags ident.Tags
-}
-
 func TestBootstrapIndex(t *testing.T) {
 	var (
 		opts             = testOptions()
