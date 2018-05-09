@@ -21,8 +21,8 @@
 package doc
 
 import (
-	"bytes"
 	"fmt"
+	"reflect"
 
 	"github.com/golang/mock/gomock"
 )
@@ -42,25 +42,7 @@ type docMatcher struct {
 }
 
 func (dm docMatcher) Matches(x interface{}) bool {
-	other, ok := x.(Document)
-	if !ok {
-		return false
-	}
-	if !bytes.Equal(dm.d.ID, other.ID) {
-		return false
-	}
-	if len(dm.d.Fields) != len(other.Fields) {
-		return false
-	}
-	for i := range dm.d.Fields {
-		if !bytes.Equal(dm.d.Fields[i].Name, other.Fields[i].Name) {
-			return false
-		}
-		if !bytes.Equal(dm.d.Fields[i].Value, other.Fields[i].Value) {
-			return false
-		}
-	}
-	return true
+	return reflect.DeepEqual(dm.d, x)
 
 }
 
