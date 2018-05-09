@@ -563,10 +563,12 @@ func (s *commitLogSource) ReadIndex(
 		bootstrapRangesByShard[shard] = ranges
 	}
 
-	indexResult := result.NewIndexBootstrapResult()
-	indexResults := indexResult.IndexResults()
+	var (
+		indexResult    = result.NewIndexBootstrapResult()
+		indexResults   = indexResult.IndexResults()
+		indexBlockSize = ns.Options().IndexOptions().BlockSize()
+	)
 
-	indexBlockSize := ns.Options().IndexOptions().BlockSize()
 	for iter.Next() {
 		series, dp, _, _ := iter.Current()
 		if !s.shouldIncludeInIndex(
