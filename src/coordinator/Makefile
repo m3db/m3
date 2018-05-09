@@ -123,7 +123,7 @@ lint:
 	$(VENDOR_ENV) $(lint_check)
 
 .PHONY: metalint
-metalint: install-metalinter install-linter-badtime
+metalint: install-metalinter install-linter-badtime install-linter-importorder
 	@($(metalint_check) $(metalint_config) $(metalint_exclude))
 
 .PHONY: test-internal

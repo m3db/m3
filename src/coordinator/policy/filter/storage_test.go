@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/storage/mock"
+
 	"github.com/stretchr/testify/assert"
 )
 

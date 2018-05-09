@@ -25,13 +25,13 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gorilla/mux"
 	"github.com/m3db/m3coordinator/generated/proto/admin"
 	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
 	"github.com/m3db/m3coordinator/util/logging"
 
 	"github.com/m3db/m3cluster/placement"
 
+	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 )
 
