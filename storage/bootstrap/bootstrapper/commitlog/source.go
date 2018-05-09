@@ -656,16 +656,6 @@ type encodersAndRanges struct {
 	ranges           xtime.Ranges
 }
 
-type metadataByUniqueIndex struct {
-	idxToMetadata map[uint64]seriesMetadata
-	ranges        xtime.Ranges
-}
-
-type seriesMetadata struct {
-	id   ident.ID
-	tags ident.Tags
-}
-
 type encodersByTime struct {
 	id   ident.ID
 	tags ident.Tags
