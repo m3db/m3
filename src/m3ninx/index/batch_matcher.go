@@ -22,8 +22,7 @@ package index
 
 import (
 	"fmt"
-
-	"github.com/m3db/m3ninx/doc"
+	"reflect"
 
 	"github.com/golang/mock/gomock"
 )
@@ -43,27 +42,7 @@ type batchMatcher struct {
 }
 
 func (bm batchMatcher) Matches(x interface{}) bool {
-	otherBatch, ok := x.(Batch)
-	if !ok {
-		return false
-	}
-
-	if bm.b.AllowPartialUpdates != otherBatch.AllowPartialUpdates {
-		return false
-	}
-
-	if len(bm.b.Docs) != len(otherBatch.Docs) {
-		return false
-	}
-
-	for i := range bm.b.Docs {
-		exp := doc.NewDocumentMatcher(bm.b.Docs[i])
-		obs := otherBatch.Docs[i]
-		if !exp.Matches(obs) {
-			return false
-		}
-	}
-	return true
+	return reflect.DeepEqual(bm.b, x)
 }
 
 func (bm batchMatcher) String() string {
