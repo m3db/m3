@@ -26,7 +26,7 @@ import:
   version: ed532baee45a440f0b08b6893c816634c6978d4d
 
 - package: github.com/m3db/m3ninx
-  version: d0c2c4f2c5ab39db2382a6ea7f479abe568589cf
+  version: 285ec7b5ddd9149895ebf5c2d0dbb02306162e18
 
 - package: github.com/m3db/bitset
   version: 07973db6b78acb62ac207d0538055e874b49d90d

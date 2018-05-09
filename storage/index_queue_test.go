@@ -51,6 +51,7 @@ func newTestNamespaceIndex(t *testing.T, ctrl *gomock.Controller) (namespaceInde
 	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
+	q.EXPECT().SetRuntimeOptions(gomock.Any())
 	q.EXPECT().Start().Return(nil)
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
@@ -67,6 +68,7 @@ func TestNamespaceIndexHappyPath(t *testing.T) {
 	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
+	q.EXPECT().SetRuntimeOptions(gomock.Any())
 	q.EXPECT().Start().Return(nil)
 
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
@@ -103,6 +105,7 @@ func TestNamespaceIndexStopErr(t *testing.T) {
 	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
+	q.EXPECT().SetRuntimeOptions(gomock.Any())
 	q.EXPECT().Start().Return(nil)
 
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
@@ -194,6 +197,7 @@ func TestNamespaceIndexInsertRetentionPeriod(t *testing.T) {
 	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
+	q.EXPECT().SetRuntimeOptions(gomock.Any())
 	q.EXPECT().Start().Return(nil)
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
