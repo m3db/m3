@@ -25,7 +25,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3coordinator/executor"
 	"github.com/m3db/m3coordinator/services/m3coordinator/config"
 	"github.com/m3db/m3coordinator/services/m3coordinator/handler/prometheus/native"
@@ -33,6 +32,7 @@ import (
 	"github.com/m3db/m3coordinator/test/local"
 	"github.com/m3db/m3coordinator/util/logging"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 

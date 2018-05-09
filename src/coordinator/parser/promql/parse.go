@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3coordinator/parser"
+
 	pql "github.com/prometheus/prometheus/promql"
 )
 
