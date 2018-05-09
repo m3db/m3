@@ -45,8 +45,12 @@ import (
 
 var (
 	testNamespace         = ident.StringID("testnamespace")
-	testNamespaceMetadata = func(t *testing.T) namespace.Metadata {
-		ns, err := namespace.NewMetadata(testNamespace, namespace.NewOptions())
+	testNamespaceMetadata = func(t *testing.T, opts ...namespaceOption) namespace.Metadata {
+		namespaceOpts := namespace.NewOptions()
+		for _, opt := range opts {
+			namespaceOpts = opt(namespaceOpts)
+		}
+		ns, err := namespace.NewMetadata(testNamespace, namespaceOpts)
 		require.NoError(t, err)
 		return ns
 	}
@@ -57,6 +61,8 @@ var (
 	testDefaultResultOpts  = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
 	testDefaultOpts        = NewOptions().SetResultOptions(testDefaultResultOpts)
 )
+
+type namespaceOption func(namespace.Options) namespace.Options
 
 func TestPeersSourceCan(t *testing.T) {
 	src := newPeersSource(testDefaultOpts)

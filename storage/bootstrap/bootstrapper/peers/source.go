@@ -565,16 +565,22 @@ func (s *peersSource) ReadIndex(
 
 				for metadata.Next() {
 					_, dataBlock := metadata.Current()
-					err := s.readBlockMetadataAndIndex(r, resultLock, dataBlock,
+					dataBlockRange := xtime.Range{
+						Start: dataBlock.Start,
+						End:   dataBlock.Start.Add(dataBlockSize),
+					}
+
+					inserted, err := s.readBlockMetadataAndIndex(r, resultLock, dataBlock,
 						idxOpts, resultOpts)
 					if err != nil {
 						// Make this period unfulfilled
-						blockRange := xtime.Range{
-							Start: dataBlock.Start,
-							End:   dataBlock.Start.Add(dataBlockSize),
-						}
 						s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
-							shard, blockRange)
+							shard, dataBlockRange)
+					}
+
+					if !inserted {
+						// If the metadata wasn't inserted we finalize the metadata.
+						dataBlock.Finalize()
 					}
 				}
 				if err := metadata.Err(); err != nil {
@@ -597,31 +603,35 @@ func (s *peersSource) readBlockMetadataAndIndex(
 	dataBlock block.Metadata,
 	idxOpts namespace.IndexOptions,
 	resultOpts result.Options,
-) error {
+) (bool, error) {
 	resultLock.Lock()
 	defer resultLock.Unlock()
 
 	segment, err := r.IndexResults().GetOrAddSegment(dataBlock.Start,
 		idxOpts, resultOpts)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	exists, err := segment.ContainsID(dataBlock.ID.Bytes())
 	if err != nil {
-		return err
+		return false, err
 	}
 	if exists {
-		return nil
+		return false, nil
 	}
 
 	d, err := convert.FromMetric(dataBlock.ID, dataBlock.Tags)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	_, err = segment.Insert(d)
-	return err
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (s *peersSource) markIndexResultErrorAsUnfulfilled(

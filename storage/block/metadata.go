@@ -44,3 +44,15 @@ func NewMetadata(
 		LastRead: lastRead,
 	}
 }
+
+// Finalize will finalize the ID and Tags on the metadata.
+func (m *Metadata) Finalize() {
+	if m.ID != nil {
+		m.ID.Finalize()
+		m.ID = nil
+	}
+	if m.Tags != nil {
+		m.Tags.Finalize()
+		m.Tags = nil
+	}
+}
