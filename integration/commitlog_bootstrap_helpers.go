@@ -44,6 +44,7 @@ var (
 
 type commitLogSeriesState struct {
 	uniqueIndex uint64
+	tags        ident.Tags
 }
 
 func newCommitLogSeriesStates(
@@ -57,6 +58,7 @@ func newCommitLogSeriesStates(
 			if _, ok := lookup[id]; !ok {
 				lookup[id] = &commitLogSeriesState{
 					uniqueIndex: idx,
+					tags:        blk.Tags,
 				}
 				idx++
 			}
@@ -161,6 +163,7 @@ func writeCommitLogDataBase(
 				Namespace:   namespace,
 				Shard:       shardSet.Lookup(point.ID),
 				ID:          point.ID,
+				Tags:        series.tags,
 				UniqueIndex: series.uniqueIndex,
 			}
 			require.NoError(t, commitLog.Write(ctx, cId, point.Datapoint, xtime.Second, nil))
