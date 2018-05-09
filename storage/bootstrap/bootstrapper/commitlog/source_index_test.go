@@ -21,7 +21,6 @@
 package commitlog
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -172,8 +171,6 @@ func TestBootstrapIndex(t *testing.T) {
 			require.NoError(t, docs.Err())
 			require.NoError(t, docs.Close())
 
-			fmt.Println(expected)
-			fmt.Println(matches)
 			require.Equal(t, len(expected), len(matches))
 		}
 	}

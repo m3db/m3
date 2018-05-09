@@ -304,8 +304,6 @@ func (s *commitLogSource) shouldIncludeInIndex(
 		End:   indexBlockEnd,
 	}
 
-	fmt.Println(indexBlockRange)
-	fmt.Println(rangesToBootstrap)
 	return rangesToBootstrap.Overlaps(indexBlockRange)
 }
 
