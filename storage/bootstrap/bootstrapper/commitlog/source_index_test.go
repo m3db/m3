@@ -73,6 +73,7 @@ func TestBootstrapIndex(t *testing.T) {
 	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo"), Tags: fooTags}
 	bar := commitlog.Series{Namespace: testNamespaceID, Shard: 1, ID: ident.StringID("bar"), Tags: barTags}
 	baz := commitlog.Series{Namespace: testNamespaceID, Shard: 2, ID: ident.StringID("baz"), Tags: bazTags}
+	// Make sure we can handle series that don't have tags
 	unindexed := commitlog.Series{Namespace: testNamespaceID, Shard: 3, ID: ident.StringID("unindexed"), Tags: nil}
 
 	values := []testValue{
