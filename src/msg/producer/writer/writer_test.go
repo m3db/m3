@@ -186,7 +186,7 @@ func TestWriterInvalidTopicUpdate(t *testing.T) {
 	require.Equal(t, 2, int(w.numShards))
 }
 
-func TestWriterWriteRegisterFilter(t *testing.T) {
+func TestWriterRegisterFilter(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	ctrl := gomock.NewController(t)

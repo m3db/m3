@@ -157,15 +157,6 @@ func TestReplicatedShardWriter(t *testing.T) {
 		SetEndpoint("i3").
 		SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1)}))
 
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
-	wg.Add(1)
-	go func() {
-		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncodeDecoderOptions())
-		wg.Done()
-	}()
-
 	sw.UpdateInstances(
 		[]placement.Instance{i1, i3},
 		cws,
@@ -181,6 +172,19 @@ func TestReplicatedShardWriter(t *testing.T) {
 	sw.Write(data.NewRefCountedData(md, nil))
 
 	mw1 := sw.messageWriters[i1.Endpoint()].(*messageWriterImpl)
+	require.Equal(t, 1, mw1.queue.Len())
+	mw3 := sw.messageWriters[i3.Endpoint()].(*messageWriterImpl)
+	require.Equal(t, 1, mw3.queue.Len())
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
+	go func() {
+		testConsumeAndAckOnConnectionListener(t, lis1, opts.EncodeDecoderOptions())
+		wg.Done()
+	}()
+
 	for {
 		mw1.RLock()
 		l := mw1.queue.Len()
@@ -190,17 +194,7 @@ func TestReplicatedShardWriter(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-
-	mw3 := sw.messageWriters[i3.Endpoint()].(*messageWriterImpl)
-	for {
-		mw3.RLock()
-		l := mw3.queue.Len()
-		mw3.RUnlock()
-		if l == 1 {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	require.Equal(t, 1, mw3.queue.Len())
 
 	md.EXPECT().Finalize(producer.Consumed)
 	sw.UpdateInstances(
