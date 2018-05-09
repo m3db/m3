@@ -51,18 +51,38 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 	checksums := []uint32{1, 2, 3}
 	lastRead := now.Add(-100 * time.Millisecond)
 	inputs := []receivedBlockMetadata{
-		{peer: peer, id: ident.StringID("foo"), block: blockMetadata{
-			start: now, size: int64(1), checksum: &checksums[0],
-		}},
-		{peer: peer, id: ident.StringID("foo"), block: blockMetadata{
-			start: now.Add(time.Second), size: int64(2), checksum: &checksums[1], lastRead: lastRead,
-		}},
-		{peer: peer, id: ident.StringID("bar"), block: blockMetadata{
-			start: now, size: int64(3), checksum: &checksums[2], lastRead: lastRead,
-		}},
-		{peer: peer, id: ident.StringID("baz"), block: blockMetadata{
-			start: now, size: int64(4), checksum: nil, lastRead: lastRead,
-		}},
+		{
+			peer: peer,
+			id:   ident.StringID("foo"),
+			tags: ident.Tags{ident.StringTag("aaa", "bbb")},
+			block: blockMetadata{
+				start: now, size: int64(1), checksum: &checksums[0],
+			},
+		},
+		{
+			peer: peer,
+			id:   ident.StringID("foo"),
+			tags: ident.Tags{ident.StringTag("aaa", "bbb")},
+			block: blockMetadata{
+				start: now.Add(time.Second), size: int64(2), checksum: &checksums[1], lastRead: lastRead,
+			},
+		},
+		{
+			peer: peer,
+			id:   ident.StringID("bar"),
+			tags: ident.Tags{ident.StringTag("ccc", "ddd")},
+			block: blockMetadata{
+				start: now, size: int64(3), checksum: &checksums[2], lastRead: lastRead,
+			},
+		},
+		{
+			peer: peer,
+			id:   ident.StringID("baz"),
+			tags: ident.Tags{ident.StringTag("eee", "fff")},
+			block: blockMetadata{
+				start: now, size: int64(4), checksum: nil, lastRead: lastRead,
+			},
+		},
 	}
 
 	go func() {
@@ -77,22 +97,26 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 	it := newMetadataIter(inputCh, errCh)
 	for it.Next() {
 		host, curr := it.Current()
-		result := block.NewMetadata(curr.ID, curr.Start, curr.Size,
+		result := block.NewMetadata(curr.ID, curr.Tags, curr.Start, curr.Size,
 			curr.Checksum, curr.LastRead)
 		actual = append(actual, testHostBlock{host, result})
 	}
 
 	expected := []testHostBlock{
 		{h, block.NewMetadata(ident.StringID("foo"),
+			ident.Tags{ident.StringTag("aaa", "bbb")},
 			inputs[0].block.start, inputs[0].block.size,
 			inputs[0].block.checksum, inputs[0].block.lastRead)},
 		{h, block.NewMetadata(ident.StringID("foo"),
+			ident.Tags{ident.StringTag("aaa", "bbb")},
 			inputs[1].block.start, inputs[1].block.size,
 			inputs[1].block.checksum, inputs[1].block.lastRead)},
 		{h, block.NewMetadata(ident.StringID("bar"),
+			ident.Tags{ident.StringTag("ccc", "ddd")},
 			inputs[2].block.start, inputs[2].block.size,
 			inputs[2].block.checksum, inputs[2].block.lastRead)},
 		{h, block.NewMetadata(ident.StringID("baz"),
+			ident.Tags{ident.StringTag("eee", "fff")},
 			inputs[3].block.start, inputs[3].block.size,
 			inputs[3].block.checksum, inputs[3].block.lastRead)},
 	}
@@ -102,6 +126,8 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 		actual := actual[i]
 		assert.Equal(t, expected.host.String(), actual.host.String())
 		assert.True(t, expected.block.ID.Equal(actual.block.ID))
+		tagMatcher := ident.NewTagIterMatcher(ident.NewTagSliceIterator(expected.block.Tags))
+		assert.True(t, tagMatcher.Matches(ident.NewTagSliceIterator(actual.block.Tags)))
 		assert.True(t, expected.block.Start.Equal(actual.block.Start))
 		assert.Equal(t, expected.block.Size, actual.block.Size)
 		assert.Equal(t, expected.block.Checksum, actual.block.Checksum)

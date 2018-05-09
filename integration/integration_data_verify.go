@@ -66,24 +66,31 @@ func verifySeriesMapForRange(
 	ts *testSetup,
 	start, end time.Time,
 	namespace ident.ID,
-	expected generate.SeriesBlock,
+	input generate.SeriesBlock,
 	expectedDebugFilePath string,
 	actualDebugFilePath string,
 ) {
-	actual := make(generate.SeriesBlock, len(expected))
+	// Construct a copy of the input that we will use to compare
+	// with only the fields we need to compare against (fetch doesn't
+	// return the tags for a series ID)
+	expected := make(generate.SeriesBlock, len(input))
+	actual := make(generate.SeriesBlock, len(input))
+
 	req := rpc.NewFetchRequest()
-	for i := range expected {
-		s := &expected[i]
+	for i := range input {
 		req.NameSpace = namespace.String()
-		req.ID = s.ID.String()
+		req.ID = input[i].ID.String()
 		req.RangeStart = xtime.ToNormalizedTime(start, time.Second)
 		req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 		fetched, err := ts.fetch(req)
 		require.NoError(t, err)
+		expected[i] = generate.Series{
+			ID:   input[i].ID,
+			Data: input[i].Data,
+		}
 		actual[i] = generate.Series{
-			ID:   s.ID,
-			Tags: s.Tags,
+			ID:   input[i].ID,
 			Data: fetched,
 		}
 	}

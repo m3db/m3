@@ -39,6 +39,7 @@ import (
 // Metadata captures block metadata
 type Metadata struct {
 	ID       ident.ID
+	Tags     ident.Tags
 	Start    time.Time
 	Size     int64
 	Checksum *uint32
@@ -50,7 +51,6 @@ type Metadata struct {
 type ReplicaMetadata struct {
 	Metadata
 
-	ID   ident.ID
 	Host topology.Host
 }
 
@@ -108,6 +108,7 @@ type FetchBlockMetadataResults interface {
 // FetchBlocksMetadataResult captures the fetch results for multiple blocks.
 type FetchBlocksMetadataResult struct {
 	ID     ident.ID
+	Tags   ident.TagIterator
 	Blocks FetchBlockMetadataResults
 }
 

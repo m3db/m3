@@ -232,7 +232,6 @@ func m3dbClientFetchBlocksMetadata(
 			metadatas = append(metadatas, block.ReplicaMetadata{
 				Metadata: blockMetadata,
 				Host:     host,
-				ID:       blockMetadata.ID,
 			})
 		}
 		if err := iter.Err(); err != nil {

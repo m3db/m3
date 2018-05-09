@@ -1657,11 +1657,36 @@ func (s *session) peersForShard(shard uint32) (peers, error) {
 	return result, nil
 }
 
+func (s *session) FetchBootstrapBlocksMetadataFromPeers(
+	namespace ident.ID,
+	shard uint32,
+	start, end time.Time,
+	resultOpts result.Options,
+	version FetchBlocksMetadataEndpointVersion,
+) (PeerBlockMetadataIter, error) {
+	level := newSessionBootstrapRuntimeReadConsistencyLevel(s)
+	return s.fetchBlocksMetadataFromPeers(namespace,
+		shard, start, end, level, resultOpts, version)
+}
+
 func (s *session) FetchBlocksMetadataFromPeers(
 	namespace ident.ID,
 	shard uint32,
 	start, end time.Time,
 	consistencyLevel topology.ReadConsistencyLevel,
+	resultOpts result.Options,
+	version FetchBlocksMetadataEndpointVersion,
+) (PeerBlockMetadataIter, error) {
+	level := newStaticRuntimeReadConsistencyLevel(consistencyLevel)
+	return s.fetchBlocksMetadataFromPeers(namespace,
+		shard, start, end, level, resultOpts, version)
+}
+
+func (s *session) fetchBlocksMetadataFromPeers(
+	namespace ident.ID,
+	shard uint32,
+	start, end time.Time,
+	level runtimeReadConsistencyLevel,
 	resultOpts result.Options,
 	version FetchBlocksMetadataEndpointVersion,
 ) (PeerBlockMetadataIter, error) {
@@ -1676,7 +1701,6 @@ func (s *session) FetchBlocksMetadataFromPeers(
 		errCh = make(chan error, 1)
 		meta  = resultTypeMetadata
 		m     = s.newPeerMetadataStreamingProgressMetrics(shard, meta)
-		level = newStaticRuntimeReadConsistencyLevel(consistencyLevel)
 	)
 	go func() {
 		errCh <- s.streamBlocksMetadataFromPeers(namespace, shard,
@@ -2153,13 +2177,21 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		moreResults            = true
 		idPool                 = s.pools.id
 		bytesPool              = resultOpts.DatabaseBlockOptions().BytesPool()
+		tagDecoderCheckedBytes = checked.NewBytes(nil, nil)
+		tagDecoder             = s.pools.tagDecoder.Get()
+	)
+	tagDecoderCheckedBytes.IncRef()
+	defer func() {
+		tagDecoderCheckedBytes.DecRef()
+		tagDecoderCheckedBytes.Finalize()
+		tagDecoder.Close()
+	}()
 
-		// Only used for logs
+	// Only used for logs
+	var (
 		peerStr              = peer.Host().ID()
 		metadataCountByBlock = map[xtime.UnixNano]int64{}
 	)
-
-	// Only used for logs
 	defer func() {
 		for block, numMetadata := range metadataCountByBlock {
 			s.log.WithFields(
@@ -2214,14 +2246,35 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 
 			clonedID := idPool.BinaryID(data)
 
+			var (
+				tags         ident.Tags
+				tagDecodeErr error
+			)
+			if encodedTags := elem.EncodedTags; len(encodedTags) != 0 {
+				tagDecoderCheckedBytes.Reset(encodedTags)
+				tagDecoder.Reset(tagDecoderCheckedBytes)
+				tags = make(ident.Tags, 0, tagDecoder.Remaining())
+				for tagDecoder.Next() {
+					curr := tagDecoder.Current()
+					tags = append(tags, idPool.CloneTag(curr))
+				}
+				tagDecodeErr = tagDecoder.Err()
+			}
+
 			// Error occurred retrieving block metadata, use default values
+			var err error
 			if elem.Err != nil {
+				err = elem.Err
+			} else {
+				err = tagDecodeErr
+			}
+			if err != nil {
 				progress.metadataFetchBatchBlockErr.Inc(1)
 				s.log.WithFields(
 					xlog.NewField("shard", shard),
 					xlog.NewField("peer", peerStr),
 					xlog.NewField("block", blockStart),
-					xlog.NewField("error", err),
+					xlog.NewField("error", err.Error()),
 				).Error("error occurred retrieving block metadata")
 				// Enqueue with a zeroed checksum which triggers a fanout fetch
 				metadataCh <- receivedBlockMetadata{
@@ -2256,6 +2309,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 			metadataCh <- receivedBlockMetadata{
 				peer: peer,
 				id:   clonedID,
+				tags: tags,
 				block: blockMetadata{
 					start:    blockStart,
 					size:     size,
@@ -2886,7 +2940,8 @@ func (s *session) streamBlocksBatchFromPeer(
 			// Verify and if verify succeeds add the block from the peer
 			err := s.verifyFetchedBlock(block)
 			if err == nil {
-				err = blocksResult.addBlockFromPeer(id, peer.Host(), block)
+				tags := batch[i].tags
+				err = blocksResult.addBlockFromPeer(id, tags, peer.Host(), block)
 
 				// NB(r): Track a fanned out block fetch success if added block
 				fanout := batch[i].block.reattempt.fanoutFetchState
@@ -3048,7 +3103,12 @@ func (s *session) streamBlocksReattemptFromPeersEnqueue(
 }
 
 type blocksResult interface {
-	addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error
+	addBlockFromPeer(
+		id ident.ID,
+		tags ident.Tags,
+		peer topology.Host,
+		block *rpc.Block,
+	) error
 }
 
 type baseBlocksResult struct {
@@ -3185,17 +3245,24 @@ func newStreamBlocksResult(
 
 type peerBlocksDatapoint struct {
 	id    ident.ID
+	tags  ident.Tags
 	peer  topology.Host
 	block block.DatabaseBlock
 }
 
-func (s *streamBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error {
+func (s *streamBlocksResult) addBlockFromPeer(
+	id ident.ID,
+	tags ident.Tags,
+	peer topology.Host,
+	block *rpc.Block,
+) error {
 	result, err := s.newDatabaseBlock(block)
 	if err != nil {
 		return err
 	}
 	s.outputCh <- peerBlocksDatapoint{
 		id:    id,
+		tags:  tags,
 		peer:  peer,
 		block: result,
 	}
@@ -3260,7 +3327,12 @@ func newBulkBlocksResult(
 	}
 }
 
-func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error {
+func (r *bulkBlocksResult) addBlockFromPeer(
+	id ident.ID,
+	tags ident.Tags,
+	peer topology.Host,
+	block *rpc.Block,
+) error {
 	start := time.Unix(0, block.Start)
 	result, err := r.newDatabaseBlock(block)
 	if err != nil {
@@ -3271,7 +3343,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 		r.Lock()
 		currBlock, exists := r.result.BlockAt(id, start)
 		if !exists {
-			r.result.AddBlock(id, nil, result) // FOLLOWUP(prateek): include tags during block metadata exchange
+			r.result.AddBlock(id, tags, result)
 			r.Unlock()
 			break
 		}
@@ -3543,6 +3615,7 @@ func (qs peerBlocksQueues) closeAll() {
 type receivedBlockMetadata struct {
 	peer  peer
 	id    ident.ID
+	tags  ident.Tags
 	block blockMetadata
 }
 
@@ -3687,7 +3760,7 @@ func (it *metadataIter) Next() bool {
 		return false
 	}
 	it.host = m.peer.Host()
-	it.metadata = block.NewMetadata(m.id, m.block.start,
+	it.metadata = block.NewMetadata(m.id, m.tags, m.block.start,
 		m.block.size, m.block.checksum, m.block.lastRead)
 	return true
 }

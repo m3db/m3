@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3db/x/xpool"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
@@ -310,25 +311,17 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	}
 	results := queryResult.Results
 	nsID := results.Namespace()
+	tagsIter := ident.NewTagSliceIterator(nil)
 	for _, entry := range results.Map().Iter() {
 		tsID := entry.Key()
 		tags := entry.Value()
 		enc := s.pools.tagEncoder.Get()
 		ctx.RegisterFinalizer(enc)
-		if err := enc.Encode(ident.NewTagSliceIterator(tags)); err != nil {
-			// should never happen
-			wrappedErr := xerrors.NewRenamedError(err, fmt.Errorf("unable to encode tags"))
-			s.logger.Warnf("[invariant violated] %v", wrappedErr)
+		tagsIter.Reset(tags)
+		encodedTags, err := s.encodeTags(enc, tagsIter)
+		if err != nil { // This is an invariant, should never happen
 			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
-			return nil, tterrors.NewInternalError(wrappedErr)
-		}
-		encodedTags, ok := enc.Data()
-		if !ok {
-			// should never happen
-			wrappedErr := xerrors.NewRenamedError(err, fmt.Errorf("unable to encode tags"))
-			s.logger.Warnf("[invariant violated] %v", wrappedErr)
-			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
-			return nil, tterrors.NewInternalError(wrappedErr)
+			return nil, tterrors.NewInternalError(err)
 		}
 
 		elem := &rpc.FetchTaggedIDResult_{
@@ -350,6 +343,26 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 
 	s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))
 	return response, nil
+}
+
+func (s *service) encodeTags(
+	enc serialize.TagEncoder,
+	tags ident.TagIterator,
+) (checked.Bytes, error) {
+	if err := enc.Encode(tags); err != nil {
+		// should never happen
+		wrappedErr := xerrors.NewRenamedError(err, fmt.Errorf("unable to encode tags"))
+		s.logger.Warnf("[invariant violated] %v", wrappedErr)
+		return nil, wrappedErr
+	}
+	encodedTags, ok := enc.Data()
+	if !ok {
+		// should never happen
+		err := fmt.Errorf("unable to encode tags: unable to unwrap bytes")
+		s.logger.Warnf("[invariant violated] %v", err)
+		return nil, err
+	}
+	return encodedTags, nil
 }
 
 func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawRequest) (*rpc.FetchBatchRawResult_, error) {
@@ -589,6 +602,7 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	var err error
 	callStart := s.nowFn()
 	defer func() {
+		// No need to report metric anywhere else as we capture all cases here
 		s.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, s.nowFn().Sub(callStart))
 	}()
 
@@ -616,46 +630,66 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	fetchedMetadata, nextPageToken, err := s.db.FetchBlocksMetadataV2(
 		ctx, nsID, uint32(req.Shard), start, end, req.Limit, req.PageToken, opts)
 	if err != nil {
-		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
 	ctx.RegisterFinalizer(resource.FinalizerFn(fetchedMetadata.Close))
 
-	result, err := s.getFetchBlocksMetadataRawV2Result(nextPageToken, opts, fetchedMetadata)
+	result, err := s.getFetchBlocksMetadataRawV2Result(ctx, nextPageToken, opts, fetchedMetadata)
 	// Finalize pooled datastructures regardless of errors because even in the error
 	// case result contains pooled objects that we need to return.
 	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
 	if err != nil {
-		return nil, err
+		return nil, convert.ToRPCError(err)
 	}
 
 	return result, nil
 }
 
 func (s *service) getFetchBlocksMetadataRawV2Result(
+	ctx context.Context,
 	nextPageToken storage.PageToken,
 	opts block.FetchBlocksMetadataOptions,
 	results block.FetchBlocksMetadataResults,
 ) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
+	elements, err := s.getBlocksMetadataV2FromResult(ctx, opts, results)
+	if err != nil {
+		return nil, err
+	}
+
 	result := rpc.NewFetchBlocksMetadataRawV2Result_()
 	result.NextPageToken = nextPageToken
-	result.Elements = s.getBlocksMetadataV2FromResult(opts, results)
+	result.Elements = elements
 	return result, nil
 }
 
 func (s *service) getBlocksMetadataV2FromResult(
+	ctx context.Context,
 	opts block.FetchBlocksMetadataOptions,
 	results block.FetchBlocksMetadataResults,
-) []*rpc.BlockMetadataV2 {
+) ([]*rpc.BlockMetadataV2, error) {
 	blocks := s.pools.blockMetadataV2Slice.Get()
-
 	for _, fetchedMetadata := range results.Results() {
 		fetchedMetadataBlocks := fetchedMetadata.Blocks.Results()
-		id := fetchedMetadata.ID.Data().Bytes()
+
+		var (
+			id          = fetchedMetadata.ID.Bytes()
+			tags        = fetchedMetadata.Tags
+			encodedTags []byte
+		)
+		if tags != nil && tags.Remaining() > 0 {
+			enc := s.pools.tagEncoder.Get()
+			ctx.RegisterFinalizer(enc)
+			encoded, err := s.encodeTags(enc, tags)
+			if err != nil {
+				return nil, err
+			}
+			encodedTags = encoded.Bytes()
+		}
 
 		for _, fetchedMetadataBlock := range fetchedMetadataBlocks {
 			blockMetadata := s.pools.blockMetadataV2.Get()
 			blockMetadata.ID = id
+			blockMetadata.EncodedTags = encodedTags
 			blockMetadata.Start = fetchedMetadataBlock.Start.UnixNano()
 
 			if opts.IncludeSizes {
@@ -692,7 +726,7 @@ func (s *service) getBlocksMetadataV2FromResult(
 		}
 	}
 
-	return blocks
+	return blocks, nil
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {

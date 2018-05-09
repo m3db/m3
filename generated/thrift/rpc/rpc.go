@@ -6372,6 +6372,7 @@ func (p *FetchBlocksMetadataRawV2Result_) String() string {
 //  - Checksum
 //  - LastRead
 //  - LastReadTimeType
+//  - EncodedTags
 type BlockMetadataV2 struct {
 	ID               []byte   `thrift:"id,1,required" db:"id" json:"id"`
 	Start            int64    `thrift:"start,2,required" db:"start" json:"start"`
@@ -6380,6 +6381,7 @@ type BlockMetadataV2 struct {
 	Checksum         *int64   `thrift:"checksum,5" db:"checksum" json:"checksum,omitempty"`
 	LastRead         *int64   `thrift:"lastRead,6" db:"lastRead" json:"lastRead,omitempty"`
 	LastReadTimeType TimeType `thrift:"lastReadTimeType,7" db:"lastReadTimeType" json:"lastReadTimeType,omitempty"`
+	EncodedTags      []byte   `thrift:"encodedTags,8" db:"encodedTags" json:"encodedTags,omitempty"`
 }
 
 func NewBlockMetadataV2() *BlockMetadataV2 {
@@ -6437,6 +6439,12 @@ var BlockMetadataV2_LastReadTimeType_DEFAULT TimeType = 0
 func (p *BlockMetadataV2) GetLastReadTimeType() TimeType {
 	return p.LastReadTimeType
 }
+
+var BlockMetadataV2_EncodedTags_DEFAULT []byte
+
+func (p *BlockMetadataV2) GetEncodedTags() []byte {
+	return p.EncodedTags
+}
 func (p *BlockMetadataV2) IsSetErr() bool {
 	return p.Err != nil
 }
@@ -6455,6 +6463,10 @@ func (p *BlockMetadataV2) IsSetLastRead() bool {
 
 func (p *BlockMetadataV2) IsSetLastReadTimeType() bool {
 	return p.LastReadTimeType != BlockMetadataV2_LastReadTimeType_DEFAULT
+}
+
+func (p *BlockMetadataV2) IsSetEncodedTags() bool {
+	return p.EncodedTags != nil
 }
 
 func (p *BlockMetadataV2) Read(iprot thrift.TProtocol) error {
@@ -6502,6 +6514,10 @@ func (p *BlockMetadataV2) Read(iprot thrift.TProtocol) error {
 			}
 		case 7:
 			if err := p.ReadField7(iprot); err != nil {
+				return err
+			}
+		case 8:
+			if err := p.ReadField8(iprot); err != nil {
 				return err
 			}
 		default:
@@ -6590,6 +6606,15 @@ func (p *BlockMetadataV2) ReadField7(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *BlockMetadataV2) ReadField8(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBinary(); err != nil {
+		return thrift.PrependError("error reading field 8: ", err)
+	} else {
+		p.EncodedTags = v
+	}
+	return nil
+}
+
 func (p *BlockMetadataV2) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("BlockMetadataV2"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -6614,6 +6639,9 @@ func (p *BlockMetadataV2) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField7(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField8(oprot); err != nil {
 			return err
 		}
 	}
@@ -6722,6 +6750,21 @@ func (p *BlockMetadataV2) writeField7(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 7:lastReadTimeType: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *BlockMetadataV2) writeField8(oprot thrift.TProtocol) (err error) {
+	if p.IsSetEncodedTags() {
+		if err := oprot.WriteFieldBegin("encodedTags", thrift.STRING, 8); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 8:encodedTags: ", p), err)
+		}
+		if err := oprot.WriteBinary(p.EncodedTags); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.encodedTags (8) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 8:encodedTags: ", p), err)
 		}
 	}
 	return err

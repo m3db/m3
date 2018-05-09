@@ -29,6 +29,7 @@ import (
 // NewMetadata creates a new block metadata
 func NewMetadata(
 	id ident.ID,
+	tags ident.Tags,
 	start time.Time,
 	size int64,
 	checksum *uint32,
@@ -36,6 +37,7 @@ func NewMetadata(
 ) Metadata {
 	return Metadata{
 		ID:       id,
+		Tags:     tags,
 		Start:    start,
 		Size:     size,
 		Checksum: checksum,

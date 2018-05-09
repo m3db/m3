@@ -62,8 +62,11 @@ var (
 			SetBlockSize(blockSize).
 			SetRetentionPeriod(48 * blockSize)
 	fooID    = ident.StringID("foo")
+	fooTags  = ident.Tags{ident.StringTag("aaa", "bbb")}
 	barID    = ident.StringID("bar")
+	barTags  = ident.Tags{}
 	bazID    = ident.StringID("baz")
+	bazTags  = ident.Tags{ident.StringTag("ccc", "ddd")}
 	testHost = topology.NewHost("testhost", "testhost:9000")
 )
 
@@ -743,11 +746,11 @@ func testBlocksToBlockReplicasMetadata(
 			for _, b := range bm.blocks {
 				blockReplicas = append(blockReplicas, block.ReplicaMetadata{
 					Metadata: block.Metadata{
+						ID:       bm.id,
 						Start:    b.start,
 						Size:     *(b.size),
 						Checksum: b.checksum,
 					},
-					ID:   bm.id,
 					Host: peerHost,
 				})
 			}
@@ -1661,7 +1664,7 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	}
 
 	r := newBulkBlocksResult(opts, bopts)
-	r.addBlockFromPeer(fooID, testHost, bl)
+	r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 
 	series := r.result.AllSeries()
 	assert.Equal(t, 1, series.Len())
@@ -1742,7 +1745,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	}
 
 	r := newBulkBlocksResult(opts, bopts)
-	r.addBlockFromPeer(fooID, testHost, bl)
+	r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 
 	series := r.result.AllSeries()
 	assert.Equal(t, 1, series.Len())
@@ -1789,7 +1792,7 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 	r := newBulkBlocksResult(opts, bopts)
 
 	bl := &rpc.Block{Start: time.Now().UnixNano()}
-	err := r.addBlockFromPeer(fooID, testHost, bl)
+	err := r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
 }
@@ -1800,7 +1803,7 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 	r := newBulkBlocksResult(opts, bopts)
 
 	bl := &rpc.Block{Start: time.Now().UnixNano(), Segments: &rpc.Segments{}}
-	err := r.addBlockFromPeer(fooID, testHost, bl)
+	err := r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
 }

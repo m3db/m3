@@ -702,19 +702,6 @@ func (mr *MockAdminSessionMockRecorder) Truncate(namespace interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Truncate", reflect.TypeOf((*MockAdminSession)(nil).Truncate), namespace)
 }
 
-// FetchBlocksMetadataFromPeers mocks base method
-func (m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start, end time.Time, consistencyLevel topology.ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
-	ret := m.ctrl.Call(m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result, version)
-	ret0, _ := ret[0].(PeerBlockMetadataIter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchBlocksMetadataFromPeers indicates an expected call of FetchBlocksMetadataFromPeers
-func (mr *MockAdminSessionMockRecorder) FetchBlocksMetadataFromPeers(namespace, shard, start, end, consistencyLevel, result, version interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataFromPeers", reflect.TypeOf((*MockAdminSession)(nil).FetchBlocksMetadataFromPeers), namespace, shard, start, end, consistencyLevel, result, version)
-}
-
 // FetchBootstrapBlocksFromPeers mocks base method
 func (m *MockAdminSession) FetchBootstrapBlocksFromPeers(namespace namespace.Metadata, shard uint32, start, end time.Time, opts result.Options, version FetchBlocksMetadataEndpointVersion) (result.ShardResult, error) {
 	ret := m.ctrl.Call(m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts, version)
@@ -726,6 +713,32 @@ func (m *MockAdminSession) FetchBootstrapBlocksFromPeers(namespace namespace.Met
 // FetchBootstrapBlocksFromPeers indicates an expected call of FetchBootstrapBlocksFromPeers
 func (mr *MockAdminSessionMockRecorder) FetchBootstrapBlocksFromPeers(namespace, shard, start, end, opts, version interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBootstrapBlocksFromPeers", reflect.TypeOf((*MockAdminSession)(nil).FetchBootstrapBlocksFromPeers), namespace, shard, start, end, opts, version)
+}
+
+// FetchBootstrapBlocksMetadataFromPeers mocks base method
+func (m *MockAdminSession) FetchBootstrapBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start, end time.Time, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
+	ret := m.ctrl.Call(m, "FetchBootstrapBlocksMetadataFromPeers", namespace, shard, start, end, result, version)
+	ret0, _ := ret[0].(PeerBlockMetadataIter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBootstrapBlocksMetadataFromPeers indicates an expected call of FetchBootstrapBlocksMetadataFromPeers
+func (mr *MockAdminSessionMockRecorder) FetchBootstrapBlocksMetadataFromPeers(namespace, shard, start, end, result, version interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBootstrapBlocksMetadataFromPeers", reflect.TypeOf((*MockAdminSession)(nil).FetchBootstrapBlocksMetadataFromPeers), namespace, shard, start, end, result, version)
+}
+
+// FetchBlocksMetadataFromPeers mocks base method
+func (m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start, end time.Time, consistencyLevel topology.ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
+	ret := m.ctrl.Call(m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result, version)
+	ret0, _ := ret[0].(PeerBlockMetadataIter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBlocksMetadataFromPeers indicates an expected call of FetchBlocksMetadataFromPeers
+func (mr *MockAdminSessionMockRecorder) FetchBlocksMetadataFromPeers(namespace, shard, start, end, consistencyLevel, result, version interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataFromPeers", reflect.TypeOf((*MockAdminSession)(nil).FetchBlocksMetadataFromPeers), namespace, shard, start, end, consistencyLevel, result, version)
 }
 
 // FetchBlocksFromPeers mocks base method
@@ -3158,19 +3171,6 @@ func (mr *MockclientSessionMockRecorder) Truncate(namespace interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Truncate", reflect.TypeOf((*MockclientSession)(nil).Truncate), namespace)
 }
 
-// FetchBlocksMetadataFromPeers mocks base method
-func (m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start, end time.Time, consistencyLevel topology.ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
-	ret := m.ctrl.Call(m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result, version)
-	ret0, _ := ret[0].(PeerBlockMetadataIter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchBlocksMetadataFromPeers indicates an expected call of FetchBlocksMetadataFromPeers
-func (mr *MockclientSessionMockRecorder) FetchBlocksMetadataFromPeers(namespace, shard, start, end, consistencyLevel, result, version interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBlocksMetadataFromPeers), namespace, shard, start, end, consistencyLevel, result, version)
-}
-
 // FetchBootstrapBlocksFromPeers mocks base method
 func (m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace namespace.Metadata, shard uint32, start, end time.Time, opts result.Options, version FetchBlocksMetadataEndpointVersion) (result.ShardResult, error) {
 	ret := m.ctrl.Call(m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts, version)
@@ -3182,6 +3182,32 @@ func (m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace namespace.Me
 // FetchBootstrapBlocksFromPeers indicates an expected call of FetchBootstrapBlocksFromPeers
 func (mr *MockclientSessionMockRecorder) FetchBootstrapBlocksFromPeers(namespace, shard, start, end, opts, version interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBootstrapBlocksFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBootstrapBlocksFromPeers), namespace, shard, start, end, opts, version)
+}
+
+// FetchBootstrapBlocksMetadataFromPeers mocks base method
+func (m *MockclientSession) FetchBootstrapBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start, end time.Time, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
+	ret := m.ctrl.Call(m, "FetchBootstrapBlocksMetadataFromPeers", namespace, shard, start, end, result, version)
+	ret0, _ := ret[0].(PeerBlockMetadataIter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBootstrapBlocksMetadataFromPeers indicates an expected call of FetchBootstrapBlocksMetadataFromPeers
+func (mr *MockclientSessionMockRecorder) FetchBootstrapBlocksMetadataFromPeers(namespace, shard, start, end, result, version interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBootstrapBlocksMetadataFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBootstrapBlocksMetadataFromPeers), namespace, shard, start, end, result, version)
+}
+
+// FetchBlocksMetadataFromPeers mocks base method
+func (m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start, end time.Time, consistencyLevel topology.ReadConsistencyLevel, result result.Options, version FetchBlocksMetadataEndpointVersion) (PeerBlockMetadataIter, error) {
+	ret := m.ctrl.Call(m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, consistencyLevel, result, version)
+	ret0, _ := ret[0].(PeerBlockMetadataIter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchBlocksMetadataFromPeers indicates an expected call of FetchBlocksMetadataFromPeers
+func (mr *MockclientSessionMockRecorder) FetchBlocksMetadataFromPeers(namespace, shard, start, end, consistencyLevel, result, version interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataFromPeers", reflect.TypeOf((*MockclientSession)(nil).FetchBlocksMetadataFromPeers), namespace, shard, start, end, consistencyLevel, result, version)
 }
 
 // FetchBlocksFromPeers mocks base method

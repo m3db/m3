@@ -1514,8 +1514,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		}
 
 		for numResults < limit {
-			// FOLLOWUP(r): Return the tags as part of the metadata to peers.
-			id, _, size, checksum, err := reader.ReadMetadata()
+			id, tags, size, checksum, err := reader.ReadMetadata()
 			if err == io.EOF {
 				// Clean end of volume, we can break now
 				if err := reader.Close(); err != nil {
@@ -1549,7 +1548,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			blockResult.Add(value)
 
 			numResults++
-			result.Add(block.NewFetchBlocksMetadataResult(id, blockResult))
+			result.Add(block.NewFetchBlocksMetadataResult(id, tags, blockResult))
 		}
 
 		// Return the reader to the cache
