@@ -275,6 +275,18 @@ func (mr *MockDatabaseBlockMockRecorder) StartTime() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartTime", reflect.TypeOf((*MockDatabaseBlock)(nil).StartTime))
 }
 
+// BlockSize mocks base method
+func (m *MockDatabaseBlock) BlockSize() time.Duration {
+	ret := m.ctrl.Call(m, "BlockSize")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// BlockSize indicates an expected call of BlockSize
+func (mr *MockDatabaseBlockMockRecorder) BlockSize() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockSize", reflect.TypeOf((*MockDatabaseBlock)(nil).BlockSize))
+}
+
 // SetLastReadTime mocks base method
 func (m *MockDatabaseBlock) SetLastReadTime(value time.Time) {
 	m.ctrl.Call(m, "SetLastReadTime", value)
@@ -323,9 +335,9 @@ func (mr *MockDatabaseBlockMockRecorder) Checksum() *gomock.Call {
 }
 
 // Stream mocks base method
-func (m *MockDatabaseBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
+func (m *MockDatabaseBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 	ret := m.ctrl.Call(m, "Stream", blocker)
-	ret0, _ := ret[0].(xio.SegmentReader)
+	ret0, _ := ret[0].(xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -384,23 +396,23 @@ func (mr *MockDatabaseBlockMockRecorder) IsCachedBlock() *gomock.Call {
 }
 
 // Reset mocks base method
-func (m *MockDatabaseBlock) Reset(startTime time.Time, segment ts.Segment) {
-	m.ctrl.Call(m, "Reset", startTime, segment)
+func (m *MockDatabaseBlock) Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment) {
+	m.ctrl.Call(m, "Reset", startTime, blockSize, segment)
 }
 
 // Reset indicates an expected call of Reset
-func (mr *MockDatabaseBlockMockRecorder) Reset(startTime, segment interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockDatabaseBlock)(nil).Reset), startTime, segment)
+func (mr *MockDatabaseBlockMockRecorder) Reset(startTime, blockSize, segment interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reset", reflect.TypeOf((*MockDatabaseBlock)(nil).Reset), startTime, blockSize, segment)
 }
 
 // ResetRetrievable mocks base method
-func (m *MockDatabaseBlock) ResetRetrievable(startTime time.Time, retriever DatabaseShardBlockRetriever, metadata RetrievableBlockMetadata) {
-	m.ctrl.Call(m, "ResetRetrievable", startTime, retriever, metadata)
+func (m *MockDatabaseBlock) ResetRetrievable(startTime time.Time, blockSize time.Duration, retriever DatabaseShardBlockRetriever, metadata RetrievableBlockMetadata) {
+	m.ctrl.Call(m, "ResetRetrievable", startTime, blockSize, retriever, metadata)
 }
 
 // ResetRetrievable indicates an expected call of ResetRetrievable
-func (mr *MockDatabaseBlockMockRecorder) ResetRetrievable(startTime, retriever, metadata interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetRetrievable", reflect.TypeOf((*MockDatabaseBlock)(nil).ResetRetrievable), startTime, retriever, metadata)
+func (mr *MockDatabaseBlockMockRecorder) ResetRetrievable(startTime, blockSize, retriever, metadata interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetRetrievable", reflect.TypeOf((*MockDatabaseBlock)(nil).ResetRetrievable), startTime, blockSize, retriever, metadata)
 }
 
 // Close mocks base method
@@ -749,9 +761,9 @@ func (mr *MockDatabaseBlockRetrieverMockRecorder) CacheShardIndices(shards inter
 }
 
 // Stream mocks base method
-func (m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (xio.SegmentReader, error) {
+func (m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (xio.BlockReader, error) {
 	ret := m.ctrl.Call(m, "Stream", ctx, shard, id, blockStart, onRetrieve)
-	ret0, _ := ret[0].(xio.SegmentReader)
+	ret0, _ := ret[0].(xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -785,9 +797,9 @@ func (m *MockDatabaseShardBlockRetriever) EXPECT() *MockDatabaseShardBlockRetrie
 }
 
 // Stream mocks base method
-func (m *MockDatabaseShardBlockRetriever) Stream(ctx context.Context, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (xio.SegmentReader, error) {
+func (m *MockDatabaseShardBlockRetriever) Stream(ctx context.Context, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (xio.BlockReader, error) {
 	ret := m.ctrl.Call(m, "Stream", ctx, id, blockStart, onRetrieve)
-	ret0, _ := ret[0].(xio.SegmentReader)
+	ret0, _ := ret[0].(xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

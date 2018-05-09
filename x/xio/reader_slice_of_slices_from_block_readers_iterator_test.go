@@ -20,58 +20,35 @@
 
 package xio
 
-import "io"
+import (
+	"testing"
 
-type readerSliceOfSlicesIterator struct {
-	segments [][]SegmentReader
-	idx      int
-	len      int
-	closed   bool
-}
+	"github.com/stretchr/testify/assert"
+)
 
-// NewReaderSliceOfSlicesFromSegmentReadersIterator creates a new reader slice of slices iterator
-func NewReaderSliceOfSlicesFromSegmentReadersIterator(
-	segments [][]SegmentReader,
-) ReaderSliceOfSlicesFromSegmentReadersIterator {
-	it := &readerSliceOfSlicesIterator{}
-	it.Reset(segments)
-	return it
-}
-
-func (it *readerSliceOfSlicesIterator) Next() bool {
-	if !(it.idx+1 < it.len) {
-		return false
+func TestReaderSliceOfSlicesFromBlockReadersIterator(t *testing.T) {
+	var a, b, c, d, e, f BlockReader
+	all := []BlockReader{a, b, c, d, e, f}
+	for i := range all {
+		all[i] = BlockReader{
+			SegmentReader: nullSegmentReader{},
+		}
 	}
-	it.idx++
-	return true
-}
 
-func (it *readerSliceOfSlicesIterator) CurrentLen() int {
-	return len(it.segments[it.arrayIdx()])
-}
-
-func (it *readerSliceOfSlicesIterator) CurrentAt(idx int) io.Reader {
-	return it.segments[it.arrayIdx()][idx]
-}
-
-func (it *readerSliceOfSlicesIterator) Reset(segments [][]SegmentReader) {
-	it.segments = segments
-	it.idx = -1
-	it.len = len(segments)
-	it.closed = false
-}
-
-func (it *readerSliceOfSlicesIterator) Close() {
-	if it.closed {
-		return
+	readers := [][]BlockReader{
+		[]BlockReader{a, b, c},
+		[]BlockReader{d},
+		[]BlockReader{e, f},
 	}
-	it.closed = true
-}
 
-func (it *readerSliceOfSlicesIterator) arrayIdx() int {
-	idx := it.idx
-	if idx == -1 {
-		idx = 0
+	iter := NewReaderSliceOfSlicesFromBlockReadersIterator(readers)
+	for i := range readers {
+		assert.True(t, iter.Next())
+		l, _, _ := iter.CurrentReaders()
+		assert.Len(t, readers[i], l)
+		for j, r := range readers[i] {
+			assert.Equal(t, r, iter.CurrentReaderAt(j))
+		}
 	}
-	return idx
+	assert.False(t, iter.Next())
 }

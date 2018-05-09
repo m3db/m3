@@ -88,6 +88,8 @@ type blockRetriever struct {
 	idPool     ident.Pool
 	nsMetadata namespace.Metadata
 
+	blockSize time.Duration
+
 	status                     blockRetrieverStatus
 	reqsByShardIdx             []*shardRetrieveRequests
 	seekerMgr                  DataFileSetSeekerManager
@@ -138,6 +140,9 @@ func (r *blockRetriever) Open(ns namespace.Metadata) error {
 	r.nsMetadata = ns
 	r.status = blockRetrieverOpen
 	r.seekerMgr = seekerMgr
+
+	// Cache blockSize result
+	r.blockSize = ns.Options().RetentionOptions().BlockSize()
 
 	for i := 0; i < r.opts.FetchConcurrency(); i++ {
 		go r.fetchLoop(seekerMgr)
@@ -363,13 +368,15 @@ func (r *blockRetriever) Stream(
 	id ident.ID,
 	startTime time.Time,
 	onRetrieve block.OnRetrieveBlock,
-) (xio.SegmentReader, error) {
+) (xio.BlockReader, error) {
 	req := r.reqPool.Get()
 	req.shard = shard
 	// NB(r): Clone the ID as we're not positive it will stay valid throughout
 	// the lifecycle of the async request.
 	req.id = r.idPool.Clone(id)
 	req.start = startTime
+	req.blockSize = r.blockSize
+
 	req.onRetrieve = onRetrieve
 	req.resultWg.Add(1)
 
@@ -382,13 +389,13 @@ func (r *blockRetriever) Stream(
 	// This should never happen unless caller tries to use Stream() before Open()
 	if r.seekerMgr == nil {
 		r.RUnlock()
-		return nil, errNoSeekerMgr
+		return xio.EmptyBlockReader, errNoSeekerMgr
 	}
 	r.RUnlock()
 
 	bloomFilter, err := r.seekerMgr.ConcurrentIDBloomFilter(shard, startTime)
 	if err != nil {
-		return nil, err
+		return xio.EmptyBlockReader, err
 	}
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
@@ -396,12 +403,11 @@ func (r *blockRetriever) Stream(
 	if !bloomFilter.Test(id.Data().Bytes()) {
 		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data
 		req.onRetrieved(ts.Segment{})
-		return req, nil
+		return req.toBlock(), nil
 	}
-
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
-		return nil, err
+		return xio.EmptyBlockReader, err
 	}
 
 	reqs.Lock()
@@ -415,7 +421,15 @@ func (r *blockRetriever) Stream(
 		// Loop busy, already ready to consume notification
 	}
 
-	return req, nil
+	return req.toBlock(), nil
+}
+
+func (req *retrieveRequest) toBlock() xio.BlockReader {
+	return xio.BlockReader{
+		SegmentReader: req,
+		Start:         req.start,
+		BlockSize:     req.blockSize,
+	}
 }
 
 func (r *blockRetriever) shardRequests(
@@ -473,6 +487,8 @@ func (r *blockRetriever) Close() error {
 	}
 	r.nsMetadata = nil
 	r.status = blockRetrieverClosed
+
+	r.blockSize = 0
 	r.Unlock()
 
 	close(r.fetchLoopsShouldShutdownCh)
@@ -506,6 +522,7 @@ type retrieveRequest struct {
 	id         ident.ID
 	tags       ident.TagIterator
 	start      time.Time
+	blockSize  time.Duration
 	onRetrieve block.OnRetrieveBlock
 
 	indexEntry IndexEntry
@@ -551,6 +568,32 @@ func (req *retrieveRequest) Reset(segment ts.Segment) {
 	req.resultWg.Done()
 }
 
+func (req *retrieveRequest) ResetWindowed(segment ts.Segment, start time.Time, blockSize time.Duration) {
+	req.Reset(segment)
+	req.start = start
+	req.blockSize = blockSize
+}
+
+func (req *retrieveRequest) SegmentReader() (xio.SegmentReader, error) {
+	return req.reader, nil
+}
+
+func (req *retrieveRequest) Clone() (xio.SegmentReader, error) {
+	req.resultWg.Wait() // wait until result is ready
+	if req.err != nil {
+		return nil, req.err
+	}
+	return req.reader.Clone()
+}
+
+func (req *retrieveRequest) Start() time.Time {
+	return req.start
+}
+
+func (req *retrieveRequest) BlockSize() time.Duration {
+	return req.blockSize
+}
+
 func (req *retrieveRequest) Read(b []byte) (int, error) {
 	req.resultWg.Wait()
 	if req.err != nil {
@@ -580,6 +623,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.id = nil
 	req.tags = ident.EmptyTagIterator
 	req.start = time.Time{}
+	req.blockSize = 0
 	req.onRetrieve = nil
 	req.indexEntry = IndexEntry{}
 	req.reader = nil

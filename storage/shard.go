@@ -347,10 +347,10 @@ func (s *dbShard) NumSeries() int64 {
 func (s *dbShard) Stream(
 	ctx context.Context,
 	id ident.ID,
-	start time.Time,
+	blockStart time.Time,
 	onRetrieve block.OnRetrieveBlock,
-) (xio.SegmentReader, error) {
-	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, start, onRetrieve)
+) (xio.BlockReader, error) {
+	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, onRetrieve)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -896,7 +896,7 @@ func (s *dbShard) ReadEncoded(
 	ctx context.Context,
 	id ident.ID,
 	start, end time.Time,
-) ([][]xio.SegmentReader, error) {
+) ([][]xio.BlockReader, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
 	if entry != nil {

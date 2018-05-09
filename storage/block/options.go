@@ -80,7 +80,7 @@ func NewOptions() Options {
 	}
 	o.closeContextWorkers.Init()
 	o.databaseBlockPool.Init(func() DatabaseBlock {
-		return NewDatabaseBlock(timeZero, ts.Segment{}, o)
+		return NewDatabaseBlock(timeZero, 0, ts.Segment{}, o)
 	})
 
 	encodingOpts := encoding.NewOptions().

@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,31 +21,37 @@
 package xio
 
 import (
-	"testing"
+	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/m3db/m3db/ts"
 )
 
-func TestReaderSliceOfSlicesFromSegmentReadersIterator(t *testing.T) {
-	var a, b, c, d, e, f SegmentReader
-	all := []*SegmentReader{&a, &b, &c, &d, &e, &f}
-	for _, r := range all {
-		*r = nullSegmentReader{}
+// CloneBlock returns a clone of the block with the underlying data reset
+func (b BlockReader) CloneBlock() (BlockReader, error) {
+	sr, err := b.SegmentReader.Clone()
+	if err != nil {
+		return EmptyBlockReader, err
 	}
+	return BlockReader{
+		SegmentReader: sr,
+		Start:         b.Start,
+		BlockSize:     b.BlockSize,
+	}, nil
+}
 
-	readers := [][]SegmentReader{
-		[]SegmentReader{a, b, c},
-		[]SegmentReader{d},
-		[]SegmentReader{e, f},
-	}
+// IsEmpty returns true for the empty block
+func (b BlockReader) IsEmpty() bool {
+	return b.SegmentReader == nil && b.Start.Equal(timeZero) && b.BlockSize == 0
+}
 
-	iter := NewReaderSliceOfSlicesFromSegmentReadersIterator(readers)
-	for i := range readers {
-		assert.True(t, iter.Next())
-		assert.Equal(t, len(readers[i]), iter.CurrentLen())
-		for j, r := range readers[i] {
-			assert.Equal(t, r, iter.CurrentAt(j))
-		}
-	}
-	assert.False(t, iter.Next())
+// IsNotEmpty returns false for the empty block
+func (b BlockReader) IsNotEmpty() bool {
+	return !b.IsEmpty()
+}
+
+// ResetWindowed resets the underlying reader window, as well as start time and blockSize for the block
+func (b *BlockReader) ResetWindowed(segment ts.Segment, start time.Time, blockSize time.Duration) {
+	b.Reset(segment)
+	b.Start = start
+	b.BlockSize = blockSize
 }

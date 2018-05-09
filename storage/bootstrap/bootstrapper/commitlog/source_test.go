@@ -21,7 +21,6 @@
 package commitlog
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -148,50 +147,6 @@ func TestReadOrderedValues(t *testing.T) {
 		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
 		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, nil},
 		// "baz" is in shard 2 and should not be returned
-		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
-	}
-	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
-		return newTestCommitLogIterator(values, nil), nil
-	}
-
-	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.Equal(t, 2, len(res.ShardResults()))
-	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(values[:4], res.ShardResults(), opts))
-}
-
-func TestReadNamespaceFiltering(t *testing.T) {
-	opts := testOptions()
-	md := testNsMetadata(t)
-	src := newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
-
-	blockSize := md.Options().RetentionOptions().BlockSize()
-	now := time.Now()
-	start := now.Truncate(blockSize).Add(-blockSize)
-	end := now
-
-	// Request a little after the start of data, because always reading full blocks
-	// it should return the entire block beginning from "start"
-	require.True(t, blockSize >= minCommitLogRetention)
-	ranges := xtime.Ranges{}
-	ranges = ranges.AddRange(xtime.Range{
-		Start: start.Add(time.Minute),
-		End:   end,
-	})
-
-	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
-	bar := commitlog.Series{Namespace: testNamespaceID, Shard: 1, ID: ident.StringID("bar")}
-	baz := commitlog.Series{Namespace: ident.StringID("someID"), Shard: 0, ID: ident.StringID("baz")}
-
-	values := []testValue{
-		{foo, start, 1.0, xtime.Second, nil},
-		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
-		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
-		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, nil},
-		// "baz" is in another namespace should not be returned
 		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
 	}
 	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
@@ -446,6 +401,14 @@ func verifyShardResultsAreCorrect(
 	actual result.ShardResults,
 	opts Options,
 ) error {
+	if actual == nil {
+		if len(values) == 0 {
+			return nil
+		}
+
+		return fmt.Errorf(
+			"shard result is nil, but expected: %d values", len(values))
+	}
 	// First create what result should be constructed for test values
 	expected, err := createExpectedShardResult(values, actual, opts)
 	if err != nil {
@@ -454,15 +417,22 @@ func verifyShardResultsAreCorrect(
 
 	// Assert the values
 	if len(expected) != len(actual) {
-		return errors.New("number of shards do not match")
+		return fmt.Errorf(
+			"number of shards do not match, expected: %d, but got: %d",
+			len(expected), len(actual),
+		)
 	}
+
 	for shard, expectedResult := range expected {
 		actualResult, ok := actual[shard]
 		if !ok {
 			return fmt.Errorf("shard: %d present in expected, but not actual", shard)
 		}
 
-		verifyShardResultsAreEqual(opts, shard, actualResult, expectedResult)
+		err = verifyShardResultsAreEqual(opts, shard, actualResult, expectedResult)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -486,9 +456,12 @@ func createExpectedShardResult(
 		shardResult, ok := expected[v.s.Shard]
 		if !ok {
 			shardResult = result.NewShardResult(0, bopts)
-			// Trigger blocks to be created for series
-			shardResult.AddSeries(v.s.ID, nil, nil)
 			expected[v.s.Shard] = shardResult
+		}
+		_, exists := shardResult.AllSeries().Get(v.s.ID)
+		if !exists {
+			// Trigger blocks to be created for series
+			shardResult.AddSeries(v.s.ID, v.s.Tags, nil)
 		}
 
 		series, _ := shardResult.AllSeries().Get(v.s.ID)
@@ -526,7 +499,7 @@ func createExpectedShardResult(
 	for _, r := range allResults {
 		for start, blockResult := range r.blocks {
 			enc := blockResult.encoder
-			bl := block.NewDatabaseBlock(start.ToTime(), enc.Discard(), blopts)
+			bl := block.NewDatabaseBlock(start.ToTime(), 0, enc.Discard(), blopts)
 			if r.result != nil {
 				r.result.AddBlock(bl)
 			}
@@ -556,13 +529,19 @@ func verifyShardResultsAreEqual(opts Options, shard uint32, actualResult, expect
 			return fmt.Errorf("series: %v present in expected but not actual", expectedID)
 		}
 
+		if !expectedBlocks.Tags.Equal(actualBlocks.Tags) {
+			return fmt.Errorf(
+				"series: %v present in expected and actual, but tags do not match", expectedID)
+		}
+
 		expectedAllBlocks := expectedBlocks.Blocks.AllBlocks()
 		actualAllBlocks := actualBlocks.Blocks.AllBlocks()
 		if len(expectedAllBlocks) != len(actualAllBlocks) {
 			return fmt.Errorf(
-				"number of expected blocks: %d does not match number of actual blocks: %d",
+				"number of expected blocks: %d does not match number of actual blocks: %d for series: %s",
 				len(expectedAllBlocks),
 				len(actualAllBlocks),
+				expectedID,
 			)
 		}
 

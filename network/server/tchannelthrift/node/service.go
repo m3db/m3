@@ -52,8 +52,6 @@ import (
 
 const (
 	checkedBytesPoolSize        = 65536
-	tagEncoderPoolSize          = 65536
-	tagDecoderPoolSize          = 65536
 	segmentArrayPoolSize        = 65536
 	initSegmentArrayPoolLength  = 4
 	maxSegmentArrayPooledLength = 32
@@ -154,23 +152,6 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 	wrapperPool := xpool.NewCheckedBytesWrapperPool(wrapperPoolOpts)
 	wrapperPool.Init()
 
-	tagEncoderPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(tagEncoderPoolSize).
-		SetInstrumentOptions(iopts.SetMetricsScope(
-			scope.SubScope("tag-encoder-pool")))
-	tagEncoderPool := serialize.NewTagEncoderPool(
-		serialize.NewTagEncoderOptions(), tagEncoderPoolOpts)
-	tagEncoderPool.Init()
-
-	tagDecoderPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(tagDecoderPoolSize).
-		SetInstrumentOptions(iopts.SetMetricsScope(
-			scope.SubScope("tag-decoder-pool")))
-	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions().
-			SetCheckedBytesWrapperPool(wrapperPool), tagDecoderPoolOpts)
-	tagDecoderPool.Init()
-
 	segmentPool := newSegmentsArrayPool(segmentsArrayPoolOpts{
 		Capacity:    initSegmentArrayPoolLength,
 		MaxCapacity: maxSegmentArrayPooledLength,
@@ -189,8 +170,8 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 		metrics: newServiceMetrics(scope, iopts.MetricsSamplingRate()),
 		pools: pools{
 			checkedBytesWrapper:  wrapperPool,
-			tagEncoder:           tagEncoderPool,
-			tagDecoder:           tagDecoderPool,
+			tagEncoder:           opts.TagEncoderPool(),
+			tagDecoder:           opts.TagDecoderPool(),
 			id:                   db.Options().IdentifierPool(),
 			segmentsArray:        segmentPool,
 			blockMetadata:        opts.BlockMetadataPool(),
@@ -261,7 +242,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	result.Datapoints = make([]*rpc.Datapoint, 0)
 
 	multiIt := s.db.Options().MultiReaderIteratorPool().Get()
-	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
+	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded))
 	defer multiIt.Close()
 
 	for multiIt.Next() {
@@ -466,7 +447,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 				block.Err = convert.ToRPCError(err)
 			} else {
 				var converted convert.ToSegmentsResult
-				converted, err = convert.ToSegments(fetchedBlock.Readers)
+				converted, err = convert.ToSegments(fetchedBlock.Blocks)
 				if err != nil {
 					block.Err = convert.ToRPCError(err)
 				}

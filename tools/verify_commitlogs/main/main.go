@@ -202,7 +202,7 @@ func main() {
 		SetRefillHighWatermark(0.002)
 	blockPool := block.NewDatabaseBlockPool(blockPoolOpts)
 	blockPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, ts.Segment{}, blockOpts)
+		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts)
 	})
 
 	blockOpts = blockOpts.

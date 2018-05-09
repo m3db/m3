@@ -176,6 +176,12 @@ type Options interface {
 
 	// ReadConcurrency returns the concurrency of the reader
 	ReadConcurrency() int
+
+	// SetIdentifierPool sets the IdentifierPool to use for pooling identifiers.
+	SetIdentifierPool(value ident.Pool) Options
+
+	// IdentifierPool returns the IdentifierPool to use for pooling identifiers.
+	IdentifierPool() ident.Pool
 }
 
 // FileFilterPredicate is a predicate that allows the caller to determine

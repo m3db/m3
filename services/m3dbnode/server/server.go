@@ -51,6 +51,7 @@ import (
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
 	m3dbruntime "github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/services/m3dbnode/config"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
@@ -239,6 +240,16 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
+	policy := cfg.PoolingPolicy
+	tagEncoderPool := serialize.NewTagEncoderPool(
+		serialize.NewTagEncoderOptions(),
+		poolOptions(policy.TagEncoderPool, scope.SubScope("tag-encoder-pool")))
+	tagEncoderPool.Init()
+	tagDecoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(),
+		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
+	tagDecoderPool.Init()
+
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
@@ -252,7 +263,9 @@ func Run(runOpts RunOptions) {
 		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSize).
 		SetMmapEnableHugeTLB(shouldUseHugeTLB).
 		SetMmapHugeTLBThreshold(mmapCfg.HugeTLB.Threshold).
-		SetRuntimeOptionsManager(runtimeOptsMgr)
+		SetRuntimeOptionsManager(runtimeOptsMgr).
+		SetTagEncoderPool(tagEncoderPool).
+		SetTagDecoderPool(tagDecoderPool)
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
@@ -412,7 +425,6 @@ func Run(runOpts RunOptions) {
 		})
 
 	// Set repair options
-	policy := cfg.PoolingPolicy
 	hostBlockMetadataSlicePool := repair.NewHostBlockMetadataSlicePool(
 		capacityPoolOptions(policy.HostBlockMetadataSlicePool,
 			scope.SubScope("host-block-metadata-slice-pool")),
@@ -445,7 +457,9 @@ func Run(runOpts RunOptions) {
 		SetBlockMetadataPool(blockMetadataPool).
 		SetBlockMetadataSlicePool(blockMetadataSlicePool).
 		SetBlocksMetadataPool(blocksMetadataPool).
-		SetBlocksMetadataSlicePool(blocksMetadataSlicePool)
+		SetBlocksMetadataSlicePool(blocksMetadataSlicePool).
+		SetTagEncoderPool(tagEncoderPool).
+		SetTagDecoderPool(tagDecoderPool)
 
 	db, err := cluster.NewDatabase(hostID, envCfg.TopologyInitializer, opts)
 	if err != nil {
@@ -960,7 +974,7 @@ func withEncodingAndPoolingOptions(
 	blockPool := block.NewDatabaseBlockPool(poolOptions(policy.BlockPool,
 		scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, ts.Segment{}, blockOpts)
+		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts)
 	})
 	blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 	opts = opts.SetDatabaseBlockOptions(blockOpts)
@@ -971,11 +985,13 @@ func withEncodingAndPoolingOptions(
 		SetFetchBlockMetadataResultsPool(opts.FetchBlockMetadataResultsPool())
 	seriesPool := series.NewDatabaseSeriesPool(
 		poolOptions(policy.SeriesPool, scope.SubScope("series-pool")))
+
 	opts = opts.
 		SetSeriesOptions(seriesOpts).
 		SetDatabaseSeriesPool(seriesPool)
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
-		SetBytesPool(bytesPool))
+		SetBytesPool(bytesPool).
+		SetIdentifierPool(identifierPool))
 
 	// options related to the indexing sub-system
 	tagArrPool := index.NewTagArrayPool(index.TagArrayPoolOpts{

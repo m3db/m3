@@ -123,25 +123,29 @@ type ToSegmentsResult struct {
 	Checksum *int64
 }
 
-// ToSegments converts a list of segment readers to segments.
-func ToSegments(readers []xio.SegmentReader) (ToSegmentsResult, error) {
-	if len(readers) == 0 {
+// ToSegments converts a list of blocks to segments.
+func ToSegments(blocks []xio.BlockReader) (ToSegmentsResult, error) {
+	if len(blocks) == 0 {
 		return ToSegmentsResult{}, nil
 	}
 
 	s := &rpc.Segments{}
 
-	if len(readers) == 1 {
-		seg, err := readers[0].Segment()
+	if len(blocks) == 1 {
+		seg, err := blocks[0].Segment()
 		if err != nil {
 			return ToSegmentsResult{}, err
 		}
 		if seg.Len() == 0 {
 			return ToSegmentsResult{}, nil
 		}
+		startTime := xtime.ToNormalizedTime(blocks[0].Start, time.Nanosecond)
+		blockSize := xtime.ToNormalizedDuration(blocks[0].BlockSize, time.Nanosecond)
 		s.Merged = &rpc.Segment{
-			Head: bytesRef(seg.Head),
-			Tail: bytesRef(seg.Tail),
+			Head:      bytesRef(seg.Head),
+			Tail:      bytesRef(seg.Tail),
+			StartTime: &startTime,
+			BlockSize: &blockSize,
 		}
 		checksum := int64(digest.SegmentChecksum(seg))
 		return ToSegmentsResult{
@@ -150,17 +154,21 @@ func ToSegments(readers []xio.SegmentReader) (ToSegmentsResult, error) {
 		}, nil
 	}
 
-	for _, reader := range readers {
-		seg, err := reader.Segment()
+	for _, block := range blocks {
+		seg, err := block.Segment()
 		if err != nil {
 			return ToSegmentsResult{}, err
 		}
 		if seg.Len() == 0 {
 			continue
 		}
+		startTime := xtime.ToNormalizedTime(block.Start, time.Nanosecond)
+		blockSize := xtime.ToNormalizedDuration(block.BlockSize, time.Nanosecond)
 		s.Unmerged = append(s.Unmerged, &rpc.Segment{
-			Head: bytesRef(seg.Head),
-			Tail: bytesRef(seg.Tail),
+			Head:      bytesRef(seg.Head),
+			Tail:      bytesRef(seg.Tail),
+			StartTime: &startTime,
+			BlockSize: &blockSize,
 		})
 	}
 	if len(s.Unmerged) == 0 {

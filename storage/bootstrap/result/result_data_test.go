@@ -47,9 +47,9 @@ func TestDataResultAddMergesExistingShardResults(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(1*testBlockSize), ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(2*testBlockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts),
 	}
 
 	srs := []ShardResult{
@@ -141,9 +141,9 @@ func TestResultNumSeries(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(1*testBlockSize), ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(2*testBlockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts),
 	}
 
 	srs := []ShardResult{
@@ -172,9 +172,9 @@ func TestResultAddResult(t *testing.T) {
 	start := time.Now().Truncate(testBlockSize)
 
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(1*testBlockSize), ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(2*testBlockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start, testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), testBlockSize, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(2*testBlockSize), testBlockSize, ts.Segment{}, blopts),
 	}
 
 	srs := []ShardResult{
@@ -233,7 +233,7 @@ func TestShardResultIsEmpty(t *testing.T) {
 	sr := NewShardResult(0, opts)
 	require.True(t, sr.IsEmpty())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(time.Now(), ts.Segment{})
+	block.Reset(time.Now(), time.Hour, ts.Segment{})
 	fooTags := ident.Tags{ident.StringTag("foo", "foe")}
 	sr.AddBlock(ident.StringID("foo"), fooTags, block)
 	require.False(t, sr.IsEmpty())
@@ -254,7 +254,7 @@ func TestShardResultAddBlock(t *testing.T) {
 	}
 	for _, input := range inputs {
 		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-		block.Reset(input.timestamp, ts.Segment{})
+		block.Reset(input.timestamp, time.Hour, ts.Segment{})
 		sr.AddBlock(ident.StringID(input.id), input.tags, block)
 	}
 	allSeries := sr.AllSeries()
@@ -284,7 +284,7 @@ func TestShardResultAddSeries(t *testing.T) {
 	}
 	moreSeries := block.NewDatabaseSeriesBlocks(0)
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(start, ts.Segment{})
+	block.Reset(start, time.Hour, ts.Segment{})
 	moreSeries.AddBlock(block)
 	sr.AddSeries(ident.StringID("foo"), ident.Tags{ident.StringTag("foo", "foe")}, moreSeries)
 	allSeries := sr.AllSeries()

@@ -67,7 +67,7 @@ func newTestUnwireableBlock(
 	}
 	segment.Head.IncRef()
 
-	bl := NewDatabaseBlock(time.Time{}, segment, opts).(*dbBlock)
+	bl := NewDatabaseBlock(time.Time{}, 0, segment, opts).(*dbBlock)
 	bl.Lock()
 	bl.retrieveID = ident.StringID(name)
 	bl.wasRetrievedFromDisk = true
