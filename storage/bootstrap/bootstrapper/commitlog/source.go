@@ -561,6 +561,11 @@ func (s *commitLogSource) ReadIndex(
 			continue
 		}
 
+		// The index will not accept empty documents
+		if series.Tags == nil {
+			continue
+		}
+
 		d, err := convert.FromMetric(series.ID, series.Tags)
 		if err != nil {
 			return nil, err

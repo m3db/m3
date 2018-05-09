@@ -94,6 +94,10 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 		Tags: ident.Tags{ident.StringTag("city", "seattle")},
 	}
 
+	unindexedSeries := generate.Series{
+		ID: ident.StringID("unindexed"),
+	}
+
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{
 			IDs:       []string{fooSeries.ID.String()},
@@ -119,7 +123,14 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 			NumPoints: 50,
 			Start:     now,
 		},
+		{
+			IDs:       []string{unindexedSeries.ID.String()},
+			Tags:      nil,
+			NumPoints: 1,
+			Start:     now,
+		},
 	})
+
 	log.Info("writing data")
 	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, testNamespaces[0])
 	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, testNamespaces[1])
