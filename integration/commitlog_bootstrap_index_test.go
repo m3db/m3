@@ -151,13 +151,8 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 
 	// Verify in-memory data match what we expect - all writes from seriesMaps
 	// should be present
-	metadatasByShard := testSetupMetadatas(t, setup, testNamespaces[0], now.Add(-blockSize), now.Add(blockSize))
-	observedSeriesMaps := testSetupToSeriesMaps(t, setup, ns1, metadatasByShard)
-	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
-
-	metadatasByShard2 := testSetupMetadatas(t, setup, testNamespaces[1], now.Add(-blockSize), now.Add(blockSize))
-	observedSeriesMaps2 := testSetupToSeriesMaps(t, setup, ns2, metadatasByShard2)
-	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps2)
+	verifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
+	verifySeriesMaps(t, setup, testNamespaces[1], seriesMaps)
 
 	// Issue some index queries
 	session, err := setup.m3dbClient.DefaultSession()
