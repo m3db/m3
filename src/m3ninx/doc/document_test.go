@@ -289,6 +289,13 @@ func TestDocumentValidation(t *testing.T) {
 			expectedErr: true,
 		},
 		{
+			name: "empty document w/ ID",
+			input: Document{
+				ID: []byte("foobar"),
+			},
+			expectedErr: false,
+		},
+		{
 			name: "invalid UTF-8 in field name",
 			input: Document{
 				Fields: []Field{
