@@ -89,6 +89,7 @@ func TestNamespaceIndexStartErr(t *testing.T) {
 	newFn := func(fn nsIndexInsertBatchFn, nowFn clock.NowFn, s tally.Scope) namespaceIndexInsertQueue {
 		return q
 	}
+	q.EXPECT().SetRuntimeOptions(gomock.Any())
 	q.EXPECT().Start().Return(fmt.Errorf("random err"))
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
