@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3coordinator/storage/fanout"
 	"github.com/m3db/m3coordinator/storage/local"
 	"github.com/m3db/m3coordinator/storage/remote"
+	"github.com/m3db/m3coordinator/stores/m3db"
 	tsdbRemote "github.com/m3db/m3coordinator/tsdb/remote"
 	"github.com/m3db/m3coordinator/util/logging"
 
@@ -95,9 +96,17 @@ func main() {
 		}
 	}
 
-	// Start server without storage and engine to allow usage of embedded KV endpoints
-	// to complete M3DB initialization.
-	handler, err := httpd.NewHandler(nil, nil, clusterClient, cfg)
+	m3dbClient, err := m3dbClientOpts.NewClient(client.ConfigurationParameters{})
+	if err != nil {
+		logger.Fatal("unable to create m3db client", zap.Any("error", err))
+	}
+
+	session := m3db.NewAsyncSession(m3dbClient, nil)
+
+	fanoutStorage, storageCleanup := setupStorages(logger, session, flags)
+	defer storageCleanup()
+
+	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage), clusterClient, cfg)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Any("error", err))
 	}
@@ -105,27 +114,6 @@ func main() {
 
 	logger.Info("starting server", zap.String("address", flags.listenAddress))
 	go http.ListenAndServe(flags.listenAddress, handler.Router)
-
-	m3dbClient, err := m3dbClientOpts.NewClient(client.ConfigurationParameters{})
-	if err != nil {
-		logger.Fatal("unable to create m3db client", zap.Any("error", err))
-	}
-
-	// Instantiating an M3DB session requires a topology. This function watches (blocks)
-	// for that, so this needs to happen after the potential embedded KV and corresponding
-	// endpoints are set up.
-	session, err := m3dbClient.NewSession()
-	if err != nil {
-		logger.Fatal("unable to create m3db client session", zap.Any("error", err))
-	}
-
-	fanoutStorage, storageCleanup := setupStorages(logger, session, flags)
-	defer storageCleanup()
-
-	// Finish instantiating handlers that require M3DB setup
-	handler.LoadLazyHandlers(fanoutStorage, executor.NewEngine(fanoutStorage))
-
-	logger.Info("server fully initialized")
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)

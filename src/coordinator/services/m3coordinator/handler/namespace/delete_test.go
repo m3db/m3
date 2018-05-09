@@ -18,35 +18,35 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package namespace
 
 import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/m3db/m3cluster/kv"
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
 
 	"github.com/golang/mock/gomock"
+	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNamespaceDeleteHandlerNotFound(t *testing.T) {
-	mockClient, mockKV, _ := SetupNamespaceTest(t)
-	handler := NewNamespaceDeleteHandler(mockClient)
+	mockKV, _ := SetupNamespaceTest(t)
+	deleteHandler := NewDeleteHandler(mockKV)
 
 	w := httptest.NewRecorder()
-	jsonInput := `{"name": "not-present"}`
 
-	req := httptest.NewRequest("POST", "/namespace/delete", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("DELETE", "/namespace/nope", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "nope"})
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
-	handler.ServeHTTP(w, req)
+	deleteHandler.ServeHTTP(w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
@@ -55,13 +55,13 @@ func TestNamespaceDeleteHandlerNotFound(t *testing.T) {
 }
 
 func TestNamespaceDeleteHandlerDeleteAll(t *testing.T) {
-	mockClient, mockKV, ctrl := SetupNamespaceTest(t)
-	handler := NewNamespaceDeleteHandler(mockClient)
+	mockKV, ctrl := SetupNamespaceTest(t)
+	deleteHandler := NewDeleteHandler(mockKV)
 
 	w := httptest.NewRecorder()
-	jsonInput := `{"name": "testNamespace"}`
 
-	req := httptest.NewRequest("POST", "/namespace/delete", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("DELETE", "/namespace/testNamespace", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "testNamespace"})
 	require.NotNil(t, req)
 
 	registry := nsproto.Registry{
@@ -86,10 +86,12 @@ func TestNamespaceDeleteHandlerDeleteAll(t *testing.T) {
 
 	mockValue := kv.NewMockValue(ctrl)
 	mockValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).SetArg(0, registry)
+	mockValue.EXPECT().Version().Return(0)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
 	mockKV.EXPECT().Delete(M3DBNodeNamespacesKey).Return(nil, nil)
-	handler.ServeHTTP(w, req)
+	mockKV.EXPECT().CheckAndSet(M3DBNodeNamespacesKey, gomock.Any(), gomock.Any()).Return(1, nil)
+	deleteHandler.ServeHTTP(w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
@@ -98,13 +100,13 @@ func TestNamespaceDeleteHandlerDeleteAll(t *testing.T) {
 }
 
 func TestNamespaceDeleteHandler(t *testing.T) {
-	mockClient, mockKV, ctrl := SetupNamespaceTest(t)
-	handler := NewNamespaceDeleteHandler(mockClient)
+	mockKV, ctrl := SetupNamespaceTest(t)
+	deleteHandler := NewDeleteHandler(mockKV)
 
 	w := httptest.NewRecorder()
-	jsonInput := `{"name": "testNamespace"}`
 
-	req := httptest.NewRequest("POST", "/namespace/delete", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("DELETE", "/namespace/testNamespace", nil)
+	req = mux.SetURLVars(req, map[string]string{"id": "testNamespace"})
 	require.NotNil(t, req)
 
 	registry := nsproto.Registry{
@@ -144,11 +146,12 @@ func TestNamespaceDeleteHandler(t *testing.T) {
 
 	mockValue := kv.NewMockValue(ctrl)
 	mockValue.EXPECT().Unmarshal(gomock.Any()).Return(nil).SetArg(0, registry)
+	mockValue.EXPECT().Version().Return(0)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockValue, nil)
 	mockKV.EXPECT().Delete(M3DBNodeNamespacesKey).Return(nil, nil)
-	mockKV.EXPECT().Set(M3DBNodeNamespacesKey, gomock.Any()).Return(1, nil)
-	handler.ServeHTTP(w, req)
+	mockKV.EXPECT().CheckAndSet(M3DBNodeNamespacesKey, gomock.Any(), gomock.Any()).Return(1, nil)
+	deleteHandler.ServeHTTP(w, req)
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)

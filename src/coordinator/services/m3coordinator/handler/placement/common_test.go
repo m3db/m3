@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package placement
 
 import (
 	"errors"
@@ -49,20 +49,20 @@ func TestPlacementService(t *testing.T) {
 	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
 	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(mockPlacementService, nil)
 
-	placementService, err := PlacementService(mockClient, config.Configuration{})
+	placementService, err := Service(mockClient, config.Configuration{})
 	assert.NoError(t, err)
 	assert.NotNil(t, placementService)
 
 	// Test Services returns error
 	mockClient.EXPECT().Services(gomock.Not(nil)).Return(nil, errors.New("dummy service error"))
-	placementService, err = PlacementService(mockClient, config.Configuration{})
+	placementService, err = Service(mockClient, config.Configuration{})
 	assert.Nil(t, placementService)
 	assert.EqualError(t, err, "dummy service error")
 
 	// Test PlacementService returns error
 	mockClient.EXPECT().Services(gomock.Not(nil)).Return(mockServices, nil)
 	mockServices.EXPECT().PlacementService(gomock.Not(nil), gomock.Not(nil)).Return(nil, errors.New("dummy placement error"))
-	placementService, err = PlacementService(mockClient, config.Configuration{})
+	placementService, err = Service(mockClient, config.Configuration{})
 	assert.Nil(t, placementService)
 	assert.EqualError(t, err, "dummy placement error")
 }
