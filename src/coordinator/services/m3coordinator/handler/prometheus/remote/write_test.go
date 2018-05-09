@@ -29,13 +29,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3coordinator/generated/proto/prompb"
-	"github.com/m3db/m3coordinator/policy/resolver"
-	"github.com/m3db/m3coordinator/storage/local"
+	"github.com/m3db/m3coordinator/test/local"
 	"github.com/m3db/m3coordinator/util/logging"
-
-	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3metrics/policy"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
@@ -83,8 +78,9 @@ func generatePromWriteBody(t *testing.T) io.Reader {
 
 func TestPromWriteParsing(t *testing.T) {
 	logging.InitWithCores(nil)
+	ctrl := gomock.NewController(t)
+	storage, _ := local.NewStorageAndSession(ctrl)
 
-	storage := local.NewStorage(nil, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
 	promWrite := &PromWriteHandler{store: storage}
 
 	req, _ := http.NewRequest("POST", PromWriteURL, generatePromWriteBody(t))
@@ -98,10 +94,9 @@ func TestPromWrite(t *testing.T) {
 	logging.InitWithCores(nil)
 
 	ctrl := gomock.NewController(t)
-	session := client.NewMockSession(ctrl)
+	storage, session := local.NewStorageAndSession(ctrl)
 	session.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
-	storage := local.NewStorage(session, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
 	promWrite := &PromWriteHandler{store: storage}
 
 	req, _ := http.NewRequest("POST", PromWriteURL, generatePromWriteBody(t))

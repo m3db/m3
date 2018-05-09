@@ -26,11 +26,18 @@ import (
 	"github.com/m3db/m3coordinator/storage"
 )
 
-type mockStorage struct{}
+type mockStorage struct {
+	sType storage.Type
+}
 
 // NewMockStorage creates a new mock Storage instance.
 func NewMockStorage() storage.Storage {
-	return &mockStorage{}
+	return &mockStorage{sType: storage.Type(0)}
+}
+
+// NewMockStorageWithType creates a new mock Storage instance.
+func NewMockStorageWithType(sType storage.Type) storage.Storage {
+	return &mockStorage{sType: sType}
 }
 
 func (s *mockStorage) Fetch(ctx context.Context, query *storage.FetchQuery, _ *storage.FetchOptions) (*storage.FetchResult, error) {
@@ -46,5 +53,9 @@ func (s *mockStorage) Write(ctx context.Context, query *storage.WriteQuery) erro
 }
 
 func (s *mockStorage) Type() storage.Type {
-	return storage.Type(0)
+	return s.sType
+}
+
+func (s *mockStorage) Close() error {
+	return nil
 }
