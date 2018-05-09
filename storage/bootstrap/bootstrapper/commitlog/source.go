@@ -277,17 +277,18 @@ func (s *commitLogSource) shouldEncodeSeriesForData(
 }
 
 func (s *commitLogSource) shouldEncodeSeriesForIndex(
-	metadatasByShard []metadataByUniqueIndex,
-	indexBlockSize time.Duration,
 	shard uint32,
 	ts time.Time,
+	highestShard uint32,
+	indexBlockSize time.Duration,
+	bootstrapRangesByShard []xtime.Ranges,
 ) bool {
-	if int(shard) >= len(metadatasByShard) {
+	if shard > highestShard {
 		// Not trying to bootstrap this shard
 		return false
 	}
 
-	rangesToBootstrap := metadatasByShard[shard].ranges
+	rangesToBootstrap := bootstrapRangesByShard[shard]
 	if rangesToBootstrap.IsEmpty() {
 		// No ShardTimeRanges were provided for this shard, so we're not
 		// bootstrapping it.
@@ -537,6 +538,7 @@ func (s *commitLogSource) ReadIndex(
 		return result.NewIndexBootstrapResult(), nil
 	}
 
+	// Setup predicates for skipping files / series at iterator and reader level.
 	readCommitLogPredicate := newReadCommitLogPredicate(
 		ns, shardsTimeRanges, s.opts, s.inspection)
 	readSeriesPredicate := newReadSeriesPredicate(ns)
@@ -545,25 +547,22 @@ func (s *commitLogSource) ReadIndex(
 		FileFilterPredicate:   readCommitLogPredicate,
 		SeriesFilterPredicate: readSeriesPredicate,
 	}
+
+	// Create the commitlog iterator
 	iter, err := s.newIteratorFn(iterOpts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
-
 	defer iter.Close()
 
-	var (
-		// +1 so we can use the shard number as an index throughout without constantly
-		// remembering to subtract 1 to convert to zero-based indexing
-		numShards = s.findHighestShard(shardsTimeRanges) + 1
-	)
-
-	metadataByShard := make([]metadataByUniqueIndex, numShards)
+	highestShard := s.findHighestShard(shardsTimeRanges)
+	// +1 so we can use the shard number as an index throughout without constantly
+	// remembering to subtract 1 to convert to zero-based indexing.
+	numShards := highestShard + 1
+	// Convert the map to a slice for faster lookups
+	bootstrapRangesByShard := make([]xtime.Ranges, numShards)
 	for shard, ranges := range shardsTimeRanges {
-		metadataByShard[shard] = metadataByUniqueIndex{
-			idxToMetadata: make(map[uint64]seriesMetadata),
-			ranges:        ranges,
-		}
+		bootstrapRangesByShard[shard] = ranges
 	}
 
 	indexResult := result.NewIndexBootstrapResult()
@@ -572,13 +571,9 @@ func (s *commitLogSource) ReadIndex(
 	indexBlockSize := ns.Options().IndexOptions().BlockSize()
 	for iter.Next() {
 		series, dp, _, _ := iter.Current()
-		if !s.shouldEncodeSeriesForIndex(metadataByShard, indexBlockSize, series.Shard, dp.Timestamp) {
+		if !s.shouldEncodeSeriesForIndex(
+			series.Shard, dp.Timestamp, highestShard, indexBlockSize, bootstrapRangesByShard) {
 			continue
-		}
-
-		metadataByShard[series.Shard].idxToMetadata[series.UniqueIndex] = seriesMetadata{
-			id:   series.ID,
-			tags: series.Tags,
 		}
 
 		segment, err := indexResults.GetOrAddSegment(
