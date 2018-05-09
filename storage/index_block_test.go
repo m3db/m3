@@ -41,6 +41,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func testIndexWriteEntry(id ident.ID, tags ident.Tags, timestamp time.Time, fns index.OnIndexSeries) []indexWriteEntry {
+	return []indexWriteEntry{
+		indexWriteEntry{
+			id:        id,
+			tags:      tags,
+			timestamp: timestamp,
+			fns:       fns,
+		},
+	}
+}
+
 func testNamespaceMetadata(blockSize, period time.Duration) namespace.Metadata {
 	nopts := namespace.NewOptions().
 		SetRetentionOptions(retention.NewOptions().
@@ -139,7 +150,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 			OnIndexSeries: lifecycle,
 		},
 	}).Return(index.WriteBatchResult{}, nil)
-	require.NoError(t, idx.Write(id, tags, now, lifecycle))
+	require.NoError(t, idx.WriteBatch(testIndexWriteEntry(id, tags, now, lifecycle)))
 }
 
 func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
@@ -192,7 +203,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	now = now.Add(blockSize)
 	nowLock.Unlock()
 
-	require.NoError(t, idx.Write(id, tags, now, lifecycle))
+	require.NoError(t, idx.WriteBatch(testIndexWriteEntry(id, tags, now, lifecycle)))
 }
 
 func TestNamespaceIndexBootstrap(t *testing.T) {

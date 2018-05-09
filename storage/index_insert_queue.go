@@ -27,8 +27,6 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/index"
-	"github.com/m3db/m3ninx/doc"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -48,8 +46,9 @@ const (
 )
 
 var (
-	defaultIndexBatchBackoff   = time.Second
-	defaultIndexPerSecondLimit = 10000
+	// TODO(prateek): undo this stuff
+	defaultIndexBatchBackoff   = time.Millisecond
+	defaultIndexPerSecondLimit = 1000000
 )
 
 type nsIndexInsertQueue struct {
@@ -154,10 +153,8 @@ func (q *nsIndexInsertQueue) insertLoop() {
 	}
 }
 
-func (q *nsIndexInsertQueue) Insert(
-	blockStart time.Time,
-	d doc.Document,
-	fns index.OnIndexSeries,
+func (q *nsIndexInsertQueue) InsertBatch(
+	entries []index.WriteBatchEntry,
 ) (*sync.WaitGroup, error) {
 	windowNanos := q.nowFn().Truncate(time.Second).UnixNano()
 
@@ -178,11 +175,7 @@ func (q *nsIndexInsertQueue) Insert(
 			return nil, errNewSeriesIndexRateLimitExceeded
 		}
 	}
-	q.currBatch.inserts = append(q.currBatch.inserts, index.WriteBatchEntry{
-		BlockStart:    xtime.ToUnixNano(blockStart),
-		Document:      d,
-		OnIndexSeries: fns,
-	})
+	q.currBatch.inserts = append(q.currBatch.inserts, entries...)
 	wg := q.currBatch.wg
 	q.Unlock()
 

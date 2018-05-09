@@ -128,6 +128,9 @@ type dbShard struct {
 	newSeriesBootstrapped    bool
 	ticking                  bool
 	shard                    uint32
+
+	indexWriteEntryBatchLock sync.Mutex
+	indexWriteEntryBatch     []indexWriteEntry
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own
@@ -838,9 +841,9 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesUniqueIndex = entry.index
 		needsIndex := shouldReverseIndex && entry.needsIndexUpdate(timestamp)
 		if err == nil && needsIndex {
-			entry.onIndexPrepare()
-			err = s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), timestamp, entry)
+			err = s.insertSeriesForIndexing(entry, timestamp, opts.writeNewSeriesAsync)
 		}
+		// release the reference we got on entry from `writableSeries`
 		entry.decrementReaderWriterCount()
 		if err != nil {
 			return err
@@ -1027,6 +1030,44 @@ type insertAsyncResult struct {
 	entry *dbShardEntry
 }
 
+func (s *dbShard) insertSeriesForIndexing(
+	entry *dbShardEntry,
+	timestamp time.Time,
+	async bool,
+) error {
+	// // inc a ref on the entry to ensure it's valid until the queue acts upon it.
+	// entry.onIndexPrepare()
+	wg, err := s.insertQueue.Insert(dbShardInsert{
+		entry: entry,
+		opts: dbShardInsertAsyncOptions{
+			hasPendingIndexing: true,
+			pendingIndex: dbShardPendingIndex{
+				timestamp: timestamp,
+			},
+		},
+	})
+
+	// i.e. unable to enqueue into shard insert queue
+	if err != nil {
+		// entry.OnIndexFinalize() // release any reference's we've held for indexing
+		return err
+	}
+
+	// if operating in async mode, we're done
+	if async {
+		return nil
+	}
+
+	// if indexing in sync mode, wait till we're done and ensure we have have indexed the entry
+	wg.Wait()
+	if entry.needsIndexUpdate(timestamp) {
+		// i.e. indexing failed
+		return fmt.Errorf("internal error: unable to index series")
+	}
+
+	return nil
+}
+
 func (s *dbShard) insertSeriesAsyncBatched(
 	id ident.ID,
 	tags ident.TagIterator,
@@ -1127,6 +1168,17 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	anyPendingAction := false
 
 	s.Lock()
+	s.indexWriteEntryBatchLock.Lock()
+	// reset s.indexWriteEntryBatch from all exit points
+	defer func() {
+		var empty indexWriteEntry
+		for i := range s.indexWriteEntryBatch {
+			s.indexWriteEntryBatch[i] = empty
+		}
+		s.indexWriteEntryBatch = s.indexWriteEntryBatch[:0]
+		s.indexWriteEntryBatchLock.Unlock()
+	}()
+
 	for i := range inserts {
 		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.series.ID())
 		if entry != nil {
@@ -1200,7 +1252,12 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// only index any entry that hasn't crossed the nextIndexTime
 			if entry.needsIndexUpdate(pendingIndex.timestamp) {
 				entry.onIndexPrepare()
-				s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), pendingIndex.timestamp, entry)
+				s.indexWriteEntryBatch = append(s.indexWriteEntryBatch, indexWriteEntry{
+					id:        entry.series.ID(),
+					tags:      entry.series.Tags(),
+					timestamp: pendingIndex.timestamp,
+					fns:       entry,
+				})
 			}
 		}
 
@@ -1215,10 +1272,16 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		}
 	}
 
+	var err error
+	// index all requested entries in batch.
+	if len(s.indexWriteEntryBatch) != 0 {
+		err = s.reverseIndex.WriteBatch(s.indexWriteEntryBatch)
+	}
+
 	// Avoid goroutine spinning up to close this context
 	ctx.BlockingClose()
 
-	return nil
+	return err
 }
 
 func (s *dbShard) FetchBlocks(

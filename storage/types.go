@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/x/xcounter"
 	"github.com/m3db/m3db/x/xio"
-	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -429,12 +428,9 @@ type databaseShard interface {
 
 // namespaceIndex indexes namespace writes.
 type namespaceIndex interface {
-	// Write indexes timeseries ID by provided Tags.
-	Write(
-		id ident.ID,
-		tags ident.Tags,
-		timestamp time.Time,
-		fns index.OnIndexSeries,
+	// WriteBatch indexes the provided entries.
+	WriteBatch(
+		entries []indexWriteEntry,
 	) error
 
 	// Query resolves the given query into known IDs.
@@ -455,6 +451,13 @@ type namespaceIndex interface {
 
 	// Close will release the index resources and close the index.
 	Close() error
+}
+
+type indexWriteEntry struct {
+	id        ident.ID
+	tags      ident.Tags
+	timestamp time.Time
+	fns       index.OnIndexSeries
 }
 
 // namespaceIndexTickResult are details about the work performed by the namespaceIndex
@@ -480,7 +483,13 @@ type namespaceIndexInsertQueue interface {
 	// inserts to the index asynchronously. It executes the provided callbacks
 	// based on the result of the execution. The returned wait group can be used
 	// if the insert is required to be synchronous.
-	Insert(blockStart time.Time, d doc.Document, s index.OnIndexSeries) (*sync.WaitGroup, error)
+	// Insert(blockStart time.Time, d doc.Document, s index.OnIndexSeries) (*sync.WaitGroup, error)
+
+	// InsertBatch inserts the provided documents to the index queue which processes
+	// inserts to the index asynchronously. It executes the provided callbacks
+	// based on the result of the execution. The returned wait group can be used
+	// if the insert is required to be synchronous.
+	InsertBatch(entries []index.WriteBatchEntry) (*sync.WaitGroup, error)
 }
 
 // databaseBootstrapManager manages the bootstrap process.

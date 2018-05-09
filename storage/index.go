@@ -30,14 +30,11 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap/result"
-	m3dberrors "github.com/m3db/m3db/storage/errors"
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
@@ -224,61 +221,79 @@ func newNamespaceIndexWithOptions(
 //        => indexQueue.Insert()
 //      	=> index.writeBatch()
 
-func (i *nsIndex) Write(
-	id ident.ID,
-	tags ident.Tags,
-	timestamp time.Time,
-	fns index.OnIndexSeries,
+func (i *nsIndex) WriteBatch(
+	entries []indexWriteEntry,
 ) error {
 	// Ensure timestamp is not too old/new based on retention policies.
 	now := i.nowFn()
 	futureLimit := now.Add(1 * i.bufferFuture)
 	pastLimit := now.Add(-1 * i.bufferPast)
 
-	if !futureLimit.After(timestamp) {
-		fns.OnIndexFinalize()
-		return m3dberrors.ErrTooFuture
-	}
+	// TODO(prateek): pool this type
+	queueBatch := make([]index.WriteBatchEntry, 0, len(entries))
 
-	if !pastLimit.Before(timestamp) {
-		fns.OnIndexFinalize()
-		return m3dberrors.ErrTooPast
-	}
+	for _, entry := range entries {
+		var (
+			id        = entry.id
+			tags      = entry.tags
+			timestamp = entry.timestamp
+			fns       = entry.fns
+		)
+		if !futureLimit.After(timestamp) {
+			fns.OnIndexFinalize()
+			continue
+			// TODO(prateek): return m3dberrors.ErrTooFuture
+		}
 
-	// Ensure metric can be converted to a valid document
-	d, err := convert.FromMetric(id, tags)
-	if err != nil {
-		fns.OnIndexFinalize()
-		return err
-	}
+		if !pastLimit.Before(timestamp) {
+			fns.OnIndexFinalize()
+			continue
+			// TODO(prateek): return m3dberrors.ErrTooPast
+		}
 
-	indexBlockStart := timestamp.Truncate(i.blockSize)
-	return i.queueWrite(indexBlockStart, d, fns)
+		// Ensure metric can be converted to a valid document
+		d, err := convert.FromMetric(id, tags)
+		if err != nil {
+			fns.OnIndexFinalize()
+			continue
+			// TODO(prateek): return err
+		}
+
+		indexBlockStart := xtime.ToUnixNano(timestamp.Truncate(i.blockSize))
+		queueBatch = append(queueBatch, index.WriteBatchEntry{
+			BlockStart:    indexBlockStart,
+			Document:      d,
+			OnIndexSeries: fns,
+		})
+	}
+	return i.enqueueBatch(queueBatch)
 }
 
-func (i *nsIndex) queueWrite(
-	indexBlockStart time.Time,
-	d doc.Document,
-	fns index.OnIndexSeries,
+func (i *nsIndex) enqueueBatch(
+	entries []index.WriteBatchEntry,
 ) error {
 	i.state.RLock()
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()
 		i.metrics.InsertAfterClose.Inc(1)
-		fns.OnIndexFinalize()
+		for _, entry := range entries {
+			entry.OnIndexSeries.OnIndexFinalize()
+		}
 		return errDbIndexUnableToWriteClosed
 	}
 
 	// NB(prateek): retrieving insertMode here while we have the RLock.
 	insertMode := i.state.runtimeOpts.insertMode
-	wg, err := i.state.insertQueue.Insert(indexBlockStart, d, fns)
+	wg, err := i.state.insertQueue.InsertBatch(entries)
 
 	// release the lock because we don't need it past this point.
 	i.state.RUnlock()
 
 	// if we're unable to index, we still have to finalize the reference we hold.
 	if err != nil {
-		fns.OnIndexFinalize()
+		for _, entry := range entries {
+			entry.OnIndexSeries.OnIndexFinalize()
+		}
 		return err
 	}
 	// once the write has been queued in the indexInsertQueue, it assumes
@@ -356,7 +371,7 @@ func (i *nsIndex) writeBatchForBlockStartWithRLock(
 		i.metrics.AsyncInsertErrors.Inc(numErr)
 	}
 	if err != nil {
-		i.logger.Errorf("unable to write to index, dropping inserts. [%v]", err)
+		// i.logger.Errorf("unable to write to index, dropping inserts. [%v]", err)
 	}
 }
 

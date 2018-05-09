@@ -44,7 +44,6 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/x/xcounter"
 	"github.com/m3db/m3db/x/xio"
-	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -1383,16 +1382,16 @@ func (m *MocknamespaceIndex) EXPECT() *MocknamespaceIndexMockRecorder {
 	return m.recorder
 }
 
-// Write mocks base method
-func (m *MocknamespaceIndex) Write(id ident.ID, tags ident.Tags, timestamp time.Time, fns index.OnIndexSeries) error {
-	ret := m.ctrl.Call(m, "Write", id, tags, timestamp, fns)
+// WriteBatch mocks base method
+func (m *MocknamespaceIndex) WriteBatch(entries []indexWriteEntry) error {
+	ret := m.ctrl.Call(m, "WriteBatch", entries)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Write indicates an expected call of Write
-func (mr *MocknamespaceIndexMockRecorder) Write(id, tags, timestamp, fns interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Write", reflect.TypeOf((*MocknamespaceIndex)(nil).Write), id, tags, timestamp, fns)
+// WriteBatch indicates an expected call of WriteBatch
+func (mr *MocknamespaceIndexMockRecorder) WriteBatch(entries interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MocknamespaceIndex)(nil).WriteBatch), entries)
 }
 
 // Query mocks base method
@@ -1492,17 +1491,17 @@ func (mr *MocknamespaceIndexInsertQueueMockRecorder) Stop() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Stop))
 }
 
-// Insert mocks base method
-func (m *MocknamespaceIndexInsertQueue) Insert(blockStart time.Time, d doc.Document, s index.OnIndexSeries) (*sync.WaitGroup, error) {
-	ret := m.ctrl.Call(m, "Insert", blockStart, d, s)
+// InsertBatch mocks base method
+func (m *MocknamespaceIndexInsertQueue) InsertBatch(entries []index.WriteBatchEntry) (*sync.WaitGroup, error) {
+	ret := m.ctrl.Call(m, "InsertBatch", entries)
 	ret0, _ := ret[0].(*sync.WaitGroup)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Insert indicates an expected call of Insert
-func (mr *MocknamespaceIndexInsertQueueMockRecorder) Insert(blockStart, d, s interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Insert), blockStart, d, s)
+// InsertBatch indicates an expected call of InsertBatch
+func (mr *MocknamespaceIndexInsertQueueMockRecorder) InsertBatch(entries interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBatch", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).InsertBatch), entries)
 }
 
 // MockdatabaseBootstrapManager is a mock of databaseBootstrapManager interface
