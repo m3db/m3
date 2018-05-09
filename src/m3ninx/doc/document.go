@@ -138,7 +138,7 @@ func (d Document) Equal(other Document) bool {
 
 // Validate returns a bool indicating whether the document is valid.
 func (d Document) Validate() error {
-	if len(d.Fields) == 0 {
+	if len(d.Fields) == 0 && !d.HasID() {
 		return errEmptyDocument
 	}
 
