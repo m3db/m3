@@ -37,9 +37,10 @@ import (
 	"github.com/m3db/m3coordinator/test/local"
 	"github.com/m3db/m3coordinator/util/logging"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3x/ident"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -3,6 +3,10 @@
     "badtime": {
       "Command": "badtime",
       "Pattern": "PATH:LINE:COL:MESSAGE"
+    },
+    "importorder": {
+      "Command": "importorder -patterns=\"STDLIB github.com/m3db/m3coordinator github.com/m3db EXTERNAL\"",
+      "Pattern": "PATH:LINE:MESSAGE"
     }
   },
   "Enable":
@@ -16,7 +20,8 @@
     , "unparam"
     , "megacheck"
     , "badtime"
-    , "golint" ],
+    , "golint"
+    , "importorder" ],
   "Deadline": "3m",
   "EnableGC": true
 }

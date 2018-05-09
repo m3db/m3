@@ -27,7 +27,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3coordinator/benchmark/common"
 	"github.com/m3db/m3coordinator/generated/proto/prompb"
 	"github.com/m3db/m3coordinator/services/m3coordinator/config"
@@ -36,6 +35,7 @@ import (
 	"github.com/m3db/m3db/encoding"
 	xconfig "github.com/m3db/m3x/config"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 )
 

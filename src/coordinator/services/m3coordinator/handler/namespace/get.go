@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3cluster/kv"
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
+
 	"go.uber.org/zap"
 )
 
