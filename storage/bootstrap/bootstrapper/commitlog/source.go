@@ -562,7 +562,7 @@ func (s *commitLogSource) ReadIndex(
 		}
 
 		// The index will not accept empty documents
-		if series.Tags == nil {
+		if len(series.Tags) == 0 {
 			continue
 		}
 
