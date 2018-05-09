@@ -21,6 +21,8 @@
 package query
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/search"
 	"github.com/m3db/m3ninx/search/searcher"
@@ -70,4 +72,8 @@ func (q *DisjuctionQuery) Searcher(rs index.Readers) (search.Searcher, error) {
 	}
 
 	return searcher.NewDisjunctionSearcher(len(rs), srs)
+}
+
+func (q *DisjuctionQuery) String() string {
+	return fmt.Sprintf("disjunction(%s)", join(q.Queries))
 }
