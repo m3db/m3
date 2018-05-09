@@ -481,6 +481,9 @@ type namespaceIndexInsertQueue interface {
 	// based on the result of the execution. The returned wait group can be used
 	// if the insert is required to be synchronous.
 	Insert(blockStart time.Time, d doc.Document, s index.OnIndexSeries) (*sync.WaitGroup, error)
+
+	// SetRuntimeOptions updates the runtime options for the queue.
+	SetRuntimeOptions(value runtime.Options)
 }
 
 // databaseBootstrapManager manages the bootstrap process.

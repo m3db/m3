@@ -33,6 +33,18 @@ const (
 	// configuration specifying a hard limit for a cluster new series insertions.
 	ClusterNewSeriesInsertLimitKey = "m3db.node.cluster-new-series-insert-limit"
 
+	// ClusterNewSeriesBackoffDurationNanosKey is the KV config key for the runtime
+	// configuration specifying the backof duration between batches of insertions.
+	ClusterNewSeriesBackoffDurationNanosKey = "m3db.node.cluster-new-series-backoff-duration-nanos"
+
+	// ClusterNewSeriesIndexLimitKey is the KV config key for the runtime
+	// configuration specifying a hard limit for a cluster new series indexings.
+	ClusterNewSeriesIndexLimitKey = "m3db.node.cluster-new-series-index-limit"
+
+	// ClusterNewSeriesIndexBackoffDurationNanosKey is the KV config key for the runtime
+	// configuration specifying the backof duration between batches of indexing operations.
+	ClusterNewSeriesIndexBackoffDurationNanosKey = "m3db.node.cluster-new-series-index-backoff-duration-nanos"
+
 	// ClientBootstrapConsistencyLevel is the KV config key for the runtime
 	// configuration specifying the client bootstrap consistency level
 	ClientBootstrapConsistencyLevel = "m3db.client.bootstrap-consistency-level"

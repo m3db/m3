@@ -123,6 +123,12 @@ type InsertConfiguration struct {
 
 	// Write new series backoff between batches of new series insertions.
 	WriteNewSeriesBackoffDuration time.Duration `yaml:"writeNewSeriesBackoffDuration"`
+
+	// Index new series limit per second to limit overwhelming during new ID bursts.
+	IndexNewSeriesLimitPerSecond int `yaml:"indexNewSeriesLimitPerSecond"`
+
+	// Index new series backoff between batches of new series indexing ops.
+	IndexNewSeriesBackoffDuration time.Duration `yaml:"indexNewSeriesBackoffDuration"`
 }
 
 // TickConfiguration is the tick configuration for background processing of

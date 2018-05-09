@@ -72,7 +72,7 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 		return mockBlock, nil
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	index, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	index, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, testDatabaseOptions().SetIndexOptions(opts))
 	require.NoError(t, err)
 
 	indexState := index.(*nsIndex).state
@@ -103,7 +103,7 @@ func TestNamespaceIndexNewBlockFnRandomErr(t *testing.T) {
 		return nil, fmt.Errorf("randomerr")
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	_, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	_, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, testDatabaseOptions().SetIndexOptions(opts))
 	require.Error(t, err)
 }
 
@@ -125,7 +125,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 		return mockBlock, nil
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, testDatabaseOptions().SetIndexOptions(opts))
 	require.NoError(t, err)
 
 	blockStart := xtime.ToUnixNano(now.Truncate(blockSize))
@@ -174,7 +174,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, testDatabaseOptions().SetIndexOptions(opts))
 	require.NoError(t, err)
 
 	id := ident.StringID("foo")
@@ -228,7 +228,7 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, 4*time.Hour)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, testDatabaseOptions().SetIndexOptions(opts))
 	require.NoError(t, err)
 
 	seg1 := segment.NewMockSegment(ctrl)
@@ -270,7 +270,7 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retentionPeriod)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, testDatabaseOptions().SetIndexOptions(opts))
 	require.NoError(t, err)
 
 	nowLock.Lock()
@@ -312,7 +312,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retentionPeriod)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, testDatabaseOptions().SetIndexOptions(opts))
 	require.NoError(t, err)
 
 	c := context.NewCancellable()
@@ -397,7 +397,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		panic("should never get here")
 	}
 	md := testNamespaceMetadata(blockSize, retention)
-	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
+	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, testDatabaseOptions().SetIndexOptions(opts))
 	require.NoError(t, err)
 
 	seg1 := segment.NewMockSegment(ctrl)

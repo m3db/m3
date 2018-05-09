@@ -1505,6 +1505,16 @@ func (mr *MocknamespaceIndexInsertQueueMockRecorder) Insert(blockStart, d, s int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).Insert), blockStart, d, s)
 }
 
+// SetRuntimeOptions mocks base method
+func (m *MocknamespaceIndexInsertQueue) SetRuntimeOptions(value runtime.Options) {
+	m.ctrl.Call(m, "SetRuntimeOptions", value)
+}
+
+// SetRuntimeOptions indicates an expected call of SetRuntimeOptions
+func (mr *MocknamespaceIndexInsertQueueMockRecorder) SetRuntimeOptions(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetRuntimeOptions", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).SetRuntimeOptions), value)
+}
+
 // MockdatabaseBootstrapManager is a mock of databaseBootstrapManager interface
 type MockdatabaseBootstrapManager struct {
 	ctrl     *gomock.Controller

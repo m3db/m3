@@ -43,6 +43,7 @@ const (
 	defaultWriteNewSeriesLimitPerShardPerSecond = 0
 	defaultIndexNewSeriesBackoffDuration        = time.Duration(0)
 	defaultIndexNewSeriesLimitPerSecond         = 0
+	defaultIndexResponseLimit                   = 0
 	defaultTickSeriesBatchSize                  = 512
 	defaultTickPerSeriesSleepDuration           = 100 * time.Microsecond
 	defaultTickMinimumInterval                  = time.Minute
@@ -71,6 +72,7 @@ type options struct {
 	writeNewSeriesLimitPerShardPerSecond int
 	indexNewSeriesBackoffDuration        time.Duration
 	indexNewSeriesLimitPerSecond         int
+	indexResponseLimit                   int
 	tickSeriesBatchSize                  int
 	tickPerSeriesSleepDuration           time.Duration
 	tickMinimumInterval                  time.Duration
@@ -89,6 +91,7 @@ func NewOptions() Options {
 		writeNewSeriesLimitPerShardPerSecond: defaultWriteNewSeriesLimitPerShardPerSecond,
 		indexNewSeriesBackoffDuration:        defaultIndexNewSeriesBackoffDuration,
 		indexNewSeriesLimitPerSecond:         defaultIndexNewSeriesLimitPerSecond,
+		indexResponseLimit:                   defaultIndexResponseLimit,
 		tickSeriesBatchSize:                  defaultTickSeriesBatchSize,
 		tickPerSeriesSleepDuration:           defaultTickPerSeriesSleepDuration,
 		tickMinimumInterval:                  defaultTickMinimumInterval,
@@ -193,6 +196,16 @@ func (o *options) SetIndexNewSeriesLimitPerSecond(value int) Options {
 
 func (o *options) IndexNewSeriesLimitPerSecond() int {
 	return o.indexNewSeriesLimitPerSecond
+}
+
+func (o *options) SetIndexResponseLimit(value int) Options {
+	opts := *o
+	opts.indexResponseLimit = value
+	return &opts
+}
+
+func (o *options) IndexResponseLimit() int {
+	return o.indexResponseLimit
 }
 
 func (o *options) SetTickSeriesBatchSize(value int) Options {

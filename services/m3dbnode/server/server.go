@@ -186,19 +186,12 @@ func Run(runOpts RunOptions) {
 			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbps).
 			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEvery)).
 		SetWriteNewSeriesAsync(cfg.Insert.WriteNewSeriesAsync).
-		SetWriteNewSeriesBackoffDuration(cfg.Insert.WriteNewSeriesBackoffDuration)
+		SetWriteNewSeriesBackoffDuration(cfg.Insert.WriteNewSeriesBackoffDuration).
+		SetIndexNewSeriesLimitPerSecond(cfg.Insert.IndexNewSeriesLimitPerSecond).
+		SetIndexNewSeriesBackoffDuration(cfg.Insert.IndexNewSeriesBackoffDuration)
 	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
 		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
 	}
-
-	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
-	indexOpts := opts.IndexOptions()
-	insertMode := index.InsertSync
-	if cfg.Insert.WriteNewSeriesAsync {
-		insertMode = index.InsertAsync
-	}
-	opts = opts.SetIndexOptions(
-		indexOpts.SetInsertMode(insertMode))
 
 	if tick := cfg.Tick; tick != nil {
 		runtimeOpts = runtimeOpts.
@@ -519,6 +512,9 @@ func Run(runOpts RunOptions) {
 		// Only set the write new series limit after bootstrapping
 		kvWatchNewSeriesLimitPerShard(envCfg.KVStore, logger, topo,
 			runtimeOptsMgr, cfg.Insert.WriteNewSeriesLimitPerSecond)
+
+		kvWatchIndexNewSeriesLimit(envCfg.KVStore, logger, topo,
+			runtimeOptsMgr, cfg.Insert.IndexNewSeriesLimitPerSecond)
 	}()
 
 	// Handle interrupt
@@ -619,6 +615,97 @@ func kvWatchNewSeriesLimitPerShard(
 			}
 		}
 	}()
+}
+
+func setNewSeriesLimitPerShardOnChange(
+	topo topology.Topology,
+	runtimeOptsMgr m3dbruntime.OptionsManager,
+	clusterLimit int,
+) error {
+	perPlacedShardLimit := clusterLimitToPlacedShardLimit(topo, clusterLimit)
+	runtimeOpts := runtimeOptsMgr.Get()
+	if runtimeOpts.WriteNewSeriesLimitPerShardPerSecond() == perPlacedShardLimit {
+		// Not changed, no need to set the value and trigger a runtime options update
+		return nil
+	}
+
+	newRuntimeOpts := runtimeOpts.
+		SetWriteNewSeriesLimitPerShardPerSecond(perPlacedShardLimit)
+	return runtimeOptsMgr.Update(newRuntimeOpts)
+}
+
+func kvWatchIndexNewSeriesLimit(
+	store kv.Store,
+	logger xlog.Logger,
+	topo topology.Topology,
+	runtimeOptsMgr m3dbruntime.OptionsManager,
+	defaultClusterIndexNewSeriesLimit int,
+) {
+	var initClusterLimit int
+
+	value, err := store.Get(kvconfig.ClusterNewSeriesIndexLimitKey)
+	if err == nil {
+		protoValue := &commonpb.Int64Proto{}
+		err = value.Unmarshal(protoValue)
+		if err == nil {
+			initClusterLimit = int(protoValue.Value)
+		}
+	}
+
+	if err != nil {
+		if err != kv.ErrNotFound {
+			logger.Warnf("error resolving cluster new series index insert limit: %v", err)
+		}
+		initClusterLimit = defaultClusterIndexNewSeriesLimit
+	}
+
+	err = setIndexNewSeriesLimit(topo, runtimeOptsMgr, initClusterLimit)
+	if err != nil {
+		logger.Warnf("unable to set cluster new series index insert limit: %v", err)
+	}
+
+	watch, err := store.Watch(kvconfig.ClusterNewSeriesIndexLimitKey)
+	if err != nil {
+		logger.Errorf("could not watch cluster new series index insert limit: %v", err)
+		return
+	}
+
+	go func() {
+		protoValue := &commonpb.Int64Proto{}
+		for range watch.C() {
+			value := defaultClusterIndexNewSeriesLimit
+			if newValue := watch.Get(); newValue != nil {
+				if err := newValue.Unmarshal(protoValue); err != nil {
+					logger.Warnf("unable to parse new cluster new series index insert limit: %v", err)
+					continue
+				}
+				value = int(protoValue.Value)
+			}
+
+			err = setIndexNewSeriesLimit(topo, runtimeOptsMgr, value)
+			if err != nil {
+				logger.Warnf("unable to set cluster new series index insert limit: %v", err)
+				continue
+			}
+		}
+	}()
+}
+
+func setIndexNewSeriesLimit(
+	topo topology.Topology,
+	runtimeOptsMgr m3dbruntime.OptionsManager,
+	clusterLimit int,
+) error {
+	nodeLimit := clusterLimitToNodeLimit(topo, clusterLimit)
+	runtimeOpts := runtimeOptsMgr.Get()
+	if runtimeOpts.IndexNewSeriesLimitPerSecond() == nodeLimit {
+		// Not changed, no need to set the value and trigger a runtime options update
+		return nil
+	}
+
+	newRuntimeOpts := runtimeOpts.
+		SetIndexNewSeriesLimitPerSecond(nodeLimit)
+	return runtimeOptsMgr.Update(newRuntimeOpts)
 }
 
 func kvWatchClientConsistencyLevels(
@@ -748,21 +835,17 @@ func kvWatchStringValue(
 	}()
 }
 
-func setNewSeriesLimitPerShardOnChange(
-	topo topology.Topology,
-	runtimeOptsMgr m3dbruntime.OptionsManager,
-	clusterLimit int,
-) error {
-	perPlacedShardLimit := clusterLimitToPlacedShardLimit(topo, clusterLimit)
-	runtimeOpts := runtimeOptsMgr.Get()
-	if runtimeOpts.WriteNewSeriesLimitPerShardPerSecond() == perPlacedShardLimit {
-		// Not changed, no need to set the value and trigger a runtime options update
-		return nil
+func clusterLimitToNodeLimit(topo topology.Topology, clusterLimit int) int {
+	if clusterLimit < 1 {
+		return 0
 	}
-
-	newRuntimeOpts := runtimeOpts.
-		SetWriteNewSeriesLimitPerShardPerSecond(perPlacedShardLimit)
-	return runtimeOptsMgr.Update(newRuntimeOpts)
+	topoMap := topo.Get()
+	numHosts := topoMap.HostsLen()
+	if numHosts < 1 {
+		return 0
+	}
+	nodeLimit := int(math.Ceil(float64(clusterLimit) / float64(numHosts)))
+	return nodeLimit
 }
 
 func clusterLimitToPlacedShardLimit(topo topology.Topology, clusterLimit int) int {

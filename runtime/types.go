@@ -103,6 +103,14 @@ type Options interface {
 	// time series being indexed.
 	IndexNewSeriesLimitPerSecond() int
 
+	// SetIndexResponseLimit sets the maximum number of IDs returned from a QueryIDs/
+	// FetchTagged RPC call by a single host. Setting to zero disables any limit.
+	SetIndexResponseLimit(value int) Options
+
+	// IndexResponseLimit sets the maximum number of IDs returned from a QueryIDs/
+	// FetchTagged RPC call by a single host. Setting to zero disables any limit.
+	IndexResponseLimit() int
+
 	// SetTickSeriesBatchSize sets the batch size to process series together
 	// during a tick before yielding and sleeping the per series duration
 	// multiplied by the batch size.
