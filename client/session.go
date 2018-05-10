@@ -2244,7 +2244,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 			if bytes := elem.EncodedTags; len(bytes) != 0 {
 				encodedTags = bytesPool.Get(len(bytes))
 				encodedTags.IncRef()
-				encodedTags.AppendAll(elem.ID)
+				encodedTags.AppendAll(bytes)
 				encodedTags.DecRef()
 			}
 
@@ -3870,6 +3870,7 @@ func newTagsFromEncodedTags(
 		return nil, nil
 	}
 
+	encodedTags.IncRef()
 	tagDecoder.Reset(encodedTags)
 
 	tags := make(ident.Tags, 0, tagDecoder.Remaining())
@@ -3877,6 +3878,9 @@ func newTagsFromEncodedTags(
 		curr := tagDecoder.Current()
 		tags = append(tags, idPool.CloneTag(curr))
 	}
+
+	encodedTags.DecRef()
+
 	if err := tagDecoder.Err(); err != nil {
 		return nil, err
 	}
