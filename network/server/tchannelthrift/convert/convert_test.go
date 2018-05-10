@@ -72,13 +72,46 @@ func regexpQueryTestCase(t *testing.T) (idx.Query, *rpc.IdxQuery) {
 	}
 }
 
+func negateTermQueryTestCase(t *testing.T) (idx.Query, *rpc.IdxQuery) {
+	q3 := idx.NewNegationQuery(idx.NewTermQuery([]byte("foo"), []byte("bar")))
+	return q3, &rpc.IdxQuery{
+		Operator: rpc.BooleanOperator_AND_OPERATOR,
+		Filters: []*rpc.IdxTagFilter{
+			&rpc.IdxTagFilter{
+				TagName:        []byte("foo"),
+				TagValueFilter: []byte("bar"),
+				Negate:         true,
+			},
+		},
+	}
+}
+
+func negateRegexpQueryTestCase(t *testing.T) (idx.Query, *rpc.IdxQuery) {
+	inner, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
+	require.NoError(t, err)
+	q3 := idx.NewNegationQuery(inner)
+	return q3, &rpc.IdxQuery{
+		Operator: rpc.BooleanOperator_AND_OPERATOR,
+		Filters: []*rpc.IdxTagFilter{
+			&rpc.IdxTagFilter{
+				TagName:        []byte("foo"),
+				TagValueFilter: []byte("b.*"),
+				Regexp:         true,
+				Negate:         true,
+			},
+		},
+	}
+}
+
 func conjunctionQueryATestCase(t *testing.T) (idx.Query, *rpc.IdxQuery) {
 	q1, rq1 := termQueryTestCase(t)
 	q2, rq2 := regexpQueryTestCase(t)
-	q := idx.NewConjunctionQuery(q1, q2)
+	q3, rq3 := negateTermQueryTestCase(t)
+	q4, rq4 := negateRegexpQueryTestCase(t)
+	q := idx.NewConjunctionQuery(q1, q2, q3, q4)
 	return q, &rpc.IdxQuery{
 		Operator:   rpc.BooleanOperator_AND_OPERATOR,
-		SubQueries: []*rpc.IdxQuery{rq1, rq2},
+		SubQueries: []*rpc.IdxQuery{rq1, rq2, rq3, rq4},
 	}
 }
 
@@ -118,6 +151,8 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 		}{
 			{"Term Query", termQueryTestCase},
 			{"Regexp Query", regexpQueryTestCase},
+			{"Negate Term Query", negateTermQueryTestCase},
+			{"Negate Regexp Query", negateRegexpQueryTestCase},
 			{"Conjunction Query A", conjunctionQueryATestCase},
 		}
 		for _, tc := range testCases {
