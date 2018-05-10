@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -41,9 +41,17 @@ func TestConfigureStatic(t *testing.T) {
 			Namespaces: []StaticNamespaceConfiguration{
 				StaticNamespaceConfiguration{
 					Name: "metrics",
+					Retention: &StaticNamespaceRetention{
+						RetentionPeriod: 24 * time.Hour,
+						BlockSize:       time.Hour,
+					},
 				},
 				StaticNamespaceConfiguration{
 					Name: "other-metrics",
+					Retention: &StaticNamespaceRetention{
+						RetentionPeriod: 24 * time.Hour,
+						BlockSize:       time.Hour,
+					},
 				},
 			},
 			TopologyConfig: &topology.StaticConfiguration{
