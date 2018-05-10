@@ -56,18 +56,29 @@ func TestBootstrapIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	now := time.Now()
-	start := now.Truncate(dataBlockSize).Add(-2 * dataBlockSize)
+	start := now.Truncate(indexBlockSize)
 
 	fooTags := ident.Tags{ident.StringTag("city", "ny"), ident.StringTag("conference", "monitoroma")}
 	barTags := ident.Tags{ident.StringTag("city", "sf")}
 	bazTags := ident.Tags{ident.StringTag("city", "oakland")}
 	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo"), Tags: fooTags}
 	bar := commitlog.Series{Namespace: testNamespaceID, Shard: 1, ID: ident.StringID("bar"), Tags: barTags}
-	baz := commitlog.Series{Namespace: testNamespaceID, Shard: 2, ID: ident.StringID("baz"), Tags: bazTags}
-	// Make sure we can handle series that don't have tags
-	unindexed := commitlog.Series{Namespace: testNamespaceID, Shard: 3, ID: ident.StringID("unindexed"), Tags: nil}
-	// Make sure we skip series that are not within the bootstrap range
+	baz := commitlog.Series{Namespace: testNamespaceID, Shard: 5, ID: ident.StringID("baz"), Tags: bazTags}
+	// Make sure we can handle series that don't have tags.
+	untagged := commitlog.Series{Namespace: testNamespaceID, Shard: 5, ID: ident.StringID("untagged"), Tags: nil}
+	// Make sure we skip series that are not within the bootstrap range.
 	outOfRange := commitlog.Series{Namespace: testNamespaceID, Shard: 3, ID: ident.StringID("outOfRange"), Tags: nil}
+	// Make sure we skip and dont panic on writes for shards that are higher than the maximum we're trying to bootstrap.
+	shardTooHigh := commitlog.Series{Namespace: testNamespaceID, Shard: 100, ID: ident.StringID("shardTooHigh"), Tags: nil}
+	// Make sure we skip series for shards that have no requested bootstrap ranges. The shard for this write needs
+	// to be less than the highest shard we actually plan to bootstrap.
+	noShardBootstrapRange := commitlog.Series{Namespace: testNamespaceID, Shard: 4, ID: ident.StringID("noShardBootstrapRange"), Tags: nil}
+
+	seriesNotToExpect := map[string]struct{}{
+		outOfRange.ID.String():            struct{}{},
+		shardTooHigh.ID.String():          struct{}{},
+		noShardBootstrapRange.ID.String(): struct{}{},
+	}
 
 	values := []testValue{
 		{foo, start, 1.0, xtime.Second, nil},
@@ -76,8 +87,10 @@ func TestBootstrapIndex(t *testing.T) {
 		{bar, start.Add(dataBlockSize), 2.0, xtime.Second, nil},
 		{baz, start.Add(2 * dataBlockSize), 1.0, xtime.Second, nil},
 		{baz, start.Add(2 * dataBlockSize), 2.0, xtime.Second, nil},
-		{unindexed, start.Add(2 * dataBlockSize), 1.0, xtime.Second, nil},
+		{untagged, start.Add(2 * dataBlockSize), 1.0, xtime.Second, nil},
 		{outOfRange, start.Add(-blockSize), 1.0, xtime.Second, nil},
+		{shardTooHigh, start.Add(dataBlockSize), 1.0, xtime.Second, nil},
+		{noShardBootstrapRange, start.Add(dataBlockSize), 1.0, xtime.Second, nil},
 	}
 
 	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
@@ -98,7 +111,8 @@ func TestBootstrapIndex(t *testing.T) {
 		End:   start.Add(3 * dataBlockSize),
 	})
 
-	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges, 2: ranges, 3: ranges}
+	// Don't include ranges for shard 4 as thats how we're testing the noShardBootstrapRange series.
+	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges, 2: ranges, 5: ranges}
 	res, err := src.ReadIndex(md, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 
@@ -110,8 +124,7 @@ func TestBootstrapIndex(t *testing.T) {
 
 	expectedIndexBlocks := map[xtime.UnixNano]map[string]map[string]string{}
 	for _, value := range values {
-		if value.s.ID.Equal(outOfRange.ID) {
-			// Don't expect the out of range series to be included
+		if _, shouldNotExpect := seriesNotToExpect[value.s.ID.String()]; shouldNotExpect {
 			continue
 		}
 
@@ -173,4 +186,40 @@ func TestBootstrapIndex(t *testing.T) {
 			require.Equal(t, len(expectedSeries), len(seenSeries))
 		}
 	}
+}
+
+func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
+	var (
+		opts             = testOptions()
+		src              = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
+		dataBlockSize    = 2 * time.Hour
+		indexBlockSize   = 4 * time.Hour
+		namespaceOptions = namespace.NewOptions().
+					SetRetentionOptions(
+				namespace.NewOptions().
+					RetentionOptions().
+					SetBlockSize(dataBlockSize),
+			).
+			SetIndexOptions(
+				namespace.NewOptions().
+					IndexOptions().
+					SetBlockSize(indexBlockSize),
+			)
+	)
+	md, err := namespace.NewMetadata(testNamespaceID, namespaceOptions)
+	require.NoError(t, err)
+
+	values := []testValue{}
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
+		return newTestCommitLogIterator(values, nil), nil
+	}
+
+	res, err := src.ReadIndex(md, result.ShardTimeRanges{}, testDefaultRunOpts)
+	require.NoError(t, err)
+
+	// Data blockSize is 2 hours and index blockSize is four hours so the data blocks
+	// will span two different index blocks.
+	indexResults := res.IndexResults()
+	require.Equal(t, 0, len(indexResults))
+	require.Equal(t, 0, len(res.Unfulfilled()))
 }
