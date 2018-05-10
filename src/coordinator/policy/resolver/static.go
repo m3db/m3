@@ -40,7 +40,8 @@ func NewStaticResolver(sp policy.StoragePolicy) PolicyResolver {
 }
 
 func (r *staticResolver) Resolve(
-	ctx context.Context,
+	// Context needed here to satisfy PolicyResolver interface
+	ctx context.Context, // nolint: unparam
 	tagMatchers models.Matchers,
 	startTime, endTime time.Time,
 ) ([]tsdb.FetchRequest, error) {

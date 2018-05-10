@@ -71,7 +71,7 @@ type ConsolidatedSeriesBlock struct {
 	Start                time.Time
 	End                  time.Time
 	ConsolidatedNSBlocks []ConsolidatedNSBlock
-	consolidationFunc    ConsolidationFunc
+	consolidationFunc    ConsolidationFunc // nolint
 }
 
 func (c ConsolidatedSeriesBlock) beyondBounds(multiSeriesBlock MultiSeriesBlock) bool {

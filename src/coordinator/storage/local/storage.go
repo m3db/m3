@@ -119,17 +119,15 @@ func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery,
 	}
 
 	opts := storage.FetchOptionsToM3Options(options, query)
-
-	results, err := s.session.FetchTaggedIDs(s.namespace, m3query, opts)
+	// TODO (juchan): Handle second return param
+	iter, _, err := s.session.FetchTaggedIDs(s.namespace, m3query, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	iter := results.Iterator
-
 	var metrics models.Metrics
 	for iter.Next() {
-		m, err := storage.FromM3IdentToMetric(results.Iterator.Current())
+		m, err := storage.FromM3IdentToMetric(iter.Current())
 		if err != nil {
 			return nil, err
 		}

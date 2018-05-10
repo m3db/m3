@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/encoding"
 	xconfig "github.com/m3db/m3x/config"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
@@ -52,6 +53,11 @@ var (
 
 	readEndpoint string
 	coordinator  bool
+
+	configLoadOpts = xconfig.Options{
+		DisableUnmarshalStrict: false,
+		DisableValidate:        false,
+	}
 )
 
 func init() {
@@ -128,7 +134,7 @@ func benchmarkCoordinator(start, end time.Time) {
 
 func benchmarkM3DB(start, end time.Time) {
 	var cfg config.Configuration
-	if err := xconfig.LoadFile(&cfg, m3dbClientCfg); err != nil {
+	if err := xconfig.LoadFile(&cfg, m3dbClientCfg, configLoadOpts); err != nil {
 		log.Fatalf("Unable to load %s: %v", m3dbClientCfg, err)
 	}
 	m3dbClientOpts := cfg.M3DBClientCfg
@@ -147,7 +153,9 @@ func benchmarkM3DB(start, end time.Time) {
 	var rawResults encoding.SeriesIterators
 
 	fetch := func() {
-		rawResults, err = session.FetchAll(namespace, ids, start, end)
+		namespaceID := ident.StringID(namespace)
+		rawResults, err = session.FetchIDs(namespaceID, ident.NewStringIDsSliceIterator(ids), start, end)
+		namespaceID.Finalize()
 		if err != nil {
 			log.Fatalf("Unable to fetch metrics from m3db, got error %v\n", err)
 		}

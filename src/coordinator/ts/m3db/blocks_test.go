@@ -32,11 +32,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	blockOneID = "test_one"
-	blockTwoID = "test_two"
-)
-
 func newMultiNamespaceSeries(ctrl *gomock.Controller, now time.Time) ([]SeriesBlocks, []SeriesBlocks) {
 	seriesBlocksOne := newM3SeriesBlock("test_one", ctrl, now)
 	seriesOne := SeriesBlocks{

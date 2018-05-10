@@ -37,7 +37,7 @@ import (
 	"github.com/m3db/m3coordinator/test/local"
 	"github.com/m3db/m3coordinator/util/logging"
 
-	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -78,14 +78,8 @@ func generateSearchBody(t *testing.T) io.Reader {
 	return bytes.NewReader(data)
 }
 
-func generateQueryResults(tagsIter index.Iterator) index.QueryResults {
-	return index.QueryResults{
-		Iterator: tagsIter,
-	}
-}
-
-func generateTagIters(ctrl *gomock.Controller) *index.MockIterator {
-	mockTaggedIDsIter := index.NewMockIterator(ctrl)
+func generateTagIters(ctrl *gomock.Controller) *client.MockTaggedIDsIterator {
+	mockTaggedIDsIter := client.NewMockTaggedIDsIterator(ctrl)
 	mockTaggedIDsIter.EXPECT().Next().Return(true).MaxTimes(1)
 	mockTaggedIDsIter.EXPECT().Next().Return(false)
 	mockTaggedIDsIter.EXPECT().Current().Return(ident.StringID(testNamespace),
@@ -101,7 +95,7 @@ func searchServer(t *testing.T) *SearchHandler {
 	mockTaggedIDsIter := generateTagIters(ctrl)
 
 	storage, session := local.NewStorageAndSession(ctrl)
-	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(generateQueryResults(mockTaggedIDsIter), nil)
+	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(mockTaggedIDsIter, false, nil)
 	search := &SearchHandler{store: storage}
 
 	return search

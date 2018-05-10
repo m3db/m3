@@ -125,7 +125,7 @@ func (h *addHandler) add(r *admin.NamespaceAddRequest) (nsproto.Registry, error)
 	}
 
 	protoRegistry := namespace.ToProto(nsMap)
-	_, err = h.store.CheckAndSet(M3DBNodeNamespacesKey, version+1, protoRegistry)
+	_, err = h.store.CheckAndSet(M3DBNodeNamespacesKey, version, protoRegistry)
 	if err != nil {
 		return emptyReg, fmt.Errorf("failed to add namespace: %v", err)
 	}
