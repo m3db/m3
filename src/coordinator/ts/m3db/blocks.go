@@ -95,6 +95,7 @@ func newConsolidatedSeriesBlocks(multiNamespaceSeries MultiNamespaceSeries, seri
 }
 
 // newConsolidatedNSBlocks creates a slice of consolidated blocks per namespace for a single timeseries
+// nolint: unparam
 func newConsolidatedNSBlocks(seriesBlocks SeriesBlocks, seriesIteratorsPool encoding.MutableSeriesIteratorsPool) []ConsolidatedNSBlock {
 	consolidatedNSBlocks := make([]ConsolidatedNSBlock, 0, len(seriesBlocks.Blocks))
 	namespace := seriesBlocks.Namespace
