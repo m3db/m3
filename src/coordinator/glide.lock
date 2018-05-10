@@ -1,5 +1,5 @@
-hash: 2fa01ea433aaa8b515c0fb91a9456e36be15e14ff24e479af652b721b298d320
-updated: 2018-04-27T18:14:26.541156-04:00
+hash: 6234eb28f7d061c5d963ad19da146c7075749dab33fda976478aab61693112fd
+updated: 2018-05-09T17:19:09.301673-04:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -32,8 +32,6 @@ imports:
   version: adab96458c51a58dc1783b3335dcce5461522e75
   subpackages:
   - spew
-- name: github.com/facebookgo/clock
-  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/glycerine/go-unsnap-stream
   version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
 - name: github.com/go-kit/kit
@@ -97,7 +95,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3db
-  version: 3502804fd854b770eba72bb0811e9ad5b9114e50
+  version: 09a2703456f8a84fccc2b64b19ecfead7eb5164a
   subpackages:
   - client
   - clock
@@ -119,6 +117,7 @@ imports:
   - sharding
   - storage/block
   - storage/bootstrap/result
+  - storage/errors
   - storage/index
   - storage/namespace
   - storage/series
@@ -134,7 +133,7 @@ imports:
   - metric
   - policy
 - name: github.com/m3db/m3ninx
-  version: 96abb2b1b4f6ce1781177c67f2b95e0ee4eb8157
+  version: d0c2c4f2c5ab39db2382a6ea7f479abe568589cf
   subpackages:
   - doc
   - idx
@@ -142,15 +141,17 @@ imports:
   - index/segment
   - index/segment/mem
   - index/segment/mem/fieldsgen
+  - index/segment/mem/idsgen
   - index/segment/mem/postingsgen
   - index/util
   - postings
   - postings/roaring
   - search
+  - search/executor
   - search/query
   - search/searcher
 - name: github.com/m3db/m3x
-  version: 16e10665ade1d824950683afde6d9e37c8ffc957
+  version: f591af0fb913df0f2e8ecf6995d4aa406c4c13e0
   subpackages:
   - checked
   - clock
@@ -249,9 +250,9 @@ imports:
   subpackages:
   - msgp
 - name: github.com/uber-go/atomic
-  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
-  version: 522328b48efad0c6034dba92bf39228694e9d31f
+  version: 6f121596292a5ec8618b71ee3687fe42da73d289
   subpackages:
   - m3
   - m3/customtransports
@@ -271,7 +272,7 @@ imports:
 - name: github.com/willf/bitset
   version: 988f4f24992fc745de53c42df0da6581e42a6686
 - name: go.uber.org/atomic
-  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
@@ -344,5 +345,5 @@ imports:
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 - name: gopkg.in/yaml.v2
-  version: a83829b6f1293c91addabc89d0571c246397bbf4
+  version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
 testImports: []
