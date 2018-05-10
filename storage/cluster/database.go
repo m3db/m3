@@ -124,6 +124,10 @@ func NewDatabase(
 	return d, nil
 }
 
+func (d *clusterDB) Topology() topology.Topology {
+	return d.topo
+}
+
 func (d *clusterDB) Open() error {
 	select {
 	case <-d.watch.C():
