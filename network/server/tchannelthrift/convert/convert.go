@@ -45,6 +45,7 @@ var (
 	errUnknownUnit                   = errors.New("unknown unit")
 	errNilTaggedRequest              = errors.New("nil write tagged request")
 	errDisjunctionQueriesUnsupported = errors.New("disjunction queries are not-supported")
+	errInvalidNegationQuery          = errors.New("negation queries are not supported for composite queries")
 	errUnsupportedQueryType          = errors.New("unsupported query type")
 
 	timeZero time.Time
@@ -239,7 +240,7 @@ func FromRPCFetchTaggedRequest(
 	} else {
 		ns = ident.StringID(string(req.NameSpace))
 	}
-	return ns, index.Query{q}, opts, req.FetchData, nil
+	return ns, index.Query{Query: q}, opts, req.FetchData, nil
 }
 
 // ToRPCFetchTaggedRequest converts the Go `client/` types into rpc request type for FetchTaggedRequest.
@@ -296,20 +297,27 @@ func fromRPCQuery(rpcQuery *rpc.IdxQuery) (idx.Query, error) {
 	if l := len(rpcQuery.Filters); l != 0 {
 		queries := make([]idx.Query, 0, l)
 		for _, f := range rpcQuery.Filters {
-			if f.Negate {
-				return idx.Query{}, fmt.Errorf("query negation is currently un-supported")
-			}
+			var (
+				query idx.Query
+				err   error
+			)
+
 			if f.Regexp {
-				query, err := idx.NewRegexpQuery(f.TagName, f.TagValueFilter)
+				query, err = idx.NewRegexpQuery(f.TagName, f.TagValueFilter)
 				if err != nil {
 					return idx.Query{}, err
 				}
-				queries = append(queries, query)
 			} else {
-				queries = append(queries, idx.NewTermQuery(f.TagName, f.TagValueFilter))
+				query = idx.NewTermQuery(f.TagName, f.TagValueFilter)
 			}
+
+			if f.Negate {
+				query = idx.NewNegationQuery(query)
+			}
+
+			queries = append(queries, query)
 		}
-		return idx.NewConjunctionQuery(queries...)
+		return idx.NewConjunctionQuery(queries...), nil
 	}
 
 	if l := len(rpcQuery.SubQueries); l != 0 {
@@ -321,7 +329,7 @@ func fromRPCQuery(rpcQuery *rpc.IdxQuery) (idx.Query, error) {
 			}
 			queries = append(queries, cq)
 		}
-		return idx.NewConjunctionQuery(queries...)
+		return idx.NewConjunctionQuery(queries...), nil
 	}
 
 	return idx.Query{}, fmt.Errorf("at least one Filter/Sub-Query must be defined")
@@ -350,6 +358,17 @@ func toRPCQuery(searchQuery search.Query) (*rpc.IdxQuery, error) {
 				},
 			},
 		}, nil
+	case *query.NegationQuery:
+		switch inner := q.Query.(type) {
+		case *query.TermQuery, *query.RegexpQuery:
+			iq, err := toRPCQuery(inner)
+			if err != nil {
+				return nil, err
+			}
+			iq.Filters[0].Negate = true
+			return iq, nil
+		}
+		return nil, errInvalidNegationQuery
 	case *query.ConjuctionQuery:
 		ret := &rpc.IdxQuery{
 			Operator: rpc.BooleanOperator_AND_OPERATOR,
