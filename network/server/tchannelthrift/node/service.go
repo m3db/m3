@@ -613,16 +613,15 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
+
 	ctx.RegisterFinalizer(resource.FinalizerFn(fetchedMetadata.Close))
 
 	result, err := s.getFetchBlocksMetadataRawV2Result(ctx, nextPageToken, opts, fetchedMetadata)
-	// Finalize pooled datastructures regardless of errors because even in the error
-	// case result contains pooled objects that we need to return.
-	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
 	if err != nil {
 		return nil, convert.ToRPCError(err)
 	}
 
+	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
 	return result, nil
 }
 

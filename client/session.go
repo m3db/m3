@@ -1708,7 +1708,9 @@ func (s *session) fetchBlocksMetadataFromPeers(
 		close(errCh)
 	}()
 
-	return newMetadataIter(metadataCh, errCh), nil
+	iter := newMetadataIter(metadataCh, errCh,
+		s.pools.tagDecoder.Get(), s.pools.id)
+	return iter, nil
 }
 
 // FetchBootstrapBlocksFromPeers will fetch the specified blocks from peers for
@@ -1725,10 +1727,12 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	}
 
 	var (
-		result   = newBulkBlocksResult(s.opts, opts)
+		result = newBulkBlocksResult(s.opts, opts,
+			s.pools.tagDecoder, s.pools.id)
 		doneCh   = make(chan struct{})
-		progress = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeBootstrap)
-		level    = newSessionBootstrapRuntimeReadConsistencyLevel(s)
+		progress = s.newPeerMetadataStreamingProgressMetrics(shard,
+			resultTypeBootstrap)
+		level = newSessionBootstrapRuntimeReadConsistencyLevel(s)
 	)
 
 	// Determine which peers own the specified shard
@@ -1794,8 +1798,9 @@ func (s *session) FetchBlocksFromPeers(
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		outputCh = make(chan peerBlocksDatapoint, 4096)
-		result   = newStreamBlocksResult(s.opts, opts, outputCh)
-		onDone   = func(err error) {
+		result   = newStreamBlocksResult(s.opts, opts, outputCh,
+			s.pools.tagDecoder.Get(), s.pools.id)
+		onDone = func(err error) {
 			atomic.StoreInt64(&complete, 1)
 			select {
 			case doneCh <- err:
@@ -2176,18 +2181,8 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		moreResults            = true
 		idPool                 = s.pools.id
 		bytesPool              = resultOpts.DatabaseBlockOptions().BytesPool()
-		tagDecoderCheckedBytes = checked.NewBytes(nil, nil)
-		tagDecoder             = s.pools.tagDecoder.Get()
-	)
-	tagDecoderCheckedBytes.IncRef()
-	defer func() {
-		tagDecoderCheckedBytes.DecRef()
-		tagDecoderCheckedBytes.Finalize()
-		tagDecoder.Close()
-	}()
 
-	// Only used for logs
-	var (
+		// Only used for logs
 		peerStr              = peer.Host().ID()
 		metadataCountByBlock = map[xtime.UnixNano]int64{}
 	)
@@ -2245,29 +2240,16 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 
 			clonedID := idPool.BinaryID(data)
 
-			var (
-				tags         ident.Tags
-				tagDecodeErr error
-			)
-			if encodedTags := elem.EncodedTags; len(encodedTags) != 0 {
-				tagDecoderCheckedBytes.Reset(encodedTags)
-				tagDecoder.Reset(tagDecoderCheckedBytes)
-				tags = make(ident.Tags, 0, tagDecoder.Remaining())
-				for tagDecoder.Next() {
-					curr := tagDecoder.Current()
-					tags = append(tags, idPool.CloneTag(curr))
-				}
-				tagDecodeErr = tagDecoder.Err()
+			var encodedTags checked.Bytes
+			if bytes := elem.EncodedTags; len(bytes) != 0 {
+				encodedTags = bytesPool.Get(len(bytes))
+				encodedTags.IncRef()
+				encodedTags.AppendAll(elem.ID)
+				encodedTags.DecRef()
 			}
 
 			// Error occurred retrieving block metadata, use default values
-			var err error
-			if elem.Err != nil {
-				err = elem.Err
-			} else {
-				err = tagDecodeErr
-			}
-			if err != nil {
+			if err := elem.Err; err != nil {
 				progress.metadataFetchBatchBlockErr.Inc(1)
 				s.log.WithFields(
 					xlog.NewField("shard", shard),
@@ -2277,8 +2259,9 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 				).Error("error occurred retrieving block metadata")
 				// Enqueue with a zeroed checksum which triggers a fanout fetch
 				metadataCh <- receivedBlockMetadata{
-					peer: peer,
-					id:   clonedID,
+					peer:        peer,
+					id:          clonedID,
+					encodedTags: encodedTags,
 					block: blockMetadata{
 						start: blockStart,
 					},
@@ -2306,9 +2289,9 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 			}
 
 			metadataCh <- receivedBlockMetadata{
-				peer: peer,
-				id:   clonedID,
-				tags: tags,
+				peer:        peer,
+				id:          clonedID,
+				encodedTags: encodedTags,
 				block: blockMetadata{
 					start:    blockStart,
 					size:     size,
@@ -2938,16 +2921,9 @@ func (s *session) streamBlocksBatchFromPeer(
 			// Verify and if verify succeeds add the block from the peer
 			err := s.verifyFetchedBlock(block)
 			if err == nil {
-				tags := batch[i].tags
-				err = blocksResult.addBlockFromPeer(id, tags, peer.Host(), block)
-
-				// NB(r): Track a fanned out block fetch success if added block
-				fanout := batch[i].block.reattempt.fanoutFetchState
-				if err == nil && fanout != nil {
-					fanout.incrementSuccess()
-				}
+				err = blocksResult.addBlockFromPeer(id, batch[i].encodedTags,
+					peer.Host(), block)
 			}
-
 			if err != nil {
 				failed := []receivedBlockMetadata{batch[i]}
 				blocksErr := fmt.Errorf(
@@ -2958,6 +2934,12 @@ func (s *session) streamBlocksBatchFromPeer(
 				m.fetchBlockError.Inc(1)
 				s.log.Debugf(blocksErr.Error())
 				continue
+			}
+
+			// NB(r): Track a fanned out block fetch success if added block
+			fanout := batch[i].block.reattempt.fanoutFetchState
+			if fanout != nil {
+				fanout.incrementSuccess()
 			}
 
 			m.fetchBlockSuccess.Inc(1)
@@ -3103,7 +3085,7 @@ func (s *session) streamBlocksReattemptFromPeersEnqueue(
 type blocksResult interface {
 	addBlockFromPeer(
 		id ident.ID,
-		tags ident.Tags,
+		encodedTags checked.Bytes,
 		peer topology.Host,
 		block *rpc.Block,
 	) error
@@ -3231,19 +3213,28 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 	return result, nil
 }
 
+// Ensure streamBlocksResult implements blocksResult
+var _ blocksResult = (*streamBlocksResult)(nil)
+
 type streamBlocksResult struct {
 	baseBlocksResult
-	outputCh chan<- peerBlocksDatapoint
+	outputCh   chan<- peerBlocksDatapoint
+	tagDecoder serialize.TagDecoder
+	idPool     ident.Pool
 }
 
 func newStreamBlocksResult(
 	opts Options,
 	resultOpts result.Options,
 	outputCh chan<- peerBlocksDatapoint,
+	tagDecoder serialize.TagDecoder,
+	idPool ident.Pool,
 ) *streamBlocksResult {
 	return &streamBlocksResult{
 		baseBlocksResult: newBaseBlocksResult(opts, resultOpts),
 		outputCh:         outputCh,
+		tagDecoder:       tagDecoder,
+		idPool:           idPool,
 	}
 }
 
@@ -3256,11 +3247,16 @@ type peerBlocksDatapoint struct {
 
 func (s *streamBlocksResult) addBlockFromPeer(
 	id ident.ID,
-	tags ident.Tags,
+	encodedTags checked.Bytes,
 	peer topology.Host,
 	block *rpc.Block,
 ) error {
 	result, err := s.newDatabaseBlock(block)
+	if err != nil {
+		return err
+	}
+	tags, err := newTagsFromEncodedTags(encodedTags,
+		s.tagDecoder, s.idPool)
 	if err != nil {
 		return err
 	}
@@ -3315,25 +3311,34 @@ func (it *peerBlocksIter) Next() bool {
 	return true
 }
 
+// Ensure streamBlocksResult implements blocksResult
+var _ blocksResult = (*bulkBlocksResult)(nil)
+
 type bulkBlocksResult struct {
 	sync.RWMutex
 	baseBlocksResult
-	result result.ShardResult
+	result         result.ShardResult
+	tagDecoderPool serialize.TagDecoderPool
+	idPool         ident.Pool
 }
 
 func newBulkBlocksResult(
 	opts Options,
 	resultOpts result.Options,
+	tagDecoderPool serialize.TagDecoderPool,
+	idPool ident.Pool,
 ) *bulkBlocksResult {
 	return &bulkBlocksResult{
 		baseBlocksResult: newBaseBlocksResult(opts, resultOpts),
 		result:           result.NewShardResult(4096, resultOpts),
+		tagDecoderPool:   tagDecoderPool,
+		idPool:           idPool,
 	}
 }
 
 func (r *bulkBlocksResult) addBlockFromPeer(
 	id ident.ID,
-	tags ident.Tags,
+	encodedTags checked.Bytes,
 	peer topology.Host,
 	block *rpc.Block,
 ) error {
@@ -3343,13 +3348,31 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 		return err
 	}
 
+	var (
+		tags          ident.Tags
+		tryDecodeTags bool
+	)
 	for {
 		r.Lock()
 		currBlock, exists := r.result.BlockAt(id, start)
 		if !exists {
-			r.result.AddBlock(id, tags, result)
+			if tryDecodeTags || encodedTags == nil {
+				r.result.AddBlock(id, tags, result)
+				r.Unlock()
+				break
+			}
 			r.Unlock()
-			break
+
+			// Tags not decoded yet, attempt decoded and then reinsert
+			tryDecodeTags = true
+			tagDecoder := r.tagDecoderPool.Get()
+			tags, err = newTagsFromEncodedTags(encodedTags,
+				tagDecoder, r.idPool)
+			tagDecoder.Close()
+			if err != nil {
+				return err
+			}
+			continue
 		}
 
 		// Remove the existing block from the result so it doesn't get
@@ -3391,7 +3414,6 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 		result.Close()
 
 		result = r.blockOpts.DatabaseBlockPool().Get()
-
 		result.Reset(start, blockSize, encoder.Discard())
 
 		tmpCtx.Close()
@@ -3620,10 +3642,10 @@ func (qs peerBlocksQueues) closeAll() {
 }
 
 type receivedBlockMetadata struct {
-	peer  peer
-	id    ident.ID
-	tags  ident.Tags
-	block blockMetadata
+	peer        peer
+	id          ident.ID
+	encodedTags checked.Bytes
+	block       blockMetadata
 }
 
 type receivedBlockMetadatas []receivedBlockMetadata
@@ -3738,21 +3760,27 @@ func newTimesByRPCBlocks(values []*rpc.Block) []time.Time {
 }
 
 type metadataIter struct {
-	inputCh  <-chan receivedBlockMetadata
-	errCh    <-chan error
-	host     topology.Host
-	metadata block.Metadata
-	done     bool
-	err      error
+	inputCh    <-chan receivedBlockMetadata
+	errCh      <-chan error
+	host       topology.Host
+	metadata   block.Metadata
+	tagDecoder serialize.TagDecoder
+	idPool     ident.Pool
+	done       bool
+	err        error
 }
 
 func newMetadataIter(
 	inputCh <-chan receivedBlockMetadata,
 	errCh <-chan error,
+	tagDecoder serialize.TagDecoder,
+	idPool ident.Pool,
 ) PeerBlockMetadataIter {
 	return &metadataIter{
-		inputCh: inputCh,
-		errCh:   errCh,
+		inputCh:    inputCh,
+		errCh:      errCh,
+		tagDecoder: tagDecoder,
+		idPool:     idPool,
 	}
 }
 
@@ -3766,8 +3794,14 @@ func (it *metadataIter) Next() bool {
 		it.done = true
 		return false
 	}
+	var tags ident.Tags
+	tags, it.err = newTagsFromEncodedTags(m.encodedTags,
+		it.tagDecoder, it.idPool)
+	if it.err != nil {
+		return false
+	}
 	it.host = m.peer.Host()
-	it.metadata = block.NewMetadata(m.id, m.tags, m.block.start,
+	it.metadata = block.NewMetadata(m.id, tags, m.block.start,
 		m.block.size, m.block.checksum, m.block.lastRead)
 	return true
 }
@@ -3825,4 +3859,27 @@ func (v FetchBlocksMetadataEndpointVersion) String() string {
 		return "v2"
 	}
 	return "unknown"
+}
+
+func newTagsFromEncodedTags(
+	encodedTags checked.Bytes,
+	tagDecoder serialize.TagDecoder,
+	idPool ident.Pool,
+) (ident.Tags, error) {
+	if encodedTags == nil {
+		return nil, nil
+	}
+
+	tagDecoder.Reset(encodedTags)
+
+	tags := make(ident.Tags, 0, tagDecoder.Remaining())
+	for tagDecoder.Next() {
+		curr := tagDecoder.Current()
+		tags = append(tags, idPool.CloneTag(curr))
+	}
+	if err := tagDecoder.Err(); err != nil {
+		return nil, err
+	}
+
+	return tags, nil
 }

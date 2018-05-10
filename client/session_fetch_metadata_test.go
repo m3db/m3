@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/assert"
@@ -52,33 +53,33 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 	lastRead := now.Add(-100 * time.Millisecond)
 	inputs := []receivedBlockMetadata{
 		{
-			peer: peer,
-			id:   ident.StringID("foo"),
-			tags: ident.Tags{ident.StringTag("aaa", "bbb")},
+			peer:        peer,
+			id:          ident.StringID("foo"),
+			encodedTags: mustEncodeTags(t, ident.Tags{ident.StringTag("aaa", "bbb")}),
 			block: blockMetadata{
 				start: now, size: int64(1), checksum: &checksums[0],
 			},
 		},
 		{
-			peer: peer,
-			id:   ident.StringID("foo"),
-			tags: ident.Tags{ident.StringTag("aaa", "bbb")},
+			peer:        peer,
+			id:          ident.StringID("foo"),
+			encodedTags: mustEncodeTags(t, ident.Tags{ident.StringTag("aaa", "bbb")}),
 			block: blockMetadata{
 				start: now.Add(time.Second), size: int64(2), checksum: &checksums[1], lastRead: lastRead,
 			},
 		},
 		{
-			peer: peer,
-			id:   ident.StringID("bar"),
-			tags: ident.Tags{ident.StringTag("ccc", "ddd")},
+			peer:        peer,
+			id:          ident.StringID("bar"),
+			encodedTags: mustEncodeTags(t, ident.Tags{ident.StringTag("ccc", "ddd")}),
 			block: blockMetadata{
 				start: now, size: int64(3), checksum: &checksums[2], lastRead: lastRead,
 			},
 		},
 		{
-			peer: peer,
-			id:   ident.StringID("baz"),
-			tags: ident.Tags{ident.StringTag("eee", "fff")},
+			peer:        peer,
+			id:          ident.StringID("baz"),
+			encodedTags: mustEncodeTags(t, ident.Tags{ident.StringTag("eee", "fff")}),
 			block: blockMetadata{
 				start: now, size: int64(4), checksum: nil, lastRead: lastRead,
 			},
@@ -94,7 +95,8 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 	}()
 
 	var actual []testHostBlock
-	it := newMetadataIter(inputCh, errCh)
+	it := newMetadataIter(inputCh, errCh,
+		testTagDecodingPool.Get(), testIDPool)
 	for it.Next() {
 		host, curr := it.Current()
 		result := block.NewMetadata(curr.ID, curr.Tags, curr.Start, curr.Size,
@@ -133,4 +135,13 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 		assert.Equal(t, expected.block.Checksum, actual.block.Checksum)
 		assert.True(t, expected.block.LastRead.Equal(actual.block.LastRead))
 	}
+}
+
+func mustEncodeTags(t *testing.T, tags ident.Tags) checked.Bytes {
+	encoder := testTagEncodingPool.Get()
+	err := encoder.Encode(ident.NewTagSliceIterator(tags))
+	require.NoError(t, err)
+	data, ok := encoder.Data()
+	require.True(t, ok)
+	return data
 }
