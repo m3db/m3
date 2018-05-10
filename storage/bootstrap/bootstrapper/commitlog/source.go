@@ -152,7 +152,7 @@ func (s *commitLogSource) ReadData(
 
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
-		if !s.shouldEncodeSeriesForData(unmerged, blockSize, series, dp) {
+		if !s.shouldEncodeForData(unmerged, blockSize, series, dp.Timestamp) {
 			continue
 		}
 
@@ -246,11 +246,11 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 	wg.Done()
 }
 
-func (s *commitLogSource) shouldEncodeSeriesForData(
+func (s *commitLogSource) shouldEncodeForData(
 	unmerged []encodersAndRanges,
 	dataBlockSize time.Duration,
 	series commitlog.Series,
-	dp ts.Datapoint,
+	timestamp time.Time,
 ) bool {
 	// Check if the shard number is higher the amount of space we pre-allocated.
 	// If it is, then it's not one of the shards we're trying to bootstrap
@@ -266,7 +266,7 @@ func (s *commitLogSource) shouldEncodeSeriesForData(
 	}
 
 	// Check if the block corresponds to the time-range that we're trying to bootstrap
-	blockStart := dp.Timestamp.Truncate(dataBlockSize)
+	blockStart := timestamp.Truncate(dataBlockSize)
 	blockEnd := blockStart.Add(dataBlockSize)
 	blockRange := xtime.Range{
 		Start: blockStart,
@@ -570,7 +570,9 @@ func (s *commitLogSource) ReadIndex(
 	var (
 		indexResult    = result.NewIndexBootstrapResult()
 		indexResults   = indexResult.IndexResults()
-		indexBlockSize = ns.Options().IndexOptions().BlockSize()
+		indexOptions   = ns.Options().IndexOptions()
+		indexBlockSize = indexOptions.BlockSize()
+		resultOptions  = s.opts.ResultOptions()
 	)
 
 	for iter.Next() {
@@ -580,8 +582,7 @@ func (s *commitLogSource) ReadIndex(
 			continue
 		}
 
-		segment, err := indexResults.GetOrAddSegment(
-			dp.Timestamp, ns.Options().IndexOptions(), s.opts.ResultOptions())
+		segment, err := indexResults.GetOrAddSegment(dp.Timestamp, indexOptions, resultOptions)
 		if err != nil {
 			return nil, err
 		}
