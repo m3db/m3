@@ -21,6 +21,7 @@
 package commitlog
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -122,70 +123,8 @@ func TestBootstrapIndex(t *testing.T) {
 	require.Equal(t, 2, len(indexResults))
 	require.Equal(t, 0, len(res.Unfulfilled()))
 
-	expectedIndexBlocks := map[xtime.UnixNano]map[string]map[string]string{}
-	for _, value := range values {
-		if _, shouldNotExpect := seriesNotToExpect[value.s.ID.String()]; shouldNotExpect {
-			continue
-		}
-
-		indexBlockStart := value.t.Truncate(indexBlockSize)
-		expectedSeries, ok := expectedIndexBlocks[xtime.ToUnixNano(indexBlockStart)]
-		if !ok {
-			expectedSeries = map[string]map[string]string{}
-			expectedIndexBlocks[xtime.ToUnixNano(indexBlockStart)] = expectedSeries
-		}
-
-		seriesID := string(value.s.ID.Bytes())
-
-		existingTags, ok := expectedSeries[seriesID]
-		if !ok {
-			existingTags = map[string]string{}
-			expectedSeries[seriesID] = existingTags
-		}
-		for _, tag := range value.s.Tags {
-			existingTags[tag.Name.String()] = tag.Value.String()
-		}
-	}
-
-	for indexBlockStart, expectedSeries := range expectedIndexBlocks {
-		indexBlock, ok := indexResults[indexBlockStart]
-		require.True(t, ok)
-
-		for _, seg := range indexBlock.Segments() {
-			reader, err := seg.Reader()
-			require.NoError(t, err)
-
-			docs, err := reader.AllDocs()
-			require.NoError(t, err)
-
-			seenSeries := map[string]struct{}{}
-			for docs.Next() {
-				curr := docs.Current()
-
-				_, ok := seenSeries[string(curr.ID)]
-				require.False(t, ok)
-				seenSeries[string(curr.ID)] = struct{}{}
-
-				expectedTags := expectedSeries[string(curr.ID)]
-				matchingTags := map[string]struct{}{}
-				for _, tag := range curr.Fields {
-					_, ok := matchingTags[string(tag.Name)]
-					require.False(t, ok)
-					matchingTags[string(tag.Name)] = struct{}{}
-
-					tagValue, ok := expectedTags[string(tag.Name)]
-					require.True(t, ok)
-
-					require.Equal(t, tagValue, string(tag.Value))
-				}
-				require.Equal(t, len(expectedTags), len(matchingTags))
-			}
-			require.NoError(t, docs.Err())
-			require.NoError(t, docs.Close())
-
-			require.Equal(t, len(expectedSeries), len(seenSeries))
-		}
-	}
+	err = verifyIndexResultsAreCorrect(values, seriesNotToExpect, indexResults, indexBlockSize)
+	require.NoError(t, err)
 }
 
 func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
@@ -222,4 +161,111 @@ func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 	indexResults := res.IndexResults()
 	require.Equal(t, 0, len(indexResults))
 	require.Equal(t, 0, len(res.Unfulfilled()))
+}
+
+func verifyIndexResultsAreCorrect(
+	values []testValue,
+	seriesNotToExpect map[string]struct{},
+	indexResults result.IndexResults,
+	indexBlockSize time.Duration,
+) error {
+	expectedIndexBlocks := map[xtime.UnixNano]map[string]map[string]string{}
+	for _, value := range values {
+		if _, shouldNotExpect := seriesNotToExpect[value.s.ID.String()]; shouldNotExpect {
+			continue
+		}
+
+		indexBlockStart := value.t.Truncate(indexBlockSize)
+		expectedSeries, ok := expectedIndexBlocks[xtime.ToUnixNano(indexBlockStart)]
+		if !ok {
+			expectedSeries = map[string]map[string]string{}
+			expectedIndexBlocks[xtime.ToUnixNano(indexBlockStart)] = expectedSeries
+		}
+
+		seriesID := string(value.s.ID.Bytes())
+
+		existingTags, ok := expectedSeries[seriesID]
+		if !ok {
+			existingTags = map[string]string{}
+			expectedSeries[seriesID] = existingTags
+		}
+		for _, tag := range value.s.Tags {
+			existingTags[tag.Name.String()] = tag.Value.String()
+		}
+	}
+
+	for indexBlockStart, expectedSeries := range expectedIndexBlocks {
+		indexBlock, ok := indexResults[indexBlockStart]
+		if !ok {
+			return fmt.Errorf("missing index block: %v", indexBlockStart.ToTime().String())
+		}
+
+		for _, seg := range indexBlock.Segments() {
+			reader, err := seg.Reader()
+			if err != nil {
+				return err
+			}
+
+			docs, err := reader.AllDocs()
+			if err != nil {
+				return err
+			}
+
+			seenSeries := map[string]struct{}{}
+			for docs.Next() {
+				curr := docs.Current()
+
+				_, ok := seenSeries[string(curr.ID)]
+				if ok {
+					return fmt.Errorf(
+						"saw duplicate series: %v for block %v",
+						string(curr.ID), indexBlockStart.ToTime().String())
+				}
+				seenSeries[string(curr.ID)] = struct{}{}
+
+				expectedTags := expectedSeries[string(curr.ID)]
+				matchingTags := map[string]struct{}{}
+				for _, tag := range curr.Fields {
+					if _, ok := matchingTags[string(tag.Name)]; ok {
+						return fmt.Errorf("saw duplicate tag: %v for id: %v", tag.Name, string(curr.ID))
+					}
+					matchingTags[string(tag.Name)] = struct{}{}
+
+					tagValue, ok := expectedTags[string(tag.Name)]
+					if !ok {
+						return fmt.Errorf("saw unexpected tag: %v for id: %v", tag.Name, string(curr.ID))
+					}
+
+					if tagValue != string(tag.Value) {
+						return fmt.Errorf(
+							"tag values for series: %v do not match. Expected: %v but got: %v",
+							curr.ID, tagValue, string(tag.Value),
+						)
+					}
+				}
+
+				if len(expectedTags) != len(matchingTags) {
+					return fmt.Errorf(
+						"number of tags for series: %v do not match. Expected: %v, but got: %v",
+						string(curr.ID), len(expectedTags), len(matchingTags),
+					)
+				}
+			}
+
+			if docs.Err() != nil {
+				return docs.Err()
+			}
+
+			if err := docs.Close(); err != nil {
+				return err
+			}
+
+			if len(expectedSeries) != len(seenSeries) {
+				return fmt.Errorf(
+					"expected %v series, but got %v series", len(expectedSeries), len(seenSeries))
+			}
+		}
+	}
+
+	return nil
 }
