@@ -105,12 +105,14 @@ type RunOptions struct {
 func Run(runOpts RunOptions) {
 	var cfg config.Configuration
 	if err := xconfig.LoadFile(&cfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
-		panic(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
+		fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
+		os.Exit(1)
 	}
 
 	logger, err := cfg.Logging.BuildLogger()
 	if err != nil {
-		panic(os.Stderr, "unable to create logger: %v", err)
+		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
+		os.Exit(1)
 	}
 
 	debug.SetGCPercent(cfg.GCPercentage)
