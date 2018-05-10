@@ -18,47 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package query
+syntax = "proto3";
+package query;
 
-import (
-	"bytes"
+option go_package = "querypb";
 
-	"github.com/m3db/m3ninx/search"
-)
-
-// singular returns a bool indicating whether a given query is composed of a single
-// query and returns that query if so.
-func singular(q search.Query) (search.Query, bool) {
-	switch q := q.(type) {
-	case *ConjuctionQuery:
-		if len(q.Queries) == 1 {
-			return q.Queries[0], true
-		}
-		return nil, false
-	case *DisjuctionQuery:
-		if len(q.Queries) == 1 {
-			return q.Queries[0], true
-		}
-		return nil, false
-	}
-	return q, true
+message TermQuery {
+  bytes field = 1;
+  bytes term = 2;
 }
 
-// join concatenates a slice of queries.
-func join(qs []search.Query) string {
-	switch len(qs) {
-	case 0:
-		return ""
-	case 1:
-		return qs[0].String()
-	}
+message RegexpQuery {
+  bytes field = 1;
+  bytes regexp = 2;
+}
 
-	var b bytes.Buffer
-	b.WriteString(qs[0].String())
-	for _, q := range qs[1:] {
-		b.WriteString(", ")
-		b.WriteString(q.String())
-	}
+message NegationQuery {
+  Query query = 1;
+}
 
-	return b.String()
+message ConjunctionQuery {
+  repeated Query queries = 1;
+}
+
+message DisjunctionQuery {
+  repeated Query queries = 1;
+}
+
+message Query {
+  oneof query {
+    TermQuery term = 1;
+    RegexpQuery regexp = 2;
+    NegationQuery negation = 3;
+    ConjunctionQuery conjunction = 4;
+    DisjunctionQuery disjunction = 5;
+  }
 }

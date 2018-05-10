@@ -14,6 +14,7 @@ metalint_exclude      := .excludemetalint
 mockgen_package       := github.com/golang/mock/mockgen
 mocks_output_dir      := generated/mocks/mocks
 mocks_rules_dir       := generated/mocks
+proto_output_dir      := generated/proto
 proto_rules_dir       := generated/proto
 protoc_go_package     := github.com/golang/protobuf/protoc-gen-go
 vendor_prefix         := vendor

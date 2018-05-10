@@ -23,72 +23,62 @@ package query
 import (
 	"testing"
 
-	"github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/search"
-
 	"github.com/stretchr/testify/require"
 )
 
-func TestNegationQuery(t *testing.T) {
+func TestMarshal(t *testing.T) {
 	tests := []struct {
 		name  string
 		query search.Query
 	}{
 		{
-			name:  "valid query",
+			name:  "term query",
 			query: NewTermQuery([]byte("fruit"), []byte("apple")),
 		},
+		{
+			name:  "regexp query",
+			query: MustCreateRegexpQuery([]byte("fruit"), []byte(".*ple")),
+		},
+		{
+			name:  "negation query",
+			query: NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("apple"))),
+		},
+		{
+			name: "disjunction query",
+			query: NewDisjunctionQuery([]search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+				NewConjunctionQuery([]search.Query{
+					NewTermQuery([]byte("fruit"), []byte("banana")),
+				}),
+				NewDisjunctionQuery([]search.Query{
+					NewTermQuery([]byte("fruit"), []byte("orange")),
+				}),
+			}),
+		},
+		{
+			name: "conjunction query",
+			query: NewConjunctionQuery([]search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+				NewConjunctionQuery([]search.Query{
+					NewTermQuery([]byte("fruit"), []byte("banana")),
+				}),
+				NewDisjunctionQuery([]search.Query{
+					NewTermQuery([]byte("fruit"), []byte("orange")),
+				}),
+			}),
+		},
 	}
 
-	rs := index.Readers{}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			q := NewNegationQuery(test.query)
-			_, err := q.Searcher(rs)
+			data, err := Marshal(test.query)
 			require.NoError(t, err)
-		})
-	}
-}
 
-func TestNegationQueryEqual(t *testing.T) {
-	tests := []struct {
-		name        string
-		left, right search.Query
-		expected    bool
-	}{
-		{
-			name:     "same inner queries",
-			left:     NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("apple"))),
-			right:    NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("apple"))),
-			expected: true,
-		},
-		{
-			name: "singular conjunction query",
-			left: NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("apple"))),
-			right: NewConjunctionQuery([]search.Query{
-				NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("apple"))),
-			}),
-			expected: true,
-		},
-		{
-			name: "singular disjunction query",
-			left: NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("apple"))),
-			right: NewDisjunctionQuery([]search.Query{
-				NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("apple"))),
-			}),
-			expected: true,
-		},
-		{
-			name:     "different inner queries",
-			left:     NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("apple"))),
-			right:    NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("banana"))),
-			expected: false,
-		},
-	}
+			cpy, err := Unmarshal(data)
+			require.NoError(t, err)
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.expected, test.left.Equal(test.right))
+			require.True(t, test.query.Equal(cpy))
 		})
 	}
 }

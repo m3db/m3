@@ -55,7 +55,7 @@ func TestDisjunctionQuery(t *testing.T) {
 	rs := index.Readers{}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			q := NewDisjuctionQuery(test.queries)
+			q := NewDisjunctionQuery(test.queries)
 			_, err := q.Searcher(rs)
 			require.NoError(t, err)
 		})
@@ -70,17 +70,17 @@ func TestDisjunctionQueryEqual(t *testing.T) {
 	}{
 		{
 			name:     "empty queries",
-			left:     NewDisjuctionQuery(nil),
-			right:    NewDisjuctionQuery(nil),
+			left:     NewDisjunctionQuery(nil),
+			right:    NewDisjunctionQuery(nil),
 			expected: true,
 		},
 		{
 			name: "equal queries",
-			left: NewDisjuctionQuery([]search.Query{
+			left: NewDisjunctionQuery([]search.Query{
 				NewTermQuery([]byte("fruit"), []byte("apple")),
 				NewTermQuery([]byte("fruit"), []byte("banana")),
 			}),
-			right: NewDisjuctionQuery([]search.Query{
+			right: NewDisjunctionQuery([]search.Query{
 				NewTermQuery([]byte("fruit"), []byte("apple")),
 				NewTermQuery([]byte("fruit"), []byte("banana")),
 			}),
@@ -88,7 +88,7 @@ func TestDisjunctionQueryEqual(t *testing.T) {
 		},
 		{
 			name: "single query",
-			left: NewDisjuctionQuery([]search.Query{
+			left: NewDisjunctionQuery([]search.Query{
 				NewTermQuery([]byte("fruit"), []byte("apple")),
 			}),
 			right:    NewTermQuery([]byte("fruit"), []byte("apple")),
@@ -96,11 +96,11 @@ func TestDisjunctionQueryEqual(t *testing.T) {
 		},
 		{
 			name: "different order",
-			left: NewDisjuctionQuery([]search.Query{
+			left: NewDisjunctionQuery([]search.Query{
 				NewTermQuery([]byte("fruit"), []byte("apple")),
 				NewTermQuery([]byte("fruit"), []byte("banana")),
 			}),
-			right: NewDisjuctionQuery([]search.Query{
+			right: NewDisjunctionQuery([]search.Query{
 				NewTermQuery([]byte("fruit"), []byte("banana")),
 				NewTermQuery([]byte("fruit"), []byte("apple")),
 			}),

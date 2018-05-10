@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 
+	"github.com/m3db/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/search"
 	"github.com/m3db/m3ninx/search/searcher"
@@ -61,6 +62,18 @@ func (q *TermQuery) Equal(o search.Query) bool {
 	}
 
 	return bytes.Equal(q.Field, inner.Field) && bytes.Equal(q.Term, inner.Term)
+}
+
+// ToProto returns the Protobuf query struct corresponding to the term query.
+func (q *TermQuery) ToProto() *querypb.Query {
+	term := querypb.TermQuery{
+		Field: q.Field,
+		Term:  q.Term,
+	}
+
+	return &querypb.Query{
+		Query: &querypb.Query_Term{Term: &term},
+	}
 }
 
 func (q *TermQuery) String() string {

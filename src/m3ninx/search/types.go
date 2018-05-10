@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/postings"
 )
@@ -46,6 +47,9 @@ type Query interface {
 
 	// Equal reports whether two queries are equivalent.
 	Equal(q Query) bool
+
+	// ToProto returns the Protobuf query struct corresponding to this query.
+	ToProto() *querypb.Query
 }
 
 // Searcher executes a query against a collection of Readers. It is an iterator which

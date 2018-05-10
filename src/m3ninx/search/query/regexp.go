@@ -25,6 +25,7 @@ import (
 	"fmt"
 	re "regexp"
 
+	"github.com/m3db/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/search"
 	"github.com/m3db/m3ninx/search/searcher"
@@ -51,6 +52,20 @@ func NewRegexpQuery(field, regexp []byte) (search.Query, error) {
 	}, nil
 }
 
+// MustCreateRegexpQuery is like NewRegexpQuery but panics if the query cannot be created.
+func MustCreateRegexpQuery(field, regexp []byte) search.Query {
+	compiled, err := re.Compile(string(regexp))
+	if err != nil {
+		panic(err)
+	}
+
+	return &RegexpQuery{
+		Field:    field,
+		Regexp:   regexp,
+		compiled: compiled,
+	}
+}
+
 // Searcher returns a searcher over the provided readers.
 func (q *RegexpQuery) Searcher(rs index.Readers) (search.Searcher, error) {
 	return searcher.NewRegexpSearcher(rs, q.Field, q.Regexp, q.compiled), nil
@@ -69,6 +84,18 @@ func (q *RegexpQuery) Equal(o search.Query) bool {
 	}
 
 	return bytes.Equal(q.Field, inner.Field) && bytes.Equal(q.Regexp, inner.Regexp)
+}
+
+// ToProto returns the Protobuf query struct corresponding to the regexp query.
+func (q *RegexpQuery) ToProto() *querypb.Query {
+	regexp := querypb.RegexpQuery{
+		Field:  q.Field,
+		Regexp: q.Regexp,
+	}
+
+	return &querypb.Query{
+		Query: &querypb.Query_Regexp{Regexp: &regexp},
+	}
 }
 
 func (q *RegexpQuery) String() string {

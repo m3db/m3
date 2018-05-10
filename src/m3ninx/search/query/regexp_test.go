@@ -74,36 +74,36 @@ func TestRegexpQueryEqual(t *testing.T) {
 	}{
 		{
 			name:     "same field and regexp",
-			left:     newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
-			right:    newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
+			left:     MustCreateRegexpQuery([]byte("fruit"), []byte(".*ple")),
+			right:    MustCreateRegexpQuery([]byte("fruit"), []byte(".*ple")),
 			expected: true,
 		},
 		{
 			name: "singular conjunction query",
-			left: newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
-			right: NewConjuctionQuery([]search.Query{
-				newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
+			left: MustCreateRegexpQuery([]byte("fruit"), []byte(".*ple")),
+			right: NewConjunctionQuery([]search.Query{
+				MustCreateRegexpQuery([]byte("fruit"), []byte(".*ple")),
 			}),
 			expected: true,
 		},
 		{
 			name: "singular disjunction query",
-			left: newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
-			right: NewDisjuctionQuery([]search.Query{
-				newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
+			left: MustCreateRegexpQuery([]byte("fruit"), []byte(".*ple")),
+			right: NewDisjunctionQuery([]search.Query{
+				MustCreateRegexpQuery([]byte("fruit"), []byte(".*ple")),
 			}),
 			expected: true,
 		},
 		{
 			name:     "different field",
-			left:     newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
-			right:    newRegexpQuery(t, []byte("food"), []byte(".*ple")),
+			left:     MustCreateRegexpQuery([]byte("fruit"), []byte(".*ple")),
+			right:    MustCreateRegexpQuery([]byte("food"), []byte(".*ple")),
 			expected: false,
 		},
 		{
 			name:     "different regexp",
-			left:     newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
-			right:    newRegexpQuery(t, []byte("fruit"), []byte(".*na")),
+			left:     MustCreateRegexpQuery([]byte("fruit"), []byte(".*ple")),
+			right:    MustCreateRegexpQuery([]byte("fruit"), []byte(".*na")),
 			expected: false,
 		},
 	}
@@ -113,10 +113,4 @@ func TestRegexpQueryEqual(t *testing.T) {
 			require.Equal(t, test.expected, test.left.Equal(test.right))
 		})
 	}
-}
-
-func newRegexpQuery(t *testing.T, field, regexp []byte) search.Query {
-	q, err := NewRegexpQuery(field, regexp)
-	require.NoError(t, err)
-	return q
 }

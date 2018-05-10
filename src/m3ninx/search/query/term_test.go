@@ -66,7 +66,7 @@ func TestTermQueryEqual(t *testing.T) {
 		{
 			name: "singular conjunction query",
 			left: NewTermQuery([]byte("fruit"), []byte("apple")),
-			right: NewConjuctionQuery([]search.Query{
+			right: NewConjunctionQuery([]search.Query{
 				NewTermQuery([]byte("fruit"), []byte("apple")),
 			}),
 			expected: true,
@@ -74,7 +74,7 @@ func TestTermQueryEqual(t *testing.T) {
 		{
 			name: "singular disjunction query",
 			left: NewTermQuery([]byte("fruit"), []byte("apple")),
-			right: NewDisjuctionQuery([]search.Query{
+			right: NewDisjunctionQuery([]search.Query{
 				NewTermQuery([]byte("fruit"), []byte("apple")),
 			}),
 			expected: true,
