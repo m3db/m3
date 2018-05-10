@@ -318,6 +318,16 @@ func (mr *MockMutableListMockRecorder) Union(other interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Union", reflect.TypeOf((*MockMutableList)(nil).Union), other)
 }
 
+// AddRange mocks base method
+func (m *MockMutableList) AddRange(min, max ID) {
+	m.ctrl.Call(m, "AddRange", min, max)
+}
+
+// AddRange indicates an expected call of AddRange
+func (mr *MockMutableListMockRecorder) AddRange(min, max interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddRange", reflect.TypeOf((*MockMutableList)(nil).AddRange), min, max)
+}
+
 // RemoveRange mocks base method
 func (m *MockMutableList) RemoveRange(min, max ID) {
 	m.ctrl.Call(m, "RemoveRange", min, max)

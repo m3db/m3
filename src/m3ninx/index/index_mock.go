@@ -95,6 +95,19 @@ func (mr *MockReaderMockRecorder) Docs(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Docs", reflect.TypeOf((*MockReader)(nil).Docs), arg0)
 }
 
+// MatchAll mocks base method
+func (m *MockReader) MatchAll() (postings.MutableList, error) {
+	ret := m.ctrl.Call(m, "MatchAll")
+	ret0, _ := ret[0].(postings.MutableList)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MatchAll indicates an expected call of MatchAll
+func (mr *MockReaderMockRecorder) MatchAll() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchAll", reflect.TypeOf((*MockReader)(nil).MatchAll))
+}
+
 // MatchRegexp mocks base method
 func (m *MockReader) MatchRegexp(arg0, arg1 []byte, arg2 *regexp.Regexp) (postings.List, error) {
 	ret := m.ctrl.Call(m, "MatchRegexp", arg0, arg1, arg2)

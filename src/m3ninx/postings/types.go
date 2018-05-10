@@ -90,7 +90,10 @@ type MutableList interface {
 	// this postings list or other.
 	Union(other List) error
 
-	// RemoveRange removes all IDs between min and max inclusive from this postings list.
+	// AddRange adds all IDs between [min, max) to this postings list.
+	AddRange(min, max ID)
+
+	// RemoveRange removes all IDs between [min, max) from this postings list.
 	RemoveRange(min, max ID)
 
 	// Reset resets the internal state of the postings list.

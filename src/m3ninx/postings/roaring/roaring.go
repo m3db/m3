@@ -97,6 +97,12 @@ func (d *postingsList) Union(other postings.List) error {
 	return nil
 }
 
+func (d *postingsList) AddRange(min, max postings.ID) {
+	d.Lock()
+	d.bitmap.AddRange(uint64(min), uint64(max))
+	d.Unlock()
+}
+
 func (d *postingsList) RemoveRange(min, max postings.ID) {
 	d.Lock()
 	d.bitmap.RemoveRange(uint64(min), uint64(max))

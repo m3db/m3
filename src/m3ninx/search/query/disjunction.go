@@ -33,7 +33,7 @@ type DisjuctionQuery struct {
 	Queries []search.Query
 }
 
-// NewDisjuctionQuery constructs a new query which matches documents which match any
+// NewDisjuctionQuery constructs a new query which matches documents that match any
 // of the given queries.
 func NewDisjuctionQuery(queries []search.Query) search.Query {
 	qs := make([]search.Query, 0, len(queries))

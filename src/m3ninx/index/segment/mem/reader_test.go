@@ -49,7 +49,7 @@ func TestReaderMatchExact(t *testing.T) {
 		segment.EXPECT().matchTerm(name, value).Return(postingsList, nil),
 	)
 
-	reader := newReader(segment, readerDocRange{0, maxID})
+	reader := newReader(segment, readerDocRange{0, maxID}, postings.NewPool(nil, roaring.NewPostingsList))
 
 	actual, err := reader.MatchTerm(name, value)
 	require.NoError(t, err)
@@ -76,9 +76,34 @@ func TestReaderMatchRegex(t *testing.T) {
 		segment.EXPECT().matchRegexp(name, regexp, compiled).Return(postingsList, nil),
 	)
 
-	reader := newReader(segment, readerDocRange{0, maxID})
+	reader := newReader(segment, readerDocRange{0, maxID}, postings.NewPool(nil, roaring.NewPostingsList))
 
 	actual, err := reader.MatchRegexp(name, regexp, compiled)
+	require.NoError(t, err)
+	require.True(t, postingsList.Equal(actual))
+
+	require.NoError(t, reader.Close())
+}
+
+func TestReaderMatchAll(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	var (
+		minID = postings.ID(42)
+		maxID = postings.ID(47)
+	)
+
+	postingsList := roaring.NewPostingsList()
+	postingsList.Insert(postings.ID(42))
+	postingsList.Insert(postings.ID(43))
+	postingsList.Insert(postings.ID(44))
+	postingsList.Insert(postings.ID(45))
+	postingsList.Insert(postings.ID(46))
+
+	reader := newReader(nil, readerDocRange{minID, maxID}, postings.NewPool(nil, roaring.NewPostingsList))
+
+	actual, err := reader.MatchAll()
 	require.NoError(t, err)
 	require.True(t, postingsList.Equal(actual))
 
@@ -120,7 +145,7 @@ func TestReaderDocs(t *testing.T) {
 	postingsList.Insert(postings.ID(47))
 	postingsList.Insert(postings.ID(57)) // IDs past maxID should be ignored.
 
-	reader := newReader(segment, readerDocRange{0, maxID})
+	reader := newReader(segment, readerDocRange{0, maxID}, postings.NewPool(nil, roaring.NewPostingsList))
 
 	iter, err := reader.Docs(postingsList)
 	require.NoError(t, err)
@@ -168,7 +193,7 @@ func TestReaderAllDocs(t *testing.T) {
 		segment.EXPECT().getDoc(postings.ID(1)).Return(docs[1], nil),
 	)
 
-	reader := newReader(segment, readerDocRange{0, maxID})
+	reader := newReader(segment, readerDocRange{0, maxID}, postings.NewPool(nil, roaring.NewPostingsList))
 	iter, err := reader.AllDocs()
 	require.NoError(t, err)
 

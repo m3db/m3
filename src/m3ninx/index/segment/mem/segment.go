@@ -41,6 +41,7 @@ var errUnknownPostingsID = errors.New("unknown postings ID specified")
 // nolint: maligned
 type segment struct {
 	offset    int
+	plPool    postings.Pool
 	newUUIDFn util.NewUUIDFn
 
 	state struct {
@@ -70,6 +71,7 @@ type segment struct {
 func NewSegment(offset postings.ID, opts Options) (sgmt.MutableSegment, error) {
 	s := &segment{
 		offset:    int(offset),
+		plPool:    opts.PostingsListPool(),
 		newUUIDFn: opts.NewUUIDFn(),
 		termsDict: newTermsDict(opts),
 		readerID:  postings.NewAtomicID(offset),
@@ -304,12 +306,11 @@ func (s *segment) Reader() (index.Reader, error) {
 		return nil, sgmt.ErrClosed
 	}
 
-	limit := s.readerID.Load()
-	r := newReader(s, readerDocRange{
+	limits := readerDocRange{
 		startInclusive: postings.ID(s.offset),
-		endExclusive:   limit,
-	})
-	return r, nil
+		endExclusive:   s.readerID.Load(),
+	}
+	return newReader(s, limits, s.plPool), nil
 }
 
 func (s *segment) matchTerm(field, term []byte) (postings.List, error) {
