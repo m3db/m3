@@ -86,7 +86,6 @@ func handleFetchResponses(requests []execution.Request) (*storage.FetchResult, e
 func (s *fanoutStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
 	var metrics models.Metrics
 
-	result := &storage.SearchResults{Metrics: metrics}
 	stores := filterStores(s.stores, s.fetchFilter, query)
 	for _, store := range stores {
 		results, err := store.FetchTags(ctx, query, options)
@@ -95,6 +94,8 @@ func (s *fanoutStorage) FetchTags(ctx context.Context, query *storage.FetchQuery
 		}
 		metrics = append(metrics, results.Metrics...)
 	}
+
+	result := &storage.SearchResults{Metrics: metrics}
 
 	return result, nil
 }
@@ -118,7 +119,7 @@ func (s *fanoutStorage) Close() error {
 	for idx, store := range s.stores {
 		// Keep going on error to close all storages
 		if err := store.Close(); err != nil {
-			logging.WithContext(nil).Error("unable to close storage", zap.Int("store", int(store.Type())), zap.Int("index", idx))
+			logging.WithContext(context.Background()).Error("unable to close storage", zap.Int("store", int(store.Type())), zap.Int("index", idx))
 			lastErr = err
 		}
 	}

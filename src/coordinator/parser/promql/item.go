@@ -24,7 +24,7 @@ package promql
 // once we decide we want to use this approach then we will just expose the item types in Prometheus code base
 type ItemType int
 
-// nolint: deadcode
+// nolint
 const (
 	itemError ItemType = iota // Error occurred, value is error message
 	itemEOF

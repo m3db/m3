@@ -122,7 +122,7 @@ func (h *PromReadHandler) parseRequest(r *http.Request) (string, *handler.ParseE
 		return "", handler.NewParseError(errNoQueryFound, http.StatusBadRequest)
 	}
 
-	return string(targetQueries[0]), nil
+	return targetQueries[0], nil
 }
 
 func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, req string, params *prometheus.RequestParams) ([]ts.Series, error) {

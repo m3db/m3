@@ -33,6 +33,7 @@ import (
 
 	"github.com/m3db/m3db/client"
 	xconfig "github.com/m3db/m3x/config"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/pkg/profile"
@@ -51,6 +52,11 @@ var (
 
 	writeEndpoint string
 	coordinator   bool
+
+	configLoadOpts = xconfig.Options{
+		DisableUnmarshalStrict: false,
+		DisableValidate:        false,
+	}
 )
 
 func init() {
@@ -90,7 +96,7 @@ func benchmarkM3DB() {
 	wg := new(sync.WaitGroup)
 
 	var cfg config.Configuration
-	if err := xconfig.LoadFile(&cfg, m3dbClientCfg); err != nil {
+	if err := xconfig.LoadFile(&cfg, m3dbClientCfg, configLoadOpts); err != nil {
 		log.Fatalf("Unable to load %s: %v", m3dbClientCfg, err)
 	}
 
@@ -247,16 +253,19 @@ func writeToCoordinator(ch <-chan *bytes.Reader) {
 
 func writeToM3DB(session client.Session, ch <-chan *common.M3Metric) {
 	var itemsWritten int
+	namespaceID := ident.StringID(namespace)
 	for query := range ch {
-		id := query.ID
-		if err := session.Write(namespace, id, query.Time, query.Value, xtime.Millisecond, nil); err != nil {
+		id := ident.StringID(query.ID)
+		if err := session.Write(namespaceID, id, query.Time, query.Value, xtime.Millisecond, nil); err != nil {
 			log.Println(err)
 		} else {
 			stat.incWrites()
 		}
+		id.Finalize()
 		if itemsWritten > 0 && itemsWritten%10000 == 0 {
 			log.Println(itemsWritten)
 		}
 		itemsWritten++
 	}
+	namespaceID.Finalize()
 }

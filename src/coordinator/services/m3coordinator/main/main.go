@@ -53,8 +53,12 @@ import (
 )
 
 var (
-	namespace  = "metrics"
-	resolution = time.Minute
+	namespace      = "metrics"
+	resolution     = time.Minute
+	configLoadOpts = xconfig.Options{
+		DisableUnmarshalStrict: false,
+		DisableValidate:        false,
+	}
 )
 
 type m3config struct {
@@ -78,7 +82,7 @@ func main() {
 	flags := parseFlags(logger)
 
 	var cfg config.Configuration
-	if err := xconfig.LoadFile(&cfg, flags.configFile); err != nil {
+	if err := xconfig.LoadFile(&cfg, flags.configFile, configLoadOpts); err != nil {
 		logger.Fatal("unable to load", zap.String("configFile", flags.configFile), zap.Any("error", err))
 	}
 

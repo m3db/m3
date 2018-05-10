@@ -122,9 +122,9 @@ func (s *AsyncSession) FetchTagged(namespace ident.ID, q index.Query, opts index
 }
 
 // FetchTaggedIDs resolves the provided query to known IDs.
-func (s *AsyncSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+func (s *AsyncSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (client.TaggedIDsIterator, bool, error) {
 	if s.err != nil {
-		return index.QueryResults{}, s.err
+		return nil, false, s.err
 	}
 
 	return s.session.FetchTaggedIDs(namespace, q, opts)

@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3coordinator/util/logging"
 
 	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -80,8 +79,8 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 
 	session1.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(response[0].result, true, response[0].err)
 	session2.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(response[len(response)-1].result, true, response[len(response)-1].err)
-	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(index.QueryResults{}, errors.ErrNotImplemented)
-	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(index.QueryResults{}, errors.ErrNotImplemented)
+	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, errors.ErrNotImplemented)
+	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, errors.ErrNotImplemented)
 	stores := []storage.Storage{
 		store1, store2,
 	}

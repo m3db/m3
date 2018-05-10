@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3coordinator/util/logging"
 
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/storage/index"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -123,7 +122,7 @@ func TestLocalRead(t *testing.T) {
 func setupLocalSearch(t *testing.T) storage.Storage {
 	ctrl := gomock.NewController(t)
 	store, session := setup(ctrl)
-	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(index.QueryResults{}, errors.ErrNotImplemented)
+	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, errors.ErrNotImplemented)
 	return store
 }
 
