@@ -61,3 +61,56 @@ func TestDisjunctionQuery(t *testing.T) {
 		})
 	}
 }
+
+func TestDisjunctionQueryEqual(t *testing.T) {
+	tests := []struct {
+		name        string
+		left, right search.Query
+		expected    bool
+	}{
+		{
+			name:     "empty queries",
+			left:     NewDisjuctionQuery(nil),
+			right:    NewDisjuctionQuery(nil),
+			expected: true,
+		},
+		{
+			name: "equal queries",
+			left: NewDisjuctionQuery([]search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+				NewTermQuery([]byte("fruit"), []byte("banana")),
+			}),
+			right: NewDisjuctionQuery([]search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+				NewTermQuery([]byte("fruit"), []byte("banana")),
+			}),
+			expected: true,
+		},
+		{
+			name: "single query",
+			left: NewDisjuctionQuery([]search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+			}),
+			right:    NewTermQuery([]byte("fruit"), []byte("apple")),
+			expected: true,
+		},
+		{
+			name: "different order",
+			left: NewDisjuctionQuery([]search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+				NewTermQuery([]byte("fruit"), []byte("banana")),
+			}),
+			right: NewDisjuctionQuery([]search.Query{
+				NewTermQuery([]byte("fruit"), []byte("banana")),
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+			}),
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, test.left.Equal(test.right))
+		})
+	}
+}

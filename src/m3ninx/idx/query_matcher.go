@@ -21,11 +21,7 @@
 package idx
 
 import (
-	"bytes"
 	"fmt"
-
-	"github.com/m3db/m3ninx/search"
-	"github.com/m3db/m3ninx/search/query"
 
 	"github.com/golang/mock/gomock"
 )
@@ -47,88 +43,11 @@ type queryMatcher struct {
 }
 
 func (m *queryMatcher) Matches(x interface{}) bool {
-	query, ok := x.(Query)
+	q, ok := x.(Query)
 	if !ok {
 		return false
 	}
-
-	expected := m.query.SearchQuery()
-	observed := query.SearchQuery()
-	return m.matches(expected, observed)
-}
-
-func (m *queryMatcher) headElem(qry search.Query) (search.Query, bool) {
-	switch q := qry.(type) {
-	case *query.TermQuery:
-		return q, true
-	case *query.RegexpQuery:
-		return q, true
-	case *query.ConjuctionQuery:
-		if len(q.Queries) == 1 {
-			return q.Queries[0], true
-		}
-	case *query.DisjuctionQuery:
-		if len(q.Queries) == 1 {
-			return q.Queries[0], true
-		}
-	}
-	return nil, false
-}
-
-func (m *queryMatcher) matches(expected, observed search.Query) bool {
-	switch q := expected.(type) {
-	case *query.TermQuery:
-		oq, ok := m.headElem(observed)
-		if !ok {
-			return false
-		}
-		term, ok := oq.(*query.TermQuery)
-		if !ok {
-			return false
-		}
-		if !bytes.Equal(q.Field, term.Field) ||
-			!bytes.Equal(q.Term, term.Term) {
-			return false
-		}
-	case *query.RegexpQuery:
-		oq, ok := m.headElem(observed)
-		if !ok {
-			return false
-		}
-		req, ok := oq.(*query.RegexpQuery)
-		if !ok {
-			return false
-		}
-		if !bytes.Equal(q.Field, req.Field) ||
-			!bytes.Equal(q.Regexp, req.Regexp) {
-			return false
-		}
-	case *query.ConjuctionQuery:
-		conj, ok := observed.(*query.ConjuctionQuery)
-		if !ok || len(q.Queries) != len(conj.Queries) {
-			return false
-		}
-		for idx := range q.Queries {
-			exp, obs := q.Queries[idx], conj.Queries[idx]
-			if ok := m.matches(exp, obs); !ok {
-				return false
-			}
-		}
-	case *query.DisjuctionQuery:
-		disj, ok := observed.(*query.DisjuctionQuery)
-		if !ok || len(q.Queries) != len(disj.Queries) {
-			return false
-		}
-		for idx := range q.Queries {
-			exp, obs := q.Queries[idx], disj.Queries[idx]
-			if ok := m.matches(exp, obs); !ok {
-				return false
-			}
-		}
-	default:
-		panic("unknown type")
-	}
-	return true
+	return m.query.Equal(q)
 }
 
 func (m *queryMatcher) String() string {

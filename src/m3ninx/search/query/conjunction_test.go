@@ -61,3 +61,56 @@ func TestConjunctionQuery(t *testing.T) {
 		})
 	}
 }
+
+func TestConjunctionQueryEqual(t *testing.T) {
+	tests := []struct {
+		name        string
+		left, right search.Query
+		expected    bool
+	}{
+		{
+			name:     "empty queries",
+			left:     NewConjuctionQuery(nil),
+			right:    NewConjuctionQuery(nil),
+			expected: true,
+		},
+		{
+			name: "equal queries",
+			left: NewConjuctionQuery([]search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+				NewTermQuery([]byte("fruit"), []byte("banana")),
+			}),
+			right: NewConjuctionQuery([]search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+				NewTermQuery([]byte("fruit"), []byte("banana")),
+			}),
+			expected: true,
+		},
+		{
+			name: "single query",
+			left: NewConjuctionQuery([]search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+			}),
+			right:    NewTermQuery([]byte("fruit"), []byte("apple")),
+			expected: true,
+		},
+		{
+			name: "different order",
+			left: NewConjuctionQuery([]search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+				NewTermQuery([]byte("fruit"), []byte("banana")),
+			}),
+			right: NewConjuctionQuery([]search.Query{
+				NewTermQuery([]byte("fruit"), []byte("banana")),
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+			}),
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, test.left.Equal(test.right))
+		})
+	}
+}

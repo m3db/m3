@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3ninx/index"
+	"github.com/m3db/m3ninx/search"
 
 	"github.com/stretchr/testify/require"
 )
@@ -46,6 +47,55 @@ func TestTermQuery(t *testing.T) {
 			q := NewTermQuery(test.field, test.term)
 			_, err := q.Searcher(rs)
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestTermQueryEqual(t *testing.T) {
+	tests := []struct {
+		name        string
+		left, right search.Query
+		expected    bool
+	}{
+		{
+			name:     "same field and term",
+			left:     NewTermQuery([]byte("fruit"), []byte("apple")),
+			right:    NewTermQuery([]byte("fruit"), []byte("apple")),
+			expected: true,
+		},
+		{
+			name: "singular conjunction query",
+			left: NewTermQuery([]byte("fruit"), []byte("apple")),
+			right: NewConjuctionQuery([]search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+			}),
+			expected: true,
+		},
+		{
+			name: "singular disjunction query",
+			left: NewTermQuery([]byte("fruit"), []byte("apple")),
+			right: NewDisjuctionQuery([]search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+			}),
+			expected: true,
+		},
+		{
+			name:     "different field",
+			left:     NewTermQuery([]byte("fruit"), []byte("apple")),
+			right:    NewTermQuery([]byte("food"), []byte("apple")),
+			expected: false,
+		},
+		{
+			name:     "different term",
+			left:     NewTermQuery([]byte("fruit"), []byte("apple")),
+			right:    NewTermQuery([]byte("fruit"), []byte("banana")),
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, test.left.Equal(test.right))
 		})
 	}
 }

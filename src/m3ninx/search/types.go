@@ -43,6 +43,9 @@ type Query interface {
 
 	// Searcher returns a Searcher for executing the query over a set of Readers.
 	Searcher(rs index.Readers) (Searcher, error)
+
+	// Equal reports whether two queries are equivalent.
+	Equal(q Query) bool
 }
 
 // Searcher executes a query against a collection of Readers. It is an iterator which
