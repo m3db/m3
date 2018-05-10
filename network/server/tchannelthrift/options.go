@@ -22,6 +22,7 @@ package tchannelthrift
 
 import (
 	"github.com/m3db/m3db/serialize"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )
 

@@ -84,6 +84,8 @@ func verifySeriesMapForRange(
 		req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 		fetched, err := ts.fetch(req)
+
+		// m3dbClientFetchBlocksMetadata(ts.m3dbAdminClient, )
 		require.NoError(t, err)
 		expected[i] = generate.Series{
 			ID:   input[i].ID,
