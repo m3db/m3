@@ -569,11 +569,6 @@ func (s *commitLogSource) ReadIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
-	// FOLLOWUP(rartoul): implement the commit log source returning
-	// not indexed series metadata for the time range required.
-	// Try to cache some data on the commit log source itself
-	// from work done in ReadData(...) to help avoid rereading as
-	// much as possible.
 	// Also: it's now possible to cache the metadata and data
 	// for all namespaces in the first call to ReadData(...) since
 	// the source is used across all namespaces and then discarded after.
