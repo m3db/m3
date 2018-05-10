@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3ninx/index"
+	"github.com/m3db/m3ninx/search"
 
 	"github.com/stretchr/testify/require"
 )
@@ -63,4 +64,59 @@ func TestRegexpQuery(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestRegexpQueryEqual(t *testing.T) {
+	tests := []struct {
+		name        string
+		left, right search.Query
+		expected    bool
+	}{
+		{
+			name:     "same field and regexp",
+			left:     newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
+			right:    newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
+			expected: true,
+		},
+		{
+			name: "singular conjunction query",
+			left: newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
+			right: NewConjuctionQuery([]search.Query{
+				newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
+			}),
+			expected: true,
+		},
+		{
+			name: "singular disjunction query",
+			left: newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
+			right: NewDisjuctionQuery([]search.Query{
+				newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
+			}),
+			expected: true,
+		},
+		{
+			name:     "different field",
+			left:     newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
+			right:    newRegexpQuery(t, []byte("food"), []byte(".*ple")),
+			expected: false,
+		},
+		{
+			name:     "different regexp",
+			left:     newRegexpQuery(t, []byte("fruit"), []byte(".*ple")),
+			right:    newRegexpQuery(t, []byte("fruit"), []byte(".*na")),
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, test.left.Equal(test.right))
+		})
+	}
+}
+
+func newRegexpQuery(t *testing.T, field, regexp []byte) search.Query {
+	q, err := NewRegexpQuery(field, regexp)
+	require.NoError(t, err)
+	return q
 }

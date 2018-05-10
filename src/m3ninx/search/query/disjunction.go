@@ -74,6 +74,30 @@ func (q *DisjuctionQuery) Searcher(rs index.Readers) (search.Searcher, error) {
 	return searcher.NewDisjunctionSearcher(len(rs), srs)
 }
 
+// Equal reports whether q is equivalent to o.
+func (q *DisjuctionQuery) Equal(o search.Query) bool {
+	if len(q.Queries) == 1 {
+		return q.Queries[0].Equal(o)
+	}
+
+	inner, ok := o.(*DisjuctionQuery)
+	if !ok {
+		return false
+	}
+
+	if len(q.Queries) != len(inner.Queries) {
+		return false
+	}
+
+	// TODO: Should order matter?
+	for i := range q.Queries {
+		if !q.Queries[i].Equal(inner.Queries[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 func (q *DisjuctionQuery) String() string {
 	return fmt.Sprintf("disjunction(%s)", join(q.Queries))
 }

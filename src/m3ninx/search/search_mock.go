@@ -130,6 +130,18 @@ func (mr *MockQueryMockRecorder) Searcher(rs interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Searcher", reflect.TypeOf((*MockQuery)(nil).Searcher), rs)
 }
 
+// Equal mocks base method
+func (m *MockQuery) Equal(q Query) bool {
+	ret := m.ctrl.Call(m, "Equal", q)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Equal indicates an expected call of Equal
+func (mr *MockQueryMockRecorder) Equal(q interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockQuery)(nil).Equal), q)
+}
+
 // MockSearcher is a mock of Searcher interface
 type MockSearcher struct {
 	ctrl     *gomock.Controller

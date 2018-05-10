@@ -20,49 +20,22 @@
 
 package query
 
-import (
-	"bytes"
-	"fmt"
+import "github.com/m3db/m3ninx/search"
 
-	"github.com/m3db/m3ninx/index"
-	"github.com/m3db/m3ninx/search"
-	"github.com/m3db/m3ninx/search/searcher"
-)
-
-// TermQuery finds document which match the given term exactly.
-type TermQuery struct {
-	Field []byte
-	Term  []byte
-}
-
-// NewTermQuery constructs a new TermQuery for the given field and term.
-func NewTermQuery(field, term []byte) search.Query {
-	return &TermQuery{
-		Field: field,
-		Term:  term,
+// singular returns a bool indicating whether a given query is composed of a single
+// query and returns that query if so.
+func singular(q search.Query) (search.Query, bool) {
+	switch q := q.(type) {
+	case *ConjuctionQuery:
+		if len(q.Queries) == 1 {
+			return q.Queries[0], true
+		}
+		return nil, false
+	case *DisjuctionQuery:
+		if len(q.Queries) == 1 {
+			return q.Queries[0], true
+		}
+		return nil, false
 	}
-}
-
-// Searcher returns a searcher over the provided readers.
-func (q *TermQuery) Searcher(rs index.Readers) (search.Searcher, error) {
-	return searcher.NewTermSearcher(rs, q.Field, q.Term), nil
-}
-
-// Equal reports whether q is equivalent to o.
-func (q *TermQuery) Equal(o search.Query) bool {
-	o, ok := singular(o)
-	if !ok {
-		return false
-	}
-
-	inner, ok := o.(*TermQuery)
-	if !ok {
-		return false
-	}
-
-	return bytes.Equal(q.Field, inner.Field) && bytes.Equal(q.Term, inner.Term)
-}
-
-func (q *TermQuery) String() string {
-	return fmt.Sprintf("term(%s, %s)", q.Field, q.Term)
+	return q, true
 }

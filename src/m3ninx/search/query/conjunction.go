@@ -74,6 +74,30 @@ func (q *ConjuctionQuery) Searcher(rs index.Readers) (search.Searcher, error) {
 	return searcher.NewConjunctionSearcher(len(rs), srs)
 }
 
+// Equal reports whether q is equivalent to o.
+func (q *ConjuctionQuery) Equal(o search.Query) bool {
+	if len(q.Queries) == 1 {
+		return q.Queries[0].Equal(o)
+	}
+
+	inner, ok := o.(*ConjuctionQuery)
+	if !ok {
+		return false
+	}
+
+	if len(q.Queries) != len(inner.Queries) {
+		return false
+	}
+
+	// TODO: Should order matter?
+	for i := range q.Queries {
+		if !q.Queries[i].Equal(inner.Queries[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 func (q *ConjuctionQuery) String() string {
 	return fmt.Sprintf("conjunction(%s)", join(q.Queries))
 }

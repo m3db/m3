@@ -21,6 +21,7 @@
 package query
 
 import (
+	"bytes"
 	"fmt"
 	re "regexp"
 
@@ -53,6 +54,21 @@ func NewRegexpQuery(field, regexp []byte) (search.Query, error) {
 // Searcher returns a searcher over the provided readers.
 func (q *RegexpQuery) Searcher(rs index.Readers) (search.Searcher, error) {
 	return searcher.NewRegexpSearcher(rs, q.Field, q.Regexp, q.compiled), nil
+}
+
+// Equal reports whether q is equivalent to o.
+func (q *RegexpQuery) Equal(o search.Query) bool {
+	o, ok := singular(o)
+	if !ok {
+		return false
+	}
+
+	inner, ok := o.(*RegexpQuery)
+	if !ok {
+		return false
+	}
+
+	return bytes.Equal(q.Field, inner.Field) && bytes.Equal(q.Regexp, inner.Regexp)
 }
 
 func (q *RegexpQuery) String() string {
