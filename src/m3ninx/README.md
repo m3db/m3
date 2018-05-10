@@ -5,5 +5,5 @@ This project is released under the [MIT License](LICENSE.md).
 
 [ci-img]: https://semaphoreci.com/api/v1/m3db/m3ninx/branches/master/shields_badge.svg
 [ci]: https://semaphoreci.com/m3db/m3ninx
-[cov-img]: https://coveralls.io/repos/m3db/m3ninx/badge.svg?branch=master&service=github
-[cov]: https://coveralls.io/github/m3db/m3ninx?branch=master
+[cov-img]: https://codecov.io/gh/m3db/m3ninx/branch/master/graph/badge.svg
+[cov]: https://codecov.io/gh/m3db/m3ninx
