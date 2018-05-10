@@ -156,18 +156,35 @@ func TestRoaringPostingsListUnion(t *testing.T) {
 	require.Equal(t, 2, c.Len())
 }
 
+func TestRoaringPostingsListAddRange(t *testing.T) {
+	d := NewPostingsList()
+	d.Insert(1)
+	d.Insert(9)
+	d.AddRange(3, 5)
+
+	require.Equal(t, 4, d.Len())
+	require.True(t, d.Contains(1))
+	require.False(t, d.Contains(2))
+	require.True(t, d.Contains(3))
+	require.True(t, d.Contains(4))
+	require.False(t, d.Contains(5))
+	require.True(t, d.Contains(9))
+}
+
 func TestRoaringPostingsListRemoveRange(t *testing.T) {
 	d := NewPostingsList()
 	d.Insert(1)
 	d.Insert(2)
 	d.Insert(7)
+	d.Insert(8)
 	d.Insert(9)
 
 	d.RemoveRange(2, 8)
-	require.Equal(t, 2, d.Len())
+	require.Equal(t, 3, d.Len())
 	require.True(t, d.Contains(1))
 	require.False(t, d.Contains(2))
 	require.False(t, d.Contains(7))
+	require.True(t, d.Contains(8))
 	require.True(t, d.Contains(9))
 }
 

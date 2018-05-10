@@ -39,6 +39,7 @@ type reader struct {
 
 	segment ReadableSegment
 	limits  readerDocRange
+	plPool  postings.Pool
 
 	closed bool
 }
@@ -48,17 +49,18 @@ type readerDocRange struct {
 	endExclusive   postings.ID
 }
 
-func newReader(s ReadableSegment, limits readerDocRange) index.Reader {
+func newReader(s ReadableSegment, l readerDocRange, p postings.Pool) index.Reader {
 	return &reader{
 		segment: s,
-		limits:  limits,
+		limits:  l,
+		plPool:  p,
 	}
 }
 
 func (r *reader) MatchTerm(field, term []byte) (postings.List, error) {
 	r.RLock()
+	defer r.RUnlock()
 	if r.closed {
-		r.RUnlock()
 		return nil, errSegmentReaderClosed
 	}
 
@@ -67,14 +69,13 @@ func (r *reader) MatchTerm(field, term []byte) (postings.List, error) {
 	// postings list through a call to Docs, IDs greater than or equal to the limit
 	// will be filtered out.
 	pl, err := r.segment.matchTerm(field, term)
-	r.RUnlock()
 	return pl, err
 }
 
 func (r *reader) MatchRegexp(field, regexp []byte, compiled *regexp.Regexp) (postings.List, error) {
 	r.RLock()
+	defer r.RUnlock()
 	if r.closed {
-		r.RUnlock()
 		return nil, errSegmentReaderClosed
 	}
 
@@ -83,28 +84,43 @@ func (r *reader) MatchRegexp(field, regexp []byte, compiled *regexp.Regexp) (pos
 	// with a postings list through a call to Docs will IDs greater than the maximum be
 	// filtered out.
 	pl, err := r.segment.matchRegexp(field, regexp, compiled)
-	r.RUnlock()
 	return pl, err
 }
 
-func (r *reader) docIter(iter postings.Iterator) (doc.Iterator, error) {
+func (r *reader) MatchAll() (postings.MutableList, error) {
 	r.RLock()
+	defer r.RUnlock()
 	if r.closed {
-		r.RUnlock()
 		return nil, errSegmentReaderClosed
 	}
-	di := newIterator(r.segment, iter, r.limits.endExclusive)
-	r.RUnlock()
-	return di, nil
+
+	pl := r.plPool.Get()
+	pl.AddRange(r.limits.startInclusive, r.limits.endExclusive)
+	return pl, nil
 }
 
 func (r *reader) Docs(pl postings.List) (doc.Iterator, error) {
-	return r.docIter(pl.Iterator())
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return nil, errSegmentReaderClosed
+	}
+	return r.getDocIterWithLock(pl.Iterator()), nil
 }
 
 func (r *reader) AllDocs() (doc.Iterator, error) {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return nil, errSegmentReaderClosed
+	}
+
 	pi := postings.NewRangeIterator(r.limits.startInclusive, r.limits.endExclusive)
-	return r.docIter(pi)
+	return r.getDocIterWithLock(pi), nil
+}
+
+func (r *reader) getDocIterWithLock(iter postings.Iterator) doc.Iterator {
+	return newIterator(r.segment, iter, r.limits.endExclusive)
 }
 
 func (r *reader) Close() error {

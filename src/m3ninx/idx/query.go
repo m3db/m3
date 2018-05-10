@@ -21,8 +21,6 @@
 package idx
 
 import (
-	"errors"
-
 	"github.com/m3db/m3ninx/search"
 	"github.com/m3db/m3ninx/search/query"
 )
@@ -51,32 +49,34 @@ func NewRegexpQuery(field, regexp []byte) (Query, error) {
 }
 
 // NewNegationQuery returns a new query for finding documents which don't match a given query.
-func NewNegationQuery(q Query) (Query, error) {
-	return Query{}, errors.New("not implemented")
+func NewNegationQuery(q Query) Query {
+	return Query{
+		query: query.NewNegationQuery(q.SearchQuery()),
+	}
 }
 
 // NewConjunctionQuery returns a new query for finding documents which match each of the
 // given queries.
-func NewConjunctionQuery(queries ...Query) (Query, error) {
+func NewConjunctionQuery(queries ...Query) Query {
 	qs := make([]search.Query, 0, len(queries))
 	for _, q := range queries {
 		qs = append(qs, q.query)
 	}
 	return Query{
 		query: query.NewConjuctionQuery(qs),
-	}, nil
+	}
 }
 
 // NewDisjunctionQuery returns a new query for finding documents which match at least one
 // of the given queries.
-func NewDisjunctionQuery(queries ...Query) (Query, error) {
+func NewDisjunctionQuery(queries ...Query) Query {
 	qs := make([]search.Query, 0, len(queries))
 	for _, q := range queries {
 		qs = append(qs, q.query)
 	}
 	return Query{
 		query: query.NewDisjuctionQuery(qs),
-	}, nil
+	}
 }
 
 // SearchQuery returns the underlying search query for use during execution.
