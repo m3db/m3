@@ -170,9 +170,7 @@ func newQuery(t *testing.T, tags ident.TagIterator) idx.Query {
 		tq := idx.NewTermQuery(tag.Name.Bytes(), tag.Value.Bytes())
 		filters = append(filters, tq)
 	}
-	q, err := idx.NewConjunctionQuery(filters...)
-	require.NoError(t, err)
-	return q
+	return idx.NewConjunctionQuery(filters...)
 }
 
 func genIDTags(i int, j int, numTags int) (ident.ID, ident.TagIterator) {
