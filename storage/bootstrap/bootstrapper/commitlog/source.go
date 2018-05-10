@@ -575,10 +575,8 @@ func (s *commitLogSource) ReadIndex(
 
 	for iter.Next() {
 		series, dp, _, _ := iter.Current()
-		// fmt.Println("index: ", series)
 		if !s.shouldIncludeInIndex(
 			series.Shard, dp.Timestamp, highestShard, indexBlockSize, bootstrapRangesByShard) {
-			// fmt.Println("skipping!")
 			continue
 		}
 
@@ -605,7 +603,6 @@ func (s *commitLogSource) ReadIndex(
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("inserted %v into segment %v\n", series.ID.String(), dp.Timestamp.Truncate(ns.Options().IndexOptions().BlockSize()))
 	}
 
 	return indexResult, nil
