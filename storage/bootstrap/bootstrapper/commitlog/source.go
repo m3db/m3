@@ -184,7 +184,9 @@ func (s *commitLogSource) ReadData(
 
 	result := s.mergeShards(int(numShards), bopts, blockSize, blopts, encoderPool, unmerged)
 	// After mergingShards, its safe to cache the shardData (which involves some mutation).
-	s.cacheShardData(unmerged)
+	if s.opts.ShouldCacheSeriesMetadata() {
+		s.cacheShardData(unmerged)
+	}
 	return result, nil
 }
 
@@ -626,72 +628,70 @@ func (s *commitLogSource) ReadIndex(
 		resultOptions  = s.opts.ResultOptions()
 	)
 
+	// Start by reading all the commit log files that we couldn't eliminate due to the
+	// cached metadata.
 	for iter.Next() {
 		series, dp, _, _ := iter.Current()
-		if !s.shouldIncludeInIndex(
-			series.Shard, dp.Timestamp, highestShard, indexBlockSize, bootstrapRangesByShard) {
-			continue
-		}
-
-		segment, err := indexResults.GetOrAddSegment(dp.Timestamp, indexOptions, resultOptions)
-		if err != nil {
-			return nil, err
-		}
-
-		exists, err := segment.ContainsID(series.ID.Bytes())
-		if err != nil {
-			return nil, err
-		}
-		if exists {
-			continue
-		}
-
-		d, err := convert.FromMetric(series.ID, series.Tags)
-		if err != nil {
-			return nil, err
-		}
-
-		_, err = segment.Insert(d)
-		if err != nil {
-			return nil, err
-		}
+		s.maybeAddToIndex(
+			series.ID, series.Tags, series.Shard, highestShard, dp.Timestamp, bootstrapRangesByShard,
+			indexResults, indexOptions, indexBlockSize, resultOptions)
 	}
 
+	// Add in all the data that was cached by a previous run of ReadData() (if any).
 	for shard, shardData := range s.cachedShardData {
 		for _, series := range shardData.encodersBySeries {
 			for dataBlockStart := range series.encoders {
-				if !s.shouldIncludeInIndex(
-					uint32(shard), dataBlockStart.ToTime(), highestShard, indexBlockSize, bootstrapRangesByShard) {
-					continue
-				}
-
-				segment, err := indexResults.GetOrAddSegment(dataBlockStart.ToTime(), indexOptions, resultOptions)
-				if err != nil {
-					return nil, err
-				}
-
-				exists, err := segment.ContainsID(series.id.Data().Bytes())
-				if err != nil {
-					return nil, err
-				}
-				if exists {
-					continue
-				}
-
-				d, err := convert.FromMetric(series.id, series.tags)
-				if err != nil {
-					return nil, err
-				}
-
-				_, err = segment.Insert(d)
-				if err != nil {
-					return nil, err
-				}
+				s.maybeAddToIndex(
+					series.id, series.tags, uint32(shard), highestShard, dataBlockStart.ToTime(), bootstrapRangesByShard,
+					indexResults, indexOptions, indexBlockSize, resultOptions)
 			}
 		}
 	}
 
 	return indexResult, nil
+}
+
+func (s commitLogSource) maybeAddToIndex(
+	id ident.ID,
+	tags ident.Tags,
+	shard uint32,
+	highestShard uint32,
+	blockStart time.Time,
+	bootstrapRangesByShard []xtime.Ranges,
+	indexResults result.IndexResults,
+	indexOptions namespace.IndexOptions,
+	indexBlockSize time.Duration,
+	resultOptions result.Options,
+) error {
+	if !s.shouldIncludeInIndex(
+		uint32(shard), blockStart, highestShard, indexBlockSize, bootstrapRangesByShard) {
+		return nil
+	}
+
+	segment, err := indexResults.GetOrAddSegment(blockStart, indexOptions, resultOptions)
+	if err != nil {
+		return err
+	}
+
+	exists, err := segment.ContainsID(id.Data().Bytes())
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+
+	d, err := convert.FromMetric(id, tags)
+	if err != nil {
+		return err
+	}
+
+	_, err = segment.Insert(d)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func newReadCommitLogPredicate(

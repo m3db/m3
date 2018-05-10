@@ -68,7 +68,9 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			commitLogOpts := commitlog.NewOptions().
 				SetBlockSize(2 * time.Hour).
 				SetFilesystemOptions(fsOpts)
-			bootstrapOpts := testOptions().SetCommitLogOptions(commitLogOpts)
+			bootstrapOpts := testOptions().
+				SetCommitLogOptions(commitLogOpts).
+				SetShouldCacheSeriesMetadata(input.shouldCacheSeriesMetadata)
 
 			// Instantiate commitlog
 			log, err := commitlog.NewCommitLog(commitLogOpts)
@@ -165,8 +167,9 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 }
 
 type propTestInput struct {
-	currentTime time.Time
-	writes      []generatedWrite
+	currentTime               time.Time
+	writes                    []generatedWrite
+	shouldCacheSeriesMetadata bool
 }
 
 type generatedWrite struct {
@@ -185,22 +188,26 @@ func genPropTestInputs(ns string) gopter.Gen {
 		inputs := input.([]interface{})
 		start := inputs[0].(time.Time)
 		numDatapoints := inputs[1].(int)
-		return genPropTestInput(start, numDatapoints, ns)
+		shouldCacheSeriesMetadata := inputs[2].(bool)
+		return genPropTestInput(start, numDatapoints, shouldCacheSeriesMetadata, ns)
 	}
 	return gopter.CombineGens(
 		// Runs iterations of the test starting 1000 hours in the past/future
 		gen.TimeRange(time.Now(), blockSize),
 		// Run iterations of the test with between 0 and 1000 datapoints
 		gen.IntRange(0, 1000),
+		// ShouldCacheSeriesMetadata
+		gen.Bool(),
 	).FlatMap(curriedGenPropTestInput, reflect.TypeOf(propTestInput{}))
 }
 
-func genPropTestInput(start time.Time, numDatapoints int, ns string) gopter.Gen {
+func genPropTestInput(start time.Time, numDatapoints int, shouldCacheSeriesMetadata bool, ns string) gopter.Gen {
 	return gen.SliceOfN(numDatapoints, genWrite(start, ns)).
 		Map(func(val interface{}) propTestInput {
 			return propTestInput{
 				currentTime: start,
 				writes:      val.([]generatedWrite),
+				shouldCacheSeriesMetadata: shouldCacheSeriesMetadata,
 			}
 		})
 }
