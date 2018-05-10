@@ -187,7 +187,7 @@ func newNamespaceIndexWithOptions(
 	}
 
 	// allocate indexing queue and start it up.
-	queue := newIndexQueueFn(idx.writeBatch, nowFn, opts.InstrumentOptions().MetricsScope())
+	queue := newIndexQueueFn(idx.writeBatches, nowFn, opts.InstrumentOptions().MetricsScope())
 	if err := queue.Start(); err != nil {
 		return nil, err
 	}
@@ -319,6 +319,14 @@ func (i *nsIndex) enqueueBatch(
 	}
 
 	return nil
+}
+
+func (i *nsIndex) writeBatches(
+	batches [][]index.WriteBatchEntry,
+) {
+	for _, batch := range batches {
+		i.writeBatch(batch)
+	}
 }
 
 // NB: this function is called by the namespaceIndexInsertQueue.

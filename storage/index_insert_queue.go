@@ -175,7 +175,7 @@ func (q *nsIndexInsertQueue) InsertBatch(
 			return nil, errNewSeriesIndexRateLimitExceeded
 		}
 	}
-	q.currBatch.inserts = append(q.currBatch.inserts, entries...)
+	q.currBatch.inserts = append(q.currBatch.inserts, entries)
 	wg := q.currBatch.wg
 	q.Unlock()
 
@@ -227,11 +227,11 @@ func (q *nsIndexInsertQueue) Stop() error {
 	return nil
 }
 
-type nsIndexInsertBatchFn func(inserts []index.WriteBatchEntry)
+type nsIndexInsertBatchFn func(inserts [][]index.WriteBatchEntry)
 
 type nsIndexInsertBatch struct {
 	wg      *sync.WaitGroup
-	inserts []index.WriteBatchEntry
+	inserts [][]index.WriteBatchEntry
 }
 
 var nsIndexInsertZeroed index.WriteBatchEntry
@@ -240,8 +240,11 @@ func (b *nsIndexInsertBatch) Reset() {
 	b.wg = &sync.WaitGroup{}
 	// We always expect to be waiting for an index
 	b.wg.Add(1)
-	for i := range b.inserts {
-		b.inserts[i] = nsIndexInsertZeroed
+	for i, group := range b.inserts {
+		for j := range group {
+			group[j] = nsIndexInsertZeroed
+		}
+		b.inserts[i] = group[:0]
 	}
 	b.inserts = b.inserts[:0]
 }
