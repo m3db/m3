@@ -1,5 +1,5 @@
-hash: 3bbee094dfda02f5d95e626277d4b6ae46e6a5182e288b0ea7e17591c3959e96
-updated: 2018-04-16T16:50:28.577139-04:00
+hash: 17ce3389aaa2036a637bb896875b70f0884cde9d9fe97171aced5febcc3f0152
+updated: 2018-05-09T15:00:43.035904-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -7,14 +7,16 @@ imports:
   - lib/go/thrift
 - name: github.com/cespare/xxhash
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
-- name: github.com/facebookgo/clock
-  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/glycerine/go-unsnap-stream
   version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
 - name: github.com/golang/mock
   version: c34cdb4725f4c3844d095133c6e40e448b86589b
   subpackages:
   - gomock
+- name: github.com/golang/protobuf
+  version: b4deda0973fb4c70b50d226b1af49f3da59f5265
+  subpackages:
+  - proto
 - name: github.com/golang/snappy
   version: 553a641470496b2327abcac10b36396bd98e45c9
 - name: github.com/m3db/codesearch
@@ -43,9 +45,9 @@ imports:
   subpackages:
   - msgp
 - name: github.com/uber-go/atomic
-  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
-  version: 522328b48efad0c6034dba92bf39228694e9d31f
+  version: 6f121596292a5ec8618b71ee3687fe42da73d289
   subpackages:
   - m3
   - m3/customtransports
@@ -54,7 +56,7 @@ imports:
 - name: github.com/willf/bitset
   version: 988f4f24992fc745de53c42df0da6581e42a6686
 - name: go.uber.org/atomic
-  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap

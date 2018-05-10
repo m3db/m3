@@ -18,28 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package query
+//go:generate sh -c "$GOPATH/src/$PACKAGE/.ci/proto-gen.sh $GOPATH/src/$PACKAGE/generated/proto $GOPATH/src/$PACKAGE/generated/proto"
 
-import (
-	"bytes"
-
-	"github.com/m3db/m3ninx/search"
-)
-
-func join(qs []search.Query) string {
-	switch len(qs) {
-	case 0:
-		return ""
-	case 1:
-		return qs[0].String()
-	}
-
-	var b bytes.Buffer
-	b.WriteString(qs[0].String())
-	for _, q := range qs[1:] {
-		b.WriteString(", ")
-		b.WriteString(q.String())
-	}
-
-	return b.String()
-}
+package proto

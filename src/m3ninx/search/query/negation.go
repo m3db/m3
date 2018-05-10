@@ -23,6 +23,7 @@ package query
 import (
 	"fmt"
 
+	"github.com/m3db/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/search"
 	"github.com/m3db/m3ninx/search/searcher"
@@ -62,6 +63,16 @@ func (q *NegationQuery) Equal(o search.Query) bool {
 	}
 
 	return q.Query.Equal(inner.Query)
+}
+
+// ToProto returns the Protobuf query struct corresponding to the term query.
+func (q *NegationQuery) ToProto() *querypb.Query {
+	inner := q.Query.ToProto()
+	qry := querypb.NegationQuery{Query: inner}
+
+	return &querypb.Query{
+		Query: &querypb.Query_Negation{Negation: &qry},
+	}
 }
 
 func (q *NegationQuery) String() string {

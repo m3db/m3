@@ -48,6 +48,17 @@ func NewRegexpQuery(field, regexp []byte) (Query, error) {
 	}, nil
 }
 
+// MustCreateRegexpQuery is like NewRegexpQuery but panics if the query cannot be created.
+func MustCreateRegexpQuery(field, regexp []byte) Query {
+	q, err := query.NewRegexpQuery(field, regexp)
+	if err != nil {
+		panic(err)
+	}
+	return Query{
+		query: q,
+	}
+}
+
 // NewNegationQuery returns a new query for finding documents which don't match a given query.
 func NewNegationQuery(q Query) Query {
 	return Query{
@@ -63,7 +74,7 @@ func NewConjunctionQuery(queries ...Query) Query {
 		qs = append(qs, q.query)
 	}
 	return Query{
-		query: query.NewConjuctionQuery(qs),
+		query: query.NewConjunctionQuery(qs),
 	}
 }
 
@@ -75,7 +86,7 @@ func NewDisjunctionQuery(queries ...Query) Query {
 		qs = append(qs, q.query)
 	}
 	return Query{
-		query: query.NewDisjuctionQuery(qs),
+		query: query.NewDisjunctionQuery(qs),
 	}
 }
 

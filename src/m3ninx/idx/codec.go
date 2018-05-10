@@ -18,47 +18,22 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package query
+package idx
 
 import (
-	"bytes"
-
-	"github.com/m3db/m3ninx/search"
+	"github.com/m3db/m3ninx/search/query"
 )
 
-// singular returns a bool indicating whether a given query is composed of a single
-// query and returns that query if so.
-func singular(q search.Query) (search.Query, bool) {
-	switch q := q.(type) {
-	case *ConjuctionQuery:
-		if len(q.Queries) == 1 {
-			return q.Queries[0], true
-		}
-		return nil, false
-	case *DisjuctionQuery:
-		if len(q.Queries) == 1 {
-			return q.Queries[0], true
-		}
-		return nil, false
-	}
-	return q, true
+// Marshal encodes the query into a byte slice.
+func Marshal(q Query) ([]byte, error) {
+	return query.Marshal(q.query)
 }
 
-// join concatenates a slice of queries.
-func join(qs []search.Query) string {
-	switch len(qs) {
-	case 0:
-		return ""
-	case 1:
-		return qs[0].String()
+// Unmarshal decodes a query from a byte slice.
+func Unmarshal(data []byte) (Query, error) {
+	q, err := query.Unmarshal(data)
+	if err != nil {
+		return Query{}, err
 	}
-
-	var b bytes.Buffer
-	b.WriteString(qs[0].String())
-	for _, q := range qs[1:] {
-		b.WriteString(", ")
-		b.WriteString(q.String())
-	}
-
-	return b.String()
+	return Query{query: q}, nil
 }

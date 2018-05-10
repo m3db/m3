@@ -23,6 +23,7 @@ package query
 import (
 	"fmt"
 
+	"github.com/m3db/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/search"
 	"github.com/m3db/m3ninx/search/searcher"
@@ -33,9 +34,9 @@ type ConjuctionQuery struct {
 	Queries []search.Query
 }
 
-// NewConjuctionQuery constructs a new query which matches documents which match all
+// NewConjunctionQuery constructs a new query which matches documents which match all
 // of the given queries.
-func NewConjuctionQuery(queries []search.Query) search.Query {
+func NewConjunctionQuery(queries []search.Query) search.Query {
 	qs := make([]search.Query, 0, len(queries))
 	for _, query := range queries {
 		// Merge conjunction queries into slice of top-level queries.
@@ -96,6 +97,19 @@ func (q *ConjuctionQuery) Equal(o search.Query) bool {
 		}
 	}
 	return true
+}
+
+// ToProto returns the Protobuf query struct corresponding to the conjunction query.
+func (q *ConjuctionQuery) ToProto() *querypb.Query {
+	qs := make([]*querypb.Query, 0, len(q.Queries))
+	for _, qry := range q.Queries {
+		qs = append(qs, qry.ToProto())
+	}
+	conj := querypb.ConjunctionQuery{Queries: qs}
+
+	return &querypb.Query{
+		Query: &querypb.Query_Conjunction{Conjunction: &conj},
+	}
 }
 
 func (q *ConjuctionQuery) String() string {

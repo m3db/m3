@@ -23,6 +23,7 @@ package query
 import (
 	"fmt"
 
+	"github.com/m3db/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/search"
 	"github.com/m3db/m3ninx/search/searcher"
@@ -33,9 +34,9 @@ type DisjuctionQuery struct {
 	Queries []search.Query
 }
 
-// NewDisjuctionQuery constructs a new query which matches documents that match any
+// NewDisjunctionQuery constructs a new query which matches documents that match any
 // of the given queries.
-func NewDisjuctionQuery(queries []search.Query) search.Query {
+func NewDisjunctionQuery(queries []search.Query) search.Query {
 	qs := make([]search.Query, 0, len(queries))
 	for _, query := range queries {
 		// Merge disjunction queries into slice of top-level queries.
@@ -96,6 +97,19 @@ func (q *DisjuctionQuery) Equal(o search.Query) bool {
 		}
 	}
 	return true
+}
+
+// ToProto returns the Protobuf query struct corresponding to the disjunction query.
+func (q *DisjuctionQuery) ToProto() *querypb.Query {
+	qs := make([]*querypb.Query, 0, len(q.Queries))
+	for _, qry := range q.Queries {
+		qs = append(qs, qry.ToProto())
+	}
+	disj := querypb.DisjunctionQuery{Queries: qs}
+
+	return &querypb.Query{
+		Query: &querypb.Query_Disjunction{Disjunction: &disj},
+	}
 }
 
 func (q *DisjuctionQuery) String() string {
