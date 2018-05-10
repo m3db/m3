@@ -20,10 +20,19 @@
 
 package tchannelthrift
 
-import "github.com/m3db/m3db/serialize"
+import (
+	"github.com/m3db/m3db/serialize"
+	"github.com/m3db/m3x/instrument"
+)
 
 // Options controls server behavior
 type Options interface {
+	// SetInstrumentOptions sets the instrumentation options
+	SetInstrumentOptions(value instrument.Options) Options
+
+	// InstrumentOptions returns the instrumentation options
+	InstrumentOptions() instrument.Options
+
 	// SetBlockMetadataPool sets the block metadata pool
 	SetBlockMetadataPool(value BlockMetadataPool) Options
 

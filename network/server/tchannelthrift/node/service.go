@@ -332,15 +332,17 @@ func (s *service) encodeTags(
 ) (checked.Bytes, error) {
 	if err := enc.Encode(tags); err != nil {
 		// should never happen
-		wrappedErr := xerrors.NewRenamedError(err, fmt.Errorf("unable to encode tags"))
-		s.logger.Warnf("[invariant violated] %v", wrappedErr)
-		return nil, wrappedErr
+		err = xerrors.NewRenamedError(err, fmt.Errorf("unable to encode tags"))
+		l := instrument.EmitInvariantViolationAndGetLogger(s.opts.InstrumentOptions())
+		l.Warn(err.Error())
+		return nil, err
 	}
 	encodedTags, ok := enc.Data()
 	if !ok {
 		// should never happen
 		err := fmt.Errorf("unable to encode tags: unable to unwrap bytes")
-		s.logger.Warnf("[invariant violated] %v", err)
+		l := instrument.EmitInvariantViolationAndGetLogger(s.opts.InstrumentOptions())
+		l.Warn(err.Error())
 		return nil, err
 	}
 	return encodedTags, nil

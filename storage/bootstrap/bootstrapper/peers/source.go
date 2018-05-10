@@ -646,9 +646,9 @@ func (s *peersSource) markIndexResultErrorAsUnfulfilled(
 	// bootstrappers by just appending the result (unlike data bootstrap
 	// results that when merged replace the block with the current block).
 	// It would also be difficult to remove only series that were added to the
-	// index block as results from data files can be subsets of the index block
-	// and there's no way to definitively delete the entry we added as a result
-	// of just this data file failing.
+	// index block as results from a specific data block can be subsets of the
+	// index block and there's no way to definitively delete the entry we added
+	// as a result of just this data file failing.
 	resultLock.Lock()
 	defer resultLock.Unlock()
 
