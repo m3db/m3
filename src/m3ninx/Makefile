@@ -111,7 +111,8 @@ test-xml: test-base-xml
 testhtml: test-base-html
 
 .PHONY: test-ci-unit
-test-ci-unit: test-base-ci-unit
+test-ci-unit: test-base
+	$(codecov_push) -f $(coverfile)
 
 .PHONY: test-ci-integration
 test-ci-integration:
