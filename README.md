@@ -4,7 +4,9 @@
 
 A time series database.
 
+
 Documentation: https://m3db.github.io/m3db/
+Quick notes for developers: https://github.com/m3db/m3db/DEVELOPER.md
 
 <hr>
 
