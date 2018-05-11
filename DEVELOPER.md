@@ -7,7 +7,7 @@ TODO
 ## Testing Changes
 M3DB has an extensive (and ever increasing) set of tests to ensure we are able to validate changes. More notes about the various testing strategies we employ can be found in `TESTING.md`. An unfortunate consequence of the number of tests is running the test suite takes too long on a developer's laptop. Here's the workflow most developers employ to be productive. Note: take this as a suggestion of something that works for some people, not as a directive. Do what makes you enjoy the development process most, including disregarding this suggestion!
 
-Once you have identified a change you want to make, and gathered consensus by talking to some devs. Go ahead and make a branch with the changes. To test your changes:
+Once you have identified a change you want to make, and gathered consensus by talking to some devs, go ahead and make a branch with the changes. To test your changes:
 
 (1) Run unit tests locally
 ```
