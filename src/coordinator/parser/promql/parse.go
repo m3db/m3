@@ -23,6 +23,7 @@ package promql
 import (
 	"fmt"
 
+	"github.com/m3db/m3coordinator/errors"
 	"github.com/m3db/m3coordinator/parser"
 
 	pql "github.com/prometheus/prometheus/promql"
@@ -101,5 +102,5 @@ func walk(node pql.Node) (parser.Nodes, parser.Edges, error) {
 	}
 
 	// TODO: This should go away once all cases have been implemented
-	return nil, nil, fmt.Errorf("not implemented")
+	return nil, nil, errors.ErrNotImplemented
 }

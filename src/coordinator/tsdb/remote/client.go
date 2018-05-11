@@ -128,6 +128,11 @@ func (c *grpcClient) Write(ctx context.Context, query *storage.WriteQuery) error
 	return err
 }
 
+func (c *grpcClient) FetchBlocks(
+	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
+	return storage.BlockResult{}, errors.ErrNotImplemented
+}
+
 // Close closes the underlying connection
 func (c *grpcClient) Close() error {
 	return c.connection.Close()

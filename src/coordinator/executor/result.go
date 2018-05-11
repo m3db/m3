@@ -20,6 +20,20 @@
 
 package executor
 
+import (
+	"github.com/m3db/m3coordinator/parser"
+	"github.com/m3db/m3coordinator/storage"
+)
+
+// Result provides the execution results
+type Result interface {
+}
+
 // ResultNode is used to provide the results to the caller from the query execution
 type ResultNode struct {
+}
+
+// Process the block
+func (r ResultNode) Process(ID parser.NodeID, block storage.Block) error {
+	return nil
 }
