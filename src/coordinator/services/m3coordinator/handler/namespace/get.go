@@ -39,7 +39,6 @@ const (
 	GetURL = "/namespace"
 )
 
-// getHandler represents a handler for namespace get endpoint.
 type getHandler Handler
 
 // NewGetHandler returns a new instance of a namespace get handler.

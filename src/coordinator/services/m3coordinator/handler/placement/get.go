@@ -37,7 +37,6 @@ const (
 	GetURL = "/placement"
 )
 
-// getHandler represents a handler for placement get endpoint.
 type getHandler Handler
 
 // NewGetHandler returns a new instance of a placement get handler.
