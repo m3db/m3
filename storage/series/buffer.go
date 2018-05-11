@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -682,7 +681,7 @@ func (b *dbBufferBucket) resetEncoders() {
 		// Register when this bucket resets we close the encoder
 		encoder := b.encoders[i].encoder
 		if b.ctx != nil {
-			ctx.RegisterCloser(encoder)
+			b.ctx.RegisterCloser(encoder)
 		}
 		b.encoders[i] = zeroed
 	}
@@ -693,7 +692,7 @@ func (b *dbBufferBucket) resetBootstrapped() {
 	for i := range b.bootstrapped {
 		bl := b.bootstrapped[i]
 		if b.ctx != nil {
-			ctx.RegisterCloser(bl)
+			b.ctx.RegisterCloser(bl)
 		}
 	}
 	b.bootstrapped = nil
