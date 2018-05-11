@@ -22,12 +22,12 @@ package writer
 
 import (
 	"container/list"
-	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3msg/producer"
 	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/retry"
 
 	"github.com/uber-go/tally"
 )
@@ -119,7 +119,7 @@ type messageWriterImpl struct {
 	replicatedShardID uint64
 	mPool             messagePool
 	opts              Options
-	backOffNanos      int64
+	retryOpts         retry.Options
 
 	msgID           uint64
 	queue           *list.List
@@ -148,7 +148,7 @@ func newMessageWriter(
 		replicatedShardID: replicatedShardID,
 		mPool:             mPool,
 		opts:              opts,
-		backOffNanos:      int64(opts.MessageRetryBackoff()),
+		retryOpts:         opts.MessageRetryOptions(),
 		msgID:             0,
 		queue:             list.New(),
 		consumerWriters:   make(map[string]consumerWriter),
@@ -234,15 +234,15 @@ func (w *messageWriterImpl) write(
 	m.SetRetryAtNanos(w.nextRetryNanos(m.WriteTimes(), nowNanos))
 }
 
-// TODO: make retry time strategy configurable.
 func (w *messageWriterImpl) nextRetryNanos(writeTimes int64, nowNanos int64) int64 {
-	half := w.backOffNanos / 2
-	backOff := half + rand.Int63n(half)
-	retryAtNanos := nowNanos + backOff
-	if writeTimes > 1 {
-		retryAtNanos += (writeTimes - 1) * w.backOffNanos
-	}
-	return retryAtNanos
+	backoff := retry.BackoffNanos(
+		int(writeTimes),
+		w.retryOpts.Jitter(),
+		w.retryOpts.BackoffFactor(),
+		w.retryOpts.InitialBackoff(),
+		w.retryOpts.MaxBackoff(),
+	)
+	return nowNanos + backoff
 }
 
 func (w *messageWriterImpl) Ack(meta metadata) {
@@ -258,7 +258,7 @@ func (w *messageWriterImpl) Init() {
 }
 
 func (w *messageWriterImpl) retryUnacknowledgedUntilClose() {
-	ticker := time.NewTicker(w.opts.MessageRetryBackoff())
+	ticker := time.NewTicker(w.opts.MessageQueueScanInterval())
 	defer ticker.Stop()
 
 	for {

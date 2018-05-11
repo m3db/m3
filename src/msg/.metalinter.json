@@ -3,6 +3,15 @@
     "badtime": {
       "Command": "badtime",
       "Pattern": "PATH:LINE:COL:MESSAGE"
+    },
+    "deadcode": { 
+      "Command": "deadcode  -tags integration"
+    },
+    "varcheck":  { 
+      "Command": "varcheck  -tags integration" 
+    },
+    "megacheck": { 
+      "Command": "megacheck -tags integration" 
     }
   },
   "Enable":

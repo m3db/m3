@@ -1,7 +1,7 @@
 package: github.com/m3db/m3msg
 import:
 - package: github.com/m3db/m3x
-  version: 29bc232d9ad2e6c4a1804ccce095bb730fb1c6bc
+  version: 2b9fc093c93fc37449d7c5e9a8d15cd9c68538c7
 - package: github.com/m3db/m3cluster
   version: cb17a54d6902c03790286942bafa04a188d4eeb8
 - package: github.com/golang/protobuf
@@ -10,7 +10,3 @@ import:
   version: v1.0.0
 - package: github.com/golang/mock
   version: v1.0.1
-
-testImport:
-- package: github.com/stretchr/testify
-  version: v1.0

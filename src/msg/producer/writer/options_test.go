@@ -42,8 +42,8 @@ func TestOptions(t *testing.T) {
 	require.Equal(t, defaultPlacementWatchInitTimeout, opts.PlacementWatchInitTimeout())
 	require.Equal(t, time.Second, opts.SetPlacementWatchInitTimeout(time.Second).PlacementWatchInitTimeout())
 
-	require.Equal(t, defaultMessageRetryBackoff, opts.MessageRetryBackoff())
-	require.Equal(t, time.Second, opts.SetMessageRetryBackoff(time.Second).MessageRetryBackoff())
+	require.Equal(t, defaultMessageRetryBackoff, opts.MessageQueueScanInterval())
+	require.Equal(t, time.Second, opts.SetMessageQueueScanInterval(time.Second).MessageQueueScanInterval())
 
 	require.Equal(t, defaultCloseCheckInterval, opts.CloseCheckInterval())
 	require.Equal(t, time.Second, opts.SetCloseCheckInterval(time.Second).CloseCheckInterval())
