@@ -116,9 +116,8 @@ func verifySeriesMapForRange(
 	// Now check the metadata of all the series match
 	level := topology.ReadConsistencyLevelAll
 	version := client.FetchBlocksMetadataEndpointV2
-	topology := ts.db.Topology()
 	metadata, err := m3dbClientFetchBlocksMetadata(ts.m3dbAdminClient, namespace,
-		topology.Get().ShardSet().AllIDs(), start, end, level, version)
+		ts.db.ShardSet().AllIDs(), start, end, level, version)
 	require.NoError(t, err)
 
 	for _, blocks := range metadata {
