@@ -9,7 +9,7 @@ Documentation: https://m3db.github.io/m3db/
 
 Notes for [developers]
 
-[developers] https://github.com/m3db/m3db/blob/master/DEVELOPER.md
+[developers]: https://github.com/m3db/m3db/blob/master/DEVELOPER.md
 
 <hr>
 
