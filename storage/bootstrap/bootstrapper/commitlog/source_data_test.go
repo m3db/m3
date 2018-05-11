@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -499,7 +499,7 @@ func createExpectedShardResult(
 	for _, r := range allResults {
 		for start, blockResult := range r.blocks {
 			enc := blockResult.encoder
-			bl := block.NewDatabaseBlock(start.ToTime(), 0, enc.Discard(), blopts)
+			bl := block.NewDatabaseBlock(start.ToTime(), blockSize, enc.Discard(), blopts)
 			if r.result != nil {
 				r.result.AddBlock(bl)
 			}

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
@@ -151,7 +152,7 @@ func (s *commitLogSource) ReadData(
 
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
-		if !s.shouldEncodeSeries(unmerged, blockSize, series, dp) {
+		if !s.shouldEncodeForData(unmerged, blockSize, series, dp.Timestamp) {
 			continue
 		}
 
@@ -245,11 +246,11 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 	wg.Done()
 }
 
-func (s *commitLogSource) shouldEncodeSeries(
+func (s *commitLogSource) shouldEncodeForData(
 	unmerged []encodersAndRanges,
-	blockSize time.Duration,
+	dataBlockSize time.Duration,
 	series commitlog.Series,
-	dp ts.Datapoint,
+	timestamp time.Time,
 ) bool {
 	// Check if the shard number is higher the amount of space we pre-allocated.
 	// If it is, then it's not one of the shards we're trying to bootstrap
@@ -265,14 +266,45 @@ func (s *commitLogSource) shouldEncodeSeries(
 	}
 
 	// Check if the block corresponds to the time-range that we're trying to bootstrap
-	blockStart := dp.Timestamp.Truncate(blockSize)
-	blockEnd := blockStart.Add(blockSize)
+	blockStart := timestamp.Truncate(dataBlockSize)
+	blockEnd := blockStart.Add(dataBlockSize)
 	blockRange := xtime.Range{
 		Start: blockStart,
 		End:   blockEnd,
 	}
 
 	return ranges.Overlaps(blockRange)
+}
+
+func (s *commitLogSource) shouldIncludeInIndex(
+	shard uint32,
+	ts time.Time,
+	highestShard uint32,
+	indexBlockSize time.Duration,
+	bootstrapRangesByShard []xtime.Ranges,
+) bool {
+	if shard > highestShard {
+		// Not trying to bootstrap this shard
+		return false
+	}
+
+	rangesToBootstrap := bootstrapRangesByShard[shard]
+	if rangesToBootstrap.IsEmpty() {
+		// No ShardTimeRanges were provided for this shard, so we're not
+		// bootstrapping it.
+		return false
+	}
+
+	// Check if the timestamp corresponds to one of the index blocks we're
+	// trying to bootstrap.
+	indexBlockStart := ts.Truncate(indexBlockSize)
+	indexBlockEnd := indexBlockStart.Add(indexBlockSize)
+	indexBlockRange := xtime.Range{
+		Start: indexBlockStart,
+		End:   indexBlockEnd,
+	}
+
+	return rangesToBootstrap.Overlaps(indexBlockRange)
 }
 
 func (s *commitLogSource) mergeShards(
@@ -492,7 +524,7 @@ func (s *commitLogSource) ReadIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
-	// FOLLOWUP(r): implement the commit log source returning
+	// FOLLOWUP(rartoul): implement the commit log source returning
 	// not indexed series metadata for the time range required.
 	// Try to cache some data on the commit log source itself
 	// from work done in ReadData(...) to help avoid rereading as
@@ -500,7 +532,81 @@ func (s *commitLogSource) ReadIndex(
 	// Also: it's now possible to cache the metadata and data
 	// for all namespaces in the first call to ReadData(...) since
 	// the source is used across all namespaces and then discarded after.
-	return result.NewIndexBootstrapResult(), nil
+	// Finally, we can also probably improve performance significantly by
+	// implementing a new interface in the Commitlog Reader/Iterator that
+	// only returns a given series once per file, although there is some
+	// trickiness there involving bufferpast and buffer future values.
+	if shardsTimeRanges.IsEmpty() {
+		return result.NewIndexBootstrapResult(), nil
+	}
+
+	// Setup predicates for skipping files / series at iterator and reader level.
+	readCommitLogPredicate := newReadCommitLogPredicate(
+		ns, shardsTimeRanges, s.opts, s.inspection)
+	readSeriesPredicate := newReadSeriesPredicate(ns)
+	iterOpts := commitlog.IteratorOpts{
+		CommitLogOptions:      s.opts.CommitLogOptions(),
+		FileFilterPredicate:   readCommitLogPredicate,
+		SeriesFilterPredicate: readSeriesPredicate,
+	}
+
+	// Create the commitlog iterator
+	iter, err := s.newIteratorFn(iterOpts)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
+	}
+	defer iter.Close()
+
+	highestShard := s.findHighestShard(shardsTimeRanges)
+	// +1 so we can use the shard number as an index throughout without constantly
+	// remembering to subtract 1 to convert to zero-based indexing.
+	numShards := highestShard + 1
+	// Convert the map to a slice for faster lookups
+	bootstrapRangesByShard := make([]xtime.Ranges, numShards)
+	for shard, ranges := range shardsTimeRanges {
+		bootstrapRangesByShard[shard] = ranges
+	}
+
+	var (
+		indexResult    = result.NewIndexBootstrapResult()
+		indexResults   = indexResult.IndexResults()
+		indexOptions   = ns.Options().IndexOptions()
+		indexBlockSize = indexOptions.BlockSize()
+		resultOptions  = s.opts.ResultOptions()
+	)
+
+	for iter.Next() {
+		series, dp, _, _ := iter.Current()
+		if !s.shouldIncludeInIndex(
+			series.Shard, dp.Timestamp, highestShard, indexBlockSize, bootstrapRangesByShard) {
+			continue
+		}
+
+		segment, err := indexResults.GetOrAddSegment(dp.Timestamp, indexOptions, resultOptions)
+		if err != nil {
+			return nil, err
+		}
+
+		exists, err := segment.ContainsID(series.ID.Data().Bytes())
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			continue
+		}
+
+		d, err := convert.FromMetric(series.ID, series.Tags)
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = segment.Insert(d)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return indexResult, nil
 }
 
 func newReadCommitLogPredicate(

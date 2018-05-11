@@ -72,14 +72,46 @@ func regexpQueryTestCase(t *testing.T) (idx.Query, *rpc.IdxQuery) {
 	}
 }
 
+func negateTermQueryTestCase(t *testing.T) (idx.Query, *rpc.IdxQuery) {
+	q3 := idx.NewNegationQuery(idx.NewTermQuery([]byte("foo"), []byte("bar")))
+	return q3, &rpc.IdxQuery{
+		Operator: rpc.BooleanOperator_AND_OPERATOR,
+		Filters: []*rpc.IdxTagFilter{
+			&rpc.IdxTagFilter{
+				TagName:        []byte("foo"),
+				TagValueFilter: []byte("bar"),
+				Negate:         true,
+			},
+		},
+	}
+}
+
+func negateRegexpQueryTestCase(t *testing.T) (idx.Query, *rpc.IdxQuery) {
+	inner, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
+	require.NoError(t, err)
+	q3 := idx.NewNegationQuery(inner)
+	return q3, &rpc.IdxQuery{
+		Operator: rpc.BooleanOperator_AND_OPERATOR,
+		Filters: []*rpc.IdxTagFilter{
+			&rpc.IdxTagFilter{
+				TagName:        []byte("foo"),
+				TagValueFilter: []byte("b.*"),
+				Regexp:         true,
+				Negate:         true,
+			},
+		},
+	}
+}
+
 func conjunctionQueryATestCase(t *testing.T) (idx.Query, *rpc.IdxQuery) {
 	q1, rq1 := termQueryTestCase(t)
 	q2, rq2 := regexpQueryTestCase(t)
-	q, err := idx.NewConjunctionQuery(q1, q2)
-	require.NoError(t, err)
+	q3, rq3 := negateTermQueryTestCase(t)
+	q4, rq4 := negateRegexpQueryTestCase(t)
+	q := idx.NewConjunctionQuery(q1, q2, q3, q4)
 	return q, &rpc.IdxQuery{
 		Operator:   rpc.BooleanOperator_AND_OPERATOR,
-		SubQueries: []*rpc.IdxQuery{rq1, rq2},
+		SubQueries: []*rpc.IdxQuery{rq1, rq2, rq3, rq4},
 	}
 }
 
@@ -119,6 +151,8 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 		}{
 			{"Term Query", termQueryTestCase},
 			{"Regexp Query", regexpQueryTestCase},
+			{"Negate Term Query", negateTermQueryTestCase},
+			{"Negate Regexp Query", negateRegexpQueryTestCase},
 			{"Conjunction Query A", conjunctionQueryATestCase},
 		}
 		for _, tc := range testCases {
@@ -126,7 +160,7 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 				q, rpcQ := tc.fn(t)
 				expectedReq := &(*requestSkeleton)
 				expectedReq.Query = rpcQ
-				observedReq, err := convert.ToRPCFetchTaggedRequest(ns, index.Query{q}, opts, fetchData)
+				observedReq, err := convert.ToRPCFetchTaggedRequest(ns, index.Query{Query: q}, opts, fetchData)
 				require.NoError(t, err)
 				requireEqual(expectedReq, &observedReq)
 			})
@@ -137,7 +171,7 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 				id, observedQuery, observedOpts, fetch, err := convert.FromRPCFetchTaggedRequest(rpcRequest, pools.pool)
 				require.NoError(t, err)
 				require.Equal(t, ns.String(), id.String())
-				require.True(t, index.NewQueryMatcher(index.Query{expectedQuery}).Matches(observedQuery))
+				require.True(t, index.NewQueryMatcher(index.Query{Query: expectedQuery}).Matches(observedQuery))
 				requireEqual(fetchData, fetch)
 				requireEqual(opts, observedOpts)
 			})
@@ -163,7 +197,6 @@ func (t *testPools) ID() ident.Pool                                     { return
 func (t *testPools) CheckedBytesWrapper() xpool.CheckedBytesWrapperPool { return t.wrapper }
 
 func TestConvertFetchTaggedRequestNegationPending(t *testing.T) {
-	// FOLLOWUP(prateek): remove this once we add support for negation queries in m3ninx.
 	req := &rpc.FetchTaggedRequest{
 		Query: &rpc.IdxQuery{
 			Filters: []*rpc.IdxTagFilter{
@@ -176,15 +209,14 @@ func TestConvertFetchTaggedRequestNegationPending(t *testing.T) {
 		},
 	}
 	_, _, _, _, err := convert.FromRPCFetchTaggedRequest(req, nil)
-	require.Error(t, err)
+	require.NoError(t, err)
 }
 
 func TestConvertFetchTaggedRequestDisjunction(t *testing.T) {
-	q, err := idx.NewDisjunctionQuery(idx.NewTermQuery([]byte("a"), []byte("b")))
-	require.NoError(t, err)
+	q := idx.NewDisjunctionQuery(idx.NewTermQuery([]byte("a"), []byte("b")))
 
 	// FOLLOWUP(prateek): remove this once we add support for disjunction queries.
-	_, err = convert.ToRPCFetchTaggedRequest(ident.StringID("abc"),
-		index.Query{q}, index.QueryOptions{}, true)
+	_, err := convert.ToRPCFetchTaggedRequest(ident.StringID("abc"),
+		index.Query{Query: q}, index.QueryOptions{}, true)
 	require.Error(t, err)
 }

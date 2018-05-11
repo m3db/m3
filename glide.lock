@@ -1,5 +1,5 @@
-hash: 4c91961c7a6a25425306bd2de508f751eb27cfb576950dee0dbe3843cea94012
-updated: 2018-05-10T20:04:38.607431-04:00
+hash: 66044e8b4580fffeb0b6771abfe615236864089850a7c4f76a8e3fbd3082a1e0
+updated: 2018-05-10T22:00:14.896089-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -161,6 +161,7 @@ imports:
   - integration/etcd
   - kv
   - kv/etcd
+  - kv/mem
   - kv/util
   - kv/util/runtime
   - placement
@@ -187,7 +188,7 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3ninx
-  version: d0c2c4f2c5ab39db2382a6ea7f479abe568589cf
+  version: 614cfcf2ff9fd0c78a8c0130186ec6662a6778d6
   subpackages:
   - doc
   - idx

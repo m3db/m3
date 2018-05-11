@@ -128,7 +128,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Perform the bootstrap
-			result, err := source.BootstrapData(md, shardTimeRanges, testDefaultRunOpts)
+			dataResult, err := source.BootstrapData(md, shardTimeRanges, testDefaultRunOpts)
 			if err != nil {
 				return false, err
 			}
@@ -139,10 +139,23 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				values = append(values, testValue{write.series, write.datapoint.Timestamp, write.datapoint.Value, write.unit, write.annotation})
 			}
 
-			err = verifyShardResultsAreCorrect(values, result.ShardResults(), bootstrapOpts)
+			err = verifyShardResultsAreCorrect(values, dataResult.ShardResults(), bootstrapOpts)
 			if err != nil {
 				return false, err
 			}
+
+			indexResult, err := source.BootstrapIndex(md, shardTimeRanges, testDefaultRunOpts)
+			if err != nil {
+				return false, err
+			}
+
+			indexBlockSize := md.Options().IndexOptions().BlockSize()
+			err = verifyIndexResultsAreCorrect(
+				values, map[string]struct{}{}, indexResult.IndexResults(), indexBlockSize)
+			if err != nil {
+				return false, err
+			}
+
 			return true, nil
 		},
 		genPropTestInputs(testNamespaceID.String()),
