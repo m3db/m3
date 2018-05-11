@@ -22,6 +22,7 @@ package retry
 
 import (
 	"errors"
+	"math"
 	"math/rand"
 	"time"
 
@@ -122,16 +123,8 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 	}
 	r.metrics.errors.Inc(1)
 
-	curr := r.initialBackoff.Nanoseconds()
 	for i := 0; r.forever || i < r.maxRetries; i++ {
-		if r.jitter {
-			half := curr / 2
-			curr = half + int64(rand.Float64()*float64(half))
-		}
-		if maxBackoff := r.maxBackoff.Nanoseconds(); curr > maxBackoff {
-			curr = maxBackoff
-		}
-		r.sleepFn(time.Duration(curr))
+		r.sleepFn(time.Duration(BackoffNanos(i, r.jitter, r.backoffFactor, r.initialBackoff, r.maxBackoff)))
 
 		if continueFn != nil && !continueFn(attempt) {
 			return ErrWhileConditionFalse
@@ -153,9 +146,30 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 			return err
 		}
 		r.metrics.errors.Inc(1)
-		curr = int64(float64(curr) * r.backoffFactor)
 	}
 	r.metrics.errorsFinal.Inc(1)
 
 	return err
+}
+
+// BackoffNanos calculates the backoff for a retry in nanoseconds.
+func BackoffNanos(
+	retry int,
+	jitter bool,
+	backoffFactor float64,
+	initialBackoff time.Duration,
+	maxBackoff time.Duration,
+) int64 {
+	backoff := initialBackoff.Nanoseconds()
+	if retry >= 1 {
+		backoff = int64(float64(backoff) * math.Pow(backoffFactor, float64(retry)))
+	}
+	if jitter {
+		half := backoff / 2
+		backoff = half + rand.Int63n(half)
+	}
+	if maxBackoff := maxBackoff.Nanoseconds(); backoff > maxBackoff {
+		backoff = maxBackoff
+	}
+	return backoff
 }
