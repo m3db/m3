@@ -170,16 +170,16 @@ test-single-integration:
 
 .PHONY: test-ci-unit
 test-ci-unit: test-base
-	$(codecov_push) -f $(coverfile) -F unittests
+	$(codecov_push) -f $(coverfile) -F db_unittests,db
 
 .PHONY: test-ci-big-unit
 test-ci-big-unit: test-big-base
-	$(codecov_push) -f $(coverfile) -F unittests
+	$(codecov_push) -f $(coverfile) -F db_unittests,db
 
 .PHONY: test-ci-integration
 test-ci-integration:
 	INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
-	$(codecov_push) -f $(coverfile) -F integration
+	$(codecov_push) -f $(coverfile) -F db_integration,db
 
 .PHONY: clean
 clean:
