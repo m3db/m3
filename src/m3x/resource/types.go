@@ -19,6 +19,10 @@
 // THE SOFTWARE.
 
 // Package resource describes require for object lifecycle management.
+// Both Finalizer and Closer have similar concepts, they both exist so that
+// different types can be used for resource cleanup with different method names
+// as for some things like iterators, the verb close makes more sense than
+// finalize and is more consistent with other types.
 package resource
 
 // Finalizer finalizes a checked resource.
@@ -31,5 +35,18 @@ type FinalizerFn func()
 
 // Finalize will call the function literal as a finalizer.
 func (fn FinalizerFn) Finalize() {
+	fn()
+}
+
+// Closer is an object that can be closed.
+type Closer interface {
+	Close()
+}
+
+// CloserFn is a function literal that is a closer.
+type CloserFn func()
+
+// Close will call the function literal as a closer.
+func (fn CloserFn) Close() {
 	fn()
 }

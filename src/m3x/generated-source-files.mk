@@ -92,19 +92,20 @@ endif
 	rmdir $(temp_outdir)
 
 .PHONY: genny-arraypool-all
-genny-arraypool-all: genny-arraypool-context-finalizers
+genny-arraypool-all: genny-arraypool-context-finalizeables
 
-# arraypool generation rule for context/finalizersPool
-.PHONY: genny-arraypool-context-finalizers
-genny-arraypool-context-finalizers: install-generics-bin
-	make genny-arraypool                        \
-		pkg=context                               \
-		elem_type=resource.Finalizer              \
-		target_package=$(m3x_package)/context     \
-		out_file=finalizers_arraypool_gen.go      \
-		rename_type_middle=Finalizers             \
-		rename_constructor=newFinalizersArrayPool \
-		rename_type_prefix=finalizers
+# arraypool generation rule for context/finalizeablesPool
+.PHONY: genny-arraypool-context-finalizeables
+genny-arraypool-context-finalizeables: install-generics-bin
+	make genny-arraypool                           \
+		pkg=context                                  \
+		elem_type=finalizeable                       \
+		target_package=$(m3x_package)/context        \
+		out_file=finalizeables_arraypool_gen.go      \
+		rename_type_middle=Finalizeables             \
+		rename_constructor=newFinalizeablesArrayPool \
+		rename_type_prefix=finalizeables             \
+		rename_gen_types=true
 
 # NB(prateek): `target_package` should not have a trailing slash
 # generic arraypool generation rule
@@ -117,13 +118,20 @@ ifneq ($(rename_type_prefix),)
 	@if [ -d $(temp_outdir) ] ; then echo "temp directory $(temp_outdir) exists, failing" ; exit 1 ; fi
 	mkdir -p $(temp_outdir)
 	mv $(out_dir)/$(out_file) $(temp_outdir)/$(out_file)
-	make arraypool-gen-rename
+	make arraypool-gen-rename out_dir=$(out_dir)
 	mv $(temp_outdir)/$(out_file) $(out_dir)/$(out_file)
 	rmdir $(temp_outdir)
 endif
 
 .PHONY: arraypool-gen-rename
 arraypool-gen-rename: install-gorename
+	$(eval temp_outdir=$(out_dir)$(temp_suffix))
+ifneq ($(rename_gen_types),)
+	# allow users to short circuit the generation of types.go if they don't need it.
+	echo 'package $(pkg)' > $(temp_outdir)/types.go
+	echo '' >> $(temp_outdir)/types.go
+	echo "type $(elem_type) interface{}" >> $(temp_outdir)/types.go
+endif
 	gorename -from '"$(target_package)$(temp_suffix)".elemArrayPool' -to $(rename_type_prefix)ArrayPool
 	gorename -from '"$(target_package)$(temp_suffix)".elemArr' -to $(rename_type_prefix)Arr
 	gorename -from '"$(target_package)$(temp_suffix)".elemArrPool' -to $(rename_type_prefix)ArrPool
@@ -131,6 +139,9 @@ arraypool-gen-rename: install-gorename
 	gorename -from '"$(target_package)$(temp_suffix)".elemFinalizeFn' -to $(rename_type_prefix)FinalizeFn
 	gorename -from '"$(target_package)$(temp_suffix)".newElemArrayPool' -to $(rename_constructor)
 	gorename -from '"$(target_package)$(temp_suffix)".defaultElemFinalizerFn' -to default$(rename_type_middle)FinalizerFn
+ifneq ($(rename_gen_types),)
+	rm $(temp_outdir)/types.go
+endif
 
 # NB(prateek): `target_package` should not have a trailing slash
 # generic leakcheckpool generation rule
