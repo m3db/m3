@@ -2499,12 +2499,12 @@ func (p *Segment) String() string {
 //  - FetchData
 //  - Limit
 type FetchTaggedRequest struct {
-	NameSpace  []byte    `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
-	Query      *IdxQuery `thrift:"query,2,required" db:"query" json:"query"`
-	RangeStart int64     `thrift:"rangeStart,3,required" db:"rangeStart" json:"rangeStart"`
-	RangeEnd   int64     `thrift:"rangeEnd,4,required" db:"rangeEnd" json:"rangeEnd"`
-	FetchData  bool      `thrift:"fetchData,5,required" db:"fetchData" json:"fetchData"`
-	Limit      *int64    `thrift:"limit,6" db:"limit" json:"limit,omitempty"`
+	NameSpace  []byte `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
+	Query      []byte `thrift:"query,2,required" db:"query" json:"query"`
+	RangeStart int64  `thrift:"rangeStart,3,required" db:"rangeStart" json:"rangeStart"`
+	RangeEnd   int64  `thrift:"rangeEnd,4,required" db:"rangeEnd" json:"rangeEnd"`
+	FetchData  bool   `thrift:"fetchData,5,required" db:"fetchData" json:"fetchData"`
+	Limit      *int64 `thrift:"limit,6" db:"limit" json:"limit,omitempty"`
 }
 
 func NewFetchTaggedRequest() *FetchTaggedRequest {
@@ -2515,12 +2515,7 @@ func (p *FetchTaggedRequest) GetNameSpace() []byte {
 	return p.NameSpace
 }
 
-var FetchTaggedRequest_Query_DEFAULT *IdxQuery
-
-func (p *FetchTaggedRequest) GetQuery() *IdxQuery {
-	if !p.IsSetQuery() {
-		return FetchTaggedRequest_Query_DEFAULT
-	}
+func (p *FetchTaggedRequest) GetQuery() []byte {
 	return p.Query
 }
 
@@ -2544,10 +2539,6 @@ func (p *FetchTaggedRequest) GetLimit() int64 {
 	}
 	return *p.Limit
 }
-func (p *FetchTaggedRequest) IsSetQuery() bool {
-	return p.Query != nil
-}
-
 func (p *FetchTaggedRequest) IsSetLimit() bool {
 	return p.Limit != nil
 }
@@ -2641,9 +2632,10 @@ func (p *FetchTaggedRequest) ReadField1(iprot thrift.TProtocol) error {
 }
 
 func (p *FetchTaggedRequest) ReadField2(iprot thrift.TProtocol) error {
-	p.Query = &IdxQuery{}
-	if err := p.Query.Read(iprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Query), err)
+	if v, err := iprot.ReadBinary(); err != nil {
+		return thrift.PrependError("error reading field 2: ", err)
+	} else {
+		p.Query = v
 	}
 	return nil
 }
@@ -2731,11 +2723,11 @@ func (p *FetchTaggedRequest) writeField1(oprot thrift.TProtocol) (err error) {
 }
 
 func (p *FetchTaggedRequest) writeField2(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("query", thrift.STRUCT, 2); err != nil {
+	if err := oprot.WriteFieldBegin("query", thrift.STRING, 2); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:query: ", p), err)
 	}
-	if err := p.Query.Write(oprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Query), err)
+	if err := oprot.WriteBinary(p.Query); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.query (2) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:query: ", p), err)
@@ -2802,105 +2794,6 @@ func (p *FetchTaggedRequest) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("FetchTaggedRequest(%+v)", *p)
-}
-
-// Attributes:
-//  - Query
-type IdxQuery struct {
-	Query []byte `thrift:"query,1,required" db:"query" json:"query"`
-}
-
-func NewIdxQuery() *IdxQuery {
-	return &IdxQuery{}
-}
-
-func (p *IdxQuery) GetQuery() []byte {
-	return p.Query
-}
-func (p *IdxQuery) Read(iprot thrift.TProtocol) error {
-	if _, err := iprot.ReadStructBegin(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
-	}
-
-	var issetQuery bool = false
-
-	for {
-		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
-		if err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
-		}
-		if fieldTypeId == thrift.STOP {
-			break
-		}
-		switch fieldId {
-		case 1:
-			if err := p.ReadField1(iprot); err != nil {
-				return err
-			}
-			issetQuery = true
-		default:
-			if err := iprot.Skip(fieldTypeId); err != nil {
-				return err
-			}
-		}
-		if err := iprot.ReadFieldEnd(); err != nil {
-			return err
-		}
-	}
-	if err := iprot.ReadStructEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
-	}
-	if !issetQuery {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Query is not set"))
-	}
-	return nil
-}
-
-func (p *IdxQuery) ReadField1(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadBinary(); err != nil {
-		return thrift.PrependError("error reading field 1: ", err)
-	} else {
-		p.Query = v
-	}
-	return nil
-}
-
-func (p *IdxQuery) Write(oprot thrift.TProtocol) error {
-	if err := oprot.WriteStructBegin("IdxQuery"); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
-	}
-	if p != nil {
-		if err := p.writeField1(oprot); err != nil {
-			return err
-		}
-	}
-	if err := oprot.WriteFieldStop(); err != nil {
-		return thrift.PrependError("write field stop error: ", err)
-	}
-	if err := oprot.WriteStructEnd(); err != nil {
-		return thrift.PrependError("write struct stop error: ", err)
-	}
-	return nil
-}
-
-func (p *IdxQuery) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("query", thrift.STRING, 1); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:query: ", p), err)
-	}
-	if err := oprot.WriteBinary(p.Query); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.query (1) field write error: ", p), err)
-	}
-	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:query: ", p), err)
-	}
-	return err
-}
-
-func (p *IdxQuery) String() string {
-	if p == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("IdxQuery(%+v)", *p)
 }
 
 // Attributes:

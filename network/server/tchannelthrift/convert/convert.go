@@ -22,7 +22,6 @@ package convert
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/digest"
@@ -223,7 +222,7 @@ func FromRPCFetchTaggedRequest(
 		opts.Limit = int(*l)
 	}
 
-	q, err := fromRPCQuery(req.Query)
+	q, err := idx.Unmarshal(req.Query)
 	if err != nil {
 		return nil, index.Query{}, index.QueryOptions{}, false, err
 	}
@@ -255,7 +254,7 @@ func ToRPCFetchTaggedRequest(
 		return rpc.FetchTaggedRequest{}, tsErr
 	}
 
-	query, queryErr := toRPCQuery(q.Query)
+	query, queryErr := idx.Marshal(q.Query)
 	if queryErr != nil {
 		return rpc.FetchTaggedRequest{}, queryErr
 	}
@@ -274,25 +273,6 @@ func ToRPCFetchTaggedRequest(
 	}
 
 	return request, nil
-}
-
-func fromRPCQuery(rpcQuery *rpc.IdxQuery) (idx.Query, error) {
-	if rpcQuery == nil {
-		return idx.Query{}, fmt.Errorf("nil query provided")
-	}
-
-	return idx.Unmarshal(rpcQuery.Query)
-}
-
-func toRPCQuery(idxQuery idx.Query) (*rpc.IdxQuery, error) {
-	data, err := idx.Marshal(idxQuery)
-	if err != nil {
-		return nil, err
-	}
-
-	return &rpc.IdxQuery{
-		Query: data,
-	}, nil
 }
 
 // ToTagsIter returns a tag iterator over the given request.

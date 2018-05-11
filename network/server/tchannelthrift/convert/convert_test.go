@@ -44,46 +44,38 @@ func mustToRpcTime(t *testing.T, ts time.Time) int64 {
 	return r
 }
 
-func termQueryTestCase(t *testing.T) (idx.Query, *rpc.IdxQuery) {
+func termQueryTestCase(t *testing.T) (idx.Query, []byte) {
 	q1 := idx.NewTermQuery([]byte("dat"), []byte("baz"))
 	data, err := idx.Marshal(q1)
 	require.NoError(t, err)
-	return q1, &rpc.IdxQuery{
-		Query: data,
-	}
+	return q1, data
 }
 
-func regexpQueryTestCase(t *testing.T) (idx.Query, *rpc.IdxQuery) {
+func regexpQueryTestCase(t *testing.T) (idx.Query, []byte) {
 	q2, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	require.NoError(t, err)
 	data, err := idx.Marshal(q2)
 	require.NoError(t, err)
-	return q2, &rpc.IdxQuery{
-		Query: data,
-	}
+	return q2, data
 }
 
-func negateTermQueryTestCase(t *testing.T) (idx.Query, *rpc.IdxQuery) {
+func negateTermQueryTestCase(t *testing.T) (idx.Query, []byte) {
 	q3 := idx.NewNegationQuery(idx.NewTermQuery([]byte("foo"), []byte("bar")))
 	data, err := idx.Marshal(q3)
 	require.NoError(t, err)
-	return q3, &rpc.IdxQuery{
-		Query: data,
-	}
+	return q3, data
 }
 
-func negateRegexpQueryTestCase(t *testing.T) (idx.Query, *rpc.IdxQuery) {
+func negateRegexpQueryTestCase(t *testing.T) (idx.Query, []byte) {
 	inner, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	require.NoError(t, err)
 	q4 := idx.NewNegationQuery(inner)
 	data, err := idx.Marshal(q4)
 	require.NoError(t, err)
-	return q4, &rpc.IdxQuery{
-		Query: data,
-	}
+	return q4, data
 }
 
-func conjunctionQueryATestCase(t *testing.T) (idx.Query, *rpc.IdxQuery) {
+func conjunctionQueryATestCase(t *testing.T) (idx.Query, []byte) {
 	q1, _ := termQueryTestCase(t)
 	q2, _ := regexpQueryTestCase(t)
 	q3, _ := negateTermQueryTestCase(t)
@@ -91,9 +83,7 @@ func conjunctionQueryATestCase(t *testing.T) (idx.Query, *rpc.IdxQuery) {
 	q := idx.NewConjunctionQuery(q1, q2, q3, q4)
 	data, err := idx.Marshal(q)
 	require.NoError(t, err)
-	return q, &rpc.IdxQuery{
-		Query: data,
-	}
+	return q, data
 }
 
 func TestConvertFetchTaggedRequest(t *testing.T) {
@@ -117,7 +107,7 @@ func TestConvertFetchTaggedRequest(t *testing.T) {
 		assert.Equal(t, "", d, d)
 	}
 
-	type inputFn func(t *testing.T) (idx.Query, *rpc.IdxQuery)
+	type inputFn func(t *testing.T) (idx.Query, []byte)
 
 	for _, pools := range []struct {
 		name string

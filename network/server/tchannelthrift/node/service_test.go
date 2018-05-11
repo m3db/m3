@@ -699,10 +699,8 @@ func TestServiceFetchTagged(t *testing.T) {
 	data, err := idx.Marshal(req)
 	require.NoError(t, err)
 	r, err := service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
-		NameSpace: []byte(nsID),
-		Query: &rpc.IdxQuery{
-			Query: data,
-		},
+		NameSpace:  []byte(nsID),
+		Query:      data,
 		RangeStart: startNanos,
 		RangeEnd:   endNanos,
 		FetchData:  true,
@@ -788,10 +786,8 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 	data, err := idx.Marshal(req)
 	require.NoError(t, err)
 	r, err := service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
-		NameSpace: []byte(nsID),
-		Query: &rpc.IdxQuery{
-			Query: data,
-		},
+		NameSpace:  []byte(nsID),
+		Query:      data,
 		RangeStart: startNanos,
 		RangeEnd:   endNanos,
 		FetchData:  false,
@@ -854,10 +850,8 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 			Limit:          10,
 		}).Return(index.QueryResults{}, fmt.Errorf("random err"))
 	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
-		NameSpace: []byte(nsID),
-		Query: &rpc.IdxQuery{
-			Query: data,
-		},
+		NameSpace:  []byte(nsID),
+		Query:      data,
 		RangeStart: startNanos,
 		RangeEnd:   endNanos,
 		FetchData:  false,

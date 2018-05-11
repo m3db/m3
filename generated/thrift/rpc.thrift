@@ -136,15 +136,11 @@ struct Segment {
 
 struct FetchTaggedRequest {
 	1: required binary nameSpace
-	2: required IdxQuery query
+	2: required binary query
 	3: required i64 rangeStart
 	4: required i64 rangeEnd
 	5: required bool fetchData
 	6: optional i64 limit
-}
-
-struct IdxQuery {
-	1: required binary query
 }
 
 struct FetchTaggedResult {

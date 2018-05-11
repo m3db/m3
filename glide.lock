@@ -1,5 +1,5 @@
-hash: 406dd8ceedda4ee1e7f405eda7cacfa166292058beebe66518ae09f2d85898ff
-updated: 2018-05-11T09:27:36.270402-04:00
+hash: bef7ea7db13f0d582f52c074f8192e897333ee5cbde1915e0376c0389a97e9d2
+updated: 2018-05-11T14:17:35.878961-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -188,7 +188,7 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3ninx
-  version: 161bc07ea6ebae6a327481fe5bcbf61cbc560a90
+  version: dfe14ddc086c7045dc14525761d7c1755ab5a42a
   subpackages:
   - doc
   - generated/proto/querypb
