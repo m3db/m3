@@ -82,3 +82,22 @@ func TestMarshal(t *testing.T) {
 		})
 	}
 }
+
+func TestMarshalError(t *testing.T) {
+	tests := []struct {
+		name  string
+		query search.Query
+	}{
+		{
+			name:  "nil query",
+			query: nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := Marshal(test.query)
+			require.Error(t, err)
+		})
+	}
+}
