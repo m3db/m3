@@ -28,11 +28,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
@@ -114,52 +115,69 @@ func verifySeriesMapForRange(
 	require.Equal(t, expected, actual)
 
 	// Now check the metadata of all the series match
-	level := topology.ReadConsistencyLevelAll
-	version := client.FetchBlocksMetadataEndpointV2
-	metadata, err := m3dbClientFetchBlocksMetadata(ts.m3dbAdminClient, namespace,
-		ts.db.ShardSet().AllIDs(), start, end, level, version)
-	require.NoError(t, err)
-
-	for _, blocks := range metadata {
-		for _, actual := range blocks {
-			id := actual.Metadata.ID.String()
-			expected, ok := expectedMetadata[id]
-			require.True(t, ok, fmt.Sprintf("unexpected ID: %s", id))
-
-			expectedTagsIter := ident.NewTagSliceIterator(expected.Tags)
-			actualTagsIter := ident.NewTagSliceIterator(actual.Metadata.Tags)
-			tagMatcher := ident.NewTagIterMatcher(expectedTagsIter)
-			tagsMatch := tagMatcher.Matches(actualTagsIter)
-			if !tagsMatch {
-				expectedTagsIter.Reset(expected.Tags)
-				actualTagsIter.Reset(actual.Metadata.Tags)
-				var expected, actual string
-				for expectedTagsIter.Next() {
-					tag := expectedTagsIter.Current()
-					entry := ""
-					if expected != "" {
-						entry += ", "
-					}
-					entry += tag.Name.String() + "=" + tag.Value.String()
-					expected += entry
-				}
-				for actualTagsIter.Next() {
-					tag := actualTagsIter.Current()
-					entry := ""
-					if actual != "" {
-						entry += " "
-					}
-					entry += tag.Name.String() + "=" + tag.Value.String()
-					actual += entry
-				}
-				ts.logger.WithFields(
-					xlog.NewField("id", id),
-					xlog.NewField("expectedTags", expected),
-					xlog.NewField("actualTags", actual),
-				).Error("series does not match expected tags")
+	ctx := context.NewContext()
+	defer ctx.Close()
+	for _, shard := range ts.db.ShardSet().AllIDs() {
+		var (
+			opts      block.FetchBlocksMetadataOptions
+			pageToken storage.PageToken
+			first     = true
+		)
+		for {
+			if first {
+				first = false
+			} else if pageToken == nil {
+				// Done, next shard
+				break
 			}
 
-			require.True(t, tagMatcher.Matches(actualTagsIter))
+			results, nextPageToken, err := ts.db.FetchBlocksMetadataV2(ctx,
+				namespace, shard, start, end, 4096, pageToken, opts)
+			require.NoError(t, err)
+
+			// Use the next one for the next iteration
+			pageToken = nextPageToken
+
+			for _, actual := range results.Results() {
+				id := actual.ID.String()
+				expected, ok := expectedMetadata[id]
+				require.True(t, ok, fmt.Sprintf("unexpected ID: %s", id))
+
+				expectedTagsIter := ident.NewTagSliceIterator(expected.Tags)
+				actualTagsIter := actual.Tags.Duplicate()
+				tagMatcher := ident.NewTagIterMatcher(expectedTagsIter)
+				tagsMatch := tagMatcher.Matches(actualTagsIter)
+				if !tagsMatch {
+					expectedTagsIter.Reset(expected.Tags)
+					actualTagsIter = actual.Tags.Duplicate()
+					var expected, actual string
+					for expectedTagsIter.Next() {
+						tag := expectedTagsIter.Current()
+						entry := ""
+						if expected != "" {
+							entry += ", "
+						}
+						entry += tag.Name.String() + "=" + tag.Value.String()
+						expected += entry
+					}
+					for actualTagsIter.Next() {
+						tag := actualTagsIter.Current()
+						entry := ""
+						if actual != "" {
+							entry += " "
+						}
+						entry += tag.Name.String() + "=" + tag.Value.String()
+						actual += entry
+					}
+					ts.logger.WithFields(
+						xlog.NewField("id", id),
+						xlog.NewField("expectedTags", expected),
+						xlog.NewField("actualTags", actual),
+					).Error("series does not match expected tags")
+				}
+
+				require.True(t, tagMatcher.Matches(actualTagsIter))
+			}
 		}
 	}
 }
