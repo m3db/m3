@@ -1,5 +1,5 @@
-hash: 6234eb28f7d061c5d963ad19da146c7075749dab33fda976478aab61693112fd
-updated: 2018-05-09T17:19:09.301673-04:00
+hash: dc31d980902e336f7c3285d467cd09ee7cfd13f0fb1d273b3b74faaf6f50ff78
+updated: 2018-05-10T17:31:08.770873-04:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -82,6 +82,7 @@ imports:
   - generated/proto/placementpb
   - kv
   - kv/etcd
+  - kv/mem
   - kv/util/runtime
   - placement
   - placement/algo
@@ -95,7 +96,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3db
-  version: 09a2703456f8a84fccc2b64b19ecfead7eb5164a
+  version: 3a5c15091d8b6f5448ec8d5359abf6d5d6c65ffc
   subpackages:
   - client
   - clock
@@ -198,7 +199,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: c5b7fccd204277076155f10851dad72b76a49317
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
