@@ -23,7 +23,7 @@ package storage
 import (
 	"fmt"
 
-	"github.com/m3db/m3coordinator/models"
+	"github.com/m3db/m3db/src/coordinator/models"
 
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3ninx/idx"
@@ -84,8 +84,8 @@ func FetchQueryToM3Query(fetchQuery *FetchQuery) (index.Query, error) {
 		}
 	}
 
-	q, err := idx.NewConjunctionQuery(idxQueries...)
-	return index.Query{Query: q}, err
+	q := idx.NewConjunctionQuery(idxQueries...)
+	return index.Query{Query: q}, nil
 }
 
 func matcherToQuery(matcher *models.Matcher) (idx.Query, error) {

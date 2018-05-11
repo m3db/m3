@@ -23,9 +23,9 @@ package functions
 import (
 	"fmt"
 
-	"github.com/m3db/m3coordinator/executor/transform"
-	"github.com/m3db/m3coordinator/parser"
-	"github.com/m3db/m3coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/executor/transform"
+	"github.com/m3db/m3db/src/coordinator/parser"
+	"github.com/m3db/m3db/src/coordinator/storage"
 )
 
 // CountType counts number of elements in the vector

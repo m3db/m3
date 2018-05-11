@@ -1,30 +1,31 @@
 SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
-include $(SELF_DIR)/.ci/common.mk
+ROOT_DIR := $(SELF_DIR)/../..
+include $(ROOT_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail
 
-m3coord_package         := github.com/m3db/m3coordinator
+m3coord_package      := github.com/m3db/m3coordinator
 gopath_prefix        := $(GOPATH)/src
 vendor_prefix        := vendor
-license_dir          := .ci/uber-licence
+license_dir          := $(ROOT_DIR)/.ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
 html_report          := coverage.html
-test                 := .ci/test-cover.sh
-test_one_integration := .ci/test-one-integration.sh
-test_ci_integration  := .ci/test-integration.sh
-convert-test-data    := .ci/convert-test-data.sh
+test                 := $(ROOT_DIR)/.ci/test-cover.sh
+test_one_integration := $(ROOT_DIR)/.ci/test-one-integration.sh
+test_ci_integration  := $(ROOT_DIR)/.ci/test-integration.sh
+convert-test-data    := $(ROOT_DIR)/.ci/convert-test-data.sh
 coverfile            := cover.out
 coverage_xml         := coverage.xml
 junit_xml            := junit.xml
 test_log             := test.log
-lint_check           := .ci/lint.sh
-metalint_check       := .ci/metalint.sh
+lint_check           := $(ROOT_DIR)/.ci/lint.sh
+metalint_check       := $(ROOT_DIR)/.ci/metalint.sh
 metalint_config      := .metalinter.json
 metalint_exclude     := .excludemetalint
 protoc_go_package    := github.com/golang/protobuf/protoc-gen-go
 proto_output_dir     := generated/proto
 proto_rules_dir      := generated/proto
-auto_gen             := .ci/auto-gen.sh
+auto_gen             := $(ROOT_DIR)/.ci/auto-gen.sh
 mockgen_package      := github.com/golang/mock/mockgen
 mocks_output_dir     := generated/mocks/mocks
 mocks_rules_dir      := generated/mocks

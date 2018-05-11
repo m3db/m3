@@ -25,12 +25,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3coordinator/errors"
-	"github.com/m3db/m3coordinator/models"
-	"github.com/m3db/m3coordinator/storage"
-	"github.com/m3db/m3coordinator/test"
-	"github.com/m3db/m3coordinator/ts"
-	"github.com/m3db/m3coordinator/util/logging"
+	"github.com/m3db/m3db/src/coordinator/errors"
+	"github.com/m3db/m3db/src/coordinator/models"
+	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/test"
+	"github.com/m3db/m3db/src/coordinator/ts"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/m3db/m3db/client"
 	xtime "github.com/m3db/m3x/time"

@@ -24,7 +24,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/m3db/m3coordinator/models"
+	"github.com/m3db/m3db/src/coordinator/models"
 )
 
 // A Series is the public interface to a block of timeseries values.  Each block has a start time,

@@ -3,8 +3,8 @@ package transform
 import (
 	"time"
 
-	"github.com/m3db/m3coordinator/parser"
-	"github.com/m3db/m3coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/parser"
+	"github.com/m3db/m3db/src/coordinator/storage"
 )
 
 // Options to create transform nodes
