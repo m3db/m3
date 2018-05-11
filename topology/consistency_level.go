@@ -29,7 +29,7 @@ import (
 // ConsistencyLevel is the consistency level for cluster operations
 type ConsistencyLevel int
 
-// nolint: deadcode, varcheck, unused
+// nolint: varcheck, unused
 const (
 	consistencyLevelNone ConsistencyLevel = iota
 

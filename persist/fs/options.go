@@ -21,13 +21,16 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 )
 
 const (
@@ -60,6 +63,9 @@ var (
 	defaultFilePathPrefix   = os.TempDir()
 	defaultNewFileMode      = os.FileMode(0666)
 	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
+
+	errTagEncoderPoolNotSet = errors.New("tag encoder pool is not set")
+	errTagDecoderPoolNotSet = errors.New("tag decoder pool is not set")
 )
 
 type options struct {
@@ -78,10 +84,18 @@ type options struct {
 	seekReaderBufferSize                 int
 	mmapEnableHugePages                  bool
 	mmapHugePagesThreshold               int64
+	tagEncoderPool                       serialize.TagEncoderPool
+	tagDecoderPool                       serialize.TagDecoderPool
 }
 
 // NewOptions creates a new set of fs options
 func NewOptions() Options {
+	tagEncoderPool := serialize.NewTagEncoderPool(
+		serialize.NewTagEncoderOptions(), pool.NewObjectPoolOptions())
+	tagEncoderPool.Init()
+	tagDecoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(), pool.NewObjectPoolOptions())
+	tagDecoderPool.Init()
 	return &options{
 		clockOpts:                            clock.NewOptions(),
 		instrumentOpts:                       instrument.NewOptions(),
@@ -98,6 +112,8 @@ func NewOptions() Options {
 		seekReaderBufferSize:                 defaultSeekReaderBufferSize,
 		mmapEnableHugePages:                  defaultMmapEnableHugePages,
 		mmapHugePagesThreshold:               defaultMmapHugePagesThreshold,
+		tagEncoderPool:                       tagEncoderPool,
+		tagDecoderPool:                       tagDecoderPool,
 	}
 }
 
@@ -111,6 +127,12 @@ func (o *options) Validate() error {
 		return fmt.Errorf(
 			"invalid index bloom filter false positive percent, must be >= 0 and <= 1: instead %f",
 			o.indexBloomFilterFalsePositivePercent)
+	}
+	if o.tagEncoderPool == nil {
+		return errTagEncoderPoolNotSet
+	}
+	if o.tagDecoderPool == nil {
+		return errTagDecoderPoolNotSet
 	}
 	return nil
 }
@@ -263,4 +285,24 @@ func (o *options) SetMmapHugeTLBThreshold(value int64) Options {
 
 func (o *options) MmapHugeTLBThreshold() int64 {
 	return o.mmapHugePagesThreshold
+}
+
+func (o *options) SetTagEncoderPool(value serialize.TagEncoderPool) Options {
+	opts := *o
+	opts.tagEncoderPool = value
+	return &opts
+}
+
+func (o *options) TagEncoderPool() serialize.TagEncoderPool {
+	return o.tagEncoderPool
+}
+
+func (o *options) SetTagDecoderPool(value serialize.TagDecoderPool) Options {
+	opts := *o
+	opts.tagDecoderPool = value
+	return &opts
+}
+
+func (o *options) TagDecoderPool() serialize.TagDecoderPool {
+	return o.tagDecoderPool
 }

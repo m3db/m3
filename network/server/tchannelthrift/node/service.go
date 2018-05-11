@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3db/x/xpool"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
@@ -51,8 +52,6 @@ import (
 
 const (
 	checkedBytesPoolSize        = 65536
-	tagEncoderPoolSize          = 65536
-	tagDecoderPoolSize          = 65536
 	segmentArrayPoolSize        = 65536
 	initSegmentArrayPoolLength  = 4
 	maxSegmentArrayPooledLength = 32
@@ -140,11 +139,12 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 		opts = tchannelthrift.NewOptions()
 	}
 
-	iopts := db.Options().InstrumentOptions()
+	iopts := opts.InstrumentOptions()
 
-	scope := iopts.MetricsScope().SubScope("service").Tagged(
-		map[string]string{"serviceName": "node"},
-	)
+	scope := iopts.
+		MetricsScope().
+		SubScope("service").
+		Tagged(map[string]string{"serviceName": "node"})
 
 	wrapperPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(checkedBytesPoolSize).
@@ -152,23 +152,6 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 			scope.SubScope("node-checked-bytes-wrapper-pool")))
 	wrapperPool := xpool.NewCheckedBytesWrapperPool(wrapperPoolOpts)
 	wrapperPool.Init()
-
-	tagEncoderPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(tagEncoderPoolSize).
-		SetInstrumentOptions(iopts.SetMetricsScope(
-			scope.SubScope("tag-encoder-pool")))
-	tagEncoderPool := serialize.NewTagEncoderPool(
-		serialize.NewTagEncoderOptions(), tagEncoderPoolOpts)
-	tagEncoderPool.Init()
-
-	tagDecoderPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(tagDecoderPoolSize).
-		SetInstrumentOptions(iopts.SetMetricsScope(
-			scope.SubScope("tag-decoder-pool")))
-	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions().
-			SetCheckedBytesWrapperPool(wrapperPool), tagDecoderPoolOpts)
-	tagDecoderPool.Init()
 
 	segmentPool := newSegmentsArrayPool(segmentsArrayPoolOpts{
 		Capacity:    initSegmentArrayPoolLength,
@@ -182,14 +165,14 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 
 	s := &service{
 		db:      db,
-		logger:  db.Options().InstrumentOptions().Logger(),
+		logger:  iopts.Logger(),
 		opts:    opts,
 		nowFn:   db.Options().ClockOptions().NowFn(),
 		metrics: newServiceMetrics(scope, iopts.MetricsSamplingRate()),
 		pools: pools{
 			checkedBytesWrapper:  wrapperPool,
-			tagEncoder:           tagEncoderPool,
-			tagDecoder:           tagDecoderPool,
+			tagEncoder:           opts.TagEncoderPool(),
+			tagDecoder:           opts.TagDecoderPool(),
 			id:                   db.Options().IdentifierPool(),
 			segmentsArray:        segmentPool,
 			blockMetadata:        opts.BlockMetadataPool(),
@@ -260,7 +243,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	result.Datapoints = make([]*rpc.Datapoint, 0)
 
 	multiIt := s.db.Options().MultiReaderIteratorPool().Get()
-	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
+	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded))
 	defer multiIt.Close()
 
 	for multiIt.Next() {
@@ -308,25 +291,19 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	response := &rpc.FetchTaggedResult_{
 		Exhaustive: queryResult.Exhaustive,
 	}
-	iter := queryResult.Iterator
-	for iter.Next() {
-		nsID, tsID, tags := iter.Current()
+	results := queryResult.Results
+	nsID := results.Namespace()
+	tagsIter := ident.NewTagSliceIterator(nil)
+	for _, entry := range results.Map().Iter() {
+		tsID := entry.Key()
+		tags := entry.Value()
 		enc := s.pools.tagEncoder.Get()
 		ctx.RegisterFinalizer(enc)
-		if err := enc.Encode(tags); err != nil {
-			// should never happen
-			wrappedErr := xerrors.NewRenamedError(err, fmt.Errorf("unable to encode tags"))
-			s.logger.Warnf("[invariant violated] %v", wrappedErr)
+		tagsIter.Reset(tags)
+		encodedTags, err := s.encodeTags(enc, tagsIter)
+		if err != nil { // This is an invariant, should never happen
 			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
-			return nil, tterrors.NewInternalError(wrappedErr)
-		}
-		encodedTags, ok := enc.Data()
-		if !ok {
-			// should never happen
-			wrappedErr := xerrors.NewRenamedError(err, fmt.Errorf("unable to encode tags"))
-			s.logger.Warnf("[invariant violated] %v", wrappedErr)
-			s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
-			return nil, tterrors.NewInternalError(wrappedErr)
+			return nil, tterrors.NewInternalError(err)
 		}
 
 		elem := &rpc.FetchTaggedIDResult_{
@@ -346,13 +323,30 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 		elem.Segments = segments
 	}
 
-	if err := iter.Err(); err != nil {
-		s.metrics.fetchTagged.ReportError(s.nowFn().Sub(callStart))
-		return nil, tterrors.NewInternalError(convert.ToRPCError(err))
-	}
-
 	s.metrics.fetchTagged.ReportSuccess(s.nowFn().Sub(callStart))
 	return response, nil
+}
+
+func (s *service) encodeTags(
+	enc serialize.TagEncoder,
+	tags ident.TagIterator,
+) (checked.Bytes, error) {
+	if err := enc.Encode(tags); err != nil {
+		// should never happen
+		err = xerrors.NewRenamedError(err, fmt.Errorf("unable to encode tags"))
+		l := instrument.EmitInvariantViolationAndGetLogger(s.opts.InstrumentOptions())
+		l.Error(err.Error())
+		return nil, err
+	}
+	encodedTags, ok := enc.Data()
+	if !ok {
+		// should never happen
+		err := fmt.Errorf("unable to encode tags: unable to unwrap bytes")
+		l := instrument.EmitInvariantViolationAndGetLogger(s.opts.InstrumentOptions())
+		l.Error(err.Error())
+		return nil, err
+	}
+	return encodedTags, nil
 }
 
 func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawRequest) (*rpc.FetchBatchRawResult_, error) {
@@ -456,7 +450,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 				block.Err = convert.ToRPCError(err)
 			} else {
 				var converted convert.ToSegmentsResult
-				converted, err = convert.ToSegments(fetchedBlock.Readers)
+				converted, err = convert.ToSegments(fetchedBlock.Blocks)
 				if err != nil {
 					block.Err = convert.ToRPCError(err)
 				}
@@ -520,7 +514,7 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
-	ctx.RegisterFinalizer(resource.FinalizerFn(fetched.Close))
+	ctx.RegisterCloser(fetched)
 
 	fetchedResults := fetched.Results()
 	result := rpc.NewFetchBlocksMetadataRawResult_()
@@ -592,6 +586,7 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	var err error
 	callStart := s.nowFn()
 	defer func() {
+		// No need to report metric anywhere else as we capture all cases here
 		s.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, s.nowFn().Sub(callStart))
 	}()
 
@@ -619,46 +614,65 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	fetchedMetadata, nextPageToken, err := s.db.FetchBlocksMetadataV2(
 		ctx, nsID, uint32(req.Shard), start, end, req.Limit, req.PageToken, opts)
 	if err != nil {
-		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
-	ctx.RegisterFinalizer(resource.FinalizerFn(fetchedMetadata.Close))
 
-	result, err := s.getFetchBlocksMetadataRawV2Result(nextPageToken, opts, fetchedMetadata)
-	// Finalize pooled datastructures regardless of errors because even in the error
-	// case result contains pooled objects that we need to return.
-	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
+	ctx.RegisterCloser(fetchedMetadata)
+
+	result, err := s.getFetchBlocksMetadataRawV2Result(ctx, nextPageToken, opts, fetchedMetadata)
 	if err != nil {
-		return nil, err
+		return nil, convert.ToRPCError(err)
 	}
 
+	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
 	return result, nil
 }
 
 func (s *service) getFetchBlocksMetadataRawV2Result(
+	ctx context.Context,
 	nextPageToken storage.PageToken,
 	opts block.FetchBlocksMetadataOptions,
 	results block.FetchBlocksMetadataResults,
 ) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
+	elements, err := s.getBlocksMetadataV2FromResult(ctx, opts, results)
+	if err != nil {
+		return nil, err
+	}
+
 	result := rpc.NewFetchBlocksMetadataRawV2Result_()
 	result.NextPageToken = nextPageToken
-	result.Elements = s.getBlocksMetadataV2FromResult(opts, results)
+	result.Elements = elements
 	return result, nil
 }
 
 func (s *service) getBlocksMetadataV2FromResult(
+	ctx context.Context,
 	opts block.FetchBlocksMetadataOptions,
 	results block.FetchBlocksMetadataResults,
-) []*rpc.BlockMetadataV2 {
+) ([]*rpc.BlockMetadataV2, error) {
 	blocks := s.pools.blockMetadataV2Slice.Get()
-
 	for _, fetchedMetadata := range results.Results() {
 		fetchedMetadataBlocks := fetchedMetadata.Blocks.Results()
-		id := fetchedMetadata.ID.Data().Bytes()
+
+		var (
+			id          = fetchedMetadata.ID.Bytes()
+			tags        = fetchedMetadata.Tags
+			encodedTags []byte
+		)
+		if tags != nil && tags.Remaining() > 0 {
+			enc := s.pools.tagEncoder.Get()
+			ctx.RegisterFinalizer(enc)
+			encoded, err := s.encodeTags(enc, tags)
+			if err != nil {
+				return nil, err
+			}
+			encodedTags = encoded.Bytes()
+		}
 
 		for _, fetchedMetadataBlock := range fetchedMetadataBlocks {
 			blockMetadata := s.pools.blockMetadataV2.Get()
 			blockMetadata.ID = id
+			blockMetadata.EncodedTags = encodedTags
 			blockMetadata.Start = fetchedMetadataBlock.Start.UnixNano()
 
 			if opts.IncludeSizes {
@@ -695,7 +709,7 @@ func (s *service) getBlocksMetadataV2FromResult(
 		}
 	}
 
-	return blocks
+	return blocks, nil
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
@@ -1101,7 +1115,7 @@ func (s *service) readEncoded(
 func (s *service) newTagsDecoder(ctx context.Context, encodedTags []byte) (serialize.TagDecoder, error) {
 	checkedBytes := s.pools.checkedBytesWrapper.Get(encodedTags)
 	dec := s.pools.tagDecoder.Get()
-	ctx.RegisterFinalizer(resource.FinalizerFn(dec.Close))
+	ctx.RegisterCloser(dec)
 	dec.Reset(checkedBytes)
 	if err := dec.Err(); err != nil {
 		return nil, err

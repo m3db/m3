@@ -14,8 +14,7 @@
     }
   },
   "Enable":
-    [ "deadcode"
-    , "varcheck"
+    [ "varcheck"
     , "structcheck"
     , "goconst"
     , "ineffassign"

@@ -142,14 +142,13 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 
 func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) bool {
 	q := newQuery(t, tags)
-	results, err := s.FetchTaggedIDs(ns, index.Query{q}, index.QueryOptions{
+	iter, _, err := s.FetchTaggedIDs(ns, index.Query{q}, index.QueryOptions{
 		StartInclusive: time.Now(),
 		EndExclusive:   time.Now(),
 		Limit:          10})
 	if err != nil {
 		return false
 	}
-	iter := results.Iterator
 	if !iter.Next() {
 		return false
 	}
@@ -171,9 +170,7 @@ func newQuery(t *testing.T, tags ident.TagIterator) idx.Query {
 		tq := idx.NewTermQuery(tag.Name.Bytes(), tag.Value.Bytes())
 		filters = append(filters, tq)
 	}
-	q, err := idx.NewConjunctionQuery(filters...)
-	require.NoError(t, err)
-	return q
+	return idx.NewConjunctionQuery(filters...)
 }
 
 func genIDTags(i int, j int, numTags int) (ident.ID, ident.TagIterator) {
@@ -185,5 +182,8 @@ func genIDTags(i int, j int, numTags int) (ident.ID, ident.TagIterator) {
 			fmt.Sprintf("%s.tagvalue.%d", id, i),
 		))
 	}
+	tags = append(tags,
+		ident.StringTag("commoni", fmt.Sprintf("%d", i)),
+		ident.StringTag("shared", "shared"))
 	return ident.StringID(id), ident.NewTagSliceIterator(tags)
 }

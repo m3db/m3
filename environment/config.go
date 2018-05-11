@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/kv"
+	m3clusterkvmem "github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/kvconfig"
@@ -148,6 +148,22 @@ type ConfigurationParameters struct {
 func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	var emptyConfig ConfigureResults
 
+	if c.Service != nil && c.Static != nil {
+		return emptyConfig, errInvalidConfig
+	}
+
+	if c.Service != nil {
+		return c.configureDynamic(cfgParams)
+	}
+
+	if c.Static != nil {
+		return c.configureStatic(cfgParams)
+	}
+
+	return emptyConfig, errInvalidConfig
+}
+
+func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	sdTimeout := defaultSDTimeout
 	if initTimeout := c.Service.SDConfig.InitTimeout; initTimeout != nil && *initTimeout != 0 {
 		sdTimeout = *initTimeout
@@ -159,25 +175,9 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 	configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
 	if err != nil {
 		err = fmt.Errorf("could not create m3cluster client: %v", err)
-		return emptyConfig, err
+		return ConfigureResults{}, err
 	}
 
-	if c.Service != nil && c.Static != nil {
-		return emptyConfig, errInvalidConfig
-	}
-
-	if c.Service != nil {
-		return c.configureDynamic(configSvcClient, cfgParams)
-	}
-
-	if c.Static != nil {
-		return c.configureStatic(configSvcClient, cfgParams)
-	}
-
-	return emptyConfig, errInvalidConfig
-}
-
-func (c Configuration) configureDynamic(configSvcClient client.Client, cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	dynamicOpts := namespace.NewDynamicOptions().
 		SetInstrumentOptions(cfgParams.InstrumentOpts).
 		SetConfigServiceClient(configSvcClient).
@@ -205,15 +205,14 @@ func (c Configuration) configureDynamic(configSvcClient client.Client, cfgParams
 		return ConfigureResults{}, err
 	}
 
-	configureResults := ConfigureResults{
+	return ConfigureResults{
 		NamespaceInitializer: nsInit,
 		TopologyInitializer:  topoInit,
 		KVStore:              kv,
-	}
-	return configureResults, nil
+	}, nil
 }
 
-func (c Configuration) configureStatic(configSvcClient client.Client, cfgParams ConfigurationParameters) (ConfigureResults, error) {
+func (c Configuration) configureStatic(cfgParams ConfigurationParameters) (ConfigureResults, error) {
 	var emptyConfig ConfigureResults
 
 	nsList := []namespace.Metadata{}
@@ -257,18 +256,11 @@ func (c Configuration) configureStatic(configSvcClient client.Client, cfgParams 
 
 	topoInit := topology.NewStaticInitializer(staticOptions)
 
-	kv, err := configSvcClient.KV()
-	if err != nil {
-		err = fmt.Errorf("could not create KV client, %v", err)
-		return emptyConfig, err
-	}
-
-	configureResults := ConfigureResults{
+	return ConfigureResults{
 		NamespaceInitializer: nsInitStatic,
 		TopologyInitializer:  topoInit,
-		KVStore:              kv,
-	}
-	return configureResults, nil
+		KVStore:              m3clusterkvmem.NewStore(),
+	}, nil
 }
 
 func newStaticShardSet(numShards int, hosts []topology.HostShardConfig) (sharding.ShardSet, []topology.HostShardSet, error) {

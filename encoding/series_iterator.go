@@ -29,16 +29,17 @@ import (
 )
 
 type seriesIterator struct {
-	id        ident.ID
-	nsID      ident.ID
-	tags      ident.TagIterator
-	start     time.Time
-	end       time.Time
-	iters     iterators
-	err       error
-	firstNext bool
-	closed    bool
-	pool      SeriesIteratorPool
+	id               ident.ID
+	nsID             ident.ID
+	tags             ident.TagIterator
+	start            time.Time
+	end              time.Time
+	iters            iterators
+	multiReaderIters []MultiReaderIterator
+	err              error
+	firstNext        bool
+	closed           bool
+	pool             SeriesIteratorPool
 }
 
 // NewSeriesIterator creates a new series iterator.
@@ -48,7 +49,7 @@ func NewSeriesIterator(
 	nsID ident.ID,
 	tags ident.TagIterator,
 	startInclusive, endExclusive time.Time,
-	replicas []Iterator,
+	replicas []MultiReaderIterator,
 	pool SeriesIteratorPool,
 ) SeriesIterator {
 	it := &seriesIterator{pool: pool}
@@ -105,13 +106,22 @@ func (it *seriesIterator) Close() {
 	if it.tags != nil {
 		it.tags.Close()
 	}
+
+	for idx := range it.multiReaderIters {
+		it.multiReaderIters[idx] = nil
+	}
+
 	it.iters.reset()
 	if it.pool != nil {
 		it.pool.Put(it)
 	}
 }
 
-func (it *seriesIterator) Reset(id ident.ID, nsID ident.ID, tags ident.TagIterator, startInclusive, endExclusive time.Time, replicas []Iterator) {
+func (it *seriesIterator) Replicas() []MultiReaderIterator {
+	return it.multiReaderIters
+}
+
+func (it *seriesIterator) Reset(id ident.ID, nsID ident.ID, tags ident.TagIterator, startInclusive, endExclusive time.Time, replicas []MultiReaderIterator) {
 	it.id = id
 	it.nsID = nsID
 	it.tags = tags
@@ -119,13 +129,16 @@ func (it *seriesIterator) Reset(id ident.ID, nsID ident.ID, tags ident.TagIterat
 	it.end = endExclusive
 	it.iters.reset()
 	it.iters.setFilter(startInclusive, endExclusive)
+	it.multiReaderIters = it.multiReaderIters[:0]
 	it.err = nil
 	it.firstNext = true
 	it.closed = false
 	for _, replica := range replicas {
 		if !replica.Next() || !it.iters.push(replica) {
 			replica.Close()
+			continue
 		}
+		it.multiReaderIters = append(it.multiReaderIters, replica)
 	}
 }
 

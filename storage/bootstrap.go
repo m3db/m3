@@ -23,25 +23,13 @@ package storage
 import (
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap"
 	xerrors "github.com/m3db/m3x/errors"
 	xlog "github.com/m3db/m3x/log"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
-)
-
-type bootstrapState int
-
-// nolint: deadcode
-const (
-	bootstrapNotStarted bootstrapState = iota
-	bootstrapping
-	bootstrapped
 )
 
 var (
@@ -70,15 +58,15 @@ var (
 type bootstrapManager struct {
 	sync.RWMutex
 
-	database   database
-	mediator   databaseMediator
-	opts       Options
-	log        xlog.Logger
-	nowFn      clock.NowFn
-	process    bootstrap.Process
-	state      bootstrapState
-	hasPending bool
-	status     tally.Gauge
+	database        database
+	mediator        databaseMediator
+	opts            Options
+	log             xlog.Logger
+	nowFn           clock.NowFn
+	processProvider bootstrap.ProcessProvider
+	state           BootstrapState
+	hasPending      bool
+	status          tally.Gauge
 }
 
 func newBootstrapManager(
@@ -88,13 +76,13 @@ func newBootstrapManager(
 ) databaseBootstrapManager {
 	scope := opts.InstrumentOptions().MetricsScope()
 	return &bootstrapManager{
-		database: database,
-		mediator: mediator,
-		opts:     opts,
-		log:      opts.InstrumentOptions().Logger(),
-		nowFn:    opts.ClockOptions().NowFn(),
-		process:  opts.BootstrapProcess(),
-		status:   scope.Gauge("bootstrapped"),
+		database:        database,
+		mediator:        mediator,
+		opts:            opts,
+		log:             opts.InstrumentOptions().Logger(),
+		nowFn:           opts.ClockOptions().NowFn(),
+		processProvider: opts.BootstrapProcessProvider(),
+		status:          scope.Gauge("bootstrapped"),
 	}
 }
 
@@ -102,13 +90,13 @@ func (m *bootstrapManager) IsBootstrapped() bool {
 	m.RLock()
 	state := m.state
 	m.RUnlock()
-	return state == bootstrapped
+	return state == Bootstrapped
 }
 
 func (m *bootstrapManager) Bootstrap() error {
 	m.Lock()
 	switch m.state {
-	case bootstrapping:
+	case Bootstrapping:
 		// NB(r): Already bootstrapping, now a consequent bootstrap
 		// request comes in - we queue this up to bootstrap again
 		// once the current bootstrap has completed.
@@ -119,7 +107,7 @@ func (m *bootstrapManager) Bootstrap() error {
 		m.Unlock()
 		return errBootstrapEnqueued
 	default:
-		m.state = bootstrapping
+		m.state = Bootstrapping
 	}
 	m.Unlock()
 
@@ -142,7 +130,7 @@ func (m *bootstrapManager) Bootstrap() error {
 			// New bootstrap calls should now enqueue another pending bootstrap
 			m.hasPending = false
 		} else {
-			m.state = bootstrapped
+			m.state = Bootstrapped
 		}
 		m.Unlock()
 
@@ -171,38 +159,11 @@ func (m *bootstrapManager) Report() {
 	}
 }
 
-func (m *bootstrapManager) targetRanges(at time.Time, ropts retention.Options) []bootstrap.TargetRange {
-	start := at.Add(-ropts.RetentionPeriod()).
-		Truncate(ropts.BlockSize())
-	midPoint := at.
-		Add(-ropts.BlockSize()).
-		Add(-ropts.BufferPast()).
-		Truncate(ropts.BlockSize()).
-		// NB(r): Since "end" is exclusive we need to add a
-		// an extra block size when specifying the end time.
-		Add(ropts.BlockSize())
-	cutover := at.Add(ropts.BufferFuture()).
-		Truncate(ropts.BlockSize()).
-		Add(ropts.BlockSize())
-
-	// NB(r): We want the large initial time range bootstrapped to
-	// bootstrap incrementally so we don't keep the full raw
-	// data in process until we finish bootstrapping which could
-	// cause the process to OOM.
-	return []bootstrap.TargetRange{
-		{
-			Range:      xtime.Range{Start: start, End: midPoint},
-			RunOptions: bootstrap.NewRunOptions().SetIncremental(true),
-		},
-		{
-			Range:      xtime.Range{Start: midPoint, End: cutover},
-			RunOptions: bootstrap.NewRunOptions().SetIncremental(false),
-		},
-	}
-}
-
 func (m *bootstrapManager) bootstrap() error {
-	bootstrapStart := m.nowFn()
+	// NB(r): construct new instance of the bootstrap process to avoid
+	// state being kept around by bootstrappers.
+	process := m.processProvider.Provide()
+
 	// NB(xichen): each bootstrapper should be responsible for choosing the most
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
 	multiErr := xerrors.NewMultiError()
@@ -211,17 +172,17 @@ func (m *bootstrapManager) bootstrap() error {
 	if err != nil {
 		return err
 	}
+
+	startBootstrap := m.nowFn()
 	for _, namespace := range namespaces {
-		rOpts := namespace.Options().RetentionOptions()
-		targetRanges := m.targetRanges(bootstrapStart, rOpts)
-		start := m.nowFn()
-		if err := namespace.Bootstrap(m.process, targetRanges); err != nil {
+		startNamespaceBootstrap := m.nowFn()
+		if err := namespace.Bootstrap(startBootstrap, process); err != nil {
 			multiErr = multiErr.Add(err)
 		}
-		end := m.nowFn()
+		took := m.nowFn().Sub(startNamespaceBootstrap)
 		m.log.WithFields(
 			xlog.NewField("namespace", namespace.ID().String()),
-			xlog.NewField("duration", end.Sub(start).String()),
+			xlog.NewField("duration", took.String()),
 		).Info("bootstrap finished")
 	}
 

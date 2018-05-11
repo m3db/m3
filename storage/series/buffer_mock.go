@@ -85,9 +85,9 @@ func (mr *MockdatabaseBufferMockRecorder) Snapshot(ctx, blockStart interface{}) 
 }
 
 // ReadEncoded mocks base method
-func (m *MockdatabaseBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.SegmentReader {
+func (m *MockdatabaseBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.BlockReader {
 	ret := m.ctrl.Call(m, "ReadEncoded", ctx, start, end)
-	ret0, _ := ret[0].([][]xio.SegmentReader)
+	ret0, _ := ret[0].([][]xio.BlockReader)
 	return ret0
 }
 
@@ -145,11 +145,12 @@ func (mr *MockdatabaseBufferMockRecorder) Stats() *gomock.Call {
 }
 
 // MinMax mocks base method
-func (m *MockdatabaseBuffer) MinMax() (time.Time, time.Time) {
+func (m *MockdatabaseBuffer) MinMax() (time.Time, time.Time, error) {
 	ret := m.ctrl.Call(m, "MinMax")
 	ret0, _ := ret[0].(time.Time)
 	ret1, _ := ret[1].(time.Time)
-	return ret0, ret1
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // MinMax indicates an expected call of MinMax

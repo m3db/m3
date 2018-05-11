@@ -51,10 +51,12 @@ import (
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
 	m3dbruntime "github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/services/m3dbnode/config"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/cluster"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
@@ -104,11 +106,13 @@ func Run(runOpts RunOptions) {
 	var cfg config.Configuration
 	if err := xconfig.LoadFile(&cfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
 		fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
+		os.Exit(1)
 	}
 
 	logger, err := cfg.Logging.BuildLogger()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to create logger: %v", err)
+		os.Exit(1)
 	}
 
 	debug.SetGCPercent(cfg.GCPercentage)
@@ -166,9 +170,7 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	opts := storage.NewOptions().
-		SetIndexingEnabled(cfg.Index.Enabled)
-
+	opts := storage.NewOptions()
 	iopts := opts.InstrumentOptions().
 		SetLogger(logger).
 		SetMetricsScope(scope).
@@ -191,6 +193,15 @@ func Run(runOpts RunOptions) {
 	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
 		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
 	}
+
+	// FOLLOWUP(prateek): remove this once we have the runtime options<->index wiring done
+	indexOpts := opts.IndexOptions()
+	insertMode := index.InsertSync
+	if cfg.WriteNewSeriesAsync {
+		insertMode = index.InsertAsync
+	}
+	opts = opts.SetIndexOptions(
+		indexOpts.SetInsertMode(insertMode))
 
 	if tick := cfg.Tick; tick != nil {
 		runtimeOpts = runtimeOpts.
@@ -231,6 +242,16 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
+	policy := cfg.PoolingPolicy
+	tagEncoderPool := serialize.NewTagEncoderPool(
+		serialize.NewTagEncoderOptions(),
+		poolOptions(policy.TagEncoderPool, scope.SubScope("tag-encoder-pool")))
+	tagEncoderPool.Init()
+	tagDecoderPool := serialize.NewTagDecoderPool(
+		serialize.NewTagDecoderOptions(),
+		poolOptions(policy.TagDecoderPool, scope.SubScope("tag-decoder-pool")))
+	tagDecoderPool.Init()
+
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
@@ -244,7 +265,9 @@ func Run(runOpts RunOptions) {
 		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSize).
 		SetMmapEnableHugeTLB(shouldUseHugeTLB).
 		SetMmapHugeTLBThreshold(mmapCfg.HugeTLB.Threshold).
-		SetRuntimeOptionsManager(runtimeOptsMgr)
+		SetRuntimeOptionsManager(runtimeOptsMgr).
+		SetTagEncoderPool(tagEncoderPool).
+		SetTagDecoderPool(tagDecoderPool)
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
@@ -383,7 +406,7 @@ func Run(runOpts RunOptions) {
 		logger.Fatalf("could not create bootstrap process: %v", err)
 	}
 
-	opts = opts.SetBootstrapProcess(bs)
+	opts = opts.SetBootstrapProcessProvider(bs)
 
 	timeout := bootstrapConfigInitTimeout
 	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
@@ -400,11 +423,10 @@ func Run(runOpts RunOptions) {
 				return
 			}
 
-			bs.SetBootstrapper(updated.Bootstrapper())
+			bs.SetBootstrapperProvider(updated.BootstrapperProvider())
 		})
 
 	// Set repair options
-	policy := cfg.PoolingPolicy
 	hostBlockMetadataSlicePool := repair.NewHostBlockMetadataSlicePool(
 		capacityPoolOptions(policy.HostBlockMetadataSlicePool,
 			scope.SubScope("host-block-metadata-slice-pool")),
@@ -434,10 +456,13 @@ func Run(runOpts RunOptions) {
 		policy.BlocksMetadataSlicePool.Capacity)
 
 	ttopts := tchannelthrift.NewOptions().
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetBlockMetadataPool(blockMetadataPool).
 		SetBlockMetadataSlicePool(blockMetadataSlicePool).
 		SetBlocksMetadataPool(blocksMetadataPool).
-		SetBlocksMetadataSlicePool(blocksMetadataSlicePool)
+		SetBlocksMetadataSlicePool(blocksMetadataSlicePool).
+		SetTagEncoderPool(tagEncoderPool).
+		SetTagDecoderPool(tagDecoderPool)
 
 	db, err := cluster.NewDatabase(hostID, envCfg.TopologyInitializer, opts)
 	if err != nil {
@@ -952,7 +977,7 @@ func withEncodingAndPoolingOptions(
 	blockPool := block.NewDatabaseBlockPool(poolOptions(policy.BlockPool,
 		scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(time.Time{}, ts.Segment{}, blockOpts)
+		return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts)
 	})
 	blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 	opts = opts.SetDatabaseBlockOptions(blockOpts)
@@ -963,13 +988,35 @@ func withEncodingAndPoolingOptions(
 		SetFetchBlockMetadataResultsPool(opts.FetchBlockMetadataResultsPool())
 	seriesPool := series.NewDatabaseSeriesPool(
 		poolOptions(policy.SeriesPool, scope.SubScope("series-pool")))
+
 	opts = opts.
 		SetSeriesOptions(seriesOpts).
 		SetDatabaseSeriesPool(seriesPool)
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
-		SetBytesPool(bytesPool))
+		SetBytesPool(bytesPool).
+		SetIdentifierPool(identifierPool))
 
-	return opts
+	// options related to the indexing sub-system
+	tagArrPool := index.NewTagArrayPool(index.TagArrayPoolOpts{
+		Options:     maxCapacityPoolOptions(policy.TagArrayPool, scope.SubScope("tag-array-pool")),
+		Capacity:    policy.TagArrayPool.Capacity,
+		MaxCapacity: policy.TagArrayPool.MaxCapacity,
+	})
+	tagArrPool.Init()
+
+	resultsPool := index.NewResultsPool(poolOptions(policy.IndexResultsPool,
+		scope.SubScope("index-results-pool")))
+	indexOpts := opts.IndexOptions().
+		SetInstrumentOptions(iopts).
+		SetMemSegmentOptions(
+			opts.IndexOptions().MemSegmentOptions().SetInstrumentOptions(iopts)).
+		SetIdentifierPool(identifierPool).
+		SetCheckedBytesPool(bytesPool).
+		SetTagArrayPool(tagArrPool).
+		SetResultsPool(resultsPool)
+	resultsPool.Init(func() index.Results { return index.NewResults(indexOpts) })
+
+	return opts.SetIndexOptions(indexOpts)
 }
 
 func poolOptions(
@@ -995,6 +1042,27 @@ func poolOptions(
 
 func capacityPoolOptions(
 	policy config.CapacityPoolPolicy,
+	scope tally.Scope,
+) pool.ObjectPoolOptions {
+	opts := pool.NewObjectPoolOptions()
+	if policy.Size > 0 {
+		opts = opts.SetSize(policy.Size)
+		if policy.RefillLowWaterMark > 0 &&
+			policy.RefillHighWaterMark > 0 &&
+			policy.RefillHighWaterMark > policy.RefillLowWaterMark {
+			opts = opts.SetRefillLowWatermark(policy.RefillLowWaterMark)
+			opts = opts.SetRefillHighWatermark(policy.RefillHighWaterMark)
+		}
+	}
+	if scope != nil {
+		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
+			SetMetricsScope(scope))
+	}
+	return opts
+}
+
+func maxCapacityPoolOptions(
+	policy config.MaxCapacityPoolPolicy,
 	scope tally.Scope,
 ) pool.ObjectPoolOptions {
 	opts := pool.NewObjectPoolOptions()

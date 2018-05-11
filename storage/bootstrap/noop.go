@@ -21,28 +21,39 @@
 package bootstrap
 
 import (
+	"time"
+
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 )
 
-type noOpBootstrapProcess struct{}
+type noOpBootstrapProcessProvider struct{}
 
-// NewNoOpProcess creates a no-op bootstrap process.
-func NewNoOpProcess() Process {
-	return &noOpBootstrapProcess{}
+// NewNoOpProcessProvider creates a no-op bootstrap process proivder.
+func NewNoOpProcessProvider() ProcessProvider {
+	return noOpBootstrapProcessProvider{}
 }
 
-func (b *noOpBootstrapProcess) SetBootstrapper(bootstrapper Bootstrapper) {
+func (b noOpBootstrapProcessProvider) SetBootstrapperProvider(provider BootstrapperProvider) {
 }
 
-func (b *noOpBootstrapProcess) Bootstrapper() Bootstrapper {
+func (b noOpBootstrapProcessProvider) BootstrapperProvider() BootstrapperProvider {
 	return nil
 }
 
-func (b *noOpBootstrapProcess) Run(
+func (b noOpBootstrapProcessProvider) Provide() Process {
+	return noOpBootstrapProcess{}
+}
+
+type noOpBootstrapProcess struct{}
+
+func (b noOpBootstrapProcess) Run(
+	start time.Time,
 	ns namespace.Metadata,
 	shards []uint32,
-	targetRanges []TargetRange,
-) (result.BootstrapResult, error) {
-	return result.NewBootstrapResult(), nil
+) (ProcessResult, error) {
+	return ProcessResult{
+		DataResult:  result.NewDataBootstrapResult(),
+		IndexResult: result.NewIndexBootstrapResult(),
+	}, nil
 }

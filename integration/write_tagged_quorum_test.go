@@ -274,16 +274,17 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	assert.NoError(t, err)
 
-	results, err := s.db.QueryIDs(ctx, testNamespaces[0], index.Query{reQuery}, index.QueryOptions{})
+	now := s.getNowFn()
+	res, err := s.db.QueryIDs(ctx, testNamespaces[0], index.Query{reQuery}, index.QueryOptions{
+		StartInclusive: now.Add(-2 * time.Minute),
+		EndExclusive:   now.Add(2 * time.Minute),
+	})
 	require.NoError(t, err)
-	iter := results.Iterator
-	idxFound := false
-	for iter.Next() {
-		_, id, tags := iter.Current()
-		idxFound = idxFound || (id.String() == "quorumTest" && ident.NewTagIterMatcher(
-			ident.MustNewTagStringsIterator("foo", "bar", "boo", "baz")).Matches(tags))
-	}
-	require.NoError(t, iter.Err())
+	results := res.Results
+	require.Equal(t, testNamespaces[0].String(), results.Namespace().String())
+	tags, ok := results.Map().Get(ident.StringID("quorumTest"))
+	idxFound := ok && ident.NewTagIterMatcher(ident.MustNewTagStringsIterator(
+		"foo", "bar", "boo", "baz")).Matches(ident.NewTagSliceIterator(tags))
 
 	if !idxFound {
 		return false
@@ -299,7 +300,7 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	require.NoError(t, err)
 
 	mIter := s.db.Options().MultiReaderIteratorPool().Get()
-	mIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(readers))
+	mIter.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(readers))
 	defer mIter.Close()
 	for mIter.Next() {
 		dp, _, _ := mIter.Current()

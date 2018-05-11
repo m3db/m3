@@ -45,6 +45,7 @@ var (
 	errUnknownUnit                   = errors.New("unknown unit")
 	errNilTaggedRequest              = errors.New("nil write tagged request")
 	errDisjunctionQueriesUnsupported = errors.New("disjunction queries are not-supported")
+	errInvalidNegationQuery          = errors.New("negation queries are not supported for composite queries")
 	errUnsupportedQueryType          = errors.New("unsupported query type")
 
 	timeZero time.Time
@@ -123,25 +124,29 @@ type ToSegmentsResult struct {
 	Checksum *int64
 }
 
-// ToSegments converts a list of segment readers to segments.
-func ToSegments(readers []xio.SegmentReader) (ToSegmentsResult, error) {
-	if len(readers) == 0 {
+// ToSegments converts a list of blocks to segments.
+func ToSegments(blocks []xio.BlockReader) (ToSegmentsResult, error) {
+	if len(blocks) == 0 {
 		return ToSegmentsResult{}, nil
 	}
 
 	s := &rpc.Segments{}
 
-	if len(readers) == 1 {
-		seg, err := readers[0].Segment()
+	if len(blocks) == 1 {
+		seg, err := blocks[0].Segment()
 		if err != nil {
 			return ToSegmentsResult{}, err
 		}
 		if seg.Len() == 0 {
 			return ToSegmentsResult{}, nil
 		}
+		startTime := xtime.ToNormalizedTime(blocks[0].Start, time.Nanosecond)
+		blockSize := xtime.ToNormalizedDuration(blocks[0].BlockSize, time.Nanosecond)
 		s.Merged = &rpc.Segment{
-			Head: bytesRef(seg.Head),
-			Tail: bytesRef(seg.Tail),
+			Head:      bytesRef(seg.Head),
+			Tail:      bytesRef(seg.Tail),
+			StartTime: &startTime,
+			BlockSize: &blockSize,
 		}
 		checksum := int64(digest.SegmentChecksum(seg))
 		return ToSegmentsResult{
@@ -150,17 +155,21 @@ func ToSegments(readers []xio.SegmentReader) (ToSegmentsResult, error) {
 		}, nil
 	}
 
-	for _, reader := range readers {
-		seg, err := reader.Segment()
+	for _, block := range blocks {
+		seg, err := block.Segment()
 		if err != nil {
 			return ToSegmentsResult{}, err
 		}
 		if seg.Len() == 0 {
 			continue
 		}
+		startTime := xtime.ToNormalizedTime(block.Start, time.Nanosecond)
+		blockSize := xtime.ToNormalizedDuration(block.BlockSize, time.Nanosecond)
 		s.Unmerged = append(s.Unmerged, &rpc.Segment{
-			Head: bytesRef(seg.Head),
-			Tail: bytesRef(seg.Tail),
+			Head:      bytesRef(seg.Head),
+			Tail:      bytesRef(seg.Tail),
+			StartTime: &startTime,
+			BlockSize: &blockSize,
 		})
 	}
 	if len(s.Unmerged) == 0 {
@@ -231,7 +240,7 @@ func FromRPCFetchTaggedRequest(
 	} else {
 		ns = ident.StringID(string(req.NameSpace))
 	}
-	return ns, index.Query{q}, opts, req.FetchData, nil
+	return ns, index.Query{Query: q}, opts, req.FetchData, nil
 }
 
 // ToRPCFetchTaggedRequest converts the Go `client/` types into rpc request type for FetchTaggedRequest.
@@ -288,20 +297,27 @@ func fromRPCQuery(rpcQuery *rpc.IdxQuery) (idx.Query, error) {
 	if l := len(rpcQuery.Filters); l != 0 {
 		queries := make([]idx.Query, 0, l)
 		for _, f := range rpcQuery.Filters {
-			if f.Negate {
-				return idx.Query{}, fmt.Errorf("query negation is currently un-supported")
-			}
+			var (
+				query idx.Query
+				err   error
+			)
+
 			if f.Regexp {
-				query, err := idx.NewRegexpQuery(f.TagName, f.TagValueFilter)
+				query, err = idx.NewRegexpQuery(f.TagName, f.TagValueFilter)
 				if err != nil {
 					return idx.Query{}, err
 				}
-				queries = append(queries, query)
 			} else {
-				queries = append(queries, idx.NewTermQuery(f.TagName, f.TagValueFilter))
+				query = idx.NewTermQuery(f.TagName, f.TagValueFilter)
 			}
+
+			if f.Negate {
+				query = idx.NewNegationQuery(query)
+			}
+
+			queries = append(queries, query)
 		}
-		return idx.NewConjunctionQuery(queries...)
+		return idx.NewConjunctionQuery(queries...), nil
 	}
 
 	if l := len(rpcQuery.SubQueries); l != 0 {
@@ -313,7 +329,7 @@ func fromRPCQuery(rpcQuery *rpc.IdxQuery) (idx.Query, error) {
 			}
 			queries = append(queries, cq)
 		}
-		return idx.NewConjunctionQuery(queries...)
+		return idx.NewConjunctionQuery(queries...), nil
 	}
 
 	return idx.Query{}, fmt.Errorf("at least one Filter/Sub-Query must be defined")
@@ -342,6 +358,17 @@ func toRPCQuery(searchQuery search.Query) (*rpc.IdxQuery, error) {
 				},
 			},
 		}, nil
+	case *query.NegationQuery:
+		switch inner := q.Query.(type) {
+		case *query.TermQuery, *query.RegexpQuery:
+			iq, err := toRPCQuery(inner)
+			if err != nil {
+				return nil, err
+			}
+			iq.Filters[0].Negate = true
+			return iq, nil
+		}
+		return nil, errInvalidNegationQuery
 	case *query.ConjuctionQuery:
 		ret := &rpc.IdxQuery{
 			Operator: rpc.BooleanOperator_AND_OPERATOR,

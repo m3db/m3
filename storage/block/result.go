@@ -31,13 +31,13 @@ import (
 // NewFetchBlockResult creates a new fetch block result
 func NewFetchBlockResult(
 	start time.Time,
-	readers []xio.SegmentReader,
+	blocks []xio.BlockReader,
 	err error,
 ) FetchBlockResult {
 	return FetchBlockResult{
-		Start:   start,
-		Readers: readers,
-		Err:     err,
+		Start:  start,
+		Blocks: blocks,
+		Err:    err,
 	}
 }
 
@@ -121,8 +121,12 @@ func (s *fetchBlockMetadataResults) Close() {
 }
 
 // NewFetchBlocksMetadataResult creates new database blocks metadata
-func NewFetchBlocksMetadataResult(id ident.ID, blocks FetchBlockMetadataResults) FetchBlocksMetadataResult {
-	return FetchBlocksMetadataResult{ID: id, Blocks: blocks}
+func NewFetchBlocksMetadataResult(
+	id ident.ID,
+	tags ident.TagIterator,
+	blocks FetchBlockMetadataResults,
+) FetchBlocksMetadataResult {
+	return FetchBlocksMetadataResult{ID: id, Tags: tags, Blocks: blocks}
 }
 
 type fetchBlocksMetadataResults struct {
@@ -160,8 +164,14 @@ func (s *fetchBlocksMetadataResults) Reset() {
 
 func (s *fetchBlocksMetadataResults) Close() {
 	for i := range s.results {
-		s.results[i].ID.Finalize()
+		// NB(r): We explicitly do not finalize ID or Tags as
+		// some of them are refs to series in memory right now.
+		// For ID and Tags coming from disk callers can use the context
+		// to register finalizers for these types.
+		s.results[i].ID = nil
+		s.results[i].Tags = nil
 		s.results[i].Blocks.Close()
+		s.results[i].Blocks = nil
 	}
 	if s.pool != nil {
 		s.pool.Put(s)
@@ -176,8 +186,13 @@ type filteredBlocksMetadataIter struct {
 	blockIdx int
 }
 
-// NewFilteredBlocksMetadataIter creates a new filtered blocks metadata iterator
-func NewFilteredBlocksMetadataIter(res FetchBlocksMetadataResults) FilteredBlocksMetadataIter {
+// NewFilteredBlocksMetadataIter creates a new filtered blocks metadata
+// iterator, currently this will not propagate tags as there is no efficient
+// way to go from a tags iterator back to tags.
+// Only the repair process uses this currently which is unoptimized.
+func NewFilteredBlocksMetadataIter(
+	res FetchBlocksMetadataResults,
+) FilteredBlocksMetadataIter {
 	return &filteredBlocksMetadataIter{res: res.Results()}
 }
 
@@ -201,7 +216,8 @@ func (it *filteredBlocksMetadataIter) Next() bool {
 	}
 	it.id = it.res[it.resIdx].ID
 	block := blocks[it.blockIdx]
-	it.metadata = NewMetadata(it.id, block.Start,
+	// TODO(r): When reviving the end to end repair process, propagate tags.
+	it.metadata = NewMetadata(it.id, nil, block.Start,
 		block.Size, block.Checksum, block.LastRead)
 	it.blockIdx++
 	return true

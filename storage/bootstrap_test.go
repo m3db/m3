@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -40,15 +39,12 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 
 	opts := testDatabaseOptions()
 	now := time.Now()
-	opts = opts.
-		SetBootstrapProcess(nil).
-		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-			return now
-		}))
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return now
+	}))
 
 	ns := NewMockdatabaseNamespace(ctrl)
-	ns.EXPECT().Options().Return(namespace.NewOptions())
-	ns.EXPECT().Bootstrap(nil, gomock.Any()).Return(fmt.Errorf("an error"))
+	ns.EXPECT().Bootstrap(now, gomock.Any()).Return(fmt.Errorf("an error"))
 	ns.EXPECT().ID().Return(ident.StringID("test"))
 	namespaces := []databaseNamespace{ns}
 
@@ -63,7 +59,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 
 	require.NotNil(t, err)
 	require.Equal(t, "an error", err.Error())
-	require.Equal(t, bootstrapped, bsm.state)
+	require.Equal(t, Bootstrapped, bsm.state)
 }
 
 func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
@@ -72,11 +68,9 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 
 	opts := testDatabaseOptions()
 	now := time.Now()
-	opts = opts.
-		SetBootstrapProcess(nil).
-		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-			return now
-		}))
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return now
+	}))
 
 	m := NewMockdatabaseMediator(ctrl)
 	m.EXPECT().DisableFileOps()
@@ -87,12 +81,11 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 	bsm := newBootstrapManager(db, m, opts).(*bootstrapManager)
 
 	ns := NewMockdatabaseNamespace(ctrl)
-	ns.EXPECT().Options().Return(namespace.NewOptions()).Times(2)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	ns.EXPECT().
-		Bootstrap(nil, gomock.Any()).
+		Bootstrap(now, gomock.Any()).
 		Return(nil).
 		Do(func(arg0, arg1 interface{}) {
 			defer wg.Done()
@@ -107,7 +100,7 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 			bsm.RUnlock()
 
 			// Expect the second bootstrap call
-			ns.EXPECT().Bootstrap(nil, gomock.Any()).Return(nil)
+			ns.EXPECT().Bootstrap(now, gomock.Any()).Return(nil)
 		})
 	ns.EXPECT().
 		ID().
@@ -120,48 +113,4 @@ func TestDatabaseBootstrapSubsequentCallsQueued(t *testing.T) {
 
 	err := bsm.Bootstrap()
 	require.Nil(t, err)
-}
-
-func TestDatabaseBootstrapTargetRanges(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := testDatabaseOptions()
-	ns, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
-	require.NoError(t, err)
-	ropts := ns.Options().RetentionOptions()
-	now := time.Now().Truncate(ropts.BlockSize()).Add(8 * time.Minute)
-	opts = opts.
-		SetBootstrapProcess(nil).
-		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
-			return now
-		}))
-
-	db := NewMockdatabase(ctrl)
-	bsm := newBootstrapManager(db, nil, opts).(*bootstrapManager)
-	ranges := bsm.targetRanges(now, ropts)
-
-	var all [][]time.Time
-	for _, target := range ranges {
-		value := target.Range
-		var times []time.Time
-		for st := value.Start; st.Before(value.End); st = st.Add(ropts.BlockSize()) {
-			times = append(times, st)
-		}
-		all = append(all, times)
-	}
-
-	require.Equal(t, 2, len(all))
-
-	firstWindowExpected :=
-		int(ropts.RetentionPeriod()/ropts.BlockSize()) - 1
-	secondWindowExpected := 2
-
-	assert.Equal(t, firstWindowExpected, len(all[0]))
-	assert.True(t, all[0][0].Equal(now.Truncate(ropts.BlockSize()).Add(-1*ropts.RetentionPeriod())))
-	assert.True(t, all[0][firstWindowExpected-1].Equal(now.Truncate(ropts.BlockSize()).Add(-2*ropts.BlockSize())))
-
-	require.Equal(t, secondWindowExpected, len(all[1]))
-	assert.True(t, all[1][0].Equal(now.Truncate(ropts.BlockSize()).Add(-1*ropts.BlockSize())))
-	assert.True(t, all[1][1].Equal(now.Truncate(ropts.BlockSize())))
 }

@@ -26,7 +26,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3ninx/doc"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -67,7 +69,9 @@ type nsIndexInsertQueue struct {
 	nowFn        clock.NowFn
 	sleepFn      func(time.Duration)
 	notifyInsert chan struct{}
-	metrics      nsIndexInsertQueueMetrics
+	closeCh      chan struct{}
+
+	metrics nsIndexInsertQueueMetrics
 }
 
 type newNamespaceIndexInsertQueueFn func(
@@ -89,11 +93,16 @@ func newNamespaceIndexInsertQueue(
 		nowFn:               nowFn,
 		sleepFn:             time.Sleep,
 		notifyInsert:        make(chan struct{}, 1),
+		closeCh:             make(chan struct{}, 1),
 		metrics:             newNamespaceIndexInsertQueueMetrics(scope),
 	}
 }
 
 func (q *nsIndexInsertQueue) insertLoop() {
+	defer func() {
+		close(q.closeCh)
+	}()
+
 	var lastInsert time.Time
 	freeBatch := &nsIndexInsertBatch{}
 	freeBatch.Reset()
@@ -146,8 +155,9 @@ func (q *nsIndexInsertQueue) insertLoop() {
 }
 
 func (q *nsIndexInsertQueue) Insert(
+	blockStart time.Time,
 	d doc.Document,
-	fns onIndexSeries,
+	fns index.OnIndexSeries,
 ) (*sync.WaitGroup, error) {
 	windowNanos := q.nowFn().Truncate(time.Second).UnixNano()
 
@@ -168,9 +178,10 @@ func (q *nsIndexInsertQueue) Insert(
 			return nil, errNewSeriesIndexRateLimitExceeded
 		}
 	}
-	q.currBatch.inserts = append(q.currBatch.inserts, nsIndexInsert{
-		doc: d,
-		fns: fns,
+	q.currBatch.inserts = append(q.currBatch.inserts, index.WriteBatchEntry{
+		BlockStart:    xtime.ToUnixNano(blockStart),
+		Document:      d,
+		OnIndexSeries: fns,
 	})
 	wg := q.currBatch.wg
 	q.Unlock()
@@ -201,13 +212,14 @@ func (q *nsIndexInsertQueue) Start() error {
 
 func (q *nsIndexInsertQueue) Stop() error {
 	q.Lock()
-	defer q.Unlock()
 
 	if q.state != nsIndexInsertQueueStateOpen {
+		q.Unlock()
 		return errIndexInsertQueueNotOpen
 	}
 
 	q.state = nsIndexInsertQueueStateClosed
+	q.Unlock()
 
 	// Final flush
 	select {
@@ -216,22 +228,20 @@ func (q *nsIndexInsertQueue) Stop() error {
 		// Loop busy, already ready to consume notification
 	}
 
+	// wait till other go routine is done
+	<-q.closeCh
+
 	return nil
 }
 
-type nsIndexInsertBatchFn func(inserts []nsIndexInsert) error
-
-type nsIndexInsert struct {
-	doc doc.Document
-	fns onIndexSeries
-}
+type nsIndexInsertBatchFn func(inserts []index.WriteBatchEntry)
 
 type nsIndexInsertBatch struct {
 	wg      *sync.WaitGroup
-	inserts []nsIndexInsert
+	inserts []index.WriteBatchEntry
 }
 
-var nsIndexInsertZeroed nsIndexInsert
+var nsIndexInsertZeroed index.WriteBatchEntry
 
 func (b *nsIndexInsertBatch) Reset() {
 	b.wg = &sync.WaitGroup{}

@@ -52,11 +52,11 @@ func TestFetchTaggedResultsAccumulatorClearResetsState(t *testing.T) {
 	require.Equal(t, 0, iter.Len())
 	iter.Close()
 
-	results, err := accum.AsIndexQueryResults(100, pools)
+	resultsIter, resultsExhaustive, err := accum.AsTaggedIDsIterator(100, pools)
 	require.NoError(t, err)
-	require.True(t, results.Exhaustive)
-	require.False(t, results.Iterator.Next())
-	require.NoError(t, results.Iterator.Err())
+	require.True(t, resultsExhaustive)
+	require.False(t, resultsIter.Next())
+	require.NoError(t, resultsIter.Err())
 }
 
 func TestFetchTaggedShardConsistencyResultsInitializeLength(t *testing.T) {
@@ -232,8 +232,8 @@ func newTestFetchTaggedPools() testFetchTaggedPools {
 	pools.mutableSeriesIter = encoding.NewMutableSeriesIteratorsPool(nil)
 	pools.mutableSeriesIter.Init()
 
-	pools.iteratorArray = encoding.NewIteratorArrayPool(nil)
-	pools.iteratorArray.Init()
+	pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool(nil)
+	pools.multiReaderIteratorArray.Init()
 
 	pools.id = ident.NewPool(nil, opts)
 
@@ -250,14 +250,14 @@ func newTestFetchTaggedPools() testFetchTaggedPools {
 var _ fetchTaggedPools = testFetchTaggedPools{}
 
 type testFetchTaggedPools struct {
-	readerSlices        *readerSliceOfSlicesIteratorPool
-	multiReader         encoding.MultiReaderIteratorPool
-	seriesIter          encoding.SeriesIteratorPool
-	mutableSeriesIter   encoding.MutableSeriesIteratorsPool
-	iteratorArray       encoding.IteratorArrayPool
-	id                  ident.Pool
-	checkedBytesWrapper xpool.CheckedBytesWrapperPool
-	tagDecoder          serialize.TagDecoderPool
+	readerSlices             *readerSliceOfSlicesIteratorPool
+	multiReader              encoding.MultiReaderIteratorPool
+	seriesIter               encoding.SeriesIteratorPool
+	mutableSeriesIter        encoding.MutableSeriesIteratorsPool
+	multiReaderIteratorArray encoding.MultiReaderIteratorArrayPool
+	id                       ident.Pool
+	checkedBytesWrapper      xpool.CheckedBytesWrapperPool
+	tagDecoder               serialize.TagDecoderPool
 }
 
 func (p testFetchTaggedPools) ReaderSliceOfSlicesIterator() *readerSliceOfSlicesIteratorPool {
@@ -276,8 +276,8 @@ func (p testFetchTaggedPools) MutableSeriesIterators() encoding.MutableSeriesIte
 	return p.mutableSeriesIter
 }
 
-func (p testFetchTaggedPools) IteratorArray() encoding.IteratorArrayPool {
-	return p.iteratorArray
+func (p testFetchTaggedPools) MultiReaderIteratorArray() encoding.MultiReaderIteratorArrayPool {
+	return p.multiReaderIteratorArray
 }
 
 func (p testFetchTaggedPools) ID() ident.Pool {

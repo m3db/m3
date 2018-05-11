@@ -110,7 +110,12 @@ func (m *fileSystemManager) Status() fileOpStatus {
 	return status
 }
 
-func (m *fileSystemManager) Run(t time.Time, runType runType, forceType forceType) bool {
+func (m *fileSystemManager) Run(
+	t time.Time,
+	dbBootstrapStates DatabaseBootstrapState,
+	runType runType,
+	forceType forceType,
+) bool {
 	m.Lock()
 	if forceType == noForce && !m.shouldRunWithLock() {
 		m.Unlock()
@@ -124,7 +129,7 @@ func (m *fileSystemManager) Run(t time.Time, runType runType, forceType forceTyp
 		if err := m.Cleanup(t); err != nil {
 			m.log.Errorf("error when cleaning up data for time %v: %v", t, err)
 		}
-		if err := m.Flush(t); err != nil {
+		if err := m.Flush(t, dbBootstrapStates); err != nil {
 			m.log.Errorf("error when flushing data for time %v: %v", t, err)
 		}
 		m.Lock()

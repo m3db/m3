@@ -35,7 +35,7 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 	opts := testDatabaseOptions().SetRepairEnabled(false)
 	now := time.Now()
 	opts = opts.
-		SetBootstrapProcess(nil).
+		SetBootstrapProcessProvider(nil).
 		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 			return now
 		}))
@@ -43,6 +43,7 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 	db := NewMockdatabase(ctrl)
 	db.EXPECT().Options().Return(opts).AnyTimes()
 	db.EXPECT().GetOwnedNamespaces().Return(nil, nil).AnyTimes()
+	db.EXPECT().BootstrapState().Return(DatabaseBootstrapState{}).AnyTimes()
 	m, err := newMediator(db, opts)
 	require.NoError(t, err)
 
@@ -62,7 +63,7 @@ func TestDatabaseMediatorDisableFileOps(t *testing.T) {
 	opts := testDatabaseOptions().SetRepairEnabled(false)
 	now := time.Now()
 	opts = opts.
-		SetBootstrapProcess(nil).
+		SetBootstrapProcessProvider(nil).
 		SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 			return now
 		}))

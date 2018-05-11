@@ -117,7 +117,7 @@ type Database interface {
 		namespace ident.ID,
 		id ident.ID,
 		start, end time.Time,
-	) ([][]xio.SegmentReader, error)
+	) ([][]xio.BlockReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
 	FetchBlocks(
@@ -168,6 +168,9 @@ type Database interface {
 
 	// Truncate truncates data for the given namespace
 	Truncate(namespace ident.ID) (int64, error)
+
+	// BootstrapState captures and returns a snapshot of the databases' bootstrap state.
+	BootstrapState() DatabaseBootstrapState
 }
 
 // database is the internal database interface
@@ -253,7 +256,7 @@ type databaseNamespace interface {
 		ctx context.Context,
 		id ident.ID,
 		start, end time.Time,
-	) ([][]xio.SegmentReader, error)
+	) ([][]xio.BlockReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
 	FetchBlocks(
@@ -284,13 +287,14 @@ type databaseNamespace interface {
 	) (block.FetchBlocksMetadataResults, PageToken, error)
 
 	// Bootstrap performs bootstrapping
-	Bootstrap(
-		process bootstrap.Process,
-		targetRanges []bootstrap.TargetRange,
-	) error
+	Bootstrap(start time.Time, process bootstrap.Process) error
 
 	// Flush flushes in-memory data
-	Flush(blockStart time.Time, flush persist.Flush) error
+	Flush(
+		blockStart time.Time,
+		ShardBootstrapStates ShardBootstrapStates,
+		flush persist.Flush,
+	) error
 
 	// Snapshot snapshots unflushed in-memory data
 	Snapshot(blockStart, snapshotTime time.Time, flush persist.Flush) error
@@ -305,6 +309,9 @@ type databaseNamespace interface {
 
 	// Repair repairs the namespace data for a given time range
 	Repair(repairer databaseShardRepairer, tr xtime.Range) error
+
+	// BootstrapState captures and returns a snapshot of the namespaces' bootstrap state.
+	BootstrapState() ShardBootstrapStates
 }
 
 // Shard is a time series database shard
@@ -317,6 +324,9 @@ type Shard interface {
 
 	// IsBootstrapped returns whether the shard is already bootstrapped
 	IsBootstrapped() bool
+
+	// BootstrapState returns the shards' bootstrap state.
+	BootstrapState() BootstrapState
 }
 
 type databaseShard interface {
@@ -357,7 +367,7 @@ type databaseShard interface {
 		ctx context.Context,
 		id ident.ID,
 		start, end time.Time,
-	) ([][]xio.SegmentReader, error)
+	) ([][]xio.BlockReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
 	FetchBlocks(
@@ -423,7 +433,8 @@ type namespaceIndex interface {
 	Write(
 		id ident.ID,
 		tags ident.Tags,
-		fns onIndexSeries,
+		timestamp time.Time,
+		fns index.OnIndexSeries,
 	) error
 
 	// Query resolves the given query into known IDs.
@@ -433,8 +444,27 @@ type namespaceIndex interface {
 		opts index.QueryOptions,
 	) (index.QueryResults, error)
 
+	// Bootstrap bootstraps the index the provided segments.
+	Bootstrap(
+		bootstrapResults result.IndexResults,
+	) error
+
+	// Tick performs internal house keeping in the index, including block rotation,
+	// data eviction, and so on.
+	Tick(c context.Cancellable) (namespaceIndexTickResult, error)
+
 	// Close will release the index resources and close the index.
 	Close() error
+}
+
+// namespaceIndexTickResult are details about the work performed by the namespaceIndex
+// during a Tick().
+type namespaceIndexTickResult struct {
+	NumBlocks        int64
+	NumBlocksSealed  int64
+	NumBlocksEvicted int64
+	NumSegments      int64
+	NumTotalDocs     int64
 }
 
 // namespaceIndexInsertQueue is a queue used in-front of the indexing component
@@ -450,21 +480,7 @@ type namespaceIndexInsertQueue interface {
 	// inserts to the index asynchronously. It executes the provided callbacks
 	// based on the result of the execution. The returned wait group can be used
 	// if the insert is required to be synchronous.
-	Insert(d doc.Document, s onIndexSeries) (*sync.WaitGroup, error)
-}
-
-// onIndexSeries provides a set of callback hooks to allow the reverse index
-// to do lifecycle management of any resources retained during indexing.
-type onIndexSeries interface {
-	// OnIndexSuccess is executed when an entry is successfully indexed. The
-	// provided value for `indexEntryExpiry` describes the TTL for the indexed
-	// entry.
-	OnIndexSuccess(indexEntryExpiry time.Time)
-
-	// OnIndexFinalize is executed when the index no longer holds any references
-	// to the provided resources. It can be used to cleanup any resources held
-	// during the course of indexing.
-	OnIndexFinalize()
+	Insert(blockStart time.Time, d doc.Document, s index.OnIndexSeries) (*sync.WaitGroup, error)
 }
 
 // databaseBootstrapManager manages the bootstrap process.
@@ -482,7 +498,7 @@ type databaseBootstrapManager interface {
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
 	// Flush flushes in-memory data to persistent storage.
-	Flush(t time.Time) error
+	Flush(tickStart time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error
 
 	// Report reports runtime information
 	Report()
@@ -503,7 +519,7 @@ type databaseFileSystemManager interface {
 	Cleanup(t time.Time) error
 
 	// Flush flushes in-memory data to persistent storage.
-	Flush(t time.Time) error
+	Flush(t time.Time, dbBootstrapStateAtTickStart DatabaseBootstrapState) error
 
 	// Disable disables the filesystem manager and prevents it from
 	// performing file operations, returns the current file operation status
@@ -517,7 +533,12 @@ type databaseFileSystemManager interface {
 
 	// Run attempts to perform all filesystem-related operations,
 	// returning true if those operations are performed, and false otherwise
-	Run(t time.Time, runType runType, forceType forceType) bool
+	Run(
+		t time.Time,
+		dbBootstrapStateAtTickStart DatabaseBootstrapState,
+		runType runType,
+		forceType forceType,
+	) bool
 
 	// Report reports runtime information
 	Report()
@@ -664,12 +685,6 @@ type Options interface {
 	// ErrorThresholdForLoad returns the error threshold for load
 	ErrorThresholdForLoad() int64
 
-	// SetIndexingEnabled sets whether or not to enable indexing
-	SetIndexingEnabled(b bool) Options
-
-	// IndexingEnabled returns whether the indexing is enabled
-	IndexingEnabled() bool
-
 	// SetIndexOptions set the indexing options.
 	SetIndexOptions(value index.Options) Options
 
@@ -688,11 +703,11 @@ type Options interface {
 	// RepairOptions returns the repair options
 	RepairOptions() repair.Options
 
-	// SetBootstrapProcess sets the bootstrap process for the database
-	SetBootstrapProcess(value bootstrap.Process) Options
+	// SetBootstrapProcessProvider sets the bootstrap process provider for the database
+	SetBootstrapProcessProvider(value bootstrap.ProcessProvider) Options
 
-	// BootstrapProcess returns the bootstrap process for the database
-	BootstrapProcess() bootstrap.Process
+	// BootstrapProcessProvider returns the bootstrap process provider for the database
+	BootstrapProcessProvider() bootstrap.ProcessProvider
 
 	// SetPersistManager sets the persistence manager
 	SetPersistManager(value persist.Manager) Options
@@ -801,3 +816,29 @@ type Options interface {
 	// FetchBlocksMetadataResultsPool returns the fetchBlocksMetadataResultsPool
 	FetchBlocksMetadataResultsPool() block.FetchBlocksMetadataResultsPool
 }
+
+// DatabaseBootstrapState stores a snapshot of the bootstrap state for all shards across all
+// namespaces at a given moment in time.
+type DatabaseBootstrapState struct {
+	NamespaceBootstrapStates NamespaceBootstrapStates
+}
+
+// NamespaceBootstrapStates stores a snapshot of the bootstrap state for all shards across a
+// number of namespaces at a given moment in time.
+type NamespaceBootstrapStates map[string]ShardBootstrapStates
+
+// ShardBootstrapStates stores a snapshot of the bootstrap state for all shards for a given
+// namespace.
+type ShardBootstrapStates map[uint32]BootstrapState
+
+// BootstrapState is an enum representing the possible bootstrap states for a shard.
+type BootstrapState int
+
+const (
+	// BootstrapNotStarted indicates bootstrap has not been started yet.
+	BootstrapNotStarted BootstrapState = iota
+	// Bootstrapping indicates bootstrap process is in progress.
+	Bootstrapping
+	// Bootstrapped indicates a bootstrap process has completed.
+	Bootstrapped
+)

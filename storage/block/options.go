@@ -24,6 +24,7 @@ import (
 	"io"
 
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/clock"
@@ -59,31 +60,40 @@ type options struct {
 
 // NewOptions creates new database block options
 func NewOptions() Options {
+	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, nil)
+	})
+	encoderPool := encoding.NewEncoderPool(nil)
+	readerIteratorPool := encoding.NewReaderIteratorPool(nil)
+	segmentReaderPool := xio.NewSegmentReaderPool(nil)
 	o := &options{
 		clockOpts:               clock.NewOptions(),
 		databaseBlockAllocSize:  defaultDatabaseBlockAllocSize,
 		closeContextWorkers:     xsync.NewWorkerPool(defaultCloseContextConcurrency),
 		databaseBlockPool:       NewDatabaseBlockPool(nil),
 		contextPool:             context.NewPool(context.NewOptions()),
-		encoderPool:             encoding.NewEncoderPool(nil),
-		readerIteratorPool:      encoding.NewReaderIteratorPool(nil),
+		encoderPool:             encoderPool,
+		readerIteratorPool:      readerIteratorPool,
 		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(nil),
-		segmentReaderPool:       xio.NewSegmentReaderPool(nil),
-		bytesPool: pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
-			return pool.NewBytesPool(s, nil)
-		}),
+		segmentReaderPool:       segmentReaderPool,
+		bytesPool:               bytesPool,
 	}
 	o.closeContextWorkers.Init()
 	o.databaseBlockPool.Init(func() DatabaseBlock {
-		return NewDatabaseBlock(timeZero, ts.Segment{}, o)
+		return NewDatabaseBlock(timeZero, 0, ts.Segment{}, o)
 	})
+
+	encodingOpts := encoding.NewOptions().
+		SetBytesPool(bytesPool).
+		SetEncoderPool(encoderPool).
+		SetReaderIteratorPool(readerIteratorPool).
+		SetSegmentReaderPool(segmentReaderPool)
+
 	o.encoderPool.Init(func() encoding.Encoder {
-		return encoding.NewNullEncoder()
+		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 	o.readerIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
-		it := encoding.NewNullReaderIterator()
-		it.Reset(r)
-		return it
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 	o.multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
 		it := o.readerIteratorPool.Get()

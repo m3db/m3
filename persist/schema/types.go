@@ -54,11 +54,12 @@ type IndexBloomFilterInfo struct {
 
 // IndexEntry stores entry-level data indexing
 type IndexEntry struct {
-	Index    int64
-	ID       []byte
-	Size     int64
-	Offset   int64
-	Checksum int64
+	Index       int64
+	ID          []byte
+	Size        int64
+	Offset      int64
+	Checksum    int64
+	EncodedTags []byte
 }
 
 // IndexSummary stores a summary of an index entry to lookup
@@ -77,8 +78,8 @@ type LogInfo struct {
 
 // LogEntry stores per-entry data in a commit log
 type LogEntry struct {
-	Create     int64
 	Index      uint64
+	Create     int64
 	Metadata   []byte
 	Timestamp  int64
 	Value      float64
@@ -88,7 +89,8 @@ type LogEntry struct {
 
 // LogMetadata stores metadata information about a commit log
 type LogMetadata struct {
-	ID        []byte
-	Namespace []byte
-	Shard     uint32
+	ID          []byte
+	Namespace   []byte
+	Shard       uint32
+	EncodedTags []byte
 }

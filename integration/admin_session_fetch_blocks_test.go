@@ -70,8 +70,8 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	now := testSetup.getNowFn()
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []generate.BlockConfig{
-		{[]string{"foo", "bar"}, 100, now},
-		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
+		{IDs: []string{"foo", "bar"}, NumPoints: 100, Start: now},
+		{IDs: []string{"foo", "baz"}, NumPoints: 50, Start: now.Add(blockSize)},
 	}
 	for _, input := range inputData {
 		start := input.Start

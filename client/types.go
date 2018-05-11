@@ -76,7 +76,7 @@ type Session interface {
 	FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (results encoding.SeriesIterators, exhaustive bool, err error)
 
 	// FetchTaggedIDs resolves the provided query to known IDs.
-	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (index.QueryResults, error)
+	FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (iter TaggedIDsIterator, exhaustive bool, err error)
 
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations
@@ -85,6 +85,22 @@ type Session interface {
 
 	// Close the session
 	Close() error
+}
+
+// TaggedIDsIterator iterates over a collection of IDs with associated tags and namespace.
+type TaggedIDsIterator interface {
+	// Next returns whether there are more items in the collection.
+	Next() bool
+
+	// Current returns the ID, Tags and Namespace for a single timeseries.
+	// These remain valid until Next() is called again.
+	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.TagIterator)
+
+	// Err returns any error encountered.
+	Err() error
+
+	// Finalize releases any held resources.
+	Finalize()
 }
 
 // AdminClient can create administration sessions
@@ -138,6 +154,26 @@ type AdminSession interface {
 	// Truncate will truncate the namespace for a given shard
 	Truncate(namespace ident.ID) (int64, error)
 
+	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
+	// for each series using the runtime configurable bootstrap level consistency
+	FetchBootstrapBlocksFromPeers(
+		namespace namespace.Metadata,
+		shard uint32,
+		start, end time.Time,
+		opts result.Options,
+		version FetchBlocksMetadataEndpointVersion,
+	) (result.ShardResult, error)
+
+	// FetchBootstrapBlocksMetadataFromPeers will fetch the blocks metadata from
+	// available peers using the runtime configurable bootstrap level consistency
+	FetchBootstrapBlocksMetadataFromPeers(
+		namespace ident.ID,
+		shard uint32,
+		start, end time.Time,
+		result result.Options,
+		version FetchBlocksMetadataEndpointVersion,
+	) (PeerBlockMetadataIter, error)
+
 	// FetchBlocksMetadataFromPeers will fetch the blocks metadata from
 	// available peers
 	FetchBlocksMetadataFromPeers(
@@ -148,16 +184,6 @@ type AdminSession interface {
 		result result.Options,
 		version FetchBlocksMetadataEndpointVersion,
 	) (PeerBlockMetadataIter, error)
-
-	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
-	// for each series in a best effort method from available peers
-	FetchBootstrapBlocksFromPeers(
-		namespace namespace.Metadata,
-		shard uint32,
-		start, end time.Time,
-		opts result.Options,
-		version FetchBlocksMetadataEndpointVersion,
-	) (result.ShardResult, error)
 
 	// FetchBlocksFromPeers will fetch the required blocks from the
 	// peers specified

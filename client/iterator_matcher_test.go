@@ -18,22 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package index_test
+package client_test
 
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3x/ident"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
-func TestIteratorMatcherMatches(t *testing.T) {
+func TestTaggedIDsIteratorMatcherMatches(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mIter := index.NewMockIterator(ctrl)
+	mIter := client.NewMockTaggedIDsIterator(ctrl)
 	gomock.InOrder(
 		mIter.EXPECT().Next().Return(true),
 		mIter.EXPECT().Current().Return(
@@ -52,11 +53,11 @@ func TestIteratorMatcherMatches(t *testing.T) {
 		mIter.EXPECT().Err().Return(nil),
 	)
 
-	m, err := index.NewIteratorMatcher(index.IteratorMatcherOption{
+	m, err := client.NewTaggedIDsIteratorMatcher(client.TaggedIDsIteratorMatcherOption{
 		Namespace: "ns",
 		ID:        "id0",
 		Tags:      []string{"fgh", "ijk"},
-	}, index.IteratorMatcherOption{
+	}, client.TaggedIDsIteratorMatcherOption{
 		Namespace: "ns",
 		ID:        "id1",
 		Tags:      []string{"fgh", "ijk"},
@@ -65,11 +66,11 @@ func TestIteratorMatcherMatches(t *testing.T) {
 	require.True(t, m.Matches(mIter))
 }
 
-func TestIteratorMatcherDoesNotMatchTooFew(t *testing.T) {
+func TestTaggedIDsIteratorMatcherDoesNotMatchTooFew(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mIter := index.NewMockIterator(ctrl)
+	mIter := client.NewMockTaggedIDsIterator(ctrl)
 	gomock.InOrder(
 		mIter.EXPECT().Next().Return(true),
 		mIter.EXPECT().Current().Return(
@@ -82,11 +83,11 @@ func TestIteratorMatcherDoesNotMatchTooFew(t *testing.T) {
 		mIter.EXPECT().Err().Return(nil),
 	)
 
-	m, err := index.NewIteratorMatcher(index.IteratorMatcherOption{
+	m, err := client.NewTaggedIDsIteratorMatcher(client.TaggedIDsIteratorMatcherOption{
 		Namespace: "ns",
 		ID:        "id0",
 		Tags:      []string{"fgh", "ijk"},
-	}, index.IteratorMatcherOption{
+	}, client.TaggedIDsIteratorMatcherOption{
 		Namespace: "ns",
 		ID:        "id1",
 		Tags:      []string{"fgh", "ijk"},
@@ -95,11 +96,11 @@ func TestIteratorMatcherDoesNotMatchTooFew(t *testing.T) {
 	require.False(t, m.Matches(mIter))
 }
 
-func TestIteratorMatcherDoesNotMatchTooMany(t *testing.T) {
+func TestTaggedIDsIteratorMatcherDoesNotMatchTooMany(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mIter := index.NewMockIterator(ctrl)
+	mIter := client.NewMockTaggedIDsIterator(ctrl)
 	gomock.InOrder(
 		mIter.EXPECT().Next().Return(true),
 		mIter.EXPECT().Current().Return(
@@ -121,11 +122,11 @@ func TestIteratorMatcherDoesNotMatchTooMany(t *testing.T) {
 		),
 	)
 
-	m, err := index.NewIteratorMatcher(index.IteratorMatcherOption{
+	m, err := client.NewTaggedIDsIteratorMatcher(client.TaggedIDsIteratorMatcherOption{
 		Namespace: "ns",
 		ID:        "id0",
 		Tags:      []string{"fgh", "ijk"},
-	}, index.IteratorMatcherOption{
+	}, client.TaggedIDsIteratorMatcherOption{
 		Namespace: "ns",
 		ID:        "id1",
 		Tags:      []string{"fgh", "ijk"},
@@ -134,12 +135,12 @@ func TestIteratorMatcherDoesNotMatchTooMany(t *testing.T) {
 	require.False(t, m.Matches(mIter))
 }
 
-func TestIteratorMatcherDuplicateIDs(t *testing.T) {
-	_, err := index.NewIteratorMatcher(index.IteratorMatcherOption{
+func TestTaggedIDsIteratorMatcherDuplicateIDs(t *testing.T) {
+	_, err := client.NewTaggedIDsIteratorMatcher(client.TaggedIDsIteratorMatcherOption{
 		ID:        "abc",
 		Namespace: "cde",
 		Tags:      []string{"fgh", "ijk"},
-	}, index.IteratorMatcherOption{
+	}, client.TaggedIDsIteratorMatcherOption{
 		ID:        "abc",
 		Namespace: "cde",
 		Tags:      []string{"fgh", "ijk"},

@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
@@ -45,6 +46,7 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
@@ -55,17 +57,38 @@ import (
 )
 
 var (
-	timeZero        = time.Time{}
 	blockSize       = 2 * time.Hour
 	nsID            = ident.StringID("testNs1")
 	nsRetentionOpts = retention.NewOptions().
 			SetBlockSize(blockSize).
 			SetRetentionPeriod(48 * blockSize)
-	fooID    = ident.StringID("foo")
-	barID    = ident.StringID("bar")
-	bazID    = ident.StringID("baz")
-	testHost = topology.NewHost("testhost", "testhost:9000")
+	testTagDecodingPool = serialize.NewTagDecoderPool(serialize.NewTagDecoderOptions(),
+		pool.NewObjectPoolOptions().SetSize(1))
+	testTagEncodingPool = serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
+		pool.NewObjectPoolOptions().SetSize(1))
+	testIDPool     = NewOptions().IdentifierPool()
+	fooID          = ident.StringID("foo")
+	fooTags        checked.Bytes
+	fooDecodedTags = ident.Tags{ident.StringTag("aaa", "bbb")}
+	barID          = ident.StringID("bar")
+	bazID          = ident.StringID("baz")
+	testHost       = topology.NewHost("testhost", "testhost:9000")
 )
+
+func init() {
+	testTagDecodingPool.Init()
+	testTagEncodingPool.Init()
+	tagEncoder := testTagEncodingPool.Get()
+	err := tagEncoder.Encode(ident.NewTagSliceIterator(fooDecodedTags))
+	if err != nil {
+		panic(err)
+	}
+	var ok bool
+	fooTags, ok = tagEncoder.Data()
+	if !ok {
+		panic(fmt.Errorf("encode tags failed"))
+	}
+}
 
 func testsNsMetadata(t *testing.T) namespace.Metadata {
 	md, err := namespace.NewMetadata(nsID, namespace.NewOptions().SetRetentionOptions(nsRetentionOpts))
@@ -743,11 +766,11 @@ func testBlocksToBlockReplicasMetadata(
 			for _, b := range bm.blocks {
 				blockReplicas = append(blockReplicas, block.ReplicaMetadata{
 					Metadata: block.Metadata{
+						ID:       bm.id,
 						Start:    b.start,
 						Size:     *(b.size),
 						Checksum: b.checksum,
 					},
-					ID:   bm.id,
 					Host: peerHost,
 				})
 			}
@@ -1469,7 +1492,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	// Attempt stream blocks
 	bopts := result.NewOptions()
 	m := session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
-	r := newBulkBlocksResult(opts, bopts)
+	r := newBulkBlocksResult(opts, bopts, session.pools.tagDecoder, session.pools.id)
 	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 
 	// Assert result
@@ -1622,7 +1645,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 	// Attempt stream blocks
 	bopts := result.NewOptions()
 	m := session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
-	r := newBulkBlocksResult(opts, bopts)
+	r := newBulkBlocksResult(opts, bopts, session.pools.tagDecoder, session.pools.id)
 	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 
 	// Assert enqueueChannel contents (bad bar block)
@@ -1649,19 +1672,24 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := newResultTestOptions()
+	start := time.Now().Truncate(time.Hour)
 
-	start := time.Now()
+	blockSize := time.Minute
+	bs := int64(blockSize)
+	rpcBlockSize := &bs
 
 	bl := &rpc.Block{
 		Start: start.UnixNano(),
 		Segments: &rpc.Segments{Merged: &rpc.Segment{
-			Head: []byte{1, 2},
-			Tail: []byte{3},
+			Head:      []byte{1, 2},
+			Tail:      []byte{3},
+			BlockSize: rpcBlockSize,
 		}},
 	}
 
-	r := newBulkBlocksResult(opts, bopts)
-	r.addBlockFromPeer(fooID, testHost, bl)
+	r := newBulkBlocksResult(opts, bopts,
+		testTagDecodingPool, testIDPool)
+	r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 
 	series := r.result.AllSeries()
 	assert.Equal(t, 1, series.Len())
@@ -1679,6 +1707,10 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	stream, err := result.Stream(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
+
+	// block reader has correct start time and block size
+	assert.Equal(t, start, stream.Start)
+	assert.Equal(t, blockSize, stream.BlockSize)
 
 	seg, err := stream.Segment()
 	require.NoError(t, err)
@@ -1741,8 +1773,8 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		bl.Segments.Unmerged = append(bl.Segments.Unmerged, seg)
 	}
 
-	r := newBulkBlocksResult(opts, bopts)
-	r.addBlockFromPeer(fooID, testHost, bl)
+	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool)
+	r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 
 	series := r.result.AllSeries()
 	assert.Equal(t, 1, series.Len())
@@ -1766,7 +1798,6 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 	// Assert test values sorted match the block values
 	iter := m3tsz.NewReaderIterator(stream, intopt, eops)
 	defer iter.Close()
-
 	asserted := 0
 	for iter.Next() {
 		idx := asserted
@@ -1786,10 +1817,10 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := result.NewOptions()
-	r := newBulkBlocksResult(opts, bopts)
+	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool)
 
 	bl := &rpc.Block{Start: time.Now().UnixNano()}
-	err := r.addBlockFromPeer(fooID, testHost, bl)
+	err := r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
 }
@@ -1797,10 +1828,10 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := result.NewOptions()
-	r := newBulkBlocksResult(opts, bopts)
+	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool)
 
 	bl := &rpc.Block{Start: time.Now().UnixNano(), Segments: &rpc.Segments{}}
-	err := r.addBlockFromPeer(fooID, testHost, bl)
+	err := r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
 }
@@ -2504,7 +2535,7 @@ func (e *testEncoder) Stream() xio.SegmentReader {
 	return xio.NewSegmentReader(e.data)
 }
 
-func (e *testEncoder) StreamLen() int {
+func (e *testEncoder) Len() int {
 	return e.data.Len()
 }
 

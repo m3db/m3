@@ -71,16 +71,11 @@ func testPeerBootstrapSimple(
 	// Make sure we have multiple blocks of data for multiple series to exercise
 	// the grouping and aggregating logic in the client peer bootstrapping process
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{"foo", "bar"}, 180, now.Add(-4 * blockSize)},
-		{[]string{"foo", "bar"}, 180, now.Add(-3 * blockSize)},
-		{[]string{"foo", "bar"}, 180, now.Add(-2 * blockSize)},
-		{[]string{"foo", "bar"}, 180, now.Add(-blockSize)},
-		{[]string{"foo", "bar"}, 180, now},
-		{[]string{"foo", "baz"}, 90, now.Add(-4 * blockSize)},
-		{[]string{"foo", "baz"}, 90, now.Add(-3 * blockSize)},
-		{[]string{"foo", "baz"}, 90, now.Add(-2 * blockSize)},
-		{[]string{"foo", "baz"}, 90, now.Add(-blockSize)},
-		{[]string{"foo", "baz"}, 90, now},
+		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-4 * blockSize)},
+		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-3 * blockSize)},
+		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-2 * blockSize)},
+		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-blockSize)},
+		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now},
 	})
 	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps))
 

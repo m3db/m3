@@ -68,7 +68,7 @@ type iteratorRead struct {
 // ReadAllPredicate can be passed as the ReadCommitLogPredicate for callers
 // that want a convenient way to read all the commitlogs
 func ReadAllPredicate() FileFilterPredicate {
-	return func(entryTime time.Time, entryDuration time.Duration) bool { return true }
+	return func(_ string, _ time.Time, _ time.Duration) bool { return true }
 }
 
 // NewIterator creates a new commit log iterator
@@ -78,7 +78,7 @@ func NewIterator(iterOpts IteratorOpts) (Iterator, error) {
 	iops = iops.SetMetricsScope(iops.MetricsScope().SubScope("iterator"))
 
 	path := fs.CommitLogsDirPath(opts.FilesystemOptions().FilePathPrefix())
-	files, err := fs.CommitLogFiles(path)
+	files, err := fs.SortedCommitLogFiles(path)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +211,7 @@ func filterFiles(opts Options, files []string, predicate FileFilterPredicate) ([
 			multiErr = multiErr.Add(err)
 			continue
 		}
-		if predicate(start, duration) {
+		if predicate(file, start, duration) {
 			filteredFiles = append(filteredFiles, file)
 		}
 	}

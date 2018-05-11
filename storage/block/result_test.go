@@ -66,16 +66,18 @@ func TestFilteredBlocksMetadataIter(t *testing.T) {
 	checksums := []uint32{6, 7, 8}
 	lastRead := now.Add(-100 * time.Millisecond)
 	inputs := []FetchBlocksMetadataResult{
-		NewFetchBlocksMetadataResult(ident.StringID("foo"), newPooledFetchBlockMetadataResults(
-			[]FetchBlockMetadataResult{
-				NewFetchBlockMetadataResult(now.Add(-time.Second), sizes[0], &checksums[0], lastRead, nil),
-			}, nil)),
-		NewFetchBlocksMetadataResult(ident.StringID("bar"), newPooledFetchBlockMetadataResults(
-			[]FetchBlockMetadataResult{
-				NewFetchBlockMetadataResult(now, sizes[1], &checksums[1], lastRead, nil),
-				NewFetchBlockMetadataResult(now.Add(time.Second), sizes[2], &checksums[2], lastRead, errors.New("foo")),
-				NewFetchBlockMetadataResult(now.Add(2*time.Second), 0, nil, lastRead, nil),
-			}, nil)),
+		NewFetchBlocksMetadataResult(ident.StringID("foo"),
+			ident.EmptyTagIterator, newPooledFetchBlockMetadataResults(
+				[]FetchBlockMetadataResult{
+					NewFetchBlockMetadataResult(now.Add(-time.Second), sizes[0], &checksums[0], lastRead, nil),
+				}, nil)),
+		NewFetchBlocksMetadataResult(ident.StringID("bar"),
+			ident.EmptyTagIterator, newPooledFetchBlockMetadataResults(
+				[]FetchBlockMetadataResult{
+					NewFetchBlockMetadataResult(now, sizes[1], &checksums[1], lastRead, nil),
+					NewFetchBlockMetadataResult(now.Add(time.Second), sizes[2], &checksums[2], lastRead, errors.New("foo")),
+					NewFetchBlockMetadataResult(now.Add(2*time.Second), 0, nil, lastRead, nil),
+				}, nil)),
 	}
 
 	res := newPooledFetchBlocksMetadataResults(nil, nil)
@@ -92,11 +94,11 @@ func TestFilteredBlocksMetadataIter(t *testing.T) {
 	}
 
 	expected := []Metadata{
-		NewMetadata(ident.StringID("foo"), now.Add(-time.Second),
+		NewMetadata(ident.StringID("foo"), nil, now.Add(-time.Second),
 			sizes[0], &checksums[0], lastRead),
-		NewMetadata(ident.StringID("bar"), now,
+		NewMetadata(ident.StringID("bar"), nil, now,
 			sizes[1], &checksums[1], lastRead),
-		NewMetadata(ident.StringID("bar"), now.Add(2*time.Second),
+		NewMetadata(ident.StringID("bar"), nil, now.Add(2*time.Second),
 			int64(0), nil, lastRead),
 	}
 

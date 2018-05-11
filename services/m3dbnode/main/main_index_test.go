@@ -146,7 +146,7 @@ func TestIndexEnabledServer(t *testing.T) {
 	require.NoError(t, err)
 
 	// Setup the namespace
-	ns, err := newNamespaceProtoValue(namespaceID)
+	ns, err := newNamespaceWithIndexProtoValue(namespaceID, true)
 	require.NoError(t, err)
 
 	kvStore, err := configSvcClient.KV()
@@ -237,21 +237,20 @@ func TestIndexEnabledServer(t *testing.T) {
 		assert.Equal(t, v.unit, unit)
 	}
 
-	result, err := session.FetchTaggedIDs(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
+	resultsIter, resultsExhaustive, err := session.FetchTaggedIDs(ident.StringID(namespaceID), index.Query{reQuery}, index.QueryOptions{
 		StartInclusive: fetchStart,
 		EndExclusive:   fetchEnd,
 	})
 	assert.NoError(t, err)
-	assert.True(t, result.Exhaustive)
-	indexIter := result.Iterator
-	assert.True(t, indexIter.Next())
-	nsID, tsID, tags := indexIter.Current()
+	assert.True(t, resultsExhaustive)
+	assert.True(t, resultsIter.Next())
+	nsID, tsID, tags := resultsIter.Current()
 	assert.Equal(t, namespaceID, nsID.String())
 	assert.Equal(t, "foo", tsID.String())
 	assert.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("foo", "bar", "baz", "foo")).Matches(tags))
-	assert.False(t, indexIter.Next())
-	assert.NoError(t, indexIter.Err())
+	assert.False(t, resultsIter.Next())
+	assert.NoError(t, resultsIter.Err())
 
 	// Wait for server to stop
 	interruptCh <- fmt.Errorf("test complete")
@@ -332,9 +331,6 @@ fs:
     seekReadBufferSize: 4096
     throughputLimitMbps: 100.0
     throughputCheckEvery: 128
-
-index:
-    enabled: true
 
 repair:
     enabled: false

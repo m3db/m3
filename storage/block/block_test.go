@@ -25,18 +25,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func testDatabaseBlock(ctrl *gomock.Controller) *dbBlock {
 	opts := NewOptions()
-	b := NewDatabaseBlock(time.Now(), ts.Segment{}, opts).(*dbBlock)
+	b := NewDatabaseBlock(time.Now(), 0, ts.Segment{}, opts).(*dbBlock)
 	return b
 }
 
@@ -44,25 +49,26 @@ func testDatabaseSeriesBlocks() *databaseSeriesBlocks {
 	return NewDatabaseSeriesBlocks(0).(*databaseSeriesBlocks)
 }
 
-func testDatabaseSeriesBlocksWithTimes(times []time.Time) *databaseSeriesBlocks {
+func testDatabaseSeriesBlocksWithTimes(times []time.Time, sizes []time.Duration) *databaseSeriesBlocks {
 	opts := NewOptions()
 	blocks := testDatabaseSeriesBlocks()
-	for _, timestamp := range times {
+	for i := range times {
 		block := opts.DatabaseBlockPool().Get()
-		block.Reset(timestamp, ts.Segment{})
+		block.Reset(times[i], sizes[i], ts.Segment{})
 		blocks.AddBlock(block)
 	}
 	return blocks
 }
 
-func validateBlocks(t *testing.T, blocks *databaseSeriesBlocks, minTime, maxTime time.Time, expectedTimes []time.Time) {
+func validateBlocks(t *testing.T, blocks *databaseSeriesBlocks, minTime, maxTime time.Time, expectedTimes []time.Time, expectedSizes []time.Duration) {
 	require.True(t, minTime.Equal(blocks.MinTime()))
 	require.True(t, maxTime.Equal(blocks.MaxTime()))
 	allBlocks := blocks.elems
 	require.Equal(t, len(expectedTimes), len(allBlocks))
-	for _, timestamp := range expectedTimes {
-		_, exists := allBlocks[xtime.ToUnixNano(timestamp)]
+	for i, timestamp := range expectedTimes {
+		block, exists := allBlocks[xtime.ToUnixNano(timestamp)]
 		require.True(t, exists)
+		assert.Equal(t, block.BlockSize(), expectedSizes[i])
 	}
 }
 
@@ -97,7 +103,9 @@ func TestDatabaseBlockChecksum(t *testing.T) {
 	block := testDatabaseBlock(ctrl)
 	block.checksum = uint32(10)
 
-	require.Equal(t, block.checksum, block.Checksum())
+	checksum, err := block.Checksum()
+	require.NoError(t, err)
+	require.Equal(t, block.checksum, checksum)
 }
 
 type testDatabaseBlockFn func(block *dbBlock)
@@ -139,7 +147,7 @@ func testDatabaseBlockWithDependentContext(
 }
 
 func TestDatabaseBlockResetNormalWithDependentContext(t *testing.T) {
-	f := func(block *dbBlock) { block.Reset(time.Now(), ts.Segment{}) }
+	f := func(block *dbBlock) { block.Reset(time.Now(), time.Hour, ts.Segment{}) }
 	af := func(t *testing.T, block *dbBlock) { require.False(t, block.closed) }
 	testDatabaseBlockWithDependentContext(t, f, af)
 }
@@ -150,11 +158,316 @@ func TestDatabaseBlockCloseNormalWithDependentContext(t *testing.T) {
 	testDatabaseBlockWithDependentContext(t, f, af)
 }
 
+type segmentReaderFinalizeCounter struct {
+	xio.SegmentReader
+	// Use a pointer so we can update it from the Finalize method
+	// which must not be a pointer receiver (in order to satisfy
+	// the interface)
+	finalizeCount *int
+}
+
+func (r segmentReaderFinalizeCounter) Finalize() {
+	*r.finalizeCount++
+}
+
+// TestDatabaseBlockMerge lazily merges two blocks and verifies that the correct
+// data is returned, as well as that the underlying streams are not double-finalized
+// (regression test).
+func TestDatabaseBlockMerge(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Test data
+	curr := time.Now()
+	data := []ts.Datapoint{
+		ts.Datapoint{
+			Timestamp: curr,
+			Value:     0,
+		},
+		ts.Datapoint{
+			Timestamp: curr.Add(time.Second),
+			Value:     1,
+		},
+	}
+	durations := []time.Duration{
+		time.Minute,
+		time.Hour,
+	}
+
+	// Mock segment reader pool so we count the number of Finalize() calls
+	segmentReaders := []segmentReaderFinalizeCounter{}
+	mockSegmentReaderPool := xio.NewMockSegmentReaderPool(ctrl)
+	getCall := mockSegmentReaderPool.EXPECT().Get()
+	getCall.DoAndReturn(func() xio.SegmentReader {
+		val := 0
+		reader := segmentReaderFinalizeCounter{
+			xio.NewSegmentReader(ts.Segment{}),
+			&val,
+		}
+		segmentReaders = append(segmentReaders, reader)
+		return reader
+	}).AnyTimes()
+
+	// Setup
+	blockOpts := NewOptions().SetSegmentReaderPool(mockSegmentReaderPool)
+	encodingOpts := encoding.NewOptions()
+
+	// Create the two blocks we plan to merge
+	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
+	encoder.Encode(data[0], xtime.Second, nil)
+	seg := encoder.Discard()
+	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts).(*dbBlock)
+
+	encoder.Reset(data[1].Timestamp, 10)
+	encoder.Encode(data[1], xtime.Second, nil)
+	seg = encoder.Discard()
+	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts).(*dbBlock)
+
+	// Lazily merge the two blocks
+	block1.Merge(block2)
+
+	// BlockSize should not change
+	require.Equal(t, durations[0], block1.BlockSize())
+
+	// Try and read the data back and verify it looks good
+	depCtx := block1.opts.ContextPool().Get()
+	stream, err := block1.Stream(depCtx)
+	require.NoError(t, err)
+	seg, err = stream.Segment()
+	require.NoError(t, err)
+	reader := xio.NewSegmentReader(seg)
+	iter := m3tsz.NewReaderIterator(reader, true, encodingOpts)
+
+	i := 0
+	for iter.Next() {
+		dp, _, _ := iter.Current()
+		require.True(t, data[i].Equal(dp))
+		i++
+	}
+	require.NoError(t, iter.Err())
+
+	// Make sure the checksum was updated
+	mergedChecksum, err := block1.Checksum()
+	require.NoError(t, err)
+	require.Equal(t, digest.SegmentChecksum(seg), mergedChecksum)
+
+	// Make sure each segment reader was only finalized once
+	require.Equal(t, 2, len(segmentReaders))
+	depCtx.BlockingClose()
+	block1.Close()
+	block2.Close()
+	for _, segmentReader := range segmentReaders {
+		require.Equal(t, 1, *segmentReader.finalizeCount)
+	}
+}
+
+// TestDatabaseBlockMergeChained is similar to TestDatabaseBlockMerge except
+// we try chaining multiple merge calls onto the same block.
+func TestDatabaseBlockMergeChained(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Test data
+	curr := time.Now()
+	data := []ts.Datapoint{
+		ts.Datapoint{
+			Timestamp: curr,
+			Value:     0,
+		},
+		ts.Datapoint{
+			Timestamp: curr.Add(time.Second),
+			Value:     1,
+		},
+		ts.Datapoint{
+			Timestamp: curr.Add(2 * time.Second),
+			Value:     2,
+		},
+	}
+	durations := []time.Duration{
+		time.Second,
+		time.Minute,
+		time.Hour,
+	}
+
+	// Mock segment reader pool so we count the number of Finalize() calls
+	segmentReaders := []segmentReaderFinalizeCounter{}
+	mockSegmentReaderPool := xio.NewMockSegmentReaderPool(ctrl)
+	getCall := mockSegmentReaderPool.EXPECT().Get()
+	getCall.DoAndReturn(func() xio.SegmentReader {
+		val := 0
+		reader := segmentReaderFinalizeCounter{
+			xio.NewSegmentReader(ts.Segment{}),
+			&val,
+		}
+		segmentReaders = append(segmentReaders, reader)
+		return reader
+	}).AnyTimes()
+
+	// Setup
+	blockOpts := NewOptions().SetSegmentReaderPool(mockSegmentReaderPool)
+	encodingOpts := encoding.NewOptions()
+
+	// Create the two blocks we plan to merge
+	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
+	encoder.Encode(data[0], xtime.Second, nil)
+	seg := encoder.Discard()
+	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts).(*dbBlock)
+
+	encoder.Reset(data[1].Timestamp, 10)
+	encoder.Encode(data[1], xtime.Second, nil)
+	seg = encoder.Discard()
+	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts).(*dbBlock)
+
+	encoder.Reset(data[2].Timestamp, 10)
+	encoder.Encode(data[2], xtime.Second, nil)
+	seg = encoder.Discard()
+	block3 := NewDatabaseBlock(data[2].Timestamp, durations[2], seg, blockOpts).(*dbBlock)
+
+	// Lazily merge two blocks into block1
+	block1.Merge(block2)
+	block1.Merge(block3)
+
+	// BlockSize should not change
+	require.Equal(t, durations[0], block1.BlockSize())
+
+	// Try and read the data back and verify it looks good
+	depCtx := block1.opts.ContextPool().Get()
+	stream, err := block1.Stream(depCtx)
+	require.NoError(t, err)
+	seg, err = stream.Segment()
+	require.NoError(t, err)
+	reader := xio.NewSegmentReader(seg)
+	iter := m3tsz.NewReaderIterator(reader, true, encodingOpts)
+
+	i := 0
+	for iter.Next() {
+		dp, _, _ := iter.Current()
+		require.True(t, data[i].Equal(dp))
+		i++
+	}
+	require.NoError(t, iter.Err())
+
+	// Make sure the checksum was updated
+	mergedChecksum, err := block1.Checksum()
+	require.NoError(t, err)
+	require.Equal(t, digest.SegmentChecksum(seg), mergedChecksum)
+
+	// Make sure each segment reader was only finalized once
+	require.Equal(t, 3, len(segmentReaders))
+	depCtx.BlockingClose()
+	block1.Close()
+	block2.Close()
+	for _, segmentReader := range segmentReaders {
+		require.Equal(t, 1, *segmentReader.finalizeCount)
+	}
+}
+
+func TestDatabaseBlockMergeErrorFromDisk(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup
+	var (
+		curr      = time.Now()
+		blockOpts = NewOptions()
+	)
+
+	// Create the two blocks we plan to merge
+	block1 := NewDatabaseBlock(curr, 0, ts.Segment{}, blockOpts).(*dbBlock)
+	block2 := NewDatabaseBlock(curr, 0, ts.Segment{}, blockOpts).(*dbBlock)
+
+	// Mark only block 2 as retrieved from disk so we can make sure it checks
+	// the block that is being merged, as well as the one that is being merged
+	// into.
+	block2.wasRetrievedFromDisk = true
+
+	require.Equal(t, false, block1.wasRetrievedFromDisk)
+	require.Equal(t, errTriedToMergeBlockFromDisk, block1.Merge(block2))
+	require.Equal(t, errTriedToMergeBlockFromDisk, block2.Merge(block1))
+}
+
+// TestDatabaseBlockChecksumMergesAndRecalculates makes sure that the Checksum method
+// will check if a lazy-merge is pending, and if so perform it and recalculate the checksum.
+func TestDatabaseBlockChecksumMergesAndRecalculates(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Test data
+	curr := time.Now()
+	data := []ts.Datapoint{
+		ts.Datapoint{
+			Timestamp: curr,
+			Value:     0,
+		},
+		ts.Datapoint{
+			Timestamp: curr.Add(time.Second),
+			Value:     1,
+		},
+	}
+	durations := []time.Duration{
+		time.Minute,
+		time.Hour,
+	}
+
+	// Setup
+	blockOpts := NewOptions()
+	encodingOpts := encoding.NewOptions()
+
+	// Create the two blocks we plan to merge
+	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
+	encoder.Encode(data[0], xtime.Second, nil)
+	seg := encoder.Discard()
+	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts).(*dbBlock)
+
+	encoder.Reset(data[1].Timestamp, 10)
+	encoder.Encode(data[1], xtime.Second, nil)
+	seg = encoder.Discard()
+	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts).(*dbBlock)
+
+	// Keep track of the old checksum so we can make sure it changed
+	oldChecksum, err := block1.Checksum()
+	require.NoError(t, err)
+
+	// Lazily merge the two blocks
+	block1.Merge(block2)
+
+	// BlockSize should not change
+	require.Equal(t, durations[0], block1.BlockSize())
+
+	// Make sure the checksum was updated
+	newChecksum, err := block1.Checksum()
+	require.NoError(t, err)
+	require.NotEqual(t, oldChecksum, newChecksum)
+
+	// Try and read the data back and verify it looks good
+	depCtx := block1.opts.ContextPool().Get()
+	stream, err := block1.Stream(depCtx)
+	require.NoError(t, err)
+	seg, err = stream.Segment()
+	require.NoError(t, err)
+	reader := xio.NewSegmentReader(seg)
+	iter := m3tsz.NewReaderIterator(reader, true, encodingOpts)
+
+	i := 0
+	for iter.Next() {
+		dp, _, _ := iter.Current()
+		require.True(t, data[i].Equal(dp))
+		i++
+	}
+	require.NoError(t, iter.Err())
+
+	// Make sure the new checksum is correct
+	mergedChecksum, err := block1.Checksum()
+	require.NoError(t, err)
+	require.Equal(t, digest.SegmentChecksum(seg), mergedChecksum)
+}
+
 func TestDatabaseSeriesBlocksAddBlock(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(time.Second), now.Add(time.Minute), now.Add(-time.Second), now.Add(-time.Hour)}
-	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
-	validateBlocks(t, blocks, blockTimes[4], blockTimes[2], blockTimes)
+	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second, time.Microsecond, time.Millisecond}
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
+	validateBlocks(t, blocks, blockTimes[4], blockTimes[2], blockTimes, blockSizes)
 }
 
 func TestDatabaseSeriesBlocksAddSeries(t *testing.T) {
@@ -163,23 +476,35 @@ func TestDatabaseSeriesBlocksAddSeries(t *testing.T) {
 		{now, now.Add(time.Second), now.Add(time.Minute), now.Add(-time.Second), now.Add(-time.Hour)},
 		{now.Add(-time.Minute), now.Add(time.Hour)},
 	}
-	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes[0])
-	other := testDatabaseSeriesBlocksWithTimes(blockTimes[1])
+	blockSizes := [][]time.Duration{
+		{time.Minute, time.Hour, time.Second, time.Microsecond, time.Millisecond},
+		{time.Minute * 2, time.Hour * 21},
+	}
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes[0], blockSizes[0])
+	other := testDatabaseSeriesBlocksWithTimes(blockTimes[1], blockSizes[1])
 	blocks.AddSeries(other)
 	var expectedTimes []time.Time
 	for _, bt := range blockTimes {
 		expectedTimes = append(expectedTimes, bt...)
 	}
-	validateBlocks(t, blocks, expectedTimes[4], expectedTimes[6], expectedTimes)
+	var expectedSizes []time.Duration
+	for _, bt := range blockSizes {
+		expectedSizes = append(expectedSizes, bt...)
+	}
+
+	validateBlocks(t, blocks, expectedTimes[4], expectedTimes[6], expectedTimes, expectedSizes)
 }
 
 func TestDatabaseSeriesBlocksGetBlockAt(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(time.Second), now.Add(-time.Hour)}
-	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
-	for _, bt := range blockTimes {
-		_, exists := blocks.BlockAt(bt)
+	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
+
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
+	for i, bt := range blockTimes {
+		b, exists := blocks.BlockAt(bt)
 		require.True(t, exists)
+		require.Equal(t, b.BlockSize(), blockSizes[i])
 	}
 	_, exists := blocks.BlockAt(now.Add(time.Minute))
 	require.False(t, exists)
@@ -188,9 +513,11 @@ func TestDatabaseSeriesBlocksGetBlockAt(t *testing.T) {
 func TestDatabaseSeriesBlocksRemoveBlockAt(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
-	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
+	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
+
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
 	blocks.RemoveBlockAt(now.Add(-time.Hour))
-	validateBlocks(t, blocks, blockTimes[1], blockTimes[2], blockTimes)
+	validateBlocks(t, blocks, blockTimes[1], blockTimes[2], blockTimes, blockSizes)
 
 	expected := []struct {
 		min      time.Time
@@ -203,14 +530,17 @@ func TestDatabaseSeriesBlocksRemoveBlockAt(t *testing.T) {
 	}
 	for i, bt := range blockTimes {
 		blocks.RemoveBlockAt(bt)
-		validateBlocks(t, blocks, expected[i].min, expected[i].max, expected[i].allTimes)
+		blockSizes = blockSizes[1:]
+		validateBlocks(t, blocks, expected[i].min, expected[i].max, expected[i].allTimes, blockSizes)
 	}
 }
 
 func TestDatabaseSeriesBlocksRemoveAll(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
-	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
+	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
+
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
 	require.Equal(t, len(blockTimes), len(blocks.AllBlocks()))
 
 	blocks.RemoveAll()
@@ -220,7 +550,9 @@ func TestDatabaseSeriesBlocksRemoveAll(t *testing.T) {
 func TestDatabaseSeriesBlocksClose(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
-	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
+	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
+
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
 	require.Equal(t, len(blockTimes), len(blocks.AllBlocks()))
 
 	blocks.Close()
@@ -233,7 +565,9 @@ func TestDatabaseSeriesBlocksClose(t *testing.T) {
 func TestDatabaseSeriesBlocksReset(t *testing.T) {
 	now := time.Now()
 	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
-	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
+	blockSizes := []time.Duration{time.Minute, time.Hour, time.Second}
+
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes, blockSizes)
 	require.Equal(t, len(blockTimes), len(blocks.AllBlocks()))
 
 	blocks.Reset()

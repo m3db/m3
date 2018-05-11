@@ -23,7 +23,6 @@ package series
 import (
 	"errors"
 	"fmt"
-	"io"
 	"sync/atomic"
 	"time"
 
@@ -34,12 +33,12 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 )
 
 var (
 	errMoreThanOneStreamAfterMerge = errors.New("buffer has more than one stream after merge")
+	errNoAvailableBuckets          = errors.New("[invariant violated] buffer has no available buckets")
 	timeZero                       time.Time
 )
 
@@ -73,7 +72,7 @@ type databaseBuffer interface {
 	ReadEncoded(
 		ctx context.Context,
 		start, end time.Time,
-	) [][]xio.SegmentReader
+	) [][]xio.BlockReader
 
 	FetchBlocks(
 		ctx context.Context,
@@ -90,7 +89,10 @@ type databaseBuffer interface {
 
 	Stats() bufferStats
 
-	MinMax() (time.Time, time.Time)
+	// MinMax returns the minimum and maximum blockstarts for the buckets
+	// that are contained within the buffer. These ranges exclude buckets
+	// that have already been drained (as those buckets are no longer in use.)
+	MinMax() (time.Time, time.Time, error)
 
 	Tick() bufferTickResult
 
@@ -155,17 +157,22 @@ func bucketResetStart(now time.Time, b *dbBuffer, idx int, start time.Time) int 
 	return 1
 }
 
-func (b *dbBuffer) MinMax() (time.Time, time.Time) {
+func (b *dbBuffer) MinMax() (time.Time, time.Time, error) {
 	var min, max time.Time
 	for i := range b.buckets {
-		if min.IsZero() || b.buckets[i].start.Before(min) {
+		if (min.IsZero() || b.buckets[i].start.Before(min)) && !b.buckets[i].drained {
 			min = b.buckets[i].start
 		}
-		if max.IsZero() || b.buckets[i].start.After(max) {
+		if max.IsZero() || b.buckets[i].start.After(max) && !b.buckets[i].drained {
 			max = b.buckets[i].start
 		}
 	}
-	return min, max
+
+	if min.IsZero() || max.IsZero() {
+		// Should never happen
+		return time.Time{}, time.Time{}, errNoAvailableBuckets
+	}
+	return min, max, nil
 }
 
 func (b *dbBuffer) Write(
@@ -309,6 +316,12 @@ func (b *dbBuffer) Bootstrap(bl block.DatabaseBlock) error {
 	bootstrapped := false
 	for i := range b.buckets {
 		if b.buckets[i].start.Equal(blockStart) {
+			if b.buckets[i].drained {
+				return fmt.Errorf(
+					"block at %s cannot be bootstrapped by buffer because its already drained",
+					blockStart.String(),
+				)
+			}
 			b.buckets[i].bootstrap(bl)
 			bootstrapped = true
 			break
@@ -398,9 +411,9 @@ func (b *dbBuffer) Snapshot(ctx context.Context, blockStart time.Time) (xio.Segm
 	return res, err
 }
 
-func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.SegmentReader {
+func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.BlockReader {
 	// TODO(r): pool these results arrays
-	var res [][]xio.SegmentReader
+	var res [][]xio.BlockReader
 	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
 		if !bucket.canRead() {
 			return
@@ -611,26 +624,32 @@ func (b *dbBufferBucket) write(
 	return nil
 }
 
-func (b *dbBufferBucket) streams(ctx context.Context) []xio.SegmentReader {
+func (b *dbBufferBucket) streams(ctx context.Context) []xio.BlockReader {
 	// NB(r): Ensure we don't call any closers before the operation
 	// started by the passed context completes.
 	b.ctx.DependsOn(ctx)
 
-	streams := make([]xio.SegmentReader, 0, len(b.bootstrapped)+len(b.encoders))
+	streams := make([]xio.BlockReader, 0, len(b.bootstrapped)+len(b.encoders))
 
 	for i := range b.bootstrapped {
 		if b.bootstrapped[i].Len() == 0 {
 			continue
 		}
-		if s, err := b.bootstrapped[i].Stream(ctx); err == nil && s != nil {
+		if s, err := b.bootstrapped[i].Stream(ctx); err == nil && s.IsNotEmpty() {
 			// NB(r): block stream method will register the stream closer already
 			streams = append(streams, s)
 		}
 	}
 	for i := range b.encoders {
+		start := b.start
 		if s := b.encoders[i].encoder.Stream(); s != nil {
+			br := xio.BlockReader{
+				SegmentReader: s,
+				Start:         start,
+				BlockSize:     b.opts.RetentionOptions().BlockSize(),
+			}
 			ctx.RegisterFinalizer(s)
-			streams = append(streams, s)
+			streams = append(streams, br)
 		}
 	}
 
@@ -643,7 +662,7 @@ func (b *dbBufferBucket) streamsLen() int {
 		length += b.bootstrapped[i].Len()
 	}
 	for i := range b.encoders {
-		length += b.encoders[i].encoder.StreamLen()
+		length += b.encoders[i].encoder.Len()
 	}
 	return length
 }
@@ -662,7 +681,7 @@ func (b *dbBufferBucket) resetEncoders() {
 		// Register when this bucket resets we close the encoder
 		encoder := b.encoders[i].encoder
 		if b.ctx != nil {
-			b.ctx.RegisterFinalizer(resource.FinalizerFn(encoder.Close))
+			b.ctx.RegisterCloser(encoder)
 		}
 		b.encoders[i] = zeroed
 	}
@@ -673,7 +692,7 @@ func (b *dbBufferBucket) resetBootstrapped() {
 	for i := range b.bootstrapped {
 		bl := b.bootstrapped[i]
 		if b.ctx != nil {
-			b.ctx.RegisterFinalizer(resource.FinalizerFn(bl.Close))
+			b.ctx.RegisterCloser(bl)
 		}
 	}
 	b.bootstrapped = nil
@@ -690,7 +709,7 @@ func (b *dbBufferBucket) hasJustSingleEncoder() bool {
 func (b *dbBufferBucket) hasJustSingleBootstrappedBlock() bool {
 	encodersEmpty := len(b.encoders) == 0 ||
 		(len(b.encoders) == 1 &&
-			b.encoders[0].encoder.StreamLen() == 0)
+			b.encoders[0].encoder.Len() == 0)
 	return encodersEmpty && len(b.bootstrapped) == 1
 }
 
@@ -724,13 +743,14 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 		}
 	}
 
-	readers := make([]io.Reader, 0, len(b.encoders)+len(b.bootstrapped))
+	start := b.start
+	readers := make([]xio.SegmentReader, 0, len(b.encoders)+len(b.bootstrapped))
 	streams := make([]xio.SegmentReader, 0, len(b.encoders))
 	for i := range b.encoders {
-		if stream := b.encoders[i].encoder.Stream(); stream != nil {
+		if s := b.encoders[i].encoder.Stream(); s != nil {
 			merges++
-			readers = append(readers, stream)
-			streams = append(streams, stream)
+			readers = append(readers, s)
+			streams = append(streams, s)
 		}
 	}
 
@@ -749,14 +769,14 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 	}()
 
 	for i := range b.bootstrapped {
-		stream, err := b.bootstrapped[i].Stream(ctx)
-		if err == nil && stream != nil {
+		block, err := b.bootstrapped[i].Stream(ctx)
+		if err == nil && block.SegmentReader != nil {
 			merges++
-			readers = append(readers, stream)
+			readers = append(readers, block.SegmentReader)
 		}
 	}
 
-	iter.Reset(readers)
+	iter.Reset(readers, start, b.opts.RetentionOptions().BlockSize())
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
 		if err := encoder.Encode(dp, unit, annotation); err != nil {
@@ -789,7 +809,8 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 		// Already merged as a single encoder
 		encoder := b.encoders[0].encoder
 		newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-		newBlock.Reset(b.start, encoder.Discard())
+		blockSize := b.opts.RetentionOptions().BlockSize()
+		newBlock.Reset(b.start, blockSize, encoder.Discard())
 
 		// The single encoder is already discarded, no need to call resetEncoders
 		// just remove it from the list of encoders
@@ -824,7 +845,8 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 	merged := b.encoders[0].encoder
 
 	newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	newBlock.Reset(b.start, merged.Discard())
+	blockSize := b.opts.RetentionOptions().BlockSize()
+	newBlock.Reset(b.start, blockSize, merged.Discard())
 
 	// The merged encoder is already discarded, no need to call resetEncoders
 	// just remove it from the list of encoders

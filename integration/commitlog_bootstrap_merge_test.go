@@ -83,26 +83,6 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		SetFlushInterval(defaultIntegrationTestFlushInterval)
 	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
 
-	// commit log bootstrapper
-	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
-	bclOpts := bcl.NewOptions().
-		SetResultOptions(bsOpts).
-		SetCommitLogOptions(commitLogOpts)
-	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapper(bclOpts, noOpAll)
-	require.NoError(t, err)
-	// fs bootstrapper
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-	filePathPrefix := fsOpts.FilePathPrefix()
-	bfsOpts := fs.NewOptions().
-		SetResultOptions(bsOpts).
-		SetFilesystemOptions(fsOpts).
-		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
-	fsBootstrapper := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, commitLogBootstrapper)
-	// bootstrapper storage opts
-	process := bootstrap.NewProcess(fsBootstrapper, bsOpts)
-	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)
-
 	log := setup.storageOpts.InstrumentOptions().Logger()
 	log.Info("commit log + fs merge bootstrap test")
 
@@ -114,9 +94,9 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		t3 = t2.Add(ns1BlockSize)
 	)
 	blockConfigs := []generate.BlockConfig{
-		{[]string{"foo", "bar"}, 20, t0},
-		{[]string{"nah", "baz"}, 50, t1},
-		{[]string{"hax", "ord"}, 30, t2},
+		{IDs: []string{"foo", "bar"}, NumPoints: 20, Start: t0},
+		{IDs: []string{"nah", "baz"}, NumPoints: 50, Start: t1},
+		{IDs: []string{"hax", "ord"}, NumPoints: 30, Start: t2},
 	}
 	log.Info("generating data")
 	seriesMaps := generate.BlocksByStart(blockConfigs)
@@ -138,6 +118,27 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		t2Nano: seriesMaps[t2Nano],
 	}
 	writeCommitLogData(t, setup, commitLogOpts, commitlogSeriesMaps, ns1.ID())
+
+	// commit log bootstrapper (must be after writing out commitlog files so inspection finds files)
+	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
+	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
+	bclOpts := bcl.NewOptions().
+		SetResultOptions(bsOpts).
+		SetCommitLogOptions(commitLogOpts)
+	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+
+	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapperProvider(
+		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
+	require.NoError(t, err)
+	// fs bootstrapper
+	bfsOpts := fs.NewOptions().
+		SetResultOptions(bsOpts).
+		SetFilesystemOptions(fsOpts).
+		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
+	fsBootstrapper := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
+	// bootstrapper storage opts
+	process := bootstrap.NewProcessProvider(fsBootstrapper, bsOpts)
+	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	log.Info("moving time forward and starting server")
 	setup.setNowFn(t3)

@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/serialize"
-	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3x/ident"
@@ -134,20 +133,20 @@ func (f *fetchState) markDoneWithLock(err error) {
 	f.Signal()
 }
 
-func (f *fetchState) asIndexQueryResults(pools fetchTaggedPools) (index.QueryResults, error) {
+func (f *fetchState) asTaggedIDsIterator(pools fetchTaggedPools) (TaggedIDsIterator, bool, error) {
 	f.Lock()
 	defer f.Unlock()
 
 	if !f.done {
-		return index.QueryResults{}, errFetchStateStillProcessing
+		return nil, false, errFetchStateStillProcessing
 	}
 
 	if err := f.err; err != nil {
-		return index.QueryResults{}, err
+		return nil, false, err
 	}
 
 	limit := f.op.requestLimit(maxInt)
-	return f.tagResultAccumulator.AsIndexQueryResults(limit, pools)
+	return f.tagResultAccumulator.AsTaggedIDsIterator(limit, pools)
 }
 
 func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools) (encoding.SeriesIterators, bool, error) {
@@ -176,7 +175,7 @@ type fetchTaggedPools interface {
 	MultiReaderIterator() encoding.MultiReaderIteratorPool
 	SeriesIterator() encoding.SeriesIteratorPool
 	MutableSeriesIterators() encoding.MutableSeriesIteratorsPool
-	IteratorArray() encoding.IteratorArrayPool
+	MultiReaderIteratorArray() encoding.MultiReaderIteratorArrayPool
 	ID() ident.Pool
 	CheckedBytesWrapper() xpool.CheckedBytesWrapperPool
 	TagDecoder() serialize.TagDecoderPool

@@ -62,7 +62,7 @@ type DatabaseSeries interface {
 	ReadEncoded(
 		ctx context.Context,
 		start, end time.Time,
-	) ([][]xio.SegmentReader, error)
+	) ([][]xio.BlockReader, error)
 
 	// FetchBlocks returns data blocks given a list of block start times
 	FetchBlocks(
@@ -75,7 +75,7 @@ type DatabaseSeries interface {
 		ctx context.Context,
 		start, end time.Time,
 		opts FetchBlocksMetadataOptions,
-	) block.FetchBlocksMetadataResult
+	) (block.FetchBlocksMetadataResult, error)
 
 	// IsEmpty returns whether series is empty
 	IsEmpty() bool
@@ -87,10 +87,10 @@ type DatabaseSeries interface {
 	IsBootstrapped() bool
 
 	// Bootstrap merges the raw series bootstrapped along with any buffered data
-	Bootstrap(blocks block.DatabaseSeriesBlocks) error
+	Bootstrap(blocks block.DatabaseSeriesBlocks) (BootstrapResult, error)
 
 	// Flush flushes the data blocks of this series for a given start time
-	Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error
+	Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) (FlushOutcome, error)
 
 	// Snapshot snapshots the buffer buckets of this series for any data that has
 	// not been rotated into a block yet
@@ -163,6 +163,28 @@ type DatabaseSeriesPool interface {
 
 	// Put returns a database series to the pool
 	Put(block DatabaseSeries)
+}
+
+// FlushOutcome is an enum that provides more context about the outcome
+// of series.Flush() to the caller.
+type FlushOutcome int
+
+const (
+	// FlushOutcomeErr is just a default value that can be returned when we're also returning an error
+	FlushOutcomeErr FlushOutcome = iota
+	// FlushOutcomeBlockDoesNotExist indicates that the series did not have a block for the specified flush blockStart.
+	FlushOutcomeBlockDoesNotExist
+	// FlushOutcomeFlushedToDisk indicates that a block existed and was flushed to disk successfully.
+	FlushOutcomeFlushedToDisk
+)
+
+// BootstrapResult contains information about the result of bootstrapping a series.
+// It is returned from the series Bootstrap method primarily so the caller can aggregate
+// and emit metrics instead of the series itself having to store additional fields (which
+// would be costly because we have millions of them.)
+type BootstrapResult struct {
+	NumBlocksMovedToBuffer int64
+	NumBlocksMerged        int64
 }
 
 // Options represents the options for series

@@ -57,10 +57,6 @@ var (
 
 	// errDatabaseIsClosed raised when trying to perform an action that requires an open database
 	errDatabaseIsClosed = errors.New("database is closed")
-
-	// errDatabaseIndexingDisabled raied when trying to perform an action that requires an index
-	// while the index is disabled.
-	errDatabaseIndexingDisabled = errors.New("database indexing is disabled")
 )
 
 type databaseState int
@@ -508,11 +504,6 @@ func (d *db) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	if !d.opts.IndexingEnabled() {
-		d.metrics.errWriteTaggedIndexDisabled.Inc(1)
-		return errDatabaseIndexingDisabled
-	}
-
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceWriteTagged.Inc(1)
@@ -532,11 +523,6 @@ func (d *db) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResults, error) {
-	if !d.opts.IndexingEnabled() {
-		d.metrics.errQueryIDsIndexDisabled.Inc(1)
-		return index.QueryResults{}, errDatabaseIndexingDisabled
-	}
-
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceQueryIDs.Inc(1)
@@ -551,7 +537,7 @@ func (d *db) ReadEncoded(
 	namespace ident.ID,
 	id ident.ID,
 	start, end time.Time,
-) ([][]xio.SegmentReader, error) {
+) ([][]xio.BlockReader, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
@@ -640,6 +626,21 @@ func (d *db) Truncate(namespace ident.ID) (int64, error) {
 
 func (d *db) IsOverloaded() bool {
 	return d.errors.Count(d.errWindow) > d.errThreshold
+}
+
+func (d *db) BootstrapState() DatabaseBootstrapState {
+	nsBootstrapStates := NamespaceBootstrapStates{}
+
+	d.RLock()
+	for _, n := range d.namespaces.Iter() {
+		ns := n.Value()
+		nsBootstrapStates[ns.ID().String()] = ns.BootstrapState()
+	}
+	d.RUnlock()
+
+	return DatabaseBootstrapState{
+		NamespaceBootstrapStates: nsBootstrapStates,
+	}
 }
 
 func (d *db) namespaceFor(namespace ident.ID) (databaseNamespace, error) {

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package index
+package client
 
 import (
 	"fmt"
@@ -28,29 +28,29 @@ import (
 	"github.com/golang/mock/gomock"
 )
 
-// IteratorMatcher is a gomock.Matcher that matches index.Query
-type IteratorMatcher interface {
+// TaggedIDsIteratorMatcher is a gomock.Matcher that matches TaggedIDsIterator.
+type TaggedIDsIteratorMatcher interface {
 	gomock.Matcher
 }
 
-// IteratorMatcherOption is an option for the IteratorMatcher ctor.
-type IteratorMatcherOption struct {
+// TaggedIDsIteratorMatcherOption is an option for the TaggedIDsIteratorMatcher ctor.
+type TaggedIDsIteratorMatcherOption struct {
 	Namespace string
 	ID        string
 	Tags      []string
 }
 
-// MustNewIteratorMatcher returns a new IteratorMatcher.
-func MustNewIteratorMatcher(opts ...IteratorMatcherOption) IteratorMatcher {
-	m, err := NewIteratorMatcher(opts...)
+// MustNewTaggedIDsIteratorMatcher returns a new TaggedIDsIteratorMatcher.
+func MustNewTaggedIDsIteratorMatcher(opts ...TaggedIDsIteratorMatcherOption) TaggedIDsIteratorMatcher {
+	m, err := NewTaggedIDsIteratorMatcher(opts...)
 	if err != nil {
 		panic(err.Error())
 	}
 	return m
 }
 
-// NewIteratorMatcher returns a new IteratorMatcher.
-func NewIteratorMatcher(opts ...IteratorMatcherOption) (IteratorMatcher, error) {
+// NewTaggedIDsIteratorMatcher returns a new TaggedIDsIteratorMatcher.
+func NewTaggedIDsIteratorMatcher(opts ...TaggedIDsIteratorMatcherOption) (TaggedIDsIteratorMatcher, error) {
 	m := &iteratorMatcher{}
 	err := m.init(opts)
 	if err != nil {
@@ -67,7 +67,7 @@ type iteratorMatcher struct {
 	entries nsIDTagsMap
 }
 
-func (m *iteratorMatcher) init(opts []IteratorMatcherOption) error {
+func (m *iteratorMatcher) init(opts []TaggedIDsIteratorMatcherOption) error {
 	m.entries = make(nsIDTagsMap)
 	for _, o := range opts {
 		idMap, ok := m.entries[o.Namespace]
@@ -90,7 +90,7 @@ func (m *iteratorMatcher) init(opts []IteratorMatcherOption) error {
 }
 
 func (m *iteratorMatcher) Matches(x interface{}) bool {
-	iter, ok := x.(Iterator)
+	iter, ok := x.(TaggedIDsIterator)
 	if !ok {
 		return false
 	}
@@ -121,5 +121,5 @@ func (m *iteratorMatcher) Matches(x interface{}) bool {
 }
 
 func (m *iteratorMatcher) String() string {
-	return fmt.Sprintf("IteratorMatcher %v", m.entries)
+	return fmt.Sprintf("TaggedIDsIteratorMatcher %v", m.entries)
 }

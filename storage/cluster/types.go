@@ -20,9 +20,14 @@
 
 package cluster
 
-import "github.com/m3db/m3db/storage"
+import (
+	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/topology"
+)
 
 // Database is a clustered time series database
 type Database interface {
 	storage.Database
+
+	Topology() topology.Topology
 }

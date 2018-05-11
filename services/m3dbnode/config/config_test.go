@@ -186,6 +186,24 @@ pooling:
         capacity: 4096
         lowWatermark: 0.01
         highWatermark: 0.02
+    tagArrayPool:
+        size: 65536
+        capacity: 8
+        maxCapacity: 32
+        lowWatermark: 0.01
+        highWatermark: 0.02
+    indexResultsPool:
+        size: 8192
+        lowWatermark: 0.01
+        highWatermark: 0.02
+    tagEncoderPool:
+        size: 8192
+        lowWatermark: 0.01
+        highWatermark: 0.02
+    tagDecoderPool:
+        size: 8192
+        lowWatermark: 0.01
+        highWatermark: 0.02
     identifierPool:
         size: 9437184
         lowWatermark: 0.01
@@ -480,6 +498,24 @@ pooling:
     capacity: 4096
     lowWatermark: 0.01
     highWatermark: 0.02
+  tagArrayPool:
+    size: 65536
+    capacity: 8
+    maxCapacity: 32
+    lowWatermark: 0.01
+    highWatermark: 0.02
+  indexResultsPool:
+    size: 8192
+    lowWatermark: 0.01
+    highWatermark: 0.02
+  tagEncoderPool:
+    size: 8192
+    lowWatermark: 0.01
+    highWatermark: 0.02
+  tagDecoderPool:
+    size: 8192
+    lowWatermark: 0.01
+    highWatermark: 0.02
 config:
   service:
     zone: embedded
@@ -536,8 +572,6 @@ config:
   topologyResolutionTimeout: 0s
 hashing:
   seed: 42
-index:
-  enabled: false
 writeNewSeriesAsync: true
 `
 

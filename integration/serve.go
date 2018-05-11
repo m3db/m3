@@ -87,7 +87,7 @@ func openAndServe(
 	db storage.Database,
 	client client.Client,
 	opts storage.Options,
-	doneCh chan struct{},
+	doneCh <-chan struct{},
 ) error {
 	logger := opts.InstrumentOptions().Logger()
 	if err := db.Open(); err != nil {

@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"reflect"
 	"sort"
@@ -728,14 +727,14 @@ func (s *session) setTopologyWithLock(topoMap topology.Map, queues []hostQueue, 
 		s.opts.FetchBatchOpPoolSize()/len(queues))
 	s.pools.fetchBatchOpArrayArray.Init()
 
-	if s.pools.iteratorArray == nil {
-		s.pools.iteratorArray = encoding.NewIteratorArrayPool([]pool.Bucket{
+	if s.pools.multiReaderIteratorArray == nil {
+		s.pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool([]pool.Bucket{
 			pool.Bucket{
 				Capacity: replicas,
 				Count:    s.opts.SeriesIteratorPoolSize(),
 			},
 		})
-		s.pools.iteratorArray.Init()
+		s.pools.multiReaderIteratorArray.Init()
 	}
 	if s.pools.readerSliceOfSlicesIterator == nil {
 		size := replicas * s.opts.SeriesIteratorPoolSize()
@@ -965,8 +964,8 @@ func (s *session) writeAttemptWithRLock(
 	var tagEncoder serialize.TagEncoder
 	if wType == taggedWriteAttemptType {
 		tagEncoder = s.pools.tagEncoder.Get()
-		defer tagEncoder.Finalize()
 		if err := tagEncoder.Encode(inputTags); err != nil {
+			tagEncoder.Finalize()
 			return nil, 0, 0, err
 		}
 	}
@@ -1124,24 +1123,24 @@ func (s *session) fetchTaggedAttempt(
 
 func (s *session) FetchTaggedIDs(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (index.QueryResults, error) {
+) (TaggedIDsIterator, bool, error) {
 	f := s.pools.fetchTaggedAttempt.Get()
 	f.args.ns = ns
 	f.args.query = q
 	f.args.opts = opts
 	err := s.fetchRetrier.Attempt(f.idsAttemptFn)
-	result := f.idsResult
+	iter, exhaustive := f.idsResultIter, f.idsResultExhaustive
 	s.pools.fetchTaggedAttempt.Put(f)
-	return result, err
+	return iter, exhaustive, err
 }
 
 func (s *session) fetchTaggedIDsAttempt(
 	ns ident.ID, q index.Query, opts index.QueryOptions,
-) (index.QueryResults, error) {
+) (TaggedIDsIterator, bool, error) {
 	s.state.RLock()
 	if s.state.status != statusOpen {
 		s.state.RUnlock()
-		return index.QueryResults{}, errSessionStatusNotOpen
+		return nil, false, errSessionStatusNotOpen
 	}
 
 	const fetchData = false
@@ -1149,7 +1148,7 @@ func (s *session) fetchTaggedIDsAttempt(
 	s.state.RUnlock()
 
 	if err != nil {
-		return index.QueryResults{}, err
+		return nil, false, err
 	}
 
 	// it's safe to Wait() here, as we still hold the lock on fetchState, after it's
@@ -1159,13 +1158,13 @@ func (s *session) fetchTaggedIDsAttempt(
 	// must Unlock before calling `asIndexQueryResults` as the latter needs to acquire
 	// the fetchState Lock
 	fetchState.Unlock()
-	results, err := fetchState.asIndexQueryResults(s.pools)
+	iter, exhaustive, err := fetchState.asTaggedIDsIterator(s.pools)
 
 	// must Unlock() before decRef'ing, as the latter releases the fetchState back into a
 	// pool if ref count == 0.
 	fetchState.decRef()
 
-	return results, err
+	return iter, exhaustive, err
 }
 
 // NB(prateek): the returned fetchState, if valid, still holds the lock. Its ownership
@@ -1314,7 +1313,7 @@ func (s *session) fetchIDsAttempt(
 			resultsAccessors int32 = 1
 			idAccessors      int32 = 1
 			resultsLock      sync.RWMutex
-			results          []encoding.Iterator
+			results          []encoding.MultiReaderIterator
 			enqueued         int32
 			pending          int32
 			success          int32
@@ -1361,7 +1360,7 @@ func (s *session) fetchIDsAttempt(
 				iters.SetAt(idx, iter)
 			}
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
-				s.pools.iteratorArray.Put(results)
+				s.pools.multiReaderIteratorArray.Put(results)
 			}
 			if atomic.AddInt32(&idAccessors, -1) == 0 {
 				tsID.Finalize()
@@ -1406,7 +1405,7 @@ func (s *session) fetchIDsAttempt(
 			}
 
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
-				s.pools.iteratorArray.Put(results)
+				s.pools.multiReaderIteratorArray.Put(results)
 			}
 			if atomic.AddInt32(&idAccessors, -1) == 0 {
 				tsID.Finalize()
@@ -1453,7 +1452,7 @@ func (s *session) fetchIDsAttempt(
 		}
 
 		// Once we've enqueued we know how many to expect so retrieve and set length
-		results = s.pools.iteratorArray.Get(int(enqueued))
+		results = s.pools.multiReaderIteratorArray.Get(int(enqueued))
 		results = results[:enqueued]
 	}
 
@@ -1657,11 +1656,36 @@ func (s *session) peersForShard(shard uint32) (peers, error) {
 	return result, nil
 }
 
+func (s *session) FetchBootstrapBlocksMetadataFromPeers(
+	namespace ident.ID,
+	shard uint32,
+	start, end time.Time,
+	resultOpts result.Options,
+	version FetchBlocksMetadataEndpointVersion,
+) (PeerBlockMetadataIter, error) {
+	level := newSessionBootstrapRuntimeReadConsistencyLevel(s)
+	return s.fetchBlocksMetadataFromPeers(namespace,
+		shard, start, end, level, resultOpts, version)
+}
+
 func (s *session) FetchBlocksMetadataFromPeers(
 	namespace ident.ID,
 	shard uint32,
 	start, end time.Time,
 	consistencyLevel topology.ReadConsistencyLevel,
+	resultOpts result.Options,
+	version FetchBlocksMetadataEndpointVersion,
+) (PeerBlockMetadataIter, error) {
+	level := newStaticRuntimeReadConsistencyLevel(consistencyLevel)
+	return s.fetchBlocksMetadataFromPeers(namespace,
+		shard, start, end, level, resultOpts, version)
+}
+
+func (s *session) fetchBlocksMetadataFromPeers(
+	namespace ident.ID,
+	shard uint32,
+	start, end time.Time,
+	level runtimeReadConsistencyLevel,
 	resultOpts result.Options,
 	version FetchBlocksMetadataEndpointVersion,
 ) (PeerBlockMetadataIter, error) {
@@ -1676,7 +1700,6 @@ func (s *session) FetchBlocksMetadataFromPeers(
 		errCh = make(chan error, 1)
 		meta  = resultTypeMetadata
 		m     = s.newPeerMetadataStreamingProgressMetrics(shard, meta)
-		level = newStaticRuntimeReadConsistencyLevel(consistencyLevel)
 	)
 	go func() {
 		errCh <- s.streamBlocksMetadataFromPeers(namespace, shard,
@@ -1685,7 +1708,9 @@ func (s *session) FetchBlocksMetadataFromPeers(
 		close(errCh)
 	}()
 
-	return newMetadataIter(metadataCh, errCh), nil
+	iter := newMetadataIter(metadataCh, errCh,
+		s.pools.tagDecoder.Get(), s.pools.id)
+	return iter, nil
 }
 
 // FetchBootstrapBlocksFromPeers will fetch the specified blocks from peers for
@@ -1702,10 +1727,12 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	}
 
 	var (
-		result   = newBulkBlocksResult(s.opts, opts)
+		result = newBulkBlocksResult(s.opts, opts,
+			s.pools.tagDecoder, s.pools.id)
 		doneCh   = make(chan struct{})
-		progress = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeBootstrap)
-		level    = newSessionBootstrapRuntimeReadConsistencyLevel(s)
+		progress = s.newPeerMetadataStreamingProgressMetrics(shard,
+			resultTypeBootstrap)
+		level = newSessionBootstrapRuntimeReadConsistencyLevel(s)
 	)
 
 	// Determine which peers own the specified shard
@@ -1771,8 +1798,9 @@ func (s *session) FetchBlocksFromPeers(
 		complete = int64(0)
 		doneCh   = make(chan error, 1)
 		outputCh = make(chan peerBlocksDatapoint, 4096)
-		result   = newStreamBlocksResult(s.opts, opts, outputCh)
-		onDone   = func(err error) {
+		result   = newStreamBlocksResult(s.opts, opts, outputCh,
+			s.pools.tagDecoder.Get(), s.pools.id)
+		onDone = func(err error) {
 			atomic.StoreInt64(&complete, 1)
 			select {
 			case doneCh <- err:
@@ -2158,8 +2186,6 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		peerStr              = peer.Host().ID()
 		metadataCountByBlock = map[xtime.UnixNano]int64{}
 	)
-
-	// Only used for logs
 	defer func() {
 		for block, numMetadata := range metadataCountByBlock {
 			s.log.WithFields(
@@ -2214,19 +2240,28 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 
 			clonedID := idPool.BinaryID(data)
 
+			var encodedTags checked.Bytes
+			if bytes := elem.EncodedTags; len(bytes) != 0 {
+				encodedTags = bytesPool.Get(len(bytes))
+				encodedTags.IncRef()
+				encodedTags.AppendAll(bytes)
+				encodedTags.DecRef()
+			}
+
 			// Error occurred retrieving block metadata, use default values
-			if elem.Err != nil {
+			if err := elem.Err; err != nil {
 				progress.metadataFetchBatchBlockErr.Inc(1)
 				s.log.WithFields(
 					xlog.NewField("shard", shard),
 					xlog.NewField("peer", peerStr),
 					xlog.NewField("block", blockStart),
-					xlog.NewField("error", err),
+					xlog.NewField("error", err.Error()),
 				).Error("error occurred retrieving block metadata")
 				// Enqueue with a zeroed checksum which triggers a fanout fetch
 				metadataCh <- receivedBlockMetadata{
-					peer: peer,
-					id:   clonedID,
+					peer:        peer,
+					id:          clonedID,
+					encodedTags: encodedTags,
 					block: blockMetadata{
 						start: blockStart,
 					},
@@ -2254,8 +2289,9 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 			}
 
 			metadataCh <- receivedBlockMetadata{
-				peer: peer,
-				id:   clonedID,
+				peer:        peer,
+				id:          clonedID,
+				encodedTags: encodedTags,
 				block: blockMetadata{
 					start:    blockStart,
 					size:     size,
@@ -2761,9 +2797,8 @@ func (s *session) streamBlocksBatchFromPeer(
 
 		nowFn              = opts.ClockOptions().NowFn()
 		ropts              = namespaceMetadata.Options().RetentionOptions()
-		blockSize          = ropts.BlockSize()
 		retention          = ropts.RetentionPeriod()
-		earliestBlockStart = nowFn().Add(-retention).Truncate(blockSize)
+		earliestBlockStart = nowFn().Add(-retention).Truncate(ropts.BlockSize())
 	)
 	req.NameSpace = namespaceMetadata.ID().Data().Bytes()
 	req.Shard = int32(shard)
@@ -2886,15 +2921,9 @@ func (s *session) streamBlocksBatchFromPeer(
 			// Verify and if verify succeeds add the block from the peer
 			err := s.verifyFetchedBlock(block)
 			if err == nil {
-				err = blocksResult.addBlockFromPeer(id, peer.Host(), block)
-
-				// NB(r): Track a fanned out block fetch success if added block
-				fanout := batch[i].block.reattempt.fanoutFetchState
-				if err == nil && fanout != nil {
-					fanout.incrementSuccess()
-				}
+				err = blocksResult.addBlockFromPeer(id, batch[i].encodedTags,
+					peer.Host(), block)
 			}
-
 			if err != nil {
 				failed := []receivedBlockMetadata{batch[i]}
 				blocksErr := fmt.Errorf(
@@ -2905,6 +2934,12 @@ func (s *session) streamBlocksBatchFromPeer(
 				m.fetchBlockError.Inc(1)
 				s.log.Debugf(blocksErr.Error())
 				continue
+			}
+
+			// NB(r): Track a fanned out block fetch success if added block
+			fanout := batch[i].block.reattempt.fanoutFetchState
+			if fanout != nil {
+				fanout.incrementSuccess()
 			}
 
 			m.fetchBlockSuccess.Inc(1)
@@ -3048,7 +3083,12 @@ func (s *session) streamBlocksReattemptFromPeersEnqueue(
 }
 
 type blocksResult interface {
-	addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error
+	addBlockFromPeer(
+		id ident.ID,
+		encodedTags checked.Bytes,
+		peer topology.Host,
+		block *rpc.Block,
+	) error
 }
 
 type baseBlocksResult struct {
@@ -3093,9 +3133,9 @@ func (b *baseBlocksResult) segmentForBlock(seg *rpc.Segment) ts.Segment {
 	return ts.NewSegment(head, tail, ts.FinalizeHead&ts.FinalizeTail)
 }
 
-func (b *baseBlocksResult) mergeReaders(start time.Time, readers []io.Reader) (encoding.Encoder, error) {
+func (b *baseBlocksResult) mergeReaders(start time.Time, blockSize time.Duration, readers []xio.SegmentReader) (encoding.Encoder, error) {
 	iter := b.multiReaderIteratorPool.Get()
-	iter.Reset(readers)
+	iter.Reset(readers, start, blockSize)
 	defer iter.Close()
 
 	encoder := b.encoderPool.Get()
@@ -3131,23 +3171,29 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 	switch {
 	case segments.Merged != nil:
 		// Unmerged, can insert directly into a single block
-		result.Reset(start, b.segmentForBlock(segments.Merged))
+		mergedBlock := segments.Merged
+		result.Reset(start, durationConvert(mergedBlock.BlockSize), b.segmentForBlock(mergedBlock))
 
 	case segments.Unmerged != nil:
 		// Must merge to provide a single block
 		segmentReaderPool := b.blockOpts.SegmentReaderPool()
-		readers := make([]io.Reader, len(segments.Unmerged))
-		for i := range segments.Unmerged {
-			segmentReader := segmentReaderPool.Get()
-			segmentReader.Reset(b.segmentForBlock(segments.Unmerged[i]))
-			readers[i] = segmentReader
-		}
+		readers := make([]xio.SegmentReader, len(segments.Unmerged))
 
-		encoder, err := b.mergeReaders(start, readers)
+		blockSize := time.Duration(0)
+		for i, seg := range segments.Unmerged {
+			segmentReader := segmentReaderPool.Get()
+			segmentReader.Reset(b.segmentForBlock(seg))
+			readers[i] = segmentReader
+
+			bs := durationConvert(seg.BlockSize)
+			if bs > blockSize {
+				blockSize = bs
+			}
+		}
+		encoder, err := b.mergeReaders(start, blockSize, readers)
 		for _, reader := range readers {
 			// Close each reader
-			segmentReader := reader.(xio.SegmentReader)
-			segmentReader.Finalize()
+			reader.Finalize()
 		}
 
 		if err != nil {
@@ -3157,7 +3203,7 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 		}
 
 		// Set the block data
-		result.Reset(start, encoder.Discard())
+		result.Reset(start, blockSize, encoder.Discard())
 
 	default:
 		result.Close() // return block to pool
@@ -3167,35 +3213,56 @@ func (b *baseBlocksResult) newDatabaseBlock(block *rpc.Block) (block.DatabaseBlo
 	return result, nil
 }
 
+// Ensure streamBlocksResult implements blocksResult
+var _ blocksResult = (*streamBlocksResult)(nil)
+
 type streamBlocksResult struct {
 	baseBlocksResult
-	outputCh chan<- peerBlocksDatapoint
+	outputCh   chan<- peerBlocksDatapoint
+	tagDecoder serialize.TagDecoder
+	idPool     ident.Pool
 }
 
 func newStreamBlocksResult(
 	opts Options,
 	resultOpts result.Options,
 	outputCh chan<- peerBlocksDatapoint,
+	tagDecoder serialize.TagDecoder,
+	idPool ident.Pool,
 ) *streamBlocksResult {
 	return &streamBlocksResult{
 		baseBlocksResult: newBaseBlocksResult(opts, resultOpts),
 		outputCh:         outputCh,
+		tagDecoder:       tagDecoder,
+		idPool:           idPool,
 	}
 }
 
 type peerBlocksDatapoint struct {
 	id    ident.ID
+	tags  ident.Tags
 	peer  topology.Host
 	block block.DatabaseBlock
 }
 
-func (s *streamBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error {
+func (s *streamBlocksResult) addBlockFromPeer(
+	id ident.ID,
+	encodedTags checked.Bytes,
+	peer topology.Host,
+	block *rpc.Block,
+) error {
 	result, err := s.newDatabaseBlock(block)
+	if err != nil {
+		return err
+	}
+	tags, err := newTagsFromEncodedTags(encodedTags,
+		s.tagDecoder, s.idPool)
 	if err != nil {
 		return err
 	}
 	s.outputCh <- peerBlocksDatapoint{
 		id:    id,
+		tags:  tags,
 		peer:  peer,
 		block: result,
 	}
@@ -3244,36 +3311,68 @@ func (it *peerBlocksIter) Next() bool {
 	return true
 }
 
+// Ensure streamBlocksResult implements blocksResult
+var _ blocksResult = (*bulkBlocksResult)(nil)
+
 type bulkBlocksResult struct {
 	sync.RWMutex
 	baseBlocksResult
-	result result.ShardResult
+	result         result.ShardResult
+	tagDecoderPool serialize.TagDecoderPool
+	idPool         ident.Pool
 }
 
 func newBulkBlocksResult(
 	opts Options,
 	resultOpts result.Options,
+	tagDecoderPool serialize.TagDecoderPool,
+	idPool ident.Pool,
 ) *bulkBlocksResult {
 	return &bulkBlocksResult{
 		baseBlocksResult: newBaseBlocksResult(opts, resultOpts),
 		result:           result.NewShardResult(4096, resultOpts),
+		tagDecoderPool:   tagDecoderPool,
+		idPool:           idPool,
 	}
 }
 
-func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error {
+func (r *bulkBlocksResult) addBlockFromPeer(
+	id ident.ID,
+	encodedTags checked.Bytes,
+	peer topology.Host,
+	block *rpc.Block,
+) error {
 	start := time.Unix(0, block.Start)
 	result, err := r.newDatabaseBlock(block)
 	if err != nil {
 		return err
 	}
 
+	var (
+		tags                ident.Tags
+		attemptedDecodeTags bool
+	)
 	for {
 		r.Lock()
 		currBlock, exists := r.result.BlockAt(id, start)
 		if !exists {
-			r.result.AddBlock(id, nil, result) // FOLLOWUP(prateek): include tags during block metadata exchange
+			if encodedTags == nil || attemptedDecodeTags {
+				r.result.AddBlock(id, tags, result)
+				r.Unlock()
+				break
+			}
 			r.Unlock()
-			break
+
+			// Tags not decoded yet, attempt decoded and then reinsert
+			attemptedDecodeTags = true
+			tagDecoder := r.tagDecoderPool.Get()
+			tags, err = newTagsFromEncodedTags(encodedTags,
+				tagDecoder, r.idPool)
+			tagDecoder.Close()
+			if err != nil {
+				return err
+			}
+			continue
 		}
 
 		// Remove the existing block from the result so it doesn't get
@@ -3291,7 +3390,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 
 		// If there are no data in the current block, there is no
 		// need to merge
-		if currReader == nil {
+		if currReader.IsEmpty() {
 			continue
 		}
 
@@ -3299,12 +3398,14 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 		if err != nil {
 			return err
 		}
-		if resultReader == nil {
+		if resultReader.IsEmpty() {
 			return nil
 		}
 
-		readers := []io.Reader{currReader, resultReader}
-		encoder, err := r.mergeReaders(start, readers)
+		readers := []xio.SegmentReader{currReader.SegmentReader, resultReader.SegmentReader}
+		blockSize := currReader.BlockSize
+
+		encoder, err := r.mergeReaders(start, blockSize, readers)
 
 		if err != nil {
 			return err
@@ -3313,7 +3414,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, blo
 		result.Close()
 
 		result = r.blockOpts.DatabaseBlockPool().Get()
-		result.Reset(start, encoder.Discard())
+		result.Reset(start, blockSize, encoder.Discard())
 
 		tmpCtx.Close()
 	}
@@ -3541,9 +3642,10 @@ func (qs peerBlocksQueues) closeAll() {
 }
 
 type receivedBlockMetadata struct {
-	peer  peer
-	id    ident.ID
-	block blockMetadata
+	peer        peer
+	id          ident.ID
+	encodedTags checked.Bytes
+	block       blockMetadata
 }
 
 type receivedBlockMetadatas []receivedBlockMetadata
@@ -3658,21 +3760,27 @@ func newTimesByRPCBlocks(values []*rpc.Block) []time.Time {
 }
 
 type metadataIter struct {
-	inputCh  <-chan receivedBlockMetadata
-	errCh    <-chan error
-	host     topology.Host
-	metadata block.Metadata
-	done     bool
-	err      error
+	inputCh    <-chan receivedBlockMetadata
+	errCh      <-chan error
+	host       topology.Host
+	metadata   block.Metadata
+	tagDecoder serialize.TagDecoder
+	idPool     ident.Pool
+	done       bool
+	err        error
 }
 
 func newMetadataIter(
 	inputCh <-chan receivedBlockMetadata,
 	errCh <-chan error,
+	tagDecoder serialize.TagDecoder,
+	idPool ident.Pool,
 ) PeerBlockMetadataIter {
 	return &metadataIter{
-		inputCh: inputCh,
-		errCh:   errCh,
+		inputCh:    inputCh,
+		errCh:      errCh,
+		tagDecoder: tagDecoder,
+		idPool:     idPool,
 	}
 }
 
@@ -3686,8 +3794,14 @@ func (it *metadataIter) Next() bool {
 		it.done = true
 		return false
 	}
+	var tags ident.Tags
+	tags, it.err = newTagsFromEncodedTags(m.encodedTags,
+		it.tagDecoder, it.idPool)
+	if it.err != nil {
+		return false
+	}
 	it.host = m.peer.Host()
-	it.metadata = block.NewMetadata(m.id, m.block.start,
+	it.metadata = block.NewMetadata(m.id, tags, m.block.start,
 		m.block.size, m.block.checksum, m.block.lastRead)
 	return true
 }
@@ -3745,4 +3859,31 @@ func (v FetchBlocksMetadataEndpointVersion) String() string {
 		return "v2"
 	}
 	return "unknown"
+}
+
+func newTagsFromEncodedTags(
+	encodedTags checked.Bytes,
+	tagDecoder serialize.TagDecoder,
+	idPool ident.Pool,
+) (ident.Tags, error) {
+	if encodedTags == nil {
+		return nil, nil
+	}
+
+	encodedTags.IncRef()
+	tagDecoder.Reset(encodedTags)
+
+	tags := make(ident.Tags, 0, tagDecoder.Remaining())
+	for tagDecoder.Next() {
+		curr := tagDecoder.Current()
+		tags = append(tags, idPool.CloneTag(curr))
+	}
+
+	encodedTags.DecRef()
+
+	if err := tagDecoder.Err(); err != nil {
+		return nil, err
+	}
+
+	return tags, nil
 }

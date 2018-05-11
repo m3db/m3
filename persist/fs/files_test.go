@@ -620,7 +620,7 @@ func TestSnapshotFileSetExistsAt(t *testing.T) {
 	require.True(t, exists)
 }
 
-func TestCommitLogFilesBefore(t *testing.T) {
+func TestSortedCommitLogFilesBefore(t *testing.T) {
 	iter := 20
 	perSlot := 3
 	dir := createCommitLogFiles(t, iter, perSlot)
@@ -629,7 +629,7 @@ func TestCommitLogFilesBefore(t *testing.T) {
 	cutoffIter := 8
 	cutoff := time.Unix(0, int64(cutoffIter))
 	commitLogsDir := CommitLogsDirPath(dir)
-	files, err := CommitLogFilesBefore(commitLogsDir, cutoff)
+	files, err := SortedCommitLogFilesBefore(commitLogsDir, cutoff)
 	require.NoError(t, err)
 	require.Equal(t, cutoffIter*perSlot, len(files))
 	for i := 0; i < cutoffIter; i++ {
@@ -656,7 +656,7 @@ func TestCommitLogFilesForTime(t *testing.T) {
 	}
 }
 
-func TestCommitLogFiles(t *testing.T) {
+func TestSortedCommitLogFiles(t *testing.T) {
 	iter := 20
 	perSlot := 3
 	dir := createCommitLogFiles(t, iter, perSlot)
@@ -667,7 +667,7 @@ func TestCommitLogFiles(t *testing.T) {
 	createFile(t, path.Join(dir, strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix), nil)
 	createFile(t, path.Join(dir, separator+strconv.Itoa(iter+1)+separator+strconv.Itoa(perSlot+1)+fileSuffix), nil)
 
-	files, err := CommitLogFiles(CommitLogsDirPath(dir))
+	files, err := SortedCommitLogFiles(CommitLogsDirPath(dir))
 	require.NoError(t, err)
 	require.Equal(t, iter*perSlot, len(files))
 

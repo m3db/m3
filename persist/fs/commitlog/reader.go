@@ -32,7 +32,9 @@ import (
 
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
@@ -133,6 +135,7 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 		decoderBufs = append(decoderBufs, chanBufs)
 	}
 	outBuf := make(chan readResponse, decoderOutBufChanSize*numConc)
+
 	reader := &reader{
 		opts:              opts,
 		numConc:           int64(numConc),
@@ -291,21 +294,27 @@ func (r *reader) readLoop() {
 
 func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse) {
 	var (
-		decodingOpts          = r.opts.FilesystemOptions().DecodingOptions()
-		decoder               = msgpack.NewDecoder(decodingOpts)
-		decoderStream         = msgpack.NewDecoderStream(nil)
-		metadataDecoder       = msgpack.NewDecoder(decodingOpts)
-		metadataDecoderStream = msgpack.NewDecoderStream(nil)
-		metadataLookup        = make(map[uint64]seriesMetadata)
+		decodingOpts           = r.opts.FilesystemOptions().DecodingOptions()
+		decoder                = msgpack.NewDecoder(decodingOpts)
+		decoderStream          = msgpack.NewDecoderStream(nil)
+		metadataDecoder        = msgpack.NewDecoder(decodingOpts)
+		metadataDecoderStream  = msgpack.NewDecoderStream(nil)
+		metadataLookup         = make(map[uint64]seriesMetadata)
+		tagDecoder             = r.opts.FilesystemOptions().TagDecoderPool().Get()
+		tagDecoderCheckedBytes = checked.NewBytes(nil, nil)
 	)
+	tagDecoderCheckedBytes.IncRef()
+	defer func() {
+		tagDecoderCheckedBytes.DecRef()
+		tagDecoderCheckedBytes.Finalize()
+		tagDecoder.Close()
+	}()
 
 	for arg := range inBuf {
-		readResponse := readResponse{}
+		response := readResponse{}
 		// If there is a pre-existing error, just pipe it through
 		if arg.err != nil {
-			readResponse.resultErr = arg.err
-			arg.bufPool <- arg.bytes
-			outBuf <- readResponse
+			r.handleDecoderLoopIterationEnd(arg, outBuf, response, arg.err)
 			continue
 		}
 
@@ -314,19 +323,16 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		decoder.Reset(decoderStream)
 		entry, err := decoder.DecodeLogEntryRemaining(arg.decodeRemainingToken, arg.uniqueIndex)
 		if err != nil {
-			readResponse.resultErr = err
-			arg.bufPool <- arg.bytes
-			outBuf <- readResponse
+			r.handleDecoderLoopIterationEnd(arg, outBuf, response, err)
 			continue
 		}
 
 		// If the log entry has associated metadata, decode that as well
 		if len(entry.Metadata) != 0 {
-			err := r.decodeAndHandleMetadata(metadataLookup, metadataDecoder, metadataDecoderStream, entry)
+			err := r.decodeAndHandleMetadata(metadataLookup, metadataDecoder, metadataDecoderStream,
+				tagDecoder, tagDecoderCheckedBytes, entry)
 			if err != nil {
-				readResponse.resultErr = err
-				arg.bufPool <- arg.bytes
-				outBuf <- readResponse
+				r.handleDecoderLoopIterationEnd(arg, outBuf, response, err)
 				continue
 			}
 		}
@@ -338,29 +344,29 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			// even though we are performing parallel decoding, the work is distributed to the workers
 			// based on the series unique index which means that all commit log entries for a given
 			// series are decoded in-order by a single decoder loop.
-			readResponse.resultErr = errCommitLogReaderMissingMetadata
-			arg.bufPool <- arg.bytes
-			outBuf <- readResponse
+			r.handleDecoderLoopIterationEnd(arg, outBuf, response, errCommitLogReaderMissingMetadata)
 			continue
 		}
 
 		if !metadata.passedPredicate {
+			// Pass nil for outBuf because we don't want to send a readResponse along since this
+			// was just a series that the caller didn't want us to read.
+			r.handleDecoderLoopIterationEnd(arg, nil, readResponse{}, nil)
 			continue
 		}
 
-		readResponse.series = metadata.Series
+		response.series = metadata.Series
 
-		readResponse.datapoint = ts.Datapoint{
+		response.datapoint = ts.Datapoint{
 			Timestamp: time.Unix(0, entry.Timestamp),
 			Value:     entry.Value,
 		}
-		readResponse.unit = xtime.Unit(byte(entry.Unit))
+		response.unit = xtime.Unit(byte(entry.Unit))
 		// Copy annotation to prevent reference to pooled byte slice
 		if len(entry.Annotation) > 0 {
-			readResponse.annotation = append([]byte(nil), entry.Annotation...)
+			response.annotation = append([]byte(nil), entry.Annotation...)
 		}
-		arg.bufPool <- arg.bytes
-		outBuf <- readResponse
+		r.handleDecoderLoopIterationEnd(arg, outBuf, response, nil)
 	}
 
 	r.metadata.Lock()
@@ -375,10 +381,20 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 	r.metadata.Unlock()
 }
 
+func (r *reader) handleDecoderLoopIterationEnd(arg decoderArg, outBuf chan<- readResponse, response readResponse, err error) {
+	arg.bufPool <- arg.bytes
+	if outBuf != nil {
+		response.resultErr = err
+		outBuf <- response
+	}
+}
+
 func (r *reader) decodeAndHandleMetadata(
 	metadataLookup map[uint64]seriesMetadata,
 	metadataDecoder *msgpack.Decoder,
 	metadataDecoderStream msgpack.DecoderStream,
+	tagDecoder serialize.TagDecoder,
+	tagDecoderCheckedBytes checked.Bytes,
 	entry schema.LogEntry,
 ) error {
 	metadataDecoderStream.Reset(entry.Metadata)
@@ -392,7 +408,6 @@ func (r *reader) decodeAndHandleMetadata(
 	if ok {
 		// If the metadata already exists, we can skip this step
 		return nil
-
 	}
 
 	id := r.checkedBytesPool.Get(len(decoded.ID))
@@ -403,12 +418,34 @@ func (r *reader) decodeAndHandleMetadata(
 	namespace.IncRef()
 	namespace.AppendAll(decoded.Namespace)
 
+	var (
+		tags        ident.Tags
+		tagBytesLen = len(decoded.EncodedTags)
+	)
+	if tagBytesLen != 0 {
+		tagDecoderCheckedBytes.Reset(decoded.EncodedTags)
+		tagDecoder.Reset(tagDecoderCheckedBytes)
+
+		tags = make(ident.Tags, 0, tagDecoder.Remaining())
+		for tagDecoder.Next() {
+			curr := tagDecoder.Current()
+			clone := r.opts.IdentifierPool().CloneTag(curr)
+			tags = append(tags, clone)
+		}
+		err = tagDecoder.Err()
+		if err != nil {
+			return err
+		}
+	}
+
 	metadata := Series{
 		UniqueIndex: entry.Index,
 		ID:          ident.BinaryID(id),
 		Namespace:   ident.BinaryID(namespace),
 		Shard:       decoded.Shard,
+		Tags:        tags,
 	}
+
 	metadataLookup[entry.Index] = seriesMetadata{
 		Series:          metadata,
 		passedPredicate: r.seriesPredicate(metadata.ID, metadata.Namespace),
@@ -482,5 +519,6 @@ func (r *reader) close() error {
 	if r.chunkReader.fd == nil {
 		return nil
 	}
+
 	return r.chunkReader.fd.Close()
 }

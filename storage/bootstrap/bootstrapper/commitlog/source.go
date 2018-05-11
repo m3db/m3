@@ -22,15 +22,16 @@ package commitlog
 
 import (
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
@@ -46,6 +47,7 @@ type newIteratorFn func(opts commitlog.IteratorOpts) (commitlog.Iterator, error)
 
 type commitLogSource struct {
 	opts          Options
+	inspection    fs.Inspection
 	log           xlog.Logger
 	newIteratorFn newIteratorFn
 }
@@ -55,13 +57,15 @@ type encoder struct {
 	enc         encoding.Encoder
 }
 
-func newCommitLogSource(opts Options) bootstrap.Source {
+func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source {
 	return &commitLogSource{
 		opts:          opts,
+		inspection:    inspection,
 		log:           opts.ResultOptions().InstrumentOptions().Logger(),
 		newIteratorFn: commitlog.NewIterator,
 	}
 }
+
 func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
 	switch strategy {
 	case bootstrap.BootstrapSequential:
@@ -70,7 +74,7 @@ func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
 	return false
 }
 
-func (s *commitLogSource) Available(
+func (s *commitLogSource) AvailableData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
@@ -80,16 +84,17 @@ func (s *commitLogSource) Available(
 	return shardsTimeRanges
 }
 
-func (s *commitLogSource) Read(
+func (s *commitLogSource) ReadData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
-) (result.BootstrapResult, error) {
+) (result.DataBootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
-		return nil, nil
+		return result.NewDataBootstrapResult(), nil
 	}
 
-	readCommitLogPredicate := newReadCommitLogPredicate(ns, shardsTimeRanges, s.opts)
+	readCommitLogPredicate := newReadCommitLogPredicate(
+		ns, shardsTimeRanges, s.opts, s.inspection)
 	readSeriesPredicate := newReadSeriesPredicate(ns)
 	iterOpts := commitlog.IteratorOpts{
 		CommitLogOptions:      s.opts.CommitLogOptions(),
@@ -147,7 +152,7 @@ func (s *commitLogSource) Read(
 
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
-		if !s.shouldEncodeSeries(unmerged, blockSize, series, dp) {
+		if !s.shouldEncodeForData(unmerged, blockSize, series, dp.Timestamp) {
 			continue
 		}
 
@@ -176,7 +181,7 @@ func (s *commitLogSource) Read(
 	wg.Wait()
 	s.logEncodingOutcome(workerErrs, iter)
 
-	return s.mergeShards(int(numShards), bopts, blopts, encoderPool, unmerged), nil
+	return s.mergeShards(int(numShards), bopts, blockSize, blopts, encoderPool, unmerged), nil
 }
 
 func (s *commitLogSource) startM3TSZEncodingWorker(
@@ -202,6 +207,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		if !ok {
 			unmergedSeries = encodersByTime{
 				id:       series.ID,
+				tags:     series.Tags,
 				encoders: make(map[xtime.UnixNano]encoders)}
 			unmergedShard[series.UniqueIndex] = unmergedSeries
 		}
@@ -240,11 +246,11 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 	wg.Done()
 }
 
-func (s *commitLogSource) shouldEncodeSeries(
+func (s *commitLogSource) shouldEncodeForData(
 	unmerged []encodersAndRanges,
-	blockSize time.Duration,
+	dataBlockSize time.Duration,
 	series commitlog.Series,
-	dp ts.Datapoint,
+	timestamp time.Time,
 ) bool {
 	// Check if the shard number is higher the amount of space we pre-allocated.
 	// If it is, then it's not one of the shards we're trying to bootstrap
@@ -260,8 +266,8 @@ func (s *commitLogSource) shouldEncodeSeries(
 	}
 
 	// Check if the block corresponds to the time-range that we're trying to bootstrap
-	blockStart := dp.Timestamp.Truncate(blockSize)
-	blockEnd := blockStart.Add(blockSize)
+	blockStart := timestamp.Truncate(dataBlockSize)
+	blockEnd := blockStart.Add(dataBlockSize)
 	blockRange := xtime.Range{
 		Start: blockStart,
 		End:   blockEnd,
@@ -270,17 +276,49 @@ func (s *commitLogSource) shouldEncodeSeries(
 	return ranges.Overlaps(blockRange)
 }
 
+func (s *commitLogSource) shouldIncludeInIndex(
+	shard uint32,
+	ts time.Time,
+	highestShard uint32,
+	indexBlockSize time.Duration,
+	bootstrapRangesByShard []xtime.Ranges,
+) bool {
+	if shard > highestShard {
+		// Not trying to bootstrap this shard
+		return false
+	}
+
+	rangesToBootstrap := bootstrapRangesByShard[shard]
+	if rangesToBootstrap.IsEmpty() {
+		// No ShardTimeRanges were provided for this shard, so we're not
+		// bootstrapping it.
+		return false
+	}
+
+	// Check if the timestamp corresponds to one of the index blocks we're
+	// trying to bootstrap.
+	indexBlockStart := ts.Truncate(indexBlockSize)
+	indexBlockEnd := indexBlockStart.Add(indexBlockSize)
+	indexBlockRange := xtime.Range{
+		Start: indexBlockStart,
+		End:   indexBlockEnd,
+	}
+
+	return rangesToBootstrap.Overlaps(indexBlockRange)
+}
+
 func (s *commitLogSource) mergeShards(
 	numShards int,
 	bopts result.Options,
+	blockSize time.Duration,
 	blopts block.Options,
 	encoderPool encoding.EncoderPool,
 	unmerged []encodersAndRanges,
-) result.BootstrapResult {
+) result.DataBootstrapResult {
 	var (
 		shardErrs               = make([]int, numShards)
 		shardEmptyErrs          = make([]int, numShards)
-		bootstrapResult         = result.NewBootstrapResult()
+		bootstrapResult         = result.NewDataBootstrapResult()
 		blocksPool              = bopts.DatabaseBlockOptions().DatabaseBlockPool()
 		multiReaderIteratorPool = blopts.MultiReaderIteratorPool()
 		// Controls how many shards can be merged in parallel
@@ -300,7 +338,8 @@ func (s *commitLogSource) mergeShards(
 		mergeShardFunc := func() {
 			var shardResult result.ShardResult
 			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
-				unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
+				shard, unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blockSize, blopts)
+
 			if shardResult != nil && shardResult.NumSeries() > 0 {
 				// Prevent race conditions while updating bootstrapResult from multiple go-routines
 				bootstrapResultLock.Lock()
@@ -320,10 +359,12 @@ func (s *commitLogSource) mergeShards(
 }
 
 func (s *commitLogSource) mergeShard(
+	shard int,
 	unmergedShard encodersAndRanges,
 	blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	encoderPool encoding.EncoderPool,
+	blockSize time.Duration,
 	blopts block.Options,
 ) (result.ShardResult, int, int) {
 	var shardResult result.ShardResult
@@ -336,6 +377,7 @@ func (s *commitLogSource) mergeShard(
 			blocksPool,
 			multiReaderIteratorPool,
 			encoderPool,
+			blockSize,
 			blopts,
 		)
 
@@ -343,7 +385,7 @@ func (s *commitLogSource) mergeShard(
 			if shardResult == nil {
 				shardResult = result.NewShardResult(len(unmergedShard.encodersBySeries), s.opts.ResultOptions())
 			}
-			shardResult.AddSeries(unmergedBlocks.id, nil, seriesBlocks) // FOLLOWUP(prateek): include tags in commit log reader
+			shardResult.AddSeries(unmergedBlocks.id, unmergedBlocks.tags, seriesBlocks)
 		}
 
 		numShardEmptyErrs += numSeriesEmptyErrs
@@ -357,6 +399,7 @@ func (s *commitLogSource) mergeSeries(
 	blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	encoderPool encoding.EncoderPool,
+	blockSize time.Duration,
 	blopts block.Options,
 ) (block.DatabaseSeriesBlocks, int, int) {
 	var seriesBlocks block.DatabaseSeriesBlocks
@@ -373,7 +416,7 @@ func (s *commitLogSource) mergeSeries(
 
 		if len(encoders) == 1 {
 			pooledBlock := blocksPool.Get()
-			pooledBlock.Reset(start, encoders[0].enc.Discard())
+			pooledBlock.Reset(start, blockSize, encoders[0].enc.Discard())
 			if seriesBlocks == nil {
 				seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
 			}
@@ -384,7 +427,7 @@ func (s *commitLogSource) mergeSeries(
 		// Convert encoders to readers so we can use iteration helpers
 		readers := encoders.newReaders()
 		iter := multiReaderIteratorPool.Get()
-		iter.Reset(readers)
+		iter.Reset(readers, time.Time{}, 0)
 
 		var err error
 		enc := encoderPool.Get()
@@ -416,7 +459,7 @@ func (s *commitLogSource) mergeSeries(
 		}
 
 		pooledBlock := blocksPool.Get()
-		pooledBlock.Reset(start, enc.Discard())
+		pooledBlock.Reset(start, blockSize, enc.Discard())
 		if seriesBlocks == nil {
 			seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
 		}
@@ -466,10 +509,111 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 	}
 }
 
+func (s *commitLogSource) AvailableIndex(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+) result.ShardTimeRanges {
+	// Commit log bootstrapper is a last ditch effort, so fulfill all
+	// time ranges requested even if not enough data, just to succeed
+	// the bootstrap
+	return shardsTimeRanges
+}
+
+func (s *commitLogSource) ReadIndex(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+	opts bootstrap.RunOptions,
+) (result.IndexBootstrapResult, error) {
+	// FOLLOWUP(rartoul): implement the commit log source returning
+	// not indexed series metadata for the time range required.
+	// Try to cache some data on the commit log source itself
+	// from work done in ReadData(...) to help avoid rereading as
+	// much as possible.
+	// Also: it's now possible to cache the metadata and data
+	// for all namespaces in the first call to ReadData(...) since
+	// the source is used across all namespaces and then discarded after.
+	// Finally, we can also probably improve performance significantly by
+	// implementing a new interface in the Commitlog Reader/Iterator that
+	// only returns a given series once per file, although there is some
+	// trickiness there involving bufferpast and buffer future values.
+	if shardsTimeRanges.IsEmpty() {
+		return result.NewIndexBootstrapResult(), nil
+	}
+
+	// Setup predicates for skipping files / series at iterator and reader level.
+	readCommitLogPredicate := newReadCommitLogPredicate(
+		ns, shardsTimeRanges, s.opts, s.inspection)
+	readSeriesPredicate := newReadSeriesPredicate(ns)
+	iterOpts := commitlog.IteratorOpts{
+		CommitLogOptions:      s.opts.CommitLogOptions(),
+		FileFilterPredicate:   readCommitLogPredicate,
+		SeriesFilterPredicate: readSeriesPredicate,
+	}
+
+	// Create the commitlog iterator
+	iter, err := s.newIteratorFn(iterOpts)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
+	}
+	defer iter.Close()
+
+	highestShard := s.findHighestShard(shardsTimeRanges)
+	// +1 so we can use the shard number as an index throughout without constantly
+	// remembering to subtract 1 to convert to zero-based indexing.
+	numShards := highestShard + 1
+	// Convert the map to a slice for faster lookups
+	bootstrapRangesByShard := make([]xtime.Ranges, numShards)
+	for shard, ranges := range shardsTimeRanges {
+		bootstrapRangesByShard[shard] = ranges
+	}
+
+	var (
+		indexResult    = result.NewIndexBootstrapResult()
+		indexResults   = indexResult.IndexResults()
+		indexOptions   = ns.Options().IndexOptions()
+		indexBlockSize = indexOptions.BlockSize()
+		resultOptions  = s.opts.ResultOptions()
+	)
+
+	for iter.Next() {
+		series, dp, _, _ := iter.Current()
+		if !s.shouldIncludeInIndex(
+			series.Shard, dp.Timestamp, highestShard, indexBlockSize, bootstrapRangesByShard) {
+			continue
+		}
+
+		segment, err := indexResults.GetOrAddSegment(dp.Timestamp, indexOptions, resultOptions)
+		if err != nil {
+			return nil, err
+		}
+
+		exists, err := segment.ContainsID(series.ID.Data().Bytes())
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			continue
+		}
+
+		d, err := convert.FromMetric(series.ID, series.Tags)
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = segment.Insert(d)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return indexResult, nil
+}
+
 func newReadCommitLogPredicate(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts Options,
+	inspection fs.Inspection,
 ) commitlog.FileFilterPredicate {
 	// Minimum and maximum times for which we want to bootstrap
 	shardMin, shardMax := shardsTimeRanges.MinMax()
@@ -483,7 +627,19 @@ func newReadCommitLogPredicate(
 	bufferPast := ns.Options().RetentionOptions().BufferPast()
 	bufferFuture := ns.Options().RetentionOptions().BufferFuture()
 
-	return func(entryTime time.Time, entryDuration time.Duration) bool {
+	// commitlogFilesPresentBeforeStart is a set of all the commitlog files that were
+	// on disk before the node started.
+	commitlogFilesPresentBeforeStart := inspection.CommitLogFilesSet()
+
+	return func(name string, entryTime time.Time, entryDuration time.Duration) bool {
+		_, ok := commitlogFilesPresentBeforeStart[name]
+		if !ok {
+			// If the file wasn't on disk before the node started then it only contains
+			// writes that are already in memory (and in-fact the file may be actively
+			// being written to.)
+			return false
+		}
+
 		// If there is any amount of overlap between the commitlog range and the
 		// shardRange then we need to read the commitlog file
 		return xtime.Range{
@@ -506,7 +662,8 @@ type encodersAndRanges struct {
 }
 
 type encodersByTime struct {
-	id ident.ID
+	id   ident.ID
+	tags ident.Tags
 	// int64 instead of time.Time because there is an optimized map access pattern
 	// for i64's
 	encoders map[xtime.UnixNano]encoders
@@ -524,7 +681,7 @@ type encoderArg struct {
 
 type encoders []encoder
 
-type ioReaders []io.Reader
+type ioReaders []xio.SegmentReader
 
 func (e encoders) newReaders() ioReaders {
 	readers := make(ioReaders, len(e))

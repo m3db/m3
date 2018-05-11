@@ -33,11 +33,15 @@ import (
 const (
 	// defaultIndexInsertMode sets the default indexing mode to synchronous.
 	defaultIndexInsertMode = InsertSync
+
+	defaultTagArrayPoolInitCapacity = 8
+	defaultTagArrayPoolMaxCapacity  = 32
 )
 
 var (
 	errOptionsIdentifierPoolUnspecified = errors.New("identifier pool is unset")
 	errOptionsBytesPoolUnspecified      = errors.New("checkedbytes pool is unset")
+	errOptionsResultsPoolUnspecified    = errors.New("results pool is unset")
 	errIDGenerationDisabled             = errors.New("id generation is disabled")
 )
 
@@ -48,25 +52,37 @@ type opts struct {
 	memOpts        mem.Options
 	idPool         ident.Pool
 	bytesPool      pool.CheckedBytesPool
+	resultsPool    ResultsPool
+	tagArrayPool   TagArrayPool
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
 
 // NewOptions returns a new index.Options object with default properties.
 func NewOptions() Options {
+	resultsPool := NewResultsPool(pool.NewObjectPoolOptions())
+	tagArrayPool := NewTagArrayPool(TagArrayPoolOpts{
+		Capacity:    defaultTagArrayPoolInitCapacity,
+		MaxCapacity: defaultTagArrayPoolMaxCapacity,
+	})
+	tagArrayPool.Init()
 	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
 	idPool := ident.NewPool(bytesPool, nil)
-	return &opts{
+	opts := &opts{
 		insertMode:     defaultIndexInsertMode,
 		clockOpts:      clock.NewOptions(),
 		instrumentOpts: instrument.NewOptions(),
 		memOpts:        mem.NewOptions().SetNewUUIDFn(undefinedUUIDFn),
 		bytesPool:      bytesPool,
 		idPool:         idPool,
+		tagArrayPool:   tagArrayPool,
+		resultsPool:    resultsPool,
 	}
+	resultsPool.Init(func() Results { return NewResults(opts) })
+	return opts
 }
 
 func (o *opts) Validate() error {
@@ -75,6 +91,9 @@ func (o *opts) Validate() error {
 	}
 	if o.bytesPool == nil {
 		return errOptionsBytesPoolUnspecified
+	}
+	if o.resultsPool == nil {
+		return errOptionsResultsPoolUnspecified
 	}
 	return nil
 }
@@ -139,4 +158,24 @@ func (o *opts) SetCheckedBytesPool(value pool.CheckedBytesPool) Options {
 
 func (o *opts) CheckedBytesPool() pool.CheckedBytesPool {
 	return o.bytesPool
+}
+
+func (o *opts) SetResultsPool(value ResultsPool) Options {
+	opts := *o
+	opts.resultsPool = value
+	return &opts
+}
+
+func (o *opts) ResultsPool() ResultsPool {
+	return o.resultsPool
+}
+
+func (o *opts) SetTagArrayPool(value TagArrayPool) Options {
+	opts := *o
+	opts.tagArrayPool = value
+	return &opts
+}
+
+func (o *opts) TagArrayPool() TagArrayPool {
+	return o.tagArrayPool
 }

@@ -134,7 +134,7 @@ func seriesChecksumsFromReader(reader fs.DataFileSetReader, host string, shard u
 		block:  block,
 	}
 	for {
-		id, _, checksumVal, err := reader.ReadMetadata()
+		id, _, _, checksumVal, err := reader.ReadMetadata()
 		if err == io.EOF {
 			return seriesChecksums
 		}

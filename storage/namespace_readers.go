@@ -269,19 +269,21 @@ func (m *namespaceReaderManager) get(
 
 	// Fast fwd through if in the middle of a volume
 	for i := 0; i < position.dataIdx; i++ {
-		id, data, _, err := reader.Read()
+		id, tags, data, _, err := reader.Read()
 		if err != nil {
 			return nil, err
 		}
 		id.Finalize()
+		tags.Close()
 		data.Finalize()
 	}
 	for i := 0; i < position.metadataIdx; i++ {
-		id, _, _, err := reader.ReadMetadata()
+		id, tags, _, _, err := reader.ReadMetadata()
 		if err != nil {
 			return nil, err
 		}
 		id.Finalize()
+		tags.Close()
 	}
 
 	return reader, nil

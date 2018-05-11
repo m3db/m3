@@ -39,7 +39,6 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -113,7 +112,7 @@ func (r shardRepairer) Repair(
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
-	ctx.RegisterFinalizer(resource.FinalizerFn(localMetadata.Close))
+	ctx.RegisterCloser(localMetadata)
 
 	localIter := block.NewFilteredBlocksMetadataIter(localMetadata)
 	metadata.AddLocalMetadata(origin, localIter)
@@ -170,7 +169,6 @@ type sleepFn func(d time.Duration)
 
 type repairStatus int
 
-// nolint: deadcode
 const (
 	repairNotStarted repairStatus = iota
 	repairSuccess

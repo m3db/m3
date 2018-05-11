@@ -54,7 +54,7 @@ const (
 
 type objectType int
 
-// nolint: deadcode, varcheck, unused
+// nolint: varcheck, unused
 const (
 	// Adding any new object types is a backwards-compatible change I.E
 	// the new binary will still be able to read old files, but it is
@@ -102,7 +102,7 @@ const (
 	currNumIndexInfoFields            = 8
 	currNumIndexSummariesInfoFields   = 1
 	currNumIndexBloomFilterInfoFields = 2
-	currNumIndexEntryFields           = 5
+	currNumIndexEntryFields           = 6
 	currNumIndexSummaryFields         = 3
 	currNumLogInfoFields              = 3
 	currNumLogEntryFields             = 7

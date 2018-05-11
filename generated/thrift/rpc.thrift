@@ -130,6 +130,8 @@ struct Segments {
 struct Segment {
 	1: required binary head
 	2: required binary tail
+	3: optional i64 startTime
+	4: optional i64 blockSize
 }
 
 struct FetchTaggedRequest {
@@ -263,6 +265,7 @@ struct BlockMetadataV2 {
 	5: optional i64 checksum
 	6: optional i64 lastRead
 	7: optional TimeType lastReadTimeType = TimeType.UNIX_SECONDS
+	8: optional binary encodedTags
 }
 
 struct WriteBatchRawRequest {

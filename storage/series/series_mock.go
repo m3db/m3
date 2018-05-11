@@ -63,10 +63,11 @@ func (m *MockDatabaseSeries) EXPECT() *MockDatabaseSeriesMockRecorder {
 }
 
 // Bootstrap mocks base method
-func (m *MockDatabaseSeries) Bootstrap(arg0 block.DatabaseSeriesBlocks) error {
+func (m *MockDatabaseSeries) Bootstrap(arg0 block.DatabaseSeriesBlocks) (BootstrapResult, error) {
 	ret := m.ctrl.Call(m, "Bootstrap", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(BootstrapResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Bootstrap indicates an expected call of Bootstrap
@@ -98,10 +99,11 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocks(arg0, arg1 interface{}) *g
 }
 
 // FetchBlocksMetadata mocks base method
-func (m *MockDatabaseSeries) FetchBlocksMetadata(arg0 context.Context, arg1, arg2 time.Time, arg3 FetchBlocksMetadataOptions) block.FetchBlocksMetadataResult {
+func (m *MockDatabaseSeries) FetchBlocksMetadata(arg0 context.Context, arg1, arg2 time.Time, arg3 FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResult, error) {
 	ret := m.ctrl.Call(m, "FetchBlocksMetadata", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResult)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // FetchBlocksMetadata indicates an expected call of FetchBlocksMetadata
@@ -110,10 +112,11 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksMetadata(arg0, arg1, arg2, 
 }
 
 // Flush mocks base method
-func (m *MockDatabaseSeries) Flush(arg0 context.Context, arg1 time.Time, arg2 persist.Fn) error {
+func (m *MockDatabaseSeries) Flush(arg0 context.Context, arg1 time.Time, arg2 persist.Fn) (FlushOutcome, error) {
 	ret := m.ctrl.Call(m, "Flush", arg0, arg1, arg2)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(FlushOutcome)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Flush indicates an expected call of Flush
@@ -180,19 +183,19 @@ func (mr *MockDatabaseSeriesMockRecorder) OnEvictedFromWiredList(arg0, arg1 inte
 }
 
 // OnRetrieveBlock mocks base method
-func (m *MockDatabaseSeries) OnRetrieveBlock(arg0 ident.ID, arg1 time.Time, arg2 ts.Segment) {
-	m.ctrl.Call(m, "OnRetrieveBlock", arg0, arg1, arg2)
+func (m *MockDatabaseSeries) OnRetrieveBlock(arg0 ident.ID, arg1 ident.TagIterator, arg2 time.Time, arg3 ts.Segment) {
+	m.ctrl.Call(m, "OnRetrieveBlock", arg0, arg1, arg2, arg3)
 }
 
 // OnRetrieveBlock indicates an expected call of OnRetrieveBlock
-func (mr *MockDatabaseSeriesMockRecorder) OnRetrieveBlock(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnRetrieveBlock", reflect.TypeOf((*MockDatabaseSeries)(nil).OnRetrieveBlock), arg0, arg1, arg2)
+func (mr *MockDatabaseSeriesMockRecorder) OnRetrieveBlock(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnRetrieveBlock", reflect.TypeOf((*MockDatabaseSeries)(nil).OnRetrieveBlock), arg0, arg1, arg2, arg3)
 }
 
 // ReadEncoded mocks base method
-func (m *MockDatabaseSeries) ReadEncoded(arg0 context.Context, arg1, arg2 time.Time) ([][]xio.SegmentReader, error) {
+func (m *MockDatabaseSeries) ReadEncoded(arg0 context.Context, arg1, arg2 time.Time) ([][]xio.BlockReader, error) {
 	ret := m.ctrl.Call(m, "ReadEncoded", arg0, arg1, arg2)
-	ret0, _ := ret[0].([][]xio.SegmentReader)
+	ret0, _ := ret[0].([][]xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -297,9 +300,9 @@ func (mr *MockQueryableBlockRetrieverMockRecorder) IsBlockRetrievable(arg0 inter
 }
 
 // Stream mocks base method
-func (m *MockQueryableBlockRetriever) Stream(arg0 context.Context, arg1 ident.ID, arg2 time.Time, arg3 block.OnRetrieveBlock) (xio.SegmentReader, error) {
+func (m *MockQueryableBlockRetriever) Stream(arg0 context.Context, arg1 ident.ID, arg2 time.Time, arg3 block.OnRetrieveBlock) (xio.BlockReader, error) {
 	ret := m.ctrl.Call(m, "Stream", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].(xio.SegmentReader)
+	ret0, _ := ret[0].(xio.BlockReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -40,8 +40,8 @@ type Encoder interface {
 	// Stream is the streaming interface for reading encoded bytes in the encoder.
 	Stream() xio.SegmentReader
 
-	// StreamLen returns the length of the encoded bytes in the encoder.
-	StreamLen() int
+	// Len returns the length of the encoded bytes in the encoder.
+	Len() int
 
 	// Reset resets the start time of the encoder and the internal state.
 	Reset(t time.Time, capacity int)
@@ -135,10 +135,13 @@ type MultiReaderIterator interface {
 	Iterator
 
 	// Reset resets the iterator to read from a slice of readers.
-	Reset(readers []io.Reader)
+	Reset(readers []xio.SegmentReader, start time.Time, blockSize time.Duration)
 
 	// Reset resets the iterator to read from a slice of slice readers.
 	ResetSliceOfSlices(readers xio.ReaderSliceOfSlicesIterator)
+
+	// Readers exposes the underlying ReaderSliceOfSlicesIterator for this MultiReaderIterator
+	Readers() xio.ReaderSliceOfSlicesIterator
 }
 
 // SeriesIterator is an iterator that iterates over a set of iterators from different replicas
@@ -166,7 +169,10 @@ type SeriesIterator interface {
 	// must note that this can be an array with nil entries if some replicas did not return successfully.
 	// NB: the SeriesIterator assumes ownership of the provided ids, this includes calling `id.Finalize()` upon
 	// iter.Close().
-	Reset(id ident.ID, ns ident.ID, t ident.TagIterator, startInclusive, endExclusive time.Time, replicas []Iterator)
+	Reset(id ident.ID, ns ident.ID, t ident.TagIterator, startInclusive, endExclusive time.Time, replicas []MultiReaderIterator)
+
+	// Replicas exposes the underlying MultiReaderIterator slice for this SeriesIterator
+	Replicas() []MultiReaderIterator
 }
 
 // SeriesIterators is a collection of SeriesIterator that can close all iterators
@@ -292,14 +298,14 @@ type MutableSeriesIteratorsPool interface {
 	Put(iters MutableSeriesIterators)
 }
 
-// IteratorArrayPool provides a pool for Iterator arrays
-type IteratorArrayPool interface {
+// MultiReaderIteratorArrayPool provides a pool for MultiReaderIterator arrays
+type MultiReaderIteratorArrayPool interface {
 	// Init initializes the pool
 	Init()
 
 	// Get provides a Iterator array from the pool
-	Get(size int) []Iterator
+	Get(size int) []MultiReaderIterator
 
 	// Put returns a Iterator array to the pool
-	Put(iters []Iterator)
+	Put(iters []MultiReaderIterator)
 }

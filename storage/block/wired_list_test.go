@@ -67,7 +67,7 @@ func newTestUnwireableBlock(
 	}
 	segment.Head.IncRef()
 
-	bl := NewDatabaseBlock(time.Time{}, segment, opts).(*dbBlock)
+	bl := NewDatabaseBlock(time.Time{}, 0, segment, opts).(*dbBlock)
 	bl.Lock()
 	bl.retrieveID = ident.StringID(name)
 	bl.wasRetrievedFromDisk = true
@@ -160,7 +160,7 @@ func TestWiredListRemovesUnwiredBlocks(t *testing.T) {
 	require.Equal(t, &l.root, l.root.prev())
 }
 
-// wiredListTestWiredBlocksString use for debugging order of wired list
+// wiredListTestWiredBlocksString is used to debug the order of the wired list
 func wiredListTestWiredBlocksString(l *WiredList) string { // nolint: unused
 	b := bytes.NewBuffer(nil)
 	for bl := l.root.next(); bl != &l.root; bl = bl.next() {

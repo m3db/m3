@@ -20,12 +20,14 @@
 
 package xio
 
-import "github.com/m3db/m3db/ts"
+import (
+	"github.com/m3db/m3db/ts"
+)
 
-// nolint: deadcode
 type nullSegmentReader struct{}
 
-func (r nullSegmentReader) Read(p []byte) (n int, err error) { return 0, nil }
-func (r nullSegmentReader) Segment() (ts.Segment, error)     { return ts.Segment{}, nil }
-func (r nullSegmentReader) Reset(segment ts.Segment)         {}
-func (r nullSegmentReader) Finalize()                        {}
+func (r nullSegmentReader) Read([]byte) (n int, err error) { return 0, nil }
+func (r nullSegmentReader) Segment() (ts.Segment, error)   { return ts.Segment{}, nil }
+func (r nullSegmentReader) Reset(ts.Segment)               {}
+func (r nullSegmentReader) Finalize()                      {}
+func (r nullSegmentReader) Clone() (SegmentReader, error)  { return r, nil }

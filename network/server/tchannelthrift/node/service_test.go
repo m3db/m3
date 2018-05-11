@@ -21,7 +21,9 @@
 package node
 
 import (
+	"bytes"
 	"fmt"
+	"sort"
 	"testing"
 	"time"
 
@@ -38,6 +40,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3ninx/idx"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
@@ -124,8 +127,12 @@ func TestServiceFetch(t *testing.T) {
 
 	mockDB.EXPECT().
 		ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher("foo"), start, end).
-		Return([][]xio.SegmentReader{
-			[]xio.SegmentReader{enc.Stream()},
+		Return([][]xio.BlockReader{
+			[]xio.BlockReader{
+				xio.BlockReader{
+					SegmentReader: enc.Stream(),
+				},
+			},
 		}, nil)
 
 	r, err := service.Fetch(tctx, &rpc.FetchRequest{
@@ -194,8 +201,12 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
-			Return([][]xio.SegmentReader{
-				[]xio.SegmentReader{enc.Stream()},
+			Return([][]xio.BlockReader{
+				[]xio.BlockReader{
+					xio.BlockReader{
+						SegmentReader: enc.Stream(),
+					},
+				},
 			}, nil)
 	}
 
@@ -292,10 +303,17 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 		checksum := digest.SegmentChecksum(seg)
 		checksums[id] = checksum
 
+		expectedBlockReader := []xio.BlockReader{
+			xio.BlockReader{
+				SegmentReader: enc.Stream(),
+				Start:         start,
+			},
+		}
+
 		mockDB.EXPECT().
 			FetchBlocks(ctx, ident.NewIDMatcher(nsID), uint32(0), ident.NewIDMatcher(id), starts).
 			Return([]block.FetchBlockResult{
-				block.NewFetchBlockResult(start, []xio.SegmentReader{enc.Stream()}, nil),
+				block.NewFetchBlockResult(start, expectedBlockReader, nil),
 			}, nil)
 	}
 
@@ -479,19 +497,34 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 	)
 
 	// Prepare test data
-	series := map[string][]struct {
+	type testBlock struct {
 		start    time.Time
 		size     int64
 		checksum uint32
 		lastRead time.Time
+	}
+	series := map[string]struct {
+		tags ident.Tags
+		data []testBlock
 	}{
 		"foo": {
-			{start.Add(0 * time.Hour), 16, 111, time.Now().Add(-time.Minute)},
-			{start.Add(2 * time.Hour), 32, 222, time.Time{}},
+			// Check with tags
+			tags: ident.Tags{
+				ident.StringTag("aaa", "bbb"),
+				ident.StringTag("ccc", "ddd"),
+			},
+			data: []testBlock{
+				{start.Add(0 * time.Hour), 16, 111, time.Now().Add(-time.Minute)},
+				{start.Add(2 * time.Hour), 32, 222, time.Time{}},
+			},
 		},
 		"bar": {
-			{start.Add(0 * time.Hour), 32, 222, time.Time{}},
-			{start.Add(2 * time.Hour), 64, 333, time.Now().Add(-time.Minute)},
+			// And without tags
+			tags: ident.Tags{},
+			data: []testBlock{
+				{start.Add(0 * time.Hour), 32, 222, time.Time{}},
+				{start.Add(2 * time.Hour), 64, 333, time.Now().Add(-time.Minute)},
+			},
 		},
 	}
 	ids := make([][]byte, 0, len(series))
@@ -500,11 +533,9 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 	for id, s := range series {
 		ids = append(ids, []byte(id))
 		blocks := block.NewFetchBlockMetadataResults()
-		metadata := block.FetchBlocksMetadataResult{
-			ID:     ident.StringID(id),
-			Blocks: blocks,
-		}
-		for _, v := range s {
+		metadata := block.NewFetchBlocksMetadataResult(ident.StringID(id),
+			ident.NewTagSliceIterator(s.tags), blocks)
+		for _, v := range s.data {
 			numBlocks++
 			entry := v
 			blocks.Add(block.FetchBlockMetadataResult{
@@ -553,8 +584,21 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 
 		expectedBlocks := series[string(block.ID)]
 
+		if len(expectedBlocks.tags) == 0 {
+			require.Equal(t, 0, len(block.EncodedTags))
+		} else {
+			encodedTags := checked.NewBytes(block.EncodedTags, nil)
+			decoder := service.pools.tagDecoder.Get()
+			decoder.Reset(encodedTags)
+
+			expectedTags := ident.NewTagSliceIterator(expectedBlocks.tags)
+			require.True(t, ident.NewTagIterMatcher(expectedTags).Matches(decoder))
+
+			decoder.Close()
+		}
+
 		foundMatch := false
-		for _, expectedBlock := range expectedBlocks {
+		for _, expectedBlock := range expectedBlocks.data {
 			if expectedBlock.start.UnixNano() != block.Start {
 				continue
 			}
@@ -615,49 +659,38 @@ func TestServiceFetchTagged(t *testing.T) {
 		streams[id] = enc.Stream()
 		mockDB.EXPECT().
 			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
-			Return([][]xio.SegmentReader{
-				[]xio.SegmentReader{enc.Stream()},
-			}, nil)
+			Return([][]xio.BlockReader{{
+				xio.BlockReader{
+					SegmentReader: enc.Stream(),
+				},
+			}}, nil)
 	}
 
 	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	require.NoError(t, err)
 	qry := index.Query{req}
 
-	mIter := index.NewMockIterator(ctrl)
-	gomock.InOrder(
-		mockDB.EXPECT().QueryIDs(
-			ctx,
-			ident.NewIDMatcher(nsID),
-			index.NewQueryMatcher(qry),
-			index.QueryOptions{
-				StartInclusive: start,
-				EndExclusive:   end,
-				Limit:          10,
-			}).Return(index.QueryResults{mIter, true}, nil),
-		mIter.EXPECT().Next().Return(true),
-		mIter.EXPECT().Current().Return(
-			ident.StringID(nsID),
-			ident.StringID("foo"),
-			ident.NewTagIterator(
-				ident.StringTag("foo", "bar"),
-				ident.StringTag("baz", "dxk"),
-			),
-		),
-		mIter.EXPECT().Next().Return(true),
-		mIter.EXPECT().Current().Return(
-			ident.StringID(nsID),
-			ident.StringID("bar"),
-			ident.NewTagIterator(
-				ident.StringTag("foo", "bar"),
-				ident.StringTag("dzk", "baz"),
-			),
-		),
-		mIter.EXPECT().Next().Return(false),
-		mIter.EXPECT().Err().Return(nil),
-	)
+	resMap := index.NewResults(index.NewOptions())
+	resMap.Reset(ident.StringID(nsID))
+	resMap.Map().Set(ident.StringID("foo"), ident.Tags{
+		ident.StringTag("foo", "bar"),
+		ident.StringTag("baz", "dxk"),
+	})
+	resMap.Map().Set(ident.StringID("bar"), ident.Tags{
+		ident.StringTag("foo", "bar"),
+		ident.StringTag("dzk", "baz"),
+	})
 
-	ids := [][]byte{[]byte("foo"), []byte("bar")}
+	mockDB.EXPECT().QueryIDs(
+		ctx,
+		ident.NewIDMatcher(nsID),
+		index.NewQueryMatcher(qry),
+		index.QueryOptions{
+			StartInclusive: start,
+			EndExclusive:   end,
+			Limit:          10,
+		}).Return(index.QueryResults{resMap, true}, nil)
+
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
 	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
@@ -682,6 +715,11 @@ func TestServiceFetchTagged(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// sort to order results to make test deterministic.
+	sort.Slice(r.Elements, func(i, j int) bool {
+		return bytes.Compare(r.Elements[i].ID, r.Elements[j].ID) < 0
+	})
+	ids := [][]byte{[]byte("bar"), []byte("foo")}
 	require.Equal(t, len(ids), len(r.Elements))
 	for i, id := range ids {
 		elem := r.Elements[i]
@@ -733,28 +771,20 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{req}
 
-	mIter := index.NewMockIterator(ctrl)
-	gomock.InOrder(
-		mockDB.EXPECT().QueryIDs(
-			ctx,
-			ident.NewIDMatcher(nsID),
-			index.NewQueryMatcher(qry),
-			index.QueryOptions{
-				StartInclusive: start,
-				EndExclusive:   end,
-				Limit:          10,
-			}).Return(index.QueryResults{mIter, true}, nil),
-		mIter.EXPECT().Next().Return(true),
-		mIter.EXPECT().Current().Return(
-			ident.StringID(nsID), ident.StringID("foo"), ident.EmptyTagIterator),
-		mIter.EXPECT().Next().Return(true),
-		mIter.EXPECT().Current().Return(
-			ident.StringID(nsID), ident.StringID("bar"), ident.EmptyTagIterator),
-		mIter.EXPECT().Next().Return(false),
-		mIter.EXPECT().Err().Return(nil),
-	)
+	resMap := index.NewResults(index.NewOptions())
+	resMap.Reset(ident.StringID(nsID))
+	resMap.Map().Set(ident.StringID("foo"), nil)
+	resMap.Map().Set(ident.StringID("bar"), nil)
+	mockDB.EXPECT().QueryIDs(
+		ctx,
+		ident.NewIDMatcher(nsID),
+		index.NewQueryMatcher(qry),
+		index.QueryOptions{
+			StartInclusive: start,
+			EndExclusive:   end,
+			Limit:          10,
+		}).Return(index.QueryResults{resMap, true}, nil)
 
-	ids := [][]byte{[]byte("foo"), []byte("bar")}
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
 	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
@@ -779,6 +809,11 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// sort to order results to make test deterministic.
+	sort.Slice(r.Elements, func(i, j int) bool {
+		return bytes.Compare(r.Elements[i].ID, r.Elements[j].ID) < 0
+	})
+	ids := [][]byte{[]byte("bar"), []byte("foo")}
 	require.Equal(t, len(ids), len(r.Elements))
 	for i, id := range ids {
 		elem := r.Elements[i]
@@ -817,39 +852,6 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 	require.NoError(t, err)
 	qry := index.Query{req}
 
-	mIter := index.NewMockIterator(ctrl)
-	gomock.InOrder(
-		mockDB.EXPECT().QueryIDs(
-			ctx,
-			ident.NewIDMatcher(nsID),
-			index.NewQueryMatcher(qry),
-			index.QueryOptions{
-				StartInclusive: start,
-				EndExclusive:   end,
-				Limit:          10,
-			}).Return(index.QueryResults{mIter, true}, nil),
-		mIter.EXPECT().Next().Return(false),
-		mIter.EXPECT().Err().Return(fmt.Errorf("random err")),
-	)
-	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
-		NameSpace: []byte(nsID),
-		Query: &rpc.IdxQuery{
-			Operator: rpc.BooleanOperator_AND_OPERATOR,
-			Filters: []*rpc.IdxTagFilter{
-				&rpc.IdxTagFilter{
-					TagName:        []byte("foo"),
-					TagValueFilter: []byte("b.*"),
-					Regexp:         true,
-				},
-			},
-		},
-		RangeStart: startNanos,
-		RangeEnd:   endNanos,
-		FetchData:  false,
-		Limit:      &limit,
-	})
-	require.Error(t, err)
-
 	mockDB.EXPECT().QueryIDs(
 		ctx,
 		ident.NewIDMatcher(nsID),
@@ -858,7 +860,7 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.QueryResults{nil, true}, fmt.Errorf("random err"))
+		}).Return(index.QueryResults{}, fmt.Errorf("random err"))
 	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
 		NameSpace: []byte(nsID),
 		Query: &rpc.IdxQuery{

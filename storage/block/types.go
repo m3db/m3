@@ -39,6 +39,7 @@ import (
 // Metadata captures block metadata
 type Metadata struct {
 	ID       ident.ID
+	Tags     ident.Tags
 	Start    time.Time
 	Size     int64
 	Checksum *uint32
@@ -50,7 +51,6 @@ type Metadata struct {
 type ReplicaMetadata struct {
 	Metadata
 
-	ID   ident.ID
 	Host topology.Host
 }
 
@@ -66,9 +66,9 @@ type FilteredBlocksMetadataIter interface {
 // FetchBlockResult captures the block start time, the readers for the underlying streams, the
 // corresponding checksum and any errors encountered.
 type FetchBlockResult struct {
-	Start   time.Time
-	Readers []xio.SegmentReader
-	Err     error
+	Start  time.Time
+	Blocks []xio.BlockReader
+	Err    error
 }
 
 // FetchBlocksMetadataOptions are options used when fetching blocks metadata.
@@ -108,6 +108,7 @@ type FetchBlockMetadataResults interface {
 // FetchBlocksMetadataResult captures the fetch results for multiple blocks.
 type FetchBlocksMetadataResult struct {
 	ID     ident.ID
+	Tags   ident.TagIterator
 	Blocks FetchBlockMetadataResults
 }
 
@@ -136,6 +137,9 @@ type DatabaseBlock interface {
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
+	// BlockSize returns the duration of the block.
+	BlockSize() time.Duration
+
 	// SetLastReadTime sets the last read time of the block.
 	SetLastReadTime(value time.Time)
 
@@ -146,16 +150,16 @@ type DatabaseBlock interface {
 	Len() int
 
 	// Checksum returns the block checksum.
-	Checksum() uint32
+	Checksum() (uint32, error)
 
 	// Stream returns the encoded byte stream.
-	Stream(blocker context.Context) (xio.SegmentReader, error)
+	Stream(blocker context.Context) (xio.BlockReader, error)
 
 	// Merge will merge the current block with the specified block
 	// when this block is read. Note: calling this twice
 	// will simply overwrite the target for the block to merge with
 	// rather than merging three blocks together.
-	Merge(other DatabaseBlock)
+	Merge(other DatabaseBlock) error
 
 	// IsRetrieved returns whether the block is already retrieved. Only
 	// meaningful in the context of the CacheAllMetadata series caching policy.
@@ -169,12 +173,13 @@ type DatabaseBlock interface {
 	// from storage to serve as a memory cached block for reads.
 	IsCachedBlock() bool
 
-	// Reset resets the block start time and the segment.
-	Reset(startTime time.Time, segment ts.Segment)
+	// Reset resets the block start time, duration, and the segment.
+	Reset(startTime time.Time, blockSize time.Duration, segment ts.Segment)
 
 	// ResetRetrievable resets the block to become retrievable.
 	ResetRetrievable(
 		startTime time.Time,
+		blockSize time.Duration,
 		retriever DatabaseShardBlockRetriever,
 		metadata RetrievableBlockMetadata,
 	)
@@ -214,6 +219,7 @@ type OnEvictedFromWiredList interface {
 type OnRetrieveBlock interface {
 	OnRetrieveBlock(
 		id ident.ID,
+		tags ident.TagIterator,
 		startTime time.Time,
 		segment ts.Segment,
 	)
@@ -261,7 +267,7 @@ type DatabaseBlockRetriever interface {
 		id ident.ID,
 		blockStart time.Time,
 		onRetrieve OnRetrieveBlock,
-	) (xio.SegmentReader, error)
+	) (xio.BlockReader, error)
 }
 
 // DatabaseShardBlockRetriever is a block retriever bound to a shard.
@@ -272,7 +278,7 @@ type DatabaseShardBlockRetriever interface {
 		id ident.ID,
 		blockStart time.Time,
 		onRetrieve OnRetrieveBlock,
-	) (xio.SegmentReader, error)
+	) (xio.BlockReader, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

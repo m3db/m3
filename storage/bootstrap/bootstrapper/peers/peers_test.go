@@ -30,7 +30,7 @@ import (
 )
 
 func TestNewPeersBootstrapperInvalidOpts(t *testing.T) {
-	_, err := NewPeersBootstrapper(NewOptions(), nil)
+	_, err := NewPeersBootstrapperProvider(NewOptions(), nil)
 	assert.Error(t, err)
 }
 
@@ -41,7 +41,7 @@ func TestNewPeersBootstrapper(t *testing.T) {
 	opts := NewOptions().
 		SetAdminClient(client.NewMockAdminClient(ctrl))
 
-	b, err := NewPeersBootstrapper(opts, nil)
+	b, err := NewPeersBootstrapperProvider(opts, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, PeersBootstrapperName, b.String())
 }

@@ -255,11 +255,11 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		sizes[0], &checksums[0], lastRead, nil))
 	results.Add(block.NewFetchBlockMetadataResult(now.Add(time.Hour),
 		sizes[1], &checksums[1], lastRead, nil))
-	expectedResults.Add(block.NewFetchBlocksMetadataResult(ident.StringID("foo"), results))
+	expectedResults.Add(block.NewFetchBlocksMetadataResult(ident.StringID("foo"), nil, results))
 	results = block.NewFetchBlockMetadataResults()
 	results.Add(block.NewFetchBlockMetadataResult(now.Add(30*time.Minute),
 		sizes[2], &checksums[2], lastRead, nil))
-	expectedResults.Add(block.NewFetchBlocksMetadataResult(ident.StringID("bar"), results))
+	expectedResults.Add(block.NewFetchBlocksMetadataResult(ident.StringID("bar"), nil, results))
 
 	any := gomock.Any()
 	shard.EXPECT().
@@ -272,11 +272,11 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		host topology.Host
 		meta block.Metadata
 	}{
-		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("foo"),
+		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("foo"), nil,
 			now.Add(30*time.Minute), sizes[0], &checksums[0], lastRead)},
-		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("foo"),
+		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("foo"), nil,
 			now.Add(time.Hour), sizes[0], &checksums[1], lastRead)},
-		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("bar"),
+		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("bar"), nil,
 			now.Add(30*time.Minute), sizes[2], &checksums[2], lastRead)},
 	}
 

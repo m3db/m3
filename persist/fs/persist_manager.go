@@ -123,6 +123,7 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 
 func (pm *persistManager) persist(
 	id ident.ID,
+	tags ident.Tags,
 	segment ts.Segment,
 	checksum uint32,
 ) error {
@@ -154,7 +155,7 @@ func (pm *persistManager) persist(
 
 	pm.segmentHolder[0] = segment.Head
 	pm.segmentHolder[1] = segment.Tail
-	err := pm.writer.WriteAll(id, pm.segmentHolder, checksum)
+	err := pm.writer.WriteAll(id, tags, pm.segmentHolder, checksum)
 	pm.count++
 	pm.bytesWritten += int64(segment.Len())
 

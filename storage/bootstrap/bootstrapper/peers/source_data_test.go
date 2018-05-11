@@ -45,8 +45,12 @@ import (
 
 var (
 	testNamespace         = ident.StringID("testnamespace")
-	testNamespaceMetadata = func(t *testing.T) namespace.Metadata {
-		ns, err := namespace.NewMetadata(testNamespace, namespace.NewOptions())
+	testNamespaceMetadata = func(t *testing.T, opts ...namespaceOption) namespace.Metadata {
+		namespaceOpts := namespace.NewOptions()
+		for _, opt := range opts {
+			namespaceOpts = opt(namespaceOpts)
+		}
+		ns, err := namespace.NewMetadata(testNamespace, namespaceOpts)
 		require.NoError(t, err)
 		return ns
 	}
@@ -57,6 +61,8 @@ var (
 	testDefaultResultOpts  = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
 	testDefaultOpts        = NewOptions().SetResultOptions(testDefaultResultOpts)
 )
+
+type namespaceOption func(namespace.Options) namespace.Options
 
 func TestPeersSourceCan(t *testing.T) {
 	src := newPeersSource(testDefaultOpts)
@@ -70,12 +76,13 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 	nsMetdata := testNamespaceMetadata(t)
 
 	target := result.ShardTimeRanges{}
-	available := src.Available(nsMetdata, target)
+	available := src.AvailableData(nsMetdata, target)
 	assert.Equal(t, target, available)
 
-	r, err := src.Read(nsMetdata, target, testDefaultRunOpts)
+	r, err := src.ReadData(nsMetdata, target, testDefaultRunOpts)
 	assert.NoError(t, err)
-	assert.Nil(t, r)
+	assert.Equal(t, 0, len(r.ShardResults()))
+	assert.True(t, r.Unfulfilled().IsEmpty())
 }
 
 func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
@@ -101,7 +108,7 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 		1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
 	}
 
-	_, err := src.Read(nsMetadata, target, testDefaultRunOpts)
+	_, err := src.ReadData(nsMetadata, target, testDefaultRunOpts)
 	require.Error(t, err)
 	assert.Equal(t, expectedErr, err)
 }
@@ -118,7 +125,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	end := start.Add(ropts.BlockSize())
 
 	goodResult := result.NewShardResult(0, opts.ResultOptions())
-	fooBlock := block.NewDatabaseBlock(start, ts.Segment{}, testBlockOpts)
+	fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(), ts.Segment{}, testBlockOpts)
 	goodResult.AddBlock(ident.StringID("foo"), ident.Tags{ident.StringTag("foo", "oof")}, fooBlock)
 	badErr := fmt.Errorf("an error")
 
@@ -144,7 +151,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 		1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
 	}
 
-	r, err := src.Read(nsMetadata, target, testDefaultRunOpts)
+	r, err := src.ReadData(nsMetadata, target, testDefaultRunOpts)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 1, len(r.ShardResults()))
@@ -162,6 +169,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	rangeIter := r.Unfulfilled()[1].Iter()
 	require.True(t, rangeIter.Next())
 	require.Equal(t, xtime.Range{Start: start, End: end}, rangeIter.Value())
+	require.Equal(t, ropts.BlockSize(), block.BlockSize())
 }
 
 func TestPeersSourceIncrementalRun(t *testing.T) {
@@ -183,10 +191,10 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 		shard0ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
 		shard0ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
-		fooBlock := block.NewDatabaseBlock(start,
+		fooBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
 			ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
-		barBlock := block.NewDatabaseBlock(start.Add(ropts.BlockSize()),
+		barBlock := block.NewDatabaseBlock(start.Add(ropts.BlockSize()), ropts.BlockSize(),
 			ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
 		shard0ResultBlock1.AddBlock(ident.StringID("foo"), ident.Tags{ident.StringTag("foo", "oof")}, fooBlock)
@@ -194,7 +202,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 		shard1ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
 		shard1ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
-		bazBlock := block.NewDatabaseBlock(start,
+		bazBlock := block.NewDatabaseBlock(start, ropts.BlockSize(),
 			ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
 		shard1ResultBlock1.AddBlock(ident.StringID("baz"), ident.Tags{ident.StringTag("baz", "zab")}, bazBlock)
@@ -248,11 +256,11 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		mockFlush.EXPECT().
 			Prepare(prepareOpts).
 			Return(persist.PreparedPersist{
-				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
+				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 					persists["foo"]++
 					assert.Equal(t, "foo", id.String())
 					assert.Equal(t, []byte{1, 2, 3}, segment.Head.Bytes())
-					assert.Equal(t, fooBlock.Checksum(), checksum)
+					assertBlockChecksum(t, checksum, fooBlock)
 					return nil
 				},
 				Close: func() error {
@@ -269,11 +277,11 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		mockFlush.EXPECT().
 			Prepare(prepareOpts).
 			Return(persist.PreparedPersist{
-				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
+				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 					persists["bar"]++
 					assert.Equal(t, "bar", id.String())
 					assert.Equal(t, []byte{4, 5, 6}, segment.Head.Bytes())
-					assert.Equal(t, barBlock.Checksum(), checksum)
+					assertBlockChecksum(t, checksum, barBlock)
 					return nil
 				},
 				Close: func() error {
@@ -290,11 +298,11 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		mockFlush.EXPECT().
 			Prepare(prepareOpts).
 			Return(persist.PreparedPersist{
-				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
+				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 					persists["baz"]++
 					assert.Equal(t, "baz", id.String())
 					assert.Equal(t, []byte{7, 8, 9}, segment.Head.Bytes())
-					assert.Equal(t, bazBlock.Checksum(), checksum)
+					assertBlockChecksum(t, checksum, bazBlock)
 					return nil
 				},
 				Close: func() error {
@@ -311,7 +319,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		mockFlush.EXPECT().
 			Prepare(prepareOpts).
 			Return(persist.PreparedPersist{
-				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
+				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 					assert.Fail(t, "no expected shard 1 second block")
 					return nil
 				},
@@ -333,7 +341,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
 		}
 
-		r, err := src.Read(testNsMd, target, testIncrementalRunOpts)
+		r, err := src.ReadData(testNsMd, target, testIncrementalRunOpts)
 		assert.NoError(t, err)
 
 		require.True(t, r.Unfulfilled()[0].IsEmpty())
@@ -346,17 +354,23 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 			block, ok := r.ShardResults()[0].BlockAt(ident.StringID("foo"), start)
 			require.True(t, ok)
-			assert.Equal(t, fooBlock.Checksum(), block.Checksum())
+			fooBlockChecksum, err := fooBlock.Checksum()
+			require.NoError(t, err)
+			assertBlockChecksum(t, fooBlockChecksum, block)
 			assert.False(t, block.IsRetrieved())
 
 			block, ok = r.ShardResults()[0].BlockAt(ident.StringID("bar"), start.Add(ropts.BlockSize()))
 			require.True(t, ok)
-			assert.Equal(t, barBlock.Checksum(), block.Checksum())
+			barBlockChecksum, err := barBlock.Checksum()
+			require.NoError(t, err)
+			assertBlockChecksum(t, barBlockChecksum, block)
 			assert.False(t, block.IsRetrieved())
 
 			block, ok = r.ShardResults()[1].BlockAt(ident.StringID("baz"), start)
 			require.True(t, ok)
-			assert.Equal(t, bazBlock.Checksum(), block.Checksum())
+			bazBlockChecksum, err := bazBlock.Checksum()
+			require.NoError(t, err)
+			assertBlockChecksum(t, bazBlockChecksum, block)
 			assert.False(t, block.IsRetrieved())
 		} else {
 			assert.Equal(t, 0, len(r.ShardResults()))
@@ -409,10 +423,10 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	var fooBlocks [2]block.DatabaseBlock
 	fooBlocks[0] = block.NewMockDatabaseBlock(ctrl)
 	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().StartTime().Return(start).AnyTimes()
-	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(nil, fmt.Errorf("stream err"))
+	fooBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(xio.EmptyBlockReader, fmt.Errorf("stream err"))
 	addResult(0, "foo", fooBlocks[0])
 
-	fooBlocks[1] = block.NewDatabaseBlock(midway,
+	fooBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 	addResult(0, "foo", fooBlocks[1])
@@ -421,37 +435,41 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockStream := xio.NewMockSegmentReader(ctrl)
 	mockStream.EXPECT().Segment().Return(ts.Segment{}, fmt.Errorf("segment err"))
 
+	b := xio.BlockReader{
+		SegmentReader: mockStream,
+	}
+
 	var barBlocks [2]block.DatabaseBlock
 	barBlocks[0] = block.NewMockDatabaseBlock(ctrl)
 	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().StartTime().Return(start).AnyTimes()
-	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(mockStream, nil)
+	barBlocks[0].(*block.MockDatabaseBlock).EXPECT().Stream(gomock.Any()).Return(b, nil)
 	addResult(1, "bar", barBlocks[0])
 
-	barBlocks[1] = block.NewDatabaseBlock(midway,
+	barBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 	addResult(1, "bar", barBlocks[1])
 
 	// baz results
 	var bazBlocks [2]block.DatabaseBlock
-	bazBlocks[0] = block.NewDatabaseBlock(start,
+	bazBlocks[0] = block.NewDatabaseBlock(start, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 	addResult(2, "baz", bazBlocks[0])
 
-	bazBlocks[1] = block.NewDatabaseBlock(midway,
+	bazBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{10, 11, 12}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 	addResult(2, "baz", bazBlocks[1])
 
 	// qux results
 	var quxBlocks [2]block.DatabaseBlock
-	quxBlocks[0] = block.NewDatabaseBlock(start,
+	quxBlocks[0] = block.NewDatabaseBlock(start, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{13, 14, 15}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 	addResult(3, "qux", quxBlocks[0])
 
-	quxBlocks[1] = block.NewDatabaseBlock(midway,
+	quxBlocks[1] = block.NewDatabaseBlock(midway, ropts.BlockSize(),
 		ts.NewSegment(checked.NewBytes([]byte{16, 17, 18}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 	addResult(3, "qux", quxBlocks[1])
@@ -497,7 +515,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
 		Return(persist.PreparedPersist{
-			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				assert.Fail(t, "not expecting to flush shard 0 at start")
 				return nil
 			},
@@ -515,7 +533,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
 		Return(persist.PreparedPersist{
-			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["foo"]++
 				return nil
 			},
@@ -535,7 +553,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
 		Return(persist.PreparedPersist{
-			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				assert.Fail(t, "not expecting to flush shard 0 at start + block size")
 				return nil
 			},
@@ -553,7 +571,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
 		Return(persist.PreparedPersist{
-			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["bar"]++
 				return nil
 			},
@@ -573,7 +591,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
 		Return(persist.PreparedPersist{
-			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["baz"]++
 				return fmt.Errorf("a persist error")
 			},
@@ -591,7 +609,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
 		Return(persist.PreparedPersist{
-			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["baz"]++
 				return nil
 			},
@@ -611,7 +629,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
 		Return(persist.PreparedPersist{
-			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["qux"]++
 				return nil
 			},
@@ -629,7 +647,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
 		Return(persist.PreparedPersist{
-			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["qux"]++
 				return nil
 			},
@@ -661,7 +679,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 			AddRange(xtime.Range{Start: midway, End: end}),
 	}
 
-	r, err := src.Read(testNsMd, target, testIncrementalRunOpts)
+	r, err := src.ReadData(testNsMd, target, testIncrementalRunOpts)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 0, len(r.ShardResults()))
@@ -680,4 +698,10 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	assert.Equal(t, map[string]int{
 		"foo": 2, "bar": 2, "baz": 2, "qux": 2,
 	}, closes)
+}
+
+func assertBlockChecksum(t *testing.T, expectedChecksum uint32, block block.DatabaseBlock) {
+	checksum, err := block.Checksum()
+	require.NoError(t, err)
+	require.Equal(t, expectedChecksum, checksum)
 }

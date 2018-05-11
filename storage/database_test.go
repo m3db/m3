@@ -164,7 +164,7 @@ func newMockdatabase(ctrl *gomock.Controller, ns ...databaseNamespace) *Mockdata
 	return db
 }
 
-func newTestDatabase(t *testing.T, ctrl *gomock.Controller, bs bootstrapState) (*db, nsMapCh, xmetrics.TestStatsReporter) {
+func newTestDatabase(t *testing.T, ctrl *gomock.Controller, bs BootstrapState) (*db, nsMapCh, xmetrics.TestStatsReporter) {
 	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, _ := tally.NewRootScope(tally.ScopeOptions{
 		Reporter: testReporter,
@@ -177,7 +177,6 @@ func newTestDatabase(t *testing.T, ctrl *gomock.Controller, bs bootstrapState) (
 	opts = opts.SetInstrumentOptions(
 		opts.InstrumentOptions().SetMetricsScope(scope)).
 		SetRepairEnabled(false).
-		SetIndexingEnabled(false).
 		SetRepairOptions(testRepairOptions(ctrl)).
 		SetNamespaceInitializer(newMockNsInitializer(t, ctrl, mapCh))
 
@@ -212,7 +211,7 @@ func TestDatabaseOpen(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapNotStarted)
+	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
 	defer func() {
 		close(mapCh)
 		leaktest.CheckTimeout(t, time.Second)()
@@ -226,7 +225,7 @@ func TestDatabaseClose(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 		leaktest.CheckTimeout(t, time.Second)()
@@ -240,7 +239,7 @@ func TestDatabaseTerminate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 		leaktest.CheckTimeout(t, time.Second)()
@@ -257,7 +256,7 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -272,7 +271,7 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -297,7 +296,7 @@ func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -316,7 +315,7 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -356,7 +355,7 @@ func TestDatabaseFetchBlocksMetadataShardNotOwned(t *testing.T) {
 			IncludeLastRead:  true,
 		}
 	)
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -387,13 +386,13 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 		}
 	)
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
 
 	expectedBlocks := block.NewFetchBlocksMetadataResults()
-	expectedBlocks.Add(block.NewFetchBlocksMetadataResult(ident.StringID("bar"), nil))
+	expectedBlocks.Add(block.NewFetchBlocksMetadataResult(ident.StringID("bar"), nil, nil))
 	expectedToken := new(int64)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.
@@ -412,7 +411,7 @@ func TestDatabaseNamespaces(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -432,7 +431,7 @@ func TestGetOwnedNamespacesErrorIfClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -448,7 +447,7 @@ func TestDatabaseAssignShardSet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -479,7 +478,7 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
 	defer func() {
 		close(mapCh)
 	}()
@@ -514,7 +513,7 @@ func TestDatabaseRemoveNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, testReporter := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, testReporter := newTestDatabase(t, ctrl, Bootstrapped)
 	require.NoError(t, d.Open())
 	defer func() {
 		close(mapCh)
@@ -558,7 +557,7 @@ func TestDatabaseAddNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, testReporter := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, testReporter := newTestDatabase(t, ctrl, Bootstrapped)
 	require.NoError(t, d.Open())
 	defer func() {
 		close(mapCh)
@@ -619,7 +618,7 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapped)
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
 	require.NoError(t, d.Open())
 	defer func() {
 		close(mapCh)
@@ -662,41 +661,19 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	require.Equal(t, defaultTestNs2Opts, ns2.Options())
 }
 
-func TestDatabaseIndexDisabled(t *testing.T) {
+func TestDatabaseNamespaceIndexFunctions(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapNotStarted)
+	d, mapCh, _ := newTestDatabase(t, ctrl, BootstrapNotStarted)
 	defer func() {
 		close(mapCh)
 	}()
 
-	require.NoError(t, d.Open())
-
-	err := d.WriteTagged(context.NewContext(), ident.StringID("a"),
-		ident.StringID("b"), ident.EmptyTagIterator, time.Time{},
-		1.0, xtime.Second, nil)
-	require.EqualError(t, err, errDatabaseIndexingDisabled.Error())
-
-	_, err = d.QueryIDs(context.NewContext(), ident.StringID("abc"),
-		index.Query{}, index.QueryOptions{})
-	require.EqualError(t, err, errDatabaseIndexingDisabled.Error())
-
-	require.NoError(t, d.Close())
-}
-
-func TestDatabaseIndexEnabled(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	d, mapCh, _ := newTestDatabase(t, ctrl, bootstrapNotStarted)
-	defer func() {
-		close(mapCh)
-	}()
-
-	d.opts = d.opts.SetIndexingEnabled(true)
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
+	ns.EXPECT().GetOwnedShards().Return([]databaseShard{}).AnyTimes()
 	ns.EXPECT().Tick(gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().BootstrapState().Return(ShardBootstrapStates{}).AnyTimes()
 	require.NoError(t, d.Open())
 
 	ctx := context.NewContext()
@@ -729,4 +706,35 @@ func TestDatabaseIndexEnabled(t *testing.T) {
 
 	ns.EXPECT().Close().Return(nil)
 	require.NoError(t, d.Close())
+}
+
+func TestDatabaseBootstrapState(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh, _ := newTestDatabase(t, ctrl, Bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	ns1 := dbAddNewMockNamespace(ctrl, d, "testns1")
+	ns1.EXPECT().BootstrapState().Return(ShardBootstrapStates{
+		1: Bootstrapping,
+	})
+	ns2 := dbAddNewMockNamespace(ctrl, d, "testns2")
+	ns2.EXPECT().BootstrapState().Return(ShardBootstrapStates{
+		2: Bootstrapped,
+	})
+
+	dbBootstrapState := d.BootstrapState()
+	require.Equal(t, DatabaseBootstrapState{
+		NamespaceBootstrapStates: NamespaceBootstrapStates{
+			"testns1": ShardBootstrapStates{
+				1: Bootstrapping,
+			},
+			"testns2": ShardBootstrapStates{
+				2: Bootstrapped,
+			},
+		},
+	}, dbBootstrapState)
 }

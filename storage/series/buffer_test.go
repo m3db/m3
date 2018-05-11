@@ -163,7 +163,6 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 	firstBucketEnd := start.Add(mins(2)).Truncate(time.Second)
 	results := buffer.ReadEncoded(ctx, firstBucketStart, firstBucketEnd)
 	assert.NotNil(t, results)
-
 	assertValuesEqual(t, []value{data[0]}, results, opts)
 
 	secondBucketStart := start.Add(mins(2)).Truncate(time.Second)
@@ -219,10 +218,103 @@ func TestBufferDrain(t *testing.T) {
 	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	require.NotNil(t, results)
 
-	assertValuesEqual(t, data[:4], [][]xio.SegmentReader{[]xio.SegmentReader{
-		requireDrainedStream(ctx, t, drained[0]),
+	assertValuesEqual(t, data[:4], [][]xio.BlockReader{[]xio.BlockReader{
+		xio.BlockReader{
+			SegmentReader: requireDrainedStream(ctx, t, drained[0]),
+		},
 	}}, opts)
 	assertValuesEqual(t, data[4:], results, opts)
+}
+
+func TestBufferMinMax(t *testing.T) {
+	// Setup
+	drainFn := func(b block.DatabaseBlock) {}
+	var (
+		opts      = newBufferTestOptions()
+		rops      = opts.RetentionOptions()
+		blockSize = rops.BlockSize()
+		start     = time.Now().Truncate(rops.BlockSize())
+		curr      = start
+		buffer    = newDatabaseBuffer(drainFn).(*dbBuffer)
+	)
+
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer.Reset(opts)
+
+	// Verify standard behavior of MinMax()
+	min, max, err := buffer.MinMax()
+	require.NoError(t, err)
+	expectedMin := start.Add(-blockSize)
+	expectedMax := start.Add(blockSize)
+	require.Equal(t, expectedMin, min)
+	require.Equal(t, expectedMax, max)
+	// Delta between max and min should be 2 * blockSize because there are three
+	// available buckets
+	require.Equal(t, expectedMax.Sub(expectedMin), 2*blockSize)
+
+	// Data preparation to trigger a drain of the earliest bucket
+	data := []value{
+		{start, 1, xtime.Second, nil},
+		{start.Add(mins(0.5)), 2, xtime.Second, nil},
+		{start.Add(mins(1.0)), 3, xtime.Second, nil},
+		{start.Add(mins(1.5)), 4, xtime.Second, nil},
+		{start.Add(mins(2.0)), 5, xtime.Second, nil},
+		{start.Add(mins(2.5)), 6, xtime.Second, nil},
+	}
+	for _, v := range data {
+		curr = v.timestamp
+		ctx := context.NewContext()
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
+		ctx.Close()
+	}
+
+	// Drain the earliest bucket
+	assert.Equal(t, true, buffer.NeedsDrain())
+	buffer.DrainAndReset()
+	assert.Equal(t, false, buffer.NeedsDrain())
+
+	// Verify we exclude drained buckets from the MinMax calculation
+	min, max, err = buffer.MinMax()
+	require.NoError(t, err)
+	expectedMin = start.Add(blockSize)
+	expectedMax = start.Add(2 * blockSize)
+	require.Equal(t, expectedMin, min)
+	require.Equal(t, expectedMax, max)
+	// Delta between max and min should be 1 * blockSize because there are two
+	// available buckets (the earliest one is drained and marked as unavailable).
+	require.Equal(t, expectedMax.Sub(expectedMin), blockSize)
+}
+
+func TestBufferBootstrapAlreadyDrained(t *testing.T) {
+	// Setup
+	drainFn := func(b block.DatabaseBlock) {}
+	var (
+		opts   = newBufferTestOptions()
+		rops   = opts.RetentionOptions()
+		start  = time.Now().Truncate(rops.BlockSize())
+		curr   = start
+		buffer = newDatabaseBuffer(drainFn).(*dbBuffer)
+	)
+
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer.Reset(opts)
+
+	bucketStart := buffer.buckets[0].start
+	dbBlock := block.NewDatabaseBlock(bucketStart, 0, ts.Segment{}, block.NewOptions())
+
+	// Make sure multiple adds dont cause an error
+	require.NoError(t, buffer.Bootstrap(dbBlock))
+	require.NoError(t, buffer.Bootstrap(dbBlock))
+
+	buffer.buckets[0].drained = true
+
+	// Should return an error because we dont want to add bootstrapped blocks to
+	// a bucket that is already drained because they'll never get flushed.
+	require.Error(t, buffer.Bootstrap(dbBlock))
 }
 
 func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
@@ -263,9 +355,13 @@ func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 	results := buffer.ReadEncoded(ctx, timeZero, timeDistantFuture)
 	assert.NotNil(t, results)
 
-	assertValuesEqual(t, data[:2], [][]xio.SegmentReader{[]xio.SegmentReader{
-		requireDrainedStream(ctx, t, drained[1]),
-		requireDrainedStream(ctx, t, drained[0]),
+	assertValuesEqual(t, data[:2], [][]xio.BlockReader{[]xio.BlockReader{
+		xio.BlockReader{
+			SegmentReader: requireDrainedStream(ctx, t, drained[1]),
+		},
+		xio.BlockReader{
+			SegmentReader: requireDrainedStream(ctx, t, drained[0]),
+		},
 	}}, opts)
 	assertValuesEqual(t, data[2:], results, opts)
 }
@@ -313,7 +409,7 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	assertValuesEqual(t, data, results, opts)
 
 	// Explicitly merge
-	var mergedResults [][]xio.SegmentReader
+	var mergedResults [][]xio.BlockReader
 	for i := range buffer.buckets {
 		mergedResult, err := buffer.buckets[i].discardMerged()
 		require.NoError(t, err)
@@ -322,7 +418,10 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 		require.NotNil(t, block)
 
 		if block.Len() > 0 {
-			result := []xio.SegmentReader{requireDrainedStream(ctx, t, block)}
+			blockReader := xio.BlockReader{
+				SegmentReader: requireDrainedStream(ctx, t, block),
+			}
+			result := []xio.BlockReader{blockReader}
 			mergedResults = append(mergedResults, result)
 		}
 	}
@@ -398,8 +497,10 @@ func TestBufferBucketMerge(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	assertValuesEqual(t, expected, [][]xio.SegmentReader{[]xio.SegmentReader{
-		requireDrainedStream(ctx, t, bl),
+	assertValuesEqual(t, expected, [][]xio.BlockReader{[]xio.BlockReader{
+		xio.BlockReader{
+			SegmentReader: requireDrainedStream(ctx, t, bl),
+		},
 	}}, opts)
 }
 
@@ -423,7 +524,7 @@ func TestBufferBucketMergeNilEncoderStreams(t *testing.T) {
 	require.NoError(t, err)
 
 	blopts := opts.DatabaseBlockOptions()
-	newBlock := block.NewDatabaseBlock(curr, encoder.Discard(), blopts)
+	newBlock := block.NewDatabaseBlock(curr, 0, encoder.Discard(), blopts)
 	b.bootstrapped = append(b.bootstrapped, newBlock)
 	ctx := opts.ContextPool().Get()
 	stream, err := b.bootstrapped[0].Stream(ctx)
@@ -485,7 +586,7 @@ func TestBufferFetchBlocks(t *testing.T) {
 	res := buffer.FetchBlocks(ctx, []time.Time{b.start, b.start.Add(time.Second)})
 	require.Equal(t, 1, len(res))
 	require.Equal(t, b.start, res[0].Start)
-	assertValuesEqual(t, expected, [][]xio.SegmentReader{res[0].Readers}, opts)
+	assertValuesEqual(t, expected, [][]xio.BlockReader{res[0].Blocks}, opts)
 }
 
 func TestBufferFetchBlocksMetadata(t *testing.T) {
@@ -747,8 +848,10 @@ func TestBufferSnapshot(t *testing.T) {
 	expectedCopy := make([]value, len(expectedData))
 	copy(expectedCopy, expectedData)
 	sort.Sort(valuesByTime(expectedCopy))
-	actual := [][]xio.SegmentReader{[]xio.SegmentReader{
-		result,
+	actual := [][]xio.BlockReader{{
+		xio.BlockReader{
+			SegmentReader: result,
+		},
 	}}
 	assertValuesEqual(t, expectedCopy, actual, opts)
 

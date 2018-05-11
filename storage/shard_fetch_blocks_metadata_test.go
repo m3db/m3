@@ -24,6 +24,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -67,11 +68,17 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 	lastRead := time.Now().Add(-time.Minute)
 	for i := 0; i < 10; i++ {
 		id := ident.StringID(fmt.Sprintf("foo.%d", i))
-		series := addMockSeries(ctrl, shard, id, nil, uint64(i))
+		tags := ident.Tags{
+			ident.StringTag("aaa", "bbb"),
+			ident.StringTag("ccc", "ddd"),
+		}
+		tagsIter := ident.NewTagSliceIterator(tags)
+		series := addMockSeries(ctrl, shard, id, tags, uint64(i))
 		if i == 2 {
 			series.EXPECT().
 				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
-				Return(block.NewFetchBlocksMetadataResult(id, block.NewFetchBlockMetadataResults()))
+				Return(block.NewFetchBlocksMetadataResult(id, tagsIter,
+					block.NewFetchBlockMetadataResults()), nil)
 		} else if i > 2 && i <= 7 {
 			ids = append(ids, id)
 			blocks := block.NewFetchBlockMetadataResults()
@@ -79,7 +86,8 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 			blocks.Add(block.NewFetchBlockMetadataResult(at, 0, nil, lastRead, nil))
 			series.EXPECT().
 				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
-				Return(block.NewFetchBlocksMetadataResult(id, blocks))
+				Return(block.NewFetchBlocksMetadataResult(id, tagsIter,
+					blocks), nil)
 		}
 	}
 
@@ -121,11 +129,17 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 	lastRead := time.Now().Add(-time.Minute)
 	for i := int64(0); i < 10; i++ {
 		id := ident.StringID(fmt.Sprintf("foo.%d", i))
-		series := addMockSeries(ctrl, shard, id, nil, uint64(i))
+		tags := ident.Tags{
+			ident.StringTag("aaa", "bbb"),
+			ident.StringTag("ccc", "ddd"),
+		}
+		tagsIter := ident.NewTagSliceIterator(tags)
+		series := addMockSeries(ctrl, shard, id, tags, uint64(i))
 		if i == startCursor {
 			series.EXPECT().
 				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
-				Return(block.NewFetchBlocksMetadataResult(id, block.NewFetchBlockMetadataResults()))
+				Return(block.NewFetchBlocksMetadataResult(id, tagsIter,
+					block.NewFetchBlockMetadataResults()), nil)
 		} else if i > startCursor && i <= startCursor+fetchLimit {
 			ids = append(ids, id)
 			blocks := block.NewFetchBlockMetadataResults()
@@ -133,7 +147,8 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 			blocks.Add(block.NewFetchBlockMetadataResult(at, 0, nil, lastRead, nil))
 			series.EXPECT().
 				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
-				Return(block.NewFetchBlocksMetadataResult(id, blocks))
+				Return(block.NewFetchBlocksMetadataResult(id, tagsIter,
+					blocks), nil)
 		}
 	}
 
@@ -238,7 +253,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 
 			bytes := checked.NewBytes(data, nil)
 			bytes.IncRef()
-			err = writer.Write(id, bytes, checksum)
+			err = writer.Write(id, nil, bytes, checksum)
 			require.NoError(t, err)
 
 			blockMetadataResult := block.NewFetchBlockMetadataResult(at,
@@ -258,15 +273,18 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 	lastRead := time.Now().Add(-time.Minute)
 	for i := 0; i < numActiveSeries; i++ {
 		id := ident.StringID(fmt.Sprintf("series+instance=%d", i))
-
-		series := addMockSeries(ctrl, shard, id, nil, uint64(i))
+		tags := ident.Tags{
+			ident.StringTag("instance", strconv.Itoa(i)),
+		}
+		tagsIter := ident.NewTagSliceIterator(tags)
+		series := addMockSeries(ctrl, shard, id, tags, uint64(i))
 		blocks := block.NewFetchBlockMetadataResults()
 		at := mostRecentBlockStart
 		blockMetadataResult := block.NewFetchBlockMetadataResult(at, 0, nil, lastRead, nil)
 		blocks.Add(blockMetadataResult)
 		series.EXPECT().
 			FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
-			Return(block.NewFetchBlocksMetadataResult(id, blocks))
+			Return(block.NewFetchBlocksMetadataResult(id, tagsIter, blocks), nil)
 
 		// Add to the expected blocks result
 		expected[id.String()] = append(expected[id.String()], blockMetadataResult)

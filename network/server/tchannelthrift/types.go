@@ -20,8 +20,19 @@
 
 package tchannelthrift
 
+import (
+	"github.com/m3db/m3db/serialize"
+	"github.com/m3db/m3x/instrument"
+)
+
 // Options controls server behavior
 type Options interface {
+	// SetInstrumentOptions sets the instrumentation options
+	SetInstrumentOptions(value instrument.Options) Options
+
+	// InstrumentOptions returns the instrumentation options
+	InstrumentOptions() instrument.Options
+
 	// SetBlockMetadataPool sets the block metadata pool
 	SetBlockMetadataPool(value BlockMetadataPool) Options
 
@@ -57,4 +68,16 @@ type Options interface {
 
 	// BlocksMetadataSlicePool returns the blocks metadata slice pool
 	BlocksMetadataSlicePool() BlocksMetadataSlicePool
+
+	// SetTagEncoderPool sets the tag encoder pool.
+	SetTagEncoderPool(value serialize.TagEncoderPool) Options
+
+	// TagEncoderPool returns the tag encoder pool
+	TagEncoderPool() serialize.TagEncoderPool
+
+	// SetTagDecoderPool sets the tag encoder pool.
+	SetTagDecoderPool(value serialize.TagDecoderPool) Options
+
+	// TagDecoderPool returns the tag encoder pool
+	TagDecoderPool() serialize.TagDecoderPool
 }

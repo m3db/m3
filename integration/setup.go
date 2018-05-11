@@ -79,8 +79,11 @@ var (
 type nowSetterFn func(t time.Time)
 
 type testSetup struct {
-	t               *testing.T
-	opts            testOptions
+	t    *testing.T
+	opts testOptions
+
+	logger xlog.Logger
+
 	db              cluster.Database
 	storageOpts     storage.Options
 	fsOpts          fs.Options
@@ -109,14 +112,19 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	if opts == nil {
 		opts = newTestOptions(t)
 	}
+
 	nsInit := opts.NamespaceInitializer()
 	if nsInit == nil {
 		nsInit = namespace.NewStaticInitializer(opts.Namespaces())
 	}
 
 	storageOpts := storage.NewOptions().
-		SetNamespaceInitializer(nsInit).
-		SetIndexingEnabled(opts.IndexingEnabled())
+		SetNamespaceInitializer(nsInit)
+
+	fields := []xlog.Field{
+		xlog.NewField("cache-policy", storageOpts.SeriesCachePolicy().String()),
+	}
+	logger := storageOpts.InstrumentOptions().Logger().WithFields(fields...)
 
 	indexMode := index.InsertSync
 	if opts.WriteNewSeriesAsync() {
@@ -201,8 +209,8 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	// a value to align `now` for all of them.
 	truncateSize, guess := guessBestTruncateBlockSize(opts.Namespaces())
 	if guess {
-		storageOpts.InstrumentOptions().Logger().Warnf(
-			"Unable to find a single blockSize from known retention periods, guessing: %v",
+		logger.Warnf(
+			"unable to find a single blockSize from known retention periods, guessing: %v",
 			truncateSize.String())
 	}
 
@@ -294,15 +302,21 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		// Have to manually set the blockpool because the default one uses a constructor
 		// function that doesn't have the updated blockOpts.
 		blockPool.Init(func() block.DatabaseBlock {
-			return block.NewDatabaseBlock(time.Time{}, ts.Segment{}, blockOpts)
+			return block.NewDatabaseBlock(time.Time{}, 0, ts.Segment{}, blockOpts)
 		})
 		blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 		storageOpts = storageOpts.SetDatabaseBlockOptions(blockOpts)
 	}
 
+	// Set debugging options if environment vars set
+	if debugFilePrefix := os.Getenv("TEST_DEBUG_FILE_PREFIX"); debugFilePrefix != "" {
+		opts = opts.SetVerifySeriesDebugFilePathPrefix(debugFilePrefix)
+	}
+
 	return &testSetup{
 		t:               t,
 		opts:            opts,
+		logger:          logger,
 		storageOpts:     storageOpts,
 		fsOpts:          fsOpts,
 		nativePooling:   nativePooling,
@@ -398,21 +412,32 @@ func (ts *testSetup) generatorOptions(ropts retention.Options) generate.Options 
 		SetEncoderPool(storageOpts.EncoderPool())
 }
 
-func (ts *testSetup) serverIsUp() bool {
+func (ts *testSetup) serverIsBootstrapped() bool {
 	resp, err := ts.health()
 	return err == nil && resp.Bootstrapped
 }
 
-func (ts *testSetup) serverIsDown() bool {
+func (ts *testSetup) serverIsUp() bool {
 	_, err := ts.health()
-	return err != nil
+	return err == nil
+}
+
+func (ts *testSetup) serverIsDown() bool {
+	return !ts.serverIsUp()
+}
+
+func (ts *testSetup) waitUntilServerIsBootstrapped() error {
+	if waitUntil(ts.serverIsBootstrapped, ts.opts.ServerStateChangeTimeout()) {
+		return nil
+	}
+	return errServerStartTimedOut
 }
 
 func (ts *testSetup) waitUntilServerIsUp() error {
 	if waitUntil(ts.serverIsUp, ts.opts.ServerStateChangeTimeout()) {
 		return nil
 	}
-	return errServerStartTimedOut
+	return errServerStopTimedOut
 }
 
 func (ts *testSetup) waitUntilServerIsDown() error {
@@ -423,11 +448,7 @@ func (ts *testSetup) waitUntilServerIsDown() error {
 }
 
 func (ts *testSetup) startServer() error {
-	log := ts.storageOpts.InstrumentOptions().Logger()
-	fields := []xlog.Field{
-		xlog.NewField("cachepolicy", ts.storageOpts.SeriesCachePolicy().String()),
-	}
-	log.WithFields(fields...).Infof("starting server")
+	ts.logger.Infof("starting server")
 
 	resultCh := make(chan error, 1)
 
@@ -478,16 +499,16 @@ func (ts *testSetup) startServer() error {
 
 	go func() {
 		select {
-		case resultCh <- ts.waitUntilServerIsUp():
+		case resultCh <- ts.waitUntilServerIsBootstrapped():
 		default:
 		}
 	}()
 
 	err = <-resultCh
 	if err == nil {
-		log.WithFields(fields...).Infof("started server")
+		ts.logger.Infof("started server")
 	} else {
-		log.WithFields(fields...).Errorf("start server error: %v", err)
+		ts.logger.Errorf("start server error: %v", err)
 	}
 	return err
 }
@@ -546,9 +567,23 @@ func (ts *testSetup) close() {
 	}
 }
 
+func (ts *testSetup) mustSetTickMinimumInterval(tickMinInterval time.Duration) {
+	runtimeMgr := ts.storageOpts.RuntimeOptionsManager()
+	existingOptions := runtimeMgr.Get()
+	newOptions := existingOptions.SetTickMinimumInterval(tickMinInterval)
+	err := runtimeMgr.Update(newOptions)
+	if err != nil {
+		panic(fmt.Sprintf("err setting tick minimum interval: %v", err))
+	}
+}
+
 // convenience wrapper used to ensure a tick occurs
 func (ts *testSetup) sleepFor10xTickMinimumInterval() {
-	time.Sleep(ts.opts.TickMinimumInterval() * 10)
+	// Check the runtime options manager instead of relying on ts.opts
+	// because the tick interval can change at runtime.
+	runtimeMgr := ts.storageOpts.RuntimeOptionsManager()
+	opts := runtimeMgr.Get()
+	time.Sleep(opts.TickMinimumInterval() * 10)
 }
 
 type testSetups []*testSetup
@@ -567,7 +602,6 @@ func (ts testSetups) parallel(fn func(s *testSetup)) {
 }
 
 // node generates service instances with reasonable defaults
-// nolint: deadcode
 func node(t *testing.T, n int, shards shard.Shards) services.ServiceInstance {
 	require.True(t, n < 250) // keep ports sensible
 	return services.NewServiceInstance().
@@ -577,12 +611,10 @@ func node(t *testing.T, n int, shards shard.Shards) services.ServiceInstance {
 }
 
 // newNodes creates a set of testSetups with reasonable defaults
-// nolint: deadcode
 func newNodes(
 	t *testing.T,
 	instances []services.ServiceInstance,
 	nspaces []namespace.Metadata,
-	indexingEnabled bool,
 	asyncInserts bool,
 ) (testSetups, topology.Initializer, closeFn) {
 
@@ -590,7 +622,6 @@ func newNodes(
 	opts := newTestOptions(t).
 		SetNamespaces(nspaces).
 		SetTickMinimumInterval(3 * time.Second).
-		SetIndexingEnabled(indexingEnabled).
 		SetWriteNewSeriesAsync(asyncInserts)
 
 	// NB(bl): We set replication to 3 to mimic production. This can be made
@@ -622,7 +653,7 @@ func newNodes(
 	nodeClose := func() { // Clean up running servers at end of test
 		log.Debug("servers closing")
 		nodes.parallel(func(s *testSetup) {
-			if s.serverIsUp() {
+			if s.serverIsBootstrapped() {
 				require.NoError(t, s.stopServer())
 			}
 		})
