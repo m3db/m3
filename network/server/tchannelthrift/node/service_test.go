@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3ninx/idx"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
@@ -496,19 +497,34 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 	)
 
 	// Prepare test data
-	series := map[string][]struct {
+	type testBlock struct {
 		start    time.Time
 		size     int64
 		checksum uint32
 		lastRead time.Time
+	}
+	series := map[string]struct {
+		tags ident.Tags
+		data []testBlock
 	}{
 		"foo": {
-			{start.Add(0 * time.Hour), 16, 111, time.Now().Add(-time.Minute)},
-			{start.Add(2 * time.Hour), 32, 222, time.Time{}},
+			// Check with tags
+			tags: ident.Tags{
+				ident.StringTag("aaa", "bbb"),
+				ident.StringTag("ccc", "ddd"),
+			},
+			data: []testBlock{
+				{start.Add(0 * time.Hour), 16, 111, time.Now().Add(-time.Minute)},
+				{start.Add(2 * time.Hour), 32, 222, time.Time{}},
+			},
 		},
 		"bar": {
-			{start.Add(0 * time.Hour), 32, 222, time.Time{}},
-			{start.Add(2 * time.Hour), 64, 333, time.Now().Add(-time.Minute)},
+			// And without tags
+			tags: ident.Tags{},
+			data: []testBlock{
+				{start.Add(0 * time.Hour), 32, 222, time.Time{}},
+				{start.Add(2 * time.Hour), 64, 333, time.Now().Add(-time.Minute)},
+			},
 		},
 	}
 	ids := make([][]byte, 0, len(series))
@@ -517,11 +533,9 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 	for id, s := range series {
 		ids = append(ids, []byte(id))
 		blocks := block.NewFetchBlockMetadataResults()
-		metadata := block.FetchBlocksMetadataResult{
-			ID:     ident.StringID(id),
-			Blocks: blocks,
-		}
-		for _, v := range s {
+		metadata := block.NewFetchBlocksMetadataResult(ident.StringID(id),
+			ident.NewTagSliceIterator(s.tags), blocks)
+		for _, v := range s.data {
 			numBlocks++
 			entry := v
 			blocks.Add(block.FetchBlockMetadataResult{
@@ -570,8 +584,21 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 
 		expectedBlocks := series[string(block.ID)]
 
+		if len(expectedBlocks.tags) == 0 {
+			require.Equal(t, 0, len(block.EncodedTags))
+		} else {
+			encodedTags := checked.NewBytes(block.EncodedTags, nil)
+			decoder := service.pools.tagDecoder.Get()
+			decoder.Reset(encodedTags)
+
+			expectedTags := ident.NewTagSliceIterator(expectedBlocks.tags)
+			require.True(t, ident.NewTagIterMatcher(expectedTags).Matches(decoder))
+
+			decoder.Close()
+		}
+
 		foundMatch := false
-		for _, expectedBlock := range expectedBlocks {
+		for _, expectedBlock := range expectedBlocks.data {
 			if expectedBlock.start.UnixNano() != block.Start {
 				continue
 			}

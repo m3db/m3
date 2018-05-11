@@ -456,6 +456,7 @@ func Run(runOpts RunOptions) {
 		policy.BlocksMetadataSlicePool.Capacity)
 
 	ttopts := tchannelthrift.NewOptions().
+		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetBlockMetadataPool(blockMetadataPool).
 		SetBlockMetadataSlicePool(blockMetadataSlicePool).
 		SetBlocksMetadataPool(blocksMetadataPool).

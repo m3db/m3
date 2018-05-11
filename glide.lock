@@ -1,5 +1,5 @@
-hash: df6b1d70d366e79d6cd8c0785185e45b75afcb7717fed5150b73a1402efe1a50
-updated: 2018-05-10T16:25:00.491524-04:00
+hash: 66044e8b4580fffeb0b6771abfe615236864089850a7c4f76a8e3fbd3082a1e0
+updated: 2018-05-10T22:00:14.896089-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -130,7 +130,7 @@ imports:
   - ptypes/struct
   - ptypes/timestamp
 - name: github.com/golang/snappy
-  version: 553a641470496b2327abcac10b36396bd98e45c9
+  version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
 - name: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
@@ -161,6 +161,7 @@ imports:
   - integration/etcd
   - kv
   - kv/etcd
+  - kv/mem
   - kv/util
   - kv/util/runtime
   - placement
@@ -205,7 +206,7 @@ imports:
   - search/query
   - search/searcher
 - name: github.com/m3db/m3x
-  version: f591af0fb913df0f2e8ecf6995d4aa406c4c13e0
+  version: 4eee9390e1b9a4488f0bdee955c7651150f08f1a
   vcs: git
   subpackages:
   - checked
@@ -253,7 +254,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: c5b7fccd204277076155f10851dad72b76a49317
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
@@ -318,7 +319,7 @@ imports:
   subpackages:
   - codec
 - name: github.com/willf/bitset
-  version: 988f4f24992fc745de53c42df0da6581e42a6686
+  version: 1ea0245d2bc8ce44623f24a1ae162beb06ad8cd6
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: go.uber.org/atomic

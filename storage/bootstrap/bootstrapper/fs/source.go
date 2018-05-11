@@ -280,11 +280,11 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	return runResult
 }
 
-// handleErrorsAndUnfulfilled checks the list of times that had errors and makes
+// markRunResultErrorsAndUnfulfilled checks the list of times that had errors and makes
 // sure that we don't return any blocks or bloom filters for them. In addition,
 // it looks at any remaining (unfulfilled) ranges and makes sure they're marked
 // as unfulfilled
-func (s *fileSystemSource) handleErrorsAndUnfulfilled(
+func (s *fileSystemSource) markRunResultErrorsAndUnfulfilled(
 	runResult *runResult,
 	shard uint32,
 	remainingRanges xtime.Ranges,
@@ -378,7 +378,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	sr := shardReaders
 	shard, tr, readers, err := sr.shard, sr.tr, sr.readers, sr.err
 	if err != nil {
-		s.handleErrorsAndUnfulfilled(runResult, shard, tr, timesWithErrors)
+		s.markRunResultErrorsAndUnfulfilled(runResult, shard, tr, timesWithErrors)
 		return
 	}
 
@@ -390,7 +390,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			xlog.NewField("has-shard-retriever-mgr", shardRetrieverMgr != nil),
 			xlog.NewField("has-shard-retriever", shardRetriever != nil),
 		).Errorf("shard retriever missing for shard: %d", shard)
-		s.handleErrorsAndUnfulfilled(runResult, shard, tr, timesWithErrors)
+		s.markRunResultErrorsAndUnfulfilled(runResult, shard, tr, timesWithErrors)
 		return
 	}
 
@@ -464,7 +464,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 	}
 
-	s.handleErrorsAndUnfulfilled(runResult, shard, tr, timesWithErrors)
+	s.markRunResultErrorsAndUnfulfilled(runResult, shard, tr, timesWithErrors)
 }
 
 func (s *fileSystemSource) readNextEntryAndRecordBlock(

@@ -478,11 +478,10 @@ func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn)
 	}
 
 	var (
-		currEntries = make([]*dbShardEntry, 0, batchSize) // TODO(xichen): pool or cache this.
+		currEntries = make([]*dbShardEntry, 0, batchSize)
 		first       = true
 		nextElem    *list.Element
 	)
-
 	for nextElem != nil || first {
 		s.RLock()
 		// NB(prateek): release held reference on the next element pointer now
@@ -1304,9 +1303,6 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 		// If the blocksMetadata is empty, the series have no data within the specified
 		// time range so we don't return it to the client
 		if len(metadata.Blocks.Results()) == 0 {
-			if metadata.ID != nil {
-				metadata.ID.Finalize()
-			}
 			metadata.Blocks.Close()
 			return true
 		}
@@ -1514,8 +1510,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		}
 
 		for numResults < limit {
-			// FOLLOWUP(r): Return the tags as part of the metadata to peers.
-			id, _, size, checksum, err := reader.ReadMetadata()
+			id, tags, size, checksum, err := reader.ReadMetadata()
 			if err == io.EOF {
 				// Clean end of volume, we can break now
 				if err := reader.Close(); err != nil {
@@ -1535,6 +1530,10 @@ func (s *dbShard) FetchBlocksMetadataV2(
 					blockStart, err)
 			}
 
+			// Make sure ID and tags get cleaned up after read is done
+			ctx.RegisterFinalizer(id)
+			ctx.RegisterCloser(tags)
+
 			blockResult := s.opts.FetchBlockMetadataResultsPool().Get()
 			value := block.FetchBlockMetadataResult{
 				Start: blockStart,
@@ -1549,7 +1548,8 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			blockResult.Add(value)
 
 			numResults++
-			result.Add(block.NewFetchBlocksMetadataResult(id, blockResult))
+			result.Add(block.NewFetchBlocksMetadataResult(id, tags,
+				blockResult))
 		}
 
 		// Return the reader to the cache

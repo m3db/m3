@@ -32,10 +32,12 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"github.com/stretchr/testify/require"
 )
 
 func TestShardTickReadFnRace(t *testing.T) {
@@ -131,4 +133,55 @@ func anyIDs() gopter.Gen {
 			}
 			return ids
 		})
+}
+
+func TestShardTickWriteRace(t *testing.T) {
+	shard, opts := propTestDatabaseShard(t, 10)
+	defer func() {
+		shard.Close()
+		opts.RuntimeOptionsManager().Close()
+	}()
+
+	ids := []ident.ID{}
+	for i := 0; i < 1; i++ {
+		ids = append(ids, ident.StringID(fmt.Sprintf("foo.%d", i)))
+	}
+
+	var (
+		numRoutines = 1 + /* Fetch */ +1 /* Tick */ + len(ids) /* Write(s) */
+		barrier     = make(chan struct{}, numRoutines)
+		wg          sync.WaitGroup
+	)
+
+	wg.Add(numRoutines)
+
+	for _, id := range ids {
+		id := id
+		go func() {
+			<-barrier
+			ctx := context.NewContext()
+			now := time.Now()
+			require.NoError(t, shard.Write(ctx, id, now, 1.0, xtime.Second, nil))
+			ctx.BlockingClose()
+			wg.Done()
+		}()
+	}
+
+	go func() {
+		<-barrier
+		fetchBlocksMetadataV2ShardFn(shard)
+		wg.Done()
+	}()
+
+	go func() {
+		<-barrier
+		shard.Tick(context.NewNoOpCanncellable())
+		wg.Done()
+	}()
+
+	for i := 0; i < numRoutines; i++ {
+		barrier <- struct{}{}
+	}
+
+	wg.Wait()
 }

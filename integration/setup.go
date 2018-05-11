@@ -79,8 +79,11 @@ var (
 type nowSetterFn func(t time.Time)
 
 type testSetup struct {
-	t               *testing.T
-	opts            testOptions
+	t    *testing.T
+	opts testOptions
+
+	logger xlog.Logger
+
 	db              cluster.Database
 	storageOpts     storage.Options
 	fsOpts          fs.Options
@@ -109,6 +112,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	if opts == nil {
 		opts = newTestOptions(t)
 	}
+
 	nsInit := opts.NamespaceInitializer()
 	if nsInit == nil {
 		nsInit = namespace.NewStaticInitializer(opts.Namespaces())
@@ -116,6 +120,11 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 
 	storageOpts := storage.NewOptions().
 		SetNamespaceInitializer(nsInit)
+
+	fields := []xlog.Field{
+		xlog.NewField("cache-policy", storageOpts.SeriesCachePolicy().String()),
+	}
+	logger := storageOpts.InstrumentOptions().Logger().WithFields(fields...)
 
 	indexMode := index.InsertSync
 	if opts.WriteNewSeriesAsync() {
@@ -200,8 +209,8 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	// a value to align `now` for all of them.
 	truncateSize, guess := guessBestTruncateBlockSize(opts.Namespaces())
 	if guess {
-		storageOpts.InstrumentOptions().Logger().Warnf(
-			"Unable to find a single blockSize from known retention periods, guessing: %v",
+		logger.Warnf(
+			"unable to find a single blockSize from known retention periods, guessing: %v",
 			truncateSize.String())
 	}
 
@@ -307,6 +316,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	return &testSetup{
 		t:               t,
 		opts:            opts,
+		logger:          logger,
 		storageOpts:     storageOpts,
 		fsOpts:          fsOpts,
 		nativePooling:   nativePooling,
@@ -438,11 +448,7 @@ func (ts *testSetup) waitUntilServerIsDown() error {
 }
 
 func (ts *testSetup) startServer() error {
-	log := ts.storageOpts.InstrumentOptions().Logger()
-	fields := []xlog.Field{
-		xlog.NewField("cachepolicy", ts.storageOpts.SeriesCachePolicy().String()),
-	}
-	log.WithFields(fields...).Infof("starting server")
+	ts.logger.Infof("starting server")
 
 	resultCh := make(chan error, 1)
 
@@ -500,9 +506,9 @@ func (ts *testSetup) startServer() error {
 
 	err = <-resultCh
 	if err == nil {
-		log.WithFields(fields...).Infof("started server")
+		ts.logger.Infof("started server")
 	} else {
-		log.WithFields(fields...).Errorf("start server error: %v", err)
+		ts.logger.Errorf("start server error: %v", err)
 	}
 	return err
 }

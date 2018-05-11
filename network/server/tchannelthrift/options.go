@@ -22,10 +22,12 @@ package tchannelthrift
 
 import (
 	"github.com/m3db/m3db/serialize"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )
 
 type options struct {
+	instrumentOpts           instrument.Options
 	blockMetadataPool        BlockMetadataPool
 	blockMetadataV2Pool      BlockMetadataV2Pool
 	blockMetadataSlicePool   BlockMetadataSlicePool
@@ -49,6 +51,7 @@ func NewOptions() Options {
 	tagDecoderPool.Init()
 
 	return &options{
+		instrumentOpts:           instrument.NewOptions(),
 		blockMetadataPool:        NewBlockMetadataPool(nil),
 		blockMetadataV2Pool:      NewBlockMetadataV2Pool(nil),
 		blockMetadataSlicePool:   NewBlockMetadataSlicePool(nil, 0),
@@ -58,6 +61,16 @@ func NewOptions() Options {
 		tagEncoderPool:           tagEncoderPool,
 		tagDecoderPool:           tagDecoderPool,
 	}
+}
+
+func (o *options) SetInstrumentOptions(value instrument.Options) Options {
+	opts := *o
+	opts.instrumentOpts = value
+	return &opts
+}
+
+func (o *options) InstrumentOptions() instrument.Options {
+	return o.instrumentOpts
 }
 
 func (o *options) SetBlockMetadataPool(value BlockMetadataPool) Options {

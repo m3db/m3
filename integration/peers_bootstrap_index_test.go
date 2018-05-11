@@ -26,63 +26,56 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/storage/bootstrap"
-	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
-	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
-	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/idx"
 	"github.com/m3db/m3x/ident"
+	xlog "github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
+func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
-	var (
-		blockSize = 2 * time.Hour
-		rOpts     = retention.NewOptions().SetRetentionPeriod(2 * blockSize).SetBlockSize(blockSize)
-		idxOpts   = namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(2 * blockSize)
-		nOpts     = namespace.NewOptions().SetRetentionOptions(rOpts).SetIndexOptions(idxOpts)
-	)
+	log := xlog.SimpleLogger
+
+	// Index metadata exchange is only possible with version 2
+	version := client.FetchBlocksMetadataEndpointV2
+	blockSize := 2 * time.Hour
+
+	rOpts := retention.NewOptions().
+		SetRetentionPeriod(20 * time.Hour).
+		SetBlockSize(blockSize).
+		SetBufferPast(10 * time.Minute).
+		SetBufferFuture(2 * time.Minute)
+
+	idxOpts := namespace.NewIndexOptions().
+		SetEnabled(true).
+		SetBlockSize(2 * blockSize)
+	nOpts := namespace.NewOptions().
+		SetRetentionOptions(rOpts).
+		SetIndexOptions(idxOpts)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], nOpts)
 	require.NoError(t, err)
-	ns2, err := namespace.NewMetadata(testNamespaces[1], nOpts)
-	require.NoError(t, err)
-
 	opts := newTestOptions(t).
-		SetCommitLogRetentionPeriod(rOpts.RetentionPeriod()).
-		SetCommitLogBlockSize(blockSize).
-		SetNamespaces([]namespace.Metadata{ns1, ns2})
+		SetNamespaces([]namespace.Metadata{ns1})
 
-	// Test setup
-	setup, err := newTestSetup(t, opts, nil)
-	require.NoError(t, err)
-	defer setup.close()
+	setupOpts := []bootstrappableTestSetupOptions{
+		{disablePeersBootstrapper: true},
+		{disablePeersBootstrapper: false, fetchBlocksMetadataEndpointVersion: version},
+	}
+	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
+	defer closeFn()
 
-	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
-
-	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
-	bsOpts := result.NewOptions().
-		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
-	bfsOpts := fs.NewOptions().
-		SetResultOptions(bsOpts).
-		SetFilesystemOptions(fsOpts).
-		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
-	bs := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
-	processProvider := bootstrap.NewProcessProvider(bs, bsOpts)
-
-	setup.storageOpts = setup.storageOpts.
-		SetBootstrapProcessProvider(processProvider)
-
+	// Write test data for first node
 	// Write test data
-	now := setup.getNowFn()
+	now := setups[0].getNowFn()
 
 	fooSeries := generate.Series{
 		ID:   ident.StringID("foo"),
@@ -125,28 +118,30 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 			Start:     now,
 		},
 	})
+	require.NoError(t, writeTestDataToDisk(ns1, setups[0], seriesMaps))
 
-	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps))
-	require.NoError(t, writeTestDataToDisk(ns2, setup, nil))
+	// Start the first server with filesystem bootstrapper
+	require.NoError(t, setups[0].startServer())
 
-	// Start the server with filesystem bootstrapper
-	log := setup.storageOpts.InstrumentOptions().Logger()
-	log.Debug("filesystem bootstrap test")
-	require.NoError(t, setup.startServer())
-	log.Debug("server is now up")
+	// Start the last server with peers and filesystem bootstrappers
+	require.NoError(t, setups[1].startServer())
+	log.Debug("servers are now up")
 
-	// Stop the server
+	// Stop the servers
 	defer func() {
-		require.NoError(t, setup.stopServer())
-		log.Debug("server is now down")
+		setups.parallel(func(s *testSetup) {
+			require.NoError(t, s.stopServer())
+		})
+		log.Debug("servers are now down")
 	}()
 
-	// Verify data matches what we expect
-	verifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
-	verifySeriesMaps(t, setup, testNamespaces[1], nil)
+	// Verify in-memory data match what we expect
+	for _, setup := range setups {
+		verifySeriesMaps(t, setup, ns1.ID(), seriesMaps)
+	}
 
-	// Issue some index queries
-	session, err := setup.m3dbClient.DefaultSession()
+	// Issue some index queries to the second node which bootstrapped the metadata
+	session, err := setups[1].m3dbClient.DefaultSession()
 	require.NoError(t, err)
 
 	start := now.Add(-rOpts.RetentionPeriod())

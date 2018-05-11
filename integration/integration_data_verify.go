@@ -30,8 +30,12 @@ import (
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/integration/generate"
+	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
+	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -66,26 +70,39 @@ func verifySeriesMapForRange(
 	ts *testSetup,
 	start, end time.Time,
 	namespace ident.ID,
-	expected generate.SeriesBlock,
+	input generate.SeriesBlock,
 	expectedDebugFilePath string,
 	actualDebugFilePath string,
 ) {
-	actual := make(generate.SeriesBlock, len(expected))
+	// Construct a copy of the input that we will use to compare
+	// with only the fields we need to compare against (fetch doesn't
+	// return the tags for a series ID)
+	expected := make(generate.SeriesBlock, len(input))
+	actual := make(generate.SeriesBlock, len(input))
+
+	expectedMetadata := map[string]generate.Series{}
 	req := rpc.NewFetchRequest()
-	for i := range expected {
-		s := &expected[i]
+	for i := range input {
+		idString := input[i].ID.String()
 		req.NameSpace = namespace.String()
-		req.ID = s.ID.String()
+		req.ID = idString
 		req.RangeStart = xtime.ToNormalizedTime(start, time.Second)
 		req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 		fetched, err := ts.fetch(req)
+
 		require.NoError(t, err)
+		expected[i] = generate.Series{
+			ID:   input[i].ID,
+			Data: input[i].Data,
+		}
 		actual[i] = generate.Series{
-			ID:   s.ID,
-			Tags: s.Tags,
+			ID:   input[i].ID,
 			Data: fetched,
 		}
+
+		// Build expected metadata map at the same time
+		expectedMetadata[idString] = input[i]
 	}
 
 	if len(expectedDebugFilePath) > 0 {
@@ -96,6 +113,73 @@ func verifySeriesMapForRange(
 	}
 
 	require.Equal(t, expected, actual)
+
+	// Now check the metadata of all the series match
+	ctx := context.NewContext()
+	defer ctx.Close()
+	for _, shard := range ts.db.ShardSet().AllIDs() {
+		var (
+			opts      block.FetchBlocksMetadataOptions
+			pageToken storage.PageToken
+			first     = true
+		)
+		for {
+			if first {
+				first = false
+			} else if pageToken == nil {
+				// Done, next shard
+				break
+			}
+
+			results, nextPageToken, err := ts.db.FetchBlocksMetadataV2(ctx,
+				namespace, shard, start, end, 4096, pageToken, opts)
+			require.NoError(t, err)
+
+			// Use the next one for the next iteration
+			pageToken = nextPageToken
+
+			for _, actual := range results.Results() {
+				id := actual.ID.String()
+				expected, ok := expectedMetadata[id]
+				require.True(t, ok, fmt.Sprintf("unexpected ID: %s", id))
+
+				expectedTagsIter := ident.NewTagSliceIterator(expected.Tags)
+				actualTagsIter := actual.Tags.Duplicate()
+				tagMatcher := ident.NewTagIterMatcher(expectedTagsIter)
+				tagsMatch := tagMatcher.Matches(actualTagsIter)
+				if !tagsMatch {
+					expectedTagsIter.Reset(expected.Tags)
+					actualTagsIter = actual.Tags.Duplicate()
+					var expected, actual string
+					for expectedTagsIter.Next() {
+						tag := expectedTagsIter.Current()
+						entry := ""
+						if expected != "" {
+							entry += ", "
+						}
+						entry += tag.Name.String() + "=" + tag.Value.String()
+						expected += entry
+					}
+					for actualTagsIter.Next() {
+						tag := actualTagsIter.Current()
+						entry := ""
+						if actual != "" {
+							entry += " "
+						}
+						entry += tag.Name.String() + "=" + tag.Value.String()
+						actual += entry
+					}
+					ts.logger.WithFields(
+						xlog.NewField("id", id),
+						xlog.NewField("expectedTags", expected),
+						xlog.NewField("actualTags", actual),
+					).Error("series does not match expected tags")
+				}
+
+				require.True(t, tagMatcher.Matches(actualTagsIter))
+			}
+		}
+	}
 }
 
 func writeVerifyDebugOutput(t *testing.T, filePath string, start, end time.Time, series generate.SeriesBlock) {

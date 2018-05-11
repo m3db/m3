@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
@@ -45,6 +46,7 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
@@ -60,11 +62,33 @@ var (
 	nsRetentionOpts = retention.NewOptions().
 			SetBlockSize(blockSize).
 			SetRetentionPeriod(48 * blockSize)
-	fooID    = ident.StringID("foo")
-	barID    = ident.StringID("bar")
-	bazID    = ident.StringID("baz")
-	testHost = topology.NewHost("testhost", "testhost:9000")
+	testTagDecodingPool = serialize.NewTagDecoderPool(serialize.NewTagDecoderOptions(),
+		pool.NewObjectPoolOptions().SetSize(1))
+	testTagEncodingPool = serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
+		pool.NewObjectPoolOptions().SetSize(1))
+	testIDPool     = NewOptions().IdentifierPool()
+	fooID          = ident.StringID("foo")
+	fooTags        checked.Bytes
+	fooDecodedTags = ident.Tags{ident.StringTag("aaa", "bbb")}
+	barID          = ident.StringID("bar")
+	bazID          = ident.StringID("baz")
+	testHost       = topology.NewHost("testhost", "testhost:9000")
 )
+
+func init() {
+	testTagDecodingPool.Init()
+	testTagEncodingPool.Init()
+	tagEncoder := testTagEncodingPool.Get()
+	err := tagEncoder.Encode(ident.NewTagSliceIterator(fooDecodedTags))
+	if err != nil {
+		panic(err)
+	}
+	var ok bool
+	fooTags, ok = tagEncoder.Data()
+	if !ok {
+		panic(fmt.Errorf("encode tags failed"))
+	}
+}
 
 func testsNsMetadata(t *testing.T) namespace.Metadata {
 	md, err := namespace.NewMetadata(nsID, namespace.NewOptions().SetRetentionOptions(nsRetentionOpts))
@@ -742,11 +766,11 @@ func testBlocksToBlockReplicasMetadata(
 			for _, b := range bm.blocks {
 				blockReplicas = append(blockReplicas, block.ReplicaMetadata{
 					Metadata: block.Metadata{
+						ID:       bm.id,
 						Start:    b.start,
 						Size:     *(b.size),
 						Checksum: b.checksum,
 					},
-					ID:   bm.id,
 					Host: peerHost,
 				})
 			}
@@ -1468,7 +1492,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	// Attempt stream blocks
 	bopts := result.NewOptions()
 	m := session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
-	r := newBulkBlocksResult(opts, bopts)
+	r := newBulkBlocksResult(opts, bopts, session.pools.tagDecoder, session.pools.id)
 	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 
 	// Assert result
@@ -1621,7 +1645,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 	// Attempt stream blocks
 	bopts := result.NewOptions()
 	m := session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
-	r := newBulkBlocksResult(opts, bopts)
+	r := newBulkBlocksResult(opts, bopts, session.pools.tagDecoder, session.pools.id)
 	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 
 	// Assert enqueueChannel contents (bad bar block)
@@ -1663,8 +1687,9 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 		}},
 	}
 
-	r := newBulkBlocksResult(opts, bopts)
-	r.addBlockFromPeer(fooID, testHost, bl)
+	r := newBulkBlocksResult(opts, bopts,
+		testTagDecodingPool, testIDPool)
+	r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 
 	series := r.result.AllSeries()
 	assert.Equal(t, 1, series.Len())
@@ -1748,8 +1773,9 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		bl.Segments.Unmerged = append(bl.Segments.Unmerged, seg)
 	}
 
-	r := newBulkBlocksResult(opts, bopts)
-	r.addBlockFromPeer(fooID, testHost, bl)
+	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool)
+	r.addBlockFromPeer(fooID, fooTags, testHost, bl)
+
 	series := r.result.AllSeries()
 	assert.Equal(t, 1, series.Len())
 
@@ -1791,10 +1817,10 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := result.NewOptions()
-	r := newBulkBlocksResult(opts, bopts)
+	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool)
 
 	bl := &rpc.Block{Start: time.Now().UnixNano()}
-	err := r.addBlockFromPeer(fooID, testHost, bl)
+	err := r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
 }
@@ -1802,10 +1828,10 @@ func TestBlocksResultAddBlockFromPeerErrorOnNoSegments(t *testing.T) {
 func TestBlocksResultAddBlockFromPeerErrorOnNoSegmentsData(t *testing.T) {
 	opts := newSessionTestAdminOptions()
 	bopts := result.NewOptions()
-	r := newBulkBlocksResult(opts, bopts)
+	r := newBulkBlocksResult(opts, bopts, testTagDecodingPool, testIDPool)
 
 	bl := &rpc.Block{Start: time.Now().UnixNano(), Segments: &rpc.Segments{}}
-	err := r.addBlockFromPeer(fooID, testHost, bl)
+	err := r.addBlockFromPeer(fooID, fooTags, testHost, bl)
 	assert.Error(t, err)
 	assert.Equal(t, errSessionBadBlockResultFromPeer, err)
 }

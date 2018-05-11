@@ -61,6 +61,10 @@ func (r *indexBootstrapResult) Add(block IndexBlock, unfulfilled ShardTimeRanges
 // Add will add an index block to the collection, merging if one already
 // exists.
 func (r IndexResults) Add(block IndexBlock) {
+	if block.BlockStart().IsZero() {
+		return
+	}
+
 	// Merge results
 	blockStart := xtime.ToUnixNano(block.BlockStart())
 	existing, ok := r[blockStart]

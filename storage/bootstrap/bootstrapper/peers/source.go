@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3x/context"
@@ -142,7 +143,7 @@ func (s *peersSource) ReadData(
 		incrementalWorkerDoneCh = make(chan struct{})
 		incrementalMaxQueue     = s.opts.IncrementalPersistMaxQueueSize()
 		incrementalQueue        = make(chan incrementalFlush, incrementalMaxQueue)
-		bopts                   = s.opts.ResultOptions()
+		resultOpts              = s.opts.ResultOptions()
 		count                   = len(shardsTimeRanges)
 		concurrency             = s.opts.DefaultShardConcurrency()
 		blockSize               = nsMetadata.Options().RetentionOptions().BlockSize()
@@ -168,8 +169,9 @@ func (s *peersSource) ReadData(
 		wg.Add(1)
 		workers.Go(func() {
 			defer wg.Done()
-			s.fetchBootstrapBlocksFromPeers(shard, ranges, nsMetadata,
-				session, bopts, result, &resultLock, incremental, incrementalQueue, shardRetrieverMgr, blockSize)
+			s.fetchBootstrapBlocksFromPeers(shard, ranges, nsMetadata, session,
+				resultOpts, result, &resultLock, incremental, incrementalQueue,
+				shardRetrieverMgr, blockSize)
 		})
 	}
 
@@ -512,10 +514,154 @@ func (s *peersSource) ReadIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
-	// FOLLOWUP(r): implement the peers source returning
-	// index segments that are streamed from peers as required.
-	// Try to cache some series metadata on the peers source itself
-	// from work done in ReadData(...) to help avoid rereading as
-	// much as possible.
-	return result.NewIndexBootstrapResult(), nil
+	// FOLLOWUP(r): Try to reuse any metadata fetched during the ReadData(...)
+	// call rather than going to the network again
+	r := result.NewIndexBootstrapResult()
+	if shardsTimeRanges.IsEmpty() {
+		return r, nil
+	}
+
+	session, err := s.opts.AdminClient().DefaultAdminSession()
+	if err != nil {
+		s.log.Errorf("peers bootstrapper cannot get default admin session: %v", err)
+		r.SetUnfulfilled(shardsTimeRanges)
+		return nil, err
+	}
+
+	var (
+		count         = len(shardsTimeRanges)
+		concurrency   = s.opts.DefaultShardConcurrency()
+		dataBlockSize = ns.Options().RetentionOptions().BlockSize()
+		resultOpts    = s.opts.ResultOptions()
+		idxOpts       = ns.Options().IndexOptions()
+		version       = s.opts.FetchBlocksMetadataEndpointVersion()
+		resultLock    = &sync.Mutex{}
+		wg            sync.WaitGroup
+	)
+	s.log.WithFields(
+		xlog.NewField("shards", count),
+		xlog.NewField("concurrency", concurrency),
+	).Infof("peers bootstrapper bootstrapping index for ranges")
+
+	workers := xsync.NewWorkerPool(concurrency)
+	workers.Init()
+	for shard, ranges := range shardsTimeRanges {
+		shard, ranges := shard, ranges
+		wg.Add(1)
+		workers.Go(func() {
+			defer wg.Done()
+
+			iter := ranges.Iter()
+			for iter.Next() {
+				target := iter.Value()
+				size := dataBlockSize
+				for blockStart := target.Start; blockStart.Before(target.End); blockStart = blockStart.Add(size) {
+					currRange := xtime.Range{
+						Start: blockStart,
+						End:   blockStart.Add(size),
+					}
+
+					metadata, err := session.FetchBootstrapBlocksMetadataFromPeers(ns.ID(),
+						shard, currRange.Start, currRange.End, resultOpts, version)
+					if err != nil {
+						// Make this period unfulfilled
+						s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
+							shard, currRange)
+						continue
+					}
+
+					for metadata.Next() {
+						_, dataBlock := metadata.Current()
+						dataBlockRange := xtime.Range{
+							Start: dataBlock.Start,
+							End:   dataBlock.Start.Add(dataBlockSize),
+						}
+
+						inserted, err := s.readBlockMetadataAndIndex(r, resultLock, dataBlock,
+							idxOpts, resultOpts)
+						if err != nil {
+							// Make this period unfulfilled
+							s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
+								shard, dataBlockRange)
+						}
+
+						if !inserted {
+							// If the metadata wasn't inserted we finalize the metadata.
+							dataBlock.Finalize()
+						}
+					}
+					if err := metadata.Err(); err != nil {
+						// Make this period unfulfilled
+						s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
+							shard, currRange)
+					}
+				}
+			}
+		})
+	}
+
+	wg.Wait()
+
+	return r, nil
+}
+
+func (s *peersSource) readBlockMetadataAndIndex(
+	r result.IndexBootstrapResult,
+	resultLock *sync.Mutex,
+	dataBlock block.Metadata,
+	idxOpts namespace.IndexOptions,
+	resultOpts result.Options,
+) (bool, error) {
+	resultLock.Lock()
+	defer resultLock.Unlock()
+
+	segment, err := r.IndexResults().GetOrAddSegment(dataBlock.Start,
+		idxOpts, resultOpts)
+	if err != nil {
+		return false, err
+	}
+
+	exists, err := segment.ContainsID(dataBlock.ID.Bytes())
+	if err != nil {
+		return false, err
+	}
+	if exists {
+		return false, nil
+	}
+
+	d, err := convert.FromMetric(dataBlock.ID, dataBlock.Tags)
+	if err != nil {
+		return false, err
+	}
+
+	_, err = segment.Insert(d)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (s *peersSource) markIndexResultErrorAsUnfulfilled(
+	r result.IndexBootstrapResult,
+	resultLock *sync.Mutex,
+	err error,
+	shard uint32,
+	timeRange xtime.Range,
+) {
+	// NB(r): We explicitly do not remove entries from the index results
+	// as they are additive and get merged together with results from other
+	// bootstrappers by just appending the result (unlike data bootstrap
+	// results that when merged replace the block with the current block).
+	// It would also be difficult to remove only series that were added to the
+	// index block as results from a specific data block can be subsets of the
+	// index block and there's no way to definitively delete the entry we added
+	// as a result of just this data file failing.
+	resultLock.Lock()
+	defer resultLock.Unlock()
+
+	unfulfilled := result.ShardTimeRanges{
+		shard: xtime.Ranges{}.AddRange(timeRange),
+	}
+	r.Add(result.IndexBlock{}, unfulfilled)
 }

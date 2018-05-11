@@ -154,6 +154,26 @@ type AdminSession interface {
 	// Truncate will truncate the namespace for a given shard
 	Truncate(namespace ident.ID) (int64, error)
 
+	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
+	// for each series using the runtime configurable bootstrap level consistency
+	FetchBootstrapBlocksFromPeers(
+		namespace namespace.Metadata,
+		shard uint32,
+		start, end time.Time,
+		opts result.Options,
+		version FetchBlocksMetadataEndpointVersion,
+	) (result.ShardResult, error)
+
+	// FetchBootstrapBlocksMetadataFromPeers will fetch the blocks metadata from
+	// available peers using the runtime configurable bootstrap level consistency
+	FetchBootstrapBlocksMetadataFromPeers(
+		namespace ident.ID,
+		shard uint32,
+		start, end time.Time,
+		result result.Options,
+		version FetchBlocksMetadataEndpointVersion,
+	) (PeerBlockMetadataIter, error)
+
 	// FetchBlocksMetadataFromPeers will fetch the blocks metadata from
 	// available peers
 	FetchBlocksMetadataFromPeers(
@@ -164,16 +184,6 @@ type AdminSession interface {
 		result result.Options,
 		version FetchBlocksMetadataEndpointVersion,
 	) (PeerBlockMetadataIter, error)
-
-	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
-	// for each series in a best effort method from available peers
-	FetchBootstrapBlocksFromPeers(
-		namespace namespace.Metadata,
-		shard uint32,
-		start, end time.Time,
-		opts result.Options,
-		version FetchBlocksMetadataEndpointVersion,
-	) (result.ShardResult, error)
 
 	// FetchBlocksFromPeers will fetch the required blocks from the
 	// peers specified

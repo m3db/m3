@@ -29,6 +29,7 @@ import (
 // NewMetadata creates a new block metadata
 func NewMetadata(
 	id ident.ID,
+	tags ident.Tags,
 	start time.Time,
 	size int64,
 	checksum *uint32,
@@ -36,9 +37,22 @@ func NewMetadata(
 ) Metadata {
 	return Metadata{
 		ID:       id,
+		Tags:     tags,
 		Start:    start,
 		Size:     size,
 		Checksum: checksum,
 		LastRead: lastRead,
+	}
+}
+
+// Finalize will finalize the ID and Tags on the metadata.
+func (m *Metadata) Finalize() {
+	if m.ID != nil {
+		m.ID.Finalize()
+		m.ID = nil
+	}
+	if m.Tags != nil {
+		m.Tags.Finalize()
+		m.Tags = nil
 	}
 }

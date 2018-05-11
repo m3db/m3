@@ -400,11 +400,12 @@ func (s *dbSeries) FetchBlocksMetadata(
 		bufferResults.Close()
 	}
 
-	id := s.opts.IdentifierPool().Clone(s.id)
-
 	res.Sort()
 
-	return block.NewFetchBlocksMetadataResult(id, res), nil
+	// NB(r): Since ID and Tags are garbage collected we can safely
+	// return refs.
+	return block.NewFetchBlocksMetadataResult(s.id,
+		ident.NewTagSliceIterator(s.tags), res), nil
 }
 
 func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {

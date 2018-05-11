@@ -392,7 +392,7 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 	}()
 
 	expectedBlocks := block.NewFetchBlocksMetadataResults()
-	expectedBlocks.Add(block.NewFetchBlocksMetadataResult(ident.StringID("bar"), nil))
+	expectedBlocks.Add(block.NewFetchBlocksMetadataResult(ident.StringID("bar"), nil, nil))
 	expectedToken := new(int64)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.

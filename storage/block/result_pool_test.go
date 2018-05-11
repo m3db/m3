@@ -74,7 +74,8 @@ func TestFetchBlocksMetadataResultsPoolResetOnPut(t *testing.T) {
 	res := p.Get()
 
 	// Make res non-empty
-	res.Add(NewFetchBlocksMetadataResult(ident.StringID("foo"), NewFetchBlockMetadataResults()))
+	res.Add(NewFetchBlocksMetadataResult(ident.StringID("foo"),
+		ident.EmptyTagIterator, NewFetchBlockMetadataResults()))
 	require.Equal(t, 1, len(res.Results()))
 
 	// Return res to pool
@@ -92,7 +93,8 @@ func TestFetchBlocksMetadataResultsPoolRejectLargeSliceOnPut(t *testing.T) {
 	// Make res a large slice
 	iter := 1024
 	for i := 0; i < iter; i++ {
-		res.Add(NewFetchBlocksMetadataResult(ident.StringID("foo"), NewFetchBlockMetadataResults()))
+		res.Add(NewFetchBlocksMetadataResult(ident.StringID("foo"),
+			ident.EmptyTagIterator, NewFetchBlockMetadataResults()))
 	}
 	require.True(t, cap(res.Results()) > 64)
 
