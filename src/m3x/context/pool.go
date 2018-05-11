@@ -22,19 +22,18 @@ package context
 
 import (
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/resource"
 )
 
 type poolOfContexts struct {
 	ctxPool        pool.ObjectPool
-	finalizersPool finalizersArrayPool
+	finalizersPool finalizeablesArrayPool
 }
 
 // NewPool creates a new context pool.
 func NewPool(opts Options) Pool {
 	p := &poolOfContexts{
 		ctxPool: pool.NewObjectPool(opts.ContextPoolOptions()),
-		finalizersPool: newFinalizersArrayPool(finalizersArrayPoolOpts{
+		finalizersPool: newFinalizeablesArrayPool(finalizeablesArrayPoolOpts{
 			Capacity:    opts.InitPooledFinalizerCapacity(),
 			MaxCapacity: opts.MaxPooledFinalizerCapacity(),
 			Options:     opts.FinalizerPoolOptions(),
@@ -57,10 +56,10 @@ func (p *poolOfContexts) Put(context Context) {
 	p.ctxPool.Put(context)
 }
 
-func (p *poolOfContexts) GetFinalizers() []resource.Finalizer {
+func (p *poolOfContexts) getFinalizeables() []finalizeable {
 	return p.finalizersPool.Get()
 }
 
-func (p *poolOfContexts) PutFinalizers(finalizers []resource.Finalizer) {
-	p.finalizersPool.Put(finalizers)
+func (p *poolOfContexts) putFinalizeables(finalizeables []finalizeable) {
+	p.finalizersPool.Put(finalizeables)
 }

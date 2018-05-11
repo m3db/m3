@@ -45,6 +45,9 @@ type Context interface {
 	// RegisterFinalizer will register a resource finalizer.
 	RegisterFinalizer(resource.Finalizer)
 
+	// RegisterCloser will register a resource closer.
+	RegisterCloser(resource.Closer)
+
 	// DependsOn will register a blocking context that
 	// must complete first before finalizers can be called.
 	DependsOn(Context)
@@ -106,9 +109,9 @@ type Options interface {
 type contextPool interface {
 	Pool
 
-	// GetFinalizers provides a finalizer slice from the pool.
-	GetFinalizers() []resource.Finalizer
+	// getFinalizeables provides a finalizeables slice from the pool.
+	getFinalizeables() []finalizeable
 
-	// PutFinalizers returns the finalizers to pool.
-	PutFinalizers([]resource.Finalizer)
+	// putFinalizeables returns the finalizers to pool.
+	putFinalizeables([]finalizeable)
 }

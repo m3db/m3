@@ -44,7 +44,28 @@ func TestRegisterFinalizer(t *testing.T) {
 		wg.Done()
 	}))
 
-	assert.Equal(t, 1, len(ctx.finalizers))
+	assert.Equal(t, 1, len(ctx.finalizeables))
+
+	ctx.Close()
+	wg.Wait()
+
+	assert.Equal(t, true, closed)
+}
+
+func TestRegisterCloser(t *testing.T) {
+	var (
+		wg     sync.WaitGroup
+		closed = false
+		ctx    = NewContext().(*ctx)
+	)
+
+	wg.Add(1)
+	ctx.RegisterCloser(resource.CloserFn(func() {
+		closed = true
+		wg.Done()
+	}))
+
+	assert.Equal(t, 1, len(ctx.finalizeables))
 
 	ctx.Close()
 	wg.Wait()
@@ -57,7 +78,7 @@ func TestDoesNotRegisterFinalizerWhenClosed(t *testing.T) {
 	ctx.Close()
 	ctx.RegisterFinalizer(resource.FinalizerFn(func() {}))
 
-	assert.Equal(t, 0, len(ctx.finalizers))
+	assert.Equal(t, 0, len(ctx.finalizeables))
 }
 
 func TestDoesNotCloseTwice(t *testing.T) {
@@ -80,21 +101,26 @@ func TestDoesNotCloseTwice(t *testing.T) {
 func TestDependsOnNoCloserAllocation(t *testing.T) {
 	ctx := NewContext().(*ctx)
 	ctx.DependsOn(NewContext())
-	assert.Nil(t, ctx.finalizers)
+	assert.Nil(t, ctx.finalizeables)
+}
+
+func TestDependsOn(t *testing.T) {
+	ctx := NewContext().(*ctx)
+	testDependsOn(t, ctx)
 }
 
 func TestDependsOnWithReset(t *testing.T) {
 	ctx := NewContext().(*ctx)
 
-	testDependsOn(ctx, t)
+	testDependsOn(t, ctx)
 
 	// Reset and test works again.
 	ctx.Reset()
 
-	testDependsOn(ctx, t)
+	testDependsOn(t, ctx)
 }
 
-func testDependsOn(c *ctx, t *testing.T) {
+func testDependsOn(t *testing.T, c *ctx) {
 	var wg sync.WaitGroup
 	var closed int32
 
@@ -116,7 +142,7 @@ func testDependsOn(c *ctx, t *testing.T) {
 	assert.Equal(t, int32(0), atomic.LoadInt32(&closed))
 
 	// Now close the context ctx is dependent on.
-	other.Close()
+	other.BlockingClose()
 
 	wg.Wait()
 

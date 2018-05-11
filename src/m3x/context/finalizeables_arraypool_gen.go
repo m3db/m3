@@ -6,7 +6,6 @@ package context
 
 import (
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/resource"
 )
 
 // Copyright (c) 2018 Uber Technologies, Inc.
@@ -29,52 +28,52 @@ import (
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// finalizersArrayPool provides a pool for resourceFinalizer slices.
-type finalizersArrayPool interface {
+// finalizeablesArrayPool provides a pool for finalizeable slices.
+type finalizeablesArrayPool interface {
 	// Init initializes the array pool, it needs to be called
 	// before Get/Put use.
 	Init()
 
 	// Get returns the a slice from the pool.
-	Get() []resource.Finalizer
+	Get() []finalizeable
 
 	// Put returns the provided slice to the pool.
-	Put(elems []resource.Finalizer)
+	Put(elems []finalizeable)
 }
 
-type finalizersFinalizeFn func([]resource.Finalizer) []resource.Finalizer
+type finalizeablesFinalizeFn func([]finalizeable) []finalizeable
 
-type finalizersArrayPoolOpts struct {
+type finalizeablesArrayPoolOpts struct {
 	Options     pool.ObjectPoolOptions
 	Capacity    int
 	MaxCapacity int
-	FinalizeFn  finalizersFinalizeFn
+	FinalizeFn  finalizeablesFinalizeFn
 }
 
-type finalizersArrPool struct {
-	opts finalizersArrayPoolOpts
+type finalizeablesArrPool struct {
+	opts finalizeablesArrayPoolOpts
 	pool pool.ObjectPool
 }
 
-func newFinalizersArrayPool(opts finalizersArrayPoolOpts) finalizersArrayPool {
+func newFinalizeablesArrayPool(opts finalizeablesArrayPoolOpts) finalizeablesArrayPool {
 	if opts.FinalizeFn == nil {
-		opts.FinalizeFn = defaultFinalizersFinalizerFn
+		opts.FinalizeFn = defaultFinalizeablesFinalizerFn
 	}
 	p := pool.NewObjectPool(opts.Options)
-	return &finalizersArrPool{opts, p}
+	return &finalizeablesArrPool{opts, p}
 }
 
-func (p *finalizersArrPool) Init() {
+func (p *finalizeablesArrPool) Init() {
 	p.pool.Init(func() interface{} {
-		return make([]resource.Finalizer, 0, p.opts.Capacity)
+		return make([]finalizeable, 0, p.opts.Capacity)
 	})
 }
 
-func (p *finalizersArrPool) Get() []resource.Finalizer {
-	return p.pool.Get().([]resource.Finalizer)
+func (p *finalizeablesArrPool) Get() []finalizeable {
+	return p.pool.Get().([]finalizeable)
 }
 
-func (p *finalizersArrPool) Put(arr []resource.Finalizer) {
+func (p *finalizeablesArrPool) Put(arr []finalizeable) {
 	arr = p.opts.FinalizeFn(arr)
 	if max := p.opts.MaxCapacity; max > 0 && cap(arr) > max {
 		return
@@ -82,8 +81,8 @@ func (p *finalizersArrPool) Put(arr []resource.Finalizer) {
 	p.pool.Put(arr)
 }
 
-func defaultFinalizersFinalizerFn(elems []resource.Finalizer) []resource.Finalizer {
-	var empty resource.Finalizer
+func defaultFinalizeablesFinalizerFn(elems []finalizeable) []finalizeable {
+	var empty finalizeable
 	for i := range elems {
 		elems[i] = empty
 	}
@@ -91,16 +90,16 @@ func defaultFinalizersFinalizerFn(elems []resource.Finalizer) []resource.Finaliz
 	return elems
 }
 
-type finalizersArr []resource.Finalizer
+type finalizeablesArr []finalizeable
 
-func (elems finalizersArr) grow(n int) []resource.Finalizer {
+func (elems finalizeablesArr) grow(n int) []finalizeable {
 	if cap(elems) < n {
-		elems = make([]resource.Finalizer, n)
+		elems = make([]finalizeable, n)
 	}
 	elems = elems[:n]
 	// following compiler optimized memcpy impl
 	// https://github.com/golang/go/wiki/CompilerOptimizations#optimized-memclr
-	var empty resource.Finalizer
+	var empty finalizeable
 	for i := range elems {
 		elems[i] = empty
 	}
