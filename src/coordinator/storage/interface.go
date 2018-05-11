@@ -88,6 +88,8 @@ type Querier interface {
 		ctx context.Context, query *FetchQuery, options *FetchOptions) (*FetchResult, error)
 	FetchTags(
 		ctx context.Context, query *FetchQuery, options *FetchOptions) (*SearchResults, error)
+	FetchBlocks(
+		ctx context.Context, query *FetchQuery, options *FetchOptions) (BlockResult, error)
 }
 
 // WriteQuery represents the input timeseries that is written to M3DB
@@ -125,4 +127,9 @@ type FetchResult struct {
 type QueryResult struct {
 	FetchResult *FetchResult
 	Err         error
+}
+
+// BlockResult is the result from a block query
+type BlockResult struct {
+	Blocks []Block
 }
