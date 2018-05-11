@@ -45,18 +45,20 @@ var (
 )
 
 type retryableConnectionMetrics struct {
-	resetConn         tally.Counter
-	resetError        tally.Counter
-	connectError      tally.Counter
-	setKeepAliveError tally.Counter
+	resetConn               tally.Counter
+	resetError              tally.Counter
+	connectError            tally.Counter
+	setKeepAliveError       tally.Counter
+	setKeepAlivePeriodError tally.Counter
 }
 
 func newRetryableConnectionMetrics(scope tally.Scope) retryableConnectionMetrics {
 	return retryableConnectionMetrics{
-		resetConn:         scope.Counter("reset-conn"),
-		resetError:        scope.Counter("reset-conn-error"),
-		connectError:      scope.Counter("connect-error"),
-		setKeepAliveError: scope.Counter("set-keep-alive-error"),
+		resetConn:               scope.Counter("reset-conn"),
+		resetError:              scope.Counter("reset-conn-error"),
+		connectError:            scope.Counter("connect-error"),
+		setKeepAliveError:       scope.Counter("set-keep-alive-error"),
+		setKeepAlivePeriodError: scope.Counter("set-keep-alive-period-error"),
 	}
 }
 
@@ -218,7 +220,14 @@ func (c *retryableConnection) connectOnce(addr string) (net.Conn, error) {
 	if err = tcpConn.SetKeepAlive(true); err != nil {
 		c.m.setKeepAliveError.Inc(1)
 	}
-	return tcpConn, nil
+	keepAlivePeriod := c.opts.KeepAlivePeriod()
+	if keepAlivePeriod <= 0 {
+		return conn, nil
+	}
+	if err = tcpConn.SetKeepAlivePeriod(keepAlivePeriod); err != nil {
+		c.m.setKeepAlivePeriodError.Inc(1)
+	}
+	return conn, nil
 }
 
 func (c *retryableConnection) reset(conn net.Conn) {

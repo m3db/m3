@@ -49,6 +49,10 @@ test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
 	@$(VENDOR_ENV) $(test) $(coverfile) | tee $(test_log)
 
+.PHONY: test-integration
+test-integration:
+	go test -v -tags=integration ./integration
+
 .PHONY: test-xml
 test-xml: test-internal
 	go-junit-report < $(test_log) > $(junit_xml)
@@ -69,6 +73,10 @@ testhtml: test-internal
 test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "\x1b[31mCoveralls failed\x1b[m"
+
+.PHONY: test-ci-integration
+test-ci-integration:
+	$(test_ci_integration)
 
 .PHONY: install-mockgen
 install-mockgen: install-vendor
@@ -109,7 +117,7 @@ clean:
 	@rm -f *.html *.xml *.out *.test
 
 .PHONY: all
-all: metalint test-ci-unit
+all: metalint test-ci-unit test-ci-integration
 	@echo make all successfully finished
 
 .DEFAULT_GOAL := all
