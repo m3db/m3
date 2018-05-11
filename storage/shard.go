@@ -1532,7 +1532,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 
 			// Make sure ID and tags get cleaned up after read is done
 			ctx.RegisterFinalizer(id)
-			ctx.RegisterCloser(tags.Close)
+			ctx.RegisterCloser(tags)
 
 			blockResult := s.opts.FetchBlockMetadataResultsPool().Get()
 			value := block.FetchBlockMetadataResult{
