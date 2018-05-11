@@ -23,8 +23,8 @@ package promql
 import (
 	"fmt"
 
-	"github.com/m3db/m3coordinator/errors"
-	"github.com/m3db/m3coordinator/parser"
+	"github.com/m3db/m3db/src/coordinator/errors"
+	"github.com/m3db/m3db/src/coordinator/parser"
 
 	pql "github.com/prometheus/prometheus/promql"
 )

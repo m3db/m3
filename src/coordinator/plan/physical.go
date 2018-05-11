@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3coordinator/parser"
-	"github.com/m3db/m3coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/parser"
+	"github.com/m3db/m3db/src/coordinator/storage"
 )
 
 // PhysicalPlan represents the physical plan

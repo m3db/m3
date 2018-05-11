@@ -21,9 +21,9 @@
 package promql
 
 import (
-	"github.com/m3db/m3coordinator/functions"
-	"github.com/m3db/m3coordinator/parser"
-	"github.com/m3db/m3coordinator/parser/common"
+	"github.com/m3db/m3db/src/coordinator/functions"
+	"github.com/m3db/m3db/src/coordinator/parser"
+	"github.com/m3db/m3db/src/coordinator/parser/common"
 
 	"github.com/prometheus/prometheus/promql"
 )
