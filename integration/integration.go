@@ -175,7 +175,7 @@ func newDefaultBootstrappableTestSetups(
 	for i := 0; i < replicas; i++ {
 		var (
 			instance                   = i
-			usingPeersBoostrapper      = !setupOpts[i].disablePeersBootstrapper
+			usingPeersBootstrapper     = !setupOpts[i].disablePeersBootstrapper
 			bootstrapBlocksBatchSize   = setupOpts[i].bootstrapBlocksBatchSize
 			bootstrapBlocksConcurrency = setupOpts[i].bootstrapBlocksConcurrency
 			topologyInitializer        = setupOpts[i].topologyInitializer
@@ -211,7 +211,7 @@ func newDefaultBootstrappableTestSetups(
 		noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 		var peersBootstrapper bootstrap.BootstrapperProvider
 
-		if usingPeersBoostrapper {
+		if usingPeersBootstrapper {
 			adminOpts := client.NewAdminOptions()
 			if bootstrapBlocksBatchSize > 0 {
 				adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)

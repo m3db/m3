@@ -65,7 +65,7 @@ func testManager(
 	return manager, writer, opts
 }
 
-func TestPersistenceManagerPrepareDataFileExists(t *testing.T) {
+func TestPersistenceManagerPrepareDataFileExistsNoDelete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -93,9 +93,57 @@ func TestPersistenceManagerPrepareDataFileExists(t *testing.T) {
 		BlockStart:        blockStart,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
-	require.NoError(t, err)
+	require.Equal(t, errPersistManagerFileSetAlreadyExists, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
+}
+
+func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	pm, writer, _ := testManager(t, ctrl)
+	defer os.RemoveAll(pm.filePathPrefix)
+
+	shard := uint32(0)
+	blockStart := time.Unix(1000, 0)
+
+	writerOpts := DataWriterOpenOptionsMatcher{
+		ID: FileSetFileIdentifier{
+			Namespace:  testNs1ID,
+			Shard:      shard,
+			BlockStart: blockStart,
+		},
+		BlockSize: testBlockSize,
+	}
+	writer.EXPECT().Open(writerOpts).Return(nil)
+
+	shardDir := createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
+	checkpointFilePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	f, err := os.Create(checkpointFilePath)
+	require.NoError(t, err)
+	f.Close()
+
+	flush, err := pm.StartPersist()
+	require.NoError(t, err)
+
+	defer func() {
+		assert.NoError(t, flush.Done())
+	}()
+
+	prepareOpts := persist.PrepareOptions{
+		NamespaceMetadata: testNs1Metadata(t),
+		Shard:             shard,
+		BlockStart:        blockStart,
+		DeleteIfExists:    true,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
+	require.NoError(t, err)
+	require.NotNil(t, prepared.Persist)
+	require.NotNil(t, prepared.Close)
+
+	_, err = os.Open(checkpointFilePath)
+	require.True(t, os.IsNotExist(err))
 }
 
 func TestPersistenceManagerPrepareOpenError(t *testing.T) {

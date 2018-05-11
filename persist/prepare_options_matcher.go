@@ -28,12 +28,14 @@ import (
 )
 
 // PrepareOptionsMatcher satisfies the gomock.Matcher interface for PrepareOptions
+// nolint: maligned
 type PrepareOptionsMatcher struct {
-	NsMetadata   namespace.Metadata
-	Shard        uint32
-	BlockStart   time.Time
-	SnapshotTime time.Time
-	FileSetType  FileSetType
+	NsMetadata     namespace.Metadata
+	Shard          uint32
+	BlockStart     time.Time
+	SnapshotTime   time.Time
+	FileSetType    FileSetType
+	DeleteIfExists bool
 }
 
 // Matches determines whether a PrepareOptionsMatcher matches a PrepareOptions
@@ -58,12 +60,15 @@ func (p PrepareOptionsMatcher) Matches(x interface{}) bool {
 	if p.FileSetType != prepareOptions.FileSetType {
 		return false
 	}
+	if p.DeleteIfExists != prepareOptions.DeleteIfExists {
+		return false
+	}
 
 	return true
 }
 
 func (p PrepareOptionsMatcher) String() string {
 	return fmt.Sprintf(
-		"NSMetadata: %s, Shard: %d, BlockStart: %d, SnapshotTime: %d, FileSetType: %s",
-		p.NsMetadata.ID().String(), p.Shard, p.BlockStart.Unix(), p.SnapshotTime.Unix(), p.FileSetType)
+		"NSMetadata: %s, Shard: %d, BlockStart: %d, SnapshotTime: %d, FileSetType: %s, DeleteIfExists: %t",
+		p.NsMetadata.ID().String(), p.Shard, p.BlockStart.Unix(), p.SnapshotTime.Unix(), p.FileSetType, p.DeleteIfExists)
 }

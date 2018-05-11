@@ -23,6 +23,7 @@ package fs
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -33,6 +34,8 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
+	xlog "github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
 )
@@ -52,6 +55,7 @@ var (
 	errPersistManagerNotIdle                    = errors.New("persist manager cannot start persist, not idle")
 	errPersistManagerNotPersisting              = errors.New("persist manager cannot finish persisting, not persisting")
 	errPersistManagerCannotPrepareNotPersisting = errors.New("persist manager cannot prepare, not persisting")
+	errPersistManagerFileSetAlreadyExists       = errors.New("persist manager cannot prepare, fileset already exists")
 )
 
 type sleepFn func(time.Duration)
@@ -233,16 +237,35 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 		return prepared, errPersistManagerCannotPrepareNotPersisting
 	}
 
-	// If the checkpoint file aleady exists, bail. This allows us to retry failed attempts because
-	// they wouldn't have created the checkpoint file. This can happen in a variety of situations
-	// for flushes, but will not happen with snapshots because we generate an auto-incrementing ID
-	// for all snapshots that belong to the same block start.
 	exists, err := pm.filesetExistsAt(opts)
 	if err != nil {
 		return prepared, err
 	}
-	if exists {
-		return prepared, nil
+
+	if exists && !opts.DeleteIfExists {
+		// This should never happen in practice since we always track which times
+		// are flushed in the shard when we bootstrap (so we should never
+		// duplicately write out one of those files) and for snapshotting we append
+		// a monotonically increasing number to avoid collisions.
+		// instrument.
+		iopts := pm.opts.InstrumentOptions()
+		l := instrument.EmitInvariantViolationAndGetLogger(iopts)
+		l.WithFields(
+			xlog.NewField("blockStart", blockStart.String()),
+			xlog.NewField("fileSetType", opts.FileSetType.String()),
+			xlog.NewField("snapshotStart", snapshotTime.String()),
+			xlog.NewField("namespace", nsID.String()),
+			xlog.NewField("shard", strconv.Itoa(int(shard))),
+		).Errorf("prepared writing fileset volume that already exists")
+		return prepared, errPersistManagerFileSetAlreadyExists
+	}
+
+	if exists && opts.DeleteIfExists {
+		err := DeleteFileSetAt(pm.opts.FilePathPrefix(), nsID, shard, blockStart)
+		if err != nil {
+
+			return prepared, err
+		}
 	}
 
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
@@ -281,7 +304,7 @@ func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) (b
 		// already exist doesn't make much sense
 		return false, nil
 	case persist.FileSetFlushType:
-		return DataFileSetExistsAt(pm.filePathPrefix, nsID, shard, blockStart), nil
+		return DataFileSetExistsAt(pm.filePathPrefix, nsID, shard, blockStart)
 	default:
 		return false, fmt.Errorf(
 			"unable to determine if fileset exists in persist manager for fileset type: %s",

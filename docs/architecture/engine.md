@@ -144,7 +144,7 @@ Lets imagine a read for a given series that requests the last 6 hours worth of d
 If the current time is 8PM, then the location of the requested blocks might be as follows:
 
 ```
-[2PM - 4PM (Fileset file)] - Sealed and flushed block that isn't cached
+[2PM - 4PM (FileSet file)] - Sealed and flushed block that isn't cached
 [4PM - 6PM (In-memory cache)] - Sealed and flush block that is cached
 [6PM - 8PM (active buffer)] - Hasn't been sealed or flushed yet
 ```

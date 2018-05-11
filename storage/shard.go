@@ -1479,7 +1479,10 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	// Work backwards while in requested range and not before retention
 	for !blockStart.Before(start) &&
 		!blockStart.Before(retention.FlushTimeStart(ropts, s.nowFn())) {
-		exists := s.namespaceReaderMgr.filesetExistsAt(s.shard, blockStart)
+		exists, err := s.namespaceReaderMgr.filesetExistsAt(s.shard, blockStart)
+		if err != nil {
+			return nil, nil, err
+		}
 		if !exists {
 			// No fileset files here
 			blockStart = blockStart.Add(-1 * blockSize)
@@ -1699,17 +1702,15 @@ func (s *dbShard) Flush(
 		NamespaceMetadata: s.namespace,
 		Shard:             s.ID(),
 		BlockStart:        blockStart,
+		// We explicitly set delete if exists to false here as we track which
+		// filesets exists at bootstrap time so we should never encounter a time
+		// when we attempt to flush and a fileset already exists unless there is
+		// racing competing processes.
+		DeleteIfExists: false,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	if err != nil {
 		return s.markFlushStateSuccessOrError(blockStart, err)
-	}
-
-	// No action is necessary therefore we bail out early and there is no need to close.
-	if prepared.Persist == nil {
-		// NB(r): Need to mark state without mulitErr as success so IsBlockRetrievable can
-		// return true when querying if a block is retrievable for this time
-		return s.markFlushStateSuccessOrError(blockStart, nil)
 	}
 
 	var multiErr xerrors.MultiError
@@ -1771,27 +1772,17 @@ func (s *dbShard) Snapshot(
 		BlockStart:        blockStart,
 		SnapshotTime:      snapshotTime,
 		FileSetType:       persist.FileSetSnapshotType,
+		// We explicitly set delete if exists to false here as we do not
+		// expect there to be a collision as snapshots files are appended
+		// with a monotonically increasing number to avoid collisions, there
+		// would have to be a competing process to cause a collision.
+		DeleteIfExists: false,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	// Add the err so the defer will capture it
 	multiErr = multiErr.Add(err)
 	if err != nil {
 		return err
-	}
-
-	// No action is necessary therefore we bail out early and there is no need to close.
-	if prepared.Persist == nil {
-		errMsg := "[invariant violated] tried to write prepare snapshot file that already exists"
-		// This should never happen in practice since we don't check for duplicate snapshot files
-		// in the Prepare method.
-		s.logger.WithFields(
-			xlog.NewField("blockStart", blockStart),
-			xlog.NewField("snapshotStart", snapshotTime),
-			xlog.NewField("shard", s.ID()),
-		).Errorf(errMsg)
-		// Add to multiErr so we can see failures in metrics
-		multiErr = multiErr.Add(errors.New(errMsg))
-		return nil
 	}
 
 	tmpCtx := context.NewContext()

@@ -59,6 +59,18 @@ type FileSetFile struct {
 	AbsoluteFilepaths []string
 }
 
+// HasCheckpointFile returns a bool indicating whether the given set of
+// fileset files has a checkpoint file.
+func (f FileSetFile) HasCheckpointFile() bool {
+	for _, fileName := range f.AbsoluteFilepaths {
+		if strings.Contains(fileName, checkpointFileSuffix) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // FileSetFilesSlice is a slice of FileSetFile
 type FileSetFilesSlice []FileSetFile
 
@@ -73,6 +85,14 @@ func (f FileSetFilesSlice) Filepaths() []string {
 	return flattened
 }
 
+// ignores the index in the FileSetFileIdentifier because fileset files should
+// always have index 0.
+func (f FileSetFilesSlice) sortByTimeAscending() {
+	sort.Slice(f, func(i, j int) bool {
+		return f[i].ID.BlockStart.Before(f[j].ID.BlockStart)
+	})
+}
+
 // NewFileSetFile creates a new FileSet file
 func NewFileSetFile(id FileSetFileIdentifier) FileSetFile {
 	return FileSetFile{
@@ -84,18 +104,6 @@ func NewFileSetFile(id FileSetFileIdentifier) FileSetFile {
 // SnapshotFile represents a set of Snapshot files for a given block start
 type SnapshotFile struct {
 	FileSetFile
-}
-
-// HasCheckpointFile returns a bool indicating whether the given set of
-// snapshot files has a checkpoint file.
-func (s SnapshotFile) HasCheckpointFile() bool {
-	for _, fileName := range s.AbsoluteFilepaths {
-		if strings.Contains(fileName, checkpointFileSuffix) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // SnapshotFilesSlice is a slice of SnapshotFile
@@ -428,6 +436,49 @@ func IndexSnapshotFiles(filePathPrefix string, namespace ident.ID) (SnapshotFile
 	})
 }
 
+// FileSetAt returns a FileSetFile for the given namespace/shard/blockStart combination if it exists.
+func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockStart time.Time) (FileSetFile, bool, error) {
+	matched, err := filesetFiles(filePathPrefix, namespace, shard, filesetFilePattern)
+	if err != nil {
+		return FileSetFile{}, false, err
+	}
+
+	matched.sortByTimeAscending()
+	for i, fileset := range matched {
+		if fileset.ID.BlockStart.Equal(blockStart) {
+			nextIdx := i + 1
+			if nextIdx < len(matched) && matched[nextIdx].ID.BlockStart.Equal(blockStart) {
+				// Should never happen
+				return FileSetFile{}, false, fmt.Errorf(
+					"found multiple fileset files for blockStart: %d",
+					blockStart.Unix(),
+				)
+			}
+
+			if !fileset.HasCheckpointFile() {
+				continue
+			}
+
+			return fileset, true, nil
+		}
+	}
+
+	return FileSetFile{}, false, nil
+}
+
+// DeleteFileSetAt deletes a FileSetFile for a given namespace/shard/blockStart combination if it exists.
+func DeleteFileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) error {
+	fileset, ok, err := FileSetAt(filePathPrefix, namespace, shard, t)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("fileset for blockStart: %d does not exist", t.Unix())
+	}
+
+	return DeleteFiles(fileset.AbsoluteFilepaths)
+}
+
 // FileSetBefore returns all the fileset files whose timestamps are earlier than a given time.
 func FileSetBefore(filePathPrefix string, namespace ident.ID, shard uint32, t time.Time) ([]string, error) {
 	matched, err := filesetFiles(filePathPrefix, namespace, shard, filesetFilePattern)
@@ -738,11 +789,14 @@ func CommitLogsDirPath(prefix string) string {
 	return path.Join(prefix, commitLogsDirName)
 }
 
-// DataFileSetExistsAt determines whether data fileset files exist for the given namespace, shard, and block start time.
-func DataFileSetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) bool {
-	shardDir := ShardDataDirPath(prefix, namespace, shard)
-	checkpointFile := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
-	return FileExists(checkpointFile)
+// DataFileSetExistsAt determines whether data fileset files exist for the given namespace, shard, and block start.
+func DataFileSetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) (bool, error) {
+	_, ok, err := FileSetAt(prefix, namespace, shard, blockStart)
+	if err != nil {
+		return false, err
+	}
+
+	return ok, nil
 }
 
 // SnapshotFileSetExistsAt determines whether snapshot fileset files exist for the given namespace, shard, and block start time.

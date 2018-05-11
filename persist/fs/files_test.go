@@ -93,7 +93,26 @@ func createInfoFilesDataDir(t *testing.T, namespace ident.ID, shard uint32, iter
 	return createInfoFiles(t, dataDirName, namespace, shard, iter, false)
 }
 
+func createCheckpointFilesDataDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
+	return createCheckpointFiles(t, dataDirName, namespace, shard, iter, false)
+}
+
 func createInfoFiles(t *testing.T, subDirName string, namespace ident.ID, shard uint32, iter int, isSnapshot bool) string {
+	return createFiles(t, subDirName, namespace, shard, iter, isSnapshot, infoFileSuffix)
+}
+
+func createCheckpointFiles(t *testing.T, subDirName string, namespace ident.ID, shard uint32, iter int, isSnapshot bool) string {
+	return createFiles(t, subDirName, namespace, shard, iter, isSnapshot, checkpointFileSuffix)
+}
+
+func createFiles(t *testing.T,
+	subDirName string,
+	namespace ident.ID,
+	shard uint32,
+	iter int,
+	isSnapshot bool,
+	fileSuffix string,
+) string {
 	dir := createTempDir(t)
 	shardDir := path.Join(dir, subDirName, namespace.String(), strconv.Itoa(int(shard)))
 	require.NoError(t, os.MkdirAll(shardDir, 0755))
@@ -101,9 +120,9 @@ func createInfoFiles(t *testing.T, subDirName string, namespace ident.ID, shard 
 		ts := time.Unix(0, int64(i))
 		var infoFilePath string
 		if isSnapshot {
-			infoFilePath = snapshotPathFromTimeAndIndex(shardDir, ts, infoFileSuffix, 0)
+			infoFilePath = snapshotPathFromTimeAndIndex(shardDir, ts, fileSuffix, 0)
 		} else {
-			infoFilePath = filesetPathFromTime(shardDir, ts, infoFileSuffix)
+			infoFilePath = filesetPathFromTime(shardDir, ts, fileSuffix)
 		}
 		createFile(t, infoFilePath, nil)
 	}
@@ -356,12 +375,16 @@ func TestFileExists(t *testing.T) {
 	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
 	createDataFile(t, shardDir, start, infoFileSuffix, nil)
 	require.True(t, FileExists(infoFilePath))
-	require.False(t, DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start))
+	exists, err := DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start)
+	require.NoError(t, err)
+	require.False(t, exists)
 
 	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, nil)
 	require.True(t, FileExists(checkpointFilePath))
-	require.True(t, DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start))
+	exists, err = DataFileSetExistsAt(dir, testNs1ID, uint32(shard), start)
+	require.NoError(t, err)
+	require.True(t, exists)
 
 	os.Remove(infoFilePath)
 	require.False(t, FileExists(infoFilePath))
@@ -406,6 +429,68 @@ func TestFileSetFilesBefore(t *testing.T) {
 		ts := time.Unix(0, int64(i))
 		require.Equal(t, filesetPathFromTime(shardDir, ts, infoFileSuffix), res[i])
 	}
+}
+
+func TestFileSetAt(t *testing.T) {
+	shard := uint32(0)
+	numIters := 20
+	dir := createCheckpointFilesDataDir(t, testNs1ID, shard, numIters)
+	defer os.RemoveAll(dir)
+
+	for i := 0; i < numIters; i++ {
+		timestamp := time.Unix(0, int64(i))
+		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, timestamp, res.ID.BlockStart)
+	}
+}
+
+func TestFileSetAtIgnoresWithoutCheckpoint(t *testing.T) {
+	shard := uint32(0)
+	numIters := 20
+	dir := createInfoFilesDataDir(t, testNs1ID, shard, numIters)
+	defer os.RemoveAll(dir)
+
+	for i := 0; i < numIters; i++ {
+		timestamp := time.Unix(0, int64(i))
+		_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
+		require.NoError(t, err)
+		require.False(t, ok)
+	}
+}
+
+func TestDeleteFileSetAt(t *testing.T) {
+	shard := uint32(0)
+	numIters := 20
+	dir := createCheckpointFilesDataDir(t, testNs1ID, shard, numIters)
+	defer os.RemoveAll(dir)
+
+	for i := 0; i < numIters; i++ {
+		timestamp := time.Unix(0, int64(i))
+		res, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, timestamp, res.ID.BlockStart)
+
+		err = DeleteFileSetAt(dir, testNs1ID, shard, timestamp)
+		require.NoError(t, err)
+
+		res, ok, err = FileSetAt(dir, testNs1ID, shard, timestamp)
+		require.NoError(t, err)
+		require.False(t, ok)
+	}
+}
+
+func TestFileSetAtNotExist(t *testing.T) {
+	shard := uint32(0)
+	dir := createInfoFilesDataDir(t, testNs1ID, shard, 0)
+	defer os.RemoveAll(dir)
+
+	timestamp := time.Unix(0, 0)
+	_, ok, err := FileSetAt(dir, testNs1ID, shard, timestamp)
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 func TestFileSetFilesNoFiles(t *testing.T) {
