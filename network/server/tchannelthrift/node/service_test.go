@@ -668,7 +668,7 @@ func TestServiceFetchTagged(t *testing.T) {
 
 	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	require.NoError(t, err)
-	qry := index.Query{req}
+	qry := index.Query{Query: req}
 
 	resMap := index.NewResults(index.NewOptions())
 	resMap.Reset(ident.StringID(nsID))
@@ -689,24 +689,19 @@ func TestServiceFetchTagged(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.QueryResults{resMap, true}, nil)
+		}).Return(index.QueryResults{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
 	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
 	var limit int64 = 10
+	data, err := idx.Marshal(req)
+	require.NoError(t, err)
 	r, err := service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
 		NameSpace: []byte(nsID),
 		Query: &rpc.IdxQuery{
-			Operator: rpc.BooleanOperator_AND_OPERATOR,
-			Filters: []*rpc.IdxTagFilter{
-				&rpc.IdxTagFilter{
-					TagName:        []byte("foo"),
-					TagValueFilter: []byte("b.*"),
-					Regexp:         true,
-				},
-			},
+			Query: data,
 		},
 		RangeStart: startNanos,
 		RangeEnd:   endNanos,
@@ -769,7 +764,7 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 
 	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	require.NoError(t, err)
-	qry := index.Query{req}
+	qry := index.Query{Query: req}
 
 	resMap := index.NewResults(index.NewOptions())
 	resMap.Reset(ident.StringID(nsID))
@@ -783,24 +778,19 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 			StartInclusive: start,
 			EndExclusive:   end,
 			Limit:          10,
-		}).Return(index.QueryResults{resMap, true}, nil)
+		}).Return(index.QueryResults{Results: resMap, Exhaustive: true}, nil)
 
 	startNanos, err := convert.ToValue(start, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
 	endNanos, err := convert.ToValue(end, rpc.TimeType_UNIX_NANOSECONDS)
 	require.NoError(t, err)
 	var limit int64 = 10
+	data, err := idx.Marshal(req)
+	require.NoError(t, err)
 	r, err := service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
 		NameSpace: []byte(nsID),
 		Query: &rpc.IdxQuery{
-			Operator: rpc.BooleanOperator_AND_OPERATOR,
-			Filters: []*rpc.IdxTagFilter{
-				&rpc.IdxTagFilter{
-					TagName:        []byte("foo"),
-					TagValueFilter: []byte("b.*"),
-					Regexp:         true,
-				},
-			},
+			Query: data,
 		},
 		RangeStart: startNanos,
 		RangeEnd:   endNanos,
@@ -850,7 +840,9 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 
 	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
 	require.NoError(t, err)
-	qry := index.Query{req}
+	data, err := idx.Marshal(req)
+	require.NoError(t, err)
+	qry := index.Query{Query: req}
 
 	mockDB.EXPECT().QueryIDs(
 		ctx,
@@ -864,14 +856,7 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 	_, err = service.FetchTagged(tctx, &rpc.FetchTaggedRequest{
 		NameSpace: []byte(nsID),
 		Query: &rpc.IdxQuery{
-			Operator: rpc.BooleanOperator_AND_OPERATOR,
-			Filters: []*rpc.IdxTagFilter{
-				&rpc.IdxTagFilter{
-					TagName:        []byte("foo"),
-					TagValueFilter: []byte("b.*"),
-					Regexp:         true,
-				},
-			},
+			Query: data,
 		},
 		RangeStart: startNanos,
 		RangeEnd:   endNanos,

@@ -245,6 +245,8 @@ func (b *block) Query(
 	}
 
 	// FOLLOWUP(prateek): push down QueryOptions to restrict results
+	// TODO(jeromefroe): Use the idx query directly once we implement an index in m3ninx
+	// and don't need to use the segments anymore.
 	iter, err := exec.Execute(query.Query.SearchQuery())
 	if err != nil {
 		exec.Close()

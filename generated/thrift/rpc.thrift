@@ -144,20 +144,7 @@ struct FetchTaggedRequest {
 }
 
 struct IdxQuery {
-	1: required BooleanOperator operator
-	2: optional list<IdxTagFilter> filters
-	3: optional list<IdxQuery> subQueries
-}
-
-enum BooleanOperator {
-	AND_OPERATOR,
-}
-
-struct IdxTagFilter {
-	1: required binary tagName
-	2: required binary tagValueFilter
-	3: required bool negate
-	4: required bool regexp
+	1: required binary query
 }
 
 struct FetchTaggedResult {

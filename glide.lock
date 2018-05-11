@@ -1,5 +1,5 @@
-hash: 66044e8b4580fffeb0b6771abfe615236864089850a7c4f76a8e3fbd3082a1e0
-updated: 2018-05-10T22:00:14.896089-04:00
+hash: 406dd8ceedda4ee1e7f405eda7cacfa166292058beebe66518ae09f2d85898ff
+updated: 2018-05-11T09:27:36.270402-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -188,9 +188,10 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3ninx
-  version: 614cfcf2ff9fd0c78a8c0130186ec6662a6778d6
+  version: 161bc07ea6ebae6a327481fe5bcbf61cbc560a90
   subpackages:
   - doc
+  - generated/proto/querypb
   - idx
   - index
   - index/segment
@@ -254,7 +255,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+  version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
