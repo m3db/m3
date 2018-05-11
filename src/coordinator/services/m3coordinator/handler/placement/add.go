@@ -39,7 +39,6 @@ const (
 	AddURL = "/placement/add"
 )
 
-// addHandler represents a handler for placement add endpoint.
 type addHandler Handler
 
 // NewAddHandler returns a new instance of a placement add handler.

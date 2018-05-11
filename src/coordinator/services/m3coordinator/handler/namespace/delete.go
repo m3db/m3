@@ -50,7 +50,6 @@ var (
 	errEmptyID = errors.New("must specify namespace ID to delete")
 )
 
-// deleteHandler represents a handler for namespace delete endpoint.
 type deleteHandler Handler
 
 // NewDeleteHandler returns a new instance of a namespace delete handler.
@@ -72,7 +71,7 @@ func (h *deleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Error("unable to delete namespace", zap.Any("error", err))
 		if err == errNamespaceNotFound {
-			handler.Error(w, err, http.StatusBadRequest)
+			handler.Error(w, err, http.StatusNotFound)
 		} else {
 			handler.Error(w, err, http.StatusInternalServerError)
 		}
@@ -97,18 +96,18 @@ func (h *deleteHandler) delete(id string) error {
 		return errNamespaceNotFound
 	}
 
-	// Replace the index where we found the metadata with the last element, then truncate
-	metadatas[mdIdx] = metadatas[len(metadatas)-1]
-	metadatas = metadatas[:len(metadatas)-1]
-
 	// If metadatas are empty, remove the key
-	if len(metadatas) == 0 {
+	if len(metadatas) == 1 {
 		if _, err = h.store.Delete(M3DBNodeNamespacesKey); err != nil {
 			return fmt.Errorf("unable to delete kv key: %v", err)
 		}
 
 		return nil
 	}
+
+	// Replace the index where we found the metadata with the last element, then truncate
+	metadatas[mdIdx] = metadatas[len(metadatas)-1]
+	metadatas = metadatas[:len(metadatas)-1]
 
 	// Update namespace map and set kv
 	nsMap, err := namespace.NewMap(metadatas)

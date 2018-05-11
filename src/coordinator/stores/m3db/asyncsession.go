@@ -49,7 +49,7 @@ type AsyncSession struct {
 	err     error
 }
 
-// NewAsyncSession returns a new Session
+// NewAsyncSession returns a new AsyncSession
 func NewAsyncSession(c client.Client, done chan struct{}) *AsyncSession {
 	asyncSession := &AsyncSession{
 		done: done,
@@ -76,7 +76,7 @@ func NewAsyncSession(c client.Client, done chan struct{}) *AsyncSession {
 	return asyncSession
 }
 
-// Write value to the database for an ID
+// Write writes a value to the database for an ID
 func (s *AsyncSession) Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	if s.err != nil {
 		return s.err
@@ -85,7 +85,7 @@ func (s *AsyncSession) Write(namespace, id ident.ID, t time.Time, value float64,
 	return s.session.Write(namespace, id, t, value, unit, annotation)
 }
 
-// WriteTagged value to the database for an ID and given tags.
+// WriteTagged writes a value to the database for an ID and given tags
 func (s *AsyncSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
 	if s.err != nil {
 		return s.err
@@ -94,7 +94,7 @@ func (s *AsyncSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterato
 	return s.session.WriteTagged(namespace, id, tags, t, value, unit, annotation)
 }
 
-// Fetch values from the database for an ID
+// Fetch fetches values from the database for an ID
 func (s *AsyncSession) Fetch(namespace, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
 	if s.err != nil {
 		return nil, s.err
@@ -103,7 +103,7 @@ func (s *AsyncSession) Fetch(namespace, id ident.ID, startInclusive, endExclusiv
 	return s.session.Fetch(namespace, id, startInclusive, endExclusive)
 }
 
-// FetchIDs values from the database for a set of IDs
+// FetchIDs fetches values from the database for a set of IDs
 func (s *AsyncSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
 	if s.err != nil {
 		return nil, s.err
@@ -112,7 +112,7 @@ func (s *AsyncSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInc
 	return s.session.FetchIDs(namespace, ids, startInclusive, endExclusive)
 }
 
-// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
+// FetchTagged resolves the provided query to known IDs, and fetches the data for them
 func (s *AsyncSession) FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (results encoding.SeriesIterators, exhaustive bool, err error) {
 	if s.err != nil {
 		return nil, false, s.err
@@ -141,7 +141,7 @@ func (s *AsyncSession) ShardID(id ident.ID) (uint32, error) {
 	return s.session.ShardID(id)
 }
 
-// Close the session
+// Close closes the session
 func (s *AsyncSession) Close() error {
 	if s.err != nil {
 		return s.err

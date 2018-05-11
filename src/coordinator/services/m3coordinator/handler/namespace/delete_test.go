@@ -50,7 +50,7 @@ func TestNamespaceDeleteHandlerNotFound(t *testing.T) {
 
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	assert.Equal(t, "unable to find a namespace with specified name\n", string(body))
 }
 

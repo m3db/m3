@@ -39,7 +39,6 @@ const (
 	InitURL = "/placement/init"
 )
 
-// initHandler represents a handler for placement init endpoint.
 type initHandler Handler
 
 // NewInitHandler returns a new instance of a placement init handler.

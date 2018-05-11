@@ -46,7 +46,6 @@ var (
 	errEmptyID = errors.New("must specify placement ID to delete")
 )
 
-// deleteHandler represents a handler for placement delete endpoint.
 type deleteHandler Handler
 
 // NewDeleteHandler returns a new instance of a placement delete handler.

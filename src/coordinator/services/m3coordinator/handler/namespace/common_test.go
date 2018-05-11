@@ -45,14 +45,16 @@ func TestMetadata(t *testing.T) {
 
 	// Test KV get error
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, errors.New("unable to get key"))
-	meta, _, err := Metadata(mockKV)
+	meta, version, err := Metadata(mockKV)
 	assert.Nil(t, meta)
+	assert.Equal(t, -1, version)
 	assert.EqualError(t, err, "unable to get key")
 
 	// Test empty namespace
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
-	meta, _, err = Metadata(mockKV)
+	meta, version, err = Metadata(mockKV)
 	assert.NotNil(t, meta)
+	assert.Equal(t, 0, version)
 	assert.Len(t, meta, 0)
 	assert.NoError(t, err)
 
@@ -96,8 +98,9 @@ func TestMetadata(t *testing.T) {
 
 	// Test namespaces
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(mockMetaValue, nil)
-	meta, _, err = Metadata(mockKV)
+	meta, version, err = Metadata(mockKV)
 	assert.NotNil(t, meta)
+	assert.Equal(t, 0, version)
 	assert.Len(t, meta, 2)
 	assert.NoError(t, err)
 }
