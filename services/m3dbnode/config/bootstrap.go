@@ -153,7 +153,7 @@ func (bsc BootstrapConfiguration) New(
 }
 
 // ValidateBootstrappersOrder will validate that a list of bootstrappers specified
-// is in validorder.
+// is in valid order.
 func ValidateBootstrappersOrder(names []string) error {
 	dataFetchingBootstrappers := []string{
 		bfs.FileSystemBootstrapperName,

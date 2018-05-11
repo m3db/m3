@@ -462,7 +462,6 @@ func (m *seekerManager) Close() error {
 		byTime.Unlock()
 	}
 
-	m.namespace = nil
 	m.status = seekerManagerClosed
 
 	m.Unlock()

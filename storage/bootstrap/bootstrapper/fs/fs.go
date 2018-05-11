@@ -60,10 +60,6 @@ func (p fileSystemBootstrapperProvider) Provide() bootstrap.Bootstrapper {
 	return b
 }
 
-func (p fileSystemBootstrapperProvider) Next() bootstrap.BootstrapperProvider {
-	return p.next
-}
-
 func (p fileSystemBootstrapperProvider) String() string {
 	return FileSystemBootstrapperName
 }

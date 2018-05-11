@@ -68,10 +68,6 @@ func (p commitLogBootstrapperProvider) Provide() bootstrap.Bootstrapper {
 	return b
 }
 
-func (p commitLogBootstrapperProvider) Next() bootstrap.BootstrapperProvider {
-	return p.next
-}
-
 func (p commitLogBootstrapperProvider) String() string {
 	return CommitLogBootstrapperName
 }
