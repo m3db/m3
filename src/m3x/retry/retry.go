@@ -123,7 +123,7 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 	}
 	r.metrics.errors.Inc(1)
 
-	for i := 0; r.forever || i < r.maxRetries; i++ {
+	for i := 1; r.forever || i <= r.maxRetries; i++ {
 		r.sleepFn(time.Duration(BackoffNanos(i, r.jitter, r.backoffFactor, r.initialBackoff, r.maxBackoff)))
 
 		if continueFn != nil && !continueFn(attempt) {
@@ -162,7 +162,7 @@ func BackoffNanos(
 ) int64 {
 	backoff := initialBackoff.Nanoseconds()
 	if retry >= 1 {
-		backoff = int64(float64(backoff) * math.Pow(backoffFactor, float64(retry)))
+		backoff = int64(float64(backoff) * math.Pow(backoffFactor, float64(retry-1)))
 	}
 	if jitter {
 		half := backoff / 2
