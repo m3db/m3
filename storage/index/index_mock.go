@@ -251,7 +251,7 @@ func (mr *MockBlockMockRecorder) Tick(arg0 interface{}) *gomock.Call {
 }
 
 // WriteBatch mocks base method
-func (m *MockBlock) WriteBatch(arg0 []WriteBatchEntry) (WriteBatchResult, error) {
+func (m *MockBlock) WriteBatch(arg0 WriteBatchEntryByBlockStartAndID) (WriteBatchResult, error) {
 	ret := m.ctrl.Call(m, "WriteBatch", arg0)
 	ret0, _ := ret[0].(WriteBatchResult)
 	ret1, _ := ret[1].(error)

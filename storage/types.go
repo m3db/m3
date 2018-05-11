@@ -430,7 +430,7 @@ type databaseShard interface {
 type namespaceIndex interface {
 	// WriteBatch indexes the provided entries.
 	WriteBatch(
-		entries []indexWriteEntry,
+		entries []index.WriteBatchEntry,
 	) error
 
 	// Query resolves the given query into known IDs.
@@ -453,13 +453,6 @@ type namespaceIndex interface {
 	Close() error
 }
 
-type indexWriteEntry struct {
-	id        ident.ID
-	tags      ident.Tags
-	timestamp time.Time
-	fns       index.OnIndexSeries
-}
-
 // namespaceIndexTickResult are details about the work performed by the namespaceIndex
 // during a Tick().
 type namespaceIndexTickResult struct {
@@ -478,12 +471,6 @@ type namespaceIndexInsertQueue interface {
 
 	// Stop stops accepting writes in the queue.
 	Stop() error
-
-	// Insert inserts the provided document to the index queue which processes
-	// inserts to the index asynchronously. It executes the provided callbacks
-	// based on the result of the execution. The returned wait group can be used
-	// if the insert is required to be synchronous.
-	// Insert(blockStart time.Time, d doc.Document, s index.OnIndexSeries) (*sync.WaitGroup, error)
 
 	// InsertBatch inserts the provided documents to the index queue which processes
 	// inserts to the index asynchronously. It executes the provided callbacks

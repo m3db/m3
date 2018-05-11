@@ -128,9 +128,6 @@ type dbShard struct {
 	newSeriesBootstrapped    bool
 	ticking                  bool
 	shard                    uint32
-
-	indexWriteEntryBatchLock sync.Mutex
-	indexWriteEntryBatch     []indexWriteEntry
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own
@@ -1166,19 +1163,9 @@ func (s *dbShard) insertNewShardEntryWithLock(entry *dbShardEntry) {
 
 func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	anyPendingAction := false
+	numPendingIndexing := 0
 
 	s.Lock()
-	s.indexWriteEntryBatchLock.Lock()
-	// reset s.indexWriteEntryBatch from all exit points
-	defer func() {
-		var empty indexWriteEntry
-		for i := range s.indexWriteEntryBatch {
-			s.indexWriteEntryBatch[i] = empty
-		}
-		s.indexWriteEntryBatch = s.indexWriteEntryBatch[:0]
-		s.indexWriteEntryBatchLock.Unlock()
-	}()
-
 	for i := range inserts {
 		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.series.ID())
 		if entry != nil {
@@ -1194,6 +1181,10 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		hasPendingRetrievedBlock := inserts[i].opts.hasPendingRetrievedBlock
 		anyPendingAction = anyPendingAction || hasPendingWrite ||
 			hasPendingRetrievedBlock || hasPendingIndexing
+
+		if hasPendingIndexing {
+			numPendingIndexing++
+		}
 
 		if hasPendingIndexing || hasPendingWrite || hasPendingRetrievedBlock {
 			// We're definitely writing a value, ensure that the pending write is
@@ -1230,6 +1221,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 	// Perform any indexing, pending writes or pending retrieved blocks outside of lock
 	ctx := s.contextPool.Get()
+	// TODO(prateek): pool this type
+	indexBatch := make([]index.WriteBatchEntry, 0, numPendingIndexing)
 	for i := range inserts {
 		var (
 			entry           = inserts[i].entry
@@ -1252,11 +1245,11 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// only index any entry that hasn't crossed the nextIndexTime
 			if entry.needsIndexUpdate(pendingIndex.timestamp) {
 				entry.onIndexPrepare()
-				s.indexWriteEntryBatch = append(s.indexWriteEntryBatch, indexWriteEntry{
-					id:        entry.series.ID(),
-					tags:      entry.series.Tags(),
-					timestamp: pendingIndex.timestamp,
-					fns:       entry,
+				indexBatch = append(indexBatch, index.WriteBatchEntry{
+					ID:            entry.series.ID(),
+					Tags:          entry.series.Tags(),
+					Timestamp:     pendingIndex.timestamp,
+					OnIndexSeries: entry,
 				})
 			}
 		}
@@ -1274,8 +1267,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 	var err error
 	// index all requested entries in batch.
-	if len(s.indexWriteEntryBatch) != 0 {
-		err = s.reverseIndex.WriteBatch(s.indexWriteEntryBatch)
+	if len(indexBatch) != 0 {
+		err = s.reverseIndex.WriteBatch(indexBatch)
 	}
 
 	// Avoid goroutine spinning up to close this context

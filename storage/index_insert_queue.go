@@ -186,7 +186,7 @@ func (q *nsIndexInsertQueue) InsertBatch(
 		// Loop busy, already ready to consume notification
 	}
 
-	q.metrics.numPending.Inc(1)
+	q.metrics.numPending.Inc(int64(len(entries)))
 	return wg, nil
 }
 
@@ -234,17 +234,13 @@ type nsIndexInsertBatch struct {
 	inserts [][]index.WriteBatchEntry
 }
 
-var nsIndexInsertZeroed index.WriteBatchEntry
-
 func (b *nsIndexInsertBatch) Reset() {
 	b.wg = &sync.WaitGroup{}
 	// We always expect to be waiting for an index
 	b.wg.Add(1)
-	for i, group := range b.inserts {
-		for j := range group {
-			group[j] = nsIndexInsertZeroed
-		}
-		b.inserts[i] = group[:0]
+	for i := range b.inserts {
+		// TODO(prateek): if we start pooling `[]index.WriteBatchEntry`, then we could return to the pool here.
+		b.inserts[i] = nil
 	}
 	b.inserts = b.inserts[:0]
 }

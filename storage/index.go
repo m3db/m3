@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/index"
-	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
@@ -222,51 +221,37 @@ func newNamespaceIndexWithOptions(
 //      	=> index.writeBatch()
 
 func (i *nsIndex) WriteBatch(
-	entries []indexWriteEntry,
+	entries []index.WriteBatchEntry,
 ) error {
 	// Ensure timestamp is not too old/new based on retention policies.
 	now := i.nowFn()
 	futureLimit := now.Add(1 * i.bufferFuture)
 	pastLimit := now.Add(-1 * i.bufferPast)
 
-	// TODO(prateek): pool this type
-	queueBatch := make([]index.WriteBatchEntry, 0, len(entries))
-
-	for _, entry := range entries {
+	var emptyEntry index.WriteBatchEntry
+	for j := range entries {
 		var (
-			id        = entry.id
-			tags      = entry.tags
-			timestamp = entry.timestamp
-			fns       = entry.fns
+			timestamp = entries[j].Timestamp
+			onIndexFn = entries[j].OnIndexSeries
 		)
 		if !futureLimit.After(timestamp) {
-			fns.OnIndexFinalize()
+			onIndexFn.OnIndexFinalize()
+			entries[j] = emptyEntry // indicate we don't need to index this.
+			// TODO(prateek): capture that this needs to return m3dberrors.ErrTooFuture
 			continue
-			// TODO(prateek): return m3dberrors.ErrTooFuture
 		}
 
 		if !pastLimit.Before(timestamp) {
-			fns.OnIndexFinalize()
+			onIndexFn.OnIndexFinalize()
+			entries[j] = emptyEntry // indicate we don't need to index this.
+			// TODO(prateek): capture that this needs to return m3dberrors.ErrTooPast
 			continue
-			// TODO(prateek): return m3dberrors.ErrTooPast
 		}
 
-		// Ensure metric can be converted to a valid document
-		d, err := convert.FromMetric(id, tags)
-		if err != nil {
-			fns.OnIndexFinalize()
-			continue
-			// TODO(prateek): return err
-		}
-
-		indexBlockStart := xtime.ToUnixNano(timestamp.Truncate(i.blockSize))
-		queueBatch = append(queueBatch, index.WriteBatchEntry{
-			BlockStart:    indexBlockStart,
-			Document:      d,
-			OnIndexSeries: fns,
-		})
+		// update the timestamp to the blockstart for the block it needs to be sent to
+		entries[j].Timestamp = timestamp.Truncate(i.blockSize)
 	}
-	return i.enqueueBatch(queueBatch)
+	return i.enqueueBatch(entries)
 }
 
 func (i *nsIndex) enqueueBatch(
@@ -276,9 +261,7 @@ func (i *nsIndex) enqueueBatch(
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()
 		i.metrics.InsertAfterClose.Inc(1)
-		for _, entry := range entries {
-			entry.OnIndexSeries.OnIndexFinalize()
-		}
+		index.WriteBatchEntriesFinalizer(entries).Finalize()
 		return errDbIndexUnableToWriteClosed
 	}
 
@@ -291,9 +274,7 @@ func (i *nsIndex) enqueueBatch(
 
 	// if we're unable to index, we still have to finalize the reference we hold.
 	if err != nil {
-		for _, entry := range entries {
-			entry.OnIndexSeries.OnIndexFinalize()
-		}
+		index.WriteBatchEntriesFinalizer(entries).Finalize()
 		return err
 	}
 	// once the write has been queued in the indexInsertQueue, it assumes
@@ -321,47 +302,40 @@ func (i *nsIndex) enqueueBatch(
 	return nil
 }
 
-func (i *nsIndex) writeBatches(
-	batches [][]index.WriteBatchEntry,
-) {
-	for _, batch := range batches {
-		i.writeBatch(batch)
-	}
-}
-
-// NB: this function is called by the namespaceIndexInsertQueue.
+// WriteBatches is called by the indexInsertQueue.
 // FOLLOWUP(prateek): propagate error back up from here to the indexInsertQueue
 // so that we can notify users of success/failure correctly in the case of
 // sync'd inserts.
-func (i *nsIndex) writeBatch(inserts []index.WriteBatchEntry) {
+func (i *nsIndex) writeBatches(
+	batches [][]index.WriteBatchEntry,
+) {
 	// NB(prateek): we use a read lock to guard against mutation of the
 	// indexBlocks, mutations within the underlying blocks are guarded
 	// by primitives internal to it.
 	i.state.RLock()
 	defer i.state.RUnlock()
-
 	if !i.isOpenWithRLock() {
 		// NB(prateek): deliberately skip calling any of the `OnIndexFinalize` methods
 		// on the provided inserts to terminate quicker during shutdown.
-		i.metrics.InsertAfterClose.Inc(int64(len(inserts)))
+		return
 	}
 
-	// we sort the inserts by which block they're applicable for, and do the inserts
-	// for each block.
-	writesByBlockStart := index.WriteBatchEntryByBlockStart(inserts)
-	sort.Sort(writesByBlockStart)
-	writesByBlockStart.ForEachBlockStart(i.writeBatchForBlockStartWithRLock)
+	for _, batch := range batches {
+		// we sort the inserts by which block they're applicable for, and do the inserts
+		// for each block.
+		writesByBlockStart := index.WriteBatchEntryByBlockStartAndID(batch)
+		sort.Sort(writesByBlockStart)
+		writesByBlockStart.ForEachBlockStart(i.writeBatchForBlockStartWithRLock)
+	}
 }
 
 func (i *nsIndex) writeBatchForBlockStartWithRLock(
-	blockStart xtime.UnixNano, inserts []index.WriteBatchEntry,
+	blockStart time.Time, inserts index.WriteBatchEntryByBlockStartAndID,
 ) {
 	// ensure we have an index block for the specified blockStart.
-	block, err := i.ensureBlockPresentWithRLock(blockStart.ToTime())
+	block, err := i.ensureBlockPresentWithRLock(blockStart)
 	if err != nil {
-		for _, insert := range inserts {
-			insert.OnIndexSeries.OnIndexFinalize()
-		}
+		index.WriteBatchEntriesFinalizer(inserts).Finalize()
 		i.logger.WithFields(
 			xlog.NewField("blockStart", blockStart),
 			xlog.NewField("numWrites", len(inserts)),
@@ -373,13 +347,11 @@ func (i *nsIndex) writeBatchForBlockStartWithRLock(
 
 	// i.e. we have the block and the inserts, perform the writes.
 	result, err := block.WriteBatch(inserts)
+
 	// NB: we don't need to do anything to the OnIndexSeries refs in `inserts` at this point,
 	// the index.Block WriteBatch assumes responsibility for calling the appropriate methods.
 	if numErr := result.NumError; numErr != 0 {
 		i.metrics.AsyncInsertErrors.Inc(numErr)
-	}
-	if err != nil {
-		// i.logger.Errorf("unable to write to index, dropping inserts. [%v]", err)
 	}
 }
 

@@ -1383,7 +1383,7 @@ func (m *MocknamespaceIndex) EXPECT() *MocknamespaceIndexMockRecorder {
 }
 
 // WriteBatch mocks base method
-func (m *MocknamespaceIndex) WriteBatch(entries []indexWriteEntry) error {
+func (m *MocknamespaceIndex) WriteBatch(entries []index.WriteBatchEntry) error {
 	ret := m.ctrl.Call(m, "WriteBatch", entries)
 	ret0, _ := ret[0].(error)
 	return ret0

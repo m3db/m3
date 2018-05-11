@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3db/storage/index/convert"
 	m3ninxindex "github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/index/segment/mem"
@@ -65,7 +65,6 @@ type block struct {
 	state                blockState
 	bootstrappedSegments []segment.Segment
 	segment              segment.MutableSegment
-	writeBatch           m3ninxindex.Batch
 
 	newExecutorFn newExecutorFn
 	startTime     time.Time
@@ -90,9 +89,6 @@ func NewBlock(
 	b := &block{
 		state:   blockStateOpen,
 		segment: seg,
-		writeBatch: m3ninxindex.Batch{
-			AllowPartialUpdates: true,
-		},
 
 		startTime: startTime,
 		endTime:   startTime.Add(blockSize),
@@ -111,86 +107,74 @@ func (b *block) EndTime() time.Time {
 	return b.endTime
 }
 
-func (b *block) updateWriteBatchWithLock(inserts []WriteBatchEntry) {
-	for _, insert := range inserts {
-		b.writeBatch.Docs = append(b.writeBatch.Docs, insert.Document)
-	}
-}
-
-func (b *block) resetWriteBatchWithLock() {
-	var emptyDoc doc.Document
-	for i := range b.writeBatch.Docs {
-		b.writeBatch.Docs[i] = emptyDoc
-	}
-	b.writeBatch.Docs = b.writeBatch.Docs[:0]
-}
-
-func (b *block) WriteBatch(inserts []WriteBatchEntry) (WriteBatchResult, error) {
-	b.Lock()
-	defer func() {
-		b.resetWriteBatchWithLock()
-		b.Unlock()
-	}()
+func (b *block) WriteBatch(inserts WriteBatchEntryByBlockStartAndID) (WriteBatchResult, error) {
+	b.RLock()
+	defer b.RUnlock()
 
 	if b.state != blockStateOpen {
 		// NB: releasing all references to inserts
-		for _, insert := range inserts {
-			insert.OnIndexSeries.OnIndexFinalize()
-		}
+		WriteBatchEntriesFinalizer(inserts).Finalize()
 		return WriteBatchResult{
 			NumError: int64(len(inserts)),
 		}, b.writeBatchErrorInvalidState(b.state)
 	}
 
-	b.updateWriteBatchWithLock(inserts)
-	err := b.segment.InsertBatch(b.writeBatch)
-	if err == nil {
-		for _, insert := range inserts {
-			insert.OnIndexSeries.OnIndexSuccess(b.endTime)
-			insert.OnIndexSeries.OnIndexFinalize()
+	var (
+		multiErr xerrors.MultiError
+		result   WriteBatchResult
+	)
+	inserts.ForEachID(func(writesForID WriteBatchEntryByBlockStartAndID) {
+		// all writes are guaranteed to have the same ID by this point, and further
+		// we're guaranteed that at least a single element exists in the slice.
+		id := writesForID[0].ID
+		tags := writesForID[0].Tags
+
+		if id == nil {
+			return
 		}
-		return WriteBatchResult{
-			NumSuccess: int64(len(inserts)),
-		}, nil
-	}
 
-	partialErr, ok := err.(*m3ninxindex.BatchPartialError)
-	if !ok { // should never happen
-		err := b.unknownWriteBatchInvariantError(err)
-		// NB: marking all the inserts as failure, cause we don't know which ones failed
-		for _, insert := range inserts {
-			insert.OnIndexSeries.OnIndexFinalize()
-			insert.Document = doc.Document{}
-			insert.OnIndexSeries = nil
+		// define some helper functions to help keep the code below cleaner.
+		failFn := func(err error) {
+			multiErr = multiErr.Add(err)
+			result.NumError += int64(len(writesForID))
+			// finalize all refs
+			WriteBatchEntriesFinalizer(writesForID).Finalize()
 		}
-		return WriteBatchResult{NumError: int64(len(inserts))}, err
-	}
-
-	// first finalize all the responses which were errors, and mark them
-	// nil to indicate they're done.
-	numErr := len(partialErr.Indices())
-	for _, idx := range partialErr.Indices() {
-		inserts[idx].OnIndexSeries.OnIndexFinalize()
-		inserts[idx].OnIndexSeries = nil
-		inserts[idx].Document = doc.Document{}
-	}
-
-	// mark all non-error inserts success, so we don't repeatedly index them,
-	// and then finalize any held references.
-	for _, insert := range inserts {
-		if insert.OnIndexSeries == nil {
-			continue
+		successFn := func() {
+			result.NumSuccess += int64(len(writesForID))
+			// mark the first ref success (can mark any ref success here, because they're backed by
+			// by the same entry). Could also mark all of them success but it wouldn't buy us anything.
+			writesForID[0].OnIndexSeries.OnIndexSuccess(b.endTime)
+			// we do need to finalize all refs as each is an extra inc we need to dec
+			WriteBatchEntriesFinalizer(writesForID).Finalize()
 		}
-		insert.OnIndexSeries.OnIndexSuccess(b.endTime)
-		insert.OnIndexSeries.OnIndexFinalize()
-		insert.OnIndexSeries = nil
-		insert.Document = doc.Document{}
-	}
 
-	return WriteBatchResult{
-		NumSuccess: int64(len(inserts) - numErr),
-		NumError:   int64(numErr),
-	}, partialErr
+		contains, err := b.segment.ContainsID(id.Bytes())
+		if contains && err == nil {
+			// can early terminate as the active segment already has the ID
+			successFn()
+			return
+		}
+
+		// NB(prateek): we delay the conversion from ident types -> doc as we want to minimize the allocs
+		// of idents until we're sure we actually need to index a series. This helps keep memory usage low
+		// when we receive a large spike of new metrics.
+		d, err := convert.FromMetric(id, tags)
+		if err != nil {
+			failFn(err)
+			return
+		}
+
+		// now actually perform the insert
+		if _, err := b.segment.Insert(d); err != nil {
+			failFn(err)
+			return
+		}
+
+		successFn()
+	})
+
+	return result, multiErr.FinalError()
 }
 
 func (b *block) executorWithRLock() (search.Executor, error) {

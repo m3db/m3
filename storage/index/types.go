@@ -21,6 +21,7 @@
 package index
 
 import (
+	"bytes"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -32,7 +33,6 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
-	xtime "github.com/m3db/m3x/time"
 )
 
 var (
@@ -136,7 +136,7 @@ type Block interface {
 	EndTime() time.Time
 
 	// WriteBatch writes a batch of provided entries.
-	WriteBatch([]WriteBatchEntry) (WriteBatchResult, error)
+	WriteBatch(WriteBatchEntryByBlockStartAndID) (WriteBatchResult, error)
 
 	// Query resolves the given query into known IDs.
 	Query(
@@ -164,13 +164,6 @@ type Block interface {
 	Close() error
 }
 
-// WriteBatchEntry captures a document to index, and the lifecycle hooks to call thereafter.
-type WriteBatchEntry struct {
-	BlockStart    xtime.UnixNano
-	Document      doc.Document
-	OnIndexSeries OnIndexSeries
-}
-
 // WriteBatchResult returns statistics about the WriteBatch execution.
 type WriteBatchResult struct {
 	NumSuccess int64
@@ -183,41 +176,111 @@ type BlockTickResult struct {
 	NumDocs     int64
 }
 
-// WriteBatchEntryByBlockStart implements sort.Interface for WriteBatchEntry slices
-// based on the BlockStart field.
-type WriteBatchEntryByBlockStart []WriteBatchEntry
+// WriteBatchEntry captures a document to index, and the lifecycle hooks to call thereafter.
+type WriteBatchEntry struct {
+	ID            ident.ID
+	Tags          ident.Tags
+	Timestamp     time.Time
+	OnIndexSeries OnIndexSeries
+}
 
-func (w WriteBatchEntryByBlockStart) Len() int           { return len(w) }
-func (w WriteBatchEntryByBlockStart) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
-func (w WriteBatchEntryByBlockStart) Less(i, j int) bool { return w[i].BlockStart < w[j].BlockStart }
+// WriteBatchEntriesFinalizer is a utility type to provide syntactic sugar to finalize references in the slice.
+type WriteBatchEntriesFinalizer []WriteBatchEntry
+
+// Finalize finalizes all the references in the provided slice.
+func (w WriteBatchEntriesFinalizer) Finalize() {
+	for _, entry := range w {
+		if entry.OnIndexSeries != nil {
+			entry.OnIndexSeries.OnIndexFinalize()
+		}
+	}
+}
+
+// WriteBatchEntryByBlockStart implements sort.Interface for WriteBatchEntry slices
+// based on the Timestamp and ID fields.
+type WriteBatchEntryByBlockStartAndID []WriteBatchEntry
+
+func (w WriteBatchEntryByBlockStartAndID) Len() int      { return len(w) }
+func (w WriteBatchEntryByBlockStartAndID) Swap(i, j int) { w[i], w[j] = w[j], w[i] }
+func (w WriteBatchEntryByBlockStartAndID) Less(i, j int) bool {
+	if !w[i].Timestamp.Equal(w[j].Timestamp) {
+		return w[i].Timestamp.Before(w[j].Timestamp)
+	}
+
+	if w[j].ID == nil {
+		return false
+	}
+
+	if w[i].ID == nil { // i.e. w[j] != nil
+		return true
+	}
+
+	// i.e. both w[i] and w[j] are != nil
+	return bytes.Compare(w[i].ID.Bytes(), w[j].ID.Bytes()) < 0
+}
 
 // ForEachBlockStartFn is lambda to iterate over WriteBatchEntry(s) a single blockStart at a time.
-type ForEachBlockStartFn func(blockStart xtime.UnixNano, writes []WriteBatchEntry)
+type ForEachBlockStartFn func(timestamp time.Time, writes WriteBatchEntryByBlockStartAndID)
 
-// ForEachBlockStart iterates over the provided WriteBatchEntryByBlockStart, and calls `fn` on each
+// ForEachIDFn is lambda to iterate over WriteBatchEntry(s) a single ID at a time.
+type ForEachIDFn func(writes WriteBatchEntryByBlockStartAndID)
+
+// ForEachBlockStart iterates over the provided WriteBatchEntryByBlockStartAndID, and calls `fn` on each
 // group of elements with the same blockStart.
-func (w WriteBatchEntryByBlockStart) ForEachBlockStart(fn ForEachBlockStartFn) {
+func (w WriteBatchEntryByBlockStartAndID) ForEachBlockStart(fn ForEachBlockStartFn) {
 	var (
-		startIdx  = 0
-		lastNanos xtime.UnixNano
+		startIdx = 0
+		lastTime time.Time
 	)
 	for i := 0; i < len(w); i++ {
 		elem := w[i]
-		if elem.BlockStart != lastNanos {
-			lastNanos = elem.BlockStart
+		if !elem.Timestamp.Equal(lastTime) {
+			lastTime = elem.Timestamp
 			// We only want to call the the ForEachBlockStartFn once we have calculated the entire group,
 			// i.e. once we have gone past the last element for a given blockStart, but the first element
 			// in the slice is a special case because we are always starting a new group at that point.
 			if i == 0 {
 				continue
 			}
-			fn(w[startIdx].BlockStart, w[startIdx:i])
+			fn(w[startIdx].Timestamp, w[startIdx:i])
 			startIdx = i
 		}
 	}
 	// spill over
 	if startIdx < len(w) {
-		fn(w[startIdx].BlockStart, w[startIdx:])
+		fn(w[startIdx].Timestamp, w[startIdx:])
+	}
+}
+
+// ForEachID iterates over the provided WriteBatchEntryByBlockStartAndID, and calls `fn` on each
+// group of elements with the same ID.
+func (w WriteBatchEntryByBlockStartAndID) ForEachID(fn ForEachIDFn) {
+	var (
+		startIdx  = 0
+		lastBytes []byte
+	)
+	for i := 0; i < len(w); i++ {
+		elem := w[i]
+		var elemBytes []byte
+		if elem.ID != nil {
+			elemBytes = elem.ID.Bytes()
+		}
+		// TODO(prateek): need to write a test to ensure this handles slice with nil IDs correctly
+		if !bytes.Equal(lastBytes, elemBytes) {
+			lastBytes = elemBytes
+			// We only want to call the the ForEachID once we have calculated the entire group,
+			// i.e. once we have gone past the last element for a given ID, but the first element
+			// in the slice is a special case because we are always starting a new group at that point.
+			if i == 0 {
+				continue
+			}
+			fn(w[startIdx:i])
+			startIdx = i
+		}
+	}
+	// spill over
+	if startIdx < len(w) {
+		fn(w[startIdx:])
 	}
 }
 
