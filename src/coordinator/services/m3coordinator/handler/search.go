@@ -27,8 +27,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/m3db/m3coordinator/storage"
-	"github.com/m3db/m3coordinator/util/logging"
+	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"go.uber.org/zap"
 )

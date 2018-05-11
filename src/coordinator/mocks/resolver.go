@@ -27,8 +27,8 @@ package mocks
 import (
 	context "context"
 	gomock "github.com/golang/mock/gomock"
-	models "github.com/m3db/m3coordinator/models"
-	tsdb "github.com/m3db/m3coordinator/tsdb"
+	models "github.com/m3db/m3db/src/coordinator/models"
+	tsdb "github.com/m3db/m3db/src/coordinator/tsdb"
 	reflect "reflect"
 	time "time"
 )

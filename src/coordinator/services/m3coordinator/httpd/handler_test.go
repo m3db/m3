@@ -25,12 +25,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/m3db/m3coordinator/executor"
-	"github.com/m3db/m3coordinator/services/m3coordinator/config"
-	"github.com/m3db/m3coordinator/services/m3coordinator/handler/prometheus/native"
-	"github.com/m3db/m3coordinator/services/m3coordinator/handler/prometheus/remote"
-	"github.com/m3db/m3coordinator/test/local"
-	"github.com/m3db/m3coordinator/util/logging"
+	"github.com/m3db/m3db/src/coordinator/executor"
+	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/handler/prometheus/native"
+	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/handler/prometheus/remote"
+	"github.com/m3db/m3db/src/coordinator/test/local"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

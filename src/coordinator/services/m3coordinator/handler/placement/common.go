@@ -21,8 +21,8 @@
 package placement
 
 import (
-	"github.com/m3db/m3coordinator/services/m3coordinator/config"
-	"github.com/m3db/m3coordinator/util/logging"
+	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	m3clusterClient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
