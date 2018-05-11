@@ -553,40 +553,48 @@ func (s *peersSource) ReadIndex(
 
 			iter := ranges.Iter()
 			for iter.Next() {
-				currRange := iter.Value()
-				metadata, err := session.FetchBootstrapBlocksMetadataFromPeers(ns.ID(),
-					shard, currRange.Start, currRange.End, resultOpts, version)
-				if err != nil {
-					// Make this period unfulfilled
-					s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
-						shard, currRange)
-					continue
-				}
-
-				for metadata.Next() {
-					_, dataBlock := metadata.Current()
-					dataBlockRange := xtime.Range{
-						Start: dataBlock.Start,
-						End:   dataBlock.Start.Add(dataBlockSize),
+				target := iter.Value()
+				size := dataBlockSize
+				for blockStart := target.Start; blockStart.Before(target.End); blockStart = blockStart.Add(size) {
+					currRange := xtime.Range{
+						Start: blockStart,
+						End:   blockStart.Add(size),
 					}
 
-					inserted, err := s.readBlockMetadataAndIndex(r, resultLock, dataBlock,
-						idxOpts, resultOpts)
+					metadata, err := session.FetchBootstrapBlocksMetadataFromPeers(ns.ID(),
+						shard, currRange.Start, currRange.End, resultOpts, version)
 					if err != nil {
 						// Make this period unfulfilled
 						s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
-							shard, dataBlockRange)
+							shard, currRange)
+						continue
 					}
 
-					if !inserted {
-						// If the metadata wasn't inserted we finalize the metadata.
-						dataBlock.Finalize()
+					for metadata.Next() {
+						_, dataBlock := metadata.Current()
+						dataBlockRange := xtime.Range{
+							Start: dataBlock.Start,
+							End:   dataBlock.Start.Add(dataBlockSize),
+						}
+
+						inserted, err := s.readBlockMetadataAndIndex(r, resultLock, dataBlock,
+							idxOpts, resultOpts)
+						if err != nil {
+							// Make this period unfulfilled
+							s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
+								shard, dataBlockRange)
+						}
+
+						if !inserted {
+							// If the metadata wasn't inserted we finalize the metadata.
+							dataBlock.Finalize()
+						}
 					}
-				}
-				if err := metadata.Err(); err != nil {
-					// Make this period unfulfilled
-					s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
-						shard, currRange)
+					if err := metadata.Err(); err != nil {
+						// Make this period unfulfilled
+						s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
+							shard, currRange)
+					}
 				}
 			}
 		})

@@ -188,8 +188,7 @@ func TestShardTickWriteRace(t *testing.T) {
 
 func TestShardTickWriteReadRace(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
-	// seed := time.Now().UnixNano() // int64(1521412723796005124)
-	seed := int64(1521412723796005124)
+	seed := time.Now().UnixNano()
 	parameters.MinSuccessfulTests = 100
 	parameters.MaxSize = 40
 	parameters.MaxDiscardRatio = 20
@@ -197,12 +196,11 @@ func TestShardTickWriteReadRace(t *testing.T) {
 	properties := gopter.NewProperties(parameters)
 
 	properties.Property("Concurrent Tick, Write & Read doesn't panic", prop.ForAll(
-		func(ids []ident.ID, tickBatchSize uint8, expireBatchLength uint8, fn testShardReadFn) (bool, error) {
-			testShardTickWriteFnRace(t, ids, int(expireBatchLength), int(tickBatchSize), fn)
+		func(ids []ident.ID, tickBatchSize uint8, fn testShardReadFn) (bool, error) {
+			testShardTickWriteFnRace(t, ids, int(tickBatchSize), fn)
 			return true, nil
 		},
 		anyIDs().WithLabel("ids"),
-		gen.UInt8().WithLabel("expireBatchLength").SuchThat(func(x uint8) bool { return x > 0 }),
 		gen.UInt8().WithLabel("tickBatchSize").SuchThat(func(x uint8) bool { return x > 0 }),
 		gen.OneConstOf(fetchBlocksMetadataShardFn, fetchBlocksMetadataV2ShardFn),
 	))
@@ -213,16 +211,12 @@ func TestShardTickWriteReadRace(t *testing.T) {
 	}
 }
 
-func testShardTickWriteFnRace(t *testing.T, ids []ident.ID, expireLen int, tickBatchSize int, fn testShardReadFn) {
+func testShardTickWriteFnRace(t *testing.T, ids []ident.ID, tickBatchSize int, fn testShardReadFn) {
 	shard, opts := propTestDatabaseShard(t, tickBatchSize)
 	defer func() {
 		shard.Close()
 		opts.RuntimeOptionsManager().Close()
 	}()
-
-	shard.Lock()
-	shard.testListIterBatchSize = expireLen
-	shard.Unlock()
 
 	var (
 		numRoutines = 1 /* Fetch */ + 1 /* Tick */ + len(ids) /* Write(s) */

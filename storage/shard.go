@@ -51,7 +51,6 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/gogo/protobuf/proto"
@@ -129,9 +128,6 @@ type dbShard struct {
 	newSeriesBootstrapped    bool
 	ticking                  bool
 	shard                    uint32
-
-	// Only used in tests
-	testListIterBatchSize int
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own
@@ -471,7 +467,6 @@ func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn)
 	// NB(r): consider using a lockless list for ticking.
 	s.RLock()
 	elemsLen := s.list.Len()
-	batchSizeOverride := s.testListIterBatchSize
 	s.RUnlock()
 
 	batchSize := iterateBatchSize(elemsLen)
@@ -482,17 +477,11 @@ func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn)
 		e.Value.(*dbShardEntry).decrementReaderWriterCount()
 	}
 
-	// Allow tests to override the batch size
-	if batchSizeOverride > 0 {
-		batchSize = batchSizeOverride
-	}
-
 	var (
 		currEntries = make([]*dbShardEntry, 0, batchSize)
 		first       = true
 		nextElem    *list.Element
 	)
-
 	for nextElem != nil || first {
 		s.RLock()
 		// NB(prateek): release held reference on the next element pointer now
@@ -1543,7 +1532,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 
 			// Make sure ID and tags get cleaned up after read is done
 			ctx.RegisterFinalizer(id)
-			ctx.RegisterFinalizer(resource.FinalizerFn(tags.Close))
+			ctx.RegisterCloser(tags.Close)
 
 			blockResult := s.opts.FetchBlockMetadataResultsPool().Get()
 			value := block.FetchBlockMetadataResult{

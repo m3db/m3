@@ -37,9 +37,8 @@ import (
 )
 
 type testSeriesMetadata struct {
-	id         string
-	tags       map[string]string
-	blockStart time.Time
+	id   string
+	tags map[string]string
 }
 
 func (s testSeriesMetadata) ID() ident.ID {
@@ -105,21 +104,33 @@ func TestBootstrapIndex(t *testing.T) {
 		"foo",
 		map[string]string{"aaa": "bbb", "ccc": "ddd"},
 	}
-	dataBlocks := [][]testSeriesMetadata{
-		[]testSeriesMetadata{
-			{fooSeries.id, fooSeries.tags, start},
-			{"bar", map[string]string{"eee": "fff", "ggg": "hhh"}, start},
-			{"baz", map[string]string{"iii": "jjj", "kkk": "lll"}, start},
+	dataBlocks := []struct {
+		blockStart time.Time
+		series     []testSeriesMetadata
+	}{
+		{
+			blockStart: start,
+			series: []testSeriesMetadata{
+				{fooSeries.id, fooSeries.tags},
+				{"bar", map[string]string{"eee": "fff", "ggg": "hhh"}},
+				{"baz", map[string]string{"iii": "jjj", "kkk": "lll"}},
+			},
 		},
-		[]testSeriesMetadata{
-			{fooSeries.id, fooSeries.tags, start.Add(blockSize)},
-			{"qux", map[string]string{"mmm": "nnn", "ooo": "ppp"}, start.Add(blockSize)},
-			{"qaz", map[string]string{"qqq": "rrr", "sss": "ttt"}, start.Add(blockSize)},
+		{
+			blockStart: start.Add(blockSize),
+			series: []testSeriesMetadata{
+				{fooSeries.id, fooSeries.tags},
+				{"qux", map[string]string{"mmm": "nnn", "ooo": "ppp"}},
+				{"qaz", map[string]string{"qqq": "rrr", "sss": "ttt"}},
+			},
 		},
-		[]testSeriesMetadata{
-			{fooSeries.id, fooSeries.tags, start.Add(2 * blockSize)},
-			{"qan", map[string]string{"uuu": "vvv", "www": "xxx"}, start.Add(2 * blockSize)},
-			{"qam", map[string]string{"yyy": "zzz", "000": "111"}, start.Add(2 * blockSize)},
+		{
+			blockStart: start.Add(2 * blockSize),
+			series: []testSeriesMetadata{
+				{fooSeries.id, fooSeries.tags},
+				{"qan", map[string]string{"uuu": "vvv", "www": "xxx"}},
+				{"qam", map[string]string{"yyy": "zzz", "000": "111"}},
+			},
 		},
 	}
 
@@ -132,30 +143,71 @@ func TestBootstrapIndex(t *testing.T) {
 		}),
 	}
 
-	mockIter := client.NewMockPeerBlockMetadataIter(ctrl)
-	mockIterCalls := []*gomock.Call{}
-	for _, blocks := range dataBlocks {
-		for _, elem := range blocks {
-			call := mockIter.EXPECT().Next().Return(true)
-			mockIterCalls = append(mockIterCalls, call)
-
-			metadata := block.NewMetadata(elem.ID(), elem.Tags(),
-				elem.blockStart, 1, nil, time.Time{})
-			call = mockIter.EXPECT().Current().Return(nil, metadata)
-			mockIterCalls = append(mockIterCalls, call)
-		}
-	}
-	call := mockIter.EXPECT().Next().Return(false)
-	mockIterCalls = append(mockIterCalls, call)
-	call = mockIter.EXPECT().Err().Return(nil)
-	mockIterCalls = append(mockIterCalls, call)
-	gomock.InOrder(mockIterCalls...)
+	nsID := nsMetadata.ID().String()
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
-	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksMetadataFromPeers(ident.NewIDMatcher(nsMetadata.ID().String()),
-			uint32(0), start, end, gomock.Any(), opts.FetchBlocksMetadataEndpointVersion()).
-		Return(mockIter, nil)
+	mockAdminSessionCalls := []*gomock.Call{}
+
+	for blockStart := start; blockStart.Before(end); blockStart = blockStart.Add(blockSize) {
+		// Find and expect calls for blocks
+		matchedBlock := false
+		for _, dataBlock := range dataBlocks {
+			if !dataBlock.blockStart.Equal(blockStart) {
+				continue
+			}
+
+			matchedBlock = true
+			mockIter := client.NewMockPeerBlockMetadataIter(ctrl)
+			mockIterCalls := []*gomock.Call{}
+			for _, elem := range dataBlock.series {
+				mockIterCalls = append(mockIterCalls,
+					mockIter.EXPECT().Next().Return(true))
+
+				metadata := block.NewMetadata(elem.ID(), elem.Tags(),
+					blockStart, 1, nil, time.Time{})
+
+				mockIterCalls = append(mockIterCalls,
+					mockIter.EXPECT().Current().Return(nil, metadata))
+			}
+
+			mockIterCalls = append(mockIterCalls,
+				mockIter.EXPECT().Next().Return(false),
+				mockIter.EXPECT().Err().Return(nil))
+
+			gomock.InOrder(mockIterCalls...)
+
+			rangeStart := blockStart
+			rangeEnd := rangeStart.Add(blockSize)
+			version := opts.FetchBlocksMetadataEndpointVersion()
+
+			call := mockAdminSession.EXPECT().
+				FetchBootstrapBlocksMetadataFromPeers(ident.NewIDMatcher(nsID),
+					uint32(0), rangeStart, rangeEnd, gomock.Any(), version).
+				Return(mockIter, nil)
+			mockAdminSessionCalls = append(mockAdminSessionCalls, call)
+			break
+		}
+
+		if !matchedBlock {
+			mockIter := client.NewMockPeerBlockMetadataIter(ctrl)
+			gomock.InOrder(
+				mockIter.EXPECT().Next().Return(false),
+				mockIter.EXPECT().Err().Return(nil),
+			)
+
+			rangeStart := blockStart
+			rangeEnd := rangeStart.Add(blockSize)
+			version := opts.FetchBlocksMetadataEndpointVersion()
+
+			call := mockAdminSession.EXPECT().
+				FetchBootstrapBlocksMetadataFromPeers(ident.NewIDMatcher(nsID),
+					uint32(0), rangeStart, rangeEnd, gomock.Any(), version).
+				Return(mockIter, nil)
+			mockAdminSessionCalls = append(mockAdminSessionCalls, call)
+		}
+	}
+
+	gomock.InOrder(mockAdminSessionCalls...)
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
 	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
@@ -177,19 +229,19 @@ func TestBootstrapIndex(t *testing.T) {
 		{
 			indexBlockStart: indexStart,
 			series: map[string]testSeriesMetadata{
-				dataBlocks[0][0].id: dataBlocks[0][0],
-				dataBlocks[0][1].id: dataBlocks[0][1],
-				dataBlocks[0][2].id: dataBlocks[0][2],
-				dataBlocks[1][1].id: dataBlocks[1][1],
-				dataBlocks[1][2].id: dataBlocks[1][2],
+				dataBlocks[0].series[0].id: dataBlocks[0].series[0],
+				dataBlocks[0].series[1].id: dataBlocks[0].series[1],
+				dataBlocks[0].series[2].id: dataBlocks[0].series[2],
+				dataBlocks[1].series[1].id: dataBlocks[1].series[1],
+				dataBlocks[1].series[2].id: dataBlocks[1].series[2],
 			},
 		},
 		{
 			indexBlockStart: indexStart.Add(indexBlockSize),
 			series: map[string]testSeriesMetadata{
-				dataBlocks[2][0].id: dataBlocks[2][0],
-				dataBlocks[2][1].id: dataBlocks[2][1],
-				dataBlocks[2][2].id: dataBlocks[2][2],
+				dataBlocks[2].series[0].id: dataBlocks[2].series[0],
+				dataBlocks[2].series[1].id: dataBlocks[2].series[1],
+				dataBlocks[2].series[2].id: dataBlocks[2].series[2],
 			},
 		},
 	} {

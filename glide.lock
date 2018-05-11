@@ -1,5 +1,5 @@
-hash: 124d166053476550bef409f59deaf9cd7964494b50330e128665dbeb067bf244
-updated: 2018-05-07T16:31:01.787723-04:00
+hash: 4c91961c7a6a25425306bd2de508f751eb27cfb576950dee0dbe3843cea94012
+updated: 2018-05-10T20:04:38.607431-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -106,8 +106,6 @@ imports:
   - spew
 - name: github.com/dgrijalva/jwt-go
   version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
-- name: github.com/facebookgo/clock
-  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/glycerine/go-unsnap-stream
@@ -207,7 +205,7 @@ imports:
   - search/query
   - search/searcher
 - name: github.com/m3db/m3x
-  version: f591af0fb913df0f2e8ecf6995d4aa406c4c13e0
+  version: 4eee9390e1b9a4488f0bdee955c7651150f08f1a
   vcs: git
   subpackages:
   - checked
@@ -227,6 +225,7 @@ imports:
   - retry
   - sync
   - tcp
+  - test
   - time
   - watch
 - name: github.com/m3db/stackadler32
@@ -297,7 +296,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
-  version: 522328b48efad0c6034dba92bf39228694e9d31f
+  version: 6f121596292a5ec8618b71ee3687fe42da73d289
   subpackages:
   - m3
   - m3/customtransports
@@ -416,6 +415,8 @@ imports:
 - name: gopkg.in/yaml.v2
   version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
 testImports:
+- name: github.com/facebookgo/clock
+  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fortytw2/leaktest
   version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
 - name: github.com/google/go-cmp

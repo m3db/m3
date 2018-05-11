@@ -682,7 +682,7 @@ func (b *dbBufferBucket) resetEncoders() {
 		// Register when this bucket resets we close the encoder
 		encoder := b.encoders[i].encoder
 		if b.ctx != nil {
-			b.ctx.RegisterFinalizer(resource.FinalizerFn(encoder.Close))
+			ctx.RegisterCloser(encoder)
 		}
 		b.encoders[i] = zeroed
 	}
@@ -693,7 +693,7 @@ func (b *dbBufferBucket) resetBootstrapped() {
 	for i := range b.bootstrapped {
 		bl := b.bootstrapped[i]
 		if b.ctx != nil {
-			b.ctx.RegisterFinalizer(resource.FinalizerFn(bl.Close))
+			ctx.RegisterCloser(bl)
 		}
 	}
 	b.bootstrapped = nil

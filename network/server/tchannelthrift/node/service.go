@@ -139,11 +139,12 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 		opts = tchannelthrift.NewOptions()
 	}
 
-	iopts := db.Options().InstrumentOptions()
+	iopts := opts.InstrumentOptions()
 
-	scope := iopts.MetricsScope().SubScope("service").Tagged(
-		map[string]string{"serviceName": "node"},
-	)
+	scope := iopts.
+		MetricsScope().
+		SubScope("service").
+		Tagged(map[string]string{"serviceName": "node"})
 
 	wrapperPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(checkedBytesPoolSize).
@@ -164,7 +165,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 
 	s := &service{
 		db:      db,
-		logger:  db.Options().InstrumentOptions().Logger(),
+		logger:  iopts.Logger(),
 		opts:    opts,
 		nowFn:   db.Options().ClockOptions().NowFn(),
 		metrics: newServiceMetrics(scope, iopts.MetricsSamplingRate()),
@@ -334,7 +335,7 @@ func (s *service) encodeTags(
 		// should never happen
 		err = xerrors.NewRenamedError(err, fmt.Errorf("unable to encode tags"))
 		l := instrument.EmitInvariantViolationAndGetLogger(s.opts.InstrumentOptions())
-		l.Warn(err.Error())
+		l.Error(err.Error())
 		return nil, err
 	}
 	encodedTags, ok := enc.Data()
@@ -342,7 +343,7 @@ func (s *service) encodeTags(
 		// should never happen
 		err := fmt.Errorf("unable to encode tags: unable to unwrap bytes")
 		l := instrument.EmitInvariantViolationAndGetLogger(s.opts.InstrumentOptions())
-		l.Warn(err.Error())
+		l.Error(err.Error())
 		return nil, err
 	}
 	return encodedTags, nil
@@ -513,7 +514,7 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
-	ctx.RegisterFinalizer(resource.FinalizerFn(fetched.Close))
+	ctx.RegisterCloser(fetched)
 
 	fetchedResults := fetched.Results()
 	result := rpc.NewFetchBlocksMetadataRawResult_()
@@ -616,7 +617,7 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 		return nil, convert.ToRPCError(err)
 	}
 
-	ctx.RegisterFinalizer(resource.FinalizerFn(fetchedMetadata.Close))
+	ctx.RegisterCloser(fetchedMetadata)
 
 	result, err := s.getFetchBlocksMetadataRawV2Result(ctx, nextPageToken, opts, fetchedMetadata)
 	if err != nil {
@@ -1114,7 +1115,7 @@ func (s *service) readEncoded(
 func (s *service) newTagsDecoder(ctx context.Context, encodedTags []byte) (serialize.TagDecoder, error) {
 	checkedBytes := s.pools.checkedBytesWrapper.Get(encodedTags)
 	dec := s.pools.tagDecoder.Get()
-	ctx.RegisterFinalizer(resource.FinalizerFn(dec.Close))
+	ctx.RegisterCloser(dec)
 	dec.Reset(checkedBytes)
 	if err := dec.Err(); err != nil {
 		return nil, err

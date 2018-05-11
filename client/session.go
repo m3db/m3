@@ -3349,14 +3349,14 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 	}
 
 	var (
-		tags          ident.Tags
-		tryDecodeTags bool
+		tags                ident.Tags
+		attemptedDecodeTags bool
 	)
 	for {
 		r.Lock()
 		currBlock, exists := r.result.BlockAt(id, start)
 		if !exists {
-			if tryDecodeTags || encodedTags == nil {
+			if encodedTags == nil || attemptedDecodeTags {
 				r.result.AddBlock(id, tags, result)
 				r.Unlock()
 				break
@@ -3364,7 +3364,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 			r.Unlock()
 
 			// Tags not decoded yet, attempt decoded and then reinsert
-			tryDecodeTags = true
+			attemptedDecodeTags = true
 			tagDecoder := r.tagDecoderPool.Get()
 			tags, err = newTagsFromEncodedTags(encodedTags,
 				tagDecoder, r.idPool)
