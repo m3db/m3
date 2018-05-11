@@ -21,16 +21,21 @@
 package query
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/m3db/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3ninx/search"
 )
 
+var errNilQuery = errors.New("query is nil")
+
 // Marshal encodes a query into a byte slice.
 func Marshal(q search.Query) ([]byte, error) {
-	pb := q.ToProto()
-	return pb.Marshal()
+	if q == nil {
+		return nil, errNilQuery
+	}
+	return q.ToProto().Marshal()
 }
 
 // Unmarshal decodes a query from a byte slice.
