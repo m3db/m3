@@ -116,6 +116,11 @@ func (s *mockStorage) Type() storage.Type {
 	return storage.Type(0)
 }
 
+func (s *mockStorage) FetchBlocks(
+	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
+	return storage.BlockResult{}, fmt.Errorf("not implemented")
+}
+
 func (s *mockStorage) Close() error {
 	return nil
 }
@@ -310,6 +315,11 @@ func (s *errStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, _
 func (s *errStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
 	writeQueriesAreEqual(s.t, s.write, query)
 	return errWrite
+}
+
+func (s *errStorage) FetchBlocks(
+	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
+	return storage.BlockResult{}, fmt.Errorf("not implemented")
 }
 
 func (s *errStorage) Type() storage.Type {

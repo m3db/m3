@@ -59,3 +59,8 @@ func (s *mockStorage) Type() storage.Type {
 func (s *mockStorage) Close() error {
 	return nil
 }
+
+func (s *mockStorage) FetchBlocks(
+	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
+	return storage.BlockResult{}, nil
+}

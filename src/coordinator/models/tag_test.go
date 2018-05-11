@@ -23,6 +23,7 @@ package models
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -101,4 +102,10 @@ func TestMatcher(t *testing.T) {
 
 func TestMatchType(t *testing.T) {
 	require.Equal(t, MatchEqual.String(), "=")
+}
+
+func TestTagID(t *testing.T) {
+	tags := make(Tags)
+	tags["t1"] = "v1"
+	assert.Equal(t, tags.ID(), "2922638416")
 }

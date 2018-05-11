@@ -22,6 +22,7 @@ package plan
 
 import (
 	"testing"
+	"time"
 
 	"github.com/m3db/m3coordinator/functions"
 	"github.com/m3db/m3coordinator/parser"
@@ -43,7 +44,7 @@ func TestResultNode(t *testing.T) {
 
 	lp, err := NewLogicalPlan(transforms, edges)
 	require.NoError(t, err)
-	p, err := NewPhysicalPlan(lp, nil)
+	p, err := NewPhysicalPlan(lp, nil, time.Now())
 	require.NoError(t, err)
 	node, err := p.leafNode()
 	require.NoError(t, err)
