@@ -25,10 +25,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3coordinator/generated/proto/rpc"
-	"github.com/m3db/m3coordinator/models"
-	"github.com/m3db/m3coordinator/storage"
-	"github.com/m3db/m3coordinator/ts"
+	"github.com/m3db/m3db/src/coordinator/generated/proto/rpc"
+	"github.com/m3db/m3db/src/coordinator/models"
+	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/ts"
 
 	xtime "github.com/m3db/m3x/time"
 

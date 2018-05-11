@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m3db/m3coordinator/storage"
-	"github.com/m3db/m3coordinator/test/local"
-	"github.com/m3db/m3coordinator/util/logging"
+	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/test/local"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

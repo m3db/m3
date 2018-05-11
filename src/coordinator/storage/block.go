@@ -3,8 +3,8 @@ package storage
 import (
 	"time"
 
-	"github.com/m3db/m3coordinator/models"
-	"github.com/m3db/m3coordinator/ts"
+	"github.com/m3db/m3db/src/coordinator/models"
+	"github.com/m3db/m3db/src/coordinator/ts"
 )
 
 // Block represents a group of series across a time bound
@@ -26,7 +26,7 @@ type StepMeta struct {
 }
 
 // Bounds are the time bounds
-// nolint: structcheck, megacheck
+// nolint: structcheck, megacheck, unused
 type Bounds struct {
 	start    time.Time
 	end      time.Time

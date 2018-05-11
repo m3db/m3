@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3coordinator/models"
+	"github.com/m3db/m3db/src/coordinator/models"
 
 	"github.com/stretchr/testify/assert"
 )

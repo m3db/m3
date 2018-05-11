@@ -28,8 +28,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3coordinator/benchmark/common"
-	"github.com/m3db/m3coordinator/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/coordinator/benchmark/common"
+	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/config"
 
 	"github.com/m3db/m3db/client"
 	xconfig "github.com/m3db/m3x/config"

@@ -27,7 +27,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/m3db/m3coordinator/util/logging"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/placement"

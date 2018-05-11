@@ -23,7 +23,7 @@ package executor
 import (
 	"context"
 
-	"github.com/m3db/m3coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/storage"
 )
 
 // Engine executes a Query.

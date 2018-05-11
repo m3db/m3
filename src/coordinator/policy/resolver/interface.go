@@ -24,8 +24,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/m3db/m3coordinator/models"
-	"github.com/m3db/m3coordinator/tsdb"
+	"github.com/m3db/m3db/src/coordinator/models"
+	"github.com/m3db/m3db/src/coordinator/tsdb"
 )
 
 // PolicyResolver resolves policy for a query.

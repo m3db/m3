@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3coordinator/util/logging"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/index"

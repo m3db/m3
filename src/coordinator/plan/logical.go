@@ -23,7 +23,7 @@ package plan
 import (
 	"fmt"
 
-	"github.com/m3db/m3coordinator/parser"
+	"github.com/m3db/m3db/src/coordinator/parser"
 )
 
 // LogicalPlan converts a DAG into a list of steps to be executed in order

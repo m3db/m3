@@ -25,12 +25,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3coordinator/executor"
-	"github.com/m3db/m3coordinator/generated/proto/prompb"
-	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
-	"github.com/m3db/m3coordinator/services/m3coordinator/handler/prometheus"
-	"github.com/m3db/m3coordinator/storage"
-	"github.com/m3db/m3coordinator/util/logging"
+	"github.com/m3db/m3db/src/coordinator/executor"
+	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
+	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/handler/prometheus"
+	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"

@@ -25,8 +25,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
-	"github.com/m3db/m3coordinator/util/logging"
+	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3db/storage/namespace"

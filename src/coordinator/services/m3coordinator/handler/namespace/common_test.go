@@ -24,7 +24,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/m3db/m3coordinator/util/logging"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/m3db/m3cluster/kv"
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"

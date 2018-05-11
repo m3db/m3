@@ -26,12 +26,12 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/m3db/m3coordinator/executor"
-	"github.com/m3db/m3coordinator/parser/promql"
-	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
-	"github.com/m3db/m3coordinator/services/m3coordinator/handler/prometheus"
-	"github.com/m3db/m3coordinator/ts"
-	"github.com/m3db/m3coordinator/util/logging"
+	"github.com/m3db/m3db/src/coordinator/executor"
+	"github.com/m3db/m3db/src/coordinator/parser/promql"
+	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/handler/prometheus"
+	"github.com/m3db/m3db/src/coordinator/ts"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"go.uber.org/zap"
 )

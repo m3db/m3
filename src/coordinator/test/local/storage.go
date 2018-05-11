@@ -3,8 +3,8 @@ package local
 import (
 	"time"
 
-	"github.com/m3db/m3coordinator/storage"
-	"github.com/m3db/m3coordinator/storage/local"
+	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/storage/local"
 
 	"github.com/m3db/m3db/client"
 

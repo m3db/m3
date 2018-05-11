@@ -23,9 +23,9 @@ package remote
 import (
 	"context"
 
-	"github.com/m3db/m3coordinator/errors"
-	"github.com/m3db/m3coordinator/storage"
-	"github.com/m3db/m3coordinator/tsdb/remote"
+	"github.com/m3db/m3db/src/coordinator/errors"
+	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/tsdb/remote"
 )
 
 type remoteStorage struct {

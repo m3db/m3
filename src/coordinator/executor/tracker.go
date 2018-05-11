@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3coordinator/errors"
-	"github.com/m3db/m3coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/errors"
+	"github.com/m3db/m3db/src/coordinator/storage"
 )
 
 const (

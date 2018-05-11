@@ -25,9 +25,9 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/m3db/m3coordinator/generated/proto/admin"
-	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
-	"github.com/m3db/m3coordinator/util/logging"
+	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
+	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/m3db/m3cluster/placement"
 

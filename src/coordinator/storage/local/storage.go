@@ -24,11 +24,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/m3db/m3coordinator/errors"
-	"github.com/m3db/m3coordinator/models"
-	"github.com/m3db/m3coordinator/storage"
-	"github.com/m3db/m3coordinator/ts"
-	"github.com/m3db/m3coordinator/util/execution"
+	"github.com/m3db/m3db/src/coordinator/errors"
+	"github.com/m3db/m3db/src/coordinator/models"
+	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/ts"
+	"github.com/m3db/m3db/src/coordinator/util/execution"
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3x/ident"

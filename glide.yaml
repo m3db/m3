@@ -116,6 +116,35 @@ import:
 - package: github.com/sergi/go-diff
   version: feef008d51ad2b3778f85d387ccf91735543008d
 
+- package: github.com/golang/snappy
+  version: 553a641470496b2327abcac10b36396bd98e45c9
+
+- package: github.com/gorilla/mux
+  version: ^1.6.0
+
+- package: github.com/pborman/uuid
+  version: ^1.1.0
+
+- package: gopkg.in/alecthomas/kingpin.v2
+  version: ^2.2.6
+
+- package: github.com/m3db/m3metrics
+  version: 17e4ddf89f2b0c8fbb16b6d5b71a871b793d2a00
+  subpackages:
+  - policy
+
+- package: github.com/pkg/profile
+  version: 5b67d428864e92711fcbd2f8629456121a56d91f
+
+- package: golang.org/x/sync
+  subpackages:
+  - errgroup
+
+- package: github.com/prometheus/prometheus
+  version: 998dfcbac689ae832ea64ca134fcb096f61a7f62
+  subpackages:
+  - promql
+
 testImport:
 - package: github.com/fortytw2/leaktest
   version: 3677f62bb30dbf3b042c4c211245d072aa9ee075

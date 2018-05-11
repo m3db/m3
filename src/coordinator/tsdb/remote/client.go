@@ -24,11 +24,11 @@ import (
 	"context"
 	"io"
 
-	"github.com/m3db/m3coordinator/errors"
-	"github.com/m3db/m3coordinator/generated/proto/rpc"
-	"github.com/m3db/m3coordinator/storage"
-	"github.com/m3db/m3coordinator/ts"
-	"github.com/m3db/m3coordinator/util/logging"
+	"github.com/m3db/m3db/src/coordinator/errors"
+	"github.com/m3db/m3db/src/coordinator/generated/proto/rpc"
+	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/ts"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"google.golang.org/grpc"
 )

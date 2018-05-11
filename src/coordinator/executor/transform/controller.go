@@ -21,9 +21,9 @@
 package transform
 
 import (
-	"github.com/m3db/m3coordinator/errors"
-	"github.com/m3db/m3coordinator/parser"
-	"github.com/m3db/m3coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/errors"
+	"github.com/m3db/m3db/src/coordinator/parser"
+	"github.com/m3db/m3db/src/coordinator/storage"
 )
 
 // Controller controls the caching and forwarding the request to downstream.
