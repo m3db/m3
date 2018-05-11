@@ -36,7 +36,6 @@ const (
 	DeleteAllURL = "/placement"
 )
 
-// deleteAllHandler represents a handler for the placement delete all endpoint.
 type deleteAllHandler Handler
 
 // NewDeleteAllHandler returns a new instance of a placement delete all handler.
