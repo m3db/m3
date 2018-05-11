@@ -90,11 +90,14 @@ func (bsc BootstrapConfiguration) New(
 	opts storage.Options,
 	adminClient client.AdminClient,
 ) (bootstrap.ProcessProvider, error) {
+	if err := ValidateBootstrappersOrder(bsc.Bootstrappers); err != nil {
+		return nil, err
+	}
+
 	var (
 		bs  bootstrap.BootstrapperProvider
 		err error
 	)
-
 	rsOpts := result.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
@@ -147,4 +150,55 @@ func (bsc BootstrapConfiguration) New(
 	}
 
 	return bootstrap.NewProcessProvider(bs, rsOpts), nil
+}
+
+// ValidateBootstrappersOrder will validate that a list of bootstrappers specified
+// is in validorder.
+func ValidateBootstrappersOrder(names []string) error {
+	dataFetchingBootstrappers := []string{
+		bfs.FileSystemBootstrapperName,
+		peers.PeersBootstrapperName,
+		commitlog.CommitLogBootstrapperName,
+	}
+
+	precedingBootstrappersAllowedByBootstrapper := map[string][]string{
+		bootstrapper.NoOpAllBootstrapperName:  dataFetchingBootstrappers,
+		bootstrapper.NoOpNoneBootstrapperName: dataFetchingBootstrappers,
+		bfs.FileSystemBootstrapperName:        []string{
+			// Filesystem bootstrapper must always appear first
+		},
+		peers.PeersBootstrapperName: []string{
+			// Peers must always appear after filesystem
+			bfs.FileSystemBootstrapperName,
+		},
+		commitlog.CommitLogBootstrapperName: []string{
+			// Commit log bootstrapper may appear after filesystem or peers
+			bfs.FileSystemBootstrapperName,
+			peers.PeersBootstrapperName,
+		},
+	}
+
+	validated := make(map[string]struct{})
+	for _, name := range names {
+		precedingAllowed, ok := precedingBootstrappersAllowedByBootstrapper[name]
+		if !ok {
+			return fmt.Errorf("unknown bootstrapper: %v", name)
+		}
+
+		allowed := make(map[string]struct{})
+		for _, elem := range precedingAllowed {
+			allowed[elem] = struct{}{}
+		}
+
+		for existing := range validated {
+			if _, ok := allowed[existing]; !ok {
+				return fmt.Errorf("bootstrapper %s cannot appear after %s: ",
+					name, existing)
+			}
+		}
+
+		validated[name] = struct{}{}
+	}
+
+	return nil
 }

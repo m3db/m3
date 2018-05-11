@@ -183,36 +183,6 @@ func TestShardFlushDuringBootstrap(t *testing.T) {
 	require.Equal(t, err, errShardNotBootstrappedToFlush)
 }
 
-func TestShardFlushNoPersistFuncNoError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	s := testDatabaseShard(t, testDatabaseOptions())
-	defer s.Close()
-	s.bs = Bootstrapped
-	blockStart := time.Unix(21600, 0)
-	flush := persist.NewMockFlush(ctrl)
-	prepared := persist.PreparedPersist{Persist: nil}
-	prepareOpts := persist.PrepareOptionsMatcher{
-		NsMetadata: s.namespace,
-		Shard:      s.shard,
-		BlockStart: blockStart,
-	}
-	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
-
-	err := s.Flush(blockStart, flush)
-	require.Nil(t, err)
-
-	flushState := s.FlushState(blockStart)
-
-	// Status should be success as returning nil for prepared.Persist
-	// signals that there is already a file set written for the block start
-	require.Equal(t, fileOpState{
-		Status:      fileOpSuccess,
-		NumFailures: 0,
-	}, flushState)
-}
-
 func TestShardFlushSeriesFlushError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

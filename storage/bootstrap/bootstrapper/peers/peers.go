@@ -66,6 +66,10 @@ func (p peersBootstrapperProvider) Provide() bootstrap.Bootstrapper {
 	return b
 }
 
+func (p peersBootstrapperProvider) Next() bootstrap.BootstrapperProvider {
+	return p.next
+}
+
 func (p peersBootstrapperProvider) String() string {
 	return PeersBootstrapperName
 }

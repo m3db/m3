@@ -23,6 +23,7 @@ package fs
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -33,6 +34,8 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
+	xlog "github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
 )
@@ -240,12 +243,27 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 	}
 
 	if exists && !opts.DeleteIfExists {
+		// This should never happen in practice since we always track which times
+		// are flushed in the shard when we bootstrap (so we should never
+		// duplicately write out one of those files) and for snapshotting we append
+		// a monotonically increasing number to avoid collisions.
+		// instrument.
+		iopts := pm.opts.InstrumentOptions()
+		l := instrument.EmitInvariantViolationAndGetLogger(iopts)
+		l.WithFields(
+			xlog.NewField("blockStart", blockStart.String()),
+			xlog.NewField("fileSetType", opts.FileSetType.String()),
+			xlog.NewField("snapshotStart", snapshotTime.String()),
+			xlog.NewField("namespace", nsID.String()),
+			xlog.NewField("shard", strconv.Itoa(int(shard))),
+		).Errorf("prepared writing fileset volume that already exists")
 		return prepared, errPersistManagerFileSetAlreadyExists
 	}
 
 	if exists && opts.DeleteIfExists {
 		err := DeleteFileSetAt(pm.opts.FilePathPrefix(), nsID, shard, blockStart)
 		if err != nil {
+
 			return prepared, err
 		}
 	}

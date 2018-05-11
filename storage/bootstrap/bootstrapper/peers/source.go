@@ -362,15 +362,15 @@ func (s *peersSource) incrementalFlush(
 			BlockStart:        start,
 			// If we've peer bootstrapped this shard/block combination AND the fileset
 			// already exists on disk, then that means either:
-			//      1) The Filesystem bootstrapper was unable to bootstrap the fileset
-			//         files on disk, even though they have a checkpoint file. This
-			//         could either be the result of data corruption, or a
-			//         backwards-incompatible change to the file-format.
-			// 		2) The Filesystem bootstrapper is not enabled, in which case it makes
-			//         complete sense to replaces the fileset on disk with the one which
-			//         we just peer-bootstrapped because the operator has already made it
-			//         clear that they only want data to be returned if it came from peers
-			//         (they made this decision by turning off the Filesystem bootstrapper).
+			// 1) The Filesystem bootstrapper was unable to bootstrap the fileset
+			//    files on disk, even though they have a checkpoint file. This
+			//    could either be the result of data corruption, or a
+			//    backwards-incompatible change to the file-format.
+			// 2) The Filesystem bootstrapper is not enabled, in which case it makes
+			//    complete sense to replaces the fileset on disk with the one which
+			//    we just peer-bootstrapped because the operator has already made it
+			//    clear that they only want data to be returned if it came from peers
+			//    (they made this decision by turning off the Filesystem bootstrapper).
 			DeleteIfExists: true,
 		}
 		prepared, err := flush.Prepare(prepareOpts)

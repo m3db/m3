@@ -82,6 +82,10 @@ type BootstrapperProvider interface {
 	// String returns the name of the bootstrapper.
 	String() string
 
+	// Next returns the next bootstrapper provider that's used to fulfill
+	// ranges when this bootstrapper provider cannot fulfill time ranges.
+	Next() BootstrapperProvider
+
 	// Provide constructs a bootstrapper.
 	Provide() Bootstrapper
 }
