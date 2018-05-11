@@ -22,7 +22,6 @@ package convert
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/digest"
@@ -32,8 +31,6 @@ import (
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3ninx/idx"
-	"github.com/m3db/m3ninx/search"
-	"github.com/m3db/m3ninx/search/query"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
@@ -41,12 +38,9 @@ import (
 )
 
 var (
-	errUnknownTimeType               = errors.New("unknown time type")
-	errUnknownUnit                   = errors.New("unknown unit")
-	errNilTaggedRequest              = errors.New("nil write tagged request")
-	errDisjunctionQueriesUnsupported = errors.New("disjunction queries are not-supported")
-	errInvalidNegationQuery          = errors.New("negation queries are not supported for composite queries")
-	errUnsupportedQueryType          = errors.New("unsupported query type")
+	errUnknownTimeType  = errors.New("unknown time type")
+	errUnknownUnit      = errors.New("unknown unit")
+	errNilTaggedRequest = errors.New("nil write tagged request")
 
 	timeZero time.Time
 )
@@ -228,7 +222,7 @@ func FromRPCFetchTaggedRequest(
 		opts.Limit = int(*l)
 	}
 
-	q, err := fromRPCQuery(req.Query)
+	q, err := idx.Unmarshal(req.Query)
 	if err != nil {
 		return nil, index.Query{}, index.QueryOptions{}, false, err
 	}
@@ -260,7 +254,7 @@ func ToRPCFetchTaggedRequest(
 		return rpc.FetchTaggedRequest{}, tsErr
 	}
 
-	query, queryErr := toRPCQuery(q.SearchQuery())
+	query, queryErr := idx.Marshal(q.Query)
 	if queryErr != nil {
 		return rpc.FetchTaggedRequest{}, queryErr
 	}
@@ -279,113 +273,6 @@ func ToRPCFetchTaggedRequest(
 	}
 
 	return request, nil
-}
-
-func fromRPCQuery(rpcQuery *rpc.IdxQuery) (idx.Query, error) {
-	if rpcQuery == nil {
-		return idx.Query{}, fmt.Errorf("nil query provided")
-	}
-
-	if rpcQuery.Operator != rpc.BooleanOperator_AND_OPERATOR {
-		return idx.Query{}, fmt.Errorf("only AND queries are supported, received: %s", rpcQuery.Operator.String())
-	}
-
-	if len(rpcQuery.Filters) != 0 && len(rpcQuery.SubQueries) != 0 {
-		return idx.Query{}, fmt.Errorf("illegal query composed of filters and sub-queries: %+v", *rpcQuery)
-	}
-
-	if l := len(rpcQuery.Filters); l != 0 {
-		queries := make([]idx.Query, 0, l)
-		for _, f := range rpcQuery.Filters {
-			var (
-				query idx.Query
-				err   error
-			)
-
-			if f.Regexp {
-				query, err = idx.NewRegexpQuery(f.TagName, f.TagValueFilter)
-				if err != nil {
-					return idx.Query{}, err
-				}
-			} else {
-				query = idx.NewTermQuery(f.TagName, f.TagValueFilter)
-			}
-
-			if f.Negate {
-				query = idx.NewNegationQuery(query)
-			}
-
-			queries = append(queries, query)
-		}
-		return idx.NewConjunctionQuery(queries...), nil
-	}
-
-	if l := len(rpcQuery.SubQueries); l != 0 {
-		queries := make([]idx.Query, 0, l)
-		for _, q := range rpcQuery.SubQueries {
-			cq, err := fromRPCQuery(q)
-			if err != nil {
-				return idx.Query{}, err
-			}
-			queries = append(queries, cq)
-		}
-		return idx.NewConjunctionQuery(queries...), nil
-	}
-
-	return idx.Query{}, fmt.Errorf("at least one Filter/Sub-Query must be defined")
-}
-
-func toRPCQuery(searchQuery search.Query) (*rpc.IdxQuery, error) {
-	switch q := searchQuery.(type) {
-	case *query.TermQuery:
-		return &rpc.IdxQuery{
-			Operator: rpc.BooleanOperator_AND_OPERATOR,
-			Filters: []*rpc.IdxTagFilter{
-				&rpc.IdxTagFilter{
-					TagName:        q.Field,
-					TagValueFilter: q.Term,
-				},
-			},
-		}, nil
-	case *query.RegexpQuery:
-		return &rpc.IdxQuery{
-			Operator: rpc.BooleanOperator_AND_OPERATOR,
-			Filters: []*rpc.IdxTagFilter{
-				&rpc.IdxTagFilter{
-					TagName:        q.Field,
-					TagValueFilter: q.Regexp,
-					Regexp:         true,
-				},
-			},
-		}, nil
-	case *query.NegationQuery:
-		switch inner := q.Query.(type) {
-		case *query.TermQuery, *query.RegexpQuery:
-			iq, err := toRPCQuery(inner)
-			if err != nil {
-				return nil, err
-			}
-			iq.Filters[0].Negate = true
-			return iq, nil
-		}
-		return nil, errInvalidNegationQuery
-	case *query.ConjuctionQuery:
-		ret := &rpc.IdxQuery{
-			Operator: rpc.BooleanOperator_AND_OPERATOR,
-		}
-		for _, qq := range q.Queries {
-			convertedQuery, err := toRPCQuery(qq)
-			if err != nil {
-				return nil, err
-			}
-			ret.SubQueries = append(ret.SubQueries, convertedQuery)
-		}
-		return ret, nil
-	case *query.DisjuctionQuery:
-		return nil, errDisjunctionQueriesUnsupported
-	}
-	// should never happen
-	return nil, errUnsupportedQueryType
 }
 
 // ToTagsIter returns a tag iterator over the given request.

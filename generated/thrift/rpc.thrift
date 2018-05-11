@@ -136,28 +136,11 @@ struct Segment {
 
 struct FetchTaggedRequest {
 	1: required binary nameSpace
-	2: required IdxQuery query
+	2: required binary query
 	3: required i64 rangeStart
 	4: required i64 rangeEnd
 	5: required bool fetchData
 	6: optional i64 limit
-}
-
-struct IdxQuery {
-	1: required BooleanOperator operator
-	2: optional list<IdxTagFilter> filters
-	3: optional list<IdxQuery> subQueries
-}
-
-enum BooleanOperator {
-	AND_OPERATOR,
-}
-
-struct IdxTagFilter {
-	1: required binary tagName
-	2: required binary tagValueFilter
-	3: required bool negate
-	4: required bool regexp
 }
 
 struct FetchTaggedResult {
