@@ -48,6 +48,12 @@ func (s *slowStorage) Close() error {
 	return nil
 }
 
+func (s *slowStorage) FetchBlocks(
+	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
+	time.Sleep(s.delay)
+	return s.storage.FetchBlocks(ctx, query, options)
+}
+
 // GenerateSingleSampleTagIterator generates a new tag iterator
 func GenerateSingleSampleTagIterator(ctrl *gomock.Controller, tag ident.Tag) ident.TagIterator {
 	mockTagIterator := ident.NewMockTagIterator(ctrl)

@@ -114,6 +114,11 @@ func (s *fanoutStorage) Type() storage.Type {
 	return storage.TypeMultiDC
 }
 
+func (s *fanoutStorage) FetchBlocks(
+	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
+	return storage.BlockResult{}, errors.ErrNotImplemented
+}
+
 func (s *fanoutStorage) Close() error {
 	var lastErr error
 	for idx, store := range s.stores {

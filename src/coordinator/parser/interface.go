@@ -40,10 +40,6 @@ type Params interface {
 	OpType() string
 }
 
-// OpNode represents the execution node
-type OpNode interface {
-}
-
 // Nodes is a slice of Node
 type Nodes []Node
 

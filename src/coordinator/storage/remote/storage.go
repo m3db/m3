@@ -57,3 +57,8 @@ func (s *remoteStorage) Type() storage.Type {
 func (s *remoteStorage) Close() error {
 	return nil
 }
+
+func (s *remoteStorage) FetchBlocks(
+	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
+	return storage.BlockResult{}, errors.ErrNotImplemented
+}
