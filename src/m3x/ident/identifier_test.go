@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,8 +41,28 @@ func TestConstructorEquality(t *testing.T) {
 	assert.Equal(t, a.Bytes(), b.Bytes())
 }
 
+func TestNoFinalize(t *testing.T) {
+	v := StringID("abc").(*id)
+
+	checkValid := func() {
+		require.NotNil(t, v.data)
+		assert.True(t, v.Equal(StringID("abc")))
+	}
+	checkValid()
+	assert.False(t, v.noFinalize)
+
+	v.NoFinalize()
+	checkValid()
+	assert.True(t, v.noFinalize)
+
+	for i := 0; i < 2; i++ {
+		v.Finalize()
+		checkValid()
+	}
+}
+
 func BenchmarkPooling(b *testing.B) {
-	p := NewNativePool(nil, pool.NewObjectPoolOptions())
+	p := NewNativePool(nil, PoolOptions{})
 	ctx := context.NewContext()
 
 	v := checked.NewBytes([]byte{'a', 'b', 'c'}, nil)

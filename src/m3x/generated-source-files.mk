@@ -101,7 +101,7 @@ endif
 	rmdir $(temp_outdir)
 
 .PHONY: genny-arraypool-all
-genny-arraypool-all: genny-arraypool-context-finalizeables
+genny-arraypool-all: genny-arraypool-context-finalizeables genny-arraypool-ident-tags
 
 # arraypool generation rule for context/finalizeablesPool
 .PHONY: genny-arraypool-context-finalizeables
@@ -114,6 +114,19 @@ genny-arraypool-context-finalizeables: install-generics-bin
 		rename_type_middle=Finalizeables             \
 		rename_constructor=newFinalizeablesArrayPool \
 		rename_type_prefix=finalizeables             \
+		rename_gen_types=true
+
+# arraypool generation rule for ident/tagsArrayPool
+.PHONY: genny-arraypool-ident-tags
+genny-arraypool-ident-tags: install-generics-bin
+	make genny-arraypool \
+		pkg=ident                                      \
+		elem_type=Tag                                  \
+		target_package=$(m3x_package)/ident            \
+		out_file=tag_arraypool_gen.go                  \
+		rename_type_prefix=tag                         \
+		rename_type_middle=Tag                         \
+		rename_constructor=newTagArrayPool             \
 		rename_gen_types=true
 
 # NB(prateek): `target_package` should not have a trailing slash
@@ -132,6 +145,7 @@ ifneq ($(rename_type_prefix),)
 	rmdir $(temp_outdir)
 endif
 
+elem_type_alias ?= $(elem_type)
 .PHONY: arraypool-gen-rename
 arraypool-gen-rename: install-gorename
 	$(eval temp_outdir=$(out_dir)$(temp_suffix))
@@ -139,7 +153,7 @@ ifneq ($(rename_gen_types),)
 	# allow users to short circuit the generation of types.go if they don't need it.
 	echo 'package $(pkg)' > $(temp_outdir)/types.go
 	echo '' >> $(temp_outdir)/types.go
-	echo "type $(elem_type) interface{}" >> $(temp_outdir)/types.go
+	echo "type $(elem_type_alias) interface{}" >> $(temp_outdir)/types.go
 endif
 	gorename -from '"$(target_package)$(temp_suffix)".elemArrayPool' -to $(rename_type_prefix)ArrayPool
 	gorename -from '"$(target_package)$(temp_suffix)".elemArr' -to $(rename_type_prefix)Arr

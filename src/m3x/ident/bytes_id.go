@@ -56,11 +56,8 @@ func (v BytesID) Equal(value ID) bool {
 	return bytes.Equal(value.Bytes(), v)
 }
 
-// Reset zeroes the bytes ID byte values.
-func (v BytesID) Reset() {
-	for i := range v {
-		v[i] = byte(0)
-	}
+// NoFinalize is a no-op for a bytes ID as Finalize is already a no-op.
+func (v BytesID) NoFinalize() {
 }
 
 // Finalize is a no-op for a bytes ID as it has no associated pool.

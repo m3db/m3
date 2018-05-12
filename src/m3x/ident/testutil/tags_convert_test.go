@@ -32,15 +32,15 @@ import (
 )
 
 func TestNewTagsFromTagIterator(t *testing.T) {
-	in := ident.Tags{
+	in := ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("qux", "qaz"),
-	}
-	tags, err := NewTagsFromTagIterator(ident.NewTagSliceIterator(in))
+	)
+	tags, err := NewTagsFromTagIterator(ident.NewTagsIterator(in))
 	require.NoError(t, err)
-	require.Equal(t, len(in), len(tags))
-	for i, expected := range in {
-		actual := tags[i]
+	require.Equal(t, len(in.Values()), len(tags.Values()))
+	for i, expected := range in.Values() {
+		actual := tags.Values()[i]
 		assert.True(t, expected.Equal(actual))
 		assert.True(t, expected != actual) // Make sure made a copy
 	}
@@ -49,7 +49,7 @@ func TestNewTagsFromTagIterator(t *testing.T) {
 func TestNewTagsFromTagIteratorEmptyTagIteratorDoesNotAlloc(t *testing.T) {
 	tags, err := NewTagsFromTagIterator(ident.EmptyTagIterator)
 	require.NoError(t, err)
-	require.Nil(t, tags)
+	require.Equal(t, ident.Tags{}, tags)
 }
 
 func TestNewTagsFromTagIteratorError(t *testing.T) {
