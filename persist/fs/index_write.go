@@ -195,14 +195,9 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSetWrit
 		w.fdWithDigest.Reset(fd)
 		digest := w.fdWithDigest.Digest()
 		writer := bufio.NewWriter(w.fdWithDigest)
-		if err := segmentFileSet.WriteFile(segFileType, writer); err != nil {
-			return w.markSegmentWriteError(segType, segFileType, err)
-		}
-		err = xerrors.FirstError(writer.Flush(), w.fdWithDigest.Close())
+		writeErr := segmentFileSet.WriteFile(segFileType, writer)
+		err = xerrors.FirstError(writeErr, writer.Flush(), w.fdWithDigest.Close())
 		if err != nil {
-			return w.markSegmentWriteError(segType, segFileType, err)
-		}
-		if err := w.fdWithDigest.Close(); err != nil {
 			return w.markSegmentWriteError(segType, segFileType, err)
 		}
 
