@@ -27,41 +27,41 @@ import (
 )
 
 func TestTagsUnequalLength(t *testing.T) {
-	tagsA := Tags{
+	tagsA := NewTags(
 		StringTag("hello", "there"),
-	}
-	tagsB := Tags{
+	)
+	tagsB := NewTags(
 		StringTag("foo", "bar"),
 		StringTag("and", "done"),
-	}
+	)
 
 	require.False(t, tagsA.Equal(tagsB))
 	require.False(t, tagsB.Equal(tagsA))
 }
 
 func TestTagsUnequalOrder(t *testing.T) {
-	tagsA := Tags{
+	tagsA := NewTags(
 		StringTag("foo", "bar"),
 		StringTag("hello", "there"),
-	}
-	tagsB := Tags{
+	)
+	tagsB := NewTags(
 		StringTag("hello", "there"),
 		StringTag("foo", "bar"),
-	}
+	)
 
 	require.False(t, tagsA.Equal(tagsB))
 	require.False(t, tagsB.Equal(tagsA))
 }
 
 func TestTagsEqual(t *testing.T) {
-	tagsA := Tags{
+	tagsA := NewTags(
 		StringTag("hello", "there"),
 		StringTag("foo", "bar"),
-	}
-	tagsB := Tags{
+	)
+	tagsB := NewTags(
 		StringTag("hello", "there"),
 		StringTag("foo", "bar"),
-	}
+	)
 
 	require.True(t, tagsA.Equal(tagsB))
 	require.True(t, tagsB.Equal(tagsA))

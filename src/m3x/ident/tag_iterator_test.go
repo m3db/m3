@@ -27,11 +27,11 @@ import (
 )
 
 func testTags() Tags {
-	return Tags{
+	return NewTags(
 		StringTag("hello", "there"),
 		StringTag("foo", "bar"),
 		StringTag("and", "done"),
-	}
+	)
 }
 
 func TestTagStringIteratorInvalid(t *testing.T) {
@@ -59,23 +59,23 @@ func TestTagSliceIterator(t *testing.T) {
 		"hello": "there",
 		"and":   "done",
 	}
-	iter := NewTagSliceIterator(testTags())
+	iter := NewTagsIterator(testTags())
 	testTagIteratorValues(t, expected, iter)
 }
 
 func TestTagSliceIteratorReset(t *testing.T) {
-	iter := NewTagSliceIterator(Tags{
+	iter := NewTagsIterator(NewTags(
 		StringTag("foo", "bar"),
 		StringTag("qux", "qaz"),
-	})
+	))
 	testTagIteratorValues(t, map[string]string{
 		"foo": "bar",
 		"qux": "qaz",
 	}, iter)
-	iter.Reset(Tags{
+	iter.Reset(NewTags(
 		StringTag("foo", "bar"),
 		StringTag("baz", "qux"),
-	})
+	))
 	testTagIteratorValues(t, map[string]string{
 		"foo": "bar",
 		"baz": "qux",
@@ -105,7 +105,9 @@ func TestTagIterator(t *testing.T) {
 		"foo":   "bar",
 		"hello": "there",
 	}
-	iter := NewTagIterator(StringTag("hello", "there"), StringTag("foo", "bar"))
+	iter := NewTagsIterator(NewTags(
+		StringTag("hello", "there"), StringTag("foo", "bar"),
+	))
 	require.Equal(t, len(expected), iter.Remaining())
 	for iter.Next() {
 		c := iter.Current()
@@ -124,7 +126,9 @@ func TestTagIteratorDuplicate(t *testing.T) {
 		"foo":   "bar",
 		"hello": "there",
 	}
-	iter := NewTagIterator(StringTag("hello", "there"), StringTag("foo", "bar"))
+	iter := NewTagsIterator(NewTags(
+		StringTag("hello", "there"), StringTag("foo", "bar"),
+	))
 	clone := iter.Duplicate()
 	expectedLen := len(expected)
 	require.Equal(t, expectedLen, iter.Remaining())

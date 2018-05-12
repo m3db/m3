@@ -30,18 +30,19 @@ import (
 func NewTagsFromTagIterator(iter ident.TagIterator) (ident.Tags, error) {
 	defer iter.Close()
 
-	var tags ident.Tags
+	var r ident.Tags
 	if tagsLen := iter.Remaining(); tagsLen > 0 {
-		tags = make(ident.Tags, 0, tagsLen)
+		tags := make([]ident.Tag, 0, tagsLen)
 		for iter.Next() {
 			curr := iter.Current()
 			tagName := checked.NewBytes(append([]byte(nil), curr.Name.Bytes()...), nil)
 			tagValue := checked.NewBytes(append([]byte(nil), curr.Value.Bytes()...), nil)
 			tags = append(tags, ident.BinaryTag(tagName, tagValue))
 		}
+		r = ident.NewTags(tags...)
 	}
 	if err := iter.Err(); err != nil {
-		return nil, err
+		return ident.Tags{}, err
 	}
-	return tags, nil
+	return r, nil
 }

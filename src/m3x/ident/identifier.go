@@ -40,8 +40,9 @@ func StringID(str string) ID {
 }
 
 type id struct {
-	data checked.Bytes
-	pool Pool
+	data       checked.Bytes
+	pool       Pool
+	noFinalize bool
 }
 
 // Data returns the checked bytes of an ID.
@@ -63,7 +64,14 @@ func (v *id) Equal(value ID) bool {
 	return bytes.Equal(v.Bytes(), value.Bytes())
 }
 
+func (v *id) NoFinalize() {
+	v.noFinalize = true
+}
+
 func (v *id) Finalize() {
+	if v.noFinalize {
+		return
+	}
 	v.data.DecRef()
 	v.data.Finalize()
 	v.data = nil
@@ -73,10 +81,6 @@ func (v *id) Finalize() {
 	}
 
 	v.pool.Put(v)
-}
-
-func (v *id) Reset() {
-	v.data = nil
 }
 
 func (v *id) String() string {

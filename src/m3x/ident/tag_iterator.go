@@ -26,11 +26,6 @@ var (
 	errInvalidNumberInputsToIteratorMatcher = errors.New("inputs must be specified in name-value pairs (i.e. divisible by 2)")
 )
 
-// NewTagIterator returns a new TagSliceIterator over the given Tags.
-func NewTagIterator(tags ...Tag) TagSliceIterator {
-	return NewTagSliceIterator(tags)
-}
-
 // MustNewTagStringsIterator returns a TagIterator over a slice of strings,
 // panic'ing if it encounters an error.
 func MustNewTagStringsIterator(inputs ...string) TagIterator {
@@ -46,24 +41,32 @@ func NewTagStringsIterator(inputs ...string) (TagIterator, error) {
 	if len(inputs)%2 != 0 {
 		return nil, errInvalidNumberInputsToIteratorMatcher
 	}
-	tags := make(Tags, 0, len(inputs)/2)
+	tags := make([]Tag, 0, len(inputs)/2)
 	for i := 0; i < len(inputs); i += 2 {
 		tags = append(tags, StringTag(inputs[i], inputs[i+1]))
 	}
-	return NewTagSliceIterator(tags), nil
+	return NewTagsIterator(NewTags(tags...)), nil
 }
 
-// NewTagSliceIterator returns a TagSliceIterator over a slice.
-func NewTagSliceIterator(tags Tags) TagSliceIterator {
-	iter := &tagSliceIter{}
+// NewTagsIterator returns a TagsIterator over a set of tags.
+func NewTagsIterator(tags Tags) TagsIterator {
+	return newTagSliceIter(tags, nil)
+}
+
+func newTagSliceIter(
+	tags Tags,
+	pool Pool,
+) *tagSliceIter {
+	iter := &tagSliceIter{pool: pool}
 	iter.Reset(tags)
 	return iter
 }
 
 type tagSliceIter struct {
-	backingSlice Tags
+	backingSlice []Tag
 	currentIdx   int
 	currentTag   Tag
+	pool         Pool
 }
 
 func (i *tagSliceIter) Next() bool {
@@ -88,6 +91,12 @@ func (i *tagSliceIter) Close() {
 	i.backingSlice = nil
 	i.currentIdx = 0
 	i.currentTag = Tag{}
+
+	if i.pool == nil {
+		return
+	}
+
+	i.pool.PutTagsIterator(i)
 }
 
 func (i *tagSliceIter) Remaining() int {
@@ -106,19 +115,19 @@ func (i *tagSliceIter) Duplicate() TagIterator {
 }
 
 func (i *tagSliceIter) Reset(tags Tags) {
-	i.backingSlice = tags
+	i.backingSlice = tags.Values()
 	i.currentIdx = -1
 	i.currentTag = Tag{}
 }
 
 // EmptyTagIterator returns an iterator over no tags.
-var EmptyTagIterator TagIterator = &emptyTagIterator{}
+var EmptyTagIterator TagIterator = emptyTagIterator{}
 
 type emptyTagIterator struct{}
 
-func (e *emptyTagIterator) Next() bool             { return false }
-func (e *emptyTagIterator) Current() Tag           { return Tag{} }
-func (e *emptyTagIterator) Err() error             { return nil }
-func (e *emptyTagIterator) Close()                 {}
-func (e *emptyTagIterator) Remaining() int         { return 0 }
-func (e *emptyTagIterator) Duplicate() TagIterator { return e }
+func (e emptyTagIterator) Next() bool             { return false }
+func (e emptyTagIterator) Current() Tag           { return Tag{} }
+func (e emptyTagIterator) Err() error             { return nil }
+func (e emptyTagIterator) Close()                 {}
+func (e emptyTagIterator) Remaining() int         { return 0 }
+func (e emptyTagIterator) Duplicate() TagIterator { return e }
