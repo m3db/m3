@@ -45,19 +45,22 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 	opts := testDatabaseOptions()
 
 	lock := sync.Mutex{}
-	indexWrites := []testIndexWrite{}
-	later := time.Now().Add(time.Hour)
+	indexWrites := []index.WriteBatchEntry{}
+	var blockStart xtime.UnixNano
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	idx := NewMocknamespaceIndex(ctrl)
-	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, ts time.Time, onIdx index.OnIndexSeries) {
+	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).Return(blockStart).AnyTimes()
+	idx.EXPECT().WriteBatch(gomock.Any()).Do(
+		func(entries []index.WriteBatchEntry) {
 			lock.Lock()
-			indexWrites = append(indexWrites, testIndexWrite{id: id, tags: tags})
+			indexWrites = append(indexWrites, entries...)
 			lock.Unlock()
-			onIdx.OnIndexSuccess(later)
-			onIdx.OnIndexFinalize()
+			for _, e := range entries {
+				e.OnIndexSeries.OnIndexSuccess(blockStart)
+				e.OnIndexSeries.OnIndexFinalize(blockStart)
+			}
 		}).Return(nil).AnyTimes()
 
 	shard := testDatabaseShardWithIndexFn(t, opts, idx)
@@ -84,9 +87,9 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 	defer lock.Unlock()
 
 	require.Len(t, indexWrites, 1)
-	require.Equal(t, "foo", indexWrites[0].id.String())
-	require.Equal(t, "name", indexWrites[0].tags[0].Name.String())
-	require.Equal(t, "value", indexWrites[0].tags[0].Value.String())
+	require.Equal(t, "foo", indexWrites[0].ID.String())
+	require.Equal(t, "name", indexWrites[0].Tags[0].Name.String())
+	require.Equal(t, "value", indexWrites[0].Tags[0].Value.String())
 }
 
 func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
@@ -230,14 +233,17 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	idx := NewMocknamespaceIndex(ctrl)
-	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, ts time.Time, onIdx index.OnIndexSeries) {
+	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).Return()
+	idx.EXPECT().WriteBatch(gomock.Any()).Do(
+		func(batch []index.WriteBatchEntry) {
 			nowLock.Lock()
 			now = now.Add(time.Hour)
 			nowLock.Unlock()
-			onIdx.OnIndexSuccess(now)
-			onIdx.OnIndexFinalize()
-			atomic.AddInt32(&numCalls, 1)
+			for _, b := range batch {
+				b.OnIndexSeries.OnIndexSuccess(now)
+				b.OnIndexSeries.OnIndexFinalize()
+				atomic.AddInt32(&numCalls, 1)
+			}
 		}).Return(nil).AnyTimes()
 
 	shard := testDatabaseShardWithIndexFn(t, opts, idx)

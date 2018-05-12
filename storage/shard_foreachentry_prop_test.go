@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/storage/series/lookup"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 
@@ -199,14 +200,14 @@ func shardEntriesAreEqual(shard *dbShard, expectedEntries []shardEntryState) err
 			return fmt.Errorf("expected to have %d idx, but did not see anything", idx)
 		}
 		nextElem := elem.Next()
-		entry := elem.Value.(*dbShardEntry)
-		if !entry.series.ID().Equal(expectedEntry.id) {
+		entry := elem.Value.(*lookup.Entry)
+		if !entry.Series.ID().Equal(expectedEntry.id) {
 			return fmt.Errorf("expected id: %s at %d, observed: %s",
-				expectedEntry.id.String(), idx, entry.series.ID().String())
+				expectedEntry.id.String(), idx, entry.Series.ID().String())
 		}
-		if entry.readerWriterCount() != expectedEntry.refCount {
+		if entry.ReaderWriterCount() != expectedEntry.refCount {
 			return fmt.Errorf("expected id: %s at %d to have ref count %d, observed: %d",
-				entry.series.ID().String(), idx, expectedEntry.refCount, entry.readerWriterCount())
+				entry.Series.ID().String(), idx, expectedEntry.refCount, entry.ReaderWriterCount())
 		}
 		elem = nextElem
 	}
@@ -247,7 +248,7 @@ func genBatchWorkFn() gopter.Gen {
 	return gen.UInt8().
 		Map(func(n uint8) dbShardEntryBatchWorkFn {
 			i := uint8(0)
-			return func([]*dbShardEntry) bool {
+			return func([]*lookup.Entry) bool {
 				i++
 				return i < n
 			}

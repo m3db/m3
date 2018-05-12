@@ -145,7 +145,7 @@ func (b *block) WriteBatch(inserts WriteBatchEntryByBlockStartAndID) (WriteBatch
 			result.NumSuccess += int64(len(writesForID))
 			// mark the first ref success (can mark any ref success here, because they're backed by
 			// by the same entry). Could also mark all of them success but it wouldn't buy us anything.
-			writesForID[0].OnIndexSeries.OnIndexSuccess(xtime.ToUnixNano(b.endTime))
+			writesForID[0].OnIndexSeries.OnIndexSuccess(xtime.ToUnixNano(b.startTime))
 			// we do need to finalize all refs as each is an extra inc we need to dec
 			WriteBatchEntriesFinalizer(writesForID).Finalize()
 		}

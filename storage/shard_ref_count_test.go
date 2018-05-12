@@ -82,7 +82,7 @@ func TestShardWriteSyncRefCount(t *testing.T) {
 		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
-		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
 	}
 
 	// write already inserted series'
@@ -105,7 +105,7 @@ func TestShardWriteSyncRefCount(t *testing.T) {
 		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
-		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
 	}
 }
 

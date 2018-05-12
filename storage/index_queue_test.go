@@ -128,8 +128,8 @@ func TestNamespaceIndexInvalidDocWrite(t *testing.T) {
 	}
 
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
-	lifecycle.EXPECT().OnIndexFinalize()
-	assert.Error(t, idx.WriteBatch(testIndexWriteEntry(id, tags, time.Time{}, lifecycle)))
+	lifecycle.EXPECT().OnIndexFinalize(time.Time{})
+	assert.Error(t, idx.WriteBatch(testWriteBatchEntry(id, tags, time.Time{}, lifecycle)))
 }
 
 func TestNamespaceIndexWriteAfterClose(t *testing.T) {
@@ -149,8 +149,8 @@ func TestNamespaceIndexWriteAfterClose(t *testing.T) {
 	assert.NoError(t, idx.Close())
 
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
-	lifecycle.EXPECT().OnIndexFinalize()
-	assert.Error(t, idx.WriteBatch(testIndexWriteEntry(id, tags, time.Time{}, lifecycle)))
+	lifecycle.EXPECT().OnIndexFinalize(time.Time{})
+	assert.Error(t, idx.WriteBatch(testWriteBatchEntry(id, tags, time.Time{}, lifecycle)))
 }
 
 func TestNamespaceIndexWriteQueueError(t *testing.T) {
@@ -166,12 +166,13 @@ func TestNamespaceIndexWriteQueueError(t *testing.T) {
 		ident.StringTag("name", "value"),
 	}
 
+	n := time.Now()
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
-	lifecycle.EXPECT().OnIndexFinalize()
+	lifecycle.EXPECT().OnIndexFinalize(n)
 	q.EXPECT().
 		InsertBatch(gomock.Any()).
 		Return(nil, fmt.Errorf("random err"))
-	assert.Error(t, idx.WriteBatch(testIndexWriteEntry(id, tags, time.Now(), lifecycle)))
+	assert.Error(t, idx.WriteBatch(testWriteBatchEntry(id, tags, n, lifecycle)))
 }
 
 func TestNamespaceIndexInsertRetentionPeriod(t *testing.T) {
@@ -214,12 +215,12 @@ func TestNamespaceIndexInsertRetentionPeriod(t *testing.T) {
 	)
 
 	tooOld := now.Add(-1 * idx.bufferPast).Add(-1 * time.Second)
-	lifecycle.EXPECT().OnIndexFinalize()
-	assert.Error(t, idx.WriteBatch(testIndexWriteEntry(id, tags, tooOld, lifecycle)))
+	lifecycle.EXPECT().OnIndexFinalize(tooOld)
+	assert.Error(t, idx.WriteBatch(testWriteBatchEntry(id, tags, tooOld, lifecycle)))
 
 	tooNew := now.Add(1 * idx.bufferFuture).Add(1 * time.Second)
-	lifecycle.EXPECT().OnIndexFinalize()
-	assert.Error(t, idx.WriteBatch(testIndexWriteEntry(id, tags, tooNew, lifecycle)))
+	lifecycle.EXPECT().OnIndexFinalize(tooOld)
+	assert.Error(t, idx.WriteBatch(testWriteBatchEntry(id, tags, tooNew, lifecycle)))
 }
 
 func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
@@ -244,7 +245,7 @@ func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 	var wg sync.WaitGroup
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	q.EXPECT().InsertBatch(gomock.Any()).Return(&wg, nil)
-	assert.NoError(t, idx.WriteBatch(testIndexWriteEntry(id, tags, now, lifecycle)))
+	assert.NoError(t, idx.WriteBatch(testWriteBatchEntry(id, tags, now, lifecycle)))
 }
 
 func TestNamespaceIndexInsertQuery(t *testing.T) {
@@ -276,9 +277,9 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 		lifecycleFns = index.NewMockOnIndexSeries(ctrl)
 	)
 
-	lifecycleFns.EXPECT().OnIndexFinalize()
+	lifecycleFns.EXPECT().OnIndexFinalize(ts)
 	lifecycleFns.EXPECT().OnIndexSuccess(ts)
-	assert.NoError(t, idx.WriteBatch(testIndexWriteEntry(id, tags, now, lifecycleFns)))
+	assert.NoError(t, idx.WriteBatch(testWriteBatchEntry(id, tags, now, lifecycleFns)))
 
 	reQuery, err := m3ninxidx.NewRegexpQuery([]byte("name"), []byte("val.*"))
 	assert.NoError(t, err)

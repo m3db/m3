@@ -41,13 +41,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testIndexWriteEntry(id ident.ID, tags ident.Tags, timestamp time.Time, fns index.OnIndexSeries) []indexWriteEntry {
-	return []indexWriteEntry{
-		indexWriteEntry{
-			id:        id,
-			tags:      tags,
-			timestamp: timestamp,
-			fns:       fns,
+func testWriteBatchEntry(id ident.ID, tags ident.Tags, timestamp time.Time, fns index.OnIndexSeries) []index.WriteBatchEntry {
+	return []index.WriteBatchEntry{
+		index.WriteBatchEntry{
+			ID:            id,
+			Tags:          tags,
+			Timestamp:     timestamp,
+			OnIndexSeries: fns,
 		},
 	}
 }
@@ -145,12 +145,13 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	mockBlock.EXPECT().WriteBatch([]index.WriteBatchEntry{
 		index.WriteBatchEntry{
-			BlockStart:    blockStart,
-			Document:      testDoc1(),
+			Timestamp:     blockStart.ToTime(),
+			ID:            id,
+			Tags:          tags,
 			OnIndexSeries: lifecycle,
 		},
 	}).Return(index.WriteBatchResult{}, nil)
-	require.NoError(t, idx.WriteBatch(testIndexWriteEntry(id, tags, now, lifecycle)))
+	require.NoError(t, idx.WriteBatch(testWriteBatchEntry(id, tags, now, lifecycle)))
 }
 
 func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
@@ -193,8 +194,9 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	b1.EXPECT().WriteBatch([]index.WriteBatchEntry{
 		index.WriteBatchEntry{
-			BlockStart:    t1Nanos,
-			Document:      testDoc1(),
+			Timestamp:     t1,
+			ID:            id,
+			Tags:          tags,
 			OnIndexSeries: lifecycle,
 		},
 	}).Return(index.WriteBatchResult{}, nil)
@@ -203,7 +205,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	now = now.Add(blockSize)
 	nowLock.Unlock()
 
-	require.NoError(t, idx.WriteBatch(testIndexWriteEntry(id, tags, now, lifecycle)))
+	require.NoError(t, idx.WriteBatch(testWriteBatchEntry(id, tags, now, lifecycle)))
 }
 
 func TestNamespaceIndexBootstrap(t *testing.T) {

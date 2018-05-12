@@ -21,14 +21,14 @@
 package storage
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3db/storage/index"
-	"github.com/m3db/m3ninx/doc"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -37,19 +37,9 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func testWriteBatchEntry(ts time.Time, d doc.Document, fn index.OnIndexSeries) []index.WriteBatchEntry {
-	return []index.WriteBatchEntry{
-		index.WriteBatchEntry{
-			BlockStart:    xtime.ToUnixNano(ts),
-			Document:      d,
-			OnIndexSeries: fn,
-		},
-	}
-}
-
 func newTestIndexInsertQueue() *nsIndexInsertQueue {
 	var (
-		nsIndexInsertBatchFn = func(inserts []index.WriteBatchEntry) {}
+		nsIndexInsertBatchFn = func(inserts [][]index.WriteBatchEntry) {}
 		nowFn                = time.Now
 		scope                = tally.NoopScope
 	)
@@ -59,15 +49,11 @@ func newTestIndexInsertQueue() *nsIndexInsertQueue {
 	return q
 }
 
-func testDoc(i int) doc.Document {
-	return doc.Document{
-		Fields: []doc.Field{
-			doc.Field{
-				Name:  []byte("foo"),
-				Value: []byte("bar"),
-			},
-		},
-	}
+func testID(i int) ident.ID {
+	return ident.StringID(fmt.Sprintf("foo%d", i))
+}
+func testTags(i int) ident.Tags {
+	return ident.Tags{ident.Tag{testID(i), testID(i)}}
 }
 
 func TestIndexInsertQueueStopBeforeStart(t *testing.T) {
@@ -95,31 +81,31 @@ func TestIndexInsertQueueCallback(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		q            = newTestIndexInsertQueue()
-		insertLock   sync.Mutex
-		insertedDocs []index.WriteBatchEntry
-		callback     = index.NewMockOnIndexSeries(ctrl)
+		q               = newTestIndexInsertQueue()
+		insertLock      sync.Mutex
+		insertedBatches [][]index.WriteBatchEntry
+		callback        = index.NewMockOnIndexSeries(ctrl)
 	)
-	q.indexBatchFn = func(inserts []index.WriteBatchEntry) {
+	q.indexBatchFn = func(inserts [][]index.WriteBatchEntry) {
 		insertLock.Lock()
-		insertedDocs = append(insertedDocs, inserts...)
+		insertedBatches = append(insertedBatches, inserts...)
 		insertLock.Unlock()
 	}
 
-	d := testDoc(1)
 	assert.NoError(t, q.Start())
 	defer q.Stop()
 
 	now := time.Now()
-	wg, err := q.InsertBatch(testWriteBatchEntry(now, d, callback))
+	wg, err := q.InsertBatch(testWriteBatchEntry(testID(1), testTags(1), now, callback))
 	assert.NoError(t, err)
 	wg.Wait()
 
 	insertLock.Lock()
 	defer insertLock.Unlock()
-	assert.Len(t, insertedDocs, 1)
-	assert.Equal(t, d, insertedDocs[0].Document)
-	assert.Equal(t, now.UnixNano(), int64(insertedDocs[0].BlockStart))
+	assert.Len(t, insertedBatches, 1)
+	assert.Len(t, insertedBatches[0], 1)
+	// assert.Equal(t, d, insertedBatches[0][0].Document)
+	// assert.Equal(t, now.UnixNano(), int64(insertedBatches[0][0].BlockStart))
 }
 
 func TestIndexInsertQueueRateLimit(t *testing.T) {
@@ -150,37 +136,37 @@ func TestIndexInsertQueueRateLimit(t *testing.T) {
 		assert.NoError(t, q.Stop())
 	}()
 
-	_, err := q.InsertBatch(testWriteBatchEntry(time.Time{}, testDoc(1), callback))
+	_, err := q.InsertBatch(testWriteBatchEntry(testID(1), testTags(1), time.Time{}, callback))
 	assert.NoError(t, err)
 
 	addTime(250 * time.Millisecond)
-	_, err = q.InsertBatch(testWriteBatchEntry(time.Time{}, testDoc(2), callback))
+	_, err = q.InsertBatch(testWriteBatchEntry(testID(2), testTags(2), time.Time{}, callback))
 	assert.NoError(t, err)
 
 	// Consecutive should be all rate limited
 	for i := 0; i < 100; i++ {
-		_, err = q.InsertBatch(testWriteBatchEntry(time.Time{}, testDoc(i+2), callback))
+		_, err = q.InsertBatch(testWriteBatchEntry(testID(i+2), testTags(i+2), time.Time{}, callback))
 		assert.Error(t, err)
 		assert.Equal(t, errNewSeriesIndexRateLimitExceeded, err)
 	}
 
 	// Start 2nd second should not be an issue
 	addTime(750 * time.Millisecond)
-	_, err = q.InsertBatch(testWriteBatchEntry(time.Time{}, testDoc(110), callback))
+	_, err = q.InsertBatch(testWriteBatchEntry(testID(110), testTags(100), time.Time{}, callback))
 	assert.NoError(t, err)
 
 	addTime(100 * time.Millisecond)
-	_, err = q.InsertBatch(testWriteBatchEntry(time.Time{}, testDoc(111), callback))
+	_, err = q.InsertBatch(testWriteBatchEntry(testID(111), testTags(111), time.Time{}, callback))
 	assert.NoError(t, err)
 
 	addTime(100 * time.Millisecond)
-	_, err = q.InsertBatch(testWriteBatchEntry(time.Time{}, testDoc(112), callback))
+	_, err = q.InsertBatch(testWriteBatchEntry(testID(112), testTags(112), time.Time{}, callback))
 	assert.Error(t, err)
 	assert.Equal(t, errNewSeriesIndexRateLimitExceeded, err)
 
 	// Start 3rd second
 	addTime(800 * time.Millisecond)
-	_, err = q.InsertBatch(testWriteBatchEntry(time.Time{}, testDoc(113), callback))
+	_, err = q.InsertBatch(testWriteBatchEntry(testID(113), testTags(113), time.Time{}, callback))
 	assert.NoError(t, err)
 
 	q.Lock()
@@ -194,7 +180,7 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	var (
-		inserts  [][]index.WriteBatchEntry
+		inserts  [][][]index.WriteBatchEntry
 		currTime = time.Now()
 		timeLock = sync.Mutex{}
 		addTime  = func(d time.Duration) {
@@ -218,7 +204,7 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 		defer timeLock.Unlock()
 		return currTime
 	}
-	q.indexBatchFn = func(value []index.WriteBatchEntry) {
+	q.indexBatchFn = func(value [][]index.WriteBatchEntry) {
 		inserts = append(inserts, value)
 		insertWgs[len(inserts)-1].Done()
 		insertProgressWgs[len(inserts)-1].Wait()
@@ -243,16 +229,16 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 	}()
 
 	// first insert
-	_, err := q.InsertBatch(testWriteBatchEntry(time.Time{}, testDoc(0), callback))
+	_, err := q.InsertBatch(testWriteBatchEntry(testID(0), testTags(0), time.Time{}, callback))
 	require.NoError(t, err)
 
 	// wait for first insert batch to complete
 	insertWgs[0].Wait()
 
 	// now next batch will need to wait as we haven't progressed time
-	_, err = q.InsertBatch(testWriteBatchEntry(time.Time{}, testDoc(1), callback))
+	_, err = q.InsertBatch(testWriteBatchEntry(testID(1), testTags(1), time.Time{}, callback))
 	require.NoError(t, err)
-	_, err = q.InsertBatch(testWriteBatchEntry(time.Time{}, testDoc(2), callback))
+	_, err = q.InsertBatch(testWriteBatchEntry(testID(2), testTags(2), time.Time{}, callback))
 	require.NoError(t, err)
 
 	// allow first insert to finish
@@ -265,7 +251,7 @@ func TestIndexInsertQueueBatchBackoff(t *testing.T) {
 	assert.Equal(t, 1, numSleeps)
 
 	// insert third batch, will also need to wait
-	_, err = q.InsertBatch(testWriteBatchEntry(time.Time{}, testDoc(3), callback))
+	_, err = q.InsertBatch(testWriteBatchEntry(testID(3), testTags(3), time.Time{}, callback))
 	require.NoError(t, err)
 
 	// allow second batch to finish
@@ -292,14 +278,14 @@ func TestIndexInsertQueueFlushedOnClose(t *testing.T) {
 		currTime          = time.Now().Truncate(time.Second)
 	)
 
-	q := newNamespaceIndexInsertQueue(func(value []index.WriteBatchEntry) {
+	q := newNamespaceIndexInsertQueue(func(value [][]index.WriteBatchEntry) {
 		atomic.AddInt64(&numInsertObserved, int64(len(value)))
 	}, func() time.Time { return currTime }, tally.NoopScope)
 
 	require.NoError(t, q.Start())
 
 	for i := 0; i < numInsertExpected; i++ {
-		_, err := q.InsertBatch(testWriteBatchEntry(time.Time{}, doc.Document{}, nil))
+		_, err := q.InsertBatch(testWriteBatchEntry(testID(1), testTags(1), time.Time{}, nil))
 		require.NoError(t, err)
 	}
 
