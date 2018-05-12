@@ -6,10 +6,10 @@ coverage:
   status:
     project:
       default: on
-      unittests:
-        flags: unittests
-      integration:
-        flags: integration
+      coordinator:
+        flags: coordinator
+      db:
+        flags: db
     patch:
       default: on
     changes:

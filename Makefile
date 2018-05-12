@@ -29,6 +29,7 @@ include $(SELF_DIR)/generated-source-files.mk
 BUILD            := $(abspath ./bin)
 GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package))
 LINUX_AMD64_ENV  := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+TEST_ENV         := SRC_ROOT=. SRC_EXCLUDE=src/coordinator
 
 SERVICES := \
 	m3dbnode
@@ -148,38 +149,43 @@ metalint: install-metalinter install-linter-badtime
 	@($(metalint_check) $(metalint_config) $(metalint_exclude))
 
 .PHONY: test
-test: test-base
+test:
+	$(TEST_ENV) make test-base
 	# coverfile defined in common.mk
 	gocov convert $(coverfile) | gocov report
 
 .PHONY: test-xml
-test-xml: test-base-xml
+test-xml:
+	$(TEST_ENV) make test-base-xml
 
 .PHONY: test-html
-test-html: test-base-html
+test-html:
+	$(TEST_ENV) make test-base-html
 
 # Note: do not test native pooling since it's experimental/deprecated
 .PHONY: test-integration
 test-integration:
-	TEST_NATIVE_POOLING=false make test-base-integration
+	$(TEST_ENV) TEST_NATIVE_POOLING=false make test-base-integration
 
 # Usage: make test-single-integration name=<test_name>
 .PHONY: test-single-integration
 test-single-integration:
-	TEST_NATIVE_POOLING=false make test-base-single-integration name=$(name)
+	$(TEST_ENV) TEST_NATIVE_POOLING=false make test-base-single-integration name=$(name)
 
 .PHONY: test-ci-unit
-test-ci-unit: test-base
-	$(codecov_push) -f $(coverfile) -F unittests
+test-ci-unit:
+	$(TEST_ENV) make test-base
+	$(codecov_push) -f $(coverfile) -F db
 
 .PHONY: test-ci-big-unit
-test-ci-big-unit: test-big-base
-	$(codecov_push) -f $(coverfile) -F unittests
+test-ci-big-unit:
+	$(TEST_ENV) make test-big-base
+	$(codecov_push) -f $(coverfile) -F db
 
 .PHONY: test-ci-integration
 test-ci-integration:
-	INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
-	$(codecov_push) -f $(coverfile) -F integration
+	$(TEST_ENV) INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	$(codecov_push) -f $(coverfile) -F db
 
 .PHONY: clean
 clean:
