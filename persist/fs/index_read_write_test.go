@@ -175,24 +175,26 @@ func writeTestIndexSegments(
 	v []testIndexSegment,
 ) {
 	for _, s := range v {
-		var files []IndexSegmentFile
-		for _, f := range s.files {
-			reader := bytes.NewReader(f.data)
-			file := NewMockIndexSegmentFile(ctrl)
-			file.EXPECT().SegmentFileType().Return(f.segmentFileType).AnyTimes()
-			file.EXPECT().Read(gomock.Any()).DoAndReturn(func(b []byte) (int, error) {
-				return reader.Read(b)
-			})
-			file.EXPECT().Close().Return(nil)
-			files = append(files, file)
-		}
-
-		fileSet := NewMockIndexSegmentFileSet(ctrl)
+		fileSet := NewMockIndexSegmentFileSetWriter(ctrl)
 		fileSet.EXPECT().SegmentType().Return(s.segmentType).AnyTimes()
 		fileSet.EXPECT().MajorVersion().Return(s.majorVersion)
 		fileSet.EXPECT().MinorVersion().Return(s.minorVersion)
 		fileSet.EXPECT().SegmentMetadata().Return(s.metadata)
+
+		var files []IndexSegmentFileType
+		for _, f := range s.files {
+			files = append(files, f.segmentFileType)
+		}
 		fileSet.EXPECT().Files().Return(files).AnyTimes()
+
+		for _, f := range s.files {
+			fileSet.EXPECT().
+				WriteFile(f.segmentFileType, gomock.Any()).
+				DoAndReturn(func(_ IndexSegmentFileType, w io.Writer) error {
+					_, err := w.Write(f.data)
+					return err
+				})
+		}
 
 		err := writer.WriteSegmentFileSet(fileSet)
 		require.NoError(t, err)

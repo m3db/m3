@@ -276,7 +276,7 @@ type IndexFileSetWriter interface {
 	Open(opts IndexWriterOpenOptions) error
 
 	// WriteSegmentFileSet writes a index segment file set.
-	WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) error
+	WriteSegmentFileSet(segmentFileSet IndexSegmentFileSetWriter) error
 }
 
 // IndexSegmentType is the type of an index file set.
@@ -305,6 +305,16 @@ func (t IndexSegmentFileType) Validate() error {
 			fileSubTypeRegex.String())
 	}
 	return nil
+}
+
+// IndexSegmentFileSetWriter is an index segment file set writer.
+type IndexSegmentFileSetWriter interface {
+	SegmentType() IndexSegmentType
+	MajorVersion() int
+	MinorVersion() int
+	SegmentMetadata() []byte
+	Files() []IndexSegmentFileType
+	WriteFile(fileType IndexSegmentFileType, writer io.Writer) error
 }
 
 // IndexSegmentFileSet is an index segment file set.
