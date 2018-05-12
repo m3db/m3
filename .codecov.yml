@@ -15,6 +15,36 @@ coverage:
     changes:
       default: off
 
+  flags:
+    coordinator:
+      paths:
+        - src/coordinator/
+    db:
+      paths:
+        - client/
+        - clock/
+        - digest/
+        - docs/
+        - encoding/
+        - environment/
+        - example/
+        - generated/
+        - integration/
+        - kvconfig/
+        - network/
+        - persist/
+        - ratelimit/
+        - retention/
+        - runtime/
+        - serialize/
+        - services/
+        - sharding/
+        - storage/
+        - tools/
+        - topology/
+        - ts/
+        - x/
+
 comment:
   layout: "header, reach, diff, flags, footer"
   behavior: default
