@@ -8,6 +8,7 @@ gopath_prefix         := $(GOPATH)/src
 license_dir           := .ci/uber-licence
 license_node_modules  := $(license_dir)/node_modules
 m3ninx_package        := github.com/m3db/m3ninx
+m3ninx_package_path   := $(gopath_prefix)/$(m3ninx_package)
 metalint_check        := .ci/metalint.sh
 metalint_config       := .metalinter.json
 metalint_exclude      := .excludemetalint
@@ -24,6 +25,8 @@ genny_rules_dir       := generated/generics
 BUILD            := $(abspath ./bin)
 GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3ninx_package))
 LINUX_AMD64_ENV  := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+
+include $(SELF_DIR)/generated-source-files.mk
 
 # SERVICES := \
 

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fieldsgen
+package mem
 
 import (
 	"bytes"
@@ -26,26 +26,26 @@ import (
 	"github.com/cespare/xxhash"
 )
 
-// New returns a new []bytes->*postingsgen.ConcurrentMap.
-func New(initialSize int) *Map {
-	return newMap(mapOptions{
-		hash: func(k []byte) MapHash {
-			return MapHash(xxhash.Sum64(k))
+// newFieldsMap returns a new []bytes->*postingsgen.ConcurrentMap.
+func newFieldsMap(initialSize int) *fieldsMap {
+	return _fieldsMapAlloc(_fieldsMapOptions{
+		hash: func(k []byte) fieldsMapHash {
+			return fieldsMapHash(xxhash.Sum64(k))
 		},
 		equals:      bytes.Equal,
-		copy:        undefinedCopyFn,
-		finalize:    undefinedFinalizeFn,
+		copy:        undefinedFieldsMapCopyFn,
+		finalize:    undefinedFieldsMapFinalizeFn,
 		initialSize: initialSize,
 	})
 }
 
-var undefinedCopyFn CopyFn = func([]byte) []byte {
+var undefinedFieldsMapCopyFn fieldsMapCopyFn = func([]byte) []byte {
 	// NB: intentionally not defined to force users of the map to not
 	// allocate extra copies.
 	panic("not implemented")
 }
 
-var undefinedFinalizeFn FinalizeFn = func([]byte) {
+var undefinedFieldsMapFinalizeFn fieldsMapFinalizeFn = func([]byte) {
 	// NB: intentionally not defined to force users of the map to not
 	// allocate extra copies.
 	panic("not implemented")

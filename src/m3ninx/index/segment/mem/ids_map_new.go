@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package idsgen
+package mem
 
 import (
 	"bytes"
@@ -26,23 +26,23 @@ import (
 	"github.com/cespare/xxhash"
 )
 
-// New returns a new set of IDs.
-func New(initialSize int) *Map {
-	return newMap(mapOptions{
-		hash: func(k []byte) MapHash {
-			return MapHash(xxhash.Sum64(k))
+// newIDsMap returns a new set of IDs.
+func newIDsMap(initialSize int) *idsMap {
+	return _idsMapAlloc(_idsMapOptions{
+		hash: func(k []byte) idsMapHash {
+			return idsMapHash(xxhash.Sum64(k))
 		},
 		equals:      bytes.Equal,
-		copy:        undefinedCopyFn,
-		finalize:    undefinedFinalizeFn,
+		copy:        undefinedIdsMapCopyFn,
+		finalize:    undefinedIdsMapFinalizeFn,
 		initialSize: initialSize,
 	})
 }
 
-var undefinedCopyFn CopyFn = func([]byte) []byte {
+var undefinedIdsMapCopyFn idsMapCopyFn = func([]byte) []byte {
 	panic("not implemented")
 }
 
-var undefinedFinalizeFn FinalizeFn = func([]byte) {
+var undefinedIdsMapFinalizeFn idsMapFinalizeFn = func([]byte) {
 	panic("not implemented")
 }

@@ -18,24 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package postingsgen
+package mem
 
 import (
 	"regexp"
 	"testing"
 
-	"github.com/m3db/m3ninx/postings"
-	"github.com/m3db/m3ninx/postings/roaring"
-
 	"github.com/stretchr/testify/require"
 )
 
-func TestConcurrentMap(t *testing.T) {
-	opts := ConcurrentMapOpts{
-		InitialSize:      1024,
-		PostingsListPool: postings.NewPool(nil, roaring.NewPostingsList),
-	}
-	pm := NewConcurrentMap(opts)
+func TestConcurrentPostingsMap(t *testing.T) {
+	opts := NewOptions()
+	pm := newConcurrentPostingsMap(opts)
 
 	pm.Add([]byte("foo"), 1)
 	pm.Add([]byte("bar"), 2)
