@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/index"
 	"github.com/m3db/m3db/persist"
+	xerrors "github.com/m3db/m3x/errors"
 )
 
 const (
@@ -195,6 +196,10 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSetWrit
 		digest := w.fdWithDigest.Digest()
 		writer := bufio.NewWriter(w.fdWithDigest)
 		if err := segmentFileSet.WriteFile(segFileType, writer); err != nil {
+			return w.markSegmentWriteError(segType, segFileType, err)
+		}
+		err = xerrors.FirstError(writer.Flush(), w.fdWithDigest.Close())
+		if err != nil {
 			return w.markSegmentWriteError(segType, segFileType, err)
 		}
 		if err := w.fdWithDigest.Close(); err != nil {
