@@ -4,19 +4,20 @@ This document describes the format of a segment's documents file. The documents
 file contains every document in a segment. The documents file is composed of
 three sections:
   1. header
-  2. payload
-  3. trailer
+  2. documents
+  3. offsets
+  4. trailer
 
 ```
 ┌───────────────────────────┐
 │          Header           │
 ├───────────────────────────┤
 │                           │
+│         Documents         │
 │                           │
+├───────────────────────────┤
 │                           │
-│          Payload          │
-│                           │
-│                           │
+│          Offsets          │
 │                           │
 ├───────────────────────────┤
 │          Trailer          │
@@ -49,9 +50,9 @@ file. The file format version is the version of the documents file format that i
 used. Currently, the only valid version is `1`. Both the magic number and the version
 are encoded as a little-endian `uint32`.
 
-## 2. Payload
+## 2. Documents
 
-The payload comes after the header and it contains the actual documents.
+The documents section comes after the header and contains the actual documents.
 
 ```
 ┌───────────────────────────┐
@@ -65,7 +66,7 @@ The payload comes after the header and it contains the actual documents.
 └───────────────────────────┘
 ```
 
-#### Document
+### Document
 
 Each document is composed of an ID and fields. The ID is a sequence of valid UTF-8 bytes
 and it is encoded first by encoding the length of the ID, in bytes, as a variable-sized
@@ -131,11 +132,37 @@ name (value). The name is encoded first and the value second.
 └───────────────────────────┘
 ```
 
-## 3. Trailer
+## 3. Offsets
 
-The trailer is the last section and it includes the number of documents in the payload
-and a checksum over all of the preceding bytes (the header, the payload, and the number
-of documents).
+The offsets section follows the documents section and provides a mapping from a document's
+posting ID to its offset in the documents section. The offset is calculated from the start
+of the documents section and thus does not include the header. The first document will
+therefore be offset at 0. Each offset is a `uint64` and since it is of a fixed size the offset
+for posting ID `n` can be found at (`n` - `base`) * 8 where `base` is the first posting ID
+stored.
+
+```
+┌───────────────────────────┐
+│ ┌───────────────────────┐ │
+│ │        Offset 1       │ │
+│ │        (uint64)       │ │
+│ ├───────────────────────┤ │
+│ │          ...          │ │
+│ ├───────────────────────┤ │
+│ │        Offset 2       │ │
+│ │        (uint64)       │ │
+│ └───────────────────────┘ │
+└───────────────────────────┘
+```
+
+## 4. Trailer
+
+The trailer is the last section and it includes:
+  1. the number of documents in the documents section
+  2. the base postings ID of the offsets section
+  3. the index of the offsets section in the file
+
+All of the fields in the trailer are encoded as a `uint64` in little-endian format.
 
 ```
 ┌───────────────────────────┐
@@ -146,12 +173,14 @@ of documents).
 │ │                       │ │
 │ ├───────────────────────┤ │
 │ │                       │ │
-│ │       Checksum        │ │
-│ │       (uint32)        │ │
+│ │    Base Postings ID   │ │
+│ │        (uint64)       │ │
+│ │                       │ │
+│ ├───────────────────────┤ │
+│ │                       │ │
+│ │    Index of Offsets   │ │
+│ │        (uint64)       │ │
 │ │                       │ │
 │ └───────────────────────┘ │
 └───────────────────────────┘
 ```
-
-The number of documents is encoded as a `unit64` and the checksum is a `uint32` both of
-which are in little-endian format.
