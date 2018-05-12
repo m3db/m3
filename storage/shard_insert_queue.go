@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/storage/series/lookup"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -113,7 +114,7 @@ type dbShardInsertAsyncOptions struct {
 }
 
 type dbShardInsert struct {
-	entry *dbShardEntry
+	entry *lookup.Entry
 	opts  dbShardInsertAsyncOptions
 }
 

@@ -1382,6 +1382,18 @@ func (m *MocknamespaceIndex) EXPECT() *MocknamespaceIndexMockRecorder {
 	return m.recorder
 }
 
+// BlockStartForWriteTime mocks base method
+func (m *MocknamespaceIndex) BlockStartForWriteTime(writeTime time.Time) time0.UnixNano {
+	ret := m.ctrl.Call(m, "BlockStartForWriteTime", writeTime)
+	ret0, _ := ret[0].(time0.UnixNano)
+	return ret0
+}
+
+// BlockStartForWriteTime indicates an expected call of BlockStartForWriteTime
+func (mr *MocknamespaceIndexMockRecorder) BlockStartForWriteTime(writeTime interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockStartForWriteTime", reflect.TypeOf((*MocknamespaceIndex)(nil).BlockStartForWriteTime), writeTime)
+}
+
 // WriteBatch mocks base method
 func (m *MocknamespaceIndex) WriteBatch(entries []index.WriteBatchEntry) error {
 	ret := m.ctrl.Call(m, "WriteBatch", entries)

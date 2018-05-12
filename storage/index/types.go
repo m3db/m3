@@ -117,9 +117,9 @@ type MutableSegmentAllocator func() (segment.MutableSegment, error)
 // to do lifecycle management of any resources retained during indexing.
 type OnIndexSeries interface {
 	// OnIndexSuccess is executed when an entry is successfully indexed. The
-	// provided value for `indexEntryExpiry` describes the TTL for the indexed
-	// entry.
-	OnIndexSuccess(indexEntryExpiry xtime.UnixNano)
+	// provided value for `blockStart` is the blockStart for which the write
+	// was indexed.
+	OnIndexSuccess(blockStart xtime.UnixNano)
 
 	// OnIndexFinalize is executed when the index no longer holds any references
 	// to the provided resources. It can be used to cleanup any resources held
