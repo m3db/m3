@@ -77,7 +77,7 @@ func TestWriteReadDocuments(t *testing.T) {
 		},
 		{
 			name: "node exporter metrics",
-			docs: util.MustReadDocs("../../util/testdata/node_exporter.json", 2000),
+			docs: util.MustReadDocs("../../../../util/testdata/node_exporter.json", 2000),
 		},
 	}
 

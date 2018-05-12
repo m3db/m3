@@ -26,7 +26,7 @@ import (
 	"io"
 
 	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/encoding"
+	"github.com/m3db/m3ninx/index/segment/fs/encoding"
 )
 
 // Documents file format metadata.
