@@ -143,31 +143,6 @@ func (mr *MockQueryMockRecorder) Equal(q interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Equal", reflect.TypeOf((*MockQuery)(nil).Equal), q)
 }
 
-// Marshal mocks base method
-func (m *MockQuery) Marshal() ([]byte, error) {
-	ret := m.ctrl.Call(m, "Marshal")
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Marshal indicates an expected call of Marshal
-func (mr *MockQueryMockRecorder) Marshal() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Marshal", reflect.TypeOf((*MockQuery)(nil).Marshal))
-}
-
-// Unmarshal mocks base method
-func (m *MockQuery) Unmarshal(data []byte) error {
-	ret := m.ctrl.Call(m, "Unmarshal", data)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Unmarshal indicates an expected call of Unmarshal
-func (mr *MockQueryMockRecorder) Unmarshal(data interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unmarshal", reflect.TypeOf((*MockQuery)(nil).Unmarshal), data)
-}
-
 // ToProto mocks base method
 func (m *MockQuery) ToProto() *querypb.Query {
 	ret := m.ctrl.Call(m, "ToProto")

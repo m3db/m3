@@ -2,9 +2,9 @@ package: github.com/m3db/m3ninx
 import:
 # need to pin this version until we're using 1.9
 - package: github.com/RoaringBitmap/roaring
-  version: 0.3.9
+  version: 0.4.7
 - package: github.com/m3db/m3x
-  version: d0873c0b327bee1a4a47f1d84263a6edaebbbf66
+  version: 6148700dde75adcdcc27d16fb68cee2d9d9126d8
   subpackages:
   - instrument
   - generics

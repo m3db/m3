@@ -21,7 +21,9 @@
 package mem
 
 import (
+	"bytes"
 	"regexp"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -55,4 +57,41 @@ func TestConcurrentPostingsMap(t *testing.T) {
 	re = regexp.MustCompile("abc.*")
 	_, ok = pm.GetRegex(re)
 	require.False(t, ok)
+}
+
+func TestConcurrentPostingsMapKeys(t *testing.T) {
+	opts := NewOptions()
+	pm := newConcurrentPostingsMap(opts)
+
+	keys := pm.Keys()
+	require.Empty(t, keys)
+
+	var (
+		foo = []byte("foo")
+		bar = []byte("bar")
+		baz = []byte("baz")
+	)
+
+	pm.Add(foo, 1)
+	keys = pm.Keys()
+	require.Equal(t, [][]byte{foo}, sortKeys(keys))
+
+	pm.Add(bar, 2)
+	keys = pm.Keys()
+	require.Equal(t, [][]byte{bar, foo}, sortKeys(keys))
+
+	pm.Add(foo, 3)
+	keys = pm.Keys()
+	require.Equal(t, [][]byte{bar, foo}, sortKeys(keys))
+
+	pm.Add(baz, 4)
+	keys = pm.Keys()
+	require.Equal(t, [][]byte{bar, baz, foo}, sortKeys(keys))
+}
+
+func sortKeys(keys [][]byte) [][]byte {
+	sort.Slice(keys, func(i, j int) bool {
+		return bytes.Compare(keys[i], keys[j]) < 0
+	})
+	return keys
 }

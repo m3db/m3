@@ -32,10 +32,14 @@ import (
 	"github.com/m3db/m3ninx/postings"
 )
 
-// ErrDuplicateID is the error returned when a batch contains duplicate IDs.
-var ErrDuplicateID = errors.New("a batch cannot contain duplicate IDs")
+var (
+	// ErrDuplicateID is the error returned when a batch contains duplicate IDs.
+	ErrDuplicateID = errors.New("a batch cannot contain duplicate IDs")
 
-var errUnknownPostingsID = errors.New("unknown postings ID specified")
+	errUnknownPostingsID = errors.New("unknown postings ID specified")
+	errSegmentSealed     = errors.New("unable to seal, segment has already been sealed")
+	errSegmentIsUnsealed = errors.New("un-supported operation on an un-sealed mutable segment")
+)
 
 // nolint: maligned
 type segment struct {
@@ -46,6 +50,7 @@ type segment struct {
 	state struct {
 		sync.RWMutex
 		closed bool
+		sealed bool
 	}
 
 	// Mapping of postings ID to document.
@@ -367,5 +372,57 @@ func (s *segment) Close() error {
 	}
 
 	s.state.closed = true
+	return nil
+}
+
+func (s *segment) Seal() (sgmt.Segment, error) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	if s.state.closed {
+		return nil, sgmt.ErrClosed
+	}
+
+	if s.state.sealed {
+		return nil, errSegmentSealed
+	}
+
+	s.state.sealed = true
+	return s, nil
+}
+
+func (s *segment) Fields() ([][]byte, error) {
+	s.state.RLock()
+	defer s.state.RUnlock()
+	if err := s.checkIsSealedWithRLock(); err != nil {
+		return nil, err
+	}
+	return s.termsDict.Fields(), nil
+}
+
+func (s *segment) Terms(name []byte) ([][]byte, error) {
+	s.state.RLock()
+	defer s.state.RUnlock()
+	if err := s.checkIsSealedWithRLock(); err != nil {
+		return nil, err
+	}
+	return s.termsDict.Terms(name), nil
+}
+
+func (s *segment) MatchTerm(field, term []byte) (postings.List, error) {
+	s.state.RLock()
+	defer s.state.RUnlock()
+	if err := s.checkIsSealedWithRLock(); err != nil {
+		return nil, err
+	}
+	return s.termsDict.MatchTerm(field, term), nil
+}
+
+func (s *segment) checkIsSealedWithRLock() error {
+	if s.state.closed {
+		return sgmt.ErrClosed
+	}
+	if !s.state.sealed {
+		return errSegmentIsUnsealed
+	}
 	return nil
 }
