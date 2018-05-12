@@ -203,6 +203,10 @@ func newNamespaceIndexWithOptions(
 	return idx, nil
 }
 
+func (i *nsIndex) BlockStartForWriteTime(writeTime time.Time) xtime.UnixNano {
+	return xtime.ToUnixNano(writeTime.Truncate(i.blockSize))
+}
+
 // NB(prateek): including the call chains leading to this point:
 //
 // - For new entry (previously unseen in the shard):
@@ -231,25 +235,26 @@ func (i *nsIndex) WriteBatch(
 	var emptyEntry index.WriteBatchEntry
 	for j := range entries {
 		var (
-			timestamp = entries[j].Timestamp
-			onIndexFn = entries[j].OnIndexSeries
+			timestamp  = entries[j].Timestamp
+			onIndexFn  = entries[j].OnIndexSeries
+			blockStart = i.BlockStartForWriteTime(timestamp)
 		)
 		if !futureLimit.After(timestamp) {
-			onIndexFn.OnIndexFinalize()
+			onIndexFn.OnIndexFinalize(blockStart)
 			entries[j] = emptyEntry // indicate we don't need to index this.
 			// TODO(prateek): capture that this needs to return m3dberrors.ErrTooFuture
 			continue
 		}
 
 		if !pastLimit.Before(timestamp) {
-			onIndexFn.OnIndexFinalize()
+			onIndexFn.OnIndexFinalize(blockStart)
 			entries[j] = emptyEntry // indicate we don't need to index this.
 			// TODO(prateek): capture that this needs to return m3dberrors.ErrTooPast
 			continue
 		}
 
 		// update the timestamp to the blockstart for the block it needs to be sent to
-		entries[j].Timestamp = timestamp.Truncate(i.blockSize)
+		entries[j].Timestamp = blockStart.ToTime()
 	}
 	return i.enqueueBatch(entries)
 }

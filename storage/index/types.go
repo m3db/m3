@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	xtime "github.com/m3db/m3x/time"
 )
 
 var (
@@ -118,12 +119,13 @@ type OnIndexSeries interface {
 	// OnIndexSuccess is executed when an entry is successfully indexed. The
 	// provided value for `indexEntryExpiry` describes the TTL for the indexed
 	// entry.
-	OnIndexSuccess(indexEntryExpiry time.Time)
+	OnIndexSuccess(indexEntryExpiry xtime.UnixNano)
 
 	// OnIndexFinalize is executed when the index no longer holds any references
 	// to the provided resources. It can be used to cleanup any resources held
-	// during the course of indexing.
-	OnIndexFinalize()
+	// during the course of indexing. `blockStart` is the startTime of the index
+	// block for which the write was attempted.
+	OnIndexFinalize(blockStart xtime.UnixNano)
 }
 
 // Block represents a collection of segments. Each `Block` is a complete reverse
@@ -191,7 +193,7 @@ type WriteBatchEntriesFinalizer []WriteBatchEntry
 func (w WriteBatchEntriesFinalizer) Finalize() {
 	for _, entry := range w {
 		if entry.OnIndexSeries != nil {
-			entry.OnIndexSeries.OnIndexFinalize()
+			entry.OnIndexSeries.OnIndexFinalize(xtime.ToUnixNano(entry.Timestamp))
 		}
 	}
 }

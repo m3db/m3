@@ -180,6 +180,20 @@ type dbShardEntry struct {
 	index          uint64
 	curReadWriters int32
 	reverseIndex   struct {
+		// NB(prateek): writeAttemptedBlockstart[1-2]Nanos is used to indicate the index block start(s)
+		// for which this entry has a pending indexing operation (if any). The value for
+		// the blockstart is computed based upon timestamp of writes to the entry. When
+		// a write comes in for series, we compute this token and compare against the value
+		// set on the entry. If the entry has the same value, then we know there is already
+		// a write pending for the entry in the index for the given block start, and don't
+		// need to attempt another one. If not, we need to index it.
+		// The following semantics hold for this type:
+		//   - `writeAttemptedBlockstartNanos == 0` indicates no write is pending for this entry.
+		//   - `writeAttemptedBlockStartNanos != 0` indicates a write is pending for this entry.
+		// We actually require two blockStarts, because there can be writes issued for two blocks at the
+		// same time, and we need to track both of them.
+		writeAttemptedBlockStart1Nanos int64
+		writeAttemptedBlockStart2Nanos int64
 		// NB(prateek): nextWriteTimeNanos is the UnixNanos until
 		// the next index write is required. We use an atomic instead
 		// of a time.Time to avoid using a Mutex to guard it.
@@ -199,20 +213,105 @@ func (entry *dbShardEntry) decrementReaderWriterCount() {
 	atomic.AddInt32(&entry.curReadWriters, -1)
 }
 
-func (entry *dbShardEntry) needsIndexUpdate(writeTime time.Time) bool {
-	return atomic.LoadInt64(&entry.reverseIndex.nextWriteTimeNanos) < writeTime.UnixNano()
+func (entry *dbShardEntry) hasIndexTTLGreaterThan(writeTime time.Time) bool {
+	nextWriteNanos := atomic.LoadInt64(&entry.reverseIndex.nextWriteTimeNanos)
+	return nextWriteNanos > int64(xtime.ToUnixNano(writeTime))
+}
+
+// NB(prateek): needsIndexUpdate is a CAS, i.e. when this method returns true, it
+// also sets state on the entry to indicate that a write for the given blockStart
+// is going to be sent to the index, and other go routines should not attempt the
+// same write. Callers are expected to ensure they follow this guideline.
+// Further, every call to needsIndexUpdate which returns true needs to have a corresponding
+// OnIndexFinalze() call. This is reqiured for correct lifecycle maintenance.
+func (entry *dbShardEntry) needsIndexUpdate(indexblockStartForWrite xtime.UnixNano) bool {
+	// check if the entry has a TTL indicating it does not need a write till a
+	// time later than the provided windexblockStartForWrite. If so, we know the
+	// entry does not need to be indexed. More on this in a NB at the end of this function.
+	nextWriteNanos := atomic.LoadInt64(&entry.reverseIndex.nextWriteTimeNanos)
+	if nextWriteNanos > int64(indexblockStartForWrite) {
+		return false
+	}
+
+	var (
+		entryBlock1 = &entry.reverseIndex.writeAttemptedBlockStart1Nanos
+		entryBlock2 = &entry.reverseIndex.writeAttemptedBlockStart1Nanos
+	)
+
+	// i.e. no TTL has been marked on the entry yet. check if a write has been attempted for the entry at all.
+	if atomic.CompareAndSwapInt64(entryBlock1, int64(indexblockStartForWrite), int64(indexblockStartForWrite)) {
+		// i.e. we're already attempting a write for this block start and are tracking this at entryBlock1
+		return false
+	}
+
+	if atomic.CompareAndSwapInt64(entryBlock2, int64(indexblockStartForWrite), int64(indexblockStartForWrite)) {
+		// i.e. we're already attempting a write for this block start and are tracking this at entryBlock2
+		return false
+	}
+
+	// now we attempt to grab either of the slots and indicate success if so
+	if atomic.CompareAndSwapInt64(entryBlock1, 0, int64(indexblockStartForWrite)) {
+		// i.e. we're are now attempting a write for this block start and are tracking this at entryBlock1
+		return true
+	}
+
+	if atomic.CompareAndSwapInt64(entryBlock2, 0, int64(indexblockStartForWrite)) {
+		// i.e. we're are now attempting a write for this block start and are tracking this at entryBlock2
+		return true
+	}
+
+	// i.e. both the slots are occupied. we can reach here in a couple of ways:
+	// (1) There are lots of writes for this series, and another go routine has taken the slots. This is
+	// expected, and we can indicate false.
+	return false
+
+	// (2) There's a code bug, where we haven't called OnIndexFinalize() despite this method returning
+	// true. We can possibly check for this by seeing if the values in entryBlock1/2 are more than
+	// 2 * indexBlockSize away from the provided blockStart. Should I do that here? // TODO(prateek): <---
+
+	// NB(prateek): There's still a design flaw in case of out of order, delayed writes.
+	// Consider an index block size of 2h, and buffer past of 10m.
+	// Say a write comes in at 2.05p (wallclock) for 2.05p (timestamp in the write), we'd index the
+	// entry, and update the entry to have a nextWriteTimeNanos of 4p. Now imagine another write
+	// comes in at 2.06p (wallclock) for 1.57p (timestamp in the write). The current design would
+	// see 1.57p points to the 12p blockStart, which is before the nextWriteTimeNanos of 4p and
+	// decide that we have already indexed this entry for the earlier block. i.e. we'd drop the
+	// indexing write.
+	// This can be addresssed by doing somthing like keeping 4 atomics (instead of the current 3), to
+	// capture any possible blocks that could be written to and/or if such a write has been attempted.
+	// IMO the complexity of that isn't worth maintaining. Much simpler to explicitly call out that out
+	// out order writes for the same ids have this issue. Will bring up with other devs in the PR.
 }
 
 // ensure dbShardEntry satisfies the `index.OnIndexSeries` interface.
 var _ index.OnIndexSeries = &dbShardEntry{}
 
-func (entry *dbShardEntry) OnIndexSuccess(nextWriteTime time.Time) {
-	atomic.StoreInt64(&entry.reverseIndex.nextWriteTimeNanos, nextWriteTime.UnixNano())
+func (entry *dbShardEntry) OnIndexSuccess(nextWriteTime xtime.UnixNano) {
+	atomic.StoreInt64(&entry.reverseIndex.nextWriteTimeNanos, int64(nextWriteTime))
 }
 
-func (entry *dbShardEntry) OnIndexFinalize() {
+func (entry *dbShardEntry) OnIndexFinalize(blockStartNanos xtime.UnixNano) {
 	// indicate the index has released held reference for provided write
 	entry.decrementReaderWriterCount()
+
+	var (
+		entryBlock1 = &entry.reverseIndex.writeAttemptedBlockStart1Nanos
+		entryBlock2 = &entry.reverseIndex.writeAttemptedBlockStart1Nanos
+	)
+
+	if atomic.CompareAndSwapInt64(entryBlock1, int64(blockStartNanos), 0) {
+		// i.e. we were attempting a write for this block start at entryBlock1 and have cleared it.
+		return
+	}
+
+	if atomic.CompareAndSwapInt64(entryBlock2, int64(blockStartNanos), 0) {
+		// i.e. we were attempting a write for this block start at entryBlock2 and have cleared it.
+		return
+	}
+
+	// TODO(prateek): capture some kind of log for this failure mode.
+	// should never get here, on index finalize should only be called for a blockstart we're
+	// tracking.
 }
 
 func (entry *dbShardEntry) onIndexPrepare() {
@@ -836,7 +935,7 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesID = entry.series.ID()
 		commitLogSeriesTags = entry.series.Tags()
 		commitLogSeriesUniqueIndex = entry.index
-		needsIndex := shouldReverseIndex && entry.needsIndexUpdate(timestamp)
+		needsIndex := shouldReverseIndex && entry.needsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp))
 		if err == nil && needsIndex {
 			err = s.insertSeriesForIndexing(entry, timestamp, opts.writeNewSeriesAsync)
 		}
@@ -1032,8 +1131,8 @@ func (s *dbShard) insertSeriesForIndexing(
 	timestamp time.Time,
 	async bool,
 ) error {
-	// // inc a ref on the entry to ensure it's valid until the queue acts upon it.
-	// entry.onIndexPrepare()
+	// inc a ref on the entry to ensure it's valid until the queue acts upon it.
+	entry.onIndexPrepare()
 	wg, err := s.insertQueue.Insert(dbShardInsert{
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
@@ -1041,12 +1140,16 @@ func (s *dbShard) insertSeriesForIndexing(
 			pendingIndex: dbShardPendingIndex{
 				timestamp: timestamp,
 			},
+			// indicate we already have inc'd the entry's ref count, so we can correctly
+			// handle the ref counting semantics in `insertSeriesBatch`.
+			entryRefCountIncremented: true,
 		},
 	})
 
 	// i.e. unable to enqueue into shard insert queue
 	if err != nil {
-		// entry.OnIndexFinalize() // release any reference's we've held for indexing
+		indexBlockStart := s.reverseIndex.BlockStartForWriteTime(timestamp)
+		entry.OnIndexFinalize(indexBlockStart) // release any reference's we've held for indexing
 		return err
 	}
 
@@ -1057,7 +1160,7 @@ func (s *dbShard) insertSeriesForIndexing(
 
 	// if indexing in sync mode, wait till we're done and ensure we have have indexed the entry
 	wg.Wait()
-	if entry.needsIndexUpdate(timestamp) {
+	if entry.hasIndexTTLGreaterThan(timestamp) {
 		// i.e. indexing failed
 		return fmt.Errorf("internal error: unable to index series")
 	}
@@ -1162,20 +1265,16 @@ func (s *dbShard) insertNewShardEntryWithLock(entry *dbShardEntry) {
 }
 
 func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
-	anyPendingAction := false
-	numPendingIndexing := 0
+	var (
+		anyPendingAction   = false
+		numPendingIndexing = 0
+	)
 
 	s.Lock()
 	for i := range inserts {
-		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.series.ID())
-		if entry != nil {
-			// Already exists so update the entry we're pointed at for this insert
-			inserts[i].entry = entry
-		}
-
 		// If we are going to write to this entry then increment the
 		// writer count so it does not look empty immediately after
-		// we release the write lock
+		// we release the write lock.
 		hasPendingWrite := inserts[i].opts.hasPendingWrite
 		hasPendingIndexing := inserts[i].opts.hasPendingIndexing
 		hasPendingRetrievedBlock := inserts[i].opts.hasPendingRetrievedBlock
@@ -1186,11 +1285,30 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			numPendingIndexing++
 		}
 
+		// we don't need to inc the entry ref count if we already have a ref on the entry. check if
+		// that's the case.
+		if inserts[i].opts.entryRefCountIncremented {
+			// don't need to inc a ref on the entry, we were given as writable entry as input.
+			continue
+		}
+
+		// i.e. we don't have a ref on provided entry, so we check if between the operation being
+		// enqueue in the shard insert queue, and this function executing, an entry was created
+		// for the same ID.
+		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.series.ID())
+		if entry != nil {
+			// Already exists so update the entry we're pointed at for this insert
+			inserts[i].entry = entry
+		}
+
 		if hasPendingIndexing || hasPendingWrite || hasPendingRetrievedBlock {
 			// We're definitely writing a value, ensure that the pending write is
 			// visible before we release the lookup write lock
 			inserts[i].entry.incrementReaderWriterCount()
+			// also indicate that we have a ref count on this entry for this operation
+			inserts[i].opts.entryRefCountIncremented = true
 		}
+
 		if err == nil {
 			// Already inserted
 			continue
@@ -1199,6 +1317,9 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		if err != errShardEntryNotFound {
 			// Shard is not taking inserts
 			s.Unlock()
+			// FOLLOWUP(prateek): is this an existing bug? why don't we need to release any ref's we've inc'd
+			// on entries in the loop before this point, i.e. in range [0, i). Otherwise, how are those entries
+			// going to get cleaned up?
 			s.metrics.insertAsyncInsertErrors.Inc(int64(len(inserts) - i))
 			return err
 		}
@@ -1226,11 +1347,10 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	for i := range inserts {
 		var (
 			entry           = inserts[i].entry
-			releaseEntryRef = false
+			releaseEntryRef = inserts[i].opts.entryRefCountIncremented
 		)
 
 		if inserts[i].opts.hasPendingWrite {
-			releaseEntryRef = true
 			write := inserts[i].opts.pendingWrite
 			err := entry.series.Write(ctx, write.timestamp, write.value,
 				write.unit, write.annotation)
@@ -1241,21 +1361,18 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		if inserts[i].opts.hasPendingIndexing {
 			pendingIndex := inserts[i].opts.pendingIndex
-			releaseEntryRef = true
-			// only index any entry that hasn't crossed the nextIndexTime
-			if entry.needsIndexUpdate(pendingIndex.timestamp) {
-				entry.onIndexPrepare()
-				indexBatch = append(indexBatch, index.WriteBatchEntry{
-					ID:            entry.series.ID(),
-					Tags:          entry.series.Tags(),
-					Timestamp:     pendingIndex.timestamp,
-					OnIndexSeries: entry,
-				})
-			}
+			// increment the ref on the entry, as the original one was transferred to the
+			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
+			entry.onIndexPrepare()
+			indexBatch = append(indexBatch, index.WriteBatchEntry{
+				ID:            entry.series.ID(),
+				Tags:          entry.series.Tags(),
+				Timestamp:     pendingIndex.timestamp,
+				OnIndexSeries: entry,
+			})
 		}
 
 		if inserts[i].opts.hasPendingRetrievedBlock {
-			releaseEntryRef = true
 			block := inserts[i].opts.pendingRetrievedBlock
 			entry.series.OnRetrieveBlock(block.id, block.tags, block.start, block.segment)
 		}

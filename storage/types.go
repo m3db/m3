@@ -428,6 +428,12 @@ type databaseShard interface {
 
 // namespaceIndex indexes namespace writes.
 type namespaceIndex interface {
+	// BlockStartForWriteTime returns the index block start
+	// time for the given writeTime.
+	BlockStartForWriteTime(
+		writeTime time.Time,
+	) xtime.UnixNano
+
 	// WriteBatch indexes the provided entries.
 	WriteBatch(
 		entries []index.WriteBatchEntry,
