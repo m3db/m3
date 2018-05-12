@@ -1,5 +1,5 @@
-hash: 17ce3389aaa2036a637bb896875b70f0884cde9d9fe97171aced5febcc3f0152
-updated: 2018-05-09T15:00:43.035904-04:00
+hash: 48d27bf72917e4a2b50a173cb9716ddf64adda9593d463194175059014eb72f6
+updated: 2018-05-12T11:51:18.097399435-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -22,7 +22,7 @@ imports:
 - name: github.com/m3db/codesearch
   version: a45d81b686e85d01f2838439deaf72126ccd5a96
 - name: github.com/m3db/m3x
-  version: d0873c0b327bee1a4a47f1d84263a6edaebbbf66
+  version: 6148700dde75adcdcc27d16fb68cee2d9d9126d8
   subpackages:
   - checked
   - errors
@@ -37,7 +37,7 @@ imports:
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/RoaringBitmap/roaring
-  version: 4bbba8874933b985c9160558fddea525dde73e63
+  version: 1a28a7fa985680f9f4e1644c0a857ec359a444b0
 - name: github.com/satori/go.uuid
   version: f58768cc1a7a7e77a3bd49e98cdd21419399b6a3
 - name: github.com/tinylib/msgp
@@ -60,7 +60,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
   subpackages:
   - buffer
   - internal/bufferpool
@@ -68,7 +68,7 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/net
-  version: ab5485076ff3407ad2d02db054635913f017b0ed
+  version: 054b33e6527139ad5b1ec2f6232c3b175bd9a30c
   subpackages:
   - context
 testImports:

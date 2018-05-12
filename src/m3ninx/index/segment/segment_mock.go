@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index"
+	"github.com/m3db/m3ninx/postings"
 
 	"github.com/golang/mock/gomock"
 )
@@ -81,6 +82,32 @@ func (mr *MockSegmentMockRecorder) ContainsID(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsID", reflect.TypeOf((*MockSegment)(nil).ContainsID), arg0)
 }
 
+// Fields mocks base method
+func (m *MockSegment) Fields() ([][]byte, error) {
+	ret := m.ctrl.Call(m, "Fields")
+	ret0, _ := ret[0].([][]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Fields indicates an expected call of Fields
+func (mr *MockSegmentMockRecorder) Fields() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockSegment)(nil).Fields))
+}
+
+// MatchTerm mocks base method
+func (m *MockSegment) MatchTerm(arg0, arg1 []byte) (postings.List, error) {
+	ret := m.ctrl.Call(m, "MatchTerm", arg0, arg1)
+	ret0, _ := ret[0].(postings.List)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MatchTerm indicates an expected call of MatchTerm
+func (mr *MockSegmentMockRecorder) MatchTerm(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchTerm", reflect.TypeOf((*MockSegment)(nil).MatchTerm), arg0, arg1)
+}
+
 // Reader mocks base method
 func (m *MockSegment) Reader() (index.Reader, error) {
 	ret := m.ctrl.Call(m, "Reader")
@@ -104,6 +131,19 @@ func (m *MockSegment) Size() int64 {
 // Size indicates an expected call of Size
 func (mr *MockSegmentMockRecorder) Size() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockSegment)(nil).Size))
+}
+
+// Terms mocks base method
+func (m *MockSegment) Terms(arg0 []byte) ([][]byte, error) {
+	ret := m.ctrl.Call(m, "Terms", arg0)
+	ret0, _ := ret[0].([][]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Terms indicates an expected call of Terms
+func (mr *MockSegmentMockRecorder) Terms(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terms", reflect.TypeOf((*MockSegment)(nil).Terms), arg0)
 }
 
 // MockMutableSegment is a mock of MutableSegment interface
@@ -154,6 +194,19 @@ func (mr *MockMutableSegmentMockRecorder) ContainsID(arg0 interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsID", reflect.TypeOf((*MockMutableSegment)(nil).ContainsID), arg0)
 }
 
+// Fields mocks base method
+func (m *MockMutableSegment) Fields() ([][]byte, error) {
+	ret := m.ctrl.Call(m, "Fields")
+	ret0, _ := ret[0].([][]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Fields indicates an expected call of Fields
+func (mr *MockMutableSegmentMockRecorder) Fields() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockMutableSegment)(nil).Fields))
+}
+
 // Insert mocks base method
 func (m *MockMutableSegment) Insert(arg0 doc.Document) ([]byte, error) {
 	ret := m.ctrl.Call(m, "Insert", arg0)
@@ -179,6 +232,19 @@ func (mr *MockMutableSegmentMockRecorder) InsertBatch(arg0 interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBatch", reflect.TypeOf((*MockMutableSegment)(nil).InsertBatch), arg0)
 }
 
+// MatchTerm mocks base method
+func (m *MockMutableSegment) MatchTerm(arg0, arg1 []byte) (postings.List, error) {
+	ret := m.ctrl.Call(m, "MatchTerm", arg0, arg1)
+	ret0, _ := ret[0].(postings.List)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MatchTerm indicates an expected call of MatchTerm
+func (mr *MockMutableSegmentMockRecorder) MatchTerm(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchTerm", reflect.TypeOf((*MockMutableSegment)(nil).MatchTerm), arg0, arg1)
+}
+
 // Reader mocks base method
 func (m *MockMutableSegment) Reader() (index.Reader, error) {
 	ret := m.ctrl.Call(m, "Reader")
@@ -192,6 +258,19 @@ func (mr *MockMutableSegmentMockRecorder) Reader() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Reader", reflect.TypeOf((*MockMutableSegment)(nil).Reader))
 }
 
+// Seal mocks base method
+func (m *MockMutableSegment) Seal() (Segment, error) {
+	ret := m.ctrl.Call(m, "Seal")
+	ret0, _ := ret[0].(Segment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Seal indicates an expected call of Seal
+func (mr *MockMutableSegmentMockRecorder) Seal() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Seal", reflect.TypeOf((*MockMutableSegment)(nil).Seal))
+}
+
 // Size mocks base method
 func (m *MockMutableSegment) Size() int64 {
 	ret := m.ctrl.Call(m, "Size")
@@ -202,4 +281,17 @@ func (m *MockMutableSegment) Size() int64 {
 // Size indicates an expected call of Size
 func (mr *MockMutableSegmentMockRecorder) Size() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Size", reflect.TypeOf((*MockMutableSegment)(nil).Size))
+}
+
+// Terms mocks base method
+func (m *MockMutableSegment) Terms(arg0 []byte) ([][]byte, error) {
+	ret := m.ctrl.Call(m, "Terms", arg0)
+	ret0, _ := ret[0].([][]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Terms indicates an expected call of Terms
+func (mr *MockMutableSegmentMockRecorder) Terms(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Terms", reflect.TypeOf((*MockMutableSegment)(nil).Terms), arg0)
 }

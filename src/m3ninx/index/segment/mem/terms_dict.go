@@ -64,6 +64,26 @@ func (d *termsDict) MatchTerm(field, term []byte) postings.List {
 	return pl
 }
 
+func (d *termsDict) Fields() [][]byte {
+	d.fields.RLock()
+	defer d.fields.RUnlock()
+	fields := make([][]byte, 0, d.fields.Len())
+	for _, entry := range d.fields.Iter() {
+		fields = append(fields, entry.Key())
+	}
+	return fields
+}
+
+func (d *termsDict) Terms(field []byte) [][]byte {
+	d.fields.RLock()
+	defer d.fields.RUnlock()
+	values, ok := d.fields.Get(field)
+	if !ok {
+		return nil
+	}
+	return values.Keys()
+}
+
 func (d *termsDict) matchTerm(field, term []byte) (postings.List, bool) {
 	d.fields.RLock()
 	postingsMap, ok := d.fields.Get(field)

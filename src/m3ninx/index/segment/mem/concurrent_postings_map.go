@@ -77,6 +77,17 @@ func (m *concurrentPostingsMap) Add(key []byte, id postings.ID) {
 	p.Insert(id)
 }
 
+// Keys returns the keys known to the map.
+func (m *concurrentPostingsMap) Keys() [][]byte {
+	m.RLock()
+	defer m.RUnlock()
+	keys := make([][]byte, 0, m.Len())
+	for _, entry := range m.Iter() {
+		keys = append(keys, entry.Key())
+	}
+	return keys
+}
+
 // Get returns the postings.List backing `key`.
 func (m *concurrentPostingsMap) Get(key []byte) (postings.List, bool) {
 	m.RLock()

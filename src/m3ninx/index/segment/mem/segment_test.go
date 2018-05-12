@@ -30,6 +30,48 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	testDocuments = []doc.Document{
+		doc.Document{
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("fruit"),
+					Value: []byte("banana"),
+				},
+				doc.Field{
+					Name:  []byte("color"),
+					Value: []byte("yellow"),
+				},
+			},
+		},
+		doc.Document{
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("fruit"),
+					Value: []byte("apple"),
+				},
+				doc.Field{
+					Name:  []byte("color"),
+					Value: []byte("red"),
+				},
+			},
+		},
+		doc.Document{
+			ID: []byte("42"),
+			Fields: []doc.Field{
+				doc.Field{
+					Name:  []byte("fruit"),
+					Value: []byte("pineapple"),
+				},
+				doc.Field{
+					Name:  []byte("color"),
+					Value: []byte("yellow"),
+				},
+			},
+		},
+	}
+)
+
 func TestSegmentInsert(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -616,11 +658,18 @@ func TestSegmentReaderMatchExact(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	_, err = segment.Seal()
+	require.NoError(t, err)
+
 	r, err := segment.Reader()
 	require.NoError(t, err)
 
 	pl, err := r.MatchTerm([]byte("fruit"), []byte("apple"))
 	require.NoError(t, err)
+
+	sealedPl, err := segment.MatchTerm([]byte("fruit"), []byte("apple"))
+	require.NoError(t, err)
+	require.True(t, sealedPl.Equal(pl))
 
 	iter, err := r.Docs(pl)
 	require.NoError(t, err)
@@ -643,47 +692,87 @@ func TestSegmentReaderMatchExact(t *testing.T) {
 	require.NoError(t, segment.Close())
 }
 
-func TestSegmentReaderMatchRegex(t *testing.T) {
-	docs := []doc.Document{
-		doc.Document{
-			Fields: []doc.Field{
-				doc.Field{
-					Name:  []byte("fruit"),
-					Value: []byte("banana"),
-				},
-				doc.Field{
-					Name:  []byte("color"),
-					Value: []byte("yellow"),
-				},
-			},
-		},
-		doc.Document{
-			Fields: []doc.Field{
-				doc.Field{
-					Name:  []byte("fruit"),
-					Value: []byte("apple"),
-				},
-				doc.Field{
-					Name:  []byte("color"),
-					Value: []byte("red"),
-				},
-			},
-		},
-		doc.Document{
-			ID: []byte("42"),
-			Fields: []doc.Field{
-				doc.Field{
-					Name:  []byte("fruit"),
-					Value: []byte("pineapple"),
-				},
-				doc.Field{
-					Name:  []byte("color"),
-					Value: []byte("yellow"),
-				},
-			},
-		},
+func TestSegmentSealLifecycle(t *testing.T) {
+	segment, err := NewSegment(0, NewOptions())
+	require.NoError(t, err)
+
+	_, err = segment.Seal()
+	require.NoError(t, err)
+
+	_, err = segment.Seal()
+	require.Error(t, err)
+}
+
+func TestSegmentSealCloseLifecycle(t *testing.T) {
+	segment, err := NewSegment(0, NewOptions())
+	require.NoError(t, err)
+
+	require.NoError(t, segment.Close())
+	_, err = segment.Seal()
+	require.Error(t, err)
+}
+
+func TestSegmentFields(t *testing.T) {
+	segment, err := NewSegment(0, NewOptions())
+	require.NoError(t, err)
+
+	knownsFields := map[string]struct{}{}
+	for _, d := range testDocuments {
+		for _, f := range d.Fields {
+			knownsFields[string(f.Name)] = struct{}{}
+		}
+		_, err = segment.Insert(d)
+		require.NoError(t, err)
 	}
 
+	_, err = segment.Fields()
+	require.Error(t, err)
+
+	seg, err := segment.Seal()
+	require.NoError(t, err)
+
+	fields, err := seg.Fields()
+	require.NoError(t, err)
+
+	for _, f := range fields {
+		delete(knownsFields, string(f))
+	}
+	require.Empty(t, knownsFields)
+}
+
+func TestSegmentTerms(t *testing.T) {
+	segment, err := NewSegment(0, NewOptions())
+	require.NoError(t, err)
+
+	knownsFields := map[string]map[string]struct{}{}
+	for _, d := range testDocuments {
+		for _, f := range d.Fields {
+			knownVals, ok := knownsFields[string(f.Name)]
+			if !ok {
+				knownVals = make(map[string]struct{})
+				knownsFields[string(f.Name)] = knownVals
+			}
+			knownVals[string(f.Value)] = struct{}{}
+		}
+		_, err = segment.Insert(d)
+		require.NoError(t, err)
+	}
+
+	_, err = segment.Seal()
+	require.NoError(t, err)
+
+	for field, expectedTerms := range knownsFields {
+		terms, err := segment.Terms([]byte(field))
+		require.NoError(t, err)
+		for _, term := range terms {
+			delete(expectedTerms, string(term))
+		}
+		require.Empty(t, expectedTerms)
+	}
+}
+
+func TestSegmentReaderMatchRegex(t *testing.T) {
+	docs := testDocuments
 	segment, err := NewSegment(0, NewOptions())
 	require.NoError(t, err)
 

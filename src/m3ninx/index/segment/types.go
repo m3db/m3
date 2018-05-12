@@ -24,6 +24,7 @@ import (
 	"errors"
 
 	"github.com/m3db/m3ninx/index"
+	"github.com/m3db/m3ninx/postings"
 )
 
 var (
@@ -46,10 +47,22 @@ type Segment interface {
 
 	// Close closes the segment and releases any internal resources.
 	Close() error
+
+	// Fields returns the list of known fields.
+	Fields() ([][]byte, error)
+
+	// Terms returns the list of known terms values for the given field.
+	Terms(field []byte) ([][]byte, error)
+
+	// MatchTerm returns postings list for the given field and term.
+	MatchTerm(field, term []byte) (postings.List, error)
 }
 
 // MutableSegment is a segment which can be updated.
 type MutableSegment interface {
 	Segment
 	index.Writer
+
+	// Seal marks the Mutable Segment immutable.
+	Seal() (Segment, error)
 }

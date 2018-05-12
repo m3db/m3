@@ -43,6 +43,12 @@ type termsDictionary interface {
 	// MatchRegexp returns the postings list corresponding to documents which match the
 	// given egular expression.
 	MatchRegexp(field, regexp []byte, compiled *re.Regexp) postings.List
+
+	// Fields returns the list of known fields.
+	Fields() [][]byte
+
+	// Terms returns the list of known terms values for the given field.
+	Terms(field []byte) [][]byte
 }
 
 // ReadableSegment is an internal interface for reading from a segment.

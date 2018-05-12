@@ -94,6 +94,65 @@ func (t *termsDictionaryTestSuite) TestInsert() {
 	props.TestingRun(t.T())
 }
 
+func (t *termsDictionaryTestSuite) TestIterateFields() {
+	props := getProperties()
+	props.Property(
+		"The dictionary should support iterating over known fields",
+		prop.ForAll(
+			func(genFields []doc.Field, id postings.ID) (bool, error) {
+				expectedFields := make(map[string]struct{}, len(genFields))
+				for _, f := range genFields {
+					t.termsDict.Insert(f, id)
+					expectedFields[string(f.Name)] = struct{}{}
+				}
+				fields := t.termsDict.Fields()
+				for _, field := range fields {
+					delete(expectedFields, string(field))
+				}
+				return len(expectedFields) == 0, nil
+			},
+			gen.SliceOf(genField()),
+			genDocID(),
+		))
+	props.TestingRun(t.T())
+}
+
+func (t *termsDictionaryTestSuite) TestIterateTerms() {
+	props := getProperties()
+	props.Property(
+		"The dictionary should support iterating over known terms",
+		prop.ForAll(
+			func(genFields []doc.Field, id postings.ID) bool {
+				// build map from fieldName -> fieldValue of all generated inputs, and insert into terms dict
+				expectedFields := make(map[string]map[string]struct{}, len(genFields))
+				for _, f := range genFields {
+					t.termsDict.Insert(f, id)
+					fName, fValue := string(f.Name), string(f.Value)
+					vals, ok := expectedFields[fName]
+					if !ok {
+						vals = make(map[string]struct{})
+						expectedFields[fName] = vals
+					}
+					vals[fValue] = struct{}{}
+				}
+				// for each expected combination of fieldName -> []fieldValues, ensure all are present
+				for name, expectedValues := range expectedFields {
+					values := t.termsDict.Terms([]byte(name))
+					for _, val := range values {
+						delete(expectedValues, string(val))
+					}
+					if len(expectedValues) != 0 {
+						return false
+					}
+				}
+				return true
+			},
+			gen.SliceOf(genField()),
+			genDocID(),
+		))
+	props.TestingRun(t.T())
+}
+
 func (t *termsDictionaryTestSuite) TestContainsTerm() {
 	props := getProperties()
 	props.Property(
@@ -232,6 +291,7 @@ func TestTermsDictionary(t *testing.T) {
 
 func getProperties() *gopter.Properties {
 	params := gopter.DefaultTestParameters()
+	params.MaxSize = 10
 	params.Rng.Seed(testRandomSeed)
 	params.MinSuccessfulTests = testMinSuccessfulTests
 	return gopter.NewProperties(params)
