@@ -135,7 +135,8 @@ genny-map-storage-index-results: install-m3x-repo
 		key_type=ident.ID                            \
 		value_type=ident.Tags                        \
 		target_package=$(m3db_package)/storage/index \
-		rename_nogen_types=forsure                   \
+		rename_nogen_key=forsure                     \
+		rename_nogen_value=forsure                   \
 		rename_type_prefix=Results
 	# Rename generated map file
 	mv -f $(m3db_package_path)/storage/index/map_gen.go $(m3db_package_path)/storage/index/results_map_gen.go
