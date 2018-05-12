@@ -10,10 +10,6 @@ coverage:
         flags: coordinator
       db:
         flags: db
-      db_unittests:
-        flags: db_unittests
-      db_integration:
-        flags: db_integration
     patch:
       default: on
     changes:
