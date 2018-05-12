@@ -18,6 +18,35 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate sh -c "./generate.sh"
+package mem
 
-package generics
+import (
+	"bytes"
+
+	"github.com/cespare/xxhash"
+)
+
+// newPostingsMap returns a new []bytes->postings.MutableList map.
+func newPostingsMap(initialSize int) *postingsMap {
+	return _postingsMapAlloc(_postingsMapOptions{
+		hash: func(k []byte) postingsMapHash {
+			return postingsMapHash(xxhash.Sum64(k))
+		},
+		equals:      bytes.Equal,
+		copy:        undefinedPostingsMapCopyFn,
+		finalize:    undefinedFinalizeFn,
+		initialSize: initialSize,
+	})
+}
+
+var undefinedPostingsMapCopyFn postingsMapCopyFn = func([]byte) []byte {
+	// NB: intentionally not defined to force users of the map to not
+	// allocate extra copies.
+	panic("not implemented")
+}
+
+var undefinedFinalizeFn postingsMapFinalizeFn = func([]byte) {
+	// NB: intentionally not defined to force users of the map to not
+	// allocate extra copies.
+	panic("not implemented")
+}

@@ -25,8 +25,6 @@ import (
 	"sync"
 
 	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment/mem/fieldsgen"
-	"github.com/m3db/m3ninx/index/segment/mem/postingsgen"
 	"github.com/m3db/m3ninx/postings"
 )
 
@@ -36,7 +34,7 @@ type termsDict struct {
 
 	fields struct {
 		sync.RWMutex
-		internalMap *fieldsgen.Map
+		*fieldsMap
 	}
 }
 
@@ -44,7 +42,7 @@ func newTermsDict(opts Options) termsDictionary {
 	dict := &termsDict{
 		opts: opts,
 	}
-	dict.fields.internalMap = fieldsgen.New(opts.InitialCapacity())
+	dict.fields.fieldsMap = newFieldsMap(opts.InitialCapacity())
 	return dict
 }
 
@@ -68,7 +66,7 @@ func (d *termsDict) MatchTerm(field, term []byte) postings.List {
 
 func (d *termsDict) matchTerm(field, term []byte) (postings.List, bool) {
 	d.fields.RLock()
-	postingsMap, ok := d.fields.internalMap.Get(field)
+	postingsMap, ok := d.fields.Get(field)
 	d.fields.RUnlock()
 	if !ok {
 		return nil, false
@@ -85,7 +83,7 @@ func (d *termsDict) MatchRegexp(
 	compiled *re.Regexp,
 ) postings.List {
 	d.fields.RLock()
-	postingsMap, ok := d.fields.internalMap.Get(field)
+	postingsMap, ok := d.fields.Get(field)
 	d.fields.RUnlock()
 	if !ok {
 		return d.opts.PostingsListPool().Get()
@@ -97,10 +95,10 @@ func (d *termsDict) MatchRegexp(
 	return pl
 }
 
-func (d *termsDict) getOrAddName(name []byte) *postingsgen.ConcurrentMap {
+func (d *termsDict) getOrAddName(name []byte) *concurrentPostingsMap {
 	// Cheap read lock to see if it already exists.
 	d.fields.RLock()
-	postingsMap, ok := d.fields.internalMap.Get(name)
+	postingsMap, ok := d.fields.Get(name)
 	d.fields.RUnlock()
 	if ok {
 		return postingsMap
@@ -108,7 +106,7 @@ func (d *termsDict) getOrAddName(name []byte) *postingsgen.ConcurrentMap {
 
 	// Acquire write lock and create.
 	d.fields.Lock()
-	postingsMap, ok = d.fields.internalMap.Get(name)
+	postingsMap, ok = d.fields.Get(name)
 
 	// Check if it's been created since we last acquired the lock.
 	if ok {
@@ -116,11 +114,8 @@ func (d *termsDict) getOrAddName(name []byte) *postingsgen.ConcurrentMap {
 		return postingsMap
 	}
 
-	postingsMap = postingsgen.NewConcurrentMap(postingsgen.ConcurrentMapOpts{
-		InitialSize:      d.opts.InitialCapacity(),
-		PostingsListPool: d.opts.PostingsListPool(),
-	})
-	d.fields.internalMap.SetUnsafe(name, postingsMap, fieldsgen.SetUnsafeOptions{
+	postingsMap = newConcurrentPostingsMap(d.opts)
+	d.fields.SetUnsafe(name, postingsMap, fieldsMapSetUnsafeOptions{
 		NoCopyKey:     true,
 		NoFinalizeKey: true,
 	})

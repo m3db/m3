@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index"
 	sgmt "github.com/m3db/m3ninx/index/segment"
-	"github.com/m3db/m3ninx/index/segment/mem/idsgen"
 	"github.com/m3db/m3ninx/index/util"
 	"github.com/m3db/m3ninx/postings"
 )
@@ -60,7 +59,7 @@ type segment struct {
 
 	writer struct {
 		sync.Mutex
-		idSet  *idsgen.Map
+		idSet  *idsMap
 		nextID postings.ID
 	}
 	readerID postings.AtomicID
@@ -79,7 +78,7 @@ func NewSegment(offset postings.ID, opts Options) (sgmt.MutableSegment, error) {
 
 	s.docs.data = make([]doc.Document, opts.InitialCapacity())
 
-	s.writer.idSet = idsgen.New(256)
+	s.writer.idSet = newIDsMap(256)
 	s.writer.nextID = offset
 	return s, nil
 }
@@ -225,7 +224,7 @@ func (s *segment) prepareDocsWithLocks(b index.Batch) error {
 			b.Docs[i] = d
 		}
 
-		s.writer.idSet.SetUnsafe(d.ID, struct{}{}, idsgen.SetUnsafeOptions{
+		s.writer.idSet.SetUnsafe(d.ID, struct{}{}, idsMapSetUnsafeOptions{
 			NoCopyKey:     true,
 			NoFinalizeKey: true,
 		})
