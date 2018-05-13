@@ -123,9 +123,9 @@ func TestNamespaceIndexInvalidDocWrite(t *testing.T) {
 	assert.True(t, ok)
 
 	id := ident.StringID("foo")
-	tags := ident.Tags{
+	tags := ident.NewTags(
 		ident.StringTag(string(index.ReservedFieldNameID), "value"),
-	}
+	)
 
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	lifecycle.EXPECT().OnIndexFinalize(time.Time{})
@@ -141,9 +141,9 @@ func TestNamespaceIndexWriteAfterClose(t *testing.T) {
 	assert.True(t, ok)
 
 	id := ident.StringID("foo")
-	tags := ident.Tags{
+	tags := ident.NewTags(
 		ident.StringTag("name", "value"),
-	}
+	)
 
 	q.EXPECT().Stop().Return(nil)
 	assert.NoError(t, idx.Close())
@@ -162,9 +162,9 @@ func TestNamespaceIndexWriteQueueError(t *testing.T) {
 	assert.True(t, ok)
 
 	id := ident.StringID("foo")
-	tags := ident.Tags{
+	tags := ident.NewTags(
 		ident.StringTag("name", "value"),
-	}
+	)
 
 	n := time.Now()
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
@@ -208,9 +208,9 @@ func TestNamespaceIndexInsertRetentionPeriod(t *testing.T) {
 
 	var (
 		id   = ident.StringID("foo")
-		tags = ident.Tags{
+		tags = ident.NewTags(
 			ident.StringTag("name", "value"),
-		}
+		)
 		lifecycle = index.NewMockOnIndexSeries(ctrl)
 	)
 
@@ -233,9 +233,9 @@ func TestNamespaceIndexInsertQueueInteraction(t *testing.T) {
 
 	var (
 		id   = ident.StringID("foo")
-		tags = ident.Tags{
+		tags = ident.NewTags(
 			ident.StringTag("name", "value"),
-		}
+		)
 	)
 
 	now := time.Now()
@@ -270,9 +270,9 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 		ts         = indexState.latestBlock.EndTime()
 		now        = time.Now()
 		id         = ident.StringID("foo")
-		tags       = ident.Tags{
+		tags       = ident.NewTags(
 			ident.StringTag("name", "value"),
-		}
+		)
 		ctx          = context.NewContext()
 		lifecycleFns = index.NewMockOnIndexSeries(ctrl)
 	)
@@ -296,5 +296,5 @@ func TestNamespaceIndexInsertQuery(t *testing.T) {
 	assert.True(t, ok)
 	assert.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("name", "value")).Matches(
-		ident.NewTagSliceIterator(tags)))
+		ident.NewTagsIterator(tags)))
 }

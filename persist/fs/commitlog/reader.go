@@ -426,11 +426,11 @@ func (r *reader) decodeAndHandleMetadata(
 		tagDecoderCheckedBytes.Reset(decoded.EncodedTags)
 		tagDecoder.Reset(tagDecoderCheckedBytes)
 
-		tags = make(ident.Tags, 0, tagDecoder.Remaining())
+		idPool := r.opts.IdentifierPool()
+		tags = idPool.Tags()
 		for tagDecoder.Next() {
 			curr := tagDecoder.Current()
-			clone := r.opts.IdentifierPool().CloneTag(curr)
-			tags = append(tags, clone)
+			tags.Append(idPool.CloneTag(curr))
 		}
 		err = tagDecoder.Err()
 		if err != nil {

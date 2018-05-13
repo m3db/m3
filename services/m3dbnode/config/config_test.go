@@ -186,10 +186,14 @@ pooling:
         capacity: 4096
         lowWatermark: 0.01
         highWatermark: 0.02
-    tagArrayPool:
+    tagsPool:
         size: 65536
         capacity: 8
         maxCapacity: 32
+        lowWatermark: 0.01
+        highWatermark: 0.02
+    tagIteratorPool:
+        size: 8192
         lowWatermark: 0.01
         highWatermark: 0.02
     indexResultsPool:
@@ -498,10 +502,14 @@ pooling:
     capacity: 4096
     lowWatermark: 0.01
     highWatermark: 0.02
-  tagArrayPool:
+  tagsPool:
     size: 65536
     capacity: 8
     maxCapacity: 32
+    lowWatermark: 0.01
+    highWatermark: 0.02
+  tagIteratorPool:
+    size: 8192
     lowWatermark: 0.01
     highWatermark: 0.02
   indexResultsPool:

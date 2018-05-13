@@ -130,9 +130,9 @@ func TestReplicaMetadataComparerAddLocalMetadata(t *testing.T) {
 	now := time.Now()
 	localIter := block.NewMockFilteredBlocksMetadataIter(ctrl)
 	inputBlocks := []block.Metadata{
-		block.NewMetadata(ident.StringID("foo"), nil, now, int64(0), new(uint32), time.Time{}),
-		block.NewMetadata(ident.StringID("foo"), nil, now.Add(time.Second), int64(2), new(uint32), time.Time{}),
-		block.NewMetadata(ident.StringID("bar"), nil, now, int64(4), nil, time.Time{}),
+		block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now, int64(0), new(uint32), time.Time{}),
+		block.NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(time.Second), int64(2), new(uint32), time.Time{}),
+		block.NewMetadata(ident.StringID("bar"), ident.Tags{}, now, int64(4), nil, time.Time{}),
 	}
 
 	gomock.InOrder(
@@ -143,10 +143,12 @@ func TestReplicaMetadataComparerAddLocalMetadata(t *testing.T) {
 		localIter.EXPECT().Next().Return(true),
 		localIter.EXPECT().Current().Return(inputBlocks[2].ID, inputBlocks[2]),
 		localIter.EXPECT().Next().Return(false),
+		localIter.EXPECT().Err().Return(nil),
 	)
 
 	m := NewReplicaMetadataComparer(3, testRepairOptions()).(replicaMetadataComparer)
-	m.AddLocalMetadata(origin, localIter)
+	err := m.AddLocalMetadata(origin, localIter)
+	require.NoError(t, err)
 
 	expected := []testBlock{
 		{inputBlocks[0].ID, inputBlocks[0].Start, []HostBlockMetadata{{origin, inputBlocks[0].Size, inputBlocks[0].Checksum}}},
@@ -168,22 +170,22 @@ func TestReplicaMetadataComparerAddPeerMetadata(t *testing.T) {
 	}{
 		{
 			host: topology.NewHost("1", "addr1"),
-			meta: block.NewMetadata(ident.StringID("foo"), nil,
+			meta: block.NewMetadata(ident.StringID("foo"), ident.Tags{},
 				now, int64(0), new(uint32), time.Time{}),
 		},
 		{
 			host: topology.NewHost("1", "addr1"),
-			meta: block.NewMetadata(ident.StringID("foo"), nil,
+			meta: block.NewMetadata(ident.StringID("foo"), ident.Tags{},
 				now.Add(time.Second), int64(1), new(uint32), time.Time{}),
 		},
 		{
 			host: topology.NewHost("2", "addr2"),
-			meta: block.NewMetadata(ident.StringID("foo"), nil,
+			meta: block.NewMetadata(ident.StringID("foo"), ident.Tags{},
 				now, int64(2), nil, time.Time{}),
 		},
 		{
 			host: topology.NewHost("2", "addr2"),
-			meta: block.NewMetadata(ident.StringID("bar"), nil,
+			meta: block.NewMetadata(ident.StringID("bar"), ident.Tags{},
 				now.Add(time.Second), int64(3), nil, time.Time{}),
 		},
 	}

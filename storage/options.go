@@ -175,15 +175,19 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		contextPool: context.NewPool(context.NewOptions().
 			SetContextPoolOptions(poolOpts).
 			SetFinalizerPoolOptions(poolOpts)),
-		seriesCachePolicy:              series.DefaultCachePolicy,
-		seriesOpts:                     seriesOpts,
-		seriesPool:                     series.NewDatabaseSeriesPool(poolOpts),
-		bytesPool:                      bytesPool,
-		encoderPool:                    encoding.NewEncoderPool(poolOpts),
-		segmentReaderPool:              xio.NewSegmentReaderPool(poolOpts),
-		readerIteratorPool:             encoding.NewReaderIteratorPool(poolOpts),
-		multiReaderIteratorPool:        encoding.NewMultiReaderIteratorPool(poolOpts),
-		identifierPool:                 ident.NewPool(bytesPool, poolOpts),
+		seriesCachePolicy:       series.DefaultCachePolicy,
+		seriesOpts:              seriesOpts,
+		seriesPool:              series.NewDatabaseSeriesPool(poolOpts),
+		bytesPool:               bytesPool,
+		encoderPool:             encoding.NewEncoderPool(poolOpts),
+		segmentReaderPool:       xio.NewSegmentReaderPool(poolOpts),
+		readerIteratorPool:      encoding.NewReaderIteratorPool(poolOpts),
+		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(poolOpts),
+		identifierPool: ident.NewPool(bytesPool, ident.PoolOptions{
+			IDPoolOptions:           poolOpts,
+			TagsPoolOptions:         poolOpts,
+			TagsIteratorPoolOptions: poolOpts,
+		}),
 		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
 		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
 	}

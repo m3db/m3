@@ -49,7 +49,7 @@ func NewOptions() Options {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
-	idPool := ident.NewPool(bytesPool, pool.NewObjectPoolOptions())
+	idPool := ident.NewPool(bytesPool, ident.PoolOptions{})
 	return &options{
 		resultOpts:     result.NewOptions(),
 		fsOpts:         fs.NewOptions(),

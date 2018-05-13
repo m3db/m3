@@ -72,12 +72,12 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 
 	require.NoError(t,
 		shard.WriteTagged(ctx, ident.StringID("foo"),
-			ident.NewTagIterator(ident.StringTag("name", "value")),
+			ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 			time.Now(), 1.0, xtime.Second, nil))
 
 	require.NoError(t,
 		shard.WriteTagged(ctx, ident.StringID("foo"),
-			ident.NewTagIterator(ident.StringTag("name", "value")),
+			ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 			time.Now(), 2.0, xtime.Second, nil))
 
 	require.NoError(t,
@@ -88,8 +88,8 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 
 	require.Len(t, indexWrites, 1)
 	require.Equal(t, "foo", indexWrites[0].ID.String())
-	require.Equal(t, "name", indexWrites[0].Tags[0].Name.String())
-	require.Equal(t, "value", indexWrites[0].Tags[0].Value.String())
+	require.Equal(t, "name", indexWrites[0].Tags.Values()[0].Name.String())
+	require.Equal(t, "value", indexWrites[0].Tags.Values()[0].Value.String())
 }
 
 func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
@@ -118,7 +118,7 @@ func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 
 	assert.NoError(t,
 		shard.WriteTagged(ctx, ident.StringID("foo"),
-			ident.NewTagIterator(ident.StringTag("name", "value")),
+			ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 			time.Now(), 1.0, xtime.Second, nil))
 
 	assert.NoError(t,
@@ -126,10 +126,10 @@ func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 
 	assert.NoError(t,
 		shard.WriteTagged(ctx, ident.StringID("baz"),
-			ident.NewTagIterator(
+			ident.NewTagsIterator(ident.NewTags(
 				ident.StringTag("all", "tags"),
 				ident.StringTag("should", "be-present"),
-			),
+			)),
 			time.Now(), 1.0, xtime.Second, nil))
 
 	for {
@@ -147,15 +147,15 @@ func TestShardAsyncInsertNamespaceIndex(t *testing.T) {
 	assert.Len(t, indexWrites, 2)
 	for _, w := range indexWrites {
 		if w.id.String() == "foo" {
-			assert.Len(t, w.tags, 1)
-			assert.Equal(t, "name", w.tags[0].Name.String())
-			assert.Equal(t, "value", w.tags[0].Value.String())
+			assert.Equal(t, 1, len(w.tags.Values()))
+			assert.Equal(t, "name", w.tags.Values()[0].Name.String())
+			assert.Equal(t, "value", w.tags.Values()[0].Value.String())
 		} else if w.id.String() == "baz" {
-			assert.Len(t, w.tags, 2)
-			assert.Equal(t, "all", w.tags[0].Name.String())
-			assert.Equal(t, "tags", w.tags[0].Value.String())
-			assert.Equal(t, "should", w.tags[1].Name.String())
-			assert.Equal(t, "be-present", w.tags[1].Value.String())
+			assert.Equal(t, 2, len(w.tags.Values()))
+			assert.Equal(t, "all", w.tags.Values()[0].Name.String())
+			assert.Equal(t, "tags", w.tags.Values()[0].Value.String())
+			assert.Equal(t, "should", w.tags.Values()[1].Name.String())
+			assert.Equal(t, "be-present", w.tags.Values()[1].Value.String())
 		} else {
 			assert.Fail(t, "unexpected write", w)
 		}
@@ -190,7 +190,7 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 
 	assert.NoError(t,
 		shard.WriteTagged(ctx, ident.StringID("foo"),
-			ident.NewTagIterator(ident.StringTag("name", "value")),
+			ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 			time.Now(), 1.0, xtime.Second, nil))
 
 	for {
@@ -203,7 +203,7 @@ func TestShardAsyncIndexOnlyWhenNotIndexed(t *testing.T) {
 	// ensure we don't index once we have already indexed
 	assert.NoError(t,
 		shard.WriteTagged(ctx, ident.StringID("foo"),
-			ident.NewTagIterator(ident.StringTag("name", "value")),
+			ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 			time.Now(), 2.0, xtime.Second, nil))
 
 	l := atomic.LoadInt32(&numCalls)
@@ -255,7 +255,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 
 	assert.NoError(t,
 		shard.WriteTagged(ctx, ident.StringID("foo"),
-			ident.NewTagIterator(ident.StringTag("name", "value")),
+			ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 			now, 1.0, xtime.Second, nil))
 
 	// wait till we're done indexing.
@@ -267,7 +267,7 @@ func TestShardAsyncIndexIfExpired(t *testing.T) {
 	// ensure we index because it's expired
 	assert.NoError(t,
 		shard.WriteTagged(ctx, ident.StringID("foo"),
-			ident.NewTagIterator(ident.StringTag("name", "value")),
+			ident.NewTagsIterator(ident.NewTags(ident.StringTag("name", "value"))),
 			now.Add(time.Minute), 2.0, xtime.Second, nil))
 
 	// wait till we're done indexing.

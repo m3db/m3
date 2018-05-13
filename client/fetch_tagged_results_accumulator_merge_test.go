@@ -394,7 +394,7 @@ func newTestSeries(i int) testSeries {
 	return testSeries{
 		ns: ident.StringID("testNs"),
 		id: ident.StringID(fmt.Sprintf("id%03d", i)),
-		tags: ident.Tags{
+		tags: ident.NewTags(
 			ident.StringTag(
 				fmt.Sprintf("tagName0%d", i),
 				fmt.Sprintf("tagValue0%d", i),
@@ -403,7 +403,7 @@ func newTestSeries(i int) testSeries {
 				fmt.Sprintf("tagName1%d", i),
 				fmt.Sprintf("tagValue1%d", i),
 			),
-		},
+		),
 	}
 }
 
@@ -433,13 +433,13 @@ func (ts testSeries) assertMatchesEncodingIter(t *testing.T, iter encoding.Serie
 	require.Equal(t, ts.ns.String(), iter.Namespace().String())
 	require.Equal(t, ts.id.String(), iter.ID().String())
 	require.True(t, ident.NewTagIterMatcher(
-		ident.NewTagSliceIterator(ts.tags)).Matches(iter.Tags()))
+		ident.NewTagsIterator(ts.tags)).Matches(iter.Tags()))
 	ts.datapoints.assertMatchesEncodingIter(t, iter)
 }
 
 func (ts testSeries) matcherOption() TaggedIDsIteratorMatcherOption {
-	tags := make([]string, 0, len(ts.tags)*2)
-	for _, t := range ts.tags {
+	tags := make([]string, 0, len(ts.tags.Values())*2)
+	for _, t := range ts.tags.Values() {
 		tags = append(tags, t.Name.String(), t.Value.String())
 	}
 	return TaggedIDsIteratorMatcherOption{
@@ -506,7 +506,7 @@ func (td testDatapoints) toRPCSegments(th testFetchTaggedHelper, start time.Time
 
 func (th testFetchTaggedHelper) encodeTags(tags ident.Tags) []byte {
 	enc := th.tagEncPool.Get()
-	iter := ident.NewTagSliceIterator(tags)
+	iter := ident.NewTagsIterator(tags)
 	require.NoError(th.t, enc.Encode(iter))
 	data, ok := enc.Data()
 	require.True(th.t, ok)

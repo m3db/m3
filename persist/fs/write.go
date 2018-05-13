@@ -416,7 +416,7 @@ func (w *writer) writeIndexFileContents(
 	var (
 		offset      int64
 		prevID      []byte
-		tagsIter    = ident.NewTagSliceIterator(nil)
+		tagsIter    = ident.NewTagsIterator(ident.Tags{})
 		tagsEncoder = w.tagEncoderPool.Get()
 	)
 	defer tagsEncoder.Finalize()
@@ -429,7 +429,7 @@ func (w *writer) writeIndexFileContents(
 		}
 
 		var encodedTags []byte
-		if tags := w.indexEntries[i].tags; tags != nil {
+		if tags := w.indexEntries[i].tags; tags.Values() != nil {
 			tagsIter.Reset(tags)
 			tagsEncoder.Reset()
 			if err := tagsEncoder.Encode(tagsIter); err != nil {

@@ -27,15 +27,15 @@ import (
 )
 
 func benchmarkTags() ident.Tags {
-	return ident.Tags{
+	return ident.NewTags(
 		ident.StringTag("abc", "Def"),
 		ident.StringTag("ghifsdf", "andson"),
-	}
+	)
 }
 
 func BenchmarkCustomReadWrite(b *testing.B) {
 	tags := benchmarkTags()
-	iter := ident.NewTagSliceIterator(tags)
+	iter := ident.NewTagsIterator(tags)
 	enc := newTagEncoder(defaultNewCheckedBytesFn, newTestEncoderOpts(), nil)
 	dec := newTagDecoder(testDecodeOpts, nil)
 

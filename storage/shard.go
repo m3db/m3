@@ -355,15 +355,15 @@ func (s *dbShard) OnRetrieveBlock(
 	// NB(r): Do not need to specify that needs to be indexed as series would
 	// have been already been indexed when it was written
 	copiedID := entry.Series.ID()
-	// TODO(r): Pool the slice iterators here.
-	copiedTags := ident.NewTagSliceIterator(entry.Series.Tags())
+	copiedTagsIter := s.identifierPool.TagsIterator()
+	copiedTagsIter.Reset(entry.Series.Tags())
 	s.insertQueue.Insert(dbShardInsert{
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
 			hasPendingRetrievedBlock: true,
 			pendingRetrievedBlock: dbShardPendingRetrievedBlock{
 				id:      copiedID,
-				tags:    copiedTags,
+				tags:    copiedTagsIter,
 				start:   startTime,
 				segment: segment,
 			},
@@ -959,14 +959,14 @@ func (s *dbShard) newShardEntry(id ident.ID, tags ident.TagIterator) (*lookup.En
 
 func (s *dbShard) cloneTags(tags ident.TagIterator) (ident.Tags, error) {
 	tags = tags.Duplicate()
-	clone := make(ident.Tags, 0, tags.Remaining())
+	clone := s.identifierPool.Tags()
 	defer tags.Close()
 	for tags.Next() {
 		t := tags.Current()
-		clone = append(clone, s.identifierPool.CloneTag(t))
+		clone.Append(s.identifierPool.CloneTag(t))
 	}
 	if err := tags.Err(); err != nil {
-		return nil, err
+		return ident.Tags{}, err
 	}
 	return clone, nil
 }
@@ -1561,10 +1561,6 @@ func (s *dbShard) FetchBlocksMetadataV2(
 					blockStart, err)
 			}
 
-			// Make sure ID and tags get cleaned up after read is done
-			ctx.RegisterFinalizer(id)
-			ctx.RegisterCloser(tags)
-
 			blockResult := s.opts.FetchBlockMetadataResultsPool().Get()
 			value := block.FetchBlockMetadataResult{
 				Start: blockStart,
@@ -1641,8 +1637,9 @@ func (s *dbShard) Bootstrap(
 		if entry == nil {
 			// Synchronously insert to avoid waiting for
 			// the insert queue potential delayed insert
-			entry, err = s.insertSeriesSync(dbBlocks.ID,
-				ident.NewTagSliceIterator(dbBlocks.Tags),
+			tagsIter := s.identifierPool.TagsIterator()
+			tagsIter.Reset(dbBlocks.Tags)
+			entry, err = s.insertSeriesSync(dbBlocks.ID, tagsIter,
 				insertSyncIncReaderWriterCount)
 			if err != nil {
 				multiErr = multiErr.Add(err)
@@ -1650,6 +1647,12 @@ func (s *dbShard) Bootstrap(
 			}
 		}
 
+		// No longer require tags as we copy them in insert series sync
+		// or if we found the series then we don't require them for insertion
+		// at all
+		dbBlocks.Tags.Finalize()
+
+		// Cannot close blocks once done as series takes ref to these
 		bsResult, err := entry.Series.Bootstrap(dbBlocks.Blocks)
 		if err != nil {
 			multiErr = multiErr.Add(err)

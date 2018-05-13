@@ -427,7 +427,7 @@ func TestBlockMockQueryExecutorExecLimit(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagSliceIterator(t1)))
+		ident.NewTagsIterator(t1)))
 }
 
 func TestBlockMockQueryExecutorExecIterCloseErr(t *testing.T) {
@@ -525,7 +525,7 @@ func TestBlockMockQueryLimit(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagSliceIterator(t1)))
+		ident.NewTagsIterator(t1)))
 }
 
 func TestBlockMockQueryLimitExhaustive(t *testing.T) {
@@ -565,7 +565,7 @@ func TestBlockMockQueryLimitExhaustive(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagSliceIterator(t1)))
+		ident.NewTagsIterator(t1)))
 }
 
 func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
@@ -607,7 +607,7 @@ func TestBlockMockQueryMergeResultsMapLimit(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagSliceIterator(t1)))
+		ident.NewTagsIterator(t1)))
 }
 
 func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
@@ -652,13 +652,13 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagSliceIterator(t1)))
+		ident.NewTagsIterator(t1)))
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-		ident.NewTagSliceIterator(t2)))
+		ident.NewTagsIterator(t2)))
 }
 
 func TestBlockBootstrapAddsSegment(t *testing.T) {
@@ -830,13 +830,13 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagSliceIterator(t1)))
+		ident.NewTagsIterator(t1)))
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-		ident.NewTagSliceIterator(t2)))
+		ident.NewTagsIterator(t2)))
 }
 
 func TestBlockE2EInsertQueryLimit(t *testing.T) {
@@ -881,7 +881,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 		numFound++
 		require.True(t, ident.NewTagIterMatcher(
 			ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-			ident.NewTagSliceIterator(t1)))
+			ident.NewTagsIterator(t1)))
 	}
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
@@ -889,7 +889,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 		numFound++
 		require.True(t, ident.NewTagIterMatcher(
 			ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-			ident.NewTagSliceIterator(t2)))
+			ident.NewTagsIterator(t2)))
 	}
 
 	require.Equal(t, 1, numFound)
@@ -938,13 +938,13 @@ func TestBlockE2EInsertBootstrapQuery(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagSliceIterator(t1)))
+		ident.NewTagsIterator(t1)))
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-		ident.NewTagSliceIterator(t2)))
+		ident.NewTagsIterator(t2)))
 }
 
 func TestBlockE2EInsertBootstrapMergeQuery(t *testing.T) {
@@ -985,13 +985,13 @@ func TestBlockE2EInsertBootstrapMergeQuery(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz")).Matches(
-		ident.NewTagSliceIterator(t1)))
+		ident.NewTagsIterator(t1)))
 
 	t2, ok := rMap.Get(ident.StringID(string(testDoc2().ID)))
 	require.True(t, ok)
 	require.True(t, ident.NewTagIterMatcher(
 		ident.MustNewTagStringsIterator("bar", "baz", "some", "more")).Matches(
-		ident.NewTagSliceIterator(t2)))
+		ident.NewTagsIterator(t2)))
 }
 
 func testSegment(t *testing.T, docs ...doc.Document) segment.Segment {

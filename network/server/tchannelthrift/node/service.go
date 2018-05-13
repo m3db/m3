@@ -293,7 +293,7 @@ func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) 
 	}
 	results := queryResult.Results
 	nsID := results.Namespace()
-	tagsIter := ident.NewTagSliceIterator(nil)
+	tagsIter := ident.NewTagsIterator(ident.Tags{})
 	for _, entry := range results.Map().Iter() {
 		tsID := entry.Key()
 		tags := entry.Value()

@@ -121,7 +121,7 @@ type ReplicaSeriesBlocksMetadata struct {
 // ReplicaMetadataComparer compares metadata from hosts in a replica set
 type ReplicaMetadataComparer interface {
 	// AddLocalMetadata adds metadata from local host
-	AddLocalMetadata(origin topology.Host, localIter block.FilteredBlocksMetadataIter)
+	AddLocalMetadata(origin topology.Host, localIter block.FilteredBlocksMetadataIter) error
 
 	// AddPeerMetadata adds metadata from peers
 	AddPeerMetadata(peerIter client.PeerBlockMetadataIter) error

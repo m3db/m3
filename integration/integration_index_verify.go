@@ -71,7 +71,7 @@ func verifyQueryMetadataResults(
 		require.True(t, ok,
 			fmt.Sprintf("not expecting ID: %s", idStr))
 
-		expectedTagsIter := ident.NewTagSliceIterator(result.series.Tags)
+		expectedTagsIter := ident.NewTagsIterator(result.series.Tags)
 		matcher := ident.NewTagIterMatcher(expectedTagsIter)
 		assert.True(t, matcher.Matches(tags),
 			fmt.Sprintf("tags not matching for ID: %s", idStr))

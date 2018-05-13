@@ -99,7 +99,7 @@ func TestSessionWriteTagged(t *testing.T) {
 	var writeWg sync.WaitGroup
 	writeWg.Add(1)
 	go func() {
-		resultErr = session.WriteTagged(w.ns, w.id, ident.NewTagSliceIterator(w.tags),
+		resultErr = session.WriteTagged(w.ns, w.id, ident.NewTagsIterator(w.tags),
 			w.t, w.value, w.unit, w.annotation)
 		writeWg.Done()
 	}()
@@ -132,11 +132,9 @@ func TestSessionWriteTaggedBadUnitErr(t *testing.T) {
 		unit       xtime.Unit
 		annotation []byte
 	}{
-		ns: ident.StringID("testNs"),
-		id: ident.StringID("foo"),
-		tags: ident.Tags{
-			ident.StringTag("abc", "def"),
-		},
+		ns:         ident.StringID("testNs"),
+		id:         ident.StringID("foo"),
+		tags:       ident.NewTags(ident.StringTag("abc", "def")),
 		value:      1.0,
 		t:          time.Now(),
 		unit:       xtime.Unit(byte(255)),
@@ -148,7 +146,7 @@ func TestSessionWriteTaggedBadUnitErr(t *testing.T) {
 	assert.NoError(t, session.Open())
 
 	assert.Error(t, session.WriteTagged(
-		w.ns, w.id, ident.NewTagSliceIterator(w.tags), w.t, w.value, w.unit, w.annotation))
+		w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit, w.annotation))
 
 	assert.NoError(t, session.Close())
 }
@@ -203,11 +201,9 @@ func TestSessionWriteTaggedBadRequestErrorIsNonRetryable(t *testing.T) {
 		unit       xtime.Unit
 		annotation []byte
 	}{
-		ns: ident.StringID("testNs"),
-		id: ident.StringID("foo"),
-		tags: ident.Tags{
-			ident.StringTag("abc", "def"),
-		},
+		ns:         ident.StringID("testNs"),
+		id:         ident.StringID("foo"),
+		tags:       ident.NewTags(ident.StringTag("abc", "def")),
 		value:      1.0,
 		t:          time.Now(),
 		unit:       xtime.Second,
@@ -234,7 +230,7 @@ func TestSessionWriteTaggedBadRequestErrorIsNonRetryable(t *testing.T) {
 	session.state.RUnlock()
 
 	err := session.WriteTagged(
-		w.ns, w.id, ident.NewTagSliceIterator(w.tags), w.t, w.value, w.unit, w.annotation)
+		w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit, w.annotation)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsNonRetryableError(err))
 
@@ -299,7 +295,7 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 	writeWg.Add(1)
 	go func() {
 		resultErr = session.WriteTagged(
-			w.ns, w.id, ident.NewTagSliceIterator(w.tags), w.t, w.value, w.unit, w.annotation)
+			w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit, w.annotation)
 		writeWg.Done()
 	}()
 
@@ -389,7 +385,7 @@ func testWriteTaggedConsistencyLevel(
 	writeWg.Add(1)
 	go func() {
 		resultErr = session.WriteTagged(
-			w.ns, w.id, ident.NewTagSliceIterator(w.tags), w.t, w.value, w.unit, w.annotation)
+			w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit, w.annotation)
 		writeWg.Done()
 	}()
 
@@ -474,10 +470,10 @@ func newWriteTaggedStub() writeTaggedStub {
 	return writeTaggedStub{
 		ns: ident.StringID("testNs"),
 		id: ident.StringID("foo"),
-		tags: ident.Tags{
+		tags: ident.NewTags(
 			ident.StringTag("foo", "bar"),
 			ident.StringTag("baz", "bah"),
-		},
+		),
 		value:      1.0,
 		t:          time.Now(),
 		unit:       xtime.Second,
@@ -487,7 +483,7 @@ func newWriteTaggedStub() writeTaggedStub {
 
 func testEncodeTags(tags ident.Tags) checked.Bytes {
 	m := make(map[string]string)
-	for _, t := range tags {
+	for _, t := range tags.Values() {
 		m[t.Name.String()] = t.Value.String()
 	}
 	b := testEncode(m)

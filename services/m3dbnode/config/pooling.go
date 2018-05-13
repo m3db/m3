@@ -93,8 +93,11 @@ type PoolingPolicy struct {
 	// The policy for the BlocksMetadataSlice pool
 	BlocksMetadataSlicePool CapacityPoolPolicy `yaml:"blocksMetadataSlicePool"`
 
-	// The policy for the tagArray pool
-	TagArrayPool MaxCapacityPoolPolicy `yaml:"tagArrayPool"`
+	// The policy for the tags pool
+	TagsPool MaxCapacityPoolPolicy `yaml:"tagsPool"`
+
+	// The policy for the tags iterator pool
+	TagsIteratorPool PoolPolicy `yaml:"tagIteratorPool"`
 
 	// The policy for the index.ResultsPool
 	IndexResultsPool PoolPolicy `yaml:"indexResultsPool"`

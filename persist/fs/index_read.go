@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/generated/proto/index"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/x/mmap"
+	idxpersist "github.com/m3db/m3ninx/persist"
 
 	xlog "github.com/m3db/m3x/log"
 )
@@ -61,12 +62,12 @@ type indexReaderReadDigests struct {
 }
 
 type indexReaderReadSegmentDigests struct {
-	segmentType IndexSegmentType
+	segmentType idxpersist.IndexSegmentType
 	files       []indexReaderReadSegmentFileDigest
 }
 
 type indexReaderReadSegmentFileDigest struct {
-	segmentFileType IndexSegmentFileType
+	segmentFileType idxpersist.IndexSegmentFileType
 	digest          uint32
 }
 
@@ -173,7 +174,10 @@ func (r *indexReader) SegmentFileSets() int {
 	return len(r.info.Segments)
 }
 
-func (r *indexReader) ReadSegmentFileSet() (IndexSegmentFileSet, error) {
+func (r *indexReader) ReadSegmentFileSet() (
+	idxpersist.IndexSegmentFileSet,
+	error,
+) {
 	if r.currIdx >= len(r.info.Segments) {
 		return nil, io.EOF
 	}
@@ -182,10 +186,10 @@ func (r *indexReader) ReadSegmentFileSet() (IndexSegmentFileSet, error) {
 		segment = r.info.Segments[r.currIdx]
 		result  = readableIndexSegmentFileSet{
 			info:  segment,
-			files: make([]IndexSegmentFile, 0, len(segment.Files)),
+			files: make([]idxpersist.IndexSegmentFile, 0, len(segment.Files)),
 		}
 		digests = indexReaderReadSegmentDigests{
-			segmentType: IndexSegmentType(segment.SegmentType),
+			segmentType: idxpersist.IndexSegmentType(segment.SegmentType),
 		}
 	)
 	closeFiles := func() {
@@ -194,7 +198,7 @@ func (r *indexReader) ReadSegmentFileSet() (IndexSegmentFileSet, error) {
 		}
 	}
 	for _, file := range segment.Files {
-		segFileType := IndexSegmentFileType(file.SegmentFileType)
+		segFileType := idxpersist.IndexSegmentFileType(file.SegmentFileType)
 
 		var filePath string
 		switch r.fileSetType {
@@ -321,11 +325,11 @@ var _ IndexSegmentFileSet = readableIndexSegmentFileSet{}
 
 type readableIndexSegmentFileSet struct {
 	info  *index.SegmentInfo
-	files []IndexSegmentFile
+	files []idxpersist.IndexSegmentFile
 }
 
-func (s readableIndexSegmentFileSet) SegmentType() IndexSegmentType {
-	return IndexSegmentType(s.info.SegmentType)
+func (s readableIndexSegmentFileSet) SegmentType() idxpersist.IndexSegmentType {
+	return idxpersist.IndexSegmentType(s.info.SegmentType)
 }
 
 func (s readableIndexSegmentFileSet) MajorVersion() int {
@@ -340,22 +344,22 @@ func (s readableIndexSegmentFileSet) SegmentMetadata() []byte {
 	return s.info.Metadata
 }
 
-func (s readableIndexSegmentFileSet) Files() []IndexSegmentFile {
+func (s readableIndexSegmentFileSet) Files() []idxpersist.IndexSegmentFile {
 	return s.files
 }
 
 type readableIndexSegmentFileMmap struct {
-	fileType  IndexSegmentFileType
+	fileType  idxpersist.IndexSegmentFileType
 	fd        *os.File
 	bytesMmap []byte
 	reader    bytes.Reader
 }
 
 func newReadableIndexSegmentFileMmap(
-	fileType IndexSegmentFileType,
+	fileType idxpersist.IndexSegmentFileType,
 	fd *os.File,
 	bytesMmap []byte,
-) IndexSegmentFile {
+) idxpersist.IndexSegmentFile {
 	r := &readableIndexSegmentFileMmap{
 		fileType:  fileType,
 		fd:        fd,
@@ -365,7 +369,7 @@ func newReadableIndexSegmentFileMmap(
 	return r
 }
 
-func (f *readableIndexSegmentFileMmap) SegmentFileType() IndexSegmentFileType {
+func (f *readableIndexSegmentFileMmap) SegmentFileType() idxpersist.IndexSegmentFileType {
 	return f.fileType
 }
 

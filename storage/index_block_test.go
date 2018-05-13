@@ -141,7 +141,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 
 	blockStart := xtime.ToUnixNano(now.Truncate(blockSize))
 	id := ident.StringID("foo")
-	tags := ident.Tags{ident.StringTag("name", "value")}
+	tags := ident.NewTags(ident.StringTag("name", "value"))
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	mockBlock.EXPECT().WriteBatch([]index.WriteBatchEntry{
 		index.WriteBatchEntry{
@@ -190,7 +190,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	id := ident.StringID("foo")
-	tags := ident.Tags{ident.StringTag("name", "value")}
+	tags := ident.NewTags(ident.StringTag("name", "value"))
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
 	b1.EXPECT().WriteBatch([]index.WriteBatchEntry{
 		index.WriteBatchEntry{

@@ -91,9 +91,9 @@ func shardResult(entries ...testBlockEntry) result.ShardResult {
 		if len(entry.tags)%2 != 0 {
 			panic(fmt.Sprintf("entry tags must be of even length: %v", entry.tags))
 		}
-		tags := make(ident.Tags, 0, len(entry.tags))
+		tags := ident.NewTags()
 		for idx := 0; idx < len(entry.tags); idx += 2 {
-			tags = append(tags, ident.StringTag(entry.tags[idx], entry.tags[idx+1]))
+			tags.Append(ident.StringTag(entry.tags[idx], entry.tags[idx+1]))
 		}
 		res.AddBlock(ident.StringID(entry.id), tags, block)
 	}

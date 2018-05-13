@@ -284,7 +284,7 @@ func seriesUniqueTags(seriesID, proposedTagKey, proposedTagVal string, includeTa
 	}
 
 	if includeTags {
-		tags = ident.Tags{ident.StringTag(proposedTagKey, proposedTagVal)}
+		tags = ident.NewTags(ident.StringTag(proposedTagKey, proposedTagVal))
 	}
 	seriesRegistry.idToTags[seriesID] = tags
 	return tags

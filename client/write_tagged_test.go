@@ -165,7 +165,7 @@ func writeTaggedTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *
 	// Begin write
 	writeWg.Add(1)
 	go func() {
-		s.WriteTagged(w.ns, w.id, ident.NewTagSliceIterator(w.tags), w.t, w.value, w.unit, w.annotation)
+		s.WriteTagged(w.ns, w.id, ident.NewTagsIterator(w.tags), w.t, w.value, w.unit, w.annotation)
 		writeWg.Done()
 	}()
 

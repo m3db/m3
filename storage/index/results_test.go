@@ -71,7 +71,7 @@ func TestResultsFirstInsertWins(t *testing.T) {
 
 	tags, ok := res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
-	require.Len(t, tags, 0)
+	require.Equal(t, 0, len(tags.Values()))
 
 	d2 := doc.Document{ID: []byte("abc"),
 		Fields: doc.Fields{
@@ -84,7 +84,7 @@ func TestResultsFirstInsertWins(t *testing.T) {
 
 	tags, ok = res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
-	require.Len(t, tags, 0)
+	require.Equal(t, 0, len(tags.Values()))
 }
 
 func TestResultsInsertContains(t *testing.T) {
@@ -97,7 +97,7 @@ func TestResultsInsertContains(t *testing.T) {
 
 	tags, ok := res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
-	require.Len(t, tags, 0)
+	require.Equal(t, 0, len(tags.Values()))
 }
 
 func TestResultsInsertCopies(t *testing.T) {
@@ -126,12 +126,12 @@ func TestResultsReset(t *testing.T) {
 
 	tags, ok := res.Map().Get(ident.StringID("abc"))
 	require.True(t, ok)
-	require.Len(t, tags, 0)
+	require.Equal(t, 0, len(tags.Values()))
 
 	res.Reset(nil)
 	_, ok = res.Map().Get(ident.StringID("abc"))
 	require.False(t, ok)
-	require.Len(t, tags, 0)
+	require.Equal(t, 0, len(tags.Values()))
 	require.Equal(t, 0, res.Size())
 }
 

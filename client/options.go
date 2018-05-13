@@ -255,7 +255,11 @@ func newOptions() *options {
 	poolOpts := pool.NewObjectPoolOptions().
 		SetSize(defaultIdentifierPoolSize)
 
-	idPool := ident.NewPool(bytesPool, poolOpts)
+	idPool := ident.NewPool(bytesPool, ident.PoolOptions{
+		IDPoolOptions:           poolOpts,
+		TagsPoolOptions:         poolOpts,
+		TagsIteratorPoolOptions: poolOpts,
+	})
 
 	contextPool := context.NewPool(context.NewOptions().
 		SetContextPoolOptions(poolOpts).

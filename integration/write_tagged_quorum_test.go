@@ -246,7 +246,7 @@ func makeTestWriteTagged(
 
 		now := nodes[0].getNowFn().Add(time.Minute)
 		return s.WriteTagged(testNamespaces[0], ident.StringID("quorumTest"),
-			ident.NewTagIterator(ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz")),
+			ident.NewTagsIterator(ident.NewTags(ident.StringTag("foo", "bar"), ident.StringTag("boo", "baz"))),
 			now, 42, xtime.Second, nil)
 	}
 
@@ -284,7 +284,7 @@ func nodeHasTaggedWrite(t *testing.T, s *testSetup) bool {
 	require.Equal(t, testNamespaces[0].String(), results.Namespace().String())
 	tags, ok := results.Map().Get(ident.StringID("quorumTest"))
 	idxFound := ok && ident.NewTagIterMatcher(ident.MustNewTagStringsIterator(
-		"foo", "bar", "boo", "baz")).Matches(ident.NewTagSliceIterator(tags))
+		"foo", "bar", "boo", "baz")).Matches(ident.NewTagsIterator(tags))
 
 	if !idxFound {
 		return false

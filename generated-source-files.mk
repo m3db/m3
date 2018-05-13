@@ -157,18 +157,6 @@ genny-arraypool-node-segments: install-m3x-repo
 	rename_type_middle=Segments                                       \
 	rename_constructor=newSegmentsArrayPool
 
-# arraypool generation rule for ./storage/index/tagArrayPool
-.PHONY: genny-arraypool-storage-index-tag
-genny-arraypool-storage-index-tag: install-m3x-repo
-	cd $(m3x_package_path) && make genny-arraypool \
-	pkg=index                                      \
-	elem_type=ident.Tag                            \
-	target_package=$(m3db_package)/storage/index   \
-	out_file=tag_arraypool_gen.go                  \
-	rename_type_prefix=Tag                         \
-	rename_type_middle=Tag                         \
-	rename_constructor=NewTagArrayPool
-
 # generation rule for all generated leakcheckpools
 .PHONY: genny-leakcheckpool-all
 genny-leakcheckpool-all: genny-leakcheckpool-fetch-tagged-attempt \

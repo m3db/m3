@@ -97,7 +97,7 @@ type writer struct {
 	logEncoder         *msgpack.Encoder
 	metadataEncoder    *msgpack.Encoder
 	tagEncoder         serialize.TagEncoder
-	tagSliceIter       ident.TagSliceIterator
+	tagSliceIter       ident.TagsIterator
 }
 
 func newCommitLogWriter(
@@ -119,7 +119,7 @@ func newCommitLogWriter(
 		logEncoder:         msgpack.NewEncoder(),
 		metadataEncoder:    msgpack.NewEncoder(),
 		tagEncoder:         opts.FilesystemOptions().TagEncoderPool().Get(),
-		tagSliceIter:       ident.NewTagSliceIterator(nil),
+		tagSliceIter:       ident.NewTagsIterator(ident.Tags{}),
 	}
 }
 
@@ -181,7 +181,7 @@ func (w *writer) Write(
 			encodedTags []byte
 		)
 
-		if tags != nil {
+		if tags.Values() != nil {
 			w.tagSliceIter.Reset(tags)
 			w.tagEncoder.Reset()
 			err := w.tagEncoder.Encode(w.tagSliceIter)

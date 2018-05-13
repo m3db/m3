@@ -509,10 +509,10 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 	}{
 		"foo": {
 			// Check with tags
-			tags: ident.Tags{
+			tags: ident.NewTags(
 				ident.StringTag("aaa", "bbb"),
 				ident.StringTag("ccc", "ddd"),
-			},
+			),
 			data: []testBlock{
 				{start.Add(0 * time.Hour), 16, 111, time.Now().Add(-time.Minute)},
 				{start.Add(2 * time.Hour), 32, 222, time.Time{}},
@@ -534,7 +534,7 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 		ids = append(ids, []byte(id))
 		blocks := block.NewFetchBlockMetadataResults()
 		metadata := block.NewFetchBlocksMetadataResult(ident.StringID(id),
-			ident.NewTagSliceIterator(s.tags), blocks)
+			ident.NewTagsIterator(s.tags), blocks)
 		for _, v := range s.data {
 			numBlocks++
 			entry := v
@@ -584,14 +584,14 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 
 		expectedBlocks := series[string(block.ID)]
 
-		if len(expectedBlocks.tags) == 0 {
+		if len(expectedBlocks.tags.Values()) == 0 {
 			require.Equal(t, 0, len(block.EncodedTags))
 		} else {
 			encodedTags := checked.NewBytes(block.EncodedTags, nil)
 			decoder := service.pools.tagDecoder.Get()
 			decoder.Reset(encodedTags)
 
-			expectedTags := ident.NewTagSliceIterator(expectedBlocks.tags)
+			expectedTags := ident.NewTagsIterator(expectedBlocks.tags)
 			require.True(t, ident.NewTagIterMatcher(expectedTags).Matches(decoder))
 
 			decoder.Close()
@@ -672,14 +672,14 @@ func TestServiceFetchTagged(t *testing.T) {
 
 	resMap := index.NewResults(index.NewOptions())
 	resMap.Reset(ident.StringID(nsID))
-	resMap.Map().Set(ident.StringID("foo"), ident.Tags{
+	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("baz", "dxk"),
-	})
-	resMap.Map().Set(ident.StringID("bar"), ident.Tags{
+	))
+	resMap.Map().Set(ident.StringID("bar"), ident.NewTags(
 		ident.StringTag("foo", "bar"),
 		ident.StringTag("dzk", "baz"),
-	})
+	))
 
 	mockDB.EXPECT().QueryIDs(
 		ctx,
@@ -766,8 +766,8 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 
 	resMap := index.NewResults(index.NewOptions())
 	resMap.Reset(ident.StringID(nsID))
-	resMap.Map().Set(ident.StringID("foo"), nil)
-	resMap.Map().Set(ident.StringID("bar"), nil)
+	resMap.Map().Set(ident.StringID("foo"), ident.Tags{})
+	resMap.Map().Set(ident.StringID("bar"), ident.Tags{})
 	mockDB.EXPECT().QueryIDs(
 		ctx,
 		ident.NewIDMatcher(nsID),

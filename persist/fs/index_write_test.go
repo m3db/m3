@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/persist"
+	idxpersist "github.com/m3db/m3ninx/persist"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -49,13 +50,13 @@ func TestSnapshotIndexWriter(t *testing.T) {
 			snapshotTime:  test.now.Add(-2 * time.Minute),
 			segments: []testIndexSegment{
 				{
-					segmentType:  IndexSegmentType("fst"),
+					segmentType:  idxpersist.IndexSegmentType("fst"),
 					majorVersion: 1,
 					minorVersion: 2,
 					metadata:     []byte("some_metadata"),
 					files: []testIndexSegmentFile{
-						{IndexSegmentFileType("first"), randDataFactorOfBuffSize(t, 1.5)},
-						{IndexSegmentFileType("second"), randDataFactorOfBuffSize(t, 2.5)},
+						{idxpersist.IndexSegmentFileType("first"), randDataFactorOfBuffSize(t, 1.5)},
+						{idxpersist.IndexSegmentFileType("second"), randDataFactorOfBuffSize(t, 2.5)},
 					},
 				},
 			},
@@ -65,13 +66,13 @@ func TestSnapshotIndexWriter(t *testing.T) {
 			snapshotTime:  test.now.Add(-1 * time.Minute),
 			segments: []testIndexSegment{
 				{
-					segmentType:  IndexSegmentType("fst"),
+					segmentType:  idxpersist.IndexSegmentType("fst"),
 					majorVersion: 3,
 					minorVersion: 4,
 					metadata:     []byte("some_other_metadata"),
 					files: []testIndexSegmentFile{
-						{IndexSegmentFileType("first"), randDataFactorOfBuffSize(t, 1.5)},
-						{IndexSegmentFileType("second"), randDataFactorOfBuffSize(t, 3.5)},
+						{idxpersist.IndexSegmentFileType("first"), randDataFactorOfBuffSize(t, 1.5)},
+						{idxpersist.IndexSegmentFileType("second"), randDataFactorOfBuffSize(t, 3.5)},
 					},
 				},
 			},

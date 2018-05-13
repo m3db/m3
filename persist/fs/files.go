@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
+	idxpersist "github.com/m3db/m3ninx/persist"
 	xclose "github.com/m3db/m3x/close"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
@@ -889,7 +890,7 @@ func filesetIndexSegmentFileSuffixFromTime(
 	prefix string,
 	t time.Time,
 	segmentIndex int,
-	segmentFileType IndexSegmentFileType,
+	segmentFileType idxpersist.IndexSegmentFileType,
 ) string {
 	return fmt.Sprintf("%s%s%d%s%s", segmentFileSetFilePrefix,
 		separator, segmentIndex, separator, segmentFileType)
@@ -899,7 +900,7 @@ func filesetIndexSegmentFilePathFromTime(
 	prefix string,
 	t time.Time,
 	segmentIndex int,
-	segmentFileType IndexSegmentFileType,
+	segmentFileType idxpersist.IndexSegmentFileType,
 ) string {
 	suffix := filesetIndexSegmentFileSuffixFromTime(prefix, t,
 		segmentIndex, segmentFileType)
@@ -910,7 +911,7 @@ func snapshotIndexSegmentFilePathFromTimeAndIndex(
 	prefix string,
 	t time.Time,
 	segmentIndex int,
-	segmentFileType IndexSegmentFileType,
+	segmentFileType idxpersist.IndexSegmentFileType,
 	snapshotIndex int,
 ) string {
 	suffix := filesetIndexSegmentFileSuffixFromTime(prefix, t,
