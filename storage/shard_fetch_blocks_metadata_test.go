@@ -68,11 +68,11 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 	lastRead := time.Now().Add(-time.Minute)
 	for i := 0; i < 10; i++ {
 		id := ident.StringID(fmt.Sprintf("foo.%d", i))
-		tags := ident.Tags{
+		tags := ident.NewTags(
 			ident.StringTag("aaa", "bbb"),
 			ident.StringTag("ccc", "ddd"),
-		}
-		tagsIter := ident.NewTagSliceIterator(tags)
+		)
+		tagsIter := ident.NewTagsIterator(tags)
 		series := addMockSeries(ctrl, shard, id, tags, uint64(i))
 		if i == 2 {
 			series.EXPECT().
@@ -129,11 +129,11 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 	lastRead := time.Now().Add(-time.Minute)
 	for i := int64(0); i < 10; i++ {
 		id := ident.StringID(fmt.Sprintf("foo.%d", i))
-		tags := ident.Tags{
+		tags := ident.NewTags(
 			ident.StringTag("aaa", "bbb"),
 			ident.StringTag("ccc", "ddd"),
-		}
-		tagsIter := ident.NewTagSliceIterator(tags)
+		)
+		tagsIter := ident.NewTagsIterator(tags)
 		series := addMockSeries(ctrl, shard, id, tags, uint64(i))
 		if i == startCursor {
 			series.EXPECT().
@@ -253,7 +253,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 
 			bytes := checked.NewBytes(data, nil)
 			bytes.IncRef()
-			err = writer.Write(id, nil, bytes, checksum)
+			err = writer.Write(id, ident.Tags{}, bytes, checksum)
 			require.NoError(t, err)
 
 			blockMetadataResult := block.NewFetchBlockMetadataResult(at,
@@ -273,10 +273,10 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 	lastRead := time.Now().Add(-time.Minute)
 	for i := 0; i < numActiveSeries; i++ {
 		id := ident.StringID(fmt.Sprintf("series+instance=%d", i))
-		tags := ident.Tags{
+		tags := ident.NewTags(
 			ident.StringTag("instance", strconv.Itoa(i)),
-		}
-		tagsIter := ident.NewTagSliceIterator(tags)
+		)
+		tagsIter := ident.NewTagsIterator(tags)
 		series := addMockSeries(ctrl, shard, id, tags, uint64(i))
 		blocks := block.NewFetchBlockMetadataResults()
 		at := mostRecentBlockStart

@@ -69,7 +69,7 @@ var (
 	testIDPool     = NewOptions().IdentifierPool()
 	fooID          = ident.StringID("foo")
 	fooTags        checked.Bytes
-	fooDecodedTags = ident.Tags{ident.StringTag("aaa", "bbb")}
+	fooDecodedTags = ident.NewTags(ident.StringTag("aaa", "bbb"))
 	barID          = ident.StringID("bar")
 	bazID          = ident.StringID("baz")
 	testHost       = topology.NewHost("testhost", "testhost:9000")
@@ -79,7 +79,7 @@ func init() {
 	testTagDecodingPool.Init()
 	testTagEncodingPool.Init()
 	tagEncoder := testTagEncodingPool.Get()
-	err := tagEncoder.Encode(ident.NewTagSliceIterator(fooDecodedTags))
+	err := tagEncoder.Encode(ident.NewTagsIterator(fooDecodedTags))
 	if err != nil {
 		panic(err)
 	}

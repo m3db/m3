@@ -55,7 +55,7 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 		{
 			peer:        peer,
 			id:          ident.StringID("foo"),
-			encodedTags: mustEncodeTags(t, ident.Tags{ident.StringTag("aaa", "bbb")}),
+			encodedTags: mustEncodeTags(t, ident.NewTags(ident.StringTag("aaa", "bbb"))),
 			block: blockMetadata{
 				start: now, size: int64(1), checksum: &checksums[0],
 			},
@@ -63,7 +63,7 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 		{
 			peer:        peer,
 			id:          ident.StringID("foo"),
-			encodedTags: mustEncodeTags(t, ident.Tags{ident.StringTag("aaa", "bbb")}),
+			encodedTags: mustEncodeTags(t, ident.NewTags(ident.StringTag("aaa", "bbb"))),
 			block: blockMetadata{
 				start: now.Add(time.Second), size: int64(2), checksum: &checksums[1], lastRead: lastRead,
 			},
@@ -71,7 +71,7 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 		{
 			peer:        peer,
 			id:          ident.StringID("bar"),
-			encodedTags: mustEncodeTags(t, ident.Tags{ident.StringTag("ccc", "ddd")}),
+			encodedTags: mustEncodeTags(t, ident.NewTags(ident.StringTag("ccc", "ddd"))),
 			block: blockMetadata{
 				start: now, size: int64(3), checksum: &checksums[2], lastRead: lastRead,
 			},
@@ -79,7 +79,7 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 		{
 			peer:        peer,
 			id:          ident.StringID("baz"),
-			encodedTags: mustEncodeTags(t, ident.Tags{ident.StringTag("eee", "fff")}),
+			encodedTags: mustEncodeTags(t, ident.NewTags(ident.StringTag("eee", "fff"))),
 			block: blockMetadata{
 				start: now, size: int64(4), checksum: nil, lastRead: lastRead,
 			},
@@ -106,19 +106,19 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 
 	expected := []testHostBlock{
 		{h, block.NewMetadata(ident.StringID("foo"),
-			ident.Tags{ident.StringTag("aaa", "bbb")},
+			ident.NewTags(ident.StringTag("aaa", "bbb")),
 			inputs[0].block.start, inputs[0].block.size,
 			inputs[0].block.checksum, inputs[0].block.lastRead)},
 		{h, block.NewMetadata(ident.StringID("foo"),
-			ident.Tags{ident.StringTag("aaa", "bbb")},
+			ident.NewTags(ident.StringTag("aaa", "bbb")),
 			inputs[1].block.start, inputs[1].block.size,
 			inputs[1].block.checksum, inputs[1].block.lastRead)},
 		{h, block.NewMetadata(ident.StringID("bar"),
-			ident.Tags{ident.StringTag("ccc", "ddd")},
+			ident.NewTags(ident.StringTag("ccc", "ddd")),
 			inputs[2].block.start, inputs[2].block.size,
 			inputs[2].block.checksum, inputs[2].block.lastRead)},
 		{h, block.NewMetadata(ident.StringID("baz"),
-			ident.Tags{ident.StringTag("eee", "fff")},
+			ident.NewTags(ident.StringTag("eee", "fff")),
 			inputs[3].block.start, inputs[3].block.size,
 			inputs[3].block.checksum, inputs[3].block.lastRead)},
 	}
@@ -128,8 +128,8 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 		actual := actual[i]
 		assert.Equal(t, expected.host.String(), actual.host.String())
 		assert.True(t, expected.block.ID.Equal(actual.block.ID))
-		tagMatcher := ident.NewTagIterMatcher(ident.NewTagSliceIterator(expected.block.Tags))
-		assert.True(t, tagMatcher.Matches(ident.NewTagSliceIterator(actual.block.Tags)))
+		tagMatcher := ident.NewTagIterMatcher(ident.NewTagsIterator(expected.block.Tags))
+		assert.True(t, tagMatcher.Matches(ident.NewTagsIterator(actual.block.Tags)))
 		assert.True(t, expected.block.Start.Equal(actual.block.Start))
 		assert.Equal(t, expected.block.Size, actual.block.Size)
 		assert.Equal(t, expected.block.Checksum, actual.block.Checksum)
@@ -139,7 +139,7 @@ func TestPeerBlockMetadataIter(t *testing.T) {
 
 func mustEncodeTags(t *testing.T, tags ident.Tags) checked.Bytes {
 	encoder := testTagEncodingPool.Get()
-	err := encoder.Encode(ident.NewTagSliceIterator(tags))
+	err := encoder.Encode(ident.NewTagsIterator(tags))
 	require.NoError(t, err)
 	data, ok := encoder.Data()
 	require.True(t, ok)

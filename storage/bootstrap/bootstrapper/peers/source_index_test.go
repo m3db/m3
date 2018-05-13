@@ -47,7 +47,7 @@ func (s testSeriesMetadata) ID() ident.ID {
 
 func (s testSeriesMetadata) Tags() ident.Tags {
 	if s.tags == nil {
-		return nil
+		return ident.Tags{}
 	}
 
 	// Return in sorted order for deterministic order
@@ -59,7 +59,7 @@ func (s testSeriesMetadata) Tags() ident.Tags {
 
 	var tags ident.Tags
 	for _, key := range keys {
-		tags = append(tags, ident.StringTag(key, s.tags[key]))
+		tags.Append(ident.StringTag(key, s.tags[key]))
 	}
 
 	return tags

@@ -53,7 +53,7 @@ func NewBlockRetrieverOptions() BlockRetrieverOptions {
 		bytesPool:         bytesPool,
 		segmentReaderPool: xio.NewSegmentReaderPool(nil),
 		fetchConcurrency:  defaultFetchConcurrency,
-		identifierPool:    ident.NewPool(bytesPool, nil),
+		identifierPool:    ident.NewPool(bytesPool, ident.PoolOptions{}),
 	}
 	o.segmentReaderPool.Init()
 	return o

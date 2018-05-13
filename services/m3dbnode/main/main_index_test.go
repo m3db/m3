@@ -200,8 +200,12 @@ func TestIndexEnabledServer(t *testing.T) {
 	}
 
 	for _, v := range values {
-		err := session.WriteTagged(ident.StringID(namespaceID), ident.StringID("foo"),
-			ident.NewTagIterator(ident.StringTag("foo", "bar"), ident.StringTag("baz", "foo")),
+		err := session.WriteTagged(ident.StringID(namespaceID),
+			ident.StringID("foo"),
+			ident.NewTagsIterator(ident.NewTags(
+				ident.StringTag("foo", "bar"),
+				ident.StringTag("baz", "foo"),
+			)),
 			v.at, v.value, v.unit, nil)
 		require.NoError(t, err)
 	}

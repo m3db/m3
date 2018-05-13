@@ -391,7 +391,7 @@ func addTestSeries(shard *dbShard, id ident.ID) series.DatabaseSeries {
 }
 
 func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.DatabaseSeries {
-	series := series.NewDatabaseSeries(id, nil, shard.seriesOpts)
+	series := series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
 	series.Bootstrap(nil)
 	shard.Lock()
 	shard.insertNewShardEntryWithLock(&dbShardEntry{series: series, curReadWriters: count})
@@ -736,7 +736,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	id := ident.StringID("foo")
-	s := addMockSeries(ctrl, shard, id, nil, 0)
+	s := addMockSeries(ctrl, shard, id, ident.Tags{}, 0)
 	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place just after tick for this series
 		s.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
@@ -766,7 +766,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	id := ident.StringID("foo")
-	s := addMockSeries(ctrl, shard, id, nil, 0)
+	s := addMockSeries(ctrl, shard, id, ident.Tags{}, 0)
 	s.EXPECT().Tick().Do(func() {
 		// Emulate a write taking place and staying open just after tick for this series
 		var err error
@@ -842,7 +842,7 @@ func TestShardFetchBlocksIDExists(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	id := ident.StringID("foo")
-	series := addMockSeries(ctrl, shard, id, nil, 0)
+	series := addMockSeries(ctrl, shard, id, ident.Tags{}, 0)
 	now := time.Now()
 	starts := []time.Time{now}
 	expected := []block.FetchBlockResult{block.NewFetchBlockResult(now, nil, nil)}
@@ -1095,7 +1095,6 @@ func TestShardNewInvalidShardEntry(t *testing.T) {
 	iter := ident.NewMockTagIterator(ctrl)
 	gomock.InOrder(
 		iter.EXPECT().Duplicate().Return(iter),
-		iter.EXPECT().Remaining().Return(0),
 		iter.EXPECT().Next().Return(false),
 		iter.EXPECT().Err().Return(fmt.Errorf("random err")),
 		iter.EXPECT().Close(),

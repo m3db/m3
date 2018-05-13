@@ -42,8 +42,8 @@ var (
 
 // FromMetric converts the provided metric id+tags into a document.
 func FromMetric(id ident.ID, tags ident.Tags) (doc.Document, error) {
-	fields := make([]doc.Field, 0, len(tags))
-	for _, tag := range tags {
+	fields := make([]doc.Field, 0, len(tags.Values()))
+	for _, tag := range tags.Values() {
 		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
 			return doc.Document{}, errUnableToConvertReservedFieldName
 		}

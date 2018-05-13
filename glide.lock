@@ -1,5 +1,5 @@
-hash: f4cb27b24fcbb82a9c6402a8598881ff0ed5332360ee459dcef9a57f0295823f
-updated: 2018-05-12T23:03:51.183526-04:00
+hash: ae522bcbc20f0ddb69902e6e73f1b42499a361d4fda9e4c1f9f32b148a253d19
+updated: 2018-05-13T10:07:27.359065-04:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -235,7 +235,7 @@ imports:
   - search/query
   - search/searcher
 - name: github.com/m3db/m3x
-  version: 6148700dde75adcdcc27d16fb68cee2d9d9126d8
+  version: df82cd7aacfd8439586821ecd6e073da35bfbb02
   vcs: git
   subpackages:
   - checked

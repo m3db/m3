@@ -183,7 +183,7 @@ var currentCmd = &commands.ProtoCommand{
 			return &gopter.PropResult{Status: gopter.PropTrue}
 		}
 		observedTag := res
-		expectedTag := decState.tags[decState.primary.numNextCalls-1]
+		expectedTag := decState.tags.Values()[decState.primary.numNextCalls-1]
 		if !observedTag.Name.Equal(expectedTag.Name) ||
 			!observedTag.Value.Equal(expectedTag.Value) {
 			return &gopter.PropResult{
@@ -424,7 +424,7 @@ func newDecoderState() gopter.Gen {
 	return anyASCIITags().Map(
 		func(tags ident.Tags) *multiDecoderState {
 			enc := newTestTagEncoder()
-			if err := enc.Encode(ident.NewTagSliceIterator(tags)); err != nil {
+			if err := enc.Encode(ident.NewTagsIterator(tags)); err != nil {
 				return nil
 			}
 			b, ok := enc.Data()
@@ -437,7 +437,7 @@ func newDecoderState() gopter.Gen {
 				initBytes: data,
 				numRefs:   1,
 				primary: decoderState{
-					numTags: len(tags),
+					numTags: len(tags.Values()),
 				},
 			}
 		},
@@ -453,7 +453,12 @@ func anyASCIITag() gopter.Gen {
 		})
 }
 
-func anyASCIITags() gopter.Gen { return gen.SliceOf(anyASCIITag()) }
+func anyASCIITags() gopter.Gen {
+	return gen.SliceOf(anyASCIITag()).
+		Map(func(tags []ident.Tag) ident.Tags {
+			return ident.NewTags(tags...)
+		})
+}
 
 func (d decoderState) String() string {
 	return fmt.Sprintf("[ numTags=%d, closed=%v, numNextCalls=%d ]",
@@ -494,7 +499,7 @@ func (d *multiDecoderState) String() string {
 
 func tagsToString(tags ident.Tags) string {
 	var tagBuffer bytes.Buffer
-	for i, t := range tags {
+	for i, t := range tags.Values() {
 		if i != 0 {
 			tagBuffer.WriteString(", ")
 		}

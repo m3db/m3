@@ -115,7 +115,10 @@ func (r shardRepairer) Repair(
 	ctx.RegisterCloser(localMetadata)
 
 	localIter := block.NewFilteredBlocksMetadataIter(localMetadata)
-	metadata.AddLocalMetadata(origin, localIter)
+	err = metadata.AddLocalMetadata(origin, localIter)
+	if err != nil {
+		return repair.MetadataComparisonResult{}, err
+	}
 
 	// Add peer metadata
 	level := r.rpopts.RepairConsistencyLevel()

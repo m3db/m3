@@ -40,7 +40,7 @@ func TestTagEncoderPool(t *testing.T) {
 
 	e.Reset()
 	require.NoError(t, e.Encode(
-		ident.NewTagIterator(ident.StringTag("hey", "jude"))))
+		ident.NewTagsIterator(ident.NewTags(ident.StringTag("hey", "jude")))))
 
 	e.Finalize()
 }

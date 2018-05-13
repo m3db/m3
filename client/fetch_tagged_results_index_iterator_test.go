@@ -49,9 +49,12 @@ func TestFetchTaggedResultsIndexIterator(t *testing.T) {
 			[]ident.ID{ident.StringID("ns0"), ident.StringID("ns1"), ident.StringID("ns2")},
 			[]ident.ID{ident.StringID("id0"), ident.StringID("id1"), ident.StringID("id2")},
 			[]ident.TagIterator{
-				ident.NewTagIterator(ident.StringTag("tn0", "tv0")),
-				ident.NewTagIterator(ident.StringTag("tn0", "tv0"), ident.StringTag("tn1", "tv1")),
-				ident.NewTagIterator(ident.StringTag("tn0", "tv0"), ident.StringTag("tn1", "tv1"), ident.StringTag("tn2", "tv2")),
+				ident.NewTagsIterator(ident.NewTags(
+					ident.StringTag("tn0", "tv0"))),
+				ident.NewTagsIterator(ident.NewTags(
+					ident.StringTag("tn0", "tv0"), ident.StringTag("tn1", "tv1"))),
+				ident.NewTagsIterator(ident.NewTags(
+					ident.StringTag("tn0", "tv0"), ident.StringTag("tn1", "tv1"), ident.StringTag("tn2", "tv2"))),
 			},
 		},
 	} {

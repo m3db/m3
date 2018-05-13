@@ -37,9 +37,8 @@ type results struct {
 	size       int
 	resultsMap *ResultsMap
 
-	idPool       ident.Pool
-	bytesPool    pool.CheckedBytesPool
-	tagArrayPool TagArrayPool
+	idPool    ident.Pool
+	bytesPool pool.CheckedBytesPool
 
 	pool ResultsPool
 }
@@ -47,11 +46,10 @@ type results struct {
 // NewResults returns a new results object.
 func NewResults(opts Options) Results {
 	return &results{
-		resultsMap:   newResultsMap(opts.IdentifierPool()),
-		idPool:       opts.IdentifierPool(),
-		bytesPool:    opts.CheckedBytesPool(),
-		tagArrayPool: opts.TagArrayPool(),
-		pool:         opts.ResultsPool(),
+		resultsMap: newResultsMap(opts.IdentifierPool()),
+		idPool:     opts.IdentifierPool(),
+		bytesPool:  opts.CheckedBytesPool(),
+		pool:       opts.ResultsPool(),
 	}
 }
 
@@ -83,10 +81,10 @@ func (r *results) Add(d doc.Document) (added bool, size int, err error) {
 	return added, r.size, nil
 }
 
-func (r *results) tags(fields doc.Fields) []ident.Tag {
-	tags := r.tagArrayPool.Get()
+func (r *results) tags(fields doc.Fields) ident.Tags {
+	tags := r.idPool.Tags()
 	for _, f := range fields {
-		tags = append(tags, ident.Tag{
+		tags.Append(ident.Tag{
 			Name:  r.copyBytes(f.Name),
 			Value: r.copyBytes(f.Value),
 		})
@@ -132,7 +130,6 @@ func (r *results) Reset(nsID ident.ID) {
 	for _, entry := range r.resultsMap.Iter() {
 		tags := entry.Value()
 		tags.Finalize()
-		r.tagArrayPool.Put(tags)
 	}
 
 	// reset all keys in the map next

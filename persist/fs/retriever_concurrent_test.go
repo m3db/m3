@@ -182,7 +182,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				}
 				shardData[shard][idString][xtime.ToUnixNano(blockStart)] = data
 
-				err := w.Write(id, nil, data, digest.Checksum(data.Bytes()))
+				err := w.Write(id, ident.Tags{}, data, digest.Checksum(data.Bytes()))
 				require.NoError(t, err)
 			}
 			closer()
@@ -290,7 +290,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	data := checked.NewBytes([]byte("Hello world!"), nil)
 	data.IncRef()
 	defer data.DecRef()
-	err = w.Write(ident.StringID("exists"), nil, data, digest.Checksum(data.Bytes()))
+	err = w.Write(ident.StringID("exists"), ident.Tags{}, data, digest.Checksum(data.Bytes()))
 	assert.NoError(t, err)
 	closer()
 

@@ -59,23 +59,23 @@ func TestBootstrapIndex(t *testing.T) {
 	now := time.Now()
 	start := now.Truncate(indexBlockSize)
 
-	fooTags := ident.Tags{ident.StringTag("city", "ny"), ident.StringTag("conference", "monitoroma")}
-	barTags := ident.Tags{ident.StringTag("city", "sf")}
-	bazTags := ident.Tags{ident.StringTag("city", "oakland")}
+	fooTags := ident.NewTags(ident.StringTag("city", "ny"), ident.StringTag("conference", "monitoroma"))
+	barTags := ident.NewTags(ident.StringTag("city", "sf"))
+	bazTags := ident.NewTags(ident.StringTag("city", "oakland"))
 
 	shardZero := uint32(0)
 	foo := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero, ID: ident.StringID("foo"), Tags: fooTags}
 	bar := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 1, ID: ident.StringID("bar"), Tags: barTags}
 	baz := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 5, ID: ident.StringID("baz"), Tags: bazTags}
 	// Make sure we can handle series that don't have tags.
-	untagged := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 5, ID: ident.StringID("untagged"), Tags: nil}
+	untagged := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 5, ID: ident.StringID("untagged"), Tags: ident.Tags{}}
 	// Make sure we skip series that are not within the bootstrap range.
-	outOfRange := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 3, ID: ident.StringID("outOfRange"), Tags: nil}
+	outOfRange := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 3, ID: ident.StringID("outOfRange"), Tags: ident.Tags{}}
 	// Make sure we skip and dont panic on writes for shards that are higher than the maximum we're trying to bootstrap.
-	shardTooHigh := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 100, ID: ident.StringID("shardTooHigh"), Tags: nil}
+	shardTooHigh := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 100, ID: ident.StringID("shardTooHigh"), Tags: ident.Tags{}}
 	// Make sure we skip series for shards that have no requested bootstrap ranges. The shard for this write needs
 	// to be less than the highest shard we actually plan to bootstrap.
-	noShardBootstrapRange := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 4, ID: ident.StringID("noShardBootstrapRange"), Tags: nil}
+	noShardBootstrapRange := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 4, ID: ident.StringID("noShardBootstrapRange"), Tags: ident.Tags{}}
 
 	seriesNotToExpect := map[string]struct{}{
 		outOfRange.ID.String():            struct{}{},
@@ -192,7 +192,7 @@ func verifyIndexResultsAreCorrect(
 			existingTags = map[string]string{}
 			expectedSeries[seriesID] = existingTags
 		}
-		for _, tag := range value.s.Tags {
+		for _, tag := range value.s.Tags.Values() {
 			existingTags[tag.Name.String()] = tag.Value.String()
 		}
 	}

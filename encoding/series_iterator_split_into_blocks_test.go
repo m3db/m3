@@ -83,7 +83,7 @@ func TestDeconstructAndReconstruct(t *testing.T) {
 	multiReader.Reset([]xio.SegmentReader{reader}, blockStart, blockSize)
 
 	orig := encoding.NewSeriesIterator(ident.StringID("foo"), ident.StringID("namespace"),
-		ident.NewTagSliceIterator(ident.Tags{}), start, end, []encoding.MultiReaderIterator{multiReader}, nil)
+		ident.NewTagsIterator(ident.Tags{}), start, end, []encoding.MultiReaderIterator{multiReader}, nil)
 
 	// Construct a per block view of the series
 	series := Series{

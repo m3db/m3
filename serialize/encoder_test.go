@@ -68,10 +68,10 @@ func TestInuseEncode(t *testing.T) {
 
 func TestTagEncoderLeavesOriginalIterator(t *testing.T) {
 	e := newTestTagEncoder()
-	tags := ident.NewTagIterator(
+	tags := ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag("abc", "defg"),
 		ident.StringTag("x", "bar"),
-	)
+	))
 
 	require.Equal(t, 2, tags.Remaining())
 	require.NoError(t, e.Encode(tags))
@@ -81,10 +81,10 @@ func TestTagEncoderLeavesOriginalIterator(t *testing.T) {
 func TestSimpleEncode(t *testing.T) {
 	e := newTestTagEncoder()
 
-	tags := ident.NewTagIterator(
+	tags := ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag("abc", "defg"),
 		ident.StringTag("x", "bar"),
-	)
+	))
 	require.NoError(t, e.Encode(tags))
 
 	bc, ok := e.Data()
@@ -113,10 +113,10 @@ func TestTagEncoderErrorEncoding(t *testing.T) {
 	opts := NewTagEncoderOptions()
 	e := newTagEncoder(defaultNewCheckedBytesFn, opts, nil)
 	maxLiteralLen := opts.TagSerializationLimits().MaxTagLiteralLength()
-	tags := ident.NewTagIterator(
+	tags := ident.NewTagsIterator(ident.NewTags(
 		ident.StringTag("abc", "defg"),
 		ident.StringTag("x", nstring(1+int(maxLiteralLen))),
-	)
+	))
 
 	require.Error(t, e.Encode(tags))
 	d, ok := e.Data()
@@ -124,7 +124,7 @@ func TestTagEncoderErrorEncoding(t *testing.T) {
 	require.False(t, ok)
 
 	e.Reset()
-	tags = ident.NewTagIterator(ident.StringTag("abc", "defg"))
+	tags = ident.NewTagsIterator(ident.NewTags(ident.StringTag("abc", "defg")))
 	require.NoError(t, e.Encode(tags))
 }
 

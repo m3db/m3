@@ -170,8 +170,7 @@ func TestReadDataError(t *testing.T) {
 	err = w.Open(writerOpts)
 	require.NoError(t, err)
 	require.NoError(t, w.Write(
-		ident.StringID("foo"),
-		nil,
+		ident.StringID("foo"), ident.Tags{},
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	require.NoError(t, w.Close())
@@ -226,8 +225,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
 	assert.NoError(t, w.Write(
-		ident.StringID("foo"),
-		nil,
+		ident.StringID("foo"), ident.Tags{},
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -308,8 +306,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	assert.NoError(t, w.Open(writerOpts))
 
 	assert.NoError(t, w.Write(
-		ident.StringID("foo"),
-		nil,
+		ident.StringID("foo"), ident.Tags{},
 		bytesRefd([]byte{0x1}),
 		digest.Checksum([]byte{0x1})))
 	assert.NoError(t, w.Close())
@@ -402,8 +399,7 @@ func TestReadValidate(t *testing.T) {
 	require.NoError(t, w.Open(writerOpts))
 
 	assert.NoError(t, w.Write(
-		ident.StringID("foo"),
-		nil,
+		ident.StringID("foo"), ident.Tags{},
 		bytesRefd([]byte{0x1}),
 		digest.Checksum([]byte{0x1})))
 	require.NoError(t, w.Close())

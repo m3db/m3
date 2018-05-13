@@ -174,7 +174,7 @@ func NewReplicaMetadataComparer(replicas int, opts Options) ReplicaMetadataCompa
 	}
 }
 
-func (m replicaMetadataComparer) AddLocalMetadata(origin topology.Host, localIter block.FilteredBlocksMetadataIter) {
+func (m replicaMetadataComparer) AddLocalMetadata(origin topology.Host, localIter block.FilteredBlocksMetadataIter) error {
 	for localIter.Next() {
 		id, block := localIter.Current()
 		blocks := m.metadata.GetOrAdd(id)
@@ -184,6 +184,8 @@ func (m replicaMetadataComparer) AddLocalMetadata(origin topology.Host, localIte
 			Checksum: block.Checksum,
 		})
 	}
+
+	return localIter.Err()
 }
 
 func (m replicaMetadataComparer) AddPeerMetadata(peerIter client.PeerBlockMetadataIter) error {

@@ -40,34 +40,34 @@ func init() {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
-	idPool := ident.NewPool(bytesPool, nil)
+	idPool := ident.NewPool(bytesPool, ident.PoolOptions{})
 	testOpts.CheckedBytesPool = bytesPool
 	testOpts.IdentPool = idPool
 }
 
 func TestFromMetricInvalid(t *testing.T) {
 	id := ident.StringID("foo")
-	tags := ident.Tags{
+	tags := ident.NewTags(
 		ident.StringTag(string(convert.ReservedFieldNameID), "value"),
-	}
+	)
 	_, err := convert.FromMetric(id, tags)
 	assert.Error(t, err)
 }
 
 func TestFromMetricIteratorInvalid(t *testing.T) {
 	id := ident.StringID("foo")
-	tags := ident.Tags{
+	tags := ident.NewTags(
 		ident.StringTag(string(convert.ReservedFieldNameID), "value"),
-	}
-	_, err := convert.FromMetricIter(id, ident.NewTagSliceIterator(tags))
+	)
+	_, err := convert.FromMetricIter(id, ident.NewTagsIterator(tags))
 	assert.Error(t, err)
 }
 
 func TestFromMetricValid(t *testing.T) {
 	id := ident.StringID("foo")
-	tags := ident.Tags{
+	tags := ident.NewTags(
 		ident.StringTag("bar", "baz"),
-	}
+	)
 	d, err := convert.FromMetric(id, tags)
 	assert.NoError(t, err)
 	assert.Equal(t, "foo", string(d.ID))
@@ -78,10 +78,10 @@ func TestFromMetricValid(t *testing.T) {
 
 func TestFromMetricIterValid(t *testing.T) {
 	id := ident.StringID("foo")
-	tags := ident.Tags{
+	tags := ident.NewTags(
 		ident.StringTag("bar", "baz"),
-	}
-	d, err := convert.FromMetricIter(id, ident.NewTagSliceIterator(tags))
+	)
+	d, err := convert.FromMetricIter(id, ident.NewTagsIterator(tags))
 	assert.NoError(t, err)
 	assert.Equal(t, "foo", string(d.ID))
 	assert.Len(t, d.Fields, 1)

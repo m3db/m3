@@ -62,7 +62,7 @@ func NewOptions() Options {
 		encoderPool:                   encoding.NewEncoderPool(nil),
 		multiReaderIteratorPool:       encoding.NewMultiReaderIteratorPool(nil),
 		fetchBlockMetadataResultsPool: block.NewFetchBlockMetadataResultsPool(nil, 0),
-		identifierPool:                ident.NewPool(bytesPool, nil),
+		identifierPool:                ident.NewPool(bytesPool, ident.PoolOptions{}),
 	}
 }
 

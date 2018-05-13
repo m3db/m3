@@ -3867,22 +3867,22 @@ func newTagsFromEncodedTags(
 	idPool ident.Pool,
 ) (ident.Tags, error) {
 	if encodedTags == nil {
-		return nil, nil
+		return ident.Tags{}, nil
 	}
 
 	encodedTags.IncRef()
 	tagDecoder.Reset(encodedTags)
 
-	tags := make(ident.Tags, 0, tagDecoder.Remaining())
+	tags := idPool.Tags()
 	for tagDecoder.Next() {
 		curr := tagDecoder.Current()
-		tags = append(tags, idPool.CloneTag(curr))
+		tags.Append(idPool.CloneTag(curr))
 	}
 
 	encodedTags.DecRef()
 
 	if err := tagDecoder.Err(); err != nil {
-		return nil, err
+		return ident.Tags{}, err
 	}
 
 	return tags, nil

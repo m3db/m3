@@ -79,17 +79,17 @@ func TestPeersBootstrapIndexWithIndexingEnabled(t *testing.T) {
 
 	fooSeries := generate.Series{
 		ID:   ident.StringID("foo"),
-		Tags: ident.Tags{ident.StringTag("city", "new_york"), ident.StringTag("foo", "foo")},
+		Tags: ident.NewTags(ident.StringTag("city", "new_york"), ident.StringTag("foo", "foo")),
 	}
 
 	barSeries := generate.Series{
 		ID:   ident.StringID("bar"),
-		Tags: ident.Tags{ident.StringTag("city", "new_jersey")},
+		Tags: ident.NewTags(ident.StringTag("city", "new_jersey")),
 	}
 
 	bazSeries := generate.Series{
 		ID:   ident.StringID("baz"),
-		Tags: ident.Tags{ident.StringTag("city", "seattle")},
+		Tags: ident.NewTags(ident.StringTag("city", "seattle")),
 	}
 
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{

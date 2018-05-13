@@ -134,7 +134,7 @@ func (w testWrite) assert(
 	require.True(t, w.series.ID.Equal(series.ID), fmt.Sprintf("write ID '%s' does not match actual ID '%s'", w.series.ID.String(), series.ID.String()))
 	require.Equal(t, w.series.Shard, series.Shard)
 
-	require.Equal(t, len(w.series.Tags), len(series.Tags))
+	// ident.Tags.Equal will compare length
 	require.True(t, w.series.Tags.Equal(series.Tags))
 
 	require.True(t, w.t.Equal(datapoint.Timestamp))
@@ -354,8 +354,8 @@ func TestCommitLogWrite(t *testing.T) {
 	commitLog := newTestCommitLog(t, opts)
 
 	writes := []testWrite{
-		{testSeries(0, "foo.bar", ident.Tags{ident.StringTag("name1", "val1")}, 127), time.Now(), 123.456, xtime.Second, []byte{1, 2, 3}, nil},
-		{testSeries(1, "foo.baz", ident.Tags{ident.StringTag("name2", "val2")}, 150), time.Now(), 456.789, xtime.Second, nil, nil},
+		{testSeries(0, "foo.bar", ident.NewTags(ident.StringTag("name1", "val1")), 127), time.Now(), 123.456, xtime.Second, []byte{1, 2, 3}, nil},
+		{testSeries(1, "foo.baz", ident.NewTags(ident.StringTag("name2", "val2")), 150), time.Now(), 456.789, xtime.Second, nil, nil},
 	}
 
 	// Call write sync
@@ -396,7 +396,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 		allSeries = append(allSeries, testSeries(
 			uint64(i),
 			"hax",
-			ident.Tags{ident.StringTag("name", "val")},
+			ident.NewTags(ident.StringTag("name", "val")),
 			uint32(i%100),
 		))
 		if willNotHaveMetadata {
@@ -826,7 +826,7 @@ var (
 	testTag2 = ident.StringTag("name2", "val2")
 	testTag3 = ident.StringTag("name3", "val3")
 
-	testTags1 = ident.Tags{testTag1}
-	testTags2 = ident.Tags{testTag2}
-	testTags3 = ident.Tags{testTag3}
+	testTags1 = ident.NewTags(testTag1)
+	testTags2 = ident.NewTags(testTag2)
+	testTags3 = ident.NewTags(testTag3)
 )

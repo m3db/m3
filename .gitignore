@@ -24,3 +24,7 @@ debug.test
 
 # Test data
 test-data
+
+# Coverage imports
+coverage_imports.go
+

@@ -92,13 +92,14 @@ func TestFilteredBlocksMetadataIter(t *testing.T) {
 		_, metadata := iter.Current()
 		actual = append(actual, metadata)
 	}
+	require.NoError(t, iter.Err())
 
 	expected := []Metadata{
-		NewMetadata(ident.StringID("foo"), nil, now.Add(-time.Second),
+		NewMetadata(ident.StringID("foo"), ident.Tags{}, now.Add(-time.Second),
 			sizes[0], &checksums[0], lastRead),
-		NewMetadata(ident.StringID("bar"), nil, now,
+		NewMetadata(ident.StringID("bar"), ident.Tags{}, now,
 			sizes[1], &checksums[1], lastRead),
-		NewMetadata(ident.StringID("bar"), nil, now.Add(2*time.Second),
+		NewMetadata(ident.StringID("bar"), ident.Tags{}, now.Add(2*time.Second),
 			int64(0), nil, lastRead),
 	}
 

@@ -235,7 +235,11 @@ func newTestFetchTaggedPools() testFetchTaggedPools {
 	pools.multiReaderIteratorArray = encoding.NewMultiReaderIteratorArrayPool(nil)
 	pools.multiReaderIteratorArray.Init()
 
-	pools.id = ident.NewPool(nil, opts)
+	pools.id = ident.NewPool(nil, ident.PoolOptions{
+		IDPoolOptions:           opts,
+		TagsPoolOptions:         opts,
+		TagsIteratorPoolOptions: opts,
+	})
 
 	pools.checkedBytesWrapper = xpool.NewCheckedBytesWrapperPool(opts)
 	pools.checkedBytesWrapper.Init()

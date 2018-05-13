@@ -192,7 +192,7 @@ func sortedTagsFromTagsMap(tags map[string]string) ident.Tags {
 	}
 	sort.Strings(tagNames)
 	for _, name := range tagNames {
-		seriesTags = append(seriesTags, ident.StringTag(name, tags[name]))
+		seriesTags.Append(ident.StringTag(name, tags[name]))
 	}
 	return seriesTags
 }
