@@ -45,7 +45,7 @@ func TestPropertySerializationBijective(t *testing.T) {
 	properties := gopter.NewProperties(testParams)
 	properties.Property("serialization is bijiective", prop.ForAll(
 		func(x string) (bool, error) {
-			tags := ident.NewTagIterator(ident.StringTag(x, ""))
+			tags := ident.NewTagsIterator(ident.NewTags(ident.StringTag(x, "")))
 			copy, err := encodeAndDecode(tags)
 			if err != nil {
 				return false, err
@@ -61,7 +61,7 @@ func TestPropertyAnyStringsDontCollide(t *testing.T) {
 	properties := gopter.NewProperties(testParams)
 	properties.Property("no collisions during string concat", prop.ForAll(
 		func(tag ident.Tag) (bool, error) {
-			tags := ident.NewTagIterator(tag)
+			tags := ident.NewTagsIterator(ident.NewTags(tag))
 			copy, err := encodeAndDecode(tags)
 			if err != nil {
 				return false, err
@@ -77,7 +77,7 @@ func TestPropertyAnyReasonableTagSlicesAreAight(t *testing.T) {
 	properties := gopter.NewProperties(testParams)
 	properties.Property("tags of reasonable length are handled fine", prop.ForAll(
 		func(tags ident.Tags) (bool, error) {
-			iter := ident.NewTagSliceIterator(tags)
+			iter := ident.NewTagsIterator(tags)
 			copy, err := encodeAndDecode(iter)
 			if err != nil {
 				return false, err
@@ -161,4 +161,9 @@ func anyTag() gopter.Gen {
 		})
 }
 
-func anyTags() gopter.Gen { return gen.SliceOf(anyTag()) }
+func anyTags() gopter.Gen {
+	return gen.SliceOf(anyTag()).
+		Map(func(tags []ident.Tag) ident.Tags {
+			return ident.NewTags(tags...)
+		})
+}

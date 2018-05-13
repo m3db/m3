@@ -51,7 +51,7 @@ func (e testEntry) ID() ident.ID {
 
 func (e testEntry) Tags() ident.Tags {
 	if e.tags == nil {
-		return nil
+		return ident.Tags{}
 	}
 
 	// Return in sorted order for deterministic order
@@ -63,7 +63,7 @@ func (e testEntry) Tags() ident.Tags {
 
 	var tags ident.Tags
 	for _, key := range keys {
-		tags = append(tags, ident.StringTag(key, e.tags[key]))
+		tags.Append(ident.StringTag(key, e.tags[key]))
 	}
 
 	return tags
@@ -157,7 +157,7 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 				assert.Equal(t, entries[i].id, id.String())
 
 				// Assert tags
-				tagMatcher := ident.NewTagIterMatcher(ident.NewTagSliceIterator(entries[i].Tags()))
+				tagMatcher := ident.NewTagIterMatcher(ident.NewTagsIterator(entries[i].Tags()))
 				assert.True(t, tagMatcher.Matches(tags))
 
 				assert.True(t, bytes.Equal(entries[i].data, data.Bytes()))
@@ -181,7 +181,7 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 				assert.True(t, id.Equal(id))
 
 				// Assert tags
-				tagMatcher := ident.NewTagIterMatcher(ident.NewTagSliceIterator(entries[i].Tags()))
+				tagMatcher := ident.NewTagIterMatcher(ident.NewTagsIterator(entries[i].Tags()))
 				assert.True(t, tagMatcher.Matches(tags))
 
 				assert.Equal(t, digest.Checksum(entries[i].data), checksum)
@@ -411,11 +411,13 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	}
 	require.NoError(t, w.Open(writerOpts))
 
-	w.WriteAll(ident.StringID("foo"), nil, []checked.Bytes{
-		checkedBytes([]byte{1, 2, 3}),
-		nil,
-		checkedBytes([]byte{4, 5, 6}),
-	}, digest.Checksum([]byte{1, 2, 3, 4, 5, 6}))
+	w.WriteAll(ident.StringID("foo"), ident.Tags{},
+		[]checked.Bytes{
+			checkedBytes([]byte{1, 2, 3}),
+			nil,
+			checkedBytes([]byte{4, 5, 6}),
+		},
+		digest.Checksum([]byte{1, 2, 3, 4, 5, 6}))
 
 	assert.NoError(t, w.Close())
 

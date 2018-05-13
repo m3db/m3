@@ -149,10 +149,10 @@ func writeTestData(t *testing.T, bs time.Duration, src FileSetID, opts Options) 
 		id := ident.StringID(fmt.Sprintf("test-series.%d", i))
 		var tags ident.Tags
 		if i%2 == 0 {
-			tags = ident.Tags{
+			tags = ident.NewTags(
 				ident.StringTag("foo", "bar"),
 				ident.StringTag("qux", "qaz"),
-			}
+			)
 		}
 		require.NoError(t, w.Write(id, tags, testBytes, 1234))
 	}

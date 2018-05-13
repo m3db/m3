@@ -164,12 +164,18 @@ func (s *fetchBlocksMetadataResults) Reset() {
 
 func (s *fetchBlocksMetadataResults) Close() {
 	for i := range s.results {
-		s.results[i].ID.Finalize()
-		s.results[i].ID = nil
-		s.results[i].Tags.Close()
-		s.results[i].Tags = nil
-		s.results[i].Blocks.Close()
-		s.results[i].Blocks = nil
+		if s.results[i].ID != nil {
+			s.results[i].ID.Finalize()
+			s.results[i].ID = nil
+		}
+		if s.results[i].Tags != nil {
+			s.results[i].Tags.Close()
+			s.results[i].Tags = nil
+		}
+		if s.results[i].Blocks != nil {
+			s.results[i].Blocks.Close()
+			s.results[i].Blocks = nil
+		}
 	}
 	if s.pool != nil {
 		s.pool.Put(s)
@@ -205,8 +211,8 @@ func (it *filteredBlocksMetadataIter) Next() bool {
 	for it.blockIdx < len(blocks) {
 		block := blocks[it.blockIdx]
 		if block.Err != nil {
-			it.err = block.Err
-			return false
+			it.blockIdx++
+			continue
 		}
 		break
 	}

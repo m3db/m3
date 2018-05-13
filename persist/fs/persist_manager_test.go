@@ -353,7 +353,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		BlockSize: testBlockSize,
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil).Times(iter)
-	writer.EXPECT().WriteAll(id, nil, pm.segmentHolder, checksum).Return(nil).AnyTimes()
+	writer.EXPECT().WriteAll(id, ident.Tags{}, pm.segmentHolder, checksum).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 
 	// Enable rate limiting
