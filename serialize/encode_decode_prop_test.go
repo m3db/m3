@@ -45,14 +45,14 @@ func TestPropertySerializationBijective(t *testing.T) {
 	properties := gopter.NewProperties(testParams)
 	properties.Property("serialization is bijiective", prop.ForAll(
 		func(x string) (bool, error) {
-			tags := ident.NewTagsIterator(ident.NewTags(ident.StringTag(x, "")))
+			tags := ident.NewTagsIterator(ident.NewTags(ident.StringTag(x, x)))
 			copy, err := encodeAndDecode(tags)
 			if err != nil {
 				return false, err
 			}
 			return tagItersAreEqual(tags, copy)
 		},
-		gen.AnyString(),
+		gen.AnyString().SuchThat(func(x string) bool { return len(x) > 0 }),
 	))
 	properties.TestingRun(t)
 }
@@ -145,14 +145,14 @@ func iterErrCheck(ti1, ti2 ident.TagIterator) (bool, error) {
 
 func anyTag() gopter.Gen {
 	limit := int(testDecodeOpts.TagSerializationLimits().MaxTagLiteralLength())
-	return gopter.CombineGens(gen.AnyString(), gen.AnyString()).
+	return gopter.CombineGens(gen.Identifier(), gen.Identifier()).
 		SuchThat(func(values []interface{}) bool {
 			name := values[0].(string)
-			if len(name) > limit {
+			if len(name) > limit && len(name) > 0 {
 				return false
 			}
 			value := values[1].(string)
-			return len(value) <= limit
+			return len(value) <= limit && len(value) > 0
 		}).
 		Map(func(values []interface{}) ident.Tag {
 			name := values[0].(string)
