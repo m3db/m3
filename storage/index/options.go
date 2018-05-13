@@ -33,9 +33,6 @@ import (
 const (
 	// defaultIndexInsertMode sets the default indexing mode to synchronous.
 	defaultIndexInsertMode = InsertSync
-
-	defaultTagArrayPoolInitCapacity = 8
-	defaultTagArrayPoolMaxCapacity  = 32
 )
 
 var (
