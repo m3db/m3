@@ -340,6 +340,9 @@ func (i *nsIndex) writeBatchForBlockStartWithRLock(
 	if numErr := result.NumError; numErr != 0 {
 		i.metrics.AsyncInsertErrors.Inc(numErr)
 	}
+	if err != nil {
+		i.logger.Errorf("error writing to index block: %v", err)
+	}
 }
 
 // Bootstrap bootstraps the index with the provide blocks.
