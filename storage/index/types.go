@@ -267,10 +267,4 @@ type Options interface {
 
 	// ResultsPool returns the results pool.
 	ResultsPool() ResultsPool
-
-	// SetTagArrayPool updates the tag array pool.
-	SetTagArrayPool(value TagArrayPool) Options
-
-	// TagArrayPool updates the tag array pool.
-	TagArrayPool() TagArrayPool
 }

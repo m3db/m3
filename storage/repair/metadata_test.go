@@ -146,7 +146,8 @@ func TestReplicaMetadataComparerAddLocalMetadata(t *testing.T) {
 	)
 
 	m := NewReplicaMetadataComparer(3, testRepairOptions()).(replicaMetadataComparer)
-	m.AddLocalMetadata(origin, localIter)
+	err := m.AddLocalMetadata(origin, localIter)
+	require.NoError(t, err)
 
 	expected := []testBlock{
 		{inputBlocks[0].ID, inputBlocks[0].Start, []HostBlockMetadata{{origin, inputBlocks[0].Size, inputBlocks[0].Checksum}}},

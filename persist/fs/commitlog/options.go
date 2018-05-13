@@ -98,8 +98,7 @@ func NewOptions() Options {
 		readConcurrency: defaultReadConcurrency,
 	}
 	o.bytesPool.Init()
-
-	o.identPool = ident.NewPool(o.bytesPool, pool.NewObjectPoolOptions())
+	o.identPool = ident.NewPool(o.bytesPool, ident.PoolOptions{})
 	return o
 }
 

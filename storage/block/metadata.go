@@ -51,8 +51,5 @@ func (m *Metadata) Finalize() {
 		m.ID.Finalize()
 		m.ID = nil
 	}
-	if m.Tags != nil {
-		m.Tags.Finalize()
-		m.Tags = nil
-	}
+	m.Tags.Finalize()
 }

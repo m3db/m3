@@ -404,8 +404,9 @@ func (s *dbSeries) FetchBlocksMetadata(
 
 	// NB(r): Since ID and Tags are garbage collected we can safely
 	// return refs.
-	return block.NewFetchBlocksMetadataResult(s.id,
-		ident.NewTagSliceIterator(s.tags), res), nil
+	tagsIter := s.opts.IdentifierPool().TagsIterator()
+	tagsIter.Reset(s.tags)
+	return block.NewFetchBlocksMetadataResult(s.id, tagsIter, res), nil
 }
 
 func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
@@ -676,23 +677,9 @@ func (s *dbSeries) Close() {
 	s.Lock()
 	defer s.Unlock()
 
-	// NB(r): We explicitly do not place this ID back into an
-	// existing pool as high frequency users of series IDs such
-	// as the commit log need to use the reference without the
-	// overhead of ownership tracking. In addition, the blocks
-	// themselves have a reference to the ID which is required
-	// for the LRU/WiredList caching strategy eviction process.
-	// Since the wired list can still have a reference to a
-	// DatabaseBlock for which the corresponding DatabaseSeries
-	// has been closed, its important that the ID itself is still
-	// available because the process of kicking a DatabaseBlock
-	// out of the WiredList requires the ID.
-	//
-	// Since series are purged so infrequently the overhead
-	// of not releasing back an ID to a pool is amortized over
-	// a long period of time.
+	// See Reset() for why these aren't finalized
 	s.id = nil
-	s.tags = nil
+	s.tags = ident.Tags{}
 
 	switch s.opts.CachePolicy() {
 	case CacheLRU:
@@ -730,8 +717,26 @@ func (s *dbSeries) Reset(
 	s.Lock()
 	defer s.Unlock()
 
+	// NB(r): We explicitly do not place this ID back into an
+	// existing pool as high frequency users of series IDs such
+	// as the commit log need to use the reference without the
+	// overhead of ownership tracking. In addition, the blocks
+	// themselves have a reference to the ID which is required
+	// for the LRU/WiredList caching strategy eviction process.
+	// Since the wired list can still have a reference to a
+	// DatabaseBlock for which the corresponding DatabaseSeries
+	// has been closed, its important that the ID itself is still
+	// available because the process of kicking a DatabaseBlock
+	// out of the WiredList requires the ID.
+	//
+	// Since series are purged so infrequently the overhead
+	// of not releasing back an ID to a pool is amortized over
+	// a long period of time.
 	s.id = id
+	s.id.NoFinalize()
 	s.tags = tags
+	s.tags.NoFinalize()
+
 	s.blocks.Reset()
 	s.buffer.Reset(opts)
 	s.opts = opts

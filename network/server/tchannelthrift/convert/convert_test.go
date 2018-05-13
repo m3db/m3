@@ -156,8 +156,13 @@ type testPools struct {
 }
 
 func newTestPools() *testPools {
-	id := ident.NewPool(nil, nil)
-	wrapper := xpool.NewCheckedBytesWrapperPool(pool.NewObjectPoolOptions().SetSize(1))
+	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
+	id := ident.NewPool(nil, ident.PoolOptions{
+		IDPoolOptions:           poolOpts,
+		TagsPoolOptions:         poolOpts,
+		TagsIteratorPoolOptions: poolOpts,
+	})
+	wrapper := xpool.NewCheckedBytesWrapperPool(poolOpts)
 	wrapper.Init()
 	return &testPools{id, wrapper}
 }

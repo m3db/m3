@@ -61,6 +61,9 @@ type FilteredBlocksMetadataIter interface {
 
 	// Current returns the current id and block metadata
 	Current() (ident.ID, Metadata)
+
+	//  Error returns an error if encountered
+	Err() error
 }
 
 // FetchBlockResult captures the block start time, the readers for the underlying streams, the

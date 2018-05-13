@@ -118,7 +118,7 @@ func (d *decoder) decodeTag() (ident.Tag, error) {
 		return ident.Tag{}, err
 	}
 
-	return ident.Tag{name, value}, nil
+	return ident.Tag{Name: name, Value: value}, nil
 }
 
 func (d *decoder) decodeID() (ident.ID, error) {

@@ -40,13 +40,13 @@ func TestTaggedIDsIteratorMatcherMatches(t *testing.T) {
 		mIter.EXPECT().Current().Return(
 			ident.StringID("ns"),
 			ident.StringID("id0"),
-			ident.NewTagIterator(ident.StringTag("fgh", "ijk")),
+			ident.NewTagsIterator(ident.NewTags(ident.StringTag("fgh", "ijk"))),
 		),
 		mIter.EXPECT().Next().Return(true),
 		mIter.EXPECT().Current().Return(
 			ident.StringID("ns"),
 			ident.StringID("id1"),
-			ident.NewTagIterator(ident.StringTag("fgh", "ijk")),
+			ident.NewTagsIterator(ident.NewTags(ident.StringTag("fgh", "ijk"))),
 		),
 		mIter.EXPECT().Next().Return(false),
 		mIter.EXPECT().Next().Return(false),
@@ -76,7 +76,7 @@ func TestTaggedIDsIteratorMatcherDoesNotMatchTooFew(t *testing.T) {
 		mIter.EXPECT().Current().Return(
 			ident.StringID("ns"),
 			ident.StringID("id0"),
-			ident.NewTagIterator(ident.StringTag("fgh", "ijk")),
+			ident.NewTagsIterator(ident.NewTags(ident.StringTag("fgh", "ijk"))),
 		),
 		mIter.EXPECT().Next().Return(false),
 		mIter.EXPECT().Next().Return(false),
@@ -106,19 +106,19 @@ func TestTaggedIDsIteratorMatcherDoesNotMatchTooMany(t *testing.T) {
 		mIter.EXPECT().Current().Return(
 			ident.StringID("ns"),
 			ident.StringID("id0"),
-			ident.NewTagIterator(ident.StringTag("fgh", "ijk")),
+			ident.NewTagsIterator(ident.NewTags(ident.StringTag("fgh", "ijk"))),
 		),
 		mIter.EXPECT().Next().Return(true),
 		mIter.EXPECT().Current().Return(
 			ident.StringID("ns"),
 			ident.StringID("id1"),
-			ident.NewTagIterator(ident.StringTag("fgh", "ijk")),
+			ident.NewTagsIterator(ident.NewTags(ident.StringTag("fgh", "ijk"))),
 		),
 		mIter.EXPECT().Next().Return(true),
 		mIter.EXPECT().Current().Return(
 			ident.StringID("ns"),
 			ident.StringID("id2"),
-			ident.NewTagIterator(ident.StringTag("fgh", "ijk")),
+			ident.NewTagsIterator(ident.NewTags(ident.StringTag("fgh", "ijk"))),
 		),
 	)
 

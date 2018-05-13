@@ -143,7 +143,7 @@ func verifySeriesMapForRange(
 				expected, ok := expectedMetadata[id]
 				require.True(t, ok, fmt.Sprintf("unexpected ID: %s", id))
 
-				expectedTagsIter := ident.NewTagSliceIterator(expected.Tags)
+				expectedTagsIter := ident.NewTagsIterator(expected.Tags)
 				actualTagsIter := actual.Tags.Duplicate()
 				tagMatcher := ident.NewTagIterMatcher(expectedTagsIter)
 				tagsMatch := tagMatcher.Matches(actualTagsIter)
@@ -188,8 +188,8 @@ func writeVerifyDebugOutput(t *testing.T, filePath string, start, end time.Time,
 
 	list := make(readableSeriesList, 0, len(series))
 	for i := range series {
-		tags := make([]readableSeriesTag, len(series[i].Tags))
-		for _, tag := range series[i].Tags {
+		tags := make([]readableSeriesTag, len(series[i].Tags.Values()))
+		for _, tag := range series[i].Tags.Values() {
 			tags = append(tags, readableSeriesTag{
 				Name:  tag.Name.String(),
 				Value: tag.Value.String(),

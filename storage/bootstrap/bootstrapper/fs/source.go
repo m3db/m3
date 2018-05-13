@@ -349,10 +349,10 @@ func (s *fileSystemSource) markRunResultErrorsAndUnfulfilled(
 func (s *fileSystemSource) tagsFromTagsIter(
 	iter ident.TagIterator,
 ) (ident.Tags, error) {
-	tags := make(ident.Tags, 0, iter.Remaining())
+	tags := s.idPool.Tags()
 	for iter.Next() {
 		curr := iter.Current()
-		tags = append(tags, s.idPool.CloneTag(curr))
+		tags.Append(s.idPool.CloneTag(curr))
 	}
 	return tags, iter.Err()
 }

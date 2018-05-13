@@ -207,7 +207,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 
 	var (
 		id       = ident.StringID("foo")
-		tags     = ident.Tags{ident.StringTag("bar", "baz")}
+		tags     = ident.NewTags(ident.StringTag("bar", "baz"))
 		head     = checked.NewBytes([]byte{0x1, 0x2}, nil)
 		tail     = checked.NewBytes([]byte{0x3, 0x4}, nil)
 		segment  = ts.NewSegment(head, tail, ts.FinalizeNone)
@@ -279,7 +279,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 		now      time.Time
 		slept    time.Duration
 		id       = ident.StringID("foo")
-		tags     = ident.Tags{ident.StringTag("bar", "baz")}
+		tags     = ident.NewTags(ident.StringTag("bar", "baz"))
 		head     = checked.NewBytes([]byte{0x1, 0x2}, nil)
 		tail     = checked.NewBytes([]byte{0x3}, nil)
 		segment  = ts.NewSegment(head, tail, ts.FinalizeNone)
@@ -392,21 +392,21 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 
 		// Start persistence
 		now = time.Now()
-		require.NoError(t, prepared.Persist(id, nil, segment, checksum))
+		require.NoError(t, prepared.Persist(id, ident.Tags{}, segment, checksum))
 
 		// Assert we don't rate limit if the count is not enough yet
-		require.NoError(t, prepared.Persist(id, nil, segment, checksum))
+		require.NoError(t, prepared.Persist(id, ident.Tags{}, segment, checksum))
 		require.Equal(t, time.Duration(0), slept)
 
 		// Advance time and check we rate limit if the disk throughput exceeds the limit
 		now = now.Add(time.Microsecond)
-		require.NoError(t, prepared.Persist(id, nil, segment, checksum))
+		require.NoError(t, prepared.Persist(id, ident.Tags{}, segment, checksum))
 		require.Equal(t, time.Duration(1861), slept)
 
 		// Advance time and check we don't rate limit if the disk throughput is below the limit
-		require.NoError(t, prepared.Persist(id, nil, segment, checksum))
+		require.NoError(t, prepared.Persist(id, ident.Tags{}, segment, checksum))
 		now = now.Add(time.Second - time.Microsecond)
-		require.NoError(t, prepared.Persist(id, nil, segment, checksum))
+		require.NoError(t, prepared.Persist(id, ident.Tags{}, segment, checksum))
 		require.Equal(t, time.Duration(1861), slept)
 
 		require.Equal(t, int64(15), pm.bytesWritten)

@@ -164,11 +164,9 @@ func (s *fetchBlocksMetadataResults) Reset() {
 
 func (s *fetchBlocksMetadataResults) Close() {
 	for i := range s.results {
-		// NB(r): We explicitly do not finalize ID or Tags as
-		// some of them are refs to series in memory right now.
-		// For ID and Tags coming from disk callers can use the context
-		// to register finalizers for these types.
+		s.results[i].ID.Finalize()
 		s.results[i].ID = nil
+		s.results[i].Tags.Close()
 		s.results[i].Tags = nil
 		s.results[i].Blocks.Close()
 		s.results[i].Blocks = nil
@@ -184,11 +182,11 @@ type filteredBlocksMetadataIter struct {
 	metadata Metadata
 	resIdx   int
 	blockIdx int
+	err      error
 }
 
 // NewFilteredBlocksMetadataIter creates a new filtered blocks metadata
-// iterator, currently this will not propagate tags as there is no efficient
-// way to go from a tags iterator back to tags.
+// iterator, there's no pooling of the tags returned currently.
 // Only the repair process uses this currently which is unoptimized.
 func NewFilteredBlocksMetadataIter(
 	res FetchBlocksMetadataResults,
@@ -197,6 +195,9 @@ func NewFilteredBlocksMetadataIter(
 }
 
 func (it *filteredBlocksMetadataIter) Next() bool {
+	if it.err != nil {
+		return false
+	}
 	if it.resIdx >= len(it.res) {
 		return false
 	}
@@ -204,8 +205,8 @@ func (it *filteredBlocksMetadataIter) Next() bool {
 	for it.blockIdx < len(blocks) {
 		block := blocks[it.blockIdx]
 		if block.Err != nil {
-			it.blockIdx++
-			continue
+			it.err = block.Err
+			return false
 		}
 		break
 	}
@@ -216,8 +217,18 @@ func (it *filteredBlocksMetadataIter) Next() bool {
 	}
 	it.id = it.res[it.resIdx].ID
 	block := blocks[it.blockIdx]
-	// TODO(r): When reviving the end to end repair process, propagate tags.
-	it.metadata = NewMetadata(it.id, nil, block.Start,
+	tags := ident.NewTags()
+	tagsIter := it.res[it.resIdx].Tags
+	for tagsIter.Next() {
+		curr := tagsIter.Current()
+		tags.Append(ident.StringTag(curr.Name.String(), curr.Value.String()))
+	}
+	if err := tagsIter.Err(); err != nil {
+		it.err = err
+		return false
+	}
+	tagsIter.Close()
+	it.metadata = NewMetadata(it.id, tags, block.Start,
 		block.Size, block.Checksum, block.LastRead)
 	it.blockIdx++
 	return true
@@ -225,4 +236,8 @@ func (it *filteredBlocksMetadataIter) Next() bool {
 
 func (it *filteredBlocksMetadataIter) Current() (ident.ID, Metadata) {
 	return it.id, it.metadata
+}
+
+func (it *filteredBlocksMetadataIter) Err() error {
+	return it.err
 }

@@ -53,7 +53,6 @@ type opts struct {
 	idPool         ident.Pool
 	bytesPool      pool.CheckedBytesPool
 	resultsPool    ResultsPool
-	tagArrayPool   TagArrayPool
 }
 
 var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabled }
@@ -61,16 +60,11 @@ var undefinedUUIDFn = func() ([]byte, error) { return nil, errIDGenerationDisabl
 // NewOptions returns a new index.Options object with default properties.
 func NewOptions() Options {
 	resultsPool := NewResultsPool(pool.NewObjectPoolOptions())
-	tagArrayPool := NewTagArrayPool(TagArrayPoolOpts{
-		Capacity:    defaultTagArrayPoolInitCapacity,
-		MaxCapacity: defaultTagArrayPoolMaxCapacity,
-	})
-	tagArrayPool.Init()
 	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
-	idPool := ident.NewPool(bytesPool, nil)
+	idPool := ident.NewPool(bytesPool, ident.PoolOptions{})
 	opts := &opts{
 		insertMode:     defaultIndexInsertMode,
 		clockOpts:      clock.NewOptions(),
@@ -78,7 +72,6 @@ func NewOptions() Options {
 		memOpts:        mem.NewOptions().SetNewUUIDFn(undefinedUUIDFn),
 		bytesPool:      bytesPool,
 		idPool:         idPool,
-		tagArrayPool:   tagArrayPool,
 		resultsPool:    resultsPool,
 	}
 	resultsPool.Init(func() Results { return NewResults(opts) })
@@ -168,14 +161,4 @@ func (o *opts) SetResultsPool(value ResultsPool) Options {
 
 func (o *opts) ResultsPool() ResultsPool {
 	return o.resultsPool
-}
-
-func (o *opts) SetTagArrayPool(value TagArrayPool) Options {
-	opts := *o
-	opts.tagArrayPool = value
-	return &opts
-}
-
-func (o *opts) TagArrayPool() TagArrayPool {
-	return o.tagArrayPool
 }

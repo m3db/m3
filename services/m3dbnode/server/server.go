@@ -910,17 +910,13 @@ func withEncodingAndPoolingOptions(
 	multiIteratorPool := encoding.NewMultiReaderIteratorPool(
 		poolOptions(policy.IteratorPool, scope.SubScope("multi-iterator-pool")))
 
-	var identifierPool ident.Pool
-	switch policy.Type {
-	case "simple":
-		identifierPool = ident.NewPool(
-			bytesPool,
-			poolOptions(policy.IdentifierPool, scope.SubScope("identifier-pool")))
-	case "native":
-		identifierPool = ident.NewNativePool(
-			bytesPool,
-			poolOptions(policy.IdentifierPool, scope.SubScope("identifier-pool")))
-	}
+	identifierPool := ident.NewPool(bytesPool, ident.PoolOptions{
+		IDPoolOptions:           poolOptions(policy.IdentifierPool, scope.SubScope("identifier-pool")),
+		TagsPoolOptions:         maxCapacityPoolOptions(policy.TagsPool, scope.SubScope("tags-pool")),
+		TagsCapacity:            policy.TagsPool.Capacity,
+		TagsMaxCapacity:         policy.TagsPool.MaxCapacity,
+		TagsIteratorPoolOptions: poolOptions(policy.TagsIteratorPool, scope.SubScope("tags-iterator-pool")),
+	})
 
 	fetchBlockMetadataResultsPool := block.NewFetchBlockMetadataResultsPool(
 		capacityPoolOptions(policy.FetchBlockMetadataResultsPool,
@@ -996,14 +992,6 @@ func withEncodingAndPoolingOptions(
 		SetBytesPool(bytesPool).
 		SetIdentifierPool(identifierPool))
 
-	// options related to the indexing sub-system
-	tagArrPool := index.NewTagArrayPool(index.TagArrayPoolOpts{
-		Options:     maxCapacityPoolOptions(policy.TagArrayPool, scope.SubScope("tag-array-pool")),
-		Capacity:    policy.TagArrayPool.Capacity,
-		MaxCapacity: policy.TagArrayPool.MaxCapacity,
-	})
-	tagArrPool.Init()
-
 	resultsPool := index.NewResultsPool(poolOptions(policy.IndexResultsPool,
 		scope.SubScope("index-results-pool")))
 	indexOpts := opts.IndexOptions().
@@ -1012,7 +1000,6 @@ func withEncodingAndPoolingOptions(
 			opts.IndexOptions().MemSegmentOptions().SetInstrumentOptions(iopts)).
 		SetIdentifierPool(identifierPool).
 		SetCheckedBytesPool(bytesPool).
-		SetTagArrayPool(tagArrPool).
 		SetResultsPool(resultsPool)
 	resultsPool.Init(func() index.Results { return index.NewResults(indexOpts) })
 
