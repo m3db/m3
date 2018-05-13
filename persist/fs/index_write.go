@@ -22,6 +22,7 @@ package fs
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -30,10 +31,17 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/index"
 	"github.com/m3db/m3db/persist"
+	idxpersist "github.com/m3db/m3ninx/persist"
+	xerrors "github.com/m3db/m3x/errors"
 )
 
 const (
 	indexFileSetMajorVersion = 1
+)
+
+var (
+	errIndexFileSetWriterReturnsNoFiles = errors.New(
+		"index file set writer returned zero file types")
 )
 
 type indexWriter struct {
@@ -41,7 +49,6 @@ type indexWriter struct {
 	filePathPrefix   string
 	newFileMode      os.FileMode
 	newDirectoryMode os.FileMode
-	readerBuf        *bufio.Reader
 	fdWithDigest     digest.FdWithDigestWriter
 
 	err           error
@@ -59,7 +66,7 @@ type indexWriter struct {
 }
 
 type writtenIndexSegment struct {
-	segmentType  IndexSegmentType
+	segmentType  idxpersist.IndexSegmentType
 	majorVersion int
 	minorVersion int
 	metadata     []byte
@@ -67,7 +74,7 @@ type writtenIndexSegment struct {
 }
 
 type writtenIndexSegmentFile struct {
-	segmentFileType IndexSegmentFileType
+	segmentFileType idxpersist.IndexSegmentFileType
 	digest          uint32
 }
 
@@ -82,7 +89,6 @@ func NewIndexWriter(opts Options) (IndexFileSetWriter, error) {
 		filePathPrefix:   opts.FilePathPrefix(),
 		newFileMode:      opts.NewFileMode(),
 		newDirectoryMode: opts.NewDirectoryMode(),
-		readerBuf:        bufio.NewReader(nil),
 		fdWithDigest:     digest.NewFdWithDigestWriter(bufferSize),
 	}, nil
 }
@@ -134,14 +140,9 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	return nil
 }
 
-func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) error {
-	// Always close the files
-	defer func() {
-		for _, file := range segmentFileSet.Files() {
-			file.Close()
-		}
-	}()
-
+func (w *indexWriter) WriteSegmentFileSet(
+	segmentFileSet idxpersist.IndexSegmentFileSetWriter,
+) error {
 	if w.err != nil {
 		return w.err
 	}
@@ -158,9 +159,14 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) er
 		metadata:     segmentFileSet.SegmentMetadata(),
 	}
 
+	files := segmentFileSet.Files()
+	if len(files) == 0 {
+		return w.markSegmentWriteError(segType, "",
+			errIndexFileSetWriterReturnsNoFiles)
+	}
+
 	idx := len(w.segments)
-	for _, file := range segmentFileSet.Files() {
-		segFileType := file.SegmentFileType()
+	for _, segFileType := range files {
 		if err := segFileType.Validate(); err != nil {
 			return w.markSegmentWriteError(segType, segFileType, err)
 		}
@@ -187,20 +193,19 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) er
 			return w.markSegmentWriteError(segType, segFileType, err)
 		}
 
-		// Use buffered IO reader to write the file in case the reader
+		// Use buffered IO writer to write the file in case the reader
 		// returns small chunks of data
-		w.readerBuf.Reset(file)
 		w.fdWithDigest.Reset(fd)
 		digest := w.fdWithDigest.Digest()
-		if _, err := w.readerBuf.WriteTo(w.fdWithDigest); err != nil {
-			return w.markSegmentWriteError(segType, segFileType, err)
-		}
-		if err := w.fdWithDigest.Close(); err != nil {
+		writer := bufio.NewWriter(w.fdWithDigest)
+		writeErr := segmentFileSet.WriteFile(segFileType, writer)
+		err = xerrors.FirstError(writeErr, writer.Flush(), w.fdWithDigest.Close())
+		if err != nil {
 			return w.markSegmentWriteError(segType, segFileType, err)
 		}
 
 		seg.files = append(seg.files, writtenIndexSegmentFile{
-			segmentFileType: file.SegmentFileType(),
+			segmentFileType: segFileType,
 			digest:          digest.Sum32(),
 		})
 	}
@@ -210,8 +215,8 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSet) er
 }
 
 func (w *indexWriter) markSegmentWriteError(
-	segType IndexSegmentType,
-	segFileType IndexSegmentFileType,
+	segType idxpersist.IndexSegmentType,
+	segFileType idxpersist.IndexSegmentFileType,
 	err error,
 ) error {
 	w.err = fmt.Errorf("failed to write segment_type=%s, segment_file_type=%s: %v",
