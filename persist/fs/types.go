@@ -23,7 +23,6 @@ package fs
 import (
 	"io"
 	"os"
-	"regexp"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -40,13 +39,6 @@ import (
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
-)
-
-var (
-	// fileSubTypeRegex allows what can be used for a file sub type,
-	// explicitly cannot use "-" as that is our file set file name separator,
-	// also we ensure that callers must use lower cased strings.
-	fileSubTypeRegex = regexp.MustCompile("^[a-z_]+$")
 )
 
 // FileSetFileIdentifier contains all the information required to identify a FileSetFile
