@@ -1,5 +1,5 @@
-hash: 713fed9cf8519794dc959f8c18d63c0da69d3ba057a340644f0d2db12aa04dd1
-updated: 2018-05-11T13:10:38.674476-04:00
+hash: f4cb27b24fcbb82a9c6402a8598881ff0ed5332360ee459dcef9a57f0295823f
+updated: 2018-05-12T23:03:51.183526-04:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -112,19 +112,21 @@ imports:
   - spew
 - name: github.com/dgrijalva/jwt-go
   version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
+- name: github.com/dgryski/go-bits
+  version: 2ad8d707cc05b1815ce6ff2543bb5e8d8f9298ef
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/glycerine/go-unsnap-stream
   version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
 - name: github.com/go-kit/kit
-  version: 91c58cc7d6d770b0285fdd69949a23d817a57d13
+  version: 04dd4f741c6e76cc170a4d7913f4c625952e6f58
   subpackages:
   - log
   - log/level
 - name: github.com/go-logfmt/logfmt
   version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
 - name: github.com/go-stack/stack
-  version: 259ab82a6cad3992b4e21ff5cac294ccb06474bc
+  version: 54be5f394ed2c3e19dac9134a40a95ba5a017f7b
 - name: github.com/gogo/protobuf
   version: 100ba4e885062801d56799d78530b73b178a78f3
   subpackages:
@@ -217,7 +219,7 @@ imports:
   - metric
   - policy
 - name: github.com/m3db/m3ninx
-  version: dfe14ddc086c7045dc14525761d7c1755ab5a42a
+  version: 12b8ac4f173f9d539b0e94f3bca475318ab1a8db
   subpackages:
   - doc
   - generated/proto/querypb
@@ -225,9 +227,6 @@ imports:
   - index
   - index/segment
   - index/segment/mem
-  - index/segment/mem/fieldsgen
-  - index/segment/mem/idsgen
-  - index/segment/mem/postingsgen
   - index/util
   - postings
   - postings/roaring
@@ -270,11 +269,11 @@ imports:
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/nightlyone/lockfile
-  version: 6a197d5ea61168f2ac821de2b7f011b250904900
+  version: 1d49c987357a327b5b03aa84cbddd582c328615d
 - name: github.com/nu7hatch/gouuid
   version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
 - name: github.com/oklog/ulid
-  version: 7e1bd8a9a281b5abdf651a430b918bb0ecdbceda
+  version: 66bb6560562feca7045b23db1ae85b01260f87c5
 - name: github.com/opentracing/opentracing-go
   version: 855519783f479520497c6b3445611b05fc42f009
   subpackages:
@@ -286,7 +285,7 @@ imports:
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pkg/errors
-  version: 816c9085562cd7ee03e7f8188a1cfd942858cded
+  version: 248dadf4e9068a0b3e79f02ed0a610d935de5302
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
@@ -294,7 +293,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: c5b7fccd204277076155f10851dad72b76a49317
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
@@ -323,15 +322,13 @@ imports:
   - util/strutil
   - util/testutil
 - name: github.com/prometheus/tsdb
-  version: def6e5a57439cffe7b44a619c05bce4ac513a63e
+  version: 706602daed1487f7849990678b4ece4599745905
   subpackages:
-  - chunkenc
   - chunks
   - fileutil
-  - index
   - labels
 - name: github.com/RoaringBitmap/roaring
-  version: 4bbba8874933b985c9160558fddea525dde73e63
+  version: 1a28a7fa985680f9f4e1644c0a857ec359a444b0
 - name: github.com/satori/go.uuid
   version: f58768cc1a7a7e77a3bd49e98cdd21419399b6a3
 - name: github.com/sergi/go-diff
@@ -420,7 +417,7 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sync
-  version: fd80eb99c8f653c847d294a001bdf2a3a6f768f5
+  version: 450f422ab23cf9881c94e2db30cac0eb1b7cf80c
   subpackages:
   - errgroup
 - name: golang.org/x/sys
