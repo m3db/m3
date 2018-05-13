@@ -229,7 +229,7 @@ func genWrite() gopter.Gen {
 
 		return generatedWrite{
 			id:       ident.StringID(id),
-			tags:     tags,
+			tags:     ident.NewTags(tags...),
 			data:     bytesRefd(data),
 			checksum: digest.Checksum(data),
 		}
