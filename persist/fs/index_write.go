@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/proto/index"
 	"github.com/m3db/m3db/persist"
+	idxpersist "github.com/m3db/m3ninx/persist"
 	xerrors "github.com/m3db/m3x/errors"
 )
 
@@ -65,7 +66,7 @@ type indexWriter struct {
 }
 
 type writtenIndexSegment struct {
-	segmentType  IndexSegmentType
+	segmentType  idxpersist.IndexSegmentType
 	majorVersion int
 	minorVersion int
 	metadata     []byte
@@ -73,7 +74,7 @@ type writtenIndexSegment struct {
 }
 
 type writtenIndexSegmentFile struct {
-	segmentFileType IndexSegmentFileType
+	segmentFileType idxpersist.IndexSegmentFileType
 	digest          uint32
 }
 
@@ -139,7 +140,9 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	return nil
 }
 
-func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSetWriter) error {
+func (w *indexWriter) WriteSegmentFileSet(
+	segmentFileSet idxpersist.IndexSegmentFileSetWriter,
+) error {
 	if w.err != nil {
 		return w.err
 	}
@@ -212,8 +215,8 @@ func (w *indexWriter) WriteSegmentFileSet(segmentFileSet IndexSegmentFileSetWrit
 }
 
 func (w *indexWriter) markSegmentWriteError(
-	segType IndexSegmentType,
-	segFileType IndexSegmentFileType,
+	segType idxpersist.IndexSegmentType,
+	segFileType idxpersist.IndexSegmentFileType,
 	err error,
 ) error {
 	w.err = fmt.Errorf("failed to write segment_type=%s, segment_file_type=%s: %v",

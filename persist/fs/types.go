@@ -21,7 +21,6 @@
 package fs
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"regexp"
@@ -35,6 +34,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/x/xio"
+	idxpersist "github.com/m3db/m3ninx/persist"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -270,72 +270,26 @@ type IndexWriterOpenOptions struct {
 
 // IndexFileSetWriter is a index file set writer.
 type IndexFileSetWriter interface {
+	idxpersist.IndexFileSetWriter
 	io.Closer
 
 	// Open the index file set writer.
 	Open(opts IndexWriterOpenOptions) error
-
-	// WriteSegmentFileSet writes a index segment file set.
-	WriteSegmentFileSet(segmentFileSet IndexSegmentFileSetWriter) error
-}
-
-// IndexSegmentType is the type of an index file set.
-type IndexSegmentType string
-
-// Validate validates whether the string value is a valid segment type
-// and contains only lowercase a-z and underscore characters.
-func (t IndexSegmentType) Validate() error {
-	s := string(t)
-	if t == "" || !fileSubTypeRegex.MatchString(s) {
-		return fmt.Errorf("invalid segment type must match pattern=%s",
-			fileSubTypeRegex.String())
-	}
-	return nil
-}
-
-// IndexSegmentFileType is the type of a file in an index file set.
-type IndexSegmentFileType string
-
-// Validate validates whether the string value is a valid segment file type
-// and contains only lowercase a-z and underscore characters.
-func (t IndexSegmentFileType) Validate() error {
-	s := string(t)
-	if t == "" || !fileSubTypeRegex.MatchString(s) {
-		return fmt.Errorf("invalid segment file type must match pattern=%s",
-			fileSubTypeRegex.String())
-	}
-	return nil
 }
 
 // IndexSegmentFileSetWriter is an index segment file set writer.
 type IndexSegmentFileSetWriter interface {
-	SegmentType() IndexSegmentType
-	MajorVersion() int
-	MinorVersion() int
-	SegmentMetadata() []byte
-	Files() []IndexSegmentFileType
-	WriteFile(fileType IndexSegmentFileType, writer io.Writer) error
+	idxpersist.IndexSegmentFileSetWriter
 }
 
 // IndexSegmentFileSet is an index segment file set.
 type IndexSegmentFileSet interface {
-	SegmentType() IndexSegmentType
-	MajorVersion() int
-	MinorVersion() int
-	SegmentMetadata() []byte
-	Files() []IndexSegmentFile
+	idxpersist.IndexSegmentFileSet
 }
 
 // IndexSegmentFile is a file in an index segment file set.
 type IndexSegmentFile interface {
-	io.Reader
-	io.Closer
-
-	// SegmentFileType returns the segment file type.
-	SegmentFileType() IndexSegmentFileType
-
-	// Bytes will be valid until the segment file is closed.
-	Bytes() ([]byte, error)
+	idxpersist.IndexSegmentFileSet
 }
 
 // IndexReaderOpenOptions is the index file set reader open options.
@@ -346,19 +300,11 @@ type IndexReaderOpenOptions struct {
 
 // IndexFileSetReader is an index file set reader.
 type IndexFileSetReader interface {
+	idxpersist.IndexFileSetReader
 	io.Closer
 
 	// Open the index file set reader.
 	Open(opts IndexReaderOpenOptions) error
-
-	// SegmentFileSets returns the number of segment file sets.
-	SegmentFileSets() int
-
-	// ReadSegmentFileSet returns the next segment file set or an error.
-	// It will return io.EOF error when no more file sets remain.
-	// The IndexSegmentFileSet will only be valid before it's closed,
-	// after that calls to Read or Bytes on it will have unexpected results.
-	ReadSegmentFileSet() (IndexSegmentFileSet, error)
 
 	// Validate returns whether all checksums were matched as expected,
 	// it must be called after reading all the segment file sets otherwise

@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/persist"
+	idxpersist "github.com/m3db/m3ninx/persist"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
@@ -91,22 +92,22 @@ func TestIndexSimpleReadWrite(t *testing.T) {
 
 	testSegments := []testIndexSegment{
 		{
-			segmentType:  IndexSegmentType("fst"),
+			segmentType:  idxpersist.IndexSegmentType("fst"),
 			majorVersion: 1,
 			minorVersion: 2,
 			files: []testIndexSegmentFile{
-				{IndexSegmentFileType("first"), randDataFactorOfBuffSize(t, 1.5)},
-				{IndexSegmentFileType("second"), randDataFactorOfBuffSize(t, 2.5)},
+				{idxpersist.IndexSegmentFileType("first"), randDataFactorOfBuffSize(t, 1.5)},
+				{idxpersist.IndexSegmentFileType("second"), randDataFactorOfBuffSize(t, 2.5)},
 			},
 		},
 		{
-			segmentType:  IndexSegmentType("trie"),
+			segmentType:  idxpersist.IndexSegmentType("trie"),
 			majorVersion: 3,
 			minorVersion: 4,
 			files: []testIndexSegmentFile{
-				{IndexSegmentFileType("first"), randDataFactorOfBuffSize(t, 1.5)},
-				{IndexSegmentFileType("second"), randDataFactorOfBuffSize(t, 2.5)},
-				{IndexSegmentFileType("third"), randDataFactorOfBuffSize(t, 3)},
+				{idxpersist.IndexSegmentFileType("first"), randDataFactorOfBuffSize(t, 1.5)},
+				{idxpersist.IndexSegmentFileType("second"), randDataFactorOfBuffSize(t, 2.5)},
+				{idxpersist.IndexSegmentFileType("third"), randDataFactorOfBuffSize(t, 3)},
 			},
 		},
 	}
@@ -156,7 +157,7 @@ func randDataFactorOfBuffSize(t *testing.T, factor float64) []byte {
 }
 
 type testIndexSegment struct {
-	segmentType  IndexSegmentType
+	segmentType  idxpersist.IndexSegmentType
 	majorVersion int
 	minorVersion int
 	metadata     []byte
@@ -164,7 +165,7 @@ type testIndexSegment struct {
 }
 
 type testIndexSegmentFile struct {
-	segmentFileType IndexSegmentFileType
+	segmentFileType idxpersist.IndexSegmentFileType
 	data            []byte
 }
 
@@ -181,7 +182,7 @@ func writeTestIndexSegments(
 		fileSet.EXPECT().MinorVersion().Return(s.minorVersion)
 		fileSet.EXPECT().SegmentMetadata().Return(s.metadata)
 
-		var files []IndexSegmentFileType
+		var files []idxpersist.IndexSegmentFileType
 		for _, f := range s.files {
 			files = append(files, f.segmentFileType)
 		}
@@ -190,7 +191,7 @@ func writeTestIndexSegments(
 		for _, f := range s.files {
 			fileSet.EXPECT().
 				WriteFile(f.segmentFileType, gomock.Any()).
-				DoAndReturn(func(_ IndexSegmentFileType, w io.Writer) error {
+				DoAndReturn(func(_ idxpersist.IndexSegmentFileType, w io.Writer) error {
 					_, err := w.Write(f.data)
 					return err
 				})
