@@ -1619,12 +1619,12 @@ func (s *dbShard) Bootstrap(
 			}
 		}
 
-		// No longer require ID or tags
-		dbBlocks.ID.Finalize()
+		// No longer require tags as we copy them in insert series sync
+		// or if we found the series then we don't require them for insertion
+		// at all
 		dbBlocks.Tags.Finalize()
 
-		// Cannot close blocks once done as series takes ref to these,
-		// however we copy ID and Tags
+		// Cannot close blocks once done as series takes ref to these
 		bsResult, err := entry.series.Bootstrap(dbBlocks.Blocks)
 		if err != nil {
 			multiErr = multiErr.Add(err)
