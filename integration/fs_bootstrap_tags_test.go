@@ -84,25 +84,25 @@ func TestFilesystemBootstrapTagsWithIndexingDisabled(t *testing.T) {
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{
 			IDs:       []string{"foo"},
-			Tags:      ident.Tags{ident.StringTag("aaa", "bbb"), ident.StringTag("ccc", "ddd")},
+			Tags:      ident.NewTags(ident.StringTag("aaa", "bbb"), ident.StringTag("ccc", "ddd")),
 			NumPoints: 100,
 			Start:     now.Add(-blockSize),
 		},
 		{
 			IDs:       []string{"bar"},
-			Tags:      ident.Tags{ident.StringTag("eee", "fff")},
+			Tags:      ident.NewTags(ident.StringTag("eee", "fff")),
 			NumPoints: 100,
 			Start:     now.Add(-blockSize),
 		},
 		{
 			IDs:       []string{"foo"},
-			Tags:      ident.Tags{ident.StringTag("aaa", "bbb"), ident.StringTag("ccc", "ddd")},
+			Tags:      ident.NewTags(ident.StringTag("aaa", "bbb"), ident.StringTag("ccc", "ddd")),
 			NumPoints: 50,
 			Start:     now,
 		},
 		{
 			IDs:       []string{"baz"},
-			Tags:      ident.Tags{ident.StringTag("ggg", "hhh")},
+			Tags:      ident.NewTags(ident.StringTag("ggg", "hhh")),
 			NumPoints: 50,
 			Start:     now,
 		},
