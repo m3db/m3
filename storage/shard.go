@@ -1651,6 +1651,11 @@ func (s *dbShard) Bootstrap(
 		if entry == nil {
 			// Synchronously insert to avoid waiting for
 			// the insert queue potential delayed insert
+			// FOLLOWUP(r/prateek): Avoid having to pass tag iter
+			// to insertSeriesSync just because newShardEntry
+			// takes a tags iter instead of tags (which it will
+			// create from this tags iter which is created from
+			// tags).
 			tagsIter := s.identifierPool.TagsIterator()
 			tagsIter.Reset(dbBlocks.Tags)
 			entry, err = s.insertSeriesSync(dbBlocks.ID, tagsIter,
@@ -1664,6 +1669,11 @@ func (s *dbShard) Bootstrap(
 		// No longer require tags as we copy them in insert series sync
 		// or if we found the series then we don't require them for insertion
 		// at all
+		// FOLLOWUP(r): Audit places that keep refs to the ID from a
+		// bootstrap result, newShardEntry copies it but some of the
+		// bootstrapped blocks when using all_metadata and perhaps
+		// another series cache policy keeps refs to the ID with
+		// retrieveID, so for now these IDs will be garbage collected)
 		dbBlocks.Tags.Finalize()
 
 		// Cannot close blocks once done as series takes ref to these

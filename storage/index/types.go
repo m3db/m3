@@ -301,6 +301,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 			startIdx = i
 		}
 	}
+
 	// spill over
 	if startIdx < len(b.entries) {
 		b.entries = allEntries[startIdx:]
@@ -371,6 +372,7 @@ func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 			blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
 			b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
 			b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
+			b.entries[idx].OnIndexSeries = nil
 			b.entries[idx].result = WriteBatchEntryResult{Err: nil}
 		}
 	}
@@ -416,7 +418,7 @@ func (b *WriteBatch) Swap(i, j int) {
 }
 
 // Less returns whether an entry appears before another depending
-// on the type of sort and .
+// on the type of sort.
 func (b *WriteBatch) Less(i, j int) bool {
 	if b.sortBy == writeBatchSortByEnqueued {
 		return b.entries[i].enqueuedIdx < b.entries[j].enqueuedIdx
