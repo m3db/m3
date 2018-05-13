@@ -154,7 +154,7 @@ func (q *nsIndexInsertQueue) insertLoop() {
 }
 
 func (q *nsIndexInsertQueue) InsertBatch(
-	entries []index.WriteBatchEntry,
+	batch *index.WriteBatch,
 ) (*sync.WaitGroup, error) {
 	windowNanos := q.nowFn().Truncate(time.Second).UnixNano()
 
@@ -175,7 +175,8 @@ func (q *nsIndexInsertQueue) InsertBatch(
 			return nil, errNewSeriesIndexRateLimitExceeded
 		}
 	}
-	q.currBatch.inserts = append(q.currBatch.inserts, entries)
+	batchLen := batch.Len()
+	q.currBatch.inserts = append(q.currBatch.inserts, batch)
 	wg := q.currBatch.wg
 	q.Unlock()
 
@@ -186,7 +187,7 @@ func (q *nsIndexInsertQueue) InsertBatch(
 		// Loop busy, already ready to consume notification
 	}
 
-	q.metrics.numPending.Inc(int64(len(entries)))
+	q.metrics.numPending.Inc(int64(batchLen))
 	return wg, nil
 }
 
@@ -227,11 +228,11 @@ func (q *nsIndexInsertQueue) Stop() error {
 	return nil
 }
 
-type nsIndexInsertBatchFn func(inserts [][]index.WriteBatchEntry)
+type nsIndexInsertBatchFn func(inserts []*index.WriteBatch)
 
 type nsIndexInsertBatch struct {
 	wg      *sync.WaitGroup
-	inserts [][]index.WriteBatchEntry
+	inserts []*index.WriteBatch
 }
 
 func (b *nsIndexInsertBatch) Reset() {

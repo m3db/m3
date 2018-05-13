@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3db/storage/series/lookup"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
+	"github.com/m3db/m3ninx/doc"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
@@ -791,7 +792,8 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesUniqueIndex = entry.Index
 		if err == nil && shouldReverseIndex {
 			if entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
-				err = s.insertSeriesForIndexing(entry, timestamp, opts.writeNewSeriesAsync)
+				err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
+					opts.writeNewSeriesAsync)
 			}
 		}
 		// release the reference we got on entry from `writableSeries`
@@ -981,7 +983,7 @@ type insertAsyncResult struct {
 	entry *lookup.Entry
 }
 
-func (s *dbShard) insertSeriesForIndexing(
+func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 	entry *lookup.Entry,
 	timestamp time.Time,
 	async bool,
@@ -1198,7 +1200,11 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	// Perform any indexing, pending writes or pending retrieved blocks outside of lock
 	ctx := s.contextPool.Get()
 	// TODO(prateek): pool this type
-	indexBatch := make([]index.WriteBatchEntry, 0, numPendingIndexing)
+	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
+	indexBatch := index.NewWriteBatch(index.WriteBatchOptions{
+		InitialCapacity: numPendingIndexing,
+		IndexBlockSize:  indexBlockSize,
+	})
 	for i := range inserts {
 		var (
 			entry           = inserts[i].entry
@@ -1219,12 +1225,20 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// increment the ref on the entry, as the original one was transferred to the
 			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
 			entry.OnIndexPrepare()
-			indexBatch = append(indexBatch, index.WriteBatchEntry{
-				ID:            entry.Series.ID(),
-				Tags:          entry.Series.Tags(),
+
+			var d doc.Document
+			d.ID = entry.Series.ID().Bytes() // IDs from shard entries are always set NoFinalize
+			d.Fields = make(doc.Fields, 0, len(entry.Series.Tags().Values()))
+			for _, tag := range entry.Series.Tags().Values() {
+				d.Fields = append(d.Fields, doc.Field{
+					Name:  tag.Name.Bytes(),  // Tags from shard entries are always set NoFinalize
+					Value: tag.Value.Bytes(), // Tags from shard entries are always set NoFinalize
+				})
+			}
+			indexBatch.Append(index.WriteBatchEntry{
 				Timestamp:     pendingIndex.timestamp,
 				OnIndexSeries: entry,
-			})
+			}, d)
 		}
 
 		if inserts[i].opts.hasPendingRetrievedBlock {
@@ -1239,7 +1253,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 	var err error
 	// index all requested entries in batch.
-	if len(indexBatch) != 0 {
+	if indexBatch.Len() > 0 {
 		err = s.reverseIndex.WriteBatch(indexBatch)
 	}
 

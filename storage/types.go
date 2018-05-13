@@ -436,7 +436,7 @@ type namespaceIndex interface {
 
 	// WriteBatch indexes the provided entries.
 	WriteBatch(
-		entries []index.WriteBatchEntry,
+		batch *index.WriteBatch,
 	) error
 
 	// Query resolves the given query into known IDs.
@@ -482,7 +482,7 @@ type namespaceIndexInsertQueue interface {
 	// inserts to the index asynchronously. It executes the provided callbacks
 	// based on the result of the execution. The returned wait group can be used
 	// if the insert is required to be synchronous.
-	InsertBatch(entries []index.WriteBatchEntry) (*sync.WaitGroup, error)
+	InsertBatch(batch *index.WriteBatch) (*sync.WaitGroup, error)
 }
 
 // databaseBootstrapManager manages the bootstrap process.

@@ -1,5 +1,5 @@
-hash: ae522bcbc20f0ddb69902e6e73f1b42499a361d4fda9e4c1f9f32b148a253d19
-updated: 2018-05-13T10:07:27.359065-04:00
+hash: 238562b5d3566785aa16f01f9dcea7d80e0281177fdb88be6036b1f60e6c8744
+updated: 2018-05-13T17:00:00.352679-04:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -219,7 +219,7 @@ imports:
   - metric
   - policy
 - name: github.com/m3db/m3ninx
-  version: 12b8ac4f173f9d539b0e94f3bca475318ab1a8db
+  version: 2a492ea6d91d3e2b5b9deb1b5cab343c80de373b
   subpackages:
   - doc
   - generated/proto/querypb
@@ -228,6 +228,7 @@ imports:
   - index/segment
   - index/segment/mem
   - index/util
+  - persist
   - postings
   - postings/roaring
   - search

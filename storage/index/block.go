@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/storage/index/convert"
 	m3ninxindex "github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/index/segment/mem"
@@ -36,7 +35,6 @@ import (
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
-	xtime "github.com/m3db/m3x/time"
 )
 
 var (
@@ -70,6 +68,7 @@ type block struct {
 	newExecutorFn newExecutorFn
 	startTime     time.Time
 	endTime       time.Time
+	blockSize     time.Duration
 	opts          Options
 }
 
@@ -88,11 +87,11 @@ func NewBlock(
 	}
 
 	b := &block{
-		state:   blockStateOpen,
-		segment: seg,
-
+		state:     blockStateOpen,
+		segment:   seg,
 		startTime: startTime,
 		endTime:   startTime.Add(blockSize),
+		blockSize: blockSize,
 		opts:      opts,
 	}
 	b.newExecutorFn = b.executorWithRLock
@@ -108,74 +107,49 @@ func (b *block) EndTime() time.Time {
 	return b.endTime
 }
 
-func (b *block) WriteBatch(inserts WriteBatchEntryByBlockStartAndID) (WriteBatchResult, error) {
-	b.RLock()
-	defer b.RUnlock()
+func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
+	b.Lock()
+	defer b.Unlock()
 
 	if b.state != blockStateOpen {
-		// NB: releasing all references to inserts
-		WriteBatchEntriesFinalizer(inserts).Finalize()
+		err := b.writeBatchErrorInvalidState(b.state)
+		inserts.MarkUnmarkedEntriesError(err)
 		return WriteBatchResult{
-			NumError: int64(len(inserts)),
-		}, b.writeBatchErrorInvalidState(b.state)
+			NumError: int64(inserts.Len()),
+		}, err
 	}
 
-	var (
-		multiErr xerrors.MultiError
-		result   WriteBatchResult
-	)
-	inserts.ForEachID(func(writesForID WriteBatchEntryByBlockStartAndID) {
-		// all writes are guaranteed to have the same ID by this point, and further
-		// we're guaranteed that at least a single element exists in the slice.
-		id := writesForID[0].ID
-		tags := writesForID[0].Tags
-
-		if id == nil {
-			return
-		}
-
-		// define some helper functions to help keep the code below cleaner.
-		failFn := func(err error) {
-			multiErr = multiErr.Add(err)
-			result.NumError += int64(len(writesForID))
-			// finalize all refs
-			WriteBatchEntriesFinalizer(writesForID).Finalize()
-		}
-		successFn := func() {
-			result.NumSuccess += int64(len(writesForID))
-			// mark the first ref success (can mark any ref success here, because they're backed by
-			// by the same entry). Could also mark all of them success but it wouldn't buy us anything.
-			writesForID[0].OnIndexSeries.OnIndexSuccess(xtime.ToUnixNano(b.startTime))
-			// we do need to finalize all refs as each is an extra inc we need to dec
-			WriteBatchEntriesFinalizer(writesForID).Finalize()
-		}
-
-		contains, err := b.segment.ContainsID(id.Bytes())
-		if contains && err == nil {
-			// can early terminate as the active segment already has the ID
-			successFn()
-			return
-		}
-
-		// NB(prateek): we delay the conversion from ident types -> doc as we want to minimize the allocs
-		// of idents until we're sure we actually need to index a series. This helps keep memory usage low
-		// when we receive a large spike of new metrics.
-		d, err := convert.FromMetric(id, tags)
-		if err != nil {
-			failFn(err)
-			return
-		}
-
-		// now actually perform the insert
-		if _, err := b.segment.Insert(d); err != nil {
-			failFn(err)
-			return
-		}
-
-		successFn()
+	err := b.segment.InsertBatch(m3ninxindex.Batch{
+		Docs:                inserts.PendingDocs(),
+		AllowPartialUpdates: true,
 	})
+	if err == nil {
+		inserts.MarkUnmarkedEntriesSuccess()
+		return WriteBatchResult{
+			NumSuccess: int64(inserts.Len()),
+		}, nil
+	}
 
-	return result, multiErr.FinalError()
+	partialErr, ok := err.(*m3ninxindex.BatchPartialError)
+	if !ok { // should never happen
+		err := b.unknownWriteBatchInvariantError(err)
+		// NB: marking all the inserts as failure, cause we don't know which ones failed
+		inserts.MarkUnmarkedEntriesError(err)
+		return WriteBatchResult{NumError: int64(inserts.Len())}, err
+	}
+
+	numErr := len(partialErr.Errs())
+	for _, err := range partialErr.Errs() {
+		// Avoid marking these as success
+		inserts.MarkUnmarkedEntryError(err.Err, err.Idx)
+	}
+
+	// mark all non-error inserts success, so we don't repeatedly index them
+	inserts.MarkUnmarkedEntriesSuccess()
+	return WriteBatchResult{
+		NumSuccess: int64(inserts.Len() - numErr),
+		NumError:   int64(numErr),
+	}, partialErr
 }
 
 func (b *block) executorWithRLock() (search.Executor, error) {
