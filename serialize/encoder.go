@@ -57,6 +57,7 @@ var (
 var (
 	errTagEncoderInUse   = errors.New("encoder already in use")
 	errTagLiteralTooLong = errors.New("literal is too long")
+	errEmptyTagLiteral   = errors.New("tag nam/value cannot be empty")
 )
 
 type newCheckedBytesFn func([]byte, checked.BytesOptions) checked.Bytes
@@ -164,6 +165,11 @@ func (e *encoder) encodeTag(t ident.Tag) error {
 
 func (e *encoder) encodeID(i ident.ID) error {
 	d := i.Data().Bytes()
+
+	if len(d) == 0 {
+		return errEmptyTagLiteral
+	}
+
 	max := int(e.opts.TagSerializationLimits().MaxTagLiteralLength())
 	if len(d) >= max {
 		return errTagLiteralTooLong
