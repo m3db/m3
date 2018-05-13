@@ -60,10 +60,15 @@ func TestBatchPartialError(t *testing.T) {
 	require.True(t, err.IsEmpty())
 
 	for _, idx := range idxs {
-		err.Add(errors.New("error"), idx)
+		err.Add(BatchError{errors.New("error"), idx})
 	}
 	require.False(t, err.IsEmpty())
-	require.Equal(t, idxs, err.Indices())
+
+	var actualIdxs []int
+	for _, err := range err.Errs() {
+		actualIdxs = append(actualIdxs, err.Idx)
+	}
+	require.Equal(t, idxs, actualIdxs)
 
 	require.True(t, IsBatchPartialError(err))
 	require.False(t, IsBatchPartialError(errors.New("error")))
