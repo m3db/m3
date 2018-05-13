@@ -191,7 +191,7 @@ func (s *segment) prepareDocsWithLocks(b index.Batch) error {
 			if !b.AllowPartialUpdates {
 				return err
 			}
-			batchErr.Add(err, i)
+			batchErr.Add(index.BatchError{err, i})
 			b.Docs[i] = emptyDoc
 			continue
 		}
@@ -208,7 +208,7 @@ func (s *segment) prepareDocsWithLocks(b index.Batch) error {
 				if !b.AllowPartialUpdates {
 					return ErrDuplicateID
 				}
-				batchErr.Add(ErrDuplicateID, i)
+				batchErr.Add(index.BatchError{ErrDuplicateID, i})
 				b.Docs[i] = emptyDoc
 				continue
 			}
@@ -218,7 +218,7 @@ func (s *segment) prepareDocsWithLocks(b index.Batch) error {
 				if !b.AllowPartialUpdates {
 					return err
 				}
-				batchErr.Add(err, i)
+				batchErr.Add(index.BatchError{err, i})
 				b.Docs[i] = emptyDoc
 				continue
 			}

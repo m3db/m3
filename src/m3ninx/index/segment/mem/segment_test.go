@@ -401,10 +401,10 @@ func TestSegmentInsertBatchPartialError(t *testing.T) {
 			require.Equal(t, int64(1), segment.Size())
 
 			batchErr := err.(*index.BatchPartialError)
-			idxs := batchErr.Indices()
-			failedDocs := make(map[int]struct{}, len(idxs))
-			for _, idx := range idxs {
-				failedDocs[idx] = struct{}{}
+			errs := batchErr.Errs()
+			failedDocs := make(map[int]struct{}, len(errs))
+			for _, err := range errs {
+				failedDocs[err.Idx] = struct{}{}
 			}
 
 			r, err := segment.Reader()
@@ -464,8 +464,8 @@ func TestSegmentInsertBatchPartialErrorInvalidDoc(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, index.IsBatchPartialError(err))
 	be := err.(*index.BatchPartialError)
-	require.Len(t, be.Indices(), 1)
-	require.Equal(t, be.Indices()[0], 0)
+	require.Len(t, be.Errs(), 1)
+	require.Equal(t, be.Errs()[0].Idx, 0)
 
 	r, err := segment.Reader()
 	require.NoError(t, err)
@@ -521,8 +521,8 @@ func TestSegmentContainsID(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, index.IsBatchPartialError(err))
 	be := err.(*index.BatchPartialError)
-	require.Len(t, be.Indices(), 1)
-	require.Equal(t, be.Indices()[0], 0)
+	require.Len(t, be.Errs(), 1)
+	require.Equal(t, be.Errs()[0].Idx, 0)
 
 	ok, err = segment.ContainsID([]byte("abc"))
 	require.NoError(t, err)
@@ -604,9 +604,9 @@ func TestSegmentInsertBatchPartialErrorAlreadyIndexing(t *testing.T) {
 	err = segment.InsertBatch(b2)
 	require.Error(t, err)
 	require.True(t, index.IsBatchPartialError(err))
-	ind := err.(*index.BatchPartialError).Indices()
-	require.Len(t, ind, 1)
-	require.Equal(t, 2, ind[0])
+	errs := err.(*index.BatchPartialError).Errs()
+	require.Len(t, errs, 1)
+	require.Equal(t, 2, errs[0].Idx)
 }
 
 func TestSegmentReaderMatchExact(t *testing.T) {
