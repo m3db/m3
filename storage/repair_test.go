@@ -272,11 +272,11 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		host topology.Host
 		meta block.Metadata
 	}{
-		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("foo"), nil,
+		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("foo"), ident.Tags{},
 			now.Add(30*time.Minute), sizes[0], &checksums[0], lastRead)},
-		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("foo"), nil,
+		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("foo"), ident.Tags{},
 			now.Add(time.Hour), sizes[0], &checksums[1], lastRead)},
-		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("bar"), nil,
+		{topology.NewHost("1", "addr1"), block.NewMetadata(ident.StringID("bar"), ident.Tags{},
 			now.Add(30*time.Minute), sizes[2], &checksums[2], lastRead)},
 	}
 

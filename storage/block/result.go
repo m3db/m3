@@ -223,17 +223,18 @@ func (it *filteredBlocksMetadataIter) Next() bool {
 	}
 	it.id = it.res[it.resIdx].ID
 	block := blocks[it.blockIdx]
-	tags := ident.NewTags()
-	tagsIter := it.res[it.resIdx].Tags
-	for tagsIter.Next() {
-		curr := tagsIter.Current()
-		tags.Append(ident.StringTag(curr.Name.String(), curr.Value.String()))
+	var tags ident.Tags
+	if tagsIter := it.res[it.resIdx].Tags; tagsIter != nil {
+		for tagsIter.Next() {
+			curr := tagsIter.Current()
+			tags.Append(ident.StringTag(curr.Name.String(), curr.Value.String()))
+		}
+		if err := tagsIter.Err(); err != nil {
+			it.err = err
+			return false
+		}
+		tagsIter.Close()
 	}
-	if err := tagsIter.Err(); err != nil {
-		it.err = err
-		return false
-	}
-	tagsIter.Close()
 	it.metadata = NewMetadata(it.id, tags, block.Start,
 		block.Size, block.Checksum, block.LastRead)
 	it.blockIdx++

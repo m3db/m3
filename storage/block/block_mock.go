@@ -90,6 +90,18 @@ func (mr *MockFilteredBlocksMetadataIterMockRecorder) Current() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Current", reflect.TypeOf((*MockFilteredBlocksMetadataIter)(nil).Current))
 }
 
+// Err mocks base method
+func (m *MockFilteredBlocksMetadataIter) Err() error {
+	ret := m.ctrl.Call(m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Err indicates an expected call of Err
+func (mr *MockFilteredBlocksMetadataIterMockRecorder) Err() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockFilteredBlocksMetadataIter)(nil).Err))
+}
+
 // MockFetchBlockMetadataResults is a mock of FetchBlockMetadataResults interface
 type MockFetchBlockMetadataResults struct {
 	ctrl     *gomock.Controller
