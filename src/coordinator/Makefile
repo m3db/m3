@@ -1,30 +1,31 @@
 SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
-include $(SELF_DIR)/.ci/common.mk
+CI_DIR := $(SELF_DIR)/../..
+include $(CI_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail
 
 m3coord_package      := github.com/m3db/m3db/src/coordinator
 gopath_prefix        := $(GOPATH)/src
 vendor_prefix        := vendor
-license_dir          := .ci/uber-licence
+license_dir          := $(CI_DIR)/.ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
 html_report          := coverage.html
-test                 := .ci/test-cover.sh
-test_one_integration := .ci/test-one-integration.sh
-test_ci_integration  := .ci/test-integration.sh
-convert-test-data    := .ci/convert-test-data.sh
+test                 := $(CI_DIR)/.ci/test-cover.sh
+test_one_integration := $(CI_DIR)/.ci/test-one-integration.sh
+test_ci_integration  := $(CI_DIR)/.ci/test-integration.sh
+convert-test-data    := $(CI_DIR)/.ci/convert-test-data.sh
 coverfile            := cover.out
 coverage_xml         := coverage.xml
 junit_xml            := junit.xml
 test_log             := test.log
-lint_check           := .ci/lint.sh
-metalint_check       := .ci/metalint.sh
+lint_check           := $(CI_DIR)/.ci/lint.sh
+metalint_check       := $(CI_DIR)/.ci/metalint.sh
 metalint_config      := .metalinter.json
 metalint_exclude     := .excludemetalint
 protoc_go_package    := github.com/golang/protobuf/protoc-gen-go
 proto_output_dir     := generated/proto
 proto_rules_dir      := generated/proto
-auto_gen             := .ci/auto-gen.sh
+auto_gen             := $(CI_DIR)/.ci/auto-gen.sh
 mockgen_package      := github.com/golang/mock/mockgen
 mocks_output_dir     := generated/mocks/mocks
 mocks_rules_dir      := generated/mocks
@@ -129,7 +130,7 @@ metalint: install-metalinter install-linter-badtime install-linter-importorder
 .PHONY: test-internal
 test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
-	@$(VENDOR_ENV) $(test) $(coverfile) | tee $(test_log)
+	@$(VENDOR_ENV) $(test) $(coverfile) .excludecoverage test.log $(CI_DIR) | tee $(test_log)
 
 # Note: do not test native pooling since it's experimental/deprecated
 .PHONY: test-integration
