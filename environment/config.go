@@ -42,7 +42,6 @@ const (
 )
 
 var (
-	errNilRetention  = errors.New("namespace retention options cannot be empty")
 	errInvalidConfig = errors.New("must supply either service or static config")
 )
 
