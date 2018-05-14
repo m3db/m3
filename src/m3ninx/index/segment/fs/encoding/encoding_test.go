@@ -30,76 +30,82 @@ import (
 
 func TestUint32(t *testing.T) {
 	tests := []struct {
-		n uint32
+		x uint32
 	}{
 		{
-			n: 0,
+			x: 0,
 		},
 		{
-			n: 42,
+			x: 42,
 		},
 		{
-			n: math.MaxUint32,
+			x: math.MaxUint32,
 		},
 	}
 
 	for _, test := range tests {
-		name := fmt.Sprintf("Encode and Decode %d", test.n)
+		name := fmt.Sprintf("Encode and Decode %d", test.x)
 		t.Run(name, func(t *testing.T) {
 			enc := NewEncoder(1024)
-			enc.PutUint32(test.n)
+			n := enc.PutUint32(test.x)
+			require.Equal(t, 4, n)
 
 			dec := NewDecoder(enc.Bytes())
 			actual, err := dec.Uint32()
 
 			require.NoError(t, err)
-			require.Equal(t, test.n, actual)
+			require.Equal(t, test.x, actual)
 		})
 	}
 }
 
 func TestUint64(t *testing.T) {
 	tests := []struct {
-		n uint64
+		x uint64
 	}{
 		{
-			n: 0,
+			x: 0,
 		},
 		{
-			n: 42,
+			x: 42,
 		},
 		{
-			n: math.MaxUint64,
+			x: math.MaxUint64,
 		},
 	}
 
 	for _, test := range tests {
-		name := fmt.Sprintf("Encode and Decode %d", test.n)
+		name := fmt.Sprintf("Encode and Decode %d", test.x)
 		t.Run(name, func(t *testing.T) {
 			enc := NewEncoder(1024)
-			enc.PutUint64(test.n)
+			n := enc.PutUint64(test.x)
+			require.Equal(t, 8, n)
 
 			dec := NewDecoder(enc.Bytes())
 			actual, err := dec.Uint64()
 
 			require.NoError(t, err)
-			require.Equal(t, test.n, actual)
+			require.Equal(t, test.x, actual)
 		})
 	}
 }
 
 func TestUvarint(t *testing.T) {
 	tests := []struct {
-		n uint64
+		x uint64
+		n int
 	}{
 		{
-			n: 0,
+			x: 0,
+			n: 1,
 		},
 		{
-			n: 42,
+			x: 42,
+			n: 1,
 		},
 		{
-			n: math.MaxUint64,
+			x: math.MaxUint64,
+			n: 10,
 		},
 	}
 
@@ -107,13 +113,14 @@ func TestUvarint(t *testing.T) {
 		name := fmt.Sprintf("Encode and Decode %d", test.n)
 		t.Run(name, func(t *testing.T) {
 			enc := NewEncoder(1024)
-			enc.PutUvarint(test.n)
+			n := enc.PutUvarint(test.x)
+			require.Equal(t, test.n, n)
 
 			dec := NewDecoder(enc.Bytes())
 			actual, err := dec.Uvarint()
 
 			require.NoError(t, err)
-			require.Equal(t, test.n, actual)
+			require.Equal(t, test.x, actual)
 		})
 	}
 }
@@ -122,21 +129,25 @@ func TestBytes(t *testing.T) {
 	tests := []struct {
 		name string
 		b    []byte
+		n    int
 	}{
 		{
 			name: "Encode and Decode Empty Byte Slice",
 			b:    []byte(""),
+			n:    1,
 		},
 		{
 			name: "Encode and Decode Non-Empty Byte Slice",
 			b:    []byte("foo bar baz"),
+			n:    12,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			enc := NewEncoder(1024)
-			enc.PutBytes(test.b)
+			n := enc.PutBytes(test.b)
+			require.Equal(t, test.n, n)
 
 			dec := NewDecoder(enc.Bytes())
 			actual, err := dec.Bytes()
@@ -145,6 +156,22 @@ func TestBytes(t *testing.T) {
 			require.Equal(t, test.b, actual)
 		})
 	}
+}
+
+func TestEncoderLen(t *testing.T) {
+	enc := NewEncoder(1024)
+
+	enc.PutUint32(42)
+	require.Equal(t, 4, enc.Len())
+
+	enc.PutUint64(42)
+	require.Equal(t, 4+8, enc.Len())
+
+	enc.PutUvarint(42)
+	require.Equal(t, 4+8+1, enc.Len())
+
+	enc.PutBytes([]byte("42"))
+	require.Equal(t, 4+8+1+3, enc.Len())
 }
 
 func TestEncoderReset(t *testing.T) {

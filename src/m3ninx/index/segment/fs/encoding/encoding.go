@@ -40,38 +40,46 @@ type Encoder struct {
 }
 
 // NewEncoder returns a new encoder.
-func NewEncoder(size int) *Encoder {
-	return &Encoder{buf: make([]byte, 0, size)}
+func NewEncoder(n int) *Encoder {
+	return &Encoder{buf: make([]byte, 0, n)}
 }
 
 // Bytes returns the encoded bytes.
 func (e *Encoder) Bytes() []byte { return e.buf }
 
+// Len returns the length of the encoder.
+func (e *Encoder) Len() int { return len(e.buf) }
+
 // Reset resets the encoder.
 func (e *Encoder) Reset() { e.buf = e.buf[:0] }
 
-// PutUint32 encodes a uint32.
-func (e *Encoder) PutUint32(x uint32) {
+// PutUint32 encodes a uint32 and returns the number of bytes written which is always 4.
+func (e *Encoder) PutUint32(x uint32) int {
 	byteOrder.PutUint32(e.tmp[:], x)
 	e.buf = append(e.buf, e.tmp[:4]...)
+	return 4
 }
 
-// PutUint64 encodes a uint64.
-func (e *Encoder) PutUint64(x uint64) {
+// PutUint64 encodes a uint64 and returns the number of bytes written which is always 8.
+func (e *Encoder) PutUint64(x uint64) int {
 	byteOrder.PutUint64(e.tmp[:], x)
 	e.buf = append(e.buf, e.tmp[:8]...)
+	return 8
 }
 
-// PutUvarint encodes a variable-sized unsigned integer.
-func (e *Encoder) PutUvarint(x uint64) {
+// PutUvarint encodes a variable-sized unsigned integer and returns the number of
+// bytes written.
+func (e *Encoder) PutUvarint(x uint64) int {
 	n := binary.PutUvarint(e.tmp[:], x)
 	e.buf = append(e.buf, e.tmp[:n]...)
+	return n
 }
 
-// PutBytes encodes a byte slice.
-func (e *Encoder) PutBytes(b []byte) {
-	e.PutUvarint(uint64(len(b)))
+// PutBytes encodes a byte slice and returns the number of bytes written.
+func (e *Encoder) PutBytes(b []byte) int {
+	n := e.PutUvarint(uint64(len(b)))
 	e.buf = append(e.buf, b...)
+	return n + len(b)
 }
 
 // Decoder is a low-level decoder for decoding basic types.
