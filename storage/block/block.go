@@ -307,8 +307,12 @@ func (b *dbBlock) stream(ctx context.Context) (xio.BlockReader, error) {
 		segmentReader := b.opts.SegmentReaderPool().Get()
 		data := b.opts.BytesPool().Get(b.segment.Len())
 		data.IncRef()
-		data.AppendAll(b.segment.Head.Bytes())
-		data.AppendAll(b.segment.Tail.Bytes())
+		if b.segment.Head != nil {
+			data.AppendAll(b.segment.Head.Bytes())
+		}
+		if b.segment.Tail != nil {
+			data.AppendAll(b.segment.Tail.Bytes())
+		}
 		data.DecRef()
 		segmentReader.Reset(ts.NewSegment(data, nil, ts.FinalizeHead))
 		ctx.RegisterFinalizer(segmentReader)
