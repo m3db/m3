@@ -80,14 +80,14 @@ func TestPersistenceManagerPrepareDataFileExistsNoDelete(t *testing.T) {
 	require.NoError(t, err)
 	f.Close()
 
-	flush, err := pm.StartPersist()
+	flush, err := pm.StartDataPersist()
 	require.NoError(t, err)
 
 	defer func() {
 		assert.NoError(t, flush.Done())
 	}()
 
-	prepareOpts := persist.PrepareOptions{
+	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: testNs1Metadata(t),
 		Shard:             shard,
 		BlockStart:        blockStart,
@@ -124,14 +124,14 @@ func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {
 	require.NoError(t, err)
 	f.Close()
 
-	flush, err := pm.StartPersist()
+	flush, err := pm.StartDataPersist()
 	require.NoError(t, err)
 
 	defer func() {
 		assert.NoError(t, flush.Done())
 	}()
 
-	prepareOpts := persist.PrepareOptions{
+	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: testNs1Metadata(t),
 		Shard:             shard,
 		BlockStart:        blockStart,
@@ -168,14 +168,14 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	}
 	writer.EXPECT().Open(writerOpts).Return(expectedErr)
 
-	flush, err := pm.StartPersist()
+	flush, err := pm.StartDataPersist()
 	require.NoError(t, err)
 
 	defer func() {
 		assert.NoError(t, flush.Done())
 	}()
 
-	prepareOpts := persist.PrepareOptions{
+	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: ns1Md,
 		Shard:             shard,
 		BlockStart:        blockStart,
@@ -216,7 +216,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	writer.EXPECT().WriteAll(id, tags, gomock.Any(), checksum).Return(nil)
 	writer.EXPECT().Close()
 
-	flush, err := pm.StartPersist()
+	flush, err := pm.StartDataPersist()
 	require.NoError(t, err)
 
 	defer func() {
@@ -228,7 +228,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	pm.count = 123
 	pm.bytesWritten = 100
 
-	prepareOpts := persist.PrepareOptions{
+	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: testNs1Metadata(t),
 		Shard:             shard,
 		BlockStart:        blockStart,
@@ -291,7 +291,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 
 	writer.EXPECT().WriteAll(id, tags, pm.segmentHolder, checksum).Return(nil).Times(2)
 
-	flush, err := pm.StartPersist()
+	flush, err := pm.StartDataPersist()
 	require.NoError(t, err)
 
 	defer func() {
@@ -299,7 +299,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	}()
 
 	// prepare the flush
-	prepareOpts := persist.PrepareOptions{
+	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: testNs1Metadata(t),
 		Shard:             shard,
 		BlockStart:        blockStart,
@@ -378,11 +378,11 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		// Reset
 		slept = time.Duration(0)
 
-		flush, err := pm.StartPersist()
+		flush, err := pm.StartDataPersist()
 		require.NoError(t, err)
 
 		// prepare the flush
-		prepareOpts := persist.PrepareOptions{
+		prepareOpts := persist.DataPrepareOptions{
 			NamespaceMetadata: testNs1Metadata(t),
 			Shard:             shard,
 			BlockStart:        blockStart,
@@ -427,7 +427,7 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 
-	flush, err := pm.StartPersist()
+	flush, err := pm.StartDataPersist()
 	require.NoError(t, err)
 
 	defer func() {
@@ -443,7 +443,7 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 		BlockSize: testBlockSize,
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil)
-	prepareOpts := persist.PrepareOptions{
+	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: testNs1Metadata(t),
 		Shard:             shard,
 		BlockStart:        blockStart,
@@ -462,7 +462,7 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 		BlockSize: testBlockSize,
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil)
-	prepareOpts = persist.PrepareOptions{
+	prepareOpts = persist.DataPrepareOptions{
 		NamespaceMetadata: testNs2Metadata(t),
 		Shard:             shard,
 		BlockStart:        blockStart,

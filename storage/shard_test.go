@@ -198,12 +198,12 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	}
 
 	var closed bool
-	flush := persist.NewMockFlush(ctrl)
-	prepared := persist.PreparedPersist{
+	flush := persist.NewMockDataFlush(ctrl)
+	prepared := persist.PreparedDataPersist{
 		Persist: func(ident.ID, ident.Tags, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
 	}
-	prepareOpts := persist.PrepareOptionsMatcher{
+	prepareOpts := persist.DataPrepareOptionsMatcher{
 		NsMetadata: s.namespace,
 		Shard:      s.shard,
 		BlockStart: blockStart,
@@ -263,13 +263,13 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	}
 
 	var closed bool
-	flush := persist.NewMockFlush(ctrl)
-	prepared := persist.PreparedPersist{
+	flush := persist.NewMockDataFlush(ctrl)
+	prepared := persist.PreparedDataPersist{
 		Persist: func(ident.ID, ident.Tags, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
 	}
 
-	prepareOpts := persist.PrepareOptionsMatcher{
+	prepareOpts := persist.DataPrepareOptionsMatcher{
 		NsMetadata: s.namespace,
 		Shard:      s.shard,
 		BlockStart: blockStart,
@@ -319,7 +319,7 @@ func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
 	defer s.Close()
 	s.bs = Bootstrapping
 
-	flush := persist.NewMockFlush(ctrl)
+	flush := persist.NewMockDataFlush(ctrl)
 	err := s.Snapshot(blockStart, blockStart, flush)
 	require.Equal(t, errShardNotBootstrappedToSnapshot, err)
 }
@@ -335,13 +335,13 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 	s.bs = Bootstrapped
 
 	var closed bool
-	flush := persist.NewMockFlush(ctrl)
-	prepared := persist.PreparedPersist{
+	flush := persist.NewMockDataFlush(ctrl)
+	prepared := persist.PreparedDataPersist{
 		Persist: func(ident.ID, ident.Tags, ts.Segment, uint32) error { return nil },
 		Close:   func() error { closed = true; return nil },
 	}
 
-	prepareOpts := persist.PrepareOptionsMatcher{
+	prepareOpts := persist.DataPrepareOptionsMatcher{
 		NsMetadata:   s.namespace,
 		Shard:        s.shard,
 		BlockStart:   blockStart,

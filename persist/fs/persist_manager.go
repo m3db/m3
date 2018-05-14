@@ -174,8 +174,8 @@ func (pm *persistManager) close() error {
 	return pm.writer.Close()
 }
 
-// StartPersist is called by the databaseFlushManager to begin the persist process
-func (pm *persistManager) StartPersist() (persist.Flush, error) {
+// StartDataPersist is called by the databaseFlushManager to begin the persist process
+func (pm *persistManager) StartDataPersist() (persist.DataFlush, error) {
 	pm.Lock()
 	defer pm.Unlock()
 
@@ -217,7 +217,7 @@ func (pm *persistManager) reset() {
 
 // Prepare returns a prepared persist object which can be used to persist data. Note that this
 // method will return (nil, nil) if the files already exist.
-func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.PreparedPersist, error) {
+func (pm *persistManager) Prepare(opts persist.DataPrepareOptions) (persist.PreparedDataPersist, error) {
 
 	var (
 		nsMetadata   = opts.NamespaceMetadata
@@ -225,10 +225,10 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 		blockStart   = opts.BlockStart
 		snapshotTime = opts.SnapshotTime
 		nsID         = opts.NamespaceMetadata.ID()
-		prepared     persist.PreparedPersist
+		prepared     persist.PreparedDataPersist
 	)
 
-	// ensure StartPersist has been called
+	// ensure StartDataPersist has been called
 	pm.RLock()
 	status := pm.status
 	pm.RUnlock()
@@ -291,7 +291,7 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 	return prepared, nil
 }
 
-func (pm *persistManager) filesetExistsAt(prepareOpts persist.PrepareOptions) (bool, error) {
+func (pm *persistManager) filesetExistsAt(prepareOpts persist.DataPrepareOptions) (bool, error) {
 	var (
 		blockStart = prepareOpts.BlockStart
 		shard      = prepareOpts.Shard

@@ -789,7 +789,7 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 func (n *dbNamespace) Flush(
 	blockStart time.Time,
 	shardBootstrapStatesAtTickStart ShardBootstrapStates,
-	flush persist.Flush,
+	flush persist.DataFlush,
 ) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
@@ -848,7 +848,7 @@ func (n *dbNamespace) Flush(
 	return res
 }
 
-func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.Flush) error {
+func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.DataFlush) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
 	callStart := n.nowFn()

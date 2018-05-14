@@ -1701,7 +1701,7 @@ func (s *dbShard) Bootstrap(
 
 func (s *dbShard) Flush(
 	blockStart time.Time,
-	flush persist.Flush,
+	flush persist.DataFlush,
 ) error {
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
@@ -1711,7 +1711,7 @@ func (s *dbShard) Flush(
 	}
 	s.RUnlock()
 
-	prepareOpts := persist.PrepareOptions{
+	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: s.namespace,
 		Shard:             s.ID(),
 		BlockStart:        blockStart,
@@ -1762,7 +1762,7 @@ func (s *dbShard) Flush(
 func (s *dbShard) Snapshot(
 	blockStart time.Time,
 	snapshotTime time.Time,
-	flush persist.Flush,
+	flush persist.DataFlush,
 ) error {
 	// We don't snapshot data when the shard is still bootstrapping
 	s.RLock()
@@ -1779,7 +1779,7 @@ func (s *dbShard) Snapshot(
 		s.markDoneSnapshotting(multiErr.Empty(), snapshotTime)
 	}()
 
-	prepareOpts := persist.PrepareOptions{
+	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: s.namespace,
 		Shard:             s.ID(),
 		BlockStart:        blockStart,

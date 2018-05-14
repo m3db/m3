@@ -243,11 +243,11 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 		opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
 
-		mockFlush := persist.NewMockFlush(ctrl)
+		mockFlush := persist.NewMockDataFlush(ctrl)
 		mockFlush.EXPECT().Done()
 		persists := make(map[string]int)
 		closes := make(map[string]int)
-		prepareOpts := persist.PrepareOptionsMatcher{
+		prepareOpts := persist.DataPrepareOptionsMatcher{
 			NsMetadata:     testNsMd,
 			Shard:          uint32(0),
 			BlockStart:     start,
@@ -255,7 +255,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		}
 		mockFlush.EXPECT().
 			Prepare(prepareOpts).
-			Return(persist.PreparedPersist{
+			Return(persist.PreparedDataPersist{
 				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 					persists["foo"]++
 					assert.Equal(t, "foo", id.String())
@@ -268,7 +268,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					return nil
 				},
 			}, nil)
-		prepareOpts = persist.PrepareOptionsMatcher{
+		prepareOpts = persist.DataPrepareOptionsMatcher{
 			NsMetadata:     testNsMd,
 			Shard:          uint32(0),
 			BlockStart:     start.Add(ropts.BlockSize()),
@@ -276,7 +276,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		}
 		mockFlush.EXPECT().
 			Prepare(prepareOpts).
-			Return(persist.PreparedPersist{
+			Return(persist.PreparedDataPersist{
 				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 					persists["bar"]++
 					assert.Equal(t, "bar", id.String())
@@ -289,7 +289,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					return nil
 				},
 			}, nil)
-		prepareOpts = persist.PrepareOptionsMatcher{
+		prepareOpts = persist.DataPrepareOptionsMatcher{
 			NsMetadata:     testNsMd,
 			Shard:          uint32(1),
 			BlockStart:     start,
@@ -297,7 +297,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		}
 		mockFlush.EXPECT().
 			Prepare(prepareOpts).
-			Return(persist.PreparedPersist{
+			Return(persist.PreparedDataPersist{
 				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 					persists["baz"]++
 					assert.Equal(t, "baz", id.String())
@@ -310,7 +310,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					return nil
 				},
 			}, nil)
-		prepareOpts = persist.PrepareOptionsMatcher{
+		prepareOpts = persist.DataPrepareOptionsMatcher{
 			NsMetadata:     testNsMd,
 			Shard:          uint32(1),
 			BlockStart:     start.Add(ropts.BlockSize()),
@@ -318,7 +318,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		}
 		mockFlush.EXPECT().
 			Prepare(prepareOpts).
-			Return(persist.PreparedPersist{
+			Return(persist.PreparedDataPersist{
 				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 					assert.Fail(t, "no expected shard 1 second block")
 					return nil
@@ -330,7 +330,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			}, nil)
 
 		mockPersistManager := persist.NewMockManager(ctrl)
-		mockPersistManager.EXPECT().StartPersist().Return(mockFlush, nil)
+		mockPersistManager.EXPECT().StartDataPersist().Return(mockFlush, nil)
 
 		opts = opts.SetPersistManager(mockPersistManager)
 
@@ -499,14 +499,14 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 
 	opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
 
-	mockFlush := persist.NewMockFlush(ctrl)
+	mockFlush := persist.NewMockDataFlush(ctrl)
 	mockFlush.EXPECT().Done()
 
 	persists := make(map[string]int)
 	closes := make(map[string]int)
 
 	// expect foo
-	prepareOpts := persist.PrepareOptionsMatcher{
+	prepareOpts := persist.DataPrepareOptionsMatcher{
 		NsMetadata:     testNsMd,
 		Shard:          uint32(0),
 		BlockStart:     start,
@@ -514,7 +514,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
-		Return(persist.PreparedPersist{
+		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				assert.Fail(t, "not expecting to flush shard 0 at start")
 				return nil
@@ -524,7 +524,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				return nil
 			},
 		}, nil)
-	prepareOpts = persist.PrepareOptionsMatcher{
+	prepareOpts = persist.DataPrepareOptionsMatcher{
 		NsMetadata:     testNsMd,
 		Shard:          uint32(0),
 		BlockStart:     midway,
@@ -532,7 +532,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
-		Return(persist.PreparedPersist{
+		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["foo"]++
 				return nil
@@ -544,7 +544,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		}, nil)
 
 	// expect bar
-	prepareOpts = persist.PrepareOptionsMatcher{
+	prepareOpts = persist.DataPrepareOptionsMatcher{
 		NsMetadata:     testNsMd,
 		Shard:          uint32(1),
 		BlockStart:     start,
@@ -552,7 +552,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
-		Return(persist.PreparedPersist{
+		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				assert.Fail(t, "not expecting to flush shard 0 at start + block size")
 				return nil
@@ -562,7 +562,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				return nil
 			},
 		}, nil)
-	prepareOpts = persist.PrepareOptionsMatcher{
+	prepareOpts = persist.DataPrepareOptionsMatcher{
 		NsMetadata:     testNsMd,
 		Shard:          uint32(1),
 		BlockStart:     midway,
@@ -570,7 +570,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
-		Return(persist.PreparedPersist{
+		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["bar"]++
 				return nil
@@ -582,7 +582,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		}, nil)
 
 	// expect baz
-	prepareOpts = persist.PrepareOptionsMatcher{
+	prepareOpts = persist.DataPrepareOptionsMatcher{
 		NsMetadata:     testNsMd,
 		Shard:          uint32(2),
 		BlockStart:     start,
@@ -590,7 +590,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
-		Return(persist.PreparedPersist{
+		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["baz"]++
 				return fmt.Errorf("a persist error")
@@ -600,7 +600,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				return nil
 			},
 		}, nil)
-	prepareOpts = persist.PrepareOptionsMatcher{
+	prepareOpts = persist.DataPrepareOptionsMatcher{
 		NsMetadata:     testNsMd,
 		Shard:          uint32(2),
 		BlockStart:     midway,
@@ -608,7 +608,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
-		Return(persist.PreparedPersist{
+		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["baz"]++
 				return nil
@@ -620,7 +620,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		}, nil)
 
 		// expect qux
-	prepareOpts = persist.PrepareOptionsMatcher{
+	prepareOpts = persist.DataPrepareOptionsMatcher{
 		NsMetadata:     testNsMd,
 		Shard:          uint32(3),
 		BlockStart:     start,
@@ -628,7 +628,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
-		Return(persist.PreparedPersist{
+		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["qux"]++
 				return nil
@@ -638,7 +638,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				return fmt.Errorf("a persist close error")
 			},
 		}, nil)
-	prepareOpts = persist.PrepareOptionsMatcher{
+	prepareOpts = persist.DataPrepareOptionsMatcher{
 		NsMetadata:     testNsMd,
 		Shard:          uint32(3),
 		BlockStart:     midway,
@@ -646,7 +646,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
-		Return(persist.PreparedPersist{
+		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["qux"]++
 				return nil
@@ -658,7 +658,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		}, nil)
 
 	mockPersistManager := persist.NewMockManager(ctrl)
-	mockPersistManager.EXPECT().StartPersist().Return(mockFlush, nil)
+	mockPersistManager.EXPECT().StartDataPersist().Return(mockFlush, nil)
 
 	opts = opts.SetPersistManager(mockPersistManager)
 

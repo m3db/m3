@@ -53,63 +53,63 @@ func (m *MockManager) EXPECT() *MockManagerMockRecorder {
 	return m.recorder
 }
 
-// StartPersist mocks base method
-func (m *MockManager) StartPersist() (Flush, error) {
-	ret := m.ctrl.Call(m, "StartPersist")
-	ret0, _ := ret[0].(Flush)
+// StartDataPersist mocks base method
+func (m *MockManager) StartDataPersist() (DataFlush, error) {
+	ret := m.ctrl.Call(m, "StartDataPersist")
+	ret0, _ := ret[0].(DataFlush)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// StartPersist indicates an expected call of StartPersist
-func (mr *MockManagerMockRecorder) StartPersist() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartPersist", reflect.TypeOf((*MockManager)(nil).StartPersist))
+// StartDataPersist indicates an expected call of StartDataPersist
+func (mr *MockManagerMockRecorder) StartDataPersist() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartDataPersist", reflect.TypeOf((*MockManager)(nil).StartDataPersist))
 }
 
-// MockFlush is a mock of Flush interface
-type MockFlush struct {
+// MockDataFlush is a mock of DataFlush interface
+type MockDataFlush struct {
 	ctrl     *gomock.Controller
-	recorder *MockFlushMockRecorder
+	recorder *MockDataFlushMockRecorder
 }
 
-// MockFlushMockRecorder is the mock recorder for MockFlush
-type MockFlushMockRecorder struct {
-	mock *MockFlush
+// MockDataFlushMockRecorder is the mock recorder for MockDataFlush
+type MockDataFlushMockRecorder struct {
+	mock *MockDataFlush
 }
 
-// NewMockFlush creates a new mock instance
-func NewMockFlush(ctrl *gomock.Controller) *MockFlush {
-	mock := &MockFlush{ctrl: ctrl}
-	mock.recorder = &MockFlushMockRecorder{mock}
+// NewMockDataFlush creates a new mock instance
+func NewMockDataFlush(ctrl *gomock.Controller) *MockDataFlush {
+	mock := &MockDataFlush{ctrl: ctrl}
+	mock.recorder = &MockDataFlushMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use
-func (m *MockFlush) EXPECT() *MockFlushMockRecorder {
+func (m *MockDataFlush) EXPECT() *MockDataFlushMockRecorder {
 	return m.recorder
 }
 
 // Prepare mocks base method
-func (m *MockFlush) Prepare(opts PrepareOptions) (PreparedPersist, error) {
+func (m *MockDataFlush) Prepare(opts DataPrepareOptions) (PreparedDataPersist, error) {
 	ret := m.ctrl.Call(m, "Prepare", opts)
-	ret0, _ := ret[0].(PreparedPersist)
+	ret0, _ := ret[0].(PreparedDataPersist)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Prepare indicates an expected call of Prepare
-func (mr *MockFlushMockRecorder) Prepare(opts interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prepare", reflect.TypeOf((*MockFlush)(nil).Prepare), opts)
+func (mr *MockDataFlushMockRecorder) Prepare(opts interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prepare", reflect.TypeOf((*MockDataFlush)(nil).Prepare), opts)
 }
 
 // Done mocks base method
-func (m *MockFlush) Done() error {
+func (m *MockDataFlush) Done() error {
 	ret := m.ctrl.Call(m, "Done")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Done indicates an expected call of Done
-func (mr *MockFlushMockRecorder) Done() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockFlush)(nil).Done))
+func (mr *MockDataFlushMockRecorder) Done() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockDataFlush)(nil).Done))
 }
