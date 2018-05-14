@@ -22,6 +22,7 @@ package series
 
 import (
 	"io"
+	"io/ioutil"
 	"sort"
 	"testing"
 	"time"
@@ -676,6 +677,20 @@ func TestBufferReadEncodedValidAfterDrain(t *testing.T) {
 
 	require.Equal(t, 2, len(encoders))
 
+	var (
+		expectedData []byte
+		streams      []io.Reader
+	)
+	for _, encoder := range encoders {
+		stream := encoder.Stream()
+		clone, err := stream.Clone()
+		require.NoError(t, err)
+		streams = append(streams, clone)
+		data, err := ioutil.ReadAll(stream)
+		require.NoError(t, err)
+		expectedData = append(expectedData, data...)
+	}
+
 	assert.Equal(t, true, buffer.NeedsDrain())
 	assert.Equal(t, 0, len(drained))
 
@@ -690,10 +705,14 @@ func TestBufferReadEncodedValidAfterDrain(t *testing.T) {
 	assert.Equal(t, false, buffer.NeedsDrain())
 	assert.Equal(t, 1, len(drained))
 
-	// Ensure all encoders still has data
-	for _, encoder := range encoders {
-		assert.NotNil(t, encoder.Stream())
+	// Ensure all streams that were taken reference to still has data
+	var actualData []byte
+	for _, stream := range streams {
+		data, err := ioutil.ReadAll(stream)
+		require.NoError(t, err)
+		actualData = append(actualData, data...)
 	}
+	assert.Equal(t, expectedData, actualData)
 }
 
 func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
