@@ -53,8 +53,8 @@ type Writer interface {
 	InsertBatch(b Batch) error
 }
 
-// Reader provides a point-in-time accessor to the documents in an index.
-type Reader interface {
+// Readable provides a point-in-time accessor to the documents in an index.
+type Readable interface {
 	// MatchTerm returns a postings list over all documents which match the given term.
 	MatchTerm(field, term []byte) (postings.List, error)
 
@@ -71,6 +71,11 @@ type Reader interface {
 
 	// AllDocs returns an iterator over the documents known to the Reader.
 	AllDocs() (doc.Iterator, error)
+}
+
+// Reader provides a point-in-time accessor to the documents in an index.
+type Reader interface {
+	Readable
 
 	// Close closes the reader and releases any internal resources.
 	Close() error

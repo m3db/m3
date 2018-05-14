@@ -29,7 +29,6 @@ import (
 
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index"
-	"github.com/m3db/m3ninx/postings"
 
 	"github.com/golang/mock/gomock"
 )
@@ -93,19 +92,6 @@ func (m *MockSegment) Fields() ([][]byte, error) {
 // Fields indicates an expected call of Fields
 func (mr *MockSegmentMockRecorder) Fields() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fields", reflect.TypeOf((*MockSegment)(nil).Fields))
-}
-
-// MatchTerm mocks base method
-func (m *MockSegment) MatchTerm(arg0, arg1 []byte) (postings.List, error) {
-	ret := m.ctrl.Call(m, "MatchTerm", arg0, arg1)
-	ret0, _ := ret[0].(postings.List)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// MatchTerm indicates an expected call of MatchTerm
-func (mr *MockSegmentMockRecorder) MatchTerm(arg0, arg1 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchTerm", reflect.TypeOf((*MockSegment)(nil).MatchTerm), arg0, arg1)
 }
 
 // Reader mocks base method
@@ -230,19 +216,6 @@ func (m *MockMutableSegment) InsertBatch(arg0 index.Batch) error {
 // InsertBatch indicates an expected call of InsertBatch
 func (mr *MockMutableSegmentMockRecorder) InsertBatch(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBatch", reflect.TypeOf((*MockMutableSegment)(nil).InsertBatch), arg0)
-}
-
-// MatchTerm mocks base method
-func (m *MockMutableSegment) MatchTerm(arg0, arg1 []byte) (postings.List, error) {
-	ret := m.ctrl.Call(m, "MatchTerm", arg0, arg1)
-	ret0, _ := ret[0].(postings.List)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// MatchTerm indicates an expected call of MatchTerm
-func (mr *MockMutableSegmentMockRecorder) MatchTerm(arg0, arg1 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MatchTerm", reflect.TypeOf((*MockMutableSegment)(nil).MatchTerm), arg0, arg1)
 }
 
 // Reader mocks base method
