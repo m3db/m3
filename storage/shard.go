@@ -1017,7 +1017,7 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 
 	// if indexing in sync mode, wait till we're done and ensure we have have indexed the entry
 	wg.Wait()
-	if entry.IndexedForBlockStart(indexBlockStart) {
+	if !entry.IndexedForBlockStart(indexBlockStart) {
 		// i.e. indexing failed
 		return fmt.Errorf("internal error: unable to index series")
 	}
