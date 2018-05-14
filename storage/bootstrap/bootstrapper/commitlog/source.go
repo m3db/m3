@@ -161,6 +161,16 @@ func (s *commitLogSource) ReadData(
 		if !s.shouldEncodeForData(unmerged, blockSize, series, dp.Timestamp) {
 			continue
 		}
+		if s.opts.CacheSeriesMetadata() {
+			// If we're going to cache the IDs and Tags on the commitlog source, then
+			// we need to make sure that they won't get finalized by anything else in
+			// the code base. Specifically, since series.Tags is a struct (not a pointer
+			// to a struct), we need to call NoFinalize() on it as early in the code-path
+			// as possible so that the NoFinalize() state is propagated everywhere (since
+			// the struct will get copied repeatedly.)
+			series.ID.NoFinalize()
+			series.Tags.NoFinalize()
+		}
 
 		// Distribute work such that each encoder goroutine is responsible for
 		// approximately numShards / numConc shards. This also means that all
@@ -566,6 +576,8 @@ func (s *commitLogSource) cacheShardData(allShardData []shardData) {
 			// If its not already there, just add it
 			cachedSeriesData, ok := cachedSeries[uniqueIdx]
 			if !ok {
+				seriesData.id.NoFinalize()
+				seriesData.tags.NoFinalize()
 				cachedSeries[uniqueIdx] = seriesData
 				continue
 			}
@@ -649,6 +661,12 @@ func (s *commitLogSource) ReadIndex(
 	// cached metadata.
 	for iter.Next() {
 		series, dp, _, _ := iter.Current()
+
+		// Mark the ID and Tags as no finalize so we don't have to copy them before inserting
+		// them into the index segments.
+		series.ID.NoFinalize()
+		series.Tags.NoFinalize()
+
 		s.maybeAddToIndex(
 			series.ID, series.Tags, series.Shard, highestShard, dp.Timestamp, bootstrapRangesByShard,
 			indexResults, indexOptions, indexBlockSize, resultOptions)
@@ -698,7 +716,10 @@ func (s commitLogSource) maybeAddToIndex(
 		return nil
 	}
 
-	d, err := convert.FromMetric(id, tags)
+	// We can use the NoClone variant here because the cached ID/Tags are marked NoFinalize
+	// by the ReadIndex() path when it reads from the commitlog files, and by the ReadData() path
+	// when it caches the ID/Tags.
+	d, err := convert.FromMetricNoClone(id, tags)
 	if err != nil {
 		return err
 	}
