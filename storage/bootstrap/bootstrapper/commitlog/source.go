@@ -129,7 +129,7 @@ func (s *commitLogSource) ReadData(
 	unmerged := make([]shardData, numShards)
 	for shard := range shardsTimeRanges {
 		unmerged[shard] = shardData{
-			series: make(map[uint64]encodersByTime),
+			series: make(map[uint64]metadataAndEncodersByTime),
 			ranges: shardsTimeRanges[shard],
 		}
 	}
@@ -216,7 +216,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		unmergedShard := unmerged[series.Shard].series
 		unmergedSeries, ok := unmergedShard[series.UniqueIndex]
 		if !ok {
-			unmergedSeries = encodersByTime{
+			unmergedSeries = metadataAndEncodersByTime{
 				id:       series.ID,
 				tags:     series.Tags,
 				encoders: make(map[xtime.UnixNano]encoders)}
@@ -406,8 +406,7 @@ func (s *commitLogSource) mergeShard(
 }
 
 func (s *commitLogSource) mergeSeries(
-	unmergedBlocks encodersByTime,
-	blocksPool block.DatabaseBlockPool,
+	unmergedBlocks metadataAndEncodersByTime, blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	encoderPool encoding.EncoderPool,
 	blockSize time.Duration,
@@ -533,7 +532,7 @@ func (s *commitLogSource) cacheShardData(allShardData []shardData) {
 			// ReadData() bootstrap different shards.)
 			for len(s.cachedShardData) != int(shard)+1 {
 				s.cachedShardData = append(s.cachedShardData, shardData{
-					series: make(map[uint64]encodersByTime),
+					series: make(map[uint64]metadataAndEncodersByTime),
 				})
 			}
 		}
@@ -734,11 +733,11 @@ func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredica
 }
 
 type shardData struct {
-	series map[uint64]encodersByTime
+	series map[uint64]metadataAndEncodersByTime
 	ranges xtime.Ranges
 }
 
-type encodersByTime struct {
+type metadataAndEncodersByTime struct {
 	id   ident.ID
 	tags ident.Tags
 	// int64 instead of time.Time because there is an optimized map access pattern
