@@ -18,11 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package doc
+package fields
 
 import (
 	"bytes"
-	"io"
 	"testing"
 
 	"github.com/m3db/m3ninx/doc"
@@ -31,7 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWriteReadDocuments(t *testing.T) {
+func TestStoredFieldsData(t *testing.T) {
 	tests := []struct {
 		name string
 		docs []doc.Document
@@ -83,25 +82,26 @@ func TestWriteReadDocuments(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			buf := new(bytes.Buffer)
+			var (
+				buf     = new(bytes.Buffer)
+				offsets = make([]int, 0)
+				idx     int
+			)
 
-			w := NewWriter(buf)
-			require.NoError(t, w.Open())
-			for i := 0; i < len(test.docs); i++ {
-				require.NoError(t, w.Write(test.docs[i]))
+			w := NewDataWriter(buf)
+			for i := range test.docs {
+				n, err := w.Write(test.docs[i])
+				require.NoError(t, err)
+				offsets = append(offsets, idx)
+				idx += n
 			}
-			require.NoError(t, w.Close())
 
-			r := NewReader(buf.Bytes())
-			require.NoError(t, r.Open())
-			for i := 0; i < len(test.docs); i++ {
-				actual, err := r.Read()
+			r := NewDataReader(buf.Bytes())
+			for i := range test.docs {
+				actual, err := r.Read(uint64(offsets[i]))
 				require.NoError(t, err)
 				require.True(t, actual.Equal(test.docs[i]))
 			}
-			_, err := r.Read()
-			require.Equal(t, io.EOF, err)
-			require.NoError(t, r.Close())
 		})
 	}
 }
