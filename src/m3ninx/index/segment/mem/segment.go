@@ -375,6 +375,15 @@ func (s *segment) Close() error {
 	return nil
 }
 
+func (s *segment) IsSealed() bool {
+	s.state.Lock()
+	defer s.state.Unlock()
+	if s.state.closed {
+		return false
+	}
+	return s.state.sealed
+}
+
 func (s *segment) Seal() (sgmt.Segment, error) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -406,15 +415,6 @@ func (s *segment) Terms(name []byte) ([][]byte, error) {
 		return nil, err
 	}
 	return s.termsDict.Terms(name), nil
-}
-
-func (s *segment) MatchTerm(field, term []byte) (postings.List, error) {
-	s.state.RLock()
-	defer s.state.RUnlock()
-	if err := s.checkIsSealedWithRLock(); err != nil {
-		return nil, err
-	}
-	return s.termsDict.MatchTerm(field, term), nil
 }
 
 func (s *segment) checkIsSealedWithRLock() error {

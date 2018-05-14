@@ -667,10 +667,6 @@ func TestSegmentReaderMatchExact(t *testing.T) {
 	pl, err := r.MatchTerm([]byte("fruit"), []byte("apple"))
 	require.NoError(t, err)
 
-	sealedPl, err := segment.MatchTerm([]byte("fruit"), []byte("apple"))
-	require.NoError(t, err)
-	require.True(t, sealedPl.Equal(pl))
-
 	iter, err := r.Docs(pl)
 	require.NoError(t, err)
 
@@ -710,6 +706,20 @@ func TestSegmentSealCloseLifecycle(t *testing.T) {
 	require.NoError(t, segment.Close())
 	_, err = segment.Seal()
 	require.Error(t, err)
+}
+
+func TestSegmentIsSealed(t *testing.T) {
+	segment, err := NewSegment(0, NewOptions())
+	require.NoError(t, err)
+
+	require.False(t, segment.IsSealed())
+
+	_, err = segment.Seal()
+	require.NoError(t, err)
+	require.True(t, segment.IsSealed())
+
+	require.NoError(t, segment.Close())
+	require.False(t, segment.IsSealed())
 }
 
 func TestSegmentFields(t *testing.T) {
