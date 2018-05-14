@@ -230,6 +230,24 @@ func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 	require.Equal(t, 0, len(res.Unfulfilled()))
 }
 
+func TestBootstrapIndexNamespaceIndexNotEnabled(t *testing.T) {
+	var (
+		opts             = testOptions()
+		src              = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
+		namespaceOptions = namespace.NewOptions().
+					SetIndexOptions(
+				namespace.NewOptions().
+					IndexOptions().
+					SetEnabled(false),
+			)
+	)
+	md, err := namespace.NewMetadata(testNamespaceID, namespaceOptions)
+	require.NoError(t, err)
+
+	_, err = src.ReadIndex(md, result.ShardTimeRanges{}, testDefaultRunOpts)
+	require.Equal(t, err, errIndexingNotEnableForNamespace)
+}
+
 func verifyIndexResultsAreCorrect(
 	values []testValue,
 	seriesNotToExpect map[string]struct{},
