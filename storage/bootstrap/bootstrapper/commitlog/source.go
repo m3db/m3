@@ -548,10 +548,10 @@ func (s *commitLogSource) cacheShardData(allShardData []shardData) {
 			}
 		}
 
-		if int(shard) >= len(s.cachedShardData) {
+		if shard >= len(s.cachedShardData) {
 			// Extend the slice if necessary (could happen if different calls to
 			// ReadData() bootstrap different shards.)
-			for len(s.cachedShardData) != int(shard)+1 {
+			for len(s.cachedShardData) != shard+1 {
 				s.cachedShardData = append(s.cachedShardData, shardData{
 					series: make(map[uint64]metadataAndEncodersByTime),
 				})
@@ -681,7 +681,7 @@ func (s commitLogSource) maybeAddToIndex(
 	resultOptions result.Options,
 ) error {
 	if !s.shouldIncludeInIndex(
-		uint32(shard), blockStart, highestShard, indexBlockSize, bootstrapRangesByShard) {
+		shard, blockStart, highestShard, indexBlockSize, bootstrapRangesByShard) {
 		return nil
 	}
 
@@ -704,11 +704,7 @@ func (s commitLogSource) maybeAddToIndex(
 	}
 
 	_, err = segment.Insert(d)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func newReadCommitLogPredicate(

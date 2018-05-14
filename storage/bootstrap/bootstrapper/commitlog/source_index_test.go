@@ -131,7 +131,7 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 
 		// Bootstrap some arbitrary time range to make sure that it can handle multiple
 		// calls to ReadData() for the same shards, but with different ranges (it needs
-		// to merge the ranges accross calls.)
+		// to merge the ranges across calls.)
 		targetRangesCopy := targetRanges.Copy()
 		for key := range targetRangesCopy {
 			// The time-range here is "arbitrary", but it does need to be one for which
