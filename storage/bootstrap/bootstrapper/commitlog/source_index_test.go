@@ -36,6 +36,14 @@ import (
 )
 
 func TestBootstrapIndex(t *testing.T) {
+	testBootstrapIndex(t, false)
+}
+
+func TestBootstrapIndexAfterBootstrapData(t *testing.T) {
+	testBootstrapIndex(t, true)
+}
+
+func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 	var (
 		opts             = testOptions()
 		src              = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
@@ -117,6 +125,13 @@ func TestBootstrapIndex(t *testing.T) {
 	// Don't include ranges for shard 4 as thats how we're testing the noShardBootstrapRange series.
 	targetRanges := result.ShardTimeRanges{
 		shardZero: ranges, shardZero + 1: ranges, shardZero + 2: ranges, shardZero + 5: ranges}
+
+	if bootstrapDataFirst {
+		// Bootstrap the data first to exercise the metadata caching path.
+		_, err = src.ReadData(md, targetRanges, testDefaultRunOpts)
+		require.NoError(t, err)
+	}
+
 	res, err := src.ReadIndex(md, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 
