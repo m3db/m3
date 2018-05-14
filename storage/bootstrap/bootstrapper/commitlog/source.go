@@ -573,13 +573,6 @@ func (s *commitLogSource) ReadIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
-	// Also: it's now possible to cache the metadata and data
-	// for all namespaces in the first call to ReadData(...) since
-	// the source is used across all namespaces and then discarded after.
-	// Finally, we can also probably improve performance significantly by
-	// implementing a new interface in the Commitlog Reader/Iterator that
-	// only returns a given series once per file, although there is some
-	// trickiness there involving bufferpast and buffer future values.
 	if shardsTimeRanges.IsEmpty() {
 		return result.NewIndexBootstrapResult(), nil
 	}
