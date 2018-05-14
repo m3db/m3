@@ -127,8 +127,26 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 		shardZero: ranges, shardZero + 1: ranges, shardZero + 2: ranges, shardZero + 5: ranges}
 
 	if bootstrapDataFirst {
-		// Bootstrap the data first to exercise the metadata caching path.
-		_, err = src.ReadData(md, targetRanges, testDefaultRunOpts)
+		// Bootstrap the data to exercise the metadata caching path.
+
+		// Bootstrap some arbitrary time range to make sure that it can handle multiple
+		// calls to ReadData() for the same shards, but with different ranges (it needs
+		// to merge the ranges accross calls.)
+		targetRangesCopy := targetRanges.Copy()
+		for key := range targetRangesCopy {
+			// The time-range here is "arbitrary", but it does need to be one for which
+			// there is data so that we can actually exercise the blockStart merging
+			// logic.
+			targetRangesCopy[key] = xtime.Ranges{}.AddRange(xtime.Range{
+				Start: start,
+				End:   start.Add(dataBlockSize),
+			})
+		}
+		_, err = src.ReadData(md, targetRangesCopy, testDefaultRunOpts)
+		require.NoError(t, err)
+
+		// Bootstrap the actual time ranges to actually cache the metadata.
+		_, err = src.ReadData(md, result.ShardTimeRanges{shardZero: ranges}, testDefaultRunOpts)
 		require.NoError(t, err)
 	}
 
