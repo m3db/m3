@@ -1,7 +1,7 @@
 package: github.com/m3db/m3db
 import:
 - package: github.com/m3db/m3x
-  version: 5b90159b38cdf9a636a4de6fd601fb204429ad4b
+  version: c457e96f2dea19cf2f590e40d443b62ced1e7820
   vcs: git
   subpackages:
   - checked
@@ -26,7 +26,7 @@ import:
   version: ed532baee45a440f0b08b6893c816634c6978d4d
 
 - package: github.com/m3db/m3ninx
-  version: d5d44ea341add6babe72dd16f91503e9c9db5ad2
+  version: 8f5e6a0f31393f5b0d79086250ac1a528747c0c7
 
 - package: github.com/m3db/bitset
   version: 07973db6b78acb62ac207d0538055e874b49d90d
@@ -131,6 +131,11 @@ import:
   subpackages:
   - errgroup
 
+- package: github.com/google/go-cmp
+  version: ^0.2
+  subpackages:
+  - cmp
+
 testImport:
 - package: github.com/fortytw2/leaktest
   version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
@@ -138,7 +143,3 @@ testImport:
 - package: github.com/leanovate/gopter
   version: 9e6101e5a87586b269acf3d0d61f363e4317309f
 
-- package: github.com/google/go-cmp
-  version: 5411ab924f9ffa6566244a9e504bc347edacffd3
-  subpackages:
-  - cmp

@@ -121,7 +121,7 @@ func (s *peersSource) ReadData(
 			return nil, err
 		}
 
-		defer persist.Done()
+		defer persist.DoneData()
 
 		incremental = true
 		blockRetriever = r
@@ -373,7 +373,7 @@ func (s *peersSource) incrementalFlush(
 			//    (they made this decision by turning off the Filesystem bootstrapper).
 			DeleteIfExists: true,
 		}
-		prepared, err := flush.Prepare(prepareOpts)
+		prepared, err := flush.PrepareData(prepareOpts)
 		if err != nil {
 			return err
 		}

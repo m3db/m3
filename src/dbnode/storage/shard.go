@@ -1813,7 +1813,7 @@ func (s *dbShard) Flush(
 		// racing competing processes.
 		DeleteIfExists: false,
 	}
-	prepared, err := flush.Prepare(prepareOpts)
+	prepared, err := flush.PrepareData(prepareOpts)
 	if err != nil {
 		return s.markFlushStateSuccessOrError(blockStart, err)
 	}
@@ -1885,7 +1885,7 @@ func (s *dbShard) Snapshot(
 			SnapshotTime: snapshotTime,
 		},
 	}
-	prepared, err := flush.Prepare(prepareOpts)
+	prepared, err := flush.PrepareData(prepareOpts)
 	// Add the err so the defer will capture it
 	multiErr = multiErr.Add(err)
 	if err != nil {

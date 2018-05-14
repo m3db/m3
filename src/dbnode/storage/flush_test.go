@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
+	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -57,7 +58,7 @@ func newMultipleFlushManagerNeedsFlush(t *testing.T, ctrl *gomock.Controller) (
 }
 
 func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	startCh := make(chan struct{}, 1)
@@ -68,13 +69,17 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	}()
 
 	mockFlusher := persist.NewMockDataFlush(ctrl)
-	mockFlusher.EXPECT().Done().Return(nil).AnyTimes()
+	mockFlusher.EXPECT().DoneData().Return(nil).AnyTimes()
 	mockPersistManager := persist.NewMockManager(ctrl)
 	mockPersistManager.EXPECT().StartDataPersist().Do(func() {
 		// channels used to coordinate flushing state
 		startCh <- struct{}{}
 		<-doneCh
 	}).Return(mockFlusher, nil).AnyTimes()
+
+	mockIndexFlusher := persist.NewMockIndexFlush(ctrl)
+	mockIndexFlusher.EXPECT().DoneIndex().Return(nil).AnyTimes()
+	mockPersistManager.EXPECT().StartIndexPersist().Return(mockIndexFlusher, nil).AnyTimes()
 
 	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
@@ -98,33 +103,138 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		<-startCh
-		require.Equal(t, errFlushOrSnapshotAlreadyInProgress, fm.Flush(now, DatabaseBootstrapState{}))
+		require.Equal(t, errFlushOperationsInProgress, fm.Flush(now, DatabaseBootstrapState{}))
 		doneCh <- struct{}{}
 	}()
 
 	wg.Wait()
 }
 
-func TestFlushManagerFlushDoneError(t *testing.T) {
+func TestFlushManagerFlushDoneDataError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	fakeErr := errors.New("fake error while marking flush done")
 	mockFlusher := persist.NewMockDataFlush(ctrl)
-	mockFlusher.EXPECT().Done().Return(fakeErr).AnyTimes()
+	mockFlusher.EXPECT().DoneData().Return(fakeErr)
 	mockPersistManager := persist.NewMockManager(ctrl)
-	mockPersistManager.EXPECT().StartDataPersist().Return(mockFlusher, nil).AnyTimes()
+	mockPersistManager.EXPECT().StartDataPersist().Return(mockFlusher, nil)
+
+	mockIndexFlusher := persist.NewMockIndexFlush(ctrl)
+	mockIndexFlusher.EXPECT().DoneIndex().Return(nil)
+	mockPersistManager.EXPECT().StartIndexPersist().Return(mockIndexFlusher, nil)
 
 	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
-	db.EXPECT().GetOwnedNamespaces().Return(nil, nil).AnyTimes()
+	db.EXPECT().GetOwnedNamespaces().Return(nil, nil)
 
 	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
 	fm.pm = mockPersistManager
 
 	now := time.Unix(0, 0)
 	require.EqualError(t, fakeErr, fm.Flush(now, DatabaseBootstrapState{}).Error())
+}
+
+func TestFlushManagerFlushDoneIndexError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockFlusher := persist.NewMockDataFlush(ctrl)
+	mockFlusher.EXPECT().DoneData().Return(nil)
+	mockPersistManager := persist.NewMockManager(ctrl)
+	mockPersistManager.EXPECT().StartDataPersist().Return(mockFlusher, nil)
+
+	fakeErr := errors.New("fake error while marking flush done")
+	mockIndexFlusher := persist.NewMockIndexFlush(ctrl)
+	mockIndexFlusher.EXPECT().DoneIndex().Return(fakeErr)
+	mockPersistManager.EXPECT().StartIndexPersist().Return(mockIndexFlusher, nil)
+
+	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
+	db := newMockdatabase(ctrl)
+	db.EXPECT().Options().Return(testOpts).AnyTimes()
+	db.EXPECT().GetOwnedNamespaces().Return(nil, nil)
+
+	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
+	fm.pm = mockPersistManager
+
+	now := time.Unix(0, 0)
+	require.EqualError(t, fakeErr, fm.Flush(now, DatabaseBootstrapState{}).Error())
+}
+
+func TestFlushManagerSkipNamespaceIndexingDisabled(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{t})
+	defer ctrl.Finish()
+
+	nsOpts := defaultTestNs1Opts.SetIndexOptions(namespace.NewIndexOptions().SetEnabled(false))
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
+	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
+	ns.EXPECT().Flush(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	mockFlusher := persist.NewMockDataFlush(ctrl)
+	mockFlusher.EXPECT().DoneData().Return(nil)
+	mockPersistManager := persist.NewMockManager(ctrl)
+	mockPersistManager.EXPECT().StartDataPersist().Return(mockFlusher, nil)
+
+	mockIndexFlusher := persist.NewMockIndexFlush(ctrl)
+	mockIndexFlusher.EXPECT().DoneIndex().Return(nil)
+	mockPersistManager.EXPECT().StartIndexPersist().Return(mockIndexFlusher, nil)
+
+	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
+	db := newMockdatabase(ctrl)
+	db.EXPECT().Options().Return(testOpts).AnyTimes()
+	db.EXPECT().GetOwnedNamespaces().Return([]databaseNamespace{ns}, nil)
+
+	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
+	fm.pm = mockPersistManager
+
+	now := time.Unix(0, 0)
+	bootstrapStates := DatabaseBootstrapState{
+		NamespaceBootstrapStates: map[string]ShardBootstrapStates{
+			ns.ID().String(): ShardBootstrapStates{},
+		},
+	}
+	require.NoError(t, fm.Flush(now, bootstrapStates))
+}
+
+func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{t})
+	defer ctrl.Finish()
+
+	nsOpts := defaultTestNs1Opts.SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true))
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
+	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
+	ns.EXPECT().Flush(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ns.EXPECT().FlushIndex(gomock.Any(), gomock.Any()).Return(nil)
+
+	mockFlusher := persist.NewMockDataFlush(ctrl)
+	mockFlusher.EXPECT().DoneData().Return(nil)
+	mockPersistManager := persist.NewMockManager(ctrl)
+	mockPersistManager.EXPECT().StartDataPersist().Return(mockFlusher, nil)
+
+	mockIndexFlusher := persist.NewMockIndexFlush(ctrl)
+	mockIndexFlusher.EXPECT().DoneIndex().Return(nil)
+	mockPersistManager.EXPECT().StartIndexPersist().Return(mockIndexFlusher, nil)
+
+	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
+	db := newMockdatabase(ctrl)
+	db.EXPECT().Options().Return(testOpts).AnyTimes()
+	db.EXPECT().GetOwnedNamespaces().Return([]databaseNamespace{ns}, nil)
+
+	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
+	fm.pm = mockPersistManager
+
+	now := time.Unix(0, 0)
+	bootstrapStates := DatabaseBootstrapState{
+		NamespaceBootstrapStates: map[string]ShardBootstrapStates{
+			ns.ID().String(): ShardBootstrapStates{},
+		},
+	}
+	require.NoError(t, fm.Flush(now, bootstrapStates))
 }
 
 func TestFlushManagerFlushTimeStart(t *testing.T) {

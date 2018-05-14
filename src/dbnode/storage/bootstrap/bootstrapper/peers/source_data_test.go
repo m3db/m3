@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/x/xio"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
+	xtest "github.com/m3db/m3x/test"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -244,17 +245,17 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
 
 		mockFlush := persist.NewMockDataFlush(ctrl)
-		mockFlush.EXPECT().Done()
+		mockFlush.EXPECT().DoneData()
 		persists := make(map[string]int)
 		closes := make(map[string]int)
-		prepareOpts := persist.DataPrepareOptionsMatcher{
-			NsMetadata:     testNsMd,
-			Shard:          uint32(0),
-			BlockStart:     start,
-			DeleteIfExists: true,
-		}
+		prepareOpts := xtest.CmpMatcher(persist.DataPrepareOptions{
+			NamespaceMetadata: testNsMd,
+			Shard:             uint32(0),
+			BlockStart:        start,
+			DeleteIfExists:    true,
+		})
 		mockFlush.EXPECT().
-			Prepare(prepareOpts).
+			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
 				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 					persists["foo"]++
@@ -268,14 +269,14 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					return nil
 				},
 			}, nil)
-		prepareOpts = persist.DataPrepareOptionsMatcher{
-			NsMetadata:     testNsMd,
-			Shard:          uint32(0),
-			BlockStart:     start.Add(ropts.BlockSize()),
-			DeleteIfExists: true,
-		}
+		prepareOpts = xtest.CmpMatcher(persist.DataPrepareOptions{
+			NamespaceMetadata: testNsMd,
+			Shard:             uint32(0),
+			BlockStart:        start.Add(ropts.BlockSize()),
+			DeleteIfExists:    true,
+		})
 		mockFlush.EXPECT().
-			Prepare(prepareOpts).
+			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
 				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 					persists["bar"]++
@@ -289,14 +290,14 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					return nil
 				},
 			}, nil)
-		prepareOpts = persist.DataPrepareOptionsMatcher{
-			NsMetadata:     testNsMd,
-			Shard:          uint32(1),
-			BlockStart:     start,
-			DeleteIfExists: true,
-		}
+		prepareOpts = xtest.CmpMatcher(persist.DataPrepareOptions{
+			NamespaceMetadata: testNsMd,
+			Shard:             uint32(1),
+			BlockStart:        start,
+			DeleteIfExists:    true,
+		})
 		mockFlush.EXPECT().
-			Prepare(prepareOpts).
+			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
 				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 					persists["baz"]++
@@ -310,14 +311,14 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 					return nil
 				},
 			}, nil)
-		prepareOpts = persist.DataPrepareOptionsMatcher{
-			NsMetadata:     testNsMd,
-			Shard:          uint32(1),
-			BlockStart:     start.Add(ropts.BlockSize()),
-			DeleteIfExists: true,
-		}
+		prepareOpts = xtest.CmpMatcher(persist.DataPrepareOptions{
+			NamespaceMetadata: testNsMd,
+			Shard:             uint32(1),
+			BlockStart:        start.Add(ropts.BlockSize()),
+			DeleteIfExists:    true,
+		})
 		mockFlush.EXPECT().
-			Prepare(prepareOpts).
+			PrepareData(prepareOpts).
 			Return(persist.PreparedDataPersist{
 				Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 					assert.Fail(t, "no expected shard 1 second block")
@@ -500,20 +501,20 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
 
 	mockFlush := persist.NewMockDataFlush(ctrl)
-	mockFlush.EXPECT().Done()
+	mockFlush.EXPECT().DoneData()
 
 	persists := make(map[string]int)
 	closes := make(map[string]int)
 
 	// expect foo
-	prepareOpts := persist.DataPrepareOptionsMatcher{
-		NsMetadata:     testNsMd,
-		Shard:          uint32(0),
-		BlockStart:     start,
-		DeleteIfExists: true,
-	}
+	prepareOpts := xtest.CmpMatcher(persist.DataPrepareOptions{
+		NamespaceMetadata: testNsMd,
+		Shard:             uint32(0),
+		BlockStart:        start,
+		DeleteIfExists:    true,
+	})
 	mockFlush.EXPECT().
-		Prepare(prepareOpts).
+		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				assert.Fail(t, "not expecting to flush shard 0 at start")
@@ -524,14 +525,14 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				return nil
 			},
 		}, nil)
-	prepareOpts = persist.DataPrepareOptionsMatcher{
-		NsMetadata:     testNsMd,
-		Shard:          uint32(0),
-		BlockStart:     midway,
-		DeleteIfExists: true,
-	}
+	prepareOpts = xtest.CmpMatcher(persist.DataPrepareOptions{
+		NamespaceMetadata: testNsMd,
+		Shard:             uint32(0),
+		BlockStart:        midway,
+		DeleteIfExists:    true,
+	})
 	mockFlush.EXPECT().
-		Prepare(prepareOpts).
+		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["foo"]++
@@ -544,14 +545,14 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		}, nil)
 
 	// expect bar
-	prepareOpts = persist.DataPrepareOptionsMatcher{
-		NsMetadata:     testNsMd,
-		Shard:          uint32(1),
-		BlockStart:     start,
-		DeleteIfExists: true,
-	}
+	prepareOpts = xtest.CmpMatcher(persist.DataPrepareOptions{
+		NamespaceMetadata: testNsMd,
+		Shard:             uint32(1),
+		BlockStart:        start,
+		DeleteIfExists:    true,
+	})
 	mockFlush.EXPECT().
-		Prepare(prepareOpts).
+		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				assert.Fail(t, "not expecting to flush shard 0 at start + block size")
@@ -562,14 +563,14 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				return nil
 			},
 		}, nil)
-	prepareOpts = persist.DataPrepareOptionsMatcher{
-		NsMetadata:     testNsMd,
-		Shard:          uint32(1),
-		BlockStart:     midway,
-		DeleteIfExists: true,
-	}
+	prepareOpts = xtest.CmpMatcher(persist.DataPrepareOptions{
+		NamespaceMetadata: testNsMd,
+		Shard:             uint32(1),
+		BlockStart:        midway,
+		DeleteIfExists:    true,
+	})
 	mockFlush.EXPECT().
-		Prepare(prepareOpts).
+		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["bar"]++
@@ -582,14 +583,14 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		}, nil)
 
 	// expect baz
-	prepareOpts = persist.DataPrepareOptionsMatcher{
-		NsMetadata:     testNsMd,
-		Shard:          uint32(2),
-		BlockStart:     start,
-		DeleteIfExists: true,
-	}
+	prepareOpts = xtest.CmpMatcher(persist.DataPrepareOptions{
+		NamespaceMetadata: testNsMd,
+		Shard:             uint32(2),
+		BlockStart:        start,
+		DeleteIfExists:    true,
+	})
 	mockFlush.EXPECT().
-		Prepare(prepareOpts).
+		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["baz"]++
@@ -600,14 +601,14 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				return nil
 			},
 		}, nil)
-	prepareOpts = persist.DataPrepareOptionsMatcher{
-		NsMetadata:     testNsMd,
-		Shard:          uint32(2),
-		BlockStart:     midway,
-		DeleteIfExists: true,
-	}
+	prepareOpts = xtest.CmpMatcher(persist.DataPrepareOptions{
+		NamespaceMetadata: testNsMd,
+		Shard:             uint32(2),
+		BlockStart:        midway,
+		DeleteIfExists:    true,
+	})
 	mockFlush.EXPECT().
-		Prepare(prepareOpts).
+		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["baz"]++
@@ -620,14 +621,14 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		}, nil)
 
 		// expect qux
-	prepareOpts = persist.DataPrepareOptionsMatcher{
-		NsMetadata:     testNsMd,
-		Shard:          uint32(3),
-		BlockStart:     start,
-		DeleteIfExists: true,
-	}
+	prepareOpts = xtest.CmpMatcher(persist.DataPrepareOptions{
+		NamespaceMetadata: testNsMd,
+		Shard:             uint32(3),
+		BlockStart:        start,
+		DeleteIfExists:    true,
+	})
 	mockFlush.EXPECT().
-		Prepare(prepareOpts).
+		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["qux"]++
@@ -638,14 +639,14 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 				return fmt.Errorf("a persist close error")
 			},
 		}, nil)
-	prepareOpts = persist.DataPrepareOptionsMatcher{
-		NsMetadata:     testNsMd,
-		Shard:          uint32(3),
-		BlockStart:     midway,
-		DeleteIfExists: true,
-	}
+	prepareOpts = xtest.CmpMatcher(persist.DataPrepareOptions{
+		NamespaceMetadata: testNsMd,
+		Shard:             uint32(3),
+		BlockStart:        midway,
+		DeleteIfExists:    true,
+	})
 	mockFlush.EXPECT().
-		Prepare(prepareOpts).
+		PrepareData(prepareOpts).
 		Return(persist.PreparedDataPersist{
 			Persist: func(id ident.ID, _ ident.Tags, segment ts.Segment, checksum uint32) error {
 				persists["qux"]++

@@ -127,6 +127,53 @@ func (mr *MockProcessMockRecorder) Run(start, ns, shards interface{}) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Run", reflect.TypeOf((*MockProcess)(nil).Run), start, ns, shards)
 }
 
+// MockProcessOptions is a mock of ProcessOptions interface
+type MockProcessOptions struct {
+	ctrl     *gomock.Controller
+	recorder *MockProcessOptionsMockRecorder
+}
+
+// MockProcessOptionsMockRecorder is the mock recorder for MockProcessOptions
+type MockProcessOptionsMockRecorder struct {
+	mock *MockProcessOptions
+}
+
+// NewMockProcessOptions creates a new mock instance
+func NewMockProcessOptions(ctrl *gomock.Controller) *MockProcessOptions {
+	mock := &MockProcessOptions{ctrl: ctrl}
+	mock.recorder = &MockProcessOptionsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockProcessOptions) EXPECT() *MockProcessOptionsMockRecorder {
+	return m.recorder
+}
+
+// SetCacheSeriesMetadata mocks base method
+func (m *MockProcessOptions) SetCacheSeriesMetadata(value bool) ProcessOptions {
+	ret := m.ctrl.Call(m, "SetCacheSeriesMetadata", value)
+	ret0, _ := ret[0].(ProcessOptions)
+	return ret0
+}
+
+// SetCacheSeriesMetadata indicates an expected call of SetCacheSeriesMetadata
+func (mr *MockProcessOptionsMockRecorder) SetCacheSeriesMetadata(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCacheSeriesMetadata", reflect.TypeOf((*MockProcessOptions)(nil).SetCacheSeriesMetadata), value)
+}
+
+// CacheSeriesMetadata mocks base method
+func (m *MockProcessOptions) CacheSeriesMetadata() bool {
+	ret := m.ctrl.Call(m, "CacheSeriesMetadata")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// CacheSeriesMetadata indicates an expected call of CacheSeriesMetadata
+func (mr *MockProcessOptionsMockRecorder) CacheSeriesMetadata() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheSeriesMetadata", reflect.TypeOf((*MockProcessOptions)(nil).CacheSeriesMetadata))
+}
+
 // MockRunOptions is a mock of RunOptions interface
 type MockRunOptions struct {
 	ctrl     *gomock.Controller
@@ -172,6 +219,30 @@ func (m *MockRunOptions) Incremental() bool {
 // Incremental indicates an expected call of Incremental
 func (mr *MockRunOptionsMockRecorder) Incremental() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Incremental", reflect.TypeOf((*MockRunOptions)(nil).Incremental))
+}
+
+// SetCacheSeriesMetadata mocks base method
+func (m *MockRunOptions) SetCacheSeriesMetadata(value bool) RunOptions {
+	ret := m.ctrl.Call(m, "SetCacheSeriesMetadata", value)
+	ret0, _ := ret[0].(RunOptions)
+	return ret0
+}
+
+// SetCacheSeriesMetadata indicates an expected call of SetCacheSeriesMetadata
+func (mr *MockRunOptionsMockRecorder) SetCacheSeriesMetadata(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCacheSeriesMetadata", reflect.TypeOf((*MockRunOptions)(nil).SetCacheSeriesMetadata), value)
+}
+
+// CacheSeriesMetadata mocks base method
+func (m *MockRunOptions) CacheSeriesMetadata() bool {
+	ret := m.ctrl.Call(m, "CacheSeriesMetadata")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// CacheSeriesMetadata indicates an expected call of CacheSeriesMetadata
+func (mr *MockRunOptionsMockRecorder) CacheSeriesMetadata() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CacheSeriesMetadata", reflect.TypeOf((*MockRunOptions)(nil).CacheSeriesMetadata))
 }
 
 // MockBootstrapperProvider is a mock of BootstrapperProvider interface

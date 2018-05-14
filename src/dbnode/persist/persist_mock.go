@@ -66,6 +66,19 @@ func (mr *MockManagerMockRecorder) StartDataPersist() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartDataPersist", reflect.TypeOf((*MockManager)(nil).StartDataPersist))
 }
 
+// StartIndexPersist mocks base method
+func (m *MockManager) StartIndexPersist() (IndexFlush, error) {
+	ret := m.ctrl.Call(m, "StartIndexPersist")
+	ret0, _ := ret[0].(IndexFlush)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StartIndexPersist indicates an expected call of StartIndexPersist
+func (mr *MockManagerMockRecorder) StartIndexPersist() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartIndexPersist", reflect.TypeOf((*MockManager)(nil).StartIndexPersist))
+}
+
 // MockDataFlush is a mock of DataFlush interface
 type MockDataFlush struct {
 	ctrl     *gomock.Controller
@@ -89,27 +102,75 @@ func (m *MockDataFlush) EXPECT() *MockDataFlushMockRecorder {
 	return m.recorder
 }
 
-// Prepare mocks base method
-func (m *MockDataFlush) Prepare(opts DataPrepareOptions) (PreparedDataPersist, error) {
-	ret := m.ctrl.Call(m, "Prepare", opts)
+// PrepareData mocks base method
+func (m *MockDataFlush) PrepareData(opts DataPrepareOptions) (PreparedDataPersist, error) {
+	ret := m.ctrl.Call(m, "PrepareData", opts)
 	ret0, _ := ret[0].(PreparedDataPersist)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Prepare indicates an expected call of Prepare
-func (mr *MockDataFlushMockRecorder) Prepare(opts interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prepare", reflect.TypeOf((*MockDataFlush)(nil).Prepare), opts)
+// PrepareData indicates an expected call of PrepareData
+func (mr *MockDataFlushMockRecorder) PrepareData(opts interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareData", reflect.TypeOf((*MockDataFlush)(nil).PrepareData), opts)
 }
 
-// Done mocks base method
-func (m *MockDataFlush) Done() error {
-	ret := m.ctrl.Call(m, "Done")
+// DoneData mocks base method
+func (m *MockDataFlush) DoneData() error {
+	ret := m.ctrl.Call(m, "DoneData")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Done indicates an expected call of Done
-func (mr *MockDataFlushMockRecorder) Done() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Done", reflect.TypeOf((*MockDataFlush)(nil).Done))
+// DoneData indicates an expected call of DoneData
+func (mr *MockDataFlushMockRecorder) DoneData() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoneData", reflect.TypeOf((*MockDataFlush)(nil).DoneData))
+}
+
+// MockIndexFlush is a mock of IndexFlush interface
+type MockIndexFlush struct {
+	ctrl     *gomock.Controller
+	recorder *MockIndexFlushMockRecorder
+}
+
+// MockIndexFlushMockRecorder is the mock recorder for MockIndexFlush
+type MockIndexFlushMockRecorder struct {
+	mock *MockIndexFlush
+}
+
+// NewMockIndexFlush creates a new mock instance
+func NewMockIndexFlush(ctrl *gomock.Controller) *MockIndexFlush {
+	mock := &MockIndexFlush{ctrl: ctrl}
+	mock.recorder = &MockIndexFlushMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockIndexFlush) EXPECT() *MockIndexFlushMockRecorder {
+	return m.recorder
+}
+
+// PrepareIndex mocks base method
+func (m *MockIndexFlush) PrepareIndex(opts IndexPrepareOptions) (PreparedIndexPersist, error) {
+	ret := m.ctrl.Call(m, "PrepareIndex", opts)
+	ret0, _ := ret[0].(PreparedIndexPersist)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PrepareIndex indicates an expected call of PrepareIndex
+func (mr *MockIndexFlushMockRecorder) PrepareIndex(opts interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareIndex", reflect.TypeOf((*MockIndexFlush)(nil).PrepareIndex), opts)
+}
+
+// DoneIndex mocks base method
+func (m *MockIndexFlush) DoneIndex() error {
+	ret := m.ctrl.Call(m, "DoneIndex")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DoneIndex indicates an expected call of DoneIndex
+func (mr *MockIndexFlushMockRecorder) DoneIndex() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoneIndex", reflect.TypeOf((*MockIndexFlush)(nil).DoneIndex))
 }

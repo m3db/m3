@@ -605,7 +605,7 @@ func (s *dbSeries) newBootstrapBlockError(
 func (s *dbSeries) Flush(
 	ctx context.Context,
 	blockStart time.Time,
-	persistFn persist.Fn,
+	persistFn persist.DataFn,
 ) (FlushOutcome, error) {
 	s.RLock()
 	defer s.RUnlock()
@@ -646,7 +646,7 @@ func (s *dbSeries) Flush(
 func (s *dbSeries) Snapshot(
 	ctx context.Context,
 	blockStart time.Time,
-	persistFn persist.Fn,
+	persistFn persist.DataFn,
 ) error {
 	// Need a write lock because the buffer Snapshot method mutates
 	// state (by performing a pro-active merge).

@@ -319,7 +319,7 @@ func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
 func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
-	ns.bs = Bootstrapping
+	ns.bootstrapState = Bootstrapping
 	require.Equal(t, errNamespaceIsBootstrapping, ns.Bootstrap(time.Now(), nil))
 }
 
@@ -328,7 +328,7 @@ func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 		namespace.NewOptions().SetBootstrapEnabled(false))
 	defer closer()
 	require.NoError(t, ns.Bootstrap(time.Now(), nil))
-	require.Equal(t, Bootstrapped, ns.bs)
+	require.Equal(t, Bootstrapped, ns.bootstrapState)
 }
 
 func TestNamespaceBootstrapAllShards(t *testing.T) {
@@ -357,7 +357,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 	}
 
 	require.Equal(t, "foo", ns.Bootstrap(start, bs).Error())
-	require.Equal(t, Bootstrapped, ns.bs)
+	require.Equal(t, Bootstrapped, ns.bootstrapState)
 }
 
 func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
@@ -403,7 +403,7 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 	}
 
 	require.NoError(t, ns.Bootstrap(start, bs))
-	require.Equal(t, Bootstrapped, ns.bs)
+	require.Equal(t, Bootstrapped, ns.bootstrapState)
 }
 
 func TestNamespaceFlushNotBootstrapped(t *testing.T) {
@@ -417,7 +417,7 @@ func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 		namespace.NewOptions().SetFlushEnabled(false))
 	defer close()
 
-	ns.bs = Bootstrapped
+	ns.bootstrapState = Bootstrapped
 	require.NoError(t, ns.Flush(time.Now(), nil, nil))
 }
 
@@ -431,7 +431,7 @@ func TestNamespaceFlushSkipFlushed(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 
-	ns.bs = Bootstrapped
+	ns.bootstrapState = Bootstrapped
 	blockStart := time.Now().Truncate(ns.Options().RetentionOptions().BlockSize())
 
 	states := []fileOpState{
@@ -466,7 +466,7 @@ func TestNamespaceFlushSkipShardNotBootstrappedBeforeTick(t *testing.T) {
 	ns, closer := newTestNamespace(t)
 	defer closer()
 
-	ns.bs = Bootstrapped
+	ns.bootstrapState = Bootstrapped
 	blockStart := time.Now().Truncate(ns.Options().RetentionOptions().BlockSize())
 
 	shard := NewMockdatabaseShard(ctrl)
@@ -496,7 +496,7 @@ func TestNamespaceSnapshotNotBootstrapped(t *testing.T) {
 	ns, close := newTestNamespace(t)
 	defer close()
 
-	ns.bs = Bootstrapping
+	ns.bootstrapState = Bootstrapping
 
 	blockSize := ns.Options().RetentionOptions().BlockSize()
 	blockStart := time.Now().Truncate(blockSize)
@@ -558,7 +558,7 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 
 	ns, closer := newTestNamespace(t)
 	defer closer()
-	ns.bs = Bootstrapped
+	ns.bootstrapState = Bootstrapped
 	now := time.Now()
 	ns.nowFn = func() time.Time {
 		return now

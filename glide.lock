@@ -1,5 +1,5 @@
-hash: 818a04d6d26d2cd8f4578277a2687cf56fb5f7e061c5ab563b9ba07e2da1f2c9
-updated: 2018-05-18T10:22:29.841483-04:00
+hash: 3676152b21215fe5cbdc6bc36a93d072d1c0181d21ab75d1a8debd6015ee44c3
+updated: 2018-05-18T11:34:59.456603862-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -156,6 +156,13 @@ imports:
   version: 553a641470496b2327abcac10b36396bd98e45c9
 - name: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
+- name: github.com/google/go-cmp
+  version: 3af367b6b30c263d47e8895973edcca9a49cf029
+  subpackages:
+  - cmp
+  - cmp/internal/diff
+  - cmp/internal/function
+  - cmp/internal/value
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
@@ -223,7 +230,7 @@ imports:
   - metric
   - policy
 - name: github.com/m3db/m3ninx
-  version: d5d44ea341add6babe72dd16f91503e9c9db5ad2
+  version: 8f5e6a0f31393f5b0d79086250ac1a528747c0c7
   subpackages:
   - doc
   - generated/proto/fswriter
@@ -246,7 +253,7 @@ imports:
   - search/searcher
   - x
 - name: github.com/m3db/m3x
-  version: 5b90159b38cdf9a636a4de6fd601fb204429ad4b
+  version: c457e96f2dea19cf2f590e40d443b62ced1e7820
   vcs: git
   subpackages:
   - checked
@@ -520,13 +527,6 @@ testImports:
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fortytw2/leaktest
   version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
-- name: github.com/google/go-cmp
-  version: 5411ab924f9ffa6566244a9e504bc347edacffd3
-  subpackages:
-  - cmp
-  - cmp/internal/diff
-  - cmp/internal/function
-  - cmp/internal/value
 - name: github.com/leanovate/gopter
   version: 9e6101e5a87586b269acf3d0d61f363e4317309f
   subpackages:
