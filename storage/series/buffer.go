@@ -506,7 +506,6 @@ func (b *dbBuffer) FetchBlocksMetadata(
 }
 
 type dbBufferBucket struct {
-	ctx               context.Context
 	opts              Options
 	start             time.Time
 	encoders          []inOrderEncoder
