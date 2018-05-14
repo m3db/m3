@@ -97,15 +97,11 @@ func (s *commitLogSource) ReadData(
 	readCommitLogPredicate := newReadCommitLogPredicate(
 		ns, shardsTimeRanges, s.opts, s.inspection)
 
-	var readSeriesPredicate commitlog.SeriesFilterPredicate
-	if s.opts.ShouldCacheSeriesMetadata() {
-		// If we're planning on caching the series metadata, then we need to read
-		// the data for all namespaces so we can avoid reading the commitlogs over
-		// and over again for different namespaces.
-		readSeriesPredicate = commitlog.ReadAllSeriesPredicate()
-	} else {
-		readSeriesPredicate = newReadSeriesPredicate(ns)
-	}
+	// TODO(rartoul): When we implement caching data across namespaces, this will need
+	// to be commitlog.ReadAllSeriesPredicate() if ShouldCacheSeriesMetadata() is enabled
+	// because we'll need to read data for all namespaces, not just the one we're currently
+	// bootstrapping.
+	readSeriesPredicate := newReadSeriesPredicate(ns)
 	iterOpts := commitlog.IteratorOpts{
 		CommitLogOptions:      s.opts.CommitLogOptions(),
 		FileFilterPredicate:   readCommitLogPredicate,
