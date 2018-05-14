@@ -200,7 +200,7 @@ func (w *writer) Write(
 	}
 
 	// Finalize any encoded metadata
-	// series.finalizeEncoded()
+	series.finalizeEncoded()
 
 	if !seen {
 		// Record we have written this series and metadata to this commit log
