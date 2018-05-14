@@ -559,9 +559,7 @@ func (s *commitLogSource) cacheShardData(allShardData []shardData) {
 			// Extend the slice if necessary (could happen if different calls to
 			// ReadData() bootstrap different shards.)
 			for len(s.cachedShardData) != shard+1 {
-				s.cachedShardData = append(s.cachedShardData, shardData{
-					series: make(map[uint64]metadataAndEncodersByTime),
-				})
+				s.cachedShardData = append(s.cachedShardData, shardData{})
 			}
 		}
 
@@ -572,7 +570,11 @@ func (s *commitLogSource) cacheShardData(allShardData []shardData) {
 
 		// If there are no existing series, just set what we have.
 		if len(cachedSeries) == 0 {
-			s.cachedShardData[shard].series = currSeries
+			if currSeries != nil {
+				s.cachedShardData[shard].series = currSeries
+			} else {
+				s.cachedShardData[shard].series = make(map[uint64]metadataAndEncodersByTime)
+			}
 			continue
 		}
 
