@@ -191,16 +191,19 @@ func TestSessionClusterConnectConsistencyLevelNone(t *testing.T) {
 }
 
 func TestIteratorPools(t *testing.T) {
+	s := session{}
+	itPool, err := s.IteratorPools()
+
+	assert.Error(t, err)
+	assert.Nil(t, itPool)
+
 	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
 	seriesIteratorPool := encoding.NewSeriesIteratorPool(nil)
-	s := session{
-		pools: sessionPools{
-			multiReaderIterator: multiReaderIteratorPool,
-			seriesIterator:      seriesIteratorPool,
-		},
+	s.pools = sessionPools{
+		multiReaderIterator: multiReaderIteratorPool,
+		seriesIterator:      seriesIteratorPool,
 	}
-
-	itPool, err := s.IteratorPools()
+	itPool, err = s.IteratorPools()
 
 	assert.NoError(t, err)
 	assert.Equal(t, multiReaderIteratorPool, itPool.MultiReaderIterator())
