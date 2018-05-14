@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
@@ -197,6 +198,20 @@ type shardSnapshotState struct {
 	sync.RWMutex
 	isSnapshotting         bool
 	lastSuccessfulSnapshot time.Time
+}
+
+var _msgpackEncoderPool = &sync.Pool{
+	New: func() interface{} {
+		return msgpack.NewEncoder()
+	},
+}
+
+func msgpackEncoderPoolGet() *msgpack.Encoder {
+	return _msgpackEncoderPool.Get().(*msgpack.Encoder)
+}
+
+func msgpackEncoderPoolPut(v *msgpack.Encoder) {
+	_msgpackEncoderPool.Put(v)
 }
 
 func newDatabaseShard(
@@ -836,6 +851,21 @@ func (s *dbShard) writeAndIndex(
 		ID:          commitLogSeriesID,
 		Tags:        commitLogSeriesTags,
 		Shard:       s.shard,
+	}
+
+	// Prepare the log metadata by encoding it before putting it in the queue
+	// so the encoding work can be done in parallel instead of synchronously
+	// once in the queue
+	encoder := msgpackEncoderPoolGet()
+	tagsEncoder := s.opts.TagEncoderPool().Get()
+	tagsIter := s.opts.IdentifierPool().TagsIterator()
+	err = series.EncodeLogMetadata(encoder, tagsEncoder,
+		tagsIter, s.opts.BytesPool())
+	msgpackEncoderPoolPut(encoder)
+	tagsEncoder.Finalize()
+	tagsIter.Close()
+	if err != nil {
+		return err
 	}
 
 	datapoint := ts.Datapoint{

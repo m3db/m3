@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -805,6 +806,18 @@ type Options interface {
 
 	// IDPool returns the ID pool.
 	IdentifierPool() ident.Pool
+
+	// SetTagEncoderPool sets the tag encoder pool
+	SetTagEncoderPool(value serialize.TagEncoderPool) Options
+
+	// TagEncoderPool returns the tag encoder pool
+	TagEncoderPool() serialize.TagEncoderPool
+
+	// SetTagDecoderPool sets the tag decoder pool
+	SetTagDecoderPool(value serialize.TagDecoderPool) Options
+
+	// TagDecoderPool returns the tag decoder pool
+	TagDecoderPool() serialize.TagDecoderPool
 
 	// SetFetchBlockMetadataResultsPool sets the fetchBlockMetadataResultsPool
 	SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options
