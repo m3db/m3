@@ -189,7 +189,7 @@ func (s *commitLogSource) ReadData(
 
 	result := s.mergeShards(int(numShards), bopts, blockSize, blopts, encoderPool, unmerged)
 	// After merging shards, its safe to cache the shardData (which involves some mutation).
-	if s.opts.ShouldCacheSeriesMetadata() {
+	if s.opts.CacheSeriesMetadata() {
 		s.cacheShardData(unmerged)
 	}
 	return result, nil

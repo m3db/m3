@@ -53,6 +53,9 @@ type BootstrapConfiguration struct {
 
 	// Peers bootstrapper configuration.
 	Peers *BootstrapPeersConfiguration `yaml:"peers"`
+
+	// Commitlog bootstrapper configuration.
+	Commitlog *BootstrapCommitlogConfiguration `yaml:"commitlog"`
 }
 
 func (bsc BootstrapConfiguration) fsNumProcessors() int {
@@ -72,6 +75,14 @@ func (bsc BootstrapConfiguration) peersFetchBlocksMetadataEndpointVersion() clie
 	return version
 }
 
+func (bsc BootstrapConfiguration) commitlogCacheSeriesMetadata() *bool {
+	if bsc.Commitlog == nil {
+		return nil
+	}
+
+	return bsc.Commitlog.CacheSeriesMetadata
+}
+
 // BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.
 type BootstrapFilesystemConfiguration struct {
 	// NumProcessorsPerCPU is the number of processors per CPU.
@@ -83,6 +94,11 @@ type BootstrapPeersConfiguration struct {
 	// FetchBlocksMetadataEndpointVersion is the endpoint to use when fetching blocks metadata.
 	// TODO: Remove once v1 endpoint no longer required.
 	FetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion `yaml:"fetchBlocksMetadataEndpointVersion"`
+}
+
+// BootstrapCommitlogConfiguration specifies config for the commitlog bootstrapper.
+type BootstrapCommitlogConfiguration struct {
+	CacheSeriesMetadata *bool `yaml:"cacheSeriesMetadata"`
 }
 
 // New creates a bootstrap process based on the bootstrap configuration.
@@ -125,6 +141,11 @@ func (bsc BootstrapConfiguration) New(
 			copts := commitlog.NewOptions().
 				SetResultOptions(rsOpts).
 				SetCommitLogOptions(opts.CommitLogOptions())
+
+			cacheSeriesMetadata := bsc.commitlogCacheSeriesMetadata()
+			if cacheSeriesMetadata != nil {
+				copts = copts.SetCacheSeriesMetadata(*cacheSeriesMetadata)
+			}
 			inspection, err := fs.InspectFilesystem(fsOpts)
 			if err != nil {
 				return nil, err

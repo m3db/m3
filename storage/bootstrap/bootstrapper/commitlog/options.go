@@ -107,12 +107,12 @@ func (o *options) MergeShardsConcurrency() int {
 	return o.mergeShardConcurrency
 }
 
-func (o *options) SetShouldCacheSeriesMetadata(value bool) Options {
+func (o *options) SetCacheSeriesMetadata(value bool) Options {
 	opts := *o
 	opts.shouldCacheSeriesMetadata = value
 	return &opts
 }
 
-func (o *options) ShouldCacheSeriesMetadata() bool {
+func (o *options) CacheSeriesMetadata() bool {
 	return o.shouldCacheSeriesMetadata
 }

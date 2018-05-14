@@ -70,7 +70,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				SetFilesystemOptions(fsOpts)
 			bootstrapOpts := testOptions().
 				SetCommitLogOptions(commitLogOpts).
-				SetShouldCacheSeriesMetadata(input.shouldCacheSeriesMetadata)
+				SetCacheSeriesMetadata(input.shouldCacheSeriesMetadata)
 
 			// Instantiate commitlog
 			log, err := commitlog.NewCommitLog(commitLogOpts)
