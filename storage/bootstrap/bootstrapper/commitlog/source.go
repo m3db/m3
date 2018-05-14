@@ -519,6 +519,13 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 	}
 }
 
+// cacheShardData caches the shardData from a call to ReadData() on the source so that subsequent calls
+// to ReadIndex() for the same time period don't have to read the commit log files again. Its safe to
+// cache the series IDs and Tags for two reasons:
+//      1) The lifecycle of the IDs and Tags will at least outlive the bootstrapping process itself
+//         so the ReadIndex() call is guaranteed to be able to read them before they're finalized,
+//         and indexing them creates a copy.
+//      2) M3DB never finalizes series IDs / tags anyways.
 func (s *commitLogSource) cacheShardData(allShardData []shardData) {
 	for shard, currShardData := range allShardData {
 		for _, seriesData := range currShardData.series {
