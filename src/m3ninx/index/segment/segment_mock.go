@@ -218,6 +218,18 @@ func (mr *MockMutableSegmentMockRecorder) InsertBatch(arg0 interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBatch", reflect.TypeOf((*MockMutableSegment)(nil).InsertBatch), arg0)
 }
 
+// IsSealed mocks base method
+func (m *MockMutableSegment) IsSealed() bool {
+	ret := m.ctrl.Call(m, "IsSealed")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsSealed indicates an expected call of IsSealed
+func (mr *MockMutableSegmentMockRecorder) IsSealed() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSealed", reflect.TypeOf((*MockMutableSegment)(nil).IsSealed))
+}
+
 // Reader mocks base method
 func (m *MockMutableSegment) Reader() (index.Reader, error) {
 	ret := m.ctrl.Call(m, "Reader")

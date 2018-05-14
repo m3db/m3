@@ -318,6 +318,18 @@ func (mr *MockMutableListMockRecorder) Union(other interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Union", reflect.TypeOf((*MockMutableList)(nil).Union), other)
 }
 
+// AddIterator mocks base method
+func (m *MockMutableList) AddIterator(iter Iterator) error {
+	ret := m.ctrl.Call(m, "AddIterator", iter)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddIterator indicates an expected call of AddIterator
+func (mr *MockMutableListMockRecorder) AddIterator(iter interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddIterator", reflect.TypeOf((*MockMutableList)(nil).AddIterator), iter)
+}
+
 // AddRange mocks base method
 func (m *MockMutableList) AddRange(min, max ID) {
 	m.ctrl.Call(m, "AddRange", min, max)

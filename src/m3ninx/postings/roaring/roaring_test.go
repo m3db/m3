@@ -329,3 +329,29 @@ func TestRoaringPostingsListNotEqualWithOtherNonRoaring(t *testing.T) {
 
 	require.False(t, first.Equal(second))
 }
+
+func TestRoaringPostingsAddIterator(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+
+	first := NewPostingsList()
+
+	postingsIter := postings.NewMockIterator(mockCtrl)
+	gomock.InOrder(
+		postingsIter.EXPECT().Next().Return(true),
+		postingsIter.EXPECT().Current().Return(postings.ID(42)),
+		postingsIter.EXPECT().Next().Return(true),
+		postingsIter.EXPECT().Current().Return(postings.ID(44)),
+		postingsIter.EXPECT().Next().Return(true),
+		postingsIter.EXPECT().Current().Return(postings.ID(51)),
+		postingsIter.EXPECT().Next().Return(false),
+		postingsIter.EXPECT().Err().Return(nil),
+		postingsIter.EXPECT().Close().Return(nil),
+	)
+
+	require.NoError(t, first.AddIterator(postingsIter))
+	require.Equal(t, 3, first.Len())
+	require.True(t, first.Contains(postings.ID(42)))
+	require.True(t, first.Contains(postings.ID(44)))
+	require.True(t, first.Contains(postings.ID(51)))
+}

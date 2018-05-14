@@ -19,3 +19,57 @@
 // THE SOFTWARE.
 
 package fs
+
+import (
+	"io"
+
+	"github.com/m3db/m3ninx/index"
+	sgmt "github.com/m3db/m3ninx/index/segment"
+)
+
+const (
+	magicNumber  = 0x6D33D0C5
+	majorVersion = 1
+	minorVersion = 0
+)
+
+// Segment represents a FST segment.
+type Segment interface {
+	sgmt.Segment
+	index.Readable
+}
+
+// Writer writes out a FST segment from the provided elements.
+type Writer interface {
+	// Reset sets the Writer to persist the provide segment.
+	// NB(prateek): the provided segment must be a Sealed Mutable segment.
+	Reset(s sgmt.MutableSegment) error
+
+	// MajorVersion is the major version for the writer.
+	MajorVersion() int
+
+	// MinorVersion is the minor version for the writer.
+	MinorVersion() int
+
+	// Metadata returns metadata about the writer.
+	Metadata() []byte
+
+	// WriteDocumentsData writes out the documents data to the provided writer.
+	WriteDocumentsData(w io.Writer) error
+
+	// WriteDocumentsIndex writes out the documents index to the provided writer.
+	// NB(prateek): this must be called after WriteDocumentsData().
+	WriteDocumentsIndex(w io.Writer) error
+
+	// WritePostingsOffsets writes out the postings offset file to the provided
+	// writer.
+	WritePostingsOffsets(w io.Writer) error
+
+	// WriteFSTTerms writes out the FSTTerms file using the provided writer.
+	// NB(prateek): this must be called after WritePostingsOffsets().
+	WriteFSTTerms(w io.Writer) error
+
+	// WriteFSTFields writes out the FSTFields file using the provided writer.
+	// NB(prateek): this must be called after WriteFSTTerm().
+	WriteFSTFields(w io.Writer) error
+}

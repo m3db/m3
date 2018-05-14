@@ -1,5 +1,5 @@
-hash: 48d27bf72917e4a2b50a173cb9716ddf64adda9593d463194175059014eb72f6
-updated: 2018-05-12T11:51:18.097399435-04:00
+hash: a1bf47435da9cd8f22b3868731e58e2328f1a83b5fd58ea2772940330c9f3216
+updated: 2018-05-14T00:24:49.193370723-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -7,6 +7,16 @@ imports:
   - lib/go/thrift
 - name: github.com/cespare/xxhash
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
+- name: github.com/couchbase/vellum
+  version: eb6ae3743b3f300f2136f83ca78c08cc071edbd4
+  subpackages:
+  - utf8
+- name: github.com/couchbaselabs/vellum
+  version: eb6ae3743b3f300f2136f83ca78c08cc071edbd4
+  subpackages:
+  - regexp
+- name: github.com/edsrzf/mmap-go
+  version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 - name: github.com/glycerine/go-unsnap-stream
   version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
 - name: github.com/golang/mock
@@ -36,6 +46,10 @@ imports:
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
+- name: github.com/pilosa/pilosa
+  version: bba472f012efd8cdb3c67f4419a1c138f7c83ab9
+  subpackages:
+  - roaring
 - name: github.com/RoaringBitmap/roaring
   version: 1a28a7fa985680f9f4e1644c0a857ec359a444b0
 - name: github.com/satori/go.uuid
@@ -54,7 +68,8 @@ imports:
   - m3/thrift
   - m3/thriftudp
 - name: github.com/willf/bitset
-  version: 988f4f24992fc745de53c42df0da6581e42a6686
+  version: 5c3c0fce48842b2c0bbaa99b4e61b0175d84b47c
+  repo: https://github.com/willf/bitset
 - name: go.uber.org/atomic
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: go.uber.org/multierr

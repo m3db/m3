@@ -90,6 +90,9 @@ type MutableList interface {
 	// this postings list or other.
 	Union(other List) error
 
+	// AddIterator adds all IDs contained in the iterator.
+	AddIterator(iter Iterator) error
+
 	// AddRange adds all IDs between [min, max) to this postings list.
 	AddRange(min, max ID)
 

@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3ninx/postings"
+	"github.com/m3db/m3ninx/x"
 
 	"github.com/RoaringBitmap/roaring"
 )
@@ -101,6 +102,23 @@ func (d *postingsList) AddRange(min, max postings.ID) {
 	d.Lock()
 	d.bitmap.AddRange(uint64(min), uint64(max))
 	d.Unlock()
+}
+
+func (d *postingsList) AddIterator(iter postings.Iterator) error {
+	safeIter := x.NewSafeCloser(iter)
+	defer safeIter.Close()
+
+	d.Lock()
+	for iter.Next() {
+		d.bitmap.Add(uint32(iter.Current()))
+	}
+	d.Unlock()
+
+	if err := iter.Err(); err != nil {
+		return err
+	}
+
+	return safeIter.Close()
 }
 
 func (d *postingsList) RemoveRange(min, max postings.ID) {

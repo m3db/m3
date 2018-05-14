@@ -56,6 +56,9 @@ func ReadDocs(path string, n int) ([]doc.Document, error) {
 
 		fields := make([]doc.Field, 0, len(fieldsMap))
 		for k, v := range fieldsMap {
+			if len(k) == 0 || len(v) == 0 {
+				continue
+			}
 			fields = append(fields, doc.Field{
 				Name:  []byte(k),
 				Value: []byte(v),
