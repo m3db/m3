@@ -164,7 +164,8 @@ func BackoffNanos(
 	if retry >= 1 {
 		backoff = int64(float64(backoff) * math.Pow(backoffFactor, float64(retry-1)))
 	}
-	if jitter {
+	// Validate the value of backoff to make sure Int63n() does not panic.
+	if jitter && backoff >= 2 {
 		half := backoff / 2
 		backoff = half + rand.Int63n(half)
 	}

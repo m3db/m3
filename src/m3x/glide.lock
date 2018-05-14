@@ -1,5 +1,5 @@
-hash: fd240aa3ae2255418c6f569f8d07ec59c46b5dfe9da60f007a70c6364dd918bc
-updated: 2018-04-24T11:52:45.597572-04:00
+hash: b1f0f96bdf7df14f2b052bb71990a282fa879489e81b90bb95cfa030efc704f0
+updated: 2018-05-14T17:50:54.347492-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -7,8 +7,10 @@ imports:
   - lib/go/thrift
 - name: github.com/cespare/xxhash
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
-- name: github.com/facebookgo/clock
-  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
+- name: github.com/davecgh/go-spew
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  subpackages:
+  - spew
 - name: github.com/golang/mock
   version: c34cdb4725f4c3844d095133c6e40e448b86589b
   subpackages:
@@ -17,12 +19,22 @@ imports:
   version: 9d8700bcc567cd22ea2ef42ce5835a9c80296c4a
   subpackages:
   - generic
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
+- name: github.com/stretchr/testify
+  version: 12b6f73e6084dad08a7c6e575284b177ecafbc71
+  subpackages:
+  - assert
+  - require
+  - suite
 - name: github.com/uber-go/atomic
-  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
-  version: 522328b48efad0c6034dba92bf39228694e9d31f
+  version: 6f121596292a5ec8618b71ee3687fe42da73d289
   subpackages:
   - m3
   - m3/customtransports
@@ -31,11 +43,11 @@ imports:
 - name: github.com/uber-go/zap
   version: eeedf312bc6c57391d84767a4cd413f02a917974
 - name: go.uber.org/atomic
-  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
+  version: 35aad584952c3e7020db7b839f6b102de6271f89
   subpackages:
   - buffer
   - internal/bufferpool
@@ -43,7 +55,7 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/net
-  version: a35a21de978d84ffc92f010a153705b170b2f9d1
+  version: ab5485076ff3407ad2d02db054635913f017b0ed
   subpackages:
   - context
 - name: gopkg.in/validator.v2
@@ -51,19 +63,10 @@ imports:
 - name: gopkg.in/yaml.v2
   version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
 testImports:
-- name: github.com/davecgh/go-spew
-  version: adab96458c51a58dc1783b3335dcce5461522e75
-  subpackages:
-  - spew
 - name: github.com/fortytw2/leaktest
   version: a5ef70473c97b71626b9abeda80ee92ba2a7de9e
-- name: github.com/pmezard/go-difflib
-  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+- name: github.com/leanovate/gopter
+  version: 9e6101e5a87586b269acf3d0d61f363e4317309f
   subpackages:
-  - difflib
-- name: github.com/stretchr/testify
-  version: 12b6f73e6084dad08a7c6e575284b177ecafbc71
-  subpackages:
-  - assert
-  - require
-  - suite
+  - gen
+  - prop
