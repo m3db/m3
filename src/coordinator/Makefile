@@ -130,7 +130,7 @@ metalint: install-metalinter install-linter-badtime install-linter-importorder
 .PHONY: test-internal
 test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
-	@$(VENDOR_ENV) $(test) $(coverfile) "" "" $(CI_DIR) | tee $(test_log)
+	@$(VENDOR_ENV) $(test) $(coverfile) .excludecoverage test.log $(CI_DIR) | tee $(test_log)
 
 # Note: do not test native pooling since it's experimental/deprecated
 .PHONY: test-integration
