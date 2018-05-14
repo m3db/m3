@@ -88,6 +88,9 @@ type Options interface {
 
 // IndexOptions controls the indexing options for a namespace.
 type IndexOptions interface {
+	// Validate validates the options.
+	Validate() error
+
 	// Equal returns true if the provide value is equal to this one.
 	Equal(value IndexOptions) bool
 

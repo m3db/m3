@@ -21,6 +21,7 @@
 package namespace
 
 import (
+	"errors"
 	"time"
 )
 
@@ -30,6 +31,10 @@ var (
 
 	// defaultIndexBlockSize is the default block size for index blocks.
 	defaultIndexBlockSize = 2 * time.Hour
+)
+
+var (
+	errIndexBlockSizePositive = errors.New("index block size must positive")
 )
 
 type indexOpts struct {
@@ -43,6 +48,15 @@ func NewIndexOptions() IndexOptions {
 		enabled:   defaultIndexEnabled,
 		blockSize: defaultIndexBlockSize,
 	}
+}
+func (i *indexOpts) Validate() error {
+	if !i.enabled {
+		return nil
+	}
+	if i.blockSize <= 0 {
+		return errIndexBlockSizePositive
+	}
+	return nil
 }
 
 func (i *indexOpts) Equal(value IndexOptions) bool {

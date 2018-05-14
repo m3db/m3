@@ -35,6 +35,20 @@ func TestIndexOptionsEqual(t *testing.T) {
 		opts.SetBlockSize(time.Hour*2)))
 }
 
+func TestIndexOptionsValidate(t *testing.T) {
+	opts := NewIndexOptions()
+	require.NoError(t, opts.Validate())
+
+	opts = opts.SetBlockSize(-time.Minute).SetEnabled(true)
+	require.Error(t, opts.Validate())
+
+	opts = opts.SetEnabled(false)
+	require.NoError(t, opts.Validate())
+
+	opts = opts.SetEnabled(true).SetBlockSize(time.Hour)
+	require.NoError(t, opts.Validate())
+}
+
 func TestIndexOptionsEnabled(t *testing.T) {
 	opts := NewIndexOptions()
 	require.True(t, opts.SetEnabled(true).Enabled())

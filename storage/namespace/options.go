@@ -47,9 +47,9 @@ const (
 )
 
 var (
-	errIndexBlockSizePositive                       = errors.New("index block size must positive")
-	errIndexBlockSizeTooLarge                       = errors.New("index block size needs to be <= namespace retention period")
-	errIndexBlockSizeMustBeAMultipleOfDataBlockSize = errors.New("index block size must be a multiple of data block size")
+	errIndexBlockSizeTooLarge                     = errors.New("index block size needs to be <= namespace retention period")
+	errIndexBlockSizeMustBeBiggerThanBufferFuture = errors.New("index block size must be >= namespace buffer future")
+	errIndexBlockSizeMustBeBiggerThanBufferPast   = errors.New("index block size must be >= namespace buffer past")
 )
 
 type options struct {
@@ -84,19 +84,21 @@ func (o *options) Validate() error {
 	if !o.indexOpts.Enabled() {
 		return nil
 	}
+	if err := o.indexOpts.Validate(); err != nil {
+		return err
+	}
 	var (
 		retention      = o.retentionOpts.RetentionPeriod()
-		dataBlockSize  = o.retentionOpts.BlockSize()
 		indexBlockSize = o.indexOpts.BlockSize()
 	)
-	if indexBlockSize <= 0 {
-		return errIndexBlockSizePositive
-	}
 	if retention < indexBlockSize {
 		return errIndexBlockSizeTooLarge
 	}
-	if indexBlockSize%dataBlockSize != 0 {
-		return errIndexBlockSizeMustBeAMultipleOfDataBlockSize
+	if indexBlockSize < o.retentionOpts.BufferFuture() {
+		return errIndexBlockSizeMustBeBiggerThanBufferFuture
+	}
+	if indexBlockSize < o.retentionOpts.BufferPast() {
+		return errIndexBlockSizeMustBeBiggerThanBufferPast
 	}
 	return nil
 }
