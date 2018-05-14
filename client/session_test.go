@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/ident"
@@ -187,6 +188,23 @@ func TestSessionClusterConnectConsistencyLevelNone(t *testing.T) {
 	for i := 0; i <= 3; i++ {
 		testSessionClusterConnectConsistencyLevel(t, ctrl, level, i, outcomeSuccess)
 	}
+}
+
+func TestIteratorPools(t *testing.T) {
+	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
+	seriesIteratorPool := encoding.NewSeriesIteratorPool(nil)
+	s := session{
+		pools: sessionPools{
+			multiReaderIterator: multiReaderIteratorPool,
+			seriesIterator:      seriesIteratorPool,
+		},
+	}
+
+	itPool, err := s.IteratorPools()
+
+	assert.NoError(t, err)
+	assert.Equal(t, multiReaderIteratorPool, itPool.MultiReaderIterator())
+	assert.Equal(t, seriesIteratorPool, itPool.SeriesIterator())
 }
 
 func TestSessionClusterConnectConsistencyLevelAny(t *testing.T) {

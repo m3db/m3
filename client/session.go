@@ -1521,6 +1521,10 @@ func (s *session) readConsistencyResult(
 	return nil
 }
 
+func (s *session) IteratorPools() (IteratorPools, error) {
+	return s.pools, nil
+}
+
 func (s *session) Close() error {
 	s.state.Lock()
 	if s.state.status != statusOpen {

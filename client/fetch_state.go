@@ -171,12 +171,18 @@ func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools) (encoding
 // or make a new concrete implemtation (which requires an extra alloc). Chosing the best of the
 // three options and leaving as the interface below.
 type fetchTaggedPools interface {
+	IteratorPools
 	ReaderSliceOfSlicesIterator() *readerSliceOfSlicesIteratorPool
-	MultiReaderIterator() encoding.MultiReaderIteratorPool
-	SeriesIterator() encoding.SeriesIteratorPool
 	MutableSeriesIterators() encoding.MutableSeriesIteratorsPool
 	MultiReaderIteratorArray() encoding.MultiReaderIteratorArrayPool
 	ID() ident.Pool
 	CheckedBytesWrapper() xpool.CheckedBytesWrapperPool
 	TagDecoder() serialize.TagDecoderPool
+}
+
+// IteratorPools exposes a small subset of iterator pools that are sufficient for clients
+// to rebuild SeriesIterator
+type IteratorPools interface {
+	MultiReaderIterator() encoding.MultiReaderIteratorPool
+	SeriesIterator() encoding.SeriesIteratorPool
 }
