@@ -83,6 +83,9 @@ type Session interface {
 	// for given IDs begin failing
 	ShardID(id ident.ID) (uint32, error)
 
+	// IteratorPools exposes the internal iterator pools used by the session to clients
+	IteratorPools() (encoding.IteratorPools, error)
+
 	// Close the session
 	Close() error
 }

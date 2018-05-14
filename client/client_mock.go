@@ -236,6 +236,19 @@ func (mr *MockSessionMockRecorder) ShardID(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardID", reflect.TypeOf((*MockSession)(nil).ShardID), id)
 }
 
+// IteratorPools mocks base method
+func (m *MockSession) IteratorPools() (encoding.IteratorPools, error) {
+	ret := m.ctrl.Call(m, "IteratorPools")
+	ret0, _ := ret[0].(encoding.IteratorPools)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IteratorPools indicates an expected call of IteratorPools
+func (mr *MockSessionMockRecorder) IteratorPools() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IteratorPools", reflect.TypeOf((*MockSession)(nil).IteratorPools))
+}
+
 // Close mocks base method
 func (m *MockSession) Close() error {
 	ret := m.ctrl.Call(m, "Close")
@@ -651,6 +664,19 @@ func (m *MockAdminSession) ShardID(id ident.ID) (uint32, error) {
 // ShardID indicates an expected call of ShardID
 func (mr *MockAdminSessionMockRecorder) ShardID(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardID", reflect.TypeOf((*MockAdminSession)(nil).ShardID), id)
+}
+
+// IteratorPools mocks base method
+func (m *MockAdminSession) IteratorPools() (encoding.IteratorPools, error) {
+	ret := m.ctrl.Call(m, "IteratorPools")
+	ret0, _ := ret[0].(encoding.IteratorPools)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IteratorPools indicates an expected call of IteratorPools
+func (mr *MockAdminSessionMockRecorder) IteratorPools() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IteratorPools", reflect.TypeOf((*MockAdminSession)(nil).IteratorPools))
 }
 
 // Close mocks base method
@@ -3120,6 +3146,19 @@ func (m *MockclientSession) ShardID(id ident.ID) (uint32, error) {
 // ShardID indicates an expected call of ShardID
 func (mr *MockclientSessionMockRecorder) ShardID(id interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ShardID", reflect.TypeOf((*MockclientSession)(nil).ShardID), id)
+}
+
+// IteratorPools mocks base method
+func (m *MockclientSession) IteratorPools() (encoding.IteratorPools, error) {
+	ret := m.ctrl.Call(m, "IteratorPools")
+	ret0, _ := ret[0].(encoding.IteratorPools)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IteratorPools indicates an expected call of IteratorPools
+func (mr *MockclientSessionMockRecorder) IteratorPools() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IteratorPools", reflect.TypeOf((*MockclientSession)(nil).IteratorPools))
 }
 
 // Close mocks base method

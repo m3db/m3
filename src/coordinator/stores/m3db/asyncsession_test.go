@@ -81,6 +81,10 @@ func TestAsyncSessionError(t *testing.T) {
 	seriesIterators, err := asyncSession.FetchIDs(nil, nil, time.Now(), time.Now())
 	assert.Nil(t, seriesIterators)
 	assert.EqualError(t, err, expectedErrStr)
+
+	pools, err := asyncSession.IteratorPools()
+	assert.Nil(t, pools)
+	assert.EqualError(t, err, expectedErrStr)
 }
 
 func TestAsyncSessionUninitialized(t *testing.T) {
@@ -104,6 +108,10 @@ func TestAsyncSessionUninitialized(t *testing.T) {
 	assert.Equal(t, err, errSessionUninitialized)
 
 	err = asyncSession.Close()
+	assert.Equal(t, err, errSessionUninitialized)
+
+	pools, err := asyncSession.IteratorPools()
+	assert.Nil(t, pools)
 	assert.Equal(t, err, errSessionUninitialized)
 }
 
@@ -147,5 +155,9 @@ func TestAsyncSessionInitialized(t *testing.T) {
 
 	mockSession.EXPECT().Close().Return(nil)
 	err = asyncSession.Close()
+	assert.NoError(t, err)
+
+	mockSession.EXPECT().IteratorPools().Return(nil, nil)
+	_, err = asyncSession.IteratorPools()
 	assert.NoError(t, err)
 }

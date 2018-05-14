@@ -309,3 +309,10 @@ type MultiReaderIteratorArrayPool interface {
 	// Put returns a Iterator array to the pool
 	Put(iters []MultiReaderIterator)
 }
+
+// IteratorPools exposes a small subset of iterator pools that are sufficient for clients
+// to rebuild SeriesIterator
+type IteratorPools interface {
+	MultiReaderIterator() MultiReaderIteratorPool
+	SeriesIterator() SeriesIteratorPool
+}
