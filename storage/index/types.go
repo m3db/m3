@@ -274,8 +274,8 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 		startIdx       = 0
 		lastBlockStart xtime.UnixNano
 	)
-	for i := range allEntries {
-		if allEntries[i].OnIndexSeries == nil {
+	for i := range b.entries {
+		if b.entries[i].OnIndexSeries == nil {
 			// Hit a marked done entry
 			b.entries = allEntries[startIdx:i]
 			b.docs = allDocs[startIdx:i]
@@ -285,7 +285,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 			return
 		}
 
-		blockStart := allEntries[i].indexBlockStart(blockSize)
+		blockStart := b.entries[i].indexBlockStart(blockSize)
 		if !blockStart.Equal(lastBlockStart) {
 			prevLastBlockStart := lastBlockStart.ToTime()
 			lastBlockStart = blockStart
@@ -303,7 +303,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 	}
 
 	// spill over
-	if startIdx < len(allEntries) {
+	if startIdx < len(b.entries) {
 		b.entries = allEntries[startIdx:]
 		b.docs = allDocs[startIdx:]
 		fn(lastBlockStart.ToTime(), b)

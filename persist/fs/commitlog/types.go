@@ -25,11 +25,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/persist/fs/msgpack"
-	"github.com/m3db/m3db/persist/schema"
-	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -104,73 +100,10 @@ type Series struct {
 	ID ident.ID
 
 	// Tags are the series tags
-	Tags ident.Tags
+	Tags ident.Tags // FOLLOWUP(prateek): wire Tags to commit log writer
 
 	// Shard is the shard the series belongs to
 	Shard uint32
-
-	encodedLogMetadata checked.Bytes
-}
-
-// EncodeLogMetadata eagerly encodes the log metadata and
-// caches it on the Series for use by the commit log writer.
-func (s *Series) EncodeLogMetadata(
-	encoder *msgpack.Encoder,
-	tagsEncoder serialize.TagEncoder,
-	tagsIter ident.TagsIterator,
-	bytesPool pool.CheckedBytesPool,
-) error {
-	if s.encodedLogMetadata != nil {
-		// Already encoded
-		return nil
-	}
-
-	var (
-		tags        = s.Tags
-		encodedTags []byte
-	)
-
-	if len(tags.Values()) > 0 {
-		tagsIter.Reset(tags)
-		tagsEncoder.Reset()
-		err := tagsEncoder.Encode(tagsIter)
-		if err != nil {
-			return err
-		}
-
-		encodedTagsChecked, ok := tagsEncoder.Data()
-		if !ok {
-			return errTagEncoderDataNotAvailable
-		}
-
-		encodedTags = encodedTagsChecked.Bytes()
-	}
-
-	var metadata schema.LogMetadata
-	metadata.ID = s.ID.Data().Bytes()
-	metadata.Namespace = s.Namespace.Data().Bytes()
-	metadata.Shard = s.Shard
-	metadata.EncodedTags = encodedTags
-
-	encoder.Reset()
-	if err := encoder.EncodeLogMetadata(metadata); err != nil {
-		return err
-	}
-
-	encoded := encoder.Bytes()
-	bytes := bytesPool.Get(len(encoded))
-	bytes.IncRef()
-	bytes.AppendAll(encoded)
-	s.encodedLogMetadata = bytes
-	return nil
-}
-
-func (s *Series) finalizeEncoded() {
-	if s.encodedLogMetadata != nil {
-		s.encodedLogMetadata.DecRef()
-		s.encodedLogMetadata.Finalize()
-		s.encodedLogMetadata = nil
-	}
 }
 
 // Options represents the options for the commit log

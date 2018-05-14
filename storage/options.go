@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/runtime"
-	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/index"
@@ -141,8 +140,6 @@ type options struct {
 	readerIteratorPool             encoding.ReaderIteratorPool
 	multiReaderIteratorPool        encoding.MultiReaderIteratorPool
 	identifierPool                 ident.Pool
-	tagEncoderPool                 serialize.TagEncoderPool
-	tagDecoderPool                 serialize.TagDecoderPool
 	fetchBlockMetadataResultsPool  block.FetchBlockMetadataResultsPool
 	fetchBlocksMetadataResultsPool block.FetchBlocksMetadataResultsPool
 }
@@ -157,12 +154,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		return pool.NewBytesPool(s, poolOpts)
 	})
 	bytesPool.Init()
-	tagEncoderPool := serialize.NewTagEncoderPool(
-		serialize.NewTagEncoderOptions(), poolOpts)
-	tagEncoderPool.Init()
-	tagDecoderPool := serialize.NewTagDecoderPool(
-		serialize.NewTagDecoderOptions(), poolOpts)
-	tagDecoderPool.Init()
 	seriesOpts := series.NewOptions()
 	o := &options{
 		clockOpts:                clock.NewOptions(),
@@ -197,8 +188,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 			TagsPoolOptions:         poolOpts,
 			TagsIteratorPoolOptions: poolOpts,
 		}),
-		tagEncoderPool:                 tagEncoderPool,
-		tagDecoderPool:                 tagDecoderPool,
 		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
 		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
 	}
@@ -597,26 +586,6 @@ func (o *options) SetIdentifierPool(value ident.Pool) Options {
 
 func (o *options) IdentifierPool() ident.Pool {
 	return o.identifierPool
-}
-
-func (o *options) SetTagEncoderPool(value serialize.TagEncoderPool) Options {
-	opts := *o
-	opts.tagEncoderPool = value
-	return &opts
-}
-
-func (o *options) TagEncoderPool() serialize.TagEncoderPool {
-	return o.tagEncoderPool
-}
-
-func (o *options) SetTagDecoderPool(value serialize.TagDecoderPool) Options {
-	opts := *o
-	opts.tagDecoderPool = value
-	return &opts
-}
-
-func (o *options) TagDecoderPool() serialize.TagDecoderPool {
-	return o.tagDecoderPool
 }
 
 func (o *options) SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options {

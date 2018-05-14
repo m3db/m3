@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -99,7 +98,6 @@ type writer struct {
 	metadataEncoder    *msgpack.Encoder
 	tagEncoder         serialize.TagEncoder
 	tagSliceIter       ident.TagsIterator
-	bytesPool          pool.CheckedBytesPool
 }
 
 func newCommitLogWriter(
@@ -107,6 +105,7 @@ func newCommitLogWriter(
 	opts Options,
 ) commitLogWriter {
 	shouldFsync := opts.Strategy() == StrategyWriteWait
+
 	return &writer{
 		filePathPrefix:     opts.FilesystemOptions().FilePathPrefix(),
 		newFileMode:        opts.FilesystemOptions().NewFileMode(),
@@ -121,7 +120,6 @@ func newCommitLogWriter(
 		metadataEncoder:    msgpack.NewEncoder(),
 		tagEncoder:         opts.FilesystemOptions().TagEncoderPool().Get(),
 		tagSliceIter:       ident.NewTagsIterator(ident.Tags{}),
-		bytesPool:          opts.BytesPool(),
 	}
 }
 
@@ -178,13 +176,39 @@ func (w *writer) Write(
 
 	seen := w.seen.Test(uint(series.UniqueIndex))
 	if !seen {
-		// Encode or use pre-encoded metadata
-		err := series.EncodeLogMetadata(w.metadataEncoder, w.tagEncoder,
-			w.tagSliceIter, w.bytesPool)
-		if err != nil {
+		var (
+			tags        = series.Tags
+			encodedTags []byte
+		)
+
+		if tags.Values() != nil {
+			w.tagSliceIter.Reset(tags)
+			w.tagEncoder.Reset()
+			err := w.tagEncoder.Encode(w.tagSliceIter)
+			if err != nil {
+				return err
+			}
+
+			encodedTagsChecked, ok := w.tagEncoder.Data()
+			if !ok {
+				return errTagEncoderDataNotAvailable
+			}
+
+			encodedTags = encodedTagsChecked.Bytes()
+		}
+
+		// If "idx" likely hasn't been written to commit log
+		// yet we need to include series metadata
+		var metadata schema.LogMetadata
+		metadata.ID = series.ID.Data().Bytes()
+		metadata.Namespace = series.Namespace.Data().Bytes()
+		metadata.Shard = series.Shard
+		metadata.EncodedTags = encodedTags
+		w.metadataEncoder.Reset()
+		if err := w.metadataEncoder.EncodeLogMetadata(metadata); err != nil {
 			return err
 		}
-		logEntry.Metadata = series.encodedLogMetadata.Bytes()
+		logEntry.Metadata = w.metadataEncoder.Bytes()
 	}
 
 	logEntry.Timestamp = datapoint.Timestamp.UnixNano()
@@ -198,9 +222,6 @@ func (w *writer) Write(
 	if err := w.write(w.logEncoder.Bytes()); err != nil {
 		return err
 	}
-
-	// Finalize any encoded metadata
-	// series.finalizeEncoded()
 
 	if !seen {
 		// Record we have written this series and metadata to this commit log
