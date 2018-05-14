@@ -64,8 +64,13 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 	)
 	md1, err := namespace.NewMetadata(testNamespaceID, namespaceOptions)
 	require.NoError(t, err)
+
 	testNamespaceID2 := ident.StringID("someOtherNamespace")
 	md2, err := namespace.NewMetadata(testNamespaceID2, namespaceOptions)
+	require.NoError(t, err)
+
+	testNamespaceNoData := ident.StringID("noData")
+	md3, err := namespace.NewMetadata(testNamespaceNoData, namespaceOptions)
 	require.NoError(t, err)
 
 	now := time.Now()
@@ -190,6 +195,25 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 	require.Equal(t, 0, len(res.Unfulfilled()))
 
 	err = verifyIndexResultsAreCorrect(otherNamespaceValues, seriesNotToExpect, indexResults, indexBlockSize)
+	require.NoError(t, err)
+
+	// Update the iterator function to return no values (since this namespace has no data)
+	// because the real commit log reader does this (via the ReadSeries predicate).
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
+		return newTestCommitLogIterator([]testValue{}, nil), nil
+	}
+
+	res, err = src.ReadIndex(md3, targetRanges, testDefaultRunOpts)
+	require.NoError(t, err)
+
+	// Zero series so there should be no index results.
+	indexResults = res.IndexResults()
+	require.Equal(t, 0, len(indexResults))
+	require.Equal(t, 0, len(res.Unfulfilled()))
+	seg, err := indexResults.GetOrAddSegment(start, namespaceOptions.IndexOptions(), result.NewOptions())
+	require.NoError(t, err)
+	require.Equal(t, int64(0), seg.Size())
+	err = verifyIndexResultsAreCorrect([]testValue{}, seriesNotToExpect, indexResults, indexBlockSize)
 	require.NoError(t, err)
 }
 
