@@ -98,7 +98,7 @@ func (s *commitLogSource) ReadData(
 		ns, shardsTimeRanges, s.opts, s.inspection)
 
 	// TODO(rartoul): When we implement caching data across namespaces, this will need
-	// to be commitlog.ReadAllSeriesPredicate() if ShouldCacheSeriesMetadata() is enabled
+	// to be commitlog.ReadAllSeriesPredicate() if CacheSeriesMetadata() is enabled
 	// because we'll need to read data for all namespaces, not just the one we're currently
 	// bootstrapping.
 	readSeriesPredicate := newReadSeriesPredicate(ns)
@@ -146,14 +146,7 @@ func (s *commitLogSource) ReadData(
 	for workerNum, encoderChan := range encoderChans {
 		wg.Add(1)
 		go s.startM3TSZEncodingWorker(
-			workerNum,
-			encoderChan,
-			unmerged,
-			encoderPool,
-			workerErrs,
-			blopts,
-			wg,
-		)
+			ns, workerNum, encoderChan, unmerged, encoderPool, workerErrs, blopts, wg)
 	}
 
 	for iter.Next() {
@@ -189,13 +182,14 @@ func (s *commitLogSource) ReadData(
 
 	result := s.mergeShards(int(numShards), bopts, blockSize, blopts, encoderPool, unmerged)
 	// After merging shards, its safe to cache the shardData (which involves some mutation).
-	if s.opts.CacheSeriesMetadata() {
+	if s.shouldCacheSeriesMetadata(ns) {
 		s.cacheShardData(unmerged)
 	}
 	return result, nil
 }
 
 func (s *commitLogSource) startM3TSZEncodingWorker(
+	ns namespace.Metadata,
 	workerNum int,
 	ec <-chan encoderArg,
 	unmerged []shardData,
@@ -204,6 +198,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 	blopts block.Options,
 	wg *sync.WaitGroup,
 ) {
+	shouldCacheSeriesMetadata := s.shouldCacheSeriesMetadata(ns)
 	for arg := range ec {
 		var (
 			series     = arg.series
@@ -216,7 +211,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		unmergedShard := unmerged[series.Shard].series
 		unmergedSeries, ok := unmergedShard[series.UniqueIndex]
 		if !ok {
-			if s.opts.CacheSeriesMetadata() {
+			if shouldCacheSeriesMetadata {
 				// If we're going to cache the IDs and Tags on the commitlog source, then
 				// we need to make sure that they won't get finalized by anything else in
 				// the code base. Specifically, since series.Tags is a struct (not a pointer
@@ -733,6 +728,10 @@ func (s commitLogSource) maybeAddToIndex(
 
 	_, err = segment.Insert(d)
 	return err
+}
+
+func (s commitLogSource) shouldCacheSeriesMetadata(nsMeta namespace.Metadata) bool {
+	return s.opts.CacheSeriesMetadata() && nsMeta.Options().IndexOptions().Enabled()
 }
 
 func newReadCommitLogPredicate(
