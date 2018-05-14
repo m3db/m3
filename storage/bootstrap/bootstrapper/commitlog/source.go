@@ -673,11 +673,6 @@ func (s *commitLogSource) ReadIndex(
 	for iter.Next() {
 		series, dp, _, _ := iter.Current()
 
-		// Mark the ID and Tags as no finalize so we don't have to copy them before inserting
-		// them into the index segments.
-		series.ID.NoFinalize()
-		series.Tags.NoFinalize()
-
 		s.maybeAddToIndex(
 			series.ID, series.Tags, series.Shard, highestShard, dp.Timestamp, bootstrapRangesByShard,
 			indexResults, indexOptions, indexBlockSize, resultOptions)
@@ -727,9 +722,10 @@ func (s commitLogSource) maybeAddToIndex(
 		return nil
 	}
 
-	// We can use the NoClone variant here because the cached ID/Tags are marked NoFinalize
-	// by the ReadIndex() path when it reads from the commitlog files, and by the ReadData() path
-	// when it caches the ID/Tags.
+	// We can use the NoClone variant here because the cached IDs/Tags are marked NoFinalize
+	// by the ReadData() path when it reads from the commitlog files, and the IDs/Tags read
+	// from the commit log files by the ReadIndex() method won't be finalized because this
+	// code path doesn't finalize them.
 	d, err := convert.FromMetricNoClone(id, tags)
 	if err != nil {
 		return err
