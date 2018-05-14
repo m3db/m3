@@ -935,7 +935,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) Bootstrap(start, process interface{
 }
 
 // Flush mocks base method
-func (m *MockdatabaseNamespace) Flush(blockStart time.Time, ShardBootstrapStates ShardBootstrapStates, flush persist.Flush) error {
+func (m *MockdatabaseNamespace) Flush(blockStart time.Time, ShardBootstrapStates ShardBootstrapStates, flush persist.DataFlush) error {
 	ret := m.ctrl.Call(m, "Flush", blockStart, ShardBootstrapStates, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -947,7 +947,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) Flush(blockStart, ShardBootstrapSta
 }
 
 // Snapshot mocks base method
-func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.Flush) error {
+func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.DataFlush) error {
 	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotTime, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1275,7 +1275,7 @@ func (mr *MockdatabaseShardMockRecorder) Bootstrap(bootstrappedSeries interface{
 }
 
 // Flush mocks base method
-func (m *MockdatabaseShard) Flush(blockStart time.Time, flush persist.Flush) error {
+func (m *MockdatabaseShard) Flush(blockStart time.Time, flush persist.DataFlush) error {
 	ret := m.ctrl.Call(m, "Flush", blockStart, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1287,7 +1287,7 @@ func (mr *MockdatabaseShardMockRecorder) Flush(blockStart, flush interface{}) *g
 }
 
 // Snapshot mocks base method
-func (m *MockdatabaseShard) Snapshot(blockStart, snapshotStart time.Time, flush persist.Flush) error {
+func (m *MockdatabaseShard) Snapshot(blockStart, snapshotStart time.Time, flush persist.DataFlush) error {
 	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotStart, flush)
 	ret0, _ := ret[0].(error)
 	return ret0

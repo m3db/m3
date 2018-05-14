@@ -36,33 +36,33 @@ type Fn func(id ident.ID, tags ident.Tags, segment ts.Segment, checksum uint32) 
 // blocks for a (shard, blockStart) combination.
 type Closer func() error
 
-// PreparedPersist is an object that wraps holds a persist function and a closer.
-type PreparedPersist struct {
+// PreparedDataPersist is an object that wraps holds a persist function and a closer.
+type PreparedDataPersist struct {
 	Persist Fn
 	Close   Closer
 }
 
 // Manager manages the internals of persisting data onto storage layer.
 type Manager interface {
-	// StartPersist begins a flush for a set of shards.
-	StartPersist() (Flush, error)
+	// StartDataPersist begins a data flush for a set of shards.
+	StartDataPersist() (DataFlush, error)
 }
 
-// Flush is a persist flush cycle, each shard and block start permutation needs
+// DataFlush is a persist flush cycle, each shard and block start permutation needs
 // to explicility be prepared.
-type Flush interface {
+type DataFlush interface {
 	// Prepare prepares writing data for a given (shard, blockStart) combination,
-	// returning a PreparedPersist object and any error encountered during
+	// returning a PreparedDataPersist object and any error encountered during
 	// preparation if any.
-	Prepare(opts PrepareOptions) (PreparedPersist, error)
+	Prepare(opts DataPrepareOptions) (PreparedDataPersist, error)
 
 	// Done marks the flush as complete.
 	Done() error
 }
 
-// PrepareOptions is the options struct for the PersistManager's Prepare method.
+// DataPrepareOptions is the options struct for the PersistManager's Prepare method.
 // nolint: maligned
-type PrepareOptions struct {
+type DataPrepareOptions struct {
 	NamespaceMetadata namespace.Metadata
 	BlockStart        time.Time
 	SnapshotTime      time.Time
@@ -71,9 +71,9 @@ type PrepareOptions struct {
 	DeleteIfExists    bool
 }
 
-// PrepareSnapshotOptions is the options struct for the Prepare method that contains
-// information specific to reading snapshot files
-type PrepareSnapshotOptions struct {
+// DataPrepareSnapshotOptions is the options struct for the Prepare method that contains
+// information specific to reading data snapshot files .
+type DataPrepareSnapshotOptions struct {
 	SnapshotTime time.Time
 }
 
