@@ -1458,3 +1458,50 @@ func (m *MockMultiReaderIteratorArrayPool) Put(iters []MultiReaderIterator) {
 func (mr *MockMultiReaderIteratorArrayPoolMockRecorder) Put(iters interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockMultiReaderIteratorArrayPool)(nil).Put), iters)
 }
+
+// MockIteratorPools is a mock of IteratorPools interface
+type MockIteratorPools struct {
+	ctrl     *gomock.Controller
+	recorder *MockIteratorPoolsMockRecorder
+}
+
+// MockIteratorPoolsMockRecorder is the mock recorder for MockIteratorPools
+type MockIteratorPoolsMockRecorder struct {
+	mock *MockIteratorPools
+}
+
+// NewMockIteratorPools creates a new mock instance
+func NewMockIteratorPools(ctrl *gomock.Controller) *MockIteratorPools {
+	mock := &MockIteratorPools{ctrl: ctrl}
+	mock.recorder = &MockIteratorPoolsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockIteratorPools) EXPECT() *MockIteratorPoolsMockRecorder {
+	return m.recorder
+}
+
+// MultiReaderIterator mocks base method
+func (m *MockIteratorPools) MultiReaderIterator() MultiReaderIteratorPool {
+	ret := m.ctrl.Call(m, "MultiReaderIterator")
+	ret0, _ := ret[0].(MultiReaderIteratorPool)
+	return ret0
+}
+
+// MultiReaderIterator indicates an expected call of MultiReaderIterator
+func (mr *MockIteratorPoolsMockRecorder) MultiReaderIterator() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MultiReaderIterator", reflect.TypeOf((*MockIteratorPools)(nil).MultiReaderIterator))
+}
+
+// SeriesIterator mocks base method
+func (m *MockIteratorPools) SeriesIterator() SeriesIteratorPool {
+	ret := m.ctrl.Call(m, "SeriesIterator")
+	ret0, _ := ret[0].(SeriesIteratorPool)
+	return ret0
+}
+
+// SeriesIterator indicates an expected call of SeriesIterator
+func (mr *MockIteratorPoolsMockRecorder) SeriesIterator() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesIterator", reflect.TypeOf((*MockIteratorPools)(nil).SeriesIterator))
+}

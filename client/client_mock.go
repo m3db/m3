@@ -237,9 +237,9 @@ func (mr *MockSessionMockRecorder) ShardID(id interface{}) *gomock.Call {
 }
 
 // IteratorPools mocks base method
-func (m *MockSession) IteratorPools() (IteratorPools, error) {
+func (m *MockSession) IteratorPools() (encoding.IteratorPools, error) {
 	ret := m.ctrl.Call(m, "IteratorPools")
-	ret0, _ := ret[0].(IteratorPools)
+	ret0, _ := ret[0].(encoding.IteratorPools)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -667,9 +667,9 @@ func (mr *MockAdminSessionMockRecorder) ShardID(id interface{}) *gomock.Call {
 }
 
 // IteratorPools mocks base method
-func (m *MockAdminSession) IteratorPools() (IteratorPools, error) {
+func (m *MockAdminSession) IteratorPools() (encoding.IteratorPools, error) {
 	ret := m.ctrl.Call(m, "IteratorPools")
-	ret0, _ := ret[0].(IteratorPools)
+	ret0, _ := ret[0].(encoding.IteratorPools)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -3149,9 +3149,9 @@ func (mr *MockclientSessionMockRecorder) ShardID(id interface{}) *gomock.Call {
 }
 
 // IteratorPools mocks base method
-func (m *MockclientSession) IteratorPools() (IteratorPools, error) {
+func (m *MockclientSession) IteratorPools() (encoding.IteratorPools, error) {
 	ret := m.ctrl.Call(m, "IteratorPools")
-	ret0, _ := ret[0].(IteratorPools)
+	ret0, _ := ret[0].(encoding.IteratorPools)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

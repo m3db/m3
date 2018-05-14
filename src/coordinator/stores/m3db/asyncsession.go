@@ -142,7 +142,7 @@ func (s *AsyncSession) ShardID(id ident.ID) (uint32, error) {
 }
 
 // IteratorPools exposes the internal iterator pools used by the session to clients
-func (s *AsyncSession) IteratorPools() (client.IteratorPools, error) {
+func (s *AsyncSession) IteratorPools() (encoding.IteratorPools, error) {
 	if s.err != nil {
 		return nil, s.err
 	}

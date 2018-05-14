@@ -1521,7 +1521,7 @@ func (s *session) readConsistencyResult(
 	return nil
 }
 
-func (s *session) IteratorPools() (IteratorPools, error) {
+func (s *session) IteratorPools() (encoding.IteratorPools, error) {
 	return s.pools, nil
 }
 
