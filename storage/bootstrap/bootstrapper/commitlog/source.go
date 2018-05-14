@@ -530,6 +530,8 @@ func (s *commitLogSource) cacheShardData(allShardData []shardData) {
 	for shard, currShardData := range allShardData {
 		for _, seriesData := range currShardData.series {
 			for blockStart := range seriesData.encoders {
+				// Nil out any references to the encoders (which should be closed already anyways),
+				// so that they can be GC'd.
 				seriesData.encoders[blockStart] = nil
 			}
 		}
@@ -558,6 +560,11 @@ func (s *commitLogSource) cacheShardData(allShardData []shardData) {
 
 			// If it is there, merge blockStart times
 			for blockStart := range seriesData.encoders {
+				// The existence of a key in the map is indicative of its presence in this case,
+				// so assigning nil is equivalent to adding an item to a set. This is counter-intuitive,
+				// but we do it so that we can re-use the existing datastructures that have already been
+				// allocated by the bootstrapping process, otherwise we'd have to perform millions of
+				// additional allocations.
 				cachedSeriesData.encoders[blockStart] = nil
 			}
 		}
