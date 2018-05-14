@@ -225,9 +225,9 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 				// the struct will get copied repeatedly.)
 				//
 				// This is also the "ideal" spot to mark the IDs as NoFinalize(), because it
-				// only occurs once per run. So if we end up allocating the IDs/Tags multiple
-				// times during the bootstrap, we'll only mark the first appearance as NoFinalize,
-				// and all subsequent occurrences can be finalized per usual.
+				// only occurs once per series per run. So if we end up allocating the IDs/Tags
+				// multiple times during the bootstrap, we'll only mark the first appearance as
+				// NoFinalize, and all subsequent occurrences can be finalized per usual.
 				series.ID.NoFinalize()
 				series.Tags.NoFinalize()
 			}
