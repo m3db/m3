@@ -58,7 +58,8 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 			SetIndexOptions(
 				namespace.NewOptions().
 					IndexOptions().
-					SetBlockSize(indexBlockSize),
+					SetBlockSize(indexBlockSize).
+					SetEnabled(true),
 			)
 	)
 	md, err := namespace.NewMetadata(testNamespaceID, namespaceOptions)
@@ -178,7 +179,8 @@ func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 			SetIndexOptions(
 				namespace.NewOptions().
 					IndexOptions().
-					SetBlockSize(indexBlockSize),
+					SetBlockSize(indexBlockSize).
+					SetEnabled(true),
 			)
 	)
 	md, err := namespace.NewMetadata(testNamespaceID, namespaceOptions)

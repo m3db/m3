@@ -21,6 +21,7 @@
 package commitlog
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -41,6 +42,10 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+var (
+	errIndexingNotEnableForNamespace = errors.New("indexing not enabled for namespace")
+)
+
 const encoderChanBufSize = 1000
 
 type newIteratorFn func(opts commitlog.IteratorOpts) (commitlog.Iterator, error)
@@ -50,7 +55,7 @@ type commitLogSource struct {
 	inspection      fs.Inspection
 	log             xlog.Logger
 	newIteratorFn   newIteratorFn
-	cachedShardData []shardData
+	cachedShardData map[string][]shardData
 }
 
 type encoder struct {
@@ -60,10 +65,11 @@ type encoder struct {
 
 func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source {
 	return &commitLogSource{
-		opts:          opts,
-		inspection:    inspection,
-		log:           opts.ResultOptions().InstrumentOptions().Logger(),
-		newIteratorFn: commitlog.NewIterator,
+		opts:            opts,
+		inspection:      inspection,
+		log:             opts.ResultOptions().InstrumentOptions().Logger(),
+		newIteratorFn:   commitlog.NewIterator,
+		cachedShardData: map[string][]shardData{},
 	}
 }
 
@@ -183,7 +189,7 @@ func (s *commitLogSource) ReadData(
 	result := s.mergeShards(int(numShards), bopts, blockSize, blopts, encoderPool, unmerged)
 	// After merging shards, its safe to cache the shardData (which involves some mutation).
 	if s.shouldCacheSeriesMetadata(ns) {
-		s.cacheShardData(unmerged)
+		s.cacheShardData(ns, unmerged)
 	}
 	return result, nil
 }
@@ -546,7 +552,15 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 //
 // Its safe to cache the series IDs and Tags because we mark them both as NoFinalize() if the caching
 // path is enabled.
-func (s *commitLogSource) cacheShardData(allShardData []shardData) {
+func (s *commitLogSource) cacheShardData(ns namespace.Metadata, allShardData []shardData) {
+	nsString := ns.ID().String()
+	cachedShardData, ok := s.cachedShardData[nsString]
+	if !ok {
+		nsShardData := make([]shardData, len(allShardData))
+		s.cachedShardData[nsString] = nsShardData
+		cachedShardData = nsShardData
+	}
+
 	for shard, currShardData := range allShardData {
 		for _, seriesData := range currShardData.series {
 			for blockStart := range seriesData.encoders {
@@ -556,25 +570,25 @@ func (s *commitLogSource) cacheShardData(allShardData []shardData) {
 			}
 		}
 
-		if shard >= len(s.cachedShardData) {
+		if shard >= len(cachedShardData) {
 			// Extend the slice if necessary (could happen if different calls to
 			// ReadData() bootstrap different shards.)
-			for len(s.cachedShardData) != shard+1 {
-				s.cachedShardData = append(s.cachedShardData, shardData{})
+			for len(cachedShardData) != shard+1 {
+				cachedShardData = append(cachedShardData, shardData{})
 			}
 		}
 
-		s.cachedShardData[shard].ranges = s.cachedShardData[shard].ranges.AddRanges(currShardData.ranges)
+		cachedShardData[shard].ranges = cachedShardData[shard].ranges.AddRanges(currShardData.ranges)
 
 		currSeries := currShardData.series
-		cachedSeries := s.cachedShardData[shard].series
+		cachedSeries := cachedShardData[shard].series
 
 		// If there are no existing series, just set what we have.
 		if len(cachedSeries) == 0 {
 			if currSeries != nil {
-				s.cachedShardData[shard].series = currSeries
+				cachedShardData[shard].series = currSeries
 			} else {
-				s.cachedShardData[shard].series = make(map[uint64]metadataAndEncodersByTime)
+				cachedShardData[shard].series = make(map[uint64]metadataAndEncodersByTime)
 			}
 			continue
 		}
@@ -616,12 +630,17 @@ func (s *commitLogSource) ReadIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
+	if !ns.Options().IndexOptions().Enabled() {
+		return result.NewIndexBootstrapResult(), errIndexingNotEnableForNamespace
+	}
+
 	if shardsTimeRanges.IsEmpty() {
 		return result.NewIndexBootstrapResult(), nil
 	}
 
+	cachedShardData := s.cachedShardData[ns.ID().String()]
 	cachedShardsTimeRanges := result.ShardTimeRanges{}
-	for shard, shardData := range s.cachedShardData {
+	for shard, shardData := range cachedShardData {
 		cachedShardsTimeRanges[uint32(shard)] = shardData.ranges
 	}
 
@@ -674,7 +693,7 @@ func (s *commitLogSource) ReadIndex(
 	}
 
 	// Add in all the data that was cached by a previous run of ReadData() (if any).
-	for shard, shardData := range s.cachedShardData {
+	for shard, shardData := range cachedShardData {
 		for _, series := range shardData.series {
 			for dataBlockStart := range series.encoders {
 				s.maybeAddToIndex(

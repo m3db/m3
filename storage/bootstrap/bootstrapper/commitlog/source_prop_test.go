@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -106,7 +107,14 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			source := provider.Provide()
 
 			// Determine time range to bootstrap
-			md := testNsMetadata(t)
+			nsOpts := namespace.NewOptions()
+			nsOpts = nsOpts.SetIndexOptions(
+				nsOpts.IndexOptions().SetEnabled(true),
+			)
+			md, err := namespace.NewMetadata(testNamespaceID, nsOpts)
+			if err != nil {
+				return false, err
+			}
 			blockSize := md.Options().RetentionOptions().BlockSize()
 			start := input.currentTime.Truncate(blockSize)
 			end := input.currentTime.Add(blockSize)
