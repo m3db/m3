@@ -520,8 +520,20 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 }
 
 // cacheShardData caches the shardData from a call to ReadData() on the source so that subsequent calls
-// to ReadIndex() for the same time period don't have to read the commit log files again. Its safe to
-// cache the series IDs and Tags for two reasons:
+// to ReadIndex() for the same time period don't have to read the commit log files again.
+//
+// In order for the subsequent call to ReadIndex() to avoid reading the same commit log files, we need
+// to cache three pieces of information for every series:
+// 		1) The ID (so it can be indexed)
+// 		2) The tags (so they can be indexed)
+// 		3) The block starts for which the series had a datapoint (so that we know which index blocks
+//         / segments the series needs to be included in)
+//
+// In addition, for each shard we will need to store the ranges which we have already read commit log
+// files for, so that the ReadIndex() call can easily filter commit log files down to those which
+// have not already been read by a previous call to ReadData().
+//
+// Its safe to cache the series IDs and Tags for two reasons:
 //      1) The lifecycle of the IDs and Tags will at least outlive the bootstrapping process itself
 //         so the ReadIndex() call is guaranteed to be able to read them before they're finalized,
 //         and indexing them creates a copy.
