@@ -593,12 +593,12 @@ func (s *commitLogSource) ReadIndex(
 		cachedShardsTimeRanges[uint32(shard)] = shardData.ranges
 	}
 
-	filteredShardsTimeRanges := shardsTimeRanges.Copy()
-	filteredShardsTimeRanges.Subtract(cachedShardsTimeRanges)
+	shardsTimeRangesToReadFromDisk := shardsTimeRanges.Copy()
+	shardsTimeRangesToReadFromDisk.Subtract(cachedShardsTimeRanges)
 
 	// Setup predicates for skipping files / series at iterator and reader level.
 	readCommitLogPredicate := newReadCommitLogPredicate(
-		ns, filteredShardsTimeRanges, s.opts, s.inspection)
+		ns, shardsTimeRangesToReadFromDisk, s.opts, s.inspection)
 	readSeriesPredicate := newReadSeriesPredicate(ns)
 	iterOpts := commitlog.IteratorOpts{
 		CommitLogOptions:      s.opts.CommitLogOptions(),
