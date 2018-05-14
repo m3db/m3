@@ -370,6 +370,7 @@ bootstrap:
   fs:
     numProcessorsPerCPU: 0.125
   peers: null
+  commitlog: null
 blockRetrieve: null
 cache:
   series: null
