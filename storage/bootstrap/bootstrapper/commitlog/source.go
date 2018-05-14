@@ -161,16 +161,6 @@ func (s *commitLogSource) ReadData(
 		if !s.shouldEncodeForData(unmerged, blockSize, series, dp.Timestamp) {
 			continue
 		}
-		if s.opts.CacheSeriesMetadata() {
-			// If we're going to cache the IDs and Tags on the commitlog source, then
-			// we need to make sure that they won't get finalized by anything else in
-			// the code base. Specifically, since series.Tags is a struct (not a pointer
-			// to a struct), we need to call NoFinalize() on it as early in the code-path
-			// as possible so that the NoFinalize() state is propagated everywhere (since
-			// the struct will get copied repeatedly.)
-			series.ID.NoFinalize()
-			series.Tags.NoFinalize()
-		}
 
 		// Distribute work such that each encoder goroutine is responsible for
 		// approximately numShards / numConc shards. This also means that all
@@ -226,6 +216,22 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		unmergedShard := unmerged[series.Shard].series
 		unmergedSeries, ok := unmergedShard[series.UniqueIndex]
 		if !ok {
+			if s.opts.CacheSeriesMetadata() {
+				// If we're going to cache the IDs and Tags on the commitlog source, then
+				// we need to make sure that they won't get finalized by anything else in
+				// the code base. Specifically, since series.Tags is a struct (not a pointer
+				// to a struct), we need to call NoFinalize() on it as early in the code-path
+				// as possible so that the NoFinalize() state is propagated everywhere (since
+				// the struct will get copied repeatedly.)
+				//
+				// This is also the "ideal" spot to mark the IDs as NoFinalize(), because it
+				// only occurs once per run. So if we end up allocating the IDs/Tags multiple
+				// times during the bootstrap, we'll only mark the first appearance as NoFinalize,
+				// and all subsequent occurrences can be finalized per usual.
+				series.ID.NoFinalize()
+				series.Tags.NoFinalize()
+			}
+
 			unmergedSeries = metadataAndEncodersByTime{
 				id:       series.ID,
 				tags:     series.Tags,
