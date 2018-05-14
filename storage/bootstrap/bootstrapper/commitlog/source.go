@@ -569,12 +569,18 @@ func (s *commitLogSource) cacheShardData(allShardData []shardData) {
 
 		currSeries := currShardData.series
 		cachedSeries := s.cachedShardData[shard].series
+
+		// If there are no existing series, just set what we have.
+		if len(cachedSeries) == 0 {
+			s.cachedShardData[shard].series = currSeries
+			continue
+		}
+
+		// If there are existing series, then add any new series that we have, and merge block starts.
 		for uniqueIdx, seriesData := range currSeries {
 			// If its not already there, just add it
 			cachedSeriesData, ok := cachedSeries[uniqueIdx]
 			if !ok {
-				seriesData.id.NoFinalize()
-				seriesData.tags.NoFinalize()
 				cachedSeries[uniqueIdx] = seriesData
 				continue
 			}
