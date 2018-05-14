@@ -133,8 +133,8 @@ func (s *commitLogSource) ReadData(
 	unmerged := make([]shardData, numShards)
 	for shard := range shardsTimeRanges {
 		unmerged[shard] = shardData{
-			encodersBySeries: make(map[uint64]encodersByTime),
-			ranges:           shardsTimeRanges[shard],
+			series: make(map[uint64]encodersByTime),
+			ranges: shardsTimeRanges[shard],
 		}
 	}
 
@@ -217,7 +217,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 			blockStart = arg.blockStart
 		)
 
-		unmergedShard := unmerged[series.Shard].encodersBySeries
+		unmergedShard := unmerged[series.Shard].series
 		unmergedSeries, ok := unmergedShard[series.UniqueIndex]
 		if !ok {
 			unmergedSeries = encodersByTime{
@@ -345,7 +345,7 @@ func (s *commitLogSource) mergeShards(
 	workerPool.Init()
 
 	for shard, unmergedShard := range unmerged {
-		if unmergedShard.encodersBySeries == nil {
+		if unmergedShard.series == nil {
 			continue
 		}
 		wg.Add(1)
@@ -386,7 +386,7 @@ func (s *commitLogSource) mergeShard(
 	var numShardEmptyErrs int
 	var numErrs int
 
-	for _, unmergedBlocks := range unmergedShard.encodersBySeries {
+	for _, unmergedBlocks := range unmergedShard.series {
 		seriesBlocks, numSeriesEmptyErrs, numSeriesErrs := s.mergeSeries(
 			unmergedBlocks,
 			blocksPool,
@@ -398,7 +398,7 @@ func (s *commitLogSource) mergeShard(
 
 		if seriesBlocks != nil && seriesBlocks.Len() > 0 {
 			if shardResult == nil {
-				shardResult = result.NewShardResult(len(unmergedShard.encodersBySeries), s.opts.ResultOptions())
+				shardResult = result.NewShardResult(len(unmergedShard.series), s.opts.ResultOptions())
 			}
 			shardResult.AddSeries(unmergedBlocks.id, unmergedBlocks.tags, seriesBlocks)
 		}
@@ -526,7 +526,7 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 
 func (s *commitLogSource) cacheShardData(allShardData []shardData) {
 	for shard, currShardData := range allShardData {
-		for _, seriesData := range currShardData.encodersBySeries {
+		for _, seriesData := range currShardData.series {
 			for blockStart := range seriesData.encoders {
 				seriesData.encoders[blockStart] = nil
 			}
@@ -537,16 +537,15 @@ func (s *commitLogSource) cacheShardData(allShardData []shardData) {
 			// ReadData() bootstrap different shards.)
 			for len(s.cachedShardData) != int(shard)+1 {
 				s.cachedShardData = append(s.cachedShardData, shardData{
-					encodersBySeries: make(map[uint64]encodersByTime),
+					series: make(map[uint64]encodersByTime),
 				})
 			}
 		}
 
 		s.cachedShardData[shard].ranges = s.cachedShardData[shard].ranges.AddRanges(currShardData.ranges)
 
-		// TODO: Rename encodersBySeries to series
-		currSeries := currShardData.encodersBySeries
-		cachedSeries := s.cachedShardData[shard].encodersBySeries
+		currSeries := currShardData.series
+		cachedSeries := s.cachedShardData[shard].series
 		for uniqueIdx, seriesData := range currSeries {
 			// If its not already there, just add it
 			cachedSeriesData, ok := cachedSeries[uniqueIdx]
@@ -643,7 +642,7 @@ func (s *commitLogSource) ReadIndex(
 
 	// Add in all the data that was cached by a previous run of ReadData() (if any).
 	for shard, shardData := range s.cachedShardData {
-		for _, series := range shardData.encodersBySeries {
+		for _, series := range shardData.series {
 			for dataBlockStart := range series.encoders {
 				s.maybeAddToIndex(
 					series.id, series.tags, uint32(shard), highestShard, dataBlockStart.ToTime(), bootstrapRangesByShard,
@@ -746,8 +745,8 @@ func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredica
 }
 
 type shardData struct {
-	encodersBySeries map[uint64]encodersByTime
-	ranges           xtime.Ranges
+	series map[uint64]encodersByTime
+	ranges xtime.Ranges
 }
 
 type encodersByTime struct {
