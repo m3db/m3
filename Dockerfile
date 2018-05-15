@@ -13,4 +13,4 @@ RUN cd /go/src/github.com/m3db/m3db/ && \
     glide install && \
     make m3dbnode-linux-amd64
 
-ENTRYPOINT ["/go/src/github.com/m3db/m3db/bin/m3dbnode -f /go/src/github.com/m3db/m3db/config/m3dbnode.yaml"]
+ENTRYPOINT ["/go/src/github.com/m3db/m3db/bin/m3dbnode", "-f", "/go/src/github.com/m3db/m3db/config/m3dbnode.yaml"]
