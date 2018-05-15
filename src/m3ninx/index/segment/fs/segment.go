@@ -44,6 +44,11 @@ var (
 	errReaderClosed            = errors.New("segment is closed")
 	errUnsupportedMajorVersion = errors.New("unsupported major version")
 	errNotImplemented          = errors.New("operation not implemented")
+	errDocumentsDataUnset      = errors.New("documents data bytes are not set")
+	errDocumentsIdxUnset       = errors.New("documents index bytes are not set")
+	errPostingsDataUnset       = errors.New("postings data bytes are not set")
+	errFSTTermsDataUnset       = errors.New("fst terms data bytes are not set")
+	errFSTFieldsDataUnset      = errors.New("fst fields data bytes are not set")
 
 	minByteKey = []byte{}
 	maxByteKey = []byte(string(utf8.MaxRune))
@@ -54,9 +59,40 @@ type SegmentData struct {
 	MajorVersion  int
 	MinorVersion  int
 	Metadata      []byte
+	DocsData      []byte
+	DocsIdxData   []byte
 	PostingsData  []byte
 	FSTTermsData  []byte
 	FSTFieldsData []byte
+}
+
+// Validate validates the provided segment data, returning an error if it's not.
+func (sd SegmentData) Validate() error {
+	if sd.MajorVersion != MajorVersion {
+		return errUnsupportedMajorVersion
+	}
+
+	if sd.DocsData == nil {
+		return errDocumentsDataUnset
+	}
+
+	if sd.DocsIdxData == nil {
+		return errDocumentsIdxUnset
+	}
+
+	if sd.PostingsData == nil {
+		return errPostingsDataUnset
+	}
+
+	if sd.FSTTermsData == nil {
+		return errFSTTermsDataUnset
+	}
+
+	if sd.FSTFieldsData == nil {
+		return errFSTFieldsDataUnset
+	}
+
+	return nil
 }
 
 // NewSegmentOpts represent the collection of knobs used by the Segment.
@@ -66,8 +102,8 @@ type NewSegmentOpts struct {
 
 // NewSegment returns a new Segment backed by the provided options.
 func NewSegment(data SegmentData, opts NewSegmentOpts) (Segment, error) {
-	if data.MajorVersion != MajorVersion {
-		return nil, errUnsupportedMajorVersion
+	if err := data.Validate(); err != nil {
+		return nil, err
 	}
 
 	metadata := fswriter.Metadata{}

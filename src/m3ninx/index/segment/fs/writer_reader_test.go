@@ -78,10 +78,6 @@ var (
 	lotsTestDocuments = util.MustReadDocs("../../util/testdata/node_exporter.json", 2000)
 )
 
-func TestSimpleE2EConstruction(t *testing.T) {
-	newTestSegments(t, nil)
-}
-
 func TestConstructionWithFewDocs(t *testing.T) {
 	newTestSegments(t, fewTestDocuments)
 }
@@ -318,6 +314,8 @@ func newFSTSegment(t *testing.T, s sgmt.MutableSegment) sgmt.Segment {
 		MajorVersion:  w.MajorVersion(),
 		MinorVersion:  w.MinorVersion(),
 		Metadata:      w.Metadata(),
+		DocsData:      []byte("FOLLOW(prateek): need to override this once Jerome's changes land"),
+		DocsIdxData:   []byte("FOLLOW(prateek): need to override this once Jerome's changes land"),
 		PostingsData:  postingsBuffer.Bytes(),
 		FSTTermsData:  fstTermsBuffer.Bytes(),
 		FSTFieldsData: fstFieldsBuffer.Bytes(),
