@@ -30,23 +30,14 @@ import (
 
 // NewMutableSegmentFileSetWriter returns a new IndexSegmentFileSetWriter for writing
 // out the provided Mutable Segment.
-func NewMutableSegmentFileSetWriter(
-	seg segment.MutableSegment,
-) (MutableSegmentFileSetWriter, error) {
-	return newMutableSegmentFileSetWriter(fs.NewWriter(), seg)
+func NewMutableSegmentFileSetWriter() (MutableSegmentFileSetWriter, error) {
+	return newMutableSegmentFileSetWriter(fs.NewWriter())
 }
 
-func newMutableSegmentFileSetWriter(
-	fsWriter fs.Writer,
-	seg segment.MutableSegment,
-) (MutableSegmentFileSetWriter, error) {
-	w := &writer{
+func newMutableSegmentFileSetWriter(fsWriter fs.Writer) (MutableSegmentFileSetWriter, error) {
+	return &writer{
 		fsWriter: fsWriter,
-	}
-	if err := w.Reset(seg); err != nil {
-		return nil, err
-	}
-	return w, nil
+	}, nil
 }
 
 type writer struct {
