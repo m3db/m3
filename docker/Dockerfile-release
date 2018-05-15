@@ -1,0 +1,12 @@
+FROM apline:3.7
+
+COPY bin/m3dbnode /bin/m3dbnode
+RUN mkdir -p /etc/m3/
+COPY config/m3dbnode.yaml /etc/m3/m3dbnode.yaml
+
+EXPOSE 9000
+EXPOSE 9001
+EXPOSE 9002
+EXPOSE 9003
+
+ENTRYPOINT ["/bin/m3dbnode", "-f", "/etc/m3/m3dbnode.yaml"]
