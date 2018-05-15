@@ -510,12 +510,3 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	_, err = idx.Query(ctx, q, qOpts)
 	require.NoError(t, err)
 }
-
-func testDoc1() doc.Document {
-	return doc.Document{
-		ID: []byte("foo"),
-		Fields: []doc.Field{
-			doc.Field{[]byte("name"), []byte("value")},
-		},
-	}
-}

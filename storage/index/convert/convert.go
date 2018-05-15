@@ -40,9 +40,9 @@ var (
 	ReservedFieldNameID = doc.IDReservedFieldName
 )
 
+// ValidateMetric will validate a metric for use in the m3ninx subsytem
 // FOLLOWUP(r): Rename ValidateMetric to ValidateSeries (metric terminiology
 // is not common in the codebase)
-// ValidateMetric will validate a metric for use in the m3ninx subsytem
 func ValidateMetric(id ident.ID, tags ident.Tags) error {
 	for _, tag := range tags.Values() {
 		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
@@ -52,9 +52,9 @@ func ValidateMetric(id ident.ID, tags ident.Tags) error {
 	return nil
 }
 
+// FromMetric converts the provided metric id+tags into a document.
 // FOLLOWUP(r): Rename FromMetric to FromSeries (metric terminiology
 // is not common in the codebase)
-// FromMetric converts the provided metric id+tags into a document.
 func FromMetric(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	fields := make([]doc.Field, 0, len(tags.Values()))
 	for _, tag := range tags.Values() {
@@ -73,9 +73,9 @@ func FromMetric(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	}, nil
 }
 
+// FromMetricIter converts the provided metric id+tags into a document.
 // FOLLOWUP(r): Rename FromMetric to FromSeries (metric terminiology
 // is not common in the codebase)
-// FromMetricIter converts the provided metric id+tags into a document.
 func FromMetricIter(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
 	fields := make([]doc.Field, 0, tags.Remaining())
 	for tags.Next() {

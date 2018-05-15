@@ -92,7 +92,7 @@ func (entry *Entry) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
 // OnIndexFinalze() call. This is reqiured for correct lifecycle maintenance.
 func (entry *Entry) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool {
 	// first we try the low-cost path: acquire a RLock and see if the given block start
-	// has been marked successfull or that we've attempted it.
+	// has been marked successful or that we've attempted it.
 	entry.reverseIndex.RLock()
 	alreadyIndexedOrAttempted := entry.reverseIndex.indexedOrAttemptedWithRLock(indexBlockStartForWrite)
 	entry.reverseIndex.RUnlock()

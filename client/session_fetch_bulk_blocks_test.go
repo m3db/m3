@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math"
 	"sort"
 	"sync"
@@ -714,7 +715,7 @@ func assertFetchBlocksFromPeersResult(
 		seg, err := stream.Segment()
 		require.NoError(t, err)
 
-		actualData := append(seg.Head.Bytes(), seg.Tail.Bytes()...)
+		actualData := append(bytesFor(seg.Head), bytesFor(seg.Tail)...)
 
 		// compare actual v expected data
 		if len(expectedData) != len(actualData) {
@@ -1716,8 +1717,9 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	require.NoError(t, err)
 
 	// Assert block has data
-	assert.Equal(t, []byte{1, 2}, seg.Head.Bytes())
-	assert.Equal(t, []byte{3}, seg.Tail.Bytes())
+	data, err := ioutil.ReadAll(xio.NewSegmentReader(seg))
+	require.NoError(t, err)
+	assert.Equal(t, []byte{1, 2, 3}, data)
 }
 
 func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
@@ -2468,13 +2470,20 @@ func assertFetchBootstrapBlocksResult(
 				require.NoError(t, err)
 				seg, err := stream.Segment()
 				require.NoError(t, err)
-				actualData := append(seg.Head.Bytes(), seg.Tail.Bytes()...)
+				actualData := append(bytesFor(seg.Head), bytesFor(seg.Tail)...)
 				assert.Equal(t, expectedData, actualData)
 			} else if block.segments.unmerged != nil {
 				assert.Fail(t, "unmerged comparison not supported")
 			}
 		}
 	}
+}
+
+func bytesFor(data checked.Bytes) []byte {
+	if data == nil {
+		return nil
+	}
+	return data.Bytes()
 }
 
 func assertEnqueueChannel(

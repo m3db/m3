@@ -95,10 +95,6 @@ func TestDatabaseBlockChecksum(t *testing.T) {
 	require.Equal(t, block.checksum, checksum)
 }
 
-type testDatabaseBlockFn func(block *dbBlock)
-
-type testDatabaseBlockAssertionFn func(t *testing.T, block *dbBlock)
-
 type segmentReaderFinalizeCounter struct {
 	xio.SegmentReader
 	// Use a pointer so we can update it from the Finalize method

@@ -987,14 +987,14 @@ func (s *dbShard) newShardEntry(
 
 		nameBytes := t.Name.Bytes()
 		if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
-			tag.Name = ident.BytesID(clonedID[idx : idx+len(nameBytes)])
+			tag.Name = clonedID[idx : idx+len(nameBytes)]
 		} else {
 			tag.Name = s.identifierPool.Clone(t.Name)
 		}
 
 		valueBytes := t.Value.Bytes()
 		if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
-			tag.Value = ident.BytesID(clonedID[idx : idx+len(valueBytes)])
+			tag.Value = clonedID[idx : idx+len(valueBytes)]
 		} else {
 			tag.Value = s.identifierPool.Clone(t.Value)
 		}
