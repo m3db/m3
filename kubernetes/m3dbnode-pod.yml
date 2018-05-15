@@ -7,10 +7,10 @@ metadata:
 spec:
   containers:
   - command:
-    - /root/code/src/github.com/m3db/m3db/bin/m3dbnode
+    - /go/src/github.com/m3db/m3db/bin/m3dbnode
     - -f
-    - /root/code/src/github.com/m3db/m3db/example/m3db-node-config.yaml
-    image: us.gcr.io/uber-org-observability-test/m3dbnode:paultest
+    - /go/src/github.com/m3db/m3db/config/m3dbnode.yaml
+    image: <insert_image_repository_address>/<image_name>:<image_tag>
     name: m3dbnode01
     ports:
     - containerPort: 9000
