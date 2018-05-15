@@ -148,6 +148,8 @@ func testPeersBootstrapMergeLocal(
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())
 
+	secondNodeIsUp := make(chan struct{})
+	doneWriting := make(chan struct{})
 	go func() {
 		// Wait for bootstrapping to occur
 		for reporter.Counters()["database.bootstrap.start"] == 0 {
@@ -157,15 +159,20 @@ func testPeersBootstrapMergeLocal(
 		// Progress time before writing data directly to second node
 		setups[1].setNowFn(completeAt)
 
+		<-secondNodeIsUp
 		// Write data that "arrives" at the second node directly
 		err := setups[1].writeBatch(namesp.ID(),
 			directWritesSeriesMaps[xtime.ToUnixNano(now)])
 		require.NoError(t, err)
+		doneWriting <- struct{}{}
 	}()
 
 	// Start the last server with peers and filesystem bootstrappers
 	require.NoError(t, setups[1].startServer())
 	log.Debug("servers are now up")
+
+	secondNodeIsUp <- struct{}{}
+	<-doneWriting
 
 	// Stop the servers
 	defer func() {
