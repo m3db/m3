@@ -89,11 +89,6 @@ type BootstrapPeersConfiguration struct {
 	FetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion `yaml:"fetchBlocksMetadataEndpointVersion"`
 }
 
-// BootstrapCommitlogConfiguration specifies config for the commitlog bootstrapper.
-type BootstrapCommitlogConfiguration struct {
-	CacheSeriesMetadata *bool `yaml:"cacheSeriesMetadata"`
-}
-
 // New creates a bootstrap process based on the bootstrap configuration.
 func (bsc BootstrapConfiguration) New(
 	opts storage.Options,
@@ -159,9 +154,9 @@ func (bsc BootstrapConfiguration) New(
 		}
 	}
 
-	providerOpts := bootstrap.NewProviderOptions()
+	providerOpts := bootstrap.NewProcessProviderOptions()
 	if bsc.CacheSeriesMetadata != nil {
-		providerOpts.SetCacheSeriesMetadata(*bsc.CacheSeriesMetadata)
+		providerOpts = providerOpts.SetCacheSeriesMetadata(*bsc.CacheSeriesMetadata)
 	}
 	return bootstrap.NewProcessProvider(bs, providerOpts, rsOpts), nil
 }

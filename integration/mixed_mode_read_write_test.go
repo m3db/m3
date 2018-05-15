@@ -233,7 +233,7 @@ func setCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions, setup
 
 	// bootstrapper storage opts
 	processProvider := bootstrap.NewProcessProvider(
-		fsBootstrapper, bootstrap.NewProviderOptions(), bsOpts)
+		fsBootstrapper, bootstrap.NewProcessProviderOptions(), bsOpts)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(processProvider)
 
 	return setup

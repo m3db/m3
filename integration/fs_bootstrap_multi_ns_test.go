@@ -77,7 +77,7 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 
 	bs := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
 	processProvider := bootstrap.NewProcessProvider(
-		bs, bootstrap.NewProviderOptions(), bsOpts)
+		bs, bootstrap.NewProcessProviderOptions(), bsOpts)
 
 	setup.storageOpts = setup.storageOpts.
 		SetBootstrapProcessProvider(processProvider)
