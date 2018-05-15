@@ -49,8 +49,8 @@ func TestWriterFiles(t *testing.T) {
 		DocumentDataIndexSegmentFileType,
 		DocumentIndexIndexSegmentFileType,
 		PostingsIndexSegmentFileType,
-		FSTFieldsIndexSegmentFileType,
 		FSTTermsIndexSegmentFileType,
+		FSTFieldsIndexSegmentFileType,
 	})
 }
 

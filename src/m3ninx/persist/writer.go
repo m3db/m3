@@ -71,8 +71,8 @@ func (w *writer) Files() []IndexSegmentFileType {
 		DocumentDataIndexSegmentFileType,
 		DocumentIndexIndexSegmentFileType,
 		PostingsIndexSegmentFileType,
-		FSTFieldsIndexSegmentFileType,
 		FSTTermsIndexSegmentFileType,
+		FSTFieldsIndexSegmentFileType,
 	}
 }
 
