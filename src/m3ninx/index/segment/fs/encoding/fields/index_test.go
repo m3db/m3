@@ -39,7 +39,19 @@ func TestStoredFieldsIndex(t *testing.T) {
 		entries []entry
 	}{
 		{
-			name: "valid offsets",
+			name: "single offset",
+			entries: []entry{
+				entry{id: 0, offset: 0},
+			},
+		},
+		{
+			name: "single offset with non-zero base",
+			entries: []entry{
+				entry{id: 65, offset: 12},
+			},
+		},
+		{
+			name: "multiple offsets",
 			entries: []entry{
 				entry{id: 0, offset: 0},
 				entry{id: 1, offset: 20},
@@ -49,7 +61,7 @@ func TestStoredFieldsIndex(t *testing.T) {
 			},
 		},
 		{
-			name: "valid offsets with non-zero base",
+			name: "multiple offsets with non-zero base",
 			entries: []entry{
 				entry{id: 42, offset: 0},
 				entry{id: 43, offset: 33},
