@@ -33,9 +33,6 @@ import (
 type ID interface {
 	fmt.Stringer
 
-	// Data returns the bytes ID checked bytes.
-	Data() checked.Bytes
-
 	// Bytes returns the underlying byte slice of the bytes ID unpacked from
 	// any checked bytes container, callers cannot safely hold a ref to these
 	// bytes.
@@ -74,6 +71,8 @@ type Tag struct {
 // until garbage collected (i.e. longly lived).
 func (t *Tag) NoFinalize() {
 	t.noFinalize = true
+	t.Name.NoFinalize()
+	t.Value.NoFinalize()
 }
 
 // Finalize releases all resources held by the Tag, unless NoFinalize has
@@ -242,6 +241,9 @@ func (t *Tags) Append(tag Tag) {
 // until garbage collected (i.e. longly lived).
 func (t *Tags) NoFinalize() {
 	t.noFinalize = true
+	for _, tag := range t.values {
+		tag.NoFinalize()
+	}
 }
 
 // Finalize finalizes all Tags, unless NoFinalize has been called previously

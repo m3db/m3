@@ -59,13 +59,13 @@ func (s idPoolTestSuite) TestPoolGetClone() {
 
 	ctx.BlockingClose()
 
-	s.Require().Nil(a.Data())
-	s.Require().NotEmpty(b.Data().Bytes())
+	s.Require().Nil(a.Bytes())
+	s.Require().NotEmpty(b.Bytes())
 }
 
 func (s idPoolTestSuite) TestPoolStringRefs() {
 	a := s.pool.StringID("abc")
-	s.Require().Equal(1, a.Data().NumRef())
+	s.Require().Equal(1, a.(*id).data.NumRef())
 }
 
 func (s idPoolTestSuite) TestPoolBinaryRefs() {
@@ -73,11 +73,11 @@ func (s idPoolTestSuite) TestPoolBinaryRefs() {
 	s.Require().Equal(0, v.NumRef())
 
 	a := s.pool.BinaryID(v)
-	s.Require().Equal(1, a.Data().NumRef())
+	s.Require().Equal(1, a.(*id).data.NumRef())
 
 	b := s.pool.Clone(a)
-	s.Require().Equal(1, b.Data().NumRef())
-	s.Require().Equal(1, a.Data().NumRef())
+	s.Require().Equal(1, b.(*id).data.NumRef())
+	s.Require().Equal(1, a.(*id).data.NumRef())
 }
 
 func (s idPoolTestSuite) TestPoolGetBinaryID() {
@@ -90,7 +90,7 @@ func (s idPoolTestSuite) TestPoolGetBinaryID() {
 	s.Require().Equal(1+nr, v.NumRef())
 
 	ctx.BlockingClose()
-	s.Require().Nil(bid.Data())
+	s.Require().Nil(bid.(*id).data)
 }
 
 func (s idPoolTestSuite) TestPoolBinaryID() {
@@ -101,7 +101,7 @@ func (s idPoolTestSuite) TestPoolBinaryID() {
 	bid := s.pool.BinaryID(v)
 	s.Require().Equal(1+nr, v.NumRef())
 	bid.Finalize()
-	s.Require().Nil(bid.Data())
+	s.Require().Nil(bid.(*id).data)
 	s.Require().NotNil(v.Bytes())
 	s.Require().Equal(nr, v.NumRef())
 }
@@ -116,8 +116,8 @@ func (s idPoolTestSuite) TestPoolGetBinaryTag() {
 	s.Require().Equal(1+nr, tagName.NumRef())
 	s.Require().Equal(1+nr, tagValue.NumRef())
 	ctx.BlockingClose()
-	s.Require().Nil(tag.Name.Data())
-	s.Require().Nil(tag.Value.Data())
+	s.Require().Nil(tag.Name.(*id).data)
+	s.Require().Nil(tag.Value.(*id).data)
 	s.Require().Equal(nr, tagName.NumRef())
 	s.Require().Equal(nr, tagValue.NumRef())
 }
@@ -146,19 +146,19 @@ func (s idPoolTestSuite) TestPoolBinaryTag() {
 
 func (s idPoolTestSuite) TestPoolGetStringID() {
 	ctx := context.NewContext()
-	id := s.pool.GetStringID(ctx, "abc")
-	s.Require().Equal("abc", id.String())
+	sid := s.pool.GetStringID(ctx, "abc")
+	s.Require().Equal("abc", sid.String())
 
 	ctx.BlockingClose()
-	s.Require().Nil(id.Data())
+	s.Require().Nil(sid.(*id).data)
 }
 
 func (s idPoolTestSuite) TestPoolStringID() {
-	id := s.pool.StringID("abc")
-	s.Require().Equal("abc", id.String())
+	sid := s.pool.StringID("abc")
+	s.Require().Equal("abc", sid.String())
 
-	id.Finalize()
-	s.Require().Nil(id.Data())
+	sid.Finalize()
+	s.Require().Nil(sid.(*id).data)
 }
 
 func (s idPoolTestSuite) TestPoolTags() {
