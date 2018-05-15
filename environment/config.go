@@ -31,11 +31,9 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/kvconfig"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -44,7 +42,6 @@ const (
 )
 
 var (
-	errNilRetention  = errors.New("namespace retention options cannot be empty")
 	errInvalidConfig = errors.New("must supply either service or static config")
 )
 
@@ -96,36 +93,9 @@ type SeedNodeSecurityConfig struct {
 
 // StaticConfiguration is used for running M3DB with a static config
 type StaticConfiguration struct {
-	Namespaces     []StaticNamespaceConfiguration `yaml:"namespaces"`
-	TopologyConfig *topology.StaticConfiguration  `yaml:"topology"`
-	ListenAddress  string                         `yaml:"listenAddress"`
-}
-
-// StaticNamespaceConfiguration sets the static namespace
-type StaticNamespaceConfiguration struct {
-	Name      string                    `yaml:"name"`
-	Options   *StaticNamespaceOptions   `yaml:"options"`
-	Retention *StaticNamespaceRetention `yaml:"retention"`
-}
-
-// StaticNamespaceOptions sets namespace options- if nil, default is used
-type StaticNamespaceOptions struct {
-	BootstrapEnabled  bool `yaml:"bootstrapEnabled"`
-	FlushEnabled      bool `yaml:"flushEnabled"`
-	SnapshotEnabled   bool `yaml:"snapshotEnabled"`
-	WritesToCommitLog bool `yaml:"writesToCommitLog"`
-	CleanupEnabled    bool `yaml:"cleanupEnabled"`
-	RepairEnabled     bool `yaml:"repairEnabled"`
-}
-
-// StaticNamespaceRetention sets the retention per namespace (required)
-type StaticNamespaceRetention struct {
-	RetentionPeriod                     time.Duration `yaml:"retentionPeriod"`
-	BlockSize                           time.Duration `yaml:"blockSize"`
-	BufferFuture                        time.Duration `yaml:"bufferFuture"`
-	BufferPast                          time.Duration `yaml:"bufferPast"`
-	BlockDataExpiry                     bool          `yaml:"blockDataExpiry"`
-	BlockDataExpiryAfterNotAccessPeriod time.Duration `yaml:"blockDataExpiryAfterNotAccessPeriod"`
+	Namespaces     []namespace.MetadataConfiguration `yaml:"namespaces"`
+	TopologyConfig *topology.StaticConfiguration     `yaml:"topology"`
+	ListenAddress  string                            `yaml:"listenAddress"`
 }
 
 // ConfigureResults stores initializers and kv store for dynamic and static configs
@@ -217,7 +187,7 @@ func (c Configuration) configureStatic(cfgParams ConfigurationParameters) (Confi
 
 	nsList := []namespace.Metadata{}
 	for _, ns := range c.Static.Namespaces {
-		md, err := newNamespaceMetadata(ns)
+		md, err := ns.Metadata()
 		if err != nil {
 			err = fmt.Errorf("unable to create metadata for static config: %v", err)
 			return emptyConfig, err
@@ -288,42 +258,4 @@ func newStaticShardSet(numShards int, hosts []topology.HostShardConfig) (shardin
 	}
 
 	return shardSet, hostShardSets, nil
-}
-
-func newNamespaceMetadata(cfg StaticNamespaceConfiguration) (namespace.Metadata, error) {
-	if cfg.Retention == nil {
-		return nil, errNilRetention
-	}
-	if cfg.Options == nil {
-		cfg.Options = &StaticNamespaceOptions{
-			BootstrapEnabled:  true,
-			CleanupEnabled:    true,
-			FlushEnabled:      true,
-			SnapshotEnabled:   true,
-			RepairEnabled:     true,
-			WritesToCommitLog: true,
-		}
-	}
-	md, err := namespace.NewMetadata(
-		ident.StringID(cfg.Name),
-		namespace.NewOptions().
-			SetBootstrapEnabled(cfg.Options.BootstrapEnabled).
-			SetCleanupEnabled(cfg.Options.CleanupEnabled).
-			SetFlushEnabled(cfg.Options.FlushEnabled).
-			SetSnapshotEnabled(cfg.Options.SnapshotEnabled).
-			SetRepairEnabled(cfg.Options.RepairEnabled).
-			SetWritesToCommitLog(cfg.Options.WritesToCommitLog).
-			SetRetentionOptions(
-				retention.NewOptions().
-					SetBlockSize(cfg.Retention.BlockSize).
-					SetRetentionPeriod(cfg.Retention.RetentionPeriod).
-					SetBufferFuture(cfg.Retention.BufferFuture).
-					SetBufferPast(cfg.Retention.BufferPast).
-					SetBlockDataExpiry(cfg.Retention.BlockDataExpiry).
-					SetBlockDataExpiryAfterNotAccessedPeriod(cfg.Retention.BlockDataExpiryAfterNotAccessPeriod)))
-	if err != nil {
-		return nil, err
-	}
-
-	return md, nil
 }

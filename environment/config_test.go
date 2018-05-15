@@ -24,10 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/topology"
-
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/stretchr/testify/assert"
@@ -38,17 +39,17 @@ var initTimeout = time.Minute
 func TestConfigureStatic(t *testing.T) {
 	config := Configuration{
 		Static: &StaticConfiguration{
-			Namespaces: []StaticNamespaceConfiguration{
-				StaticNamespaceConfiguration{
-					Name: "metrics",
-					Retention: &StaticNamespaceRetention{
+			Namespaces: []namespace.MetadataConfiguration{
+				namespace.MetadataConfiguration{
+					ID: "metrics",
+					Retention: retention.Configuration{
 						RetentionPeriod: 24 * time.Hour,
 						BlockSize:       time.Hour,
 					},
 				},
-				StaticNamespaceConfiguration{
-					Name: "other-metrics",
-					Retention: &StaticNamespaceRetention{
+				namespace.MetadataConfiguration{
+					ID: "other-metrics",
+					Retention: retention.Configuration{
 						RetentionPeriod: 24 * time.Hour,
 						BlockSize:       time.Hour,
 					},

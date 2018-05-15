@@ -212,11 +212,11 @@ func genWrite() gopter.Gen {
 		// ID
 		gen.AnyString(),
 		// Tag 1
-		gen.AnyString(),
-		gen.AnyString(),
+		genTagIdent(),
+		genTagIdent(),
 		// Tag 2
-		gen.AnyString(),
-		gen.AnyString(),
+		genTagIdent(),
+		genTagIdent(),
 		// Data
 		gen.SliceOfN(100, gen.UInt8()),
 	).Map(func(vals []interface{}) generatedWrite {
@@ -233,6 +233,15 @@ func genWrite() gopter.Gen {
 			data:     bytesRefd(data),
 			checksum: digest.Checksum(data),
 		}
+	})
+}
+
+func genTagIdent() gopter.Gen {
+	return gopter.CombineGens(
+		gen.AlphaChar(),
+		gen.AnyString(),
+	).Map(func(vals []interface{}) string {
+		return string(vals[0].(rune)) + vals[1].(string)
 	})
 }
 

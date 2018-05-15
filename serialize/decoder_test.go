@@ -46,6 +46,13 @@ func TestEmptyDecode(t *testing.T) {
 	d.Close()
 }
 
+func TestEmptyTagValueDecode(t *testing.T) {
+	d := newTagDecoder(testDecodeOpts, nil)
+	d.Reset(wrapAsCheckedBytes(testTagDecoderEmptyTagBytes()))
+	require.False(t, d.Next())
+	require.Error(t, d.Err())
+}
+
 func TestDecodeHeaderMissing(t *testing.T) {
 	var b []byte
 	b = append(b, []byte{0x0, 0x0}...)
@@ -290,6 +297,16 @@ func wrapAsCheckedBytes(b []byte) checked.Bytes {
 	cb.Reset(b)
 	cb.DecRef()
 	return cb
+}
+
+func testTagDecoderEmptyTagBytes() []byte {
+	var b []byte
+	b = append(b, headerMagicBytes...)
+	b = append(b, encodeUInt16(uint16(1))...) /* num tags */
+	b = append(b, encodeUInt16(0)...)         /* len abc */
+	b = append(b, encodeUInt16(4)...)         /* len defg */
+	b = append(b, []byte("defg")...)
+	return b
 }
 
 func testTagDecoderBytesRaw() []byte {

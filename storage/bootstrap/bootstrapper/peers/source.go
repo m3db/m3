@@ -91,7 +91,7 @@ func (s *peersSource) ReadData(
 		namespace         = nsMetadata.ID()
 		blockRetriever    block.DatabaseBlockRetriever
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
-		persistFlush      persist.Flush
+		persistFlush      persist.DataFlush
 		incremental       = false
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 	)
@@ -116,7 +116,7 @@ func (s *peersSource) ReadData(
 			return nil, err
 		}
 
-		persist, err := persistManager.StartPersist()
+		persist, err := persistManager.StartDataPersist()
 		if err != nil {
 			return nil, err
 		}
@@ -201,7 +201,7 @@ func (s *peersSource) ReadData(
 func (s *peersSource) startIncrementalQueueWorkerLoop(
 	doneCh chan struct{},
 	incrementalQueue chan incrementalFlush,
-	persistFlush persist.Flush,
+	persistFlush persist.DataFlush,
 	bootstrapResult result.DataBootstrapResult,
 	lock *sync.Mutex,
 ) {
@@ -337,7 +337,7 @@ func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
 // a huge memory spike caused by adding lots of unused series to the Shard
 // object and then immediately evicting them in the next tick.
 func (s *peersSource) incrementalFlush(
-	flush persist.Flush,
+	flush persist.DataFlush,
 	nsMetadata namespace.Metadata,
 	shard uint32,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
@@ -356,7 +356,7 @@ func (s *peersSource) incrementalFlush(
 	}
 
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
-		prepareOpts := persist.PrepareOptions{
+		prepareOpts := persist.DataPrepareOptions{
 			NamespaceMetadata: nsMetadata,
 			Shard:             shard,
 			BlockStart:        start,

@@ -78,6 +78,16 @@ func TestTagEncoderLeavesOriginalIterator(t *testing.T) {
 	require.Equal(t, 2, tags.Remaining())
 }
 
+func TestTagEncoderEmpty(t *testing.T) {
+	e := newTestTagEncoder()
+	tags := ident.MustNewTagStringsIterator("abc", "")
+	require.Error(t, e.Encode(tags))
+
+	e = newTestTagEncoder()
+	tags = ident.MustNewTagStringsIterator("", "abc")
+	require.Error(t, e.Encode(tags))
+}
+
 func TestSimpleEncode(t *testing.T) {
 	e := newTestTagEncoder()
 

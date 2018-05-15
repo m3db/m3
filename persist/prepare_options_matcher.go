@@ -27,9 +27,9 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 )
 
-// PrepareOptionsMatcher satisfies the gomock.Matcher interface for PrepareOptions
+// DataPrepareOptionsMatcher satisfies the gomock.Matcher interface for DataPrepareOptions
 // nolint: maligned
-type PrepareOptionsMatcher struct {
+type DataPrepareOptionsMatcher struct {
 	NsMetadata     namespace.Metadata
 	Shard          uint32
 	BlockStart     time.Time
@@ -38,9 +38,9 @@ type PrepareOptionsMatcher struct {
 	DeleteIfExists bool
 }
 
-// Matches determines whether a PrepareOptionsMatcher matches a PrepareOptions
-func (p PrepareOptionsMatcher) Matches(x interface{}) bool {
-	prepareOptions, ok := x.(PrepareOptions)
+// Matches determines whether a DataPrepareOptionsMatcher matches a DataPrepareOptions
+func (p DataPrepareOptionsMatcher) Matches(x interface{}) bool {
+	prepareOptions, ok := x.(DataPrepareOptions)
 	if !ok {
 		return false
 	}
@@ -67,7 +67,7 @@ func (p PrepareOptionsMatcher) Matches(x interface{}) bool {
 	return true
 }
 
-func (p PrepareOptionsMatcher) String() string {
+func (p DataPrepareOptionsMatcher) String() string {
 	return fmt.Sprintf(
 		"NSMetadata: %s, Shard: %d, BlockStart: %d, SnapshotTime: %d, FileSetType: %s, DeleteIfExists: %t",
 		p.NsMetadata.ID().String(), p.Shard, p.BlockStart.Unix(), p.SnapshotTime.Unix(), p.FileSetType, p.DeleteIfExists)

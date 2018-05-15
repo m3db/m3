@@ -89,7 +89,7 @@ func (m *flushManager) Flush(
 	defer m.setState(flushManagerIdle)
 
 	// create flush-er
-	flush, err := m.pm.StartPersist()
+	flush, err := m.pm.StartDataPersist()
 	if err != nil {
 		return err
 	}
@@ -207,7 +207,7 @@ func (m *flushManager) flushNamespaceWithTimes(
 	ns databaseNamespace,
 	ShardBootstrapStates ShardBootstrapStates,
 	times []time.Time,
-	flush persist.Flush,
+	flush persist.DataFlush,
 ) error {
 	multiErr := xerrors.NewMultiError()
 	for _, t := range times {

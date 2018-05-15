@@ -127,6 +127,10 @@ func (d *decoder) decodeID() (ident.ID, error) {
 		return nil, err
 	}
 
+	if l == 0 {
+		return nil, errEmptyTagLiteral
+	}
+
 	if limit := d.opts.TagSerializationLimits().MaxTagLiteralLength(); l > limit {
 		return nil, fmt.Errorf("tag literal too long [ limit = %d, observed = %d ]", limit, int(l))
 	}

@@ -934,7 +934,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) Bootstrap(start, process interface{
 }
 
 // Flush mocks base method
-func (m *MockdatabaseNamespace) Flush(blockStart time.Time, ShardBootstrapStates ShardBootstrapStates, flush persist.Flush) error {
+func (m *MockdatabaseNamespace) Flush(blockStart time.Time, ShardBootstrapStates ShardBootstrapStates, flush persist.DataFlush) error {
 	ret := m.ctrl.Call(m, "Flush", blockStart, ShardBootstrapStates, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -946,7 +946,7 @@ func (mr *MockdatabaseNamespaceMockRecorder) Flush(blockStart, ShardBootstrapSta
 }
 
 // Snapshot mocks base method
-func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.Flush) error {
+func (m *MockdatabaseNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.DataFlush) error {
 	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotTime, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1274,7 +1274,7 @@ func (mr *MockdatabaseShardMockRecorder) Bootstrap(bootstrappedSeries interface{
 }
 
 // Flush mocks base method
-func (m *MockdatabaseShard) Flush(blockStart time.Time, flush persist.Flush) error {
+func (m *MockdatabaseShard) Flush(blockStart time.Time, flush persist.DataFlush) error {
 	ret := m.ctrl.Call(m, "Flush", blockStart, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1286,7 +1286,7 @@ func (mr *MockdatabaseShardMockRecorder) Flush(blockStart, flush interface{}) *g
 }
 
 // Snapshot mocks base method
-func (m *MockdatabaseShard) Snapshot(blockStart, snapshotStart time.Time, flush persist.Flush) error {
+func (m *MockdatabaseShard) Snapshot(blockStart, snapshotStart time.Time, flush persist.DataFlush) error {
 	ret := m.ctrl.Call(m, "Snapshot", blockStart, snapshotStart, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1395,15 +1395,15 @@ func (mr *MocknamespaceIndexMockRecorder) BlockStartForWriteTime(writeTime inter
 }
 
 // WriteBatch mocks base method
-func (m *MocknamespaceIndex) WriteBatch(entries []index.WriteBatchEntry) error {
-	ret := m.ctrl.Call(m, "WriteBatch", entries)
+func (m *MocknamespaceIndex) WriteBatch(batch *index.WriteBatch) error {
+	ret := m.ctrl.Call(m, "WriteBatch", batch)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // WriteBatch indicates an expected call of WriteBatch
-func (mr *MocknamespaceIndexMockRecorder) WriteBatch(entries interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MocknamespaceIndex)(nil).WriteBatch), entries)
+func (mr *MocknamespaceIndexMockRecorder) WriteBatch(batch interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBatch", reflect.TypeOf((*MocknamespaceIndex)(nil).WriteBatch), batch)
 }
 
 // Query mocks base method
@@ -1504,16 +1504,16 @@ func (mr *MocknamespaceIndexInsertQueueMockRecorder) Stop() *gomock.Call {
 }
 
 // InsertBatch mocks base method
-func (m *MocknamespaceIndexInsertQueue) InsertBatch(entries []index.WriteBatchEntry) (*sync.WaitGroup, error) {
-	ret := m.ctrl.Call(m, "InsertBatch", entries)
+func (m *MocknamespaceIndexInsertQueue) InsertBatch(batch *index.WriteBatch) (*sync.WaitGroup, error) {
+	ret := m.ctrl.Call(m, "InsertBatch", batch)
 	ret0, _ := ret[0].(*sync.WaitGroup)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // InsertBatch indicates an expected call of InsertBatch
-func (mr *MocknamespaceIndexInsertQueueMockRecorder) InsertBatch(entries interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBatch", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).InsertBatch), entries)
+func (mr *MocknamespaceIndexInsertQueueMockRecorder) InsertBatch(batch interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertBatch", reflect.TypeOf((*MocknamespaceIndexInsertQueue)(nil).InsertBatch), batch)
 }
 
 // MockdatabaseBootstrapManager is a mock of databaseBootstrapManager interface
