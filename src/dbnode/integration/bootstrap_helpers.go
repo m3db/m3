@@ -88,8 +88,8 @@ func (p testBootstrapperProvider) String() string {
 	return p.Bootstrapper.String()
 }
 
-func (p testBootstrapperProvider) Provide() bootstrap.Bootstrapper {
-	return p.Bootstrapper
+func (p testBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
+	return p.Bootstrapper, nil
 }
 
 type testBootstrapper struct {

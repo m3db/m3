@@ -162,7 +162,10 @@ func (m *bootstrapManager) Report() {
 func (m *bootstrapManager) bootstrap() error {
 	// NB(r): construct new instance of the bootstrap process to avoid
 	// state being kept around by bootstrappers.
-	process := m.processProvider.Provide()
+	process, err := m.processProvider.Provide()
+	if err != nil {
+		return err
+	}
 
 	// NB(xichen): each bootstrapper should be responsible for choosing the most
 	// efficient way of bootstrapping database shards, be it sequential or parallel.

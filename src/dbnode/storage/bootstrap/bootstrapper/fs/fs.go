@@ -51,18 +51,21 @@ func NewFileSystemBootstrapperProvider(
 	}, nil
 }
 
-func (p fileSystemBootstrapperProvider) Provide() bootstrap.Bootstrapper {
+func (p fileSystemBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
 	var (
 		src  = newFileSystemSource(p.opts)
 		b    = &fileSystemBootstrapper{}
 		next bootstrap.Bootstrapper
+		err  error
 	)
 	if p.next != nil {
-		next = p.next.Provide()
+		next, err = p.next.Provide()
+		if err != nil {
+			return nil, err
+		}
 	}
-	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(b.String(),
+	return bootstrapper.NewBaseBootstrapper(b.String(),
 		src, p.opts.ResultOptions(), next)
-	return b
 }
 
 func (p fileSystemBootstrapperProvider) String() string {

@@ -117,6 +117,8 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 
 	// Setup the test bootstrapper to only return success when a signal is sent.
 	signalCh := make(chan struct{})
+	bootstrapper, err := commitlogBootstrapperProvider.Provide()
+	require.NoError(t, err)
 	test := newTestBootstrapperSource(testBootstrapperSourceOptions{
 		readData: func(
 			_ namespace.Metadata,
@@ -129,7 +131,7 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 			result.SetUnfulfilled(shardTimeRanges)
 			return result, nil
 		},
-	}, bootstrapOpts, commitlogBootstrapperProvider.Provide())
+	}, bootstrapOpts, bootstrapper)
 
 	processProvider := bootstrap.NewProcessProvider(
 		test, bootstrap.NewProcessOptions(), bootstrapOpts)

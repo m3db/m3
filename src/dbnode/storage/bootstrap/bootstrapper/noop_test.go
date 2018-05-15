@@ -29,15 +29,19 @@ import (
 func TestNoOpNoneBootstrapperBootstrapProvider(t *testing.T) {
 	bs := NewNoOpNoneBootstrapperProvider()
 	ranges := testShardTimeRanges()
-	res, err := bs.Provide().BootstrapData(testNsMetadata(t), ranges, testDefaultRunOpts)
+	bootstrapper, err := bs.Provide()
+	require.NoError(t, err)
+	res, err := bootstrapper.BootstrapData(testNsMetadata(t), ranges, testDefaultRunOpts)
+	require.NoError(t, err)
 	require.Equal(t, ranges, res.Unfulfilled())
-	require.Nil(t, err)
 }
 
 func TestNoOpAllBootstrapperBootstrapProvider(t *testing.T) {
 	bs := NewNoOpAllBootstrapperProvider()
 	ranges := testShardTimeRanges()
-	res, err := bs.Provide().BootstrapData(testNsMetadata(t), ranges, testDefaultRunOpts)
+	bootstrapper, err := bs.Provide()
+	require.NoError(t, err)
+	res, err := bootstrapper.BootstrapData(testNsMetadata(t), ranges, testDefaultRunOpts)
+	require.NoError(t, err)
 	require.True(t, res.Unfulfilled().IsEmpty())
-	require.Nil(t, err)
 }
