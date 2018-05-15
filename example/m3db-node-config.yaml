@@ -188,8 +188,7 @@ config:
           replicas: 1
           hosts:
               - hostID: m3db_server
-<<<<<<< HEAD
-                listenAddress: "127.0.0.1:9000"
+                listenAddress: "0.0.0.0:9000"
       namespaces:
           - id: metrics
             retention:
@@ -199,6 +198,4 @@ config:
             index:
               enabled: true
               blockSize: 4h
-=======
                 listenAddress: "0.0.0.0:9000"
->>>>>>> d3442724... Removing invalid configurations
