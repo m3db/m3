@@ -65,7 +65,6 @@ func TestShardInsertNamespaceIndex(t *testing.T) {
 			indexWrites = append(indexWrites, batch.PendingDocs()...)
 			lock.Unlock()
 			for i, e := range batch.PendingEntries() {
-				fmt.Printf("!! inserting %s\n", string(batch.PendingDocs()[i].ID))
 				e.OnIndexSeries.OnIndexSuccess(blockStart)
 				e.OnIndexSeries.OnIndexFinalize(blockStart)
 				batch.PendingEntries()[i].OnIndexSeries = nil

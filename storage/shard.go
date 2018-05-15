@@ -751,8 +751,6 @@ func (s *dbShard) writeAndIndex(
 
 	writable := entry != nil
 
-	fmt.Printf("!! call for %s\n", id.String())
-
 	// If no entry and we are not writing new series asynchronously
 	if !writable && !opts.writeNewSeriesAsync {
 		// Avoid double lookup by enqueueing insert immediately
@@ -776,7 +774,6 @@ func (s *dbShard) writeAndIndex(
 		}
 		writable = true
 
-		fmt.Printf("!! just batched and inserted %s\n", id.String())
 		// NB(r): We just indexed this series if shouldReverseIndex was true
 		shouldReverseIndex = false
 	}
@@ -800,11 +797,9 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesUniqueIndex = entry.Index
 		if err == nil && shouldReverseIndex {
 			if entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
-				fmt.Printf("!! need index %s YES\n", entry.Series.ID().String())
 				err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
 					opts.writeNewSeriesAsync)
 			} else {
-				fmt.Printf("!! need index %s NO\n", entry.Series.ID().String())
 			}
 		}
 		// release the reference we got on entry from `writableSeries`
