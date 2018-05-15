@@ -114,11 +114,11 @@ func (w *writer) Reset(s sgmt.MutableSegment) error {
 }
 
 func (w *writer) MajorVersion() int {
-	return majorVersion
+	return MajorVersion
 }
 
 func (w *writer) MinorVersion() int {
-	return minorVersion
+	return MinorVersion
 }
 
 func (w *writer) Metadata() []byte {

@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+
+	"github.com/m3db/m3ninx/index/segment"
 )
 
 var (
@@ -41,6 +43,25 @@ type IndexFileSetWriter interface {
 	WriteSegmentFileSet(segmentFileSet IndexSegmentFileSetWriter) error
 }
 
+// IndexSegmentFileSetWriter is an index segment file set writer.
+type IndexSegmentFileSetWriter interface {
+	SegmentType() IndexSegmentType
+	MajorVersion() int
+	MinorVersion() int
+	SegmentMetadata() []byte
+	Files() []IndexSegmentFileType
+	WriteFile(fileType IndexSegmentFileType, writer io.Writer) error
+}
+
+// MutableSegmentFileSetWriter is a new IndexSegmentFileSetWriter for writing
+// out Mutable Segments.
+type MutableSegmentFileSetWriter interface {
+	IndexSegmentFileSetWriter
+
+	// Reset resets the writer to write the provided mutable segment.
+	Reset(segment.MutableSegment) error
+}
+
 // IndexFileSetReader is an index file set reader, it can read many segments.
 type IndexFileSetReader interface {
 	// SegmentFileSets returns the number of segment file sets.
@@ -51,44 +72,6 @@ type IndexFileSetReader interface {
 	// The IndexSegmentFileSet will only be valid before it's closed,
 	// after that calls to Read or Bytes on it will have unexpected results.
 	ReadSegmentFileSet() (IndexSegmentFileSet, error)
-}
-
-// IndexSegmentType is the type of an index file set.
-type IndexSegmentType string
-
-// Validate validates whether the string value is a valid segment type
-// and contains only lowercase a-z and underscore characters.
-func (t IndexSegmentType) Validate() error {
-	s := string(t)
-	if t == "" || !TypeRegex.MatchString(s) {
-		return fmt.Errorf("invalid segment type must match pattern=%s",
-			TypeRegex.String())
-	}
-	return nil
-}
-
-// IndexSegmentFileType is the type of a file in an index file set.
-type IndexSegmentFileType string
-
-// Validate validates whether the string value is a valid segment file type
-// and contains only lowercase a-z and underscore characters.
-func (t IndexSegmentFileType) Validate() error {
-	s := string(t)
-	if t == "" || !TypeRegex.MatchString(s) {
-		return fmt.Errorf("invalid segment file type must match pattern=%s",
-			TypeRegex.String())
-	}
-	return nil
-}
-
-// IndexSegmentFileSetWriter is an index segment file set writer.
-type IndexSegmentFileSetWriter interface {
-	SegmentType() IndexSegmentType
-	MajorVersion() int
-	MinorVersion() int
-	SegmentMetadata() []byte
-	Files() []IndexSegmentFileType
-	WriteFile(fileType IndexSegmentFileType, writer io.Writer) error
 }
 
 // IndexSegmentFileSet is an index segment file set.
@@ -110,4 +93,81 @@ type IndexSegmentFile interface {
 
 	// Bytes will be valid until the segment file is closed.
 	Bytes() ([]byte, error)
+}
+
+// IndexSegmentType is the type of an index file set.
+type IndexSegmentType string
+
+const (
+	// FSTIndexSegmentType is a FST IndexSegmentType.
+	FSTIndexSegmentType IndexSegmentType = "fst"
+)
+
+// IndexSegmentFileType is the type of a file in an index file set.
+type IndexSegmentFileType string
+
+const (
+	// DocumentDataIndexSegmentFileType is a document data segment file.
+	DocumentDataIndexSegmentFileType IndexSegmentFileType = "docdata"
+
+	// DocumentIndexIndexSegmentFileType is a document index segment file.
+	DocumentIndexIndexSegmentFileType IndexSegmentFileType = "docidx"
+
+	// PostingsIndexSegmentFileType is a postings List data index segment file.
+	PostingsIndexSegmentFileType IndexSegmentFileType = "postingsdata"
+
+	// FSTFieldsIndexSegmentFileType is a FST Fields index segment file.
+	FSTFieldsIndexSegmentFileType IndexSegmentFileType = "fstfields"
+
+	// FSTTermsIndexSegmentFileType is a FST Terms index segment file.
+	FSTTermsIndexSegmentFileType IndexSegmentFileType = "fstterms"
+)
+
+var (
+	indexSegmentTypes = []IndexSegmentType{
+		FSTIndexSegmentType,
+	}
+
+	indexSegmentFileTypes = []IndexSegmentFileType{
+		DocumentDataIndexSegmentFileType,
+		DocumentIndexIndexSegmentFileType,
+		PostingsIndexSegmentFileType,
+		FSTFieldsIndexSegmentFileType,
+		FSTTermsIndexSegmentFileType,
+	}
+)
+
+func init() {
+	for _, f := range indexSegmentTypes {
+		if err := f.Validate(); err != nil {
+			panic(err)
+		}
+	}
+	for _, f := range indexSegmentFileTypes {
+		if err := f.Validate(); err != nil {
+			panic(err)
+		}
+	}
+}
+
+// Validate validates whether the string value is a valid segment type
+// and contains only lowercase a-z and underscore characters.
+func (t IndexSegmentType) Validate() error {
+	s := string(t)
+	if t == "" || !TypeRegex.MatchString(s) {
+		return fmt.Errorf("invalid segment type must match pattern=%s",
+			TypeRegex.String())
+	}
+	return nil
+}
+
+// Validate validates whether the string value is a valid segment file type
+// and contains only lowercase a-z and underscore characters.
+func (t IndexSegmentFileType) Validate() error {
+	s := string(t)
+	if t == "" || !TypeRegex.MatchString(s) {
+		return fmt.Errorf("invalid segment file type must match pattern=%s",
+			TypeRegex.String())
+	}
+	return nil
 }
