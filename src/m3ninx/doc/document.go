@@ -102,14 +102,11 @@ func (d Document) Get(fieldName []byte) ([]byte, bool) {
 	return nil, false
 }
 
-// Equal returns whether this document is equal to another.
-func (d Document) Equal(other Document) bool {
-	if !bytes.Equal(d.ID, other.ID) {
-		return false
-	}
-
-	if len(d.Fields) != len(other.Fields) {
-		return false
+// Compare returns an integer comparing two documents. The result will be 0 if the documents
+// are equal, -1 if d is ordered before other, and 1 if d is ordered aftered other.
+func (d Document) Compare(other Document) int {
+	if c := bytes.Compare(d.ID, other.ID); c != 0 {
+		return c
 	}
 
 	l, r := Fields(d.Fields), Fields(other.Fields)
@@ -124,16 +121,32 @@ func (d Document) Equal(other Document) bool {
 		sort.Sort(r)
 	}
 
-	for i := range l {
-		if !bytes.Equal(l[i].Name, r[i].Name) {
-			return false
+	min := len(l)
+	if len(r) < min {
+		min = len(r)
+	}
+
+	for i := 0; i < min; i++ {
+		if c := bytes.Compare(l[i].Name, r[i].Name); c != 0 {
+			return c
 		}
-		if !bytes.Equal(l[i].Value, r[i].Value) {
-			return false
+		if c := bytes.Compare(l[i].Value, r[i].Value); c != 0 {
+			return c
 		}
 	}
 
-	return true
+	if len(l) < len(r) {
+		return -1
+	} else if len(l) > len(r) {
+		return 1
+	}
+
+	return 0
+}
+
+// Equal returns a bool indicating whether d is equal to other.
+func (d Document) Equal(other Document) bool {
+	return d.Compare(other) == 0
 }
 
 // Validate returns a bool indicating whether the document is valid.
@@ -163,4 +176,32 @@ func (d Document) Validate() error {
 // HasID returns a bool indicating whether the document has an ID or not.
 func (d Document) HasID() bool {
 	return len(d.ID) > 0
+}
+
+func (d Document) String() string {
+	var buf bytes.Buffer
+	for i, f := range d.Fields {
+		buf.WriteString(fmt.Sprintf("%s: %s", f.Name, f.Value))
+		if i != len(d.Fields)-1 {
+			buf.WriteString(", ")
+		}
+	}
+	return fmt.Sprintf("{id: %s, fields: {%s}}", d.ID, buf.String())
+}
+
+// Documents is a list of documents.
+type Documents []Document
+
+func (ds Documents) Len() int {
+	return len(ds)
+}
+
+func (ds Documents) Less(i, j int) bool {
+	l, r := ds[i], ds[j]
+
+	return l.Compare(r) < 1
+}
+
+func (ds Documents) Swap(i, j int) {
+	ds[i], ds[j] = ds[j], ds[i]
 }

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fields
+package docs
 
 import (
 	"fmt"
@@ -30,7 +30,7 @@ import (
 
 const initialDataEncoderLen = 1024
 
-// DataWriter writes the data file for stored fields.
+// DataWriter writes the data file for documents.
 type DataWriter struct {
 	writer io.Writer
 	enc    *encoding.Encoder
@@ -72,7 +72,13 @@ func (w *DataWriter) write() error {
 	return nil
 }
 
-// DataReader is a reader for the data file for stored fields.
+// Reset resets the DataWriter.
+func (w *DataWriter) Reset(wr io.Writer) {
+	w.writer = wr
+	w.enc.Reset()
+}
+
+// DataReader is a reader for the data file for documents.
 type DataReader struct {
 	data []byte
 	dec  *encoding.Decoder

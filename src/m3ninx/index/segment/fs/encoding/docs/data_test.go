@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fields
+package docs
 
 import (
 	"bytes"
@@ -80,6 +80,7 @@ func TestStoredFieldsData(t *testing.T) {
 		},
 	}
 
+	w := NewDataWriter(nil)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var (
@@ -87,8 +88,8 @@ func TestStoredFieldsData(t *testing.T) {
 				offsets = make([]int, 0)
 				idx     int
 			)
+			w.Reset(buf)
 
-			w := NewDataWriter(buf)
 			for i := range test.docs {
 				n, err := w.Write(test.docs[i])
 				require.NoError(t, err)

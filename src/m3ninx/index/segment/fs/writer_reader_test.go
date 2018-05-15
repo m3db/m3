@@ -23,6 +23,7 @@ package fs
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/m3db/m3ninx/doc"
@@ -76,64 +77,199 @@ var (
 		},
 	}
 	lotsTestDocuments = util.MustReadDocs("../../util/testdata/node_exporter.json", 2000)
+
+	testDocuments = []struct {
+		name string
+		docs []doc.Document
+	}{
+		{
+			name: "few documents",
+			docs: fewTestDocuments,
+		},
+		{
+			name: "many documents",
+			docs: lotsTestDocuments,
+		},
+	}
 )
 
-func TestConstructionWithFewDocs(t *testing.T) {
-	newTestSegments(t, fewTestDocuments)
+func TestConstruction(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			newTestSegments(t, test.docs)
+		})
+	}
 }
 
-func TestConstructionWithLotsOfDocs(t *testing.T) {
-	newTestSegments(t, lotsTestDocuments)
+func TestSizeEquals(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			memSeg, fstSeg := newTestSegments(t, test.docs)
+			require.Equal(t, memSeg.Size(), fstSeg.Size())
+		})
+	}
 }
 
-func TestSizeEqualsWithFewDocs(t *testing.T) {
-	memSeg, fstSeg := newTestSegments(t, fewTestDocuments)
-	require.Equal(t, memSeg.Size(), fstSeg.Size())
+func TestFieldsEquals(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			memSeg, fstSeg := newTestSegments(t, test.docs)
+
+			memFields, err := memSeg.Fields()
+			require.NoError(t, err)
+
+			fstFields, err := fstSeg.Fields()
+			require.NoError(t, err)
+
+			assertSliceOfByteSlicesEqual(t, memFields, fstFields)
+
+		})
+	}
 }
 
-func TestSizeEqualsWithLotsOfDocs(t *testing.T) {
-	memSeg, fstSeg := newTestSegments(t, lotsTestDocuments)
-	require.Equal(t, memSeg.Size(), fstSeg.Size())
+func TestTermEquals(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			memSeg, fstSeg := newTestSegments(t, test.docs)
+
+			memFields, err := memSeg.Fields()
+			require.NoError(t, err)
+			fstFields, err := fstSeg.Fields()
+			require.NoError(t, err)
+
+			assertTermEquals := func(fields [][]byte) {
+				for _, f := range fields {
+					memTerms, err := memSeg.Terms(f)
+					require.NoError(t, err)
+					fstTerms, err := fstSeg.Terms(f)
+					require.NoError(t, err)
+					assertSliceOfByteSlicesEqual(t, memTerms, fstTerms)
+				}
+			}
+			assertTermEquals(memFields)
+			assertTermEquals(fstFields)
+
+		})
+	}
 }
 
-func TestFieldsEqualsWithFewDocs(t *testing.T) {
-	testFieldsEquals(t, fewTestDocuments)
+func TestPostingsListEqualForMatchTerm(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			memSeg, fstSeg := newTestSegments(t, test.docs)
+			memReader, err := memSeg.Reader()
+			require.NoError(t, err)
+			fstReader, err := fstSeg.Reader()
+			require.NoError(t, err)
+
+			memFields, err := memSeg.Fields()
+			require.NoError(t, err)
+
+			for _, f := range memFields {
+				memTerms, err := memSeg.Terms(f)
+				require.NoError(t, err)
+
+				for _, term := range memTerms {
+					memPl, err := memReader.MatchTerm(f, term)
+					require.NoError(t, err)
+					fstPl, err := fstReader.MatchTerm(f, term)
+					require.NoError(t, err)
+					require.True(t, memPl.Equal(fstPl),
+						fmt.Sprintf("%s:%s - [%v] != [%v]", string(f), string(term), pprintIter(memPl), pprintIter(fstPl)))
+				}
+			}
+		})
+	}
 }
 
-func TestFieldsEqualsWithLotsDocs(t *testing.T) {
-	testFieldsEquals(t, lotsTestDocuments)
+func TestPostingsListContainsID(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			memSeg, fstSeg := newTestSegments(t, test.docs)
+			memIDs, err := memSeg.Terms(doc.IDReservedFieldName)
+			require.NoError(t, err)
+			for _, i := range memIDs {
+				ok, err := fstSeg.ContainsID(i)
+				require.NoError(t, err)
+				require.True(t, ok)
+			}
+		})
+	}
 }
 
-func TestTermEqualsWithFewDocs(t *testing.T) {
-	testTermsEqual(t, fewTestDocuments)
+func TestPostingsListRegexAll(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			memSeg, fstSeg := newTestSegments(t, test.docs)
+			fields, err := memSeg.Fields()
+			require.NoError(t, err)
+			for _, f := range fields {
+				reader, err := memSeg.Reader()
+				require.NoError(t, err)
+				memPl, err := reader.MatchRegexp(f, []byte("."), nil)
+				require.NoError(t, err)
+
+				fstReader, err := fstSeg.Reader()
+				require.NoError(t, err)
+				fstPl, err := fstReader.MatchRegexp(f, []byte(".*"), nil)
+				require.NoError(t, err)
+				require.True(t, memPl.Equal(fstPl))
+			}
+		})
+	}
 }
 
-func TestTermEqualsWithLotsDocs(t *testing.T) {
-	testTermsEqual(t, lotsTestDocuments)
+func TestSegmentDocs(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			memSeg, fstSeg := newTestSegments(t, test.docs)
+			memReader, err := memSeg.Reader()
+			require.NoError(t, err)
+			fstReader, err := fstSeg.Reader()
+			require.NoError(t, err)
+
+			memFields, err := memSeg.Fields()
+			require.NoError(t, err)
+
+			for _, f := range memFields {
+				memTerms, err := memSeg.Terms(f)
+				require.NoError(t, err)
+
+				for _, term := range memTerms {
+					memPl, err := memReader.MatchTerm(f, term)
+					require.NoError(t, err)
+					fstPl, err := fstReader.MatchTerm(f, term)
+					require.NoError(t, err)
+
+					memDocs, err := memReader.Docs(memPl)
+					require.NoError(t, err)
+					fstDocs, err := fstReader.Docs(fstPl)
+					require.NoError(t, err)
+
+					assertDocsEqual(t, memDocs, fstDocs)
+				}
+			}
+		})
+	}
 }
 
-func TestPostingsListEqualForMatchTermFewDocs(t *testing.T) {
-	testPostingsListEqualForMatchTerm(t, fewTestDocuments)
-}
+func TestSegmentAllDocs(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			memSeg, fstSeg := newTestSegments(t, test.docs)
+			memReader, err := memSeg.Reader()
+			require.NoError(t, err)
+			fstReader, err := fstSeg.Reader()
+			require.NoError(t, err)
 
-func TestPostingsListEqualForMatchTermLotsDocs(t *testing.T) {
-	testPostingsListEqualForMatchTerm(t, lotsTestDocuments)
-}
+			memDocs, err := memReader.AllDocs()
+			require.NoError(t, err)
+			fstDocs, err := fstReader.AllDocs()
+			require.NoError(t, err)
 
-func TestPostingsListContainsIDFewDocs(t *testing.T) {
-	testPostingsListContainsID(t, fewTestDocuments)
-}
-
-func TestPostingsListContainsIDLotsDocs(t *testing.T) {
-	testPostingsListContainsID(t, lotsTestDocuments)
-}
-
-func TestPostingsListRegexAllFewDocs(t *testing.T) {
-	testPostingsListRegexAll(t, fewTestDocuments)
-}
-
-func TestPostingsListRegexAllLotsDocs(t *testing.T) {
-	testPostingsListRegexAll(t, lotsTestDocuments)
+			assertDocsEqual(t, memDocs, fstDocs)
+		})
+	}
 }
 
 func TestPostingsListLifecycleSimple(t *testing.T) {
@@ -160,123 +296,6 @@ func TestPostingsListReaderLifecycle(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func testPostingsListRegexAll(t *testing.T, docs []doc.Document) {
-	memSeg, fstSeg := newTestSegments(t, docs)
-	fields, err := memSeg.Fields()
-	require.NoError(t, err)
-	for _, f := range fields {
-		reader, err := memSeg.Reader()
-		require.NoError(t, err)
-		memPl, err := reader.MatchRegexp(f, []byte("."), nil)
-		require.NoError(t, err)
-
-		fstReader, err := fstSeg.Reader()
-		require.NoError(t, err)
-		fstPl, err := fstReader.MatchRegexp(f, []byte(".*"), nil)
-		require.NoError(t, err)
-		require.True(t, memPl.Equal(fstPl))
-	}
-}
-
-func testPostingsListContainsID(t *testing.T, docs []doc.Document) {
-	memSeg, fstSeg := newTestSegments(t, docs)
-	memIDs, err := memSeg.Terms(doc.IDReservedFieldName)
-	require.NoError(t, err)
-	for _, i := range memIDs {
-		ok, err := fstSeg.ContainsID(i)
-		require.NoError(t, err)
-		require.True(t, ok)
-	}
-}
-
-func testPostingsListEqualForMatchTerm(t *testing.T, docs []doc.Document) {
-	memSeg, fstSeg := newTestSegments(t, docs)
-	memReader, err := memSeg.Reader()
-	require.NoError(t, err)
-	fstReader, err := fstSeg.Reader()
-	require.NoError(t, err)
-
-	memFields, err := memSeg.Fields()
-	require.NoError(t, err)
-
-	for _, f := range memFields {
-		memTerms, err := memSeg.Terms(f)
-		require.NoError(t, err)
-
-		for _, term := range memTerms {
-			memPl, err := memReader.MatchTerm(f, term)
-			require.NoError(t, err)
-			fstPl, err := fstReader.MatchTerm(f, term)
-			require.NoError(t, err)
-			require.True(t, memPl.Equal(fstPl),
-				fmt.Sprintf("%s:%s - [%v] != [%v]", string(f), string(term), pprintIter(memPl), pprintIter(fstPl)))
-		}
-	}
-}
-
-func pprintIter(pl postings.List) string {
-	var buf bytes.Buffer
-	iter := pl.Iterator()
-	for i := 0; iter.Next(); i++ {
-		if i != 0 {
-			buf.WriteString(", ")
-		}
-		buf.WriteString(fmt.Sprintf("%d", iter.Current()))
-	}
-	return buf.String()
-}
-
-func testTermsEqual(t *testing.T, docs []doc.Document) {
-	memSeg, fstSeg := newTestSegments(t, docs)
-
-	memFields, err := memSeg.Fields()
-	require.NoError(t, err)
-	fstFields, err := fstSeg.Fields()
-	require.NoError(t, err)
-
-	assertTermEquals := func(fields [][]byte) {
-		for _, f := range fields {
-			memTerms, err := memSeg.Terms(f)
-			require.NoError(t, err)
-			fstTerms, err := fstSeg.Terms(f)
-			require.NoError(t, err)
-			assertSliceOfByteSlicesEqual(t, memTerms, fstTerms)
-		}
-	}
-	assertTermEquals(memFields)
-	assertTermEquals(fstFields)
-}
-
-func testFieldsEquals(t *testing.T, docs []doc.Document) {
-	memSeg, fstSeg := newTestSegments(t, docs)
-
-	memFields, err := memSeg.Fields()
-	require.NoError(t, err)
-
-	fstFields, err := fstSeg.Fields()
-	require.NoError(t, err)
-
-	assertSliceOfByteSlicesEqual(t, memFields, fstFields)
-}
-
-func assertSliceOfByteSlicesEqual(t *testing.T, a, b [][]byte) {
-	require.Equal(t, len(a), len(b), fmt.Sprintf("a = [%s], b = [%s]", pprint(a), pprint(b)))
-	sortSliceOfByteSlices(a)
-	sortSliceOfByteSlices(b)
-	require.Equal(t, a, b)
-}
-
-func pprint(a [][]byte) string {
-	var buf bytes.Buffer
-	for i, t := range a {
-		if i != 0 {
-			buf.WriteString(", ")
-		}
-		buf.WriteString(fmt.Sprintf("%d %s", i, string(t)))
-	}
-	return buf.String()
-}
-
 func newTestSegments(t *testing.T, docs []doc.Document) (memSeg sgmt.MutableSegment, fstSeg sgmt.Segment) {
 	s := newTestMemSegment(t)
 	for _, d := range docs {
@@ -301,11 +320,15 @@ func newFSTSegment(t *testing.T, s sgmt.MutableSegment) sgmt.Segment {
 	require.NoError(t, w.Reset(s))
 
 	var (
+		docsDataBuffer  bytes.Buffer
+		docsIndexBuffer bytes.Buffer
 		postingsBuffer  bytes.Buffer
 		fstTermsBuffer  bytes.Buffer
 		fstFieldsBuffer bytes.Buffer
 	)
 
+	require.NoError(t, w.WriteDocumentsData(&docsDataBuffer))
+	require.NoError(t, w.WriteDocumentsIndex(&docsIndexBuffer))
 	require.NoError(t, w.WritePostingsOffsets(&postingsBuffer))
 	require.NoError(t, w.WriteFSTTerms(&fstTermsBuffer))
 	require.NoError(t, w.WriteFSTFields(&fstFieldsBuffer))
@@ -314,8 +337,8 @@ func newFSTSegment(t *testing.T, s sgmt.MutableSegment) sgmt.Segment {
 		MajorVersion:  w.MajorVersion(),
 		MinorVersion:  w.MinorVersion(),
 		Metadata:      w.Metadata(),
-		DocsData:      []byte("FOLLOW(prateek): need to override this once Jerome's changes land"),
-		DocsIdxData:   []byte("FOLLOW(prateek): need to override this once Jerome's changes land"),
+		DocsData:      docsDataBuffer.Bytes(),
+		DocsIdxData:   docsIndexBuffer.Bytes(),
 		PostingsData:  postingsBuffer.Bytes(),
 		FSTTermsData:  fstTermsBuffer.Bytes(),
 		FSTFieldsData: fstFieldsBuffer.Bytes(),
@@ -327,4 +350,63 @@ func newFSTSegment(t *testing.T, s sgmt.MutableSegment) sgmt.Segment {
 	require.NoError(t, err)
 
 	return reader
+}
+
+func assertSliceOfByteSlicesEqual(t *testing.T, a, b [][]byte) {
+	require.Equal(t, len(a), len(b), fmt.Sprintf("a = [%s], b = [%s]", pprint(a), pprint(b)))
+	sortSliceOfByteSlices(a)
+	sortSliceOfByteSlices(b)
+	require.Equal(t, a, b)
+}
+
+func assertDocsEqual(t *testing.T, a, b doc.Iterator) {
+	aDocs, err := collectDocs(a)
+	require.NoError(t, err)
+	bDocs, err := collectDocs(b)
+	require.NoError(t, err)
+
+	require.Equal(t, len(aDocs), len(bDocs))
+
+	sort.Sort(doc.Documents(aDocs))
+	sort.Sort(doc.Documents(bDocs))
+
+	for i := range aDocs {
+		require.True(t, aDocs[i].Equal(bDocs[i]))
+	}
+}
+
+func collectDocs(iter doc.Iterator) ([]doc.Document, error) {
+	var docs []doc.Document
+	for iter.Next() {
+		docs = append(docs, iter.Current())
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	return docs, nil
+}
+
+func pprint(a [][]byte) string {
+	var buf bytes.Buffer
+	for i, t := range a {
+		if i != 0 {
+			buf.WriteString(", ")
+		}
+		buf.WriteString(fmt.Sprintf("%d %s", i, string(t)))
+	}
+	return buf.String()
+}
+
+func pprintIter(pl postings.List) string {
+	var buf bytes.Buffer
+	iter := pl.Iterator()
+	for i := 0; iter.Next(); i++ {
+		if i != 0 {
+			buf.WriteString(", ")
+		}
+		buf.WriteString(fmt.Sprintf("%d", iter.Current()))
+	}
+	return buf.String()
 }

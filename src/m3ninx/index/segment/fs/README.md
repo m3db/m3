@@ -30,16 +30,13 @@ FS Segment
                    │
                    │
                    │
-                   │       ┌─────────────────────────┐           ┌───────────────────────────┐
-                   │       │ Documents Index File    │           │ Documents Data File       │
-                   │       │-------------------------│           │-------------------------  │
-                   │       │- Magic Number (int64)   │           │'n' records, each:         │
-                   │       │- Num docs (int64)       │    ┌─────▶│  - Magic Number (int64)   │
-                   │       │- Base Doc.ID `b` (int64)│    │      │  - Valid (1 byte)         │
-                   └──────▶│- Doc `b` offset (int64) ├────┘      │  - Size (int64)           │
-                           │- Doc `b+1` offset       │           │  - Payload (`size` bytes) │
-                           │...                      │           └───────────────────────────┘
-                           │- Doc `b+n-1` offset     │
-                           └─────────────────────────┘
-
+                   │       ┌──────────────────────────┐           ┌───────────────────────────┐
+                   │       │ Documents Index File     │           │ Documents Data File       │
+                   │       │--------------------------│           │-------------------------  │
+                   │       │- Base Doc.ID `b` (uint64)│           │'n' records, each:         │
+                   │       │- Doc `b` offset (uint64) │    ┌─────▶│  - ID (bytes)             │
+                   │       │- Doc `b+1` offset        │    │      │  - Fields (bytes)         │
+                   └──────▶│...                       ├────┘      └───────────────────────────┘
+                           │- Doc `b+n-1` offset      │
+                           └──────────────────────────┘
 ```

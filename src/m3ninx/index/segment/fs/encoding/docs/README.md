@@ -1,13 +1,12 @@
-# Stored Fields
+# Documents
 
-Two files are used to represent the stored fields in a segment. The data file contains
-the stored fields for each document in the segment. The index file contains, for each
-document, its corresponding offset in the data file.
+Two files are used to represent the documents in a segment. The data file contains the
+data for each document in the segment. The index file contains, for each document, its
+corresponding offset in the data file.
 
 ## Data File
 
-The data file contains the stored fields for each document. The documents are stored
-serially.
+The data file contains the fields for each document. The documents are stored serially.
 
 ```
 ┌───────────────────────────┐
@@ -23,11 +22,11 @@ serially.
 
 ### Document
 
-Each document is composed of an ID and its stored fields. The ID is a sequence of valid
-UTF-8 bytes and it is encoded first by encoding the length of the ID, in bytes, as a
-variable-sized unsigned integer and then encoding the actual bytes which comprise the ID.
-Following the ID are the fields. The number of fields in the document is encoded first as
-a variable-sized unsigned integer and then the stored fields themselves are encoded.
+Each document is composed of an ID and its fields. The ID is a sequence of valid UTF-8 bytes
+and it is encoded first by encoding the length of the ID, in bytes, as a variable-sized
+unsigned integer and then encoding the actual bytes which comprise the ID. Following the ID
+are the fields. The number of fields in the document is encoded first as a variable-sized
+unsigned integer and then the fields themselves are encoded.
 
 ```
 ┌───────────────────────────┐
@@ -58,12 +57,12 @@ a variable-sized unsigned integer and then the stored fields themselves are enco
 └───────────────────────────┘
 ```
 
-#### Stored Field
+#### Field
 
-Each stored field is composed of a name and a value. The name and value are a sequence of
-valid UTF-8 bytes and they are stored by encoding the length of the name (value), in bytes,
-as a variable-sized unsigned integer and then encoding the actual bytes which comprise the
-name (value). The name is encoded first and the value second.
+Each field is composed of a name and a value. The name and value are a sequence of valid
+UTF-8 bytes and they are stored by encoding the length of the name (value), in bytes, as a
+variable-sized unsigned integer and then encoding the actual bytes which comprise the name
+(value). The name is encoded first and the value second.
 
 ```
 ┌───────────────────────────┐
