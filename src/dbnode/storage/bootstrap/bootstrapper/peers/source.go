@@ -86,8 +86,37 @@ func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
-	// Peers should be able to fulfill all data
-	return shardsTimeRanges
+	availableShardTimeRanges := result.ShardTimeRanges{}
+	shardSet := s.initialTopoMap.ShardSet()
+	for shard := range shardsTimeRanges {
+		shardState, err := shardSet.LookupStateByID(shard)
+		if err != nil {
+			// TODO: Fix me
+			panic(err)
+		}
+		// TODO: Switch statement
+		switch shardState {
+		case clusterShard.Leaving:
+			fallthrough
+		case clusterShard.Available:
+			// Optimistically assume that the peers will be able to provide
+			// all the data. This assumption is safe, as the shard/block ranges
+			// will simply be marked unfulfilled if the peers are not able to
+			// satisfy the requests.
+			availableShardTimeRanges[shard] = shardsTimeRanges[shard]
+		case clusterShard.Initializing:
+			panic("INITIALIZING")
+			continue
+		case clusterShard.Unknown:
+			panic("UNKNOWNs")
+			continue
+		default:
+			// TODO: Fix me
+			panic("wtf")
+		}
+	}
+
+	return availableShardTimeRanges
 }
 
 func (s *peersSource) ReadData(
