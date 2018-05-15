@@ -21,9 +21,10 @@ ENV GITSHA ${GITSHA:-$DEFAULT_GITSHA}
 
 # Build m3dbnode binary 
 RUN cd /root/code/src/github.com/m3db/m3db/ && \
+    git fetch && \
     git checkout $GITSHA && \
     git submodule update --init --recursive && \
     glide install && \
     make m3dbnode-linux-amd64
 
-ENTRYPOINT ['/root/code/src/github.com/m3db/m3db/bin/m3dbnode -f /root/code/src/github.com/m3db/m3db/example/m3db-node-config.yaml']
+ENTRYPOINT ["/root/code/src/github.com/m3db/m3db/bin/m3dbnode -f /root/code/src/github.com/m3db/m3db/example/m3db-node-config.yaml"]
