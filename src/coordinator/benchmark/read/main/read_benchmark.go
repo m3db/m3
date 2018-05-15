@@ -70,7 +70,7 @@ func init() {
 	flag.StringVar(&timestampEndStr, "timestamp-end", "2016-01-01T06:00:00Z", "Ending timestamp (RFC3339).")
 	flag.BoolVar(&memprofile, "memprofile", false, "Enable memory profile")
 	flag.BoolVar(&cpuprofile, "cpuprofile", false, "Enable cpu profile")
-	flag.StringVar(&readEndpoint, "readEndpoint", "http://localhost:7201/api/v1/prom/read", "Read endpoint for m3coordinator")
+	flag.StringVar(&readEndpoint, "readEndpoint", "http://localhost:7201/api/v1/prom/remote/read", "Read endpoint for m3coordinator")
 	flag.BoolVar(&coordinator, "coordinator", false, "Benchmark through coordinator rather than m3db directly")
 	flag.Parse()
 }
