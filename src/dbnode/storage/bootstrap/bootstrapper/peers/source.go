@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3db/src/dbnode/storage/series"
+	"github.com/m3db/m3db/src/dbnode/topology"
 	"github.com/m3db/m3x/context"
 	xlog "github.com/m3db/m3x/log"
 	xsync "github.com/m3db/m3x/sync"
@@ -41,9 +42,10 @@ import (
 )
 
 type peersSource struct {
-	opts  Options
-	log   xlog.Logger
-	nowFn clock.NowFn
+	initialTopoMap topology.Map
+	opts           Options
+	log            xlog.Logger
+	nowFn          clock.NowFn
 }
 
 type incrementalFlush struct {
@@ -55,22 +57,20 @@ type incrementalFlush struct {
 }
 
 func newPeersSource(opts Options) (bootstrap.Source, error) {
-	session, err := opts.AdminClient().DefaultAdminSession()
+	// We obtain an initial topology map on instantiation, and use it throughout
+	// all bootstrap calls (accross all namespaces / shards / blocks) so that we
+	// make consistent decisions regarding whether the Peer bootstrapper is able
+	// to fullfill bootstrap requests.
+	initialTopoMap, err := initialTopoMap(opts)
 	if err != nil {
 		return nil, err
 	}
-
-	topology, err := session.Topology()
-	if err != nil {
-		return nil, err
-	}
-
-	topology.Get()
 
 	return &peersSource{
-		opts:  opts,
-		log:   opts.ResultOptions().InstrumentOptions().Logger(),
-		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
+		initialTopoMap: initialTopoMap,
+		opts:           opts,
+		log:            opts.ResultOptions().InstrumentOptions().Logger(),
+		nowFn:          opts.ResultOptions().ClockOptions().NowFn(),
 	}, nil
 }
 
@@ -703,4 +703,18 @@ func (s *peersSource) markIndexResultErrorAsUnfulfilled(
 		shard: xtime.NewRanges(timeRange),
 	}
 	r.Add(result.IndexBlock{}, unfulfilled)
+}
+
+func initialTopoMap(opts Options) (topology.Map, error) {
+	session, err := opts.AdminClient().DefaultAdminSession()
+	if err != nil {
+		return nil, err
+	}
+
+	topology, err := session.Topology()
+	if err != nil {
+		return nil, err
+	}
+
+	return topology.Get(), nil
 }

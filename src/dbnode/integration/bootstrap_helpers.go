@@ -73,8 +73,14 @@ func newTestBootstrapperSource(
 		}
 	}
 
-	b := &testBootstrapper{}
-	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(src.String(), src, resultOpts, next)
+	var (
+		b   = &testBootstrapper{}
+		err error
+	)
+	b.Bootstrapper, err = bootstrapper.NewBaseBootstrapper(src.String(), src, resultOpts, next)
+	if err != nil {
+		panic(err)
+	}
 	return testBootstrapperProvider{Bootstrapper: b}
 }
 
