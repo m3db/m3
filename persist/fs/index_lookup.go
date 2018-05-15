@@ -85,7 +85,7 @@ func (il *nearestIndexOffsetLookup) concurrentClone() (*nearestIndexOffsetLookup
 // In other words, the returned offset can always be used as a starting point to
 // begin scanning the index file for the desired series.
 func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ident.ID) (int64, error) {
-	idBytes := id.Data().Bytes()
+	idBytes := id.Bytes()
 
 	min := 0
 	max := len(il.summaryIDsOffsets) - 1

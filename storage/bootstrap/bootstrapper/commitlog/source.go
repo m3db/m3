@@ -587,7 +587,7 @@ func (s *commitLogSource) ReadIndex(
 			return nil, err
 		}
 
-		exists, err := segment.ContainsID(series.ID.Data().Bytes())
+		exists, err := segment.ContainsID(series.ID.Bytes())
 		if err != nil {
 			return nil, err
 		}

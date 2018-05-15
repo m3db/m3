@@ -53,7 +53,7 @@ func NewMetadata(id ident.ID, opts Options) (Metadata, error) {
 
 	}
 
-	copiedID := checked.NewBytes(append([]byte(nil), id.Data().Bytes()...), nil)
+	copiedID := checked.NewBytes(append([]byte(nil), id.Bytes()...), nil)
 	return &metadata{
 		id:   ident.BinaryID(copiedID),
 		opts: opts,

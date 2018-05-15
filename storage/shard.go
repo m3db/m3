@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"bytes"
 	"container/list"
 	"errors"
 	"fmt"
@@ -946,31 +947,60 @@ func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
 	return nil, opts, nil
 }
 
-func (s *dbShard) newShardEntry(id ident.ID, tags ident.TagIterator) (*lookup.Entry, error) {
-	clonedTags, err := s.cloneTags(tags)
+func (s *dbShard) newShardEntry(
+	id ident.ID,
+	tags ident.TagIterator,
+) (*lookup.Entry, error) {
+	series := s.seriesPool.Get()
+	// NB(r): As documented in storage/series.DatabaseSeries the series IDs
+	// are garbage collected, hence we cast the ID to a BytesID that can't be
+	// finalized.
+	// Since series are purged so infrequently the overhead of not releasing
+	// back an ID to a pool is amortized over a long period of time.
+	clonedID := ident.BytesID(append([]byte(nil), id.Bytes()...))
+
+	// Inlining tag creation here so its obvious why we can safely index
+	// into clonedID below
+	tags = tags.Duplicate()
+	clonedTags := s.identifierPool.Tags()
+
+	// Avoid finalizing the tags since series will let them be garbage collected
+	clonedTags.NoFinalize()
+
+	for tags.Next() {
+		t := tags.Current()
+
+		// NB(r): Optimization for workloads that embed the tags in the ID is to
+		// just take a ref to them directly, the cloned ID is frozen by casting to
+		// a BytesID in newShardEntry
+		var tag ident.Tag
+
+		nameBytes := t.Name.Bytes()
+		if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
+			tag.Name = ident.BytesID(clonedID[idx : idx+len(nameBytes)])
+		} else {
+			tag.Name = s.identifierPool.Clone(t.Name)
+		}
+
+		valueBytes := t.Value.Bytes()
+		if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
+			tag.Value = ident.BytesID(clonedID[idx : idx+len(valueBytes)])
+		} else {
+			tag.Value = s.identifierPool.Clone(t.Value)
+		}
+
+		clonedTags.Append(tag)
+	}
+	err := tags.Err()
+	tags.Close()
 	if err != nil {
 		return nil, err
 	}
-	series := s.seriesPool.Get()
-	clonedID := s.identifierPool.Clone(id)
+
 	series.Reset(clonedID, clonedTags, s.seriesBlockRetriever,
 		s.seriesOnRetrieveBlock, s, s.seriesOpts)
 	uniqueIndex := s.increasingIndex.nextIndex()
 	return lookup.NewEntry(series, uniqueIndex), nil
-}
-
-func (s *dbShard) cloneTags(tags ident.TagIterator) (ident.Tags, error) {
-	tags = tags.Duplicate()
-	clone := s.identifierPool.Tags()
-	defer tags.Close()
-	for tags.Next() {
-		t := tags.Current()
-		clone.Append(s.identifierPool.CloneTag(t))
-	}
-	if err := tags.Err(); err != nil {
-		return ident.Tags{}, err
-	}
-	return clone, nil
 }
 
 type insertAsyncResult struct {

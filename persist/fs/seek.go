@@ -414,7 +414,7 @@ func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 	stream := msgpack.NewDecoderStream(s.indexMmap[offset:])
 	s.decoder.Reset(stream)
 
-	idBytes := id.Data().Bytes()
+	idBytes := id.Bytes()
 	// Prevent panic's when we're scanning to the end of the buffer
 	for stream.Remaining() != 0 {
 		entry, err := s.decoder.DecodeIndexEntry()

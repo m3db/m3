@@ -204,7 +204,7 @@ type NamespacesByID []Namespace
 func (n NamespacesByID) Len() int      { return len(n) }
 func (n NamespacesByID) Swap(i, j int) { n[i], n[j] = n[j], n[i] }
 func (n NamespacesByID) Less(i, j int) bool {
-	return bytes.Compare(n[i].ID().Data().Bytes(), n[j].ID().Data().Bytes()) < 0
+	return bytes.Compare(n[i].ID().Bytes(), n[j].ID().Bytes()) < 0
 }
 
 type databaseNamespace interface {

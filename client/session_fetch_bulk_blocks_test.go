@@ -2107,7 +2107,7 @@ func expectFetchMetadataAndReturn(
 		)
 		for j := beginIdx; j < len(result) && j < beginIdx+batchSize; j++ {
 			elem := &rpc.BlocksMetadata{}
-			elem.ID = result[j].id.Data().Bytes()
+			elem.ID = result[j].id.Bytes()
 			for k := 0; k < len(result[j].blocks); k++ {
 				bl := &rpc.BlockMetadata{}
 				bl.Start = result[j].blocks[k].start.UnixNano()
@@ -2159,7 +2159,7 @@ func expectFetchMetadataAndReturnV2(
 			beginIdx = i * batchSize
 		)
 		for j := beginIdx; j < len(result) && j < beginIdx+batchSize; j++ {
-			id := result[j].id.Data().Bytes()
+			id := result[j].id.Bytes()
 			for k := 0; k < len(result[j].blocks); k++ {
 				bl := &rpc.BlockMetadataV2{}
 				bl.ID = id
@@ -2311,7 +2311,7 @@ func expectFetchBlocksAndReturn(
 		ret := &rpc.FetchBlocksRawResult_{}
 		for _, res := range result[i] {
 			blocks := &rpc.Blocks{}
-			blocks.ID = res.id.Data().Bytes()
+			blocks.ID = res.id.Bytes()
 			for j := range res.blocks {
 				bl := &rpc.Block{}
 				bl.Start = res.blocks[j].start.UnixNano()

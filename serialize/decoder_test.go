@@ -185,8 +185,8 @@ func TestDecodeDuplicateLifecycle(t *testing.T) {
 
 	for copy.Next() {
 		tag := copy.Current()    // keep looping
-		tag.Name.Data().Bytes()  // ensure we can get values too
-		tag.Value.Data().Bytes() // and don't panic
+		tag.Name.Bytes()  // ensure we can get values too
+		tag.Value.Bytes() // and don't panic
 	}
 	require.NoError(t, copy.Err())
 	copy.Close()
@@ -206,8 +206,8 @@ func TestDecodeDuplicateIteration(t *testing.T) {
 
 	for copy.Next() {
 		tag := copy.Current()    // keep looping
-		tag.Name.Data().Bytes()  // ensure we can get values too
-		tag.Value.Data().Bytes() // and don't panic
+		tag.Name.Bytes()  // ensure we can get values too
+		tag.Value.Bytes() // and don't panic
 	}
 	require.NoError(t, copy.Err())
 	copy.Close()

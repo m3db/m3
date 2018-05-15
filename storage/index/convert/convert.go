@@ -86,7 +86,7 @@ func FromMetricIter(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
 // any ids provided, as we need to maintain the lifecycle of the indexed
 // bytes separately from the rest of the storage subsystem.
 func clone(id ident.ID) []byte {
-	original := id.Data().Bytes()
+	original := id.Bytes()
 	clone := make([]byte, len(original))
 	copy(clone, original)
 	return clone

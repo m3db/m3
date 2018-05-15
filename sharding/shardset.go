@@ -161,6 +161,6 @@ func NewHashGenWithSeed(seed uint32) HashGen {
 // NewHashFn generates a HashFN based on murmur32 with a given seed
 func NewHashFn(length int, seed uint32) HashFn {
 	return func(id ident.ID) uint32 {
-		return murmur3.Sum32WithSeed(id.Data().Bytes(), seed) % uint32(length)
+		return murmur3.Sum32WithSeed(id.Bytes(), seed) % uint32(length)
 	}
 }

@@ -163,7 +163,7 @@ func (e *encoder) encodeTag(t ident.Tag) error {
 }
 
 func (e *encoder) encodeID(i ident.ID) error {
-	d := i.Data().Bytes()
+	d := i.Bytes()
 	max := int(e.opts.TagSerializationLimits().MaxTagLiteralLength())
 	if len(d) >= max {
 		return errTagLiteralTooLong

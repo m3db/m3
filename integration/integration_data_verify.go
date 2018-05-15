@@ -263,7 +263,7 @@ func compareSeriesList(
 	require.Equal(t, len(expected), len(actual))
 
 	for i := range expected {
-		require.Equal(t, expected[i].ID.Data().Bytes(), actual[i].ID.Data().Bytes())
+		require.Equal(t, expected[i].ID.Bytes(), actual[i].ID.Bytes())
 		require.Equal(t, expected[i].Data, expected[i].Data)
 	}
 }

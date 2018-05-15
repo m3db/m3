@@ -59,7 +59,7 @@ func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, names
 	for _, series := range seriesList {
 		for _, dp := range series.Data {
 			elem := &rpc.WriteBatchRawRequestElement{
-				ID: series.ID.Data().Bytes(),
+				ID: series.ID.Bytes(),
 				Datapoint: &rpc.Datapoint{
 					Timestamp:         xtime.ToNormalizedTime(dp.Timestamp, time.Second),
 					Value:             dp.Value,
@@ -72,7 +72,7 @@ func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, names
 
 	ctx, _ := thrift.NewContext(timeout)
 	batchReq := &rpc.WriteBatchRawRequest{
-		NameSpace: namespace.Data().Bytes(),
+		NameSpace: namespace.Bytes(),
 		Elements:  elems,
 	}
 	return client.WriteBatchRaw(ctx, batchReq)

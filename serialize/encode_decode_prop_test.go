@@ -121,11 +121,11 @@ func tagItersAreEqual(ti1, ti2 ident.TagIterator) (bool, error) {
 	t1, t2 := ti1.Current(), ti2.Current()
 	if !t1.Name.Equal(t2.Name) {
 		return false, fmt.Errorf("tag names are un-equal: %v %v",
-			t1.Name.Data().Bytes(), t2.Name.Data().Bytes())
+			t1.Name.Bytes(), t2.Name.Bytes())
 	}
 	if !t2.Value.Equal(t2.Value) {
 		return false, fmt.Errorf("tag values are un-equal: %v %v",
-			t1.Value.Data().Bytes(), t2.Value.Data().Bytes())
+			t1.Value.Bytes(), t2.Value.Bytes())
 	}
 
 	return tagItersAreEqual(ti1, ti2)
