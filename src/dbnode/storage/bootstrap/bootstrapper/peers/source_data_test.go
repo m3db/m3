@@ -74,10 +74,13 @@ func newValidMockClient(t *testing.T, ctrl *gomock.Controller) *client.MockAdmin
 		panic(err)
 	}
 
+	hostShardSet := topology.NewHostShardSet(
+		topology.NewHost("someID", "someAddress"), shardSet)
+
+	hostShardSets := []topology.HostShardSet{hostShardSet}
+
 	mockMap := topology.NewMockMap(ctrl)
-	mockMap.EXPECT().ShardSet().Return(
-		shardSet,
-	).AnyTimes()
+	mockMap.EXPECT().HostShardSets().Return(hostShardSets).AnyTimes()
 
 	mockTopology := topology.NewMockTopology(ctrl)
 	mockTopology.EXPECT().
