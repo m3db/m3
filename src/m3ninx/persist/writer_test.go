@@ -24,7 +24,6 @@ import (
 	"io"
 	"testing"
 
-	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/index/segment/fs"
 	xtest "github.com/m3db/m3x/test"
 
@@ -36,10 +35,8 @@ func newTestWriter(t *testing.T, ctrl *gomock.Controller) (
 	*fs.MockWriter,
 	MutableSegmentFileSetWriter,
 ) {
-	s := segment.NewMockMutableSegment(ctrl)
 	w := fs.NewMockWriter(ctrl)
-	w.EXPECT().Reset(s).Return(nil)
-	writer, err := newMutableSegmentFileSetWriter(w, s)
+	writer, err := newMutableSegmentFileSetWriter(w)
 	require.NoError(t, err)
 	return w, writer
 }
