@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: m3dbnode
+  name: m3dbnode01
+spec:
+  containers:
+  - command:
+    - /root/code/src/github.com/m3db/m3db/bin/m3dbnode
+    - -f
+    - /root/code/src/github.com/m3db/m3db/example/m3db-node-config.yaml
+    image: us.gcr.io/uber-org-observability-test/m3dbnode:paultest
+    name: m3dbnode01
+    ports:
+    - containerPort: 9000
+      name: client
+      protocol: TCP
+    - containerPort: 9001
+      name: cluster
+      protocol: TCP
+    - containerPort: 9002
+      name: http-client
+      protocol: TCP
+    - containerPort: 9003
+      name: debug
+      protocol: TCP
