@@ -54,8 +54,9 @@ type BootstrapConfiguration struct {
 	// Peers bootstrapper configuration.
 	Peers *BootstrapPeersConfiguration `yaml:"peers"`
 
-	// Commitlog bootstrapper configuration.
-	Commitlog *BootstrapCommitlogConfiguration `yaml:"commitlog"`
+	// CacheSeriesMetadata determines whether individual bootstrappers cache
+	// series metadata accross all calls (namespaces / shards / blocks).
+	CacheSeriesMetadata *bool `yaml:"cacheSeriesMetadata"`
 }
 
 func (bsc BootstrapConfiguration) fsNumProcessors() int {
@@ -76,11 +77,7 @@ func (bsc BootstrapConfiguration) peersFetchBlocksMetadataEndpointVersion() clie
 }
 
 func (bsc BootstrapConfiguration) commitlogCacheSeriesMetadata() *bool {
-	if bsc.Commitlog == nil {
-		return nil
-	}
-
-	return bsc.Commitlog.CacheSeriesMetadata
+	return bsc.CacheSeriesMetadata
 }
 
 // BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.
@@ -142,10 +139,6 @@ func (bsc BootstrapConfiguration) New(
 				SetResultOptions(rsOpts).
 				SetCommitLogOptions(opts.CommitLogOptions())
 
-			cacheSeriesMetadata := bsc.commitlogCacheSeriesMetadata()
-			if cacheSeriesMetadata != nil {
-				copts = copts.SetCacheSeriesMetadata(*cacheSeriesMetadata)
-			}
 			inspection, err := fs.InspectFilesystem(fsOpts)
 			if err != nil {
 				return nil, err
@@ -170,7 +163,11 @@ func (bsc BootstrapConfiguration) New(
 		}
 	}
 
-	return bootstrap.NewProcessProvider(bs, rsOpts), nil
+	providerOpts := bootstrap.NewProviderOptions()
+	if bsc.CacheSeriesMetadata != nil {
+		providerOpts.SetCacheSeriesMetadata(*bsc.CacheSeriesMetadata)
+	}
+	return bootstrap.NewProcessProvider(bs, providerOpts, rsOpts), nil
 }
 
 // ValidateBootstrappersOrder will validate that a list of bootstrappers specified

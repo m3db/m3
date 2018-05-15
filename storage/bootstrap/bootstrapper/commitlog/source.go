@@ -94,7 +94,7 @@ func (s *commitLogSource) AvailableData(
 func (s *commitLogSource) ReadData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
-	_ bootstrap.RunOptions,
+	runOpts bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return result.NewDataBootstrapResult(), nil
@@ -152,7 +152,7 @@ func (s *commitLogSource) ReadData(
 	for workerNum, encoderChan := range encoderChans {
 		wg.Add(1)
 		go s.startM3TSZEncodingWorker(
-			ns, workerNum, encoderChan, unmerged, encoderPool, workerErrs, blopts, wg)
+			ns, runOpts, workerNum, encoderChan, unmerged, encoderPool, workerErrs, blopts, wg)
 	}
 
 	for iter.Next() {
@@ -188,7 +188,7 @@ func (s *commitLogSource) ReadData(
 
 	result := s.mergeShards(int(numShards), bopts, blockSize, blopts, encoderPool, unmerged)
 	// After merging shards, its safe to cache the shardData (which involves some mutation).
-	if s.shouldCacheSeriesMetadata(ns) {
+	if s.shouldCacheSeriesMetadata(runOpts, ns) {
 		s.cacheShardData(ns, unmerged)
 	}
 	return result, nil
@@ -196,6 +196,7 @@ func (s *commitLogSource) ReadData(
 
 func (s *commitLogSource) startM3TSZEncodingWorker(
 	ns namespace.Metadata,
+	runOpts bootstrap.RunOptions,
 	workerNum int,
 	ec <-chan encoderArg,
 	unmerged []shardData,
@@ -204,7 +205,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 	blopts block.Options,
 	wg *sync.WaitGroup,
 ) {
-	shouldCacheSeriesMetadata := s.shouldCacheSeriesMetadata(ns)
+	shouldCacheSeriesMetadata := s.shouldCacheSeriesMetadata(runOpts, ns)
 	for arg := range ec {
 		var (
 			series     = arg.series
@@ -749,8 +750,8 @@ func (s commitLogSource) maybeAddToIndex(
 	return err
 }
 
-func (s commitLogSource) shouldCacheSeriesMetadata(nsMeta namespace.Metadata) bool {
-	return s.opts.CacheSeriesMetadata() && nsMeta.Options().IndexOptions().Enabled()
+func (s commitLogSource) shouldCacheSeriesMetadata(runOpts bootstrap.RunOptions, nsMeta namespace.Metadata) bool {
+	return runOpts.CacheSeriesMetadata() && nsMeta.Options().IndexOptions().Enabled()
 }
 
 func newReadCommitLogPredicate(

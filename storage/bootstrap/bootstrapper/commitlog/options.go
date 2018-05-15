@@ -28,9 +28,8 @@ import (
 )
 
 const (
-	defaultEncodingConcurrency       = 4
-	defaultMergeShardConcurrency     = 4
-	defaultShouldCacheSeriesMetadata = true
+	defaultEncodingConcurrency   = 4
+	defaultMergeShardConcurrency = 4
 )
 
 var (
@@ -39,21 +38,19 @@ var (
 )
 
 type options struct {
-	resultOpts                result.Options
-	commitLogOpts             commitlog.Options
-	encodingConcurrency       int
-	mergeShardConcurrency     int
-	shouldCacheSeriesMetadata bool
+	resultOpts            result.Options
+	commitLogOpts         commitlog.Options
+	encodingConcurrency   int
+	mergeShardConcurrency int
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		resultOpts:                result.NewOptions(),
-		commitLogOpts:             commitlog.NewOptions(),
-		encodingConcurrency:       defaultEncodingConcurrency,
-		mergeShardConcurrency:     defaultMergeShardConcurrency,
-		shouldCacheSeriesMetadata: defaultShouldCacheSeriesMetadata,
+		resultOpts:            result.NewOptions(),
+		commitLogOpts:         commitlog.NewOptions(),
+		encodingConcurrency:   defaultEncodingConcurrency,
+		mergeShardConcurrency: defaultMergeShardConcurrency,
 	}
 }
 
@@ -105,14 +102,4 @@ func (o *options) SetMergeShardsConcurrency(value int) Options {
 
 func (o *options) MergeShardsConcurrency() int {
 	return o.mergeShardConcurrency
-}
-
-func (o *options) SetCacheSeriesMetadata(value bool) Options {
-	opts := *o
-	opts.shouldCacheSeriesMetadata = value
-	return &opts
-}
-
-func (o *options) CacheSeriesMetadata() bool {
-	return o.shouldCacheSeriesMetadata
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,40 +21,28 @@
 package bootstrap
 
 const (
-	// defaultIncremental declares the intent to by default not perform an
-	// incremental bootstrap.
-	defaultIncremental = false
+	// defaultCacheSeriesMetadata declares that by default bootstrap providers should
+	// cache series metadata between runs.
+	defaultCacheSeriesMetadata = true
 )
 
-type runOptions struct {
-	incremental         bool
+type providerOptions struct {
 	cacheSeriesMetadata bool
 }
 
-// NewRunOptions creates new bootstrap run options
-func NewRunOptions() RunOptions {
-	return &runOptions{
-		incremental:         defaultIncremental,
+// NewProviderOptions creates new bootstrap run options
+func NewProviderOptions() ProviderOptions {
+	return &providerOptions{
 		cacheSeriesMetadata: defaultCacheSeriesMetadata,
 	}
 }
 
-func (o *runOptions) SetIncremental(value bool) RunOptions {
-	opts := *o
-	opts.incremental = value
-	return &opts
-}
-
-func (o *runOptions) Incremental() bool {
-	return o.incremental
-}
-
-func (o *runOptions) SetCacheSeriesMetadata(value bool) RunOptions {
+func (o *providerOptions) SetCacheSeriesMetadata(value bool) ProviderOptions {
 	opts := *o
 	opts.cacheSeriesMetadata = value
 	return &opts
 }
 
-func (o *runOptions) CacheSeriesMetadata() bool {
+func (o *providerOptions) CacheSeriesMetadata() bool {
 	return o.cacheSeriesMetadata
 }

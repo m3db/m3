@@ -35,7 +35,8 @@ import (
 // bootstrapProcessProvider is the bootstrapping process provider.
 type bootstrapProcessProvider struct {
 	sync.RWMutex
-	opts                 result.Options
+	providerOpts         ProviderOptions
+	resultOpts           result.Options
 	log                  xlog.Logger
 	bootstrapperProvider BootstrapperProvider
 }
@@ -50,11 +51,13 @@ const (
 // NewProcessProvider creates a new bootstrap process provider.
 func NewProcessProvider(
 	bootstrapperProvider BootstrapperProvider,
-	opts result.Options,
+	providerOpts ProviderOptions,
+	resultOpts result.Options,
 ) ProcessProvider {
 	return &bootstrapProcessProvider{
-		opts:                 opts,
-		log:                  opts.InstrumentOptions().Logger(),
+		providerOpts:         providerOpts,
+		resultOpts:           resultOpts,
+		log:                  resultOpts.InstrumentOptions().Logger(),
 		bootstrapperProvider: bootstrapperProvider,
 	}
 }
@@ -75,15 +78,17 @@ func (b *bootstrapProcessProvider) Provide() Process {
 	b.RLock()
 	defer b.RUnlock()
 	return bootstrapProcess{
-		opts:         b.opts,
-		nowFn:        b.opts.ClockOptions().NowFn(),
+		providerOpts: b.providerOpts,
+		resultOpts:   b.resultOpts,
+		nowFn:        b.resultOpts.ClockOptions().NowFn(),
 		log:          b.log,
 		bootstrapper: b.bootstrapperProvider.Provide(),
 	}
 }
 
 type bootstrapProcess struct {
-	opts         result.Options
+	providerOpts ProviderOptions
+	resultOpts   result.Options
 	nowFn        clock.NowFn
 	log          xlog.Logger
 	bootstrapper Bootstrapper
@@ -280,11 +285,18 @@ func (b bootstrapProcess) targetRanges(
 	return []TargetRange{
 		{
 			Range:      xtime.Range{Start: start, End: midPoint},
-			RunOptions: NewRunOptions().SetIncremental(true),
+			RunOptions: b.newRunOptions().SetIncremental(true),
 		},
 		{
 			Range:      xtime.Range{Start: midPoint, End: cutover},
-			RunOptions: NewRunOptions().SetIncremental(false),
+			RunOptions: b.newRunOptions().SetIncremental(false),
 		},
 	}
+}
+
+func (b bootstrapProcess) newRunOptions() RunOptions {
+	return NewRunOptions().
+		SetCacheSeriesMetadata(
+			b.providerOpts.CacheSeriesMetadata(),
+		)
 }

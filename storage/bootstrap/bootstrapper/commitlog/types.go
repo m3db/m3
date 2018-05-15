@@ -53,12 +53,4 @@ type Options interface {
 
 	// MergeShardConcurrency returns the concurrency for merging shards
 	MergeShardsConcurrency() int
-
-	// SetCacheSeriesMetadata sets whether the commitlog bootstrapper will
-	// cache series metadata (ID and Tags) in-between runs.
-	SetCacheSeriesMetadata(value bool) Options
-
-	// CacheSeriesMetadata returns whether the commitlog bootstrapper will
-	// cache series metadata (ID and Tags) in-between runs.
-	CacheSeriesMetadata() bool
 }
