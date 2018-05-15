@@ -45,11 +45,6 @@ type id struct {
 	noFinalize bool
 }
 
-// Data returns the checked bytes of an ID.
-func (v *id) Data() checked.Bytes {
-	return v.data
-}
-
 // Bytes directly returns the underlying bytes of an ID, it is not safe
 // to hold a reference to this slice and is only valid during the lifetime
 // of the the ID itself.

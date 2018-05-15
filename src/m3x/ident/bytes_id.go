@@ -22,8 +22,6 @@ package ident
 
 import (
 	"bytes"
-
-	"github.com/m3db/m3x/checked"
 )
 
 // BytesID is a small utility type to avoid the heavy weight of a true ID
@@ -32,14 +30,6 @@ type BytesID []byte
 
 // var declaration to ensure package type BytesID implements ID
 var _ ID = BytesID(nil)
-
-// Data returns the bytes ID in a checked bytes container.
-func (v BytesID) Data() checked.Bytes {
-	// Data is not called by the generated hashmap code, hence we don't
-	// implement this and no callers will call this as the generated code
-	// is the only user of this type.
-	return checked.NewBytes(v, nil)
-}
 
 // Bytes returns the underlying byte slice of the bytes ID.
 func (v BytesID) Bytes() []byte {

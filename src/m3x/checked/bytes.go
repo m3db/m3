@@ -47,7 +47,7 @@ type Bytes interface {
 	// Append will append a single byte to the bytes slice.
 	Append(value byte)
 
-	// Append will append bytes to the bytes slice.
+	// AppendAll will append bytes to the bytes slice.
 	AppendAll(values []byte)
 
 	// Reset will reset the reference referred to by the bytes.

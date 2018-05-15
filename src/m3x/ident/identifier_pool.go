@@ -202,17 +202,7 @@ func (p *simplePool) cloneBytes(b []byte) checked.Bytes {
 func (p *simplePool) Clone(existing ID) ID {
 	id := p.pool.Get().(*id)
 
-	var newData checked.Bytes
-	if idBytes, ok := existing.(BytesID); ok {
-		newData = p.cloneBytes(idBytes)
-	} else {
-		data := existing.Data()
-		data.IncRef()
-		newData = p.cloneBytes(data.Bytes())
-		data.DecRef()
-	}
-
-	id.pool, id.data = p, newData
+	id.pool, id.data = p, p.cloneBytes(existing.Bytes())
 
 	return id
 }
@@ -407,14 +397,11 @@ func (p *nativePool) PutTagsIterator(iter TagsIterator) {
 func (p *nativePool) Clone(existing ID) ID {
 	id := p.pool.Get().(*id)
 
-	data := existing.Data()
-	data.IncRef()
+	data := existing.Bytes()
 
-	v := p.heap.Get(data.Len())
+	v := p.heap.Get(len(data))
 	v.IncRef()
-	v.AppendAll(data.Bytes())
-
-	data.DecRef()
+	v.AppendAll(data)
 
 	id.pool, id.data = p, v
 
