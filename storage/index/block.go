@@ -352,7 +352,7 @@ func (b *block) writeBatchErrorInvalidState(state blockState) error {
 }
 
 func (b *block) unknownWriteBatchInvariantError(err error) error {
-	wrappedErr := fmt.Errorf("received non BatchPartialError from m3ninx InsertBatch [%T]", err)
+	wrappedErr := fmt.Errorf("unexpected non-BatchPartialError from m3ninx InsertBatch: %v", err)
 	instrument.EmitInvariantViolationAndGetLogger(b.opts.InstrumentOptions()).Errorf(wrappedErr.Error())
 	return wrappedErr
 }

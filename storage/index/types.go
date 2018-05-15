@@ -285,6 +285,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 			return
 		}
 
+		fmt.Printf("!!! blocksize = %s\n", blockSize)
 		blockStart := allEntries[i].indexBlockStart(blockSize)
 		if !blockStart.Equal(lastBlockStart) {
 			prevLastBlockStart := lastBlockStart.ToTime()
@@ -310,11 +311,7 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 	}
 }
 
-// PendingDocs returns all the docs in this batch that are unmarked.
-func (b *WriteBatch) PendingDocs() []doc.Document {
-	// Ensure sorted by unmarked first
-	b.SortByUnmarkedAndIndexBlockStart()
-
+func (b *WriteBatch) numPending() int {
 	numUnmarked := 0
 	for i := range b.entries {
 		if b.entries[i].OnIndexSeries == nil {
@@ -322,7 +319,19 @@ func (b *WriteBatch) PendingDocs() []doc.Document {
 		}
 		numUnmarked++
 	}
-	return b.docs[:numUnmarked]
+	return numUnmarked
+}
+
+// PendingDocs returns all the docs in this batch that are unmarked.
+func (b *WriteBatch) PendingDocs() []doc.Document {
+	b.SortByUnmarkedAndIndexBlockStart() // Ensure sorted by unmarked first
+	return b.docs[:b.numPending()]
+}
+
+// PendingEntries returns all the entries in this batch that are unmarked.
+func (b *WriteBatch) PendingEntries() []WriteBatchEntry {
+	b.SortByUnmarkedAndIndexBlockStart() // Ensure sorted by unmarked first
+	return b.entries[:b.numPending()]
 }
 
 // NumErrs returns the number of errors encountered by the batch.
@@ -355,14 +364,14 @@ func (b *WriteBatch) Reset() {
 // by index block start time.
 func (b *WriteBatch) SortByUnmarkedAndIndexBlockStart() {
 	b.sortBy = writeBatchSortByUnmarkedAndBlockStart
-	sort.Sort(b)
+	sort.Stable(b)
 }
 
 // SortByEnqueued sorts the entries and documents back to the sort order they
 // were enqueued as.
 func (b *WriteBatch) SortByEnqueued() {
 	b.sortBy = writeBatchSortByEnqueued
-	sort.Sort(b)
+	sort.Stable(b)
 }
 
 // MarkUnmarkedEntriesSuccess marks all unmarked entries as success.

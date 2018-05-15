@@ -41,15 +41,51 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testWriteBatchEntry(id ident.ID, tags ident.Tags, timestamp time.Time, fns index.OnIndexSeries) []index.WriteBatchEntry {
-	return []index.WriteBatchEntry{
-		index.WriteBatchEntry{
-			ID:            id,
-			Tags:          tags,
-			Timestamp:     timestamp,
-			OnIndexSeries: fns,
-		},
+type testWriteBatchOption func(index.WriteBatchOptions) index.WriteBatchOptions
+
+func testWriteBatchBlockSizeOption(blockSize time.Duration) testWriteBatchOption {
+	return func(o index.WriteBatchOptions) index.WriteBatchOptions {
+		o.IndexBlockSize = blockSize
+		return o
 	}
+}
+
+func testWriteBatch(
+	e index.WriteBatchEntry,
+	d doc.Document,
+	opts ...testWriteBatchOption,
+) *index.WriteBatch {
+	var options index.WriteBatchOptions
+	for _, opt := range opts {
+		options = opt(options)
+	}
+	b := index.NewWriteBatch(options)
+	b.Append(e, d)
+	return b
+}
+
+func testWriteBatchEntry(
+	id ident.ID,
+	tags ident.Tags,
+	timestamp time.Time,
+	fns index.OnIndexSeries,
+) (index.WriteBatchEntry, doc.Document) {
+	d := doc.Document{ID: copyBytes(id.Bytes())}
+	for _, tag := range tags.Values() {
+		d.Fields = append(d.Fields, doc.Field{
+			Name:  copyBytes(tag.Name.Bytes()),
+			Value: copyBytes(tag.Value.Bytes()),
+		})
+	}
+	return index.WriteBatchEntry{
+
+		Timestamp:     timestamp,
+		OnIndexSeries: fns,
+	}, d
+}
+
+func copyBytes(b []byte) []byte {
+	return append([]byte(nil), b...)
 }
 
 func testNamespaceMetadata(blockSize, period time.Duration) namespace.Metadata {
@@ -139,19 +175,30 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	idx, err := newNamespaceIndexWithNewBlockFn(md, newBlockFn, opts)
 	require.NoError(t, err)
 
-	blockStart := xtime.ToUnixNano(now.Truncate(blockSize))
 	id := ident.StringID("foo")
-	tags := ident.NewTags(ident.StringTag("name", "value"))
+	tag := ident.StringTag("name", "value")
+	tags := ident.NewTags(tag)
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
-	mockBlock.EXPECT().WriteBatch([]index.WriteBatchEntry{
-		index.WriteBatchEntry{
-			Timestamp:     blockStart.ToTime(),
-			ID:            id,
-			Tags:          tags,
-			OnIndexSeries: lifecycle,
-		},
-	}).Return(index.WriteBatchResult{}, nil)
-	require.NoError(t, idx.WriteBatch(testWriteBatchEntry(id, tags, now, lifecycle)))
+	mockBlock.EXPECT().
+		WriteBatch(gomock.Any()).
+		Return(index.WriteBatchResult{}, nil).
+		Do(func(batch *index.WriteBatch) {
+			docs := batch.PendingDocs()
+			require.Equal(t, 1, len(docs))
+			require.Equal(t, doc.Document{
+				ID:     id.Bytes(),
+				Fields: doc.Fields{{Name: tag.Name.Bytes(), Value: tag.Value.Bytes()}},
+			}, docs[0])
+			entries := batch.PendingEntries()
+			require.Equal(t, 1, len(entries))
+			require.True(t, entries[0].Timestamp.Equal(now))
+			require.True(t, entries[0].OnIndexSeries == lifecycle) // Just ptr equality
+		})
+	batch := index.NewWriteBatch(index.WriteBatchOptions{
+		IndexBlockSize: blockSize,
+	})
+	batch.Append(testWriteBatchEntry(id, tags, now, lifecycle))
+	require.NoError(t, idx.WriteBatch(batch))
 }
 
 func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
@@ -162,7 +209,6 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
 	t0 := now.Truncate(blockSize)
 	t1 := t0.Add(blockSize)
-	t1Nanos := xtime.ToUnixNano(t1)
 	var nowLock sync.Mutex
 	nowFn := func() time.Time {
 		nowLock.Lock()
@@ -190,22 +236,32 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	id := ident.StringID("foo")
-	tags := ident.NewTags(ident.StringTag("name", "value"))
+	tag := ident.StringTag("name", "value")
+	tags := ident.NewTags(tag)
 	lifecycle := index.NewMockOnIndexSeries(ctrl)
-	b1.EXPECT().WriteBatch([]index.WriteBatchEntry{
-		index.WriteBatchEntry{
-			Timestamp:     t1,
-			ID:            id,
-			Tags:          tags,
-			OnIndexSeries: lifecycle,
-		},
-	}).Return(index.WriteBatchResult{}, nil)
+	b1.EXPECT().
+		WriteBatch(gomock.Any()).
+		Return(index.WriteBatchResult{}, nil).
+		Do(func(batch *index.WriteBatch) {
+			docs := batch.PendingDocs()
+			require.Equal(t, 1, len(docs))
+			require.Equal(t, doc.Document{
+				ID:     id.Bytes(),
+				Fields: doc.Fields{{Name: tag.Name.Bytes(), Value: tag.Value.Bytes()}},
+			}, docs[0])
+			entries := batch.PendingEntries()
+			require.Equal(t, 1, len(entries))
+			require.True(t, entries[0].Timestamp.Equal(now))
+			require.True(t, entries[0].OnIndexSeries == lifecycle) // Just ptr equality
+		})
 
 	nowLock.Lock()
 	now = now.Add(blockSize)
 	nowLock.Unlock()
 
-	require.NoError(t, idx.WriteBatch(testWriteBatchEntry(id, tags, now, lifecycle)))
+	entry, doc := testWriteBatchEntry(id, tags, now, lifecycle)
+	batch := testWriteBatch(entry, doc, testWriteBatchBlockSizeOption(blockSize))
+	require.NoError(t, idx.WriteBatch(batch))
 }
 
 func TestNamespaceIndexBootstrap(t *testing.T) {

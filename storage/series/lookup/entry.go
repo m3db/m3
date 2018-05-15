@@ -21,6 +21,7 @@
 package lookup
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -97,6 +98,7 @@ func (entry *Entry) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) boo
 	alreadyIndexedOrAttempted := entry.reverseIndex.indexedOrAttemptedWithRLock(indexBlockStartForWrite)
 	entry.reverseIndex.RUnlock()
 	if alreadyIndexedOrAttempted {
+		fmt.Printf("! GOOD alreadyIndexedOrAttempted true 1 for start %v\n", indexBlockStartForWrite.ToTime().String())
 		// if so, the entry does not need to be indexed.
 		return false
 	}
@@ -110,11 +112,13 @@ func (entry *Entry) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) boo
 	alreadyIndexedOrAttempted = entry.reverseIndex.indexedOrAttemptedWithRLock(indexBlockStartForWrite)
 	if alreadyIndexedOrAttempted {
 		entry.reverseIndex.Unlock()
+		fmt.Printf("! GOOD alreadyIndexedOrAttempted true 2 for start %v\n", indexBlockStartForWrite.ToTime().String())
 		return false
 	}
 
 	entry.reverseIndex.setAttemptWithWLock(indexBlockStartForWrite, true)
 	entry.reverseIndex.Unlock()
+	fmt.Printf("! BAD alreadyIndexedOrAttempted false for start %v\n", indexBlockStartForWrite.ToTime().String())
 	return true
 }
 
@@ -128,6 +132,7 @@ func (entry *Entry) OnIndexPrepare() {
 
 // OnIndexSuccess marks the given block start as successfully indexed.
 func (entry *Entry) OnIndexSuccess(blockStartNanos xtime.UnixNano) {
+	fmt.Printf("! on indexsuccess for %s at %v\n", entry.Series.ID().String(), blockStartNanos.ToTime().String())
 	entry.reverseIndex.Lock()
 	entry.reverseIndex.setSuccessWithWLock(blockStartNanos)
 	entry.reverseIndex.Unlock()

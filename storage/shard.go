@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
@@ -750,6 +751,8 @@ func (s *dbShard) writeAndIndex(
 
 	writable := entry != nil
 
+	fmt.Printf("!! call for %s\n", id.String())
+
 	// If no entry and we are not writing new series asynchronously
 	if !writable && !opts.writeNewSeriesAsync {
 		// Avoid double lookup by enqueueing insert immediately
@@ -772,6 +775,10 @@ func (s *dbShard) writeAndIndex(
 			return err
 		}
 		writable = true
+
+		fmt.Printf("!! just batched and inserted %s\n", id.String())
+		// NB(r): We just indexed this series if shouldReverseIndex was true
+		shouldReverseIndex = false
 	}
 
 	var (
@@ -793,8 +800,11 @@ func (s *dbShard) writeAndIndex(
 		commitLogSeriesUniqueIndex = entry.Index
 		if err == nil && shouldReverseIndex {
 			if entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
+				fmt.Printf("!! need index %s YES\n", entry.Series.ID().String())
 				err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
 					opts.writeNewSeriesAsync)
+			} else {
+				fmt.Printf("!! need index %s NO\n", entry.Series.ID().String())
 			}
 		}
 		// release the reference we got on entry from `writableSeries`
@@ -994,6 +1004,10 @@ func (s *dbShard) newShardEntry(
 	err := tags.Err()
 	tags.Close()
 	if err != nil {
+		return nil, err
+	}
+
+	if err := convert.ValidateMetric(clonedID, clonedTags); err != nil {
 		return nil, err
 	}
 

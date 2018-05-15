@@ -40,6 +40,20 @@ var (
 	ReservedFieldNameID = doc.IDReservedFieldName
 )
 
+// FOLLOWUP(r): Rename ValidateMetric to ValidateSeries (metric terminiology
+// is not common in the codebase)
+// ValidateMetric will validate a metric for use in the m3ninx subsytem
+func ValidateMetric(id ident.ID, tags ident.Tags) error {
+	for _, tag := range tags.Values() {
+		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
+			return errUnableToConvertReservedFieldName
+		}
+	}
+	return nil
+}
+
+// FOLLOWUP(r): Rename FromMetric to FromSeries (metric terminiology
+// is not common in the codebase)
 // FromMetric converts the provided metric id+tags into a document.
 func FromMetric(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	fields := make([]doc.Field, 0, len(tags.Values()))
@@ -59,6 +73,8 @@ func FromMetric(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	}, nil
 }
 
+// FOLLOWUP(r): Rename FromMetric to FromSeries (metric terminiology
+// is not common in the codebase)
 // FromMetricIter converts the provided metric id+tags into a document.
 func FromMetricIter(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
 	fields := make([]doc.Field, 0, tags.Remaining())

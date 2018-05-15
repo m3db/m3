@@ -295,9 +295,10 @@ func (i *nsIndex) writeBatches(
 	pastLimit := now.Add(-1 * i.bufferPast)
 	writeBatchFn := i.writeBatchForBlockStartWithRLock
 	for _, batch := range batches {
-		// Ensure timestamp is not too old/new based on retention policies.
+		// Ensure timestamp is not too old/new based on retention policies and that
+		// doc is valid.
 		batch.ForEach(func(idx int, entry index.WriteBatchEntry,
-			_ doc.Document, _ index.WriteBatchEntryResult) {
+			d doc.Document, _ index.WriteBatchEntryResult) {
 			if !futureLimit.After(entry.Timestamp) {
 				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
 				return

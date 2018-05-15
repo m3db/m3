@@ -22,43 +22,54 @@ package index
 
 import (
 	"fmt"
-	"sort"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3ninx/doc"
-	xtime "github.com/m3db/m3x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
-func TestForEachBlockStarts(t *testing.T) {
-	now := time.Now().Truncate(time.Hour)
-	tn := func(n int64) xtime.UnixNano {
-		return xtime.ToUnixNano(now.Add(time.Duration(n) * time.Hour))
+func TestWriteBatchForEachUnmarkedBatchByBlockStart(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	blockSize := time.Hour
+	now := time.Now().Truncate(blockSize)
+	tn := func(n int64) time.Time {
+		nDur := time.Duration(n)
+		return now.Add(nDur * blockSize).Add(nDur * time.Minute)
 	}
-	d := func(n int) doc.Document {
+	d := func(n int64) doc.Document {
 		return doc.Document{
-			ID: []byte(fmt.Sprintf("%d", n)),
+			ID: []byte(fmt.Sprintf("doc-%d", n)),
 		}
 	}
-	entries := WriteBatchEntryByBlockStart([]WriteBatchEntry{
-		WriteBatchEntry{BlockStart: tn(2), Document: d(2)},
-		WriteBatchEntry{BlockStart: tn(0), Document: d(0)},
-		WriteBatchEntry{BlockStart: tn(1), Document: d(1)},
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
 	})
-	sort.Sort(entries)
+	for _, n := range []int64{2, 0, 1} {
+		batch.Append(WriteBatchEntry{
+			Timestamp:     tn(n),
+			OnIndexSeries: NewMockOnIndexSeries(ctrl),
+		}, d(n))
+	}
 
 	numCalls := 0
-	entries.ForEachBlockStart(func(ts xtime.UnixNano, writes []WriteBatchEntry) {
-		require.Equal(t, 1, len(writes))
+	// entries.ForEachBlockStart(func(ts xtime.UnixNano, writes []WriteBatchEntry) {
+	batch.ForEachUnmarkedBatchByBlockStart(func(
+		blockStart time.Time,
+		batch *WriteBatch,
+	) {
+		require.Equal(t, 1, batch.Len())
 		switch numCalls {
 		case 0:
-			require.Equal(t, "0", string(writes[0].Document.ID))
+			require.Equal(t, "doc-0", string(batch.PendingDocs()[0].ID))
 		case 1:
-			require.Equal(t, "1", string(writes[0].Document.ID))
+			require.Equal(t, "doc-1", string(batch.PendingDocs()[0].ID))
 		case 2:
-			require.Equal(t, "2", string(writes[0].Document.ID))
+			require.Equal(t, "doc-2", string(batch.PendingDocs()[0].ID))
 		default:
 			require.FailNow(t, "should never get here")
 		}
@@ -67,37 +78,55 @@ func TestForEachBlockStarts(t *testing.T) {
 	require.Equal(t, 3, numCalls)
 }
 
-func TestForEachBlockStartMore(t *testing.T) {
-	now := time.Now().Truncate(time.Hour)
-	tn := func(n int64) xtime.UnixNano {
-		return xtime.ToUnixNano(now.Add(time.Duration(n) * time.Hour))
+func TestWriteBatchForEachUnmarkedBatchByBlockStartMore(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	blockSize := time.Hour
+	now := time.Now().Truncate(blockSize)
+	tn := func(n int64) time.Time {
+		nDur := time.Duration(n)
+		return now.Add(nDur * blockSize).Add(nDur * time.Minute)
 	}
-	d := func(n int) doc.Document {
+	d := func(n int64) doc.Document {
 		return doc.Document{
-			ID: []byte(fmt.Sprintf("%d", n)),
+			ID: []byte(fmt.Sprintf("doc-%d", n)),
 		}
 	}
-	entries := WriteBatchEntryByBlockStart([]WriteBatchEntry{
-		WriteBatchEntry{BlockStart: tn(0), Document: d(0)},
-		WriteBatchEntry{BlockStart: tn(1), Document: d(3)},
-		WriteBatchEntry{BlockStart: tn(0), Document: d(1)},
-		WriteBatchEntry{BlockStart: tn(1), Document: d(4)},
-		WriteBatchEntry{BlockStart: tn(0), Document: d(2)},
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
 	})
-	sort.Sort(entries)
+	for _, v := range []struct {
+		nTime int64
+		nDoc  int64
+	}{
+		{0, 0},
+		{1, 3},
+		{0, 1},
+		{1, 4},
+		{0, 2},
+	} {
+		batch.Append(WriteBatchEntry{
+			Timestamp:     tn(v.nTime),
+			OnIndexSeries: NewMockOnIndexSeries(ctrl),
+		}, d(v.nDoc))
+	}
 
 	numCalls := 0
-	entries.ForEachBlockStart(func(ts xtime.UnixNano, writes []WriteBatchEntry) {
+	batch.ForEachUnmarkedBatchByBlockStart(func(
+		blockStart time.Time,
+		batch *WriteBatch,
+	) {
 		switch numCalls {
 		case 0:
-			require.Equal(t, 3, len(writes))
-			require.Equal(t, "0", string(writes[0].Document.ID))
-			require.Equal(t, "1", string(writes[1].Document.ID))
-			require.Equal(t, "2", string(writes[2].Document.ID))
+			require.Equal(t, 3, batch.Len())
+			require.Equal(t, "doc-0", string(batch.PendingDocs()[0].ID))
+			require.Equal(t, "doc-1", string(batch.PendingDocs()[1].ID))
+			require.Equal(t, "doc-2", string(batch.PendingDocs()[2].ID))
 		case 1:
-			require.Equal(t, 2, len(writes))
-			require.Equal(t, "3", string(writes[0].Document.ID))
-			require.Equal(t, "4", string(writes[1].Document.ID))
+			require.Equal(t, 2, batch.Len())
+			require.Equal(t, "doc-3", string(batch.PendingDocs()[0].ID))
+			require.Equal(t, "doc-4", string(batch.PendingDocs()[1].ID))
 		default:
 			require.FailNow(t, "should never get here")
 		}
