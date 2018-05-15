@@ -1,5 +1,5 @@
 hash: a1bf47435da9cd8f22b3868731e58e2328f1a83b5fd58ea2772940330c9f3216
-updated: 2018-05-14T00:24:49.193370723-04:00
+updated: 2018-05-14T18:20:00.201305-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -28,7 +28,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/golang/snappy
-  version: 553a641470496b2327abcac10b36396bd98e45c9
+  version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
 - name: github.com/m3db/codesearch
   version: a45d81b686e85d01f2838439deaf72126ccd5a96
 - name: github.com/m3db/m3x
@@ -83,7 +83,7 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/net
-  version: 054b33e6527139ad5b1ec2f6232c3b175bd9a30c
+  version: 0ed95abb35c445290478a5348a7b38bb154135fd
   subpackages:
   - context
 testImports:

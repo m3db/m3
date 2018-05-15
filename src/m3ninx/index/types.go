@@ -21,13 +21,17 @@
 package index
 
 import (
+	"errors"
 	"regexp"
 
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/postings"
 
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
 )
+
+// ErrDocNotFound is the error returned when there is no document for a given postings ID.
+var ErrDocNotFound = errors.New("no document with given postings ID")
 
 // Index is a collection of searchable documents.
 type Index interface {
@@ -55,6 +59,8 @@ type Writer interface {
 
 // Readable provides a point-in-time accessor to the documents in an index.
 type Readable interface {
+	DocRetriever
+
 	// MatchTerm returns a postings list over all documents which match the given term.
 	MatchTerm(field, term []byte) (postings.List, error)
 
@@ -70,7 +76,21 @@ type Readable interface {
 	Docs(pl postings.List) (doc.Iterator, error)
 
 	// AllDocs returns an iterator over the documents known to the Reader.
-	AllDocs() (doc.Iterator, error)
+	AllDocs() (IDDocIterator, error)
+}
+
+// DocRetriever returns the document associated with a postings ID. It returns
+// ErrDocNotFound if there is no document corresponding to the given postings ID.
+type DocRetriever interface {
+	Doc(id postings.ID) (doc.Document, error)
+}
+
+// IDDocIterator is an extented documents Iterator which can also return the postings
+// ID of the current document.
+type IDDocIterator interface {
+	doc.Iterator
+
+	PostingsID() postings.ID
 }
 
 // Reader provides a point-in-time accessor to the documents in an index.
@@ -86,7 +106,7 @@ type Readers []Reader
 
 // Close closes all of the Readers in rs.
 func (rs Readers) Close() error {
-	multiErr := errors.NewMultiError()
+	multiErr := xerrors.NewMultiError()
 	for _, r := range rs {
 		err := r.Close()
 		if err != nil {

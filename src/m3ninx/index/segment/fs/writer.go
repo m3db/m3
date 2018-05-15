@@ -32,12 +32,16 @@ import (
 	"github.com/m3db/m3ninx/index"
 	sgmt "github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/index/segment/fs/encoding"
+	"github.com/m3db/m3ninx/index/segment/fs/encoding/docs"
+	"github.com/m3db/m3ninx/postings"
 	"github.com/m3db/m3ninx/postings/pilosa"
+	"github.com/m3db/m3ninx/x"
 )
 
 var (
 	defaultInitialPostingsOffsetsMapSize = 1024
 	defaultInitialFSTTermsOffsetsMapSize = 1024
+	defaultInitialDocOffsetsSize         = 1024
 	defaultInitialIntEncoderSize         = 128
 
 	errUnableToFindPostingsOffset = errors.New("internal error: unable to find postings offset")
@@ -51,6 +55,8 @@ type writer struct {
 	intEncoder      *encoding.Encoder
 	postingsEncoder *pilosa.Encoder
 	fstWriter       *fstWriter
+	docDataWriter   *docs.DataWriter
+	docIndexWriter  *docs.IndexWriter
 
 	metadata            []byte
 	docsDataFileWritten bool
@@ -58,6 +64,7 @@ type writer struct {
 	fstTermsFileWritten bool
 	postingsOffsets     *postingsOffsetsMap
 	fstTermsOffsets     *fstTermsOffsetsMap
+	docOffsets          []docOffset
 }
 
 // NewWriter returns a new writer.
@@ -66,8 +73,11 @@ func NewWriter() Writer {
 		intEncoder:      encoding.NewEncoder(defaultInitialIntEncoderSize),
 		postingsEncoder: pilosa.NewEncoder(),
 		fstWriter:       newFSTWriter(),
+		docDataWriter:   docs.NewDataWriter(nil),
+		docIndexWriter:  docs.NewIndexWriter(nil),
 		postingsOffsets: newPostingsOffsetsMap(defaultInitialPostingsOffsetsMapSize),
 		fstTermsOffsets: newFSTTermsOffsetsMap(defaultInitialFSTTermsOffsetsMapSize),
+		docOffsets:      make([]docOffset, 0, defaultInitialDocOffsetsSize),
 	}
 }
 
@@ -78,6 +88,8 @@ func (w *writer) clear() {
 	w.intEncoder.Reset()
 	w.postingsEncoder.Reset()
 	w.fstWriter.Clear()
+	w.docDataWriter.Reset(nil)
+	w.docIndexWriter.Reset(nil)
 
 	w.metadata = nil
 	w.docsDataFileWritten = false
@@ -85,6 +97,7 @@ func (w *writer) clear() {
 	w.fstTermsFileWritten = false
 	w.postingsOffsets.Reset()
 	w.fstTermsOffsets.Reset()
+	w.docOffsets = w.docOffsets[:0]
 }
 
 func (w *writer) Reset(s sgmt.MutableSegment) error {
@@ -126,13 +139,46 @@ func (w *writer) Metadata() []byte {
 }
 
 func (w *writer) WriteDocumentsData(iow io.Writer) error {
-	return nil
+	w.docDataWriter.Reset(iow)
+
+	iter, err := w.segReader.AllDocs()
+	closer := x.NewSafeCloser(iter)
+	defer closer.Close()
+	if err != nil {
+		return err
+	}
+
+	var currOffset uint64
+	if int64(cap(w.docOffsets)) < w.seg.Size() {
+		w.docOffsets = make([]docOffset, 0, w.seg.Size())
+	}
+	for iter.Next() {
+		id, doc := iter.PostingsID(), iter.Current()
+		n, err := w.docDataWriter.Write(doc)
+		if err != nil {
+			return err
+		}
+		w.docOffsets = append(w.docOffsets, docOffset{ID: id, offset: currOffset})
+		currOffset += uint64(n)
+	}
+
+	w.docsDataFileWritten = true
+	return closer.Close()
 }
 
 func (w *writer) WriteDocumentsIndex(iow io.Writer) error {
 	if !w.docsDataFileWritten {
 		return fmt.Errorf("documents data file has to be written before documents index file")
 	}
+
+	w.docIndexWriter.Reset(iow)
+
+	for _, do := range w.docOffsets {
+		if err := w.docIndexWriter.Write(do.ID, do.offset); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -371,4 +417,9 @@ func defaultV1Metadata() fswriter.Metadata {
 	return fswriter.Metadata{
 		PostingsFormat: fswriter.PostingsFormat_PILOSAV1_POSTINGS_FORMAT,
 	}
+}
+
+type docOffset struct {
+	postings.ID
+	offset uint64
 }

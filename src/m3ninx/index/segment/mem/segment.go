@@ -36,7 +36,6 @@ var (
 	// ErrDuplicateID is the error returned when a batch contains duplicate IDs.
 	ErrDuplicateID = errors.New("a batch cannot contain duplicate IDs")
 
-	errUnknownPostingsID = errors.New("unknown postings ID specified")
 	errSegmentSealed     = errors.New("unable to seal, segment has already been sealed")
 	errSegmentIsUnsealed = errors.New("un-supported operation on an un-sealed mutable segment")
 )
@@ -191,7 +190,7 @@ func (s *segment) prepareDocsWithLocks(b index.Batch) error {
 			if !b.AllowPartialUpdates {
 				return err
 			}
-			batchErr.Add(index.BatchError{err, i})
+			batchErr.Add(index.BatchError{Err: err, Idx: i})
 			b.Docs[i] = emptyDoc
 			continue
 		}
@@ -208,7 +207,7 @@ func (s *segment) prepareDocsWithLocks(b index.Batch) error {
 				if !b.AllowPartialUpdates {
 					return ErrDuplicateID
 				}
-				batchErr.Add(index.BatchError{ErrDuplicateID, i})
+				batchErr.Add(index.BatchError{Err: ErrDuplicateID, Idx: i})
 				b.Docs[i] = emptyDoc
 				continue
 			}
@@ -218,7 +217,7 @@ func (s *segment) prepareDocsWithLocks(b index.Batch) error {
 				if !b.AllowPartialUpdates {
 					return err
 				}
-				batchErr.Add(index.BatchError{err, i})
+				batchErr.Add(index.BatchError{Err: err, Idx: i})
 				b.Docs[i] = emptyDoc
 				continue
 			}
@@ -356,7 +355,7 @@ func (s *segment) getDoc(id postings.ID) (doc.Document, error) {
 	s.docs.RLock()
 	if idx >= len(s.docs.data) {
 		s.docs.RUnlock()
-		return doc.Document{}, errUnknownPostingsID
+		return doc.Document{}, index.ErrDocNotFound
 	}
 	d := s.docs.data[idx]
 	s.docs.RUnlock()

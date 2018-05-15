@@ -30,4 +30,4 @@ package mocks
 //go:generate sh -c "mockgen -package=mem -destination=$GOPATH/src/github.com/m3db/m3ninx/index/segment/mem/mem_mock.go github.com/m3db/m3ninx/index/segment/mem ReadableSegment"
 //go:generate sh -c "mockgen -package=fs -destination=$GOPATH/src/github.com/m3db/m3ninx/index/segment/fs/fs_mock.go github.com/m3db/m3ninx/index/segment/fs Writer,Segment"
 //go:generate sh -c "mockgen -package=segment -destination=$GOPATH/src/github.com/m3db/m3ninx/index/segment/segment_mock.go github.com/m3db/m3ninx/index/segment Segment,MutableSegment"
-//go:generate sh -c "mockgen -package=index -destination=$GOPATH/src/github.com/m3db/m3ninx/index/index_mock.go github.com/m3db/m3ninx/index Reader"
+//go:generate sh -c "mockgen -package=index -destination=$GOPATH/src/github.com/m3db/m3ninx/index/index_mock.go github.com/m3db/m3ninx/index Reader,DocRetriever"

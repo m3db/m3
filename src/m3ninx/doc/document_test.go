@@ -21,6 +21,7 @@
 package doc
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 
@@ -144,6 +145,148 @@ func TestDocumentGetField(t *testing.T) {
 	}
 }
 
+func TestDocumentCompare(t *testing.T) {
+	tests := []struct {
+		name     string
+		l, r     Document
+		expected int
+	}{
+		{
+			name:     "empty documents are equal",
+			l:        Document{},
+			r:        Document{},
+			expected: 0,
+		},
+		{
+			name: "documents with the same id and the same fields in the same order are equal",
+			l: Document{
+				ID: []byte("831992"),
+				Fields: []Field{
+					Field{
+						Name:  []byte("apple"),
+						Value: []byte("red"),
+					},
+					Field{
+						Name:  []byte("banana"),
+						Value: []byte("yellow"),
+					},
+				},
+			},
+			r: Document{
+				ID: []byte("831992"),
+				Fields: []Field{
+					Field{
+						Name:  []byte("apple"),
+						Value: []byte("red"),
+					},
+					Field{
+						Name:  []byte("banana"),
+						Value: []byte("yellow"),
+					},
+				},
+			},
+			expected: 0,
+		},
+		{
+			name: "documents are ordered by their IDs",
+			l: Document{
+				ID: []byte("831992"),
+				Fields: []Field{
+					Field{
+						Name:  []byte("banana"),
+						Value: []byte("yellow"),
+					},
+				},
+			},
+			r: Document{
+				ID: []byte("831991"),
+				Fields: []Field{
+					Field{
+						Name:  []byte("apple"),
+						Value: []byte("red"),
+					},
+				},
+			},
+			expected: 1,
+		},
+		{
+			name: "documents are ordered by their field names",
+			l: Document{
+				ID: []byte("831992"),
+				Fields: []Field{
+					Field{
+						Name:  []byte("banana"),
+						Value: []byte("yellow"),
+					},
+				},
+			},
+			r: Document{
+				ID: []byte("831992"),
+				Fields: []Field{
+					Field{
+						Name:  []byte("apple"),
+						Value: []byte("red"),
+					},
+				},
+			},
+			expected: 1,
+		},
+		{
+			name: "documents are ordered by their field values",
+			l: Document{
+				ID: []byte("831992"),
+				Fields: []Field{
+					Field{
+						Name:  []byte("apple"),
+						Value: []byte("green"),
+					},
+				},
+			},
+			r: Document{
+				ID: []byte("831992"),
+				Fields: []Field{
+					Field{
+						Name:  []byte("apple"),
+						Value: []byte("red"),
+					},
+				},
+			},
+			expected: -1,
+		},
+		{
+			name: "documents are ordered by their lengths",
+			l: Document{
+				ID: []byte("831992"),
+				Fields: []Field{
+					Field{
+						Name:  []byte("apple"),
+						Value: []byte("red"),
+					},
+				},
+			},
+			r: Document{
+				ID: []byte("831992"),
+				Fields: []Field{
+					Field{
+						Name:  []byte("apple"),
+						Value: []byte("red"),
+					},
+					Field{
+						Name:  []byte("banana"),
+						Value: []byte("yellow"),
+					},
+				},
+			},
+			expected: -1,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, test.l.Compare(test.r))
+		})
+	}
+}
 func TestDocumentEquality(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -393,6 +536,69 @@ func TestDocumentHasID(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.expected, test.input.HasID())
+		})
+	}
+}
+
+func TestSortingDocuments(t *testing.T) {
+	tests := []struct {
+		name            string
+		input, expected Documents
+	}{
+		{
+			name: "unordered documents",
+			input: Documents{
+				Document{
+					ID: []byte("831992"),
+					Fields: []Field{
+						Field{
+							Name:  []byte("banana"),
+							Value: []byte("yellow"),
+						},
+					},
+				},
+				Document{
+					ID: []byte("831992"),
+					Fields: []Field{
+						Field{
+							Name:  []byte("apple"),
+							Value: []byte("red"),
+						},
+					},
+				},
+			},
+			expected: Documents{
+				Document{
+					ID: []byte("831992"),
+					Fields: []Field{
+						Field{
+							Name:  []byte("apple"),
+							Value: []byte("red"),
+						},
+					},
+				},
+				Document{
+					ID: []byte("831992"),
+					Fields: []Field{
+						Field{
+							Name:  []byte("banana"),
+							Value: []byte("yellow"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := test.input
+			sort.Sort(actual)
+			require.Equal(t, len(test.expected), len(actual))
+			fmt.Println(actual)
+			for i := range test.expected {
+				require.True(t, test.expected[i].Equal(actual[i]))
+			}
 		})
 	}
 }

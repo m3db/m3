@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3ninx/generated/proto/fswriter"
 	"github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/index/segment/fs/encoding"
+	"github.com/m3db/m3ninx/index/segment/fs/encoding/docs"
 	"github.com/m3db/m3ninx/postings"
 	"github.com/m3db/m3ninx/postings/pilosa"
 	"github.com/m3db/m3ninx/postings/roaring"
@@ -43,7 +44,6 @@ import (
 var (
 	errReaderClosed            = errors.New("segment is closed")
 	errUnsupportedMajorVersion = errors.New("unsupported major version")
-	errNotImplemented          = errors.New("operation not implemented")
 	errDocumentsDataUnset      = errors.New("documents data bytes are not set")
 	errDocumentsIdxUnset       = errors.New("documents index bytes are not set")
 	errPostingsDataUnset       = errors.New("postings data bytes are not set")
@@ -119,12 +119,28 @@ func NewSegment(data SegmentData, opts NewSegmentOpts) (Segment, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to load fields fst: %v", err)
 	}
-	return &fsSegment{
-		fieldsFST: fieldsFST,
 
-		data:    data,
-		opts:    opts,
-		numDocs: metadata.NumDocs,
+	docsIndexReader, err := docs.NewIndexReader(data.DocsIdxData)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load documents index: %v", err)
+	}
+
+	// NB(jeromefroe): Currently we assume the postings IDs are contiguous.
+	startInclusive := docsIndexReader.Base()
+	endExclusive := startInclusive + postings.ID(docsIndexReader.Len())
+
+	docsDataReader := docs.NewDataReader(data.DocsData)
+
+	return &fsSegment{
+		fieldsFST:       fieldsFST,
+		docsDataReader:  docsDataReader,
+		docsIndexReader: docsIndexReader,
+
+		data:           data,
+		opts:           opts,
+		numDocs:        metadata.NumDocs,
+		startInclusive: startInclusive,
+		endExclusive:   endExclusive,
 	}, nil
 }
 
@@ -132,12 +148,16 @@ type fsSegment struct {
 	sync.RWMutex
 	closed bool
 
-	fieldsFST *vellum.FST
+	fieldsFST       *vellum.FST
+	docsDataReader  *docs.DataReader
+	docsIndexReader *docs.IndexReader
 
 	data SegmentData
 	opts NewSegmentOpts
 
-	numDocs int64
+	numDocs        int64
+	startInclusive postings.ID
+	endExclusive   postings.ID
 }
 
 func (r *fsSegment) Size() int64 {
@@ -330,15 +350,51 @@ func (r *fsSegment) MatchRegexp(field []byte, regexp []byte, compiled *regexp.Re
 }
 
 func (r *fsSegment) MatchAll() (postings.MutableList, error) {
-	return nil, errNotImplemented
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return nil, errReaderClosed
+	}
+
+	pl := r.opts.PostingsListPool.Get()
+	pl.AddRange(r.startInclusive, r.endExclusive)
+
+	return pl, nil
+}
+
+func (r *fsSegment) Doc(id postings.ID) (doc.Document, error) {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return doc.Document{}, errReaderClosed
+	}
+
+	offset, err := r.docsIndexReader.Read(id)
+	if err != nil {
+		return doc.Document{}, err
+	}
+
+	return r.docsDataReader.Read(offset)
 }
 
 func (r *fsSegment) Docs(pl postings.List) (doc.Iterator, error) {
-	return nil, errNotImplemented
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return nil, errReaderClosed
+	}
+
+	return index.NewIDDocIterator(r, pl.Iterator()), nil
 }
 
-func (r *fsSegment) AllDocs() (doc.Iterator, error) {
-	return nil, errNotImplemented
+func (r *fsSegment) AllDocs() (index.IDDocIterator, error) {
+	r.RLock()
+	defer r.RUnlock()
+	if r.closed {
+		return nil, errReaderClosed
+	}
+	pi := postings.NewRangeIterator(r.startInclusive, r.endExclusive)
+	return index.NewIDDocIterator(r, pi), nil
 }
 
 func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postings.List, error) {
@@ -479,6 +535,15 @@ func (sr *fsSegmentReader) MatchAll() (postings.MutableList, error) {
 	return sr.fsSegment.MatchAll()
 }
 
+func (sr *fsSegmentReader) Doc(id postings.ID) (doc.Document, error) {
+	sr.RLock()
+	defer sr.RUnlock()
+	if sr.closed {
+		return doc.Document{}, errReaderClosed
+	}
+	return sr.fsSegment.Doc(id)
+}
+
 func (sr *fsSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
 	sr.RLock()
 	defer sr.RUnlock()
@@ -488,7 +553,7 @@ func (sr *fsSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
 	return sr.fsSegment.Docs(pl)
 }
 
-func (sr *fsSegmentReader) AllDocs() (doc.Iterator, error) {
+func (sr *fsSegmentReader) AllDocs() (index.IDDocIterator, error) {
 	sr.RLock()
 	defer sr.RUnlock()
 	if sr.closed {

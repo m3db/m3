@@ -18,11 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package mem
+package index
 
 import (
 	"testing"
 
+	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/postings"
 
 	"github.com/golang/mock/gomock"
@@ -33,33 +34,75 @@ func TestIterator(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	defer mockCtrl.Finish()
 
-	ids := []postings.ID{
-		13, 27, 42, 65,
+	docWithIds := []struct {
+		id  postings.ID
+		doc doc.Document
+	}{
+		{
+			id: 42,
+			doc: doc.Document{
+				Fields: []doc.Field{
+					doc.Field{
+						Name:  []byte("apple"),
+						Value: []byte("red"),
+					},
+				},
+			},
+		},
+		{
+			id: 53,
+			doc: doc.Document{
+				Fields: []doc.Field{
+					doc.Field{
+						Name:  []byte("banana"),
+						Value: []byte("yellow"),
+					},
+				},
+			},
+		},
+		{
+			id: 81,
+			doc: doc.Document{
+				Fields: []doc.Field{
+					doc.Field{
+						Name:  []byte("carrot"),
+						Value: []byte("orange"),
+					},
+				},
+			},
+		},
 	}
-	limit := ids[len(ids)-2]
+
+	retriever := NewMockDocRetriever(mockCtrl)
+	gomock.InOrder(
+		retriever.EXPECT().Doc(docWithIds[0].id).Return(docWithIds[0].doc, nil),
+		retriever.EXPECT().Doc(docWithIds[1].id).Return(docWithIds[1].doc, nil),
+		retriever.EXPECT().Doc(docWithIds[2].id).Return(docWithIds[2].doc, nil),
+	)
 
 	postingsIter := postings.NewMockIterator(mockCtrl)
 	gomock.InOrder(
 		postingsIter.EXPECT().Next().Return(true),
-		postingsIter.EXPECT().Current().Return(ids[0]),
+		postingsIter.EXPECT().Current().Return(docWithIds[0].id),
 		postingsIter.EXPECT().Next().Return(true),
-		postingsIter.EXPECT().Current().Return(ids[1]),
+		postingsIter.EXPECT().Current().Return(docWithIds[1].id),
 		postingsIter.EXPECT().Next().Return(true),
-		postingsIter.EXPECT().Current().Return(ids[2]),
-		postingsIter.EXPECT().Next().Return(true),
-		postingsIter.EXPECT().Current().Return(ids[3]),
+		postingsIter.EXPECT().Current().Return(docWithIds[2].id),
 		postingsIter.EXPECT().Next().Return(false),
-		postingsIter.EXPECT().Err().Return(nil),
 		postingsIter.EXPECT().Close().Return(nil),
 	)
 
-	bounds := readerDocRange{startInclusive: 0, endExclusive: limit}
-	it := newBoundedPostingsIterator(postingsIter, bounds)
+	it := NewIDDocIterator(retriever, postingsIter)
 
 	require.True(t, it.Next())
-	require.Equal(t, ids[0], it.Current())
+	require.Equal(t, docWithIds[0].doc, it.Current())
+	require.Equal(t, docWithIds[0].id, it.PostingsID())
 	require.True(t, it.Next())
-	require.Equal(t, ids[1], it.Current())
+	require.Equal(t, docWithIds[1].doc, it.Current())
+	require.Equal(t, docWithIds[1].id, it.PostingsID())
+	require.True(t, it.Next())
+	require.Equal(t, docWithIds[2].doc, it.Current())
+	require.Equal(t, docWithIds[2].id, it.PostingsID())
 
 	require.False(t, it.Next())
 	require.NoError(t, it.Err())

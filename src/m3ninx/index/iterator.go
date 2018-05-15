@@ -18,45 +18,72 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package mem
+package index
 
 import (
+	"errors"
+
+	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/postings"
 )
 
-// boundedPostingsIterator wraps a normal postings iterator but only returns IDs
-// within a given range.
-type boundedPostingsIterator struct {
-	postings.Iterator
-	curr   postings.ID
-	limits readerDocRange
+var (
+	errIteratorClosed = errors.New("iterator has been closed")
+)
+
+type idDocIterator struct {
+	retriever    DocRetriever
+	postingsIter postings.Iterator
+
+	currDoc doc.Document
+	currID  postings.ID
+	closed  bool
+	err     error
 }
 
-func newBoundedPostingsIterator(it postings.Iterator, limits readerDocRange) postings.Iterator {
-	return &boundedPostingsIterator{
-		Iterator: it,
-		limits:   limits,
+// NewIDDocIterator returns a new NewIDDocIterator.
+func NewIDDocIterator(r DocRetriever, pi postings.Iterator) IDDocIterator {
+	return &idDocIterator{
+		retriever:    r,
+		postingsIter: pi,
 	}
 }
 
-func (it *boundedPostingsIterator) Next() bool {
-	for {
-		if !it.Iterator.Next() {
-			return false
-		}
-
-		curr := it.Iterator.Current()
-		// We are not assuming that the posting IDs are ordered otherwise we could return
-		// false immediately when we exceed the end of the range.
-		if curr < it.limits.startInclusive || curr >= it.limits.endExclusive {
-			continue
-		}
-
-		it.curr = curr
-		return true
+func (it *idDocIterator) Next() bool {
+	if it.closed || it.err != nil || !it.postingsIter.Next() {
+		return false
 	}
+	id := it.postingsIter.Current()
+	it.currID = id
+
+	d, err := it.retriever.Doc(id)
+	if err != nil {
+		it.err = err
+		return false
+	}
+	it.currDoc = d
+	return true
 }
 
-func (it *boundedPostingsIterator) Current() postings.ID {
-	return it.curr
+func (it *idDocIterator) Current() doc.Document {
+	return it.currDoc
+}
+
+func (it *idDocIterator) PostingsID() postings.ID {
+	return it.currID
+}
+
+func (it *idDocIterator) Err() error {
+	return it.err
+}
+
+func (it *idDocIterator) Close() error {
+	if it.closed {
+		return errIteratorClosed
+	}
+	it.closed = true
+	it.currDoc = doc.Document{}
+	it.currID = postings.ID(0)
+	err := it.postingsIter.Close()
+	return err
 }

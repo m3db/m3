@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fields
+package docs
 
 import (
 	"bytes"
@@ -38,6 +38,10 @@ func TestStoredFieldsIndex(t *testing.T) {
 		name    string
 		entries []entry
 	}{
+		{
+			name:    "no offsets",
+			entries: []entry{},
+		},
 		{
 			name: "single offset",
 			entries: []entry{
@@ -82,11 +86,12 @@ func TestStoredFieldsIndex(t *testing.T) {
 		},
 	}
 
+	w := NewIndexWriter(nil)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			buf := new(bytes.Buffer)
+			w.Reset(buf)
 
-			w := NewIndexWriter(buf)
 			for i := range test.entries {
 				id, offset := test.entries[i].id, test.entries[i].offset
 				err := w.Write(id, offset)
@@ -96,11 +101,24 @@ func TestStoredFieldsIndex(t *testing.T) {
 			r, err := NewIndexReader(buf.Bytes())
 			require.NoError(t, err)
 			for i := range test.entries {
+				if i == 0 {
+					require.Equal(t, test.entries[i].id, r.Base())
+				}
 				id, offset := test.entries[i].id, test.entries[i].offset
 				actual, err := r.Read(id)
 				require.NoError(t, err)
 				require.Equal(t, offset, actual)
 			}
+
+			var expectedLen int
+			if len(test.entries) == 0 {
+				expectedLen = 0
+			} else {
+				start := test.entries[0].id
+				end := test.entries[len(test.entries)-1].id
+				expectedLen = int(end-start) + 1
+			}
+			require.Equal(t, expectedLen, r.Len())
 		})
 	}
 }
