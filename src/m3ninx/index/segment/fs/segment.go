@@ -66,7 +66,7 @@ type NewSegmentOpts struct {
 
 // NewSegment returns a new Segment backed by the provided options.
 func NewSegment(data SegmentData, opts NewSegmentOpts) (Segment, error) {
-	if data.MajorVersion != majorVersion {
+	if data.MajorVersion != MajorVersion {
 		return nil, errUnsupportedMajorVersion
 	}
 
@@ -83,7 +83,7 @@ func NewSegment(data SegmentData, opts NewSegmentOpts) (Segment, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to load fields fst: %v", err)
 	}
-	return &segment{
+	return &fsSegment{
 		fieldsFST: fieldsFST,
 
 		data:    data,
@@ -92,7 +92,7 @@ func NewSegment(data SegmentData, opts NewSegmentOpts) (Segment, error) {
 	}, nil
 }
 
-type segment struct {
+type fsSegment struct {
 	sync.RWMutex
 	closed bool
 
@@ -104,7 +104,7 @@ type segment struct {
 	numDocs int64
 }
 
-func (r *segment) Size() int64 {
+func (r *fsSegment) Size() int64 {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
@@ -113,7 +113,7 @@ func (r *segment) Size() int64 {
 	return r.numDocs
 }
 
-func (r *segment) ContainsID(docID []byte) (bool, error) {
+func (r *fsSegment) ContainsID(docID []byte) (bool, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
@@ -135,18 +135,18 @@ func (r *segment) ContainsID(docID []byte) (bool, error) {
 	return exists, fstCloser.Close()
 }
 
-func (r *segment) Reader() (index.Reader, error) {
+func (r *fsSegment) Reader() (index.Reader, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
 		return nil, errReaderClosed
 	}
-	return &segmentReader{
-		segment: r,
+	return &fsSegmentReader{
+		fsSegment: r,
 	}, nil
 }
 
-func (r *segment) Close() error {
+func (r *fsSegment) Close() error {
 	r.Lock()
 	defer r.Unlock()
 	if r.closed {
@@ -160,7 +160,7 @@ func (r *segment) Close() error {
 // to be iterators to allow us to pool the bytes being returned to the user. Otherwise
 // we're forced to copy these massive slices every time. Tracking this under
 // https://github.com/m3db/m3ninx/issues/66
-func (r *segment) Fields() ([][]byte, error) {
+func (r *fsSegment) Fields() ([][]byte, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
@@ -170,7 +170,7 @@ func (r *segment) Fields() ([][]byte, error) {
 	return r.allKeys(r.fieldsFST)
 }
 
-func (r *segment) Terms(field []byte) ([][]byte, error) {
+func (r *fsSegment) Terms(field []byte) ([][]byte, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
@@ -197,7 +197,7 @@ func (r *segment) Terms(field []byte) ([][]byte, error) {
 	return terms, nil
 }
 
-func (r *segment) MatchTerm(field []byte, term []byte) (postings.List, error) {
+func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
@@ -233,7 +233,7 @@ func (r *segment) MatchTerm(field []byte, term []byte) (postings.List, error) {
 	return pl, nil
 }
 
-func (r *segment) MatchRegexp(field []byte, regexp []byte, compiled *regexp.Regexp) (postings.List, error) {
+func (r *fsSegment) MatchRegexp(field []byte, regexp []byte, compiled *regexp.Regexp) (postings.List, error) {
 	r.RLock()
 	defer r.RUnlock()
 	if r.closed {
@@ -293,19 +293,19 @@ func (r *segment) MatchRegexp(field []byte, regexp []byte, compiled *regexp.Rege
 	return pl, nil
 }
 
-func (r *segment) MatchAll() (postings.MutableList, error) {
+func (r *fsSegment) MatchAll() (postings.MutableList, error) {
 	return nil, errNotImplemented
 }
 
-func (r *segment) Docs(pl postings.List) (doc.Iterator, error) {
+func (r *fsSegment) Docs(pl postings.List) (doc.Iterator, error) {
 	return nil, errNotImplemented
 }
 
-func (r *segment) AllDocs() (doc.Iterator, error) {
+func (r *fsSegment) AllDocs() (doc.Iterator, error) {
 	return nil, errNotImplemented
 }
 
-func (r *segment) retrievePostingsListWithRLock(postingsOffset uint64) (postings.List, error) {
+func (r *fsSegment) retrievePostingsListWithRLock(postingsOffset uint64) (postings.List, error) {
 	postingsBytes, err := r.retrieveBytesWithRLock(r.data.PostingsData, postingsOffset)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve postings data: %v", err)
@@ -314,7 +314,7 @@ func (r *segment) retrievePostingsListWithRLock(postingsOffset uint64) (postings
 	return pilosa.Unmarshal(postingsBytes, roaring.NewPostingsList)
 }
 
-func (r *segment) allKeys(fst *vellum.FST) ([][]byte, error) {
+func (r *fsSegment) allKeys(fst *vellum.FST) ([][]byte, error) {
 	num := fst.Len()
 	keys := make([][]byte, 0, num)
 
@@ -340,7 +340,7 @@ func (r *segment) allKeys(fst *vellum.FST) ([][]byte, error) {
 	return keys, nil
 }
 
-func (r *segment) retrieveTermsFSTWithRLock(field []byte) (*vellum.FST, error) {
+func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (*vellum.FST, error) {
 	termsFSTOffset, exists, err := r.fieldsFST.Get(field)
 	if err != nil {
 		return nil, err
@@ -362,7 +362,7 @@ func (r *segment) retrieveTermsFSTWithRLock(field []byte) (*vellum.FST, error) {
 // where size/magicNumber are strictly uint64 (i.e. 8 bytes). It assumes the 8 bytes preceding the offset
 // are the magicNumber, the 8 bytes before that are the size, and the `size` bytes before that are the
 // payload. It retrieves the payload while doing bounds checks to ensure no segfaults.
-func (r *segment) retrieveBytesWithRLock(base []byte, offset uint64) ([]byte, error) {
+func (r *fsSegment) retrieveBytesWithRLock(base []byte, offset uint64) ([]byte, error) {
 	const sizeofUint64 = 8
 	var (
 		magicNumberEnd   = int64(offset) // to prevent underflows
@@ -407,61 +407,61 @@ func (r *segment) retrieveBytesWithRLock(base []byte, offset uint64) ([]byte, er
 	return base[payloadStart:payloadEnd], nil
 }
 
-type segmentReader struct {
+type fsSegmentReader struct {
 	sync.RWMutex
 	closed bool
 
-	segment *segment
+	fsSegment *fsSegment
 }
 
-var _ index.Reader = &segmentReader{}
+var _ index.Reader = &fsSegmentReader{}
 
-func (sr *segmentReader) MatchTerm(field []byte, term []byte) (postings.List, error) {
+func (sr *fsSegmentReader) MatchTerm(field []byte, term []byte) (postings.List, error) {
 	sr.RLock()
 	defer sr.RUnlock()
 	if sr.closed {
 		return nil, errReaderClosed
 	}
-	return sr.segment.MatchTerm(field, term)
+	return sr.fsSegment.MatchTerm(field, term)
 }
 
-func (sr *segmentReader) MatchRegexp(field []byte, regexp []byte, compiled *regexp.Regexp) (postings.List, error) {
+func (sr *fsSegmentReader) MatchRegexp(field []byte, regexp []byte, compiled *regexp.Regexp) (postings.List, error) {
 	sr.RLock()
 	defer sr.RUnlock()
 	if sr.closed {
 		return nil, errReaderClosed
 	}
-	return sr.segment.MatchRegexp(field, regexp, compiled)
+	return sr.fsSegment.MatchRegexp(field, regexp, compiled)
 }
 
-func (sr *segmentReader) MatchAll() (postings.MutableList, error) {
+func (sr *fsSegmentReader) MatchAll() (postings.MutableList, error) {
 	sr.RLock()
 	defer sr.RUnlock()
 	if sr.closed {
 		return nil, errReaderClosed
 	}
-	return sr.segment.MatchAll()
+	return sr.fsSegment.MatchAll()
 }
 
-func (sr *segmentReader) Docs(pl postings.List) (doc.Iterator, error) {
+func (sr *fsSegmentReader) Docs(pl postings.List) (doc.Iterator, error) {
 	sr.RLock()
 	defer sr.RUnlock()
 	if sr.closed {
 		return nil, errReaderClosed
 	}
-	return sr.segment.Docs(pl)
+	return sr.fsSegment.Docs(pl)
 }
 
-func (sr *segmentReader) AllDocs() (doc.Iterator, error) {
+func (sr *fsSegmentReader) AllDocs() (doc.Iterator, error) {
 	sr.RLock()
 	defer sr.RUnlock()
 	if sr.closed {
 		return nil, errReaderClosed
 	}
-	return sr.segment.AllDocs()
+	return sr.fsSegment.AllDocs()
 }
 
-func (sr *segmentReader) Close() error {
+func (sr *fsSegmentReader) Close() error {
 	sr.Lock()
 	defer sr.Unlock()
 	if sr.closed {
@@ -472,11 +472,11 @@ func (sr *segmentReader) Close() error {
 }
 
 // copyBytes returns a copy of the provided bytes. We need to do this as the bytes
-// backing the segment are mmap-ed, and maintain their lifecycle exclusive from those
+// backing the fsSegment are mmap-ed, and maintain their lifecycle exclusive from those
 // owned by users.
 // FOLLOWUP(prateek): return iterator types at all exit points of Reader, and
 // then we can pool the bytes below.
-func (r *segment) copyBytes(b []byte) []byte {
+func (r *fsSegment) copyBytes(b []byte) []byte {
 	copied := make([]byte, len(b))
 	copy(copied, b)
 	return copied

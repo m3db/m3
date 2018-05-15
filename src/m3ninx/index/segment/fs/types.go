@@ -28,9 +28,13 @@ import (
 )
 
 const (
-	magicNumber  = 0x6D33D0C5
-	majorVersion = 1
-	minorVersion = 0
+	magicNumber = 0x6D33D0C5
+
+	// MajorVersion is the currently supported MajorVersion.
+	MajorVersion = 1
+
+	// MinorVersion is the current MinorVersion.
+	MinorVersion = 0
 )
 
 // Segment represents a FST segment.
