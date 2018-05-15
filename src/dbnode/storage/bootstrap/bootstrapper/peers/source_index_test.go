@@ -211,7 +211,10 @@ func TestBootstrapIndex(t *testing.T) {
 
 	gomock.InOrder(mockAdminSessionCalls...)
 
-	mockAdminClient := client.NewMockAdminClient(ctrl)
+	mockAdminClient := newValidMockClient(ctrl)
+	// mockAdminClient is already setup to return an appropriate mockAdminSession that will
+	// satisfy all the calls for instantiation, so we setup the second call that will return
+	// the mockAdminSession with all the calls for handling the actual bootstrapping process.
 	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
 
 	opts = opts.SetAdminClient(mockAdminClient)
