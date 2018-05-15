@@ -70,8 +70,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				SetBlockSize(2 * time.Hour).
 				SetFilesystemOptions(fsOpts)
 			bootstrapOpts := testOptions().
-				SetCommitLogOptions(commitLogOpts).
-				SetCacheSeriesMetadata(input.shouldCacheSeriesMetadata)
+				SetCommitLogOptions(commitLogOpts)
 
 			// Instantiate commitlog
 			log, err := commitlog.NewCommitLog(commitLogOpts)
@@ -138,7 +137,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Perform the bootstrap
-			dataResult, err := source.BootstrapData(md, shardTimeRanges, testDefaultRunOpts)
+			runOpts := testDefaultRunOpts.SetCacheSeriesMetadata(input.shouldCacheSeriesMetadata)
+			dataResult, err := source.BootstrapData(md, shardTimeRanges, runOpts)
 			if err != nil {
 				return false, err
 			}

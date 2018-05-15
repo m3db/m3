@@ -55,7 +55,7 @@ type BootstrapConfiguration struct {
 	Peers *BootstrapPeersConfiguration `yaml:"peers"`
 
 	// CacheSeriesMetadata determines whether individual bootstrappers cache
-	// series metadata accross all calls (namespaces / shards / blocks).
+	// series metadata across all calls (namespaces / shards / blocks).
 	CacheSeriesMetadata *bool `yaml:"cacheSeriesMetadata"`
 }
 
@@ -74,10 +74,6 @@ func (bsc BootstrapConfiguration) peersFetchBlocksMetadataEndpointVersion() clie
 		version = peersCfg.FetchBlocksMetadataEndpointVersion
 	}
 	return version
-}
-
-func (bsc BootstrapConfiguration) commitlogCacheSeriesMetadata() *bool {
-	return bsc.CacheSeriesMetadata
 }
 
 // BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.

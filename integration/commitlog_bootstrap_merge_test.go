@@ -137,7 +137,8 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
 	fsBootstrapper := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
 	// bootstrapper storage opts
-	process := bootstrap.NewProcessProvider(fsBootstrapper, bsOpts)
+	process := bootstrap.NewProcessProvider(
+		fsBootstrapper, bootstrap.NewProviderOptions(), bsOpts)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	log.Info("moving time forward and starting server")
