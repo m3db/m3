@@ -98,7 +98,6 @@ func (entry *Entry) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) boo
 	alreadyIndexedOrAttempted := entry.reverseIndex.indexedOrAttemptedWithRLock(indexBlockStartForWrite)
 	entry.reverseIndex.RUnlock()
 	if alreadyIndexedOrAttempted {
-		fmt.Printf("! GOOD alreadyIndexedOrAttempted true 1 for start %v\n", indexBlockStartForWrite.ToTime().String())
 		// if so, the entry does not need to be indexed.
 		return false
 	}
@@ -112,13 +111,11 @@ func (entry *Entry) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) boo
 	alreadyIndexedOrAttempted = entry.reverseIndex.indexedOrAttemptedWithRLock(indexBlockStartForWrite)
 	if alreadyIndexedOrAttempted {
 		entry.reverseIndex.Unlock()
-		fmt.Printf("! GOOD alreadyIndexedOrAttempted true 2 for start %v\n", indexBlockStartForWrite.ToTime().String())
 		return false
 	}
 
 	entry.reverseIndex.setAttemptWithWLock(indexBlockStartForWrite, true)
 	entry.reverseIndex.Unlock()
-	fmt.Printf("! BAD alreadyIndexedOrAttempted false for start %v\n", indexBlockStartForWrite.ToTime().String())
 	return true
 }
 
@@ -132,7 +129,6 @@ func (entry *Entry) OnIndexPrepare() {
 
 // OnIndexSuccess marks the given block start as successfully indexed.
 func (entry *Entry) OnIndexSuccess(blockStartNanos xtime.UnixNano) {
-	fmt.Printf("! on indexsuccess for %s at %v\n", entry.Series.ID().String(), blockStartNanos.ToTime().String())
 	entry.reverseIndex.Lock()
 	entry.reverseIndex.setSuccessWithWLock(blockStartNanos)
 	entry.reverseIndex.Unlock()
@@ -203,6 +199,14 @@ func (s *entryIndexState) setSuccessWithWLock(t xtime.UnixNano) {
 			break
 		}
 	}
+
+	// NB(r): If not inserted state yet that means we need to make an insertion,
+	// this will happen if synchronously indexing and we haven't called
+	// NeedIndexUpdate before we indexed the series.
+	s.insertBlockState(entryIndexBlockState{
+		blockStart: t,
+		success:    true,
+	})
 }
 
 func (s *entryIndexState) setAttemptWithWLock(t xtime.UnixNano, attempt bool) {
@@ -214,13 +218,17 @@ func (s *entryIndexState) setAttemptWithWLock(t xtime.UnixNano, attempt bool) {
 		}
 	}
 
+	s.insertBlockState(entryIndexBlockState{
+		blockStart: t,
+		attempt:    attempt,
+	})
+}
+
+func (s *entryIndexState) insertBlockState(newState entryIndexBlockState) {
 	// i.e. we don't have the block start in the slice
 	// if we have less than 3 elements, we can just insert an element to the slice.
 	if len(s.states) < 3 {
-		s.states = append(s.states, entryIndexBlockState{
-			blockStart: t,
-			attempt:    attempt,
-		})
+		s.states = append(s.states, newState)
 		return
 	}
 
@@ -237,8 +245,5 @@ func (s *entryIndexState) setAttemptWithWLock(t xtime.UnixNano, attempt bool) {
 		}
 	}
 
-	s.states[minIdx] = entryIndexBlockState{
-		blockStart: t,
-		attempt:    attempt,
-	}
+	s.states[minIdx] = newState
 }

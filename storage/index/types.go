@@ -285,7 +285,6 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 			return
 		}
 
-		fmt.Printf("!!! blocksize = %s\n", blockSize)
 		blockStart := allEntries[i].indexBlockStart(blockSize)
 		if !blockStart.Equal(lastBlockStart) {
 			prevLastBlockStart := lastBlockStart.ToTime()

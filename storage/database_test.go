@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/index"
@@ -68,9 +69,17 @@ var (
 )
 
 func init() {
-	opts := newOptions(pool.NewObjectPoolOptions().SetSize(16))
+	opts := newOptions(pool.NewObjectPoolOptions().
+		SetSize(16))
 
-	pm, err := fs.NewPersistManager(fs.NewOptions())
+	// Use a no-op options manager to avoid spinning up a goroutine to listen
+	// for updates, which causes problems with leaktest in individual test
+	// executions
+	runtimeOptionsMgr := runtime.NewNoOpOptionsManager(
+		runtime.NewOptions())
+
+	pm, err := fs.NewPersistManager(fs.NewOptions().
+		SetRuntimeOptionsManager(runtimeOptionsMgr))
 	if err != nil {
 		panic(err)
 	}

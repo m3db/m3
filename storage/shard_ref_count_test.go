@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -116,15 +117,26 @@ func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
 	blockSize := namespace.NewIndexOptions().BlockSize()
 
 	idx := NewMocknamespaceIndex(ctrl)
-	idx.EXPECT().WriteBatch(gomock.Any()).Do(
-		func(batch *index.WriteBatch) {
+	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
+		DoAndReturn(func(t time.Time) xtime.UnixNano {
+			return xtime.ToUnixNano(t.Truncate(blockSize))
+		}).
+		AnyTimes()
+	idx.EXPECT().WriteBatch(gomock.Any()).
+		Return(nil).
+		Do(func(batch *index.WriteBatch) {
 			if batch.Len() != 1 {
-				panic("expected batch len 1") // require.Equal(...) silently kills goroutines
+				// require.Equal(...) silently kills goroutines
+				panic(fmt.Sprintf("expected batch len 1: len=%d", batch.Len()))
 			}
+
 			entry := batch.PendingEntries()[0]
+			blockStart := xtime.ToUnixNano(entry.Timestamp.Truncate(blockSize))
 			onIdx := entry.OnIndexSeries
-			onIdx.OnIndexFinalize(xtime.ToUnixNano(entry.Timestamp.Truncate(blockSize)))
-		}).Return(nil).AnyTimes()
+			onIdx.OnIndexSuccess(blockStart)
+			onIdx.OnIndexFinalize(blockStart)
+		}).
+		AnyTimes()
 
 	testShardWriteTaggedSyncRefCount(t, idx)
 }
@@ -302,15 +314,23 @@ func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 	blockSize := namespace.NewIndexOptions().BlockSize()
 
 	idx := NewMocknamespaceIndex(ctrl)
-	idx.EXPECT().WriteBatch(gomock.Any()).Do(
-		func(batch *index.WriteBatch) {
-			if batch.Len() != 1 {
-				panic("expected batch len 1") // require.Equal(...) silently kills goroutines
+	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
+		DoAndReturn(func(t time.Time) xtime.UnixNano {
+			return xtime.ToUnixNano(t.Truncate(blockSize))
+		}).
+		AnyTimes()
+	idx.EXPECT().WriteBatch(gomock.Any()).
+		Return(nil).
+		Do(func(batch *index.WriteBatch) {
+			for _, entry := range batch.PendingEntries() {
+				blockStart := xtime.ToUnixNano(entry.Timestamp.Truncate(blockSize))
+				onIdx := entry.OnIndexSeries
+				onIdx.OnIndexSuccess(blockStart)
+				onIdx.OnIndexFinalize(blockStart)
 			}
-			entry := batch.PendingEntries()[0]
-			onIdx := entry.OnIndexSeries
-			onIdx.OnIndexFinalize(xtime.ToUnixNano(entry.Timestamp.Truncate(blockSize)))
-		}).Return(nil).AnyTimes()
+		}).
+		AnyTimes()
+
 	testShardWriteTaggedAsyncRefCount(t, idx)
 }
 

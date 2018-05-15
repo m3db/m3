@@ -304,7 +304,7 @@ func (i *nsIndex) writeBatches(
 				return
 			}
 
-			if !pastLimit.Before(entry.Timestamp) {
+			if !entry.Timestamp.After(pastLimit) {
 				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
 				return
 			}

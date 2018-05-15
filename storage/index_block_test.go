@@ -78,7 +78,6 @@ func testWriteBatchEntry(
 		})
 	}
 	return index.WriteBatchEntry{
-
 		Timestamp:     timestamp,
 		OnIndexSeries: fns,
 	}, d
