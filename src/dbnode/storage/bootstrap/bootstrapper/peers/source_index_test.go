@@ -216,7 +216,8 @@ func TestBootstrapIndex(t *testing.T) {
 
 	opts = opts.SetAdminClient(mockAdminClient)
 
-	src := newPeersSource(opts)
+	src, err := newPeersSource(opts)
+	require.NoError(t, err)
 	res, err := src.ReadIndex(nsMetadata, shardTimeRanges,
 		testDefaultRunOpts)
 	require.NoError(t, err)

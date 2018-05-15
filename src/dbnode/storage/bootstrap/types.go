@@ -40,7 +40,7 @@ type ProcessProvider interface {
 	BootstrapperProvider() BootstrapperProvider
 
 	// Provide constructs a bootstrap process.
-	Provide() Process
+	Provide() (Process, error)
 }
 
 // Process represents the bootstrap process. Note that a bootstrap process can and will
@@ -102,7 +102,7 @@ type BootstrapperProvider interface {
 	String() string
 
 	// Provide constructs a bootstrapper.
-	Provide() Bootstrapper
+	Provide() (Bootstrapper, error)
 }
 
 // Strategy describes a bootstrap strategy.

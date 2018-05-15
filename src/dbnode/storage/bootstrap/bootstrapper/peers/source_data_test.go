@@ -60,20 +60,54 @@ var (
 	testIncrementalRunOpts = bootstrap.NewRunOptions().SetIncremental(true)
 	testBlockOpts          = block.NewOptions()
 	testDefaultResultOpts  = result.NewOptions().SetSeriesCachePolicy(series.CacheAll)
-	testDefaultOpts        = NewOptions().SetResultOptions(testDefaultResultOpts)
+	testDefaultOpts        = NewOptions().
+				SetResultOptions(testDefaultResultOpts)
 )
+
+func newTestDefaultOpts(ctrl *gomock.Controller) Options {
+	return testDefaultOpts.SetAdminClient(newValidMockClient(ctrl))
+}
+
+func newValidMockClient(ctrl *gomock.Controller) *client.MockAdminClient {
+	mockMap := topology.NewMockMap(ctrl)
+
+	mockTopology := topology.NewMockTopology(ctrl)
+	mockTopology.EXPECT().
+		Get().
+		Return(mockMap)
+
+	mockAdminSession := client.NewMockAdminSession(ctrl)
+	mockAdminSession.EXPECT().
+		Topology().
+		Return(mockTopology, nil)
+
+	mockClient := client.NewMockAdminClient(ctrl)
+	mockClient.EXPECT().
+		DefaultAdminSession().
+		Return(mockAdminSession, nil)
+
+	return mockClient
+}
 
 type namespaceOption func(namespace.Options) namespace.Options
 
 func TestPeersSourceCan(t *testing.T) {
-	src := newPeersSource(testDefaultOpts)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	src, err := newPeersSource(newTestDefaultOpts(ctrl))
+	require.NoError(t, err)
 
 	assert.True(t, src.Can(bootstrap.BootstrapSequential))
 	assert.False(t, src.Can(bootstrap.BootstrapParallel))
 }
 
 func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
-	src := newPeersSource(testDefaultOpts)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	src, err := newPeersSource(newTestDefaultOpts(ctrl))
+	require.NoError(t, err)
 	nsMetdata := testNamespaceMetadata(t)
 
 	target := result.ShardTimeRanges{}
@@ -95,11 +129,15 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 
 	expectedErr := fmt.Errorf("an error")
 
-	mockAdminClient := client.NewMockAdminClient(ctrl)
+	mockAdminClient := newValidMockClient(ctrl)
+	// mockAdminClient already has one successful DefaultAdminSession() call prepared
+	// for the sake of source construction, so make sure that the subsequent call
+	// (post-construction) will fail.
 	mockAdminClient.EXPECT().DefaultAdminSession().Return(nil, expectedErr)
 
 	opts := testDefaultOpts.SetAdminClient(mockAdminClient)
-	src := newPeersSource(opts)
+	src, err := newPeersSource(opts)
+	require.NoError(t, err)
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(ropts.BlockSize())
@@ -109,7 +147,7 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 		1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
 	}
 
-	_, err := src.ReadData(nsMetadata, target, testDefaultRunOpts)
+	_, err = src.ReadData(nsMetadata, target, testDefaultRunOpts)
 	require.Error(t, err)
 	assert.Equal(t, expectedErr, err)
 }
@@ -140,12 +178,16 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 			uint32(1), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
 		Return(nil, badErr)
 
-	mockAdminClient := client.NewMockAdminClient(ctrl)
+	mockAdminClient := newValidMockClient(ctrl)
+	// mockAdminClient already has one successful DefaultAdminSession() call prepared
+	// for the sake of source construction, but subsequent calls will return the session
+	// that returns errors.
 	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
 
 	opts = opts.SetAdminClient(mockAdminClient)
 
-	src := newPeersSource(opts)
+	src, err := newPeersSource(opts)
+	require.NoError(t, err)
 
 	target := result.ShardTimeRanges{
 		0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
@@ -226,7 +268,10 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 				uint32(1), start.Add(blockSize), start.Add(blockSize*2), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
 			Return(shard1ResultBlock2, nil)
 
-		mockAdminClient := client.NewMockAdminClient(ctrl)
+		mockAdminClient := newValidMockClient(ctrl)
+		// mockAdminClient already has one successful DefaultAdminSession() call prepared
+		// for the sake of source construction,  but subsequent calls will return the session
+		// that returns errors.
 		mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
 
 		opts = opts.SetAdminClient(mockAdminClient)
@@ -335,7 +380,8 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 		opts = opts.SetPersistManager(mockPersistManager)
 
-		src := newPeersSource(opts)
+		src, err := newPeersSource(opts)
+		require.NoError(t, err)
 
 		target := result.ShardTimeRanges{
 			0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
@@ -485,7 +531,9 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 			Return(result, nil)
 	}
 
-	mockAdminClient := client.NewMockAdminClient(ctrl)
+	mockAdminClient := newValidMockClient(ctrl)
+	// mockAdminClient already has one successful DefaultAdminSession() call prepared
+	// for the sake of source construction.
 	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
 
 	opts = opts.SetAdminClient(mockAdminClient)
@@ -663,7 +711,8 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 
 	opts = opts.SetPersistManager(mockPersistManager)
 
-	src := newPeersSource(opts)
+	src, err := newPeersSource(opts)
+	require.NoError(t, err)
 
 	target := result.ShardTimeRanges{
 		0: xtime.Ranges{}.

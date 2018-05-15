@@ -49,10 +49,16 @@ func NewBaseBootstrapper(
 	src bootstrap.Source,
 	opts result.Options,
 	next bootstrap.Bootstrapper,
-) bootstrap.Bootstrapper {
-	bs := next
+) (bootstrap.Bootstrapper, error) {
+	var (
+		bs  = next
+		err error
+	)
 	if next == nil {
-		bs = NewNoOpNoneBootstrapperProvider().Provide()
+		bs, err = NewNoOpNoneBootstrapperProvider().Provide()
+		if err != nil {
+			return nil, err
+		}
 	}
 	return baseBootstrapper{
 		opts: opts,
@@ -60,7 +66,7 @@ func NewBaseBootstrapper(
 		name: name,
 		src:  src,
 		next: bs,
-	}
+	}, nil
 }
 
 // String returns the name of the bootstrapper.

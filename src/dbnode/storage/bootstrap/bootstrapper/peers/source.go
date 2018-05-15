@@ -54,12 +54,24 @@ type incrementalFlush struct {
 	timeRange         xtime.Range
 }
 
-func newPeersSource(opts Options) bootstrap.Source {
+func newPeersSource(opts Options) (bootstrap.Source, error) {
+	session, err := opts.AdminClient().DefaultAdminSession()
+	if err != nil {
+		return nil, err
+	}
+
+	topology, err := session.Topology()
+	if err != nil {
+		return nil, err
+	}
+
+	topology.Get()
+
 	return &peersSource{
 		opts:  opts,
 		log:   opts.ResultOptions().InstrumentOptions().Logger(),
 		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
-	}
+	}, nil
 }
 
 func (s *peersSource) Can(strategy bootstrap.Strategy) bool {

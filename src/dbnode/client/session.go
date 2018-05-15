@@ -53,6 +53,7 @@ import (
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
@@ -126,6 +127,9 @@ var (
 	// errUnableToEncodeTags is raised when the server is unable to encode provided tags
 	// to be sent over the wire.
 	errUnableToEncodeTags = errors.New("unable to include tags")
+	// errNoTopology is returned when the session does not have a topology. Should never happen
+	// in practice.
+	errNoTopology = fmt.Errorf("%s session does not have a topology", instrument.InvariantViolatedMetricName)
 )
 
 // sessionState is volatile state that is protected by a
@@ -1565,6 +1569,24 @@ func (s *session) Replicas() int {
 	v := s.state.replicas
 	s.state.RUnlock()
 	return v
+}
+
+func (s *session) Topology() (topology.Topology, error) {
+	s.state.RLock()
+	status := s.state.status
+	topology := s.state.topo
+	s.state.RUnlock()
+
+	// Make sure the session is open, as thats what sets the initial topology.
+	if status != statusOpen {
+		return nil, errSessionStatusNotOpen
+	}
+	if topology == nil {
+		// Should never happen.
+		return nil, errNoTopology
+	}
+
+	return topology, nil
 }
 
 func (s *session) Truncate(namespace ident.ID) (int64, error) {

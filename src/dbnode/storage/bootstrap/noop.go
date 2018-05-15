@@ -41,8 +41,8 @@ func (b noOpBootstrapProcessProvider) BootstrapperProvider() BootstrapperProvide
 	return nil
 }
 
-func (b noOpBootstrapProcessProvider) Provide() Process {
-	return noOpBootstrapProcess{}
+func (b noOpBootstrapProcessProvider) Provide() (Process, error) {
+	return noOpBootstrapProcess{}, nil
 }
 
 type noOpBootstrapProcess struct{}
