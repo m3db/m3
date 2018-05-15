@@ -66,11 +66,11 @@ type TargetRange struct {
 	RunOptions RunOptions
 }
 
-// ProviderOptions is a set of options for a bootstrap provider.
-type ProviderOptions interface {
+// ProcessProviderOptions is a set of options for a bootstrap provider.
+type ProcessProviderOptions interface {
 	// SetCacheSeriesMetadata sets whether bootstrappers created by this
 	// provider should cache series metadata between runs.
-	SetCacheSeriesMetadata(value bool) ProviderOptions
+	SetCacheSeriesMetadata(value bool) ProcessProviderOptions
 
 	// CacheSeriesMetadata returns whether bootstrappers created by this
 	// provider should cache series metadata between runs.
