@@ -107,6 +107,14 @@ func (i *tagSliceIter) Remaining() int {
 }
 
 func (i *tagSliceIter) Duplicate() TagIterator {
+	if i.pool != nil {
+		iter := i.pool.TagsIterator()
+		iter.Reset(Tags{values: i.backingSlice})
+		for j := 0; j <= i.currentIdx; j++ {
+			iter.Next()
+		}
+		return iter
+	}
 	return &tagSliceIter{
 		backingSlice: i.backingSlice,
 		currentIdx:   i.currentIdx,
