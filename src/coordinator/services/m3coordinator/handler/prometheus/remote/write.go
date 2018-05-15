@@ -37,7 +37,7 @@ import (
 
 const (
 	// PromWriteURL is the url for the prom write handler
-	PromWriteURL = "/api/v1/prom/write"
+	PromWriteURL = "/api/v1/prom/remote/write"
 )
 
 // PromWriteHandler represents a handler for prometheus write endpoint.
