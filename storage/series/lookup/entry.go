@@ -21,7 +21,6 @@
 package lookup
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 
