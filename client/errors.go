@@ -46,6 +46,9 @@ func IsBadRequestError(err error) bool {
 		if e, ok := err.(*rpc.Error); ok && tterrors.IsBadRequestError(e) {
 			return true
 		}
+		if e := xerrors.GetInnerInvalidParamsError(err); e != nil {
+			return true
+		}
 		err = xerrors.InnerError(err)
 	}
 	return false

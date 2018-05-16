@@ -54,6 +54,46 @@ func TestSessionWriteTaggedNotOpenError(t *testing.T) {
 	err := s.WriteTagged(ident.StringID("namespace"), ident.StringID("foo"),
 		ident.EmptyTagIterator, time.Now(), 1.337, xtime.Second, nil)
 	assert.Equal(t, errSessionStatusNotOpen, err)
+
+}
+
+func TestSessionWriteTaggedEmptyTagName(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{t})
+	defer ctrl.Finish()
+
+	s := newDefaultTestSession(t).(*session)
+	mockHostQueues(ctrl, s, sessionTestReplicas, nil)
+	assert.NoError(t, s.Open())
+
+	err := s.WriteTagged(ident.StringID("namespace"), ident.StringID("foo"),
+		ident.MustNewTagStringsIterator("", "something"), time.Now(), 1.337, xtime.Second, nil)
+	require.Error(t, err)
+	require.True(t, IsBadRequestError(err))
+	require.NoError(t, s.Close())
+}
+
+func TestSessionWriteTaggedEmptyTagValue(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{t})
+	defer ctrl.Finish()
+
+	s := newDefaultTestSession(t).(*session)
+	var hosts []topology.Host
+
+	mockHostQueues(ctrl, s, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
+		go func() {
+			op.CompletionFn()(hosts[idx], nil)
+		}()
+	}})
+	assert.NoError(t, s.Open())
+
+	s.state.RLock()
+	hosts = s.state.topoMap.Hosts()
+	s.state.RUnlock()
+
+	err := s.WriteTagged(ident.StringID("namespace"), ident.StringID("foo"),
+		ident.MustNewTagStringsIterator("something", ""), time.Now(), 1.337, xtime.Second, nil)
+	require.NoError(t, err)
+	require.NoError(t, s.Close())
 }
 
 func TestSessionWriteTagged(t *testing.T) {
