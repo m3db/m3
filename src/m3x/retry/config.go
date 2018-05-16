@@ -29,13 +29,13 @@ import (
 // Configuration configures options for retry attempts.
 type Configuration struct {
 	// Initial retry backoff.
-	InitialBackoff time.Duration `yaml:"initialBackoff"`
+	InitialBackoff time.Duration `yaml:"initialBackoff" validate:"min=0"`
 
 	// Backoff factor for exponential backoff.
-	BackoffFactor float64 `yaml:"backoffFactor"`
+	BackoffFactor float64 `yaml:"backoffFactor" validate:"min=0"`
 
 	// Maximum backoff time.
-	MaxBackoff time.Duration `yaml:"maxBackoff"`
+	MaxBackoff time.Duration `yaml:"maxBackoff" validate:"min=0"`
 
 	// Maximum number of retry attempts.
 	MaxRetries int `yaml:"maxRetries"`
