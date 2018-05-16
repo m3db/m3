@@ -77,7 +77,7 @@ func main() {
 			fmt.Println(err)
 			return
 		}
-		fmt.Println("Tags seen:", cardinality)
+		fmt.Printf("%s cardinality: %d\n", dataFile, cardinality)
 		return
 	}
 

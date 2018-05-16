@@ -43,5 +43,6 @@ Notable options for tweaking performance:
 
         $ --batch=1000 : signifies the number of metrics to send per batch (prometheus defaults to 100, the benchmarker defaults to 1000)
         $ --workers=2 : signifies the number of parallel workers that send encoded metrics to coordinator
+        $ --cardinality : if this is set, cardinality for the input file is calculated instead of benchmarking
 
 5) Don't forget to delete all the generated junk before commiting (sorry, will fix this)!
