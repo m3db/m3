@@ -82,12 +82,47 @@ func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
 	return false
 }
 
+// TODO: Dont leave this here
+// `readConsistencyAchieved` returns whether sufficient responses have been received
+// to reach the desired consistency.
+// NB: it is not the same as `readConsistencyTermination`.
+func readConsistencyAchieved(
+	level topology.ReadConsistencyLevel,
+	majority, enqueued, success int,
+) bool {
+	switch level {
+	case topology.ReadConsistencyLevelAll:
+		return success == enqueued // Meets all
+	case topology.ReadConsistencyLevelMajority:
+		return success >= majority // Meets majority
+	case topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority:
+		return success > 0 // Meets one
+	case topology.ReadConsistencyLevelNone:
+		return true // Always meets none
+	}
+	panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
+}
+
+type shardPeerAvailability struct {
+	numPeers          int
+	numAvailablePeers int
+}
+
 func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
-	availableShardTimeRanges := result.ShardTimeRanges{}
+	bootstrapConsistencyLevel := s.opts.RuntimeOptionsManager().
+		Get().
+		ClientBootstrapConsistencyLevel()
+
+	peerAvailabilityByShard := map[uint32]*shardPeerAvailability{}
 	for shardID := range shardsTimeRanges {
+		shardPeers, ok := peerAvailabilityByShard[shardID]
+		if !ok {
+			shardPeers = &shardPeerAvailability{}
+			peerAvailabilityByShard[shardID] = shardPeers
+		}
 		hostShardStates, ok := s.initialShardStates[shardID]
 		if !ok {
 			// This shard was not part of the topology when the bootstrapping
@@ -95,6 +130,7 @@ func (s *peersSource) AvailableData(
 			continue
 		}
 
+		shardPeers.numPeers = len(hostShardStates)
 		for _, hostShardState := range hostShardStates {
 			shardState := hostShardState.shardState
 
@@ -110,17 +146,51 @@ func (s *peersSource) AvailableData(
 			case shard.Leaving:
 				fallthrough
 			case shard.Available:
-				// Optimistically assume that the peers will be able to provide
-				// all the data. This assumption is safe, as the shard/block ranges
-				// will simply be marked unfulfilled if the peers are not able to
-				// satisfy the requests.
-				availableShardTimeRanges[shardID] = shardsTimeRanges[shardID]
+				shardPeers.numAvailablePeers++
 				break
 			default:
 				panic(
 					fmt.Sprintf("encountered unknown shard state: %s", shardState.String()))
 			}
 		}
+	}
+
+	availableShardTimeRanges := result.ShardTimeRanges{}
+	for shardID := range shardsTimeRanges {
+		shardPeers := peerAvailabilityByShard[shardID]
+
+		total := shardPeers.numPeers
+		available := shardPeers.numAvailablePeers
+
+		if available == 0 {
+			// Can't peer bootstrap if there are no available peers.
+			continue
+		}
+
+		switch bootstrapConsistencyLevel {
+		case topology.ReadConsistencyLevelAll:
+			if available != total {
+				continue
+			}
+		case topology.ReadConsistencyLevelMajority:
+			if !(available > total/2) {
+				continue
+			}
+		case topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority:
+			if !(available > 0) {
+				continue
+			}
+		case topology.ReadConsistencyLevelNone:
+			// Should always succeed assuming we have at least one available peer.
+		default:
+			panic(fmt.Errorf("unrecognized consistency level: %s", bootstrapConsistencyLevel.String()))
+		}
+
+		// Optimistically assume that the peers will be able to provide
+		// all the data. This assumption is safe, as the shard/block ranges
+		// will simply be marked unfulfilled if the peers are not able to
+		// satisfy the requests.
+		availableShardTimeRanges[shardID] = shardsTimeRanges[shardID]
 	}
 
 	return availableShardTimeRanges
