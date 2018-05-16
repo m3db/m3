@@ -46,11 +46,36 @@ func TestEmptyDecode(t *testing.T) {
 	d.Close()
 }
 
-func TestEmptyTagValueDecode(t *testing.T) {
+func TestEmptyTagNameDecode(t *testing.T) {
+	var b []byte
+	b = append(b, headerMagicBytes...)
+	b = append(b, encodeUInt16(uint16(1))...) /* num tags */
+	b = append(b, encodeUInt16(0)...)         /* len empty string */
+	b = append(b, encodeUInt16(4)...)         /* len defg */
+	b = append(b, []byte("defg")...)
+
 	d := newTagDecoder(testDecodeOpts, nil)
-	d.Reset(wrapAsCheckedBytes(testTagDecoderEmptyTagBytes()))
+	d.Reset(wrapAsCheckedBytes(b))
 	require.False(t, d.Next())
 	require.Error(t, d.Err())
+}
+
+func TestEmptyTagValueDecode(t *testing.T) {
+	var b []byte
+	b = append(b, headerMagicBytes...)
+	b = append(b, encodeUInt16(uint16(1))...) /* num tags */
+	b = append(b, encodeUInt16(1)...)         /* len "1" */
+	b = append(b, []byte("a")...)             /* tag name */
+	b = append(b, encodeUInt16(0)...)         /* len tag value */
+
+	d := newTagDecoder(testDecodeOpts, nil)
+	d.Reset(wrapAsCheckedBytes(b))
+	require.True(t, d.Next())
+	tag := d.Current()
+	require.Equal(t, "a", tag.Name.String())
+	require.Equal(t, mapEmptyTagValueToSpaceHack.String(), tag.Value.String())
+	require.False(t, d.Next())
+	require.NoError(t, d.Err())
 }
 
 func TestDecodeHeaderMissing(t *testing.T) {
@@ -191,9 +216,9 @@ func TestDecodeDuplicateLifecycle(t *testing.T) {
 	require.Equal(t, oldLen, copy.Remaining())
 
 	for copy.Next() {
-		tag := copy.Current()    // keep looping
-		tag.Name.Bytes()  // ensure we can get values too
-		tag.Value.Bytes() // and don't panic
+		tag := copy.Current() // keep looping
+		tag.Name.Bytes()      // ensure we can get values too
+		tag.Value.Bytes()     // and don't panic
 	}
 	require.NoError(t, copy.Err())
 	copy.Close()
@@ -212,9 +237,9 @@ func TestDecodeDuplicateIteration(t *testing.T) {
 	require.Equal(t, oldLen, copy.Remaining())
 
 	for copy.Next() {
-		tag := copy.Current()    // keep looping
-		tag.Name.Bytes()  // ensure we can get values too
-		tag.Value.Bytes() // and don't panic
+		tag := copy.Current() // keep looping
+		tag.Name.Bytes()      // ensure we can get values too
+		tag.Value.Bytes()     // and don't panic
 	}
 	require.NoError(t, copy.Err())
 	copy.Close()
@@ -297,16 +322,6 @@ func wrapAsCheckedBytes(b []byte) checked.Bytes {
 	cb.Reset(b)
 	cb.DecRef()
 	return cb
-}
-
-func testTagDecoderEmptyTagBytes() []byte {
-	var b []byte
-	b = append(b, headerMagicBytes...)
-	b = append(b, encodeUInt16(uint16(1))...) /* num tags */
-	b = append(b, encodeUInt16(0)...)         /* len abc */
-	b = append(b, encodeUInt16(4)...)         /* len defg */
-	b = append(b, []byte("defg")...)
-	return b
 }
 
 func testTagDecoderBytesRaw() []byte {
