@@ -69,7 +69,7 @@ func init() {
 	flag.StringVar(&benchmarkers, "benchmarkers", "localhost:8888", "Comma separated host:ports addresses of benchmarkers to coordinate")
 	flag.BoolVar(&memprofile, "memprofile", false, "Enable memory profile")
 	flag.BoolVar(&cpuprofile, "cpuprofile", false, "Enable cpu profile")
-	flag.StringVar(&writeEndpoint, "writeEndpoint", "http://localhost:7201/api/v1/prom/write", "Write endpoint for m3coordinator")
+	flag.StringVar(&writeEndpoint, "writeEndpoint", "http://localhost:7201/api/v1/prom/remote/write", "Write endpoint for m3coordinator")
 	flag.BoolVar(&coordinator, "coordinator", false, "Benchmark through coordinator rather than m3db directly")
 	flag.Parse()
 }

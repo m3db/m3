@@ -74,10 +74,10 @@ Setup and run Prometheus:
         - e.g.
             ```
             remote_read:
-                - url: http://10.142.0.8:7201/api/v1/prom/read
+                - url: http://10.142.0.8:7201/api/v1/prom/remote/read
 
             remote_write:
-                - url: http://10.142.0.8:7201/api/v1/prom/write
+                - url: http://10.142.0.8:7201/api/v1/prom/remote/write
             ```
     3. Run Prometheus
         $ sudo docker run -p 9090:9090 -v $GOPATH/src/github.com/m3db/m3coordinator/docker/prometheus.yml:/etc/prometheus/prometheus.yml quay.io/prometheus/prometheus
