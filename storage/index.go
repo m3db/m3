@@ -166,6 +166,14 @@ func newNamespaceIndexWithOptions(
 		return nil, err
 	}
 
+	scope := opts.InstrumentOptions().MetricsScope().
+		SubScope("dbindex").
+		Tagged(map[string]string{
+			"namespace": nsMD.ID().String(),
+		})
+	iopts := opts.InstrumentOptions().SetMetricsScope(scope)
+	opts = opts.SetInstrumentOptions(iopts)
+
 	nowFn := opts.ClockOptions().NowFn()
 	idx := &nsIndex{
 		state: nsIndexState{
@@ -186,11 +194,11 @@ func newNamespaceIndexWithOptions(
 		logger:     opts.InstrumentOptions().Logger(),
 		nsMetadata: nsMD,
 
-		metrics: newNamespaceIndexMetrics(opts.InstrumentOptions()),
+		metrics: newNamespaceIndexMetrics(iopts),
 	}
 
 	// allocate indexing queue and start it up.
-	queue := newIndexQueueFn(idx.writeBatches, nowFn, opts.InstrumentOptions().MetricsScope())
+	queue := newIndexQueueFn(idx.writeBatches, nowFn, scope)
 	if err := queue.Start(); err != nil {
 		return nil, err
 	}
