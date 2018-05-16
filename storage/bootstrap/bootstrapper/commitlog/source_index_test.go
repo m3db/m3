@@ -142,9 +142,13 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 		// Bootstrap the data to exercise the metadata caching path.
 
 		// Bootstrap some arbitrary time range to make sure that it can handle multiple
-		// calls to ReadData() for the same shards, but with different ranges (it needs
-		// to merge the ranges across calls.)
-		targetRangesCopy := targetRanges.Copy()
+		// calls to ReadData() with different ranges and only a subset of the shards to make
+		// sure it can handle multiple calls to ReadData() with different shards / ranges (it needs
+		// to merge the ranges / shards across calls.)
+		var (
+			targetRangesCopy = targetRanges.Copy()
+			highestShard     = uint32(0)
+		)
 		for key := range targetRangesCopy {
 			// The time-range here is "arbitrary", but it does need to be one for which
 			// there is data so that we can actually exercise the blockStart merging
@@ -153,12 +157,21 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 				Start: start,
 				End:   start.Add(dataBlockSize),
 			})
+
+			if key > highestShard {
+				highestShard = key
+			}
 		}
-		_, err = src.ReadData(md1, targetRangesCopy, testDefaultRunOpts)
+
+		targetRangesCopyWithoutHighest := targetRangesCopy.Copy()
+		// Delete the highest hard number to ensure we're bootstrapping a subset, and the subsequent call
+		// to ReadData() will exercise the slice extending loggic.
+		delete(targetRangesCopyWithoutHighest, highestShard)
+		_, err = src.ReadData(md1, targetRangesCopyWithoutHighest, testDefaultRunOpts)
 		require.NoError(t, err)
 
 		// Bootstrap the actual time ranges to actually cache the metadata.
-		_, err = src.ReadData(md1, result.ShardTimeRanges{shardZero: ranges}, testDefaultRunOpts)
+		_, err = src.ReadData(md1, targetRangesCopy, testDefaultRunOpts)
 		require.NoError(t, err)
 	}
 

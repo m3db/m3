@@ -51,11 +51,11 @@ const encoderChanBufSize = 1000
 type newIteratorFn func(opts commitlog.IteratorOpts) (commitlog.Iterator, error)
 
 type commitLogSource struct {
-	opts            Options
-	inspection      fs.Inspection
-	log             xlog.Logger
-	newIteratorFn   newIteratorFn
-	cachedShardData map[string][]shardData
+	opts                Options
+	inspection          fs.Inspection
+	log                 xlog.Logger
+	newIteratorFn       newIteratorFn
+	cachedShardDataByNS map[string]*cachedShardData
 }
 
 type encoder struct {
@@ -65,11 +65,11 @@ type encoder struct {
 
 func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source {
 	return &commitLogSource{
-		opts:            opts,
-		inspection:      inspection,
-		log:             opts.ResultOptions().InstrumentOptions().Logger(),
-		newIteratorFn:   commitlog.NewIterator,
-		cachedShardData: map[string][]shardData{},
+		opts:                opts,
+		inspection:          inspection,
+		log:                 opts.ResultOptions().InstrumentOptions().Logger(),
+		newIteratorFn:       commitlog.NewIterator,
+		cachedShardDataByNS: map[string]*cachedShardData{},
 	}
 }
 
@@ -555,11 +555,13 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 // path is enabled.
 func (s *commitLogSource) cacheShardData(ns namespace.Metadata, allShardData []shardData) {
 	nsString := ns.ID().String()
-	cachedShardData, ok := s.cachedShardData[nsString]
+	nsCache, ok := s.cachedShardDataByNS[nsString]
 	if !ok {
-		nsShardData := make([]shardData, len(allShardData))
-		s.cachedShardData[nsString] = nsShardData
-		cachedShardData = nsShardData
+		nsShardData := &cachedShardData{
+			shardData: make([]shardData, len(allShardData)),
+		}
+		s.cachedShardDataByNS[nsString] = nsShardData
+		nsCache = nsShardData
 	}
 
 	for shard, currShardData := range allShardData {
@@ -571,25 +573,25 @@ func (s *commitLogSource) cacheShardData(ns namespace.Metadata, allShardData []s
 			}
 		}
 
-		if shard >= len(cachedShardData) {
+		if shard >= len(nsCache.shardData) {
 			// Extend the slice if necessary (could happen if different calls to
 			// ReadData() bootstrap different shards.)
-			for len(cachedShardData) != shard+1 {
-				cachedShardData = append(cachedShardData, shardData{})
+			for len(nsCache.shardData) != shard+1 {
+				nsCache.shardData = append(nsCache.shardData, shardData{})
 			}
 		}
 
-		cachedShardData[shard].ranges = cachedShardData[shard].ranges.AddRanges(currShardData.ranges)
+		nsCache.shardData[shard].ranges = nsCache.shardData[shard].ranges.AddRanges(currShardData.ranges)
 
 		currSeries := currShardData.series
-		cachedSeries := cachedShardData[shard].series
+		cachedSeries := nsCache.shardData[shard].series
 
 		// If there are no existing series, just set what we have.
 		if len(cachedSeries) == 0 {
 			if currSeries != nil {
-				cachedShardData[shard].series = currSeries
+				nsCache.shardData[shard].series = currSeries
 			} else {
-				cachedShardData[shard].series = make(map[uint64]metadataAndEncodersByTime)
+				nsCache.shardData[shard].series = make(map[uint64]metadataAndEncodersByTime)
 			}
 			continue
 		}
@@ -639,14 +641,17 @@ func (s *commitLogSource) ReadIndex(
 		return result.NewIndexBootstrapResult(), nil
 	}
 
-	cachedShardData := s.cachedShardData[ns.ID().String()]
-	cachedShardsTimeRanges := result.ShardTimeRanges{}
-	for shard, shardData := range cachedShardData {
-		cachedShardsTimeRanges[uint32(shard)] = shardData.ranges
+	var (
+		nsCache                        = s.cachedShardDataByNS[ns.ID().String()]
+		shardsTimeRangesToReadFromDisk = shardsTimeRanges.Copy()
+	)
+	if nsCache != nil {
+		cachedShardsTimeRanges := result.ShardTimeRanges{}
+		for shard, shardData := range nsCache.shardData {
+			cachedShardsTimeRanges[uint32(shard)] = shardData.ranges
+		}
+		shardsTimeRangesToReadFromDisk.Subtract(cachedShardsTimeRanges)
 	}
-
-	shardsTimeRangesToReadFromDisk := shardsTimeRanges.Copy()
-	shardsTimeRangesToReadFromDisk.Subtract(cachedShardsTimeRanges)
 
 	// Setup predicates for skipping files / series at iterator and reader level.
 	readCommitLogPredicate := newReadCommitLogPredicate(
@@ -694,12 +699,14 @@ func (s *commitLogSource) ReadIndex(
 	}
 
 	// Add in all the data that was cached by a previous run of ReadData() (if any).
-	for shard, shardData := range cachedShardData {
-		for _, series := range shardData.series {
-			for dataBlockStart := range series.encoders {
-				s.maybeAddToIndex(
-					series.id, series.tags, uint32(shard), highestShard, dataBlockStart.ToTime(), bootstrapRangesByShard,
-					indexResults, indexOptions, indexBlockSize, resultOptions)
+	if nsCache != nil {
+		for shard, shardData := range nsCache.shardData {
+			for _, series := range shardData.series {
+				for dataBlockStart := range series.encoders {
+					s.maybeAddToIndex(
+						series.id, series.tags, uint32(shard), highestShard, dataBlockStart.ToTime(), bootstrapRangesByShard,
+						indexResults, indexOptions, indexBlockSize, resultOptions)
+				}
 			}
 		}
 	}
@@ -846,4 +853,8 @@ func (ir ioReaders) close() {
 	for _, r := range ir {
 		r.(xio.SegmentReader).Finalize()
 	}
+}
+
+type cachedShardData struct {
+	shardData []shardData
 }
