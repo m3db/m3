@@ -87,25 +87,53 @@ func TestOptionsValidate(t *testing.T) {
 		SetRetentionOptions(rOpts).
 		SetIndexOptions(iOpts)
 
-	iOpts.EXPECT().Enabled().Return(true).AnyTimes()
-
+	iOpts.EXPECT().Enabled().Return(true)
+	iOpts.EXPECT().Validate().Return(nil)
 	rOpts.EXPECT().Validate().Return(nil)
 	rOpts.EXPECT().RetentionPeriod().Return(time.Hour)
-	rOpts.EXPECT().BlockSize().Return(time.Hour)
+	rOpts.EXPECT().BufferFuture().Return(time.Hour)
+	rOpts.EXPECT().BufferPast().Return(time.Hour)
 	iOpts.EXPECT().BlockSize().Return(time.Hour)
 	require.NoError(t, o1.Validate())
+}
 
+func TestOptionsValidateError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	rOpts := retention.NewMockOptions(ctrl)
+	iOpts := NewMockIndexOptions(ctrl)
+	o1 := NewOptions().
+		SetRetentionOptions(rOpts).
+		SetIndexOptions(iOpts)
+
+	rOpts.EXPECT().Validate().Return(nil)
+	iOpts.EXPECT().Enabled().Return(true)
+	iOpts.EXPECT().Validate().Return(fmt.Errorf("err"))
+	require.Error(t, o1.Validate())
+}
+
+func TestOptionsValidateBlockSizeLessThanBufferPast(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	rOpts := retention.NewMockOptions(ctrl)
+	iOpts := NewMockIndexOptions(ctrl)
+	o1 := NewOptions().
+		SetRetentionOptions(rOpts).
+		SetIndexOptions(iOpts)
+
+	iOpts.EXPECT().Enabled().Return(true)
+	iOpts.EXPECT().Validate().Return(nil)
 	rOpts.EXPECT().Validate().Return(nil)
 	rOpts.EXPECT().RetentionPeriod().Return(time.Hour)
-	rOpts.EXPECT().BlockSize().Return(time.Hour)
-	iOpts.EXPECT().BlockSize().Return(2 * time.Hour)
-	require.Error(t, o1.Validate())
-
-	rOpts.EXPECT().Validate().Return(fmt.Errorf("test error"))
+	rOpts.EXPECT().BufferFuture().Return(time.Hour)
+	rOpts.EXPECT().BufferPast().Return(2 * time.Hour)
+	iOpts.EXPECT().BlockSize().Return(time.Hour)
 	require.Error(t, o1.Validate())
 }
 
-func TestOptionsValidateBlockSizeMustBeMultiple(t *testing.T) {
+func TestOptionsValidateBlockSizeLessThanBufferFuture(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -115,37 +143,12 @@ func TestOptionsValidateBlockSizeMustBeMultiple(t *testing.T) {
 		SetRetentionOptions(rOpts).
 		SetIndexOptions(iOpts)
 
-	iOpts.EXPECT().Enabled().Return(true).AnyTimes()
-
+	iOpts.EXPECT().Enabled().Return(true)
+	iOpts.EXPECT().Validate().Return(nil)
 	rOpts.EXPECT().Validate().Return(nil)
-	rOpts.EXPECT().RetentionPeriod().Return(4 * time.Hour).AnyTimes()
-	rOpts.EXPECT().BlockSize().Return(2 * time.Hour).AnyTimes()
-	iOpts.EXPECT().BlockSize().Return(3 * time.Hour).AnyTimes()
-	require.Error(t, o1.Validate())
-}
-
-func TestOptionsValidateBlockSizePositive(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	rOpts := retention.NewMockOptions(ctrl)
-	iOpts := NewMockIndexOptions(ctrl)
-	o1 := NewOptions().
-		SetRetentionOptions(rOpts).
-		SetIndexOptions(iOpts)
-
-	iOpts.EXPECT().Enabled().Return(true).AnyTimes()
-
-	rOpts.EXPECT().Validate().Return(nil)
-	rOpts.EXPECT().RetentionPeriod().Return(4 * time.Hour).AnyTimes()
-	rOpts.EXPECT().BlockSize().Return(2 * time.Hour).AnyTimes()
-	iOpts.EXPECT().BlockSize().Return(0 * time.Hour).AnyTimes()
-	require.Error(t, o1.Validate())
-
-	rOpts.EXPECT().Validate().Return(nil)
-	rOpts.EXPECT().RetentionPeriod().Return(4 * time.Hour).AnyTimes()
-	rOpts.EXPECT().BlockSize().Return(2 * time.Hour).AnyTimes()
-	iOpts.EXPECT().BlockSize().Return(-2 * time.Hour).AnyTimes()
+	rOpts.EXPECT().RetentionPeriod().Return(time.Hour)
+	rOpts.EXPECT().BufferFuture().Return(2 * time.Hour)
+	iOpts.EXPECT().BlockSize().Return(time.Hour)
 	require.Error(t, o1.Validate())
 }
 

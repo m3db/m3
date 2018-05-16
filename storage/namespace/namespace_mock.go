@@ -298,6 +298,18 @@ func (m *MockIndexOptions) EXPECT() *MockIndexOptionsMockRecorder {
 	return m.recorder
 }
 
+// Validate mocks base method
+func (m *MockIndexOptions) Validate() error {
+	ret := m.ctrl.Call(m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Validate indicates an expected call of Validate
+func (mr *MockIndexOptionsMockRecorder) Validate() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Validate", reflect.TypeOf((*MockIndexOptions)(nil).Validate))
+}
+
 // Equal mocks base method
 func (m *MockIndexOptions) Equal(value IndexOptions) bool {
 	ret := m.ctrl.Call(m, "Equal", value)
