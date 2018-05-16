@@ -82,27 +82,6 @@ func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
 	return false
 }
 
-// TODO: Dont leave this here
-// `readConsistencyAchieved` returns whether sufficient responses have been received
-// to reach the desired consistency.
-// NB: it is not the same as `readConsistencyTermination`.
-func readConsistencyAchieved(
-	level topology.ReadConsistencyLevel,
-	majority, enqueued, success int,
-) bool {
-	switch level {
-	case topology.ReadConsistencyLevelAll:
-		return success == enqueued // Meets all
-	case topology.ReadConsistencyLevelMajority:
-		return success >= majority // Meets majority
-	case topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority:
-		return success > 0 // Meets one
-	case topology.ReadConsistencyLevelNone:
-		return true // Always meets none
-	}
-	panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
-}
-
 type shardPeerAvailability struct {
 	numPeers          int
 	numAvailablePeers int
