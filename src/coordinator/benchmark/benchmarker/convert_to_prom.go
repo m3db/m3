@@ -34,10 +34,46 @@ import (
 	"github.com/golang/snappy"
 )
 
-// ConvertToProm parses the json file that is generated from InfluxDB's bulk_data_gen tool into Prom format
-func convertToProm(fromFile, dir, toFile string, workers int, batchSize int) (int, error) {
-	// Read file size
+func calculateCardinality(fromFile string) (int, error) {
 	lines, err := lineLength(fromFile)
+	if err != nil {
+		return 0, err
+	}
+
+	inFile, err := os.OpenFile(fromFile, os.O_RDONLY, 0)
+	if err != nil {
+		return 0, err
+	}
+	defer inFile.Close()
+
+	scanner := bufio.NewScanner(inFile)
+
+	tagsSeen := make(map[string]int)
+
+	marker := lines / 10
+	read := 0
+	percent := 1
+
+	for scanner.Scan() {
+		tsdb := scanner.Text()
+		ts, _ := marshalTSDBToProm(tsdb)
+		tags := storage.PromLabelsToM3Tags(ts.GetLabels())
+		id := tags.ID()
+		tagsSeen[id]++
+
+		read++
+		if read%marker == 0 {
+			fmt.Printf("Read %d0%s\n", percent, "%")
+			percent++
+		}
+	}
+	return len(tagsSeen), nil
+}
+
+func convertToProm(fromFile, dir, toFile string, workers int, batchSize int) (int, error) {
+	lines, err := lineLength(fromFile)
+	fmt.Println("Converting", lines, "open_tsdb metrics to prom")
+
 	if err != nil {
 		return 0, err
 	}
@@ -141,6 +177,5 @@ func lineLength(fromFile string) (int, error) {
 	for scanner.Scan() {
 		lines++
 	}
-	fmt.Println("Converting", lines, "open_tsdb metrics to prom")
 	return lines, file.Close()
 }

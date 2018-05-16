@@ -35,6 +35,8 @@ import (
 )
 
 var (
+	cardinality bool
+
 	regenerateData bool
 	inputFile      string
 
@@ -50,6 +52,8 @@ var (
 )
 
 func init() {
+	flag.BoolVar(&cardinality, "cardinality", false, "calculate cardinality only")
+
 	flag.BoolVar(&regenerateData, "regenerateData", false, "regenerate data")
 	flag.StringVar(&inputFile, "inputFile", "benchmark_opentsdb", "input file")
 
@@ -66,9 +70,19 @@ func init() {
 }
 
 func main() {
+	if cardinality {
+		fmt.Println("Calculating cardinality only")
+		cardinality, err := calculateCardinality(inputFile)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		fmt.Println("Tags seen:", cardinality)
+		return
+	}
+
 	metricsToWrite := 0
 	if regenerateData {
-
 		os.RemoveAll(dataDir)
 
 		lines, err := convertToProm(inputFile, dataDir, dataFile, workers, batch)
@@ -83,6 +97,7 @@ func main() {
 	err := benchmarkCoordinator(metricsToWrite)
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 }
 
