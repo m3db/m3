@@ -36,16 +36,15 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3msg/consumer"
 	"github.com/m3db/m3msg/producer"
-	"github.com/m3db/m3msg/producer/buffer"
-	"github.com/m3db/m3msg/producer/writer"
+	"github.com/m3db/m3msg/producer/config"
 	"github.com/m3db/m3msg/topic"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/retry"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -73,26 +72,28 @@ func newTestSetup(
 	configs []consumerServiceConfig,
 ) *setup {
 	log.SimpleLogger.Debugf("setting up a test with %d producers", numProducers)
-	store := mem.NewStore()
+
 	configService := client.NewMockClient(ctrl)
-	configService.EXPECT().Store(gomock.Any()).Return(store, nil)
-	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(configService))
-	require.NoError(t, err)
+	configService.EXPECT().Store(gomock.Any()).Return(mem.NewStore(), nil).AnyTimes()
+
+	sd := services.NewMockServices(ctrl)
+	configService.EXPECT().Services(gomock.Any()).Return(sd, nil).AnyTimes()
 
 	var (
-		sd                   = services.NewMockServices(ctrl)
-		wOpts                = testWriterOptions().SetTopicService(ts).SetServiceDiscovery(sd)
-		testConsumerServices []*testConsumerService
-		consumerServices     []topic.ConsumerService
-		totalConsumed        = atomic.NewInt64(0)
+		testConsumerServices  []*testConsumerService
+		topicConsumerServices []topic.ConsumerService
+		totalConsumed         = atomic.NewInt64(0)
 	)
 	for i, config := range configs {
 		log.SimpleLogger.Debugf("setting up a consumer service in %s mode with %d replicas", config.ct.String(), config.replicas)
+
 		sid := serviceID(i)
 		consumerService := topic.NewConsumerService().SetServiceID(sid).SetConsumptionType(config.ct)
-		consumerServices = append(consumerServices, consumerService)
+		topicConsumerServices = append(topicConsumerServices, consumerService)
+
 		ps := testPlacementService(mem.NewStore(), sid)
 		sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil).Times(numProducers)
+
 		cs := testConsumerService{
 			consumed:         make(map[string]struct{}),
 			sid:              sid,
@@ -112,21 +113,23 @@ func newTestSetup(
 		require.Equal(t, len(instances), p.NumInstances())
 	}
 
+	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(configService))
+	require.NoError(t, err)
+
 	testTopic := topic.NewTopic().
-		SetName(wOpts.TopicName()).
+		SetName("topicName").
 		SetNumberOfShards(uint32(numberOfShards)).
-		SetConsumerServices(consumerServices)
-	err = ts.CheckAndSet(wOpts.TopicName(), 0, testTopic)
+		SetConsumerServices(topicConsumerServices)
+	err = ts.CheckAndSet(testTopic.Name(), 0, testTopic)
 	require.NoError(t, err)
 
 	var producers []producer.Producer
 	for i := 0; i < numProducers; i++ {
-		w := writer.NewWriter(wOpts)
-		b := buffer.NewBuffer(nil)
-		p := producer.NewProducer(producer.NewOptions().SetBuffer(b).SetWriter(w))
+		p := testProducer(t, configService)
 		require.NoError(t, p.Init())
 		producers = append(producers, p)
 	}
+
 	return &setup{
 		configs:          configs,
 		producers:        producers,
@@ -373,7 +376,7 @@ func (c *testConsumer) Close() {
 }
 
 func newTestConsumer(t *testing.T, cs *testConsumerService) *testConsumer {
-	consumerListener, err := consumer.NewListener("127.0.0.1:0", testConsumerOptions())
+	consumerListener, err := consumer.NewListener("127.0.0.1:0", testConsumerOptions(t))
 	require.NoError(t, err)
 
 	addr := consumerListener.Addr().String()
@@ -465,29 +468,51 @@ func testPlacementService(store kv.Store, sid services.ServiceID) placement.Serv
 	return service.NewPlacementService(storage.NewPlacementStorage(store, sid.String(), opts), opts)
 }
 
-func testWriterOptions() writer.Options {
-	connOpts := writer.NewConnectionOptions().
-		SetDialTimeout(500 * time.Millisecond).
-		SetRetryOptions(retry.NewOptions().SetInitialBackoff(100 * time.Millisecond).SetMaxBackoff(500 * time.Millisecond)).
-		SetWriteBufferSize(1).
-		SetResetDelay(100 * time.Millisecond)
-	return writer.NewOptions().
-		SetTopicName("topicName").
-		SetTopicWatchInitTimeout(100 * time.Millisecond).
-		SetPlacementWatchInitTimeout(100 * time.Millisecond).
-		SetMessagePoolOptions(pool.NewObjectPoolOptions().SetSize(1)).
-		SetMessageQueueScanInterval(100 * time.Millisecond).
-		SetMessageRetryOptions(retry.NewOptions().SetInitialBackoff(100 * time.Millisecond).SetMaxBackoff(500 * time.Millisecond)).
-		SetCloseCheckInterval(100 * time.Microsecond).
-		SetAckErrorRetryOptions(retry.NewOptions().SetInitialBackoff(100 * time.Millisecond).SetMaxBackoff(500 * time.Millisecond)).
-		SetPlacementWatchInitTimeout(100 * time.Millisecond).
-		SetConnectionOptions(connOpts)
+func testProducer(
+	t *testing.T,
+	cs client.Client,
+) producer.Producer {
+	str := `
+writer:
+  topicName: topicName
+  topicWatchInitTimeout: 100ms
+  placementWatchInitTimeout: 100ms
+  messagePool:
+    size: 1
+  messageRetry:
+    initialBackoff: 100ms
+    maxBackoff: 500ms
+  messageQueueScanInterval: 100ms
+  closeCheckInterval: 100ms
+  ackErrorRetry: 
+    initialBackoff: 100ms
+    maxBackoff: 500ms
+  connection:
+    dialTimeout: 500ms
+    retry:
+      initialBackoff: 100ms
+      maxBackoff: 500ms
+    writeBufferSize: 1
+    resetDelay: 100ms
+`
+
+	var cfg config.ProducerConfiguration
+	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
+
+	p, err := cfg.NewProducer(cs, instrument.NewOptions())
+	require.NoError(t, err)
+	return p
 }
 
-func testConsumerOptions() consumer.Options {
-	return consumer.NewOptions().
-		SetConnectionWriteBufferSize(1).
-		SetAckBufferSize(1)
+func testConsumerOptions(t *testing.T) consumer.Options {
+	str := `
+ackBufferSize: 1
+connectionWriteBufferSize: 1
+`
+	var cfg consumer.Configuration
+	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
+
+	return cfg.NewOptions(instrument.NewOptions())
 }
 
 func serviceID(id int) services.ServiceID {
