@@ -185,11 +185,11 @@ func (w *writeRequest) Process(ctx context.Context) error {
 }
 
 type writeRequestCommon struct {
-	store      *localStorage
-	annotation []byte
-	unit       xtime.Unit
-	id         string
-	tagIterator        ident.TagIterator
+	store       *localStorage
+	annotation  []byte
+	unit        xtime.Unit
+	id          string
+	tagIterator ident.TagIterator
 }
 
 type writeRequest struct {
