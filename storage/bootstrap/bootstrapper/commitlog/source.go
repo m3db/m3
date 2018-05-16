@@ -132,9 +132,9 @@ func (s *commitLogSource) ReadData(
 		workerErrs  = make([]int, numConc)
 	)
 
-	unmerged := make([]shardData, numShards)
+	shardDataByShard := make([]shardData, numShards)
 	for shard := range shardsTimeRanges {
-		unmerged[shard] = shardData{
+		shardDataByShard[shard] = shardData{
 			series: make(map[uint64]metadataAndEncodersByTime),
 			ranges: shardsTimeRanges[shard],
 		}
@@ -152,12 +152,12 @@ func (s *commitLogSource) ReadData(
 	for workerNum, encoderChan := range encoderChans {
 		wg.Add(1)
 		go s.startM3TSZEncodingWorker(
-			ns, runOpts, workerNum, encoderChan, unmerged, encoderPool, workerErrs, blopts, wg)
+			ns, runOpts, workerNum, encoderChan, shardDataByShard, encoderPool, workerErrs, blopts, wg)
 	}
 
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
-		if !s.shouldEncodeForData(unmerged, blockSize, series, dp.Timestamp) {
+		if !s.shouldEncodeForData(shardDataByShard, blockSize, series, dp.Timestamp) {
 			continue
 		}
 
@@ -166,7 +166,7 @@ func (s *commitLogSource) ReadData(
 		// datapoints for a given shard/series will be processed in a serialized
 		// manner.
 		// We choose to distribute work by shard instead of series.UniqueIndex
-		// because it means that all accesses to the unmerged slice don't need
+		// because it means that all accesses to the shardDataByShard slice don't need
 		// to be synchronized because each index belongs to a single shard so it
 		// will only be accessed serially from a single worker routine.
 		encoderChans[series.Shard%uint32(numConc)] <- encoderArg{
@@ -186,10 +186,10 @@ func (s *commitLogSource) ReadData(
 	wg.Wait()
 	s.logEncodingOutcome(workerErrs, iter)
 
-	result := s.mergeShards(int(numShards), bopts, blockSize, blopts, encoderPool, unmerged)
+	result := s.mergeShards(int(numShards), bopts, blockSize, blopts, encoderPool, shardDataByShard)
 	// After merging shards, its safe to cache the shardData (which involves some mutation).
 	if s.shouldCacheSeriesMetadata(runOpts, ns) {
-		s.cacheShardData(ns, unmerged)
+		s.cacheShardData(ns, shardDataByShard)
 	}
 	return result, nil
 }
