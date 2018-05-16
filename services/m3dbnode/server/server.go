@@ -89,11 +89,17 @@ type RunOptions struct {
 	// ConfigFile is the YAML configuration file to use to run the server.
 	ConfigFile string
 
+	// DBConfig is the DBConfiguration to use to run the server.
+	DBConfig config.DBConfiguration
+
 	// BootstrapCh is a channel to listen on to be notified of bootstrap.
 	BootstrapCh chan<- struct{}
 
 	// EmbeddedKVBootstrapCh is a channel to listen on to be notified that the embedded KV has bootstrapped.
 	EmbeddedKVBootstrapCh chan<- struct{}
+
+	// ClientBootstrapCh is a channel to listen on to share the same m3db client that this server uses.
+	ClientBootstrapCh chan<- client.Client
 
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
@@ -103,10 +109,18 @@ type RunOptions struct {
 // Run runs the server programmatically given a filename for the
 // configuration file.
 func Run(runOpts RunOptions) {
-	var cfg config.Configuration
-	if err := xconfig.LoadFile(&cfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
-		fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
-		os.Exit(1)
+	var cfg config.DBConfiguration
+
+	if runOpts.ConfigFile != "" {
+		var topCfg config.Configuration
+		if err := xconfig.LoadFile(&topCfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
+			fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
+			os.Exit(1)
+		}
+
+		cfg = topCfg.DB
+	} else {
+		cfg = runOpts.DBConfig
 	}
 
 	logger, err := cfg.Logging.BuildLogger()
@@ -393,6 +407,10 @@ func Run(runOpts RunOptions) {
 		})
 	if err != nil {
 		logger.Fatalf("could not create m3db client: %v", err)
+	}
+
+	if runOpts.ClientBootstrapCh != nil {
+		runOpts.ClientBootstrapCh <- m3dbClient
 	}
 
 	// Kick off runtime options manager KV watches

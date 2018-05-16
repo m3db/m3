@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package server
 
 import (
 	"context"
@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -49,7 +48,6 @@ import (
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 var (
@@ -61,17 +59,23 @@ var (
 	}
 )
 
-type m3config struct {
-	configFile           string
-	listenAddress        string
-	rpcEnabled           bool
-	rpcAddress           string
-	remotes              []string
-	maxConcurrentQueries int
-	queryTimeout         time.Duration
+// RunOptions provides options for running the server
+// with backwards compatibility if only solely adding fields.
+type RunOptions struct {
+	ConfigFile           string
+	ListenAddress        string
+	RPCEnabled           bool
+	RPCAddress           string
+	Remotes              []string
+	MaxConcurrentQueries int
+	QueryTimeout         time.Duration
+
+	// DBClient is the M3DB client to use instead of instantiating a new one from config
+	DBClient client.Client
 }
 
-func main() {
+// Run runs the server programmatically given a filename for the configuration file.
+func Run(runOpts RunOptions) {
 	rand.Seed(time.Now().UnixNano())
 
 	logging.InitWithCores(nil)
@@ -79,11 +83,9 @@ func main() {
 	logger := logging.WithContext(ctx)
 	defer logger.Sync()
 
-	flags := parseFlags(logger)
-
 	var cfg config.Configuration
-	if err := xconfig.LoadFile(&cfg, flags.configFile, configLoadOpts); err != nil {
-		logger.Fatal("unable to load", zap.String("configFile", flags.configFile), zap.Any("error", err))
+	if err := xconfig.LoadFile(&cfg, runOpts.ConfigFile, configLoadOpts); err != nil {
+		logger.Fatal("unable to load", zap.String("configFile", runOpts.ConfigFile), zap.Any("error", err))
 	}
 
 	m3dbClientOpts := cfg.M3DBClientCfg
@@ -100,14 +102,17 @@ func main() {
 		}
 	}
 
-	m3dbClient, err := m3dbClientOpts.NewClient(client.ConfigurationParameters{})
-	if err != nil {
-		logger.Fatal("unable to create m3db client", zap.Any("error", err))
+	dbClient := runOpts.DBClient
+	if dbClient == nil {
+		dbClient, err = m3dbClientOpts.NewClient(client.ConfigurationParameters{})
+		if err != nil {
+			logger.Fatal("unable to create m3db client", zap.Any("error", err))
+		}
 	}
 
-	session := m3db.NewAsyncSession(m3dbClient, nil)
+	session := m3db.NewAsyncSession(dbClient, nil)
 
-	fanoutStorage, storageCleanup := setupStorages(logger, session, flags)
+	fanoutStorage, storageCleanup := setupStorages(logger, session, runOpts)
 	defer storageCleanup()
 
 	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage), clusterClient, cfg)
@@ -116,8 +121,8 @@ func main() {
 	}
 	handler.RegisterRoutes()
 
-	logger.Info("starting server", zap.String("address", flags.listenAddress))
-	go http.ListenAndServe(flags.listenAddress, handler.Router)
+	logger.Info("starting server", zap.String("address", runOpts.ListenAddress))
+	go http.ListenAndServe(runOpts.ListenAddress, handler.Router)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -128,52 +133,13 @@ func main() {
 	}
 }
 
-func parseFlags(logger *zap.Logger) *m3config {
-	cfg := m3config{}
-	a := kingpin.New(filepath.Base(os.Args[0]), "M3Coordinator")
-
-	a.Version("1.0")
-
-	a.HelpFlag.Short('h')
-
-	a.Flag("config.file", "M3Coordinator configuration file path.").
-		Default("coordinator.yml").StringVar(&cfg.configFile)
-
-	a.Flag("query.port", "Address to listen on.").
-		Default("0.0.0.0:7201").StringVar(&cfg.listenAddress)
-
-	a.Flag("query.timeout", "Maximum time a query may take before being aborted.").
-		Default("2m").DurationVar(&cfg.queryTimeout)
-
-	a.Flag("query.max-concurrency", "Maximum number of queries executed concurrently.").
-		Default("20").IntVar(&cfg.maxConcurrentQueries)
-
-	a.Flag("rpc.enabled", "True enables remote clients.").
-		Default("false").BoolVar(&cfg.rpcEnabled)
-
-	a.Flag("rpc.port", "Address which the remote gRPC server will listen on for outbound connections.").
-		Default("0.0.0.0:7288").StringVar(&cfg.rpcAddress)
-
-	a.Flag("rpc.remotes", "Address which the remote gRPC server will listen on for outbound connections.").
-		Default("[]").StringsVar(&cfg.remotes)
-
-	_, err := a.Parse(os.Args[1:])
-	if err != nil {
-		logger.Error("unable to parse command line arguments", zap.Any("error", err))
-		a.Usage(os.Args[1:])
-		os.Exit(2)
-	}
-
-	return &cfg
-}
-
-func startGrpcServer(logger *zap.Logger, storage storage.Storage, flags *m3config) *grpc.Server {
+func startGrpcServer(logger *zap.Logger, storage storage.Storage, flags RunOptions) *grpc.Server {
 	logger.Info("creating gRPC server")
 	server := tsdbRemote.CreateNewGrpcServer(storage)
 	waitForStart := make(chan struct{})
 	go func() {
-		logger.Info("starting gRPC server on port", zap.Any("rpc", flags.rpcAddress))
-		err := tsdbRemote.StartNewGrpcServer(server, flags.rpcAddress, waitForStart)
+		logger.Info("starting gRPC server on port", zap.Any("rpc", flags.RPCAddress))
+		err := tsdbRemote.StartNewGrpcServer(server, flags.RPCAddress, waitForStart)
 		if err != nil {
 			logger.Fatal("unable to start gRPC server", zap.Any("error", err))
 		}
@@ -182,19 +148,18 @@ func startGrpcServer(logger *zap.Logger, storage storage.Storage, flags *m3confi
 	return server
 }
 
-// Setup all the storages
-func setupStorages(logger *zap.Logger, session client.Session, flags *m3config) (storage.Storage, func()) {
+func setupStorages(logger *zap.Logger, session client.Session, flags RunOptions) (storage.Storage, func()) {
 	cleanup := func() {}
 	localStorage := local.NewStorage(session, namespace, resolution)
 	stores := []storage.Storage{localStorage}
-	if flags.rpcEnabled {
+	if flags.RPCEnabled {
 		logger.Info("rpc enabled")
 		server := startGrpcServer(logger, localStorage, flags)
 		cleanup = func() {
 			server.GracefulStop()
 		}
-		if len(flags.remotes) > 0 {
-			client, err := tsdbRemote.NewGrpcClient(flags.remotes)
+		if len(flags.Remotes) > 0 {
+			client, err := tsdbRemote.NewGrpcClient(flags.Remotes)
 			if err != nil {
 				logger.Fatal("unable to start remote clients for addresses", zap.Any("error", err))
 			}

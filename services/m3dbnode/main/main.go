@@ -21,25 +21,70 @@
 package main
 
 import (
-	"flag"
+	"path/filepath"
 	// pprof: for debug listen server if configured
 	_ "net/http/pprof"
 	"os"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/services/m3dbnode/server"
-)
+	coordinator "github.com/m3db/m3db/src/coordinator/services/m3coordinator/server"
 
-var (
-	configFile = flag.String("f", "", "configuration file")
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 func main() {
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		flag.Usage()
+	dbOpts, coordOpts, err := parseFlags()
+	if err != nil {
 		os.Exit(1)
 	}
 
-	server.Run(server.RunOptions{ConfigFile: *configFile})
+	clientCh := make(chan client.Client)
+	dbOpts.ClientBootstrapCh = clientCh
+	server.Run(dbOpts)
+
+	coordOpts.DBClient = <-clientCh
+	coordinator.Run(coordOpts)
+}
+
+func parseFlags() (server.RunOptions, coordinator.RunOptions, error) {
+	dbOpts := server.RunOptions{}
+	coordOpts := coordinator.RunOptions{}
+	a := kingpin.New(filepath.Base(os.Args[0]), "M3DB")
+
+	a.Version("1.0")
+
+	a.HelpFlag.Short('h')
+
+	a.Flag("f", "M3DB configuration file path.").
+		Default("db.yml").StringVar(&dbOpts.ConfigFile)
+
+	a.Flag("config.file", "M3Coordinator configuration file path.").
+		Default("coordinator.yml").StringVar(&coordOpts.ConfigFile)
+
+	a.Flag("query.port", "Address to listen on.").
+		Default("0.0.0.0:7201").StringVar(&coordOpts.ListenAddress)
+
+	a.Flag("query.timeout", "Maximum time a query may take before being aborted.").
+		Default("2m").DurationVar(&coordOpts.QueryTimeout)
+
+	a.Flag("query.max-concurrency", "Maximum number of queries executed concurrently.").
+		Default("20").IntVar(&coordOpts.MaxConcurrentQueries)
+
+	a.Flag("rpc.enabled", "True enables remote clients.").
+		Default("false").BoolVar(&coordOpts.RPCEnabled)
+
+	a.Flag("rpc.port", "Address which the remote gRPC server will listen on for outbound connections.").
+		Default("0.0.0.0:7288").StringVar(&coordOpts.RPCAddress)
+
+	a.Flag("rpc.remotes", "Address which the remote gRPC server will listen on for outbound connections.").
+		Default("[]").StringsVar(&coordOpts.Remotes)
+
+	_, err := a.Parse(os.Args[1:])
+	if err != nil {
+		a.Usage(os.Args[1:])
+		return server.RunOptions{}, coordinator.RunOptions{}, err
+	}
+
+	return dbOpts, coordOpts, nil
 }
