@@ -22,13 +22,14 @@ package functions
 
 import (
 	"fmt"
+	"math"
 
+	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/executor/transform"
 	"github.com/m3db/m3db/src/coordinator/parser"
-	"github.com/m3db/m3db/src/coordinator/storage"
 )
 
-// CountType counts number of elements in the vector
+// CountType counts all non nan elements in a list of series
 const CountType = "count"
 
 // CountOp stores required properties for count
@@ -57,22 +58,29 @@ type CountNode struct {
 }
 
 // Process the block
-func (c *CountNode) Process(ID parser.NodeID, block storage.Block) error {
+func (c *CountNode) Process(ID parser.NodeID, block block.Block) error {
+	defer block.Close()
 	builder, err := c.controller.BlockBuilder(block.Meta())
 	if err != nil {
 		return err
 	}
 
 	stepIter := block.StepIter()
+	if err := builder.AddCols(stepIter.Steps()); err != nil {
+		return err
+	}
+
 	for index := 0; stepIter.Next(); index++ {
 		step := stepIter.Current()
 		values := step.Values()
-		sum := 0.0
+		count := 0.0
 		for _, value := range values {
-			sum += value
+			if !math.IsNaN(value) {
+				count++
+			}
 		}
 
-		builder.AppendValue(index, sum)
+		builder.AppendValue(index, count)
 	}
 
 	return c.controller.Process(builder.Build())

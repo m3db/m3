@@ -23,6 +23,7 @@ package remote
 import (
 	"context"
 
+	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/tsdb/remote"
@@ -59,6 +60,6 @@ func (s *remoteStorage) Close() error {
 }
 
 func (s *remoteStorage) FetchBlocks(
-	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
-	return storage.BlockResult{}, errors.ErrNotImplemented
+	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
+	return block.Result{}, errors.ErrNotImplemented
 }

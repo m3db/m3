@@ -23,6 +23,7 @@ package fanout
 import (
 	"context"
 
+	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/policy/filter"
@@ -115,8 +116,8 @@ func (s *fanoutStorage) Type() storage.Type {
 }
 
 func (s *fanoutStorage) FetchBlocks(
-	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (storage.BlockResult, error) {
-	return storage.BlockResult{}, errors.ErrNotImplemented
+	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
+	return block.Result{}, errors.ErrNotImplemented
 }
 
 func (s *fanoutStorage) Close() error {
