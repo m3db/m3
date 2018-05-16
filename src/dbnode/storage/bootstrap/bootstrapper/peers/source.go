@@ -42,10 +42,10 @@ import (
 )
 
 type peersSource struct {
-	initialShardStates shardStates
-	opts               Options
-	log                xlog.Logger
-	nowFn              clock.NowFn
+	initialTopologyState topologyState
+	opts                 Options
+	log                  xlog.Logger
+	nowFn                clock.NowFn
 }
 
 type incrementalFlush struct {
@@ -61,16 +61,16 @@ func newPeersSource(opts Options) (bootstrap.Source, error) {
 	// all bootstrap calls (across all namespaces / shards / blocks) so that we
 	// make consistent decisions regarding whether the Peer bootstrapper is able
 	// to fulfill bootstrap requests.
-	initialShardStates, err := initialShardStates(opts)
+	initialTopologyState, err := initialTopologyState(opts)
 	if err != nil {
 		return nil, err
 	}
 
 	return &peersSource{
-		initialShardStates: initialShardStates,
-		opts:               opts,
-		log:                opts.ResultOptions().InstrumentOptions().Logger(),
-		nowFn:              opts.ResultOptions().ClockOptions().NowFn(),
+		initialTopologyState: initialTopologyState,
+		opts:                 opts,
+		log:                  opts.ResultOptions().InstrumentOptions().Logger(),
+		nowFn:                opts.ResultOptions().ClockOptions().NowFn(),
 	}, nil
 }
 
@@ -102,7 +102,7 @@ func (s *peersSource) AvailableData(
 			shardPeers = &shardPeerAvailability{}
 			peerAvailabilityByShard[shardID] = shardPeers
 		}
-		hostShardStates, ok := s.initialShardStates[shardID]
+		hostShardStates, ok := s.initialTopologyState.shardStates[shardID]
 		if !ok {
 			// This shard was not part of the topology when the bootstrapping
 			// process began.
@@ -134,7 +134,10 @@ func (s *peersSource) AvailableData(
 		}
 	}
 
-	availableShardTimeRanges := result.ShardTimeRanges{}
+	var (
+		majorityReplicas         = s.initialTopologyState.majorityReplicas
+		availableShardTimeRanges = result.ShardTimeRanges{}
+	)
 	for shardID := range shardsTimeRanges {
 		shardPeers := peerAvailabilityByShard[shardID]
 
@@ -146,23 +149,9 @@ func (s *peersSource) AvailableData(
 			continue
 		}
 
-		switch bootstrapConsistencyLevel {
-		case topology.ReadConsistencyLevelAll:
-			if available != total {
-				continue
-			}
-		case topology.ReadConsistencyLevelMajority:
-			if !(available > total/2) {
-				continue
-			}
-		case topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority:
-			if !(available > 0) {
-				continue
-			}
-		case topology.ReadConsistencyLevelNone:
-			// Should always succeed assuming we have at least one available peer.
-		default:
-			panic(fmt.Errorf("unrecognized consistency level: %s", bootstrapConsistencyLevel.String()))
+		if !topology.ReadConsistencyAchieved(
+			bootstrapConsistencyLevel, majorityReplicas, total, available) {
+			continue
 		}
 
 		// Optimistically assume that the peers will be able to provide
@@ -790,29 +779,32 @@ func (s *peersSource) markIndexResultErrorAsUnfulfilled(
 	r.Add(result.IndexBlock{}, unfulfilled)
 }
 
-func initialShardStates(opts Options) (shardStates, error) {
+func initialTopologyState(opts Options) (topologyState, error) {
 	session, err := opts.AdminClient().DefaultAdminSession()
 	if err != nil {
-		return nil, err
+		return topologyState{}, err
 	}
 
 	topology, err := session.Topology()
 	if err != nil {
-		return nil, err
+		return topologyState{}, err
 	}
 
 	var (
 		topoMap       = topology.Get()
 		hostShardSets = topoMap.HostShardSets()
-		shardStates   = shardStates{}
+		topologyState = topologyState{
+			majorityReplicas: topoMap.MajorityReplicas(),
+			shardStates:      shardStates{},
+		}
 	)
 	for _, hostShardSet := range hostShardSets {
 		for _, currShard := range hostShardSet.ShardSet().All() {
 			shardID := currShard.ID()
-			existing, ok := shardStates[shardID]
+			existing, ok := topologyState.shardStates[shardID]
 			if !ok {
 				existing = map[string]hostShardState{}
-				shardStates[shardID] = existing
+				topologyState.shardStates[shardID] = existing
 			}
 
 			existing[hostShardSet.Host().String()] = hostShardState{
@@ -822,7 +814,12 @@ func initialShardStates(opts Options) (shardStates, error) {
 		}
 	}
 
-	return shardStates, nil
+	return topologyState, nil
+}
+
+type topologyState struct {
+	majorityReplicas int
+	shardStates      shardStates
 }
 
 type shardStates map[uint32]map[string]hostShardState

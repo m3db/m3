@@ -83,6 +83,7 @@ func newValidMockClient(t *testing.T, ctrl *gomock.Controller) *client.MockAdmin
 
 	mockMap := topology.NewMockMap(ctrl)
 	mockMap.EXPECT().HostShardSets().Return(hostShardSets).AnyTimes()
+	mockMap.EXPECT().MajorityReplicas().Return(3).AnyTimes()
 
 	mockTopology := topology.NewMockTopology(ctrl)
 	mockTopology.EXPECT().
