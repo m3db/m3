@@ -95,7 +95,7 @@ func TestPromWrite(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	storage, session := local.NewStorageAndSession(ctrl)
-	session.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 
 	promWrite := &PromWriteHandler{store: storage}
 

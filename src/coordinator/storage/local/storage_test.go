@@ -88,7 +88,7 @@ func newWriteQuery() *storage.WriteQuery {
 func setupLocalWrite(t *testing.T) storage.Storage {
 	ctrl := gomock.NewController(t)
 	store, session := setup(ctrl)
-	session.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 	return store
 }
 

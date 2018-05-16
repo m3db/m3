@@ -94,8 +94,8 @@ func setupFanoutWrite(t *testing.T, output bool, errs ...error) storage.Storage 
 	ctrl := gomock.NewController(t)
 	store1, session1 := local.NewStorageAndSession(ctrl)
 	store2, session2 := local.NewStorageAndSession(ctrl)
-	session1.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[0])
-	session2.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[len(errs)-1])
+	session1.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[0])
+	session2.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(errs[len(errs)-1])
 	stores := []storage.Storage{
 		store1, store2,
 	}
