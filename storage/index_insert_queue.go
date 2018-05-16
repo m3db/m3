@@ -84,6 +84,7 @@ func newNamespaceIndexInsertQueue(
 ) namespaceIndexInsertQueue {
 	currBatch := &nsIndexInsertBatch{}
 	currBatch.Reset()
+	subscope := scope.SubScope("insert-queue")
 	return &nsIndexInsertQueue{
 		currBatch:           currBatch,
 		indexBatchBackoff:   defaultIndexBatchBackoff,
@@ -93,7 +94,7 @@ func newNamespaceIndexInsertQueue(
 		sleepFn:             time.Sleep,
 		notifyInsert:        make(chan struct{}, 1),
 		closeCh:             make(chan struct{}, 1),
-		metrics:             newNamespaceIndexInsertQueueMetrics(scope),
+		metrics:             newNamespaceIndexInsertQueueMetrics(subscope),
 	}
 }
 
