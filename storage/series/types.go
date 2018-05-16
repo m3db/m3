@@ -33,6 +33,8 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
+
+	"github.com/uber-go/tally"
 )
 
 // DatabaseSeries is a series in the database
@@ -251,4 +253,28 @@ type Options interface {
 
 	// IdentifierPool returns the identifierPool
 	IdentifierPool() ident.Pool
+
+	// SetStats sets the configured Stats.
+	SetStats(value Stats) Options
+
+	// Stats returns the configured Stats.
+	Stats() Stats
+}
+
+// Stats is passed down from namespace/shard to avoid allocations per series.
+type Stats struct {
+	encoderCreated tally.Counter
+}
+
+// NewStats returns a new Stats for the provided scope.
+func NewStats(scope tally.Scope) Stats {
+	subScope := scope.SubScope("series")
+	return Stats{
+		encoderCreated: subScope.Counter("encoder-created"),
+	}
+}
+
+// IncCreatedEncoders incs the EncoderCreated stat.
+func (s Stats) IncCreatedEncoders() {
+	s.encoderCreated.Inc(1)
 }
