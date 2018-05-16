@@ -49,7 +49,7 @@ func TestIndexLookupWriteRead(t *testing.T) {
 		writes := []generatedWrite{}
 		unique := map[string]struct{}{}
 		for _, write := range input.realWrites {
-			s := string(write.id.Data().Bytes())
+			s := string(write.id.Bytes())
 			if _, ok := unique[s]; ok {
 				continue
 			}

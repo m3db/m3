@@ -976,7 +976,7 @@ func (s *session) writeAttemptWithRLock(
 		wop := s.pools.writeOperation.Get()
 		wop.namespace = nsID
 		wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
-		wop.request.ID = tsID.Data().Bytes()
+		wop.request.ID = tsID.Bytes()
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
@@ -986,7 +986,7 @@ func (s *session) writeAttemptWithRLock(
 		wop := s.pools.writeTaggedOperation.Get()
 		wop.namespace = nsID
 		wop.shardID = s.state.topoMap.ShardSet().Lookup(tsID)
-		wop.request.ID = tsID.Data().Bytes()
+		wop.request.ID = tsID.Bytes()
 		encodedTagBytes, ok := tagEncoder.Data()
 		if !ok {
 			return nil, 0, 0, errUnableToEncodeTags
@@ -1445,7 +1445,7 @@ func (s *session) fetchIDsAttempt(
 			}
 
 			// Append IDWithNamespace to this request
-			f.append(namespace.Data().Bytes(), tsID.Data().Bytes(), completionFn)
+			f.append(namespace.Bytes(), tsID.Bytes(), completionFn)
 		}); err != nil {
 			routeErr = err
 			break
@@ -1576,7 +1576,7 @@ func (s *session) Truncate(namespace ident.ID) (int64, error) {
 	)
 
 	t := &truncateOp{}
-	t.request.NameSpace = namespace.Data().Bytes()
+	t.request.NameSpace = namespace.Bytes()
 	t.completionFn = func(result interface{}, err error) {
 		if err != nil {
 			resultErrLock.Lock()
@@ -2044,7 +2044,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	attemptFn := func(client rpc.TChanNode) error {
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
 		req := rpc.NewFetchBlocksMetadataRawRequest()
-		req.NameSpace = namespace.Data().Bytes()
+		req.NameSpace = namespace.Bytes()
 		req.Shard = int32(shard)
 		req.RangeStart = start.UnixNano()
 		req.RangeEnd = end.UnixNano()
@@ -2209,7 +2209,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 	attemptFn := func(client rpc.TChanNode) error {
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
 		req := rpc.NewFetchBlocksMetadataRawV2Request()
-		req.NameSpace = namespace.Data().Bytes()
+		req.NameSpace = namespace.Bytes()
 		req.Shard = int32(shard)
 		req.RangeStart = start.UnixNano()
 		req.RangeEnd = end.UnixNano()
@@ -2808,7 +2808,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		retention          = ropts.RetentionPeriod()
 		earliestBlockStart = nowFn().Add(-retention).Truncate(ropts.BlockSize())
 	)
-	req.NameSpace = namespaceMetadata.ID().Data().Bytes()
+	req.NameSpace = namespaceMetadata.ID().Bytes()
 	req.Shard = int32(shard)
 	req.Elements = make([]*rpc.FetchBlocksRawRequestElement, 0, len(batch))
 	for i := range batch {
@@ -2817,7 +2817,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			continue // Fell out of retention while we were streaming blocks
 		}
 		req.Elements = append(req.Elements, &rpc.FetchBlocksRawRequestElement{
-			ID:     batch[i].id.Data().Bytes(),
+			ID:     batch[i].id.Bytes(),
 			Starts: []int64{blockStart.UnixNano()},
 		})
 		reqBlocksLen++
@@ -2871,7 +2871,7 @@ func (s *session) streamBlocksBatchFromPeer(
 		}
 
 		id := batch[i].id
-		if !bytes.Equal(id.Data().Bytes(), result.Elements[i].ID) {
+		if !bytes.Equal(id.Bytes(), result.Elements[i].ID) {
 			blocksErr := fmt.Errorf(
 				"stream blocks mismatched ID: expectedID=%s, actualID=%s, indexID=%d, peer=%s",
 				batch[i].id.String(), id.String(), i, peer.Host().String(),

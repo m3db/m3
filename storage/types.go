@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/x/xcounter"
 	"github.com/m3db/m3db/x/xio"
-	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -205,7 +204,7 @@ type NamespacesByID []Namespace
 func (n NamespacesByID) Len() int      { return len(n) }
 func (n NamespacesByID) Swap(i, j int) { n[i], n[j] = n[j], n[i] }
 func (n NamespacesByID) Less(i, j int) bool {
-	return bytes.Compare(n[i].ID().Data().Bytes(), n[j].ID().Data().Bytes()) < 0
+	return bytes.Compare(n[i].ID().Bytes(), n[j].ID().Bytes()) < 0
 }
 
 type databaseNamespace interface {
@@ -429,12 +428,15 @@ type databaseShard interface {
 
 // namespaceIndex indexes namespace writes.
 type namespaceIndex interface {
-	// Write indexes timeseries ID by provided Tags.
-	Write(
-		id ident.ID,
-		tags ident.Tags,
-		timestamp time.Time,
-		fns index.OnIndexSeries,
+	// BlockStartForWriteTime returns the index block start
+	// time for the given writeTime.
+	BlockStartForWriteTime(
+		writeTime time.Time,
+	) xtime.UnixNano
+
+	// WriteBatch indexes the provided entries.
+	WriteBatch(
+		batch *index.WriteBatch,
 	) error
 
 	// Query resolves the given query into known IDs.
@@ -476,11 +478,11 @@ type namespaceIndexInsertQueue interface {
 	// Stop stops accepting writes in the queue.
 	Stop() error
 
-	// Insert inserts the provided document to the index queue which processes
+	// InsertBatch inserts the provided documents to the index queue which processes
 	// inserts to the index asynchronously. It executes the provided callbacks
 	// based on the result of the execution. The returned wait group can be used
 	// if the insert is required to be synchronous.
-	Insert(blockStart time.Time, d doc.Document, s index.OnIndexSeries) (*sync.WaitGroup, error)
+	InsertBatch(batch *index.WriteBatch) (*sync.WaitGroup, error)
 }
 
 // databaseBootstrapManager manages the bootstrap process.

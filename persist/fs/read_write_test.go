@@ -167,7 +167,7 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 
 				// Verify that the bloomFilter was bootstrapped properly by making sure it
 				// at least contains every ID
-				assert.True(t, bloomFilter.Test(id.Data().Bytes()))
+				assert.True(t, bloomFilter.Test(id.Bytes()))
 
 				id.Finalize()
 				tags.Close()
@@ -191,7 +191,7 @@ func readTestData(t *testing.T, r DataFileSetReader, shard uint32, timestamp tim
 
 				// Verify that the bloomFilter was bootstrapped properly by making sure it
 				// at least contains every ID
-				assert.True(t, bloomFilter.Test(id.Data().Bytes()))
+				assert.True(t, bloomFilter.Test(id.Bytes()))
 
 				id.Finalize()
 				tags.Close()

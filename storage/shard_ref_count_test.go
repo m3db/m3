@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -82,7 +83,7 @@ func TestShardWriteSyncRefCount(t *testing.T) {
 		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
-		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
 	}
 
 	// write already inserted series'
@@ -105,18 +106,38 @@ func TestShardWriteSyncRefCount(t *testing.T) {
 		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
-		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
 	}
 }
 
 func TestShardWriteTaggedSyncRefCountMockIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	blockSize := namespace.NewIndexOptions().BlockSize()
+
 	idx := NewMocknamespaceIndex(ctrl)
-	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, ts time.Time, onIdx index.OnIndexSeries) {
-			onIdx.OnIndexFinalize()
-		}).Return(nil).AnyTimes()
+	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
+		DoAndReturn(func(t time.Time) xtime.UnixNano {
+			return xtime.ToUnixNano(t.Truncate(blockSize))
+		}).
+		AnyTimes()
+	idx.EXPECT().WriteBatch(gomock.Any()).
+		Return(nil).
+		Do(func(batch *index.WriteBatch) {
+			if batch.Len() != 1 {
+				// require.Equal(...) silently kills goroutines
+				panic(fmt.Sprintf("expected batch len 1: len=%d", batch.Len()))
+			}
+
+			entry := batch.PendingEntries()[0]
+			blockStart := xtime.ToUnixNano(entry.Timestamp.Truncate(blockSize))
+			onIdx := entry.OnIndexSeries
+			onIdx.OnIndexSuccess(blockStart)
+			onIdx.OnIndexFinalize(blockStart)
+		}).
+		AnyTimes()
+
 	testShardWriteTaggedSyncRefCount(t, idx)
 }
 
@@ -178,7 +199,7 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, idx namespaceIndex) {
 		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
-		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
 	}
 
 	// write already inserted series'
@@ -201,7 +222,7 @@ func testShardWriteTaggedSyncRefCount(t *testing.T, idx namespaceIndex) {
 		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
-		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
 	}
 }
 
@@ -259,7 +280,7 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
-		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
 	}
 
 	// write already inserted series'
@@ -282,18 +303,34 @@ func TestShardWriteAsyncRefCount(t *testing.T) {
 		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
-		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
 	}
 }
 
 func TestShardWriteTaggedAsyncRefCountMockIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	blockSize := namespace.NewIndexOptions().BlockSize()
+
 	idx := NewMocknamespaceIndex(ctrl)
-	idx.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(
-		func(id ident.ID, tags ident.Tags, ts time.Time, onIdx index.OnIndexSeries) {
-			onIdx.OnIndexFinalize()
-		}).Return(nil).AnyTimes()
+	idx.EXPECT().BlockStartForWriteTime(gomock.Any()).
+		DoAndReturn(func(t time.Time) xtime.UnixNano {
+			return xtime.ToUnixNano(t.Truncate(blockSize))
+		}).
+		AnyTimes()
+	idx.EXPECT().WriteBatch(gomock.Any()).
+		Return(nil).
+		Do(func(batch *index.WriteBatch) {
+			for _, entry := range batch.PendingEntries() {
+				blockStart := xtime.ToUnixNano(entry.Timestamp.Truncate(blockSize))
+				onIdx := entry.OnIndexSeries
+				onIdx.OnIndexSuccess(blockStart)
+				onIdx.OnIndexFinalize(blockStart)
+			}
+		}).
+		AnyTimes()
+
 	testShardWriteTaggedAsyncRefCount(t, idx)
 }
 
@@ -371,7 +408,7 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex) {
 		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
-		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
 	}
 
 	// write already inserted series'
@@ -394,6 +431,6 @@ func testShardWriteTaggedAsyncRefCount(t *testing.T, idx namespaceIndex) {
 		entry, _, err := shard.lookupEntryWithLock(ident.StringID(id))
 		shard.Unlock()
 		assert.NoError(t, err)
-		assert.Equal(t, int32(0), entry.readerWriterCount(), id)
+		assert.Equal(t, int32(0), entry.ReaderWriterCount(), id)
 	}
 }

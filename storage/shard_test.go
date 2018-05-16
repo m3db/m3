@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/series"
+	"github.com/m3db/m3db/storage/series/lookup"
 	"github.com/m3db/m3db/ts"
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3db/x/xio"
@@ -83,7 +84,7 @@ func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID, tags id
 	series.EXPECT().Tags().Return(tags).AnyTimes()
 	series.EXPECT().IsEmpty().Return(false).AnyTimes()
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(&dbShardEntry{series: series, index: index})
+	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, index))
 	shard.Unlock()
 	return series
 }
@@ -150,8 +151,8 @@ func TestShardBootstrapWithError(t *testing.T) {
 	barSeries.EXPECT().ID().Return(ident.StringID("bar")).AnyTimes()
 	barSeries.EXPECT().IsEmpty().Return(false).AnyTimes()
 	s.Lock()
-	s.insertNewShardEntryWithLock(&dbShardEntry{series: fooSeries})
-	s.insertNewShardEntryWithLock(&dbShardEntry{series: barSeries})
+	s.insertNewShardEntryWithLock(lookup.NewEntry(fooSeries, 0))
+	s.insertNewShardEntryWithLock(lookup.NewEntry(barSeries, 0))
 	s.Unlock()
 
 	fooBlocks := block.NewMockDatabaseSeriesBlocks(ctrl)
@@ -226,7 +227,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeErr, expectedErr)
-		s.list.PushBack(&dbShardEntry{series: curr})
+		s.list.PushBack(lookup.NewEntry(curr, 0))
 	}
 
 	err := s.Flush(blockStart, flush)
@@ -288,7 +289,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 				flushed[i] = struct{}{}
 			}).
 			Return(series.FlushOutcomeFlushedToDisk, nil)
-		s.list.PushBack(&dbShardEntry{series: curr})
+		s.list.PushBack(lookup.NewEntry(curr, 0))
 	}
 
 	err := s.Flush(blockStart, flush)
@@ -362,7 +363,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 				snapshotted[i] = struct{}{}
 			}).
 			Return(nil)
-		s.list.PushBack(&dbShardEntry{series: series})
+		s.list.PushBack(lookup.NewEntry(series, 0))
 	}
 
 	err := s.Snapshot(blockStart, blockStart, flush)
@@ -381,7 +382,7 @@ func addMockTestSeries(ctrl *gomock.Controller, shard *dbShard, id ident.ID) *se
 	series := series.NewMockDatabaseSeries(ctrl)
 	series.EXPECT().ID().AnyTimes().Return(id)
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(&dbShardEntry{series: series})
+	shard.insertNewShardEntryWithLock(lookup.NewEntry(series, 0))
 	shard.Unlock()
 	return series
 }
@@ -394,7 +395,11 @@ func addTestSeriesWithCount(shard *dbShard, id ident.ID, count int32) series.Dat
 	series := series.NewDatabaseSeries(id, ident.Tags{}, shard.seriesOpts)
 	series.Bootstrap(nil)
 	shard.Lock()
-	shard.insertNewShardEntryWithLock(&dbShardEntry{series: series, curReadWriters: count})
+	entry := lookup.NewEntry(series, 0)
+	for i := int32(0); i < count; i++ {
+		entry.IncrementReaderWriterCount()
+	}
+	shard.insertNewShardEntryWithLock(entry)
 	shard.Unlock()
 	return series
 }
@@ -760,7 +765,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	var entry *dbShardEntry
+	var entry *lookup.Entry
 
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(t, opts)
@@ -780,7 +785,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, shard.lookup.Len())
 
-	entry.decrementReaderWriterCount()
+	entry.DecrementReaderWriterCount()
 	require.Equal(t, 1, shard.lookup.Len())
 }
 
@@ -793,14 +798,14 @@ func TestForEachShardEntry(t *testing.T) {
 	}
 
 	count := 0
-	entryFn := func(entry *dbShardEntry) bool {
-		if entry.series.ID().String() == "foo.8" {
+	entryFn := func(entry *lookup.Entry) bool {
+		if entry.Series.ID().String() == "foo.8" {
 			return false
 		}
 
 		// Ensure the readerwriter count is incremented while we operate
 		// on this series
-		assert.Equal(t, int32(1), entry.readerWriterCount())
+		assert.Equal(t, int32(1), entry.ReaderWriterCount())
 
 		count++
 		return true
@@ -813,8 +818,8 @@ func TestForEachShardEntry(t *testing.T) {
 	// Ensure that reader writer count gets reset
 	shard.RLock()
 	for elem := shard.list.Front(); elem != nil; elem = elem.Next() {
-		entry := elem.Value.(*dbShardEntry)
-		assert.Equal(t, int32(0), entry.readerWriterCount())
+		entry := elem.Value.(*lookup.Entry)
+		assert.Equal(t, int32(0), entry.ReaderWriterCount())
 	}
 	shard.RUnlock()
 }
@@ -1069,7 +1074,7 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 			continue
 		}
 
-		if err != nil || entry.series.NumActiveBlocks() == 2 {
+		if err != nil || entry.Series.NumActiveBlocks() == 2 {
 			// Expecting at least 2 active blocks and never an error
 			break
 		}
@@ -1081,8 +1086,8 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, entry)
 
-	assert.False(t, entry.series.IsEmpty())
-	assert.Equal(t, 2, entry.series.NumActiveBlocks())
+	assert.False(t, entry.Series.IsEmpty())
+	assert.Equal(t, 2, entry.Series.NumActiveBlocks())
 }
 
 func TestShardNewInvalidShardEntry(t *testing.T) {
@@ -1094,6 +1099,7 @@ func TestShardNewInvalidShardEntry(t *testing.T) {
 
 	iter := ident.NewMockTagIterator(ctrl)
 	gomock.InOrder(
+		iter.EXPECT().Remaining().Return(2),
 		iter.EXPECT().Duplicate().Return(iter),
 		iter.EXPECT().Next().Return(false),
 		iter.EXPECT().Err().Return(fmt.Errorf("random err")),

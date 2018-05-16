@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/storage/series/lookup"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -101,12 +102,19 @@ type dbShardInsertAsyncOptions struct {
 	pendingIndex          dbShardPendingIndex
 
 	hasPendingWrite          bool
-	hasPendingIndexing       bool
 	hasPendingRetrievedBlock bool
+	hasPendingIndexing       bool
+
+	// NB(prateek): `entryRefCountIncremented` indicates if the
+	// entry provided along with the dbShardInsertAsyncOptions
+	// already has it's ref count incremented. It's used to
+	// correctly manage the lifecycle of the entry across the
+	// shard -> shard Queue -> shard boundaries.
+	entryRefCountIncremented bool
 }
 
 type dbShardInsert struct {
-	entry *dbShardEntry
+	entry *lookup.Entry
 	opts  dbShardInsertAsyncOptions
 }
 
@@ -120,7 +128,8 @@ type dbShardPendingWrite struct {
 }
 
 type dbShardPendingIndex struct {
-	timestamp time.Time
+	timestamp  time.Time
+	enqueuedAt time.Time
 }
 
 type dbShardPendingRetrievedBlock struct {

@@ -32,12 +32,10 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	m3dberrors "github.com/m3db/m3db/storage/errors"
 	"github.com/m3db/m3db/storage/index"
-	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
@@ -68,8 +66,9 @@ type nsIndex struct {
 	newBlockFn newBlockFn
 	logger     xlog.Logger
 	opts       index.Options
-	metrics    nsIndexMetrics
 	nsMetadata namespace.Metadata
+
+	metrics nsIndexMetrics
 }
 
 type nsIndexState struct {
@@ -185,12 +184,13 @@ func newNamespaceIndexWithOptions(
 		newBlockFn: newBlockFn,
 		opts:       opts,
 		logger:     opts.InstrumentOptions().Logger(),
-		metrics:    newNamespaceIndexMetrics(opts.InstrumentOptions().MetricsScope()),
 		nsMetadata: nsMD,
+
+		metrics: newNamespaceIndexMetrics(opts.InstrumentOptions()),
 	}
 
 	// allocate indexing queue and start it up.
-	queue := newIndexQueueFn(idx.writeBatch, nowFn, opts.InstrumentOptions().MetricsScope())
+	queue := newIndexQueueFn(idx.writeBatches, nowFn, opts.InstrumentOptions().MetricsScope())
 	if err := queue.Start(); err != nil {
 		return nil, err
 	}
@@ -207,78 +207,53 @@ func newNamespaceIndexWithOptions(
 	return idx, nil
 }
 
+func (i *nsIndex) BlockStartForWriteTime(writeTime time.Time) xtime.UnixNano {
+	return xtime.ToUnixNano(writeTime.Truncate(i.blockSize))
+}
+
 // NB(prateek): including the call chains leading to this point:
 //
 // - For new entry (previously unseen in the shard):
 //     shard.WriteTagged()
+//       => shard.insertSeriesAsyncBatched()
 //       => shardInsertQueue.Insert()
 //       => shard.writeBatch()
-//       => index.Write()
+//       => index.WriteBatch()
 //       => indexQueue.Insert()
 //       => index.writeBatch()
 //
 // - For entry which exists in the shard, but needs indexing (either past
 //   the TTL or the last indexing hasn't happened/failed):
 //      shard.WriteTagged()
+//        => shard.insertSeriesForIndexingAsyncBatched()
+//        => shardInsertQueue.Insert()
+//        => shard.writeBatch()
 //        => index.Write()
 //        => indexQueue.Insert()
 //      	=> index.writeBatch()
 
-func (i *nsIndex) Write(
-	id ident.ID,
-	tags ident.Tags,
-	timestamp time.Time,
-	fns index.OnIndexSeries,
-) error {
-	// Ensure timestamp is not too old/new based on retention policies.
-	now := i.nowFn()
-	futureLimit := now.Add(1 * i.bufferFuture)
-	pastLimit := now.Add(-1 * i.bufferPast)
-
-	if !futureLimit.After(timestamp) {
-		fns.OnIndexFinalize()
-		return m3dberrors.ErrTooFuture
-	}
-
-	if !pastLimit.Before(timestamp) {
-		fns.OnIndexFinalize()
-		return m3dberrors.ErrTooPast
-	}
-
-	// Ensure metric can be converted to a valid document
-	d, err := convert.FromMetric(id, tags)
-	if err != nil {
-		fns.OnIndexFinalize()
-		return err
-	}
-
-	indexBlockStart := timestamp.Truncate(i.blockSize)
-	return i.queueWrite(indexBlockStart, d, fns)
-}
-
-func (i *nsIndex) queueWrite(
-	indexBlockStart time.Time,
-	d doc.Document,
-	fns index.OnIndexSeries,
+func (i *nsIndex) WriteBatch(
+	batch *index.WriteBatch,
 ) error {
 	i.state.RLock()
 	if !i.isOpenWithRLock() {
 		i.state.RUnlock()
 		i.metrics.InsertAfterClose.Inc(1)
-		fns.OnIndexFinalize()
-		return errDbIndexUnableToWriteClosed
+		err := errDbIndexUnableToWriteClosed
+		batch.MarkUnmarkedEntriesError(err)
+		return err
 	}
 
 	// NB(prateek): retrieving insertMode here while we have the RLock.
 	insertMode := i.state.runtimeOpts.insertMode
-	wg, err := i.state.insertQueue.Insert(indexBlockStart, d, fns)
+	wg, err := i.state.insertQueue.InsertBatch(batch)
 
 	// release the lock because we don't need it past this point.
 	i.state.RUnlock()
 
 	// if we're unable to index, we still have to finalize the reference we hold.
 	if err != nil {
-		fns.OnIndexFinalize()
+		batch.MarkUnmarkedEntriesError(err)
 		return err
 	}
 	// once the write has been queued in the indexInsertQueue, it assumes
@@ -286,77 +261,97 @@ func (i *nsIndex) queueWrite(
 
 	// wait/terminate depending on if we are indexing synchronously or not.
 	if insertMode != index.InsertAsync {
-		// FOLLOWUP(prateek): to correctly propagate indexing error to the user in
-		// the sync case, we need a mechanism to receive notifications from
-		// the index insert queue path. Some ways to do this:
-		// (0) alloc a slice for the errors in queue, and return a wait group
-		// the slice and an index into the slice.
-		// (1) provide an error channel as input to i.insertQueue.Insert, and
-		// guarantee that receives a value on success/failure in the async
-		// insertion code path. We could eliminate the wait group if we did that.
-		// (2) we could provide an OnIndexError callback within OnIndexSeries,
-		// again ensuring it was called upon failure, and cache the error within
-		// the dbShardEntry. Then we're guaranteed that the error would be set
-		// once wg.Wait returns, and the shard insert code-paths would be able
-		// to retrieve the error from the dbShardEntry. Not pretty, but probably
-		// a lot cheaper than (1).
 		wg.Wait()
+
+		// Re-sort the batch by initial enqueue order
+		if numErrs := batch.NumErrs(); numErrs > 0 {
+			// Restore the sort order from whene enqueued for the caller
+			batch.SortByEnqueued()
+			return fmt.Errorf("check batch: %d insert errors", numErrs)
+		}
 	}
 
 	return nil
 }
 
-// NB: this function is called by the namespaceIndexInsertQueue.
-// FOLLOWUP(prateek): propagate error back up from here to the indexInsertQueue
-// so that we can notify users of success/failure correctly in the case of
-// sync'd inserts.
-func (i *nsIndex) writeBatch(inserts []index.WriteBatchEntry) {
+// WriteBatches is called by the indexInsertQueue.
+func (i *nsIndex) writeBatches(
+	batches []*index.WriteBatch,
+) {
 	// NB(prateek): we use a read lock to guard against mutation of the
 	// indexBlocks, mutations within the underlying blocks are guarded
 	// by primitives internal to it.
 	i.state.RLock()
 	defer i.state.RUnlock()
-
 	if !i.isOpenWithRLock() {
 		// NB(prateek): deliberately skip calling any of the `OnIndexFinalize` methods
 		// on the provided inserts to terminate quicker during shutdown.
-		i.metrics.InsertAfterClose.Inc(int64(len(inserts)))
-	}
-
-	// we sort the inserts by which block they're applicable for, and do the inserts
-	// for each block.
-	writesByBlockStart := index.WriteBatchEntryByBlockStart(inserts)
-	sort.Sort(writesByBlockStart)
-	writesByBlockStart.ForEachBlockStart(i.writeBatchForBlockStartWithRLock)
-}
-
-func (i *nsIndex) writeBatchForBlockStartWithRLock(
-	blockStart xtime.UnixNano, inserts []index.WriteBatchEntry,
-) {
-	// ensure we have an index block for the specified blockStart.
-	block, err := i.ensureBlockPresentWithRLock(blockStart.ToTime())
-	if err != nil {
-		for _, insert := range inserts {
-			insert.OnIndexSeries.OnIndexFinalize()
-		}
-		i.logger.WithFields(
-			xlog.NewField("blockStart", blockStart),
-			xlog.NewField("numWrites", len(inserts)),
-			xlog.NewField("err", err.Error()),
-		).Error("unable to write to index, dropping inserts.")
-		i.metrics.AsyncInsertErrors.Inc(int64(len(inserts)))
 		return
 	}
 
+	now := i.nowFn()
+	futureLimit := now.Add(1 * i.bufferFuture)
+	pastLimit := now.Add(-1 * i.bufferPast)
+	writeBatchFn := i.writeBatchForBlockStartWithRLock
+	for _, batch := range batches {
+		// Ensure timestamp is not too old/new based on retention policies and that
+		// doc is valid.
+		batch.ForEach(func(idx int, entry index.WriteBatchEntry,
+			d doc.Document, _ index.WriteBatchEntryResult) {
+			if !futureLimit.After(entry.Timestamp) {
+				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooFuture, idx)
+				return
+			}
+
+			if !entry.Timestamp.After(pastLimit) {
+				batch.MarkUnmarkedEntryError(m3dberrors.ErrTooPast, idx)
+				return
+			}
+		})
+
+		// Sort the inserts by which block they're applicable for, and do the inserts
+		// for each block, making sure to not try to insert any entries already marked
+		// with a result.
+		batch.ForEachUnmarkedBatchByBlockStart(writeBatchFn)
+	}
+}
+
+func (i *nsIndex) writeBatchForBlockStartWithRLock(
+	blockStart time.Time, batch *index.WriteBatch,
+) {
+	// ensure we have an index block for the specified blockStart.
+	block, err := i.ensureBlockPresentWithRLock(blockStart)
+	if err != nil {
+		batch.MarkUnmarkedEntriesError(err)
+		i.logger.WithFields(
+			xlog.NewField("blockStart", blockStart),
+			xlog.NewField("numWrites", batch.Len()),
+			xlog.NewField("err", err.Error()),
+		).Error("unable to write to index, dropping inserts.")
+		i.metrics.AsyncInsertErrors.Inc(int64(batch.Len()))
+		return
+	}
+
+	// NB(r): Capture pending entries so we can emit the latencies
+	pending := batch.PendingEntries()
+
 	// i.e. we have the block and the inserts, perform the writes.
-	result, err := block.WriteBatch(inserts)
+	result, err := block.WriteBatch(batch)
+
+	// record the end to end indexing latency
+	now := i.nowFn()
+	for idx := range pending {
+		took := now.Sub(pending[idx].EnqueuedAt)
+		i.metrics.InsertEndToEndLatency.Record(took)
+	}
+
 	// NB: we don't need to do anything to the OnIndexSeries refs in `inserts` at this point,
 	// the index.Block WriteBatch assumes responsibility for calling the appropriate methods.
 	if numErr := result.NumError; numErr != 0 {
 		i.metrics.AsyncInsertErrors.Inc(numErr)
 	}
 	if err != nil {
-		i.logger.Errorf("unable to write to index, dropping inserts. [%v]", err)
+		i.logger.Errorf("error writing to index block: %v", err)
 	}
 }
 
@@ -638,12 +633,16 @@ func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
 }
 
 type nsIndexMetrics struct {
-	AsyncInsertErrors tally.Counter
-	InsertAfterClose  tally.Counter
-	QueryAfterClose   tally.Counter
+	AsyncInsertErrors     tally.Counter
+	InsertAfterClose      tally.Counter
+	QueryAfterClose       tally.Counter
+	InsertEndToEndLatency tally.Timer
 }
 
-func newNamespaceIndexMetrics(scope tally.Scope) nsIndexMetrics {
+func newNamespaceIndexMetrics(
+	iopts instrument.Options,
+) nsIndexMetrics {
+	scope := iopts.MetricsScope()
 	return nsIndexMetrics{
 		AsyncInsertErrors: scope.Tagged(map[string]string{
 			"error_type": "async-insert",
@@ -654,5 +653,8 @@ func newNamespaceIndexMetrics(scope tally.Scope) nsIndexMetrics {
 		QueryAfterClose: scope.Tagged(map[string]string{
 			"error_type": "query-closed",
 		}).Counter("query-after-error"),
+		InsertEndToEndLatency: instrument.MustCreateSampledTimer(
+			scope.Timer("insert-end-to-end-latency"),
+			iopts.MetricsSamplingRate()),
 	}
 }

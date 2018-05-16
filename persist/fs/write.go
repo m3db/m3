@@ -97,7 +97,7 @@ func (e indexEntries) Len() int {
 }
 
 func (e indexEntries) Less(i, j int) bool {
-	return bytes.Compare(e[i].id.Data().Bytes(), e[j].id.Data().Bytes()) < 0
+	return bytes.Compare(e[i].id.Bytes(), e[j].id.Bytes()) < 0
 }
 
 func (e indexEntries) Swap(i, j int) {
@@ -421,7 +421,7 @@ func (w *writer) writeIndexFileContents(
 	)
 	defer tagsEncoder.Finalize()
 	for i := range w.indexEntries {
-		id := w.indexEntries[i].id.Data().Bytes()
+		id := w.indexEntries[i].id.Bytes()
 		// Need to check if i > 0 or we can never write an empty string ID
 		if i > 0 && bytes.Equal(id, prevID) {
 			// Should never happen, Write() should only be called once per ID
@@ -491,7 +491,7 @@ func (w *writer) writeSummariesFileContents(
 
 		summary := schema.IndexSummary{
 			Index:            w.indexEntries[i].index,
-			ID:               w.indexEntries[i].id.Data().Bytes(),
+			ID:               w.indexEntries[i].id.Bytes(),
 			IndexEntryOffset: w.indexEntries[i].indexFileOffset,
 		}
 

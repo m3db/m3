@@ -21,6 +21,8 @@
 package index
 
 import (
+	"fmt"
+	"sort"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -116,14 +118,15 @@ type MutableSegmentAllocator func() (segment.MutableSegment, error)
 // to do lifecycle management of any resources retained during indexing.
 type OnIndexSeries interface {
 	// OnIndexSuccess is executed when an entry is successfully indexed. The
-	// provided value for `indexEntryExpiry` describes the TTL for the indexed
-	// entry.
-	OnIndexSuccess(indexEntryExpiry time.Time)
+	// provided value for `blockStart` is the blockStart for which the write
+	// was indexed.
+	OnIndexSuccess(blockStart xtime.UnixNano)
 
 	// OnIndexFinalize is executed when the index no longer holds any references
 	// to the provided resources. It can be used to cleanup any resources held
-	// during the course of indexing.
-	OnIndexFinalize()
+	// during the course of indexing. `blockStart` is the startTime of the index
+	// block for which the write was attempted.
+	OnIndexFinalize(blockStart xtime.UnixNano)
 }
 
 // Block represents a collection of segments. Each `Block` is a complete reverse
@@ -136,7 +139,7 @@ type Block interface {
 	EndTime() time.Time
 
 	// WriteBatch writes a batch of provided entries.
-	WriteBatch([]WriteBatchEntry) (WriteBatchResult, error)
+	WriteBatch(inserts *WriteBatch) (WriteBatchResult, error)
 
 	// Query resolves the given query into known IDs.
 	Query(
@@ -164,13 +167,6 @@ type Block interface {
 	Close() error
 }
 
-// WriteBatchEntry captures a document to index, and the lifecycle hooks to call thereafter.
-type WriteBatchEntry struct {
-	BlockStart    xtime.UnixNano
-	Document      doc.Document
-	OnIndexSeries OnIndexSeries
-}
-
 // WriteBatchResult returns statistics about the WriteBatch execution.
 type WriteBatchResult struct {
 	NumSuccess int64
@@ -183,42 +179,312 @@ type BlockTickResult struct {
 	NumDocs     int64
 }
 
-// WriteBatchEntryByBlockStart implements sort.Interface for WriteBatchEntry slices
-// based on the BlockStart field.
-type WriteBatchEntryByBlockStart []WriteBatchEntry
+// WriteBatch is a batch type that allows for building of a slice of documents
+// with metadata in a separate slice, this allows the documents slice to be
+// passed to the segment to batch insert without having to copy into a buffer
+// again.
+type WriteBatch struct {
+	opts   WriteBatchOptions
+	sortBy writeBatchSortBy
 
-func (w WriteBatchEntryByBlockStart) Len() int           { return len(w) }
-func (w WriteBatchEntryByBlockStart) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
-func (w WriteBatchEntryByBlockStart) Less(i, j int) bool { return w[i].BlockStart < w[j].BlockStart }
+	entries []WriteBatchEntry
+	docs    []doc.Document
+}
 
-// ForEachBlockStartFn is lambda to iterate over WriteBatchEntry(s) a single blockStart at a time.
-type ForEachBlockStartFn func(blockStart xtime.UnixNano, writes []WriteBatchEntry)
+type writeBatchSortBy uint
 
-// ForEachBlockStart iterates over the provided WriteBatchEntryByBlockStart, and calls `fn` on each
-// group of elements with the same blockStart.
-func (w WriteBatchEntryByBlockStart) ForEachBlockStart(fn ForEachBlockStartFn) {
+const (
+	writeBatchSortByUnmarkedAndBlockStart writeBatchSortBy = iota
+	writeBatchSortByEnqueued
+)
+
+// WriteBatchOptions is a set of options required for a write batch.
+type WriteBatchOptions struct {
+	InitialCapacity int
+	IndexBlockSize  time.Duration
+}
+
+// NewWriteBatch creates a new write batch.
+func NewWriteBatch(opts WriteBatchOptions) *WriteBatch {
+	return &WriteBatch{
+		opts:    opts,
+		entries: make([]WriteBatchEntry, 0, opts.InitialCapacity),
+		docs:    make([]doc.Document, 0, opts.InitialCapacity),
+	}
+}
+
+// Append appends an entry with accompanying document.
+func (b *WriteBatch) Append(
+	entry WriteBatchEntry,
+	doc doc.Document,
+) {
+	// Set private WriteBatchEntry fields
+	entry.enqueuedIdx = len(b.entries)
+	entry.result = WriteBatchEntryResult{}
+
+	// Append
+	b.entries = append(b.entries, entry)
+	b.docs = append(b.docs, doc)
+}
+
+// ForEachWriteBatchEntryFn allows a caller to perform an operation for each
+// batch entry.
+type ForEachWriteBatchEntryFn func(
+	idx int,
+	entry WriteBatchEntry,
+	doc doc.Document,
+	result WriteBatchEntryResult,
+)
+
+// ForEach allows a caller to perform an operation for each batch entry.
+func (b *WriteBatch) ForEach(fn ForEachWriteBatchEntryFn) {
+	for idx, entry := range b.entries {
+		fn(idx, entry, b.docs[idx], entry.Result())
+	}
+}
+
+// ForEachWriteBatchByBlockStartFn allows a caller to perform an operation with
+// reference to a restricted set of the write batch for each unique block
+// start.
+type ForEachWriteBatchByBlockStartFn func(
+	blockStart time.Time,
+	batch *WriteBatch,
+)
+
+// ForEachUnmarkedBatchByBlockStart allows a caller to perform an operation
+// with reference to a restricted set of the write batch for each unique block
+// start for entries that have not been marked completed yet.
+// The underlying batch returned is simply the current batch but with updated
+// subslices to the relevant entries and documents that are restored at the
+// end of `fn` being applied.
+// NOTE: This means `fn` cannot perform any asynchronous work that uses the
+// arguments passed to it as the args will be invalid at the synchronous
+// execution of `fn`.
+func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
+	fn ForEachWriteBatchByBlockStartFn,
+) {
+	// Ensure sorted correctly first
+	b.SortByUnmarkedAndIndexBlockStart()
+
+	// What we do is a little funky but least alloc intensive, essentially we mutate
+	// this batch and then restore the pointers to the original docs after.
+	allEntries := b.entries
+	allDocs := b.docs
+	defer func() {
+		b.entries = allEntries
+		b.docs = allDocs
+	}()
+
 	var (
-		startIdx  = 0
-		lastNanos xtime.UnixNano
+		blockSize      = b.opts.IndexBlockSize
+		startIdx       = 0
+		lastBlockStart xtime.UnixNano
 	)
-	for i := 0; i < len(w); i++ {
-		elem := w[i]
-		if elem.BlockStart != lastNanos {
-			lastNanos = elem.BlockStart
-			// We only want to call the the ForEachBlockStartFn once we have calculated the entire group,
+	for i := range allEntries {
+		if allEntries[i].OnIndexSeries == nil {
+			// Hit a marked done entry
+			b.entries = allEntries[startIdx:i]
+			b.docs = allDocs[startIdx:i]
+			if len(b.entries) != 0 {
+				fn(lastBlockStart.ToTime(), b)
+			}
+			return
+		}
+
+		blockStart := allEntries[i].indexBlockStart(blockSize)
+		if !blockStart.Equal(lastBlockStart) {
+			prevLastBlockStart := lastBlockStart.ToTime()
+			lastBlockStart = blockStart
+			// We only want to call the the ForEachUnmarkedBatchByBlockStart once we have calculated the entire group,
 			// i.e. once we have gone past the last element for a given blockStart, but the first element
 			// in the slice is a special case because we are always starting a new group at that point.
 			if i == 0 {
 				continue
 			}
-			fn(w[startIdx].BlockStart, w[startIdx:i])
+			b.entries = allEntries[startIdx:i]
+			b.docs = allDocs[startIdx:i]
+			fn(prevLastBlockStart, b)
 			startIdx = i
 		}
 	}
-	// spill over
-	if startIdx < len(w) {
-		fn(w[startIdx].BlockStart, w[startIdx:])
+
+	// We can unconditionally spill over here since we haven't hit any marked
+	// done entries yet and thanks to sort order there weren't any, therefore
+	// we can execute all the remaining entries we had.
+	if startIdx < len(allEntries) {
+		b.entries = allEntries[startIdx:]
+		b.docs = allDocs[startIdx:]
+		fn(lastBlockStart.ToTime(), b)
 	}
+}
+
+func (b *WriteBatch) numPending() int {
+	numUnmarked := 0
+	for i := range b.entries {
+		if b.entries[i].OnIndexSeries == nil {
+			break
+		}
+		numUnmarked++
+	}
+	return numUnmarked
+}
+
+// PendingDocs returns all the docs in this batch that are unmarked.
+func (b *WriteBatch) PendingDocs() []doc.Document {
+	b.SortByUnmarkedAndIndexBlockStart() // Ensure sorted by unmarked first
+	return b.docs[:b.numPending()]
+}
+
+// PendingEntries returns all the entries in this batch that are unmarked.
+func (b *WriteBatch) PendingEntries() []WriteBatchEntry {
+	b.SortByUnmarkedAndIndexBlockStart() // Ensure sorted by unmarked first
+	return b.entries[:b.numPending()]
+}
+
+// NumErrs returns the number of errors encountered by the batch.
+func (b *WriteBatch) NumErrs() int {
+	errs := 0
+	for _, entry := range b.entries {
+		if entry.result.Err != nil {
+			errs++
+		}
+	}
+	return errs
+}
+
+// Reset resets the batch for use.
+func (b *WriteBatch) Reset() {
+	// Memset optimizations
+	var entryZeroed WriteBatchEntry
+	for i := range b.entries {
+		b.entries[i] = entryZeroed
+	}
+	b.entries = b.entries[:0]
+	var docZeroed doc.Document
+	for i := range b.docs {
+		b.docs[i] = docZeroed
+	}
+	b.docs = b.docs[:0]
+}
+
+// SortByUnmarkedAndIndexBlockStart sorts the batch by unmarked first and then
+// by index block start time.
+func (b *WriteBatch) SortByUnmarkedAndIndexBlockStart() {
+	b.sortBy = writeBatchSortByUnmarkedAndBlockStart
+	sort.Stable(b)
+}
+
+// SortByEnqueued sorts the entries and documents back to the sort order they
+// were enqueued as.
+func (b *WriteBatch) SortByEnqueued() {
+	b.sortBy = writeBatchSortByEnqueued
+	sort.Stable(b)
+}
+
+// MarkUnmarkedEntriesSuccess marks all unmarked entries as success.
+func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
+	for idx := range b.entries {
+		if b.entries[idx].OnIndexSeries != nil {
+			blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
+			b.entries[idx].OnIndexSeries.OnIndexSuccess(blockStart)
+			b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
+			b.entries[idx].OnIndexSeries = nil
+			b.entries[idx].result = WriteBatchEntryResult{Err: nil}
+		}
+	}
+}
+
+// MarkUnmarkedEntriesError marks all unmarked entries as error.
+func (b *WriteBatch) MarkUnmarkedEntriesError(err error) {
+	for idx := range b.entries {
+		b.MarkUnmarkedEntryError(err, idx)
+	}
+}
+
+// MarkUnmarkedEntryError marks an unmarked entry at index as error.
+func (b *WriteBatch) MarkUnmarkedEntryError(
+	err error,
+	idx int,
+) {
+	if b.entries[idx].OnIndexSeries != nil {
+		blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
+		b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
+		b.entries[idx].OnIndexSeries = nil
+		b.entries[idx].result = WriteBatchEntryResult{Err: err}
+	}
+}
+
+// Ensure that WriteBatch meets the sort interface
+var _ sort.Interface = (*WriteBatch)(nil)
+
+// Len returns the length of the batch.
+func (b *WriteBatch) Len() int {
+	return len(b.entries)
+}
+
+// Swap will swap two entries and the corresponding docs.
+func (b *WriteBatch) Swap(i, j int) {
+	b.entries[i], b.entries[j] = b.entries[j], b.entries[i]
+	b.docs[i], b.docs[j] = b.docs[j], b.docs[i]
+}
+
+// Less returns whether an entry appears before another depending
+// on the type of sort.
+func (b *WriteBatch) Less(i, j int) bool {
+	if b.sortBy == writeBatchSortByEnqueued {
+		return b.entries[i].enqueuedIdx < b.entries[j].enqueuedIdx
+	}
+	if b.sortBy != writeBatchSortByUnmarkedAndBlockStart {
+		panic(fmt.Errorf("unexpected sort by: %d", b.sortBy))
+	}
+
+	if b.entries[i].OnIndexSeries != nil && b.entries[j].OnIndexSeries == nil {
+		// This other entry has already been marked and this hasn't
+		return true
+	}
+	if b.entries[i].OnIndexSeries == nil && b.entries[j].OnIndexSeries != nil {
+		// This entry has already been marked and other hasn't
+		return false
+	}
+
+	// They're either both unmarked or marked
+	blockStartI := b.entries[i].indexBlockStart(b.opts.IndexBlockSize)
+	blockStartJ := b.entries[j].indexBlockStart(b.opts.IndexBlockSize)
+	return blockStartI.Before(blockStartJ)
+}
+
+// WriteBatchEntry represents the metadata accompanying the document that is
+// being inserted.
+type WriteBatchEntry struct {
+	// Timestamp is the timestamp that this entry should be indexed for
+	Timestamp time.Time
+	// OnIndexSeries is a listener/callback for when this entry is marked done
+	// it is set to nil when the entry is marked done
+	OnIndexSeries OnIndexSeries
+	// EnqueuedAt is the timestamp that this entry was enqueued for indexing
+	// so that we can calculate the latency it takes to index the entry
+	EnqueuedAt time.Time
+	// enqueuedIdx is the idx of the entry when originally enqueued by the call
+	// to append on the write batch
+	enqueuedIdx int
+	// result is the result for this entry which is updated when marked done
+	result WriteBatchEntryResult
+}
+
+// WriteBatchEntryResult represents a result.
+type WriteBatchEntryResult struct {
+	Err error
+}
+
+func (e WriteBatchEntry) indexBlockStart(
+	indexBlockSize time.Duration,
+) xtime.UnixNano {
+	return xtime.ToUnixNano(e.Timestamp.Truncate(indexBlockSize))
+}
+
+// Result returns the result for this entry.
+func (e WriteBatchEntry) Result() WriteBatchEntryResult {
+	return e.result
 }
 
 // Options control the Indexing knobs.

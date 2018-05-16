@@ -204,9 +204,9 @@ func (d *decoder) Close() {
 }
 
 func (d *decoder) cloneCurrent() ident.Tag {
-	name := d.opts.CheckedBytesWrapperPool().Get(d.current.Name.Data().Bytes())
+	name := d.opts.CheckedBytesWrapperPool().Get(d.current.Name.Bytes())
 	d.checkedData.IncRef()
-	value := d.opts.CheckedBytesWrapperPool().Get(d.current.Value.Data().Bytes())
+	value := d.opts.CheckedBytesWrapperPool().Get(d.current.Value.Bytes())
 	d.checkedData.IncRef()
 	return ident.BinaryTag(name, value)
 }

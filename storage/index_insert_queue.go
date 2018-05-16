@@ -27,8 +27,6 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/index"
-	"github.com/m3db/m3ninx/doc"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -48,8 +46,9 @@ const (
 )
 
 var (
-	defaultIndexBatchBackoff   = time.Second
-	defaultIndexPerSecondLimit = 10000
+	// TODO(prateek): undo this stuff
+	defaultIndexBatchBackoff   = time.Millisecond
+	defaultIndexPerSecondLimit = 1000000
 )
 
 type nsIndexInsertQueue struct {
@@ -154,10 +153,8 @@ func (q *nsIndexInsertQueue) insertLoop() {
 	}
 }
 
-func (q *nsIndexInsertQueue) Insert(
-	blockStart time.Time,
-	d doc.Document,
-	fns index.OnIndexSeries,
+func (q *nsIndexInsertQueue) InsertBatch(
+	batch *index.WriteBatch,
 ) (*sync.WaitGroup, error) {
 	windowNanos := q.nowFn().Truncate(time.Second).UnixNano()
 
@@ -178,11 +175,8 @@ func (q *nsIndexInsertQueue) Insert(
 			return nil, errNewSeriesIndexRateLimitExceeded
 		}
 	}
-	q.currBatch.inserts = append(q.currBatch.inserts, index.WriteBatchEntry{
-		BlockStart:    xtime.ToUnixNano(blockStart),
-		Document:      d,
-		OnIndexSeries: fns,
-	})
+	batchLen := batch.Len()
+	q.currBatch.inserts = append(q.currBatch.inserts, batch)
 	wg := q.currBatch.wg
 	q.Unlock()
 
@@ -193,7 +187,7 @@ func (q *nsIndexInsertQueue) Insert(
 		// Loop busy, already ready to consume notification
 	}
 
-	q.metrics.numPending.Inc(1)
+	q.metrics.numPending.Inc(int64(batchLen))
 	return wg, nil
 }
 
@@ -234,21 +228,20 @@ func (q *nsIndexInsertQueue) Stop() error {
 	return nil
 }
 
-type nsIndexInsertBatchFn func(inserts []index.WriteBatchEntry)
+type nsIndexInsertBatchFn func(inserts []*index.WriteBatch)
 
 type nsIndexInsertBatch struct {
 	wg      *sync.WaitGroup
-	inserts []index.WriteBatchEntry
+	inserts []*index.WriteBatch
 }
-
-var nsIndexInsertZeroed index.WriteBatchEntry
 
 func (b *nsIndexInsertBatch) Reset() {
 	b.wg = &sync.WaitGroup{}
 	// We always expect to be waiting for an index
 	b.wg.Add(1)
 	for i := range b.inserts {
-		b.inserts[i] = nsIndexInsertZeroed
+		// TODO(prateek): if we start pooling `[]index.WriteBatchEntry`, then we could return to the pool here.
+		b.inserts[i] = nil
 	}
 	b.inserts = b.inserts[:0]
 }

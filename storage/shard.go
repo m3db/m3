@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"bytes"
 	"container/list"
 	"errors"
 	"fmt"
@@ -28,7 +29,6 @@ import (
 	"math"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -41,11 +41,14 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3db/storage/index/convert"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
+	"github.com/m3db/m3db/storage/series/lookup"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
+	"github.com/m3db/m3ninx/doc"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
@@ -175,56 +178,9 @@ func newDatabaseShardMetrics(scope tally.Scope) dbShardMetrics {
 	}
 }
 
-type dbShardEntry struct {
-	series         series.DatabaseSeries
-	index          uint64
-	curReadWriters int32
-	reverseIndex   struct {
-		// NB(prateek): nextWriteTimeNanos is the UnixNanos until
-		// the next index write is required. We use an atomic instead
-		// of a time.Time to avoid using a Mutex to guard it.
-		nextWriteTimeNanos int64
-	}
-}
+type dbShardEntryWorkFn func(entry *lookup.Entry) bool
 
-func (entry *dbShardEntry) readerWriterCount() int32 {
-	return atomic.LoadInt32(&entry.curReadWriters)
-}
-
-func (entry *dbShardEntry) incrementReaderWriterCount() {
-	atomic.AddInt32(&entry.curReadWriters, 1)
-}
-
-func (entry *dbShardEntry) decrementReaderWriterCount() {
-	atomic.AddInt32(&entry.curReadWriters, -1)
-}
-
-func (entry *dbShardEntry) needsIndexUpdate(writeTime time.Time) bool {
-	return atomic.LoadInt64(&entry.reverseIndex.nextWriteTimeNanos) < writeTime.UnixNano()
-}
-
-// ensure dbShardEntry satisfies the `index.OnIndexSeries` interface.
-var _ index.OnIndexSeries = &dbShardEntry{}
-
-func (entry *dbShardEntry) OnIndexSuccess(nextWriteTime time.Time) {
-	atomic.StoreInt64(&entry.reverseIndex.nextWriteTimeNanos, nextWriteTime.UnixNano())
-}
-
-func (entry *dbShardEntry) OnIndexFinalize() {
-	// indicate the index has released held reference for provided write
-	entry.decrementReaderWriterCount()
-}
-
-func (entry *dbShardEntry) onIndexPrepare() {
-	// NB(prateek): we retain the ref count on the entry while the indexing is pending,
-	// the callback executed on the entry once the indexing is completed releases this
-	// reference.
-	entry.incrementReaderWriterCount()
-}
-
-type dbShardEntryWorkFn func(entry *dbShardEntry) bool
-
-type dbShardEntryBatchWorkFn func(entries []*dbShardEntry) bool
+type dbShardEntryBatchWorkFn func(entries []*lookup.Entry) bool
 
 type shardListElement *list.Element
 
@@ -375,8 +331,8 @@ func (s *dbShard) OnRetrieveBlock(
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
 	if entry != nil {
-		entry.incrementReaderWriterCount()
-		defer entry.decrementReaderWriterCount()
+		entry.IncrementReaderWriterCount()
+		defer entry.DecrementReaderWriterCount()
 	}
 	s.RUnlock()
 
@@ -385,7 +341,7 @@ func (s *dbShard) OnRetrieveBlock(
 	}
 
 	if entry != nil {
-		entry.series.OnRetrieveBlock(id, tags, startTime, segment)
+		entry.Series.OnRetrieveBlock(id, tags, startTime, segment)
 		return
 	}
 
@@ -401,9 +357,9 @@ func (s *dbShard) OnRetrieveBlock(
 
 	// NB(r): Do not need to specify that needs to be indexed as series would
 	// have been already been indexed when it was written
-	copiedID := entry.series.ID()
+	copiedID := entry.Series.ID()
 	copiedTagsIter := s.identifierPool.TagsIterator()
-	copiedTagsIter.Reset(entry.series.Tags())
+	copiedTagsIter.Reset(entry.Series.Tags())
 	s.insertQueue.Insert(dbShardInsert{
 		entry: entry,
 		opts: dbShardInsertAsyncOptions{
@@ -441,11 +397,11 @@ func (s *dbShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 		return
 	}
 
-	entry.series.OnEvictedFromWiredList(id, blockStart)
+	entry.Series.OnEvictedFromWiredList(id, blockStart)
 }
 
 func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
-	return s.forEachShardEntryBatch(func(currEntries []*dbShardEntry) bool {
+	return s.forEachShardEntryBatch(func(currEntries []*lookup.Entry) bool {
 		for _, entry := range currEntries {
 			if continueForEach := entryFn(entry); !continueForEach {
 				return false
@@ -474,11 +430,11 @@ func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn)
 		if e == nil {
 			return
 		}
-		e.Value.(*dbShardEntry).decrementReaderWriterCount()
+		e.Value.(*lookup.Entry).DecrementReaderWriterCount()
 	}
 
 	var (
-		currEntries = make([]*dbShardEntry, 0, batchSize)
+		currEntries = make([]*lookup.Entry, 0, batchSize)
 		first       = true
 		nextElem    *list.Element
 	)
@@ -498,8 +454,8 @@ func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn)
 		elem := nextElem
 		for ticked := 0; ticked < batchSize && elem != nil; ticked++ {
 			nextElem = elem.Next()
-			entry := elem.Value.(*dbShardEntry)
-			entry.incrementReaderWriterCount()
+			entry := elem.Value.(*lookup.Entry)
+			entry.IncrementReaderWriterCount()
 			currEntries = append(currEntries, entry)
 			elem = nextElem
 		}
@@ -507,13 +463,13 @@ func (s *dbShard) forEachShardEntryBatch(entriesBatchFn dbShardEntryBatchWorkFn)
 		// NB(prateek): inc a reference to the next element while we have a lock,
 		// to guarantee the element pointer cannot be changed from under us.
 		if nextElem != nil {
-			nextElem.Value.(*dbShardEntry).incrementReaderWriterCount()
+			nextElem.Value.(*lookup.Entry).IncrementReaderWriterCount()
 		}
 		s.RUnlock()
 
 		continueExecution := entriesBatchFn(currEntries)
 		for i := range currEntries {
-			currEntries[i].decrementReaderWriterCount()
+			currEntries[i].DecrementReaderWriterCount()
 			currEntries[i] = nil
 		}
 		currEntries = currEntries[:0]
@@ -625,13 +581,13 @@ func (s *dbShard) tickAndExpire(
 		terminatedTickingDueToClosing bool
 		i                             int
 		slept                         time.Duration
-		expired                       []*dbShardEntry
+		expired                       []*lookup.Entry
 	)
 	s.RLock()
 	tickSleepBatch := s.currRuntimeOptions.tickSleepSeriesBatchSize
 	tickSleepPerSeries := s.currRuntimeOptions.tickSleepPerSeries
 	s.RUnlock()
-	s.forEachShardEntryBatch(func(currEntries []*dbShardEntry) bool {
+	s.forEachShardEntryBatch(func(currEntries []*lookup.Entry) bool {
 		// re-using `expired` to amortize allocs, still need to reset it
 		// to be safe for re-use.
 		for i := range expired {
@@ -665,7 +621,7 @@ func (s *dbShard) tickAndExpire(
 			)
 			switch policy {
 			case tickPolicyRegular:
-				result, err = entry.series.Tick()
+				result, err = entry.Series.Tick()
 			case tickPolicyCloseShard:
 				err = series.ErrSeriesAllDatapointsExpired
 			}
@@ -712,24 +668,24 @@ func (s *dbShard) tickAndExpire(
 // Currently, this function is only called by the lambda inside `tickAndExpire`'s `forEachShardEntryBatch`
 // call. This satisfies the contract of all entries it operating upon being guaranteed to have a
 // readerWriterEntryCount of at least 1, by virtue of the implementation of `forEachShardEntryBatch`.
-func (s *dbShard) purgeExpiredSeries(expiredEntries []*dbShardEntry) {
+func (s *dbShard) purgeExpiredSeries(expiredEntries []*lookup.Entry) {
 	// Remove all expired series from lookup and list.
 	s.Lock()
 	for _, entry := range expiredEntries {
-		series := entry.series
+		series := entry.Series
 		id := series.ID()
 		elem, exists := s.lookup.Get(id)
 		if !exists {
 			continue
 		}
 
-		count := entry.readerWriterCount()
+		count := entry.ReaderWriterCount()
 		// The contract requires all entries to have count >= 1.
 		if count < 1 {
 			s.logger.WithFields(
 				xlog.NewField("series", series.ID().String()),
-				xlog.NewField("readerWriterCount", count),
-			).Errorf("observed series with invalid readerWriterCount in `purgeExpiredSeries`")
+				xlog.NewField("ReaderWriterCount", count),
+			).Errorf("observed series with invalid ReaderWriterCount in `purgeExpiredSeries`")
 			continue
 		}
 		// If this series is currently being written to or read from, we don't
@@ -801,7 +757,8 @@ func (s *dbShard) writeAndIndex(
 		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
-				timestamp: timestamp,
+				timestamp:  timestamp,
+				enqueuedAt: s.nowFn(),
 			},
 		})
 		if err != nil {
@@ -817,6 +774,9 @@ func (s *dbShard) writeAndIndex(
 			return err
 		}
 		writable = true
+
+		// NB(r): We just indexed this series if shouldReverseIndex was true
+		shouldReverseIndex = false
 	}
 
 	var (
@@ -826,22 +786,25 @@ func (s *dbShard) writeAndIndex(
 	)
 	if writable {
 		// Perform write
-		err = entry.series.Write(ctx, timestamp, value, unit, annotation)
+		err = entry.Series.Write(ctx, timestamp, value, unit, annotation)
 		// Load series metadata before decrementing the writer count
 		// to ensure this metadata is snapshotted at a consistent state
 		// NB(r): We explicitly do not place the series ID back into a
 		// pool as high frequency users of series IDs such
 		// as the commit log need to use the reference without the
 		// overhead of ownership tracking. This makes taking a ref here safe.
-		commitLogSeriesID = entry.series.ID()
-		commitLogSeriesTags = entry.series.Tags()
-		commitLogSeriesUniqueIndex = entry.index
-		needsIndex := shouldReverseIndex && entry.needsIndexUpdate(timestamp)
-		if err == nil && needsIndex {
-			entry.onIndexPrepare()
-			err = s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), timestamp, entry)
+		commitLogSeriesID = entry.Series.ID()
+		commitLogSeriesTags = entry.Series.Tags()
+		commitLogSeriesUniqueIndex = entry.Index
+		if err == nil && shouldReverseIndex {
+			if entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
+				err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
+					opts.writeNewSeriesAsync)
+			} else {
+			}
 		}
-		entry.decrementReaderWriterCount()
+		// release the reference we got on entry from `writableSeries`
+		entry.DecrementReaderWriterCount()
 		if err != nil {
 			return err
 		}
@@ -857,7 +820,8 @@ func (s *dbShard) writeAndIndex(
 			},
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
-				timestamp: timestamp,
+				timestamp:  timestamp,
+				enqueuedAt: s.nowFn(),
 			},
 		})
 		if err != nil {
@@ -870,7 +834,7 @@ func (s *dbShard) writeAndIndex(
 		// (i.e. registering a dependency on the context) is too expensive.
 		commitLogSeriesID = result.copiedID
 		commitLogSeriesTags = result.copiedTags
-		commitLogSeriesUniqueIndex = result.entry.index
+		commitLogSeriesUniqueIndex = result.entry.Index
 	}
 
 	// Write commit log
@@ -901,8 +865,8 @@ func (s *dbShard) ReadEncoded(
 	if entry != nil {
 		// NB(r): Ensure readers have consistent view of this series, do
 		// not expire the series while being read from.
-		entry.incrementReaderWriterCount()
-		defer entry.decrementReaderWriterCount()
+		entry.IncrementReaderWriterCount()
+		defer entry.DecrementReaderWriterCount()
 	}
 	s.RUnlock()
 
@@ -920,7 +884,7 @@ func (s *dbShard) ReadEncoded(
 	}
 
 	if entry != nil {
-		return entry.series.ReadEncoded(ctx, start, end)
+		return entry.Series.ReadEncoded(ctx, start, end)
 	}
 
 	retriever := s.seriesBlockRetriever
@@ -931,7 +895,7 @@ func (s *dbShard) ReadEncoded(
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
-func (s *dbShard) lookupEntryWithLock(id ident.ID) (*dbShardEntry, *list.Element, error) {
+func (s *dbShard) lookupEntryWithLock(id ident.ID) (*lookup.Entry, *list.Element, error) {
 	if s.state != dbShardStateOpen {
 		// NB(r): Return an invalid params error here so any upstream
 		// callers will not retry this operation
@@ -941,10 +905,10 @@ func (s *dbShard) lookupEntryWithLock(id ident.ID) (*dbShardEntry, *list.Element
 	if !exists {
 		return nil, nil, errShardEntryNotFound
 	}
-	return elem.Value.(*dbShardEntry), elem, nil
+	return elem.Value.(*lookup.Entry), elem, nil
 }
 
-func (s *dbShard) writableSeries(id ident.ID, tags ident.TagIterator) (*dbShardEntry, error) {
+func (s *dbShard) writableSeries(id ident.ID, tags ident.TagIterator) (*lookup.Entry, error) {
 	for {
 		entry, _, err := s.tryRetrieveWritableSeries(id)
 		if entry != nil {
@@ -970,7 +934,7 @@ type writableSeriesOptions struct {
 }
 
 func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
-	*dbShardEntry,
+	*lookup.Entry,
 	writableSeriesOptions,
 	error,
 ) {
@@ -979,7 +943,7 @@ func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
 		writeNewSeriesAsync: s.currRuntimeOptions.writeNewSeriesAsync,
 	}
 	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
-		entry.incrementReaderWriterCount()
+		entry.IncrementReaderWriterCount()
 		s.RUnlock()
 		return entry, opts, nil
 	} else if err != errShardEntryNotFound {
@@ -990,31 +954,68 @@ func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
 	return nil, opts, nil
 }
 
-func (s *dbShard) newShardEntry(id ident.ID, tags ident.TagIterator) (*dbShardEntry, error) {
-	clonedTags, err := s.cloneTags(tags)
-	if err != nil {
-		return nil, err
-	}
+func (s *dbShard) newShardEntry(
+	id ident.ID,
+	tags ident.TagIterator,
+) (*lookup.Entry, error) {
 	series := s.seriesPool.Get()
-	clonedID := s.identifierPool.Clone(id)
+	// NB(r): As documented in storage/series.DatabaseSeries the series IDs
+	// are garbage collected, hence we cast the ID to a BytesID that can't be
+	// finalized.
+	// Since series are purged so infrequently the overhead of not releasing
+	// back an ID to a pool is amortized over a long period of time.
+	clonedID := ident.BytesID(append([]byte(nil), id.Bytes()...))
+	clonedID.NoFinalize()
+
+	var clonedTags ident.Tags
+	if tags.Remaining() > 0 {
+		// Inlining tag creation here so its obvious why we can safely index
+		// into clonedID below
+		clonedTags = s.identifierPool.Tags()
+		tags = tags.Duplicate()
+
+		// Avoid finalizing the tags since series will let them be garbage collected
+		clonedTags.NoFinalize()
+
+		for tags.Next() {
+			t := tags.Current()
+
+			// NB(r): Optimization for workloads that embed the tags in the ID is to
+			// just take a ref to them directly, the cloned ID is frozen by casting to
+			// a BytesID in newShardEntry
+			var tag ident.Tag
+
+			nameBytes := t.Name.Bytes()
+			if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
+				tag.Name = clonedID[idx : idx+len(nameBytes)]
+			} else {
+				tag.Name = s.identifierPool.Clone(t.Name)
+			}
+
+			valueBytes := t.Value.Bytes()
+			if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
+				tag.Value = clonedID[idx : idx+len(valueBytes)]
+			} else {
+				tag.Value = s.identifierPool.Clone(t.Value)
+			}
+
+			clonedTags.Append(tag)
+		}
+		err := tags.Err()
+		tags.Close()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := convert.ValidateMetric(clonedID, clonedTags); err != nil {
+			return nil, err
+		}
+	}
+
 	series.Reset(clonedID, clonedTags, s.seriesBlockRetriever,
 		s.seriesOnRetrieveBlock, s, s.seriesOpts)
 	uniqueIndex := s.increasingIndex.nextIndex()
-	return &dbShardEntry{series: series, index: uniqueIndex}, nil
-}
-
-func (s *dbShard) cloneTags(tags ident.TagIterator) (ident.Tags, error) {
-	tags = tags.Duplicate()
-	clone := s.identifierPool.Tags()
-	defer tags.Close()
-	for tags.Next() {
-		t := tags.Current()
-		clone.Append(s.identifierPool.CloneTag(t))
-	}
-	if err := tags.Err(); err != nil {
-		return ident.Tags{}, err
-	}
-	return clone, nil
+	return lookup.NewEntry(series, uniqueIndex), nil
 }
 
 type insertAsyncResult struct {
@@ -1024,7 +1025,50 @@ type insertAsyncResult struct {
 	// entry is not guaranteed to be the final entry
 	// inserted into the shard map in case there is already
 	// an existing entry waiting in the insert queue
-	entry *dbShardEntry
+	entry *lookup.Entry
+}
+
+func (s *dbShard) insertSeriesForIndexingAsyncBatched(
+	entry *lookup.Entry,
+	timestamp time.Time,
+	async bool,
+) error {
+	indexBlockStart := s.reverseIndex.BlockStartForWriteTime(timestamp)
+	// inc a ref on the entry to ensure it's valid until the queue acts upon it.
+	entry.OnIndexPrepare()
+	wg, err := s.insertQueue.Insert(dbShardInsert{
+		entry: entry,
+		opts: dbShardInsertAsyncOptions{
+			hasPendingIndexing: true,
+			pendingIndex: dbShardPendingIndex{
+				timestamp:  timestamp,
+				enqueuedAt: s.nowFn(),
+			},
+			// indicate we already have inc'd the entry's ref count, so we can correctly
+			// handle the ref counting semantics in `insertSeriesBatch`.
+			entryRefCountIncremented: true,
+		},
+	})
+
+	// i.e. unable to enqueue into shard insert queue
+	if err != nil {
+		entry.OnIndexFinalize(indexBlockStart) // release any reference's we've held for indexing
+		return err
+	}
+
+	// if operating in async mode, we're done
+	if async {
+		return nil
+	}
+
+	// if indexing in sync mode, wait till we're done and ensure we have have indexed the entry
+	wg.Wait()
+	if !entry.IndexedForBlockStart(indexBlockStart) {
+		// i.e. indexing failed
+		return fmt.Errorf("internal error: unable to index series")
+	}
+
+	return nil
 }
 
 func (s *dbShard) insertSeriesAsyncBatched(
@@ -1044,8 +1088,8 @@ func (s *dbShard) insertSeriesAsyncBatched(
 	return insertAsyncResult{
 		wg: wg,
 		// Make sure to return the copied ID from the new series
-		copiedID:   entry.series.ID(),
-		copiedTags: entry.series.Tags(),
+		copiedID:   entry.Series.ID(),
+		copiedTags: entry.Series.Tags(),
 		entry:      entry,
 	}, err
 }
@@ -1062,9 +1106,9 @@ func (s *dbShard) insertSeriesSync(
 	id ident.ID,
 	tags ident.TagIterator,
 	insertType insertSyncType,
-) (*dbShardEntry, error) {
+) (*lookup.Entry, error) {
 	var (
-		entry *dbShardEntry
+		entry *lookup.Entry
 		err   error
 	)
 
@@ -1074,7 +1118,7 @@ func (s *dbShard) insertSeriesSync(
 		// to increment the writer count so it's visible when we release
 		// the lock
 		if entry != nil && insertType == insertSyncIncReaderWriterCount {
-			entry.incrementReaderWriterCount()
+			entry.IncrementReaderWriterCount()
 		}
 		s.Unlock()
 	}()
@@ -1100,7 +1144,7 @@ func (s *dbShard) insertSeriesSync(
 	}
 
 	if s.newSeriesBootstrapped {
-		_, err := entry.series.Bootstrap(nil)
+		_, err := entry.Series.Bootstrap(nil)
 		if err != nil {
 			entry = nil // Don't increment the writer count for this series
 			return nil, err
@@ -1111,11 +1155,11 @@ func (s *dbShard) insertSeriesSync(
 	return entry, nil
 }
 
-func (s *dbShard) insertNewShardEntryWithLock(entry *dbShardEntry) {
+func (s *dbShard) insertNewShardEntryWithLock(entry *lookup.Entry) {
 	// Set the lookup value, we use the copied ID and since it is GC'd
 	// we explicitly set it with options to not copy the key and not to
 	// finalize it
-	copiedID := entry.series.ID()
+	copiedID := entry.Series.ID()
 	listElem := s.list.PushBack(entry)
 	s.lookup.SetUnsafe(copiedID, listElem, shardMapSetUnsafeOptions{
 		NoCopyKey:     true,
@@ -1124,30 +1168,50 @@ func (s *dbShard) insertNewShardEntryWithLock(entry *dbShardEntry) {
 }
 
 func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
-	anyPendingAction := false
+	var (
+		anyPendingAction   = false
+		numPendingIndexing = 0
+	)
 
 	s.Lock()
 	for i := range inserts {
-		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.series.ID())
-		if entry != nil {
-			// Already exists so update the entry we're pointed at for this insert
-			inserts[i].entry = entry
-		}
-
 		// If we are going to write to this entry then increment the
 		// writer count so it does not look empty immediately after
-		// we release the write lock
+		// we release the write lock.
 		hasPendingWrite := inserts[i].opts.hasPendingWrite
 		hasPendingIndexing := inserts[i].opts.hasPendingIndexing
 		hasPendingRetrievedBlock := inserts[i].opts.hasPendingRetrievedBlock
 		anyPendingAction = anyPendingAction || hasPendingWrite ||
 			hasPendingRetrievedBlock || hasPendingIndexing
 
+		if hasPendingIndexing {
+			numPendingIndexing++
+		}
+
+		// we don't need to inc the entry ref count if we already have a ref on the entry. check if
+		// that's the case.
+		if inserts[i].opts.entryRefCountIncremented {
+			// don't need to inc a ref on the entry, we were given as writable entry as input.
+			continue
+		}
+
+		// i.e. we don't have a ref on provided entry, so we check if between the operation being
+		// enqueue in the shard insert queue, and this function executing, an entry was created
+		// for the same ID.
+		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.Series.ID())
+		if entry != nil {
+			// Already exists so update the entry we're pointed at for this insert
+			inserts[i].entry = entry
+		}
+
 		if hasPendingIndexing || hasPendingWrite || hasPendingRetrievedBlock {
 			// We're definitely writing a value, ensure that the pending write is
 			// visible before we release the lookup write lock
-			inserts[i].entry.incrementReaderWriterCount()
+			inserts[i].entry.IncrementReaderWriterCount()
+			// also indicate that we have a ref count on this entry for this operation
+			inserts[i].opts.entryRefCountIncremented = true
 		}
+
 		if err == nil {
 			// Already inserted
 			continue
@@ -1156,6 +1220,9 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		if err != errShardEntryNotFound {
 			// Shard is not taking inserts
 			s.Unlock()
+			// FOLLOWUP(prateek): is this an existing bug? why don't we need to release any ref's we've inc'd
+			// on entries in the loop before this point, i.e. in range [0, i). Otherwise, how are those entries
+			// going to get cleaned up?
 			s.metrics.insertAsyncInsertErrors.Inc(int64(len(inserts) - i))
 			return err
 		}
@@ -1163,7 +1230,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
 		if s.newSeriesBootstrapped {
-			_, err := entry.series.Bootstrap(nil)
+			_, err := entry.Series.Bootstrap(nil)
 			if err != nil {
 				s.metrics.insertAsyncBootstrapErrors.Inc(1)
 			}
@@ -1178,16 +1245,21 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 	// Perform any indexing, pending writes or pending retrieved blocks outside of lock
 	ctx := s.contextPool.Get()
+	// TODO(prateek): pool this type
+	indexBlockSize := s.namespace.Options().IndexOptions().BlockSize()
+	indexBatch := index.NewWriteBatch(index.WriteBatchOptions{
+		InitialCapacity: numPendingIndexing,
+		IndexBlockSize:  indexBlockSize,
+	})
 	for i := range inserts {
 		var (
 			entry           = inserts[i].entry
-			releaseEntryRef = false
+			releaseEntryRef = inserts[i].opts.entryRefCountIncremented
 		)
 
 		if inserts[i].opts.hasPendingWrite {
-			releaseEntryRef = true
 			write := inserts[i].opts.pendingWrite
-			err := entry.series.Write(ctx, write.timestamp, write.value,
+			err := entry.Series.Write(ctx, write.timestamp, write.value,
 				write.unit, write.annotation)
 			if err != nil {
 				s.metrics.insertAsyncWriteErrors.Inc(1)
@@ -1196,29 +1268,49 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		if inserts[i].opts.hasPendingIndexing {
 			pendingIndex := inserts[i].opts.pendingIndex
-			releaseEntryRef = true
-			// only index any entry that hasn't crossed the nextIndexTime
-			if entry.needsIndexUpdate(pendingIndex.timestamp) {
-				entry.onIndexPrepare()
-				s.reverseIndex.Write(entry.series.ID(), entry.series.Tags(), pendingIndex.timestamp, entry)
+			// increment the ref on the entry, as the original one was transferred to the
+			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
+			entry.OnIndexPrepare()
+
+			id := entry.Series.ID()
+			tags := entry.Series.Tags().Values()
+
+			var d doc.Document
+			d.ID = id.Bytes() // IDs from shard entries are always set NoFinalize
+			d.Fields = make(doc.Fields, 0, len(tags))
+			for _, tag := range tags {
+				d.Fields = append(d.Fields, doc.Field{
+					Name:  tag.Name.Bytes(),  // Tags from shard entries are always set NoFinalize
+					Value: tag.Value.Bytes(), // Tags from shard entries are always set NoFinalize
+				})
 			}
+			indexBatch.Append(index.WriteBatchEntry{
+				Timestamp:     pendingIndex.timestamp,
+				OnIndexSeries: entry,
+				EnqueuedAt:    pendingIndex.enqueuedAt,
+			}, d)
 		}
 
 		if inserts[i].opts.hasPendingRetrievedBlock {
-			releaseEntryRef = true
 			block := inserts[i].opts.pendingRetrievedBlock
-			entry.series.OnRetrieveBlock(block.id, block.tags, block.start, block.segment)
+			entry.Series.OnRetrieveBlock(block.id, block.tags, block.start, block.segment)
 		}
 
 		if releaseEntryRef {
-			entry.decrementReaderWriterCount()
+			entry.DecrementReaderWriterCount()
 		}
+	}
+
+	var err error
+	// index all requested entries in batch.
+	if indexBatch.Len() > 0 {
+		err = s.reverseIndex.WriteBatch(indexBatch)
 	}
 
 	// Avoid goroutine spinning up to close this context
 	ctx.BlockingClose()
 
-	return nil
+	return err
 }
 
 func (s *dbShard) FetchBlocks(
@@ -1231,8 +1323,8 @@ func (s *dbShard) FetchBlocks(
 	if entry != nil {
 		// NB(r): Ensure readers have consistent view of this series, do
 		// not expire the series while being read from.
-		entry.incrementReaderWriterCount()
-		defer entry.decrementReaderWriterCount()
+		entry.IncrementReaderWriterCount()
+		defer entry.DecrementReaderWriterCount()
 	}
 	s.RUnlock()
 
@@ -1250,7 +1342,7 @@ func (s *dbShard) FetchBlocks(
 	}
 
 	if entry != nil {
-		return entry.series.FetchBlocks(ctx, starts)
+		return entry.Series.FetchBlocks(ctx, starts)
 	}
 
 	retriever := s.seriesBlockRetriever
@@ -1277,23 +1369,23 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 	)
 
 	var loopErr error
-	s.forEachShardEntry(func(entry *dbShardEntry) bool {
+	s.forEachShardEntry(func(entry *lookup.Entry) bool {
 		// Break out of the iteration loop once we've accumulated enough entries.
 		if int64(len(res.Results())) >= limit {
-			next := int64(entry.index)
+			next := int64(entry.Index)
 			nextIndexCursor = &next
 			return false
 		}
 
 		// Fast forward past indexes lower than page token
-		if int64(entry.index) < indexCursor {
+		if int64(entry.Index) < indexCursor {
 			return true
 		}
 
 		// Use a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching the metadata for this series.
 		tmpCtx.Reset()
-		metadata, err := entry.series.FetchBlocksMetadata(tmpCtx, start, end, opts)
+		metadata, err := entry.Series.FetchBlocksMetadata(tmpCtx, start, end, opts)
 		tmpCtx.BlockingClose()
 		if err != nil {
 			loopErr = err
@@ -1635,14 +1727,14 @@ func (s *dbShard) Bootstrap(
 		dbBlocks.Tags.Finalize()
 
 		// Cannot close blocks once done as series takes ref to these
-		bsResult, err := entry.series.Bootstrap(dbBlocks.Blocks)
+		bsResult, err := entry.Series.Bootstrap(dbBlocks.Blocks)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 		}
 		shardBootstrapResult.update(bsResult)
 
 		// Always decrement the writer count, avoid continue on bootstrap error
-		entry.decrementReaderWriterCount()
+		entry.DecrementReaderWriterCount()
 	}
 
 	s.emitBootstrapResult(shardBootstrapResult)
@@ -1657,8 +1749,8 @@ func (s *dbShard) Bootstrap(
 	// Find the series with no data within the retention period but has
 	// buffered data points since server start. Any new series added
 	// after this will be marked as bootstrapped.
-	s.forEachShardEntry(func(entry *dbShardEntry) bool {
-		series := entry.series
+	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+		series := entry.Series
 		if series.IsBootstrapped() {
 			return true
 		}
@@ -1730,8 +1822,8 @@ func (s *dbShard) Flush(
 	tmpCtx := context.NewContext()
 
 	flushResult := dbShardFlushResult{}
-	s.forEachShardEntry(func(entry *dbShardEntry) bool {
-		curr := entry.series
+	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+		curr := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// the pool after we finish fetching flushing the series.
 		tmpCtx.Reset()
@@ -1799,8 +1891,8 @@ func (s *dbShard) Snapshot(
 	}
 
 	tmpCtx := context.NewContext()
-	s.forEachShardEntry(func(entry *dbShardEntry) bool {
-		series := entry.series
+	s.forEachShardEntry(func(entry *lookup.Entry) bool {
+		series := entry.Series
 		// Use a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching flushing the series
 		tmpCtx.Reset()

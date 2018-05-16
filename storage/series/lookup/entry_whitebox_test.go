@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,56 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package namespace
+package lookup
 
 import (
-	"errors"
-	"fmt"
+	"testing"
+	"time"
 
-	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
+	xtime "github.com/m3db/m3x/time"
+
+	"github.com/stretchr/testify/require"
 )
 
 var (
-	errIDNotSet   = errors.New("namespace ID is not set")
-	errOptsNotSet = errors.New("namespace options are not set")
+	initTime      = time.Date(2018, time.May, 12, 15, 55, 0, 0, time.UTC)
+	testBlockSize = 24 * time.Hour
 )
 
-type metadata struct {
-	id   ident.ID
-	opts Options
+func newTime(n int) xtime.UnixNano {
+	t := initTime.Truncate(testBlockSize).Add(time.Duration(n) * testBlockSize)
+	return xtime.ToUnixNano(t)
 }
 
-// NewMetadata creates a new namespace metadata
-func NewMetadata(id ident.ID, opts Options) (Metadata, error) {
-	if id == nil || id.String() == "" {
-		return nil, errIDNotSet
+func TestEntryIndexAttemptRotatesSlice(t *testing.T) {
+	e := NewEntry(nil, 0)
+	require.Equal(t, 3, cap(e.reverseIndex.states))
+	for i := 0; i < 10; i++ {
+		ti := newTime(i)
+		require.True(t, e.NeedsIndexUpdate(ti))
+		require.Equal(t, 3, cap(e.reverseIndex.states))
 	}
 
-	if opts == nil {
-		return nil, errOptsNotSet
+	// ensure only the latest ones are held on to
+	for i := 9; i >= 7; i-- {
+		ti := newTime(i)
+		require.False(t, e.NeedsIndexUpdate(ti))
 	}
-
-	if err := opts.Validate(); err != nil {
-		return nil, fmt.Errorf("unable to validate options: %v", err)
-
-	}
-
-	copiedID := checked.NewBytes(append([]byte(nil), id.Bytes()...), nil)
-	return &metadata{
-		id:   ident.BinaryID(copiedID),
-		opts: opts,
-	}, nil
-}
-
-func (m *metadata) ID() ident.ID {
-	return m.id
-}
-
-func (m *metadata) Options() Options {
-	return m.opts
-}
-
-func (m *metadata) Equal(value Metadata) bool {
-	return m.id.Equal(value.ID()) && m.Options().Equal(value.Options())
 }

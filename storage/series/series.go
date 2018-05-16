@@ -733,9 +733,7 @@ func (s *dbSeries) Reset(
 	// of not releasing back an ID to a pool is amortized over
 	// a long period of time.
 	s.id = id
-	s.id.NoFinalize()
 	s.tags = tags
-	s.tags.NoFinalize()
 
 	s.blocks.Reset()
 	s.buffer.Reset(opts)

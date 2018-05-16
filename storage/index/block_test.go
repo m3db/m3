@@ -22,6 +22,7 @@ package index
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/m3db/m3ninx/index/segment/mem"
 	"github.com/m3db/m3ninx/search"
 	"github.com/m3db/m3x/ident"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -52,59 +54,121 @@ func TestBlockWriteAfterClose(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now().Truncate(time.Hour)
-	b, err := NewBlock(start, time.Hour, testOpts)
+	blockSize := time.Hour
+
+	now := time.Now()
+	blockStart := now.Truncate(blockSize)
+
+	nowNotBlockStartAligned := now.
+		Truncate(blockSize).
+		Add(time.Minute)
+
+	b, err := NewBlock(blockStart, blockSize, testOpts)
 	require.NoError(t, err)
 	require.NoError(t, b.Close())
 
 	lifecycle := NewMockOnIndexSeries(ctrl)
-	lifecycle.EXPECT().OnIndexFinalize()
-	res, err := b.WriteBatch([]WriteBatchEntry{
-		WriteBatchEntry{OnIndexSeries: lifecycle},
+	lifecycle.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
 	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: lifecycle,
+	}, doc.Document{})
+
+	res, err := b.WriteBatch(batch)
 	require.Error(t, err)
 	require.Equal(t, int64(0), res.NumSuccess)
 	require.Equal(t, int64(1), res.NumError)
+
+	verified := 0
+	batch.ForEach(func(
+		idx int,
+		entry WriteBatchEntry,
+		doc doc.Document,
+		result WriteBatchEntryResult,
+	) {
+		verified++
+		require.Error(t, result.Err)
+		require.Equal(t, errUnableToWriteBlockClosed, result.Err)
+	})
+	require.Equal(t, 1, verified)
 }
 
 func TestBlockWriteAfterSeal(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now().Truncate(time.Hour)
-	b, err := NewBlock(start, time.Hour, testOpts)
+	blockSize := time.Hour
+
+	now := time.Now()
+	blockStart := now.Truncate(blockSize)
+
+	nowNotBlockStartAligned := now.
+		Truncate(blockSize).
+		Add(time.Minute)
+
+	b, err := NewBlock(blockStart, blockSize, testOpts)
 	require.NoError(t, err)
 	require.NoError(t, b.Seal())
 
 	lifecycle := NewMockOnIndexSeries(ctrl)
-	lifecycle.EXPECT().OnIndexFinalize()
-	res, err := b.WriteBatch([]WriteBatchEntry{
-		WriteBatchEntry{OnIndexSeries: lifecycle},
+	lifecycle.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
 	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: lifecycle,
+	}, doc.Document{})
+
+	res, err := b.WriteBatch(batch)
 	require.Error(t, err)
 	require.Equal(t, int64(0), res.NumSuccess)
 	require.Equal(t, int64(1), res.NumError)
+
+	verified := 0
+	batch.ForEach(func(
+		idx int,
+		entry WriteBatchEntry,
+		doc doc.Document,
+		result WriteBatchEntryResult,
+	) {
+		verified++
+		require.Error(t, result.Err)
+		require.Equal(t, errUnableToWriteBlockSealed, result.Err)
+	})
+	require.Equal(t, 1, verified)
 }
 
 func TestBlockWriteMockSegment(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, time.Hour, testOpts)
+	blockSize := time.Hour
+
+	now := time.Now()
+	blockStart := now.Truncate(blockSize)
+
+	nowNotBlockStartAligned := now.
+		Truncate(blockSize).
+		Add(time.Minute)
+
+	blk, err := NewBlock(blockStart, blockSize, testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	end := start.Add(time.Hour)
-
 	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize()
-	h1.EXPECT().OnIndexSuccess(end)
+	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
 
 	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize()
-	h2.EXPECT().OnIndexSuccess(end)
+	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h2.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
 
 	seg := segment.NewMockMutableSegment(ctrl)
 	b.segment = seg
@@ -115,66 +179,115 @@ func TestBlockWriteMockSegment(t *testing.T) {
 		},
 	)).Return(nil)
 
-	res, err := b.WriteBatch([]WriteBatchEntry{
-		WriteBatchEntry{Document: testDoc1(), OnIndexSeries: h1},
-		WriteBatchEntry{Document: testDoc1DupeID(), OnIndexSeries: h2},
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
 	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h1,
+	}, testDoc1())
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h2,
+	}, testDoc1DupeID())
+
+	res, err := b.WriteBatch(batch)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), res.NumSuccess)
 	require.Equal(t, int64(0), res.NumError)
 }
 
-func TestBlockWriteActualSegment(t *testing.T) {
+func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, time.Hour, testOpts)
+	blockSize := time.Hour
+
+	now := time.Now()
+	blockStart := now.Truncate(blockSize)
+
+	nowNotBlockStartAligned := now.
+		Truncate(blockSize).
+		Add(time.Minute)
+
+	blk, err := NewBlock(blockStart, blockSize, testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	end := start.Add(time.Hour)
-
 	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize()
-	h1.EXPECT().OnIndexSuccess(end)
+	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
 
 	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize()
+	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
 
-	res, err := b.WriteBatch([]WriteBatchEntry{
-		WriteBatchEntry{Document: testDoc1(), OnIndexSeries: h1},
-		WriteBatchEntry{Document: testDoc1DupeID(), OnIndexSeries: h2},
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
 	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h1,
+	}, testDoc1())
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h2,
+	}, testDoc1DupeID())
+	res, err := b.WriteBatch(batch)
 	require.Error(t, err)
 	require.Equal(t, int64(1), res.NumSuccess)
 	require.Equal(t, int64(1), res.NumError)
+
+	verified := 0
+	batch.ForEach(func(
+		idx int,
+		entry WriteBatchEntry,
+		doc doc.Document,
+		result WriteBatchEntryResult,
+	) {
+		verified++
+		if idx == 0 {
+			require.NoError(t, result.Err)
+		} else {
+			require.Error(t, result.Err)
+			require.Equal(t, mem.ErrDuplicateID, result.Err)
+		}
+	})
+	require.Equal(t, 2, verified)
 }
 
 func TestBlockWriteMockSegmentPartialFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, time.Hour, testOpts)
+	blockSize := time.Hour
+
+	now := time.Now()
+	blockStart := now.Truncate(blockSize)
+
+	nowNotBlockStartAligned := now.
+		Truncate(blockSize).
+		Add(time.Minute)
+
+	blk, err := NewBlock(blockStart, blockSize, testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	end := start.Add(time.Hour)
 	seg := segment.NewMockMutableSegment(ctrl)
 	b.segment = seg
 
 	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize()
-	h1.EXPECT().OnIndexSuccess(end)
+	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
 
 	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize()
+	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+
+	testErr := fmt.Errorf("random-err")
 
 	berr := index.NewBatchPartialError()
-	berr.Add(fmt.Errorf("random-err"), 1)
+	berr.Add(index.BatchError{testErr, 1})
 	seg.EXPECT().InsertBatch(index.NewBatchMatcher(
 		index.Batch{
 			Docs:                []doc.Document{testDoc1(), testDoc1DupeID()},
@@ -182,49 +295,55 @@ func TestBlockWriteMockSegmentPartialFailure(t *testing.T) {
 		},
 	)).Return(berr)
 
-	res, err := b.WriteBatch([]WriteBatchEntry{
-		WriteBatchEntry{Document: testDoc1(), OnIndexSeries: h1},
-		WriteBatchEntry{Document: testDoc1DupeID(), OnIndexSeries: h2},
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
 	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h1,
+	}, testDoc1())
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h2,
+	}, testDoc1DupeID())
+
+	res, err := b.WriteBatch(batch)
 	require.Error(t, err)
 	require.Equal(t, int64(1), res.NumSuccess)
 	require.Equal(t, int64(1), res.NumError)
-}
 
-func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, time.Hour, testOpts)
-	require.NoError(t, err)
-	b, ok := blk.(*block)
-	require.True(t, ok)
-
-	end := start.Add(time.Hour)
-
-	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize()
-	h1.EXPECT().OnIndexSuccess(end)
-
-	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize()
-
-	res, err := b.WriteBatch([]WriteBatchEntry{
-		WriteBatchEntry{Document: testDoc1(), OnIndexSeries: h1},
-		WriteBatchEntry{Document: testDoc1DupeID(), OnIndexSeries: h2},
+	verified := 0
+	batch.ForEach(func(
+		idx int,
+		entry WriteBatchEntry,
+		doc doc.Document,
+		result WriteBatchEntryResult,
+	) {
+		verified++
+		if idx == 0 {
+			require.NoError(t, result.Err)
+		} else {
+			require.Error(t, result.Err)
+			require.Equal(t, testErr, result.Err)
+		}
 	})
-	require.Error(t, err)
-	require.Equal(t, int64(1), res.NumSuccess)
-	require.Equal(t, int64(1), res.NumError)
+	require.Equal(t, 2, verified)
 }
 
 func TestBlockWriteMockSegmentUnexpectedErrorType(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, time.Hour, testOpts)
+	blockSize := time.Hour
+
+	now := time.Now()
+	blockStart := now.Truncate(blockSize)
+
+	nowNotBlockStartAligned := now.
+		Truncate(blockSize).
+		Add(time.Minute)
+
+	blk, err := NewBlock(blockStart, blockSize, testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
@@ -233,24 +352,48 @@ func TestBlockWriteMockSegmentUnexpectedErrorType(t *testing.T) {
 	b.segment = seg
 
 	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize()
+	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
 
 	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize()
+	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+
+	testErr := fmt.Errorf("random-err")
 
 	seg.EXPECT().InsertBatch(index.NewBatchMatcher(
 		index.Batch{
 			Docs:                []doc.Document{testDoc1(), testDoc1DupeID()},
 			AllowPartialUpdates: true,
 		},
-	)).Return(fmt.Errorf("random-err"))
+	)).Return(testErr)
 
-	res, err := b.WriteBatch([]WriteBatchEntry{
-		WriteBatchEntry{Document: testDoc1(), OnIndexSeries: h1},
-		WriteBatchEntry{Document: testDoc1DupeID(), OnIndexSeries: h2},
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
 	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h1,
+	}, testDoc1())
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h2,
+	}, testDoc1DupeID())
+
+	res, err := b.WriteBatch(batch)
 	require.Error(t, err)
 	require.Equal(t, int64(2), res.NumError)
+
+	verified := 0
+	batch.ForEach(func(
+		idx int,
+		entry WriteBatchEntry,
+		doc doc.Document,
+		result WriteBatchEntryResult,
+	) {
+		verified++
+		require.Error(t, result.Err)
+		require.True(t, strings.Contains(result.Err.Error(), "unexpected non-BatchPartialError"))
+	})
+	require.Equal(t, 2, verified)
 }
 
 func TestBlockQueryAfterClose(t *testing.T) {
@@ -794,25 +937,41 @@ func TestBlockE2EInsertQuery(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, time.Hour, testOpts)
+	blockSize := time.Hour
+
+	now := time.Now()
+	blockStart := now.Truncate(blockSize)
+
+	nowNotBlockStartAligned := now.
+		Truncate(blockSize).
+		Add(time.Minute)
+
+	blk, err := NewBlock(blockStart, blockSize, testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	end := start.Add(time.Hour)
 	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize()
-	h1.EXPECT().OnIndexSuccess(end)
+	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
 
 	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize()
-	h2.EXPECT().OnIndexSuccess(end)
+	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h2.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
 
-	res, err := b.WriteBatch([]WriteBatchEntry{
-		WriteBatchEntry{Document: testDoc1(), OnIndexSeries: h1},
-		WriteBatchEntry{Document: testDoc2(), OnIndexSeries: h2},
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
 	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h1,
+	}, testDoc1())
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h2,
+	}, testDoc2())
+
+	res, err := b.WriteBatch(batch)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), res.NumSuccess)
 	require.Equal(t, int64(0), res.NumError)
@@ -843,25 +1002,41 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, time.Hour, testOpts)
+	blockSize := time.Hour
+
+	now := time.Now()
+	blockStart := now.Truncate(blockSize)
+
+	nowNotBlockStartAligned := now.
+		Truncate(blockSize).
+		Add(time.Minute)
+
+	blk, err := NewBlock(blockStart, blockSize, testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	end := start.Add(time.Hour)
 	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize()
-	h1.EXPECT().OnIndexSuccess(end)
+	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
 
 	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize()
-	h2.EXPECT().OnIndexSuccess(end)
+	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h2.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
 
-	res, err := b.WriteBatch([]WriteBatchEntry{
-		WriteBatchEntry{Document: testDoc1(), OnIndexSeries: h1},
-		WriteBatchEntry{Document: testDoc2(), OnIndexSeries: h2},
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
 	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h1,
+	}, testDoc1())
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h2,
+	}, testDoc2())
+
+	res, err := b.WriteBatch(batch)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), res.NumSuccess)
 	require.Equal(t, int64(0), res.NumError)
@@ -899,25 +1074,41 @@ func TestBlockE2EInsertBootstrapQuery(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, time.Hour, testOpts)
+	blockSize := time.Hour
+
+	now := time.Now()
+	blockStart := now.Truncate(blockSize)
+
+	nowNotBlockStartAligned := now.
+		Truncate(blockSize).
+		Add(time.Minute)
+
+	blk, err := NewBlock(blockStart, blockSize, testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	end := start.Add(time.Hour)
 	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize()
-	h1.EXPECT().OnIndexSuccess(end)
+	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
 
 	h2 := NewMockOnIndexSeries(ctrl)
-	h2.EXPECT().OnIndexFinalize()
-	h2.EXPECT().OnIndexSuccess(end)
+	h2.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h2.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
 
-	res, err := b.WriteBatch([]WriteBatchEntry{
-		WriteBatchEntry{Document: testDoc1(), OnIndexSeries: h1},
-		WriteBatchEntry{Document: testDoc2(), OnIndexSeries: h2},
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
 	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h1,
+	}, testDoc1())
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h2,
+	}, testDoc2())
+
+	res, err := b.WriteBatch(batch)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), res.NumSuccess)
 	require.Equal(t, int64(0), res.NumError)
@@ -951,20 +1142,33 @@ func TestBlockE2EInsertBootstrapMergeQuery(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	start := time.Now().Truncate(time.Hour)
-	blk, err := NewBlock(start, time.Hour, testOpts)
+	blockSize := time.Hour
+
+	now := time.Now()
+	blockStart := now.Truncate(blockSize)
+
+	nowNotBlockStartAligned := now.
+		Truncate(blockSize).
+		Add(time.Minute)
+
+	blk, err := NewBlock(blockStart, blockSize, testOpts)
 	require.NoError(t, err)
 	b, ok := blk.(*block)
 	require.True(t, ok)
 
-	end := start.Add(time.Hour)
 	h1 := NewMockOnIndexSeries(ctrl)
-	h1.EXPECT().OnIndexFinalize()
-	h1.EXPECT().OnIndexSuccess(end)
+	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(blockStart))
+	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(blockStart))
 
-	res, err := b.WriteBatch([]WriteBatchEntry{
-		WriteBatchEntry{Document: testDoc1(), OnIndexSeries: h1},
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: blockSize,
 	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     nowNotBlockStartAligned,
+		OnIndexSeries: h1,
+	}, testDoc1())
+
+	res, err := b.WriteBatch(batch)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), res.NumSuccess)
 	require.Equal(t, int64(0), res.NumError)

@@ -45,7 +45,6 @@ type dbBlock struct {
 	sync.RWMutex
 
 	opts           Options
-	ctx            context.Context
 	startUnixNanos int64
 	segment        ts.Segment
 	length         int
@@ -88,7 +87,6 @@ func NewDatabaseBlock(
 ) DatabaseBlock {
 	b := &dbBlock{
 		opts:           opts,
-		ctx:            opts.ContextPool().Get(),
 		startUnixNanos: start.UnixNano(),
 		blockSize:      blockSize,
 		closed:         false,
@@ -109,7 +107,6 @@ func NewRetrievableDatabaseBlock(
 ) DatabaseBlock {
 	b := &dbBlock{
 		opts:           opts,
-		ctx:            opts.ContextPool().Get(),
 		startUnixNanos: start.UnixNano(),
 		blockSize:      blockSize,
 		closed:         false,
@@ -217,7 +214,6 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 		return xio.EmptyBlockReader, errReadFromClosedBlock
 	}
 
-	b.ctx.DependsOn(blocker)
 	stream, err := b.stream(blocker)
 	if err != nil {
 		return xio.EmptyBlockReader, err
@@ -294,8 +290,6 @@ func (b *dbBlock) ResetRetrievable(
 }
 
 func (b *dbBlock) stream(ctx context.Context) (xio.BlockReader, error) {
-	b.ctx.DependsOn(ctx)
-
 	start := b.startWithLock()
 
 	// If the block retrieve ID is set then it must be retrieved
@@ -309,14 +303,25 @@ func (b *dbBlock) stream(ctx context.Context) (xio.BlockReader, error) {
 			return xio.EmptyBlockReader, err
 		}
 	} else {
+		// Take a copy to avoid heavy depends on cycle
 		segmentReader := b.opts.SegmentReaderPool().Get()
+		data := b.opts.BytesPool().Get(b.segment.Len())
+		data.IncRef()
+		if b.segment.Head != nil {
+			data.AppendAll(b.segment.Head.Bytes())
+		}
+		if b.segment.Tail != nil {
+			data.AppendAll(b.segment.Tail.Bytes())
+		}
+		data.DecRef()
+		segmentReader.Reset(ts.NewSegment(data, nil, ts.FinalizeHead))
+		ctx.RegisterFinalizer(segmentReader)
+
 		blockReader = xio.BlockReader{
 			SegmentReader: segmentReader,
 			Start:         start,
 			BlockSize:     b.blockSize,
 		}
-		blockReader.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
-		ctx.RegisterFinalizer(segmentReader)
 	}
 
 	return blockReader, nil
@@ -346,10 +351,6 @@ func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentRead
 }
 
 func (b *dbBlock) resetNewBlockStartWithLock(start time.Time, blockSize time.Duration) {
-	if !b.closed {
-		b.ctx.Close()
-	}
-	b.ctx = b.opts.ContextPool().Get()
 	b.startUnixNanos = start.UnixNano()
 	b.blockSize = blockSize
 	atomic.StoreInt64(&b.lastReadUnixNanos, 0)
@@ -365,8 +366,6 @@ func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 	b.retriever = nil
 	b.retrieveID = nil
 	b.wasRetrievedFromDisk = false
-
-	b.ctx.RegisterFinalizer(&seg)
 }
 
 func (b *dbBlock) resetRetrievableWithLock(
@@ -391,16 +390,7 @@ func (b *dbBlock) Close() {
 	}
 
 	b.closed = true
-
-	// NB(xichen): we use the worker pool to close the context instead doing
-	// an asynchronous context close to explicitly control the context closing
-	// concurrency. This is particularly important during a node removal because
-	// all the shards are removed at once, causing a goroutine explosion without
-	// limiting the concurrency. We also cannot do a blocking close here because
-	// the block may be closed before the underlying context is closed, which
-	// causes a deadlock if the block and the underlying context are closed
-	// from within the same goroutine.
-	b.opts.CloseContextWorkers().Go(b.ctx.BlockingClose)
+	b.segment.Finalize()
 
 	b.resetMergeTargetWithLock()
 	if pool := b.opts.DatabaseBlockPool(); pool != nil {

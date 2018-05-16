@@ -21,6 +21,8 @@
 package runtime
 
 import (
+	"fmt"
+
 	xclose "github.com/m3db/m3x/close"
 	xwatch "github.com/m3db/m3x/watch"
 )
@@ -73,4 +75,40 @@ func (w *optionsManager) RegisterListener(
 
 func (w *optionsManager) Close() {
 	w.watchable.Close()
+}
+
+// NewNoOpOptionsManager returns a no-op options manager that cannot
+// be updated and does not spawn backround goroutines (useful for globals
+// in test files).
+func NewNoOpOptionsManager(opts Options) OptionsManager {
+	return noOpOptionsManager{opts: opts}
+}
+
+type noOpOptionsManager struct {
+	opts Options
+}
+
+func (n noOpOptionsManager) Update(value Options) error {
+	return fmt.Errorf("no-op options manager cannot update options")
+}
+
+func (n noOpOptionsManager) Get() Options {
+	return n.opts
+}
+
+func (n noOpOptionsManager) RegisterListener(
+	listener OptionsListener,
+) xclose.SimpleCloser {
+	// noOpOptionsManager never changes its options, not worth
+	// registering listener
+	return noOpCloser{}
+}
+
+func (n noOpOptionsManager) Close() {
+}
+
+type noOpCloser struct{}
+
+func (n noOpCloser) Close() {
+
 }

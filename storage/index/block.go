@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/index/segment/mem"
@@ -65,11 +64,11 @@ type block struct {
 	state                blockState
 	bootstrappedSegments []segment.Segment
 	segment              segment.MutableSegment
-	writeBatch           m3ninxindex.Batch
 
 	newExecutorFn newExecutorFn
 	startTime     time.Time
 	endTime       time.Time
+	blockSize     time.Duration
 	opts          Options
 }
 
@@ -88,14 +87,11 @@ func NewBlock(
 	}
 
 	b := &block{
-		state:   blockStateOpen,
-		segment: seg,
-		writeBatch: m3ninxindex.Batch{
-			AllowPartialUpdates: true,
-		},
-
+		state:     blockStateOpen,
+		segment:   seg,
 		startTime: startTime,
 		endTime:   startTime.Add(blockSize),
+		blockSize: blockSize,
 		opts:      opts,
 	}
 	b.newExecutorFn = b.executorWithRLock
@@ -111,46 +107,26 @@ func (b *block) EndTime() time.Time {
 	return b.endTime
 }
 
-func (b *block) updateWriteBatchWithLock(inserts []WriteBatchEntry) {
-	for _, insert := range inserts {
-		b.writeBatch.Docs = append(b.writeBatch.Docs, insert.Document)
-	}
-}
-
-func (b *block) resetWriteBatchWithLock() {
-	var emptyDoc doc.Document
-	for i := range b.writeBatch.Docs {
-		b.writeBatch.Docs[i] = emptyDoc
-	}
-	b.writeBatch.Docs = b.writeBatch.Docs[:0]
-}
-
-func (b *block) WriteBatch(inserts []WriteBatchEntry) (WriteBatchResult, error) {
+func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 	b.Lock()
-	defer func() {
-		b.resetWriteBatchWithLock()
-		b.Unlock()
-	}()
+	defer b.Unlock()
 
 	if b.state != blockStateOpen {
-		// NB: releasing all references to inserts
-		for _, insert := range inserts {
-			insert.OnIndexSeries.OnIndexFinalize()
-		}
+		err := b.writeBatchErrorInvalidState(b.state)
+		inserts.MarkUnmarkedEntriesError(err)
 		return WriteBatchResult{
-			NumError: int64(len(inserts)),
-		}, b.writeBatchErrorInvalidState(b.state)
+			NumError: int64(inserts.Len()),
+		}, err
 	}
 
-	b.updateWriteBatchWithLock(inserts)
-	err := b.segment.InsertBatch(b.writeBatch)
+	err := b.segment.InsertBatch(m3ninxindex.Batch{
+		Docs:                inserts.PendingDocs(),
+		AllowPartialUpdates: true,
+	})
 	if err == nil {
-		for _, insert := range inserts {
-			insert.OnIndexSeries.OnIndexSuccess(b.endTime)
-			insert.OnIndexSeries.OnIndexFinalize()
-		}
+		inserts.MarkUnmarkedEntriesSuccess()
 		return WriteBatchResult{
-			NumSuccess: int64(len(inserts)),
+			NumSuccess: int64(inserts.Len()),
 		}, nil
 	}
 
@@ -158,37 +134,20 @@ func (b *block) WriteBatch(inserts []WriteBatchEntry) (WriteBatchResult, error) 
 	if !ok { // should never happen
 		err := b.unknownWriteBatchInvariantError(err)
 		// NB: marking all the inserts as failure, cause we don't know which ones failed
-		for _, insert := range inserts {
-			insert.OnIndexSeries.OnIndexFinalize()
-			insert.Document = doc.Document{}
-			insert.OnIndexSeries = nil
-		}
-		return WriteBatchResult{NumError: int64(len(inserts))}, err
+		inserts.MarkUnmarkedEntriesError(err)
+		return WriteBatchResult{NumError: int64(inserts.Len())}, err
 	}
 
-	// first finalize all the responses which were errors, and mark them
-	// nil to indicate they're done.
-	numErr := len(partialErr.Indices())
-	for _, idx := range partialErr.Indices() {
-		inserts[idx].OnIndexSeries.OnIndexFinalize()
-		inserts[idx].OnIndexSeries = nil
-		inserts[idx].Document = doc.Document{}
+	numErr := len(partialErr.Errs())
+	for _, err := range partialErr.Errs() {
+		// Avoid marking these as success
+		inserts.MarkUnmarkedEntryError(err.Err, err.Idx)
 	}
 
-	// mark all non-error inserts success, so we don't repeatedly index them,
-	// and then finalize any held references.
-	for _, insert := range inserts {
-		if insert.OnIndexSeries == nil {
-			continue
-		}
-		insert.OnIndexSeries.OnIndexSuccess(b.endTime)
-		insert.OnIndexSeries.OnIndexFinalize()
-		insert.OnIndexSeries = nil
-		insert.Document = doc.Document{}
-	}
-
+	// mark all non-error inserts success, so we don't repeatedly index them
+	inserts.MarkUnmarkedEntriesSuccess()
 	return WriteBatchResult{
-		NumSuccess: int64(len(inserts) - numErr),
+		NumSuccess: int64(inserts.Len() - numErr),
 		NumError:   int64(numErr),
 	}, partialErr
 }
@@ -393,7 +352,7 @@ func (b *block) writeBatchErrorInvalidState(state blockState) error {
 }
 
 func (b *block) unknownWriteBatchInvariantError(err error) error {
-	wrappedErr := fmt.Errorf("received non BatchPartialError from m3ninx InsertBatch [%T]", err)
+	wrappedErr := fmt.Errorf("unexpected non-BatchPartialError from m3ninx InsertBatch: %v", err)
 	instrument.EmitInvariantViolationAndGetLogger(b.opts.InstrumentOptions()).Errorf(wrappedErr.Error())
 	return wrappedErr
 }

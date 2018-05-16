@@ -506,7 +506,6 @@ func (b *dbBuffer) FetchBlocksMetadata(
 }
 
 type dbBufferBucket struct {
-	ctx               context.Context
 	opts              Options
 	start             time.Time
 	encoders          []inOrderEncoder
@@ -527,13 +526,10 @@ func (b *dbBufferBucket) resetTo(
 	// Close the old context if we're resetting for use
 	b.finalize()
 
-	ctx := b.opts.ContextPool().Get()
-
 	bopts := b.opts.DatabaseBlockOptions()
 	encoder := bopts.EncoderPool().Get()
 	encoder.Reset(start, bopts.DatabaseBlockAllocSize())
 
-	b.ctx = ctx
 	b.start = start
 	b.encoders = append(b.encoders, inOrderEncoder{
 		lastWriteAt: timeZero,
@@ -548,11 +544,6 @@ func (b *dbBufferBucket) resetTo(
 func (b *dbBufferBucket) finalize() {
 	b.resetEncoders()
 	b.resetBootstrapped()
-	if b.ctx != nil {
-		// Close the old context
-		b.ctx.Close()
-	}
-	b.ctx = nil
 }
 
 func (b *dbBufferBucket) canRead() bool {
@@ -625,10 +616,6 @@ func (b *dbBufferBucket) write(
 }
 
 func (b *dbBufferBucket) streams(ctx context.Context) []xio.BlockReader {
-	// NB(r): Ensure we don't call any closers before the operation
-	// started by the passed context completes.
-	b.ctx.DependsOn(ctx)
-
 	streams := make([]xio.BlockReader, 0, len(b.bootstrapped)+len(b.encoders))
 
 	for i := range b.bootstrapped {
@@ -680,9 +667,7 @@ func (b *dbBufferBucket) resetEncoders() {
 	for i := range b.encoders {
 		// Register when this bucket resets we close the encoder
 		encoder := b.encoders[i].encoder
-		if b.ctx != nil {
-			b.ctx.RegisterCloser(encoder)
-		}
+		encoder.Close()
 		b.encoders[i] = zeroed
 	}
 	b.encoders = b.encoders[:0]
@@ -691,9 +676,7 @@ func (b *dbBufferBucket) resetEncoders() {
 func (b *dbBufferBucket) resetBootstrapped() {
 	for i := range b.bootstrapped {
 		bl := b.bootstrapped[i]
-		if b.ctx != nil {
-			b.ctx.RegisterCloser(bl)
-		}
+		bl.Close()
 	}
 	b.bootstrapped = nil
 }

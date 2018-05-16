@@ -144,7 +144,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 	scope := iopts.
 		MetricsScope().
 		SubScope("service").
-		Tagged(map[string]string{"serviceName": "node"})
+		Tagged(map[string]string{"service-name": "node"})
 
 	wrapperPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(checkedBytesPoolSize).
@@ -527,7 +527,7 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 
 	for _, fetchedMetadata := range fetchedResults {
 		blocksMetadata := s.pools.blocksMetadata.Get()
-		blocksMetadata.ID = fetchedMetadata.ID.Data().Bytes()
+		blocksMetadata.ID = fetchedMetadata.ID.Bytes()
 		fetchedMetadataBlocks := fetchedMetadata.Blocks.Results()
 		blocksMetadata.Blocks = s.pools.blockMetadataSlice.Get()
 

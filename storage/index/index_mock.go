@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
+	time0 "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 )
@@ -251,7 +252,7 @@ func (mr *MockBlockMockRecorder) Tick(arg0 interface{}) *gomock.Call {
 }
 
 // WriteBatch mocks base method
-func (m *MockBlock) WriteBatch(arg0 []WriteBatchEntry) (WriteBatchResult, error) {
+func (m *MockBlock) WriteBatch(arg0 *WriteBatch) (WriteBatchResult, error) {
 	ret := m.ctrl.Call(m, "WriteBatch", arg0)
 	ret0, _ := ret[0].(WriteBatchResult)
 	ret1, _ := ret[1].(error)
@@ -287,17 +288,17 @@ func (m *MockOnIndexSeries) EXPECT() *MockOnIndexSeriesMockRecorder {
 }
 
 // OnIndexFinalize mocks base method
-func (m *MockOnIndexSeries) OnIndexFinalize() {
-	m.ctrl.Call(m, "OnIndexFinalize")
+func (m *MockOnIndexSeries) OnIndexFinalize(arg0 time0.UnixNano) {
+	m.ctrl.Call(m, "OnIndexFinalize", arg0)
 }
 
 // OnIndexFinalize indicates an expected call of OnIndexFinalize
-func (mr *MockOnIndexSeriesMockRecorder) OnIndexFinalize() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexFinalize", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexFinalize))
+func (mr *MockOnIndexSeriesMockRecorder) OnIndexFinalize(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OnIndexFinalize", reflect.TypeOf((*MockOnIndexSeries)(nil).OnIndexFinalize), arg0)
 }
 
 // OnIndexSuccess mocks base method
-func (m *MockOnIndexSeries) OnIndexSuccess(arg0 time.Time) {
+func (m *MockOnIndexSeries) OnIndexSuccess(arg0 time0.UnixNano) {
 	m.ctrl.Call(m, "OnIndexSuccess", arg0)
 }
 

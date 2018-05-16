@@ -30,22 +30,40 @@ import (
 )
 
 var (
-	errUnableToConvertReservedFieldName = errors.New("unable to convert metric due to use of reserved fieldname")
-	errInvalidResultMissingID           = errors.New("corrupt data, unable to extract id")
-)
-
-var (
 	// ReservedFieldNameID is the field name used to index the ID in the
 	// m3ninx subsytem.
 	ReservedFieldNameID = doc.IDReservedFieldName
+
+	// ErrUsingReservedFieldName is the error returned when a metric
+	// cannot be parsed due to using a resereved field name
+	ErrUsingReservedFieldName = errors.New(
+		"unable to parse metric using reserved field name: " +
+			string(ReservedFieldNameID))
+
+	errInvalidResultMissingID = errors.New(
+		"corrupt data, unable to extract id")
 )
 
+// ValidateMetric will validate a metric for use in the m3ninx subsytem
+// FOLLOWUP(r): Rename ValidateMetric to ValidateSeries (metric terminiology
+// is not common in the codebase)
+func ValidateMetric(id ident.ID, tags ident.Tags) error {
+	for _, tag := range tags.Values() {
+		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
+			return ErrUsingReservedFieldName
+		}
+	}
+	return nil
+}
+
 // FromMetric converts the provided metric id+tags into a document.
+// FOLLOWUP(r): Rename FromMetric to FromSeries (metric terminiology
+// is not common in the codebase)
 func FromMetric(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	fields := make([]doc.Field, 0, len(tags.Values()))
 	for _, tag := range tags.Values() {
 		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
-			return doc.Document{}, errUnableToConvertReservedFieldName
+			return doc.Document{}, ErrUsingReservedFieldName
 		}
 		name := clone(tag.Name)
 		fields = append(fields, doc.Field{
@@ -60,12 +78,14 @@ func FromMetric(id ident.ID, tags ident.Tags) (doc.Document, error) {
 }
 
 // FromMetricIter converts the provided metric id+tags into a document.
+// FOLLOWUP(r): Rename FromMetric to FromSeries (metric terminiology
+// is not common in the codebase)
 func FromMetricIter(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
 	fields := make([]doc.Field, 0, tags.Remaining())
 	for tags.Next() {
 		tag := tags.Current()
 		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
-			return doc.Document{}, errUnableToConvertReservedFieldName
+			return doc.Document{}, ErrUsingReservedFieldName
 		}
 		name := clone(tag.Name)
 		fields = append(fields, doc.Field{
@@ -86,7 +106,7 @@ func FromMetricIter(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
 // any ids provided, as we need to maintain the lifecycle of the indexed
 // bytes separately from the rest of the storage subsystem.
 func clone(id ident.ID) []byte {
-	original := id.Data().Bytes()
+	original := id.Bytes()
 	clone := make([]byte, len(original))
 	copy(clone, original)
 	return clone
@@ -164,7 +184,7 @@ func (t *tagIter) parseNext() (hasNext bool) {
 	// is not using the reserved ID fieldname
 	next := t.docFields[t.currentIdx]
 	if bytes.Equal(ReservedFieldNameID, next.Name) {
-		t.err = errUnableToConvertReservedFieldName
+		t.err = ErrUsingReservedFieldName
 		return false
 	}
 	// otherwise, we're good.

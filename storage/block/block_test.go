@@ -21,7 +21,6 @@
 package block
 
 import (
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,7 +30,6 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/context"
-	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -72,17 +70,6 @@ func validateBlocks(t *testing.T, blocks *databaseSeriesBlocks, minTime, maxTime
 	}
 }
 
-func closeTestDatabaseBlock(t *testing.T, block *dbBlock) {
-	var finished uint32
-	block.ctx = block.opts.ContextPool().Get()
-	block.ctx.RegisterFinalizer(resource.FinalizerFn(func() { atomic.StoreUint32(&finished, 1) }))
-	block.Close()
-	// waiting for the goroutine that closes context to finish
-	for atomic.LoadUint32(&finished) == 0 {
-		time.Sleep(100 * time.Millisecond)
-	}
-}
-
 func TestDatabaseBlockReadFromClosedBlock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -91,7 +78,7 @@ func TestDatabaseBlockReadFromClosedBlock(t *testing.T) {
 	defer ctx.Close()
 
 	block := testDatabaseBlock(ctrl)
-	closeTestDatabaseBlock(t, block)
+	block.Close()
 	_, err := block.Stream(ctx)
 	require.Equal(t, errReadFromClosedBlock, err)
 }
@@ -106,56 +93,6 @@ func TestDatabaseBlockChecksum(t *testing.T) {
 	checksum, err := block.Checksum()
 	require.NoError(t, err)
 	require.Equal(t, block.checksum, checksum)
-}
-
-type testDatabaseBlockFn func(block *dbBlock)
-
-type testDatabaseBlockAssertionFn func(t *testing.T, block *dbBlock)
-
-func testDatabaseBlockWithDependentContext(
-	t *testing.T,
-	f testDatabaseBlockFn,
-	af testDatabaseBlockAssertionFn,
-) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	block := testDatabaseBlock(ctrl)
-	depCtx := block.opts.ContextPool().Get()
-
-	// register a dependent context here
-	_, err := block.Stream(depCtx)
-	require.NoError(t, err)
-
-	var finished uint32
-	block.ctx.RegisterFinalizer(resource.FinalizerFn(func() {
-		atomic.StoreUint32(&finished, 1)
-	}))
-	f(block)
-
-	// sleep a bit to let the goroutine run
-	time.Sleep(200 * time.Millisecond)
-	require.Equal(t, uint32(0), atomic.LoadUint32(&finished))
-
-	// now closing the dependent context
-	depCtx.Close()
-	for atomic.LoadUint32(&finished) == 0 {
-		time.Sleep(200 * time.Millisecond)
-	}
-
-	af(t, block)
-}
-
-func TestDatabaseBlockResetNormalWithDependentContext(t *testing.T) {
-	f := func(block *dbBlock) { block.Reset(time.Now(), time.Hour, ts.Segment{}) }
-	af := func(t *testing.T, block *dbBlock) { require.False(t, block.closed) }
-	testDatabaseBlockWithDependentContext(t, f, af)
-}
-
-func TestDatabaseBlockCloseNormalWithDependentContext(t *testing.T) {
-	f := func(block *dbBlock) { block.Close() }
-	af := func(t *testing.T, block *dbBlock) { require.True(t, block.closed) }
-	testDatabaseBlockWithDependentContext(t, f, af)
 }
 
 type segmentReaderFinalizeCounter struct {

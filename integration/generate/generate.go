@@ -36,7 +36,7 @@ import (
 func (l SeriesBlock) Len() int      { return len(l) }
 func (l SeriesBlock) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l SeriesBlock) Less(i, j int) bool {
-	return bytes.Compare(l[i].ID.Data().Bytes(), l[j].ID.Data().Bytes()) < 0
+	return bytes.Compare(l[i].ID.Bytes(), l[j].ID.Bytes()) < 0
 }
 
 // Block generates a SeriesBlock based on provided config
@@ -120,5 +120,5 @@ func (l SeriesDataPointsByTime) Less(i, j int) bool {
 	if !l[i].Timestamp.Equal(l[j].Timestamp) {
 		return l[i].Timestamp.Before(l[j].Timestamp)
 	}
-	return bytes.Compare(l[i].ID.Data().Bytes(), l[j].ID.Data().Bytes()) < 0
+	return bytes.Compare(l[i].ID.Bytes(), l[j].ID.Bytes()) < 0
 }

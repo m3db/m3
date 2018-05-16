@@ -400,7 +400,7 @@ func (r *blockRetriever) Stream(
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately
-	if !bloomFilter.Test(id.Data().Bytes()) {
+	if !bloomFilter.Test(id.Bytes()) {
 		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data
 		req.onRetrieved(ts.Segment{})
 		return req.toBlock(), nil

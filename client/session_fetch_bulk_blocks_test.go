@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math"
 	"sort"
 	"sync"
@@ -714,7 +715,7 @@ func assertFetchBlocksFromPeersResult(
 		seg, err := stream.Segment()
 		require.NoError(t, err)
 
-		actualData := append(seg.Head.Bytes(), seg.Tail.Bytes()...)
+		actualData := append(bytesFor(seg.Head), bytesFor(seg.Tail)...)
 
 		// compare actual v expected data
 		if len(expectedData) != len(actualData) {
@@ -1716,8 +1717,9 @@ func TestBlocksResultAddBlockFromPeerReadMerged(t *testing.T) {
 	require.NoError(t, err)
 
 	// Assert block has data
-	assert.Equal(t, []byte{1, 2}, seg.Head.Bytes())
-	assert.Equal(t, []byte{3}, seg.Tail.Bytes())
+	data, err := ioutil.ReadAll(xio.NewSegmentReader(seg))
+	require.NoError(t, err)
+	assert.Equal(t, []byte{1, 2, 3}, data)
 }
 
 func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
@@ -2107,7 +2109,7 @@ func expectFetchMetadataAndReturn(
 		)
 		for j := beginIdx; j < len(result) && j < beginIdx+batchSize; j++ {
 			elem := &rpc.BlocksMetadata{}
-			elem.ID = result[j].id.Data().Bytes()
+			elem.ID = result[j].id.Bytes()
 			for k := 0; k < len(result[j].blocks); k++ {
 				bl := &rpc.BlockMetadata{}
 				bl.Start = result[j].blocks[k].start.UnixNano()
@@ -2159,7 +2161,7 @@ func expectFetchMetadataAndReturnV2(
 			beginIdx = i * batchSize
 		)
 		for j := beginIdx; j < len(result) && j < beginIdx+batchSize; j++ {
-			id := result[j].id.Data().Bytes()
+			id := result[j].id.Bytes()
 			for k := 0; k < len(result[j].blocks); k++ {
 				bl := &rpc.BlockMetadataV2{}
 				bl.ID = id
@@ -2311,7 +2313,7 @@ func expectFetchBlocksAndReturn(
 		ret := &rpc.FetchBlocksRawResult_{}
 		for _, res := range result[i] {
 			blocks := &rpc.Blocks{}
-			blocks.ID = res.id.Data().Bytes()
+			blocks.ID = res.id.Bytes()
 			for j := range res.blocks {
 				bl := &rpc.Block{}
 				bl.Start = res.blocks[j].start.UnixNano()
@@ -2468,13 +2470,20 @@ func assertFetchBootstrapBlocksResult(
 				require.NoError(t, err)
 				seg, err := stream.Segment()
 				require.NoError(t, err)
-				actualData := append(seg.Head.Bytes(), seg.Tail.Bytes()...)
+				actualData := append(bytesFor(seg.Head), bytesFor(seg.Tail)...)
 				assert.Equal(t, expectedData, actualData)
 			} else if block.segments.unmerged != nil {
 				assert.Fail(t, "unmerged comparison not supported")
 			}
 		}
 	}
+}
+
+func bytesFor(data checked.Bytes) []byte {
+	if data == nil {
+		return nil
+	}
+	return data.Bytes()
 }
 
 func assertEnqueueChannel(

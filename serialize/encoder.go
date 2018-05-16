@@ -164,7 +164,7 @@ func (e *encoder) encodeTag(t ident.Tag) error {
 }
 
 func (e *encoder) encodeID(i ident.ID) error {
-	d := i.Data().Bytes()
+	d := i.Bytes()
 
 	if len(d) == 0 {
 		return errEmptyTagLiteral
