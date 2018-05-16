@@ -82,7 +82,7 @@ func FromMetricNoClone(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	fields := make([]doc.Field, 0, len(tags.Values()))
 	for _, tag := range tags.Values() {
 		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
-			return doc.Document{}, errUnableToConvertReservedFieldName
+			return doc.Document{}, ErrUsingReservedFieldName
 		}
 		fields = append(fields, doc.Field{
 			Name:  tag.Name.Bytes(),
