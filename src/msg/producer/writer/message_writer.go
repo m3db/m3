@@ -357,6 +357,11 @@ func (w *messageWriterImpl) Close() {
 }
 
 func (w *messageWriterImpl) waitUntilAllMessageRemoved() {
+	// The message writers are being closed sequentially, checking isEmpty()
+	// before always waiting for the first tick can speed up Close() a lot.
+	if w.isEmpty() {
+		return
+	}
 	ticker := time.NewTicker(w.opts.CloseCheckInterval())
 	defer ticker.Stop()
 

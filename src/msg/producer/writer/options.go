@@ -33,7 +33,8 @@ import (
 
 const (
 	defaultDialTimeout               = 10 * time.Second
-	defaultMessageRetryBackoff       = 5 * time.Second
+	defaultKeepAlivePeriod           = 30 * time.Second
+	defaultMessageQueueScanInterval  = 5 * time.Second
 	defaultPlacementWatchInitTimeout = 5 * time.Second
 	defaultTopicWatchInitTimeout     = 5 * time.Second
 	defaultCloseCheckInterval        = 2 * time.Second
@@ -103,6 +104,7 @@ type connectionOptions struct {
 func NewConnectionOptions() ConnectionOptions {
 	return &connectionOptions{
 		dialTimeout:     defaultDialTimeout,
+		keepAlivePeriod: defaultKeepAlivePeriod,
 		resetDelay:      defaultConnectionResetDelay,
 		rOpts:           retry.NewOptions(),
 		writeBufferSize: defaultConnectionBufferSize,
@@ -274,9 +276,9 @@ type writerOptions struct {
 	topicWatchInitTimeout     time.Duration
 	services                  services.Services
 	placementWatchInitTimeout time.Duration
-	messageQueueScanInterval  time.Duration
-	messageRetryOpts          retry.Options
 	messagePoolOptions        pool.ObjectPoolOptions
+	messageRetryOpts          retry.Options
+	messageQueueScanInterval  time.Duration
 	messageRetryBatchSize     int
 	closeCheckInterval        time.Duration
 	ackErrRetryOpts           retry.Options
@@ -290,9 +292,9 @@ func NewOptions() Options {
 	return &writerOptions{
 		topicWatchInitTimeout:     defaultTopicWatchInitTimeout,
 		placementWatchInitTimeout: defaultPlacementWatchInitTimeout,
-		messageQueueScanInterval:  defaultMessageRetryBackoff,
-		messageRetryOpts:          retry.NewOptions(),
 		messagePoolOptions:        pool.NewObjectPoolOptions(),
+		messageRetryOpts:          retry.NewOptions(),
+		messageQueueScanInterval:  defaultMessageQueueScanInterval,
 		messageRetryBatchSize:     defaultMessageRetryBatchSize,
 		closeCheckInterval:        defaultCloseCheckInterval,
 		ackErrRetryOpts:           retry.NewOptions(),
