@@ -25,10 +25,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fortytw2/leaktest"
 	"github.com/m3db/m3db/storage/series/lookup"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/require"
 )
 

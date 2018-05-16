@@ -254,6 +254,12 @@ type ForEachWriteBatchByBlockStartFn func(
 // ForEachUnmarkedBatchByBlockStart allows a caller to perform an operation
 // with reference to a restricted set of the write batch for each unique block
 // start for entries that have not been marked completed yet.
+// The underlying batch returned is simply the current batch but with updated
+// subslices to the relevant entries and documents that are restored at the
+// end of `fn` being applied.
+// NOTE: This means `fn` cannot perform any asynchronous work that uses the
+// arguments passed to it as the args will be invalid at the synchronous
+// execution of `fn`.
 func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 	fn ForEachWriteBatchByBlockStartFn,
 ) {
@@ -302,7 +308,9 @@ func (b *WriteBatch) ForEachUnmarkedBatchByBlockStart(
 		}
 	}
 
-	// spill over
+	// We can unconditionally spill over here since we haven't hit any marked
+	// done entries yet and thanks to sort order there weren't any, therefore
+	// we can execute all the remaining entries we had.
 	if startIdx < len(allEntries) {
 		b.entries = allEntries[startIdx:]
 		b.docs = allDocs[startIdx:]
@@ -389,12 +397,7 @@ func (b *WriteBatch) MarkUnmarkedEntriesSuccess() {
 // MarkUnmarkedEntriesError marks all unmarked entries as error.
 func (b *WriteBatch) MarkUnmarkedEntriesError(err error) {
 	for idx := range b.entries {
-		if b.entries[idx].OnIndexSeries != nil {
-			blockStart := b.entries[idx].indexBlockStart(b.opts.IndexBlockSize)
-			b.entries[idx].OnIndexSeries.OnIndexFinalize(blockStart)
-			b.entries[idx].OnIndexSeries = nil
-			b.entries[idx].result = WriteBatchEntryResult{Err: err}
-		}
+		b.MarkUnmarkedEntryError(err, idx)
 	}
 }
 
@@ -458,6 +461,9 @@ type WriteBatchEntry struct {
 	// OnIndexSeries is a listener/callback for when this entry is marked done
 	// it is set to nil when the entry is marked done
 	OnIndexSeries OnIndexSeries
+	// EnqueuedAt is the timestamp that this entry was enqueued for indexing
+	// so that we can calculate the latency it takes to index the entry
+	EnqueuedAt time.Time
 	// enqueuedIdx is the idx of the entry when originally enqueued by the call
 	// to append on the write batch
 	enqueuedIdx int

@@ -757,7 +757,8 @@ func (s *dbShard) writeAndIndex(
 		result, err := s.insertSeriesAsyncBatched(id, tags, dbShardInsertAsyncOptions{
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
-				timestamp: timestamp,
+				timestamp:  timestamp,
+				enqueuedAt: s.nowFn(),
 			},
 		})
 		if err != nil {
@@ -819,7 +820,8 @@ func (s *dbShard) writeAndIndex(
 			},
 			hasPendingIndexing: shouldReverseIndex,
 			pendingIndex: dbShardPendingIndex{
-				timestamp: timestamp,
+				timestamp:  timestamp,
+				enqueuedAt: s.nowFn(),
 			},
 		})
 		if err != nil {
@@ -963,47 +965,51 @@ func (s *dbShard) newShardEntry(
 	// Since series are purged so infrequently the overhead of not releasing
 	// back an ID to a pool is amortized over a long period of time.
 	clonedID := ident.BytesID(append([]byte(nil), id.Bytes()...))
+	clonedID.NoFinalize()
 
-	// Inlining tag creation here so its obvious why we can safely index
-	// into clonedID below
-	tags = tags.Duplicate()
-	clonedTags := s.identifierPool.Tags()
+	var clonedTags ident.Tags
+	if tags.Remaining() > 0 {
+		// Inlining tag creation here so its obvious why we can safely index
+		// into clonedID below
+		clonedTags = s.identifierPool.Tags()
+		tags = tags.Duplicate()
 
-	// Avoid finalizing the tags since series will let them be garbage collected
-	clonedTags.NoFinalize()
+		// Avoid finalizing the tags since series will let them be garbage collected
+		clonedTags.NoFinalize()
 
-	for tags.Next() {
-		t := tags.Current()
+		for tags.Next() {
+			t := tags.Current()
 
-		// NB(r): Optimization for workloads that embed the tags in the ID is to
-		// just take a ref to them directly, the cloned ID is frozen by casting to
-		// a BytesID in newShardEntry
-		var tag ident.Tag
+			// NB(r): Optimization for workloads that embed the tags in the ID is to
+			// just take a ref to them directly, the cloned ID is frozen by casting to
+			// a BytesID in newShardEntry
+			var tag ident.Tag
 
-		nameBytes := t.Name.Bytes()
-		if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
-			tag.Name = clonedID[idx : idx+len(nameBytes)]
-		} else {
-			tag.Name = s.identifierPool.Clone(t.Name)
+			nameBytes := t.Name.Bytes()
+			if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
+				tag.Name = clonedID[idx : idx+len(nameBytes)]
+			} else {
+				tag.Name = s.identifierPool.Clone(t.Name)
+			}
+
+			valueBytes := t.Value.Bytes()
+			if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
+				tag.Value = clonedID[idx : idx+len(valueBytes)]
+			} else {
+				tag.Value = s.identifierPool.Clone(t.Value)
+			}
+
+			clonedTags.Append(tag)
+		}
+		err := tags.Err()
+		tags.Close()
+		if err != nil {
+			return nil, err
 		}
 
-		valueBytes := t.Value.Bytes()
-		if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
-			tag.Value = clonedID[idx : idx+len(valueBytes)]
-		} else {
-			tag.Value = s.identifierPool.Clone(t.Value)
+		if err := convert.ValidateMetric(clonedID, clonedTags); err != nil {
+			return nil, err
 		}
-
-		clonedTags.Append(tag)
-	}
-	err := tags.Err()
-	tags.Close()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := convert.ValidateMetric(clonedID, clonedTags); err != nil {
-		return nil, err
 	}
 
 	series.Reset(clonedID, clonedTags, s.seriesBlockRetriever,
@@ -1035,7 +1041,8 @@ func (s *dbShard) insertSeriesForIndexingAsyncBatched(
 		opts: dbShardInsertAsyncOptions{
 			hasPendingIndexing: true,
 			pendingIndex: dbShardPendingIndex{
-				timestamp: timestamp,
+				timestamp:  timestamp,
+				enqueuedAt: s.nowFn(),
 			},
 			// indicate we already have inc'd the entry's ref count, so we can correctly
 			// handle the ref counting semantics in `insertSeriesBatch`.
@@ -1265,10 +1272,13 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// this method (insertSeriesBatch) via `entryRefCountIncremented` mechanism.
 			entry.OnIndexPrepare()
 
+			id := entry.Series.ID()
+			tags := entry.Series.Tags().Values()
+
 			var d doc.Document
-			d.ID = entry.Series.ID().Bytes() // IDs from shard entries are always set NoFinalize
-			d.Fields = make(doc.Fields, 0, len(entry.Series.Tags().Values()))
-			for _, tag := range entry.Series.Tags().Values() {
+			d.ID = id.Bytes() // IDs from shard entries are always set NoFinalize
+			d.Fields = make(doc.Fields, 0, len(tags))
+			for _, tag := range tags {
 				d.Fields = append(d.Fields, doc.Field{
 					Name:  tag.Name.Bytes(),  // Tags from shard entries are always set NoFinalize
 					Value: tag.Value.Bytes(), // Tags from shard entries are always set NoFinalize
@@ -1277,6 +1287,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			indexBatch.Append(index.WriteBatchEntry{
 				Timestamp:     pendingIndex.timestamp,
 				OnIndexSeries: entry,
+				EnqueuedAt:    pendingIndex.enqueuedAt,
 			}, d)
 		}
 

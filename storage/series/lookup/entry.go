@@ -81,7 +81,7 @@ func (entry *Entry) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
 	return isIndexed
 }
 
-// NeedsIndexUpdate returns a bool to indicate if the Entry requires to be indexed
+// NeedsIndexUpdate returns a bool to indicate if the Entry needs to be indexed
 // for the provided blockStart. It only allows a single index attempt at a time
 // for a single entry.
 // NB(prateek): NeedsIndexUpdate is a CAS, i.e. when this method returns true, it
@@ -89,7 +89,7 @@ func (entry *Entry) IndexedForBlockStart(indexBlockStart xtime.UnixNano) bool {
 // is going to be sent to the index, and other go routines should not attempt the
 // same write. Callers are expected to ensure they follow this guideline.
 // Further, every call to NeedsIndexUpdate which returns true needs to have a corresponding
-// OnIndexFinalze() call. This is reqiured for correct lifecycle maintenance.
+// OnIndexFinalze() call. This is required for correct lifecycle maintenance.
 func (entry *Entry) NeedsIndexUpdate(indexBlockStartForWrite xtime.UnixNano) bool {
 	// first we try the low-cost path: acquire a RLock and see if the given block start
 	// has been marked successful or that we've attempted it.

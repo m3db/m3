@@ -128,7 +128,8 @@ type dbShardPendingWrite struct {
 }
 
 type dbShardPendingIndex struct {
-	timestamp time.Time
+	timestamp  time.Time
+	enqueuedAt time.Time
 }
 
 type dbShardPendingRetrievedBlock struct {

@@ -66,8 +66,9 @@ type nsIndex struct {
 	newBlockFn newBlockFn
 	logger     xlog.Logger
 	opts       index.Options
-	metrics    nsIndexMetrics
 	nsMetadata namespace.Metadata
+
+	metrics nsIndexMetrics
 }
 
 type nsIndexState struct {
@@ -183,8 +184,9 @@ func newNamespaceIndexWithOptions(
 		newBlockFn: newBlockFn,
 		opts:       opts,
 		logger:     opts.InstrumentOptions().Logger(),
-		metrics:    newNamespaceIndexMetrics(opts.InstrumentOptions().MetricsScope()),
 		nsMetadata: nsMD,
+
+		metrics: newNamespaceIndexMetrics(opts.InstrumentOptions()),
 	}
 
 	// allocate indexing queue and start it up.
@@ -261,7 +263,7 @@ func (i *nsIndex) WriteBatch(
 	if insertMode != index.InsertAsync {
 		wg.Wait()
 
-		// Resort the batch by initial enqueue order
+		// Re-sort the batch by initial enqueue order
 		if numErrs := batch.NumErrs(); numErrs > 0 {
 			// Restore the sort order from whene enqueued for the caller
 			batch.SortByEnqueued()
@@ -273,9 +275,6 @@ func (i *nsIndex) WriteBatch(
 }
 
 // WriteBatches is called by the indexInsertQueue.
-// FOLLOWUP(prateek): propagate error back up from here to the indexInsertQueue
-// so that we can notify users of success/failure correctly in the case of
-// sync'd inserts.
 func (i *nsIndex) writeBatches(
 	batches []*index.WriteBatch,
 ) {
@@ -310,7 +309,7 @@ func (i *nsIndex) writeBatches(
 			}
 		})
 
-		// we sort the inserts by which block they're applicable for, and do the inserts
+		// Sort the inserts by which block they're applicable for, and do the inserts
 		// for each block, making sure to not try to insert any entries already marked
 		// with a result.
 		batch.ForEachUnmarkedBatchByBlockStart(writeBatchFn)
@@ -333,8 +332,18 @@ func (i *nsIndex) writeBatchForBlockStartWithRLock(
 		return
 	}
 
+	// NB(r): Capture pending entries so we can emit the latencies
+	pending := batch.PendingEntries()
+
 	// i.e. we have the block and the inserts, perform the writes.
 	result, err := block.WriteBatch(batch)
+
+	// record the end to end indexing latency
+	now := i.nowFn()
+	for idx := range pending {
+		took := now.Sub(pending[idx].EnqueuedAt)
+		i.metrics.InsertEndToEndLatency.Record(took)
+	}
 
 	// NB: we don't need to do anything to the OnIndexSeries refs in `inserts` at this point,
 	// the index.Block WriteBatch assumes responsibility for calling the appropriate methods.
@@ -624,12 +633,16 @@ func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
 }
 
 type nsIndexMetrics struct {
-	AsyncInsertErrors tally.Counter
-	InsertAfterClose  tally.Counter
-	QueryAfterClose   tally.Counter
+	AsyncInsertErrors     tally.Counter
+	InsertAfterClose      tally.Counter
+	QueryAfterClose       tally.Counter
+	InsertEndToEndLatency tally.Timer
 }
 
-func newNamespaceIndexMetrics(scope tally.Scope) nsIndexMetrics {
+func newNamespaceIndexMetrics(
+	iopts instrument.Options,
+) nsIndexMetrics {
+	scope := iopts.MetricsScope()
 	return nsIndexMetrics{
 		AsyncInsertErrors: scope.Tagged(map[string]string{
 			"error_type": "async-insert",
@@ -640,5 +653,8 @@ func newNamespaceIndexMetrics(scope tally.Scope) nsIndexMetrics {
 		QueryAfterClose: scope.Tagged(map[string]string{
 			"error_type": "query-closed",
 		}).Counter("query-after-error"),
+		InsertEndToEndLatency: instrument.MustCreateSampledTimer(
+			scope.Timer("insert-end-to-end-latency"),
+			iopts.MetricsSamplingRate()),
 	}
 }
