@@ -167,7 +167,10 @@ func newNamespaceIndexWithOptions(
 	}
 
 	scope := opts.InstrumentOptions().MetricsScope().
-		SubScope("dbindex")
+		SubScope("dbindex").
+		Tagged(map[string]string{
+			"namespace": nsMD.ID().String(),
+		})
 	iopts := opts.InstrumentOptions().SetMetricsScope(scope)
 	opts = opts.SetInstrumentOptions(iopts)
 
