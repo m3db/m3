@@ -149,11 +149,11 @@ func newTestIndexReader(t *testing.T, filePathPrefix string) IndexFileSetReader 
 
 func randDataFactorOfBuffSize(t *testing.T, factor float64) []byte {
 	length := int(factor * float64(defaultBufferedReaderSize()))
-	data := make([]byte, 0, length)
+	buffer := bytes.NewBuffer(nil)
 	src := io.LimitReader(rand.Reader, int64(length))
-	_, err := io.Copy(bytes.NewBuffer(data), src)
+	_, err := io.Copy(buffer, src)
 	require.NoError(t, err)
-	return data
+	return buffer.Bytes()
 }
 
 type testIndexSegment struct {
@@ -189,6 +189,10 @@ func writeTestIndexSegments(
 		fileSet.EXPECT().Files().Return(files).AnyTimes()
 
 		for _, f := range s.files {
+			f := f
+			// Make sure we're actually trying to test writing out file contents
+			require.True(t, len(f.data) > 0)
+
 			fileSet.EXPECT().
 				WriteFile(f.segmentFileType, gomock.Any()).
 				DoAndReturn(func(_ idxpersist.IndexSegmentFileType, w io.Writer) error {
@@ -224,7 +228,7 @@ func readTestIndexSegments(
 		for i, expected := range s.files {
 			actual := result.Files()[i]
 
-			assert.Equal(t, expected.segmentFileType, actual.SegmentFileType())
+			require.Equal(t, expected.segmentFileType, actual.SegmentFileType())
 
 			// Assert read data is correct
 			actualData, err := ioutil.ReadAll(actual)
@@ -234,7 +238,7 @@ func readTestIndexSegments(
 			// Assert bytes data (should be mmap'd byte slice) is also correct
 			directBytesData, err := actual.Bytes()
 			require.NoError(t, err)
-			assert.Equal(t, expected.data, directBytesData)
+			assert.True(t, bytes.Equal(expected.data, directBytesData))
 
 			err = actual.Close()
 			require.NoError(t, err)

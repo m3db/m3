@@ -219,8 +219,9 @@ func (r *indexReader) ReadSegmentFileSet() (
 		)
 		mmapResult, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
 			filePath: mmap.FileDesc{
-				File:  &fd,
-				Bytes: &bytes,
+				File:    &fd,
+				Bytes:   &bytes,
+				Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
 			},
 		})
 		if err != nil {
