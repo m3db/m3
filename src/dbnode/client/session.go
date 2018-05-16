@@ -1403,7 +1403,7 @@ func (s *session) fetchIDsAttempt(
 			// to iter.Reset down below before setting the iterator in the results array,
 			// which would cause a nil pointer exception.
 			remaining := atomic.AddInt32(&pending, -1)
-			shouldTerminate := readConsistencyTermination(s.state.readLevel, majority, remaining, snapshotSuccess)
+			shouldTerminate := !topology.ReadConsistencyTermination(s.state.readLevel, majority, remaining, snapshotSuccess)
 			if shouldTerminate && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
 				allCompletionFn()
 			}
@@ -1506,7 +1506,7 @@ func (s *session) writeConsistencyResult(
 ) error {
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
-	if !writeConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
+	if !topology.WriteConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
 		return newConsistencyResultError(level, int(enqueued), int(responded), errs)
 	}
 	return nil
@@ -1519,7 +1519,7 @@ func (s *session) readConsistencyResult(
 ) error {
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
-	if !readConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
+	if !topology.ReadConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
 		return newConsistencyResultError(level, int(enqueued), int(responded), errs)
 	}
 	return nil
@@ -1962,7 +1962,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 				enqueued := int(enqueued)
 				success := int(atomic.LoadInt32(&success))
 
-				doRetry := !readConsistencyAchieved(currLevel, majority, enqueued, success) &&
+				doRetry := !topology.ReadConsistencyAchieved(currLevel, majority, enqueued, success) &&
 					errs.getAbortError() == nil
 				if doRetry {
 					// Track that we are reattempting the fetch metadata
@@ -2701,7 +2701,7 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 		}
 
 		level := consistencyLevel.value()
-		achievedConsistencyLevel := readConsistencyAchieved(level, majority, enqueued, success)
+		achievedConsistencyLevel := topology.ReadConsistencyAchieved(level, majority, enqueued, success)
 		if achievedConsistencyLevel {
 			if success > 0 {
 				// Some level of success met, no need to log an error

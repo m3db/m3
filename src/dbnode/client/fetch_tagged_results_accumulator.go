@@ -132,12 +132,12 @@ func (accum *fetchTaggedResultAccumulator) Add(
 		}
 
 		pending := shardResult.pending()
-		if readConsistencyTermination(accum.consistencyLevel, int32(accum.majority), pending, int32(shardResult.success)) {
+		if !topology.ReadConsistencyTermination(accum.consistencyLevel, int32(accum.majority), pending, int32(shardResult.success)) {
 			shardResult.done = true
-			if readConsistencyAchieved(accum.consistencyLevel, accum.majority, int(shardResult.enqueued), int(shardResult.success)) {
+			if !topology.ReadConsistencyAchieved(accum.consistencyLevel, accum.majority, int(shardResult.enqueued), int(shardResult.success)) {
 				accum.numShardsPending--
 			}
-			// NB(prateek): if !readConsistencyAchieved, we have sufficient information to fail the entire request, because we
+			// NB(prateek): if !ReadConsistencyAchieved, we have sufficient information to fail the entire request, because we
 			// will never be able to satisfy the consistency requirement on the current shard. We explicitly chose not to,
 			// instead waiting till all the hosts return a response. This is to reduce the load we would put on the cluster
 			// due to retries.

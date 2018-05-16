@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/m3db/m3db/topology"
 )
 
 // ConsistencyLevel is the consistency level for cluster operations
@@ -307,3 +309,68 @@ const (
 	majority         = "majority"
 	unstrictMajority = "unstrict_majority"
 )
+
+// WriteConsistencyAchieved returns a bool indicating whether or not we've received enough
+// successful acks to consider a write successful based on the specified consistency level.
+func WriteConsistencyAchieved(
+	level topology.ConsistencyLevel,
+	majority, numPeers, numSuccess int,
+) bool {
+	switch level {
+	case topology.ConsistencyLevelAll:
+		if numSuccess == numPeers { // Meets all
+			return true
+		}
+	case topology.ConsistencyLevelMajority:
+		if numSuccess >= majority { // Meets majority
+			return true
+		}
+	case topology.ConsistencyLevelOne:
+		if numSuccess > 0 { // Meets one
+			return true
+		}
+	default:
+		panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
+	}
+	return false
+}
+
+// ReadConsistencyTermination returns a bool to indicate whether sufficient
+// responses (error/success) have been received, so that we're able to decide
+// whether we will be able to satisfy the reuquest or not.
+// NB: it is not the same as `readConsistencyAchieved`.
+func ReadConsistencyTermination(
+	level topology.ReadConsistencyLevel,
+	majority, remaining, success int32,
+) bool {
+	doneAll := remaining == 0
+	switch level {
+	case topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelNone:
+		return success > 0 || doneAll
+	case topology.ReadConsistencyLevelMajority, topology.ReadConsistencyLevelUnstrictMajority:
+		return success >= majority || doneAll
+	case topology.ReadConsistencyLevelAll:
+		return doneAll
+	}
+	panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
+}
+
+// ReadConsistencyAchieved returns whether sufficient responses have been received
+// to reach the desired consistency.
+// NB: it is not the same as `readConsistencyTermination`.
+func ReadConsistencyAchieved(
+	level topology.ReadConsistencyLevel,
+	majority, numPeers, numSuccess int,
+) bool {
+	switch level {
+	case topology.ReadConsistencyLevelAll:
+		return numSuccess == numPeers // Meets all
+	case topology.ReadConsistencyLevelMajority:
+		return numSuccess >= majority // Meets majority
+	case topology.ReadConsistencyLevelOne, topology.ReadConsistencyLevelUnstrictMajority:
+		return numSuccess > 0 // Meets one
+	case topology.ReadConsistencyLevelNone:
+		return true // Always meets none
+	}
+	panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
+}
