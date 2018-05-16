@@ -865,6 +865,13 @@ func NextIndexSnapshotFileIndex(filePathPrefix string, namespace ident.ID, block
 	return currentSnapshotIndex + 1, nil
 }
 
+// NextIndexFileSetFileChunkIndex returns the next chunk index for the given namespace/blockStart combination.
+// This is required as we can retain multiple FileSet files for flushed indexed data per blockStart.
+func NextIndexFileSetFileChunkIndex(filePathPrefix string, namespace ident.ID, blockStart time.Time) (int, error) {
+	// FOLLOWUP(prateek): re-wire once we allow multiple fileset file chunks for index flush data.
+	return 1, nil
+}
+
 // FileExists returns whether a file at the given path exists.
 func FileExists(filePath string) bool {
 	_, err := os.Stat(filePath)
