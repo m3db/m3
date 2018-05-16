@@ -20,7 +20,7 @@
 
 package config
 
-import "github.com/m3db/m3db/client"
+import "github.com/m3db/m3db/src/dbnode/client"
 
 // Configuration is the configuration for an instance of m3coordinator.
 type Configuration struct {

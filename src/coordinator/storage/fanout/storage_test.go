@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
-	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"

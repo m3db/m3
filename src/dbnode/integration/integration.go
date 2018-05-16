@@ -1,0 +1,338 @@
+// Copyright (c) 2016 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+package integration
+
+import (
+	"fmt"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3db/src/dbnode/integration/generate"
+	"github.com/m3db/m3db/src/dbnode/sharding"
+	"github.com/m3db/m3db/src/dbnode/storage"
+	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
+	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper"
+	bfs "github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper/fs"
+	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper/peers"
+	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3db/src/dbnode/storage/namespace"
+	"github.com/m3db/m3db/src/dbnode/storage/series"
+	"github.com/m3db/m3db/src/dbnode/topology"
+	"github.com/m3db/m3db/src/dbnode/topology/testutil"
+	xmetrics "github.com/m3db/m3db/src/dbnode/x/metrics"
+	"github.com/m3db/m3x/instrument"
+	xlog "github.com/m3db/m3x/log"
+	xretry "github.com/m3db/m3x/retry"
+	xtime "github.com/m3db/m3x/time"
+
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+)
+
+const (
+	multiAddrPortStart = 9000
+	multiAddrPortEach  = 5
+)
+
+// TODO: refactor and use m3x/clock ...
+type conditionFn func() bool
+
+func waitUntil(fn conditionFn, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if fn() {
+			return true
+		}
+		time.Sleep(time.Second)
+	}
+	return false
+}
+
+func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
+	bind := "127.0.0.1"
+	start := multiAddrPortStart + (instance * multiAddrPortEach)
+	return opts.
+		SetID(fmt.Sprintf("testhost%d", instance)).
+		SetTChannelNodeAddr(fmt.Sprintf("%s:%d", bind, start)).
+		SetTChannelClusterAddr(fmt.Sprintf("%s:%d", bind, start+1)).
+		SetHTTPNodeAddr(fmt.Sprintf("%s:%d", bind, start+2)).
+		SetHTTPClusterAddr(fmt.Sprintf("%s:%d", bind, start+3)).
+		SetHTTPDebugAddr(fmt.Sprintf("%s:%d", bind, start+4))
+}
+
+func newMultiAddrAdminClient(
+	t *testing.T,
+	adminOpts client.AdminOptions,
+	instrumentOpts instrument.Options,
+	shardSet sharding.ShardSet,
+	replicas int,
+	instance int,
+) client.AdminClient {
+	if adminOpts == nil {
+		adminOpts = client.NewAdminOptions()
+	}
+
+	var (
+		start         = multiAddrPortStart
+		hostShardSets []topology.HostShardSet
+		origin        topology.Host
+	)
+	for i := 0; i < replicas; i++ {
+		id := fmt.Sprintf("testhost%d", i)
+		nodeAddr := fmt.Sprintf("127.0.0.1:%d", start+(i*multiAddrPortEach))
+		host := topology.NewHost(id, nodeAddr)
+		if i == instance {
+			origin = host
+		}
+		hostShardSet := topology.NewHostShardSet(host, shardSet)
+		hostShardSets = append(hostShardSets, hostShardSet)
+	}
+
+	staticOptions := topology.NewStaticOptions().
+		SetShardSet(shardSet).
+		SetReplicas(replicas).
+		SetHostShardSets(hostShardSets)
+
+	clientOpts := adminOpts.
+		SetOrigin(origin).
+		SetInstrumentOptions(instrumentOpts).
+		SetTopologyInitializer(topology.NewStaticInitializer(staticOptions)).
+		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelAny).
+		SetClusterConnectTimeout(time.Second)
+
+	adminClient, err := client.NewAdminClient(clientOpts.(client.AdminOptions))
+	require.NoError(t, err)
+
+	return adminClient
+}
+
+type bootstrappableTestSetupOptions struct {
+	disablePeersBootstrapper           bool
+	fetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion
+	bootstrapBlocksBatchSize           int
+	bootstrapBlocksConcurrency         int
+	topologyInitializer                topology.Initializer
+	testStatsReporter                  xmetrics.TestStatsReporter
+}
+
+type closeFn func()
+
+func newDefaulTestResultOptions(
+	storageOpts storage.Options,
+) result.Options {
+	return result.NewOptions().
+		SetClockOptions(storageOpts.ClockOptions()).
+		SetInstrumentOptions(storageOpts.InstrumentOptions()).
+		SetDatabaseBlockOptions(storageOpts.DatabaseBlockOptions()).
+		SetSeriesCachePolicy(storageOpts.SeriesCachePolicy())
+}
+
+func newDefaultBootstrappableTestSetups(
+	t *testing.T,
+	opts testOptions,
+	setupOpts []bootstrappableTestSetupOptions,
+) (testSetups, closeFn) {
+	var (
+		replicas        = len(setupOpts)
+		setups          []*testSetup
+		cleanupFns      []func()
+		cleanupFnsMutex sync.RWMutex
+	)
+	appendCleanupFn := func(fn func()) {
+		cleanupFnsMutex.Lock()
+		defer cleanupFnsMutex.Unlock()
+		cleanupFns = append(cleanupFns, fn)
+	}
+	anySetupUsingFetchBlocksMetadataEndpointV1 := false
+	for i := range setupOpts {
+		v1 := client.FetchBlocksMetadataEndpointV1
+		if setupOpts[i].fetchBlocksMetadataEndpointVersion == v1 {
+			anySetupUsingFetchBlocksMetadataEndpointV1 = true
+			break
+		}
+	}
+	for i := 0; i < replicas; i++ {
+		var (
+			instance                   = i
+			usingPeersBootstrapper     = !setupOpts[i].disablePeersBootstrapper
+			bootstrapBlocksBatchSize   = setupOpts[i].bootstrapBlocksBatchSize
+			bootstrapBlocksConcurrency = setupOpts[i].bootstrapBlocksConcurrency
+			topologyInitializer        = setupOpts[i].topologyInitializer
+			testStatsReporter          = setupOpts[i].testStatsReporter
+			instanceOpts               = newMultiAddrTestOptions(opts, instance)
+		)
+
+		if topologyInitializer != nil {
+			instanceOpts = instanceOpts.
+				SetClusterDatabaseTopologyInitializer(topologyInitializer)
+		}
+
+		setup, err := newTestSetup(t, instanceOpts, nil)
+		require.NoError(t, err)
+
+		// Force correct series cache policy if using V1 version
+		// TODO: Remove once v1 endpoint is gone
+		if anySetupUsingFetchBlocksMetadataEndpointV1 {
+			setup.storageOpts = setup.storageOpts.SetSeriesCachePolicy(series.CacheAll)
+		}
+
+		instrumentOpts := setup.storageOpts.InstrumentOptions()
+		logger := instrumentOpts.Logger()
+		logger = logger.WithFields(xlog.NewField("instance", instance))
+		instrumentOpts = instrumentOpts.SetLogger(logger)
+		if testStatsReporter != nil {
+			scope, _ := tally.NewRootScope(tally.ScopeOptions{Reporter: testStatsReporter}, 100*time.Millisecond)
+			instrumentOpts = instrumentOpts.SetMetricsScope(scope)
+		}
+		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(instrumentOpts)
+
+		bsOpts := newDefaulTestResultOptions(setup.storageOpts)
+		noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
+		var peersBootstrapper bootstrap.BootstrapperProvider
+
+		if usingPeersBootstrapper {
+			adminOpts := client.NewAdminOptions()
+			if bootstrapBlocksBatchSize > 0 {
+				adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
+			}
+			if bootstrapBlocksConcurrency > 0 {
+				adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
+			}
+
+			// Prevent integration tests from timing out when a node is down
+			retryOpts := xretry.NewOptions().
+				SetInitialBackoff(1 * time.Millisecond).
+				SetMaxRetries(1).
+				SetJitter(true)
+			retrier := xretry.NewRetrier(retryOpts)
+			adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
+
+			adminClient := newMultiAddrAdminClient(
+				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
+			peersOpts := peers.NewOptions().
+				SetResultOptions(bsOpts).
+				SetAdminClient(adminClient).
+				SetFetchBlocksMetadataEndpointVersion(setupOpts[i].fetchBlocksMetadataEndpointVersion).
+				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
+				// the incremental path
+				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
+				SetPersistManager(setup.storageOpts.PersistManager())
+
+			peersBootstrapper, err = peers.NewPeersBootstrapperProvider(peersOpts, noOpAll)
+			require.NoError(t, err)
+		} else {
+			peersBootstrapper = noOpAll
+		}
+
+		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+		bfsOpts := bfs.NewOptions().
+			SetResultOptions(bsOpts).
+			SetFilesystemOptions(fsOpts).
+			SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
+
+		fsBootstrapper := bfs.NewFileSystemBootstrapperProvider(bfsOpts, peersBootstrapper)
+		setup.storageOpts = setup.storageOpts.
+			SetBootstrapProcessProvider(
+				bootstrap.NewProcessProvider(fsBootstrapper, bootstrap.NewProcessOptions(), bsOpts))
+
+		setups = append(setups, setup)
+		appendCleanupFn(func() {
+			setup.close()
+		})
+	}
+
+	return setups, func() {
+		cleanupFnsMutex.RLock()
+		defer cleanupFnsMutex.RUnlock()
+		for _, fn := range cleanupFns {
+			fn()
+		}
+	}
+}
+
+func writeTestDataToDisk(
+	metadata namespace.Metadata,
+	setup *testSetup,
+	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
+) error {
+	ropts := metadata.Options().RetentionOptions()
+	writer := generate.NewWriter(setup.generatorOptions(ropts))
+	return writer.Write(metadata.ID(), setup.shardSet, seriesMaps)
+}
+
+func concatShards(a, b shard.Shards) shard.Shards {
+	all := append(a.All(), b.All()...)
+	return shard.NewShards(all)
+}
+
+func newClusterShardsRange(from, to uint32, s shard.State) shard.Shards {
+	return shard.NewShards(testutil.ShardsRange(from, to, s))
+}
+
+func newClusterEmptyShardsRange() shard.Shards {
+	return shard.NewShards(testutil.Shards(nil, shard.Available))
+}
+
+func waitUntilHasBootstrappedShardsExactly(
+	db storage.Database,
+	shards []uint32,
+) {
+	for {
+		if hasBootstrappedShardsExactly(db, shards) {
+			return
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func hasBootstrappedShardsExactly(
+	db storage.Database,
+	shards []uint32,
+) bool {
+	for _, namespace := range db.Namespaces() {
+		expect := make(map[uint32]struct{})
+		pending := make(map[uint32]struct{})
+		for _, shard := range shards {
+			expect[shard] = struct{}{}
+			pending[shard] = struct{}{}
+		}
+
+		for _, s := range namespace.Shards() {
+			if _, ok := expect[s.ID()]; !ok {
+				// Not expecting shard
+				return false
+			}
+			if s.IsBootstrapped() {
+				delete(pending, s.ID())
+			}
+		}
+
+		if len(pending) != 0 {
+			// Not all shards bootstrapped
+			return false
+		}
+	}
+
+	return true
+}

@@ -26,8 +26,8 @@ import (
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/m3db/m3cluster/kv"
-	nsproto "github.com/m3db/m3db/generated/proto/namespace"
-	"github.com/m3db/m3db/storage/namespace"
+	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
+	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 
 	"github.com/gorilla/mux"
 )

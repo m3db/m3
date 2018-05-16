@@ -1,5 +1,5 @@
 SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
-CI_DIR := $(SELF_DIR)/../..
+CI_DIR := $(SELF_DIR)/../dbnode
 include $(CI_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail

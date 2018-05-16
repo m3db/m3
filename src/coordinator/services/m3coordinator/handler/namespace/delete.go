@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"

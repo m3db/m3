@@ -6,7 +6,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/storage/local"
 
-	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/src/dbnode/client"
 
 	"github.com/golang/mock/gomock"
 )

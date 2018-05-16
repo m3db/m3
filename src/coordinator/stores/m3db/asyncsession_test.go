@@ -28,8 +28,8 @@ import (
 
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
-	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 

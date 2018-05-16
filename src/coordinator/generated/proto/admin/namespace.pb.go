@@ -40,7 +40,7 @@ package admin
 import proto "github.com/golang/protobuf/proto"
 import fmt "fmt"
 import math "math"
-import namespace "github.com/m3db/m3db/generated/proto/namespace"
+import namespace "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
 
 import io "io"
 

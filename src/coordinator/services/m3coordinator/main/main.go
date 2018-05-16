@@ -44,7 +44,7 @@ import (
 
 	m3clusterClient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/client/etcd"
-	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/src/dbnode/client"
 	xconfig "github.com/m3db/m3x/config"
 
 	"go.uber.org/zap"
