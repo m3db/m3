@@ -154,10 +154,11 @@ func (s *localStorage) Write(ctx context.Context, query *storage.WriteQuery) err
 
 	id := query.Tags.ID()
 	common := &writeRequestCommon{
-		store:      s,
-		annotation: query.Annotation,
-		unit:       query.Unit,
-		id:         id,
+		store:       s,
+		annotation:  query.Annotation,
+		unit:        query.Unit,
+		id:          id,
+		tagIterator: storage.TagsToIdentTagIterator(query.Tags),
 	}
 
 	requests := make([]execution.Request, len(query.Datapoints))
@@ -180,7 +181,7 @@ func (w *writeRequest) Process(ctx context.Context) error {
 	common := w.writeRequestCommon
 	store := common.store
 	id := ident.StringID(common.id)
-	return store.session.Write(store.namespace, id, w.timestamp, w.value, common.unit, common.annotation)
+	return store.session.WriteTagged(store.namespace, id, common.tagIterator, w.timestamp, w.value, common.unit, common.annotation)
 }
 
 type writeRequestCommon struct {
@@ -188,6 +189,7 @@ type writeRequestCommon struct {
 	annotation []byte
 	unit       xtime.Unit
 	id         string
+	tagIterator        ident.TagIterator
 }
 
 type writeRequest struct {

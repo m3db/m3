@@ -63,6 +63,17 @@ func FromIdentTagIteratorToTags(identTags ident.TagIterator) (models.Tags, error
 	return tags, nil
 }
 
+// TagsToIdentTagIterator converts coordinator tags to ident tags
+func TagsToIdentTagIterator(tags models.Tags) ident.TagIterator {
+	identTags := make([]ident.Tag, 0, len(tags))
+
+	for key, val := range tags {
+		identTags = append(identTags, ident.StringTag(key, val))
+	}
+
+	return ident.NewTagsIterator(ident.NewTags(identTags...))
+}
+
 // FetchOptionsToM3Options converts a set of coordinator options to M3 options
 func FetchOptionsToM3Options(fetchOptions *FetchOptions, fetchQuery *FetchQuery) index.QueryOptions {
 	return index.QueryOptions{
