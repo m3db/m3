@@ -91,10 +91,6 @@ func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
-	bootstrapConsistencyLevel := s.opts.RuntimeOptionsManager().
-		Get().
-		ClientBootstrapConsistencyLevel()
-
 	peerAvailabilityByShard := map[uint32]*shardPeerAvailability{}
 	for shardID := range shardsTimeRanges {
 		shardPeers, ok := peerAvailabilityByShard[shardID]
@@ -135,6 +131,9 @@ func (s *peersSource) AvailableData(
 	}
 
 	var (
+		bootstrapConsistencyLevel = s.opts.RuntimeOptionsManager().
+						Get().
+						ClientBootstrapConsistencyLevel()
 		majorityReplicas         = s.initialTopologyState.majorityReplicas
 		availableShardTimeRanges = result.ShardTimeRanges{}
 	)
