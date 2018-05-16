@@ -738,7 +738,7 @@ func (s commitLogSource) maybeAddToIndex(
 		return err
 	}
 
-	exists, err := segment.ContainsID(id.Data().Bytes())
+	exists, err := segment.ContainsID(id.Bytes())
 	if err != nil {
 		return err
 	}
