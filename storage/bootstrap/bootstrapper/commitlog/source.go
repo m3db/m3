@@ -600,6 +600,8 @@ func (s *commitLogSource) cacheShardData(ns namespace.Metadata, allShardData []s
 		for uniqueIdx, seriesData := range currSeries {
 			// If its not already there, just add it
 			cachedSeriesData, ok := cachedSeries[uniqueIdx]
+			if ok {
+			}
 			if !ok {
 				cachedSeries[uniqueIdx] = seriesData
 				continue

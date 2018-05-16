@@ -81,20 +81,20 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 	bazTags := ident.NewTags(ident.StringTag("city", "oakland"))
 
 	shardZero := uint32(0)
-	foo := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero, ID: ident.StringID("foo"), Tags: fooTags}
-	bar := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 1, ID: ident.StringID("bar"), Tags: barTags}
-	baz := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 5, ID: ident.StringID("baz"), Tags: bazTags}
+	foo := commitlog.Series{UniqueIndex: 0, Namespace: testNamespaceID, Shard: shardZero, ID: ident.StringID("foo"), Tags: fooTags}
+	bar := commitlog.Series{UniqueIndex: 1, Namespace: testNamespaceID, Shard: shardZero, ID: ident.StringID("bar"), Tags: barTags}
+	baz := commitlog.Series{UniqueIndex: 2, Namespace: testNamespaceID, Shard: shardZero + 5, ID: ident.StringID("baz"), Tags: bazTags}
 	// Make sure we can handle series that don't have tags.
-	untagged := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 5, ID: ident.StringID("untagged"), Tags: ident.Tags{}}
+	untagged := commitlog.Series{UniqueIndex: 3, Namespace: testNamespaceID, Shard: shardZero + 5, ID: ident.StringID("untagged"), Tags: ident.Tags{}}
 	// Make sure we skip series that are not within the bootstrap range.
-	outOfRange := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 3, ID: ident.StringID("outOfRange"), Tags: ident.Tags{}}
+	outOfRange := commitlog.Series{UniqueIndex: 4, Namespace: testNamespaceID, Shard: shardZero + 3, ID: ident.StringID("outOfRange"), Tags: ident.Tags{}}
 	// Make sure we skip and dont panic on writes for shards that are higher than the maximum we're trying to bootstrap.
-	shardTooHigh := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 100, ID: ident.StringID("shardTooHigh"), Tags: ident.Tags{}}
+	shardTooHigh := commitlog.Series{UniqueIndex: 5, Namespace: testNamespaceID, Shard: shardZero + 100, ID: ident.StringID("shardTooHigh"), Tags: ident.Tags{}}
 	// Make sure we skip series for shards that have no requested bootstrap ranges. The shard for this write needs
 	// to be less than the highest shard we actually plan to bootstrap.
-	noShardBootstrapRange := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 4, ID: ident.StringID("noShardBootstrapRange"), Tags: ident.Tags{}}
+	noShardBootstrapRange := commitlog.Series{UniqueIndex: 6, Namespace: testNamespaceID, Shard: shardZero + 4, ID: ident.StringID("noShardBootstrapRange"), Tags: ident.Tags{}}
 	// Make sure it handles multiple namespaces
-	someOtherNamespace := commitlog.Series{Namespace: testNamespaceID2, Shard: shardZero, ID: ident.StringID("someOtherNamespace"), Tags: ident.Tags{}}
+	someOtherNamespace := commitlog.Series{UniqueIndex: 7, Namespace: testNamespaceID2, Shard: shardZero, ID: ident.StringID("someOtherNamespace"), Tags: ident.Tags{}}
 
 	seriesNotToExpect := map[string]struct{}{
 		outOfRange.ID.String():            struct{}{},
@@ -105,6 +105,7 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 	values := []testValue{
 		{foo, start, 1.0, xtime.Second, nil},
 		{foo, start, 2.0, xtime.Second, nil},
+		{foo, start.Add(dataBlockSize), 3.0, xtime.Second, nil},
 		{bar, start.Add(dataBlockSize), 1.0, xtime.Second, nil},
 		{bar, start.Add(dataBlockSize), 2.0, xtime.Second, nil},
 		{baz, start.Add(2 * dataBlockSize), 1.0, xtime.Second, nil},
@@ -163,15 +164,14 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 			}
 		}
 
-		targetRangesCopyWithoutHighest := targetRangesCopy.Copy()
 		// Delete the highest hard number to ensure we're bootstrapping a subset, and the subsequent call
 		// to ReadData() will exercise the slice extending loggic.
-		delete(targetRangesCopyWithoutHighest, highestShard)
-		_, err = src.ReadData(md1, targetRangesCopyWithoutHighest, testDefaultRunOpts)
+		delete(targetRangesCopy, highestShard)
+		_, err = src.ReadData(md1, targetRangesCopy, testDefaultRunOpts)
 		require.NoError(t, err)
 
 		// Bootstrap the actual time ranges to actually cache the metadata.
-		_, err = src.ReadData(md1, targetRangesCopy, testDefaultRunOpts)
+		_, err = src.ReadData(md1, targetRanges, testDefaultRunOpts)
 		require.NoError(t, err)
 	}
 
