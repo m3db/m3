@@ -254,7 +254,7 @@ func newDefaultBootstrappableTestSetups(
 		fsBootstrapper := bfs.NewFileSystemBootstrapperProvider(bfsOpts, peersBootstrapper)
 		setup.storageOpts = setup.storageOpts.
 			SetBootstrapProcessProvider(
-				bootstrap.NewProcessProvider(fsBootstrapper, bootstrap.NewProcessProviderOptions(), bsOpts))
+				bootstrap.NewProcessProvider(fsBootstrapper, bootstrap.NewProcessOptions(), bsOpts))
 
 		setups = append(setups, setup)
 		appendCleanupFn(func() {

@@ -90,7 +90,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 		SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 	bs := bfs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
 	processProvider := bootstrap.NewProcessProvider(
-		bs, bootstrap.NewProcessProviderOptions(), bsOpts)
+		bs, bootstrap.NewProcessOptions(), bsOpts)
 
 	setup.storageOpts = setup.storageOpts.
 		SetBootstrapProcessProvider(processProvider)

@@ -154,7 +154,7 @@ func (bsc BootstrapConfiguration) New(
 		}
 	}
 
-	providerOpts := bootstrap.NewProcessProviderOptions()
+	providerOpts := bootstrap.NewProcessOptions()
 	if bsc.CacheSeriesMetadata != nil {
 		providerOpts = providerOpts.SetCacheSeriesMetadata(*bsc.CacheSeriesMetadata)
 	}

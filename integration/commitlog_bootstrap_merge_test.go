@@ -138,7 +138,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	fsBootstrapper := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
 	// bootstrapper storage opts
 	process := bootstrap.NewProcessProvider(
-		fsBootstrapper, bootstrap.NewProcessProviderOptions(), bsOpts)
+		fsBootstrapper, bootstrap.NewProcessOptions(), bsOpts)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	log.Info("moving time forward and starting server")

@@ -26,23 +26,23 @@ const (
 	defaultCacheSeriesMetadata = true
 )
 
-type processProviderOptions struct {
+type processOptions struct {
 	cacheSeriesMetadata bool
 }
 
-// NewProcessProviderOptions creates new bootstrap run options
-func NewProcessProviderOptions() ProcessProviderOptions {
-	return &processProviderOptions{
+// NewProcessOptions creates new bootstrap run options
+func NewProcessOptions() ProcessOptions {
+	return &processOptions{
 		cacheSeriesMetadata: defaultCacheSeriesMetadata,
 	}
 }
 
-func (o *processProviderOptions) SetCacheSeriesMetadata(value bool) ProcessProviderOptions {
+func (o *processOptions) SetCacheSeriesMetadata(value bool) ProcessOptions {
 	opts := *o
 	opts.cacheSeriesMetadata = value
 	return &opts
 }
 
-func (o *processProviderOptions) CacheSeriesMetadata() bool {
+func (o *processOptions) CacheSeriesMetadata() bool {
 	return o.cacheSeriesMetadata
 }

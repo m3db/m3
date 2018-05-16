@@ -85,7 +85,7 @@ func TestCommitLogBootstrap(t *testing.T) {
 		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
 	require.NoError(t, err)
 	process := bootstrap.NewProcessProvider(
-		bs, bootstrap.NewProcessProviderOptions(), bsOpts)
+		bs, bootstrap.NewProcessOptions(), bsOpts)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	setup.setNowFn(now)

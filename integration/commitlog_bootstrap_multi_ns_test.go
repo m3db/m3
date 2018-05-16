@@ -110,7 +110,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
 	require.NoError(t, err)
 	process := bootstrap.NewProcessProvider(
-		bs, bootstrap.NewProcessProviderOptions(), bsOpts)
+		bs, bootstrap.NewProcessOptions(), bsOpts)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	later := now.Add(4 * ns1BlockSize)

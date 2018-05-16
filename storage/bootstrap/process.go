@@ -35,7 +35,7 @@ import (
 // bootstrapProcessProvider is the bootstrapping process provider.
 type bootstrapProcessProvider struct {
 	sync.RWMutex
-	processProviderOpts  ProcessProviderOptions
+	processOpts          ProcessOptions
 	resultOpts           result.Options
 	log                  xlog.Logger
 	bootstrapperProvider BootstrapperProvider
@@ -51,11 +51,11 @@ const (
 // NewProcessProvider creates a new bootstrap process provider.
 func NewProcessProvider(
 	bootstrapperProvider BootstrapperProvider,
-	processProviderOpts ProcessProviderOptions,
+	processOpts ProcessOptions,
 	resultOpts result.Options,
 ) ProcessProvider {
 	return &bootstrapProcessProvider{
-		processProviderOpts:  processProviderOpts,
+		processOpts:          processOpts,
 		resultOpts:           resultOpts,
 		log:                  resultOpts.InstrumentOptions().Logger(),
 		bootstrapperProvider: bootstrapperProvider,
@@ -78,20 +78,20 @@ func (b *bootstrapProcessProvider) Provide() Process {
 	b.RLock()
 	defer b.RUnlock()
 	return bootstrapProcess{
-		processProviderOpts: b.processProviderOpts,
-		resultOpts:          b.resultOpts,
-		nowFn:               b.resultOpts.ClockOptions().NowFn(),
-		log:                 b.log,
-		bootstrapper:        b.bootstrapperProvider.Provide(),
+		processOpts:  b.processOpts,
+		resultOpts:   b.resultOpts,
+		nowFn:        b.resultOpts.ClockOptions().NowFn(),
+		log:          b.log,
+		bootstrapper: b.bootstrapperProvider.Provide(),
 	}
 }
 
 type bootstrapProcess struct {
-	processProviderOpts ProcessProviderOptions
-	resultOpts          result.Options
-	nowFn               clock.NowFn
-	log                 xlog.Logger
-	bootstrapper        Bootstrapper
+	processOpts  ProcessOptions
+	resultOpts   result.Options
+	nowFn        clock.NowFn
+	log          xlog.Logger
+	bootstrapper Bootstrapper
 }
 
 func (b bootstrapProcess) Run(
@@ -297,6 +297,6 @@ func (b bootstrapProcess) targetRanges(
 func (b bootstrapProcess) newRunOptions() RunOptions {
 	return NewRunOptions().
 		SetCacheSeriesMetadata(
-			b.processProviderOpts.CacheSeriesMetadata(),
+			b.processOpts.CacheSeriesMetadata(),
 		)
 }

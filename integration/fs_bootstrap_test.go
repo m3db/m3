@@ -72,7 +72,7 @@ func TestFilesystemBootstrap(t *testing.T) {
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
 	bs := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
 	processProvider := bootstrap.NewProcessProvider(
-		bs, bootstrap.NewProcessProviderOptions(), bsOpts)
+		bs, bootstrap.NewProcessOptions(), bsOpts)
 
 	setup.storageOpts = setup.storageOpts.
 		SetBootstrapProcessProvider(processProvider)
