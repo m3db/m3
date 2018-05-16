@@ -80,7 +80,7 @@ type filesetBeforeFn func(
 	t time.Time,
 ) ([]string, error)
 
-type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.SnapshotFilesSlice, error)
+type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
 
 type tickPolicy int
 
@@ -1875,13 +1875,15 @@ func (s *dbShard) Snapshot(
 		NamespaceMetadata: s.namespace,
 		Shard:             s.ID(),
 		BlockStart:        blockStart,
-		SnapshotTime:      snapshotTime,
 		FileSetType:       persist.FileSetSnapshotType,
 		// We explicitly set delete if exists to false here as we do not
 		// expect there to be a collision as snapshots files are appended
 		// with a monotonically increasing number to avoid collisions, there
 		// would have to be a competing process to cause a collision.
 		DeleteIfExists: false,
+		Snapshot: persist.DataPrepareSnapshotOptions{
+			SnapshotTime: snapshotTime,
+		},
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	// Add the err so the defer will capture it
@@ -2005,7 +2007,7 @@ func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
 	sort.Slice(snapshotFiles, func(i, j int) bool {
 		// Make sure they're sorted by blockStart/Index in ascending order.
 		if snapshotFiles[i].ID.BlockStart.Equal(snapshotFiles[j].ID.BlockStart) {
-			return snapshotFiles[i].ID.Index < snapshotFiles[j].ID.Index
+			return snapshotFiles[i].ID.VolumeIndex < snapshotFiles[j].ID.VolumeIndex
 		}
 		return snapshotFiles[i].ID.BlockStart.Before(snapshotFiles[j].ID.BlockStart)
 	})
@@ -2031,7 +2033,7 @@ func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
 
 		if i+1 < len(snapshotFiles) &&
 			snapshotFiles[i+1].ID.BlockStart == curr.ID.BlockStart &&
-			snapshotFiles[i+1].ID.Index > curr.ID.Index &&
+			snapshotFiles[i+1].ID.VolumeIndex > curr.ID.VolumeIndex &&
 			snapshotFiles[i+1].HasCheckpointFile() {
 			// Delete any snapshot files which are not the most recent
 			// for that block start, but only of the set of snapshot files

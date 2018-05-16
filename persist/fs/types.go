@@ -48,8 +48,8 @@ type FileSetFileIdentifier struct {
 	BlockStart         time.Time
 	// Only required for data content files
 	Shard uint32
-	// Only required for snapshot files
-	Index int
+	// Required for snapshot files (index yes, data yes) and fileset files (index yes, data no)
+	VolumeIndex int
 }
 
 // DataWriterOpenOptions is the options struct for the Open method on the DataFileSetWriter

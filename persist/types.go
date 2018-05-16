@@ -65,14 +65,22 @@ type DataFlush interface {
 type DataPrepareOptions struct {
 	NamespaceMetadata namespace.Metadata
 	BlockStart        time.Time
-	SnapshotTime      time.Time
 	Shard             uint32
 	FileSetType       FileSetType
 	DeleteIfExists    bool
+	// Snapshot options are applicable to snapshots (index yes, data yes)
+	Snapshot DataPrepareSnapshotOptions
+}
+
+// DataPrepareVolumeOptions is the options struct for the prepare method that contains
+// information specific to read/writing filesets that have multiple volumes (such as
+// snapshots and index file sets).
+type DataPrepareVolumeOptions struct {
+	VolumeIndex int
 }
 
 // DataPrepareSnapshotOptions is the options struct for the Prepare method that contains
-// information specific to reading data snapshot files .
+// information specific to read/writing snapshot files.
 type DataPrepareSnapshotOptions struct {
 	SnapshotTime time.Time
 }

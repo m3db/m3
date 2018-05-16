@@ -343,11 +343,13 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 	}
 
 	prepareOpts := persist.DataPrepareOptionsMatcher{
-		NsMetadata:   s.namespace,
-		Shard:        s.shard,
-		BlockStart:   blockStart,
-		SnapshotTime: blockStart,
-		FileSetType:  persist.FileSetSnapshotType,
+		NsMetadata:  s.namespace,
+		Shard:       s.shard,
+		BlockStart:  blockStart,
+		FileSetType: persist.FileSetSnapshotType,
+		Snapshot: persist.DataPrepareSnapshotOptions{
+			SnapshotTime: blockStart,
+		},
 	}
 	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
 
@@ -888,58 +890,50 @@ func TestShardCleanupSnapshot(t *testing.T) {
 	shard.markFlushStateSuccess(earliestToRetain)
 	defer shard.Close()
 
-	shard.snapshotFilesFn = func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.SnapshotFilesSlice, error) {
-		return fs.SnapshotFilesSlice{
+	shard.snapshotFilesFn = func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+		return fs.FileSetFilesSlice{
 			// Should get removed for not being in retention period
-			fs.SnapshotFile{
-				FileSetFile: fs.FileSetFile{
-					ID: fs.FileSetFileIdentifier{
-						Namespace:  namespace,
-						Shard:      shard,
-						BlockStart: pastRetention,
-						Index:      0,
-					},
-					AbsoluteFilepaths: []string{"not-in-retention"},
+			fs.FileSetFile{
+				ID: fs.FileSetFileIdentifier{
+					Namespace:   namespace,
+					Shard:       shard,
+					BlockStart:  pastRetention,
+					VolumeIndex: 0,
 				},
+				AbsoluteFilepaths: []string{"not-in-retention"},
 			},
 			// Should get removed for being flushed
-			fs.SnapshotFile{
-				FileSetFile: fs.FileSetFile{
-					ID: fs.FileSetFileIdentifier{
-						Namespace:  namespace,
-						Shard:      shard,
-						BlockStart: successfullyFlushed,
-						Index:      0,
-					},
-					AbsoluteFilepaths: []string{"successfully-flushed"},
+			fs.FileSetFile{
+				ID: fs.FileSetFileIdentifier{
+					Namespace:   namespace,
+					Shard:       shard,
+					BlockStart:  successfullyFlushed,
+					VolumeIndex: 0,
 				},
+				AbsoluteFilepaths: []string{"successfully-flushed"},
 			},
 			// Should not get removed - Note that this entry precedes the
 			// next in order to ensure that the sorting logic works correctly.
-			fs.SnapshotFile{
-				FileSetFile: fs.FileSetFile{
-					ID: fs.FileSetFileIdentifier{
-						Namespace:  namespace,
-						Shard:      shard,
-						BlockStart: notFlushedYet,
-						Index:      1,
-					},
-					// Note this filename needs to contain the word "checkpoint" to
-					// pass the HasCheckpointFile() check
-					AbsoluteFilepaths: []string{"latest-index-and-has-checkpoint"},
+			fs.FileSetFile{
+				ID: fs.FileSetFileIdentifier{
+					Namespace:   namespace,
+					Shard:       shard,
+					BlockStart:  notFlushedYet,
+					VolumeIndex: 1,
 				},
+				// Note this filename needs to contain the word "checkpoint" to
+				// pass the HasCheckpointFile() check
+				AbsoluteFilepaths: []string{"latest-index-and-has-checkpoint"},
 			},
 			// Should get removed because the next one has a higher index
-			fs.SnapshotFile{
-				FileSetFile: fs.FileSetFile{
-					ID: fs.FileSetFileIdentifier{
-						Namespace:  namespace,
-						Shard:      shard,
-						BlockStart: notFlushedYet,
-						Index:      0,
-					},
-					AbsoluteFilepaths: []string{"not-latest-index"},
+			fs.FileSetFile{
+				ID: fs.FileSetFileIdentifier{
+					Namespace:   namespace,
+					Shard:       shard,
+					BlockStart:  notFlushedYet,
+					VolumeIndex: 0,
 				},
+				AbsoluteFilepaths: []string{"not-latest-index"},
 			},
 		}, nil
 	}
