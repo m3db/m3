@@ -49,7 +49,6 @@ const (
 	commitLogsDirName = "commitlogs"
 
 	commitLogComponentPosition    = 2
-	snapshotComponentPosition     = 2
 	indexFileSetComponentPosition = 2
 )
 
@@ -572,7 +571,6 @@ type filesetFilesSelector struct {
 	contentType    persist.FileSetContentType
 	filePathPrefix string
 	namespace      ident.ID
-	snapshot       bool
 	shard          uint32
 	pattern        string
 }
