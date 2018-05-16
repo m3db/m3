@@ -573,12 +573,10 @@ func (s *commitLogSource) cacheShardData(ns namespace.Metadata, allShardData []s
 			}
 		}
 
-		if shard >= len(nsCache.shardData) {
+		for shard >= len(nsCache.shardData) {
 			// Extend the slice if necessary (could happen if different calls to
 			// ReadData() bootstrap different shards.)
-			for len(nsCache.shardData) != shard+1 {
-				nsCache.shardData = append(nsCache.shardData, shardData{})
-			}
+			nsCache.shardData = append(nsCache.shardData, shardData{})
 		}
 
 		nsCache.shardData[shard].ranges = nsCache.shardData[shard].ranges.AddRanges(currShardData.ranges)
