@@ -27,6 +27,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3x/checked"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 )
 
@@ -62,7 +63,7 @@ var (
 var (
 	errTagEncoderInUse     = errors.New("encoder already in use")
 	errTagLiteralTooLong   = errors.New("literal is too long")
-	errEmptyTagNameLiteral = errors.New("tag name cannot be empty")
+	errEmptyTagNameLiteral = xerrors.NewInvalidParamsError(errors.New("tag name cannot be empty"))
 )
 
 type newCheckedBytesFn func([]byte, checked.BytesOptions) checked.Bytes
