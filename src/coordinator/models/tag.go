@@ -22,7 +22,6 @@ package models
 
 import (
 	"fmt"
-	"hash/fnv"
 	"regexp"
 	"sort"
 )
@@ -146,7 +145,5 @@ func (t Tags) ID() string {
 		b += sep
 	}
 
-	h := fnv.New32a()
-	h.Write([]byte(b))
-	return fmt.Sprintf("%d", h.Sum32())
+	return b
 }
