@@ -229,31 +229,16 @@ func (a commitlogsByTimeAndIndexAscending) Less(i, j int) bool {
 	return ti.Equal(tj) && ii < ij
 }
 
-// snapshotsByTimeAndIndexAscending sorts snapshots by their block start times and index in ascending
-// order. If the files do not have block start times or indexes in their names, the result is undefined.
-type snapshotsByTimeAndIndexAscending []string
-
-func (a snapshotsByTimeAndIndexAscending) Len() int      { return len(a) }
-func (a snapshotsByTimeAndIndexAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a snapshotsByTimeAndIndexAscending) Less(i, j int) bool {
-	ti, ii, _ := TimeAndIndexFromFileSetFilename(a[i])
-	tj, ij, _ := TimeAndIndexFromFileSetFilename(a[j])
-	if ti.Before(tj) {
-		return true
-	}
-	return ti.Equal(tj) && ii < ij
-}
-
-// indexFileSetsByTimeAndIndexAscending sorts index data file sets by their block start times and
+// fileSetFilesByTimeAndIndexAscending sorts file sets files by their block start times and volume
 // index in ascending order. If the files do not have block start times or indexes in their names,
 // the result is undefined.
-type indexFileSetsByTimeAndIndexAscending []string
+type fileSetFilesByTimeAndVolumeIndexAscending []string
 
-func (a indexFileSetsByTimeAndIndexAscending) Len() int      { return len(a) }
-func (a indexFileSetsByTimeAndIndexAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a indexFileSetsByTimeAndIndexAscending) Less(i, j int) bool {
-	ti, ii, _ := TimeAndIndexFromFileSetFilename(a[i])
-	tj, ij, _ := TimeAndIndexFromFileSetFilename(a[j])
+func (a fileSetFilesByTimeAndVolumeIndexAscending) Len() int      { return len(a) }
+func (a fileSetFilesByTimeAndVolumeIndexAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a fileSetFilesByTimeAndVolumeIndexAscending) Less(i, j int) bool {
+	ti, ii, _ := TimeAndVolumeIndexFromFileSetFilename(a[i])
+	tj, ij, _ := TimeAndVolumeIndexFromFileSetFilename(a[j])
 	if ti.Before(tj) {
 		return true
 	}
@@ -284,8 +269,8 @@ func TimeAndIndexFromCommitlogFilename(fname string) (time.Time, int, error) {
 	return timeAndIndexFromFileName(fname, commitLogComponentPosition)
 }
 
-// TimeAndIndexFromFileSetFilename extracts the block start and index from file name.
-func TimeAndIndexFromFileSetFilename(fname string) (time.Time, int, error) {
+// TimeAndVolumeIndexFromFileSetFilename extracts the block start and volume index from file name.
+func TimeAndVolumeIndexFromFileSetFilename(fname string) (time.Time, int, error) {
 	return timeAndIndexFromFileName(fname, indexFileSetComponentPosition)
 }
 
@@ -608,7 +593,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 		case persist.FileSetIndexContentType:
 			dir := NamespaceIndexDataDirPath(args.filePathPrefix, args.namespace)
 			byTimeAsc, err = findFiles(dir, args.pattern, func(files []string) sort.Interface {
-				return indexFileSetsByTimeAndIndexAscending(files)
+				return fileSetFilesByTimeAndVolumeIndexAscending(files)
 			})
 		default:
 			return nil, fmt.Errorf("unknown content type: %d", args.contentType)
@@ -624,7 +609,7 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 			return nil, fmt.Errorf("unknown content type: %d", args.contentType)
 		}
 		byTimeAsc, err = findFiles(dir, args.pattern, func(files []string) sort.Interface {
-			return snapshotsByTimeAndIndexAscending(files)
+			return fileSetFilesByTimeAndVolumeIndexAscending(files)
 		})
 	default:
 		return nil, fmt.Errorf("unknown type: %d", args.fileSetType)
@@ -656,12 +641,12 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 			case persist.FileSetDataContentType:
 				currentFileBlockStart, err = TimeFromFileName(file)
 			case persist.FileSetIndexContentType:
-				currentFileBlockStart, volumeIndex, err = TimeAndIndexFromFileSetFilename(file)
+				currentFileBlockStart, volumeIndex, err = TimeAndVolumeIndexFromFileSetFilename(file)
 			default:
 				return nil, fmt.Errorf("unknown content type: %d", args.contentType)
 			}
 		case persist.FileSetSnapshotType:
-			currentFileBlockStart, volumeIndex, err = TimeAndIndexFromFileSetFilename(file)
+			currentFileBlockStart, volumeIndex, err = TimeAndVolumeIndexFromFileSetFilename(file)
 		default:
 			return nil, fmt.Errorf("unknown type: %d", args.fileSetType)
 		}

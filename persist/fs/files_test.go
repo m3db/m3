@@ -335,26 +335,26 @@ func TestTimeAndIndexFromCommitlogFileName(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTimeAndIndexFromFileSetFilename(t *testing.T) {
-	_, _, err := TimeAndIndexFromFileSetFilename("foo/bar")
+func TestTimeAndVolumeIndexFromFileSetFilename(t *testing.T) {
+	_, _, err := TimeAndVolumeIndexFromFileSetFilename("foo/bar")
 	require.Error(t, err)
 	require.Equal(t, "unexpected file name foo/bar", err.Error())
 
-	_, _, err = TimeAndIndexFromFileSetFilename("foo/bar-baz")
+	_, _, err = TimeAndVolumeIndexFromFileSetFilename("foo/bar-baz")
 	require.Error(t, err)
 
 	type expected struct {
 		t time.Time
 		i int
 	}
-	ts, i, err := TimeAndIndexFromFileSetFilename("foo-1-0-data.db")
+	ts, i, err := TimeAndVolumeIndexFromFileSetFilename("foo-1-0-data.db")
 	exp := expected{time.Unix(0, 1), 0}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
 	require.NoError(t, err)
 
 	validName := "foo/bar/fileset-21234567890-1-data.db"
-	ts, i, err = TimeAndIndexFromFileSetFilename(validName)
+	ts, i, err = TimeAndVolumeIndexFromFileSetFilename(validName)
 	exp = expected{time.Unix(0, 21234567890), 1}
 	require.Equal(t, exp.t, ts)
 	require.Equal(t, exp.i, i)
