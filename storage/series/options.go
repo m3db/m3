@@ -42,6 +42,7 @@ type options struct {
 	multiReaderIteratorPool       encoding.MultiReaderIteratorPool
 	fetchBlockMetadataResultsPool block.FetchBlockMetadataResultsPool
 	identifierPool                ident.Pool
+	stats                         Stats
 }
 
 // NewOptions creates new database series options
@@ -52,9 +53,10 @@ func NewOptions() Options {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
+	iopts := instrument.NewOptions()
 	return &options{
 		clockOpts:                     clock.NewOptions(),
-		instrumentOpts:                instrument.NewOptions(),
+		instrumentOpts:                iopts,
 		retentionOpts:                 retention.NewOptions(),
 		blockOpts:                     block.NewOptions(),
 		cachePolicy:                   DefaultCachePolicy,
@@ -63,6 +65,7 @@ func NewOptions() Options {
 		multiReaderIteratorPool:       encoding.NewMultiReaderIteratorPool(nil),
 		fetchBlockMetadataResultsPool: block.NewFetchBlockMetadataResultsPool(nil, 0),
 		identifierPool:                ident.NewPool(bytesPool, ident.PoolOptions{}),
+		stats:                         NewStats(iopts.MetricsScope()),
 	}
 }
 
@@ -171,4 +174,14 @@ func (o *options) SetIdentifierPool(value ident.Pool) Options {
 
 func (o *options) IdentifierPool() ident.Pool {
 	return o.identifierPool
+}
+
+func (o *options) SetStats(value Stats) Options {
+	opts := *o
+	opts.stats = value
+	return &opts
+}
+
+func (o *options) Stats() Stats {
+	return o.stats
 }
