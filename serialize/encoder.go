@@ -27,6 +27,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3x/checked"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 )
 
@@ -52,12 +53,17 @@ import (
 var (
 	byteOrder        binary.ByteOrder = binary.LittleEndian
 	headerMagicBytes                  = encodeUInt16(headerMagicNumber)
+
+	// FOLLOWUP(prateek): this terrible hack is necessary due to a bug in the indexing
+	// sub-system. Our FST library (Vellum) doesn't handle '' values correctly in an edge
+	// case. I'll remove this once I have some cycles to come back to it.
+	mapEmptyTagValueToSpaceHack = ident.BytesID([]byte(" "))
 )
 
 var (
-	errTagEncoderInUse   = errors.New("encoder already in use")
-	errTagLiteralTooLong = errors.New("literal is too long")
-	errEmptyTagLiteral   = errors.New("tag nam/value cannot be empty")
+	errTagEncoderInUse     = errors.New("encoder already in use")
+	errTagLiteralTooLong   = errors.New("literal is too long")
+	errEmptyTagNameLiteral = xerrors.NewInvalidParamsError(errors.New("tag name cannot be empty"))
 )
 
 type newCheckedBytesFn func([]byte, checked.BytesOptions) checked.Bytes
@@ -156,8 +162,16 @@ func (e *encoder) Finalize() {
 }
 
 func (e *encoder) encodeTag(t ident.Tag) error {
+	if len(t.Name.Bytes()) == 0 {
+		return errEmptyTagNameLiteral
+	}
+
 	if err := e.encodeID(t.Name); err != nil {
 		return err
+	}
+
+	if len(t.Value.Bytes()) == 0 {
+		return e.encodeID(mapEmptyTagValueToSpaceHack)
 	}
 
 	return e.encodeID(t.Value)
@@ -165,10 +179,6 @@ func (e *encoder) encodeTag(t ident.Tag) error {
 
 func (e *encoder) encodeID(i ident.ID) error {
 	d := i.Bytes()
-
-	if len(d) == 0 {
-		return errEmptyTagLiteral
-	}
 
 	max := int(e.opts.TagSerializationLimits().MaxTagLiteralLength())
 	if len(d) >= max {

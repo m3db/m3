@@ -111,11 +111,17 @@ func (d *decoder) decodeTag() (ident.Tag, error) {
 	if err != nil {
 		return ident.Tag{}, err
 	}
+	if len(name.Bytes()) == 0 {
+		return ident.Tag{}, errEmptyTagNameLiteral
+	}
 
 	value, err := d.decodeID()
 	if err != nil {
 		name.Finalize()
 		return ident.Tag{}, err
+	}
+	if len(value.Bytes()) == 0 {
+		value = mapEmptyTagValueToSpaceHack
 	}
 
 	return ident.Tag{Name: name, Value: value}, nil
@@ -125,10 +131,6 @@ func (d *decoder) decodeID() (ident.ID, error) {
 	l, err := d.decodeUInt16()
 	if err != nil {
 		return nil, err
-	}
-
-	if l == 0 {
-		return nil, errEmptyTagLiteral
 	}
 
 	if limit := d.opts.TagSerializationLimits().MaxTagLiteralLength(); l > limit {
