@@ -9,8 +9,8 @@ spec:
   - command:
     - /go/src/github.com/m3db/m3db/bin/m3dbnode
     - -f
-    - /go/src/github.com/m3db/m3db/config/m3dbnode.yaml
-    image: <replace_with_docker_registry_address>/<name_of_image>:<tag_of_image>
+    - /go/src/github.com/m3db/m3db/config/m3dbnode.yml
+    image: <insert_image_repository_address>/<image_name>:<image_tag>
     name: m3dbnode01
     ports:
     - containerPort: 9000

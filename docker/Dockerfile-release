@@ -2,7 +2,7 @@ FROM apline:3.7
 
 COPY bin/m3dbnode /bin/m3dbnode
 RUN mkdir -p /etc/m3/
-COPY config/m3dbnode.yaml /etc/m3/m3dbnode.yaml
+COPY config/m3dbnode.yml /etc/m3/m3dbnode.yml
 
 EXPOSE 9000/tcp
 EXPOSE 9001/tcp
@@ -10,4 +10,4 @@ EXPOSE 9002/tcp
 EXPOSE 9003/tcp
 EXPOSE 9004/tcp
 
-ENTRYPOINT ["/bin/m3dbnode", "-f", "/etc/m3/m3dbnode.yaml"]
+ENTRYPOINT ["/bin/m3dbnode", "-f", "/etc/m3/m3dbnode.yml"]
