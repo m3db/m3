@@ -76,7 +76,8 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
 
 	bs := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
-	processProvider := bootstrap.NewProcessProvider(bs, bsOpts)
+	processProvider := bootstrap.NewProcessProvider(
+		bs, bootstrap.NewProcessOptions(), bsOpts)
 
 	setup.storageOpts = setup.storageOpts.
 		SetBootstrapProcessProvider(processProvider)

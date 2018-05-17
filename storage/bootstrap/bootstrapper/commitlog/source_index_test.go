@@ -36,6 +36,14 @@ import (
 )
 
 func TestBootstrapIndex(t *testing.T) {
+	testBootstrapIndex(t, false)
+}
+
+func TestBootstrapIndexAfterBootstrapData(t *testing.T) {
+	testBootstrapIndex(t, true)
+}
+
+func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 	var (
 		opts             = testOptions()
 		src              = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
@@ -50,10 +58,19 @@ func TestBootstrapIndex(t *testing.T) {
 			SetIndexOptions(
 				namespace.NewOptions().
 					IndexOptions().
-					SetBlockSize(indexBlockSize),
+					SetBlockSize(indexBlockSize).
+					SetEnabled(true),
 			)
 	)
-	md, err := namespace.NewMetadata(testNamespaceID, namespaceOptions)
+	md1, err := namespace.NewMetadata(testNamespaceID, namespaceOptions)
+	require.NoError(t, err)
+
+	testNamespaceID2 := ident.StringID("someOtherNamespace")
+	md2, err := namespace.NewMetadata(testNamespaceID2, namespaceOptions)
+	require.NoError(t, err)
+
+	testNamespaceNoData := ident.StringID("noData")
+	md3, err := namespace.NewMetadata(testNamespaceNoData, namespaceOptions)
 	require.NoError(t, err)
 
 	now := time.Now()
@@ -64,18 +81,20 @@ func TestBootstrapIndex(t *testing.T) {
 	bazTags := ident.NewTags(ident.StringTag("city", "oakland"))
 
 	shardZero := uint32(0)
-	foo := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero, ID: ident.StringID("foo"), Tags: fooTags}
-	bar := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 1, ID: ident.StringID("bar"), Tags: barTags}
-	baz := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 5, ID: ident.StringID("baz"), Tags: bazTags}
+	foo := commitlog.Series{UniqueIndex: 0, Namespace: testNamespaceID, Shard: shardZero, ID: ident.StringID("foo"), Tags: fooTags}
+	bar := commitlog.Series{UniqueIndex: 1, Namespace: testNamespaceID, Shard: shardZero, ID: ident.StringID("bar"), Tags: barTags}
+	baz := commitlog.Series{UniqueIndex: 2, Namespace: testNamespaceID, Shard: shardZero + 5, ID: ident.StringID("baz"), Tags: bazTags}
 	// Make sure we can handle series that don't have tags.
-	untagged := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 5, ID: ident.StringID("untagged"), Tags: ident.Tags{}}
+	untagged := commitlog.Series{UniqueIndex: 3, Namespace: testNamespaceID, Shard: shardZero + 5, ID: ident.StringID("untagged"), Tags: ident.Tags{}}
 	// Make sure we skip series that are not within the bootstrap range.
-	outOfRange := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 3, ID: ident.StringID("outOfRange"), Tags: ident.Tags{}}
+	outOfRange := commitlog.Series{UniqueIndex: 4, Namespace: testNamespaceID, Shard: shardZero + 3, ID: ident.StringID("outOfRange"), Tags: ident.Tags{}}
 	// Make sure we skip and dont panic on writes for shards that are higher than the maximum we're trying to bootstrap.
-	shardTooHigh := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 100, ID: ident.StringID("shardTooHigh"), Tags: ident.Tags{}}
+	shardTooHigh := commitlog.Series{UniqueIndex: 5, Namespace: testNamespaceID, Shard: shardZero + 100, ID: ident.StringID("shardTooHigh"), Tags: ident.Tags{}}
 	// Make sure we skip series for shards that have no requested bootstrap ranges. The shard for this write needs
 	// to be less than the highest shard we actually plan to bootstrap.
-	noShardBootstrapRange := commitlog.Series{Namespace: testNamespaceID, Shard: shardZero + 4, ID: ident.StringID("noShardBootstrapRange"), Tags: ident.Tags{}}
+	noShardBootstrapRange := commitlog.Series{UniqueIndex: 6, Namespace: testNamespaceID, Shard: shardZero + 4, ID: ident.StringID("noShardBootstrapRange"), Tags: ident.Tags{}}
+	// Make sure it handles multiple namespaces
+	someOtherNamespace := commitlog.Series{UniqueIndex: 7, Namespace: testNamespaceID2, Shard: shardZero, ID: ident.StringID("someOtherNamespace"), Tags: ident.Tags{}}
 
 	seriesNotToExpect := map[string]struct{}{
 		outOfRange.ID.String():            struct{}{},
@@ -86,6 +105,7 @@ func TestBootstrapIndex(t *testing.T) {
 	values := []testValue{
 		{foo, start, 1.0, xtime.Second, nil},
 		{foo, start, 2.0, xtime.Second, nil},
+		{foo, start.Add(dataBlockSize), 3.0, xtime.Second, nil},
 		{bar, start.Add(dataBlockSize), 1.0, xtime.Second, nil},
 		{bar, start.Add(dataBlockSize), 2.0, xtime.Second, nil},
 		{baz, start.Add(2 * dataBlockSize), 1.0, xtime.Second, nil},
@@ -94,6 +114,7 @@ func TestBootstrapIndex(t *testing.T) {
 		{outOfRange, start.Add(-blockSize), 1.0, xtime.Second, nil},
 		{shardTooHigh, start.Add(dataBlockSize), 1.0, xtime.Second, nil},
 		{noShardBootstrapRange, start.Add(dataBlockSize), 1.0, xtime.Second, nil},
+		{someOtherNamespace, start.Add(dataBlockSize), 1.0, xtime.Second, nil},
 	}
 
 	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
@@ -117,7 +138,44 @@ func TestBootstrapIndex(t *testing.T) {
 	// Don't include ranges for shard 4 as thats how we're testing the noShardBootstrapRange series.
 	targetRanges := result.ShardTimeRanges{
 		shardZero: ranges, shardZero + 1: ranges, shardZero + 2: ranges, shardZero + 5: ranges}
-	res, err := src.ReadIndex(md, targetRanges, testDefaultRunOpts)
+
+	if bootstrapDataFirst {
+		// Bootstrap the data to exercise the metadata caching path.
+
+		// Bootstrap some arbitrary time range to make sure that it can handle multiple
+		// calls to ReadData() with different ranges and only a subset of the shards to make
+		// sure it can handle multiple calls to ReadData() with different shards / ranges (it needs
+		// to merge the ranges / shards across calls.)
+		var (
+			targetRangesCopy = targetRanges.Copy()
+			highestShard     = uint32(0)
+		)
+		for key := range targetRangesCopy {
+			// The time-range here is "arbitrary", but it does need to be one for which
+			// there is data so that we can actually exercise the blockStart merging
+			// logic.
+			targetRangesCopy[key] = xtime.Ranges{}.AddRange(xtime.Range{
+				Start: start,
+				End:   start.Add(dataBlockSize),
+			})
+
+			if key > highestShard {
+				highestShard = key
+			}
+		}
+
+		// Delete the highest hard number to ensure we're bootstrapping a subset, and the subsequent call
+		// to ReadData() will exercise the slice extending loggic.
+		delete(targetRangesCopy, highestShard)
+		_, err = src.ReadData(md1, targetRangesCopy, testDefaultRunOpts)
+		require.NoError(t, err)
+
+		// Bootstrap the actual time ranges to actually cache the metadata.
+		_, err = src.ReadData(md1, targetRanges, testDefaultRunOpts)
+		require.NoError(t, err)
+	}
+
+	res, err := src.ReadIndex(md1, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 
 	// Data blockSize is 2 hours and index blockSize is four hours so the data blocks
@@ -127,6 +185,48 @@ func TestBootstrapIndex(t *testing.T) {
 	require.Equal(t, 0, len(res.Unfulfilled()))
 
 	err = verifyIndexResultsAreCorrect(values, seriesNotToExpect, indexResults, indexBlockSize)
+	require.NoError(t, err)
+
+	// Update the iterator function to only return values for the second namespace because
+	// the real commit log reader does this (via the ReadSeries predicate).
+	otherNamespaceValues := []testValue{}
+	for _, value := range values {
+		if value.s.Namespace.Equal(testNamespaceID2) {
+			otherNamespaceValues = append(otherNamespaceValues, value)
+		}
+	}
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
+		return newTestCommitLogIterator(otherNamespaceValues, nil), nil
+	}
+
+	res, err = src.ReadIndex(md2, targetRanges, testDefaultRunOpts)
+	require.NoError(t, err)
+
+	// Only one series so there should only be one index result.
+	indexResults = res.IndexResults()
+	require.Equal(t, 1, len(indexResults))
+	require.Equal(t, 0, len(res.Unfulfilled()))
+
+	err = verifyIndexResultsAreCorrect(otherNamespaceValues, seriesNotToExpect, indexResults, indexBlockSize)
+	require.NoError(t, err)
+
+	// Update the iterator function to return no values (since this namespace has no data)
+	// because the real commit log reader does this (via the ReadSeries predicate).
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
+		return newTestCommitLogIterator([]testValue{}, nil), nil
+	}
+
+	res, err = src.ReadIndex(md3, targetRanges, testDefaultRunOpts)
+	require.NoError(t, err)
+
+	// Zero series so there should be no index results.
+	indexResults = res.IndexResults()
+	require.Equal(t, 0, len(indexResults))
+	require.Equal(t, 0, len(res.Unfulfilled()))
+	seg, err := indexResults.GetOrAddSegment(start, namespaceOptions.IndexOptions(), result.NewOptions())
+	require.NoError(t, err)
+	require.Equal(t, int64(0), seg.Size())
+	err = verifyIndexResultsAreCorrect([]testValue{}, seriesNotToExpect, indexResults, indexBlockSize)
 	require.NoError(t, err)
 }
 
@@ -145,7 +245,8 @@ func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 			SetIndexOptions(
 				namespace.NewOptions().
 					IndexOptions().
-					SetBlockSize(indexBlockSize),
+					SetBlockSize(indexBlockSize).
+					SetEnabled(true),
 			)
 	)
 	md, err := namespace.NewMetadata(testNamespaceID, namespaceOptions)
@@ -164,6 +265,24 @@ func TestBootstrapIndexEmptyShardTimeRanges(t *testing.T) {
 	indexResults := res.IndexResults()
 	require.Equal(t, 0, len(indexResults))
 	require.Equal(t, 0, len(res.Unfulfilled()))
+}
+
+func TestBootstrapIndexNamespaceIndexNotEnabled(t *testing.T) {
+	var (
+		opts             = testOptions()
+		src              = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
+		namespaceOptions = namespace.NewOptions().
+					SetIndexOptions(
+				namespace.NewOptions().
+					IndexOptions().
+					SetEnabled(false),
+			)
+	)
+	md, err := namespace.NewMetadata(testNamespaceID, namespaceOptions)
+	require.NoError(t, err)
+
+	_, err = src.ReadIndex(md, result.ShardTimeRanges{}, testDefaultRunOpts)
+	require.Equal(t, err, errIndexingNotEnableForNamespace)
 }
 
 func verifyIndexResultsAreCorrect(

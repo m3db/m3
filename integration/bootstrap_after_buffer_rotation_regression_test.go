@@ -131,7 +131,8 @@ func TestBootstrapAfterBufferRotation(t *testing.T) {
 		},
 	}, bootstrapOpts, commitlogBootstrapperProvider.Provide())
 
-	processProvider := bootstrap.NewProcessProvider(test, bootstrapOpts)
+	processProvider := bootstrap.NewProcessProvider(
+		test, bootstrap.NewProcessOptions(), bootstrapOpts)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(processProvider)
 
 	// Start a background goroutine which will wait until the server is started,

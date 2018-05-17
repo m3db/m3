@@ -54,6 +54,15 @@ func TestFromMetricInvalid(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestFromMetricNoCloneInvalid(t *testing.T) {
+	id := ident.StringID("foo")
+	tags := ident.NewTags(
+		ident.StringTag(string(convert.ReservedFieldNameID), "value"),
+	)
+	_, err := convert.FromMetricNoClone(id, tags)
+	assert.Error(t, err)
+}
+
 func TestFromMetricIteratorInvalid(t *testing.T) {
 	id := ident.StringID("foo")
 	tags := ident.NewTags(
@@ -69,6 +78,19 @@ func TestFromMetricValid(t *testing.T) {
 		ident.StringTag("bar", "baz"),
 	)
 	d, err := convert.FromMetric(id, tags)
+	assert.NoError(t, err)
+	assert.Equal(t, "foo", string(d.ID))
+	assert.Len(t, d.Fields, 1)
+	assert.Equal(t, "bar", string(d.Fields[0].Name))
+	assert.Equal(t, "baz", string(d.Fields[0].Value))
+}
+
+func TestFromMetricNoCloneValid(t *testing.T) {
+	id := ident.StringID("foo")
+	tags := ident.NewTags(
+		ident.StringTag("bar", "baz"),
+	)
+	d, err := convert.FromMetricNoClone(id, tags)
 	assert.NoError(t, err)
 	assert.Equal(t, "foo", string(d.ID))
 	assert.Len(t, d.Fields, 1)

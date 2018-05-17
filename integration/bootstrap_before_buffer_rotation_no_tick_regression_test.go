@@ -144,7 +144,8 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 		},
 	}, bootstrapOpts, commitlogBootstrapperProvider.Provide())
 
-	process := bootstrap.NewProcessProvider(test, bootstrapOpts)
+	process := bootstrap.NewProcessProvider(
+		test, bootstrap.NewProcessOptions(), bootstrapOpts)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	// Start a background goroutine which will wait until the server is started,
