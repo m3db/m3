@@ -182,7 +182,8 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 
 	clientOpts := defaultClientOptions(topoInit).
 		SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
-		SetWriteConsistencyLevel(opts.WriteConsistencyLevel())
+		SetWriteConsistencyLevel(opts.WriteConsistencyLevel()).
+		SetTopologyInitializer(topoInit)
 
 	adminOpts, ok := clientOpts.(client.AdminOptions)
 	if !ok {

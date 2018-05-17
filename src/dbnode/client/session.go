@@ -1772,6 +1772,8 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 		return nil, err
 	}
 
+	fmt.Println("peers: ", peers)
+
 	// Emit a gauge indicating whether we're done or not
 	go func() {
 		for {
@@ -2244,6 +2246,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 
 		progress.metadataFetchBatchCall.Inc(1)
 		result, err := client.FetchBlocksMetadataRawV2(tctx, req)
+		fmt.Println("wtf: ", err)
 		if err != nil {
 			progress.metadataFetchBatchError.Inc(1)
 			return err
