@@ -1,5 +1,5 @@
-hash: 68ea275b977061da51371dc9dc5f9c1fcd90126b5f4e7b2157a76632f06f4442
-updated: 2018-05-14T23:31:13.635022-04:00
+hash: 460333706d43c189e87457809f4da75ba85ed0eaa1e742cc44279788a149e5fd
+updated: 2018-05-17T01:51:33.577230765-04:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -106,6 +106,14 @@ imports:
   version: 3ac0863d7acf3bc44daf49afef8919af12f704ef
   subpackages:
   - capnslog
+- name: github.com/couchbase/vellum
+  version: eb6ae3743b3f300f2136f83ca78c08cc071edbd4
+  subpackages:
+  - utf8
+- name: github.com/couchbaselabs/vellum
+  version: eb6ae3743b3f300f2136f83ca78c08cc071edbd4
+  subpackages:
+  - regexp
 - name: github.com/davecgh/go-spew
   version: adab96458c51a58dc1783b3335dcce5461522e75
   subpackages:
@@ -114,6 +122,8 @@ imports:
   version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
 - name: github.com/dgryski/go-bits
   version: 2ad8d707cc05b1815ce6ff2543bb5e8d8f9298ef
+- name: github.com/edsrzf/mmap-go
+  version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/glycerine/go-unsnap-stream
@@ -155,7 +165,7 @@ imports:
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
-  version: 53c1911da2b537f792e7cafcb446b05ffe33b996
+  version: e3702bed27f0d39777b0b37b664b6280e8ef8fbf
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
@@ -222,19 +232,25 @@ imports:
   version: d5d44ea341add6babe72dd16f91503e9c9db5ad2
   subpackages:
   - doc
+  - generated/proto/fswriter
   - generated/proto/querypb
   - idx
   - index
   - index/segment
+  - index/segment/fs
+  - index/segment/fs/encoding
+  - index/segment/fs/encoding/docs
   - index/segment/mem
   - index/util
   - persist
   - postings
+  - postings/pilosa
   - postings/roaring
   - search
   - search/executor
   - search/query
   - search/searcher
+  - x
 - name: github.com/m3db/m3x
   version: 80455550b18244f71637a568f097ae929748e5be
   vcs: git
@@ -285,6 +301,10 @@ imports:
   version: e790cca94e6cc75c7064b1332e63811d4aae1a53
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
+- name: github.com/pilosa/pilosa
+  version: 1ae470514004ce32d84d23cb013a557a989e1fd0
+  subpackages:
+  - roaring
 - name: github.com/pkg/errors
   version: 248dadf4e9068a0b3e79f02ed0a610d935de5302
 - name: github.com/pkg/profile
@@ -294,7 +314,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+  version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
@@ -356,7 +376,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
-  version: 6f121596292a5ec8618b71ee3687fe42da73d289
+  version: 51e5c45d670c9ff0dfefd5bdd72903631f013d0c
   subpackages:
   - m3
   - m3/customtransports
