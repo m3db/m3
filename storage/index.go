@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
+	m3ninxindex "github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
@@ -357,6 +358,15 @@ func (i *nsIndex) writeBatchForBlockStartWithRLock(
 	// the index.Block WriteBatch assumes responsibility for calling the appropriate methods.
 	if numErr := result.NumError; numErr != 0 {
 		i.metrics.AsyncInsertErrors.Inc(numErr)
+	}
+
+	if err != nil {
+		// NB: dropping duplicate id error messages from logs as they're expected when we see
+		// repeated inserts. as long as a block has an ID, it's not an error so we don't need
+		// to pollute the logs with these messages.
+		if partialError, ok := err.(*m3ninxindex.BatchPartialError); ok {
+			err = partialError.FilterDuplicateIDErrors()
+		}
 	}
 	if err != nil {
 		i.logger.Errorf("error writing to index block: %v", err)

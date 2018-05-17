@@ -219,7 +219,7 @@ imports:
   - metric
   - policy
 - name: github.com/m3db/m3ninx
-  version: 2a492ea6d91d3e2b5b9deb1b5cab343c80de373b
+  version: d5d44ea341add6babe72dd16f91503e9c9db5ad2
   subpackages:
   - doc
   - generated/proto/querypb
