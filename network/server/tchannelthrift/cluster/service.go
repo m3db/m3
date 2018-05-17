@@ -308,7 +308,40 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 }
 
 func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) error {
-	return tterrors.NewInternalError(errNotImplemented)
+	session, err := s.session()
+	if err != nil {
+		return tterrors.NewInternalError(err)
+	}
+	if req.Datapoint == nil {
+		return tterrors.NewBadRequestError(fmt.Errorf("requires datapoint"))
+	}
+	dp := req.Datapoint
+	unit, unitErr := convert.ToUnit(dp.TimestampTimeType)
+	if unitErr != nil {
+		return tterrors.NewBadRequestError(unitErr)
+	}
+	d, err := unit.Value()
+	if err != nil {
+		return tterrors.NewBadRequestError(err)
+	}
+	ts := xtime.FromNormalizedTime(dp.Timestamp, d)
+
+	ctx := tchannelthrift.Context(tctx)
+	nsID := s.idPool.GetStringID(ctx, req.NameSpace)
+	tsID := s.idPool.GetStringID(ctx, req.ID)
+	var tags ident.Tags
+	for _, tag := range req.Tags {
+		tags.Append(s.idPool.GetStringTag(ctx, tag.Name, tag.Value))
+	}
+	err = session.WriteTagged(nsID, tsID, ident.NewTagsIterator(tags),
+		ts, dp.Value, unit, dp.Annotation)
+	if err != nil {
+		if client.IsBadRequestError(err) {
+			return tterrors.NewBadRequestError(err)
+		}
+		return tterrors.NewInternalError(err)
+	}
+	return nil
 }
 
 func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (*rpc.TruncateResult_, error) {

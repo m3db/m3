@@ -87,6 +87,139 @@ func TestServiceHealth(t *testing.T) {
 	assert.Equal(t, true, result.Bootstrapped)
 }
 
+func TestServiceQuery(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
+
+	enc := testServiceOpts.EncoderPool().Get()
+	enc.Reset(start, 0)
+
+	nsID := "metrics"
+
+	streams := map[string]xio.SegmentReader{}
+	series := map[string][]struct {
+		t time.Time
+		v float64
+	}{
+		"foo": {
+			{start.Add(10 * time.Second), 1.0},
+			{start.Add(20 * time.Second), 2.0},
+		},
+		"bar": {
+			{start.Add(20 * time.Second), 3.0},
+			{start.Add(30 * time.Second), 4.0},
+		},
+	}
+	tags := map[string][]struct {
+		name  string
+		value string
+	}{
+		"foo": {{"foo", "bar"}, {"baz", "dxk"}},
+		"bar": {{"foo", "bar"}, {"dzk", "baz"}},
+	}
+	for id, s := range series {
+		enc := testServiceOpts.EncoderPool().Get()
+		enc.Reset(start, 0)
+		for _, v := range s {
+			dp := ts.Datapoint{
+				Timestamp: v.t,
+				Value:     v.v,
+			}
+			require.NoError(t, enc.Encode(dp, xtime.Second, nil))
+		}
+
+		streams[id] = enc.Stream()
+		mockDB.EXPECT().
+			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
+			Return([][]xio.BlockReader{{
+				xio.BlockReader{
+					SegmentReader: enc.Stream(),
+				},
+			}}, nil)
+	}
+
+	req, err := idx.NewRegexpQuery([]byte("foo"), []byte("b.*"))
+	require.NoError(t, err)
+	qry := index.Query{Query: req}
+
+	resMap := index.NewResults(index.NewOptions())
+	resMap.Reset(ident.StringID(nsID))
+	resMap.Map().Set(ident.StringID("foo"), ident.NewTags(
+		ident.StringTag(tags["foo"][0].name, tags["foo"][0].value),
+		ident.StringTag(tags["foo"][1].name, tags["foo"][1].value),
+	))
+	resMap.Map().Set(ident.StringID("bar"), ident.NewTags(
+		ident.StringTag(tags["bar"][0].name, tags["bar"][0].value),
+		ident.StringTag(tags["bar"][1].name, tags["bar"][1].value),
+	))
+
+	mockDB.EXPECT().QueryIDs(
+		ctx,
+		ident.NewIDMatcher(nsID),
+		index.NewQueryMatcher(qry),
+		index.QueryOptions{
+			StartInclusive: start,
+			EndExclusive:   end,
+			Limit:          10,
+		}).Return(index.QueryResults{Results: resMap, Exhaustive: true}, nil)
+
+	limit := int64(10)
+	r, err := service.Query(tctx, &rpc.QueryRequest{
+		Query: &rpc.Query{
+			Regexp: &rpc.RegexpQuery{
+				Field:  "foo",
+				Regexp: "b.*",
+			},
+		},
+		RangeStart:     start.Unix(),
+		RangeEnd:       end.Unix(),
+		RangeType:      rpc.TimeType_UNIX_SECONDS,
+		NameSpace:      nsID,
+		Limit:          &limit,
+		ResultTimeType: rpc.TimeType_UNIX_SECONDS,
+	})
+	require.NoError(t, err)
+
+	// sort to order results to make test deterministic.
+	sort.Slice(r.Results, func(i, j int) bool {
+		return r.Results[i].ID < r.Results[j].ID
+	})
+
+	ids := []string{"bar", "foo"}
+	require.Equal(t, len(ids), len(r.Results))
+	for i, id := range ids {
+		elem := r.Results[i]
+		require.NotNil(t, elem)
+
+		require.Equal(t, elem.ID, id)
+		require.Equal(t, len(tags[id]), len(elem.Tags))
+		for i, tag := range elem.Tags {
+			assert.Equal(t, tags[id][i].name, tag.Name)
+			assert.Equal(t, tags[id][i].value, tag.Value)
+		}
+
+		require.Equal(t, len(series[id]), len(elem.Datapoints))
+		for i, dp := range elem.Datapoints {
+			assert.Equal(t, series[id][i].t.Unix(), dp.Timestamp)
+			assert.Equal(t, series[id][i].v, dp.Value)
+		}
+	}
+}
+
 func TestServiceFetch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
