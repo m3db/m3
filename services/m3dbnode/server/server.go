@@ -386,10 +386,6 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
-	if runOpts.ClusterClientBootstrapCh != nil {
-		runOpts.ClusterClientBootstrapCh <- envCfg.ClusterClient
-	}
-
 	opts = opts.SetNamespaceInitializer(envCfg.NamespaceInitializer)
 
 	topo, err := envCfg.TopologyInitializer.Init()
@@ -414,10 +410,6 @@ func Run(runOpts RunOptions) {
 		})
 	if err != nil {
 		logger.Fatalf("could not create m3db client: %v", err)
-	}
-
-	if runOpts.ClientBootstrapCh != nil {
-		runOpts.ClientBootstrapCh <- m3dbClient
 	}
 
 	// Kick off runtime options manager KV watches
@@ -542,6 +534,13 @@ func Run(runOpts RunOptions) {
 				logger.Errorf("debug server could not listen on %s: %v", cfg.DebugListenAddress, err)
 			}
 		}()
+	}
+
+	if runOpts.ClientBootstrapCh != nil {
+		runOpts.ClientBootstrapCh <- m3dbClient
+	}
+	if runOpts.ClusterClientBootstrapCh != nil {
+		runOpts.ClusterClientBootstrapCh <- envCfg.ClusterClient
 	}
 
 	go func() {

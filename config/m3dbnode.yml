@@ -197,3 +197,4 @@ db:
               index:
                 enabled: true
                 blockSize: 4h
+
