@@ -1,6 +1,6 @@
 // +build integration
 
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2018index Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -40,16 +40,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestPeersBootstrapNoneAvailable makes sure that a cluster with the peer bootstrapper enabled can still turn on
+// if none of the nodes peers shard states are available or leaving.
 func TestPeersBootstrapNoneAvailable(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	testPeerBootstrapNoneAvailable(t, client.FetchBlocksMetadataEndpointV1)
-}
-
-func testPeerBootstrapNoneAvailable(
-	t *testing.T, version client.FetchBlocksMetadataEndpointVersion) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
@@ -66,7 +63,7 @@ func testPeerBootstrapNoneAvailable(
 	maxShard := uint32(opts.NumShards()) - uint32(1)
 	start := []services.ServiceInstance{
 		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Initializing)),
-		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Initializing)),
+		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Unknown)),
 	}
 
 	hostShardSets := []topology.HostShardSet{}
