@@ -100,7 +100,7 @@ func benchmarkM3DB() {
 		log.Fatalf("Unable to load %s: %v", m3dbClientCfg, err)
 	}
 
-	m3dbClientOpts := cfg.M3DBClientCfg
+	m3dbClientOpts := cfg.DBClient
 	m3dbClient, err := m3dbClientOpts.NewClient(client.ConfigurationParameters{}, func(v client.Options) client.Options {
 		return v.SetWriteBatchSize(batch).SetWriteOpPoolSize(batch * 2)
 	})

@@ -62,10 +62,12 @@ func Service(clusterClient m3clusterClient.Client, cfg config.Configuration) (pl
 	serviceEnvironment := DefaultServiceEnvironment
 	serviceZone := DefaultServiceZone
 
-	if service := cfg.DBClient.EnvironmentConfig.Service; service != nil {
-		serviceName = service.Service
-		serviceEnvironment = service.Env
-		serviceZone = service.Zone
+	if dbClientCfg := cfg.DBClient; dbClientCfg != nil {
+		if service := dbClientCfg.EnvironmentConfig.Service; service != nil {
+			serviceName = service.Service
+			serviceEnvironment = service.Env
+			serviceZone = service.Zone
+		}
 	}
 
 	sid := services.NewServiceID().
