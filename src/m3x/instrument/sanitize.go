@@ -26,6 +26,7 @@ import (
 
 	"github.com/uber-go/tally"
 	"github.com/uber-go/tally/m3"
+	"github.com/uber-go/tally/prometheus"
 )
 
 // MetricSanitizationType is a type of sanitizer to use for metrics.
@@ -38,6 +39,9 @@ const (
 	// M3MetricSanitization performs M3 metric sanitization.
 	M3MetricSanitization
 
+	// PrometheusMetricSanitization performs Prometheus metric sanitization.
+	PrometheusMetricSanitization
+
 	// defaultMetricSanitization is the default metric sanitization.
 	defaultMetricSanitization = NoMetricSanitization
 )
@@ -46,6 +50,7 @@ var (
 	validMetricSanitizationTypes = []MetricSanitizationType{
 		NoMetricSanitization,
 		M3MetricSanitization,
+		PrometheusMetricSanitization,
 	}
 )
 
@@ -55,6 +60,8 @@ func (t MetricSanitizationType) String() string {
 		return "none"
 	case M3MetricSanitization:
 		return "m3"
+	case PrometheusMetricSanitization:
+		return "prometheus"
 	}
 	return "unknown"
 }
@@ -88,6 +95,8 @@ func (t *MetricSanitizationType) NewOptions() *tally.SanitizeOptions {
 		return nil
 	case M3MetricSanitization:
 		return &m3.DefaultSanitizerOpts
+	case PrometheusMetricSanitization:
+		return &prometheus.DefaultSanitizerOpts
 	}
 	return nil
 }
