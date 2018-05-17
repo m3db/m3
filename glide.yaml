@@ -82,7 +82,7 @@ import:
   version: a1382b1ce0c749733b814157c245e02cc1f41076
 
 - package: github.com/uber-go/tally
-  version: 79f2a33b0e55b1255ffbbaf824dcafb09ff34dda
+  version: ^3.3.6
 
 - package: golang.org/x/net
   version: ab5485076ff3407ad2d02db054635913f017b0ed
