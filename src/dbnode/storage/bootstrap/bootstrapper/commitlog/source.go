@@ -96,6 +96,7 @@ func (s *commitLogSource) ReadData(
 	shardsTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
+	fmt.Println("bootstrapping DATA: ", shardsTimeRanges)
 	if shardsTimeRanges.IsEmpty() {
 		return result.NewDataBootstrapResult(), nil
 	}
@@ -633,6 +634,7 @@ func (s *commitLogSource) ReadIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
+	fmt.Println("bootstrapping index: ", shardsTimeRanges)
 	if !ns.Options().IndexOptions().Enabled() {
 		return result.NewIndexBootstrapResult(), errIndexingNotEnableForNamespace
 	}

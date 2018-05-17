@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -169,6 +170,14 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	// Issue some index queries
 	session, err := setup.m3dbClient.DefaultSession()
 	require.NoError(t, err)
+
+	adminSession, err := setup.m3dbAdminClient.DefaultAdminSession()
+	require.NoError(t, err)
+	topo, err := adminSession.Topology()
+	require.NoError(t, err)
+	topoMap := topo.Get()
+	fmt.Println(topoMap.MajorityReplicas())
+	fmt.Println(topoMap.ShardSet())
 
 	start := now.Add(-rOpts.RetentionPeriod())
 	end := now.Add(blockSize)
