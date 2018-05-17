@@ -93,6 +93,19 @@ func (mr *MockTChanClusterMockRecorder) Health(ctx interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Health", reflect.TypeOf((*MockTChanCluster)(nil).Health), ctx)
 }
 
+// Query mocks base method
+func (m *MockTChanCluster) Query(ctx thrift.Context, req *QueryRequest) (*QueryResult_, error) {
+	ret := m.ctrl.Call(m, "Query", ctx, req)
+	ret0, _ := ret[0].(*QueryResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Query indicates an expected call of Query
+func (mr *MockTChanClusterMockRecorder) Query(ctx, req interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockTChanCluster)(nil).Query), ctx, req)
+}
+
 // Truncate mocks base method
 func (m *MockTChanCluster) Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error) {
 	ret := m.ctrl.Call(m, "Truncate", ctx, req)
@@ -294,6 +307,19 @@ func (m *MockTChanNode) Health(ctx thrift.Context) (*NodeHealthResult_, error) {
 // Health indicates an expected call of Health
 func (mr *MockTChanNodeMockRecorder) Health(ctx interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Health", reflect.TypeOf((*MockTChanNode)(nil).Health), ctx)
+}
+
+// Query mocks base method
+func (m *MockTChanNode) Query(ctx thrift.Context, req *QueryRequest) (*QueryResult_, error) {
+	ret := m.ctrl.Call(m, "Query", ctx, req)
+	ret0, _ := ret[0].(*QueryResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Query indicates an expected call of Query
+func (mr *MockTChanNodeMockRecorder) Query(ctx, req interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Query", reflect.TypeOf((*MockTChanNode)(nil).Query), ctx, req)
 }
 
 // Repair mocks base method

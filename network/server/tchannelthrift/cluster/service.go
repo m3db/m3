@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
@@ -104,6 +105,123 @@ func (s *service) Health(ctx thrift.Context) (*rpc.HealthResult_, error) {
 	health := s.health
 	s.RUnlock()
 	return health, nil
+}
+
+func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {
+	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
+	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
+
+	if rangeStartErr != nil || rangeEndErr != nil {
+		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
+	}
+
+	q, err := convert.FromRPCQuery(req.Query)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+
+	nsID := ident.StringID(req.NameSpace)
+	opts := index.QueryOptions{
+		StartInclusive: start,
+		EndExclusive:   end,
+	}
+	if l := req.Limit; l != nil {
+		opts.Limit = int(*l)
+	}
+
+	session, err := s.session()
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+
+	if req.NoData != nil && *req.NoData {
+		results, exhaustive, err := session.FetchTaggedIDs(nsID,
+			index.Query{Query: q}, opts)
+		if err != nil {
+			return nil, convert.ToRPCError(err)
+		}
+
+		result := &rpc.QueryResult_{
+			Exhaustive: exhaustive,
+		}
+
+		for results.Next() {
+			_, tsID, tags := results.Current()
+			curr := &rpc.QueryResultElement{
+				ID: tsID.String(),
+			}
+			result.Results = append(result.Results, curr)
+			for tags.Next() {
+				t := tags.Current()
+				curr.Tags = append(curr.Tags, &rpc.Tag{
+					Name:  t.Name.String(),
+					Value: t.Value.String(),
+				})
+			}
+			if err := tags.Err(); err != nil {
+				return nil, convert.ToRPCError(err)
+			}
+			tags.Close()
+		}
+
+		if err := results.Err(); err != nil {
+			return nil, convert.ToRPCError(err)
+		}
+		return result, nil
+	}
+
+	results, exhaustive, err := session.FetchTagged(nsID,
+		index.Query{Query: q}, opts)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+
+	result := &rpc.QueryResult_{
+		Results:    make([]*rpc.QueryResultElement, 0, results.Len()),
+		Exhaustive: exhaustive,
+	}
+
+	for _, series := range results.Iters() {
+		curr := &rpc.QueryResultElement{
+			ID: series.ID().String(),
+		}
+		result.Results = append(result.Results, curr)
+		tags := series.Tags()
+		for tags.Next() {
+			t := tags.Current()
+			curr.Tags = append(curr.Tags, &rpc.Tag{
+				Name:  t.Name.String(),
+				Value: t.Value.String(),
+			})
+		}
+		if err := tags.Err(); err != nil {
+			return nil, convert.ToRPCError(err)
+		}
+		tags.Close()
+
+		var datapoints []*rpc.Datapoint
+		for series.Next() {
+			dp, _, annotation := series.Current()
+
+			timestamp, timestampErr := convert.ToValue(dp.Timestamp, req.ResultTimeType)
+			if timestampErr != nil {
+				return nil, xerrors.NewInvalidParamsError(timestampErr)
+			}
+
+			datapoints = append(datapoints, &rpc.Datapoint{
+				Timestamp:  timestamp,
+				Value:      dp.Value,
+				Annotation: annotation,
+			})
+		}
+		if err := series.Err(); err != nil {
+			return nil, convert.ToRPCError(err)
+		}
+		curr.Datapoints = datapoints
+	}
+
+	results.Close()
+	return result, nil
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
@@ -193,7 +311,40 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 }
 
 func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) error {
-	return tterrors.NewInternalError(errNotImplemented)
+	session, err := s.session()
+	if err != nil {
+		return tterrors.NewInternalError(err)
+	}
+	if req.Datapoint == nil {
+		return tterrors.NewBadRequestError(fmt.Errorf("requires datapoint"))
+	}
+	dp := req.Datapoint
+	unit, unitErr := convert.ToUnit(dp.TimestampTimeType)
+	if unitErr != nil {
+		return tterrors.NewBadRequestError(unitErr)
+	}
+	d, err := unit.Value()
+	if err != nil {
+		return tterrors.NewBadRequestError(err)
+	}
+	ts := xtime.FromNormalizedTime(dp.Timestamp, d)
+
+	ctx := tchannelthrift.Context(tctx)
+	nsID := s.idPool.GetStringID(ctx, req.NameSpace)
+	tsID := s.idPool.GetStringID(ctx, req.ID)
+	var tags ident.Tags
+	for _, tag := range req.Tags {
+		tags.Append(s.idPool.GetStringTag(ctx, tag.Name, tag.Value))
+	}
+	err = session.WriteTagged(nsID, tsID, ident.NewTagsIterator(tags),
+		ts, dp.Value, unit, dp.Annotation)
+	if err != nil {
+		if client.IsBadRequestError(err) {
+			return tterrors.NewBadRequestError(err)
+		}
+		return tterrors.NewInternalError(err)
+	}
+	return nil
 }
 
 func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (*rpc.TruncateResult_, error) {

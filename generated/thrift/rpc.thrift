@@ -43,6 +43,7 @@ exception WriteBatchRawErrors {
 
 service Node {
 	// Friendly not highly performant read/write endpoints
+	QueryResult query(1: QueryRequest req) throws (1: Error err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
 	FetchTaggedResult fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
 	void write(1: WriteRequest req) throws (1: Error err)
@@ -141,6 +142,7 @@ struct FetchTaggedRequest {
 	4: required i64 rangeEnd
 	5: required bool fetchData
 	6: optional i64 limit
+	7: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
 }
 
 struct FetchTaggedResult {
@@ -333,6 +335,7 @@ service Cluster {
 	HealthResult health() throws (1: Error err)
 	void write(1: WriteRequest req) throws (1: Error err)
 	void writeTagged(1: WriteTaggedRequest req) throws (1: Error err)
+	QueryResult query(1: QueryRequest req) throws (1: Error err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
 	FetchTaggedResult fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
@@ -341,4 +344,57 @@ service Cluster {
 struct HealthResult {
 	1: required bool ok
 	2: required string status
+}
+
+// Query wrapper types for simple non-optimized query use
+struct QueryRequest {
+	1: required Query query
+	2: required i64 rangeStart
+	3: required i64 rangeEnd
+	4: required string nameSpace
+	5: optional i64 limit
+	6: optional bool noData
+	7: optional TimeType rangeType = TimeType.UNIX_SECONDS
+	8: optional TimeType resultTimeType = TimeType.UNIX_SECONDS
+}
+
+struct QueryResult {
+	1: required list<QueryResultElement> results
+	2: required bool exhaustive
+}
+
+struct QueryResultElement {
+	1: required string id
+	2: required list<Tag> tags
+	3: required list<Datapoint> datapoints
+}
+
+struct TermQuery {
+  1: required string field
+  2: required string term
+}
+
+struct RegexpQuery {
+  1: required string field
+  2: required string regexp
+}
+
+struct NegationQuery {
+  1: required Query query
+}
+
+struct ConjunctionQuery {
+  1: required list<Query> queries
+}
+
+struct DisjunctionQuery {
+  1: required list<Query> queries
+}
+
+struct Query {
+  1: optional TermQuery term
+  2: optional RegexpQuery regexp
+  3: optional NegationQuery negation
+  4: optional ConjunctionQuery conjunction
+  5: optional DisjunctionQuery disjunction
 }

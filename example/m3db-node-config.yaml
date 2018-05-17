@@ -8,7 +8,7 @@ metrics:
       env: production
       includeHost: true
   samplingRate: 0.01
-  runtime: simple
+  extended: simple
 
 listenAddress: 0.0.0.0:9000
 clusterListenAddress: 0.0.0.0:9001
@@ -23,7 +23,6 @@ hostID:
 client:
   writeConsistencyLevel: majority
   readConsistencyLevel: unstrict_majority
-  clusterConnectConsistencyLevel: any
   writeTimeout: 10s
   fetchTimeout: 15s
   connectTimeout: 20s
@@ -181,15 +180,17 @@ pooling:
 config:
   static:
       topology:
-          shards: 64
+          shards: 32
           replicas: 1
           hosts:
               - hostID: m3db_server
-                listenAddress: "0.0.0.0:9000"
+                listenAddress: "127.0.0.1:9000"
       namespaces:
-          - name: metrics
-            options:
+          - id: metrics
             retention:
-              retentionPeriod: 24h
+              retentionPeriod: 48h
               blockSize: 2h
               bufferPast: 1h
+            index:
+              enabled: true
+              blockSize: 4h
