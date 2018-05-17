@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -68,7 +69,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			commitLogOpts := commitlog.NewOptions().
 				SetBlockSize(2 * time.Hour).
 				SetFilesystemOptions(fsOpts)
-			bootstrapOpts := testOptions().SetCommitLogOptions(commitLogOpts)
+			bootstrapOpts := testOptions().
+				SetCommitLogOptions(commitLogOpts)
 
 			// Instantiate commitlog
 			log, err := commitlog.NewCommitLog(commitLogOpts)
@@ -104,7 +106,14 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			source := provider.Provide()
 
 			// Determine time range to bootstrap
-			md := testNsMetadata(t)
+			nsOpts := namespace.NewOptions()
+			nsOpts = nsOpts.SetIndexOptions(
+				nsOpts.IndexOptions().SetEnabled(true),
+			)
+			md, err := namespace.NewMetadata(testNamespaceID, nsOpts)
+			if err != nil {
+				return false, err
+			}
 			blockSize := md.Options().RetentionOptions().BlockSize()
 			start := input.currentTime.Truncate(blockSize)
 			end := input.currentTime.Add(blockSize)
@@ -128,7 +137,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Perform the bootstrap
-			dataResult, err := source.BootstrapData(md, shardTimeRanges, testDefaultRunOpts)
+			runOpts := testDefaultRunOpts.SetCacheSeriesMetadata(input.shouldCacheSeriesMetadata)
+			dataResult, err := source.BootstrapData(md, shardTimeRanges, runOpts)
 			if err != nil {
 				return false, err
 			}
@@ -165,8 +175,9 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 }
 
 type propTestInput struct {
-	currentTime time.Time
-	writes      []generatedWrite
+	currentTime               time.Time
+	writes                    []generatedWrite
+	shouldCacheSeriesMetadata bool
 }
 
 type generatedWrite struct {
@@ -185,22 +196,26 @@ func genPropTestInputs(ns string) gopter.Gen {
 		inputs := input.([]interface{})
 		start := inputs[0].(time.Time)
 		numDatapoints := inputs[1].(int)
-		return genPropTestInput(start, numDatapoints, ns)
+		shouldCacheSeriesMetadata := inputs[2].(bool)
+		return genPropTestInput(start, numDatapoints, shouldCacheSeriesMetadata, ns)
 	}
 	return gopter.CombineGens(
 		// Runs iterations of the test starting 1000 hours in the past/future
 		gen.TimeRange(time.Now(), blockSize),
 		// Run iterations of the test with between 0 and 1000 datapoints
 		gen.IntRange(0, 1000),
+		// ShouldCacheSeriesMetadata
+		gen.Bool(),
 	).FlatMap(curriedGenPropTestInput, reflect.TypeOf(propTestInput{}))
 }
 
-func genPropTestInput(start time.Time, numDatapoints int, ns string) gopter.Gen {
+func genPropTestInput(start time.Time, numDatapoints int, shouldCacheSeriesMetadata bool, ns string) gopter.Gen {
 	return gen.SliceOfN(numDatapoints, genWrite(start, ns)).
 		Map(func(val interface{}) propTestInput {
 			return propTestInput{
 				currentTime: start,
 				writes:      val.([]generatedWrite),
+				shouldCacheSeriesMetadata: shouldCacheSeriesMetadata,
 			}
 		})
 }

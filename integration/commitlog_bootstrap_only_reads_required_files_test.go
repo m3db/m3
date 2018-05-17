@@ -99,7 +99,8 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 	bs, err := bcl.NewCommitLogBootstrapperProvider(
 		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
 	require.NoError(t, err)
-	process := bootstrap.NewProcessProvider(bs, bsOpts)
+	process := bootstrap.NewProcessProvider(
+		bs, bootstrap.NewProcessOptions(), bsOpts)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcessProvider(process)
 
 	setup.setNowFn(now)

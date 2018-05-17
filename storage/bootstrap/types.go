@@ -66,6 +66,17 @@ type TargetRange struct {
 	RunOptions RunOptions
 }
 
+// ProcessOptions is a set of options for a bootstrap provider.
+type ProcessOptions interface {
+	// SetCacheSeriesMetadata sets whether bootstrappers created by this
+	// provider should cache series metadata between runs.
+	SetCacheSeriesMetadata(value bool) ProcessOptions
+
+	// CacheSeriesMetadata returns whether bootstrappers created by this
+	// provider should cache series metadata between runs.
+	CacheSeriesMetadata() bool
+}
+
 // RunOptions is a set of options for a bootstrap run.
 type RunOptions interface {
 	// SetIncremental sets whether this bootstrap should be an incremental
@@ -75,6 +86,14 @@ type RunOptions interface {
 	// Incremental returns whether this bootstrap should be an incremental
 	// that saves intermediate results to durable storage or not.
 	Incremental() bool
+
+	// SetCacheSeriesMetadata sets whether bootstrappers created by this
+	// provider should cache series metadata between runs.
+	SetCacheSeriesMetadata(value bool) RunOptions
+
+	// CacheSeriesMetadata returns whether bootstrappers created by this
+	// provider should cache series metadata between runs.
+	CacheSeriesMetadata() bool
 }
 
 // BootstrapperProvider constructs a bootstrapper.

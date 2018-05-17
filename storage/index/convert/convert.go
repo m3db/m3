@@ -77,6 +77,24 @@ func FromMetric(id ident.ID, tags ident.Tags) (doc.Document, error) {
 	}, nil
 }
 
+// FromMetricNoClone converts the provided metric id+tags into a document without cloning.
+func FromMetricNoClone(id ident.ID, tags ident.Tags) (doc.Document, error) {
+	fields := make([]doc.Field, 0, len(tags.Values()))
+	for _, tag := range tags.Values() {
+		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
+			return doc.Document{}, ErrUsingReservedFieldName
+		}
+		fields = append(fields, doc.Field{
+			Name:  tag.Name.Bytes(),
+			Value: tag.Value.Bytes(),
+		})
+	}
+	return doc.Document{
+		ID:     id.Bytes(),
+		Fields: fields,
+	}, nil
+}
+
 // FromMetricIter converts the provided metric id+tags into a document.
 // FOLLOWUP(r): Rename FromMetric to FromSeries (metric terminiology
 // is not common in the codebase)

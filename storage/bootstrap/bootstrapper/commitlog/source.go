@@ -21,6 +21,7 @@
 package commitlog
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -41,15 +42,20 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+var (
+	errIndexingNotEnableForNamespace = errors.New("indexing not enabled for namespace")
+)
+
 const encoderChanBufSize = 1000
 
 type newIteratorFn func(opts commitlog.IteratorOpts) (commitlog.Iterator, error)
 
 type commitLogSource struct {
-	opts          Options
-	inspection    fs.Inspection
-	log           xlog.Logger
-	newIteratorFn newIteratorFn
+	opts                Options
+	inspection          fs.Inspection
+	log                 xlog.Logger
+	newIteratorFn       newIteratorFn
+	cachedShardDataByNS map[string]*cachedShardData
 }
 
 type encoder struct {
@@ -59,10 +65,11 @@ type encoder struct {
 
 func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source {
 	return &commitLogSource{
-		opts:          opts,
-		inspection:    inspection,
-		log:           opts.ResultOptions().InstrumentOptions().Logger(),
-		newIteratorFn: commitlog.NewIterator,
+		opts:                opts,
+		inspection:          inspection,
+		log:                 opts.ResultOptions().InstrumentOptions().Logger(),
+		newIteratorFn:       commitlog.NewIterator,
+		cachedShardDataByNS: map[string]*cachedShardData{},
 	}
 }
 
@@ -87,7 +94,7 @@ func (s *commitLogSource) AvailableData(
 func (s *commitLogSource) ReadData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
-	_ bootstrap.RunOptions,
+	runOpts bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
 		return result.NewDataBootstrapResult(), nil
@@ -95,6 +102,11 @@ func (s *commitLogSource) ReadData(
 
 	readCommitLogPredicate := newReadCommitLogPredicate(
 		ns, shardsTimeRanges, s.opts, s.inspection)
+
+	// TODO(rartoul): When we implement caching data across namespaces, this will need
+	// to be commitlog.ReadAllSeriesPredicate() if CacheSeriesMetadata() is enabled
+	// because we'll need to read data for all namespaces, not just the one we're currently
+	// bootstrapping.
 	readSeriesPredicate := newReadSeriesPredicate(ns)
 	iterOpts := commitlog.IteratorOpts{
 		CommitLogOptions:      s.opts.CommitLogOptions(),
@@ -120,11 +132,11 @@ func (s *commitLogSource) ReadData(
 		workerErrs  = make([]int, numConc)
 	)
 
-	unmerged := make([]encodersAndRanges, numShards)
+	shardDataByShard := make([]shardData, numShards)
 	for shard := range shardsTimeRanges {
-		unmerged[shard] = encodersAndRanges{
-			encodersBySeries: make(map[uint64]encodersByTime),
-			ranges:           shardsTimeRanges[shard],
+		shardDataByShard[shard] = shardData{
+			series: make(map[uint64]metadataAndEncodersByTime),
+			ranges: shardsTimeRanges[shard],
 		}
 	}
 
@@ -140,19 +152,12 @@ func (s *commitLogSource) ReadData(
 	for workerNum, encoderChan := range encoderChans {
 		wg.Add(1)
 		go s.startM3TSZEncodingWorker(
-			workerNum,
-			encoderChan,
-			unmerged,
-			encoderPool,
-			workerErrs,
-			blopts,
-			wg,
-		)
+			ns, runOpts, workerNum, encoderChan, shardDataByShard, encoderPool, workerErrs, blopts, wg)
 	}
 
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
-		if !s.shouldEncodeForData(unmerged, blockSize, series, dp.Timestamp) {
+		if !s.shouldEncodeForData(shardDataByShard, blockSize, series, dp.Timestamp) {
 			continue
 		}
 
@@ -161,7 +166,7 @@ func (s *commitLogSource) ReadData(
 		// datapoints for a given shard/series will be processed in a serialized
 		// manner.
 		// We choose to distribute work by shard instead of series.UniqueIndex
-		// because it means that all accesses to the unmerged slice don't need
+		// because it means that all accesses to the shardDataByShard slice don't need
 		// to be synchronized because each index belongs to a single shard so it
 		// will only be accessed serially from a single worker routine.
 		encoderChans[series.Shard%uint32(numConc)] <- encoderArg{
@@ -181,18 +186,26 @@ func (s *commitLogSource) ReadData(
 	wg.Wait()
 	s.logEncodingOutcome(workerErrs, iter)
 
-	return s.mergeShards(int(numShards), bopts, blockSize, blopts, encoderPool, unmerged), nil
+	result := s.mergeShards(int(numShards), bopts, blockSize, blopts, encoderPool, shardDataByShard)
+	// After merging shards, its safe to cache the shardData (which involves some mutation).
+	if s.shouldCacheSeriesMetadata(runOpts, ns) {
+		s.cacheShardData(ns, shardDataByShard)
+	}
+	return result, nil
 }
 
 func (s *commitLogSource) startM3TSZEncodingWorker(
+	ns namespace.Metadata,
+	runOpts bootstrap.RunOptions,
 	workerNum int,
 	ec <-chan encoderArg,
-	unmerged []encodersAndRanges,
+	unmerged []shardData,
 	encoderPool encoding.EncoderPool,
 	workerErrs []int,
 	blopts block.Options,
 	wg *sync.WaitGroup,
 ) {
+	shouldCacheSeriesMetadata := s.shouldCacheSeriesMetadata(runOpts, ns)
 	for arg := range ec {
 		var (
 			series     = arg.series
@@ -202,10 +215,26 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 			blockStart = arg.blockStart
 		)
 
-		unmergedShard := unmerged[series.Shard].encodersBySeries
+		unmergedShard := unmerged[series.Shard].series
 		unmergedSeries, ok := unmergedShard[series.UniqueIndex]
 		if !ok {
-			unmergedSeries = encodersByTime{
+			if shouldCacheSeriesMetadata {
+				// If we're going to cache the IDs and Tags on the commitlog source, then
+				// we need to make sure that they won't get finalized by anything else in
+				// the code base. Specifically, since series.Tags is a struct (not a pointer
+				// to a struct), we need to call NoFinalize() on it as early in the code-path
+				// as possible so that the NoFinalize() state is propagated everywhere (since
+				// the struct will get copied repeatedly.)
+				//
+				// This is also the "ideal" spot to mark the IDs as NoFinalize(), because it
+				// only occurs once per series per run. So if we end up allocating the IDs/Tags
+				// multiple times during the bootstrap, we'll only mark the first appearance as
+				// NoFinalize, and all subsequent occurrences can be finalized per usual.
+				series.ID.NoFinalize()
+				series.Tags.NoFinalize()
+			}
+
+			unmergedSeries = metadataAndEncodersByTime{
 				id:       series.ID,
 				tags:     series.Tags,
 				encoders: make(map[xtime.UnixNano]encoders)}
@@ -247,7 +276,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 }
 
 func (s *commitLogSource) shouldEncodeForData(
-	unmerged []encodersAndRanges,
+	unmerged []shardData,
 	dataBlockSize time.Duration,
 	series commitlog.Series,
 	timestamp time.Time,
@@ -313,7 +342,7 @@ func (s *commitLogSource) mergeShards(
 	blockSize time.Duration,
 	blopts block.Options,
 	encoderPool encoding.EncoderPool,
-	unmerged []encodersAndRanges,
+	unmerged []shardData,
 ) result.DataBootstrapResult {
 	var (
 		shardErrs               = make([]int, numShards)
@@ -330,7 +359,7 @@ func (s *commitLogSource) mergeShards(
 	workerPool.Init()
 
 	for shard, unmergedShard := range unmerged {
-		if unmergedShard.encodersBySeries == nil {
+		if unmergedShard.series == nil {
 			continue
 		}
 		wg.Add(1)
@@ -360,7 +389,7 @@ func (s *commitLogSource) mergeShards(
 
 func (s *commitLogSource) mergeShard(
 	shard int,
-	unmergedShard encodersAndRanges,
+	unmergedShard shardData,
 	blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	encoderPool encoding.EncoderPool,
@@ -371,7 +400,7 @@ func (s *commitLogSource) mergeShard(
 	var numShardEmptyErrs int
 	var numErrs int
 
-	for _, unmergedBlocks := range unmergedShard.encodersBySeries {
+	for _, unmergedBlocks := range unmergedShard.series {
 		seriesBlocks, numSeriesEmptyErrs, numSeriesErrs := s.mergeSeries(
 			unmergedBlocks,
 			blocksPool,
@@ -383,7 +412,7 @@ func (s *commitLogSource) mergeShard(
 
 		if seriesBlocks != nil && seriesBlocks.Len() > 0 {
 			if shardResult == nil {
-				shardResult = result.NewShardResult(len(unmergedShard.encodersBySeries), s.opts.ResultOptions())
+				shardResult = result.NewShardResult(len(unmergedShard.series), s.opts.ResultOptions())
 			}
 			shardResult.AddSeries(unmergedBlocks.id, unmergedBlocks.tags, seriesBlocks)
 		}
@@ -395,8 +424,7 @@ func (s *commitLogSource) mergeShard(
 }
 
 func (s *commitLogSource) mergeSeries(
-	unmergedBlocks encodersByTime,
-	blocksPool block.DatabaseBlockPool,
+	unmergedBlocks metadataAndEncodersByTime, blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	encoderPool encoding.EncoderPool,
 	blockSize time.Duration,
@@ -509,6 +537,87 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 	}
 }
 
+// cacheShardData caches the shardData from a call to ReadData() on the source so that subsequent calls
+// to ReadIndex() for the same time period don't have to read the commit log files again.
+//
+// In order for the subsequent call to ReadIndex() to avoid reading the same commit log files, we need
+// to cache three pieces of information for every series:
+// 		1) The ID (so it can be indexed)
+// 		2) The tags (so they can be indexed)
+// 		3) The block starts for which the series had a datapoint (so that we know which index blocks
+//         / segments the series needs to be included in)
+//
+// In addition, for each shard we will need to store the ranges which we have already read commit log
+// files for, so that the ReadIndex() call can easily filter commit log files down to those which
+// have not already been read by a previous call to ReadData().
+//
+// Its safe to cache the series IDs and Tags because we mark them both as NoFinalize() if the caching
+// path is enabled.
+func (s *commitLogSource) cacheShardData(ns namespace.Metadata, allShardData []shardData) {
+	nsString := ns.ID().String()
+	nsCache, ok := s.cachedShardDataByNS[nsString]
+	if !ok {
+		nsShardData := &cachedShardData{
+			shardData: make([]shardData, len(allShardData)),
+		}
+		s.cachedShardDataByNS[nsString] = nsShardData
+		nsCache = nsShardData
+	}
+
+	for shard, currShardData := range allShardData {
+		for _, seriesData := range currShardData.series {
+			for blockStart := range seriesData.encoders {
+				// Nil out any references to the encoders (which should be closed already anyways),
+				// so that they can be GC'd.
+				seriesData.encoders[blockStart] = nil
+			}
+		}
+
+		for shard >= len(nsCache.shardData) {
+			// Extend the slice if necessary (could happen if different calls to
+			// ReadData() bootstrap different shards.)
+			nsCache.shardData = append(nsCache.shardData, shardData{})
+		}
+
+		nsCache.shardData[shard].ranges = nsCache.shardData[shard].ranges.AddRanges(currShardData.ranges)
+
+		currSeries := currShardData.series
+		cachedSeries := nsCache.shardData[shard].series
+
+		// If there are no existing series, just set what we have.
+		if len(cachedSeries) == 0 {
+			if currSeries != nil {
+				nsCache.shardData[shard].series = currSeries
+			} else {
+				nsCache.shardData[shard].series = make(map[uint64]metadataAndEncodersByTime)
+			}
+			continue
+		}
+
+		// If there are existing series, then add any new series that we have, and merge block starts.
+		for uniqueIdx, seriesData := range currSeries {
+			// If its not already there, just add it
+			cachedSeriesData, ok := cachedSeries[uniqueIdx]
+			if ok {
+			}
+			if !ok {
+				cachedSeries[uniqueIdx] = seriesData
+				continue
+			}
+
+			// If it is there, merge blockStart times
+			for blockStart := range seriesData.encoders {
+				// The existence of a key in the map is indicative of its presence in this case,
+				// so assigning nil is equivalent to adding an item to a set. This is counter-intuitive,
+				// but we do it so that we can re-use the existing datastructures that have already been
+				// allocated by the bootstrapping process, otherwise we'd have to perform millions of
+				// additional allocations.
+				cachedSeriesData.encoders[blockStart] = nil
+			}
+		}
+	}
+}
+
 func (s *commitLogSource) AvailableIndex(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
@@ -524,25 +633,29 @@ func (s *commitLogSource) ReadIndex(
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
-	// FOLLOWUP(rartoul): implement the commit log source returning
-	// not indexed series metadata for the time range required.
-	// Try to cache some data on the commit log source itself
-	// from work done in ReadData(...) to help avoid rereading as
-	// much as possible.
-	// Also: it's now possible to cache the metadata and data
-	// for all namespaces in the first call to ReadData(...) since
-	// the source is used across all namespaces and then discarded after.
-	// Finally, we can also probably improve performance significantly by
-	// implementing a new interface in the Commitlog Reader/Iterator that
-	// only returns a given series once per file, although there is some
-	// trickiness there involving bufferpast and buffer future values.
+	if !ns.Options().IndexOptions().Enabled() {
+		return result.NewIndexBootstrapResult(), errIndexingNotEnableForNamespace
+	}
+
 	if shardsTimeRanges.IsEmpty() {
 		return result.NewIndexBootstrapResult(), nil
 	}
 
+	var (
+		nsCache                        = s.cachedShardDataByNS[ns.ID().String()]
+		shardsTimeRangesToReadFromDisk = shardsTimeRanges.Copy()
+	)
+	if nsCache != nil {
+		cachedShardsTimeRanges := result.ShardTimeRanges{}
+		for shard, shardData := range nsCache.shardData {
+			cachedShardsTimeRanges[uint32(shard)] = shardData.ranges
+		}
+		shardsTimeRangesToReadFromDisk.Subtract(cachedShardsTimeRanges)
+	}
+
 	// Setup predicates for skipping files / series at iterator and reader level.
 	readCommitLogPredicate := newReadCommitLogPredicate(
-		ns, shardsTimeRanges, s.opts, s.inspection)
+		ns, shardsTimeRangesToReadFromDisk, s.opts, s.inspection)
 	readSeriesPredicate := newReadSeriesPredicate(ns)
 	iterOpts := commitlog.IteratorOpts{
 		CommitLogOptions:      s.opts.CommitLogOptions(),
@@ -575,38 +688,77 @@ func (s *commitLogSource) ReadIndex(
 		resultOptions  = s.opts.ResultOptions()
 	)
 
+	// Start by reading all the commit log files that we couldn't eliminate due to the
+	// cached metadata.
 	for iter.Next() {
 		series, dp, _, _ := iter.Current()
-		if !s.shouldIncludeInIndex(
-			series.Shard, dp.Timestamp, highestShard, indexBlockSize, bootstrapRangesByShard) {
-			continue
-		}
 
-		segment, err := indexResults.GetOrAddSegment(dp.Timestamp, indexOptions, resultOptions)
-		if err != nil {
-			return nil, err
-		}
+		s.maybeAddToIndex(
+			series.ID, series.Tags, series.Shard, highestShard, dp.Timestamp, bootstrapRangesByShard,
+			indexResults, indexOptions, indexBlockSize, resultOptions)
+	}
 
-		exists, err := segment.ContainsID(series.ID.Bytes())
-		if err != nil {
-			return nil, err
-		}
-		if exists {
-			continue
-		}
-
-		d, err := convert.FromMetric(series.ID, series.Tags)
-		if err != nil {
-			return nil, err
-		}
-
-		_, err = segment.Insert(d)
-		if err != nil {
-			return nil, err
+	// Add in all the data that was cached by a previous run of ReadData() (if any).
+	if nsCache != nil {
+		for shard, shardData := range nsCache.shardData {
+			for _, series := range shardData.series {
+				for dataBlockStart := range series.encoders {
+					s.maybeAddToIndex(
+						series.id, series.tags, uint32(shard), highestShard, dataBlockStart.ToTime(), bootstrapRangesByShard,
+						indexResults, indexOptions, indexBlockSize, resultOptions)
+				}
+			}
 		}
 	}
 
 	return indexResult, nil
+}
+
+func (s commitLogSource) maybeAddToIndex(
+	id ident.ID,
+	tags ident.Tags,
+	shard uint32,
+	highestShard uint32,
+	blockStart time.Time,
+	bootstrapRangesByShard []xtime.Ranges,
+	indexResults result.IndexResults,
+	indexOptions namespace.IndexOptions,
+	indexBlockSize time.Duration,
+	resultOptions result.Options,
+) error {
+	if !s.shouldIncludeInIndex(
+		shard, blockStart, highestShard, indexBlockSize, bootstrapRangesByShard) {
+		return nil
+	}
+
+	segment, err := indexResults.GetOrAddSegment(blockStart, indexOptions, resultOptions)
+	if err != nil {
+		return err
+	}
+
+	exists, err := segment.ContainsID(id.Bytes())
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+
+	// We can use the NoClone variant here because the cached IDs/Tags are marked NoFinalize
+	// by the ReadData() path when it reads from the commitlog files, and the IDs/Tags read
+	// from the commit log files by the ReadIndex() method won't be finalized because this
+	// code path doesn't finalize them.
+	d, err := convert.FromMetricNoClone(id, tags)
+	if err != nil {
+		return err
+	}
+
+	_, err = segment.Insert(d)
+	return err
+}
+
+func (s commitLogSource) shouldCacheSeriesMetadata(runOpts bootstrap.RunOptions, nsMeta namespace.Metadata) bool {
+	return runOpts.CacheSeriesMetadata() && nsMeta.Options().IndexOptions().Enabled()
 }
 
 func newReadCommitLogPredicate(
@@ -656,12 +808,12 @@ func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredica
 	}
 }
 
-type encodersAndRanges struct {
-	encodersBySeries map[uint64]encodersByTime
-	ranges           xtime.Ranges
+type shardData struct {
+	series map[uint64]metadataAndEncodersByTime
+	ranges xtime.Ranges
 }
 
-type encodersByTime struct {
+type metadataAndEncodersByTime struct {
 	id   ident.ID
 	tags ident.Tags
 	// int64 instead of time.Time because there is an optimized map access pattern
@@ -701,4 +853,8 @@ func (ir ioReaders) close() {
 	for _, r := range ir {
 		r.(xio.SegmentReader).Finalize()
 	}
+}
+
+type cachedShardData struct {
+	shardData []shardData
 }
