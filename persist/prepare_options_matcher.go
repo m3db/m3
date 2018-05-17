@@ -33,9 +33,9 @@ type DataPrepareOptionsMatcher struct {
 	NsMetadata     namespace.Metadata
 	Shard          uint32
 	BlockStart     time.Time
-	SnapshotTime   time.Time
 	FileSetType    FileSetType
 	DeleteIfExists bool
+	Snapshot       DataPrepareSnapshotOptions
 }
 
 // Matches determines whether a DataPrepareOptionsMatcher matches a DataPrepareOptions
@@ -51,9 +51,6 @@ func (p DataPrepareOptionsMatcher) Matches(x interface{}) bool {
 	if p.Shard != prepareOptions.Shard {
 		return false
 	}
-	if !p.SnapshotTime.Equal(prepareOptions.SnapshotTime) {
-		return false
-	}
 	if !p.BlockStart.Equal(prepareOptions.BlockStart) {
 		return false
 	}
@@ -64,11 +61,15 @@ func (p DataPrepareOptionsMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
+	if !p.Snapshot.SnapshotTime.Equal(prepareOptions.Snapshot.SnapshotTime) {
+		return false
+	}
+
 	return true
 }
 
 func (p DataPrepareOptionsMatcher) String() string {
 	return fmt.Sprintf(
-		"NSMetadata: %s, Shard: %d, BlockStart: %d, SnapshotTime: %d, FileSetType: %s, DeleteIfExists: %t",
-		p.NsMetadata.ID().String(), p.Shard, p.BlockStart.Unix(), p.SnapshotTime.Unix(), p.FileSetType, p.DeleteIfExists)
+		"NSMetadata: %s, Shard: %d, BlockStart: %d, FileSetType: %s, DeleteIfExists: %v, SnapshotTime: %d",
+		p.NsMetadata.ID().String(), p.Shard, p.BlockStart.Unix(), p.FileSetType, p.DeleteIfExists, p.Snapshot.SnapshotTime.Unix())
 }

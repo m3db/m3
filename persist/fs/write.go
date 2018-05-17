@@ -161,25 +161,19 @@ func (w *writer) Open(opts DataWriterOpenOptions) error {
 	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(w.filePathPrefix, namespace, shard)
 		// Can't do this outside of the switch statement because we need to make sure
-		// the directory exists before calling NextSnapshotFileIndex
+		// the directory exists before calling NextSnapshotFileSetIndex
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
 		}
 
-		// This method is not thread-safe, so its the callers responsibilities that they never
-		// try and write two snapshot files for the same block start at the same time.
-		nextSnapshotIndex, err = NextSnapshotFileIndex(w.filePathPrefix, namespace, shard, blockStart)
-		if err != nil {
-			return err
-		}
-
-		w.checkpointFilePath = snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, nextSnapshotIndex)
-		infoFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, infoFileSuffix, nextSnapshotIndex)
-		indexFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, indexFileSuffix, nextSnapshotIndex)
-		summariesFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, summariesFileSuffix, nextSnapshotIndex)
-		bloomFilterFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, nextSnapshotIndex)
-		dataFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, dataFileSuffix, nextSnapshotIndex)
-		digestFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, digestFileSuffix, nextSnapshotIndex)
+		nextSnapshotIndex = opts.Identifier.VolumeIndex
+		w.checkpointFilePath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, checkpointFileSuffix)
+		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, infoFileSuffix)
+		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, indexFileSuffix)
+		summariesFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, summariesFileSuffix)
+		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, bloomFilterFileSuffix)
+		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, dataFileSuffix)
+		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, nextSnapshotIndex, digestFileSuffix)
 	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(w.filePathPrefix, namespace, shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {

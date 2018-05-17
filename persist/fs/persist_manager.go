@@ -23,7 +23,7 @@ package fs
 import (
 	"errors"
 	"fmt"
-	"strconv"
+	"os"
 	"sync"
 	"time"
 
@@ -223,7 +223,7 @@ func (pm *persistManager) Prepare(opts persist.DataPrepareOptions) (persist.Prep
 		nsMetadata   = opts.NamespaceMetadata
 		shard        = opts.Shard
 		blockStart   = opts.BlockStart
-		snapshotTime = opts.SnapshotTime
+		snapshotTime = opts.Snapshot.SnapshotTime
 		nsID         = opts.NamespaceMetadata.ID()
 		prepared     persist.PreparedDataPersist
 	)
@@ -242,6 +242,16 @@ func (pm *persistManager) Prepare(opts persist.DataPrepareOptions) (persist.Prep
 		return prepared, err
 	}
 
+	var volumeIndex int
+	if opts.FileSetType == persist.FileSetSnapshotType {
+		// Need to work out the volume index for the next snapshot
+		volumeIndex, err = NextSnapshotFileSetVolumeIndex(pm.opts.FilePathPrefix(),
+			nsMetadata.ID(), shard, blockStart)
+		if err != nil {
+			return prepared, err
+		}
+	}
+
 	if exists && !opts.DeleteIfExists {
 		// This should never happen in practice since we always track which times
 		// are flushed in the shard when we bootstrap (so we should never
@@ -253,9 +263,10 @@ func (pm *persistManager) Prepare(opts persist.DataPrepareOptions) (persist.Prep
 		l.WithFields(
 			xlog.NewField("blockStart", blockStart.String()),
 			xlog.NewField("fileSetType", opts.FileSetType.String()),
+			xlog.NewField("volumeIndex", volumeIndex),
 			xlog.NewField("snapshotStart", snapshotTime.String()),
 			xlog.NewField("namespace", nsID.String()),
-			xlog.NewField("shard", strconv.Itoa(int(shard))),
+			xlog.NewField("shard", shard),
 		).Errorf("prepared writing fileset volume that already exists")
 		return prepared, errPersistManagerFileSetAlreadyExists
 	}
@@ -263,7 +274,6 @@ func (pm *persistManager) Prepare(opts persist.DataPrepareOptions) (persist.Prep
 	if exists && opts.DeleteIfExists {
 		err := DeleteFileSetAt(pm.opts.FilePathPrefix(), nsID, shard, blockStart)
 		if err != nil {
-
 			return prepared, err
 		}
 	}
@@ -276,9 +286,10 @@ func (pm *persistManager) Prepare(opts persist.DataPrepareOptions) (persist.Prep
 		},
 		FileSetType: opts.FileSetType,
 		Identifier: FileSetFileIdentifier{
-			Namespace:  nsID,
-			Shard:      shard,
-			BlockStart: blockStart,
+			Namespace:   nsID,
+			Shard:       shard,
+			BlockStart:  blockStart,
+			VolumeIndex: volumeIndex,
 		},
 	}
 	if err := pm.writer.Open(writerOpts); err != nil {
@@ -300,16 +311,38 @@ func (pm *persistManager) filesetExistsAt(prepareOpts persist.DataPrepareOptions
 
 	switch prepareOpts.FileSetType {
 	case persist.FileSetSnapshotType:
+		if err := pm.ensureSnapshotsDirPath(nsID, shard); err != nil {
+			return false, err
+		}
 		// Snapshot files are indexed (multiple per block-start), so checking if the file
 		// already exist doesn't make much sense
 		return false, nil
 	case persist.FileSetFlushType:
+		if err := pm.ensureDataDirPath(nsID, shard); err != nil {
+			return false, err
+		}
 		return DataFileSetExistsAt(pm.filePathPrefix, nsID, shard, blockStart)
 	default:
 		return false, fmt.Errorf(
 			"unable to determine if fileset exists in persist manager for fileset type: %s",
 			prepareOpts.FileSetType)
 	}
+}
+
+func (pm *persistManager) ensureSnapshotsDirPath(
+	nsID ident.ID,
+	shard uint32,
+) error {
+	dir := ShardDataDirPath(pm.filePathPrefix, nsID, shard)
+	return os.MkdirAll(dir, pm.opts.NewDirectoryMode())
+}
+
+func (pm *persistManager) ensureDataDirPath(
+	nsID ident.ID,
+	shard uint32,
+) error {
+	dir := ShardSnapshotsDirPath(pm.filePathPrefix, nsID, shard)
+	return os.MkdirAll(dir, pm.opts.NewDirectoryMode())
 }
 
 func (pm *persistManager) SetRuntimeOptions(value runtime.Options) {

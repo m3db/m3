@@ -129,7 +129,7 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 		namespace     = opts.Identifier.Namespace
 		shard         = opts.Identifier.Shard
 		blockStart    = opts.Identifier.BlockStart
-		snapshotIndex = opts.Identifier.Index
+		snapshotIndex = opts.Identifier.VolumeIndex
 		err           error
 	)
 
@@ -145,12 +145,12 @@ func (r *reader) Open(opts DataReaderOpenOptions) error {
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		shardDir = ShardSnapshotsDirPath(r.filePathPrefix, namespace, shard)
-		checkpointFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, checkpointFileSuffix, snapshotIndex)
-		infoFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, infoFileSuffix, snapshotIndex)
-		digestFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, digestFileSuffix, snapshotIndex)
-		bloomFilterFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, bloomFilterFileSuffix, snapshotIndex)
-		indexFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, indexFileSuffix, snapshotIndex)
-		dataFilepath = snapshotPathFromTimeAndIndex(shardDir, blockStart, dataFileSuffix, snapshotIndex)
+		checkpointFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, checkpointFileSuffix)
+		infoFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, infoFileSuffix)
+		digestFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, digestFileSuffix)
+		bloomFilterFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, bloomFilterFileSuffix)
+		indexFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, indexFileSuffix)
+		dataFilepath = filesetPathFromTimeAndIndex(shardDir, blockStart, snapshotIndex, dataFileSuffix)
 	case persist.FileSetFlushType:
 		shardDir = ShardDataDirPath(r.filePathPrefix, namespace, shard)
 		checkpointFilepath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)

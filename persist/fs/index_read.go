@@ -43,10 +43,10 @@ type indexReader struct {
 	hugePagesOpts  mmap.HugeTLBOptions
 	logger         xlog.Logger
 
-	namespaceDir  string
-	start         time.Time
-	fileSetType   persist.FileSetType
-	snapshotIndex int
+	namespaceDir string
+	start        time.Time
+	fileSetType  persist.FileSetType
+	volumeIndex  int
 
 	currIdx                int
 	info                   index.IndexInfo
@@ -104,21 +104,18 @@ func (r *indexReader) Open(opts IndexReaderOpenOptions) error {
 	)
 	r.start = opts.Identifier.BlockStart
 	r.fileSetType = opts.FileSetType
-	r.snapshotIndex = opts.Identifier.Index
+	r.volumeIndex = opts.Identifier.VolumeIndex
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		r.namespaceDir = NamespaceIndexSnapshotDirPath(r.filePathPrefix, namespace)
-		checkpointFilepath = snapshotPathFromTimeAndIndex(r.namespaceDir, r.start, checkpointFileSuffix, r.snapshotIndex)
-		infoFilepath = snapshotPathFromTimeAndIndex(r.namespaceDir, r.start, infoFileSuffix, r.snapshotIndex)
-		digestFilepath = snapshotPathFromTimeAndIndex(r.namespaceDir, r.start, digestFileSuffix, r.snapshotIndex)
 	case persist.FileSetFlushType:
 		r.namespaceDir = NamespaceIndexDataDirPath(r.filePathPrefix, namespace)
-		checkpointFilepath = filesetPathFromTime(r.namespaceDir, r.start, checkpointFileSuffix)
-		infoFilepath = filesetPathFromTime(r.namespaceDir, r.start, infoFileSuffix)
-		digestFilepath = filesetPathFromTime(r.namespaceDir, r.start, digestFileSuffix)
 	default:
 		return fmt.Errorf("cannot open index reader for fileset type: %s", opts.FileSetType)
 	}
+	checkpointFilepath = filesetPathFromTimeAndIndex(r.namespaceDir, r.start, r.volumeIndex, checkpointFileSuffix)
+	infoFilepath = filesetPathFromTimeAndIndex(r.namespaceDir, r.start, r.volumeIndex, infoFileSuffix)
+	digestFilepath = filesetPathFromTimeAndIndex(r.namespaceDir, r.start, r.volumeIndex, digestFileSuffix)
 
 	// If there is no checkpoint file, don't read the index files.
 	if err := r.readCheckpointFile(checkpointFilepath); err != nil {
@@ -203,10 +200,10 @@ func (r *indexReader) ReadSegmentFileSet() (
 		var filePath string
 		switch r.fileSetType {
 		case persist.FileSetSnapshotType:
-			filePath = snapshotIndexSegmentFilePathFromTimeAndIndex(r.namespaceDir, r.start,
-				r.currIdx, segFileType, r.snapshotIndex)
+			filePath = snapshotIndexSegmentFilePathFromTimeAndIndex(r.namespaceDir, r.start, r.volumeIndex,
+				r.currIdx, segFileType)
 		case persist.FileSetFlushType:
-			filePath = filesetIndexSegmentFilePathFromTime(r.namespaceDir, r.start,
+			filePath = filesetIndexSegmentFilePathFromTime(r.namespaceDir, r.start, r.volumeIndex,
 				r.currIdx, segFileType)
 		default:
 			closeFiles()

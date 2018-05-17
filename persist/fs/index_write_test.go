@@ -84,7 +84,7 @@ func TestSnapshotIndexWriter(t *testing.T) {
 	for _, snapshot := range testSnapshotSegments {
 		// Add the snapshot index to the file set ID
 		fileSetID := test.fileSetID
-		fileSetID.Index = snapshot.snapshotIndex
+		fileSetID.VolumeIndex = snapshot.snapshotIndex
 
 		err := writer.Open(IndexWriterOpenOptions{
 			Identifier:  fileSetID,
@@ -113,16 +113,16 @@ func TestSnapshotIndexWriter(t *testing.T) {
 		actualFiles = append(actualFiles, file.Name())
 	}
 	require.Equal(t, []string{
-		fmt.Sprintf("fileset-%d-checkpoint-0.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-checkpoint-1.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-digest-0.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-digest-1.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-info-0.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-info-1.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-segment-0-first-0.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-segment-0-first-1.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-segment-0-second-0.db", test.blockStart.UnixNano()),
-		fmt.Sprintf("fileset-%d-segment-0-second-1.db", test.blockStart.UnixNano()),
+		fmt.Sprintf("fileset-%d-0-checkpoint.db", test.blockStart.UnixNano()),
+		fmt.Sprintf("fileset-%d-0-digest.db", test.blockStart.UnixNano()),
+		fmt.Sprintf("fileset-%d-0-info.db", test.blockStart.UnixNano()),
+		fmt.Sprintf("fileset-%d-0-segment-0-first.db", test.blockStart.UnixNano()),
+		fmt.Sprintf("fileset-%d-0-segment-0-second.db", test.blockStart.UnixNano()),
+		fmt.Sprintf("fileset-%d-1-checkpoint.db", test.blockStart.UnixNano()),
+		fmt.Sprintf("fileset-%d-1-digest.db", test.blockStart.UnixNano()),
+		fmt.Sprintf("fileset-%d-1-info.db", test.blockStart.UnixNano()),
+		fmt.Sprintf("fileset-%d-1-segment-0-first.db", test.blockStart.UnixNano()),
+		fmt.Sprintf("fileset-%d-1-segment-0-second.db", test.blockStart.UnixNano()),
 	}, actualFiles)
 
 	// Verify can read them
@@ -130,7 +130,7 @@ func TestSnapshotIndexWriter(t *testing.T) {
 	for _, snapshot := range testSnapshotSegments {
 		// Add the snapshot index to the file set ID
 		fileSetID := test.fileSetID
-		fileSetID.Index = snapshot.snapshotIndex
+		fileSetID.VolumeIndex = snapshot.snapshotIndex
 
 		err = reader.Open(IndexReaderOpenOptions{
 			Identifier:  fileSetID,

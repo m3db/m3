@@ -51,13 +51,13 @@ type indexWriter struct {
 	newDirectoryMode os.FileMode
 	fdWithDigest     digest.FdWithDigestWriter
 
-	err           error
-	blockSize     time.Duration
-	start         time.Time
-	fileSetType   persist.FileSetType
-	snapshotTime  time.Time
-	snapshotIndex int
-	segments      []writtenIndexSegment
+	err          error
+	blockSize    time.Duration
+	start        time.Time
+	fileSetType  persist.FileSetType
+	snapshotTime time.Time
+	volumeIndex  int
+	segments     []writtenIndexSegment
 
 	namespaceDir       string
 	checkpointFilePath string
@@ -97,46 +97,30 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	var (
 		namespace  = opts.Identifier.Namespace
 		blockStart = opts.Identifier.BlockStart
-		err        error
 	)
 	w.err = nil
 	w.blockSize = opts.BlockSize
 	w.start = blockStart
 	w.fileSetType = opts.FileSetType
+	w.volumeIndex = opts.Identifier.VolumeIndex
 	w.snapshotTime = opts.Snapshot.SnapshotTime
 	w.segments = nil
 
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		w.namespaceDir = NamespaceIndexSnapshotDirPath(w.filePathPrefix, namespace)
-		// Can't do this outside of the switch statement because we need to make sure
-		// the directory exists before calling NextSnapshotFileIndex
-		if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
-			return err
-		}
-
-		// This method is not thread-safe, so its the callers responsibilities that they never
-		// try and write two snapshot files for the same block start at the same time.
-		w.snapshotIndex, err = NextIndexSnapshotFileIndex(w.filePathPrefix, namespace, blockStart)
-		if err != nil {
-			return err
-		}
-
-		w.checkpointFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, checkpointFileSuffix, w.snapshotIndex)
-		w.infoFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, infoFileSuffix, w.snapshotIndex)
-		w.digestFilePath = snapshotPathFromTimeAndIndex(w.namespaceDir, blockStart, digestFileSuffix, w.snapshotIndex)
 	case persist.FileSetFlushType:
 		w.namespaceDir = NamespaceIndexDataDirPath(w.filePathPrefix, namespace)
-		if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
-			return err
-		}
-
-		w.checkpointFilePath = filesetPathFromTime(w.namespaceDir, blockStart, checkpointFileSuffix)
-		w.infoFilePath = filesetPathFromTime(w.namespaceDir, blockStart, infoFileSuffix)
-		w.digestFilePath = filesetPathFromTime(w.namespaceDir, blockStart, digestFileSuffix)
 	default:
 		return fmt.Errorf("cannot open index writer for fileset type: %s", opts.FileSetType)
 	}
+	if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
+		return err
+	}
+	w.checkpointFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, checkpointFileSuffix)
+	w.infoFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, infoFileSuffix)
+	w.digestFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, digestFileSuffix)
+
 	return nil
 }
 
@@ -174,10 +158,10 @@ func (w *indexWriter) WriteSegmentFileSet(
 		var filePath string
 		switch w.fileSetType {
 		case persist.FileSetSnapshotType:
-			filePath = snapshotIndexSegmentFilePathFromTimeAndIndex(w.namespaceDir, w.start,
-				idx, segFileType, w.snapshotIndex)
+			filePath = snapshotIndexSegmentFilePathFromTimeAndIndex(w.namespaceDir, w.start, w.volumeIndex,
+				idx, segFileType)
 		case persist.FileSetFlushType:
-			filePath = filesetIndexSegmentFilePathFromTime(w.namespaceDir, w.start,
+			filePath = filesetIndexSegmentFilePathFromTime(w.namespaceDir, w.start, w.volumeIndex,
 				idx, segFileType)
 		default:
 			err := fmt.Errorf("unknown fileset type: %s", w.fileSetType)
