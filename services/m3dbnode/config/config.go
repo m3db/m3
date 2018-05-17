@@ -34,6 +34,7 @@ import (
 	"github.com/coreos/etcd/pkg/types"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/environment"
+	coordinatorcfg "github.com/m3db/m3db/src/coordinator/services/m3coordinator/config"
 	"github.com/m3db/m3x/config/hostid"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
@@ -48,8 +49,8 @@ const (
 
 // Configuration is the top level configuration that includes both a DB node and coordinator
 type Configuration struct {
-	DB          DBConfiguration          `yaml:"db"`
-	Coordinator CoordinatorConfiguration `yaml:"coordinator"`
+	DB          DBConfiguration               `yaml:"db"`
+	Coordinator *coordinatorcfg.Configuration `yaml:"coordinator"`
 }
 
 // DBConfiguration is the configuration for an M3DB node.
@@ -122,11 +123,6 @@ type DBConfiguration struct {
 
 	// Write new series asynchronously for fast ingestion of new ID bursts.
 	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
-}
-
-// CoordinatorConfiguration is the configuration for an instance of m3coordinator.
-type CoordinatorConfiguration struct {
-	M3DBClientCfg client.Configuration `yaml:"client"`
 }
 
 // TickConfiguration is the tick configuration for background processing of

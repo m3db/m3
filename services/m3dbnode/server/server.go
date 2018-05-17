@@ -32,6 +32,7 @@ import (
 	"syscall"
 	"time"
 
+	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv"
@@ -89,8 +90,9 @@ type RunOptions struct {
 	// ConfigFile is the YAML configuration file to use to run the server.
 	ConfigFile string
 
-	// DBConfig is the DBConfiguration to use to run the server.
-	DBConfig config.DBConfiguration
+	// Config is an alternate way to provide configuration and will be used
+	// instead of parsing ConfigFile if ConfigFile is not specified.
+	Config config.DBConfiguration
 
 	// BootstrapCh is a channel to listen on to be notified of bootstrap.
 	BootstrapCh chan<- struct{}
@@ -101,6 +103,9 @@ type RunOptions struct {
 	// ClientBootstrapCh is a channel to listen on to share the same m3db client that this server uses.
 	ClientBootstrapCh chan<- client.Client
 
+	// ClusterClientBootstrapCh is a channel to listen on to share the same m3 cluster client that this server uses.
+	ClusterClientBootstrapCh chan<- clusterclient.Client
+
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
 	InterruptCh <-chan error
@@ -110,17 +115,16 @@ type RunOptions struct {
 // configuration file.
 func Run(runOpts RunOptions) {
 	var cfg config.DBConfiguration
-
 	if runOpts.ConfigFile != "" {
-		var topCfg config.Configuration
-		if err := xconfig.LoadFile(&topCfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
+		var rootCfg config.Configuration
+		if err := xconfig.LoadFile(&rootCfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
 			fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
 			os.Exit(1)
 		}
 
-		cfg = topCfg.DB
+		cfg = rootCfg.DB
 	} else {
-		cfg = runOpts.DBConfig
+		cfg = runOpts.Config
 	}
 
 	logger, err := cfg.Logging.BuildLogger()
@@ -348,7 +352,6 @@ func Run(runOpts RunOptions) {
 	var (
 		envCfg environment.ConfigureResults
 	)
-
 	if cfg.EnvironmentConfig.Static == nil {
 		logger.Info("creating dynamic config service client with m3cluster")
 
@@ -381,6 +384,10 @@ func Run(runOpts RunOptions) {
 		if err != nil {
 			logger.Fatalf("could not initialize static config: %v", err)
 		}
+	}
+
+	if runOpts.ClusterClientBootstrapCh != nil {
+		runOpts.ClusterClientBootstrapCh <- envCfg.ClusterClient
 	}
 
 	opts = opts.SetNamespaceInitializer(envCfg.NamespaceInitializer)

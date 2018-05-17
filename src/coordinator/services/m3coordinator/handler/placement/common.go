@@ -62,7 +62,7 @@ func Service(clusterClient m3clusterClient.Client, cfg config.Configuration) (pl
 	serviceEnvironment := DefaultServiceEnvironment
 	serviceZone := DefaultServiceZone
 
-	if service := cfg.M3DBClientCfg.EnvironmentConfig.Service; service != nil {
+	if service := cfg.DBClient.EnvironmentConfig.Service; service != nil {
 		serviceName = service.Service
 		serviceEnvironment = service.Env
 		serviceZone = service.Zone

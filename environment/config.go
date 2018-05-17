@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"time"
 
+	clusterclient "github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/kv"
 	m3clusterkvmem "github.com/m3db/m3cluster/kv/mem"
@@ -102,6 +103,7 @@ type StaticConfiguration struct {
 type ConfigureResults struct {
 	NamespaceInitializer namespace.Initializer
 	TopologyInitializer  topology.Initializer
+	ClusterClient        clusterclient.Client
 	KVStore              kv.Store
 }
 
@@ -178,6 +180,7 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 	return ConfigureResults{
 		NamespaceInitializer: nsInit,
 		TopologyInitializer:  topoInit,
+		ClusterClient:        configSvcClient,
 		KVStore:              kv,
 	}, nil
 }

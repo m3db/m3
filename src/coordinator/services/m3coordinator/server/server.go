@@ -22,6 +22,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
@@ -41,7 +42,7 @@ import (
 	tsdbRemote "github.com/m3db/m3db/src/coordinator/tsdb/remote"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
-	m3clusterClient "github.com/m3db/m3cluster/client"
+	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/client"
 	xconfig "github.com/m3db/m3x/config"
@@ -62,49 +63,69 @@ var (
 // RunOptions provides options for running the server
 // with backwards compatibility if only solely adding fields.
 type RunOptions struct {
-	ConfigFile           string
-	ListenAddress        string
-	RPCEnabled           bool
-	RPCAddress           string
-	Remotes              []string
-	MaxConcurrentQueries int
-	QueryTimeout         time.Duration
+	// ConfigFile is the config file to use.
+	ConfigFile string
 
-	// DBClient is the M3DB client to use instead of instantiating a new one from config
+	// Config is an alternate way to provide configuration and will be used
+	// instead of parsing ConfigFile if ConfigFile is not specified.
+	Config config.Configuration
+
+	// DBClient is the M3DB client to use instead of instantiating a new one
+	// from client config.
 	DBClient client.Client
+
+	// ClusterClient is the M3DB cluster client to use instead of instantiating
+	// one from the client config.
+	ClusterClient clusterclient.Client
 }
 
 // Run runs the server programmatically given a filename for the configuration file.
 func Run(runOpts RunOptions) {
 	rand.Seed(time.Now().UnixNano())
 
+	var cfg config.Configuration
+	if runOpts.ConfigFile != "" {
+		if err := xconfig.LoadFile(&cfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
+			fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
+			os.Exit(1)
+		}
+	} else {
+		cfg = runOpts.Config
+	}
+
 	logging.InitWithCores(nil)
 	ctx := context.Background()
 	logger := logging.WithContext(ctx)
 	defer logger.Sync()
 
-	var cfg config.Configuration
-	if err := xconfig.LoadFile(&cfg, runOpts.ConfigFile, configLoadOpts); err != nil {
-		logger.Fatal("unable to load", zap.String("configFile", runOpts.ConfigFile), zap.Any("error", err))
+
+	var clusterClient clusterclient.Client
+	if runOpts.ClusterClient != nil {
+		clusterClient = runOpts.ClusterClient
 	}
 
-	m3dbClientOpts := cfg.M3DBClientCfg
-
-	var (
-		clusterClient m3clusterClient.Client
-		err           error
-	)
-	if m3dbClientOpts.EnvironmentConfig.Service != nil {
-		clusterSvcClientOpts := m3dbClientOpts.EnvironmentConfig.Service.NewOptions()
-		clusterClient, err = etcd.NewConfigServiceClient(clusterSvcClientOpts)
-		if err != nil {
-			logger.Fatal("unable to create etcd client", zap.Any("error", err))
-		}
+	var dbClient client.Client
+	if runOpts.DBClient != nil {
+		dbClient = runOpts.DBClient
 	}
 
-	dbClient := runOpts.DBClient
 	if dbClient == nil {
-		dbClient, err = m3dbClientOpts.NewClient(client.ConfigurationParameters{})
+		// If not provided create cluster client and DB client
+		clientCfg := cfg.DBClient
+		if clientCfg == nil {
+			logger.Fatal("missing coordinator m3db client configuration")
+		}
+
+		var err error
+		if clientCfg.EnvironmentConfig.Service != nil {
+			clusterSvcClientOpts := clientCfg.EnvironmentConfig.Service.NewOptions()
+			clusterClient, err = etcd.NewConfigServiceClient(clusterSvcClientOpts)
+			if err != nil {
+				logger.Fatal("unable to create etcd client", zap.Any("error", err))
+			}
+		}
+
+		dbClient, err = clientCfg.NewClient(client.ConfigurationParameters{})
 		if err != nil {
 			logger.Fatal("unable to create m3db client", zap.Any("error", err))
 		}
@@ -112,17 +133,18 @@ func Run(runOpts RunOptions) {
 
 	session := m3db.NewAsyncSession(dbClient, nil)
 
-	fanoutStorage, storageCleanup := setupStorages(logger, session, runOpts)
+	fanoutStorage, storageCleanup := setupStorages(logger, session, cfg)
 	defer storageCleanup()
 
-	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage), clusterClient, cfg)
+	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage),
+		clusterClient, cfg)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Any("error", err))
 	}
 	handler.RegisterRoutes()
 
-	logger.Info("starting server", zap.String("address", runOpts.ListenAddress))
-	go http.ListenAndServe(runOpts.ListenAddress, handler.Router)
+	logger.Info("starting server", zap.String("address", cfg.ListenAddress))
+	go http.ListenAndServe(cfg.ListenAddress, handler.Router)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -133,33 +155,18 @@ func Run(runOpts RunOptions) {
 	}
 }
 
-func startGrpcServer(logger *zap.Logger, storage storage.Storage, flags RunOptions) *grpc.Server {
-	logger.Info("creating gRPC server")
-	server := tsdbRemote.CreateNewGrpcServer(storage)
-	waitForStart := make(chan struct{})
-	go func() {
-		logger.Info("starting gRPC server on port", zap.Any("rpc", flags.RPCAddress))
-		err := tsdbRemote.StartNewGrpcServer(server, flags.RPCAddress, waitForStart)
-		if err != nil {
-			logger.Fatal("unable to start gRPC server", zap.Any("error", err))
-		}
-	}()
-	<-waitForStart
-	return server
-}
-
-func setupStorages(logger *zap.Logger, session client.Session, flags RunOptions) (storage.Storage, func()) {
+func setupStorages(logger *zap.Logger, session client.Session, cfg config.Configuration) (storage.Storage, func()) {
 	cleanup := func() {}
 	localStorage := local.NewStorage(session, namespace, resolution)
 	stores := []storage.Storage{localStorage}
-	if flags.RPCEnabled {
+	if cfg.RPC != nil && cfg.RPC.Enabled {
 		logger.Info("rpc enabled")
-		server := startGrpcServer(logger, localStorage, flags)
+		server := startGrpcServer(logger, localStorage, cfg.RPC)
 		cleanup = func() {
 			server.GracefulStop()
 		}
-		if len(flags.Remotes) > 0 {
-			client, err := tsdbRemote.NewGrpcClient(flags.Remotes)
+		if remotes := cfg.RPC.RemoteListenAddresses; len(remotes) > 0 {
+			client, err := tsdbRemote.NewGrpcClient(remotes)
 			if err != nil {
 				logger.Fatal("unable to start remote clients for addresses", zap.Any("error", err))
 			}
@@ -168,4 +175,19 @@ func setupStorages(logger *zap.Logger, session client.Session, flags RunOptions)
 	}
 	fanoutStorage := fanout.NewStorage(stores, filter.LocalOnly, filter.LocalOnly)
 	return fanoutStorage, cleanup
+}
+
+func startGrpcServer(logger *zap.Logger, storage storage.Storage, cfg *config.RPCConfiguration) *grpc.Server {
+	logger.Info("creating gRPC server")
+	server := tsdbRemote.CreateNewGrpcServer(storage)
+	waitForStart := make(chan struct{})
+	go func() {
+		logger.Info("starting gRPC server on port", zap.Any("rpc", cfg.ListenAddress))
+		err := tsdbRemote.StartNewGrpcServer(server, cfg.ListenAddress, waitForStart)
+		if err != nil {
+			logger.Fatal("unable to start gRPC server", zap.Any("error", err))
+		}
+	}()
+	<-waitForStart
+	return server
 }

@@ -20,9 +20,32 @@
 
 package config
 
-import "github.com/m3db/m3db/client"
+import (
+	"github.com/m3db/m3db/client"
+)
 
-// Configuration is the configuration for an instance of m3coordinator.
+// Configuration is the configuration for the coordinator.
 type Configuration struct {
-	M3DBClientCfg client.Configuration `yaml:"client"`
+	// DBClient is the DB client configuration.
+	DBClient *client.Configuration `yaml:"dbClient"`
+
+	// ListenAddress is the server listen address.
+	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
+
+	// RPC is the RPC configuration.
+	RPC *RPCConfiguration `yaml:"rpc"`
+}
+
+// RPCConfiguration is the RPC configuration for the coordinator for
+// the GRPC server used for remote coordinator to coordinator calls.
+type RPCConfiguration struct {
+	// Enabled determines if coordinator RPC is enabled for remote calls.
+	Enabled bool `yaml:"enabled"`
+
+	// ListenAddress is the RPC server listen address.
+	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
+
+	// RemoteListenAddresses is the remote listen addresses to call for remote
+	// coordinator calls.
+	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
 }
