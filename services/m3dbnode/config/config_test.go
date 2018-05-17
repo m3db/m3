@@ -41,13 +41,11 @@ logging:
     file: /var/log/m3dbnode.log
 
 metrics:
-    m3:
-        hostPort: 127.0.0.1:9052
-        service: m3dbnode
-        env: production
-        includeHost: true
-    samplingRate: 0.01
-    extended: simple
+    prometheus:
+        handlerPath: /metrics
+    sanitization: prometheus
+    samplingRate: 1.0
+    extended: detailed
 
 listenAddress: 0.0.0.0:9000
 clusterListenAddress: 0.0.0.0:9001
@@ -306,18 +304,16 @@ writeNewSeriesAsync: true
   fields: {}
 metrics:
   scope: null
-  m3:
-    hostPort: 127.0.0.1:9052
-    hostPorts: []
-    service: m3dbnode
-    env: production
-    tags: {}
-    queue: 0
-    packetSize: 0
-    includeHost: true
-  samplingRate: 0.01
-  extended: 1
-  sanitization: null
+  m3: null
+  prometheus:
+    handlerPath: /metrics
+    listenAddress: ""
+    timerType: ""
+    defaultHistogramBuckets: []
+    defaultSummaryObjectives: []
+  samplingRate: 1
+  extended: 3
+  sanitization: 2
 listenAddress: 0.0.0.0:9000
 clusterListenAddress: 0.0.0.0:9001
 httpNodeListenAddress: 0.0.0.0:9002

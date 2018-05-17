@@ -420,13 +420,13 @@ logging:
     file: {{.LogFile}}
 
 metrics:
-    m3:
-        hostPort: 127.0.0.1:9052
-        service: m3dbnode
-        env: production
-        includeHost: true
-    samplingRate: 0.01
-    extended: simple
+    prometheus:
+        handlerPath: /metrics
+        listenAddress: 0.0.0.0:9005
+        onError: none
+    sanitization: prometheus
+    samplingRate: 1.0
+    extended: detailed
 
 listenAddress: 0.0.0.0:{{.ServicePort}}
 clusterListenAddress: 0.0.0.0:9001

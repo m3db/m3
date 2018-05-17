@@ -1,5 +1,5 @@
-hash: 460333706d43c189e87457809f4da75ba85ed0eaa1e742cc44279788a149e5fd
-updated: 2018-05-17T01:51:33.577230765-04:00
+hash: 52bf3909f3513eff93e826e53cf3d42c398f35cef71cb7cefaf706fe30f9c3be
+updated: 2018-05-17T13:47:50.868408-04:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -252,7 +252,7 @@ imports:
   - search/searcher
   - x
 - name: github.com/m3db/m3x
-  version: 80455550b18244f71637a568f097ae929748e5be
+  version: 5b90159b38cdf9a636a4de6fd601fb204429ad4b
   vcs: git
   subpackages:
   - checked
@@ -275,6 +275,23 @@ imports:
   - test
   - time
   - watch
+- name: github.com/m3db/prometheus_client_golang
+  version: 8ae269d24972b8695572fa6b2e3718b5ea82d6b4
+  subpackages:
+  - prometheus
+  - prometheus/promhttp
+- name: github.com/m3db/prometheus_client_model
+  version: 8b2299a4bf7d7fc10835527021716d4b4a6e8700
+  subpackages:
+  - go
+- name: github.com/m3db/prometheus_common
+  version: 25aaa3dff79bb48116615ebe1dea6a494b74ce77
+  subpackages:
+  - expfmt
+  - internal/bitbucket.org/ww/goautoneg
+  - model
+- name: github.com/m3db/prometheus_procfs
+  version: 1878d9fbb537119d24b21ca07effd591627cd160
 - name: github.com/m3db/stackadler32
   version: bfebcd73ef6ffe0ee30489227f0330c39064b674
 - name: github.com/m3db/stackmurmur3
@@ -376,12 +393,14 @@ imports:
 - name: github.com/uber-go/atomic
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
-  version: 51e5c45d670c9ff0dfefd5bdd72903631f013d0c
+  version: 79f2a33b0e55b1255ffbbaf824dcafb09ff34dda
   subpackages:
   - m3
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
+  - multi
+  - prometheus
 - name: github.com/uber/tchannel-go
   version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
   subpackages:
