@@ -152,8 +152,8 @@ proto-gen-$(SUBDIR): install-proto-bin install-license-bin
 all-gen-$(SUBDIR): thrift-gen-$(SUBDIR) proto-gen-$(SUBDIR) mock-gen-$(SUBDIR) genny-all-$(SUBDIR)
 
 .PHONY: metalint-$(SUBDIR)
-metalint-$(SUBDIR): install-metalinter install-linter-badtime
-	@($(metalint_check) src/$(SUBDIR)/$(metalint_config) src/$(SUBDIR)/$(metalint_exclude))
+metalint-$(SUBDIR): install-metalinter install-linter-badtime install-linter-importorder
+	@($(metalint_check) src/$(SUBDIR)/$(metalint_config) src/$(SUBDIR)/$(metalint_exclude) src/$(SUBDIR))
 
 .PHONY: test-$(SUBDIR)
 test-$(SUBDIR):

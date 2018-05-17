@@ -29,8 +29,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/benchmark/common"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/dbnode/client"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
