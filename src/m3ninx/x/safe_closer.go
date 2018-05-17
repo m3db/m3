@@ -20,20 +20,24 @@
 
 package x
 
-import "io"
+import (
+	"io"
 
-// safeCloser ensures Close() is only called once. It's
-// useful for cleanup of resources in functions.
-type safeCloser struct {
-	io.Closer
-	closed bool
-}
+	xerrors "github.com/m3db/m3x/errors"
+)
 
 // NewSafeCloser returns a io.Closer which ensures the
 // underlying Close() is only called once. It's
 // useful for cleanup of resources in functions.
 func NewSafeCloser(x io.Closer) io.Closer {
 	return &safeCloser{Closer: x}
+}
+
+// safeCloser ensures Close() is only called once. It's
+// useful for cleanup of resources in functions.
+type safeCloser struct {
+	io.Closer
+	closed bool
 }
 
 // Close guarantees the underlying Closable's Close() is
@@ -44,4 +48,23 @@ func (c *safeCloser) Close() error {
 	}
 	c.closed = true
 	return c.Closer.Close()
+}
+
+// NewSafeMultiCloser returns an io.Closer which ensures the that calling Close() on it
+// calls Close() on each of the provided io.Closer(s) exactly once. Subsequent calls
+// are not executed.
+func NewSafeMultiCloser(closers ...io.Closer) io.Closer {
+	return NewSafeCloser(ioClosers(closers))
+}
+
+type ioClosers []io.Closer
+
+var _ io.Closer = ioClosers{}
+
+func (ioc ioClosers) Close() error {
+	var multiErr xerrors.MultiError
+	for _, c := range ioc {
+		multiErr = multiErr.Add(c.Close())
+	}
+	return multiErr.FinalError()
 }

@@ -25,23 +25,38 @@ import (
 	"testing"
 
 	"github.com/m3db/m3ninx/index/segment/fs"
+	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestReaderValidateType(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
 	fset.EXPECT().SegmentType().Return(IndexSegmentType("random"))
+	fset.EXPECT().Files().Return(nil).AnyTimes()
+	_, err := NewSegment(fset, fs.NewSegmentOpts{})
+	require.Error(t, err)
+}
+
+func TestReaderValidateErrorCloses(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{t})
+	defer ctrl.Finish()
+
+	file := NewMockIndexSegmentFile(ctrl)
+	file.EXPECT().Close()
+	fset := NewMockIndexSegmentFileSet(ctrl)
+	fset.EXPECT().SegmentType().Return(IndexSegmentType("random"))
+	fset.EXPECT().Files().Return([]IndexSegmentFile{file}).AnyTimes()
 	_, err := NewSegment(fset, fs.NewSegmentOpts{})
 	require.Error(t, err)
 }
 
 func TestReaderValidateDataSlices(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
@@ -49,14 +64,14 @@ func TestReaderValidateDataSlices(t *testing.T) {
 	fset.EXPECT().MajorVersion().Return(fs.MajorVersion)
 	fset.EXPECT().MinorVersion().Return(1)
 	fset.EXPECT().SegmentMetadata().Return([]byte{})
-	fset.EXPECT().Files().Return(nil)
+	fset.EXPECT().Files().Return(nil).AnyTimes()
 
 	_, err := NewSegment(fset, fs.NewSegmentOpts{})
 	require.Error(t, err)
 }
 
 func TestReaderValidateByteAccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
@@ -68,14 +83,41 @@ func TestReaderValidateByteAccess(t *testing.T) {
 	docsDataFile := NewMockIndexSegmentFile(ctrl)
 	docsDataFile.EXPECT().SegmentFileType().Return(DocumentDataIndexSegmentFileType)
 	docsDataFile.EXPECT().Bytes().Return(nil, fmt.Errorf("random"))
-	fset.EXPECT().Files().Return([]IndexSegmentFile{docsDataFile})
+	docsDataFile.EXPECT().Close()
+	fset.EXPECT().Files().Return([]IndexSegmentFile{docsDataFile}).AnyTimes()
+
+	_, err := NewSegment(fset, fs.NewSegmentOpts{})
+	require.Error(t, err)
+}
+
+func TestReaderValidateDoesNotCloseAllOnBadByteAccess(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{t})
+	defer ctrl.Finish()
+
+	fset := NewMockIndexSegmentFileSet(ctrl)
+	fset.EXPECT().SegmentType().Return(FSTIndexSegmentType)
+	fset.EXPECT().MajorVersion().Return(fs.MajorVersion)
+	fset.EXPECT().MinorVersion().Return(1)
+	fset.EXPECT().SegmentMetadata().Return([]byte{})
+
+	docsDataFile := NewMockIndexSegmentFile(ctrl)
+	docsDataFile.EXPECT().SegmentFileType().Return(DocumentDataIndexSegmentFileType)
+	docsDataFile.EXPECT().Close()
+	docsDataFile.EXPECT().Bytes().Return([]byte{}, nil)
+
+	docsIdxFile := NewMockIndexSegmentFile(ctrl)
+	docsIdxFile.EXPECT().SegmentFileType().Return(DocumentIndexIndexSegmentFileType)
+	docsIdxFile.EXPECT().Close()
+	docsIdxFile.EXPECT().Bytes().Return(nil, fmt.Errorf("random"))
+
+	fset.EXPECT().Files().Return([]IndexSegmentFile{docsDataFile, docsIdxFile}).AnyTimes()
 
 	_, err := NewSegment(fset, fs.NewSegmentOpts{})
 	require.Error(t, err)
 }
 
 func TestReaderValidateSegmentFileType(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
@@ -86,17 +128,19 @@ func TestReaderValidateSegmentFileType(t *testing.T) {
 
 	docsDataFile := NewMockIndexSegmentFile(ctrl)
 	docsDataFile.EXPECT().SegmentFileType().Return(IndexSegmentFileType("rand"))
-	fset.EXPECT().Files().Return([]IndexSegmentFile{docsDataFile})
+	docsDataFile.EXPECT().Close()
+	fset.EXPECT().Files().Return([]IndexSegmentFile{docsDataFile}).AnyTimes()
 
 	_, err := NewSegment(fset, fs.NewSegmentOpts{})
 	require.Error(t, err)
 }
 
 func TestReaderValidateAllByteAccess(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	fset := NewMockIndexSegmentFileSet(ctrl)
+	fset.EXPECT().SegmentType().Return(FSTIndexSegmentType)
 	fset.EXPECT().MajorVersion().Return(fs.MajorVersion)
 	fset.EXPECT().MinorVersion().Return(1)
 	fset.EXPECT().SegmentMetadata().Return([]byte{})
@@ -104,30 +148,34 @@ func TestReaderValidateAllByteAccess(t *testing.T) {
 	docsDataFile := NewMockIndexSegmentFile(ctrl)
 	docsDataFile.EXPECT().SegmentFileType().Return(DocumentDataIndexSegmentFileType)
 	docsDataFile.EXPECT().Bytes().Return([]byte{}, nil)
+	docsDataFile.EXPECT().Close()
 
 	docsIdxFile := NewMockIndexSegmentFile(ctrl)
 	docsIdxFile.EXPECT().SegmentFileType().Return(DocumentIndexIndexSegmentFileType)
 	docsIdxFile.EXPECT().Bytes().Return([]byte{}, nil)
+	docsIdxFile.EXPECT().Close()
 
 	postingsFile := NewMockIndexSegmentFile(ctrl)
 	postingsFile.EXPECT().SegmentFileType().Return(PostingsIndexSegmentFileType)
 	postingsFile.EXPECT().Bytes().Return([]byte{}, nil)
+	postingsFile.EXPECT().Close()
 
 	fstFieldsFile := NewMockIndexSegmentFile(ctrl)
 	fstFieldsFile.EXPECT().SegmentFileType().Return(FSTFieldsIndexSegmentFileType)
 	fstFieldsFile.EXPECT().Bytes().Return([]byte{}, nil)
+	fstFieldsFile.EXPECT().Close()
 
 	fstTermsFile := NewMockIndexSegmentFile(ctrl)
 	fstTermsFile.EXPECT().SegmentFileType().Return(FSTTermsIndexSegmentFileType)
 	fstTermsFile.EXPECT().Bytes().Return([]byte{}, nil)
+	fstTermsFile.EXPECT().Close()
 
 	fset.EXPECT().Files().Return([]IndexSegmentFile{docsDataFile, docsIdxFile,
 		postingsFile,
 		fstFieldsFile,
-		fstTermsFile})
+		fstTermsFile}).AnyTimes()
 
-	sd, err := filesetToSegmentData(fset)
-	require.NoError(t, err)
-
-	require.NoError(t, sd.Validate())
+	_, err := NewSegment(fset, fs.NewSegmentOpts{})
+	// due to empty bytes being passed
+	require.Error(t, err)
 }
