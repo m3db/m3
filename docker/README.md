@@ -4,7 +4,7 @@
 
 The `Dockerfile-dev` file is intented to help bootstrap the development
 process by providing a simple Dockerfile to perform the build process within 
-a container namespace. Docker's container runtime also provides simple
+a container namespace. Docker's container runtime also provides simple way to
 simulate production like environment. 
 
 ```
