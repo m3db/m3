@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -176,8 +175,6 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	topo, err := adminSession.Topology()
 	require.NoError(t, err)
 	topoMap := topo.Get()
-	fmt.Println(topoMap.MajorityReplicas())
-	fmt.Println(topoMap.ShardSet())
 
 	start := now.Add(-rOpts.RetentionPeriod())
 	end := now.Add(blockSize)

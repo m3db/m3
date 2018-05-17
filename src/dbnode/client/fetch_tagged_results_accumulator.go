@@ -132,11 +132,9 @@ func (accum *fetchTaggedResultAccumulator) Add(
 		}
 
 		pending := shardResult.pending()
-		fmt.Println("pending: ", pending)
-		fmt.Println("sucess: ", shardResult.success)
-		if !topology.ReadConsistencyTermination(accum.consistencyLevel, int32(accum.majority), pending, int32(shardResult.success)) {
+		if topology.ReadConsistencyTermination(accum.consistencyLevel, int32(accum.majority), pending, int32(shardResult.success)) {
 			shardResult.done = true
-			if !topology.ReadConsistencyAchieved(accum.consistencyLevel, accum.majority, int(shardResult.enqueued), int(shardResult.success)) {
+			if topology.ReadConsistencyAchieved(accum.consistencyLevel, accum.majority, int(shardResult.enqueued), int(shardResult.success)) {
 				accum.numShardsPending--
 			}
 			// NB(prateek): if !ReadConsistencyAchieved, we have sufficient information to fail the entire request, because we
