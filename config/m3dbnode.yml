@@ -1,12 +1,17 @@
 logging:
-  level: info
+  level: debug
 
 metrics:
-  prometheus:
-    handlerPath: /metrics
   sanitization: prometheus
   samplingRate: 1.0
   extended: detailed
+  prometheus:
+    handlerPath: /metrics
+  m3:
+      hostPort: 127.0.0.1:9052
+      service: m3dbnode
+      env: production
+      includeHost: true
 
 listenAddress: 0.0.0.0:9000
 clusterListenAddress: 0.0.0.0:9001
@@ -182,7 +187,7 @@ config:
           replicas: 1
           hosts:
               - hostID: m3db_server
-                listenAddress: "127.0.0.1:9000"
+                listenAddress: "0.0.0.0:9000"
       namespaces:
           - id: metrics
             retention:

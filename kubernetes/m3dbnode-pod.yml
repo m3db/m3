@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: m3dbnode
+  name: m3dbnode01
+spec:
+  containers:
+  - command:
+    - /go/src/github.com/m3db/m3db/bin/m3dbnode
+    - -f
+    - /go/src/github.com/m3db/m3db/config/m3dbnode.yml
+    image: <insert_image_repository_address>/<image_name>:<image_tag>
+    name: m3dbnode01
+    ports:
+    - containerPort: 9000
+      name: client
+      protocol: TCP
+    - containerPort: 9001
+      name: cluster
+      protocol: TCP
+    - containerPort: 9002
+      name: http-client
+      protocol: TCP
+    - containerPort: 9003
+      name: debug
+      protocol: TCP
