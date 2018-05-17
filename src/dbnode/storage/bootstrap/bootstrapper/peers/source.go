@@ -91,84 +91,7 @@ func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
-	var (
-		self                    = s.opts.AdminClient().Options().(client.AdminOptions).Origin().ID()
-		peerAvailabilityByShard = map[uint32]*shardPeerAvailability{}
-	)
-
-	for shardID := range shardsTimeRanges {
-		shardPeers, ok := peerAvailabilityByShard[shardID]
-		if !ok {
-			shardPeers = &shardPeerAvailability{}
-			peerAvailabilityByShard[shardID] = shardPeers
-		}
-		hostShardStates, ok := s.initialTopologyState.shardStates[shardID]
-		if !ok {
-			// This shard was not part of the topology when the bootstrapping
-			// process began.
-			continue
-		}
-
-		shardPeers.numPeers = len(hostShardStates)
-		for _, hostShardState := range hostShardStates {
-			if hostShardState.host.ID() == self {
-				// Don't take self into account
-				continue
-			}
-
-			shardState := hostShardState.shardState
-
-			switch shardState {
-			// Skip cases - We cannot bootstrap from this host
-			case shard.Initializing:
-				// Don't want to peer bootstrap from a node that has not yet completely
-				// taken ownership of the shard.
-			case shard.Unknown:
-
-				// Success cases - We can bootstrap from this host, which is enough to
-				// mark this shard as bootstrappable.
-			case shard.Leaving:
-				fallthrough
-			case shard.Available:
-				shardPeers.numAvailablePeers++
-				break
-			default:
-				panic(
-					fmt.Sprintf("encountered unknown shard state: %s", shardState.String()))
-			}
-		}
-	}
-
-	var (
-		runtimeOpts               = s.opts.RuntimeOptionsManager().Get()
-		bootstrapConsistencyLevel = runtimeOpts.ClientBootstrapConsistencyLevel()
-		majorityReplicas          = s.initialTopologyState.majorityReplicas
-		availableShardTimeRanges  = result.ShardTimeRanges{}
-	)
-	for shardID := range shardsTimeRanges {
-		shardPeers := peerAvailabilityByShard[shardID]
-
-		total := shardPeers.numPeers
-		available := shardPeers.numAvailablePeers
-
-		if available == 0 {
-			// Can't peer bootstrap if there are no available peers.
-			continue
-		}
-
-		if !topology.ReadConsistencyAchieved(
-			bootstrapConsistencyLevel, majorityReplicas, total, available) {
-			continue
-		}
-
-		// Optimistically assume that the peers will be able to provide
-		// all the data. This assumption is safe, as the shard/block ranges
-		// will simply be marked unfulfilled if the peers are not able to
-		// satisfy the requests.
-		availableShardTimeRanges[shardID] = shardsTimeRanges[shardID]
-	}
-
-	return availableShardTimeRanges
+	return s.peerAvailability(nsMetadata, shardsTimeRanges)
 }
 
 func (s *peersSource) ReadData(
@@ -608,11 +531,10 @@ func (s *peersSource) cacheShardIndices(
 }
 
 func (s *peersSource) AvailableIndex(
-	ns namespace.Metadata,
+	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
-	// Peers should be able to fulfill all data
-	return shardsTimeRanges
+	return s.peerAvailability(nsMetadata, shardsTimeRanges)
 }
 
 func (s *peersSource) ReadIndex(
@@ -760,6 +682,90 @@ func (s *peersSource) readBlockMetadataAndIndex(
 	}
 
 	return true, nil
+}
+
+func (s *peersSource) peerAvailability(
+	nsMetadata namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+) result.ShardTimeRanges {
+	var (
+		self                    = s.opts.AdminClient().Options().(client.AdminOptions).Origin().ID()
+		peerAvailabilityByShard = map[uint32]*shardPeerAvailability{}
+	)
+
+	for shardID := range shardsTimeRanges {
+		shardPeers, ok := peerAvailabilityByShard[shardID]
+		if !ok {
+			shardPeers = &shardPeerAvailability{}
+			peerAvailabilityByShard[shardID] = shardPeers
+		}
+		hostShardStates, ok := s.initialTopologyState.shardStates[shardID]
+		if !ok {
+			// This shard was not part of the topology when the bootstrapping
+			// process began.
+			continue
+		}
+
+		shardPeers.numPeers = len(hostShardStates)
+		for _, hostShardState := range hostShardStates {
+			if hostShardState.host.ID() == self {
+				// Don't take self into account
+				continue
+			}
+
+			shardState := hostShardState.shardState
+
+			switch shardState {
+			// Skip cases - We cannot bootstrap from this host
+			case shard.Initializing:
+				// Don't want to peer bootstrap from a node that has not yet completely
+				// taken ownership of the shard.
+			case shard.Unknown:
+
+				// Success cases - We can bootstrap from this host, which is enough to
+				// mark this shard as bootstrappable.
+			case shard.Leaving:
+				fallthrough
+			case shard.Available:
+				shardPeers.numAvailablePeers++
+				break
+			default:
+				panic(
+					fmt.Sprintf("encountered unknown shard state: %s", shardState.String()))
+			}
+		}
+	}
+
+	var (
+		runtimeOpts               = s.opts.RuntimeOptionsManager().Get()
+		bootstrapConsistencyLevel = runtimeOpts.ClientBootstrapConsistencyLevel()
+		majorityReplicas          = s.initialTopologyState.majorityReplicas
+		availableShardTimeRanges  = result.ShardTimeRanges{}
+	)
+	for shardID := range shardsTimeRanges {
+		shardPeers := peerAvailabilityByShard[shardID]
+
+		total := shardPeers.numPeers
+		available := shardPeers.numAvailablePeers
+
+		if available == 0 {
+			// Can't peer bootstrap if there are no available peers.
+			continue
+		}
+
+		if !topology.ReadConsistencyAchieved(
+			bootstrapConsistencyLevel, majorityReplicas, total, available) {
+			continue
+		}
+
+		// Optimistically assume that the peers will be able to provide
+		// all the data. This assumption is safe, as the shard/block ranges
+		// will simply be marked unfulfilled if the peers are not able to
+		// satisfy the requests.
+		availableShardTimeRanges[shardID] = shardsTimeRanges[shardID]
+	}
+
+	return availableShardTimeRanges
 }
 
 func (s *peersSource) markIndexResultErrorAsUnfulfilled(
