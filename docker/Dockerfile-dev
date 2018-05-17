@@ -13,9 +13,10 @@ RUN cd /go/src/github.com/m3db/m3db/ && \
     glide install && \
     make m3dbnode-linux-amd64
 
-EXPOSE 9000
-EXPOSE 9001
-EXPOSE 9002
-EXPOSE 9003
+EXPOSE 9000/tcp
+EXPOSE 9001/tcp
+EXPOSE 9002/tcp
+EXPOSE 9003/tcp
+EXPOSE 9004/tcp
 
-ENTRYPOINT ["/go/src/github.com/m3db/m3db/bin/m3dbnode", "-f", "/go/src/github.com/m3db/m3db/config/m3dbnode.yaml"]
+ENTRYPOINT ["/go/src/github.com/m3db/m3db/bin/m3dbnode", "-f", "/go/src/github.com/m3db/m3db/config/m3dbnode.yml"]

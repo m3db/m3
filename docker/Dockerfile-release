@@ -4,9 +4,10 @@ COPY bin/m3dbnode /bin/m3dbnode
 RUN mkdir -p /etc/m3/
 COPY config/m3dbnode.yml /etc/m3/m3dbnode.yml
 
-EXPOSE 9000
-EXPOSE 9001
-EXPOSE 9002
-EXPOSE 9003
+EXPOSE 9000/tcp
+EXPOSE 9001/tcp
+EXPOSE 9002/tcp
+EXPOSE 9003/tcp
+EXPOSE 9004/tcp
 
 ENTRYPOINT ["/bin/m3dbnode", "-f", "/etc/m3/m3dbnode.yml"]
