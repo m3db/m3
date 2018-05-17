@@ -311,6 +311,7 @@ metrics:
     timerType: ""
     defaultHistogramBuckets: []
     defaultSummaryObjectives: []
+    onError: ""
   samplingRate: 1
   extended: 3
   sanitization: 2
