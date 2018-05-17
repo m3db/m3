@@ -22,8 +22,7 @@ package main
 
 import (
 	"flag"
-	// pprof: for debug listen server if configured
-	_ "net/http/pprof"
+	_ "net/http/pprof" // pprof: for debug listen server if configured
 	"os"
 
 	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/server"

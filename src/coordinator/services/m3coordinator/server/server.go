@@ -52,12 +52,8 @@ import (
 )
 
 var (
-	namespace      = "metrics"
-	resolution     = time.Minute
-	configLoadOpts = xconfig.Options{
-		DisableUnmarshalStrict: false,
-		DisableValidate:        false,
-	}
+	namespace  = "metrics"
+	resolution = time.Minute
 )
 
 // RunOptions provides options for running the server
@@ -97,7 +93,6 @@ func Run(runOpts RunOptions) {
 	ctx := context.Background()
 	logger := logging.WithContext(ctx)
 	defer logger.Sync()
-
 
 	var clusterClient clusterclient.Client
 	if runOpts.ClusterClient != nil {
