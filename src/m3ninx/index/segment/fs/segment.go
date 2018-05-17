@@ -23,6 +23,7 @@ package fs
 import (
 	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"sync"
 	"unicode/utf8"
@@ -36,6 +37,7 @@ import (
 	"github.com/m3db/m3ninx/postings/pilosa"
 	"github.com/m3db/m3ninx/postings/roaring"
 	"github.com/m3db/m3ninx/x"
+	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/couchbase/vellum"
 	vregex "github.com/couchbaselabs/vellum/regexp"
@@ -64,6 +66,7 @@ type SegmentData struct {
 	PostingsData  []byte
 	FSTTermsData  []byte
 	FSTFieldsData []byte
+	Closer        io.Closer
 }
 
 // Validate validates the provided segment data, returning an error if it's not.
@@ -101,6 +104,8 @@ type NewSegmentOpts struct {
 }
 
 // NewSegment returns a new Segment backed by the provided options.
+// NB(prateek): this method only assumes ownership of the data if it returns a nil error,
+// otherwise, the user is expected to handle the lifecycle of the input.
 func NewSegment(data SegmentData, opts NewSegmentOpts) (Segment, error) {
 	if err := data.Validate(); err != nil {
 		return nil, err
@@ -209,7 +214,12 @@ func (r *fsSegment) Close() error {
 		return errReaderClosed
 	}
 	r.closed = true
-	return r.fieldsFST.Close()
+	var multiErr xerrors.MultiError
+	multiErr = multiErr.Add(r.fieldsFST.Close())
+	if r.data.Closer != nil {
+		multiErr = multiErr.Add(r.data.Closer.Close())
+	}
+	return multiErr.FinalError()
 }
 
 // FOLLOWUP(prateek): really need to change the types returned in Fields() and Terms()

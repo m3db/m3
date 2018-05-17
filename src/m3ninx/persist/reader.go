@@ -22,23 +22,45 @@ package persist
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/m3db/m3ninx/index/segment/fs"
+	"github.com/m3db/m3ninx/x"
 )
 
 // NewSegment returns a new fs.Segment backed by the provided fileset.
+// NB: this method takes ownership of the provided fileset files, in case of both errors,
+// and success. i.e. users are not expected to call Close on any of the provided fileset.Files()
+// after invoking this function.
 func NewSegment(fileset IndexSegmentFileSet, opts fs.NewSegmentOpts) (fs.Segment, error) {
+	success := false
+	safeCloser := newSafeIndexSegmentFileSetCloser(fileset)
+	defer func() {
+		if !success {
+			safeCloser.Close()
+		}
+	}()
+
 	if t := fileset.SegmentType(); t != FSTIndexSegmentType {
 		return nil, fmt.Errorf("unknown segment type: %s", t)
 	}
+
 	sd, err := filesetToSegmentData(fileset)
 	if err != nil {
 		return nil, err
 	}
-	if err := sd.Validate(); err != nil {
+	sd.Closer = safeCloser
+
+	segment, err := fs.NewSegment(sd, opts)
+	if err != nil {
 		return nil, err
 	}
-	return fs.NewSegment(sd, opts)
+
+	// indicate we don't need to close files in the defer above.
+	success = true
+
+	// segment assumes ownership of the safeCloser at this point.
+	return segment, nil
 }
 
 func filesetToSegmentData(fileset IndexSegmentFileSet) (fs.SegmentData, error) {
@@ -50,6 +72,7 @@ func filesetToSegmentData(fileset IndexSegmentFileSet) (fs.SegmentData, error) {
 		}
 		err error
 	)
+
 	for _, f := range fileset.Files() {
 		fileType := f.SegmentFileType()
 		switch fileType {
@@ -82,5 +105,14 @@ func filesetToSegmentData(fileset IndexSegmentFileSet) (fs.SegmentData, error) {
 			return sd, fmt.Errorf("unknown fileType: %s provided", fileType)
 		}
 	}
+
 	return sd, nil
+}
+
+func newSafeIndexSegmentFileSetCloser(fileset IndexSegmentFileSet) io.Closer {
+	closers := make([]io.Closer, 0, len(fileset.Files()))
+	for _, f := range fileset.Files() {
+		closers = append(closers, f)
+	}
+	return x.NewSafeMultiCloser(closers...)
 }
