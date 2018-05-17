@@ -250,7 +250,7 @@ func TestBlockWriteActualSegmentPartialFailure(t *testing.T) {
 			require.NoError(t, result.Err)
 		} else {
 			require.Error(t, result.Err)
-			require.Equal(t, mem.ErrDuplicateID, result.Err)
+			require.Equal(t, index.ErrDuplicateID, result.Err)
 		}
 	})
 	require.Equal(t, 2, verified)
