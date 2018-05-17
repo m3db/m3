@@ -103,6 +103,8 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 
 	serversAreUp := &sync.WaitGroup{}
 	serversAreUp.Add(2)
+
+	// Start both servers "simultaneously"
 	go func() {
 		require.NoError(t, setups[0].startServer())
 		serversAreUp.Done()
