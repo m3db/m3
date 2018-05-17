@@ -35,18 +35,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestPeersBootstrapSingleNode makes sure that we can include the peer bootstrap
+// TestPeersBootstrapSingleNode makes sure that we can include the peer bootstrapper
 // in a single-node topology without causing a bootstrap failure or infinite hang.
 func TestPeersBootstrapSingleNode(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	testPeersBootstrapSingleNode(t, client.FetchBlocksMetadataEndpointV1)
-}
-
-func testPeersBootstrapSingleNode(
-	t *testing.T, version client.FetchBlocksMetadataEndpointVersion) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
@@ -60,16 +55,14 @@ func testPeersBootstrapSingleNode(
 		SetNamespaces([]namespace.Metadata{namesp})
 
 	setupOpts := []bootstrappableTestSetupOptions{
-		{disablePeersBootstrapper: false, fetchBlocksMetadataEndpointVersion: version},
+		{disablePeersBootstrapper: false, fetchBlocksMetadataEndpointVersion: client.FetchBlocksMetadataEndpointV1},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
-	// Write test data for first node
+	// Write test data
 	now := setups[0].getNowFn()
 	blockSize := retentionOpts.BlockSize()
-	// Make sure we have multiple blocks of data for multiple series to exercise
-	// the grouping and aggregating logic in the client peer bootstrapping process
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-4 * blockSize)},
 		{IDs: []string{"foo", "baz"}, NumPoints: 90, Start: now.Add(-3 * blockSize)},
@@ -82,6 +75,7 @@ func testPeersBootstrapSingleNode(
 	// Set the time to one blockSize in the future (for which we do not have
 	// a fileset file) to ensure we try and use the peer bootstrapper.
 	setups[0].setNowFn(now.Add(blockSize))
+
 	// Start the server with peers and filesystem bootstrappers
 	require.NoError(t, setups[0].startServer())
 	log.Debug("servers are now up")
