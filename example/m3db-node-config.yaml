@@ -180,17 +180,17 @@ pooling:
 config:
   static:
       topology:
-          shards: 64
+          shards: 32
           replicas: 1
           hosts:
               - hostID: m3db_server
-                listenAddress: "0.0.0.0:9000"
+                listenAddress: "127.0.0.1:9000"
       namespaces:
           - id: metrics
             retention:
-              retentionPeriod: 720h
-              blockSize: 6h
+              retentionPeriod: 48h
+              blockSize: 2h
               bufferPast: 1h
             index:
               enabled: true
-              blockSize: 6h
+              blockSize: 4h

@@ -15,22 +15,22 @@ Notes for [developers]
 
 ### Starting a node
 
-To start a local node, you can build with `make m3dbnode` and then run `./bin/m3dbnode -f ./example/m3db-node-config.yaml`.
+To start a local node, you can build with `make m3dbnode` and then run `./bin/m3dbnode -f ./example/m3db-node-config.yaml`.  To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64`.
 
-### RPC
+### Test RPC
 
-To test out some of the functionality of M3DB there are some user friendly HTTP JSON APIs that you can use.
+To test out some of the functionality of M3DB there are some user friendly HTTP JSON APIs that you can use.  These use the DB node cluster service endpoints.  There are more performant endpoints are
 
 #### Write a datapoint
 
 ```
-curl http://localhost:9000/writetagged -X POST -d '{"namespace":"metrics","id":"foo","tags":[{"name":"city","value":"new_york"},{"name":"endpoint","uri":"/request"}],"datapoint":{"timestamp":152653946,"value":42.2}}'
+curl http://localhost:9003/writetagged -s -X POST -d '{"namespace":"metrics","id":"foo","tags":[{"name":"city","value":"new_york"},{"name":"endpoint","value":"/request"}],"datapoint":{"timestamp":'"$(date +"%s")"',"value":42.123456789}}'
 ```
 
-#### Query for indexed time series data
+#### Query for reverse indexed time series data
 
 ```
-curl -s http://localhost:9000/query -X POST -d '{"namespace":"metrics","rangeStart":1526529696,"rangeEnd":1526529699,"query":{"regexp":{"field":"city","regexp":"^new_.*r.*$"}}}'
+curl http://localhost:9003/query -s -X POST -d '{"namespace":"metrics","query":{"regexp":{"field":"city","regexp":".*"}},"rangeStart":0,"rangeEnd":'"$(date +"%s")"'}' | jq .
 ```
 
 <hr>
