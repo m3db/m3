@@ -54,6 +54,7 @@ func TestMarshal(t *testing.T) {
 				NewDisjunctionQuery([]search.Query{
 					NewTermQuery([]byte("fruit"), []byte("orange")),
 				}),
+				NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("pear"))),
 			}),
 		},
 		{
@@ -66,6 +67,7 @@ func TestMarshal(t *testing.T) {
 				NewDisjunctionQuery([]search.Query{
 					NewTermQuery([]byte("fruit"), []byte("orange")),
 				}),
+				NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("pear"))),
 			}),
 		},
 	}

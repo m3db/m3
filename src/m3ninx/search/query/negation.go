@@ -31,19 +31,19 @@ import (
 
 // NegationQuery finds document which do not match a given query.
 type NegationQuery struct {
-	Query search.Query
+	query search.Query
 }
 
 // NewNegationQuery constructs a new NegationQuery for the given query.
 func NewNegationQuery(q search.Query) search.Query {
 	return &NegationQuery{
-		Query: q,
+		query: q,
 	}
 }
 
 // Searcher returns a searcher over the provided readers.
 func (q *NegationQuery) Searcher(rs index.Readers) (search.Searcher, error) {
-	s, err := q.Query.Searcher(rs)
+	s, err := q.query.Searcher(rs)
 	if err != nil {
 		return nil, err
 	}
@@ -62,12 +62,12 @@ func (q *NegationQuery) Equal(o search.Query) bool {
 		return false
 	}
 
-	return q.Query.Equal(inner.Query)
+	return q.query.Equal(inner.query)
 }
 
 // ToProto returns the Protobuf query struct corresponding to the term query.
 func (q *NegationQuery) ToProto() *querypb.Query {
-	inner := q.Query.ToProto()
+	inner := q.query.ToProto()
 	qry := querypb.NegationQuery{Query: inner}
 
 	return &querypb.Query{
@@ -76,5 +76,5 @@ func (q *NegationQuery) ToProto() *querypb.Query {
 }
 
 func (q *NegationQuery) String() string {
-	return fmt.Sprintf("negation(%s)", q.Query)
+	return fmt.Sprintf("negation(%s)", q.query)
 }

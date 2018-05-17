@@ -31,7 +31,7 @@ import (
 
 // DisjuctionQuery finds documents which match at least one of the given queries.
 type DisjuctionQuery struct {
-	Queries []search.Query
+	queries []search.Query
 }
 
 // NewDisjunctionQuery constructs a new query which matches documents that match any
@@ -42,29 +42,29 @@ func NewDisjunctionQuery(queries []search.Query) search.Query {
 		// Merge disjunction queries into slice of top-level queries.
 		q, ok := query.(*DisjuctionQuery)
 		if ok {
-			qs = append(qs, q.Queries...)
+			qs = append(qs, q.queries...)
 			continue
 		}
 
 		qs = append(qs, query)
 	}
 	return &DisjuctionQuery{
-		Queries: qs,
+		queries: qs,
 	}
 }
 
 // Searcher returns a searcher over the provided readers.
 func (q *DisjuctionQuery) Searcher(rs index.Readers) (search.Searcher, error) {
-	switch len(q.Queries) {
+	switch len(q.queries) {
 	case 0:
 		return searcher.NewEmptySearcher(len(rs)), nil
 
 	case 1:
-		return q.Queries[0].Searcher(rs)
+		return q.queries[0].Searcher(rs)
 	}
 
-	srs := make(search.Searchers, 0, len(q.Queries))
-	for _, q := range q.Queries {
+	srs := make(search.Searchers, 0, len(q.queries))
+	for _, q := range q.queries {
 		sr, err := q.Searcher(rs)
 		if err != nil {
 			return nil, err
@@ -77,8 +77,8 @@ func (q *DisjuctionQuery) Searcher(rs index.Readers) (search.Searcher, error) {
 
 // Equal reports whether q is equivalent to o.
 func (q *DisjuctionQuery) Equal(o search.Query) bool {
-	if len(q.Queries) == 1 {
-		return q.Queries[0].Equal(o)
+	if len(q.queries) == 1 {
+		return q.queries[0].Equal(o)
 	}
 
 	inner, ok := o.(*DisjuctionQuery)
@@ -86,13 +86,13 @@ func (q *DisjuctionQuery) Equal(o search.Query) bool {
 		return false
 	}
 
-	if len(q.Queries) != len(inner.Queries) {
+	if len(q.queries) != len(inner.queries) {
 		return false
 	}
 
 	// TODO: Should order matter?
-	for i := range q.Queries {
-		if !q.Queries[i].Equal(inner.Queries[i]) {
+	for i := range q.queries {
+		if !q.queries[i].Equal(inner.queries[i]) {
 			return false
 		}
 	}
@@ -101,8 +101,8 @@ func (q *DisjuctionQuery) Equal(o search.Query) bool {
 
 // ToProto returns the Protobuf query struct corresponding to the disjunction query.
 func (q *DisjuctionQuery) ToProto() *querypb.Query {
-	qs := make([]*querypb.Query, 0, len(q.Queries))
-	for _, qry := range q.Queries {
+	qs := make([]*querypb.Query, 0, len(q.queries))
+	for _, qry := range q.queries {
 		qs = append(qs, qry.ToProto())
 	}
 	disj := querypb.DisjunctionQuery{Queries: qs}
@@ -113,5 +113,5 @@ func (q *DisjuctionQuery) ToProto() *querypb.Query {
 }
 
 func (q *DisjuctionQuery) String() string {
-	return fmt.Sprintf("disjunction(%s)", join(q.Queries))
+	return fmt.Sprintf("disjunction(%s)", join(q.queries))
 }

@@ -109,3 +109,22 @@ func TestDisjunctionSearcher(t *testing.T) {
 	require.False(t, s.Next())
 	require.NoError(t, s.Err())
 }
+func TestDisjunctionSearcherError(t *testing.T) {
+	tests := []struct {
+		name       string
+		numReaders int
+		searchers  search.Searchers
+	}{
+		{
+			name:       "empty list of searchers",
+			numReaders: 3,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := NewDisjunctionSearcher(test.numReaders, test.searchers)
+			require.Error(t, err)
+		})
+	}
+}

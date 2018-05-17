@@ -37,6 +37,10 @@ type disjunctionSearcher struct {
 // NewDisjunctionSearcher returns a new Searcher which matches documents which are matched
 // by any of the given Searchers. It is not safe for concurrent access.
 func NewDisjunctionSearcher(numReaders int, searchers search.Searchers) (search.Searcher, error) {
+	if len(searchers) == 0 {
+		return nil, errEmptySearchers
+	}
+
 	if err := validateSearchers(numReaders, searchers); err != nil {
 		return nil, err
 	}

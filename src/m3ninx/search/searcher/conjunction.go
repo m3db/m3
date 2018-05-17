@@ -27,6 +27,7 @@ import (
 
 type conjunctionSearcher struct {
 	searchers  search.Searchers
+	negations  search.Searchers
 	numReaders int
 
 	idx  int
@@ -35,14 +36,22 @@ type conjunctionSearcher struct {
 }
 
 // NewConjunctionSearcher returns a new Searcher which matches documents which match each
-// of the given Searchers. It is not safe for concurrent access.
-func NewConjunctionSearcher(numReaders int, searchers search.Searchers) (search.Searcher, error) {
+// of the given searchers and none of the negations. It is not safe for concurrent access.
+func NewConjunctionSearcher(numReaders int, searchers, negations search.Searchers) (search.Searcher, error) {
+	if len(searchers) == 0 {
+		return nil, errEmptySearchers
+	}
+
 	if err := validateSearchers(numReaders, searchers); err != nil {
+		return nil, err
+	}
+	if err := validateSearchers(numReaders, negations); err != nil {
 		return nil, err
 	}
 
 	return &conjunctionSearcher{
 		searchers:  searchers,
+		negations:  negations,
 		numReaders: numReaders,
 		idx:        -1,
 	}, nil
@@ -78,6 +87,27 @@ func (s *conjunctionSearcher) Next() bool {
 			break
 		}
 	}
+
+	for _, sr := range s.negations {
+		if !sr.Next() {
+			err := sr.Err()
+			if err == nil {
+				err = errSearcherTooShort
+			}
+			s.err = err
+			return false
+		}
+		curr := sr.Current()
+
+		// TODO: Sort the iterators so that we take the set differences in order of decreasing size.
+		pl.Difference(curr)
+
+		// We can break early if the interescted postings list is ever empty.
+		if pl.IsEmpty() {
+			break
+		}
+	}
+
 	s.curr = pl
 
 	return true

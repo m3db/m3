@@ -84,9 +84,12 @@ func TestConjunctionSearcher(t *testing.T) {
 		thirdSearcher.EXPECT().Current().Return(thirdPL2),
 	)
 
-	searchers := []search.Searcher{firstSearcher, secondSearcher, thirdSearcher}
+	var (
+		searchers = []search.Searcher{firstSearcher, secondSearcher}
+		negations = []search.Searcher{thirdSearcher}
+	)
 
-	s, err := NewConjunctionSearcher(numReaders, searchers)
+	s, err := NewConjunctionSearcher(numReaders, searchers, negations)
 	require.NoError(t, err)
 
 	// Ensure the searcher is searching over two readers.
@@ -97,7 +100,7 @@ func TestConjunctionSearcher(t *testing.T) {
 
 	expected := firstPL1.Clone()
 	expected.Intersect(secondPL1)
-	expected.Intersect(thirdPL1)
+	expected.Difference(thirdPL1)
 	require.True(t, s.Current().Equal(expected))
 
 	// Test the postings list from the second Reader.
@@ -105,9 +108,30 @@ func TestConjunctionSearcher(t *testing.T) {
 
 	expected = firstPL2.Clone()
 	expected.Intersect(secondPL2)
-	expected.Intersect(thirdPL2)
+	expected.Difference(thirdPL2)
 	require.True(t, s.Current().Equal(expected))
 
 	require.False(t, s.Next())
 	require.NoError(t, s.Err())
+}
+
+func TestConjunctionSearcherError(t *testing.T) {
+	tests := []struct {
+		name       string
+		numReaders int
+		searchers  search.Searchers
+		negations  search.Searchers
+	}{
+		{
+			name:       "empty list of searchers",
+			numReaders: 3,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := NewConjunctionSearcher(test.numReaders, test.searchers, test.negations)
+			require.Error(t, err)
+		})
+	}
 }

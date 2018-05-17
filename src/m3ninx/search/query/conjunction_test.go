@@ -50,6 +50,20 @@ func TestConjunctionQuery(t *testing.T) {
 				NewTermQuery([]byte("vegetable"), []byte("carrot")),
 			},
 		},
+		{
+			name: "multiple queries including negations",
+			queries: []search.Query{
+				NewTermQuery([]byte("fruit"), []byte("apple")),
+				NewTermQuery([]byte("vegetable"), []byte("carrot")),
+				NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("banana"))),
+			},
+		},
+		{
+			name: "single negation query",
+			queries: []search.Query{
+				NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("banana"))),
+			},
+		},
 	}
 
 	rs := index.Readers{}
@@ -78,11 +92,11 @@ func TestConjunctionQueryEqual(t *testing.T) {
 			name: "equal queries",
 			left: NewConjunctionQuery([]search.Query{
 				NewTermQuery([]byte("fruit"), []byte("apple")),
-				NewTermQuery([]byte("fruit"), []byte("banana")),
+				NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("banana"))),
 			}),
 			right: NewConjunctionQuery([]search.Query{
 				NewTermQuery([]byte("fruit"), []byte("apple")),
-				NewTermQuery([]byte("fruit"), []byte("banana")),
+				NewNegationQuery(NewTermQuery([]byte("fruit"), []byte("banana"))),
 			}),
 			expected: true,
 		},

@@ -33,8 +33,8 @@ import (
 
 // RegexpQuery finds documents which match the given regular expression.
 type RegexpQuery struct {
-	Field    []byte
-	Regexp   []byte
+	field    []byte
+	regexp   []byte
 	compiled *re.Regexp
 }
 
@@ -46,8 +46,8 @@ func NewRegexpQuery(field, regexp []byte) (search.Query, error) {
 	}
 
 	return &RegexpQuery{
-		Field:    field,
-		Regexp:   regexp,
+		field:    field,
+		regexp:   regexp,
 		compiled: compiled,
 	}, nil
 }
@@ -60,15 +60,15 @@ func MustCreateRegexpQuery(field, regexp []byte) search.Query {
 	}
 
 	return &RegexpQuery{
-		Field:    field,
-		Regexp:   regexp,
+		field:    field,
+		regexp:   regexp,
 		compiled: compiled,
 	}
 }
 
 // Searcher returns a searcher over the provided readers.
 func (q *RegexpQuery) Searcher(rs index.Readers) (search.Searcher, error) {
-	return searcher.NewRegexpSearcher(rs, q.Field, q.Regexp, q.compiled), nil
+	return searcher.NewRegexpSearcher(rs, q.field, q.regexp, q.compiled), nil
 }
 
 // Equal reports whether q is equivalent to o.
@@ -83,14 +83,14 @@ func (q *RegexpQuery) Equal(o search.Query) bool {
 		return false
 	}
 
-	return bytes.Equal(q.Field, inner.Field) && bytes.Equal(q.Regexp, inner.Regexp)
+	return bytes.Equal(q.field, inner.field) && bytes.Equal(q.regexp, inner.regexp)
 }
 
 // ToProto returns the Protobuf query struct corresponding to the regexp query.
 func (q *RegexpQuery) ToProto() *querypb.Query {
 	regexp := querypb.RegexpQuery{
-		Field:  q.Field,
-		Regexp: q.Regexp,
+		Field:  q.field,
+		Regexp: q.regexp,
 	}
 
 	return &querypb.Query{
@@ -99,5 +99,5 @@ func (q *RegexpQuery) ToProto() *querypb.Query {
 }
 
 func (q *RegexpQuery) String() string {
-	return fmt.Sprintf("regexp(%s, %s)", q.Field, q.Regexp)
+	return fmt.Sprintf("regexp(%s, %s)", q.field, q.regexp)
 }
