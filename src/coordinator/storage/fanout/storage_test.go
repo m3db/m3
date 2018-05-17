@@ -148,7 +148,7 @@ func TestFanoutWriteEmpty(t *testing.T) {
 func TestFanoutWriteError(t *testing.T) {
 	store := setupFanoutWrite(t, true, fmt.Errorf("write error"))
 	datapoints := make(ts.Datapoints, 1)
-	datapoints[0] = &ts.Datapoint{Timestamp: time.Now(), Value: 1}
+	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
 	err := store.Write(context.TODO(), &storage.WriteQuery{
 		Datapoints: datapoints,
 	})
@@ -158,7 +158,7 @@ func TestFanoutWriteError(t *testing.T) {
 func TestFanoutWriteSuccess(t *testing.T) {
 	store := setupFanoutWrite(t, true, nil)
 	datapoints := make(ts.Datapoints, 1)
-	datapoints[0] = &ts.Datapoint{Timestamp: time.Now(), Value: 1}
+	datapoints[0] = ts.Datapoint{Timestamp: time.Now(), Value: 1}
 	err := store.Write(context.TODO(), &storage.WriteQuery{
 		Datapoints: datapoints,
 	})

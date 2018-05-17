@@ -22,6 +22,7 @@ package remote
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/generated/proto/rpc"
@@ -45,44 +46,88 @@ func EncodeFetchResult(sResult *storage.FetchResult) *rpc.FetchResult {
 	series := make([]*rpc.Series, len(sResult.SeriesList))
 	for i, result := range sResult.SeriesList {
 		vLen := result.Len()
-		vals := make([]float32, vLen)
+		datapoints := make([]*rpc.Datapoint, vLen)
+		_, fixedRes := result.Values().(ts.FixedResolutionMutableValues)
 		for j := 0; j < vLen; j++ {
-			vals[j] = float32(result.ValueAt(j))
+			dp := result.Values().DatapointAt(j)
+			datapoints[j] = &rpc.Datapoint{
+				Timestamp: fromTime(dp.Timestamp),
+				Value:     dp.Value,
+			}
 		}
+
 		series[i] = &rpc.Series{
-			Name:          result.Name(),
-			Values:        vals,
-			StartTime:     fromTime(result.StartTime()),
-			Tags:          result.Tags,
-			Specification: result.Specification,
-			MillisPerStep: int32(result.MillisPerStep()),
+			Name: result.Name(),
+			Values: &rpc.Datapoints{
+				Datapoints:      datapoints,
+				FixedResolution: fixedRes,
+			},
+			Tags: result.Tags,
 		}
 	}
 	return &rpc.FetchResult{Series: series}
 }
 
 // DecodeFetchResult decodes fetch results from a GRPC-compatible type.
-func DecodeFetchResult(ctx context.Context, rpcSeries []*rpc.Series) []*ts.Series {
+func DecodeFetchResult(_ context.Context, rpcSeries []*rpc.Series) ([]*ts.Series, error) {
 	tsSeries := make([]*ts.Series, len(rpcSeries))
+	var err error
 	for i, series := range rpcSeries {
-		tsSeries[i] = decodeTs(ctx, series)
+		tsSeries[i], err = decodeTs(series)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return tsSeries
+	return tsSeries, nil
 }
 
-func decodeTs(ctx context.Context, r *rpc.Series) *ts.Series {
-	millis, rValues := int(r.GetMillisPerStep()), r.GetValues()
-	values := ts.NewValues(ctx, millis, len(rValues))
+func decodeTs(r *rpc.Series) (*ts.Series, error) {
+	fixedRes := r.Values.FixedResolution
+	var values ts.Values
+	var err error
+	if fixedRes {
+		values, err = decodeFixedResTs(r)
+		if err != nil {
+			return nil, err
+		}
 
-	for i, v := range rValues {
-		values.SetValueAt(i, float64(v))
+	} else {
+		values = decodeRawTs(r)
 	}
 
-	start, tags := toTime(r.GetStartTime()), models.Tags(r.GetTags())
+	tags := models.Tags(r.GetTags())
+	series := ts.NewSeries(r.GetName(), values, tags)
+	return series, nil
+}
 
-	series := ts.NewSeries(ctx, r.GetName(), start, values, tags)
-	series.Specification = r.GetSpecification()
-	return series
+func decodeFixedResTs(r *rpc.Series) (ts.FixedResolutionMutableValues, error) {
+	startTime := time.Time{}
+	datapoints := r.Values.Datapoints
+	if len(datapoints) > 0 {
+		startTime = toTime(datapoints[0].Timestamp)
+	}
+
+	ms, ok := millisPerStep(r.Values)
+	if !ok {
+		return nil, fmt.Errorf("unable to find resolution")
+	}
+	values := ts.NewFixedStepValues(ms, len(datapoints), 0, startTime)
+	for i, v := range datapoints {
+		values.SetValueAt(i, v.Value)
+	}
+	return values, nil
+}
+
+func decodeRawTs(r *rpc.Series) ts.Datapoints {
+	datapoints := make(ts.Datapoints, len(r.Values.Datapoints))
+	for i, v := range r.Values.Datapoints {
+		datapoints[i] = ts.Datapoint{
+			Timestamp: toTime(v.Timestamp),
+			Value:     v.Value,
+		}
+	}
+
+	return datapoints
 }
 
 // EncodeFetchMessage encodes fetch query and fetch options into rpc WriteMessage
@@ -179,11 +224,11 @@ func DecodeWriteMessage(message *rpc.WriteMessage) (*storage.WriteQuery, string)
 }
 
 func decodeWriteQuery(query *rpc.WriteQuery) *storage.WriteQuery {
-	points := make([]*ts.Datapoint, len(query.GetDatapoints()))
+	points := make([]ts.Datapoint, len(query.GetDatapoints()))
 	for i, point := range query.GetDatapoints() {
-		points[i] = &ts.Datapoint{
+		points[i] = ts.Datapoint{
 			Timestamp: toTime(point.GetTimestamp()),
-			Value:     float64(point.GetValue()),
+			Value:     point.GetValue(),
 		}
 	}
 	return &storage.WriteQuery{
@@ -199,7 +244,7 @@ func encodeDatapoints(tsPoints ts.Datapoints) []*rpc.Datapoint {
 	for i, point := range tsPoints {
 		datapoints[i] = &rpc.Datapoint{
 			Timestamp: fromTime(point.Timestamp),
-			Value:     float32(point.Value),
+			Value:     point.Value,
 		}
 	}
 	return datapoints
@@ -209,4 +254,16 @@ func encodeWriteOptions(queryID string) *rpc.WriteOptions {
 	return &rpc.WriteOptions{
 		Id: queryID,
 	}
+}
+
+func millisPerStep(dps *rpc.Datapoints) (time.Duration, bool) {
+	if !dps.FixedResolution {
+		return time.Duration(0), false
+	}
+
+	if len(dps.Datapoints) <= 1 {
+		return time.Duration(0), true
+	}
+
+	return time.Duration(dps.Datapoints[1].Timestamp-dps.Datapoints[0].Timestamp) * time.Millisecond, true
 }

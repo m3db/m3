@@ -37,19 +37,26 @@ import (
 )
 
 var (
+	now      = time.Now()
 	name0    = "regex"
 	val0     = "[a-z]"
-	spec0    = "specs"
-	valList0 = []float32{1.0, 2.0, 3.0}
-	mps0     = int32(100)
-	time0    = "2000-02-06T11:54:48+07:00"
+	valList0 = &rpc.Datapoints{
+		Datapoints:      []*rpc.Datapoint{{1, 1.0}, {2, 2.0}, {3, 3.0}},
+		FixedResolution: false,}
+	time0 = "2000-02-06T11:54:48+07:00"
 
 	name1    = "eq"
 	val1     = "val"
-	spec1    = "fix"
-	valList1 = []float32{4.0, 5.0, 6.0}
-	mps1     = int32(120)
-	time1    = "2093-02-06T11:54:48+07:00"
+	valList1 = &rpc.Datapoints{
+		Datapoints:      []*rpc.Datapoint{{1, 4.0}, {2, 5.0}, {3, 6.0}},
+		FixedResolution: false,}
+
+	name2    = "s2"
+	valList2 = &rpc.Datapoints{
+		Datapoints:      []*rpc.Datapoint{{fromTime(now.Add(-3 * time.Minute)), 4.0}, {fromTime(now.Add(-2 * time.Minute)), 5.0}, {fromTime(now.Add(-1 * time.Minute)), 6.0}},
+		FixedResolution: true,}
+
+	time1 = "2093-02-06T11:54:48+07:00"
 
 	tags0  = map[string]string{"a": "b", "c": "d"}
 	tags1  = map[string]string{"e": "f", "g": "h"}
@@ -74,53 +81,55 @@ func TestTimeConversions(t *testing.T) {
 	assert.Equal(t, tix, fromTime(toTime(tix)))
 }
 
-func createRPCSeries(t *testing.T) ([]*rpc.Series, time.Time, time.Time) {
-	t0, t1 := parseTimes(t)
+func createRPCSeries() []*rpc.Series {
 	return []*rpc.Series{
 		&rpc.Series{
-			Name:          name0,
-			StartTime:     fromTime(t0),
-			Values:        valList0,
-			Tags:          tags0,
-			Specification: spec0,
-			MillisPerStep: mps0,
+			Name:   name0,
+			Values: valList0,
+			Tags:   tags0,
 		},
 		&rpc.Series{
-			Name:          name1,
-			StartTime:     fromTime(t1),
-			Values:        valList1,
-			Tags:          tags1,
-			Specification: spec1,
-			MillisPerStep: mps1,
+			Name:   name1,
+			Values: valList1,
+			Tags:   tags1,
 		},
-	}, t0, t1
+		&rpc.Series{
+			Name:   name2,
+			Values: valList2,
+			Tags:   tags1,
+		},
+	}
 }
 
 func TestDecodeFetchResult(t *testing.T) {
 	ctx := context.Background()
-	rpcSeries, t0, t1 := createRPCSeries(t)
+	rpcSeries := createRPCSeries()
 
-	tsSeries := DecodeFetchResult(ctx, rpcSeries)
-	assert.Len(t, tsSeries, 2)
+	tsSeries, err := DecodeFetchResult(ctx, rpcSeries)
+	assert.NoError(t, err)
+	assert.Len(t, tsSeries, 3)
 	assert.Equal(t, name0, tsSeries[0].Name())
 	assert.Equal(t, name1, tsSeries[1].Name())
-	assert.True(t, t0.Equal(tsSeries[0].StartTime()))
-	assert.True(t, t1.Equal(tsSeries[1].StartTime()))
-	assert.Equal(t, spec0, tsSeries[0].Specification)
-	assert.Equal(t, spec1, tsSeries[1].Specification)
 	assert.Equal(t, models.Tags(tags0), tsSeries[0].Tags)
 	assert.Equal(t, models.Tags(tags1), tsSeries[1].Tags)
 
-	assert.Equal(t, len(valList0), tsSeries[0].Len())
-	assert.Equal(t, len(valList1), tsSeries[1].Len())
-	assert.Equal(t, int(mps0), tsSeries[0].MillisPerStep())
-	assert.Equal(t, int(mps1), tsSeries[1].MillisPerStep())
-	for i := range valList0 {
-		assert.Equal(t, float64(valList0[i]), tsSeries[0].ValueAt(i))
+	assert.Equal(t, len(valList0.Datapoints), tsSeries[0].Len())
+	assert.Equal(t, len(valList1.Datapoints), tsSeries[1].Len())
+	assert.Equal(t, len(valList2.Datapoints), tsSeries[2].Len())
+
+	for i := range valList0.Datapoints {
+		assert.Equal(t, float64(valList0.Datapoints[i].Value), tsSeries[0].Values().ValueAt(i))
+		assert.Equal(t, valList0.Datapoints[i].Timestamp, fromTime(tsSeries[0].Values().DatapointAt(i).Timestamp))
 	}
-	for i := range valList1 {
-		assert.Equal(t, float64(valList1[i]), tsSeries[1].ValueAt(i))
+	for i := range valList1.Datapoints {
+		assert.Equal(t, float64(valList1.Datapoints[i].Value), tsSeries[1].Values().ValueAt(i))
+		assert.Equal(t, valList1.Datapoints[i].Timestamp, fromTime(tsSeries[1].Values().DatapointAt(i).Timestamp))
 	}
+	for i := range valList2.Datapoints {
+		assert.Equal(t, float64(valList2.Datapoints[i].Value), tsSeries[2].Values().ValueAt(i))
+		assert.Equal(t, valList2.Datapoints[i].Timestamp, fromTime(tsSeries[2].Values().DatapointAt(i).Timestamp))
+	}
+
 	// Encode again
 
 	fetchResult := &storage.FetchResult{SeriesList: tsSeries}
@@ -188,12 +197,12 @@ func TestEncodeDecodeFetchQuery(t *testing.T) {
 
 func createStorageWriteQuery(t *testing.T) (*storage.WriteQuery, ts.Datapoints) {
 	t0, t1 := parseTimes(t)
-	points := []*ts.Datapoint{
-		&ts.Datapoint{
+	points := []ts.Datapoint{
+		ts.Datapoint{
 			Timestamp: t0,
 			Value:     float0,
 		},
-		&ts.Datapoint{
+		ts.Datapoint{
 			Timestamp: t1,
 			Value:     float1,
 		},
@@ -217,7 +226,7 @@ func TestEncodeWriteMessage(t *testing.T) {
 	assert.Equal(t, len(points), len(encPoints))
 	for i, v := range points {
 		assert.Equal(t, fromTime(v.Timestamp), encPoints[i].GetTimestamp())
-		assert.Equal(t, float32(v.Value), encPoints[i].GetValue())
+		assert.Equal(t, v.Value, encPoints[i].GetValue())
 	}
 }
 

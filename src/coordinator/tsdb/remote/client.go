@@ -94,7 +94,11 @@ func (c *grpcClient) Fetch(ctx context.Context, query *storage.FetchQuery, optio
 			return nil, err
 		}
 		rpcSeries := result.GetSeries()
-		tsSeries = append(tsSeries, DecodeFetchResult(ctx, rpcSeries)...)
+		fResult, err := DecodeFetchResult(ctx, rpcSeries)
+		if err != nil {
+			return nil, err
+		}
+		tsSeries = append(tsSeries, fResult...)
 	}
 
 	return &storage.FetchResult{LocalOnly: false, SeriesList: tsSeries}, nil
