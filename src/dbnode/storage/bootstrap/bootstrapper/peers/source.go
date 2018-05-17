@@ -57,10 +57,10 @@ type incrementalFlush struct {
 }
 
 func newPeersSource(opts Options) (bootstrap.Source, error) {
-	// We obtain an initial topology map on instantiation, and use it throughout
-	// all bootstrap calls (across all namespaces / shards / blocks) so that we
-	// make consistent decisions regarding whether the Peer bootstrapper is able
-	// to fulfill bootstrap requests.
+	// We measure the topology on instantiation, and use it through all bootstrap
+	// calls (across all namespaces / shards / blocks) so that we make consistent
+	// decisions regarding whether the peer bootstrap is able to fulfull bootstrap
+	// requests.
 	initialTopologyState, err := initialTopologyState(opts)
 	if err != nil {
 		return nil, err
