@@ -101,7 +101,7 @@ func TestConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	configSvcClient, err := cfg.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
+	configSvcClient, err := cfg.DB.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
 		SetLogger(xlog.NullLogger))
 	require.NoError(t, err)
 
@@ -172,9 +172,9 @@ func TestConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.Client.EnvironmentConfig.Service = cfg.EnvironmentConfig.Service
+	cfg.DB.Client.EnvironmentConfig.Service = cfg.DB.EnvironmentConfig.Service
 
-	cli, err := cfg.Client.NewClient(client.ConfigurationParameters{})
+	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
 
 	session, err := cli.DefaultSession()
@@ -307,7 +307,7 @@ func TestEmbeddedConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name(), xconfig.Options{})
 	require.NoError(t, err)
 
-	configSvcClient, err := cfg.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
+	configSvcClient, err := cfg.DB.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
 		SetLogger(xlog.NullLogger))
 	require.NoError(t, err)
 
@@ -362,9 +362,9 @@ func TestEmbeddedConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.Client.EnvironmentConfig.Service = cfg.EnvironmentConfig.Service
+	cfg.DB.Client.EnvironmentConfig.Service = cfg.DB.EnvironmentConfig.Service
 
-	cli, err := cfg.Client.NewClient(client.ConfigurationParameters{})
+	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
 
 	session, err := cli.DefaultSession()
@@ -415,201 +415,202 @@ func TestEmbeddedConfig(t *testing.T) {
 
 var (
 	testConfig = `
-logging:
-    level: info
-    file: {{.LogFile}}
-
-metrics:
-    prometheus:
-        handlerPath: /metrics
-        listenAddress: 0.0.0.0:9005
-        onError: none
-    sanitization: prometheus
-    samplingRate: 1.0
-    extended: detailed
-
-listenAddress: 0.0.0.0:{{.ServicePort}}
-clusterListenAddress: 0.0.0.0:9001
-httpNodeListenAddress: 0.0.0.0:9002
-httpClusterListenAddress: 0.0.0.0:9003
-debugListenAddress: 0.0.0.0:9004
-
-hostID:
-    resolver: config
-    value: {{.HostID}}
-
-client:
-    writeConsistencyLevel: majority
-    readConsistencyLevel: unstrict_majority
-    connectConsistencyLevel: any
-    writeTimeout: 10s
-    fetchTimeout: 15s
-    connectTimeout: 20s
-    writeRetry:
-        initialBackoff: 500ms
-        backoffFactor: 3
-        maxRetries: 2
-        jitter: true
-    fetchRetry:
-        initialBackoff: 500ms
-        backoffFactor: 2
-        maxRetries: 3
-        jitter: true
-    backgroundHealthCheckFailLimit: 4
-    backgroundHealthCheckFailThrottleFactor: 0.5
-
-gcPercentage: 100
-
-writeNewSeriesAsync: true
-writeNewSeriesLimitPerSecond: 1048576
-writeNewSeriesBackoffDuration: 2ms
-
-bootstrap:
-    bootstrappers:
-        - filesystem
-        - commitlog
+db:
+    logging:
+        level: info
+        file: {{.LogFile}}
+    
+    metrics:
+        prometheus:
+            handlerPath: /metrics
+            listenAddress: 0.0.0.0:9005
+            onError: none
+        sanitization: prometheus
+        samplingRate: 1.0
+        extended: detailed
+    
+    listenAddress: 0.0.0.0:{{.ServicePort}}
+    clusterListenAddress: 0.0.0.0:9001
+    httpNodeListenAddress: 0.0.0.0:9002
+    httpClusterListenAddress: 0.0.0.0:9003
+    debugListenAddress: 0.0.0.0:9004
+    
+    hostID:
+        resolver: config
+        value: {{.HostID}}
+    
+    client:
+        writeConsistencyLevel: majority
+        readConsistencyLevel: unstrict_majority
+        connectConsistencyLevel: any
+        writeTimeout: 10s
+        fetchTimeout: 15s
+        connectTimeout: 20s
+        writeRetry:
+            initialBackoff: 500ms
+            backoffFactor: 3
+            maxRetries: 2
+            jitter: true
+        fetchRetry:
+            initialBackoff: 500ms
+            backoffFactor: 2
+            maxRetries: 3
+            jitter: true
+        backgroundHealthCheckFailLimit: 4
+        backgroundHealthCheckFailThrottleFactor: 0.5
+    
+    gcPercentage: 100
+    
+    writeNewSeriesAsync: true
+    writeNewSeriesLimitPerSecond: 1048576
+    writeNewSeriesBackoffDuration: 2ms
+    
+    bootstrap:
+        bootstrappers:
+            - filesystem
+            - commitlog
+        fs:
+            numProcessorsPerCPU: 0.125
+    
+    commitlog:
+        flushMaxBytes: 524288
+        flushEvery: 1s
+        queue:
+            calculationType: fixed
+            size: 2097152
+        retentionPeriod: 24h
+        blockSize: 10m
+    
     fs:
-        numProcessorsPerCPU: 0.125
-
-commitlog:
-    flushMaxBytes: 524288
-    flushEvery: 1s
-    queue:
-        calculationType: fixed
-        size: 2097152
-    retentionPeriod: 24h
-    blockSize: 10m
-
-fs:
-    filePathPrefix: {{.DataDir}}
-    writeBufferSize: 65536
-    dataReadBufferSize: 65536
-    infoReadBufferSize: 128
-    seekReadBufferSize: 4096
-    throughputLimitMbps: 100.0
-    throughputCheckEvery: 128
-
-repair:
-    enabled: false
-    interval: 2h
-    offset: 30m
-    jitter: 1h
-    throttle: 2m
-    checkInterval: 1m
-
-pooling:
-    blockAllocSize: 16
-    type: simple
-    seriesPool:
-        size: 128
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    blockPool:
-        size: 128
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    encoderPool:
-        size: 128
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    closersPool:
-        size: 128
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    contextPool:
-        size: 128
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    segmentReaderPool:
-        size: 128
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    iteratorPool:
-        size: 128
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    fetchBlockMetadataResultsPool:
-        size: 128
-        capacity: 32
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    fetchBlocksMetadataResultsPool:
-        size: 128
-        capacity: 128
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    hostBlockMetadataSlicePool:
-        size: 128
-        capacity: 3
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    blockMetadataPool:
-        size: 128
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    blockMetadataSlicePool:
-        size: 128
-        capacity: 32
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    blocksMetadataPool:
-        size: 128
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    blocksMetadataSlicePool:
-        size: 128
-        capacity: 128
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    identifierPool:
-        size: 128
-        lowWatermark: 0.01
-        highWatermark: 0.02
-    bytesPool:
-        buckets:
-            - capacity: 32
-              size: 128
-            - capacity: 512
-              size: 128
-            - capacity: 4096
-              size: 128
+        filePathPrefix: {{.DataDir}}
+        writeBufferSize: 65536
+        dataReadBufferSize: 65536
+        infoReadBufferSize: 128
+        seekReadBufferSize: 4096
+        throughputLimitMbps: 100.0
+        throughputCheckEvery: 128
+    
+    repair:
+        enabled: false
+        interval: 2h
+        offset: 30m
+        jitter: 1h
+        throttle: 2m
+        checkInterval: 1m
+    
+    pooling:
+        blockAllocSize: 16
+        type: simple
+        seriesPool:
+            size: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        blockPool:
+            size: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        encoderPool:
+            size: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        closersPool:
+            size: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        contextPool:
+            size: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        segmentReaderPool:
+            size: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        iteratorPool:
+            size: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        fetchBlockMetadataResultsPool:
+            size: 128
+            capacity: 32
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        fetchBlocksMetadataResultsPool:
+            size: 128
+            capacity: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        hostBlockMetadataSlicePool:
+            size: 128
+            capacity: 3
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        blockMetadataPool:
+            size: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        blockMetadataSlicePool:
+            size: 128
+            capacity: 32
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        blocksMetadataPool:
+            size: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        blocksMetadataSlicePool:
+            size: 128
+            capacity: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        identifierPool:
+            size: 128
+            lowWatermark: 0.01
+            highWatermark: 0.02
+        bytesPool:
+            buckets:
+                - capacity: 32
+                  size: 128
+                - capacity: 512
+                  size: 128
+                - capacity: 4096
+                  size: 128
 `
 
 	kvConfigPortion = `
-config:
-    service:
-        env: {{.ServiceEnv}}
-        zone: {{.ServiceZone}}
-        service: {{.ServiceName}}
-        cacheDir: {{.ConfigServiceCacheDir}}
-        etcdClusters:
-            - zone: {{.ServiceZone}}
-              endpoints: {{.EtcdEndpoints}}
+    config:
+        service:
+            env: {{.ServiceEnv}}
+            zone: {{.ServiceZone}}
+            service: {{.ServiceName}}
+            cacheDir: {{.ConfigServiceCacheDir}}
+            etcdClusters:
+                - zone: {{.ServiceZone}}
+                  endpoints: {{.EtcdEndpoints}}
 `
 
 	embeddedKVConfigPortion = `
-config:
-    service:
-        env: {{.ServiceEnv}}
-        zone: {{.ServiceZone}}
-        service: {{.ServiceName}}
-        cacheDir: {{.ConfigServiceCacheDir}}
-        etcdClusters:
-            - zone: {{.ServiceZone}}
-              endpoints:
-                  - {{.EtcdEndpoint}}
-    seedNodes:
-        rootDir: {{.EmbeddedKVDir}}
-        listenPeerUrls:
-            - {{.LPURL}}
-        listenClientUrls:
-            - {{.LCURL}}
-        initialAdvertisePeerUrls:
-            - {{.APURL}}
-        advertiseClientUrls:
-            - {{.ACURL}}
-        initialCluster:
-            - hostID: {{.InitialClusterHostID}}
-              endpoint: {{.InitialClusterEndpoint}}
+    config:
+        service:
+            env: {{.ServiceEnv}}
+            zone: {{.ServiceZone}}
+            service: {{.ServiceName}}
+            cacheDir: {{.ConfigServiceCacheDir}}
+            etcdClusters:
+                - zone: {{.ServiceZone}}
+                  endpoints:
+                      - {{.EtcdEndpoint}}
+        seedNodes:
+            rootDir: {{.EmbeddedKVDir}}
+            listenPeerUrls:
+                - {{.LPURL}}
+            listenClientUrls:
+                - {{.LCURL}}
+            initialAdvertisePeerUrls:
+                - {{.APURL}}
+            advertiseClientUrls:
+                - {{.ACURL}}
+            initialCluster:
+                - hostID: {{.InitialClusterHostID}}
+                  endpoint: {{.InitialClusterEndpoint}}
 `
 )
