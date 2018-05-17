@@ -1403,7 +1403,7 @@ func (s *session) fetchIDsAttempt(
 			// to iter.Reset down below before setting the iterator in the results array,
 			// which would cause a nil pointer exception.
 			remaining := atomic.AddInt32(&pending, -1)
-			shouldTerminate := !topology.ReadConsistencyTermination(s.state.readLevel, majority, remaining, snapshotSuccess)
+			shouldTerminate := topology.ReadConsistencyTermination(s.state.readLevel, majority, remaining, snapshotSuccess)
 			if shouldTerminate && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
 				allCompletionFn()
 			}
