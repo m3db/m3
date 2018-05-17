@@ -50,8 +50,8 @@ import (
 const (
 	numConcurrentMessages = 10
 	numberOfShards        = 10
-	msgPerShard           = 100
-	closeTimeout          = 60 * time.Second
+	msgPerShard           = 200
+	closeTimeout          = 30 * time.Second
 )
 
 type consumerServiceConfig struct {
@@ -216,8 +216,9 @@ func (s setup) CloseProducers(dur time.Duration) {
 
 	select {
 	case <-time.After(dur):
-		panic("taking too long to close producers")
+		panic(fmt.Sprintf("taking more than %v to close producers %v", dur, time.Now()))
 	case <-doneCh:
+		log.SimpleLogger.Debugf("producer closed in %v", dur)
 		return
 	}
 }
@@ -480,20 +481,20 @@ writer:
   messagePool:
     size: 1
   messageRetry:
-    initialBackoff: 100ms
-    maxBackoff: 500ms
-  messageQueueScanInterval: 100ms
+    initialBackoff: 10ms
+    maxBackoff: 50ms
+  messageQueueScanInterval: 10ms
   closeCheckInterval: 100ms
   ackErrorRetry: 
-    initialBackoff: 100ms
-    maxBackoff: 500ms
+    initialBackoff: 10ms
+    maxBackoff: 50ms
   connection:
     dialTimeout: 500ms
     retry:
-      initialBackoff: 100ms
-      maxBackoff: 500ms
+      initialBackoff: 10ms
+      maxBackoff: 50ms
     writeBufferSize: 1
-    resetDelay: 100ms
+    resetDelay: 50ms
 `
 
 	var cfg config.ProducerConfiguration

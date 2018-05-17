@@ -21,6 +21,7 @@
 package data
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -150,4 +151,28 @@ func TestRefCountedDataOnDropFn(t *testing.T) {
 	require.Equal(t, 1, called)
 
 	require.False(t, rd.Drop())
+}
+
+func TestRefCountedDataNoBlocking(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	md := producer.NewMockData(ctrl)
+	for i := 0; i < 10000; i++ {
+		rd := NewRefCountedData(md, nil)
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			rd.IncReads()
+			rd.IsDroppedOrConsumed()
+			rd.DecReads()
+			wg.Done()
+		}()
+		go func() {
+			md.EXPECT().Finalize(producer.Dropped)
+			rd.Drop()
+			wg.Done()
+		}()
+		wg.Wait()
+	}
 }
