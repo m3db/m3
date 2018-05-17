@@ -27,6 +27,8 @@ import (
 
 	"github.com/uber-go/tally"
 	"github.com/uber-go/tally/m3"
+	"github.com/uber-go/tally/multi"
+	"github.com/uber-go/tally/prometheus"
 )
 
 var (
@@ -53,6 +55,9 @@ type MetricsConfiguration struct {
 	// M3 reporter configuration.
 	M3Reporter *m3.Configuration `yaml:"m3"`
 
+	// Prometheus reporter configuration.
+	PrometheusReporter *prometheus.Configuration `yaml:"prometheus"`
+
 	// Metrics sampling rate.
 	SamplingRate float64 `yaml:"samplingRate" validate:"nonzero,min=0.0,max=1.0"`
 
@@ -66,13 +71,33 @@ type MetricsConfiguration struct {
 // NewRootScope creates a new tally.Scope based on a tally.CachedStatsReporter
 // based on the the the config.
 func (mc *MetricsConfiguration) NewRootScope() (tally.Scope, io.Closer, error) {
-	if mc.M3Reporter == nil {
+	var reporters []tally.CachedStatsReporter
+	if mc.M3Reporter != nil {
+		r, err := mc.M3Reporter.NewReporter()
+		if err != nil {
+			return nil, nil, err
+		}
+		reporters = append(reporters, r)
+	}
+	if mc.PrometheusReporter != nil {
+		var opts prometheus.ConfigurationOptions
+		r, err := mc.PrometheusReporter.NewReporter(opts)
+		if err != nil {
+			return nil, nil, err
+		}
+		reporters = append(reporters, r)
+	}
+	if len(reporters) == 0 {
 		return nil, nil, errNoReporterConfigured
 	}
-	r, err := mc.M3Reporter.NewReporter()
-	if err != nil {
-		return nil, nil, err
+
+	var r tally.CachedStatsReporter
+	if len(reporters) == 1 {
+		r = reporters[0]
+	} else {
+		r = multi.NewMultiCachedReporter(reporters...)
 	}
+
 	scope, closer := mc.NewRootScopeReporter(r)
 	return scope, closer, nil
 }

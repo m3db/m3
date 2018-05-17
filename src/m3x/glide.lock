@@ -1,10 +1,14 @@
-hash: b1f0f96bdf7df14f2b052bb71990a282fa879489e81b90bb95cfa030efc704f0
-updated: 2018-05-14T17:50:54.347492-04:00
+hash: e12fce100a60225faefb6dfb23c6ad880ce23f1f112b81a44ca4bca9fb69fa72
+updated: 2018-05-17T13:33:37.499046-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
   subpackages:
   - lib/go/thrift
+- name: github.com/beorn7/perks
+  version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
+  subpackages:
+  - quantile
 - name: github.com/cespare/xxhash
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
 - name: github.com/davecgh/go-spew
@@ -15,6 +19,31 @@ imports:
   version: c34cdb4725f4c3844d095133c6e40e448b86589b
   subpackages:
   - gomock
+- name: github.com/golang/protobuf
+  version: 927b65914520a8b7d44f5c9057611cfec6b2e2d0
+  subpackages:
+  - proto
+- name: github.com/m3db/prometheus_client_golang
+  version: 8ae269d24972b8695572fa6b2e3718b5ea82d6b4
+  subpackages:
+  - prometheus
+  - prometheus/promhttp
+- name: github.com/m3db/prometheus_client_model
+  version: 8b2299a4bf7d7fc10835527021716d4b4a6e8700
+  subpackages:
+  - go
+- name: github.com/m3db/prometheus_common
+  version: 25aaa3dff79bb48116615ebe1dea6a494b74ce77
+  subpackages:
+  - expfmt
+  - internal/bitbucket.org/ww/goautoneg
+  - model
+- name: github.com/m3db/prometheus_procfs
+  version: 1878d9fbb537119d24b21ca07effd591627cd160
+- name: github.com/matttproud/golang_protobuf_extensions
+  version: c12348ce28de40eed0136aa2b644d0ee0650e56c
+  subpackages:
+  - pbutil
 - name: github.com/mauricelam/genny
   version: 9d8700bcc567cd22ea2ef42ce5835a9c80296c4a
   subpackages:
@@ -34,12 +63,14 @@ imports:
 - name: github.com/uber-go/atomic
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: github.com/uber-go/tally
-  version: 6f121596292a5ec8618b71ee3687fe42da73d289
+  version: 79f2a33b0e55b1255ffbbaf824dcafb09ff34dda
   subpackages:
   - m3
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
+  - multi
+  - prometheus
 - name: github.com/uber-go/zap
   version: eeedf312bc6c57391d84767a4cd413f02a917974
 - name: go.uber.org/atomic
