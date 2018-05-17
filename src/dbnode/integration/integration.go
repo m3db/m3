@@ -116,21 +116,18 @@ func newMultiAddrAdminClient(
 		SetReplicas(replicas).
 		SetHostShardSets(hostShardSets)
 
-	var clientOpts client.Options
+	clientOpts := adminOpts.
+		SetOrigin(origin).
+		SetInstrumentOptions(instrumentOpts).
+		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelAny).
+		SetClusterConnectTimeout(time.Second)
+
 	if topologyInitializer != nil {
-		clientOpts = adminOpts.
-			SetOrigin(origin).
-			SetInstrumentOptions(instrumentOpts).
-			SetTopologyInitializer(topologyInitializer).
-			SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelAny).
-			SetClusterConnectTimeout(time.Second)
+		clientOpts = clientOpts.
+			SetTopologyInitializer(topologyInitializer)
 	} else {
-		clientOpts = adminOpts.
-			SetOrigin(origin).
-			SetInstrumentOptions(instrumentOpts).
-			SetTopologyInitializer(topology.NewStaticInitializer(staticOptions)).
-			SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelAny).
-			SetClusterConnectTimeout(time.Second)
+		clientOpts = clientOpts.
+			SetTopologyInitializer(topology.NewStaticInitializer(staticOptions))
 	}
 
 	adminClient, err := client.NewAdminClient(clientOpts.(client.AdminOptions))
