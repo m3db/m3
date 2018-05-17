@@ -48,7 +48,7 @@ type FileSetFileIdentifier struct {
 	BlockStart         time.Time
 	// Only required for data content files
 	Shard uint32
-	// Required for snapshot files (index yes, data yes) and fileset files (index yes, data no)
+	// Required for snapshot files (index yes, data yes) and flush files (index yes, data no)
 	VolumeIndex int
 }
 

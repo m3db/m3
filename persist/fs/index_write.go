@@ -109,18 +109,13 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	switch opts.FileSetType {
 	case persist.FileSetSnapshotType:
 		w.namespaceDir = NamespaceIndexSnapshotDirPath(w.filePathPrefix, namespace)
-		// Can't do this outside of the switch statement because we need to make sure
-		// the directory exists before calling NextSnapshotFileSetIndex
-		if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
-			return err
-		}
 	case persist.FileSetFlushType:
 		w.namespaceDir = NamespaceIndexDataDirPath(w.filePathPrefix, namespace)
-		if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
-			return err
-		}
 	default:
 		return fmt.Errorf("cannot open index writer for fileset type: %s", opts.FileSetType)
+	}
+	if err := os.MkdirAll(w.namespaceDir, w.newDirectoryMode); err != nil {
+		return err
 	}
 	w.checkpointFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, checkpointFileSuffix)
 	w.infoFilePath = filesetPathFromTimeAndIndex(w.namespaceDir, blockStart, w.volumeIndex, infoFileSuffix)

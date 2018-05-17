@@ -23,6 +23,7 @@ package fs
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -310,16 +311,38 @@ func (pm *persistManager) filesetExistsAt(prepareOpts persist.DataPrepareOptions
 
 	switch prepareOpts.FileSetType {
 	case persist.FileSetSnapshotType:
+		if err := pm.ensureSnapshotsDirPath(nsID, shard); err != nil {
+			return false, err
+		}
 		// Snapshot files are indexed (multiple per block-start), so checking if the file
 		// already exist doesn't make much sense
 		return false, nil
 	case persist.FileSetFlushType:
+		if err := pm.ensureDataDirPath(nsID, shard); err != nil {
+			return false, err
+		}
 		return DataFileSetExistsAt(pm.filePathPrefix, nsID, shard, blockStart)
 	default:
 		return false, fmt.Errorf(
 			"unable to determine if fileset exists in persist manager for fileset type: %s",
 			prepareOpts.FileSetType)
 	}
+}
+
+func (pm *persistManager) ensureSnapshotsDirPath(
+	nsID ident.ID,
+	shard uint32,
+) error {
+	dir := ShardDataDirPath(pm.filePathPrefix, nsID, shard)
+	return os.MkdirAll(dir, pm.opts.NewDirectoryMode())
+}
+
+func (pm *persistManager) ensureDataDirPath(
+	nsID ident.ID,
+	shard uint32,
+) error {
+	dir := ShardSnapshotsDirPath(pm.filePathPrefix, nsID, shard)
+	return os.MkdirAll(dir, pm.opts.NewDirectoryMode())
 }
 
 func (pm *persistManager) SetRuntimeOptions(value runtime.Options) {
