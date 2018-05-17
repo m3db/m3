@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift"
 	"github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
