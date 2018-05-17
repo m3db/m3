@@ -22,6 +22,7 @@ package convert
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/digest"
@@ -30,6 +31,7 @@ import (
 	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3db/x/xpool"
+	"github.com/m3db/m3ninx/generated/proto/querypb"
 	"github.com/m3db/m3ninx/idx"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
@@ -342,4 +344,99 @@ func (w *writeTaggedIter) Duplicate() ident.TagIterator {
 		rawRequest: w.rawRequest,
 		currentIdx: -1,
 	}
+}
+
+// FromRPCQuery will create a m3ninx index query from an RPC query
+func FromRPCQuery(query *rpc.Query) (idx.Query, error) {
+	queryProto, err := parseQuery(query)
+	if err != nil {
+		return idx.Query{}, err
+	}
+
+	marshalled, err := queryProto.Marshal()
+	if err != nil {
+		return idx.Query{}, err
+	}
+
+	return idx.Unmarshal(marshalled)
+}
+
+func parseQuery(query *rpc.Query) (*querypb.Query, error) {
+	result := new(querypb.Query)
+	if query == nil {
+		return nil, xerrors.NewInvalidParamsError(fmt.Errorf("no query specified"))
+	}
+	if query.Term != nil {
+		result.Query = &querypb.Query_Term{
+			Term: &querypb.TermQuery{
+				Field: []byte(query.Term.Field),
+				Term:  []byte(query.Term.Term),
+			},
+		}
+	}
+	if query.Regexp != nil {
+		if result.Query != nil {
+			return nil, xerrors.NewInvalidParamsError(fmt.Errorf("multiple query types specified"))
+		}
+		result.Query = &querypb.Query_Regexp{
+			Regexp: &querypb.RegexpQuery{
+				Field:  []byte(query.Regexp.Field),
+				Regexp: []byte(query.Regexp.Regexp),
+			},
+		}
+	}
+	if query.Negation != nil {
+		if result.Query != nil {
+			return nil, xerrors.NewInvalidParamsError(fmt.Errorf("multiple query types specified"))
+		}
+		inner, err := parseQuery(query.Negation.Query)
+		if err != nil {
+			return nil, err
+		}
+		result.Query = &querypb.Query_Negation{
+			Negation: &querypb.NegationQuery{
+				Query: inner,
+			},
+		}
+	}
+	if query.Conjunction != nil {
+		if result.Query != nil {
+			return nil, xerrors.NewInvalidParamsError(fmt.Errorf("multiple query types specified"))
+		}
+		var queries []*querypb.Query
+		for _, query := range query.Conjunction.Queries {
+			inner, err := parseQuery(query)
+			if err != nil {
+				return nil, err
+			}
+			queries = append(queries, inner)
+		}
+		result.Query = &querypb.Query_Conjunction{
+			Conjunction: &querypb.ConjunctionQuery{
+				Queries: queries,
+			},
+		}
+	}
+	if query.Disjunction != nil {
+		if result.Query != nil {
+			return nil, xerrors.NewInvalidParamsError(fmt.Errorf("multiple query types specified"))
+		}
+		var queries []*querypb.Query
+		for _, query := range query.Disjunction.Queries {
+			inner, err := parseQuery(query)
+			if err != nil {
+				return nil, err
+			}
+			queries = append(queries, inner)
+		}
+		result.Query = &querypb.Query_Disjunction{
+			Disjunction: &querypb.DisjunctionQuery{
+				Queries: queries,
+			},
+		}
+	}
+	if result.Query == nil {
+		return nil, xerrors.NewInvalidParamsError(fmt.Errorf("no query types specified"))
+	}
+	return result, nil
 }

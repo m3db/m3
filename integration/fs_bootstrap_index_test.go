@@ -145,6 +145,9 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 	verifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
 	verifySeriesMaps(t, setup, testNamespaces[1], nil)
 
+	log.Debug("WAIT")
+	time.Sleep(time.Hour)
+
 	// Issue some index queries
 	session, err := setup.m3dbClient.DefaultSession()
 	require.NoError(t, err)

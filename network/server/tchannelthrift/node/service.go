@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3x/checked"
@@ -216,6 +217,69 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 	return health, nil
 }
 
+func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {
+	ctx := tchannelthrift.Context(tctx)
+
+	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
+	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
+
+	if rangeStartErr != nil || rangeEndErr != nil {
+		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
+	}
+
+	q, err := convert.FromRPCQuery(req.Query)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+
+	nsID := s.pools.id.GetStringID(ctx, req.NameSpace)
+	opts := index.QueryOptions{
+		StartInclusive: start,
+		EndExclusive:   end,
+	}
+	if l := req.Limit; l != nil {
+		opts.Limit = int(*l)
+	}
+	queryResult, err := s.db.QueryIDs(ctx, nsID, index.Query{Query: q}, opts)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
+
+	result := &rpc.QueryResult_{
+		Results:    make([]*rpc.QueryResultElement, 0, queryResult.Results.Map().Len()),
+		Exhaustive: queryResult.Exhaustive,
+	}
+	fetchData := true
+	if req.NoData != nil && *req.NoData {
+		fetchData = false
+	}
+	for _, entry := range queryResult.Results.Map().Iter() {
+		elem := &rpc.QueryResultElement{
+			ID:   entry.Key().String(),
+			Tags: make([]*rpc.Tag, 0, len(entry.Value().Values())),
+		}
+		result.Results = append(result.Results, elem)
+		for _, tag := range entry.Value().Values() {
+			elem.Tags = append(elem.Tags, &rpc.Tag{
+				Name:  tag.Name.String(),
+				Value: tag.Value.String(),
+			})
+		}
+		if !fetchData {
+			continue
+		}
+		tsID := entry.Key()
+		datapoints, err := s.readDatapoints(ctx, nsID, tsID, start, end,
+			req.ResultTimeType)
+		if err != nil {
+			return nil, convert.ToRPCError(err)
+		}
+		elem.Datapoints = datapoints
+	}
+
+	return result, nil
+}
+
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
@@ -230,17 +294,32 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 
 	tsID := s.pools.id.GetStringID(ctx, req.ID)
 	nsID := s.pools.id.GetStringID(ctx, req.NameSpace)
-	encoded, err := s.db.ReadEncoded(ctx, nsID, tsID, start, end)
-	if err != nil {
-		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
-		rpcErr := convert.ToRPCError(err)
-		return nil, rpcErr
-	}
-
-	result := rpc.NewFetchResult_()
 
 	// Make datapoints an initialized empty array for JSON serialization as empty array than null
-	result.Datapoints = make([]*rpc.Datapoint, 0)
+	datapoints, err := s.readDatapoints(ctx, nsID, tsID, start, end,
+		req.ResultTimeType)
+	if err != nil {
+		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
+		return nil, convert.ToRPCError(err)
+	}
+
+	s.metrics.fetch.ReportSuccess(s.nowFn().Sub(callStart))
+	return &rpc.FetchResult_{Datapoints: datapoints}, nil
+}
+
+func (s *service) readDatapoints(
+	ctx context.Context,
+	nsID, tsID ident.ID,
+	start, end time.Time,
+	timeType rpc.TimeType,
+) ([]*rpc.Datapoint, error) {
+	encoded, err := s.db.ReadEncoded(ctx, nsID, tsID, start, end)
+	if err != nil {
+		return nil, err
+	}
+
+	// Make datapoints an initialized empty array for JSON serialization as empty array than null
+	datapoints := make([]*rpc.Datapoint, 0)
 
 	multiIt := s.db.Options().MultiReaderIteratorPool().Get()
 	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromBlockReadersIterator(encoded))
@@ -249,10 +328,9 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	for multiIt.Next() {
 		dp, _, annotation := multiIt.Current()
 
-		timestamp, timestampErr := convert.ToValue(dp.Timestamp, req.ResultTimeType)
+		timestamp, timestampErr := convert.ToValue(dp.Timestamp, timeType)
 		if timestampErr != nil {
-			s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
-			return nil, tterrors.NewBadRequestError(timestampErr)
+			return nil, xerrors.NewInvalidParamsError(timestampErr)
 		}
 
 		datapoint := rpc.NewDatapoint()
@@ -260,17 +338,14 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 		datapoint.Value = dp.Value
 		datapoint.Annotation = annotation
 
-		result.Datapoints = append(result.Datapoints, datapoint)
+		datapoints = append(datapoints, datapoint)
 	}
 
 	if err := multiIt.Err(); err != nil {
-		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
-		return nil, tterrors.NewInternalError(err)
+		return nil, err
 	}
 
-	s.metrics.fetch.ReportSuccess(s.nowFn().Sub(callStart))
-
-	return result, nil
+	return datapoints, nil
 }
 
 func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {

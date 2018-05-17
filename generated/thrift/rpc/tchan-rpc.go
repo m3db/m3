@@ -37,6 +37,7 @@ type TChanCluster interface {
 	Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error)
 	FetchTagged(ctx thrift.Context, req *FetchTaggedRequest) (*FetchTaggedResult_, error)
 	Health(ctx thrift.Context) (*HealthResult_, error)
+	Query(ctx thrift.Context, req *QueryRequest) (*QueryResult_, error)
 	Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error)
 	Write(ctx thrift.Context, req *WriteRequest) error
 	WriteTagged(ctx thrift.Context, req *WriteTaggedRequest) error
@@ -55,6 +56,7 @@ type TChanNode interface {
 	GetWriteNewSeriesBackoffDuration(ctx thrift.Context) (*NodeWriteNewSeriesBackoffDurationResult_, error)
 	GetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Context) (*NodeWriteNewSeriesLimitPerShardPerSecondResult_, error)
 	Health(ctx thrift.Context) (*NodeHealthResult_, error)
+	Query(ctx thrift.Context, req *QueryRequest) (*QueryResult_, error)
 	Repair(ctx thrift.Context) error
 	SetPersistRateLimit(ctx thrift.Context, req *NodeSetPersistRateLimitRequest) (*NodePersistRateLimitResult_, error)
 	SetWriteNewSeriesAsync(ctx thrift.Context, req *NodeSetWriteNewSeriesAsyncRequest) (*NodeWriteNewSeriesAsyncResult_, error)
@@ -93,11 +95,8 @@ func (c *tchanClusterClient) Fetch(ctx thrift.Context, req *FetchRequest) (*Fetc
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetch", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for fetch")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -111,11 +110,8 @@ func (c *tchanClusterClient) FetchTagged(ctx thrift.Context, req *FetchTaggedReq
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetchTagged", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for fetchTagged")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -127,11 +123,23 @@ func (c *tchanClusterClient) Health(ctx thrift.Context) (*HealthResult_, error) 
 	args := ClusterHealthArgs{}
 	success, err := c.client.Call(ctx, c.thriftService, "health", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for health")
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
+func (c *tchanClusterClient) Query(ctx thrift.Context, req *QueryRequest) (*QueryResult_, error) {
+	var resp ClusterQueryResult
+	args := ClusterQueryArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "query", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -145,11 +153,8 @@ func (c *tchanClusterClient) Truncate(ctx thrift.Context, req *TruncateRequest) 
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "truncate", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for truncate")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -163,11 +168,8 @@ func (c *tchanClusterClient) Write(ctx thrift.Context, req *WriteRequest) error 
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "write", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for write")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -181,11 +183,8 @@ func (c *tchanClusterClient) WriteTagged(ctx thrift.Context, req *WriteTaggedReq
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "writeTagged", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for writeTagged")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -213,6 +212,7 @@ func (s *tchanClusterServer) Methods() []string {
 		"fetch",
 		"fetchTagged",
 		"health",
+		"query",
 		"truncate",
 		"write",
 		"writeTagged",
@@ -227,6 +227,8 @@ func (s *tchanClusterServer) Handle(ctx thrift.Context, methodName string, proto
 		return s.handleFetchTagged(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
+	case "query":
+		return s.handleQuery(ctx, protocol)
 	case "truncate":
 		return s.handleTruncate(ctx, protocol)
 	case "write":
@@ -305,6 +307,34 @@ func (s *tchanClusterServer) handleHealth(ctx thrift.Context, protocol athrift.T
 
 	r, err :=
 		s.handler.Health(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanClusterServer) handleQuery(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req ClusterQueryArgs
+	var res ClusterQueryResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.Query(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
@@ -429,11 +459,8 @@ func (c *tchanNodeClient) Fetch(ctx thrift.Context, req *FetchRequest) (*FetchRe
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetch", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for fetch")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -447,11 +474,8 @@ func (c *tchanNodeClient) FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRe
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetchBatchRaw", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for fetchBatchRaw")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -465,11 +489,8 @@ func (c *tchanNodeClient) FetchBlocksMetadataRaw(ctx thrift.Context, req *FetchB
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetchBlocksMetadataRaw", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for fetchBlocksMetadataRaw")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -483,11 +504,8 @@ func (c *tchanNodeClient) FetchBlocksMetadataRawV2(ctx thrift.Context, req *Fetc
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetchBlocksMetadataRawV2", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for fetchBlocksMetadataRawV2")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -501,11 +519,8 @@ func (c *tchanNodeClient) FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRaw
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetchBlocksRaw", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for fetchBlocksRaw")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -519,11 +534,8 @@ func (c *tchanNodeClient) FetchTagged(ctx thrift.Context, req *FetchTaggedReques
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "fetchTagged", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for fetchTagged")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -535,11 +547,8 @@ func (c *tchanNodeClient) GetPersistRateLimit(ctx thrift.Context) (*NodePersistR
 	args := NodeGetPersistRateLimitArgs{}
 	success, err := c.client.Call(ctx, c.thriftService, "getPersistRateLimit", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for getPersistRateLimit")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -551,11 +560,8 @@ func (c *tchanNodeClient) GetWriteNewSeriesAsync(ctx thrift.Context) (*NodeWrite
 	args := NodeGetWriteNewSeriesAsyncArgs{}
 	success, err := c.client.Call(ctx, c.thriftService, "getWriteNewSeriesAsync", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for getWriteNewSeriesAsync")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -567,11 +573,8 @@ func (c *tchanNodeClient) GetWriteNewSeriesBackoffDuration(ctx thrift.Context) (
 	args := NodeGetWriteNewSeriesBackoffDurationArgs{}
 	success, err := c.client.Call(ctx, c.thriftService, "getWriteNewSeriesBackoffDuration", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for getWriteNewSeriesBackoffDuration")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -583,11 +586,8 @@ func (c *tchanNodeClient) GetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Con
 	args := NodeGetWriteNewSeriesLimitPerShardPerSecondArgs{}
 	success, err := c.client.Call(ctx, c.thriftService, "getWriteNewSeriesLimitPerShardPerSecond", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for getWriteNewSeriesLimitPerShardPerSecond")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -599,11 +599,23 @@ func (c *tchanNodeClient) Health(ctx thrift.Context) (*NodeHealthResult_, error)
 	args := NodeHealthArgs{}
 	success, err := c.client.Call(ctx, c.thriftService, "health", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for health")
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
+func (c *tchanNodeClient) Query(ctx thrift.Context, req *QueryRequest) (*QueryResult_, error) {
+	var resp NodeQueryResult
+	args := NodeQueryArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "query", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -615,11 +627,8 @@ func (c *tchanNodeClient) Repair(ctx thrift.Context) error {
 	args := NodeRepairArgs{}
 	success, err := c.client.Call(ctx, c.thriftService, "repair", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for repair")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -633,11 +642,8 @@ func (c *tchanNodeClient) SetPersistRateLimit(ctx thrift.Context, req *NodeSetPe
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "setPersistRateLimit", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for setPersistRateLimit")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -651,11 +657,8 @@ func (c *tchanNodeClient) SetWriteNewSeriesAsync(ctx thrift.Context, req *NodeSe
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "setWriteNewSeriesAsync", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for setWriteNewSeriesAsync")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -669,11 +672,8 @@ func (c *tchanNodeClient) SetWriteNewSeriesBackoffDuration(ctx thrift.Context, r
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "setWriteNewSeriesBackoffDuration", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for setWriteNewSeriesBackoffDuration")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -687,11 +687,8 @@ func (c *tchanNodeClient) SetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Con
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "setWriteNewSeriesLimitPerShardPerSecond", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for setWriteNewSeriesLimitPerShardPerSecond")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -705,11 +702,8 @@ func (c *tchanNodeClient) Truncate(ctx thrift.Context, req *TruncateRequest) (*T
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "truncate", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for truncate")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -723,11 +717,8 @@ func (c *tchanNodeClient) Write(ctx thrift.Context, req *WriteRequest) error {
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "write", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for write")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -741,11 +732,8 @@ func (c *tchanNodeClient) WriteBatchRaw(ctx thrift.Context, req *WriteBatchRawRe
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "writeBatchRaw", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for writeBatchRaw")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -759,11 +747,8 @@ func (c *tchanNodeClient) WriteTagged(ctx thrift.Context, req *WriteTaggedReques
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "writeTagged", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for writeTagged")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -777,11 +762,8 @@ func (c *tchanNodeClient) WriteTaggedBatchRaw(ctx thrift.Context, req *WriteTagg
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "writeTaggedBatchRaw", &args, &resp)
 	if err == nil && !success {
-		switch {
-		case resp.Err != nil:
-			err = resp.Err
-		default:
-			err = fmt.Errorf("received no result or unknown exception for writeTaggedBatchRaw")
+		if e := resp.Err; e != nil {
+			err = e
 		}
 	}
 
@@ -817,6 +799,7 @@ func (s *tchanNodeServer) Methods() []string {
 		"getWriteNewSeriesBackoffDuration",
 		"getWriteNewSeriesLimitPerShardPerSecond",
 		"health",
+		"query",
 		"repair",
 		"setPersistRateLimit",
 		"setWriteNewSeriesAsync",
@@ -854,6 +837,8 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleGetWriteNewSeriesLimitPerShardPerSecond(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
+	case "query":
+		return s.handleQuery(ctx, protocol)
 	case "repair":
 		return s.handleRepair(ctx, protocol)
 	case "setPersistRateLimit":
@@ -1170,6 +1155,34 @@ func (s *tchanNodeServer) handleHealth(ctx thrift.Context, protocol athrift.TPro
 
 	r, err :=
 		s.handler.Health(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleQuery(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeQueryArgs
+	var res NodeQueryResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.Query(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
