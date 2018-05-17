@@ -83,8 +83,8 @@ func (m *message) IsDroppedOrAcked() bool {
 
 // Ack acknowledges the message. Duplicated acks on the same message might cause panic.
 func (m *message) Ack() {
-	m.RefCountedData.DecRef()
 	m.isAcked.Store(true)
+	m.RefCountedData.DecRef()
 }
 
 // Metadata returns the metadata.

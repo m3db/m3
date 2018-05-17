@@ -38,7 +38,7 @@ type refCountedData struct {
 	onFinalizeFn OnFinalizeFn
 
 	refCount            *atomic.Int32
-	isDroppedOrConsumed bool
+	isDroppedOrConsumed *atomic.Bool
 }
 
 // NewRefCountedData creates RefCountedData.
@@ -47,7 +47,7 @@ func NewRefCountedData(data producer.Data, fn OnFinalizeFn) producer.RefCountedD
 		Data:                data,
 		refCount:            atomic.NewInt32(0),
 		onFinalizeFn:        fn,
-		isDroppedOrConsumed: false,
+		isDroppedOrConsumed: atomic.NewBool(false),
 	}
 }
 
@@ -90,19 +90,16 @@ func (d *refCountedData) Drop() bool {
 }
 
 func (d *refCountedData) IsDroppedOrConsumed() bool {
-	d.RLock()
-	r := d.isDroppedOrConsumed
-	d.RUnlock()
-	return r
+	return d.isDroppedOrConsumed.Load()
 }
 
 func (d *refCountedData) finalize(r producer.FinalizeReason) bool {
 	d.Lock()
-	if d.isDroppedOrConsumed {
+	if d.isDroppedOrConsumed.Load() {
 		d.Unlock()
 		return false
 	}
-	d.isDroppedOrConsumed = true
+	d.isDroppedOrConsumed.Store(true)
 	d.Unlock()
 	if d.onFinalizeFn != nil {
 		d.onFinalizeFn(d)
