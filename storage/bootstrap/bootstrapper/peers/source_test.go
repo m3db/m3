@@ -45,23 +45,31 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	replicaMajority := 2
-	blockSize := 2 * time.Hour
-	nsMetadata := testNamespaceMetadata(t)
-	shards := []uint32{0, 1, 2, 3}
-	shardTimeRangesToBootstrap := result.ShardTimeRanges{}
-	blockStart := time.Now().Truncate(blockSize)
-	for _, shard := range shards {
-		shardTimeRangesToBootstrap[shard] = xtime.Ranges{}.AddRange(xtime.Range{
+	var (
+		replicaMajority            = 2
+		blockSize                  = 2 * time.Hour
+		nsMetadata                 = testNamespaceMetadata(t)
+		shards                     = []uint32{0, 1, 2, 3}
+		blockStart                 = time.Now().Truncate(blockSize)
+		shardTimeRangesToBootstrap = result.ShardTimeRanges{}
+		bootstrapRanges            = xtime.Ranges{}.AddRange(xtime.Range{
 			Start: blockStart,
 			End:   blockStart.Add(blockSize),
 		})
+	)
+
+	for _, shard := range shards {
+		shardTimeRangesToBootstrap[shard] = bootstrapRanges
 	}
+
+	shardTimeRangesToBootstrapOneExtra := shardTimeRangesToBootstrap.Copy()
+	shardTimeRangesToBootstrapOneExtra[100] = bootstrapRanges
 
 	testCases := []struct {
 		title                             string
 		hosts                             []sourceAvailableHost
 		bootstrapReadConsistency          topology.ReadConsistencyLevel
+		shardsTimeRangesToBootstrap       result.ShardTimeRanges
 		expectedAvailableShardsTimeRanges result.ShardTimeRanges
 	}{
 		{
@@ -74,10 +82,11 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 				},
 			},
 			bootstrapReadConsistency:          topology.ReadConsistencyLevelMajority,
+			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
 		},
 		{
-			title: "Returns empty if all other peers initializing",
+			title: "Returns empty if all other peers initializing/unknown",
 			hosts: []sourceAvailableHost{
 				sourceAvailableHost{
 					host:        "self",
@@ -92,14 +101,38 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 				sourceAvailableHost{
 					host:        "other2",
 					shards:      shards,
-					shardStates: shard.Initializing,
+					shardStates: shard.Unknown,
 				},
 			},
 			bootstrapReadConsistency:          topology.ReadConsistencyLevelMajority,
+			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
 		},
 		{
-			title: "Returns success if consistency can be met",
+			title: "Returns success if consistency can be met (available/leaving)",
+			hosts: []sourceAvailableHost{
+				sourceAvailableHost{
+					host:        "self",
+					shards:      shards,
+					shardStates: shard.Initializing,
+				},
+				sourceAvailableHost{
+					host:        "other1",
+					shards:      shards,
+					shardStates: shard.Available,
+				},
+				sourceAvailableHost{
+					host:        "other2",
+					shards:      shards,
+					shardStates: shard.Leaving,
+				},
+			},
+			bootstrapReadConsistency:          topology.ReadConsistencyLevelMajority,
+			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
+			expectedAvailableShardsTimeRanges: shardTimeRangesToBootstrap,
+		},
+		{
+			title: "Skips shards that were not in the topology at start",
 			hosts: []sourceAvailableHost{
 				sourceAvailableHost{
 					host:        "self",
@@ -118,6 +151,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 				},
 			},
 			bootstrapReadConsistency:          topology.ReadConsistencyLevelMajority,
+			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrapOneExtra,
 			expectedAvailableShardsTimeRanges: shardTimeRangesToBootstrap,
 		},
 		{
@@ -140,6 +174,7 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 				},
 			},
 			bootstrapReadConsistency:          topology.ReadConsistencyLevelAll,
+			shardsTimeRangesToBootstrap:       shardTimeRangesToBootstrap,
 			expectedAvailableShardsTimeRanges: result.ShardTimeRanges{},
 		},
 	}
@@ -205,10 +240,10 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			src, err := newPeersSource(opts)
 			require.NoError(t, err)
 
-			dataRes := src.AvailableData(nsMetadata, shardTimeRangesToBootstrap)
+			dataRes := src.AvailableData(nsMetadata, tc.shardsTimeRangesToBootstrap)
 			require.Equal(t, tc.expectedAvailableShardsTimeRanges, dataRes)
 
-			indexRes := src.AvailableIndex(nsMetadata, shardTimeRangesToBootstrap)
+			indexRes := src.AvailableIndex(nsMetadata, tc.shardsTimeRangesToBootstrap)
 			require.Equal(t, tc.expectedAvailableShardsTimeRanges, indexRes)
 		})
 	}
