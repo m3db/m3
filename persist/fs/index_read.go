@@ -200,10 +200,10 @@ func (r *indexReader) ReadSegmentFileSet() (
 		var filePath string
 		switch r.fileSetType {
 		case persist.FileSetSnapshotType:
-			filePath = snapshotIndexSegmentFilePathFromTimeAndIndex(r.namespaceDir, r.start,
-				r.currIdx, segFileType, r.volumeIndex)
+			filePath = snapshotIndexSegmentFilePathFromTimeAndIndex(r.namespaceDir, r.start, r.volumeIndex,
+				r.currIdx, segFileType)
 		case persist.FileSetFlushType:
-			filePath = filesetIndexSegmentFilePathFromTime(r.namespaceDir, r.start,
+			filePath = filesetIndexSegmentFilePathFromTime(r.namespaceDir, r.start, r.volumeIndex,
 				r.currIdx, segFileType)
 		default:
 			closeFiles()

@@ -913,20 +913,21 @@ func filesetIndexSegmentFileSuffixFromTime(
 func filesetIndexSegmentFilePathFromTime(
 	prefix string,
 	t time.Time,
+	volumeIndex int,
 	segmentIndex int,
 	segmentFileType idxpersist.IndexSegmentFileType,
 ) string {
 	suffix := filesetIndexSegmentFileSuffixFromTime(prefix, t,
 		segmentIndex, segmentFileType)
-	return filesetPathFromTime(prefix, t, suffix)
+	return filesetPathFromTimeAndIndex(prefix, t, volumeIndex, suffix)
 }
 
 func snapshotIndexSegmentFilePathFromTimeAndIndex(
 	prefix string,
 	t time.Time,
+	snapshotIndex int,
 	segmentIndex int,
 	segmentFileType idxpersist.IndexSegmentFileType,
-	snapshotIndex int,
 ) string {
 	suffix := filesetIndexSegmentFileSuffixFromTime(prefix, t,
 		segmentIndex, segmentFileType)

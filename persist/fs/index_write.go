@@ -163,10 +163,10 @@ func (w *indexWriter) WriteSegmentFileSet(
 		var filePath string
 		switch w.fileSetType {
 		case persist.FileSetSnapshotType:
-			filePath = snapshotIndexSegmentFilePathFromTimeAndIndex(w.namespaceDir, w.start,
-				idx, segFileType, w.volumeIndex)
+			filePath = snapshotIndexSegmentFilePathFromTimeAndIndex(w.namespaceDir, w.start, w.volumeIndex,
+				idx, segFileType)
 		case persist.FileSetFlushType:
-			filePath = filesetIndexSegmentFilePathFromTime(w.namespaceDir, w.start,
+			filePath = filesetIndexSegmentFilePathFromTime(w.namespaceDir, w.start, w.volumeIndex,
 				idx, segFileType)
 		default:
 			err := fmt.Errorf("unknown fileset type: %s", w.fileSetType)
