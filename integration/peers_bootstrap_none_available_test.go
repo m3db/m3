@@ -104,12 +104,10 @@ func TestPeersBootstrapNoneAvailable(t *testing.T) {
 	serversAreUp := &sync.WaitGroup{}
 	serversAreUp.Add(2)
 	go func() {
-		// Start the first server with filesystem bootstrapper
 		require.NoError(t, setups[0].startServer())
 		serversAreUp.Done()
 	}()
 	go func() {
-		// Start the last server with peers and filesystem bootstrappers
 		require.NoError(t, setups[1].startServer())
 		serversAreUp.Done()
 	}()
