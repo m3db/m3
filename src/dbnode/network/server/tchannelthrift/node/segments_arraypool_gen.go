@@ -5,8 +5,8 @@
 package node
 
 import (
-	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3x/pool"
+	"github.com/m3db/tsdb_bak/generated/thrift/rpc"
 )
 
 // Copyright (c) 2018 Uber Technologies, Inc.

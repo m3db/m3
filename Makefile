@@ -35,7 +35,6 @@ SERVICES :=       \
 	m3coordinator
 
 SUBDIRS :=      \
-	cmd         \
 	dbnode      \
 	coordinator
 

@@ -10,8 +10,6 @@ coverage:
         flags: coordinator
       dbnode:
         flags: dbnode
-      cmd:
-        flags: cmd
     patch:
       default: on
     changes:
@@ -21,12 +19,11 @@ coverage:
     coordinator:
       paths:
         - src/coordinator/
+        - src/cmd/services/m3coordinator/
     dbnode:
       paths:
         - src/dbnode/
-    cmd:
-      paths:
-        - src/cmd/
+        - src/cmd/services/m3dbnode/
 
 comment:
   layout: "header, reach, diff, flags, footer"
