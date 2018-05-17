@@ -28,6 +28,7 @@ import (
 )
 
 var (
+	errEmptySearchers   = errors.New("list of searchers cannot be empty in a composite searcher")
 	errSearcherTooShort = errors.New("searcher did not contain enough postings lists")
 )
 

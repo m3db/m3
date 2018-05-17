@@ -32,21 +32,21 @@ import (
 
 // TermQuery finds document which match the given term exactly.
 type TermQuery struct {
-	Field []byte
-	Term  []byte
+	field []byte
+	term  []byte
 }
 
 // NewTermQuery constructs a new TermQuery for the given field and term.
 func NewTermQuery(field, term []byte) search.Query {
 	return &TermQuery{
-		Field: field,
-		Term:  term,
+		field: field,
+		term:  term,
 	}
 }
 
 // Searcher returns a searcher over the provided readers.
 func (q *TermQuery) Searcher(rs index.Readers) (search.Searcher, error) {
-	return searcher.NewTermSearcher(rs, q.Field, q.Term), nil
+	return searcher.NewTermSearcher(rs, q.field, q.term), nil
 }
 
 // Equal reports whether q is equivalent to o.
@@ -61,14 +61,14 @@ func (q *TermQuery) Equal(o search.Query) bool {
 		return false
 	}
 
-	return bytes.Equal(q.Field, inner.Field) && bytes.Equal(q.Term, inner.Term)
+	return bytes.Equal(q.field, inner.field) && bytes.Equal(q.term, inner.term)
 }
 
 // ToProto returns the Protobuf query struct corresponding to the term query.
 func (q *TermQuery) ToProto() *querypb.Query {
 	term := querypb.TermQuery{
-		Field: q.Field,
-		Term:  q.Term,
+		Field: q.field,
+		Term:  q.term,
 	}
 
 	return &querypb.Query{
@@ -77,5 +77,5 @@ func (q *TermQuery) ToProto() *querypb.Query {
 }
 
 func (q *TermQuery) String() string {
-	return fmt.Sprintf("term(%s, %s)", q.Field, q.Term)
+	return fmt.Sprintf("term(%s, %s)", q.field, q.term)
 }

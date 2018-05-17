@@ -31,13 +31,13 @@ import (
 func singular(q search.Query) (search.Query, bool) {
 	switch q := q.(type) {
 	case *ConjuctionQuery:
-		if len(q.Queries) == 1 {
-			return q.Queries[0], true
+		if len(q.queries) == 1 {
+			return q.queries[0], true
 		}
 		return nil, false
 	case *DisjuctionQuery:
-		if len(q.Queries) == 1 {
-			return q.Queries[0], true
+		if len(q.queries) == 1 {
+			return q.queries[0], true
 		}
 		return nil, false
 	}
