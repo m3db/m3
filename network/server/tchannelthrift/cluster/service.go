@@ -172,6 +172,9 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 
 	results, exhaustive, err := session.FetchTagged(nsID,
 		index.Query{Query: q}, opts)
+	if err != nil {
+		return nil, convert.ToRPCError(err)
+	}
 
 	result := &rpc.QueryResult_{
 		Results:    make([]*rpc.QueryResultElement, 0, results.Len()),
