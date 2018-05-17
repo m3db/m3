@@ -22,8 +22,15 @@ package index
 
 import (
 	"errors"
+	"fmt"
+	"math/rand"
+	"os"
 	"testing"
+	"time"
 
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/gen"
+	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/require"
 )
 
@@ -72,4 +79,94 @@ func TestBatchPartialError(t *testing.T) {
 
 	require.True(t, IsBatchPartialError(err))
 	require.False(t, IsBatchPartialError(errors.New("error")))
+}
+
+func TestBatchPartialErrorDupeFilter(t *testing.T) {
+	var (
+		idxs = []int{3, 7, 13}
+		err  = NewBatchPartialError()
+	)
+	require.True(t, err.IsEmpty())
+
+	for _, idx := range idxs {
+		err.Add(BatchError{ErrDuplicateID, idx})
+	}
+	require.False(t, err.IsEmpty())
+
+	var actualIdxs []int
+	for _, err := range err.Errs() {
+		actualIdxs = append(actualIdxs, err.Idx)
+	}
+
+	filtered := err.FilterDuplicateIDErrors()
+	require.Nil(t, filtered)
+}
+
+func TestBatchPartialErrorDupeFilterIncludeOther(t *testing.T) {
+	testErr := fmt.Errorf("testerr")
+
+	err := NewBatchPartialError()
+	err.Add(BatchError{ErrDuplicateID, 0})
+	filtered := err.FilterDuplicateIDErrors()
+	require.Nil(t, filtered)
+
+	err.Add(BatchError{testErr, 1})
+	filtered = err.FilterDuplicateIDErrors()
+	require.NotNil(t, filtered)
+
+}
+
+func TestBatchPartialErrorDupeFilterSingleElement(t *testing.T) {
+	testErr := fmt.Errorf("testerr")
+
+	err := NewBatchPartialError()
+	err.Add(BatchError{testErr, 1})
+	original := err.FilterDuplicateIDErrors()
+	require.NotNil(t, original)
+
+	err.Add(BatchError{ErrDuplicateID, 0})
+	after := err.FilterDuplicateIDErrors()
+	require.Equal(t, original.Error(), after.Error())
+}
+
+func TestBatchPartialErrorFilterPropTest(t *testing.T) {
+	parameters := gopter.DefaultTestParameters()
+	seed := time.Now().UnixNano()
+	parameters.MinSuccessfulTests = 1000
+	parameters.MaxSize = 40
+	parameters.Rng = rand.New(rand.NewSource(seed))
+	parameters.Workers = 1
+	properties := gopter.NewProperties(parameters)
+
+	properties.Property("Filtering errors works", prop.ForAll(
+		func(errStrings []string) bool {
+			errs := make([]error, 0, len(errStrings))
+			for _, err := range errStrings {
+				errs = append(errs, errors.New(err))
+			}
+			numDupeErrors := 0
+			b := NewBatchPartialError()
+			for i := range errs {
+				if errs[i] == ErrDuplicateID {
+					numDupeErrors++
+				}
+				b.Add(BatchError{errs[i], i})
+			}
+			nb := b.FilterDuplicateIDErrors()
+			if nb == nil {
+				return numDupeErrors == len(errs)
+			}
+			return len(nb.errs) == len(errs)-numDupeErrors
+		},
+		gen.SliceOf(genError()),
+	))
+
+	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
+	if !properties.Run(reporter) {
+		t.Errorf("failed with initial seed: %d", seed)
+	}
+}
+
+func genError() gopter.Gen {
+	return gen.OneConstOf(ErrDocNotFound.Error(), ErrDuplicateID.Error())
 }

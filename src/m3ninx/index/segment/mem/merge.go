@@ -23,6 +23,7 @@ package mem
 import (
 	"io"
 
+	"github.com/m3db/m3ninx/index"
 	sgmt "github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/x"
 )
@@ -58,7 +59,7 @@ func Merge(target sgmt.MutableSegment, srcs ...sgmt.MutableSegment) error {
 		for dIter.Next() {
 			d := dIter.Current()
 			_, err := target.Insert(d)
-			if err == nil || err == ErrDuplicateID {
+			if err == nil || err == index.ErrDuplicateID {
 				continue
 			}
 			return err

@@ -22,9 +22,15 @@ package index
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/m3db/m3ninx/doc"
+)
+
+var (
+	// ErrDuplicateID is the error returned when a batch contains duplicate IDs.
+	ErrDuplicateID = errors.New("a batch cannot contain duplicate IDs")
 )
 
 // Batch represents a batch of documents that should be inserted into the index.
@@ -97,6 +103,31 @@ func (e *BatchPartialError) Error() string {
 		}
 	}
 	return b.String()
+}
+
+// FilterDuplicateIDErrors returns a new BatchPartialError (or nil), without
+// any DuplicateIDError(s).
+// NB(prateek): it mutates the order of errors in the original error to avoid
+// allocations.
+func (e *BatchPartialError) FilterDuplicateIDErrors() *BatchPartialError {
+	// cheap to do the copy as it's just pointers for the slices
+	var (
+		errs = e.errs
+		i    = 0
+	)
+
+	for i < len(errs) {
+		if errs[i].Err == ErrDuplicateID {
+			errs[i], errs[len(errs)-1] = errs[len(errs)-1], errs[i]
+			errs = errs[:len(errs)-1]
+			continue
+		}
+		i++
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	return &BatchPartialError{errs: errs}
 }
 
 // Add adds an error to e. Any nil errors are ignored.

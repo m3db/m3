@@ -33,9 +33,6 @@ import (
 )
 
 var (
-	// ErrDuplicateID is the error returned when a batch contains duplicate IDs.
-	ErrDuplicateID = errors.New("a batch cannot contain duplicate IDs")
-
 	errSegmentSealed     = errors.New("unable to seal, segment has already been sealed")
 	errSegmentIsUnsealed = errors.New("un-supported operation on an un-sealed mutable segment")
 )
@@ -205,9 +202,9 @@ func (s *segment) prepareDocsWithLocks(b index.Batch) error {
 
 			if _, ok := s.writer.idSet.Get(d.ID); ok {
 				if !b.AllowPartialUpdates {
-					return ErrDuplicateID
+					return index.ErrDuplicateID
 				}
-				batchErr.Add(index.BatchError{Err: ErrDuplicateID, Idx: i})
+				batchErr.Add(index.BatchError{Err: index.ErrDuplicateID, Idx: i})
 				b.Docs[i] = emptyDoc
 				continue
 			}
