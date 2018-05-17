@@ -91,7 +91,11 @@ func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
-	peerAvailabilityByShard := map[uint32]*shardPeerAvailability{}
+	var (
+		self                    = s.opts.AdminClient().Options().(client.AdminOptions).Origin().ID()
+		peerAvailabilityByShard = map[uint32]*shardPeerAvailability{}
+	)
+
 	for shardID := range shardsTimeRanges {
 		shardPeers, ok := peerAvailabilityByShard[shardID]
 		if !ok {
@@ -107,6 +111,11 @@ func (s *peersSource) AvailableData(
 
 		shardPeers.numPeers = len(hostShardStates)
 		for _, hostShardState := range hostShardStates {
+			if hostShardState.host.ID() == self {
+				// Don't take self into account
+				continue
+			}
+
 			shardState := hostShardState.shardState
 
 			switch shardState {
@@ -170,8 +179,6 @@ func (s *peersSource) ReadData(
 	if shardsTimeRanges.IsEmpty() {
 		return result.NewDataBootstrapResult(), nil
 	}
-
-	fmt.Println("ROFLCOPTER")
 
 	var (
 		namespace         = nsMetadata.ID()
@@ -341,13 +348,10 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 		currRange := it.Value()
 
 		for blockStart := currRange.Start; blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
-			fmt.Println("LOOPING")
 			version := s.opts.FetchBlocksMetadataEndpointVersion()
 			blockEnd := blockStart.Add(blockSize)
 			shardResult, err := session.FetchBootstrapBlocksFromPeers(
 				nsMetadata, shard, blockStart, blockEnd, bopts, version)
-			fmt.Println(shardResult)
-			fmt.Println(err)
 
 			s.logFetchBootstrapBlocksFromPeersOutcome(shard, shardResult, err)
 
@@ -801,6 +805,7 @@ func initialTopologyState(opts Options) (topologyState, error) {
 			shardStates:      shardStates{},
 		}
 	)
+
 	for _, hostShardSet := range hostShardSets {
 		for _, currShard := range hostShardSet.ShardSet().All() {
 			shardID := currShard.ID()
