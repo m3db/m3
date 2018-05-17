@@ -170,12 +170,6 @@ func TestCommitLogIndexBootstrap(t *testing.T) {
 	session, err := setup.m3dbClient.DefaultSession()
 	require.NoError(t, err)
 
-	adminSession, err := setup.m3dbAdminClient.DefaultAdminSession()
-	require.NoError(t, err)
-	topo, err := adminSession.Topology()
-	require.NoError(t, err)
-	topoMap := topo.Get()
-
 	start := now.Add(-rOpts.RetentionPeriod())
 	end := now.Add(blockSize)
 	queryOpts := index.QueryOptions{StartInclusive: start, EndExclusive: end}
