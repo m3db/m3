@@ -35,6 +35,7 @@ SERVICES :=       \
 	m3coordinator
 
 SUBDIRS :=      \
+	cmd         \
 	dbnode      \
 	coordinator
 
@@ -181,17 +182,17 @@ test-single-integration-$(SUBDIR):
 .PHONY: test-ci-unit-$(SUBDIR)
 test-ci-unit-$(SUBDIR):
 	SRC_ROOT=./src/$(SUBDIR) make test-base
-	$(codecov_push) -f $(coverfile) -F db
+	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
 .PHONY: test-ci-big-unit-$(SUBDIR)
 test-ci-big-unit-$(SUBDIR):
 	SRC_ROOT=./src/$(SUBDIR) make test-big-base
-	$(codecov_push) -f $(coverfile) -F db
+	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
 .PHONY: test-ci-integration-$(SUBDIR)
 test-ci-integration-$(SUBDIR):
 	SRC_ROOT=./src/$(SUBDIR) INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
-	$(codecov_push) -f $(coverfile) -F db
+	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
 endef
 
