@@ -47,13 +47,17 @@ const (
 	defaultEtcdServerPort = 2380
 )
 
-// Configuration is the top level configuration that includes both a DB node and coordinator
+// Configuration is the top level configuration that includes both a DB
+// node and a coordinator.
 type Configuration struct {
-	DB          DBConfiguration               `yaml:"db"`
+	// DB is the configuration for a DB node (required).
+	DB DBConfiguration `yaml:"db"`
+
+	// Coordinator is the configuration for the coordinator to run (optional).
 	Coordinator *coordinatorcfg.Configuration `yaml:"coordinator"`
 }
 
-// DBConfiguration is the configuration for an M3DB node.
+// DBConfiguration is the configuration for a DB node.
 type DBConfiguration struct {
 	// Logging configuration.
 	Logging xlog.Configuration `yaml:"logging"`

@@ -139,7 +139,12 @@ func Run(runOpts RunOptions) {
 	handler.RegisterRoutes()
 
 	logger.Info("starting server", zap.String("address", cfg.ListenAddress))
-	go http.ListenAndServe(cfg.ListenAddress, handler.Router)
+	go func() {
+		if err := http.ListenAndServe(cfg.ListenAddress, handler.Router); err != nil {
+			logger.Fatal("unable to serve on listen address",
+				zap.Any("address", cfg.ListenAddress), zap.Any("error", err))
+		}
+	}()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
