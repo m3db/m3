@@ -82,7 +82,7 @@ func ceilDivision(numerator, denominator int) int {
 
 func convertToProm(fromFile, dir, toFile string, workers int, batchSize int, logger *zap.Logger) (int, error) {
 	lines, err := lineLength(fromFile)
-	logger.Info("Converting open_tsdb metrics to prom", zap.Info("lines", lines))
+	logger.Info("Converting open_tsdb metrics to prom", zap.Int("lines", lines))
 
 	if err != nil {
 		return 0, err
