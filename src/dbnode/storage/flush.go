@@ -34,7 +34,7 @@ import (
 )
 
 var (
-	errFlushOrSnapshotAlreadyInProgress = errors.New("flush or snapshot already in progress")
+	errFlushOperationsInProgress = errors.New("flush operations already in progress")
 )
 
 type flushManagerState int
@@ -46,6 +46,7 @@ const (
 	flushManagerNotIdle
 	flushManagerFlushInProgress
 	flushManagerSnapshotInProgress
+	flushManagerIndexFlushInProgress
 )
 
 type flushManager struct {
@@ -57,19 +58,21 @@ type flushManager struct {
 	// isFlushingOrSnapshotting is used to protect the flush manager against
 	// concurrent use, while flushInProgress and snapshotInProgress are more
 	// granular and are used for emitting granular gauges.
-	state          flushManagerState
-	isFlushing     tally.Gauge
-	isSnapshotting tally.Gauge
+	state           flushManagerState
+	isFlushing      tally.Gauge
+	isSnapshotting  tally.Gauge
+	isIndexFlushing tally.Gauge
 }
 
 func newFlushManager(database database, scope tally.Scope) databaseFlushManager {
 	opts := database.Options()
 	return &flushManager{
-		database:       database,
-		opts:           opts,
-		pm:             opts.PersistManager(),
-		isFlushing:     scope.Gauge("flush"),
-		isSnapshotting: scope.Gauge("snapshot"),
+		database:        database,
+		opts:            opts,
+		pm:              opts.PersistManager(),
+		isFlushing:      scope.Gauge("flush"),
+		isSnapshotting:  scope.Gauge("snapshot"),
+		isIndexFlushing: scope.Gauge("index-flush"),
 	}
 }
 
@@ -81,7 +84,7 @@ func (m *flushManager) Flush(
 	m.Lock()
 	if m.state != flushManagerIdle {
 		m.Unlock()
-		return errFlushOrSnapshotAlreadyInProgress
+		return errFlushOperationsInProgress
 	}
 	m.state = flushManagerNotIdle
 	m.Unlock()
@@ -137,8 +140,31 @@ func (m *flushManager) Flush(
 		}
 	}
 
-	// mark flush finished
-	multiErr = multiErr.Add(flush.Done())
+	// mark data flush finished
+	multiErr = multiErr.Add(flush.DoneData())
+
+	// flush index data
+	// create index-flusher
+	indexFlush, err := m.pm.StartIndexPersist()
+	if err != nil {
+		multiErr = multiErr.Add(err)
+		return multiErr.FinalError()
+	}
+
+	m.setState(flushManagerIndexFlushInProgress)
+	for _, ns := range namespaces {
+		var (
+			indexOpts    = ns.Options().IndexOptions()
+			indexEnabled = indexOpts.Enabled()
+		)
+		if !indexEnabled {
+			continue
+		}
+		multiErr = multiErr.Add(ns.FlushIndex(tickStart, indexFlush))
+	}
+	// mark index flush finished
+	multiErr = multiErr.Add(indexFlush.DoneIndex())
+
 	return multiErr.FinalError()
 }
 
@@ -157,6 +183,12 @@ func (m *flushManager) Report() {
 		m.isSnapshotting.Update(1)
 	} else {
 		m.isSnapshotting.Update(0)
+	}
+
+	if state == flushManagerIndexFlushInProgress {
+		m.isIndexFlushing.Update(1)
+	} else {
+		m.isIndexFlushing.Update(0)
 	}
 }
 

@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	m3ninxindex "github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/index/segment/mem"
@@ -61,24 +62,30 @@ type newExecutorFn func() (search.Executor, error)
 
 type block struct {
 	sync.RWMutex
-	state                blockState
-	bootstrappedSegments []segment.Segment
-	segment              segment.MutableSegment
+	state                   blockState
+	immutableSegments       []segment.Segment
+	inactiveMutableSegments []segment.MutableSegment
+	activeSegment           segment.MutableSegment
 
 	newExecutorFn newExecutorFn
 	startTime     time.Time
 	endTime       time.Time
 	blockSize     time.Duration
 	opts          Options
+	nsMD          namespace.Metadata
 }
 
 // NewBlock returns a new Block, representing a complete reverse index for the
 // duration of time specified. It is backed by one or more segments.
 func NewBlock(
 	startTime time.Time,
-	blockSize time.Duration,
+	md namespace.Metadata,
 	opts Options,
 ) (Block, error) {
+	var (
+		blockSize = md.Options().IndexOptions().BlockSize()
+	)
+
 	// FOLLOWUP(prateek): use this to track segments when we have multiple segments in a Block.
 	postingsOffset := postings.ID(0)
 	seg, err := mem.NewSegment(postingsOffset, opts.MemSegmentOptions())
@@ -87,12 +94,14 @@ func NewBlock(
 	}
 
 	b := &block{
-		state:     blockStateOpen,
-		segment:   seg,
+		state:         blockStateOpen,
+		activeSegment: seg,
+
 		startTime: startTime,
 		endTime:   startTime.Add(blockSize),
 		blockSize: blockSize,
 		opts:      opts,
+		nsMD:      md,
 	}
 	b.newExecutorFn = b.executorWithRLock
 
@@ -119,7 +128,7 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 		}, err
 	}
 
-	err := b.segment.InsertBatch(m3ninxindex.Batch{
+	err := b.activeSegment.InsertBatch(m3ninxindex.Batch{
 		Docs:                inserts.PendingDocs(),
 		AllowPartialUpdates: true,
 	})
@@ -154,7 +163,7 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 
 func (b *block) executorWithRLock() (search.Executor, error) {
 	var (
-		readers = make([]m3ninxindex.Reader, 0, 1+len(b.bootstrappedSegments))
+		readers = make([]m3ninxindex.Reader, 0, 1+len(b.inactiveMutableSegments)+len(b.immutableSegments))
 		success = false
 	)
 
@@ -167,15 +176,24 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 		}
 	}()
 
-	// start with the actively written to segment
-	reader, err := b.segment.Reader()
+	// start with the segment that's being actively written to
+	reader, err := b.activeSegment.Reader()
 	if err != nil {
 		return nil, err
 	}
 	readers = append(readers, reader)
 
-	// include all bootstrapped segments
-	for _, seg := range b.bootstrappedSegments {
+	// include all immutable segments
+	for _, seg := range b.immutableSegments {
+		reader, err := seg.Reader()
+		if err != nil {
+			return nil, err
+		}
+		readers = append(readers, reader)
+	}
+
+	// include all inactiveMutable segments
+	for _, seg := range b.inactiveMutableSegments {
 		reader, err := seg.Reader()
 		if err != nil {
 			return nil, err
@@ -252,36 +270,44 @@ func (b *block) Query(
 	return exhaustive, nil
 }
 
-type safeCloser struct {
-	closable
-	closed bool
-}
-
-func (c *safeCloser) Close() error {
-	if c.closed {
-		return nil
-	}
-	c.closed = true
-	return c.closable.Close()
-}
-
-type closable interface {
-	Close() error
-}
-
 func (b *block) Bootstrap(
 	segments []segment.Segment,
 ) error {
-	// NB(prateek): we have to allow bootstrap to succeed even if we're Sealed
-	// because of topology changes.
 	b.Lock()
 	defer b.Unlock()
+
+	// NB(prateek): we have to allow bootstrap to succeed even if we're Sealed because
+	// of topology changes. i.e. if the current m3db process is assigned new shards,
+	// we need to include their data in the index.
+
+	// i.e. the only state we do not accept bootstrapped data is if we are closed.
 	if b.state == blockStateClosed {
 		return errUnableToBootstrapBlockClosed
 	}
 
-	b.bootstrappedSegments = append(b.bootstrappedSegments, segments...)
-	return nil
+	// NB: need to check if the current block has been marked 'Sealed' and if so,
+	// mark all incoming mutable segments the same.
+	isSealed := b.IsSealedWithRLock()
+
+	var multiErr xerrors.MultiError
+	for _, seg := range segments {
+		switch x := seg.(type) {
+		case segment.MutableSegment:
+			if isSealed {
+				_, err := x.Seal()
+				if err != nil {
+					// if this happens it means a Mutable segment was marked sealed
+					// in the bootstrappers, this should never happen.
+					multiErr = multiErr.Add(b.bootstrappingSealedMutableSegmentInvariant(err))
+				}
+			}
+			b.inactiveMutableSegments = append(b.inactiveMutableSegments, x)
+		default:
+			b.immutableSegments = append(b.immutableSegments, x)
+		}
+	}
+
+	return multiErr.FinalError()
 }
 
 func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
@@ -292,12 +318,20 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 		return result, errUnableToTickBlockClosed
 	}
 
-	// active segment
-	result.NumSegments++
-	result.NumDocs += b.segment.Size()
+	// active segment, can be nil incase we've evicted it already.
+	if b.activeSegment != nil {
+		result.NumSegments++
+		result.NumDocs += b.activeSegment.Size()
+	}
 
-	// bootstrapped segments
-	for _, seg := range b.bootstrappedSegments {
+	// any other mutable segments
+	for _, seg := range b.inactiveMutableSegments {
+		result.NumSegments++
+		result.NumDocs += seg.Size()
+	}
+
+	// any immutable segments
+	for _, seg := range b.immutableSegments {
 		result.NumSegments++
 		result.NumDocs += seg.Size()
 	}
@@ -308,17 +342,36 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 func (b *block) Seal() error {
 	b.Lock()
 	defer b.Unlock()
+
+	// ensure we only Seal if we're marked Open
 	if b.state != blockStateOpen {
 		return fmt.Errorf(errUnableToSealBlockIllegalStateFmtString, b.state)
 	}
 	b.state = blockStateSealed
-	return nil
+
+	var multiErr xerrors.MultiError
+
+	// seal active mutable segment.
+	_, err := b.activeSegment.Seal()
+	multiErr = multiErr.Add(err)
+
+	// seal any inactive mutable segments.
+	for _, seg := range b.inactiveMutableSegments {
+		_, err := seg.Seal()
+		multiErr = multiErr.Add(err)
+	}
+
+	return multiErr.FinalError()
+}
+
+func (b *block) IsSealedWithRLock() bool {
+	return b.state == blockStateSealed
 }
 
 func (b *block) IsSealed() bool {
 	b.RLock()
 	defer b.RUnlock()
-	return b.state == blockStateSealed
+	return b.IsSealedWithRLock()
 }
 
 func (b *block) Close() error {
@@ -330,11 +383,22 @@ func (b *block) Close() error {
 	b.state = blockStateClosed
 
 	var multiErr xerrors.MultiError
-	multiErr = multiErr.Add(b.segment.Close())
-	for _, seg := range b.bootstrappedSegments {
+
+	multiErr = multiErr.Add(b.activeSegment.Close())
+	b.activeSegment = nil
+
+	// close any inactiveMutable segments.
+	for _, seg := range b.inactiveMutableSegments {
 		multiErr = multiErr.Add(seg.Close())
 	}
-	b.bootstrappedSegments = nil
+	b.inactiveMutableSegments = nil
+
+	// close all immutable segments.
+	for _, seg := range b.immutableSegments {
+		multiErr = multiErr.Add(seg.Close())
+	}
+	b.immutableSegments = nil
+
 	return multiErr.FinalError()
 }
 
@@ -355,4 +419,27 @@ func (b *block) unknownWriteBatchInvariantError(err error) error {
 	wrappedErr := fmt.Errorf("unexpected non-BatchPartialError from m3ninx InsertBatch: %v", err)
 	instrument.EmitInvariantViolationAndGetLogger(b.opts.InstrumentOptions()).Errorf(wrappedErr.Error())
 	return wrappedErr
+}
+
+func (b *block) bootstrappingSealedMutableSegmentInvariant(err error) error {
+	wrapped := fmt.Errorf("internal error: bootstrapping a mutable segment already marked sealed: %v", err)
+	instrument.EmitInvariantViolationAndGetLogger(b.opts.InstrumentOptions()).Errorf(wrapped.Error())
+	return wrapped
+}
+
+type closable interface {
+	Close() error
+}
+
+type safeCloser struct {
+	closable
+	closed bool
+}
+
+func (c *safeCloser) Close() error {
+	if c.closed {
+		return nil
+	}
+	c.closed = true
+	return c.closable.Close()
 }

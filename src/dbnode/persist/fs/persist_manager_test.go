@@ -22,6 +22,7 @@ package fs
 
 import (
 	"errors"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -29,47 +30,23 @@ import (
 	"github.com/m3db/m3db/src/dbnode/digest"
 	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/ts"
+	"github.com/m3db/m3ninx/index/segment"
+	m3ninxfs "github.com/m3db/m3ninx/index/segment/fs"
+	m3ninxpersist "github.com/m3db/m3ninx/persist"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
+	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func createDataShardDir(t *testing.T, prefix string, namespace ident.ID, shard uint32) string {
-	shardDirPath := ShardDataDirPath(prefix, namespace, shard)
-	err := os.MkdirAll(shardDirPath, os.ModeDir|os.FileMode(0755))
-	require.Nil(t, err)
-	return shardDirPath
-}
-
-func testManager(
-	t *testing.T,
-	ctrl *gomock.Controller,
-) (*persistManager, *MockDataFileSetWriter, Options) {
-	dir := createTempDir(t)
-
-	opts := testDefaultOpts.
-		SetFilePathPrefix(dir).
-		SetWriterBufferSize(10)
-
-	writer := NewMockDataFileSetWriter(ctrl)
-
-	mgr, err := NewPersistManager(opts)
-	require.NoError(t, err)
-
-	manager := mgr.(*persistManager)
-	manager.writer = writer
-
-	return manager, writer, opts
-}
-
 func TestPersistenceManagerPrepareDataFileExistsNoDelete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, _, _ := testManager(t, ctrl)
+	pm, _, _ := testDataPersistManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
@@ -84,7 +61,7 @@ func TestPersistenceManagerPrepareDataFileExistsNoDelete(t *testing.T) {
 	require.NoError(t, err)
 
 	defer func() {
-		assert.NoError(t, flush.Done())
+		assert.NoError(t, flush.DoneData())
 	}()
 
 	prepareOpts := persist.DataPrepareOptions{
@@ -92,7 +69,7 @@ func TestPersistenceManagerPrepareDataFileExistsNoDelete(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, err := flush.Prepare(prepareOpts)
+	prepared, err := flush.PrepareData(prepareOpts)
 	require.Equal(t, errPersistManagerFileSetAlreadyExists, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -102,20 +79,20 @@ func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer, _ := testManager(t, ctrl)
+	pm, writer, _ := testDataPersistManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 
-	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: FileSetFileIdentifier{
+	writerOpts := xtest.CmpMatcher(DataWriterOpenOptions{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
 		},
 		BlockSize: testBlockSize,
-	}
+	})
 	writer.EXPECT().Open(writerOpts).Return(nil)
 
 	shardDir := createDataShardDir(t, pm.filePathPrefix, testNs1ID, shard)
@@ -128,7 +105,7 @@ func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {
 	require.NoError(t, err)
 
 	defer func() {
-		assert.NoError(t, flush.Done())
+		assert.NoError(t, flush.DoneData())
 	}()
 
 	prepareOpts := persist.DataPrepareOptions{
@@ -137,7 +114,7 @@ func TestPersistenceManagerPrepareDataFileExistsWithDelete(t *testing.T) {
 		BlockStart:        blockStart,
 		DeleteIfExists:    true,
 	}
-	prepared, err := flush.Prepare(prepareOpts)
+	prepared, err := flush.PrepareData(prepareOpts)
 	require.NoError(t, err)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
@@ -150,7 +127,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer, _ := testManager(t, ctrl)
+	pm, writer, _ := testDataPersistManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	ns1Md := testNs1Metadata(t)
@@ -158,21 +135,21 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	blockStart := time.Unix(1000, 0)
 	expectedErr := errors.New("foo")
 
-	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: FileSetFileIdentifier{
+	writerOpts := xtest.CmpMatcher(DataWriterOpenOptions{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
 		},
 		BlockSize: testBlockSize,
-	}
+	})
 	writer.EXPECT().Open(writerOpts).Return(expectedErr)
 
 	flush, err := pm.StartDataPersist()
 	require.NoError(t, err)
 
 	defer func() {
-		assert.NoError(t, flush.Done())
+		assert.NoError(t, flush.DoneData())
 	}()
 
 	prepareOpts := persist.DataPrepareOptions{
@@ -180,7 +157,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, err := flush.Prepare(prepareOpts)
+	prepared, err := flush.PrepareData(prepareOpts)
 	require.Equal(t, expectedErr, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -190,19 +167,19 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer, _ := testManager(t, ctrl)
+	pm, writer, _ := testDataPersistManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: FileSetFileIdentifier{
+	writerOpts := xtest.CmpMatcher(DataWriterOpenOptions{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
 		},
 		BlockSize: testBlockSize,
-	}
+	})
 	writer.EXPECT().Open(writerOpts).Return(nil)
 
 	var (
@@ -220,7 +197,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	require.NoError(t, err)
 
 	defer func() {
-		assert.NoError(t, flush.Done())
+		assert.NoError(t, flush.DoneData())
 	}()
 
 	now := time.Now()
@@ -233,7 +210,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, err := flush.Prepare(prepareOpts)
+	prepared, err := flush.PrepareData(prepareOpts)
 	defer prepared.Close()
 
 	require.Nil(t, err)
@@ -245,34 +222,193 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	require.Equal(t, int64(104), pm.bytesWritten)
 }
 
-func TestPersistenceManagerClose(t *testing.T) {
+func TestPersistenceManagerCloseData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer, _ := testManager(t, ctrl)
+	pm, writer, _ := testDataPersistManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	writer.EXPECT().Close()
-	pm.close()
+	pm.closeData()
+}
+
+func TestPersistenceManagerCloseIndex(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{t})
+	defer ctrl.Finish()
+
+	pm, _, _, _ := testIndexPersistManager(t, ctrl)
+	defer os.RemoveAll(pm.filePathPrefix)
+	pm.closeIndex()
+}
+
+func TestPersistenceManagerPrepareIndexFileExists(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{t})
+	defer ctrl.Finish()
+
+	pm, writer, segWriter, _ := testIndexPersistManager(t, ctrl)
+	defer os.RemoveAll(pm.filePathPrefix)
+
+	blockStart := time.Unix(1000, 0)
+	indexDir := createIndexDataDir(t, pm.filePathPrefix, testNs1ID)
+	checkpointFilePath := filesetPathFromTimeAndIndex(indexDir, blockStart, 0, checkpointFileSuffix)
+	f, err := os.Create(checkpointFilePath)
+	require.NoError(t, err)
+	f.Close()
+
+	flush, err := pm.StartIndexPersist()
+	require.NoError(t, err)
+
+	defer func() {
+		segWriter.EXPECT().Reset(nil)
+		assert.NoError(t, flush.DoneIndex())
+	}()
+
+	prepareOpts := persist.IndexPrepareOptions{
+		NamespaceMetadata: testNs1Metadata(t),
+		BlockStart:        blockStart,
+	}
+	writer.EXPECT().Open(xtest.CmpMatcher(
+		IndexWriterOpenOptions{
+			BlockSize: testBlockSize,
+			Identifier: FileSetFileIdentifier{
+				FileSetContentType: persist.FileSetIndexContentType,
+				BlockStart:         blockStart,
+				Namespace:          testNs1ID,
+				VolumeIndex:        1,
+			},
+		},
+	)).Return(nil)
+	prepared, err := flush.PrepareIndex(prepareOpts)
+	require.NoError(t, err)
+	require.NotNil(t, prepared.Persist)
+	require.NotNil(t, prepared.Close)
+}
+
+func TestPersistenceManagerPrepareIndexOpenError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	pm, writer, segWriter, _ := testIndexPersistManager(t, ctrl)
+	defer os.RemoveAll(pm.filePathPrefix)
+
+	ns1Md := testNs1Metadata(t)
+	blockStart := time.Unix(1000, 0)
+	expectedErr := errors.New("foo")
+
+	writerOpts := xtest.CmpMatcher(IndexWriterOpenOptions{
+		Identifier: FileSetFileIdentifier{
+			FileSetContentType: persist.FileSetIndexContentType,
+			Namespace:          testNs1ID,
+			BlockStart:         blockStart,
+		},
+		BlockSize: testBlockSize,
+	})
+	writer.EXPECT().Open(writerOpts).Return(expectedErr)
+
+	flush, err := pm.StartIndexPersist()
+	require.NoError(t, err)
+
+	defer func() {
+		segWriter.EXPECT().Reset(nil)
+		assert.NoError(t, flush.DoneIndex())
+	}()
+
+	prepareOpts := persist.IndexPrepareOptions{
+		NamespaceMetadata: ns1Md,
+		BlockStart:        blockStart,
+	}
+	prepared, err := flush.PrepareIndex(prepareOpts)
+	require.Equal(t, expectedErr, err)
+	require.Nil(t, prepared.Persist)
+	require.Nil(t, prepared.Close)
+}
+
+func TestPersistenceManagerPrepareIndexSuccess(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{t})
+	defer ctrl.Finish()
+
+	pm, writer, segWriter, _ := testIndexPersistManager(t, ctrl)
+	defer os.RemoveAll(pm.filePathPrefix)
+
+	blockStart := time.Unix(1000, 0)
+	writerOpts := IndexWriterOpenOptions{
+		Identifier: FileSetFileIdentifier{
+			FileSetContentType: persist.FileSetIndexContentType,
+			Namespace:          testNs1ID,
+			BlockStart:         blockStart,
+		},
+		BlockSize: testBlockSize,
+	}
+	writer.EXPECT().Open(xtest.CmpMatcher(writerOpts)).Return(nil)
+
+	flush, err := pm.StartIndexPersist()
+	require.NoError(t, err)
+
+	defer func() {
+		segWriter.EXPECT().Reset(nil)
+		assert.NoError(t, flush.DoneIndex())
+	}()
+
+	prepareOpts := persist.IndexPrepareOptions{
+		NamespaceMetadata: testNs1Metadata(t),
+		BlockStart:        blockStart,
+	}
+	prepared, err := flush.PrepareIndex(prepareOpts)
+	require.NoError(t, err)
+
+	seg := segment.NewMockMutableSegment(ctrl)
+	segWriter.EXPECT().Reset(seg).Return(nil)
+	writer.EXPECT().WriteSegmentFileSet(segWriter).Return(nil)
+	require.NoError(t, prepared.Persist(seg))
+
+	reader := NewMockIndexFileSetReader(ctrl)
+	pm.indexPM.newReaderFn = func(Options) (IndexFileSetReader, error) {
+		return reader, nil
+	}
+
+	reader.EXPECT().Open(xtest.CmpMatcher(IndexReaderOpenOptions{
+		Identifier: writerOpts.Identifier,
+	})).Return(nil)
+
+	file := NewMockIndexSegmentFile(ctrl)
+	gomock.InOrder(
+		reader.EXPECT().SegmentFileSets().Return(1),
+		reader.EXPECT().ReadSegmentFileSet().Return(file, nil),
+		reader.EXPECT().ReadSegmentFileSet().Return(nil, io.EOF),
+	)
+	fsSeg := m3ninxfs.NewMockSegment(ctrl)
+	pm.indexPM.newPersistentSegmentFn = func(
+		fset m3ninxpersist.IndexSegmentFileSet, opts m3ninxfs.NewSegmentOpts,
+	) (m3ninxfs.Segment, error) {
+		require.Equal(t, file, fset)
+		return fsSeg, nil
+	}
+
+	writer.EXPECT().Close().Return(nil)
+	segs, err := prepared.Close()
+	require.NoError(t, err)
+	require.Len(t, segs, 1)
+	require.Equal(t, fsSeg, segs[0])
 }
 
 func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer, _ := testManager(t, ctrl)
+	pm, writer, _ := testDataPersistManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: FileSetFileIdentifier{
+	writerOpts := xtest.CmpMatcher(DataWriterOpenOptions{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
 		},
 		BlockSize: testBlockSize,
-	}
+	})
 	writer.EXPECT().Open(writerOpts).Return(nil)
 
 	var (
@@ -289,13 +425,13 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
-	writer.EXPECT().WriteAll(id, tags, pm.segmentHolder, checksum).Return(nil).Times(2)
+	writer.EXPECT().WriteAll(id, tags, pm.dataPM.segmentHolder, checksum).Return(nil).Times(2)
 
 	flush, err := pm.StartDataPersist()
 	require.NoError(t, err)
 
 	defer func() {
-		assert.NoError(t, flush.Done())
+		assert.NoError(t, flush.DoneData())
 	}()
 
 	// prepare the flush
@@ -304,7 +440,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, err := flush.Prepare(prepareOpts)
+	prepared, err := flush.PrepareData(prepareOpts)
 	require.NoError(t, err)
 
 	// Start persistence
@@ -324,7 +460,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer, opts := testManager(t, ctrl)
+	pm, writer, opts := testDataPersistManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
@@ -344,16 +480,16 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
-	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: FileSetFileIdentifier{
+	writerOpts := xtest.CmpMatcher(DataWriterOpenOptions{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
 		},
 		BlockSize: testBlockSize,
-	}
+	})
 	writer.EXPECT().Open(writerOpts).Return(nil).Times(iter)
-	writer.EXPECT().WriteAll(id, ident.Tags{}, pm.segmentHolder, checksum).Return(nil).AnyTimes()
+	writer.EXPECT().WriteAll(id, ident.Tags{}, pm.dataPM.segmentHolder, checksum).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 
 	// Enable rate limiting
@@ -387,7 +523,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 			Shard:             shard,
 			BlockStart:        blockStart,
 		}
-		prepared, err := flush.Prepare(prepareOpts)
+		prepared, err := flush.PrepareData(prepareOpts)
 		require.NoError(t, err)
 
 		// Start persistence
@@ -413,7 +549,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 
 		require.NoError(t, prepared.Close())
 
-		assert.NoError(t, flush.Done())
+		assert.NoError(t, flush.DoneData())
 	}
 }
 
@@ -421,7 +557,7 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	pm, writer, _ := testManager(t, ctrl)
+	pm, writer, _ := testDataPersistManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
 	shard := uint32(0)
@@ -431,44 +567,99 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 	require.NoError(t, err)
 
 	defer func() {
-		assert.NoError(t, flush.Done())
+		assert.NoError(t, flush.DoneData())
 	}()
 
-	writerOpts := DataWriterOpenOptionsMatcher{
-		ID: FileSetFileIdentifier{
+	writerOpts := xtest.CmpMatcher(DataWriterOpenOptions{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs1ID,
 			Shard:      shard,
 			BlockStart: blockStart,
 		},
 		BlockSize: testBlockSize,
-	}
+	})
 	writer.EXPECT().Open(writerOpts).Return(nil)
 	prepareOpts := persist.DataPrepareOptions{
 		NamespaceMetadata: testNs1Metadata(t),
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, err := flush.Prepare(prepareOpts)
+	prepared, err := flush.PrepareData(prepareOpts)
 	require.NoError(t, err)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
 
-	writerOpts = DataWriterOpenOptionsMatcher{
-		ID: FileSetFileIdentifier{
+	writerOpts = xtest.CmpMatcher(DataWriterOpenOptions{
+		Identifier: FileSetFileIdentifier{
 			Namespace:  testNs2ID,
 			Shard:      shard,
 			BlockStart: blockStart,
 		},
 		BlockSize: testBlockSize,
-	}
+	})
 	writer.EXPECT().Open(writerOpts).Return(nil)
 	prepareOpts = persist.DataPrepareOptions{
 		NamespaceMetadata: testNs2Metadata(t),
 		Shard:             shard,
 		BlockStart:        blockStart,
 	}
-	prepared, err = flush.Prepare(prepareOpts)
+	prepared, err = flush.PrepareData(prepareOpts)
 	require.NoError(t, err)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
+}
+
+func createDataShardDir(t *testing.T, prefix string, namespace ident.ID, shard uint32) string {
+	shardDirPath := ShardDataDirPath(prefix, namespace, shard)
+	err := os.MkdirAll(shardDirPath, os.ModeDir|os.FileMode(0755))
+	require.Nil(t, err)
+	return shardDirPath
+}
+
+func createIndexDataDir(t *testing.T, prefix string, namespace ident.ID) string {
+	path := NamespaceIndexDataDirPath(prefix, namespace)
+	err := os.MkdirAll(path, os.ModeDir|os.FileMode(0755))
+	require.Nil(t, err)
+	return path
+}
+
+func testDataPersistManager(
+	t *testing.T,
+	ctrl *gomock.Controller,
+) (*persistManager, *MockDataFileSetWriter, Options) {
+	dir := createTempDir(t)
+
+	opts := testDefaultOpts.
+		SetFilePathPrefix(dir).
+		SetWriterBufferSize(10)
+
+	writer := NewMockDataFileSetWriter(ctrl)
+
+	mgr, err := NewPersistManager(opts)
+	require.NoError(t, err)
+
+	manager := mgr.(*persistManager)
+	manager.dataPM.writer = writer
+
+	return manager, writer, opts
+}
+
+func testIndexPersistManager(t *testing.T, ctrl *gomock.Controller,
+) (*persistManager, *MockIndexFileSetWriter, *m3ninxpersist.MockMutableSegmentFileSetWriter, Options) {
+	dir := createTempDir(t)
+
+	opts := testDefaultOpts.
+		SetFilePathPrefix(dir).
+		SetWriterBufferSize(10)
+
+	writer := NewMockIndexFileSetWriter(ctrl)
+	segmentWriter := m3ninxpersist.NewMockMutableSegmentFileSetWriter(ctrl)
+
+	mgr, err := NewPersistManager(opts)
+	require.NoError(t, err)
+
+	manager := mgr.(*persistManager)
+	manager.indexPM.writer = writer
+	manager.indexPM.segmentWriter = segmentWriter
+	return manager, writer, segmentWriter, opts
 }

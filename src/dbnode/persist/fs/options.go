@@ -29,6 +29,8 @@ import (
 	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3db/src/dbnode/runtime"
 	"github.com/m3db/m3db/src/dbnode/serialize"
+	"github.com/m3db/m3ninx/postings"
+	"github.com/m3db/m3ninx/postings/roaring"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )
@@ -86,6 +88,7 @@ type options struct {
 	mmapHugePagesThreshold               int64
 	tagEncoderPool                       serialize.TagEncoderPool
 	tagDecoderPool                       serialize.TagDecoderPool
+	postingsPool                         postings.Pool
 }
 
 // NewOptions creates a new set of fs options
@@ -96,6 +99,9 @@ func NewOptions() Options {
 	tagDecoderPool := serialize.NewTagDecoderPool(
 		serialize.NewTagDecoderOptions(), pool.NewObjectPoolOptions())
 	tagDecoderPool.Init()
+	postingsPool := postings.NewPool(
+		pool.NewObjectPoolOptions(), roaring.NewPostingsList)
+
 	return &options{
 		clockOpts:                            clock.NewOptions(),
 		instrumentOpts:                       instrument.NewOptions(),
@@ -114,6 +120,7 @@ func NewOptions() Options {
 		mmapHugePagesThreshold:               defaultMmapHugePagesThreshold,
 		tagEncoderPool:                       tagEncoderPool,
 		tagDecoderPool:                       tagDecoderPool,
+		postingsPool:                         postingsPool,
 	}
 }
 
@@ -305,4 +312,14 @@ func (o *options) SetTagDecoderPool(value serialize.TagDecoderPool) Options {
 
 func (o *options) TagDecoderPool() serialize.TagDecoderPool {
 	return o.tagDecoderPool
+}
+
+func (o *options) SetPostingsListPool(value postings.Pool) Options {
+	opts := *o
+	opts.postingsPool = value
+	return &opts
+}
+
+func (o *options) PostingsListPool() postings.Pool {
+	return o.postingsPool
 }

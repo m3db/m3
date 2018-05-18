@@ -26,26 +26,44 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3db/src/dbnode/ts"
+	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/ident"
 )
 
-// Fn is a function that persists a m3db segment for a given ID.
-type Fn func(id ident.ID, tags ident.Tags, segment ts.Segment, checksum uint32) error
+// DataFn is a function that persists a m3db segment for a given ID.
+type DataFn func(id ident.ID, tags ident.Tags, segment ts.Segment, checksum uint32) error
 
-// Closer is a function that performs cleanup after persisting the data
+// DataCloser is a function that performs cleanup after persisting the data
 // blocks for a (shard, blockStart) combination.
-type Closer func() error
+type DataCloser func() error
 
 // PreparedDataPersist is an object that wraps holds a persist function and a closer.
 type PreparedDataPersist struct {
-	Persist Fn
-	Close   Closer
+	Persist DataFn
+	Close   DataCloser
+}
+
+// IndexFn is a function that persists a m3ninx MutableSegment.
+type IndexFn func(segment.MutableSegment) error
+
+// IndexCloser is a function that performs cleanup after persisting the index data
+// block for a (namespace, blockStart) combination and returns the corresponding
+// immutable Segment.
+type IndexCloser func() ([]segment.Segment, error)
+
+// PreparedIndexPersist is an object that wraps holds a persist function and a closer.
+type PreparedIndexPersist struct {
+	Persist IndexFn
+	Close   IndexCloser
 }
 
 // Manager manages the internals of persisting data onto storage layer.
 type Manager interface {
 	// StartDataPersist begins a data flush for a set of shards.
 	StartDataPersist() (DataFlush, error)
+
+	// StartIndexPersist begins a flush for index data.
+	StartIndexPersist() (IndexFlush, error)
 }
 
 // DataFlush is a persist flush cycle, each shard and block start permutation needs
@@ -54,13 +72,25 @@ type DataFlush interface {
 	// Prepare prepares writing data for a given (shard, blockStart) combination,
 	// returning a PreparedDataPersist object and any error encountered during
 	// preparation if any.
-	Prepare(opts DataPrepareOptions) (PreparedDataPersist, error)
+	PrepareData(opts DataPrepareOptions) (PreparedDataPersist, error)
 
-	// Done marks the flush as complete.
-	Done() error
+	// DoneData marks the data flush as complete.
+	DoneData() error
 }
 
-// DataPrepareOptions is the options struct for the PersistManager's Prepare method.
+// IndexFlush is a persist flush cycle, each namespace, block combination needs
+// to explicility be prepared.
+type IndexFlush interface {
+	// Prepare prepares writing data for a given ns/blockStart, returning a
+	// PreparedIndexPersist object and any error encountered during
+	// preparation if any.
+	PrepareIndex(opts IndexPrepareOptions) (PreparedIndexPersist, error)
+
+	// DoneIndex marks the index flush as complete.
+	DoneIndex() error
+}
+
+// DataPrepareOptions is the options struct for the DataFlush's Prepare method.
 // nolint: maligned
 type DataPrepareOptions struct {
 	NamespaceMetadata namespace.Metadata
@@ -77,6 +107,14 @@ type DataPrepareOptions struct {
 // snapshots and index file sets).
 type DataPrepareVolumeOptions struct {
 	VolumeIndex int
+}
+
+// IndexPrepareOptions is the options struct for the IndexFlush's Prepare method.
+// nolint: maligned
+type IndexPrepareOptions struct {
+	NamespaceMetadata namespace.Metadata
+	BlockStart        time.Time
+	FileSetType       FileSetType
 }
 
 // DataPrepareSnapshotOptions is the options struct for the Prepare method that contains

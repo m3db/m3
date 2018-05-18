@@ -112,7 +112,7 @@ func (mr *MockDatabaseSeriesMockRecorder) FetchBlocksMetadata(arg0, arg1, arg2, 
 }
 
 // Flush mocks base method
-func (m *MockDatabaseSeries) Flush(arg0 context.Context, arg1 time.Time, arg2 persist.Fn) (FlushOutcome, error) {
+func (m *MockDatabaseSeries) Flush(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn) (FlushOutcome, error) {
 	ret := m.ctrl.Call(m, "Flush", arg0, arg1, arg2)
 	ret0, _ := ret[0].(FlushOutcome)
 	ret1, _ := ret[1].(error)
@@ -216,7 +216,7 @@ func (mr *MockDatabaseSeriesMockRecorder) Reset(arg0, arg1, arg2, arg3, arg4, ar
 }
 
 // Snapshot mocks base method
-func (m *MockDatabaseSeries) Snapshot(arg0 context.Context, arg1 time.Time, arg2 persist.Fn) error {
+func (m *MockDatabaseSeries) Snapshot(arg0 context.Context, arg1 time.Time, arg2 persist.DataFn) error {
 	ret := m.ctrl.Call(m, "Snapshot", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0

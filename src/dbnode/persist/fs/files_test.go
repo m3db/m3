@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/digest"
+	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
@@ -44,113 +45,20 @@ var (
 	testNs1ID       = ident.StringID("testNs")
 	testNs2ID       = ident.StringID("testNs2")
 	testNs1Metadata = func(t *testing.T) namespace.Metadata {
-		md, err := namespace.NewMetadata(testNs1ID, namespace.NewOptions().SetRetentionOptions(
-			retention.NewOptions().SetBlockSize(testBlockSize)))
+		md, err := namespace.NewMetadata(testNs1ID, namespace.NewOptions().
+			SetRetentionOptions(retention.NewOptions().SetBlockSize(testBlockSize)).
+			SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(testBlockSize)))
 		require.NoError(t, err)
 		return md
 	}
 	testNs2Metadata = func(t *testing.T) namespace.Metadata {
-		md, err := namespace.NewMetadata(testNs2ID, namespace.NewOptions().SetRetentionOptions(
-			retention.NewOptions().SetBlockSize(testBlockSize)))
+		md, err := namespace.NewMetadata(testNs2ID, namespace.NewOptions().
+			SetRetentionOptions(retention.NewOptions().SetBlockSize(testBlockSize)).
+			SetIndexOptions(namespace.NewIndexOptions().SetEnabled(true).SetBlockSize(testBlockSize)))
 		require.NoError(t, err)
 		return md
 	}
 )
-
-func createTempFile(t *testing.T) *os.File {
-	fd, err := ioutil.TempFile("", "testfile")
-	require.NoError(t, err)
-	return fd
-}
-
-func createTempDir(t *testing.T) string {
-	dir, err := ioutil.TempDir("", "testdir")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return dir
-}
-
-func createDataFile(t *testing.T, shardDir string, blockStart time.Time, suffix string, b []byte) {
-	filePath := filesetPathFromTime(shardDir, blockStart, suffix)
-	createFile(t, filePath, b)
-}
-
-func createFile(t *testing.T, filePath string, b []byte) {
-	fd, err := os.Create(filePath)
-	require.NoError(t, err)
-	if b != nil {
-		fd.Write(b)
-	}
-	fd.Close()
-}
-
-func createInfoFilesSnapshotDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
-	return createInfoFiles(t, snapshotDirName, namespace, shard, iter, true)
-}
-
-func createInfoFilesDataDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
-	return createInfoFiles(t, dataDirName, namespace, shard, iter, false)
-}
-
-func createCheckpointFilesDataDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
-	return createCheckpointFiles(t, dataDirName, namespace, shard, iter, false)
-}
-
-func createInfoFiles(t *testing.T, subDirName string, namespace ident.ID, shard uint32, iter int, isSnapshot bool) string {
-	return createFiles(t, subDirName, namespace, shard, iter, isSnapshot, infoFileSuffix)
-}
-
-func createCheckpointFiles(t *testing.T, subDirName string, namespace ident.ID, shard uint32, iter int, isSnapshot bool) string {
-	return createFiles(t, subDirName, namespace, shard, iter, isSnapshot, checkpointFileSuffix)
-}
-
-func createFiles(t *testing.T,
-	subDirName string,
-	namespace ident.ID,
-	shard uint32,
-	iter int,
-	isSnapshot bool,
-	fileSuffix string,
-) string {
-	dir := createTempDir(t)
-	shardDir := path.Join(dir, subDirName, namespace.String(), strconv.Itoa(int(shard)))
-	require.NoError(t, os.MkdirAll(shardDir, 0755))
-	for i := 0; i < iter; i++ {
-		ts := time.Unix(0, int64(i))
-		var infoFilePath string
-		if isSnapshot {
-			infoFilePath = filesetPathFromTimeAndIndex(shardDir, ts, 0, fileSuffix)
-		} else {
-			infoFilePath = filesetPathFromTime(shardDir, ts, fileSuffix)
-		}
-		createFile(t, infoFilePath, nil)
-	}
-	return dir
-}
-
-func createCommitLogFiles(t *testing.T, iter, perSlot int) string {
-	dir := createTempDir(t)
-	commitLogsDir := path.Join(dir, commitLogsDirName)
-	assert.NoError(t, os.Mkdir(commitLogsDir, 0755))
-	for i := 0; i < iter; i++ {
-		for j := 0; j < perSlot; j++ {
-			filePath, _ := NextCommitLogsFile(dir, time.Unix(0, int64(i)))
-			fd, err := os.Create(filePath)
-			assert.NoError(t, err)
-			assert.NoError(t, fd.Close())
-		}
-	}
-	return dir
-}
-
-func validateCommitLogFiles(t *testing.T, slot, index, perSlot, resIdx int, dir string, files []string) {
-	entry := fmt.Sprintf("%d%s%d", slot, separator, index)
-	fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
-
-	x := (resIdx * perSlot) + index
-	require.Equal(t, path.Join(dir, commitLogsDirName, fileName), files[x])
-}
 
 func TestOpenFilesFails(t *testing.T) {
 	testFilePath := "/not/a/real/path"
@@ -415,7 +323,7 @@ func TestFilePathFromTime(t *testing.T) {
 
 func TestFileSetFilesBefore(t *testing.T) {
 	shard := uint32(0)
-	dir := createInfoFilesDataDir(t, testNs1ID, shard, 20)
+	dir := createDataFlushInfoFilesDir(t, testNs1ID, shard, 20)
 	defer os.RemoveAll(dir)
 
 	cutoffIter := 8
@@ -434,7 +342,7 @@ func TestFileSetFilesBefore(t *testing.T) {
 func TestFileSetAt(t *testing.T) {
 	shard := uint32(0)
 	numIters := 20
-	dir := createCheckpointFilesDataDir(t, testNs1ID, shard, numIters)
+	dir := createDataCheckpointFilesDir(t, testNs1ID, shard, numIters)
 	defer os.RemoveAll(dir)
 
 	for i := 0; i < numIters; i++ {
@@ -449,7 +357,7 @@ func TestFileSetAt(t *testing.T) {
 func TestFileSetAtIgnoresWithoutCheckpoint(t *testing.T) {
 	shard := uint32(0)
 	numIters := 20
-	dir := createInfoFilesDataDir(t, testNs1ID, shard, numIters)
+	dir := createDataFlushInfoFilesDir(t, testNs1ID, shard, numIters)
 	defer os.RemoveAll(dir)
 
 	for i := 0; i < numIters; i++ {
@@ -463,7 +371,7 @@ func TestFileSetAtIgnoresWithoutCheckpoint(t *testing.T) {
 func TestDeleteFileSetAt(t *testing.T) {
 	shard := uint32(0)
 	numIters := 20
-	dir := createCheckpointFilesDataDir(t, testNs1ID, shard, numIters)
+	dir := createDataCheckpointFilesDir(t, testNs1ID, shard, numIters)
 	defer os.RemoveAll(dir)
 
 	for i := 0; i < numIters; i++ {
@@ -484,7 +392,7 @@ func TestDeleteFileSetAt(t *testing.T) {
 
 func TestFileSetAtNotExist(t *testing.T) {
 	shard := uint32(0)
-	dir := createInfoFilesDataDir(t, testNs1ID, shard, 0)
+	dir := createDataFlushInfoFilesDir(t, testNs1ID, shard, 0)
 	defer os.RemoveAll(dir)
 
 	timestamp := time.Unix(0, 0)
@@ -513,7 +421,7 @@ func TestFileSetFilesNoFiles(t *testing.T) {
 
 func TestSnapshotFiles(t *testing.T) {
 	shard := uint32(0)
-	dir := createInfoFilesSnapshotDir(t, testNs1ID, shard, 20)
+	dir := createDataSnapshotInfoFilesDir(t, testNs1ID, shard, 20)
 	defer os.RemoveAll(dir)
 
 	files, err := SnapshotFiles(dir, testNs1ID, shard)
@@ -727,4 +635,269 @@ func TestSortedCommitLogFiles(t *testing.T) {
 			validateCommitLogFiles(t, i, j, perSlot, i, dir, files)
 		}
 	}
+}
+
+func TestIndexFileSetAt(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	var (
+		ns1     = ident.StringID("abc")
+		now     = time.Now().Truncate(time.Hour)
+		timeFor = func(n int) time.Time { return now.Add(time.Hour * time.Duration(n)) }
+	)
+
+	files := indexFileSetFileIdentifiers{
+		indexFileSetFileIdentifier{
+			FileSetFileIdentifier: FileSetFileIdentifier{
+				BlockStart:         timeFor(1),
+				Namespace:          ns1,
+				VolumeIndex:        0,
+				FileSetContentType: persist.FileSetIndexContentType,
+			},
+			Suffix: checkpointFileSuffix,
+		},
+	}
+	files.create(t, dir)
+
+	results, err := IndexFileSetsAt(dir, ns1, timeFor(1))
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+}
+
+func TestIndexFileSetAtIgnoresLackOfCheckpoint(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	var (
+		ns1     = ident.StringID("abc")
+		now     = time.Now().Truncate(time.Hour)
+		timeFor = func(n int) time.Time { return now.Add(time.Hour * time.Duration(n)) }
+	)
+
+	files := indexFileSetFileIdentifiers{
+		indexFileSetFileIdentifier{
+			FileSetFileIdentifier: FileSetFileIdentifier{
+				BlockStart:         timeFor(1),
+				Namespace:          ns1,
+				VolumeIndex:        0,
+				FileSetContentType: persist.FileSetIndexContentType,
+			},
+			Suffix: checkpointFileSuffix,
+		},
+		indexFileSetFileIdentifier{
+			FileSetFileIdentifier: FileSetFileIdentifier{
+				BlockStart:         timeFor(2),
+				Namespace:          ns1,
+				VolumeIndex:        0,
+				FileSetContentType: persist.FileSetIndexContentType,
+			},
+			Suffix: infoFileSuffix,
+		},
+	}
+	files.create(t, dir)
+
+	results, err := IndexFileSetsAt(dir, ns1, timeFor(1))
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+}
+
+func TestIndexFileSetAtMultiple(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	var (
+		ns1     = ident.StringID("abc")
+		now     = time.Now().Truncate(time.Hour)
+		timeFor = func(n int) time.Time { return now.Add(time.Hour * time.Duration(n)) }
+	)
+
+	files := indexFileSetFileIdentifiers{
+		indexFileSetFileIdentifier{
+			FileSetFileIdentifier: FileSetFileIdentifier{
+				BlockStart:         timeFor(1),
+				Namespace:          ns1,
+				VolumeIndex:        0,
+				FileSetContentType: persist.FileSetIndexContentType,
+			},
+			Suffix: checkpointFileSuffix,
+		},
+		indexFileSetFileIdentifier{
+			FileSetFileIdentifier: FileSetFileIdentifier{
+				BlockStart:         timeFor(1),
+				Namespace:          ns1,
+				VolumeIndex:        1,
+				FileSetContentType: persist.FileSetIndexContentType,
+			},
+			Suffix: checkpointFileSuffix,
+		},
+		indexFileSetFileIdentifier{
+			FileSetFileIdentifier: FileSetFileIdentifier{
+				BlockStart:         timeFor(1),
+				Namespace:          ns1,
+				VolumeIndex:        2,
+				FileSetContentType: persist.FileSetIndexContentType,
+			},
+			Suffix: checkpointFileSuffix,
+		},
+	}
+	files.create(t, dir)
+
+	results, err := IndexFileSetsAt(dir, ns1, timeFor(1))
+	require.NoError(t, err)
+	require.Len(t, results, 3)
+	for i := range files {
+		require.Equal(t, files[i].Namespace.String(), results[i].ID.Namespace.String())
+		require.Equal(t, files[i].BlockStart, results[i].ID.BlockStart)
+		require.Equal(t, files[i].VolumeIndex, results[i].ID.VolumeIndex)
+	}
+}
+
+func createTempFile(t *testing.T) *os.File {
+	fd, err := ioutil.TempFile("", "testfile")
+	require.NoError(t, err)
+	return fd
+}
+
+func createTempDir(t *testing.T) string {
+	dir, err := ioutil.TempDir("", "testdir")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func createFile(t *testing.T, filePath string, b []byte) {
+	fd, err := os.Create(filePath)
+	require.NoError(t, err)
+	if b != nil {
+		fd.Write(b)
+	}
+	fd.Close()
+}
+
+func createDataFlushInfoFilesDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
+	return createDataInfoFiles(t, dataDirName, namespace, shard, iter, false)
+}
+
+func createDataSnapshotInfoFilesDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
+	return createDataInfoFiles(t, snapshotDirName, namespace, shard, iter, true)
+}
+
+func createDataCheckpointFilesDir(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
+	return createDataCheckpointFiles(t, dataDirName, namespace, shard, iter, false)
+}
+
+func createDataInfoFiles(t *testing.T, subDirName string, namespace ident.ID, shard uint32, iter int, isSnapshot bool) string {
+	return createDataFiles(t, subDirName, namespace, shard, iter, isSnapshot, infoFileSuffix)
+}
+
+func createDataCheckpointFiles(t *testing.T, subDirName string, namespace ident.ID, shard uint32, iter int, isSnapshot bool) string {
+	return createDataFiles(t, subDirName, namespace, shard, iter, isSnapshot, checkpointFileSuffix)
+}
+
+func createDataFiles(t *testing.T,
+	subDirName string, namespace ident.ID, shard uint32, iter int, isSnapshot bool, fileSuffix string,
+) string {
+	dir := createTempDir(t)
+	shardDir := path.Join(dir, subDirName, namespace.String(), strconv.Itoa(int(shard)))
+	require.NoError(t, os.MkdirAll(shardDir, 0755))
+	for i := 0; i < iter; i++ {
+		ts := time.Unix(0, int64(i))
+		var infoFilePath string
+		if isSnapshot {
+			infoFilePath = filesetPathFromTimeAndIndex(shardDir, ts, 0, fileSuffix)
+		} else {
+			infoFilePath = filesetPathFromTime(shardDir, ts, fileSuffix)
+		}
+		createFile(t, infoFilePath, nil)
+	}
+	return dir
+}
+
+type indexFileSetFileIdentifier struct {
+	FileSetFileIdentifier
+	Suffix string
+}
+
+type indexFileSetFileIdentifiers []indexFileSetFileIdentifier
+
+func (indexFilesets indexFileSetFileIdentifiers) create(t *testing.T, prefixDir string) {
+	for _, fileset := range indexFilesets {
+		fileSetFileIdentifiers{fileset.FileSetFileIdentifier}.create(t, prefixDir, persist.FileSetFlushType, fileset.Suffix)
+	}
+}
+
+type fileSetFileIdentifiers []FileSetFileIdentifier
+
+func (filesets fileSetFileIdentifiers) create(t *testing.T, prefixDir string, fileSetType persist.FileSetType, fileSuffixes ...string) {
+	for _, suffix := range fileSuffixes {
+		for _, fileset := range filesets {
+			switch fileset.FileSetContentType {
+			case persist.FileSetDataContentType:
+				ns := fileset.Namespace.String()
+				shard := fileset.Shard
+				blockStart := fileset.BlockStart
+				shardDir := path.Join(prefixDir, dataDirName, ns, strconv.Itoa(int(shard)))
+				require.NoError(t, os.MkdirAll(shardDir, 0755))
+				var path string
+				switch fileSetType {
+				case persist.FileSetFlushType:
+					path = filesetPathFromTime(shardDir, blockStart, suffix)
+					createFile(t, path, nil)
+				case persist.FileSetSnapshotType:
+					path = filesetPathFromTimeAndIndex(shardDir, blockStart, 0, fileSuffix)
+					createFile(t, path, nil)
+				default:
+					panic("unknown FileSetType")
+				}
+			case persist.FileSetIndexContentType:
+				ns := fileset.Namespace.String()
+				blockStart := fileset.BlockStart
+				volumeIndex := fileset.VolumeIndex
+				indexDir := path.Join(prefixDir, indexDirName, dataDirName, ns)
+				require.NoError(t, os.MkdirAll(indexDir, 0755))
+				var path string
+				switch fileSetType {
+				case persist.FileSetFlushType:
+					path = filesetPathFromTimeAndIndex(indexDir, blockStart, volumeIndex, suffix)
+					createFile(t, path, nil)
+				case persist.FileSetSnapshotType:
+					fallthrough
+				default:
+					panic("unknown FileSetType")
+				}
+			default:
+				panic("unknown file type")
+			}
+		}
+	}
+}
+
+func createDataFile(t *testing.T, shardDir string, blockStart time.Time, suffix string, b []byte) {
+	filePath := filesetPathFromTime(shardDir, blockStart, suffix)
+	createFile(t, filePath, b)
+}
+
+func createCommitLogFiles(t *testing.T, iter, perSlot int) string {
+	dir := createTempDir(t)
+	commitLogsDir := path.Join(dir, commitLogsDirName)
+	assert.NoError(t, os.Mkdir(commitLogsDir, 0755))
+	for i := 0; i < iter; i++ {
+		for j := 0; j < perSlot; j++ {
+			filePath, _ := NextCommitLogsFile(dir, time.Unix(0, int64(i)))
+			fd, err := os.Create(filePath)
+			assert.NoError(t, err)
+			assert.NoError(t, fd.Close())
+		}
+	}
+	return dir
+}
+
+func validateCommitLogFiles(t *testing.T, slot, index, perSlot, resIdx int, dir string, files []string) {
+	entry := fmt.Sprintf("%d%s%d", slot, separator, index)
+	fileName := fmt.Sprintf("%s%s%s%s", commitLogFilePrefix, separator, entry, fileSuffix)
+
+	x := (resIdx * perSlot) + index
+	require.Equal(t, path.Join(dir, commitLogsDirName, fileName), files[x])
 }

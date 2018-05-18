@@ -109,7 +109,7 @@ type dbNamespace struct {
 	seriesOpts         series.Options
 	nowFn              clock.NowFn
 	log                xlog.Logger
-	bs                 BootstrapState
+	bootstrapState     BootstrapState
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -142,6 +142,7 @@ type databaseNamespaceIndexStatsLastTick struct {
 type databaseNamespaceMetrics struct {
 	bootstrap           instrument.MethodMetrics
 	flush               instrument.MethodMetrics
+	flushIndex          instrument.MethodMetrics
 	snapshot            instrument.MethodMetrics
 	write               instrument.MethodMetrics
 	writeTagged         instrument.MethodMetrics
@@ -210,6 +211,7 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 	return databaseNamespaceMetrics{
 		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
 		flush:               instrument.NewMethodMetrics(scope, "flush", samplingRate),
+		flushIndex:          instrument.NewMethodMetrics(scope, "flushIndex", samplingRate),
 		snapshot:            instrument.NewMethodMetrics(scope, "snapshot", samplingRate),
 		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
 		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", samplingRate),
@@ -673,19 +675,19 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 	callStart := n.nowFn()
 
 	n.Lock()
-	if n.bs == Bootstrapping {
+	if n.bootstrapState == Bootstrapping {
 		n.Unlock()
 		n.metrics.bootstrap.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceIsBootstrapping
 	}
-	n.bs = Bootstrapping
+	n.bootstrapState = Bootstrapping
 	n.Unlock()
 
 	n.metrics.bootstrapStart.Inc(1)
 
 	defer func() {
 		n.Lock()
-		n.bs = Bootstrapped
+		n.bootstrapState = Bootstrapped
 		n.Unlock()
 		n.metrics.bootstrapEnd.Inc(1)
 	}()
@@ -797,7 +799,7 @@ func (n *dbNamespace) Flush(
 	callStart := n.nowFn()
 
 	n.RLock()
-	if n.bs != Bootstrapped {
+	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
 		n.metrics.flush.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
@@ -849,13 +851,34 @@ func (n *dbNamespace) Flush(
 	return res
 }
 
+func (n *dbNamespace) FlushIndex(
+	tickStart time.Time,
+	flush persist.IndexFlush,
+) error {
+	callStart := n.nowFn()
+	n.RLock()
+	if n.bootstrapState != Bootstrapped {
+		n.RUnlock()
+		n.metrics.flushIndex.ReportError(n.nowFn().Sub(callStart))
+		return errNamespaceNotBootstrapped
+	}
+	n.RUnlock()
+
+	if !n.nopts.FlushEnabled() || !n.nopts.IndexOptions().Enabled() {
+		n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
+		return nil
+	}
+
+	return fmt.Errorf("not implemented")
+}
+
 func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.DataFlush) error {
 	// NB(rartoul): This value can be used for emitting metrics, but should not be used
 	// for business logic.
 	callStart := n.nowFn()
 
 	n.RLock()
-	if n.bs != Bootstrapped {
+	if n.bootstrapState != Bootstrapped {
 		n.RUnlock()
 		n.metrics.snapshot.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
