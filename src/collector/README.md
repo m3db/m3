@@ -7,7 +7,7 @@ downstream services (e.g., for aggregation or permanent storage).
 
 <hr>
 
-This project is released under the [MIT License](LICENSE.md).
+This project is released under the [Apache License, Version 2.0](LICENSE).
 
 [doc-img]: https://godoc.org/github.com/m3db/m3collector?status.svg
 [doc]: https://godoc.org/github.com/m3db/m3collector
