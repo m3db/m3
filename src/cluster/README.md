@@ -6,7 +6,7 @@ Cluster management interfaces used by M3 components
 
 <hr>
 
-This project is released under the [MIT License](LICENSE.md).
+This project is released under the [Apache License, Version 2.0](LICENSE).
 
 [doc-img]: https://godoc.org/github.com/m3db/m3cluster?status.svg
 [doc]: https://godoc.org/github.com/m3db/m3cluster
