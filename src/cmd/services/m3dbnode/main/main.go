@@ -22,11 +22,17 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	// pprof: for debug listen server if configured
 	_ "net/http/pprof"
 	"os"
 
-	"github.com/m3db/m3db/src/cmd/services/m3dbnode/server"
+	clusterclient "github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
+	dbserver "github.com/m3db/m3db/src/cmd/services/m3dbnode/server"
+	coordinatorserver "github.com/m3db/m3db/src/coordinator/services/m3coordinator/server"
+	"github.com/m3db/m3db/src/dbnode/client"
+	xconfig "github.com/m3db/m3x/config"
 )
 
 var (
@@ -41,5 +47,29 @@ func main() {
 		os.Exit(1)
 	}
 
-	server.Run(server.RunOptions{ConfigFile: *configFile})
+	var cfg config.Configuration
+	if err := xconfig.LoadFile(&cfg, *configFile, xconfig.Options{}); err != nil {
+		fmt.Fprintf(os.Stderr, "unable to load config from %s: %v\n", *configFile, err)
+		os.Exit(1)
+	}
+
+	dbClientCh := make(chan client.Client, 1)
+	clusterClientCh := make(chan clusterclient.Client, 1)
+	if cfg.Coordinator != nil {
+		go func() {
+			dbClient := <-dbClientCh
+			clusterClient := <-clusterClientCh
+			coordinatorserver.Run(coordinatorserver.RunOptions{
+				Config:        *cfg.Coordinator,
+				DBClient:      dbClient,
+				ClusterClient: clusterClient,
+			})
+		}()
+	}
+
+	dbserver.Run(dbserver.RunOptions{
+		Config:                   cfg.DB,
+		ClientBootstrapCh:        dbClientCh,
+		ClusterClientBootstrapCh: clusterClientCh,
+	})
 }

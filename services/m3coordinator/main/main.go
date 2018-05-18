@@ -18,32 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package main
 
-import "github.com/m3db/m3db/src/dbnode/client"
+import (
+	"flag"
+	// pprof: for debug listen server if configured
+	_ "net/http/pprof"
+	"os"
 
-// Configuration is the configuration for the coordinator.
-type Configuration struct {
-	// DBClient is the DB client configuration.
-	DBClient *client.Configuration `yaml:"dbClient"`
+	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/server"
+)
 
-	// ListenAddress is the server listen address.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
+var (
+	configFile = flag.String("f", "", "configuration file")
+)
 
-	// RPC is the RPC configuration.
-	RPC *RPCConfiguration `yaml:"rpc"`
-}
+func main() {
+	flag.Parse()
 
-// RPCConfiguration is the RPC configuration for the coordinator for
-// the GRPC server used for remote coordinator to coordinator calls.
-type RPCConfiguration struct {
-	// Enabled determines if coordinator RPC is enabled for remote calls.
-	Enabled bool `yaml:"enabled"`
+	if len(*configFile) == 0 {
+		flag.Usage()
+		os.Exit(1)
+	}
 
-	// ListenAddress is the RPC server listen address.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
-
-	// RemoteListenAddresses is the remote listen addresses to call for remote
-	// coordinator calls.
-	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
+	server.Run(server.RunOptions{
+		ConfigFile: *configFile,
+	})
 }

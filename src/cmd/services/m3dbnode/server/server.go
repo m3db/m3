@@ -32,6 +32,7 @@ import (
 	"syscall"
 	"time"
 
+	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv"
@@ -89,11 +90,21 @@ type RunOptions struct {
 	// ConfigFile is the YAML configuration file to use to run the server.
 	ConfigFile string
 
+	// Config is an alternate way to provide configuration and will be used
+	// instead of parsing ConfigFile if ConfigFile is not specified.
+	Config config.DBConfiguration
+
 	// BootstrapCh is a channel to listen on to be notified of bootstrap.
 	BootstrapCh chan<- struct{}
 
 	// EmbeddedKVBootstrapCh is a channel to listen on to be notified that the embedded KV has bootstrapped.
 	EmbeddedKVBootstrapCh chan<- struct{}
+
+	// ClientBootstrapCh is a channel to listen on to share the same m3db client that this server uses.
+	ClientBootstrapCh chan<- client.Client
+
+	// ClusterClientBootstrapCh is a channel to listen on to share the same m3 cluster client that this server uses.
+	ClusterClientBootstrapCh chan<- clusterclient.Client
 
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
@@ -103,10 +114,17 @@ type RunOptions struct {
 // Run runs the server programmatically given a filename for the
 // configuration file.
 func Run(runOpts RunOptions) {
-	var cfg config.Configuration
-	if err := xconfig.LoadFile(&cfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
-		fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
-		os.Exit(1)
+	var cfg config.DBConfiguration
+	if runOpts.ConfigFile != "" {
+		var rootCfg config.Configuration
+		if err := xconfig.LoadFile(&rootCfg, runOpts.ConfigFile, xconfig.Options{}); err != nil {
+			fmt.Fprintf(os.Stderr, "unable to load %s: %v", runOpts.ConfigFile, err)
+			os.Exit(1)
+		}
+
+		cfg = rootCfg.DB
+	} else {
+		cfg = runOpts.Config
 	}
 
 	logger, err := cfg.Logging.BuildLogger()
@@ -334,7 +352,6 @@ func Run(runOpts RunOptions) {
 	var (
 		envCfg environment.ConfigureResults
 	)
-
 	if cfg.EnvironmentConfig.Static == nil {
 		logger.Info("creating dynamic config service client with m3cluster")
 
@@ -517,6 +534,13 @@ func Run(runOpts RunOptions) {
 				logger.Errorf("debug server could not listen on %s: %v", cfg.DebugListenAddress, err)
 			}
 		}()
+	}
+
+	if runOpts.ClientBootstrapCh != nil {
+		runOpts.ClientBootstrapCh <- m3dbClient
+	}
+	if runOpts.ClusterClientBootstrapCh != nil {
+		runOpts.ClusterClientBootstrapCh <- envCfg.ClusterClient
 	}
 
 	go func() {

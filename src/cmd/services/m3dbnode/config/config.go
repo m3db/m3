@@ -32,6 +32,7 @@ import (
 	"github.com/coreos/etcd/embed"
 	"github.com/coreos/etcd/pkg/transport"
 	"github.com/coreos/etcd/pkg/types"
+	coordinatorcfg "github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/environment"
 	"github.com/m3db/m3x/config/hostid"
@@ -46,8 +47,18 @@ const (
 	defaultEtcdServerPort = 2380
 )
 
-// Configuration is the configuration for a M3DB node.
+// Configuration is the top level configuration that includes both a DB
+// node and a coordinator.
 type Configuration struct {
+	// DB is the configuration for a DB node (required).
+	DB DBConfiguration `yaml:"db"`
+
+	// Coordinator is the configuration for the coordinator to run (optional).
+	Coordinator *coordinatorcfg.Configuration `yaml:"coordinator"`
+}
+
+// DBConfiguration is the configuration for a DB node.
+type DBConfiguration struct {
 	// Logging configuration.
 	Logging xlog.Configuration `yaml:"logging"`
 
@@ -208,7 +219,7 @@ type HashingConfiguration struct {
 }
 
 // NewEtcdEmbedConfig creates a new embedded etcd config from kv config.
-func NewEtcdEmbedConfig(cfg Configuration) (*embed.Config, error) {
+func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 	newKVCfg := embed.NewConfig()
 	kvCfg := cfg.EnvironmentConfig.SeedNodes
 
