@@ -19,9 +19,11 @@ coverage:
     coordinator:
       paths:
         - src/coordinator/
+        - src/cmd/services/m3coordinator/
     dbnode:
       paths:
         - src/dbnode/
+        - src/cmd/services/m3dbnode/
 
 comment:
   layout: "header, reach, diff, flags, footer"
