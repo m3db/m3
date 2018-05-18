@@ -21,6 +21,7 @@
 package peers
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
+	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -137,7 +139,7 @@ func TestBootstrapIndex(t *testing.T) {
 	end := start.Add(ropts.RetentionPeriod())
 
 	shardTimeRanges := map[uint32]xtime.Ranges{
-		0: xtime.Ranges{}.AddRange(xtime.Range{
+		0: xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   end,
 		}),
@@ -220,7 +222,13 @@ func TestBootstrapIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	indexResults := res.IndexResults()
-	require.Equal(t, 2, len(indexResults))
+	numBlocksWithData := 0
+	for _, b := range indexResults {
+		if len(b.Segments()) != 0 {
+			numBlocksWithData++
+		}
+	}
+	require.Equal(t, 2, numBlocksWithData)
 
 	for _, expected := range []struct {
 		indexBlockStart time.Time
@@ -286,4 +294,204 @@ func TestBootstrapIndex(t *testing.T) {
 			require.Equal(t, len(expected.series), len(matches))
 		}
 	}
+
+	t1 := indexStart
+	t2 := indexStart.Add(indexBlockSize)
+	t3 := t2.Add(indexBlockSize)
+
+	blk1, ok := res.IndexResults()[xtime.ToUnixNano(t1)]
+	require.True(t, ok)
+	assertShardRangesEqual(t, result.NewShardTimeRanges(t1, t2, 0), blk1.Fulfilled())
+
+	blk2, ok := res.IndexResults()[xtime.ToUnixNano(t2)]
+	require.True(t, ok)
+	assertShardRangesEqual(t, result.NewShardTimeRanges(t2, t3, 0), blk2.Fulfilled())
+
+	for _, blk := range res.IndexResults() {
+		if blk.BlockStart().Equal(t1) || blk.BlockStart().Equal(t2) {
+			continue // already checked above
+		}
+		// rest should all be marked fulfilled despite no data, because we didn't see
+		// any errors in the response.
+		start := blk.BlockStart()
+		end := start.Add(indexBlockSize)
+		assertShardRangesEqual(t, result.NewShardTimeRanges(start, end, 0), blk.Fulfilled())
+	}
+}
+
+func TestBootstrapIndexErr(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDefaultOpts.
+		SetFetchBlocksMetadataEndpointVersion(client.FetchBlocksMetadataEndpointV2)
+
+	blockSize := 2 * time.Hour
+	indexBlockSize := 2 * blockSize
+
+	ropts := retention.NewOptions().
+		SetBlockSize(blockSize).
+		SetRetentionPeriod(24 * blockSize)
+
+	nsMetadata := testNamespaceMetadata(t, func(opts namespace.Options) namespace.Options {
+		return opts.
+			SetRetentionOptions(ropts).
+			SetIndexOptions(opts.IndexOptions().
+				SetEnabled(true).
+				SetBlockSize(indexBlockSize))
+	})
+
+	at := time.Now()
+	start := at.Add(-ropts.RetentionPeriod()).Truncate(blockSize)
+	indexStart := start.Truncate(indexBlockSize)
+	for !start.Equal(indexStart) {
+		// make sure data blocks overlap, test block size is 2h
+		// and test index block size is 4h
+		start = start.Add(blockSize)
+		indexStart = start.Truncate(indexBlockSize)
+	}
+
+	fooSeries := struct {
+		id   string
+		tags map[string]string
+	}{
+		"foo",
+		map[string]string{"aaa": "bbb", "ccc": "ddd"},
+	}
+	dataBlocks := []struct {
+		blockStart time.Time
+		series     []testSeriesMetadata
+	}{
+		{
+			blockStart: start,
+			series: []testSeriesMetadata{
+				{fooSeries.id, fooSeries.tags},
+			},
+		},
+		{
+			blockStart: start.Add(blockSize),
+			series: []testSeriesMetadata{
+				{fooSeries.id, fooSeries.tags},
+			},
+		},
+	}
+
+	end := start.Add(ropts.RetentionPeriod())
+
+	shardTimeRanges := map[uint32]xtime.Ranges{
+		0: xtime.NewRanges(xtime.Range{
+			Start: start,
+			End:   end,
+		}),
+	}
+
+	nsID := nsMetadata.ID().String()
+
+	mockAdminSession := client.NewMockAdminSession(ctrl)
+	mockAdminSessionCalls := []*gomock.Call{}
+
+	for blockStart := start; blockStart.Before(end); blockStart = blockStart.Add(blockSize) {
+		// Find and expect calls for blocks
+		matchedBlock := false
+		for _, dataBlock := range dataBlocks {
+			if !dataBlock.blockStart.Equal(blockStart) {
+				continue
+			}
+
+			matchedBlock = true
+			mockIter := client.NewMockPeerBlockMetadataIter(ctrl)
+			mockIterCalls := []*gomock.Call{}
+			for _, elem := range dataBlock.series {
+				mockIterCalls = append(mockIterCalls,
+					mockIter.EXPECT().Next().Return(true))
+
+				metadata := block.NewMetadata(elem.ID(), elem.Tags(),
+					blockStart, 1, nil, time.Time{})
+
+				mockIterCalls = append(mockIterCalls,
+					mockIter.EXPECT().Current().Return(nil, metadata))
+			}
+
+			mockIterCalls = append(mockIterCalls,
+				mockIter.EXPECT().Next().Return(false),
+				mockIter.EXPECT().Err().Return(fmt.Errorf("random-err")))
+
+			gomock.InOrder(mockIterCalls...)
+
+			rangeStart := blockStart
+			rangeEnd := rangeStart.Add(blockSize)
+			version := opts.FetchBlocksMetadataEndpointVersion()
+
+			call := mockAdminSession.EXPECT().
+				FetchBootstrapBlocksMetadataFromPeers(ident.NewIDMatcher(nsID),
+					uint32(0), rangeStart, rangeEnd, gomock.Any(), version).
+				Return(mockIter, nil)
+			mockAdminSessionCalls = append(mockAdminSessionCalls, call)
+			break
+		}
+
+		if !matchedBlock {
+			mockIter := client.NewMockPeerBlockMetadataIter(ctrl)
+			gomock.InOrder(
+				mockIter.EXPECT().Next().Return(false),
+				mockIter.EXPECT().Err().Return(nil),
+			)
+
+			rangeStart := blockStart
+			rangeEnd := rangeStart.Add(blockSize)
+			version := opts.FetchBlocksMetadataEndpointVersion()
+
+			call := mockAdminSession.EXPECT().
+				FetchBootstrapBlocksMetadataFromPeers(ident.NewIDMatcher(nsID),
+					uint32(0), rangeStart, rangeEnd, gomock.Any(), version).
+				Return(mockIter, nil)
+			mockAdminSessionCalls = append(mockAdminSessionCalls, call)
+		}
+	}
+
+	gomock.InOrder(mockAdminSessionCalls...)
+
+	mockAdminClient := client.NewMockAdminClient(ctrl)
+	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
+
+	opts = opts.SetAdminClient(mockAdminClient)
+
+	src := newPeersSource(opts)
+	res, err := src.ReadIndex(nsMetadata, shardTimeRanges, testDefaultRunOpts)
+	require.NoError(t, err)
+
+	indexResults := res.IndexResults()
+	numBlocksWithData := 0
+	for _, b := range indexResults {
+		if len(b.Segments()) != 0 {
+			numBlocksWithData++
+		}
+	}
+	require.Equal(t, 1, numBlocksWithData)
+
+	t1 := indexStart
+
+	blk1, ok := res.IndexResults()[xtime.ToUnixNano(t1)]
+	require.True(t, ok)
+	require.True(t, blk1.Fulfilled().IsEmpty())
+
+	for _, blk := range res.IndexResults() {
+		if blk.BlockStart().Equal(t1) {
+			continue // already checked above
+		}
+		// rest should all be marked fulfilled despite no data, because we didn't see
+		// any errors in the response.
+		start := blk.BlockStart()
+		end := start.Add(indexBlockSize)
+		assertShardRangesEqual(t, result.NewShardTimeRanges(start, end, 0), blk.Fulfilled())
+	}
+}
+
+func assertShardRangesEqual(t *testing.T, a, b result.ShardTimeRanges) {
+	ac := a.Copy()
+	ac.Subtract(b)
+	require.True(t, ac.IsEmpty())
+	bc := b.Copy()
+	bc.Subtract(a)
+	require.True(t, bc.IsEmpty())
 }

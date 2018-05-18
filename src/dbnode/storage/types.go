@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/series"
 	"github.com/m3db/m3db/src/dbnode/x/xcounter"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
-	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -301,7 +300,6 @@ type databaseNamespace interface {
 
 	// FlushIndex flushes in-memory index data.
 	FlushIndex(
-		tickStart time.Time,
 		flush persist.IndexFlush,
 	) error
 
@@ -462,13 +460,6 @@ type namespaceIndex interface {
 		bootstrapResults result.IndexResults,
 	) error
 
-	// Replace replaces the block held by the index for the provided blockStart
-	// with a new block backed by the provided segments.
-	ReplaceBlock(
-		blockStart time.Time,
-		segments []segment.Segment,
-	) error
-
 	// CleanupExpiredFileSets removes expired fileset files. Expiration is calcuated
 	// using the provided `t` as the frame of reference.
 	CleanupExpiredFileSets(t time.Time) error
@@ -476,6 +467,13 @@ type namespaceIndex interface {
 	// Tick performs internal house keeping in the index, including block rotation,
 	// data eviction, and so on.
 	Tick(c context.Cancellable) (namespaceIndexTickResult, error)
+
+	// Flush performs any flushes that the index has outstanding using
+	// the owned shards of the database.
+	Flush(
+		flush persist.IndexFlush,
+		shards []databaseShard,
+	) error
 
 	// Close will release the index resources and close the index.
 	Close() error

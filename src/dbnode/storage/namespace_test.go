@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	xtest "github.com/m3db/m3x/test"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/fortytw2/leaktest"
@@ -332,7 +333,7 @@ func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 }
 
 func TestNamespaceBootstrapAllShards(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	ctrl := gomock.NewController(xtest.Reporter{t})
 	defer ctrl.Finish()
 
 	ns, closer := newTestNamespace(t)
@@ -357,7 +358,7 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 	}
 
 	require.Equal(t, "foo", ns.Bootstrap(start, bs).Error())
-	require.Equal(t, Bootstrapped, ns.bootstrapState)
+	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
 }
 
 func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {

@@ -526,10 +526,11 @@ func (mr *MockIndexFileSetReaderMockRecorder) Close() *gomock.Call {
 }
 
 // Open mocks base method
-func (m *MockIndexFileSetReader) Open(arg0 IndexReaderOpenOptions) error {
+func (m *MockIndexFileSetReader) Open(arg0 IndexReaderOpenOptions) (IndexReaderOpenResult, error) {
 	ret := m.ctrl.Call(m, "Open", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(IndexReaderOpenResult)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Open indicates an expected call of Open

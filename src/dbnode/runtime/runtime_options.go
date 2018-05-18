@@ -38,6 +38,11 @@ const (
 	// DefaultBootstrapConsistencyLevel is the default bootstrap consistency level
 	DefaultBootstrapConsistencyLevel = topology.ReadConsistencyLevelMajority
 
+	// DefaultFlushIndexBlockNumSegments is the default number of segments to
+	// attempt to divide a mutable index block into when flushing the index
+	// block.
+	DefaultFlushIndexBlockNumSegments = 4
+
 	defaultWriteNewSeriesAsync                  = false
 	defaultWriteNewSeriesBackoffDuration        = time.Duration(0)
 	defaultWriteNewSeriesLimitPerShardPerSecond = 0
@@ -70,6 +75,7 @@ type options struct {
 	clientBootstrapConsistencyLevel      topology.ReadConsistencyLevel
 	clientReadConsistencyLevel           topology.ReadConsistencyLevel
 	clientWriteConsistencyLevel          topology.ConsistencyLevel
+	flushIndexBlockNumSegments           uint
 }
 
 // NewOptions creates a new set of runtime options with defaults
@@ -86,6 +92,7 @@ func NewOptions() Options {
 		clientBootstrapConsistencyLevel:      DefaultBootstrapConsistencyLevel,
 		clientReadConsistencyLevel:           DefaultReadConsistencyLevel,
 		clientWriteConsistencyLevel:          DefaultWriteConsistencyLevel,
+		flushIndexBlockNumSegments:           DefaultFlushIndexBlockNumSegments,
 	}
 }
 
@@ -222,4 +229,14 @@ func (o *options) SetClientWriteConsistencyLevel(value topology.ConsistencyLevel
 
 func (o *options) ClientWriteConsistencyLevel() topology.ConsistencyLevel {
 	return o.clientWriteConsistencyLevel
+}
+
+func (o *options) SetFlushIndexBlockNumSegments(value uint) Options {
+	opts := *o
+	opts.flushIndexBlockNumSegments = value
+	return &opts
+}
+
+func (o *options) FlushIndexBlockNumSegments() uint {
+	return o.flushIndexBlockNumSegments
 }

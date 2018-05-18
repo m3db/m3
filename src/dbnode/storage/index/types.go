@@ -26,9 +26,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/clock"
+	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/idx"
-	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -111,9 +111,6 @@ type ResultsPool interface {
 	Put(value Results)
 }
 
-// MutableSegmentAllocator allocates a new MutableSegment type.
-type MutableSegmentAllocator func() (segment.MutableSegment, error)
-
 // OnIndexSeries provides a set of callback hooks to allow the reverse index
 // to do lifecycle management of any resources retained during indexing.
 type OnIndexSeries interface {
@@ -148,10 +145,8 @@ type Block interface {
 		results Results,
 	) (exhaustive bool, err error)
 
-	// Bootstrap bootstraps the index the provided segments.
-	Bootstrap(
-		segments []segment.Segment,
-	) error
+	// AddResults adds bootstrap results to the block, if c.
+	AddResults(results result.IndexBlock) error
 
 	// Tick does internal house keeping operations.
 	Tick(c context.Cancellable) (BlockTickResult, error)
@@ -163,8 +158,32 @@ type Block interface {
 	// IsSealed returns whether this block was sealed.
 	IsSealed() bool
 
+	// NeedsMutableSegmentsEvicted returns whether this block has any mutable segments
+	// that are not-empty and sealed.
+	// A sealed non-empty mutable segment needs to get evicted from memory as
+	// soon as it can be to reduce memory footprint.
+	NeedsMutableSegmentsEvicted() bool
+
+	// EvictMutableSegments closes any mutable segments, this is only applicable
+	// valid to be called once the block and hence mutable segments are sealed.
+	// It is expected that results have been added to the block that covers any
+	// data the mutable segments should have held at this time.
+	EvictMutableSegments() (EvictMutableSegmentResults, error)
+
 	// Close will release any held resources and close the Block.
 	Close() error
+}
+
+// EvictMutableSegmentResults returns statistics about the EvictMutableSegments execution.
+type EvictMutableSegmentResults struct {
+	NumMutableSegments int64
+	NumDocs            int64
+}
+
+// Add adds the provided results to the receiver.
+func (e *EvictMutableSegmentResults) Add(o EvictMutableSegmentResults) {
+	e.NumDocs += o.NumDocs
+	e.NumMutableSegments += o.NumMutableSegments
 }
 
 // WriteBatchResult returns statistics about the WriteBatch execution.

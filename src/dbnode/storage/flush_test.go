@@ -209,7 +209,7 @@ func TestFlushManagerNamespaceIndexingEnabled(t *testing.T) {
 	ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
 	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
 	ns.EXPECT().Flush(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-	ns.EXPECT().FlushIndex(gomock.Any(), gomock.Any()).Return(nil)
+	ns.EXPECT().FlushIndex(gomock.Any()).Return(nil)
 
 	mockFlusher := persist.NewMockDataFlush(ctrl)
 	mockFlusher.EXPECT().DoneData().Return(nil)

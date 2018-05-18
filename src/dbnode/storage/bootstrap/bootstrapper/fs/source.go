@@ -428,6 +428,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 
 		if err == nil {
+			// Validate the read results
 			var validateErr error
 			switch run {
 			case bootstrapDataRunType:
@@ -448,6 +449,17 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			if validateErr != nil {
 				err = fmt.Errorf("data validation failed: %v", validateErr)
 			}
+		}
+
+		if err == nil && run == bootstrapIndexRunType {
+			// Mark as fulfilled
+			fulfilled := result.ShardTimeRanges{
+				shard: xtime.NewRanges(timeRange),
+			}
+			runResult.Lock()
+			err = runResult.index.IndexResults().MarkFulfilled(start, fulfilled,
+				ns.Options().IndexOptions())
+			runResult.Unlock()
 		}
 
 		if err == nil {

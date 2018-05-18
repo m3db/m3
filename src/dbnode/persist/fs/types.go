@@ -257,6 +257,7 @@ type IndexWriterOpenOptions struct {
 	Identifier  FileSetFileIdentifier
 	BlockSize   time.Duration
 	FileSetType persist.FileSetType
+	Shards      map[uint32]struct{}
 	// Only used when writing snapshot files
 	Snapshot IndexWriterSnapshotOptions
 }
@@ -291,13 +292,19 @@ type IndexReaderOpenOptions struct {
 	FileSetType persist.FileSetType
 }
 
+// IndexReaderOpenResult describes the results of opening a
+// index file set volume.
+type IndexReaderOpenResult struct {
+	Shards map[uint32]struct{}
+}
+
 // IndexFileSetReader is an index file set reader.
 type IndexFileSetReader interface {
 	idxpersist.IndexFileSetReader
 	io.Closer
 
 	// Open the index file set reader.
-	Open(opts IndexReaderOpenOptions) error
+	Open(opts IndexReaderOpenOptions) (IndexReaderOpenResult, error)
 
 	// Validate returns whether all checksums were matched as expected,
 	// it must be called after reading all the segment file sets otherwise

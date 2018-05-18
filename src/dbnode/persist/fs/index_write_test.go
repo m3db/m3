@@ -43,11 +43,13 @@ func TestSnapshotIndexWriter(t *testing.T) {
 	testSnapshotSegments := []struct {
 		snapshotIndex int
 		snapshotTime  time.Time
+		shards        map[uint32]struct{}
 		segments      []testIndexSegment
 	}{
 		{
 			snapshotIndex: 0,
 			snapshotTime:  test.now.Add(-2 * time.Minute),
+			shards:        shardsSet(1, 2, 4),
 			segments: []testIndexSegment{
 				{
 					segmentType:  idxpersist.IndexSegmentType("fst"),
@@ -64,6 +66,7 @@ func TestSnapshotIndexWriter(t *testing.T) {
 		{
 			snapshotIndex: 1,
 			snapshotTime:  test.now.Add(-1 * time.Minute),
+			shards:        shardsSet(1, 3, 5),
 			segments: []testIndexSegment{
 				{
 					segmentType:  idxpersist.IndexSegmentType("fst"),
@@ -93,6 +96,7 @@ func TestSnapshotIndexWriter(t *testing.T) {
 			Snapshot: IndexWriterSnapshotOptions{
 				SnapshotTime: snapshot.snapshotTime,
 			},
+			Shards: snapshot.shards,
 		})
 		require.NoError(t, err)
 
@@ -132,11 +136,12 @@ func TestSnapshotIndexWriter(t *testing.T) {
 		fileSetID := test.fileSetID
 		fileSetID.VolumeIndex = snapshot.snapshotIndex
 
-		err = reader.Open(IndexReaderOpenOptions{
+		result, err := reader.Open(IndexReaderOpenOptions{
 			Identifier:  fileSetID,
 			FileSetType: persist.FileSetSnapshotType,
 		})
 		require.NoError(t, err)
+		require.Equal(t, snapshot.shards, result.Shards)
 
 		readTestIndexSegments(t, ctrl, reader, snapshot.segments)
 

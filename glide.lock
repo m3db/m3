@@ -103,12 +103,10 @@ imports:
   subpackages:
   - capnslog
 - name: github.com/couchbase/vellum
-  version: eb6ae3743b3f300f2136f83ca78c08cc071edbd4
+  version: 1782e2d46ce2a9f28bd1ac1b46cd141c0d887c9b
+  repo: https://github.com/m3db/vellum
   subpackages:
   - utf8
-- name: github.com/couchbaselabs/vellum
-  version: eb6ae3743b3f300f2136f83ca78c08cc071edbd4
-  subpackages:
   - regexp
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
@@ -232,7 +230,7 @@ imports:
   - metric
   - policy
 - name: github.com/m3db/m3ninx
-  version: 8f5e6a0f31393f5b0d79086250ac1a528747c0c7
+  version: fe75ad9256a620f9a24478e6e51b8ed8c65d7a7c
   subpackages:
   - doc
   - generated/proto/fswriter
@@ -255,7 +253,7 @@ imports:
   - search/searcher
   - x
 - name: github.com/m3db/m3x
-  version: c457e96f2dea19cf2f590e40d443b62ced1e7820
+  version: 1a17ecefdef9e05c711ada6369ec6bc99b169418
   vcs: git
   subpackages:
   - checked
