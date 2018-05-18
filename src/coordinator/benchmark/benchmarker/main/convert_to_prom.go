@@ -26,15 +26,17 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path"
 
 	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
 	"github.com/m3db/m3db/src/coordinator/storage"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
+	"go.uber.org/zap"
 )
 
-func calculateCardinality(fromFile string) (int, error) {
+func calculateCardinality(fromFile string, logger *zap.Logger) (int, error) {
 	lines, err := lineLength(fromFile)
 	if err != nil {
 		return 0, err
@@ -52,7 +54,7 @@ func calculateCardinality(fromFile string) (int, error) {
 
 	marker := lines / 10
 	read := 0
-	percent := 1
+	percent := 10
 
 	for scanner.Scan() {
 		tsdb := scanner.Text()
@@ -63,24 +65,32 @@ func calculateCardinality(fromFile string) (int, error) {
 
 		read++
 		if read%marker == 0 {
-			fmt.Printf("Read %d0%s\n", percent, "%")
-			percent++
+			logger.Info("read", zap.Int("percent", percent))
+			percent += 10
 		}
 	}
 	return len(tagsSeen), nil
 }
 
-func convertToProm(fromFile, dir, toFile string, workers int, batchSize int) (int, error) {
+func getFilePath(dataDir, dataFile string, worker, batchNumber int) string {
+	return path.Join(dataDir, fmt.Sprintf("%s_%d_%d", dataFile, worker, batchNumber))
+}
+
+func ceilDivision(numerator, denominator int) int {
+	return int(math.Ceil(float64(numerator) / float64(denominator)))
+}
+
+func convertToProm(fromFile, dir, toFile string, workers int, batchSize int, logger *zap.Logger) (int, error) {
 	lines, err := lineLength(fromFile)
-	fmt.Println("Converting", lines, "open_tsdb metrics to prom")
+	logger.Info("Converting open_tsdb metrics to prom", zap.Info("lines", lines))
 
 	if err != nil {
 		return 0, err
 	}
 
 	// Breakup output files by worker, by batch size
-	workerFiles := int(math.Ceil(float64(lines) / float64(workers)))
-	batchFiles := int(math.Ceil(float64(workerFiles) / float64(batchSize)))
+	workerFiles := ceilDivision(lines, workers)
+	batchFiles := ceilDivision(workerFiles, batchSize)
 	fmt.Printf("\t%d files per worker\n\t%d batches per worker\n", workerFiles, batchFiles)
 
 	inFile, err := os.OpenFile(fromFile, os.O_RDONLY, 0)
@@ -96,7 +106,7 @@ func convertToProm(fromFile, dir, toFile string, workers int, batchSize int) (in
 	scanner := bufio.NewScanner(inFile)
 	for w := 0; w < workers; w++ {
 		for b := 0; b < batchFiles; b++ {
-			outFilePath := fmt.Sprintf("%s/%s%d_%d", dir, toFile, w, b)
+			outFilePath := getFilePath(dir, toFile, w, b)
 			outFile, err := os.Create(outFilePath)
 			if err != nil {
 				return 0, err
@@ -116,7 +126,7 @@ func convertToProm(fromFile, dir, toFile string, workers int, batchSize int) (in
 				}
 			}
 			if len(series) > 0 {
-				outFile.WriteString(encodeWriteRequest(series))
+				outFile.Write(encodeWriteRequest(series))
 			}
 			err = outFile.Close()
 			if err != nil {
@@ -128,12 +138,12 @@ func convertToProm(fromFile, dir, toFile string, workers int, batchSize int) (in
 	return lines, nil
 }
 
-func encodeWriteRequest(ts []*prompb.TimeSeries) string {
+func encodeWriteRequest(ts []*prompb.TimeSeries) []byte {
 	req := &prompb.WriteRequest{
 		Timeseries: ts,
 	}
 	data, _ := proto.Marshal(req)
-	return string(snappy.Encode(nil, data))
+	return snappy.Encode(nil, data)
 }
 
 // OpenTSDB style metrics

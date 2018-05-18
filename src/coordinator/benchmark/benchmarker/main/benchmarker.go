@@ -21,10 +21,10 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -32,6 +32,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/benchmark/common"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -58,7 +61,7 @@ func init() {
 	flag.StringVar(&inputFile, "inputFile", "benchmark_opentsdb", "input file")
 
 	flag.StringVar(&dataDir, "dir", "prom", "folder containing data for benchmark")
-	flag.StringVar(&dataFile, "dataFile", "benchmark_prom_", "prefix for benchmark files")
+	flag.StringVar(&dataFile, "dataFile", "benchmark_prom", "prefix for benchmark files")
 
 	flag.IntVar(&workers, "workers", 2, "Number of parallel requests to make.")
 	flag.IntVar(&batch, "batch", 5000, "Batch Size")
@@ -69,15 +72,24 @@ func init() {
 	flag.Parse()
 }
 
+var (
+	logger *zap.Logger
+)
+
 func main() {
+	logging.InitWithCores(nil)
+	ctx := context.Background()
+	logger = logging.WithContext(ctx)
+	defer logger.Sync()
+
 	if cardinality {
-		fmt.Println("Calculating cardinality only")
-		cardinality, err := calculateCardinality(inputFile)
+		logger.Info("Calculating cardinality only")
+		cardinality, err := calculateCardinality(inputFile, logger)
 		if err != nil {
-			fmt.Println(err)
+			logger.Fatal("cannot get cardinality", zap.Any("err", err))
 			return
 		}
-		fmt.Printf("%s cardinality: %d\n", dataFile, cardinality)
+		logger.Info("Cardinality", zap.String("dataFile", dataFile), zap.Int("cardinality", cardinality))
 		return
 	}
 
@@ -85,18 +97,18 @@ func main() {
 	if regenerateData {
 		os.RemoveAll(dataDir)
 
-		lines, err := convertToProm(inputFile, dataDir, dataFile, workers, batch)
+		lines, err := convertToProm(inputFile, dataDir, dataFile, workers, batch, logger)
 		if err != nil {
-			fmt.Println(err)
+			logger.Fatal("cannot convert to prom", zap.Any("err", err))
 			return
 		}
 		metricsToWrite = lines
 	}
-
-	log.Println("Benchmarking writes on m3coordinator over http endpoint...")
+	logger.Info("Benchmarking writes on m3coordinator over http endpoint...")
 	err := benchmarkCoordinator(metricsToWrite)
 	if err != nil {
-		fmt.Println(err)
+		logger.Fatal("cannot benchmark coordinator to prom", zap.Any("err", err))
+
 		return
 	}
 }
@@ -110,14 +122,17 @@ func benchmarkCoordinator(metricsToWrite int) error {
 
 	workerBatches := make(map[int]int)
 
+	actualFiles := 0
+
 	for _, f := range files {
 		name := f.Name()
-		if strings.HasPrefix(name, dataFile) {
-			workerFiles := name[len(dataFile):]
+		dataFileWithSeperator := fmt.Sprintf("%s_", dataFile)
+		if strings.HasPrefix(name, dataFileWithSeperator) {
+			workerFiles := name[len(dataFileWithSeperator):]
 
 			split := strings.Split(workerFiles, "_")
 			if len(split) != 2 {
-				fmt.Println("bad format:", name)
+				logger.Info("bad format", zap.String("fileName", name))
 				continue
 			}
 
@@ -126,42 +141,65 @@ func benchmarkCoordinator(metricsToWrite int) error {
 				return err
 			}
 			workerBatches[worker]++
+			actualFiles++
 		}
 	}
 
-	wg := new(sync.WaitGroup)
-	wg.Add(len(workerBatches))
 	itemsWritten := metricsToWrite
 	if metricsToWrite == 0 {
-		itemsWritten = batch * len(files)
+		itemsWritten = batch * actualFiles
 	}
 
+	numBatches := ceilDivision(actualFiles, workers)
+
 	start := time.Now()
-	log.Println("Started benchmark at:", start.Format(time.StampMilli))
+	logger.Info(fmt.Sprintf("Benchmarking %d batches, with %d metrics a batch, across %d workers  (%d total metrics)\nStarted benchmark at: %s",
+		numBatches, batch, workers, itemsWritten, start.Format(time.StampMilli)))
+
+	wg := new(sync.WaitGroup)
+	wg.Add(len(workerBatches))
+
+	success := make(chan int)
 
 	for worker, batches := range workerBatches {
 		worker, batches := worker, batches
-		go func() {
+		go func(chan<- int) {
 			defer wg.Done()
 			for batchNumber := 0; batchNumber < batches; batchNumber++ {
-				err = writeToCoordinator(fmt.Sprintf("%s/%s%d_%d", dataDir, dataFile, worker, batchNumber))
+				filePath := getFilePath(dataDir, dataFile, worker, batchNumber)
+				err = writeToCoordinator(filePath)
 				if err != nil {
 					fmt.Println(err)
+					success <- 0
 					break
+				} else {
+					success <- batch
 				}
 			}
-		}()
+		}(success)
 	}
+	final := make(chan int)
+
+	go func(success <-chan int, final chan<- int) {
+		count := 0
+		for c := range success {
+			count = count + c
+		}
+		final <- count
+	}(success, final)
 
 	wg.Wait()
+	close(success)
+	actualWritten := <-final
 
 	end := time.Now()
-	log.Println("Finished benchmark at:", start.Format(time.StampMilli))
+	logger.Info("Finished benchmark at:", zap.String("timestamp", start.Format(time.StampMilli)))
 	took := end.Sub(start)
-	rate := float64(itemsWritten) / took.Seconds()
+	rate := float64(actualWritten) / took.Seconds()
 	perWorker := rate / float64(workers)
 
-	log.Printf("loaded %d items in %fsec with %d workers (mean values rate %f/sec); per worker %f/sec\n", itemsWritten, took.Seconds(), workers, rate, perWorker)
+	logger.Info(fmt.Sprintf("loaded %d items in %fsec with %d workers (mean values rate %f/sec); per worker %f/sec",
+		actualWritten, took.Seconds(), workers, rate, perWorker))
 
 	return nil
 }
