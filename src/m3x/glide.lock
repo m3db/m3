@@ -1,5 +1,5 @@
-hash: e12fce100a60225faefb6dfb23c6ad880ce23f1f112b81a44ca4bca9fb69fa72
-updated: 2018-05-17T13:33:37.499046-04:00
+hash: 45cff4f7627fe2d7f7dc304dc0d72b5f184de6a429606b4377aadf4d8921d238
+updated: 2018-05-18T11:27:03.115560906-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -20,9 +20,16 @@ imports:
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: 927b65914520a8b7d44f5c9057611cfec6b2e2d0
+  version: 5a0f697c9ed9d68fef0116532c6e05cfeae00e55
   subpackages:
   - proto
+- name: github.com/google/go-cmp
+  version: 3af367b6b30c263d47e8895973edcca9a49cf029
+  subpackages:
+  - cmp
+  - cmp/internal/diff
+  - cmp/internal/function
+  - cmp/internal/value
 - name: github.com/m3db/prometheus_client_golang
   version: 8ae269d24972b8695572fa6b2e3718b5ea82d6b4
   subpackages:
@@ -78,7 +85,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
   subpackages:
   - buffer
   - internal/bufferpool
@@ -86,7 +93,7 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/net
-  version: ab5485076ff3407ad2d02db054635913f017b0ed
+  version: 0ed95abb35c445290478a5348a7b38bb154135fd
   subpackages:
   - context
 - name: gopkg.in/validator.v2

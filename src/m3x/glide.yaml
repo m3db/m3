@@ -37,6 +37,11 @@ import:
   - assert
   - require
 
+- package: github.com/google/go-cmp
+  version: ^0.2
+  subpackages:
+  - cmp
+
 testImport:
 - package: github.com/fortytw2/leaktest
   version: ^1.1.0
