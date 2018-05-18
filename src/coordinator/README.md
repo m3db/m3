@@ -1,6 +1,6 @@
 ## WARNING: This is Alpha software and not intended for use until a stable release.
 
-# M3Coordinator [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov]
+# M3Coordinator [![GoDoc][doc-img]][doc] 
 
 M3Coordinator is a service which provides APIs for reading/writing to [M3DB](https://github.com/m3db/m3db) at a global and placement specific level.
 It also acts as a bridge between [Prometheus](https://github.com/prometheus/prometheus) and [M3DB](https://github.com/m3db/m3db). Using this bridge, [M3DB](https://github.com/m3db/m3db) acts as a long term storage for [Prometheus](https://github.com/prometheus/prometheus) using the [remote read/write endpoints](https://github.com/prometheus/prometheus/blob/master/prompb/remote.proto).
@@ -50,13 +50,13 @@ Run m3coordinator binary:
 
 Run Prometheus Docker image:
 
-    $ docker run -p 9090:9090 -v $GOPATH/src/github.com/m3db/m3coordinator/docker/prometheus-mac.yml:/etc/prometheus/prometheus.yml quay.io/prometheus/prometheus
+    $ docker run -p 9090:9090 -v $GOPATH/src/github.com/m3db/m3db/src/coordinator/docker/prometheus-mac.yml:/etc/prometheus/prometheus.yml quay.io/prometheus/prometheus
 
 ### Running on GCP
 
 Setup GCP for [single m3db node](https://github.com/m3db/m3db/pull/452/files?short_path=20bfc3f#diff-20bfc3ff6a860483887b93bf9cf0d135)
 
-> For a multi-node cluster, [see here](https://github.com/m3db/m3coordinator/tree/master/benchmark)
+> For a multi-node cluster, [see here](https://github.com/m3db/m3db/src/coordinator/tree/master/benchmark)
 
 Setup GCP for m3coordinator:
 
@@ -80,15 +80,7 @@ Setup and run Prometheus:
                 - url: http://10.142.0.8:7201/api/v1/prom/remote/write
             ```
     3. Run Prometheus
-        $ sudo docker run -p 9090:9090 -v $GOPATH/src/github.com/m3db/m3coordinator/docker/prometheus.yml:/etc/prometheus/prometheus.yml quay.io/prometheus/prometheus
+        $ sudo docker run -p 9090:9090 -v $GOPATH/src/github.com/m3db/m3db/src/coordinator/docker/prometheus.yml:/etc/prometheus/prometheus.yml quay.io/prometheus/prometheus
 
-<hr>
-
-This project is released under the [MIT License](LICENSE.md).
-
-[doc-img]: https://godoc.org/github.com/m3db/m3coordinator?status.svg
-[doc]: https://godoc.org/github.com/m3db/m3coordinator
-[ci-img]: https://semaphoreci.com/api/v1/m3db/m3coordinator/branches/master/shields_badge.svg
-[ci]: https://semaphoreci.com/m3db/m3coordinator
-[cov-img]: https://codecov.io/gh/m3db/m3coordinator/branch/master/graph/badge.svg
-[cov]: https://codecov.io/gh/m3db/m3coordinator
+[doc-img]: https://godoc.org/github.com/m3db/m3db/src/coordinator?status.svg
+[doc]: https://godoc.org/github.com/m3db/m3db/src/coordinator
