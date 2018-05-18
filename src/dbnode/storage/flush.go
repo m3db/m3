@@ -160,7 +160,7 @@ func (m *flushManager) Flush(
 		if !indexEnabled {
 			continue
 		}
-		multiErr = multiErr.Add(ns.FlushIndex(tickStart, indexFlush))
+		multiErr = multiErr.Add(ns.FlushIndex(indexFlush))
 	}
 	// mark index flush finished
 	multiErr = multiErr.Add(indexFlush.DoneIndex())

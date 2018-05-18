@@ -92,7 +92,11 @@ func (r *indexReader) reset(opts Options) {
 	r.logger = opts.InstrumentOptions().Logger()
 }
 
-func (r *indexReader) Open(opts IndexReaderOpenOptions) error {
+func (r *indexReader) Open(
+	opts IndexReaderOpenOptions,
+) (IndexReaderOpenResult, error) {
+	var result IndexReaderOpenResult
+
 	// NB(r): so the reader can be reused.
 	r.reset(r.opts)
 
@@ -111,7 +115,7 @@ func (r *indexReader) Open(opts IndexReaderOpenOptions) error {
 	case persist.FileSetFlushType:
 		r.namespaceDir = NamespaceIndexDataDirPath(r.filePathPrefix, namespace)
 	default:
-		return fmt.Errorf("cannot open index reader for fileset type: %s", opts.FileSetType)
+		return result, fmt.Errorf("cannot open index reader for fileset type: %s", opts.FileSetType)
 	}
 	checkpointFilepath = filesetPathFromTimeAndIndex(r.namespaceDir, r.start, r.volumeIndex, checkpointFileSuffix)
 	infoFilepath = filesetPathFromTimeAndIndex(r.namespaceDir, r.start, r.volumeIndex, infoFileSuffix)
@@ -119,15 +123,19 @@ func (r *indexReader) Open(opts IndexReaderOpenOptions) error {
 
 	// If there is no checkpoint file, don't read the index files.
 	if err := r.readCheckpointFile(checkpointFilepath); err != nil {
-		return err
+		return result, err
 	}
 	if err := r.readDigestsFile(digestFilepath); err != nil {
-		return err
+		return result, err
 	}
 	if err := r.readInfoFile(infoFilepath); err != nil {
-		return err
+		return result, err
 	}
-	return nil
+	result.Shards = make(map[uint32]struct{}, len(r.info.Shards))
+	for _, shard := range r.info.Shards {
+		result.Shards[shard] = struct{}{}
+	}
+	return result, nil
 }
 
 func (r *indexReader) readCheckpointFile(filePath string) error {

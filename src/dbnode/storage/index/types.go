@@ -163,6 +163,14 @@ type Block interface {
 	// IsSealed returns whether this block was sealed.
 	IsSealed() bool
 
+	// HasMutableSegments returns whether this block has any mutable segments.
+	HasMutableSegments() bool
+
+	// ResetSegments resets any mutable segments held and uses a new set
+	// of immutable segments to serve queries from, useful for when memory
+	// segments are flushed and then returned as disk backed FSTs.
+	ResetSegments(segments []segment.Segment) error
+
 	// Close will release any held resources and close the Block.
 	Close() error
 }

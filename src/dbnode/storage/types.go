@@ -298,7 +298,6 @@ type databaseNamespace interface {
 
 	// FlushIndex flushes in-memory index data.
 	FlushIndex(
-		tickStart time.Time,
 		flush persist.IndexFlush,
 	) error
 
@@ -468,6 +467,13 @@ type namespaceIndex interface {
 	// Tick performs internal house keeping in the index, including block rotation,
 	// data eviction, and so on.
 	Tick(c context.Cancellable) (namespaceIndexTickResult, error)
+
+	// Flush performs any flushes that the index has outstanding using
+	// the owned shards of the database.
+	Flush(
+		flush persist.IndexFlush,
+		shards []databaseShard,
+	) error
 
 	// Close will release the index resources and close the index.
 	Close() error

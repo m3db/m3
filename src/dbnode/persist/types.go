@@ -115,6 +115,7 @@ type IndexPrepareOptions struct {
 	NamespaceMetadata namespace.Metadata
 	BlockStart        time.Time
 	FileSetType       FileSetType
+	Shards            map[uint32]struct{}
 }
 
 // DataPrepareSnapshotOptions is the options struct for the Prepare method that contains
