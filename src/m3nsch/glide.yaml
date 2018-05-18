@@ -3,16 +3,16 @@ import:
 - package: github.com/gavv/monotime
   version: 47d58efa69556a936a3c15eb2ed42706d968ab01
 - package: github.com/golang/protobuf
-  version: 3852dcfda249c2097355a6aabb199a28d97b30df
+  version: 5a0f697c9ed9d68fef0116532c6e05cfeae00e55
   subpackages:
   - proto
   - ptypes/timestamp
 - package: github.com/m3db/m3db
-  version: 429eb6f48a82fb1a46d6c0bdc8bc4a3c30ba9f2a
+  version: 6168810f2e99a3b86c290442599acafaa8cabed9
   subpackages:
   - client
 - package: github.com/m3db/m3x
-  version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
+  version: df82cd7aacfd8439586821ecd6e073da35bfbb02
   subpackages:
   - errors
   - instrument
@@ -31,11 +31,11 @@ import:
   subpackages:
   - m3
 - package: golang.org/x/net
-  version: 61557ac0112b576429a0df080e1c2cef5dfbb642
+  version: ab5485076ff3407ad2d02db054635913f017b0ed
   subpackages:
   - context
 - package: google.golang.org/grpc
-  version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
+  version: 401e0e00e4bb830a10496d64cd95e068c5bf50de
   subpackages:
   - codes
 - package: gopkg.in/validator.v2
@@ -45,5 +45,5 @@ import:
   subpackages:
   - require
 - package: github.com/golang/mock
-  version: ^1.0.0
+  version: ^1
 testImport:

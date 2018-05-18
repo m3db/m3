@@ -48,6 +48,6 @@ type M3nschConfiguration struct {
 // New returns a Configuration read from the specified path
 func New(filename string) (Configuration, error) {
 	var conf Configuration
-	err := xconfig.LoadFile(&conf, filename)
+	err := xconfig.LoadFile(&conf, filename, xconfig.Options{})
 	return conf, err
 }
