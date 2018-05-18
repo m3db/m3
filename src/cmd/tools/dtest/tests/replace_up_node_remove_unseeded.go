@@ -2,32 +2,31 @@ package dtests
 
 import (
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/src/dbnode/tools/dtest/harness"
+	"github.com/m3db/m3db/src/cmd/tools/dtest/harness"
 	xclock "github.com/m3db/m3x/clock"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	replaceUpNodeRemoveTestCmd = &cobra.Command{
-		Use:   "replace_up_node_remove",
+	replaceUpNodeRemoveUnseededTestCmd = &cobra.Command{
+		Use:   "replace_up_node_remove_unseeded",
 		Short: "Run a dtest where a node that is UP is replaced from the cluster. The replacing Node is removed as it begins bootstrapping.",
 		Long: `
 		Perform the following operations on the provided set of nodes:
 		(1) Create a new cluster placement using all but one of the provided nodes.
-		(2) Seed the nodes used in (1), with initial data on their respective file-systems.
-		(3) Start the nodes from (1), and wait until they are bootstrapped.
-		(4) Replace any node in the cluster with the unused node in the cluster placement.
-		(5) Start the joining node's process.
-		(6) Wait until any shard on the joining node is marked as available.
-		(7) Remove the joining node from the cluster placement.
+		(2) Start the nodes from (1), and wait until they are bootstrapped.
+		(3) Replace any node in the cluster with the unused node in the cluster placement.
+		(4) Start the joining node's process.
+		(5) Wait until any shard on the joining node is marked as available.
+		(6) Remove the joining node from the cluster placement.
 `,
-		Example: `./dtest replace_up_node_remove --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --dtest-config path/to/dtest.yaml`,
-		Run:     replaceUpNodeRemoveDTest,
+		Example: `./dtest replace_up_node_remove_unseeded --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --dtest-config path/to/dtest.yaml`,
+		Run:     replaceUpNodeRemoveUnseededDTest,
 	}
 )
 
-func replaceUpNodeRemoveDTest(cmd *cobra.Command, args []string) {
+func replaceUpNodeRemoveUnseededDTest(cmd *cobra.Command, args []string) {
 	if err := globalArgs.Validate(); err != nil {
 		printUsage(cmd)
 		return
@@ -45,10 +44,6 @@ func replaceUpNodeRemoveDTest(cmd *cobra.Command, args []string) {
 	setupNodes, err := testCluster.Setup(numNodes)
 	panicIfErr(err, "unable to setup cluster")
 	logger.Infof("setup cluster with %d nodes", numNodes)
-
-	logger.Infof("seeding nodes with initial data")
-	panicIfErr(dt.Seed(setupNodes), "unable to seed nodes")
-	logger.Infof("seeded nodes")
 
 	logger.Infof("starting cluster")
 	panicIfErr(testCluster.Start(), "unable to start nodes")

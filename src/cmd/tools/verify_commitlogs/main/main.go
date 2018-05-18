@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3db/src/cmd/tools"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
@@ -41,7 +42,6 @@ import (
 	commitlogsrc "github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3db/src/dbnode/tools"
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
 	"github.com/m3db/m3x/ident"

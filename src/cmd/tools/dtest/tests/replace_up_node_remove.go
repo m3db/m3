@@ -2,32 +2,32 @@ package dtests
 
 import (
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/src/dbnode/tools/dtest/harness"
+	"github.com/m3db/m3db/src/cmd/tools/dtest/harness"
 	xclock "github.com/m3db/m3x/clock"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	addUpNodeRemoveTestCmd = &cobra.Command{
-		Use:   "add_up_node_remove",
-		Short: "Run a dtest where a node that is UP, is added to the cluster. Node is removed as it begins bootstrapping.",
+	replaceUpNodeRemoveTestCmd = &cobra.Command{
+		Use:   "replace_up_node_remove",
+		Short: "Run a dtest where a node that is UP is replaced from the cluster. The replacing Node is removed as it begins bootstrapping.",
 		Long: `
 		Perform the following operations on the provided set of nodes:
 		(1) Create a new cluster placement using all but one of the provided nodes.
 		(2) Seed the nodes used in (1), with initial data on their respective file-systems.
 		(3) Start the nodes from (1), and wait until they are bootstrapped.
-		(4) Start the one unused node's process.
-		(5) Add the node from (4) to the cluster placement.
-		(6) Wait until any shard on the node is marked as available.
-		(7) Remove the node from the cluster placement.
+		(4) Replace any node in the cluster with the unused node in the cluster placement.
+		(5) Start the joining node's process.
+		(6) Wait until any shard on the joining node is marked as available.
+		(7) Remove the joining node from the cluster placement.
 `,
-		Example: `./dtest add_up_node_remove --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --dtest-config path/to/dtest.yaml`,
-		Run:     addUpNodeRemoveDTest,
+		Example: `./dtest replace_up_node_remove --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --dtest-config path/to/dtest.yaml`,
+		Run:     replaceUpNodeRemoveDTest,
 	}
 )
 
-func addUpNodeRemoveDTest(cmd *cobra.Command, args []string) {
+func replaceUpNodeRemoveDTest(cmd *cobra.Command, args []string) {
 	if err := globalArgs.Validate(); err != nil {
 		printUsage(cmd)
 		return
@@ -58,21 +58,20 @@ func addUpNodeRemoveDTest(cmd *cobra.Command, args []string) {
 	panicIfErr(dt.WaitUntilAllBootstrapped(setupNodes), "unable to bootstrap all nodes")
 	logger.Infof("all nodes bootstrapped successfully!")
 
-	// get a spare, ensure it's up and add to the cluster
-	logger.Infof("adding spare to the cluster")
-	spares := testCluster.SpareNodes()
-	panicIf(len(spares) < 1, "no spares to add to the cluster")
-	spare := spares[0]
+	// pick first node from cluster
+	nodeToReplace := setupNodes[0]
+	logger.Infof("replacing node: %v", nodeToReplace.ID())
+	replacementNodes, err := testCluster.ReplaceNode(nodeToReplace)
+	panicIfErr(err, "unable to replace node")
+	panicIf(len(replacementNodes) < 1, "no replacement nodes returned")
+	logger.Infof("replaced node with: %+v", replacementNodes)
 
-	// start node
-	logger.Infof("starting new node: %v", spare.ID())
-	panicIfErr(spare.Start(), "unable to start node")
-	logger.Infof("started node")
-
-	// add to placement
-	logger.Infof("adding node")
-	panicIfErr(testCluster.AddSpecifiedNode(spare), "unable to add node")
-	logger.Infof("added node")
+	logger.Infof("starting replacement nodes")
+	// starting replacement nodes
+	for _, n := range replacementNodes {
+		panicIfErr(n.Start(), "unable to start node")
+	}
+	logger.Infof("started replacement nodes")
 
 	// NB(prateek): ideally we'd like to wait until the node begins bootstrapping, but we don't
 	// have a way to capture that node status. The rpc endpoint in m3dbnode only captures bootstrap
@@ -80,13 +79,16 @@ func addUpNodeRemoveDTest(cmd *cobra.Command, args []string) {
 	// So here we wait until any shard is marked as bootstrapped before continuing.
 
 	// wait until any shard is bootstrapped (i.e. marked available on new node)
-	logger.Infof("waiting till any shards are bootstrapped on new node")
+	replacementNode := replacementNodes[0]
+	logger.Infof("waiting till any shards are bootstrapped on node: %v", replacementNode.ID())
 	timeout := dt.BootstrapTimeout()
-	anyBootstrapped := xclock.WaitUntil(func() bool { return dt.AnyInstanceShardHasState(spare.ID(), shard.Available) }, timeout)
+	anyBootstrapped := xclock.WaitUntil(func() bool { return dt.AnyInstanceShardHasState(replacementNode.ID(), shard.Available) }, timeout)
 	panicIf(!anyBootstrapped, "all shards not available")
 
 	// remove the node once it has a shard available
-	logger.Infof("node has at least 1 shard available. removing node")
-	panicIfErr(testCluster.RemoveNode(spare), "unable to remove node")
-	logger.Infof("removed node")
+	logger.Infof("node has at least 1 shard available. removing replacement nodes")
+	for _, n := range replacementNodes {
+		panicIfErr(testCluster.RemoveNode(n), "unable to remove node")
+	}
+	logger.Infof("removed replacement nodes")
 }

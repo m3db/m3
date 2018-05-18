@@ -1,7 +1,7 @@
 package dtests
 
 import (
-	"github.com/m3db/m3db/src/dbnode/tools/dtest/harness"
+	"github.com/m3db/m3db/src/cmd/tools/dtest/harness"
 	"github.com/m3db/m3em/node"
 
 	"github.com/spf13/cobra"

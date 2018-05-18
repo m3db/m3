@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3db/src/dbnode/tools/dtest/config"
+	"github.com/m3db/m3db/src/cmd/tools/dtest/config"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/spf13/cobra"

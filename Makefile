@@ -30,15 +30,15 @@ LINUX_AMD64_ENV  := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 
 include $(SELF_DIR)/src/dbnode/generated-source-files.mk
 
-SERVICES :=       \
+SERVICES :=     \
 	m3dbnode      \
 	m3coordinator
 
-SUBDIRS :=      \
+SUBDIRS :=    \
 	dbnode      \
 	coordinator
 
-TOOLS :=              \
+TOOLS :=            \
 	read_ids          \
 	read_index_ids    \
 	read_data_files   \
@@ -71,7 +71,7 @@ define TOOL_RULES
 .PHONY: $(TOOL)
 $(TOOL): setup
 	@echo Building $(TOOL)
-	go build -o $(BUILD)/$(TOOL) ./tools/$(TOOL)/main/.
+	go build -o $(BUILD)/$(TOOL) ./src/cmd/tools/$(TOOL)/main/.
 
 .PHONY: $(TOOL)-linux-amd64
 $(TOOL)-linux-amd64:
