@@ -48,9 +48,6 @@ import:
   subpackages:
   - lib/go/thrift
 
-- package: github.com/davecgh/go-spew
-  version: adab96458c51a58dc1783b3335dcce5461522e75
-
 - package: github.com/golang/mock
   version: ^1
   subpackages:
