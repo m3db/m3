@@ -57,3 +57,7 @@ agent:
 EOF
 $ /remote-path/m3em_agent -f m3em.agent.yaml
 ```
+
+<hr>
+
+This project is released under the [Apache License, Version 2.0](LICENSE).
