@@ -46,8 +46,14 @@ const (
 	defaultEtcdServerPort = 2380
 )
 
-// Configuration is the configuration for a M3DB node.
+// Configuration is the top level configuration that includes both a DB node and coordinator
 type Configuration struct {
+	DB          DBConfiguration          `yaml:"db"`
+	Coordinator CoordinatorConfiguration `yaml:"coordinator"`
+}
+
+// DBConfiguration is the configuration for an M3DB node.
+type DBConfiguration struct {
 	// Logging configuration.
 	Logging xlog.Configuration `yaml:"logging"`
 
@@ -116,6 +122,11 @@ type Configuration struct {
 
 	// Write new series asynchronously for fast ingestion of new ID bursts.
 	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
+}
+
+// CoordinatorConfiguration is the configuration for an instance of m3coordinator.
+type CoordinatorConfiguration struct {
+	M3DBClientCfg client.Configuration `yaml:"client"`
 }
 
 // TickConfiguration is the tick configuration for background processing of
@@ -208,7 +219,7 @@ type HashingConfiguration struct {
 }
 
 // NewEtcdEmbedConfig creates a new embedded etcd config from kv config.
-func NewEtcdEmbedConfig(cfg Configuration) (*embed.Config, error) {
+func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 	newKVCfg := embed.NewConfig()
 	kvCfg := cfg.EnvironmentConfig.SeedNodes
 
