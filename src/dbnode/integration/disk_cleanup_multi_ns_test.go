@@ -134,8 +134,8 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 	log.Infof("creating commit log and fileset files")
 	shard := uint32(0)
 	writeCommitLogs(t, filePathPrefix, commitLogTimes)
-	writeFileSetFiles(t, testSetup.storageOpts, ns1, shard, ns1Times)
-	writeFileSetFiles(t, testSetup.storageOpts, ns2, shard, ns2Times)
+	writeDataFileSetFiles(t, testSetup.storageOpts, ns1, shard, ns1Times)
+	writeDataFileSetFiles(t, testSetup.storageOpts, ns2, shard, ns2Times)
 
 	// Move now forward by 12 hours, and see if the expected files have been deleted
 	testSetup.setNowFn(end)

@@ -32,11 +32,8 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3db/src/dbnode/topology"
-	"github.com/m3db/m3ninx/idx"
 	xclock "github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -138,52 +135,4 @@ func TestIndexMultipleNodeHighConcurrency(t *testing.T) {
 				log.Infof("data is indexed in %v", time.Since(start))
 			})
 	}
-}
-
-func isIndexed(t *testing.T, s client.Session, ns ident.ID, id ident.ID, tags ident.TagIterator) bool {
-	q := newQuery(t, tags)
-	iter, _, err := s.FetchTaggedIDs(ns, index.Query{q}, index.QueryOptions{
-		StartInclusive: time.Now(),
-		EndExclusive:   time.Now(),
-		Limit:          10})
-	if err != nil {
-		return false
-	}
-	if !iter.Next() {
-		return false
-	}
-	cuNs, cuID, cuTag := iter.Current()
-	if ns.String() != cuNs.String() {
-		return false
-	}
-	if id.String() != cuID.String() {
-		return false
-	}
-	return ident.NewTagIterMatcher(tags).Matches(cuTag)
-}
-
-func newQuery(t *testing.T, tags ident.TagIterator) idx.Query {
-	tags = tags.Duplicate()
-	filters := make([]idx.Query, 0, tags.Remaining())
-	for tags.Next() {
-		tag := tags.Current()
-		tq := idx.NewTermQuery(tag.Name.Bytes(), tag.Value.Bytes())
-		filters = append(filters, tq)
-	}
-	return idx.NewConjunctionQuery(filters...)
-}
-
-func genIDTags(i int, j int, numTags int) (ident.ID, ident.TagIterator) {
-	id := fmt.Sprintf("foo.%d.%d", i, j)
-	tags := make([]ident.Tag, 0, numTags)
-	for i := 0; i < numTags; i++ {
-		tags = append(tags, ident.StringTag(
-			fmt.Sprintf("%s.tagname.%d", id, i),
-			fmt.Sprintf("%s.tagvalue.%d", id, i),
-		))
-	}
-	tags = append(tags,
-		ident.StringTag("commoni", fmt.Sprintf("%d", i)),
-		ident.StringTag("shared", "shared"))
-	return ident.StringID(id), ident.NewTagsIterator(ident.NewTags(tags...))
 }

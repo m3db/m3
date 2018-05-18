@@ -41,19 +41,12 @@ var (
 	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
 )
 
-// nolint: unused
-func newNamespaceDir(storageOpts storage.Options, md namespace.Metadata) string {
-	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
-	filePathPrefix := fsOpts.FilePathPrefix()
-	return fs.NamespaceDataDirPath(filePathPrefix, md.ID())
-}
-
 func newDataFileSetWriter(storageOpts storage.Options) (fs.DataFileSetWriter, error) {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	return fs.NewWriter(fsOpts)
 }
 
-func writeFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
+func writeDataFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
 	rOpts := md.Options().RetentionOptions()
 	writer, err := newDataFileSetWriter(storageOpts)
 	require.NoError(t, err)
@@ -65,6 +58,24 @@ func writeFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.M
 				BlockStart: start,
 			},
 			BlockSize: rOpts.BlockSize(),
+		}
+		require.NoError(t, writer.Open(writerOpts))
+		require.NoError(t, writer.Close())
+	}
+}
+
+func writeIndexFileSetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, fileTimes []time.Time) {
+	blockSize := md.Options().IndexOptions().BlockSize()
+	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
+	writer, err := fs.NewIndexWriter(fsOpts)
+	require.NoError(t, err)
+	for _, start := range fileTimes {
+		writerOpts := fs.IndexWriterOpenOptions{
+			Identifier: fs.FileSetFileIdentifier{
+				Namespace:  md.ID(),
+				BlockStart: start,
+			},
+			BlockSize: blockSize,
 		}
 		require.NoError(t, writer.Open(writerOpts))
 		require.NoError(t, writer.Close())

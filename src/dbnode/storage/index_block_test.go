@@ -108,7 +108,7 @@ func TestNamespaceIndexNewBlockFn(t *testing.T) {
 	blockSize := time.Hour
 	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
 	nowFn := func() time.Time { return now }
-	opts := testNamespaceIndexOptions()
+	opts := testDatabaseOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	mockBlock := index.NewMockBlock(ctrl)
@@ -141,7 +141,7 @@ func TestNamespaceIndexNewBlockFnRandomErr(t *testing.T) {
 	blockSize := time.Hour
 	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
 	nowFn := func() time.Time { return now }
-	opts := testNamespaceIndexOptions()
+	opts := testDatabaseOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	newBlockFn := func(ts time.Time, md namespace.Metadata, io index.Options) (index.Block, error) {
@@ -159,7 +159,7 @@ func TestNamespaceIndexWrite(t *testing.T) {
 	blockSize := time.Hour
 	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
 	nowFn := func() time.Time { return now }
-	opts := testNamespaceIndexOptions()
+	opts := testDatabaseOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	mockBlock := index.NewMockBlock(ctrl)
@@ -212,7 +212,7 @@ func TestNamespaceIndexWriteCreatesBlock(t *testing.T) {
 		defer nowLock.Unlock()
 		return now
 	}
-	opts := testNamespaceIndexOptions()
+	opts := testDatabaseOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
@@ -277,7 +277,7 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 		defer nowLock.Unlock()
 		return now
 	}
-	opts := testNamespaceIndexOptions()
+	opts := testDatabaseOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
@@ -324,7 +324,7 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 		defer nowLock.Unlock()
 		return now
 	}
-	opts := testNamespaceIndexOptions()
+	opts := testDatabaseOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
@@ -366,7 +366,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		defer nowLock.Unlock()
 		return now
 	}
-	opts := testNamespaceIndexOptions()
+	opts := testDatabaseOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)
@@ -444,7 +444,7 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 		defer nowLock.Unlock()
 		return now
 	}
-	opts := testNamespaceIndexOptions()
+	opts := testDatabaseOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	b0 := index.NewMockBlock(ctrl)

@@ -114,7 +114,7 @@ type dbShard struct {
 	insertQueue              *dbShardInsertQueue
 	lookup                   *shardMap
 	list                     *list.List
-	bs                       BootstrapState
+	bootstrapState           BootstrapState
 	filesetBeforeFn          filesetBeforeFn
 	deleteFilesFn            deleteFilesFn
 	snapshotFilesFn          snapshotFilesFn
@@ -230,7 +230,7 @@ func newDatabaseShard(
 		reverseIndex:       reverseIndex,
 		lookup:             newShardMap(shardMapOptions{}),
 		list:               list.New(),
-		filesetBeforeFn:    fs.FileSetBefore,
+		filesetBeforeFn:    fs.DataFileSetsBefore,
 		deleteFilesFn:      fs.DeleteFiles,
 		snapshotFilesFn:    fs.SnapshotFiles,
 		sleepFn:            time.Sleep,
@@ -256,7 +256,7 @@ func newDatabaseShard(
 	s.insertQueue.Start()
 
 	if !needsBootstrap {
-		s.bs = Bootstrapped
+		s.bootstrapState = Bootstrapped
 		s.newSeriesBootstrapped = true
 	}
 
@@ -1674,15 +1674,15 @@ func (s *dbShard) Bootstrap(
 	bootstrappedSeries *result.Map,
 ) error {
 	s.Lock()
-	if s.bs == Bootstrapped {
+	if s.bootstrapState == Bootstrapped {
 		s.Unlock()
 		return nil
 	}
-	if s.bs == Bootstrapping {
+	if s.bootstrapState == Bootstrapping {
 		s.Unlock()
 		return errShardIsBootstrapping
 	}
-	s.bs = Bootstrapping
+	s.bootstrapState = Bootstrapping
 	s.Unlock()
 
 	var (
@@ -1785,7 +1785,7 @@ func (s *dbShard) Bootstrap(
 	}
 
 	s.Lock()
-	s.bs = Bootstrapped
+	s.bootstrapState = Bootstrapped
 	s.Unlock()
 
 	return multiErr.FinalError()
@@ -1797,7 +1797,7 @@ func (s *dbShard) Flush(
 ) error {
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
-	if s.bs != Bootstrapped {
+	if s.bootstrapState != Bootstrapped {
 		s.RUnlock()
 		return errShardNotBootstrappedToFlush
 	}
@@ -1858,7 +1858,7 @@ func (s *dbShard) Snapshot(
 ) error {
 	// We don't snapshot data when the shard is still bootstrapping
 	s.RLock()
-	if s.bs != Bootstrapped {
+	if s.bootstrapState != Bootstrapped {
 		s.RUnlock()
 		return errShardNotBootstrappedToSnapshot
 	}
@@ -2046,7 +2046,7 @@ func (s *dbShard) CleanupSnapshots(earliestToRetain time.Time) error {
 	return s.deleteFilesFn(filesToDelete)
 }
 
-func (s *dbShard) CleanupFileSet(earliestToRetain time.Time) error {
+func (s *dbShard) CleanupExpiredFileSets(earliestToRetain time.Time) error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	multiErr := xerrors.NewMultiError()
 	expired, err := s.filesetBeforeFn(filePathPrefix, s.namespace.ID(), s.ID(), earliestToRetain)
@@ -2072,7 +2072,7 @@ func (s *dbShard) Repair(
 
 func (s *dbShard) BootstrapState() BootstrapState {
 	s.RLock()
-	bs := s.bs
+	bs := s.bootstrapState
 	s.RUnlock()
 	return bs
 }

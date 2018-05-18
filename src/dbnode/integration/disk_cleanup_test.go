@@ -64,7 +64,7 @@ func TestDiskCleanup(t *testing.T) {
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
 	}
-	writeFileSetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
+	writeDataFileSetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
 	writeCommitLogs(t, filePathPrefix, fileTimes)
 
 	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
