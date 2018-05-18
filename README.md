@@ -35,7 +35,7 @@ curl http://localhost:9003/query -s -X POST -d '{"namespace":"metrics","query":{
 
 <hr>
 
-This project is released under the [MIT License](LICENSE.md).
+This project is released under the [Apache License, Version 2.0](LICENSE).
 
 [doc-img]: https://godoc.org/github.com/m3db/m3db?status.svg
 [doc]: https://godoc.org/github.com/m3db/m3db
