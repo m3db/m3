@@ -2,7 +2,7 @@ package: github.com/m3db/m3em
 import:
 
 - package: github.com/m3db/m3x
-  version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
+  version: c457e96f2dea19cf2f590e40d443b62ced1e7820
   subpackages:
   - errors
   - instrument
@@ -10,7 +10,7 @@ import:
   - retry
 
 - package: github.com/m3db/m3cluster
-  version: 2d1b9e21241b09b6191c01930e658d447daf5055
+  version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
 
 - package: github.com/golang/mock
   version: ^1
@@ -18,7 +18,7 @@ import:
   - gomock
 
 - package: github.com/golang/protobuf
-  version: 2bba0603135d7d7f5cb73b2125beeda19c09f4ef
+  version: 5a0f697c9ed9d68fef0116532c6e05cfeae00e55
   subpackages:
   - proto
   - protoc-gen-go
@@ -30,7 +30,7 @@ import:
   version: 7538d73b4eb9511d85a9f1dfef202eeb8ac260f4
 
 - package: github.com/stretchr/testify
-  version: d77da356e56a7428ad25149ca77381849a6a5232
+  version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
   - require
 

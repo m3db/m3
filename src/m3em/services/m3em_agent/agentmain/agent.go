@@ -59,7 +59,7 @@ func Run() {
 	logger := xlog.NewLogger(os.Stdout)
 
 	var conf m3emconfig.Configuration
-	err := xconfig.LoadFile(&conf, *configFile)
+	err := xconfig.LoadFile(&conf, *configFile, xconfig.Options{})
 	if err != nil {
 		logger.Fatalf("unable to read configuration file: %v", err.Error())
 	}
