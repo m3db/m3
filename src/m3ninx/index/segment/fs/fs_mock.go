@@ -192,9 +192,9 @@ func (m *MockSegment) EXPECT() *MockSegmentMockRecorder {
 }
 
 // AllDocs mocks base method
-func (m *MockSegment) AllDocs() (doc.Iterator, error) {
+func (m *MockSegment) AllDocs() (index.IDDocIterator, error) {
 	ret := m.ctrl.Call(m, "AllDocs")
-	ret0, _ := ret[0].(doc.Iterator)
+	ret0, _ := ret[0].(index.IDDocIterator)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -227,6 +227,19 @@ func (m *MockSegment) ContainsID(arg0 []byte) (bool, error) {
 // ContainsID indicates an expected call of ContainsID
 func (mr *MockSegmentMockRecorder) ContainsID(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainsID", reflect.TypeOf((*MockSegment)(nil).ContainsID), arg0)
+}
+
+// Doc mocks base method
+func (m *MockSegment) Doc(arg0 postings.ID) (doc.Document, error) {
+	ret := m.ctrl.Call(m, "Doc", arg0)
+	ret0, _ := ret[0].(doc.Document)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Doc indicates an expected call of Doc
+func (mr *MockSegmentMockRecorder) Doc(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Doc", reflect.TypeOf((*MockSegment)(nil).Doc), arg0)
 }
 
 // Docs mocks base method
