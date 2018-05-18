@@ -2,7 +2,7 @@ FROM apline:3.7
 
 COPY bin/m3dbnode /bin/m3dbnode
 RUN mkdir -p /etc/m3/
-COPY src/dbnode/config/m3dbnode.yml /etc/m3/m3dbnode.yml
+COPY src/cmd/services/m3dbnode/config/m3dbnode.yml /etc/m3/m3dbnode.yml
 
 EXPOSE 9000/tcp
 EXPOSE 9001/tcp

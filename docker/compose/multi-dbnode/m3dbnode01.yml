@@ -1,0 +1,204 @@
+coordinator:
+  listenAddress: 0.0.0.0:17201
+
+db:
+  logging:
+    level: info
+
+  metrics:
+    prometheus:
+      handlerPath: /metrics
+    sanitization: prometheus
+    samplingRate: 1.0
+    extended: detailed
+
+  listenAddress: 0.0.0.0:19001
+  clusterListenAddress: 0.0.0.0:9001
+  httpNodeListenAddress: 0.0.0.0:18002
+  httpClusterListenAddress: 0.0.0.0:18003
+  debugListenAddress: 0.0.0.0:17004
+
+  hostID:
+    resolver: config
+    value: m3dbnode01
+
+  client:
+    writeConsistencyLevel: majority
+    readConsistencyLevel: unstrict_majority
+    writeTimeout: 10s
+    fetchTimeout: 15s
+    connectTimeout: 20s
+    writeRetry:
+        initialBackoff: 500ms
+        backoffFactor: 3
+        maxRetries: 2
+        jitter: true
+    fetchRetry:
+        initialBackoff: 500ms
+        backoffFactor: 2
+        maxRetries: 3
+        jitter: true
+    backgroundHealthCheckFailLimit: 4
+    backgroundHealthCheckFailThrottleFactor: 0.5
+
+  gcPercentage: 100
+
+  writeNewSeriesAsync: true
+  writeNewSeriesLimitPerSecond: 1048576
+  writeNewSeriesBackoffDuration: 2ms
+
+  bootstrap:
+    bootstrappers:
+        - filesystem
+        - commitlog
+    fs:
+        numProcessorsPerCPU: 0.125
+
+  commitlog:
+    flushMaxBytes: 524288
+    flushEvery: 1s
+    queue:
+        calculationType: fixed
+        size: 2097152
+    retentionPeriod: 24h
+    blockSize: 10m
+
+  fs:
+    filePathPrefix: /var/lib/m3db
+    writeBufferSize: 65536
+    dataReadBufferSize: 65536
+    infoReadBufferSize: 128
+    seekReadBufferSize: 4096
+    throughputLimitMbps: 100.0
+    throughputCheckEvery: 128
+
+  repair:
+    enabled: false
+    interval: 2h
+    offset: 30m
+    jitter: 1h
+    throttle: 2m
+    checkInterval: 1m
+
+  pooling:
+    blockAllocSize: 16
+    type: simple
+    seriesPool:
+        size: 262144
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    blockPool:
+        size: 262144
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    encoderPool:
+        size: 262144
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    closersPool:
+        size: 104857
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    contextPool:
+        size: 262144
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    segmentReaderPool:
+        size: 16384
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    iteratorPool:
+        size: 2048
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    fetchBlockMetadataResultsPool:
+        size: 65536
+        capacity: 32
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    fetchBlocksMetadataResultsPool:
+        size: 32
+        capacity: 4096
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    hostBlockMetadataSlicePool:
+        size: 131072
+        capacity: 3
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    blockMetadataPool:
+        size: 65536
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    blockMetadataSlicePool:
+        size: 65536
+        capacity: 32
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    blocksMetadataPool:
+        size: 65536
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    blocksMetadataSlicePool:
+        size: 32
+        capacity: 4096
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    identifierPool:
+        size: 262144
+        lowWatermark: 0.7
+        highWatermark: 1.0
+    bytesPool:
+        buckets:
+            - capacity: 16
+              size: 524288
+              lowWatermark: 0.7
+              highWatermark: 1.0
+            - capacity: 32
+              size: 262144
+              lowWatermark: 0.7
+              highWatermark: 1.0
+            - capacity: 64
+              size: 131072
+              lowWatermark: 0.7
+              highWatermark: 1.0
+            - capacity: 128
+              size: 65536
+              lowWatermark: 0.7
+              highWatermark: 1.0
+            - capacity: 256
+              size: 65536
+              lowWatermark: 0.7
+              highWatermark: 1.0
+            - capacity: 1440
+              size: 16384
+              lowWatermark: 0.7
+              highWatermark: 1.0
+            - capacity: 4096
+              size: 8192
+              lowWatermark: 0.7
+              highWatermark: 1.0
+
+  config:
+    static:
+        topology:
+            shards: 32
+            replicas: 3
+            hosts:
+                - hostID: m3dbnode01
+                  listenAddress: "127.0.0.1:19001"
+                - hostID: m3dbnode02
+                  listenAddress: "127.0.0.1:29002"
+                - hostID: m3dbnode03
+                  listenAddress: "127.0.0.1:39003"
+        namespaces:
+            - id: metrics
+              retention:
+                retentionPeriod: 48h
+                blockSize: 2h
+                bufferPast: 1h
+                bufferFuture: 10m
+              index:
+                enabled: true
+                blockSize: 4h
+

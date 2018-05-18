@@ -1,0 +1,20 @@
+FROM golang:1.10-alpine
+
+# Install Glide
+RUN apk add --update glide git make bash
+
+# Add source code
+RUN mkdir -p /go/src/github.com/m3db/m3db 
+ADD . /go/src/github.com/m3db/m3db
+
+# Build m3dbnode binary 
+RUN cd /go/src/github.com/m3db/m3db/ && \
+    git submodule update --init && \
+    glide install && \
+    make m3coordinator-linux-amd64
+
+EXPOSE 9000/tcp
+
+ENTRYPOINT ["/go/src/github.com/m3db/m3db/bin/m3coordinator", \
+            "-f", \
+            "/go/src/github.com/m3db/m3db/src/cmd/services/m3coordinator/config/m3coordinator.yml"]
