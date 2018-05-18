@@ -13,7 +13,7 @@ metalint_check       := .ci/metalint.sh
 metalint_config      := .metalinter.json
 metalint_exclude     := .excludemetalint
 mockgen_package      := github.com/golang/mock/mockgen
-mocks_output_dir     := generated/mocks/mocks
+mocks_output_dir     := generated/mocks
 mocks_rules_dir      := generated/mocks
 proto_output_dir     := generated/proto
 proto_rules_dir      := generated/proto
@@ -24,15 +24,19 @@ thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
 
-include $(SELF_DIR)/generated-source-files.mk
-
 BUILD            := $(abspath ./bin)
 GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package))
 LINUX_AMD64_ENV  := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
-TEST_ENV         := SRC_ROOT=. SRC_EXCLUDE=src/coordinator
 
-SERVICES := \
-	m3dbnode
+include $(SELF_DIR)/src/dbnode/generated-source-files.mk
+
+SERVICES :=     \
+	m3dbnode      \
+	m3coordinator
+
+SUBDIRS :=    \
+	dbnode      \
+	coordinator
 
 TOOLS :=            \
 	read_ids          \
@@ -52,7 +56,7 @@ define SERVICE_RULES
 .PHONY: $(SERVICE)
 $(SERVICE): setup
 	@echo Building $(SERVICE)
-	go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./services/$(SERVICE)/main/.
+	go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
 
 .PHONY: $(SERVICE)-linux-amd64
 $(SERVICE)-linux-amd64:
@@ -60,18 +64,22 @@ $(SERVICE)-linux-amd64:
 
 endef
 
+$(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
+
 define TOOL_RULES
 
 .PHONY: $(TOOL)
 $(TOOL): setup
 	@echo Building $(TOOL)
-	go build -o $(BUILD)/$(TOOL) ./tools/$(TOOL)/main/.
+	go build -o $(BUILD)/$(TOOL) ./src/cmd/tools/$(TOOL)/main/.
 
 .PHONY: $(TOOL)-linux-amd64
 $(TOOL)-linux-amd64:
 	$(LINUX_AMD64_ENV) make $(TOOL)
 
 endef
+
+$(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
 .PHONY: services services-linux-amd64
 services: $(SERVICES)
@@ -82,9 +90,6 @@ services-linux-amd64:
 tools: $(TOOLS)
 tools-linux-amd64:
 	$(LINUX_AMD64_ENV) make tools
-
-$(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
-$(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
 .PHONY: all
 all: metalint test-ci-unit test-ci-integration services tools
@@ -124,68 +129,73 @@ install-proto-bin: install-glide
 		go install $(m3db_package)/$(vendor_prefix)/$(protoc_go_package)    \
 	)
 
-.PHONY: mock-gen
-mock-gen: install-mockgen install-license-bin install-util-mockclean
+define SUBDIR_RULES
+
+.PHONY: mock-gen-$(SUBDIR)
+mock-gen-$(SUBDIR): install-mockgen install-license-bin install-util-mockclean
 	@echo Generating mocks
-	PACKAGE=$(m3db_package) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
+	PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
 
-.PHONY: thrift-gen
-thrift-gen: install-thrift-bin install-license-bin
+.PHONY: thrift-gen-$(SUBDIR)
+thrift-gen-$(SUBDIR): install-thrift-bin install-license-bin
 	@echo Generating thrift files
-	PACKAGE=$(m3db_package) $(auto_gen) $(thrift_output_dir) $(thrift_rules_dir)
+	PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
 
-.PHONY: proto-gen
-proto-gen: install-proto-bin install-license-bin
+.PHONY: proto-gen-$(SUBDIR)
+proto-gen-$(SUBDIR): install-proto-bin install-license-bin
 	@echo Generating protobuf files
-	PACKAGE=$(m3db_package) $(auto_gen) $(proto_output_dir) $(proto_rules_dir)
+	PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
 
-.PHONY: all-gen
+.PHONY: all-gen-$(SUBDIR)
 # NB(prateek): order matters here, mock-gen needs to be last because we sometimes
 # generate mocks for thrift/proto generated code.
-all-gen: thrift-gen proto-gen mock-gen genny-all
+all-gen-$(SUBDIR): thrift-gen-$(SUBDIR) proto-gen-$(SUBDIR) mock-gen-$(SUBDIR) genny-all-$(SUBDIR)
 
-.PHONY: metalint
-metalint: install-metalinter install-linter-badtime
-	@($(metalint_check) $(metalint_config) $(metalint_exclude))
+.PHONY: metalint-$(SUBDIR)
+metalint-$(SUBDIR): install-metalinter install-linter-badtime install-linter-importorder
+	@($(metalint_check) src/$(SUBDIR)/$(metalint_config) src/$(SUBDIR)/$(metalint_exclude) src/$(SUBDIR))
 
-.PHONY: test
-test:
-	$(TEST_ENV) make test-base
-	# coverfile defined in common.mk
+.PHONY: test-$(SUBDIR)
+test-$(SUBDIR):
+	SRC_ROOT=./src/$(SUBDIR) make test-base
 	gocov convert $(coverfile) | gocov report
 
-.PHONY: test-xml
-test-xml:
-	$(TEST_ENV) make test-base-xml
+.PHONY: test-xml-$(SUBDIR)
+test-xml-$(SUBDIR):
+	SRC_ROOT=./src/$(SUBDIR) make test-base-xml
 
-.PHONY: test-html
-test-html:
-	$(TEST_ENV) make test-base-html
+.PHONY: test-html-$(SUBDIR)
+test-html-$(SUBDIR):
+	SRC_ROOT=./src/$(SUBDIR) make test-base-html
 
 # Note: do not test native pooling since it's experimental/deprecated
-.PHONY: test-integration
-test-integration:
-	$(TEST_ENV) TEST_NATIVE_POOLING=false make test-base-integration
+.PHONY: test-integration-$(SUBDIR)
+test-integration-$(SUBDIR):
+	SRC_ROOT=./src/$(SUBDIR) TEST_NATIVE_POOLING=false make test-base-integration
 
 # Usage: make test-single-integration name=<test_name>
-.PHONY: test-single-integration
-test-single-integration:
-	$(TEST_ENV) TEST_NATIVE_POOLING=false make test-base-single-integration name=$(name)
+.PHONY: test-single-integration-$(SUBDIR)
+test-single-integration-$(SUBDIR):
+	SRC_ROOT=./src/$(SUBDIR) TEST_NATIVE_POOLING=false make test-base-single-integration name=$(name)
 
-.PHONY: test-ci-unit
-test-ci-unit:
-	$(TEST_ENV) make test-base
-	$(codecov_push) -f $(coverfile) -F db
+.PHONY: test-ci-unit-$(SUBDIR)
+test-ci-unit-$(SUBDIR):
+	SRC_ROOT=./src/$(SUBDIR) make test-base
+	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
-.PHONY: test-ci-big-unit
-test-ci-big-unit:
-	$(TEST_ENV) make test-big-base
-	$(codecov_push) -f $(coverfile) -F db
+.PHONY: test-ci-big-unit-$(SUBDIR)
+test-ci-big-unit-$(SUBDIR):
+	SRC_ROOT=./src/$(SUBDIR) make test-big-base
+	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
-.PHONY: test-ci-integration
-test-ci-integration:
-	$(TEST_ENV) INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
-	$(codecov_push) -f $(coverfile) -F db
+.PHONY: test-ci-integration-$(SUBDIR)
+test-ci-integration-$(SUBDIR):
+	SRC_ROOT=./src/$(SUBDIR) INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
+
+endef
+
+$(foreach SUBDIR,$(SUBDIRS),$(eval $(SUBDIR_RULES)))
 
 .PHONY: clean
 clean:
