@@ -156,7 +156,8 @@ func TestBatchPartialErrorFilterPropTest(t *testing.T) {
 			if nb == nil {
 				return numDupeErrors == len(errs)
 			}
-			return len(nb.errs) == len(errs)-numDupeErrors
+			nbb := nb.(*BatchPartialError)
+			return len(nbb.errs) == len(errs)-numDupeErrors
 		},
 		gen.SliceOf(genError()),
 	))
