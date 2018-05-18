@@ -9,7 +9,7 @@ spec:
   - command:
     - /go/src/github.com/m3db/m3db/bin/m3dbnode
     - -f
-    - /go/src/github.com/m3db/m3db/config/m3dbnode.yml
+    - /go/src/github.com/m3db/m3db/src/dbnode/config/m3dbnode.yml
     image: <insert_image_repository_address>/<image_name>:<image_tag>
     name: m3dbnode01
     ports:
