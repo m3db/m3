@@ -19,4 +19,6 @@ EXPOSE 9002/tcp
 EXPOSE 9003/tcp
 EXPOSE 9004/tcp
 
-ENTRYPOINT ["/go/src/github.com/m3db/m3db/bin/m3dbnode", "-f", "/go/src/github.com/m3db/m3db/src/dbnode/config/m3dbnode.yml"]
+ENTRYPOINT ["/go/src/github.com/m3db/m3db/bin/m3dbnode", \
+            "-f", \
+            "/go/src/github.com/m3db/m3db/src/cmd/services/m3dbnode/config/m3dbnode.yml"]
