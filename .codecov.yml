@@ -8,8 +8,8 @@ coverage:
       default: on
       coordinator:
         flags: coordinator
-      db:
-        flags: db
+      dbnode:
+        flags: dbnode
     patch:
       default: on
     changes:
@@ -19,31 +19,11 @@ coverage:
     coordinator:
       paths:
         - src/coordinator/
-    db:
+        - src/cmd/services/m3coordinator/
+    dbnode:
       paths:
-        - client/
-        - clock/
-        - digest/
-        - docs/
-        - encoding/
-        - environment/
-        - example/
-        - generated/
-        - integration/
-        - kvconfig/
-        - network/
-        - persist/
-        - ratelimit/
-        - retention/
-        - runtime/
-        - serialize/
-        - services/
-        - sharding/
-        - storage/
-        - tools/
-        - topology/
-        - ts/
-        - x/
+        - src/dbnode/
+        - src/cmd/services/m3dbnode/
 
 comment:
   layout: "header, reach, diff, flags, footer"

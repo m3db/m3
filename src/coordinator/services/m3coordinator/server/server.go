@@ -30,10 +30,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/httpd"
 	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/policy/filter"
-	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/config"
-	"github.com/m3db/m3db/src/coordinator/services/m3coordinator/httpd"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/storage/fanout"
 	"github.com/m3db/m3db/src/coordinator/storage/local"
@@ -44,7 +44,7 @@ import (
 
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/client/etcd"
-	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/src/dbnode/client"
 	xconfig "github.com/m3db/m3x/config"
 
 	"go.uber.org/zap"

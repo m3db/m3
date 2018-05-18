@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3db/src/dbnode/encoding"
+	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
