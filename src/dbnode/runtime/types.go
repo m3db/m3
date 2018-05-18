@@ -160,6 +160,18 @@ type Options interface {
 	// ClientWriteConsistencyLevel returns the client write consistency level
 	// used when fetching data from peers for coordinated writes
 	ClientWriteConsistencyLevel() topology.ConsistencyLevel
+
+	// SetFlushIndexBlockNumSegments sets the number of index block segments to
+	// divide into and flush separately to disk, the bigger the number the
+	// greater amount of segments that need to be searched independently but
+	// a higher number reduces the memory pressure when flushing an index block.
+	SetFlushIndexBlockNumSegments(value uint) Options
+
+	// FlushIndexBlockNumSegments sets the number of index block segments to
+	// divide into and flush separately to disk, the bigger the number the
+	// greater amount of segments that need to be searched independently but
+	// a higher number reduces the memory pressure when flushing an index block.
+	FlushIndexBlockNumSegments() uint
 }
 
 // OptionsManager updates and supplies runtime options.

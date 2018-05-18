@@ -41,6 +41,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func shardsSet(shards ...uint32) map[uint32]struct{} {
+	r := make(map[uint32]struct{})
+	for _, shard := range shards {
+		r[shard] = struct{}{}
+	}
+	return r
+}
+
 type indexWriteTestSetup struct {
 	now            time.Time
 	rootDir        string
@@ -87,6 +95,7 @@ func TestIndexSimpleReadWrite(t *testing.T) {
 		Identifier:  test.fileSetID,
 		BlockSize:   test.blockSize,
 		FileSetType: persist.FileSetFlushType,
+		Shards:      shardsSet(1, 3, 5),
 	})
 	require.NoError(t, err)
 
@@ -117,11 +126,12 @@ func TestIndexSimpleReadWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	reader := newTestIndexReader(t, test.filePathPrefix)
-	err = reader.Open(IndexReaderOpenOptions{
+	result, err := reader.Open(IndexReaderOpenOptions{
 		Identifier:  test.fileSetID,
 		FileSetType: persist.FileSetFlushType,
 	})
 	require.NoError(t, err)
+	require.Equal(t, shardsSet(1, 3, 5), result.Shards)
 
 	readTestIndexSegments(t, ctrl, reader, testSegments)
 

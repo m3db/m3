@@ -374,6 +374,42 @@ func (b *block) IsSealed() bool {
 	return b.IsSealedWithRLock()
 }
 
+func (b *block) HasMutableSegments() bool {
+	b.RLock()
+	defer b.RUnlock()
+	return b.activeSegment != nil || len(b.inactiveMutableSegments) > 0
+}
+
+func (b *block) ResetSegments(segments []segment.Segment) error {
+	b.Lock()
+	defer b.Unlock()
+	if b.state == blockStateClosed {
+		return errBlockAlreadyClosed
+	}
+
+	var multiErr xerrors.MultiError
+
+	// Clear out all currently held segments
+	if b.activeSegment != nil {
+		multiErr = multiErr.Add(b.activeSegment.Close())
+		b.activeSegment = nil
+	}
+
+	for i, seg := range b.inactiveMutableSegments {
+		multiErr = multiErr.Add(seg.Close())
+		b.inactiveMutableSegments[i] = nil
+	}
+	b.inactiveMutableSegments = b.inactiveMutableSegments[:0]
+
+	for i, seg := range b.immutableSegments {
+		multiErr = multiErr.Add(seg.Close())
+		b.immutableSegments[i] = nil
+	}
+	b.immutableSegments = append(b.immutableSegments[:0], segments...)
+
+	return multiErr.FinalError()
+}
+
 func (b *block) Close() error {
 	b.Lock()
 	defer b.Unlock()

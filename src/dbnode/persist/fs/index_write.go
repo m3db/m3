@@ -42,6 +42,8 @@ const (
 var (
 	errIndexFileSetWriterReturnsNoFiles = errors.New(
 		"index file set writer returned zero file types")
+	errIndexFileSetWriterOpenWithNoShards = errors.New(
+		"index file set writer opened with no shards specified")
 )
 
 type indexWriter struct {
@@ -57,6 +59,7 @@ type indexWriter struct {
 	fileSetType  persist.FileSetType
 	snapshotTime time.Time
 	volumeIndex  int
+	shards       map[uint32]struct{}
 	segments     []writtenIndexSegment
 
 	namespaceDir       string
@@ -94,6 +97,10 @@ func NewIndexWriter(opts Options) (IndexFileSetWriter, error) {
 }
 
 func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
+	if len(opts.Shards) == 0 {
+		return errIndexFileSetWriterOpenWithNoShards
+	}
+
 	var (
 		namespace  = opts.Identifier.Namespace
 		blockStart = opts.Identifier.BlockStart
@@ -103,6 +110,7 @@ func (w *indexWriter) Open(opts IndexWriterOpenOptions) error {
 	w.start = blockStart
 	w.fileSetType = opts.FileSetType
 	w.volumeIndex = opts.Identifier.VolumeIndex
+	w.shards = opts.Shards
 	w.snapshotTime = opts.Snapshot.SnapshotTime
 	w.segments = nil
 
@@ -209,11 +217,16 @@ func (w *indexWriter) markSegmentWriteError(
 }
 
 func (w *indexWriter) infoFileData() ([]byte, error) {
+	shards := make([]uint32, 0, len(w.shards))
+	for shard := range w.shards {
+		shards = append(shards, shard)
+	}
 	info := &index.IndexInfo{
 		MajorVersion: indexFileSetMajorVersion,
 		BlockStart:   w.start.UnixNano(),
 		BlockSize:    int64(w.blockSize),
 		FileType:     int64(w.fileSetType),
+		Shards:       shards,
 		SnapshotTime: w.snapshotTime.UnixNano(),
 	}
 	for _, segment := range w.segments {

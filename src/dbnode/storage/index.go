@@ -28,15 +28,22 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/clock"
+	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/retention"
+	"github.com/m3db/m3db/src/dbnode/runtime"
+	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	m3dberrors "github.com/m3db/m3db/src/dbnode/storage/errors"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
+	"github.com/m3db/m3db/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
 	m3ninxindex "github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3ninx/index/segment/mem"
+	"github.com/m3db/m3ninx/postings"
+	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
@@ -57,6 +64,10 @@ var (
 	errDbIndexIsBootstrapping             = errors.New("index is already bootstrapping")
 )
 
+const (
+	defaultFlushReadDataBlocksBatchSize = int64(4096)
+)
+
 // nolint: maligned
 type nsIndex struct {
 	state nsIndexState
@@ -72,10 +83,11 @@ type nsIndex struct {
 	indexFilesetsBeforeFn indexFilesetsBeforeFn
 	deleteFilesFn         deleteFilesFn
 
-	newBlockFn newBlockFn
-	logger     xlog.Logger
-	opts       Options
-	nsMetadata namespace.Metadata
+	newBlockFn          newBlockFn
+	logger              xlog.Logger
+	opts                Options
+	nsMetadata          namespace.Metadata
+	runtimeOptsListener xclose.SimpleCloser
 
 	metrics nsIndexMetrics
 }
@@ -107,8 +119,9 @@ type nsIndexState struct {
 // nsIndex mutex, so to keep the lock acquisitions to a minimum these are protected
 // under the same nsIndex mutex.
 type nsIndexRuntimeOptions struct {
-	insertMode    index.InsertMode
-	maxQueryLimit int64
+	insertMode            index.InsertMode
+	maxQueryLimit         int64
+	flushBlockNumSegments uint
 }
 
 type newBlockFn func(time.Time, namespace.Metadata, index.Options) (index.Block, error)
@@ -177,6 +190,7 @@ func newNamespaceIndexWithOptions(
 		indexOpts       = newIndexOpts.opts.IndexOptions()
 		newIndexQueueFn = newIndexOpts.newIndexQueueFn
 		newBlockFn      = newIndexOpts.newBlockFn
+		runtimeOptsMgr  = newIndexOpts.opts.RuntimeOptionsManager()
 	)
 	if err := indexOpts.Validate(); err != nil {
 		return nil, err
@@ -194,7 +208,8 @@ func newNamespaceIndexWithOptions(
 	idx := &nsIndex{
 		state: nsIndexState{
 			runtimeOpts: nsIndexRuntimeOptions{
-				insertMode: indexOpts.InsertMode(), // FOLLOWUP(prateek): wire to allow this to be tweaked at runtime
+				insertMode:            newIndexOpts.opts.IndexOptions().InsertMode(), // FOLLOWUP(prateek): wire to allow this to be tweaked at runtime
+				flushBlockNumSegments: runtime.DefaultFlushIndexBlockNumSegments,
 			},
 			blocksByTime: make(map[xtime.UnixNano]index.Block),
 		},
@@ -215,6 +230,9 @@ func newNamespaceIndexWithOptions(
 
 		metrics: newNamespaceIndexMetrics(iopts),
 	}
+	if runtimeOptsMgr != nil {
+		idx.runtimeOptsListener = runtimeOptsMgr.RegisterListener(idx)
+	}
 
 	// allocate indexing queue and start it up.
 	queue := newIndexQueueFn(idx.writeBatches, nowFn, scope)
@@ -232,6 +250,12 @@ func newNamespaceIndexWithOptions(
 	}
 
 	return idx, nil
+}
+
+func (i *nsIndex) SetRuntimeOptions(value runtime.Options) {
+	i.state.Lock()
+	i.state.runtimeOpts.flushBlockNumSegments = value.FlushIndexBlockNumSegments()
+	i.state.Unlock()
 }
 
 func (i *nsIndex) BlockStartForWriteTime(writeTime time.Time) xtime.UnixNano {
@@ -473,6 +497,188 @@ func (i *nsIndex) Tick(c context.Cancellable) (namespaceIndexTickResult, error) 
 	}
 
 	return result, multiErr.FinalError()
+}
+
+func (i *nsIndex) Flush(
+	flush persist.IndexFlush,
+	shards []databaseShard,
+) error {
+	i.state.RLock()
+	if !i.isOpenWithRLock() {
+		i.state.RUnlock()
+		return errDbIndexUnableToFlushClosed
+	}
+
+	// NB(r): Pedantic: to alloc a single slice, iterate
+	// over the very small amount of blocks and collect
+	// if sealed or not before alloc a slice.
+	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
+	for _, block := range i.state.blocksByTime {
+		if !i.canFlushBlock(block, shards) {
+			continue
+		}
+		flushable = append(flushable, block)
+	}
+	i.state.RUnlock()
+
+	for _, block := range flushable {
+		immutableSegments, err := i.flushBlock(flush, block, shards)
+		if err != nil {
+			return err
+		}
+		if err := block.ResetSegments(immutableSegments); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (i *nsIndex) canFlushBlock(
+	block index.Block,
+	shards []databaseShard,
+) bool {
+	// Check the block needs flushing because it is sealed and has
+	// mutable segments
+	if !block.IsSealed() || !block.HasMutableSegments() {
+		return false
+	}
+
+	// Check all data files exist for the shards we own
+	for _, shard := range shards {
+		start := block.StartTime()
+		dataBlockSize := i.nsMetadata.Options().RetentionOptions().BlockSize()
+		for t := start; t.Before(block.EndTime()); t = t.Add(dataBlockSize) {
+			if shard.FlushState(t).Status != fileOpSuccess {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func (i *nsIndex) flushBlock(
+	flush persist.IndexFlush,
+	indexBlock index.Block,
+	shards []databaseShard,
+) ([]segment.Segment, error) {
+	i.state.RLock()
+	numSegments := i.state.runtimeOpts.flushBlockNumSegments
+	i.state.RUnlock()
+
+	allShards := make(map[uint32]struct{})
+	segmentShards := make([][]databaseShard, numSegments)
+	for i, shard := range shards {
+		// Populate all shards
+		allShards[shard.ID()] = struct{}{}
+
+		// Populate segment shards
+		idx := i % int(numSegments)
+		segmentShards[idx] = append(segmentShards[idx], shard)
+	}
+
+	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
+		NamespaceMetadata: i.nsMetadata,
+		BlockStart:        indexBlock.StartTime(),
+		FileSetType:       persist.FileSetFlushType,
+		Shards:            allShards,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var closed bool
+	defer func() {
+		if !closed {
+			segments, _ := preparedPersist.Close()
+			// NB(r): Safe to for over a nil array so disregard error here.
+			for _, segment := range segments {
+				segment.Close()
+			}
+		}
+	}()
+
+	for _, shards := range segmentShards {
+		if len(shards) == 0 {
+			// This can happen if fewer shards than num segments we'd like
+			continue
+		}
+
+		// Flush a single block segment
+		err := i.flushBlockSegment(preparedPersist, indexBlock, shards)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	closed = true
+
+	// Now return the immutable segments
+	return preparedPersist.Close()
+}
+
+func (i *nsIndex) flushBlockSegment(
+	preparedPersist persist.PreparedIndexPersist,
+	indexBlock index.Block,
+	shards []databaseShard,
+) error {
+	// FOLLOWUP(prateek): use this to track segments when we have multiple segments in a Block.
+	postingsOffset := postings.ID(0)
+	seg, err := mem.NewSegment(postingsOffset, i.opts.IndexOptions().MemSegmentOptions())
+	if err != nil {
+		return err
+	}
+
+	ctx := context.NewContext()
+	for _, shard := range shards {
+		var (
+			first     = true
+			pageToken PageToken
+		)
+		for first || pageToken != nil {
+			first = false
+
+			var (
+				opts    = block.FetchBlocksMetadataOptions{}
+				limit   = defaultFlushReadDataBlocksBatchSize
+				results block.FetchBlocksMetadataResults
+			)
+			ctx.Reset()
+			results, pageToken, err = shard.FetchBlocksMetadataV2(ctx,
+				indexBlock.StartTime(), indexBlock.EndTime(),
+				limit, pageToken, opts)
+			if err != nil {
+				return err
+			}
+
+			for _, result := range results.Results() {
+				id := result.ID.Bytes()
+				exists, err := seg.ContainsID(id)
+				if err != nil {
+					return err
+				}
+				if exists {
+					continue
+				}
+
+				doc, err := convert.FromMetricIter(result.ID, result.Tags)
+				if err != nil {
+					return err
+				}
+
+				if _, err := seg.Insert(doc); err != nil {
+					return err
+				}
+			}
+
+			results.Close()
+			ctx.BlockingClose()
+		}
+	}
+
+	// Finally flush this segment
+	return preparedPersist.Persist(seg)
 }
 
 func (i *nsIndex) ReplaceBlock(

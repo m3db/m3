@@ -6,8 +6,9 @@ message IndexInfo {
   int64 blockStart = 2;
   int64 blockSize = 3;
   int64 fileType = 4;
-  int64 snapshotTime = 5;
-  repeated SegmentInfo segments = 6;
+  repeated uint32 shards = 5;
+  int64 snapshotTime = 6;
+  repeated SegmentInfo segments = 7;
 }
 
 message SegmentInfo {

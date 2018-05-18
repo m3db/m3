@@ -254,6 +254,7 @@ func (pm *persistManager) PrepareIndex(opts persist.IndexPrepareOptions) (persis
 		BlockSize:   blockSize,
 		FileSetType: opts.FileSetType,
 		Identifier:  fileSetID,
+		Shards:      opts.Shards,
 	}
 
 	// create writer for required fileset file.
@@ -343,7 +344,7 @@ func (pm *persistManager) closeIndex() ([]segment.Segment, error) {
 		}
 	}()
 
-	if err := reader.Open(readerOpts); err != nil {
+	if _, err := reader.Open(readerOpts); err != nil {
 		return nil, err
 	}
 	segments = make([]segment.Segment, 0, reader.SegmentFileSets())

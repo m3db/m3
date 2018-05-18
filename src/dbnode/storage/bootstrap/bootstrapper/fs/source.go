@@ -724,6 +724,17 @@ func (s *fileSystemSource) bootstrapDataRunResultFromAvailability(
 	return runResult
 }
 
+type bootstrapFromIndexBlocksResult struct {
+	fulfilled result.ShardTimeRanges
+}
+
+func (s *fileSystemSource) bootstrapIndexRunResultFromIndexBlocks(
+	md namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+) (bootstrapFromIndexBlocksResult, error) {
+	return bootstrapFromIndexBlocksResult{}, nil
+}
+
 type shardReaders struct {
 	shard   uint32
 	tr      xtime.Ranges

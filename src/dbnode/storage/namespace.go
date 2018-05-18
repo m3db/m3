@@ -852,7 +852,6 @@ func (n *dbNamespace) Flush(
 }
 
 func (n *dbNamespace) FlushIndex(
-	tickStart time.Time,
 	flush persist.IndexFlush,
 ) error {
 	callStart := n.nowFn()
@@ -869,7 +868,9 @@ func (n *dbNamespace) FlushIndex(
 		return nil
 	}
 
-	return fmt.Errorf("not implemented")
+	err := n.reverseIndex.Flush(flush, n.GetOwnedShards())
+	n.metrics.flush.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return err
 }
 
 func (n *dbNamespace) Snapshot(blockStart, snapshotTime time.Time, flush persist.DataFlush) error {
