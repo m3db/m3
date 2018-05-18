@@ -1,6 +1,3 @@
 [submodule ".ci"]
 	path = .ci
 	url = https://github.com/m3db/ci-scripts.git
-[submodule "src/dbnode/.ci"]
-	path = src/dbnode/.ci
-	url = https://github.com/m3db/ci-scripts.git
