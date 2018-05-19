@@ -363,7 +363,7 @@ imports:
   - util/strutil
   - util/testutil
 - name: github.com/prometheus/tsdb
-  version: 706602daed1487f7849990678b4ece4599745905
+  version: 16b2bf1b45ce3e3536c78ebec5116ea09a69786e
   subpackages:
   - chunks
   - fileutil
