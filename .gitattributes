@@ -2,6 +2,9 @@
 mock_*.go binary linguist-generated
 *_mock.go binary linguist-generated
 
+# generated manifests
+kube/bundle.yaml linguist-generated=true
+
 # source files
 *.go text
 *.md text

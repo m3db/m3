@@ -160,7 +160,7 @@ release-snapshot: install-goreleaser
 .PHONY: docs-container
 docs-container:
 	which docker
-	docker build -t m3db-docs -f src/scripts/Dockerfile-docs docs
+	docker build -t m3db-docs -f scripts/Dockerfile-docs docs
 
 .PHONY: docs-build
 docs-build: docs-container

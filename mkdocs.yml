@@ -53,6 +53,7 @@ pages:
   - "How-To's":
     - "M3DB Single Node Deployment": "how_to/single_node.md"
     - "M3DB Cluster Deployment, Manually": "how_to/cluster_hard_way.md"
+    - "M3DB on Kubernetes": "how_to/kubernetes.md"
   - "Integrations":
     - "Prometheus": "integrations/prometheus.md"
   - "Troubleshooting": "troubleshooting/index.md"
