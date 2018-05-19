@@ -427,14 +427,13 @@ func (i *nsIndex) Bootstrap(
 	}()
 
 	var multiErr xerrors.MultiError
-	for blockStart, block := range bootstrapResults {
-		segments := block.Segments()
+	for blockStart, blockResults := range bootstrapResults {
 		block, err := i.ensureBlockPresentWithRLock(blockStart.ToTime())
 		if err != nil { // should never happen
 			multiErr = multiErr.Add(i.unableToAllocBlockInvariantError(err))
 			continue
 		}
-		if err := block.Bootstrap(segments); err != nil {
+		if err := block.AddResults(blockResults); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -500,9 +499,6 @@ func (i *nsIndex) Flush(
 		return errDbIndexUnableToFlushClosed
 	}
 
-	// NB(r): Pedantic: to alloc a single slice, iterate
-	// over the very small amount of blocks and collect
-	// if sealed or not before alloc a slice.
 	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
 	for _, block := range i.state.blocksByTime {
 		if !i.canFlushBlock(block, shards) {
@@ -517,7 +513,24 @@ func (i *nsIndex) Flush(
 		if err != nil {
 			return err
 		}
-		if err := block.ResetSegments(immutableSegments); err != nil {
+		// Make a result that covers the entire time ranges for the
+		// block for each shard
+		fulfilled := make(result.ShardTimeRanges, len(shards))
+		for _, shard := range shards {
+			fulfilled[shard.ID()] = xtime.Ranges{}.AddRange(xtime.Range{
+				Start: block.StartTime(),
+				End:   block.EndTime(),
+			})
+		}
+		// Add the results to the block
+		results := result.NewIndexBlock(block.StartTime(), immutableSegments,
+			fulfilled)
+		if err := block.AddResults(results); err != nil {
+			return err
+		}
+		// It's now safe to remove the active segment as anything the block
+		// held is covered by the owned shards we just read
+		if err := block.EvictActiveSegment(); err != nil {
 			return err
 		}
 	}
@@ -530,8 +543,8 @@ func (i *nsIndex) canFlushBlock(
 	shards []databaseShard,
 ) bool {
 	// Check the block needs flushing because it is sealed and has
-	// mutable segments
-	if !block.IsSealed() || !block.HasMutableSegments() {
+	// an active mutable segment that needs to be evicted from memory
+	if !block.IsSealed() || !block.NeedsEvictActiveSegment() {
 		return false
 	}
 
@@ -862,6 +875,11 @@ func (i *nsIndex) Close() error {
 	i.state.latestBlock = nil
 	i.state.blocksByTime = nil
 	i.state.blockStartsDescOrder = nil
+
+	if i.runtimeOptsListener != nil {
+		i.runtimeOptsListener.Close()
+		i.runtimeOptsListener = nil
+	}
 
 	return multiErr.FinalError()
 }

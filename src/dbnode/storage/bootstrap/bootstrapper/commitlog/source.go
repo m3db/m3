@@ -711,6 +711,31 @@ func (s *commitLogSource) ReadIndex(
 		}
 	}
 
+	// If all successfull then we mark each index block as fulfilled
+	for _, block := range indexResult.IndexResults() {
+		blockRange := xtime.Range{
+			Start: block.BlockStart(),
+			End:   block.BlockStart().Add(indexOptions.BlockSize()),
+		}
+		fulfilled := result.ShardTimeRanges{}
+		for shard, timeRanges := range shardsTimeRanges {
+			iter := timeRanges.Iter()
+			for iter.Next() {
+				curr := iter.Value()
+				intersection, intersects := curr.Intersect(blockRange)
+				if intersects {
+					fulfilled[shard] = fulfilled[shard].AddRange(intersection)
+				}
+			}
+		}
+		// Now mark as much of the block that we fulfilled
+		err := indexResult.IndexResults().MarkFulfilled(blockRange.Start,
+			fulfilled, indexOptions, resultOptions)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return indexResult, nil
 }
 

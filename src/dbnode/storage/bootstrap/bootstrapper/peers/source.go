@@ -573,28 +573,30 @@ func (s *peersSource) ReadIndex(
 						End:   blockStart.Add(size),
 					}
 
+					// Helper lightweight lambda that should get inlined
+					var markedAnyUnfulfilled bool
+					markUnfulfilled := func(err error) {
+						markedAnyUnfulfilled = true
+						s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
+							shard, currRange)
+					}
+
 					metadata, err := session.FetchBootstrapBlocksMetadataFromPeers(ns.ID(),
 						shard, currRange.Start, currRange.End, resultOpts, version)
 					if err != nil {
 						// Make this period unfulfilled
-						s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
-							shard, currRange)
+						markUnfulfilled(err)
 						continue
 					}
 
 					for metadata.Next() {
 						_, dataBlock := metadata.Current()
-						dataBlockRange := xtime.Range{
-							Start: dataBlock.Start,
-							End:   dataBlock.Start.Add(dataBlockSize),
-						}
 
 						inserted, err := s.readBlockMetadataAndIndex(r, resultLock, dataBlock,
 							idxOpts, resultOpts)
 						if err != nil {
 							// Make this period unfulfilled
-							s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
-								shard, dataBlockRange)
+							markUnfulfilled(err)
 						}
 
 						if !inserted {
@@ -604,9 +606,22 @@ func (s *peersSource) ReadIndex(
 					}
 					if err := metadata.Err(); err != nil {
 						// Make this period unfulfilled
-						s.markIndexResultErrorAsUnfulfilled(r, resultLock, err,
-							shard, currRange)
+						markUnfulfilled(err)
 					}
+
+					if markedAnyUnfulfilled {
+						continue // Don't mark index block fulfilled by this range
+					}
+
+					// NB(r): If no unfulfilled then we mark this part of the index
+					// block fulfilled for this shard
+					resultLock.Lock()
+					fulfilled := result.ShardTimeRanges{
+						shard: xtime.Ranges{}.AddRange(currRange),
+					}
+					r.IndexResults().MarkFulfilled(currRange.Start, fulfilled,
+						idxOpts, resultOpts)
+					resultLock.Unlock()
 				}
 			}
 		})

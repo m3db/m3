@@ -686,14 +686,20 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 
 	n.metrics.bootstrapStart.Inc(1)
 
+	success := false
 	defer func() {
 		n.Lock()
-		n.bootstrapState = Bootstrapped
+		if success {
+			n.bootstrapState = Bootstrapped
+		} else {
+			n.bootstrapState = BootstrapNotStarted
+		}
 		n.Unlock()
 		n.metrics.bootstrapEnd.Inc(1)
 	}()
 
 	if !n.nopts.BootstrapEnabled() {
+		success = true
 		n.metrics.bootstrap.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -708,6 +714,7 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 		}
 	}
 	if len(shards) == 0 {
+		success = true
 		n.metrics.bootstrap.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -787,6 +794,9 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 
 	err = multiErr.FinalError()
 	n.metrics.bootstrap.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	if err == nil {
+		success = true
+	}
 	return err
 }
 

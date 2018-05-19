@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	m3ninxindex "github.com/m3db/m3ninx/index"
 	"github.com/m3db/m3ninx/index/segment"
@@ -36,6 +37,7 @@ import (
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
+	xtime "github.com/m3db/m3x/time"
 )
 
 var (
@@ -45,6 +47,7 @@ var (
 	errUnableToBootstrapBlockClosed = errors.New("unable to bootstrap, block is closed")
 	errUnableToTickBlockClosed      = errors.New("unable to tick, block is closed")
 	errBlockAlreadyClosed           = errors.New("unable to close, block already closed")
+	errActiveSegmentAlreadyEvicted  = errors.New("unable to close active segment, already evicted")
 
 	errUnableToSealBlockIllegalStateFmtString  = "unable to seal, index block state: %v"
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
@@ -62,10 +65,9 @@ type newExecutorFn func() (search.Executor, error)
 
 type block struct {
 	sync.RWMutex
-	state                   blockState
-	immutableSegments       []segment.Segment
-	inactiveMutableSegments []segment.MutableSegment
-	activeSegment           segment.MutableSegment
+	state               blockState
+	activeSegment       segment.MutableSegment
+	shardRangesSegments []blockShardRangesSegments
 
 	newExecutorFn newExecutorFn
 	startTime     time.Time
@@ -73,6 +75,14 @@ type block struct {
 	blockSize     time.Duration
 	opts          Options
 	nsMD          namespace.Metadata
+}
+
+// blockShardsSegments is a collection of segments that has a mapping of what shards
+// and time ranges they completely cover, this can only ever come from computing
+// from data that has come from shards, either on an index flush or a bootstrap.
+type blockShardRangesSegments struct {
+	shardTimeRanges result.ShardTimeRanges
+	segments        []segment.Segment
 }
 
 // NewBlock returns a new Block, representing a complete reverse index for the
@@ -162,8 +172,16 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 }
 
 func (b *block) executorWithRLock() (search.Executor, error) {
+	var expectedReaders int
+	if b.activeSegment != nil {
+		expectedReaders++
+	}
+	for _, group := range b.shardRangesSegments {
+		expectedReaders += len(group.segments)
+	}
+
 	var (
-		readers = make([]m3ninxindex.Reader, 0, 1+len(b.inactiveMutableSegments)+len(b.immutableSegments))
+		readers = make([]m3ninxindex.Reader, 0, expectedReaders)
 		success = false
 	)
 
@@ -177,28 +195,23 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 	}()
 
 	// start with the segment that's being actively written to
-	reader, err := b.activeSegment.Reader()
-	if err != nil {
-		return nil, err
-	}
-	readers = append(readers, reader)
-
-	// include all immutable segments
-	for _, seg := range b.immutableSegments {
-		reader, err := seg.Reader()
+	if b.activeSegment != nil {
+		reader, err := b.activeSegment.Reader()
 		if err != nil {
 			return nil, err
 		}
 		readers = append(readers, reader)
 	}
 
-	// include all inactiveMutable segments
-	for _, seg := range b.inactiveMutableSegments {
-		reader, err := seg.Reader()
-		if err != nil {
-			return nil, err
+	// loop over the segments associated to shard time ranges
+	for _, group := range b.shardRangesSegments {
+		for _, seg := range group.segments {
+			reader, err := seg.Reader()
+			if err != nil {
+				return nil, err
+			}
+			readers = append(readers, reader)
 		}
-		readers = append(readers, reader)
 	}
 
 	success = true
@@ -270,8 +283,8 @@ func (b *block) Query(
 	return exhaustive, nil
 }
 
-func (b *block) Bootstrap(
-	segments []segment.Segment,
+func (b *block) AddResults(
+	results result.IndexBlock,
 ) error {
 	b.Lock()
 	defer b.Unlock()
@@ -285,27 +298,64 @@ func (b *block) Bootstrap(
 		return errUnableToBootstrapBlockClosed
 	}
 
+	// First check fulfilled is correct
+	min, max := results.Fulfilled().MinMax()
+	if min.Before(b.startTime) || max.After(b.endTime) {
+		blockRange := xtime.Range{Start: b.startTime, End: b.endTime}
+		return fmt.Errorf("fulfilled range %s is outside of index block range: %s",
+			results.Fulfilled().SummaryString(), blockRange.String())
+	}
+
 	// NB: need to check if the current block has been marked 'Sealed' and if so,
 	// mark all incoming mutable segments the same.
 	isSealed := b.IsSealedWithRLock()
 
 	var multiErr xerrors.MultiError
-	for _, seg := range segments {
-		switch x := seg.(type) {
-		case segment.MutableSegment:
+	for _, seg := range results.Segments() {
+		if x, ok := seg.(segment.MutableSegment); ok {
 			if isSealed {
 				_, err := x.Seal()
 				if err != nil {
 					// if this happens it means a Mutable segment was marked sealed
 					// in the bootstrappers, this should never happen.
-					multiErr = multiErr.Add(b.bootstrappingSealedMutableSegmentInvariant(err))
+					err := b.bootstrappingSealedMutableSegmentInvariant(err)
+					multiErr = multiErr.Add(err)
 				}
 			}
-			b.inactiveMutableSegments = append(b.inactiveMutableSegments, x)
-		default:
-			b.immutableSegments = append(b.immutableSegments, x)
 		}
 	}
+
+	entry := blockShardRangesSegments{
+		shardTimeRanges: results.Fulfilled(),
+		segments:        results.Segments(),
+	}
+
+	// First see if this block can cover all our current blocks covering shard
+	// time ranges
+	currFulfilled := make(result.ShardTimeRanges)
+	for _, existing := range b.shardRangesSegments {
+		currFulfilled.AddRanges(existing.shardTimeRanges)
+	}
+
+	unfulfilledBySegments := currFulfilled.Copy()
+	unfulfilledBySegments.Subtract(results.Fulfilled())
+	if !unfulfilledBySegments.IsEmpty() {
+		// This is the case where it cannot wholly replace the current set of blocks
+		// so simply append the segments in this case
+		b.shardRangesSegments = append(b.shardRangesSegments, entry)
+		return multiErr.FinalError()
+	}
+
+	// This is the case where the new segments can wholly replace the
+	// current set of blocks since unfullfilled by the new segments is zero
+	for i, group := range b.shardRangesSegments {
+		for _, seg := range group.segments {
+			// Make sure to close the existing segments
+			multiErr = multiErr.Add(seg.Close())
+		}
+		b.shardRangesSegments[i] = blockShardRangesSegments{}
+	}
+	b.shardRangesSegments = append(b.shardRangesSegments[:0], entry)
 
 	return multiErr.FinalError()
 }
@@ -324,16 +374,12 @@ func (b *block) Tick(c context.Cancellable) (BlockTickResult, error) {
 		result.NumDocs += b.activeSegment.Size()
 	}
 
-	// any other mutable segments
-	for _, seg := range b.inactiveMutableSegments {
-		result.NumSegments++
-		result.NumDocs += seg.Size()
-	}
-
-	// any immutable segments
-	for _, seg := range b.immutableSegments {
-		result.NumSegments++
-		result.NumDocs += seg.Size()
+	// any other segments
+	for _, group := range b.shardRangesSegments {
+		for _, seg := range group.segments {
+			result.NumSegments++
+			result.NumDocs += seg.Size()
+		}
 	}
 
 	return result, nil
@@ -355,12 +401,6 @@ func (b *block) Seal() error {
 	_, err := b.activeSegment.Seal()
 	multiErr = multiErr.Add(err)
 
-	// seal any inactive mutable segments.
-	for _, seg := range b.inactiveMutableSegments {
-		_, err := seg.Seal()
-		multiErr = multiErr.Add(err)
-	}
-
 	return multiErr.FinalError()
 }
 
@@ -374,40 +414,24 @@ func (b *block) IsSealed() bool {
 	return b.IsSealedWithRLock()
 }
 
-func (b *block) HasMutableSegments() bool {
+func (b *block) NeedsEvictActiveSegment() bool {
 	b.RLock()
 	defer b.RUnlock()
-	return b.activeSegment != nil || len(b.inactiveMutableSegments) > 0
+	return b.activeSegment != nil && b.activeSegment.Size() > 0
 }
 
-func (b *block) ResetSegments(segments []segment.Segment) error {
+func (b *block) EvictActiveSegment() error {
 	b.Lock()
 	defer b.Unlock()
 	if b.state == blockStateClosed {
 		return errBlockAlreadyClosed
 	}
-
-	var multiErr xerrors.MultiError
-
-	// Clear out all currently held segments
-	if b.activeSegment != nil {
-		multiErr = multiErr.Add(b.activeSegment.Close())
-		b.activeSegment = nil
+	if b.activeSegment == nil {
+		return errActiveSegmentAlreadyEvicted
 	}
-
-	for i, seg := range b.inactiveMutableSegments {
-		multiErr = multiErr.Add(seg.Close())
-		b.inactiveMutableSegments[i] = nil
-	}
-	b.inactiveMutableSegments = b.inactiveMutableSegments[:0]
-
-	for i, seg := range b.immutableSegments {
-		multiErr = multiErr.Add(seg.Close())
-		b.immutableSegments[i] = nil
-	}
-	b.immutableSegments = append(b.immutableSegments[:0], segments...)
-
-	return multiErr.FinalError()
+	err := b.activeSegment.Close()
+	b.activeSegment = nil
+	return err
 }
 
 func (b *block) Close() error {
@@ -420,20 +444,18 @@ func (b *block) Close() error {
 
 	var multiErr xerrors.MultiError
 
-	multiErr = multiErr.Add(b.activeSegment.Close())
-	b.activeSegment = nil
+	if b.activeSegment != nil {
+		multiErr = multiErr.Add(b.activeSegment.Close())
+		b.activeSegment = nil
+	}
 
 	// close any inactiveMutable segments.
-	for _, seg := range b.inactiveMutableSegments {
-		multiErr = multiErr.Add(seg.Close())
+	for _, group := range b.shardRangesSegments {
+		for _, seg := range group.segments {
+			multiErr = multiErr.Add(seg.Close())
+		}
 	}
-	b.inactiveMutableSegments = nil
-
-	// close all immutable segments.
-	for _, seg := range b.immutableSegments {
-		multiErr = multiErr.Add(seg.Close())
-	}
-	b.immutableSegments = nil
+	b.shardRangesSegments = nil
 
 	return multiErr.FinalError()
 }
