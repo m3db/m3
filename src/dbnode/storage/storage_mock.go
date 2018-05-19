@@ -819,6 +819,19 @@ func (mr *MockdatabaseNamespaceMockRecorder) GetOwnedShards() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOwnedShards", reflect.TypeOf((*MockdatabaseNamespace)(nil).GetOwnedShards))
 }
 
+// GetIndex mocks base method
+func (m *MockdatabaseNamespace) GetIndex() (namespaceIndex, error) {
+	ret := m.ctrl.Call(m, "GetIndex")
+	ret0, _ := ret[0].(namespaceIndex)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetIndex indicates an expected call of GetIndex
+func (mr *MockdatabaseNamespaceMockRecorder) GetIndex() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIndex", reflect.TypeOf((*MockdatabaseNamespace)(nil).GetIndex))
+}
+
 // Tick mocks base method
 func (m *MockdatabaseNamespace) Tick(c context.Cancellable) error {
 	ret := m.ctrl.Call(m, "Tick", c)
@@ -1347,16 +1360,16 @@ func (mr *MockdatabaseShardMockRecorder) CleanupSnapshots(earliestToRetain inter
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupSnapshots", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupSnapshots), earliestToRetain)
 }
 
-// CleanupFileSet mocks base method
-func (m *MockdatabaseShard) CleanupFileSet(earliestToRetain time.Time) error {
-	ret := m.ctrl.Call(m, "CleanupFileSet", earliestToRetain)
+// CleanupExpiredFileSets mocks base method
+func (m *MockdatabaseShard) CleanupExpiredFileSets(earliestToRetain time.Time) error {
+	ret := m.ctrl.Call(m, "CleanupExpiredFileSets", earliestToRetain)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// CleanupFileSet indicates an expected call of CleanupFileSet
-func (mr *MockdatabaseShardMockRecorder) CleanupFileSet(earliestToRetain interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupFileSet", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupFileSet), earliestToRetain)
+// CleanupExpiredFileSets indicates an expected call of CleanupExpiredFileSets
+func (mr *MockdatabaseShardMockRecorder) CleanupExpiredFileSets(earliestToRetain interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupExpiredFileSets", reflect.TypeOf((*MockdatabaseShard)(nil).CleanupExpiredFileSets), earliestToRetain)
 }
 
 // Repair mocks base method
@@ -1454,6 +1467,18 @@ func (m *MocknamespaceIndex) ReplaceBlock(blockStart time.Time, segments []segme
 // ReplaceBlock indicates an expected call of ReplaceBlock
 func (mr *MocknamespaceIndexMockRecorder) ReplaceBlock(blockStart, segments interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceBlock", reflect.TypeOf((*MocknamespaceIndex)(nil).ReplaceBlock), blockStart, segments)
+}
+
+// CleanupExpiredFileSets mocks base method
+func (m *MocknamespaceIndex) CleanupExpiredFileSets(t time.Time) error {
+	ret := m.ctrl.Call(m, "CleanupExpiredFileSets", t)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CleanupExpiredFileSets indicates an expected call of CleanupExpiredFileSets
+func (mr *MocknamespaceIndexMockRecorder) CleanupExpiredFileSets(t interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupExpiredFileSets", reflect.TypeOf((*MocknamespaceIndex)(nil).CleanupExpiredFileSets), t)
 }
 
 // Tick mocks base method

@@ -22,6 +22,7 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -30,6 +31,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
+	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -52,10 +54,12 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts)
 
 	namespaces := make([]databaseNamespace, 0, 3)
-	for range namespaces {
+	for i := 0; i < 3; i++ {
 		ns := NewMockdatabaseNamespace(ctrl)
+		ns.EXPECT().ID().Return(ident.StringID(fmt.Sprintf("ns%d", i))).AnyTimes()
 		ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 		ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
+		ns.EXPECT().GetOwnedShards().Return(nil).AnyTimes()
 		namespaces = append(namespaces, ns)
 	}
 	db := newMockdatabase(ctrl, namespaces...)
@@ -83,6 +87,39 @@ func TestCleanupManagerCleanup(t *testing.T) {
 
 	require.Error(t, mgr.Cleanup(ts))
 	require.Equal(t, []string{"foo", "bar", "baz"}, deletedFiles)
+}
+
+func TestCleanupManagerNamespaceCleanup(t *testing.T) {
+	ctrl := gomock.NewController(xtest.Reporter{t})
+	defer ctrl.Finish()
+
+	ts := timeFor(36000)
+	rOpts := retention.NewOptions().
+		SetRetentionPeriod(21600 * time.Second).
+		SetBlockSize(3600 * time.Second)
+	nsOpts := namespace.NewOptions().
+		SetRetentionOptions(rOpts).
+		SetCleanupEnabled(true).
+		SetIndexOptions(namespace.NewIndexOptions().
+			SetEnabled(true).
+			SetBlockSize(7200 * time.Second))
+
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().ID().Return(ident.StringID("ns")).AnyTimes()
+	ns.EXPECT().Options().Return(nsOpts).AnyTimes()
+	ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
+	ns.EXPECT().GetOwnedShards().Return(nil).AnyTimes()
+
+	idx := NewMocknamespaceIndex(ctrl)
+	ns.EXPECT().GetIndex().Return(idx, nil)
+
+	nses := []databaseNamespace{ns}
+	db := newMockdatabase(ctrl, ns)
+	db.EXPECT().GetOwnedNamespaces().Return(nses, nil).AnyTimes()
+
+	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+	idx.EXPECT().CleanupExpiredFileSets(ts).Return(nil)
+	require.NoError(t, mgr.Cleanup(ts))
 }
 
 // Test NS doesn't cleanup when flag is present
@@ -136,7 +173,7 @@ func TestCleanupDataAndSnapshotFileSetFiles(t *testing.T) {
 
 	shard := NewMockdatabaseShard(ctrl)
 	expectedEarliestToRetain := retention.FlushTimeStart(ns.Options().RetentionOptions(), ts)
-	shard.EXPECT().CleanupFileSet(expectedEarliestToRetain).Return(nil)
+	shard.EXPECT().CleanupExpiredFileSets(expectedEarliestToRetain).Return(nil)
 	shard.EXPECT().CleanupSnapshots(expectedEarliestToRetain)
 	shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
 	ns.EXPECT().GetOwnedShards().Return([]databaseShard{shard}).AnyTimes()

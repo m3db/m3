@@ -99,7 +99,7 @@ func TestShardDontNeedBootstrap(t *testing.T) {
 		&testIncreasingIndex{}, commitLogWriteNoOp, nil, false, opts, seriesOpts).(*dbShard)
 	defer shard.Close()
 
-	require.Equal(t, Bootstrapped, shard.bs)
+	require.Equal(t, Bootstrapped, shard.bootstrapState)
 	require.True(t, shard.newSeriesBootstrapped)
 }
 
@@ -112,7 +112,7 @@ func TestShardBootstrapState(t *testing.T) {
 		&testIncreasingIndex{}, commitLogWriteNoOp, nil, false, opts, seriesOpts).(*dbShard)
 	defer shard.Close()
 
-	require.Equal(t, Bootstrapped, shard.bs)
+	require.Equal(t, Bootstrapped, shard.bootstrapState)
 	require.Equal(t, Bootstrapped, shard.BootstrapState())
 }
 
@@ -174,13 +174,13 @@ func TestShardBootstrapWithError(t *testing.T) {
 
 	require.NotNil(t, err)
 	require.Equal(t, "series error", err.Error())
-	require.Equal(t, Bootstrapped, s.bs)
+	require.Equal(t, Bootstrapped, s.bootstrapState)
 }
 
 func TestShardFlushDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
-	s.bs = Bootstrapping
+	s.bootstrapState = Bootstrapping
 	err := s.Flush(time.Now(), nil)
 	require.Equal(t, err, errShardNotBootstrappedToFlush)
 }
@@ -193,7 +193,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
-	s.bs = Bootstrapped
+	s.bootstrapState = Bootstrapped
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
 		Status:      fileOpFailed,
 		NumFailures: 1,
@@ -258,7 +258,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
-	s.bs = Bootstrapped
+	s.bootstrapState = Bootstrapped
 	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
 		Status:      fileOpFailed,
 		NumFailures: 1,
@@ -319,7 +319,7 @@ func TestShardSnapshotShardNotBootstrapped(t *testing.T) {
 
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
-	s.bs = Bootstrapping
+	s.bootstrapState = Bootstrapping
 
 	flush := persist.NewMockDataFlush(ctrl)
 	err := s.Snapshot(blockStart, blockStart, flush)
@@ -334,7 +334,7 @@ func TestShardSnapshotSeriesSnapshotSuccess(t *testing.T) {
 
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
-	s.bs = Bootstrapped
+	s.bootstrapState = Bootstrapped
 
 	var closed bool
 	flush := persist.NewMockDataFlush(ctrl)
@@ -860,7 +860,7 @@ func TestShardFetchBlocksIDExists(t *testing.T) {
 	require.Equal(t, expected, res)
 }
 
-func TestShardCleanupFileSet(t *testing.T) {
+func TestShardCleanupExpiredFileSets(t *testing.T) {
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
@@ -872,7 +872,7 @@ func TestShardCleanupFileSet(t *testing.T) {
 		deletedFiles = append(deletedFiles, files...)
 		return nil
 	}
-	require.NoError(t, shard.CleanupFileSet(time.Now()))
+	require.NoError(t, shard.CleanupExpiredFileSets(time.Now()))
 	require.Equal(t, []string{defaultTestNs1ID.String(), "0"}, deletedFiles)
 }
 

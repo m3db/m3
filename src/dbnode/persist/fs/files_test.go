@@ -28,6 +28,7 @@ import (
 	"path"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -328,7 +329,7 @@ func TestFileSetFilesBefore(t *testing.T) {
 
 	cutoffIter := 8
 	cutoff := time.Unix(0, int64(cutoffIter))
-	res, err := FileSetBefore(dir, testNs1ID, shard, cutoff)
+	res, err := DataFileSetsBefore(dir, testNs1ID, shard, cutoff)
 	require.NoError(t, err)
 	require.Equal(t, cutoffIter, len(res))
 
@@ -750,6 +751,64 @@ func TestIndexFileSetAtMultiple(t *testing.T) {
 		require.Equal(t, files[i].Namespace.String(), results[i].ID.Namespace.String())
 		require.Equal(t, files[i].BlockStart, results[i].ID.BlockStart)
 		require.Equal(t, files[i].VolumeIndex, results[i].ID.VolumeIndex)
+	}
+}
+
+func TestIndexFileSetsBefore(t *testing.T) {
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	var (
+		ns1     = ident.StringID("abc")
+		now     = time.Now().Truncate(time.Hour)
+		timeFor = func(n int) time.Time { return now.Add(time.Hour * time.Duration(n)) }
+	)
+
+	files := indexFileSetFileIdentifiers{
+		indexFileSetFileIdentifier{
+			FileSetFileIdentifier: FileSetFileIdentifier{
+				BlockStart:         timeFor(1),
+				Namespace:          ns1,
+				VolumeIndex:        0,
+				FileSetContentType: persist.FileSetIndexContentType,
+			},
+			Suffix: checkpointFileSuffix,
+		},
+		indexFileSetFileIdentifier{
+			FileSetFileIdentifier: FileSetFileIdentifier{
+				BlockStart:         timeFor(1),
+				Namespace:          ns1,
+				VolumeIndex:        1,
+				FileSetContentType: persist.FileSetIndexContentType,
+			},
+			Suffix: checkpointFileSuffix,
+		},
+		indexFileSetFileIdentifier{
+			FileSetFileIdentifier: FileSetFileIdentifier{
+				BlockStart:         timeFor(2),
+				Namespace:          ns1,
+				VolumeIndex:        0,
+				FileSetContentType: persist.FileSetIndexContentType,
+			},
+			Suffix: checkpointFileSuffix,
+		},
+		indexFileSetFileIdentifier{
+			FileSetFileIdentifier: FileSetFileIdentifier{
+				BlockStart:         timeFor(3),
+				Namespace:          ns1,
+				VolumeIndex:        0,
+				FileSetContentType: persist.FileSetIndexContentType,
+			},
+			Suffix: checkpointFileSuffix,
+		},
+	}
+	files.create(t, dir)
+
+	results, err := IndexFileSetsBefore(dir, ns1, timeFor(3))
+	require.NoError(t, err)
+	require.Len(t, results, 3)
+	for _, res := range results {
+		require.False(t, strings.Contains(res, fmt.Sprintf("%d", timeFor(3).UnixNano())))
 	}
 }
 
