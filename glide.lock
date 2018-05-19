@@ -1,5 +1,5 @@
-hash: 3676152b21215fe5cbdc6bc36a93d072d1c0181d21ab75d1a8debd6015ee44c3
-updated: 2018-05-18T11:34:59.456603862-04:00
+hash: 92fce19cb5ea1bbae3ab1cdcf1c4ee71d5e676683e5f58bed499af89b679eeae
+updated: 2018-05-19T15:07:44.862022998-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -320,7 +320,7 @@ imports:
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pilosa/pilosa
-  version: 9a64cff8ea61bf695967cc425d64771fe12dc9a0
+  version: 00f5a1539fb79ab099a3e612a401a5510784eacb
   subpackages:
   - roaring
 - name: github.com/pkg/errors
