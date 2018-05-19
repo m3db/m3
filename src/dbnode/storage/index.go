@@ -642,6 +642,7 @@ func (i *nsIndex) flushBlockSegment(
 	if err != nil {
 		return err
 	}
+	defer seg.Close()
 
 	ctx := context.NewContext()
 	for _, shard := range shards {
@@ -688,6 +689,10 @@ func (i *nsIndex) flushBlockSegment(
 			results.Close()
 			ctx.BlockingClose()
 		}
+	}
+
+	if _, err := seg.Seal(); err != nil {
+		return err
 	}
 
 	// Finally flush this segment
