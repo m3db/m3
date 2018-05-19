@@ -26,15 +26,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3ninx/idx"
 	xclock "github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/ident"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -146,107 +142,4 @@ func TestIndexMultipleBlockQuery(t *testing.T) {
 	writes := append(writesPeriod0, writesPeriod1...)
 	writes.matchesSeriesIters(t, period01Results)
 	log.Infof("found period 0+1 results")
-}
-
-type testIndexWrites []testIndexWrite
-
-func (w testIndexWrites) matchesSeriesIters(t *testing.T, seriesIters encoding.SeriesIterators) {
-	writesByID := make(map[string]testIndexWrites)
-	for _, wi := range w {
-		writesByID[wi.id.String()] = append(writesByID[wi.id.String()], wi)
-	}
-	require.Equal(t, len(writesByID), seriesIters.Len())
-	iters := seriesIters.Iters()
-	for _, iter := range iters {
-		id := iter.ID().String()
-		writes, ok := writesByID[id]
-		require.True(t, ok, id)
-		writes.matchesSeriesIter(t, iter)
-	}
-}
-
-func (w testIndexWrites) matchesSeriesIter(t *testing.T, iter encoding.SeriesIterator) {
-	found := make([]bool, len(w))
-	count := 0
-	for iter.Next() {
-		count++
-		dp, _, _ := iter.Current()
-		for i := 0; i < len(w); i++ {
-			if found[i] {
-				continue
-			}
-			wi := w[i]
-			if !ident.NewTagIterMatcher(wi.tags.Duplicate()).Matches(iter.Tags().Duplicate()) {
-				require.FailNow(t, "tags don't match provided id", iter.ID().String())
-			}
-			if dp.Timestamp.Equal(wi.ts) && dp.Value == wi.value {
-				found[i] = true
-				break
-			}
-		}
-	}
-	require.Equal(t, len(w), count, iter.ID().String())
-	require.NoError(t, iter.Err())
-	for i := 0; i < len(found); i++ {
-		require.True(t, found[i], iter.ID().String())
-	}
-}
-
-func (w testIndexWrites) write(t *testing.T, ns ident.ID, s client.Session) {
-	for i := 0; i < len(w); i++ {
-		wi := w[i]
-		require.NoError(t, s.WriteTagged(ns, wi.id, wi.tags.Duplicate(), wi.ts, wi.value, xtime.Second, nil), "%v", wi)
-	}
-}
-
-func (w testIndexWrites) numIndexed(t *testing.T, ns ident.ID, s client.Session) int {
-	numFound := 0
-	for i := 0; i < len(w); i++ {
-		wi := w[i]
-		q := newQuery(t, wi.tags)
-		iter, _, err := s.FetchTaggedIDs(ns, index.Query{q}, index.QueryOptions{
-			StartInclusive: wi.ts.Add(-1 * time.Second),
-			EndExclusive:   wi.ts.Add(1 * time.Second),
-			Limit:          10})
-		if err != nil {
-			continue
-		}
-		if !iter.Next() {
-			continue
-		}
-		cuNs, cuID, cuTag := iter.Current()
-		if ns.String() != cuNs.String() {
-			continue
-		}
-		if wi.id.String() != cuID.String() {
-			continue
-		}
-		if !ident.NewTagIterMatcher(wi.tags).Matches(cuTag) {
-			continue
-		}
-		numFound++
-	}
-	return numFound
-}
-
-type testIndexWrite struct {
-	id    ident.ID
-	tags  ident.TagIterator
-	ts    time.Time
-	value float64
-}
-
-func generateTestIndexWrite(periodID, numWrites, numTags int, startTime, endTime time.Time) testIndexWrites {
-	writes := make([]testIndexWrite, 0, numWrites)
-	step := endTime.Sub(startTime) / time.Duration(numWrites+1)
-	for i := 1; i <= numWrites; i++ {
-		id, tags := genIDTags(periodID, i, numTags)
-		writes = append(writes, testIndexWrite{
-			id:    id,
-			tags:  tags,
-			ts:    startTime.Add(time.Duration(i) * step).Truncate(time.Second),
-			value: float64(i),
-		})
-	}
-	return writes
 }

@@ -1,0 +1,38 @@
+client:
+  config:
+    static:
+      listenAddress: 0.0.0.0:9000
+      topology:
+          shards: 64
+          replicas: 1
+          hosts:
+            - hostID: m3db_server_1
+              listenAddress: "0.0.0.0:9000"
+      namespaces:
+          - id: metrics
+            retention:
+              retentionPeriod: 24h
+              blockSize: 4h
+              bufferPast: 2h
+            index:
+              enabled: true
+              blockSize: 4h
+  writeConsistencyLevel: majority
+  readConsistencyLevel: unstrict_majority
+  connectConsistencyLevel: any
+  writeTimeout: 10s
+  fetchTimeout: 15s
+  connectTimeout: 20s
+  writeRetry:
+      initialBackoff: 500ms
+      backoffFactor: 3
+      maxRetries: 2
+      jitter: true
+  fetchRetry:
+      initialBackoff: 500ms
+      backoffFactor: 2
+      maxRetries: 3
+      jitter: true
+  backgroundHealthCheckFailLimit: 4
+  backgroundHealthCheckFailThrottleFactor: 0.5
+

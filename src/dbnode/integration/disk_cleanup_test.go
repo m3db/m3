@@ -1,6 +1,6 @@
 // +build integration
 
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -64,7 +64,7 @@ func TestDiskCleanup(t *testing.T) {
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
 	}
-	writeFileSetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
+	writeDataFileSetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
 	writeCommitLogs(t, filePathPrefix, fileTimes)
 
 	// Move now forward by retentionPeriod + 2 * blockSize so fileset files

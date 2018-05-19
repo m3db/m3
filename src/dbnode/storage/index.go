@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/clock"
 	"github.com/m3db/m3db/src/dbnode/persist"
+	"github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/runtime"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
@@ -45,6 +46,7 @@ import (
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
@@ -57,6 +59,7 @@ var (
 	errDbIndexUnableToWriteClosed         = errors.New("unable to write to database index, already closed")
 	errDbIndexUnableToQueryClosed         = errors.New("unable to query database index, already closed")
 	errDbIndexUnableToFlushClosed         = errors.New("unable to flush database index, already closed")
+	errDbIndexUnableToCleanupClosed       = errors.New("unable to cleanup database index, already closed")
 	errDbIndexTerminatingTickCancellation = errors.New("terminating tick early due to cancellation")
 	errDbIndexIsBootstrapping             = errors.New("index is already bootstrapping")
 )
@@ -79,9 +82,12 @@ type nsIndex struct {
 
 	newBlockFn          newBlockFn
 	logger              xlog.Logger
-	opts                index.Options
+	opts                Options
 	nsMetadata          namespace.Metadata
 	runtimeOptsListener xclose.SimpleCloser
+
+	indexFilesetsBeforeFn indexFilesetsBeforeFn
+	deleteFilesFn         deleteFilesFn
 
 	metrics nsIndexMetrics
 }
@@ -120,18 +126,30 @@ type nsIndexRuntimeOptions struct {
 
 type newBlockFn func(time.Time, namespace.Metadata, index.Options) (index.Block, error)
 
+// NB(prateek): the returned filesets are strictly before the given time, i.e. they
+// live in the period (-infinity, exclusiveTime).
+type indexFilesetsBeforeFn func(dir string,
+	nsID ident.ID,
+	exclusiveTime time.Time,
+) ([]string, error)
+
+type newNamespaceIndexOpts struct {
+	md              namespace.Metadata
+	opts            Options
+	newIndexQueueFn newNamespaceIndexInsertQueueFn
+	newBlockFn      newBlockFn
+}
+
 // newNamespaceIndex returns a new namespaceIndex for the provided namespace.
 func newNamespaceIndex(
 	nsMD namespace.Metadata,
-	opts index.Options,
-	runtimeOptsMgr runtime.OptionsManager,
+	opts Options,
 ) (namespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
-		indexOpts:       opts,
+		opts:            opts,
 		newIndexQueueFn: newNamespaceIndexInsertQueue,
 		newBlockFn:      index.NewBlock,
-		runtimeOptsMgr:  runtimeOptsMgr,
 	})
 }
 
@@ -139,15 +157,13 @@ func newNamespaceIndex(
 func newNamespaceIndexWithInsertQueueFn(
 	nsMD namespace.Metadata,
 	newIndexQueueFn newNamespaceIndexInsertQueueFn,
-	opts index.Options,
-	runtimeOptsMgr runtime.OptionsManager,
+	opts Options,
 ) (namespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
-		indexOpts:       opts,
+		opts:            opts,
 		newIndexQueueFn: newIndexQueueFn,
 		newBlockFn:      index.NewBlock,
-		runtimeOptsMgr:  runtimeOptsMgr,
 	})
 }
 
@@ -155,24 +171,14 @@ func newNamespaceIndexWithInsertQueueFn(
 func newNamespaceIndexWithNewBlockFn(
 	nsMD namespace.Metadata,
 	newBlockFn newBlockFn,
-	opts index.Options,
-	runtimeOptsMgr runtime.OptionsManager,
+	opts Options,
 ) (namespaceIndex, error) {
 	return newNamespaceIndexWithOptions(newNamespaceIndexOpts{
 		md:              nsMD,
-		indexOpts:       opts,
+		opts:            opts,
 		newIndexQueueFn: newNamespaceIndexInsertQueue,
 		newBlockFn:      newBlockFn,
-		runtimeOptsMgr:  runtimeOptsMgr,
 	})
-}
-
-type newNamespaceIndexOpts struct {
-	md              namespace.Metadata
-	indexOpts       index.Options
-	newIndexQueueFn newNamespaceIndexInsertQueueFn
-	newBlockFn      newBlockFn
-	runtimeOptsMgr  runtime.OptionsManager
 }
 
 // newNamespaceIndexWithOptions returns a new namespaceIndex with the provided configuration options.
@@ -181,29 +187,29 @@ func newNamespaceIndexWithOptions(
 ) (namespaceIndex, error) {
 	var (
 		nsMD            = newIndexOpts.md
-		opts            = newIndexOpts.indexOpts
+		indexOpts       = newIndexOpts.opts.IndexOptions()
 		newIndexQueueFn = newIndexOpts.newIndexQueueFn
 		newBlockFn      = newIndexOpts.newBlockFn
-		runtimeOptsMgr  = newIndexOpts.runtimeOptsMgr
+		runtimeOptsMgr  = newIndexOpts.opts.RuntimeOptionsManager()
 	)
-	if err := opts.Validate(); err != nil {
+	if err := indexOpts.Validate(); err != nil {
 		return nil, err
 	}
 
-	scope := opts.InstrumentOptions().MetricsScope().
+	scope := indexOpts.InstrumentOptions().MetricsScope().
 		SubScope("dbindex").
 		Tagged(map[string]string{
 			"namespace": nsMD.ID().String(),
 		})
-	iopts := opts.InstrumentOptions().SetMetricsScope(scope)
-	opts = opts.SetInstrumentOptions(iopts)
+	iopts := indexOpts.InstrumentOptions().SetMetricsScope(scope)
+	indexOpts = indexOpts.SetInstrumentOptions(iopts)
 
-	nowFn := opts.ClockOptions().NowFn()
+	nowFn := indexOpts.ClockOptions().NowFn()
 	idx := &nsIndex{
 		state: nsIndexState{
 			runtimeOpts: nsIndexRuntimeOptions{
-				insertMode:            opts.InsertMode(), // FOLLOWUP(prateek): wire to allow this to be tweaked at runtime
-				flushBlockNumSegments: runtime.DefaultFlushIndexBlockNumSegments,
+				insertMode:            indexOpts.InsertMode(), // FOLLOWUP(prateek): wire to allow this to be tweaked at runtime
+				flushBlockNumSegments: runtimeOptsMgr.Get().FlushIndexBlockNumSegments(),
 			},
 			blocksByTime: make(map[xtime.UnixNano]index.Block),
 		},
@@ -214,9 +220,12 @@ func newNamespaceIndexWithOptions(
 		bufferPast:      nsMD.Options().RetentionOptions().BufferPast(),
 		bufferFuture:    nsMD.Options().RetentionOptions().BufferFuture(),
 
+		indexFilesetsBeforeFn: fs.IndexFileSetsBefore,
+		deleteFilesFn:         fs.DeleteFiles,
+
 		newBlockFn: newBlockFn,
-		opts:       opts,
-		logger:     opts.InstrumentOptions().Logger(),
+		opts:       newIndexOpts.opts,
+		logger:     indexOpts.InstrumentOptions().Logger(),
 		nsMetadata: nsMD,
 
 		metrics: newNamespaceIndexMetrics(iopts),
@@ -629,7 +638,8 @@ func (i *nsIndex) flushBlockSegment(
 ) error {
 	// FOLLOWUP(prateek): use this to track segments when we have multiple segments in a Block.
 	postingsOffset := postings.ID(0)
-	seg, err := mem.NewSegment(postingsOffset, i.opts.MemSegmentOptions())
+	segmentOpts := i.opts.IndexOptions().MemSegmentOptions()
+	seg, err := mem.NewSegment(postingsOffset, segmentOpts)
 	if err != nil {
 		return err
 	}
@@ -719,7 +729,7 @@ func (i *nsIndex) Query(
 
 	var (
 		exhaustive = true
-		results    = i.opts.ResultsPool().Get()
+		results    = i.opts.IndexOptions().ResultsPool().Get()
 		err        error
 	)
 	results.Reset(i.nsMetadata.ID())
@@ -814,7 +824,7 @@ func (i *nsIndex) ensureBlockPresentWithRLock(blockStart time.Time) (index.Block
 	}
 
 	// ok now we know for sure we have to alloc
-	block, err := i.newBlockFn(blockStart, i.nsMetadata, i.opts)
+	block, err := i.newBlockFn(blockStart, i.nsMetadata, i.opts.IndexOptions())
 	if err != nil { // unable to allocate the block, should never happen.
 		return nil, i.unableToAllocBlockInvariantError(err)
 	}
@@ -854,6 +864,41 @@ func (i *nsIndex) updateBlockStartsWithLock() {
 
 func (i *nsIndex) isOpenWithRLock() bool {
 	return !i.state.closed
+}
+
+func (i *nsIndex) CleanupExpiredFileSets(t time.Time) error {
+	// we only expire data on drive that we don't hold a reference to, and is
+	// past the expiration period. the earliest data we have to retain is given
+	// by the following computation:
+	//  Min(FIRST_EXPIRED_BLOCK, EARLIEST_RETAINED_BLOCK)
+	i.state.RLock()
+	defer i.state.RUnlock()
+	if i.state.closed {
+		return errDbIndexUnableToCleanupClosed
+	}
+
+	// earliest block to retain based on retention period
+	earliestBlockStartToRetain := retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, t)
+
+	// now we loop through the blocks we hold, to ensure we don't delete any data for them.
+	for t := range i.state.blocksByTime {
+		if t.ToTime().Before(earliestBlockStartToRetain) {
+			earliestBlockStartToRetain = t.ToTime()
+		}
+	}
+
+	// know the earliest block to retain, find all blocks earlier than it
+	var (
+		pathPrefix = i.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+		nsID       = i.nsMetadata.ID()
+	)
+	filesets, err := i.indexFilesetsBeforeFn(pathPrefix, nsID, earliestBlockStartToRetain)
+	if err != nil {
+		return err
+	}
+
+	// and delete them
+	return i.deleteFilesFn(filesets)
 }
 
 func (i *nsIndex) Close() error {

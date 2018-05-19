@@ -301,8 +301,7 @@ func newDatabaseNamespace(
 		err   error
 	)
 	if metadata.Options().IndexOptions().Enabled() {
-		index, err = newNamespaceIndex(metadata, opts.IndexOptions(),
-			opts.RuntimeOptionsManager())
+		index, err = newNamespaceIndex(metadata, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -1079,6 +1078,15 @@ func (n *dbNamespace) GetOwnedShards() []databaseShard {
 	}
 	n.RUnlock()
 	return databaseShards
+}
+
+func (n *dbNamespace) GetIndex() (namespaceIndex, error) {
+	n.RLock()
+	defer n.RUnlock()
+	if !n.metadata.Options().IndexOptions().Enabled() {
+		return nil, errNamespaceIndexingDisabled
+	}
+	return n.reverseIndex, nil
 }
 
 func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, error) {

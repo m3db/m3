@@ -150,8 +150,8 @@ func TestShardWriteTaggedSyncRefCountSyncIndex(t *testing.T) {
 	}
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn,
-		index.NewOptions().SetInsertMode(index.InsertSync))
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions().
+		SetIndexOptions(index.NewOptions().SetInsertMode(index.InsertSync)))
 	assert.NoError(t, err)
 
 	defer func() {
@@ -343,8 +343,8 @@ func TestShardWriteTaggedAsyncRefCountSyncIndex(t *testing.T) {
 	}
 	md, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
-	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn,
-		index.NewOptions().SetInsertMode(index.InsertSync))
+	idx, err := newNamespaceIndexWithInsertQueueFn(md, newFn, testDatabaseOptions().
+		SetIndexOptions(index.NewOptions().SetInsertMode(index.InsertSync)))
 	assert.NoError(t, err)
 
 	defer func() {
