@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"regexp"
@@ -10,6 +13,7 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
+	"github.com/m3db/m3ninx/doc"
 	m3ninxfs "github.com/m3db/m3ninx/index/segment/fs"
 	m3ninxpersist "github.com/m3db/m3ninx/persist"
 	"github.com/m3db/m3x/ident"
@@ -25,6 +29,7 @@ func main() {
 		optBlockstart      = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
 		optVolumeIndex     = getopt.Int64Long("volume-index", 'v', 0, "Volume index")
 		optLargeFieldLimit = getopt.Int64Long("large-field-limit", 'l', 0, "Large Field Limit (non-zero to display fields with num terms > limit)")
+		optOutputIdsPrefix = getopt.StringLong("output-ids-prefix", 'o', "", "If set, it emits all terms for the _m3ninx_id field.")
 		log                = xlog.NewLogger(os.Stderr)
 	)
 	getopt.Parse()
@@ -73,6 +78,25 @@ func main() {
 		}
 		defer seg.Close()
 
+		var (
+			idsFile   *os.File
+			idsWriter *bufio.Writer
+		)
+		if *optOutputIdsPrefix != "" {
+			idsFile, err = os.Create(fmt.Sprintf("%s-ids-segment-%d.out", *optOutputIdsPrefix, i))
+			if err != nil {
+				log.Fatalf("unable to create output ids file: %v", err)
+			}
+			idsWriter = bufio.NewWriter(idsFile)
+			defer func() {
+				idsWriter.Flush()
+				idsFile.Sync()
+				if err := idsFile.Close(); err != nil {
+					log.Fatalf("error closing ids file: %v", err)
+				}
+			}()
+		}
+
 		fields, err := seg.Fields()
 		if err != nil {
 			log.Fatalf("unable to retrieve segment fields: %v", err)
@@ -89,6 +113,15 @@ func main() {
 			if err != nil {
 				log.Fatalf("unable to retrieve segment term: %v", err)
 			}
+			// ids output
+			if bytes.Equal(doc.IDReservedFieldName, f) && idsWriter != nil {
+				for _, t := range terms {
+					idsWriter.Write(t)
+					idsWriter.WriteByte('\n')
+				}
+			}
+
+			// large field output
 			if *optLargeFieldLimit > 0 && len(terms) > int(*optLargeFieldLimit) {
 				largeFields = append(largeFields, largeField{
 					field:    string(f),
