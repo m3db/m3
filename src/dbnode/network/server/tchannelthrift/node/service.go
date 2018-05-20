@@ -437,7 +437,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
-	nsID := s.newID(ctx, req.NameSpace)
+	nsID := s.newID(req.NameSpace)
 
 	result := rpc.NewFetchBatchRawResult_()
 
@@ -451,7 +451,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		rawResult := rpc.NewFetchRawResult_()
 		result.Elements = append(result.Elements, rawResult)
 
-		tsID := s.newID(ctx, req.Ids[i])
+		tsID := s.newID(req.Ids[i])
 		segments, rpcErr := s.readEncoded(ctx, nsID, tsID, start, end)
 		if rpcErr != nil {
 			rawResult.Err = rpcErr
@@ -484,7 +484,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
-	nsID := s.newID(ctx, req.NameSpace)
+	nsID := s.newID(req.NameSpace)
 	// check if the namespace if known
 	nsMetadata, ok := s.db.Namespace(nsID)
 	if !ok {
@@ -506,7 +506,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 			blockStarts = append(blockStarts, xtime.FromNanoseconds(start))
 		}
 
-		tsID := s.newID(ctx, request.ID)
+		tsID := s.newID(request.ID)
 		fetched, err := s.db.FetchBlocks(
 			ctx, nsID, uint32(req.Shard), tsID, blockStarts)
 		if err != nil {
@@ -581,7 +581,7 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 		opts.IncludeLastRead = *req.IncludeLastRead
 	}
 
-	nsID := s.newID(ctx, req.NameSpace)
+	nsID := s.newID(req.NameSpace)
 
 	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx, nsID,
 		uint32(req.Shard), start, end, req.Limit, pageToken, opts)
@@ -682,7 +682,7 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	}
 
 	var (
-		nsID  = s.newID(ctx, req.NameSpace)
+		nsID  = s.newID(req.NameSpace)
 		start = time.Unix(0, req.RangeStart)
 		end   = time.Unix(0, req.RangeEnd)
 	)
@@ -875,7 +875,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
-	nsID := s.newID(ctx, req.NameSpace)
+	nsID := s.newID(req.NameSpace)
 
 	var (
 		errs               []*rpc.WriteBatchRawError
@@ -899,7 +899,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		}
 
 		if err = s.db.Write(
-			ctx, nsID, s.newID(ctx, elem.ID),
+			ctx, nsID, s.newID(elem.ID),
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value, unit, elem.Datapoint.Annotation,
 		); err != nil && xerrors.IsInvalidParams(err) {
@@ -931,7 +931,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
-	nsID := s.newID(ctx, req.NameSpace)
+	nsID := s.newID(req.NameSpace)
 
 	var (
 		errs               []*rpc.WriteBatchRawError
@@ -962,7 +962,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 		}
 
 		if err = s.db.WriteTagged(
-			ctx, nsID, s.newID(ctx, elem.ID), dec,
+			ctx, nsID, s.newID(elem.ID), dec,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value, unit, elem.Datapoint.Annotation,
 		); err != nil && xerrors.IsInvalidParams(err) {
@@ -1005,8 +1005,7 @@ func (s *service) Repair(tctx thrift.Context) error {
 
 func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (r *rpc.TruncateResult_, err error) {
 	callStart := s.nowFn()
-	ctx := tchannelthrift.Context(tctx)
-	truncated, err := s.db.Truncate(s.newID(ctx, req.NameSpace))
+	truncated, err := s.db.Truncate(s.newID(req.NameSpace))
 
 	if err != nil {
 		s.metrics.truncate.ReportError(s.nowFn().Sub(callStart))
@@ -1151,9 +1150,8 @@ func (s *service) isOverloaded() bool {
 	return s.db.IsOverloaded()
 }
 
-func (s *service) newID(ctx context.Context, id []byte) ident.ID {
-	checkedBytes := s.pools.checkedBytesWrapper.Get(id)
-	return s.pools.id.GetBinaryID(ctx, checkedBytes)
+func (s *service) newID(id []byte) ident.ID {
+	return ident.BytesID(id)
 }
 
 func (s *service) readEncoded(
