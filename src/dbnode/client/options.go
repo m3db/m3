@@ -43,6 +43,9 @@ import (
 )
 
 const (
+	// DefaultWriteBatchSize is the default write and write tagged batch size.
+	DefaultWriteBatchSize = 128
+
 	// defaultWriteConsistencyLevel is the default write consistency level
 	defaultWriteConsistencyLevel = m3dbruntime.DefaultWriteConsistencyLevel
 
@@ -87,9 +90,6 @@ const (
 
 	// defaultFetchBatchOpPoolSize is the default fetch op pool size
 	defaultFetchBatchOpPoolSize = 8192
-
-	// defaultWriteBatchSize is the default write batch size
-	defaultWriteBatchSize = 128
 
 	// defaultFetchBatchSize is the default fetch batch size
 	defaultFetchBatchSize = 128
@@ -295,7 +295,7 @@ func newOptions() *options {
 		writeOperationPoolSize:                  defaultWriteOpPoolSize,
 		writeTaggedOperationPoolSize:            defaultWriteTaggedOpPoolSize,
 		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
-		writeBatchSize:                          defaultWriteBatchSize,
+		writeBatchSize:                          DefaultWriteBatchSize,
 		fetchBatchSize:                          defaultFetchBatchSize,
 		identifierPool:                          idPool,
 		hostQueueOpsFlushSize:                   defaultHostQueueOpsFlushSize,
