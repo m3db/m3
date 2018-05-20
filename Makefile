@@ -42,6 +42,7 @@ TOOLS :=            \
 	read_ids          \
 	read_index_ids    \
 	read_data_files   \
+	read_index_files  \
 	clone_fileset     \
 	dtest             \
 	verify_commitlogs \
