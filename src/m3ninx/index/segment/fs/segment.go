@@ -40,7 +40,7 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/couchbase/vellum"
-	vregex "github.com/couchbaselabs/vellum/regexp"
+	vregex "github.com/couchbase/vellum/regexp"
 )
 
 var (

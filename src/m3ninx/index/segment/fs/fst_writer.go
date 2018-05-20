@@ -21,9 +21,23 @@
 package fs
 
 import (
+	"errors"
 	"io"
 
 	"github.com/couchbase/vellum"
+)
+
+var (
+	errFstWriterBuildUnset = errors.New("fst writer builer has not been Reset() before use")
+)
+
+var (
+	// TODO(prateek): tweak builderopts for vellum
+	vellumBuilderOpts = &vellum.BuilderOpts{
+		Encoder:           1,
+		RegistryTableSize: 100000,
+		RegistryMRUSize:   4,
+	}
 )
 
 // fstWriter is a writer to help construct an FST.
@@ -37,13 +51,10 @@ func newFSTWriter() *fstWriter {
 	return &fstWriter{}
 }
 
-func (f *fstWriter) Clear() {
-	f.bytesWritten = 0
-	f.writer = nil
-	f.builder = nil
-}
-
 func (f *fstWriter) Write(p []byte) (int, error) {
+	if f.writer == nil {
+		return 0, errFstWriterBuildUnset
+	}
 	n, err := f.writer.Write(p)
 	if err != nil {
 		return 0, err
@@ -53,28 +64,33 @@ func (f *fstWriter) Write(p []byte) (int, error) {
 }
 
 func (f *fstWriter) Reset(w io.Writer) error {
-	f.Clear()
+	f.bytesWritten = 0
 	f.writer = w
-
-	// TODO(prateek): builderopts for vellum
-	builder, err := vellum.New(f, nil)
-	if err != nil {
-		return err
+	if f.builder == nil {
+		builder, err := vellum.New(f, vellumBuilderOpts)
+		if err != nil {
+			return err
+		}
+		f.builder = builder
+		return nil
 	}
-	f.builder = builder
-	return nil
+	return f.builder.Reset(f)
 }
 
 func (f *fstWriter) Add(b []byte, v uint64) error {
+	if f.builder == nil {
+		return errFstWriterBuildUnset
+	}
 	return f.builder.Insert(b, v)
 }
 
 func (f *fstWriter) Close() (uint64, error) {
+	if f.builder == nil {
+		return 0, errFstWriterBuildUnset
+	}
 	err := f.builder.Close()
 	if err != nil {
 		return 0, nil
 	}
-	bytesWritten := f.bytesWritten
-	f.Clear()
-	return bytesWritten, nil
+	return f.bytesWritten, nil
 }

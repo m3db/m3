@@ -24,7 +24,8 @@ import:
   subpackages:
   - proto
 - package: github.com/couchbase/vellum
-  version: eb6ae3743b3f300f2136f83ca78c08cc071edbd4
+  repo:    https://github.com/m3db/vellum
+  version: c8d001ddd5fefddde930379e021aadaeba565fef
 - package: github.com/edsrzf/mmap-go # un-used but required for a compile time dep from vellum
   version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 - package: github.com/pilosa/pilosa/roaring
