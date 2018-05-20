@@ -85,9 +85,9 @@ func (w *writer) clear() {
 	w.seg = nil
 	w.segReader = nil
 
+	w.fstWriter = newFSTWriter()
 	w.intEncoder.Reset()
 	w.postingsEncoder.Reset()
-	w.fstWriter.Clear()
 	w.docDataWriter.Reset(nil)
 	w.docIndexWriter.Reset(nil)
 
