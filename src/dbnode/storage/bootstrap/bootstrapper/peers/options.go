@@ -41,6 +41,7 @@ var (
 var (
 	errAdminClientNotSet                 = errors.New("admin client not set")
 	errInvalidFetchBlocksMetadataVersion = errors.New("invalid fetch blocks metadata endpoint version")
+	errPersistManagerNotSet              = errors.New("persist manager not set")
 )
 
 type options struct {
@@ -69,9 +70,11 @@ func (o *options) Validate() error {
 	if client := o.client; client == nil {
 		return errAdminClientNotSet
 	}
-
 	if !client.IsValidFetchBlocksMetadataEndpoint(o.fetchBlocksMetadataEndpointVersion) {
 		return errInvalidFetchBlocksMetadataVersion
+	}
+	if o.persistManager == nil {
+		return errPersistManagerNotSet
 	}
 	return nil
 }

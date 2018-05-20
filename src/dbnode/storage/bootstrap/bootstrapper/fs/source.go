@@ -22,9 +22,11 @@ package fs
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
@@ -36,6 +38,7 @@ import (
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
@@ -55,24 +58,37 @@ type newDataFileSetReaderFn func(
 ) (fs.DataFileSetReader, error)
 
 type fileSystemSource struct {
-	opts        Options
-	fsopts      fs.Options
-	log         xlog.Logger
-	idPool      ident.Pool
-	newReaderFn newDataFileSetReaderFn
-	processors  xsync.WorkerPool
+	opts            Options
+	fsopts          fs.Options
+	log             xlog.Logger
+	idPool          ident.Pool
+	newReaderFn     newDataFileSetReaderFn
+	dataProcessors  xsync.WorkerPool
+	indexProcessors xsync.WorkerPool
+	persistManager  persistManager
+}
+
+type persistManager struct {
+	sync.Mutex
+	mgr persist.Manager
 }
 
 func newFileSystemSource(opts Options) bootstrap.Source {
-	processors := xsync.NewWorkerPool(opts.NumProcessors())
-	processors.Init()
+	dataProcessors := xsync.NewWorkerPool(opts.BoostrapDataNumProcessors())
+	dataProcessors.Init()
+	indexProcessors := xsync.NewWorkerPool(opts.BoostrapIndexNumProcessors())
+	indexProcessors.Init()
 	return &fileSystemSource{
-		opts:        opts,
-		fsopts:      opts.FilesystemOptions(),
-		log:         opts.ResultOptions().InstrumentOptions().Logger(),
-		idPool:      opts.IdentifierPool(),
-		newReaderFn: fs.NewReader,
-		processors:  processors,
+		opts:            opts,
+		fsopts:          opts.FilesystemOptions(),
+		log:             opts.ResultOptions().InstrumentOptions().Logger(),
+		idPool:          opts.IdentifierPool(),
+		newReaderFn:     fs.NewReader,
+		dataProcessors:  dataProcessors,
+		indexProcessors: indexProcessors,
+		persistManager: persistManager{
+			mgr: opts.PersistManager(),
+		},
 	}
 }
 
@@ -94,9 +110,9 @@ func (s *fileSystemSource) AvailableData(
 func (s *fileSystemSource) ReadData(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
-	_ bootstrap.RunOptions,
+	runOpts bootstrap.RunOptions,
 ) (result.DataBootstrapResult, error) {
-	r, err := s.read(md, shardsTimeRanges, bootstrapDataRunType)
+	r, err := s.read(md, shardsTimeRanges, bootstrapDataRunType, runOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -113,9 +129,9 @@ func (s *fileSystemSource) AvailableIndex(
 func (s *fileSystemSource) ReadIndex(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
-	opts bootstrap.RunOptions,
+	runOpts bootstrap.RunOptions,
 ) (result.IndexBootstrapResult, error) {
-	r, err := s.read(md, shardsTimeRanges, bootstrapIndexRunType)
+	r, err := s.read(md, shardsTimeRanges, bootstrapIndexRunType, runOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -174,96 +190,185 @@ func (s *fileSystemSource) shardAvailability(
 }
 
 func (s *fileSystemSource) enqueueReaders(
-	namespace ident.ID,
+	ns namespace.Metadata,
+	run runType,
+	runOpts bootstrap.RunOptions,
 	shardsTimeRanges result.ShardTimeRanges,
 	readerPool *readerPool,
-	readersCh chan<- shardReaders,
+	readersCh chan<- timeWindowReaders,
 ) {
-	for shard, tr := range shardsTimeRanges {
-		readInfoFilesResults := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
-			namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
+	// Close the readers ch if and only if all readers are enqueued
+	defer close(readersCh)
 
-		if len(readInfoFilesResults) == 0 {
-			// Use default readers value to indicate no readers for this shard
-			readersCh <- newShardReaders(shard, tr, nil)
+	indexIncrementalBootstrap := run == bootstrapIndexRunType && runOpts.Incremental()
+	if !indexIncrementalBootstrap {
+		// Normal run, open readers
+		s.enqueueReadersGroupedByBlockSize(ns, run, runOpts,
+			shardsTimeRanges, readerPool, readersCh)
+		return
+	}
+
+	// If the run is an index bootstrap using incremental bootstrapping
+	// then we need to write out the metadata into FSTs that we store on disk,
+	// to avoid creating any one single huge FST at once we bucket the
+	// shards into number of buckets
+	runtimeOpts := s.opts.RuntimeOptionsManager().Get()
+	numSegmentsPerBlock := runtimeOpts.FlushIndexBlockNumSegments()
+
+	buckets := make([]result.ShardTimeRanges, numSegmentsPerBlock)
+	for i := range buckets {
+		buckets[i] = make(result.ShardTimeRanges)
+	}
+
+	i := 0
+	for shard, timeRanges := range shardsTimeRanges {
+		idx := i % int(numSegmentsPerBlock)
+		buckets[idx][shard] = timeRanges
+		i++
+	}
+
+	for _, bucket := range buckets {
+		if len(bucket) == 0 {
+			// Skip potentially empty buckets if num of segments per block is
+			// greater than the number of shards
+			continue
+		}
+		s.enqueueReadersGroupedByBlockSize(ns, run, runOpts,
+			bucket, readerPool, readersCh)
+	}
+}
+
+func (s *fileSystemSource) enqueueReadersGroupedByBlockSize(
+	ns namespace.Metadata,
+	run runType,
+	runOpts bootstrap.RunOptions,
+	shardTimeRanges result.ShardTimeRanges,
+	readerPool *readerPool,
+	readersCh chan<- timeWindowReaders,
+) {
+	// First bucket the shard time ranges by block size
+	var blockSize time.Duration
+	switch run {
+	case bootstrapDataRunType:
+		blockSize = ns.Options().RetentionOptions().BlockSize()
+	case bootstrapIndexRunType:
+		blockSize = ns.Options().IndexOptions().BlockSize()
+	default:
+		panic(fmt.Errorf("unrecognized run type: %d", run))
+	}
+
+	// Group them by block size
+	groupFn := newShardTimeRangesTimeWindowGroups
+	groupedByBlockSize := groupFn(shardTimeRanges, blockSize)
+
+	// Now enqueue across all shards by block size
+	for _, group := range groupedByBlockSize {
+		readers := make(map[shardID]shardReaders, len(group.ranges))
+		for shard, tr := range group.ranges {
+			shardReaders := s.newShardReaders(ns, readerPool, shard, tr)
+			readers[shardID(shard)] = shardReaders
+		}
+		readersCh <- newTimeWindowReaders(group.ranges, readers)
+	}
+}
+
+func (s *fileSystemSource) newShardReaders(
+	ns namespace.Metadata,
+	readerPool *readerPool,
+	shard uint32,
+	tr xtime.Ranges,
+) shardReaders {
+	readInfoFilesResults := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
+		ns.ID(), shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
+	if len(readInfoFilesResults) == 0 {
+		return shardReaders{} // No readers
+	}
+
+	readers := make([]fs.DataFileSetReader, 0, len(readInfoFilesResults))
+	for i := 0; i < len(readInfoFilesResults); i++ {
+		result := readInfoFilesResults[i]
+		if result.Err.Error() != nil {
+			s.log.WithFields(
+				xlog.NewField("shard", shard),
+				xlog.NewField("namespace", ns.ID().String()),
+				xlog.NewField("error", result.Err.Error()),
+				xlog.NewField("timeRange", tr.String()),
+				xlog.NewField("path", result.Err.Filepath()),
+			).Error("fs bootstrapper unable to read info file")
+			continue
+		}
+		info := result.Info
+
+		r, err := readerPool.get()
+		if err != nil {
+			s.log.Errorf("unable to get reader from pool")
 			continue
 		}
 
-		readers := make([]fs.DataFileSetReader, 0, len(readInfoFilesResults))
-		for i := 0; i < len(readInfoFilesResults); i++ {
-			result := readInfoFilesResults[i]
-			if result.Err.Error() != nil {
-				s.log.WithFields(
-					xlog.NewField("shard", shard),
-					xlog.NewField("namespace", namespace.String()),
-					xlog.NewField("error", result.Err.Error()),
-					xlog.NewField("timeRange", tr),
-					xlog.NewField("filepath", result.Err.Filepath()),
-				).Error("unable to read info files in enqueueReaders")
-				continue
-			}
-			info := result.Info
-
-			r, err := readerPool.get()
-			if err != nil {
-				s.log.Errorf("unable to get reader from pool")
-				readersCh <- newShardReadersErr(shard, tr, err)
-				continue
-			}
-			t := xtime.FromNanoseconds(info.BlockStart)
-			openOpts := fs.DataReaderOpenOptions{
-				Identifier: fs.FileSetFileIdentifier{
-					Namespace:  namespace,
-					Shard:      shard,
-					BlockStart: t,
-				},
-			}
-			if err := r.Open(openOpts); err != nil {
-				s.log.WithFields(
-					xlog.NewField("shard", shard),
-					xlog.NewField("time", t.String()),
-					xlog.NewField("error", err.Error()),
-				).Error("unable to open fileset files")
-				readerPool.put(r)
-				readersCh <- newShardReadersErr(shard, tr, err)
-				continue
-			}
-			timeRange := r.Range()
-			if !tr.Overlaps(timeRange) {
-				r.Close()
-				readerPool.put(r)
-				continue
-			}
-			readers = append(readers, r)
+		t := xtime.FromNanoseconds(info.BlockStart)
+		openOpts := fs.DataReaderOpenOptions{
+			Identifier: fs.FileSetFileIdentifier{
+				Namespace:  ns.ID(),
+				Shard:      shard,
+				BlockStart: t,
+			},
 		}
-		readersCh <- newShardReaders(shard, tr, readers)
+		if err := r.Open(openOpts); err != nil {
+			s.log.WithFields(
+				xlog.NewField("shard", shard),
+				xlog.NewField("time", t.String()),
+				xlog.NewField("error", err.Error()),
+			).Error("unable to open fileset files")
+			readerPool.put(r)
+			continue
+		}
+
+		timeRange := r.Range()
+		if !tr.Overlaps(timeRange) {
+			r.Close()
+			readerPool.put(r)
+			continue
+		}
+
+		readers = append(readers, r)
 	}
 
-	close(readersCh)
+	return shardReaders{readers: readers}
 }
 
 func (s *fileSystemSource) bootstrapFromReaders(
 	ns namespace.Metadata,
 	run runType,
+	runOpts bootstrap.RunOptions,
 	readerPool *readerPool,
 	retriever block.DatabaseBlockRetriever,
-	readersCh <-chan shardReaders,
+	readersCh <-chan timeWindowReaders,
 ) *runResult {
 	var (
 		runResult         = newRunResult()
 		resultOpts        = s.opts.ResultOptions()
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 		wg                sync.WaitGroup
+		processors        xsync.WorkerPool
 	)
 	if retriever != nil {
 		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(retriever)
 	}
 
+	switch run {
+	case bootstrapDataRunType:
+		processors = s.dataProcessors
+	case bootstrapIndexRunType:
+		processors = s.indexProcessors
+	default:
+		panic(fmt.Errorf("unrecognized run type: %d", run))
+	}
+
 	for shardReaders := range readersCh {
 		shardReaders := shardReaders
 		wg.Add(1)
-		s.processors.Go(func() {
-			s.loadShardReadersDataIntoShardResult(ns, run, runResult,
+		processors.Go(func() {
+			s.loadShardReadersDataIntoShardResult(ns, run, runOpts, runResult,
 				resultOpts, shardRetrieverMgr, shardReaders, readerPool)
 			wg.Done()
 		})
@@ -286,8 +391,8 @@ func (s *fileSystemSource) bootstrapFromReaders(
 // as unfulfilled
 func (s *fileSystemSource) markRunResultErrorsAndUnfulfilled(
 	runResult *runResult,
-	shard uint32,
-	remainingRanges xtime.Ranges,
+	requestedRanges result.ShardTimeRanges,
+	remainingRanges result.ShardTimeRanges,
 	timesWithErrors []time.Time,
 ) {
 	// NB(xichen): this is the exceptional case where we encountered errors due to files
@@ -302,18 +407,20 @@ func (s *fileSystemSource) markRunResultErrorsAndUnfulfilled(
 			timesWithErrorsString[i] = timesWithErrors[i].String()
 		}
 		s.log.WithFields(
-			xlog.NewField("shard", shard),
+			xlog.NewField("requestedRanges", requestedRanges.SummaryString()),
 			xlog.NewField("timesWithErrors", timesWithErrorsString),
 		).Info("deleting entries from results for times with errors")
 
 		runResult.Lock()
-		// Delete all affected times from the data results.
-		shardResult, ok := runResult.data.ShardResults()[shard]
-		if ok {
-			for _, entry := range shardResult.AllSeries().Iter() {
-				series := entry.Value()
-				for _, t := range timesWithErrors {
-					shardResult.RemoveBlockAt(series.ID, t)
+		for shard := range requestedRanges {
+			// Delete all affected times from the data results.
+			shardResult, ok := runResult.data.ShardResults()[shard]
+			if ok {
+				for _, entry := range shardResult.AllSeries().Iter() {
+					series := entry.Value()
+					for _, t := range timesWithErrors {
+						shardResult.RemoveBlockAt(series.ID, t)
+					}
 				}
 			}
 		}
@@ -334,13 +441,7 @@ func (s *fileSystemSource) markRunResultErrorsAndUnfulfilled(
 			runResult.data.Unfulfilled(),
 			runResult.index.Unfulfilled(),
 		} {
-			shardUnfulfilled, ok := unfulfilled[shard]
-			if !ok {
-				shardUnfulfilled = xtime.Ranges{}.AddRanges(remainingRanges)
-			} else {
-				shardUnfulfilled = shardUnfulfilled.AddRanges(remainingRanges)
-			}
-			unfulfilled[shard] = shardUnfulfilled
+			unfulfilled.AddRanges(remainingRanges)
 		}
 		runResult.Unlock()
 	}
@@ -360,121 +461,148 @@ func (s *fileSystemSource) tagsFromTagsIter(
 func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	ns namespace.Metadata,
 	run runType,
+	runOpts bootstrap.RunOptions,
 	runResult *runResult,
 	ropts result.Options,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
-	shardReaders shardReaders,
+	timeWindowReaders timeWindowReaders,
 	readerPool *readerPool,
 ) {
 	var (
-		timesWithErrors   []time.Time
-		shardResult       result.ShardResult
-		shardRetriever    block.DatabaseShardBlockRetriever
 		blockPool         = ropts.DatabaseBlockOptions().DatabaseBlockPool()
 		seriesCachePolicy = ropts.SeriesCachePolicy()
 		indexBlockSegment segment.MutableSegment
+		timesWithErrors   []time.Time
+		shardResult       result.ShardResult
+		shardRetriever    block.DatabaseShardBlockRetriever
 	)
 
-	sr := shardReaders
-	shard, tr, readers, err := sr.shard, sr.tr, sr.readers, sr.err
-	if err != nil {
-		s.markRunResultErrorsAndUnfulfilled(runResult, shard, tr, timesWithErrors)
-		return
-	}
+	requestedRanges := timeWindowReaders.ranges
+	remainingRanges := requestedRanges.Copy()
+	shardReaders := timeWindowReaders.readers
+	for shard, shardReaders := range shardReaders {
+		shard := uint32(shard)
+		readers := shardReaders.readers
 
-	if shardRetrieverMgr != nil {
-		shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
-	}
-	if run == bootstrapDataRunType && seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
-		s.log.WithFields(
-			xlog.NewField("has-shard-retriever-mgr", shardRetrieverMgr != nil),
-			xlog.NewField("has-shard-retriever", shardRetriever != nil),
-		).Errorf("shard retriever missing for shard: %d", shard)
-		s.markRunResultErrorsAndUnfulfilled(runResult, shard, tr, timesWithErrors)
-		return
-	}
-
-	for _, r := range readers {
-		var (
-			timeRange = r.Range()
-			start     = timeRange.Start
-			blockSize = ns.Options().RetentionOptions().BlockSize()
-			err       error
-		)
-		switch run {
-		case bootstrapDataRunType:
-			capacity := r.Entries()
-			shardResult = runResult.getOrAddDataShardResult(shard, capacity, ropts)
-		case bootstrapIndexRunType:
-			indexBlockSegment, err = runResult.getOrAddIndexSegment(start, ns, ropts)
-		default:
-			// Unreachable unless an internal method calls with a run type casted from int
-			panic(fmt.Errorf("invalid run type: %d", run))
+		if run == bootstrapDataRunType {
+			// For the bootstrap data case we need the shard retriever
+			if shardRetrieverMgr != nil {
+				shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
+			}
+			if seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
+				s.log.WithFields(
+					xlog.NewField("has-shard-retriever-mgr", shardRetrieverMgr != nil),
+					xlog.NewField("has-shard-retriever", shardRetriever != nil),
+				).Errorf("shard retriever missing for shard: %d", shard)
+				s.markRunResultErrorsAndUnfulfilled(runResult, requestedRanges,
+					remainingRanges, timesWithErrors)
+				return
+			}
 		}
 
-		numEntries := r.Entries()
-		for i := 0; err == nil && i < numEntries; i++ {
+		for _, r := range readers {
+			var (
+				timeRange = r.Range()
+				start     = timeRange.Start
+				blockSize = ns.Options().RetentionOptions().BlockSize()
+				err       error
+			)
 			switch run {
 			case bootstrapDataRunType:
-				err = s.readNextEntryAndRecordBlock(r, runResult, start, blockSize, shardResult,
-					shardRetriever, blockPool, seriesCachePolicy)
+				capacity := r.Entries()
+				shardResult = runResult.getOrAddDataShardResult(shard, capacity, ropts)
 			case bootstrapIndexRunType:
-				// We can just read the entry and index if performing an index run
-				err = s.readNextEntryAndIndex(r, runResult, indexBlockSegment)
+				indexBlockSegment, err = runResult.getOrAddIndexSegment(start, ns, ropts)
 			default:
 				// Unreachable unless an internal method calls with a run type casted from int
 				panic(fmt.Errorf("invalid run type: %d", run))
 			}
-		}
 
-		if err == nil {
-			// Validate the read results
-			var validateErr error
-			switch run {
-			case bootstrapDataRunType:
-				switch seriesCachePolicy {
-				case series.CacheAll:
-					validateErr = r.Validate()
-				case series.CacheAllMetadata:
+			numEntries := r.Entries()
+			for i := 0; err == nil && i < numEntries; i++ {
+				switch run {
+				case bootstrapDataRunType:
+					err = s.readNextEntryAndRecordBlock(r, runResult, start, blockSize, shardResult,
+						shardRetriever, blockPool, seriesCachePolicy)
+				case bootstrapIndexRunType:
+					// We can just read the entry and index if performing an index run
+					err = s.readNextEntryAndIndex(r, runResult, indexBlockSegment)
+				default:
+					// Unreachable unless an internal method calls with a run type casted from int
+					panic(fmt.Errorf("invalid run type: %d", run))
+				}
+			}
+
+			if err == nil {
+				// Validate the read results
+				var validateErr error
+				switch run {
+				case bootstrapDataRunType:
+					switch seriesCachePolicy {
+					case series.CacheAll:
+						validateErr = r.Validate()
+					case series.CacheAllMetadata:
+						validateErr = r.ValidateMetadata()
+					default:
+						err = fmt.Errorf("invalid series cache policy: %s", seriesCachePolicy.String())
+					}
+				case bootstrapIndexRunType:
 					validateErr = r.ValidateMetadata()
 				default:
-					err = fmt.Errorf("invalid series cache policy: %s", seriesCachePolicy.String())
+					// Unreachable unless an internal method calls with a run type casted from int
+					panic(fmt.Errorf("invalid run type: %d", run))
 				}
-			case bootstrapIndexRunType:
-				validateErr = r.ValidateMetadata()
-			default:
-				// Unreachable unless an internal method calls with a run type casted from int
-				panic(fmt.Errorf("invalid run type: %d", run))
+				if validateErr != nil {
+					err = fmt.Errorf("data validation failed: %v", validateErr)
+				}
 			}
-			if validateErr != nil {
-				err = fmt.Errorf("data validation failed: %v", validateErr)
-			}
-		}
 
-		if err == nil && run == bootstrapIndexRunType {
-			// Mark as fulfilled
-			fulfilled := result.ShardTimeRanges{
-				shard: xtime.Ranges{}.AddRange(timeRange),
+			if err == nil && run == bootstrapIndexRunType {
+				// Mark index block as fulfilled
+				fulfilled := result.ShardTimeRanges{
+					shard: xtime.Ranges{}.AddRange(timeRange),
+				}
+				err = runResult.index.IndexResults().MarkFulfilled(start, fulfilled,
+					ns.Options().IndexOptions(), ropts)
 			}
-			err = runResult.index.IndexResults().MarkFulfilled(start, fulfilled,
-				ns.Options().IndexOptions(), ropts)
-		}
 
-		if err == nil {
-			tr = tr.RemoveRange(timeRange)
-		} else {
-			s.log.Errorf("%v", err)
-			timesWithErrors = append(timesWithErrors, timeRange.Start)
+			if err == nil {
+				remainingRanges.Subtract(result.ShardTimeRanges{
+					shard: xtime.Ranges{}.AddRange(timeRange),
+				})
+			} else {
+				s.log.Errorf("%v", err)
+				timesWithErrors = append(timesWithErrors, timeRange.Start)
+			}
 		}
 	}
 
-	for _, r := range readers {
-		if err := r.Close(); err == nil {
-			readerPool.put(r)
+	incremental := runOpts.Incremental()
+	anyRemaining := remainingRanges.IsEmpty()
+	if run == bootstrapIndexRunType && incremental && anyRemaining {
+		err := s.incrementalBootstrapIndexSegment(ns, requestedRanges, runResult)
+		if err != nil {
+			iopts := s.opts.ResultOptions().InstrumentOptions()
+			log := instrument.EmitInvariantViolationAndGetLogger(iopts)
+			log.WithFields(
+				xlog.NewField("namespace", ns.ID().String()),
+				xlog.NewField("requestedRanges", requestedRanges.String()),
+				xlog.NewField("error", err),
+			).Error("incremental fs index bootstrap failed")
 		}
 	}
 
-	s.markRunResultErrorsAndUnfulfilled(runResult, shard, tr, timesWithErrors)
+	// Return readers to pool
+	for _, shardReaders := range shardReaders {
+		for _, r := range shardReaders.readers {
+			if err := r.Close(); err == nil {
+				readerPool.put(r)
+			}
+		}
+	}
+
+	s.markRunResultErrorsAndUnfulfilled(runResult, requestedRanges,
+		remainingRanges, timesWithErrors)
 }
 
 func (s *fileSystemSource) readNextEntryAndRecordBlock(
@@ -612,10 +740,100 @@ func (s *fileSystemSource) readNextEntryAndIndex(
 	return err
 }
 
+func (s *fileSystemSource) incrementalBootstrapIndexSegment(
+	ns namespace.Metadata,
+	requestedRanges result.ShardTimeRanges,
+	runResult *runResult,
+) error {
+	// If we're performing an index run in incremental mode
+	// determine if we covered a full block exactly (which should
+	// occur since we always group readers by block size)
+	min, max := requestedRanges.MinMax()
+	blockSize := ns.Options().IndexOptions().BlockSize()
+	blockStart := min.Truncate(blockSize)
+
+	shards := make(map[uint32]struct{})
+	expectedRanges := make(result.ShardTimeRanges, len(requestedRanges))
+	for shard := range requestedRanges {
+		shards[shard] = struct{}{}
+		expectedRanges[shard] = xtime.Ranges{}.AddRange(xtime.Range{
+			Start: blockStart,
+			End:   blockStart.Add(blockSize),
+		})
+	}
+
+	indexResults := runResult.index.IndexResults()
+	indexBlock, ok := indexResults[xtime.ToUnixNano(blockStart)]
+	if !ok || !indexBlockHasSingleMutableSegment(indexBlock) {
+		return fmt.Errorf("missing single mutable segment")
+	}
+
+	segment := indexBlock.Segments()[0].(segment.MutableSegment)
+	fulfilled := indexBlock.Fulfilled()
+
+	// Check that completely fulfilled all shards for the block
+	// and we didn't bootstrap any more/less
+	requireFulfilled := expectedRanges.Copy()
+	requireFulfilled.Subtract(fulfilled)
+	exactStartEnd := min.Equal(blockStart) && max.Equal(blockStart.Add(blockSize))
+	if !exactStartEnd || !requireFulfilled.IsEmpty() {
+		return fmt.Errorf(
+			"incremental fs index bootstrap invalid ranges to persist: "+
+				"expected=%v, actual=%v, fulfilled=%v",
+			expectedRanges.String(),
+			requestedRanges.String(),
+			fulfilled.String())
+	}
+
+	// Need to get an exclusive lock to actually write the segment out due
+	// to needing to incrementing the index file set volume index and also
+	// using non-thread safe resources on the persist manager
+	s.persistManager.Lock()
+	defer s.persistManager.Unlock()
+
+	flush, err := s.persistManager.mgr.StartIndexPersist()
+	if err != nil {
+		return err
+	}
+
+	var calledDone bool
+	defer func() {
+		if !calledDone {
+			flush.DoneIndex()
+		}
+	}()
+
+	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
+		NamespaceMetadata: ns,
+		BlockStart:        indexBlock.BlockStart(),
+		FileSetType:       persist.FileSetFlushType,
+		Shards:            shards,
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := preparedPersist.Persist(segment); err != nil {
+		return err
+	}
+
+	calledDone = true
+	return flush.DoneIndex()
+}
+
+func indexBlockHasSingleMutableSegment(b result.IndexBlock) bool {
+	if len(b.Segments()) != 1 {
+		return false
+	}
+	_, ok := b.Segments()[0].(segment.MutableSegment)
+	return ok
+}
+
 func (s *fileSystemSource) read(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	run runType,
+	runOpts bootstrap.RunOptions,
 ) (*runResult, error) {
 	var (
 		nsID              = md.ID()
@@ -665,11 +883,21 @@ func (s *fileSystemSource) read(
 		}
 	}
 
-	s.log.WithFields(
-		xlog.NewField("shards", len(shardsTimeRanges)),
-		xlog.NewField("concurrency", s.opts.NumProcessors()),
-		xlog.NewField("metadata-only", blockRetriever != nil),
-	).Infof("filesystem bootstrapper bootstrapping shards for ranges")
+	if run == bootstrapIndexRunType {
+		// NB(r): First read all the FSTs and add to runResult index results,
+		// subtract the shard + time ranges from what we intend to bootstrap
+		// for those we found
+		r, err := s.bootstrapIndexRunResultFromIndexPersistedBlocks(md,
+			shardsTimeRanges)
+		if err != nil {
+			s.log.Warnf("filesystem bootstrapped failed to read pers")
+		} else {
+			// We have less we need to read
+			shardsTimeRanges = shardsTimeRanges.Copy()
+			shardsTimeRanges.Subtract(r.fulfilled)
+		}
+	}
+
 	bytesPool := s.opts.ResultOptions().DatabaseBlockOptions().BytesPool()
 
 	// Create a reader pool once per bootstrap as we don't really want to
@@ -678,9 +906,11 @@ func (s *fileSystemSource) read(
 	readerPool := newReaderPool(func() (fs.DataFileSetReader, error) {
 		return s.newReaderFn(bytesPool, s.fsopts)
 	})
-	readersCh := make(chan shardReaders)
-	go s.enqueueReaders(nsID, shardsTimeRanges, readerPool, readersCh)
-	return s.bootstrapFromReaders(md, run, readerPool, blockRetriever, readersCh), nil
+	readersCh := make(chan timeWindowReaders)
+	go s.enqueueReaders(md, run, runOpts, shardsTimeRanges,
+		readerPool, readersCh)
+	return s.bootstrapFromReaders(md, run, runOpts,
+		readerPool, blockRetriever, readersCh), nil
 }
 
 func (s *fileSystemSource) resolveBlockRetrieverAndCacheDataShardIndices(
@@ -738,33 +968,32 @@ type bootstrapFromIndexBlocksResult struct {
 	fulfilled result.ShardTimeRanges
 }
 
-func (s *fileSystemSource) bootstrapIndexRunResultFromIndexBlocks(
+func (s *fileSystemSource) bootstrapIndexRunResultFromIndexPersistedBlocks(
 	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) (bootstrapFromIndexBlocksResult, error) {
 	return bootstrapFromIndexBlocksResult{}, nil
 }
 
+type timeWindowReaders struct {
+	ranges  result.ShardTimeRanges
+	readers map[shardID]shardReaders
+}
+
+type shardID uint32
+
 type shardReaders struct {
-	shard   uint32
-	tr      xtime.Ranges
 	readers []fs.DataFileSetReader
 	err     error
 }
 
-func newShardReaders(shard uint32, tr xtime.Ranges, readers []fs.DataFileSetReader) shardReaders {
-	return shardReaders{
-		shard:   shard,
-		tr:      tr,
+func newTimeWindowReaders(
+	ranges result.ShardTimeRanges,
+	readers map[shardID]shardReaders,
+) timeWindowReaders {
+	return timeWindowReaders{
+		ranges:  ranges,
 		readers: readers,
-	}
-}
-
-func newShardReadersErr(shard uint32, tr xtime.Ranges, err error) shardReaders {
-	return shardReaders{
-		shard: shard,
-		tr:    tr,
-		err:   err,
 	}
 }
 
@@ -851,4 +1080,53 @@ func (r *runResult) getOrAddIndexSegment(
 	indexBlockSegment, err := indexResults.GetOrAddSegment(start,
 		ns.Options().IndexOptions(), ropts)
 	return indexBlockSegment, err
+}
+
+type shardTimeRangesTimeWindowGroup struct {
+	ranges result.ShardTimeRanges
+	window xtime.Range
+}
+
+func newShardTimeRangesTimeWindowGroups(
+	shardTimeRanges result.ShardTimeRanges,
+	windowSize time.Duration,
+) []shardTimeRangesTimeWindowGroup {
+	min, max := shardTimeRanges.MinMax()
+	estimate := int(math.Ceil(float64(max.Sub(min)) / float64(windowSize)))
+	grouped := make([]shardTimeRangesTimeWindowGroup, 0, estimate)
+	for t := min.Truncate(windowSize); t.Before(max); t = t.Add(windowSize) {
+		currRange := xtime.Range{
+			Start: t,
+			End:   maxTime(t.Add(windowSize), max),
+		}
+
+		group := make(result.ShardTimeRanges)
+		for shard, tr := range shardTimeRanges {
+			iter := tr.Iter()
+			for iter.Next() {
+				evaluateRange := iter.Value()
+				intersection, intersects := evaluateRange.Intersect(currRange)
+				if !intersects {
+					continue
+				}
+				// Add to this range
+				group[shard] = group[shard].AddRange(intersection)
+			}
+		}
+
+		entry := shardTimeRangesTimeWindowGroup{
+			ranges: group,
+			window: currRange,
+		}
+
+		grouped = append(grouped, entry)
+	}
+	return grouped
+}
+
+func maxTime(x, y time.Time) time.Time {
+	if x.After(y) {
+		return x
+	}
+	return y
 }

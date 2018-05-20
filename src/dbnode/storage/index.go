@@ -591,16 +591,6 @@ func (i *nsIndex) flushBlock(
 		segmentShards[idx] = append(segmentShards[idx], shard)
 	}
 
-	preparedPersist, err := flush.PrepareIndex(persist.IndexPrepareOptions{
-		NamespaceMetadata: i.nsMetadata,
-		BlockStart:        indexBlock.StartTime(),
-		FileSetType:       persist.FileSetFlushType,
-		Shards:            allShards,
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	var closed bool
 	defer func() {
 		if !closed {

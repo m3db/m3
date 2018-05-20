@@ -120,6 +120,29 @@ func FromMetricIter(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
 	}, nil
 }
 
+// FromMetricIterNoClone converts the provided metric id+tags iterator into a
+// document without cloning.
+func FromMetricIterNoClone(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
+	fields := make([]doc.Field, 0, tags.Remaining())
+	for tags.Next() {
+		tag := tags.Current()
+		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
+			return doc.Document{}, ErrUsingReservedFieldName
+		}
+		fields = append(fields, doc.Field{
+			Name:  tag.Name.Bytes(),
+			Value: tag.Value.Bytes(),
+		})
+	}
+	if err := tags.Err(); err != nil {
+		return doc.Document{}, err
+	}
+	return doc.Document{
+		ID:     id.Bytes(),
+		Fields: fields,
+	}, nil
+}
+
 // NB(prateek): we take an independent copy of the bytes underlying
 // any ids provided, as we need to maintain the lifecycle of the indexed
 // bytes separately from the rest of the storage subsystem.
