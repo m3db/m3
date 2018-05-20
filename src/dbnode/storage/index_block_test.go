@@ -41,6 +41,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func testResultShardRanges(start, end time.Time, shards ...uint32) result.ShardTimeRanges {
+	timeRange := xtime.NewRanges(xtime.Range{start, end})
+	ranges := make(map[uint32]xtime.Ranges)
+	for _, s := range shards {
+		ranges[s] = timeRange
+	}
+	return ranges
+}
+
 type testWriteBatchOption func(index.WriteBatchOptions) index.WriteBatchOptions
 
 func testWriteBatchBlockSizeOption(blockSize time.Duration) testWriteBatchOption {
@@ -269,8 +278,9 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 	now := time.Now().Truncate(blockSize).Add(2 * time.Minute)
 	t0 := now.Truncate(blockSize)
 	t0Nanos := xtime.ToUnixNano(t0)
-	t1 := t0.Add(-1 * blockSize)
+	t1 := t0.Add(1 * blockSize)
 	t1Nanos := xtime.ToUnixNano(t1)
+	t2 := t1.Add(1 * blockSize)
 	var nowLock sync.Mutex
 	nowFn := func() time.Time {
 		nowLock.Lock()
@@ -301,12 +311,12 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}),
+		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, testResultShardRanges(t0, t1, 1, 2, 3)),
+		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, testResultShardRanges(t1, t2, 1, 2, 3)),
 	}
 
-	b0.EXPECT().Bootstrap(bootstrapResults[t0Nanos].Segments()).Return(nil)
-	b1.EXPECT().Bootstrap(bootstrapResults[t1Nanos].Segments()).Return(nil)
+	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
+	b1.EXPECT().AddResults(bootstrapResults[t1Nanos]).Return(nil)
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 }
 
@@ -436,8 +446,9 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	now := time.Now().Truncate(blockSize).Add(10 * time.Minute)
 	t0 := now.Truncate(blockSize)
 	t0Nanos := xtime.ToUnixNano(t0)
-	t1 := t0.Add(-1 * blockSize)
+	t1 := t0.Add(1 * blockSize)
 	t1Nanos := xtime.ToUnixNano(t1)
+	t2 := t1.Add(1 * blockSize)
 	var nowLock sync.Mutex
 	nowFn := func() time.Time {
 		nowLock.Lock()
@@ -470,12 +481,12 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}),
+		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, testResultShardRanges(t0, t1, 1, 2, 3)),
+		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, testResultShardRanges(t1, t2, 1, 2, 3)),
 	}
 
-	b0.EXPECT().Bootstrap(bootstrapResults[t0Nanos].Segments()).Return(nil)
-	b1.EXPECT().Bootstrap(bootstrapResults[t1Nanos].Segments()).Return(nil)
+	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
+	b1.EXPECT().AddResults(bootstrapResults[t1Nanos]).Return(nil)
 	require.NoError(t, idx.Bootstrap(bootstrapResults))
 
 	// only queries as much as is needed (wrt to time)
@@ -491,8 +502,8 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 
 	// queries multiple blocks if needed
 	qOpts = index.QueryOptions{
-		StartInclusive: t1.Add(-1 * blockSize),
-		EndExclusive:   now.Add(time.Minute),
+		StartInclusive: t0,
+		EndExclusive:   t2.Add(time.Minute),
 	}
 	b0.EXPECT().Query(q, qOpts, gomock.Any()).Return(true, nil)
 	b1.EXPECT().Query(q, qOpts, gomock.Any()).Return(true, nil)
@@ -501,8 +512,8 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 
 	// stops querying once a block returns non-exhaustive
 	qOpts = index.QueryOptions{
-		StartInclusive: t1.Add(-1 * blockSize),
-		EndExclusive:   now.Add(time.Minute),
+		StartInclusive: t0,
+		EndExclusive:   t0.Add(time.Minute),
 	}
 	b0.EXPECT().Query(q, qOpts, gomock.Any()).Return(false, nil)
 	_, err = idx.Query(ctx, q, qOpts)

@@ -463,13 +463,11 @@ func TestBaseBootstrapperIndexHalfCurrentHalfNext(t *testing.T) {
 	require.NoError(t, err)
 
 	currResult := result.NewIndexBootstrapResult()
-	currResult.Add(result.NewIndexBlock(testTargetStart, []segment.Segment{
-		segFirst,
-	}), nil)
+	currResult.Add(result.NewIndexBlock(testTargetStart,
+		[]segment.Segment{segFirst}, firstHalf), nil)
 	nextResult := result.NewIndexBootstrapResult()
-	nextResult.Add(result.NewIndexBlock(testTargetStart.Add(1*time.Hour), []segment.Segment{
-		segSecond,
-	}), nil)
+	nextResult.Add(result.NewIndexBlock(testTargetStart.Add(1*time.Hour),
+		[]segment.Segment{segSecond}, secondHalf), nil)
 
 	source.EXPECT().Can(bootstrap.BootstrapParallel).Return(false)
 	source.EXPECT().
@@ -494,10 +492,12 @@ func TestBaseBootstrapperIndexHalfCurrentHalfNext(t *testing.T) {
 	assert.True(t, first.BlockStart().Equal(testTargetStart))
 	require.Equal(t, 1, len(first.Segments()))
 	assert.True(t, segFirst == first.Segments()[0])
+	assert.Equal(t, firstHalf, map[uint32]xtime.Ranges(first.Fulfilled()))
 
 	second, ok := res.IndexResults()[xtime.ToUnixNano(testTargetStart.Add(time.Hour))]
 	assert.True(t, ok)
 	assert.True(t, second.BlockStart().Equal(testTargetStart.Add(time.Hour)))
 	require.Equal(t, 1, len(second.Segments()))
 	assert.True(t, segSecond == second.Segments()[0])
+	assert.Equal(t, secondHalf, map[uint32]xtime.Ranges(second.Fulfilled()))
 }

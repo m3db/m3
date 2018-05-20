@@ -28,8 +28,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	time0 "github.com/m3db/m3x/time"
@@ -153,16 +153,16 @@ func (m *MockBlock) EXPECT() *MockBlockMockRecorder {
 	return m.recorder
 }
 
-// Bootstrap mocks base method
-func (m *MockBlock) Bootstrap(arg0 []segment.Segment) error {
-	ret := m.ctrl.Call(m, "Bootstrap", arg0)
+// AddResults mocks base method
+func (m *MockBlock) AddResults(arg0 result.IndexBlock) error {
+	ret := m.ctrl.Call(m, "AddResults", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Bootstrap indicates an expected call of Bootstrap
-func (mr *MockBlockMockRecorder) Bootstrap(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Bootstrap", reflect.TypeOf((*MockBlock)(nil).Bootstrap), arg0)
+// AddResults indicates an expected call of AddResults
+func (mr *MockBlockMockRecorder) AddResults(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddResults", reflect.TypeOf((*MockBlock)(nil).AddResults), arg0)
 }
 
 // Close mocks base method
@@ -189,6 +189,19 @@ func (mr *MockBlockMockRecorder) EndTime() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EndTime", reflect.TypeOf((*MockBlock)(nil).EndTime))
 }
 
+// EvictMutableSegments mocks base method
+func (m *MockBlock) EvictMutableSegments() (EvictMutableSegmentResults, error) {
+	ret := m.ctrl.Call(m, "EvictMutableSegments")
+	ret0, _ := ret[0].(EvictMutableSegmentResults)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EvictMutableSegments indicates an expected call of EvictMutableSegments
+func (mr *MockBlockMockRecorder) EvictMutableSegments() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EvictMutableSegments", reflect.TypeOf((*MockBlock)(nil).EvictMutableSegments))
+}
+
 // IsSealed mocks base method
 func (m *MockBlock) IsSealed() bool {
 	ret := m.ctrl.Call(m, "IsSealed")
@@ -199,6 +212,18 @@ func (m *MockBlock) IsSealed() bool {
 // IsSealed indicates an expected call of IsSealed
 func (mr *MockBlockMockRecorder) IsSealed() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsSealed", reflect.TypeOf((*MockBlock)(nil).IsSealed))
+}
+
+// NeedsMutableSegmentsEvicted mocks base method
+func (m *MockBlock) NeedsMutableSegmentsEvicted() bool {
+	ret := m.ctrl.Call(m, "NeedsMutableSegmentsEvicted")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// NeedsMutableSegmentsEvicted indicates an expected call of NeedsMutableSegmentsEvicted
+func (mr *MockBlockMockRecorder) NeedsMutableSegmentsEvicted() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NeedsMutableSegmentsEvicted", reflect.TypeOf((*MockBlock)(nil).NeedsMutableSegmentsEvicted))
 }
 
 // Query mocks base method

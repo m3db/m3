@@ -28,10 +28,20 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3ninx/index/segment"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
+
+func testResultShardRanges(start, end time.Time, shards ...uint32) ShardTimeRanges {
+	timeRange := xtime.NewRanges(xtime.Range{start, end})
+	ranges := make(map[uint32]xtime.Ranges)
+	for _, s := range shards {
+		ranges[s] = timeRange
+	}
+	return ranges
+}
 
 func TestIndexResultGetOrAddSegment(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -85,22 +95,24 @@ func TestIndexResultMergeMergesExistingSegments(t *testing.T) {
 		segment.NewMockSegment(ctrl),
 	}
 
-	times := []time.Time{start, start.Add(testBlockSize)}
+	times := []time.Time{start, start.Add(testBlockSize), start.Add(2 * testBlockSize)}
+	tr0 := testResultShardRanges(times[0], times[1], 1, 2, 3)
+	tr1 := testResultShardRanges(times[1], times[2], 1, 2, 3)
 
 	first := NewIndexBootstrapResult()
-	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[0]}), nil)
-	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[1]}), nil)
-	first.Add(NewIndexBlock(times[1], []segment.Segment{segments[2], segments[3]}), nil)
+	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[0]}, tr0), nil)
+	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[1]}, tr0), nil)
+	first.Add(NewIndexBlock(times[1], []segment.Segment{segments[2], segments[3]}, tr1), nil)
 
 	second := NewIndexBootstrapResult()
-	second.Add(NewIndexBlock(times[0], []segment.Segment{segments[4]}), nil)
-	second.Add(NewIndexBlock(times[1], []segment.Segment{segments[5]}), nil)
+	second.Add(NewIndexBlock(times[0], []segment.Segment{segments[4]}, tr0), nil)
+	second.Add(NewIndexBlock(times[1], []segment.Segment{segments[5]}, tr1), nil)
 
 	merged := MergedIndexBootstrapResult(first, second)
 
 	expected := NewIndexBootstrapResult()
-	expected.Add(NewIndexBlock(times[0], []segment.Segment{segments[0], segments[1], segments[4]}), nil)
-	expected.Add(NewIndexBlock(times[1], []segment.Segment{segments[2], segments[3], segments[5]}), nil)
+	expected.Add(NewIndexBlock(times[0], []segment.Segment{segments[0], segments[1], segments[4]}, tr0), nil)
+	expected.Add(NewIndexBlock(times[1], []segment.Segment{segments[2], segments[3], segments[5]}, tr1), nil)
 
 	assert.True(t, segmentsInResultsSame(expected.IndexResults(), merged.IndexResults()))
 }
