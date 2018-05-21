@@ -1,23 +1,32 @@
 client:
+  metrics:
+    prometheus:
+      handlerPath: /metrics
+    sanitization: prometheus
+    samplingRate: 1.0
+    extended: detailed
   config:
     static:
-      listenAddress: 0.0.0.0:9000
-      topology:
-          shards: 2
-          hosts:
-              - hostID: localhost
-                listenAddress: localhost:9000
-      namespaces:
-          - name: metrics
-            options:
-            retention:
-              retentionPeriod: 24h
-              blockSize: 1h
-          - name: other_metrics
-            retention:
-              retentionPeriod: 24h
-              blockSize: 1h
-            options:
+        topology:
+            shards: 64
+            replicas: 3
+            hosts:
+                - host: m3db_server_1
+                  listenAddress: "0.0.0.0:9000"
+                - host: m3db_server_2
+                  listenAddress: "0.0.0.0:9010"
+                - host: m3db_server_3
+                  listenAddress: "0.0.0.0:9020"
+        namespaces:
+            - id: metrics
+              retention:
+                retentionPeriod: 48h
+                blockSize: 2h
+                bufferPast: 1h
+                bufferFuture: 10m
+              index:
+                enabled: true
+                blockSize: 4h
   writeConsistencyLevel: majority
   readConsistencyLevel: unstrict_majority
   connectConsistencyLevel: any
