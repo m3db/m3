@@ -29,12 +29,12 @@ import (
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/sharding"
-	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/topology/testutil"
+	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3db/src/dbnode/retention"
+	"github.com/m3db/m3db/src/dbnode/sharding"
+	"github.com/m3db/m3db/src/dbnode/storage/namespace"
+	"github.com/m3db/m3db/src/dbnode/topology"
+	"github.com/m3db/m3db/src/dbnode/topology/testutil"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/require"

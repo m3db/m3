@@ -26,11 +26,11 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/client"
-	m3dbruntime "github.com/m3db/m3db/runtime"
-	"github.com/m3db/m3db/sharding"
-	"github.com/m3db/m3db/storage/bootstrap/result"
-	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/src/dbnode/client"
+	m3dbruntime "github.com/m3db/m3db/src/dbnode/runtime"
+	"github.com/m3db/m3db/src/dbnode/sharding"
+	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
+	"github.com/m3db/m3db/src/dbnode/topology"
 	xtime "github.com/m3db/m3x/time"
 	"github.com/stretchr/testify/require"
 )

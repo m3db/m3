@@ -26,10 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3db/src/dbnode/integration/generate"
+	"github.com/m3db/m3db/src/dbnode/retention"
+	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/require"
