@@ -280,6 +280,9 @@ func (s *m3ClusterPlacementService) MarkShardAvailable(
 func (s *m3ClusterPlacementService) MarkAllShardsAvailable() (placement.Placement, error) {
 	return nil, fmt.Errorf("not implemented")
 }
+func (s *m3ClusterPlacementService) Watch() (placement.Watch, error) {
+	return nil, fmt.Errorf("not implemented")
+}
 func (s *m3ClusterPlacementService) PlacementForVersion(version int) (placement.Placement, error) {
 	return nil, fmt.Errorf("not implemented")
 }
