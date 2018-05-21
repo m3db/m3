@@ -57,6 +57,10 @@ type Configuration struct {
 	// Presence of a (etcd) server in this config denotes an embedded cluster
 	SeedNodes *SeedNodesConfig `yaml:"seedNodes"`
 
+	// BootstrapPlacement defines parameters for a seed node optionally
+	// bootstrapping its own placement.
+	BootstrapPlacement *topology.BootstrapPlacementConfig `yaml:"bootstrapPlacement"`
+
 	// NamespaceResolutionTimeout is the maximum time to wait to discover namespaces from KV
 	NamespaceResolutionTimeout time.Duration `yaml:"namespaceResolutionTimeout"`
 
@@ -104,6 +108,7 @@ type ConfigureResults struct {
 	NamespaceInitializer namespace.Initializer
 	TopologyInitializer  topology.Initializer
 	ClusterClient        clusterclient.Client
+	ServiceID            services.ServiceID
 	KVStore              kv.Store
 }
 
@@ -181,6 +186,7 @@ func (c Configuration) configureDynamic(cfgParams ConfigurationParameters) (Conf
 		NamespaceInitializer: nsInit,
 		TopologyInitializer:  topoInit,
 		ClusterClient:        configSvcClient,
+		ServiceID:            serviceID,
 		KVStore:              kv,
 	}, nil
 }

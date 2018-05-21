@@ -24,11 +24,14 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
 	"runtime/debug"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -37,6 +40,7 @@ import (
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/util"
+	"github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
@@ -53,7 +57,6 @@ import (
 	"github.com/m3db/m3db/src/dbnode/retention"
 	m3dbruntime "github.com/m3db/m3db/src/dbnode/runtime"
 	"github.com/m3db/m3db/src/dbnode/serialize"
-	"github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/dbnode/storage"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/cluster"
@@ -174,6 +177,9 @@ func Run(runOpts RunOptions) {
 				logger.Fatalf("unable to create etcd config: %v", err)
 			}
 
+			// TODO(schallert): should we wait on e.Server.ReadyNotify() after
+			// this? Per the API docs, embedded node isn't guaranteed to have
+			// joined cluster until that ch returns.
 			e, err := embed.StartEtcd(etcdCfg)
 			if err != nil {
 				logger.Fatalf("could not start embedded etcd: %v", err)
@@ -383,6 +389,46 @@ func Run(runOpts RunOptions) {
 		})
 		if err != nil {
 			logger.Fatalf("could not initialize static config: %v", err)
+		}
+	}
+
+	if bp := cfg.EnvironmentConfig.BootstrapPlacement; bp != nil && bp.Enabled {
+		logger.Info("attempting to bootstrap placement with seed nodes")
+		_, port, err := net.SplitHostPort(cfg.ListenAddress)
+		if err != nil {
+			logger.Fatalf("could not determine port from listenAddress '%s': %v", cfg.ListenAddress, err)
+		}
+
+		r := strings.NewReplacer("http://", "", "https://", "")
+		instances := make([]topology.BootstrapInstance, len(cfg.EnvironmentConfig.SeedNodes.InitialCluster))
+		for i, node := range cfg.EnvironmentConfig.SeedNodes.InitialCluster {
+			addrPort := r.Replace(node.Endpoint)
+			addr, _, err := net.SplitHostPort(addrPort)
+			if err != nil {
+				logger.Fatalf("error determining addr from seed node '%s': %v", node.Endpoint, err)
+			}
+
+			instances[i] = topology.BootstrapInstance{
+				Address: net.JoinHostPort(addr, port),
+				ID:      node.HostID,
+			}
+		}
+
+		portI, err := strconv.ParseUint(port, 10, 32)
+		if err != nil {
+			logger.Fatalf("error converting port '%s': %v", port, err)
+		}
+
+		err = topology.BootstrapPlacement(
+			topology.WithBootstrapConfig(*cfg.EnvironmentConfig.BootstrapPlacement),
+			topology.WithInstances(instances),
+			topology.WithPort(uint32(portI)),
+			topology.WithClient(envCfg.ClusterClient),
+			topology.WithServiceID(envCfg.ServiceID),
+		)
+
+		if err != nil {
+			logger.Fatalf("error bootstrapping placement: %v", err)
 		}
 	}
 
