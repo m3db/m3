@@ -570,8 +570,12 @@ func getServiceFromValue(value kv.Value, sid ServiceID) (Service, error) {
 }
 
 func (c *client) waitForInitValue(kvStore kv.Store, w kv.ValueWatch, sid ServiceID, timeout time.Duration) (kv.Value, error) {
-	if timeout <= 0 {
+	if timeout < 0 {
 		timeout = defaultInitTimeout
+	} else if timeout == 0 {
+		// We want no timeout if specifically asking for none
+		<-w.C()
+		return w.Get(), nil
 	}
 	select {
 	case <-w.C():
