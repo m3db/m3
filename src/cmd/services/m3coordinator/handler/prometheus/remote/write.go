@@ -22,6 +22,7 @@ package remote
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
@@ -83,6 +84,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.promWriteMetrics.writeSuccess.Inc(1)
+	fmt.Println("write success")
 }
 
 func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, *handler.ParseError) {

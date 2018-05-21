@@ -43,6 +43,7 @@ dbClient:
 metrics:
   prometheus:
     handlerPath: /metrics
+    listenAddress: 0.0.0.0:7201
   sanitization: prometheus
   samplingRate: 1.0
   extended: detailed
