@@ -691,10 +691,11 @@ func (s *peersSource) peerAvailability(
 ) result.ShardTimeRanges {
 	var (
 		self                    = s.opts.AdminClient().Options().(client.AdminOptions).Origin().ID()
-		peerAvailabilityByShard = map[uint32]*shardPeerAvailability{}
+		peerAvailabilityByShard = map[shardID]*shardPeerAvailability{}
 	)
 
-	for shardID := range shardsTimeRanges {
+	for shardIDUint := range shardsTimeRanges {
+		shardID := shardID(shardIDUint)
 		shardPeers, ok := peerAvailabilityByShard[shardID]
 		if !ok {
 			shardPeers = &shardPeerAvailability{}
@@ -742,7 +743,8 @@ func (s *peersSource) peerAvailability(
 		majorityReplicas          = s.initialTopologyState.majorityReplicas
 		availableShardTimeRanges  = result.ShardTimeRanges{}
 	)
-	for shardID := range shardsTimeRanges {
+	for shardIDUint := range shardsTimeRanges {
+		shardID := shardID(shardIDUint)
 		shardPeers := peerAvailabilityByShard[shardID]
 
 		total := shardPeers.numPeers
@@ -762,7 +764,7 @@ func (s *peersSource) peerAvailability(
 		// all the data. This assumption is safe, as the shard/block ranges
 		// will simply be marked unfulfilled if the peers are not able to
 		// satisfy the requests.
-		availableShardTimeRanges[shardID] = shardsTimeRanges[shardID]
+		availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
 	}
 
 	return availableShardTimeRanges
@@ -814,14 +816,15 @@ func initialTopologyState(opts Options) (topologyState, error) {
 
 	for _, hostShardSet := range hostShardSets {
 		for _, currShard := range hostShardSet.ShardSet().All() {
-			shardID := currShard.ID()
+			shardID := shardID(currShard.ID())
 			existing, ok := topologyState.shardStates[shardID]
 			if !ok {
-				existing = map[string]hostShardState{}
+				existing = map[hostID]hostShardState{}
 				topologyState.shardStates[shardID] = existing
 			}
 
-			existing[hostShardSet.Host().String()] = hostShardState{
+			hostID := hostID(hostShardSet.Host().String())
+			existing[hostID] = hostShardState{
 				host:       hostShardSet.Host(),
 				shardState: currShard.State(),
 			}
