@@ -13,13 +13,6 @@ docker build -t m3dbnode:latest -f Dockerfile-m3dbnode-dev .
 docker run -p 9000:9000 -p 9001:9001 -p 9002:9002 -p 9003:9003 -p 9004:9004 --name m3dbnode m3dbnode:latest 
 ```
 
-#### Building the m3coordinator development docker container
-
-```
-docker build -t m3coordinator:latest -f Dockerfile-m3coordinator-dev . 
-docker run --name m3coordinator m3coordinator:latest 
-```
-
 ## Production building and release 
 
 The `Dockerfile-*-release` file is intented to provide the Docker image used within a 
@@ -31,28 +24,10 @@ within the container.
 docker build -t m3dbnode:$(git rev-parse head) -f Dockerfile-release . 
 docker run -p 9000:9000 -p 9001:9001 -p 9002:9002 -p 9003:9003 -p 9004:9004 --name m3dbnode m3dbnode:$(git rev-parse head)
 ```
+#### Building a multinode cluster
 
-#### Building the m3coordinator production docker container 
+Change directory to the root of the repositories directory
 ```
-docker build -t m3coordinator:$(git rev-parse head) -f Dockerfile-release . 
-docker run -p 9000:9000 --name m3coordinator  m3coordinator:$(git rev-parse head)
-```
-
-#### Bootstrapping the cluster
-
-```
-curl -X POST localhost:8888/namespace/add  -D '{ \
-  "name": "testor", \
-  "retention_period": "24h", \
-  "block_size ": 1h, \
-  "buffer_future": 1h, \
-  "buffer_past": 1h, \
-  "block_data_expiry": false, \
-  "block_data_expiry_period": 24h, \
-  "bootstrap_enabled": true, \
-  "cleanup_enabled": true, \
-  "flush_enabled": true, \
-  "repair_enabled": false, \
-  "writes_to_commitlog": false\
-}' 
+docker-compose -f docker/compose/cluster/docker-compose.yml  build
+docker-compose -f docker/compose/cluster/docker-compose.yml  up 
 ```
