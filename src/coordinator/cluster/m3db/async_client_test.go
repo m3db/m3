@@ -26,9 +26,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/m3db/m3db/src/coordinator/util/logging"
+
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3db/src/coordinator/util/logging"
 	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"

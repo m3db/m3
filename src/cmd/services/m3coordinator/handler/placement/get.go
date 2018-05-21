@@ -21,7 +21,7 @@
 package placement
 
 import (
-	"errors"
+	"encoding/json"
 	"net/http"
 
 	clusterclient "github.com/m3db/m3cluster/client"
@@ -57,7 +57,11 @@ func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	placement, version, err := service.Placement()
 	if err != nil {
-		handler.Error(w, errors.New("placement not found"), http.StatusBadRequest)
+		json.NewEncoder(w).Encode(struct {
+			Message string
+		}{
+			Message: "no placement found",
+		})
 		return
 	}
 

@@ -27,7 +27,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -205,32 +204,4 @@ func startGrpcServer(logger *zap.Logger, storage storage.Storage, cfg *config.RP
 	}()
 	<-waitForStart
 	return server
-}
-
-func newDbClientFn(ch <-chan client.Client) m3db.NewClientFn {
-	var (
-		mutex    sync.RWMutex
-		resolved bool
-		dbClient client.Client
-	)
-	return func() (client.Client, error) {
-		mutex.RLock()
-		currResolved, currClient := resolved, dbClient
-		mutex.RUnlock()
-		if currResolved {
-			return currClient, nil
-		}
-
-		mutex.Lock()
-		defer mutex.Lock()
-
-		currResolved, currClient = resolved, dbClient
-		if currResolved {
-			return currClient, nil
-		}
-
-		dbClient = <-ch
-		resolved = true
-		return dbClient, nil
-	}
 }
