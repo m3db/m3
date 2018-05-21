@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/clock"
 	"github.com/m3db/m3db/src/dbnode/persist"

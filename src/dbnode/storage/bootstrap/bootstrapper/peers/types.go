@@ -23,6 +23,7 @@ package peers
 import (
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/persist"
+	m3dbruntime "github.com/m3db/m3db/src/dbnode/runtime"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 )
