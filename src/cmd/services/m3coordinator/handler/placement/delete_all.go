@@ -57,6 +57,7 @@ func (h *deleteAllHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := service.Delete(); err != nil {
 		logger.Error("unable to delete placement", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
+		return
 	}
 
 	json.NewEncoder(w).Encode(struct {
