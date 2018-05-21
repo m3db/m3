@@ -27,15 +27,6 @@ services:
     secrets:
       - source: dbnode03
         target: /go/src/github.com/m3db/m3db/src/cmd/services/m3dbnode/config/m3dbnode.yml
-  coordinator01:
-    network_mode: "host"
-    build:
-      context: ../../../
-      dockerfile: docker/Dockerfile-m3coordinator-dev
-    image: cluster_coordinator01:latest
-    secrets:
-      - source: coordinator01
-        target: /go/src/github.com/m3db/m3db/src/cmd/services/m3coordinator/config/m3coordinator.yml
 # Secrets are used since the config directive is only supported in Swarm
 # https://github.com/docker/compose/issues/5110
 secrets: 
@@ -45,5 +36,3 @@ secrets:
     file: ./m3dbnode02.yml
   dbnode03:
     file: ./m3dbnode03.yml
-  coordinator01:
-    file: ./m3coordinator01.yml 

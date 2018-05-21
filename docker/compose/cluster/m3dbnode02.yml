@@ -1,9 +1,9 @@
 coordinator:
-  listenAddress: 0.0.0.0:27201
+  listenAddress: 0.0.0.0:29005
 
 db:
   logging:
-    level: info
+    level: debug
 
   metrics:
     prometheus:
@@ -12,11 +12,11 @@ db:
     samplingRate: 1.0
     extended: detailed
 
-  listenAddress: 0.0.0.0:29002
-  clusterListenAddress: 0.0.0.0:9001
-  httpNodeListenAddress: 0.0.0.0:28002
-  httpClusterListenAddress: 0.0.0.0:28003
-  debugListenAddress: 0.0.0.0:27004
+  listenAddress: 0.0.0.0:29000
+  clusterListenAddress: 0.0.0.0:29001
+  httpNodeListenAddress: 0.0.0.0:29002
+  httpClusterListenAddress: 0.0.0.0:29003
+  debugListenAddress: 0.0.0.0:29004
 
   hostID:
     resolver: config
@@ -64,7 +64,7 @@ db:
     blockSize: 10m
 
   fs:
-    filePathPrefix: /var/lib/m3db
+    filePathPrefix: /var/lib/m3db02
     writeBufferSize: 65536
     dataReadBufferSize: 65536
     infoReadBufferSize: 128
@@ -186,11 +186,11 @@ db:
             replicas: 3
             hosts:
                 - hostID: m3dbnode01
-                  listenAddress: "127.0.0.1:19001"
+                  listenAddress: "127.0.0.1:19000"
                 - hostID: m3dbnode02
-                  listenAddress: "127.0.0.1:29002"
+                  listenAddress: "127.0.0.1:29000"
                 - hostID: m3dbnode03
-                  listenAddress: "127.0.0.1:39003"
+                  listenAddress: "127.0.0.1:39000"
         namespaces:
             - id: metrics
               retention:
