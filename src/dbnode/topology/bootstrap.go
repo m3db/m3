@@ -24,12 +24,12 @@ const (
 // specified in the seed node list. Further placement customizations must be
 // done using the coordinator or some other mechanism.
 type BootstrapPlacementConfig struct {
-	Enabled        bool   `yaml:"enabled"`
 	ReplicaFactor  int    `yaml:"replicaFactor"`
 	NumShards      int    `yaml:"numShards"`
-	IsSharded      bool   `yaml:"isSharded"`
-	NodeWeight     uint32 `yaml:"nodeWeight"`
 	IsolationGroup string `yaml:"isolationGroup"`
+	NodeWeight     uint32 `yaml:"nodeWeight"`
+	IsSharded      bool   `yaml:"isSharded"`
+	Enabled        bool   `yaml:"enabled"`
 }
 
 // BootstrapInstance describes an instance in the placement.
