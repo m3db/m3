@@ -25,10 +25,12 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
+	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/placement"
 
 	"go.uber.org/zap"
@@ -42,8 +44,8 @@ const (
 type addHandler Handler
 
 // NewAddHandler returns a new instance of a placement add handler.
-func NewAddHandler(service placement.Service) http.Handler {
-	return &addHandler{service: service}
+func NewAddHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
+	return &addHandler{client: client, cfg: cfg}
 }
 
 func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +101,12 @@ func (h *addHandler) add(r *admin.PlacementAddRequest) (placement.Placement, err
 		return nil, err
 	}
 
-	newPlacement, _, err := h.service.AddInstances(instances)
+	service, err := Service(h.client, h.cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	newPlacement, _, err := service.AddInstances(instances)
 	if err != nil {
 		return nil, err
 	}

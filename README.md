@@ -15,7 +15,7 @@ Notes for [developers]
 
 ### Starting a node
 
-To start a local node, you can build with `make m3dbnode` and then run `./bin/m3dbnode -f ./example/m3db-node-config.yaml`.  To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64`.
+To start a local node, you can build with `make m3dbnode` and then run `./bin/m3dbnode -f ./src/dbnode/config/m3dbnode-local.yml`.  To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64`.
 
 ### Test RPC
 

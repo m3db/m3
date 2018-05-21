@@ -25,11 +25,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
+	clusterclient "github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-
-	"github.com/m3db/m3cluster/placement"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
@@ -49,8 +49,8 @@ var (
 type deleteHandler Handler
 
 // NewDeleteHandler returns a new instance of a placement delete handler.
-func NewDeleteHandler(service placement.Service) http.Handler {
-	return &deleteHandler{service: service}
+func NewDeleteHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
+	return &deleteHandler{client: client, cfg: cfg}
 }
 
 func (h *deleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +63,13 @@ func (h *deleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	placement, err := h.service.RemoveInstances([]string{id})
+	service, err := Service(h.client, h.cfg)
+	if err != nil {
+		handler.Error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	placement, err := service.RemoveInstances([]string{id})
 	if err != nil {
 		logger.Error("unable to delete placement", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)

@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/util"
+	"github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
@@ -53,7 +54,6 @@ import (
 	"github.com/m3db/m3db/src/dbnode/retention"
 	m3dbruntime "github.com/m3db/m3db/src/dbnode/runtime"
 	"github.com/m3db/m3db/src/dbnode/serialize"
-	"github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/dbnode/storage"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/cluster"
@@ -97,14 +97,14 @@ type RunOptions struct {
 	// BootstrapCh is a channel to listen on to be notified of bootstrap.
 	BootstrapCh chan<- struct{}
 
-	// EmbeddedKVBootstrapCh is a channel to listen on to be notified that the embedded KV has bootstrapped.
-	EmbeddedKVBootstrapCh chan<- struct{}
+	// EmbeddedKVCh is a channel to listen on to be notified that the embedded KV has bootstrapped.
+	EmbeddedKVCh chan<- struct{}
 
-	// ClientBootstrapCh is a channel to listen on to share the same m3db client that this server uses.
-	ClientBootstrapCh chan<- client.Client
+	// ClientCh is a channel to listen on to share the same m3db client that this server uses.
+	ClientCh chan<- client.Client
 
-	// ClusterClientBootstrapCh is a channel to listen on to share the same m3 cluster client that this server uses.
-	ClusterClientBootstrapCh chan<- clusterclient.Client
+	// ClusterClientCh is a channel to listen on to share the same m3 cluster client that this server uses.
+	ClusterClientCh chan<- clusterclient.Client
 
 	// InterruptCh is a programmatic interrupt channel to supply to
 	// interrupt and shutdown the server.
@@ -179,9 +179,9 @@ func Run(runOpts RunOptions) {
 				logger.Fatalf("could not start embedded etcd: %v", err)
 			}
 
-			if runOpts.EmbeddedKVBootstrapCh != nil {
+			if runOpts.EmbeddedKVCh != nil {
 				// Notify on embedded KV bootstrap chan if specified
-				runOpts.EmbeddedKVBootstrapCh <- struct{}{}
+				runOpts.EmbeddedKVCh <- struct{}{}
 			}
 
 			defer e.Close()
@@ -386,6 +386,10 @@ func Run(runOpts RunOptions) {
 		}
 	}
 
+	if runOpts.ClusterClientCh != nil {
+		runOpts.ClusterClientCh <- envCfg.ClusterClient
+	}
+
 	opts = opts.SetNamespaceInitializer(envCfg.NamespaceInitializer)
 
 	topo, err := envCfg.TopologyInitializer.Init()
@@ -410,6 +414,10 @@ func Run(runOpts RunOptions) {
 		})
 	if err != nil {
 		logger.Fatalf("could not create m3db client: %v", err)
+	}
+
+	if runOpts.ClientCh != nil {
+		runOpts.ClientCh <- m3dbClient
 	}
 
 	// Kick off runtime options manager KV watches
@@ -534,13 +542,6 @@ func Run(runOpts RunOptions) {
 				logger.Errorf("debug server could not listen on %s: %v", cfg.DebugListenAddress, err)
 			}
 		}()
-	}
-
-	if runOpts.ClientBootstrapCh != nil {
-		runOpts.ClientBootstrapCh <- m3dbClient
-	}
-	if runOpts.ClusterClientBootstrapCh != nil {
-		runOpts.ClusterClientBootstrapCh <- envCfg.ClusterClient
 	}
 
 	go func() {

@@ -23,9 +23,9 @@ package namespace
 import (
 	"fmt"
 
-	"github.com/m3db/m3db/src/coordinator/util/logging"
-
+	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 
@@ -41,7 +41,7 @@ const (
 type Handler struct {
 	// This is used by other namespace Handlers
 	// nolint: structcheck
-	store kv.Store
+	client clusterclient.Client
 }
 
 // Metadata returns the current metadata in the given store and its version
@@ -72,10 +72,10 @@ func Metadata(store kv.Store) ([]namespace.Metadata, int, error) {
 }
 
 // RegisterRoutes registers the namespace routes
-func RegisterRoutes(r *mux.Router, store kv.Store) {
+func RegisterRoutes(r *mux.Router, client clusterclient.Client) {
 	logged := logging.WithResponseTimeLogging
 
-	r.HandleFunc(GetURL, logged(NewGetHandler(store)).ServeHTTP).Methods("GET")
-	r.HandleFunc(AddURL, logged(NewAddHandler(store)).ServeHTTP).Methods("POST")
-	r.HandleFunc(DeleteURL, logged(NewDeleteHandler(store)).ServeHTTP).Methods("DELETE")
+	r.HandleFunc(GetURL, logged(NewGetHandler(client)).ServeHTTP).Methods("GET")
+	r.HandleFunc(AddURL, logged(NewAddHandler(client)).ServeHTTP).Methods("POST")
+	r.HandleFunc(DeleteURL, logged(NewDeleteHandler(client)).ServeHTTP).Methods("DELETE")
 }

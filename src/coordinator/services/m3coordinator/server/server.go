@@ -30,6 +30,7 @@ import (
 	"syscall"
 	"time"
 
+	m3dbcluster "github.com/m3db/m3db/src/coordinator/cluster/m3db"
 	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/policy/filter"
 	"github.com/m3db/m3db/src/coordinator/storage"
@@ -67,11 +68,11 @@ type RunOptions struct {
 
 	// DBClient is the M3DB client to use instead of instantiating a new one
 	// from client config.
-	DBClient client.Client
+	DBClient <-chan client.Client
 
 	// ClusterClient is the M3DB cluster client to use instead of instantiating
 	// one from the client config.
-	ClusterClient clusterclient.Client
+	ClusterClient <-chan clusterclient.Client
 }
 
 // Run runs the server programmatically given a filename for the configuration file.
@@ -93,42 +94,55 @@ func Run(runOpts RunOptions) {
 	logger := logging.WithContext(ctx)
 	defer logger.Sync()
 
-	var clusterClient clusterclient.Client
+	var clusterClientCh <-chan clusterclient.Client
 	if runOpts.ClusterClient != nil {
-		clusterClient = runOpts.ClusterClient
+		clusterClientCh = runOpts.ClusterClient
 	}
 
-	var dbClient client.Client
+	if clusterClientCh == nil && cfg.DBClient != nil && cfg.DBClient.EnvironmentConfig.Service != nil {
+		clusterSvcClientOpts := cfg.DBClient.EnvironmentConfig.Service.NewOptions()
+		clusterClient, err := etcd.NewConfigServiceClient(clusterSvcClientOpts)
+		if err != nil {
+			logger.Fatal("unable to create etcd client", zap.Any("error", err))
+		}
+
+		clusterClientSendableCh := make(chan clusterclient.Client, 1)
+		clusterClientSendableCh <- clusterClient
+		clusterClientCh = clusterClientSendableCh
+	}
+
+	var dbClientCh <-chan client.Client
 	if runOpts.DBClient != nil {
-		dbClient = runOpts.DBClient
+		dbClientCh = runOpts.DBClient
 	}
 
-	if dbClient == nil {
+	if dbClientCh == nil {
 		// If not provided create cluster client and DB client
 		clientCfg := cfg.DBClient
 		if clientCfg == nil {
 			logger.Fatal("missing coordinator m3db client configuration")
 		}
 
-		var err error
-		if clientCfg.EnvironmentConfig.Service != nil {
-			clusterSvcClientOpts := clientCfg.EnvironmentConfig.Service.NewOptions()
-			clusterClient, err = etcd.NewConfigServiceClient(clusterSvcClientOpts)
-			if err != nil {
-				logger.Fatal("unable to create etcd client", zap.Any("error", err))
-			}
-		}
-
-		dbClient, err = clientCfg.NewClient(client.ConfigurationParameters{})
+		dbClient, err := clientCfg.NewClient(client.ConfigurationParameters{})
 		if err != nil {
 			logger.Fatal("unable to create m3db client", zap.Any("error", err))
 		}
+
+		dbClientSendableCh := make(chan client.Client, 1)
+		dbClientSendableCh <- dbClient
+		dbClientCh = dbClientSendableCh
 	}
 
-	session := m3db.NewAsyncSession(dbClient, nil)
+	session := m3db.NewAsyncSession(func() (client.Client, error) {
+		return <-dbClientCh, nil
+	}, nil)
 
 	fanoutStorage, storageCleanup := setupStorages(logger, session, cfg)
 	defer storageCleanup()
+
+	clusterClient := m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
+		return <-clusterClientCh, nil
+	}, nil)
 
 	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage),
 		clusterClient, cfg)

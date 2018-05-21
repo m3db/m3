@@ -33,7 +33,7 @@ import (
 
 const (
 	defaultServiceName = "m3db"
-	defaultInitTimeout = 10 * time.Second
+	defaultInitTimeout = 0 // Wait indefinitely by default for topology
 	defaultReplicas    = 3
 )
 

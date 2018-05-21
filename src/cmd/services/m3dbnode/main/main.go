@@ -57,19 +57,17 @@ func main() {
 	clusterClientCh := make(chan clusterclient.Client, 1)
 	if cfg.Coordinator != nil {
 		go func() {
-			dbClient := <-dbClientCh
-			clusterClient := <-clusterClientCh
 			coordinatorserver.Run(coordinatorserver.RunOptions{
 				Config:        *cfg.Coordinator,
-				DBClient:      dbClient,
-				ClusterClient: clusterClient,
+				DBClient:      dbClientCh,
+				ClusterClient: clusterClientCh,
 			})
 		}()
 	}
 
 	dbserver.Run(dbserver.RunOptions{
-		Config:                   cfg.DB,
-		ClientBootstrapCh:        dbClientCh,
-		ClusterClientBootstrapCh: clusterClientCh,
+		Config:          cfg.DB,
+		ClientCh:        dbClientCh,
+		ClusterClientCh: clusterClientCh,
 	})
 }

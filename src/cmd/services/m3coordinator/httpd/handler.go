@@ -25,13 +25,13 @@ import (
 	"net/http/pprof"
 	"os"
 
-	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/namespace"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/placement"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus/native"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus/remote"
+	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
@@ -87,19 +87,8 @@ func (h *Handler) RegisterRoutes() error {
 	h.registerProfileEndpoints()
 
 	if h.clusterClient != nil {
-		service, err := placement.Service(h.clusterClient, h.config)
-		if err != nil {
-			return err
-		}
-
-		placement.RegisterRoutes(h.Router, service)
-
-		store, err := h.clusterClient.KV()
-		if err != nil {
-			return err
-		}
-
-		namespace.RegisterRoutes(h.Router, store)
+		placement.RegisterRoutes(h.Router, h.clusterClient, h.config)
+		namespace.RegisterRoutes(h.Router, h.clusterClient)
 	}
 
 	return nil

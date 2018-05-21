@@ -25,10 +25,12 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
+	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/placement"
 
 	"go.uber.org/zap"
@@ -42,8 +44,8 @@ const (
 type initHandler Handler
 
 // NewInitHandler returns a new instance of a placement init handler.
-func NewInitHandler(service placement.Service) http.Handler {
-	return &initHandler{service: service}
+func NewInitHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
+	return &initHandler{client: client, cfg: cfg}
 }
 
 func (h *initHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +101,12 @@ func (h *initHandler) init(r *admin.PlacementInitRequest) (placement.Placement, 
 		return nil, err
 	}
 
-	placement, err := h.service.BuildInitialPlacement(instances, int(r.NumShards), int(r.ReplicationFactor))
+	service, err := Service(h.client, h.cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	placement, err := service.BuildInitialPlacement(instances, int(r.NumShards), int(r.ReplicationFactor))
 	if err != nil {
 		return nil, err
 	}
