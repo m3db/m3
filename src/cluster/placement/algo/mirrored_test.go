@@ -110,7 +110,7 @@ func TestMirrorWorkflow(t *testing.T) {
 	p, err = a.AddInstances(p, []placement.Instance{i7, i8})
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(4), p.MaxShardSetID())
-	validateDistribution(t, p, 1.01, "")
+	validateDistribution(t, p, 1.01)
 
 	newI1, ok := p.Instance("i1")
 	assert.True(t, ok)
@@ -173,7 +173,7 @@ func TestMirrorWorkflow(t *testing.T) {
 	p, err = a.AddInstances(p, []placement.Instance{i9, i10})
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(5), p.MaxShardSetID())
-	validateDistribution(t, p, 1.01, "")
+	validateDistribution(t, p, 1.01)
 
 	p, err = a.ReplaceInstances(p, []string{"i9"}, []placement.Instance{
 		placement.NewInstance().
@@ -251,6 +251,9 @@ func TestMirrorTestAddAndRevertBeforeCutover(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(2), p.MaxShardSetID())
 	assert.NoError(t, placement.Validate(p))
+
+	p, _, err = a.MarkAllShardsAvailable(p)
+	assert.NoError(t, err)
 
 	p1, err := a.AddInstances(p, []placement.Instance{i5, i6})
 	assert.NoError(t, err)
@@ -405,6 +408,9 @@ func TestMirrorTestRemoveAndRevertBeforeCutover(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint32(3), p.MaxShardSetID())
 	assert.NoError(t, placement.Validate(p))
+
+	p, _, err = a.MarkAllShardsAvailable(p)
+	assert.NoError(t, err)
 
 	p1, err := a.RemoveInstances(p, []string{"i5", "i6"})
 	assert.NoError(t, err)
