@@ -25,15 +25,16 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3db/src/coordinator/executor"
-	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus"
+	"github.com/m3db/m3db/src/coordinator/executor"
+	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
@@ -44,12 +45,30 @@ const (
 
 // PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
-	engine *executor.Engine
+	engine          *executor.Engine
+	promReadMetrics promReadMetrics
 }
 
 // NewPromReadHandler returns a new instance of handler.
-func NewPromReadHandler(engine *executor.Engine) http.Handler {
-	return &PromReadHandler{engine: engine}
+func NewPromReadHandler(engine *executor.Engine, scope tally.Scope) http.Handler {
+	return &PromReadHandler{
+		engine:          engine,
+		promReadMetrics: newPromReadMetrics(scope),
+	}
+}
+
+type promReadMetrics struct {
+	fetchSuccess      tally.Counter
+	fetchErrorsServer tally.Counter
+	fetchErrorsClient tally.Counter
+}
+
+func newPromReadMetrics(scope tally.Scope) promReadMetrics {
+	return promReadMetrics{
+		fetchSuccess:      scope.Counter("fetch.success"),
+		fetchErrorsServer: scope.Tagged(map[string]string{"status_code": "500"}).Counter("fetch.errors"),
+		fetchErrorsClient: scope.Tagged(map[string]string{"status_code": "400"}).Counter("fetch.errors"),
+	}
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -65,12 +84,14 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	params, err := prometheus.ParseRequestParams(r)
 	if err != nil {
+		h.promReadMetrics.fetchErrorsClient.Inc(1)
 		handler.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
 	result, err := h.read(ctx, w, req, params)
 	if err != nil {
+		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to fetch data", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
@@ -82,6 +103,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	data, err := proto.Marshal(resp)
 	if err != nil {
+		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to marshal read results to protobuf", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
@@ -92,10 +114,12 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
+		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to encode read results to snappy", zap.Any("err", err))
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
+	h.promReadMetrics.fetchSuccess.Inc(1)
 }
 
 func (h *PromReadHandler) parseRequest(r *http.Request) (*prompb.ReadRequest, *handler.ParseError) {

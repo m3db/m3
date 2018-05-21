@@ -53,7 +53,7 @@ import (
 )
 
 var (
-	namespace  = "metrics"
+	namespace = "metrics"
 )
 
 // RunOptions provides options for running the server
@@ -93,6 +93,11 @@ func Run(runOpts RunOptions) {
 	ctx := context.Background()
 	logger := logging.WithContext(ctx)
 	defer logger.Sync()
+
+	scope, _, err := cfg.Metrics.NewRootScope()
+	if err != nil {
+		logger.Fatalf("could not connect to metrics: %v", err)
+	}
 
 	var clusterClientCh <-chan clusterclient.Client
 	if runOpts.ClusterClient != nil {
@@ -145,7 +150,7 @@ func Run(runOpts RunOptions) {
 	}, nil)
 
 	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage),
-		clusterClient, cfg)
+		clusterClient, cfg, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Any("error", err))
 	}

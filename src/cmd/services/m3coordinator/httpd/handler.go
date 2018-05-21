@@ -38,11 +38,13 @@ import (
 	m3clusterClient "github.com/m3db/m3cluster/client"
 
 	"github.com/gorilla/mux"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
 const (
 	pprofURL = "/debug/pprof/profile"
+	remoteSource = map[string]string{"source": "remote"}
 )
 
 // Handler represents an HTTP handler.
@@ -53,10 +55,11 @@ type Handler struct {
 	engine        *executor.Engine
 	clusterClient m3clusterClient.Client
 	config        config.Configuration
+	scope         tally.Scope
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient m3clusterClient.Client, cfg config.Configuration) (*Handler, error) {
+func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient m3clusterClient.Client, cfg config.Configuration, scope tally.Scope) (*Handler, error) {
 	r := mux.NewRouter()
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -71,6 +74,7 @@ func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient 
 		engine:        engine,
 		clusterClient: clusterClient,
 		config:        cfg,
+		scope:         scope,
 	}
 	return h, nil
 }
@@ -79,8 +83,8 @@ func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient 
 func (h *Handler) RegisterRoutes() error {
 	logged := logging.WithResponseTimeLogging
 
-	h.Router.HandleFunc(remote.PromReadURL, logged(remote.NewPromReadHandler(h.engine)).ServeHTTP).Methods("POST")
-	h.Router.HandleFunc(remote.PromWriteURL, logged(remote.NewPromWriteHandler(h.storage)).ServeHTTP).Methods("POST")
+	h.Router.HandleFunc(remote.PromReadURL, logged(remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource)).ServeHTTP).Methods("POST")
+	h.Router.HandleFunc(remote.PromWriteURL, logged(remote.NewPromWriteHandler(h.storage, h.scope.Tagged(remoteSource))).ServeHTTP).Methods("POST")
 	h.Router.HandleFunc(native.PromReadURL, logged(native.NewPromReadHandler(h.engine)).ServeHTTP).Methods("GET")
 	h.Router.HandleFunc(handler.SearchURL, logged(handler.NewSearchHandler(h.storage)).ServeHTTP).Methods("POST")
 
