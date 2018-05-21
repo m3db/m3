@@ -1,4 +1,4 @@
-client:
+dbClient:
   metrics:
     prometheus:
       handlerPath: /metrics
