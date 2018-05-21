@@ -34,9 +34,10 @@ var (
 var (
 	// TODO(prateek): tweak builderopts for vellum
 	vellumBuilderOpts = &vellum.BuilderOpts{
-		Encoder:           1,
-		RegistryTableSize: 100000,
-		RegistryMRUSize:   4,
+		Encoder:                  1,
+		RegistryTableSize:        20000,
+		RegistryMRUSize:          4,
+		UnfinishedNodesStackSize: 4096,
 	}
 )
 
