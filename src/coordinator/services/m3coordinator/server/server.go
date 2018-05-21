@@ -53,7 +53,6 @@ import (
 
 var (
 	namespace  = "metrics"
-	resolution = time.Minute
 )
 
 // RunOptions provides options for running the server
@@ -157,7 +156,7 @@ func Run(runOpts RunOptions) {
 
 func setupStorages(logger *zap.Logger, session client.Session, cfg config.Configuration) (storage.Storage, func()) {
 	cleanup := func() {}
-	localStorage := local.NewStorage(session, namespace, resolution)
+	localStorage := local.NewStorage(session, namespace)
 	stores := []storage.Storage{localStorage}
 	if cfg.RPC != nil && cfg.RPC.Enabled {
 		logger.Info("rpc enabled")
