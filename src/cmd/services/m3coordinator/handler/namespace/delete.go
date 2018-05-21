@@ -21,9 +21,11 @@
 package namespace
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
@@ -60,7 +62,7 @@ func NewDeleteHandler(client clusterclient.Client) http.Handler {
 func (h *deleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
-	id := mux.Vars(r)[namespaceIDVar]
+	id := strings.TrimSpace(mux.Vars(r)[namespaceIDVar])
 	if id == "" {
 		logger.Error("no namespace ID to delete", zap.Any("error", errEmptyID))
 		handler.Error(w, errEmptyID, http.StatusBadRequest)
@@ -75,7 +77,14 @@ func (h *deleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			handler.Error(w, err, http.StatusInternalServerError)
 		}
+		return
 	}
+
+	json.NewEncoder(w).Encode(struct {
+		Deleted bool
+	}{
+		Deleted: true,
+	})
 }
 
 func (h *deleteHandler) delete(id string) error {

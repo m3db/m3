@@ -30,15 +30,10 @@ import (
 
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-)
-
-var (
-	namespace = ident.StringID("test-namespace")
 )
 
 func SetupAsyncClientTest(t *testing.T) (*client.MockClient, *services.MockServices) {
