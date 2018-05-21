@@ -723,7 +723,6 @@ func (s *peersSource) peerAvailability(
 				// Don't want to peer bootstrap from a node that has not yet completely
 				// taken ownership of the shard.
 			case shard.Unknown:
-
 				// Success cases - We can bootstrap from this host, which is enough to
 				// mark this shard as bootstrappable.
 			case shard.Leaving:
