@@ -835,9 +835,13 @@ type topologyState struct {
 	shardStates      shardStates
 }
 
-type shardStates map[uint32]map[string]hostShardState
+type shardStates map[shardID]map[hostID]hostShardState
 
 type hostShardState struct {
 	host       topology.Host
 	shardState shard.State
 }
+
+type hostID string
+
+type shardID uint32

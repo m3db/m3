@@ -122,13 +122,10 @@ func newMultiAddrAdminClient(
 		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelAny).
 		SetClusterConnectTimeout(time.Second)
 
-	if topologyInitializer != nil {
-		clientOpts = clientOpts.
-			SetTopologyInitializer(topologyInitializer)
-	} else {
-		clientOpts = clientOpts.
-			SetTopologyInitializer(topology.NewStaticInitializer(staticOptions))
+	if topologyInitializer == nil {
+		topologyInitializer = topology.NewStaticInitializer(staticOptions)
 	}
+	clientOpts = clientOpts.SetTopologyInitializer(topologyInitializer)
 
 	adminClient, err := client.NewAdminClient(clientOpts.(client.AdminOptions))
 	require.NoError(t, err)

@@ -327,10 +327,8 @@ func WriteConsistencyAchieved(
 		if numSuccess > 0 { // Meets one
 			return true
 		}
-	default:
-		panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
 	}
-	return false
+	panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
 }
 
 // ReadConsistencyTermination returns a bool to indicate whether sufficient
