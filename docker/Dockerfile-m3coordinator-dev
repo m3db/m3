@@ -15,6 +15,6 @@ RUN cd ${GOPATH}/src/github.com/m3db/m3db/ && \
 
 EXPOSE 9000/tcp
 
-ENTRYPOINT ["${GOPATH}/src/github.com/m3db/m3db/bin/m3coordinator", \
+ENTRYPOINT ["/go/src/github.com/m3db/m3db/bin/m3coordinator", \
             "-f", \
-            "${GOPATH/src/github.com/m3db/m3db/src/cmd/services/m3coordinator/config/m3coordinator.yml"]
+            "/go/src/github.com/m3db/m3db/src/cmd/services/m3coordinator/config/m3coordinator.yml"]
