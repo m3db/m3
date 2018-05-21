@@ -1,4 +1,4 @@
-FROM apline:3.7
+FROM alpine:3.7
 
 COPY bin/m3coordinator /bin/m3coordinator
 RUN mkdir -p /etc/m3/
