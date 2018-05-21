@@ -44,7 +44,7 @@ import:
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
 
 - package: github.com/apache/thrift
-  version: 0.9.3-pool-read-binary
+  version: 0.9.3-pool-read-binary-2
   subpackages:
   - lib/go/thrift
   repo: https://github.com/m3db/thrift
