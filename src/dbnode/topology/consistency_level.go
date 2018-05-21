@@ -319,14 +319,17 @@ func WriteConsistencyAchieved(
 		if numSuccess == numPeers { // Meets all
 			return true
 		}
+		return false
 	case ConsistencyLevelMajority:
 		if numSuccess >= majority { // Meets majority
 			return true
 		}
+		return false
 	case ConsistencyLevelOne:
 		if numSuccess > 0 { // Meets one
 			return true
 		}
+		return false
 	}
 	panic(fmt.Errorf("unrecognized consistency level: %s", level.String()))
 }
