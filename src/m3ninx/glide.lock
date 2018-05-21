@@ -1,5 +1,5 @@
-hash: 1cdafb184c75df28f8e8ff1627089bd5ae8a19d78633853b24996ab6a03076ef
-updated: 2018-05-19T23:20:00.44500584-04:00
+hash: d0f328113b8aec1d1a807ece3909b894ac1911bdfc49ffe0157df571d2545c3e
+updated: 2018-05-21T15:58:01.616177964-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -8,7 +8,7 @@ imports:
 - name: github.com/cespare/xxhash
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
 - name: github.com/couchbase/vellum
-  version: c8d001ddd5fefddde930379e021aadaeba565fef
+  version: 1782e2d46ce2a9f28bd1ac1b46cd141c0d887c9b
   repo: https://github.com/m3db/vellum
   subpackages:
   - regexp
@@ -26,7 +26,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/golang/snappy
-  version: 2e65f85255dbc3072edf28d6b5b8efc472979f5a
+  version: 553a641470496b2327abcac10b36396bd98e45c9
 - name: github.com/m3db/codesearch
   version: a45d81b686e85d01f2838439deaf72126ccd5a96
 - name: github.com/m3db/m3x
@@ -74,7 +74,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 2dc8d10634f473f4dc678e48391a9dc8cf6ae6f9
+  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
   subpackages:
   - buffer
   - internal/bufferpool
@@ -96,7 +96,7 @@ testImports:
   - gen
   - prop
 - name: github.com/pmezard/go-difflib
-  version: 792786c7400a136282c1664665ae0a8db921c6c2
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
