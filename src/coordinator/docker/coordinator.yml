@@ -11,11 +11,11 @@ client:
             shards: 64
             replicas: 3
             hosts:
-                - host: m3db_server_1
+                - hostID: m3db_server_1
                   listenAddress: "0.0.0.0:9000"
-                - host: m3db_server_2
+                - hostID: m3db_server_2
                   listenAddress: "0.0.0.0:9010"
-                - host: m3db_server_3
+                - hostID: m3db_server_3
                   listenAddress: "0.0.0.0:9020"
         namespaces:
             - id: metrics
