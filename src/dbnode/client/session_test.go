@@ -208,10 +208,8 @@ func TestIteratorPools(t *testing.T) {
 		multiReaderIteratorArray: multiReaderIteratorArray,
 		multiReaderIterator:      multiReaderIteratorPool,
 		seriesIterator:           seriesIteratorPool,
-
-		checkedBytesWrapper: checkedBytesWrapperPool,
-
-		id: idPool,
+		checkedBytesWrapper:      checkedBytesWrapperPool,
+		id:                       idPool,
 	}
 
 	// Error expected if state is not open
@@ -220,13 +218,12 @@ func TestIteratorPools(t *testing.T) {
 	assert.Nil(t, itPool)
 
 	s.state.status = statusOpen
-	itPool, err = s.IteratorPools()
 
+	itPool, err = s.IteratorPools()
 	require.NoError(t, err)
 	assert.Equal(t, multiReaderIteratorArray, itPool.MultiReaderIteratorArray())
 	assert.Equal(t, multiReaderIteratorPool, itPool.MultiReaderIterator())
 	assert.Equal(t, seriesIteratorPool, itPool.SeriesIterator())
-
 	assert.Equal(t, checkedBytesWrapperPool, itPool.CheckedBytesWrapper())
 	assert.Equal(t, idPool, itPool.ID())
 }

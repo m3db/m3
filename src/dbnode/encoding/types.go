@@ -314,11 +314,14 @@ type MultiReaderIteratorArrayPool interface {
 // IteratorPools exposes a small subset of iterator pools that are sufficient for clients
 // to rebuild SeriesIterator
 type IteratorPools interface {
+	// MultiReaderIteratorArray exposes the session's MultiReaderIteratorArrayPool
 	MultiReaderIteratorArray() MultiReaderIteratorArrayPool
+	// MultiReaderIterator exposes the session's MultiReaderIteratorPool
 	MultiReaderIterator() MultiReaderIteratorPool
+	// SeriesIterator exposes the session's SeriesIteratorPool
 	SeriesIterator() SeriesIteratorPool
-
+	// CheckedBytesWrapper exposes the session's CheckedBytesWrapperPool
 	CheckedBytesWrapper() xpool.CheckedBytesWrapperPool
-
+	// ID exposes the session's identity pool
 	ID() ident.Pool
 }
