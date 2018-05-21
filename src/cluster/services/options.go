@@ -38,7 +38,7 @@ var (
 	errNoKVGen            = errors.New("no KVGen function set")
 	errNoHeartbeatGen     = errors.New("no HeartbeatGen function set")
 	errNoLeaderGen        = errors.New("no LeaderGen function set")
-	errInvalidInitTimeout = errors.New("non-positive init timeout for service watch")
+	errInvalidInitTimeout = errors.New("negative init timeout for service watch")
 )
 
 type options struct {
@@ -72,7 +72,7 @@ func (o options) Validate() error {
 		return errNoLeaderGen
 	}
 
-	if o.initTimeout <= 0 {
+	if o.initTimeout < 0 {
 		return errInvalidInitTimeout
 	}
 

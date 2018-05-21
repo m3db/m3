@@ -50,7 +50,7 @@ func TestOptions(t *testing.T) {
 	opts = opts.SetLeaderGen(emptyLdGen)
 	require.NoError(t, opts.Validate())
 
-	opts = opts.SetInitTimeout(0)
+	opts = opts.SetInitTimeout(-1)
 	require.Equal(t, errInvalidInitTimeout, opts.Validate())
 }
 
