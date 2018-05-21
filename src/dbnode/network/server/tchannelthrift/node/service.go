@@ -1344,6 +1344,7 @@ func (r *writeBatchPooledReq) Finalize() {
 		r.pooledIDs[i].bytes.DecRef()
 	}
 	r.pooledIDsUsed = 0
+
 	// Return any pooled thrift byte slices to the thrift pool
 	if r.writeReq != nil {
 		for _, elem := range r.writeReq.Elements {
@@ -1358,6 +1359,9 @@ func (r *writeBatchPooledReq) Finalize() {
 		}
 		r.writeTaggedReq = nil
 	}
+
+	// Return to pool
+	r.pool.Put(r)
 }
 
 type writeBatchPooledReqID struct {
@@ -1399,7 +1403,10 @@ func (p *writeBatchPooledReqPool) Init(
 			// Also ready a tag decoder
 			pooledIDs[i].tagDecoder = tagDecoderPool.Get()
 		}
-		return &writeBatchPooledReq{pooledIDs: pooledIDs}
+		return &writeBatchPooledReq{
+			pooledIDs: pooledIDs,
+			pool:      p,
+		}
 	})
 }
 
