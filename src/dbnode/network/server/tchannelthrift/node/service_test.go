@@ -50,17 +50,24 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
-// Create test service opts once to avoid recreating a lot of default pools, etc
+// Create opts once to avoid recreating a lot of default pools, etc
 var (
-	testServiceOpts = storage.NewOptions()
+	testStorageOpts = storage.NewOptions()
 )
+
+func init() {
+	// Set all pool sizes to 1 for tests
+	checkedBytesPoolSize = 1
+	segmentArrayPoolSize = 1
+	writeBatchPooledReqPoolSize = 1
+}
 
 func TestServiceHealth(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -92,7 +99,7 @@ func TestServiceQuery(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -105,7 +112,7 @@ func TestServiceQuery(t *testing.T) {
 
 	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
 
-	enc := testServiceOpts.EncoderPool().Get()
+	enc := testStorageOpts.EncoderPool().Get()
 	enc.Reset(start, 0)
 
 	nsID := "metrics"
@@ -132,7 +139,7 @@ func TestServiceQuery(t *testing.T) {
 		"bar": {{"foo", "bar"}, {"dzk", "baz"}},
 	}
 	for id, s := range series {
-		enc := testServiceOpts.EncoderPool().Get()
+		enc := testStorageOpts.EncoderPool().Get()
 		enc.Reset(start, 0)
 		for _, v := range s {
 			dp := ts.Datapoint{
@@ -225,7 +232,7 @@ func TestServiceFetch(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -238,7 +245,7 @@ func TestServiceFetch(t *testing.T) {
 
 	start, end = start.Truncate(time.Second), end.Truncate(time.Second)
 
-	enc := testServiceOpts.EncoderPool().Get()
+	enc := testStorageOpts.EncoderPool().Get()
 	enc.Reset(start, 0)
 
 	nsID := "metrics"
@@ -290,7 +297,7 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -320,7 +327,7 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 		},
 	}
 	for id, s := range series {
-		enc := testServiceOpts.EncoderPool().Get()
+		enc := testStorageOpts.EncoderPool().Get()
 		enc.Reset(start, 0)
 		for _, v := range s {
 			dp := ts.Datapoint{
@@ -390,7 +397,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 	mockNs.EXPECT().Options().Return(namespace.NewOptions()).AnyTimes()
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Namespace(ident.NewIDMatcher(nsID)).Return(mockNs, true).AnyTimes()
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(false)
 
 	service := NewService(mockDB, nil).(*service)
@@ -418,7 +425,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 		},
 	}
 	for id, s := range series {
-		enc := testServiceOpts.EncoderPool().Get()
+		enc := testStorageOpts.EncoderPool().Get()
 		enc.Reset(start, 0)
 		for _, v := range s {
 			dp := ts.Datapoint{
@@ -502,7 +509,7 @@ func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(false)
 
 	service := NewService(mockDB, nil).(*service)
@@ -609,7 +616,7 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 
 	// Setup mock db / service / context
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(false)
 	service := NewService(mockDB, nil).(*service)
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
@@ -749,7 +756,7 @@ func TestServiceFetchTagged(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -779,7 +786,7 @@ func TestServiceFetchTagged(t *testing.T) {
 		},
 	}
 	for id, s := range series {
-		enc := testServiceOpts.EncoderPool().Get()
+		enc := testStorageOpts.EncoderPool().Get()
 		enc.Reset(start, 0)
 		for _, v := range s {
 			dp := ts.Datapoint{
@@ -879,7 +886,7 @@ func TestServiceFetchTaggedNoData(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -947,7 +954,7 @@ func TestServiceFetchTaggedErrs(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -998,7 +1005,7 @@ func TestServiceWrite(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -1034,7 +1041,7 @@ func TestServiceWriteTagged(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -1084,7 +1091,7 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -1133,9 +1140,7 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
-
-	service := NewService(mockDB, nil).(*service)
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
 	mockDecoder := serialize.NewMockTagDecoder(ctrl)
 	mockDecoder.EXPECT().Reset(gomock.Any()).AnyTimes()
@@ -1143,7 +1148,11 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 	mockDecoder.EXPECT().Close().AnyTimes()
 	mockDecoderPool := serialize.NewMockTagDecoderPool(ctrl)
 	mockDecoderPool.EXPECT().Get().Return(mockDecoder).AnyTimes()
-	service.pools.tagDecoder = mockDecoderPool
+
+	opts := tchannelthrift.NewOptions().
+		SetTagDecoderPool(mockDecoderPool)
+
+	service := NewService(mockDB, opts).(*service)
 
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
@@ -1193,7 +1202,7 @@ func TestServiceRepair(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -1212,7 +1221,7 @@ func TestServiceTruncate(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().Options().Return(testStorageOpts).AnyTimes()
 
 	service := NewService(mockDB, nil).(*service)
 
@@ -1241,7 +1250,7 @@ func TestServiceSetPersistRateLimit(t *testing.T) {
 			SetLimitEnabled(false))
 	runtimeOptsMgr := runtime.NewOptionsManager()
 	require.NoError(t, runtimeOptsMgr.Update(runtimeOpts))
-	opts := testServiceOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
+	opts := testStorageOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(opts).AnyTimes()
@@ -1273,7 +1282,7 @@ func TestServiceSetWriteNewSeriesAsync(t *testing.T) {
 		SetWriteNewSeriesAsync(false)
 	runtimeOptsMgr := runtime.NewOptionsManager()
 	require.NoError(t, runtimeOptsMgr.Update(runtimeOpts))
-	opts := testServiceOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
+	opts := testStorageOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(opts).AnyTimes()
@@ -1304,7 +1313,7 @@ func TestServiceSetWriteNewSeriesBackoffDuration(t *testing.T) {
 		SetWriteNewSeriesBackoffDuration(3 * time.Millisecond)
 	runtimeOptsMgr := runtime.NewOptionsManager()
 	require.NoError(t, runtimeOptsMgr.Update(runtimeOpts))
-	opts := testServiceOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
+	opts := testStorageOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(opts).AnyTimes()
@@ -1338,7 +1347,7 @@ func TestServiceSetWriteNewSeriesLimitPerShardPerSecond(t *testing.T) {
 		SetWriteNewSeriesLimitPerShardPerSecond(42)
 	runtimeOptsMgr := runtime.NewOptionsManager()
 	require.NoError(t, runtimeOptsMgr.Update(runtimeOpts))
-	opts := testServiceOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
+	opts := testStorageOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(opts).AnyTimes()
