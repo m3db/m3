@@ -820,25 +820,20 @@ func markShardAvailable(p placement.Placement, instanceID string, shardID uint32
 	return p, nil
 }
 
+// tryCleanupShardState cleans up the shard states if the user only
+// wants to keep stable shard state in the placement.
 func tryCleanupShardState(
 	p placement.Placement,
 	opts placement.Options,
 ) (placement.Placement, error) {
 	if opts.ShardStateMode() == placement.StableShardStateOnly {
-		return cleanupShardState(p, opts)
+		p, _, err := markAllShardsAvailable(
+			p,
+			opts.SetIsShardCutoverFn(nil).SetIsShardCutoffFn(nil),
+		)
+		return p, err
 	}
 	return p, nil
-}
-
-func cleanupShardState(
-	p placement.Placement,
-	opts placement.Options,
-) (placement.Placement, error) {
-	p, _, err := markAllShardsAvailable(
-		p,
-		opts.SetIsShardCutoverFn(nil).SetIsShardCutoffFn(nil),
-	)
-	return p, err
 }
 
 func markAllShardsAvailable(

@@ -69,9 +69,7 @@ func (a shardedPlacementAlgorithm) InitialPlacement(
 		}
 	}
 
-	// NB(r): All new placements should appear as available for
-	// proper client semantics when calculating consistency results
-	return cleanupShardState(p, a.opts)
+	return tryCleanupShardState(p, a.opts)
 }
 
 func (a shardedPlacementAlgorithm) AddReplica(p placement.Placement) (placement.Placement, error) {
