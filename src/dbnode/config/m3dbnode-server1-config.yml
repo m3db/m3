@@ -71,7 +71,7 @@ db:
     blockSize: 10m
 
   fs:
-    filePathPrefix: /var/lib/m3db
+    filePathPrefix: /var/lib/m3db1
     writeBufferSize: 65536
     dataReadBufferSize: 65536
     infoReadBufferSize: 128
