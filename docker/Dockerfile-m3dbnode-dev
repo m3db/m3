@@ -4,11 +4,11 @@ FROM golang:1.10-alpine
 RUN apk add --update glide git make bash
 
 # Add source code
-RUN mkdir -p /go/src/github.com/m3db/m3db 
-ADD . /go/src/github.com/m3db/m3db
+RUN mkdir -p ${GOPATH}/src/github.com/m3db/m3db 
+ADD . ${GOPATH}/src/github.com/m3db/m3db
 
 # Build m3dbnode binary 
-RUN cd /go/src/github.com/m3db/m3db/ && \
+RUN cd ${GOPATH}/src/github.com/m3db/m3db/ && \
     git submodule update --init && \
     glide install && \
     make m3dbnode-linux-amd64
@@ -19,6 +19,6 @@ EXPOSE 9002/tcp
 EXPOSE 9003/tcp
 EXPOSE 9004/tcp
 
-ENTRYPOINT ["/go/src/github.com/m3db/m3db/bin/m3dbnode", \
+ENTRYPOINT ["${GOPATH}/src/github.com/m3db/m3db/bin/m3dbnode", \
             "-f", \
-            "/go/src/github.com/m3db/m3db/src/cmd/services/m3dbnode/config/m3dbnode.yml"]
+            "${GOPATH}/src/github.com/m3db/m3db/src/cmd/services/m3dbnode/config/m3dbnode.yml"]
