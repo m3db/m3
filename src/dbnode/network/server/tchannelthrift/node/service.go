@@ -53,12 +53,16 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
-const (
+var (
+	// NB(r): pool sizes are vars to help reduce stress on tests.
 	checkedBytesPoolSize        = 65536
 	segmentArrayPoolSize        = 65536
+	writeBatchPooledReqPoolSize = 1024
+)
+
+const (
 	initSegmentArrayPoolLength  = 4
 	maxSegmentArrayPooledLength = 32
-	writeBatchPooledReqPoolSize = 65536
 )
 
 var (
@@ -990,7 +994,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			continue
 		}
 
-		seriesID := s.newPooledID(ctx, req.NameSpace, pooledReq)
+		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
 		if err = s.db.WriteTagged(
 			ctx, nsID, seriesID, dec,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
@@ -1298,6 +1302,8 @@ type writeBatchPooledReq struct {
 	pooledIDsUsed  int
 	writeReq       *rpc.WriteBatchRawRequest
 	writeTaggedReq *rpc.WriteTaggedBatchRawRequest
+
+	pool *writeBatchPooledReqPool
 }
 
 func (r *writeBatchPooledReq) nextPooledID(idBytes []byte) (ident.ID, bool) {
@@ -1323,7 +1329,6 @@ func (r *writeBatchPooledReq) nextPooledTagDecoder(encodedTags []byte) (serializ
 	bytes := r.pooledIDs[r.pooledIDsUsed].bytes
 	bytes.IncRef()
 	bytes.Reset(encodedTags)
-	bytes.DecRef()
 
 	decoder := r.pooledIDs[r.pooledIDsUsed].tagDecoder
 	decoder.Reset(bytes)
