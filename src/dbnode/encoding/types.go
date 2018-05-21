@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
+	"github.com/m3db/m3db/src/dbnode/x/xpool"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
@@ -313,6 +314,11 @@ type MultiReaderIteratorArrayPool interface {
 // IteratorPools exposes a small subset of iterator pools that are sufficient for clients
 // to rebuild SeriesIterator
 type IteratorPools interface {
+	MultiReaderIteratorArray() MultiReaderIteratorArrayPool
 	MultiReaderIterator() MultiReaderIteratorPool
 	SeriesIterator() SeriesIteratorPool
+
+	CheckedBytesWrapper() xpool.CheckedBytesWrapperPool
+
+	ID() ident.Pool
 }

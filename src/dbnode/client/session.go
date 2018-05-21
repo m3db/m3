@@ -1522,10 +1522,11 @@ func (s *session) readConsistencyResult(
 }
 
 func (s *session) IteratorPools() (encoding.IteratorPools, error) {
-	if s.pools.MultiReaderIterator() == nil || s.pools.SeriesIterator() == nil {
-		return nil, fmt.Errorf("session pools have not been initialized")
+	s.state.RLock()
+	defer s.state.RUnlock()
+	if s.state.status != statusOpen {
+		return nil, errSessionStatusNotOpen
 	}
-
 	return s.pools, nil
 }
 
