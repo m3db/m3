@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/sharding"
 	"github.com/m3db/m3db/src/dbnode/topology"
+	"github.com/m3db/m3db/src/dbnode/x/xpool"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
@@ -194,20 +195,37 @@ func TestIteratorPools(t *testing.T) {
 	s := session{}
 	itPool, err := s.IteratorPools()
 
-	assert.Error(t, err)
+	assert.EqualError(t, err, errSessionStatusNotOpen.Error())
 	assert.Nil(t, itPool)
 
+	multiReaderIteratorArray := encoding.NewMultiReaderIteratorArrayPool(nil)
 	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
 	seriesIteratorPool := encoding.NewSeriesIteratorPool(nil)
-	s.pools = sessionPools{
-		multiReaderIterator: multiReaderIteratorPool,
-		seriesIterator:      seriesIteratorPool,
-	}
-	itPool, err = s.IteratorPools()
+	checkedBytesWrapperPool := xpool.NewCheckedBytesWrapperPool(nil)
+	idPool := ident.NewPool(nil, ident.PoolOptions{})
 
-	assert.NoError(t, err)
+	s.pools = sessionPools{
+		multiReaderIteratorArray: multiReaderIteratorArray,
+		multiReaderIterator:      multiReaderIteratorPool,
+		seriesIterator:           seriesIteratorPool,
+		checkedBytesWrapper:      checkedBytesWrapperPool,
+		id:                       idPool,
+	}
+
+	// Error expected if state is not open
+	itPool, err = s.IteratorPools()
+	assert.EqualError(t, err, errSessionStatusNotOpen.Error())
+	assert.Nil(t, itPool)
+
+	s.state.status = statusOpen
+
+	itPool, err = s.IteratorPools()
+	require.NoError(t, err)
+	assert.Equal(t, multiReaderIteratorArray, itPool.MultiReaderIteratorArray())
 	assert.Equal(t, multiReaderIteratorPool, itPool.MultiReaderIterator())
 	assert.Equal(t, seriesIteratorPool, itPool.SeriesIterator())
+	assert.Equal(t, checkedBytesWrapperPool, itPool.CheckedBytesWrapper())
+	assert.Equal(t, idPool, itPool.ID())
 }
 
 func TestSessionClusterConnectConsistencyLevelAny(t *testing.T) {

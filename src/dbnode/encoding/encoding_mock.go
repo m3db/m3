@@ -31,6 +31,7 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
+	"github.com/m3db/m3db/src/dbnode/x/xpool"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
@@ -1482,6 +1483,18 @@ func (m *MockIteratorPools) EXPECT() *MockIteratorPoolsMockRecorder {
 	return m.recorder
 }
 
+// MultiReaderIteratorArray mocks base method
+func (m *MockIteratorPools) MultiReaderIteratorArray() MultiReaderIteratorArrayPool {
+	ret := m.ctrl.Call(m, "MultiReaderIteratorArray")
+	ret0, _ := ret[0].(MultiReaderIteratorArrayPool)
+	return ret0
+}
+
+// MultiReaderIteratorArray indicates an expected call of MultiReaderIteratorArray
+func (mr *MockIteratorPoolsMockRecorder) MultiReaderIteratorArray() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MultiReaderIteratorArray", reflect.TypeOf((*MockIteratorPools)(nil).MultiReaderIteratorArray))
+}
+
 // MultiReaderIterator mocks base method
 func (m *MockIteratorPools) MultiReaderIterator() MultiReaderIteratorPool {
 	ret := m.ctrl.Call(m, "MultiReaderIterator")
@@ -1504,4 +1517,28 @@ func (m *MockIteratorPools) SeriesIterator() SeriesIteratorPool {
 // SeriesIterator indicates an expected call of SeriesIterator
 func (mr *MockIteratorPoolsMockRecorder) SeriesIterator() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SeriesIterator", reflect.TypeOf((*MockIteratorPools)(nil).SeriesIterator))
+}
+
+// CheckedBytesWrapper mocks base method
+func (m *MockIteratorPools) CheckedBytesWrapper() xpool.CheckedBytesWrapperPool {
+	ret := m.ctrl.Call(m, "CheckedBytesWrapper")
+	ret0, _ := ret[0].(xpool.CheckedBytesWrapperPool)
+	return ret0
+}
+
+// CheckedBytesWrapper indicates an expected call of CheckedBytesWrapper
+func (mr *MockIteratorPoolsMockRecorder) CheckedBytesWrapper() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckedBytesWrapper", reflect.TypeOf((*MockIteratorPools)(nil).CheckedBytesWrapper))
+}
+
+// ID mocks base method
+func (m *MockIteratorPools) ID() ident.Pool {
+	ret := m.ctrl.Call(m, "ID")
+	ret0, _ := ret[0].(ident.Pool)
+	return ret0
+}
+
+// ID indicates an expected call of ID
+func (mr *MockIteratorPoolsMockRecorder) ID() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ID", reflect.TypeOf((*MockIteratorPools)(nil).ID))
 }
