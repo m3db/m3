@@ -83,8 +83,10 @@ func DecodeFetchResult(_ context.Context, rpcSeries []*rpc.Series) ([]*ts.Series
 
 func decodeTs(r *rpc.Series) (*ts.Series, error) {
 	fixedRes := r.Values.FixedResolution
-	var values ts.Values
-	var err error
+	var (
+		values ts.Values
+		err error
+	)
 	if fixedRes {
 		values, err = decodeFixedResTs(r)
 		if err != nil {
@@ -261,9 +263,10 @@ func millisPerStep(dps *rpc.Datapoints) (time.Duration, bool) {
 		return time.Duration(0), false
 	}
 
-	if len(dps.Datapoints) <= 1 {
+	points := dps.Datapoints
+	if len(points) <= 1 {
 		return time.Duration(0), true
 	}
 
-	return time.Duration(dps.Datapoints[1].Timestamp-dps.Datapoints[0].Timestamp) * time.Millisecond, true
+	return time.Duration(points[1].Timestamp-points[0].Timestamp) * time.Millisecond, true
 }
