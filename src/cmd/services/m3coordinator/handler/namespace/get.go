@@ -24,10 +24,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
+	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
 	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
 
@@ -42,8 +43,8 @@ const (
 type getHandler Handler
 
 // NewGetHandler returns a new instance of a namespace get handler.
-func NewGetHandler(store kv.Store) http.Handler {
-	return &getHandler{store: store}
+func NewGetHandler(client clusterclient.Client) http.Handler {
+	return &getHandler{client: client}
 }
 
 func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +67,13 @@ func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (h *getHandler) get() (nsproto.Registry, error) {
 	var emptyReg = nsproto.Registry{}
-	value, err := h.store.Get(M3DBNodeNamespacesKey)
+
+	store, err := h.client.KV()
+	if err != nil {
+		return emptyReg, err
+	}
+
+	value, err := store.Get(M3DBNodeNamespacesKey)
 
 	if err == kv.ErrNotFound {
 		// Having no namespace should not be treated as an error

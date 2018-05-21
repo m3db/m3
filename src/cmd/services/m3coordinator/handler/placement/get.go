@@ -21,13 +21,14 @@
 package placement
 
 import (
+	"errors"
 	"net/http"
 
-	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
+	clusterclient "github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-
-	"github.com/m3db/m3cluster/placement"
 
 	"go.uber.org/zap"
 )
@@ -40,20 +41,23 @@ const (
 type getHandler Handler
 
 // NewGetHandler returns a new instance of a placement get handler.
-func NewGetHandler(service placement.Service) http.Handler {
-	return &getHandler{service: service}
+func NewGetHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
+	return &getHandler{client: client, cfg: cfg}
 }
 
 func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	placement, version, err := h.service.Placement()
+	service, err := Service(h.client, h.cfg)
 	if err != nil {
-		// An error from `get` signifies "key not found", meaning there is
-		// no placement and as such, should not be treated as an actual error to
-		// the user.
-		w.Write([]byte("no placement found\n"))
+		handler.Error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	placement, version, err := service.Placement()
+	if err != nil {
+		handler.Error(w, errors.New("placement not found"), http.StatusBadRequest)
 		return
 	}
 

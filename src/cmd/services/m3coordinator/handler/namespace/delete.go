@@ -25,10 +25,10 @@ import (
 	"fmt"
 	"net/http"
 
+	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
-	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 
 	"github.com/gorilla/mux"
@@ -53,8 +53,8 @@ var (
 type deleteHandler Handler
 
 // NewDeleteHandler returns a new instance of a namespace delete handler.
-func NewDeleteHandler(store kv.Store) http.Handler {
-	return &deleteHandler{store: store}
+func NewDeleteHandler(client clusterclient.Client) http.Handler {
+	return &deleteHandler{client: client}
 }
 
 func (h *deleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +79,12 @@ func (h *deleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *deleteHandler) delete(id string) error {
-	metadatas, version, err := Metadata(h.store)
+	store, err := h.client.KV()
+	if err != nil {
+		return err
+	}
+
+	metadatas, version, err := Metadata(store)
 	if err != nil {
 		return err
 	}
@@ -98,7 +103,7 @@ func (h *deleteHandler) delete(id string) error {
 
 	// If metadatas are empty, remove the key
 	if len(metadatas) == 1 {
-		if _, err = h.store.Delete(M3DBNodeNamespacesKey); err != nil {
+		if _, err = store.Delete(M3DBNodeNamespacesKey); err != nil {
 			return fmt.Errorf("unable to delete kv key: %v", err)
 		}
 
@@ -116,7 +121,7 @@ func (h *deleteHandler) delete(id string) error {
 	}
 
 	protoRegistry := namespace.ToProto(nsMap)
-	_, err = h.store.CheckAndSet(M3DBNodeNamespacesKey, version, protoRegistry)
+	_, err = store.CheckAndSet(M3DBNodeNamespacesKey, version, protoRegistry)
 	if err != nil {
 		return fmt.Errorf("failed to delete namespace: %v", err)
 	}

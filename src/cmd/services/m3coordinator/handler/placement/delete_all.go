@@ -21,12 +21,13 @@
 package placement
 
 import (
+	"encoding/json"
 	"net/http"
 
+	clusterclient "github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-
-	"github.com/m3db/m3cluster/placement"
 
 	"go.uber.org/zap"
 )
@@ -39,16 +40,28 @@ const (
 type deleteAllHandler Handler
 
 // NewDeleteAllHandler returns a new instance of a placement delete all handler.
-func NewDeleteAllHandler(service placement.Service) http.Handler {
-	return &deleteAllHandler{service: service}
+func NewDeleteAllHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
+	return &deleteAllHandler{client: client, cfg: cfg}
 }
 
 func (h *deleteAllHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	if err := h.service.Delete(); err != nil {
+	service, err := Service(h.client, h.cfg)
+	if err != nil {
+		handler.Error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	if err := service.Delete(); err != nil {
 		logger.Error("unable to delete placement", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
 	}
+
+	json.NewEncoder(w).Encode(struct {
+		Deleted bool
+	}{
+		Deleted: true,
+	})
 }

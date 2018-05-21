@@ -39,7 +39,7 @@ import (
 )
 
 const (
-	defaultSDTimeout = 30 * time.Second
+	defaultSDTimeout = time.Duration(0) // Wait indefinitely by default
 )
 
 var (

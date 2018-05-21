@@ -220,6 +220,9 @@ type HashingConfiguration struct {
 
 // NewEtcdEmbedConfig creates a new embedded etcd config from kv config.
 func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
+
+	fmt.Printf("\n\n!! new kv config \n\n")
+
 	newKVCfg := embed.NewConfig()
 	kvCfg := cfg.EnvironmentConfig.SeedNodes
 
@@ -263,6 +266,8 @@ func NewEtcdEmbedConfig(cfg DBConfiguration) (*embed.Config, error) {
 		return nil, err
 	}
 	newKVCfg.ACUrls = ACUrls
+
+	fmt.Printf("\n\n!! new kv config using ACURLs: %v\n\n", ACUrls)
 
 	newKVCfg.InitialCluster = initialClusterString(kvCfg.InitialCluster)
 

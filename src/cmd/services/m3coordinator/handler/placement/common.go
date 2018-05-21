@@ -21,14 +21,13 @@
 package placement
 
 import (
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
-	"github.com/m3db/m3db/src/coordinator/util/logging"
-
-	m3clusterClient "github.com/m3db/m3cluster/client"
+	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/gorilla/mux"
 )
@@ -48,11 +47,12 @@ const (
 type Handler struct {
 	// This is used by other placement Handlers
 	// nolint: structcheck
-	service placement.Service
+	client clusterclient.Client
+	cfg    config.Configuration
 }
 
 // Service gets a placement service from m3cluster client
-func Service(clusterClient m3clusterClient.Client, cfg config.Configuration) (placement.Service, error) {
+func Service(clusterClient clusterclient.Client, cfg config.Configuration) (placement.Service, error) {
 	cs, err := clusterClient.Services(services.NewOverrideOptions())
 	if err != nil {
 		return nil, err
@@ -111,12 +111,12 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 }
 
 // RegisterRoutes registers the placement routes
-func RegisterRoutes(r *mux.Router, service placement.Service) {
+func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Configuration) {
 	logged := logging.WithResponseTimeLogging
 
-	r.HandleFunc(InitURL, logged(NewInitHandler(service)).ServeHTTP).Methods("POST")
-	r.HandleFunc(GetURL, logged(NewGetHandler(service)).ServeHTTP).Methods("GET")
-	r.HandleFunc(DeleteAllURL, logged(NewDeleteAllHandler(service)).ServeHTTP).Methods("DELETE")
-	r.HandleFunc(AddURL, logged(NewAddHandler(service)).ServeHTTP).Methods("POST")
-	r.HandleFunc(DeleteURL, logged(NewDeleteHandler(service)).ServeHTTP).Methods("DELETE")
+	r.HandleFunc(InitURL, logged(NewInitHandler(client, cfg)).ServeHTTP).Methods("POST")
+	r.HandleFunc(GetURL, logged(NewGetHandler(client, cfg)).ServeHTTP).Methods("GET")
+	r.HandleFunc(DeleteAllURL, logged(NewDeleteAllHandler(client, cfg)).ServeHTTP).Methods("DELETE")
+	r.HandleFunc(AddURL, logged(NewAddHandler(client, cfg)).ServeHTTP).Methods("POST")
+	r.HandleFunc(DeleteURL, logged(NewDeleteHandler(client, cfg)).ServeHTTP).Methods("DELETE")
 }

@@ -28,12 +28,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
+	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/util"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
-	"github.com/m3db/m3cluster/kv"
 	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
@@ -56,8 +56,8 @@ var (
 type addHandler Handler
 
 // NewAddHandler returns a new instance of a namespace add handler.
-func NewAddHandler(store kv.Store) http.Handler {
-	return &addHandler{store: store}
+func NewAddHandler(client clusterclient.Client) http.Handler {
+	return &addHandler{client: client}
 }
 
 func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -109,7 +109,12 @@ func (h *addHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, 
 func (h *addHandler) add(r *admin.NamespaceAddRequest) (nsproto.Registry, error) {
 	var emptyReg = nsproto.Registry{}
 
-	currentMetadata, version, err := Metadata(h.store)
+	store, err := h.client.KV()
+	if err != nil {
+		return emptyReg, err
+	}
+
+	currentMetadata, version, err := Metadata(store)
 	if err != nil {
 		return emptyReg, err
 	}
@@ -125,7 +130,7 @@ func (h *addHandler) add(r *admin.NamespaceAddRequest) (nsproto.Registry, error)
 	}
 
 	protoRegistry := namespace.ToProto(nsMap)
-	_, err = h.store.CheckAndSet(M3DBNodeNamespacesKey, version, protoRegistry)
+	_, err = store.CheckAndSet(M3DBNodeNamespacesKey, version, protoRegistry)
 	if err != nil {
 		return emptyReg, fmt.Errorf("failed to add namespace: %v", err)
 	}
