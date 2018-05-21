@@ -22,7 +22,6 @@ package remote
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
@@ -77,7 +76,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		handler.Error(w, rErr.Error(), rErr.Code())
 		return
 	}
-	fmt.Println(req.String())
+	// fmt.Println(req.String())
 	if err := h.write(r.Context(), req); err != nil {
 		h.promWriteMetrics.writeErrorsServer.Inc(1)
 		logging.WithContext(r.Context()).Error("Write error", zap.Any("err", err))
@@ -85,7 +84,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.promWriteMetrics.writeSuccess.Inc(1)
-	fmt.Println("write success")
+	// fmt.Println("write success")
 }
 
 func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, *handler.ParseError) {
