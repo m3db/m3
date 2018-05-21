@@ -1,0 +1,9 @@
+FROM alpine:3.7
+
+COPY bin/m3coordinator /bin/m3coordinator
+RUN mkdir -p /etc/m3/
+COPY src/coordinator/cmd/services/m3coordinator/config/m3coordinator.yml /etc/m3/m3coordinator.yml
+
+EXPOSE 9000/tcp
+
+ENTRYPOINT ["/bin/m3coordinator", "-f", "/etc/m3/m3coordinator.yml"]

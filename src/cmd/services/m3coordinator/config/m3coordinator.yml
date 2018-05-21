@@ -1,4 +1,4 @@
-client:
+dbClient:
   config:
     static:
       listenAddress: 0.0.0.0:9000

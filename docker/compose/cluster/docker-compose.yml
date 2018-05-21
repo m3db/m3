@@ -1,0 +1,38 @@
+version: "3.3"
+services:
+  dbnode01:
+    network_mode: "host"
+    build:
+      context: ../../../
+      dockerfile: docker/Dockerfile-m3dbnode-dev
+    image: cluster_dbnode01:latest
+    secrets:
+      - source: dbnode01
+        target: /go/src/github.com/m3db/m3db/src/cmd/services/m3dbnode/config/m3dbnode.yml
+  dbnode02:
+    network_mode: "host"
+    build:
+      context: ../../../
+      dockerfile: docker/Dockerfile-m3dbnode-dev
+    image: cluster_dbnode02:latest
+    secrets:
+      - source: dbnode02
+        target: /go/src/github.com/m3db/m3db/src/cmd/services/m3dbnode/config/m3dbnode.yml
+  dbnode03:
+    network_mode: "host"
+    build:
+      context: ../../../
+      dockerfile: docker/Dockerfile-m3dbnode-dev
+    image: cluster_dbnode03:latest
+    secrets:
+      - source: dbnode03
+        target: /go/src/github.com/m3db/m3db/src/cmd/services/m3dbnode/config/m3dbnode.yml
+# Secrets are used since the config directive is only supported in Swarm
+# https://github.com/docker/compose/issues/5110
+secrets: 
+  dbnode01:
+    file: ./m3dbnode01.yml
+  dbnode02:
+    file: ./m3dbnode02.yml
+  dbnode03:
+    file: ./m3dbnode03.yml
