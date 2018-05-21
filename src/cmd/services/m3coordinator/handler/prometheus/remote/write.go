@@ -77,6 +77,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		handler.Error(w, rErr.Error(), rErr.Code())
 		return
 	}
+	fmt.Println(r)
 	if err := h.write(r.Context(), req); err != nil {
 		h.promWriteMetrics.writeErrorsServer.Inc(1)
 		logging.WithContext(r.Context()).Error("Write error", zap.Any("err", err))
