@@ -1,10 +1,4 @@
 dbClient:
-  metrics:
-    prometheus:
-      handlerPath: /metrics
-    sanitization: prometheus
-    samplingRate: 1.0
-    extended: detailed
   config:
     static:
         topology:
@@ -46,3 +40,9 @@ dbClient:
   backgroundHealthCheckFailLimit: 4
   backgroundHealthCheckFailThrottleFactor: 0.5
 
+metrics:
+prometheus:
+  handlerPath: /metrics
+sanitization: prometheus
+samplingRate: 1.0
+extended: detailed
