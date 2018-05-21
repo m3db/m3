@@ -21,8 +21,7 @@
 package ts
 
 import (
-	"context"
-	"math"
+	"time"
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface
@@ -39,79 +38,98 @@ type Values interface {
 	// ValueAt returns the value at the nth element
 	ValueAt(n int) float64
 
-	// The number of millisseconds represented by each index
-	MillisPerStep() int
-
-	// Slice of data values in a range
-	Slice(begin, end int) Values
-
-	// AllNaN returns true if the values are all NaN
-	AllNaN() bool
+	// DatapointAt returns the datapoint at the nth element
+	DatapointAt(n int) Datapoint
 }
+
+// A Datapoint is a single data value reported at a given time
+type Datapoint struct {
+	Timestamp time.Time
+	Value     float64
+}
+
+// Datapoints is a list of datapoints.
+type Datapoints []Datapoint
+
+// Len is the length of the array.
+func (d Datapoints) Len() int { return len(d) }
+
+// ValueAt returns the value at the nth element.
+func (d Datapoints) ValueAt(n int) float64 { return d[n].Value }
+
+// DatapointAt returns the value at the nth element.
+func (d Datapoints) DatapointAt(n int) Datapoint { return d[n] }
 
 // MutableValues is the interface for values that can be updated
 type MutableValues interface {
 	Values
 
-	// Resets the values
-	Reset()
-
 	// Sets the value at the given entry
 	SetValueAt(n int, v float64)
 }
 
-// NewValues returns MutableValues supporting the given number of values at the
-// requested granularity.  The values start off as NaN
-func NewValues(ctx context.Context, millisPerStep, numSteps int) MutableValues {
-	return newValues(ctx, millisPerStep, numSteps, math.NaN())
+// FixedResolutionMutableValues are mutable values with fixed resolution between steps
+type FixedResolutionMutableValues interface {
+	MutableValues
+	Resolution() time.Duration
+	StepAtTime(t time.Time) int
+	StartTimeForStep(n int) time.Time
+	// Time when the series starts
+	StartTime() time.Time
+	MillisPerStep() time.Duration
 }
 
-func newValues(ctx context.Context, millisPerStep, numSteps int, initialValue float64) MutableValues {
-	values := make([]float64, numSteps)
-
-	// Faster way to initialize an array instead of a loop
-	Memset(values, initialValue)
-	vals := &float64Values{
-		ctx:           ctx,
-		millisPerStep: millisPerStep,
-		numSteps:      numSteps,
-		allNaN:        math.IsNaN(initialValue),
-		values:        values,
-	}
-
-	return vals
-}
-
-type float64Values struct {
-	ctx           context.Context
-	millisPerStep int
+type fixedResolutionValues struct {
+	millisPerStep time.Duration
 	numSteps      int
 	values        []float64
-	allNaN        bool
+	startTime     time.Time
 }
 
-func (b *float64Values) Reset() {
-	for i := range b.values {
-		b.values[i] = math.NaN()
+func (b *fixedResolutionValues) MillisPerStep() time.Duration { return b.millisPerStep }
+func (b *fixedResolutionValues) Len() int                     { return b.numSteps }
+func (b *fixedResolutionValues) ValueAt(point int) float64    { return b.values[point] }
+func (b *fixedResolutionValues) DatapointAt(point int) Datapoint {
+	return Datapoint{
+		Timestamp: b.StartTimeForStep(point),
+		Value:     b.ValueAt(point),
 	}
-	b.allNaN = true
 }
 
-func (b *float64Values) AllNaN() bool              { return b.allNaN }
-func (b *float64Values) MillisPerStep() int        { return b.millisPerStep }
-func (b *float64Values) Len() int                  { return b.numSteps }
-func (b *float64Values) ValueAt(point int) float64 { return b.values[point] }
-func (b *float64Values) SetValueAt(point int, v float64) {
-	b.allNaN = b.allNaN && math.IsNaN(v)
-	b.values[point] = v
+// StartTime returns the time the values start
+func (b *fixedResolutionValues) StartTime() time.Time {
+	return b.startTime
 }
 
-func (b *float64Values) Slice(begin, end int) Values {
-	return &float64Values{
-		ctx:           b.ctx,
-		millisPerStep: b.millisPerStep,
-		values:        b.values[begin:end],
-		numSteps:      end - begin,
-		allNaN:        false,
+// Resolution returns resolution per step
+func (b *fixedResolutionValues) Resolution() time.Duration {
+	return b.MillisPerStep()
+}
+
+// StepAtTime returns the step within the block containing the given time
+func (b *fixedResolutionValues) StepAtTime(t time.Time) int {
+	return int(t.Sub(b.StartTime()) / b.MillisPerStep())
+}
+
+// StartTimeForStep returns the time at which the given step starts
+func (b *fixedResolutionValues) StartTimeForStep(n int) time.Time {
+	return b.startTime.Add(time.Duration(n) * b.MillisPerStep())
+}
+
+// SetValueAt sets the value at the given entry
+func (b *fixedResolutionValues) SetValueAt(n int, v float64) {
+	b.values[n] = v
+}
+
+// NewFixedStepValues returns mutable values with fixed resolution
+func NewFixedStepValues(millisPerStep time.Duration, numSteps int, initialValue float64, startTime time.Time) FixedResolutionMutableValues {
+	values := make([]float64, numSteps)
+	// Faster way to initialize an array instead of a loop
+	Memset(values, initialValue)
+	return &fixedResolutionValues{
+		millisPerStep: millisPerStep,
+		numSteps:      numSteps,
+		startTime:     startTime,
+		values:        values,
 	}
 }

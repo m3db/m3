@@ -45,7 +45,6 @@ const (
 )
 
 var (
-	startTime, _ = time.Parse(time.RFC3339, "2000-02-06T11:54:48+07:00")
 	tags         = models.Tags{"1": "b", "2": "c"}
 	values       = []float64{1.0, 2.0, 3.0, 4.0}
 	errWrite     = errors.New("write error")
@@ -62,16 +61,16 @@ func generateAddress() string {
 	return address
 }
 
-func makeValues(ctx context.Context) ts.Values {
-	vals := ts.NewValues(ctx, mps, len(values))
+func makeValues() ts.Values {
+	vals := ts.NewFixedStepValues(mps, len(values), 0, time.Now())
 	for i, v := range values {
 		vals.SetValueAt(i, v)
 	}
 	return vals
 }
 
-func makeSeries(ctx context.Context) *ts.Series {
-	return ts.NewSeries(ctx, name, startTime, makeValues(ctx), tags)
+func makeSeries() *ts.Series {
+	return ts.NewSeries(name, makeValues(), tags)
 }
 
 type mockStorage struct {
@@ -95,7 +94,7 @@ func (s *mockStorage) Fetch(ctx context.Context, query *storage.FetchQuery, _ *s
 	hasNext := s.numPages > 0
 	s.mu.Unlock()
 
-	tsSeries := []*ts.Series{makeSeries(ctx)}
+	tsSeries := []*ts.Series{makeSeries()}
 	return &storage.FetchResult{
 		SeriesList: tsSeries,
 		LocalOnly:  false,
@@ -130,9 +129,7 @@ func checkMultipleRemoteFetch(t *testing.T, res *storage.FetchResult, numResults
 	require.Len(t, res.SeriesList, numResults)
 	for _, s := range res.SeriesList {
 		assert.Equal(t, name, s.Name())
-		assert.True(t, startTime.Equal(s.StartTime()))
 		assert.Equal(t, tags, s.Tags)
-		assert.Equal(t, name, s.Specification)
 		assert.Equal(t, len(values), s.Len())
 	}
 }
