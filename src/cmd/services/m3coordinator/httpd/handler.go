@@ -44,6 +44,9 @@ import (
 
 const (
 	pprofURL = "/debug/pprof/profile"
+)
+
+var (
 	remoteSource = map[string]string{"source": "remote"}
 )
 
@@ -83,7 +86,7 @@ func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient 
 func (h *Handler) RegisterRoutes() error {
 	logged := logging.WithResponseTimeLogging
 
-	h.Router.HandleFunc(remote.PromReadURL, logged(remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource)).ServeHTTP).Methods("POST")
+	h.Router.HandleFunc(remote.PromReadURL, logged(remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))).ServeHTTP).Methods("POST")
 	h.Router.HandleFunc(remote.PromWriteURL, logged(remote.NewPromWriteHandler(h.storage, h.scope.Tagged(remoteSource))).ServeHTTP).Methods("POST")
 	h.Router.HandleFunc(native.PromReadURL, logged(native.NewPromReadHandler(h.engine)).ServeHTTP).Methods("GET")
 	h.Router.HandleFunc(handler.SearchURL, logged(handler.NewSearchHandler(h.storage)).ServeHTTP).Methods("POST")
