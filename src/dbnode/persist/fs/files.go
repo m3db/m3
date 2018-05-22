@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/digest"
+	"github.com/m3db/m3db/src/dbnode/generated/proto/index"
 	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3db/src/dbnode/persist/schema"
@@ -291,26 +292,85 @@ func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, i
 	return t, int(index), nil
 }
 
-type infoFileFn func(fname string, infoData []byte)
+type forEachInfoFileSelector struct {
+	fileSetType    persist.FileSetType
+	contentType    persist.FileSetContentType
+	filePathPrefix string
+	namespace      ident.ID
+	shard          uint32 // shard only applicable for data content type
+}
 
-func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, readerBufferSize int, fn infoFileFn) {
+type infoFileFn func(fname string, id FileSetFileIdentifier, infoData []byte)
+
+func forEachInfoFile(
+	args forEachInfoFileSelector,
+	readerBufferSize int,
+	fn infoFileFn,
+) {
 	matched, err := filesetFiles(filesetFilesSelector{
-		fileSetType:    persist.FileSetFlushType,
-		contentType:    persist.FileSetDataContentType,
-		filePathPrefix: filePathPrefix,
-		namespace:      namespace,
-		shard:          shard,
+		fileSetType:    args.fileSetType,
+		contentType:    args.contentType,
+		filePathPrefix: args.filePathPrefix,
+		namespace:      args.namespace,
+		shard:          args.shard,
 		pattern:        infoFilePattern,
 	})
 	if err != nil {
 		return
 	}
 
-	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
+	var dir string
+	switch args.fileSetType {
+	case persist.FileSetFlushType:
+		switch args.contentType {
+		case persist.FileSetDataContentType:
+			dir = ShardDataDirPath(args.filePathPrefix, args.namespace, args.shard)
+		case persist.FileSetIndexContentType:
+			dir = NamespaceIndexDataDirPath(args.filePathPrefix, args.namespace)
+		default:
+			return
+		}
+	case persist.FileSetSnapshotType:
+		switch args.contentType {
+		case persist.FileSetDataContentType:
+			dir = ShardSnapshotsDirPath(args.filePathPrefix, args.namespace, args.shard)
+		case persist.FileSetIndexContentType:
+			dir = NamespaceIndexSnapshotDirPath(args.filePathPrefix, args.namespace)
+		default:
+			return
+		}
+	default:
+		return
+	}
+
+	var indexDigests index.IndexDigests
 	digestBuf := digest.NewBuffer()
 	for i := range matched {
 		t := matched[i].ID.BlockStart
-		checkpointFilePath := filesetPathFromTime(shardDir, t, checkpointFileSuffix)
+		volume := matched[i].ID.VolumeIndex
+
+		var (
+			checkpointFilePath string
+			digestsFilePath    string
+			infoFilePath       string
+		)
+		switch args.fileSetType {
+		case persist.FileSetFlushType:
+			switch args.contentType {
+			case persist.FileSetDataContentType:
+				checkpointFilePath = filesetPathFromTime(dir, t, checkpointFileSuffix)
+				digestsFilePath = filesetPathFromTime(dir, t, digestFileSuffix)
+				infoFilePath = filesetPathFromTime(dir, t, infoFileSuffix)
+			case persist.FileSetIndexContentType:
+				checkpointFilePath = filesetPathFromTimeAndIndex(dir, t, volume, checkpointFileSuffix)
+				digestsFilePath = filesetPathFromTimeAndIndex(dir, t, volume, digestFileSuffix)
+				infoFilePath = filesetPathFromTimeAndIndex(dir, t, volume, infoFileSuffix)
+			}
+		case persist.FileSetSnapshotType:
+			checkpointFilePath = filesetPathFromTimeAndIndex(dir, t, volume, checkpointFileSuffix)
+			digestsFilePath = filesetPathFromTimeAndIndex(dir, t, volume, digestFileSuffix)
+			infoFilePath = filesetPathFromTimeAndIndex(dir, t, volume, infoFileSuffix)
+		}
 		if !FileExists(checkpointFilePath) {
 			continue
 		}
@@ -318,6 +378,7 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 		if err != nil {
 			continue
 		}
+
 		// Read digest of digests from the checkpoint file
 		expectedDigestOfDigest, err := digestBuf.ReadDigestFromFile(checkpointFd)
 		checkpointFd.Close()
@@ -325,13 +386,26 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 			continue
 		}
 		// Read and validate the digest file
-		digestData, err := readAndValidate(shardDir, t, digestFileSuffix, readerBufferSize, expectedDigestOfDigest)
+		digestData, err := readAndValidate(digestsFilePath, readerBufferSize,
+			expectedDigestOfDigest)
 		if err != nil {
 			continue
 		}
+
 		// Read and validate the info file
-		expectedInfoDigest := digest.ToBuffer(digestData).ReadDigest()
-		infoData, err := readAndValidate(shardDir, t, infoFileSuffix, readerBufferSize, expectedInfoDigest)
+		var expectedInfoDigest uint32
+		switch args.contentType {
+		case persist.FileSetDataContentType:
+			expectedInfoDigest = digest.ToBuffer(digestData).ReadDigest()
+		case persist.FileSetIndexContentType:
+			if err := indexDigests.Unmarshal(digestData); err != nil {
+				continue
+			}
+			expectedInfoDigest = indexDigests.GetInfoDigest()
+		}
+
+		infoData, err := readAndValidate(infoFilePath, readerBufferSize,
+			expectedInfoDigest)
 		if err != nil {
 			continue
 		}
@@ -339,7 +413,7 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 			continue
 		}
 
-		fn(matched[i].AbsoluteFilepaths[0], infoData)
+		fn(matched[i].AbsoluteFilepaths[0], matched[i].ID, infoData)
 	}
 }
 
@@ -382,17 +456,64 @@ func ReadInfoFiles(
 ) []ReadInfoFileResult {
 	var infoFileResults []ReadInfoFileResult
 	decoder := msgpack.NewDecoder(decodingOpts)
-	forEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(filepath string, data []byte) {
-		decoder.Reset(msgpack.NewDecoderStream(data))
-		info, err := decoder.DecodeIndexInfo()
-		infoFileResults = append(infoFileResults, ReadInfoFileResult{
-			Info: info,
-			Err: readInfoFileResultError{
-				err:      err,
-				filepath: filepath,
-			},
+	forEachInfoFile(
+		forEachInfoFileSelector{
+			fileSetType:    persist.FileSetFlushType,
+			contentType:    persist.FileSetDataContentType,
+			filePathPrefix: filePathPrefix,
+			namespace:      namespace,
+			shard:          shard,
+		},
+		readerBufferSize,
+		func(filepath string, id FileSetFileIdentifier, data []byte) {
+			decoder.Reset(msgpack.NewDecoderStream(data))
+			info, err := decoder.DecodeIndexInfo()
+			infoFileResults = append(infoFileResults, ReadInfoFileResult{
+				Info: info,
+				Err: readInfoFileResultError{
+					err:      err,
+					filepath: filepath,
+				},
+			})
 		})
-	})
+	return infoFileResults
+}
+
+// ReadIndexInfoFileResult is the result of reading an info file
+type ReadIndexInfoFileResult struct {
+	ID   FileSetFileIdentifier
+	Info index.IndexInfo
+	Err  ReadInfoFileResultError
+}
+
+// ReadIndexInfoFiles reads all the valid index info entries. Even if ReadIndexInfoFiles returns an error,
+// there may be some valid entries in the returned slice.
+func ReadIndexInfoFiles(
+	filePathPrefix string,
+	namespace ident.ID,
+	readerBufferSize int,
+) []ReadIndexInfoFileResult {
+	var infoFileResults []ReadIndexInfoFileResult
+	forEachInfoFile(
+		forEachInfoFileSelector{
+			fileSetType:    persist.FileSetFlushType,
+			contentType:    persist.FileSetIndexContentType,
+			filePathPrefix: filePathPrefix,
+			namespace:      namespace,
+		},
+		readerBufferSize,
+		func(filepath string, id FileSetFileIdentifier, data []byte) {
+			var info index.IndexInfo
+			err := info.Unmarshal(data)
+			infoFileResults = append(infoFileResults, ReadIndexInfoFileResult{
+				ID:   id,
+				Info: info,
+				Err: readInfoFileResultError{
+					err:      err,
+					filepath: filepath,
+				},
+			})
+		})
 	return infoFileResults
 }
 
@@ -655,7 +776,6 @@ func filesetFiles(args filesetFilesSelector) (FileSetFilesSlice, error) {
 	default:
 		return nil, fmt.Errorf("unknown type: %d", args.fileSetType)
 	}
-
 	if err != nil {
 		return nil, err
 	}
@@ -751,13 +871,10 @@ func FilesBefore(files []string, t time.Time) ([]string, error) {
 }
 
 func readAndValidate(
-	prefix string,
-	t time.Time,
-	suffix string,
+	filePath string,
 	readerBufferSize int,
 	expectedDigest uint32,
 ) ([]byte, error) {
-	filePath := filesetPathFromTime(prefix, t, suffix)
 	fd, err := os.Open(filePath)
 	if err != nil {
 		return nil, err

@@ -191,10 +191,19 @@ func TestForEachInfoFile(t *testing.T) {
 
 	var fnames []string
 	var res []byte
-	forEachInfoFile(dir, testNs1ID, shard, testReaderBufferSize, func(fname string, data []byte) {
-		fnames = append(fnames, fname)
-		res = append(res, data...)
-	})
+	forEachInfoFile(
+		forEachInfoFileSelector{
+			fileSetType:    persist.FileSetFlushType,
+			contentType:    persist.FileSetDataContentType,
+			filePathPrefix: dir,
+			namespace:      testNs1ID,
+			shard:          shard,
+		},
+		testReaderBufferSize,
+		func(fname string, _ FileSetFileIdentifier, data []byte) {
+			fnames = append(fnames, fname)
+			res = append(res, data...)
+		})
 
 	require.Equal(t, []string{filesetPathFromTime(shardDir, blockStart, infoFileSuffix)}, fnames)
 	require.Equal(t, infoData, res)

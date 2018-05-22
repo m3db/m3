@@ -23,7 +23,6 @@ package fs
 import (
 	"errors"
 	"fmt"
-	"io"
 	"sync"
 	"time"
 
@@ -318,61 +317,15 @@ func (pm *persistManager) closeIndex() ([]segment.Segment, error) {
 
 	// and then we get persistent segments backed by mmap'd data so the index
 	// can safely evict the segment's we have just persisted.
-	readerOpts := IndexReaderOpenOptions{
-		Identifier:  pm.indexPM.fileSetIdentifier,
-		FileSetType: pm.indexPM.fileSetType,
-	}
-
-	// read back all the data
-	reader, err := pm.indexPM.newReaderFn(pm.opts)
-	if err != nil {
-		return nil, err
-	}
-
-	var (
-		segments []segment.Segment
-		success  = false
-	)
-
-	// need to do this to guarantee we release all resources in case of failure.
-	defer func() {
-		if !success {
-			for _, seg := range segments {
-				seg.Close()
-			}
-			reader.Close()
-		}
-	}()
-
-	if _, err := reader.Open(readerOpts); err != nil {
-		return nil, err
-	}
-	segments = make([]segment.Segment, 0, reader.SegmentFileSets())
-
-	for {
-		fileset, err := reader.ReadSegmentFileSet()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		seg, err := pm.indexPM.newPersistentSegmentFn(fileset, m3ninxfs.NewSegmentOpts{
-			PostingsListPool: pm.opts.PostingsListPool(),
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		segments = append(segments, seg)
-	}
-
-	// indicate we don't need the defer() above to release any resources, as we are
-	// transferring ownership to the caller.
-	success = true
-
-	return segments, nil
+	return ReadIndexSegments(ReadIndexSegmentsOptions{
+		ReaderOptions: IndexReaderOpenOptions{
+			Identifier:  pm.indexPM.fileSetIdentifier,
+			FileSetType: pm.indexPM.fileSetType,
+		},
+		FilesystemOptions:      pm.opts,
+		newReaderFn:            pm.indexPM.newReaderFn,
+		newPersistentSegmentFn: pm.indexPM.newPersistentSegmentFn,
+	})
 }
 
 // DoneIndex is called by the databaseFlushManager to finish the index persist process.

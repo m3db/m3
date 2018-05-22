@@ -27,12 +27,19 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 )
 
 // Options represents the options for bootstrapping from the filesystem.
 type Options interface {
 	// Validate validates the options are correct
 	Validate() error
+
+	// SetInstrumentOptions sets the instrumentation options
+	SetInstrumentOptions(value instrument.Options) Options
+
+	// InstrumentOptions returns the instrumentation options
+	InstrumentOptions() instrument.Options
 
 	// SetResultOptions sets the instrumentation options.
 	SetResultOptions(value result.Options) Options

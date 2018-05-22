@@ -88,19 +88,21 @@ func TestIndexResultMergeMergesExistingSegments(t *testing.T) {
 	times := []time.Time{start, start.Add(testBlockSize)}
 
 	first := NewIndexBootstrapResult()
-	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[0]}), nil)
-	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[1]}), nil)
-	first.Add(NewIndexBlock(times[1], []segment.Segment{segments[2], segments[3]}), nil)
+	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[0]}, nil), nil)
+	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[1]}, nil), nil)
+	first.Add(NewIndexBlock(times[1], []segment.Segment{segments[2], segments[3]}, nil), nil)
 
 	second := NewIndexBootstrapResult()
-	second.Add(NewIndexBlock(times[0], []segment.Segment{segments[4]}), nil)
-	second.Add(NewIndexBlock(times[1], []segment.Segment{segments[5]}), nil)
+	second.Add(NewIndexBlock(times[0], []segment.Segment{segments[4]}, nil), nil)
+	second.Add(NewIndexBlock(times[1], []segment.Segment{segments[5]}, nil), nil)
 
 	merged := MergedIndexBootstrapResult(first, second)
 
 	expected := NewIndexBootstrapResult()
-	expected.Add(NewIndexBlock(times[0], []segment.Segment{segments[0], segments[1], segments[4]}), nil)
-	expected.Add(NewIndexBlock(times[1], []segment.Segment{segments[2], segments[3], segments[5]}), nil)
+	expected.Add(NewIndexBlock(times[0],
+		[]segment.Segment{segments[0], segments[1], segments[4]}, nil), nil)
+	expected.Add(NewIndexBlock(times[1],
+		[]segment.Segment{segments[2], segments[3], segments[5]}, nil), nil)
 
 	assert.True(t, segmentsInResultsSame(expected.IndexResults(), merged.IndexResults()))
 }

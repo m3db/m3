@@ -197,6 +197,9 @@ func NewIndexBlock(
 	segments []segment.Segment,
 	fulfilled ShardTimeRanges,
 ) IndexBlock {
+	if fulfilled == nil {
+		fulfilled = ShardTimeRanges{}
+	}
 	return IndexBlock{
 		blockStart: blockStart,
 		segments:   segments,

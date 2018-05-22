@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )
 
@@ -51,6 +52,7 @@ var (
 )
 
 type options struct {
+	instrumentOpts              instrument.Options
 	resultOpts                  result.Options
 	fsOpts                      fs.Options
 	persistManager              persist.Manager
@@ -69,8 +71,9 @@ func NewOptions() Options {
 	bytesPool.Init()
 	idPool := ident.NewPool(bytesPool, ident.PoolOptions{})
 	return &options{
-		resultOpts: result.NewOptions(),
-		fsOpts:     fs.NewOptions(),
+		instrumentOpts: instrument.NewOptions(),
+		resultOpts:     result.NewOptions(),
+		fsOpts:         fs.NewOptions(),
 		bootstrapDataNumProcessors:  defaultBootstrapDataNumProcessors,
 		bootstrapIndexNumProcessors: defaultBootstrapIndexNumProcessors,
 		runtimeOptsMgr:              runtime.NewOptionsManager(),
@@ -83,6 +86,16 @@ func (o *options) Validate() error {
 		return errPersistManagerNotSet
 	}
 	return nil
+}
+
+func (o *options) SetInstrumentOptions(value instrument.Options) Options {
+	opts := *o
+	opts.instrumentOpts = value
+	return &opts
+}
+
+func (o *options) InstrumentOptions() instrument.Options {
+	return o.instrumentOpts
 }
 
 func (o *options) SetResultOptions(value result.Options) Options {
