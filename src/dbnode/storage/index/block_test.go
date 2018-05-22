@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/retention"
+	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/idx"
@@ -40,6 +41,15 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
+
+func testResultShardRanges(start, end time.Time, shards ...uint32) result.ShardTimeRanges {
+	timeRange := xtime.NewRanges(xtime.Range{start, end})
+	ranges := make(map[uint32]xtime.Ranges)
+	for _, s := range shards {
+		ranges[s] = timeRange
+	}
+	return ranges
+}
 
 func newTestNSMetadata(t *testing.T) namespace.Metadata {
 	ropts := retention.NewOptions().
@@ -472,7 +482,7 @@ func TestBlockQuerySegmentReaderError(t *testing.T) {
 	require.Equal(t, randErr, err)
 }
 
-func TestBlockQueryBootstrapSegmentsError(t *testing.T) {
+func TestBlockQueryAddResultsSegmentsError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -489,7 +499,8 @@ func TestBlockQueryBootstrapSegmentsError(t *testing.T) {
 	seg3 := segment.NewMockMutableSegment(ctrl)
 
 	b.activeSegment = seg1
-	b.inactiveMutableSegments = append(b.inactiveMutableSegments, seg2, seg3)
+	b.shardRangesSegments = []blockShardRangesSegments{
+		blockShardRangesSegments{segments: []segment.Segment{seg2, seg3}}}
 
 	r1 := index.NewMockReader(ctrl)
 	seg1.EXPECT().Reader().Return(r1, nil)
@@ -852,9 +863,11 @@ func TestBlockBootstrapAddsSegment(t *testing.T) {
 	require.True(t, ok)
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
-	require.NoError(t, b.Bootstrap([]segment.Segment{seg1}))
-	require.Equal(t, 1, len(b.inactiveMutableSegments))
-	require.Equal(t, seg1, b.inactiveMutableSegments[0])
+	require.NoError(t, b.AddResults(
+		result.NewIndexBlock(start, []segment.Segment{seg1},
+			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 3))))
+	require.Equal(t, 1, len(b.shardRangesSegments))
+	require.Equal(t, seg1, b.shardRangesSegments[0].segments[0])
 }
 
 func TestBlockBootstrapAfterCloseFails(t *testing.T) {
@@ -868,7 +881,9 @@ func TestBlockBootstrapAfterCloseFails(t *testing.T) {
 	require.NoError(t, blk.Close())
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
-	require.Error(t, blk.Bootstrap([]segment.Segment{seg1}))
+	require.Error(t, blk.AddResults(
+		result.NewIndexBlock(start, []segment.Segment{seg1},
+			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 3))))
 }
 
 func TestBlockBootstrapAfterSealWorks(t *testing.T) {
@@ -886,9 +901,11 @@ func TestBlockBootstrapAfterSealWorks(t *testing.T) {
 
 	seg1 := segment.NewMockMutableSegment(ctrl)
 	seg1.EXPECT().Seal().Return(nil, nil)
-	require.NoError(t, b.Bootstrap([]segment.Segment{seg1}))
-	require.Equal(t, 1, len(b.inactiveMutableSegments))
-	require.Equal(t, seg1, b.inactiveMutableSegments[0])
+	require.NoError(t, blk.AddResults(
+		result.NewIndexBlock(start, []segment.Segment{seg1},
+			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 3))))
+	require.Equal(t, 1, len(b.shardRangesSegments))
+	require.Equal(t, seg1, b.shardRangesSegments[0].segments[0])
 }
 
 func TestBlockTickSingleSegment(t *testing.T) {
@@ -931,7 +948,9 @@ func TestBlockTickMultipleSegment(t *testing.T) {
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg2.EXPECT().Size().Return(int64(20))
-	b.inactiveMutableSegments = append(b.inactiveMutableSegments, seg2)
+	require.NoError(t, blk.AddResults(
+		result.NewIndexBlock(start, []segment.Segment{seg2},
+			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 3))))
 
 	result, err := blk.Tick(nil)
 	require.NoError(t, err)
@@ -1160,7 +1179,9 @@ func TestBlockE2EInsertBootstrapQuery(t *testing.T) {
 	require.Equal(t, int64(0), res.NumError)
 
 	seg := testSegment(t, testDoc1DupeID())
-	require.NoError(t, b.Bootstrap([]segment.Segment{seg}))
+	require.NoError(t, blk.AddResults(
+		result.NewIndexBlock(blockStart, []segment.Segment{seg},
+			testResultShardRanges(blockStart, blockStart.Add(blockSize), 1, 2, 3))))
 
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
@@ -1221,7 +1242,9 @@ func TestBlockE2EInsertBootstrapMergeQuery(t *testing.T) {
 	require.Equal(t, int64(0), res.NumError)
 
 	seg := testSegment(t, testDoc2())
-	require.NoError(t, b.Bootstrap([]segment.Segment{seg}))
+	require.NoError(t, blk.AddResults(
+		result.NewIndexBlock(blockStart, []segment.Segment{seg},
+			testResultShardRanges(blockStart, blockStart.Add(blockSize), 1, 2, 3))))
 
 	q, err := idx.NewRegexpQuery([]byte("bar"), []byte("b.*"))
 	require.NoError(t, err)
