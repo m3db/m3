@@ -358,8 +358,6 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 	}
 
 	require.Equal(t, "foo", ns.Bootstrap(start, bs).Error())
-	// TODO(prateek): need to ask @r what the intent of this test was, it wanted the namespace
-	// to return bootstrapped = true even if a shard failed to bootstrap.
 	require.Equal(t, BootstrapNotStarted, ns.bootstrapState)
 }
 

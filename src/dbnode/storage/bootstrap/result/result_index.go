@@ -134,7 +134,6 @@ func (r IndexResults) MarkFulfilled(
 	t time.Time,
 	fulfilled ShardTimeRanges,
 	idxopts namespace.IndexOptions,
-	opts Options,
 ) error {
 	// NB(r): The reason we can align by the retention block size and guarantee
 	// there is only one entry for this time is because index blocks must be a

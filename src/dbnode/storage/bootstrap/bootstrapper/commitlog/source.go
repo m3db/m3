@@ -730,7 +730,7 @@ func (s *commitLogSource) ReadIndex(
 		}
 		// Now mark as much of the block that we fulfilled
 		err := indexResult.IndexResults().MarkFulfilled(blockRange.Start,
-			fulfilled, indexOptions, resultOptions)
+			fulfilled, indexOptions)
 		if err != nil {
 			return nil, err
 		}

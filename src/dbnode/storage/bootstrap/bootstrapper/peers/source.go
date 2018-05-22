@@ -619,8 +619,7 @@ func (s *peersSource) ReadIndex(
 					fulfilled := result.ShardTimeRanges{
 						shard: xtime.NewRanges(currRange),
 					}
-					r.IndexResults().MarkFulfilled(currRange.Start, fulfilled,
-						idxOpts, resultOpts)
+					r.IndexResults().MarkFulfilled(currRange.Start, fulfilled, idxOpts)
 					resultLock.Unlock()
 				}
 			}
