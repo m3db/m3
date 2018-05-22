@@ -1,0 +1,32 @@
+version: "3.5"
+services:
+  dbnode01:
+    expose:
+      - "9000-9004"
+      - "7201"
+      - "2379-2380"
+    ports:
+      - "0.0.0.0:9000-9004:9000-9004"
+      - "0.0.0.0:7201:7201"
+      - "0.0.0.0:2379-2380:2379-2380"
+    networks:
+      - backend
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    image: m3db_dbnode01:latest
+    volumes:
+      - "./:/etc/m3dbnode/"
+      - "~/m3db:/var/lib/m3db"
+  prometheus01:
+    expose:
+      - "9090"
+    ports:
+      - "0.0.0.0:9090:9090"
+    networks:
+      - backend
+    image: prom/prometheus:latest
+    volumes:
+      - "./:/etc/prometheus/"
+networks:
+  backend:
