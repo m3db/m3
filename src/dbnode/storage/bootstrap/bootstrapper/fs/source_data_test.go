@@ -120,7 +120,7 @@ func writeFile(t *testing.T, filePath string, data []byte) {
 }
 
 func testTimeRanges() xtime.Ranges {
-	return xtime.Ranges{}.AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
+	return xtime.NewRanges(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
 }
 
 func testShardTimeRanges() result.ShardTimeRanges {

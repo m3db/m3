@@ -454,7 +454,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		if err == nil && run == bootstrapIndexRunType {
 			// Mark as fulfilled
 			fulfilled := result.ShardTimeRanges{
-				shard: xtime.Ranges{}.AddRange(timeRange),
+				shard: xtime.NewRanges(timeRange),
 			}
 			err = runResult.index.IndexResults().MarkFulfilled(start, fulfilled,
 				ns.Options().IndexOptions(), ropts)

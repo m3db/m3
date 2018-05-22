@@ -225,7 +225,7 @@ func (s *peersSource) startIncrementalQueueWorkerLoop(
 
 		// Make unfulfilled
 		lock.Lock()
-		bootstrapResult.Add(flush.shard, nil, xtime.Ranges{}.AddRange(flush.timeRange))
+		bootstrapResult.Add(flush.shard, nil, xtime.NewRanges(flush.timeRange))
 		lock.Unlock()
 	}
 	close(doneCh)
@@ -265,7 +265,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 			if err != nil {
 				// Do not add result at all to the bootstrap result
 				lock.Lock()
-				bootstrapResult.Add(shard, nil, xtime.Ranges{}.AddRange(currRange))
+				bootstrapResult.Add(shard, nil, xtime.NewRanges(currRange))
 				lock.Unlock()
 				continue
 			}
@@ -617,7 +617,7 @@ func (s *peersSource) ReadIndex(
 					// block fulfilled for this shard
 					resultLock.Lock()
 					fulfilled := result.ShardTimeRanges{
-						shard: xtime.Ranges{}.AddRange(currRange),
+						shard: xtime.NewRanges(currRange),
 					}
 					r.IndexResults().MarkFulfilled(currRange.Start, fulfilled,
 						idxOpts, resultOpts)
@@ -688,7 +688,7 @@ func (s *peersSource) markIndexResultErrorAsUnfulfilled(
 	defer resultLock.Unlock()
 
 	unfulfilled := result.ShardTimeRanges{
-		shard: xtime.Ranges{}.AddRange(timeRange),
+		shard: xtime.NewRanges(timeRange),
 	}
 	r.Add(result.IndexBlock{}, unfulfilled)
 }

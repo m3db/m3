@@ -154,7 +154,7 @@ func testBootstrapIndex(t *testing.T, bootstrapDataFirst bool) {
 			// The time-range here is "arbitrary", but it does need to be one for which
 			// there is data so that we can actually exercise the blockStart merging
 			// logic.
-			targetRangesCopy[key] = xtime.Ranges{}.AddRange(xtime.Range{
+			targetRangesCopy[key] = xtime.NewRanges(xtime.Range{
 				Start: start,
 				End:   start.Add(dataBlockSize),
 			})

@@ -73,7 +73,7 @@ func testBaseBootstrapper(t *testing.T, ctrl *gomock.Controller) (*bootstrap.Moc
 }
 
 func testTargetRanges() xtime.Ranges {
-	return xtime.Ranges{}.AddRange(xtime.Range{Start: testTargetStart, End: testTargetStart.Add(2 * time.Hour)})
+	return xtime.NewRanges(xtime.Range{Start: testTargetStart, End: testTargetStart.Add(2 * time.Hour)})
 }
 
 func testShardTimeRanges() result.ShardTimeRanges {
@@ -275,7 +275,7 @@ func TestBaseBootstrapperCurrentSomeUnfulfilled(t *testing.T) {
 		{"bar", []string{"bar", "baz"}, testTargetStart.Add(time.Hour)},
 	}
 	targetRanges := testShardTimeRanges()
-	currUnfulfilled := xtime.Ranges{}.AddRange(xtime.Range{
+	currUnfulfilled := xtime.NewRanges(xtime.Range{
 		Start: testTargetStart.Add(time.Hour),
 		End:   testTargetStart.Add(time.Hour * 2),
 	})
@@ -351,7 +351,7 @@ func TestBaseBootstrapperNextNoUnfulfilled(t *testing.T) {
 
 func TestBaseBootstrapperNextSomeUnfulfilled(t *testing.T) {
 	nextUnfulfilled := map[uint32]xtime.Ranges{
-		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+		testShard: xtime.NewRanges(xtime.Range{
 			Start: testTargetStart,
 			End:   testTargetStart.Add(time.Hour),
 		}),
@@ -382,23 +382,23 @@ func TestBaseBootstrapperBoth(t *testing.T) {
 
 	targetRanges := testShardTimeRanges()
 	availableRanges := map[uint32]xtime.Ranges{
-		testShard: xtime.Ranges{}.AddRange(ranges[0]),
+		testShard: xtime.NewRanges(ranges[0]),
 	}
 	remainingRanges := map[uint32]xtime.Ranges{
-		testShard: xtime.Ranges{}.AddRange(ranges[1]),
+		testShard: xtime.NewRanges(ranges[1]),
 	}
 
-	currUnfulfilled := xtime.Ranges{}.AddRange(ranges[2])
+	currUnfulfilled := xtime.NewRanges(ranges[2])
 	currResult := testResult(map[uint32]testShardResult{
 		testShard: {result: shardResult(entries[0]), unfulfilled: currUnfulfilled},
 	})
 
-	nextUnfulfilled := xtime.Ranges{}.AddRange(ranges[3])
+	nextUnfulfilled := xtime.NewRanges(ranges[3])
 	nextResult := testResult(map[uint32]testShardResult{
 		testShard: {result: shardResult(entries[1:3]...), unfulfilled: nextUnfulfilled},
 	})
 
-	fallBackUnfulfilled := xtime.Ranges{}.AddRange(ranges[4])
+	fallBackUnfulfilled := xtime.NewRanges(ranges[4])
 	fallBackResult := testResult(map[uint32]testShardResult{
 		testShard: {result: shardResult(entries[3]), unfulfilled: fallBackUnfulfilled},
 	})
@@ -425,7 +425,7 @@ func TestBaseBootstrapperBoth(t *testing.T) {
 	expectedResult := testResult(map[uint32]testShardResult{
 		testShard: {
 			result:      shardResult(entries...),
-			unfulfilled: xtime.Ranges{}.AddRange(ranges[3]).AddRange(ranges[4]),
+			unfulfilled: xtime.NewRanges(ranges[3]).AddRange(ranges[4]),
 		},
 	})
 	validateResult(t, expectedResult, res)
@@ -438,19 +438,19 @@ func TestBaseBootstrapperIndexHalfCurrentHalfNext(t *testing.T) {
 	testNs := testNsMetadata(t)
 
 	targetRanges := map[uint32]xtime.Ranges{
-		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+		testShard: xtime.NewRanges(xtime.Range{
 			Start: testTargetStart,
 			End:   testTargetStart.Add(2 * time.Hour),
 		}),
 	}
 	firstHalf := map[uint32]xtime.Ranges{
-		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+		testShard: xtime.NewRanges(xtime.Range{
 			Start: testTargetStart,
 			End:   testTargetStart.Add(1 * time.Hour),
 		}),
 	}
 	secondHalf := map[uint32]xtime.Ranges{
-		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+		testShard: xtime.NewRanges(xtime.Range{
 			Start: testTargetStart.Add(1 * time.Hour),
 			End:   testTargetStart.Add(2 * time.Hour),
 		}),

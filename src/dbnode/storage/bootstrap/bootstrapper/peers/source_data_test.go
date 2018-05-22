@@ -105,8 +105,8 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	end := start.Add(ropts.BlockSize())
 
 	target := result.ShardTimeRanges{
-		0: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
-		1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
+		0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
+		1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
 	}
 
 	_, err := src.ReadData(nsMetadata, target, testDefaultRunOpts)
@@ -148,8 +148,8 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	src := newPeersSource(opts)
 
 	target := result.ShardTimeRanges{
-		0: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
-		1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
+		0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
+		1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
 	}
 
 	r, err := src.ReadData(nsMetadata, target, testDefaultRunOpts)
@@ -338,8 +338,8 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		src := newPeersSource(opts)
 
 		target := result.ShardTimeRanges{
-			0: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
-			1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
+			0: xtime.NewRanges(xtime.Range{Start: start, End: end}),
+			1: xtime.NewRanges(xtime.Range{Start: start, End: end}),
 		}
 
 		r, err := src.ReadData(testNsMd, target, testIncrementalRunOpts)
@@ -686,7 +686,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	assert.Equal(t, 0, len(r.ShardResults()))
 	for i := uint32(0); i < uint32(len(target)); i++ {
 		require.False(t, r.Unfulfilled()[i].IsEmpty())
-		require.Equal(t, xtime.Ranges{}.AddRange(xtime.Range{
+		require.Equal(t, xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   midway,
 		}).String(), r.Unfulfilled()[i].String())

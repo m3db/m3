@@ -728,7 +728,7 @@ func (i *nsIndex) Query(
 
 	// Chunk the query request into bounds based on applicable blocks and
 	// execute the requests to each of them; and merge results.
-	queryRange := xtime.Ranges{}.AddRange(xtime.Range{
+	queryRange := xtime.NewRanges(xtime.Range{
 		Start: opts.StartInclusive, End: opts.EndExclusive})
 
 	// iterate known blocks in a defined order of time (newest first) to enforce

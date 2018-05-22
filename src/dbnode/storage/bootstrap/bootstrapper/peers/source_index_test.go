@@ -137,7 +137,7 @@ func TestBootstrapIndex(t *testing.T) {
 	end := start.Add(ropts.RetentionPeriod())
 
 	shardTimeRanges := map[uint32]xtime.Ranges{
-		0: xtime.Ranges{}.AddRange(xtime.Range{
+		0: xtime.NewRanges(xtime.Range{
 			Start: start,
 			End:   end,
 		}),
