@@ -517,6 +517,7 @@ func (i *nsIndex) Flush(
 	}
 	i.state.RUnlock()
 
+	var evictResults index.EvictMutableSegmentResults
 	for _, block := range flushable {
 		immutableSegments, err := i.flushBlock(flush, block, shards)
 		if err != nil {
@@ -539,11 +540,18 @@ func (i *nsIndex) Flush(
 		}
 		// It's now safe to remove the mutable segments as anything the block
 		// held is covered by the owned shards we just read
-		if _, err := block.EvictMutableSegments(); err != nil {
-			return err
+		evictResult, err := block.EvictMutableSegments()
+		evictResults.Add(evictResult)
+		if err != nil {
+			// deliberately choosing to not mark this as an error as we have successfully
+			// flushed any mutable data.
+			i.logger.WithFields(
+				xlog.NewField("err", err.Error()),
+				xlog.NewField("blockStart", block.StartTime()),
+			).Warnf("encountered error while evicting mutable segments for index block.")
 		}
 	}
-
+	i.metrics.FlushEvictedMutableSegments.Inc(evictResults.NumMutableSegments)
 	return nil
 }
 
@@ -957,5 +965,6 @@ func newNamespaceIndexMetrics(
 		InsertEndToEndLatency: instrument.MustCreateSampledTimer(
 			scope.Timer("insert-end-to-end-latency"),
 			iopts.MetricsSamplingRate()),
+		FlushEvictedMutableSegments: scope.Counter("mutable-segment-evicted"),
 	}
 }

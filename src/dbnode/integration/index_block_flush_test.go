@@ -30,8 +30,11 @@ import (
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
+	xmetrics "github.com/m3db/m3db/src/dbnode/x/metrics"
 	"github.com/m3db/m3ninx/idx"
 	xclock "github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/instrument"
+	"github.com/uber-go/tally"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,6 +82,13 @@ func TestIndexBlockFlush(t *testing.T) {
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
+
+	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+	scope, closer := tally.NewRootScope(
+		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
+	defer closer.Close()
+	testSetup.storageOpts = testSetup.storageOpts.SetInstrumentOptions(
+		instrument.NewOptions().SetMetricsScope(scope))
 
 	t0 := time.Date(2018, time.May, 6, 13, 0, 0, 0, time.UTC)
 	assert.True(t, t0.Equal(t0.Truncate(indexBlockSize)))
@@ -130,14 +140,25 @@ func TestIndexBlockFlush(t *testing.T) {
 	// move time to 3p
 	testSetup.setNowFn(t2)
 
+	// waiting till filesets found on disk
 	log.Infof("waiting till filesets found on disk")
 	found := xclock.WaitUntil(func() bool {
 		filesets, err := fs.IndexFileSetsAt(testSetup.filePathPrefix, md.ID(), t0)
 		require.NoError(t, err)
 		return len(filesets) == 1
 	}, 10*time.Second)
-	log.Infof("found filesets found on disk")
 	require.True(t, found)
+	log.Infof("found filesets found on disk")
+
+	// ensure we've evicted the mutable segments
+	log.Infof("waiting till mutable segments are evicted")
+	evicted := xclock.WaitUntil(func() bool {
+		counters := reporter.Counters()
+		counter, ok := counters["dbindex.mutable-segment-evicted"]
+		return ok && counter > 0
+	}, 10*time.Second)
+	require.True(t, evicted)
+	log.Infof("mutable segments are evicted!")
 
 	// ensure all data is still present
 	log.Infof("querying period0 results after flush")

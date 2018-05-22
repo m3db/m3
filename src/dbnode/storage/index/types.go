@@ -180,6 +180,12 @@ type EvictMutableSegmentResults struct {
 	NumDocs            int64
 }
 
+// Add adds the provided results to the receiver.
+func (e *EvictMutableSegmentResults) Add(o EvictMutableSegmentResults) {
+	e.NumDocs += o.NumDocs
+	e.NumMutableSegments += o.NumMutableSegments
+}
+
 // WriteBatchResult returns statistics about the WriteBatch execution.
 type WriteBatchResult struct {
 	NumSuccess int64
