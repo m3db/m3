@@ -47,7 +47,6 @@ var (
 	errUnableToBootstrapBlockClosed = errors.New("unable to bootstrap, block is closed")
 	errUnableToTickBlockClosed      = errors.New("unable to tick, block is closed")
 	errBlockAlreadyClosed           = errors.New("unable to close, block already closed")
-	errActiveSegmentAlreadyEvicted  = errors.New("unable to close active segment, already evicted")
 
 	errUnableToSealBlockIllegalStateFmtString  = "unable to seal, index block state: %v"
 	errUnableToWriteBlockUnknownStateFmtString = "unable to write, unknown index block state: %v"
