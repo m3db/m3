@@ -30,6 +30,15 @@ type Ranges struct {
 	sortedRanges *list.List
 }
 
+// NewRanges constructs a new Ranges object comprising the provided ranges.
+func NewRanges(ranges ...Range) Ranges {
+	var result Ranges
+	for _, r := range ranges {
+		result = result.AddRange(r)
+	}
+	return result
+}
+
 // Len returns the number of ranges included.
 func (tr Ranges) Len() int {
 	if tr.sortedRanges == nil {
