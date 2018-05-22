@@ -1,0 +1,51 @@
+version: "3.6"
+services:
+  dbnode01:
+    expose:
+      - "19000-19005"
+    ports:
+      - "0.0.0.0:19000:19000"
+      - "0.0.0.0:19001:19001"
+      - "0.0.0.0:19002:19002"
+      - "0.0.0.0:19003:19003"
+      - "0.0.0.0:19004:19004"
+      - "0.0.0.0:19005:19005"
+    networks:
+      - backend
+    build:
+      context: ../../../
+      dockerfile: docker/Dockerfile-m3dbnode-dev
+    image: cluster_dbnode01:latest
+    secrets:
+      - source: dbnode01
+        target: /go/src/github.com/m3db/m3db/src/cmd/services/m3dbnode/config/m3dbnode.yml
+  dbnode02:
+    expose:
+      - "29000-29005"
+    ports:
+      - "0.0.0.0:29000:29000"
+      - "0.0.0.0:29001:29001"
+      - "0.0.0.0:29002:29002"
+      - "0.0.0.0:29003:29003"
+      - "0.0.0.0:29004:29004"
+      - "0.0.0.0:29005:29005"
+    networks:
+      - backend
+    build:
+      context: ../../../
+      dockerfile: docker/Dockerfile-m3dbnode-dev
+    image: cluster_dbnode02:latest
+    secrets:
+      - source: dbnode02
+        target: /go/src/github.com/m3db/m3db/src/cmd/services/m3dbnode/config/m3dbnode.yml
+# Secrets are used since the config directive is only supported in Swarm
+# https://github.com/docker/compose/issues/5110
+secrets: 
+  dbnode01:
+    file: ./m3dbnode01.yml
+  dbnode02:
+    file: ./m3dbnode02.yml
+  dbnode03:
+    file: ./m3dbnode03.yml
+networks:
+  backend:
