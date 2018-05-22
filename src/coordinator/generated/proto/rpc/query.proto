@@ -62,8 +62,30 @@ message FetchResult {
 	repeated Series series = 1;
 }
 
+message Segment {
+	bytes head = 1;
+	bytes tail = 2;
+}
+
+message Segments {
+	 Segment merged = 1;
+	repeated Segment unmerged = 2;
+}
+
+message CompressedValuesReplica {
+	repeated Segments	segments = 1;
+}
+
+message CompressedDatapoints {
+	string namespace = 1;
+	int64 startTime = 2;
+	int64 endTime = 3;
+	repeated CompressedValuesReplica replicas = 4;
+}
+
 message Series {
-	string name = 1;
+	string id = 1;
 	Datapoints values = 2;
 	map<string, string> tags = 3;
+	CompressedDatapoints compressed = 4;
 }

@@ -56,7 +56,7 @@ func EncodeFetchResult(sResult *storage.FetchResult) *rpc.FetchResult {
 		}
 
 		series[i] = &rpc.Series{
-			Name: result.Name(),
+			Id: result.Name(),
 			Values: &rpc.Datapoints{
 				Datapoints:      datapoints,
 				FixedResolution: fixedRes,
@@ -97,7 +97,7 @@ func decodeTs(r *rpc.Series) (*ts.Series, error) {
 	}
 
 	tags := models.Tags(r.GetTags())
-	series := ts.NewSeries(r.GetName(), values, tags)
+	series := ts.NewSeries(r.GetId(), values, tags)
 	return series, nil
 }
 

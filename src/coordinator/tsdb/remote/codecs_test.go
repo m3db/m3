@@ -83,17 +83,17 @@ func TestTimeConversions(t *testing.T) {
 func createRPCSeries() []*rpc.Series {
 	return []*rpc.Series{
 		&rpc.Series{
-			Name:   name0,
+			Id:     name0,
 			Values: valList0,
 			Tags:   tags0,
 		},
 		&rpc.Series{
-			Name:   name1,
+			Id:     name1,
 			Values: valList1,
 			Tags:   tags1,
 		},
 		&rpc.Series{
-			Name:   name2,
+			Id:     name2,
 			Values: valList2,
 			Tags:   tags1,
 		},
