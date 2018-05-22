@@ -52,6 +52,16 @@ If you wish to build an image with the source code included you can stop the bui
 docker build -t m3dbnode:$(git rev-parse head) --target builder .
 ```
 
+## Configuration
+
+The default Docker image will start a single `m3dbnode` process with an embedded etcd instance to
+mimic a production environment. If you would like to further customize the configuration, you must
+provide your own and mount it into the container:
+
+```
+docker run --name m3dbnode -v /host/config.yml:/etc/m3dbnode/myconfig.yml m3dbnode:tag -f /etc/m3dbnode/myconfig.yml
+```
+
 <hr>
 
 This project is released under the [Apache License, Version 2.0](LICENSE).
