@@ -1,5 +1,5 @@
-hash: 49863e5cec417c9f449edf214a4760166f6e9b0faff51d9e17d58e27bb74105f
-updated: 2018-05-19T23:28:02.098081947-04:00
+hash: 9d9e75fb727b9b899c936c84c69ee3a4d1b0ecee3b7a2fc7d145d24c56ba12f4
+updated: 2018-05-21T21:49:50.812318856-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -114,6 +114,8 @@ imports:
   - spew
 - name: github.com/dgrijalva/jwt-go
   version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
+- name: github.com/dgryski/go-bits
+  version: bd8a69a71dc203aa976f9d918b428db9ac605f57
 - name: github.com/edsrzf/mmap-go
   version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 - name: github.com/ghodss/yaml
@@ -228,7 +230,7 @@ imports:
   - metric
   - policy
 - name: github.com/m3db/m3ninx
-  version: f2d6a88984a55f5caae5a0dd1573167638181902
+  version: fe75ad9256a620f9a24478e6e51b8ed8c65d7a7c
   subpackages:
   - doc
   - generated/proto/fswriter
@@ -318,7 +320,7 @@ imports:
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pilosa/pilosa
-  version: 00f5a1539fb79ab099a3e612a401a5510784eacb
+  version: 614fa91b6edcbf0f5471b4e43440d4e9009dd334
   subpackages:
   - roaring
 - name: github.com/pkg/errors

@@ -220,7 +220,13 @@ func TestBootstrapIndex(t *testing.T) {
 	require.NoError(t, err)
 
 	indexResults := res.IndexResults()
-	require.Equal(t, 2, len(indexResults))
+	numBlocksWithData := 0
+	for _, b := range indexResults {
+		if len(b.Segments()) != 0 {
+			numBlocksWithData++
+		}
+	}
+	require.Equal(t, 2, numBlocksWithData)
 
 	for _, expected := range []struct {
 		indexBlockStart time.Time
