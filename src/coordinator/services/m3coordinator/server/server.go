@@ -96,8 +96,7 @@ func Run(runOpts RunOptions) {
 
 	scope, _, err := cfg.Metrics.NewRootScope()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "could not connect to metrics: %v", err)
-		os.Exit(1)
+		logger.Fatal("could not connect to metrics", zap.Any("error", err))
 	}
 
 	var clusterClientCh <-chan clusterclient.Client

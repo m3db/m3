@@ -66,8 +66,8 @@ type promReadMetrics struct {
 func newPromReadMetrics(scope tally.Scope) promReadMetrics {
 	return promReadMetrics{
 		fetchSuccess:      scope.Counter("fetch.success"),
-		fetchErrorsServer: scope.Tagged(map[string]string{"status_code": "500"}).Counter("fetch.errors"),
-		fetchErrorsClient: scope.Tagged(map[string]string{"status_code": "400"}).Counter("fetch.errors"),
+		fetchErrorsServer: scope.Tagged(map[string]string{"code": "500"}).Counter("fetch.errors"),
+		fetchErrorsClient: scope.Tagged(map[string]string{"code": "400"}).Counter("fetch.errors"),
 	}
 }
 
@@ -119,6 +119,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
+
 	h.promReadMetrics.fetchSuccess.Inc(1)
 }
 

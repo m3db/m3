@@ -64,8 +64,8 @@ type promWriteMetrics struct {
 func newPromWriteMetrics(scope tally.Scope) promWriteMetrics {
 	return promWriteMetrics{
 		writeSuccess:      scope.Counter("write.success"),
-		writeErrorsServer: scope.Tagged(map[string]string{"status_code": "500"}).Counter("write.errors"),
-		writeErrorsClient: scope.Tagged(map[string]string{"status_code": "400"}).Counter("write.errors"),
+		writeErrorsServer: scope.Tagged(map[string]string{"code": "500"}).Counter("write.errors"),
+		writeErrorsClient: scope.Tagged(map[string]string{"code": "400"}).Counter("write.errors"),
 	}
 }
 
@@ -82,6 +82,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
+
 	h.promWriteMetrics.writeSuccess.Inc(1)
 }
 
