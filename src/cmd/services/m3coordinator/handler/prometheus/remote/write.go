@@ -64,8 +64,8 @@ type promWriteMetrics struct {
 func newPromWriteMetrics(scope tally.Scope) promWriteMetrics {
 	return promWriteMetrics{
 		writeSuccess:      scope.Counter("write.success"),
-		writeErrorsServer: scope.Tagged(map[string]string{"code": "500"}).Counter("write.errors"),
-		writeErrorsClient: scope.Tagged(map[string]string{"code": "400"}).Counter("write.errors"),
+		writeErrorsServer: scope.Tagged(map[string]string{"code": "5XX"}).Counter("write.errors"),
+		writeErrorsClient: scope.Tagged(map[string]string{"code": "4XX"}).Counter("write.errors"),
 	}
 }
 
