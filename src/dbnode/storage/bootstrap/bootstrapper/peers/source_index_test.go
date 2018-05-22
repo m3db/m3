@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
+	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -35,6 +36,15 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
+
+func testResultShardRanges(start, end time.Time, shards ...uint32) result.ShardTimeRanges {
+	timeRange := xtime.NewRanges(xtime.Range{start, end})
+	ranges := make(map[uint32]xtime.Ranges)
+	for _, s := range shards {
+		ranges[s] = timeRange
+	}
+	return ranges
+}
 
 type testSeriesMetadata struct {
 	id   string
@@ -292,4 +302,36 @@ func TestBootstrapIndex(t *testing.T) {
 			require.Equal(t, len(expected.series), len(matches))
 		}
 	}
+
+	t1 := indexStart
+	t2 := indexStart.Add(indexBlockSize)
+	t3 := t2.Add(indexBlockSize)
+
+	blk1, ok := res.IndexResults()[xtime.ToUnixNano(t1)]
+	require.True(t, ok)
+	assertShardRangesEqual(t, testResultShardRanges(t1, t2, 0), blk1.Fulfilled())
+
+	blk2, ok := res.IndexResults()[xtime.ToUnixNano(t2)]
+	require.True(t, ok)
+	assertShardRangesEqual(t, testResultShardRanges(t2, t3, 0), blk2.Fulfilled())
+
+	for _, blk := range res.IndexResults() {
+		if blk.BlockStart().Equal(t1) || blk.BlockStart().Equal(t2) {
+			continue // already checked above
+		}
+		// rest should all be marked fulfilled despite no data, because we didn't see
+		// any errors in the response.
+		start := blk.BlockStart()
+		end := start.Add(indexBlockSize)
+		assertShardRangesEqual(t, testResultShardRanges(start, end, 0), blk.Fulfilled())
+	}
+}
+
+func assertShardRangesEqual(t *testing.T, a, b result.ShardTimeRanges) {
+	ac := a.Copy()
+	ac.Subtract(b)
+	require.True(t, ac.IsEmpty())
+	bc := b.Copy()
+	bc.Subtract(a)
+	require.True(t, bc.IsEmpty())
 }
