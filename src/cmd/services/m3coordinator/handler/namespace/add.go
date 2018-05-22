@@ -26,18 +26,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"time"
 
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
-	"github.com/m3db/m3db/src/coordinator/util"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3x/ident"
 
 	"go.uber.org/zap"
 )
@@ -64,14 +60,14 @@ func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	req, rErr := h.parseRequest(r)
+	md, rErr := h.parseRequest(r)
 	if rErr != nil {
 		logger.Error("unable to parse request", zap.Any("error", rErr))
 		handler.Error(w, rErr.Error(), rErr.Code())
 		return
 	}
 
-	nsRegistry, err := h.add(req)
+	nsRegistry, err := h.add(md)
 	if err != nil {
 		logger.Error("unable to get namespace", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
@@ -85,7 +81,7 @@ func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handler.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *addHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, *handler.ParseError) {
+func (h *addHandler) parseRequest(r *http.Request) (namespace.Metadata, *handler.ParseError) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return nil, handler.NewParseError(err, http.StatusBadRequest)
@@ -98,15 +94,15 @@ func (h *addHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, 
 		return nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
-	if util.HasEmptyString(addReq.Name, addReq.RetentionPeriod, addReq.BlockSize, addReq.BufferFuture,
-		addReq.BufferPast, addReq.BlockDataExpiryPeriod) {
-		return nil, handler.NewParseError(errMissingRequiredField, http.StatusBadRequest)
+	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)
+	if err != nil {
+		return nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
-	return addReq, nil
+	return md, nil
 }
 
-func (h *addHandler) add(r *admin.NamespaceAddRequest) (nsproto.Registry, error) {
+func (h *addHandler) add(md namespace.Metadata) (nsproto.Registry, error) {
 	var emptyReg = nsproto.Registry{}
 
 	store, err := h.client.KV()
@@ -119,12 +115,7 @@ func (h *addHandler) add(r *admin.NamespaceAddRequest) (nsproto.Registry, error)
 		return emptyReg, err
 	}
 
-	inputMetadata, err := metadataFromRequest(r)
-	if err != nil {
-		return emptyReg, err
-	}
-
-	nsMap, err := namespace.NewMap(append(currentMetadata, inputMetadata))
+	nsMap, err := namespace.NewMap(append(currentMetadata, md))
 	if err != nil {
 		return emptyReg, err
 	}
@@ -139,55 +130,5 @@ func (h *addHandler) add(r *admin.NamespaceAddRequest) (nsproto.Registry, error)
 }
 
 func metadataFromRequest(r *admin.NamespaceAddRequest) (namespace.Metadata, error) {
-	blockSize, err := time.ParseDuration(r.BlockSize)
-	if err != nil {
-		return nil, err
-	}
-
-	retentionPeriod, err := time.ParseDuration(r.RetentionPeriod)
-	if err != nil {
-		return nil, err
-	}
-
-	bufferFuture, err := time.ParseDuration(r.BufferFuture)
-	if err != nil {
-		return nil, err
-	}
-
-	bufferPast, err := time.ParseDuration(r.BufferPast)
-	if err != nil {
-		return nil, err
-	}
-
-	blockDataExpiryPeriodStr := r.BlockDataExpiryPeriod
-	if blockDataExpiryPeriodStr == "" {
-		blockDataExpiryPeriodStr = defaultBlockDataExpiryPeriodStr
-	}
-
-	blockDataExpiryPeriod, err := time.ParseDuration(blockDataExpiryPeriodStr)
-	if err != nil {
-		return nil, err
-	}
-
-	ropts := retention.NewOptions().
-		SetBlockSize(blockSize).
-		SetRetentionPeriod(retentionPeriod).
-		SetBufferFuture(bufferFuture).
-		SetBufferPast(bufferPast).
-		SetBlockDataExpiry(r.BlockDataExpiry).
-		SetBlockDataExpiryAfterNotAccessedPeriod(blockDataExpiryPeriod)
-
-	if err := ropts.Validate(); err != nil {
-		return nil, err
-	}
-
-	opts := namespace.NewOptions().
-		SetBootstrapEnabled(r.BootstrapEnabled).
-		SetFlushEnabled(r.FlushEnabled).
-		SetCleanupEnabled(r.CleanupEnabled).
-		SetRepairEnabled(r.RepairEnabled).
-		SetWritesToCommitLog(r.WritesToCommitlog).
-		SetRetentionOptions(ropts)
-
-	return namespace.NewMetadata(ident.StringID(r.Name), opts)
+	return namespace.ToMetadata(r.Name, r.Options)
 }
