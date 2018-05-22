@@ -850,7 +850,7 @@ func TestBlockMockQueryMergeResultsDupeID(t *testing.T) {
 		ident.NewTagsIterator(t2)))
 }
 
-func TestBlockBootstrapAddsSegment(t *testing.T) {
+func TestBlockAddResultsAddsSegment(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -870,7 +870,7 @@ func TestBlockBootstrapAddsSegment(t *testing.T) {
 	require.Equal(t, seg1, b.shardRangesSegments[0].segments[0])
 }
 
-func TestBlockBootstrapAfterCloseFails(t *testing.T) {
+func TestBlockAddResultsAfterCloseFails(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -886,7 +886,7 @@ func TestBlockBootstrapAfterCloseFails(t *testing.T) {
 			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 3))))
 }
 
-func TestBlockBootstrapAfterSealWorks(t *testing.T) {
+func TestBlockAddResultsAfterSealWorks(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -993,6 +993,197 @@ func TestBlockTickAfterClose(t *testing.T) {
 
 	_, err = blk.Tick(nil)
 	require.Error(t, err)
+}
+
+func TestBlockAddResultsRangeCheck(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	seg1 := segment.NewMockMutableSegment(ctrl)
+	require.Error(t, b.AddResults(
+		result.NewIndexBlock(start, []segment.Segment{seg1},
+			testResultShardRanges(start.Add(-1*time.Minute), start.Add(time.Hour), 1, 2, 3))))
+	require.Error(t, b.AddResults(
+		result.NewIndexBlock(start, []segment.Segment{seg1},
+			testResultShardRanges(start, start.Add(2*time.Hour), 1, 2, 3))))
+}
+
+func TestBlockAddResultsCoversCurrentData(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	seg1 := segment.NewMockMutableSegment(ctrl)
+	require.NoError(t, b.AddResults(
+		result.NewIndexBlock(start, []segment.Segment{seg1},
+			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 3))))
+
+	seg2 := segment.NewMockMutableSegment(ctrl)
+	seg1.EXPECT().Close().Return(nil)
+	require.NoError(t, b.AddResults(
+		result.NewIndexBlock(start, []segment.Segment{seg2},
+			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 3, 4))))
+
+	seg2.EXPECT().Seal().Return(seg2, nil)
+	require.NoError(t, b.Seal())
+	seg2.EXPECT().Close().Return(nil)
+	require.NoError(t, b.Close())
+}
+
+func TestBlockAddResultsDoesNotCoverCurrentData(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	seg1 := segment.NewMockMutableSegment(ctrl)
+	require.NoError(t, b.AddResults(
+		result.NewIndexBlock(start, []segment.Segment{seg1},
+			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 3))))
+
+	seg2 := segment.NewMockMutableSegment(ctrl)
+	require.NoError(t, b.AddResults(
+		result.NewIndexBlock(start, []segment.Segment{seg2},
+			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 5))))
+
+	seg1.EXPECT().Seal().Return(seg1, nil)
+	seg2.EXPECT().Seal().Return(seg2, nil)
+	require.NoError(t, b.Seal())
+
+	seg1.EXPECT().Close().Return(nil)
+	seg2.EXPECT().Close().Return(nil)
+	require.NoError(t, b.Close())
+}
+
+func TestBlockNeedsMutableSegmentsEvicted(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	// empty to start, so shouldn't need eviction
+	require.False(t, b.NeedsMutableSegmentsEvicted())
+
+	// perform write and ensure it says it needs eviction
+	h1 := NewMockOnIndexSeries(ctrl)
+	h1.EXPECT().OnIndexFinalize(xtime.ToUnixNano(start))
+	h1.EXPECT().OnIndexSuccess(xtime.ToUnixNano(start))
+	batch := NewWriteBatch(WriteBatchOptions{
+		IndexBlockSize: time.Hour,
+	})
+	batch.Append(WriteBatchEntry{
+		Timestamp:     start.Add(time.Minute),
+		OnIndexSeries: h1,
+	}, testDoc1())
+	res, err := b.WriteBatch(batch)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), res.NumSuccess)
+	require.Equal(t, int64(0), res.NumError)
+
+	require.True(t, b.NeedsMutableSegmentsEvicted())
+}
+
+func TestBlockNeedsMutableSegmentsEvictedMutableSegments(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	// empty to start, so shouldn't need eviction
+	require.False(t, b.NeedsMutableSegmentsEvicted())
+	seg1 := segment.NewMockMutableSegment(ctrl)
+	seg1.EXPECT().Size().Return(int64(0)).AnyTimes()
+	require.NoError(t, b.AddResults(
+		result.NewIndexBlock(start, []segment.Segment{seg1},
+			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 3))))
+	require.False(t, b.NeedsMutableSegmentsEvicted())
+
+	seg2 := segment.NewMockMutableSegment(ctrl)
+	seg2.EXPECT().Size().Return(int64(1)).AnyTimes()
+	seg3 := segment.NewMockSegment(ctrl)
+	require.NoError(t, b.AddResults(
+		result.NewIndexBlock(start, []segment.Segment{seg2, seg3},
+			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 4))))
+	require.True(t, b.NeedsMutableSegmentsEvicted())
+}
+
+func TestBlockEvictMutableSegmentsSimple(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, testOpts)
+	require.NoError(t, err)
+	res, err := blk.EvictMutableSegments()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), res.NumMutableSegments)
+}
+
+func TestBlockEvictMutableSegmentsAddResults(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	testMD := newTestNSMetadata(t)
+	start := time.Now().Truncate(time.Hour)
+	blk, err := NewBlock(start, testMD, testOpts)
+	require.NoError(t, err)
+
+	b, ok := blk.(*block)
+	require.True(t, ok)
+
+	// empty to start, so shouldn't need eviction
+	seg1 := segment.NewMockMutableSegment(ctrl)
+	require.NoError(t, b.AddResults(
+		result.NewIndexBlock(start, []segment.Segment{seg1},
+			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 3))))
+	seg1.EXPECT().Size().Return(int64(0))
+	seg1.EXPECT().Close().Return(nil)
+	_, err = b.EvictMutableSegments()
+	require.NoError(t, err)
+
+	seg2 := segment.NewMockMutableSegment(ctrl)
+	seg3 := segment.NewMockSegment(ctrl)
+	require.NoError(t, b.AddResults(
+		result.NewIndexBlock(start, []segment.Segment{seg2, seg3},
+			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 4))))
+	seg2.EXPECT().Size().Return(int64(0))
+	seg2.EXPECT().Close().Return(nil)
+	_, err = b.EvictMutableSegments()
+	require.NoError(t, err)
 }
 
 func TestBlockE2EInsertQuery(t *testing.T) {
@@ -1134,7 +1325,7 @@ func TestBlockE2EInsertQueryLimit(t *testing.T) {
 	require.Equal(t, 1, numFound)
 }
 
-func TestBlockE2EInsertBootstrapQuery(t *testing.T) {
+func TestBlockE2EInsertAddResultsQuery(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -1205,7 +1396,7 @@ func TestBlockE2EInsertBootstrapQuery(t *testing.T) {
 		ident.NewTagsIterator(t2)))
 }
 
-func TestBlockE2EInsertBootstrapMergeQuery(t *testing.T) {
+func TestBlockE2EInsertAddResultsMergeQuery(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

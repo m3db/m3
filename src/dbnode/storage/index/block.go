@@ -473,9 +473,9 @@ func (b *block) EvictMutableSegments() (EvictMutableSegmentResults, error) {
 	}
 
 	// close any other mutable segments too.
-	for _, shardRangeSegments := range b.shardRangesSegments {
-		segments := make([]segment.Segment, 0, len(shardRangeSegments.segments))
-		for _, seg := range shardRangeSegments.segments {
+	for idx := range b.shardRangesSegments {
+		segments := make([]segment.Segment, 0, len(b.shardRangesSegments[idx].segments))
+		for _, seg := range b.shardRangesSegments[idx].segments {
 			mutableSeg, ok := seg.(segment.MutableSegment)
 			if !ok {
 				segments = append(segments, seg)
@@ -485,7 +485,7 @@ func (b *block) EvictMutableSegments() (EvictMutableSegmentResults, error) {
 			results.NumDocs += mutableSeg.Size()
 			multiErr = multiErr.Add(mutableSeg.Close())
 		}
-		shardRangeSegments.segments = segments
+		b.shardRangesSegments[idx].segments = segments
 	}
 
 	return results, multiErr.FinalError()
