@@ -56,7 +56,7 @@ func main() {
 		},
 	}
 
-	err = reader.Open(openOpts)
+	_, err = reader.Open(openOpts)
 	if err != nil {
 		log.Fatalf("unable to open reader: %v", err)
 	}
