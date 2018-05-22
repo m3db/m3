@@ -172,21 +172,31 @@ func setupStorages(logger *zap.Logger, session client.Session, cfg config.Config
 	cleanup := func() {}
 	localStorage := local.NewStorage(session, namespace)
 	stores := []storage.Storage{localStorage}
+	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {
 		logger.Info("rpc enabled")
 		server := startGrpcServer(logger, localStorage, cfg.RPC)
 		cleanup = func() {
 			server.GracefulStop()
 		}
+
 		if remotes := cfg.RPC.RemoteListenAddresses; len(remotes) > 0 {
 			client, err := tsdbRemote.NewGrpcClient(remotes)
 			if err != nil {
 				logger.Fatal("unable to start remote clients for addresses", zap.Any("error", err))
 			}
+
 			stores = append(stores, remote.NewStorage(client))
+			remoteEnabled = true
 		}
 	}
-	fanoutStorage := fanout.NewStorage(stores, filter.LocalOnly, filter.LocalOnly)
+
+	readFilter := filter.LocalOnly
+	if remoteEnabled {
+		readFilter = filter.AllowAll
+	}
+
+	fanoutStorage := fanout.NewStorage(stores, readFilter, filter.LocalOnly)
 	return fanoutStorage, cleanup
 }
 
