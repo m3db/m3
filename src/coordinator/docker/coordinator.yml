@@ -1,26 +1,23 @@
-dbClient:
+client:
   config:
     static:
-        topology:
-            shards: 64
-            replicas: 3
-            hosts:
-                - hostID: m3db_server_1
-                  listenAddress: "0.0.0.0:9000"
-                - hostID: m3db_server_2
-                  listenAddress: "0.0.0.0:9010"
-                - hostID: m3db_server_3
-                  listenAddress: "0.0.0.0:9020"
-        namespaces:
-            - id: metrics
-              retention:
-                retentionPeriod: 48h
-                blockSize: 2h
-                bufferPast: 1h
-                bufferFuture: 10m
-              index:
-                enabled: true
-                blockSize: 4h
+      listenAddress: 0.0.0.0:9000
+      topology:
+          shards: 2
+          hosts:
+              - hostID: localhost
+                listenAddress: localhost:9000
+      namespaces:
+          - name: metrics
+            options:
+            retention:
+              retentionPeriod: 24h
+              blockSize: 1h
+          - name: other_metrics
+            retention:
+              retentionPeriod: 24h
+              blockSize: 1h
+            options:
   writeConsistencyLevel: majority
   readConsistencyLevel: unstrict_majority
   connectConsistencyLevel: any
@@ -40,11 +37,3 @@ dbClient:
   backgroundHealthCheckFailLimit: 4
   backgroundHealthCheckFailThrottleFactor: 0.5
 
-metrics:
-  prometheus:
-    handlerPath: /metrics
-  sanitization: prometheus
-  samplingRate: 1.0
-  extended: detailed
-
-listenAddress: 0.0.0.0:7201
