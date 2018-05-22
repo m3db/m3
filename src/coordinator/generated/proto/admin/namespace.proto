@@ -9,16 +9,6 @@ message NamespaceGetResponse {
 }
 
 message NamespaceAddRequest {
-  string name = 1;
-  string retention_period = 2;
-  string block_size = 3;
-  string buffer_future = 4;
-  string buffer_past = 5;
-  bool block_data_expiry = 6;
-  string block_data_expiry_period = 7;
-  bool bootstrap_enabled = 8;
-  bool cleanup_enabled = 9;
-  bool flush_enabled = 10;
-  bool repair_enabled = 11;
-  bool writes_to_commitlog = 12;
+  string                        name = 1;
+  namespace.NamespaceOptions options = 2;
 }
