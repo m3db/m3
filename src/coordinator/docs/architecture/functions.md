@@ -1,11 +1,5 @@
 # Function Processing
 
-**Please note:** This documentation is a work in progress and more detail is required.
-
-## Overview
-
-TODO
-
 ## Supported Functions
 
 |  M3QL | Prometheus | Graphite |
