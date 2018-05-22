@@ -84,6 +84,14 @@ func TestIsEmpty(t *testing.T) {
 	require.False(t, tr.IsEmpty())
 }
 
+func TestNewRanges(t *testing.T) {
+	rangesToAdd := getRangesToAdd()
+	exp := getPopulatedRanges(rangesToAdd, 0, len(rangesToAdd))
+	obs := NewRanges(rangesToAdd...)
+	require.True(t, exp.RemoveRanges(obs).IsEmpty())
+	require.True(t, obs.RemoveRanges(exp).IsEmpty())
+}
+
 func TestClone(t *testing.T) {
 	rangesToAdd := getRangesToAdd()
 	tr := getPopulatedRanges(rangesToAdd, 0, 4)
