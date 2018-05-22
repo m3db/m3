@@ -526,7 +526,7 @@ func (i *nsIndex) Flush(
 		// block for each shard
 		fulfilled := make(result.ShardTimeRanges, len(shards))
 		for _, shard := range shards {
-			fulfilled[shard.ID()] = xtime.Ranges{}.AddRange(xtime.Range{
+			fulfilled[shard.ID()] = xtime.NewRanges(xtime.Range{
 				Start: block.StartTime(),
 				End:   block.EndTime(),
 			})
@@ -933,10 +933,11 @@ func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
 }
 
 type nsIndexMetrics struct {
-	AsyncInsertErrors     tally.Counter
-	InsertAfterClose      tally.Counter
-	QueryAfterClose       tally.Counter
-	InsertEndToEndLatency tally.Timer
+	AsyncInsertErrors           tally.Counter
+	InsertAfterClose            tally.Counter
+	QueryAfterClose             tally.Counter
+	InsertEndToEndLatency       tally.Timer
+	FlushEvictedMutableSegments tally.Counter
 }
 
 func newNamespaceIndexMetrics(
