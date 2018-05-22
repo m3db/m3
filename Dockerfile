@@ -1,5 +1,6 @@
 # stage 1: build
 FROM golang:1.10-alpine AS builder
+LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 # Install Glide
 RUN apk add --update glide git make bash
@@ -16,11 +17,12 @@ RUN cd /go/src/github.com/m3db/m3db/ && \
 
 # stage 2: lightweight "release"
 FROM alpine:latest
+LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
 
 EXPOSE 2379/tcp 2380/tcp 7201/tcp 9000-9004/tcp
 
-WORKDIR /m3db
-COPY --from=builder /go/src/github.com/m3db/m3db/bin/m3dbnode /go/src/github.com/m3db/m3db/src/dbnode/config/*.yml /m3db/
+COPY --from=builder /go/src/github.com/m3db/m3db/bin/m3dbnode /bin/
+COPY --from=builder /go/src/github.com/m3db/m3db/src/dbnode/config/*.yml /etc/m3dbnode/
 
-ENTRYPOINT [ "/m3db/m3dbnode" ]
-CMD [ "-f", "/m3db/m3dbnode-local-etcd.yml" ]
+ENTRYPOINT [ "/bin/m3dbnode" ]
+CMD [ "-f", "/etc/m3dbnode/m3dbnode-local-etcd.yml" ]
