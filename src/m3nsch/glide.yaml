@@ -8,7 +8,7 @@ import:
   - proto
   - ptypes/timestamp
 - package: github.com/m3db/m3db
-  version: 6168810f2e99a3b86c290442599acafaa8cabed9
+  version: 1ccbd97f8866ada38ed1e6ebb8209ad968607a09
   subpackages:
   - client
 - package: github.com/m3db/m3x

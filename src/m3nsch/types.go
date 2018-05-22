@@ -23,7 +23,7 @@ package m3nsch
 import (
 	"time"
 
-	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 )

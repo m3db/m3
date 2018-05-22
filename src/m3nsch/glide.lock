@@ -1,8 +1,10 @@
-hash: 0d27f110a25b853607ce29e0c2b999039108dc7e7b8d2ed3ead3eb6fe5c33f64
-updated: 2018-05-18T17:41:03.578396-04:00
+hash: b09a002e4a0da5cd6b8312db53759d3ae873b0aba2c3322326ab4be1d38427fd
+updated: 2018-05-22T17:04:08.9661-04:00
 imports:
 - name: github.com/apache/thrift
-  version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
+  version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
+  repo: https://github.com/m3db/thrift
+  vcs: git
   subpackages:
   - lib/go/thrift
 - name: github.com/cespare/xxhash
@@ -19,7 +21,7 @@ imports:
   - integration
   - mvcc/mvccpb
 - name: github.com/davecgh/go-spew
-  version: adab96458c51a58dc1783b3335dcce5461522e75
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
   - spew
 - name: github.com/fsnotify/fsnotify
@@ -57,7 +59,7 @@ imports:
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/m3db/m3cluster
-  version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
+  version: 97360c9dac803def743351d084a2449a85e2066b
   subpackages:
   - client
   - client/etcd
@@ -81,39 +83,40 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3db
-  version: 6168810f2e99a3b86c290442599acafaa8cabed9
+  version: 1ccbd97f8866ada38ed1e6ebb8209ad968607a09
   subpackages:
   - client
-  - clock
-  - digest
-  - encoding
-  - encoding/m3tsz
-  - environment
-  - generated/proto/namespace
-  - generated/thrift/rpc
-  - kvconfig
-  - network/server/tchannelthrift/convert
-  - network/server/tchannelthrift/errors
-  - network/server/tchannelthrift/node/channel
-  - persist
-  - ratelimit
-  - retention
-  - runtime
-  - serialize
-  - sharding
-  - storage/block
-  - storage/bootstrap/result
-  - storage/errors
-  - storage/index
-  - storage/namespace
-  - storage/series
-  - topology
-  - ts
-  - x/tchannel
-  - x/xio
-  - x/xpool
+  - src/dbnode/client
+  - src/dbnode/clock
+  - src/dbnode/digest
+  - src/dbnode/encoding
+  - src/dbnode/encoding/m3tsz
+  - src/dbnode/environment
+  - src/dbnode/generated/proto/namespace
+  - src/dbnode/generated/thrift/rpc
+  - src/dbnode/kvconfig
+  - src/dbnode/network/server/tchannelthrift/convert
+  - src/dbnode/network/server/tchannelthrift/errors
+  - src/dbnode/network/server/tchannelthrift/node/channel
+  - src/dbnode/persist
+  - src/dbnode/ratelimit
+  - src/dbnode/retention
+  - src/dbnode/runtime
+  - src/dbnode/serialize
+  - src/dbnode/sharding
+  - src/dbnode/storage/block
+  - src/dbnode/storage/bootstrap/result
+  - src/dbnode/storage/errors
+  - src/dbnode/storage/index
+  - src/dbnode/storage/namespace
+  - src/dbnode/storage/series
+  - src/dbnode/topology
+  - src/dbnode/ts
+  - src/dbnode/x/tchannel
+  - src/dbnode/x/xio
+  - src/dbnode/x/xpool
 - name: github.com/m3db/m3ninx
-  version: 12b8ac4f173f9d539b0e94f3bca475318ab1a8db
+  version: 8f5e6a0f31393f5b0d79086250ac1a528747c0c7
   subpackages:
   - doc
   - generated/proto/querypb
@@ -128,6 +131,7 @@ imports:
   - search/executor
   - search/query
   - search/searcher
+  - x
 - name: github.com/m3db/m3x
   version: df82cd7aacfd8439586821ecd6e073da35bfbb02
   subpackages:

@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3x/ident"
 
 	"github.com/gavv/monotime"
-	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
