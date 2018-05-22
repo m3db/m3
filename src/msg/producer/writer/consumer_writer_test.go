@@ -21,6 +21,7 @@
 package writer
 
 import (
+	"io"
 	"net"
 	"sync"
 	"testing"
@@ -58,7 +59,7 @@ func TestNewConsumerWriter(t *testing.T) {
 	mockRouter := NewMockackRouter(ctrl)
 	opts := testOptions()
 	w := newConsumerWriter(lis.Addr().String(), mockRouter, opts).(*consumerWriterImpl)
-	require.Equal(t, 0, len(w.c.resetCh))
+	require.Equal(t, 0, len(w.resetCh))
 
 	var wg sync.WaitGroup
 
@@ -82,15 +83,98 @@ func TestNewConsumerWriter(t *testing.T) {
 	w.Close()
 }
 
+func TestConsumerWriterSignalResetConnection(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer lis.Close()
+
+	w := newConsumerWriter(lis.Addr().String(), nil, testOptions()).(*consumerWriterImpl)
+	require.Equal(t, 0, len(w.resetCh))
+
+	var called int
+	w.connectFn = func(addr string) (io.ReadWriteCloser, error) {
+		called++
+		return uninitializedReadWriter{}, nil
+	}
+
+	w.notifyReset()
+	require.Equal(t, 1, len(w.resetCh))
+	require.NoError(t, w.resetWithConnectFn(w.connectFn))
+	require.Equal(t, 0, called)
+
+	now := time.Now()
+	w.nowFn = func() time.Time { return now.Add(1 * time.Hour) }
+	require.Equal(t, 1, len(w.resetCh))
+	require.NoError(t, w.resetWithConnectFn(w.connectFn))
+	require.Equal(t, 1, called)
+	require.Equal(t, 1, len(w.resetCh))
+	// Reset won't do anything as it is too soon since last reset.
+	require.NoError(t, w.resetWithConnectFn(w.connectFn))
+	require.Equal(t, 1, called)
+
+	w.nowFn = func() time.Time { return now.Add(2 * time.Hour) }
+	require.NoError(t, w.resetWithConnectFn(w.connectFn))
+	require.Equal(t, 2, called)
+}
+
+func TestConsumerWriterResetConnection(t *testing.T) {
+	w := newConsumerWriter("badAddress", nil, testOptions()).(*consumerWriterImpl)
+	require.Equal(t, 1, len(w.resetCh))
+	err := w.Write(&testMsg)
+	require.Error(t, err)
+	require.Equal(t, errNotInitialized, err)
+
+	var called int
+	conn := new(net.TCPConn)
+	w.connectFn = func(addr string) (io.ReadWriteCloser, error) {
+		called++
+		require.Equal(t, "badAddress", addr)
+		return conn, nil
+	}
+	w.resetWithConnectFn(w.connectWithRetry)
+	require.Equal(t, 1, called)
+}
+
+func TestConsumerWriterRetryableConnectionBackgroundReset(t *testing.T) {
+	w := newConsumerWriter("badAddress", nil, testOptions()).(*consumerWriterImpl)
+	require.Equal(t, 1, len(w.resetCh))
+
+	var lock sync.Mutex
+	var called int
+	conn := new(net.TCPConn)
+	w.connectFn = func(addr string) (io.ReadWriteCloser, error) {
+		lock.Lock()
+		defer lock.Unlock()
+
+		called++
+		require.Equal(t, "badAddress", addr)
+		return conn, nil
+	}
+
+	now := time.Now()
+	w.nowFn = func() time.Time { return now.Add(1 * time.Hour) }
+	w.Init()
+	for {
+		lock.Lock()
+		c := called
+		lock.Unlock()
+		if c > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	w.Close()
+}
+
 func TestConsumerWriterWriteErrorTriggerReset(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
 	w := newConsumerWriter("badAddr", nil, opts).(*consumerWriterImpl)
-	<-w.c.resetCh
-	require.Equal(t, 0, len(w.c.resetCh))
+	<-w.resetCh
+	require.Equal(t, 0, len(w.resetCh))
 	require.Error(t, w.Write(&testMsg))
-	require.Equal(t, 1, len(w.c.resetCh))
+	require.Equal(t, 1, len(w.resetCh))
 }
 
 func TestConsumerWriterReadErrorTriggerReset(t *testing.T) {
@@ -98,10 +182,10 @@ func TestConsumerWriterReadErrorTriggerReset(t *testing.T) {
 
 	opts := testOptions()
 	w := newConsumerWriter("badAddr", nil, opts).(*consumerWriterImpl)
-	<-w.c.resetCh
+	<-w.resetCh
 	w.Init()
 	for {
-		l := len(w.c.resetCh)
+		l := len(w.resetCh)
 		if l > 0 {
 			break
 		}
@@ -123,7 +207,7 @@ func TestAutoReset(t *testing.T) {
 		mockRouter,
 		opts,
 	).(*consumerWriterImpl)
-	require.Equal(t, 1, len(w.c.resetCh))
+	require.Equal(t, 1, len(w.resetCh))
 	require.Error(t, w.Write(&testMsg))
 
 	clientConn, serverConn := net.Pipe()
@@ -134,7 +218,7 @@ func TestAutoReset(t *testing.T) {
 		testConsumeAndAckOnConnection(t, serverConn, opts.EncodeDecoderOptions())
 	}()
 
-	w.c.connectFn = func(addr string) (net.Conn, error) {
+	w.connectFn = func(addr string) (io.ReadWriteCloser, error) {
 		return clientConn, nil
 	}
 
@@ -147,11 +231,12 @@ func TestAutoReset(t *testing.T) {
 
 	w.Init()
 
+	var u uninitializedReadWriter
 	for {
-		w.c.connLock.RLock()
-		initialized := w.c.initialized
-		w.c.connLock.RUnlock()
-		if initialized {
+		w.encodeLock.Lock()
+		c := w.conn
+		w.encodeLock.Unlock()
+		if c != u {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -168,11 +253,11 @@ func TestConsumerWriterClose(t *testing.T) {
 	defer lis.Close()
 
 	w := newConsumerWriter(lis.Addr().String(), nil, nil).(*consumerWriterImpl)
-	require.Equal(t, 0, len(w.c.resetCh))
+	require.Equal(t, 0, len(w.resetCh))
 	w.Close()
 	// Safe to close again.
 	w.Close()
-	_, ok := <-w.c.doneCh
+	_, ok := <-w.doneCh
 	require.False(t, ok)
 }
 
@@ -183,8 +268,7 @@ func TestConsumerWriterCloseWhileDecoding(t *testing.T) {
 	require.NoError(t, err)
 	defer lis.Close()
 
-	opts := testOptions()
-	w := newConsumerWriter(lis.Addr().String(), nil, opts).(*consumerWriterImpl)
+	w := newConsumerWriter(lis.Addr().String(), nil, testOptions()).(*consumerWriterImpl)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -204,18 +288,19 @@ func TestConsumerWriterResetWhileDecoding(t *testing.T) {
 	require.NoError(t, err)
 	defer lis.Close()
 
-	opts := testOptions()
-	w := newConsumerWriter(lis.Addr().String(), nil, opts).(*consumerWriterImpl)
+	w := newConsumerWriter(lis.Addr().String(), nil, testOptions()).(*consumerWriterImpl)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		wg.Done()
+		w.decodeLock.Lock()
 		require.Error(t, w.encdec.Decode(&testMsg))
+		w.decodeLock.Unlock()
 	}()
 	wg.Wait()
 	time.Sleep(time.Second)
-	w.c.reset(new(net.TCPConn))
+	w.reset(new(net.TCPConn))
 }
 
 func testOptions() Options {

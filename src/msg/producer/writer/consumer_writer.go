@@ -21,15 +21,32 @@
 package writer
 
 import (
+	"bufio"
+	"errors"
+	"fmt"
+	"io"
+	"net"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3msg/generated/proto/msgpb"
 	"github.com/m3db/m3msg/protocol/proto"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
+)
+
+const (
+	defaultRetryForever = true
+)
+
+var (
+	u uninitializedReadWriter
+
+	errNotInitialized = errors.New("connection not initialized")
 )
 
 type consumerWriter interface {
@@ -44,35 +61,58 @@ type consumerWriter interface {
 }
 
 type consumerWriterMetrics struct {
-	ackError    tally.Counter
-	decodeError tally.Counter
-	encodeError tally.Counter
+	ackError                tally.Counter
+	decodeError             tally.Counter
+	encodeError             tally.Counter
+	resetTooSoon            tally.Counter
+	resetSuccess            tally.Counter
+	resetError              tally.Counter
+	connectError            tally.Counter
+	setKeepAliveError       tally.Counter
+	setKeepAlivePeriodError tally.Counter
 }
 
 func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
 	return consumerWriterMetrics{
-		ackError:    scope.Counter("ack-error"),
-		decodeError: scope.Counter("decode-error"),
-		encodeError: scope.Counter("encode-error"),
+		ackError:                scope.Counter("ack-error"),
+		decodeError:             scope.Counter("decode-error"),
+		encodeError:             scope.Counter("encode-error"),
+		resetTooSoon:            scope.Counter("reset-too-soon"),
+		resetSuccess:            scope.Counter("reset-success"),
+		resetError:              scope.Counter("reset-error"),
+		connectError:            scope.Counter("connect-error"),
+		setKeepAliveError:       scope.Counter("set-keep-alive-error"),
+		setKeepAlivePeriodError: scope.Counter("set-keep-alive-period-error"),
 	}
 }
 
-type consumerWriterImpl struct {
-	// encodeLock controls the access to the encode function.
-	encodeLock sync.Mutex
-	encdec     proto.EncodeDecoder
-	addr       string
-	router     ackRouter
-	opts       Options
-	retrier    retry.Retrier
-	logger     log.Logger
+type connectFn func(addr string) (io.ReadWriteCloser, error)
 
-	ack    msgpb.Ack
-	c      *retryableConnection
-	closed *atomic.Bool
-	doneCh chan struct{}
-	wg     sync.WaitGroup
-	m      consumerWriterMetrics
+type consumerWriterImpl struct {
+	encodeLock  sync.Mutex
+	decodeLock  sync.Mutex
+	encdec      proto.EncodeDecoder
+	addr        string
+	router      ackRouter
+	opts        Options
+	connOpts    ConnectionOptions
+	ackRetrier  retry.Retrier
+	connRetrier retry.Retrier
+	logger      log.Logger
+
+	conn           io.ReadWriteCloser
+	bw             *bufio.Writer
+	br             *bufio.Reader
+	lastResetNanos int64
+	resetCh        chan struct{}
+	ack            msgpb.Ack
+	closed         *atomic.Bool
+	doneCh         chan struct{}
+	wg             sync.WaitGroup
+	m              consumerWriterMetrics
+
+	nowFn     clock.NowFn
+	connectFn connectFn
 }
 
 func newConsumerWriter(
@@ -83,19 +123,37 @@ func newConsumerWriter(
 	if opts == nil {
 		opts = NewOptions()
 	}
-	conn := newRetryableConnection(addr, opts.ConnectionOptions())
-	return &consumerWriterImpl{
-		encdec:  proto.NewEncodeDecoder(conn, opts.EncodeDecoderOptions()),
-		addr:    addr,
-		router:  router,
-		opts:    opts,
-		retrier: retry.NewRetrier(opts.AckErrorRetryOptions()),
-		logger:  opts.InstrumentOptions().Logger(),
-		c:       conn,
-		closed:  atomic.NewBool(false),
-		doneCh:  make(chan struct{}),
-		m:       newConsumerWriterMetrics(opts.InstrumentOptions().MetricsScope()),
+
+	var (
+		connOpts = opts.ConnectionOptions()
+		bw       = bufio.NewWriterSize(u, connOpts.WriteBufferSize())
+		br       = bufio.NewReaderSize(u, connOpts.ReadBufferSize())
+	)
+	w := &consumerWriterImpl{
+		encdec:         proto.NewEncodeDecoder(bufio.NewReadWriter(br, bw), opts.EncodeDecoderOptions()),
+		addr:           addr,
+		router:         router,
+		opts:           opts,
+		connOpts:       connOpts,
+		ackRetrier:     retry.NewRetrier(opts.AckErrorRetryOptions()),
+		connRetrier:    retry.NewRetrier(connOpts.RetryOptions().SetForever(defaultRetryForever)),
+		logger:         opts.InstrumentOptions().Logger(),
+		conn:           u,
+		bw:             bw,
+		br:             br,
+		lastResetNanos: 0,
+		resetCh:        make(chan struct{}, 1),
+		closed:         atomic.NewBool(false),
+		doneCh:         make(chan struct{}),
+		m:              newConsumerWriterMetrics(opts.InstrumentOptions().MetricsScope()),
+		nowFn:          time.Now,
 	}
+
+	w.connectFn = w.connectOnce
+	if err := w.resetWithConnectFn(w.connectFn); err != nil {
+		w.notifyReset()
+	}
+	return w
 }
 
 // Write should fail fast so that the write could be tried on other
@@ -105,14 +163,18 @@ func (w *consumerWriterImpl) Write(m proto.Marshaler) error {
 	err := w.encdec.Encode(m)
 	w.encodeLock.Unlock()
 	if err != nil {
-		w.c.NotifyReset()
+		w.notifyReset()
 		w.m.encodeError.Inc(1)
 	}
 	return err
 }
 
 func (w *consumerWriterImpl) Init() {
-	w.c.Init()
+	w.wg.Add(1)
+	go func() {
+		w.resetConnectionUntilClose()
+		w.wg.Done()
+	}()
 
 	w.wg.Add(1)
 	go func() {
@@ -121,22 +183,52 @@ func (w *consumerWriterImpl) Init() {
 	}()
 }
 
+func (w *consumerWriterImpl) resetConnectionUntilClose() {
+	for {
+		select {
+		case <-w.resetCh:
+			w.resetWithConnectFn(w.connectWithRetry)
+		case <-w.doneCh:
+			w.conn.Close()
+			return
+		}
+	}
+}
+
+func (w *consumerWriterImpl) resetWithConnectFn(fn connectFn) error {
+	// Avoid resetting too frequent.
+	if w.nowFn().UnixNano() < w.lastResetNanos+int64(w.connOpts.ResetDelay()) {
+		w.m.resetTooSoon.Inc(1)
+		return nil
+	}
+	conn, err := fn(w.addr)
+	if err != nil {
+		w.m.resetError.Inc(1)
+		w.logger.Errorf("could not connect to %s, %v", w.addr, err)
+		return err
+	}
+	w.reset(conn)
+	w.m.resetSuccess.Inc(1)
+	w.logger.Infof("reconnected to %s", w.addr)
+	return nil
+}
+
 func (w *consumerWriterImpl) readAcksUntilClose() {
 	for {
 		select {
 		case <-w.doneCh:
 			return
 		default:
-			w.retrier.AttemptWhile(
-				w.readAckContinueFn,
+			w.ackRetrier.AttemptWhile(
+				w.continueFn,
 				w.readAcks,
 			)
 		}
 	}
 }
 
-func (w *consumerWriterImpl) readAckContinueFn(int) bool {
-	return !w.closed.Load()
+func (w *consumerWriterImpl) continueFn(int) bool {
+	return !w.isClosed()
 }
 
 func (w *consumerWriterImpl) readAcks() error {
@@ -144,9 +236,11 @@ func (w *consumerWriterImpl) readAcks() error {
 	// NB(cw) The proto needs to be cleaned up because the gogo protobuf
 	// unmarshalling will append to the underlying slice.
 	w.ack.Metadata = w.ack.Metadata[:0]
+	w.decodeLock.Lock()
 	err := w.encdec.Decode(&w.ack)
+	w.decodeLock.Unlock()
 	if err != nil {
-		w.c.NotifyReset()
+		w.notifyReset()
 		w.m.decodeError.Inc(1)
 		return err
 	}
@@ -165,7 +259,78 @@ func (w *consumerWriterImpl) Close() {
 		return
 	}
 	close(w.doneCh)
-	w.c.Close()
-	w.encdec.Close()
 	w.wg.Wait()
+	w.encdec.Close()
 }
+
+func (w *consumerWriterImpl) notifyReset() {
+	select {
+	case w.resetCh <- struct{}{}:
+	default:
+	}
+}
+
+func (w *consumerWriterImpl) isClosed() bool {
+	return w.closed.Load()
+}
+
+func (w *consumerWriterImpl) reset(conn io.ReadWriteCloser) {
+	// Close the connection to wake up potential blocking encode/decode calls.
+	w.conn.Close()
+
+	// NB: Connection can only be reset between encode/decode calls.
+	w.decodeLock.Lock()
+	defer w.decodeLock.Unlock()
+
+	w.encodeLock.Lock()
+	defer w.encodeLock.Unlock()
+
+	w.conn = conn
+	w.bw.Reset(conn)
+	w.br.Reset(conn)
+	w.lastResetNanos = w.nowFn().UnixNano()
+}
+
+func (w *consumerWriterImpl) connectOnce(addr string) (io.ReadWriteCloser, error) {
+	conn, err := net.DialTimeout("tcp", addr, w.connOpts.DialTimeout())
+	if err != nil {
+		w.m.connectError.Inc(1)
+		return nil, err
+	}
+	tcpConn := conn.(*net.TCPConn)
+	if err = tcpConn.SetKeepAlive(true); err != nil {
+		w.m.setKeepAliveError.Inc(1)
+	}
+	keepAlivePeriod := w.connOpts.KeepAlivePeriod()
+	if keepAlivePeriod <= 0 {
+		return conn, nil
+	}
+	if err = tcpConn.SetKeepAlivePeriod(keepAlivePeriod); err != nil {
+		w.m.setKeepAlivePeriodError.Inc(1)
+	}
+	return conn, nil
+}
+
+func (w *consumerWriterImpl) connectWithRetry(addr string) (io.ReadWriteCloser, error) {
+	var (
+		conn io.ReadWriteCloser
+		err  error
+	)
+	fn := func() error {
+		conn, err = w.connectFn(addr)
+		return err
+	}
+	if attemptErr := w.connRetrier.AttemptWhile(
+		w.continueFn,
+		fn,
+	); attemptErr != nil {
+		return nil, fmt.Errorf("failed to connect to address %s, %v", addr, attemptErr)
+	}
+	return conn, nil
+}
+
+type uninitializedReadWriter struct{}
+
+func (u uninitializedReadWriter) Read(p []byte) (int, error)  { return 0, errNotInitialized }
+func (u uninitializedReadWriter) Write(p []byte) (int, error) { return 0, errNotInitialized }
+func (u uninitializedReadWriter) Close() error                { return nil }
