@@ -1149,6 +1149,10 @@ func TestBlockEvictMutableSegmentsSimple(t *testing.T) {
 	blk, err := NewBlock(start, testMD, testOpts)
 	require.NoError(t, err)
 	res, err := blk.EvictMutableSegments()
+	require.Error(t, err)
+
+	require.NoError(t, blk.Seal())
+	res, err = blk.EvictMutableSegments()
 	require.NoError(t, err)
 	require.Equal(t, int64(1), res.NumMutableSegments)
 }
@@ -1164,9 +1168,10 @@ func TestBlockEvictMutableSegmentsAddResults(t *testing.T) {
 
 	b, ok := blk.(*block)
 	require.True(t, ok)
+	require.NoError(t, b.Seal())
 
-	// empty to start, so shouldn't need eviction
 	seg1 := segment.NewMockMutableSegment(ctrl)
+	seg1.EXPECT().Seal().Return(seg1, nil)
 	require.NoError(t, b.AddResults(
 		result.NewIndexBlock(start, []segment.Segment{seg1},
 			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 3))))
@@ -1177,6 +1182,7 @@ func TestBlockEvictMutableSegmentsAddResults(t *testing.T) {
 
 	seg2 := segment.NewMockMutableSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
+	seg2.EXPECT().Seal().Return(seg2, nil)
 	require.NoError(t, b.AddResults(
 		result.NewIndexBlock(start, []segment.Segment{seg2, seg3},
 			testResultShardRanges(start, start.Add(time.Hour), 1, 2, 4))))

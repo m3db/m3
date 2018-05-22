@@ -459,8 +459,8 @@ func (b *block) EvictMutableSegments() (EvictMutableSegmentResults, error) {
 	var results EvictMutableSegmentResults
 	b.Lock()
 	defer b.Unlock()
-	if b.state == blockStateClosed {
-		return results, errBlockAlreadyClosed
+	if b.state != blockStateSealed {
+		return results, fmt.Errorf("unable to evict mutable segments, block must be sealed, found: %v", b.state)
 	}
 	var multiErr xerrors.MultiError
 
