@@ -25,17 +25,21 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
 	"github.com/m3db/m3db/src/coordinator/test/local"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
+	"github.com/m3db/m3db/src/dbnode/x/metrics"
+	xclock "github.com/m3db/m3x/clock"
 
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func generatePromWriteRequest() *prompb.WriteRequest {
@@ -106,4 +110,27 @@ func TestPromWrite(t *testing.T) {
 
 	writeErr := promWrite.write(context.TODO(), r)
 	require.NoError(t, writeErr)
+}
+
+func TestWriteErrorMetricCount(t *testing.T) {
+	logging.InitWithCores(nil)
+
+	ctrl := gomock.NewController(t)
+	storage, session := local.NewStorageAndSession(ctrl)
+	session.EXPECT().WriteTagged(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
+
+	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
+	defer closer.Close()
+	writeMetrics := newPromWriteMetrics(scope)
+
+	promWrite := &PromWriteHandler{store: storage, promWriteMetrics: writeMetrics}
+	req, _ := http.NewRequest("POST", PromWriteURL, nil)
+	promWrite.ServeHTTP(httptest.NewRecorder(), req)
+
+	foundMetric := xclock.WaitUntil(func() bool {
+		found := reporter.Counters()["write.errors"]
+		return found == 1
+	}, 5*time.Second)
+	require.True(t, foundMetric)
 }

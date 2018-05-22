@@ -163,7 +163,7 @@ func TestQueryKillOnTimeout(t *testing.T) {
 	assert.Equal(t, resp.StatusCode, 500, "Status code not 500")
 }
 
-func TestErrorMetricsCount(t *testing.T) {
+func TestReadErrorMetricsCount(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, session := local.NewStorageAndSession(ctrl)
@@ -173,11 +173,11 @@ func TestErrorMetricsCount(t *testing.T) {
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	defer closer.Close()
 	readMetrics := newPromReadMetrics(scope)
-	reporter.Flush()
 
 	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: readMetrics}
 	req, _ := http.NewRequest("POST", PromReadURL, generatePromReadBody(t))
 	promRead.ServeHTTP(httptest.NewRecorder(), req)
+
 	foundMetric := xclock.WaitUntil(func() bool {
 		found := reporter.Counters()["fetch.errors"]
 		return found == 1
