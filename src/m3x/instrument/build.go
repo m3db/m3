@@ -39,6 +39,9 @@ var (
 	// Branch is the VCS branch associated with this build.
 	Branch = "unknown"
 
+	// Version is the version associated with this build.
+	Version = "unknown"
+
 	// BuildDate is the date this build was created.
 	BuildDate = "unknown"
 
@@ -68,6 +71,7 @@ var (
 // LogBuildInfo logs the build information to the provided logger.
 func LogBuildInfo() {
 	log.Printf("Go Runtime version: %s\n", goVersion)
+	log.Printf("Build Version:      %s\n", Version)
 	log.Printf("Build Revision:     %s\n", Revision)
 	log.Printf("Build Branch:       %s\n", Branch)
 	log.Printf("Build Date:         %s\n", BuildDate)
@@ -128,10 +132,11 @@ func (b *buildReporter) Start() error {
 
 func (b *buildReporter) report() {
 	scope := b.opts.MetricsScope().Tagged(map[string]string{
-		"revision":   Revision,
-		"branch":     Branch,
-		"build-date": BuildDate,
-		"go-version": goVersion,
+		"revision":      Revision,
+		"branch":        Branch,
+		"build-date":    BuildDate,
+		"build-version": Version,
+		"go-version":    goVersion,
 	})
 	buildInfoGauge := scope.Gauge(buildInfoMetricName)
 	buildAgeGauge := scope.Gauge(buildAgeMetricName)
