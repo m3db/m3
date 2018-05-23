@@ -16,7 +16,7 @@ import:
   - ident
 
 - package: github.com/m3db/m3cluster
-  version: 97360c9dac803def743351d084a2449a85e2066b
+  version: 2096f1ed16154b3ce05c9b596c5fd1a8fa485c1b
   subpackages:
   - client
   - services
