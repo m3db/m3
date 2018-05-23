@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/integration/generate"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
+	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -38,14 +39,20 @@ func TestDiskSnapshotSimple(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
+	nOpts := namespace.NewOptions().SetSnapshotEnabled(true)
+	md1, err := namespace.NewMetadata(testNamespaces[0], nOpts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(testNamespaces[1], nOpts)
+	require.NoError(t, err)
+
 	testOpts := newTestOptions(t).
-		SetTickMinimumInterval(time.Second)
+		SetTickMinimumInterval(time.Second).
+		SetNamespaces([]namespace.Metadata{md1, md2})
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
-	blockSize := md.Options().RetentionOptions().BlockSize()
+	blockSize := md1.Options().RetentionOptions().BlockSize()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Start the server
