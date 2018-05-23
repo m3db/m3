@@ -61,7 +61,7 @@ func (h *deleteAllHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(struct {
-		Deleted bool
+		Deleted bool `json:"deleted"`
 	}{
 		Deleted: true,
 	})
