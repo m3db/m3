@@ -24,9 +24,11 @@ thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
 
-BUILD            := $(abspath ./bin)
-GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package))
-LINUX_AMD64_ENV  := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+BUILD                := $(abspath ./bin)
+GO_BUILD_LDFLAGS_CMD := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
+GO_BUILD_LDFLAGS     := $(shell $(GO_BUILD_LDFLAGS_SCRIPT))
+LINUX_AMD64_ENV      := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+GO_RELEASER_VERSION  := v0.76.1
 
 include $(SELF_DIR)/src/dbnode/generated-source-files.mk
 
@@ -130,6 +132,30 @@ install-proto-bin: install-glide
 	@which protoc-gen-go >/dev/null || (make install-vendor            && \
 		go install $(m3db_package)/$(vendor_prefix)/$(protoc_go_package)    \
 	)
+
+install-stringer:
+		@which stringer > /dev/null || go get golang.org/x/tools/cmd/stringer
+		@which stringer > /dev/null || (echo "stringer install failed" && exit 1)
+
+install-goreleaser: install-stringer
+		@which goreleaser > /dev/null || (go get -d github.com/goreleaser/goreleaser && \
+		  cd $(GOPATH)/src/github.com/goreleaser/goreleaser && \
+			git checkout $(GO_RELEASER_VERSION) && \
+			dep ensure -vendor-only && \
+			make build && \
+			mv goreleaser $(GOPATH)/bin/)
+		@goreleaser -version 2> /dev/null || (echo "goreleaser install failed" && exit 1)
+
+.PHONY: release
+release: install-goreleaser
+	@echo Releasing new version
+	@source $(GO_BUILD_LDFLAGS_CMD) > /dev/null && goreleaser
+
+.PHONY: release-snapshot
+release-snapshot: install-goreleaser
+	@echo Creating snapshot release
+	@source $(GO_BUILD_LDFLAGS_CMD) > /dev/null && goreleaser --snapshot --rm-dist
+
 
 define SUBDIR_RULES
 
