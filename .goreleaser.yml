@@ -1,4 +1,4 @@
-project_name: ks
+project_name: m3db
 builds:
   - main: ./src/cmd/services/m3dbnode/main/main.go
     binary: m3dbnode
