@@ -700,7 +700,7 @@ func (s *fileSystemSource) readNextEntryAndRecordBlock(
 		id = entry.ID
 		tags = entry.Tags
 	} else {
-		tags, err = s.tagsFromTagsIter(tagsIter)
+		tags, err = s.tagsFromTagsIter(id, tagsIter)
 		if err != nil {
 			return fmt.Errorf("unable to decode tags: %v", err)
 		}
