@@ -29,6 +29,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -36,8 +37,8 @@ import (
 )
 
 func TestPlacementAddHandler(t *testing.T) {
-	mockPlacementService := SetupPlacementTest(t)
-	handler := NewAddHandler(mockPlacementService)
+	mockClient, mockPlacementService := SetupPlacementTest(t)
+	handler := NewAddHandler(mockClient, config.Configuration{})
 
 	// Test add failure
 	w := httptest.NewRecorder()
@@ -50,7 +51,7 @@ func TestPlacementAddHandler(t *testing.T) {
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	assert.Equal(t, "no new instances found in the valid zone\n", string(body))
+	assert.Equal(t, "{\"Error\":\"no new instances found in the valid zone\"}\n", string(body))
 
 	// Test add success
 	w = httptest.NewRecorder()
