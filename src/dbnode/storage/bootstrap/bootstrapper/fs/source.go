@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"sync"
@@ -474,12 +475,32 @@ func (s *fileSystemSource) markRunResultErrorsAndUnfulfilled(
 }
 
 func (s *fileSystemSource) tagsFromTagsIter(
+	seriesID ident.ID,
 	iter ident.TagIterator,
 ) (ident.Tags, error) {
+	seriesIDBytes := ident.BytesID(seriesID.Bytes())
+
 	tags := s.idPool.Tags()
 	for iter.Next() {
 		curr := iter.Current()
-		tags.Append(s.idPool.CloneTag(curr))
+
+		var tag ident.Tag
+		nameBytes, valueBytes := curr.Name.Bytes(), curr.Value.Bytes()
+
+		if idx := bytes.Index(seriesIDBytes, nameBytes); idx != -1 {
+			tag.Name = seriesIDBytes[idx : idx+len(nameBytes)]
+			tag.NoFinalize() // Taken ref, cannot finalize this
+		} else {
+			tag.Name = s.idPool.Clone(curr.Name)
+		}
+		if idx := bytes.Index(seriesIDBytes, valueBytes); idx != -1 {
+			tag.Value = seriesIDBytes[idx : idx+len(valueBytes)]
+			tag.NoFinalize() // Taken ref, cannot finalize this
+		} else {
+			tag.Value = s.idPool.Clone(curr.Value)
+		}
+
+		tags.Append(tag)
 	}
 	return tags, iter.Err()
 }

@@ -60,19 +60,34 @@ func ValidateMetric(id ident.ID, tags ident.Tags) error {
 // FOLLOWUP(r): Rename FromMetric to FromSeries (metric terminiology
 // is not common in the codebase)
 func FromMetric(id ident.ID, tags ident.Tags) (doc.Document, error) {
+	clonedID := clone(id)
 	fields := make([]doc.Field, 0, len(tags.Values()))
 	for _, tag := range tags.Values() {
 		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
 			return doc.Document{}, ErrUsingReservedFieldName
 		}
-		name := clone(tag.Name)
+
+		nameBytes, valueBytes := tag.Name.Bytes(), tag.Value.Bytes()
+
+		var clonedName, clonedValue []byte
+		if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
+			clonedName = clonedID[idx : idx+len(nameBytes)]
+		} else {
+			clonedName = append([]byte(nil), nameBytes...)
+		}
+		if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
+			clonedValue = clonedID[idx : idx+len(valueBytes)]
+		} else {
+			clonedValue = append([]byte(nil), valueBytes...)
+		}
+
 		fields = append(fields, doc.Field{
-			Name:  name,
-			Value: clone(tag.Value),
+			Name:  clonedName,
+			Value: clonedValue,
 		})
 	}
 	return doc.Document{
-		ID:     clone(id),
+		ID:     clonedID,
 		Fields: fields,
 	}, nil
 }
@@ -99,23 +114,38 @@ func FromMetricNoClone(id ident.ID, tags ident.Tags) (doc.Document, error) {
 // FOLLOWUP(r): Rename FromMetric to FromSeries (metric terminiology
 // is not common in the codebase)
 func FromMetricIter(id ident.ID, tags ident.TagIterator) (doc.Document, error) {
+	clonedID := clone(id)
 	fields := make([]doc.Field, 0, tags.Remaining())
 	for tags.Next() {
 		tag := tags.Current()
 		if bytes.Equal(ReservedFieldNameID, tag.Name.Bytes()) {
 			return doc.Document{}, ErrUsingReservedFieldName
 		}
-		name := clone(tag.Name)
+
+		nameBytes, valueBytes := tag.Name.Bytes(), tag.Value.Bytes()
+
+		var clonedName, clonedValue []byte
+		if idx := bytes.Index(clonedID, nameBytes); idx != -1 {
+			clonedName = clonedID[idx : idx+len(nameBytes)]
+		} else {
+			clonedName = append([]byte(nil), nameBytes...)
+		}
+		if idx := bytes.Index(clonedID, valueBytes); idx != -1 {
+			clonedValue = clonedID[idx : idx+len(valueBytes)]
+		} else {
+			clonedValue = append([]byte(nil), valueBytes...)
+		}
+
 		fields = append(fields, doc.Field{
-			Name:  name,
-			Value: clone(tag.Value),
+			Name:  clonedName,
+			Value: clonedValue,
 		})
 	}
 	if err := tags.Err(); err != nil {
 		return doc.Document{}, err
 	}
 	return doc.Document{
-		ID:     clone(id),
+		ID:     clonedID,
 		Fields: fields,
 	}, nil
 }

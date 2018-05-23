@@ -3264,7 +3264,7 @@ func (s *streamBlocksResult) addBlockFromPeer(
 	if err != nil {
 		return err
 	}
-	tags, err := newTagsFromEncodedTags(encodedTags,
+	tags, err := newTagsFromEncodedTags(id, encodedTags,
 		s.tagDecoder, s.idPool)
 	if err != nil {
 		return err
@@ -3375,7 +3375,7 @@ func (r *bulkBlocksResult) addBlockFromPeer(
 			// Tags not decoded yet, attempt decoded and then reinsert
 			attemptedDecodeTags = true
 			tagDecoder := r.tagDecoderPool.Get()
-			tags, err = newTagsFromEncodedTags(encodedTags,
+			tags, err = newTagsFromEncodedTags(id, encodedTags,
 				tagDecoder, r.idPool)
 			tagDecoder.Close()
 			if err != nil {
@@ -3804,7 +3804,7 @@ func (it *metadataIter) Next() bool {
 		return false
 	}
 	var tags ident.Tags
-	tags, it.err = newTagsFromEncodedTags(m.encodedTags,
+	tags, it.err = newTagsFromEncodedTags(m.id, m.encodedTags,
 		it.tagDecoder, it.idPool)
 	if it.err != nil {
 		return false
@@ -3871,6 +3871,7 @@ func (v FetchBlocksMetadataEndpointVersion) String() string {
 }
 
 func newTagsFromEncodedTags(
+	seriesID ident.ID,
 	encodedTags checked.Bytes,
 	tagDecoder serialize.TagDecoder,
 	idPool ident.Pool,
@@ -3882,10 +3883,29 @@ func newTagsFromEncodedTags(
 	encodedTags.IncRef()
 	tagDecoder.Reset(encodedTags)
 
+	seriesIDBytes := ident.BytesID(seriesID.Bytes())
+
 	tags := idPool.Tags()
 	for tagDecoder.Next() {
 		curr := tagDecoder.Current()
-		tags.Append(idPool.CloneTag(curr))
+
+		var tag ident.Tag
+		nameBytes, valueBytes := curr.Name.Bytes(), curr.Value.Bytes()
+
+		if idx := bytes.Index(seriesIDBytes, nameBytes); idx != -1 {
+			tag.Name = seriesIDBytes[idx : idx+len(nameBytes)]
+			tag.NoFinalize() // Taken ref, cannot finalize this
+		} else {
+			tag.Name = idPool.Clone(curr.Name)
+		}
+		if idx := bytes.Index(seriesIDBytes, valueBytes); idx != -1 {
+			tag.Value = seriesIDBytes[idx : idx+len(valueBytes)]
+			tag.NoFinalize() // Taken ref, cannot finalize this
+		} else {
+			tag.Value = idPool.Clone(curr.Value)
+		}
+
+		tags.Append(tag)
 	}
 
 	encodedTags.DecRef()

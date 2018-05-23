@@ -484,9 +484,10 @@ func (s *peersSource) incrementalFlush(
 
 			shardResult.RemoveSeries(series.ID)
 			series.Blocks.Close()
-			// Safe to finalize these IDs because the prepared object was the only other thing
+			// Safe to finalize these IDs and Tags because the prepared object was the only other thing
 			// using them, and it has been closed.
 			series.ID.Finalize()
+			series.Tags.Finalize()
 		}
 		if numSeriesTriedToRemoveWithRemainingBlocks > 0 {
 			s.log.WithFields(
