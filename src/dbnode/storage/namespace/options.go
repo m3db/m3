@@ -42,8 +42,8 @@ const (
 	// Namespace requires fileset/snapshot cleanup by default
 	defaultCleanupEnabled = true
 
-	// Namespace requires repair by default
-	defaultRepairEnabled = true
+	// Namespace requires repair disabled by default
+	defaultRepairEnabled = false
 )
 
 var (
