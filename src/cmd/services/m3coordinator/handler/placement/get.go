@@ -58,7 +58,7 @@ func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	placement, version, err := service.Placement()
 	if err != nil {
 		json.NewEncoder(w).Encode(struct {
-			Result string
+			Result string `json:"result"`
 		}{
 			Result: "no placement found",
 		})

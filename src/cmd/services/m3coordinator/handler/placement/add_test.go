@@ -51,7 +51,7 @@ func TestPlacementAddHandler(t *testing.T) {
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	assert.Equal(t, "{\"Error\":\"no new instances found in the valid zone\"}\n", string(body))
+	assert.Equal(t, "{\"error\":\"no new instances found in the valid zone\"}\n", string(body))
 
 	// Test add success
 	w = httptest.NewRecorder()

@@ -1,6 +1,6 @@
 ## WARNING: This is pre-release software, and is not intended for use until a stable release.
 
-# M3DB [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status](https://codecov.io/gh/m3db/m3db/branch/master/graph/badge.svg)](https://codecov.io/gh/m3db/m3db)
+# M3DB [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fm3db%2Fm3db.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fm3db%2Fm3db?ref=badge_shield) [![Coverage Status](https://codecov.io/gh/m3db/m3db/branch/master/graph/badge.svg)](https://codecov.io/gh/m3db/m3db)
 
 A time series database.
 

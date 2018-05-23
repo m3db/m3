@@ -66,7 +66,7 @@ func TestPromReadNotImplemented(t *testing.T) {
 	r, parseErr := promRead.parseRequest(req)
 	require.Nil(t, parseErr, "unable to parse request")
 	_, err := promRead.read(context.TODO(), httptest.NewRecorder(), r, &prometheus.RequestParams{Timeout: time.Hour})
-	require.NotNil(t, err, "{\"Error\":\"not implemented\"}\n")
+	require.NotNil(t, err, "{\"error\":\"not implemented\"}\n")
 }
 
 // NB(braskin): will replace this test once the server actually returns something
@@ -81,7 +81,7 @@ func TestPromReadEndpoint(t *testing.T) {
 	promRead := &PromReadHandler{engine: engine}
 
 	promRead.ServeHTTP(res, req)
-	require.Equal(t, "{\"Error\":\"not implemented\"}\n", res.Body.String())
+	require.Equal(t, "{\"error\":\"not implemented\"}\n", res.Body.String())
 }
 
 func createURL() *bytes.Buffer {
