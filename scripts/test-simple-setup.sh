@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -xe
 
 echo "Sleeping for a bit to ensure db"
 
@@ -7,7 +7,7 @@ sleep 10
 
 echo "Adding namespace"
 
-curl -X POST localhost:7201/namespace/add -d '{
+curl -vvvsSf -X POST localhost:7201/namespace/add -d '{
     "name": "default",
     "retention_period": "48h",
     "block_size": "2h",
@@ -24,7 +24,7 @@ curl -X POST localhost:7201/namespace/add -d '{
 
 echo "Initialization placement" 
 
-curl -X POST localhost:7201/placement/init -d '{
+curl -vvvsSf -X POST localhost:7201/placement/init -d '{
     "num_shards": 64,
     "replication_factor": 1,
     "instances": [
@@ -42,7 +42,7 @@ curl -X POST localhost:7201/placement/init -d '{
 
 echo "Write data" 
 
-curl http://localhost:9003/writetagged -s -X POST -d '{
+curl -vvvsSf -X POST http://localhost:9003/writetagged -d '{
     "namespace":"default",
     "id":"foo",
     "tags": [
@@ -62,7 +62,7 @@ curl http://localhost:9003/writetagged -s -X POST -d '{
 
 echo "Read data"
 
-curl http://localhost:9003/query -s -X POST -d '{
+curl -vvvsSf -X POST http://localhost:9003/query -d '{
     "namespace":"metrics",
     "query": {
         "regexp": { 
