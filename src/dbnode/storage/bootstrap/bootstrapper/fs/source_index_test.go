@@ -325,8 +325,8 @@ func TestBootstrapIndexIncremental(t *testing.T) {
 	// Validate results
 	validateGoodTaggedSeries(t, times.start, indexResults)
 
-	// Validate that read the block and no blocks were written
-	// (ensure incremental didn't write it back out again)
+	// Validate that wrote the block out (and no index blocks
+	// were read as existing index blocks on disk)
 	counters := scope.Snapshot().Counters()
 	require.Equal(t, int64(0), counters["fs-bootstrapper.persist-index-blocks-read+"].Value())
 	require.Equal(t, int64(1), counters["fs-bootstrapper.persist-index-blocks-write+"].Value())

@@ -313,39 +313,46 @@ func (s *fileSystemSource) newShardReaders(
 				xlog.NewField("timeRange", tr.String()),
 				xlog.NewField("path", result.Err.Filepath()),
 			).Error("fs bootstrapper unable to read info file")
+			// Errors are marked unfulfilled by markRunResultErrorsAndUnfulfilled
+			// and will be re-attempted by the next bootstrapper
 			continue
 		}
 
 		info := result.Info
-		blockStart := xtime.UnixNano(info.BlockStart).ToTime()
+		blockStart := xtime.FromNanoseconds(info.BlockStart)
 		if !tr.Overlaps(xtime.Range{
 			Start: blockStart,
 			End:   blockStart.Add(ns.Options().RetentionOptions().BlockSize()),
 		}) {
+			// Errors are marked unfulfilled by markRunResultErrorsAndUnfulfilled
+			// and will be re-attempted by the next bootstrapper
 			continue
 		}
 
 		r, err := readerPool.get()
 		if err != nil {
 			s.log.Errorf("unable to get reader from pool")
+			// Errors are marked unfulfilled by markRunResultErrorsAndUnfulfilled
+			// and will be re-attempted by the next bootstrapper
 			continue
 		}
 
-		t := xtime.FromNanoseconds(info.BlockStart)
 		openOpts := fs.DataReaderOpenOptions{
 			Identifier: fs.FileSetFileIdentifier{
 				Namespace:  ns.ID(),
 				Shard:      shard,
-				BlockStart: t,
+				BlockStart: blockStart,
 			},
 		}
 		if err := r.Open(openOpts); err != nil {
 			s.log.WithFields(
 				xlog.NewField("shard", shard),
-				xlog.NewField("time", t.String()),
+				xlog.NewField("blockStart", blockStart.String()),
 				xlog.NewField("error", err.Error()),
 			).Error("unable to open fileset files")
 			readerPool.put(r)
+			// Errors are marked unfulfilled by markRunResultErrorsAndUnfulfilled
+			// and will be re-attempted by the next bootstrapper
 			continue
 		}
 
@@ -597,8 +604,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	}
 
 	incremental := runOpts.Incremental()
-	anyRemaining := remainingRanges.IsEmpty()
-	if run == bootstrapIndexRunType && incremental && anyRemaining {
+	noneRemaining := remainingRanges.IsEmpty()
+	if run == bootstrapIndexRunType && incremental && noneRemaining {
 		err := s.incrementalBootstrapIndexSegment(ns, requestedRanges, runResult)
 		if err != nil {
 			iopts := s.opts.ResultOptions().InstrumentOptions()
@@ -864,6 +871,9 @@ func (s *fileSystemSource) incrementalBootstrapIndexSegment(
 		immutableSegments, fulfilled)
 	indexResults[xtime.ToUnixNano(blockStart)] = replacedBlock
 
+	// Close the previous mutable segment
+	mutableSegment.Close()
+
 	return nil
 }
 
@@ -1115,6 +1125,9 @@ func (s *fileSystemSource) bootstrapFromIndexPersistedBlocks(
 		segmentsFulfilled := willFulfill
 		indexBlock := result.NewIndexBlock(indexBlockStart, segments,
 			segmentsFulfilled)
+		// NB(r): Don't need to call MarkFulfilled on the IndexResults here
+		// as we've already passed the ranges fulfilled to the block that
+		// we place in the IndexResuts with the call to Add(...)
 		res.result.index.Add(indexBlock, nil)
 		res.fulfilled.AddRanges(segmentsFulfilled)
 	}
