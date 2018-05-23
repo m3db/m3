@@ -484,20 +484,26 @@ func (s *fileSystemSource) tagsFromTagsIter(
 	for iter.Next() {
 		curr := iter.Current()
 
-		var tag ident.Tag
-		nameBytes, valueBytes := curr.Name.Bytes(), curr.Value.Bytes()
-
+		var (
+			nameBytes, valueBytes = curr.Name.Bytes(), curr.Value.Bytes()
+			tag                   ident.Tag
+			idRef                 bool
+		)
 		if idx := bytes.Index(seriesIDBytes, nameBytes); idx != -1 {
 			tag.Name = seriesIDBytes[idx : idx+len(nameBytes)]
-			tag.NoFinalize() // Taken ref, cannot finalize this
+			idRef = true
 		} else {
 			tag.Name = s.idPool.Clone(curr.Name)
 		}
 		if idx := bytes.Index(seriesIDBytes, valueBytes); idx != -1 {
 			tag.Value = seriesIDBytes[idx : idx+len(valueBytes)]
-			tag.NoFinalize() // Taken ref, cannot finalize this
+			idRef = true
 		} else {
 			tag.Value = s.idPool.Clone(curr.Value)
+		}
+
+		if idRef {
+			tag.NoFinalize() // Taken ref, cannot finalize this
 		}
 
 		tags.Append(tag)
