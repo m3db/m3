@@ -26,10 +26,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/dbnode/ts"
-
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
 	"github.com/m3db/m3db/src/dbnode/x/xpool"
 	"github.com/m3db/m3x/checked"
@@ -44,7 +43,6 @@ import (
 const (
 	seriesID        = "foo"
 	seriesNamespace = "namespace"
-	reqID           = "reqId"
 )
 
 var (
@@ -55,11 +53,6 @@ var (
 	start  = time.Now().Truncate(time.Hour).Add(2 * time.Minute)
 	middle = start.Add(blockSize)
 	end    = middle.Add(blockSize)
-
-	fetchRangeEnd       = start.Add(time.Second)
-	fetchRangeWindow    = time.Second
-	fetchRangePrecision = xtime.Nanosecond
-	fetchRangeRetention = time.Millisecond
 
 	testIterAlloc = func(r io.Reader) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
