@@ -28,6 +28,7 @@ BUILD                := $(abspath ./bin)
 GO_BUILD_LDFLAGS_CMD := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
 GO_BUILD_LDFLAGS     := $(shell $(GO_BUILD_LDFLAGS_SCRIPT))
 LINUX_AMD64_ENV      := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+GO_RELEASER_VERSION  := v0.76.1
 
 include $(SELF_DIR)/src/dbnode/generated-source-files.mk
 
@@ -139,7 +140,7 @@ install-stringer:
 install-goreleaser: install-stringer
 		@which goreleaser > /dev/null || (go get -d github.com/goreleaser/goreleaser && \
 		  cd $(GOPATH)/src/github.com/goreleaser/goreleaser && \
-			git checkout v0.76.1 && \
+			git checkout $(GO_RELEASER_VERSION) && \
 			dep ensure -vendor-only && \
 			make build && \
 			mv goreleaser $(GOPATH)/bin/)

@@ -1,5 +1,5 @@
-hash: 35f41799fead90eb3b034abd0402f65b2f5336b27c719a044296f11e42af872b
-updated: 2018-05-23T15:23:06.117076-04:00
+hash: 9d0a4a0ca7448bcb10dfad80455222d7216ea8deff9334f7570e9e29f8cb42d4
+updated: 2018-05-21T11:43:09.730401-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -106,14 +106,16 @@ imports:
   version: 1782e2d46ce2a9f28bd1ac1b46cd141c0d887c9b
   repo: https://github.com/m3db/vellum
   subpackages:
-  - regexp
   - utf8
+  - regexp
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
   - spew
 - name: github.com/dgrijalva/jwt-go
   version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
+- name: github.com/dgryski/go-bits
+  version: 2ad8d707cc05b1815ce6ff2543bb5e8d8f9298ef
 - name: github.com/edsrzf/mmap-go
   version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 - name: github.com/ghodss/yaml
@@ -121,14 +123,14 @@ imports:
 - name: github.com/glycerine/go-unsnap-stream
   version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
 - name: github.com/go-kit/kit
-  version: 1b1a55c53e898557056c7f3fe05be3760a48f172
+  version: 04dd4f741c6e76cc170a4d7913f4c625952e6f58
   subpackages:
   - log
   - log/level
 - name: github.com/go-logfmt/logfmt
   version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
 - name: github.com/go-stack/stack
-  version: 259ab82a6cad3992b4e21ff5cac294ccb06474bc
+  version: 54be5f394ed2c3e19dac9134a40a95ba5a017f7b
 - name: github.com/gogo/protobuf
   version: 100ba4e885062801d56799d78530b73b178a78f3
   subpackages:
@@ -302,11 +304,11 @@ imports:
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/nightlyone/lockfile
-  version: 6a197d5ea61168f2ac821de2b7f011b250904900
+  version: 1d49c987357a327b5b03aa84cbddd582c328615d
 - name: github.com/nu7hatch/gouuid
   version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
 - name: github.com/oklog/ulid
-  version: 7e1bd8a9a281b5abdf651a430b918bb0ecdbceda
+  version: 66bb6560562feca7045b23db1ae85b01260f87c5
 - name: github.com/opentracing/opentracing-go
   version: 855519783f479520497c6b3445611b05fc42f009
   subpackages:
@@ -318,11 +320,11 @@ imports:
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pilosa/pilosa
-  version: a112b2d46af94e3ecfa74b8158381e3595b24e4b
+  version: 00f5a1539fb79ab099a3e612a401a5510784eacb
   subpackages:
   - roaring
 - name: github.com/pkg/errors
-  version: 17b591df37844cde689f4d5813e5cea0927d8dd2
+  version: 248dadf4e9068a0b3e79f02ed0a610d935de5302
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
@@ -361,12 +363,10 @@ imports:
   - util/strutil
   - util/testutil
 - name: github.com/prometheus/tsdb
-  version: 2aae939d6cbebac9e4ad7324287bb9a6bd135d13
+  version: 706602daed1487f7849990678b4ece4599745905
   subpackages:
-  - chunkenc
   - chunks
   - fileutil
-  - index
   - labels
 - name: github.com/RoaringBitmap/roaring
   version: 1a28a7fa985680f9f4e1644c0a857ec359a444b0
@@ -460,7 +460,7 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sync
-  version: 1d60e4601c6fd243af51cc01ddf169918a5407ca
+  version: 450f422ab23cf9881c94e2db30cac0eb1b7cf80c
   subpackages:
   - errgroup
 - name: golang.org/x/sys
