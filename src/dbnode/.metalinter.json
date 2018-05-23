@@ -11,19 +11,26 @@
     "badtime": {
       "Command": "badtime -tags 'integration big adhoc'",
       "Pattern": "PATH:LINE:COL:MESSAGE"
+    },
+    "importorder": {
+      "Command": "importorder -patterns=\"STDLIB github.com/m3db EXTERNAL\"",
+      "Pattern": "PATH:LINE:MESSAGE"
     }
   },
-  "Enable":
-    [ "varcheck"
-    , "structcheck"
-    , "goconst"
-    , "ineffassign"
-    , "unconvert"
-    , "misspell"
-    , "golint"
-    , "gosimple"
-    , "unused"
-    , "badtime"
-    , "maligned" ],
+  "Enable": [
+    "varcheck",
+    "structcheck",
+    "goconst",
+    "ineffassign",
+    "unconvert",
+    "misspell",
+    "golint",
+    "gosimple",
+    "unused",
+    "badtime",
+    "maligned",
+    "importorder"
+  ],
   "Deadline": "3m",
-  "EnableGC": true }
+  "EnableGC": true
+}
