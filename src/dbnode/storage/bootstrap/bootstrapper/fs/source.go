@@ -1131,7 +1131,6 @@ type shardID uint32
 
 type shardReaders struct {
 	readers []fs.DataFileSetReader
-	err     error
 }
 
 func newTimeWindowReaders(

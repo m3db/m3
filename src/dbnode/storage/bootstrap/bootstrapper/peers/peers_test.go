@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3db/src/dbnode/persist"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -39,7 +40,8 @@ func TestNewPeersBootstrapper(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := NewOptions().
-		SetAdminClient(client.NewMockAdminClient(ctrl))
+		SetAdminClient(client.NewMockAdminClient(ctrl)).
+		SetPersistManager(persist.NewMockManager(ctrl))
 
 	b, err := NewPeersBootstrapperProvider(opts, nil)
 	assert.NoError(t, err)
