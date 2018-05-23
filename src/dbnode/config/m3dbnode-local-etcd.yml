@@ -191,7 +191,7 @@ db:
 
   config:
       service:
-          env: production
+          env: default_env
           zone: embedded
           service: m3db
           cacheDir: /var/lib/m3kv

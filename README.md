@@ -17,6 +17,8 @@ Notes for [developers]
 
 To start a local node, you can build with `make m3dbnode` and then run `./bin/m3dbnode -f ./src/dbnode/config/m3dbnode-local.yml`.  To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64`.
 
+<!-- For PR review: should we remove the test RPC section entirely and link to the deploy doc? -->
+
 ### Test RPC
 
 To test out some of the functionality of M3DB there are some user friendly HTTP JSON APIs that you can use.  These use the DB node cluster service endpoints.  There are more performant endpoints are
@@ -24,13 +26,13 @@ To test out some of the functionality of M3DB there are some user friendly HTTP 
 #### Write a datapoint
 
 ```
-curl http://localhost:9003/writetagged -s -X POST -d '{"namespace":"metrics","id":"foo","tags":[{"name":"city","value":"new_york"},{"name":"endpoint","value":"/request"}],"datapoint":{"timestamp":'"$(date +"%s")"',"value":42.123456789}}'
+curl http://localhost:9003/writetagged -s -X POST -d '{"namespace":"default","id":"foo","tags":[{"name":"city","value":"new_york"},{"name":"endpoint","value":"/request"}],"datapoint":{"timestamp":'"$(date +"%s")"',"value":42.123456789}}'
 ```
 
 #### Query for reverse indexed time series data
 
 ```
-curl http://localhost:9003/query -s -X POST -d '{"namespace":"metrics","query":{"regexp":{"field":"city","regexp":".*"}},"rangeStart":0,"rangeEnd":'"$(date +"%s")"'}' | jq .
+curl http://localhost:9003/query -s -X POST -d '{"namespace":"default","query":{"regexp":{"field":"city","regexp":".*"}},"rangeStart":0,"rangeEnd":'"$(date +"%s")"'}' | jq .
 ```
 
 ## Building with Docker
