@@ -42,13 +42,13 @@ func TestNamespaceAddHandler(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	jsonInput := `
-		{
-			"name": "testNamespace",
-			"retention_period": "48h",
-			"block_size": "2h",
-			"needs_fileset_cleanup": false
-		}
-	`
+        {
+            "name": "testNamespace",
+            "retention_period": "48h",
+            "block_size": "2h",
+            "needs_fileset_cleanup": false
+        }
+    `
 
 	req := httptest.NewRequest("POST", "/namespace/add", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
@@ -61,25 +61,36 @@ func TestNamespaceAddHandler(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, "{\"Error\":\"all attributes must be set\"}\n", string(body))
+	assert.Equal(t, "{\"Error\":\"namespace options must be set\"}\n", string(body))
 
 	// Test good case. Note: there is no way to tell the difference between a boolean
 	// being false and it not being set by a user.
 	w = httptest.NewRecorder()
 
 	jsonInput = `
-		{
+        {
             "name": "testNamespace",
-            "retention_period": "48h",
-            "block_size": "2h",
-            "buffer_future": "10m",
-            "buffer_past": "10m",
-            "block_data_expiry": true,
-            "block_data_expiry_period": "4h",
-            "needs_bootstrap": true,
-            "needs_fileset_cleanup": false
-		}
-	`
+            "options": {
+              "bootstrapEnabled": true,
+              "flushEnabled": true,
+              "writesToCommitLog": true,
+              "enabledEnabled": true,
+              "retentionOptions": {
+                "retentionPeriodNanos": 172800000000000,
+                "blockSizeNanos": 7200000000000,
+                "bufferFutureNanos": 600000000000,
+                "bufferPastNanos": 600000000000,
+                "blockDataExpiry": true,
+                "blockDataExpiryAfterNotAccessPeriodNanos": 300000000000
+              },
+              "snapshotEnabled": false,
+              "indexOptions": {
+                "enabled": true,
+                "blockSizeNanos": 7200000000000
+              }
+            }
+        }
+    `
 
 	req = httptest.NewRequest("POST", "/namespace/add", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
@@ -91,5 +102,5 @@ func TestNamespaceAddHandler(t *testing.T) {
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":false,\"flushEnabled\":false,\"writesToCommitLog\":false,\"cleanupEnabled\":false,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"14400000000000\"},\"snapshotEnabled\":true,\"indexOptions\":{\"enabled\":false,\"blockSizeNanos\":\"7200000000000\"}}}}}", string(body))
+	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":false,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\"},\"snapshotEnabled\":false,\"indexOptions\":{\"enabled\":true,\"blockSizeNanos\":\"7200000000000\"}}}}}", string(body))
 }
