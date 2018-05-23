@@ -80,14 +80,14 @@ type nsIndex struct {
 	bufferPast      time.Duration
 	bufferFuture    time.Duration
 
+	indexFilesetsBeforeFn indexFilesetsBeforeFn
+	deleteFilesFn         deleteFilesFn
+
 	newBlockFn          newBlockFn
 	logger              xlog.Logger
 	opts                Options
 	nsMetadata          namespace.Metadata
 	runtimeOptsListener xclose.SimpleCloser
-
-	indexFilesetsBeforeFn indexFilesetsBeforeFn
-	deleteFilesFn         deleteFilesFn
 
 	metrics nsIndexMetrics
 }
@@ -517,6 +517,7 @@ func (i *nsIndex) Flush(
 	}
 	i.state.RUnlock()
 
+	var evictResults index.EvictMutableSegmentResults
 	for _, block := range flushable {
 		immutableSegments, err := i.flushBlock(flush, block, shards)
 		if err != nil {
@@ -526,7 +527,7 @@ func (i *nsIndex) Flush(
 		// block for each shard
 		fulfilled := make(result.ShardTimeRanges, len(shards))
 		for _, shard := range shards {
-			fulfilled[shard.ID()] = xtime.Ranges{}.AddRange(xtime.Range{
+			fulfilled[shard.ID()] = xtime.NewRanges(xtime.Range{
 				Start: block.StartTime(),
 				End:   block.EndTime(),
 			})
@@ -537,13 +538,20 @@ func (i *nsIndex) Flush(
 		if err := block.AddResults(results); err != nil {
 			return err
 		}
-		// It's now safe to remove the active segment as anything the block
+		// It's now safe to remove the mutable segments as anything the block
 		// held is covered by the owned shards we just read
-		if err := block.EvictActiveSegment(); err != nil {
-			return err
+		evictResult, err := block.EvictMutableSegments()
+		evictResults.Add(evictResult)
+		if err != nil {
+			// deliberately choosing to not mark this as an error as we have successfully
+			// flushed any mutable data.
+			i.logger.WithFields(
+				xlog.NewField("err", err.Error()),
+				xlog.NewField("blockStart", block.StartTime()),
+			).Warnf("encountered error while evicting mutable segments for index block.")
 		}
 	}
-
+	i.metrics.FlushEvictedMutableSegments.Inc(evictResults.NumMutableSegments)
 	return nil
 }
 
@@ -552,8 +560,8 @@ func (i *nsIndex) canFlushBlock(
 	shards []databaseShard,
 ) bool {
 	// Check the block needs flushing because it is sealed and has
-	// an active mutable segment that needs to be evicted from memory
-	if !block.IsSealed() || !block.NeedsEvictActiveSegment() {
+	// any mutable segments that need to be evicted from memory
+	if !block.IsSealed() || !block.NeedsMutableSegmentsEvicted() {
 		return false
 	}
 
@@ -638,11 +646,11 @@ func (i *nsIndex) flushBlockSegment(
 ) error {
 	// FOLLOWUP(prateek): use this to track segments when we have multiple segments in a Block.
 	postingsOffset := postings.ID(0)
-	segmentOpts := i.opts.IndexOptions().MemSegmentOptions()
-	seg, err := mem.NewSegment(postingsOffset, segmentOpts)
+	seg, err := mem.NewSegment(postingsOffset, i.opts.IndexOptions().MemSegmentOptions())
 	if err != nil {
 		return err
 	}
+	defer seg.Close()
 
 	ctx := context.NewContext()
 	for _, shard := range shards {
@@ -691,21 +699,12 @@ func (i *nsIndex) flushBlockSegment(
 		}
 	}
 
-	// Finally flush this segment
-	return preparedPersist.Persist(seg)
-}
-
-func (i *nsIndex) ReplaceBlock(
-	blockStart time.Time,
-	segments []segment.Segment,
-) error {
-	i.state.RLock()
-	defer i.state.RUnlock()
-	if !i.isOpenWithRLock() {
-		return errDbIndexUnableToFlushClosed
+	if _, err := seg.Seal(); err != nil {
+		return err
 	}
 
-	return fmt.Errorf("not implemented")
+	// Finally flush this segment
+	return preparedPersist.Persist(seg)
 }
 
 func (i *nsIndex) Query(
@@ -737,7 +736,7 @@ func (i *nsIndex) Query(
 
 	// Chunk the query request into bounds based on applicable blocks and
 	// execute the requests to each of them; and merge results.
-	queryRange := xtime.Ranges{}.AddRange(xtime.Range{
+	queryRange := xtime.NewRanges(xtime.Range{
 		Start: opts.StartInclusive, End: opts.EndExclusive})
 
 	// iterate known blocks in a defined order of time (newest first) to enforce
@@ -942,10 +941,11 @@ func (i *nsIndex) unableToAllocBlockInvariantError(err error) error {
 }
 
 type nsIndexMetrics struct {
-	AsyncInsertErrors     tally.Counter
-	InsertAfterClose      tally.Counter
-	QueryAfterClose       tally.Counter
-	InsertEndToEndLatency tally.Timer
+	AsyncInsertErrors           tally.Counter
+	InsertAfterClose            tally.Counter
+	QueryAfterClose             tally.Counter
+	InsertEndToEndLatency       tally.Timer
+	FlushEvictedMutableSegments tally.Counter
 }
 
 func newNamespaceIndexMetrics(
@@ -965,5 +965,6 @@ func newNamespaceIndexMetrics(
 		InsertEndToEndLatency: instrument.MustCreateSampledTimer(
 			scope.Timer("insert-end-to-end-latency"),
 			iopts.MetricsSamplingRate()),
+		FlushEvictedMutableSegments: scope.Counter("mutable-segment-evicted"),
 	}
 }

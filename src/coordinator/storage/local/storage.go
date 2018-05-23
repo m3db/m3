@@ -40,14 +40,13 @@ const (
 )
 
 type localStorage struct {
-	session       client.Session
-	namespace     ident.ID
-	millisPerStep int64
+	session   client.Session
+	namespace ident.ID
 }
 
 // NewStorage creates a new local Storage instance.
-func NewStorage(session client.Session, namespace string, resolution time.Duration) storage.Storage {
-	return &localStorage{session: session, namespace: ident.StringID(namespace), millisPerStep: stepFromResolution(resolution)}
+func NewStorage(session client.Session, namespace string) storage.Storage {
+	return &localStorage{session: session, namespace: ident.StringID(namespace)}
 }
 
 func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.FetchResult, error) {
@@ -81,20 +80,13 @@ func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, opt
 			return nil, err
 		}
 
-		result := make([]ts.Datapoint, 0, initRawFetchAllocSize)
+		datapoints := make(ts.Datapoints, 0, initRawFetchAllocSize)
 		for iter.Next() {
 			dp, _, _ := iter.Current()
-			result = append(result, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
+			datapoints = append(datapoints, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
 		}
 
-		values := ts.NewValues(ctx, int(s.millisPerStep), len(result))
-
-		// TODO (nikunj): Figure out consolidation here
-		for i, v := range result {
-			values.SetValueAt(i, v.Value)
-		}
-
-		series := ts.NewSeries(ctx, metric.ID, query.Start, values, metric.Tags)
+		series := ts.NewSeries(metric.ID, datapoints, metric.Tags)
 		seriesList[i] = series
 	}
 
@@ -209,8 +201,4 @@ func newWriteRequest(writeRequestCommon *writeRequestCommon, timestamp time.Time
 func (s *localStorage) Close() error {
 	s.namespace.Finalize()
 	return nil
-}
-
-func stepFromResolution(resolution time.Duration) int64 {
-	return xtime.ToNormalizedDuration(resolution, time.Millisecond)
 }

@@ -711,7 +711,7 @@ func (s *commitLogSource) ReadIndex(
 		}
 	}
 
-	// If all successfull then we mark each index block as fulfilled
+	// If all successful then we mark each index block as fulfilled
 	for _, block := range indexResult.IndexResults() {
 		blockRange := xtime.Range{
 			Start: block.BlockStart(),
@@ -730,7 +730,7 @@ func (s *commitLogSource) ReadIndex(
 		}
 		// Now mark as much of the block that we fulfilled
 		err := indexResult.IndexResults().MarkFulfilled(blockRange.Start,
-			fulfilled, indexOptions, resultOptions)
+			fulfilled, indexOptions)
 		if err != nil {
 			return nil, err
 		}

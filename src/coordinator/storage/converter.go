@@ -63,7 +63,7 @@ func PromSamplesToM3Datapoints(samples []*prompb.Sample) ts.Datapoints {
 	datapoints := make(ts.Datapoints, 0, len(samples))
 	for _, sample := range samples {
 		timestamp := TimestampToTime(sample.Timestamp)
-		datapoints = append(datapoints, &ts.Datapoint{Timestamp: timestamp, Value: sample.Value})
+		datapoints = append(datapoints, ts.Datapoint{Timestamp: timestamp, Value: sample.Value})
 	}
 
 	return datapoints
@@ -171,9 +171,10 @@ func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 	samples := make([]*prompb.Sample, series.Len())
 	for i := 0; i < series.Len(); i++ {
 		samples[i] = &prompb.Sample{
-			Timestamp: series.StartTimeForStep(i).UnixNano() / int64(time.Millisecond),
-			Value:     series.ValueAt(i),
+			Timestamp: series.Values().DatapointAt(i).Timestamp.UnixNano() / int64(time.Millisecond),
+			Value:     series.Values().ValueAt(i),
 		}
 	}
+
 	return samples
 }

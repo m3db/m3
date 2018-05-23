@@ -44,7 +44,7 @@ func setup(ctrl *gomock.Controller) (storage.Storage, *client.MockSession) {
 	logger := logging.WithContext(context.TODO())
 	defer logger.Sync()
 	session := client.NewMockSession(ctrl)
-	storage := NewStorage(session, "metrics", time.Minute)
+	storage := NewStorage(session, "metrics")
 	return storage, session
 }
 

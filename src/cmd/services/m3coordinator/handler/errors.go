@@ -21,6 +21,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -33,7 +34,12 @@ var (
 
 // Error will serve an HTTP error
 func Error(w http.ResponseWriter, err error, code int) {
-	http.Error(w, err.Error(), code)
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(struct {
+		Error string
+	}{
+		Error: err.Error(),
+	})
 }
 
 // ParseError is the error from parsing requests

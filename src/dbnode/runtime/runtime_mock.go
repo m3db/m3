@@ -334,6 +334,30 @@ func (mr *MockOptionsMockRecorder) ClientWriteConsistencyLevel() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClientWriteConsistencyLevel", reflect.TypeOf((*MockOptions)(nil).ClientWriteConsistencyLevel))
 }
 
+// SetFlushIndexBlockNumSegments mocks base method
+func (m *MockOptions) SetFlushIndexBlockNumSegments(value uint) Options {
+	ret := m.ctrl.Call(m, "SetFlushIndexBlockNumSegments", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetFlushIndexBlockNumSegments indicates an expected call of SetFlushIndexBlockNumSegments
+func (mr *MockOptionsMockRecorder) SetFlushIndexBlockNumSegments(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFlushIndexBlockNumSegments", reflect.TypeOf((*MockOptions)(nil).SetFlushIndexBlockNumSegments), value)
+}
+
+// FlushIndexBlockNumSegments mocks base method
+func (m *MockOptions) FlushIndexBlockNumSegments() uint {
+	ret := m.ctrl.Call(m, "FlushIndexBlockNumSegments")
+	ret0, _ := ret[0].(uint)
+	return ret0
+}
+
+// FlushIndexBlockNumSegments indicates an expected call of FlushIndexBlockNumSegments
+func (mr *MockOptionsMockRecorder) FlushIndexBlockNumSegments() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushIndexBlockNumSegments", reflect.TypeOf((*MockOptions)(nil).FlushIndexBlockNumSegments))
+}
+
 // MockOptionsManager is a mock of OptionsManager interface
 type MockOptionsManager struct {
 	ctrl     *gomock.Controller

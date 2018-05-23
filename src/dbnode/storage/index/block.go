@@ -138,6 +138,16 @@ func (b *block) WriteBatch(inserts *WriteBatch) (WriteBatchResult, error) {
 		}, err
 	}
 
+	// NB: we're guaranteed the block (i.e. has a valid activeSegment) because
+	// of the state check above. the if check below is additional paranoia.
+	if b.activeSegment == nil { // should never happen
+		err := b.openBlockHasNilActiveSegmentInvariantErrorWithRLock()
+		inserts.MarkUnmarkedEntriesError(err)
+		return WriteBatchResult{
+			NumError: int64(inserts.Len()),
+		}, err
+	}
+
 	err := b.activeSegment.InsertBatch(m3ninxindex.Batch{
 		Docs:                inserts.PendingDocs(),
 		AllowPartialUpdates: true,
@@ -194,7 +204,7 @@ func (b *block) executorWithRLock() (search.Executor, error) {
 		}
 	}()
 
-	// start with the segment that's being actively written to
+	// start with the segment that's being actively written to (if we have one)
 	if b.activeSegment != nil {
 		reader, err := b.activeSegment.Reader()
 		if err != nil {
@@ -401,6 +411,16 @@ func (b *block) Seal() error {
 	_, err := b.activeSegment.Seal()
 	multiErr = multiErr.Add(err)
 
+	// loop over any added mutable segments and seal them too.
+	for _, group := range b.shardRangesSegments {
+		for _, seg := range group.segments {
+			if unsealed, ok := seg.(segment.MutableSegment); ok {
+				_, err := unsealed.Seal()
+				multiErr = multiErr.Add(err)
+			}
+		}
+	}
+
 	return multiErr.FinalError()
 }
 
@@ -414,24 +434,63 @@ func (b *block) IsSealed() bool {
 	return b.IsSealedWithRLock()
 }
 
-func (b *block) NeedsEvictActiveSegment() bool {
+func (b *block) NeedsMutableSegmentsEvicted() bool {
 	b.RLock()
 	defer b.RUnlock()
-	return b.activeSegment != nil && b.activeSegment.Size() > 0
+	anyMutableSegmentNeedsEviction := b.activeSegment != nil && b.activeSegment.Size() > 0
+
+	// can early terminate if we already know we need to flush.
+	if anyMutableSegmentNeedsEviction {
+		return true
+	}
+
+	// otherwise we check all the boostrapped segments and to see if any of them
+	// need a flush
+	for _, shardRangeSegments := range b.shardRangesSegments {
+		for _, seg := range shardRangeSegments.segments {
+			if mutableSeg, ok := seg.(segment.MutableSegment); ok {
+				anyMutableSegmentNeedsEviction = anyMutableSegmentNeedsEviction || mutableSeg.Size() > 0
+			}
+		}
+	}
+
+	return anyMutableSegmentNeedsEviction
 }
 
-func (b *block) EvictActiveSegment() error {
+func (b *block) EvictMutableSegments() (EvictMutableSegmentResults, error) {
+	var results EvictMutableSegmentResults
 	b.Lock()
 	defer b.Unlock()
-	if b.state == blockStateClosed {
-		return errBlockAlreadyClosed
+	if b.state != blockStateSealed {
+		return results, fmt.Errorf("unable to evict mutable segments, block must be sealed, found: %v", b.state)
 	}
-	if b.activeSegment == nil {
-		return errActiveSegmentAlreadyEvicted
+	var multiErr xerrors.MultiError
+
+	// close active segment.
+	if b.activeSegment != nil {
+		results.NumMutableSegments++
+		results.NumDocs += b.activeSegment.Size()
+		multiErr = multiErr.Add(b.activeSegment.Close())
+		b.activeSegment = nil
 	}
-	err := b.activeSegment.Close()
-	b.activeSegment = nil
-	return err
+
+	// close any other mutable segments too.
+	for idx := range b.shardRangesSegments {
+		segments := make([]segment.Segment, 0, len(b.shardRangesSegments[idx].segments))
+		for _, seg := range b.shardRangesSegments[idx].segments {
+			mutableSeg, ok := seg.(segment.MutableSegment)
+			if !ok {
+				segments = append(segments, seg)
+				continue
+			}
+			results.NumMutableSegments++
+			results.NumDocs += mutableSeg.Size()
+			multiErr = multiErr.Add(mutableSeg.Close())
+		}
+		b.shardRangesSegments[idx].segments = segments
+	}
+
+	return results, multiErr.FinalError()
 }
 
 func (b *block) Close() error {
@@ -444,12 +503,13 @@ func (b *block) Close() error {
 
 	var multiErr xerrors.MultiError
 
+	// close active segment.
 	if b.activeSegment != nil {
 		multiErr = multiErr.Add(b.activeSegment.Close())
 		b.activeSegment = nil
 	}
 
-	// close any inactiveMutable segments.
+	// close any other added segments too.
 	for _, group := range b.shardRangesSegments {
 		for _, seg := range group.segments {
 			multiErr = multiErr.Add(seg.Close())
@@ -483,6 +543,12 @@ func (b *block) bootstrappingSealedMutableSegmentInvariant(err error) error {
 	wrapped := fmt.Errorf("internal error: bootstrapping a mutable segment already marked sealed: %v", err)
 	instrument.EmitInvariantViolationAndGetLogger(b.opts.InstrumentOptions()).Errorf(wrapped.Error())
 	return wrapped
+}
+
+func (b *block) openBlockHasNilActiveSegmentInvariantErrorWithRLock() error {
+	err := fmt.Errorf("internal error: block has open block state [%v] has nil active segment", b.state)
+	instrument.EmitInvariantViolationAndGetLogger(b.opts.InstrumentOptions()).Errorf(err.Error())
+	return err
 }
 
 type closable interface {

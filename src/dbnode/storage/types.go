@@ -40,7 +40,6 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/series"
 	"github.com/m3db/m3db/src/dbnode/x/xcounter"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
-	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -459,13 +458,6 @@ type namespaceIndex interface {
 	// Bootstrap bootstraps the index the provided segments.
 	Bootstrap(
 		bootstrapResults result.IndexResults,
-	) error
-
-	// Replace replaces the block held by the index for the provided blockStart
-	// with a new block backed by the provided segments.
-	ReplaceBlock(
-		blockStart time.Time,
-		segments []segment.Segment,
 	) error
 
 	// CleanupExpiredFileSets removes expired fileset files. Expiration is calcuated

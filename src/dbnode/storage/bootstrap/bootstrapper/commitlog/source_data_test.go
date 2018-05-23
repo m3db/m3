@@ -365,7 +365,7 @@ func TestNewReadCommitLogPredicate(t *testing.T) {
 			// Set up shardTimeRanges with specified ranges
 			shardTimeRanges := result.ShardTimeRanges{}
 			for i, xrange := range tc.shardTimeRanges {
-				ranges := xtime.Ranges{}.AddRange(xrange)
+				ranges := xtime.NewRanges(xrange)
 				shardTimeRanges[uint32(i)] = ranges
 			}
 

@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/clock"
 	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift"
@@ -47,13 +48,19 @@ import (
 	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 
+	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"
 )
 
-const (
+var (
+	// NB(r): pool sizes are vars to help reduce stress on tests.
 	checkedBytesPoolSize        = 65536
 	segmentArrayPoolSize        = 65536
+	writeBatchPooledReqPoolSize = 1024
+)
+
+const (
 	initSegmentArrayPoolLength  = 4
 	maxSegmentArrayPooledLength = 32
 )
@@ -115,17 +122,18 @@ type service struct {
 }
 
 type pools struct {
-	id                   ident.Pool
-	tagEncoder           serialize.TagEncoderPool
-	tagDecoder           serialize.TagDecoderPool
-	checkedBytesWrapper  xpool.CheckedBytesWrapperPool
-	segmentsArray        segmentsArrayPool
-	blockMetadata        tchannelthrift.BlockMetadataPool
-	blockMetadataV2      tchannelthrift.BlockMetadataV2Pool
-	blockMetadataSlice   tchannelthrift.BlockMetadataSlicePool
-	blockMetadataV2Slice tchannelthrift.BlockMetadataV2SlicePool
-	blocksMetadata       tchannelthrift.BlocksMetadataPool
-	blocksMetadataSlice  tchannelthrift.BlocksMetadataSlicePool
+	id                      ident.Pool
+	tagEncoder              serialize.TagEncoderPool
+	tagDecoder              serialize.TagDecoderPool
+	checkedBytesWrapper     xpool.CheckedBytesWrapperPool
+	segmentsArray           segmentsArrayPool
+	writeBatchPooledReqPool *writeBatchPooledReqPool
+	blockMetadata           tchannelthrift.BlockMetadataPool
+	blockMetadataV2         tchannelthrift.BlockMetadataV2Pool
+	blockMetadataSlice      tchannelthrift.BlockMetadataSlicePool
+	blockMetadataV2Slice    tchannelthrift.BlockMetadataV2SlicePool
+	blocksMetadata          tchannelthrift.BlocksMetadataPool
+	blocksMetadataSlice     tchannelthrift.BlocksMetadataSlicePool
 }
 
 // ensure `pools` matches a required conversion interface
@@ -147,6 +155,10 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 		SubScope("service").
 		Tagged(map[string]string{"service-name": "node"})
 
+	// Use the new scope in options
+	iopts = iopts.SetMetricsScope(scope)
+	opts = opts.SetInstrumentOptions(iopts)
+
 	wrapperPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(checkedBytesPoolSize).
 		SetInstrumentOptions(iopts.SetMetricsScope(
@@ -164,6 +176,9 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 	})
 	segmentPool.Init()
 
+	writeBatchPooledReqPool := newWriteBatchPooledReqPool(iopts)
+	writeBatchPooledReqPool.Init(opts.TagDecoderPool())
+
 	s := &service{
 		db:      db,
 		logger:  iopts.Logger(),
@@ -171,17 +186,18 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 		nowFn:   db.Options().ClockOptions().NowFn(),
 		metrics: newServiceMetrics(scope, iopts.MetricsSamplingRate()),
 		pools: pools{
-			checkedBytesWrapper:  wrapperPool,
-			tagEncoder:           opts.TagEncoderPool(),
-			tagDecoder:           opts.TagDecoderPool(),
-			id:                   db.Options().IdentifierPool(),
-			segmentsArray:        segmentPool,
-			blockMetadata:        opts.BlockMetadataPool(),
-			blockMetadataV2:      opts.BlockMetadataV2Pool(),
-			blockMetadataSlice:   opts.BlockMetadataSlicePool(),
-			blockMetadataV2Slice: opts.BlockMetadataV2SlicePool(),
-			blocksMetadata:       opts.BlocksMetadataPool(),
-			blocksMetadataSlice:  opts.BlocksMetadataSlicePool(),
+			checkedBytesWrapper:     wrapperPool,
+			tagEncoder:              opts.TagEncoderPool(),
+			tagDecoder:              opts.TagDecoderPool(),
+			id:                      db.Options().IdentifierPool(),
+			segmentsArray:           segmentPool,
+			writeBatchPooledReqPool: writeBatchPooledReqPool,
+			blockMetadata:           opts.BlockMetadataPool(),
+			blockMetadataV2:         opts.BlockMetadataV2Pool(),
+			blockMetadataSlice:      opts.BlockMetadataSlicePool(),
+			blockMetadataV2Slice:    opts.BlockMetadataV2SlicePool(),
+			blocksMetadata:          opts.BlocksMetadataPool(),
+			blocksMetadataSlice:     opts.BlocksMetadataSlicePool(),
 		},
 		health: &rpc.NodeHealthResult_{
 			Ok:           true,
@@ -875,7 +891,15 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
-	nsID := s.newID(ctx, req.NameSpace)
+	// NB(r): Use the pooled request tracking to return thrift alloc'd bytes
+	// to the thrift bytes pool and to return ident.ID wrappers to a pool for
+	// reuse. We also reduce contention on pools by getting one per batch request
+	// rather than one per ID.
+	pooledReq := s.pools.writeBatchPooledReqPool.Get()
+	pooledReq.writeReq = req
+	ctx.RegisterFinalizer(pooledReq)
+
+	nsID := s.newPooledID(ctx, req.NameSpace, pooledReq)
 
 	var (
 		errs               []*rpc.WriteBatchRawError
@@ -898,8 +922,9 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 			continue
 		}
 
+		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
 		if err = s.db.Write(
-			ctx, nsID, s.newID(ctx, elem.ID),
+			ctx, nsID, seriesID,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value, unit, elem.Datapoint.Annotation,
 		); err != nil && xerrors.IsInvalidParams(err) {
@@ -931,7 +956,15 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
-	nsID := s.newID(ctx, req.NameSpace)
+	// NB(r): Use the pooled request tracking to return thrift alloc'd bytes
+	// to the thrift bytes pool and to return ident.ID wrappers to a pool for
+	// reuse. We also reduce contention on pools by getting one per batch request
+	// rather than one per ID.
+	pooledReq := s.pools.writeBatchPooledReqPool.Get()
+	pooledReq.writeTaggedReq = req
+	ctx.RegisterFinalizer(pooledReq)
+
+	nsID := s.newPooledID(ctx, req.NameSpace, pooledReq)
 
 	var (
 		errs               []*rpc.WriteBatchRawError
@@ -954,15 +987,16 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			continue
 		}
 
-		dec, err := s.newTagsDecoder(ctx, elem.EncodedTags)
+		dec, err := s.newPooledTagsDecoder(ctx, elem.EncodedTags, pooledReq)
 		if err != nil {
 			nonRetryableErrors++
 			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
 			continue
 		}
 
+		seriesID := s.newPooledID(ctx, elem.ID, pooledReq)
 		if err = s.db.WriteTagged(
-			ctx, nsID, s.newID(ctx, elem.ID), dec,
+			ctx, nsID, seriesID, dec,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value, unit, elem.Datapoint.Annotation,
 		); err != nil && xerrors.IsInvalidParams(err) {
@@ -1156,6 +1190,17 @@ func (s *service) newID(ctx context.Context, id []byte) ident.ID {
 	return s.pools.id.GetBinaryID(ctx, checkedBytes)
 }
 
+func (s *service) newPooledID(
+	ctx context.Context,
+	id []byte,
+	p *writeBatchPooledReq,
+) ident.ID {
+	if result, ok := p.nextPooledID(id); ok {
+		return result
+	}
+	return s.newID(ctx, id)
+}
+
 func (s *service) readEncoded(
 	ctx context.Context,
 	nsID, tsID ident.ID,
@@ -1198,6 +1243,20 @@ func (s *service) newTagsDecoder(ctx context.Context, encodedTags []byte) (seria
 	return dec, nil
 }
 
+func (s *service) newPooledTagsDecoder(
+	ctx context.Context,
+	encodedTags []byte,
+	p *writeBatchPooledReq,
+) (serialize.TagDecoder, error) {
+	if decoder, ok := p.nextPooledTagDecoder(encodedTags); ok {
+		if err := decoder.Err(); err != nil {
+			return nil, err
+		}
+		return decoder, nil
+	}
+	return s.newTagsDecoder(ctx, encodedTags)
+}
+
 func (s *service) newCloseableMetadataResult(
 	res *rpc.FetchBlocksMetadataRawResult_,
 ) closeableMetadataResult {
@@ -1236,4 +1295,125 @@ func (c closeableMetadataV2Result) Finalize() {
 		c.s.pools.blockMetadataV2.Put(blockMetadata)
 	}
 	c.s.pools.blockMetadataV2Slice.Put(c.result.Elements)
+}
+
+type writeBatchPooledReq struct {
+	pooledIDs      []writeBatchPooledReqID
+	pooledIDsUsed  int
+	writeReq       *rpc.WriteBatchRawRequest
+	writeTaggedReq *rpc.WriteTaggedBatchRawRequest
+
+	pool *writeBatchPooledReqPool
+}
+
+func (r *writeBatchPooledReq) nextPooledID(idBytes []byte) (ident.ID, bool) {
+	if r.pooledIDsUsed >= len(r.pooledIDs) {
+		return nil, false
+	}
+
+	bytes := r.pooledIDs[r.pooledIDsUsed].bytes
+	bytes.IncRef()
+	bytes.Reset(idBytes)
+
+	id := r.pooledIDs[r.pooledIDsUsed].id
+	r.pooledIDsUsed++
+
+	return id, true
+}
+
+func (r *writeBatchPooledReq) nextPooledTagDecoder(encodedTags []byte) (serialize.TagDecoder, bool) {
+	if r.pooledIDsUsed >= len(r.pooledIDs) {
+		return nil, false
+	}
+
+	bytes := r.pooledIDs[r.pooledIDsUsed].bytes
+	bytes.IncRef()
+	bytes.Reset(encodedTags)
+
+	decoder := r.pooledIDs[r.pooledIDsUsed].tagDecoder
+	decoder.Reset(bytes)
+
+	r.pooledIDsUsed++
+
+	return decoder, true
+}
+
+func (r *writeBatchPooledReq) Finalize() {
+	// Reset the pooledIDsUsed and decrement the ref counts
+	for i := 0; i < r.pooledIDsUsed; i++ {
+		r.pooledIDs[i].bytes.DecRef()
+	}
+	r.pooledIDsUsed = 0
+
+	// Return any pooled thrift byte slices to the thrift pool
+	if r.writeReq != nil {
+		for _, elem := range r.writeReq.Elements {
+			apachethrift.BytesPoolPut(elem.ID)
+		}
+		r.writeReq = nil
+	}
+	if r.writeTaggedReq != nil {
+		for _, elem := range r.writeTaggedReq.Elements {
+			apachethrift.BytesPoolPut(elem.ID)
+			apachethrift.BytesPoolPut(elem.EncodedTags)
+		}
+		r.writeTaggedReq = nil
+	}
+
+	// Return to pool
+	r.pool.Put(r)
+}
+
+type writeBatchPooledReqID struct {
+	bytes      checked.Bytes
+	id         ident.ID
+	tagDecoder serialize.TagDecoder
+}
+
+type writeBatchPooledReqPool struct {
+	pool pool.ObjectPool
+}
+
+func newWriteBatchPooledReqPool(
+	iopts instrument.Options,
+) *writeBatchPooledReqPool {
+	pool := pool.NewObjectPool(pool.NewObjectPoolOptions().
+		SetSize(writeBatchPooledReqPoolSize).
+		SetInstrumentOptions(iopts.SetMetricsScope(
+			iopts.MetricsScope().SubScope("write-batch-pooled-req-pool"))))
+	return &writeBatchPooledReqPool{pool: pool}
+}
+
+func (p *writeBatchPooledReqPool) Init(
+	tagDecoderPool serialize.TagDecoderPool,
+) {
+	p.pool.Init(func() interface{} {
+		// NB(r): Make pooled IDs 2x the default write batch size to account for
+		// write tagged which also has encoded tags, plus an extra one for the
+		// namespace
+		pooledIDs := make([]writeBatchPooledReqID, 1+(2*client.DefaultWriteBatchSize))
+		for i := range pooledIDs {
+			pooledIDs[i].bytes = checked.NewBytes(nil, nil)
+			pooledIDs[i].id = ident.BinaryID(pooledIDs[i].bytes)
+			// BinaryID(..) incs the ref, we however don't want to pretend
+			// the bytes is owned at this point since its not being used, so we
+			// immediately dec a ref here to avoid calling get on this ID
+			// being a valid call
+			pooledIDs[i].bytes.DecRef()
+			// Also ready a tag decoder
+			pooledIDs[i].tagDecoder = tagDecoderPool.Get()
+		}
+		return &writeBatchPooledReq{
+			pooledIDs: pooledIDs,
+			pool:      p,
+		}
+	})
+}
+
+func (p *writeBatchPooledReqPool) Get() *writeBatchPooledReq {
+	return p.pool.Get().(*writeBatchPooledReq)
+}
+
+func (p *writeBatchPooledReqPool) Put(v *writeBatchPooledReq) {
+	p.pool.Put(v)
 }

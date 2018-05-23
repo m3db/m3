@@ -24,14 +24,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3ninx/index/segment"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func testResultShardRanges(start, end time.Time, shards ...uint32) ShardTimeRanges {
+	timeRange := xtime.NewRanges(xtime.Range{start, end})
+	ranges := make(map[uint32]xtime.Ranges)
+	for _, s := range shards {
+		ranges[s] = timeRange
+	}
+	return ranges
+}
 
 func TestIndexResultGetOrAddSegment(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -85,26 +94,100 @@ func TestIndexResultMergeMergesExistingSegments(t *testing.T) {
 		segment.NewMockSegment(ctrl),
 	}
 
-	times := []time.Time{start, start.Add(testBlockSize)}
+	times := []time.Time{start, start.Add(testBlockSize), start.Add(2 * testBlockSize)}
+	tr0 := testResultShardRanges(times[0], times[1], 1, 2, 3)
+	tr1 := testResultShardRanges(times[1], times[2], 1, 2, 3)
 
 	first := NewIndexBootstrapResult()
-	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[0]}, nil), nil)
-	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[1]}, nil), nil)
-	first.Add(NewIndexBlock(times[1], []segment.Segment{segments[2], segments[3]}, nil), nil)
+	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[0]}, tr0), nil)
+	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[1]}, tr0), nil)
+	first.Add(NewIndexBlock(times[1], []segment.Segment{segments[2], segments[3]}, tr1), nil)
 
 	second := NewIndexBootstrapResult()
-	second.Add(NewIndexBlock(times[0], []segment.Segment{segments[4]}, nil), nil)
-	second.Add(NewIndexBlock(times[1], []segment.Segment{segments[5]}, nil), nil)
+	second.Add(NewIndexBlock(times[0], []segment.Segment{segments[4]}, tr0), nil)
+	second.Add(NewIndexBlock(times[1], []segment.Segment{segments[5]}, tr1), nil)
 
 	merged := MergedIndexBootstrapResult(first, second)
 
 	expected := NewIndexBootstrapResult()
-	expected.Add(NewIndexBlock(times[0],
-		[]segment.Segment{segments[0], segments[1], segments[4]}, nil), nil)
-	expected.Add(NewIndexBlock(times[1],
-		[]segment.Segment{segments[2], segments[3], segments[5]}, nil), nil)
+	expected.Add(NewIndexBlock(times[0], []segment.Segment{segments[0], segments[1], segments[4]}, tr0), nil)
+	expected.Add(NewIndexBlock(times[1], []segment.Segment{segments[2], segments[3], segments[5]}, tr1), nil)
 
 	assert.True(t, segmentsInResultsSame(expected.IndexResults(), merged.IndexResults()))
+}
+
+func TestIndexResultSetUnfulfilled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Now().Truncate(time.Hour)
+	tn := func(i int) time.Time {
+		return t0.Add(time.Duration(i) * time.Hour)
+	}
+	results := NewIndexBootstrapResult()
+	testRanges := testResultShardRanges(tn(0), tn(1), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+	results.SetUnfulfilled(testRanges)
+	require.Equal(t, testRanges, results.Unfulfilled())
+}
+
+func TestIndexResultAdd(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t0 := time.Now().Truncate(time.Hour)
+	tn := func(i int) time.Time {
+		return t0.Add(time.Duration(i) * time.Hour)
+	}
+	results := NewIndexBootstrapResult()
+	testRanges := testResultShardRanges(tn(0), tn(1), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+	results.Add(IndexBlock{}, testRanges)
+	require.Equal(t, testRanges, results.Unfulfilled())
+}
+
+func TestIndexResulsMarkFulfilled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	iopts := namespace.NewIndexOptions().SetBlockSize(time.Hour * 2)
+	t0 := time.Now().Truncate(2 * time.Hour)
+	tn := func(i int) time.Time {
+		return t0.Add(time.Duration(i) * time.Hour)
+	}
+	results := make(IndexResults)
+
+	// range checks
+	require.Error(t, results.MarkFulfilled(tn(0),
+		testResultShardRanges(tn(4), tn(6), 1), iopts))
+	require.Error(t, results.MarkFulfilled(tn(0),
+		testResultShardRanges(tn(-1), tn(1), 1), iopts))
+
+	// valid add
+	fulfilledRange := testResultShardRanges(tn(0), tn(1), 1)
+	require.NoError(t, results.MarkFulfilled(tn(0), fulfilledRange, iopts))
+	require.Equal(t, 1, len(results))
+	blk, ok := results[xtime.ToUnixNano(tn(0))]
+	require.True(t, ok)
+	require.True(t, tn(0).Equal(blk.blockStart))
+	require.Equal(t, fulfilledRange, blk.fulfilled)
+
+	// additional add for same block
+	nextFulfilledRange := testResultShardRanges(tn(1), tn(2), 2)
+	require.NoError(t, results.MarkFulfilled(tn(1), nextFulfilledRange, iopts))
+	require.Equal(t, 1, len(results))
+	blk, ok = results[xtime.ToUnixNano(tn(0))]
+	require.True(t, ok)
+	require.True(t, tn(0).Equal(blk.blockStart))
+	fulfilledRange.AddRanges(nextFulfilledRange)
+	require.Equal(t, fulfilledRange, blk.fulfilled)
+
+	// additional add for next block
+	nextFulfilledRange = testResultShardRanges(tn(2), tn(4), 1, 2, 3)
+	require.NoError(t, results.MarkFulfilled(tn(2), nextFulfilledRange, iopts))
+	require.Equal(t, 2, len(results))
+	blk, ok = results[xtime.ToUnixNano(tn(2))]
+	require.True(t, ok)
+	require.True(t, tn(2).Equal(blk.blockStart))
+	require.Equal(t, nextFulfilledRange, blk.fulfilled)
 }
 
 func segmentsInResultsSame(a, b IndexResults) bool {

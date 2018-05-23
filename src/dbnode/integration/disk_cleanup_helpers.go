@@ -76,6 +76,7 @@ func writeIndexFileSetFiles(t *testing.T, storageOpts storage.Options, md namesp
 				BlockStart: start,
 			},
 			BlockSize: blockSize,
+			Shards:    map[uint32]struct{}{0: struct{}{}},
 		}
 		require.NoError(t, writer.Open(writerOpts))
 		require.NoError(t, writer.Close())

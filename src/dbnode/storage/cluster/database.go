@@ -40,8 +40,8 @@ var (
 	// useful for replacing which database constructor is called in tests
 	newStorageDatabase = storage.NewDatabase
 
-	errAlreadyWatchingTopology = errors.New("cluster db is already watching topology")
-	errNotWatchingTopology     = errors.New("cluster db is not watching topology")
+	errAlreadyWatchingTopology = errors.New("cluster database is already watching topology")
+	errNotWatchingTopology     = errors.New("cluster database is not watching topology")
 )
 
 type newStorageDatabaseFn func(
@@ -90,6 +90,8 @@ func NewDatabase(
 	instrumentOpts := opts.InstrumentOptions()
 	log := instrumentOpts.Logger()
 	m := newDatabaseMetrics(instrumentOpts.MetricsScope().SubScope("cluster"))
+
+	log.Info("cluster database initializing topology")
 	topo, err := topoInit.Init()
 	if err != nil {
 		return nil, err
@@ -101,7 +103,7 @@ func NewDatabase(
 	}
 
 	// Wait for the topology to be available
-	log.Info("resolving topology from kv")
+	log.Info("cluster database resolving topology")
 	<-watch.C()
 
 	d := &clusterDB{

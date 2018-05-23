@@ -793,9 +793,8 @@ func (n *dbNamespace) Bootstrap(start time.Time, process bootstrap.Process) erro
 
 	err = multiErr.FinalError()
 	n.metrics.bootstrap.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	if err == nil {
-		success = true
-	}
+
+	success = err == nil
 	return err
 }
 

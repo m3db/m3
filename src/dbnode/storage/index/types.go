@@ -158,20 +158,32 @@ type Block interface {
 	// IsSealed returns whether this block was sealed.
 	IsSealed() bool
 
-	// NeedsEvictActiveSegment returns whether this block has an active segment
-	// that is not-empty and is sealed.
-	// A sealed non-empty active segment needs to get evicted from memory as
+	// NeedsMutableSegmentsEvicted returns whether this block has any mutable segments
+	// that are not-empty and sealed.
+	// A sealed non-empty mutable segment needs to get evicted from memory as
 	// soon as it can be to reduce memory footprint.
-	NeedsEvictActiveSegment() bool
+	NeedsMutableSegmentsEvicted() bool
 
-	// EvictActiveSegment closes the active segment, this is only applicable
-	// valid to be called once the block and hence active segment is sealed.
+	// EvictMutableSegments closes any mutable segments, this is only applicable
+	// valid to be called once the block and hence mutable segments are sealed.
 	// It is expected that results have been added to the block that covers any
-	// data the mutable segment should have held at this time.
-	EvictActiveSegment() error
+	// data the mutable segments should have held at this time.
+	EvictMutableSegments() (EvictMutableSegmentResults, error)
 
 	// Close will release any held resources and close the Block.
 	Close() error
+}
+
+// EvictMutableSegmentResults returns statistics about the EvictMutableSegments execution.
+type EvictMutableSegmentResults struct {
+	NumMutableSegments int64
+	NumDocs            int64
+}
+
+// Add adds the provided results to the receiver.
+func (e *EvictMutableSegmentResults) Add(o EvictMutableSegmentResults) {
+	e.NumDocs += o.NumDocs
+	e.NumMutableSegments += o.NumMutableSegments
 }
 
 // WriteBatchResult returns statistics about the WriteBatch execution.

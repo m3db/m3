@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/serialize"
 	"github.com/m3db/m3db/src/dbnode/topology"
-	"github.com/m3db/m3db/src/dbnode/x/xpool"
 	"github.com/m3db/m3x/ident"
 )
 
@@ -172,10 +171,9 @@ func (f *fetchState) asEncodingSeriesIterators(pools fetchTaggedPools) (encoding
 // three options and leaving as the interface below.
 type fetchTaggedPools interface {
 	encoding.IteratorPools
+
 	ReaderSliceOfSlicesIterator() *readerSliceOfSlicesIteratorPool
 	MutableSeriesIterators() encoding.MutableSeriesIteratorsPool
-	MultiReaderIteratorArray() encoding.MultiReaderIteratorArrayPool
-	ID() ident.Pool
-	CheckedBytesWrapper() xpool.CheckedBytesWrapperPool
+
 	TagDecoder() serialize.TagDecoderPool
 }

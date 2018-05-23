@@ -33,10 +33,10 @@ import (
 	"github.com/m3db/m3cluster/integration/etcd"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3db/src/dbnode/kvconfig"
 	"github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/cmd/services/m3dbnode/server"
+	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3db/src/dbnode/kvconfig"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -283,24 +283,24 @@ func TestEmbeddedConfig(t *testing.T) {
 
 	// Run server
 	var (
-		interruptCh           = make(chan error, 1)
-		bootstrapCh           = make(chan struct{}, 1)
-		embeddedKVBootstrapCh = make(chan struct{}, 1)
-		serverWg              sync.WaitGroup
+		interruptCh  = make(chan error, 1)
+		bootstrapCh  = make(chan struct{}, 1)
+		embeddedKVCh = make(chan struct{}, 1)
+		serverWg     sync.WaitGroup
 	)
 	serverWg.Add(1)
 	go func() {
 		server.Run(server.RunOptions{
-			ConfigFile:            configFd.Name(),
-			BootstrapCh:           bootstrapCh,
-			EmbeddedKVBootstrapCh: embeddedKVBootstrapCh,
-			InterruptCh:           interruptCh,
+			ConfigFile:   configFd.Name(),
+			BootstrapCh:  bootstrapCh,
+			EmbeddedKVCh: embeddedKVCh,
+			InterruptCh:  interruptCh,
 		})
 		serverWg.Done()
 	}()
 
 	// Wait for embedded KV to be up
-	<-embeddedKVBootstrapCh
+	<-embeddedKVCh
 
 	// Setup the placement
 	var cfg config.Configuration
@@ -419,7 +419,7 @@ db:
     logging:
         level: info
         file: {{.LogFile}}
-    
+
     metrics:
         prometheus:
             handlerPath: /metrics
@@ -428,17 +428,17 @@ db:
         sanitization: prometheus
         samplingRate: 1.0
         extended: detailed
-    
+
     listenAddress: 0.0.0.0:{{.ServicePort}}
     clusterListenAddress: 0.0.0.0:9001
     httpNodeListenAddress: 0.0.0.0:9002
     httpClusterListenAddress: 0.0.0.0:9003
     debugListenAddress: 0.0.0.0:9004
-    
+
     hostID:
         resolver: config
         value: {{.HostID}}
-    
+
     client:
         writeConsistencyLevel: majority
         readConsistencyLevel: unstrict_majority
@@ -458,20 +458,20 @@ db:
             jitter: true
         backgroundHealthCheckFailLimit: 4
         backgroundHealthCheckFailThrottleFactor: 0.5
-    
+
     gcPercentage: 100
-    
+
     writeNewSeriesAsync: true
     writeNewSeriesLimitPerSecond: 1048576
     writeNewSeriesBackoffDuration: 2ms
-    
+
     bootstrap:
         bootstrappers:
             - filesystem
             - commitlog
         fs:
             numProcessorsPerCPU: 0.125
-    
+
     commitlog:
         flushMaxBytes: 524288
         flushEvery: 1s
@@ -480,7 +480,7 @@ db:
             size: 2097152
         retentionPeriod: 24h
         blockSize: 10m
-    
+
     fs:
         filePathPrefix: {{.DataDir}}
         writeBufferSize: 65536
@@ -489,7 +489,7 @@ db:
         seekReadBufferSize: 4096
         throughputLimitMbps: 100.0
         throughputCheckEvery: 128
-    
+
     repair:
         enabled: false
         interval: 2h
@@ -497,7 +497,7 @@ db:
         jitter: 1h
         throttle: 2m
         checkInterval: 1m
-    
+
     pooling:
         blockAllocSize: 16
         type: simple

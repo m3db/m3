@@ -15,7 +15,7 @@ Notes for [developers]
 
 ### Starting a node
 
-To start a local node, you can build with `make m3dbnode` and then run `./bin/m3dbnode -f ./example/m3db-node-config.yaml`.  To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64`.
+To start a local node, you can build with `make m3dbnode` and then run `./bin/m3dbnode -f ./src/dbnode/config/m3dbnode-local.yml`.  To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64`.
 
 ### Test RPC
 
@@ -31,6 +31,35 @@ curl http://localhost:9003/writetagged -s -X POST -d '{"namespace":"metrics","id
 
 ```
 curl http://localhost:9003/query -s -X POST -d '{"namespace":"metrics","query":{"regexp":{"field":"city","regexp":".*"}},"rangeStart":0,"rangeEnd":'"$(date +"%s")"'}' | jq .
+```
+
+## Building with Docker
+
+A Dockerfile is included for both development and production deployment purposes. It uses a
+[multi-stage build](https://docs.docker.com/develop/develop-images/multistage-build/) in order to
+produce a lightweight production image from a single Dockerfile. Accordingly, it requires Docker
+17.05 or later to build.
+
+```
+docker build -t m3dbnode:$(git rev-parse head) .
+docker run --name m3dbnode m3dbnode:$(git rev-parse head)
+```
+
+If you wish to build an image with the source code included you can stop the build after the
+`builder` stage:
+
+```
+docker build -t m3dbnode:$(git rev-parse head) --target builder .
+```
+
+## Configuration
+
+The default Docker image will start a single `m3dbnode` process with an embedded etcd instance to
+mimic a production environment. If you would like to further customize the configuration, you must
+provide your own and mount it into the container:
+
+```
+docker run --name m3dbnode -v /host/config.yml:/etc/m3dbnode/myconfig.yml m3dbnode:tag -f /etc/m3dbnode/myconfig.yml
 ```
 
 <hr>

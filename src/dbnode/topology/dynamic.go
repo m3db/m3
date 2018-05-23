@@ -187,6 +187,7 @@ func (t *dynamicTopology) MarkShardAvailable(
 
 func waitOnInit(w services.Watch, d time.Duration) error {
 	if d <= 0 {
+		<-w.C() // Wait for the first placement indefinitely
 		return nil
 	}
 	select {

@@ -118,14 +118,14 @@ func main() {
 				log.Fatalf("could not parse shard '%s': %v", shard, err)
 			}
 			rng := xtime.Range{Start: start, End: end}
-			shardTimeRanges[uint32(value)] = xtime.Ranges{}.AddRange(rng)
+			shardTimeRanges[uint32(value)] = xtime.NewRanges(rng)
 			shardsAll = append(shardsAll, uint32(value))
 		}
 		// Or just handled up to N (shard-count) shards
 	} else if shardsCount > 0 {
 		for i := uint32(0); i < uint32(shardsCount); i++ {
 			rng := xtime.Range{Start: start, End: end}
-			shardTimeRanges[i] = xtime.Ranges{}.AddRange(rng)
+			shardTimeRanges[i] = xtime.NewRanges(rng)
 			shardsAll = append(shardsAll, i)
 		}
 	} else {

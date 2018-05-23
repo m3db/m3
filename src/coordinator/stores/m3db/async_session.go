@@ -23,6 +23,7 @@ package m3db
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/client"
@@ -44,13 +45,17 @@ var (
 // Calls to methods while uninitialized will return an uninitialized error. The done channel
 // is to notify the caller that the session has finished _attempting_ to get initialized.
 type AsyncSession struct {
+	sync.RWMutex
 	session client.Session
-	done    chan struct{}
+	done    chan<- struct{}
 	err     error
 }
 
+// NewClientFn provides a DB client.
+type NewClientFn func() (client.Client, error)
+
 // NewAsyncSession returns a new AsyncSession
-func NewAsyncSession(c client.Client, done chan struct{}) *AsyncSession {
+func NewAsyncSession(fn NewClientFn, done chan<- struct{}) *AsyncSession {
 	asyncSession := &AsyncSession{
 		done: done,
 		err:  errSessionUninitialized,
@@ -63,7 +68,18 @@ func NewAsyncSession(c client.Client, done chan struct{}) *AsyncSession {
 			}()
 		}
 
+		c, err := fn()
+		if err != nil {
+			asyncSession.Lock()
+			asyncSession.err = fmt.Errorf(errNewSessionFailFmt, err)
+			asyncSession.Unlock()
+			return
+		}
+
 		session, err := c.NewSession()
+
+		asyncSession.Lock()
+		defer asyncSession.Unlock()
 		if err != nil {
 			asyncSession.err = fmt.Errorf(errNewSessionFailFmt, err)
 			return
@@ -78,6 +94,8 @@ func NewAsyncSession(c client.Client, done chan struct{}) *AsyncSession {
 
 // Write writes a value to the database for an ID
 func (s *AsyncSession) Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+	s.RLock()
+	defer s.RUnlock()
 	if s.err != nil {
 		return s.err
 	}
@@ -87,6 +105,8 @@ func (s *AsyncSession) Write(namespace, id ident.ID, t time.Time, value float64,
 
 // WriteTagged writes a value to the database for an ID and given tags
 func (s *AsyncSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+	s.RLock()
+	defer s.RUnlock()
 	if s.err != nil {
 		return s.err
 	}
@@ -96,6 +116,8 @@ func (s *AsyncSession) WriteTagged(namespace, id ident.ID, tags ident.TagIterato
 
 // Fetch fetches values from the database for an ID
 func (s *AsyncSession) Fetch(namespace, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error) {
+	s.RLock()
+	defer s.RUnlock()
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -105,6 +127,8 @@ func (s *AsyncSession) Fetch(namespace, id ident.ID, startInclusive, endExclusiv
 
 // FetchIDs fetches values from the database for a set of IDs
 func (s *AsyncSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error) {
+	s.RLock()
+	defer s.RUnlock()
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -114,6 +138,8 @@ func (s *AsyncSession) FetchIDs(namespace ident.ID, ids ident.Iterator, startInc
 
 // FetchTagged resolves the provided query to known IDs, and fetches the data for them
 func (s *AsyncSession) FetchTagged(namespace ident.ID, q index.Query, opts index.QueryOptions) (results encoding.SeriesIterators, exhaustive bool, err error) {
+	s.RLock()
+	defer s.RUnlock()
 	if s.err != nil {
 		return nil, false, s.err
 	}
@@ -123,6 +149,8 @@ func (s *AsyncSession) FetchTagged(namespace ident.ID, q index.Query, opts index
 
 // FetchTaggedIDs resolves the provided query to known IDs.
 func (s *AsyncSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts index.QueryOptions) (client.TaggedIDsIterator, bool, error) {
+	s.RLock()
+	defer s.RUnlock()
 	if s.err != nil {
 		return nil, false, s.err
 	}
@@ -134,6 +162,8 @@ func (s *AsyncSession) FetchTaggedIDs(namespace ident.ID, q index.Query, opts in
 // to easily discern what shard is failing when operations
 // for given IDs begin failing
 func (s *AsyncSession) ShardID(id ident.ID) (uint32, error) {
+	s.RLock()
+	defer s.RUnlock()
 	if s.err != nil {
 		return 0, s.err
 	}
@@ -143,6 +173,8 @@ func (s *AsyncSession) ShardID(id ident.ID) (uint32, error) {
 
 // IteratorPools exposes the internal iterator pools used by the session to clients
 func (s *AsyncSession) IteratorPools() (encoding.IteratorPools, error) {
+	s.RLock()
+	defer s.RUnlock()
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -151,6 +183,8 @@ func (s *AsyncSession) IteratorPools() (encoding.IteratorPools, error) {
 
 // Close closes the session
 func (s *AsyncSession) Close() error {
+	s.RLock()
+	defer s.RUnlock()
 	if s.err != nil {
 		return s.err
 	}

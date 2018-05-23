@@ -1,8 +1,6 @@
 package local
 
 import (
-	"time"
-
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/storage/local"
 
@@ -14,6 +12,6 @@ import (
 // NewStorageAndSession generates a new local storage and mock session
 func NewStorageAndSession(ctrl *gomock.Controller) (storage.Storage, *client.MockSession) {
 	session := client.NewMockSession(ctrl)
-	storage := local.NewStorage(session, "metrics", time.Minute)
+	storage := local.NewStorage(session, "metrics")
 	return storage, session
 }

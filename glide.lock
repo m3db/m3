@@ -1,8 +1,10 @@
-hash: 3676152b21215fe5cbdc6bc36a93d072d1c0181d21ab75d1a8debd6015ee44c3
-updated: 2018-05-18T11:34:59.456603862-04:00
+hash: 9d9e75fb727b9b899c936c84c69ee3a4d1b0ecee3b7a2fc7d145d24c56ba12f4
+updated: 2018-05-21T21:49:50.812318856-04:00
 imports:
 - name: github.com/apache/thrift
-  version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
+  version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
+  repo: https://github.com/m3db/thrift
+  vcs: git
   subpackages:
   - lib/go/thrift
 - name: github.com/beorn7/perks
@@ -101,13 +103,11 @@ imports:
   subpackages:
   - capnslog
 - name: github.com/couchbase/vellum
-  version: eb6ae3743b3f300f2136f83ca78c08cc071edbd4
-  subpackages:
-  - utf8
-- name: github.com/couchbaselabs/vellum
-  version: eb6ae3743b3f300f2136f83ca78c08cc071edbd4
+  version: 1782e2d46ce2a9f28bd1ac1b46cd141c0d887c9b
+  repo: https://github.com/m3db/vellum
   subpackages:
   - regexp
+  - utf8
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
@@ -115,22 +115,22 @@ imports:
 - name: github.com/dgrijalva/jwt-go
   version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
 - name: github.com/dgryski/go-bits
-  version: 2ad8d707cc05b1815ce6ff2543bb5e8d8f9298ef
+  version: bd8a69a71dc203aa976f9d918b428db9ac605f57
 - name: github.com/edsrzf/mmap-go
   version: 0bce6a6887123b67a60366d2c9fe2dfb74289d2e
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/glycerine/go-unsnap-stream
-  version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
+  version: 9f0cb55181dd3a0a4c168d3dbc72d4aca4853126
 - name: github.com/go-kit/kit
-  version: 04dd4f741c6e76cc170a4d7913f4c625952e6f58
+  version: 1b1a55c53e898557056c7f3fe05be3760a48f172
   subpackages:
   - log
   - log/level
 - name: github.com/go-logfmt/logfmt
   version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
 - name: github.com/go-stack/stack
-  version: 54be5f394ed2c3e19dac9134a40a95ba5a017f7b
+  version: 259ab82a6cad3992b4e21ff5cac294ccb06474bc
 - name: github.com/gogo/protobuf
   version: 100ba4e885062801d56799d78530b73b178a78f3
   subpackages:
@@ -186,7 +186,7 @@ imports:
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3cluster
-  version: 53fc512c11e1ed03db2d65dac4c139a3c2ff2eda
+  version: 97360c9dac803def743351d084a2449a85e2066b
   subpackages:
   - client
   - client/etcd
@@ -230,7 +230,7 @@ imports:
   - metric
   - policy
 - name: github.com/m3db/m3ninx
-  version: 8f5e6a0f31393f5b0d79086250ac1a528747c0c7
+  version: fe75ad9256a620f9a24478e6e51b8ed8c65d7a7c
   subpackages:
   - doc
   - generated/proto/fswriter
@@ -253,7 +253,7 @@ imports:
   - search/searcher
   - x
 - name: github.com/m3db/m3x
-  version: c457e96f2dea19cf2f590e40d443b62ced1e7820
+  version: 1a17ecefdef9e05c711ada6369ec6bc99b169418
   vcs: git
   subpackages:
   - checked
@@ -304,11 +304,11 @@ imports:
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/nightlyone/lockfile
-  version: 1d49c987357a327b5b03aa84cbddd582c328615d
+  version: 6a197d5ea61168f2ac821de2b7f011b250904900
 - name: github.com/nu7hatch/gouuid
   version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
 - name: github.com/oklog/ulid
-  version: 66bb6560562feca7045b23db1ae85b01260f87c5
+  version: 7e1bd8a9a281b5abdf651a430b918bb0ecdbceda
 - name: github.com/opentracing/opentracing-go
   version: 855519783f479520497c6b3445611b05fc42f009
   subpackages:
@@ -320,11 +320,11 @@ imports:
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pilosa/pilosa
-  version: 9a64cff8ea61bf695967cc425d64771fe12dc9a0
+  version: 614fa91b6edcbf0f5471b4e43440d4e9009dd334
   subpackages:
   - roaring
 - name: github.com/pkg/errors
-  version: 248dadf4e9068a0b3e79f02ed0a610d935de5302
+  version: 816c9085562cd7ee03e7f8188a1cfd942858cded
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
@@ -390,7 +390,7 @@ imports:
   - assert
   - require
 - name: github.com/tinylib/msgp
-  version: 3b5c87ab5fb00c660bf85b888445d9a01db64db4
+  version: c8cf64dff2009d53fa8f8a16df54d1cdfc64c4a7
   subpackages:
   - msgp
 - name: github.com/uber-go/atomic
@@ -460,7 +460,7 @@ imports:
   - lex/httplex
   - trace
 - name: golang.org/x/sync
-  version: 450f422ab23cf9881c94e2db30cac0eb1b7cf80c
+  version: 1d60e4601c6fd243af51cc01ddf169918a5407ca
   subpackages:
   - errgroup
 - name: golang.org/x/sys
