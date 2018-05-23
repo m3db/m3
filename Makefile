@@ -204,15 +204,13 @@ install-conf:
 	echo "Downloading JSON conversion package"
 	go get github.com/brancz/gojsontoyaml
 
-
-# TODO(katezaps): pipe in --ext-str flags
 define CONFIG_RULES
 
 .PHONY: $(CONFIG)-config
 $(CONFIG)-config: setup-conf install-conf
 	@echo Generating config for $(CONFIG)
 	touch out/$(CONFIG)-config.yaml
-	cd genconfig && printf "`./jsonnet/jsonnet templates/$(CONFIG)-config.jsonnet`" | gojsontoyaml > ../out/$(CONFIG)-config.yaml 
+	cd genconfig && printf "`./jsonnet/jsonnet templates/$(CONFIG)-config.jsonnet --ext-str cluster=$(CLUSTER)`" | gojsontoyaml > ../out/$(CONFIG)-config.yaml 
 
 endef
 

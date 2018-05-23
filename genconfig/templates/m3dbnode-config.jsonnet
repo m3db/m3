@@ -1,5 +1,5 @@
 // we can set cluster as a top level argument when running jsonnet
-local cluster = "gcp";
+local cluster = std.extVar("cluster");
 
 // we need to import all environments bc import paths cannot be generated
 local environments = {
@@ -7,23 +7,19 @@ local environments = {
 };
 
 local env_vars = environments[cluster];
-local globals = env_vars.globals;
-
-// TODO: overwrite vars in globals with service layer globals instead of having
-// two different sets of globals
-local m3dbnode_globals = env_vars.m3dbnode.globals;
+local globals = env_vars.globals + env_vars.m3dbnode.globals;
 
 std.prune({
     coordinator: {
-        listenAddress: "0.0.0.0:" + m3dbnode_globals.coordinator_port,
+        listenAddress: "0.0.0.0:" + globals.coordinator_port,
     },
     // TODO: continue combing thru changes
     db: {
-        listenAddress: "0.0.0.0:" + m3dbnode_globals.port,
+        listenAddress: "0.0.0.0:" + globals.port,
         clusterListenAddress: "127.0.0.1:0",
-        httpClusterListenAddress: "0.0.0.0:" + m3dbnode_globals.httpPort,
-        httpNodeListenAddress: "0.0.0.0:" + (m3dbnode_globals.httpPort+10000),
-        debugListenAddress: "0.0.0.0:" + (m3dbnode_globals.port+10000),
+        httpClusterListenAddress: "0.0.0.0:" + globals.httpPort,
+        httpNodeListenAddress: "0.0.0.0:" + (globals.httpPort+10000),
+        debugListenAddress: "0.0.0.0:" + (globals.port+10000),
         hostId: {
             resolver: "hostname",
         },
@@ -79,7 +75,7 @@ std.prune({
                 size: 2097152, // 2 ^ 21
             },
             retentionPeriod: "24h",
-            blockSize: if "m3dbnode_commitlog_blocksize" in m3dbnode_globals then m3dbnode_globals.m3dbnode_commitlog_blocksize else "10m",
+            blockSize: if "m3dbnode_commitlog_blocksize" in globals then globals.m3dbnode_commitlog_blocksize else "10m",
         },
         fs: {
             filePathPrefix: globals.m3dbnode_filepathprefix,
