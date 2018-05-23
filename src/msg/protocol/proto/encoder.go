@@ -21,16 +21,18 @@
 package proto
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/m3db/m3x/pool"
 )
 
 type encoder struct {
-	w          io.Writer
-	sizeBuffer []byte
-	dataBuffer []byte
-	bytesPool  pool.BytesPool
+	w              io.Writer
+	sizeBuffer     []byte
+	dataBuffer     []byte
+	bytesPool      pool.BytesPool
+	maxMessageSize int
 }
 
 // NewEncoder creates a new encoder, the implementation is not thread safe.
@@ -44,14 +46,18 @@ func newEncoder(w io.Writer, opts BaseOptions) *encoder {
 	}
 	pool := opts.BytesPool()
 	return &encoder{
-		w:          w,
-		sizeBuffer: getByteSliceWithLength(sizeBufferSize, pool),
-		bytesPool:  pool,
+		w:              w,
+		sizeBuffer:     getByteSliceWithLength(sizeBufferSize, pool),
+		bytesPool:      pool,
+		maxMessageSize: opts.MaxMessageSize(),
 	}
 }
 
 func (e *encoder) Encode(m Marshaler) error {
 	size := m.Size()
+	if size > e.maxMessageSize {
+		return fmt.Errorf("message size %d is larger than maximum supported size %d", size, e.maxMessageSize)
+	}
 	if err := e.encodeSize(size); err != nil {
 		return err
 	}

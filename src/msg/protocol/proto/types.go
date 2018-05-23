@@ -82,6 +82,12 @@ type EncodeDecoderAlloc func() EncodeDecoder
 
 // BaseOptions configures a base encoder or decoder.
 type BaseOptions interface {
+	// MaxMessageSize returns the maximum message size.
+	MaxMessageSize() int
+
+	// SetMaxMessageSize sets the maximum message size.
+	SetMaxMessageSize(value int) BaseOptions
+
 	// BytesPool returns the bytes pool.
 	BytesPool() pool.BytesPool
 

@@ -31,6 +31,7 @@ import (
 
 func TestEncodeDecoderConfig(t *testing.T) {
 	str := `
+maxMessageSize: 1024
 bytesPool: 
   buckets:
     - capacity: 4
@@ -47,6 +48,8 @@ encodeDecoderPool:
 	var cfg EncodeDecoderConfiguration
 	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
 	opts := cfg.NewEncodeDecoderOptions(instrument.NewOptions())
+	require.Equal(t, 1024, opts.EncoderOptions().MaxMessageSize())
+	require.Equal(t, 1024, opts.DecoderOptions().MaxMessageSize())
 	require.Equal(t, opts.EncoderOptions().BytesPool(), opts.DecoderOptions().BytesPool())
 	require.NotNil(t, opts.DecoderOptions().BytesPool())
 	require.NotNil(t, opts.EncodeDecoderPool())
