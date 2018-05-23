@@ -90,3 +90,11 @@ if [ "$queryResult" -lt 1 ]; then
 else 
   echo "Result found"
 fi
+
+echo "Deleting placement" 
+
+curl -vvvsSf -X DELETE  localhost:7201/placement
+
+echo "Deleteing namespace"
+
+curl -vvvsSf -X DELETE localhost:7201/namespace/default
