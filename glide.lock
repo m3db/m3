@@ -1,5 +1,5 @@
-hash: 9d9e75fb727b9b899c936c84c69ee3a4d1b0ecee3b7a2fc7d145d24c56ba12f4
-updated: 2018-05-21T21:49:50.812318856-04:00
+hash: 7a52a33e24ef31eb786af4463a73f804d97494fa3f0d0dc4ff30c00c1147720c
+updated: 2018-05-23T00:21:14.554307-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -230,7 +230,7 @@ imports:
   - metric
   - policy
 - name: github.com/m3db/m3ninx
-  version: fe75ad9256a620f9a24478e6e51b8ed8c65d7a7c
+  version: 7556fa8339674f1d9f559486d1feca18c17d1190
   subpackages:
   - doc
   - generated/proto/fswriter
@@ -363,7 +363,7 @@ imports:
   - util/strutil
   - util/testutil
 - name: github.com/prometheus/tsdb
-  version: 16b2bf1b45ce3e3536c78ebec5116ea09a69786e
+  version: 706602daed1487f7849990678b4ece4599745905
   subpackages:
   - chunks
   - fileutil
