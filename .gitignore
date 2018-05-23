@@ -28,3 +28,5 @@ test-data
 # Coverage imports
 coverage_imports.go
 
+# Release directory
+dist/
