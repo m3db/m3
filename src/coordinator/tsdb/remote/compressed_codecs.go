@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/generated/proto/rpc"
+
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3db/src/dbnode/ts"
