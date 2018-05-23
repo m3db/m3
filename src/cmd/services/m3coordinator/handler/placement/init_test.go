@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -37,8 +38,8 @@ import (
 )
 
 func TestPlacementInitHandler(t *testing.T) {
-	mockPlacementService := SetupPlacementTest(t)
-	handler := NewInitHandler(mockPlacementService)
+	mockClient, mockPlacementService := SetupPlacementTest(t)
+	handler := NewInitHandler(mockClient, config.Configuration{})
 
 	// Test placement init success
 	w := httptest.NewRecorder()
@@ -89,5 +90,5 @@ func TestPlacementInitHandler(t *testing.T) {
 	body, err = ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	assert.Equal(t, "unable to build initial placement\n", string(body))
+	assert.Equal(t, "{\"Error\":\"unable to build initial placement\"}\n", string(body))
 }

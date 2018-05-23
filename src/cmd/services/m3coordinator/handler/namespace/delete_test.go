@@ -36,8 +36,8 @@ import (
 )
 
 func TestNamespaceDeleteHandlerNotFound(t *testing.T) {
-	mockKV, _ := SetupNamespaceTest(t)
-	deleteHandler := NewDeleteHandler(mockKV)
+	mockClient, mockKV, _ := SetupNamespaceTest(t)
+	deleteHandler := NewDeleteHandler(mockClient)
 
 	w := httptest.NewRecorder()
 
@@ -51,12 +51,12 @@ func TestNamespaceDeleteHandlerNotFound(t *testing.T) {
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-	assert.Equal(t, "unable to find a namespace with specified name\n", string(body))
+	assert.Equal(t, "{\"Error\":\"unable to find a namespace with specified name\"}\n", string(body))
 }
 
 func TestNamespaceDeleteHandlerDeleteAll(t *testing.T) {
-	mockKV, ctrl := SetupNamespaceTest(t)
-	deleteHandler := NewDeleteHandler(mockKV)
+	mockClient, mockKV, ctrl := SetupNamespaceTest(t)
+	deleteHandler := NewDeleteHandler(mockClient)
 
 	w := httptest.NewRecorder()
 
@@ -96,12 +96,12 @@ func TestNamespaceDeleteHandlerDeleteAll(t *testing.T) {
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "", string(body))
+	assert.Equal(t, "{\"Deleted\":true}\n", string(body))
 }
 
 func TestNamespaceDeleteHandler(t *testing.T) {
-	mockKV, ctrl := SetupNamespaceTest(t)
-	deleteHandler := NewDeleteHandler(mockKV)
+	mockClient, mockKV, ctrl := SetupNamespaceTest(t)
+	deleteHandler := NewDeleteHandler(mockClient)
 
 	w := httptest.NewRecorder()
 
@@ -156,5 +156,5 @@ func TestNamespaceDeleteHandler(t *testing.T) {
 	resp := w.Result()
 	body, _ := ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "", string(body))
+	assert.Equal(t, "{\"Deleted\":true}\n", string(body))
 }
