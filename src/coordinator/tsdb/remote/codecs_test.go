@@ -41,19 +41,22 @@ var (
 	val0     = "[a-z]"
 	valList0 = &rpc.Datapoints{
 		Datapoints:      []*rpc.Datapoint{{1, 1.0}, {2, 2.0}, {3, 3.0}},
-		FixedResolution: false}
+		FixedResolution: false,
+	}
 	time0 = "2000-02-06T11:54:48+07:00"
 
 	name1    = "eq"
 	val1     = "val"
 	valList1 = &rpc.Datapoints{
 		Datapoints:      []*rpc.Datapoint{{1, 4.0}, {2, 5.0}, {3, 6.0}},
-		FixedResolution: false}
+		FixedResolution: false,
+	}
 
 	name2    = "s2"
 	valList2 = &rpc.Datapoints{
 		Datapoints:      []*rpc.Datapoint{{fromTime(now.Add(-3 * time.Minute)), 4.0}, {fromTime(now.Add(-2 * time.Minute)), 5.0}, {fromTime(now.Add(-1 * time.Minute)), 6.0}},
-		FixedResolution: true}
+		FixedResolution: true,
+	}
 
 	time1 = "2093-02-06T11:54:48+07:00"
 

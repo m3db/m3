@@ -259,6 +259,15 @@ func TestSeriesConversionFromCompressedData(t *testing.T) {
 	it := buildTestSeriesIterator(t)
 	rpcSeries, err := RPCFromSeriesIterator(it)
 	require.NoError(t, err)
+	seriesIterator := SeriesIteratorFromRPC(nil, rpcSeries)
+	validateSeries(t, seriesIterator)
+	seriesIterator.Close()
+}
+
+func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
+	it := buildTestSeriesIterator(t)
+	rpcSeries, err := RPCFromSeriesIterator(it)
+	require.NoError(t, err)
 
 	ip := &mockIteratorPool{}
 	seriesIterator := SeriesIteratorFromRPC(ip, rpcSeries)
