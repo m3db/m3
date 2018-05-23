@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/clock"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
-	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3db/src/dbnode/storage/series"
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/ident"
@@ -70,7 +69,12 @@ type IndexResults map[xtime.UnixNano]IndexBlock
 type IndexBlock struct {
 	blockStart time.Time
 	segments   []segment.Segment
+	fulfilled  ShardTimeRanges
 }
+
+// MutableSegmentAllocator allocates a new MutableSegment type when
+// creating a bootstrap result to return to the index.
+type MutableSegmentAllocator func() (segment.MutableSegment, error)
 
 // ShardResult returns the bootstrap result for a shard.
 type ShardResult interface {
@@ -152,8 +156,8 @@ type Options interface {
 	SeriesCachePolicy() series.CachePolicy
 
 	// SetIndexMutableSegmentAllocator sets the index mutable segment allocator.
-	SetIndexMutableSegmentAllocator(value index.MutableSegmentAllocator) Options
+	SetIndexMutableSegmentAllocator(value MutableSegmentAllocator) Options
 
 	// IndexMutableSegmentAllocator returns the index mutable segment allocator.
-	IndexMutableSegmentAllocator() index.MutableSegmentAllocator
+	IndexMutableSegmentAllocator() MutableSegmentAllocator
 }

@@ -21,12 +21,22 @@
 package result
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3ninx/index/segment/mem"
 	xtime "github.com/m3db/m3x/time"
 )
+
+// NewDefaultMutableSegmentAllocator returns a default mutable segment
+// allocator.
+func NewDefaultMutableSegmentAllocator() MutableSegmentAllocator {
+	return func() (segment.MutableSegment, error) {
+		return mem.NewSegment(0, mem.NewOptions())
+	}
+}
 
 type indexBootstrapResult struct {
 	results     IndexResults
@@ -98,7 +108,7 @@ func (r IndexResults) GetOrAddSegment(
 
 	block, exists := r[blockStartNanos]
 	if !exists {
-		block = NewIndexBlock(blockStart, nil)
+		block = NewIndexBlock(blockStart, nil, nil)
 		r[blockStartNanos] = block
 	}
 	for _, seg := range block.Segments() {
@@ -114,8 +124,43 @@ func (r IndexResults) GetOrAddSegment(
 	}
 
 	segments := []segment.Segment{mutable}
-	r[blockStartNanos] = block.Merged(NewIndexBlock(blockStart, segments))
+	r[blockStartNanos] = block.Merged(NewIndexBlock(blockStart, segments, nil))
 	return mutable, nil
+}
+
+// MarkFulfilled will mark an index block as fulfilled, either partially or
+// wholly as specified by the shard time ranges passed.
+func (r IndexResults) MarkFulfilled(
+	t time.Time,
+	fulfilled ShardTimeRanges,
+	idxopts namespace.IndexOptions,
+) error {
+	// NB(r): The reason we can align by the retention block size and guarantee
+	// there is only one entry for this time is because index blocks must be a
+	// positive multiple of the data block size, making it easy to map a data
+	// block entry to at most one index block entry.
+	blockStart := t.Truncate(idxopts.BlockSize())
+	blockStartNanos := xtime.ToUnixNano(blockStart)
+
+	blockRange := xtime.Range{
+		Start: blockStart,
+		End:   blockStart.Add(idxopts.BlockSize()),
+	}
+
+	// First check fulfilled is correct
+	min, max := fulfilled.MinMax()
+	if min.Before(blockRange.Start) || max.After(blockRange.End) {
+		return fmt.Errorf("fulfilled range %s is outside of index block range: %s",
+			fulfilled.SummaryString(), blockRange.String())
+	}
+
+	block, exists := r[blockStartNanos]
+	if !exists {
+		block = NewIndexBlock(blockStart, nil, nil)
+		r[blockStartNanos] = block
+	}
+	r[blockStartNanos] = block.Merged(NewIndexBlock(blockStart, nil, fulfilled))
+	return nil
 }
 
 // MergedIndexBootstrapResult returns a merged result of two bootstrap results.
@@ -149,10 +194,12 @@ func MergedIndexBootstrapResult(i, j IndexBootstrapResult) IndexBootstrapResult 
 func NewIndexBlock(
 	blockStart time.Time,
 	segments []segment.Segment,
+	fulfilled ShardTimeRanges,
 ) IndexBlock {
 	return IndexBlock{
 		blockStart: blockStart,
 		segments:   segments,
+		fulfilled:  fulfilled,
 	}
 }
 
@@ -166,11 +213,22 @@ func (b IndexBlock) Segments() []segment.Segment {
 	return b.segments
 }
 
+// Fulfilled returns the fulfilled time ranges by this index block.
+func (b IndexBlock) Fulfilled() ShardTimeRanges {
+	return b.fulfilled
+}
+
 // Merged returns a new merged index block, currently it just appends the
 // list of segments from the other index block and the caller merges
 // as they see necessary.
 func (b IndexBlock) Merged(other IndexBlock) IndexBlock {
 	r := b
-	r.segments = append(r.segments, other.segments...)
+	if len(other.segments) > 0 {
+		r.segments = append(r.segments, other.segments...)
+	}
+	if !other.fulfilled.IsEmpty() {
+		r.fulfilled = b.fulfilled.Copy()
+		r.fulfilled.AddRanges(other.fulfilled)
+	}
 	return r
 }

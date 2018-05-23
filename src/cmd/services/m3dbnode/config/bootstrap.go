@@ -99,6 +99,8 @@ func (bsc BootstrapConfiguration) New(
 	}
 
 	var (
+		mutableSegmentAllocator = index.NewBootstrapResultMutableSegmentAllocator(
+			opts.IndexOptions())
 		bs  bootstrap.BootstrapperProvider
 		err error
 	)
@@ -106,7 +108,7 @@ func (bsc BootstrapConfiguration) New(
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetSeriesCachePolicy(opts.SeriesCachePolicy()).
-		SetIndexMutableSegmentAllocator(index.NewDefaultMutableSegmentAllocator(opts.IndexOptions()))
+		SetIndexMutableSegmentAllocator(mutableSegmentAllocator)
 
 	fsOpts := opts.CommitLogOptions().FilesystemOptions()
 

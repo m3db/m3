@@ -21,15 +21,16 @@
 package index
 
 import (
+	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3ninx/index/segment/mem"
 )
 
-// NewDefaultMutableSegmentAllocator returns a default mutable segment
-// allocator.
-func NewDefaultMutableSegmentAllocator(
+// NewBootstrapResultMutableSegmentAllocator returns a default mutable segment
+// allocator for a bootstrap result index block given index options.
+func NewBootstrapResultMutableSegmentAllocator(
 	opts Options,
-) MutableSegmentAllocator {
+) result.MutableSegmentAllocator {
 	return func() (segment.MutableSegment, error) {
 		return mem.NewSegment(0, opts.MemSegmentOptions())
 	}

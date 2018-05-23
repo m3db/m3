@@ -76,7 +76,7 @@ func TestBootstrapIndex(t *testing.T) {
 		start.Add(2*testBlockSize), dataBlocks[2])
 
 	shardTimeRanges := map[uint32]xtime.Ranges{
-		testShard: xtime.Ranges{}.AddRange(xtime.Range{
+		testShard: xtime.NewRanges(xtime.Range{
 			Start: indexStart,
 			End:   indexStart.Add(2 * testIndexBlockSize),
 		}),

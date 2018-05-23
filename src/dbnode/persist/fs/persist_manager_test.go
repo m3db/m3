@@ -369,7 +369,7 @@ func TestPersistenceManagerPrepareIndexSuccess(t *testing.T) {
 
 	reader.EXPECT().Open(xtest.CmpMatcher(IndexReaderOpenOptions{
 		Identifier: writerOpts.Identifier,
-	})).Return(nil)
+	})).Return(IndexReaderOpenResult{}, nil)
 
 	file := NewMockIndexSegmentFile(ctrl)
 	gomock.InOrder(

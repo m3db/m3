@@ -46,7 +46,7 @@ const (
 )
 
 var (
-	// TODO(prateek): undo this stuff
+	// TODO(prateek): runtime options for this stuff
 	defaultIndexBatchBackoff   = time.Millisecond
 	defaultIndexPerSecondLimit = 1000000
 )
