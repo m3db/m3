@@ -33,8 +33,8 @@ const (
 	// Namespace requires flushing by default
 	defaultFlushEnabled = true
 
-	// Namespace requires snapshotting by default
-	defaultSnapshotEnabled = true
+	// Namespace requires snapshotting disabled by default
+	defaultSnapshotEnabled = false
 
 	// Namespace writes go to commit logs by default
 	defaultWritesToCommitLog = true
