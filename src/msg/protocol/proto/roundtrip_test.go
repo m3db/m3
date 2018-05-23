@@ -123,6 +123,43 @@ func TestResetWriter(t *testing.T) {
 	require.NoError(t, dec.Decode(&decodeMsg))
 }
 
+func TestEncodeMessageLargerThanMaxSize(t *testing.T) {
+	opts := NewBaseOptions().SetMaxMessageSize(4)
+	enc := NewEncoder(nil, opts)
+	encodeMsg := msgpb.Message{
+		Metadata: msgpb.Metadata{
+			Shard: 1,
+			Id:    2,
+		},
+		Value: make([]byte, 10),
+	}
+
+	err := enc.Encode(&encodeMsg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "larger than maximum supported size")
+}
+
+func TestDecodeMessageLargerThanMaxSize(t *testing.T) {
+	mimicTCP := bytes.NewBuffer(nil)
+	enc := NewEncoder(mimicTCP, nil)
+	encodeMsg := msgpb.Message{
+		Metadata: msgpb.Metadata{
+			Shard: 1,
+			Id:    2,
+		},
+		Value: make([]byte, 10),
+	}
+
+	require.NoError(t, enc.Encode(&encodeMsg))
+
+	decodeMsg := msgpb.Message{}
+	opts := NewBaseOptions().SetMaxMessageSize(4)
+	dec := NewDecoder(mimicTCP, opts)
+	err := dec.Decode(&decodeMsg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "larger than maximum supported size")
+}
+
 // nolint: unparam
 func getBytesPool(bucketSizes int, bucketCaps []int) pool.BytesPool {
 	buckets := make([]pool.Bucket, len(bucketCaps))

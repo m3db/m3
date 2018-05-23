@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3msg/topic"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
+	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -413,24 +414,8 @@ func (c *testConsumer) closeOneConsumer() {
 }
 
 func (c *testConsumer) consumeAndAck(totalConsumed *atomic.Int64) {
-	ch := make(chan consumer.Message, numConcurrentMessages)
-	go func() {
-		for {
-			select {
-			case msg := <-ch:
-				go func() {
-					c.cs.markConsumed(msg.Bytes())
-					msg.Ack()
-					totalConsumed.Inc()
-					c.Lock()
-					c.consumed++
-					c.Unlock()
-				}()
-			case <-c.doneCh:
-				return
-			}
-		}
-	}()
+	wp := xsync.NewWorkerPool(numConcurrentMessages)
+	wp.Init()
 
 	go func() {
 		for {
@@ -445,6 +430,7 @@ func (c *testConsumer) consumeAndAck(totalConsumed *atomic.Int64) {
 				for {
 					select {
 					case <-c.doneCh:
+						consumer.Close()
 						return
 					default:
 						msg, err := consumer.Message()
@@ -453,10 +439,16 @@ func (c *testConsumer) consumeAndAck(totalConsumed *atomic.Int64) {
 							return
 						}
 
-						select {
-						case ch <- msg:
-						default:
-						}
+						wp.Go(
+							func() {
+								totalConsumed.Inc()
+								c.cs.markConsumed(msg.Bytes())
+								msg.Ack()
+								c.Lock()
+								c.consumed++
+								c.Unlock()
+							},
+						)
 					}
 				}
 			}()
@@ -490,6 +482,7 @@ writer:
     maxBackoff: 50ms
   connection:
     dialTimeout: 500ms
+    keepAlivePeriod: 2s
     retry:
       initialBackoff: 10ms
       maxBackoff: 50ms

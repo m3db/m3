@@ -27,6 +27,7 @@ import (
 
 // EncodeDecoderConfiguration configures an EncodeDecoder.
 type EncodeDecoderConfiguration struct {
+	MaxMessageSize    *int                              `yaml:"maxMessageSize"`
 	BytesPool         *pool.BucketizedPoolConfiguration `yaml:"bytesPool"`
 	EncodeDecoderPool *pool.ObjectPoolConfiguration     `yaml:"encodeDecoderPool"`
 }
@@ -37,6 +38,10 @@ func (c *EncodeDecoderConfiguration) NewEncodeDecoderOptions(iOpts instrument.Op
 		encodeOpts = NewBaseOptions()
 		decodeOpts = NewBaseOptions()
 	)
+	if c.MaxMessageSize != nil {
+		encodeOpts = encodeOpts.SetMaxMessageSize(*c.MaxMessageSize)
+		decodeOpts = decodeOpts.SetMaxMessageSize(*c.MaxMessageSize)
+	}
 	if c.BytesPool != nil {
 		p := pool.NewBytesPool(
 			c.BytesPool.NewBuckets(),

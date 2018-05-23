@@ -25,7 +25,8 @@ import (
 )
 
 var (
-	defaultByteBuckets = []pool.Bucket{
+	defaultMaxMessageSize = 4 * 1024 * 1024 // 4MB.
+	defaultByteBuckets    = []pool.Bucket{
 		{Capacity: 4, Count: 4},    // Number of bytes for size.
 		{Capacity: 512, Count: 2},  // Number of bytes for message.
 		{Capacity: 1024, Count: 2}, // Number of bytes for ack with 100 metadata.
@@ -38,12 +39,24 @@ func NewBaseOptions() BaseOptions {
 	pool := pool.NewBytesPool(defaultByteBuckets, nil)
 	pool.Init()
 	return &baseOptions{
-		bytesPool: pool,
+		bytesPool:      pool,
+		maxMessageSize: defaultMaxMessageSize,
 	}
 }
 
 type baseOptions struct {
-	bytesPool pool.BytesPool
+	maxMessageSize int
+	bytesPool      pool.BytesPool
+}
+
+func (opts *baseOptions) MaxMessageSize() int {
+	return opts.maxMessageSize
+}
+
+func (opts *baseOptions) SetMaxMessageSize(value int) BaseOptions {
+	o := *opts
+	o.maxMessageSize = value
+	return &o
 }
 
 func (opts *baseOptions) BytesPool() pool.BytesPool {

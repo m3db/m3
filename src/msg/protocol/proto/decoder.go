@@ -21,16 +21,18 @@
 package proto
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/m3db/m3x/pool"
 )
 
 type decoder struct {
-	r          io.Reader
-	sizeBuffer []byte
-	dataBuffer []byte
-	bytesPool  pool.BytesPool
+	r              io.Reader
+	sizeBuffer     []byte
+	dataBuffer     []byte
+	bytesPool      pool.BytesPool
+	maxMessageSize int
 }
 
 // NewDecoder decodes a new decoder, the implementation is not thread safe.
@@ -44,9 +46,10 @@ func newDecoder(r io.Reader, opts BaseOptions) *decoder {
 	}
 	pool := opts.BytesPool()
 	return &decoder{
-		r:          r,
-		sizeBuffer: getByteSliceWithLength(sizeBufferSize, pool),
-		bytesPool:  pool,
+		r:              r,
+		sizeBuffer:     getByteSliceWithLength(sizeBufferSize, pool),
+		bytesPool:      pool,
+		maxMessageSize: opts.MaxMessageSize(),
 	}
 }
 
@@ -54,6 +57,9 @@ func (d *decoder) Decode(m Unmarshaler) error {
 	size, err := d.decodeSize()
 	if err != nil {
 		return err
+	}
+	if size > d.maxMessageSize {
+		return fmt.Errorf("decoded message size %d is larger than maximum supported size %d", size, d.maxMessageSize)
 	}
 	return d.decodeData(m, size)
 }
