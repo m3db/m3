@@ -26,11 +26,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3cluster/shard"
+
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/retention"
+	"github.com/m3db/m3db/src/dbnode/sharding"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
+	"github.com/m3db/m3db/src/dbnode/topology"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
@@ -391,7 +395,21 @@ func TestBootstrapIndexErr(t *testing.T) {
 
 	nsID := nsMetadata.ID().String()
 
+	// Setup the topology to pass the availability check
+	ids := []uint32{}
+	for shardID := range shardTimeRanges {
+		ids = append(ids, shardID)
+	}
+	hashFn := sharding.NewHashFn(len(ids), 0)
+	shards := sharding.NewShards(ids, shard.Available)
+	shardSet, err := sharding.NewShardSet(shards, hashFn)
+	require.NoError(t, err)
+	topoOpts := topology.NewStaticOptions().
+		SetShardSet(shardSet)
+	topo := topology.NewStaticTopology(topoOpts)
+
 	mockAdminSession := client.NewMockAdminSession(ctrl)
+	mockAdminSession.EXPECT().Topology().Return(topo, nil)
 	mockAdminSessionCalls := []*gomock.Call{}
 
 	for blockStart := start; blockStart.Before(end); blockStart = blockStart.Add(blockSize) {
@@ -456,11 +474,12 @@ func TestBootstrapIndexErr(t *testing.T) {
 	gomock.InOrder(mockAdminSessionCalls...)
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
-	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
+	mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil).Times(2)
 
 	opts = opts.SetAdminClient(mockAdminClient)
 
-	src := newPeersSource(opts)
+	src, err := newPeersSource(opts)
+	require.NoError(t, err)
 	res, err := src.ReadIndex(nsMetadata, shardTimeRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 
