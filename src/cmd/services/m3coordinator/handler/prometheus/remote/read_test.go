@@ -31,19 +31,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus"
 	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/coordinator/test/local"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
+	"github.com/m3db/m3db/src/dbnode/x/metrics"
+	xclock "github.com/m3db/m3x/clock"
 
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+)
+
+var (
+	promReadTestMetrics = newPromReadMetrics(tally.NewTestScope("", nil))
 )
 
 func generatePromReadRequest() *prompb.ReadRequest {
@@ -81,7 +88,7 @@ func setupServer(t *testing.T) *httptest.Server {
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, false, fmt.Errorf("not initialized"))
 	storage := test.NewSlowStorage(lstore, 10*time.Millisecond)
 	engine := executor.NewEngine(storage)
-	promRead := &PromReadHandler{engine: engine}
+	promRead := &PromReadHandler{engine: engine, promReadMetrics: promReadTestMetrics}
 	server := httptest.NewServer(test.NewSlowHandler(promRead, 10*time.Millisecond))
 	return server
 }
@@ -90,7 +97,7 @@ func TestPromReadParsing(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, _ := local.NewStorageAndSession(ctrl)
-	promRead := &PromReadHandler{engine: executor.NewEngine(storage)}
+	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: promReadTestMetrics}
 	req, _ := http.NewRequest("POST", PromReadURL, generatePromReadBody(t))
 
 	r, err := promRead.parseRequest(req)
@@ -102,7 +109,7 @@ func TestPromReadParsingBad(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	storage, _ := local.NewStorageAndSession(ctrl)
-	promRead := &PromReadHandler{engine: executor.NewEngine(storage)}
+	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: promReadTestMetrics}
 	req, _ := http.NewRequest("POST", PromReadURL, strings.NewReader("bad body"))
 	_, err := promRead.parseRequest(req)
 	require.NotNil(t, err, "unable to parse request")
@@ -113,7 +120,7 @@ func TestPromReadStorageWithFetchError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, session := local.NewStorageAndSession(ctrl)
 	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, true, fmt.Errorf("unable to get data"))
-	promRead := &PromReadHandler{engine: executor.NewEngine(storage)}
+	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: promReadTestMetrics}
 	req := generatePromReadRequest()
 	_, err := promRead.read(context.TODO(), httptest.NewRecorder(), req, &prometheus.RequestParams{Timeout: time.Hour})
 	require.NotNil(t, err, "unable to read from storage")
@@ -154,4 +161,26 @@ func TestQueryKillOnTimeout(t *testing.T) {
 	defer resp.Body.Close()
 	require.NotNil(t, resp)
 	assert.Equal(t, resp.StatusCode, 500, "Status code not 500")
+}
+
+func TestReadErrorMetricsCount(t *testing.T) {
+	logging.InitWithCores(nil)
+	ctrl := gomock.NewController(t)
+	storage, session := local.NewStorageAndSession(ctrl)
+	session.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, true, fmt.Errorf("unable to get data"))
+
+	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
+	defer closer.Close()
+	readMetrics := newPromReadMetrics(scope)
+
+	promRead := &PromReadHandler{engine: executor.NewEngine(storage), promReadMetrics: readMetrics}
+	req, _ := http.NewRequest("POST", PromReadURL, generatePromReadBody(t))
+	promRead.ServeHTTP(httptest.NewRecorder(), req)
+
+	foundMetric := xclock.WaitUntil(func() bool {
+		found := reporter.Counters()["fetch.errors"]
+		return found == 1
+	}, 5*time.Second)
+	require.True(t, foundMetric)
 }

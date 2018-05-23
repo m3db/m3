@@ -38,15 +38,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testResultShardRanges(start, end time.Time, shards ...uint32) result.ShardTimeRanges {
-	timeRange := xtime.NewRanges(xtime.Range{start, end})
-	ranges := make(map[uint32]xtime.Ranges)
-	for _, s := range shards {
-		ranges[s] = timeRange
-	}
-	return ranges
-}
-
 type testSeriesMetadata struct {
 	id   string
 	tags map[string]string
@@ -310,11 +301,11 @@ func TestBootstrapIndex(t *testing.T) {
 
 	blk1, ok := res.IndexResults()[xtime.ToUnixNano(t1)]
 	require.True(t, ok)
-	assertShardRangesEqual(t, testResultShardRanges(t1, t2, 0), blk1.Fulfilled())
+	assertShardRangesEqual(t, result.NewShardTimeRanges(t1, t2, 0), blk1.Fulfilled())
 
 	blk2, ok := res.IndexResults()[xtime.ToUnixNano(t2)]
 	require.True(t, ok)
-	assertShardRangesEqual(t, testResultShardRanges(t2, t3, 0), blk2.Fulfilled())
+	assertShardRangesEqual(t, result.NewShardTimeRanges(t2, t3, 0), blk2.Fulfilled())
 
 	for _, blk := range res.IndexResults() {
 		if blk.BlockStart().Equal(t1) || blk.BlockStart().Equal(t2) {
@@ -324,7 +315,7 @@ func TestBootstrapIndex(t *testing.T) {
 		// any errors in the response.
 		start := blk.BlockStart()
 		end := start.Add(indexBlockSize)
-		assertShardRangesEqual(t, testResultShardRanges(start, end, 0), blk.Fulfilled())
+		assertShardRangesEqual(t, result.NewShardTimeRanges(start, end, 0), blk.Fulfilled())
 	}
 }
 
@@ -492,7 +483,7 @@ func TestBootstrapIndexErr(t *testing.T) {
 		// any errors in the response.
 		start := blk.BlockStart()
 		end := start.Add(indexBlockSize)
-		assertShardRangesEqual(t, testResultShardRanges(start, end, 0), blk.Fulfilled())
+		assertShardRangesEqual(t, result.NewShardTimeRanges(start, end, 0), blk.Fulfilled())
 	}
 }
 

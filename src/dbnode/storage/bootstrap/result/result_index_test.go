@@ -33,15 +33,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testResultShardRanges(start, end time.Time, shards ...uint32) ShardTimeRanges {
-	timeRange := xtime.NewRanges(xtime.Range{start, end})
-	ranges := make(map[uint32]xtime.Ranges)
-	for _, s := range shards {
-		ranges[s] = timeRange
-	}
-	return ranges
-}
-
 func TestIndexResultGetOrAddSegment(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -95,8 +86,8 @@ func TestIndexResultMergeMergesExistingSegments(t *testing.T) {
 	}
 
 	times := []time.Time{start, start.Add(testBlockSize), start.Add(2 * testBlockSize)}
-	tr0 := testResultShardRanges(times[0], times[1], 1, 2, 3)
-	tr1 := testResultShardRanges(times[1], times[2], 1, 2, 3)
+	tr0 := NewShardTimeRanges(times[0], times[1], 1, 2, 3)
+	tr1 := NewShardTimeRanges(times[1], times[2], 1, 2, 3)
 
 	first := NewIndexBootstrapResult()
 	first.Add(NewIndexBlock(times[0], []segment.Segment{segments[0]}, tr0), nil)
@@ -125,7 +116,7 @@ func TestIndexResultSetUnfulfilled(t *testing.T) {
 		return t0.Add(time.Duration(i) * time.Hour)
 	}
 	results := NewIndexBootstrapResult()
-	testRanges := testResultShardRanges(tn(0), tn(1), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+	testRanges := NewShardTimeRanges(tn(0), tn(1), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 	results.SetUnfulfilled(testRanges)
 	require.Equal(t, testRanges, results.Unfulfilled())
 }
@@ -139,7 +130,7 @@ func TestIndexResultAdd(t *testing.T) {
 		return t0.Add(time.Duration(i) * time.Hour)
 	}
 	results := NewIndexBootstrapResult()
-	testRanges := testResultShardRanges(tn(0), tn(1), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+	testRanges := NewShardTimeRanges(tn(0), tn(1), 1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 	results.Add(IndexBlock{}, testRanges)
 	require.Equal(t, testRanges, results.Unfulfilled())
 }
@@ -157,12 +148,12 @@ func TestIndexResulsMarkFulfilled(t *testing.T) {
 
 	// range checks
 	require.Error(t, results.MarkFulfilled(tn(0),
-		testResultShardRanges(tn(4), tn(6), 1), iopts))
+		NewShardTimeRanges(tn(4), tn(6), 1), iopts))
 	require.Error(t, results.MarkFulfilled(tn(0),
-		testResultShardRanges(tn(-1), tn(1), 1), iopts))
+		NewShardTimeRanges(tn(-1), tn(1), 1), iopts))
 
 	// valid add
-	fulfilledRange := testResultShardRanges(tn(0), tn(1), 1)
+	fulfilledRange := NewShardTimeRanges(tn(0), tn(1), 1)
 	require.NoError(t, results.MarkFulfilled(tn(0), fulfilledRange, iopts))
 	require.Equal(t, 1, len(results))
 	blk, ok := results[xtime.ToUnixNano(tn(0))]
@@ -171,7 +162,7 @@ func TestIndexResulsMarkFulfilled(t *testing.T) {
 	require.Equal(t, fulfilledRange, blk.fulfilled)
 
 	// additional add for same block
-	nextFulfilledRange := testResultShardRanges(tn(1), tn(2), 2)
+	nextFulfilledRange := NewShardTimeRanges(tn(1), tn(2), 2)
 	require.NoError(t, results.MarkFulfilled(tn(1), nextFulfilledRange, iopts))
 	require.Equal(t, 1, len(results))
 	blk, ok = results[xtime.ToUnixNano(tn(0))]
@@ -181,7 +172,7 @@ func TestIndexResulsMarkFulfilled(t *testing.T) {
 	require.Equal(t, fulfilledRange, blk.fulfilled)
 
 	// additional add for next block
-	nextFulfilledRange = testResultShardRanges(tn(2), tn(4), 1, 2, 3)
+	nextFulfilledRange = NewShardTimeRanges(tn(2), tn(4), 1, 2, 3)
 	require.NoError(t, results.MarkFulfilled(tn(2), nextFulfilledRange, iopts))
 	require.Equal(t, 2, len(results))
 	blk, ok = results[xtime.ToUnixNano(tn(2))]

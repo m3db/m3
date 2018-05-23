@@ -28,6 +28,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -35,8 +36,8 @@ import (
 )
 
 func TestPlacementDeleteHandler(t *testing.T) {
-	mockPlacementService := SetupPlacementTest(t)
-	handler := NewDeleteHandler(mockPlacementService)
+	mockClient, mockPlacementService := SetupPlacementTest(t)
+	handler := NewDeleteHandler(mockClient, config.Configuration{})
 
 	// Test remove success
 	w := httptest.NewRecorder()
@@ -64,5 +65,5 @@ func TestPlacementDeleteHandler(t *testing.T) {
 	body, err = ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-	assert.Equal(t, "ID does not exist\n", string(body))
+	assert.Equal(t, "{\"Error\":\"ID does not exist\"}\n", string(body))
 }

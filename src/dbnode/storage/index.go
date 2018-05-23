@@ -209,7 +209,7 @@ func newNamespaceIndexWithOptions(
 		state: nsIndexState{
 			runtimeOpts: nsIndexRuntimeOptions{
 				insertMode:            indexOpts.InsertMode(), // FOLLOWUP(prateek): wire to allow this to be tweaked at runtime
-				flushBlockNumSegments: runtimeOptsMgr.Get().FlushIndexBlockNumSegments(),
+				flushBlockNumSegments: runtime.DefaultFlushIndexBlockNumSegments,
 			},
 			blocksByTime: make(map[xtime.UnixNano]index.Block),
 		},
@@ -502,20 +502,10 @@ func (i *nsIndex) Flush(
 	flush persist.IndexFlush,
 	shards []databaseShard,
 ) error {
-	i.state.RLock()
-	if !i.isOpenWithRLock() {
-		i.state.RUnlock()
-		return errDbIndexUnableToFlushClosed
+	flushable, err := i.flushableBlocks(shards)
+	if err != nil {
+		return err
 	}
-
-	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
-	for _, block := range i.state.blocksByTime {
-		if !i.canFlushBlock(block, shards) {
-			continue
-		}
-		flushable = append(flushable, block)
-	}
-	i.state.RUnlock()
 
 	var evictResults index.EvictMutableSegmentResults
 	for _, block := range flushable {
@@ -525,13 +515,8 @@ func (i *nsIndex) Flush(
 		}
 		// Make a result that covers the entire time ranges for the
 		// block for each shard
-		fulfilled := make(result.ShardTimeRanges, len(shards))
-		for _, shard := range shards {
-			fulfilled[shard.ID()] = xtime.NewRanges(xtime.Range{
-				Start: block.StartTime(),
-				End:   block.EndTime(),
-			})
-		}
+		fulfilled := result.NewShardTimeRanges(block.StartTime(), block.EndTime(),
+			dbShards(shards).IDs()...)
 		// Add the results to the block
 		results := result.NewIndexBlock(block.StartTime(), immutableSegments,
 			fulfilled)
@@ -548,11 +533,29 @@ func (i *nsIndex) Flush(
 			i.logger.WithFields(
 				xlog.NewField("err", err.Error()),
 				xlog.NewField("blockStart", block.StartTime()),
-			).Warnf("encountered error while evicting mutable segments for index block.")
+			).Warnf("encountered error while evicting mutable segments for index block")
 		}
 	}
 	i.metrics.FlushEvictedMutableSegments.Inc(evictResults.NumMutableSegments)
 	return nil
+}
+
+func (i *nsIndex) flushableBlocks(
+	shards []databaseShard,
+) ([]index.Block, error) {
+	i.state.RLock()
+	defer i.state.RUnlock()
+	if !i.isOpenWithRLock() {
+		return nil, errDbIndexUnableToFlushClosed
+	}
+	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
+	for _, block := range i.state.blocksByTime {
+		if !i.canFlushBlock(block, shards) {
+			continue
+		}
+		flushable = append(flushable, block)
+	}
+	return flushable, nil
 }
 
 func (i *nsIndex) canFlushBlock(
@@ -967,4 +970,14 @@ func newNamespaceIndexMetrics(
 			iopts.MetricsSamplingRate()),
 		FlushEvictedMutableSegments: scope.Counter("mutable-segment-evicted"),
 	}
+}
+
+type dbShards []databaseShard
+
+func (shards dbShards) IDs() []uint32 {
+	ids := make([]uint32, 0, len(shards))
+	for _, s := range shards {
+		ids = append(ids, s.ID())
+	}
+	return ids
 }

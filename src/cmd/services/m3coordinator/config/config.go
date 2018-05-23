@@ -20,12 +20,18 @@
 
 package config
 
-import "github.com/m3db/m3db/src/dbnode/client"
+import (
+	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3x/instrument"
+)
 
 // Configuration is the configuration for the coordinator.
 type Configuration struct {
 	// DBClient is the DB client configuration.
 	DBClient *client.Configuration `yaml:"dbClient"`
+
+	// Metrics configuration.
+	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
 
 	// ListenAddress is the server listen address.
 	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`

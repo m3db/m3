@@ -41,15 +41,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testResultShardRanges(start, end time.Time, shards ...uint32) result.ShardTimeRanges {
-	timeRange := xtime.NewRanges(xtime.Range{start, end})
-	ranges := make(map[uint32]xtime.Ranges)
-	for _, s := range shards {
-		ranges[s] = timeRange
-	}
-	return ranges
-}
-
 type testWriteBatchOption func(index.WriteBatchOptions) index.WriteBatchOptions
 
 func testWriteBatchBlockSizeOption(blockSize time.Duration) testWriteBatchOption {
@@ -311,8 +302,8 @@ func TestNamespaceIndexBootstrap(t *testing.T) {
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, testResultShardRanges(t0, t1, 1, 2, 3)),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, testResultShardRanges(t1, t2, 1, 2, 3)),
+		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRanges(t0, t1, 1, 2, 3)),
+		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRanges(t1, t2, 1, 2, 3)),
 	}
 
 	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)
@@ -481,8 +472,8 @@ func TestNamespaceIndexBlockQuery(t *testing.T) {
 	seg2 := segment.NewMockSegment(ctrl)
 	seg3 := segment.NewMockSegment(ctrl)
 	bootstrapResults := result.IndexResults{
-		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, testResultShardRanges(t0, t1, 1, 2, 3)),
-		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, testResultShardRanges(t1, t2, 1, 2, 3)),
+		t0Nanos: result.NewIndexBlock(t0, []segment.Segment{seg1}, result.NewShardTimeRanges(t0, t1, 1, 2, 3)),
+		t1Nanos: result.NewIndexBlock(t1, []segment.Segment{seg2, seg3}, result.NewShardTimeRanges(t1, t2, 1, 2, 3)),
 	}
 
 	b0.EXPECT().AddResults(bootstrapResults[t0Nanos]).Return(nil)

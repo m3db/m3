@@ -557,7 +557,8 @@ func testSnapshotWithShardSnapshotErrs(t *testing.T, shardMethodResults []snapsh
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	ns, closer := newTestNamespace(t)
+	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
+		namespace.NewOptions().SetSnapshotEnabled(true))
 	defer closer()
 	ns.bootstrapState = Bootstrapped
 	now := time.Now()
@@ -609,7 +610,8 @@ func TestNamespaceRepair(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ns, closer := newTestNamespace(t)
+	ns, closer := newTestNamespaceWithIDOpts(t, defaultTestNs1ID,
+		namespace.NewOptions().SetRepairEnabled(true))
 	defer closer()
 	now := time.Now()
 	repairTimeRange := xtime.Range{Start: now, End: now.Add(time.Hour)}

@@ -29,8 +29,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus"
+	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/test/local"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
@@ -66,7 +66,7 @@ func TestPromReadNotImplemented(t *testing.T) {
 	r, parseErr := promRead.parseRequest(req)
 	require.Nil(t, parseErr, "unable to parse request")
 	_, err := promRead.read(context.TODO(), httptest.NewRecorder(), r, &prometheus.RequestParams{Timeout: time.Hour})
-	require.NotNil(t, err, "not implemented")
+	require.NotNil(t, err, "{\"Error\":\"not implemented\"}\n")
 }
 
 // NB(braskin): will replace this test once the server actually returns something
@@ -81,7 +81,7 @@ func TestPromReadEndpoint(t *testing.T) {
 	promRead := &PromReadHandler{engine: engine}
 
 	promRead.ServeHTTP(res, req)
-	require.Equal(t, "not implemented\n", res.Body.String())
+	require.Equal(t, "{\"Error\":\"not implemented\"}\n", res.Body.String())
 }
 
 func createURL() *bytes.Buffer {

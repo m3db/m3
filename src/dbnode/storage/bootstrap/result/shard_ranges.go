@@ -29,6 +29,16 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+// NewShardTimeRanges returns a new ShardTimeRanges with provided shards and time range.
+func NewShardTimeRanges(start, end time.Time, shards ...uint32) ShardTimeRanges {
+	timeRange := xtime.NewRanges(xtime.Range{start, end})
+	ranges := make(map[uint32]xtime.Ranges)
+	for _, s := range shards {
+		ranges[s] = timeRange
+	}
+	return ranges
+}
+
 // IsEmpty returns whether the shard time ranges is empty or not.
 func (r ShardTimeRanges) IsEmpty() bool {
 	for _, ranges := range r {

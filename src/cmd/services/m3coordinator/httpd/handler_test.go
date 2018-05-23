@@ -25,15 +25,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus/native"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus/remote"
+	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/test/local"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestPromRemoteReadGet(t *testing.T) {
@@ -44,7 +45,7 @@ func TestPromRemoteReadGet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := local.NewStorageAndSession(ctrl)
 
-	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{})
+	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{}, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	err = h.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
@@ -60,7 +61,7 @@ func TestPromRemoteReadPost(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := local.NewStorageAndSession(ctrl)
 
-	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{})
+	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{}, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	err = h.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
@@ -76,7 +77,7 @@ func TestPromNativeReadGet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := local.NewStorageAndSession(ctrl)
 
-	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{})
+	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{}, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
 	h.Router.ServeHTTP(res, req)
@@ -91,7 +92,7 @@ func TestPromNativeReadPost(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := local.NewStorageAndSession(ctrl)
 
-	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{})
+	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{}, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
 	h.Router.ServeHTTP(res, req)
