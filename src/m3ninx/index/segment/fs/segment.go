@@ -181,14 +181,19 @@ func (r *fsSegment) ContainsID(docID []byte) (bool, error) {
 		return false, errReaderClosed
 	}
 
-	termsFST, err := r.retrieveTermsFSTWithRLock(doc.IDReservedFieldName)
+	termsFST, exists, err := r.retrieveTermsFSTWithRLock(doc.IDReservedFieldName)
 	if err != nil {
 		return false, err
 	}
+
+	if !exists {
+		return false, fmt.Errorf("internal error while retrieving id FST: %v", err)
+	}
+
 	fstCloser := x.NewSafeCloser(termsFST)
 	defer fstCloser.Close()
 
-	_, exists, err := termsFST.Get(docID)
+	_, exists, err = termsFST.Get(docID)
 	if err != nil {
 		return false, err
 	}
@@ -243,9 +248,13 @@ func (r *fsSegment) Terms(field []byte) ([][]byte, error) {
 		return nil, errReaderClosed
 	}
 
-	termsFST, err := r.retrieveTermsFSTWithRLock(field)
+	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
 	if err != nil {
 		return nil, err
+	}
+
+	if !exists {
+		return nil, nil
 	}
 
 	fstCloser := x.NewSafeCloser(termsFST)
@@ -270,10 +279,16 @@ func (r *fsSegment) MatchTerm(field []byte, term []byte) (postings.List, error) 
 		return nil, errReaderClosed
 	}
 
-	termsFST, err := r.retrieveTermsFSTWithRLock(field)
+	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
 	if err != nil {
 		return nil, err
 	}
+
+	if !exists {
+		// i.e. we don't know anything about the field, so can early return an empty postings list
+		return r.opts.PostingsListPool.Get(), nil
+	}
+
 	fstCloser := x.NewSafeCloser(termsFST)
 	defer fstCloser.Close()
 
@@ -311,9 +326,14 @@ func (r *fsSegment) MatchRegexp(field []byte, regexp []byte, compiled *regexp.Re
 		return nil, err
 	}
 
-	termsFST, err := r.retrieveTermsFSTWithRLock(field)
+	termsFST, exists, err := r.retrieveTermsFSTWithRLock(field)
 	if err != nil {
 		return nil, err
+	}
+
+	if !exists {
+		// i.e. we don't know anything about the field, so can early return an empty postings list
+		return r.opts.PostingsListPool.Get(), nil
 	}
 
 	var (
@@ -442,22 +462,27 @@ func (r *fsSegment) allKeys(fst *vellum.FST) ([][]byte, error) {
 	return keys, nil
 }
 
-func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (*vellum.FST, error) {
+func (r *fsSegment) retrieveTermsFSTWithRLock(field []byte) (*vellum.FST, bool, error) {
 	termsFSTOffset, exists, err := r.fieldsFST.Get(field)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if !exists {
-		return nil, fmt.Errorf("no terms known for field: %v", string(field))
+		return nil, false, nil
 	}
 
 	termsFSTBytes, err := r.retrieveBytesWithRLock(r.data.FSTTermsData, termsFSTOffset)
 	if err != nil {
-		return nil, fmt.Errorf("error while decoding terms fst: %v", err)
+		return nil, false, fmt.Errorf("error while decoding terms fst: %v", err)
 	}
 
-	return vellum.Load(termsFSTBytes)
+	termsFST, err := vellum.Load(termsFSTBytes)
+	if err != nil {
+		return nil, false, fmt.Errorf("error while loading terms fst: %v", err)
+	}
+
+	return termsFST, true, nil
 }
 
 // retrieveBytesWithRLock assumes the base []byte slice is a collection of (payload, size, magicNumber) triples,

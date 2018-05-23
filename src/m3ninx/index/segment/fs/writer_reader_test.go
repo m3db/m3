@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"sync"
 	"testing"
 
 	"github.com/m3db/m3ninx/doc"
@@ -110,6 +111,44 @@ func TestSizeEquals(t *testing.T) {
 	}
 }
 
+func TestFieldDoesNotExist(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			memSeg, fstSeg := newTestSegments(t, test.docs)
+
+			elaborateFieldName := []byte("some-elaborate-field-that-does-not-exist-in-test-docs")
+			terms, err := memSeg.Terms(elaborateFieldName)
+			require.NoError(t, err)
+			require.Nil(t, terms)
+
+			terms, err = fstSeg.Terms(elaborateFieldName)
+			require.NoError(t, err)
+			require.Nil(t, terms)
+
+			memReader, err := memSeg.Reader()
+			require.NoError(t, err)
+			pl, err := memReader.MatchTerm(elaborateFieldName, []byte("."))
+			require.NoError(t, err)
+			require.True(t, pl.IsEmpty())
+			pl, err = memReader.MatchTerm(elaborateFieldName, []byte(".*"))
+			require.NoError(t, err)
+			require.True(t, pl.IsEmpty())
+			require.NoError(t, memReader.Close())
+
+			fstReader, err := fstSeg.Reader()
+			require.NoError(t, err)
+			pl, err = fstReader.MatchTerm(elaborateFieldName, []byte("."))
+			require.NoError(t, err)
+			require.True(t, pl.IsEmpty())
+			pl, err = fstReader.MatchTerm(elaborateFieldName, []byte(".*"))
+			require.NoError(t, err)
+			require.True(t, pl.IsEmpty())
+			require.NoError(t, fstReader.Close())
+
+		})
+	}
+}
+
 func TestFieldsEquals(t *testing.T) {
 	for _, test := range testDocuments {
 		t.Run(test.name, func(t *testing.T) {
@@ -123,6 +162,26 @@ func TestFieldsEquals(t *testing.T) {
 
 			assertSliceOfByteSlicesEqual(t, memFields, fstFields)
 
+		})
+	}
+}
+
+func TestFieldsEqualsParallel(t *testing.T) {
+	for _, test := range testDocuments {
+		t.Run(test.name, func(t *testing.T) {
+			_, fstSeg := newTestSegments(t, test.docs)
+
+			var wg sync.WaitGroup
+			wg.Add(2)
+			go func() {
+				fstSeg.Fields()
+				wg.Done()
+			}()
+			go func() {
+				fstSeg.Fields()
+				wg.Done()
+			}()
+			wg.Wait()
 		})
 	}
 }
