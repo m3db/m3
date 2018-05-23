@@ -42,6 +42,11 @@ TOOLS :=            \
 	verify_commitlogs \
 	verify_index_files
 
+CONFIGS :=	   \
+	m3dbnode   \
+	dtest	   \
+	m3em_agent 
+
 .PHONY: setup
 setup:
 	mkdir -p $(BUILD)
@@ -184,5 +189,34 @@ test-ci-integration:
 .PHONY: clean
 clean:
 	@rm -f *.html *.xml *.out *.test
+
+# Config generation
+.PHONY: setup-conf
+setup-conf:
+	mkdir -p out
+
+.PHONY: install-conf
+install-conf:
+	echo "Initializing and updating jsonnet submodule"
+	git submodule init "genconfig/jsonnet"
+	git submodule update "genconfig/jsonnet"
+	cd genconfig/jsonnet && make
+	echo "Downloading JSON conversion package"
+	go get github.com/brancz/gojsontoyaml
+
+
+# TODO(katezaps): pipe in --ext-str flags
+define CONFIG_RULES
+
+.PHONY: $(CONFIG)-config
+$(CONFIG)-config: setup-conf install-conf
+	@echo Generating config for $(CONFIG)
+	touch out/$(CONFIG)-config.yaml
+	cd genconfig && printf "`./jsonnet/jsonnet templates/$(CONFIG)-config.jsonnet`" | gojsontoyaml > ../out/$(CONFIG)-config.yaml 
+
+endef
+
+$(foreach CONFIG,$(CONFIGS),$(eval $(CONFIG_RULES)))
+
 
 .DEFAULT_GOAL := all

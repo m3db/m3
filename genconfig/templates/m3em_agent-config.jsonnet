@@ -11,7 +11,7 @@ local globals = env_vars.globals;
 // TODO: overwrite vars in globals with service layer globals instead of having
 // two different sets of globals
 local m3em_agent_globals = env_vars.m3em_agent.globals;
-std.manifestYamlDoc(std.prune({
+std.prune({
     server: {
         listenAddress: "0.0.0.0:" + m3em_agent_globals.port,
         debugAddress: "0.0.0.0:" + m3em_agent_globals.debug_port,
@@ -49,4 +49,4 @@ std.manifestYamlDoc(std.prune({
             for var in m3em_agent_globals.env_vars
         ] else [], 
     },
-}))
+})

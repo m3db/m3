@@ -13,7 +13,7 @@ local globals = env_vars.globals;
 // two different sets of globals
 local dtest_globals = env_vars.dtest.globals;
 
-std.manifestYamlDoc(std.prune({
+std.prune({
 	dtest: {
 		debugPort: dtest_globals.debug_port,
 		bootstrapTimeout: dtest_globals.bootstrap_timeout,
@@ -75,4 +75,4 @@ std.manifestYamlDoc(std.prune({
             for cluster in globals.etcd.clusters
 		]
 	},
-}))
+})

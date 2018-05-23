@@ -13,7 +13,7 @@ local globals = env_vars.globals;
 // two different sets of globals
 local m3dbnode_globals = env_vars.m3dbnode.globals;
 
-std.manifestYamlDoc(std.prune({
+std.prune({
     coordinator: {
         listenAddress: "0.0.0.0:" + m3dbnode_globals.coordinator_port,
     },
@@ -260,4 +260,4 @@ std.manifestYamlDoc(std.prune({
             }        
         },
     },
-}))
+})
