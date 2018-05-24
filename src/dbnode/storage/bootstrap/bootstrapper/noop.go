@@ -43,8 +43,8 @@ func NewNoOpNoneBootstrapperProvider() bootstrap.BootstrapperProvider {
 	return noOpNoneBootstrapperProvider{}
 }
 
-func (noop noOpNoneBootstrapperProvider) Provide() bootstrap.Bootstrapper {
-	return noOpNoneBootstrapper{}
+func (noop noOpNoneBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
+	return noOpNoneBootstrapper{}, nil
 }
 
 func (noop noOpNoneBootstrapperProvider) String() string {
@@ -93,8 +93,8 @@ func NewNoOpAllBootstrapperProvider() bootstrap.BootstrapperProvider {
 	return noOpAllBootstrapperProvider{}
 }
 
-func (noop noOpAllBootstrapperProvider) Provide() bootstrap.Bootstrapper {
-	return noOpAllBootstrapper{}
+func (noop noOpAllBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
+	return noOpAllBootstrapper{}, nil
 }
 
 func (noop noOpAllBootstrapperProvider) String() string {

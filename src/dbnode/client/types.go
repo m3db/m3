@@ -154,6 +154,9 @@ type AdminSession interface {
 	// Replicas returns the replication factor
 	Replicas() int
 
+	// Topology returns the current topology
+	Topology() (topology.Topology, error)
+
 	// Truncate will truncate the namespace for a given shard
 	Truncate(namespace ident.ID) (int64, error)
 

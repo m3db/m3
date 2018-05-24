@@ -53,6 +53,7 @@ import (
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
@@ -126,6 +127,9 @@ var (
 	// errUnableToEncodeTags is raised when the server is unable to encode provided tags
 	// to be sent over the wire.
 	errUnableToEncodeTags = errors.New("unable to include tags")
+	// errNoTopology is returned when the session does not have a topology. Should never happen
+	// in practice.
+	errNoTopology = fmt.Errorf("%s session does not have a topology", instrument.InvariantViolatedMetricName)
 )
 
 // sessionState is volatile state that is protected by a
@@ -1399,7 +1403,7 @@ func (s *session) fetchIDsAttempt(
 			// to iter.Reset down below before setting the iterator in the results array,
 			// which would cause a nil pointer exception.
 			remaining := atomic.AddInt32(&pending, -1)
-			shouldTerminate := readConsistencyTermination(s.state.readLevel, majority, remaining, snapshotSuccess)
+			shouldTerminate := topology.ReadConsistencyTermination(s.state.readLevel, majority, remaining, snapshotSuccess)
 			if shouldTerminate && atomic.CompareAndSwapInt32(&wgIsDone, 0, 1) {
 				allCompletionFn()
 			}
@@ -1502,7 +1506,7 @@ func (s *session) writeConsistencyResult(
 ) error {
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
-	if !writeConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
+	if !topology.WriteConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
 		return newConsistencyResultError(level, int(enqueued), int(responded), errs)
 	}
 	return nil
@@ -1515,7 +1519,7 @@ func (s *session) readConsistencyResult(
 ) error {
 	// Check consistency level satisfied
 	success := enqueued - resultErrs
-	if !readConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
+	if !topology.ReadConsistencyAchieved(level, int(majority), int(enqueued), int(success)) {
 		return newConsistencyResultError(level, int(enqueued), int(responded), errs)
 	}
 	return nil
@@ -1565,6 +1569,24 @@ func (s *session) Replicas() int {
 	v := s.state.replicas
 	s.state.RUnlock()
 	return v
+}
+
+func (s *session) Topology() (topology.Topology, error) {
+	s.state.RLock()
+	status := s.state.status
+	topology := s.state.topo
+	s.state.RUnlock()
+
+	// Make sure the session is open, as thats what sets the initial topology.
+	if status != statusOpen {
+		return nil, errSessionStatusNotOpen
+	}
+	if topology == nil {
+		// Should never happen.
+		return nil, errNoTopology
+	}
+
+	return topology, nil
 }
 
 func (s *session) Truncate(namespace ident.ID) (int64, error) {
@@ -1940,7 +1962,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 				enqueued := int(enqueued)
 				success := int(atomic.LoadInt32(&success))
 
-				doRetry := !readConsistencyAchieved(currLevel, majority, enqueued, success) &&
+				doRetry := !topology.ReadConsistencyAchieved(currLevel, majority, enqueued, success) &&
 					errs.getAbortError() == nil
 				if doRetry {
 					// Track that we are reattempting the fetch metadata
@@ -2679,7 +2701,7 @@ func (s *session) selectPeersFromPerPeerBlockMetadatas(
 		}
 
 		level := consistencyLevel.value()
-		achievedConsistencyLevel := readConsistencyAchieved(level, majority, enqueued, success)
+		achievedConsistencyLevel := topology.ReadConsistencyAchieved(level, majority, enqueued, success)
 		if achievedConsistencyLevel {
 			if success > 0 {
 				// Some level of success met, no need to log an error

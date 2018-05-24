@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/clock"
 	"github.com/m3db/m3db/src/dbnode/persist"
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/index/convert"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3db/src/dbnode/storage/series"
+	"github.com/m3db/m3db/src/dbnode/topology"
 	"github.com/m3db/m3x/context"
 	xlog "github.com/m3db/m3x/log"
 	xsync "github.com/m3db/m3x/sync"
@@ -41,9 +43,10 @@ import (
 )
 
 type peersSource struct {
-	opts  Options
-	log   xlog.Logger
-	nowFn clock.NowFn
+	initialTopologyState topologyState
+	opts                 Options
+	log                  xlog.Logger
+	nowFn                clock.NowFn
 }
 
 type incrementalFlush struct {
@@ -54,12 +57,22 @@ type incrementalFlush struct {
 	timeRange         xtime.Range
 }
 
-func newPeersSource(opts Options) bootstrap.Source {
-	return &peersSource{
-		opts:  opts,
-		log:   opts.ResultOptions().InstrumentOptions().Logger(),
-		nowFn: opts.ResultOptions().ClockOptions().NowFn(),
+func newPeersSource(opts Options) (bootstrap.Source, error) {
+	// We measure the topology on instantiation, and use it through all bootstrap
+	// calls (across all namespaces / shards / blocks) so that we make consistent
+	// decisions regarding whether the peer bootstrap is able to fulfull bootstrap
+	// requests.
+	initialTopologyState, err := initialTopologyState(opts)
+	if err != nil {
+		return nil, err
 	}
+
+	return &peersSource{
+		initialTopologyState: initialTopologyState,
+		opts:                 opts,
+		log:                  opts.ResultOptions().InstrumentOptions().Logger(),
+		nowFn:                opts.ResultOptions().ClockOptions().NowFn(),
+	}, nil
 }
 
 func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
@@ -70,12 +83,16 @@ func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
 	return false
 }
 
+type shardPeerAvailability struct {
+	numPeers          int
+	numAvailablePeers int
+}
+
 func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
-	// Peers should be able to fulfill all data
-	return shardsTimeRanges
+	return s.peerAvailability(nsMetadata, shardsTimeRanges)
 }
 
 func (s *peersSource) ReadData(
@@ -515,11 +532,10 @@ func (s *peersSource) cacheShardIndices(
 }
 
 func (s *peersSource) AvailableIndex(
-	ns namespace.Metadata,
+	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
-	// Peers should be able to fulfill all data
-	return shardsTimeRanges
+	return s.peerAvailability(nsMetadata, shardsTimeRanges)
 }
 
 func (s *peersSource) ReadIndex(
@@ -669,6 +685,90 @@ func (s *peersSource) readBlockMetadataAndIndex(
 	return true, nil
 }
 
+func (s *peersSource) peerAvailability(
+	nsMetadata namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+) result.ShardTimeRanges {
+	var (
+		self                    = s.opts.AdminClient().Options().(client.AdminOptions).Origin().ID()
+		peerAvailabilityByShard = map[shardID]*shardPeerAvailability{}
+	)
+
+	for shardIDUint := range shardsTimeRanges {
+		shardID := shardID(shardIDUint)
+		shardPeers, ok := peerAvailabilityByShard[shardID]
+		if !ok {
+			shardPeers = &shardPeerAvailability{}
+			peerAvailabilityByShard[shardID] = shardPeers
+		}
+		hostShardStates, ok := s.initialTopologyState.shardStates[shardID]
+		if !ok {
+			// This shard was not part of the topology when the bootstrapping
+			// process began.
+			continue
+		}
+
+		shardPeers.numPeers = len(hostShardStates)
+		for _, hostShardState := range hostShardStates {
+			if hostShardState.host.ID() == self {
+				// Don't take self into account
+				continue
+			}
+
+			shardState := hostShardState.shardState
+
+			switch shardState {
+			// Skip cases - We cannot bootstrap from this host
+			case shard.Initializing:
+				// Don't want to peer bootstrap from a node that has not yet completely
+				// taken ownership of the shard.
+			case shard.Unknown:
+				// Success cases - We can bootstrap from this host, which is enough to
+				// mark this shard as bootstrappable.
+			case shard.Leaving:
+				fallthrough
+			case shard.Available:
+				shardPeers.numAvailablePeers++
+			default:
+				panic(
+					fmt.Sprintf("encountered unknown shard state: %s", shardState.String()))
+			}
+		}
+	}
+
+	var (
+		runtimeOpts               = s.opts.RuntimeOptionsManager().Get()
+		bootstrapConsistencyLevel = runtimeOpts.ClientBootstrapConsistencyLevel()
+		majorityReplicas          = s.initialTopologyState.majorityReplicas
+		availableShardTimeRanges  = result.ShardTimeRanges{}
+	)
+	for shardIDUint := range shardsTimeRanges {
+		shardID := shardID(shardIDUint)
+		shardPeers := peerAvailabilityByShard[shardID]
+
+		total := shardPeers.numPeers
+		available := shardPeers.numAvailablePeers
+
+		if available == 0 {
+			// Can't peer bootstrap if there are no available peers.
+			continue
+		}
+
+		if !topology.ReadConsistencyAchieved(
+			bootstrapConsistencyLevel, majorityReplicas, total, available) {
+			continue
+		}
+
+		// Optimistically assume that the peers will be able to provide
+		// all the data. This assumption is safe, as the shard/block ranges
+		// will simply be marked unfulfilled if the peers are not able to
+		// satisfy the requests.
+		availableShardTimeRanges[shardIDUint] = shardsTimeRanges[shardIDUint]
+	}
+
+	return availableShardTimeRanges
+}
+
 func (s *peersSource) markIndexResultErrorAsUnfulfilled(
 	r result.IndexBootstrapResult,
 	resultLock *sync.Mutex,
@@ -692,3 +792,59 @@ func (s *peersSource) markIndexResultErrorAsUnfulfilled(
 	}
 	r.Add(result.IndexBlock{}, unfulfilled)
 }
+
+func initialTopologyState(opts Options) (topologyState, error) {
+	session, err := opts.AdminClient().DefaultAdminSession()
+	if err != nil {
+		return topologyState{}, err
+	}
+
+	topology, err := session.Topology()
+	if err != nil {
+		return topologyState{}, err
+	}
+
+	var (
+		topoMap       = topology.Get()
+		hostShardSets = topoMap.HostShardSets()
+		topologyState = topologyState{
+			majorityReplicas: topoMap.MajorityReplicas(),
+			shardStates:      shardStates{},
+		}
+	)
+
+	for _, hostShardSet := range hostShardSets {
+		for _, currShard := range hostShardSet.ShardSet().All() {
+			shardID := shardID(currShard.ID())
+			existing, ok := topologyState.shardStates[shardID]
+			if !ok {
+				existing = map[hostID]hostShardState{}
+				topologyState.shardStates[shardID] = existing
+			}
+
+			hostID := hostID(hostShardSet.Host().String())
+			existing[hostID] = hostShardState{
+				host:       hostShardSet.Host(),
+				shardState: currShard.State(),
+			}
+		}
+	}
+
+	return topologyState, nil
+}
+
+type topologyState struct {
+	majorityReplicas int
+	shardStates      shardStates
+}
+
+type shardStates map[shardID]map[hostID]hostShardState
+
+type hostShardState struct {
+	host       topology.Host
+	shardState shard.State
+}
+
+type hostID string
+
+type shardID uint32

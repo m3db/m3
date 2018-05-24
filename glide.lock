@@ -1,5 +1,5 @@
-hash: 7a52a33e24ef31eb786af4463a73f804d97494fa3f0d0dc4ff30c00c1147720c
-updated: 2018-05-23T00:21:14.554307-04:00
+hash: 57a32b0d79e885396b3c041b3c8257cb8b2495f6fce8aeda974f9c7ae2fc90a6
+updated: 2018-05-23T10:57:17.824288976-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -186,7 +186,7 @@ imports:
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3cluster
-  version: 97360c9dac803def743351d084a2449a85e2066b
+  version: 2096f1ed16154b3ce05c9b596c5fd1a8fa485c1b
   subpackages:
   - client
   - client/etcd
@@ -320,7 +320,7 @@ imports:
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pilosa/pilosa
-  version: 00f5a1539fb79ab099a3e612a401a5510784eacb
+  version: a112b2d46af94e3ecfa74b8158381e3595b24e4b
   subpackages:
   - roaring
 - name: github.com/pkg/errors

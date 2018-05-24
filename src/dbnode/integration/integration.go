@@ -85,6 +85,7 @@ func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
 func newMultiAddrAdminClient(
 	t *testing.T,
 	adminOpts client.AdminOptions,
+	topologyInitializer topology.Initializer,
 	instrumentOpts instrument.Options,
 	shardSet sharding.ShardSet,
 	replicas int,
@@ -118,9 +119,13 @@ func newMultiAddrAdminClient(
 	clientOpts := adminOpts.
 		SetOrigin(origin).
 		SetInstrumentOptions(instrumentOpts).
-		SetTopologyInitializer(topology.NewStaticInitializer(staticOptions)).
 		SetClusterConnectConsistencyLevel(topology.ConnectConsistencyLevelAny).
 		SetClusterConnectTimeout(time.Second)
+
+	if topologyInitializer == nil {
+		topologyInitializer = topology.NewStaticInitializer(staticOptions)
+	}
+	clientOpts = clientOpts.SetTopologyInitializer(topologyInitializer)
 
 	adminClient, err := client.NewAdminClient(clientOpts.(client.AdminOptions))
 	require.NoError(t, err)
@@ -133,6 +138,7 @@ type bootstrappableTestSetupOptions struct {
 	fetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion
 	bootstrapBlocksBatchSize           int
 	bootstrapBlocksConcurrency         int
+	bootstrapConsistencyLevel          topology.ReadConsistencyLevel
 	topologyInitializer                topology.Initializer
 	testStatsReporter                  xmetrics.TestStatsReporter
 }
@@ -179,6 +185,7 @@ func newDefaultBootstrappableTestSetups(
 			usingPeersBootstrapper     = !setupOpts[i].disablePeersBootstrapper
 			bootstrapBlocksBatchSize   = setupOpts[i].bootstrapBlocksBatchSize
 			bootstrapBlocksConcurrency = setupOpts[i].bootstrapBlocksConcurrency
+			bootstrapConsistencyLevel  = setupOpts[i].bootstrapConsistencyLevel
 			topologyInitializer        = setupOpts[i].topologyInitializer
 			testStatsReporter          = setupOpts[i].testStatsReporter
 			instanceOpts               = newMultiAddrTestOptions(opts, instance)
@@ -220,6 +227,9 @@ func newDefaultBootstrappableTestSetups(
 			if bootstrapBlocksConcurrency > 0 {
 				adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
 			}
+			if topologyInitializer != nil {
+				adminOpts = adminOpts.SetTopologyInitializer(topologyInitializer).(client.AdminOptions)
+			}
 
 			// Prevent integration tests from timing out when a node is down
 			retryOpts := xretry.NewOptions().
@@ -230,7 +240,13 @@ func newDefaultBootstrappableTestSetups(
 			adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
 
 			adminClient := newMultiAddrAdminClient(
-				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
+				t, adminOpts, topologyInitializer, instrumentOpts, setup.shardSet, replicas, instance)
+
+			runtimeOptsMgr := setup.storageOpts.RuntimeOptionsManager()
+			runtimeOpts := runtimeOptsMgr.Get().
+				SetClientBootstrapConsistencyLevel(bootstrapConsistencyLevel)
+			runtimeOptsMgr.Update(runtimeOpts)
+
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).
 				SetAdminClient(adminClient).
@@ -238,7 +254,8 @@ func newDefaultBootstrappableTestSetups(
 				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
 				// the incremental path
 				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
-				SetPersistManager(setup.storageOpts.PersistManager())
+				SetPersistManager(setup.storageOpts.PersistManager()).
+				SetRuntimeOptionsManager(runtimeOptsMgr)
 
 			peersBootstrapper, err = peers.NewPeersBootstrapperProvider(peersOpts, noOpAll)
 			require.NoError(t, err)

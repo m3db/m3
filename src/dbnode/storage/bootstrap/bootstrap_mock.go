@@ -80,10 +80,11 @@ func (mr *MockProcessProviderMockRecorder) BootstrapperProvider() *gomock.Call {
 }
 
 // Provide mocks base method
-func (m *MockProcessProvider) Provide() Process {
+func (m *MockProcessProvider) Provide() (Process, error) {
 	ret := m.ctrl.Call(m, "Provide")
 	ret0, _ := ret[0].(Process)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Provide indicates an expected call of Provide
@@ -281,10 +282,11 @@ func (mr *MockBootstrapperProviderMockRecorder) String() *gomock.Call {
 }
 
 // Provide mocks base method
-func (m *MockBootstrapperProvider) Provide() Bootstrapper {
+func (m *MockBootstrapperProvider) Provide() (Bootstrapper, error) {
 	ret := m.ctrl.Call(m, "Provide")
 	ret0, _ := ret[0].(Bootstrapper)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Provide indicates an expected call of Provide

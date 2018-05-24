@@ -73,8 +73,14 @@ func newTestBootstrapperSource(
 		}
 	}
 
-	b := &testBootstrapper{}
-	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(src.String(), src, resultOpts, next)
+	var (
+		b   = &testBootstrapper{}
+		err error
+	)
+	b.Bootstrapper, err = bootstrapper.NewBaseBootstrapper(src.String(), src, resultOpts, next)
+	if err != nil {
+		panic(err)
+	}
 	return testBootstrapperProvider{Bootstrapper: b}
 }
 
@@ -88,8 +94,8 @@ func (p testBootstrapperProvider) String() string {
 	return p.Bootstrapper.String()
 }
 
-func (p testBootstrapperProvider) Provide() bootstrap.Bootstrapper {
-	return p.Bootstrapper
+func (p testBootstrapperProvider) Provide() (bootstrap.Bootstrapper, error) {
+	return p.Bootstrapper, nil
 }
 
 type testBootstrapper struct {

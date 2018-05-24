@@ -247,7 +247,10 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	source := provider.Provide()
+	source, err := provider.Provide()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 
 	nsID := ident.StringID(namespaceStr)
 	runOpts := bootstrap.NewRunOptions().

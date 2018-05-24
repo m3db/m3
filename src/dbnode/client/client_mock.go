@@ -715,6 +715,19 @@ func (mr *MockAdminSessionMockRecorder) Replicas() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Replicas", reflect.TypeOf((*MockAdminSession)(nil).Replicas))
 }
 
+// Topology mocks base method
+func (m *MockAdminSession) Topology() (topology.Topology, error) {
+	ret := m.ctrl.Call(m, "Topology")
+	ret0, _ := ret[0].(topology.Topology)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Topology indicates an expected call of Topology
+func (mr *MockAdminSessionMockRecorder) Topology() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Topology", reflect.TypeOf((*MockAdminSession)(nil).Topology))
+}
+
 // Truncate mocks base method
 func (m *MockAdminSession) Truncate(namespace ident.ID) (int64, error) {
 	ret := m.ctrl.Call(m, "Truncate", namespace)
@@ -3195,6 +3208,19 @@ func (m *MockclientSession) Replicas() int {
 // Replicas indicates an expected call of Replicas
 func (mr *MockclientSessionMockRecorder) Replicas() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Replicas", reflect.TypeOf((*MockclientSession)(nil).Replicas))
+}
+
+// Topology mocks base method
+func (m *MockclientSession) Topology() (topology.Topology, error) {
+	ret := m.ctrl.Call(m, "Topology")
+	ret0, _ := ret[0].(topology.Topology)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Topology indicates an expected call of Topology
+func (mr *MockclientSessionMockRecorder) Topology() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Topology", reflect.TypeOf((*MockclientSession)(nil).Topology))
 }
 
 // Truncate mocks base method

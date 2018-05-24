@@ -103,7 +103,10 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			if err != nil {
 				return false, err
 			}
-			source := provider.Provide()
+			source, err := provider.Provide()
+			if err != nil {
+				return false, err
+			}
 
 			// Determine time range to bootstrap
 			nsOpts := namespace.NewOptions()
