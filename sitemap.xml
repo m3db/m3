@@ -4,7 +4,7 @@
     
     <url>
      <loc>/</loc>
-     <lastmod>2018-02-22</lastmod>
+     <lastmod>2018-05-24</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
@@ -12,53 +12,69 @@
     
         
     <url>
-     <loc>/architecture/</loc>
-     <lastmod>2018-02-22</lastmod>
+     <loc>/introduction/components/components/</loc>
+     <lastmod>2018-05-24</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
-     <loc>/architecture/engine/</loc>
-     <lastmod>2018-02-22</lastmod>
+     <loc>/introduction/motivation/motivation/</loc>
+     <lastmod>2018-05-24</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+        
+    
+
+    
+        
+    <url>
+     <loc>/m3db/</loc>
+     <lastmod>2018-05-24</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
-     <loc>/architecture/sharding/</loc>
-     <lastmod>2018-02-22</lastmod>
+     <loc></loc>
+     <lastmod></lastmod>
      <changefreq>daily</changefreq>
     </url>
+        
+    
+
+    
         
     <url>
-     <loc>/architecture/consistencylevels/</loc>
-     <lastmod>2018-02-22</lastmod>
+     <loc>/how_to/single_node/</loc>
+     <lastmod>2018-05-24</lastmod>
      <changefreq>daily</changefreq>
     </url>
+        
+    
+
+    
         
     <url>
-     <loc>/architecture/storage/</loc>
-     <lastmod>2018-02-22</lastmod>
+     <loc>/integrations/prometheus/</loc>
+     <lastmod>2018-05-24</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
+    
+
+    
     <url>
-     <loc>/architecture/commitlogs/</loc>
-     <lastmod>2018-02-22</lastmod>
+     <loc>/troubleshooting/</loc>
+     <lastmod>2018-05-24</lastmod>
      <changefreq>daily</changefreq>
     </url>
-        
+    
+
+    
     <url>
-     <loc>/architecture/peer_streaming/</loc>
-     <lastmod>2018-02-22</lastmod>
+     <loc>/faqs/</loc>
+     <lastmod>2018-05-24</lastmod>
      <changefreq>daily</changefreq>
     </url>
-        
-    <url>
-     <loc>/architecture/caching/</loc>
-     <lastmod>2018-02-22</lastmod>
-     <changefreq>daily</changefreq>
-    </url>
-        
     
 
 </urlset>
