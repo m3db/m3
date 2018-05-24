@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3x/ident"
+
 	"github.com/stretchr/testify/require"
 )
 

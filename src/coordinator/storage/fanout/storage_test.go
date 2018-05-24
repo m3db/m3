@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3db/src/coordinator/test/local"
 	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3x/ident"
 
