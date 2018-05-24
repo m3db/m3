@@ -36,6 +36,17 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+func blockReaderToSegment(br xio.BlockReader) (*rpc.Segment, error) {
+	segment, err := br.Segment()
+	if err != nil {
+		return nil, err
+	}
+	return &rpc.Segment{
+		Head: segment.Head.Bytes(),
+		Tail: segment.Tail.Bytes(),
+	}, nil
+}
+
 // RPCFromSeriesIterator converts a seriesIterator to a grpc series
 func RPCFromSeriesIterator(it encoding.SeriesIterator) (*rpc.Series, error) {
 	defer it.Close()
@@ -49,28 +60,24 @@ func RPCFromSeriesIterator(it encoding.SeriesIterator) (*rpc.Series, error) {
 		for next {
 			segments := &rpc.Segments{}
 			l, _, _ := readers.CurrentReaders()
+			// NB(arnikola) If there's only a single reader, the segment has been merged
+			// othewise, multiple unmerged segments exist.
 			if l == 1 {
 				br := readers.CurrentReaderAt(0)
-				segment, err := br.Segment()
+				segment, err := blockReaderToSegment(br)
 				if err != nil {
 					return nil, err
 				}
-				segments.Merged = &rpc.Segment{
-					Head: segment.Head.Bytes(),
-					Tail: segment.Tail.Bytes(),
-				}
+				segments.Merged = segment
 			} else {
 				unmerged := make([]*rpc.Segment, 0, l)
 				for i := 0; i < l; i++ {
 					br := readers.CurrentReaderAt(i)
-					segment, err := br.Segment()
+					segment, err := blockReaderToSegment(br)
 					if err != nil {
 						return nil, err
 					}
-					unmerged = append(unmerged, &rpc.Segment{
-						Head: segment.Head.Bytes(),
-						Tail: segment.Tail.Bytes(),
-					})
+					unmerged = append(unmerged, segment)
 				}
 				segments.Unmerged = unmerged
 			}
@@ -85,23 +92,26 @@ func RPCFromSeriesIterator(it encoding.SeriesIterator) (*rpc.Series, error) {
 	start := xtime.ToNanoseconds(it.Start())
 	end := xtime.ToNanoseconds(it.End())
 
+	tagIter := it.Tags()
+	tags := make([]*rpc.CompressedTag, 0, tagIter.Remaining())
+	for tagIter.Next() {
+		tag := tagIter.Current()
+		tags = append(tags, &rpc.CompressedTag{
+			Name:  tag.Name.String(),
+			Value: tag.Value.String(),
+		})
+	}
+
 	compressedDatapoints := &rpc.CompressedDatapoints{
 		Namespace: it.Namespace().String(),
 		StartTime: start,
 		EndTime:   end,
 		Replicas:  compressedReplicas,
-	}
-
-	tagIter := it.Tags()
-	tags := make(map[string]string)
-	for tagIter.Next() {
-		tag := tagIter.Current()
-		tags[tag.Name.String()] = tag.Value.String()
+		Tags:      tags,
 	}
 
 	return &rpc.Series{
 		Id:         it.ID().String(),
-		Tags:       tags,
 		Compressed: compressedDatapoints,
 	}, nil
 }
@@ -180,9 +190,9 @@ func SeriesIteratorFromRPC(iteratorPools encoding.IteratorPools, timeSeries *rpc
 
 		for i, segment := range segments {
 			blockReadersPerSegment := make([]xio.BlockReader, 0, len(segments))
-			mergedSegment := segment.Merged
+			mergedSegment := segment.GetMerged()
 			if mergedSegment != nil {
-				reader := segmentToBlockReader(segment.Merged, opts, iteratorPools)
+				reader := segmentToBlockReader(mergedSegment, opts, iteratorPools)
 				blockReadersPerSegment = append(blockReadersPerSegment, reader)
 			} else {
 				unmerged := segment.GetUnmerged()
@@ -193,6 +203,7 @@ func SeriesIteratorFromRPC(iteratorPools encoding.IteratorPools, timeSeries *rpc
 			}
 			blockReaders[i] = blockReadersPerSegment
 		}
+
 		// TODO arnikola investigate pooling these?
 		sliceOfSlicesIterator := xio.NewReaderSliceOfSlicesFromBlockReadersIterator(blockReaders)
 		perReplicaIterator := encoding.NewMultiReaderIterator(iterAlloc, multiReaderPool)
@@ -216,13 +227,16 @@ func SeriesIteratorFromRPC(iteratorPools encoding.IteratorPools, timeSeries *rpc
 		ns = ident.StringID(compressedValues.GetNamespace())
 		tags = ident.NewTags()
 	}
-	for name, value := range timeSeries.GetTags() {
+
+	for _, tag := range compressedValues.GetTags() {
+		name, value := tag.GetName(), tag.GetValue()
 		if idPool != nil {
 			tags.Append(idPool.StringTag(name, value))
 		} else {
 			tags.Append(ident.StringTag(name, value))
 		}
 	}
+
 	if idPool != nil {
 		tagIter = idPool.TagsIterator()
 		tagIter.Reset(tags)

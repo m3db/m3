@@ -122,7 +122,7 @@ func buildReplica(t *testing.T) encoding.MultiReaderIterator {
 	return multiReader
 }
 
-func buildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
+func BuildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
 	replicaOne := buildReplica(t)
 	replicaTwo := buildReplica(t)
 
@@ -188,7 +188,7 @@ func validateSeries(t *testing.T, it encoding.SeriesIterator) {
 }
 
 func TestGeneratedSeries(t *testing.T) {
-	validateSeries(t, buildTestSeriesIterator(t))
+	validateSeries(t, BuildTestSeriesIterator(t))
 }
 
 type seriesIteratorWrapper struct {
@@ -197,7 +197,7 @@ type seriesIteratorWrapper struct {
 }
 
 func TestConversionToCompressedData(t *testing.T) {
-	it := buildTestSeriesIterator(t)
+	it := BuildTestSeriesIterator(t)
 	series, err := RPCFromSeriesIterator(it)
 	require.NoError(t, err)
 
@@ -236,7 +236,7 @@ func TestConversionToCompressedData(t *testing.T) {
 }
 
 func TestSeriesConversionFromCompressedData(t *testing.T) {
-	it := buildTestSeriesIterator(t)
+	it := BuildTestSeriesIterator(t)
 	rpcSeries, err := RPCFromSeriesIterator(it)
 	require.NoError(t, err)
 	seriesIterator := SeriesIteratorFromRPC(nil, rpcSeries)
@@ -245,7 +245,7 @@ func TestSeriesConversionFromCompressedData(t *testing.T) {
 }
 
 func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
-	it := buildTestSeriesIterator(t)
+	it := BuildTestSeriesIterator(t)
 	rpcSeries, err := RPCFromSeriesIterator(it)
 	require.NoError(t, err)
 
@@ -306,7 +306,7 @@ func (ip *mockIteratorPool) ID() ident.Pool {
 
 func TestConversionClosesSeriesIterator(t *testing.T) {
 	it := &seriesIteratorWrapper{
-		it:     buildTestSeriesIterator(t),
+		it:     BuildTestSeriesIterator(t),
 		closed: false,
 	}
 	RPCFromSeriesIterator(it)

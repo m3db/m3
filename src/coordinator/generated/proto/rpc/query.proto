@@ -68,19 +68,25 @@ message Segment {
 }
 
 message Segments {
-	 Segment merged = 1;
+	Segment merged = 1;
 	repeated Segment unmerged = 2;
 }
 
 message CompressedValuesReplica {
-	repeated Segments	segments = 1;
+	repeated Segments segments = 1;
+}
+
+message CompressedTag {
+	string name = 1;
+	string value = 2;
 }
 
 message CompressedDatapoints {
 	string namespace = 1;
 	int64 startTime = 2;
 	int64 endTime = 3;
-	repeated CompressedValuesReplica replicas = 4;
+	repeated CompressedTag tags = 4;
+	repeated CompressedValuesReplica replicas = 5;
 }
 
 message Series {
