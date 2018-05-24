@@ -34,10 +34,10 @@ import (
 	"github.com/m3db/m3ninx/idx"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
-	"github.com/uber-go/tally"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 /*
