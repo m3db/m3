@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-
 	"github.com/m3db/m3db/src/dbnode/client"
 	xtime "github.com/m3db/m3x/time"
 

@@ -5,7 +5,7 @@
       "Pattern": "PATH:LINE:COL:MESSAGE"
     },
     "importorder": {
-      "Command": "importorder -patterns=\"STDLIB github.com/m3db/m3db/src/coordinator github.com/m3db EXTERNAL\"",
+      "Command": "importorder -patterns=\"STDLIB github.com/m3db EXTERNAL\"",
       "Pattern": "PATH:LINE:MESSAGE"
     }
   },

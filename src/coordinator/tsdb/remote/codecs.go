@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/ts"
-
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -85,7 +84,7 @@ func decodeTs(r *rpc.Series) (*ts.Series, error) {
 	fixedRes := r.Values.FixedResolution
 	var (
 		values ts.Values
-		err error
+		err    error
 	)
 	if fixedRes {
 		values, err = decodeFixedResTs(r)

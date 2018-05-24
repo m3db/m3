@@ -26,7 +26,6 @@ import (
 
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/tsdb"
-
 	"github.com/m3db/m3metrics/policy"
 )
 

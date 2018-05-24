@@ -24,7 +24,6 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3db/src/coordinator/models"
-
 	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3ninx/idx"
 	"github.com/m3db/m3x/ident"

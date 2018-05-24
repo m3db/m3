@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/ts"
-
 	xtime "github.com/m3db/m3x/time"
 )
 

@@ -26,10 +26,10 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
-	"github.com/uber/tchannel-go/thrift"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/uber/tchannel-go/thrift"
 )
 
 func TestHostQueueFetchBatches(t *testing.T) {
