@@ -56,12 +56,11 @@ func RPCFromSeriesIterator(it encoding.SeriesIterator) (*rpc.Series, error) {
 	for _, replica := range replicas {
 		replicaSegments := make([]*rpc.Segments, 0, len(replicas))
 		readers := replica.Readers()
-		next := true
-		for next {
+		for next := true; next; next = readers.Next() {
 			segments := &rpc.Segments{}
 			l, _, _ := readers.CurrentReaders()
 			// NB(arnikola) If there's only a single reader, the segment has been merged
-			// othewise, multiple unmerged segments exist.
+			// otherwise, multiple unmerged segments exist.
 			if l == 1 {
 				br := readers.CurrentReaderAt(0)
 				segment, err := blockReaderToSegment(br)
@@ -82,7 +81,6 @@ func RPCFromSeriesIterator(it encoding.SeriesIterator) (*rpc.Series, error) {
 				segments.Unmerged = unmerged
 			}
 			replicaSegments = append(replicaSegments, segments)
-			next = readers.Next()
 		}
 		compressedReplicas = append(compressedReplicas, &rpc.CompressedValuesReplica{
 			Segments: replicaSegments,

@@ -21,7 +21,6 @@
 package remote
 
 import (
-	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -85,29 +84,33 @@ func buildReplica(t *testing.T) encoding.MultiReaderIterator {
 	i = 100
 	encoder = m3tsz.NewEncoder(middle, checked.NewBytes(nil, nil), true, encoding.NewOptions())
 	encoderTwo := m3tsz.NewEncoder(middle, checked.NewBytes(nil, nil), true, encoding.NewOptions())
+	useFirstEncoder := true
 	for at := time.Duration(0); at < blockSize; at += time.Minute {
 		i++
 		datapoint := ts.Datapoint{Timestamp: middle.Add(at), Value: float64(i)}
-		if int(at)%int(2*time.Minute) == 0 {
-			err := encoder.Encode(datapoint, xtime.Second, nil)
-			assert.NoError(t, err)
+		var err error
+		if useFirstEncoder {
+			err = encoder.Encode(datapoint, xtime.Second, nil)
 		} else {
-			err := encoderTwo.Encode(datapoint, xtime.Second, nil)
-			assert.NoError(t, err)
+			err = encoderTwo.Encode(datapoint, xtime.Second, nil)
 		}
+
+		assert.NoError(t, err)
+		useFirstEncoder = !useFirstEncoder
 	}
+
 	segment = encoder.Discard()
 	segmentTwo := encoderTwo.Discard()
 	secondBlockStart := blockStart.Add(blockSize)
 	unmergedReaders := []xio.BlockReader{
 		{
 			SegmentReader: xio.NewSegmentReader(segment),
-			Start:         secondBlockStart.Add(time.Minute),
+			Start:         secondBlockStart,
 			BlockSize:     blockSize,
 		},
 		{
 			SegmentReader: xio.NewSegmentReader(segmentTwo),
-			Start:         secondBlockStart,
+			Start:         secondBlockStart.Add(time.Minute),
 			BlockSize:     blockSize,
 		},
 	}
@@ -122,6 +125,14 @@ func buildReplica(t *testing.T) encoding.MultiReaderIterator {
 	return multiReader
 }
 
+// BuildTestSeriesIterator creates a sample seriesIterator
+// This series iterator has two identical replicas.
+// Each replica has two blocks.
+// The first block in each replica is merged and has values 1->30
+// The second block is unmerged; when it was merged, it has values 101 -> 130
+// from two readers, one with even values and other with odd values
+// SeriesIterator ID is 'foo', namespace is 'namespace'
+// Tags are "foo": "bar" and "baz": "qux"
 func BuildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
 	replicaOne := buildReplica(t)
 	replicaTwo := buildReplica(t)
@@ -146,6 +157,8 @@ func BuildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
 }
 
 func validateSeries(t *testing.T, it encoding.SeriesIterator) {
+	defer it.Close()
+
 	expectedValues := [60]float64{}
 	for i := 0; i < 30; i++ {
 		expectedValues[i] = float64(i) + 1
@@ -183,8 +196,6 @@ func validateSeries(t *testing.T, it encoding.SeriesIterator) {
 		tagCount++
 	}
 	assert.Equal(t, expectedCount, tagCount)
-
-	it.Close()
 }
 
 func TestGeneratedSeries(t *testing.T) {
@@ -221,14 +232,12 @@ func TestConversionToCompressedData(t *testing.T) {
 		assert.NotNil(t, merged)
 		assert.NotEmpty(t, merged.GetHead())
 		assert.NotEmpty(t, merged.GetTail())
-		fmt.Println(merged.GetHead(), merged.GetTail())
 
 		seg = segments[1]
 		assert.Nil(t, seg.GetMerged())
 		unmergedSegments := seg.GetUnmerged()
 		assert.Len(t, unmergedSegments, 2)
 		for _, unmerged := range unmergedSegments {
-			fmt.Println(unmerged.GetHead(), unmerged.GetTail())
 			assert.NotEmpty(t, unmerged.GetHead())
 			assert.NotEmpty(t, unmerged.GetTail())
 		}
@@ -251,6 +260,7 @@ func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 
 	ip := &mockIteratorPool{}
 	seriesIterator := SeriesIteratorFromRPC(ip, rpcSeries)
+	defer seriesIterator.Close()
 
 	assert.True(t, ip.mriPoolUsed)
 	assert.True(t, ip.siPoolUsed)
@@ -259,7 +269,6 @@ func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 	assert.True(t, ip.identPoolUsed)
 
 	validateSeries(t, seriesIterator)
-	seriesIterator.Close()
 }
 
 type mockIteratorPool struct {
