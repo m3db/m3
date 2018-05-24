@@ -1,0 +1,46 @@
+coordinator:
+  listenAddress: 0.0.0.0:7201
+
+  metrics:
+    scope:
+      prefix: "coordinator"
+    prometheus:
+      handlerPath: /metrics
+      listenAddress: 0.0.0.0:7203 # until https://github.com/m3db/m3db/issues/682 is resolved
+    sanitization: prometheus
+    samplingRate: 1.0
+    extended: none
+
+dbClient:
+  config:
+      service:
+          env: TODO
+          zone: TODO
+          service: m3db
+          cacheDir: /var/lib/m3kv
+          etcdClusters:
+              - zone: TODO
+                endpoints:
+                    - TODO:2379
+      seedNodes:
+          initialCluster:
+              - hostID: TODO
+                endpoint: http://TODO:2380
+
+  writeConsistencyLevel: majority
+  readConsistencyLevel: unstrict_majority
+  writeTimeout: 10s
+  fetchTimeout: 15s
+  connectTimeout: 20s
+  writeRetry:
+    initialBackoff: 500ms
+    backoffFactor: 3
+    maxRetries: 2
+    jitter: true
+  fetchRetry:
+    initialBackoff: 500ms
+    backoffFactor: 2
+    maxRetries: 3
+    jitter: true
+  backgroundHealthCheckFailLimit: 4
+  backgroundHealthCheckFailThrottleFactor: 0.5
