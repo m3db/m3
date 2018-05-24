@@ -81,14 +81,20 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	defer setup.close()
 
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+
+	persistMgr, err := fs.NewPersistManager(fsOpts)
+	require.NoError(t, err)
+
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
 		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
 	bfsOpts := bfs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
-		SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
-	bs := bfs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
+		SetDatabaseBlockRetrieverManager(blockRetrieverMgr).
+		SetPersistManager(persistMgr)
+	bs, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
+	require.NoError(t, err)
 	processProvider := bootstrap.NewProcessProvider(
 		bs, bootstrap.NewProcessOptions(), bsOpts)
 

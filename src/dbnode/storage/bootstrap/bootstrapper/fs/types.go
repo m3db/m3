@@ -21,14 +21,26 @@
 package fs
 
 import (
+	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
+	"github.com/m3db/m3db/src/dbnode/runtime"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/instrument"
 )
 
 // Options represents the options for bootstrapping from the filesystem.
 type Options interface {
+	// Validate validates the options are correct
+	Validate() error
+
+	// SetInstrumentOptions sets the instrumentation options
+	SetInstrumentOptions(value instrument.Options) Options
+
+	// InstrumentOptions returns the instrumentation options
+	InstrumentOptions() instrument.Options
+
 	// SetResultOptions sets the instrumentation options.
 	SetResultOptions(value result.Options) Options
 
@@ -41,11 +53,29 @@ type Options interface {
 	// FilesystemOptions returns the filesystem options.
 	FilesystemOptions() fs.Options
 
-	// SetNumProcessors sets the number of processors for CPU-bound work.
-	SetNumProcessors(value int) Options
+	// SetPersistManager sets the persistence manager used to flush blocks
+	// when performing an incremental bootstrap run.
+	SetPersistManager(value persist.Manager) Options
 
-	// NumProcessors returns the number of processors for CPU-bound work.
-	NumProcessors() int
+	// PersistManager returns the persistence manager used to flush blocks
+	// when performing an incremental bootstrap run.
+	PersistManager() persist.Manager
+
+	// SetBoostrapDataNumProcessors sets the number of processors for CPU-bound
+	// work for bootstrapping data file sets.
+	SetBoostrapDataNumProcessors(value int) Options
+
+	// BoostrapDataNumProcessors returns the number of processors for CPU-bound
+	// work for bootstrapping data file sets.
+	BoostrapDataNumProcessors() int
+
+	// SetBoostrapIndexNumProcessors sets the number of processors for CPU-bound
+	// work for bootstrapping data file sets.
+	SetBoostrapIndexNumProcessors(value int) Options
+
+	// BoostrapIndexNumProcessors returns the number of processors for CPU-bound
+	// work for bootstrapping data file sets.
+	BoostrapIndexNumProcessors() int
 
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
 	// use when bootstrapping retrievable blocks instead of blocks
@@ -63,6 +93,12 @@ type Options interface {
 	// use when bootstrapping retrievable blocks instead of blocks
 	// containing data.
 	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
+
+	// SetRuntimeOptionsManager sets the runtime options manager.
+	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
+
+	// RuntimeOptionsManager returns the runtime options manager.
+	RuntimeOptionsManager() runtime.OptionsManager
 
 	// SetIdentifierPool sets the identifier pool.
 	SetIdentifierPool(value ident.Pool) Options

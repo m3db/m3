@@ -327,7 +327,8 @@ func (b *block) AddResults(
 				if err != nil {
 					// if this happens it means a Mutable segment was marked sealed
 					// in the bootstrappers, this should never happen.
-					multiErr = multiErr.Add(b.bootstrappingSealedMutableSegmentInvariant(err))
+					err := b.bootstrappingSealedMutableSegmentInvariant(err)
+					multiErr = multiErr.Add(err)
 				}
 			}
 		}

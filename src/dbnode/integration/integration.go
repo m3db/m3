@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/integration/generate"
+	persistfs "github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/sharding"
 	"github.com/m3db/m3db/src/dbnode/storage"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
@@ -246,12 +247,19 @@ func newDefaultBootstrappableTestSetups(
 		}
 
 		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+
+		persistMgr, err := persistfs.NewPersistManager(fsOpts)
+		require.NoError(t, err)
+
 		bfsOpts := bfs.NewOptions().
 			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts).
-			SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
+			SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
+			SetPersistManager(persistMgr)
 
-		fsBootstrapper := bfs.NewFileSystemBootstrapperProvider(bfsOpts, peersBootstrapper)
+		fsBootstrapper, err := bfs.NewFileSystemBootstrapperProvider(bfsOpts, peersBootstrapper)
+		require.NoError(t, err)
+
 		setup.storageOpts = setup.storageOpts.
 			SetBootstrapProcessProvider(
 				bootstrap.NewProcessProvider(fsBootstrapper, bootstrap.NewProcessOptions(), bsOpts))

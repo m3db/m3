@@ -50,9 +50,9 @@ import (
 var (
 	testShard             = uint32(0)
 	testNs1ID             = ident.StringID("testNs")
-	testStart             = time.Now()
 	testBlockSize         = 2 * time.Hour
 	testIndexBlockSize    = 4 * time.Hour
+	testStart             = time.Now().Truncate(testBlockSize)
 	testFileMode          = os.FileMode(0666)
 	testDirMode           = os.ModeDir | os.FileMode(0755)
 	testWriterBufferSize  = 10
@@ -64,6 +64,13 @@ var (
 func newTestOptions(filePathPrefix string) Options {
 	return testDefaultOpts.
 		SetFilesystemOptions(newTestFsOptions(filePathPrefix))
+}
+
+func newTestOptionsWithPersistManager(t *testing.T, filePathPrefix string) Options {
+	opts := newTestOptions(filePathPrefix)
+	pm, err := fs.NewPersistManager(opts.FilesystemOptions())
+	require.NoError(t, err)
+	return opts.SetPersistManager(pm)
 }
 
 func newTestFsOptions(filePathPrefix string) fs.Options {
@@ -151,6 +158,30 @@ type testSeries struct {
 	data []byte
 }
 
+func (s testSeries) ID() ident.ID {
+	return ident.StringID(s.id)
+}
+
+func (s testSeries) Tags() ident.Tags {
+	if s.tags == nil {
+		return ident.Tags{}
+	}
+
+	// Return in sorted order for deterministic order
+	var keys []string
+	for key := range s.tags {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	var tags ident.Tags
+	for _, key := range keys {
+		tags.Append(ident.StringTag(key, s.tags[key]))
+	}
+
+	return tags
+}
+
 func writeTSDBFiles(
 	t *testing.T,
 	dir string,
@@ -197,22 +228,18 @@ func sortedTagsFromTagsMap(tags map[string]string) ident.Tags {
 	return seriesTags
 }
 
-func rangesArray(ranges xtime.Ranges) []xtime.Range {
-	var array []xtime.Range
-	iter := ranges.Iter()
-	for iter.Next() {
-		array = append(array, iter.Value())
-	}
-	return array
-}
+func validateTimeRanges(t *testing.T, tr xtime.Ranges, expected xtime.Ranges) {
+	// Make range eclipses expected
+	require.True(t, expected.RemoveRanges(tr).IsEmpty())
 
-func validateTimeRanges(t *testing.T, tr xtime.Ranges, expected []xtime.Range) {
-	require.Equal(t, len(expected), tr.Len())
-	it := tr.Iter()
-	idx := 0
-	for it.Next() {
-		require.True(t, expected[idx].Equal(it.Value()))
-		idx++
+	// Now make sure no ranges outside of expected
+	expectedWithAddedRanges := expected.AddRanges(tr)
+
+	require.Equal(t, expected.Len(), expectedWithAddedRanges.Len())
+	iter := expected.Iter()
+	withAddedRangesIter := expectedWithAddedRanges.Iter()
+	for iter.Next() && withAddedRangesIter.Next() {
+		require.True(t, iter.Value().Equal(withAddedRangesIter.Value()))
 	}
 }
 
@@ -277,10 +304,9 @@ func TestAvailableTimeRangeFilter(t *testing.T) {
 	require.Equal(t, 1, len(res))
 	require.NotNil(t, res[testShard])
 
-	expected := []xtime.Range{
-		{Start: testStart, End: testStart.Add(2 * time.Hour)},
-		{Start: testStart.Add(10 * time.Hour), End: testStart.Add(12 * time.Hour)},
-	}
+	expected := xtime.Ranges{}.
+		AddRange(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}).
+		AddRange(xtime.Range{Start: testStart.Add(10 * time.Hour), End: testStart.Add(12 * time.Hour)})
 	validateTimeRanges(t, res[testShard], expected)
 }
 
@@ -299,10 +325,9 @@ func TestAvailableTimeRangePartialError(t *testing.T) {
 	require.Equal(t, 1, len(res))
 	require.NotNil(t, res[testShard])
 
-	expected := []xtime.Range{
-		{Start: testStart, End: testStart.Add(2 * time.Hour)},
-		{Start: testStart.Add(10 * time.Hour), End: testStart.Add(12 * time.Hour)},
-	}
+	expected := xtime.Ranges{}.
+		AddRange(xtime.Range{Start: testStart, End: testStart.Add(2 * time.Hour)}).
+		AddRange(xtime.Range{Start: testStart.Add(10 * time.Hour), End: testStart.Add(12 * time.Hour)})
 	validateTimeRanges(t, res[testShard], expected)
 }
 
@@ -358,9 +383,8 @@ func TestReadOpenFileError(t *testing.T) {
 	require.NotNil(t, res.Unfulfilled())
 	require.NotNil(t, res.Unfulfilled()[testShard])
 
-	expected := []xtime.Range{
-		{Start: testStart, End: testStart.Add(11 * time.Hour)},
-	}
+	expected := xtime.Ranges{}.
+		AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
 	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
 }
 
@@ -382,7 +406,7 @@ func TestReadDataCorruptionError(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 0, len(res.ShardResults()))
 	require.Equal(t, 1, len(res.Unfulfilled()))
-	validateTimeRanges(t, res.Unfulfilled()[testShard], rangesArray(strs[testShard]))
+	validateTimeRanges(t, res.Unfulfilled()[testShard], strs[testShard])
 }
 
 func validateReadResults(
@@ -391,12 +415,11 @@ func validateReadResults(
 	dir string,
 	strs result.ShardTimeRanges,
 ) {
-	expected := []xtime.Range{
-		{
+	expected := xtime.Ranges{}.
+		AddRange(xtime.Range{
 			Start: testStart.Add(2 * time.Hour),
 			End:   testStart.Add(10 * time.Hour),
-		},
-	}
+		})
 
 	res, err := src.ReadData(testNsMetadata(t), strs, testDefaultRunOpts)
 	require.NoError(t, err)
@@ -466,12 +489,18 @@ func TestReadValidateError(t *testing.T) {
 
 	reader := fs.NewMockDataFileSetReader(ctrl)
 	src := newFileSystemSource(newTestOptions(dir)).(*fileSystemSource)
+	first := true
 	src.newReaderFn = func(
 		b pool.CheckedBytesPool,
 		opts fs.Options,
 	) (fs.DataFileSetReader, error) {
-		return reader, nil
+		if first {
+			first = false
+			return reader, nil
+		}
+		return fs.NewReader(b, opts)
 	}
+	src.newReaderPoolOpts.disableReuse = true
 
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, []testSeries{
@@ -492,23 +521,22 @@ func TestReadValidateError(t *testing.T) {
 		Return(xtime.Range{
 			Start: testStart,
 			End:   testStart.Add(2 * time.Hour),
-		}).
-		Times(2)
+		})
 	reader.EXPECT().Entries().Return(0).Times(2)
 	reader.EXPECT().Validate().Return(errors.New("foo"))
 	reader.EXPECT().Close().Return(nil)
 
 	res, err := src.ReadData(testNsMetadata(t), testShardTimeRanges(),
 		testDefaultRunOpts)
+
 	require.NoError(t, err)
 	require.NotNil(t, res)
-	require.Equal(t, 0, len(res.ShardResults()))
+	require.Equal(t, 0, int(res.ShardResults().NumSeries()))
 	require.NotNil(t, res.Unfulfilled())
 	require.NotNil(t, res.Unfulfilled()[testShard])
 
-	expected := []xtime.Range{
-		{Start: testStart, End: testStart.Add(11 * time.Hour)},
-	}
+	expected := xtime.Ranges{}.
+		AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
 	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
 }
 
@@ -521,11 +549,16 @@ func TestReadOpenError(t *testing.T) {
 
 	reader := fs.NewMockDataFileSetReader(ctrl)
 	src := newFileSystemSource(newTestOptions(dir)).(*fileSystemSource)
+	first := true
 	src.newReaderFn = func(
 		b pool.CheckedBytesPool,
 		opts fs.Options,
 	) (fs.DataFileSetReader, error) {
-		return reader, nil
+		if first {
+			first = false
+			return reader, nil
+		}
+		return fs.NewReader(b, opts)
 	}
 
 	shard := uint32(0)
@@ -551,9 +584,8 @@ func TestReadOpenError(t *testing.T) {
 	require.NotNil(t, res.Unfulfilled())
 	require.NotNil(t, res.Unfulfilled()[testShard])
 
-	expected := []xtime.Range{
-		{Start: testStart, End: testStart.Add(11 * time.Hour)},
-	}
+	expected := xtime.Ranges{}.
+		AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
 	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
 }
 
@@ -618,9 +650,8 @@ func TestReadDeleteOnError(t *testing.T) {
 	require.NotNil(t, res.Unfulfilled())
 	require.NotNil(t, res.Unfulfilled()[testShard])
 
-	expected := []xtime.Range{
-		{Start: testStart, End: testStart.Add(11 * time.Hour)},
-	}
+	expected := xtime.Ranges{}.
+		AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
 	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
 }
 

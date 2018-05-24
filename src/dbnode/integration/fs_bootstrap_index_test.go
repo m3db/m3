@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/integration/generate"
+	persistfs "github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper"
@@ -68,14 +69,19 @@ func TestFilesystemBootstrapIndexWithIndexingEnabled(t *testing.T) {
 
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 
+	persistMgr, err := persistfs.NewPersistManager(fsOpts)
+	require.NoError(t, err)
+
 	noOpAll := bootstrapper.NewNoOpAllBootstrapperProvider()
 	bsOpts := result.NewOptions().
 		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
-		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
-	bs := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
+		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
+		SetPersistManager(persistMgr)
+	bs, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, noOpAll)
+	require.NoError(t, err)
 	processProvider := bootstrap.NewProcessProvider(
 		bs, bootstrap.NewProcessOptions(), bsOpts)
 

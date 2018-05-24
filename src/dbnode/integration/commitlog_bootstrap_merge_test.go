@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/integration/generate"
+	persistfs "github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper"
@@ -131,11 +132,15 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		bclOpts, mustInspectFilesystem(fsOpts), noOpAll)
 	require.NoError(t, err)
 	// fs bootstrapper
+	persistMgr, err := persistfs.NewPersistManager(fsOpts)
+	require.NoError(t, err)
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
-		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
-	fsBootstrapper := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
+		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
+		SetPersistManager(persistMgr)
+	fsBootstrapper, err := fs.NewFileSystemBootstrapperProvider(bfsOpts, commitLogBootstrapper)
+	require.NoError(t, err)
 	// bootstrapper storage opts
 	process := bootstrap.NewProcessProvider(
 		fsBootstrapper, bootstrap.NewProcessOptions(), bsOpts)
