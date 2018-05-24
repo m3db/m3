@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/shard"
-
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/sharding"
