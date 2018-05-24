@@ -1,0 +1,58 @@
+site_name: M3DB Documentation
+
+theme:
+  # Provide source
+  name: null
+  custom_dir: docs/theme
+
+  # 404 page
+  static_templates:
+    - 404.html
+
+  # Don't include MkDocs' JavaScript
+  include_search_page: false
+  search_index_only: true
+
+  # Do not use tabs for navigation
+  feature:
+    tabs: false
+
+  # Default values, taken from mkdocs_theme.yml
+  language: en
+  palette:
+    primary: indigo
+    accent: indigo
+  font:
+    text: Roboto
+    code: Roboto Mono
+  favicon: assets/images/favicon.png
+  logo:
+    icon: "\uE80C"
+
+edit_uri: edit/master/docs/
+
+repo_name: m3db/m3db
+repo_url: https://github.com/m3db/m3db
+
+pages:
+  - "Introduction": "index.md"
+  - "Overview":
+    - "Components": "introduction/components/components.md"
+    - "Motivation": "introduction/motivation/motivation.md"
+  - "M3DB":
+    - "Introduction": "m3db/index.md"
+    - "Architecture":
+      - "Overview": "m3db/architecture/index.md"
+      - "Storage Engine": "m3db/architecture/engine.md"
+      - "Sharding and Replication": "m3db/architecture/sharding.md"
+      - "Consistency Levels": "m3db/architecture/consistencylevels.md"
+      - "Storage": "m3db/architecture/storage.md"
+      - "Commit Logs": "m3db/architecture/commitlogs.md"
+      - "Peer Streaming": "m3db/architecture/peer_streaming.md"
+      - "Caching": "m3db/architecture/caching.md"
+  - "How-To's":
+    - "Single Node": "how_to/single_node.md"
+  - "Integrations":
+    - "Prometheus": "integrations/prometheus.md"
+  - "Troubleshooting": "troubleshooting/index.md"
+  - "FAQs": "faqs/index.md"
