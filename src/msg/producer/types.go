@@ -24,27 +24,27 @@ import (
 	"github.com/m3db/m3cluster/services"
 )
 
-// FinalizeReason defines the reason why the data is being finalized by Producer.
+// FinalizeReason defines the reason why the message is being finalized by Producer.
 type FinalizeReason int
 
 const (
-	// Consumed means the data has been fully consumed.
+	// Consumed means the message has been fully consumed.
 	Consumed FinalizeReason = iota
 
-	// Dropped means the data has been dropped.
+	// Dropped means the message has been dropped.
 	Dropped
 )
 
-// Data contains the data that will be produced by the producer.
+// Message contains the data that will be produced by the producer.
 // It should only be finalized by the producer.
-type Data interface {
-	// Shard returns the shard of the data.
+type Message interface {
+	// Shard returns the shard of the message.
 	Shard() uint32
 
-	// Bytes returns the bytes of the data.
+	// Bytes returns the bytes of the message.
 	Bytes() []byte
 
-	// Size returns the size of the bytes of the data.
+	// Size returns the size of the bytes of the message.
 	Size() uint32
 
 	// Finalize will be called by producer to indicate the end of its lifecycle.
@@ -55,16 +55,16 @@ type Data interface {
 type CloseType int
 
 const (
-	// WaitForConsumption blocks the close call until all the data has been consumed.
+	// WaitForConsumption blocks the close call until all the messages have been consumed.
 	WaitForConsumption CloseType = iota
-	// DropEverything will close the producer and drop all the data that has not been consumed.
+	// DropEverything will close the producer and drop all the messages that have not been consumed.
 	DropEverything
 )
 
-// Producer produces data to a topic.
+// Producer produces message to a topic.
 type Producer interface {
-	// Produce produces the data.
-	Produce(data Data) error
+	// Produce produces the message.
+	Produce(m Message) error
 
 	// RegisterFilter registers a filter to a consumer service.
 	RegisterFilter(sid services.ServiceID, fn FilterFunc)
@@ -76,13 +76,13 @@ type Producer interface {
 	Init() error
 
 	// Close stops the producer from accepting new requests immediately.
-	// If the CloseType is WaitForConsumption, then it will block until all the data has been consumed.
-	// If the CloseType is DropEverything, then it will simply drop all the data buffered and return.
+	// If the CloseType is WaitForConsumption, then it will block until all the messages have been consumed.
+	// If the CloseType is DropEverything, then it will simply drop all the messages buffered and return.
 	Close(ct CloseType)
 }
 
-// FilterFunc can filter data.
-type FilterFunc func(data Data) bool
+// FilterFunc can filter message.
+type FilterFunc func(m Message) bool
 
 // Options configs a producer.
 type Options interface {
@@ -99,24 +99,24 @@ type Options interface {
 	SetWriter(value Writer) Options
 }
 
-// Buffer buffers all the data in the producer.
+// Buffer buffers all the messages in the producer.
 type Buffer interface {
-	// Add adds data to the buffer and returns a reference counted data.
-	Add(data Data) (RefCountedData, error)
+	// Add adds message to the buffer and returns a reference counted message.
+	Add(m Message) (RefCountedMessage, error)
 
 	// Init initializes the buffer.
 	Init()
 
 	// Close stops the buffer from accepting new requests immediately.
-	// If the CloseType is WaitForConsumption, then it will block until all the data has been consumed.
-	// If the CloseType is DropEverything, then it will simply drop all the data buffered and return.
+	// If the CloseType is WaitForConsumption, then it will block until all the messages have been consumed.
+	// If the CloseType is DropEverything, then it will simply drop all the messages buffered and return.
 	Close(ct CloseType)
 }
 
-// Writer writes all the data out to the consumer services.
+// Writer writes all the messages out to the consumer services.
 type Writer interface {
-	// Write writes a reference counted data out.
-	Write(d RefCountedData) error
+	// Write writes a reference counted message out.
+	Write(rm RefCountedMessage) error
 
 	// RegisterFilter registers a filter to a consumer service.
 	RegisterFilter(sid services.ServiceID, fn FilterFunc)
@@ -131,25 +131,25 @@ type Writer interface {
 	Close()
 }
 
-// RefCountedData is a reference counted data.
-type RefCountedData interface {
-	// Shard returns the shard of the data.
+// RefCountedMessage is a reference counted message.
+type RefCountedMessage interface {
+	// Shard returns the shard of the message.
 	Shard() uint32
 
-	// Bytes returns the bytes of the data.
+	// Bytes returns the bytes of the message.
 	Bytes() []byte
 
-	// Size returns the size of the data.
+	// Size returns the size of the message.
 	Size() uint64
 
-	// Accept returns true if the data can be accepted by the filter.
+	// Accept returns true if the message can be accepted by the filter.
 	Accept(fn FilterFunc) bool
 
 	// IncRef increments the ref count.
 	IncRef()
 
 	// DecRef decrements the ref count. If the reference count became zero after
-	// the call, the data will be finalized as consumed.
+	// the call, the message will be finalized as consumed.
 	DecRef()
 
 	// IncReads increments the reads count.
@@ -158,9 +158,9 @@ type RefCountedData interface {
 	// DecReads decrements the reads count.
 	DecReads()
 
-	// Drop drops the data without waiting for it to be consumed.
+	// Drop drops the message without waiting for it to be consumed.
 	Drop() bool
 
-	// IsDroppedOrConsumed returns true if the data has been dropped or consumed.
+	// IsDroppedOrConsumed returns true if the message has been dropped or consumed.
 	IsDroppedOrConsumed() bool
 }

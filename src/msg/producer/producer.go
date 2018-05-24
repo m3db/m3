@@ -38,18 +38,18 @@ func (p *producer) Init() error {
 	return p.Writer.Init()
 }
 
-func (p *producer) Produce(data Data) error {
-	rd, err := p.Buffer.Add(data)
+func (p *producer) Produce(m Message) error {
+	rm, err := p.Buffer.Add(m)
 	if err != nil {
 		return err
 	}
-	return p.Writer.Write(rd)
+	return p.Writer.Write(rm)
 }
 
 func (p *producer) Close(ct CloseType) {
 	// NB: Must close buffer first, it will start returning errors on
 	// new writes immediately. Then if the close type is to wait for consumption
-	// it will block until all data got consumed. If the close type is to drop
+	// it will block until all messages got consumed. If the close type is to drop
 	// everything, it will drop everything buffered.
 	p.Buffer.Close(ct)
 	// Then we can close writer to clean up outstanding go routines.

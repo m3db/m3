@@ -157,7 +157,7 @@ func newConsumerWriter(
 }
 
 // Write should fail fast so that the write could be tried on other
-// consumer writers that are sharing the data.
+// consumer writers that are sharing the message queue.
 func (w *consumerWriterImpl) Write(m proto.Marshaler) error {
 	w.encodeLock.Lock()
 	err := w.encdec.Encode(m)

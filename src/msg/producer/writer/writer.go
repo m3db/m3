@@ -95,29 +95,29 @@ func NewWriter(opts Options) producer.Writer {
 	return w
 }
 
-func (w *writer) Write(d producer.RefCountedData) error {
+func (w *writer) Write(rm producer.RefCountedMessage) error {
 	w.RLock()
 	isClosed := w.isClosed
 	m := w.consumerServiceWriters
 	numShards := w.numShards
 	w.RUnlock()
 	if isClosed {
-		d.Drop()
+		rm.Drop()
 		return errWriterClosed
 	}
-	shard := d.Shard()
+	shard := rm.Shard()
 	if shard >= numShards {
 		w.m.invalidShard.Inc(1)
-		d.Drop()
-		return fmt.Errorf("could not write data for shard %d which is larger than max shard id %d", shard, numShards-1)
+		rm.Drop()
+		return fmt.Errorf("could not write message for shard %d which is larger than max shard id %d", shard, numShards-1)
 	}
 	// NB(cw): Need to inc ref here in case a consumer service
-	// writes the data too fast and close the data.
-	d.IncRef()
+	// writes the message too fast and close the message.
+	rm.IncRef()
 	for _, csw := range m {
-		csw.Write(d)
+		csw.Write(rm)
 	}
-	d.DecRef()
+	rm.DecRef()
 	return nil
 }
 

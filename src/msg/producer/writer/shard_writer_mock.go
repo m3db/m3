@@ -56,8 +56,8 @@ func (_m *MockshardWriter) EXPECT() *MockshardWriterMockRecorder {
 }
 
 // Write mocks base method
-func (_m *MockshardWriter) Write(d producer.RefCountedData) {
-	_m.ctrl.Call(_m, "Write", d)
+func (_m *MockshardWriter) Write(rm producer.RefCountedMessage) {
+	_m.ctrl.Call(_m, "Write", rm)
 }
 
 // Write indicates an expected call of Write

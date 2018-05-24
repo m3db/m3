@@ -35,7 +35,7 @@ import (
 
 var (
 	acceptAllFilter = producer.FilterFunc(
-		func(d producer.Data) bool {
+		func(m producer.Message) bool {
 			return true
 		},
 	)
@@ -58,8 +58,8 @@ const (
 )
 
 type consumerServiceWriter interface {
-	// Write writes data.
-	Write(d producer.RefCountedData)
+	// Write writes a message.
+	Write(rm producer.RefCountedMessage)
 
 	// Init will initialize the consumer service writer.
 	Init(initType) error
@@ -161,12 +161,12 @@ func initShardWriters(
 	return sws
 }
 
-func (w *consumerServiceWriterImpl) Write(d producer.RefCountedData) {
-	if d.Accept(w.dataFilter) {
-		w.shardWriters[d.Shard()].Write(d)
+func (w *consumerServiceWriterImpl) Write(rm producer.RefCountedMessage) {
+	if rm.Accept(w.dataFilter) {
+		w.shardWriters[rm.Shard()].Write(rm)
 		w.m.filterAccepted.Inc(1)
 	}
-	// It is not an error if the data does not pass the filter.
+	// It is not an error if the message does not pass the filter.
 	w.m.filterNotAccepted.Inc(1)
 }
 

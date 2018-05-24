@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3msg/producer"
-	"github.com/m3db/m3msg/producer/data"
+	"github.com/m3db/m3msg/producer/msg"
 	"github.com/m3db/m3x/retry"
 
 	"github.com/fortytw2/leaktest"
@@ -70,11 +70,11 @@ func TestMessageWriter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md1 := producer.NewMockData(ctrl)
+	md1 := producer.NewMockMessage(ctrl)
 	md1.EXPECT().Bytes().Return([]byte("foo")).Times(1)
 	md1.EXPECT().Finalize(producer.Consumed)
 
-	w.Write(data.NewRefCountedData(md1, nil))
+	w.Write(msg.NewRefCountedMessage(md1, nil))
 
 	for {
 		w.RLock()
@@ -88,10 +88,10 @@ func TestMessageWriter(t *testing.T) {
 	require.Equal(t, 0, w.queue.Len())
 	w.RemoveConsumerWriter(addr)
 
-	md2 := producer.NewMockData(ctrl)
+	md2 := producer.NewMockMessage(ctrl)
 	md2.EXPECT().Bytes().Return([]byte("bar")).Times(1)
 
-	w.Write(data.NewRefCountedData(md2, nil))
+	w.Write(msg.NewRefCountedMessage(md2, nil))
 	// Wait some time to make sure still no consumer receives it.
 	time.Sleep(100 * time.Millisecond)
 	require.False(t, isEmptyWithLock(w.acks))
@@ -124,12 +124,12 @@ func TestMessageWriterRetry(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
-	md.EXPECT().Finalize(producer.Consumed)
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
+	mm.EXPECT().Finalize(producer.Consumed)
 
-	rd := data.NewRefCountedData(md, nil)
-	w.Write(rd)
+	rm := msg.NewRefCountedMessage(mm, nil)
+	w.Write(rm)
 
 	require.False(t, isEmptyWithLock(w.acks))
 
@@ -177,17 +177,17 @@ func TestMessageWriterCleanupDroppedMessage(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
+	mm := producer.NewMockMessage(ctrl)
 
-	rd := data.NewRefCountedData(md, nil)
-	md.EXPECT().Finalize(producer.Dropped)
-	rd.Drop()
-	md.EXPECT().Bytes().Return([]byte("foo"))
-	w.Write(rd)
+	rm := msg.NewRefCountedMessage(mm, nil)
+	mm.EXPECT().Finalize(producer.Dropped)
+	rm.Drop()
+	mm.EXPECT().Bytes().Return([]byte("foo"))
+	w.Write(rm)
 
 	// A get will allocate a new message because the old one has not been returned to pool yet.
 	m := w.(*messageWriterImpl).mPool.Get()
-	require.Nil(t, m.RefCountedData)
+	require.Nil(t, m.RefCountedMessage)
 
 	require.Equal(t, 1, w.(*messageWriterImpl).queue.Len())
 	w.Init()
@@ -218,14 +218,14 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Bytes().Return([]byte("foo"))
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Bytes().Return([]byte("foo"))
 
-	rd := data.NewRefCountedData(md, nil)
+	rm := msg.NewRefCountedMessage(mm, nil)
 	// Another message write also holds this message.
-	rd.IncRef()
+	rm.IncRef()
 
-	w.Write(rd)
+	w.Write(rm)
 	acks := w.(*messageWriterImpl).acks
 	var meta metadata
 	acks.Lock()
@@ -234,13 +234,13 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 		break
 	}
 	acks.Unlock()
-	// The data will not be finalized because it's still being hold by another message writer.
+	// The message will not be finalized because it's still being hold by another message writer.
 	acks.ack(meta)
 	require.True(t, isEmptyWithLock(w.(*messageWriterImpl).acks))
 
 	// A get will allocate a new message because the old one has not been returned to pool yet.
 	m := w.(*messageWriterImpl).mPool.Get()
-	require.Nil(t, m.RefCountedData)
+	require.Nil(t, m.RefCountedMessage)
 	require.Equal(t, 1, w.(*messageWriterImpl).queue.Len())
 
 	w.Init()
@@ -277,7 +277,7 @@ func TestMessageWriterCutoverCutoff(t *testing.T) {
 	require.False(t, w.isValidWriteWithLock(now.UnixNano()+250))
 	require.False(t, w.isValidWriteWithLock(now.UnixNano()+50))
 	require.Equal(t, 0, w.queue.Len())
-	w.Write(data.NewRefCountedData(nil, nil))
+	w.Write(msg.NewRefCountedMessage(nil, nil))
 	require.Equal(t, 0, w.queue.Len())
 }
 
@@ -288,12 +288,12 @@ func TestMessageWriterRetryIterateBatch(t *testing.T) {
 	opts := testOptions().SetMessageRetryBatchSize(2).SetMessageQueueScanInterval(time.Hour)
 	w := newMessageWriter(200, testMessagePool(opts), opts).(*messageWriterImpl)
 
-	md1 := producer.NewMockData(ctrl)
-	md2 := producer.NewMockData(ctrl)
-	md3 := producer.NewMockData(ctrl)
-	rd1 := data.NewRefCountedData(md1, nil)
-	rd2 := data.NewRefCountedData(md2, nil)
-	rd3 := data.NewRefCountedData(md3, nil)
+	md1 := producer.NewMockMessage(ctrl)
+	md2 := producer.NewMockMessage(ctrl)
+	md3 := producer.NewMockMessage(ctrl)
+	rd1 := msg.NewRefCountedMessage(md1, nil)
+	rd2 := msg.NewRefCountedMessage(md2, nil)
+	rd3 := msg.NewRefCountedMessage(md3, nil)
 	md1.EXPECT().Bytes().Return([]byte("1"))
 	md2.EXPECT().Bytes().Return([]byte("2"))
 	md3.EXPECT().Bytes().Return([]byte("3"))
@@ -304,7 +304,7 @@ func TestMessageWriterRetryIterateBatch(t *testing.T) {
 	require.Empty(t, toBeRetried)
 	// Make sure it stopped at rd3.
 	md3.EXPECT().Bytes().Return([]byte("3"))
-	require.Equal(t, []byte("3"), e.Value.(*message).RefCountedData.Bytes())
+	require.Equal(t, []byte("3"), e.Value.(*message).RefCountedMessage.Bytes())
 
 	e, toBeRetried = w.retryBatchWithLock(e, w.nowFn().UnixNano())
 	require.Nil(t, e)
@@ -320,12 +320,12 @@ func TestMessageWriterRetryWriteBatch(t *testing.T) {
 	)
 	w := newMessageWriter(200, testMessagePool(opts), opts).(*messageWriterImpl)
 
-	md1 := producer.NewMockData(ctrl)
-	md2 := producer.NewMockData(ctrl)
-	md3 := producer.NewMockData(ctrl)
-	rd1 := data.NewRefCountedData(md1, nil)
-	rd2 := data.NewRefCountedData(md2, nil)
-	rd3 := data.NewRefCountedData(md3, nil)
+	md1 := producer.NewMockMessage(ctrl)
+	md2 := producer.NewMockMessage(ctrl)
+	md3 := producer.NewMockMessage(ctrl)
+	rd1 := msg.NewRefCountedMessage(md1, nil)
+	rd2 := msg.NewRefCountedMessage(md2, nil)
+	rd3 := msg.NewRefCountedMessage(md3, nil)
 	md1.EXPECT().Bytes().Return([]byte("1"))
 	md2.EXPECT().Bytes().Return([]byte("2"))
 	md3.EXPECT().Bytes().Return([]byte("3"))
@@ -336,7 +336,7 @@ func TestMessageWriterRetryWriteBatch(t *testing.T) {
 	require.Equal(t, 2, len(toBeRetried))
 	// Make sure it stopped at rd3.
 	md3.EXPECT().Bytes().Return([]byte("3"))
-	require.Equal(t, []byte("3"), e.Value.(*message).RefCountedData.Bytes())
+	require.Equal(t, []byte("3"), e.Value.(*message).RefCountedMessage.Bytes())
 
 	e, toBeRetried = w.retryBatchWithLock(e, w.nowFn().UnixNano())
 	require.Nil(t, e)
@@ -376,12 +376,12 @@ func TestMessageWriterCloseImmediately(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
+	mm := producer.NewMockMessage(ctrl)
 
-	rd := data.NewRefCountedData(md, nil)
-	md.EXPECT().Finalize(producer.Consumed)
-	md.EXPECT().Bytes().Return([]byte("foo"))
-	w.Write(rd)
+	rm := msg.NewRefCountedMessage(mm, nil)
+	mm.EXPECT().Finalize(producer.Consumed)
+	mm.EXPECT().Bytes().Return([]byte("foo"))
+	w.Write(rm)
 
 	require.Equal(t, 1, w.(*messageWriterImpl).queue.Len())
 	w.Init()

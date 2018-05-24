@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package data
+package msg
 
 import (
 	"sync"
@@ -28,12 +28,12 @@ import (
 	"go.uber.org/atomic"
 )
 
-// OnFinalizeFn will be called when the data is being finalized.
-type OnFinalizeFn func(d producer.RefCountedData)
+// OnFinalizeFn will be called when the message is being finalized.
+type OnFinalizeFn func(rm producer.RefCountedMessage)
 
-type refCountedData struct {
+type refCountedMessage struct {
 	sync.RWMutex
-	producer.Data
+	producer.Message
 
 	onFinalizeFn OnFinalizeFn
 
@@ -41,69 +41,69 @@ type refCountedData struct {
 	isDroppedOrConsumed *atomic.Bool
 }
 
-// NewRefCountedData creates RefCountedData.
-func NewRefCountedData(data producer.Data, fn OnFinalizeFn) producer.RefCountedData {
-	return &refCountedData{
-		Data:                data,
+// NewRefCountedMessage creates RefCountedMessage.
+func NewRefCountedMessage(m producer.Message, fn OnFinalizeFn) producer.RefCountedMessage {
+	return &refCountedMessage{
+		Message:             m,
 		refCount:            atomic.NewInt32(0),
 		onFinalizeFn:        fn,
 		isDroppedOrConsumed: atomic.NewBool(false),
 	}
 }
 
-func (d *refCountedData) Accept(fn producer.FilterFunc) bool {
-	return fn(d.Data)
+func (rm *refCountedMessage) Accept(fn producer.FilterFunc) bool {
+	return fn(rm.Message)
 }
 
-func (d *refCountedData) IncRef() {
-	d.refCount.Inc()
+func (rm *refCountedMessage) IncRef() {
+	rm.refCount.Inc()
 }
 
-func (d *refCountedData) DecRef() {
-	rc := d.refCount.Dec()
+func (rm *refCountedMessage) DecRef() {
+	rc := rm.refCount.Dec()
 	if rc == 0 {
-		d.finalize(producer.Consumed)
+		rm.finalize(producer.Consumed)
 	}
 	if rc < 0 {
 		panic("invalid ref count")
 	}
 }
 
-func (d *refCountedData) IncReads() {
-	d.RLock()
+func (rm *refCountedMessage) IncReads() {
+	rm.RLock()
 }
 
-func (d *refCountedData) DecReads() {
-	d.RUnlock()
+func (rm *refCountedMessage) DecReads() {
+	rm.RUnlock()
 }
 
-func (d *refCountedData) Bytes() []byte {
-	return d.Data.Bytes()
+func (rm *refCountedMessage) Bytes() []byte {
+	return rm.Message.Bytes()
 }
 
-func (d *refCountedData) Size() uint64 {
-	return uint64(d.Data.Size())
+func (rm *refCountedMessage) Size() uint64 {
+	return uint64(rm.Message.Size())
 }
 
-func (d *refCountedData) Drop() bool {
-	return d.finalize(producer.Dropped)
+func (rm *refCountedMessage) Drop() bool {
+	return rm.finalize(producer.Dropped)
 }
 
-func (d *refCountedData) IsDroppedOrConsumed() bool {
-	return d.isDroppedOrConsumed.Load()
+func (rm *refCountedMessage) IsDroppedOrConsumed() bool {
+	return rm.isDroppedOrConsumed.Load()
 }
 
-func (d *refCountedData) finalize(r producer.FinalizeReason) bool {
-	d.Lock()
-	if d.isDroppedOrConsumed.Load() {
-		d.Unlock()
+func (rm *refCountedMessage) finalize(r producer.FinalizeReason) bool {
+	rm.Lock()
+	if rm.isDroppedOrConsumed.Load() {
+		rm.Unlock()
 		return false
 	}
-	d.isDroppedOrConsumed.Store(true)
-	d.Unlock()
-	if d.onFinalizeFn != nil {
-		d.onFinalizeFn(d)
+	rm.isDroppedOrConsumed.Store(true)
+	rm.Unlock()
+	if rm.onFinalizeFn != nil {
+		rm.onFinalizeFn(rm)
 	}
-	d.Data.Finalize(r)
+	rm.Message.Finalize(r)
 	return true
 }

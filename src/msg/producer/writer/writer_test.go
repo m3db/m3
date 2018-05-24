@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3msg/producer"
-	"github.com/m3db/m3msg/producer/data"
+	"github.com/m3db/m3msg/producer/msg"
 	"github.com/m3db/m3msg/topic"
 
 	"github.com/fortytw2/leaktest"
@@ -78,10 +78,10 @@ func TestWriterWriteAfterClosed(t *testing.T) {
 	w.Init()
 	w.Close()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Finalize(producer.Dropped)
-	rd := data.NewRefCountedData(md, nil)
-	err = w.Write(rd)
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Finalize(producer.Dropped)
+	rm := msg.NewRefCountedMessage(mm, nil)
+	err = w.Write(rm)
 	require.Error(t, err)
 	require.Equal(t, errWriterClosed, err)
 }
@@ -103,17 +103,17 @@ func TestWriterWriteWithInvalidShard(t *testing.T) {
 	w := NewWriter(opts).(*writer)
 	w.numShards = 2
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Shard().Return(uint32(2))
-	md.EXPECT().Finalize(producer.Dropped)
-	rd := data.NewRefCountedData(md, nil)
-	err = w.Write(rd)
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Shard().Return(uint32(2))
+	mm.EXPECT().Finalize(producer.Dropped)
+	rm := msg.NewRefCountedMessage(mm, nil)
+	err = w.Write(rm)
 	require.Error(t, err)
 
-	md.EXPECT().Shard().Return(uint32(100))
-	md.EXPECT().Finalize(producer.Dropped)
-	rd = data.NewRefCountedData(md, nil)
-	err = w.Write(rd)
+	mm.EXPECT().Shard().Return(uint32(100))
+	mm.EXPECT().Finalize(producer.Dropped)
+	rm = msg.NewRefCountedMessage(mm, nil)
+	err = w.Write(rm)
 	require.Error(t, err)
 }
 
@@ -206,7 +206,7 @@ func TestWriterRegisterFilter(t *testing.T) {
 	csw1 := NewMockconsumerServiceWriter(ctrl)
 
 	sid2 := services.NewServiceID().SetName("s2")
-	filter := func(producer.Data) bool { return false }
+	filter := func(producer.Message) bool { return false }
 
 	w := NewWriter(opts).(*writer)
 	w.consumerServiceWriters[cs1.ServiceID().String()] = csw1
@@ -442,13 +442,13 @@ func TestWriterWrite(t *testing.T) {
 	require.Equal(t, 2, len(w.consumerServiceWriters))
 
 	var wg sync.WaitGroup
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Shard().Return(uint32(0)).Times(3)
-	md.EXPECT().Bytes().Return([]byte("foo")).Times(3)
-	md.EXPECT().Finalize(producer.Consumed).Do(func(interface{}) { wg.Done() })
-	rd := data.NewRefCountedData(md, nil)
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Shard().Return(uint32(0)).Times(3)
+	mm.EXPECT().Bytes().Return([]byte("foo")).Times(3)
+	mm.EXPECT().Finalize(producer.Consumed).Do(func(interface{}) { wg.Done() })
+	rm := msg.NewRefCountedMessage(mm, nil)
 	wg.Add(1)
-	require.NoError(t, w.Write(rd))
+	require.NoError(t, w.Write(rm))
 
 	wg.Add(1)
 	go func() {
@@ -520,12 +520,12 @@ func TestWriterCloseBlocking(t *testing.T) {
 	require.NoError(t, w.Init())
 	require.Equal(t, 1, len(w.consumerServiceWriters))
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Shard().Return(uint32(0)).Times(2)
-	md.EXPECT().Bytes().Return([]byte("foo")).Times(1)
-	md.EXPECT().Finalize(producer.Dropped)
-	rd := data.NewRefCountedData(md, nil)
-	require.NoError(t, w.Write(rd))
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Shard().Return(uint32(0)).Times(2)
+	mm.EXPECT().Bytes().Return([]byte("foo")).Times(1)
+	mm.EXPECT().Finalize(producer.Dropped)
+	rm := msg.NewRefCountedMessage(mm, nil)
+	require.NoError(t, w.Write(rm))
 
 	doneCh := make(chan struct{})
 	go func() {
@@ -539,6 +539,6 @@ func TestWriterCloseBlocking(t *testing.T) {
 	default:
 	}
 
-	rd.Drop()
+	rm.Drop()
 	<-doneCh
 }

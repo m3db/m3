@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3msg/generated/proto/msgpb"
 	"github.com/m3db/m3msg/producer"
-	"github.com/m3db/m3msg/producer/data"
+	"github.com/m3db/m3msg/producer/msg"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/golang/mock/gomock"
@@ -39,21 +39,21 @@ func TestMessagePool(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	rd := data.NewRefCountedData(md, nil)
-	rd.IncRef()
+	mm := producer.NewMockMessage(ctrl)
+	rm := msg.NewRefCountedMessage(mm, nil)
+	rm.IncRef()
 
 	m := p.Get()
 	require.Nil(t, m.pb.Value)
-	md.EXPECT().Bytes().Return([]byte("foo"))
-	m.Reset(metadata{}, rd)
+	mm.EXPECT().Bytes().Return([]byte("foo"))
+	m.Reset(metadata{}, rm)
 	m.SetRetryAtNanos(100)
 
 	pb, ok := m.Marshaler()
 	require.True(t, ok)
 	require.Equal(t, []byte("foo"), pb.(*msgpb.Message).Value)
 
-	md.EXPECT().Finalize(producer.Consumed)
+	mm.EXPECT().Finalize(producer.Consumed)
 	m.Ack()
 	require.True(t, m.IsDroppedOrConsumed())
 	p.Put(m)
@@ -61,7 +61,7 @@ func TestMessagePool(t *testing.T) {
 	m = p.Get()
 	require.True(t, m.IsDroppedOrConsumed())
 
-	md.EXPECT().Bytes().Return([]byte("foo"))
-	m.Reset(metadata{}, data.NewRefCountedData(md, nil))
+	mm.EXPECT().Bytes().Return([]byte("foo"))
+	m.Reset(metadata{}, msg.NewRefCountedMessage(mm, nil))
 	require.False(t, m.IsDroppedOrConsumed())
 }

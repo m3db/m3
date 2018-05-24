@@ -38,8 +38,8 @@ const (
 )
 
 type messageWriter interface {
-	// Write writes the data.
-	Write(d producer.RefCountedData)
+	// Write writes the message.
+	Write(rm producer.RefCountedMessage)
 
 	// Ack acknowledges the metadata.
 	Ack(meta metadata)
@@ -48,7 +48,7 @@ type messageWriter interface {
 	Init()
 
 	// Close closes the writer.
-	// It should block until all buffered data have been acknowledged.
+	// It should block until all buffered messages have been acknowledged.
 	Close()
 
 	// AddConsumerWriter adds a consumer writer for the given address.
@@ -163,7 +163,7 @@ func newMessageWriter(
 	}
 }
 
-func (w *messageWriterImpl) Write(rd producer.RefCountedData) {
+func (w *messageWriterImpl) Write(rm producer.RefCountedMessage) {
 	now := w.nowFn()
 	nowNanos := now.UnixNano()
 	w.RLock()
@@ -172,7 +172,7 @@ func (w *messageWriterImpl) Write(rd producer.RefCountedData) {
 	if !isValid {
 		return
 	}
-	rd.IncRef()
+	rm.IncRef()
 	msg := w.mPool.Get()
 
 	w.Lock()
@@ -181,7 +181,7 @@ func (w *messageWriterImpl) Write(rd producer.RefCountedData) {
 		shard: w.replicatedShardID,
 		id:    w.msgID,
 	}
-	msg.Reset(meta, rd)
+	msg.Reset(meta, rm)
 	w.acks.add(meta, msg)
 	w.queue.PushBack(msg)
 	consumerWriters := w.consumerWriters
@@ -317,7 +317,7 @@ func (w *messageWriterImpl) retryBatchWithLock(
 		next = e.Next()
 		m := e.Value.(*message)
 		if m.IsDroppedOrAcked() {
-			// Try removing the ack in case the data was dropped rather than acked.
+			// Try removing the ack in case the message was dropped rather than acked.
 			w.acks.remove(m.Metadata())
 			w.queue.Remove(e)
 			w.mPool.Put(m)

@@ -36,21 +36,21 @@ func TestBuffer(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
 
 	b := NewBuffer(nil)
 	require.Equal(t, 0, int(b.(*buffer).size.Load()))
 	require.Equal(t, 0, b.(*buffer).buffers.Len())
 
-	rd, err := b.Add(md)
+	rm, err := b.Add(mm)
 	require.NoError(t, err)
-	require.Equal(t, uint64(md.Size()), b.(*buffer).size.Load())
+	require.Equal(t, uint64(mm.Size()), b.(*buffer).size.Load())
 
-	md.EXPECT().Finalize(producer.Consumed)
-	// Finalize the data will reduce the buffer size.
-	rd.IncRef()
-	rd.DecRef()
+	mm.EXPECT().Finalize(producer.Consumed)
+	// Finalize the message will reduce the buffer size.
+	rm.IncRef()
+	rm.DecRef()
 	require.Equal(t, 0, int(b.(*buffer).size.Load()))
 }
 
@@ -58,42 +58,42 @@ func TestBufferAddMessageTooLarge(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
 
 	b := NewBuffer(NewOptions().SetMaxMessageSize(1))
-	_, err := b.Add(md)
+	_, err := b.Add(mm)
 	require.Error(t, err)
-	require.Equal(t, errDataTooLarge, err)
+	require.Equal(t, errMessageTooLarge, err)
 }
 
 func TestBufferAddMessageLargerThanMaxBufferSize(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
 
 	b := NewBuffer(NewOptions().SetMaxBufferSize(1))
-	_, err := b.Add(md)
+	_, err := b.Add(mm)
 	require.Error(t, err)
-	require.Equal(t, errInvalidDataLargerThanMaxBufferSize, err)
+	require.Equal(t, errMessageLargerThanMaxBufferSize, err)
 }
 
 func TestBufferCleanupEarliest(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
 
 	b := NewBuffer(NewOptions())
-	rd, err := b.Add(md)
+	rm, err := b.Add(mm)
 	require.NoError(t, err)
-	require.Equal(t, rd.Size(), uint64(md.Size()))
-	require.Equal(t, rd.Size(), b.(*buffer).size.Load())
+	require.Equal(t, rm.Size(), uint64(mm.Size()))
+	require.Equal(t, rm.Size(), b.(*buffer).size.Load())
 
-	md.EXPECT().Finalize(producer.Dropped)
+	mm.EXPECT().Finalize(producer.Dropped)
 	b.(*buffer).dropEarliestUntilTargetWithLock(0)
 	require.Equal(t, uint64(0), b.(*buffer).size.Load())
 }
@@ -104,26 +104,26 @@ func TestBufferCleanupBackground(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
 
 	b := NewBuffer(NewOptions().
 		SetCleanupInterval(100 * time.Millisecond).
 		SetCloseCheckInterval(100 * time.Millisecond).
 		SetInstrumentOptions(instrument.NewOptions())).(*buffer)
-	rd, err := b.Add(md)
+	rm, err := b.Add(mm)
 	require.NoError(t, err)
-	require.Equal(t, rd.Size(), uint64(md.Size()))
-	require.Equal(t, rd.Size(), b.size.Load())
+	require.Equal(t, rm.Size(), uint64(mm.Size()))
+	require.Equal(t, rm.Size(), b.size.Load())
 
 	b.Init()
-	md.EXPECT().Finalize(producer.Consumed)
-	rd.IncRef()
-	rd.DecRef()
+	mm.EXPECT().Finalize(producer.Consumed)
+	rm.IncRef()
+	rm.DecRef()
 
 	b.Close(producer.WaitForConsumption)
 	require.Equal(t, 0, int(b.size.Load()))
-	_, err = b.Add(md)
+	_, err = b.Add(mm)
 	require.Error(t, err)
 	// Safe to close again.
 	b.Close(producer.WaitForConsumption)
@@ -135,20 +135,20 @@ func TestBufferCloseDropEverything(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
 
 	b := NewBuffer(NewOptions().
 		SetCleanupInterval(100 * time.Millisecond).
 		SetCloseCheckInterval(100 * time.Millisecond).
 		SetInstrumentOptions(instrument.NewOptions())).(*buffer)
-	rd, err := b.Add(md)
+	rm, err := b.Add(mm)
 	require.NoError(t, err)
-	require.Equal(t, rd.Size(), uint64(md.Size()))
-	require.Equal(t, rd.Size(), b.size.Load())
+	require.Equal(t, rm.Size(), uint64(mm.Size()))
+	require.Equal(t, rm.Size(), b.size.Load())
 
 	b.Init()
-	md.EXPECT().Finalize(producer.Dropped)
+	mm.EXPECT().Finalize(producer.Dropped)
 	b.Close(producer.DropEverything)
 	for {
 		l := b.size.Load()
@@ -165,24 +165,24 @@ func TestBufferDropEarliestOnFull(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
 
-	b := NewBuffer(NewOptions().SetMaxBufferSize(int(3 * md.Size())))
-	rd1, err := b.Add(md)
+	b := NewBuffer(NewOptions().SetMaxBufferSize(int(3 * mm.Size())))
+	rd1, err := b.Add(mm)
 	require.NoError(t, err)
-	rd2, err := b.Add(md)
+	rd2, err := b.Add(mm)
 	require.NoError(t, err)
-	rd3, err := b.Add(md)
+	rd3, err := b.Add(mm)
 	require.NoError(t, err)
 	require.False(t, rd1.IsDroppedOrConsumed())
 	require.False(t, rd2.IsDroppedOrConsumed())
 	require.False(t, rd3.IsDroppedOrConsumed())
 
-	md2 := producer.NewMockData(ctrl)
-	md2.EXPECT().Size().Return(2 * md.Size()).AnyTimes()
+	md2 := producer.NewMockMessage(ctrl)
+	md2.EXPECT().Size().Return(2 * mm.Size()).AnyTimes()
 
-	md.EXPECT().Finalize(producer.Dropped).Times(2)
+	mm.EXPECT().Finalize(producer.Dropped).Times(2)
 	_, err = b.Add(md2)
 	require.NoError(t, err)
 	require.True(t, rd1.IsDroppedOrConsumed())
@@ -196,26 +196,26 @@ func TestBufferReturnErrorOnFull(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
 
 	b := NewBuffer(
 		NewOptions().
-			SetMaxBufferSize(int(3 * md.Size())).
+			SetMaxBufferSize(int(3 * mm.Size())).
 			SetOnFullStrategy(ReturnError),
 	)
 
-	rd1, err := b.Add(md)
+	rd1, err := b.Add(mm)
 	require.NoError(t, err)
-	rd2, err := b.Add(md)
+	rd2, err := b.Add(mm)
 	require.NoError(t, err)
-	rd3, err := b.Add(md)
+	rd3, err := b.Add(mm)
 	require.NoError(t, err)
 	require.False(t, rd1.IsDroppedOrConsumed())
 	require.False(t, rd2.IsDroppedOrConsumed())
 	require.False(t, rd3.IsDroppedOrConsumed())
 
-	_, err = b.Add(md)
+	_, err = b.Add(mm)
 	require.Error(t, err)
 }
 
@@ -223,9 +223,9 @@ func BenchmarkProduce(b *testing.B) {
 	ctrl := gomock.NewController(b)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
-	md.EXPECT().Finalize(producer.Dropped).AnyTimes()
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm.EXPECT().Finalize(producer.Dropped).AnyTimes()
 
 	buffer := NewBuffer(
 		NewOptions().
@@ -234,7 +234,7 @@ func BenchmarkProduce(b *testing.B) {
 	)
 
 	for n := 0; n < b.N; n++ {
-		_, err := buffer.Add(md)
+		_, err := buffer.Add(mm)
 		if err != nil {
 			b.FailNow()
 		}

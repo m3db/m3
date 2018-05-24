@@ -29,7 +29,7 @@ import (
 )
 
 type message struct {
-	producer.RefCountedData
+	producer.RefCountedMessage
 
 	pb           msgpb.Message
 	meta         metadata
@@ -47,9 +47,9 @@ func newMessage() *message {
 }
 
 // Reset resets the message.
-func (m *message) Reset(meta metadata, data producer.RefCountedData) {
+func (m *message) Reset(meta metadata, rm producer.RefCountedMessage) {
 	m.meta = meta
-	m.RefCountedData = data
+	m.RefCountedMessage = rm
 	m.ToProto(&m.pb)
 	m.retryAtNanos.Store(0)
 	m.retried.Store(0)
@@ -78,13 +78,13 @@ func (m *message) IncWriteTimes() {
 
 // IsDroppedOrAcked returns true if the message has been dropped or acked.
 func (m *message) IsDroppedOrAcked() bool {
-	return m.isAcked.Load() || m.RefCountedData.IsDroppedOrConsumed()
+	return m.isAcked.Load() || m.RefCountedMessage.IsDroppedOrConsumed()
 }
 
 // Ack acknowledges the message. Duplicated acks on the same message might cause panic.
 func (m *message) Ack() {
 	m.isAcked.Store(true)
-	m.RefCountedData.DecRef()
+	m.RefCountedMessage.DecRef()
 }
 
 // Metadata returns the metadata.
@@ -94,10 +94,10 @@ func (m *message) Metadata() metadata {
 
 // Marshaler returns the marshaler and a bool to indicate whether the marshaler is valid.
 func (m *message) Marshaler() (proto.Marshaler, bool) {
-	return &m.pb, !m.RefCountedData.IsDroppedOrConsumed()
+	return &m.pb, !m.RefCountedMessage.IsDroppedOrConsumed()
 }
 
 func (m *message) ToProto(pb *msgpb.Message) {
 	m.meta.ToProto(&pb.Metadata)
-	pb.Value = m.RefCountedData.Bytes()
+	pb.Value = m.RefCountedMessage.Bytes()
 }
