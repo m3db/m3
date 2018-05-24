@@ -48,6 +48,12 @@ type Options interface {
 	// SetOnFullStrategy sets the strategy when buffer is full.
 	SetOnFullStrategy(value OnFullStrategy) Options
 
+	// MaxMessageSize returns the max message size.
+	MaxMessageSize() int
+
+	// SetMaxMessageSize sets the max message size.
+	SetMaxMessageSize(value int) Options
+
 	// MaxBufferSize returns the max buffer size.
 	MaxBufferSize() int
 

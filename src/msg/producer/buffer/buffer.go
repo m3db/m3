@@ -36,6 +36,7 @@ import (
 var (
 	errBufferFull                         = errors.New("buffer full")
 	errBufferClosed                       = errors.New("buffer closed")
+	errDataTooLarge                       = errors.New("data size larger than allowed")
 	errInvalidDataLargerThanMaxBufferSize = errors.New("invalid data, larger than max buffer size")
 )
 
@@ -60,11 +61,12 @@ func newBufferMetrics(scope tally.Scope) bufferMetrics {
 type buffer struct {
 	sync.RWMutex
 
-	buffers       *list.List
-	opts          Options
-	maxBufferSize uint64
-	onFinalizeFn  data.OnFinalizeFn
-	m             bufferMetrics
+	buffers        *list.List
+	opts           Options
+	maxBufferSize  uint64
+	maxMessageSize uint32
+	onFinalizeFn   data.OnFinalizeFn
+	m              bufferMetrics
 
 	size      *atomic.Uint64
 	isClosed  bool
@@ -79,13 +81,14 @@ func NewBuffer(opts Options) producer.Buffer {
 		opts = NewOptions()
 	}
 	b := &buffer{
-		buffers:       list.New(),
-		maxBufferSize: uint64(opts.MaxBufferSize()),
-		opts:          opts,
-		m:             newBufferMetrics(opts.InstrumentOptions().MetricsScope()),
-		size:          atomic.NewUint64(0),
-		doneCh:        make(chan struct{}),
-		isClosed:      false,
+		buffers:        list.New(),
+		maxBufferSize:  uint64(opts.MaxBufferSize()),
+		maxMessageSize: uint32(opts.MaxMessageSize()),
+		opts:           opts,
+		m:              newBufferMetrics(opts.InstrumentOptions().MetricsScope()),
+		size:           atomic.NewUint64(0),
+		doneCh:         make(chan struct{}),
+		isClosed:       false,
 	}
 	b.onFinalizeFn = b.subSize
 	return b
@@ -97,16 +100,19 @@ func (b *buffer) Add(d producer.Data) (producer.RefCountedData, error) {
 		b.Unlock()
 		return nil, errBufferClosed
 	}
-	var (
-		dataSize      = uint64(d.Size())
-		maxBufferSize = b.maxBufferSize
-	)
-	if dataSize > maxBufferSize {
+	s := d.Size()
+	if s > b.maxMessageSize {
+		b.Unlock()
+		b.m.dataTooLarge.Inc(1)
+		return nil, errDataTooLarge
+	}
+	dataSize := uint64(s)
+	if dataSize > b.maxBufferSize {
 		b.Unlock()
 		b.m.dataTooLarge.Inc(1)
 		return nil, errInvalidDataLargerThanMaxBufferSize
 	}
-	targetBufferSize := maxBufferSize - dataSize
+	targetBufferSize := b.maxBufferSize - dataSize
 	if b.size.Load() > targetBufferSize {
 		if err := b.produceOnFullWithLock(targetBufferSize); err != nil {
 			b.Unlock()

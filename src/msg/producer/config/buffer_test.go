@@ -35,6 +35,7 @@ func TestBufferConfiguration(t *testing.T) {
 	str := `
 onFullStrategy: returnError
 maxBufferSize: 100
+maxMessageSize: 16
 cleanupInterval: 2s
 closeCheckInterval: 3s
 `
@@ -45,6 +46,7 @@ closeCheckInterval: 3s
 	bOpts := cfg.NewOptions(nil)
 	require.Equal(t, buffer.ReturnError, bOpts.OnFullStrategy())
 	require.Equal(t, 100, bOpts.MaxBufferSize())
+	require.Equal(t, 16, bOpts.MaxMessageSize())
 	require.Equal(t, 2*time.Second, bOpts.CleanupInterval())
 	require.Equal(t, 3*time.Second, bOpts.CloseCheckInterval())
 }
