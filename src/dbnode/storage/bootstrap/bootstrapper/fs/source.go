@@ -845,7 +845,7 @@ func (s *fileSystemSource) incrementalBootstrapIndexSegment(
 		if !success {
 			return
 		}
-		// if we're successfull, we need to update the segments in the block.
+		// if we're successful, we need to update the segments in the block.
 		segments := replacementSegments
 
 		// get references to existing immutable segments from the block
