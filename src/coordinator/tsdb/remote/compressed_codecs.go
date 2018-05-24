@@ -49,8 +49,6 @@ func blockReaderToSegment(br xio.BlockReader) (*rpc.Segment, error) {
 
 // RPCFromSeriesIterator converts a seriesIterator to a grpc series
 func RPCFromSeriesIterator(it encoding.SeriesIterator) (*rpc.Series, error) {
-	defer it.Close()
-
 	replicas := it.Replicas()
 	compressedReplicas := make([]*rpc.CompressedValuesReplica, 0, len(replicas))
 	for _, replica := range replicas {
@@ -95,13 +93,13 @@ func RPCFromSeriesIterator(it encoding.SeriesIterator) (*rpc.Series, error) {
 	for tagIter.Next() {
 		tag := tagIter.Current()
 		tags = append(tags, &rpc.CompressedTag{
-			Name:  tag.Name.String(),
-			Value: tag.Value.String(),
+			Name:  tag.Name.Bytes(),
+			Value: tag.Value.Bytes(),
 		})
 	}
 
 	compressedDatapoints := &rpc.CompressedDatapoints{
-		Namespace: it.Namespace().String(),
+		Namespace: it.Namespace().Bytes(),
 		StartTime: start,
 		EndTime:   end,
 		Replicas:  compressedReplicas,
@@ -109,7 +107,7 @@ func RPCFromSeriesIterator(it encoding.SeriesIterator) (*rpc.Series, error) {
 	}
 
 	return &rpc.Series{
-		Id:         it.ID().String(),
+		Id:         it.ID().Bytes(),
 		Compressed: compressedDatapoints,
 	}, nil
 }
@@ -211,23 +209,24 @@ func SeriesIteratorFromRPC(iteratorPools encoding.IteratorPools, timeSeries *rpc
 	}
 
 	var (
-		id, ns  ident.ID
-		tags    ident.Tags
-		tagIter ident.TagsIterator
+		idString, nsString = string(timeSeries.GetId()), string(compressedValues.GetNamespace())
+		id, ns             ident.ID
+		tags               ident.Tags
+		tagIter            ident.TagsIterator
 	)
 
 	if idPool != nil {
-		id = idPool.StringID(timeSeries.GetId())
-		ns = idPool.StringID(compressedValues.GetNamespace())
+		id = idPool.StringID(idString)
+		ns = idPool.StringID(nsString)
 		tags = idPool.Tags()
 	} else {
-		id = ident.StringID(timeSeries.GetId())
-		ns = ident.StringID(compressedValues.GetNamespace())
+		id = ident.StringID(idString)
+		ns = ident.StringID(nsString)
 		tags = ident.NewTags()
 	}
 
 	for _, tag := range compressedValues.GetTags() {
-		name, value := tag.GetName(), tag.GetValue()
+		name, value := string(tag.GetName()), string(tag.GetValue())
 		if idPool != nil {
 			tags.Append(idPool.StringTag(name, value))
 		} else {

@@ -212,10 +212,10 @@ func TestConversionToCompressedData(t *testing.T) {
 	series, err := RPCFromSeriesIterator(it)
 	require.NoError(t, err)
 
-	assert.Equal(t, seriesID, series.GetId())
+	assert.Equal(t, []byte(seriesID), series.GetId())
 
 	compressed := series.GetCompressed()
-	assert.Equal(t, seriesNamespace, compressed.GetNamespace())
+	assert.Equal(t, []byte(seriesNamespace), compressed.GetNamespace())
 	assert.Equal(t, start.UnixNano(), compressed.GetStartTime())
 	assert.Equal(t, end.UnixNano(), compressed.GetEndTime())
 
@@ -313,13 +313,14 @@ func (ip *mockIteratorPool) ID() ident.Pool {
 	return ident.NewPool(bytesPool, ident.PoolOptions{})
 }
 
-func TestConversionClosesSeriesIterator(t *testing.T) {
+// NB: make sure that seriesIterator is not closed during conversion, or bytes will be empty
+func TestConversionDoesNotCloseSeriesIterator(t *testing.T) {
 	it := &seriesIteratorWrapper{
 		it:     BuildTestSeriesIterator(t),
 		closed: false,
 	}
 	RPCFromSeriesIterator(it)
-	assert.True(t, it.closed)
+	assert.False(t, it.closed)
 }
 
 var _ encoding.SeriesIterator = &seriesIteratorWrapper{}

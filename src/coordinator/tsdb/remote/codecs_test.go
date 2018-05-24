@@ -37,7 +37,7 @@ import (
 
 var (
 	now      = time.Now()
-	name0    = "regex"
+	name0    = []byte("regex")
 	val0     = "[a-z]"
 	valList0 = &rpc.Datapoints{
 		Datapoints:      []*rpc.Datapoint{{1, 1.0}, {2, 2.0}, {3, 3.0}},
@@ -45,14 +45,14 @@ var (
 	}
 	time0 = "2000-02-06T11:54:48+07:00"
 
-	name1    = "eq"
+	name1    = []byte("eq")
 	val1     = "val"
 	valList1 = &rpc.Datapoints{
 		Datapoints:      []*rpc.Datapoint{{1, 4.0}, {2, 5.0}, {3, 6.0}},
 		FixedResolution: false,
 	}
 
-	name2    = "s2"
+	name2    = []byte("s2")
 	valList2 = &rpc.Datapoints{
 		Datapoints:      []*rpc.Datapoint{{fromTime(now.Add(-3 * time.Minute)), 4.0}, {fromTime(now.Add(-2 * time.Minute)), 5.0}, {fromTime(now.Add(-1 * time.Minute)), 6.0}},
 		FixedResolution: true,
@@ -110,8 +110,8 @@ func TestDecodeFetchResult(t *testing.T) {
 	tsSeries, err := DecodeFetchResult(ctx, rpcSeries)
 	assert.NoError(t, err)
 	assert.Len(t, tsSeries, 3)
-	assert.Equal(t, name0, tsSeries[0].Name())
-	assert.Equal(t, name1, tsSeries[1].Name())
+	assert.Equal(t, string(name0), tsSeries[0].Name())
+	assert.Equal(t, string(name1), tsSeries[1].Name())
 	assert.Equal(t, models.Tags(tags0), tsSeries[0].Tags)
 	assert.Equal(t, models.Tags(tags1), tsSeries[1].Tags)
 
@@ -152,9 +152,9 @@ func readQueriesAreEqual(t *testing.T, this, other *storage.FetchQuery) {
 }
 
 func createStorageFetchQuery(t *testing.T) (*storage.FetchQuery, time.Time, time.Time) {
-	m0, err := models.NewMatcher(models.MatchRegexp, name0, val0)
+	m0, err := models.NewMatcher(models.MatchRegexp, string(name0), val0)
 	require.Nil(t, err)
-	m1, err := models.NewMatcher(models.MatchEqual, name1, val1)
+	m1, err := models.NewMatcher(models.MatchEqual, string(name1), val1)
 	require.Nil(t, err)
 	start, end := parseTimes(t)
 
@@ -175,10 +175,10 @@ func TestEncodeFetchMessage(t *testing.T) {
 	assert.Equal(t, fromTime(end), grpcQ.GetQuery().GetEnd())
 	mRPC := grpcQ.GetQuery().GetTagMatchers()
 	assert.Equal(t, 2, len(mRPC))
-	assert.Equal(t, name0, mRPC[0].GetName())
+	assert.Equal(t, string(name0), mRPC[0].GetName())
 	assert.Equal(t, val0, mRPC[0].GetValue())
 	assert.Equal(t, models.MatchRegexp, models.MatchType(mRPC[0].GetType()))
-	assert.Equal(t, name1, mRPC[1].GetName())
+	assert.Equal(t, string(name1), mRPC[1].GetName())
 	assert.Equal(t, val1, mRPC[1].GetValue())
 	assert.Equal(t, models.MatchEqual, models.MatchType(mRPC[1].GetType()))
 	assert.Equal(t, id, grpcQ.GetOptions().GetId())
