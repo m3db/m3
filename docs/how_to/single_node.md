@@ -5,7 +5,7 @@ has to offer. Our Docker image by default configures a single M3DB instance as o
 containing:
 
 - An M3DB storage instance (`m3dbnode`) for timeseries storage. This includes an embedded tag-based
-  metric index, as well as as an embedded etc server for storing the above mentioned cluster
+  metrics index, as well as as an embedded etcd server for storing the above mentioned cluster
   topology and runtime configuration.
 - A "coordinator" instance (`m3coordinator`) for writing and querying tagged metrics, as well as
   managing cluster topology and runtime configuration.
@@ -25,6 +25,8 @@ placements, etc. are -->
 and write a guide for what is considered a production-ready deployment (this is in the works) -->
 
 Next, create an initial namespace for your metrics:
+
+<!-- TODO: link to config reference docs once available -->
 
 ```json
 curl -X POST localhost:7201/namespace/add -d '{
@@ -73,7 +75,9 @@ curl -X POST localhost:7201/placement/init -d '{
 ```
 
 Shortly after, you should see your node complete bootstrapping! Don't worry if you see warnings or
-errors related to a local cache file. Those are expected for a local instance.
+errors related to a local cache file, such as `[W] could not load cache from file
+/var/lib/m3kv/m3db_embedded.json`. Those are expected for a local instance and in general any
+warn-level errors (prefixed with `[W]`) should not block bootstrapping.
 
 ```
 20:10:12.911218[I] updating database namespaces [{adds [default]} {updates []} {removals []}]
