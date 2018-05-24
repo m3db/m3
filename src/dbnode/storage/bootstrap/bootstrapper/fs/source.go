@@ -863,7 +863,9 @@ func (s *fileSystemSource) incrementalBootstrapIndexSegment(
 		}
 
 		// Now replace the active segment with the persisted segment
-		replacedBlock := result.NewIndexBlock(blockStart, segments, fulfilled)
+		newFulfilled := fulfilled.Copy()
+		newFulfilled.AddRanges(expectedRanges)
+		replacedBlock := result.NewIndexBlock(blockStart, segments, newFulfilled)
 		indexResults[xtime.ToUnixNano(blockStart)] = replacedBlock
 	}()
 
