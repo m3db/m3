@@ -4,7 +4,6 @@
 
 A time series database.
 
-
 Documentation: https://m3db.github.io/m3db/
 
 Notes for [developers]
@@ -17,11 +16,21 @@ Notes for [developers]
 
 ### Starting a node
 
-To start a local node, you can build with `make m3dbnode` and then run `./bin/m3dbnode -f ./src/dbnode/config/m3dbnode-local.yml`.  To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64`.
+```
+# to build a local m3dbnode process
+make m3dbnode
+
+# run it with the sample configuration
+./bin/m3dbnode -f ./src/dbnode/config/m3dbnode-local.yml
+```
+
+To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64`.
 
 ### Test RPC
 
-To test out some of the functionality of M3DB there are some user friendly HTTP JSON APIs that you can use.  These use the DB node cluster service endpoints.  There are more performant endpoints are
+To test out some of the functionality of M3DB there are some user friendly HTTP JSON APIs that you can use.  These use the DB node cluster service endpoints.  
+
+Note: performance sensitive users are expected to use the more performant endpoints via either the Go `src/dbnode/client/Session` API, or the GRPC endpoints exposed via `src/coordinator`.
 
 #### Write a datapoint
 
