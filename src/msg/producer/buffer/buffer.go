@@ -27,23 +27,23 @@ import (
 	"time"
 
 	"github.com/m3db/m3msg/producer"
-	"github.com/m3db/m3msg/producer/data"
+	"github.com/m3db/m3msg/producer/msg"
 
 	"github.com/uber-go/atomic"
 	"github.com/uber-go/tally"
 )
 
 var (
-	errBufferFull                         = errors.New("buffer full")
-	errBufferClosed                       = errors.New("buffer closed")
-	errDataTooLarge                       = errors.New("data size larger than allowed")
-	errInvalidDataLargerThanMaxBufferSize = errors.New("invalid data, larger than max buffer size")
+	errBufferFull                     = errors.New("buffer full")
+	errBufferClosed                   = errors.New("buffer closed")
+	errMessageTooLarge                = errors.New("message size larger than allowed")
+	errMessageLargerThanMaxBufferSize = errors.New("message size larger than max buffer size")
 )
 
 type bufferMetrics struct {
 	messageDropped  tally.Counter
 	bytesDropped    tally.Counter
-	dataTooLarge    tally.Counter
+	messageTooLarge tally.Counter
 	messageBuffered tally.Gauge
 	bytesBuffered   tally.Gauge
 }
@@ -52,7 +52,7 @@ func newBufferMetrics(scope tally.Scope) bufferMetrics {
 	return bufferMetrics{
 		messageDropped:  scope.Counter("message-dropped"),
 		bytesDropped:    scope.Counter("bytes-dropped"),
-		dataTooLarge:    scope.Counter("data-too-large"),
+		messageTooLarge: scope.Counter("message-too-large"),
 		messageBuffered: scope.Gauge("message-buffered"),
 		bytesBuffered:   scope.Gauge("bytes-buffered"),
 	}
@@ -65,7 +65,7 @@ type buffer struct {
 	opts           Options
 	maxBufferSize  uint64
 	maxMessageSize uint32
-	onFinalizeFn   data.OnFinalizeFn
+	onFinalizeFn   msg.OnFinalizeFn
 	m              bufferMetrics
 
 	size      *atomic.Uint64
@@ -94,23 +94,23 @@ func NewBuffer(opts Options) producer.Buffer {
 	return b
 }
 
-func (b *buffer) Add(d producer.Data) (producer.RefCountedData, error) {
+func (b *buffer) Add(m producer.Message) (producer.RefCountedMessage, error) {
 	b.Lock()
 	if b.isClosed {
 		b.Unlock()
 		return nil, errBufferClosed
 	}
-	s := d.Size()
+	s := m.Size()
 	if s > b.maxMessageSize {
 		b.Unlock()
-		b.m.dataTooLarge.Inc(1)
-		return nil, errDataTooLarge
+		b.m.messageTooLarge.Inc(1)
+		return nil, errMessageTooLarge
 	}
 	dataSize := uint64(s)
 	if dataSize > b.maxBufferSize {
 		b.Unlock()
-		b.m.dataTooLarge.Inc(1)
-		return nil, errInvalidDataLargerThanMaxBufferSize
+		b.m.messageTooLarge.Inc(1)
+		return nil, errMessageLargerThanMaxBufferSize
 	}
 	targetBufferSize := b.maxBufferSize - dataSize
 	if b.size.Load() > targetBufferSize {
@@ -120,10 +120,10 @@ func (b *buffer) Add(d producer.Data) (producer.RefCountedData, error) {
 		}
 	}
 	b.size.Add(dataSize)
-	rd := data.NewRefCountedData(d, b.onFinalizeFn)
-	b.buffers.PushBack(rd)
+	rm := msg.NewRefCountedMessage(m, b.onFinalizeFn)
+	b.buffers.PushBack(rm)
 	b.Unlock()
-	return rd, nil
+	return rm, nil
 }
 
 func (b *buffer) produceOnFullWithLock(targetSize uint64) error {
@@ -140,16 +140,16 @@ func (b *buffer) dropEarliestUntilTargetWithLock(targetSize uint64) {
 	var next *list.Element
 	for e := b.buffers.Front(); e != nil && b.size.Load() > targetSize; e = next {
 		next = e.Next()
-		d := e.Value.(producer.RefCountedData)
+		rm := e.Value.(producer.RefCountedMessage)
 		b.buffers.Remove(e)
-		if d.IsDroppedOrConsumed() {
+		if rm.IsDroppedOrConsumed() {
 			continue
 		}
-		// There is a chance that the data is consumed right before
+		// There is a chance that the message is consumed right before
 		// the drop call which will lead drop to return false.
-		if d.Drop() {
+		if rm.Drop() {
 			b.m.messageDropped.Inc(1)
-			b.m.bytesDropped.Inc(int64(d.Size()))
+			b.m.bytesDropped.Inc(int64(rm.Size()))
 		}
 	}
 }
@@ -185,17 +185,17 @@ func (b *buffer) cleanupWithLock() {
 	var next *list.Element
 	for e := b.buffers.Front(); e != nil; e = next {
 		next = e.Next()
-		d := e.Value.(producer.RefCountedData)
-		if d.IsDroppedOrConsumed() {
+		rm := e.Value.(producer.RefCountedMessage)
+		if rm.IsDroppedOrConsumed() {
 			b.buffers.Remove(e)
 			continue
 		}
 		if !b.forceDrop {
 			continue
 		}
-		if d.Drop() {
+		if rm.Drop() {
 			b.m.messageDropped.Inc(1)
-			b.m.bytesDropped.Inc(int64(d.Size()))
+			b.m.bytesDropped.Inc(int64(rm.Size()))
 			b.buffers.Remove(e)
 		}
 	}
@@ -240,6 +240,6 @@ func (b *buffer) isBufferEmpty() bool {
 	return l == 0
 }
 
-func (b *buffer) subSize(d producer.RefCountedData) {
-	b.size.Sub(d.Size())
+func (b *buffer) subSize(rm producer.RefCountedMessage) {
+	b.size.Sub(rm.Size())
 }

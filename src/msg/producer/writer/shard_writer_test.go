@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3msg/generated/proto/msgpb"
 	"github.com/m3db/m3msg/producer"
-	"github.com/m3db/m3msg/producer/data"
+	"github.com/m3db/m3msg/producer/msg"
 	"github.com/m3db/m3msg/protocol/proto"
 
 	"github.com/fortytw2/leaktest"
@@ -83,11 +83,11 @@ func TestSharedShardWriter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Bytes().Return([]byte("foo"))
-	md.EXPECT().Finalize(producer.Consumed)
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Bytes().Return([]byte("foo"))
+	mm.EXPECT().Finalize(producer.Consumed)
 
-	sw.Write(data.NewRefCountedData(md, nil))
+	sw.Write(msg.NewRefCountedMessage(mm, nil))
 
 	mw := sw.(*sharedShardWriter).mw.(*messageWriterImpl)
 	mw.RLock()
@@ -166,10 +166,10 @@ func TestReplicatedShardWriter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Bytes().Return([]byte("foo")).Times(2)
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Bytes().Return([]byte("foo")).Times(2)
 
-	sw.Write(data.NewRefCountedData(md, nil))
+	sw.Write(msg.NewRefCountedMessage(mm, nil))
 
 	mw1 := sw.messageWriters[i1.Endpoint()].(*messageWriterImpl)
 	require.Equal(t, 1, mw1.queue.Len())
@@ -196,7 +196,7 @@ func TestReplicatedShardWriter(t *testing.T) {
 	}
 	require.Equal(t, 1, mw3.queue.Len())
 
-	md.EXPECT().Finalize(producer.Consumed)
+	mm.EXPECT().Finalize(producer.Consumed)
 	sw.UpdateInstances(
 		[]placement.Instance{i1, i2},
 		cws,
@@ -274,10 +274,10 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md := producer.NewMockData(ctrl)
-	md.EXPECT().Bytes().Return([]byte("foo")).Times(2)
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Bytes().Return([]byte("foo")).Times(2)
 
-	sw.Write(data.NewRefCountedData(md, nil))
+	sw.Write(msg.NewRefCountedMessage(mm, nil))
 	require.Equal(t, 1, mw1.queue.Len())
 	require.Equal(t, 1, mw2.queue.Len())
 
@@ -317,7 +317,7 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 
 	require.Equal(t, 1, len(sw.messageWriters))
 
-	md.EXPECT().Finalize(producer.Consumed)
+	mm.EXPECT().Finalize(producer.Consumed)
 	require.NoError(t, server.Encode(&msgpb.Ack{Metadata: []msgpb.Metadata{msg.Metadata}}))
 	// Make sure mw2 is closed and removed from router.
 	for {

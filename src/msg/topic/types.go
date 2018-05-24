@@ -115,18 +115,18 @@ type ServiceOptions interface {
 
 //go:generate stringer -type=ConsumptionType
 
-// ConsumptionType defines how the consumer consumes data.
+// ConsumptionType defines how the consumer consumes messages.
 type ConsumptionType int
 
 const (
 	// Unknown is the unknown consumption type.
 	Unknown ConsumptionType = iota
 
-	// Shared means the data for each shard will be
+	// Shared means the messages for each shard will be
 	// shared by all the responsible instances.
 	Shared
 
-	// Replicated means the data for each shard will be
+	// Replicated means the messages for each shard will be
 	// replicated to all the responsible instances.
 	Replicated
 )

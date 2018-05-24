@@ -34,7 +34,7 @@ const (
 	// on new buffer requests when the buffer is full.
 	ReturnError OnFullStrategy = "returnError"
 
-	// DropEarliest means the earlist data in the buffer
+	// DropEarliest means the earlist message in the buffer
 	// will be dropped to make room for new buffer requests
 	// when the buffer is full.
 	DropEarliest OnFullStrategy = "dropEarliest"

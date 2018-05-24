@@ -156,16 +156,16 @@ func (s *setup) Run(
 	ctrl *gomock.Controller,
 ) {
 	numWritesPerProducer := msgPerShard * numberOfShards
-	mockData := make([]producer.Data, 0, numWritesPerProducer)
+	mockData := make([]producer.Message, 0, numWritesPerProducer)
 	for i := 0; i < numberOfShards; i++ {
 		for j := 0; j < msgPerShard; j++ {
 			b := fmt.Sprintf("foo%d-%d", i, j)
-			md := producer.NewMockData(ctrl)
-			md.EXPECT().Size().Return(uint32(len(b))).AnyTimes()
-			md.EXPECT().Bytes().Return([]byte(b)).AnyTimes()
-			md.EXPECT().Shard().Return(uint32(i)).AnyTimes()
-			md.EXPECT().Finalize(producer.Consumed).Times(len(s.producers))
-			mockData = append(mockData, md)
+			mm := producer.NewMockMessage(ctrl)
+			mm.EXPECT().Size().Return(uint32(len(b))).AnyTimes()
+			mm.EXPECT().Bytes().Return([]byte(b)).AnyTimes()
+			mm.EXPECT().Shard().Return(uint32(i)).AnyTimes()
+			mm.EXPECT().Finalize(producer.Consumed).Times(len(s.producers))
+			mockData = append(mockData, mm)
 		}
 	}
 
@@ -174,17 +174,17 @@ func (s *setup) Run(
 		num := op.progressPct * numWritesPerProducer / 100
 		ops[num] = op.fn
 	}
-	log.SimpleLogger.Debug("producing data")
+	log.SimpleLogger.Debug("producing messages")
 	for i := 0; i < numWritesPerProducer; i++ {
 		if fn, ok := ops[i]; ok {
 			fn()
 		}
-		d := mockData[i]
+		m := mockData[i]
 		for _, p := range s.producers {
-			require.NoError(t, p.Produce(d))
+			require.NoError(t, p.Produce(m))
 		}
 	}
-	log.SimpleLogger.Debug("produced all the data")
+	log.SimpleLogger.Debug("produced all the messages")
 	s.CloseProducers(closeTimeout)
 	s.CloseConsumers()
 	for _, cs := range s.consumerServices {

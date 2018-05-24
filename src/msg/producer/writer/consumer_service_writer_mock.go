@@ -55,8 +55,8 @@ func (_m *MockconsumerServiceWriter) EXPECT() *MockconsumerServiceWriterMockReco
 }
 
 // Write mocks base method
-func (_m *MockconsumerServiceWriter) Write(d producer.RefCountedData) {
-	_m.ctrl.Call(_m, "Write", d)
+func (_m *MockconsumerServiceWriter) Write(rm producer.RefCountedMessage) {
+	_m.ctrl.Call(_m, "Write", rm)
 }
 
 // Write indicates an expected call of Write
