@@ -13,6 +13,8 @@ Notes for [developers]
 
 ## Test it out
 
+(For a fully comprehsensive getting started guide, see our [single node how-to](https://m3db.github.io/m3db/how_to/single_node/)).
+
 ### Starting a node
 
 To start a local node, you can build with `make m3dbnode` and then run `./bin/m3dbnode -f ./src/dbnode/config/m3dbnode-local.yml`.  To cross-compile and build for Linux AMD64 build with `make m3dbnode-linux-amd64`.
@@ -24,13 +26,40 @@ To test out some of the functionality of M3DB there are some user friendly HTTP 
 #### Write a datapoint
 
 ```
-curl http://localhost:9003/writetagged -s -X POST -d '{"namespace":"metrics","id":"foo","tags":[{"name":"city","value":"new_york"},{"name":"endpoint","value":"/request"}],"datapoint":{"timestamp":'"$(date +"%s")"',"value":42.123456789}}'
+curl http://localhost:9003/writetagged -s -X POST -d '{
+  "namespace": "default",
+  "id": "foo",
+  "tags": [
+    {
+      "name": "city",
+      "value": "new_york"
+    },
+    {
+      "name": "endpoint",
+      "value": "/request"
+    }
+  ],
+  "datapoint": {
+    "timestamp":'"$(date +"%s")"',
+    "value": 42.123456789
+  }
+}'
 ```
 
 #### Query for reverse indexed time series data
 
 ```
-curl http://localhost:9003/query -s -X POST -d '{"namespace":"metrics","query":{"regexp":{"field":"city","regexp":".*"}},"rangeStart":0,"rangeEnd":'"$(date +"%s")"'}' | jq .
+curl http://localhost:9003/query -s -X POST -d '{
+  "namespace": "default",
+  "query": {
+    "regexp": {
+      "field": "city",
+      "regexp": ".*"
+    }
+  },
+  "rangeStart": 0,
+  "rangeEnd":'"$(date +"%s")"'
+}' | jq .
 ```
 
 ## Building with Docker
