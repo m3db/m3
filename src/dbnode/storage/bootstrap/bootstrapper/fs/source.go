@@ -815,12 +815,57 @@ func (s *fileSystemSource) incrementalBootstrapIndexSegment(
 
 	indexResults := runResult.index.IndexResults()
 	indexBlock, ok := indexResults[xtime.ToUnixNano(blockStart)]
-	if !ok || !indexBlockHasSingleMutableSegment(indexBlock) {
-		return fmt.Errorf("missing single mutable segment")
+	if !ok {
+		return fmt.Errorf("did not find index block for blocksStart: %d", blockStart.Unix())
 	}
 
-	mutableSegment := indexBlock.Segments()[0].(segment.MutableSegment)
-	fulfilled := indexBlock.Fulfilled()
+	var (
+		mutableSegment     segment.MutableSegment
+		numMutableSegments = 0
+	)
+
+	for _, seg := range indexBlock.Segments() {
+		if mSeg, ok := seg.(segment.MutableSegment); ok {
+			mutableSegment = mSeg
+			numMutableSegments++
+		}
+	}
+
+	if numMutableSegments != 1 {
+		return fmt.Errorf("error asserting index block has single mutable segment for blocksStart: %d, found: %d",
+			blockStart.Unix(), numMutableSegments)
+	}
+
+	var (
+		fulfilled           = indexBlock.Fulfilled()
+		success             = false
+		replacementSegments []segment.Segment
+	)
+	defer func() {
+		if !success {
+			return
+		}
+		// if we're successfull, we need to update the segments in the block.
+		segments := replacementSegments
+
+		// get references to existing immutable segments from the block
+		for _, seg := range indexBlock.Segments() {
+			mSeg, ok := seg.(segment.MutableSegment)
+			if !ok {
+				segments = append(segments, seg)
+				continue
+			}
+			if err := mSeg.Close(); err != nil {
+				// safe to only log warning as we have persisted equivalent for the mutable block
+				// at this point.
+				s.log.Warnf("encountered error while closing persisted mutable segment: %v", err)
+			}
+		}
+
+		// Now replace the active segment with the persisted segment
+		replacedBlock := result.NewIndexBlock(blockStart, segments, fulfilled)
+		indexResults[xtime.ToUnixNano(blockStart)] = replacedBlock
+	}()
 
 	// Check that completely fulfilled all shards for the block
 	// and we didn't bootstrap any more/less
@@ -828,12 +873,8 @@ func (s *fileSystemSource) incrementalBootstrapIndexSegment(
 	requireFulfilled.Subtract(fulfilled)
 	exactStartEnd := min.Equal(blockStart) && max.Equal(blockStart.Add(blockSize))
 	if !exactStartEnd || !requireFulfilled.IsEmpty() {
-		return fmt.Errorf(
-			"incremental fs index bootstrap invalid ranges to persist: "+
-				"expected=%v, actual=%v, fulfilled=%v",
-			expectedRanges.String(),
-			requestedRanges.String(),
-			fulfilled.String())
+		return fmt.Errorf("incremental fs index bootstrap invalid ranges to persist: expected=%v, actual=%v, fulfilled=%v",
+			expectedRanges.String(), requestedRanges.String(), fulfilled.String())
 	}
 
 	// NB(r): Need to get an exclusive lock to actually write the segment out
@@ -880,7 +921,7 @@ func (s *fileSystemSource) incrementalBootstrapIndexSegment(
 	}
 
 	calledClose = true
-	immutableSegments, err := preparedPersist.Close()
+	replacementSegments, err = preparedPersist.Close()
 	if err != nil {
 		return err
 	}
@@ -893,23 +934,9 @@ func (s *fileSystemSource) incrementalBootstrapIndexSegment(
 	// Track success
 	s.metrics.persistedIndexBlocksWrite.Inc(1)
 
-	// Now replace the active segment with the persisted segment
-	replacedBlock := result.NewIndexBlock(blockStart,
-		immutableSegments, fulfilled)
-	indexResults[xtime.ToUnixNano(blockStart)] = replacedBlock
-
-	// Close the previous mutable segment
-	mutableSegment.Close()
-
+	// indicate the defer above should replace the mutable segments in the index block.
+	success = true
 	return nil
-}
-
-func indexBlockHasSingleMutableSegment(b result.IndexBlock) bool {
-	if len(b.Segments()) != 1 {
-		return false
-	}
-	_, ok := b.Segments()[0].(segment.MutableSegment)
-	return ok
 }
 
 func (s *fileSystemSource) read(
