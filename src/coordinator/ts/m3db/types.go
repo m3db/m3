@@ -37,7 +37,7 @@ type SeriesBlock struct {
 // SeriesBlocks is a placeholder until it is added to M3DB
 type SeriesBlocks struct {
 	ID        ident.ID
-	Namespace string
+	Namespace ident.ID
 	Blocks    []SeriesBlock
 }
 
@@ -52,7 +52,7 @@ func (n MultiNamespaceSeries) ID() ident.ID { return n[0].ID }
 // happen across namespaces
 type ConsolidatedNSBlock struct {
 	ID              ident.ID
-	Namespace       string
+	Namespace       ident.ID
 	Start           time.Time
 	End             time.Time
 	SeriesIterators encoding.SeriesIterators
