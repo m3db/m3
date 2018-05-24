@@ -27,7 +27,8 @@ import (
 )
 
 var (
-	defaultMaxBufferSize      = 1 * 1024 * 1024 // 1MB.
+	defaultMaxBufferSize      = 100 * 1024 * 1024 // 100MB.
+	defaultMaxMessageSize     = 1 * 1024 * 1024   // 1MB.
 	defaultCleanupInterval    = time.Second
 	defaultCloseCheckInterval = time.Second
 )
@@ -35,6 +36,7 @@ var (
 type bufferOptions struct {
 	strategy           OnFullStrategy
 	maxBufferSize      int
+	maxMessageSize     int
 	cleanupInterval    time.Duration
 	closeCheckInterval time.Duration
 	iOpts              instrument.Options
@@ -45,6 +47,7 @@ func NewOptions() Options {
 	return &bufferOptions{
 		strategy:           DropEarliest,
 		maxBufferSize:      defaultMaxBufferSize,
+		maxMessageSize:     defaultMaxMessageSize,
 		cleanupInterval:    defaultCleanupInterval,
 		closeCheckInterval: defaultCloseCheckInterval,
 		iOpts:              instrument.NewOptions(),
@@ -58,6 +61,16 @@ func (opts *bufferOptions) OnFullStrategy() OnFullStrategy {
 func (opts *bufferOptions) SetOnFullStrategy(value OnFullStrategy) Options {
 	o := *opts
 	o.strategy = value
+	return &o
+}
+
+func (opts *bufferOptions) MaxMessageSize() int {
+	return opts.maxMessageSize
+}
+
+func (opts *bufferOptions) SetMaxMessageSize(value int) Options {
+	o := *opts
+	o.maxMessageSize = value
 	return &o
 }
 

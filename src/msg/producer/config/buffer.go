@@ -31,6 +31,7 @@ import (
 type BufferConfiguration struct {
 	OnFullStrategy     *buffer.OnFullStrategy `yaml:"onFullStrategy"`
 	MaxBufferSize      *int                   `yaml:"maxBufferSize"`
+	MaxMessageSize     *int                   `yaml:"maxMessageSize"`
 	CleanupInterval    *time.Duration         `yaml:"cleanupInterval"`
 	CloseCheckInterval *time.Duration         `yaml:"closeCheckInterval"`
 }
@@ -40,6 +41,9 @@ func (c *BufferConfiguration) NewOptions(iOpts instrument.Options) buffer.Option
 	opts := buffer.NewOptions().SetOnFullStrategy(buffer.DropEarliest)
 	if c.MaxBufferSize != nil {
 		opts = opts.SetMaxBufferSize(*c.MaxBufferSize)
+	}
+	if c.MaxMessageSize != nil {
+		opts = opts.SetMaxMessageSize(*c.MaxMessageSize)
 	}
 	if c.CleanupInterval != nil {
 		opts = opts.SetCleanupInterval(*c.CleanupInterval)

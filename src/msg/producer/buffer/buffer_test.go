@@ -54,7 +54,20 @@ func TestBuffer(t *testing.T) {
 	require.Equal(t, 0, int(b.(*buffer).size.Load()))
 }
 
-func TestBufferWithSmallSize(t *testing.T) {
+func TestBufferAddMessageTooLarge(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	md := producer.NewMockData(ctrl)
+	md.EXPECT().Size().Return(uint32(100)).AnyTimes()
+
+	b := NewBuffer(NewOptions().SetMaxMessageSize(1))
+	_, err := b.Add(md)
+	require.Error(t, err)
+	require.Equal(t, errDataTooLarge, err)
+}
+
+func TestBufferAddMessageLargerThanMaxBufferSize(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -64,6 +77,7 @@ func TestBufferWithSmallSize(t *testing.T) {
 	b := NewBuffer(NewOptions().SetMaxBufferSize(1))
 	_, err := b.Add(md)
 	require.Error(t, err)
+	require.Equal(t, errInvalidDataLargerThanMaxBufferSize, err)
 }
 
 func TestBufferCleanupEarliest(t *testing.T) {
