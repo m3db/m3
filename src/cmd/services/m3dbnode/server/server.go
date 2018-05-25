@@ -74,6 +74,7 @@ import (
 	"github.com/m3db/m3x/pool"
 
 	"github.com/coreos/etcd/embed"
+	"github.com/coreos/pkg/capnslog"
 	"github.com/uber-go/tally"
 )
 
@@ -144,6 +145,8 @@ func Run(runOpts RunOptions) {
 	if err != nil {
 		logger.Fatalf("could not resolve local host ID: %v", err)
 	}
+
+	capnslog.SetGlobalLogLevel(capnslog.WARNING)
 
 	// Presence of KV server config indicates embedded etcd cluster
 	if cfg.EnvironmentConfig.SeedNodes != nil {

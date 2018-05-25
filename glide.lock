@@ -1,5 +1,5 @@
-hash: 57a32b0d79e885396b3c041b3c8257cb8b2495f6fce8aeda974f9c7ae2fc90a6
-updated: 2018-05-23T10:57:17.824288976-04:00
+hash: 2a2255466ac5d28a2fb2b58fea870901c9293f65187b752573811abde1c83824
+updated: 2018-05-25T15:28:47.008691-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -99,7 +99,7 @@ imports:
   - journal
   - util
 - name: github.com/coreos/pkg
-  version: 3ac0863d7acf3bc44daf49afef8919af12f704ef
+  version: 97fdf19511ea361ae1c100dd393cc47f8dcfa1e1
   subpackages:
   - capnslog
 - name: github.com/couchbase/vellum
