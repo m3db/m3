@@ -26,7 +26,7 @@ cache_policy         ?= recently_read
 
 BUILD                := $(abspath ./bin)
 GO_BUILD_LDFLAGS_CMD := $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package)
-GO_BUILD_LDFLAGS     := $(shell $(GO_BUILD_LDFLAGS_SCRIPT))
+GO_BUILD_LDFLAGS     := $(shell $(GO_BUILD_LDFLAGS_CMD))
 LINUX_AMD64_ENV      := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 GO_RELEASER_VERSION  := v0.76.1
 
