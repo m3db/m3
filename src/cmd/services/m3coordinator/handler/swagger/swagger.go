@@ -18,51 +18,66 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placement
+package swagger
 
 import (
-	"encoding/json"
+	"html/template"
 	"net/http"
 
-	clusterclient "github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-
 	"go.uber.org/zap"
 )
 
 const (
-	// DeleteAllURL is the url for the handler to delete all placements (with the DELETE method).
-	DeleteAllURL = handler.RoutePrefix + "/placement"
+	// URL is the url for the swagger handler.
+	URL = handler.RoutePrefix + "/swagger"
+
+	// HTTPMethod is the HTTP method used with this resource.
+	HTTPMethod = "GET"
+
+	swaggerSpecDir = "swagger/spec/"
+
+	swaggerTitle = "M3DB Documentation"
 )
 
-type deleteAllHandler Handler
+var (
+	// SpecURLPrefix is the url prefix for swagger specs.
+	SpecURLPrefix = URL + "/spec/"
 
-// NewDeleteAllHandler returns a new instance of a placement delete all handler.
-func NewDeleteAllHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
-	return &deleteAllHandler{client: client, cfg: cfg}
+	swaggerSpec = SpecURLPrefix + "coordinator.yml"
+)
+
+// TemplateHandler handles serving the swagger template.
+type TemplateHandler struct{}
+
+// Doc is a Swagger doc.
+type Doc struct {
+	Title string
+	Spec  string
 }
 
-func (h *deleteAllHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// ServeHTTP serves the swagger template.
+func (*TemplateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	service, err := Service(h.client, h.cfg)
+	t, err := template.ParseFiles("swagger/template.html")
 	if err != nil {
+		logger.Error("unable generate Swagger docs", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	if err := service.Delete(); err != nil {
-		logger.Error("unable to delete placement", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
-		return
+	doc := &Doc{
+		Title: swaggerTitle,
+		Spec:  swaggerSpec,
 	}
 
-	json.NewEncoder(w).Encode(struct {
-		Deleted bool `json:"deleted"`
-	}{
-		Deleted: true,
-	})
+	t.Execute(w, doc)
+}
+
+// SpecHandler is the handler for serving swagger specs.
+func SpecHandler() http.Handler {
+	return http.StripPrefix(SpecURLPrefix, http.FileServer(http.Dir(swaggerSpecDir)))
 }

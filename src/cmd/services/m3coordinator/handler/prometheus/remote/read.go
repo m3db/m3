@@ -40,7 +40,7 @@ import (
 
 const (
 	// PromReadURL is the url for remote prom read handler
-	PromReadURL = "/api/v1/prom/remote/read"
+	PromReadURL = handler.RoutePrefix + "/prom/remote/read"
 )
 
 // PromReadHandler represents a handler for prometheus read endpoint.

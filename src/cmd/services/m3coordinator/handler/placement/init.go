@@ -38,7 +38,7 @@ import (
 
 const (
 	// InitURL is the url for the placement init handler (with the POST method).
-	InitURL = "/placement/init"
+	InitURL = handler.RoutePrefix + "/placement/init"
 )
 
 type initHandler Handler

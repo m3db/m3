@@ -35,7 +35,7 @@ import (
 
 const (
 	// GetURL is the url for the placement get handler (with the GET method).
-	GetURL = "/placement"
+	GetURL = handler.RoutePrefix + "/placement"
 )
 
 type getHandler Handler
