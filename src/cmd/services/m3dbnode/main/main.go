@@ -78,7 +78,7 @@ func main() {
 
 	if cfg.DB != nil {
 		dbserver.Run(dbserver.RunOptions{
-			Config:          cfg.DB,
+			Config:          *cfg.DB,
 			ClientCh:        dbClientCh,
 			ClusterClientCh: clusterClientCh,
 		})
