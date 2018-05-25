@@ -29,6 +29,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -45,7 +46,6 @@ const (
 	serviceName            = "m3dbnode_test"
 	serviceEnv             = "test"
 	serviceZone            = "local"
-	servicePort            = 9000
 	namespaceID            = "metrics"
 	lpURL                  = "http://0.0.0.0:2380"
 	lcURL                  = "http://0.0.0.0:2379"
@@ -55,6 +55,15 @@ const (
 	initialClusterHostID   = hostID
 	initialClusterEndpoint = apURL
 )
+
+var (
+	// NB: access through nextServicePort
+	_servicePort uint32 = 9000
+)
+
+func nextServicePort() uint32 {
+	return atomic.AddUint32(&_servicePort, 1000)
+}
 
 type cleanup func()
 

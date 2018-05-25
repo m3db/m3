@@ -73,6 +73,7 @@ func TestConfig(t *testing.T) {
 	dataDir, cleanupDataDir := tempDir(t, "data")
 	defer cleanupDataDir()
 
+	servicePort := nextServicePort()
 	err = tmpl.Execute(configFd, struct {
 		HostID                string
 		LogFile               string
@@ -244,6 +245,7 @@ func TestEmbeddedConfig(t *testing.T) {
 	dataDir, cleanupDataDir := tempDir(t, "data")
 	defer cleanupDataDir()
 
+	servicePort := nextServicePort()
 	err = tmpl.Execute(configFd, struct {
 		HostID                 string
 		LogFile                string
