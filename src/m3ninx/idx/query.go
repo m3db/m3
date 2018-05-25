@@ -30,6 +30,10 @@ type Query struct {
 	query search.Query
 }
 
+func (q Query) String() string {
+	return q.query.String()
+}
+
 // NewTermQuery returns a new query for finding documents which match a term exactly.
 func NewTermQuery(field, term []byte) Query {
 	return Query{
