@@ -67,7 +67,7 @@ var (
 		pool.NewObjectPoolOptions().SetSize(1))
 	testTagEncodingPool = serialize.NewTagEncoderPool(serialize.NewTagEncoderOptions(),
 		pool.NewObjectPoolOptions().SetSize(1))
-	testIDPool     = NewOptions().IdentifierPool()
+	testIDPool     = newSessionTestOptions().IdentifierPool()
 	fooID          = ident.StringID("foo")
 	fooTags        checked.Bytes
 	fooDecodedTags = ident.NewTags(ident.StringTag("aaa", "bbb"))
@@ -106,8 +106,7 @@ func newSessionTestMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 }
 
 func newSessionTestAdminOptions() AdminOptions {
-
-	opts := applySessionTestOptions(NewAdminOptions()).(AdminOptions)
+	opts := newSessionTestOptions().(AdminOptions)
 	hostShardSets := sessionTestHostAndShards(sessionTestShardSet())
 	host := hostShardSets[0].Host()
 	return opts.

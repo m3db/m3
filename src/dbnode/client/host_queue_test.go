@@ -44,7 +44,7 @@ type hostQueueResult struct {
 }
 
 func newHostQueueTestOptions() Options {
-	return NewOptions().
+	return newSessionTestOptions().
 		SetHostQueueOpsFlushSize(4).
 		SetHostQueueOpsArrayPoolSize(4).
 		SetWriteBatchSize(4).
