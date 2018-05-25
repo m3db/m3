@@ -96,6 +96,10 @@ func RPCFromSeriesIterator(it encoding.SeriesIterator) (*rpc.Series, error) {
 			Value: tag.Value.Bytes(),
 		})
 	}
+	err := tagIter.Err()
+	if err != nil {
+		return nil, err
+	}
 
 	compressedDatapoints := &rpc.CompressedDatapoints{
 		Namespace: it.Namespace().Bytes(),
