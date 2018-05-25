@@ -97,7 +97,9 @@ db:
   bootstrap:
     bootstrappers:
         - filesystem
+        - peers
         - commitlog
+        - noop-none
     fs:
         numProcessorsPerCPU: 0.125
 
