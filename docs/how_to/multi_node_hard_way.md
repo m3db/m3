@@ -15,9 +15,9 @@ A few different things to highlight about the diagram:
 
 There are three ‘role types’ for a m3db deployment -
 
-- m3coordinator: the m3coordinator binary serves to coordinate reads and writes across all hosts in the cluster. It’s a lightweight process, and does not store any data when running in this mode. This role would typically be run alongside a Prometheus instance, or be baked into a collector agent.
+- m3coordinator: m3coordinator serves to coordinate reads and writes across all hosts in the cluster. It’s a lightweight process, and does not store any data when running in this mode. This role would typically be run alongside a Prometheus instance, or be baked into a collector agent.
 
-- Storage Node: m3dbnode processes running on these hosts are the workhorses of the database, they store data; and serve reads and writes.
+- Storage Node: `m3dbnode` processes running on these hosts are the workhorses of the database, they store data; and serve reads and writes.
 
 - Seed Node: First and foremost, these hosts are storage nodes themselves. In addition to that responsibility, they run an embedded ETCD server. This is to allow the various M3DB processes running across the cluster to reason about the topology/configuration of the cluster in a consistent manner.
 
@@ -35,7 +35,7 @@ In this example we assume you have created three VIPs m3db001-us-east, m3db002-u
 Further, we assume you have hostnames configured correctly too. i.e. running `hostname` on a host in the cluster returns the hostname. E.g. running `hostname` on `m3db001-us-east` should return `m3db001-us-east`.
 
 ### Kernel
-m3dbnode uses a lot of mmap-ed files for performance, as a result, you might need to bump vm.max_map_count. We suggest setting this value to 262,144 when provisioning your VM, so you don’t have to come back and debug issues later.
+`m3dbnode` uses a lot of mmap-ed files for performance, as a result, you might need to bump `vm.max_map_count`. We suggest setting this value to 262,144 when provisioning your VM, so you don’t have to come back and debug issues later.
 
 ## Config files
 We wouldn’t feel right to call this guide, “The Hard Way” and not require you to change some configs by hand.
@@ -46,7 +46,7 @@ Note: the steps that follow assume you have the following 3 seed nodes - make ne
 - m3db002 (Region=us-east1, Zone=us-east1-c VIP=10.0.0.1)
 - m3db003 (Region=us-east1, Zone=us-east1-d VIP=10.0.0.1)
 
-We’re going to start with the M3DB config template and modify it to work for your cluster. Start by downloading the [config](https://github.com/m3db/m3db/blob/master/src/dbnode/config/m3dbnode-local.yml). Update the ‘service’ section to read as follows:
+We’re going to start with the M3DB config template and modify it to work for your cluster. Start by downloading the [config](https://github.com/m3db/m3db/blob/master/src/dbnode/config/m3dbnode-multi-seed.template.yaml). Update the ‘service’ section to read as follows:
 
 ```
 config:
