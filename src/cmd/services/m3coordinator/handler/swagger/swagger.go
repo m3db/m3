@@ -36,9 +36,9 @@ const (
 	// HTTPMethod is the HTTP method used with this resource.
 	HTTPMethod = "GET"
 
-	swaggerSpecDir = "swagger/spec/"
-
-	swaggerTitle = "M3DB Documentation"
+	swaggerSpecDir      = "swagger/spec/"
+	swaggerTemplatePath = "swagger/template.html"
+	swaggerTitle        = "M3DB Documentation"
 )
 
 var (
@@ -57,12 +57,14 @@ type Doc struct {
 	Spec  string
 }
 
-// ServeHTTP serves the swagger template.
+// ServeHTTP serves the swagger template. This template is what renders the swagger
+// doc. It dynamically loads a spec (served by the SpecHandler below), which contains
+// all the metadata about endpoints.
 func (*TemplateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	t, err := template.ParseFiles("swagger/template.html")
+	t, err := template.ParseFiles(swaggerTemplatePath)
 	if err != nil {
 		logger.Error("unable generate Swagger docs", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
