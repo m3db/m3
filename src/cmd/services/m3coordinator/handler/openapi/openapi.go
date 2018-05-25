@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package swagger
+package openapi
 
 import (
 	"html/template"
@@ -30,56 +30,56 @@ import (
 )
 
 const (
-	// URL is the url for the swagger handler.
-	URL = handler.RoutePrefix + "/swagger"
+	// URL is the url for the OpenAPI handler.
+	URL = handler.RoutePrefix + "/docs"
 
 	// HTTPMethod is the HTTP method used with this resource.
 	HTTPMethod = "GET"
 
-	swaggerSpecDir      = "swagger/spec/"
-	swaggerTemplatePath = "swagger/template.html"
-	swaggerTitle        = "M3DB Documentation"
+	openapiSpecDir      = "openapi/spec/"
+	openapiTemplatePath = "openapi/template.html"
+	openapiTitle        = "M3DB Documentation"
 )
 
 var (
-	// SpecURLPrefix is the url prefix for swagger specs.
+	// SpecURLPrefix is the url prefix for openapi specs.
 	SpecURLPrefix = URL + "/spec/"
 
-	swaggerSpec = SpecURLPrefix + "coordinator.yml"
+	openapiSpec = SpecURLPrefix + "coordinator.yml"
 )
 
-// TemplateHandler handles serving the swagger template.
+// TemplateHandler handles serving the OpenAPI template.
 type TemplateHandler struct{}
 
-// Doc is a Swagger doc.
+// Doc is a OpenAPI doc.
 type Doc struct {
 	Title string
 	Spec  string
 }
 
-// ServeHTTP serves the swagger template. This template is what renders the swagger
+// ServeHTTP serves the OpenAPI template. This template is what renders the OpenAPI
 // doc. It dynamically loads a spec (served by the SpecHandler below), which contains
 // all the metadata about endpoints.
 func (*TemplateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	t, err := template.ParseFiles(swaggerTemplatePath)
+	t, err := template.ParseFiles(openapiTemplatePath)
 	if err != nil {
-		logger.Error("unable generate Swagger docs", zap.Any("error", err))
+		logger.Error("unable generate OpenAPI docs", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
 	doc := &Doc{
-		Title: swaggerTitle,
-		Spec:  swaggerSpec,
+		Title: openapiTitle,
+		Spec:  openapiSpec,
 	}
 
 	t.Execute(w, doc)
 }
 
-// SpecHandler is the handler for serving swagger specs.
+// SpecHandler is the handler for serving OpenAPI specs.
 func SpecHandler() http.Handler {
-	return http.StripPrefix(SpecURLPrefix, http.FileServer(http.Dir(swaggerSpecDir)))
+	return http.StripPrefix(SpecURLPrefix, http.FileServer(http.Dir(openapiSpecDir)))
 }

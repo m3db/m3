@@ -28,10 +28,10 @@ import (
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/namespace"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/openapi"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/placement"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus/native"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus/remote"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/swagger"
 	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
@@ -87,8 +87,8 @@ func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient 
 func (h *Handler) RegisterRoutes() error {
 	logged := logging.WithResponseTimeLogging
 
-	h.Router.HandleFunc(swagger.URL, logged(&swagger.TemplateHandler{}).ServeHTTP).Methods(swagger.HTTPMethod)
-	h.Router.PathPrefix(swagger.SpecURLPrefix).Handler(logged(swagger.SpecHandler()))
+	h.Router.HandleFunc(openapi.URL, logged(&openapi.TemplateHandler{}).ServeHTTP).Methods(openapi.HTTPMethod)
+	h.Router.PathPrefix(openapi.SpecURLPrefix).Handler(logged(openapi.SpecHandler()))
 
 	h.Router.HandleFunc(remote.PromReadURL, logged(remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))).ServeHTTP).Methods("POST")
 	h.Router.HandleFunc(remote.PromWriteURL, logged(remote.NewPromWriteHandler(h.storage, h.scope.Tagged(remoteSource))).ServeHTTP).Methods("POST")
