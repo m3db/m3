@@ -33,10 +33,10 @@ import (
 	"github.com/m3db/m3cluster/integration/etcd"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3db/src/dbnode/kvconfig"
 	"github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/cmd/services/m3dbnode/server"
+	"github.com/m3db/m3db/src/dbnode/client"
+	"github.com/m3db/m3db/src/dbnode/kvconfig"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
 	m3ninxidx "github.com/m3db/m3ninx/idx"
 	xconfig "github.com/m3db/m3x/config"
@@ -79,6 +79,7 @@ func TestIndexEnabledServer(t *testing.T) {
 	dataDir, cleanupDataDir := tempDir(t, "data")
 	defer cleanupDataDir()
 
+	servicePort := nextServicePort()
 	err = tmpl.Execute(configFd, struct {
 		HostID                string
 		LogFile               string
