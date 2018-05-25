@@ -16,6 +16,22 @@ builds:
       # - windows
     goarch:
       - amd64
+  - main: ./src/cmd/services/m3coordinator/main/main.go
+    binary: m3coordinator
+    ldflags: >-
+      -X {{.Env.BASE_PACKAGE}}.Revision={{.Env.GIT_REVISION}}
+      -X {{.Env.BASE_PACKAGE}}.Branch={{.Env.GIT_BRANCH}}
+      -X {{.Env.BASE_PACKAGE}}.Version={{.Env.GIT_VERSION}}
+      -X {{.Env.BASE_PACKAGE}}.BuildDate={{.Env.BUILD_DATE}}
+      -X {{.Env.BASE_PACKAGE}}.BuildTimeUnix={{.Env.BUILD_TS_UNIX}}
+      -X {{.Env.BASE_PACKAGE}}.LogBuildInfoAtStartup=true
+    goos:
+      - linux
+      - darwin
+      # Issue #692 tracks Windows support.
+      # - windows
+    goarch:
+      - amd64
 archive:
   wrap_in_directory: true
   format_overrides:
