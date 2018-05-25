@@ -51,7 +51,7 @@ const (
 // node and a coordinator.
 type Configuration struct {
 	// DB is the configuration for a DB node (required).
-	DB DBConfiguration `yaml:"db"`
+	DB *DBConfiguration `yaml:"db"`
 
 	// Coordinator is the configuration for the coordinator to run (optional).
 	Coordinator *coordinatorcfg.Configuration `yaml:"coordinator"`

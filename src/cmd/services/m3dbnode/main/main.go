@@ -53,21 +53,36 @@ func main() {
 		os.Exit(1)
 	}
 
-	dbClientCh := make(chan client.Client, 1)
-	clusterClientCh := make(chan clusterclient.Client, 1)
+	var (
+		dbClientCh        chan client.Client
+		clusterClientCh   chan clusterclient.Client
+		coordinatorDoneCh chan struct{}
+	)
+
+	if cfg.DB != nil {
+		dbClientCh = make(chan client.Client, 1)
+		clusterClientCh = make(chan clusterclient.Client, 1)
+	}
+
 	if cfg.Coordinator != nil {
+		coordinatorDoneCh = make(chan struct{}, 1)
 		go func() {
 			coordinatorserver.Run(coordinatorserver.RunOptions{
 				Config:        *cfg.Coordinator,
 				DBClient:      dbClientCh,
 				ClusterClient: clusterClientCh,
 			})
+			coordinatorDoneCh <- struct{}{}
 		}()
 	}
 
-	dbserver.Run(dbserver.RunOptions{
-		Config:          cfg.DB,
-		ClientCh:        dbClientCh,
-		ClusterClientCh: clusterClientCh,
-	})
+	if cfg.DB != nil {
+		dbserver.Run(dbserver.RunOptions{
+			Config:          cfg.DB,
+			ClientCh:        dbClientCh,
+			ClusterClientCh: clusterClientCh,
+		})
+	} else if cfg.Coordinator != nil {
+		<-coordinatorDoneCh
+	}
 }
