@@ -51,8 +51,8 @@ We’re going to start with the M3DB config template and modify it to work for y
 ```
 config:
       service:
-          env: production
-          zone: cluster-us-east1
+          env: default_env
+          zone: embedded
           service: m3db
           cacheDir: /var/lib/m3kv
           etcdClusters:
