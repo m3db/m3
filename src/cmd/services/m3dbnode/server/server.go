@@ -122,7 +122,7 @@ func Run(runOpts RunOptions) {
 			os.Exit(1)
 		}
 
-		cfg = rootCfg.DB
+		cfg = *rootCfg.DB
 	} else {
 		cfg = runOpts.Config
 	}
