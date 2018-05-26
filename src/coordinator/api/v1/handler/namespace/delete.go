@@ -38,10 +38,13 @@ import (
 
 const (
 	namespaceIDVar = "id"
+
+	// DeleteHTTPMethod is the HTTP method used with this resource.
+	DeleteHTTPMethod = "DELETE"
 )
 
 var (
-	// DeleteURL is the url for the namespace delete handler (with the DELETE method).
+	// DeleteURL is the url for the namespace delete handler.
 	DeleteURL = fmt.Sprintf("%s/namespace/{%s}", handler.RoutePrefixV1, namespaceIDVar)
 )
 
@@ -51,14 +54,15 @@ var (
 	errEmptyID = errors.New("must specify namespace ID to delete")
 )
 
-type deleteHandler Handler
+// DeleteHandler is the handler for namespace deletes.
+type DeleteHandler Handler
 
-// NewDeleteHandler returns a new instance of a namespace delete handler.
-func NewDeleteHandler(client clusterclient.Client) http.Handler {
-	return &deleteHandler{client: client}
+// NewDeleteHandler returns a new instance of DeleteHandler.
+func NewDeleteHandler(client clusterclient.Client) *DeleteHandler {
+	return &DeleteHandler{client: client}
 }
 
-func (h *deleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 	id := strings.TrimSpace(mux.Vars(r)[namespaceIDVar])
@@ -68,7 +72,7 @@ func (h *deleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.delete(id)
+	err := h.Delete(id)
 	if err != nil {
 		logger.Error("unable to delete namespace", zap.Any("error", err))
 		if err == errNamespaceNotFound {
@@ -86,7 +90,8 @@ func (h *deleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *deleteHandler) delete(id string) error {
+// Delete deletes a namespace.
+func (h *DeleteHandler) Delete(id string) error {
 	store, err := h.client.KV()
 	if err != nil {
 		return err

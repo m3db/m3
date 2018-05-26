@@ -38,16 +38,20 @@ import (
 const (
 	// InitURL is the url for the placement init handler (with the POST method).
 	InitURL = handler.RoutePrefixV1 + "/placement/init"
+
+	// InitHTTPMethod is the HTTP method used with this resource.
+	InitHTTPMethod = "POST"
 )
 
-type initHandler Handler
+// InitHandler is the handler for placement inits.
+type InitHandler Handler
 
-// NewInitHandler returns a new instance of a placement init handler.
-func NewInitHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
-	return &initHandler{client: client, cfg: cfg}
+// NewInitHandler returns a new instance of InitHandler.
+func NewInitHandler(client clusterclient.Client, cfg config.Configuration) *InitHandler {
+	return &InitHandler{client: client, cfg: cfg}
 }
 
-func (h *initHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
@@ -57,7 +61,7 @@ func (h *initHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	placement, err := h.init(req)
+	placement, err := h.Init(req)
 	if err != nil {
 		logger.Error("unable to initialize placement", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
@@ -78,7 +82,7 @@ func (h *initHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handler.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *initHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *handler.ParseError) {
+func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *handler.ParseError) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return nil, handler.NewParseError(err, http.StatusBadRequest)
@@ -94,7 +98,8 @@ func (h *initHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest
 	return initReq, nil
 }
 
-func (h *initHandler) init(r *admin.PlacementInitRequest) (placement.Placement, error) {
+// Init initializes a placement.
+func (h *InitHandler) Init(r *admin.PlacementInitRequest) (placement.Placement, error) {
 	instances, err := ConvertInstancesProto(r.Instances)
 	if err != nil {
 		return nil, err

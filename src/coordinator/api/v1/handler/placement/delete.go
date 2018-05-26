@@ -37,23 +37,27 @@ import (
 
 const (
 	placementIDVar = "id"
+
+	// DeleteHTTPMethod is the HTTP method used with this resource.
+	DeleteHTTPMethod = "DELETE"
 )
 
 var (
-	// DeleteURL is the url for the placement delete handler (with the DELETE method).
+	// DeleteURL is the url for the placement delete handler.
 	DeleteURL = fmt.Sprintf("%s/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
 
 	errEmptyID = errors.New("must specify placement ID to delete")
 )
 
-type deleteHandler Handler
+// DeleteHandler is the handler for placement deletes.
+type DeleteHandler Handler
 
-// NewDeleteHandler returns a new instance of a placement delete handler.
-func NewDeleteHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
-	return &deleteHandler{client: client, cfg: cfg}
+// NewDeleteHandler returns a new instance of DeleteHandler.
+func NewDeleteHandler(client clusterclient.Client, cfg config.Configuration) *DeleteHandler {
+	return &DeleteHandler{client: client, cfg: cfg}
 }
 
-func (h *deleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 	id := mux.Vars(r)[placementIDVar]

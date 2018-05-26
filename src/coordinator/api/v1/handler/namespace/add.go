@@ -37,18 +37,22 @@ import (
 )
 
 const (
-	// AddURL is the url for the namespace add handler (with the POST method).
+	// AddURL is the url for the namespace add handler.
 	AddURL = handler.RoutePrefixV1 + "/namespace"
+
+	// AddHTTPMethod is the HTTP method used with this resource.
+	AddHTTPMethod = "POST"
 )
 
-type addHandler Handler
+// AddHandler is the handler for namespace adds.
+type AddHandler Handler
 
-// NewAddHandler returns a new instance of a namespace add handler.
-func NewAddHandler(client clusterclient.Client) http.Handler {
-	return &addHandler{client: client}
+// NewAddHandler returns a new instance of AddHandler.
+func NewAddHandler(client clusterclient.Client) *AddHandler {
+	return &AddHandler{client: client}
 }
 
-func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
@@ -59,10 +63,10 @@ func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nsRegistry, err := h.add(md)
+	nsRegistry, err := h.Add(md)
 	if err != nil {
 		logger.Error("unable to get namespace", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		handler.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
@@ -73,7 +77,7 @@ func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handler.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *addHandler) parseRequest(r *http.Request) (namespace.Metadata, *handler.ParseError) {
+func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, *handler.ParseError) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return nil, handler.NewParseError(err, http.StatusBadRequest)
@@ -86,16 +90,17 @@ func (h *addHandler) parseRequest(r *http.Request) (namespace.Metadata, *handler
 		return nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
-	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)
-	if err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
-	}
-
-	return md, nil
+	return addReq, nil
 }
 
-func (h *addHandler) add(md namespace.Metadata) (nsproto.Registry, error) {
+// Add adds a namespace.
+func (h *AddHandler) Add(addReq *admin.NamespaceAddRequest) (nsproto.Registry, error) {
 	var emptyReg = nsproto.Registry{}
+
+	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)
+	if err != nil {
+		return emptyReg, fmt.Errorf("unable to get metadata: %v", err)
+	}
 
 	store, err := h.client.KV()
 	if err != nil {

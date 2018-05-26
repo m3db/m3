@@ -36,16 +36,20 @@ import (
 const (
 	// GetURL is the url for the placement get handler (with the GET method).
 	GetURL = handler.RoutePrefixV1 + "/placement"
+
+	// GetHTTPMethod is the HTTP method used with this resource.
+	GetHTTPMethod = "GET"
 )
 
-type getHandler Handler
+// GetHandler is the handler for placement gets.
+type GetHandler Handler
 
-// NewGetHandler returns a new instance of a placement get handler.
-func NewGetHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
-	return &getHandler{client: client, cfg: cfg}
+// NewGetHandler returns a new instance of GetHandler.
+func NewGetHandler(client clusterclient.Client, cfg config.Configuration) *GetHandler {
+	return &GetHandler{client: client, cfg: cfg}
 }
 
-func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 

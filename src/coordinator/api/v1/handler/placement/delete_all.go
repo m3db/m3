@@ -35,16 +35,20 @@ import (
 const (
 	// DeleteAllURL is the url for the handler to delete all placements (with the DELETE method).
 	DeleteAllURL = handler.RoutePrefixV1 + "/placement"
+
+	// DeleteAllHTTPMethod is the HTTP method used with this resource.
+	DeleteAllHTTPMethod = "DELETE"
 )
 
-type deleteAllHandler Handler
+// DeleteAllHandler is the handler to delete all placements.
+type DeleteAllHandler Handler
 
-// NewDeleteAllHandler returns a new instance of a placement delete all handler.
-func NewDeleteAllHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
-	return &deleteAllHandler{client: client, cfg: cfg}
+// NewDeleteAllHandler returns a new instance of DeleteAllHandler.
+func NewDeleteAllHandler(client clusterclient.Client, cfg config.Configuration) *DeleteAllHandler {
+	return &DeleteAllHandler{client: client, cfg: cfg}
 }
 
-func (h *deleteAllHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *DeleteAllHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 

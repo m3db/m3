@@ -28,6 +28,7 @@ import (
 	m3clusterClient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
+	"github.com/m3db/m3db/src/coordinator/api/v1/handler/database"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/namespace"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/openapi"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/placement"
@@ -99,6 +100,7 @@ func (h *Handler) RegisterRoutes() error {
 	if h.clusterClient != nil {
 		placement.RegisterRoutes(h.Router, h.clusterClient, h.config)
 		namespace.RegisterRoutes(h.Router, h.clusterClient)
+		database.RegisterRoutes(h.Router, h.clusterClient, h.config)
 	}
 
 	return nil

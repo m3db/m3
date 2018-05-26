@@ -37,19 +37,23 @@ import (
 const (
 	// GetURL is the url for the namespace get handler (with the GET method).
 	GetURL = handler.RoutePrefixV1 + "/namespace"
+
+	// GetHTTPMethod is the HTTP method used with this resource.
+	GetHTTPMethod = "GET"
 )
 
-type getHandler Handler
+// GetHandler is the handler for namespace gets.
+type GetHandler Handler
 
-// NewGetHandler returns a new instance of a namespace get handler.
-func NewGetHandler(client clusterclient.Client) http.Handler {
-	return &getHandler{client: client}
+// NewGetHandler returns a new instance of GetHandler.
+func NewGetHandler(client clusterclient.Client) *GetHandler {
+	return &GetHandler{client: client}
 }
 
-func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *GetHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
-	nsRegistry, err := h.get()
+	nsRegistry, err := h.Get()
 
 	if err != nil {
 		logger.Error("unable to get namespace", zap.Any("error", err))
@@ -64,7 +68,8 @@ func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handler.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *getHandler) get() (nsproto.Registry, error) {
+// Get gets the namespaces.
+func (h *GetHandler) Get() (nsproto.Registry, error) {
 	var emptyReg = nsproto.Registry{}
 
 	store, err := h.client.KV()

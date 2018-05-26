@@ -1,0 +1,18 @@
+
+syntax = "proto3";
+package admin;
+
+import "namespace.proto";
+import "placement.proto";
+
+message DatabaseCreateRequest {
+  string name = 1;
+  string type = 2;
+  int32 num_shards = 3;
+  int32 replication_factor = 4;
+}
+
+message DatabaseCreateResponse {
+  admin.NamespaceGetResponse namespace = 1;
+  admin.PlacementGetResponse placement = 2;
+}

@@ -39,7 +39,7 @@ import (
 
 func TestPlacementInitHandler(t *testing.T) {
 	mockClient, mockPlacementService := SetupPlacementTest(t)
-	handler := NewInitHandler(mockClient, config.Configuration{})
+	handler := &InitHandler{mockClient, config.Configuration{}}
 
 	// Test placement init success
 	w := httptest.NewRecorder()
