@@ -2,11 +2,13 @@
 syntax = "proto3";
 package admin;
 
-import "namespace.proto";
-import "placement.proto";
+// import "namespace.proto";
+// import "placement.proto";
+import "github.com/m3db/m3db/src/coordinator/generated/proto/admin/namespace.proto";
+import "github.com/m3db/m3db/src/coordinator/generated/proto/admin/placement.proto";
 
 message DatabaseCreateRequest {
-  string name = 1;
+  string namespace_name = 1;
   string type = 2;
   int32 num_shards = 3;
   int32 replication_factor = 4;

@@ -4,7 +4,7 @@ package prometheus;
 
 option go_package = "prompb";
 
-import "types.proto";
+import "github.com/m3db/m3db/src/coordinator/generated/proto/prompb/types.proto";
 
 message WriteRequest {
   repeated prometheus.TimeSeries timeseries = 1;

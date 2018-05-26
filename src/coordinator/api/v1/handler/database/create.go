@@ -139,11 +139,11 @@ func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddReques
 		return nil, nil, handler.NewParseError(errInvalidDBType, http.StatusBadRequest)
 	}
 
-	if util.HasEmptyString(dbCreateReq.Name, dbCreateReq.Type) {
+	if util.HasEmptyString(dbCreateReq.NamespaceName, dbCreateReq.Type) {
 		return nil, nil, handler.NewParseError(errMissingRequiredField, http.StatusBadRequest)
 	}
 
-	namespaceAddRequest := defaultedNamespaceAddRequest(dbCreateReq.Name, dbCreateReq.Type)
+	namespaceAddRequest := defaultedNamespaceAddRequest(dbCreateReq.NamespaceName, dbCreateReq.Type)
 	placementInitRequest := defaultedPlacementInitRequest(dbCreateReq)
 
 	return namespaceAddRequest, placementInitRequest, nil
