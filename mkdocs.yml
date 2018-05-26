@@ -51,7 +51,8 @@ pages:
       - "Peer Streaming": "m3db/architecture/peer_streaming.md"
       - "Caching": "m3db/architecture/caching.md"
   - "How-To's":
-    - "Single Node": "how_to/single_node.md"
+    - "M3DB Single Node Deployment": "how_to/single_node.md"
+    - "M3DB Cluster Deployment, Manually": "how_to/cluster_hard_way.md"
   - "Integrations":
     - "Prometheus": "integrations/prometheus.md"
   - "Troubleshooting": "troubleshooting/index.md"
