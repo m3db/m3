@@ -61,8 +61,13 @@ db:
     bootstrappers:
         - filesystem
         - commitlog
+        - noop-none
     fs:
         numProcessorsPerCPU: 0.125
+
+  cache:
+    series:
+      policy: lru
 
   commitlog:
     flushMaxBytes: 524288

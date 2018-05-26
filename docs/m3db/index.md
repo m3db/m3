@@ -4,7 +4,7 @@
 
 ## About
 
-M3DB, inspired by [Gorilla][gorilla] and [InfluxDB][influxdb], is a distributed time series database released as open source by [Uber Technologies][ubeross]. It can be used for storing realtime metrics at long retention.
+M3DB, inspired by [Gorilla][gorilla] and [Cassandra][cassandra], is a distributed time series database released as open source by [Uber Technologies][ubeross]. It can be used for storing realtime metrics at long retention.
 
 Here are some attributes of the project:
 
@@ -24,6 +24,6 @@ The project has aimed to avoid compactions when at all possible, currently the o
 The project has also has optimized for the storage and retrieval of float64 values, as such there is no way to use it as a general time series database of arbitrary data structures just yet.
 
 [gorilla]: http://www.vldb.org/pvldb/vol8/p1816-teller.pdf
-[influxdb]: https://github.com/influxdata/influxdb
+[cassandra]: http://cassandra.apache.org/
 [etcd]: https://github.com/coreos/etcd
 [ubeross]: http://uber.github.io
