@@ -30,3 +30,7 @@ coverage_imports.go
 
 # Release directory
 dist/
+
+# Docs directory
+site/
+
