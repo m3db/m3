@@ -140,15 +140,10 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 	mockStorageDB.EXPECT().Namespaces().Return(expectNamespaces)
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(1)
 	props.topology.EXPECT().
-		MarkShardAvailable("testhost0", uint32(2)).
-		Do(func(hostID string, shardID uint32) {
-			wg.Done()
-		})
-	props.topology.EXPECT().
-		MarkShardAvailable("testhost0", uint32(3)).
-		Do(func(hostID string, shardID uint32) {
+		MarkShardsAvailable("testhost0", uint32(2), uint32(3)).
+		Do(func(hostID string, shardIDs ...uint32) {
 			wg.Done()
 		})
 

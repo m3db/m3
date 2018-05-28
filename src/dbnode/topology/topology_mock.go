@@ -295,16 +295,21 @@ func (mr *MockDynamicTopologyMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDynamicTopology)(nil).Close))
 }
 
-// MarkShardAvailable mocks base method
-func (m *MockDynamicTopology) MarkShardAvailable(instanceID string, shardID uint32) error {
-	ret := m.ctrl.Call(m, "MarkShardAvailable", instanceID, shardID)
+// MarkShardsAvailable mocks base method
+func (m *MockDynamicTopology) MarkShardsAvailable(instanceID string, shardIDs ...uint32) error {
+	varargs := []interface{}{instanceID}
+	for _, a := range shardIDs {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "MarkShardsAvailable", varargs...)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// MarkShardAvailable indicates an expected call of MarkShardAvailable
-func (mr *MockDynamicTopologyMockRecorder) MarkShardAvailable(instanceID, shardID interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkShardAvailable", reflect.TypeOf((*MockDynamicTopology)(nil).MarkShardAvailable), instanceID, shardID)
+// MarkShardsAvailable indicates an expected call of MarkShardsAvailable
+func (mr *MockDynamicTopologyMockRecorder) MarkShardsAvailable(instanceID interface{}, shardIDs ...interface{}) *gomock.Call {
+	varargs := append([]interface{}{instanceID}, shardIDs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkShardsAvailable", reflect.TypeOf((*MockDynamicTopology)(nil).MarkShardsAvailable), varargs...)
 }
 
 // MockMapWatch is a mock of MapWatch interface

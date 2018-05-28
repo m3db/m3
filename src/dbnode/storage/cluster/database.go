@@ -297,6 +297,7 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 		}
 	}
 
+	var markAvailable []uint32
 	for id := range d.initializing {
 		count := d.bootstrapCount[id]
 		if count != len(namespaces) {
@@ -304,10 +305,20 @@ func (d *clusterDB) analyzeAndReportShardStates() {
 		}
 
 		// Mark this shard as available
-		if err := topo.MarkShardAvailable(d.hostID, id); err != nil {
-			d.log.Errorf("cluster db failed marking shard %d available: %v",
-				id, err)
+		if markAvailable == nil {
+			// Defer allocation until needed, alloc as much as could be required
+			markAvailable = make([]uint32, 0, len(d.initializing))
 		}
+		markAvailable = append(markAvailable, id)
+	}
+
+	if len(markAvailable) == 0 {
+		return
+	}
+
+	if err := topo.MarkShardsAvailable(d.hostID, markAvailable...); err != nil {
+		d.log.Errorf("cluster db failed marking shards %v available: %v",
+			markAvailable, err)
 	}
 }
 
