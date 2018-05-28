@@ -271,10 +271,10 @@ func (s *m3ClusterPlacementService) ReplaceInstances(
 ) (placement.Placement, []placement.Instance, error) {
 	return nil, nil, fmt.Errorf("not implemented")
 }
-func (s *m3ClusterPlacementService) MarkShardAvailable(
-	instanceID string, shardID uint32,
+func (s *m3ClusterPlacementService) MarkShardsAvailable(
+	instanceID string, shardIDs ...uint32,
 ) error {
-	s.markedAvailable[instanceID] = append(s.markedAvailable[instanceID], shardID)
+	s.markedAvailable[instanceID] = append(s.markedAvailable[instanceID], shardIDs...)
 	return nil
 }
 func (s *m3ClusterPlacementService) MarkAllShardsAvailable() (placement.Placement, error) {
