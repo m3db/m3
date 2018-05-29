@@ -27,16 +27,13 @@ import (
 
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/src/dbnode/encoding"
-	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3db/src/dbnode/generated/thrift/rpc"
 	"github.com/m3db/m3db/src/dbnode/network/server/tchannelthrift/convert"
-	"github.com/m3db/m3db/src/dbnode/serialize"
 	"github.com/m3db/m3db/src/dbnode/topology"
 	"github.com/m3db/m3db/src/dbnode/topology/testutil"
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -511,31 +508,4 @@ func (th testFetchTaggedHelper) encodeTags(tags ident.Tags) []byte {
 	data, ok := enc.Data()
 	require.True(th.t, ok)
 	return data.Bytes()
-}
-
-type testFetchTaggedHelper struct {
-	t          *testing.T
-	pools      fetchTaggedPools
-	tagEncPool serialize.TagEncoderPool
-	encPool    encoding.EncoderPool
-}
-
-func newTestFetchTaggedHelper(t *testing.T) testFetchTaggedHelper {
-	opts := serialize.NewTagEncoderOptions()
-	popts := pool.NewObjectPoolOptions().SetSize(1)
-	encPool := serialize.NewTagEncoderPool(opts, popts)
-	encPool.Init()
-
-	encoderPool := encoding.NewEncoderPool(nil)
-	encodingOpts := encoding.NewOptions().SetEncoderPool(encoderPool)
-	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
-	})
-
-	return testFetchTaggedHelper{
-		t:          t,
-		pools:      newTestFetchTaggedPools(),
-		tagEncPool: encPool,
-		encPool:    encoderPool,
-	}
 }

@@ -163,7 +163,7 @@ func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 		hostShardSets[hostIdx] = topology.NewHostShardSet(hosts[hostIdx], shardsSubset)
 	}
 
-	opts := applySessionTestOptions(NewOptions()).
+	opts := newSessionTestOptions().
 		SetFetchBatchSize(128).
 		SetTopologyInitializer(topology.NewStaticInitializer(
 			topology.NewStaticOptions().

@@ -46,7 +46,7 @@ var (
 )
 
 func newConnectionPoolTestOptions() Options {
-	return NewOptions().
+	return newSessionTestOptions().
 		SetBackgroundConnectInterval(5 * time.Millisecond).
 		SetBackgroundConnectStutter(2 * time.Millisecond).
 		SetBackgroundHealthCheckInterval(5 * time.Millisecond).

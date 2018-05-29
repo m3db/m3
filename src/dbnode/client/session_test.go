@@ -53,8 +53,13 @@ const (
 
 type testEnqueueFn func(idx int, op op)
 
+var (
+	// NB: allocating once to speedup tests.
+	_testSessionOpts = NewOptions()
+)
+
 func newSessionTestOptions() Options {
-	return applySessionTestOptions(NewOptions())
+	return applySessionTestOptions(_testSessionOpts)
 }
 
 func sessionTestShardSet() sharding.ShardSet {
