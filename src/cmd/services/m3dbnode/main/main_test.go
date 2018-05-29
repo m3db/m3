@@ -25,11 +25,12 @@ package main_test
 import (
 	"fmt"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"text/template"
 	"time"
+
+	"github.com/m3db/m3cluster/shard"
 
 	"github.com/m3db/m3cluster/integration/etcd"
 	"github.com/m3db/m3cluster/placement"
@@ -179,10 +180,16 @@ func TestConfig(t *testing.T) {
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
 
-	session, err := cli.DefaultSession()
+	adminCli := cli.(client.AdminClient)
+	adminSession, err := adminCli.DefaultAdminSession()
 	require.NoError(t, err)
+	defer adminSession.Close()
 
-	defer session.Close()
+	waitUntilAllShardsAreAvailable(t, adminSession)
+
+	// Cast to narrower-interface instead of grabbing DefaultSession to make sure
+	// we use the same topology.Map that we validated in waitUntilAllShardsAreAvailable.
+	session := adminSession.(client.Session)
 
 	start := time.Now().Add(-time.Minute)
 	values := []struct {
@@ -227,7 +234,6 @@ func TestConfig(t *testing.T) {
 
 // TestEmbeddedConfig tests booting a server using an embedded KV.
 func TestEmbeddedConfig(t *testing.T) {
-
 	// Create config file
 	tmpl, err := template.New("config").Parse(testConfig + embeddedKVConfigPortion)
 	require.NoError(t, err)
@@ -371,68 +377,31 @@ func TestEmbeddedConfig(t *testing.T) {
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
 
-	// adminCli := cli.(client.AdminClient)
-	// adminSession, err := adminCli.DefaultAdminSession()
-	// require.NoError(t, err)
-	// defer adminSession.Close()
-
-	// topo, err := adminSession.Topology()
-	// require.NoError(t, err)
-	// topoWatch, err := topo.Watch()
-	// require.NoError(t, err)
-
-	// for _ = range topoWatch.C() {
-	// 	val := topoWatch.Get()
-	// 	allAreAvailable := true
-	// 	allShards := val.ShardSet().All()
-
-	// 	// fmt.Println("WTF: ", allShards)
-
-	// 	if len(allShards) == 0 {
-	// 		// fmt.Println("1")
-	// 		continue
-	// 	}
-
-	// 	for _, currShard := range val.ShardSet().All() {
-	// 		// fmt.Println("2")
-	// 		if currShard.State() != shard.Available {
-	// 			allAreAvailable = false
-	// 			break
-	// 		}
-	// 	}
-
-	// 	if allAreAvailable {
-	// 		// fmt.Println("3")
-	// 		break
-	// 	}
-	// }
-
-	// Force new session to make sure that we have a session that is using the
-	// latest topology.
-	session, err := cli.NewSession()
+	adminCli := cli.(client.AdminClient)
+	adminSession, err := adminCli.DefaultAdminSession()
 	require.NoError(t, err)
-	defer session.Close()
+	defer adminSession.Close()
+
+	waitUntilAllShardsAreAvailable(t, adminSession)
+
+	// Cast to narrower-interface instead of grabbing DefaultSession to make sure
+	// we use the same topology.Map that we validated in waitUntilAllShardsAreAvailable.
+	session := adminSession.(client.Session)
 
 	start := time.Now().Add(-time.Minute)
-	values := []writeValue {
+	values := []struct {
+		value float64
+		at    time.Time
+		unit  xtime.Unit
+	}{
 		{value: 1.0, at: start, unit: xtime.Second},
 		{value: 2.0, at: start.Add(1 * time.Second), unit: xtime.Second},
 		{value: 3.0, at: start.Add(2 * time.Second), unit: xtime.Second},
 	}
 
 	for _, v := range values {
-		tryToWriteUntilShardIsAvailable(t, session, val)
-		for {
-			err = session.Write(ident.StringID(namespaceID), ident.StringID("foo"), v.at, v.value, v.unit, nil)
-			if err != nil && strings.Contains(err.Error(), "initializing") {
-				// Shard state propagation after bootstrap (switch from "initializing" to "available"
-				// is eventually consistent, so keep trying if we receive an error that the shards are
-				// still initializing.)
-				continue
-			}
-			require.NoError(t, err)
-			break
-		}
+		err := session.Write(ident.StringID(namespaceID), ident.StringID("foo"), v.at, v.value, v.unit, nil)
+		require.NoError(t, err)
 	}
 
 	// Account for first value inserted at xtime.Second precision
@@ -662,22 +631,32 @@ db:
 `
 )
 
-func tryToWriteUntilShardIsAvailable(t *testing.T, session client.Session) {
+func waitUntilAllShardsAreAvailable(t *testing.T, session client.AdminSession) {
 	for {
-		err = session.Write(ident.StringID(namespaceID), ident.StringID("foo"), v.at, v.value, v.unit, nil)
-		if err != nil && strings.Contains(err.Error(), "initializing") {
-			// Shard state propagation after bootstrap (switch from "initializing" to "available"
-			// is eventually consistent, so keep trying if we receive an error that the shards are
-			// still initializing.)
+		topoMap, err := session.TopologyMap()
+		require.NoError(t, err)
+
+		var (
+			allShards             = topoMap.ShardSet().All()
+			allShardsAreAvailable = true
+		)
+
+		if len(allShards) == 0 {
+			// We haven't received an actual topology yet.
 			continue
 		}
-		require.NoError(t, err)
-		break
-	}
-}
 
-type writeValue struct {
-	value float64
-		at    time.Time
-		unit  xtime.Unit
+		for _, currShard := range topoMap.ShardSet().All() {
+			if currShard.State() != shard.Available {
+				allShardsAreAvailable = false
+				break
+			}
+		}
+
+		if allShardsAreAvailable {
+			break
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
 }
