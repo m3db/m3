@@ -307,9 +307,6 @@ func TestEmbeddedConfig(t *testing.T) {
 		serverWg.Done()
 	}()
 
-	// Wait for bootstrap to complete so that we known topology of shards
-	// switches from "initializing" to "available".
-	<-bootstrapCh
 	// Wait for embedded KV to be up.
 	<-embeddedKVCh
 
