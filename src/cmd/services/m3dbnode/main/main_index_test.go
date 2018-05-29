@@ -51,6 +51,9 @@ import (
 
 // TestIndexEnabledServer tests booting a server using file based configuration.
 func TestIndexEnabledServer(t *testing.T) {
+	// Temporarily skip while we debug flakiness
+	t.SkipNow()
+
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
