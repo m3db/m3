@@ -77,12 +77,6 @@ local m3em_agent_debug_port = 18370;
             port: m3em_agent_port,
             debug_port: m3em_agent_debug_port,
             working_dir: "/var/m3em-agent",
-            env_vars: [
-                {
-                    key: "UBER_DATACENTER",
-                    value: "prod",
-                },
-            ],
         },
     },
 	m3dbnode: {
