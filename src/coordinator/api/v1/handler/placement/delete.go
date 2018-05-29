@@ -76,7 +76,7 @@ func (h *DeleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	placement, err := service.RemoveInstances([]string{id})
 	if err != nil {
 		logger.Error("unable to delete placement", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		handler.Error(w, err, http.StatusNotFound)
 		return
 	}
 

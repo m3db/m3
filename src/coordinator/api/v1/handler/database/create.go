@@ -21,9 +21,7 @@
 package database
 
 import (
-	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"net/http"
 
 	clusterclient "github.com/m3db/m3cluster/client"
@@ -36,6 +34,8 @@ import (
 	"github.com/m3db/m3db/src/coordinator/util"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	protonamespace "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
+
+	"github.com/golang/protobuf/jsonpb"
 	"go.uber.org/zap"
 )
 
@@ -123,15 +123,8 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, *admin.PlacementInitRequest, *handler.ParseError) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
-
-	}
-	defer r.Body.Close()
-
 	dbCreateReq := new(admin.DatabaseCreateRequest)
-	if err := json.Unmarshal(body, dbCreateReq); err != nil {
+	if err := jsonpb.Unmarshal(r.Body, dbCreateReq); err != nil {
 		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
@@ -185,8 +178,8 @@ func defaultedNamespaceAddRequest(namespaceName, validDBType string) *admin.Name
 		blockDataExpiry = true
 		blockDataExpiryAfterNotAccessPeriodNanos = 300000000000 // 5m
 
-		indexEnabled = false
-		indexBlockSizeNanos = 0
+		indexEnabled = true
+		indexBlockSizeNanos = retentionBlockSizeNanos
 	default:
 		return nil
 	}

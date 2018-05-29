@@ -64,6 +64,6 @@ func TestPlacementDeleteHandler(t *testing.T) {
 	resp = w.Result()
 	body, err = ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	assert.Equal(t, "{\"error\":\"ID does not exist\"}\n", string(body))
 }

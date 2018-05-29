@@ -44,9 +44,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 	jsonInput := `
         {
             "name": "testNamespace",
-            "retentionPeriod": "48h",
-            "blockSize": "2h",
-            "needsFilesetCleanup": false
+            "options": {}
         }
     `
 
@@ -61,7 +59,7 @@ func TestNamespaceAddHandler(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-	assert.Equal(t, "{\"error\":\"unable to get metadata: namespace options must be set\"}\n", string(body))
+	assert.Equal(t, "{\"error\":\"unable to get metadata: retention options must be set\"}\n", string(body))
 
 	// Test good case. Note: there is no way to tell the difference between a boolean
 	// being false and it not being set by a user.
@@ -74,7 +72,8 @@ func TestNamespaceAddHandler(t *testing.T) {
               "bootstrapEnabled": true,
               "flushEnabled": true,
               "writesToCommitLog": true,
-              "enabledEnabled": true,
+              "cleanupEnabled": true,
+              "repairEnabled": true,
               "retentionOptions": {
                 "retentionPeriodNanos": 172800000000000,
                 "blockSizeNanos": 7200000000000,
@@ -102,5 +101,5 @@ func TestNamespaceAddHandler(t *testing.T) {
 	resp = w.Result()
 	body, _ = ioutil.ReadAll(resp.Body)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":false,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\"},\"snapshotEnabled\":false,\"indexOptions\":{\"enabled\":true,\"blockSizeNanos\":\"7200000000000\"}}}}}", string(body))
+	assert.Equal(t, "{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":true,\"repairEnabled\":true,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"600000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\"},\"snapshotEnabled\":false,\"indexOptions\":{\"enabled\":true,\"blockSizeNanos\":\"7200000000000\"}}}}}", string(body))
 }

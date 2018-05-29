@@ -58,10 +58,12 @@ var _ = math.Inf
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type DatabaseCreateRequest struct {
-	NamespaceName     string `protobuf:"bytes,1,opt,name=namespace_name,json=namespaceName,proto3" json:"namespace_name,omitempty"`
-	Type              string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	NumShards         int32  `protobuf:"varint,3,opt,name=num_shards,json=numShards,proto3" json:"num_shards,omitempty"`
-	ReplicationFactor int32  `protobuf:"varint,4,opt,name=replication_factor,json=replicationFactor,proto3" json:"replication_factor,omitempty"`
+	// Required fields
+	NamespaceName string `protobuf:"bytes,1,opt,name=namespace_name,json=namespaceName,proto3" json:"namespace_name,omitempty"`
+	Type          string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	// Optional fields that may be inferred if not specified
+	NumShards         int32 `protobuf:"varint,3,opt,name=num_shards,json=numShards,proto3" json:"num_shards,omitempty"`
+	ReplicationFactor int32 `protobuf:"varint,4,opt,name=replication_factor,json=replicationFactor,proto3" json:"replication_factor,omitempty"`
 }
 
 func (m *DatabaseCreateRequest) Reset()                    { *m = DatabaseCreateRequest{} }

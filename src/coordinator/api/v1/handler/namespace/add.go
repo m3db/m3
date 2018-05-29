@@ -21,11 +21,10 @@
 package namespace
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 
+	"github.com/gogo/protobuf/jsonpb"
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
@@ -78,15 +77,8 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, *handler.ParseError) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
-
-	}
-	defer r.Body.Close()
-
 	addReq := new(admin.NamespaceAddRequest)
-	if err := json.Unmarshal(body, addReq); err != nil {
+	if err := jsonpb.Unmarshal(r.Body, addReq); err != nil {
 		return nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 

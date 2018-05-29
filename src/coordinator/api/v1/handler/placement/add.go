@@ -21,10 +21,9 @@
 package placement
 
 import (
-	"encoding/json"
-	"io/ioutil"
 	"net/http"
 
+	"github.com/gogo/protobuf/jsonpb"
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
@@ -83,15 +82,8 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AddHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, *handler.ParseError) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
-	}
-
-	defer r.Body.Close()
-
 	addReq := new(admin.PlacementAddRequest)
-	if err := json.Unmarshal(body, addReq); err != nil {
+	if err := jsonpb.Unmarshal(r.Body, addReq); err != nil {
 		return nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
