@@ -168,10 +168,6 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 		MarkShardsAvailable("testhost0", gomock.Any()).
 		Do(onMarkShardsAvailable).
 		AnyTimes()
-	props.topology.EXPECT().
-		MarkShardsAvailable("testhost0", gomock.Any(), gomock.Any()).
-		Do(onMarkShardsAvailable).
-		AnyTimes()
 
 	// Enqueue the update
 	viewsCh <- testutil.NewTopologyView(1, updatedView)
