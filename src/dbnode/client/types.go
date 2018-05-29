@@ -154,7 +154,7 @@ type AdminSession interface {
 	// Replicas returns the replication factor
 	Replicas() int
 
-	// TopologyMap returns the current topology MAP
+	// TopologyMap returns the current topology map
 	TopologyMap() (topology.Map, error)
 
 	// Truncate will truncate the namespace for a given shard
