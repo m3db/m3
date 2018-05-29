@@ -649,7 +649,6 @@ func waitUntilAllShardsAreAvailable(t *testing.T, session client.AdminSession) {
 		)
 
 		if len(hostShardSets) == 0 {
-			fmt.Println("no host shard sets")
 			// We haven't received an actual topology yet.
 			continue
 		}
