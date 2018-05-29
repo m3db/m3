@@ -799,13 +799,12 @@ func initialTopologyState(opts Options) (topologyState, error) {
 		return topologyState{}, err
 	}
 
-	topology, err := session.Topology()
+	topoMap, err := session.TopologyMap()
 	if err != nil {
 		return topologyState{}, err
 	}
 
 	var (
-		topoMap       = topology.Get()
 		hostShardSets = topoMap.HostShardSets()
 		topologyState = topologyState{
 			majorityReplicas: topoMap.MajorityReplicas(),

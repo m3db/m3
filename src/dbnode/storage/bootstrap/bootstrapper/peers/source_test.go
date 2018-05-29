@@ -198,15 +198,10 @@ func TestPeersSourceAvailableDataAndIndex(t *testing.T) {
 			mockMap.EXPECT().HostShardSets().Return(hostShardSets).AnyTimes()
 			mockMap.EXPECT().MajorityReplicas().Return(replicaMajority).AnyTimes()
 
-			mockTopology := topology.NewMockTopology(ctrl)
-			mockTopology.EXPECT().
-				Get().
-				Return(mockMap)
-
 			mockAdminSession := client.NewMockAdminSession(ctrl)
 			mockAdminSession.EXPECT().
-				Topology().
-				Return(mockTopology, nil)
+				TopologyMap().
+				Return(mockMap, nil)
 
 			mockClient := client.NewMockAdminClient(ctrl)
 			mockClient.EXPECT().

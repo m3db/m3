@@ -715,17 +715,17 @@ func (mr *MockAdminSessionMockRecorder) Replicas() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Replicas", reflect.TypeOf((*MockAdminSession)(nil).Replicas))
 }
 
-// Topology mocks base method
-func (m *MockAdminSession) Topology() (topology.Topology, error) {
-	ret := m.ctrl.Call(m, "Topology")
-	ret0, _ := ret[0].(topology.Topology)
+// TopologyMap mocks base method
+func (m *MockAdminSession) TopologyMap() (topology.Map, error) {
+	ret := m.ctrl.Call(m, "TopologyMap")
+	ret0, _ := ret[0].(topology.Map)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Topology indicates an expected call of Topology
-func (mr *MockAdminSessionMockRecorder) Topology() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Topology", reflect.TypeOf((*MockAdminSession)(nil).Topology))
+// TopologyMap indicates an expected call of TopologyMap
+func (mr *MockAdminSessionMockRecorder) TopologyMap() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TopologyMap", reflect.TypeOf((*MockAdminSession)(nil).TopologyMap))
 }
 
 // Truncate mocks base method
@@ -3210,17 +3210,17 @@ func (mr *MockclientSessionMockRecorder) Replicas() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Replicas", reflect.TypeOf((*MockclientSession)(nil).Replicas))
 }
 
-// Topology mocks base method
-func (m *MockclientSession) Topology() (topology.Topology, error) {
-	ret := m.ctrl.Call(m, "Topology")
-	ret0, _ := ret[0].(topology.Topology)
+// TopologyMap mocks base method
+func (m *MockclientSession) TopologyMap() (topology.Map, error) {
+	ret := m.ctrl.Call(m, "TopologyMap")
+	ret0, _ := ret[0].(topology.Map)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Topology indicates an expected call of Topology
-func (mr *MockclientSessionMockRecorder) Topology() *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Topology", reflect.TypeOf((*MockclientSession)(nil).Topology))
+// TopologyMap indicates an expected call of TopologyMap
+func (mr *MockclientSessionMockRecorder) TopologyMap() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TopologyMap", reflect.TypeOf((*MockclientSession)(nil).TopologyMap))
 }
 
 // Truncate mocks base method

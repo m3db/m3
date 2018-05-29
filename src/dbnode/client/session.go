@@ -129,7 +129,7 @@ var (
 	errUnableToEncodeTags = errors.New("unable to include tags")
 	// errNoTopology is returned when the session does not have a topology. Should never happen
 	// in practice.
-	errNoTopology = fmt.Errorf("%s session does not have a topology", instrument.InvariantViolatedMetricName)
+	errNoTopologyMap = fmt.Errorf("%s session does not have a topology map", instrument.InvariantViolatedMetricName)
 )
 
 // sessionState is volatile state that is protected by a
@@ -1571,22 +1571,22 @@ func (s *session) Replicas() int {
 	return v
 }
 
-func (s *session) Topology() (topology.Topology, error) {
+func (s *session) TopologyMap() (topology.Map, error) {
 	s.state.RLock()
 	status := s.state.status
-	topology := s.state.topo
+	topoMap := s.state.topoMap
 	s.state.RUnlock()
 
 	// Make sure the session is open, as thats what sets the initial topology.
 	if status != statusOpen {
 		return nil, errSessionStatusNotOpen
 	}
-	if topology == nil {
+	if topoMap == nil {
 		// Should never happen.
-		return nil, errNoTopology
+		return nil, errNoTopologyMap
 	}
 
-	return topology, nil
+	return topoMap, nil
 }
 
 func (s *session) Truncate(namespace ident.ID) (int64, error) {

@@ -25,6 +25,7 @@ package main_test
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"text/template"
@@ -49,9 +50,6 @@ import (
 
 // TestConfig tests booting a server using file based configuration.
 func TestConfig(t *testing.T) {
-	// Temporarily skip while we debug flakiness
-	t.SkipNow()
-
 	// Embedded kv
 	embeddedKV, err := etcd.New(etcd.NewOptions())
 	require.NoError(t, err)
@@ -229,8 +227,6 @@ func TestConfig(t *testing.T) {
 
 // TestEmbeddedConfig tests booting a server using an embedded KV.
 func TestEmbeddedConfig(t *testing.T) {
-	// Temporarily skip while we debug flakiness
-	t.SkipNow()
 
 	// Create config file
 	tmpl, err := template.New("config").Parse(testConfig + embeddedKVConfigPortion)
@@ -375,25 +371,68 @@ func TestEmbeddedConfig(t *testing.T) {
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
 
-	session, err := cli.DefaultSession()
-	require.NoError(t, err)
+	// adminCli := cli.(client.AdminClient)
+	// adminSession, err := adminCli.DefaultAdminSession()
+	// require.NoError(t, err)
+	// defer adminSession.Close()
 
+	// topo, err := adminSession.Topology()
+	// require.NoError(t, err)
+	// topoWatch, err := topo.Watch()
+	// require.NoError(t, err)
+
+	// for _ = range topoWatch.C() {
+	// 	val := topoWatch.Get()
+	// 	allAreAvailable := true
+	// 	allShards := val.ShardSet().All()
+
+	// 	// fmt.Println("WTF: ", allShards)
+
+	// 	if len(allShards) == 0 {
+	// 		// fmt.Println("1")
+	// 		continue
+	// 	}
+
+	// 	for _, currShard := range val.ShardSet().All() {
+	// 		// fmt.Println("2")
+	// 		if currShard.State() != shard.Available {
+	// 			allAreAvailable = false
+	// 			break
+	// 		}
+	// 	}
+
+	// 	if allAreAvailable {
+	// 		// fmt.Println("3")
+	// 		break
+	// 	}
+	// }
+
+	// Force new session to make sure that we have a session that is using the
+	// latest topology.
+	session, err := cli.NewSession()
+	require.NoError(t, err)
 	defer session.Close()
 
 	start := time.Now().Add(-time.Minute)
-	values := []struct {
-		value float64
-		at    time.Time
-		unit  xtime.Unit
-	}{
+	values := []writeValue {
 		{value: 1.0, at: start, unit: xtime.Second},
 		{value: 2.0, at: start.Add(1 * time.Second), unit: xtime.Second},
 		{value: 3.0, at: start.Add(2 * time.Second), unit: xtime.Second},
 	}
 
 	for _, v := range values {
-		err := session.Write(ident.StringID(namespaceID), ident.StringID("foo"), v.at, v.value, v.unit, nil)
-		require.NoError(t, err)
+		tryToWriteUntilShardIsAvailable(t, session, val)
+		for {
+			err = session.Write(ident.StringID(namespaceID), ident.StringID("foo"), v.at, v.value, v.unit, nil)
+			if err != nil && strings.Contains(err.Error(), "initializing") {
+				// Shard state propagation after bootstrap (switch from "initializing" to "available"
+				// is eventually consistent, so keep trying if we receive an error that the shards are
+				// still initializing.)
+				continue
+			}
+			require.NoError(t, err)
+			break
+		}
 	}
 
 	// Account for first value inserted at xtime.Second precision
@@ -622,3 +661,23 @@ db:
                   endpoint: {{.InitialClusterEndpoint}}
 `
 )
+
+func tryToWriteUntilShardIsAvailable(t *testing.T, session client.Session) {
+	for {
+		err = session.Write(ident.StringID(namespaceID), ident.StringID("foo"), v.at, v.value, v.unit, nil)
+		if err != nil && strings.Contains(err.Error(), "initializing") {
+			// Shard state propagation after bootstrap (switch from "initializing" to "available"
+			// is eventually consistent, so keep trying if we receive an error that the shards are
+			// still initializing.)
+			continue
+		}
+		require.NoError(t, err)
+		break
+	}
+}
+
+type writeValue struct {
+	value float64
+		at    time.Time
+		unit  xtime.Unit
+}
