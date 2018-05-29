@@ -185,6 +185,8 @@ func TestConfig(t *testing.T) {
 	require.NoError(t, err)
 	defer adminSession.Close()
 
+	// Propagation of shard state from Initializing --> Available post-bootstrap is eventually
+	// consistent, so we must wait.
 	waitUntilAllShardsAreAvailable(t, adminSession)
 
 	// Cast to narrower-interface instead of grabbing DefaultSession to make sure
@@ -382,6 +384,8 @@ func TestEmbeddedConfig(t *testing.T) {
 	require.NoError(t, err)
 	defer adminSession.Close()
 
+	// Propagation of shard state from Initializing --> Available post-bootstrap is eventually
+	// consistent, so we must wait.
 	waitUntilAllShardsAreAvailable(t, adminSession)
 
 	// Cast to narrower-interface instead of grabbing DefaultSession to make sure
@@ -631,24 +635,34 @@ db:
 `
 )
 
+// waitUntilAllShardsAreAvailable continually polls the session checking to see if the topology.Map
+// that the session is currently storing contains a non-zero number of host shard sets, and if so,
+// makes sure that all their shard states are Available.
 func waitUntilAllShardsAreAvailable(t *testing.T, session client.AdminSession) {
 	for {
 		topoMap, err := session.TopologyMap()
 		require.NoError(t, err)
 
 		var (
-			allShards             = topoMap.ShardSet().All()
+			hostShardSets         = topoMap.HostShardSets()
 			allShardsAreAvailable = true
 		)
 
-		if len(allShards) == 0 {
+		if len(hostShardSets) == 0 {
+			fmt.Println("no host shard sets")
 			// We haven't received an actual topology yet.
 			continue
 		}
 
-		for _, currShard := range topoMap.ShardSet().All() {
-			if currShard.State() != shard.Available {
-				allShardsAreAvailable = false
+		for _, hostShardSet := range hostShardSets {
+			for _, hostShard := range hostShardSet.ShardSet().All() {
+				if hostShard.State() != shard.Available {
+					allShardsAreAvailable = false
+					break
+				}
+			}
+
+			if !allShardsAreAvailable {
 				break
 			}
 		}

@@ -187,8 +187,18 @@ func TestIndexEnabledServer(t *testing.T) {
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
 
-	session, err := cli.DefaultSession()
+	adminCli := cli.(client.AdminClient)
+	adminSession, err := adminCli.DefaultAdminSession()
 	require.NoError(t, err)
+	defer adminSession.Close()
+
+	// Propagation of shard state from Initializing --> Available post-bootstrap is eventually
+	// consistent, so we must wait.
+	waitUntilAllShardsAreAvailable(t, adminSession)
+
+	// Cast to narrower-interface instead of grabbing DefaultSession to make sure
+	// we use the same topology.Map that we validated in waitUntilAllShardsAreAvailable.
+	session := adminSession.(client.Session)
 
 	defer session.Close()
 
