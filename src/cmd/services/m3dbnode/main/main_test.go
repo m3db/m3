@@ -1,5 +1,4 @@
 // +build big
-//
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -301,7 +300,10 @@ func TestEmbeddedConfig(t *testing.T) {
 		serverWg.Done()
 	}()
 
-	// Wait for embedded KV to be up
+	// Wait for bootstrap to complete so that we known topology of shards
+	// switches for "initializing" to "available".
+	<-bootstrapCh
+	// Wait for embedded KV to be up.
 	<-embeddedKVCh
 
 	// Setup the placement
