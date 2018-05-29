@@ -226,6 +226,9 @@ func TestConfig(t *testing.T) {
 
 // TestEmbeddedConfig tests booting a server using an embedded KV.
 func TestEmbeddedConfig(t *testing.T) {
+	// Temporarily skip while we debug flakiness
+	t.SkipNow()
+
 	// Create config file
 	tmpl, err := template.New("config").Parse(testConfig + embeddedKVConfigPortion)
 	require.NoError(t, err)
