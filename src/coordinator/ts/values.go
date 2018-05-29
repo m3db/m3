@@ -22,6 +22,8 @@ package ts
 
 import (
 	"time"
+	"math"
+	"fmt"
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface
@@ -123,6 +125,10 @@ func (b *fixedResolutionValues) SetValueAt(n int, v float64) {
 
 // NewFixedStepValues returns mutable values with fixed resolution
 func NewFixedStepValues(millisPerStep time.Duration, numSteps int, initialValue float64, startTime time.Time) FixedResolutionMutableValues {
+	return newFixedStepValues(millisPerStep, numSteps, initialValue, startTime)
+}
+
+func newFixedStepValues(millisPerStep time.Duration, numSteps int, initialValue float64, startTime time.Time) *fixedResolutionValues {
 	values := make([]float64, numSteps)
 	// Faster way to initialize an array instead of a loop
 	Memset(values, initialValue)
@@ -132,4 +138,40 @@ func NewFixedStepValues(millisPerStep time.Duration, numSteps int, initialValue 
 		startTime:     startTime,
 		values:        values,
 	}
+}
+
+// At every resolution timestep, the last sample value is chosen
+func RawPointsToFixedStep(datapoints Datapoints, start time.Time, end time.Time, interval time.Duration) (FixedResolutionMutableValues, error) {
+	if end.Before(start) {
+		return nil, fmt.Errorf("start cannot be after end, start: %v, end: %v", start, end)
+	}
+	numSteps := int(end.Sub(start) / interval)
+	if end == start {
+		numSteps = 1
+	}
+	fixStepValues := newFixedStepValues(interval, numSteps, math.NaN(), start)
+	currIdx := 0
+	idx := 0
+	for t := start; !t.After(end) && currIdx < numSteps; t = t.Add(interval) {
+		// Find first datapoint not before time t
+		for ; idx < len(datapoints) && datapoints.DatapointAt(idx).Timestamp.Before(t); idx++ {
+		}
+
+		if idx >= len(datapoints) {
+			fixStepValues.values[currIdx] = math.NaN()
+			currIdx++
+			continue
+		}
+
+		// If datapoint aligns to the time or its the first datapoint then take that
+		if datapoints.DatapointAt(idx).Timestamp == t || idx == 0 {
+			fixStepValues.values[currIdx] = datapoints.ValueAt(idx)
+			currIdx++
+		} else {
+			fixStepValues.values[currIdx] = datapoints.ValueAt(idx - 1)
+			currIdx++
+		}
+	}
+
+	return fixStepValues, nil
 }
