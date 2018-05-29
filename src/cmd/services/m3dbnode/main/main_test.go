@@ -49,6 +49,9 @@ import (
 
 // TestConfig tests booting a server using file based configuration.
 func TestConfig(t *testing.T) {
+	// Temporarily skip while we debug flakiness
+	t.SkipNow()
+
 	// Embedded kv
 	embeddedKV, err := etcd.New(etcd.NewOptions())
 	require.NoError(t, err)
@@ -226,6 +229,9 @@ func TestConfig(t *testing.T) {
 
 // TestEmbeddedConfig tests booting a server using an embedded KV.
 func TestEmbeddedConfig(t *testing.T) {
+	// Temporarily skip while we debug flakiness
+	t.SkipNow()
+
 	// Create config file
 	tmpl, err := template.New("config").Parse(testConfig + embeddedKVConfigPortion)
 	require.NoError(t, err)
@@ -301,7 +307,7 @@ func TestEmbeddedConfig(t *testing.T) {
 		serverWg.Done()
 	}()
 
-	// Wait for embedded KV to be up
+	// Wait for embedded KV to be up.
 	<-embeddedKVCh
 
 	// Setup the placement
