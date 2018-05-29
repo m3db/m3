@@ -136,13 +136,13 @@ func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddReques
 		return nil, nil, handler.NewParseError(errMissingRequiredField, http.StatusBadRequest)
 	}
 
-	namespaceAddRequest := defaultedNamespaceAddRequest(dbCreateReq.NamespaceName, dbCreateReq.Type)
+	namespaceAddRequest := defaultedNamespaceAddRequest(dbCreateReq)
 	placementInitRequest := defaultedPlacementInitRequest(dbCreateReq)
 
 	return namespaceAddRequest, placementInitRequest, nil
 }
 
-func defaultedNamespaceAddRequest(namespaceName, validDBType string) *admin.NamespaceAddRequest {
+func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) *admin.NamespaceAddRequest {
 	var (
 		bootstrapEnabled  bool
 		flushEnabled      bool
@@ -162,7 +162,7 @@ func defaultedNamespaceAddRequest(namespaceName, validDBType string) *admin.Name
 		indexBlockSizeNanos int64
 	)
 
-	switch validDBType {
+	switch r.Type {
 	case dbTypeLocal:
 		bootstrapEnabled = true
 		flushEnabled = true
@@ -171,10 +171,29 @@ func defaultedNamespaceAddRequest(namespaceName, validDBType string) *admin.Name
 		repairEnabled = true
 		snapshotEnabled = false
 
-		retentionPeriodNanos = 172800000000000  // 48h
-		retentionBlockSizeNanos = 7200000000000 // 2h
-		bufferFutureNanos = 600000000000        // 10m
-		bufferPastNanos = 600000000000          // 10m
+		// ExpectedSeriesDatapointsPerHour takes precedence over RetentionPeriodNanos
+		if r.ExpectedSeriesDatapointsPerHour > 0 {
+			// We want around 720 datapoints per block, so:
+			// (720 / r.ExpectedSeriesDatapointsPerHour) * 60 * 60000000000
+			retentionPeriodNanos = 2592000000000000 / r.ExpectedSeriesDatapointsPerHour
+		} else {
+			retentionPeriodNanos = r.RetentionPeriodNanos
+		}
+		if retentionPeriodNanos <= 0 {
+			retentionPeriodNanos = 172800000000000 // 48h
+		}
+
+		if retentionPeriodNanos <= 172800000000000 { // if <= 2 * 24h
+			retentionBlockSizeNanos = 7200000000000 // ...then 2h
+		} else if retentionPeriodNanos <= 1209600000000000 { // if <= 14 * 24h
+			retentionBlockSizeNanos = 14400000000000 // ...then 4h
+		} else if retentionPeriodNanos <= 2592000000000000 { // if <= 30 * 24h
+			retentionBlockSizeNanos = 43200000000000 // ...then 12h
+		} else {
+			retentionBlockSizeNanos = 86400000000000 // ...else 24h
+		}
+		bufferFutureNanos = 600000000000 // 10m
+		bufferPastNanos = 600000000000   // 10m
 		blockDataExpiry = true
 		blockDataExpiryAfterNotAccessPeriodNanos = 300000000000 // 5m
 
@@ -185,7 +204,7 @@ func defaultedNamespaceAddRequest(namespaceName, validDBType string) *admin.Name
 	}
 
 	return &admin.NamespaceAddRequest{
-		Name: namespaceName,
+		Name: r.NamespaceName,
 		Options: &protonamespace.NamespaceOptions{
 			BootstrapEnabled:  bootstrapEnabled,
 			FlushEnabled:      flushEnabled,
