@@ -127,7 +127,7 @@ var (
 	// errUnableToEncodeTags is raised when the server is unable to encode provided tags
 	// to be sent over the wire.
 	errUnableToEncodeTags = errors.New("unable to include tags")
-	// errNoTopology is returned when the session does not have a topology. Should never happen
+	// errNoTopologyMap is returned when the session does not have a topology. Should never happen
 	// in practice.
 	errNoTopologyMap = fmt.Errorf("%s session does not have a topology map", instrument.InvariantViolatedMetricName)
 )

@@ -30,11 +30,10 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/m3db/m3cluster/shard"
-
 	"github.com/m3db/m3cluster/integration/etcd"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/cmd/services/m3dbnode/server"
 	"github.com/m3db/m3db/src/dbnode/client"
@@ -639,13 +638,15 @@ db:
 // that the session is currently storing contains a non-zero number of host shard sets, and if so,
 // makes sure that all their shard states are Available.
 func waitUntilAllShardsAreAvailable(t *testing.T, session client.AdminSession) {
+outer:
 	for {
+		time.Sleep(10 * time.Millisecond)
+
 		topoMap, err := session.TopologyMap()
 		require.NoError(t, err)
 
 		var (
-			hostShardSets         = topoMap.HostShardSets()
-			allShardsAreAvailable = true
+			hostShardSets = topoMap.HostShardSets()
 		)
 
 		if len(hostShardSets) == 0 {
@@ -656,20 +657,11 @@ func waitUntilAllShardsAreAvailable(t *testing.T, session client.AdminSession) {
 		for _, hostShardSet := range hostShardSets {
 			for _, hostShard := range hostShardSet.ShardSet().All() {
 				if hostShard.State() != shard.Available {
-					allShardsAreAvailable = false
-					break
+					continue outer
 				}
 			}
-
-			if !allShardsAreAvailable {
-				break
-			}
 		}
 
-		if allShardsAreAvailable {
-			break
-		}
-
-		time.Sleep(10 * time.Millisecond)
+		break
 	}
 }
