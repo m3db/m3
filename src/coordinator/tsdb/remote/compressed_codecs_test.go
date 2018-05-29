@@ -64,16 +64,17 @@ var (
 // with one of the unmerged containing even points, other containing odd
 func buildReplica(t *testing.T) encoding.MultiReaderIterator {
 	// Build a merged BlockReader
+	blockStart := start.Truncate(blockSize)
+
 	encoder := m3tsz.NewEncoder(start, checked.NewBytes(nil, nil), true, encoding.NewOptions())
 	i := 0
 	for at := time.Duration(0); at < blockSize; at += time.Minute {
 		i++
-		datapoint := ts.Datapoint{Timestamp: start.Add(at), Value: float64(i)}
+		datapoint := ts.Datapoint{Timestamp: blockStart.Add(at), Value: float64(i)}
 		err := encoder.Encode(datapoint, xtime.Second, nil)
 		assert.NoError(t, err)
 	}
 	segment := encoder.Discard()
-	blockStart := start.Truncate(blockSize)
 	mergedReader := xio.BlockReader{
 		SegmentReader: xio.NewSegmentReader(segment),
 		Start:         blockStart,
@@ -85,9 +86,11 @@ func buildReplica(t *testing.T) encoding.MultiReaderIterator {
 	encoder = m3tsz.NewEncoder(middle, checked.NewBytes(nil, nil), true, encoding.NewOptions())
 	encoderTwo := m3tsz.NewEncoder(middle, checked.NewBytes(nil, nil), true, encoding.NewOptions())
 	useFirstEncoder := true
+	secondBlockStart := blockStart.Add(blockSize)
+
 	for at := time.Duration(0); at < blockSize; at += time.Minute {
 		i++
-		datapoint := ts.Datapoint{Timestamp: middle.Add(at), Value: float64(i)}
+		datapoint := ts.Datapoint{Timestamp: secondBlockStart.Add(at), Value: float64(i)}
 		var err error
 		if useFirstEncoder {
 			err = encoder.Encode(datapoint, xtime.Second, nil)
@@ -101,7 +104,6 @@ func buildReplica(t *testing.T) encoding.MultiReaderIterator {
 
 	segment = encoder.Discard()
 	segmentTwo := encoderTwo.Discard()
-	secondBlockStart := blockStart.Add(blockSize)
 	unmergedReaders := []xio.BlockReader{
 		{
 			SegmentReader: xio.NewSegmentReader(segment),
@@ -110,7 +112,7 @@ func buildReplica(t *testing.T) encoding.MultiReaderIterator {
 		},
 		{
 			SegmentReader: xio.NewSegmentReader(segmentTwo),
-			Start:         secondBlockStart.Add(time.Minute),
+			Start:         secondBlockStart,
 			BlockSize:     blockSize,
 		},
 	}
@@ -125,12 +127,15 @@ func buildReplica(t *testing.T) encoding.MultiReaderIterator {
 	return multiReader
 }
 
-// BuildTestSeriesIterator creates a sample seriesIterator
+// BuildTestSeriesIterator creates a sample SeriesIterator
 // This series iterator has two identical replicas.
 // Each replica has two blocks.
 // The first block in each replica is merged and has values 1->30
+// The values 1 and 2 appear before the SeriesIterator start time, and are not expected
+// to appear when reading through the iterator
 // The second block is unmerged; when it was merged, it has values 101 -> 130
 // from two readers, one with even values and other with odd values
+// Expected data points for reading through the iterator: [3..30,101..130], 58 in total
 // SeriesIterator ID is 'foo', namespace is 'namespace'
 // Tags are "foo": "bar" and "baz": "qux"
 func BuildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
@@ -156,6 +161,30 @@ func BuildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
 	)
 }
 
+func validateSeriesInternals(t *testing.T, it encoding.SeriesIterator) {
+	defer it.Close()
+
+	replicas := it.Replicas()
+	expectedReaders := []int{1, 2}
+	expectedStarts := []time.Time{start.Truncate(blockSize), middle.Truncate(blockSize)}
+	for _, replica := range replicas {
+		readers := replica.Readers()
+		i := 0
+		for hasNext := true; hasNext; hasNext = readers.Next() {
+			l, s, size := readers.CurrentReaders()
+			require.Equal(t, expectedReaders[i], l)
+			assert.Equal(t, expectedStarts[i], s)
+			assert.Equal(t, blockSize, size)
+			for j := 0; j < l; j++ {
+				block := readers.CurrentReaderAt(j)
+				assert.Equal(t, expectedStarts[i], block.Start)
+				assert.Equal(t, blockSize, block.BlockSize)
+			}
+			i++
+		}
+	}
+}
+
 func validateSeries(t *testing.T, it encoding.SeriesIterator) {
 	defer it.Close()
 
@@ -166,11 +195,11 @@ func validateSeries(t *testing.T, it encoding.SeriesIterator) {
 	for i := 0; i < 30; i++ {
 		expectedValues[i+30] = float64(i) + 101
 	}
-	for i := 0; i < 60; i++ {
+	for i := 2; i < 60; i++ {
 		require.True(t, it.Next())
 		dp, unit, annotation := it.Current()
-		assert.Equal(t, start.Add(time.Duration(i)*time.Minute), dp.Timestamp)
 		require.Equal(t, expectedValues[i], dp.Value)
+		require.Equal(t, start.Add(time.Duration(i-2)*time.Minute), dp.Timestamp)
 		uv, err := unit.Value()
 		assert.NoError(t, err)
 		assert.Equal(t, time.Second, uv)
@@ -200,6 +229,7 @@ func validateSeries(t *testing.T, it encoding.SeriesIterator) {
 
 func TestGeneratedSeries(t *testing.T) {
 	validateSeries(t, BuildTestSeriesIterator(t))
+	validateSeriesInternals(t, BuildTestSeriesIterator(t))
 }
 
 type seriesIteratorWrapper struct {
@@ -209,7 +239,7 @@ type seriesIteratorWrapper struct {
 
 func TestConversionToCompressedData(t *testing.T) {
 	it := BuildTestSeriesIterator(t)
-	series, err := RPCFromSeriesIterator(it)
+	series, err := CompressedProtobufFromSeriesIterator(it)
 	require.NoError(t, err)
 
 	assert.Equal(t, []byte(seriesID), series.GetId())
@@ -232,6 +262,8 @@ func TestConversionToCompressedData(t *testing.T) {
 		assert.NotNil(t, merged)
 		assert.NotEmpty(t, merged.GetHead())
 		assert.NotEmpty(t, merged.GetTail())
+		assert.Equal(t, start.Truncate(blockSize).UnixNano(), merged.GetStartTime())
+		assert.Equal(t, int64(blockSize), merged.GetBlockSize())
 
 		seg = segments[1]
 		assert.Nil(t, seg.GetMerged())
@@ -240,35 +272,39 @@ func TestConversionToCompressedData(t *testing.T) {
 		for _, unmerged := range unmergedSegments {
 			assert.NotEmpty(t, unmerged.GetHead())
 			assert.NotEmpty(t, unmerged.GetTail())
+			assert.Equal(t, middle.Truncate(blockSize).UnixNano(), unmerged.GetStartTime())
+			assert.Equal(t, int64(blockSize), unmerged.GetBlockSize())
 		}
 	}
 }
 
 func TestSeriesConversionFromCompressedData(t *testing.T) {
 	it := BuildTestSeriesIterator(t)
-	rpcSeries, err := RPCFromSeriesIterator(it)
+	rpcSeries, err := CompressedProtobufFromSeriesIterator(it)
 	require.NoError(t, err)
-	seriesIterator := SeriesIteratorFromRPC(nil, rpcSeries)
+
+	seriesIterator := SeriesIteratorFromCompressedProtobuf(nil, rpcSeries)
 	validateSeries(t, seriesIterator)
-	seriesIterator.Close()
+	seriesIterator = SeriesIteratorFromCompressedProtobuf(nil, rpcSeries)
+	validateSeriesInternals(t, seriesIterator)
 }
 
 func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 	it := BuildTestSeriesIterator(t)
-	rpcSeries, err := RPCFromSeriesIterator(it)
+	rpcSeries, err := CompressedProtobufFromSeriesIterator(it)
 	require.NoError(t, err)
 
 	ip := &mockIteratorPool{}
-	seriesIterator := SeriesIteratorFromRPC(ip, rpcSeries)
-	defer seriesIterator.Close()
+	seriesIterator := SeriesIteratorFromCompressedProtobuf(ip, rpcSeries)
+	validateSeries(t, seriesIterator)
+	seriesIterator = SeriesIteratorFromCompressedProtobuf(ip, rpcSeries)
+	validateSeriesInternals(t, seriesIterator)
 
 	assert.True(t, ip.mriPoolUsed)
 	assert.True(t, ip.siPoolUsed)
 	assert.True(t, ip.mriaPoolUsed)
 	assert.True(t, ip.cbwPoolUsed)
 	assert.True(t, ip.identPoolUsed)
-
-	validateSeries(t, seriesIterator)
 }
 
 type mockIteratorPool struct {
@@ -280,7 +316,7 @@ var _ encoding.IteratorPools = &mockIteratorPool{}
 func (ip *mockIteratorPool) MultiReaderIterator() encoding.MultiReaderIteratorPool {
 	ip.mriPoolUsed = true
 	mriPool := encoding.NewMultiReaderIteratorPool(nil)
-	mriPool.Init(iterAlloc)
+	mriPool.Init(testIterAlloc)
 	return mriPool
 }
 func (ip *mockIteratorPool) SeriesIterator() encoding.SeriesIteratorPool {
@@ -313,13 +349,13 @@ func (ip *mockIteratorPool) ID() ident.Pool {
 	return ident.NewPool(bytesPool, ident.PoolOptions{})
 }
 
-// NB: make sure that seriesIterator is not closed during conversion, or bytes will be empty
+// NB: make sure that SeriesIterator is not closed during conversion, or bytes will be empty
 func TestConversionDoesNotCloseSeriesIterator(t *testing.T) {
 	it := &seriesIteratorWrapper{
 		it:     BuildTestSeriesIterator(t),
 		closed: false,
 	}
-	RPCFromSeriesIterator(it)
+	CompressedProtobufFromSeriesIterator(it)
 	assert.False(t, it.closed)
 }
 

@@ -65,6 +65,8 @@ message FetchResult {
 message Segment {
 	bytes head = 1;
 	bytes tail = 2;
+	int64 startTime = 3;
+	int64 blockSize = 4;
 }
 
 message Segments {
