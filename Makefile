@@ -157,6 +157,23 @@ release-snapshot: install-goreleaser
 	@source $(GO_BUILD_LDFLAGS_CMD) > /dev/null && goreleaser --snapshot --rm-dist
 
 
+.PHONY: docs-container
+docs-container:
+	which docker
+	docker build -t m3db-docs -f src/scripts/Dockerfile-docs docs
+
+.PHONY: docs-build
+docs-build: docs-container
+	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -e docs/theme -t material"
+
+.PHONY: docs-serve
+docs-serve: docs-container
+	docker run -v $(PWD):/m3db -p 8000:8000 -it --rm m3db-docs "mkdocs serve -e docs/theme -t material -a 0.0.0.0:8000"
+
+.PHONY: docs-deploy
+docs-deploy: docs-container
+	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --dirty"
+
 define SUBDIR_RULES
 
 .PHONY: mock-gen-$(SUBDIR)
