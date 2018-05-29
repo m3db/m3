@@ -51,9 +51,6 @@ import (
 
 // TestIndexEnabledServer tests booting a server using file based configuration.
 func TestIndexEnabledServer(t *testing.T) {
-	// Temporarily skip while we debug flakiness
-	t.SkipNow()
-
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -187,8 +184,18 @@ func TestIndexEnabledServer(t *testing.T) {
 	cli, err := cfg.DB.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
 
-	session, err := cli.DefaultSession()
+	adminCli := cli.(client.AdminClient)
+	adminSession, err := adminCli.DefaultAdminSession()
 	require.NoError(t, err)
+	defer adminSession.Close()
+
+	// Propagation of shard state from Initializing --> Available post-bootstrap is eventually
+	// consistent, so we must wait.
+	waitUntilAllShardsAreAvailable(t, adminSession)
+
+	// Cast to narrower-interface instead of grabbing DefaultSession to make sure
+	// we use the same topology.Map that we validated in waitUntilAllShardsAreAvailable.
+	session := adminSession.(client.Session)
 
 	defer session.Close()
 

@@ -405,10 +405,10 @@ func TestBootstrapIndexErr(t *testing.T) {
 	require.NoError(t, err)
 	topoOpts := topology.NewStaticOptions().
 		SetShardSet(shardSet)
-	topo := topology.NewStaticTopology(topoOpts)
+	topoMap := topology.NewStaticTopology(topoOpts).Get()
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
-	mockAdminSession.EXPECT().Topology().Return(topo, nil)
+	mockAdminSession.EXPECT().TopologyMap().Return(topoMap, nil)
 	mockAdminSessionCalls := []*gomock.Call{}
 
 	for blockStart := start; blockStart.Before(end); blockStart = blockStart.Add(blockSize) {
