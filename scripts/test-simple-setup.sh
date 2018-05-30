@@ -64,7 +64,7 @@ curl -vvvsSf -X POST localhost:7201/placement/init -d '{
     ]
 }'
 
-[ "$(curl -sSf localhost:7201/placement | jq .placement.instances.m3db_local.id == "m3db_local" ]
+[ $(curl -sSf localhost:7201/placement | jq .placement.instances.m3db_local.id) == "m3db_local" ]
 
 echo "Write data" 
 
@@ -118,12 +118,12 @@ curl -vvvsSf -X DELETE localhost:7201/namespace/default
 
 echo "Stop docker container" 
 
-docker stop m3dbnode-version-$(git rev-parse HEAD) 
+docker stop m3dbnode-version-"$(git rev-parse HEAD)"
 
-echo "Remove docker cotainer"
+echo "Remove docker container"
 
-docker rm m3dbnode-version-$(git rev-parse HEAD)
+docker rm m3dbnode-version-"$(git rev-parse HEAD)"
 
-echo "Remove docker image" 
+echo "Remove docker image"
 
-docker rmi m3dbnode:$(git rev-parse HEAD)
+docker rmi m3dbnode-version"$(git rev-parse HEAD)"
