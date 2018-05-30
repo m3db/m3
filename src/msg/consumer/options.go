@@ -22,7 +22,9 @@ package consumer
 
 import (
 	"github.com/m3db/m3msg/protocol/proto"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/server"
 )
 
 var (
@@ -36,6 +38,7 @@ type options struct {
 	ackBufferSize   int
 	writeBufferSize int
 	readBufferSize  int
+	iOpts           instrument.Options
 }
 
 // NewOptions creates a new options.
@@ -46,6 +49,7 @@ func NewOptions() Options {
 		ackBufferSize:   defaultAckBufferSize,
 		writeBufferSize: defaultConnectionBufferSize,
 		readBufferSize:  defaultConnectionBufferSize,
+		iOpts:           instrument.NewOptions(),
 	}
 }
 
@@ -96,5 +100,59 @@ func (opts *options) ConnectionReadBufferSize() int {
 func (opts *options) SetConnectionReadBufferSize(value int) Options {
 	o := *opts
 	o.readBufferSize = value
+	return &o
+}
+
+func (opts *options) InstrumentOptions() instrument.Options {
+	return opts.iOpts
+}
+
+func (opts *options) SetInstrumentOptions(value instrument.Options) Options {
+	o := *opts
+	o.iOpts = value
+	return &o
+}
+
+type serverOptions struct {
+	consumeFn ConsumeFn
+	sOpts     server.Options
+	cOpts     Options
+}
+
+// NewServerOptions creates ServerOptions.
+func NewServerOptions() ServerOptions {
+	return &serverOptions{
+		sOpts: server.NewOptions(),
+		cOpts: NewOptions(),
+	}
+}
+
+func (opts *serverOptions) ConsumeFn() ConsumeFn {
+	return opts.consumeFn
+}
+
+func (opts *serverOptions) SetConsumeFn(value ConsumeFn) ServerOptions {
+	o := *opts
+	o.consumeFn = value
+	return &o
+}
+
+func (opts *serverOptions) ServerOptions() server.Options {
+	return opts.sOpts
+}
+
+func (opts *serverOptions) SetServerOptions(value server.Options) ServerOptions {
+	o := *opts
+	o.sOpts = value
+	return &o
+}
+
+func (opts *serverOptions) ConsumerOptions() Options {
+	return opts.cOpts
+}
+
+func (opts *serverOptions) SetConsumerOptions(value Options) ServerOptions {
+	o := *opts
+	o.cOpts = value
 	return &o
 }

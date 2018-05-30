@@ -33,7 +33,7 @@ import (
 
 const (
 	defaultDialTimeout               = 10 * time.Second
-	defaultKeepAlivePeriod           = 30 * time.Second
+	defaultKeepAlivePeriod           = time.Minute
 	defaultMessageQueueScanInterval  = 5 * time.Second
 	defaultPlacementWatchInitTimeout = 5 * time.Second
 	defaultTopicWatchInitTimeout     = 5 * time.Second

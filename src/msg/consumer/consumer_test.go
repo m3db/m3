@@ -317,6 +317,7 @@ func TestConsumerAckAfterClosed(t *testing.T) {
 	// Second ack will not trigger encode since the consumer is closed.
 	m2.Ack()
 }
+
 func TestConsumerFlushAcksOnClose(t *testing.T) {
 	defer leaktest.Check(t)()
 

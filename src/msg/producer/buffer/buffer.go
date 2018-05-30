@@ -29,8 +29,8 @@ import (
 	"github.com/m3db/m3msg/producer"
 	"github.com/m3db/m3msg/producer/msg"
 
-	"github.com/uber-go/atomic"
 	"github.com/uber-go/tally"
+	"go.uber.org/atomic"
 )
 
 var (
