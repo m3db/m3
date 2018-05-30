@@ -66,9 +66,13 @@ curl -vvvsSf -X POST localhost:7201/placement/init -d '{
 
 [ "$(curl -sSf localhost:7201/placement | jq .placement.instances.m3db_local.id)" == '"m3db_local"' ]
 
+echo "Wait for placement to fully initialize" 
+
+sleep 60
+
 echo "Write data" 
 
-curl -vvvsSf -X POST http://localhost:9003/writetagged -d '{
+curl -vvvsSf -X POST localhost:9003/writetagged -d '{
   "namespace": "default",
   "id": "foo",
   "tags": [
@@ -89,7 +93,7 @@ curl -vvvsSf -X POST http://localhost:9003/writetagged -d '{
 
 echo "Read data"
 
-queryResult=$(curl -sSf -X POST http://localhost:9003/query -d '{
+queryResult=$(curl -sSf -X POST localhost:9003/query -d '{
   "namespace": "default",
   "query": {
     "regexp": {
