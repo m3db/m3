@@ -109,8 +109,20 @@ func compressedTagsFromTagIterator(tagIter ident.TagIterator) ([]*rpc.Compressed
 	return tags, nil
 }
 
-// CompressedProtobufFromSeriesIterator builds compressed rpc series from a SeriesIterator
-func CompressedProtobufFromSeriesIterator(it encoding.SeriesIterator) (*rpc.Series, error) {
+/*
+CompressedSeriesFromSeriesIterator builds compressed rpc series from a SeriesIterator
+SeriesIterator is the top level iterator returned by m3db
+This SeriesIterator contains MultiReaderIterators, each representing a single replica
+Each MultiReaderIterator has a ReaderSliceOfSlicesIterator where each step through the
+iterator exposes a slice of underlying BlockReaders. Each BlockReader contains the
+run time encoded bytes that represent the series.
+
+SeriesIterator also has a TagIterator representing the tags associated with it
+
+This function transforms a SeriesIterator into a protobuf representation to be able
+to send it accross the wire without needing to expand the series
+*/
+func CompressedSeriesFromSeriesIterator(it encoding.SeriesIterator) (*rpc.Series, error) {
 	initialize.Do(initializeVars)
 
 	replicas := it.Replicas()
@@ -239,8 +251,15 @@ func blockReadersFromCompressedSegments(
 	return blockReaders
 }
 
-// SeriesIteratorFromCompressedProtobuf creates a SeriesIterator from a compressed protobuf
-func SeriesIteratorFromCompressedProtobuf(iteratorPools encoding.IteratorPools, timeSeries *rpc.Series) encoding.SeriesIterator {
+/*
+SeriesIteratorFromCompressedSeries creates a SeriesIterator from a compressed protobuf
+This is the reverse of CompressedSeriesFromSeriesIterator, and takes an optional iteratorPool
+argument that allows reuse of the underlying iterator pools from the m3db session
+*/
+func SeriesIteratorFromCompressedSeries(
+	timeSeries *rpc.Series,
+	iteratorPools encoding.IteratorPools,
+) encoding.SeriesIterator {
 	initialize.Do(initializeVars)
 
 	var (

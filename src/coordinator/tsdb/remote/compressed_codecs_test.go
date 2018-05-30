@@ -239,7 +239,7 @@ type seriesIteratorWrapper struct {
 
 func TestConversionToCompressedData(t *testing.T) {
 	it := BuildTestSeriesIterator(t)
-	series, err := CompressedProtobufFromSeriesIterator(it)
+	series, err := CompressedSeriesFromSeriesIterator(it)
 	require.NoError(t, err)
 
 	assert.Equal(t, []byte(seriesID), series.GetId())
@@ -280,24 +280,24 @@ func TestConversionToCompressedData(t *testing.T) {
 
 func TestSeriesConversionFromCompressedData(t *testing.T) {
 	it := BuildTestSeriesIterator(t)
-	rpcSeries, err := CompressedProtobufFromSeriesIterator(it)
+	rpcSeries, err := CompressedSeriesFromSeriesIterator(it)
 	require.NoError(t, err)
 
-	seriesIterator := SeriesIteratorFromCompressedProtobuf(nil, rpcSeries)
+	seriesIterator := SeriesIteratorFromCompressedSeries(rpcSeries, nil)
 	validateSeries(t, seriesIterator)
-	seriesIterator = SeriesIteratorFromCompressedProtobuf(nil, rpcSeries)
+	seriesIterator = SeriesIteratorFromCompressedSeries(rpcSeries, nil)
 	validateSeriesInternals(t, seriesIterator)
 }
 
 func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
 	it := BuildTestSeriesIterator(t)
-	rpcSeries, err := CompressedProtobufFromSeriesIterator(it)
+	rpcSeries, err := CompressedSeriesFromSeriesIterator(it)
 	require.NoError(t, err)
 
 	ip := &mockIteratorPool{}
-	seriesIterator := SeriesIteratorFromCompressedProtobuf(ip, rpcSeries)
+	seriesIterator := SeriesIteratorFromCompressedSeries(rpcSeries, ip)
 	validateSeries(t, seriesIterator)
-	seriesIterator = SeriesIteratorFromCompressedProtobuf(ip, rpcSeries)
+	seriesIterator = SeriesIteratorFromCompressedSeries(rpcSeries, ip)
 	validateSeriesInternals(t, seriesIterator)
 
 	assert.True(t, ip.mriPoolUsed)
@@ -355,7 +355,7 @@ func TestConversionDoesNotCloseSeriesIterator(t *testing.T) {
 		it:     BuildTestSeriesIterator(t),
 		closed: false,
 	}
-	CompressedProtobufFromSeriesIterator(it)
+	CompressedSeriesFromSeriesIterator(it)
 	assert.False(t, it.closed)
 }
 
