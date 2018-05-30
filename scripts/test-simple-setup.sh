@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
+
 set -xe
+
+echo "Build docker image" 
+
+docker build -t "m3dbnode:$(git rev-parse head)" -f Dockerfile .
+
+echo "Run docker container" 
+
+docker run --name "m3dbnode:$(git rev-parse)" -d --rm -p 9000:9000 -p 9001:9001 -p 9002:9002 -p 9003:9003 -p 9004:9004 -p 7201:7201 "m3dbnode:$(git rev-parse head)"
 
 echo "Sleeping for a bit to ensure db"
 
@@ -30,6 +39,12 @@ curl -vvvsSf -X POST localhost:7201/namespace/add -d '{
     }
   }
 }'
+
+echo "Sleep while namespace is init'd" 
+
+sleep 10
+
+[ "$(curl -sSf localhost:7201/namespace | jq .registry.namespaces.default.indexOptions.enabled)" == truez ]
 
 echo "Initialization placement" 
 
