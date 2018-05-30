@@ -64,7 +64,7 @@ curl -vvvsSf -X POST localhost:7201/placement/init -d '{
     ]
 }'
 
-[ $(curl -sSf localhost:7201/placement | jq .placement.instances.m3db_local.id) == "m3db_local" ]
+[ $(curl -sSf localhost:7201/placement | jq .placement.instances.m3db_local.id) == '"m3db_local"' ]
 
 echo "Write data" 
 
