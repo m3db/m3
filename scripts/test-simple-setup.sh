@@ -8,7 +8,7 @@ docker build -t "m3dbnode:$(git rev-parse HEAD)" -f Dockerfile .
 
 echo "Run docker container" 
 
-docker run --name "m3dbnode:$(git rev-parse HEAD)" -d --rm -p 9000:9000 -p 9001:9001 -p 9002:9002 -p 9003:9003 -p 9004:9004 -p 7201:7201 "m3dbnode:$(git rev-parse HEAD)"
+docker run --name "m3dbnode-version-$(git rev-parse HEAD)" -d --rm -p 9000:9000 -p 9001:9001 -p 9002:9002 -p 9003:9003 -p 9004:9004 -p 7201:7201 "m3dbnode:$(git rev-parse HEAD)"
 
 echo "Sleeping for a bit to ensure db"
 
