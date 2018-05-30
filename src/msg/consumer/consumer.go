@@ -27,6 +27,8 @@ import (
 
 	"github.com/m3db/m3msg/generated/proto/msgpb"
 	"github.com/m3db/m3msg/protocol/proto"
+
+	"github.com/uber-go/tally"
 )
 
 type listener struct {
@@ -34,6 +36,7 @@ type listener struct {
 
 	opts    Options
 	msgPool *messagePool
+	m       metrics
 }
 
 // NewListener creates a consumer listener.
@@ -51,6 +54,7 @@ func NewListener(addr string, opts Options) (Listener, error) {
 		Listener: lis,
 		opts:     opts,
 		msgPool:  mPool,
+		m:        newConsumerMetrics(opts.InstrumentOptions().MetricsScope()),
 	}, nil
 }
 
@@ -59,7 +63,23 @@ func (l *listener) Accept() (Consumer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newConsumer(conn, l.msgPool, l.opts), nil
+	return newConsumer(conn, l.msgPool, l.opts, l.m), nil
+}
+
+type metrics struct {
+	messageReceived    tally.Counter
+	messageDecodeError tally.Counter
+	ackSent            tally.Counter
+	ackEncodeError     tally.Counter
+}
+
+func newConsumerMetrics(scope tally.Scope) metrics {
+	return metrics{
+		messageReceived:    scope.Counter("message-received"),
+		messageDecodeError: scope.Counter("message-decode-error"),
+		ackSent:            scope.Counter("ack-sent"),
+		ackEncodeError:     scope.Counter("ack-encode-error"),
+	}
 }
 
 type consumer struct {
@@ -72,12 +92,14 @@ type consumer struct {
 	ackLock sync.Mutex
 	ackPb   msgpb.Ack
 	canAck  bool
+	m       metrics
 }
 
 func newConsumer(
 	conn net.Conn,
 	mPool *messagePool,
 	opts Options,
+	m metrics,
 ) *consumer {
 	r := bufio.NewReaderSize(conn, opts.ConnectionReadBufferSize())
 	w := bufio.NewWriterSize(conn, opts.ConnectionWriteBufferSize())
@@ -89,6 +111,7 @@ func newConsumer(
 		rw:     rw,
 		conn:   conn,
 		canAck: true,
+		m:      m,
 	}
 }
 
@@ -97,8 +120,10 @@ func (c *consumer) Message() (Message, error) {
 	m.reset(c)
 	if err := c.encdec.Decode(m); err != nil {
 		c.mPool.Put(m)
+		c.m.messageDecodeError.Inc(1)
 		return nil, err
 	}
+	c.m.messageReceived.Inc(1)
 	return m, nil
 }
 
@@ -111,12 +136,16 @@ func (c *consumer) tryAck(m msgpb.Metadata) {
 		return
 	}
 	c.ackPb.Metadata = append(c.ackPb.Metadata, m)
-	if len(c.ackPb.Metadata) < c.opts.AckBufferSize() {
+	ackLen := len(c.ackPb.Metadata)
+	if ackLen < c.opts.AckBufferSize() {
 		c.ackLock.Unlock()
 		return
 	}
 	if err := c.encodeAckWithLock(); err != nil {
 		c.conn.Close()
+		c.m.ackEncodeError.Inc(1)
+	} else {
+		c.m.ackSent.Inc(int64(ackLen))
 	}
 	c.ackLock.Unlock()
 }
