@@ -94,7 +94,7 @@ services-linux-amd64:
 #tools: $(TOOLS)
 tools:
 	@echo Running docker integration test
-	@./scripts/test-simple-setup.sh
+	@./scripts/docker-integration-test.sh
 
 tools-linux-amd64:
 	$(LINUX_AMD64_ENV) make tools
