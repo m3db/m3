@@ -174,6 +174,12 @@ docs-serve: docs-container
 docs-deploy: docs-container
 	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --dirty"
 
+.PHONY: docker-integration-test
+docker-integration-test: 
+	@echo "Running Docker integration test"
+	@./scripts/docker-integration-test.sh
+
+
 define SUBDIR_RULES
 
 .PHONY: mock-gen-$(SUBDIR)
