@@ -16,7 +16,7 @@ sleep 10 # TODO Replace sleeps with logic to determine when to proceed
 
 echo "Adding namespace"
 
-curl -vvvsSf -X POST localhost:7201/namespace/add -d '{
+curl -vvvsSf -X POST localhost:7201/api/v1/namespace/add -d '{
   "name": "default",
   "options": {
     "bootstrapEnabled": true,
@@ -44,11 +44,11 @@ echo "Sleep while namespace is init'd"
 
 sleep 10 # TODO Replace sleeps with logic to determine when to proceed
 
-[ "$(curl -sSf localhost:7201/namespace | jq .registry.namespaces.default.indexOptions.enabled)" == true ]
+[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.default.indexOptions.enabled)" == true ]
 
 echo "Initialization placement" 
 
-curl -vvvsSf -X POST localhost:7201/placement/init -d '{
+curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
     "num_shards": 64,
     "replication_factor": 1,
     "instances": [
@@ -64,7 +64,7 @@ curl -vvvsSf -X POST localhost:7201/placement/init -d '{
     ]
 }'
 
-[ "$(curl -sSf localhost:7201/placement | jq .placement.instances.m3db_local.id)" == '"m3db_local"' ]
+[ "$(curl -sSf localhost:7201/api/v1/placement | jq .placement.instances.m3db_local.id)" == '"m3db_local"' ]
 
 echo "Wait for placement to fully initialize" 
 
@@ -114,11 +114,11 @@ fi
 
 echo "Deleting placement" 
 
-curl -vvvsSf -X DELETE  localhost:7201/placement
+curl -vvvsSf -X DELETE  localhost:7201/api/v1/placement
 
 echo "Deleting namespace"
 
-curl -vvvsSf -X DELETE localhost:7201/namespace/default
+curl -vvvsSf -X DELETE localhost:7201/api/v1/namespace/default
 
 echo "Stop docker container" 
 
