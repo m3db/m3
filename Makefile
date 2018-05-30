@@ -91,11 +91,7 @@ services-linux-amd64:
 	$(LINUX_AMD64_ENV) make services
 
 .PHONY: tools tools-linux-amd64
-#tools: $(TOOLS)
-tools:
-	@echo Running docker integration test
-	@./scripts/docker-integration-test.sh
-
+tools: $(TOOLS)
 tools-linux-amd64:
 	$(LINUX_AMD64_ENV) make tools
 
