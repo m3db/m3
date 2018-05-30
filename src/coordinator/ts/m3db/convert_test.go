@@ -41,7 +41,12 @@ import (
 func TestConversion(t *testing.T) {
 	iterator := BuildTestSeriesIterator(t)
 	iterators := encoding.NewSeriesIterators([]encoding.SeriesIterator{iterator}, nil)
-	blocks, err := convertM3DBSeriesIterators(iterators)
+	iterAlloc := func(r io.Reader) encoding.ReaderIterator {
+		iter := m3tsz.NewDecoder(true, encoding.NewOptions())
+		return iter.Decode(r)
+	}
+
+	blocks, err := ConvertM3DBSeriesIterators(iterators, iterAlloc)
 	require.NoError(t, err)
 
 	for _, block := range blocks {

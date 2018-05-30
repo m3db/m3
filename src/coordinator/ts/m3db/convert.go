@@ -21,11 +21,9 @@
 package m3db
 
 import (
-	"io"
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/encoding"
-	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
 )
 
@@ -36,15 +34,12 @@ type BlockReplica struct {
 	Replicas  []encoding.MultiReaderIterator
 }
 
-func convertM3DBSeriesIterators(iterators encoding.SeriesIterators) ([]SeriesBlocks, error) {
-	iterAlloc := func(r io.Reader) encoding.ReaderIterator {
-		iter := m3tsz.NewDecoder(true, encoding.NewOptions())
-		return iter.Decode(r)
-	}
+// ConvertM3DBSeriesIterators takes in series iterators from m3db and returns
+// coordinator SeriesBlocks which are used to construct Blocks for query processing.
+func ConvertM3DBSeriesIterators(iterators encoding.SeriesIterators, iterAlloc encoding.ReaderIteratorAllocate) ([]SeriesBlocks, error) {
+	multiSeriesBlocks := make([]SeriesBlocks, iterators.Len())
 
-	var multiSeriesBlocks []SeriesBlocks
-
-	for _, seriesIterator := range iterators.Iters() {
+	for i, seriesIterator := range iterators.Iters() {
 
 		blockReplicas, err := blockReplicasFromSeriesIterator(seriesIterator, iterAlloc)
 		if err != nil {
@@ -52,8 +47,7 @@ func convertM3DBSeriesIterators(iterators encoding.SeriesIterators) ([]SeriesBlo
 		}
 
 		series := seriesBlocksFromBlockReplicas(blockReplicas, seriesIterator)
-
-		multiSeriesBlocks = append(multiSeriesBlocks, series)
+		multiSeriesBlocks[i] = series
 	}
 
 	return multiSeriesBlocks, nil
