@@ -12,7 +12,7 @@ docker run --name "m3dbnode-version-$(git rev-parse HEAD)" -d --rm -p 9000:9000 
 
 echo "Sleeping for a bit to ensure db"
 
-sleep 10
+sleep 10 # TODO Replace sleeps with logic to determine when to proceed
 
 echo "Adding namespace"
 
@@ -42,7 +42,7 @@ curl -vvvsSf -X POST localhost:7201/namespace/add -d '{
 
 echo "Sleep while namespace is init'd" 
 
-sleep 10
+sleep 10 # TODO Replace sleeps with logic to determine when to proceed
 
 [ "$(curl -sSf localhost:7201/namespace | jq .registry.namespaces.default.indexOptions.enabled)" == true ]
 
@@ -68,7 +68,7 @@ curl -vvvsSf -X POST localhost:7201/placement/init -d '{
 
 echo "Wait for placement to fully initialize" 
 
-sleep 60
+sleep 60 # TODO Replace sleeps with logic to determine when to proceed
 
 echo "Write data" 
 
