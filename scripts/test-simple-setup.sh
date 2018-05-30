@@ -44,7 +44,7 @@ echo "Sleep while namespace is init'd"
 
 sleep 10
 
-[ "$(curl -sSf localhost:7201/namespace | jq .registry.namespaces.default.indexOptions.enabled)" == truez ]
+[ "$(curl -sSf localhost:7201/namespace | jq .registry.namespaces.default.indexOptions.enabled)" == true ]
 
 echo "Initialization placement" 
 
@@ -63,6 +63,8 @@ curl -vvvsSf -X POST localhost:7201/placement/init -d '{
         }
     ]
 }'
+
+[ "$(curl -sSf localhost:7201/placement | jq .placement.instances.m3db_local.id == "m3db_local" ]
 
 echo "Write data" 
 
@@ -113,3 +115,15 @@ curl -vvvsSf -X DELETE  localhost:7201/placement
 echo "Deleteing namespace"
 
 curl -vvvsSf -X DELETE localhost:7201/namespace/default
+
+echo "Stop docker container" 
+
+docker stop m3dbnode-version-$(git rev-parse HEAD) 
+
+echo "Remove docker cotainer"
+
+docker rm m3dbnode-version-$(git rev-parse HEAD)
+
+echo "Remove docker image" 
+
+docker rmi m3dbnode:$(git rev-parse HEAD)
