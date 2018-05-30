@@ -120,7 +120,7 @@ run time encoded bytes that represent the series.
 SeriesIterator also has a TagIterator representing the tags associated with it
 
 This function transforms a SeriesIterator into a protobuf representation to be able
-to send it accross the wire without needing to expand the series
+to send it across the wire without needing to expand the series
 */
 func CompressedSeriesFromSeriesIterator(it encoding.SeriesIterator) (*rpc.Series, error) {
 	initialize.Do(initializeVars)
