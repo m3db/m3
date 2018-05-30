@@ -177,8 +177,7 @@ docs-deploy: docs-container
 .PHONY: docker-integration-test
 docker-integration-test: 
 	@echo "Running Docker integration test"
-	@./scripts/docker-integration-test.sh
-
+	@./scripts/integration-tests/docker-integration-test.sh
 
 define SUBDIR_RULES
 
