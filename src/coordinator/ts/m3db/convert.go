@@ -77,6 +77,7 @@ func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, ite
 				}
 				readers = append(readers, clonedReader)
 			}
+			// todo(braskin): pooling
 			iter := encoding.NewMultiReaderIterator(iterAlloc, nil)
 			iter.Reset(readers, start, bs)
 
@@ -122,6 +123,7 @@ func seriesBlocksFromBlockReplicas(blockReplicas []BlockReplica, seriesIterator 
 			filterValuesEnd = end
 		}
 
+		// todo(braskin): pooling
 		valuesIter := encoding.NewSeriesIterator(seriesIterator.ID(), seriesIterator.Namespace(),
 			seriesIterator.Tags(), filterValuesStart, filterValuesEnd, block.Replicas, nil)
 
