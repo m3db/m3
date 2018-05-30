@@ -1,6 +1,5 @@
 # Prometheus and M#DB integration 
 
-
 This example will demostrate how to run M3DB and Prometehus within the same
 host using Docker Compose to bootstrap individual containers.  This guide 
 assumes that the code base for M3DB is the locally checkout copy of the 
@@ -20,5 +19,3 @@ The first container to be created will be the M3DB node.
 Once the node is up and running follow the [HOWTO](https://github.com/m3db/m3db/blob/master/docs/how_to/single_node.md) to configure the M3DB node. 
 
 3.) `docker-compose -f docker-compose.yml up prometheus01`
-
-4.) Query the M3DB for prometheus 
