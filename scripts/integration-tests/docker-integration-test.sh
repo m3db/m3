@@ -116,7 +116,7 @@ echo "Deleting placement"
 
 curl -vvvsSf -X DELETE  localhost:7201/placement
 
-echo "Deleteing namespace"
+echo "Deleting namespace"
 
 curl -vvvsSf -X DELETE localhost:7201/namespace/default
 
