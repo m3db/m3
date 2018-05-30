@@ -25,11 +25,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/coordinator/ts/m3db/generated"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3db/src/dbnode/ts"
+	"github.com/m3db/m3db/src/dbnode/x/xio"
 	"github.com/m3db/m3db/src/dbnode/x/xpool"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
@@ -38,27 +39,126 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	seriesID        = "foo"
+	seriesNamespace = "namespace"
+)
+
 var (
-	seriesID        = generated.SeriesID
-	seriesNamespace = generated.SeriesNamespace
+	testTags = map[string]string{"foo": "bar", "baz": "qux"}
 
-	testTags = generated.TestTags
+	blockSize = time.Hour / 2
 
-	blockSize = generated.BlockSize
+	start  = time.Now().Truncate(time.Hour).Add(2 * time.Minute)
+	middle = start.Add(blockSize)
+	end    = middle.Add(blockSize)
 
-	start       = generated.Start
-	seriesStart = generated.SeriesStart
-	middle      = generated.Middle
-	end         = generated.End
-
-	// required for iterator pool
 	testIterAlloc = func(r io.Reader) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
 )
 
-func buildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
-	return generated.BuildTestSeriesIterator(t)
+// Builds a MultiReaderIterator representing a single replica
+// with two segments, one merged with values from 1->30, and
+// one which is unmerged with 2 segments from 101->130
+// with one of the unmerged containing even points, other containing odd
+func buildReplica(t *testing.T) encoding.MultiReaderIterator {
+	// Build a merged BlockReader
+	blockStart := start.Truncate(blockSize)
+
+	encoder := m3tsz.NewEncoder(start, checked.NewBytes(nil, nil), true, encoding.NewOptions())
+	i := 0
+	for at := time.Duration(0); at < blockSize; at += time.Minute {
+		i++
+		datapoint := ts.Datapoint{Timestamp: blockStart.Add(at), Value: float64(i)}
+		err := encoder.Encode(datapoint, xtime.Second, nil)
+		assert.NoError(t, err)
+	}
+	segment := encoder.Discard()
+	mergedReader := xio.BlockReader{
+		SegmentReader: xio.NewSegmentReader(segment),
+		Start:         blockStart,
+		BlockSize:     blockSize,
+	}
+
+	// Build two unmerged BlockReaders
+	i = 100
+	encoder = m3tsz.NewEncoder(middle, checked.NewBytes(nil, nil), true, encoding.NewOptions())
+	encoderTwo := m3tsz.NewEncoder(middle, checked.NewBytes(nil, nil), true, encoding.NewOptions())
+	useFirstEncoder := true
+	secondBlockStart := blockStart.Add(blockSize)
+
+	for at := time.Duration(0); at < blockSize; at += time.Minute {
+		i++
+		datapoint := ts.Datapoint{Timestamp: secondBlockStart.Add(at), Value: float64(i)}
+		var err error
+		if useFirstEncoder {
+			err = encoder.Encode(datapoint, xtime.Second, nil)
+		} else {
+			err = encoderTwo.Encode(datapoint, xtime.Second, nil)
+		}
+
+		assert.NoError(t, err)
+		useFirstEncoder = !useFirstEncoder
+	}
+
+	segment = encoder.Discard()
+	segmentTwo := encoderTwo.Discard()
+	unmergedReaders := []xio.BlockReader{
+		{
+			SegmentReader: xio.NewSegmentReader(segment),
+			Start:         secondBlockStart,
+			BlockSize:     blockSize,
+		},
+		{
+			SegmentReader: xio.NewSegmentReader(segmentTwo),
+			Start:         secondBlockStart,
+			BlockSize:     blockSize,
+		},
+	}
+
+	multiReader := encoding.NewMultiReaderIterator(testIterAlloc, nil)
+	sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator([][]xio.BlockReader{
+		{mergedReader},
+		unmergedReaders,
+	})
+
+	multiReader.ResetSliceOfSlices(sliceOfSlicesIter)
+	return multiReader
+}
+
+// BuildTestSeriesIterator creates a sample SeriesIterator
+// This series iterator has two identical replicas.
+// Each replica has two blocks.
+// The first block in each replica is merged and has values 1->30
+// The values 1 and 2 appear before the SeriesIterator start time, and are not expected
+// to appear when reading through the iterator
+// The second block is unmerged; when it was merged, it has values 101 -> 130
+// from two readers, one with even values and other with odd values
+// Expected data points for reading through the iterator: [3..30,101..130], 58 in total
+// SeriesIterator ID is 'foo', namespace is 'namespace'
+// Tags are "foo": "bar" and "baz": "qux"
+func BuildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
+	replicaOne := buildReplica(t)
+	replicaTwo := buildReplica(t)
+
+	tags := ident.Tags{}
+	for name, value := range testTags {
+		tags.Append(ident.StringTag(name, value))
+	}
+
+	return encoding.NewSeriesIterator(
+		ident.StringID(seriesID),
+		ident.StringID(seriesNamespace),
+		ident.NewTagsIterator(tags),
+		start,
+		end,
+		[]encoding.MultiReaderIterator{
+			replicaOne,
+			replicaTwo,
+		},
+		nil,
+	)
 }
 
 func validateSeriesInternals(t *testing.T, it encoding.SeriesIterator) {
@@ -89,7 +189,7 @@ func validateSeries(t *testing.T, it encoding.SeriesIterator) {
 	defer it.Close()
 
 	expectedValues := [60]float64{}
-	for i := 2; i < 30; i++ {
+	for i := 0; i < 30; i++ {
 		expectedValues[i] = float64(i) + 1
 	}
 	for i := 0; i < 30; i++ {
@@ -99,7 +199,7 @@ func validateSeries(t *testing.T, it encoding.SeriesIterator) {
 		require.True(t, it.Next())
 		dp, unit, annotation := it.Current()
 		require.Equal(t, expectedValues[i], dp.Value)
-		require.Equal(t, seriesStart.Add(time.Duration(i-2)*time.Minute), dp.Timestamp)
+		require.Equal(t, start.Add(time.Duration(i-2)*time.Minute), dp.Timestamp)
 		uv, err := unit.Value()
 		assert.NoError(t, err)
 		assert.Equal(t, time.Second, uv)
@@ -109,7 +209,7 @@ func validateSeries(t *testing.T, it encoding.SeriesIterator) {
 	assert.False(t, it.Next())
 	assert.Equal(t, seriesID, it.ID().String())
 	assert.Equal(t, seriesNamespace, it.Namespace().String())
-	assert.Equal(t, seriesStart, it.Start())
+	assert.Equal(t, start, it.Start())
 	assert.Equal(t, end, it.End())
 
 	tagIter := it.Tags()
@@ -128,8 +228,8 @@ func validateSeries(t *testing.T, it encoding.SeriesIterator) {
 }
 
 func TestGeneratedSeries(t *testing.T) {
-	validateSeries(t, buildTestSeriesIterator(t))
-	validateSeriesInternals(t, buildTestSeriesIterator(t))
+	validateSeries(t, BuildTestSeriesIterator(t))
+	validateSeriesInternals(t, BuildTestSeriesIterator(t))
 }
 
 type seriesIteratorWrapper struct {
@@ -138,7 +238,7 @@ type seriesIteratorWrapper struct {
 }
 
 func TestConversionToCompressedData(t *testing.T) {
-	it := buildTestSeriesIterator(t)
+	it := BuildTestSeriesIterator(t)
 	series, err := CompressedSeriesFromSeriesIterator(it)
 	require.NoError(t, err)
 
@@ -146,7 +246,7 @@ func TestConversionToCompressedData(t *testing.T) {
 
 	compressed := series.GetCompressed()
 	assert.Equal(t, []byte(seriesNamespace), compressed.GetNamespace())
-	assert.Equal(t, seriesStart.UnixNano(), compressed.GetStartTime())
+	assert.Equal(t, start.UnixNano(), compressed.GetStartTime())
 	assert.Equal(t, end.UnixNano(), compressed.GetEndTime())
 
 	replicas := compressed.GetReplicas()
@@ -162,7 +262,7 @@ func TestConversionToCompressedData(t *testing.T) {
 		assert.NotNil(t, merged)
 		assert.NotEmpty(t, merged.GetHead())
 		assert.NotEmpty(t, merged.GetTail())
-		assert.Equal(t, start.UnixNano(), merged.GetStartTime())
+		assert.Equal(t, start.Truncate(blockSize).UnixNano(), merged.GetStartTime())
 		assert.Equal(t, int64(blockSize), merged.GetBlockSize())
 
 		seg = segments[1]
@@ -179,7 +279,7 @@ func TestConversionToCompressedData(t *testing.T) {
 }
 
 func TestSeriesConversionFromCompressedData(t *testing.T) {
-	it := buildTestSeriesIterator(t)
+	it := BuildTestSeriesIterator(t)
 	rpcSeries, err := CompressedSeriesFromSeriesIterator(it)
 	require.NoError(t, err)
 
@@ -190,7 +290,7 @@ func TestSeriesConversionFromCompressedData(t *testing.T) {
 }
 
 func TestSeriesConversionFromCompressedDataWithIteratorPool(t *testing.T) {
-	it := buildTestSeriesIterator(t)
+	it := BuildTestSeriesIterator(t)
 	rpcSeries, err := CompressedSeriesFromSeriesIterator(it)
 	require.NoError(t, err)
 
@@ -252,7 +352,7 @@ func (ip *mockIteratorPool) ID() ident.Pool {
 // NB: make sure that SeriesIterator is not closed during conversion, or bytes will be empty
 func TestConversionDoesNotCloseSeriesIterator(t *testing.T) {
 	it := &seriesIteratorWrapper{
-		it:     buildTestSeriesIterator(t),
+		it:     BuildTestSeriesIterator(t),
 		closed: false,
 	}
 	CompressedSeriesFromSeriesIterator(it)
