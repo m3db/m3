@@ -33,8 +33,8 @@ import (
 )
 
 const (
-	// RoutePrefix is the prefix for all coordinator routes
-	RoutePrefix = "/api/v1"
+	// RoutePrefixV1 is the v1 prefix for all coordinator routes
+	RoutePrefixV1 = "/api/v1"
 )
 
 // WriteJSONResponse writes generic data to the ResponseWriter

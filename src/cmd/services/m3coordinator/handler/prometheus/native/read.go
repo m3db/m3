@@ -38,7 +38,7 @@ import (
 
 const (
 	// PromReadURL is the url for native prom read handler
-	PromReadURL = handler.RoutePrefix + "/prom/native/read"
+	PromReadURL = handler.RoutePrefixV1 + "/prom/native/read"
 
 	targetQuery = "target"
 )

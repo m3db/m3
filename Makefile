@@ -17,6 +17,9 @@ mocks_output_dir     := generated/mocks
 mocks_rules_dir      := generated/mocks
 proto_output_dir     := generated/proto
 proto_rules_dir      := generated/proto
+assets_output_dir    := generated/assets
+assets_rules_dir     := generated/assets
+asset_go_package     := github.com/mjibson/esc
 protoc_go_package    := github.com/golang/protobuf/protoc-gen-go
 thrift_gen_package   := github.com/uber/tchannel-go
 thrift_output_dir    := generated/thrift/rpc
@@ -133,6 +136,14 @@ install-proto-bin: install-glide
 		go install $(m3db_package)/$(vendor_prefix)/$(protoc_go_package)    \
 	)
 
+.PHONY: install-asset-bin
+install-asset-bin: install-glide
+	@echo Installing esc binaries
+	@echo Note: the esc binary can be built from source at https://github.com/mjibson/esc.
+	@which esc >/dev/null || (make install-vendor            && \
+		go install $(m3db_package)/$(vendor_prefix)/$(asset_go_package)    \
+	)
+
 install-stringer:
 		@which stringer > /dev/null || go get golang.org/x/tools/cmd/stringer
 		@which stringer > /dev/null || (echo "stringer install failed" && exit 1)
@@ -195,6 +206,11 @@ thrift-gen-$(SUBDIR): install-thrift-bin install-license-bin
 proto-gen-$(SUBDIR): install-proto-bin install-license-bin
 	@echo Generating protobuf files
 	PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
+
+.PHONY: asset-gen-$(SUBDIR)
+asset-gen-$(SUBDIR): install-asset-bin install-license-bin
+	@echo Generating asset files
+	PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
 
 .PHONY: all-gen-$(SUBDIR)
 # NB(prateek): order matters here, mock-gen needs to be last because we sometimes

@@ -6,4 +6,3 @@ tools/
 vendor/
 integration/
 testgen/
-openapi/

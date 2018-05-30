@@ -147,7 +147,7 @@ paths:
       tags:
       - "placement"
       summary: "Delete the placement"
-      operationId: "placementDeleteAdd"
+      operationId: "placementDelete"
       consumes:
       - "application/json"
       produces:

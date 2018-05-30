@@ -34,7 +34,7 @@ import (
 
 const (
 	// DeleteAllURL is the url for the handler to delete all placements (with the DELETE method).
-	DeleteAllURL = handler.RoutePrefix + "/placement"
+	DeleteAllURL = handler.RoutePrefixV1 + "/placement"
 )
 
 type deleteAllHandler Handler

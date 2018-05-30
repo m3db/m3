@@ -24,41 +24,29 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestTemplateHandler(t *testing.T) {
+func TestDocHandler(t *testing.T) {
 	w := httptest.NewRecorder()
-
-	templateContent := `
-header
-<title>{{.Title}}</title>
-some content
-<redoc spec-url='{{.Spec}}'></redoc>
-footer
-	`
-	fd, err := ioutil.TempFile("", "template.html")
-	require.NoError(t, err)
-	defer func() {
-		assert.NoError(t, fd.Close())
-		assert.NoError(t, os.Remove(fd.Name()))
-	}()
-	_, err = fd.Write([]byte(templateContent))
 
 	req := httptest.NewRequest("GET", "/api/v1/docs", nil)
 	require.NotNil(t, req)
 
-	templateHandler := NewTemplateHandler(fd.Name(), "somespec.yml", "Doc Title")
-	require.NotNil(t, templateHandler)
-	templateHandler.ServeHTTP(w, req)
+	docHandler := DocHandler{}
+	require.NotNil(t, docHandler)
+	docHandler.ServeHTTP(w, req)
 
 	resp := w.Result()
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "\nheader\n<title>Doc Title</title>\nsome content\n<redoc spec-url='/api/v1/docs/static/somespec.yml'></redoc>\nfooter\n\t", string(body))
+	assert.Equal(t, "<!DOCTYPE html>\n<html>\n  <head>\n    <title>M3DB ReDoc</title>\n    <meta charset=\"utf-8\"/>\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <link href=\"https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700\" rel=\"stylesheet\">\n    <style>\n      body {\n        margin: 0;\n        padding: 0;\n      }\n    </style>\n  </head>\n  <body>\n    <redoc spec-url='docs/static/coordinator.yml'></redoc>\n    <script src=\"https://cdn.jsdelivr.net/npm/redoc@latest/bundles/redoc.standalone.js\"> </script>\n  </body>\n</html>\n", string(body))
+}
+
+func TestStaticHandler(t *testing.T) {
+	assert.NotNil(t, StaticHandler())
 }

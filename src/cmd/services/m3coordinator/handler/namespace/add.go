@@ -40,7 +40,7 @@ import (
 
 const (
 	// AddURL is the url for the namespace add handler (with the POST method).
-	AddURL = handler.RoutePrefix + "/namespace"
+	AddURL = handler.RoutePrefixV1 + "/namespace"
 
 	defaultBlockDataExpiryPeriodStr = "5m"
 )

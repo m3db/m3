@@ -19,7 +19,7 @@ vendor/
 bin/
 
 # Used to serve swagger documentation
-!swagger/**/*.html
+!**/openapi/*.html
 
 # Debug binaries
 debug
