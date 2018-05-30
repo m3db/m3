@@ -84,7 +84,7 @@ spec:
       - name: m3db
         image: quay.io/m3db/m3db:latest
         imagePullPolicy: Always
-        resources:
+        # resources:
         #   limits:
         #     memory: 15Gi
         #   requests:

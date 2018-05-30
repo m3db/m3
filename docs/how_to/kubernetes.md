@@ -7,12 +7,13 @@ handle operations such as managing cluster topology, but for now our manifests s
 
 ## Prerequisites
 
-M3DB is designed to run on SSDs. Every incoming write is buffered to a commit log, and because of this it performs
-significantly better with faster disks.
+M3DB performs better when it has access to fast disks. Every incoming write is written to a commit log, which at high
+volumes of writes can be sensitive to spikes in disk latency. Additionally the random seeks into files when loading cold
+files benefit from lower random read latency.
 
-The included manifests require access to a `fast`
-[StorageClass](https://v1-10.docs.kubernetes.io/docs/concepts/storage/storage-classes/). Manifests are provided to
-provision such a StorageClass on AWS / Azure / GCP using the respective cloud provider's remote SSDs.
+Because of this, the included manifests reference a
+[StorageClass](https://v1-10.docs.kubernetes.io/docs/concepts/storage/storage-classes/) named `fast`. Manifests are
+provided to provision such a StorageClass on AWS / Azure / GCP using the respective cloud provider's premium disk class.
 
 If you do not already have a StorageClass named `fast`, create one using one of the provided manifests:
 ```
@@ -25,6 +26,9 @@ kubectl apply -f https://raw.githubusercontent.com/m3db/m3db/master/kube/storage
 # GCE Persistent SSD
 kubectl apply -f https://raw.githubusercontent.com/m3db/m3db/master/kube/storage-class-gcp.yaml
 ```
+
+If you wish to use your cloud provider's default remote disk, or another disk class entirely, you'll have to modify the
+manifests.
 
 ## Deploying
 
