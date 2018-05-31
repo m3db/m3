@@ -300,6 +300,8 @@ db:
 	require.NoError(t, err)
 
 	expected := `db:
+  index:
+    maxQueryIDsConcurrency: 0
   logging:
     file: /var/log/m3dbnode.log
     level: info

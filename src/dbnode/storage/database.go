@@ -529,7 +529,17 @@ func (d *db) QueryIDs(
 		return index.QueryResults{}, err
 	}
 
-	return n.QueryIDs(ctx, query, opts)
+	var (
+		wg           = sync.WaitGroup{}
+		queryResults index.QueryResults
+	)
+	wg.Add(1)
+	d.opts.QueryIDsWorkerPool().Go(func() {
+		queryResults, err = n.QueryIDs(ctx, query, opts)
+		wg.Done()
+	})
+	wg.Wait()
+	return queryResults, err
 }
 
 func (d *db) ReadEncoded(
