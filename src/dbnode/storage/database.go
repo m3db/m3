@@ -533,11 +533,13 @@ func (d *db) QueryIDs(
 		doneCh       = make(chan struct{})
 		queryResults index.QueryResults
 	)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	d.opts.QueryIDsWorkerPool().Go(func() {
 		queryResults, err = n.QueryIDs(ctx, query, opts)
-		doneCh <- struct{}{}
+		wg.Done()
 	})
-	<-doneCh
+	wg.Wait()
 	return queryResults, err
 }
 
