@@ -160,6 +160,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	bytesPool.Init()
 	seriesOpts := series.NewOptions()
 
+	// Default to using half of the available cores for querying IDs
 	queryIDsWorkerPool := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
 	queryIDsWorkerPool.Init()
 
@@ -198,8 +199,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		}),
 		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
 		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
-		// Default to using half of the available cores for querying IDs
-		queryIDsWorkerPool: queryIDsWorkerPool,
+		queryIDsWorkerPool:             queryIDsWorkerPool,
 	}
 	return o.SetEncodingM3TSZPooled()
 }
