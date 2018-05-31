@@ -41,7 +41,7 @@ const (
 
 var (
 	// DeleteURL is the url for the placement delete handler (with the DELETE method).
-	DeleteURL = fmt.Sprintf("/placement/{%s}", placementIDVar)
+	DeleteURL = fmt.Sprintf("%s/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
 
 	errEmptyID = errors.New("must specify placement ID to delete")
 )

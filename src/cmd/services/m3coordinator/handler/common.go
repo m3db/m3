@@ -32,6 +32,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// RoutePrefixV1 is the v1 prefix for all coordinator routes
+	RoutePrefixV1 = "/api/v1"
+)
+
 // WriteJSONResponse writes generic data to the ResponseWriter
 func WriteJSONResponse(w http.ResponseWriter, data interface{}, logger *zap.Logger) {
 	jsonData, err := json.Marshal(data)

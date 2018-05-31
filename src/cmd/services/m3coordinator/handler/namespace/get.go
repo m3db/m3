@@ -37,7 +37,7 @@ import (
 
 const (
 	// GetURL is the url for the namespace get handler (with the GET method).
-	GetURL = "/namespace"
+	GetURL = handler.RoutePrefixV1 + "/namespace"
 )
 
 type getHandler Handler

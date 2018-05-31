@@ -50,7 +50,7 @@ func TestNamespaceAddHandler(t *testing.T) {
         }
     `
 
-	req := httptest.NewRequest("POST", "/namespace/add", strings.NewReader(jsonInput))
+	req := httptest.NewRequest("POST", "/namespace", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
@@ -92,7 +92,7 @@ func TestNamespaceAddHandler(t *testing.T) {
         }
     `
 
-	req = httptest.NewRequest("POST", "/namespace/add", strings.NewReader(jsonInput))
+	req = httptest.NewRequest("POST", "/namespace", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
 
 	mockKV.EXPECT().Get(M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)

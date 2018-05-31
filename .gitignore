@@ -18,6 +18,9 @@ vendor/
 # Build binaries
 bin/
 
+# Used to serve swagger documentation
+!**/openapi/*.html
+
 # Debug binaries
 debug
 debug.test

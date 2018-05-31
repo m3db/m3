@@ -38,7 +38,7 @@ import (
 
 const (
 	// AddURL is the url for the placement add handler (with the POST method).
-	AddURL = "/placement/add"
+	AddURL = handler.RoutePrefixV1 + "/placement"
 )
 
 type addHandler Handler

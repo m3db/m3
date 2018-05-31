@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/namespace"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/openapi"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/placement"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus/native"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus/remote"
@@ -85,6 +86,9 @@ func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient 
 // RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() error {
 	logged := logging.WithResponseTimeLogging
+
+	h.Router.HandleFunc(openapi.URL, logged(&openapi.DocHandler{}).ServeHTTP).Methods(openapi.HTTPMethod)
+	h.Router.PathPrefix(openapi.StaticURLPrefix).Handler(logged(openapi.StaticHandler()))
 
 	h.Router.HandleFunc(remote.PromReadURL, logged(remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))).ServeHTTP).Methods("POST")
 	h.Router.HandleFunc(remote.PromWriteURL, logged(remote.NewPromWriteHandler(h.storage, h.scope.Tagged(remoteSource))).ServeHTTP).Methods("POST")

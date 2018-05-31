@@ -43,7 +43,7 @@ const (
 
 var (
 	// DeleteURL is the url for the namespace delete handler (with the DELETE method).
-	DeleteURL = fmt.Sprintf("/namespace/{%s}", namespaceIDVar)
+	DeleteURL = fmt.Sprintf("%s/namespace/{%s}", handler.RoutePrefixV1, namespaceIDVar)
 )
 
 var (

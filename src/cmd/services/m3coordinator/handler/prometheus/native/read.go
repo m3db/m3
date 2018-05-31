@@ -26,10 +26,10 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/m3db/m3db/src/coordinator/executor"
-	"github.com/m3db/m3db/src/coordinator/parser/promql"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus"
+	"github.com/m3db/m3db/src/coordinator/executor"
+	"github.com/m3db/m3db/src/coordinator/parser/promql"
 	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
@@ -38,7 +38,7 @@ import (
 
 const (
 	// PromReadURL is the url for native prom read handler
-	PromReadURL = "/api/v1/prom/native/read"
+	PromReadURL = handler.RoutePrefixV1 + "/prom/native/read"
 
 	targetQuery = "target"
 )
