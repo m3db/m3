@@ -22,7 +22,6 @@ package test
 
 import (
 	"io"
-	"testing"
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/encoding"
@@ -153,7 +152,7 @@ func buildReplica() (encoding.MultiReaderIterator, error) {
 // Expected data points for reading through the iterator: [3..30,101..130], 58 in total
 // SeriesIterator ID is 'foo', namespace is 'namespace'
 // Tags are "foo": "bar" and "baz": "qux"
-func BuildTestSeriesIterator(t *testing.T) (encoding.SeriesIterator, error) {
+func BuildTestSeriesIterator() (encoding.SeriesIterator, error) {
 	replicaOne, err := buildReplica()
 	if err != nil {
 		return nil, err
