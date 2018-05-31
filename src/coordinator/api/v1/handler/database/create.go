@@ -51,8 +51,7 @@ const (
 
 var (
 	errMissingRequiredField = errors.New("all attributes must be set")
-
-	errInvalidDBType = errors.New("invalid database type")
+	errInvalidDBType        = errors.New("invalid database type")
 )
 
 type createHandler struct {
