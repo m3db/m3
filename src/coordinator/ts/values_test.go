@@ -1,12 +1,13 @@
 package ts
 
 import (
+	"fmt"
+	"math"
 	"testing"
 	"time"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"math"
-	"fmt"
 )
 
 type testSample struct {
@@ -21,13 +22,11 @@ type testSample struct {
 
 func generateDatapoints(start time.Time, interval time.Duration, num int) Datapoints {
 	dps := make(Datapoints, num)
-	t := start
 	for i := 0; i < num; i++ {
 		dps[i] = Datapoint{
-			Timestamp: t,
+			Timestamp: start.Add(interval * time.Duration(i)),
 			Value:     float64(i),
 		}
-		t = t.Add(interval)
 	}
 	return dps
 }

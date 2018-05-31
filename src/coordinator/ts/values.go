@@ -21,9 +21,11 @@
 package ts
 
 import (
-	"time"
-	"math"
 	"fmt"
+	"math"
+	"time"
+
+	"github.com/pkg/errors"
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface
@@ -145,32 +147,44 @@ func RawPointsToFixedStep(datapoints Datapoints, start time.Time, end time.Time,
 	if end.Before(start) {
 		return nil, fmt.Errorf("start cannot be after end, start: %v, end: %v", start, end)
 	}
-	numSteps := int(end.Sub(start) / interval)
+
+	if interval == 0 {
+		return nil, errors.New("interval cannot be 0")
+	}
+
+	var numSteps int
 	if end == start {
 		numSteps = 1
+	} else {
+		numSteps = int(end.Sub(start) / interval)
 	}
+
 	fixStepValues := newFixedStepValues(interval, numSteps, math.NaN(), start)
-	currIdx := 0
-	idx := 0
-	for t := start; !t.After(end) && currIdx < numSteps; t = t.Add(interval) {
+	fixedResIdx := 0
+	dpIdx := 0
+	numPoints := len(datapoints)
+	for t := start; !t.After(end) && fixedResIdx < numSteps; t = t.Add(interval) {
 		// Find first datapoint not before time t
-		for ; idx < len(datapoints) && datapoints.DatapointAt(idx).Timestamp.Before(t); idx++ {
+		for ; dpIdx < numPoints; dpIdx++ {
+			if !datapoints.DatapointAt(dpIdx).Timestamp.Before(t) {
+				break
+			}
 		}
 
-		if idx >= len(datapoints) {
-			fixStepValues.values[currIdx] = math.NaN()
-			currIdx++
+		if dpIdx >= numPoints {
+			fixStepValues.values[fixedResIdx] = math.NaN()
+			fixedResIdx++
 			continue
 		}
 
 		// If datapoint aligns to the time or its the first datapoint then take that
-		if datapoints.DatapointAt(idx).Timestamp == t || idx == 0 {
-			fixStepValues.values[currIdx] = datapoints.ValueAt(idx)
-			currIdx++
+		if datapoints.DatapointAt(dpIdx).Timestamp == t || dpIdx == 0 {
+			fixStepValues.values[fixedResIdx] = datapoints.ValueAt(dpIdx)
 		} else {
-			fixStepValues.values[currIdx] = datapoints.ValueAt(idx - 1)
-			currIdx++
+			fixStepValues.values[fixedResIdx] = datapoints.ValueAt(dpIdx - 1)
 		}
+
+		fixedResIdx++
 	}
 
 	return fixStepValues, nil
