@@ -26,12 +26,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3coordinator/tsdb/remote"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
 	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -39,7 +39,8 @@ import (
 )
 
 func TestConversion(t *testing.T) {
-	iterator := BuildTestSeriesIterator(t)
+	iter := remote.BuildTestSeriesIterator(t)
+	// iterator := BuildTestSeriesIterator(t)
 	iterators := encoding.NewSeriesIterators([]encoding.SeriesIterator{iterator}, nil)
 	iterAlloc := func(r io.Reader) encoding.ReaderIterator {
 		iter := m3tsz.NewDecoder(true, encoding.NewOptions())
@@ -173,25 +174,25 @@ func buildReplica(t *testing.T) encoding.MultiReaderIterator {
 // from two readers, one with even values and other with odd values
 // SeriesIterator ID is 'foo', namespace is 'namespace'
 // Tags are "foo": "bar" and "baz": "qux"
-func BuildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
-	replicaOne := buildReplica(t)
-	replicaTwo := buildReplica(t)
+// func BuildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
+// 	replicaOne := buildReplica(t)
+// 	replicaTwo := buildReplica(t)
 
-	tags := ident.Tags{}
-	for name, value := range testTags {
-		tags.Append(ident.StringTag(name, value))
-	}
+// 	tags := ident.Tags{}
+// 	for name, value := range testTags {
+// 		tags.Append(ident.StringTag(name, value))
+// 	}
 
-	return encoding.NewSeriesIterator(
-		ident.StringID(seriesID),
-		ident.StringID(seriesNamespace),
-		ident.NewTagsIterator(tags),
-		start,
-		end,
-		[]encoding.MultiReaderIterator{
-			replicaOne,
-			replicaTwo,
-		},
-		nil,
-	)
-}
+// 	return encoding.NewSeriesIterator(
+// 		ident.StringID(seriesID),
+// 		ident.StringID(seriesNamespace),
+// 		ident.NewTagsIterator(tags),
+// 		start,
+// 		end,
+// 		[]encoding.MultiReaderIterator{
+// 			replicaOne,
+// 			replicaTwo,
+// 		},
+// 		nil,
+// 	)
+// }
