@@ -45,5 +45,4 @@ var (
 
 	// ErrZeroInterval is an error returned when fetch interval is 0.
 	ErrZeroInterval = errors.New("interval cannot be 0")
-
 )
