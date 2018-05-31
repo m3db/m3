@@ -234,6 +234,11 @@ func (s *service) Health(ctx thrift.Context) (*rpc.NodeHealthResult_, error) {
 }
 
 func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryResult_, error) {
+	if s.isOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
 	ctx := tchannelthrift.Context(tctx)
 
 	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
@@ -297,6 +302,11 @@ func (s *service) Query(tctx thrift.Context, req *rpc.QueryRequest) (*rpc.QueryR
 }
 
 func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchResult_, error) {
+	if s.isOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
@@ -365,6 +375,11 @@ func (s *service) readDatapoints(
 }
 
 func (s *service) FetchTagged(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
+	if s.isOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 	ns, query, opts, fetchData, err := convert.FromRPCFetchTaggedRequest(req, s.pools)
@@ -441,6 +456,11 @@ func (s *service) encodeTags(
 }
 
 func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawRequest) (*rpc.FetchBatchRawResult_, error) {
+	if s.isOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
