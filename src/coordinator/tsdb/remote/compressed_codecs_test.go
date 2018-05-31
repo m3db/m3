@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/coordinator/ts/m3db/generated"
+	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3db/src/dbnode/ts"
@@ -39,17 +39,17 @@ import (
 )
 
 var (
-	seriesID        = generated.SeriesID
-	seriesNamespace = generated.SeriesNamespace
+	seriesID        = test.SeriesID
+	seriesNamespace = test.SeriesNamespace
 
-	testTags = generated.TestTags
+	testTags = test.TestTags
 
-	blockSize = generated.BlockSize
+	blockSize = test.BlockSize
 
-	start       = generated.Start
-	seriesStart = generated.SeriesStart
-	middle      = generated.Middle
-	end         = generated.End
+	start       = test.Start
+	seriesStart = test.SeriesStart
+	middle      = test.Middle
+	end         = test.End
 
 	// required for iterator pool
 	testIterAlloc = func(r io.Reader) encoding.ReaderIterator {
@@ -58,7 +58,9 @@ var (
 )
 
 func buildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
-	return generated.BuildTestSeriesIterator(t)
+	it, err := test.BuildTestSeriesIterator()
+	assert.NoError(t, err)
+	return it
 }
 
 func validateSeriesInternals(t *testing.T, it encoding.SeriesIterator) {

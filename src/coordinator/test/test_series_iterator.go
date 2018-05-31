@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package generated
+package test
 
 import (
 	"io"
@@ -32,8 +32,6 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -79,7 +77,7 @@ func init() {
 // with two segments, one merged with values from 1->30, and
 // one which is unmerged with 2 segments from 101->130
 // with one of the unmerged containing even points, other containing odd
-func buildReplica(t *testing.T) encoding.MultiReaderIterator {
+func buildReplica() (encoding.MultiReaderIterator, error) {
 	// Build a merged BlockReader
 	encoder := m3tsz.NewEncoder(Start, checked.NewBytes(nil, nil), true, encoding.NewOptions())
 	i := 0
@@ -87,7 +85,9 @@ func buildReplica(t *testing.T) encoding.MultiReaderIterator {
 		i++
 		datapoint := ts.Datapoint{Timestamp: Start.Add(at), Value: float64(i)}
 		err := encoder.Encode(datapoint, xtime.Second, nil)
-		assert.NoError(t, err)
+		if err != nil {
+			return nil, err
+		}
 	}
 	segment := encoder.Discard()
 	mergedReader := xio.BlockReader{
@@ -111,8 +111,9 @@ func buildReplica(t *testing.T) encoding.MultiReaderIterator {
 		} else {
 			err = encoderTwo.Encode(datapoint, xtime.Second, nil)
 		}
-
-		assert.NoError(t, err)
+		if err != nil {
+			return nil, err
+		}
 		useFirstEncoder = !useFirstEncoder
 	}
 
@@ -138,7 +139,7 @@ func buildReplica(t *testing.T) encoding.MultiReaderIterator {
 	})
 
 	multiReader.ResetSliceOfSlices(sliceOfSlicesIter)
-	return multiReader
+	return multiReader, nil
 }
 
 // BuildTestSeriesIterator creates a sample SeriesIterator
@@ -152,9 +153,15 @@ func buildReplica(t *testing.T) encoding.MultiReaderIterator {
 // Expected data points for reading through the iterator: [3..30,101..130], 58 in total
 // SeriesIterator ID is 'foo', namespace is 'namespace'
 // Tags are "foo": "bar" and "baz": "qux"
-func BuildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
-	replicaOne := buildReplica(t)
-	replicaTwo := buildReplica(t)
+func BuildTestSeriesIterator(t *testing.T) (encoding.SeriesIterator, error) {
+	replicaOne, err := buildReplica()
+	if err != nil {
+		return nil, err
+	}
+	replicaTwo, err := buildReplica()
+	if err != nil {
+		return nil, err
+	}
 
 	tags := ident.Tags{}
 	for name, value := range TestTags {
@@ -172,5 +179,5 @@ func BuildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
 			replicaTwo,
 		},
 		nil,
-	)
+	), nil
 }
