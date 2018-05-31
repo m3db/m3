@@ -21,178 +21,66 @@
 package m3db
 
 import (
-	"fmt"
 	"io"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3coordinator/tsdb/remote"
+	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
-	"github.com/m3db/m3db/src/dbnode/ts"
-	"github.com/m3db/m3db/src/dbnode/x/xio"
-	"github.com/m3db/m3x/checked"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestConversion(t *testing.T) {
-	iter := remote.BuildTestSeriesIterator(t)
-	// iterator := BuildTestSeriesIterator(t)
-	iterators := encoding.NewSeriesIterators([]encoding.SeriesIterator{iterator}, nil)
-	iterAlloc := func(r io.Reader) encoding.ReaderIterator {
-		iter := m3tsz.NewDecoder(true, encoding.NewOptions())
-		return iter.Decode(r)
-	}
+var (
+	seriesID        = test.SeriesID
+	seriesNamespace = test.SeriesNamespace
 
-	blocks, err := ConvertM3DBSeriesIterators(iterators, iterAlloc)
+	testTags = test.TestTags
+
+	blockSize = test.BlockSize
+
+	start       = test.Start
+	seriesStart = test.SeriesStart
+	middle      = test.Middle
+	end         = test.End
+
+	// required for iterator pool
+	testIterAlloc = func(r io.Reader) encoding.ReaderIterator {
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
+	}
+)
+
+func TestConversion(t *testing.T) {
+	iter, err := test.BuildTestSeriesIterator()
+	require.NoError(t, err)
+	iterators := encoding.NewSeriesIterators([]encoding.SeriesIterator{iter}, nil)
+
+	blocks, err := ConvertM3DBSeriesIterators(iterators, testIterAlloc)
 	require.NoError(t, err)
 
 	for _, block := range blocks {
-		assert.Equal(t, "foo", block.ID.String())
+		assert.Equal(t, "id", block.ID.String())
 		assert.Equal(t, "namespace", block.Namespace.String())
 
 		blockOne := block.Blocks[0].SeriesIterator
 		blockTwo := block.Blocks[1].SeriesIterator
 
-		start = time.Now().Truncate(time.Hour).Add(2 * time.Minute)
-		middle = start.Add(30 * time.Minute)
-		end = middle.Add(30 * time.Minute)
+		assert.Equal(t, start.Add(2*time.Minute), blockOne.Start())
+		assert.Equal(t, middle, blockOne.End())
 
-		assert.Equal(t, start, blockOne.Start())
-		// assert.Equal(t, middle, blockOne.End())
-
-		for i := 1; blockOne.Next(); i++ {
+		for i := 3; blockOne.Next(); i++ {
 			dp, _, _ := blockOne.Current()
 			assert.Equal(t, float64(i), dp.Value)
 		}
+
+		assert.Equal(t, middle, blockTwo.Start())
+		assert.Equal(t, end, blockTwo.End())
 
 		for i := 101; blockTwo.Next(); i++ {
 			dp, _, _ := blockTwo.Current()
 			assert.Equal(t, float64(i), dp.Value)
 		}
 	}
-	fmt.Println(blocks)
-
 }
-
-// remove all of this once https://github.com/m3db/m3db/pull/705 lands
-
-const (
-	seriesID        = "foo"
-	seriesNamespace = "namespace"
-)
-
-var (
-	testTags = map[string]string{"foo": "bar", "baz": "qux"}
-
-	blockSize = time.Hour / 2
-
-	start  = time.Now().Truncate(time.Hour).Add(2 * time.Minute)
-	middle = start.Add(blockSize)
-	end    = middle.Add(blockSize)
-
-	testIterAlloc = func(r io.Reader) encoding.ReaderIterator {
-		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
-	}
-)
-
-// Builds a MultiReaderIterator representing a single replica
-// with two segments, one merged with values from 1->30, and
-// one which is unmerged with 2 segments from 101->130
-// with one of the unmerged containing even points, other containing odd
-func buildReplica(t *testing.T) encoding.MultiReaderIterator {
-	// Build a merged BlockReader
-	encoder := m3tsz.NewEncoder(start, checked.NewBytes(nil, nil), true, encoding.NewOptions())
-	i := 0
-	for at := time.Duration(0); at < blockSize; at += time.Minute {
-		i++
-		datapoint := ts.Datapoint{Timestamp: start.Add(at), Value: float64(i)}
-		err := encoder.Encode(datapoint, xtime.Second, nil)
-		assert.NoError(t, err)
-	}
-	segment := encoder.Discard()
-	blockStart := start.Truncate(blockSize)
-	mergedReader := xio.BlockReader{
-		SegmentReader: xio.NewSegmentReader(segment),
-		Start:         blockStart,
-		BlockSize:     blockSize,
-	}
-
-	// Build two unmerged BlockReaders
-	i = 100
-	encoder = m3tsz.NewEncoder(middle, checked.NewBytes(nil, nil), true, encoding.NewOptions())
-	encoderTwo := m3tsz.NewEncoder(middle, checked.NewBytes(nil, nil), true, encoding.NewOptions())
-	useFirstEncoder := true
-	for at := time.Duration(0); at < blockSize; at += time.Minute {
-		i++
-		datapoint := ts.Datapoint{Timestamp: middle.Add(at), Value: float64(i)}
-		var err error
-		if useFirstEncoder {
-			err = encoder.Encode(datapoint, xtime.Second, nil)
-		} else {
-			err = encoderTwo.Encode(datapoint, xtime.Second, nil)
-		}
-
-		assert.NoError(t, err)
-		useFirstEncoder = !useFirstEncoder
-	}
-
-	segment = encoder.Discard()
-	segmentTwo := encoderTwo.Discard()
-	secondBlockStart := blockStart.Add(blockSize)
-	unmergedReaders := []xio.BlockReader{
-		{
-			SegmentReader: xio.NewSegmentReader(segment),
-			Start:         secondBlockStart,
-			BlockSize:     blockSize,
-		},
-		{
-			SegmentReader: xio.NewSegmentReader(segmentTwo),
-			Start:         secondBlockStart.Add(time.Minute),
-			BlockSize:     blockSize,
-		},
-	}
-
-	multiReader := encoding.NewMultiReaderIterator(testIterAlloc, nil)
-	sliceOfSlicesIter := xio.NewReaderSliceOfSlicesFromBlockReadersIterator([][]xio.BlockReader{
-		{mergedReader},
-		unmergedReaders,
-	})
-
-	multiReader.ResetSliceOfSlices(sliceOfSlicesIter)
-	return multiReader
-}
-
-// BuildTestSeriesIterator creates a sample seriesIterator
-// This series iterator has two identical replicas.
-// Each replica has two blocks.
-// The first block in each replica is merged and has values 1->30
-// The second block is unmerged; when it was merged, it has values 101 -> 130
-// from two readers, one with even values and other with odd values
-// SeriesIterator ID is 'foo', namespace is 'namespace'
-// Tags are "foo": "bar" and "baz": "qux"
-// func BuildTestSeriesIterator(t *testing.T) encoding.SeriesIterator {
-// 	replicaOne := buildReplica(t)
-// 	replicaTwo := buildReplica(t)
-
-// 	tags := ident.Tags{}
-// 	for name, value := range testTags {
-// 		tags.Append(ident.StringTag(name, value))
-// 	}
-
-// 	return encoding.NewSeriesIterator(
-// 		ident.StringID(seriesID),
-// 		ident.StringID(seriesNamespace),
-// 		ident.NewTagsIterator(tags),
-// 		start,
-// 		end,
-// 		[]encoding.MultiReaderIterator{
-// 			replicaOne,
-// 			replicaTwo,
-// 		},
-// 		nil,
-// 	)
-// }

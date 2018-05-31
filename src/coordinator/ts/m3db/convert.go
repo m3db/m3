@@ -60,7 +60,7 @@ func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, ite
 		next := true
 		for next {
 			l, start, bs := perBlockSliceReaders.CurrentReaders()
-			var readers []xio.SegmentReader
+			readers := make([]xio.SegmentReader, l)
 			for i := 0; i < l; i++ {
 				reader := perBlockSliceReaders.CurrentReaderAt(i)
 				// import to clone the reader as we need its position reset before
@@ -69,7 +69,7 @@ func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, ite
 				if err != nil {
 					return []BlockReplica{}, err
 				}
-				readers = append(readers, clonedReader)
+				readers[i] = clonedReader
 			}
 			// todo(braskin): pooling
 			iter := encoding.NewMultiReaderIterator(iterAlloc, nil)
