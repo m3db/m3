@@ -1,4 +1,4 @@
-# Prometheus and M#DB integration 
+# Prometheus and M3DB integration 
 
 This example will demostrate how to run M3DB and Prometehus within the same
 host using Docker Compose to bootstrap individual containers.  This guide 
