@@ -72,6 +72,7 @@ import (
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
+	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/coreos/etcd/embed"
 	"github.com/coreos/pkg/capnslog"
@@ -197,6 +198,11 @@ func Run(runOpts RunOptions) {
 		SetMetricsScope(scope).
 		SetMetricsSamplingRate(cfg.Metrics.SampleRate())
 	opts = opts.SetInstrumentOptions(iopts)
+
+	if cfg.Index.MaxQueryIDsConcurrency != nil {
+		queryIDsWorkerPool := xsync.NewWorkerPool(*cfg.Index.MaxQueryIDsConcurrency)
+		opts = opts.SetQueryIDsWorkerPool(queryIDsWorkerPool)
+	}
 
 	buildReporter := instrument.NewBuildReporter(iopts)
 	if err := buildReporter.Start(); err != nil {
