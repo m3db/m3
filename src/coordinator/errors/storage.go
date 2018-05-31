@@ -42,4 +42,7 @@ var (
 
 	// ErrInvalidFetchResult is an error returned when fetch result is invalid.
 	ErrInvalidFetchResult = errors.New("invalid fetch result")
+
+	// ErrZeroInterval is an error returned when fetch interval is 0.
+	ErrZeroInterval = errors.New("interval cannot be 0")
 )
