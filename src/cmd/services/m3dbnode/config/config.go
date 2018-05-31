@@ -138,7 +138,7 @@ type IndexConfiguration struct {
 	// requests that can be serviced concurrently. Limiting the concurrency is
 	// important to prevent index queries from overloading the database entirely
 	// as they are very CPU-intensive (regex and FST matching.)
-	MaxQueryIDsConcurrency *int `yaml:"maxQueryIDsConcurrency" validate:"min=1"`
+	MaxQueryIDsConcurrency int `yaml:"maxQueryIDsConcurrency" validate:"min=0"`
 }
 
 // TickConfiguration is the tick configuration for background processing of

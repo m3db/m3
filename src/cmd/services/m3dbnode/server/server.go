@@ -199,10 +199,12 @@ func Run(runOpts RunOptions) {
 		SetMetricsSamplingRate(cfg.Metrics.SampleRate())
 	opts = opts.SetInstrumentOptions(iopts)
 
-	if cfg.Index.MaxQueryIDsConcurrency != nil {
+	if cfg.Index.MaxQueryIDsConcurrency != 0 {
 		queryIDsWorkerPool := xsync.NewWorkerPool(*cfg.Index.MaxQueryIDsConcurrency)
 		queryIDsWorkerPool.Init()
 		opts = opts.SetQueryIDsWorkerPool(queryIDsWorkerPool)
+	} else {
+		logger.Warnf("max index query IDs concurrency was not set, falling back to default value")
 	}
 
 	buildReporter := instrument.NewBuildReporter(iopts)
