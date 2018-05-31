@@ -76,7 +76,7 @@ func createExamples() []testSample {
 			description: "start time after end time of datapoints so we get NaNs",
 		},
 		{
-			input:       generateDatapoints(now.Add(time.Second), 10*time.Second, 5),
+			input:       generateDatapoints(now.Add(time.Second), 10*time.Second, 10),
 			expected:    []float64{0, 0,},
 			start:       now,
 			end:         now.Add(20 * time.Second),

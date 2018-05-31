@@ -25,7 +25,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/m3db/m3db/src/coordinator/errors"
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface
@@ -142,18 +142,18 @@ func newFixedStepValues(millisPerStep time.Duration, numSteps int, initialValue 
 	}
 }
 
-// At every resolution timestep, the last sample value is chosen
+// RawPointsToFixedStep converts raw datapoints into the interval required within the bounds specified. For every time step, it finds the closest point.
 func RawPointsToFixedStep(datapoints Datapoints, start time.Time, end time.Time, interval time.Duration) (FixedResolutionMutableValues, error) {
 	if end.Before(start) {
 		return nil, fmt.Errorf("start cannot be after end, start: %v, end: %v", start, end)
 	}
 
 	if interval == 0 {
-		return nil, errors.New("interval cannot be 0")
+		return nil, errors.ErrZeroInterval
 	}
 
 	var numSteps int
-	if end == start {
+	if end.Equal(start) {
 		numSteps = 1
 	} else {
 		numSteps = int(end.Sub(start) / interval)
@@ -171,10 +171,9 @@ func RawPointsToFixedStep(datapoints Datapoints, start time.Time, end time.Time,
 			}
 		}
 
+		// fixStepValues is initialized with NaNs so we can prematurely exit here
 		if dpIdx >= numPoints {
-			fixStepValues.values[fixedResIdx] = math.NaN()
-			fixedResIdx++
-			continue
+			break
 		}
 
 		// If datapoint aligns to the time or its the first datapoint then take that
