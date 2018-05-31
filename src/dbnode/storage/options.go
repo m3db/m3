@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
+	"runtime"
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/clock"
@@ -32,7 +34,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3db/src/dbnode/retention"
-	"github.com/m3db/m3db/src/dbnode/runtime"
+	m3dbruntime "github.com/m3db/m3db/src/dbnode/runtime"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
@@ -45,6 +47,7 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	xsync "github.com/m3db/m3x/sync"
 )
 
 const (
@@ -114,7 +117,7 @@ type options struct {
 	nsRegistryInitializer          namespace.Initializer
 	blockOpts                      block.Options
 	commitLogOpts                  commitlog.Options
-	runtimeOptsMgr                 runtime.OptionsManager
+	runtimeOptsMgr                 m3dbruntime.OptionsManager
 	errCounterOpts                 xcounter.Options
 	errWindowForLoad               time.Duration
 	errThresholdForLoad            int64
@@ -142,6 +145,7 @@ type options struct {
 	identifierPool                 ident.Pool
 	fetchBlockMetadataResultsPool  block.FetchBlockMetadataResultsPool
 	fetchBlocksMetadataResultsPool block.FetchBlocksMetadataResultsPool
+	queryIDsWorkerPool             xsync.WorkerPool
 }
 
 // NewOptions creates a new set of storage options with defaults
@@ -155,12 +159,16 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	})
 	bytesPool.Init()
 	seriesOpts := series.NewOptions()
+
+	queryIDsWorkerPool := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
+	queryIDsWorkerPool.Init()
+
 	o := &options{
 		clockOpts:                clock.NewOptions(),
 		instrumentOpts:           instrument.NewOptions(),
 		blockOpts:                block.NewOptions(),
 		commitLogOpts:            commitlog.NewOptions(),
-		runtimeOptsMgr:           runtime.NewOptionsManager(),
+		runtimeOptsMgr:           m3dbruntime.NewOptionsManager(),
 		errCounterOpts:           xcounter.NewOptions(),
 		errWindowForLoad:         defaultErrorWindowForLoad,
 		errThresholdForLoad:      defaultErrorThresholdForLoad,
@@ -190,6 +198,8 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		}),
 		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
 		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
+		// Default to using half of the available cores for querying IDs
+		queryIDsWorkerPool: queryIDsWorkerPool,
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -295,13 +305,13 @@ func (o *options) CommitLogOptions() commitlog.Options {
 	return o.commitLogOpts
 }
 
-func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+func (o *options) SetRuntimeOptionsManager(value m3dbruntime.OptionsManager) Options {
 	opts := *o
 	opts.runtimeOptsMgr = value
 	return &opts
 }
 
-func (o *options) RuntimeOptionsManager() runtime.OptionsManager {
+func (o *options) RuntimeOptionsManager() m3dbruntime.OptionsManager {
 	return o.runtimeOptsMgr
 }
 
@@ -616,4 +626,14 @@ func (o *options) SetMinimumSnapshotInterval(value time.Duration) Options {
 
 func (o *options) MinimumSnapshotInterval() time.Duration {
 	return o.minSnapshotInterval
+}
+
+func (o *options) SetQueryIDsWorkerPool(value xsync.WorkerPool) Options {
+	opts := *o
+	opts.queryIDsWorkerPool = value
+	return &opts
+}
+
+func (o *options) QueryIDsWorkerPool() xsync.WorkerPool {
+	return o.queryIDsWorkerPool
 }

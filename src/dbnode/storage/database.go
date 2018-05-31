@@ -529,7 +529,16 @@ func (d *db) QueryIDs(
 		return index.QueryResults{}, err
 	}
 
-	return n.QueryIDs(ctx, query, opts)
+	var (
+		doneCh       = make(chan struct{})
+		queryResults index.QueryResults
+	)
+	d.opts.QueryIDsWorkerPool().Go(func() {
+		queryResults, err = n.QueryIDs(ctx, query, opts)
+		doneCh <- struct{}{}
+	})
+	<-doneCh
+	return queryResults, err
 }
 
 func (d *db) ReadEncoded(
