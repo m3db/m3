@@ -10,6 +10,7 @@ coordinator:
     sanitization: prometheus
     samplingRate: 1.0
     extended: none
+  dbNamespace: prometheus_metrics
 
 db:
   logging:
