@@ -1,6 +1,6 @@
 ## WARNING: This is pre-release software, and is not intended for use until a stable release.
 
-# M3DB [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fm3db%2Fm3db.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fm3db%2Fm3db?ref=badge_shield) [![Coverage Status](https://codecov.io/gh/m3db/m3db/branch/master/graph/badge.svg)](https://codecov.io/gh/m3db/m3db)
+# M3DB [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fm3db%2Fm3db.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fm3db%2Fm3db?ref=badge_shield) [![Coverage Status](https://codecov.io/gh/m3db/m3db/branch/master/graph/badge.svg)](https://codecov.io/gh/m3db/m3db) [![Gitter chat][gitter-img]](https://gitter.im/m3db/Lobby)
 
 A time series database.
 
@@ -125,3 +125,4 @@ This project is released under the [Apache License, Version 2.0](LICENSE).
 [doc]: https://godoc.org/github.com/m3db/m3db
 [ci-img]: https://semaphoreci.com/api/v1/m3db/m3db/branches/master/shields_badge.svg
 [ci]: https://semaphoreci.com/m3db/m3db
+[gitter-img]: https://badges.gitter.im/m3db.png
