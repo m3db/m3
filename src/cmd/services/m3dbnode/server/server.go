@@ -201,6 +201,7 @@ func Run(runOpts RunOptions) {
 
 	if cfg.Index.MaxQueryIDsConcurrency != nil {
 		queryIDsWorkerPool := xsync.NewWorkerPool(*cfg.Index.MaxQueryIDsConcurrency)
+		queryIDsWorkerPool.Init()
 		opts = opts.SetQueryIDsWorkerPool(queryIDsWorkerPool)
 	}
 
