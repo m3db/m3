@@ -153,7 +153,7 @@ A namespace in M3DB is similar to a table in Cassandra (C*). You can specify ret
 Run the following on any seed node to create a ‘metrics’ namespace with 30 day retention, 12 hour block sizes, ability to write out of order datapoints into past or future by 1 hour:
 
 ```json
-curl -X POST localhost:7201/api/v1/namespace/add -d '{
+curl -X POST localhost:7201/api/v1/namespace -d '{
   "name": "metrics",
   "options": {
     "bootstrapEnabled": true,

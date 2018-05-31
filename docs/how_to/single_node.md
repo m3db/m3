@@ -29,7 +29,7 @@ Next, create an initial namespace for your metrics:
 <!-- TODO: link to config reference docs once available -->
 
 ```json
-curl -X POST localhost:7201/api/v1/namespace/add -d '{
+curl -X POST localhost:7201/api/v1/namespace -d '{
   "name": "default",
   "options": {
     "bootstrapEnabled": true,

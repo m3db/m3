@@ -16,7 +16,7 @@ sleep 10 # TODO Replace sleeps with logic to determine when to proceed
 
 echo "Adding namespace"
 
-curl -vvvsSf -X POST localhost:7201/api/v1/namespace/add -d '{
+curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
   "name": "default",
   "options": {
     "bootstrapEnabled": true,
