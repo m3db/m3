@@ -21,33 +21,47 @@
 package placement
 
 import (
-	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/handler"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
+	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 )
 
 const (
-	// GetURL is the url for the placement get handler (with the GET method).
-	GetURL = handler.RoutePrefixV1 + "/placement"
+	placementIDVar = "id"
 )
 
-type getHandler Handler
+var (
+	// DeleteURL is the url for the placement delete handler (with the DELETE method).
+	DeleteURL = fmt.Sprintf("%s/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
 
-// NewGetHandler returns a new instance of a placement get handler.
-func NewGetHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
-	return &getHandler{client: client, cfg: cfg}
+	errEmptyID = errors.New("must specify placement ID to delete")
+)
+
+type deleteHandler Handler
+
+// NewDeleteHandler returns a new instance of a placement delete handler.
+func NewDeleteHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
+	return &deleteHandler{client: client, cfg: cfg}
 }
 
-func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *deleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
+	id := mux.Vars(r)[placementIDVar]
+	if id == "" {
+		logger.Error("no placement ID provided to delete", zap.Any("error", errEmptyID))
+		handler.Error(w, errEmptyID, http.StatusBadRequest)
+		return
+	}
 
 	service, err := Service(h.client, h.cfg)
 	if err != nil {
@@ -55,13 +69,10 @@ func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	placement, version, err := service.Placement()
+	placement, err := service.RemoveInstances([]string{id})
 	if err != nil {
-		json.NewEncoder(w).Encode(struct {
-			Result string `json:"result"`
-		}{
-			Result: "no placement found",
-		})
+		logger.Error("unable to delete placement", zap.Any("error", err))
+		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -74,7 +85,6 @@ func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
-		Version:   int32(version),
 	}
 
 	handler.WriteProtoMsgJSONResponse(w, resp, logger)

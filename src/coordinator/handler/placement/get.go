@@ -22,46 +22,46 @@ package placement
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
 
+	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/handler"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-
-	clusterclient "github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/placement"
 
 	"go.uber.org/zap"
 )
 
 const (
-	// AddURL is the url for the placement add handler (with the POST method).
-	AddURL = handler.RoutePrefixV1 + "/placement"
+	// GetURL is the url for the placement get handler (with the GET method).
+	GetURL = handler.RoutePrefixV1 + "/placement"
 )
 
-type addHandler Handler
+type getHandler Handler
 
-// NewAddHandler returns a new instance of a placement add handler.
-func NewAddHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
-	return &addHandler{client: client, cfg: cfg}
+// NewGetHandler returns a new instance of a placement get handler.
+func NewGetHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
+	return &getHandler{client: client, cfg: cfg}
 }
 
-func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	req, rErr := h.parseRequest(r)
-	if rErr != nil {
-		handler.Error(w, rErr.Error(), rErr.Code())
+	service, err := Service(h.client, h.cfg)
+	if err != nil {
+		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	placement, err := h.add(req)
+	placement, version, err := service.Placement()
 	if err != nil {
-		logger.Error("unable to add placement", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(struct {
+			Result string `json:"result"`
+		}{
+			Result: "no placement found",
+		})
 		return
 	}
 
@@ -74,42 +74,8 @@ func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp := &admin.PlacementGetResponse{
 		Placement: placementProto,
+		Version:   int32(version),
 	}
 
 	handler.WriteProtoMsgJSONResponse(w, resp, logger)
-}
-
-func (h *addHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, *handler.ParseError) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
-	}
-
-	defer r.Body.Close()
-
-	addReq := new(admin.PlacementAddRequest)
-	if err := json.Unmarshal(body, addReq); err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
-	}
-
-	return addReq, nil
-}
-
-func (h *addHandler) add(r *admin.PlacementAddRequest) (placement.Placement, error) {
-	instances, err := ConvertInstancesProto(r.Instances)
-	if err != nil {
-		return nil, err
-	}
-
-	service, err := Service(h.client, h.cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	newPlacement, _, err := service.AddInstances(instances)
-	if err != nil {
-		return nil, err
-	}
-
-	return newPlacement, nil
 }

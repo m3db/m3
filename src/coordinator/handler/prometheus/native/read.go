@@ -26,8 +26,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus"
+	"github.com/m3db/m3db/src/coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/handler/prometheus"
 	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/parser/promql"
 	"github.com/m3db/m3db/src/coordinator/ts"

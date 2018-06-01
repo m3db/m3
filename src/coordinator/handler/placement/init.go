@@ -21,57 +21,46 @@
 package placement
 
 import (
-	"errors"
-	"fmt"
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
 
-	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/handler"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
-	"github.com/gorilla/mux"
+	clusterclient "github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3cluster/placement"
+
 	"go.uber.org/zap"
 )
 
 const (
-	placementIDVar = "id"
+	// InitURL is the url for the placement init handler (with the POST method).
+	InitURL = handler.RoutePrefixV1 + "/placement/init"
 )
 
-var (
-	// DeleteURL is the url for the placement delete handler (with the DELETE method).
-	DeleteURL = fmt.Sprintf("%s/placement/{%s}", handler.RoutePrefixV1, placementIDVar)
+type initHandler Handler
 
-	errEmptyID = errors.New("must specify placement ID to delete")
-)
-
-type deleteHandler Handler
-
-// NewDeleteHandler returns a new instance of a placement delete handler.
-func NewDeleteHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
-	return &deleteHandler{client: client, cfg: cfg}
+// NewInitHandler returns a new instance of a placement init handler.
+func NewInitHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
+	return &initHandler{client: client, cfg: cfg}
 }
 
-func (h *deleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *initHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
-	id := mux.Vars(r)[placementIDVar]
-	if id == "" {
-		logger.Error("no placement ID provided to delete", zap.Any("error", errEmptyID))
-		handler.Error(w, errEmptyID, http.StatusBadRequest)
+
+	req, rErr := h.parseRequest(r)
+	if rErr != nil {
+		handler.Error(w, rErr.Error(), rErr.Code())
 		return
 	}
 
-	service, err := Service(h.client, h.cfg)
+	placement, err := h.init(req)
 	if err != nil {
-		handler.Error(w, err, http.StatusInternalServerError)
-		return
-	}
-
-	placement, err := service.RemoveInstances([]string{id})
-	if err != nil {
-		logger.Error("unable to delete placement", zap.Any("error", err))
+		logger.Error("unable to initialize placement", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -88,4 +77,39 @@ func (h *deleteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	handler.WriteProtoMsgJSONResponse(w, resp, logger)
+}
+
+func (h *initHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *handler.ParseError) {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, handler.NewParseError(err, http.StatusBadRequest)
+	}
+
+	defer r.Body.Close()
+
+	initReq := new(admin.PlacementInitRequest)
+	if err := json.Unmarshal(body, initReq); err != nil {
+		return nil, handler.NewParseError(err, http.StatusBadRequest)
+	}
+
+	return initReq, nil
+}
+
+func (h *initHandler) init(r *admin.PlacementInitRequest) (placement.Placement, error) {
+	instances, err := ConvertInstancesProto(r.Instances)
+	if err != nil {
+		return nil, err
+	}
+
+	service, err := Service(h.client, h.cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	placement, err := service.BuildInitialPlacement(instances, int(r.NumShards), int(r.ReplicationFactor))
+	if err != nil {
+		return nil, err
+	}
+
+	return placement, nil
 }

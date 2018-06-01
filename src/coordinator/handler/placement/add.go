@@ -26,7 +26,7 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/handler"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
@@ -37,18 +37,18 @@ import (
 )
 
 const (
-	// InitURL is the url for the placement init handler (with the POST method).
-	InitURL = handler.RoutePrefixV1 + "/placement/init"
+	// AddURL is the url for the placement add handler (with the POST method).
+	AddURL = handler.RoutePrefixV1 + "/placement"
 )
 
-type initHandler Handler
+type addHandler Handler
 
-// NewInitHandler returns a new instance of a placement init handler.
-func NewInitHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
-	return &initHandler{client: client, cfg: cfg}
+// NewAddHandler returns a new instance of a placement add handler.
+func NewAddHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
+	return &addHandler{client: client, cfg: cfg}
 }
 
-func (h *initHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
@@ -58,9 +58,9 @@ func (h *initHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	placement, err := h.init(req)
+	placement, err := h.add(req)
 	if err != nil {
-		logger.Error("unable to initialize placement", zap.Any("error", err))
+		logger.Error("unable to add placement", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -79,7 +79,7 @@ func (h *initHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handler.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *initHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *handler.ParseError) {
+func (h *addHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, *handler.ParseError) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return nil, handler.NewParseError(err, http.StatusBadRequest)
@@ -87,15 +87,15 @@ func (h *initHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest
 
 	defer r.Body.Close()
 
-	initReq := new(admin.PlacementInitRequest)
-	if err := json.Unmarshal(body, initReq); err != nil {
+	addReq := new(admin.PlacementAddRequest)
+	if err := json.Unmarshal(body, addReq); err != nil {
 		return nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
-	return initReq, nil
+	return addReq, nil
 }
 
-func (h *initHandler) init(r *admin.PlacementInitRequest) (placement.Placement, error) {
+func (h *addHandler) add(r *admin.PlacementAddRequest) (placement.Placement, error) {
 	instances, err := ConvertInstancesProto(r.Instances)
 	if err != nil {
 		return nil, err
@@ -106,10 +106,10 @@ func (h *initHandler) init(r *admin.PlacementInitRequest) (placement.Placement, 
 		return nil, err
 	}
 
-	placement, err := service.BuildInitialPlacement(instances, int(r.NumShards), int(r.ReplicationFactor))
+	newPlacement, _, err := service.AddInstances(instances)
 	if err != nil {
 		return nil, err
 	}
 
-	return placement, nil
+	return newPlacement, nil
 }

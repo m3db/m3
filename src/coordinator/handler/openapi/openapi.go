@@ -18,51 +18,53 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package placement
+package openapi
 
 import (
-	"encoding/json"
 	"net/http"
 
-	clusterclient "github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/handler"
+	assets "github.com/m3db/m3db/src/coordinator/generated/assets/openapi"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"go.uber.org/zap"
 )
 
 const (
-	// DeleteAllURL is the url for the handler to delete all placements (with the DELETE method).
-	DeleteAllURL = handler.RoutePrefixV1 + "/placement"
+	// URL is the url for the OpenAPI handler.
+	URL = handler.RoutePrefixV1 + "/docs"
+
+	// HTTPMethod is the HTTP method used with this resource.
+	HTTPMethod = "GET"
+
+	docPath = "/doc.html"
 )
 
-type deleteAllHandler Handler
+var (
+	// StaticURLPrefix is the url prefix for openapi specs.
+	StaticURLPrefix = URL + "/static/"
+)
 
-// NewDeleteAllHandler returns a new instance of a placement delete all handler.
-func NewDeleteAllHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
-	return &deleteAllHandler{client: client, cfg: cfg}
-}
+// DocHandler handles serving the OpenAPI doc.
+type DocHandler struct{}
 
-func (h *deleteAllHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// ServeHTTP serves the OpenAPI doc.
+func (h *DocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	service, err := Service(h.client, h.cfg)
+	doc, err := assets.FSByte(false, docPath)
+
 	if err != nil {
+		logger.Error("unable to load doc", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	if err := service.Delete(); err != nil {
-		logger.Error("unable to delete placement", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
-		return
-	}
+	w.Write(doc)
+}
 
-	json.NewEncoder(w).Encode(struct {
-		Deleted bool `json:"deleted"`
-	}{
-		Deleted: true,
-	})
+// StaticHandler is the handler for serving static assets (including OpenAPI specs).
+func StaticHandler() http.Handler {
+	return http.StripPrefix(StaticURLPrefix, http.FileServer(assets.FS(false)))
 }
