@@ -18,105 +18,97 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package namespace
+package placement
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 
 	clusterclient "github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
-	"github.com/m3db/m3db/src/coordinator/handler"
+	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 
 	"go.uber.org/zap"
 )
 
 const (
-	// AddURL is the url for the namespace add handler (with the POST method).
-	AddURL = handler.RoutePrefixV1 + "/namespace"
+	// InitURL is the url for the placement init handler (with the POST method).
+	InitURL = handler.RoutePrefixV1 + "/placement/init"
 )
 
-type addHandler Handler
+type initHandler Handler
 
-// NewAddHandler returns a new instance of a namespace add handler.
-func NewAddHandler(client clusterclient.Client) http.Handler {
-	return &addHandler{client: client}
+// NewInitHandler returns a new instance of a placement init handler.
+func NewInitHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
+	return &initHandler{client: client, cfg: cfg}
 }
 
-func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *initHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	md, rErr := h.parseRequest(r)
+	req, rErr := h.parseRequest(r)
 	if rErr != nil {
-		logger.Error("unable to parse request", zap.Any("error", rErr))
 		handler.Error(w, rErr.Error(), rErr.Code())
 		return
 	}
 
-	nsRegistry, err := h.add(md)
+	placement, err := h.init(req)
 	if err != nil {
-		logger.Error("unable to get namespace", zap.Any("error", err))
+		logger.Error("unable to initialize placement", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	resp := &admin.NamespaceGetResponse{
-		Registry: &nsRegistry,
+	placementProto, err := placement.Proto()
+	if err != nil {
+		logger.Error("unable to get placement protobuf", zap.Any("error", err))
+		handler.Error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	resp := &admin.PlacementGetResponse{
+		Placement: placementProto,
 	}
 
 	handler.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *addHandler) parseRequest(r *http.Request) (namespace.Metadata, *handler.ParseError) {
+func (h *initHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *handler.ParseError) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return nil, handler.NewParseError(err, http.StatusBadRequest)
-
 	}
+
 	defer r.Body.Close()
 
-	addReq := new(admin.NamespaceAddRequest)
-	if err := json.Unmarshal(body, addReq); err != nil {
+	initReq := new(admin.PlacementInitRequest)
+	if err := json.Unmarshal(body, initReq); err != nil {
 		return nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
-	md, err := namespace.ToMetadata(addReq.Name, addReq.Options)
-	if err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
-	}
-
-	return md, nil
+	return initReq, nil
 }
 
-func (h *addHandler) add(md namespace.Metadata) (nsproto.Registry, error) {
-	var emptyReg = nsproto.Registry{}
-
-	store, err := h.client.KV()
+func (h *initHandler) init(r *admin.PlacementInitRequest) (placement.Placement, error) {
+	instances, err := ConvertInstancesProto(r.Instances)
 	if err != nil {
-		return emptyReg, err
+		return nil, err
 	}
 
-	currentMetadata, version, err := Metadata(store)
+	service, err := Service(h.client, h.cfg)
 	if err != nil {
-		return emptyReg, err
+		return nil, err
 	}
 
-	nsMap, err := namespace.NewMap(append(currentMetadata, md))
+	placement, err := service.BuildInitialPlacement(instances, int(r.NumShards), int(r.ReplicationFactor))
 	if err != nil {
-		return emptyReg, err
+		return nil, err
 	}
 
-	protoRegistry := namespace.ToProto(nsMap)
-	_, err = store.CheckAndSet(M3DBNodeNamespacesKey, version, protoRegistry)
-	if err != nil {
-		return emptyReg, fmt.Errorf("failed to add namespace: %v", err)
-	}
-
-	return *protoRegistry, nil
+	return placement, nil
 }

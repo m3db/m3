@@ -18,74 +18,51 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package namespace
+package placement
 
 import (
-	"fmt"
+	"encoding/json"
 	"net/http"
 
 	clusterclient "github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
-	"github.com/m3db/m3db/src/coordinator/handler"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
 
 	"go.uber.org/zap"
 )
 
 const (
-	// GetURL is the url for the namespace get handler (with the GET method).
-	GetURL = handler.RoutePrefixV1 + "/namespace"
+	// DeleteAllURL is the url for the handler to delete all placements (with the DELETE method).
+	DeleteAllURL = handler.RoutePrefixV1 + "/placement"
 )
 
-type getHandler Handler
+type deleteAllHandler Handler
 
-// NewGetHandler returns a new instance of a namespace get handler.
-func NewGetHandler(client clusterclient.Client) http.Handler {
-	return &getHandler{client: client}
+// NewDeleteAllHandler returns a new instance of a placement delete all handler.
+func NewDeleteAllHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
+	return &deleteAllHandler{client: client, cfg: cfg}
 }
 
-func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *deleteAllHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
-	nsRegistry, err := h.get()
 
+	service, err := Service(h.client, h.cfg)
 	if err != nil {
-		logger.Error("unable to get namespace", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	resp := &admin.NamespaceGetResponse{
-		Registry: &nsRegistry,
+	if err := service.Delete(); err != nil {
+		logger.Error("unable to delete placement", zap.Any("error", err))
+		handler.Error(w, err, http.StatusInternalServerError)
+		return
 	}
 
-	handler.WriteProtoMsgJSONResponse(w, resp, logger)
-}
-
-func (h *getHandler) get() (nsproto.Registry, error) {
-	var emptyReg = nsproto.Registry{}
-
-	store, err := h.client.KV()
-	if err != nil {
-		return emptyReg, err
-	}
-
-	value, err := store.Get(M3DBNodeNamespacesKey)
-
-	if err == kv.ErrNotFound {
-		// Having no namespace should not be treated as an error
-		return emptyReg, nil
-	} else if err != nil {
-		return emptyReg, err
-	}
-
-	var protoRegistry nsproto.Registry
-
-	if err := value.Unmarshal(&protoRegistry); err != nil {
-		return emptyReg, fmt.Errorf("failed to parse namespace version %v: %v", value.Version(), err)
-	}
-
-	return protoRegistry, nil
+	json.NewEncoder(w).Encode(struct {
+		Deleted bool `json:"deleted"`
+	}{
+		Deleted: true,
+	})
 }

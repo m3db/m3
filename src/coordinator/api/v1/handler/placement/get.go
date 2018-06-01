@@ -18,53 +18,64 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package openapi
+package placement
 
 import (
+	"encoding/json"
 	"net/http"
 
-	assets "github.com/m3db/m3db/src/coordinator/generated/assets/openapi"
-	"github.com/m3db/m3db/src/coordinator/handler"
+	clusterclient "github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
+	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"go.uber.org/zap"
 )
 
 const (
-	// URL is the url for the OpenAPI handler.
-	URL = handler.RoutePrefixV1 + "/docs"
-
-	// HTTPMethod is the HTTP method used with this resource.
-	HTTPMethod = "GET"
-
-	docPath = "/doc.html"
+	// GetURL is the url for the placement get handler (with the GET method).
+	GetURL = handler.RoutePrefixV1 + "/placement"
 )
 
-var (
-	// StaticURLPrefix is the url prefix for openapi specs.
-	StaticURLPrefix = URL + "/static/"
-)
+type getHandler Handler
 
-// DocHandler handles serving the OpenAPI doc.
-type DocHandler struct{}
+// NewGetHandler returns a new instance of a placement get handler.
+func NewGetHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
+	return &getHandler{client: client, cfg: cfg}
+}
 
-// ServeHTTP serves the OpenAPI doc.
-func (h *DocHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *getHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	doc, err := assets.FSByte(false, docPath)
-
+	service, err := Service(h.client, h.cfg)
 	if err != nil {
-		logger.Error("unable to load doc", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	w.Write(doc)
-}
+	placement, version, err := service.Placement()
+	if err != nil {
+		json.NewEncoder(w).Encode(struct {
+			Result string `json:"result"`
+		}{
+			Result: "no placement found",
+		})
+		return
+	}
 
-// StaticHandler is the handler for serving static assets (including OpenAPI specs).
-func StaticHandler() http.Handler {
-	return http.StripPrefix(StaticURLPrefix, http.FileServer(assets.FS(false)))
+	placementProto, err := placement.Proto()
+	if err != nil {
+		logger.Error("unable to get placement protobuf", zap.Any("error", err))
+		handler.Error(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	resp := &admin.PlacementGetResponse{
+		Placement: placementProto,
+		Version:   int32(version),
+	}
+
+	handler.WriteProtoMsgJSONResponse(w, resp, logger)
 }
