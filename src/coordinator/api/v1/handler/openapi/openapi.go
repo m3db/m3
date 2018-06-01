@@ -23,8 +23,8 @@ package openapi
 import (
 	"net/http"
 
-	assets "github.com/m3db/m3db/src/coordinator/generated/assets/openapi"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
+	assets "github.com/m3db/m3db/src/coordinator/generated/assets/openapi"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"go.uber.org/zap"

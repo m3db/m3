@@ -27,8 +27,8 @@ import (
 	"net/http"
 
 	clusterclient "github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
+	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"

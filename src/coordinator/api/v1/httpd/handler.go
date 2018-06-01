@@ -27,13 +27,13 @@ import (
 
 	m3clusterClient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
-	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/namespace"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/openapi"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/placement"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/prometheus/remote"
+	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
