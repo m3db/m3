@@ -25,6 +25,12 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
+	"github.com/m3db/m3x/ident"
+)
+
+const (
+	// todo(braskin): replace this with actual size if we can
+	blockReplicaLen = 10
 )
 
 // BlockReplica contains the replicas for a single m3db block
@@ -38,27 +44,27 @@ type BlockReplica struct {
 // coordinator SeriesBlocks which are used to construct Blocks for query processing.
 func ConvertM3DBSeriesIterators(iterators encoding.SeriesIterators, iterAlloc encoding.ReaderIteratorAllocate) ([]SeriesBlocks, error) {
 	multiSeriesBlocks := make([]SeriesBlocks, iterators.Len())
+	defer iterators.Close()
 
 	for i, seriesIterator := range iterators.Iters() {
-
 		blockReplicas, err := blockReplicasFromSeriesIterator(seriesIterator, iterAlloc)
 		if err != nil {
-			return []SeriesBlocks{}, err
+			return nil, err
 		}
 
 		series := seriesBlocksFromBlockReplicas(blockReplicas, seriesIterator)
 		multiSeriesBlocks[i] = series
+
 	}
 
 	return multiSeriesBlocks, nil
 }
 
 func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, iterAlloc encoding.ReaderIteratorAllocate) ([]BlockReplica, error) {
-	var blockReplicas []BlockReplica
+	blockReplicas := make([]BlockReplica, 0, blockReplicaLen)
 	for _, replica := range seriesIterator.Replicas() {
 		perBlockSliceReaders := replica.Readers()
-		next := true
-		for next {
+		for next := true; next; next = perBlockSliceReaders.Next() {
 			l, start, bs := perBlockSliceReaders.CurrentReaders()
 			readers := make([]xio.SegmentReader, l)
 			for i := 0; i < l; i++ {
@@ -67,7 +73,7 @@ func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, ite
 				// we use the contents of it again
 				clonedReader, err := reader.Clone()
 				if err != nil {
-					return []BlockReplica{}, err
+					return nil, err
 				}
 				readers[i] = clonedReader
 			}
@@ -90,8 +96,6 @@ func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, ite
 					Replicas:  []encoding.MultiReaderIterator{iter},
 				})
 			}
-
-			next = perBlockSliceReaders.Next()
 		}
 	}
 
@@ -99,9 +103,17 @@ func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, ite
 }
 
 func seriesBlocksFromBlockReplicas(blockReplicas []BlockReplica, seriesIterator encoding.SeriesIterator) SeriesBlocks {
+	var (
+		// todo(braskin): use ident pool
+		clonedID        = ident.StringID(seriesIterator.ID().String())
+		clonedNamespace = ident.StringID(seriesIterator.Namespace().String())
+		clonedTags      = seriesIterator.Tags().Duplicate()
+	)
+
 	series := SeriesBlocks{
-		ID:        seriesIterator.ID(),
-		Namespace: seriesIterator.Namespace(),
+		ID:        clonedID,
+		Namespace: clonedNamespace,
+		Tags:      clonedTags,
 	}
 
 	for _, block := range blockReplicas {
@@ -118,8 +130,8 @@ func seriesBlocksFromBlockReplicas(blockReplicas []BlockReplica, seriesIterator 
 		}
 
 		// todo(braskin): pooling
-		valuesIter := encoding.NewSeriesIterator(seriesIterator.ID(), seriesIterator.Namespace(),
-			seriesIterator.Tags(), filterValuesStart, filterValuesEnd, block.Replicas, nil)
+		valuesIter := encoding.NewSeriesIterator(clonedID, clonedNamespace,
+			clonedTags, filterValuesStart, filterValuesEnd, block.Replicas, nil)
 
 		series.Blocks = append(series.Blocks, SeriesBlock{
 			Start:          filterValuesStart,

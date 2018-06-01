@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
@@ -61,25 +62,30 @@ func TestConversion(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, block := range blocks {
-		assert.Equal(t, "id", block.ID.String())
-		assert.Equal(t, "namespace", block.Namespace.String())
+		assert.Equal(t, seriesID, block.ID.String())
+		assert.Equal(t, seriesNamespace, block.Namespace.String())
 
-		blockOne := block.Blocks[0].SeriesIterator
-		blockTwo := block.Blocks[1].SeriesIterator
+		convertedTags, err := storage.FromIdentTagIteratorToTags(block.Tags)
+		require.NoError(t, err)
+		assert.Equal(t, testTags["foo"], convertedTags["foo"])
+		assert.Equal(t, testTags["baz"], convertedTags["baz"])
 
-		assert.Equal(t, start.Add(2*time.Minute), blockOne.Start())
-		assert.Equal(t, middle, blockOne.End())
+		blockOneSeriesIterator := block.Blocks[0].SeriesIterator
+		blockTwoSeriesIterator := block.Blocks[1].SeriesIterator
 
-		for i := 3; blockOne.Next(); i++ {
-			dp, _, _ := blockOne.Current()
+		assert.Equal(t, start.Add(2*time.Minute), blockOneSeriesIterator.Start())
+		assert.Equal(t, middle, blockOneSeriesIterator.End())
+
+		for i := 3; blockOneSeriesIterator.Next(); i++ {
+			dp, _, _ := blockOneSeriesIterator.Current()
 			assert.Equal(t, float64(i), dp.Value)
 		}
 
-		assert.Equal(t, middle, blockTwo.Start())
-		assert.Equal(t, end, blockTwo.End())
+		assert.Equal(t, middle, blockTwoSeriesIterator.Start())
+		assert.Equal(t, end, blockTwoSeriesIterator.End())
 
-		for i := 101; blockTwo.Next(); i++ {
-			dp, _, _ := blockTwo.Current()
+		for i := 101; blockTwoSeriesIterator.Next(); i++ {
+			dp, _, _ := blockTwoSeriesIterator.Current()
 			assert.Equal(t, float64(i), dp.Value)
 		}
 	}

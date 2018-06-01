@@ -38,6 +38,7 @@ type SeriesBlock struct {
 type SeriesBlocks struct {
 	ID        ident.ID
 	Namespace ident.ID
+	Tags      ident.TagIterator
 	Blocks    []SeriesBlock
 }
 
