@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

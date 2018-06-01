@@ -29,8 +29,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/coordinator/handler/prometheus"
 	"github.com/m3db/m3db/src/coordinator/executor"
+	"github.com/m3db/m3db/src/coordinator/handler/prometheus"
 	"github.com/m3db/m3db/src/coordinator/test/local"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 

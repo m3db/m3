@@ -26,9 +26,9 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/handler/prometheus/native"
 	"github.com/m3db/m3db/src/coordinator/handler/prometheus/remote"
-	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/test/local"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 

@@ -25,18 +25,17 @@ import (
 	"net/http/pprof"
 	"os"
 
+	m3clusterClient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/handler"
 	"github.com/m3db/m3db/src/coordinator/handler/namespace"
 	"github.com/m3db/m3db/src/coordinator/handler/openapi"
 	"github.com/m3db/m3db/src/coordinator/handler/placement"
 	"github.com/m3db/m3db/src/coordinator/handler/prometheus/native"
 	"github.com/m3db/m3db/src/coordinator/handler/prometheus/remote"
-	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-
-	m3clusterClient "github.com/m3db/m3cluster/client"
 
 	"github.com/gorilla/mux"
 	"github.com/uber-go/tally"

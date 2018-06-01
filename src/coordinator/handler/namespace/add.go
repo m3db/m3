@@ -22,16 +22,14 @@ package namespace
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 
 	clusterclient "github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3db/src/coordinator/handler"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
+	"github.com/m3db/m3db/src/coordinator/handler"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-
 	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 
@@ -41,12 +39,6 @@ import (
 const (
 	// AddURL is the url for the namespace add handler (with the POST method).
 	AddURL = handler.RoutePrefixV1 + "/namespace"
-
-	defaultBlockDataExpiryPeriodStr = "5m"
-)
-
-var (
-	errMissingRequiredField = errors.New("all attributes must be set")
 )
 
 type addHandler Handler
@@ -127,8 +119,4 @@ func (h *addHandler) add(md namespace.Metadata) (nsproto.Registry, error) {
 	}
 
 	return *protoRegistry, nil
-}
-
-func metadataFromRequest(r *admin.NamespaceAddRequest) (namespace.Metadata, error) {
-	return namespace.ToMetadata(r.Name, r.Options)
 }

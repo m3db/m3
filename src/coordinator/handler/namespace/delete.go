@@ -30,7 +30,6 @@ import (
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/coordinator/handler"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 
 	"github.com/gorilla/mux"

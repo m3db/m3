@@ -26,10 +26,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/m3db/m3db/src/coordinator/util/logging"
-
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
 	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
 
 	"github.com/golang/mock/gomock"
