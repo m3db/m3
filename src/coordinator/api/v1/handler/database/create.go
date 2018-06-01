@@ -23,6 +23,7 @@ package database
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/util"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	protonamespace "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
+	dbnamespace "github.com/m3db/m3db/src/dbnode/storage/namespace"
 
 	"github.com/golang/protobuf/jsonpb"
 	"go.uber.org/zap"
@@ -142,62 +144,47 @@ func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddReques
 }
 
 func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) *admin.NamespaceAddRequest {
-	var (
-		bootstrapEnabled  bool
-		flushEnabled      bool
-		writesToCommitLog bool
-		cleanupEnabled    bool
-		repairEnabled     bool
-		snapshotEnabled   bool
-
-		retentionPeriodNanos                     int64
-		retentionBlockSizeNanos                  int64
-		bufferFutureNanos                        int64
-		bufferPastNanos                          int64
-		blockDataExpiry                          bool
-		blockDataExpiryAfterNotAccessPeriodNanos int64
-
-		indexEnabled        bool
-		indexBlockSizeNanos int64
-	)
+	options := dbnamespace.NewOptions()
 
 	switch r.Type {
 	case dbTypeLocal:
-		bootstrapEnabled = true
-		flushEnabled = true
-		writesToCommitLog = true
-		cleanupEnabled = true
-		repairEnabled = true
-		snapshotEnabled = false
+		options.SetBootstrapEnabled(true)
+		options.SetFlushEnabled(true)
+		options.SetWritesToCommitLog(true)
+		options.SetCleanupEnabled(true)
+		options.SetRepairEnabled(false)
+		options.SetSnapshotEnabled(false)
 
 		// ExpectedSeriesDatapointsPerHour takes precedence over RetentionPeriodNanos
 		if r.ExpectedSeriesDatapointsPerHour > 0 {
 			// We want around 720 datapoints per block, so:
 			// (720 / r.ExpectedSeriesDatapointsPerHour) * 60 * 60000000000
-			retentionPeriodNanos = 2592000000000000 / r.ExpectedSeriesDatapointsPerHour
+			options.RetentionOptions().SetRetentionPeriod(time.Duration(2592000000000000 / r.ExpectedSeriesDatapointsPerHour))
 		} else {
-			retentionPeriodNanos = r.RetentionPeriodNanos
-		}
-		if retentionPeriodNanos <= 0 {
-			retentionPeriodNanos = 172800000000000 // 48h
+			options.RetentionOptions().SetRetentionPeriod(time.Duration(r.RetentionPeriodNanos))
 		}
 
-		if retentionPeriodNanos <= 172800000000000 { // if <= 2 * 24h
-			retentionBlockSizeNanos = 7200000000000 // ...then 2h
-		} else if retentionPeriodNanos <= 1209600000000000 { // if <= 14 * 24h
-			retentionBlockSizeNanos = 14400000000000 // ...then 4h
-		} else if retentionPeriodNanos <= 2592000000000000 { // if <= 30 * 24h
-			retentionBlockSizeNanos = 43200000000000 // ...then 12h
-		} else {
-			retentionBlockSizeNanos = 86400000000000 // ...else 24h
+		retentionPeriod := options.RetentionOptions().RetentionPeriod()
+		if retentionPeriod <= 0 {
+			options.RetentionOptions().SetRetentionPeriod(48 * time.Hour)
 		}
-		bufferFutureNanos = 600000000000 // 10m
-		bufferPastNanos = 600000000000   // 10m
-		blockDataExpiry = true
-		blockDataExpiryAfterNotAccessPeriodNanos = 300000000000 // 5m
 
-		indexEnabled = true
-		indexBlockSizeNanos = retentionBlockSizeNanos
+		if retentionPeriod <= 48*time.Hour {
+			options.RetentionOptions().SetBlockSize(2 * time.Hour)
+		} else if retentionPeriod <= 336*time.Hour { // 14 * 24h
+			options.RetentionOptions().SetBlockSize(4 * time.Hour)
+		} else if retentionPeriod <= 720*time.Hour { // 30 * 24h
+			options.RetentionOptions().SetBlockSize(12 * time.Hour)
+		} else {
+			options.RetentionOptions().SetBlockSize(24 * time.Hour)
+		}
+		options.RetentionOptions().SetBufferFuture(10 * time.Minute)
+		options.RetentionOptions().SetBufferPast(10 * time.Minute)
+		options.RetentionOptions().SetBlockDataExpiry(true)
+		options.RetentionOptions().SetBlockDataExpiryAfterNotAccessedPeriod(5 * time.Minute)
+
+		options.IndexOptions().SetEnabled(true)
+		options.IndexOptions().SetBlockSize(options.RetentionOptions().BlockSize())
 	default:
 		return nil
 	}
@@ -205,23 +192,23 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) *admin.Namespa
 	return &admin.NamespaceAddRequest{
 		Name: r.NamespaceName,
 		Options: &protonamespace.NamespaceOptions{
-			BootstrapEnabled:  bootstrapEnabled,
-			FlushEnabled:      flushEnabled,
-			WritesToCommitLog: writesToCommitLog,
-			CleanupEnabled:    cleanupEnabled,
-			RepairEnabled:     repairEnabled,
-			SnapshotEnabled:   snapshotEnabled,
+			BootstrapEnabled:  options.BootstrapEnabled(),
+			FlushEnabled:      options.FlushEnabled(),
+			WritesToCommitLog: options.WritesToCommitLog(),
+			CleanupEnabled:    options.CleanupEnabled(),
+			RepairEnabled:     options.RepairEnabled(),
+			SnapshotEnabled:   options.SnapshotEnabled(),
 			RetentionOptions: &protonamespace.RetentionOptions{
-				RetentionPeriodNanos:                     retentionPeriodNanos,
-				BlockSizeNanos:                           retentionBlockSizeNanos,
-				BufferFutureNanos:                        bufferFutureNanos,
-				BufferPastNanos:                          bufferPastNanos,
-				BlockDataExpiry:                          blockDataExpiry,
-				BlockDataExpiryAfterNotAccessPeriodNanos: blockDataExpiryAfterNotAccessPeriodNanos,
+				RetentionPeriodNanos:                     options.RetentionOptions().RetentionPeriod().Nanoseconds(),
+				BlockSizeNanos:                           options.RetentionOptions().BlockSize().Nanoseconds(),
+				BufferFutureNanos:                        options.RetentionOptions().BufferFuture().Nanoseconds(),
+				BufferPastNanos:                          options.RetentionOptions().BufferPast().Nanoseconds(),
+				BlockDataExpiry:                          options.RetentionOptions().BlockDataExpiry(),
+				BlockDataExpiryAfterNotAccessPeriodNanos: options.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod().Nanoseconds(),
 			},
 			IndexOptions: &protonamespace.IndexOptions{
-				Enabled:        indexEnabled,
-				BlockSizeNanos: indexBlockSizeNanos,
+				Enabled:        options.IndexOptions().Enabled(),
+				BlockSizeNanos: options.IndexOptions().BlockSize().Nanoseconds(),
 			},
 		},
 	}
