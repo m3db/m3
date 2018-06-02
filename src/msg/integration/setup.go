@@ -59,6 +59,7 @@ type consumerServiceConfig struct {
 	ct        topic.ConsumptionType
 	instances int
 	replicas  int
+	isSharded bool
 }
 
 type op struct {
@@ -92,7 +93,7 @@ func newTestSetup(
 		consumerService := topic.NewConsumerService().SetServiceID(sid).SetConsumptionType(config.ct)
 		topicConsumerServices = append(topicConsumerServices, consumerService)
 
-		ps := testPlacementService(mem.NewStore(), sid)
+		ps := testPlacementService(mem.NewStore(), sid, config.isSharded)
 		sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil).Times(numProducers)
 
 		cs := testConsumerService{
@@ -102,14 +103,22 @@ func newTestSetup(
 			consumerService:  consumerService,
 		}
 		testConsumerServices = append(testConsumerServices, &cs)
-		var instances []placement.Instance
+		var (
+			instances []placement.Instance
+			p         placement.Placement
+			err       error
+		)
 		for i := 0; i < config.instances; i++ {
 			c := newTestConsumer(t, &cs)
 			c.consumeAndAck(totalConsumed)
 			cs.testConsumers = append(cs.testConsumers, c)
 			instances = append(instances, c.instance)
 		}
-		p, err := ps.BuildInitialPlacement(instances, numberOfShards, config.replicas)
+		if config.isSharded {
+			p, err = ps.BuildInitialPlacement(instances, numberOfShards, config.replicas)
+		} else {
+			p, err = ps.BuildInitialPlacement(instances, 0, config.replicas)
+		}
 		require.NoError(t, err)
 		require.Equal(t, len(instances), p.NumInstances())
 	}
@@ -441,12 +450,16 @@ func (c *testConsumer) consumeAndAck(totalConsumed *atomic.Int64) {
 
 						wp.Go(
 							func() {
+								c.Lock()
+								if c.closed {
+									c.Unlock()
+									return
+								}
+								c.consumed++
+								c.Unlock()
 								totalConsumed.Inc()
 								c.cs.markConsumed(msg.Bytes())
 								msg.Ack()
-								c.Lock()
-								c.consumed++
-								c.Unlock()
 							},
 						)
 					}
@@ -456,8 +469,8 @@ func (c *testConsumer) consumeAndAck(totalConsumed *atomic.Int64) {
 	}()
 }
 
-func testPlacementService(store kv.Store, sid services.ServiceID) placement.Service {
-	opts := placement.NewOptions().SetShardStateMode(placement.StableShardStateOnly)
+func testPlacementService(store kv.Store, sid services.ServiceID, isSharded bool) placement.Service {
+	opts := placement.NewOptions().SetShardStateMode(placement.StableShardStateOnly).SetIsSharded(isSharded)
 	return service.NewPlacementService(storage.NewPlacementStorage(store, sid.String(), opts), opts)
 }
 

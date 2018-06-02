@@ -83,7 +83,4 @@ func TestConsumerServer(t *testing.T) {
 
 	s.Close()
 	require.True(t, closed)
-
-	_, err = net.Dial("tcp", l.Addr().String())
-	require.Error(t, err)
 }
