@@ -30,7 +30,7 @@ import (
 func NewServer(addr string, opts ServerOptions) server.Server {
 	return server.NewServer(
 		addr,
-		newHandler(opts.ConsumeFn(), opts.ConsumerOptions()),
+		NewHandler(opts.ConsumeFn(), opts.ConsumerOptions()),
 		opts.ServerOptions(),
 	)
 }
@@ -43,7 +43,8 @@ type handler struct {
 	m metrics
 }
 
-func newHandler(consumeFn ConsumeFn, opts Options) *handler {
+// NewHandler creates a new handler.
+func NewHandler(consumeFn ConsumeFn, opts Options) server.Handler {
 	mPool := newMessagePool(opts.MessagePoolOptions())
 	mPool.Init()
 	return &handler{

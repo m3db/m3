@@ -50,7 +50,8 @@ func TestSharedConsumer(t *testing.T) {
 
 	for i := 1; i <= maxProducers; i++ {
 		s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-			consumerServiceConfig{ct: topic.Shared, instances: 5, replicas: 3},
+			consumerServiceConfig{ct: topic.Shared, isSharded: true, instances: 5, replicas: 2},
+			consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 5, replicas: 2},
 		})
 
 		s.Run(t, ctrl)
@@ -69,7 +70,7 @@ func TestReplicatedConsumer(t *testing.T) {
 
 	for i := 1; i <= maxProducers; i++ {
 		s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-			consumerServiceConfig{ct: topic.Replicated, instances: 5, replicas: 3},
+			consumerServiceConfig{ct: topic.Replicated, isSharded: true, instances: 5, replicas: 2},
 		})
 
 		s.Run(t, ctrl)
@@ -89,8 +90,9 @@ func TestSharedAndReplicatedConsumers(t *testing.T) {
 	for i := 1; i <= maxProducers; i++ {
 		for j := 1; j <= maxRF; j++ {
 			s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-				consumerServiceConfig{ct: topic.Shared, instances: 5, replicas: j},
-				consumerServiceConfig{ct: topic.Replicated, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Shared, isSharded: true, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Replicated, isSharded: true, instances: 5, replicas: j},
 			})
 
 			s.Run(t, ctrl)
@@ -110,17 +112,24 @@ func TestSharedConsumerWithDeadInstance(t *testing.T) {
 
 	for i := 1; i <= maxProducers; i++ {
 		s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-			consumerServiceConfig{ct: topic.Shared, instances: 5, replicas: 3},
+			consumerServiceConfig{ct: topic.Shared, isSharded: true, instances: 5, replicas: 2},
+			consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 5, replicas: 2},
 		})
 
-		pct := 10
 		s.ScheduleOperations(
-			pct,
+			10,
 			func() { s.KillInstance(t, 0) },
+		)
+
+		s.ScheduleOperations(
+			20,
+			func() { s.KillInstance(t, 1) },
 		)
 		s.Run(t, ctrl)
 		testConsumers := s.consumerServices[0].testConsumers
-		require.True(t, testConsumers[len(testConsumers)-1].consumed <= s.TotalMessages()*pct/100)
+		require.True(t, testConsumers[len(testConsumers)-1].consumed <= s.TotalMessages()*10/100)
+		testConsumers = s.consumerServices[1].testConsumers
+		require.True(t, testConsumers[len(testConsumers)-1].consumed <= s.TotalMessages()*20/100)
 	}
 }
 
@@ -136,7 +145,8 @@ func TestSharedConsumerWithDeadConnection(t *testing.T) {
 
 	for i := 1; i <= maxProducers; i++ {
 		s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-			consumerServiceConfig{ct: topic.Shared, instances: 5, replicas: 3},
+			consumerServiceConfig{ct: topic.Shared, isSharded: true, instances: 5, replicas: 2},
+			consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 5, replicas: 2},
 		})
 
 		s.ScheduleOperations(
@@ -163,7 +173,7 @@ func TestReplicatedConsumerWithDeadConnection(t *testing.T) {
 
 	for i := 1; i <= maxProducers; i++ {
 		s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-			consumerServiceConfig{ct: topic.Replicated, instances: 5, replicas: 3},
+			consumerServiceConfig{ct: topic.Replicated, isSharded: true, instances: 5, replicas: 2},
 		})
 
 		s.ScheduleOperations(
@@ -191,8 +201,9 @@ func TestSharedAndReplicatedConsumerWithDeadConnection(t *testing.T) {
 	for i := 1; i <= maxProducers; i++ {
 		for j := 1; j <= maxRF; j++ {
 			s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-				consumerServiceConfig{ct: topic.Shared, instances: 5, replicas: j},
-				consumerServiceConfig{ct: topic.Replicated, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Shared, isSharded: true, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Replicated, isSharded: true, instances: 5, replicas: j},
 			})
 
 			s.ScheduleOperations(
@@ -228,7 +239,8 @@ func TestSharedConsumerAddInstances(t *testing.T) {
 
 	for i := 1; i <= maxProducers; i++ {
 		s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-			consumerServiceConfig{ct: topic.Shared, instances: 5, replicas: 3},
+			consumerServiceConfig{ct: topic.Shared, isSharded: true, instances: 5, replicas: 2},
+			consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 5, replicas: 2},
 		})
 
 		s.ScheduleOperations(
@@ -255,7 +267,7 @@ func TestReplicatedConsumerAddInstances(t *testing.T) {
 
 	for i := 1; i <= maxProducers; i++ {
 		s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-			consumerServiceConfig{ct: topic.Replicated, instances: 5, replicas: 3},
+			consumerServiceConfig{ct: topic.Replicated, isSharded: true, instances: 5, replicas: 2},
 		})
 
 		s.ScheduleOperations(
@@ -283,8 +295,9 @@ func TestSharedAndReplicatedConsumerAddInstances(t *testing.T) {
 	for i := 1; i <= maxProducers; i++ {
 		for j := 1; j <= maxRF; j++ {
 			s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-				consumerServiceConfig{ct: topic.Shared, instances: 5, replicas: j},
-				consumerServiceConfig{ct: topic.Replicated, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Shared, isSharded: true, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Replicated, isSharded: true, instances: 5, replicas: j},
 			})
 
 			s.ScheduleOperations(
@@ -320,7 +333,8 @@ func TestSharedConsumerRemoveInstances(t *testing.T) {
 
 	for i := 1; i <= maxProducers; i++ {
 		s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-			consumerServiceConfig{ct: topic.Shared, instances: 5, replicas: 3},
+			consumerServiceConfig{ct: topic.Shared, isSharded: true, instances: 5, replicas: 2},
+			consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 5, replicas: 2},
 		})
 
 		s.ScheduleOperations(
@@ -347,7 +361,7 @@ func TestReplicatedConsumerRemoveInstances(t *testing.T) {
 
 	for i := 1; i <= maxProducers; i++ {
 		s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-			consumerServiceConfig{ct: topic.Replicated, instances: 5, replicas: 3},
+			consumerServiceConfig{ct: topic.Replicated, isSharded: true, instances: 5, replicas: 2},
 		})
 
 		s.ScheduleOperations(
@@ -375,8 +389,9 @@ func TestSharedAndReplicatedConsumerRemoveInstances(t *testing.T) {
 	for i := 1; i <= maxProducers; i++ {
 		for j := 1; j <= maxRF; j++ {
 			s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-				consumerServiceConfig{ct: topic.Shared, instances: 5, replicas: j},
-				consumerServiceConfig{ct: topic.Replicated, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Shared, isSharded: true, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Replicated, isSharded: true, instances: 5, replicas: j},
 			})
 
 			s.ScheduleOperations(
@@ -412,7 +427,8 @@ func TestSharedConsumerReplaceInstances(t *testing.T) {
 
 	for i := 1; i <= maxProducers; i++ {
 		s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-			consumerServiceConfig{ct: topic.Shared, instances: 5, replicas: 3},
+			consumerServiceConfig{ct: topic.Shared, isSharded: true, instances: 5, replicas: 2},
+			consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 5, replicas: 2},
 		})
 
 		s.ScheduleOperations(
@@ -439,7 +455,7 @@ func TestReplicatedConsumerReplaceInstances(t *testing.T) {
 
 	for i := 1; i <= maxProducers; i++ {
 		s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-			consumerServiceConfig{ct: topic.Replicated, instances: 5, replicas: 3},
+			consumerServiceConfig{ct: topic.Replicated, isSharded: true, instances: 5, replicas: 2},
 		})
 
 		s.ScheduleOperations(
@@ -467,8 +483,9 @@ func TestSharedAndReplicatedConsumerReplaceInstances(t *testing.T) {
 	for i := 1; i <= maxProducers; i++ {
 		for j := 1; j <= maxRF; j++ {
 			s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
-				consumerServiceConfig{ct: topic.Shared, instances: 5, replicas: j},
-				consumerServiceConfig{ct: topic.Replicated, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Shared, isSharded: true, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 5, replicas: j},
+				consumerServiceConfig{ct: topic.Replicated, isSharded: true, instances: 5, replicas: j},
 			})
 
 			s.ScheduleOperations(

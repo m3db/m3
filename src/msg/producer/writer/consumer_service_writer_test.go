@@ -46,7 +46,128 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConsumerServiceWriterWithSharedConsumer(t *testing.T) {
+func TestConsumerServiceWriterWithSharedConsumerWithNonShardedPlacement(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	sid := services.NewServiceID().SetName("foo")
+	cs := topic.NewConsumerService().SetServiceID(sid).SetConsumptionType(topic.Shared)
+	sd := services.NewMockServices(ctrl)
+	ps := testPlacementService(mem.NewStore(), sid)
+	sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil)
+
+	opts := testOptions().SetServiceDiscovery(sd)
+	w, err := newConsumerServiceWriter(cs, 2, testMessagePool(opts), opts)
+	require.NoError(t, err)
+
+	csw := w.(*consumerServiceWriterImpl)
+
+	var (
+		lock               sync.Mutex
+		numConsumerWriters int
+	)
+	csw.processFn = func(p interface{}) error {
+		err := csw.process(p)
+		lock.Lock()
+		numConsumerWriters = len(csw.consumerWriters)
+		lock.Unlock()
+		return err
+	}
+
+	require.NoError(t, csw.Init(allowInitValueError))
+	lock.Lock()
+	require.Equal(t, 0, numConsumerWriters)
+	lock.Unlock()
+
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer lis.Close()
+
+	p1 := placement.NewPlacement().
+		SetInstances([]placement.Instance{
+			placement.NewInstance().
+				SetID("i1").
+				SetEndpoint(lis.Addr().String()),
+			placement.NewInstance().
+				SetID("i2").
+				SetEndpoint("addr2"),
+			placement.NewInstance().
+				SetID("i3").
+				SetEndpoint("addr3"),
+		}).
+		SetIsSharded(false)
+	require.NoError(t, ps.Set(p1))
+
+	for {
+		lock.Lock()
+		l := numConsumerWriters
+		lock.Unlock()
+		if l == 3 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
+	go func() {
+		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
+		wg.Done()
+	}()
+
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Shard().Return(uint32(1))
+	mm.EXPECT().Bytes().Return([]byte("foo"))
+	mm.EXPECT().Finalize(producer.Consumed)
+
+	rm := msg.NewRefCountedMessage(mm, nil)
+	csw.Write(rm)
+	for {
+		if rm.IsDroppedOrConsumed() {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	for _, sw := range w.(*consumerServiceWriterImpl).shardWriters {
+		require.Equal(t, 3, len(sw.(*sharedShardWriter).mw.(*messageWriterImpl).consumerWriters))
+	}
+
+	p2 := placement.NewPlacement().
+		SetInstances([]placement.Instance{
+			placement.NewInstance().
+				SetID("i1").
+				SetEndpoint(lis.Addr().String()),
+			placement.NewInstance().
+				SetID("i2").
+				SetEndpoint("addr2"),
+		}).
+		SetIsSharded(false)
+	require.NoError(t, ps.Set(p2))
+
+	for {
+		lock.Lock()
+		l := numConsumerWriters
+		lock.Unlock()
+		if l == 2 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	for _, sw := range w.(*consumerServiceWriterImpl).shardWriters {
+		require.Equal(t, 2, len(sw.(*sharedShardWriter).mw.(*messageWriterImpl).consumerWriters))
+	}
+
+	csw.Close()
+	csw.Close()
+}
+
+func TestConsumerServiceWriterWithSharedConsumerWithShardedPlacement(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	ctrl := gomock.NewController(t)
@@ -181,7 +302,7 @@ func TestConsumerServiceWriterWithSharedConsumer(t *testing.T) {
 	csw.Close()
 }
 
-func TestConsumerServiceWriterWithReplicatedConsumer(t *testing.T) {
+func TestConsumerServiceWriterWithReplicatedConsumerWithShardedPlacement(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	ctrl := gomock.NewController(t)
