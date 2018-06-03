@@ -42,19 +42,19 @@ var (
 
 type bufferMetrics struct {
 	messageDropped  tally.Counter
-	bytesDropped    tally.Counter
+	byteDropped     tally.Counter
 	messageTooLarge tally.Counter
 	messageBuffered tally.Gauge
-	bytesBuffered   tally.Gauge
+	byteBuffered    tally.Gauge
 }
 
 func newBufferMetrics(scope tally.Scope) bufferMetrics {
 	return bufferMetrics{
 		messageDropped:  scope.Counter("message-dropped"),
-		bytesDropped:    scope.Counter("bytes-dropped"),
+		byteDropped:     scope.Counter("byte-dropped"),
 		messageTooLarge: scope.Counter("message-too-large"),
 		messageBuffered: scope.Gauge("message-buffered"),
-		bytesBuffered:   scope.Gauge("bytes-buffered"),
+		byteBuffered:    scope.Gauge("byte-buffered"),
 	}
 }
 
@@ -149,7 +149,7 @@ func (b *buffer) dropEarliestUntilTargetWithLock(targetSize uint64) {
 		// the drop call which will lead drop to return false.
 		if rm.Drop() {
 			b.m.messageDropped.Inc(1)
-			b.m.bytesDropped.Inc(int64(rm.Size()))
+			b.m.byteDropped.Inc(int64(rm.Size()))
 		}
 	}
 }
@@ -174,7 +174,7 @@ func (b *buffer) cleanupUntilClose() {
 			l := b.buffers.Len()
 			b.Unlock()
 			b.m.messageBuffered.Update(float64(l))
-			b.m.bytesBuffered.Update(float64(b.size.Load()))
+			b.m.byteBuffered.Update(float64(b.size.Load()))
 		case <-b.doneCh:
 			return
 		}
@@ -195,7 +195,7 @@ func (b *buffer) cleanupWithLock() {
 		}
 		if rm.Drop() {
 			b.m.messageDropped.Inc(1)
-			b.m.bytesDropped.Inc(int64(rm.Size()))
+			b.m.byteDropped.Inc(int64(rm.Size()))
 			b.buffers.Remove(e)
 		}
 	}

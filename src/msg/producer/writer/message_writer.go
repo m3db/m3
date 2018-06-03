@@ -33,8 +33,7 @@ import (
 )
 
 const (
-	defaultAckMapSize      = 1024
-	defaultToBeRetriedSize = 1024
+	defaultAckMapSize = 1024
 )
 
 type messageWriter interface {
@@ -81,7 +80,6 @@ type messageWriterMetrics struct {
 	writeNew               tally.Counter
 	writeAfterCutoff       tally.Counter
 	writeBeforeCutover     tally.Counter
-	writeLatency           tally.Timer
 	retryBatchLatency      tally.Timer
 	queueSize              tally.Gauge
 }
@@ -108,7 +106,6 @@ func newMessageWriterMetrics(scope tally.Scope) messageWriterMetrics {
 			Tagged(map[string]string{"reason": "before-cutover"}).
 			Counter("invalid-write"),
 		retryBatchLatency: scope.Timer("retry-batch-latency"),
-		writeLatency:      scope.Timer("write-latency"),
 		queueSize:         scope.Gauge("message-queue-size"),
 	}
 }
@@ -155,7 +152,7 @@ func newMessageWriter(
 		acks:              newAckHelper(defaultAckMapSize),
 		cutOffNanos:       0,
 		cutOverNanos:      0,
-		toBeRetried:       make([]*message, 0, defaultToBeRetriedSize),
+		toBeRetried:       make([]*message, 0, opts.MessageRetryBatchSize()),
 		isClosed:          false,
 		doneCh:            make(chan struct{}),
 		m:                 newMessageWriterMetrics(opts.InstrumentOptions().MetricsScope()),
@@ -188,7 +185,6 @@ func (w *messageWriterImpl) Write(rm producer.RefCountedMessage) {
 	w.Unlock()
 	w.write(consumerWriters, msg, nowNanos)
 	w.m.writeNew.Inc(1)
-	w.m.writeLatency.Record(w.nowFn().Sub(now))
 }
 
 func (w *messageWriterImpl) isValidWriteWithLock(nowNanos int64) bool {
@@ -289,8 +285,8 @@ func (w *messageWriterImpl) retryUnacknowledged() {
 		w.Unlock()
 		for _, m := range toBeRetried {
 			w.write(consumerWriters, m, w.nowFn().UnixNano())
-			w.m.writeRetry.Inc(1)
 		}
+		w.m.writeRetry.Inc(int64(len(toBeRetried)))
 		w.m.retryBatchLatency.Record(w.nowFn().Sub(now))
 	}
 }
