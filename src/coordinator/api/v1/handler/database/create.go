@@ -43,7 +43,7 @@ import (
 
 const (
 	// CreateURL is the url for the database create handler.
-	CreateURL = "/api/v1/database/create"
+	CreateURL = handler.RoutePrefixV1 + "/database/create"
 
 	// CreateHTTPMethod is the HTTP method used with this resource.
 	CreateHTTPMethod = "POST"
