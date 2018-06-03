@@ -65,7 +65,7 @@ func TestMessageWriter(t *testing.T) {
 	cw.Init()
 	defer cw.Close()
 
-	w.AddConsumerWriter(addr, cw)
+	w.AddConsumerWriter(cw)
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -117,10 +117,6 @@ func TestMessageWriterRetry(t *testing.T) {
 	a := newAckRouter(1)
 	a.Register(200, w)
 
-	cw := newConsumerWriter(addr, a, opts)
-	cw.Init()
-	defer cw.Close()
-
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -134,10 +130,11 @@ func TestMessageWriterRetry(t *testing.T) {
 	require.False(t, isEmptyWithLock(w.acks))
 
 	msg := w.acks.m[metadata{shard: 200, id: 1}]
-	require.Equal(t, 1, int(msg.WriteTimes()))
+	require.Equal(t, 0, int(msg.WriteTimes()))
 	w.Init()
 	defer w.Close()
 
+	w.AddConsumerWriter(newConsumerWriter("bad", a, opts))
 	for {
 		w.RLock()
 		retried := msg.WriteTimes()
@@ -147,8 +144,12 @@ func TestMessageWriterRetry(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+	require.Equal(t, 1, w.queue.Len())
 
-	w.AddConsumerWriter(addr, cw)
+	cw := newConsumerWriter(addr, a, opts)
+	cw.Init()
+	defer cw.Close()
+	w.AddConsumerWriter(cw)
 	go func() {
 		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
 	}()
@@ -157,7 +158,7 @@ func TestMessageWriterRetry(t *testing.T) {
 		w.Lock()
 		l := w.queue.Len()
 		w.Unlock()
-		if l != 1 {
+		if l == 0 {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -287,6 +288,7 @@ func TestMessageWriterRetryIterateBatch(t *testing.T) {
 
 	opts := testOptions().SetMessageRetryBatchSize(2).SetMessageQueueScanInterval(time.Hour)
 	w := newMessageWriter(200, testMessagePool(opts), opts).(*messageWriterImpl)
+	w.AddConsumerWriter(newConsumerWriter("badAddr", nil, opts))
 
 	md1 := producer.NewMockMessage(ctrl)
 	md2 := producer.NewMockMessage(ctrl)
