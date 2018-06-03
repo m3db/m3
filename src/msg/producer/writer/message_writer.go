@@ -50,8 +50,8 @@ type messageWriter interface {
 	// It should block until all buffered messages have been acknowledged.
 	Close()
 
-	// AddConsumerWriter adds a consumer writer for the given address.
-	AddConsumerWriter(addr string, cw consumerWriter)
+	// AddConsumerWriter adds a consumer writer.
+	AddConsumerWriter(cw consumerWriter)
 
 	// RemoveConsumerWriter removes the consumer writer for the given address.
 	RemoveConsumerWriter(addr string)
@@ -120,7 +120,7 @@ type messageWriterImpl struct {
 
 	msgID           uint64
 	queue           *list.List
-	consumerWriters map[string]consumerWriter
+	consumerWriters []consumerWriter
 	acks            *acks
 	cutOffNanos     int64
 	cutOverNanos    int64
@@ -148,7 +148,6 @@ func newMessageWriter(
 		retryOpts:         opts.MessageRetryOptions(),
 		msgID:             0,
 		queue:             list.New(),
-		consumerWriters:   make(map[string]consumerWriter),
 		acks:              newAckHelper(defaultAckMapSize),
 		cutOffNanos:       0,
 		cutOverNanos:      0,
@@ -200,10 +199,14 @@ func (w *messageWriterImpl) isValidWriteWithLock(nowNanos int64) bool {
 }
 
 func (w *messageWriterImpl) write(
-	consumerWriters map[string]consumerWriter,
+	consumerWriters []consumerWriter,
 	m *message,
 	nowNanos int64,
 ) {
+	l := len(consumerWriters)
+	if l == 0 {
+		return
+	}
 	m.IncWriteTimes()
 	m.IncReads()
 	msg, isValid := m.Marshaler()
@@ -212,8 +215,10 @@ func (w *messageWriterImpl) write(
 		return
 	}
 	written := false
-	for _, cw := range consumerWriters {
-		if err := cw.Write(msg); err != nil {
+	start := int(nowNanos) % l
+	for i := start; i < start+l; i++ {
+		idx := i % l
+		if err := consumerWriters[idx].Write(msg); err != nil {
 			w.m.oneConsumerWriteError.Inc(1)
 			continue
 		}
@@ -405,25 +410,23 @@ func (w *messageWriterImpl) SetCutoverNanos(nanos int64) {
 	w.Unlock()
 }
 
-func (w *messageWriterImpl) AddConsumerWriter(addr string, cw consumerWriter) {
+func (w *messageWriterImpl) AddConsumerWriter(cw consumerWriter) {
 	w.Lock()
-	newConsumerWriters := make(map[string]consumerWriter, len(w.consumerWriters)+1)
-	for key, cw := range w.consumerWriters {
-		newConsumerWriters[key] = cw
-	}
-	newConsumerWriters[addr] = cw
+	newConsumerWriters := make([]consumerWriter, 0, len(w.consumerWriters)+1)
+	newConsumerWriters = append(newConsumerWriters, w.consumerWriters...)
+	newConsumerWriters = append(newConsumerWriters, cw)
 	w.consumerWriters = newConsumerWriters
 	w.Unlock()
 }
 
 func (w *messageWriterImpl) RemoveConsumerWriter(addr string) {
 	w.Lock()
-	newConsumerWriters := make(map[string]consumerWriter, len(w.consumerWriters)-1)
-	for key, cw := range w.consumerWriters {
-		if key == addr {
+	newConsumerWriters := make([]consumerWriter, 0, len(w.consumerWriters)-1)
+	for _, cw := range w.consumerWriters {
+		if cw.Address() == addr {
 			continue
 		}
-		newConsumerWriters[key] = cw
+		newConsumerWriters = append(newConsumerWriters, cw)
 	}
 	w.consumerWriters = newConsumerWriters
 	w.Unlock()

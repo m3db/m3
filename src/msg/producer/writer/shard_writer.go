@@ -89,7 +89,7 @@ func (w *sharedShardWriter) UpdateInstances(
 			continue
 		}
 		// Add the consumer writer to the message writer.
-		w.mw.AddConsumerWriter(id, cws[id])
+		w.mw.AddConsumerWriter(cws[id])
 	}
 	for id := range toBeDeleted {
 		w.mw.RemoveConsumerWriter(id)
@@ -182,7 +182,7 @@ func (w *replicatedShardWriter) UpdateInstances(
 		// messages buffered in the existing message writer can be tried on
 		// the new consumer writer.
 		if instance, cw, ok := anyKeyValueInMap(toBeAdded); ok {
-			mw.AddConsumerWriter(instance.Endpoint(), cw)
+			mw.AddConsumerWriter(cw)
 			mw.RemoveConsumerWriter(id)
 			w.updateCutoverCutoffNanos(mw, instance)
 			newMessageWriters[instance.Endpoint()] = mw
@@ -198,7 +198,7 @@ func (w *replicatedShardWriter) UpdateInstances(
 		replicatedShardID := uint64(w.replicaID*w.numberOfShards + w.shard)
 		w.replicaID++
 		mw := newMessageWriter(replicatedShardID, w.mPool, w.opts)
-		mw.AddConsumerWriter(instance.Endpoint(), cw)
+		mw.AddConsumerWriter(cw)
 		w.updateCutoverCutoffNanos(mw, instance)
 		mw.Init()
 		w.ackRouter.Register(replicatedShardID, mw)

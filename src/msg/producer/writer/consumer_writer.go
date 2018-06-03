@@ -50,6 +50,9 @@ var (
 )
 
 type consumerWriter interface {
+	// Address returns the consumer address.
+	Address() string
+
 	// Write writes the marshaler, it should be thread safe.
 	Write(m proto.Marshaler) error
 
@@ -154,6 +157,10 @@ func newConsumerWriter(
 		w.notifyReset()
 	}
 	return w
+}
+
+func (w *consumerWriterImpl) Address() string {
+	return w.addr
 }
 
 // Write should fail fast so that the write could be tried on other
