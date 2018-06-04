@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/util"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-	protonamespace "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
 	dbnamespace "github.com/m3db/m3db/src/dbnode/storage/namespace"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -48,13 +47,20 @@ const (
 	// CreateHTTPMethod is the HTTP method used with this resource.
 	CreateHTTPMethod = "POST"
 
-	dbTypeLocal = "local"
+	// We want around 720 datapoints per block, so:
+	// (720 / ExpectedSeriesDatapointsPerHour) * 60 * 60000000000
+	// == 2592000000000000 / ExpectedSeriesDatapointsPerHour
+	blockSizeFromExpectedSeriesScalar = 2592000000000000
+
+	dbTypeLocal dbType = "local"
 )
 
 var (
 	errMissingRequiredField = errors.New("all attributes must be set")
 	errInvalidDBType        = errors.New("invalid database type")
 )
+
+type dbType string
 
 type createHandler struct {
 	placementInitHandler   *placement.InitHandler
@@ -129,7 +135,8 @@ func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddReques
 		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
-	if dbCreateReq.Type != dbTypeLocal {
+	dbCreateType := dbType(dbCreateReq.Type)
+	if dbCreateType != dbTypeLocal {
 		return nil, nil, handler.NewParseError(errInvalidDBType, http.StatusBadRequest)
 	}
 
@@ -146,30 +153,20 @@ func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddReques
 func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) *admin.NamespaceAddRequest {
 	options := dbnamespace.NewOptions()
 
-	switch r.Type {
+	switch dbType(r.Type) {
 	case dbTypeLocal:
-		options.SetBootstrapEnabled(true)
-		options.SetFlushEnabled(true)
-		options.SetWritesToCommitLog(true)
-		options.SetCleanupEnabled(true)
 		options.SetRepairEnabled(false)
-		options.SetSnapshotEnabled(false)
 
-		// ExpectedSeriesDatapointsPerHour takes precedence over RetentionPeriodNanos
-		if r.ExpectedSeriesDatapointsPerHour > 0 {
-			// We want around 720 datapoints per block, so:
-			// (720 / r.ExpectedSeriesDatapointsPerHour) * 60 * 60000000000
-			options.RetentionOptions().SetRetentionPeriod(time.Duration(2592000000000000 / r.ExpectedSeriesDatapointsPerHour))
+		if r.RetentionPeriodNanos <= 0 {
+			options.RetentionOptions().SetRetentionPeriod(48 * time.Hour)
 		} else {
 			options.RetentionOptions().SetRetentionPeriod(time.Duration(r.RetentionPeriodNanos))
 		}
 
 		retentionPeriod := options.RetentionOptions().RetentionPeriod()
-		if retentionPeriod <= 0 {
-			options.RetentionOptions().SetRetentionPeriod(48 * time.Hour)
-		}
-
-		if retentionPeriod <= 48*time.Hour {
+		if r.ExpectedSeriesDatapointsPerHour > 0 {
+			options.RetentionOptions().SetBlockSize(time.Duration(blockSizeFromExpectedSeriesScalar / r.ExpectedSeriesDatapointsPerHour))
+		} else if retentionPeriod <= 48*time.Hour {
 			options.RetentionOptions().SetBlockSize(2 * time.Hour)
 		} else if retentionPeriod <= 336*time.Hour { // 14 * 24h
 			options.RetentionOptions().SetBlockSize(4 * time.Hour)
@@ -178,39 +175,17 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) *admin.Namespa
 		} else {
 			options.RetentionOptions().SetBlockSize(24 * time.Hour)
 		}
-		options.RetentionOptions().SetBufferFuture(10 * time.Minute)
-		options.RetentionOptions().SetBufferPast(10 * time.Minute)
-		options.RetentionOptions().SetBlockDataExpiry(true)
-		options.RetentionOptions().SetBlockDataExpiryAfterNotAccessedPeriod(5 * time.Minute)
 
 		options.IndexOptions().SetEnabled(true)
 		options.IndexOptions().SetBlockSize(options.RetentionOptions().BlockSize())
 	default:
+		// This function assumes the type is valid
 		return nil
 	}
 
 	return &admin.NamespaceAddRequest{
-		Name: r.NamespaceName,
-		Options: &protonamespace.NamespaceOptions{
-			BootstrapEnabled:  options.BootstrapEnabled(),
-			FlushEnabled:      options.FlushEnabled(),
-			WritesToCommitLog: options.WritesToCommitLog(),
-			CleanupEnabled:    options.CleanupEnabled(),
-			RepairEnabled:     options.RepairEnabled(),
-			SnapshotEnabled:   options.SnapshotEnabled(),
-			RetentionOptions: &protonamespace.RetentionOptions{
-				RetentionPeriodNanos:                     options.RetentionOptions().RetentionPeriod().Nanoseconds(),
-				BlockSizeNanos:                           options.RetentionOptions().BlockSize().Nanoseconds(),
-				BufferFutureNanos:                        options.RetentionOptions().BufferFuture().Nanoseconds(),
-				BufferPastNanos:                          options.RetentionOptions().BufferPast().Nanoseconds(),
-				BlockDataExpiry:                          options.RetentionOptions().BlockDataExpiry(),
-				BlockDataExpiryAfterNotAccessPeriodNanos: options.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod().Nanoseconds(),
-			},
-			IndexOptions: &protonamespace.IndexOptions{
-				Enabled:        options.IndexOptions().Enabled(),
-				BlockSizeNanos: options.IndexOptions().BlockSize().Nanoseconds(),
-			},
-		},
+		Name:    r.NamespaceName,
+		Options: dbnamespace.OptionsToProto(options),
 	}
 }
 
@@ -221,7 +196,7 @@ func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest) *admin.Placem
 		instances         []*placementpb.Instance
 	)
 
-	switch r.Type {
+	switch dbType(r.Type) {
 	case dbTypeLocal:
 		numShards = 16
 		replicationFactor = 1
