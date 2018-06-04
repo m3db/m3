@@ -77,11 +77,10 @@ type messageWriterMetrics struct {
 	writeSuccess           tally.Counter
 	oneConsumerWriteError  tally.Counter
 	allConsumersWriteError tally.Counter
-	writeRetry             tally.Counter
-	writeNew               tally.Counter
 	writeAfterCutoff       tally.Counter
 	writeBeforeCutover     tally.Counter
 	retryBatchLatency      tally.Timer
+	retryLatency           tally.Timer
 	messageQueueLength     tally.Counter
 }
 
@@ -94,12 +93,6 @@ func newMessageWriterMetrics(scope tally.Scope) messageWriterMetrics {
 		allConsumersWriteError: scope.
 			Tagged(map[string]string{"error-type": "all-consumers"}).
 			Counter("write-error"),
-		writeRetry: scope.
-			Tagged(map[string]string{"write-type": "retry"}).
-			Counter("write"),
-		writeNew: scope.
-			Tagged(map[string]string{"write-type": "new"}).
-			Counter("write"),
 		writeAfterCutoff: scope.
 			Tagged(map[string]string{"reason": "after-cutoff"}).
 			Counter("invalid-write"),
@@ -107,6 +100,7 @@ func newMessageWriterMetrics(scope tally.Scope) messageWriterMetrics {
 			Tagged(map[string]string{"reason": "before-cutover"}).
 			Counter("invalid-write"),
 		retryBatchLatency:  scope.Timer("retry-batch-latency"),
+		retryLatency:       scope.Timer("retry-latency"),
 		messageQueueLength: scope.Counter("message-queue-length"),
 	}
 }
@@ -183,10 +177,7 @@ func (w *messageWriterImpl) Write(rm producer.RefCountedMessage) {
 	msg.Reset(meta, rm)
 	w.acks.add(meta, msg)
 	w.queue.PushBack(msg)
-	consumerWriters := w.consumerWriters
 	w.Unlock()
-	w.write(consumerWriters, msg, nowNanos)
-	w.m.writeNew.Inc(1)
 }
 
 func (w *messageWriterImpl) isValidWriteWithLock(nowNanos int64) bool {
@@ -285,6 +276,7 @@ func (w *messageWriterImpl) retryUnacknowledged() {
 	)
 	w.RUnlock()
 	w.m.messageQueueLength.Inc(int64(l))
+	beforeRetry := w.nowFn()
 	for e != nil {
 		now := w.nowFn()
 		nowNanos := now.UnixNano()
@@ -295,9 +287,9 @@ func (w *messageWriterImpl) retryUnacknowledged() {
 		for _, m := range toBeRetried {
 			w.write(consumerWriters, m, w.nowFn().UnixNano())
 		}
-		w.m.writeRetry.Inc(int64(len(toBeRetried)))
 		w.m.retryBatchLatency.Record(w.nowFn().Sub(now))
 	}
+	w.m.retryLatency.Record(w.nowFn().Sub(beforeRetry))
 }
 
 // retryBatchWithLock iterates the message queue with a lock.
