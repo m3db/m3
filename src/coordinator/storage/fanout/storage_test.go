@@ -34,9 +34,9 @@ import (
 	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	"github.com/m3db/m3db/src/dbnode/encoding"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3x/ident"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

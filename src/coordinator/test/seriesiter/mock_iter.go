@@ -26,9 +26,9 @@ import (
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	m3ts "github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3x/ident"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
-	xtime "github.com/m3db/m3x/time"
 )
 
 // GenerateSingleSampleTagIterator generates a new tag iterator

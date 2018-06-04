@@ -25,12 +25,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3coordinator/util/execution"
-
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/ts"
+	"github.com/m3db/m3db/src/coordinator/util/execution"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/sync"
@@ -205,6 +204,7 @@ type decompressRequest struct {
 	result    *ts.Series
 }
 
+// Process converts the request's SeriesIterator into a ts.Series
 func (w *decompressRequest) Process(ctx context.Context) error {
 	iter := w.iter
 	ns := w.namespace
