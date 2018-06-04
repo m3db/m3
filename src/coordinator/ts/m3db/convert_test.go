@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,7 +48,6 @@ var (
 	middle      = test.Middle
 	end         = test.End
 
-	// required for iterator pool
 	testIterAlloc = func(r io.Reader) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
 	}
@@ -64,29 +64,37 @@ func TestConversion(t *testing.T) {
 	for _, block := range blocks {
 		assert.Equal(t, seriesID, block.ID.String())
 		assert.Equal(t, seriesNamespace, block.Namespace.String())
-
-		convertedTags, err := storage.FromIdentTagIteratorToTags(block.Tags)
-		require.NoError(t, err)
-		assert.Equal(t, testTags["foo"], convertedTags["foo"])
-		assert.Equal(t, testTags["baz"], convertedTags["baz"])
+		checkTags(t, block.Tags)
 
 		blockOneSeriesIterator := block.Blocks[0].SeriesIterator
 		blockTwoSeriesIterator := block.Blocks[1].SeriesIterator
 
 		assert.Equal(t, start.Add(2*time.Minute), blockOneSeriesIterator.Start())
 		assert.Equal(t, middle, blockOneSeriesIterator.End())
+		checkTags(t, blockOneSeriesIterator.Tags())
 
 		for i := 3; blockOneSeriesIterator.Next(); i++ {
 			dp, _, _ := blockOneSeriesIterator.Current()
 			assert.Equal(t, float64(i), dp.Value)
+			assert.Equal(t, start.Add(time.Duration(i-1)*time.Minute), dp.Timestamp)
 		}
 
 		assert.Equal(t, middle, blockTwoSeriesIterator.Start())
 		assert.Equal(t, end, blockTwoSeriesIterator.End())
+		checkTags(t, blockTwoSeriesIterator.Tags())
 
-		for i := 101; blockTwoSeriesIterator.Next(); i++ {
+		for i, j := 101, 1; blockTwoSeriesIterator.Next(); i++ {
 			dp, _, _ := blockTwoSeriesIterator.Current()
 			assert.Equal(t, float64(i), dp.Value)
+			assert.Equal(t, middle.Add(time.Duration(j-1)*time.Minute), dp.Timestamp)
+			j++
 		}
 	}
+}
+
+func checkTags(t *testing.T, tags ident.TagIterator) {
+	convertedTags, err := storage.FromIdentTagIteratorToTags(tags)
+	require.NoError(t, err)
+	assert.Equal(t, testTags["foo"], convertedTags["foo"])
+	assert.Equal(t, testTags["baz"], convertedTags["baz"])
 }

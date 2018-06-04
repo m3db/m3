@@ -21,8 +21,10 @@
 package m3db
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
 	"github.com/m3db/m3x/ident"
@@ -43,8 +45,8 @@ type BlockReplica struct {
 // ConvertM3DBSeriesIterators takes in series iterators from m3db and returns
 // coordinator SeriesBlocks which are used to construct Blocks for query processing.
 func ConvertM3DBSeriesIterators(iterators encoding.SeriesIterators, iterAlloc encoding.ReaderIteratorAllocate) ([]SeriesBlocks, error) {
-	multiSeriesBlocks := make([]SeriesBlocks, iterators.Len())
 	defer iterators.Close()
+	multiSeriesBlocks := make([]SeriesBlocks, iterators.Len())
 
 	for i, seriesIterator := range iterators.Iters() {
 		blockReplicas, err := blockReplicasFromSeriesIterator(seriesIterator, iterAlloc)
@@ -52,10 +54,16 @@ func ConvertM3DBSeriesIterators(iterators encoding.SeriesIterators, iterAlloc en
 			return nil, err
 		}
 
-		series := seriesBlocksFromBlockReplicas(blockReplicas, seriesIterator)
-		multiSeriesBlocks[i] = series
+		series, err := seriesBlocksFromBlockReplicas(blockReplicas, seriesIterator)
+		if err != nil {
+			return nil, err
+		}
 
+		multiSeriesBlocks[i] = series
 	}
+
+	convertedTags, _ := storage.FromIdentTagIteratorToTags(multiSeriesBlocks[0].Tags)
+	fmt.Println(convertedTags["foo"])
 
 	return multiSeriesBlocks, nil
 }
@@ -69,7 +77,7 @@ func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, ite
 			readers := make([]xio.SegmentReader, l)
 			for i := 0; i < l; i++ {
 				reader := perBlockSliceReaders.CurrentReaderAt(i)
-				// import to clone the reader as we need its position reset before
+				// NB(braskin): important to clone the reader as we need its position reset before
 				// we use the contents of it again
 				clonedReader, err := reader.Clone()
 				if err != nil {
@@ -102,18 +110,23 @@ func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, ite
 	return blockReplicas, nil
 }
 
-func seriesBlocksFromBlockReplicas(blockReplicas []BlockReplica, seriesIterator encoding.SeriesIterator) SeriesBlocks {
+func seriesBlocksFromBlockReplicas(blockReplicas []BlockReplica, seriesIterator encoding.SeriesIterator) (SeriesBlocks, error) {
 	var (
 		// todo(braskin): use ident pool
 		clonedID        = ident.StringID(seriesIterator.ID().String())
 		clonedNamespace = ident.StringID(seriesIterator.Namespace().String())
-		clonedTags      = seriesIterator.Tags().Duplicate()
+		duplicateTags   = seriesIterator.Tags()
 	)
+
+	clonedTags, err := cloneTagIterator(seriesIterator.Tags())
+	if err != nil {
+		return SeriesBlocks{}, err
+	}
 
 	series := SeriesBlocks{
 		ID:        clonedID,
 		Namespace: clonedNamespace,
-		Tags:      clonedTags,
+		Tags:      duplicateTags,
 	}
 
 	for _, block := range blockReplicas {
@@ -140,5 +153,23 @@ func seriesBlocksFromBlockReplicas(blockReplicas []BlockReplica, seriesIterator 
 		})
 	}
 
-	return series
+	return series, nil
+}
+
+func cloneTagIterator(tagIter ident.TagIterator) (ident.TagIterator, error) {
+	tags := ident.NewTags()
+	// Do we need to Duplicate() here?
+	dupeIter := tagIter.Duplicate()
+	for dupeIter.Next() {
+		tag := tagIter.Current()
+		tags.Append(ident.Tag{
+			Name:  ident.BytesID(tag.Name.Bytes()),
+			Value: ident.BytesID(tag.Value.Bytes()),
+		})
+	}
+	err := tagIter.Err()
+	if err != nil {
+		return nil, err
+	}
+	return ident.NewTagsIterator(tags), nil
 }
