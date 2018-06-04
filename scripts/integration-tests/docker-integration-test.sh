@@ -114,7 +114,7 @@ fi
 
 echo "Deleting placement" 
 
-curl -vvvsSf -X DELETE  localhost:7201/api/v1/placement
+curl -vvvsSf -X DELETE localhost:7201/api/v1/placement
 
 echo "Deleting namespace"
 
@@ -126,4 +126,4 @@ docker stop "m3dbnode-version-$(git rev-parse HEAD)"
 
 echo "Remove docker image"
 
-docker rmi "m3dbnode:$(git rev-parse HEAD)"
+docker rmi -f "m3dbnode:$(git rev-parse HEAD)"

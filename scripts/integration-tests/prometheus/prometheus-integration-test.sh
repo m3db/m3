@@ -2,7 +2,8 @@
 
 set -xe
 
-rm -rf ~/m3dbdata/
+rm -rf /tmp/m3dbdata/
+mkdir -p /tmp/m3dbdata/
 
 echo "Build M3DB docker image" 
 
@@ -18,7 +19,7 @@ sleep 10 # TODO Replace sleeps with logic to determine when to proceed
 
 echo "Adding namespace"
 
-curl -vvvsSf -X POST localhost:7201/namespace/add -d '{
+curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
   "name": "prometheus_metrics",
   "options": {
     "bootstrapEnabled": true,
@@ -46,11 +47,11 @@ echo "Sleep while namespace is init'd"
 
 sleep 10 # TODO Replace sleeps with logic to determine when to proceed
 
-[ "$(curl -sSf localhost:7201/namespace | jq .registry.namespaces.prometheus_metrics.indexOptions.enabled)" == true ]
+[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.prometheus_metrics.indexOptions.enabled)" == true ]
 
 echo "Initialization placement" 
 
-curl -vvvsSf -X POST localhost:7201/placement/init -d '{
+curl -vvvsSf -X POST localhost:7201/api/v1/placement/init -d '{
     "num_shards": 64,
     "replication_factor": 1,
     "instances": [
@@ -66,7 +67,7 @@ curl -vvvsSf -X POST localhost:7201/placement/init -d '{
     ]
 }'
 
-[ "$(curl -sSf localhost:7201/placement | jq .placement.instances.m3db_local.id)" == '"m3db_local"' ]
+[ "$(curl -sSf localhost:7201/api/v1/placement | jq .placement.instances.m3db_local.id)" == '"m3db_local"' ]
 
 echo "Wait for placement to fully initialize" 
 

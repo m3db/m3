@@ -19,7 +19,7 @@ services:
     image: m3db_dbnode01:latest
     volumes:
       - "./:/etc/m3dbnode/"
-      - "/tmp/:/var/lib/m3db"
+      - "/tmp/m3dbdata:/var/lib/m3db"
   prometheus01:
     expose:
       - "9090"
