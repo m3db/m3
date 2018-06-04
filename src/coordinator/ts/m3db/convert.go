@@ -21,10 +21,8 @@
 package m3db
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
 	"github.com/m3db/m3x/ident"
@@ -61,9 +59,6 @@ func ConvertM3DBSeriesIterators(iterators encoding.SeriesIterators, iterAlloc en
 
 		multiSeriesBlocks[i] = series
 	}
-
-	convertedTags, _ := storage.FromIdentTagIteratorToTags(multiSeriesBlocks[0].Tags)
-	fmt.Println(convertedTags["foo"])
 
 	return multiSeriesBlocks, nil
 }
@@ -115,7 +110,6 @@ func seriesBlocksFromBlockReplicas(blockReplicas []BlockReplica, seriesIterator 
 		// todo(braskin): use ident pool
 		clonedID        = ident.StringID(seriesIterator.ID().String())
 		clonedNamespace = ident.StringID(seriesIterator.Namespace().String())
-		duplicateTags   = seriesIterator.Tags()
 	)
 
 	clonedTags, err := cloneTagIterator(seriesIterator.Tags())
@@ -126,7 +120,7 @@ func seriesBlocksFromBlockReplicas(blockReplicas []BlockReplica, seriesIterator 
 	series := SeriesBlocks{
 		ID:        clonedID,
 		Namespace: clonedNamespace,
-		Tags:      duplicateTags,
+		Tags:      clonedTags,
 	}
 
 	for _, block := range blockReplicas {
@@ -144,7 +138,7 @@ func seriesBlocksFromBlockReplicas(blockReplicas []BlockReplica, seriesIterator 
 
 		// todo(braskin): pooling
 		valuesIter := encoding.NewSeriesIterator(clonedID, clonedNamespace,
-			clonedTags, filterValuesStart, filterValuesEnd, block.Replicas, nil)
+			clonedTags.Duplicate(), filterValuesStart, filterValuesEnd, block.Replicas, nil)
 
 		series.Blocks = append(series.Blocks, SeriesBlock{
 			Start:          filterValuesStart,
@@ -158,16 +152,15 @@ func seriesBlocksFromBlockReplicas(blockReplicas []BlockReplica, seriesIterator 
 
 func cloneTagIterator(tagIter ident.TagIterator) (ident.TagIterator, error) {
 	tags := ident.NewTags()
-	// Do we need to Duplicate() here?
 	dupeIter := tagIter.Duplicate()
 	for dupeIter.Next() {
-		tag := tagIter.Current()
+		tag := dupeIter.Current()
 		tags.Append(ident.Tag{
 			Name:  ident.BytesID(tag.Name.Bytes()),
 			Value: ident.BytesID(tag.Value.Bytes()),
 		})
 	}
-	err := tagIter.Err()
+	err := dupeIter.Err()
 	if err != nil {
 		return nil, err
 	}

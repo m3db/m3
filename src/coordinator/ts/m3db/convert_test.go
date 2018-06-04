@@ -41,12 +41,9 @@ var (
 
 	testTags = test.TestTags
 
-	blockSize = test.BlockSize
-
-	start       = test.Start
-	seriesStart = test.SeriesStart
-	middle      = test.Middle
-	end         = test.End
+	start  = test.Start
+	middle = test.Middle
+	end    = test.End
 
 	testIterAlloc = func(r io.Reader) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
