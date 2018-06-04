@@ -484,22 +484,22 @@ writer:
   topicWatchInitTimeout: 100ms
   placementWatchInitTimeout: 100ms
   messagePool:
-    size: 1
+    size: 100
   messageRetry:
-    initialBackoff: 10ms
+    initialBackoff: 20ms
     maxBackoff: 50ms
   messageQueueScanInterval: 10ms
-  closeCheckInterval: 100ms
+  closeCheckInterval: 200ms
   ackErrorRetry: 
-    initialBackoff: 10ms
+    initialBackoff: 20ms
     maxBackoff: 50ms
   connection:
     dialTimeout: 500ms
     keepAlivePeriod: 2s
     retry:
-      initialBackoff: 10ms
+      initialBackoff: 20ms
       maxBackoff: 50ms
-    writeBufferSize: 1
+    writeBufferSize: 128
     resetDelay: 50ms
 `
 
@@ -513,8 +513,8 @@ writer:
 
 func testConsumerOptions(t *testing.T) consumer.Options {
 	str := `
-ackBufferSize: 1
-connectionWriteBufferSize: 1
+ackBufferSize: 4
+connectionWriteBufferSize: 32
 `
 	var cfg consumer.Configuration
 	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))

@@ -286,39 +286,8 @@ func TestMessageWriterRetryIterateBatch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testOptions().SetMessageRetryBatchSize(2).SetMessageQueueScanInterval(time.Hour)
-	w := newMessageWriter(200, testMessagePool(opts), opts).(*messageWriterImpl)
-	w.AddConsumerWriter(newConsumerWriter("badAddr", nil, opts))
-
-	md1 := producer.NewMockMessage(ctrl)
-	md2 := producer.NewMockMessage(ctrl)
-	md3 := producer.NewMockMessage(ctrl)
-	rd1 := msg.NewRefCountedMessage(md1, nil)
-	rd2 := msg.NewRefCountedMessage(md2, nil)
-	rd3 := msg.NewRefCountedMessage(md3, nil)
-	md1.EXPECT().Bytes().Return([]byte("1"))
-	md2.EXPECT().Bytes().Return([]byte("2"))
-	md3.EXPECT().Bytes().Return([]byte("3"))
-	w.Write(rd1)
-	w.Write(rd2)
-	w.Write(rd3)
-	e, toBeRetried := w.retryBatchWithLock(w.queue.Front(), w.nowFn().UnixNano())
-	require.Empty(t, toBeRetried)
-	// Make sure it stopped at rd3.
-	md3.EXPECT().Bytes().Return([]byte("3"))
-	require.Equal(t, []byte("3"), e.Value.(*message).RefCountedMessage.Bytes())
-
-	e, toBeRetried = w.retryBatchWithLock(e, w.nowFn().UnixNano())
-	require.Nil(t, e)
-	require.Empty(t, toBeRetried)
-}
-
-func TestMessageWriterRetryWriteBatch(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	opts := testOptions().SetMessageRetryBatchSize(2).SetMessageRetryOptions(
-		retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond),
+		retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond),
 	)
 	w := newMessageWriter(200, testMessagePool(opts), opts).(*messageWriterImpl)
 
@@ -336,6 +305,9 @@ func TestMessageWriterRetryWriteBatch(t *testing.T) {
 	w.Write(rd3)
 	e, toBeRetried := w.retryBatchWithLock(w.queue.Front(), w.nowFn().UnixNano())
 	require.Equal(t, 2, len(toBeRetried))
+	for _, m := range toBeRetried {
+		m.SetRetryAtNanos(w.nowFn().Add(time.Hour).UnixNano())
+	}
 	// Make sure it stopped at rd3.
 	md3.EXPECT().Bytes().Return([]byte("3"))
 	require.Equal(t, []byte("3"), e.Value.(*message).RefCountedMessage.Bytes())
@@ -343,6 +315,18 @@ func TestMessageWriterRetryWriteBatch(t *testing.T) {
 	e, toBeRetried = w.retryBatchWithLock(e, w.nowFn().UnixNano())
 	require.Nil(t, e)
 	require.Equal(t, 1, len(toBeRetried))
+	for _, m := range toBeRetried {
+		m.SetRetryAtNanos(w.nowFn().Add(time.Hour).UnixNano())
+	}
+
+	e, toBeRetried = w.retryBatchWithLock(w.queue.Front(), w.nowFn().UnixNano())
+	require.Equal(t, 0, len(toBeRetried))
+	// Make sure it stopped at rd3.
+	md3.EXPECT().Bytes().Return([]byte("3"))
+	require.Equal(t, []byte("3"), e.Value.(*message).RefCountedMessage.Bytes())
+	e, toBeRetried = w.retryBatchWithLock(e, w.nowFn().UnixNano())
+	require.Nil(t, e)
+	require.Equal(t, 0, len(toBeRetried))
 }
 
 func TestNextRetryNanos(t *testing.T) {
