@@ -21,11 +21,11 @@
 package remote
 
 import (
-	"errors"
 	"io"
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/rpc"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
@@ -244,7 +244,7 @@ func tagIteratorFromCompressedTagsWithDecoder(
 	iterPools encoding.IteratorPools,
 ) (ident.TagIterator, error) {
 	if iterPools == nil {
-		return nil, errors.New("unable to decode compressed tags")
+		return nil, errors.ErrCannotDecodeCompressedTags
 	}
 	checkedBytes := iterPools.CheckedBytesWrapper().Get(compressedTags)
 	decoder := iterPools.TagDecoder().Get()

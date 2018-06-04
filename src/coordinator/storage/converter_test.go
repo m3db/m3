@@ -22,7 +22,6 @@ package storage
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/m3db/m3db/src/coordinator/models"
@@ -51,8 +50,7 @@ func verifyExpandSeries(ctx context.Context, t *testing.T, ctrl *gomock.Controll
 	for i := 0; i < num; i++ {
 		series := results.SeriesList[i]
 		require.NotNil(t, series)
-		assert.Equal(t, expectedTags, series.Tags)
-		fmt.Println(series.Values())
+		require.Equal(t, expectedTags, series.Tags)
 	}
 }
 

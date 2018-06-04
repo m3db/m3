@@ -51,4 +51,7 @@ var (
 
 	// ErrBadRequestType is an error returned when a request is an unexpected type
 	ErrBadRequestType = errors.New("request is an invalid type")
+
+	// ErrCannotDecodeCompressedTags is an error returned when compressed tags cannot be decoded
+	ErrCannotDecodeCompressedTags = errors.New("unable to decode compressed tags")
 )

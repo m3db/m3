@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/rpc"
 	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/dbnode/encoding"
@@ -278,7 +279,7 @@ func TestSeriesConversionFromCompressedDataWithIteratorPoolOnCompression(t *test
 	require.NotEmpty(t, rpcSeries.GetCompressed().GetCompressedTags())
 
 	seriesIterator, err := seriesIteratorFromCompressedSeries(rpcSeries, nil)
-	require.Error(t, err)
+	require.EqualError(t, err, errors.ErrCannotDecodeCompressedTags.Error())
 	require.Nil(t, seriesIterator)
 
 	assert.True(t, ip.encodePoolUsed)

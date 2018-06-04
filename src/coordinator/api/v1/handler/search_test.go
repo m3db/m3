@@ -33,8 +33,8 @@ import (
 
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/storage"
-	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/coordinator/test/local"
+	"github.com/m3db/m3db/src/coordinator/test/seriesiter"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3x/ident"
@@ -82,7 +82,7 @@ func generateTagIters(ctrl *gomock.Controller) *client.MockTaggedIDsIterator {
 	mockTaggedIDsIter.EXPECT().Next().Return(true).MaxTimes(1)
 	mockTaggedIDsIter.EXPECT().Next().Return(false)
 	mockTaggedIDsIter.EXPECT().Current().Return(ident.StringID(testNamespace),
-		ident.StringID(testID), test.GenerateSingleSampleTagIterator(ctrl, test.GenerateTag()))
+		ident.StringID(testID), seriesiter.GenerateSingleSampleTagIterator(ctrl, seriesiter.GenerateTag()))
 
 	return mockTaggedIDsIter
 }
