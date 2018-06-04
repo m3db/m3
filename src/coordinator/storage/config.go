@@ -18,38 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package storage
 
-import (
-	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3x/instrument"
-)
+import "fmt"
 
-// Configuration is the configuration for the coordinator.
-type Configuration struct {
-	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
-
-	// ListenAddress is the server listen address.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
-
-	// DBClient is the DB client configuration.
-	DBClient *client.Configuration `yaml:"dbClient"`
-
-	// RPC is the RPC configuration.
-	RPC *RPCConfiguration `yaml:"rpc"`
+// IsValidMetricsType validates a stored metrics type.
+func IsValidMetricsType(v MetricsType) error {
+	for _, valid := range validMetricsTypes {
+		if valid == v {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid stored metrics type '%v': should be one of %v",
+		v, validMetricsTypes)
 }
 
-// RPCConfiguration is the RPC configuration for the coordinator for
-// the GRPC server used for remote coordinator to coordinator calls.
-type RPCConfiguration struct {
-	// Enabled determines if coordinator RPC is enabled for remote calls.
-	Enabled bool `yaml:"enabled"`
-
-	// ListenAddress is the RPC server listen address.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
-
-	// RemoteListenAddresses is the remote listen addresses to call for remote
-	// coordinator calls.
-	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
+// UnmarshalYAML unmarshals a stored merics type.
+func (v *MetricsType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	for _, valid := range validMetricsTypes {
+		if str == valid.String() {
+			*v = valid
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid MetricsType '%s' valid types are: %v",
+		str, validMetricsTypes)
 }

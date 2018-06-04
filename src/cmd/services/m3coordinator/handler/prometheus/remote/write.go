@@ -23,16 +23,19 @@ package remote
 import (
 	"context"
 	"net/http"
+	"sync"
 
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/prometheus"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/util/execution"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-	"github.com/uber-go/tally"
+	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/uber-go/tally"
 	"go.uber.org/zap"
 )
 
@@ -44,13 +47,23 @@ const (
 // PromWriteHandler represents a handler for prometheus write endpoint.
 type PromWriteHandler struct {
 	store            storage.Storage
+	downsampler      downsample.Downsampler
+	writeRaw         bool
+	writeAgg         bool
 	promWriteMetrics promWriteMetrics
 }
 
 // NewPromWriteHandler returns a new instance of handler.
-func NewPromWriteHandler(store storage.Storage, scope tally.Scope) http.Handler {
+func NewPromWriteHandler(
+	store storage.Storage,
+	downsampler downsample.Downsampler,
+	scope tally.Scope,
+) http.Handler {
 	return &PromWriteHandler{
 		store:            store,
+		downsampler:      downsampler,
+		writeRaw:         downsampler.NonePolicy().Enabled,
+		writeAgg:         downsampler.AggregationPolicy().Enabled,
 		promWriteMetrics: newPromWriteMetrics(scope),
 	}
 }
@@ -101,11 +114,65 @@ func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, 
 }
 
 func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) error {
-	requests := make([]execution.Request, len(r.Timeseries))
-	for idx, t := range r.Timeseries {
-		requests[idx] = newLocalWriteRequest(storage.PromWriteTSToM3(t), h.store)
+	var (
+		wg          sync.WaitGroup
+		writeRawErr error
+		writeAggErr error
+	)
+	if h.writeAgg {
+		// If writing aggregations write them async
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			var (
+				metricsAppender = h.downsampler.MetricsAppender()
+				multiErr        xerrors.MultiError
+			)
+			for _, ts := range r.Timeseries {
+				metricsAppender.Reset()
+				for _, label := range ts.Labels {
+					metricsAppender.AddTag(label.Name, label.Value)
+				}
+
+				samplesAppender, err := metricsAppender.SamplesAppender()
+				if err != nil {
+					multiErr = multiErr.Add(err)
+					continue
+				}
+				for _, elem := range ts.Samples {
+					err := samplesAppender.AppendGaugeSample(elem.Value)
+					if err != nil {
+						multiErr = multiErr.Add(err)
+					}
+				}
+			}
+
+			metricsAppender.Finalize()
+
+			writeAggErr = multiErr.FinalError()
+		}()
 	}
-	return execution.ExecuteParallel(ctx, requests)
+
+	if h.writeRaw {
+		// Write the raw points out, don't spawn goroutine
+		// so we reduce number of goroutines just a fraction
+		requests := make([]execution.Request, 0, len(r.Timeseries))
+		for _, t := range r.Timeseries {
+			write := storage.PromWriteTSToM3(t)
+			write.Attributes.MetricsType = storage.UnaggregatedMetricsType
+			request := newLocalWriteRequest(write, h.store)
+			requests = append(requests, request)
+		}
+		writeRawErr = execution.ExecuteParallel(ctx, requests)
+	}
+
+	if h.writeAgg {
+		// Now wait for downsampling to finish
+		wg.Wait()
+	}
+
+	return xerrors.FirstError(writeRawErr, writeAggErr)
 }
 
 func (w *localWriteRequest) Process(ctx context.Context) error {

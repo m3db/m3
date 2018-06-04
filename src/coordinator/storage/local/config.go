@@ -18,38 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package local
 
 import (
+	"time"
+
+	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3x/instrument"
 )
 
-// Configuration is the configuration for the coordinator.
-type Configuration struct {
-	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+// ClustersStaticConfiguration is a set of static cluster configurations.
+type ClustersStaticConfiguration []ClusterStaticConfiguration
 
-	// ListenAddress is the server listen address.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
-
-	// DBClient is the DB client configuration.
-	DBClient *client.Configuration `yaml:"dbClient"`
-
-	// RPC is the RPC configuration.
-	RPC *RPCConfiguration `yaml:"rpc"`
+// ClusterStaticConfiguration is a static cluster configuration.
+type ClusterStaticConfiguration struct {
+	Client     client.Configuration                 `yaml:"client"`
+	Namespaces ClusterStaticNamespacesConfiguration `yaml:"namespaces"`
 }
 
-// RPCConfiguration is the RPC configuration for the coordinator for
-// the GRPC server used for remote coordinator to coordinator calls.
-type RPCConfiguration struct {
-	// Enabled determines if coordinator RPC is enabled for remote calls.
-	Enabled bool `yaml:"enabled"`
-
-	// ListenAddress is the RPC server listen address.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
-
-	// RemoteListenAddresses is the remote listen addresses to call for remote
-	// coordinator calls.
-	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
+// ClusterStaticNamespacesConfiguration describes the namespaces in a static
+// cluster.
+type ClusterStaticNamespacesConfiguration struct {
+	StorageMetricsType storage.MetricsType `yaml:"storageMetricsType"`
+	Retention          time.Duration       `yaml:"retention" validate:"nonzero"`
+	Resolution         time.Duration       `yaml:"resolution" validate:"min=0"`
 }

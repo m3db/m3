@@ -18,38 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package local
 
 import (
+	"time"
+
+	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/ident"
 )
 
-// Configuration is the configuration for the coordinator.
-type Configuration struct {
-	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+// Clusters is a flattened collection of local storage clusters and namespaces.
+type Clusters interface {
+	ClusterNamespaces() ([]ClusterNamespace, error)
 
-	// ListenAddress is the server listen address.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
+	UnaggregatedClusterNamespace() (ClusterNamespace, error)
 
-	// DBClient is the DB client configuration.
-	DBClient *client.Configuration `yaml:"dbClient"`
-
-	// RPC is the RPC configuration.
-	RPC *RPCConfiguration `yaml:"rpc"`
+	AggregatedClusterNamespace(
+		params AggregatedClusterNamespaceParams,
+	) (ClusterNamespace, error)
 }
 
-// RPCConfiguration is the RPC configuration for the coordinator for
-// the GRPC server used for remote coordinator to coordinator calls.
-type RPCConfiguration struct {
-	// Enabled determines if coordinator RPC is enabled for remote calls.
-	Enabled bool `yaml:"enabled"`
+// AggregatedClusterNamespaceParams is a set of parameters required to resolve
+// an aggregated cluster namespace.
+type AggregatedClusterNamespaceParams struct {
+	Retention  time.Duration
+	Resolution time.Duration
+}
 
-	// ListenAddress is the RPC server listen address.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
-
-	// RemoteListenAddresses is the remote listen addresses to call for remote
-	// coordinator calls.
-	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
+// ClusterNamespace is a local storage cluster namespace.
+type ClusterNamespace interface {
+	NamespaceID() ident.ID
+	Attributes() storage.Attributes
+	Session() (client.Session, error)
 }

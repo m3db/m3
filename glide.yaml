@@ -25,6 +25,9 @@ import:
 - package: github.com/m3db/m3em
   version: ed532baee45a440f0b08b6893c816634c6978d4d
 
+- package: github.com/m3db/m3aggregator
+  version: fd38c07d1a94b8598b6839a9c471e0a6feacfafb
+
 - package: github.com/m3db/m3ninx
   version: 7556fa8339674f1d9f559486d1feca18c17d1190
 
@@ -56,7 +59,7 @@ import:
   - gomock
 
 - package: github.com/golang/protobuf
-  version: 5a0f697c9ed9d68fef0116532c6e05cfeae00e55
+  version: 3a3da3a4e26776cc22a79ef46d5d58477532dede
   subpackages:
   - proto
 
@@ -122,7 +125,7 @@ import:
   version: ^2.2.6
 
 - package: github.com/m3db/m3metrics
-  version: 17e4ddf89f2b0c8fbb16b6d5b71a871b793d2a00
+  version: f22d8684fa8b42ff30f1d68f6f2be5e465db9a9d
   subpackages:
   - policy
 
@@ -138,13 +141,30 @@ import:
   subpackages:
   - cmp
 
+# START_PROMETHEUS_DEPS
 - package: github.com/prometheus/prometheus
   version: 998dfcbac689ae832ea64ca134fcb096f61a7f62
+
+# To avoid prometheus/prometheus dependencies from breaking,
+# pin the transitive dependencies
+- package: github.com/prometheus/common
+  version: 9e0844febd9e2856f839c9cb974fbd676d1755a8
+
+- package: github.com/prometheus/procfs
+  version: a1dba9ce8baed984a2495b658c82687f8157b98f
+
+- package: github.com/prometheus/tsdb
+  version: 16b2bf1b45ce3e3536c78ebec5116ea09a69786e
+# END_PROMETHEUS_DEPS
 
 - package: github.com/coreos/pkg
   version: 4
   subpackages:
   - capnslog
+
+# To avoid conflicting packages not resolving the latest GRPC
+- package: google.golang.org/grpc
+  version: 41344da2231b913fa3d983840a57a6b1b7b631a1
 
 testImport:
 - package: github.com/fortytw2/leaktest

@@ -26,6 +26,7 @@ import (
 	"os"
 
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/namespace"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/placement"
@@ -55,6 +56,7 @@ type Handler struct {
 	Router        *mux.Router
 	CLFLogger     *log.Logger
 	storage       storage.Storage
+	downsampler   downsample.Downsampler
 	engine        *executor.Engine
 	clusterClient m3clusterClient.Client
 	config        config.Configuration
@@ -62,7 +64,14 @@ type Handler struct {
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient m3clusterClient.Client, cfg config.Configuration, scope tally.Scope) (*Handler, error) {
+func NewHandler(
+	storage storage.Storage,
+	engine *executor.Engine,
+	downsampler downsample.Downsampler,
+	clusterClient m3clusterClient.Client,
+	cfg config.Configuration,
+	scope tally.Scope,
+) (*Handler, error) {
 	r := mux.NewRouter()
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -75,6 +84,7 @@ func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient 
 		Router:        r,
 		storage:       storage,
 		engine:        engine,
+		downsampler:   downsampler,
 		clusterClient: clusterClient,
 		config:        cfg,
 		scope:         scope,
@@ -84,12 +94,22 @@ func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient 
 
 // RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() error {
-	logged := logging.WithResponseTimeLogging
-
-	h.Router.HandleFunc(remote.PromReadURL, logged(remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))).ServeHTTP).Methods("POST")
-	h.Router.HandleFunc(remote.PromWriteURL, logged(remote.NewPromWriteHandler(h.storage, h.scope.Tagged(remoteSource))).ServeHTTP).Methods("POST")
-	h.Router.HandleFunc(native.PromReadURL, logged(native.NewPromReadHandler(h.engine)).ServeHTTP).Methods("GET")
-	h.Router.HandleFunc(handler.SearchURL, logged(handler.NewSearchHandler(h.storage)).ServeHTTP).Methods("POST")
+	var (
+		d      = h.downsampler
+		logged = logging.WithResponseTimeLogging
+	)
+	h.Router.HandleFunc(remote.PromReadURL,
+		logged(remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))).ServeHTTP).
+		Methods("POST")
+	h.Router.HandleFunc(remote.PromWriteURL,
+		logged(remote.NewPromWriteHandler(h.storage, d, h.scope.Tagged(remoteSource))).ServeHTTP).
+		Methods("POST")
+	h.Router.HandleFunc(native.PromReadURL,
+		logged(native.NewPromReadHandler(h.engine)).ServeHTTP).
+		Methods("GET")
+	h.Router.HandleFunc(handler.SearchURL,
+		logged(handler.NewSearchHandler(h.storage)).ServeHTTP).
+		Methods("POST")
 
 	h.registerProfileEndpoints()
 

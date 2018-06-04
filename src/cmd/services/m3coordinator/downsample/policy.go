@@ -18,38 +18,22 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package downsample
 
-import (
-	"github.com/m3db/m3db/src/dbnode/client"
-	"github.com/m3db/m3x/instrument"
-)
-
-// Configuration is the configuration for the coordinator.
-type Configuration struct {
-	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
-
-	// ListenAddress is the server listen address.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
-
-	// DBClient is the DB client configuration.
-	DBClient *client.Configuration `yaml:"dbClient"`
-
-	// RPC is the RPC configuration.
-	RPC *RPCConfiguration `yaml:"rpc"`
+// DownsamplingConfiguration is configuration of what to downsample.
+type DownsamplingConfiguration struct {
+	// NonePolicy is the none downsampling policy.
+	NonePolicy NonePolicy `yaml:"nonePolicy"`
+	// AggregationPolicy is the aggregation downsampling policy.
+	AggregationPolicy AggregationPolicy `yaml:"aggregationPolicy"`
 }
 
-// RPCConfiguration is the RPC configuration for the coordinator for
-// the GRPC server used for remote coordinator to coordinator calls.
-type RPCConfiguration struct {
-	// Enabled determines if coordinator RPC is enabled for remote calls.
+// NonePolicy is a the none downsampling policy.
+type NonePolicy struct {
 	Enabled bool `yaml:"enabled"`
+}
 
-	// ListenAddress is the RPC server listen address.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
-
-	// RemoteListenAddresses is the remote listen addresses to call for remote
-	// coordinator calls.
-	RemoteListenAddresses []string `yaml:"remoteListenAddresses"`
+// AggregationPolicy is the aggregation downsampling policy.
+type AggregationPolicy struct {
+	Enabled bool `yaml:"enabled"`
 }

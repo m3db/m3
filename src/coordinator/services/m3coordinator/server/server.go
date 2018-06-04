@@ -33,6 +33,7 @@ import (
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/downsample"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/httpd"
 	m3dbcluster "github.com/m3db/m3db/src/coordinator/cluster/m3db"
 	"github.com/m3db/m3db/src/coordinator/executor"
@@ -141,15 +142,25 @@ func Run(runOpts RunOptions) {
 		return <-dbClientCh, nil
 	}, nil)
 
-	fanoutStorage, storageCleanup := setupStorages(logger, session, cfg)
+	// TODO(r): clusters
+	var clusters local.Clusters
+
+	fanoutStorage, storageCleanup := setupStorages(logger, clusters, cfg)
 	defer storageCleanup()
 
 	clusterClient := m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
 		return <-clusterClientCh, nil
 	}, nil)
 
+	// TODO(r): config and options
+	downsampler, err := downsample.NewDownsampler(downsample.DownsamplingConfiguration{},
+		downsample.DownsamplerOptions{})
+	if err != nil {
+		logger.Fatal("unable to create downsampler", zap.Any("error", err))
+	}
+
 	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage),
-		clusterClient, cfg, scope)
+		downsampler, clusterClient, cfg, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Any("error", err))
 	}
@@ -172,9 +183,9 @@ func Run(runOpts RunOptions) {
 	}
 }
 
-func setupStorages(logger *zap.Logger, session client.Session, cfg config.Configuration) (storage.Storage, func()) {
+func setupStorages(logger *zap.Logger, clusters local.Clusters, cfg config.Configuration) (storage.Storage, func()) {
 	cleanup := func() {}
-	localStorage := local.NewStorage(session, namespace)
+	localStorage := local.NewStorage(clusters)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {

@@ -98,6 +98,7 @@ type WriteQuery struct {
 	Datapoints ts.Datapoints
 	Unit       xtime.Unit
 	Annotation []byte
+	Attributes Attributes
 }
 
 func (q *WriteQuery) String() string {
@@ -131,4 +132,39 @@ type QueryResult struct {
 // BlockResult is the result from a block query
 type BlockResult struct {
 	Blocks []Block
+}
+
+// MetricsType is a type of stored metrics.
+type MetricsType uint
+
+const (
+	// UnaggregatedMetricsType is an unaggregated metrics type.
+	UnaggregatedMetricsType MetricsType = iota
+	// AggregatedMetricsType is an aggregated metrics type.
+	AggregatedMetricsType
+)
+
+var (
+	validMetricsTypes = []MetricsType{
+		UnaggregatedMetricsType,
+		AggregatedMetricsType,
+	}
+)
+
+func (t MetricsType) String() string {
+	switch t {
+	case UnaggregatedMetricsType:
+		return "unaggregated"
+	case AggregatedMetricsType:
+		return "aggregated"
+	default:
+		return "unknown"
+	}
+}
+
+// Attributes is a set of stored metrics attributes.
+type Attributes struct {
+	MetricsType MetricsType
+	Retention   time.Duration
+	Resolution  time.Duration
 }
