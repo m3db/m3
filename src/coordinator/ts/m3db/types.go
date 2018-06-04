@@ -27,14 +27,16 @@ import (
 	"github.com/m3db/m3x/ident"
 )
 
-// SeriesBlock is a placeholder until it is added to M3DB
+// SeriesBlock contains the individual series iterators
 type SeriesBlock struct {
 	Start          time.Time
 	End            time.Time
 	SeriesIterator encoding.SeriesIterator
 }
 
-// SeriesBlocks is a placeholder until it is added to M3DB
+// SeriesBlocks contain information about the timeseries that gets returned from m3db.
+// This includes meta data such as the ID, namespace and tags as well as the actual
+// series iterators that contain the datapoints.
 type SeriesBlocks struct {
 	ID        ident.ID
 	Namespace ident.ID

@@ -40,8 +40,8 @@ type blockReplica struct {
 	replicas  []encoding.MultiReaderIterator
 }
 
-// ConvertM3DBSeriesIterators takes in series iterators from m3db and returns
-// coordinator SeriesBlocks which are used to construct Blocks for query processing.
+// ConvertM3DBSeriesIterators converts m3db SeriesIterators to SeriesBlocks
+// which are used to construct Blocks for query processing.
 func ConvertM3DBSeriesIterators(iterators encoding.SeriesIterators, iterAlloc encoding.ReaderIteratorAllocate) ([]SeriesBlocks, error) {
 	defer iterators.Close()
 	multiSeriesBlocks := make([]SeriesBlocks, iterators.Len())
@@ -137,6 +137,8 @@ func seriesBlocksFromBlockReplicas(blockReplicas []blockReplica, seriesIterator 
 		}
 
 		// todo(braskin): pooling
+		// NB(braskin): we should be careful when directly accessing the series iterators.
+		// Instead, we should access them through the SeriesBlock.
 		valuesIter := encoding.NewSeriesIterator(clonedID, clonedNamespace,
 			clonedTags.Duplicate(), filterValuesStart, filterValuesEnd, block.replicas, nil)
 
