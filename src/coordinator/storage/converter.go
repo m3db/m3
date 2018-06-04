@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3db/src/coordinator/util/execution"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -184,19 +183,10 @@ func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 }
 
 const (
+	// TODO(arnikola) get from config
 	initRawFetchAllocSize = 32
 	workerPoolSize        = 10
 )
-
-var (
-	workerPool sync.WorkerPool
-)
-
-func init() {
-	// Set up worker pool
-	workerPool = sync.NewWorkerPool(workerPoolSize)
-	workerPool.Init()
-}
 
 type decompressRequest struct {
 	iter      encoding.SeriesIterator
