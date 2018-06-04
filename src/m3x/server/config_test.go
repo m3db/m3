@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/retry"
 
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
@@ -47,7 +46,6 @@ keepAlivePeriod: 5s
 	opts := cfg.NewOptions(instrument.NewOptions())
 	require.Equal(t, 5*time.Second, opts.TCPConnectionKeepAlivePeriod())
 	require.True(t, opts.TCPConnectionKeepAlive())
-	require.Equal(t, retry.NewOptions(), opts.RetryOptions())
 
 	require.NotNil(t, cfg.NewServer(nil, instrument.NewOptions()))
 }
