@@ -29,14 +29,14 @@ import (
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/policy/filter"
 	"github.com/m3db/m3db/src/coordinator/storage"
-	"github.com/m3db/m3db/src/coordinator/test"
 	"github.com/m3db/m3db/src/coordinator/test/local"
+	"github.com/m3db/m3db/src/coordinator/test/seriesiter"
 	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	"github.com/m3db/m3db/src/dbnode/encoding"
-	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
+	"github.com/m3db/m3x/ident"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -51,7 +51,7 @@ func fakeIterator(t *testing.T) encoding.SeriesIterators {
 	id := ident.StringID("id")
 	namespace := ident.StringID("metrics")
 	return encoding.NewSeriesIterators([]encoding.SeriesIterator{
-		encoding.NewSeriesIterator(id, namespace, test.GenerateSingleSampleTagIterator(gomock.NewController(t), test.GenerateTag()),
+		encoding.NewSeriesIterator(id, namespace, seriesiter.GenerateSingleSampleTagIterator(gomock.NewController(t), seriesiter.GenerateTag()),
 			time.Now(), time.Now(), nil, nil)}, nil)
 }
 

@@ -88,17 +88,17 @@ func createRPCSeries() []*rpc.Series {
 		&rpc.Series{
 			Id:     name0,
 			Values: valList0,
-			Tags:   tags0,
+			Tags:   encodeTags(tags0),
 		},
 		&rpc.Series{
 			Id:     name1,
 			Values: valList1,
-			Tags:   tags1,
+			Tags:   encodeTags(tags1),
 		},
 		&rpc.Series{
 			Id:     name2,
 			Values: valList2,
-			Tags:   tags1,
+			Tags:   encodeTags(tags1),
 		},
 	}
 }
@@ -133,10 +133,17 @@ func TestDecodeFetchResult(t *testing.T) {
 	}
 
 	// Encode again
-
 	fetchResult := &storage.FetchResult{SeriesList: tsSeries}
 	revert := EncodeFetchResult(fetchResult)
-	assert.Equal(t, rpcSeries, revert.GetSeries())
+	require.Len(t, revert.GetSeries(), len(rpcSeries))
+	for i, expected := range rpcSeries {
+		assert.Equal(t, expected.GetId(), revert.GetSeries()[i].GetId())
+		assert.Equal(t, expected.GetCompressed(), revert.GetSeries()[i].GetCompressed())
+		assert.Equal(t, expected.GetValues(), revert.GetSeries()[i].GetValues())
+		for _, tag := range expected.GetTags() {
+			assert.Contains(t, revert.GetSeries()[i].GetTags(), tag)
+		}
+	}
 }
 
 func readQueriesAreEqual(t *testing.T, this, other *storage.FetchQuery) {

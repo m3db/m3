@@ -45,4 +45,10 @@ var (
 
 	// ErrZeroInterval is an error returned when fetch interval is 0.
 	ErrZeroInterval = errors.New("interval cannot be 0")
+
+	// ErrInvalidOperation is an error returned when fetch raw is called on wrong storage type
+	ErrInvalidOperation = errors.New("can only fetch raw iterators on local storage")
+
+	// ErrBadRequestType is an error returned when a request is an unexpected type
+	ErrBadRequestType = errors.New("request is an invalid type")
 )

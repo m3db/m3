@@ -78,22 +78,22 @@ message CompressedValuesReplica {
 	repeated Segments segments = 1;
 }
 
-message CompressedTag {
-	bytes name = 1;
-	bytes value = 2;
-}
-
 message CompressedDatapoints {
 	bytes namespace = 1;
 	int64 startTime = 2;
 	int64 endTime = 3;
-	repeated CompressedTag tags = 4;
+	bytes compressedTags = 4;
 	repeated CompressedValuesReplica replicas = 5;
+}
+
+message Tag {
+	bytes name = 1;
+	bytes value = 2;
 }
 
 message Series {
 	bytes id = 1;
 	Datapoints values = 2;
-	map<string, string> tags = 3;
+	repeated Tag tags = 3;
 	CompressedDatapoints compressed = 4;
 }

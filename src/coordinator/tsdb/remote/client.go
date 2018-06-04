@@ -33,7 +33,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Client is an interface
+// Client is an rpc client
 type Client interface {
 	storage.Querier
 	storage.Appender

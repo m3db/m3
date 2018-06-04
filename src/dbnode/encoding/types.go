@@ -24,6 +24,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/m3db/m3db/src/dbnode/serialize"
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
 	"github.com/m3db/m3db/src/dbnode/x/xpool"
@@ -318,10 +319,16 @@ type IteratorPools interface {
 	MultiReaderIteratorArray() MultiReaderIteratorArrayPool
 	// MultiReaderIterator exposes the session's MultiReaderIteratorPool
 	MultiReaderIterator() MultiReaderIteratorPool
+	// MutableSeriesIterators exposes the session's MutableSeriesIteratorsPool
+	MutableSeriesIterators() MutableSeriesIteratorsPool
 	// SeriesIterator exposes the session's SeriesIteratorPool
 	SeriesIterator() SeriesIteratorPool
 	// CheckedBytesWrapper exposes the session's CheckedBytesWrapperPool
 	CheckedBytesWrapper() xpool.CheckedBytesWrapperPool
 	// ID exposes the session's identity pool
 	ID() ident.Pool
+	// TagEncoder exposes the session's tag encoder pool
+	TagEncoder() serialize.TagEncoderPool
+	// TagDecoder exposes the session's tag decoder pool
+	TagDecoder() serialize.TagDecoderPool
 }

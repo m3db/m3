@@ -21,12 +21,19 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3coordinator/util/execution"
+
+	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/ts"
+	"github.com/m3db/m3db/src/dbnode/encoding"
+	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -120,7 +127,6 @@ func PromTypeToM3(labelType prompb.LabelMatcher_Type) (models.MatchType, error) 
 
 	default:
 		return 0, fmt.Errorf("unknown match type %v", labelType)
-
 	}
 }
 
@@ -176,4 +182,91 @@ func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 	}
 
 	return samples
+}
+
+const (
+	initRawFetchAllocSize = 32
+	workerPoolSize        = 10
+)
+
+var (
+	workerPool sync.WorkerPool
+)
+
+func init() {
+	// Set up worker pool
+	workerPool = sync.NewWorkerPool(workerPoolSize)
+	workerPool.Init()
+}
+
+type decompressRequest struct {
+	iter      encoding.SeriesIterator
+	namespace ident.ID
+	result    *ts.Series
+}
+
+func (w *decompressRequest) Process(ctx context.Context) error {
+	iter := w.iter
+	ns := w.namespace
+	if ns == nil {
+		ns = iter.Namespace()
+	}
+
+	metric, err := FromM3IdentToMetric(ns, iter.ID(), iter.Tags())
+	if err != nil {
+		return err
+	}
+
+	datapoints := make(ts.Datapoints, 0, initRawFetchAllocSize)
+	for iter.Next() {
+		dp, _, _ := iter.Current()
+		datapoints = append(datapoints, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
+	}
+
+	w.result = ts.NewSeries(metric.ID, datapoints, metric.Tags)
+	return nil
+}
+
+// SeriesIteratorsToFetchResult converts SeriesIterators into a fetch result
+func SeriesIteratorsToFetchResult(ctx context.Context, seriesIterators encoding.SeriesIterators, namespace ident.ID) (*FetchResult, error) {
+	defer seriesIterators.Close()
+
+	iters := seriesIterators.Iters()
+	iterLength := seriesIterators.Len()
+
+	seriesList := make([]*ts.Series, 0, iterLength)
+	div, remainder := iterLength/workerPoolSize, iterLength%workerPoolSize
+	var executionPools [][]execution.Request
+	if remainder > 0 {
+		executionPools = make([][]execution.Request, div+1)
+		for i := 0; i < div; i++ {
+			executionPools[i] = make([]execution.Request, workerPoolSize)
+		}
+		executionPools[div] = make([]execution.Request, remainder)
+	} else {
+		executionPools = make([][]execution.Request, div)
+		for i := 0; i < div; i++ {
+			executionPools[i] = make([]execution.Request, workerPoolSize)
+		}
+	}
+	for idx, iter := range iters {
+		executionPools[idx/workerPoolSize][idx%workerPoolSize] = &decompressRequest{iter: iter, namespace: namespace}
+	}
+	for _, executionPool := range executionPools {
+		err := execution.ExecuteParallel(ctx, executionPool)
+		if err != nil {
+			return nil, err
+		}
+		for _, req := range executionPool {
+			req, ok := req.(*decompressRequest)
+			if !ok {
+				return nil, errors.ErrBadRequestType
+			}
+			seriesList = append(seriesList, req.result)
+		}
+	}
+
+	return &FetchResult{
+		SeriesList: seriesList,
+	}, nil
 }
