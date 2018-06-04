@@ -22,6 +22,7 @@ package retry
 
 import (
 	"math"
+	"math/rand"
 	"time"
 
 	"github.com/uber-go/tally"
@@ -44,6 +45,7 @@ type options struct {
 	maxRetries     int
 	forever        bool
 	jitter         bool
+	rngFn          RngFn
 }
 
 // NewOptions creates new retry options.
@@ -56,6 +58,7 @@ func NewOptions() Options {
 		maxRetries:     defaultMaxRetries,
 		forever:        defaultForever,
 		jitter:         defaultJitter,
+		rngFn:          rand.Int63n,
 	}
 }
 
@@ -127,4 +130,14 @@ func (o *options) SetJitter(value bool) Options {
 
 func (o *options) Jitter() bool {
 	return o.jitter
+}
+
+func (o *options) SetRngFn(value RngFn) Options {
+	opts := *o
+	opts.rngFn = value
+	return &opts
+}
+
+func (o *options) RngFn() RngFn {
+	return o.rngFn
 }

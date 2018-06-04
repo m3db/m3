@@ -209,7 +209,14 @@ func TestBackoffValidResult(t *testing.T) {
 
 	props.Property("Valid result", prop.ForAll(
 		func(retry int, jitter bool, backoffFactor float64, initialBackoff, maxBackoff int64) bool {
-			return BackoffNanos(retry, jitter, backoffFactor, time.Duration(initialBackoff), time.Duration(maxBackoff)) >= 0
+			return BackoffNanos(
+				retry,
+				jitter,
+				backoffFactor,
+				time.Duration(initialBackoff),
+				time.Duration(maxBackoff),
+				rand.Int63n,
+			) >= 0
 		},
 		gen.IntRange(-100, 1000),
 		gen.Bool(),
