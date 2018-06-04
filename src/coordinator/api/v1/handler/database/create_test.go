@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/handler/namespace"
+	"github.com/m3db/m3db/src/coordinator/api/v1/handler/namespace"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/golang/mock/gomock"
