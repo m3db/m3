@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gogo/protobuf/jsonpb"
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
@@ -32,6 +31,7 @@ import (
 	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
 )
 

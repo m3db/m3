@@ -21,10 +21,9 @@
 package database
 
 import (
+	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-
-	clusterclient "github.com/m3db/m3cluster/client"
 
 	"github.com/gorilla/mux"
 )
@@ -32,7 +31,7 @@ import (
 // Handler represents a generic handler for namespace endpoints.
 type Handler struct {
 	// This is used by other namespace Handlers
-	// nolint: structcheck
+	// nolint: structcheck, megacheck
 	client clusterclient.Client
 }
 

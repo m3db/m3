@@ -23,7 +23,6 @@ package placement
 import (
 	"net/http"
 
-	"github.com/gogo/protobuf/jsonpb"
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
@@ -31,6 +30,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
 )
 
