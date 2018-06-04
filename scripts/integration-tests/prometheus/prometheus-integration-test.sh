@@ -2,13 +2,16 @@
 
 set -xe
 
-echo "Build docker image" 
+rm -rf /tmp/m3dbdata/
+mkdir -p /tmp/m3dbdata/
 
-docker build -t "m3dbnode:$(git rev-parse HEAD)" -f Dockerfile .
+echo "Build M3DB docker image" 
 
-echo "Run docker container" 
+docker-compose -f docker-compose.yml build
 
-docker run --name "m3dbnode-version-$(git rev-parse HEAD)" -d --rm -p 9000:9000 -p 9001:9001 -p 9002:9002 -p 9003:9003 -p 9004:9004 -p 7201:7201 "m3dbnode:$(git rev-parse HEAD)"
+echo "Run M3DB docker container" 
+
+docker-compose -f docker-compose.yml up -d dbnode01
 
 echo "Sleeping for a bit to ensure db"
 
@@ -17,7 +20,7 @@ sleep 10 # TODO Replace sleeps with logic to determine when to proceed
 echo "Adding namespace"
 
 curl -vvvsSf -X POST localhost:7201/api/v1/namespace -d '{
-  "name": "default",
+  "name": "prometheus_metrics",
   "options": {
     "bootstrapEnabled": true,
     "flushEnabled": true,
@@ -44,7 +47,7 @@ echo "Sleep while namespace is init'd"
 
 sleep 10 # TODO Replace sleeps with logic to determine when to proceed
 
-[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.default.indexOptions.enabled)" == true ]
+[ "$(curl -sSf localhost:7201/api/v1/namespace | jq .registry.namespaces.prometheus_metrics.indexOptions.enabled)" == true ]
 
 echo "Initialization placement" 
 
@@ -70,10 +73,16 @@ echo "Wait for placement to fully initialize"
 
 sleep 60 # TODO Replace sleeps with logic to determine when to proceed
 
+echo "Start Prometheus container" 
+
+docker-compose -f docker-compose.yml up -d prometheus01
+
+sleep 10
+
 echo "Write data" 
 
 curl -vvvsSf -X POST localhost:9003/writetagged -d '{
-  "namespace": "default",
+  "namespace": "prometheus_metrics",
   "id": "foo",
   "tags": [
     {
@@ -94,7 +103,7 @@ curl -vvvsSf -X POST localhost:9003/writetagged -d '{
 echo "Read data"
 
 queryResult=$(curl -sSf -X POST localhost:9003/query -d '{
-  "namespace": "default",
+  "namespace": "prometheus_metrics",
   "query": {
     "regexp": {
       "field": "city",
@@ -112,18 +121,10 @@ else
   echo "Result found"
 fi
 
-echo "Deleting placement" 
+echo "Sleep for 30 seconds to let the remote write endpoint generate some data"
 
-curl -vvvsSf -X DELETE localhost:7201/api/v1/placement
+sleep 30
 
-echo "Deleting namespace"
+[ "$(curl -sSf localhost:9090/api/v1/query?query=prometheus_remote_storage_succeeded_samples_total | jq .data.result[].value[1])" != '"0"' ]
 
-curl -vvvsSf -X DELETE localhost:7201/api/v1/namespace/default
-
-echo "Stop docker container" 
-
-docker stop "m3dbnode-version-$(git rev-parse HEAD)"
-
-echo "Remove docker image"
-
-docker rmi -f "m3dbnode:$(git rev-parse HEAD)"
+docker-compose -f docker-compose.yml down

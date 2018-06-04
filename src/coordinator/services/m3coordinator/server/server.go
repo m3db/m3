@@ -51,9 +51,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-var (
-	namespace = "metrics"
-)
+const defaultNamespace = "metrics"
 
 // RunOptions provides options for running the server
 // with backwards compatibility if only solely adding fields.
@@ -174,6 +172,10 @@ func Run(runOpts RunOptions) {
 
 func setupStorages(logger *zap.Logger, session client.Session, cfg config.Configuration) (storage.Storage, func()) {
 	cleanup := func() {}
+	namespace := defaultNamespace
+	if cfg.DBNamespace != "" {
+		namespace = cfg.DBNamespace
+	}
 	localStorage := local.NewStorage(session, namespace)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false

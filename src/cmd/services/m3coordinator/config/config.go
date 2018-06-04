@@ -38,6 +38,9 @@ type Configuration struct {
 
 	// RPC is the RPC configuration.
 	RPC *RPCConfiguration `yaml:"rpc"`
+
+	// DBNamespace is the namespace string to use for reads and writes
+	DBNamespace string `yaml:"dbNamespace"`
 }
 
 // RPCConfiguration is the RPC configuration for the coordinator for

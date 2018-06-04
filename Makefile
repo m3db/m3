@@ -189,6 +189,7 @@ docs-deploy: docs-container
 docker-integration-test: 
 	@echo "Running Docker integration test"
 	@./scripts/integration-tests/docker-integration-test.sh
+	@cd scripts/integration-tests/prometheus/ && ./prometheus-integration-test.sh
 
 define SUBDIR_RULES
 
