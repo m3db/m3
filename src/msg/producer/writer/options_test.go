@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/retry"
 
 	"github.com/stretchr/testify/require"
 )
@@ -61,7 +60,6 @@ func TestConnectionOptions(t *testing.T) {
 	require.Equal(t, defaultConnectionResetDelay, opts.ResetDelay())
 	require.Equal(t, time.Second, opts.SetResetDelay(time.Second).ResetDelay())
 
-	require.Equal(t, retry.NewOptions(), opts.RetryOptions())
 	require.Nil(t, opts.SetRetryOptions(nil).RetryOptions())
 
 	require.Equal(t, defaultConnectionBufferSize, opts.WriteBufferSize())

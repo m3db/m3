@@ -1,7 +1,7 @@
 package: github.com/m3db/m3msg
 import:
 - package: github.com/m3db/m3x
-  version: 56f61c31a12f10712dc69fb70980f4361a499c77
+  version: 782ecfe679d9bb930a06b6c97f632caa1bb14494
 - package: github.com/m3db/m3cluster
   version: cb17a54d6902c03790286942bafa04a188d4eeb8
 - package: github.com/golang/protobuf
@@ -10,3 +10,5 @@ import:
   version: v1.0.0
 - package: github.com/golang/mock
   version: v1.0.1
+- package: github.com/fortytw2/leaktest
+  version: ^1.2.0
