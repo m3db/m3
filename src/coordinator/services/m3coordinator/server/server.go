@@ -33,7 +33,7 @@ import (
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
-	"github.com/m3db/m3db/src/cmd/services/m3coordinator/httpd"
+	"github.com/m3db/m3db/src/coordinator/api/v1/httpd"
 	m3dbcluster "github.com/m3db/m3db/src/coordinator/cluster/m3db"
 	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/policy/filter"
