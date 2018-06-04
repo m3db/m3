@@ -23,7 +23,6 @@ package writer
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -331,7 +330,7 @@ func (w *consumerWriterImpl) connectWithRetry(addr string) (io.ReadWriteCloser, 
 		w.continueFn,
 		fn,
 	); attemptErr != nil {
-		return nil, fmt.Errorf("failed to connect to address %s, %v", addr, attemptErr)
+		return nil, attemptErr
 	}
 	return conn, nil
 }

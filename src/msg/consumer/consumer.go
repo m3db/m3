@@ -171,12 +171,12 @@ func (c *consumer) Close() {
 type message struct {
 	msgpb.Message
 
-	p *messagePool
-	c *consumer
+	mPool *messagePool
+	c     *consumer
 }
 
 func newMessage(p *messagePool) *message {
-	return &message{p: p}
+	return &message{mPool: p}
 }
 
 func (m *message) Bytes() []byte {
@@ -185,8 +185,8 @@ func (m *message) Bytes() []byte {
 
 func (m *message) Ack() {
 	m.c.tryAck(m.Metadata)
-	if m.p != nil {
-		m.p.Put(m)
+	if m.mPool != nil {
+		m.mPool.Put(m)
 	}
 }
 

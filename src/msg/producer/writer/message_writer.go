@@ -22,6 +22,7 @@ package writer
 
 import (
 	"container/list"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -81,7 +82,7 @@ type messageWriterMetrics struct {
 	writeAfterCutoff       tally.Counter
 	writeBeforeCutover     tally.Counter
 	retryBatchLatency      tally.Timer
-	queueSize              tally.Gauge
+	messageQueueLength     tally.Counter
 }
 
 func newMessageWriterMetrics(scope tally.Scope) messageWriterMetrics {
@@ -105,8 +106,8 @@ func newMessageWriterMetrics(scope tally.Scope) messageWriterMetrics {
 		writeBeforeCutover: scope.
 			Tagged(map[string]string{"reason": "before-cutover"}).
 			Counter("invalid-write"),
-		retryBatchLatency: scope.Timer("retry-batch-latency"),
-		queueSize:         scope.Gauge("message-queue-size"),
+		retryBatchLatency:  scope.Timer("retry-batch-latency"),
+		messageQueueLength: scope.Counter("message-queue-length"),
 	}
 }
 
@@ -117,6 +118,7 @@ type messageWriterImpl struct {
 	mPool             messagePool
 	opts              Options
 	retryOpts         retry.Options
+	r                 *rand.Rand
 
 	msgID           uint64
 	queue           *list.List
@@ -146,6 +148,7 @@ func newMessageWriter(
 		mPool:             mPool,
 		opts:              opts,
 		retryOpts:         opts.MessageRetryOptions(),
+		r:                 rand.New(rand.NewSource(time.Now().UnixNano())),
 		msgID:             0,
 		queue:             list.New(),
 		acks:              newAckHelper(defaultAckMapSize),
@@ -242,6 +245,7 @@ func (w *messageWriterImpl) nextRetryNanos(writeTimes int64, nowNanos int64) int
 		w.retryOpts.BackoffFactor(),
 		w.retryOpts.InitialBackoff(),
 		w.retryOpts.MaxBackoff(),
+		w.r.Int63n,
 	)
 	return nowNanos + backoff
 }
@@ -280,7 +284,7 @@ func (w *messageWriterImpl) retryUnacknowledged() {
 		toBeRetried []*message
 	)
 	w.RUnlock()
-	w.m.queueSize.Update(float64(l))
+	w.m.messageQueueLength.Inc(int64(l))
 	for e != nil {
 		now := w.nowFn()
 		nowNanos := now.UnixNano()
@@ -317,13 +321,6 @@ func (w *messageWriterImpl) retryBatchWithLock(
 		}
 		next = e.Next()
 		m := e.Value.(*message)
-		if m.IsDroppedOrAcked() {
-			// Try removing the ack in case the message was dropped rather than acked.
-			w.acks.remove(m.Metadata())
-			w.queue.Remove(e)
-			w.mPool.Put(m)
-			continue
-		}
 		if w.isClosed {
 			// Simply ack the messages here to mark them as consumed for this
 			// message writer, this is useful when user removes a consumer service
@@ -336,6 +333,13 @@ func (w *messageWriterImpl) retryBatchWithLock(
 			continue
 		}
 		if m.RetryAtNanos() >= nowNanos {
+			continue
+		}
+		if m.IsDroppedOrAcked() {
+			// Try removing the ack in case the message was dropped rather than acked.
+			w.acks.remove(m.Metadata())
+			w.queue.Remove(e)
+			w.mPool.Put(m)
 			continue
 		}
 		w.toBeRetried = append(w.toBeRetried, m)

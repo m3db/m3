@@ -563,7 +563,7 @@ func TestConsumerServiceWriterAllowInitValueErrorWithInitValueError(t *testing.T
 	require.NoError(t, w.Init(allowInitValueError))
 }
 
-func TestConsumerServiceWriterInitFailOnErrorWithCreateWatchError(t *testing.T) {
+func TestConsumerServiceWriterInitWithCreateWatchError(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	ctrl := gomock.NewController(t)
@@ -589,7 +589,7 @@ func TestConsumerServiceWriterInitFailOnErrorWithCreateWatchError(t *testing.T) 
 	require.True(t, ok)
 }
 
-func TestConsumerServiceWriterInitFailOnErrorWithInitValueError(t *testing.T) {
+func TestConsumerServiceWriterInitWithInitValueError(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	ctrl := gomock.NewController(t)
