@@ -22,6 +22,7 @@ package database
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -52,6 +53,7 @@ const (
 
 	idealDatapointsPerBlock           = 720
 	blockSizeFromExpectedSeriesScalar = idealDatapointsPerBlock * int64(time.Hour)
+	defaultPort                       = 9000
 
 	dbTypeLocal                 dbType = "local"
 	defaultLocalRetentionPeriod        = 24 * time.Hour
@@ -148,11 +150,11 @@ func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddReques
 
 	namespaceAddRequest, err := defaultedNamespaceAddRequest(dbCreateReq)
 	if err != nil {
-		return nil, nil, handler.NewParseError(errInvalidDBType, http.StatusBadRequest)
+		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 	placementInitRequest, err := defaultedPlacementInitRequest(dbCreateReq, h.dbCfg)
 	if err != nil {
-		return nil, nil, handler.NewParseError(errInvalidDBType, http.StatusBadRequest)
+		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return namespaceAddRequest, placementInitRequest, nil
@@ -161,6 +163,8 @@ func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddReques
 func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.NamespaceAddRequest, error) {
 	options := dbnamespace.NewOptions()
 
+	fmt.Printf("GOT THIS TYPE:%v\n", r.Type)
+	fmt.Printf("GOT THIS ENUM:%v\n", dbType(r.Type))
 	switch dbType(r.Type) {
 	case dbTypeLocal:
 		options.SetRepairEnabled(false)
@@ -209,7 +213,7 @@ func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest, dbCfg dbconfi
 
 	port, err := portFromAddress(dbCfg.ListenAddress)
 	if err != nil {
-		return nil, errMissingPort
+		port = defaultPort
 	}
 
 	switch dbType(r.Type) {
