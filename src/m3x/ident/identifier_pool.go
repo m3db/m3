@@ -192,17 +192,19 @@ func (p *simplePool) StringTag(name string, value string) Tag {
 	}
 }
 
-func (p *simplePool) cloneBytes(b []byte) checked.Bytes {
-	newData := p.bytesPool.Get(len(b))
-	newData.IncRef()
-	newData.AppendAll(b)
-	return newData
-}
-
 func (p *simplePool) Clone(existing ID) ID {
 	id := p.pool.Get().(*id)
 
-	id.pool, id.data = p, p.cloneBytes(existing.Bytes())
+	// NB(rartoul): Do not modify this function without careful
+	// benchmarking on a hot production workload. When we tried to
+	// introduce a helper function for the lines below we saw no
+	// discrepancy in micro-benchmarks, but heavy perf degradation in production.
+	data := existing.Bytes()
+	newData := p.bytesPool.Get(len(data))
+	newData.IncRef()
+	newData.AppendAll(data)
+
+	id.pool, id.data = p, newData
 
 	return id
 }
