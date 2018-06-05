@@ -5,6 +5,9 @@ SHELL=/bin/bash -o pipefail
 
 auto_gen             := .ci/auto-gen.sh
 gopath_prefix        := $(GOPATH)/src
+jsonnet_go_package   := github.com/google/go-jsonnet
+jsonnet_go_package_path   := $(gopath_prefix)/$(jsonnet_go_package)/jsonnet
+jsonnet_go_bin       := $(gopath_prefix)/$(jsonnet_go_package)/jsonnet/jsonnet
 license_dir          := .ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
 m3db_package         := github.com/m3db/m3db
@@ -197,11 +200,13 @@ setup-conf:
 
 .PHONY: install-conf
 install-conf:
-	echo "Initializing and updating jsonnet submodule"
-	git submodule init "genconfig/jsonnet"
-	git submodule update "genconfig/jsonnet"
-	cd genconfig/jsonnet && make
-	echo "Downloading JSON conversion package"
+	echo "Fetching and installing go-jsonnet"
+#	git submodule init "genconfig/jsonnet"
+#	git submodule update "genconfig/jsonnet"
+#	cd genconfig/jsonnet && make
+#	echo "Downloading JSON conversion package"
+	go get $(jsonnet_go_package)
+	cd $(jsonnet_go_package_path) && go build
 	go get github.com/brancz/gojsontoyaml
 
 define CONFIG_RULES
@@ -210,7 +215,7 @@ define CONFIG_RULES
 $(CONFIG)-config: setup-conf install-conf
 	@echo Generating config for $(CONFIG)
 	touch out/$(CONFIG)-config.yaml
-	cd genconfig && printf "`./jsonnet/jsonnet templates/$(CONFIG)-config.jsonnet --ext-str cluster=$(CLUSTER)`" | gojsontoyaml > ../out/$(CONFIG)-config.yaml 
+	cd genconfig && printf "`$(jsonnet_go_bin) templates/$(CONFIG)-config.jsonnet --ext-str cluster=$(CLUSTER)`" | gojsontoyaml > ../out/$(CONFIG)-config.yaml 
 
 endef
 
