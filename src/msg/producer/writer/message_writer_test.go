@@ -33,6 +33,7 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestMessageWriter(t *testing.T) {
@@ -54,14 +55,14 @@ func TestMessageWriter(t *testing.T) {
 		wg.Done()
 	}()
 
-	w := newMessageWriter(200, testMessagePool(opts), opts).(*messageWriterImpl)
+	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
 	require.Equal(t, 200, int(w.ReplicatedShardID()))
 	w.Init()
 
 	a := newAckRouter(1)
 	a.Register(200, w)
 
-	cw := newConsumerWriter(addr, a, opts)
+	cw := newConsumerWriter(addr, a, opts, testConsumerWriterMetrics())
 	cw.Init()
 	defer cw.Close()
 
@@ -112,7 +113,7 @@ func TestMessageWriterRetry(t *testing.T) {
 
 	addr := lis.Addr().String()
 	opts := testOptions()
-	w := newMessageWriter(200, testMessagePool(opts), opts).(*messageWriterImpl)
+	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
 	a := newAckRouter(1)
 	a.Register(200, w)
@@ -134,7 +135,7 @@ func TestMessageWriterRetry(t *testing.T) {
 	w.Init()
 	defer w.Close()
 
-	w.AddConsumerWriter(newConsumerWriter("bad", a, opts))
+	w.AddConsumerWriter(newConsumerWriter("bad", a, opts, testConsumerWriterMetrics()))
 	for {
 		w.RLock()
 		retried := msg.WriteTimes()
@@ -146,7 +147,7 @@ func TestMessageWriterRetry(t *testing.T) {
 	}
 	require.Equal(t, 1, w.queue.Len())
 
-	cw := newConsumerWriter(addr, a, opts)
+	cw := newConsumerWriter(addr, a, opts, testConsumerWriterMetrics())
 	cw.Init()
 	defer cw.Close()
 	w.AddConsumerWriter(cw)
@@ -173,7 +174,7 @@ func TestMessageWriterCleanupDroppedMessage(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
-	w := newMessageWriter(200, testMessagePool(opts), opts)
+	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics())
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -214,7 +215,7 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
-	w := newMessageWriter(200, testMessagePool(opts), opts)
+	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics())
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -263,7 +264,7 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 }
 
 func TestMessageWriterCutoverCutoff(t *testing.T) {
-	w := newMessageWriter(200, nil, nil).(*messageWriterImpl)
+	w := newMessageWriter(200, nil, nil, testMessageWriterMetrics()).(*messageWriterImpl)
 
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }
@@ -289,20 +290,27 @@ func TestMessageWriterRetryIterateBatch(t *testing.T) {
 	opts := testOptions().SetMessageRetryBatchSize(2).SetMessageRetryOptions(
 		retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond),
 	)
-	w := newMessageWriter(200, testMessagePool(opts), opts).(*messageWriterImpl)
+	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
 	md1 := producer.NewMockMessage(ctrl)
 	md2 := producer.NewMockMessage(ctrl)
 	md3 := producer.NewMockMessage(ctrl)
+	md4 := producer.NewMockMessage(ctrl)
 	rd1 := msg.NewRefCountedMessage(md1, nil)
 	rd2 := msg.NewRefCountedMessage(md2, nil)
 	rd3 := msg.NewRefCountedMessage(md3, nil)
+	rd4 := msg.NewRefCountedMessage(md4, nil)
 	md1.EXPECT().Bytes().Return([]byte("1"))
 	md2.EXPECT().Bytes().Return([]byte("2"))
 	md3.EXPECT().Bytes().Return([]byte("3"))
+	md4.EXPECT().Bytes().Return([]byte("4"))
 	w.Write(rd1)
 	w.Write(rd2)
 	w.Write(rd3)
+	w.Write(rd4)
+
+	md4.EXPECT().Finalize(gomock.Eq(producer.Dropped))
+	rd4.Drop()
 	e, toBeRetried := w.retryBatchWithLock(w.queue.Front(), w.nowFn().UnixNano())
 	require.Equal(t, 2, len(toBeRetried))
 	for _, m := range toBeRetried {
@@ -312,13 +320,14 @@ func TestMessageWriterRetryIterateBatch(t *testing.T) {
 	md3.EXPECT().Bytes().Return([]byte("3"))
 	require.Equal(t, []byte("3"), e.Value.(*message).RefCountedMessage.Bytes())
 
+	require.Equal(t, 4, w.queue.Len())
 	e, toBeRetried = w.retryBatchWithLock(e, w.nowFn().UnixNano())
 	require.Nil(t, e)
 	require.Equal(t, 1, len(toBeRetried))
+	require.Equal(t, 3, w.queue.Len())
 	for _, m := range toBeRetried {
 		m.SetRetryAtNanos(w.nowFn().Add(time.Hour).UnixNano())
 	}
-
 	e, toBeRetried = w.retryBatchWithLock(w.queue.Front(), w.nowFn().UnixNano())
 	require.Equal(t, 0, len(toBeRetried))
 	// Make sure it stopped at rd3.
@@ -334,7 +343,7 @@ func TestNextRetryNanos(t *testing.T) {
 	opts := testOptions().SetMessageRetryOptions(
 		retry.NewOptions().SetInitialBackoff(backoffDuration).SetMaxBackoff(2 * backoffDuration).SetJitter(true),
 	)
-	w := newMessageWriter(200, nil, opts).(*messageWriterImpl)
+	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
 	nowNanos := time.Now().UnixNano()
 	m := newMessage()
@@ -357,7 +366,7 @@ func TestMessageWriterCloseImmediately(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
-	w := newMessageWriter(200, testMessagePool(opts), opts)
+	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics())
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -386,4 +395,8 @@ func testMessagePool(opts Options) messagePool {
 	p := newMessagePool(opts.MessagePoolOptions())
 	p.Init()
 	return p
+}
+
+func testMessageWriterMetrics() messageWriterMetrics {
+	return newMessageWriterMetrics(tally.NoopScope)
 }

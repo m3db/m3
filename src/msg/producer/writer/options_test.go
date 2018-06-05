@@ -44,6 +44,9 @@ func TestOptions(t *testing.T) {
 	require.Equal(t, defaultMessageQueueScanInterval, opts.MessageQueueScanInterval())
 	require.Equal(t, time.Second, opts.SetMessageQueueScanInterval(time.Second).MessageQueueScanInterval())
 
+	require.Equal(t, defaultInitialAckMapSize, opts.InitialAckMapSize())
+	require.Equal(t, 123, opts.SetInitialAckMapSize(123).InitialAckMapSize())
+
 	require.Equal(t, defaultCloseCheckInterval, opts.CloseCheckInterval())
 	require.Equal(t, time.Second, opts.SetCloseCheckInterval(time.Second).CloseCheckInterval())
 

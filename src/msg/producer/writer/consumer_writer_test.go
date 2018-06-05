@@ -36,6 +36,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 var testMsg = msgpb.Message{
@@ -58,7 +59,7 @@ func TestNewConsumerWriter(t *testing.T) {
 
 	mockRouter := NewMockackRouter(ctrl)
 	opts := testOptions()
-	w := newConsumerWriter(lis.Addr().String(), mockRouter, opts).(*consumerWriterImpl)
+	w := newConsumerWriter(lis.Addr().String(), mockRouter, opts, testConsumerWriterMetrics()).(*consumerWriterImpl)
 	require.Equal(t, 0, len(w.resetCh))
 
 	var wg sync.WaitGroup
@@ -88,7 +89,7 @@ func TestConsumerWriterSignalResetConnection(t *testing.T) {
 	require.NoError(t, err)
 	defer lis.Close()
 
-	w := newConsumerWriter(lis.Addr().String(), nil, testOptions()).(*consumerWriterImpl)
+	w := newConsumerWriter(lis.Addr().String(), nil, testOptions(), testConsumerWriterMetrics()).(*consumerWriterImpl)
 	require.Equal(t, 0, len(w.resetCh))
 
 	var called int
@@ -118,7 +119,7 @@ func TestConsumerWriterSignalResetConnection(t *testing.T) {
 }
 
 func TestConsumerWriterResetConnection(t *testing.T) {
-	w := newConsumerWriter("badAddress", nil, testOptions()).(*consumerWriterImpl)
+	w := newConsumerWriter("badAddress", nil, testOptions(), testConsumerWriterMetrics()).(*consumerWriterImpl)
 	require.Equal(t, 1, len(w.resetCh))
 	err := w.Write(&testMsg)
 	require.Error(t, err)
@@ -136,7 +137,7 @@ func TestConsumerWriterResetConnection(t *testing.T) {
 }
 
 func TestConsumerWriterRetryableConnectionBackgroundReset(t *testing.T) {
-	w := newConsumerWriter("badAddress", nil, testOptions()).(*consumerWriterImpl)
+	w := newConsumerWriter("badAddress", nil, testOptions(), testConsumerWriterMetrics()).(*consumerWriterImpl)
 	require.Equal(t, 1, len(w.resetCh))
 
 	var lock sync.Mutex
@@ -170,7 +171,7 @@ func TestConsumerWriterWriteErrorTriggerReset(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
-	w := newConsumerWriter("badAddr", nil, opts).(*consumerWriterImpl)
+	w := newConsumerWriter("badAddr", nil, opts, testConsumerWriterMetrics()).(*consumerWriterImpl)
 	<-w.resetCh
 	require.Equal(t, 0, len(w.resetCh))
 	require.Error(t, w.Write(&testMsg))
@@ -181,7 +182,7 @@ func TestConsumerWriterReadErrorTriggerReset(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
-	w := newConsumerWriter("badAddr", nil, opts).(*consumerWriterImpl)
+	w := newConsumerWriter("badAddr", nil, opts, testConsumerWriterMetrics()).(*consumerWriterImpl)
 	<-w.resetCh
 	w.Init()
 	for {
@@ -206,6 +207,7 @@ func TestAutoReset(t *testing.T) {
 		"badAddress",
 		mockRouter,
 		opts,
+		testConsumerWriterMetrics(),
 	).(*consumerWriterImpl)
 	require.Equal(t, 1, len(w.resetCh))
 	require.Error(t, w.Write(&testMsg))
@@ -252,7 +254,7 @@ func TestConsumerWriterClose(t *testing.T) {
 	require.NoError(t, err)
 	defer lis.Close()
 
-	w := newConsumerWriter(lis.Addr().String(), nil, nil).(*consumerWriterImpl)
+	w := newConsumerWriter(lis.Addr().String(), nil, nil, testConsumerWriterMetrics()).(*consumerWriterImpl)
 	require.Equal(t, 0, len(w.resetCh))
 	w.Close()
 	// Safe to close again.
@@ -268,7 +270,7 @@ func TestConsumerWriterCloseWhileDecoding(t *testing.T) {
 	require.NoError(t, err)
 	defer lis.Close()
 
-	w := newConsumerWriter(lis.Addr().String(), nil, testOptions()).(*consumerWriterImpl)
+	w := newConsumerWriter(lis.Addr().String(), nil, testOptions(), testConsumerWriterMetrics()).(*consumerWriterImpl)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -288,7 +290,7 @@ func TestConsumerWriterResetWhileDecoding(t *testing.T) {
 	require.NoError(t, err)
 	defer lis.Close()
 
-	w := newConsumerWriter(lis.Addr().String(), nil, testOptions()).(*consumerWriterImpl)
+	w := newConsumerWriter(lis.Addr().String(), nil, testOptions(), testConsumerWriterMetrics()).(*consumerWriterImpl)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -353,4 +355,8 @@ func testConsumeAndAckOnConnectionListener(
 	defer conn.Close()
 
 	testConsumeAndAckOnConnection(t, conn, opts)
+}
+
+func testConsumerWriterMetrics() consumerWriterMetrics {
+	return newConsumerWriterMetrics(tally.NoopScope)
 }

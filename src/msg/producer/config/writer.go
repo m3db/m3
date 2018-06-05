@@ -79,6 +79,7 @@ type WriterConfiguration struct {
 	MessageRetry              *retry.Configuration              `yaml:"messageRetry"`
 	MessageQueueScanInterval  *time.Duration                    `yaml:"messageQueueScanInterval"`
 	MessageRetryBatchSize     *int                              `yaml:"messageRetryBatchSize"`
+	InitialAckMapSize         *int                              `yaml:"initialAckMapSize"`
 	CloseCheckInterval        *time.Duration                    `yaml:"closeCheckInterval"`
 	AckErrorRetry             *retry.Configuration              `yaml:"ackErrorRetry"`
 	EncodeDecoder             *proto.EncodeDecoderConfiguration `yaml:"encodeDecoder"`
@@ -126,6 +127,9 @@ func (c *WriterConfiguration) NewOptions(
 	}
 	if c.MessageRetryBatchSize != nil {
 		opts = opts.SetMessageRetryBatchSize(*c.MessageRetryBatchSize)
+	}
+	if c.InitialAckMapSize != nil {
+		opts = opts.SetInitialAckMapSize(*c.InitialAckMapSize)
 	}
 	if c.CloseCheckInterval != nil {
 		opts = opts.SetCloseCheckInterval(*c.CloseCheckInterval)

@@ -43,10 +43,10 @@ func TestSharedShardWriter(t *testing.T) {
 
 	a := newAckRouter(2)
 	opts := testOptions()
-	sw := newSharedShardWriter(1, a, testMessagePool(opts), opts)
+	sw := newSharedShardWriter(1, a, testMessagePool(opts), opts, testMessageWriterMetrics())
 	defer sw.Close()
 
-	cw1 := newConsumerWriter("i1", a, opts)
+	cw1 := newConsumerWriter("i1", a, opts, testConsumerWriterMetrics())
 	cw1.Init()
 	defer cw1.Close()
 
@@ -55,7 +55,7 @@ func TestSharedShardWriter(t *testing.T) {
 	defer lis.Close()
 
 	addr2 := lis.Addr().String()
-	cw2 := newConsumerWriter(addr2, a, opts)
+	cw2 := newConsumerWriter(addr2, a, opts, testConsumerWriterMetrics())
 	cw2.Init()
 	defer cw2.Close()
 
@@ -118,7 +118,7 @@ func TestReplicatedShardWriter(t *testing.T) {
 
 	a := newAckRouter(3)
 	opts := testOptions()
-	sw := newReplicatedShardWriter(1, 200, a, testMessagePool(opts), opts).(*replicatedShardWriter)
+	sw := newReplicatedShardWriter(1, 200, a, testMessagePool(opts), opts, testMessageWriterMetrics()).(*replicatedShardWriter)
 	defer sw.Close()
 
 	lis1, err := net.Listen("tcp", "127.0.0.1:0")
@@ -130,16 +130,16 @@ func TestReplicatedShardWriter(t *testing.T) {
 	defer lis2.Close()
 
 	addr1 := lis1.Addr().String()
-	cw1 := newConsumerWriter(addr1, a, opts)
+	cw1 := newConsumerWriter(addr1, a, opts, testConsumerWriterMetrics())
 	cw1.Init()
 	defer cw1.Close()
 
 	addr2 := lis2.Addr().String()
-	cw2 := newConsumerWriter(addr2, a, opts)
+	cw2 := newConsumerWriter(addr2, a, opts, testConsumerWriterMetrics())
 	cw2.Init()
 	defer cw2.Close()
 
-	cw3 := newConsumerWriter("i3", a, opts)
+	cw3 := newConsumerWriter("i3", a, opts, testConsumerWriterMetrics())
 	cw3.Init()
 	defer cw3.Close()
 
@@ -229,7 +229,7 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 
 	router := newAckRouter(2).(*router)
 	opts := testOptions()
-	sw := newReplicatedShardWriter(1, 200, router, testMessagePool(opts), opts).(*replicatedShardWriter)
+	sw := newReplicatedShardWriter(1, 200, router, testMessagePool(opts), opts, testMessageWriterMetrics()).(*replicatedShardWriter)
 
 	lis1, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -240,12 +240,12 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 	defer lis2.Close()
 
 	addr1 := lis1.Addr().String()
-	cw1 := newConsumerWriter(addr1, router, opts)
+	cw1 := newConsumerWriter(addr1, router, opts, testConsumerWriterMetrics())
 	cw1.Init()
 	defer cw1.Close()
 
 	addr2 := lis2.Addr().String()
-	cw2 := newConsumerWriter(addr2, router, opts)
+	cw2 := newConsumerWriter(addr2, router, opts, testConsumerWriterMetrics())
 	cw2.Init()
 	defer cw2.Close()
 
@@ -341,13 +341,13 @@ func TestReplicatedShardWriterUpdate(t *testing.T) {
 
 	a := newAckRouter(4)
 	opts := testOptions()
-	sw := newReplicatedShardWriter(1, 200, a, testMessagePool(opts), opts).(*replicatedShardWriter)
+	sw := newReplicatedShardWriter(1, 200, a, testMessagePool(opts), opts, testMessageWriterMetrics()).(*replicatedShardWriter)
 	defer sw.Close()
 
-	cw1 := newConsumerWriter("i1", a, opts)
-	cw2 := newConsumerWriter("i2", a, opts)
-	cw3 := newConsumerWriter("i3", a, opts)
-	cw4 := newConsumerWriter("i4", a, opts)
+	cw1 := newConsumerWriter("i1", a, opts, testConsumerWriterMetrics())
+	cw2 := newConsumerWriter("i2", a, opts, testConsumerWriterMetrics())
+	cw3 := newConsumerWriter("i3", a, opts, testConsumerWriterMetrics())
+	cw4 := newConsumerWriter("i4", a, opts, testConsumerWriterMetrics())
 	cws := make(map[string]consumerWriter)
 	cws["i1"] = cw1
 	cws["i2"] = cw2

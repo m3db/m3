@@ -42,6 +42,9 @@ type shardWriter interface {
 
 	// Close closes the shard writer.
 	Close()
+
+	// QueueSize returns the number of messages queued for the shard.
+	QueueSize() int
 }
 
 type sharedShardWriter struct {
@@ -55,9 +58,10 @@ func newSharedShardWriter(
 	router ackRouter,
 	mPool messagePool,
 	opts Options,
+	m messageWriterMetrics,
 ) shardWriter {
 	replicatedShardID := uint64(shard)
-	mw := newMessageWriter(replicatedShardID, mPool, opts)
+	mw := newMessageWriter(replicatedShardID, mPool, opts, m)
 	mw.Init()
 	router.Register(replicatedShardID, mw)
 	return &sharedShardWriter{
@@ -104,6 +108,10 @@ func (w *sharedShardWriter) Close() {
 	w.mw.Close()
 }
 
+func (w *sharedShardWriter) QueueSize() int {
+	return w.mw.QueueSize()
+}
+
 type replicatedShardWriter struct {
 	sync.RWMutex
 
@@ -117,6 +125,7 @@ type replicatedShardWriter struct {
 	replicaID      uint32
 	messageWriters map[string]messageWriter
 	isClosed       bool
+	m              messageWriterMetrics
 }
 
 func newReplicatedShardWriter(
@@ -124,6 +133,7 @@ func newReplicatedShardWriter(
 	router ackRouter,
 	mPool messagePool,
 	opts Options,
+	m messageWriterMetrics,
 ) shardWriter {
 	return &replicatedShardWriter{
 		shard:          shard,
@@ -135,6 +145,7 @@ func newReplicatedShardWriter(
 		replicaID:      0,
 		messageWriters: make(map[string]messageWriter),
 		isClosed:       false,
+		m:              m,
 	}
 }
 
@@ -197,7 +208,7 @@ func (w *replicatedShardWriter) UpdateInstances(
 	for instance, cw := range toBeAdded {
 		replicatedShardID := uint64(w.replicaID*w.numberOfShards + w.shard)
 		w.replicaID++
-		mw := newMessageWriter(replicatedShardID, w.mPool, w.opts)
+		mw := newMessageWriter(replicatedShardID, w.mPool, w.opts, w.m)
 		mw.AddConsumerWriter(cw)
 		w.updateCutoverCutoffNanos(mw, instance)
 		mw.Init()
@@ -247,6 +258,17 @@ func (w *replicatedShardWriter) Close() {
 	for _, mw := range w.messageWriters {
 		mw.Close()
 	}
+}
+
+func (w *replicatedShardWriter) QueueSize() int {
+	w.RLock()
+	mws := w.messageWriters
+	w.RUnlock()
+	var l int
+	for _, mw := range mws {
+		l += mw.QueueSize()
+	}
+	return l
 }
 
 func anyKeyValueInMap(

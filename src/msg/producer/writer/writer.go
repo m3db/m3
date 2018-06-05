@@ -49,10 +49,11 @@ type writerMetrics struct {
 
 func newWriterMetrics(scope tally.Scope) writerMetrics {
 	return writerMetrics{
-		topicUpdateSuccess:  scope.Counter("topic-update-success"),
-		topicUpdateError:    scope.Counter("topic-update-error"),
-		invalidTopicUpdate:  scope.Counter("invalid-topic"),
-		invalidShard:        scope.Counter("invalid-shard"),
+		topicUpdateSuccess: scope.Counter("topic-update-success"),
+		topicUpdateError:   scope.Counter("topic-update-error"),
+		invalidTopicUpdate: scope.Counter("invalid-topic"),
+		invalidShard: scope.Tagged(map[string]string{"reason": "invalid-shard"}).
+			Counter("invalid-write"),
 		numConsumerServices: scope.Gauge("num-consumer-services"),
 	}
 }

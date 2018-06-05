@@ -121,6 +121,7 @@ func newConsumerWriter(
 	addr string,
 	router ackRouter,
 	opts Options,
+	m consumerWriterMetrics,
 ) consumerWriter {
 	if opts == nil {
 		opts = NewOptions()
@@ -147,7 +148,7 @@ func newConsumerWriter(
 		resetCh:        make(chan struct{}, 1),
 		closed:         atomic.NewBool(false),
 		doneCh:         make(chan struct{}),
-		m:              newConsumerWriterMetrics(opts.InstrumentOptions().MetricsScope()),
+		m:              m,
 		nowFn:          time.Now,
 	}
 
