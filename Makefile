@@ -191,8 +191,17 @@ docker-integration-test:
 	@./scripts/integration-tests/docker-integration-test.sh
 	@cd scripts/integration-tests/prometheus/ && ./prometheus-integration-test.sh
 
-.PHONY: metalint
-metalint: $(patsubst %,metalint-%,$(SUBDIRS))
+SUBDIR_TARGETS = mock-gen thrift-gen proto-gen asset-gen all-gen metalint test \
+				 test-xml
+
+define TARGET_RULE
+
+.PHONY: $(SUBDIR_TARGET)
+$(SUBDIR_TARGET): $(patsubst %,$(SUBDIR_TARGET)-%,$(SUBDIRS))
+
+endef
+
+$(foreach SUBDIR_TARGET,$(SUBDIR_TARGETS),$(eval $(TARGET_RULE)))
 
 define SUBDIR_RULES
 
