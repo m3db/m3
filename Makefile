@@ -186,10 +186,22 @@ docs-deploy: docs-container
 	docker run -v $(PWD):/m3db --rm m3db-docs "mkdocs build -e docs/theme -t material && mkdocs gh-deploy --dirty"
 
 .PHONY: docker-integration-test
-docker-integration-test: 
+docker-integration-test:
 	@echo "Running Docker integration test"
 	@./scripts/integration-tests/docker-integration-test.sh
 	@cd scripts/integration-tests/prometheus/ && ./prometheus-integration-test.sh
+
+SUBDIR_TARGETS = mock-gen thrift-gen proto-gen asset-gen all-gen metalint test \
+				 test-xml test-ci-unit test-ci-integration
+
+define TARGET_RULE
+
+.PHONY: $(SUBDIR_TARGET)
+$(SUBDIR_TARGET): $(patsubst %,$(SUBDIR_TARGET)-%,$(SUBDIRS))
+
+endef
+
+$(foreach SUBDIR_TARGET,$(SUBDIR_TARGETS),$(eval $(TARGET_RULE)))
 
 define SUBDIR_RULES
 
