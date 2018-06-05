@@ -64,7 +64,7 @@ const (
 var (
 	errMissingRequiredField = errors.New("missing required field")
 	errInvalidDBType        = errors.New("invalid database type")
-	errMissingPort          = errors.New("unable to get port from M3DB listen address")
+	errMissingPort          = errors.New("unable to get port from address")
 )
 
 type dbType string
@@ -245,7 +245,7 @@ func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest, dbCfg dbconfi
 func portFromAddress(address string) (int, error) {
 	colonIdx := strings.LastIndex(address, ":")
 	if colonIdx == -1 || colonIdx == len(address)-1 {
-		return 0, errors.New("no port found from address")
+		return 0, errMissingPort
 	}
 
 	return strconv.Atoi(address[colonIdx+1:])
