@@ -24,12 +24,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper/commitlog"
 	bfs "github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/bootstrapper/peers"
+
+	"github.com/stretchr/testify/require"
 )
 
 var (

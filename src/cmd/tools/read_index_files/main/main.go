@@ -169,7 +169,7 @@ func (vals ints) summary() summaryStats {
 
 func formatCommas(num int) string {
 	str := strconv.Itoa(num)
-	re := regexp.MustCompile("(\\d+)(\\d{3})")
+	re := regexp.MustCompile(`(\d+)(\d{3})`)
 	for i := 0; i < (len(str)-1)/3; i++ {
 		str = re.ReplaceAllString(str, "$1,$2")
 	}
