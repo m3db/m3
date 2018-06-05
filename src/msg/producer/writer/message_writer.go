@@ -253,7 +253,14 @@ func (w *messageWriterImpl) Init() {
 }
 
 func (w *messageWriterImpl) retryUnacknowledgedUntilClose() {
-	ticker := time.NewTicker(w.opts.MessageQueueScanInterval())
+	var (
+		interval = w.opts.MessageQueueScanInterval()
+		jitter   = time.Duration(rand.Int63n(int64(interval)))
+	)
+	// NB(cw): Add some jitter before the tick starts to reduce
+	// some contention between all the message writers.
+	time.Sleep(jitter)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {

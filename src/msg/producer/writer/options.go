@@ -36,9 +36,9 @@ const (
 	defaultKeepAlivePeriod           = time.Minute
 	defaultPlacementWatchInitTimeout = 2 * time.Second
 	defaultTopicWatchInitTimeout     = 2 * time.Second
-	defaultCloseCheckInterval        = 2 * time.Second
+	defaultCloseCheckInterval        = time.Second
 	defaultConnectionResetDelay      = 2 * time.Second
-	defaultMessageQueueScanInterval  = 2 * time.Second
+	defaultMessageQueueScanInterval  = time.Second
 	defaultMessageRetryBatchSize     = 16 * 1024
 	defaultInitialAckMapSize         = 16 * 1024
 	// Using 16K which provides much better performance comparing
