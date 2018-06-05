@@ -104,10 +104,10 @@ func newConsolidatedNSBlocks(seriesBlocks SeriesBlocks, seriesIteratorsPool enco
 		consolidatedNSBlock := ConsolidatedNSBlock{
 			Namespace: namespace,
 			ID:        id,
-			Start:     seriesBlock.Start,
-			End:       seriesBlock.End,
+			Start:     seriesBlock.start,
+			End:       seriesBlock.end,
 		}
-		s := []encoding.SeriesIterator{seriesBlock.SeriesIterator}
+		s := []encoding.SeriesIterator{seriesBlock.seriesIterator}
 		// todo(braskin): figure out how many series iterators we need based on largest step size (i.e. namespace)
 		// and in future copy SeriesIterators using the seriesIteratorsPool
 		consolidatedNSBlock.SeriesIterators = encoding.NewSeriesIterators(s, nil)

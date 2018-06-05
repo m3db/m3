@@ -63,8 +63,8 @@ func TestConversion(t *testing.T) {
 		assert.Equal(t, seriesNamespace, block.Namespace.String())
 		checkTags(t, block.Tags)
 
-		blockOneSeriesIterator := block.Blocks[0].SeriesIterator
-		blockTwoSeriesIterator := block.Blocks[1].SeriesIterator
+		blockOneSeriesIterator := block.Blocks[0].seriesIterator
+		blockTwoSeriesIterator := block.Blocks[1].seriesIterator
 
 		assert.Equal(t, start.Add(2*time.Minute), blockOneSeriesIterator.Start())
 		assert.Equal(t, middle, blockOneSeriesIterator.End())

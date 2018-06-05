@@ -29,8 +29,7 @@ import (
 )
 
 const (
-	// todo(braskin): replace this with actual size if we can
-	blockReplicaLen = 10
+	initBlockReplicaLength = 10
 )
 
 // blockReplica contains the replicas for a single m3db block
@@ -64,7 +63,7 @@ func ConvertM3DBSeriesIterators(iterators encoding.SeriesIterators, iterAlloc en
 }
 
 func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, iterAlloc encoding.ReaderIteratorAllocate) ([]blockReplica, error) {
-	blockReplicas := make([]blockReplica, 0, blockReplicaLen)
+	blockReplicas := make([]blockReplica, 0, initBlockReplicaLength)
 	for _, replica := range seriesIterator.Replicas() {
 		perBlockSliceReaders := replica.Readers()
 		for next := true; next; next = perBlockSliceReaders.Next() {
@@ -122,9 +121,10 @@ func seriesBlocksFromBlockReplicas(blockReplicas []blockReplica, seriesIterator 
 		ID:        clonedID,
 		Namespace: clonedNamespace,
 		Tags:      clonedTags,
+		Blocks:    make([]SeriesBlock, len(blockReplicas)),
 	}
 
-	for _, block := range blockReplicas {
+	for i, block := range blockReplicas {
 		filterValuesStart := seriesIterator.Start()
 		if block.start.After(filterValuesStart) {
 			filterValuesStart = block.start
@@ -142,11 +142,11 @@ func seriesBlocksFromBlockReplicas(blockReplicas []blockReplica, seriesIterator 
 		valuesIter := encoding.NewSeriesIterator(clonedID, clonedNamespace,
 			clonedTags.Duplicate(), filterValuesStart, filterValuesEnd, block.replicas, nil)
 
-		series.Blocks = append(series.Blocks, SeriesBlock{
-			Start:          filterValuesStart,
-			End:            filterValuesEnd,
-			SeriesIterator: valuesIter,
-		})
+		series.Blocks[i] = SeriesBlock{
+			start:          filterValuesStart,
+			end:            filterValuesEnd,
+			seriesIterator: valuesIter,
+		}
 	}
 
 	return series, nil

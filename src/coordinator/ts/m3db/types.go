@@ -29,9 +29,9 @@ import (
 
 // SeriesBlock contains the individual series iterators
 type SeriesBlock struct {
-	Start          time.Time
-	End            time.Time
-	SeriesIterator encoding.SeriesIterator
+	start          time.Time
+	end            time.Time
+	seriesIterator encoding.SeriesIterator
 }
 
 // SeriesBlocks contain information about the timeseries that gets returned from m3db.
@@ -102,3 +102,20 @@ type MultiSeriesBlock struct {
 // MultiSeriesBlocks is a slice of MultiSeriesBlock
 // todo(braskin): add close method on this to close each SeriesIterator
 type MultiSeriesBlocks []MultiSeriesBlock
+
+// Close closes the series iterator in a SeriesBlock
+func (s SeriesBlock) Close() {
+	s.seriesIterator.Close()
+}
+
+// Close closes the underlaying series iterator within each SeriesBlock
+// as well as the ID, Namespace, and Tags.
+func (s SeriesBlocks) Close() {
+	for _, seriesBlock := range s.Blocks {
+		seriesBlock.Close()
+	}
+
+	s.Tags.Close()
+	s.Namespace.Finalize()
+	s.ID.Finalize()
+}
