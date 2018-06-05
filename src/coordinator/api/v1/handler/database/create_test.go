@@ -42,6 +42,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	testDBCfg = dbconfig.DBConfiguration{
+		ListenAddress: "0.0.0.0:9000",
+	}
+)
+
 func SetupDatabaseTest(t *testing.T) (*client.MockClient, *kv.MockStore, *placement.MockService) {
 	logging.InitWithCores(nil)
 
@@ -66,7 +72,7 @@ func SetupDatabaseTest(t *testing.T) (*client.MockClient, *kv.MockStore, *placem
 
 func TestLocalType(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
-	createHandler := NewCreateHandler(mockClient, config.Configuration{}, dbconfig.DBConfiguration{})
+	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
 	w := httptest.NewRecorder()
 
 	jsonInput := `

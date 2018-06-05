@@ -53,7 +53,6 @@ const (
 
 	idealDatapointsPerBlock           = 720
 	blockSizeFromExpectedSeriesScalar = idealDatapointsPerBlock * int64(time.Hour)
-	defaultPort                       = 9000
 
 	dbTypeLocal                 dbType = "local"
 	defaultLocalRetentionPeriod        = 24 * time.Hour
@@ -163,8 +162,6 @@ func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddReques
 func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.NamespaceAddRequest, error) {
 	options := dbnamespace.NewOptions()
 
-	fmt.Printf("GOT THIS TYPE:%v\n", r.Type)
-	fmt.Printf("GOT THIS ENUM:%v\n", dbType(r.Type))
 	switch dbType(r.Type) {
 	case dbTypeLocal:
 		options.SetRepairEnabled(false)
@@ -213,7 +210,7 @@ func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest, dbCfg dbconfi
 
 	port, err := portFromAddress(dbCfg.ListenAddress)
 	if err != nil {
-		port = defaultPort
+		return nil, err
 	}
 
 	switch dbType(r.Type) {
@@ -226,7 +223,7 @@ func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest, dbCfg dbconfi
 				IsolationGroup: "local",
 				Zone:           "embedded",
 				Weight:         1,
-				Endpoint:       "http://localhost:" + string(port),
+				Endpoint:       fmt.Sprintf("http://localhost:%d", port),
 				Hostname:       "localhost",
 				Port:           uint32(port),
 			},
