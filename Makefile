@@ -3,29 +3,29 @@ include $(SELF_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail
 
-auto_gen             := .ci/auto-gen.sh
-gopath_prefix        := $(GOPATH)/src
-jsonnet_go_package   := github.com/google/go-jsonnet
+auto_gen                  := .ci/auto-gen.sh
+gopath_prefix             := $(GOPATH)/src
+jsonnet_go_package        := github.com/google/go-jsonnet
 jsonnet_go_package_path   := $(gopath_prefix)/$(jsonnet_go_package)/jsonnet
-jsonnet_go_bin       := $(gopath_prefix)/$(jsonnet_go_package)/jsonnet/jsonnet
-license_dir          := .ci/uber-licence
-license_node_modules := $(license_dir)/node_modules
-m3db_package         := github.com/m3db/m3db
-m3db_package_path    := $(gopath_prefix)/$(m3db_package)
-metalint_check       := .ci/metalint.sh
-metalint_config      := .metalinter.json
-metalint_exclude     := .excludemetalint
-mockgen_package      := github.com/golang/mock/mockgen
-mocks_output_dir     := generated/mocks/mocks
-mocks_rules_dir      := generated/mocks
-proto_output_dir     := generated/proto
-proto_rules_dir      := generated/proto
-protoc_go_package    := github.com/golang/protobuf/protoc-gen-go
-thrift_gen_package   := github.com/uber/tchannel-go
-thrift_output_dir    := generated/thrift/rpc
-thrift_rules_dir     := generated/thrift
-vendor_prefix        := vendor
-cache_policy         ?= recently_read
+jsonnet_go_bin            := $(gopath_prefix)/$(jsonnet_go_package)/jsonnet/jsonnet
+license_dir               := .ci/uber-licence
+license_node_modules      := $(license_dir)/node_modules
+m3db_package              := github.com/m3db/m3db
+m3db_package_path         := $(gopath_prefix)/$(m3db_package)
+metalint_check            := .ci/metalint.sh
+metalint_config           := .metalinter.json
+metalint_exclude          := .excludemetalint
+mockgen_package           := github.com/golang/mock/mockgen
+mocks_output_dir          := generated/mocks/mocks
+mocks_rules_dir           := generated/mocks
+proto_output_dir          := generated/proto
+proto_rules_dir           := generated/proto
+protoc_go_package         := github.com/golang/protobuf/protoc-gen-go
+thrift_gen_package        := github.com/uber/tchannel-go
+thrift_output_dir         := generated/thrift/rpc
+thrift_rules_dir          := generated/thrift
+vendor_prefix             := vendor
+cache_policy              ?= recently_read
 
 include $(SELF_DIR)/generated-source-files.mk
 
@@ -201,12 +201,9 @@ setup-conf:
 .PHONY: install-conf
 install-conf:
 	echo "Fetching and installing go-jsonnet"
-#	git submodule init "genconfig/jsonnet"
-#	git submodule update "genconfig/jsonnet"
-#	cd genconfig/jsonnet && make
-#	echo "Downloading JSON conversion package"
 	go get $(jsonnet_go_package)
 	cd $(jsonnet_go_package_path) && go build
+	echo "Downloading JSON conversion package"
 	go get github.com/brancz/gojsontoyaml
 
 define CONFIG_RULES
