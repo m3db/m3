@@ -52,11 +52,13 @@ const (
 	// == 2592000000000000 / ExpectedSeriesDatapointsPerHour
 	blockSizeFromExpectedSeriesScalar = 2592000000000000
 
-	dbTypeLocal dbType = "local"
+	dbTypeLocal       dbType = "local"
+	minLocalBlockSize        = 30 * time.Minute // 30m
+	maxLocalBlockSize        = 2 * time.Hour    // 2h
 )
 
 var (
-	errMissingRequiredField = errors.New("all attributes must be set")
+	errMissingRequiredField = errors.New("missing required field")
 	errInvalidDBType        = errors.New("invalid database type")
 )
 
@@ -165,15 +167,19 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) *admin.Namespa
 
 		retentionPeriod := options.RetentionOptions().RetentionPeriod()
 		if r.ExpectedSeriesDatapointsPerHour > 0 {
-			options.RetentionOptions().SetBlockSize(time.Duration(blockSizeFromExpectedSeriesScalar / r.ExpectedSeriesDatapointsPerHour))
-		} else if retentionPeriod <= 48*time.Hour {
-			options.RetentionOptions().SetBlockSize(2 * time.Hour)
-		} else if retentionPeriod <= 336*time.Hour { // 14 * 24h
-			options.RetentionOptions().SetBlockSize(4 * time.Hour)
-		} else if retentionPeriod <= 720*time.Hour { // 30 * 24h
-			options.RetentionOptions().SetBlockSize(12 * time.Hour)
+			blockSize := time.Duration(blockSizeFromExpectedSeriesScalar / r.ExpectedSeriesDatapointsPerHour)
+			if blockSize < minLocalBlockSize {
+				blockSize = minLocalBlockSize
+			} else if blockSize > maxLocalBlockSize {
+				blockSize = maxLocalBlockSize
+			}
+			options.RetentionOptions().SetBlockSize(blockSize)
+		} else if retentionPeriod <= 12*time.Hour {
+			options.RetentionOptions().SetBlockSize(30 * time.Minute)
+		} else if retentionPeriod <= 24*time.Hour {
+			options.RetentionOptions().SetBlockSize(1 * time.Hour)
 		} else {
-			options.RetentionOptions().SetBlockSize(24 * time.Hour)
+			options.RetentionOptions().SetBlockSize(2 * time.Hour)
 		}
 
 		options.IndexOptions().SetEnabled(true)
