@@ -27,17 +27,20 @@ import (
 	"github.com/m3db/m3x/ident"
 )
 
-// SeriesBlock is a placeholder until it is added to M3DB
+// SeriesBlock contains the individual series iterators
 type SeriesBlock struct {
-	Start          time.Time
-	End            time.Time
-	SeriesIterator encoding.SeriesIterator
+	start          time.Time
+	end            time.Time
+	seriesIterator encoding.SeriesIterator
 }
 
-// SeriesBlocks is a placeholder until it is added to M3DB
+// SeriesBlocks contain information about the timeseries that gets returned from m3db.
+// This includes meta data such as the ID, namespace and tags as well as the actual
+// series iterators that contain the datapoints.
 type SeriesBlocks struct {
 	ID        ident.ID
-	Namespace string
+	Namespace ident.ID
+	Tags      ident.TagIterator
 	Blocks    []SeriesBlock
 }
 
@@ -52,7 +55,7 @@ func (n MultiNamespaceSeries) ID() ident.ID { return n[0].ID }
 // happen across namespaces
 type ConsolidatedNSBlock struct {
 	ID              ident.ID
-	Namespace       string
+	Namespace       ident.ID
 	Start           time.Time
 	End             time.Time
 	SeriesIterators encoding.SeriesIterators
@@ -99,3 +102,20 @@ type MultiSeriesBlock struct {
 // MultiSeriesBlocks is a slice of MultiSeriesBlock
 // todo(braskin): add close method on this to close each SeriesIterator
 type MultiSeriesBlocks []MultiSeriesBlock
+
+// Close closes the series iterator in a SeriesBlock
+func (s SeriesBlock) Close() {
+	s.seriesIterator.Close()
+}
+
+// Close closes the underlaying series iterator within each SeriesBlock
+// as well as the ID, Namespace, and Tags.
+func (s SeriesBlocks) Close() {
+	for _, seriesBlock := range s.Blocks {
+		seriesBlock.Close()
+	}
+
+	s.Tags.Close()
+	s.Namespace.Finalize()
+	s.ID.Finalize()
+}

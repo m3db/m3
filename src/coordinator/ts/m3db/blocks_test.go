@@ -56,14 +56,14 @@ func newM3SeriesBlock(id string, ctrl *gomock.Controller, now time.Time) []Serie
 	seriesIterTwo.EXPECT().ID().Return(ident.StringID(id))
 
 	sOne := SeriesBlock{
-		Start:          now,
-		End:            now.Add(10 * time.Minute),
-		SeriesIterator: seriesIterOne,
+		start:          now,
+		end:            now.Add(10 * time.Minute),
+		seriesIterator: seriesIterOne,
 	}
 	sTwo := SeriesBlock{
-		Start:          now.Add(10 * time.Minute),
-		End:            now.Add(20 * time.Minute),
-		SeriesIterator: seriesIterTwo,
+		start:          now.Add(10 * time.Minute),
+		end:            now.Add(20 * time.Minute),
+		seriesIterator: seriesIterTwo,
 	}
 
 	return []SeriesBlock{sOne, sTwo}
@@ -115,7 +115,7 @@ func TestBlockMisalignment(t *testing.T) {
 	now := time.Now()
 	ctrl := gomock.NewController(t)
 	seriesOne, seriesTwo := newMultiNamespaceSeries(ctrl, now)
-	seriesOne[0].Blocks[0].End = now.Add(100 * time.Minute)
+	seriesOne[0].Blocks[0].end = now.Add(100 * time.Minute)
 	multiNamespaceSeriesList := []MultiNamespaceSeries{seriesOne, seriesTwo}
 	_, err := SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil)
 	require.Error(t, err)
