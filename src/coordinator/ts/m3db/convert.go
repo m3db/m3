@@ -21,6 +21,7 @@
 package m3db
 
 import (
+	"sort"
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/encoding"
@@ -37,6 +38,20 @@ type blockReplica struct {
 	start     time.Time
 	blockSize time.Duration
 	replicas  []encoding.MultiReaderIterator
+}
+
+type blockReplicas []blockReplica
+
+func (b blockReplicas) Len() int {
+	return len(b)
+}
+
+func (b blockReplicas) Swap(i, j int) {
+	b[i], b[j] = b[j], b[i]
+}
+
+func (b blockReplicas) Less(i, j int) bool {
+	return b[i].start.Before(b[j].start)
 }
 
 // ConvertM3DBSeriesIterators converts m3db SeriesIterators to SeriesBlocks
@@ -63,7 +78,7 @@ func ConvertM3DBSeriesIterators(iterators encoding.SeriesIterators, iterAlloc en
 }
 
 func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, iterAlloc encoding.ReaderIteratorAllocate) ([]blockReplica, error) {
-	blockReplicas := make([]blockReplica, 0, initBlockReplicaLength)
+	blockReplicas := make(blockReplicas, 0, initBlockReplicaLength)
 	for _, replica := range seriesIterator.Replicas() {
 		perBlockSliceReaders := replica.Readers()
 		for next := true; next; next = perBlockSliceReaders.Next() {
@@ -100,6 +115,9 @@ func blockReplicasFromSeriesIterator(seriesIterator encoding.SeriesIterator, ite
 			}
 		}
 	}
+
+	// sort block replicas by start time
+	sort.Sort(blockReplicas)
 
 	return blockReplicas, nil
 }
