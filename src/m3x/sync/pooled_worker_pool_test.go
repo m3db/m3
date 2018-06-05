@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,58 +18,61 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package sync implements synchronization facililites such as worker pools.
 package sync
 
 import (
-	"time"
+	"sync"
+	"sync/atomic"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-type workerPool struct {
-	workCh chan struct{}
-}
+func TestPooledWorkerPoolGo(t *testing.T) {
+	var count uint32
 
-// NewWorkerPool creates a new worker pool.
-func NewWorkerPool(size int) WorkerPool {
-	return &workerPool{workCh: make(chan struct{}, size)}
-}
+	p, err := NewPooledWorkerPool(testWorkerPoolSize, NewPooledWorkerPoolOptions())
+	require.NoError(t, err)
+	p.Init()
 
-func (p *workerPool) Init() {
-	for i := 0; i < cap(p.workCh); i++ {
-		p.workCh <- struct{}{}
+	var wg sync.WaitGroup
+	for i := 0; i < testWorkerPoolSize*2; i++ {
+		wg.Add(1)
+		p.Go(func() {
+			atomic.AddUint32(&count, 1)
+			wg.Done()
+		})
 	}
+	wg.Wait()
+
+	require.Equal(t, uint32(testWorkerPoolSize*2), count)
 }
 
-func (p *workerPool) Go(work Work) {
-	token := <-p.workCh
-	go func() {
-		work()
-		p.workCh <- token
-	}()
-}
+func TestPooledWorkerPoolGoKillWorker(t *testing.T) {
+	var count uint32
 
-func (p *workerPool) GoIfAvailable(work Work) bool {
-	select {
-	case token := <-p.workCh:
-		go func() {
-			work()
-			p.workCh <- token
-		}()
-		return true
-	default:
-		return false
+	p, err := NewPooledWorkerPool(
+		testWorkerPoolSize,
+		NewPooledWorkerPoolOptions().
+			SetKillWorkerProbability(1.0),
+	)
+	require.NoError(t, err)
+	p.Init()
+
+	var wg sync.WaitGroup
+	for i := 0; i < testWorkerPoolSize*2; i++ {
+		wg.Add(1)
+		p.Go(func() {
+			atomic.AddUint32(&count, 1)
+			wg.Done()
+		})
 	}
+	wg.Wait()
+
+	require.Equal(t, uint32(testWorkerPoolSize*2), count)
 }
 
-func (p *workerPool) GoWithTimeout(work Work, timeout time.Duration) bool {
-	select {
-	case token := <-p.workCh:
-		go func() {
-			work()
-			p.workCh <- token
-		}()
-		return true
-	case <-time.After(timeout):
-		return false
-	}
+func TestPooledWorkerPoolSizeTooSmall(t *testing.T) {
+	_, err := NewPooledWorkerPool(0, NewPooledWorkerPoolOptions())
+	require.Error(t, err)
 }
