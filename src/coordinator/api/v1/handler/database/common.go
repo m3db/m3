@@ -23,6 +23,7 @@ package database
 import (
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/gorilla/mux"
@@ -36,8 +37,8 @@ type Handler struct {
 }
 
 // RegisterRoutes registers the namespace routes
-func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Configuration) {
+func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Configuration, dbCfg dbconfig.DBConfiguration) {
 	logged := logging.WithResponseTimeLogging
 
-	r.HandleFunc(CreateURL, logged(NewCreateHandler(client, cfg)).ServeHTTP).Methods(CreateHTTPMethod)
+	r.HandleFunc(CreateURL, logged(NewCreateHandler(client, cfg, dbCfg)).ServeHTTP).Methods(CreateHTTPMethod)
 }

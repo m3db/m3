@@ -27,6 +27,7 @@ import (
 
 	m3clusterClient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/database"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/namespace"
@@ -59,11 +60,13 @@ type Handler struct {
 	engine        *executor.Engine
 	clusterClient m3clusterClient.Client
 	config        config.Configuration
+	dbConfig      dbconfig.DBConfiguration
 	scope         tally.Scope
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient m3clusterClient.Client, cfg config.Configuration, scope tally.Scope) (*Handler, error) {
+func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient m3clusterClient.Client,
+	cfg config.Configuration, dbCfg dbconfig.DBConfiguration, scope tally.Scope) (*Handler, error) {
 	r := mux.NewRouter()
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -78,6 +81,7 @@ func NewHandler(storage storage.Storage, engine *executor.Engine, clusterClient 
 		engine:        engine,
 		clusterClient: clusterClient,
 		config:        cfg,
+		dbConfig:      dbCfg,
 		scope:         scope,
 	}
 	return h, nil
@@ -90,17 +94,17 @@ func (h *Handler) RegisterRoutes() error {
 	h.Router.HandleFunc(openapi.URL, logged(&openapi.DocHandler{}).ServeHTTP).Methods(openapi.HTTPMethod)
 	h.Router.PathPrefix(openapi.StaticURLPrefix).Handler(logged(openapi.StaticHandler()))
 
-	h.Router.HandleFunc(remote.PromReadURL, logged(remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))).ServeHTTP).Methods("POST")
-	h.Router.HandleFunc(remote.PromWriteURL, logged(remote.NewPromWriteHandler(h.storage, h.scope.Tagged(remoteSource))).ServeHTTP).Methods("POST")
-	h.Router.HandleFunc(native.PromReadURL, logged(native.NewPromReadHandler(h.engine)).ServeHTTP).Methods("GET")
-	h.Router.HandleFunc(handler.SearchURL, logged(handler.NewSearchHandler(h.storage)).ServeHTTP).Methods("POST")
+	h.Router.HandleFunc(remote.PromReadURL, logged(remote.NewPromReadHandler(h.engine, h.scope.Tagged(remoteSource))).ServeHTTP).Methods(remote.PromReadHTTPMethod)
+	h.Router.HandleFunc(remote.PromWriteURL, logged(remote.NewPromWriteHandler(h.storage, h.scope.Tagged(remoteSource))).ServeHTTP).Methods(remote.PromWriteHTTPMethod)
+	h.Router.HandleFunc(native.PromReadURL, logged(native.NewPromReadHandler(h.engine)).ServeHTTP).Methods(native.PromReadHTTPMethod)
+	h.Router.HandleFunc(handler.SearchURL, logged(handler.NewSearchHandler(h.storage)).ServeHTTP).Methods(handler.SearchHTTPMethod)
 
 	h.registerProfileEndpoints()
 
 	if h.clusterClient != nil {
 		placement.RegisterRoutes(h.Router, h.clusterClient, h.config)
 		namespace.RegisterRoutes(h.Router, h.clusterClient)
-		database.RegisterRoutes(h.Router, h.clusterClient, h.config)
+		database.RegisterRoutes(h.Router, h.clusterClient, h.config, h.dbConfig)
 	}
 
 	return nil

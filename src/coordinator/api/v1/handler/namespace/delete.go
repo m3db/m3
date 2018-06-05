@@ -40,7 +40,7 @@ const (
 	namespaceIDVar = "id"
 
 	// DeleteHTTPMethod is the HTTP method used with this resource.
-	DeleteHTTPMethod = "DELETE"
+	DeleteHTTPMethod = http.MethodDelete
 )
 
 var (

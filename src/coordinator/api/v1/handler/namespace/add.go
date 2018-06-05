@@ -40,7 +40,7 @@ const (
 	AddURL = handler.RoutePrefixV1 + "/namespace"
 
 	// AddHTTPMethod is the HTTP method used with this resource.
-	AddHTTPMethod = "POST"
+	AddHTTPMethod = http.MethodPost
 )
 
 // AddHandler is the handler for namespace adds.

@@ -23,11 +23,14 @@ package database
 import (
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/namespace"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/placement"
@@ -45,21 +48,21 @@ const (
 	CreateURL = handler.RoutePrefixV1 + "/database/create"
 
 	// CreateHTTPMethod is the HTTP method used with this resource.
-	CreateHTTPMethod = "POST"
+	CreateHTTPMethod = http.MethodPost
 
-	// We want around 720 datapoints per block, so:
-	// (720 / ExpectedSeriesDatapointsPerHour) * 60 * 60000000000
-	// == 2592000000000000 / ExpectedSeriesDatapointsPerHour
-	blockSizeFromExpectedSeriesScalar = 2592000000000000
+	idealDatapointsPerBlock           = 720
+	blockSizeFromExpectedSeriesScalar = idealDatapointsPerBlock * int64(time.Hour)
 
-	dbTypeLocal       dbType = "local"
-	minLocalBlockSize        = 30 * time.Minute // 30m
-	maxLocalBlockSize        = 2 * time.Hour    // 2h
+	dbTypeLocal                 dbType = "local"
+	defaultLocalRetentionPeriod        = 24 * time.Hour
+	minLocalBlockSize                  = 30 * time.Minute // 30m
+	maxLocalBlockSize                  = 2 * time.Hour    // 2h
 )
 
 var (
 	errMissingRequiredField = errors.New("missing required field")
 	errInvalidDBType        = errors.New("invalid database type")
+	errMissingPort          = errors.New("unable to get port from M3DB listen address")
 )
 
 type dbType string
@@ -68,14 +71,16 @@ type createHandler struct {
 	placementInitHandler   *placement.InitHandler
 	namespaceAddHandler    *namespace.AddHandler
 	namespaceDeleteHandler *namespace.DeleteHandler
+	dbCfg                  dbconfig.DBConfiguration
 }
 
 // NewCreateHandler returns a new instance of a database create handler.
-func NewCreateHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
+func NewCreateHandler(client clusterclient.Client, cfg config.Configuration, dbCfg dbconfig.DBConfiguration) http.Handler {
 	return &createHandler{
 		placementInitHandler:   placement.NewInitHandler(client, cfg),
 		namespaceAddHandler:    namespace.NewAddHandler(client),
 		namespaceDeleteHandler: namespace.NewDeleteHandler(client),
+		dbCfg: dbCfg,
 	}
 }
 
@@ -137,22 +142,23 @@ func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddReques
 		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
-	dbCreateType := dbType(dbCreateReq.Type)
-	if dbCreateType != dbTypeLocal {
-		return nil, nil, handler.NewParseError(errInvalidDBType, http.StatusBadRequest)
-	}
-
 	if util.HasEmptyString(dbCreateReq.NamespaceName, dbCreateReq.Type) {
 		return nil, nil, handler.NewParseError(errMissingRequiredField, http.StatusBadRequest)
 	}
 
-	namespaceAddRequest := defaultedNamespaceAddRequest(dbCreateReq)
-	placementInitRequest := defaultedPlacementInitRequest(dbCreateReq)
+	namespaceAddRequest, err := defaultedNamespaceAddRequest(dbCreateReq)
+	if err != nil {
+		return nil, nil, handler.NewParseError(errInvalidDBType, http.StatusBadRequest)
+	}
+	placementInitRequest, err := defaultedPlacementInitRequest(dbCreateReq, h.dbCfg)
+	if err != nil {
+		return nil, nil, handler.NewParseError(errInvalidDBType, http.StatusBadRequest)
+	}
 
 	return namespaceAddRequest, placementInitRequest, nil
 }
 
-func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) *admin.NamespaceAddRequest {
+func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.NamespaceAddRequest, error) {
 	options := dbnamespace.NewOptions()
 
 	switch dbType(r.Type) {
@@ -160,7 +166,7 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) *admin.Namespa
 		options.SetRepairEnabled(false)
 
 		if r.RetentionPeriodNanos <= 0 {
-			options.RetentionOptions().SetRetentionPeriod(48 * time.Hour)
+			options.RetentionOptions().SetRetentionPeriod(defaultLocalRetentionPeriod)
 		} else {
 			options.RetentionOptions().SetRetentionPeriod(time.Duration(r.RetentionPeriodNanos))
 		}
@@ -185,22 +191,26 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) *admin.Namespa
 		options.IndexOptions().SetEnabled(true)
 		options.IndexOptions().SetBlockSize(options.RetentionOptions().BlockSize())
 	default:
-		// This function assumes the type is valid
-		return nil
+		return nil, errInvalidDBType
 	}
 
 	return &admin.NamespaceAddRequest{
 		Name:    r.NamespaceName,
 		Options: dbnamespace.OptionsToProto(options),
-	}
+	}, nil
 }
 
-func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest) *admin.PlacementInitRequest {
+func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest, dbCfg dbconfig.DBConfiguration) (*admin.PlacementInitRequest, error) {
 	var (
 		numShards         int32
 		replicationFactor int32
 		instances         []*placementpb.Instance
 	)
+
+	port, err := portFromAddress(dbCfg.ListenAddress)
+	if err != nil {
+		return nil, errMissingPort
+	}
 
 	switch dbType(r.Type) {
 	case dbTypeLocal:
@@ -212,19 +222,27 @@ func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest) *admin.Placem
 				IsolationGroup: "local",
 				Zone:           "embedded",
 				Weight:         1,
-				Endpoint:       "http://localhost:9000",
+				Endpoint:       "http://localhost:" + string(port),
 				Hostname:       "localhost",
-				Port:           9000,
+				Port:           uint32(port),
 			},
 		}
 	default:
-		// This function assumes the type is valid
-		return nil
+		return nil, errInvalidDBType
 	}
 
 	return &admin.PlacementInitRequest{
 		NumShards:         numShards,
 		ReplicationFactor: replicationFactor,
 		Instances:         instances,
+	}, nil
+}
+
+func portFromAddress(address string) (int, error) {
+	colonIdx := strings.LastIndex(address, ":")
+	if colonIdx == -1 || colonIdx == len(address)-1 {
+		return 0, errors.New("no port found from address")
 	}
+
+	return strconv.Atoi(address[colonIdx+1:])
 }

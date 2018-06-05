@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/prometheus/native"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/prometheus/remote"
 	"github.com/m3db/m3db/src/coordinator/executor"
@@ -45,7 +46,7 @@ func TestPromRemoteReadGet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := local.NewStorageAndSession(ctrl)
 
-	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{}, tally.NewTestScope("", nil))
+	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{}, dbconfig.DBConfiguration{}, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	err = h.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
@@ -61,7 +62,7 @@ func TestPromRemoteReadPost(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := local.NewStorageAndSession(ctrl)
 
-	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{}, tally.NewTestScope("", nil))
+	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{}, dbconfig.DBConfiguration{}, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	err = h.RegisterRoutes()
 	require.NoError(t, err, "unable to register routes")
@@ -77,7 +78,7 @@ func TestPromNativeReadGet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := local.NewStorageAndSession(ctrl)
 
-	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{}, tally.NewTestScope("", nil))
+	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{}, dbconfig.DBConfiguration{}, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
 	h.Router.ServeHTTP(res, req)
@@ -92,7 +93,7 @@ func TestPromNativeReadPost(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, _ := local.NewStorageAndSession(ctrl)
 
-	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{}, tally.NewTestScope("", nil))
+	h, err := NewHandler(storage, executor.NewEngine(storage), nil, config.Configuration{}, dbconfig.DBConfiguration{}, tally.NewTestScope("", nil))
 	require.NoError(t, err, "unable to setup handler")
 	h.RegisterRoutes()
 	h.Router.ServeHTTP(res, req)

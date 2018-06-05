@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/namespace"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
@@ -65,7 +66,7 @@ func SetupDatabaseTest(t *testing.T) (*client.MockClient, *kv.MockStore, *placem
 
 func TestLocalType(t *testing.T) {
 	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
-	createHandler := NewCreateHandler(mockClient, config.Configuration{})
+	createHandler := NewCreateHandler(mockClient, config.Configuration{}, dbconfig.DBConfiguration{})
 	w := httptest.NewRecorder()
 
 	jsonInput := `
@@ -109,7 +110,7 @@ func TestLocalType(t *testing.T) {
 
 func TestBadType(t *testing.T) {
 	mockClient, _, _ := SetupDatabaseTest(t)
-	createHandler := NewCreateHandler(mockClient, config.Configuration{})
+	createHandler := NewCreateHandler(mockClient, config.Configuration{}, dbconfig.DBConfiguration{})
 	w := httptest.NewRecorder()
 
 	jsonInput := `

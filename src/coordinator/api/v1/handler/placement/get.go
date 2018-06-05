@@ -38,7 +38,7 @@ const (
 	GetURL = handler.RoutePrefixV1 + "/placement"
 
 	// GetHTTPMethod is the HTTP method used with this resource.
-	GetHTTPMethod = "GET"
+	GetHTTPMethod = http.MethodGet
 )
 
 // GetHandler is the handler for placement gets.

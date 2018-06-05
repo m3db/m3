@@ -37,7 +37,7 @@ const (
 	DeleteAllURL = handler.RoutePrefixV1 + "/placement"
 
 	// DeleteAllHTTPMethod is the HTTP method used with this resource.
-	DeleteAllHTTPMethod = "DELETE"
+	DeleteAllHTTPMethod = http.MethodDelete
 )
 
 // DeleteAllHandler is the handler to delete all placements.

@@ -39,7 +39,7 @@ const (
 	GetURL = handler.RoutePrefixV1 + "/namespace"
 
 	// GetHTTPMethod is the HTTP method used with this resource.
-	GetHTTPMethod = "GET"
+	GetHTTPMethod = http.MethodGet
 )
 
 // GetHandler is the handler for namespace gets.

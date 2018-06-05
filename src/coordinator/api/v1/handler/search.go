@@ -37,6 +37,9 @@ const (
 	// SearchURL is the url to search for metric ids
 	SearchURL = "/search"
 
+	// SearchHTTPMethod is the HTTP method used with this resource.
+	SearchHTTPMethod = http.MethodPost
+
 	defaultLimit = 1000
 )
 

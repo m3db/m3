@@ -35,7 +35,7 @@ const (
 	URL = handler.RoutePrefixV1 + "/docs"
 
 	// HTTPMethod is the HTTP method used with this resource.
-	HTTPMethod = "GET"
+	HTTPMethod = http.MethodGet
 
 	docPath = "/doc.html"
 )

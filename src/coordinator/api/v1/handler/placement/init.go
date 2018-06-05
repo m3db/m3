@@ -39,7 +39,7 @@ const (
 	InitURL = handler.RoutePrefixV1 + "/placement/init"
 
 	// InitHTTPMethod is the HTTP method used with this resource.
-	InitHTTPMethod = "POST"
+	InitHTTPMethod = http.MethodPost
 )
 
 // InitHandler is the handler for placement inits.
