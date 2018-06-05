@@ -23,6 +23,7 @@ package writer
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3msg/producer"
@@ -79,6 +80,7 @@ type consumerServiceWriterMetrics struct {
 	placementUpdate   tally.Counter
 	filterAccepted    tally.Counter
 	filterNotAccepted tally.Counter
+	queueSize         tally.Gauge
 }
 
 func newConsumerServiceWriterMetrics(scope tally.Scope) consumerServiceWriterMetrics {
@@ -87,6 +89,7 @@ func newConsumerServiceWriterMetrics(scope tally.Scope) consumerServiceWriterMet
 		placementError:    scope.Counter("placement-error"),
 		filterAccepted:    scope.Counter("filter-accepted"),
 		filterNotAccepted: scope.Counter("filter-not-accepted"),
+		queueSize:         scope.Gauge("queue-size"),
 	}
 }
 
@@ -104,7 +107,10 @@ type consumerServiceWriterImpl struct {
 	router          ackRouter
 	consumerWriters map[string]consumerWriter
 	closed          bool
+	doneCh          chan struct{}
+	wg              sync.WaitGroup
 	m               consumerServiceWriterMetrics
+	cm              consumerWriterMetrics
 
 	processFn watch.ProcessFn
 }
@@ -136,7 +142,9 @@ func newConsumerServiceWriter(
 		router:          router,
 		consumerWriters: make(map[string]consumerWriter),
 		closed:          false,
+		doneCh:          make(chan struct{}),
 		m:               newConsumerServiceWriterMetrics(opts.InstrumentOptions().MetricsScope()),
+		cm:              newConsumerWriterMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
 	w.processFn = w.process
 	return w, nil
@@ -150,12 +158,13 @@ func initShardWriters(
 	opts Options,
 ) []shardWriter {
 	sws := make([]shardWriter, numberOfShards)
+	m := newMessageWriterMetrics(opts.InstrumentOptions().MetricsScope())
 	for i := range sws {
 		switch ct {
 		case topic.Shared:
-			sws[i] = newSharedShardWriter(uint32(i), router, mPool, opts)
+			sws[i] = newSharedShardWriter(uint32(i), router, mPool, opts, m)
 		case topic.Replicated:
-			sws[i] = newReplicatedShardWriter(uint32(i), numberOfShards, router, mPool, opts)
+			sws[i] = newReplicatedShardWriter(uint32(i), numberOfShards, router, mPool, opts, m)
 		}
 	}
 	return sws
@@ -172,6 +181,12 @@ func (w *consumerServiceWriterImpl) Write(rm producer.RefCountedMessage) {
 }
 
 func (w *consumerServiceWriterImpl) Init(t initType) error {
+	w.wg.Add(1)
+	go func() {
+		w.reportMetrics()
+		w.wg.Done()
+	}()
+
 	updatableFn := func() (watch.Updatable, error) {
 		return w.ps.Watch()
 	}
@@ -251,7 +266,7 @@ func (w *consumerServiceWriterImpl) diffPlacementWithLock(newPlacement placement
 			newConsumerWriters[id] = cw
 			continue
 		}
-		cw = newConsumerWriter(instance.Endpoint(), w.router, w.opts)
+		cw = newConsumerWriter(instance.Endpoint(), w.router, w.opts, w.cm)
 		cw.Init()
 		newConsumerWriters[id] = cw
 	}
@@ -273,6 +288,7 @@ func (w *consumerServiceWriterImpl) Close() {
 	w.closed = true
 	w.Unlock()
 
+	close(w.doneCh)
 	// Blocks until all messages consuemd.
 	for _, sw := range w.shardWriters {
 		sw.Close()
@@ -281,6 +297,7 @@ func (w *consumerServiceWriterImpl) Close() {
 	for _, cw := range w.consumerWriters {
 		cw.Close()
 	}
+	w.wg.Wait()
 }
 
 func (w *consumerServiceWriterImpl) RegisterFilter(filter producer.FilterFunc) {
@@ -293,4 +310,22 @@ func (w *consumerServiceWriterImpl) UnregisterFilter() {
 	w.Lock()
 	w.dataFilter = acceptAllFilter
 	w.Unlock()
+}
+
+func (w *consumerServiceWriterImpl) reportMetrics() {
+	t := time.NewTicker(w.opts.InstrumentOptions().ReportInterval())
+	defer t.Stop()
+
+	for {
+		select {
+		case <-w.doneCh:
+			return
+		case <-t.C:
+			var l int
+			for _, sw := range w.shardWriters {
+				l += sw.QueueSize()
+			}
+			w.m.queueSize.Update(float64(l))
+		}
+	}
 }

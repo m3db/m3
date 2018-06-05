@@ -84,3 +84,15 @@ func (_m *MockshardWriter) Close() {
 func (_mr *MockshardWriterMockRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Close", reflect.TypeOf((*MockshardWriter)(nil).Close))
 }
+
+// QueueSize mocks base method
+func (_m *MockshardWriter) QueueSize() int {
+	ret := _m.ctrl.Call(_m, "QueueSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// QueueSize indicates an expected call of QueueSize
+func (_mr *MockshardWriterMockRecorder) QueueSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "QueueSize", reflect.TypeOf((*MockshardWriter)(nil).QueueSize))
+}

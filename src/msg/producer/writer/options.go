@@ -34,12 +34,13 @@ import (
 const (
 	defaultDialTimeout               = 10 * time.Second
 	defaultKeepAlivePeriod           = time.Minute
-	defaultMessageQueueScanInterval  = 5 * time.Second
-	defaultPlacementWatchInitTimeout = 5 * time.Second
-	defaultTopicWatchInitTimeout     = 5 * time.Second
+	defaultPlacementWatchInitTimeout = 2 * time.Second
+	defaultTopicWatchInitTimeout     = 2 * time.Second
 	defaultCloseCheckInterval        = 2 * time.Second
 	defaultConnectionResetDelay      = 2 * time.Second
+	defaultMessageQueueScanInterval  = 2 * time.Second
 	defaultMessageRetryBatchSize     = 16 * 1024
+	defaultInitialAckMapSize         = 16 * 1024
 	// Using 16K which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
 	defaultConnectionBufferSize = 16384
@@ -239,6 +240,12 @@ type Options interface {
 	// SetMessageRetryBatchSize sets the batch size for retry.
 	SetMessageRetryBatchSize(value int) Options
 
+	// InitialAckMapSize returns the initial size of the ack map.
+	InitialAckMapSize() int
+
+	// SetInitialAckMapSize sets the initial size of the ack map.
+	SetInitialAckMapSize(value int) Options
+
 	// CloseCheckInterval returns the close check interval.
 	CloseCheckInterval() time.Duration
 
@@ -280,6 +287,7 @@ type writerOptions struct {
 	messageRetryOpts          retry.Options
 	messageQueueScanInterval  time.Duration
 	messageRetryBatchSize     int
+	initialAckMapSize         int
 	closeCheckInterval        time.Duration
 	ackErrRetryOpts           retry.Options
 	encdecOpts                proto.EncodeDecoderOptions
@@ -296,6 +304,7 @@ func NewOptions() Options {
 		messageRetryOpts:          retry.NewOptions(),
 		messageQueueScanInterval:  defaultMessageQueueScanInterval,
 		messageRetryBatchSize:     defaultMessageRetryBatchSize,
+		initialAckMapSize:         defaultInitialAckMapSize,
 		closeCheckInterval:        defaultCloseCheckInterval,
 		ackErrRetryOpts:           retry.NewOptions(),
 		encdecOpts:                proto.NewEncodeDecoderOptions(),
@@ -364,16 +373,6 @@ func (opts *writerOptions) SetMessagePoolOptions(value pool.ObjectPoolOptions) O
 	return &o
 }
 
-func (opts *writerOptions) MessageQueueScanInterval() time.Duration {
-	return opts.messageQueueScanInterval
-}
-
-func (opts *writerOptions) SetMessageQueueScanInterval(value time.Duration) Options {
-	o := *opts
-	o.messageQueueScanInterval = value
-	return &o
-}
-
 func (opts *writerOptions) MessageRetryOptions() retry.Options {
 	return opts.messageRetryOpts
 }
@@ -384,6 +383,16 @@ func (opts *writerOptions) SetMessageRetryOptions(value retry.Options) Options {
 	return &o
 }
 
+func (opts *writerOptions) MessageQueueScanInterval() time.Duration {
+	return opts.messageQueueScanInterval
+}
+
+func (opts *writerOptions) SetMessageQueueScanInterval(value time.Duration) Options {
+	o := *opts
+	o.messageQueueScanInterval = value
+	return &o
+}
+
 func (opts *writerOptions) MessageRetryBatchSize() int {
 	return opts.messageRetryBatchSize
 }
@@ -391,6 +400,16 @@ func (opts *writerOptions) MessageRetryBatchSize() int {
 func (opts *writerOptions) SetMessageRetryBatchSize(value int) Options {
 	o := *opts
 	o.messageRetryBatchSize = value
+	return &o
+}
+
+func (opts *writerOptions) InitialAckMapSize() int {
+	return opts.initialAckMapSize
+}
+
+func (opts *writerOptions) SetInitialAckMapSize(value int) Options {
+	o := *opts
+	o.initialAckMapSize = value
 	return &o
 }
 
