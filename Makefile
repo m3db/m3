@@ -191,6 +191,9 @@ docker-integration-test:
 	@./scripts/integration-tests/docker-integration-test.sh
 	@cd scripts/integration-tests/prometheus/ && ./prometheus-integration-test.sh
 
+.PHONY: metalint
+metalint: $(patsubst %,metalint-%,$(SUBDIRS))
+
 define SUBDIR_RULES
 
 .PHONY: mock-gen-$(SUBDIR)
