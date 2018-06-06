@@ -21,24 +21,26 @@
 package storage
 
 import (
-	"context"
+	"errors"
 	"testing"
 
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/test/seriesiter"
-	"github.com/m3db/m3db/src/coordinator/util/logging"
+	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
+	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func verifyExpandSeries(ctx context.Context, t *testing.T, ctrl *gomock.Controller, num int) {
+func verifyExpandSeries(t *testing.T, ctrl *gomock.Controller, num int, pools pool.ObjectPool) {
 	testTags := seriesiter.GenerateTag()
 	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num)
 
-	results, err := SeriesIteratorsToFetchResult(ctx, iters, ident.StringID("strID"))
+	results, err := SeriesIteratorsToFetchResult(iters, ident.StringID("strID"), pools)
 	assert.NoError(t, err)
 
 	require.NotNil(t, results)
@@ -54,14 +56,84 @@ func verifyExpandSeries(ctx context.Context, t *testing.T, ctrl *gomock.Controll
 	}
 }
 
-func TestExpandSeries(t *testing.T) {
+func testExpandSeries(t *testing.T, pools pool.ObjectPool) {
 	ctrl := gomock.NewController(t)
-	logging.InitWithCores(nil)
-	ctx := context.TODO()
-	logger := logging.WithContext(ctx)
-	defer logger.Sync()
 
 	for i := 0; i < 100; i++ {
-		verifyExpandSeries(ctx, t, ctrl, i)
+		verifyExpandSeries(t, ctrl, i, pools)
 	}
+}
+
+func TestExpandSeriesNilPools(t *testing.T) {
+	testExpandSeries(t, nil)
+}
+
+func TestExpandSeriesInvalidPoolType(t *testing.T) {
+	objectPool := pool.NewObjectPool(pool.NewObjectPoolOptions())
+	objectPool.Init(func() interface{} {
+		return ""
+	})
+	testExpandSeries(t, objectPool)
+}
+
+func TestExpandSeriesValidPools(t *testing.T) {
+	objectPool := pool.NewObjectPool(pool.NewObjectPoolOptions())
+	objectPool.Init(func() interface{} {
+		workerPool := xsync.NewWorkerPool(100)
+		workerPool.Init()
+		return workerPool
+	})
+	testExpandSeries(t, objectPool)
+}
+
+func TestExpandSeriesSmallValidPools(t *testing.T) {
+	objectPool := pool.NewObjectPool(pool.NewObjectPoolOptions())
+	objectPool.Init(func() interface{} {
+		workerPool := xsync.NewWorkerPool(2)
+		workerPool.Init()
+		return workerPool
+	})
+	testExpandSeries(t, objectPool)
+}
+
+func TestFailingExpandSeriesValidPools(t *testing.T) {
+	objectPool := pool.NewObjectPool(pool.NewObjectPoolOptions())
+	objectPool.Init(func() interface{} {
+		workerPool := xsync.NewWorkerPool(2)
+		workerPool.Init()
+		return workerPool
+	})
+	ctrl := gomock.NewController(t)
+	testTags := seriesiter.GenerateTag()
+	validTagGenerator := func() ident.TagIterator {
+		return seriesiter.GenerateSingleSampleTagIterator(ctrl, testTags)
+	}
+	iters := seriesiter.NewMockSeriesIterSlice(ctrl, validTagGenerator, 4)
+	invalidIters := make([]encoding.SeriesIterator, 2)
+	for i := 0; i < 2; i++ {
+		invalidIter := encoding.NewMockSeriesIterator(ctrl)
+		invalidIter.EXPECT().ID().Return(ident.StringID("foo")).Times(1)
+
+		tags := ident.NewMockTagIterator(ctrl)
+		tags.EXPECT().Next().Return(false).MaxTimes(1)
+		tags.EXPECT().Remaining().Return(0).MaxTimes(1)
+		tags.EXPECT().Err().Return(errors.New("error")).MaxTimes(1)
+		invalidIter.EXPECT().Tags().Return(tags).MaxTimes(1)
+
+		invalidIters[i] = invalidIter
+	}
+	iters = append(iters, invalidIters...)
+	for i := 0; i < 10; i++ {
+		uncalledIter := encoding.NewMockSeriesIterator(ctrl)
+		iters = append(iters, uncalledIter)
+	}
+
+	mockIters := encoding.NewMockSeriesIterators(ctrl)
+	mockIters.EXPECT().Iters().Return(iters).Times(1)
+	mockIters.EXPECT().Len().Return(len(iters)).Times(1)
+	mockIters.EXPECT().Close().Times(1)
+
+	result, err := SeriesIteratorsToFetchResult(mockIters, ident.StringID("strID"), objectPool)
+	require.Nil(t, result)
+	require.EqualError(t, err, "error")
 }

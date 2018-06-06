@@ -30,17 +30,23 @@ import (
 	"github.com/m3db/m3db/src/coordinator/util/execution"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
 
 type localStorage struct {
-	session   client.Session
-	namespace ident.ID
+	session    client.Session
+	namespace  ident.ID
+	workerPool pool.ObjectPool
 }
 
 // NewStorage creates a new local Storage instance.
-func NewStorage(session client.Session, namespace string) storage.Storage {
-	return &localStorage{session: session, namespace: ident.StringID(namespace)}
+func NewStorage(session client.Session, namespace string, workerPool pool.ObjectPool) storage.Storage {
+	return &localStorage{
+		session:    session,
+		namespace:  ident.StringID(namespace),
+		workerPool: workerPool,
+	}
 }
 
 func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.FetchResult, error) {
@@ -65,7 +71,7 @@ func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, opt
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(ctx, iters, s.namespace)
+	return storage.SeriesIteratorsToFetchResult(ctx, iters, s.namespace, s.workerPool)
 }
 
 func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {

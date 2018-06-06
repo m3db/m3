@@ -21,17 +21,17 @@
 package storage
 
 import (
-	"context"
 	"fmt"
+	"sync"
 	"time"
 
-	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/ts"
-	"github.com/m3db/m3db/src/coordinator/util/execution"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
+	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -185,26 +185,18 @@ func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 const (
 	// TODO(arnikola) get from config
 	initRawFetchAllocSize = 32
-	workerPoolSize        = 10
 )
 
-type decompressRequest struct {
-	iter      encoding.SeriesIterator
-	namespace ident.ID
-	result    *ts.Series
-}
-
-// Process converts the request's SeriesIterator into a ts.Series
-func (w *decompressRequest) Process(ctx context.Context) error {
-	iter := w.iter
-	ns := w.namespace
-	if ns == nil {
-		ns = iter.Namespace()
+func iteratorToTsSeries(
+	iter encoding.SeriesIterator,
+	namespace ident.ID,
+) (*ts.Series, error) {
+	if namespace == nil {
+		namespace = iter.Namespace()
 	}
-
-	metric, err := FromM3IdentToMetric(ns, iter.ID(), iter.Tags())
+	metric, err := FromM3IdentToMetric(namespace, iter.ID(), iter.Tags())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	datapoints := make(ts.Datapoints, 0, initRawFetchAllocSize)
@@ -213,47 +205,89 @@ func (w *decompressRequest) Process(ctx context.Context) error {
 		datapoints = append(datapoints, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
 	}
 
-	w.result = ts.NewSeries(metric.ID, datapoints, metric.Tags)
-	return nil
+	return ts.NewSeries(metric.ID, datapoints, metric.Tags), nil
+}
+
+// Fall back to sequential decompression if unable to decompress concurrently
+func decompressSequentially(
+	iterLength int,
+	iters []encoding.SeriesIterator,
+	namespace ident.ID,
+) (*FetchResult, error) {
+	seriesList := make([]*ts.Series, iterLength)
+	for i, iter := range iters {
+		series, err := iteratorToTsSeries(iter, namespace)
+		if err != nil {
+			return nil, err
+		}
+		seriesList[i] = series
+	}
+
+	return &FetchResult{
+		SeriesList: seriesList,
+	}, nil
 }
 
 // SeriesIteratorsToFetchResult converts SeriesIterators into a fetch result
-func SeriesIteratorsToFetchResult(ctx context.Context, seriesIterators encoding.SeriesIterators, namespace ident.ID) (*FetchResult, error) {
+func SeriesIteratorsToFetchResult(
+	seriesIterators encoding.SeriesIterators,
+	namespace ident.ID,
+	workerPools pool.ObjectPool,
+) (*FetchResult, error) {
 	defer seriesIterators.Close()
 
 	iters := seriesIterators.Iters()
 	iterLength := seriesIterators.Len()
+	seriesList := make([]*ts.Series, iterLength)
 
-	seriesList := make([]*ts.Series, 0, iterLength)
-	div, remainder := iterLength/workerPoolSize, iterLength%workerPoolSize
-	var executionPools [][]execution.Request
-	if remainder > 0 {
-		executionPools = make([][]execution.Request, div+1)
-		for i := 0; i < div; i++ {
-			executionPools[i] = make([]execution.Request, workerPoolSize)
-		}
-		executionPools[div] = make([]execution.Request, remainder)
-	} else {
-		executionPools = make([][]execution.Request, div)
-		for i := 0; i < div; i++ {
-			executionPools[i] = make([]execution.Request, workerPoolSize)
+	if workerPools == nil {
+		return decompressSequentially(iterLength, iters, namespace)
+	}
+	pool, ok := workerPools.Get().(xsync.WorkerPool)
+	if !ok {
+		return decompressSequentially(iterLength, iters, namespace)
+	}
+
+	var wg sync.WaitGroup
+	errorCh := make(chan error, 1)
+	done := make(chan struct{})
+	stopped := func() bool {
+		select {
+		case <-done:
+			return true
+		default:
+			return false
 		}
 	}
-	for idx, iter := range iters {
-		executionPools[idx/workerPoolSize][idx%workerPoolSize] = &decompressRequest{iter: iter, namespace: namespace}
-	}
-	for _, executionPool := range executionPools {
-		err := execution.ExecuteParallel(ctx, executionPool)
-		if err != nil {
-			return nil, err
-		}
-		for _, req := range executionPool {
-			req, ok := req.(*decompressRequest)
-			if !ok {
-				return nil, errors.ErrBadRequestType
+
+	wg.Add(iterLength)
+
+	for i, iter := range iters {
+		i := i
+		iter := iter
+		pool.Go(func() {
+			defer wg.Done()
+			if stopped() {
+				return
 			}
-			seriesList = append(seriesList, req.result)
-		}
+
+			series, err := iteratorToTsSeries(iter, namespace)
+			if err != nil {
+				// Return the first error that is encountered.
+				select {
+				case errorCh <- err:
+					close(done)
+				default:
+				}
+				return
+			}
+			seriesList[i] = series
+		})
+	}
+	wg.Wait()
+	close(errorCh)
+	if err := <-errorCh; err != nil {
+		return nil, err
 	}
 
 	return &FetchResult{
