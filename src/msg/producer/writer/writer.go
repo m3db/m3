@@ -63,7 +63,6 @@ type writer struct {
 
 	topic  string
 	ts     topic.Service
-	mPool  messagePool
 	opts   Options
 	logger log.Logger
 
@@ -83,7 +82,6 @@ func NewWriter(opts Options) producer.Writer {
 	w := &writer{
 		topic:                  opts.TopicName(),
 		ts:                     opts.TopicService(),
-		mPool:                  newMessagePool(opts.MessagePoolOptions()),
 		opts:                   opts,
 		logger:                 opts.InstrumentOptions().Logger(),
 		initType:               failOnError,
@@ -123,7 +121,6 @@ func (w *writer) Write(rm producer.RefCountedMessage) error {
 }
 
 func (w *writer) Init() error {
-	w.mPool.Init()
 	newUpdatableFn := func() (watch.Updatable, error) {
 		return w.ts.Watch(w.topic)
 	}
@@ -172,7 +169,7 @@ func (w *writer) process(update interface{}) error {
 			"consumer-service-env":  cs.ServiceID().Environment(),
 			"consumption-type":      cs.ConsumptionType().String(),
 		})
-		csw, err := newConsumerServiceWriter(cs, t.NumberOfShards(), w.mPool, w.opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope)))
+		csw, err := newConsumerServiceWriter(cs, t.NumberOfShards(), w.opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope)))
 		if err != nil {
 			w.logger.Errorf("could not create consumer service writer for %s: %v", cs.String(), err)
 			multiErr = multiErr.Add(err)

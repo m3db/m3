@@ -300,7 +300,6 @@ func NewOptions() Options {
 	return &writerOptions{
 		topicWatchInitTimeout:     defaultTopicWatchInitTimeout,
 		placementWatchInitTimeout: defaultPlacementWatchInitTimeout,
-		messagePoolOptions:        pool.NewObjectPoolOptions(),
 		messageRetryOpts:          retry.NewOptions(),
 		messageQueueScanInterval:  defaultMessageQueueScanInterval,
 		messageRetryBatchSize:     defaultMessageRetryBatchSize,

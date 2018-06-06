@@ -59,7 +59,7 @@ func TestConsumerServiceWriterWithSharedConsumerWithNonShardedPlacement(t *testi
 	sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil)
 
 	opts := testOptions().SetServiceDiscovery(sd)
-	w, err := newConsumerServiceWriter(cs, 2, testMessagePool(opts), opts)
+	w, err := newConsumerServiceWriter(cs, 2, opts)
 	require.NoError(t, err)
 
 	csw := w.(*consumerServiceWriterImpl)
@@ -180,7 +180,7 @@ func TestConsumerServiceWriterWithSharedConsumerWithShardedPlacement(t *testing.
 	sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil)
 
 	opts := testOptions().SetServiceDiscovery(sd)
-	w, err := newConsumerServiceWriter(cs, 3, testMessagePool(opts), opts)
+	w, err := newConsumerServiceWriter(cs, 3, opts)
 	require.NoError(t, err)
 
 	csw := w.(*consumerServiceWriterImpl)
@@ -350,7 +350,7 @@ func TestConsumerServiceWriterWithReplicatedConsumerWithShardedPlacement(t *test
 	require.NoError(t, ps.Set(p1))
 
 	opts := testOptions().SetServiceDiscovery(sd)
-	w, err := newConsumerServiceWriter(cs, 2, testMessagePool(opts), opts)
+	w, err := newConsumerServiceWriter(cs, 2, opts)
 	csw := w.(*consumerServiceWriterImpl)
 	require.NoError(t, err)
 	require.NotNil(t, csw)
@@ -490,7 +490,7 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 	sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil)
 
 	opts := testOptions().SetServiceDiscovery(sd)
-	csw, err := newConsumerServiceWriter(cs, 3, testMessagePool(opts), opts)
+	csw, err := newConsumerServiceWriter(cs, 3, opts)
 	require.NoError(t, err)
 
 	sw0 := NewMockshardWriter(ctrl)
@@ -535,7 +535,7 @@ func TestConsumerServiceWriterAllowInitValueErrorWithCreateWatchError(t *testing
 	sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil)
 
 	opts := testOptions().SetServiceDiscovery(sd)
-	w, err := newConsumerServiceWriter(cs, 3, testMessagePool(opts), opts)
+	w, err := newConsumerServiceWriter(cs, 3, opts)
 	require.NoError(t, err)
 	defer w.Close()
 
@@ -556,7 +556,7 @@ func TestConsumerServiceWriterAllowInitValueErrorWithInitValueError(t *testing.T
 	sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil)
 
 	opts := testOptions().SetServiceDiscovery(sd)
-	w, err := newConsumerServiceWriter(cs, 3, testMessagePool(opts), opts)
+	w, err := newConsumerServiceWriter(cs, 3, opts)
 	require.NoError(t, err)
 	defer w.Close()
 
@@ -579,7 +579,7 @@ func TestConsumerServiceWriterInitWithCreateWatchError(t *testing.T) {
 	sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil)
 
 	opts := testOptions().SetServiceDiscovery(sd)
-	w, err := newConsumerServiceWriter(cs, 3, testMessagePool(opts), opts)
+	w, err := newConsumerServiceWriter(cs, 3, opts)
 	require.NoError(t, err)
 	defer w.Close()
 
@@ -603,7 +603,7 @@ func TestConsumerServiceWriterInitWithInitValueError(t *testing.T) {
 	sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil)
 
 	opts := testOptions().SetServiceDiscovery(sd)
-	w, err := newConsumerServiceWriter(cs, 3, testMessagePool(opts), opts)
+	w, err := newConsumerServiceWriter(cs, 3, opts)
 	require.NoError(t, err)
 	defer w.Close()
 
