@@ -68,7 +68,7 @@ func (p *pooledWorkerPool) Init() {
 
 func (p *pooledWorkerPool) Go(work Work) {
 	// Use time.Now() to avoid excessive synchronization
-	workChIdx := p.nowFn().Unix() % p.numShards
+	workChIdx := p.nowFn().UnixNano() % p.numShards
 	workCh := p.workChs[workChIdx]
 	workCh <- work
 }
@@ -76,7 +76,7 @@ func (p *pooledWorkerPool) Go(work Work) {
 func (p *pooledWorkerPool) spawnWorker(workCh chan Work) {
 	go func() {
 		// RNG per worker to avoid synchronization.
-		rng := rand.New(rand.NewSource(p.nowFn().Unix()))
+		rng := rand.New(rand.NewSource(p.nowFn().UnixNano()))
 		for f := range workCh {
 			f()
 			if rng.Float64() < p.killWorkerProbability {
