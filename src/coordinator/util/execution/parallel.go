@@ -43,7 +43,7 @@ type Response struct {
 	Err   error
 }
 
-// ExecuteParallel executes a slice of requests in parallel and returns unordered results
+// ExecuteParallel executes a slice of requests in parallel
 func ExecuteParallel(ctx context.Context, requests []Request) error {
 	return processParallel(ctx, requests)
 }

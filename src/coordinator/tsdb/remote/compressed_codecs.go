@@ -98,7 +98,11 @@ func compressedTagsFromTagIteratorWithEncoder(tagIter ident.TagIterator, iterPoo
 	if iterPools == nil {
 		return nil, false
 	}
-	encoder := iterPools.TagEncoder().Get()
+	encoderPool := iterPools.TagEncoder()
+	if encoderPool == nil {
+		return nil, false
+	}
+	encoder := encoderPool.Get()
 	err := encoder.Encode(tagIter)
 	if err != nil {
 		return nil, false
@@ -163,8 +167,11 @@ func compressedSeriesFromSeriesIterator(it encoding.SeriesIterator, iterPools en
 	tagIter := it.Tags()
 	compressedTags, canCompress := compressedTagsFromTagIteratorWithEncoder(tagIter, iterPools)
 
-	var tags []*rpc.Tag
-	var err error
+	var (
+		tags []*rpc.Tag
+		err  error
+	)
+
 	if !canCompress {
 		tags, err = tagsFromTagIterator(tagIter)
 		if err != nil {
@@ -243,7 +250,7 @@ func tagIteratorFromCompressedTagsWithDecoder(
 	compressedTags []byte,
 	iterPools encoding.IteratorPools,
 ) (ident.TagIterator, error) {
-	if iterPools == nil {
+	if iterPools == nil || iterPools.CheckedBytesWrapper() == nil || iterPools.TagDecoder() == nil {
 		return nil, errors.ErrCannotDecodeCompressedTags
 	}
 	checkedBytes := iterPools.CheckedBytesWrapper().Get(compressedTags)
@@ -284,13 +291,11 @@ func tagIteratorFromTags(compressedTags []*rpc.Tag, idPool ident.Pool) ident.Tag
 }
 
 func tagIteratorFromSeries(series *rpc.Series, iteratorPools encoding.IteratorPools) (ident.TagIterator, error) {
-	var (
-		idPool ident.Pool
-	)
 	compressedValues := series.GetCompressed()
 	if len(compressedValues.GetCompressedTags()) > 0 {
 		return tagIteratorFromCompressedTagsWithDecoder(compressedValues.GetCompressedTags(), iteratorPools)
 	}
+	var idPool ident.Pool
 	if iteratorPools != nil {
 		idPool = iteratorPools.ID()
 	}
@@ -404,6 +409,7 @@ func DecodeCompressedFetchResult(
 		seriesIterators []encoding.SeriesIterator
 		numSeries       = len(rpcSeries)
 	)
+
 	if iteratorPools != nil {
 		seriesIteratorPool := iteratorPools.MutableSeriesIterators()
 		pooledIterators = seriesIteratorPool.Get(numSeries)
