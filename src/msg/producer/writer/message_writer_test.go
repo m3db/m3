@@ -36,7 +36,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func TestMessageWriter(t *testing.T) {
+func TestMessageWriterWithPooling(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -93,18 +93,31 @@ func TestMessageWriter(t *testing.T) {
 	md2.EXPECT().Bytes().Return([]byte("bar")).Times(1)
 
 	w.Write(msg.NewRefCountedMessage(md2, nil))
-	// Wait some time to make sure still no consumer receives it.
-	time.Sleep(100 * time.Millisecond)
-	require.False(t, isEmptyWithLock(w.acks))
+	for {
+		if !isEmptyWithLock(w.acks) {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	require.Equal(t, 1, w.queue.Len())
 
 	md2.EXPECT().Finalize(producer.Consumed)
 	w.Ack(metadata{shard: 200, id: 2})
 	require.True(t, isEmptyWithLock(w.acks))
+	for {
+		w.RLock()
+		l := w.queue.Len()
+		w.RUnlock()
+		if l == 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	w.Close()
 	w.Close()
 }
 
-func TestMessageWriterRetry(t *testing.T) {
+func TestMessageWriterWithoutPooling(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -113,7 +126,90 @@ func TestMessageWriterRetry(t *testing.T) {
 
 	addr := lis.Addr().String()
 	opts := testOptions()
-	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	wg.Add(1)
+	go func() {
+		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
+		wg.Done()
+	}()
+
+	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	require.Equal(t, 200, int(w.ReplicatedShardID()))
+	w.Init()
+
+	a := newAckRouter(1)
+	a.Register(200, w)
+
+	cw := newConsumerWriter(addr, a, opts, testConsumerWriterMetrics())
+	cw.Init()
+	defer cw.Close()
+
+	w.AddConsumerWriter(cw)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	md1 := producer.NewMockMessage(ctrl)
+	md1.EXPECT().Bytes().Return([]byte("foo")).Times(1)
+	md1.EXPECT().Finalize(producer.Consumed)
+
+	w.Write(msg.NewRefCountedMessage(md1, nil))
+
+	for {
+		w.RLock()
+		l := w.queue.Len()
+		w.RUnlock()
+		if l == 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	require.Equal(t, 0, w.queue.Len())
+	w.RemoveConsumerWriter(addr)
+
+	md2 := producer.NewMockMessage(ctrl)
+	md2.EXPECT().Bytes().Return([]byte("bar")).Times(1)
+
+	w.Write(msg.NewRefCountedMessage(md2, nil))
+	for {
+		if !isEmptyWithLock(w.acks) {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	require.Equal(t, 1, w.queue.Len())
+
+	md2.EXPECT().Finalize(producer.Consumed)
+	w.Ack(metadata{shard: 200, id: 2})
+	require.True(t, isEmptyWithLock(w.acks))
+	for {
+		w.RLock()
+		l := w.queue.Len()
+		w.RUnlock()
+		if l == 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	w.Close()
+	w.Close()
+}
+
+func TestMessageWriterRetryWithoutPooling(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer lis.Close()
+
+	addr := lis.Addr().String()
+	opts := testOptions()
+	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	w.Init()
+	defer w.Close()
 
 	a := newAckRouter(1)
 	a.Register(200, w)
@@ -128,28 +224,82 @@ func TestMessageWriterRetry(t *testing.T) {
 	rm := msg.NewRefCountedMessage(mm, nil)
 	w.Write(rm)
 
-	require.False(t, isEmptyWithLock(w.acks))
-
-	msg := w.acks.m[metadata{shard: 200, id: 1}]
-	require.Equal(t, 0, int(msg.WriteTimes()))
-	w.Init()
-	defer w.Close()
-
 	w.AddConsumerWriter(newConsumerWriter("bad", a, opts, testConsumerWriterMetrics()))
+	require.Equal(t, 1, w.queue.Len())
+
 	for {
-		w.RLock()
-		retried := msg.WriteTimes()
-		w.RUnlock()
-		if retried != 0 {
+		if !isEmptyWithLock(w.acks) {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	require.Equal(t, 1, w.queue.Len())
+
+	_, ok := w.acks.m[metadata{shard: 200, id: 1}]
+	require.True(t, ok)
 
 	cw := newConsumerWriter(addr, a, opts, testConsumerWriterMetrics())
 	cw.Init()
 	defer cw.Close()
+
+	w.AddConsumerWriter(cw)
+	go func() {
+		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
+	}()
+
+	for {
+		w.Lock()
+		l := w.queue.Len()
+		w.Unlock()
+		if l == 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func TestMessageWriterRetryWithPooling(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer lis.Close()
+
+	addr := lis.Addr().String()
+	opts := testOptions()
+	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	w.Init()
+	defer w.Close()
+
+	a := newAckRouter(1)
+	a.Register(200, w)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
+	mm.EXPECT().Finalize(producer.Consumed)
+
+	rm := msg.NewRefCountedMessage(mm, nil)
+	w.Write(rm)
+
+	w.AddConsumerWriter(newConsumerWriter("bad", a, opts, testConsumerWriterMetrics()))
+	require.Equal(t, 1, w.queue.Len())
+
+	for {
+		if !isEmptyWithLock(w.acks) {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	m1, ok := w.acks.m[metadata{shard: 200, id: 1}]
+	require.True(t, ok)
+
+	cw := newConsumerWriter(addr, a, opts, testConsumerWriterMetrics())
+	cw.Init()
+	defer cw.Close()
+
 	w.AddConsumerWriter(cw)
 	go func() {
 		testConsumeAndAckOnConnectionListener(t, lis, opts.EncodeDecoderOptions())
@@ -167,6 +317,7 @@ func TestMessageWriterRetry(t *testing.T) {
 
 	// A get will NOT allocate a new message because the old one has been returned to pool.
 	m := w.mPool.Get()
+	require.Equal(t, m1, m)
 	require.True(t, m.IsDroppedOrConsumed())
 }
 
@@ -215,7 +366,9 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
-	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics())
+	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
+	w.Init()
+	defer w.Close()
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -228,30 +381,30 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 	rm.IncRef()
 
 	w.Write(rm)
-	acks := w.(*messageWriterImpl).acks
-	var meta metadata
-	acks.Lock()
-	for m := range acks.m {
-		meta = m
-		break
+	for {
+		if !isEmptyWithLock(w.acks) {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
-	acks.Unlock()
+	acks := w.acks
+	meta := metadata{
+		id:    1,
+		shard: 200,
+	}
 	// The message will not be finalized because it's still being hold by another message writer.
 	acks.ack(meta)
-	require.True(t, isEmptyWithLock(w.(*messageWriterImpl).acks))
+	require.True(t, isEmptyWithLock(w.acks))
 
 	// A get will allocate a new message because the old one has not been returned to pool yet.
-	m := w.(*messageWriterImpl).mPool.Get()
+	m := w.mPool.Get()
 	require.Nil(t, m.RefCountedMessage)
-	require.Equal(t, 1, w.(*messageWriterImpl).queue.Len())
-
-	w.Init()
-	defer w.Close()
+	require.Equal(t, 1, w.queue.Len())
 
 	for {
-		w.(*messageWriterImpl).Lock()
-		l := w.(*messageWriterImpl).queue.Len()
-		w.(*messageWriterImpl).Unlock()
+		w.Lock()
+		l := w.queue.Len()
+		w.Unlock()
 		if l != 1 {
 			break
 		}
@@ -259,12 +412,12 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 	}
 
 	// A get will NOT allocate a new message because the old one has been returned to pool.
-	m = w.(*messageWriterImpl).mPool.Get()
-	require.True(t, m.IsDroppedOrAcked())
+	m = w.mPool.Get()
+	require.Equal(t, meta, m.Metadata())
 }
 
 func TestMessageWriterCutoverCutoff(t *testing.T) {
-	w := newMessageWriter(200, nil, nil, testMessageWriterMetrics()).(*messageWriterImpl)
+	w := newMessageWriter(200, testMessagePool(testOptions()), nil, testMessageWriterMetrics()).(*messageWriterImpl)
 
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }
@@ -366,7 +519,7 @@ func TestMessageWriterCloseImmediately(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
-	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics())
+	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics())
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

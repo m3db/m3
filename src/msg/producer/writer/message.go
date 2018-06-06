@@ -33,47 +33,53 @@ type message struct {
 
 	pb           msgpb.Message
 	meta         metadata
-	retryAtNanos *atomic.Int64
-	retried      *atomic.Int64
-	isAcked      *atomic.Bool
+	retryAtNanos int64
+	retried      int
+	// NB(cw) isAcked could be accessed concurrently by the background thread
+	// in message writer and acked by consumer service writers.
+	isAcked *atomic.Bool
 }
 
 func newMessage() *message {
 	return &message{
-		retryAtNanos: atomic.NewInt64(0),
-		retried:      atomic.NewInt64(0),
+		retryAtNanos: 0,
+		retried:      0,
 		isAcked:      atomic.NewBool(false),
 	}
 }
 
-// Reset resets the message.
-func (m *message) Reset(meta metadata, rm producer.RefCountedMessage) {
+// Set sets the message.
+func (m *message) Set(meta metadata, rm producer.RefCountedMessage) {
 	m.meta = meta
 	m.RefCountedMessage = rm
 	m.ToProto(&m.pb)
-	m.retryAtNanos.Store(0)
-	m.retried.Store(0)
+}
+
+// Close resets the states of the message.
+func (m *message) Close() {
+	m.retryAtNanos = 0
+	m.retried = 0
 	m.isAcked.Store(false)
 }
 
 // RetryAtNanos returns the timestamp for next retry in nano seconds.
 func (m *message) RetryAtNanos() int64 {
-	return m.retryAtNanos.Load()
+	return m.retryAtNanos
 }
 
 // SetRetryAtNanos sets the next retry nanos.
 func (m *message) SetRetryAtNanos(value int64) {
-	m.retryAtNanos.Store(value)
+	m.retryAtNanos = value
 }
 
 // WriteTimes returns the times the message has been written.
-func (m *message) WriteTimes() int64 {
-	return m.retried.Load()
+func (m *message) WriteTimes() int {
+	return m.retried
 }
 
 // IncWriteTimes increments the times the message has been written.
 func (m *message) IncWriteTimes() {
-	m.retried.Inc()
+	m.retried++
 }
 
 // IsDroppedOrAcked returns true if the message has been dropped or acked.

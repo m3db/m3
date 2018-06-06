@@ -120,7 +120,6 @@ type consumerServiceWriterImpl struct {
 func newConsumerServiceWriter(
 	cs topic.ConsumerService,
 	numShards uint32,
-	mPool messagePool,
 	opts Options,
 ) (consumerServiceWriter, error) {
 	ps, err := opts.ServiceDiscovery().PlacementService(cs.ServiceID(), nil)
@@ -135,7 +134,7 @@ func newConsumerServiceWriter(
 	w := &consumerServiceWriterImpl{
 		cs:              cs,
 		ps:              ps,
-		shardWriters:    initShardWriters(router, ct, numShards, mPool, opts),
+		shardWriters:    initShardWriters(router, ct, numShards, opts),
 		opts:            opts,
 		logger:          opts.InstrumentOptions().Logger(),
 		dataFilter:      acceptAllFilter,
@@ -154,11 +153,17 @@ func initShardWriters(
 	router ackRouter,
 	ct topic.ConsumptionType,
 	numberOfShards uint32,
-	mPool messagePool,
 	opts Options,
 ) []shardWriter {
-	sws := make([]shardWriter, numberOfShards)
-	m := newMessageWriterMetrics(opts.InstrumentOptions().MetricsScope())
+	var (
+		sws   = make([]shardWriter, numberOfShards)
+		m     = newMessageWriterMetrics(opts.InstrumentOptions().MetricsScope())
+		mPool messagePool
+	)
+	if opts.MessagePoolOptions() != nil {
+		mPool = newMessagePool(opts.MessagePoolOptions())
+		mPool.Init()
+	}
 	for i := range sws {
 		switch ct {
 		case topic.Shared:
