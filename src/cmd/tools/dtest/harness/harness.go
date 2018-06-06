@@ -5,8 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	// _ is used for pprof
-	_ "net/http/pprof"
+	_ "net/http/pprof" // _ is used for pprof
 	"os"
 	"path"
 	"strconv"

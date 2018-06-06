@@ -29,15 +29,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/etcd/embed"
-	"github.com/coreos/etcd/pkg/transport"
-	"github.com/coreos/etcd/pkg/types"
 	coordinatorcfg "github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/environment"
 	"github.com/m3db/m3x/config/hostid"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
+
+	"github.com/coreos/etcd/embed"
+	"github.com/coreos/etcd/pkg/transport"
+	"github.com/coreos/etcd/pkg/types"
 )
 
 const (
