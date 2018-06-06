@@ -21,8 +21,6 @@
 package placement
 
 import (
-	"encoding/json"
-	"io/ioutil"
 	"net/http"
 
 	clusterclient "github.com/m3db/m3cluster/client"
@@ -32,22 +30,27 @@ import (
 	"github.com/m3db/m3db/src/coordinator/generated/proto/admin"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"go.uber.org/zap"
 )
 
 const (
 	// AddURL is the url for the placement add handler (with the POST method).
 	AddURL = handler.RoutePrefixV1 + "/placement"
+
+	// AddHTTPMethod is the HTTP method used with this resource.
+	AddHTTPMethod = http.MethodPost
 )
 
-type addHandler Handler
+// AddHandler is the handler for placement adds.
+type AddHandler Handler
 
-// NewAddHandler returns a new instance of a placement add handler.
-func NewAddHandler(client clusterclient.Client, cfg config.Configuration) http.Handler {
-	return &addHandler{client: client, cfg: cfg}
+// NewAddHandler returns a new instance of AddHandler.
+func NewAddHandler(client clusterclient.Client, cfg config.Configuration) *AddHandler {
+	return &AddHandler{client: client, cfg: cfg}
 }
 
-func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
@@ -57,7 +60,7 @@ func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	placement, err := h.add(req)
+	placement, err := h.Add(req)
 	if err != nil {
 		logger.Error("unable to add placement", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
@@ -78,23 +81,17 @@ func (h *addHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handler.WriteProtoMsgJSONResponse(w, resp, logger)
 }
 
-func (h *addHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, *handler.ParseError) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return nil, handler.NewParseError(err, http.StatusBadRequest)
-	}
-
-	defer r.Body.Close()
-
+func (h *AddHandler) parseRequest(r *http.Request) (*admin.PlacementAddRequest, *handler.ParseError) {
 	addReq := new(admin.PlacementAddRequest)
-	if err := json.Unmarshal(body, addReq); err != nil {
+	if err := jsonpb.Unmarshal(r.Body, addReq); err != nil {
 		return nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
 	return addReq, nil
 }
 
-func (h *addHandler) add(r *admin.PlacementAddRequest) (placement.Placement, error) {
+// Add adds a placement.
+func (h *AddHandler) Add(r *admin.PlacementAddRequest) (placement.Placement, error) {
 	instances, err := ConvertInstancesProto(r.Instances)
 	if err != nil {
 		return nil, err

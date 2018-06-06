@@ -41,6 +41,9 @@ import (
 const (
 	// PromReadURL is the url for remote prom read handler
 	PromReadURL = handler.RoutePrefixV1 + "/prom/remote/read"
+
+	// PromReadHTTPMethod is the HTTP method used with this resource.
+	PromReadHTTPMethod = http.MethodPost
 )
 
 // PromReadHandler represents a handler for prometheus read endpoint.

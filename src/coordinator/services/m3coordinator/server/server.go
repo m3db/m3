@@ -33,6 +33,7 @@ import (
 	clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/coordinator/api/v1/httpd"
 	m3dbcluster "github.com/m3db/m3db/src/coordinator/cluster/m3db"
 	"github.com/m3db/m3db/src/coordinator/executor"
@@ -62,6 +63,9 @@ type RunOptions struct {
 	// Config is an alternate way to provide configuration and will be used
 	// instead of parsing ConfigFile if ConfigFile is not specified.
 	Config config.Configuration
+
+	// DBConfig is the M3DB config, which is used to
+	DBConfig dbconfig.DBConfiguration
 
 	// DBClient is the M3DB client to use instead of instantiating a new one
 	// from client config.
@@ -147,7 +151,7 @@ func Run(runOpts RunOptions) {
 	}, nil)
 
 	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage),
-		clusterClient, cfg, scope)
+		clusterClient, cfg, runOpts.DBConfig, scope)
 	if err != nil {
 		logger.Fatal("unable to set up handlers", zap.Any("error", err))
 	}

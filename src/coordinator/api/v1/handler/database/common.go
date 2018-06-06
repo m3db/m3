@@ -18,64 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package namespace
+package database
 
 import (
-	"fmt"
-
 	clusterclient "github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3db/src/cmd/services/m3coordinator/config"
+	dbconfig "github.com/m3db/m3db/src/cmd/services/m3dbnode/config"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
-	nsproto "github.com/m3db/m3db/src/dbnode/generated/proto/namespace"
-	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 
 	"github.com/gorilla/mux"
-)
-
-const (
-	// M3DBNodeNamespacesKey is the KV key that holds namespaces
-	M3DBNodeNamespacesKey = "m3db.node.namespaces"
 )
 
 // Handler represents a generic handler for namespace endpoints.
 type Handler struct {
 	// This is used by other namespace Handlers
-	// nolint: structcheck
+	// nolint: structcheck, megacheck
 	client clusterclient.Client
 }
 
-// Metadata returns the current metadata in the given store and its version
-func Metadata(store kv.Store) ([]namespace.Metadata, int, error) {
-	value, err := store.Get(M3DBNodeNamespacesKey)
-	if err != nil {
-		// From the perspective of namespace handlers, having had no metadata
-		// set at all is semantically the same as having an empty slice of
-		// metadata and is not a real error state.
-		if err == kv.ErrNotFound {
-			return []namespace.Metadata{}, 0, nil
-		}
-
-		return nil, -1, err
-	}
-
-	var protoRegistry nsproto.Registry
-	if err := value.Unmarshal(&protoRegistry); err != nil {
-		return nil, -1, fmt.Errorf("unable to parse value, err: %v", err)
-	}
-
-	nsMap, err := namespace.FromProto(protoRegistry)
-	if err != nil {
-		return nil, -1, err
-	}
-
-	return nsMap.Metadatas(), value.Version(), nil
-}
-
 // RegisterRoutes registers the namespace routes
-func RegisterRoutes(r *mux.Router, client clusterclient.Client) {
+func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Configuration, dbCfg dbconfig.DBConfiguration) {
 	logged := logging.WithResponseTimeLogging
 
-	r.HandleFunc(GetURL, logged(NewGetHandler(client)).ServeHTTP).Methods(GetHTTPMethod)
-	r.HandleFunc(AddURL, logged(NewAddHandler(client)).ServeHTTP).Methods(AddHTTPMethod)
-	r.HandleFunc(DeleteURL, logged(NewDeleteHandler(client)).ServeHTTP).Methods(DeleteHTTPMethod)
+	r.HandleFunc(CreateURL, logged(NewCreateHandler(client, cfg, dbCfg)).ServeHTTP).Methods(CreateHTTPMethod)
 }

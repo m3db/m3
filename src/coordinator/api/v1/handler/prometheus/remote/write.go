@@ -39,6 +39,9 @@ import (
 const (
 	// PromWriteURL is the url for the prom write handler
 	PromWriteURL = handler.RoutePrefixV1 + "/prom/remote/write"
+
+	// PromWriteHTTPMethod is the HTTP method used with this resource.
+	PromWriteHTTPMethod = http.MethodPost
 )
 
 // PromWriteHandler represents a handler for prometheus write endpoint.

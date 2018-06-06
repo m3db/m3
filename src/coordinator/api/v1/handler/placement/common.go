@@ -114,9 +114,9 @@ func ConvertInstancesProto(instancesProto []*placementpb.Instance) ([]placement.
 func RegisterRoutes(r *mux.Router, client clusterclient.Client, cfg config.Configuration) {
 	logged := logging.WithResponseTimeLogging
 
-	r.HandleFunc(InitURL, logged(NewInitHandler(client, cfg)).ServeHTTP).Methods("POST")
-	r.HandleFunc(GetURL, logged(NewGetHandler(client, cfg)).ServeHTTP).Methods("GET")
-	r.HandleFunc(DeleteAllURL, logged(NewDeleteAllHandler(client, cfg)).ServeHTTP).Methods("DELETE")
-	r.HandleFunc(AddURL, logged(NewAddHandler(client, cfg)).ServeHTTP).Methods("POST")
-	r.HandleFunc(DeleteURL, logged(NewDeleteHandler(client, cfg)).ServeHTTP).Methods("DELETE")
+	r.HandleFunc(InitURL, logged(NewInitHandler(client, cfg)).ServeHTTP).Methods(InitHTTPMethod)
+	r.HandleFunc(GetURL, logged(NewGetHandler(client, cfg)).ServeHTTP).Methods(GetHTTPMethod)
+	r.HandleFunc(DeleteAllURL, logged(NewDeleteAllHandler(client, cfg)).ServeHTTP).Methods(DeleteAllHTTPMethod)
+	r.HandleFunc(AddURL, logged(NewAddHandler(client, cfg)).ServeHTTP).Methods(AddHTTPMethod)
+	r.HandleFunc(DeleteURL, logged(NewDeleteHandler(client, cfg)).ServeHTTP).Methods(DeleteHTTPMethod)
 }
