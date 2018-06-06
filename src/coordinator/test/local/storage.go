@@ -11,6 +11,6 @@ import (
 // NewStorageAndSession generates a new local storage and mock session
 func NewStorageAndSession(ctrl *gomock.Controller) (storage.Storage, *client.MockSession) {
 	session := client.NewMockSession(ctrl)
-	storage := local.NewStorage(session, "metrics")
+	storage := local.NewStorage(session, "metrics", nil)
 	return storage, session
 }

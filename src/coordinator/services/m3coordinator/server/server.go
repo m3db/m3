@@ -46,6 +46,8 @@ import (
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	"github.com/m3db/m3db/src/dbnode/client"
 	xconfig "github.com/m3db/m3x/config"
+	"github.com/m3db/m3x/pool"
+	xsync "github.com/m3db/m3x/sync"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -176,7 +178,16 @@ func setupStorages(logger *zap.Logger, session client.Session, cfg config.Config
 	if cfg.DBNamespace != "" {
 		namespace = cfg.DBNamespace
 	}
-	localStorage := local.NewStorage(session, namespace)
+
+	// TODO(arnikola) build options from config
+	objectPool := pool.NewObjectPool(pool.NewObjectPoolOptions())
+	objectPool.Init(func() interface{} {
+		workerPool := xsync.NewWorkerPool(10)
+		workerPool.Init()
+		return workerPool
+	})
+
+	localStorage := local.NewStorage(session, namespace, objectPool)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {

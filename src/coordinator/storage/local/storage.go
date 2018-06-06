@@ -71,7 +71,7 @@ func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, opt
 		return nil, err
 	}
 
-	return storage.SeriesIteratorsToFetchResult(ctx, iters, s.namespace, s.workerPool)
+	return storage.SeriesIteratorsToFetchResult(iters, s.namespace, s.workerPool)
 }
 
 func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
