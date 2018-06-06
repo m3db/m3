@@ -202,6 +202,7 @@ setup-conf:
 install-conf:
 	echo "Fetching and installing go-jsonnet"
 	go get $(jsonnet_go_package)
+	go get github.com/fatih/color
 	cd $(jsonnet_go_package_path) && go build
 	echo "Downloading JSON conversion package"
 	go get github.com/brancz/gojsontoyaml
@@ -212,7 +213,7 @@ define CONFIG_RULES
 $(CONFIG)-config: setup-conf install-conf
 	@echo Generating config for $(CONFIG)
 	touch out/$(CONFIG)-config.yaml
-	cd genconfig && printf "`$(jsonnet_go_bin) templates/$(CONFIG)-config.jsonnet --ext-str cluster=$(CLUSTER)`" | gojsontoyaml > ../out/$(CONFIG)-config.yaml 
+	cd genconfig && printf "`$(jsonnet_go_bin) templates/$(CONFIG)-config.jsonnet --ext-str cluster=$(CLUSTER)`" | gojsontoyaml > ../out/$(CONFIG)-$(CLUSTER)-config.yaml 
 
 endef
 
