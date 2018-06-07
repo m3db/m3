@@ -73,7 +73,7 @@ func TestValidatorInvalidNamespace(t *testing.T) {
 	v := NewValidator(opts)
 	defer v.Close()
 
-	rs, err := rules.NewRuleSetFromSchema(1, &rulepb.RuleSet{Namespace: "baz"}, rules.NewOptions())
+	rs, err := rules.NewRuleSetFromProto(1, &rulepb.RuleSet{Namespace: "baz"}, rules.NewOptions())
 	require.NoError(t, err)
 	require.Error(t, v.Validate(rs))
 }
@@ -86,7 +86,7 @@ func TestValidatorValidNamespace(t *testing.T) {
 	v := NewValidator(opts)
 	defer v.Close()
 
-	rs, err := rules.NewRuleSetFromSchema(1, &rulepb.RuleSet{Namespace: "foo"}, rules.NewOptions())
+	rs, err := rules.NewRuleSetFromProto(1, &rulepb.RuleSet{Namespace: "foo"}, rules.NewOptions())
 	require.NoError(t, err)
 	require.NoError(t, v.Validate(rs))
 }
@@ -1031,14 +1031,14 @@ func testConflictingTargetsRollupRulesConfig() []*rulepb.RollupRule {
 
 func testRuleSetWithMappingRules(t *testing.T, mrs []*rulepb.MappingRule) rules.RuleSet {
 	rs := &rulepb.RuleSet{MappingRules: mrs}
-	newRuleSet, err := rules.NewRuleSetFromSchema(1, rs, rules.NewOptions())
+	newRuleSet, err := rules.NewRuleSetFromProto(1, rs, rules.NewOptions())
 	require.NoError(t, err)
 	return newRuleSet
 }
 
 func testRuleSetWithRollupRules(t *testing.T, rrs []*rulepb.RollupRule) rules.RuleSet {
 	rs := &rulepb.RuleSet{RollupRules: rrs}
-	newRuleSet, err := rules.NewRuleSetFromSchema(1, rs, rules.NewOptions())
+	newRuleSet, err := rules.NewRuleSetFromProto(1, rs, rules.NewOptions())
 	require.NoError(t, err)
 	return newRuleSet
 }

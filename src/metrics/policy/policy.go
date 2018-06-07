@@ -37,7 +37,7 @@ var (
 	// DefaultPolicy represents a default policy.
 	DefaultPolicy Policy
 
-	errNilPolicySchema     = errors.New("nil policy schema")
+	errNilPolicyProto      = errors.New("nil policy proto")
 	errInvalidPolicyString = errors.New("invalid policy string")
 )
 
@@ -52,10 +52,10 @@ func NewPolicy(sp StoragePolicy, aggID aggregation.ID) Policy {
 	return Policy{StoragePolicy: sp, AggregationID: aggID}
 }
 
-// NewPolicyFromSchema creates a new policy from a schema policy.
-func NewPolicyFromSchema(p *policypb.Policy) (Policy, error) {
+// NewPolicyFromProto creates a new policy from a proto policy.
+func NewPolicyFromProto(p *policypb.Policy) (Policy, error) {
 	if p == nil {
-		return DefaultPolicy, errNilPolicySchema
+		return DefaultPolicy, errNilPolicyProto
 	}
 
 	policy, err := NewStoragePolicyFromProto(p.StoragePolicy)
@@ -63,7 +63,7 @@ func NewPolicyFromSchema(p *policypb.Policy) (Policy, error) {
 		return DefaultPolicy, err
 	}
 
-	aggID, err := aggregation.NewIDFromSchema(p.AggregationTypes)
+	aggID, err := aggregation.NewIDFromProto(p.AggregationTypes)
 	if err != nil {
 		return DefaultPolicy, err
 	}
@@ -72,8 +72,8 @@ func NewPolicyFromSchema(p *policypb.Policy) (Policy, error) {
 
 }
 
-// Schema returns the schema of the policy.
-func (p Policy) Schema() (*policypb.Policy, error) {
+// Proto returns the proto of the policy.
+func (p Policy) Proto() (*policypb.Policy, error) {
 	var storagePolicyProto policypb.StoragePolicy
 	err := p.StoragePolicy.ToProto(&storagePolicyProto)
 	if err != nil {
@@ -85,14 +85,14 @@ func (p Policy) Schema() (*policypb.Policy, error) {
 		return nil, err
 	}
 
-	schemaAggTypes, err := aggTypes.Schema()
+	protoAggTypes, err := aggTypes.Proto()
 	if err != nil {
 		return nil, err
 	}
 
 	return &policypb.Policy{
 		StoragePolicy:    &storagePolicyProto,
-		AggregationTypes: schemaAggTypes,
+		AggregationTypes: protoAggTypes,
 	}, nil
 }
 
@@ -169,11 +169,11 @@ func ParsePolicy(str string) (Policy, error) {
 	return NewPolicy(sp, aggID), nil
 }
 
-// NewPoliciesFromSchema creates multiple new policies from given schema policies.
-func NewPoliciesFromSchema(policies []*policypb.Policy) ([]Policy, error) {
+// NewPoliciesFromProto creates multiple new policies from given proto policies.
+func NewPoliciesFromProto(policies []*policypb.Policy) ([]Policy, error) {
 	res := make([]Policy, 0, len(policies))
 	for _, p := range policies {
-		policy, err := NewPolicyFromSchema(p)
+		policy, err := NewPolicyFromProto(p)
 		if err != nil {
 			return nil, err
 		}

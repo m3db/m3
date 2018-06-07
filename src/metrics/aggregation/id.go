@@ -44,9 +44,9 @@ var (
 // ID represents a compressed view of Types.
 type ID [IDLen]uint64
 
-// NewIDFromSchema creates an ID from schema.
-func NewIDFromSchema(input []aggregationpb.AggregationType) (ID, error) {
-	aggTypes, err := NewTypesFromSchema(input)
+// NewIDFromProto creates an ID from proto.
+func NewIDFromProto(input []aggregationpb.AggregationType) (ID, error) {
+	aggTypes, err := NewTypesFromProto(input)
 	if err != nil {
 		return DefaultID, err
 	}

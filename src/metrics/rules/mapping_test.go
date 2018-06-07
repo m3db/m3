@@ -37,7 +37,7 @@ import (
 )
 
 var (
-	testMappingRuleSchema = &rulepb.MappingRule{
+	testMappingRuleProto = &rulepb.MappingRule{
 		Uuid: "12669817-13ae-40e6-ba2f-33087b262c68",
 		Snapshots: []*rulepb.MappingRuleSnapshot{
 			&rulepb.MappingRuleSnapshot{
@@ -100,8 +100,8 @@ var (
 	}
 )
 
-func TestNewMappingRuleSnapshotFromSchema(t *testing.T) {
-	res, err := newMappingRuleSnapshot(testMappingRuleSchema.Snapshots[0], testTagsFilterOptions())
+func TestNewMappingRuleSnapshotFromProto(t *testing.T) {
+	res, err := newMappingRuleSnapshot(testMappingRuleProto.Snapshots[0], testTagsFilterOptions())
 	expectedPolicies := []policy.Policy{
 		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.MustCompressTypes(aggregation.P999)),
 	}
@@ -116,12 +116,12 @@ func TestNewMappingRuleSnapshotFromSchema(t *testing.T) {
 	require.Equal(t, "someone", res.lastUpdatedBy)
 }
 
-func TestNewMappingRuleSnapshotNilSchema(t *testing.T) {
+func TestNewMappingRuleSnapshotNilProto(t *testing.T) {
 	_, err := newMappingRuleSnapshot(nil, testTagsFilterOptions())
-	require.Equal(t, err, errNilMappingRuleSnapshotSchema)
+	require.Equal(t, err, errNilMappingRuleSnapshotProto)
 }
 
-func TestNewMappingRuleSnapshotFromSchemaError(t *testing.T) {
+func TestNewMappingRuleSnapshotFromProtoError(t *testing.T) {
 	badFilters := []string{
 		"tag3:",
 		"tag3:*a*b*c*d",
@@ -129,7 +129,7 @@ func TestNewMappingRuleSnapshotFromSchemaError(t *testing.T) {
 	}
 
 	for _, f := range badFilters {
-		cloned := *testMappingRuleSchema.Snapshots[0]
+		cloned := *testMappingRuleProto.Snapshots[0]
 		cloned.Filter = f
 		_, err := newMappingRuleSnapshot(&cloned, testTagsFilterOptions())
 		require.Error(t, err)
@@ -191,13 +191,13 @@ func TestNewMappingRuleSnapshotFromFieldsValidationError(t *testing.T) {
 	}
 }
 
-func TestNewMappingRuleNilSchema(t *testing.T) {
+func TestNewMappingRuleNilProto(t *testing.T) {
 	_, err := newMappingRule(nil, testTagsFilterOptions())
-	require.Equal(t, err, errNilMappingRuleSchema)
+	require.Equal(t, err, errNilMappingRuleProto)
 }
 
 func TestNewMappingRule(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	mr, err := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, "12669817-13ae-40e6-ba2f-33087b262c68", mr.uuid)
 	expectedSnapshots := []struct {
@@ -233,31 +233,31 @@ func TestNewMappingRule(t *testing.T) {
 }
 
 func TestMappingRuleActiveSnapshotNotFound(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	mr, err := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Nil(t, mr.ActiveSnapshot(0))
 }
 
 func TestMappingRuleActiveSnapshotFoundSecond(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	mr, err := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, mr.snapshots[1], mr.ActiveSnapshot(100000))
 }
 
 func TestMappingRuleActiveSnapshotFoundFirst(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	mr, err := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, mr.snapshots[0], mr.ActiveSnapshot(20000))
 }
 
 func TestMappingRuleActiveRuleNotFound(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	mr, err := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, mr, mr.ActiveRule(0))
 }
 
 func TestMappingRuleActiveRuleFoundSecond(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	mr, err := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	expected := &mappingRule{
 		uuid:      mr.uuid,
@@ -267,26 +267,26 @@ func TestMappingRuleActiveRuleFoundSecond(t *testing.T) {
 }
 
 func TestMappingRuleActiveRuleFoundFirst(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	mr, err := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, mr, mr.ActiveRule(20000))
 }
 
-func TestMappingRuleSnapshotSchema(t *testing.T) {
-	expectedSchema := testMappingRuleSchema.Snapshots[0]
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+func TestMappingRuleSnapshotProto(t *testing.T) {
+	expectedProto := testMappingRuleProto.Snapshots[0]
+	mr, err := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
-	schema, err := mr.snapshots[0].Schema()
+	proto, err := mr.snapshots[0].Proto()
 	require.NoError(t, err)
-	require.EqualValues(t, expectedSchema, schema)
+	require.EqualValues(t, expectedProto, proto)
 }
 
-func TestMappingRuleSchema(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+func TestMappingRuleProto(t *testing.T) {
+	mr, err := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
-	schema, err := mr.Schema()
+	proto, err := mr.Proto()
 	require.NoError(t, err)
-	require.Equal(t, testMappingRuleSchema, schema)
+	require.Equal(t, testMappingRuleProto, proto)
 }
 
 func TestNewMappingRuleFromFields(t *testing.T) {
@@ -337,16 +337,16 @@ func TestMappingTombstonedNoSnapshot(t *testing.T) {
 }
 
 func TestMappingTombstoned(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	mr, err := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.True(t, mr.Tombstoned())
 }
 
 func TestMappingRuleMarkTombstoned(t *testing.T) {
-	schema := &rulepb.MappingRule{
-		Snapshots: []*rulepb.MappingRuleSnapshot{testMappingRuleSchema.Snapshots[0]},
+	proto := &rulepb.MappingRule{
+		Snapshots: []*rulepb.MappingRuleSnapshot{testMappingRuleProto.Snapshots[0]},
 	}
-	mr, err := newMappingRule(schema, testTagsFilterOptions())
+	mr, err := newMappingRule(proto, testTagsFilterOptions())
 	require.NoError(t, err)
 
 	expectedPolicies := []policy.Policy{
@@ -383,20 +383,20 @@ func TestMappingRuleMarkTombstoned(t *testing.T) {
 }
 
 func TestMappingRuleMarkTombstonedNoSnapshots(t *testing.T) {
-	schema := &rulepb.MappingRule{}
-	mr, err := newMappingRule(schema, testTagsFilterOptions())
+	proto := &rulepb.MappingRule{}
+	mr, err := newMappingRule(proto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Error(t, mr.markTombstoned(UpdateMetadata{}))
 }
 
 func TestMappingRuleMarkTombstonedAlreadyTombstoned(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	mr, err := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Error(t, mr.markTombstoned(UpdateMetadata{}))
 }
 
 func TestMappingRuleClone(t *testing.T) {
-	mr, _ := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	mr, _ := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	clone := mr.clone()
 
 	require.Equal(t, *mr, clone)
@@ -410,7 +410,7 @@ func TestMappingRuleClone(t *testing.T) {
 }
 
 func TestMappingRuleSnapshotClone(t *testing.T) {
-	mr, _ := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	mr, _ := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	s1 := mr.snapshots[0]
 	s1Clone := s1.clone()
 
@@ -425,7 +425,7 @@ func TestMappingRuleSnapshotClone(t *testing.T) {
 }
 
 func TestMappingRuleHistory(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	mr, err := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 
 	hist, err := mr.history()
@@ -462,7 +462,7 @@ func TestMappingRuleHistory(t *testing.T) {
 }
 
 func TestNewMappingRuleViewError(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	mr, err := newMappingRule(testMappingRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 
 	actual, err := mr.mappingRuleView(20)

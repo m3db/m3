@@ -810,7 +810,7 @@ func TestRuleSetProperties(t *testing.T) {
 		Tombstoned:         false,
 		CutoverNanos:       34923,
 	}
-	newRuleSet, err := NewRuleSetFromSchema(version, rs, opts)
+	newRuleSet, err := NewRuleSetFromProto(version, rs, opts)
 	require.NoError(t, err)
 	ruleSet := newRuleSet.(*ruleSet)
 
@@ -821,7 +821,7 @@ func TestRuleSetProperties(t *testing.T) {
 	require.Equal(t, false, ruleSet.Tombstoned())
 }
 
-func TestRuleSetSchema(t *testing.T) {
+func TestRuleSetProto(t *testing.T) {
 	version := 1
 
 	expectedRs := &rulepb.RuleSet{
@@ -836,9 +836,9 @@ func TestRuleSetSchema(t *testing.T) {
 		RollupRules:        testRollupRulesConfig(),
 	}
 
-	rs, err := newMutableRuleSetFromSchema(version, expectedRs)
+	rs, err := newMutableRuleSetFromProto(version, expectedRs)
 	require.NoError(t, err)
-	res, err := rs.Schema()
+	res, err := rs.Proto()
 	require.NoError(t, err)
 	require.Equal(t, expectedRs, res)
 }
@@ -850,7 +850,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 		MappingRules: testMappingRulesConfig(),
 		RollupRules:  testRollupRulesConfig(),
 	}
-	newRuleSet, err := NewRuleSetFromSchema(version, rs, opts)
+	newRuleSet, err := NewRuleSetFromProto(version, rs, opts)
 	require.NoError(t, err)
 
 	allInputs := []struct {
@@ -1218,13 +1218,13 @@ func TestRuleSetActiveSet(t *testing.T) {
 }
 
 func TestRuleSetLatest(t *testing.T) {
-	schema := &rulepb.RuleSet{
+	proto := &rulepb.RuleSet{
 		Namespace:    "testNamespace",
 		CutoverNanos: 998234,
 		MappingRules: testMappingRulesConfig(),
 		RollupRules:  testRollupRulesConfig(),
 	}
-	rs, err := NewRuleSetFromSchema(123, schema, testRuleSetOptions())
+	rs, err := NewRuleSetFromProto(123, proto, testRuleSetOptions())
 	require.NoError(t, err)
 	latest, err := rs.Latest()
 	require.NoError(t, err)
@@ -2566,16 +2566,16 @@ func initMutableTest() (MutableRuleSet, *ruleSet, RuleSetUpdateHelper, error) {
 		RollupRules:        testRollupRulesConfig(),
 	}
 
-	mutable, err := newMutableRuleSetFromSchema(version, expectedRs)
+	mutable, err := newMutableRuleSetFromProto(version, expectedRs)
 	rs := mutable.(*ruleSet)
 	return mutable, rs, NewRuleSetUpdateHelper(10), err
 }
 
 // nolint: unparam
-// newMutableRuleSetFromSchema creates a new MutableRuleSet from a schema object.
-func newMutableRuleSetFromSchema(version int, rs *rulepb.RuleSet) (MutableRuleSet, error) {
+// newMutableRuleSetFromProto creates a new MutableRuleSet from a proto object.
+func newMutableRuleSetFromProto(version int, rs *rulepb.RuleSet) (MutableRuleSet, error) {
 	// Takes a blank Options stuct because none of the mutation functions need the options.
-	roRuleSet, err := NewRuleSetFromSchema(version, rs, NewOptions())
+	roRuleSet, err := NewRuleSetFromProto(version, rs, NewOptions())
 	if err != nil {
 		return nil, err
 	}

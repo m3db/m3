@@ -40,9 +40,9 @@ var (
 	emptyRollupTarget rollupTarget
 
 	errRollupRuleSnapshotIndexOutOfRange = errors.New("rollup rule snapshot index out of range")
-	errNilRollupTargetSchema             = errors.New("nil rollup target schema")
-	errNilRollupRuleSnapshotSchema       = errors.New("nil rollup rule snapshot schema")
-	errNilRollupRuleSchema               = errors.New("nil rollup rule schema")
+	errNilRollupTargetProto              = errors.New("nil rollup target proto")
+	errNilRollupRuleSnapshotProto        = errors.New("nil rollup rule snapshot proto")
+	errNilRollupRuleProto                = errors.New("nil rollup rule proto")
 )
 
 // RollupTarget dictates how to roll up metrics. Metrics associated with a rollup
@@ -56,9 +56,9 @@ type rollupTarget struct {
 
 func newRollupTarget(target *rulepb.RollupTarget) (rollupTarget, error) {
 	if target == nil {
-		return emptyRollupTarget, errNilRollupTargetSchema
+		return emptyRollupTarget, errNilRollupTargetProto
 	}
-	policies, err := policy.NewPoliciesFromSchema(target.Policies)
+	policies, err := policy.NewPoliciesFromProto(target.Policies)
 	if err != nil {
 		return emptyRollupTarget, err
 	}
@@ -130,15 +130,15 @@ func (t *rollupTarget) clone() rollupTarget {
 	}
 }
 
-// Schema returns the schema representation of a rollup target.
-func (t *rollupTarget) Schema() (*rulepb.RollupTarget, error) {
+// Proto returns the proto representation of a rollup target.
+func (t *rollupTarget) Proto() (*rulepb.RollupTarget, error) {
 	res := &rulepb.RollupTarget{
 		Name: string(t.Name),
 	}
 
 	policies := make([]*policypb.Policy, len(t.Policies))
 	for i, p := range t.Policies {
-		policy, err := p.Schema()
+		policy, err := p.Proto()
 		if err != nil {
 			return nil, err
 		}
@@ -168,7 +168,7 @@ func newRollupRuleSnapshot(
 	opts filters.TagsFilterOptions,
 ) (*rollupRuleSnapshot, error) {
 	if r == nil {
-		return nil, errNilRollupRuleSnapshotSchema
+		return nil, errNilRollupRuleSnapshotProto
 	}
 	targets := make([]rollupTarget, 0, len(r.Targets))
 	for _, t := range r.Targets {
@@ -268,8 +268,8 @@ func (rrs *rollupRuleSnapshot) clone() rollupRuleSnapshot {
 	}
 }
 
-// Schema returns the given MappingRuleSnapshot in protobuf form.
-func (rrs *rollupRuleSnapshot) Schema() (*rulepb.RollupRuleSnapshot, error) {
+// Proto returns the given MappingRuleSnapshot in protobuf form.
+func (rrs *rollupRuleSnapshot) Proto() (*rulepb.RollupRuleSnapshot, error) {
 	res := &rulepb.RollupRuleSnapshot{
 		Name:               rrs.name,
 		Tombstoned:         rrs.tombstoned,
@@ -281,7 +281,7 @@ func (rrs *rollupRuleSnapshot) Schema() (*rulepb.RollupRuleSnapshot, error) {
 
 	targets := make([]*rulepb.RollupTarget, len(rrs.targets))
 	for i, t := range rrs.targets {
-		target, err := t.Schema()
+		target, err := t.Proto()
 		if err != nil {
 			return nil, err
 		}
@@ -326,7 +326,7 @@ func newRollupRule(
 	opts filters.TagsFilterOptions,
 ) (*rollupRule, error) {
 	if rc == nil {
-		return nil, errNilRollupRuleSchema
+		return nil, errNilRollupRuleProto
 	}
 	snapshots := make([]*rollupRuleSnapshot, 0, len(rc.Snapshots))
 	for i := 0; i < len(rc.Snapshots); i++ {
@@ -490,11 +490,11 @@ func (rc *rollupRule) history() ([]*models.RollupRuleView, error) {
 	return views, nil
 }
 
-// Schema returns the given RollupRule in protobuf form.
-func (rc *rollupRule) Schema() (*rulepb.RollupRule, error) {
+// Proto returns the given RollupRule in protobuf form.
+func (rc *rollupRule) Proto() (*rulepb.RollupRule, error) {
 	snapshots := make([]*rulepb.RollupRuleSnapshot, len(rc.snapshots))
 	for i, s := range rc.snapshots {
-		snapshot, err := s.Schema()
+		snapshot, err := s.Proto()
 		if err != nil {
 			return nil, err
 		}

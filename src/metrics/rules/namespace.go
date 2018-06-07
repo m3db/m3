@@ -35,9 +35,9 @@ var (
 	emptyNamespaces        Namespaces
 
 	errNamespaceSnapshotIndexOutOfRange = errors.New("namespace snapshot idx out of range")
-	errNilNamespaceSnapshotSchema       = errors.New("nil namespace snapshot schema")
-	errNilNamespaceSchema               = errors.New("nil namespace schema")
-	errNilNamespacesSchema              = errors.New("nil namespaces schema")
+	errNilNamespaceSnapshotProto        = errors.New("nil namespace snapshot proto")
+	errNilNamespaceProto                = errors.New("nil namespace proto")
+	errNilNamespacesProto               = errors.New("nil namespaces proto")
 	errNilNamespaceSnapshot             = errors.New("nil namespace snapshot")
 	errMultipleNamespaceMatches         = errors.New("more than one namespace match found")
 	errNamespaceNotFound                = errors.New("namespace not found")
@@ -58,7 +58,7 @@ type NamespaceSnapshot struct {
 
 func newNamespaceSnapshot(snapshot *rulepb.NamespaceSnapshot) (NamespaceSnapshot, error) {
 	if snapshot == nil {
-		return emptyNamespaceSnapshot, errNilNamespaceSnapshotSchema
+		return emptyNamespaceSnapshot, errNilNamespaceSnapshotProto
 	}
 	return NamespaceSnapshot{
 		forRuleSetVersion:  int(snapshot.ForRulesetVersion),
@@ -80,8 +80,8 @@ func (s NamespaceSnapshot) LastUpdatedAtNanos() int64 { return s.lastUpdatedAtNa
 // LastUpdatedBy returns the user who last updated the namespace.
 func (s NamespaceSnapshot) LastUpdatedBy() string { return s.lastUpdatedBy }
 
-// Schema returns the given Namespace in protobuf form
-func (s NamespaceSnapshot) Schema() *rulepb.NamespaceSnapshot {
+// Proto returns the given Namespace in protobuf form
+func (s NamespaceSnapshot) Proto() *rulepb.NamespaceSnapshot {
 	return &rulepb.NamespaceSnapshot{
 		ForRulesetVersion:  int32(s.forRuleSetVersion),
 		Tombstoned:         s.tombstoned,
@@ -99,7 +99,7 @@ type Namespace struct {
 // newNamespace creates a new namespace.
 func newNamespace(namespace *rulepb.Namespace) (Namespace, error) {
 	if namespace == nil {
-		return emptyNamespace, errNilNamespaceSchema
+		return emptyNamespace, errNilNamespaceProto
 	}
 	snapshots := make([]NamespaceSnapshot, 0, len(namespace.Snapshots))
 	for _, snapshot := range namespace.Snapshots {
@@ -147,8 +147,8 @@ func (n Namespace) Name() []byte { return n.name }
 // Snapshots return the namespace snapshots.
 func (n Namespace) Snapshots() []NamespaceSnapshot { return n.snapshots }
 
-// Schema returns the given Namespace in protobuf form
-func (n Namespace) Schema() (*rulepb.Namespace, error) {
+// Proto returns the given Namespace in protobuf form
+func (n Namespace) Proto() (*rulepb.Namespace, error) {
 	if n.snapshots == nil {
 		return nil, errNilNamespaceSnapshot
 	}
@@ -159,7 +159,7 @@ func (n Namespace) Schema() (*rulepb.Namespace, error) {
 
 	snapshots := make([]*rulepb.NamespaceSnapshot, len(n.snapshots))
 	for i, s := range n.snapshots {
-		snapshots[i] = s.Schema()
+		snapshots[i] = s.Proto()
 	}
 	res.Snapshots = snapshots
 
@@ -217,7 +217,7 @@ type Namespaces struct {
 // NewNamespaces creates new namespaces.
 func NewNamespaces(version int, namespaces *rulepb.Namespaces) (Namespaces, error) {
 	if namespaces == nil {
-		return emptyNamespaces, errNilNamespacesSchema
+		return emptyNamespaces, errNilNamespacesProto
 	}
 	nss := make([]Namespace, 0, len(namespaces.Namespaces))
 	for _, namespace := range namespaces.Namespaces {
@@ -267,13 +267,13 @@ func (nss Namespaces) Version() int { return nss.version }
 // Namespaces returns the list of namespaces.
 func (nss Namespaces) Namespaces() []Namespace { return nss.namespaces }
 
-// Schema returns the given Namespaces slice in protobuf form.
-func (nss Namespaces) Schema() (*rulepb.Namespaces, error) {
+// Proto returns the given Namespaces slice in protobuf form.
+func (nss Namespaces) Proto() (*rulepb.Namespaces, error) {
 	res := &rulepb.Namespaces{}
 
 	namespaces := make([]*rulepb.Namespace, len(nss.namespaces))
 	for i, n := range nss.namespaces {
-		namespace, err := n.Schema()
+		namespace, err := n.Proto()
 		if err != nil {
 			return nil, err
 		}

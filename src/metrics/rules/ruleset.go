@@ -48,14 +48,14 @@ const (
 )
 
 var (
-	errNilRuleSetSchema      = errors.New("nil rule set schema")
-	errRuleSetNotTombstoned  = errors.New("ruleset is not tombstoned")
-	errRuleNotFound          = errors.New("rule not found")
-	errNoRuleSnapshots       = errors.New("rule has no snapshots")
-	ruleActionErrorFmt       = "cannot %s rule %s"
-	ruleIDNotFoundErrorFmt   = "no rule with id %v"
-	ruleSetActionErrorFmt    = "cannot %s ruleset %s"
-	unknownOpTypeFmt         = "unknown op type %v"
+	errNilRuleSetProto      = errors.New("nil rule set proto")
+	errRuleSetNotTombstoned = errors.New("ruleset is not tombstoned")
+	errRuleNotFound         = errors.New("rule not found")
+	errNoRuleSnapshots      = errors.New("rule has no snapshots")
+	ruleIDNotFoundErrorFmt  = "no rule with id %v"
+	ruleActionErrorFmt      = "cannot %s rule %s"
+	ruleSetActionErrorFmt   = "cannot %s ruleset %s"
+	unknownOpTypeFmt        = "unknown op type %v"
 )
 
 // Matcher matches metrics against rules to determine applicable policies.
@@ -497,8 +497,8 @@ type RuleSet interface {
 type MutableRuleSet interface {
 	RuleSet
 
-	// Schema returns the rulepb.Ruleset representation of this ruleset.
-	Schema() (*rulepb.RuleSet, error)
+	// Proto returns the rulepb.Ruleset representation of this ruleset.
+	Proto() (*rulepb.RuleSet, error)
 
 	// Clone returns a copy of this MutableRuleSet.
 	Clone() MutableRuleSet
@@ -550,10 +550,10 @@ type ruleSet struct {
 	aggTypesOpts       aggregation.TypesOptions
 }
 
-// NewRuleSetFromSchema creates a new RuleSet from a schema object.
-func NewRuleSetFromSchema(version int, rs *rulepb.RuleSet, opts Options) (RuleSet, error) {
+// NewRuleSetFromProto creates a new RuleSet from a proto object.
+func NewRuleSetFromProto(version int, rs *rulepb.RuleSet, opts Options) (RuleSet, error) {
 	if rs == nil {
-		return nil, errNilRuleSetSchema
+		return nil, errNilRuleSetProto
 	}
 	tagsFilterOpts := opts.TagsFilterOptions()
 	mappingRules := make([]*mappingRule, 0, len(rs.MappingRules))
@@ -638,8 +638,8 @@ func (rs *ruleSet) ToMutableRuleSet() MutableRuleSet {
 	return rs
 }
 
-// Schema returns the protobuf representation of a ruleset.
-func (rs *ruleSet) Schema() (*rulepb.RuleSet, error) {
+// Proto returns the protobuf representation of a ruleset.
+func (rs *ruleSet) Proto() (*rulepb.RuleSet, error) {
 	res := &rulepb.RuleSet{
 		Uuid:               rs.uuid,
 		Namespace:          string(rs.namespace),
@@ -652,7 +652,7 @@ func (rs *ruleSet) Schema() (*rulepb.RuleSet, error) {
 
 	mappingRules := make([]*rulepb.MappingRule, len(rs.mappingRules))
 	for i, m := range rs.mappingRules {
-		mr, err := m.Schema()
+		mr, err := m.Proto()
 		if err != nil {
 			return nil, err
 		}
@@ -662,7 +662,7 @@ func (rs *ruleSet) Schema() (*rulepb.RuleSet, error) {
 
 	rollupRules := make([]*rulepb.RollupRule, len(rs.rollupRules))
 	for i, r := range rs.rollupRules {
-		rr, err := r.Schema()
+		rr, err := r.Proto()
 		if err != nil {
 			return nil, err
 		}

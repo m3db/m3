@@ -38,7 +38,7 @@ var (
 	// EmptyStoragePolicy represents an empty storage policy.
 	EmptyStoragePolicy StoragePolicy
 
-	errNilStoragePolicySchema     = errors.New("nil storage policy schema")
+	errNilStoragePolicyProto      = errors.New("nil storage policy proto")
 	errInvalidStoragePolicyString = errors.New("invalid storage policy string")
 )
 
@@ -63,7 +63,7 @@ func NewStoragePolicy(window time.Duration, precision xtime.Unit, retention time
 // NewStoragePolicyFromProto creates a new storage policy from a storage policy protobuf message.
 func NewStoragePolicyFromProto(p *policypb.StoragePolicy) (StoragePolicy, error) {
 	if p == nil {
-		return EmptyStoragePolicy, errNilStoragePolicySchema
+		return EmptyStoragePolicy, errNilStoragePolicyProto
 	}
 	precision := time.Duration(p.Resolution.Precision)
 	unit, err := xtime.UnitFromDuration(precision)

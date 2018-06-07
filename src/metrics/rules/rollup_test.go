@@ -37,7 +37,7 @@ import (
 )
 
 var (
-	testRollupRuleSchema = &rulepb.RollupRule{
+	testRollupRuleProto = &rulepb.RollupRule{
 		Uuid: "12669817-13ae-40e6-ba2f-33087b262c68",
 		Snapshots: []*rulepb.RollupRuleSnapshot{
 			&rulepb.RollupRuleSnapshot{
@@ -112,12 +112,12 @@ var (
 	}
 )
 
-func TestNewRollupTargetNilTargetSchema(t *testing.T) {
+func TestNewRollupTargetNilTargetProto(t *testing.T) {
 	_, err := newRollupTarget(nil)
-	require.Equal(t, errNilRollupTargetSchema, err)
+	require.Equal(t, errNilRollupTargetProto, err)
 }
 
-func TestNewRollupTargetNilPolicySchema(t *testing.T) {
+func TestNewRollupTargetNilPolicyProto(t *testing.T) {
 	_, err := newRollupTarget(&rulepb.RollupTarget{
 		Policies: []*policypb.Policy{nil},
 	})
@@ -181,8 +181,8 @@ func TestRollupTargetClone(t *testing.T) {
 	require.Equal(t, target.Policies, policies)
 }
 
-func TestNewRollupRuleSnapshotFromSchema(t *testing.T) {
-	res, err := newRollupRuleSnapshot(testRollupRuleSchema.Snapshots[0], testTagsFilterOptions())
+func TestNewRollupRuleSnapshotFromProto(t *testing.T) {
+	res, err := newRollupRuleSnapshot(testRollupRuleProto.Snapshots[0], testTagsFilterOptions())
 	expectedTargets := []rollupTarget{
 		{
 			Name: b("rName1"),
@@ -203,12 +203,12 @@ func TestNewRollupRuleSnapshotFromSchema(t *testing.T) {
 	require.Equal(t, "someone-else", res.lastUpdatedBy)
 }
 
-func TestNewRollupRuleSnapshotNilSchema(t *testing.T) {
+func TestNewRollupRuleSnapshotNilProto(t *testing.T) {
 	_, err := newRollupRuleSnapshot(nil, testTagsFilterOptions())
-	require.Equal(t, errNilRollupRuleSnapshotSchema, err)
+	require.Equal(t, errNilRollupRuleSnapshotProto, err)
 }
 
-func TestNewRollupRuleSnapshotFromSchemaError(t *testing.T) {
+func TestNewRollupRuleSnapshotFromProtoError(t *testing.T) {
 	badFilters := []string{
 		"tag3:",
 		"tag3:*a*b*c*d",
@@ -216,7 +216,7 @@ func TestNewRollupRuleSnapshotFromSchemaError(t *testing.T) {
 	}
 
 	for _, f := range badFilters {
-		cloned := *testRollupRuleSchema.Snapshots[0]
+		cloned := *testRollupRuleProto.Snapshots[0]
 		cloned.Filter = f
 		_, err := newRollupRuleSnapshot(&cloned, testTagsFilterOptions())
 		require.Error(t, err)
@@ -283,13 +283,13 @@ func TestNewRollupRuleSnapshotFromFieldsValidationError(t *testing.T) {
 	}
 }
 
-func TestRollupRuleNilSchema(t *testing.T) {
+func TestRollupRuleNilProto(t *testing.T) {
 	_, err := newRollupRule(nil, testTagsFilterOptions())
-	require.Equal(t, errNilRollupRuleSchema, err)
+	require.Equal(t, errNilRollupRuleProto, err)
 }
 
-func TestRollupRuleValidSchema(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+func TestRollupRuleValidProto(t *testing.T) {
+	rr, err := newRollupRule(testRollupRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, "12669817-13ae-40e6-ba2f-33087b262c68", rr.uuid)
 
@@ -338,25 +338,25 @@ func TestRollupRuleValidSchema(t *testing.T) {
 }
 
 func TestRollupRuleActiveSnapshotNotFound(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	rr, err := newRollupRule(testRollupRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Nil(t, rr.ActiveSnapshot(0))
 }
 
 func TestRollupRuleActiveSnapshotFound(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	rr, err := newRollupRule(testRollupRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, rr.snapshots[1], rr.ActiveSnapshot(100000))
 }
 
 func TestRollupRuleActiveRuleNotFound(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	rr, err := newRollupRule(testRollupRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, rr, rr.ActiveRule(0))
 }
 
 func TestRollupRuleActiveRuleFound(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	rr, err := newRollupRule(testRollupRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	expected := &rollupRule{
 		uuid:      rr.uuid,
@@ -370,30 +370,30 @@ type testRollupTargetData struct {
 	result bool
 }
 
-func TestRollupTargetSchema(t *testing.T) {
-	expectedSchema := testRollupRuleSchema.Snapshots[0].Targets[0]
-	rt, err := newRollupTarget(expectedSchema)
+func TestRollupTargetProto(t *testing.T) {
+	expectedProto := testRollupRuleProto.Snapshots[0].Targets[0]
+	rt, err := newRollupTarget(expectedProto)
 	require.NoError(t, err)
-	schema, err := rt.Schema()
+	proto, err := rt.Proto()
 	require.NoError(t, err)
-	require.EqualValues(t, expectedSchema, schema)
+	require.EqualValues(t, expectedProto, proto)
 }
 
-func TestRollupRuleSnapshotSchema(t *testing.T) {
-	expectedSchema := testRollupRuleSchema.Snapshots[0]
-	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+func TestRollupRuleSnapshotProto(t *testing.T) {
+	expectedProto := testRollupRuleProto.Snapshots[0]
+	rr, err := newRollupRule(testRollupRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
-	schema, err := rr.snapshots[0].Schema()
+	proto, err := rr.snapshots[0].Proto()
 	require.NoError(t, err)
-	require.EqualValues(t, expectedSchema, schema)
+	require.EqualValues(t, expectedProto, proto)
 }
 
-func TestRollupRuleSchema(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+func TestRollupRuleProto(t *testing.T) {
+	rr, err := newRollupRule(testRollupRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
-	schema, err := rr.Schema()
+	proto, err := rr.Proto()
 	require.NoError(t, err)
-	require.Equal(t, testRollupRuleSchema, schema)
+	require.Equal(t, testRollupRuleProto, proto)
 }
 
 func TestNewRollupRuleFromFields(t *testing.T) {
@@ -460,16 +460,16 @@ func TestRollupTombstonedNoSnapshot(t *testing.T) {
 }
 
 func TestRollupTombstoned(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	rr, err := newRollupRule(testRollupRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.True(t, rr.Tombstoned())
 }
 
 func TestRollupRuleMarkTombstoned(t *testing.T) {
-	schema := &rulepb.RollupRule{
-		Snapshots: []*rulepb.RollupRuleSnapshot{testRollupRuleSchema.Snapshots[0]},
+	proto := &rulepb.RollupRule{
+		Snapshots: []*rulepb.RollupRuleSnapshot{testRollupRuleProto.Snapshots[0]},
 	}
-	rr, err := newRollupRule(schema, testTagsFilterOptions())
+	rr, err := newRollupRule(proto, testTagsFilterOptions())
 	require.NoError(t, err)
 
 	expectedTargets := []rollupTarget{
@@ -512,20 +512,20 @@ func TestRollupRuleMarkTombstoned(t *testing.T) {
 }
 
 func TestRollupRuleMarkTombstonedNoSnapshots(t *testing.T) {
-	schema := &rulepb.RollupRule{}
-	rr, err := newRollupRule(schema, testTagsFilterOptions())
+	proto := &rulepb.RollupRule{}
+	rr, err := newRollupRule(proto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Error(t, rr.markTombstoned(UpdateMetadata{}))
 }
 
 func TestRollupRuleMarkTombstonedAlreadyTombstoned(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	rr, err := newRollupRule(testRollupRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Error(t, rr.markTombstoned(UpdateMetadata{}))
 }
 
 func TestRollupRuleClone(t *testing.T) {
-	rr, _ := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	rr, _ := newRollupRule(testRollupRuleProto, testTagsFilterOptions())
 	clone := rr.clone()
 	require.Equal(t, *rr, clone)
 	for i, r := range rr.snapshots {
@@ -538,7 +538,7 @@ func TestRollupRuleClone(t *testing.T) {
 }
 
 func TestRollupRuleSnapshotClone(t *testing.T) {
-	rr, _ := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	rr, _ := newRollupRule(testRollupRuleProto, testTagsFilterOptions())
 	s1 := rr.snapshots[0]
 	s1Clone := s1.clone()
 
@@ -553,7 +553,7 @@ func TestRollupRuleSnapshotClone(t *testing.T) {
 	require.NotEqual(t, s1.targets, s1Clone.targets)
 }
 func TestNewRollupRuleView(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	rr, err := newRollupRule(testRollupRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	actual, err := rr.rollupRuleView(0)
 	require.NoError(t, err)
@@ -578,7 +578,7 @@ func TestNewRollupRuleView(t *testing.T) {
 }
 
 func TestNewRollupRuleViewError(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	rr, err := newRollupRule(testRollupRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	badIdx := []int{-2, 2, 30}
 	for _, i := range badIdx {
@@ -589,7 +589,7 @@ func TestNewRollupRuleViewError(t *testing.T) {
 }
 
 func TestNewRollupRuleHistory(t *testing.T) {
-	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	rr, err := newRollupRule(testRollupRuleProto, testTagsFilterOptions())
 	require.NoError(t, err)
 	hist, err := rr.history()
 	require.NoError(t, err)
