@@ -20,5 +20,6 @@
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode).
 //go:generate sh -c "mockgen -package=rules $PACKAGE/rules Store| mockclean -pkg $PACKAGE/rules -out $GOPATH/src/$PACKAGE/rules/store_mock.go"
+//go:generate sh -c "mockgen -package=protobuf $PACKAGE/encoding/protobuf UnaggregatedEncoder | mockclean -pkg $PACKAGE/encoding/protobuf -out $GOPATH/src/$PACKAGE/encoding/protobuf/protobuf_mock.go"
 
 package mocks
