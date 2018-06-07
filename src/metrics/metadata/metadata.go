@@ -27,8 +27,15 @@ import (
 )
 
 var (
-	// DefaultStagedMetadata represents a default staged metadata.
-	DefaultStagedMetadata StagedMetadata
+	// DefaultStagedMetadata is a default staged metadata.
+	DefaultStagedMetadata = StagedMetadata{
+		Metadata: Metadata{
+			Pipelines: []PipelineMetadata{PipelineMetadata{}},
+		},
+	}
+
+	// DefaultStagedMetadatas represents default staged metadatas.
+	DefaultStagedMetadatas = StagedMetadatas{DefaultStagedMetadata}
 )
 
 // PipelineMetadata contains pipeline metadata.
