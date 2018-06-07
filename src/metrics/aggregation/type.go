@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
 	"github.com/m3db/m3x/pool"
 )
 
@@ -107,7 +107,7 @@ var (
 type Type int
 
 // NewTypeFromSchema creates an aggregation type from a schema.
-func NewTypeFromSchema(input schema.AggregationType) (Type, error) {
+func NewTypeFromSchema(input aggregationpb.AggregationType) (Type, error) {
 	aggType := Type(input)
 	if !aggType.IsValid() {
 		return UnknownType, fmt.Errorf("invalid aggregation type from schema: %s", input)
@@ -191,10 +191,10 @@ func (a Type) Quantile() (float64, bool) {
 }
 
 // Schema returns the schema of the aggregation type.
-func (a Type) Schema() (schema.AggregationType, error) {
-	s := schema.AggregationType(a)
+func (a Type) Schema() (aggregationpb.AggregationType, error) {
+	s := aggregationpb.AggregationType(a)
 	if err := validateSchemaType(s); err != nil {
-		return schema.AggregationType_UNKNOWN, err
+		return aggregationpb.AggregationType_UNKNOWN, err
 	}
 	return s, nil
 }
@@ -214,8 +214,8 @@ func (a *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-func validateSchemaType(a schema.AggregationType) error {
-	_, ok := schema.AggregationType_name[int32(a)]
+func validateSchemaType(a aggregationpb.AggregationType) error {
+	_, ok := aggregationpb.AggregationType_name[int32(a)]
 	if !ok {
 		return fmt.Errorf("invalid schema aggregation type: %v", a)
 	}
@@ -235,7 +235,7 @@ func ParseType(str string) (Type, error) {
 type Types []Type
 
 // NewTypesFromSchema creates a list of aggregation types from a schema.
-func NewTypesFromSchema(input []schema.AggregationType) (Types, error) {
+func NewTypesFromSchema(input []aggregationpb.AggregationType) (Types, error) {
 	res := make([]Type, len(input))
 	for i, t := range input {
 		aggType, err := NewTypeFromSchema(t)
@@ -359,14 +359,14 @@ func (aggTypes Types) PooledQuantiles(p pool.FloatsPool) ([]float64, bool) {
 }
 
 // Schema returns the schema of the aggregation types.
-func (aggTypes Types) Schema() ([]schema.AggregationType, error) {
+func (aggTypes Types) Schema() ([]aggregationpb.AggregationType, error) {
 	// This is the same as returning an empty slice from the functionality perspective.
 	// It makes creating testing fixtures much simpler.
 	if aggTypes == nil {
 		return nil, nil
 	}
 
-	res := make([]schema.AggregationType, len(aggTypes))
+	res := make([]aggregationpb.AggregationType, len(aggTypes))
 	for i, aggType := range aggTypes {
 		s, err := aggType.Schema()
 		if err != nil {

@@ -24,10 +24,118 @@ import (
 	"testing"
 
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
+	"github.com/m3db/m3metrics/generated/proto/transformationpb"
 	"github.com/m3db/m3metrics/op"
 	"github.com/m3db/m3metrics/transformation"
 
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	testSmallPipeline = NewPipeline([]Union{
+		{
+			Type: op.TransformationType,
+			Transformation: op.Transformation{
+				Type: transformation.PerSecond,
+			},
+		},
+		{
+			Type: op.RollupType,
+			Rollup: Rollup{
+				ID:            []byte("foo"),
+				AggregationID: aggregation.DefaultID,
+			},
+		},
+	})
+	testLargePipeline = NewPipeline([]Union{
+		{
+			Type: op.RollupType,
+			Rollup: Rollup{
+				ID:            []byte("bar"),
+				AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum),
+			},
+		},
+		{
+			Type: op.TransformationType,
+			Transformation: op.Transformation{
+				Type: transformation.Absolute,
+			},
+		},
+		{
+			Type: op.TransformationType,
+			Transformation: op.Transformation{
+				Type: transformation.PerSecond,
+			},
+		},
+		{
+			Type: op.RollupType,
+			Rollup: Rollup{
+				ID:            []byte("baz"),
+				AggregationID: aggregation.MustCompressTypes(aggregation.P99),
+			},
+		},
+	})
+	testBadPipeline = NewPipeline([]Union{
+		{
+			Type: op.UnknownType,
+		},
+	})
+	testSmallPipelineProto = pipelinepb.AppliedPipeline{
+		Ops: []pipelinepb.AppliedPipelineOp{
+			{
+				Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
+				Transformation: &pipelinepb.TransformationOp{
+					Type: transformationpb.TransformationType_PERSECOND,
+				},
+			},
+			{
+				Type: pipelinepb.AppliedPipelineOp_ROLLUP,
+				Rollup: &pipelinepb.AppliedRollupOp{
+					Id:            []byte("foo"),
+					AggregationId: aggregationpb.AggregationID{Id: 0},
+				},
+			},
+		},
+	}
+	testLargePipelineProto = pipelinepb.AppliedPipeline{
+		Ops: []pipelinepb.AppliedPipelineOp{
+			{
+				Type: pipelinepb.AppliedPipelineOp_ROLLUP,
+				Rollup: &pipelinepb.AppliedRollupOp{
+					Id:            []byte("bar"),
+					AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum)[0]},
+				},
+			},
+			{
+				Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
+				Transformation: &pipelinepb.TransformationOp{
+					Type: transformationpb.TransformationType_ABSOLUTE,
+				},
+			},
+			{
+				Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
+				Transformation: &pipelinepb.TransformationOp{
+					Type: transformationpb.TransformationType_PERSECOND,
+				},
+			},
+			{
+				Type: pipelinepb.AppliedPipelineOp_ROLLUP,
+				Rollup: &pipelinepb.AppliedRollupOp{
+					Id:            []byte("baz"),
+					AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.P99)[0]},
+				},
+			},
+		},
+	}
+	testBadPipelineProto = pipelinepb.AppliedPipeline{
+		Ops: []pipelinepb.AppliedPipelineOp{
+			{
+				Type: pipelinepb.AppliedPipelineOp_UNKNOWN,
+			},
+		},
+	}
 )
 
 func TestPipelineIsEmpty(t *testing.T) {
@@ -413,5 +521,112 @@ func TestPipelineString(t *testing.T) {
 
 	for _, input := range inputs {
 		require.Equal(t, input.expected, input.p.String())
+	}
+}
+
+func TestPipelineToProto(t *testing.T) {
+	inputs := []struct {
+		sequence []Pipeline
+		expected []pipelinepb.AppliedPipeline
+	}{
+		{
+			sequence: []Pipeline{
+				testSmallPipeline,
+				testLargePipeline,
+			},
+			expected: []pipelinepb.AppliedPipeline{
+				testSmallPipelineProto,
+				testLargePipelineProto,
+			},
+		},
+		{
+			sequence: []Pipeline{
+				testLargePipeline,
+				testSmallPipeline,
+			},
+			expected: []pipelinepb.AppliedPipeline{
+				testLargePipelineProto,
+				testSmallPipelineProto,
+			},
+		},
+	}
+
+	for _, input := range inputs {
+		var pb pipelinepb.AppliedPipeline
+		for i, pipeline := range input.sequence {
+			require.NoError(t, pipeline.ToProto(&pb))
+			require.Equal(t, input.expected[i], pb)
+		}
+	}
+}
+
+func TestPipelineToProtoBadPipeline(t *testing.T) {
+	var pb pipelinepb.AppliedPipeline
+	require.Error(t, testBadPipeline.ToProto(&pb))
+}
+
+func TestPipelineFromProto(t *testing.T) {
+	inputs := []struct {
+		sequence []pipelinepb.AppliedPipeline
+		expected []Pipeline
+	}{
+		{
+			sequence: []pipelinepb.AppliedPipeline{
+				testSmallPipelineProto,
+				testLargePipelineProto,
+			},
+			expected: []Pipeline{
+				testSmallPipeline,
+				testLargePipeline,
+			},
+		},
+		{
+			sequence: []pipelinepb.AppliedPipeline{
+				testLargePipelineProto,
+				testSmallPipelineProto,
+			},
+			expected: []Pipeline{
+				testLargePipeline,
+				testSmallPipeline,
+			},
+		},
+	}
+
+	for _, input := range inputs {
+		var res Pipeline
+		for i, pb := range input.sequence {
+			require.NoError(t, res.FromProto(pb))
+			require.Equal(t, input.expected[i], res)
+		}
+	}
+}
+
+func TestPipelineFromProtoBadPipelineProto(t *testing.T) {
+	var res Pipeline
+	require.Error(t, res.FromProto(testBadPipelineProto))
+}
+
+func TestPipelineRoundTrip(t *testing.T) {
+	inputs := [][]Pipeline{
+		{
+			testSmallPipeline,
+			testLargePipeline,
+		},
+		{
+			testLargePipeline,
+			testSmallPipeline,
+		},
+	}
+
+	for _, input := range inputs {
+		var (
+			pb  pipelinepb.AppliedPipeline
+			res Pipeline
+		)
+		for _, pipeline := range input {
+			require.NoError(t, pipeline.ToProto(&pb))
+			require.NoError(t, res.FromProto(pb))
+			require.Equal(t, pipeline, res)
+		}
 	}
 }

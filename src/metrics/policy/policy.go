@@ -26,7 +26,7 @@ import (
 	"strings"
 
 	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	schema "github.com/m3db/m3metrics/generated/proto/policypb"
 )
 
 const (
@@ -58,7 +58,7 @@ func NewPolicyFromSchema(p *schema.Policy) (Policy, error) {
 		return DefaultPolicy, errNilPolicySchema
 	}
 
-	policy, err := NewStoragePolicyFromSchema(p.StoragePolicy)
+	policy, err := NewStoragePolicyFromProto(p.StoragePolicy)
 	if err != nil {
 		return DefaultPolicy, err
 	}
@@ -74,7 +74,8 @@ func NewPolicyFromSchema(p *schema.Policy) (Policy, error) {
 
 // Schema returns the schema of the policy.
 func (p Policy) Schema() (*schema.Policy, error) {
-	sp, err := p.StoragePolicy.Schema()
+	var storagePolicyProto schema.StoragePolicy
+	err := p.StoragePolicy.ToProto(&storagePolicyProto)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +91,7 @@ func (p Policy) Schema() (*schema.Policy, error) {
 	}
 
 	return &schema.Policy{
-		StoragePolicy:    sp,
+		StoragePolicy:    &storagePolicyProto,
 		AggregationTypes: schemaAggTypes,
 	}, nil
 }

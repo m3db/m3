@@ -26,7 +26,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3metrics/generated/proto/policypb"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -98,35 +99,35 @@ func TestPolicyUnmarshalYAMLErrors(t *testing.T) {
 }
 
 func TestNewPoliciesFromSchema(t *testing.T) {
-	input := []*schema.Policy{
-		&schema.Policy{
-			StoragePolicy: &schema.StoragePolicy{
-				Resolution: &schema.Resolution{
+	input := []*policypb.Policy{
+		&policypb.Policy{
+			StoragePolicy: &policypb.StoragePolicy{
+				Resolution: &policypb.Resolution{
 					WindowSize: int64(10 * time.Second),
 					Precision:  int64(time.Second),
 				},
-				Retention: &schema.Retention{
+				Retention: &policypb.Retention{
 					Period: int64(24 * time.Hour),
 				},
 			},
-			AggregationTypes: []schema.AggregationType{
-				schema.AggregationType_MEAN,
-				schema.AggregationType_P999,
+			AggregationTypes: []aggregationpb.AggregationType{
+				aggregationpb.AggregationType_MEAN,
+				aggregationpb.AggregationType_P999,
 			},
 		},
-		&schema.Policy{
-			StoragePolicy: &schema.StoragePolicy{
-				Resolution: &schema.Resolution{
+		&policypb.Policy{
+			StoragePolicy: &policypb.StoragePolicy{
+				Resolution: &policypb.Resolution{
 					WindowSize: int64(time.Minute),
 					Precision:  int64(time.Minute),
 				},
-				Retention: &schema.Retention{
+				Retention: &policypb.Retention{
 					Period: int64(240 * time.Hour),
 				},
 			},
-			AggregationTypes: []schema.AggregationType{
-				schema.AggregationType_MEAN,
-				schema.AggregationType_P9999,
+			AggregationTypes: []aggregationpb.AggregationType{
+				aggregationpb.AggregationType_MEAN,
+				aggregationpb.AggregationType_P9999,
 			},
 		},
 	}
@@ -142,17 +143,17 @@ func TestNewPoliciesFromSchema(t *testing.T) {
 func TestParsePolicyIntoSchema(t *testing.T) {
 	inputs := []struct {
 		str      string
-		expected *schema.Policy
+		expected *policypb.Policy
 	}{
 		{
 			str: "1s:1h",
-			expected: &schema.Policy{
-				StoragePolicy: &schema.StoragePolicy{
-					Resolution: &schema.Resolution{
+			expected: &policypb.Policy{
+				StoragePolicy: &policypb.StoragePolicy{
+					Resolution: &policypb.Resolution{
 						WindowSize: time.Second.Nanoseconds(),
 						Precision:  time.Second.Nanoseconds(),
 					},
-					Retention: &schema.Retention{
+					Retention: &policypb.Retention{
 						Period: time.Hour.Nanoseconds(),
 					},
 				},
@@ -160,62 +161,62 @@ func TestParsePolicyIntoSchema(t *testing.T) {
 		},
 		{
 			str: "1s:1h|Mean",
-			expected: &schema.Policy{
-				StoragePolicy: &schema.StoragePolicy{
-					Resolution: &schema.Resolution{
+			expected: &policypb.Policy{
+				StoragePolicy: &policypb.StoragePolicy{
+					Resolution: &policypb.Resolution{
 						WindowSize: time.Second.Nanoseconds(),
 						Precision:  time.Second.Nanoseconds(),
 					},
-					Retention: &schema.Retention{
+					Retention: &policypb.Retention{
 						Period: time.Hour.Nanoseconds(),
 					},
 				},
-				AggregationTypes: []schema.AggregationType{schema.AggregationType_MEAN},
+				AggregationTypes: []aggregationpb.AggregationType{aggregationpb.AggregationType_MEAN},
 			},
 		},
 		{
 			str: "60s:24h|Mean,Count",
-			expected: &schema.Policy{
-				StoragePolicy: &schema.StoragePolicy{
-					Resolution: &schema.Resolution{
+			expected: &policypb.Policy{
+				StoragePolicy: &policypb.StoragePolicy{
+					Resolution: &policypb.Resolution{
 						WindowSize: time.Minute.Nanoseconds(),
 						Precision:  time.Minute.Nanoseconds(),
 					},
-					Retention: &schema.Retention{
+					Retention: &policypb.Retention{
 						Period: 24 * time.Hour.Nanoseconds(),
 					},
 				},
-				AggregationTypes: []schema.AggregationType{schema.AggregationType_MEAN, schema.AggregationType_COUNT},
+				AggregationTypes: []aggregationpb.AggregationType{aggregationpb.AggregationType_MEAN, aggregationpb.AggregationType_COUNT},
 			},
 		},
 		{
 			str: "1m:1d|Count,Mean",
-			expected: &schema.Policy{
-				StoragePolicy: &schema.StoragePolicy{
-					Resolution: &schema.Resolution{
+			expected: &policypb.Policy{
+				StoragePolicy: &policypb.StoragePolicy{
+					Resolution: &policypb.Resolution{
 						WindowSize: time.Minute.Nanoseconds(),
 						Precision:  time.Minute.Nanoseconds(),
 					},
-					Retention: &schema.Retention{
+					Retention: &policypb.Retention{
 						Period: 24 * time.Hour.Nanoseconds(),
 					},
 				},
-				AggregationTypes: []schema.AggregationType{schema.AggregationType_MEAN, schema.AggregationType_COUNT},
+				AggregationTypes: []aggregationpb.AggregationType{aggregationpb.AggregationType_MEAN, aggregationpb.AggregationType_COUNT},
 			},
 		},
 		{
 			str: "1m@1s:1h|P999,P9999",
-			expected: &schema.Policy{
-				StoragePolicy: &schema.StoragePolicy{
-					Resolution: &schema.Resolution{
+			expected: &policypb.Policy{
+				StoragePolicy: &policypb.StoragePolicy{
+					Resolution: &policypb.Resolution{
 						WindowSize: time.Minute.Nanoseconds(),
 						Precision:  time.Second.Nanoseconds(),
 					},
-					Retention: &schema.Retention{
+					Retention: &policypb.Retention{
 						Period: time.Hour.Nanoseconds(),
 					},
 				},
-				AggregationTypes: []schema.AggregationType{schema.AggregationType_P999, schema.AggregationType_P9999},
+				AggregationTypes: []aggregationpb.AggregationType{aggregationpb.AggregationType_P999, aggregationpb.AggregationType_P9999},
 			},
 		},
 	}

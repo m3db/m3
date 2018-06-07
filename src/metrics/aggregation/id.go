@@ -23,7 +23,7 @@ package aggregation
 import (
 	"fmt"
 
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
 )
 
 const (
@@ -45,7 +45,7 @@ var (
 type ID [IDLen]uint64
 
 // NewIDFromSchema creates an ID from schema.
-func NewIDFromSchema(input []schema.AggregationType) (ID, error) {
+func NewIDFromSchema(input []aggregationpb.AggregationType) (ID, error) {
 	aggTypes, err := NewTypesFromSchema(input)
 	if err != nil {
 		return DefaultID, err
@@ -97,4 +97,22 @@ func (id ID) String() string {
 		return fmt.Sprintf("[invalid ID: %v]", err)
 	}
 	return aggTypes.String()
+}
+
+// ToProto converts the aggregation id to a protobuf message in place.
+func (id ID) ToProto(pb *aggregationpb.AggregationID) error {
+	if IDLen != 1 {
+		return fmt.Errorf("id length %d cannot be represented by a single integer", IDLen)
+	}
+	pb.Id = id[0]
+	return nil
+}
+
+// FromProto converts the protobuf message to an aggregation id in place.
+func (id *ID) FromProto(pb aggregationpb.AggregationID) error {
+	if IDLen != 1 {
+		return fmt.Errorf("id length %d cannot be represented by a single integer", IDLen)
+	}
+	(*id)[0] = pb.Id
+	return nil
 }

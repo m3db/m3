@@ -18,52 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package msgpack
+syntax = "proto3";
 
-import (
-	"testing"
+option go_package = "github.com/m3db/m3metrics/generated/proto/metricpb";
 
-	"github.com/stretchr/testify/require"
-)
+package metricpb;
 
-func TestObjectTypeIsValid(t *testing.T) {
-	inputs := []objectType{
-		rootObjectType,
-		counterWithPoliciesListType,
-		batchTimerWithPoliciesListType,
-		gaugeWithPoliciesListType,
-		rawMetricWithStoragePolicyType,
-		counterType,
-		batchTimerType,
-		gaugeType,
-		metricType,
-		defaultPoliciesListType,
-		customPoliciesListType,
-		stagedPoliciesType,
-		storagePolicyType,
-		knownResolutionType,
-		unknownResolutionType,
-		knownRetentionType,
-		unknownRetentionType,
-		defaultAggregationID,
-		shortAggregationID,
-		longAggregationID,
-		policyType,
-		rawMetricWithStoragePolicyAndEncodeTimeType,
-	}
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "github.com/m3db/m3metrics/generated/proto/aggregationpb/aggregation.proto";
+import "github.com/m3db/m3metrics/generated/proto/policypb/policy.proto";
+import "github.com/m3db/m3metrics/generated/proto/pipelinepb/pipeline.proto";
 
-	for _, input := range inputs {
-		require.True(t, input.isValid())
-	}
+message PipelineMetadata {
+  aggregationpb.AggregationID aggregation_id = 1 [(gogoproto.nullable) = false];
+  repeated policypb.StoragePolicy storage_policies = 2 [(gogoproto.nullable) = false];
+  pipelinepb.AppliedPipeline pipeline = 3 [(gogoproto.nullable) = false];
 }
 
-func TestObjectTypeIsValidInvalidType(t *testing.T) {
-	inputs := []objectType{
-		unknownType,
-		numObjectTypes + 1,
-	}
+message Metadata {
+  repeated PipelineMetadata pipelines = 1 [(gogoproto.nullable) = false];
+}
 
-	for _, input := range inputs {
-		require.False(t, input.isValid())
-	}
+message StagedMetadata {
+  int64 cutover_nanos = 1;
+  bool tombstoned = 2;
+  Metadata metadata = 3 [(gogoproto.nullable) = false];
+}
+
+message StagedMetadatas {
+  repeated StagedMetadata metadatas = 1 [(gogoproto.nullable) = false];
 }

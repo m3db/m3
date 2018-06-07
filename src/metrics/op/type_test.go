@@ -24,9 +24,23 @@ import (
 	"testing"
 
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
+	"github.com/m3db/m3metrics/generated/proto/transformationpb"
 	"github.com/m3db/m3metrics/transformation"
 
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	testTransformationOp = Transformation{
+		Type: transformation.PerSecond,
+	}
+	testTransformationOpProto = pipelinepb.TransformationOp{
+		Type: transformationpb.TransformationType_PERSECOND,
+	}
+	testBadTransformationOpProto = pipelinepb.TransformationOp{
+		Type: transformationpb.TransformationType_UNKNOWN,
+	}
 )
 
 func TestAggregationEqual(t *testing.T) {
@@ -128,6 +142,38 @@ func TestPipelineString(t *testing.T) {
 	for _, input := range inputs {
 		require.Equal(t, input.expected, input.p.String())
 	}
+}
+
+func TestTransformationOpToProto(t *testing.T) {
+	var pb pipelinepb.TransformationOp
+	require.NoError(t, testTransformationOp.ToProto(&pb))
+	require.Equal(t, testTransformationOpProto, pb)
+}
+
+func TestTransformationOpFromProto(t *testing.T) {
+	var res Transformation
+	require.NoError(t, res.FromProto(&testTransformationOpProto))
+	require.Equal(t, testTransformationOp, res)
+}
+
+func TestTransformationOpFromProtoNilProto(t *testing.T) {
+	var res Transformation
+	require.Equal(t, errNilTransformationOpProto, res.FromProto(nil))
+}
+
+func TestTransformationOpFromProtoBadProto(t *testing.T) {
+	var res Transformation
+	require.Error(t, res.FromProto(&testBadTransformationOpProto))
+}
+
+func TestTransformationOpRoundTrip(t *testing.T) {
+	var (
+		pb  pipelinepb.TransformationOp
+		res Transformation
+	)
+	require.NoError(t, testTransformationOp.ToProto(&pb))
+	require.NoError(t, res.FromProto(&pb))
+	require.Equal(t, testTransformationOp, res)
 }
 
 func b(str string) []byte { return []byte(str) }

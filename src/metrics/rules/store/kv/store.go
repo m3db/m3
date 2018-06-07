@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3cluster/kv"
 	merrors "github.com/m3db/m3metrics/errors"
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/rules"
 )
 

@@ -28,7 +28,8 @@ import (
 
 	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/generated/proto/policypb"
+	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules/models"
 
@@ -135,7 +136,7 @@ func (t *rollupTarget) Schema() (*schema.RollupTarget, error) {
 		Name: string(t.Name),
 	}
 
-	policies := make([]*schema.Policy, len(t.Policies))
+	policies := make([]*policypb.Policy, len(t.Policies))
 	for i, p := range t.Policies {
 		policy, err := p.Schema()
 		if err != nil {

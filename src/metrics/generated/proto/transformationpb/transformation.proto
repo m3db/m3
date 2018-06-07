@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,49 +19,13 @@
 // THE SOFTWARE.
 
 syntax = "proto3";
-package schema;
 
-message Resolution {
-  int64 window_size = 1;
-  int64 precision = 2;
-}
+option go_package = "github.com/m3db/m3metrics/generated/proto/transformationpb";
 
-message Retention {
-  int64 period = 1;
-}
+package transformationpb;
 
-message StoragePolicy {
-  Resolution resolution = 1;
-  Retention retention = 2;
-}
-
-message Policy {
-  StoragePolicy storage_policy = 1;
-  repeated AggregationType aggregation_types = 2;
-}
-
-enum AggregationType {
+enum TransformationType {
   UNKNOWN = 0;
-  LAST = 1;
-  MIN = 2;
-  MAX = 3;
-  MEAN = 4;
-  MEDIAN = 5;
-  COUNT = 6;
-  SUM = 7;
-  SUMSQ = 8;
-  STDEV = 9;
-  P10 = 10;
-  P20 = 11;
-  P30 = 12;
-  P40 = 13;
-  P50 = 14;
-  P60 = 15;
-  P70 = 16;
-  P80 = 17;
-  P90 = 18;
-  P95 = 19;
-  P99 = 20;
-  P999 = 21;
-  P9999 = 22;
+  ABSOLUTE = 1;
+  PERSECOND = 2;
 }
