@@ -53,8 +53,8 @@ The diagram below depicts the control flow and concurrency (goroutines and chann
                 │          │  Stream paginated blocks metadata from a  │
                 │          │        peer while pageToken != nil        │
                 │          │                                           │
-                │          │ For each blocks metadata --> put metadata │
-                │          │              into metadataCh              │
+                │          │     For each blocks' metadata --> put     │
+                │          │         metadata into metadataCh          │
                 │          └───────────────────────────────────────────┘
                 ▼
 ┌───────────────────────────────────────────┐
@@ -66,7 +66,7 @@ The diagram below depicts the control flow and concurrency (goroutines and chann
 │ 2) Create a queue per-peer which each have│
 │   their own internal goroutine and will   │
 │   stream blocks back per-series from a    │──────────┐
-│              specific peer.               │          │
+│              specific peer                │          │
 │                                           │          │
 │ 3) Loop through the enqueCh and pick an   │ Creates with metadataCh
 │appropriate peer(s) for each series (based │     and enqueueCh
