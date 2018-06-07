@@ -30,6 +30,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPipelineIsEmpty(t *testing.T) {
+	inputs := []struct {
+		p        Pipeline
+		expected bool
+	}{
+		{
+			p:        NewPipeline(nil),
+			expected: true,
+		},
+		{
+			p:        NewPipeline([]Union{}),
+			expected: true,
+		},
+		{
+			p: NewPipeline([]Union{
+				{
+					Type: op.TransformationType,
+					Transformation: op.Transformation{
+						Type: transformation.Absolute,
+					},
+				}}),
+			expected: false,
+		},
+	}
+
+	for _, input := range inputs {
+		require.Equal(t, input.expected, input.p.IsEmpty())
+	}
+}
+
 func TestPipelineEqual(t *testing.T) {
 	inputs := []struct {
 		p1       Pipeline
@@ -37,212 +67,186 @@ func TestPipelineEqual(t *testing.T) {
 		expected bool
 	}{
 		{
-			p1:       Pipeline{},
-			p2:       Pipeline{},
+			p1:       NewPipeline(nil),
+			p2:       NewPipeline(nil),
 			expected: true,
 		},
 		{
-			p1: Pipeline{
-				Operations: []Union{
-					{
-						Type: op.TransformationType,
-						Transformation: op.Transformation{
-							Type: transformation.Absolute,
-						},
-					},
-					{
-						Type: op.RollupType,
-						Rollup: Rollup{
-							ID:            []byte("foo"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum),
-						},
-					},
-					{
-						Type: op.TransformationType,
-						Transformation: op.Transformation{
-							Type: transformation.PerSecond,
-						},
-					},
-					{
-						Type: op.RollupType,
-						Rollup: Rollup{
-							ID:            []byte("bar"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.P99),
-						},
+			p1: NewPipeline([]Union{
+				{
+					Type: op.TransformationType,
+					Transformation: op.Transformation{
+						Type: transformation.Absolute,
 					},
 				},
-			},
-			p2: Pipeline{
-				Operations: []Union{
-					{
-						Type: op.TransformationType,
-						Transformation: op.Transformation{
-							Type: transformation.Absolute,
-						},
-					},
-					{
-						Type: op.RollupType,
-						Rollup: Rollup{
-							ID:            []byte("foo"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum),
-						},
-					},
-					{
-						Type: op.TransformationType,
-						Transformation: op.Transformation{
-							Type: transformation.PerSecond,
-						},
-					},
-					{
-						Type: op.RollupType,
-						Rollup: Rollup{
-							ID:            []byte("bar"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.P99),
-						},
+				{
+					Type: op.RollupType,
+					Rollup: Rollup{
+						ID:            []byte("foo"),
+						AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum),
 					},
 				},
-			},
+				{
+					Type: op.TransformationType,
+					Transformation: op.Transformation{
+						Type: transformation.PerSecond,
+					},
+				},
+				{
+					Type: op.RollupType,
+					Rollup: Rollup{
+						ID:            []byte("bar"),
+						AggregationID: aggregation.MustCompressTypes(aggregation.P99),
+					},
+				},
+			}),
+			p2: NewPipeline([]Union{
+				{
+					Type: op.TransformationType,
+					Transformation: op.Transformation{
+						Type: transformation.Absolute,
+					},
+				},
+				{
+					Type: op.RollupType,
+					Rollup: Rollup{
+						ID:            []byte("foo"),
+						AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum),
+					},
+				},
+				{
+					Type: op.TransformationType,
+					Transformation: op.Transformation{
+						Type: transformation.PerSecond,
+					},
+				},
+				{
+					Type: op.RollupType,
+					Rollup: Rollup{
+						ID:            []byte("bar"),
+						AggregationID: aggregation.MustCompressTypes(aggregation.P99),
+					},
+				},
+			}),
 			expected: true,
 		},
 		{
-			p1: Pipeline{},
-			p2: Pipeline{
-				Operations: []Union{
-					{
-						Type: op.TransformationType,
-						Transformation: op.Transformation{
-							Type: transformation.Absolute,
-						},
+			p1: NewPipeline(nil),
+			p2: NewPipeline([]Union{
+				{
+					Type: op.TransformationType,
+					Transformation: op.Transformation{
+						Type: transformation.Absolute,
 					},
 				},
-			},
+			}),
 			expected: false,
 		},
 		{
-			p1: Pipeline{
-				Operations: []Union{
-					{
-						Type: op.TransformationType,
-						Transformation: op.Transformation{
-							Type: transformation.PerSecond,
-						},
+			p1: NewPipeline([]Union{
+				{
+					Type: op.TransformationType,
+					Transformation: op.Transformation{
+						Type: transformation.PerSecond,
 					},
 				},
-			},
-			p2: Pipeline{
-				Operations: []Union{
-					{
-						Type: op.TransformationType,
-						Transformation: op.Transformation{
-							Type: transformation.PerSecond,
-						},
-					},
-					{
-						Type: op.RollupType,
-						Rollup: Rollup{
-							ID:            []byte("foo"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.P99),
-						},
+			}),
+			p2: NewPipeline([]Union{
+				{
+					Type: op.TransformationType,
+					Transformation: op.Transformation{
+						Type: transformation.PerSecond,
 					},
 				},
-			},
+				{
+					Type: op.RollupType,
+					Rollup: Rollup{
+						ID:            []byte("foo"),
+						AggregationID: aggregation.MustCompressTypes(aggregation.P99),
+					},
+				},
+			}),
 			expected: false,
 		},
 		{
-			p1: Pipeline{
-				Operations: []Union{
-					{
-						Type: op.TransformationType,
-						Transformation: op.Transformation{
-							Type: transformation.PerSecond,
-						},
+			p1: NewPipeline([]Union{
+				{
+					Type: op.TransformationType,
+					Transformation: op.Transformation{
+						Type: transformation.PerSecond,
 					},
 				},
-			},
-			p2: Pipeline{
-				Operations: []Union{
-					{
-						Type: op.RollupType,
-						Rollup: Rollup{
-							ID:            []byte("foo"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.P99),
-						},
+			}),
+			p2: NewPipeline([]Union{
+				{
+					Type: op.RollupType,
+					Rollup: Rollup{
+						ID:            []byte("foo"),
+						AggregationID: aggregation.MustCompressTypes(aggregation.P99),
 					},
 				},
-			},
+			}),
 			expected: false,
 		},
 		{
-			p1: Pipeline{
-				Operations: []Union{
-					{
-						Type: op.TransformationType,
-						Transformation: op.Transformation{
-							Type: transformation.PerSecond,
-						},
+			p1: NewPipeline([]Union{
+				{
+					Type: op.TransformationType,
+					Transformation: op.Transformation{
+						Type: transformation.PerSecond,
 					},
 				},
-			},
-			p2: Pipeline{
-				Operations: []Union{
-					{
-						Type: op.TransformationType,
-						Transformation: op.Transformation{
-							Type: transformation.Absolute,
-						},
+			}),
+			p2: NewPipeline([]Union{
+				{
+					Type: op.TransformationType,
+					Transformation: op.Transformation{
+						Type: transformation.Absolute,
 					},
 				},
-			},
+			}),
 			expected: false,
 		},
 		{
-			p1: Pipeline{
-				Operations: []Union{
-					{
-						Type: op.RollupType,
-						Rollup: Rollup{
-							ID:            []byte("foo"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.P99),
-						},
+			p1: NewPipeline([]Union{
+				{
+					Type: op.RollupType,
+					Rollup: Rollup{
+						ID:            []byte("foo"),
+						AggregationID: aggregation.MustCompressTypes(aggregation.P99),
 					},
 				},
-			},
-			p2: Pipeline{
-				Operations: []Union{
-					{
-						Type: op.RollupType,
-						Rollup: Rollup{
-							ID:            []byte("bar"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.P99),
-						},
+			}),
+			p2: NewPipeline([]Union{
+				{
+					Type: op.RollupType,
+					Rollup: Rollup{
+						ID:            []byte("bar"),
+						AggregationID: aggregation.MustCompressTypes(aggregation.P99),
 					},
 				},
-			},
+			}),
 			expected: false,
 		},
 		{
-			p1: Pipeline{
-				Operations: []Union{
-					{
-						Type: op.RollupType,
-						Rollup: Rollup{
-							ID:            []byte("foo"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.P99),
-						},
+			p1: NewPipeline([]Union{
+				{
+					Type: op.RollupType,
+					Rollup: Rollup{
+						ID:            []byte("foo"),
+						AggregationID: aggregation.MustCompressTypes(aggregation.P99),
 					},
 				},
-			},
-			p2: Pipeline{
-				Operations: []Union{
-					{
-						Type: op.RollupType,
-						Rollup: Rollup{
-							ID:            []byte("foo"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
-						},
+			}),
+			p2: NewPipeline([]Union{
+				{
+					Type: op.RollupType,
+					Rollup: Rollup{
+						ID:            []byte("foo"),
+						AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
 					},
 				},
-			},
+			}),
 			expected: false,
 		},
 	}
@@ -260,7 +264,7 @@ func TestPipelineCloneEmptyPipeline(t *testing.T) {
 	p2 := p1.Clone()
 	require.True(t, p1.Equal(p2))
 
-	p2.Operations = append(p2.Operations, Union{
+	p2.operations = append(p2.operations, Union{
 		Type: op.RollupType,
 		Rollup: Rollup{
 			ID:            []byte("foo"),
@@ -272,53 +276,89 @@ func TestPipelineCloneEmptyPipeline(t *testing.T) {
 }
 
 func TestPipelineCloneMultiLevelPipeline(t *testing.T) {
-	p1 := Pipeline{
-		Operations: []Union{
-			{
-				Type: op.TransformationType,
-				Transformation: op.Transformation{
-					Type: transformation.Absolute,
-				},
-			},
-			{
-				Type: op.RollupType,
-				Rollup: Rollup{
-					ID:            []byte("foo"),
-					AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum),
-				},
-			},
-			{
-				Type: op.TransformationType,
-				Transformation: op.Transformation{
-					Type: transformation.PerSecond,
-				},
-			},
-			{
-				Type: op.RollupType,
-				Rollup: Rollup{
-					ID:            []byte("bar"),
-					AggregationID: aggregation.MustCompressTypes(aggregation.P99),
-				},
+	p1 := NewPipeline([]Union{
+		{
+			Type: op.TransformationType,
+			Transformation: op.Transformation{
+				Type: transformation.Absolute,
 			},
 		},
-	}
+		{
+			Type: op.RollupType,
+			Rollup: Rollup{
+				ID:            []byte("foo"),
+				AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum),
+			},
+		},
+		{
+			Type: op.TransformationType,
+			Transformation: op.Transformation{
+				Type: transformation.PerSecond,
+			},
+		},
+		{
+			Type: op.RollupType,
+			Rollup: Rollup{
+				ID:            []byte("bar"),
+				AggregationID: aggregation.MustCompressTypes(aggregation.P99),
+			},
+		},
+	})
 	p2 := p1.Clone()
 	p3 := p2.Clone()
 	require.True(t, p1.Equal(p2))
 	require.True(t, p1.Equal(p3))
 
 	// Mutate the operations of a cloned pipeline.
-	p2.Operations[0].Transformation.Type = transformation.PerSecond
-	p2.Operations[1].Rollup.ID[0] = 'z'
-	p2.Operations[3].Rollup.AggregationID = aggregation.MustCompressTypes(aggregation.Count)
+	p2.operations[0].Transformation.Type = transformation.PerSecond
+	p2.operations[1].Rollup.ID[0] = 'z'
+	p2.operations[3].Rollup.AggregationID = aggregation.MustCompressTypes(aggregation.Count)
 
 	// Verify the mutations do not affect the source pipeline or other clones.
 	require.False(t, p1.Equal(p2))
 	require.False(t, p2.Equal(p3))
 	require.True(t, p1.Equal(p3))
-	require.Equal(t, transformation.Absolute, p1.Operations[0].Transformation.Type)
-	require.Equal(t, []byte("foo"), p1.Operations[1].Rollup.ID)
-	require.Equal(t, aggregation.MustCompressTypes(aggregation.P99), p1.Operations[3].Rollup.AggregationID)
+	require.Equal(t, transformation.Absolute, p1.At(0).Transformation.Type)
+	require.Equal(t, []byte("foo"), p1.At(1).Rollup.ID)
+	require.Equal(t, aggregation.MustCompressTypes(aggregation.P99), p1.At(3).Rollup.AggregationID)
+}
+
+func TestPipelineSubPipeline(t *testing.T) {
+	operations := []Union{
+		{
+			Type: op.TransformationType,
+			Transformation: op.Transformation{
+				Type: transformation.Absolute,
+			},
+		},
+		{
+			Type: op.RollupType,
+			Rollup: Rollup{
+				ID:            []byte("foo"),
+				AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum),
+			},
+		},
+		{
+			Type: op.TransformationType,
+			Transformation: op.Transformation{
+				Type: transformation.PerSecond,
+			},
+		},
+		{
+			Type: op.RollupType,
+			Rollup: Rollup{
+				ID:            []byte("bar"),
+				AggregationID: aggregation.MustCompressTypes(aggregation.P99),
+			},
+		},
+	}
+	p := NewPipeline(operations)
+
+	for i := 0; i < 4; i++ {
+		subp := p.SubPipeline(i)
+		expected := NewPipeline(operations[i:])
+		require.Equal(t, expected, subp)
+	}
 }
 
 func TestPipelineString(t *testing.T) {
@@ -327,31 +367,27 @@ func TestPipelineString(t *testing.T) {
 		expected string
 	}{
 		{
-			p: Pipeline{
-				Operations: []Union{
-					{
-						Type:           op.TransformationType,
-						Transformation: op.Transformation{Type: transformation.PerSecond},
-					},
-					{
-						Type: op.RollupType,
-						Rollup: Rollup{
-							ID:            []byte("foo"),
-							AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
-						},
+			p: NewPipeline([]Union{
+				{
+					Type:           op.TransformationType,
+					Transformation: op.Transformation{Type: transformation.PerSecond},
+				},
+				{
+					Type: op.RollupType,
+					Rollup: Rollup{
+						ID:            []byte("foo"),
+						AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
 					},
 				},
-			},
+			}),
 			expected: "{operations: [{transformation: PerSecond}, {rollup: {id: foo, aggregation: Sum}}]}",
 		},
 		{
-			p: Pipeline{
-				Operations: []Union{
-					{
-						Type: op.Type(10),
-					},
+			p: NewPipeline([]Union{
+				{
+					Type: op.Type(10),
 				},
-			},
+			}),
 			expected: "{operations: [{unknown op type: Type(10)}]}",
 		},
 	}

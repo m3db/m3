@@ -117,14 +117,12 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 					Metadata: Metadata{
 						Pipelines: []PipelineMetadata{
 							{
-								Pipeline: applied.Pipeline{
-									Operations: []applied.Union{
-										{
-											Type:           op.TransformationType,
-											Transformation: op.Transformation{Type: transformation.Absolute},
-										},
+								Pipeline: applied.NewPipeline([]applied.Union{
+									{
+										Type:           op.TransformationType,
+										Transformation: op.Transformation{Type: transformation.Absolute},
 									},
-								},
+								}),
 							},
 						},
 					},
@@ -138,14 +136,12 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 					Metadata: Metadata{
 						Pipelines: []PipelineMetadata{
 							{
-								Pipeline: applied.Pipeline{
-									Operations: []applied.Union{
-										{
-											Type:   op.RollupType,
-											Rollup: applied.Rollup{ID: []byte("foo")},
-										},
+								Pipeline: applied.NewPipeline([]applied.Union{
+									{
+										Type:   op.RollupType,
+										Rollup: applied.Rollup{ID: []byte("foo")},
 									},
-								},
+								}),
 							},
 						},
 					},
@@ -159,14 +155,12 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 					Metadata: Metadata{
 						Pipelines: []PipelineMetadata{
 							{
-								Pipeline: applied.Pipeline{
-									Operations: []applied.Union{
-										{
-											Type:   op.RollupType,
-											Rollup: applied.Rollup{AggregationID: aggregation.MustCompressTypes(aggregation.Sum)},
-										},
+								Pipeline: applied.NewPipeline([]applied.Union{
+									{
+										Type:   op.RollupType,
+										Rollup: applied.Rollup{AggregationID: aggregation.MustCompressTypes(aggregation.Sum)},
 									},
-								},
+								}),
 							},
 						},
 					},
