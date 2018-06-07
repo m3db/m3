@@ -147,10 +147,10 @@ func (p Pipeline) Clone() Pipeline {
 	return Pipeline{operations: clone}
 }
 
-// SubPipeline returns a sub-pipeline starting from step `idx`
-// of the current pipeline.
-func (p Pipeline) SubPipeline(idx int) Pipeline {
-	return Pipeline{operations: p.operations[idx:]}
+// SubPipeline returns a sub-pipeline containing operations between step `startInclusive`
+// and step `endExclusive` of the current pipeline.
+func (p Pipeline) SubPipeline(startInclusive int, endExclusive int) Pipeline {
+	return Pipeline{operations: p.operations[startInclusive:endExclusive]}
 }
 
 func (p Pipeline) String() string {

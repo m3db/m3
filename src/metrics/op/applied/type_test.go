@@ -353,11 +353,30 @@ func TestPipelineSubPipeline(t *testing.T) {
 		},
 	}
 	p := NewPipeline(operations)
+	inputs := []struct {
+		startInclusive int
+		endExclusive   int
+		expected       Pipeline
+	}{
+		{
+			startInclusive: 0,
+			endExclusive:   0,
+			expected:       NewPipeline([]Union{}),
+		},
+		{
+			startInclusive: 0,
+			endExclusive:   4,
+			expected:       NewPipeline(operations),
+		},
+		{
+			startInclusive: 1,
+			endExclusive:   3,
+			expected:       NewPipeline(operations[1:3]),
+		},
+	}
 
-	for i := 0; i < 4; i++ {
-		subp := p.SubPipeline(i)
-		expected := NewPipeline(operations[i:])
-		require.Equal(t, expected, subp)
+	for _, input := range inputs {
+		require.Equal(t, input.expected, p.SubPipeline(input.startInclusive, input.endExclusive))
 	}
 }
 
