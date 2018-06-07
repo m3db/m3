@@ -21,11 +21,18 @@
 package aggregated
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3metrics/generated/proto/metricpb"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
+)
+
+var (
+	errNilTimedMetricWithForwardMetadataProto = errors.New("nil timed metric with forward metadata proto message")
 )
 
 // Metric is a metric, which is essentially a named value at certain time.
@@ -33,6 +40,20 @@ type Metric struct {
 	ID        id.RawID
 	TimeNanos int64
 	Value     float64
+}
+
+// ToProto converts the metric to a protobuf message in place.
+func (m Metric) ToProto(pb *metricpb.TimedMetric) {
+	pb.Id = m.ID
+	pb.TimeNanos = m.TimeNanos
+	pb.Value = m.Value
+}
+
+// FromProto converts the protobuf message to a metric in place.
+func (m *Metric) FromProto(pb metricpb.TimedMetric) {
+	m.ID = pb.Id
+	m.TimeNanos = pb.TimeNanos
+	m.Value = pb.Value
 }
 
 // String is the string representation of a metric.
@@ -95,4 +116,31 @@ type ChunkedMetricWithStoragePolicy struct {
 type RawMetricWithStoragePolicy struct {
 	RawMetric
 	policy.StoragePolicy
+}
+
+// MetricWithForwardMetadata is a metric with forward metadata.
+type MetricWithForwardMetadata struct {
+	Metric
+	metadata.ForwardMetadata
+}
+
+// ToProto converts the metric with forward metadata to a protobuf message in place.
+func (tm MetricWithForwardMetadata) ToProto(pb *metricpb.TimedMetricWithForwardMetadata) error {
+	if err := tm.ForwardMetadata.ToProto(&pb.Metadata); err != nil {
+		return err
+	}
+	tm.Metric.ToProto(&pb.Metric)
+	return nil
+}
+
+// FromProto converts the protobuf message to a metric with forward metadata in place.
+func (tm *MetricWithForwardMetadata) FromProto(pb *metricpb.TimedMetricWithForwardMetadata) error {
+	if pb == nil {
+		return errNilTimedMetricWithForwardMetadataProto
+	}
+	if err := tm.ForwardMetadata.FromProto(pb.Metadata); err != nil {
+		return err
+	}
+	tm.Metric.FromProto(pb.Metric)
+	return nil
 }

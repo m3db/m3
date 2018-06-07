@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3metrics/generated/proto/policypb"
 	"github.com/m3db/m3metrics/generated/proto/transformationpb"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/op"
 	"github.com/m3db/m3metrics/op/applied"
@@ -70,7 +71,17 @@ var (
 		ID:    []byte("testGauge2"),
 		Value: 234231.345,
 	}
-	testMetadatas1 = metadata.StagedMetadatas{
+	testTimedMetric1 = aggregated.Metric{
+		ID:        []byte("testTimedMetric1"),
+		TimeNanos: 8259,
+		Value:     29234.29934,
+	}
+	testTimedMetric2 = aggregated.Metric{
+		ID:        []byte("testTimedMetric2"),
+		TimeNanos: 145668,
+		Value:     563.875,
+	}
+	testStagedMetadatas1 = metadata.StagedMetadatas{
 		{
 			CutoverNanos: 1234,
 			Tombstoned:   false,
@@ -101,7 +112,7 @@ var (
 			},
 		},
 	}
-	testMetadatas2 = metadata.StagedMetadatas{
+	testStagedMetadatas2 = metadata.StagedMetadatas{
 		{
 			CutoverNanos: 4567,
 			Tombstoned:   false,
@@ -169,6 +180,42 @@ var (
 			},
 		},
 	}
+	testForwardMetadata1 = metadata.ForwardMetadata{
+		AggregationID: aggregation.DefaultID,
+		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
+		Pipeline: applied.NewPipeline([]applied.Union{
+			{
+				Type: op.RollupType,
+				Rollup: applied.Rollup{
+					ID:            []byte("foo"),
+					AggregationID: aggregation.MustCompressTypes(aggregation.Count),
+				},
+			},
+		}),
+		SourceID:          1234,
+		NumForwardedTimes: 3,
+	}
+	testForwardMetadata2 = metadata.ForwardMetadata{
+		AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+		StoragePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+		Pipeline: applied.NewPipeline([]applied.Union{
+			{
+				Type: op.TransformationType,
+				Transformation: op.Transformation{
+					Type: transformation.Absolute,
+				},
+			},
+			{
+				Type: op.RollupType,
+				Rollup: applied.Rollup{
+					ID:            []byte("bar"),
+					AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum),
+				},
+			},
+		}),
+		SourceID:          897,
+		NumForwardedTimes: 2,
+	}
 	testCounter1Proto = metricpb.Counter{
 		Id:    []byte("testCounter1"),
 		Value: 123,
@@ -193,7 +240,17 @@ var (
 		Id:    []byte("testGauge2"),
 		Value: 234231.345,
 	}
-	testMetadatas1Proto = metricpb.StagedMetadatas{
+	testTimedMetric1Proto = metricpb.TimedMetric{
+		Id:        []byte("testTimedMetric1"),
+		TimeNanos: 8259,
+		Value:     29234.29934,
+	}
+	testTimedMetric2Proto = metricpb.TimedMetric{
+		Id:        []byte("testTimedMetric2"),
+		TimeNanos: 145668,
+		Value:     563.875,
+	}
+	testStagedMetadatas1Proto = metricpb.StagedMetadatas{
 		Metadatas: []metricpb.StagedMetadata{
 			{
 				CutoverNanos: 1234,
@@ -244,7 +301,7 @@ var (
 			},
 		},
 	}
-	testMetadatas2Proto = metricpb.StagedMetadatas{
+	testStagedMetadatas2Proto = metricpb.StagedMetadatas{
 		Metadatas: []metricpb.StagedMetadata{
 			{
 				CutoverNanos: 4567,
@@ -342,6 +399,62 @@ var (
 			},
 		},
 	}
+	testForwardMetadata1Proto = metricpb.ForwardMetadata{
+		AggregationId: aggregationpb.AggregationID{Id: 0},
+		StoragePolicy: policypb.StoragePolicy{
+			Resolution: &policypb.Resolution{
+				WindowSize: time.Minute.Nanoseconds(),
+				Precision:  time.Minute.Nanoseconds(),
+			},
+			Retention: &policypb.Retention{
+				Period: (12 * time.Hour).Nanoseconds(),
+			},
+		},
+		Pipeline: pipelinepb.AppliedPipeline{
+			Ops: []pipelinepb.AppliedPipelineOp{
+				{
+					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
+					Rollup: &pipelinepb.AppliedRollupOp{
+						Id:            []byte("foo"),
+						AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Count)[0]},
+					},
+				},
+			},
+		},
+		SourceId:          1234,
+		NumForwardedTimes: 3,
+	}
+	testForwardMetadata2Proto = metricpb.ForwardMetadata{
+		AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Sum)[0]},
+		StoragePolicy: policypb.StoragePolicy{
+			Resolution: &policypb.Resolution{
+				WindowSize: 10 * time.Second.Nanoseconds(),
+				Precision:  time.Second.Nanoseconds(),
+			},
+			Retention: &policypb.Retention{
+				Period: (6 * time.Hour).Nanoseconds(),
+			},
+		},
+		Pipeline: pipelinepb.AppliedPipeline{
+			Ops: []pipelinepb.AppliedPipelineOp{
+				{
+					Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
+					Transformation: &pipelinepb.TransformationOp{
+						Type: transformationpb.TransformationType_ABSOLUTE,
+					},
+				},
+				{
+					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
+					Rollup: &pipelinepb.AppliedRollupOp{
+						Id:            []byte("bar"),
+						AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum)[0]},
+					},
+				},
+			},
+		},
+		SourceId:          897,
+		NumForwardedTimes: 2,
+	}
 	testCmpOpts = []cmp.Option{
 		cmpopts.EquateEmpty(),
 		cmp.AllowUnexported(policy.StoragePolicy{}),
@@ -352,37 +465,37 @@ func TestUnaggregatedEncoderEncodeCounterWithMetadatas(t *testing.T) {
 	inputs := []unaggregated.CounterWithMetadatas{
 		{
 			Counter:         testCounter1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		{
 			Counter:         testCounter2,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		{
 			Counter:         testCounter1,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 		{
 			Counter:         testCounter2,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 	}
 	expected := []metricpb.CounterWithMetadatas{
 		{
 			Counter:   testCounter1Proto,
-			Metadatas: testMetadatas1Proto,
+			Metadatas: testStagedMetadatas1Proto,
 		},
 		{
 			Counter:   testCounter2Proto,
-			Metadatas: testMetadatas1Proto,
+			Metadatas: testStagedMetadatas1Proto,
 		},
 		{
 			Counter:   testCounter1Proto,
-			Metadatas: testMetadatas2Proto,
+			Metadatas: testStagedMetadatas2Proto,
 		},
 		{
 			Counter:   testCounter2Proto,
-			Metadatas: testMetadatas2Proto,
+			Metadatas: testStagedMetadatas2Proto,
 		},
 	}
 
@@ -412,37 +525,37 @@ func TestUnaggregatedEncoderEncodeBatchTimerWithMetadatas(t *testing.T) {
 	inputs := []unaggregated.BatchTimerWithMetadatas{
 		{
 			BatchTimer:      testBatchTimer1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		{
 			BatchTimer:      testBatchTimer2,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		{
 			BatchTimer:      testBatchTimer1,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 		{
 			BatchTimer:      testBatchTimer2,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 	}
 	expected := []metricpb.BatchTimerWithMetadatas{
 		{
 			BatchTimer: testBatchTimer1Proto,
-			Metadatas:  testMetadatas1Proto,
+			Metadatas:  testStagedMetadatas1Proto,
 		},
 		{
 			BatchTimer: testBatchTimer2Proto,
-			Metadatas:  testMetadatas1Proto,
+			Metadatas:  testStagedMetadatas1Proto,
 		},
 		{
 			BatchTimer: testBatchTimer1Proto,
-			Metadatas:  testMetadatas2Proto,
+			Metadatas:  testStagedMetadatas2Proto,
 		},
 		{
 			BatchTimer: testBatchTimer2Proto,
-			Metadatas:  testMetadatas2Proto,
+			Metadatas:  testStagedMetadatas2Proto,
 		},
 	}
 
@@ -472,37 +585,37 @@ func TestUnaggregatedEncoderEncodeGaugeWithMetadatas(t *testing.T) {
 	inputs := []unaggregated.GaugeWithMetadatas{
 		{
 			Gauge:           testGauge1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		{
 			Gauge:           testGauge2,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		{
 			Gauge:           testGauge1,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 		{
 			Gauge:           testGauge2,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 	}
 	expected := []metricpb.GaugeWithMetadatas{
 		{
 			Gauge:     testGauge1Proto,
-			Metadatas: testMetadatas1Proto,
+			Metadatas: testStagedMetadatas1Proto,
 		},
 		{
 			Gauge:     testGauge2Proto,
-			Metadatas: testMetadatas1Proto,
+			Metadatas: testStagedMetadatas1Proto,
 		},
 		{
 			Gauge:     testGauge1Proto,
-			Metadatas: testMetadatas2Proto,
+			Metadatas: testStagedMetadatas2Proto,
 		},
 		{
 			Gauge:     testGauge2Proto,
-			Metadatas: testMetadatas2Proto,
+			Metadatas: testStagedMetadatas2Proto,
 		},
 	}
 
@@ -528,106 +641,198 @@ func TestUnaggregatedEncoderEncodeGaugeWithMetadatas(t *testing.T) {
 	}
 }
 
+func TestUnaggregatedEncoderEncodeTimedMetricWithForwardMetadata(t *testing.T) {
+	inputs := []aggregated.MetricWithForwardMetadata{
+		{
+			Metric:          testTimedMetric1,
+			ForwardMetadata: testForwardMetadata1,
+		},
+		{
+			Metric:          testTimedMetric1,
+			ForwardMetadata: testForwardMetadata2,
+		},
+		{
+			Metric:          testTimedMetric2,
+			ForwardMetadata: testForwardMetadata1,
+		},
+		{
+			Metric:          testTimedMetric2,
+			ForwardMetadata: testForwardMetadata2,
+		},
+	}
+	expected := []metricpb.TimedMetricWithForwardMetadata{
+		{
+			Metric:   testTimedMetric1Proto,
+			Metadata: testForwardMetadata1Proto,
+		},
+		{
+			Metric:   testTimedMetric1Proto,
+			Metadata: testForwardMetadata2Proto,
+		},
+		{
+			Metric:   testTimedMetric2Proto,
+			Metadata: testForwardMetadata1Proto,
+		},
+		{
+			Metric:   testTimedMetric2Proto,
+			Metadata: testForwardMetadata2Proto,
+		},
+	}
+
+	var (
+		sizeRes int
+		pbRes   metricpb.MetricWithMetadatas
+	)
+	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
+	enc.(*unaggregatedEncoder).encodeMessageSizeFn = func(size int) { sizeRes = size }
+	enc.(*unaggregatedEncoder).encodeMessageFn = func(pb metricpb.MetricWithMetadatas) error { pbRes = pb; return nil }
+	for i, input := range inputs {
+		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type: encoding.TimedMetricWithForwardMetadataType,
+			TimedMetricWithForwardMetadata: input,
+		}))
+		expectedProto := metricpb.MetricWithMetadatas{
+			Type: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_FORWARD_METADATA,
+			TimedMetricWithForwardMetadata: &expected[i],
+		}
+		expectedMsgSize := expectedProto.Size()
+		require.Equal(t, expectedMsgSize, sizeRes)
+		require.Equal(t, expectedProto, pbRes)
+	}
+}
+
 func TestUnaggregatedEncoderStress(t *testing.T) {
 	inputs := []interface{}{
 		unaggregated.CounterWithMetadatas{
 			Counter:         testCounter1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		unaggregated.BatchTimerWithMetadatas{
 			BatchTimer:      testBatchTimer1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		unaggregated.GaugeWithMetadatas{
 			Gauge:           testGauge1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
+		},
+		aggregated.MetricWithForwardMetadata{
+			Metric:          testTimedMetric1,
+			ForwardMetadata: testForwardMetadata1,
 		},
 		unaggregated.CounterWithMetadatas{
 			Counter:         testCounter2,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		unaggregated.BatchTimerWithMetadatas{
 			BatchTimer:      testBatchTimer2,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		unaggregated.GaugeWithMetadatas{
 			Gauge:           testGauge2,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
+		},
+		aggregated.MetricWithForwardMetadata{
+			Metric:          testTimedMetric2,
+			ForwardMetadata: testForwardMetadata1,
 		},
 		unaggregated.CounterWithMetadatas{
 			Counter:         testCounter1,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 		unaggregated.BatchTimerWithMetadatas{
 			BatchTimer:      testBatchTimer1,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 		unaggregated.GaugeWithMetadatas{
 			Gauge:           testGauge1,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
+		},
+		aggregated.MetricWithForwardMetadata{
+			Metric:          testTimedMetric1,
+			ForwardMetadata: testForwardMetadata2,
 		},
 		unaggregated.CounterWithMetadatas{
 			Counter:         testCounter2,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 		unaggregated.BatchTimerWithMetadatas{
 			BatchTimer:      testBatchTimer2,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 		unaggregated.GaugeWithMetadatas{
 			Gauge:           testGauge2,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
+		},
+		aggregated.MetricWithForwardMetadata{
+			Metric:          testTimedMetric2,
+			ForwardMetadata: testForwardMetadata2,
 		},
 	}
 
 	expected := []interface{}{
 		metricpb.CounterWithMetadatas{
 			Counter:   testCounter1Proto,
-			Metadatas: testMetadatas1Proto,
+			Metadatas: testStagedMetadatas1Proto,
 		},
 		metricpb.BatchTimerWithMetadatas{
 			BatchTimer: testBatchTimer1Proto,
-			Metadatas:  testMetadatas1Proto,
+			Metadatas:  testStagedMetadatas1Proto,
 		},
 		metricpb.GaugeWithMetadatas{
 			Gauge:     testGauge1Proto,
-			Metadatas: testMetadatas1Proto,
+			Metadatas: testStagedMetadatas1Proto,
+		},
+		metricpb.TimedMetricWithForwardMetadata{
+			Metric:   testTimedMetric1Proto,
+			Metadata: testForwardMetadata1Proto,
 		},
 		metricpb.CounterWithMetadatas{
 			Counter:   testCounter2Proto,
-			Metadatas: testMetadatas1Proto,
+			Metadatas: testStagedMetadatas1Proto,
 		},
 		metricpb.BatchTimerWithMetadatas{
 			BatchTimer: testBatchTimer2Proto,
-			Metadatas:  testMetadatas1Proto,
+			Metadatas:  testStagedMetadatas1Proto,
 		},
 		metricpb.GaugeWithMetadatas{
 			Gauge:     testGauge2Proto,
-			Metadatas: testMetadatas1Proto,
+			Metadatas: testStagedMetadatas1Proto,
+		},
+		metricpb.TimedMetricWithForwardMetadata{
+			Metric:   testTimedMetric2Proto,
+			Metadata: testForwardMetadata1Proto,
 		},
 		metricpb.CounterWithMetadatas{
 			Counter:   testCounter1Proto,
-			Metadatas: testMetadatas2Proto,
+			Metadatas: testStagedMetadatas2Proto,
 		},
 		metricpb.BatchTimerWithMetadatas{
 			BatchTimer: testBatchTimer1Proto,
-			Metadatas:  testMetadatas2Proto,
+			Metadatas:  testStagedMetadatas2Proto,
 		},
 		metricpb.GaugeWithMetadatas{
 			Gauge:     testGauge1Proto,
-			Metadatas: testMetadatas2Proto,
+			Metadatas: testStagedMetadatas2Proto,
+		},
+		metricpb.TimedMetricWithForwardMetadata{
+			Metric:   testTimedMetric1Proto,
+			Metadata: testForwardMetadata2Proto,
 		},
 		metricpb.CounterWithMetadatas{
 			Counter:   testCounter2Proto,
-			Metadatas: testMetadatas2Proto,
+			Metadatas: testStagedMetadatas2Proto,
 		},
 		metricpb.BatchTimerWithMetadatas{
 			BatchTimer: testBatchTimer2Proto,
-			Metadatas:  testMetadatas2Proto,
+			Metadatas:  testStagedMetadatas2Proto,
 		},
 		metricpb.GaugeWithMetadatas{
 			Gauge:     testGauge2Proto,
-			Metadatas: testMetadatas2Proto,
+			Metadatas: testStagedMetadatas2Proto,
+		},
+		metricpb.TimedMetricWithForwardMetadata{
+			Metric:   testTimedMetric2Proto,
+			Metadata: testForwardMetadata2Proto,
 		},
 	}
 
@@ -677,6 +882,16 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 					Type:               metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS,
 					GaugeWithMetadatas: &res,
 				}
+			case aggregated.MetricWithForwardMetadata:
+				msg = encoding.UnaggregatedMessageUnion{
+					Type: encoding.TimedMetricWithForwardMetadataType,
+					TimedMetricWithForwardMetadata: input,
+				}
+				res := expected[i].(metricpb.TimedMetricWithForwardMetadata)
+				expectedProto = metricpb.MetricWithMetadatas{
+					Type: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_FORWARD_METADATA,
+					TimedMetricWithForwardMetadata: &res,
+				}
 			default:
 				require.Fail(t, "unrecognized type %T", input)
 			}
@@ -701,7 +916,7 @@ func TestUnaggregatedEncoderEncodeMessageTooLarge(t *testing.T) {
 		Type: encoding.CounterWithMetadatasType,
 		CounterWithMetadatas: unaggregated.CounterWithMetadatas{
 			Counter:         testCounter1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 	}
 	opts := NewUnaggregatedOptions().SetMaxMessageSize(1)
@@ -746,7 +961,7 @@ func TestUnaggregatedEncoderEncodeMessageRelinquishReset(t *testing.T) {
 		Type: encoding.CounterWithMetadatasType,
 		CounterWithMetadatas: unaggregated.CounterWithMetadatas{
 			Counter:         testCounter1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 	}
 	opts := NewUnaggregatedOptions().SetInitBufferSize(2)
@@ -771,7 +986,7 @@ func TestUnaggregatedEncoderRelinquish(t *testing.T) {
 		Type: encoding.CounterWithMetadatasType,
 		CounterWithMetadatas: unaggregated.CounterWithMetadatas{
 			Counter:         testCounter1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 	}
 	opts := NewUnaggregatedOptions().SetInitBufferSize(2)

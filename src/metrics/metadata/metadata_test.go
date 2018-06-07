@@ -40,6 +40,42 @@ import (
 )
 
 var (
+	testSmallForwardMetadata = ForwardMetadata{
+		AggregationID: aggregation.DefaultID,
+		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
+		Pipeline: applied.NewPipeline([]applied.Union{
+			{
+				Type: op.RollupType,
+				Rollup: applied.Rollup{
+					ID:            []byte("foo"),
+					AggregationID: aggregation.MustCompressTypes(aggregation.Count),
+				},
+			},
+		}),
+		SourceID:          1234,
+		NumForwardedTimes: 3,
+	}
+	testLargeForwardMetadata = ForwardMetadata{
+		AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+		StoragePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+		Pipeline: applied.NewPipeline([]applied.Union{
+			{
+				Type: op.TransformationType,
+				Transformation: op.Transformation{
+					Type: transformation.Absolute,
+				},
+			},
+			{
+				Type: op.RollupType,
+				Rollup: applied.Rollup{
+					ID:            []byte("bar"),
+					AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum),
+				},
+			},
+		}),
+		SourceID:          897,
+		NumForwardedTimes: 2,
+	}
 	testSmallPipelineMetadata = PipelineMetadata{
 		AggregationID: aggregation.DefaultID,
 		StoragePolicies: []policy.StoragePolicy{
@@ -75,6 +111,9 @@ var (
 				},
 			},
 		}),
+	}
+	testBadForwardMetadata = ForwardMetadata{
+		StoragePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Unit(101), 6*time.Hour),
 	}
 	testBadPipelineMetadata = PipelineMetadata{
 		AggregationID: aggregation.DefaultID,
@@ -195,6 +234,63 @@ var (
 			},
 		},
 	}
+	testSmallForwardMetadataProto = metricpb.ForwardMetadata{
+		AggregationId: aggregationpb.AggregationID{Id: 0},
+		StoragePolicy: policypb.StoragePolicy{
+			Resolution: &policypb.Resolution{
+				WindowSize: time.Minute.Nanoseconds(),
+				Precision:  time.Minute.Nanoseconds(),
+			},
+			Retention: &policypb.Retention{
+				Period: (12 * time.Hour).Nanoseconds(),
+			},
+		},
+		Pipeline: pipelinepb.AppliedPipeline{
+			Ops: []pipelinepb.AppliedPipelineOp{
+				{
+					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
+					Rollup: &pipelinepb.AppliedRollupOp{
+						Id:            []byte("foo"),
+						AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Count)[0]},
+					},
+				},
+			},
+		},
+		SourceId:          1234,
+		NumForwardedTimes: 3,
+	}
+	testLargeForwardMetadataProto = metricpb.ForwardMetadata{
+		AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Sum)[0]},
+		StoragePolicy: policypb.StoragePolicy{
+			Resolution: &policypb.Resolution{
+				WindowSize: 10 * time.Second.Nanoseconds(),
+				Precision:  time.Second.Nanoseconds(),
+			},
+			Retention: &policypb.Retention{
+				Period: (6 * time.Hour).Nanoseconds(),
+			},
+		},
+		Pipeline: pipelinepb.AppliedPipeline{
+			Ops: []pipelinepb.AppliedPipelineOp{
+				{
+					Type: pipelinepb.AppliedPipelineOp_TRANSFORMATION,
+					Transformation: &pipelinepb.TransformationOp{
+						Type: transformationpb.TransformationType_ABSOLUTE,
+					},
+				},
+				{
+					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
+					Rollup: &pipelinepb.AppliedRollupOp{
+						Id:            []byte("bar"),
+						AggregationId: aggregationpb.AggregationID{Id: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum)[0]},
+					},
+				},
+			},
+		},
+		SourceId:          897,
+		NumForwardedTimes: 2,
+	}
+	testBadForwardMetadataProto    = metricpb.ForwardMetadata{}
 	testSmallPipelineMetadataProto = metricpb.PipelineMetadata{
 		AggregationId: aggregationpb.AggregationID{Id: 0},
 		StoragePolicies: []policypb.StoragePolicy{
@@ -592,6 +688,113 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 	for _, input := range inputs {
 		require.Equal(t, input.expected, input.metadatas.IsDefault())
 	}
+}
+
+func TestForwardMetadataToProto(t *testing.T) {
+	inputs := []struct {
+		sequence []ForwardMetadata
+		expected []metricpb.ForwardMetadata
+	}{
+		{
+			sequence: []ForwardMetadata{
+				testSmallForwardMetadata,
+				testLargeForwardMetadata,
+			},
+			expected: []metricpb.ForwardMetadata{
+				testSmallForwardMetadataProto,
+				testLargeForwardMetadataProto,
+			},
+		},
+		{
+			sequence: []ForwardMetadata{
+				testLargeForwardMetadata,
+				testSmallForwardMetadata,
+			},
+			expected: []metricpb.ForwardMetadata{
+				testLargeForwardMetadataProto,
+				testSmallForwardMetadataProto,
+			},
+		},
+	}
+
+	for _, input := range inputs {
+		var pb metricpb.ForwardMetadata
+		for i, meta := range input.sequence {
+			require.NoError(t, meta.ToProto(&pb))
+			require.Equal(t, input.expected[i], pb)
+		}
+	}
+}
+
+func TestForwardMetadataFromProto(t *testing.T) {
+	inputs := []struct {
+		sequence []metricpb.ForwardMetadata
+		expected []ForwardMetadata
+	}{
+		{
+			sequence: []metricpb.ForwardMetadata{
+				testSmallForwardMetadataProto,
+				testLargeForwardMetadataProto,
+			},
+			expected: []ForwardMetadata{
+				testSmallForwardMetadata,
+				testLargeForwardMetadata,
+			},
+		},
+		{
+			sequence: []metricpb.ForwardMetadata{
+				testLargeForwardMetadataProto,
+				testSmallForwardMetadataProto,
+			},
+			expected: []ForwardMetadata{
+				testLargeForwardMetadata,
+				testSmallForwardMetadata,
+			},
+		},
+	}
+
+	for _, input := range inputs {
+		var res ForwardMetadata
+		for i, pb := range input.sequence {
+			require.NoError(t, res.FromProto(pb))
+			require.Equal(t, input.expected[i], res)
+		}
+	}
+}
+
+func TestForwardMetadataRoundtrip(t *testing.T) {
+	inputs := [][]ForwardMetadata{
+		{
+			testSmallForwardMetadata,
+			testLargeForwardMetadata,
+		},
+		{
+			testLargeForwardMetadata,
+			testSmallForwardMetadata,
+		},
+	}
+
+	for _, input := range inputs {
+		var (
+			pb  metricpb.ForwardMetadata
+			res ForwardMetadata
+		)
+		for _, metadata := range input {
+			require.NoError(t, metadata.ToProto(&pb))
+			require.NoError(t, res.FromProto(pb))
+			require.Equal(t, metadata, res)
+		}
+	}
+}
+
+func TestForwardMetadataToProtoBadMetadata(t *testing.T) {
+	var pb metricpb.ForwardMetadata
+	require.Error(t, testBadForwardMetadata.ToProto(&pb))
+}
+
+func TestForwardMetadataFromProtoBadMetadataProto(t *testing.T) {
+	var res ForwardMetadata
+	require.Error(t, res.FromProto(testBadForwardMetadataProto))
 }
 
 func TestPipelineMetadataToProto(t *testing.T) {

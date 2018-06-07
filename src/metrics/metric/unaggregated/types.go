@@ -196,7 +196,7 @@ type BatchTimerWithMetadatas struct {
 // ToProto converts the batch timer with metadatas to a protobuf message in place.
 func (bm BatchTimerWithMetadatas) ToProto(pb *metricpb.BatchTimerWithMetadatas) error {
 	if err := bm.StagedMetadatas.ToProto(&pb.Metadatas); err != nil {
-		return errNilBatchTimerWithMetadatasProto
+		return err
 	}
 	bm.BatchTimer.ToProto(&pb.BatchTimer)
 	return nil
@@ -223,7 +223,7 @@ type GaugeWithMetadatas struct {
 // ToProto converts the gauge with metadatas to a protobuf message in place.
 func (gm GaugeWithMetadatas) ToProto(pb *metricpb.GaugeWithMetadatas) error {
 	if err := gm.StagedMetadatas.ToProto(&pb.Metadatas); err != nil {
-		return errNilGaugeWithMetadatasProto
+		return err
 	}
 	gm.Gauge.ToProto(&pb.Gauge)
 	return nil

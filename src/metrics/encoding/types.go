@@ -23,6 +23,7 @@ package encoding
 import (
 	"io"
 
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 )
 
@@ -35,6 +36,7 @@ const (
 	CounterWithMetadatasType
 	BatchTimerWithMetadatasType
 	GaugeWithMetadatasType
+	TimedMetricWithForwardMetadataType
 )
 
 // UnaggregatedMessageUnion is a union of different types of unaggregated messages.
@@ -42,10 +44,11 @@ const (
 // by the `Type` field of the union, which in turn determines which one
 // of the field in the union contains the corresponding message data.
 type UnaggregatedMessageUnion struct {
-	Type                    UnaggregatedMessageType
-	CounterWithMetadatas    unaggregated.CounterWithMetadatas
-	BatchTimerWithMetadatas unaggregated.BatchTimerWithMetadatas
-	GaugeWithMetadatas      unaggregated.GaugeWithMetadatas
+	Type                           UnaggregatedMessageType
+	CounterWithMetadatas           unaggregated.CounterWithMetadatas
+	BatchTimerWithMetadatas        unaggregated.BatchTimerWithMetadatas
+	GaugeWithMetadatas             unaggregated.GaugeWithMetadatas
+	TimedMetricWithForwardMetadata aggregated.MetricWithForwardMetadata
 }
 
 // ByteReadScanner is capable of reading and scanning bytes.

@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3metrics/encoding"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 
 	"github.com/google/go-cmp/cmp"
@@ -37,19 +38,19 @@ func TestUnaggregatedIteratorDecodeCounterWithMetadatas(t *testing.T) {
 	inputs := []unaggregated.CounterWithMetadatas{
 		{
 			Counter:         testCounter1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		{
 			Counter:         testCounter2,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		{
 			Counter:         testCounter1,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 		{
 			Counter:         testCounter2,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 	}
 
@@ -83,19 +84,19 @@ func TestUnaggregatedIteratorDecodeBatchTimerWithMetadatas(t *testing.T) {
 	inputs := []unaggregated.BatchTimerWithMetadatas{
 		{
 			BatchTimer:      testBatchTimer1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		{
 			BatchTimer:      testBatchTimer2,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		{
 			BatchTimer:      testBatchTimer1,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 		{
 			BatchTimer:      testBatchTimer2,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 	}
 
@@ -129,19 +130,19 @@ func TestUnaggregatedIteratorDecodeGaugeWithMetadatas(t *testing.T) {
 	inputs := []unaggregated.GaugeWithMetadatas{
 		{
 			Gauge:           testGauge1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		{
 			Gauge:           testGauge2,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		{
 			Gauge:           testGauge1,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 		{
 			Gauge:           testGauge2,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 	}
 
@@ -171,55 +172,117 @@ func TestUnaggregatedIteratorDecodeGaugeWithMetadatas(t *testing.T) {
 	require.Equal(t, len(inputs), i)
 }
 
+func TestUnaggregatedIteratorDecodeTimedMetricWithForwardMetadata(t *testing.T) {
+	inputs := []aggregated.MetricWithForwardMetadata{
+		{
+			Metric:          testTimedMetric1,
+			ForwardMetadata: testForwardMetadata1,
+		},
+		{
+			Metric:          testTimedMetric2,
+			ForwardMetadata: testForwardMetadata1,
+		},
+		{
+			Metric:          testTimedMetric1,
+			ForwardMetadata: testForwardMetadata2,
+		},
+		{
+			Metric:          testTimedMetric2,
+			ForwardMetadata: testForwardMetadata2,
+		},
+	}
+
+	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
+	for _, input := range inputs {
+		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type: encoding.TimedMetricWithForwardMetadataType,
+			TimedMetricWithForwardMetadata: input,
+		}))
+	}
+	dataBuf := enc.Relinquish()
+	defer dataBuf.Close()
+
+	var (
+		i      int
+		stream = bytes.NewReader(dataBuf.Bytes())
+	)
+	it := NewUnaggregatedIterator(stream, NewUnaggregatedOptions())
+	defer it.Close()
+	for it.Next() {
+		res := it.Current()
+		require.Equal(t, encoding.TimedMetricWithForwardMetadataType, res.Type)
+		require.Equal(t, inputs[i], res.TimedMetricWithForwardMetadata)
+		i++
+	}
+	require.Equal(t, io.EOF, it.Err())
+	require.Equal(t, len(inputs), i)
+}
+
 func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 	inputs := []interface{}{
 		unaggregated.CounterWithMetadatas{
 			Counter:         testCounter1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		unaggregated.BatchTimerWithMetadatas{
 			BatchTimer:      testBatchTimer1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		unaggregated.GaugeWithMetadatas{
 			Gauge:           testGauge1,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
+		},
+		aggregated.MetricWithForwardMetadata{
+			Metric:          testTimedMetric1,
+			ForwardMetadata: testForwardMetadata1,
 		},
 		unaggregated.CounterWithMetadatas{
 			Counter:         testCounter2,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		unaggregated.BatchTimerWithMetadatas{
 			BatchTimer:      testBatchTimer2,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
 		},
 		unaggregated.GaugeWithMetadatas{
 			Gauge:           testGauge2,
-			StagedMetadatas: testMetadatas1,
+			StagedMetadatas: testStagedMetadatas1,
+		},
+		aggregated.MetricWithForwardMetadata{
+			Metric:          testTimedMetric2,
+			ForwardMetadata: testForwardMetadata1,
 		},
 		unaggregated.CounterWithMetadatas{
 			Counter:         testCounter1,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 		unaggregated.BatchTimerWithMetadatas{
 			BatchTimer:      testBatchTimer1,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 		unaggregated.GaugeWithMetadatas{
 			Gauge:           testGauge1,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
+		},
+		aggregated.MetricWithForwardMetadata{
+			Metric:          testTimedMetric1,
+			ForwardMetadata: testForwardMetadata2,
 		},
 		unaggregated.CounterWithMetadatas{
 			Counter:         testCounter2,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 		unaggregated.BatchTimerWithMetadatas{
 			BatchTimer:      testBatchTimer2,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
 		},
 		unaggregated.GaugeWithMetadatas{
 			Gauge:           testGauge2,
-			StagedMetadatas: testMetadatas2,
+			StagedMetadatas: testStagedMetadatas2,
+		},
+		aggregated.MetricWithForwardMetadata{
+			Metric:          testTimedMetric2,
+			ForwardMetadata: testForwardMetadata2,
 		},
 	}
 
@@ -243,6 +306,11 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 				msg = encoding.UnaggregatedMessageUnion{
 					Type:               encoding.GaugeWithMetadatasType,
 					GaugeWithMetadatas: input,
+				}
+			case aggregated.MetricWithForwardMetadata:
+				msg = encoding.UnaggregatedMessageUnion{
+					Type: encoding.TimedMetricWithForwardMetadataType,
+					TimedMetricWithForwardMetadata: input,
 				}
 			default:
 				require.Fail(t, "unrecognized type %T", input)
@@ -272,6 +340,9 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 		case unaggregated.GaugeWithMetadatas:
 			require.Equal(t, encoding.GaugeWithMetadatasType, res.Type)
 			require.True(t, cmp.Equal(expectedRes, res.GaugeWithMetadatas, testCmpOpts...))
+		case aggregated.MetricWithForwardMetadata:
+			require.Equal(t, encoding.TimedMetricWithForwardMetadataType, res.Type)
+			require.True(t, cmp.Equal(expectedRes, res.TimedMetricWithForwardMetadata, testCmpOpts...))
 		default:
 			require.Fail(t, "unknown input type: %T", inputs[j])
 		}
@@ -284,7 +355,7 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 func TestUnaggregatedIteratorMessageTooLarge(t *testing.T) {
 	input := unaggregated.GaugeWithMetadatas{
 		Gauge:           testGauge1,
-		StagedMetadatas: testMetadatas1,
+		StagedMetadatas: testStagedMetadatas1,
 	}
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
 	require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
@@ -312,7 +383,7 @@ func TestUnaggregatedIteratorMessageTooLarge(t *testing.T) {
 func TestUnaggregatedIteratorNextOnError(t *testing.T) {
 	input := unaggregated.GaugeWithMetadatas{
 		Gauge:           testGauge1,
-		StagedMetadatas: testMetadatas1,
+		StagedMetadatas: testStagedMetadatas1,
 	}
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
 	require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
@@ -331,7 +402,7 @@ func TestUnaggregatedIteratorNextOnError(t *testing.T) {
 func TestUnaggregatedIteratorNextOnClose(t *testing.T) {
 	input := unaggregated.GaugeWithMetadatas{
 		Gauge:           testGauge1,
-		StagedMetadatas: testMetadatas1,
+		StagedMetadatas: testStagedMetadatas1,
 	}
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
 	require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{

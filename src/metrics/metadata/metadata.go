@@ -155,6 +155,44 @@ type ForwardMetadata struct {
 
 	// Pipeline of operations that may be applied to the metric.
 	Pipeline applied.Pipeline
+
+	// Metric source id.
+	SourceID uint32
+
+	// Number of times this metric has been forwarded.
+	NumForwardedTimes int
+}
+
+// ToProto converts the forward metadata to a protobuf message in place.
+func (m ForwardMetadata) ToProto(pb *metricpb.ForwardMetadata) error {
+	if err := m.AggregationID.ToProto(&pb.AggregationId); err != nil {
+		return err
+	}
+	if err := m.StoragePolicy.ToProto(&pb.StoragePolicy); err != nil {
+		return err
+	}
+	if err := m.Pipeline.ToProto(&pb.Pipeline); err != nil {
+		return err
+	}
+	pb.SourceId = m.SourceID
+	pb.NumForwardedTimes = int32(m.NumForwardedTimes)
+	return nil
+}
+
+// FromProto converts the protobuf message to a forward metadata in place.
+func (m *ForwardMetadata) FromProto(pb metricpb.ForwardMetadata) error {
+	if err := m.AggregationID.FromProto(pb.AggregationId); err != nil {
+		return err
+	}
+	if err := m.StoragePolicy.FromProto(pb.StoragePolicy); err != nil {
+		return err
+	}
+	if err := m.Pipeline.FromProto(pb.Pipeline); err != nil {
+		return err
+	}
+	m.SourceID = pb.SourceId
+	m.NumForwardedTimes = int(pb.NumForwardedTimes)
+	return nil
 }
 
 // StagedMetadata represents metadata with a staged cutover time.

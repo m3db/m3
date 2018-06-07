@@ -108,10 +108,43 @@ func (m *Gauge) GetValue() float64 {
 	return 0
 }
 
+type TimedMetric struct {
+	Id        []byte  `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	TimeNanos int64   `protobuf:"varint,2,opt,name=time_nanos,json=timeNanos,proto3" json:"time_nanos,omitempty"`
+	Value     float64 `protobuf:"fixed64,3,opt,name=value,proto3" json:"value,omitempty"`
+}
+
+func (m *TimedMetric) Reset()                    { *m = TimedMetric{} }
+func (m *TimedMetric) String() string            { return proto.CompactTextString(m) }
+func (*TimedMetric) ProtoMessage()               {}
+func (*TimedMetric) Descriptor() ([]byte, []int) { return fileDescriptorMetric, []int{3} }
+
+func (m *TimedMetric) GetId() []byte {
+	if m != nil {
+		return m.Id
+	}
+	return nil
+}
+
+func (m *TimedMetric) GetTimeNanos() int64 {
+	if m != nil {
+		return m.TimeNanos
+	}
+	return 0
+}
+
+func (m *TimedMetric) GetValue() float64 {
+	if m != nil {
+		return m.Value
+	}
+	return 0
+}
+
 func init() {
 	proto.RegisterType((*Counter)(nil), "metricpb.Counter")
 	proto.RegisterType((*BatchTimer)(nil), "metricpb.BatchTimer")
 	proto.RegisterType((*Gauge)(nil), "metricpb.Gauge")
+	proto.RegisterType((*TimedMetric)(nil), "metricpb.TimedMetric")
 }
 func (m *Counter) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
@@ -206,6 +239,41 @@ func (m *Gauge) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *TimedMetric) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TimedMetric) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Id) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintMetric(dAtA, i, uint64(len(m.Id)))
+		i += copy(dAtA[i:], m.Id)
+	}
+	if m.TimeNanos != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintMetric(dAtA, i, uint64(m.TimeNanos))
+	}
+	if m.Value != 0 {
+		dAtA[i] = 0x19
+		i++
+		binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.Value))))
+		i += 8
+	}
+	return i, nil
+}
+
 func encodeVarintMetric(dAtA []byte, offset int, v uint64) int {
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
@@ -247,6 +315,22 @@ func (m *Gauge) Size() (n int) {
 	l = len(m.Id)
 	if l > 0 {
 		n += 1 + l + sovMetric(uint64(l))
+	}
+	if m.Value != 0 {
+		n += 9
+	}
+	return n
+}
+
+func (m *TimedMetric) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.Id)
+	if l > 0 {
+		n += 1 + l + sovMetric(uint64(l))
+	}
+	if m.TimeNanos != 0 {
+		n += 1 + sovMetric(uint64(m.TimeNanos))
 	}
 	if m.Value != 0 {
 		n += 9
@@ -586,6 +670,117 @@ func (m *Gauge) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *TimedMetric) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMetric
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TimedMetric: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TimedMetric: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMetric
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthMetric
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Id = append(m.Id[:0], dAtA[iNdEx:postIndex]...)
+			if m.Id == nil {
+				m.Id = []byte{}
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TimeNanos", wireType)
+			}
+			m.TimeNanos = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMetric
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TimeNanos |= (int64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 1 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
+			}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
+			}
+			v = uint64(binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.Value = float64(math.Float64frombits(v))
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMetric(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthMetric
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func skipMetric(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
@@ -696,7 +891,7 @@ func init() {
 }
 
 var fileDescriptorMetric = []byte{
-	// 197 bytes of a gzipped FileDescriptorProto
+	// 235 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xb2, 0x4f, 0xcf, 0x2c, 0xc9,
 	0x28, 0x4d, 0xd2, 0x4b, 0xce, 0xcf, 0xd5, 0xcf, 0x35, 0x4e, 0x49, 0xd2, 0xcf, 0x35, 0xce, 0x4d,
 	0x2d, 0x29, 0xca, 0x4c, 0x2e, 0xd6, 0x4f, 0x4f, 0xcd, 0x4b, 0x2d, 0x4a, 0x2c, 0x49, 0x4d, 0xd1,
@@ -706,8 +901,10 @@ var fileDescriptorMetric = []byte{
 	0x17, 0x6b, 0x59, 0x62, 0x4e, 0x69, 0xaa, 0x04, 0x93, 0x02, 0xa3, 0x06, 0x73, 0x10, 0x84, 0xa3,
 	0x64, 0xc2, 0xc5, 0xe5, 0x94, 0x58, 0x92, 0x9c, 0x11, 0x92, 0x99, 0x8b, 0x45, 0x8f, 0x18, 0x17,
 	0x1b, 0x58, 0x59, 0xb1, 0x04, 0x93, 0x02, 0xb3, 0x06, 0x63, 0x10, 0x94, 0xa7, 0xa4, 0xcb, 0xc5,
-	0xea, 0x9e, 0x58, 0x9a, 0x9e, 0x8a, 0xdf, 0x12, 0x46, 0xa8, 0x25, 0x4e, 0x2e, 0x27, 0x1e, 0xc9,
-	0x31, 0x5e, 0x78, 0x24, 0xc7, 0xf8, 0xe0, 0x91, 0x1c, 0xe3, 0x84, 0xc7, 0x72, 0x0c, 0x51, 0x46,
-	0xa4, 0x7b, 0x39, 0x89, 0x0d, 0xcc, 0x37, 0x06, 0x04, 0x00, 0x00, 0xff, 0xff, 0x80, 0x9d, 0xfc,
-	0xc4, 0x2f, 0x01, 0x00, 0x00,
+	0xea, 0x9e, 0x58, 0x9a, 0x9e, 0x8a, 0xdf, 0x12, 0x46, 0x98, 0x25, 0x41, 0x5c, 0xdc, 0x20, 0xf3,
+	0x53, 0x7c, 0xc1, 0xce, 0xc4, 0xd0, 0x24, 0xcb, 0xc5, 0x55, 0x92, 0x99, 0x9b, 0x1a, 0x9f, 0x97,
+	0x98, 0x97, 0x5f, 0x0c, 0x75, 0x1e, 0x27, 0x48, 0xc4, 0x0f, 0x24, 0x80, 0x30, 0x93, 0x19, 0xc9,
+	0x4c, 0x27, 0x97, 0x13, 0x8f, 0xe4, 0x18, 0x2f, 0x3c, 0x92, 0x63, 0x7c, 0xf0, 0x48, 0x8e, 0x71,
+	0xc2, 0x63, 0x39, 0x86, 0x28, 0x23, 0xd2, 0x83, 0x31, 0x89, 0x0d, 0xcc, 0x37, 0x06, 0x04, 0x00,
+	0x00, 0xff, 0xff, 0x87, 0xd9, 0x32, 0x67, 0x83, 0x01, 0x00, 0x00,
 }

@@ -48,3 +48,11 @@ message StagedMetadata {
 message StagedMetadatas {
   repeated StagedMetadata metadatas = 1 [(gogoproto.nullable) = false];
 }
+
+message ForwardMetadata {
+  aggregationpb.AggregationID aggregation_id = 1 [(gogoproto.nullable) = false];
+  policypb.StoragePolicy storage_policy = 2 [(gogoproto.nullable) = false];
+  pipelinepb.AppliedPipeline pipeline = 3 [(gogoproto.nullable) = false];
+  uint32 source_id = 4;
+  int32 num_forwarded_times = 5;
+}
