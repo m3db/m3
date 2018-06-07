@@ -711,6 +711,36 @@ func TestUnaggregatedEncoderEncodeMessageTooLarge(t *testing.T) {
 	require.True(t, strings.Contains(err.Error(), "larger than maximum supported size"))
 }
 
+func TestUnaggregatedEncoderTruncate(t *testing.T) {
+	opts := NewUnaggregatedOptions().SetInitBufferSize(2)
+	enc := NewUnaggregatedEncoder(opts)
+	encoder := enc.(*unaggregatedEncoder)
+	buf := []byte{1, 2, 3, 4}
+	enc.Reset(buf)
+	require.Equal(t, 4, enc.Len())
+
+	for i := 4; i >= 0; i-- {
+		require.NoError(t, enc.Truncate(i))
+		require.Equal(t, i, enc.Len())
+		require.Equal(t, buf[:i], encoder.buf[:encoder.used])
+	}
+}
+
+func TestUnaggregatedEncoderTruncateError(t *testing.T) {
+	opts := NewUnaggregatedOptions().SetInitBufferSize(2)
+	enc := NewUnaggregatedEncoder(opts)
+	buf := []byte{1, 2, 3, 4}
+	enc.Reset(buf)
+	require.Equal(t, 4, enc.Len())
+
+	invalidTargets := []int{-3, 5}
+	for _, target := range invalidTargets {
+		err := enc.Truncate(target)
+		require.Error(t, err)
+		require.True(t, strings.Contains(err.Error(), "truncation out of range"))
+	}
+}
+
 func TestUnaggregatedEncoderEncodeMessageRelinquishReset(t *testing.T) {
 	msg := encoding.UnaggregatedMessageUnion{
 		Type: encoding.CounterWithMetadatasType,

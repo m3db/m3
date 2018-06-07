@@ -45,13 +45,28 @@ var (
 		ID:    []byte("testCounter"),
 		Value: 1234,
 	}
+	testCounterUnion = MetricUnion{
+		Type:       CounterType,
+		ID:         []byte("testCounter"),
+		CounterVal: 1234,
+	}
 	testBatchTimer = BatchTimer{
 		ID:     []byte("testBatchTimer"),
 		Values: []float64{4.78, -2384, 0.0, 3145, 9999},
 	}
+	testBatchTimerUnion = MetricUnion{
+		Type:          BatchTimerType,
+		ID:            []byte("testBatchTimer"),
+		BatchTimerVal: []float64{4.78, -2384, 0.0, 3145, 9999},
+	}
 	testGauge = Gauge{
 		ID:    []byte("testGauge"),
 		Value: 45.28,
+	}
+	testGaugeUnion = MetricUnion{
+		Type:     GaugeType,
+		ID:       []byte("testGauge"),
+		GaugeVal: 45.28,
 	}
 	testMetadatas = metadata.StagedMetadatas{
 		{
@@ -286,6 +301,10 @@ var (
 	}
 )
 
+func TestCounterToUnion(t *testing.T) {
+	require.Equal(t, testCounterUnion, testCounter.ToUnion())
+}
+
 func TestCounterToProto(t *testing.T) {
 	var pb metricpb.Counter
 	testCounter.ToProto(&pb)
@@ -308,6 +327,10 @@ func TestCounterRoundTrip(t *testing.T) {
 	require.Equal(t, testCounter, c)
 }
 
+func TestBatchTimerToUnion(t *testing.T) {
+	require.Equal(t, testBatchTimerUnion, testBatchTimer.ToUnion())
+}
+
 func TestBatchTimerToProto(t *testing.T) {
 	var pb metricpb.BatchTimer
 	testBatchTimer.ToProto(&pb)
@@ -328,6 +351,10 @@ func TestBatchTimerRoundTrip(t *testing.T) {
 	testBatchTimer.ToProto(&pb)
 	c.FromProto(pb)
 	require.Equal(t, testBatchTimer, c)
+}
+
+func TestGaugeToUnion(t *testing.T) {
+	require.Equal(t, testGaugeUnion, testGauge.ToUnion())
 }
 
 func TestGaugeToProto(t *testing.T) {
