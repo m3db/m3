@@ -73,3 +73,29 @@ func TestIDDecompressError(t *testing.T) {
 	_, err = decompressor.Decompress(max)
 	require.Error(t, err)
 }
+
+func TestIDMustDecompress(t *testing.T) {
+	compressor, decompressor := NewIDCompressor(), NewIDDecompressor()
+	inputs := []struct {
+		id          ID
+		shouldPanic bool
+	}{
+		{
+			id:          compressor.MustCompress([]Type{Last, Min, Max, Mean, Median, Count, Sum, SumSq}),
+			shouldPanic: false,
+		},
+		{
+			id:          [IDLen]uint64{1},
+			shouldPanic: true,
+		},
+	}
+
+	for _, input := range inputs {
+		if input.shouldPanic {
+			require.Panics(t, func() { decompressor.MustDecompress(input.id) })
+		} else {
+			require.NotPanics(t, func() { decompressor.MustDecompress(input.id) })
+		}
+	}
+
+}

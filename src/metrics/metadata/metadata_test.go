@@ -52,6 +52,10 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 			expected: true,
 		},
 		{
+			metadatas: DefaultStagedMetadatas,
+			expected:  true,
+		},
+		{
 			metadatas: StagedMetadatas{},
 			expected:  false,
 		},

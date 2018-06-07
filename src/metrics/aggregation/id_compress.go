@@ -38,9 +38,12 @@ type IDCompressor interface {
 
 // IDDecompressor can decompress ID.
 type IDDecompressor interface {
-	// Decompress decompresses aggregation types,
-	// returns error if any invalid aggregation type is encountered.
-	Decompress(compressed ID) (Types, error)
+	// Decompress decompresses an aggregation id into a set of aggregation types.
+	Decompress(id ID) (Types, error)
+
+	// MustDecompress decompresses an aggregation id into a set of aggregation types,
+	// and panics if an error is encountered.
+	MustDecompress(id ID) Types
 }
 
 type idCompressor struct {
@@ -104,24 +107,24 @@ func NewPooledIDDecompressor(pool TypesPool) IDDecompressor {
 	}
 }
 
-func (c *idDecompressor) Decompress(id ID) (Types, error) {
+func (d *idDecompressor) Decompress(id ID) (Types, error) {
 	if id.IsDefault() {
 		return DefaultTypes, nil
 	}
 	// NB(cw) it's guaranteed that len(c.buf) == len(id) == IDLen, we need to copy
 	// the words from id into a slice to be used in bitset.
 	for i := range id {
-		c.buf[i] = id[i]
+		d.buf[i] = id[i]
 	}
 
 	var res Types
-	if c.pool == nil {
+	if d.pool == nil {
 		res = make(Types, 0, maxTypeID)
 	} else {
-		res = c.pool.Get()
+		res = d.pool.Get()
 	}
 
-	for i, e := c.bs.NextSet(0); e; i, e = c.bs.NextSet(i + 1) {
+	for i, e := d.bs.NextSet(0); e; i, e = d.bs.NextSet(i + 1) {
 		aggType := Type(i)
 		if !aggType.IsValid() {
 			return DefaultTypes, fmt.Errorf("invalid Type: %s", aggType.String())
@@ -131,4 +134,12 @@ func (c *idDecompressor) Decompress(id ID) (Types, error) {
 	}
 
 	return res, nil
+}
+
+func (d *idDecompressor) MustDecompress(id ID) Types {
+	aggTypes, err := d.Decompress(id)
+	if err != nil {
+		panic(fmt.Errorf("unable to decompress %v: %v", id, err))
+	}
+	return aggTypes
 }

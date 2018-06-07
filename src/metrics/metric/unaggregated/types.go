@@ -23,6 +23,7 @@ package unaggregated
 import (
 	"fmt"
 
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/pool"
@@ -86,6 +87,24 @@ type BatchTimerWithPoliciesList struct {
 type GaugeWithPoliciesList struct {
 	Gauge
 	policy.PoliciesList
+}
+
+// CounterWithMetadatas is a counter with applicable metadatas.
+type CounterWithMetadatas struct {
+	Counter
+	metadata.StagedMetadatas
+}
+
+// BatchTimerWithMetadatas is a batch timer with applicable metadatas.
+type BatchTimerWithMetadatas struct {
+	BatchTimer
+	metadata.StagedMetadatas
+}
+
+// GaugeWithMetadatas is a gauge with applicable metadatas.
+type GaugeWithMetadatas struct {
+	Gauge
+	metadata.StagedMetadatas
 }
 
 // MetricUnion is a union of different types of metrics, only one of which is valid
