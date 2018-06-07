@@ -167,7 +167,6 @@ release-snapshot: install-goreleaser
 	@echo Creating snapshot release
 	@source $(GO_BUILD_LDFLAGS_CMD) > /dev/null && goreleaser --snapshot --rm-dist
 
-
 .PHONY: docs-container
 docs-container:
 	which docker
@@ -202,6 +201,11 @@ $(SUBDIR_TARGET): $(patsubst %,$(SUBDIR_TARGET)-%,$(SUBDIRS))
 endef
 
 $(foreach SUBDIR_TARGET,$(SUBDIR_TARGETS),$(eval $(TARGET_RULE)))
+
+.PHONY: site-build
+site-build: 
+	@echo "Building site"
+	@./scripts/site-build.sh
 
 define SUBDIR_RULES
 
