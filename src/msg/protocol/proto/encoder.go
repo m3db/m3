@@ -29,8 +29,7 @@ import (
 
 type encoder struct {
 	w              io.Writer
-	sizeBuffer     []byte
-	dataBuffer     []byte
+	buffer         []byte
 	bytesPool      pool.BytesPool
 	maxMessageSize int
 }
@@ -47,7 +46,7 @@ func newEncoder(w io.Writer, opts BaseOptions) *encoder {
 	pool := opts.BytesPool()
 	return &encoder{
 		w:              w,
-		sizeBuffer:     getByteSliceWithLength(sizeBufferSize, pool),
+		buffer:         getByteSliceWithLength(sizeEncodingLength, pool),
 		bytesPool:      pool,
 		maxMessageSize: opts.MaxMessageSize(),
 	}
@@ -65,18 +64,18 @@ func (e *encoder) Encode(m Marshaler) error {
 }
 
 func (e *encoder) encodeSize(size int) error {
-	sizeEncodeDecoder.PutUint32(e.sizeBuffer, uint32(size))
-	_, err := e.w.Write(e.sizeBuffer)
+	sizeEncodeDecoder.PutUint32(e.buffer, uint32(size))
+	_, err := e.w.Write(e.buffer[:sizeEncodingLength])
 	return err
 }
 
 func (e *encoder) encodeData(m Marshaler, size int) error {
-	e.dataBuffer = growDataBufferIfNeeded(e.dataBuffer, size, e.bytesPool)
-	size, err := m.MarshalTo(e.dataBuffer)
+	e.buffer = growDataBufferIfNeeded(e.buffer, size, e.bytesPool)
+	size, err := m.MarshalTo(e.buffer)
 	if err != nil {
 		return err
 	}
-	_, err = e.w.Write(e.dataBuffer[:size])
+	_, err = e.w.Write(e.buffer[:size])
 	return err
 }
 

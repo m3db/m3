@@ -33,11 +33,11 @@ import (
 func TestBaseEncodeDecodeRoundTripWithoutPool(t *testing.T) {
 	mimicTCP := bytes.NewBuffer(nil)
 	enc := newEncoder(mimicTCP, NewBaseOptions().SetBytesPool(nil))
-	require.Equal(t, 4, len(enc.sizeBuffer))
-	require.Equal(t, 4, cap(enc.sizeBuffer))
+	require.Equal(t, 4, len(enc.buffer))
+	require.Equal(t, 4, cap(enc.buffer))
 	dec := newDecoder(mimicTCP, NewBaseOptions().SetBytesPool(nil))
-	require.Equal(t, 4, len(dec.sizeBuffer))
-	require.Equal(t, 4, cap(dec.sizeBuffer))
+	require.Equal(t, 4, len(dec.buffer))
+	require.Equal(t, 4, cap(dec.buffer))
 	encodeMsg := msgpb.Message{
 		Metadata: msgpb.Metadata{
 			Shard: 1,
@@ -48,11 +48,11 @@ func TestBaseEncodeDecodeRoundTripWithoutPool(t *testing.T) {
 	decodeMsg := msgpb.Message{}
 
 	require.NoError(t, enc.Encode(&encodeMsg))
-	require.Equal(t, encodeMsg.Size(), len(enc.dataBuffer))
-	require.Equal(t, encodeMsg.Size(), cap(enc.dataBuffer))
+	require.Equal(t, encodeMsg.Size(), len(enc.buffer))
+	require.Equal(t, encodeMsg.Size(), cap(enc.buffer))
 	require.NoError(t, dec.Decode(&decodeMsg))
-	require.Equal(t, decodeMsg.Size(), len(dec.dataBuffer))
-	require.Equal(t, encodeMsg.Size(), cap(dec.dataBuffer))
+	require.Equal(t, decodeMsg.Size(), len(dec.buffer))
+	require.Equal(t, encodeMsg.Size(), cap(dec.buffer))
 }
 
 func TestBaseEncodeDecodeRoundTripWithPool(t *testing.T) {
@@ -60,11 +60,11 @@ func TestBaseEncodeDecodeRoundTripWithPool(t *testing.T) {
 	p.Init()
 	mimicTCP := bytes.NewBuffer(nil)
 	enc := newEncoder(mimicTCP, NewBaseOptions().SetBytesPool(p))
-	require.Equal(t, 8, len(enc.sizeBuffer))
-	require.Equal(t, 8, cap(enc.sizeBuffer))
+	require.Equal(t, 8, len(enc.buffer))
+	require.Equal(t, 8, cap(enc.buffer))
 	dec := newDecoder(mimicTCP, NewBaseOptions().SetBytesPool(p))
-	require.Equal(t, 8, len(dec.sizeBuffer))
-	require.Equal(t, 8, cap(dec.sizeBuffer))
+	require.Equal(t, 8, len(dec.buffer))
+	require.Equal(t, 8, cap(dec.buffer))
 	encodeMsg := msgpb.Message{
 		Metadata: msgpb.Metadata{
 			Shard: 1,
@@ -75,11 +75,11 @@ func TestBaseEncodeDecodeRoundTripWithPool(t *testing.T) {
 	decodeMsg := msgpb.Message{}
 
 	require.NoError(t, enc.Encode(&encodeMsg))
-	require.Equal(t, 100, len(enc.dataBuffer))
-	require.Equal(t, 100, cap(enc.dataBuffer))
+	require.Equal(t, 100, len(enc.buffer))
+	require.Equal(t, 100, cap(enc.buffer))
 	require.NoError(t, dec.Decode(&decodeMsg))
-	require.Equal(t, 100, len(dec.dataBuffer))
-	require.Equal(t, 100, cap(dec.dataBuffer))
+	require.Equal(t, 100, len(dec.buffer))
+	require.Equal(t, 100, cap(dec.buffer))
 }
 
 func TestResetReader(t *testing.T) {
