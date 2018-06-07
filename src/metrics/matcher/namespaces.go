@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/util/runtime"
 	"github.com/m3db/m3metrics/aggregation"
-	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
@@ -105,7 +105,7 @@ type namespaces struct {
 	onNamespaceAddedFn   OnNamespaceAddedFn
 	onNamespaceRemovedFn OnNamespaceRemovedFn
 
-	proto   *schema.Namespaces
+	proto   *rulepb.Namespaces
 	rules   *namespaceRuleSetsMap
 	metrics namespacesMetrics
 }
@@ -123,7 +123,7 @@ func NewNamespaces(key string, opts Options) Namespaces {
 		matchRangePast:       opts.MatchRangePast(),
 		onNamespaceAddedFn:   opts.OnNamespaceAddedFn(),
 		onNamespaceRemovedFn: opts.OnNamespaceRemovedFn(),
-		proto:                &schema.Namespaces{},
+		proto:                &rulepb.Namespaces{},
 		rules:                newNamespaceRuleSetsMap(namespaceRuleSetsMapOptions{}),
 		metrics:              newNamespacesMetrics(instrumentOpts.MetricsScope()),
 	}

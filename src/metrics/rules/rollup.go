@@ -29,7 +29,7 @@ import (
 	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/policypb"
-	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules/models"
 
@@ -54,7 +54,7 @@ type rollupTarget struct {
 	Policies []policy.Policy
 }
 
-func newRollupTarget(target *schema.RollupTarget) (rollupTarget, error) {
+func newRollupTarget(target *rulepb.RollupTarget) (rollupTarget, error) {
 	if target == nil {
 		return emptyRollupTarget, errNilRollupTargetSchema
 	}
@@ -131,8 +131,8 @@ func (t *rollupTarget) clone() rollupTarget {
 }
 
 // Schema returns the schema representation of a rollup target.
-func (t *rollupTarget) Schema() (*schema.RollupTarget, error) {
-	res := &schema.RollupTarget{
+func (t *rollupTarget) Schema() (*rulepb.RollupTarget, error) {
+	res := &rulepb.RollupTarget{
 		Name: string(t.Name),
 	}
 
@@ -164,7 +164,7 @@ type rollupRuleSnapshot struct {
 }
 
 func newRollupRuleSnapshot(
-	r *schema.RollupRuleSnapshot,
+	r *rulepb.RollupRuleSnapshot,
 	opts filters.TagsFilterOptions,
 ) (*rollupRuleSnapshot, error) {
 	if r == nil {
@@ -269,8 +269,8 @@ func (rrs *rollupRuleSnapshot) clone() rollupRuleSnapshot {
 }
 
 // Schema returns the given MappingRuleSnapshot in protobuf form.
-func (rrs *rollupRuleSnapshot) Schema() (*schema.RollupRuleSnapshot, error) {
-	res := &schema.RollupRuleSnapshot{
+func (rrs *rollupRuleSnapshot) Schema() (*rulepb.RollupRuleSnapshot, error) {
+	res := &rulepb.RollupRuleSnapshot{
 		Name:               rrs.name,
 		Tombstoned:         rrs.tombstoned,
 		CutoverNanos:       rrs.cutoverNanos,
@@ -279,7 +279,7 @@ func (rrs *rollupRuleSnapshot) Schema() (*schema.RollupRuleSnapshot, error) {
 		LastUpdatedBy:      rrs.lastUpdatedBy,
 	}
 
-	targets := make([]*schema.RollupTarget, len(rrs.targets))
+	targets := make([]*rulepb.RollupTarget, len(rrs.targets))
 	for i, t := range rrs.targets {
 		target, err := t.Schema()
 		if err != nil {
@@ -322,7 +322,7 @@ type rollupRule struct {
 }
 
 func newRollupRule(
-	rc *schema.RollupRule,
+	rc *rulepb.RollupRule,
 	opts filters.TagsFilterOptions,
 ) (*rollupRule, error) {
 	if rc == nil {
@@ -491,8 +491,8 @@ func (rc *rollupRule) history() ([]*models.RollupRuleView, error) {
 }
 
 // Schema returns the given RollupRule in protobuf form.
-func (rc *rollupRule) Schema() (*schema.RollupRule, error) {
-	snapshots := make([]*schema.RollupRuleSnapshot, len(rc.snapshots))
+func (rc *rollupRule) Schema() (*rulepb.RollupRule, error) {
+	snapshots := make([]*rulepb.RollupRuleSnapshot, len(rc.snapshots))
 	for i, s := range rc.snapshots {
 		snapshot, err := s.Schema()
 		if err != nil {
@@ -501,7 +501,7 @@ func (rc *rollupRule) Schema() (*schema.RollupRule, error) {
 		snapshots[i] = snapshot
 	}
 
-	return &schema.RollupRule{
+	return &rulepb.RollupRule{
 		Uuid:      rc.uuid,
 		Snapshots: snapshots,
 	}, nil

@@ -30,7 +30,7 @@ import (
 
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
-	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/rules"
 
@@ -44,12 +44,12 @@ const (
 
 func TestNamespacesWatchAndClose(t *testing.T) {
 	store, _, nss, _ := testNamespaces()
-	proto := &schema.Namespaces{
-		Namespaces: []*schema.Namespace{
-			&schema.Namespace{
+	proto := &rulepb.Namespaces{
+		Namespaces: []*rulepb.Namespace{
+			&rulepb.Namespace{
 				Name: "fooNs",
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion: 1,
 						Tombstoned:        true,
 					},
@@ -78,12 +78,12 @@ func TestToNamespacesUnmarshalError(t *testing.T) {
 
 func TestToNamespacesSuccess(t *testing.T) {
 	store, _, nss, _ := testNamespaces()
-	proto := &schema.Namespaces{
-		Namespaces: []*schema.Namespace{
-			&schema.Namespace{
+	proto := &rulepb.Namespaces{
+		Namespaces: []*rulepb.Namespace{
+			&rulepb.Namespace{
 				Name: "fooNs",
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion: 1,
 						Tombstoned:        true,
 					},
@@ -126,57 +126,57 @@ func TestNamespacesProcess(t *testing.T) {
 		c.namespaces[string(input.namespace)] = memResults{source: rs}
 	}
 
-	update := &schema.Namespaces{
-		Namespaces: []*schema.Namespace{
-			&schema.Namespace{
+	update := &rulepb.Namespaces{
+		Namespaces: []*rulepb.Namespace{
+			&rulepb.Namespace{
 				Name: "fooNs",
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
-					&schema.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion: 2,
 						Tombstoned:        false,
 					},
 				},
 			},
-			&schema.Namespace{
+			&rulepb.Namespace{
 				Name: "barNs",
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
-					&schema.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion: 2,
 						Tombstoned:        true,
 					},
 				},
 			},
-			&schema.Namespace{
+			&rulepb.Namespace{
 				Name: "bazNs",
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
-					&schema.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion: 2,
 						Tombstoned:        false,
 					},
 				},
 			},
-			&schema.Namespace{
+			&rulepb.Namespace{
 				Name: "catNs",
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion: 3,
 						Tombstoned:        true,
 					},
 				},
 			},
-			&schema.Namespace{
+			&rulepb.Namespace{
 				Name:      "mehNs",
 				Snapshots: nil,
 			},

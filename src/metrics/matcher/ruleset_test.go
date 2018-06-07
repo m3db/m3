@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/aggregation"
-	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/rules"
@@ -114,7 +114,7 @@ func TestToRuleSetUnmarshalError(t *testing.T) {
 
 func TestToRuleSetSuccess(t *testing.T) {
 	store, _, rs := testRuleSet()
-	proto := &schema.RuleSet{
+	proto := &rulepb.RuleSet{
 		Namespace:    string(testNamespace),
 		Tombstoned:   false,
 		CutoverNanos: 123456,

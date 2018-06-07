@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/util/runtime"
 	"github.com/m3db/m3metrics/aggregation"
-	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
@@ -83,7 +83,7 @@ type ruleSet struct {
 	ruleSetOpts        rules.Options
 	onRuleSetUpdatedFn OnRuleSetUpdatedFn
 
-	proto        *schema.RuleSet
+	proto        *rulepb.RuleSet
 	version      int
 	cutoverNanos int64
 	tombstoned   bool
@@ -106,7 +106,7 @@ func newRuleSet(
 		matchRangePast:     opts.MatchRangePast(),
 		ruleSetOpts:        opts.RuleSetOptions(),
 		onRuleSetUpdatedFn: opts.OnRuleSetUpdatedFn(),
-		proto:              &schema.RuleSet{},
+		proto:              &rulepb.RuleSet{},
 		version:            kv.UninitializedVersion,
 		metrics:            newRuleSetMetrics(instrumentOpts.MetricsScope(), instrumentOpts.MetricsSamplingRate()),
 	}
