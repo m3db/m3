@@ -66,7 +66,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          1234,
+		SourceID:          []byte("testForward1"),
 		NumForwardedTimes: 3,
 	}
 	testForwardMetadata2 = metadata.ForwardMetadata{
@@ -87,7 +87,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          897,
+		SourceID:          []byte("testForward2"),
 		NumForwardedTimes: 2,
 	}
 	testBadMetric = Metric{
@@ -130,7 +130,7 @@ var (
 				},
 			},
 		},
-		SourceId:          1234,
+		SourceId:          []byte("testForward1"),
 		NumForwardedTimes: 3,
 	}
 	testForwardMetadata2Proto = metricpb.ForwardMetadata{
@@ -161,7 +161,7 @@ var (
 				},
 			},
 		},
-		SourceId:          897,
+		SourceId:          []byte("testForward2"),
 		NumForwardedTimes: 2,
 	}
 	testBadMetricProto = metricpb.TimedMetric{

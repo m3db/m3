@@ -118,6 +118,6 @@ func resetForwardMetadata(pb *metricpb.ForwardMetadata) {
 	pb.AggregationId.Reset()
 	pb.StoragePolicy.Reset()
 	pb.Pipeline.Ops = pb.Pipeline.Ops[:0]
-	pb.SourceId = 0
+	pb.SourceId = pb.SourceId[:0]
 	pb.NumForwardedTimes = 0
 }

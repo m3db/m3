@@ -195,7 +195,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          1234,
+		SourceID:          []byte("testForwardSource1"),
 		NumForwardedTimes: 3,
 	}
 	testForwardMetadata2 = metadata.ForwardMetadata{
@@ -216,7 +216,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          897,
+		SourceID:          []byte("testForwardSource2"),
 		NumForwardedTimes: 2,
 	}
 	testCounter1Proto = metricpb.Counter{
@@ -426,7 +426,7 @@ var (
 				},
 			},
 		},
-		SourceId:          1234,
+		SourceId:          []byte("testForwardSource1"),
 		NumForwardedTimes: 3,
 	}
 	testForwardMetadata2Proto = metricpb.ForwardMetadata{
@@ -457,7 +457,7 @@ var (
 				},
 			},
 		},
-		SourceId:          897,
+		SourceId:          []byte("testForwardSource2"),
 		NumForwardedTimes: 2,
 	}
 	testCmpOpts = []cmp.Option{

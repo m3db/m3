@@ -92,14 +92,14 @@ var (
 				},
 			},
 		},
-		SourceId:          342,
+		SourceId:          []byte("testForwardSourceBeforeReset"),
 		NumForwardedTimes: 23,
 	}
 	testForwardMetadataAfterResetProto = metricpb.ForwardMetadata{
 		Pipeline: pipelinepb.AppliedPipeline{
 			Ops: []pipelinepb.AppliedPipelineOp{},
 		},
-		SourceId:          0,
+		SourceId:          []byte{},
 		NumForwardedTimes: 0,
 	}
 )

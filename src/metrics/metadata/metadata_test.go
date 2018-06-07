@@ -52,7 +52,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          1234,
+		SourceID:          []byte("testSourceSmall"),
 		NumForwardedTimes: 3,
 	}
 	testLargeForwardMetadata = ForwardMetadata{
@@ -73,7 +73,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          897,
+		SourceID:          []byte("testSourceLarge"),
 		NumForwardedTimes: 2,
 	}
 	testSmallPipelineMetadata = PipelineMetadata{
@@ -256,7 +256,7 @@ var (
 				},
 			},
 		},
-		SourceId:          1234,
+		SourceId:          []byte("testSourceSmall"),
 		NumForwardedTimes: 3,
 	}
 	testLargeForwardMetadataProto = metricpb.ForwardMetadata{
@@ -287,7 +287,7 @@ var (
 				},
 			},
 		},
-		SourceId:          897,
+		SourceId:          []byte("testSourceLarge"),
 		NumForwardedTimes: 2,
 	}
 	testBadForwardMetadataProto    = metricpb.ForwardMetadata{}
