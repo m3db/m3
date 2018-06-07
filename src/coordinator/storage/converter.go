@@ -228,26 +228,13 @@ func decompressSequentially(
 	}, nil
 }
 
-// SeriesIteratorsToFetchResult converts SeriesIterators into a fetch result
-func SeriesIteratorsToFetchResult(
-	seriesIterators encoding.SeriesIterators,
+func decompressConcurrently(
+	iterLength int,
+	iters []encoding.SeriesIterator,
 	namespace ident.ID,
-	workerPools pool.ObjectPool,
+	pool xsync.WorkerPool,
 ) (*FetchResult, error) {
-	defer seriesIterators.Close()
-
-	iters := seriesIterators.Iters()
-	iterLength := seriesIterators.Len()
 	seriesList := make([]*ts.Series, iterLength)
-
-	if workerPools == nil {
-		return decompressSequentially(iterLength, iters, namespace)
-	}
-	pool, ok := workerPools.Get().(xsync.WorkerPool)
-	if !ok {
-		return decompressSequentially(iterLength, iters, namespace)
-	}
-
 	var wg sync.WaitGroup
 	errorCh := make(chan error, 1)
 	done := make(chan struct{})
@@ -293,4 +280,27 @@ func SeriesIteratorsToFetchResult(
 	return &FetchResult{
 		SeriesList: seriesList,
 	}, nil
+}
+
+// SeriesIteratorsToFetchResult converts SeriesIterators into a fetch result
+func SeriesIteratorsToFetchResult(
+	seriesIterators encoding.SeriesIterators,
+	namespace ident.ID,
+	workerPools pool.ObjectPool,
+) (*FetchResult, error) {
+	defer seriesIterators.Close()
+
+	iters := seriesIterators.Iters()
+	iterLength := seriesIterators.Len()
+
+	if workerPools == nil {
+		return decompressSequentially(iterLength, iters, namespace)
+	}
+
+	pool, ok := workerPools.Get().(xsync.WorkerPool)
+	if !ok {
+		return decompressSequentially(iterLength, iters, namespace)
+	}
+
+	return decompressConcurrently(iterLength, iters, namespace, pool)
 }

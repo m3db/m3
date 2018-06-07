@@ -34,7 +34,7 @@ var (
 
 // TagEncoder encodes provided Tag iterators.
 type TagEncoder interface {
-	// Encode encodes the provided iterator into it's internal byte stream.
+	// Encode encodes the provided iterator into its internal byte stream.
 	// NB: leaves the original iterator un-modified.
 	Encode(ident.TagIterator) error
 

@@ -21,6 +21,7 @@
 package remote
 
 import (
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -29,6 +30,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/generated/proto/rpc"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3db/src/dbnode/serialize"
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
 	"github.com/m3db/m3db/src/dbnode/x/xpool"
@@ -94,25 +96,18 @@ func compressedSegmentsFromReaders(readers xio.ReaderSliceOfSlicesIterator) (*rp
 	return segments, nil
 }
 
-func compressedTagsFromTagIteratorWithEncoder(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]byte, bool) {
-	if iterPools == nil {
-		return nil, false
-	}
-	encoderPool := iterPools.TagEncoder()
-	if encoderPool == nil {
-		return nil, false
-	}
+func compressedTagsFromTagIteratorWithEncoder(tagIter ident.TagIterator, encoderPool serialize.TagEncoderPool) ([]byte, error) {
 	encoder := encoderPool.Get()
 	err := encoder.Encode(tagIter)
 	if err != nil {
-		return nil, false
+		return nil, err
 	}
 	defer encoder.Finalize()
 	data, encoded := encoder.Data()
 	if !encoded {
-		return nil, false
+		return nil, fmt.Errorf("no refs available to data")
 	}
-	return data.Bytes(), true
+	return data.Bytes(), nil
 }
 
 func tagsFromTagIterator(tagIter ident.TagIterator) ([]*rpc.Tag, error) {
@@ -129,6 +124,18 @@ func tagsFromTagIterator(tagIter ident.TagIterator) ([]*rpc.Tag, error) {
 		return nil, err
 	}
 	return tags, nil
+}
+
+func buildTags(tagIter ident.TagIterator, iterPools encoding.IteratorPools) ([]byte, []*rpc.Tag, error) {
+	if iterPools != nil {
+		encoderPool := iterPools.TagEncoder()
+		if encoderPool != nil {
+			compressedTags, err := compressedTagsFromTagIteratorWithEncoder(tagIter, encoderPool)
+			return compressedTags, nil, err
+		}
+	}
+	tags, err := tagsFromTagIterator(tagIter)
+	return nil, tags, err
 }
 
 /*
@@ -164,19 +171,10 @@ func compressedSeriesFromSeriesIterator(it encoding.SeriesIterator, iterPools en
 
 	start := xtime.ToNanoseconds(it.Start())
 	end := xtime.ToNanoseconds(it.End())
-	tagIter := it.Tags()
-	compressedTags, canCompress := compressedTagsFromTagIteratorWithEncoder(tagIter, iterPools)
 
-	var (
-		tags []*rpc.Tag
-		err  error
-	)
-
-	if !canCompress {
-		tags, err = tagsFromTagIterator(tagIter)
-		if err != nil {
-			return nil, err
-		}
+	compressedTags, tags, err := buildTags(it.Tags(), iterPools)
+	if err != nil {
+		return nil, err
 	}
 
 	compressedDatapoints := &rpc.CompressedDatapoints{
@@ -257,6 +255,7 @@ func tagIteratorFromCompressedTagsWithDecoder(
 	decoder := iterPools.TagDecoder().Get()
 	decoder.Reset(checkedBytes)
 	defer decoder.Close()
+	// Copy underlying TagIterator bytes before closing the decoder and returning it to the pool
 	return decoder.Duplicate(), nil
 }
 
