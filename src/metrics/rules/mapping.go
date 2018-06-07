@@ -36,8 +36,8 @@ import (
 
 var (
 	errMappingRuleSnapshotIndexOutOfRange = errors.New("mapping rule snapshot index out of range")
-	errNilMappingRuleSnapshotSchema       = errors.New("nil mapping rule snapshot schema")
-	errNilMappingRuleSchema               = errors.New("nil mapping rule schema")
+	errNilMappingRuleSnapshotProto        = errors.New("nil mapping rule snapshot proto")
+	errNilMappingRuleProto                = errors.New("nil mapping rule proto")
 )
 
 // mappingRuleSnapshot defines a rule snapshot such that if a metric matches the
@@ -58,9 +58,9 @@ func newMappingRuleSnapshot(
 	opts filters.TagsFilterOptions,
 ) (*mappingRuleSnapshot, error) {
 	if r == nil {
-		return nil, errNilMappingRuleSnapshotSchema
+		return nil, errNilMappingRuleSnapshotProto
 	}
-	policies, err := policy.NewPoliciesFromSchema(r.Policies)
+	policies, err := policy.NewPoliciesFromProto(r.Policies)
 	if err != nil {
 		return nil, err
 	}
@@ -152,8 +152,8 @@ func (mrs *mappingRuleSnapshot) clone() mappingRuleSnapshot {
 	}
 }
 
-// Schema returns the given MappingRuleSnapshot in protobuf form.
-func (mrs *mappingRuleSnapshot) Schema() (*rulepb.MappingRuleSnapshot, error) {
+// Proto returns the given MappingRuleSnapshot in protobuf form.
+func (mrs *mappingRuleSnapshot) Proto() (*rulepb.MappingRuleSnapshot, error) {
 	res := &rulepb.MappingRuleSnapshot{
 		Name:               mrs.name,
 		Tombstoned:         mrs.tombstoned,
@@ -165,7 +165,7 @@ func (mrs *mappingRuleSnapshot) Schema() (*rulepb.MappingRuleSnapshot, error) {
 
 	policies := make([]*policypb.Policy, len(mrs.policies))
 	for i, p := range mrs.policies {
-		policy, err := p.Schema()
+		policy, err := p.Proto()
 		if err != nil {
 			return nil, err
 		}
@@ -205,7 +205,7 @@ func newMappingRule(
 	opts filters.TagsFilterOptions,
 ) (*mappingRule, error) {
 	if mc == nil {
-		return nil, errNilMappingRuleSchema
+		return nil, errNilMappingRuleProto
 	}
 	snapshots := make([]*mappingRuleSnapshot, 0, len(mc.Snapshots))
 	for i := 0; i < len(mc.Snapshots); i++ {
@@ -368,11 +368,11 @@ func (mc *mappingRule) history() ([]*models.MappingRuleView, error) {
 	return views, nil
 }
 
-// Schema returns the given MappingRule in protobuf form.
-func (mc *mappingRule) Schema() (*rulepb.MappingRule, error) {
+// Proto returns the given MappingRule in protobuf form.
+func (mc *mappingRule) Proto() (*rulepb.MappingRule, error) {
 	snapshots := make([]*rulepb.MappingRuleSnapshot, len(mc.snapshots))
 	for i, s := range mc.snapshots {
-		snapshot, err := s.Schema()
+		snapshot, err := s.Proto()
 		if err != nil {
 			return nil, err
 		}

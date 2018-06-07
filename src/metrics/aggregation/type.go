@@ -106,11 +106,11 @@ var (
 // Type defines an aggregation function.
 type Type int
 
-// NewTypeFromSchema creates an aggregation type from a schema.
-func NewTypeFromSchema(input aggregationpb.AggregationType) (Type, error) {
+// NewTypeFromProto creates an aggregation type from a proto.
+func NewTypeFromProto(input aggregationpb.AggregationType) (Type, error) {
 	aggType := Type(input)
 	if !aggType.IsValid() {
-		return UnknownType, fmt.Errorf("invalid aggregation type from schema: %s", input)
+		return UnknownType, fmt.Errorf("invalid aggregation type from proto: %s", input)
 	}
 	return aggType, nil
 }
@@ -190,10 +190,10 @@ func (a Type) Quantile() (float64, bool) {
 	}
 }
 
-// Schema returns the schema of the aggregation type.
-func (a Type) Schema() (aggregationpb.AggregationType, error) {
+// Proto returns the proto of the aggregation type.
+func (a Type) Proto() (aggregationpb.AggregationType, error) {
 	s := aggregationpb.AggregationType(a)
-	if err := validateSchemaType(s); err != nil {
+	if err := validateProtoType(s); err != nil {
 		return aggregationpb.AggregationType_UNKNOWN, err
 	}
 	return s, nil
@@ -214,10 +214,10 @@ func (a *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-func validateSchemaType(a aggregationpb.AggregationType) error {
+func validateProtoType(a aggregationpb.AggregationType) error {
 	_, ok := aggregationpb.AggregationType_name[int32(a)]
 	if !ok {
-		return fmt.Errorf("invalid schema aggregation type: %v", a)
+		return fmt.Errorf("invalid proto aggregation type: %v", a)
 	}
 	return nil
 }
@@ -234,11 +234,11 @@ func ParseType(str string) (Type, error) {
 // Types is a list of Types.
 type Types []Type
 
-// NewTypesFromSchema creates a list of aggregation types from a schema.
-func NewTypesFromSchema(input []aggregationpb.AggregationType) (Types, error) {
+// NewTypesFromProto creates a list of aggregation types from a proto.
+func NewTypesFromProto(input []aggregationpb.AggregationType) (Types, error) {
 	res := make([]Type, len(input))
 	for i, t := range input {
-		aggType, err := NewTypeFromSchema(t)
+		aggType, err := NewTypeFromProto(t)
 		if err != nil {
 			return DefaultTypes, err
 		}
@@ -358,8 +358,8 @@ func (aggTypes Types) PooledQuantiles(p pool.FloatsPool) ([]float64, bool) {
 	return res, pooled
 }
 
-// Schema returns the schema of the aggregation types.
-func (aggTypes Types) Schema() ([]aggregationpb.AggregationType, error) {
+// Proto returns the proto of the aggregation types.
+func (aggTypes Types) Proto() ([]aggregationpb.AggregationType, error) {
 	// This is the same as returning an empty slice from the functionality perspective.
 	// It makes creating testing fixtures much simpler.
 	if aggTypes == nil {
@@ -368,7 +368,7 @@ func (aggTypes Types) Schema() ([]aggregationpb.AggregationType, error) {
 
 	res := make([]aggregationpb.AggregationType, len(aggTypes))
 	for i, aggType := range aggTypes {
-		s, err := aggType.Schema()
+		s, err := aggType.Proto()
 		if err != nil {
 			return nil, err
 		}

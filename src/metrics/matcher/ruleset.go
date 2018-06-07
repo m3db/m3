@@ -192,7 +192,7 @@ func (r *ruleSet) toRuleSet(value kv.Value) (interface{}, error) {
 	if err := value.Unmarshal(r.proto); err != nil {
 		return nil, err
 	}
-	return rules.NewRuleSetFromSchema(value.Version(), r.proto, r.ruleSetOpts)
+	return rules.NewRuleSetFromProto(value.Version(), r.proto, r.ruleSetOpts)
 }
 
 // process processes an ruleset update.

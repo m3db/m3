@@ -252,7 +252,7 @@ func TestStoragePolicyUnmarshalYAMLErrors(t *testing.T) {
 	}
 }
 
-func TestNewStoragePolicyFromSchema(t *testing.T) {
+func TestNewStoragePolicyFromProto(t *testing.T) {
 	inputs := []struct {
 		s *policypb.StoragePolicy
 		p StoragePolicy

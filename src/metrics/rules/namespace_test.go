@@ -29,12 +29,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewNamespaceSnapshotFromNilSchema(t *testing.T) {
+func TestNewNamespaceSnapshotFromNilProto(t *testing.T) {
 	_, err := newNamespaceSnapshot(nil)
-	require.Equal(t, err, errNilNamespaceSnapshotSchema)
+	require.Equal(t, err, errNilNamespaceSnapshotProto)
 }
 
-func TestNewNamespaceSnapshotFromValidSchema(t *testing.T) {
+func TestNewNamespaceSnapshotFromValidProto(t *testing.T) {
 	snapshot, err := newNamespaceSnapshot(&rulepb.NamespaceSnapshot{
 		ForRulesetVersion:  123,
 		Tombstoned:         true,
@@ -48,31 +48,31 @@ func TestNewNamespaceSnapshotFromValidSchema(t *testing.T) {
 	require.Equal(t, "someone", snapshot.LastUpdatedBy())
 }
 
-func TestNamespaceSnapshotToSchema(t *testing.T) {
+func TestNamespaceSnapshotToProto(t *testing.T) {
 	snapshot := NamespaceSnapshot{
 		forRuleSetVersion:  123,
 		tombstoned:         true,
 		lastUpdatedAtNanos: 456,
 		lastUpdatedBy:      "someone",
 	}
-	schema := snapshot.Schema()
-	require.Equal(t, int32(123), schema.ForRulesetVersion)
-	require.Equal(t, true, schema.Tombstoned)
-	require.Equal(t, int64(456), schema.LastUpdatedAtNanos)
-	require.Equal(t, "someone", schema.LastUpdatedBy)
+	proto := snapshot.Proto()
+	require.Equal(t, int32(123), proto.ForRulesetVersion)
+	require.Equal(t, true, proto.Tombstoned)
+	require.Equal(t, int64(456), proto.LastUpdatedAtNanos)
+	require.Equal(t, "someone", proto.LastUpdatedBy)
 }
 
 func TestNamespaceSnapshotRoundTrip(t *testing.T) {
-	schema := &rulepb.NamespaceSnapshot{
+	proto := &rulepb.NamespaceSnapshot{
 		ForRulesetVersion:  123,
 		Tombstoned:         true,
 		LastUpdatedAtNanos: 456,
 		LastUpdatedBy:      "someone",
 	}
-	snapshot, err := newNamespaceSnapshot(schema)
+	snapshot, err := newNamespaceSnapshot(proto)
 	require.NoError(t, err)
-	res := snapshot.Schema()
-	require.Equal(t, schema, res)
+	res := snapshot.Proto()
+	require.Equal(t, proto, res)
 }
 
 func TestNamespaceView(t *testing.T) {
@@ -162,12 +162,12 @@ func TestNamespaceClone(t *testing.T) {
 	require.NotEqual(t, ns, nsClone)
 }
 
-func TestNewNamespaceFromNilSchema(t *testing.T) {
+func TestNewNamespaceFromNilProto(t *testing.T) {
 	_, err := newNamespace(nil)
-	require.Equal(t, err, errNilNamespaceSchema)
+	require.Equal(t, err, errNilNamespaceProto)
 }
 
-func TestNewNamespaceFromValidSchema(t *testing.T) {
+func TestNewNamespaceFromValidProto(t *testing.T) {
 	ns, err := newNamespace(&rulepb.Namespace{
 		Name: "foo",
 		Snapshots: []*rulepb.NamespaceSnapshot{
@@ -204,7 +204,7 @@ func TestNewNamespaceFromValidSchema(t *testing.T) {
 	require.Equal(t, expected, ns.Snapshots())
 }
 
-func TestNamespaceToSchema(t *testing.T) {
+func TestNamespaceToProto(t *testing.T) {
 	ns := Namespace{
 		name: b("foo"),
 		snapshots: []NamespaceSnapshot{
@@ -222,7 +222,7 @@ func TestNamespaceToSchema(t *testing.T) {
 			},
 		},
 	}
-	res, err := ns.Schema()
+	res, err := ns.Proto()
 	require.NoError(t, err)
 
 	expected := &rulepb.Namespace{
@@ -245,11 +245,11 @@ func TestNamespaceToSchema(t *testing.T) {
 	require.Equal(t, expected, res)
 }
 
-func TestNamespaceToSchemaNoSnapshots(t *testing.T) {
+func TestNamespaceToProtoNoSnapshots(t *testing.T) {
 	badNs := Namespace{
 		name: []byte("foo"),
 	}
-	res, err := badNs.Schema()
+	res, err := badNs.Proto()
 	require.Equal(t, errNilNamespaceSnapshot, err)
 	require.Nil(t, res)
 }
@@ -276,7 +276,7 @@ func TestNamespaceRoundTrip(t *testing.T) {
 	ns, err := newNamespace(testNs)
 	require.NoError(t, err)
 
-	res, err := ns.Schema()
+	res, err := ns.Proto()
 	require.NoError(t, err)
 
 	require.Equal(t, testNs, res)
@@ -564,12 +564,12 @@ func TestNamespacesClone(t *testing.T) {
 	require.NotEqual(t, nss, nssClone)
 }
 
-func TestNewNamespacesFromNilSchema(t *testing.T) {
+func TestNewNamespacesFromNilProto(t *testing.T) {
 	_, err := NewNamespaces(1, nil)
-	require.Equal(t, errNilNamespacesSchema, err)
+	require.Equal(t, errNilNamespacesProto, err)
 }
 
-func TestNewNamespacesFromValidSchema(t *testing.T) {
+func TestNewNamespacesFromValidProto(t *testing.T) {
 	ns, err := NewNamespaces(1, &rulepb.Namespaces{
 		Namespaces: []*rulepb.Namespace{
 			&rulepb.Namespace{
@@ -692,7 +692,7 @@ func TestNamespacesRoundTrip(t *testing.T) {
 	nss, err := NewNamespaces(1, testNss)
 	require.NoError(t, err)
 
-	res, err := nss.Schema()
+	res, err := nss.Proto()
 	require.NoError(t, err)
 	require.Equal(t, testNss, res)
 }

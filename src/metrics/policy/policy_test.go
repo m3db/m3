@@ -98,7 +98,7 @@ func TestPolicyUnmarshalYAMLErrors(t *testing.T) {
 	}
 }
 
-func TestNewPoliciesFromSchema(t *testing.T) {
+func TestNewPoliciesFromProto(t *testing.T) {
 	input := []*policypb.Policy{
 		&policypb.Policy{
 			StoragePolicy: &policypb.StoragePolicy{
@@ -132,7 +132,7 @@ func TestNewPoliciesFromSchema(t *testing.T) {
 		},
 	}
 
-	res, err := NewPoliciesFromSchema(input)
+	res, err := NewPoliciesFromProto(input)
 	require.NoError(t, err)
 	require.Equal(t, []Policy{
 		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), aggregation.MustCompressTypes(aggregation.Mean, aggregation.P999)),
@@ -140,7 +140,7 @@ func TestNewPoliciesFromSchema(t *testing.T) {
 	}, res)
 }
 
-func TestParsePolicyIntoSchema(t *testing.T) {
+func TestParsePolicyIntoProto(t *testing.T) {
 	inputs := []struct {
 		str      string
 		expected *policypb.Policy
@@ -225,7 +225,7 @@ func TestParsePolicyIntoSchema(t *testing.T) {
 		p, err := ParsePolicy(input.str)
 		require.NoError(t, err)
 
-		sp, err := p.Schema()
+		sp, err := p.Proto()
 		require.NoError(t, err)
 		require.Equal(t, input.expected, sp, input.str)
 	}
