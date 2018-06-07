@@ -25,42 +25,43 @@ import (
 
 	"github.com/m3db/m3metrics/encoding"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 )
 
 func toUnaggregatedMessageUnion(
-	metric unaggregated.MetricUnion,
+	metricUnion unaggregated.MetricUnion,
 	policiesList policy.PoliciesList,
 ) (encoding.UnaggregatedMessageUnion, error) {
 	metadatas := toStagedMetadatas(policiesList)
-	switch metric.Type {
-	case unaggregated.CounterType:
+	switch metricUnion.Type {
+	case metric.CounterType:
 		return encoding.UnaggregatedMessageUnion{
 			Type: encoding.CounterWithMetadatasType,
 			CounterWithMetadatas: unaggregated.CounterWithMetadatas{
-				Counter:         metric.Counter(),
+				Counter:         metricUnion.Counter(),
 				StagedMetadatas: metadatas,
 			},
 		}, nil
-	case unaggregated.BatchTimerType:
+	case metric.TimerType:
 		return encoding.UnaggregatedMessageUnion{
 			Type: encoding.BatchTimerWithMetadatasType,
 			BatchTimerWithMetadatas: unaggregated.BatchTimerWithMetadatas{
-				BatchTimer:      metric.BatchTimer(),
+				BatchTimer:      metricUnion.BatchTimer(),
 				StagedMetadatas: metadatas,
 			},
 		}, nil
-	case unaggregated.GaugeType:
+	case metric.GaugeType:
 		return encoding.UnaggregatedMessageUnion{
 			Type: encoding.GaugeWithMetadatasType,
 			GaugeWithMetadatas: unaggregated.GaugeWithMetadatas{
-				Gauge:           metric.Gauge(),
+				Gauge:           metricUnion.Gauge(),
 				StagedMetadatas: metadatas,
 			},
 		}, nil
 	default:
-		return encoding.UnaggregatedMessageUnion{}, fmt.Errorf("unknown metric type: %v", metric.Type)
+		return encoding.UnaggregatedMessageUnion{}, fmt.Errorf("unknown metric type: %v", metricUnion.Type)
 	}
 }
 

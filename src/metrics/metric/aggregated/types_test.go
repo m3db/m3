@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3metrics/generated/proto/policypb"
 	"github.com/m3db/m3metrics/generated/proto/transformationpb"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/op"
 	"github.com/m3db/m3metrics/op/applied"
 	"github.com/m3db/m3metrics/policy"
@@ -42,11 +43,13 @@ import (
 
 var (
 	testMetric1 = Metric{
+		Type:      metric.CounterType,
 		ID:        []byte("testMetric1"),
 		TimeNanos: 12345,
 		Value:     33.87,
 	}
 	testMetric2 = Metric{
+		Type:      metric.TimerType,
 		ID:        []byte("testMetric2"),
 		TimeNanos: 67890,
 		Value:     21.99,
@@ -87,15 +90,20 @@ var (
 		SourceID:          897,
 		NumForwardedTimes: 2,
 	}
+	testBadMetric = Metric{
+		Type: metric.UnknownType,
+	}
 	testBadForwardMetadata = metadata.ForwardMetadata{
 		StoragePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Unit(101), 6*time.Hour),
 	}
 	testMetric1Proto = metricpb.TimedMetric{
+		Type:      metricpb.MetricType_COUNTER,
 		Id:        []byte("testMetric1"),
 		TimeNanos: 12345,
 		Value:     33.87,
 	}
 	testMetric2Proto = metricpb.TimedMetric{
+		Type:      metricpb.MetricType_TIMER,
 		Id:        []byte("testMetric2"),
 		TimeNanos: 67890,
 		Value:     21.99,
@@ -156,6 +164,9 @@ var (
 		SourceId:          897,
 		NumForwardedTimes: 2,
 	}
+	testBadMetricProto = metricpb.TimedMetric{
+		Type: metricpb.MetricType_UNKNOWN,
+	}
 )
 
 func TestMetricToProto(t *testing.T) {
@@ -163,9 +174,14 @@ func TestMetricToProto(t *testing.T) {
 	inputs := []Metric{testMetric1, testMetric2}
 	expected := []metricpb.TimedMetric{testMetric1Proto, testMetric2Proto}
 	for i := 0; i < len(inputs); i++ {
-		inputs[i].ToProto(&pb)
+		require.NoError(t, inputs[i].ToProto(&pb))
 		require.Equal(t, expected[i], pb)
 	}
+}
+
+func TestMetricToProtoBadMetric(t *testing.T) {
+	var pb metricpb.TimedMetric
+	require.Error(t, testBadMetric.ToProto(&pb))
 }
 
 func TestMetricFromProto(t *testing.T) {
@@ -173,9 +189,14 @@ func TestMetricFromProto(t *testing.T) {
 	inputs := []metricpb.TimedMetric{testMetric1Proto, testMetric2Proto}
 	expected := []Metric{testMetric1, testMetric2}
 	for i := 0; i < len(inputs); i++ {
-		m.FromProto(inputs[i])
+		require.NoError(t, m.FromProto(inputs[i]))
 		require.Equal(t, expected[i], m)
 	}
+}
+
+func TestMetricFromProtoBadMetricProto(t *testing.T) {
+	var m Metric
+	require.Error(t, m.FromProto(testBadMetricProto))
 }
 
 func TestCounterRoundTrip(t *testing.T) {
@@ -185,8 +206,8 @@ func TestCounterRoundTrip(t *testing.T) {
 	)
 	inputs := []Metric{testMetric1, testMetric2}
 	for i := 0; i < len(inputs); i++ {
-		inputs[i].ToProto(&pb)
-		res.FromProto(pb)
+		require.NoError(t, inputs[i].ToProto(&pb))
+		require.NoError(t, res.FromProto(pb))
 		require.Equal(t, inputs[i], res)
 	}
 }
@@ -239,6 +260,15 @@ func TestMetricWithForwardMetadataToProto(t *testing.T) {
 		}
 		require.NoError(t, tm.ToProto(&pb))
 	}
+}
+
+func TestMetricWithForwardMetadataToProtoBadMetric(t *testing.T) {
+	var pb metricpb.TimedMetricWithForwardMetadata
+	tm := MetricWithForwardMetadata{
+		Metric:          testBadMetric,
+		ForwardMetadata: testForwardMetadata1,
+	}
+	require.Error(t, tm.ToProto(&pb))
 }
 
 func TestMetricWithForwardMetadataToProtoBadMetadata(t *testing.T) {
@@ -304,6 +334,15 @@ func TestMetricWithForwardMetadataFromProto(t *testing.T) {
 func TestMetricWithForwardMetadataFromProtoNilProto(t *testing.T) {
 	var res MetricWithForwardMetadata
 	require.Equal(t, errNilTimedMetricWithForwardMetadataProto, res.FromProto(nil))
+}
+
+func TestMetricWithForwardMetadataFromProtoBadMetricProto(t *testing.T) {
+	var res MetricWithForwardMetadata
+	pb := metricpb.TimedMetricWithForwardMetadata{
+		Metric:   testBadMetricProto,
+		Metadata: testForwardMetadata1Proto,
+	}
+	require.Error(t, res.FromProto(&pb))
 }
 
 func TestMetricWithForwardMetadataRoundtrip(t *testing.T) {

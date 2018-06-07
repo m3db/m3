@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/encoding"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
@@ -37,17 +38,17 @@ import (
 
 var (
 	testConvertCounterUnion = unaggregated.MetricUnion{
-		Type:       unaggregated.CounterType,
+		Type:       metric.CounterType,
 		ID:         []byte("testConvertCounter"),
 		CounterVal: 1234,
 	}
 	testConvertBatchTimerUnion = unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            []byte("testConvertBatchTimer"),
 		BatchTimerVal: []float64{222.22, 345.67, 901.23345},
 	}
 	testConvertGaugeUnion = unaggregated.MetricUnion{
-		Type:     unaggregated.GaugeType,
+		Type:     metric.GaugeType,
 		ID:       []byte("testConvertGauge"),
 		GaugeVal: 123.456,
 	}
@@ -214,7 +215,7 @@ func TestToUnaggregatedMessageUnion(t *testing.T) {
 
 func TestToUnaggregatedMessageUnionError(t *testing.T) {
 	invalidMetric := unaggregated.MetricUnion{
-		Type: unaggregated.UnknownType,
+		Type: metric.UnknownType,
 	}
 	_, err := toUnaggregatedMessageUnion(invalidMetric, testConvertPoliciesList)
 	require.Error(t, err)

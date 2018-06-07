@@ -48,7 +48,7 @@ const (
 
 	// Object types not exposed to the encoder interface.
 	counterType
-	batchTimerType
+	timerType
 	gaugeType
 	metricType
 	defaultPoliciesListType
@@ -120,7 +120,7 @@ func init() {
 	setNumFieldsForType(rawMetricWithStoragePolicyType, numRawMetricWithStoragePolicyFields)
 	setNumFieldsForType(rawMetricWithStoragePolicyAndEncodeTimeType, numRawMetricWithStoragePolicyAndEncodeTimeFields)
 	setNumFieldsForType(counterType, numCounterFields)
-	setNumFieldsForType(batchTimerType, numBatchTimerFields)
+	setNumFieldsForType(timerType, numBatchTimerFields)
 	setNumFieldsForType(gaugeType, numGaugeFields)
 	setNumFieldsForType(metricType, numMetricFields)
 	setNumFieldsForType(defaultPoliciesListType, numDefaultStagedPoliciesListFields)

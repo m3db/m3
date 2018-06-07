@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3metrics/generated/proto/metricpb"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/pool"
@@ -37,30 +38,6 @@ var (
 	errNilGaugeWithMetadatasProto      = errors.New("nil gauge with metadatas proto message")
 )
 
-// Type is a metric type.
-type Type int8
-
-// List of supported metric types.
-const (
-	UnknownType Type = iota
-	CounterType
-	BatchTimerType
-	GaugeType
-)
-
-func (t Type) String() string {
-	switch t {
-	case CounterType:
-		return "counter"
-	case BatchTimerType:
-		return "batchTimer"
-	case GaugeType:
-		return "gauge"
-	default:
-		return "unknown"
-	}
-}
-
 // Counter is a counter containing the counter ID and the counter value.
 type Counter struct {
 	ID    id.RawID
@@ -70,7 +47,7 @@ type Counter struct {
 // ToUnion converts the counter to a metric union.
 func (c Counter) ToUnion() MetricUnion {
 	return MetricUnion{
-		Type:       CounterType,
+		Type:       metric.CounterType,
 		ID:         c.ID,
 		CounterVal: c.Value,
 	}
@@ -97,7 +74,7 @@ type BatchTimer struct {
 // ToUnion converts the batch timer to a metric union.
 func (t BatchTimer) ToUnion() MetricUnion {
 	return MetricUnion{
-		Type:          BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            t.ID,
 		BatchTimerVal: t.Values,
 	}
@@ -124,7 +101,7 @@ type Gauge struct {
 // ToUnion converts the gauge to a metric union.
 func (g Gauge) ToUnion() MetricUnion {
 	return MetricUnion{
-		Type:     GaugeType,
+		Type:     metric.GaugeType,
 		ID:       g.ID,
 		GaugeVal: g.Value,
 	}
@@ -246,10 +223,8 @@ func (gm *GaugeWithMetadatas) FromProto(pb *metricpb.GaugeWithMetadatas) error {
 // which determines which value field is valid. Note that if the timer values are
 // allocated from a pool, the TimerValPool should be set to the originating pool,
 // and the caller is responsible for returning the timer values to the pool.
-// NB(xichen): possibly use refcounting to replace explicit ownership tracking.
 type MetricUnion struct {
-	Type          Type
-	OwnsID        bool
+	Type          metric.Type
 	ID            id.RawID
 	CounterVal    int64
 	BatchTimerVal []float64
@@ -262,11 +237,11 @@ var emptyMetricUnion MetricUnion
 // String is the string representation of a metric union.
 func (m *MetricUnion) String() string {
 	switch m.Type {
-	case CounterType:
+	case metric.CounterType:
 		return fmt.Sprintf("{type:%s,id:%s,value:%d}", m.Type, m.ID.String(), m.CounterVal)
-	case BatchTimerType:
+	case metric.TimerType:
 		return fmt.Sprintf("{type:%s,id:%s,value:%v}", m.Type, m.ID.String(), m.BatchTimerVal)
-	case GaugeType:
+	case metric.GaugeType:
 		return fmt.Sprintf("{type:%s,id:%s,value:%f}", m.Type, m.ID.String(), m.GaugeVal)
 	default:
 		return fmt.Sprintf(

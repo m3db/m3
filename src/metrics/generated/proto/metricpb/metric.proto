@@ -24,6 +24,13 @@ option go_package = "github.com/m3db/m3metrics/generated/proto/metricpb";
 
 package metricpb;
 
+enum MetricType {
+  UNKNOWN = 0;
+  COUNTER = 1;
+  TIMER = 2;
+  GAUGE = 3;
+}
+
 message Counter {
   bytes id = 1;
   int64 value = 2;
@@ -40,7 +47,8 @@ message Gauge {
 }
 
 message TimedMetric {
-  bytes id = 1;
-  int64 time_nanos = 2;
-  double value = 3;
+  MetricType type = 1;
+  bytes id = 2;
+  int64 time_nanos = 3;
+  double value = 4;
 }

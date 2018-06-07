@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
@@ -38,19 +39,19 @@ import (
 
 var (
 	testCounter = unaggregated.MetricUnion{
-		Type:       unaggregated.CounterType,
+		Type:       metric.CounterType,
 		ID:         []byte("foo"),
 		CounterVal: 1234,
 	}
 
 	testBatchTimer = unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            []byte("foo"),
 		BatchTimerVal: []float64{222.22, 345.67, 901.23345},
 	}
 
 	testGauge = unaggregated.MetricUnion{
-		Type:     unaggregated.GaugeType,
+		Type:     metric.GaugeType,
 		ID:       []byte("foo"),
 		GaugeVal: 123.456,
 	}
@@ -383,11 +384,11 @@ func testUnaggregatedIterator(reader io.Reader) UnaggregatedIterator {
 
 func testUnaggregatedEncodeMetric(encoder UnaggregatedEncoder, m unaggregated.MetricUnion) error {
 	switch m.Type {
-	case unaggregated.CounterType:
+	case metric.CounterType:
 		return encoder.EncodeCounter(m.Counter())
-	case unaggregated.BatchTimerType:
+	case metric.TimerType:
 		return encoder.EncodeBatchTimer(m.BatchTimer())
-	case unaggregated.GaugeType:
+	case metric.GaugeType:
 		return encoder.EncodeGauge(m.Gauge())
 	default:
 		return fmt.Errorf("unrecognized metric type %v", m.Type)
@@ -400,17 +401,17 @@ func testUnaggregatedEncodeMetricWithPoliciesList(
 	pl policy.PoliciesList,
 ) error {
 	switch m.Type {
-	case unaggregated.CounterType:
+	case metric.CounterType:
 		return encoder.EncodeCounterWithPoliciesList(unaggregated.CounterWithPoliciesList{
 			Counter:      m.Counter(),
 			PoliciesList: pl,
 		})
-	case unaggregated.BatchTimerType:
+	case metric.TimerType:
 		return encoder.EncodeBatchTimerWithPoliciesList(unaggregated.BatchTimerWithPoliciesList{
 			BatchTimer:   m.BatchTimer(),
 			PoliciesList: pl,
 		})
-	case unaggregated.GaugeType:
+	case metric.GaugeType:
 		return encoder.EncodeGaugeWithPoliciesList(unaggregated.GaugeWithPoliciesList{
 			Gauge:        m.Gauge(),
 			PoliciesList: pl,
@@ -427,11 +428,11 @@ func compareUnaggregatedMetric(
 ) {
 	require.Equal(t, expected.Type, actual.Type)
 	switch expected.Type {
-	case unaggregated.CounterType:
+	case metric.CounterType:
 		require.Equal(t, expected.Counter(), actual.Counter())
-	case unaggregated.BatchTimerType:
+	case metric.TimerType:
 		require.Equal(t, expected.BatchTimer(), actual.BatchTimer())
-	case unaggregated.GaugeType:
+	case metric.GaugeType:
 		require.Equal(t, expected.Gauge(), actual.Gauge())
 	default:
 		require.Fail(t, fmt.Sprintf("unrecognized metric type %v", expected.Type))

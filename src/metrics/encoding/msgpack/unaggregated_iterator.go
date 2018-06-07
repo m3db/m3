@@ -25,6 +25,7 @@ import (
 	"io"
 	"math"
 
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -138,7 +139,7 @@ func (it *unaggregatedIterator) decodeRootObject() bool {
 		return false
 	}
 	switch objType {
-	case counterType, batchTimerType, gaugeType:
+	case counterType, timerType, gaugeType:
 		it.decodeMetric(objType)
 	case counterWithPoliciesListType, batchTimerWithPoliciesListType, gaugeWithPoliciesListType:
 		it.decodeMetricWithPoliciesList(objType)
@@ -154,7 +155,7 @@ func (it *unaggregatedIterator) decodeMetric(objType objectType) {
 	switch objType {
 	case counterType:
 		it.decodeCounter()
-	case batchTimerType:
+	case timerType:
 		it.decodeBatchTimer()
 	case gaugeType:
 		it.decodeGauge()
@@ -188,18 +189,18 @@ func (it *unaggregatedIterator) decodeCounter() {
 	if !ok {
 		return
 	}
-	it.metric.Type = unaggregated.CounterType
+	it.metric.Type = metric.CounterType
 	it.metric.ID = it.decodeID()
 	it.metric.CounterVal = it.decodeVarint()
 	it.skip(numActualFields - numExpectedFields)
 }
 
 func (it *unaggregatedIterator) decodeBatchTimer() {
-	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(batchTimerType)
+	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(timerType)
 	if !ok {
 		return
 	}
-	it.metric.Type = unaggregated.BatchTimerType
+	it.metric.Type = metric.TimerType
 	it.metric.ID = it.decodeID()
 	var (
 		timerValues []float64
@@ -235,7 +236,7 @@ func (it *unaggregatedIterator) decodeGauge() {
 	if !ok {
 		return
 	}
-	it.metric.Type = unaggregated.GaugeType
+	it.metric.Type = metric.GaugeType
 	it.metric.ID = it.decodeID()
 	it.metric.GaugeVal = it.decodeFloat64()
 	it.skip(numActualFields - numExpectedFields)
