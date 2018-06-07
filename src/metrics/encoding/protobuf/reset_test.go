@@ -23,7 +23,9 @@ package protobuf
 import (
 	"testing"
 
+	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
 	"github.com/m3db/m3metrics/generated/proto/metricpb"
+	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
 
 	"github.com/stretchr/testify/require"
 )
@@ -53,6 +55,16 @@ var (
 		Id:    []byte{},
 		Value: 0.0,
 	}
+	testTimedMetricBeforeResetProto = metricpb.TimedMetric{
+		Id:        []byte("testTimedMetric"),
+		TimeNanos: 1234,
+		Value:     23.234,
+	}
+	testTimedMetricAfterResetProto = metricpb.TimedMetric{
+		Id:        []byte{},
+		TimeNanos: 0,
+		Value:     0.0,
+	}
 	testMetadatasBeforeResetProto = metricpb.StagedMetadatas{
 		Metadatas: []metricpb.StagedMetadata{
 			{
@@ -65,6 +77,30 @@ var (
 	}
 	testMetadatasAfterResetProto = metricpb.StagedMetadatas{
 		Metadatas: []metricpb.StagedMetadata{},
+	}
+	testForwardMetadataBeforeResetProto = metricpb.ForwardMetadata{
+		Pipeline: pipelinepb.AppliedPipeline{
+			Ops: []pipelinepb.AppliedPipelineOp{
+				{
+					Type: pipelinepb.AppliedPipelineOp_ROLLUP,
+					Rollup: &pipelinepb.AppliedRollupOp{
+						Id: []byte("foo"),
+						AggregationId: aggregationpb.AggregationID{
+							Id: 12,
+						},
+					},
+				},
+			},
+		},
+		SourceId:          342,
+		NumForwardedTimes: 23,
+	}
+	testForwardMetadataAfterResetProto = metricpb.ForwardMetadata{
+		Pipeline: pipelinepb.AppliedPipeline{
+			Ops: []pipelinepb.AppliedPipelineOp{},
+		},
+		SourceId:          0,
+		NumForwardedTimes: 0,
 	}
 )
 
@@ -135,6 +171,27 @@ func TestResetMetricWithMetadatasProtoOnlyGauge(t *testing.T) {
 	require.True(t, cap(input.GaugeWithMetadatas.Metadatas.Metadatas) > 0)
 }
 
+func TestResetMetricWithMetadatasProtoOnlyTimedMetric(t *testing.T) {
+	input := &metricpb.MetricWithMetadatas{
+		Type: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_FORWARD_METADATA,
+		TimedMetricWithForwardMetadata: &metricpb.TimedMetricWithForwardMetadata{
+			Metric:   testTimedMetricBeforeResetProto,
+			Metadata: testForwardMetadataBeforeResetProto,
+		},
+	}
+	expected := &metricpb.MetricWithMetadatas{
+		Type: metricpb.MetricWithMetadatas_UNKNOWN,
+		TimedMetricWithForwardMetadata: &metricpb.TimedMetricWithForwardMetadata{
+			Metric:   testTimedMetricAfterResetProto,
+			Metadata: testForwardMetadataAfterResetProto,
+		},
+	}
+	resetMetricWithMetadatasProto(input)
+	require.Equal(t, expected, input)
+	require.True(t, cap(input.TimedMetricWithForwardMetadata.Metric.Id) > 0)
+	require.True(t, cap(input.TimedMetricWithForwardMetadata.Metadata.Pipeline.Ops) > 0)
+}
+
 func TestResetMetricWithMetadatasProtoAll(t *testing.T) {
 	input := &metricpb.MetricWithMetadatas{
 		Type: metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS,
@@ -149,6 +206,10 @@ func TestResetMetricWithMetadatasProtoAll(t *testing.T) {
 		GaugeWithMetadatas: &metricpb.GaugeWithMetadatas{
 			Gauge:     testGaugeBeforeResetProto,
 			Metadatas: testMetadatasBeforeResetProto,
+		},
+		TimedMetricWithForwardMetadata: &metricpb.TimedMetricWithForwardMetadata{
+			Metric:   testTimedMetricBeforeResetProto,
+			Metadata: testForwardMetadataBeforeResetProto,
 		},
 	}
 	expected := &metricpb.MetricWithMetadatas{
@@ -165,6 +226,10 @@ func TestResetMetricWithMetadatasProtoAll(t *testing.T) {
 			Gauge:     testGaugeAfterResetProto,
 			Metadatas: testMetadatasAfterResetProto,
 		},
+		TimedMetricWithForwardMetadata: &metricpb.TimedMetricWithForwardMetadata{
+			Metric:   testTimedMetricAfterResetProto,
+			Metadata: testForwardMetadataAfterResetProto,
+		},
 	}
 	resetMetricWithMetadatasProto(input)
 	require.Equal(t, expected, input)
@@ -174,4 +239,6 @@ func TestResetMetricWithMetadatasProtoAll(t *testing.T) {
 	require.True(t, cap(input.BatchTimerWithMetadatas.Metadatas.Metadatas) > 0)
 	require.True(t, cap(input.GaugeWithMetadatas.Gauge.Id) > 0)
 	require.True(t, cap(input.GaugeWithMetadatas.Metadatas.Metadatas) > 0)
+	require.True(t, cap(input.TimedMetricWithForwardMetadata.Metric.Id) > 0)
+	require.True(t, cap(input.TimedMetricWithForwardMetadata.Metadata.Pipeline.Ops) > 0)
 }

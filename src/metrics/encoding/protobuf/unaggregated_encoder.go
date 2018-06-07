@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3metrics/encoding"
 	"github.com/m3db/m3metrics/generated/proto/metricpb"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3x/pool"
 )
@@ -65,6 +66,7 @@ type unaggregatedEncoder struct {
 	cm   metricpb.CounterWithMetadatas
 	bm   metricpb.BatchTimerWithMetadatas
 	gm   metricpb.GaugeWithMetadatas
+	tm   metricpb.TimedMetricWithForwardMetadata
 	buf  []byte
 	used int
 
@@ -120,6 +122,8 @@ func (enc *unaggregatedEncoder) EncodeMessage(msg encoding.UnaggregatedMessageUn
 		return enc.encodeBatchTimerWithMetadatas(msg.BatchTimerWithMetadatas)
 	case encoding.GaugeWithMetadatasType:
 		return enc.encodeGaugeWithMetadatas(msg.GaugeWithMetadatas)
+	case encoding.TimedMetricWithForwardMetadataType:
+		return enc.encodeTimedMetricWithForwardMetadata(msg.TimedMetricWithForwardMetadata)
 	default:
 		return fmt.Errorf("unknown message type: %v", msg.Type)
 	}
@@ -154,6 +158,17 @@ func (enc *unaggregatedEncoder) encodeGaugeWithMetadatas(gm unaggregated.GaugeWi
 	mm := metricpb.MetricWithMetadatas{
 		Type:               metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS,
 		GaugeWithMetadatas: &enc.gm,
+	}
+	return enc.encodeMetricWithMetadatas(mm)
+}
+
+func (enc *unaggregatedEncoder) encodeTimedMetricWithForwardMetadata(tm aggregated.MetricWithForwardMetadata) error {
+	if err := tm.ToProto(&enc.tm); err != nil {
+		return fmt.Errorf("timed metric with forward metadata proto conversion failed: %v", err)
+	}
+	mm := metricpb.MetricWithMetadatas{
+		Type: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_FORWARD_METADATA,
+		TimedMetricWithForwardMetadata: &enc.tm,
 	}
 	return enc.encodeMetricWithMetadatas(mm)
 }
