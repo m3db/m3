@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
 	"github.com/m3db/m3metrics/generated/proto/policypb"
-	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
@@ -73,7 +73,7 @@ func TestValidatorInvalidNamespace(t *testing.T) {
 	v := NewValidator(opts)
 	defer v.Close()
 
-	rs, err := rules.NewRuleSetFromSchema(1, &schema.RuleSet{Namespace: "baz"}, rules.NewOptions())
+	rs, err := rules.NewRuleSetFromSchema(1, &rulepb.RuleSet{Namespace: "baz"}, rules.NewOptions())
 	require.NoError(t, err)
 	require.Error(t, v.Validate(rs))
 }
@@ -86,7 +86,7 @@ func TestValidatorValidNamespace(t *testing.T) {
 	v := NewValidator(opts)
 	defer v.Close()
 
-	rs, err := rules.NewRuleSetFromSchema(1, &schema.RuleSet{Namespace: "foo"}, rules.NewOptions())
+	rs, err := rules.NewRuleSetFromSchema(1, &rulepb.RuleSet{Namespace: "foo"}, rules.NewOptions())
 	require.NoError(t, err)
 	require.NoError(t, v.Validate(rs))
 }
@@ -391,22 +391,22 @@ func TestValidatorValidateRollupRuleConflictingTargets(t *testing.T) {
 	require.True(t, ok)
 }
 
-func testDuplicateMappingRulesConfig() []*schema.MappingRule {
-	return []*schema.MappingRule{
-		&schema.MappingRule{
+func testDuplicateMappingRulesConfig() []*rulepb.MappingRule {
+	return []*rulepb.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule1",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
 					Policies:   testPolicies(),
 				},
 			},
 		},
-		&schema.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule2",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
 					Policies: []*policypb.Policy{
@@ -428,22 +428,22 @@ func testDuplicateMappingRulesConfig() []*schema.MappingRule {
 	}
 }
 
-func testNoDuplicateMappingRulesConfigWithTombstone() []*schema.MappingRule {
-	return []*schema.MappingRule{
-		&schema.MappingRule{
+func testNoDuplicateMappingRulesConfigWithTombstone() []*rulepb.MappingRule {
+	return []*rulepb.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule1",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: true,
 					Policies:   testPolicies(),
 				},
 			},
 		},
-		&schema.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule2",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
 					Policies:   testPolicies(),
@@ -475,12 +475,12 @@ func testInvalidFilterTagNameMappingRuleSetSnapshot() *models.RuleSetSnapshotVie
 	}
 }
 
-func testInvalidMetricTypeMappingRulesConfig() []*schema.MappingRule {
-	return []*schema.MappingRule{
-		&schema.MappingRule{
+func testInvalidMetricTypeMappingRulesConfig() []*rulepb.MappingRule {
+	return []*rulepb.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule1",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
 					Filter:     testTypeTag + ":nonexistent",
@@ -490,12 +490,12 @@ func testInvalidMetricTypeMappingRulesConfig() []*schema.MappingRule {
 	}
 }
 
-func testPolicyResolutionMappingRulesConfig() []*schema.MappingRule {
-	return []*schema.MappingRule{
-		&schema.MappingRule{
+func testPolicyResolutionMappingRulesConfig() []*rulepb.MappingRule {
+	return []*rulepb.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule1",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
 					Filter:     testTypeTag + ":" + testTimerType,
@@ -518,12 +518,12 @@ func testPolicyResolutionMappingRulesConfig() []*schema.MappingRule {
 	}
 }
 
-func testNoPoliciesMappingRulesConfig() []*schema.MappingRule {
-	return []*schema.MappingRule{
-		&schema.MappingRule{
+func testNoPoliciesMappingRulesConfig() []*rulepb.MappingRule {
+	return []*rulepb.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule1",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
 					Filter:     testTypeTag + ":" + testTimerType,
@@ -534,12 +534,12 @@ func testNoPoliciesMappingRulesConfig() []*schema.MappingRule {
 	}
 }
 
-func testDuplicatePoliciesMappingRulesConfig() []*schema.MappingRule {
-	return []*schema.MappingRule{
-		&schema.MappingRule{
+func testDuplicatePoliciesMappingRulesConfig() []*rulepb.MappingRule {
+	return []*rulepb.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule1",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
 					Filter:     testTypeTag + ":" + testTimerType,
@@ -573,12 +573,12 @@ func testDuplicatePoliciesMappingRulesConfig() []*schema.MappingRule {
 	}
 }
 
-func testCustomAggregationTypeMappingRulesConfig() []*schema.MappingRule {
-	return []*schema.MappingRule{
-		&schema.MappingRule{
+func testCustomAggregationTypeMappingRulesConfig() []*rulepb.MappingRule {
+	return []*rulepb.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule1",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
 					Filter:     testTypeTag + ":" + testTimerType,
@@ -605,16 +605,16 @@ func testCustomAggregationTypeMappingRulesConfig() []*schema.MappingRule {
 	}
 }
 
-func testDuplicateRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func testDuplicateRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name:     "rName1",
 							Tags:     []string{"rtagName1", "rtagName2"},
 							Policies: testPolicies(),
@@ -623,14 +623,14 @@ func testDuplicateRollupRulesConfig() []*schema.RollupRule {
 				},
 			},
 		},
-		&schema.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule2",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name:     "rName1",
 							Tags:     []string{"rtagName1", "rtagName2"},
 							Policies: testPolicies(),
@@ -642,16 +642,16 @@ func testDuplicateRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func testNoDuplicateRollupRulesConfigWithTombstone() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func testNoDuplicateRollupRulesConfigWithTombstone() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: true,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name:     "rName1",
 							Tags:     []string{"rtagName1", "rtagName2"},
 							Policies: testPolicies(),
@@ -660,14 +660,14 @@ func testNoDuplicateRollupRulesConfigWithTombstone() []*schema.RollupRule {
 				},
 			},
 		},
-		&schema.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule2",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name:     "rName1",
 							Tags:     []string{"rtagName1", "rtagName2"},
 							Policies: testPolicies(),
@@ -701,17 +701,17 @@ func testInvalidFilterTagNameRollupRuleSetSnapshot() *models.RuleSetSnapshotView
 	}
 }
 
-func testInvalidMetricTypeRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func testInvalidMetricTypeRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
 					Filter:     testTypeTag + ":nonexistent",
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name:     "rName1",
 							Tags:     []string{"rtagName1", "rtagName2"},
 							Policies: testPolicies(),
@@ -723,16 +723,16 @@ func testInvalidMetricTypeRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func testDuplicateTagRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func testDuplicateTagRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name:     "rName1",
 							Tags:     []string{"rtagName1", "rtagName2", "rtagName1"},
 							Policies: testPolicies(),
@@ -744,16 +744,16 @@ func testDuplicateTagRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func testMissingRequiredTagRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func testMissingRequiredTagRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name:     "rName1",
 							Tags:     []string{"rtagName1", "rtagName2"},
 							Policies: testPolicies(),
@@ -765,16 +765,16 @@ func testMissingRequiredTagRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func testTagNameRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func testTagNameRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name:     "rName1",
 							Tags:     []string{"rtagName1", "rtagName2$", "$"},
 							Policies: testPolicies(),
@@ -786,16 +786,16 @@ func testTagNameRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func testMetricNameRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func testMetricNameRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name:     "rName$1",
 							Tags:     []string{"rtagName1", "rtagName2"},
 							Policies: testPolicies(),
@@ -807,16 +807,16 @@ func testMetricNameRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func testEmptyMetricNameRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func testEmptyMetricNameRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "",
 							Tags: []string{"rtagName1", "rtagName2"},
 						},
@@ -827,17 +827,17 @@ func testEmptyMetricNameRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func testPolicyResolutionRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func testPolicyResolutionRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
 					Filter:     testTypeTag + ":" + testTimerType,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName1",
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{
@@ -861,17 +861,17 @@ func testPolicyResolutionRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func testNoPoliciesRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func testNoPoliciesRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
 					Filter:     testTypeTag + ":" + testTimerType,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name:     "rName1",
 							Tags:     []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{},
@@ -883,17 +883,17 @@ func testNoPoliciesRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func testDuplicatePoliciesRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func testDuplicatePoliciesRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
 					Filter:     testTypeTag + ":" + testTimerType,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName1",
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{
@@ -928,17 +928,17 @@ func testDuplicatePoliciesRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func testCustomAggregationTypeRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func testCustomAggregationTypeRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
 					Filter:     testTypeTag + ":" + testTimerType,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName1",
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{
@@ -966,17 +966,17 @@ func testCustomAggregationTypeRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func testConflictingTargetsRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func testConflictingTargetsRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
 					Filter:     testTypeTag + ":" + testTimerType,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName1",
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{
@@ -997,15 +997,15 @@ func testConflictingTargetsRollupRulesConfig() []*schema.RollupRule {
 				},
 			},
 		},
-		&schema.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule2",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:       "snapshot2",
 					Tombstoned: false,
 					Filter:     testTypeTag + ":" + testTimerType,
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName1",
 							Tags: []string{"rtagName2", "rtagName1"},
 							Policies: []*policypb.Policy{
@@ -1029,15 +1029,15 @@ func testConflictingTargetsRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func testRuleSetWithMappingRules(t *testing.T, mrs []*schema.MappingRule) rules.RuleSet {
-	rs := &schema.RuleSet{MappingRules: mrs}
+func testRuleSetWithMappingRules(t *testing.T, mrs []*rulepb.MappingRule) rules.RuleSet {
+	rs := &rulepb.RuleSet{MappingRules: mrs}
 	newRuleSet, err := rules.NewRuleSetFromSchema(1, rs, rules.NewOptions())
 	require.NoError(t, err)
 	return newRuleSet
 }
 
-func testRuleSetWithRollupRules(t *testing.T, rrs []*schema.RollupRule) rules.RuleSet {
-	rs := &schema.RuleSet{RollupRules: rrs}
+func testRuleSetWithRollupRules(t *testing.T, rrs []*rulepb.RollupRule) rules.RuleSet {
+	rs := &rulepb.RuleSet{RollupRules: rrs}
 	newRuleSet, err := rules.NewRuleSetFromSchema(1, rs, rules.NewOptions())
 	require.NoError(t, err)
 	return newRuleSet

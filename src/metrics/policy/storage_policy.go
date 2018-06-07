@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	schema "github.com/m3db/m3metrics/generated/proto/policypb"
+	"github.com/m3db/m3metrics/generated/proto/policypb"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -61,7 +61,7 @@ func NewStoragePolicy(window time.Duration, precision xtime.Unit, retention time
 }
 
 // NewStoragePolicyFromProto creates a new storage policy from a storage policy protobuf message.
-func NewStoragePolicyFromProto(p *schema.StoragePolicy) (StoragePolicy, error) {
+func NewStoragePolicyFromProto(p *policypb.StoragePolicy) (StoragePolicy, error) {
 	if p == nil {
 		return EmptyStoragePolicy, errNilStoragePolicySchema
 	}
@@ -90,22 +90,22 @@ func (p StoragePolicy) Retention() Retention {
 }
 
 // ToProto converts the storage policy to a protobuf message in place.
-func (p StoragePolicy) ToProto(pb *schema.StoragePolicy) error {
+func (p StoragePolicy) ToProto(pb *policypb.StoragePolicy) error {
 	if pb.Resolution == nil {
-		pb.Resolution = &schema.Resolution{}
+		pb.Resolution = &policypb.Resolution{}
 	}
 	if err := p.resolution.ToProto(pb.Resolution); err != nil {
 		return err
 	}
 	if pb.Retention == nil {
-		pb.Retention = &schema.Retention{}
+		pb.Retention = &policypb.Retention{}
 	}
 	p.retention.ToProto(pb.Retention)
 	return nil
 }
 
 // FromProto converts the protobuf message to a storage policy in place.
-func (p *StoragePolicy) FromProto(pb schema.StoragePolicy) error {
+func (p *StoragePolicy) FromProto(pb policypb.StoragePolicy) error {
 	if err := p.resolution.FromProto(pb.Resolution); err != nil {
 		return err
 	}

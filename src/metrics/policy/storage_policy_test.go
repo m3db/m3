@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3metrics/generated/proto/policypb"
-	schema "github.com/m3db/m3metrics/generated/proto/policypb"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -255,28 +254,28 @@ func TestStoragePolicyUnmarshalYAMLErrors(t *testing.T) {
 
 func TestNewStoragePolicyFromSchema(t *testing.T) {
 	inputs := []struct {
-		s *schema.StoragePolicy
+		s *policypb.StoragePolicy
 		p StoragePolicy
 	}{
 		{
-			s: &schema.StoragePolicy{
-				Resolution: &schema.Resolution{
+			s: &policypb.StoragePolicy{
+				Resolution: &policypb.Resolution{
 					WindowSize: int64(10 * time.Second),
 					Precision:  int64(time.Second),
 				},
-				Retention: &schema.Retention{
+				Retention: &policypb.Retention{
 					Period: int64(24 * time.Hour),
 				},
 			},
 			p: NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
 		},
 		{
-			s: &schema.StoragePolicy{
-				Resolution: &schema.Resolution{
+			s: &policypb.StoragePolicy{
+				Resolution: &policypb.Resolution{
 					WindowSize: int64(time.Minute),
 					Precision:  int64(time.Minute),
 				},
-				Retention: &schema.Retention{
+				Retention: &policypb.Retention{
 					Period: int64(240 * time.Hour),
 				},
 			},

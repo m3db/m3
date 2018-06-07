@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	schema "github.com/m3db/m3metrics/generated/proto/policypb"
+	"github.com/m3db/m3metrics/generated/proto/policypb"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -49,7 +49,7 @@ type Resolution struct {
 }
 
 // ToProto converts the resolution to a protobuf message in place.
-func (r Resolution) ToProto(pb *schema.Resolution) error {
+func (r Resolution) ToProto(pb *policypb.Resolution) error {
 	precision, err := r.Precision.Value()
 	if err != nil {
 		return err
@@ -60,7 +60,7 @@ func (r Resolution) ToProto(pb *schema.Resolution) error {
 }
 
 // FromProto converts the protobuf message to a resolution in place.
-func (r *Resolution) FromProto(pb *schema.Resolution) error {
+func (r *Resolution) FromProto(pb *policypb.Resolution) error {
 	if pb == nil {
 		return errNilResolutionProto
 	}

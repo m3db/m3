@@ -23,7 +23,7 @@ package rules
 import (
 	"testing"
 
-	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/rules/models"
 
 	"github.com/stretchr/testify/require"
@@ -35,7 +35,7 @@ func TestNewNamespaceSnapshotFromNilSchema(t *testing.T) {
 }
 
 func TestNewNamespaceSnapshotFromValidSchema(t *testing.T) {
-	snapshot, err := newNamespaceSnapshot(&schema.NamespaceSnapshot{
+	snapshot, err := newNamespaceSnapshot(&rulepb.NamespaceSnapshot{
 		ForRulesetVersion:  123,
 		Tombstoned:         true,
 		LastUpdatedAtNanos: 456,
@@ -63,7 +63,7 @@ func TestNamespaceSnapshotToSchema(t *testing.T) {
 }
 
 func TestNamespaceSnapshotRoundTrip(t *testing.T) {
-	schema := &schema.NamespaceSnapshot{
+	schema := &rulepb.NamespaceSnapshot{
 		ForRulesetVersion:  123,
 		Tombstoned:         true,
 		LastUpdatedAtNanos: 456,
@@ -168,16 +168,16 @@ func TestNewNamespaceFromNilSchema(t *testing.T) {
 }
 
 func TestNewNamespaceFromValidSchema(t *testing.T) {
-	ns, err := newNamespace(&schema.Namespace{
+	ns, err := newNamespace(&rulepb.Namespace{
 		Name: "foo",
-		Snapshots: []*schema.NamespaceSnapshot{
-			&schema.NamespaceSnapshot{
+		Snapshots: []*rulepb.NamespaceSnapshot{
+			&rulepb.NamespaceSnapshot{
 				ForRulesetVersion:  123,
 				Tombstoned:         false,
 				LastUpdatedAtNanos: 456,
 				LastUpdatedBy:      "someone",
 			},
-			&schema.NamespaceSnapshot{
+			&rulepb.NamespaceSnapshot{
 				ForRulesetVersion:  456,
 				Tombstoned:         true,
 				LastUpdatedAtNanos: 7890,
@@ -225,16 +225,16 @@ func TestNamespaceToSchema(t *testing.T) {
 	res, err := ns.Schema()
 	require.NoError(t, err)
 
-	expected := &schema.Namespace{
+	expected := &rulepb.Namespace{
 		Name: "foo",
-		Snapshots: []*schema.NamespaceSnapshot{
-			&schema.NamespaceSnapshot{
+		Snapshots: []*rulepb.NamespaceSnapshot{
+			&rulepb.NamespaceSnapshot{
 				ForRulesetVersion:  123,
 				Tombstoned:         false,
 				LastUpdatedAtNanos: 456,
 				LastUpdatedBy:      "someone",
 			},
-			&schema.NamespaceSnapshot{
+			&rulepb.NamespaceSnapshot{
 				ForRulesetVersion:  456,
 				Tombstoned:         true,
 				LastUpdatedAtNanos: 7890,
@@ -255,16 +255,16 @@ func TestNamespaceToSchemaNoSnapshots(t *testing.T) {
 }
 
 func TestNamespaceRoundTrip(t *testing.T) {
-	testNs := &schema.Namespace{
+	testNs := &rulepb.Namespace{
 		Name: "foo",
-		Snapshots: []*schema.NamespaceSnapshot{
-			&schema.NamespaceSnapshot{
+		Snapshots: []*rulepb.NamespaceSnapshot{
+			&rulepb.NamespaceSnapshot{
 				ForRulesetVersion:  123,
 				Tombstoned:         false,
 				LastUpdatedAtNanos: 456,
 				LastUpdatedBy:      "someone",
 			},
-			&schema.NamespaceSnapshot{
+			&rulepb.NamespaceSnapshot{
 				ForRulesetVersion:  456,
 				Tombstoned:         true,
 				LastUpdatedAtNanos: 7890,
@@ -570,18 +570,18 @@ func TestNewNamespacesFromNilSchema(t *testing.T) {
 }
 
 func TestNewNamespacesFromValidSchema(t *testing.T) {
-	ns, err := NewNamespaces(1, &schema.Namespaces{
-		Namespaces: []*schema.Namespace{
-			&schema.Namespace{
+	ns, err := NewNamespaces(1, &rulepb.Namespaces{
+		Namespaces: []*rulepb.Namespace{
+			&rulepb.Namespace{
 				Name: "foo",
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion:  123,
 						Tombstoned:         false,
 						LastUpdatedAtNanos: 456,
 						LastUpdatedBy:      "someone",
 					},
-					&schema.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion:  456,
 						Tombstoned:         true,
 						LastUpdatedAtNanos: 7890,
@@ -589,16 +589,16 @@ func TestNewNamespacesFromValidSchema(t *testing.T) {
 					},
 				},
 			},
-			&schema.Namespace{
+			&rulepb.Namespace{
 				Name: "bar",
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion:  789,
 						Tombstoned:         false,
 						LastUpdatedAtNanos: 12345,
 						LastUpdatedBy:      "john",
 					},
-					&schema.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion:  1000,
 						Tombstoned:         true,
 						LastUpdatedAtNanos: 67890,
@@ -650,18 +650,18 @@ func TestNewNamespacesFromValidSchema(t *testing.T) {
 }
 
 func TestNamespacesRoundTrip(t *testing.T) {
-	testNss := &schema.Namespaces{
-		Namespaces: []*schema.Namespace{
-			&schema.Namespace{
+	testNss := &rulepb.Namespaces{
+		Namespaces: []*rulepb.Namespace{
+			&rulepb.Namespace{
 				Name: "foo",
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion:  123,
 						Tombstoned:         false,
 						LastUpdatedAtNanos: 456,
 						LastUpdatedBy:      "someone",
 					},
-					&schema.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion:  456,
 						Tombstoned:         true,
 						LastUpdatedAtNanos: 7890,
@@ -669,16 +669,16 @@ func TestNamespacesRoundTrip(t *testing.T) {
 					},
 				},
 			},
-			&schema.Namespace{
+			&rulepb.Namespace{
 				Name: "foo2",
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion:  789,
 						Tombstoned:         false,
 						LastUpdatedAtNanos: 12345,
 						LastUpdatedBy:      "john",
 					},
-					&schema.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion:  1000,
 						Tombstoned:         true,
 						LastUpdatedAtNanos: 67890,

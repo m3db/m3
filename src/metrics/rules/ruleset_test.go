@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
 	"github.com/m3db/m3metrics/generated/proto/policypb"
-	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
@@ -802,7 +802,7 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 func TestRuleSetProperties(t *testing.T) {
 	opts := testRuleSetOptions()
 	version := 1
-	rs := &schema.RuleSet{
+	rs := &rulepb.RuleSet{
 		Uuid:               "ruleset",
 		Namespace:          "namespace",
 		CreatedAtNanos:     1234,
@@ -824,7 +824,7 @@ func TestRuleSetProperties(t *testing.T) {
 func TestRuleSetSchema(t *testing.T) {
 	version := 1
 
-	expectedRs := &schema.RuleSet{
+	expectedRs := &rulepb.RuleSet{
 		Uuid:               "ruleset",
 		Namespace:          "namespace",
 		CreatedAtNanos:     1234,
@@ -846,7 +846,7 @@ func TestRuleSetSchema(t *testing.T) {
 func TestRuleSetActiveSet(t *testing.T) {
 	opts := testRuleSetOptions()
 	version := 1
-	rs := &schema.RuleSet{
+	rs := &rulepb.RuleSet{
 		MappingRules: testMappingRulesConfig(),
 		RollupRules:  testRollupRulesConfig(),
 	}
@@ -1218,7 +1218,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 }
 
 func TestRuleSetLatest(t *testing.T) {
-	schema := &schema.RuleSet{
+	schema := &rulepb.RuleSet{
 		Namespace:    "testNamespace",
 		CutoverNanos: 998234,
 		MappingRules: testMappingRulesConfig(),
@@ -1796,12 +1796,12 @@ func testRollupRules(t *testing.T) []*rollupRule {
 	return []*rollupRule{rollupRule1, rollupRule2, rollupRule3, rollupRule4, rollupRule5, rollupRule6, rollupRule7}
 }
 
-func testMappingRulesConfig() []*schema.MappingRule {
-	return []*schema.MappingRule{
-		&schema.MappingRule{
+func testMappingRulesConfig() []*rulepb.MappingRule {
+	return []*rulepb.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule1",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 10000,
@@ -1820,7 +1820,7 @@ func testMappingRulesConfig() []*schema.MappingRule {
 						},
 					},
 				},
-				&schema.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule1.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 20000,
@@ -1861,7 +1861,7 @@ func testMappingRulesConfig() []*schema.MappingRule {
 						},
 					},
 				},
-				&schema.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule1.snapshot3",
 					Tombstoned:   false,
 					CutoverNanos: 30000,
@@ -1882,10 +1882,10 @@ func testMappingRulesConfig() []*schema.MappingRule {
 				},
 			},
 		},
-		&schema.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule2",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule2.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 15000,
@@ -1904,7 +1904,7 @@ func testMappingRulesConfig() []*schema.MappingRule {
 						},
 					},
 				},
-				&schema.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule2.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 22000,
@@ -1937,7 +1937,7 @@ func testMappingRulesConfig() []*schema.MappingRule {
 						},
 					},
 				},
-				&schema.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule2.snapshot3",
 					Tombstoned:   true,
 					CutoverNanos: 35000,
@@ -1972,10 +1972,10 @@ func testMappingRulesConfig() []*schema.MappingRule {
 				},
 			},
 		},
-		&schema.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule3",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule3.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 22000,
@@ -2019,7 +2019,7 @@ func testMappingRulesConfig() []*schema.MappingRule {
 						},
 					},
 				},
-				&schema.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule3.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 34000,
@@ -2051,10 +2051,10 @@ func testMappingRulesConfig() []*schema.MappingRule {
 				},
 			},
 		},
-		&schema.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule4",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule4.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 24000,
@@ -2078,10 +2078,10 @@ func testMappingRulesConfig() []*schema.MappingRule {
 				},
 			},
 		},
-		&schema.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule5",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:               "mappingRule5.snapshot1",
 					Tombstoned:         false,
 					CutoverNanos:       100000,
@@ -2107,18 +2107,18 @@ func testMappingRulesConfig() []*schema.MappingRule {
 	}
 }
 
-func testRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func testRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 10000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName1",
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{
@@ -2137,13 +2137,13 @@ func testRollupRulesConfig() []*schema.RollupRule {
 						},
 					},
 				},
-				&schema.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule1.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 20000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName1",
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{
@@ -2184,13 +2184,13 @@ func testRollupRulesConfig() []*schema.RollupRule {
 						},
 					},
 				},
-				&schema.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule1.snapshot3",
 					Tombstoned:   false,
 					CutoverNanos: 30000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName1",
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{
@@ -2211,16 +2211,16 @@ func testRollupRulesConfig() []*schema.RollupRule {
 				},
 			},
 		},
-		&schema.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule2",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule2.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 15000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName1",
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{
@@ -2239,13 +2239,13 @@ func testRollupRulesConfig() []*schema.RollupRule {
 						},
 					},
 				},
-				&schema.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule2.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 22000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName1",
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{
@@ -2275,13 +2275,13 @@ func testRollupRulesConfig() []*schema.RollupRule {
 						},
 					},
 				},
-				&schema.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule2.snapshot3",
 					Tombstoned:   true,
 					CutoverNanos: 35000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName1",
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{
@@ -2313,16 +2313,16 @@ func testRollupRulesConfig() []*schema.RollupRule {
 				},
 			},
 		},
-		&schema.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule3",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule3.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 22000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName1",
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{
@@ -2361,7 +2361,7 @@ func testRollupRulesConfig() []*schema.RollupRule {
 								},
 							},
 						},
-						&schema.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName2",
 							Tags: []string{"rtagName1"},
 							Policies: []*policypb.Policy{
@@ -2380,13 +2380,13 @@ func testRollupRulesConfig() []*schema.RollupRule {
 						},
 					},
 				},
-				&schema.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule3.snapshot2",
 					Tombstoned:   false,
 					CutoverNanos: 34000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName1",
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{
@@ -2418,16 +2418,16 @@ func testRollupRulesConfig() []*schema.RollupRule {
 				},
 			},
 		},
-		&schema.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule4",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule4.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 24000,
 					Filter:       "rtagName1:rtagValue2",
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName3",
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{
@@ -2448,16 +2448,16 @@ func testRollupRulesConfig() []*schema.RollupRule {
 				},
 			},
 		},
-		&schema.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule5",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule5.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 24000,
 					Filter:       "rtagName1:rtagValue2",
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName4",
 							Tags: []string{"rtagName1"},
 							Policies: []*policypb.Policy{
@@ -2478,16 +2478,16 @@ func testRollupRulesConfig() []*schema.RollupRule {
 				},
 			},
 		},
-		&schema.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule6",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule6.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 100000,
 					Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "rName3",
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*policypb.Policy{
@@ -2554,7 +2554,7 @@ func testTagsFilterOptions() filters.TagsFilterOptions {
 func initMutableTest() (MutableRuleSet, *ruleSet, RuleSetUpdateHelper, error) {
 	version := 1
 
-	expectedRs := &schema.RuleSet{
+	expectedRs := &rulepb.RuleSet{
 		Uuid:               "ruleset",
 		Namespace:          "namespace",
 		CreatedAtNanos:     1234,
@@ -2573,7 +2573,7 @@ func initMutableTest() (MutableRuleSet, *ruleSet, RuleSetUpdateHelper, error) {
 
 // nolint: unparam
 // newMutableRuleSetFromSchema creates a new MutableRuleSet from a schema object.
-func newMutableRuleSetFromSchema(version int, rs *schema.RuleSet) (MutableRuleSet, error) {
+func newMutableRuleSetFromSchema(version int, rs *rulepb.RuleSet) (MutableRuleSet, error) {
 	// Takes a blank Options stuct because none of the mutation functions need the options.
 	roRuleSet, err := NewRuleSetFromSchema(version, rs, NewOptions())
 	if err != nil {

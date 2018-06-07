@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
 	"github.com/m3db/m3metrics/generated/proto/policypb"
-	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules/models"
 	xtime "github.com/m3db/m3x/time"
@@ -37,18 +37,18 @@ import (
 )
 
 var (
-	testRollupRuleSchema = &schema.RollupRule{
+	testRollupRuleSchema = &rulepb.RollupRule{
 		Uuid: "12669817-13ae-40e6-ba2f-33087b262c68",
-		Snapshots: []*schema.RollupRuleSnapshot{
-			&schema.RollupRuleSnapshot{
+		Snapshots: []*rulepb.RollupRuleSnapshot{
+			&rulepb.RollupRuleSnapshot{
 				Name:               "foo",
 				Tombstoned:         false,
 				CutoverNanos:       12345,
 				LastUpdatedAtNanos: 12345,
 				LastUpdatedBy:      "someone-else",
 				Filter:             "tag1:value1 tag2:value2",
-				Targets: []*schema.RollupTarget{
-					&schema.RollupTarget{
+				Targets: []*rulepb.RollupTarget{
+					&rulepb.RollupTarget{
 						Name: "rName1",
 						Tags: []string{"rtagName1", "rtagName2"},
 						Policies: []*policypb.Policy{
@@ -67,15 +67,15 @@ var (
 					},
 				},
 			},
-			&schema.RollupRuleSnapshot{
+			&rulepb.RollupRuleSnapshot{
 				Name:               "bar",
 				Tombstoned:         true,
 				CutoverNanos:       67890,
 				LastUpdatedAtNanos: 67890,
 				LastUpdatedBy:      "someone",
 				Filter:             "tag3:value3 tag4:value4",
-				Targets: []*schema.RollupTarget{
-					&schema.RollupTarget{
+				Targets: []*rulepb.RollupTarget{
+					&rulepb.RollupTarget{
 						Name: "rName1",
 						Tags: []string{"rtagName1", "rtagName2"},
 						Policies: []*policypb.Policy{
@@ -118,7 +118,7 @@ func TestNewRollupTargetNilTargetSchema(t *testing.T) {
 }
 
 func TestNewRollupTargetNilPolicySchema(t *testing.T) {
-	_, err := newRollupTarget(&schema.RollupTarget{
+	_, err := newRollupTarget(&rulepb.RollupTarget{
 		Policies: []*policypb.Policy{nil},
 	})
 	require.Error(t, err)
@@ -466,8 +466,8 @@ func TestRollupTombstoned(t *testing.T) {
 }
 
 func TestRollupRuleMarkTombstoned(t *testing.T) {
-	schema := &schema.RollupRule{
-		Snapshots: []*schema.RollupRuleSnapshot{testRollupRuleSchema.Snapshots[0]},
+	schema := &rulepb.RollupRule{
+		Snapshots: []*rulepb.RollupRuleSnapshot{testRollupRuleSchema.Snapshots[0]},
 	}
 	rr, err := newRollupRule(schema, testTagsFilterOptions())
 	require.NoError(t, err)
@@ -512,7 +512,7 @@ func TestRollupRuleMarkTombstoned(t *testing.T) {
 }
 
 func TestRollupRuleMarkTombstonedNoSnapshots(t *testing.T) {
-	schema := &schema.RollupRule{}
+	schema := &rulepb.RollupRule{}
 	rr, err := newRollupRule(schema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Error(t, rr.markTombstoned(UpdateMetadata{}))

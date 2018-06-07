@@ -28,7 +28,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
-	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
@@ -114,12 +114,12 @@ func testMatcher(t *testing.T, cache cache.Cache) Matcher {
 			SetRuleSetKeyFn(defaultRuleSetKeyFn).
 			SetRuleSetOptions(rules.NewOptions()).
 			SetMatchRangePast(0)
-		proto = &schema.Namespaces{
-			Namespaces: []*schema.Namespace{
-				&schema.Namespace{
+		proto = &rulepb.Namespaces{
+			Namespaces: []*rulepb.Namespace{
+				&rulepb.Namespace{
 					Name: "fooNs",
-					Snapshots: []*schema.NamespaceSnapshot{
-						&schema.NamespaceSnapshot{
+					Snapshots: []*rulepb.NamespaceSnapshot{
+						&rulepb.NamespaceSnapshot{
 							ForRulesetVersion: 1,
 							Tombstoned:        true,
 						},

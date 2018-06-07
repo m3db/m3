@@ -27,7 +27,7 @@ import (
 	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
 	policypb "github.com/m3db/m3metrics/generated/proto/policypb"
-	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules/models"
 
@@ -54,7 +54,7 @@ type mappingRuleSnapshot struct {
 }
 
 func newMappingRuleSnapshot(
-	r *schema.MappingRuleSnapshot,
+	r *rulepb.MappingRuleSnapshot,
 	opts filters.TagsFilterOptions,
 ) (*mappingRuleSnapshot, error) {
 	if r == nil {
@@ -153,8 +153,8 @@ func (mrs *mappingRuleSnapshot) clone() mappingRuleSnapshot {
 }
 
 // Schema returns the given MappingRuleSnapshot in protobuf form.
-func (mrs *mappingRuleSnapshot) Schema() (*schema.MappingRuleSnapshot, error) {
-	res := &schema.MappingRuleSnapshot{
+func (mrs *mappingRuleSnapshot) Schema() (*rulepb.MappingRuleSnapshot, error) {
+	res := &rulepb.MappingRuleSnapshot{
 		Name:               mrs.name,
 		Tombstoned:         mrs.tombstoned,
 		CutoverNanos:       mrs.cutoverNanos,
@@ -201,7 +201,7 @@ type mappingRule struct {
 }
 
 func newMappingRule(
-	mc *schema.MappingRule,
+	mc *rulepb.MappingRule,
 	opts filters.TagsFilterOptions,
 ) (*mappingRule, error) {
 	if mc == nil {
@@ -369,8 +369,8 @@ func (mc *mappingRule) history() ([]*models.MappingRuleView, error) {
 }
 
 // Schema returns the given MappingRule in protobuf form.
-func (mc *mappingRule) Schema() (*schema.MappingRule, error) {
-	snapshots := make([]*schema.MappingRuleSnapshot, len(mc.snapshots))
+func (mc *mappingRule) Schema() (*rulepb.MappingRule, error) {
+	snapshots := make([]*rulepb.MappingRuleSnapshot, len(mc.snapshots))
 	for i, s := range mc.snapshots {
 		snapshot, err := s.Schema()
 		if err != nil {
@@ -379,7 +379,7 @@ func (mc *mappingRule) Schema() (*schema.MappingRule, error) {
 		snapshots[i] = snapshot
 	}
 
-	return &schema.MappingRule{
+	return &rulepb.MappingRule{
 		Uuid:      mc.uuid,
 		Snapshots: snapshots,
 	}, nil

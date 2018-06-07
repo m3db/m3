@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3metrics/aggregation"
 	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
-	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/metric"
 	metricID "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
@@ -497,8 +497,8 @@ type RuleSet interface {
 type MutableRuleSet interface {
 	RuleSet
 
-	// Schema returns the schema.Ruleset representation of this ruleset.
-	Schema() (*schema.RuleSet, error)
+	// Schema returns the rulepb.Ruleset representation of this ruleset.
+	Schema() (*rulepb.RuleSet, error)
 
 	// Clone returns a copy of this MutableRuleSet.
 	Clone() MutableRuleSet
@@ -551,7 +551,7 @@ type ruleSet struct {
 }
 
 // NewRuleSetFromSchema creates a new RuleSet from a schema object.
-func NewRuleSetFromSchema(version int, rs *schema.RuleSet, opts Options) (RuleSet, error) {
+func NewRuleSetFromSchema(version int, rs *rulepb.RuleSet, opts Options) (RuleSet, error) {
 	if rs == nil {
 		return nil, errNilRuleSetSchema
 	}
@@ -639,8 +639,8 @@ func (rs *ruleSet) ToMutableRuleSet() MutableRuleSet {
 }
 
 // Schema returns the protobuf representation of a ruleset.
-func (rs *ruleSet) Schema() (*schema.RuleSet, error) {
-	res := &schema.RuleSet{
+func (rs *ruleSet) Schema() (*rulepb.RuleSet, error) {
+	res := &rulepb.RuleSet{
 		Uuid:               rs.uuid,
 		Namespace:          string(rs.namespace),
 		CreatedAtNanos:     rs.createdAtNanos,
@@ -650,7 +650,7 @@ func (rs *ruleSet) Schema() (*schema.RuleSet, error) {
 		CutoverNanos:       rs.cutoverNanos,
 	}
 
-	mappingRules := make([]*schema.MappingRule, len(rs.mappingRules))
+	mappingRules := make([]*rulepb.MappingRule, len(rs.mappingRules))
 	for i, m := range rs.mappingRules {
 		mr, err := m.Schema()
 		if err != nil {
@@ -660,7 +660,7 @@ func (rs *ruleSet) Schema() (*schema.RuleSet, error) {
 	}
 	res.MappingRules = mappingRules
 
-	rollupRules := make([]*schema.RollupRule, len(rs.rollupRules))
+	rollupRules := make([]*rulepb.RollupRule, len(rs.rollupRules))
 	for i, r := range rs.rollupRules {
 		rr, err := r.Schema()
 		if err != nil {

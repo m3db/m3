@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
 	"github.com/m3db/m3metrics/generated/proto/policypb"
-	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules/models"
 	xtime "github.com/m3db/m3x/time"
@@ -37,10 +37,10 @@ import (
 )
 
 var (
-	testMappingRuleSchema = &schema.MappingRule{
+	testMappingRuleSchema = &rulepb.MappingRule{
 		Uuid: "12669817-13ae-40e6-ba2f-33087b262c68",
-		Snapshots: []*schema.MappingRuleSnapshot{
-			&schema.MappingRuleSnapshot{
+		Snapshots: []*rulepb.MappingRuleSnapshot{
+			&rulepb.MappingRuleSnapshot{
 				Name:               "foo",
 				Tombstoned:         false,
 				CutoverNanos:       12345,
@@ -64,7 +64,7 @@ var (
 					},
 				},
 			},
-			&schema.MappingRuleSnapshot{
+			&rulepb.MappingRuleSnapshot{
 				Name:               "bar",
 				Tombstoned:         true,
 				CutoverNanos:       67890,
@@ -343,8 +343,8 @@ func TestMappingTombstoned(t *testing.T) {
 }
 
 func TestMappingRuleMarkTombstoned(t *testing.T) {
-	schema := &schema.MappingRule{
-		Snapshots: []*schema.MappingRuleSnapshot{testMappingRuleSchema.Snapshots[0]},
+	schema := &rulepb.MappingRule{
+		Snapshots: []*rulepb.MappingRuleSnapshot{testMappingRuleSchema.Snapshots[0]},
 	}
 	mr, err := newMappingRule(schema, testTagsFilterOptions())
 	require.NoError(t, err)
@@ -383,7 +383,7 @@ func TestMappingRuleMarkTombstoned(t *testing.T) {
 }
 
 func TestMappingRuleMarkTombstonedNoSnapshots(t *testing.T) {
-	schema := &schema.MappingRule{}
+	schema := &rulepb.MappingRule{}
 	mr, err := newMappingRule(schema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Error(t, mr.markTombstoned(UpdateMetadata{}))

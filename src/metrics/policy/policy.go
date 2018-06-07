@@ -26,7 +26,7 @@ import (
 	"strings"
 
 	"github.com/m3db/m3metrics/aggregation"
-	schema "github.com/m3db/m3metrics/generated/proto/policypb"
+	"github.com/m3db/m3metrics/generated/proto/policypb"
 )
 
 const (
@@ -53,7 +53,7 @@ func NewPolicy(sp StoragePolicy, aggID aggregation.ID) Policy {
 }
 
 // NewPolicyFromSchema creates a new policy from a schema policy.
-func NewPolicyFromSchema(p *schema.Policy) (Policy, error) {
+func NewPolicyFromSchema(p *policypb.Policy) (Policy, error) {
 	if p == nil {
 		return DefaultPolicy, errNilPolicySchema
 	}
@@ -73,8 +73,8 @@ func NewPolicyFromSchema(p *schema.Policy) (Policy, error) {
 }
 
 // Schema returns the schema of the policy.
-func (p Policy) Schema() (*schema.Policy, error) {
-	var storagePolicyProto schema.StoragePolicy
+func (p Policy) Schema() (*policypb.Policy, error) {
+	var storagePolicyProto policypb.StoragePolicy
 	err := p.StoragePolicy.ToProto(&storagePolicyProto)
 	if err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func (p Policy) Schema() (*schema.Policy, error) {
 		return nil, err
 	}
 
-	return &schema.Policy{
+	return &policypb.Policy{
 		StoragePolicy:    &storagePolicyProto,
 		AggregationTypes: schemaAggTypes,
 	}, nil
@@ -170,7 +170,7 @@ func ParsePolicy(str string) (Policy, error) {
 }
 
 // NewPoliciesFromSchema creates multiple new policies from given schema policies.
-func NewPoliciesFromSchema(policies []*schema.Policy) ([]Policy, error) {
+func NewPoliciesFromSchema(policies []*policypb.Policy) ([]Policy, error) {
 	res := make([]Policy, 0, len(policies))
 	for _, p := range policies {
 		policy, err := NewPolicyFromSchema(p)
