@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/m3db/m3metrics/encoding"
 	"github.com/m3db/m3metrics/generated/proto/metricpb"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3x/pool"
@@ -44,7 +45,7 @@ type UnaggregatedEncoder interface {
 	Reset(initData []byte)
 
 	// EncodeMessage encodes an unaggregated message.
-	EncodeMessage(msg MessageUnion) error
+	EncodeMessage(msg encoding.UnaggregatedMessageUnion) error
 
 	// Relinquish relinquishes ownership of the encoded byte stream to the caller,
 	// and resets the internal encoding buffer.
@@ -98,13 +99,13 @@ func (enc *unaggregatedEncoder) Relinquish() Buffer {
 	return res
 }
 
-func (enc *unaggregatedEncoder) EncodeMessage(msg MessageUnion) error {
+func (enc *unaggregatedEncoder) EncodeMessage(msg encoding.UnaggregatedMessageUnion) error {
 	switch msg.Type {
-	case CounterWithMetadatasType:
+	case encoding.CounterWithMetadatasType:
 		return enc.encodeCounterWithMetadatas(msg.CounterWithMetadatas)
-	case BatchTimerWithMetadatasType:
+	case encoding.BatchTimerWithMetadatasType:
 		return enc.encodeBatchTimerWithMetadatas(msg.BatchTimerWithMetadatas)
-	case GaugeWithMetadatasType:
+	case encoding.GaugeWithMetadatasType:
 		return enc.encodeGaugeWithMetadatas(msg.GaugeWithMetadatas)
 	default:
 		return fmt.Errorf("unknown message type: %v", msg.Type)

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package protobuf
+package encoding
 
 import (
 	"io"
@@ -37,11 +37,11 @@ const (
 	GaugeWithMetadatasType
 )
 
-// MessageUnion is a union of different types of unaggregated messages.
+// UnaggregatedMessageUnion is a union of different types of unaggregated messages.
 // A message union may contain at most one type of message that is determined
 // by the `Type` field of the union, which in turn determines which one
 // of the field in the union contains the corresponding message data.
-type MessageUnion struct {
+type UnaggregatedMessageUnion struct {
 	Type                    UnaggregatedMessageType
 	CounterWithMetadatas    unaggregated.CounterWithMetadatas
 	BatchTimerWithMetadatas unaggregated.BatchTimerWithMetadatas

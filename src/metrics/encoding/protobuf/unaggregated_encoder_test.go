@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/encoding"
 	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
 	"github.com/m3db/m3metrics/generated/proto/metricpb"
 	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
@@ -393,8 +394,8 @@ func TestUnaggregatedEncoderEncodeCounterWithMetadatas(t *testing.T) {
 	enc.(*unaggregatedEncoder).encodeMessageSizeFn = func(size int) { sizeRes = size }
 	enc.(*unaggregatedEncoder).encodeMessageFn = func(pb metricpb.MetricWithMetadatas) error { pbRes = pb; return nil }
 	for i, input := range inputs {
-		require.NoError(t, enc.EncodeMessage(MessageUnion{
-			Type:                 CounterWithMetadatasType,
+		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type:                 encoding.CounterWithMetadatasType,
 			CounterWithMetadatas: input,
 		}))
 		expectedProto := metricpb.MetricWithMetadatas{
@@ -453,8 +454,8 @@ func TestUnaggregatedEncoderEncodeBatchTimerWithMetadatas(t *testing.T) {
 	enc.(*unaggregatedEncoder).encodeMessageSizeFn = func(size int) { sizeRes = size }
 	enc.(*unaggregatedEncoder).encodeMessageFn = func(pb metricpb.MetricWithMetadatas) error { pbRes = pb; return nil }
 	for i, input := range inputs {
-		require.NoError(t, enc.EncodeMessage(MessageUnion{
-			Type: BatchTimerWithMetadatasType,
+		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type: encoding.BatchTimerWithMetadatasType,
 			BatchTimerWithMetadatas: input,
 		}))
 		expectedProto := metricpb.MetricWithMetadatas{
@@ -513,8 +514,8 @@ func TestUnaggregatedEncoderEncodeGaugeWithMetadatas(t *testing.T) {
 	enc.(*unaggregatedEncoder).encodeMessageSizeFn = func(size int) { sizeRes = size }
 	enc.(*unaggregatedEncoder).encodeMessageFn = func(pb metricpb.MetricWithMetadatas) error { pbRes = pb; return nil }
 	for i, input := range inputs {
-		require.NoError(t, enc.EncodeMessage(MessageUnion{
-			Type:               GaugeWithMetadatasType,
+		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type:               encoding.GaugeWithMetadatasType,
 			GaugeWithMetadatas: input,
 		}))
 		expectedProto := metricpb.MetricWithMetadatas{
@@ -642,13 +643,13 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 	for iter := 0; iter < numIter; iter++ {
 		for i, input := range inputs {
 			var (
-				msg           MessageUnion
+				msg           encoding.UnaggregatedMessageUnion
 				expectedProto metricpb.MetricWithMetadatas
 			)
 			switch input := input.(type) {
 			case unaggregated.CounterWithMetadatas:
-				msg = MessageUnion{
-					Type:                 CounterWithMetadatasType,
+				msg = encoding.UnaggregatedMessageUnion{
+					Type:                 encoding.CounterWithMetadatasType,
 					CounterWithMetadatas: input,
 				}
 				res := expected[i].(metricpb.CounterWithMetadatas)
@@ -657,8 +658,8 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 					CounterWithMetadatas: &res,
 				}
 			case unaggregated.BatchTimerWithMetadatas:
-				msg = MessageUnion{
-					Type: BatchTimerWithMetadatasType,
+				msg = encoding.UnaggregatedMessageUnion{
+					Type: encoding.BatchTimerWithMetadatasType,
 					BatchTimerWithMetadatas: input,
 				}
 				res := expected[i].(metricpb.BatchTimerWithMetadatas)
@@ -667,8 +668,8 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 					BatchTimerWithMetadatas: &res,
 				}
 			case unaggregated.GaugeWithMetadatas:
-				msg = MessageUnion{
-					Type:               GaugeWithMetadatasType,
+				msg = encoding.UnaggregatedMessageUnion{
+					Type:               encoding.GaugeWithMetadatasType,
 					GaugeWithMetadatas: input,
 				}
 				res := expected[i].(metricpb.GaugeWithMetadatas)
@@ -689,15 +690,15 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 
 func TestUnaggregatedEncoderEncodeMessageInvalidMessageType(t *testing.T) {
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
-	msg := MessageUnion{Type: UnknownMessageType}
+	msg := encoding.UnaggregatedMessageUnion{Type: encoding.UnknownMessageType}
 	err := enc.EncodeMessage(msg)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "unknown message type"))
 }
 
 func TestUnaggregatedEncoderEncodeMessageTooLarge(t *testing.T) {
-	msg := MessageUnion{
-		Type: CounterWithMetadatasType,
+	msg := encoding.UnaggregatedMessageUnion{
+		Type: encoding.CounterWithMetadatasType,
 		CounterWithMetadatas: unaggregated.CounterWithMetadatas{
 			Counter:         testCounter1,
 			StagedMetadatas: testMetadatas1,
@@ -711,8 +712,8 @@ func TestUnaggregatedEncoderEncodeMessageTooLarge(t *testing.T) {
 }
 
 func TestUnaggregatedEncoderEncodeMessageRelinquishReset(t *testing.T) {
-	msg := MessageUnion{
-		Type: CounterWithMetadatasType,
+	msg := encoding.UnaggregatedMessageUnion{
+		Type: encoding.CounterWithMetadatasType,
 		CounterWithMetadatas: unaggregated.CounterWithMetadatas{
 			Counter:         testCounter1,
 			StagedMetadatas: testMetadatas1,
@@ -736,8 +737,8 @@ func TestUnaggregatedEncoderEncodeMessageRelinquishReset(t *testing.T) {
 }
 
 func TestUnaggregatedEncoderRelinquish(t *testing.T) {
-	msg := MessageUnion{
-		Type: CounterWithMetadatasType,
+	msg := encoding.UnaggregatedMessageUnion{
+		Type: encoding.CounterWithMetadatasType,
 		CounterWithMetadatas: unaggregated.CounterWithMetadatas{
 			Counter:         testCounter1,
 			StagedMetadatas: testMetadatas1,
