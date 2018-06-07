@@ -37,3 +37,9 @@ dist/
 # Docs directory
 site/
 
+# Used to serve m3metrics.io site
+!m3metrics.io/**/*.html
+# glide does not manage this
+!m3metrics.io/**/vendor
+# Automatically populated from asset sources
+m3metrics.io/openapi

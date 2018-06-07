@@ -37,7 +37,7 @@ const (
 	// HTTPMethod is the HTTP method used with this resource.
 	HTTPMethod = "GET"
 
-	docPath = "/doc.html"
+	docPath = "/index.html"
 )
 
 var (
