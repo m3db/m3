@@ -44,6 +44,11 @@ type UnaggregatedEncoder interface {
 	// Reset resets the encoder buffer with optional initial data.
 	Reset(initData []byte)
 
+	// Truncate discards all but the first n encoded bytes but continues to use
+	// the same allocated storage. If n is negative or greater than the length of
+	// encoded buffer, an error is returned.
+	Truncate(n int) error
+
 	// EncodeMessage encodes an unaggregated message.
 	EncodeMessage(msg encoding.UnaggregatedMessageUnion) error
 
@@ -90,6 +95,14 @@ func (enc *unaggregatedEncoder) Reset(initData []byte) {
 	enc.buf = allocate(enc.pool, bufSize)
 	copy(enc.buf, initData)
 	enc.used = len(initData)
+}
+
+func (enc *unaggregatedEncoder) Truncate(n int) error {
+	if n < 0 || n > enc.used {
+		return fmt.Errorf("truncation out of range: used=%d, target=%d", enc.used, n)
+	}
+	enc.used = n
+	return nil
 }
 
 func (enc *unaggregatedEncoder) Relinquish() Buffer {

@@ -67,6 +67,15 @@ type Counter struct {
 	Value int64
 }
 
+// ToUnion converts the counter to a metric union.
+func (c Counter) ToUnion() MetricUnion {
+	return MetricUnion{
+		Type:       CounterType,
+		ID:         c.ID,
+		CounterVal: c.Value,
+	}
+}
+
 // ToProto converts the counter to a protobuf message in place.
 func (c Counter) ToProto(pb *metricpb.Counter) {
 	pb.Id = c.ID
@@ -85,6 +94,15 @@ type BatchTimer struct {
 	Values []float64
 }
 
+// ToUnion converts the batch timer to a metric union.
+func (t BatchTimer) ToUnion() MetricUnion {
+	return MetricUnion{
+		Type:          BatchTimerType,
+		ID:            t.ID,
+		BatchTimerVal: t.Values,
+	}
+}
+
 // ToProto converts the batch timer to a protobuf message in place.
 func (t BatchTimer) ToProto(pb *metricpb.BatchTimer) {
 	pb.Id = t.ID
@@ -101,6 +119,15 @@ func (t *BatchTimer) FromProto(pb metricpb.BatchTimer) {
 type Gauge struct {
 	ID    id.RawID
 	Value float64
+}
+
+// ToUnion converts the gauge to a metric union.
+func (g Gauge) ToUnion() MetricUnion {
+	return MetricUnion{
+		Type:     GaugeType,
+		ID:       g.ID,
+		GaugeVal: g.Value,
+	}
 }
 
 // ToProto converts the gauge to a protobuf message in place.

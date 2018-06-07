@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuffer(t *testing.T) {
+func TestBufferWithPool(t *testing.T) {
 	buckets := []pool.Bucket{
 		{Capacity: 16, Count: 1},
 	}
@@ -66,6 +66,17 @@ func TestBufferNilPool(t *testing.T) {
 	require.True(t, buf.closed)
 	require.Nil(t, buf.pool)
 	require.Nil(t, buf.buf)
+}
+
+func TestBufferTruncate(t *testing.T) {
+	data := []byte{1, 2, 3, 4}
+	buf := NewBuffer(data, nil)
+	require.Equal(t, data, buf.Bytes())
+
+	for i := len(data); i >= 0; i-- {
+		buf.Truncate(i)
+		require.Equal(t, data[:i], buf.Bytes())
+	}
 }
 
 func TestAllocate(t *testing.T) {

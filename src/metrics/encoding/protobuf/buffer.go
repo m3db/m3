@@ -41,6 +41,9 @@ func NewBuffer(buf []byte, p pool.BytesPool) Buffer {
 // Bytes returns the raw byte slice.
 func (b *Buffer) Bytes() []byte { return b.buf }
 
+// Truncate truncates the raw byte slice.
+func (b *Buffer) Truncate(n int) { b.buf = b.buf[:n] }
+
 // Close closes the buffer.
 func (b *Buffer) Close() {
 	if b.closed {
