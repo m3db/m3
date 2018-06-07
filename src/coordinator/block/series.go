@@ -29,11 +29,12 @@ import (
 type Series struct {
 	values []float64
 	bounds Bounds
+	ID     string
 }
 
 // NewSeries creates a new series
-func NewSeries(values []float64, bounds Bounds) Series {
-	return Series{values: values, bounds: bounds}
+func NewSeries(values []float64, bounds Bounds, ID string) Series {
+	return Series{values: values, bounds: bounds, ID: ID}
 }
 
 // ValueAtStep returns the datapoint value at a step index

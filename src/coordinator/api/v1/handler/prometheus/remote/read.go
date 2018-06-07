@@ -36,6 +36,7 @@ import (
 	"github.com/golang/snappy"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
+	"time"
 )
 
 const (
@@ -85,14 +86,14 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params, err := prometheus.ParseRequestParams(r)
+	timeout, err := prometheus.ParseRequestTimeout(r)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsClient.Inc(1)
 		handler.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
-	result, err := h.read(ctx, w, req, params)
+	result, err := h.read(ctx, w, req, timeout)
 	if err != nil {
 		h.promReadMetrics.fetchErrorsServer.Inc(1)
 		logger.Error("unable to fetch data", zap.Any("error", err))
@@ -140,13 +141,13 @@ func (h *PromReadHandler) parseRequest(r *http.Request) (*prompb.ReadRequest, *h
 	return &req, nil
 }
 
-func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, r *prompb.ReadRequest, params *prometheus.RequestParams) ([]*prompb.QueryResult, error) {
+func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, r *prompb.ReadRequest, timeout time.Duration) ([]*prompb.QueryResult, error) {
 	// TODO: Handle multi query use case
 	if len(r.Queries) != 1 {
 		return nil, fmt.Errorf("prometheus read endpoint currently only supports one query at a time")
 	}
 
-	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
+	ctx, cancel := context.WithTimeout(reqCtx, timeout)
 	defer cancel()
 	promQuery := r.Queries[0]
 	query, err := storage.PromReadQueryToM3(promQuery)

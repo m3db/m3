@@ -29,7 +29,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/src/coordinator/api/v1/handler/prometheus"
 	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/test/local"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
@@ -65,7 +64,7 @@ func TestPromReadNotImplemented(t *testing.T) {
 
 	r, parseErr := promRead.parseRequest(req)
 	require.Nil(t, parseErr, "unable to parse request")
-	_, err := promRead.read(context.TODO(), httptest.NewRecorder(), r, &prometheus.RequestParams{Timeout: time.Hour})
+	_, err := promRead.read(context.TODO(), httptest.NewRecorder(), r, time.Hour)
 	require.NotNil(t, err, "{\"error\":\"not implemented\"}\n")
 }
 

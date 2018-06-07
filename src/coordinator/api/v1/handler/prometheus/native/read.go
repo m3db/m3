@@ -34,6 +34,8 @@ import (
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"go.uber.org/zap"
+	"time"
+	"github.com/m3db/m3db/src/coordinator/block"
 )
 
 const (
@@ -77,13 +79,13 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params, err := prometheus.ParseRequestParams(r)
+	timeout, err := prometheus.ParseRequestTimeout(r)
 	if err != nil {
 		handler.Error(w, err, http.StatusBadRequest)
 		return
 	}
 
-	result, err := h.read(ctx, w, req, params)
+	result, err := h.read(ctx, w, req, timeout)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
@@ -128,20 +130,68 @@ func (h *PromReadHandler) parseRequest(r *http.Request) (string, *handler.ParseE
 	return targetQueries[0], nil
 }
 
-func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, req string, params *prometheus.RequestParams) ([]ts.Series, error) {
-	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
+func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, req string, timeout time.Duration) ([]ts.Series, error) {
+	ctx, cancel := context.WithTimeout(reqCtx, timeout)
 	defer cancel()
 
-	opts := &executor.EngineOptions{}
+	opts := &executor.EngineOptions{
+		Now: time.Now(),
+	}
 	// Detect clients closing connections
 	abortCh, _ := handler.CloseWatcher(ctx, w)
 	opts.AbortCh = abortCh
 
-	_, err := promql.Parse(req)
+	parser, err := promql.Parse(req)
 	if err != nil {
 		return nil, err
 	}
 
-	// todo(braskin): implement query execution
-	return nil, errors.New("not implemented")
+	// Results is closed by execute
+	results := make(chan executor.Query)
+	seriesMap := make(map[string][]block.Series)
+	go h.engine.ExecuteExpr(ctx, parser, opts, results)
+
+	for result := range results {
+		if result.Err != nil {
+			return nil, err
+		}
+
+		blocks := result.Result.Blocks()
+		// TODO: Stream blocks
+		for blk := range blocks {
+			iter := blk.SeriesIter()
+			for iter.Next() {
+				blockSeries := iter.Current()
+				s, ok := seriesMap[blockSeries.ID]
+				if !ok {
+					seriesMap[blockSeries.ID] = make([]block.Series, 1)
+					seriesMap[blockSeries.ID][0] = blockSeries
+				} else {
+					s = append(s, blockSeries)
+					seriesMap[blockSeries.ID] = s
+				}
+			}
+
+			blk.Close()
+		}
+	}
+
+	return seriesMapToSeriesList(seriesMap)
+}
+func seriesMapToSeriesList(seriesMap map[string][]block.Series) ([]ts.Series, error) {
+	seriesList := make([]ts.Series, 0, len(seriesMap))
+	for id, blockSeriesList := range seriesMap {
+		s, err := blockSeriesListToSeries(blockSeriesList, id)
+		if err != nil {
+			return nil, err
+		}
+
+		seriesList = append(seriesList, s)
+	}
+
+	return seriesList, nil
+}
+
+func blockSeriesListToSeries(series []block.Series, id string) (ts.Series, error) {
+
 }

@@ -27,6 +27,9 @@ import (
 
 // Result provides the execution results
 type Result interface {
+	abort(err error)
+	done()
+	Blocks() chan block.Block
 }
 
 // ResultNode is used to provide the results to the caller from the query execution
