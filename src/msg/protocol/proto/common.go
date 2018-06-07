@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	sizeBufferSize = 4
+	sizeEncodingLength = 4
 )
 
 var sizeEncodeDecoder = binary.BigEndian

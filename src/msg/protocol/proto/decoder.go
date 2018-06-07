@@ -29,8 +29,7 @@ import (
 
 type decoder struct {
 	r              io.Reader
-	sizeBuffer     []byte
-	dataBuffer     []byte
+	buffer         []byte
 	bytesPool      pool.BytesPool
 	maxMessageSize int
 }
@@ -47,7 +46,7 @@ func newDecoder(r io.Reader, opts BaseOptions) *decoder {
 	pool := opts.BytesPool()
 	return &decoder{
 		r:              r,
-		sizeBuffer:     getByteSliceWithLength(sizeBufferSize, pool),
+		buffer:         getByteSliceWithLength(sizeEncodingLength, pool),
 		bytesPool:      pool,
 		maxMessageSize: opts.MaxMessageSize(),
 	}
@@ -65,19 +64,19 @@ func (d *decoder) Decode(m Unmarshaler) error {
 }
 
 func (d *decoder) decodeSize() (int, error) {
-	if _, err := io.ReadFull(d.r, d.sizeBuffer); err != nil {
+	if _, err := io.ReadFull(d.r, d.buffer[:sizeEncodingLength]); err != nil {
 		return 0, err
 	}
-	size := sizeEncodeDecoder.Uint32(d.sizeBuffer)
+	size := sizeEncodeDecoder.Uint32(d.buffer[:sizeEncodingLength])
 	return int(size), nil
 }
 
 func (d *decoder) decodeData(m Unmarshaler, size int) error {
-	d.dataBuffer = growDataBufferIfNeeded(d.dataBuffer, size, d.bytesPool)
-	if _, err := io.ReadFull(d.r, d.dataBuffer[:size]); err != nil {
+	d.buffer = growDataBufferIfNeeded(d.buffer, size, d.bytesPool)
+	if _, err := io.ReadFull(d.r, d.buffer[:size]); err != nil {
 		return err
 	}
-	return m.Unmarshal(d.dataBuffer[:size])
+	return m.Unmarshal(d.buffer[:size])
 }
 
 func (d *decoder) resetReader(r io.Reader) {
