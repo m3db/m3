@@ -12,7 +12,7 @@ Shards provide a variety of benefits throughout the M3DB stack:
 
 ## Replication
 
-Logical shards are placed on per virtual shard per replica with configurable isolation (zone aware, rack aware, etc). For instance, when using rack aware isolation, the set of datacenter racks that locate a replica’s data are distinct to the racks that locate all other replica’s data.
+Logical shards are placed per virtual shard per replica with configurable isolation (zone aware, rack aware, etc). For instance, when using rack aware isolation, the set of datacenter racks that locate a replica’s data is distinct to the racks that locate all other replicas’ data.
 
 Replication is synchronization during a write and depending on the consistency level configured will notify the client on whether a write succeeded or failed with respect to the consistency level and replication achieved.
 
