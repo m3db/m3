@@ -24,7 +24,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/rules/models"
 	xerrors "github.com/m3db/m3x/errors"
 )

@@ -24,11 +24,46 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/generated/proto/policypb"
+	schema "github.com/m3db/m3metrics/generated/proto/policypb"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
+)
+
+var (
+	testStoragePolicy      = NewStoragePolicy(10*time.Second, xtime.Second, time.Hour)
+	testBadStoragePolicy   = NewStoragePolicy(10*time.Second, xtime.Unit(100), time.Hour)
+	testStoragePolicyProto = policypb.StoragePolicy{
+		Resolution: &policypb.Resolution{
+			WindowSize: (10 * time.Second).Nanoseconds(),
+			Precision:  time.Second.Nanoseconds(),
+		},
+		Retention: &policypb.Retention{
+			Period: time.Hour.Nanoseconds(),
+		},
+	}
+	testStoragePolicyProtoNoResolution = policypb.StoragePolicy{
+		Retention: &policypb.Retention{
+			Period: time.Hour.Nanoseconds(),
+		},
+	}
+	testStoragePolicyProtoNoRetention = policypb.StoragePolicy{
+		Resolution: &policypb.Resolution{
+			WindowSize: (10 * time.Second).Nanoseconds(),
+			Precision:  time.Second.Nanoseconds(),
+		},
+	}
+	testStoragePolicyProtoBadPrecision = policypb.StoragePolicy{
+		Resolution: &policypb.Resolution{
+			WindowSize: (10 * time.Second).Nanoseconds(),
+			Precision:  2,
+		},
+		Retention: &policypb.Retention{
+			Period: time.Hour.Nanoseconds(),
+		},
+	}
 )
 
 func TestStoragePolicyString(t *testing.T) {
@@ -98,7 +133,7 @@ func TestParseStoragePolicy(t *testing.T) {
 	}
 }
 
-func TestStoragePolicyRoundTrip(t *testing.T) {
+func TestStoragePolicyParseRoundTrip(t *testing.T) {
 	inputs := []StoragePolicy{
 		NewStoragePolicy(time.Second, xtime.Second, time.Hour),
 		NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
@@ -250,8 +285,50 @@ func TestNewStoragePolicyFromSchema(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		res, err := NewStoragePolicyFromSchema(input.s)
+		res, err := NewStoragePolicyFromProto(input.s)
 		require.NoError(t, err)
 		require.Equal(t, input.p, res)
 	}
+}
+
+func TestStoragePolicyToProto(t *testing.T) {
+	var pb policypb.StoragePolicy
+	require.NoError(t, testStoragePolicy.ToProto(&pb))
+	require.Equal(t, testStoragePolicyProto, pb)
+}
+
+func TestStoragePolicyToProtoBadStoragePolicy(t *testing.T) {
+	var pb policypb.StoragePolicy
+	require.Error(t, testBadStoragePolicy.ToProto(&pb))
+}
+
+func TestStoragePolicyFromProto(t *testing.T) {
+	var res StoragePolicy
+	require.NoError(t, res.FromProto(testStoragePolicyProto))
+	require.Equal(t, testStoragePolicy, res)
+}
+
+func TestStoragePolicyFromProtoNilResolution(t *testing.T) {
+	var res StoragePolicy
+	require.Equal(t, errNilResolutionProto, res.FromProto(testStoragePolicyProtoNoResolution))
+}
+
+func TestStoragePolicyFromProtoNilRetention(t *testing.T) {
+	var res StoragePolicy
+	require.Equal(t, errNilRetentionProto, res.FromProto(testStoragePolicyProtoNoRetention))
+}
+
+func TestStoragePolicyFromProtoBadPrecision(t *testing.T) {
+	var res StoragePolicy
+	require.Error(t, res.FromProto(testStoragePolicyProtoBadPrecision))
+}
+
+func TestStoragePolicyProtoRoundTrip(t *testing.T) {
+	var (
+		pb  policypb.StoragePolicy
+		res StoragePolicy
+	)
+	require.NoError(t, testStoragePolicy.ToProto(&pb))
+	require.NoError(t, res.FromProto(pb))
+	require.Equal(t, testStoragePolicy, res)
 }

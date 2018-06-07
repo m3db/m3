@@ -22,10 +22,16 @@ package op
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3metrics/transformation"
+)
+
+var (
+	errNilTransformationOpProto = errors.New("nil transformation op proto message")
 )
 
 // Type defines the type of an operation.
@@ -72,6 +78,19 @@ func (op Transformation) Clone() Transformation {
 
 func (op Transformation) String() string {
 	return op.Type.String()
+}
+
+// ToProto converts the transformation op to a protobuf message in place.
+func (op Transformation) ToProto(pb *pipelinepb.TransformationOp) error {
+	return op.Type.ToProto(&pb.Type)
+}
+
+// FromProto converts the protobuf message to a transformation in place.
+func (op *Transformation) FromProto(pb *pipelinepb.TransformationOp) error {
+	if pb == nil {
+		return errNilTransformationOpProto
+	}
+	return op.Type.FromProto(pb.Type)
 }
 
 // Rollup is a rollup operation.

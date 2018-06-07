@@ -23,7 +23,16 @@ package transformation
 import (
 	"testing"
 
+	"github.com/m3db/m3metrics/generated/proto/transformationpb"
+
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	testType         = PerSecond
+	testBadType      = UnknownType
+	testTypeProto    = transformationpb.TransformationType_PERSECOND
+	testBadTypeProto = transformationpb.TransformationType_UNKNOWN
 )
 
 func TestIsUnaryTransform(t *testing.T) {
@@ -176,4 +185,36 @@ func TestTypeString(t *testing.T) {
 	for _, input := range inputs {
 		require.Equal(t, input.expected, input.typ.String())
 	}
+}
+
+func TestTypeToProto(t *testing.T) {
+	var pb transformationpb.TransformationType
+	require.NoError(t, testType.ToProto(&pb))
+	require.Equal(t, testTypeProto, pb)
+}
+
+func TestTypeToProtoBadType(t *testing.T) {
+	var pb transformationpb.TransformationType
+	require.Error(t, testBadType.ToProto(&pb))
+}
+
+func TestTypeFromProto(t *testing.T) {
+	var res Type
+	require.NoError(t, res.FromProto(testTypeProto))
+	require.Equal(t, testType, res)
+}
+
+func TestTypeFromProtoBadProto(t *testing.T) {
+	var res Type
+	require.Error(t, res.FromProto(testBadTypeProto))
+}
+
+func TestTypeRoundTrip(t *testing.T) {
+	var (
+		pb  transformationpb.TransformationType
+		res Type
+	)
+	require.NoError(t, testType.ToProto(&pb))
+	require.NoError(t, res.FromProto(pb))
+	require.Equal(t, testType, res)
 }

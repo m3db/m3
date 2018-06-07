@@ -25,7 +25,12 @@ import (
 	"fmt"
 	"time"
 
+	schema "github.com/m3db/m3metrics/generated/proto/policypb"
 	xtime "github.com/m3db/m3x/time"
+)
+
+var (
+	errNilRetentionProto = errors.New("nil retention proto message")
 )
 
 // Retention is the retention period for datapoints.
@@ -39,6 +44,20 @@ func (r Retention) String() string {
 // Duration returns the duration of the retention period.
 func (r Retention) Duration() time.Duration {
 	return time.Duration(r)
+}
+
+// ToProto converts the retention to a protobuf message in place.
+func (r Retention) ToProto(pb *schema.Retention) {
+	pb.Period = r.Duration().Nanoseconds()
+}
+
+// FromProto converts the protobuf message to a retention in place.
+func (r *Retention) FromProto(pb *schema.Retention) error {
+	if pb == nil {
+		return errNilRetentionProto
+	}
+	*r = Retention(pb.Period)
+	return nil
 }
 
 // ParseRetention parses a retention.

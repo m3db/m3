@@ -22,15 +22,19 @@ package applied
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3metrics/op"
 )
 
 var (
 	// DefaultPipeline is a default pipeline.
 	DefaultPipeline Pipeline
+
+	errNilAppliedRollupOpProto = errors.New("nil applied rollup op proto message")
 )
 
 // Rollup captures the rollup metadata after the operation is applied against a metric ID.
@@ -55,6 +59,27 @@ func (op Rollup) Clone() Rollup {
 
 func (op Rollup) String() string {
 	return fmt.Sprintf("{id: %s, aggregation: %v}", op.ID, op.AggregationID)
+}
+
+// ToProto converts the applied rollup op to a protobuf message in place.
+func (op Rollup) ToProto(pb *pipelinepb.AppliedRollupOp) error {
+	if err := op.AggregationID.ToProto(&pb.AggregationId); err != nil {
+		return err
+	}
+	pb.Id = op.ID
+	return nil
+}
+
+// FromProto converts the protobuf message to an applied rollup op in place.
+func (op *Rollup) FromProto(pb *pipelinepb.AppliedRollupOp) error {
+	if pb == nil {
+		return errNilAppliedRollupOpProto
+	}
+	if err := op.AggregationID.FromProto(pb.AggregationId); err != nil {
+		return err
+	}
+	op.ID = pb.Id
+	return nil
 }
 
 // Union is a union of different types of operation.
@@ -103,6 +128,41 @@ func (u Union) String() string {
 	}
 	b.WriteString("}")
 	return b.String()
+}
+
+// ToProto converts the applied pipeline op to a protobuf message in place.
+func (u Union) ToProto(pb *pipelinepb.AppliedPipelineOp) error {
+	pb.Reset()
+	switch u.Type {
+	case op.TransformationType:
+		pb.Type = pipelinepb.AppliedPipelineOp_TRANSFORMATION
+		pb.Transformation = &pipelinepb.TransformationOp{}
+		return u.Transformation.ToProto(pb.Transformation)
+	case op.RollupType:
+		pb.Type = pipelinepb.AppliedPipelineOp_ROLLUP
+		pb.Rollup = &pipelinepb.AppliedRollupOp{}
+		return u.Rollup.ToProto(pb.Rollup)
+	default:
+		return fmt.Errorf("unknown op type: %v", u.Type)
+	}
+}
+
+// Reset resets the operation union.
+func (u *Union) Reset() { *u = Union{} }
+
+// FromProto converts the protobuf message to an applied pipeline op in place.
+func (u *Union) FromProto(pb pipelinepb.AppliedPipelineOp) error {
+	u.Reset()
+	switch pb.Type {
+	case pipelinepb.AppliedPipelineOp_TRANSFORMATION:
+		u.Type = op.TransformationType
+		return u.Transformation.FromProto(pb.Transformation)
+	case pipelinepb.AppliedPipelineOp_ROLLUP:
+		u.Type = op.RollupType
+		return u.Rollup.FromProto(pb.Rollup)
+	default:
+		return fmt.Errorf("unknown op type in proto: %v", pb.Type)
+	}
 }
 
 // Pipeline is a pipeline of operations.
@@ -164,4 +224,36 @@ func (p Pipeline) String() string {
 	}
 	b.WriteString("]}")
 	return b.String()
+}
+
+// ToProto converts the applied pipeline to a protobuf message in place.
+func (p Pipeline) ToProto(pb *pipelinepb.AppliedPipeline) error {
+	numOps := len(p.operations)
+	if cap(pb.Ops) >= numOps {
+		pb.Ops = pb.Ops[:numOps]
+	} else {
+		pb.Ops = make([]pipelinepb.AppliedPipelineOp, numOps)
+	}
+	for i := 0; i < numOps; i++ {
+		if err := p.operations[i].ToProto(&pb.Ops[i]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// FromProto converts the protobuf message to an applied pipeline in place.
+func (p *Pipeline) FromProto(pb pipelinepb.AppliedPipeline) error {
+	numOps := len(pb.Ops)
+	if cap(p.operations) >= numOps {
+		p.operations = p.operations[:numOps]
+	} else {
+		p.operations = make([]Union, numOps)
+	}
+	for i := 0; i < numOps; i++ {
+		if err := p.operations[i].FromProto(pb.Ops[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }

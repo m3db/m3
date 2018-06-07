@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	schema "github.com/m3db/m3metrics/generated/proto/policypb"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -49,7 +49,7 @@ type StoragePolicy struct {
 	retention  Retention
 }
 
-// NewStoragePolicy creates a new storage policy given a resolution window size and retention.
+// NewStoragePolicy creates a new storage policy given a resolution and a retention.
 func NewStoragePolicy(window time.Duration, precision xtime.Unit, retention time.Duration) StoragePolicy {
 	return StoragePolicy{
 		resolution: Resolution{
@@ -60,8 +60,8 @@ func NewStoragePolicy(window time.Duration, precision xtime.Unit, retention time
 	}
 }
 
-// NewStoragePolicyFromSchema creates a new storage policy from a schema storage policy.
-func NewStoragePolicyFromSchema(p *schema.StoragePolicy) (StoragePolicy, error) {
+// NewStoragePolicyFromProto creates a new storage policy from a storage policy protobuf message.
+func NewStoragePolicyFromProto(p *schema.StoragePolicy) (StoragePolicy, error) {
 	if p == nil {
 		return EmptyStoragePolicy, errNilStoragePolicySchema
 	}
@@ -72,7 +72,6 @@ func NewStoragePolicyFromSchema(p *schema.StoragePolicy) (StoragePolicy, error) 
 	}
 
 	return NewStoragePolicy(time.Duration(p.Resolution.WindowSize), unit, time.Duration(p.Retention.Period)), nil
-
 }
 
 // String is the string representation of a storage policy.
@@ -90,22 +89,30 @@ func (p StoragePolicy) Retention() Retention {
 	return p.retention
 }
 
-// Schema returns the schema of the storage policy.
-func (p StoragePolicy) Schema() (*schema.StoragePolicy, error) {
-	precision, err := p.Resolution().Precision.Value()
-	if err != nil {
-		return nil, err
+// ToProto converts the storage policy to a protobuf message in place.
+func (p StoragePolicy) ToProto(pb *schema.StoragePolicy) error {
+	if pb.Resolution == nil {
+		pb.Resolution = &schema.Resolution{}
 	}
+	if err := p.resolution.ToProto(pb.Resolution); err != nil {
+		return err
+	}
+	if pb.Retention == nil {
+		pb.Retention = &schema.Retention{}
+	}
+	p.retention.ToProto(pb.Retention)
+	return nil
+}
 
-	return &schema.StoragePolicy{
-		Resolution: &schema.Resolution{
-			WindowSize: p.Resolution().Window.Nanoseconds(),
-			Precision:  precision.Nanoseconds(),
-		},
-		Retention: &schema.Retention{
-			Period: p.Retention().Duration().Nanoseconds(),
-		},
-	}, nil
+// FromProto converts the protobuf message to a storage policy in place.
+func (p *StoragePolicy) FromProto(pb schema.StoragePolicy) error {
+	if err := p.resolution.FromProto(pb.Resolution); err != nil {
+		return err
+	}
+	if err := p.retention.FromProto(pb.Retention); err != nil {
+		return err
+	}
+	return nil
 }
 
 // UnmarshalYAML unmarshals a storage policy value from a string.

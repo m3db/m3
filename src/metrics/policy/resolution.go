@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	schema "github.com/m3db/m3metrics/generated/proto/policypb"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -34,7 +35,8 @@ const (
 )
 
 var (
-	emptyResolution Resolution
+	emptyResolution       Resolution
+	errNilResolutionProto = errors.New("nil resolution proto message")
 )
 
 // Resolution is the sampling resolution for datapoints.
@@ -44,6 +46,31 @@ type Resolution struct {
 
 	// Precision is the precision of datapoints stored at this resoluion.
 	Precision xtime.Unit
+}
+
+// ToProto converts the resolution to a protobuf message in place.
+func (r Resolution) ToProto(pb *schema.Resolution) error {
+	precision, err := r.Precision.Value()
+	if err != nil {
+		return err
+	}
+	pb.WindowSize = r.Window.Nanoseconds()
+	pb.Precision = precision.Nanoseconds()
+	return nil
+}
+
+// FromProto converts the protobuf message to a resolution in place.
+func (r *Resolution) FromProto(pb *schema.Resolution) error {
+	if pb == nil {
+		return errNilResolutionProto
+	}
+	precision, err := xtime.UnitFromDuration(time.Duration(pb.Precision))
+	if err != nil {
+		return err
+	}
+	r.Window = time.Duration(pb.WindowSize)
+	r.Precision = precision
+	return nil
 }
 
 // String is the string representation of a resolution.

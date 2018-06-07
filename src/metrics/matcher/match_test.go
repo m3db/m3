@@ -28,7 +28,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"

@@ -22,6 +22,8 @@ package transformation
 
 import (
 	"fmt"
+
+	"github.com/m3db/m3metrics/generated/proto/transformationpb"
 )
 
 // Type defines a transformation function.
@@ -84,6 +86,32 @@ func (t Type) MustBinaryTransform() BinaryTransform {
 		panic(err)
 	}
 	return tf
+}
+
+// ToProto converts the transformation type to a protobuf message in place.
+func (t Type) ToProto(pb *transformationpb.TransformationType) error {
+	switch t {
+	case Absolute:
+		*pb = transformationpb.TransformationType_ABSOLUTE
+	case PerSecond:
+		*pb = transformationpb.TransformationType_PERSECOND
+	default:
+		return fmt.Errorf("unknown transformation type: %v", t)
+	}
+	return nil
+}
+
+// FromProto converts the protobuf message to a transformation type in place.
+func (t *Type) FromProto(pb transformationpb.TransformationType) error {
+	switch pb {
+	case transformationpb.TransformationType_ABSOLUTE:
+		*t = Absolute
+	case transformationpb.TransformationType_PERSECOND:
+		*t = PerSecond
+	default:
+		return fmt.Errorf("unknown transformation type in proto: %v", pb)
+	}
+	return nil
 }
 
 var (

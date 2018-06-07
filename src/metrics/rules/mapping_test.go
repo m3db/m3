@@ -26,7 +26,9 @@ import (
 
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/errors"
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3metrics/generated/proto/policypb"
+	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules/models"
 	xtime "github.com/m3db/m3x/time"
@@ -45,19 +47,19 @@ var (
 				LastUpdatedAtNanos: 1234,
 				LastUpdatedBy:      "someone",
 				Filter:             "tag1:value1 tag2:value2",
-				Policies: []*schema.Policy{
-					&schema.Policy{
-						StoragePolicy: &schema.StoragePolicy{
-							Resolution: &schema.Resolution{
+				Policies: []*policypb.Policy{
+					&policypb.Policy{
+						StoragePolicy: &policypb.StoragePolicy{
+							Resolution: &policypb.Resolution{
 								WindowSize: int64(10 * time.Second),
 								Precision:  int64(time.Second),
 							},
-							Retention: &schema.Retention{
+							Retention: &policypb.Retention{
 								Period: int64(24 * time.Hour),
 							},
 						},
-						AggregationTypes: []schema.AggregationType{
-							schema.AggregationType_P999,
+						AggregationTypes: []aggregationpb.AggregationType{
+							aggregationpb.AggregationType_P999,
 						},
 					},
 				},
@@ -69,25 +71,25 @@ var (
 				LastUpdatedAtNanos: 1234,
 				LastUpdatedBy:      "someone",
 				Filter:             "tag3:value3 tag4:value4",
-				Policies: []*schema.Policy{
-					&schema.Policy{
-						StoragePolicy: &schema.StoragePolicy{
-							Resolution: &schema.Resolution{
+				Policies: []*policypb.Policy{
+					&policypb.Policy{
+						StoragePolicy: &policypb.StoragePolicy{
+							Resolution: &policypb.Resolution{
 								WindowSize: int64(time.Minute),
 								Precision:  int64(time.Minute),
 							},
-							Retention: &schema.Retention{
+							Retention: &policypb.Retention{
 								Period: int64(24 * time.Hour),
 							},
 						},
 					},
-					&schema.Policy{
-						StoragePolicy: &schema.StoragePolicy{
-							Resolution: &schema.Resolution{
+					&policypb.Policy{
+						StoragePolicy: &policypb.StoragePolicy{
+							Resolution: &policypb.Resolution{
 								WindowSize: int64(5 * time.Minute),
 								Precision:  int64(time.Minute),
 							},
-							Retention: &schema.Retention{
+							Retention: &policypb.Retention{
 								Period: int64(48 * time.Hour),
 							},
 						},

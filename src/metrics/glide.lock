@@ -1,5 +1,5 @@
 hash: eae468699cb0aceb2512a0a82a7dadc3138f7060378e2ac1333e619d69d9af0d
-updated: 2018-04-23T18:45:03.044666-04:00
+updated: 2018-06-07T14:32:49.187333-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -7,8 +7,12 @@ imports:
   - lib/go/thrift
 - name: github.com/cespare/xxhash
   version: 48099fad606eafc26e3a569fad19ff510fff4df6
-- name: github.com/facebookgo/clock
-  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
+- name: github.com/gogo/protobuf
+  version: 117892bf1866fbaa2318c03e50e40564c8845457
+  subpackages:
+  - gogoproto
+  - proto
+  - protoc-gen-gogo/descriptor
 - name: github.com/golang/mock
   version: c34cdb4725f4c3844d095133c6e40e448b86589b
   subpackages:
@@ -59,7 +63,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 522328b48efad0c6034dba92bf39228694e9d31f
+  version: 79f2a33b0e55b1255ffbbaf824dcafb09ff34dda
   subpackages:
   - m3
   - m3/customtransports
@@ -68,7 +72,7 @@ imports:
 - name: github.com/willf/bitset
   version: 988f4f24992fc745de53c42df0da6581e42a6686
 - name: go.uber.org/atomic
-  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
@@ -106,7 +110,15 @@ testImports:
   subpackages:
   - spew
 - name: github.com/fortytw2/leaktest
-  version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
+  version: a5ef70473c97b71626b9abeda80ee92ba2a7de9e
+- name: github.com/google/go-cmp
+  version: 3af367b6b30c263d47e8895973edcca9a49cf029
+  subpackages:
+  - cmp
+  - cmp/cmpopts
+  - cmp/internal/diff
+  - cmp/internal/function
+  - cmp/internal/value
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 - name: github.com/stretchr/testify

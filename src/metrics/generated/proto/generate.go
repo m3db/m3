@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,6 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate sh -c "protoc -I$GOPATH/src/$PACKAGE/generated/proto --go_out=$GOPATH/src/$PACKAGE/generated/proto/schema $GOPATH/src/$PACKAGE/generated/proto/*.proto"
+//go:generate sh -c "$GOPATH/src/$PACKAGE/.ci/proto-gen.sh $GOPATH/src/$PACKAGE/generated/proto"
 
 package proto

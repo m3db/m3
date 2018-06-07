@@ -26,7 +26,8 @@ import (
 
 	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	policypb "github.com/m3db/m3metrics/generated/proto/policypb"
+	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules/models"
 
@@ -162,7 +163,7 @@ func (mrs *mappingRuleSnapshot) Schema() (*schema.MappingRuleSnapshot, error) {
 		LastUpdatedBy:      mrs.lastUpdatedBy,
 	}
 
-	policies := make([]*schema.Policy, len(mrs.policies))
+	policies := make([]*policypb.Policy, len(mrs.policies))
 	for i, p := range mrs.policies {
 		policy, err := p.Schema()
 		if err != nil {

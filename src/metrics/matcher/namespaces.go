@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/util/runtime"
 	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	schema "github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"

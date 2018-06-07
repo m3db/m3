@@ -21,12 +21,20 @@
 package unaggregated
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/m3db/m3metrics/generated/proto/metricpb"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/pool"
+)
+
+var (
+	errNilCounterWithMetadatasProto    = errors.New("nil counter with metadatas proto message")
+	errNilBatchTimerWithMetadatasProto = errors.New("nil batch timer with metadatas proto message")
+	errNilGaugeWithMetadatasProto      = errors.New("nil gauge with metadatas proto message")
 )
 
 // Type is a metric type.
@@ -59,16 +67,52 @@ type Counter struct {
 	Value int64
 }
 
+// ToProto converts the counter to a protobuf message in place.
+func (c Counter) ToProto(pb *metricpb.Counter) {
+	pb.Id = c.ID
+	pb.Value = c.Value
+}
+
+// FromProto converts the protobuf message to a counter in place.
+func (c *Counter) FromProto(pb metricpb.Counter) {
+	c.ID = pb.Id
+	c.Value = pb.Value
+}
+
 // BatchTimer is a timer containing the timer ID and a list of timer values.
 type BatchTimer struct {
 	ID     id.RawID
 	Values []float64
 }
 
+// ToProto converts the batch timer to a protobuf message in place.
+func (t BatchTimer) ToProto(pb *metricpb.BatchTimer) {
+	pb.Id = t.ID
+	pb.Values = t.Values
+}
+
+// FromProto converts the protobuf message to a batch timer in place.
+func (t *BatchTimer) FromProto(pb metricpb.BatchTimer) {
+	t.ID = pb.Id
+	t.Values = pb.Values
+}
+
 // Gauge is a gauge containing the gauge ID and the value at certain time.
 type Gauge struct {
 	ID    id.RawID
 	Value float64
+}
+
+// ToProto converts the gauge to a protobuf message in place.
+func (g Gauge) ToProto(pb *metricpb.Gauge) {
+	pb.Id = g.ID
+	pb.Value = g.Value
+}
+
+// FromProto converts the protobuf message to a gauge in place.
+func (g *Gauge) FromProto(pb metricpb.Gauge) {
+	g.ID = pb.Id
+	g.Value = pb.Value
 }
 
 // CounterWithPoliciesList is a counter with applicable policies list.
@@ -95,16 +139,79 @@ type CounterWithMetadatas struct {
 	metadata.StagedMetadatas
 }
 
+// ToProto converts the counter with metadatas to a protobuf message in place.
+func (cm CounterWithMetadatas) ToProto(pb *metricpb.CounterWithMetadatas) error {
+	if err := cm.StagedMetadatas.ToProto(&pb.Metadatas); err != nil {
+		return err
+	}
+	cm.Counter.ToProto(&pb.Counter)
+	return nil
+}
+
+// FromProto converts the protobuf message to a counter with metadatas in place.
+func (cm *CounterWithMetadatas) FromProto(pb *metricpb.CounterWithMetadatas) error {
+	if pb == nil {
+		return errNilCounterWithMetadatasProto
+	}
+	if err := cm.StagedMetadatas.FromProto(pb.Metadatas); err != nil {
+		return err
+	}
+	cm.Counter.FromProto(pb.Counter)
+	return nil
+}
+
 // BatchTimerWithMetadatas is a batch timer with applicable metadatas.
 type BatchTimerWithMetadatas struct {
 	BatchTimer
 	metadata.StagedMetadatas
 }
 
+// ToProto converts the batch timer with metadatas to a protobuf message in place.
+func (bm BatchTimerWithMetadatas) ToProto(pb *metricpb.BatchTimerWithMetadatas) error {
+	if err := bm.StagedMetadatas.ToProto(&pb.Metadatas); err != nil {
+		return errNilBatchTimerWithMetadatasProto
+	}
+	bm.BatchTimer.ToProto(&pb.BatchTimer)
+	return nil
+}
+
+// FromProto converts the protobuf message to a batch timer with metadatas in place.
+func (bm *BatchTimerWithMetadatas) FromProto(pb *metricpb.BatchTimerWithMetadatas) error {
+	if pb == nil {
+		return errNilBatchTimerWithMetadatasProto
+	}
+	if err := bm.StagedMetadatas.FromProto(pb.Metadatas); err != nil {
+		return err
+	}
+	bm.BatchTimer.FromProto(pb.BatchTimer)
+	return nil
+}
+
 // GaugeWithMetadatas is a gauge with applicable metadatas.
 type GaugeWithMetadatas struct {
 	Gauge
 	metadata.StagedMetadatas
+}
+
+// ToProto converts the gauge with metadatas to a protobuf message in place.
+func (gm GaugeWithMetadatas) ToProto(pb *metricpb.GaugeWithMetadatas) error {
+	if err := gm.StagedMetadatas.ToProto(&pb.Metadatas); err != nil {
+		return errNilGaugeWithMetadatasProto
+	}
+	gm.Gauge.ToProto(&pb.Gauge)
+	return nil
+}
+
+// FromProto converts the protobuf message to a gauge with metadatas in place.
+func (gm *GaugeWithMetadatas) FromProto(pb *metricpb.GaugeWithMetadatas) error {
+	if pb == nil {
+		return errNilGaugeWithMetadatasProto
+	}
+	if err := gm.StagedMetadatas.FromProto(pb.Metadatas); err != nil {
+		return err
+	}
+	gm.Gauge.FromProto(pb.Gauge)
+	return nil
 }
 
 // MetricUnion is a union of different types of metrics, only one of which is valid

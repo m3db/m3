@@ -33,7 +33,8 @@ import (
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/filters"
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/generated/proto/policypb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/matcher"
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/metric/id"
@@ -249,13 +250,13 @@ func updateStore(
 	require.NoError(t, err)
 }
 
-func stressTestNamespaces() *schema.Namespaces {
-	return &schema.Namespaces{
-		Namespaces: []*schema.Namespace{
-			&schema.Namespace{
+func stressTestNamespaces() *rulepb.Namespaces {
+	return &rulepb.Namespaces{
+		Namespaces: []*rulepb.Namespace{
+			&rulepb.Namespace{
 				Name: stressTestNamespaceName,
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
@@ -265,24 +266,24 @@ func stressTestNamespaces() *schema.Namespaces {
 	}
 }
 
-func stressTestMappingRulesConfig() []*schema.MappingRule {
-	return []*schema.MappingRule{
-		&schema.MappingRule{
+func stressTestMappingRulesConfig() []*rulepb.MappingRule {
+	return []*rulepb.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule1",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 1000,
 					Filter:       "mtagName1:mtagValue1",
-					Policies: []*schema.Policy{
-						&schema.Policy{
-							StoragePolicy: &schema.StoragePolicy{
-								Resolution: &schema.Resolution{
+					Policies: []*policypb.Policy{
+						&policypb.Policy{
+							StoragePolicy: &policypb.StoragePolicy{
+								Resolution: &policypb.Resolution{
 									WindowSize: int64(10 * time.Second),
 									Precision:  int64(time.Second),
 								},
-								Retention: &schema.Retention{
+								Retention: &policypb.Retention{
 									Period: int64(24 * time.Hour),
 								},
 							},
@@ -294,28 +295,28 @@ func stressTestMappingRulesConfig() []*schema.MappingRule {
 	}
 }
 
-func stressTestRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func stressTestRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 500,
 					Filter:       "rtagName1:rtagValue1",
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
+					Targets: []*rulepb.RollupTarget{
+						&rulepb.RollupTarget{
 							Name: "newRollupName1",
 							Tags: []string{"namespace", "rtagName1"},
-							Policies: []*schema.Policy{
-								&schema.Policy{
-									StoragePolicy: &schema.StoragePolicy{
-										Resolution: &schema.Resolution{
+							Policies: []*policypb.Policy{
+								&policypb.Policy{
+									StoragePolicy: &policypb.StoragePolicy{
+										Resolution: &policypb.Resolution{
 											WindowSize: int64(time.Minute),
 											Precision:  int64(time.Minute),
 										},
-										Retention: &schema.Retention{
+										Retention: &policypb.Retention{
 											Period: int64(48 * time.Hour),
 										},
 									},
@@ -329,8 +330,8 @@ func stressTestRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func stressTestRuleSet() *schema.RuleSet {
-	return &schema.RuleSet{
+func stressTestRuleSet() *rulepb.RuleSet {
+	return &rulepb.RuleSet{
 		Uuid:         "07592642-a105-40a5-a5c5-7c416ccb56c5",
 		Namespace:    stressTestNamespaceName,
 		Tombstoned:   false,
