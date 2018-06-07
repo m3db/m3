@@ -29,6 +29,62 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAggregationEqual(t *testing.T) {
+	inputs := []struct {
+		a1       Aggregation
+		a2       Aggregation
+		expected bool
+	}{
+		{
+			a1:       Aggregation{aggregation.Count},
+			a2:       Aggregation{aggregation.Count},
+			expected: true,
+		},
+		{
+			a1:       Aggregation{aggregation.Count},
+			a2:       Aggregation{aggregation.Sum},
+			expected: false,
+		},
+	}
+
+	for _, input := range inputs {
+		require.Equal(t, input.expected, input.a1.Equal(input.a2))
+		require.Equal(t, input.expected, input.a2.Equal(input.a1))
+	}
+}
+
+func TestTransformationEqual(t *testing.T) {
+	inputs := []struct {
+		a1       Transformation
+		a2       Transformation
+		expected bool
+	}{
+		{
+			a1:       Transformation{transformation.Absolute},
+			a2:       Transformation{transformation.Absolute},
+			expected: true,
+		},
+		{
+			a1:       Transformation{transformation.Absolute},
+			a2:       Transformation{transformation.PerSecond},
+			expected: false,
+		},
+	}
+
+	for _, input := range inputs {
+		require.Equal(t, input.expected, input.a1.Equal(input.a2))
+		require.Equal(t, input.expected, input.a2.Equal(input.a1))
+	}
+}
+
+func TestTransformationClone(t *testing.T) {
+	source := Transformation{transformation.Absolute}
+	clone := source.Clone()
+	require.Equal(t, source, clone)
+	clone.Type = transformation.PerSecond
+	require.Equal(t, transformation.Absolute, source.Type)
+}
+
 func TestPipelineString(t *testing.T) {
 	inputs := []struct {
 		p        Pipeline

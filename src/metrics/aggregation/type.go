@@ -74,9 +74,6 @@ var (
 	// DefaultTypes is a default list of aggregation types.
 	DefaultTypes Types
 
-	// DefaultID is a default ID.
-	DefaultID ID
-
 	// ValidTypes is the list of all the valid aggregation types.
 	ValidTypes = map[Type]struct{}{
 		Last:   emptyStruct,

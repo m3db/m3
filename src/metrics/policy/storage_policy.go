@@ -148,3 +148,9 @@ func MustParseStoragePolicy(str string) StoragePolicy {
 	}
 	return sp
 }
+
+// IsDefaultStoragePolicies returns whether a list of storage policies are considered
+// as default storage policies.
+func IsDefaultStoragePolicies(policies []StoragePolicy) bool {
+	return len(policies) == 0
+}

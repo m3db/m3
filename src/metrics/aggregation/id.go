@@ -36,6 +36,11 @@ const (
 	idBitMask  = 63
 )
 
+var (
+	// DefaultID is a default ID.
+	DefaultID ID
+)
+
 // ID represents a compressed view of Types.
 type ID [IDLen]uint64
 
