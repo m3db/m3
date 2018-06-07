@@ -108,21 +108,30 @@ func (u Union) String() string {
 // Pipeline is a pipeline of operations.
 type Pipeline struct {
 	// a list of pipeline operations.
-	Operations []Union
+	operations []Union
 }
 
-// IsEmpty determines whether a pipeline is empty.
-func (p Pipeline) IsEmpty() bool {
-	return len(p.Operations) == 0
+// NewPipeline creates a new pipeline.
+func NewPipeline(ops []Union) Pipeline {
+	return Pipeline{operations: ops}
 }
+
+// NumSteps returns the number of steps in a pipeline.
+func (p Pipeline) NumSteps() int { return len(p.operations) }
+
+// IsEmpty determines whether a pipeline is empty.
+func (p Pipeline) IsEmpty() bool { return p.NumSteps() == 0 }
+
+// At returns the operation at a given step.
+func (p Pipeline) At(i int) Union { return p.operations[i] }
 
 // Equal determines whether two pipelines are equal.
 func (p Pipeline) Equal(other Pipeline) bool {
-	if len(p.Operations) != len(other.Operations) {
+	if len(p.operations) != len(other.operations) {
 		return false
 	}
-	for i := 0; i < len(p.Operations); i++ {
-		if !p.Operations[i].Equal(other.Operations[i]) {
+	for i := 0; i < len(p.operations); i++ {
+		if !p.operations[i].Equal(other.operations[i]) {
 			return false
 		}
 	}
@@ -131,19 +140,25 @@ func (p Pipeline) Equal(other Pipeline) bool {
 
 // Clone clones the pipeline.
 func (p Pipeline) Clone() Pipeline {
-	clone := make([]Union, len(p.Operations))
-	for i, op := range p.Operations {
+	clone := make([]Union, len(p.operations))
+	for i, op := range p.operations {
 		clone[i] = op.Clone()
 	}
-	return Pipeline{Operations: clone}
+	return Pipeline{operations: clone}
+}
+
+// SubPipeline returns a sub-pipeline starting from step `idx`
+// of the current pipeline.
+func (p Pipeline) SubPipeline(idx int) Pipeline {
+	return Pipeline{operations: p.operations[idx:]}
 }
 
 func (p Pipeline) String() string {
 	var b bytes.Buffer
 	b.WriteString("{operations: [")
-	for i, op := range p.Operations {
+	for i, op := range p.operations {
 		b.WriteString(op.String())
-		if i < len(p.Operations)-1 {
+		if i < len(p.operations)-1 {
 			b.WriteString(", ")
 		}
 	}

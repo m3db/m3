@@ -20,12 +20,77 @@
 
 package transformation
 
+import (
+	"fmt"
+)
+
 // Type defines a transformation function.
 type Type int
 
 // Supported transformation types.
 const (
 	UnknownType Type = iota
-	PerSecond
 	Absolute
+	PerSecond
+)
+
+// IsUnaryTransform returns whether this is a unary transformation.
+func (t Type) IsUnaryTransform() bool {
+	_, exists := unaryTransforms[t]
+	return exists
+}
+
+// IsBinaryTransform returns whether this is a binary transformation.
+func (t Type) IsBinaryTransform() bool {
+	_, exists := binaryTransforms[t]
+	return exists
+}
+
+// UnaryTransform returns the unary transformation function associated with
+// the transformation type if applicable, or an error otherwise.
+func (t Type) UnaryTransform() (UnaryTransform, error) {
+	tf, exists := unaryTransforms[t]
+	if !exists {
+		return nil, fmt.Errorf("%v is not a unary transfomration", t)
+	}
+	return tf, nil
+}
+
+// MustUnaryTransform returns the unary transformation function associated with
+// the transformation type if applicable, or panics otherwise.
+func (t Type) MustUnaryTransform() UnaryTransform {
+	tf, err := t.UnaryTransform()
+	if err != nil {
+		panic(err)
+	}
+	return tf
+}
+
+// BinaryTransform returns the binary transformation function associated with
+// the transformation type if applicable, or an error otherwise.
+func (t Type) BinaryTransform() (BinaryTransform, error) {
+	tf, exists := binaryTransforms[t]
+	if !exists {
+		return nil, fmt.Errorf("%v is not a binary transfomration", t)
+	}
+	return tf, nil
+}
+
+// MustBinaryTransform returns the binary transformation function associated with
+// the transformation type if applicable, or an error otherwise.
+func (t Type) MustBinaryTransform() BinaryTransform {
+	tf, err := t.BinaryTransform()
+	if err != nil {
+		panic(err)
+	}
+	return tf
+}
+
+var (
+	unaryTransforms = map[Type]UnaryTransform{
+		Absolute: absolute,
+	}
+	binaryTransforms = map[Type]BinaryTransform{
+		PerSecond: perSecond,
+	}
 )
