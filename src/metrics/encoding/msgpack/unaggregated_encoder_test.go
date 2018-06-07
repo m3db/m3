@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
@@ -332,24 +333,24 @@ func expectedResultsForUnaggregatedMetric(t *testing.T, m unaggregated.MetricUni
 	}
 
 	switch m.Type {
-	case unaggregated.CounterType:
+	case metric.CounterType:
 		results = append(results, []interface{}{
 			int64(counterType),
 			numFieldsForType(counterType),
 			[]byte(m.ID),
 			m.CounterVal,
 		}...)
-	case unaggregated.BatchTimerType:
+	case metric.TimerType:
 		results = append(results, []interface{}{
-			int64(batchTimerType),
-			numFieldsForType(batchTimerType),
+			int64(timerType),
+			numFieldsForType(timerType),
 			[]byte(m.ID),
 			len(m.BatchTimerVal),
 		}...)
 		for _, v := range m.BatchTimerVal {
 			results = append(results, v)
 		}
-	case unaggregated.GaugeType:
+	case metric.GaugeType:
 		results = append(results, []interface{}{
 			int64(gaugeType),
 			numFieldsForType(gaugeType),
@@ -374,7 +375,7 @@ func expectedResultsForUnaggregatedMetricWithPoliciesList(
 	}
 
 	switch m.Type {
-	case unaggregated.CounterType:
+	case metric.CounterType:
 		results = append(results, []interface{}{
 			int64(counterWithPoliciesListType),
 			numFieldsForType(counterWithPoliciesListType),
@@ -382,18 +383,18 @@ func expectedResultsForUnaggregatedMetricWithPoliciesList(
 			[]byte(m.ID),
 			m.CounterVal,
 		}...)
-	case unaggregated.BatchTimerType:
+	case metric.TimerType:
 		results = append(results, []interface{}{
 			int64(batchTimerWithPoliciesListType),
 			numFieldsForType(batchTimerWithPoliciesListType),
-			numFieldsForType(batchTimerType),
+			numFieldsForType(timerType),
 			[]byte(m.ID),
 			len(m.BatchTimerVal),
 		}...)
 		for _, v := range m.BatchTimerVal {
 			results = append(results, v)
 		}
-	case unaggregated.GaugeType:
+	case metric.GaugeType:
 		results = append(results, []interface{}{
 			int64(gaugeWithPoliciesListType),
 			numFieldsForType(gaugeWithPoliciesListType),

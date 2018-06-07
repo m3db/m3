@@ -23,6 +23,8 @@ package metric
 import (
 	"fmt"
 	"strings"
+
+	"github.com/m3db/m3metrics/generated/proto/metricpb"
 )
 
 // Type is a metric type.
@@ -54,6 +56,36 @@ func (t Type) String() string {
 	default:
 		return "unknown"
 	}
+}
+
+// ToProto converts the metric type to a protobuf message in place.
+func (t Type) ToProto(pb *metricpb.MetricType) error {
+	switch t {
+	case CounterType:
+		*pb = metricpb.MetricType_COUNTER
+	case TimerType:
+		*pb = metricpb.MetricType_TIMER
+	case GaugeType:
+		*pb = metricpb.MetricType_GAUGE
+	default:
+		return fmt.Errorf("unknown metric type: %v", t)
+	}
+	return nil
+}
+
+// FromProto converts the protobuf message to a metric type.
+func (t *Type) FromProto(pb metricpb.MetricType) error {
+	switch pb {
+	case metricpb.MetricType_COUNTER:
+		*t = CounterType
+	case metricpb.MetricType_TIMER:
+		*t = TimerType
+	case metricpb.MetricType_GAUGE:
+		*t = GaugeType
+	default:
+		return fmt.Errorf("unknown metric type in proto: %v", pb)
+	}
+	return nil
 }
 
 // ParseType parses a type string and returns the type.

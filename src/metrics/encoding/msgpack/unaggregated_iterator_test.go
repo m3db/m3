@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -202,17 +203,16 @@ func TestUnaggregatedIteratorDecodeBatchTimerNoValues(t *testing.T) {
 
 	require.NoError(t, it.Err())
 	mu := it.Metric()
-	require.Equal(t, unaggregated.BatchTimerType, mu.Type)
+	require.Equal(t, metric.TimerType, mu.Type)
 	require.Equal(t, id.RawID("foo"), mu.ID)
 	require.Equal(t, 0, len(mu.BatchTimerVal))
-	require.False(t, mu.OwnsID)
 	require.Nil(t, mu.TimerValPool)
 }
 
 func TestUnaggregatedIteratorDecodeBatchTimerDecodeFloat64Error(t *testing.T) {
 	enc := testUnaggregatedEncoder().(*unaggregatedEncoder)
 	enc.encodeBatchTimerFn = func(bt unaggregated.BatchTimer) {
-		enc.encodeNumObjectFields(numFieldsForType(batchTimerType))
+		enc.encodeNumObjectFields(numFieldsForType(timerType))
 		enc.encodeRawID(bt.ID)
 		enc.encodeArrayLen(len(bt.Values))
 		enc.encodeBytes([]byte("foo"))
@@ -241,11 +241,10 @@ func TestUnaggregatedIteratorDecodeBatchTimerNoAlloc(t *testing.T) {
 
 	require.NoError(t, it.Err())
 	mu := it.Metric()
-	require.Equal(t, unaggregated.BatchTimerType, mu.Type)
+	require.Equal(t, metric.TimerType, mu.Type)
 	require.Equal(t, id.RawID("foo"), mu.ID)
 	require.Equal(t, bt.Values, mu.BatchTimerVal)
 	require.Equal(t, cap(it.timerValues), cap(mu.BatchTimerVal))
-	require.False(t, mu.OwnsID)
 	require.Nil(t, mu.TimerValPool)
 }
 
@@ -264,11 +263,10 @@ func TestUnaggregatedIteratorDecodeBatchTimerWithAllocNonPoolAlloc(t *testing.T)
 
 	require.NoError(t, it.Err())
 	mu := it.Metric()
-	require.Equal(t, unaggregated.BatchTimerType, mu.Type)
+	require.Equal(t, metric.TimerType, mu.Type)
 	require.Equal(t, id.RawID("foo"), mu.ID)
 	require.Equal(t, bt.Values, mu.BatchTimerVal)
 	require.Equal(t, cap(it.timerValues), cap(mu.BatchTimerVal))
-	require.False(t, mu.OwnsID)
 	require.Nil(t, mu.TimerValPool)
 }
 
@@ -289,12 +287,11 @@ func TestUnaggregatedIteratorDecodeBatchTimerWithAllocPoolAlloc(t *testing.T) {
 
 	require.NoError(t, it.Err())
 	mu := it.Metric()
-	require.Equal(t, unaggregated.BatchTimerType, mu.Type)
+	require.Equal(t, metric.TimerType, mu.Type)
 	require.Equal(t, id.RawID("foo"), mu.ID)
 	require.Equal(t, bt.Values, mu.BatchTimerVal)
 	require.True(t, cap(mu.BatchTimerVal) >= len(bt.Values))
 	require.Nil(t, it.timerValues)
-	require.False(t, mu.OwnsID)
 	require.NotNil(t, mu.TimerValPool)
 	require.Equal(t, it.largeFloatsPool, mu.TimerValPool)
 }
@@ -407,7 +404,7 @@ func TestUnaggregatedIteratorDecodeBatchTimerMoreFieldsThanExpected(t *testing.T
 
 	// Pretend we added an extra int field to the batch timer object.
 	enc.encodeBatchTimerFn = func(bt unaggregated.BatchTimer) {
-		enc.encodeNumObjectFields(numFieldsForType(batchTimerType) + 1)
+		enc.encodeNumObjectFields(numFieldsForType(timerType) + 1)
 		enc.encodeRawID(bt.ID)
 		enc.encodeArrayLen(len(bt.Values))
 		for _, v := range bt.Values {

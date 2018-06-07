@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3metrics/generated/proto/policypb"
 	"github.com/m3db/m3metrics/generated/proto/transformationpb"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/op"
@@ -72,11 +73,13 @@ var (
 		Value: 234231.345,
 	}
 	testTimedMetric1 = aggregated.Metric{
+		Type:      metric.CounterType,
 		ID:        []byte("testTimedMetric1"),
 		TimeNanos: 8259,
 		Value:     29234.29934,
 	}
 	testTimedMetric2 = aggregated.Metric{
+		Type:      metric.TimerType,
 		ID:        []byte("testTimedMetric2"),
 		TimeNanos: 145668,
 		Value:     563.875,
@@ -241,11 +244,13 @@ var (
 		Value: 234231.345,
 	}
 	testTimedMetric1Proto = metricpb.TimedMetric{
+		Type:      metricpb.MetricType_COUNTER,
 		Id:        []byte("testTimedMetric1"),
 		TimeNanos: 8259,
 		Value:     29234.29934,
 	}
 	testTimedMetric2Proto = metricpb.TimedMetric{
+		Type:      metricpb.MetricType_TIMER,
 		Id:        []byte("testTimedMetric2"),
 		TimeNanos: 145668,
 		Value:     563.875,

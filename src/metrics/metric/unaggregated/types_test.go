@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3metrics/generated/proto/policypb"
 	"github.com/m3db/m3metrics/generated/proto/transformationpb"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/op"
 	"github.com/m3db/m3metrics/op/applied"
 	"github.com/m3db/m3metrics/policy"
@@ -46,7 +47,7 @@ var (
 		Value: 1234,
 	}
 	testCounterUnion = MetricUnion{
-		Type:       CounterType,
+		Type:       metric.CounterType,
 		ID:         []byte("testCounter"),
 		CounterVal: 1234,
 	}
@@ -55,7 +56,7 @@ var (
 		Values: []float64{4.78, -2384, 0.0, 3145, 9999},
 	}
 	testBatchTimerUnion = MetricUnion{
-		Type:          BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            []byte("testBatchTimer"),
 		BatchTimerVal: []float64{4.78, -2384, 0.0, 3145, 9999},
 	}
@@ -64,7 +65,7 @@ var (
 		Value: 45.28,
 	}
 	testGaugeUnion = MetricUnion{
-		Type:     GaugeType,
+		Type:     metric.GaugeType,
 		ID:       []byte("testGauge"),
 		GaugeVal: 45.28,
 	}

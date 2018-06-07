@@ -23,6 +23,8 @@ package metric
 import (
 	"testing"
 
+	"github.com/m3db/m3metrics/generated/proto/metricpb"
+
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -59,4 +61,80 @@ func TestTypeUnmarshalYAMLErrors(t *testing.T) {
 func TestMustParseType(t *testing.T) {
 	require.Equal(t, CounterType, MustParseType("counter"))
 	require.Panics(t, func() { MustParseType("foo") })
+}
+
+func TestTypeToProto(t *testing.T) {
+	inputs := []struct {
+		metricType Type
+		expected   metricpb.MetricType
+	}{
+		{
+			metricType: CounterType,
+			expected:   metricpb.MetricType_COUNTER,
+		},
+		{
+			metricType: TimerType,
+			expected:   metricpb.MetricType_TIMER,
+		},
+		{
+			metricType: GaugeType,
+			expected:   metricpb.MetricType_GAUGE,
+		},
+	}
+
+	for _, input := range inputs {
+		var mt metricpb.MetricType
+		require.NoError(t, input.metricType.ToProto(&mt))
+		require.Equal(t, input.expected, mt)
+	}
+}
+
+func TestTypeToProtoBadType(t *testing.T) {
+	inputs := []Type{
+		UnknownType,
+		Type(1000),
+	}
+
+	for _, input := range inputs {
+		var mt metricpb.MetricType
+		require.Error(t, input.ToProto(&mt))
+	}
+}
+
+func TestTypeFromProto(t *testing.T) {
+	inputs := []struct {
+		metricType metricpb.MetricType
+		expected   Type
+	}{
+		{
+			metricType: metricpb.MetricType_COUNTER,
+			expected:   CounterType,
+		},
+		{
+			metricType: metricpb.MetricType_TIMER,
+			expected:   TimerType,
+		},
+		{
+			metricType: metricpb.MetricType_GAUGE,
+			expected:   GaugeType,
+		},
+	}
+
+	var mt Type
+	for _, input := range inputs {
+		require.NoError(t, mt.FromProto(input.metricType))
+		require.Equal(t, input.expected, mt)
+	}
+}
+
+func TestTypeFromProtoBadTypeProto(t *testing.T) {
+	inputs := []metricpb.MetricType{
+		metricpb.MetricType_UNKNOWN,
+		metricpb.MetricType(1000),
+	}
+
+	for _, input := range inputs {
+		var mt Type
+		require.Error(t, mt.FromProto(input))
+	}
 }

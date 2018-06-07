@@ -82,7 +82,7 @@ func (enc *unaggregatedEncoder) EncodeBatchTimer(bt unaggregated.BatchTimer) err
 	if err := enc.err(); err != nil {
 		return err
 	}
-	enc.encodeRootObjectFn(batchTimerType)
+	enc.encodeRootObjectFn(timerType)
 	enc.encodeBatchTimerFn(bt)
 	return enc.err()
 }
@@ -154,7 +154,7 @@ func (enc *unaggregatedEncoder) encodeCounter(c unaggregated.Counter) {
 }
 
 func (enc *unaggregatedEncoder) encodeBatchTimer(bt unaggregated.BatchTimer) {
-	enc.encodeNumObjectFields(numFieldsForType(batchTimerType))
+	enc.encodeNumObjectFields(numFieldsForType(timerType))
 	enc.encodeRawID(bt.ID)
 	enc.encodeArrayLen(len(bt.Values))
 	for _, v := range bt.Values {
