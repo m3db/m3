@@ -26,6 +26,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/m3db/m3metrics/encoding"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 
 	"github.com/google/go-cmp/cmp"
@@ -54,8 +55,8 @@ func TestUnaggregatedIteratorDecodeCounterWithMetadatas(t *testing.T) {
 
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
 	for _, input := range inputs {
-		require.NoError(t, enc.EncodeMessage(MessageUnion{
-			Type:                 CounterWithMetadatasType,
+		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type:                 encoding.CounterWithMetadatasType,
 			CounterWithMetadatas: input,
 		}))
 	}
@@ -70,7 +71,7 @@ func TestUnaggregatedIteratorDecodeCounterWithMetadatas(t *testing.T) {
 	defer it.Close()
 	for it.Next() {
 		res := it.Current()
-		require.Equal(t, CounterWithMetadatasType, res.Type)
+		require.Equal(t, encoding.CounterWithMetadatasType, res.Type)
 		require.Equal(t, inputs[i], res.CounterWithMetadatas)
 		i++
 	}
@@ -100,8 +101,8 @@ func TestUnaggregatedIteratorDecodeBatchTimerWithMetadatas(t *testing.T) {
 
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
 	for _, input := range inputs {
-		require.NoError(t, enc.EncodeMessage(MessageUnion{
-			Type: BatchTimerWithMetadatasType,
+		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type: encoding.BatchTimerWithMetadatasType,
 			BatchTimerWithMetadatas: input,
 		}))
 	}
@@ -116,7 +117,7 @@ func TestUnaggregatedIteratorDecodeBatchTimerWithMetadatas(t *testing.T) {
 	defer it.Close()
 	for it.Next() {
 		res := it.Current()
-		require.Equal(t, BatchTimerWithMetadatasType, res.Type)
+		require.Equal(t, encoding.BatchTimerWithMetadatasType, res.Type)
 		require.Equal(t, inputs[i], res.BatchTimerWithMetadatas)
 		i++
 	}
@@ -146,8 +147,8 @@ func TestUnaggregatedIteratorDecodeGaugeWithMetadatas(t *testing.T) {
 
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
 	for _, input := range inputs {
-		require.NoError(t, enc.EncodeMessage(MessageUnion{
-			Type:               GaugeWithMetadatasType,
+		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type:               encoding.GaugeWithMetadatasType,
 			GaugeWithMetadatas: input,
 		}))
 	}
@@ -162,7 +163,7 @@ func TestUnaggregatedIteratorDecodeGaugeWithMetadatas(t *testing.T) {
 	defer it.Close()
 	for it.Next() {
 		res := it.Current()
-		require.Equal(t, GaugeWithMetadatasType, res.Type)
+		require.Equal(t, encoding.GaugeWithMetadatasType, res.Type)
 		require.Equal(t, inputs[i], res.GaugeWithMetadatas)
 		i++
 	}
@@ -226,21 +227,21 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
 	for iter := 0; iter < numIter; iter++ {
 		for _, input := range inputs {
-			var msg MessageUnion
+			var msg encoding.UnaggregatedMessageUnion
 			switch input := input.(type) {
 			case unaggregated.CounterWithMetadatas:
-				msg = MessageUnion{
-					Type:                 CounterWithMetadatasType,
+				msg = encoding.UnaggregatedMessageUnion{
+					Type:                 encoding.CounterWithMetadatasType,
 					CounterWithMetadatas: input,
 				}
 			case unaggregated.BatchTimerWithMetadatas:
-				msg = MessageUnion{
-					Type: BatchTimerWithMetadatasType,
+				msg = encoding.UnaggregatedMessageUnion{
+					Type: encoding.BatchTimerWithMetadatasType,
 					BatchTimerWithMetadatas: input,
 				}
 			case unaggregated.GaugeWithMetadatas:
-				msg = MessageUnion{
-					Type:               GaugeWithMetadatasType,
+				msg = encoding.UnaggregatedMessageUnion{
+					Type:               encoding.GaugeWithMetadatasType,
 					GaugeWithMetadatas: input,
 				}
 			default:
@@ -263,13 +264,13 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 		j := i % len(inputs)
 		switch expectedRes := inputs[j].(type) {
 		case unaggregated.CounterWithMetadatas:
-			require.Equal(t, CounterWithMetadatasType, res.Type)
+			require.Equal(t, encoding.CounterWithMetadatasType, res.Type)
 			require.True(t, cmp.Equal(expectedRes, res.CounterWithMetadatas, testCmpOpts...))
 		case unaggregated.BatchTimerWithMetadatas:
-			require.Equal(t, BatchTimerWithMetadatasType, res.Type)
+			require.Equal(t, encoding.BatchTimerWithMetadatasType, res.Type)
 			require.True(t, cmp.Equal(expectedRes, res.BatchTimerWithMetadatas, testCmpOpts...))
 		case unaggregated.GaugeWithMetadatas:
-			require.Equal(t, GaugeWithMetadatasType, res.Type)
+			require.Equal(t, encoding.GaugeWithMetadatasType, res.Type)
 			require.True(t, cmp.Equal(expectedRes, res.GaugeWithMetadatas, testCmpOpts...))
 		default:
 			require.Fail(t, "unknown input type: %T", inputs[j])
@@ -286,8 +287,8 @@ func TestUnaggregatedIteratorMessageTooLarge(t *testing.T) {
 		StagedMetadatas: testMetadatas1,
 	}
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
-	require.NoError(t, enc.EncodeMessage(MessageUnion{
-		Type:               GaugeWithMetadatasType,
+	require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
+		Type:               encoding.GaugeWithMetadatasType,
 		GaugeWithMetadatas: input,
 	}))
 	dataBuf := enc.Relinquish()
@@ -314,8 +315,8 @@ func TestUnaggregatedIteratorNextOnError(t *testing.T) {
 		StagedMetadatas: testMetadatas1,
 	}
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
-	require.NoError(t, enc.EncodeMessage(MessageUnion{
-		Type:               GaugeWithMetadatasType,
+	require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
+		Type:               encoding.GaugeWithMetadatasType,
 		GaugeWithMetadatas: input,
 	}))
 	dataBuf := enc.Relinquish()
@@ -333,8 +334,8 @@ func TestUnaggregatedIteratorNextOnClose(t *testing.T) {
 		StagedMetadatas: testMetadatas1,
 	}
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
-	require.NoError(t, enc.EncodeMessage(MessageUnion{
-		Type:               GaugeWithMetadatasType,
+	require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
+		Type:               encoding.GaugeWithMetadatasType,
 		GaugeWithMetadatas: input,
 	}))
 	dataBuf := enc.Relinquish()

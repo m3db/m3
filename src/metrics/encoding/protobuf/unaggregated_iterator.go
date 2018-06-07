@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/m3db/m3metrics/encoding"
 	"github.com/m3db/m3metrics/generated/proto/metricpb"
 	"github.com/m3db/m3x/pool"
 )
@@ -35,7 +36,7 @@ type UnaggregatedIterator interface {
 	Next() bool
 
 	// Current returns the current decoded value.
-	Current() MessageUnion
+	Current() encoding.UnaggregatedMessageUnion
 
 	// Err returns the error encountered during decoding, if any.
 	Err() error
@@ -45,20 +46,20 @@ type UnaggregatedIterator interface {
 }
 
 type unaggregatedIterator struct {
-	reader         ByteReadScanner
+	reader         encoding.ByteReadScanner
 	bytesPool      pool.BytesPool
 	maxMessageSize int
 
 	closed bool
 	pb     metricpb.MetricWithMetadatas
-	msg    MessageUnion
+	msg    encoding.UnaggregatedMessageUnion
 	buf    []byte
 	err    error
 }
 
-// NewUnaggregatedIterator creates a new unaggregated iterator. It is not thread-safe.
+// NewUnaggregatedIterator creates a new unaggregated iterator.
 func NewUnaggregatedIterator(
-	reader ByteReadScanner,
+	reader encoding.ByteReadScanner,
 	opts UnaggregatedOptions,
 ) UnaggregatedIterator {
 	bytesPool := opts.BytesPool()
@@ -77,7 +78,7 @@ func (it *unaggregatedIterator) Close() {
 	it.closed = true
 	it.reader = nil
 	it.pb.Reset()
-	it.msg = MessageUnion{}
+	it.msg = encoding.UnaggregatedMessageUnion{}
 	if it.bytesPool != nil && it.buf != nil {
 		it.bytesPool.Put(it.buf)
 	}
@@ -86,8 +87,8 @@ func (it *unaggregatedIterator) Close() {
 	it.err = nil
 }
 
-func (it *unaggregatedIterator) Err() error            { return it.err }
-func (it *unaggregatedIterator) Current() MessageUnion { return it.msg }
+func (it *unaggregatedIterator) Err() error                                 { return it.err }
+func (it *unaggregatedIterator) Current() encoding.UnaggregatedMessageUnion { return it.msg }
 
 func (it *unaggregatedIterator) Next() bool {
 	if it.err != nil || it.closed {
@@ -134,13 +135,13 @@ func (it *unaggregatedIterator) decodeMessage(size int) error {
 	}
 	switch it.pb.Type {
 	case metricpb.MetricWithMetadatas_COUNTER_WITH_METADATAS:
-		it.msg.Type = CounterWithMetadatasType
+		it.msg.Type = encoding.CounterWithMetadatasType
 		it.err = it.msg.CounterWithMetadatas.FromProto(it.pb.CounterWithMetadatas)
 	case metricpb.MetricWithMetadatas_BATCH_TIMER_WITH_METADATAS:
-		it.msg.Type = BatchTimerWithMetadatasType
+		it.msg.Type = encoding.BatchTimerWithMetadatasType
 		it.err = it.msg.BatchTimerWithMetadatas.FromProto(it.pb.BatchTimerWithMetadatas)
 	case metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS:
-		it.msg.Type = GaugeWithMetadatasType
+		it.msg.Type = encoding.GaugeWithMetadatasType
 		it.err = it.msg.GaugeWithMetadatas.FromProto(it.pb.GaugeWithMetadatas)
 	default:
 		it.err = fmt.Errorf("unrecognized message type: %v", it.pb.Type)
