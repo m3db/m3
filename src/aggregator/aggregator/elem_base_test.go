@@ -26,6 +26,7 @@ import (
 
 	raggregation "github.com/m3db/m3aggregator/aggregation"
 	maggregation "github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/op"
 	"github.com/m3db/m3metrics/op/applied"
@@ -123,11 +124,11 @@ func TestCounterElemBaseNewLockedAggregation(t *testing.T) {
 	la := e.NewLockedAggregation(nil, raggregation.Options{})
 	la.Lock()
 	la.Add(unaggregated.MetricUnion{
-		Type:       unaggregated.CounterType,
+		Type:       metric.CounterType,
 		CounterVal: 100,
 	})
 	la.Add(unaggregated.MetricUnion{
-		Type:       unaggregated.CounterType,
+		Type:       metric.CounterType,
 		CounterVal: 200,
 	})
 	res := la.ValueOf(maggregation.Sum)
@@ -175,11 +176,11 @@ func TestTimerElemBaseNewLockedAggregation(t *testing.T) {
 	la := e.NewLockedAggregation(NewOptions(), raggregation.Options{})
 	la.Lock()
 	la.Add(unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		BatchTimerVal: []float64{100.0, 200.0},
 	})
 	la.Add(unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		BatchTimerVal: []float64{300.0, 400.0, 500.0},
 	})
 	res := la.ValueOf(maggregation.Mean)
@@ -236,11 +237,11 @@ func TestGaugeElemBaseNewLockedAggregation(t *testing.T) {
 	la := e.NewLockedAggregation(nil, raggregation.Options{})
 	la.Lock()
 	la.Add(unaggregated.MetricUnion{
-		Type:     unaggregated.GaugeType,
+		Type:     metric.GaugeType,
 		GaugeVal: 100.0,
 	})
 	la.Add(unaggregated.MetricUnion{
-		Type:     unaggregated.GaugeType,
+		Type:     metric.GaugeType,
 		GaugeVal: 200.0,
 	})
 	res := la.ValueOf(maggregation.Last)

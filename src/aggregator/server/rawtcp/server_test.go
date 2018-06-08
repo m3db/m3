@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3metrics/encoding/msgpack"
 	"github.com/m3db/m3metrics/encoding/protobuf"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/retry"
@@ -50,17 +51,17 @@ const (
 var (
 	testNowNanos = time.Now().UnixNano()
 	testCounter  = unaggregated.MetricUnion{
-		Type:       unaggregated.CounterType,
+		Type:       metric.CounterType,
 		ID:         []byte("testCounter"),
 		CounterVal: 123,
 	}
 	testBatchTimer = unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            []byte("testBatchTimer"),
 		BatchTimerVal: []float64{1.0, 2.0, 3.0},
 	}
 	testGauge = unaggregated.MetricUnion{
-		Type:     unaggregated.GaugeType,
+		Type:     metric.GaugeType,
 		ID:       []byte("testGauge"),
 		GaugeVal: 456.780,
 	}

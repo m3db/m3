@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3metrics/metric"
 
 	"github.com/stretchr/testify/require"
 )
@@ -86,7 +86,7 @@ func testMultiClientOneType(t *testing.T, metadata metadataUnion) {
 	}
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	typeFn := constantMetricTypeFnFactory(unaggregated.CounterType)
+	typeFn := constantMetricTypeFnFactory(metric.CounterType)
 	dataset := generateTestDataset(start, stop, interval, ids, typeFn)
 	for _, data := range dataset {
 		testSetup.setNowFn(data.timestamp)

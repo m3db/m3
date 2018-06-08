@@ -75,7 +75,7 @@ type metricElem interface {
 	Consume(
 		earlierThanNanos int64,
 		flushLocalFn flushLocalMetricFn,
-		flushForwardFn flushForwardMetricFn,
+		flushForwardedFn flushForwardedMetricFn,
 	) bool
 
 	// MarkAsTombstoned marks an element as tombstoned, which means this element

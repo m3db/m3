@@ -26,8 +26,6 @@ import (
 	"sync"
 
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric/unaggregated"
 	xerrors "github.com/m3db/m3x/errors"
 )
 
@@ -43,12 +41,11 @@ type instanceWriterManager interface {
 	// RemoveInstances removes instancess.
 	RemoveInstances(instances []placement.Instance) error
 
-	// WriteUntimed writes an untimed metric to a target instance.
-	WriteUntimed(
+	// Write writes a metric payload.
+	Write(
 		instance placement.Instance,
 		shardID uint32,
-		metric unaggregated.MetricUnion,
-		metadatas metadata.StagedMetadatas,
+		payload payloadUnion,
 	) error
 
 	// Flush flushes buffered metrics.
@@ -112,11 +109,10 @@ func (mgr *writerManager) RemoveInstances(instances []placement.Instance) error 
 	return nil
 }
 
-func (mgr *writerManager) WriteUntimed(
+func (mgr *writerManager) Write(
 	instance placement.Instance,
 	shardID uint32,
-	metric unaggregated.MetricUnion,
-	metadatas metadata.StagedMetadatas,
+	payload payloadUnion,
 ) error {
 	mgr.RLock()
 	if mgr.closed {
@@ -129,7 +125,7 @@ func (mgr *writerManager) WriteUntimed(
 		mgr.RUnlock()
 		return fmt.Errorf("writer for instance %s is not found", id)
 	}
-	err := writer.WriteUntimed(shardID, metric, metadatas)
+	err := writer.Write(shardID, payload)
 	mgr.RUnlock()
 	return err
 }

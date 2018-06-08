@@ -21,11 +21,14 @@
 package capture
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
 	aggr "github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -62,19 +65,19 @@ func (agg *aggregator) AddUntimed(
 	defer agg.Unlock()
 
 	switch mu.Type {
-	case unaggregated.CounterType:
+	case metric.CounterType:
 		cp := unaggregated.CounterWithMetadatas{
 			Counter:         mu.Counter(),
 			StagedMetadatas: sm,
 		}
 		agg.countersWithMetadatas = append(agg.countersWithMetadatas, cp)
-	case unaggregated.BatchTimerType:
+	case metric.TimerType:
 		btp := unaggregated.BatchTimerWithMetadatas{
 			BatchTimer:      mu.BatchTimer(),
 			StagedMetadatas: sm,
 		}
 		agg.batchTimersWithMetadatas = append(agg.batchTimersWithMetadatas, btp)
-	case unaggregated.GaugeType:
+	case metric.GaugeType:
 		gp := unaggregated.GaugeWithMetadatas{
 			Gauge:           mu.Gauge(),
 			StagedMetadatas: sm,
@@ -85,6 +88,14 @@ func (agg *aggregator) AddUntimed(
 	}
 	agg.numMetricsAdded++
 	return nil
+}
+
+// TODO(xichen): implement this.
+func (agg *aggregator) AddForwarded(
+	metric aggregated.Metric,
+	metadata metadata.ForwardMetadata,
+) error {
+	return errors.New("not implemented")
 }
 
 func (agg *aggregator) Resign() error              { return nil }
@@ -118,13 +129,14 @@ func (agg *aggregator) Snapshot() SnapshotResult {
 
 func cloneMetric(m unaggregated.MetricUnion) unaggregated.MetricUnion {
 	mu := m
-	if !m.OwnsID {
-		clonedID := make(id.RawID, len(m.ID))
-		copy(clonedID, m.ID)
-		mu.ID = clonedID
-		mu.OwnsID = true
-	}
-	if m.Type == unaggregated.BatchTimerType {
+
+	// Clone metric ID.
+	clonedID := make(id.RawID, len(m.ID))
+	copy(clonedID, m.ID)
+	mu.ID = clonedID
+
+	// Clone time values.
+	if m.Type == metric.TimerType {
 		clonedTimerVal := make([]float64, len(m.BatchTimerVal))
 		copy(clonedTimerVal, m.BatchTimerVal)
 		mu.BatchTimerVal = clonedTimerVal

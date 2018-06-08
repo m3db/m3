@@ -1,3 +1,23 @@
+// Copyright (c) 2018 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 package client
 
 import (
@@ -10,6 +30,8 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric/aggregated"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
@@ -48,6 +70,19 @@ type Client interface {
 
 	// Close closes the client.
 	Close() error
+}
+
+// AdminClient is an administrative client capable of performing regular client operations
+// as well as high-privilege operations such as internal communcations among aggregation
+// servers that regular client is not permissioned to do.
+type AdminClient interface {
+	Client
+
+	// WriteForwarded writes forwarded metrics.
+	WriteForwarded(
+		metric aggregated.Metric,
+		metadata metadata.ForwardMetadata,
+	) error
 }
 
 type clientState int
@@ -123,21 +158,56 @@ func (c *client) WriteUntimedCounter(
 	counter unaggregated.Counter,
 	metadatas metadata.StagedMetadatas,
 ) error {
-	return c.writeUntimed(counter.ToUnion(), metadatas)
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    counter.ToUnion(),
+			metadatas: metadatas,
+		},
+	}
+	return c.write(counter.ID, payload)
 }
 
 func (c *client) WriteUntimedBatchTimer(
 	batchTimer unaggregated.BatchTimer,
 	metadatas metadata.StagedMetadatas,
 ) error {
-	return c.writeUntimed(batchTimer.ToUnion(), metadatas)
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    batchTimer.ToUnion(),
+			metadatas: metadatas,
+		},
+	}
+	return c.write(batchTimer.ID, payload)
 }
 
 func (c *client) WriteUntimedGauge(
 	gauge unaggregated.Gauge,
 	metadatas metadata.StagedMetadatas,
 ) error {
-	return c.writeUntimed(gauge.ToUnion(), metadatas)
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    gauge.ToUnion(),
+			metadatas: metadatas,
+		},
+	}
+	return c.write(gauge.ID, payload)
+}
+
+func (c *client) WriteForwarded(
+	metric aggregated.Metric,
+	metadata metadata.ForwardMetadata,
+) error {
+	payload := payloadUnion{
+		payloadType: forwardedType,
+		forwarded: forwardedPayload{
+			metric:   metric,
+			metadata: metadata,
+		},
+	}
+	return c.write(metric.ID, payload)
 }
 
 func (c *client) Flush() error {
@@ -163,10 +233,7 @@ func (c *client) Close() error {
 	return c.writerMgr.Close()
 }
 
-func (c *client) writeUntimed(
-	metric unaggregated.MetricUnion,
-	metadatas metadata.StagedMetadatas,
-) error {
+func (c *client) write(metricID id.RawID, payload payloadUnion) error {
 	c.RLock()
 	if c.state != clientInitialized {
 		c.RUnlock()
@@ -185,7 +252,7 @@ func (c *client) writeUntimed(
 	}
 	var (
 		numShards = placement.NumShards()
-		shardID   = c.shardFn(metric.ID, numShards)
+		shardID   = c.shardFn(metricID, numShards)
 		instances = placement.InstancesForShard(shardID)
 		nowNanos  = c.nowFn().UnixNano()
 		multiErr  = xerrors.NewMultiError()
@@ -202,7 +269,7 @@ func (c *client) writeUntimed(
 		if !c.shouldWriteForShard(nowNanos, shard) {
 			continue
 		}
-		if err = c.writerMgr.WriteUntimed(instance, shardID, metric, metadatas); err != nil {
+		if err = c.writerMgr.Write(instance, shardID, payload); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}

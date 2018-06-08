@@ -31,7 +31,11 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3metrics/op"
+	"github.com/m3db/m3metrics/op/applied"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -46,19 +50,25 @@ var (
 	testCutoverNanos = testNowNanos - int64(time.Minute)
 	testCutoffNanos  = testNowNanos + int64(time.Hour)
 	testCounter      = unaggregated.MetricUnion{
-		Type:       unaggregated.CounterType,
+		Type:       metric.CounterType,
 		ID:         []byte("foo"),
 		CounterVal: 1234,
 	}
 	testBatchTimer = unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            []byte("foo"),
 		BatchTimerVal: []float64{222.22, 345.67, 901.23345},
 	}
 	testGauge = unaggregated.MetricUnion{
-		Type:     unaggregated.GaugeType,
+		Type:     metric.GaugeType,
 		ID:       []byte("foo"),
 		GaugeVal: 123.456,
+	}
+	testForwarded = aggregated.Metric{
+		Type:      metric.CounterType,
+		ID:        []byte("testForwarded"),
+		TimeNanos: 1234,
+		Value:     34567,
 	}
 	testStagedMetadatas = metadata.StagedMetadatas{
 		{
@@ -91,6 +101,21 @@ var (
 				},
 			},
 		},
+	}
+	testForwardMetadata = metadata.ForwardMetadata{
+		AggregationID: aggregation.DefaultID,
+		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
+		Pipeline: applied.NewPipeline([]applied.Union{
+			{
+				Type: op.RollupType,
+				Rollup: applied.Rollup{
+					ID:            []byte("foo"),
+					AggregationID: aggregation.MustCompressTypes(aggregation.Count),
+				},
+			},
+		}),
+		SourceID:          1234,
+		NumForwardedTimes: 3,
 	}
 	testPlacementInstances = []placement.Instance{
 		placement.NewInstance().
@@ -193,11 +218,11 @@ func TestClientWriteUntimedMetricClosed(t *testing.T) {
 	for _, input := range []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge} {
 		var err error
 		switch input.Type {
-		case unaggregated.CounterType:
+		case metric.CounterType:
 			err = c.WriteUntimedCounter(input.Counter(), testStagedMetadatas)
-		case unaggregated.BatchTimerType:
+		case metric.TimerType:
 			err = c.WriteUntimedBatchTimer(input.BatchTimer(), testStagedMetadatas)
-		case unaggregated.GaugeType:
+		case metric.GaugeType:
 			err = c.WriteUntimedGauge(input.Gauge(), testStagedMetadatas)
 		}
 		require.Equal(t, errClientIsUninitializedOrClosed, err)
@@ -218,11 +243,11 @@ func TestClientWriteUntimedMetricActiveStagedPlacementError(t *testing.T) {
 	for _, input := range []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge} {
 		var err error
 		switch input.Type {
-		case unaggregated.CounterType:
+		case metric.CounterType:
 			err = c.WriteUntimedCounter(input.Counter(), testStagedMetadatas)
-		case unaggregated.BatchTimerType:
+		case metric.TimerType:
 			err = c.WriteUntimedBatchTimer(input.BatchTimer(), testStagedMetadatas)
-		case unaggregated.GaugeType:
+		case metric.GaugeType:
 			err = c.WriteUntimedGauge(input.Gauge(), testStagedMetadatas)
 		}
 		require.Equal(t, errActiveStagedPlacementError, err)
@@ -245,11 +270,11 @@ func TestClientWriteUntimedMetricActivePlacementError(t *testing.T) {
 	for _, input := range []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge} {
 		var err error
 		switch input.Type {
-		case unaggregated.CounterType:
+		case metric.CounterType:
 			err = c.WriteUntimedCounter(input.Counter(), testStagedMetadatas)
-		case unaggregated.BatchTimerType:
+		case metric.TimerType:
 			err = c.WriteUntimedBatchTimer(input.BatchTimer(), testStagedMetadatas)
-		case unaggregated.GaugeType:
+		case metric.GaugeType:
 			err = c.WriteUntimedGauge(input.Gauge(), testStagedMetadatas)
 		}
 		require.Equal(t, errActivePlacementError, err)
@@ -263,22 +288,19 @@ func TestClientWriteUntimedMetricSuccess(t *testing.T) {
 	var (
 		instancesRes []placement.Instance
 		shardRes     uint32
-		muRes        unaggregated.MetricUnion
-		smRes        metadata.StagedMetadatas
+		payloadRes   payloadUnion
 	)
 	writerMgr := NewMockinstanceWriterManager(ctrl)
 	writerMgr.EXPECT().
-		WriteUntimed(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Write(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
 			instance placement.Instance,
 			shardID uint32,
-			metric unaggregated.MetricUnion,
-			metadatas metadata.StagedMetadatas,
+			payload payloadUnion,
 		) error {
 			instancesRes = append(instancesRes, instance)
 			shardRes = shardID
-			muRes = metric
-			smRes = metadatas
+			payloadRes = payload
 			return nil
 		}).
 		MinTimes(1)
@@ -300,24 +322,24 @@ func TestClientWriteUntimedMetricSuccess(t *testing.T) {
 		// Reset states in each iteration.
 		instancesRes = instancesRes[:0]
 		shardRes = 0
-		muRes = unaggregated.MetricUnion{}
-		smRes = smRes[:0]
+		payloadRes = payloadUnion{}
 
 		var err error
 		switch input.Type {
-		case unaggregated.CounterType:
+		case metric.CounterType:
 			err = c.WriteUntimedCounter(input.Counter(), testStagedMetadatas)
-		case unaggregated.BatchTimerType:
+		case metric.TimerType:
 			err = c.WriteUntimedBatchTimer(input.BatchTimer(), testStagedMetadatas)
-		case unaggregated.GaugeType:
+		case metric.GaugeType:
 			err = c.WriteUntimedGauge(input.Gauge(), testStagedMetadatas)
 		}
 
 		require.NoError(t, err)
 		require.Equal(t, expectedInstances, instancesRes)
 		require.Equal(t, uint32(1), shardRes)
-		require.Equal(t, input, muRes)
-		require.Equal(t, testStagedMetadatas, smRes)
+		require.Equal(t, untimedType, payloadRes.payloadType)
+		require.Equal(t, input, payloadRes.untimed.metric)
+		require.Equal(t, testStagedMetadatas, payloadRes.untimed.metadatas)
 	}
 }
 
@@ -328,26 +350,23 @@ func TestClientWriteUntimedMetricPartialError(t *testing.T) {
 	var (
 		instancesRes     []placement.Instance
 		shardRes         uint32
-		muRes            unaggregated.MetricUnion
-		smRes            metadata.StagedMetadatas
+		payloadRes       payloadUnion
 		errInstanceWrite = errors.New("instance write error")
 	)
 	writerMgr := NewMockinstanceWriterManager(ctrl)
 	writerMgr.EXPECT().
-		WriteUntimed(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Write(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
 			instance placement.Instance,
 			shardID uint32,
-			metric unaggregated.MetricUnion,
-			metadatas metadata.StagedMetadatas,
+			payload payloadUnion,
 		) error {
 			if instance.ID() == testPlacementInstances[0].ID() {
 				return errInstanceWrite
 			}
 			instancesRes = append(instancesRes, instance)
 			shardRes = shardID
-			muRes = metric
-			smRes = metadatas
+			payloadRes = payload
 			return nil
 		}).
 		MinTimes(1)
@@ -369,8 +388,9 @@ func TestClientWriteUntimedMetricPartialError(t *testing.T) {
 	require.True(t, strings.Contains(err.Error(), errInstanceWrite.Error()))
 	require.Equal(t, expectedInstances, instancesRes)
 	require.Equal(t, uint32(1), shardRes)
-	require.Equal(t, testCounter, muRes)
-	require.Equal(t, testStagedMetadatas, smRes)
+	require.Equal(t, untimedType, payloadRes.payloadType)
+	require.Equal(t, testCounter, payloadRes.untimed.metric)
+	require.Equal(t, testStagedMetadatas, payloadRes.untimed.metadatas)
 }
 
 func TestClientWriteUntimedMetricBeforeShardCutover(t *testing.T) {
@@ -413,6 +433,102 @@ func TestClientWriteUntimedMetricAfterShardCutoff(t *testing.T) {
 	err := c.WriteUntimedCounter(testCounter.Counter(), testStagedMetadatas)
 	require.NoError(t, err)
 	require.Nil(t, instancesRes)
+}
+
+func TestClientWriteForwardedMetricSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		instancesRes []placement.Instance
+		shardRes     uint32
+		payloadRes   payloadUnion
+	)
+	writerMgr := NewMockinstanceWriterManager(ctrl)
+	writerMgr.EXPECT().
+		Write(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			instance placement.Instance,
+			shardID uint32,
+			payload payloadUnion,
+		) error {
+			instancesRes = append(instancesRes, instance)
+			shardRes = shardID
+			payloadRes = payload
+			return nil
+		}).
+		MinTimes(1)
+	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	c := NewClient(testOptions()).(*client)
+	c.state = clientInitialized
+	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
+	c.writerMgr = writerMgr
+	c.placementWatcher = watcher
+
+	expectedInstances := []placement.Instance{
+		testPlacementInstances[0],
+		testPlacementInstances[2],
+	}
+	err := c.WriteForwarded(testForwarded, testForwardMetadata)
+	require.NoError(t, err)
+	require.Equal(t, expectedInstances, instancesRes)
+	require.Equal(t, uint32(1), shardRes)
+	require.Equal(t, forwardedType, payloadRes.payloadType)
+	require.Equal(t, testForwarded, payloadRes.forwarded.metric)
+	require.Equal(t, testForwardMetadata, payloadRes.forwarded.metadata)
+}
+
+func TestClientWriteForwardedMetricPartialError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		instancesRes     []placement.Instance
+		shardRes         uint32
+		payloadRes       payloadUnion
+		errInstanceWrite = errors.New("instance write error")
+	)
+	writerMgr := NewMockinstanceWriterManager(ctrl)
+	writerMgr.EXPECT().
+		Write(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			instance placement.Instance,
+			shardID uint32,
+			payload payloadUnion,
+		) error {
+			if instance.ID() == testPlacementInstances[0].ID() {
+				return errInstanceWrite
+			}
+			instancesRes = append(instancesRes, instance)
+			shardRes = shardID
+			payloadRes = payload
+			return nil
+		}).
+		MinTimes(1)
+	stagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
+	stagedPlacement.EXPECT().ActivePlacement().Return(testPlacement, func() {}, nil).MinTimes(1)
+	watcher := placement.NewMockStagedPlacementWatcher(ctrl)
+	watcher.EXPECT().ActiveStagedPlacement().Return(stagedPlacement, func() {}, nil).MinTimes(1)
+	c := NewClient(testOptions()).(*client)
+	c.state = clientInitialized
+	c.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
+	c.writerMgr = writerMgr
+	c.placementWatcher = watcher
+
+	expectedInstances := []placement.Instance{
+		testPlacementInstances[2],
+	}
+	err := c.WriteForwarded(testForwarded, testForwardMetadata)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), errInstanceWrite.Error()))
+	require.Equal(t, expectedInstances, instancesRes)
+	require.Equal(t, uint32(1), shardRes)
+	require.Equal(t, forwardedType, payloadRes.payloadType)
+	require.Equal(t, testForwarded, payloadRes.forwarded.metric)
+	require.Equal(t, testForwardMetadata, payloadRes.forwarded.metadata)
 }
 
 func TestClientFlushClosed(t *testing.T) {
@@ -504,7 +620,7 @@ func testOptions() Options {
 		SetClockOptions(clock.NewOptions()).
 		SetConnectionOptions(testConnectionOptions()).
 		SetInstrumentOptions(instrument.NewOptions()).
-		SetShardFn(func(id []byte, numShards int) uint32 { return 1 }).
+		SetShardFn(func([]byte, int) uint32 { return 1 }).
 		SetInstanceQueueSize(10).
 		SetMaxTimerBatchSize(140).
 		SetShardCutoverWarmupDuration(time.Minute).

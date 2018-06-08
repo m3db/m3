@@ -81,11 +81,11 @@ type flushLocalMetricFn func(
 	sp policy.StoragePolicy,
 )
 
-// A flushForwardMetricFn flushes an aggregated metric datapoint eligible for
+// A flushForwardedMetricFn flushes an aggregated metric datapoint eligible for
 // forwarding by either forwarding it (potentially to a different aggregation
 // server) or dropping it. Processing of the datapoint continues after it is
 // flushed as required by the pipeline.
-type flushForwardMetricFn func(
+type flushForwardedMetricFn func(
 	metric aggregated.Metric,
 	meta metadata.ForwardMetadata,
 )

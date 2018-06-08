@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 
@@ -33,22 +34,22 @@ import (
 
 var (
 	testCounter = unaggregated.MetricUnion{
-		Type:       unaggregated.CounterType,
+		Type:       metric.CounterType,
 		ID:         id.RawID("testCounter"),
 		CounterVal: 1234,
 	}
 	testBatchTimer = unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            id.RawID("testCounter"),
 		BatchTimerVal: []float64{1.0, 3.5, 2.2, 6.5, 4.8},
 	}
 	testGauge = unaggregated.MetricUnion{
-		Type:     unaggregated.GaugeType,
+		Type:     metric.GaugeType,
 		ID:       id.RawID("testCounter"),
 		GaugeVal: 123.456,
 	}
 	testInvalid = unaggregated.MetricUnion{
-		Type: unaggregated.UnknownType,
+		Type: metric.UnknownType,
 		ID:   id.RawID("invalid"),
 	}
 	testDefaultMetadatas = metadata.DefaultStagedMetadatas
@@ -65,21 +66,21 @@ func TestAggregator(t *testing.T) {
 	var expected SnapshotResult
 	for _, mu := range []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge} {
 		switch mu.Type {
-		case unaggregated.CounterType:
+		case metric.CounterType:
 			expected.CountersWithMetadatas = append(
 				expected.CountersWithMetadatas,
 				unaggregated.CounterWithMetadatas{
 					Counter:         mu.Counter(),
 					StagedMetadatas: metadatas,
 				})
-		case unaggregated.BatchTimerType:
+		case metric.TimerType:
 			expected.BatchTimersWithMetadatas = append(
 				expected.BatchTimersWithMetadatas,
 				unaggregated.BatchTimerWithMetadatas{
 					BatchTimer:      mu.BatchTimer(),
 					StagedMetadatas: metadatas,
 				})
-		case unaggregated.GaugeType:
+		case metric.GaugeType:
 			expected.GaugesWithMetadatas = append(
 				expected.GaugesWithMetadatas,
 				unaggregated.GaugeWithMetadatas{

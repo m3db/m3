@@ -24,9 +24,6 @@
 package client
 
 import (
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric/unaggregated"
-
 	"github.com/golang/mock/gomock"
 )
 
@@ -51,14 +48,14 @@ func (_m *MockinstanceWriter) EXPECT() *_MockinstanceWriterRecorder {
 	return _m.recorder
 }
 
-func (_m *MockinstanceWriter) WriteUntimed(shard uint32, metric unaggregated.MetricUnion, metadatas metadata.StagedMetadatas) error {
-	ret := _m.ctrl.Call(_m, "WriteUntimed", shard, metric, metadatas)
+func (_m *MockinstanceWriter) Write(shard uint32, payload payloadUnion) error {
+	ret := _m.ctrl.Call(_m, "Write", shard, payload)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockinstanceWriterRecorder) WriteUntimed(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteUntimed", arg0, arg1, arg2)
+func (_mr *_MockinstanceWriterRecorder) Write(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1)
 }
 
 func (_m *MockinstanceWriter) Flush() error {

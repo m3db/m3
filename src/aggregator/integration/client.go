@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3metrics/encoding/msgpack"
 	"github.com/m3db/m3metrics/encoding/protobuf"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 )
@@ -82,17 +83,17 @@ func (c *client) writeMetricWithPoliciesList(
 	sizeBefore := encoder.Buffer().Len()
 	var err error
 	switch mu.Type {
-	case unaggregated.CounterType:
+	case metric.CounterType:
 		err = c.msgpackEncoder.EncodeCounterWithPoliciesList(unaggregated.CounterWithPoliciesList{
 			Counter:      mu.Counter(),
 			PoliciesList: pl,
 		})
-	case unaggregated.BatchTimerType:
+	case metric.TimerType:
 		err = c.msgpackEncoder.EncodeBatchTimerWithPoliciesList(unaggregated.BatchTimerWithPoliciesList{
 			BatchTimer:   mu.BatchTimer(),
 			PoliciesList: pl,
 		})
-	case unaggregated.GaugeType:
+	case metric.GaugeType:
 		err = c.msgpackEncoder.EncodeGaugeWithPoliciesList(unaggregated.GaugeWithPoliciesList{
 			Gauge:        mu.Gauge(),
 			PoliciesList: pl,
@@ -131,21 +132,21 @@ func (c *client) writeMetricWithMetadatas(
 	sizeBefore := encoder.Len()
 	var err error
 	switch mu.Type {
-	case unaggregated.CounterType:
+	case metric.CounterType:
 		err = c.protobufEncoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
 			Type: encoding.CounterWithMetadatasType,
 			CounterWithMetadatas: unaggregated.CounterWithMetadatas{
 				Counter:         mu.Counter(),
 				StagedMetadatas: sm,
 			}})
-	case unaggregated.BatchTimerType:
+	case metric.TimerType:
 		err = c.protobufEncoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
 			Type: encoding.BatchTimerWithMetadatasType,
 			BatchTimerWithMetadatas: unaggregated.BatchTimerWithMetadatas{
 				BatchTimer:      mu.BatchTimer(),
 				StagedMetadatas: sm,
 			}})
-	case unaggregated.GaugeType:
+	case metric.GaugeType:
 		err = c.protobufEncoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
 			Type: encoding.GaugeWithMetadatasType,
 			GaugeWithMetadatas: unaggregated.GaugeWithMetadatas{

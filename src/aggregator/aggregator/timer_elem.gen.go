@@ -154,7 +154,7 @@ func (e *TimerElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) 
 func (e *TimerElem) Consume(
 	earlierThanNanos int64,
 	flushLocalFn flushLocalMetricFn,
-	flushForwardFn flushForwardMetricFn,
+	flushForwardedFn flushForwardedMetricFn,
 ) bool {
 	e.Lock()
 	if e.closed {
@@ -187,7 +187,7 @@ func (e *TimerElem) Consume(
 	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
 		endAtNanos := e.toConsume[i].timeNanos + int64(e.sp.Resolution().Window)
-		e.processValue(endAtNanos, e.toConsume[i].aggregation, flushLocalFn, flushForwardFn)
+		e.processValue(endAtNanos, e.toConsume[i].aggregation, flushLocalFn, flushForwardedFn)
 		// Closes the aggregation object after it's processed.
 		e.toConsume[i].aggregation.Close()
 		e.toConsume[i].Reset()
@@ -299,7 +299,7 @@ func (e *TimerElem) processValue(
 	timeNanos int64,
 	agg *lockedTimer,
 	flushLocalFn flushLocalMetricFn,
-	flushForwardFn flushForwardMetricFn,
+	flushForwardedFn flushForwardedMetricFn,
 ) {
 	var (
 		fullPrefix      = e.FullPrefix(e.opts)
@@ -341,7 +341,7 @@ func (e *TimerElem) processValue(
 				StoragePolicy: e.sp,
 				Pipeline:      e.parsedPipeline.Remainder,
 			}
-			flushForwardFn(fm, meta)
+			flushForwardedFn(fm, meta)
 		}
 	}
 	e.lastConsumedAtNanos = timeNanos

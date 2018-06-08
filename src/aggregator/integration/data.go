@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3aggregator/aggregator"
 	maggregation "github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	metricid "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
@@ -157,13 +158,13 @@ func generateTestDataset(
 			var mu unaggregated.MetricUnion
 			metricType := typeFn(timestamp, i)
 			switch metricType {
-			case unaggregated.CounterType:
+			case metric.CounterType:
 				mu = unaggregated.MetricUnion{
 					Type:       metricType,
 					ID:         metricid.RawID(ids[i]),
 					CounterVal: testCounterVal + int64(intervalIdx),
 				}
-			case unaggregated.BatchTimerType:
+			case metric.TimerType:
 				vals := make([]float64, len(testBatchTimerVals))
 				for idx, v := range testBatchTimerVals {
 					vals[idx] = v + float64(intervalIdx)
@@ -173,7 +174,7 @@ func generateTestDataset(
 					ID:            metricid.RawID(ids[i]),
 					BatchTimerVal: vals,
 				}
-			case unaggregated.GaugeType:
+			case metric.GaugeType:
 				mu = unaggregated.MetricUnion{
 					Type:     metricType,
 					ID:       metricid.RawID(ids[i]),
@@ -319,19 +320,19 @@ func computeExpectedAggregationBuckets(
 						aggregationOpts = aggregation.NewOptions()
 					)
 					switch mu.Type {
-					case unaggregated.CounterType:
+					case metric.CounterType:
 						if aggTypes.IsDefault() {
 							aggTypes = aggTypeOpts.DefaultCounterAggregationTypes()
 						}
 						aggregationOpts.ResetSetData(aggTypes)
 						values = aggregation.NewCounter(aggregationOpts)
-					case unaggregated.BatchTimerType:
+					case metric.TimerType:
 						if aggTypes.IsDefault() {
 							aggTypes = aggTypeOpts.DefaultTimerAggregationTypes()
 						}
 						aggregationOpts.ResetSetData(aggTypes)
 						values = aggregation.NewTimer(aggTypeOpts.TimerQuantiles(), opts.StreamOptions(), aggregationOpts)
-					case unaggregated.GaugeType:
+					case metric.GaugeType:
 						if aggTypes.IsDefault() {
 							aggTypes = aggTypeOpts.DefaultGaugeAggregationTypes()
 						}
@@ -344,15 +345,15 @@ func computeExpectedAggregationBuckets(
 
 				// Add metric value to the corresponding time bucket.
 				switch mu.Type {
-				case unaggregated.CounterType:
+				case metric.CounterType:
 					v := values.(aggregation.Counter)
 					v.Update(mu.CounterVal)
 					datapoints[alignedStartNanos] = v
-				case unaggregated.BatchTimerType:
+				case metric.TimerType:
 					v := values.(aggregation.Timer)
 					v.AddBatch(mu.BatchTimerVal)
 					datapoints[alignedStartNanos] = v
-				case unaggregated.GaugeType:
+				case metric.GaugeType:
 					v := values.(aggregation.Gauge)
 					v.Update(mu.GaugeVal)
 					datapoints[alignedStartNanos] = v
@@ -477,19 +478,19 @@ func computeExpectedAggregatedMetrics(
 	return results
 }
 
-func roundRobinMetricTypeFn(_ time.Time, idx int) unaggregated.Type {
+func roundRobinMetricTypeFn(_ time.Time, idx int) metric.Type {
 	switch idx % 3 {
 	case 0:
-		return unaggregated.CounterType
+		return metric.CounterType
 	case 1:
-		return unaggregated.BatchTimerType
+		return metric.TimerType
 	default:
-		return unaggregated.GaugeType
+		return metric.GaugeType
 	}
 }
 
-func constantMetricTypeFnFactory(typ unaggregated.Type) metricTypeFn {
-	return func(time.Time, int) unaggregated.Type { return typ }
+func constantMetricTypeFnFactory(typ metric.Type) metricTypeFn {
+	return func(time.Time, int) metric.Type { return typ }
 }
 
 type byTimeIDPolicyAscending []aggregated.MetricWithStoragePolicy
@@ -512,11 +513,11 @@ func (a byTimeIDPolicyAscending) Less(i, j int) bool {
 	return retention1 < retention2
 }
 
-type metricTypeFn func(ts time.Time, idx int) unaggregated.Type
+type metricTypeFn func(ts time.Time, idx int) metric.Type
 
 type metricKey struct {
 	id  string
-	typ unaggregated.Type
+	typ metric.Type
 }
 
 type valuesByTime map[int64]interface{}

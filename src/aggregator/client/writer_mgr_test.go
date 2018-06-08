@@ -26,8 +26,6 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric/unaggregated"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -90,16 +88,30 @@ func TestWriterManagerRemoveInstancesSuccess(t *testing.T) {
 }
 
 func TestWriterManagerWriteUntimedClosed(t *testing.T) {
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testCounter,
+			metadatas: testStagedMetadatas,
+		},
+	}
 	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
 	mgr.closed = true
-	err := mgr.WriteUntimed(testPlacementInstance, 0, testCounter, testStagedMetadatas)
+	err := mgr.Write(testPlacementInstance, 0, payload)
 	require.Equal(t, errInstanceWriterManagerClosed, err)
 }
 
 func TestWriterManagerWriteUntimedNoInstances(t *testing.T) {
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testCounter,
+			metadatas: testStagedMetadatas,
+		},
+	}
 	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
 	mgr.closed = false
-	err := mgr.WriteUntimed(testPlacementInstance, 0, testCounter, testStagedMetadatas)
+	err := mgr.Write(testPlacementInstance, 0, payload)
 	require.Error(t, err)
 }
 
@@ -114,21 +126,18 @@ func TestWriterManagerWriteUntimedSuccess(t *testing.T) {
 				SetID("foo").
 				SetEndpoint("fooAddr"),
 		}
-		shardRes uint32
-		muRes    unaggregated.MetricUnion
-		smRes    metadata.StagedMetadatas
+		shardRes   uint32
+		payloadRes payloadUnion
 	)
 	writer := NewMockinstanceWriter(ctrl)
 	writer.EXPECT().
-		WriteUntimed(gomock.Any(), gomock.Any(), gomock.Any()).
+		Write(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
 			shard uint32,
-			metric unaggregated.MetricUnion,
-			metadatas metadata.StagedMetadatas,
+			payload payloadUnion,
 		) error {
 			shardRes = shard
-			muRes = metric
-			smRes = metadatas
+			payloadRes = payload
 			return nil
 		})
 	mgr := newInstanceWriterManager(testOptions()).(*writerManager)
@@ -137,11 +146,19 @@ func TestWriterManagerWriteUntimedSuccess(t *testing.T) {
 		instanceWriter: writer,
 	}
 
-	require.NoError(t, mgr.WriteUntimed(testPlacementInstance, 0, testCounter, testStagedMetadatas))
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testCounter,
+			metadatas: testStagedMetadatas,
+		},
+	}
+	require.NoError(t, mgr.Write(testPlacementInstance, 0, payload))
 	require.Equal(t, 1, len(mgr.writers))
 	require.Equal(t, uint32(0), shardRes)
-	require.Equal(t, testCounter, muRes)
-	require.Equal(t, testStagedMetadatas, smRes)
+	require.Equal(t, untimedType, payloadRes.payloadType)
+	require.Equal(t, testCounter, payloadRes.untimed.metric)
+	require.Equal(t, testStagedMetadatas, payloadRes.untimed.metadatas)
 }
 
 func TestWriterManagerFlushClosed(t *testing.T) {

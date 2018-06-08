@@ -35,6 +35,8 @@ import (
 	"github.com/m3db/m3metrics/encoding/migration"
 	"github.com/m3db/m3metrics/encoding/protobuf"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3x/instrument"
@@ -45,9 +47,16 @@ import (
 )
 
 func TestWriterWriteClosed(t *testing.T) {
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testCounter,
+			metadatas: testStagedMetadatas,
+		},
+	}
 	w := newInstanceWriter(testPlacementInstance, testOptions()).(*writer)
 	w.closed = true
-	require.Equal(t, errInstanceWriterClosed, w.WriteUntimed(0, testCounter, testStagedMetadatas))
+	require.Equal(t, errInstanceWriterClosed, w.Write(0, payload))
 }
 
 func TestWriterWriteUntimedCounterEncodeError(t *testing.T) {
@@ -69,7 +78,15 @@ func TestWriterWriteUntimedCounterEncodeError(t *testing.T) {
 		encoder.EXPECT().Truncate(0).Return(nil)
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
 	}
-	require.Equal(t, errTestEncodeMetric, w.WriteUntimed(0, testCounter, testStagedMetadatas))
+
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testCounter,
+			metadatas: testStagedMetadatas,
+		},
+	}
+	require.Equal(t, errTestEncodeMetric, w.Write(0, payload))
 }
 
 func TestWriterWriteUntimedCounterEncoderExists(t *testing.T) {
@@ -90,7 +107,15 @@ func TestWriterWriteUntimedCounterEncoderExists(t *testing.T) {
 		encoder.EXPECT().Len().Return(4),
 	)
 	w.encodersByShard[0] = &lockedEncoder{UnaggregatedEncoder: encoder}
-	require.NoError(t, w.WriteUntimed(0, testCounter, testStagedMetadatas))
+
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testCounter,
+			metadatas: testStagedMetadatas,
+		},
+	}
+	require.NoError(t, w.Write(0, payload))
 	require.Equal(t, 1, len(w.encodersByShard))
 }
 
@@ -114,7 +139,15 @@ func TestWriterWriteUntimedCounterEncoderDoesNotExist(t *testing.T) {
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
 	}
-	require.NoError(t, w.WriteUntimed(0, testCounter, testStagedMetadatas))
+
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testCounter,
+			metadatas: testStagedMetadatas,
+		},
+	}
+	require.NoError(t, w.Write(0, payload))
 }
 
 func TestWriterWriteUntimedCounterWithFlushingZeroSizeBefore(t *testing.T) {
@@ -150,7 +183,15 @@ func TestWriterWriteUntimedCounterWithFlushingZeroSizeBefore(t *testing.T) {
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
 	}
-	require.NoError(t, w.WriteUntimed(0, testCounter, testStagedMetadatas))
+
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testCounter,
+			metadatas: testStagedMetadatas,
+		},
+	}
+	require.NoError(t, w.Write(0, payload))
 
 	enc, exists := w.encodersByShard[0]
 	require.True(t, exists)
@@ -196,7 +237,15 @@ func TestWriterWriteUntimedCounterWithFlushingPositiveSizeBefore(t *testing.T) {
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
 	}
-	require.NoError(t, w.WriteUntimed(0, testCounter, testStagedMetadatas))
+
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testCounter,
+			metadatas: testStagedMetadatas,
+		},
+	}
+	require.NoError(t, w.Write(0, payload))
 
 	enc, exists := w.encodersByShard[0]
 	require.True(t, exists)
@@ -216,7 +265,7 @@ func TestWriterWriteUntimedBatchTimerNoBatchSizeLimit(t *testing.T) {
 		timerValues[i] = float64(i)
 	}
 	testLargeBatchTimer := unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            []byte("testLargeBatchTimer"),
 		BatchTimerVal: timerValues,
 	}
@@ -237,7 +286,15 @@ func TestWriterWriteUntimedBatchTimerNoBatchSizeLimit(t *testing.T) {
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
 	}
-	require.NoError(t, w.WriteUntimed(0, testLargeBatchTimer, testStagedMetadatas))
+
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testLargeBatchTimer,
+			metadatas: testStagedMetadatas,
+		},
+	}
+	require.NoError(t, w.Write(0, payload))
 }
 
 func TestWriterWriteUntimedBatchTimerSmallBatchSize(t *testing.T) {
@@ -261,7 +318,15 @@ func TestWriterWriteUntimedBatchTimerSmallBatchSize(t *testing.T) {
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
 	}
-	require.NoError(t, w.WriteUntimed(0, testBatchTimer, testStagedMetadatas))
+
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testBatchTimer,
+			metadatas: testStagedMetadatas,
+		},
+	}
+	require.NoError(t, w.Write(0, payload))
 }
 
 func TestWriterWriteUntimedBatchTimerLargeBatchSize(t *testing.T) {
@@ -274,7 +339,7 @@ func TestWriterWriteUntimedBatchTimerLargeBatchSize(t *testing.T) {
 		timerValues[i] = float64(i)
 	}
 	testLargeBatchTimer := unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            []byte("testLargeBatchTimer"),
 		BatchTimerVal: timerValues,
 	}
@@ -304,7 +369,14 @@ func TestWriterWriteUntimedBatchTimerLargeBatchSize(t *testing.T) {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
 	}
 
-	require.NoError(t, w.WriteUntimed(0, testLargeBatchTimer, testStagedMetadatas))
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testLargeBatchTimer,
+			metadatas: testStagedMetadatas,
+		},
+	}
+	require.NoError(t, w.Write(0, payload))
 
 	var (
 		expectedMsgTypes  []encoding.UnaggregatedMessageType
@@ -336,7 +408,7 @@ func TestWriterWriteUntimedLargeBatchTimerUsesMultipleBuffers(t *testing.T) {
 		timerValues[i] = float64(i)
 	}
 	testLargeBatchTimer := unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            []byte("testLargeBatchTimer"),
 		BatchTimerVal: timerValues,
 	}
@@ -348,7 +420,15 @@ func TestWriterWriteUntimedLargeBatchTimerUsesMultipleBuffers(t *testing.T) {
 		SetInstrumentOptions(iOpts)
 
 	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
-	require.NoError(t, w.WriteUntimed(0, testLargeBatchTimer, testStagedMetadatas))
+
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testLargeBatchTimer,
+			metadatas: testStagedMetadatas,
+		},
+	}
+	require.NoError(t, w.Write(0, payload))
 
 	enqueuedCounter := testScope.Snapshot().Counters()["buffers+action=enqueued"]
 	require.NotNil(t, enqueuedCounter)
@@ -365,7 +445,7 @@ func TestWriterWriteUntimedBatchTimerWriteError(t *testing.T) {
 		timerValues[i] = float64(i)
 	}
 	testLargeBatchTimer := unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            []byte("testLargeBatchTimer"),
 		BatchTimerVal: timerValues,
 	}
@@ -388,7 +468,15 @@ func TestWriterWriteUntimedBatchTimerWriteError(t *testing.T) {
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
 	}
-	require.Equal(t, errTestWrite, w.WriteUntimed(0, testLargeBatchTimer, testStagedMetadatas))
+
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testLargeBatchTimer,
+			metadatas: testStagedMetadatas,
+		},
+	}
+	require.Equal(t, errTestWrite, w.Write(0, payload))
 }
 
 func TestWriterWriteUntimedBatchTimerEnqueueError(t *testing.T) {
@@ -404,7 +492,14 @@ func TestWriterWriteUntimedBatchTimerEnqueueError(t *testing.T) {
 	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
 	w.queue = queue
 
-	require.Equal(t, errTestEnqueue, w.WriteUntimed(0, testBatchTimer, testStagedMetadatas))
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testBatchTimer,
+			metadatas: testStagedMetadatas,
+		},
+	}
+	require.Equal(t, errTestEnqueue, w.Write(0, payload))
 }
 
 func TestWriterWriteUntimedGauge(t *testing.T) {
@@ -427,7 +522,173 @@ func TestWriterWriteUntimedGauge(t *testing.T) {
 	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
 		return &lockedEncoder{UnaggregatedEncoder: encoder}
 	}
-	require.NoError(t, w.WriteUntimed(0, testGauge, testStagedMetadatas))
+
+	payload := payloadUnion{
+		payloadType: untimedType,
+		untimed: untimedPayload{
+			metric:    testGauge,
+			metadatas: testStagedMetadatas,
+		},
+	}
+	require.NoError(t, w.Write(0, payload))
+}
+
+func TestWriterWriteForwardedWithFlushingZeroSizeBefore(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		stream      = protobuf.NewBuffer([]byte{1, 2, 3, 4, 5, 6, 7}, nil)
+		enqueuedBuf protobuf.Buffer
+	)
+	encoder := protobuf.NewMockUnaggregatedEncoder(ctrl)
+	gomock.InOrder(
+		encoder.EXPECT().Len().Return(0),
+		encoder.EXPECT().EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type: encoding.TimedMetricWithForwardMetadataType,
+			TimedMetricWithForwardMetadata: aggregated.MetricWithForwardMetadata{
+				Metric:          testForwarded,
+				ForwardMetadata: testForwardMetadata,
+			},
+		}).Return(nil),
+		encoder.EXPECT().Len().Return(7),
+		encoder.EXPECT().Relinquish().Return(stream),
+	)
+	queue := NewMockinstanceQueue(ctrl)
+	queue.EXPECT().
+		Enqueue(gomock.Any()).
+		DoAndReturn(func(buf protobuf.Buffer) error {
+			enqueuedBuf = buf
+			return nil
+		})
+	w := newInstanceWriter(testPlacementInstance, testOptions().SetFlushSize(3)).(*writer)
+	w.queue = queue
+	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
+		return &lockedEncoder{UnaggregatedEncoder: encoder}
+	}
+
+	payload := payloadUnion{
+		payloadType: forwardedType,
+		forwarded: forwardedPayload{
+			metric:   testForwarded,
+			metadata: testForwardMetadata,
+		},
+	}
+	require.NoError(t, w.Write(0, payload))
+
+	enc, exists := w.encodersByShard[0]
+	require.True(t, exists)
+	require.NotNil(t, enc)
+	require.Equal(t, 1, len(w.encodersByShard))
+	require.Equal(t, []byte{1, 2, 3, 4, 5, 6, 7}, enqueuedBuf.Bytes())
+}
+
+func TestWriterWriteForwardedWithFlushingPositiveSizeBefore(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		stream      = protobuf.NewBuffer([]byte{1, 2, 3, 4, 5, 6, 7}, nil)
+		resetBytes  []byte
+		enqueuedBuf protobuf.Buffer
+	)
+	encoder := protobuf.NewMockUnaggregatedEncoder(ctrl)
+	gomock.InOrder(
+		encoder.EXPECT().Len().Return(3),
+		encoder.EXPECT().EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type: encoding.TimedMetricWithForwardMetadataType,
+			TimedMetricWithForwardMetadata: aggregated.MetricWithForwardMetadata{
+				Metric:          testForwarded,
+				ForwardMetadata: testForwardMetadata,
+			},
+		}).Return(nil),
+		encoder.EXPECT().Len().Return(7),
+		encoder.EXPECT().Relinquish().Return(stream),
+		encoder.EXPECT().
+			Reset([]byte{4, 5, 6, 7}).
+			DoAndReturn(func(data []byte) { resetBytes = data }),
+	)
+	queue := NewMockinstanceQueue(ctrl)
+	queue.EXPECT().
+		Enqueue(gomock.Any()).
+		DoAndReturn(func(buf protobuf.Buffer) error {
+			enqueuedBuf = buf
+			return nil
+		})
+	w := newInstanceWriter(testPlacementInstance, testOptions().SetFlushSize(3)).(*writer)
+	w.queue = queue
+	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
+		return &lockedEncoder{UnaggregatedEncoder: encoder}
+	}
+
+	payload := payloadUnion{
+		payloadType: forwardedType,
+		forwarded: forwardedPayload{
+			metric:   testForwarded,
+			metadata: testForwardMetadata,
+		},
+	}
+	require.NoError(t, w.Write(0, payload))
+
+	enc, exists := w.encodersByShard[0]
+	require.True(t, exists)
+	require.NotNil(t, enc)
+	require.Equal(t, 1, len(w.encodersByShard))
+	require.Equal(t, []byte{0x4, 0x5, 0x6, 0x7}, resetBytes)
+	require.Equal(t, []byte{0x1, 0x2, 0x3}, enqueuedBuf.Bytes())
+}
+
+func TestWriterWriteForwardedEncodeError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	errTestEncodeMetric := errors.New("error encoding metrics")
+	w := newInstanceWriter(testPlacementInstance, testOptions()).(*writer)
+	w.newLockedEncoderFn = func(protobuf.UnaggregatedOptions) *lockedEncoder {
+		encoder := protobuf.NewMockUnaggregatedEncoder(ctrl)
+		encoder.EXPECT().Len().Return(0)
+		encoder.EXPECT().EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type: encoding.TimedMetricWithForwardMetadataType,
+			TimedMetricWithForwardMetadata: aggregated.MetricWithForwardMetadata{
+				Metric:          testForwarded,
+				ForwardMetadata: testForwardMetadata,
+			},
+		}).Return(errTestEncodeMetric)
+		encoder.EXPECT().Truncate(0).Return(nil)
+		return &lockedEncoder{UnaggregatedEncoder: encoder}
+	}
+
+	payload := payloadUnion{
+		payloadType: forwardedType,
+		forwarded: forwardedPayload{
+			metric:   testForwarded,
+			metadata: testForwardMetadata,
+		},
+	}
+	require.Equal(t, errTestEncodeMetric, w.Write(0, payload))
+}
+
+func TestWriterWriteForwardedEnqueueError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	errTestEnqueue := errors.New("test enqueue error")
+	queue := NewMockinstanceQueue(ctrl)
+	queue.EXPECT().Enqueue(gomock.Any()).Return(errTestEnqueue)
+	opts := testOptions().
+		SetMaxTimerBatchSize(1).
+		SetFlushSize(1)
+	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
+	w.queue = queue
+
+	payload := payloadUnion{
+		payloadType: forwardedType,
+		forwarded: forwardedPayload{
+			metric:   testForwarded,
+			metadata: testForwardMetadata,
+		},
+	}
+	require.Equal(t, errTestEnqueue, w.Write(0, payload))
 }
 
 func TestWriterFlushClosed(t *testing.T) {
@@ -544,6 +805,7 @@ func testWriterConcurrentWriteStress(
 		counters    = make([]unaggregated.Counter, numIter)
 		timers      = make([]unaggregated.BatchTimer, numIter)
 		gauges      = make([]unaggregated.Gauge, numIter)
+		forwarded   = make([]aggregated.Metric, numIter)
 		resultsLock sync.Mutex
 		results     [][]byte
 	)
@@ -570,6 +832,12 @@ func testWriterConcurrentWriteStress(
 			ID:     []byte(fmt.Sprintf("timer%d", i)),
 			Values: timerVals,
 		}
+		forwarded[i] = aggregated.Metric{
+			Type:      metric.CounterType,
+			ID:        []byte(fmt.Sprintf("forwarded%d", i)),
+			TimeNanos: int64(i),
+			Value:     float64(i),
+		}
 	}
 
 	queue := NewMockinstanceQueue(ctrl)
@@ -592,18 +860,25 @@ func testWriterConcurrentWriteStress(
 	w.queue = queue
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(4)
 
 	go func() {
 		defer wg.Done()
 
 		for i := 0; i < numIter; i++ {
 			mu := unaggregated.MetricUnion{
-				Type:       unaggregated.CounterType,
+				Type:       metric.CounterType,
 				ID:         counters[i].ID,
 				CounterVal: counters[i].Value,
 			}
-			require.NoError(t, w.WriteUntimed(shard, mu, testStagedMetadatas))
+			payload := payloadUnion{
+				payloadType: untimedType,
+				untimed: untimedPayload{
+					metric:    mu,
+					metadatas: testStagedMetadatas,
+				},
+			}
+			require.NoError(t, w.Write(shard, payload))
 		}
 	}()
 
@@ -612,11 +887,18 @@ func testWriterConcurrentWriteStress(
 
 		for i := 0; i < numIter; i++ {
 			mu := unaggregated.MetricUnion{
-				Type:          unaggregated.BatchTimerType,
+				Type:          metric.TimerType,
 				ID:            timers[i].ID,
 				BatchTimerVal: timers[i].Values,
 			}
-			require.NoError(t, w.WriteUntimed(shard, mu, testStagedMetadatas))
+			payload := payloadUnion{
+				payloadType: untimedType,
+				untimed: untimedPayload{
+					metric:    mu,
+					metadatas: testStagedMetadatas,
+				},
+			}
+			require.NoError(t, w.Write(shard, payload))
 		}
 	}()
 
@@ -625,11 +907,33 @@ func testWriterConcurrentWriteStress(
 
 		for i := 0; i < numIter; i++ {
 			mu := unaggregated.MetricUnion{
-				Type:     unaggregated.GaugeType,
+				Type:     metric.GaugeType,
 				ID:       gauges[i].ID,
 				GaugeVal: gauges[i].Value,
 			}
-			require.NoError(t, w.WriteUntimed(shard, mu, testStagedMetadatas))
+			payload := payloadUnion{
+				payloadType: untimedType,
+				untimed: untimedPayload{
+					metric:    mu,
+					metadatas: testStagedMetadatas,
+				},
+			}
+			require.NoError(t, w.Write(shard, payload))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < numIter; i++ {
+			payload := payloadUnion{
+				payloadType: forwardedType,
+				forwarded: forwardedPayload{
+					metric:   forwarded[i],
+					metadata: testForwardMetadata,
+				},
+			}
+			require.NoError(t, w.Write(shard, payload))
 		}
 	}()
 
@@ -637,9 +941,10 @@ func testWriterConcurrentWriteStress(
 	w.Flush()
 
 	var (
-		resCounters = make([]unaggregated.Counter, 0, numIter)
-		resTimers   = make([]unaggregated.BatchTimer, 0, numIter)
-		resGauges   = make([]unaggregated.Gauge, 0, numIter)
+		resCounters  = make([]unaggregated.Counter, 0, numIter)
+		resTimers    = make([]unaggregated.BatchTimer, 0, numIter)
+		resGauges    = make([]unaggregated.Gauge, 0, numIter)
+		resForwarded = make([]aggregated.Metric, 0, numIter)
 	)
 	for i := 0; i < len(results); i++ {
 		buf := bytes.NewBuffer(results[i])
@@ -659,6 +964,10 @@ func testWriterConcurrentWriteStress(
 				require.Equal(t, testStagedMetadatas, msgResult.GaugeWithMetadatas.StagedMetadatas)
 				metric := cloneMetric(msgResult.GaugeWithMetadatas.Gauge.ToUnion())
 				resGauges = append(resGauges, metric.Gauge())
+			case encoding.TimedMetricWithForwardMetadataType:
+				require.Equal(t, testForwardMetadata, msgResult.TimedMetricWithForwardMetadata.ForwardMetadata)
+				metric := cloneForwardedMetric(msgResult.TimedMetricWithForwardMetadata.Metric)
+				resForwarded = append(resForwarded, metric)
 			default:
 				require.Fail(t, "unrecognized message type %v", msgResult.Type)
 			}
@@ -721,6 +1030,15 @@ func testWriterConcurrentWriteStress(
 		return bytes.Compare(resGauges[i].ID, resGauges[j].ID) < 0
 	})
 	require.Equal(t, gauges, resGauges)
+
+	// Sort forwarded for comparison purposes.
+	sort.Slice(forwarded, func(i, j int) bool {
+		return bytes.Compare(forwarded[i].ID, forwarded[j].ID) < 0
+	})
+	sort.Slice(resForwarded, func(i, j int) bool {
+		return bytes.Compare(resForwarded[i].ID, resForwarded[j].ID) < 0
+	})
+	require.Equal(t, forwarded, resForwarded)
 }
 
 func TestRefCountedWriter(t *testing.T) {
@@ -738,10 +1056,16 @@ func cloneMetric(m unaggregated.MetricUnion) unaggregated.MetricUnion {
 	clonedID := make(id.RawID, len(m.ID))
 	copy(clonedID, m.ID)
 	mu.ID = clonedID
-	if m.Type == unaggregated.BatchTimerType {
+	if m.Type == metric.TimerType {
 		clonedTimerVal := make([]float64, len(m.BatchTimerVal))
 		copy(clonedTimerVal, m.BatchTimerVal)
 		mu.BatchTimerVal = clonedTimerVal
 	}
 	return mu
+}
+
+func cloneForwardedMetric(m aggregated.Metric) aggregated.Metric {
+	cloned := m
+	cloned.ID = append([]byte(nil), m.ID...)
+	return cloned
 }

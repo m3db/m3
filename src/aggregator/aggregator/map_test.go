@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -83,8 +84,9 @@ func TestMetricMapAddUntimedNoRateLimit(t *testing.T) {
 
 	// Add a counter metric and assert there is one entry afterwards.
 	key := entryKey{
-		metricType: unaggregated.CounterType,
-		idHash:     hash.Murmur3Hash128(testCounterID),
+		metricCategory: untimedMetric,
+		metricType:     metric.CounterType,
+		idHash:         hash.Murmur3Hash128(testCounterID),
 	}
 	require.NoError(t, m.AddUntimed(testCounter, policies))
 	require.Equal(t, 1, len(m.entries))
@@ -111,11 +113,12 @@ func TestMetricMapAddUntimedNoRateLimit(t *testing.T) {
 	// Add a metric with different type and assert there are
 	// now two entries.
 	key2 := entryKey{
-		metricType: unaggregated.GaugeType,
-		idHash:     hash.Murmur3Hash128(testCounterID),
+		metricCategory: untimedMetric,
+		metricType:     metric.GaugeType,
+		idHash:         hash.Murmur3Hash128(testCounterID),
 	}
 	metricWithDifferentType := unaggregated.MetricUnion{
-		Type:     unaggregated.GaugeType,
+		Type:     metric.GaugeType,
 		ID:       testCounterID,
 		GaugeVal: 123.456,
 	}
@@ -134,7 +137,7 @@ func TestMetricMapAddUntimedNoRateLimit(t *testing.T) {
 
 	// Add a metric with a different id and assert there are now three entries.
 	metricWithDifferentID := unaggregated.MetricUnion{
-		Type:     unaggregated.GaugeType,
+		Type:     metric.GaugeType,
 		ID:       []byte("bar"),
 		GaugeVal: 123.456,
 	}
@@ -203,7 +206,7 @@ func TestMetricMapAddUntimedWithRateLimit(t *testing.T) {
 	endIdx := 100
 	for i := startIdx; i < endIdx; i++ {
 		metric := unaggregated.MetricUnion{
-			Type: unaggregated.CounterType,
+			Type: metric.CounterType,
 			ID:   id.RawID(fmt.Sprintf("testC%d", i)),
 		}
 		require.NoError(t, m.AddUntimed(metric, testDefaultStagedMetadatas))
@@ -218,7 +221,7 @@ func TestMetricMapAddUntimedWithRateLimit(t *testing.T) {
 	endIdx = startIdx + 1
 	for i := startIdx; i < endIdx; i++ {
 		metric := unaggregated.MetricUnion{
-			Type: unaggregated.CounterType,
+			Type: metric.CounterType,
 			ID:   id.RawID(fmt.Sprintf("testC%d", i)),
 		}
 		if i == startIdx {
@@ -240,7 +243,7 @@ func TestMetricMapAddUntimedWithRateLimit(t *testing.T) {
 	endIdx = startIdx + 100
 	for i := startIdx; i < endIdx; i++ {
 		metric := unaggregated.MetricUnion{
-			Type: unaggregated.CounterType,
+			Type: metric.CounterType,
 			ID:   id.RawID(fmt.Sprintf("testC%d", i)),
 		}
 		require.NoError(t, m.AddUntimed(metric, testDefaultStagedMetadatas))
@@ -248,7 +251,7 @@ func TestMetricMapAddUntimedWithRateLimit(t *testing.T) {
 
 	// Verify one more insert results in rate limit violation.
 	metric := unaggregated.MetricUnion{
-		Type: unaggregated.CounterType,
+		Type: metric.CounterType,
 		ID:   id.RawID(fmt.Sprintf("testC%d", endIdx)),
 	}
 	require.Equal(t, errWriteNewMetricRateLimitExceeded, m.AddUntimed(metric, testDefaultStagedMetadatas))
@@ -287,7 +290,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 	numEntries := 500
 	for i := 0; i < numEntries; i++ {
 		key := entryKey{
-			metricType: unaggregated.CounterType,
+			metricType: metric.CounterType,
 			idHash:     hash.Murmur3Hash128([]byte(fmt.Sprintf("%d", i))),
 		}
 		if i%2 == 0 {

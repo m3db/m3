@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
@@ -56,12 +57,12 @@ const (
 
 var (
 	testValidMetric = unaggregated.MetricUnion{
-		Type:       unaggregated.CounterType,
+		Type:       metric.CounterType,
 		ID:         []byte("foo"),
 		CounterVal: 1234,
 	}
 	testInvalidMetric = unaggregated.MetricUnion{
-		Type: unaggregated.UnknownType,
+		Type: metric.UnknownType,
 		ID:   []byte("testInvalid"),
 	}
 	testStagedMetadatas = metadata.StagedMetadatas{
