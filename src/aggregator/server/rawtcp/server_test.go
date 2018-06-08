@@ -35,8 +35,8 @@ import (
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/op"
-	"github.com/m3db/m3metrics/op/applied"
+	"github.com/m3db/m3metrics/pipeline"
+	"github.com/m3db/m3metrics/pipeline/applied"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/retry"
 	xserver "github.com/m3db/m3x/server"
@@ -113,10 +113,10 @@ var (
 	testForwardMetadata = metadata.ForwardMetadata{
 		AggregationID: aggregation.DefaultID,
 		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
-		Pipeline: applied.NewPipeline([]applied.Union{
+		Pipeline: applied.NewPipeline([]applied.OpUnion{
 			{
-				Type: op.RollupType,
-				Rollup: applied.Rollup{
+				Type: pipeline.RollupOpType,
+				Rollup: applied.RollupOp{
 					ID:            []byte("foo"),
 					AggregationID: aggregation.MustCompressTypes(aggregation.Count),
 				},

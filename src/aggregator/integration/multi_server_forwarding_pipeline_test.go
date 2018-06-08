@@ -36,8 +36,8 @@ import (
 	maggregation "github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
-	"github.com/m3db/m3metrics/op"
-	"github.com/m3db/m3metrics/op/applied"
+	"github.com/m3db/m3metrics/pipeline"
+	"github.com/m3db/m3metrics/pipeline/applied"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/transformation"
 	"github.com/m3db/m3x/clock"
@@ -234,14 +234,14 @@ func TestMultiServerForwardingPipeline(t *testing.T) {
 					{
 						AggregationID:   maggregation.DefaultID,
 						StoragePolicies: []policy.StoragePolicy{storagePolicy},
-						Pipeline: applied.NewPipeline([]applied.Union{
+						Pipeline: applied.NewPipeline([]applied.OpUnion{
 							{
-								Type:           op.TransformationType,
-								Transformation: op.Transformation{Type: transformation.PerSecond},
+								Type:           pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 							},
 							{
-								Type: op.RollupType,
-								Rollup: applied.Rollup{
+								Type: pipeline.RollupOpType,
+								Rollup: applied.RollupOp{
 									ID:            []byte(pipelineRollupID),
 									AggregationID: maggregation.MustCompressTypes(maggregation.Sum),
 								},

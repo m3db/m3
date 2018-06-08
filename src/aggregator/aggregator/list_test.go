@@ -36,8 +36,8 @@ import (
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/op"
-	"github.com/m3db/m3metrics/op/applied"
+	"github.com/m3db/m3metrics/pipeline"
+	"github.com/m3db/m3metrics/pipeline/applied"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 
@@ -520,10 +520,10 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 	l, err := newForwardedMetricList(testShard, listID, opts)
 	require.NoError(t, err)
 
-	pipeline := applied.NewPipeline([]applied.Union{
+	pipeline := applied.NewPipeline([]applied.OpUnion{
 		{
-			Type: op.RollupType,
-			Rollup: applied.Rollup{
+			Type: pipeline.RollupOpType,
+			Rollup: applied.RollupOp{
 				ID:            []byte("foo.bar"),
 				AggregationID: aggregation.MustCompressTypes(aggregation.Max),
 			},
@@ -594,7 +594,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 			metadata := metadata.ForwardMetadata{
 				AggregationID:     aggregation.MustCompressTypes(aggregation.Max),
 				StoragePolicy:     testStoragePolicy,
-				Pipeline:          applied.NewPipeline([]applied.Union{}),
+				Pipeline:          applied.NewPipeline([]applied.OpUnion{}),
 				SourceID:          ep.elem.ID(),
 				NumForwardedTimes: testNumForwardedTimes + 1,
 			}
