@@ -20,8 +20,26 @@
 
 package integration
 
-// TODO(xichen): revive this once encoder APIs are added.
-/*
+import (
+	"fmt"
+	"sort"
+	"testing"
+	"time"
+
+	"github.com/m3db/m3aggregator/aggregation"
+	"github.com/m3db/m3aggregator/aggregator"
+	maggregation "github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric/aggregated"
+	metricid "github.com/m3db/m3metrics/metric/id"
+	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3metrics/op/applied"
+	"github.com/m3db/m3metrics/policy"
+	xtime "github.com/m3db/m3x/time"
+
+	"github.com/stretchr/testify/require"
+)
+
 var (
 	testCounterVal     = int64(123)
 	testBatchTimerVals = []float64{1.5, 2.5, 3.5, 4.5, 5.5}
@@ -46,68 +64,73 @@ var (
 			},
 		),
 	}
+	testPoliciesListWithCustomAggregation1 = policy.PoliciesList{
+		policy.NewStagedPolicies(
+			0,
+			false,
+			[]policy.Policy{
+				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), maggregation.MustCompressTypes(maggregation.Min)),
+				policy.NewPolicy(policy.NewStoragePolicy(2*time.Second, xtime.Second, 6*time.Hour), maggregation.MustCompressTypes(maggregation.Min)),
+			},
+		),
+	}
+	testPoliciesListWithCustomAggregation2 = policy.PoliciesList{
+		policy.NewStagedPolicies(
+			0,
+			false,
+			[]policy.Policy{
+				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), maggregation.MustCompressTypes(maggregation.Min, maggregation.Max)),
+				policy.NewPolicy(policy.NewStoragePolicy(3*time.Second, xtime.Second, 24*time.Hour), maggregation.MustCompressTypes(maggregation.Min, maggregation.Max)),
+			},
+		),
+	}
+	testStagedMetadatas = metadata.StagedMetadatas{
+		{
+			CutoverNanos: 0,
+			Tombstoned:   false,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: maggregation.DefaultID,
+						StoragePolicies: []policy.StoragePolicy{
+							policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+							policy.NewStoragePolicy(2*time.Second, xtime.Second, 6*time.Hour),
+						},
+					},
+					{
+						AggregationID: maggregation.MustCompressTypes(maggregation.Sum),
+						StoragePolicies: []policy.StoragePolicy{
+							policy.NewStoragePolicy(time.Second, xtime.Second, 2*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+	testUpdatedStagedMetadatas = metadata.StagedMetadatas{
+		{
+			CutoverNanos: 0,
+			Tombstoned:   false,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: maggregation.MustCompressTypes(maggregation.Mean),
+						StoragePolicies: []policy.StoragePolicy{
+							policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+							policy.NewStoragePolicy(3*time.Second, xtime.Second, 6*time.Hour),
+						},
+					},
+					{
+						AggregationID: maggregation.DefaultID,
+						StoragePolicies: []policy.StoragePolicy{
+							policy.NewStoragePolicy(2*time.Second, xtime.Second, 2*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
 )
-
-type byTimeIDPolicyAscending []aggregated.MetricWithStoragePolicy
-
-func (a byTimeIDPolicyAscending) Len() int      { return len(a) }
-func (a byTimeIDPolicyAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a byTimeIDPolicyAscending) Less(i, j int) bool {
-	if a[i].TimeNanos != a[j].TimeNanos {
-		return a[i].TimeNanos < a[j].TimeNanos
-	}
-	id1, id2 := string(a[i].ID), string(a[j].ID)
-	if id1 != id2 {
-		return id1 < id2
-	}
-	resolution1, resolution2 := a[i].Resolution().Window, a[j].Resolution().Window
-	if resolution1 != resolution2 {
-		return resolution1 < resolution2
-	}
-	retention1, retention2 := a[i].Retention(), a[j].Retention()
-	return retention1 < retention2
-}
-
-type metricKey struct {
-	id  string
-	typ unaggregated.Type
-}
-
-type valuesByTime map[int64]interface{}
-type datapointsByID map[metricKey]valuesByTime
-
-type dataForPolicy struct {
-	aggTypes maggregation.Types
-	data     datapointsByID
-}
-
-type metricsByPolicy map[policy.Policy]*dataForPolicy
-type metricTypeFn func(ts time.Time, idx int) unaggregated.Type
-
-type testData struct {
-	timestamp time.Time
-	metrics   []unaggregated.MetricUnion
-}
-
-type testDatasetWithPoliciesList struct {
-	dataset      []testData
-	policiesList policy.PoliciesList
-}
-
-func roundRobinMetricTypeFn(_ time.Time, idx int) unaggregated.Type {
-	switch idx % 3 {
-	case 0:
-		return unaggregated.CounterType
-	case 1:
-		return unaggregated.BatchTimerType
-	default:
-		return unaggregated.GaugeType
-	}
-}
-
-func constantMetryTypeFnFactory(typ unaggregated.Type) metricTypeFn {
-	return func(time.Time, int) unaggregated.Type { return typ }
-}
 
 func generateTestIDs(prefix string, numIDs int) []string {
 	ids := make([]string, numIDs)
@@ -117,13 +140,12 @@ func generateTestIDs(prefix string, numIDs int) []string {
 	return ids
 }
 
-func generateTestData(
+func generateTestDataset(
 	start, stop time.Time,
 	interval time.Duration,
 	ids []string,
 	typeFn metricTypeFn,
-	policiesList policy.PoliciesList,
-) testDatasetWithPoliciesList {
+) testDataset {
 	var (
 		testDataset []testData
 		intervalIdx int
@@ -131,7 +153,7 @@ func generateTestData(
 	for timestamp := start; timestamp.Before(stop); timestamp = timestamp.Add(interval) {
 		mp := make([]unaggregated.MetricUnion, 0, len(ids))
 		for i := 0; i < len(ids); i++ {
-			// Randomly generate metrics with slightly pertubrations to the values.
+			// Randomly generate metrics with slight pertubrations to the values.
 			var mu unaggregated.MetricUnion
 			metricType := typeFn(timestamp, i)
 			switch metricType {
@@ -166,67 +188,136 @@ func generateTestData(
 		})
 		intervalIdx++
 	}
-	return testDatasetWithPoliciesList{
-		dataset:      testDataset,
-		policiesList: policiesList,
-	}
+	return testDataset
 }
 
-func toExpectedResults(
+func computeExpectedResults(
 	t *testing.T,
 	now time.Time,
-	dsp testDatasetWithPoliciesList,
+	dataset testDataset,
+	metadata metadataUnion,
 	opts aggregator.Options,
 ) []aggregated.MetricWithStoragePolicy {
-	var (
-		nowNanos       = now.UnixNano()
-		policiesList   = dsp.policiesList
-		activePolicies policy.StagedPolicies
-		found          bool
-	)
+	keys := metadata.expectedAggregationKeys(t, now, opts.DefaultStoragePolicies())
+	buckets := computeExpectedAggregationBuckets(t, dataset, keys, opts)
+	return computeExpectedAggregationOutput(t, now, buckets, opts)
+}
 
-	require.True(t, len(policiesList) > 0)
-	for i := len(policiesList) - 1; i >= 0; i-- {
+// computeExpectedAggregationKeysFromPoliciesList computes the expected set of aggregation keys
+// from the given time and the policies list.
+func computeExpectedAggregationKeysFromPoliciesList(
+	t *testing.T,
+	now time.Time,
+	policiesList policy.PoliciesList,
+	defaultStoragePolices []policy.StoragePolicy,
+) aggregationKeys {
+	// Find the staged policy that is currently active.
+	nowNanos := now.UnixNano()
+	i := len(policiesList) - 1
+	for i >= 0 {
 		if policiesList[i].CutoverNanos <= nowNanos {
-			found = true
-			activePolicies = policiesList[i]
 			break
 		}
+		i--
 	}
-	require.True(t, found)
+	require.True(t, i >= 0)
 
-	policies, useDefault := activePolicies.Policies()
+	// If the active policies are the default policies, create the aggregation keys
+	// from them.
+	policies, useDefault := policiesList[i].Policies()
 	if useDefault {
-		policies = opts.DefaultPolicies()
+		res := make(aggregationKeys, 0, len(defaultStoragePolices))
+		for _, sp := range defaultStoragePolices {
+			key := aggregationKey{storagePolicy: sp}
+			res = append(res, key)
+		}
+		return res
 	}
 
-	byPolicy := make(metricsByPolicy)
+	// Otherwise create the aggregation keys from the staged policies.
+	res := make(aggregationKeys, 0, len(policies))
 	for _, p := range policies {
-		byPolicy[p] = &dataForPolicy{aggTypes: maggregation.DefaultTypes, data: make(datapointsByID)}
+		newKey := aggregationKey{
+			aggregationID: p.AggregationID,
+			storagePolicy: p.StoragePolicy,
+		}
+		res.add(newKey)
+	}
+	return res
+}
+
+func computeExpectedAggregationKeysFromStagedMetadatas(
+	t *testing.T,
+	now time.Time,
+	metadatas metadata.StagedMetadatas,
+	defaultStoragePolices []policy.StoragePolicy,
+) aggregationKeys {
+	// Find the staged policy that is currently active.
+	nowNanos := now.UnixNano()
+	i := len(metadatas) - 1
+	for i >= 0 {
+		if metadatas[i].CutoverNanos <= nowNanos {
+			break
+		}
+		i--
+	}
+	require.True(t, i >= 0)
+
+	res := make(aggregationKeys, 0, len(metadatas[i].Pipelines))
+	for _, pipeline := range metadatas[i].Pipelines {
+		storagePolicies := pipeline.StoragePolicies
+		if policy.IsDefaultStoragePolicies(storagePolicies) {
+			storagePolicies = defaultStoragePolices
+		}
+		for _, sp := range storagePolicies {
+			newKey := aggregationKey{
+				aggregationID: pipeline.AggregationID,
+				storagePolicy: sp,
+				pipeline:      pipeline.Pipeline,
+			}
+			res.add(newKey)
+		}
+	}
+	return res
+}
+
+// computeExpectedAggregationBuckets computes the expected aggregation buckets for the given
+// dataset and the aggregation keys, assuming each metric in the given dataset is associated
+// with the full set of aggregation keys passed in.
+func computeExpectedAggregationBuckets(
+	t *testing.T,
+	dataset testDataset,
+	keys aggregationKeys,
+	opts aggregator.Options,
+) []aggregationBucket {
+	buckets := make([]aggregationBucket, 0, len(keys))
+	for _, k := range keys {
+		bucket := aggregationBucket{key: k, data: make(datapointsByID)}
+		buckets = append(buckets, bucket)
 	}
 
-	decompressor := maggregation.NewIDDecompressor()
-	aggTypeOpts := opts.AggregationTypesOptions()
-	// Aggregate metrics by policies.
-	for _, dataValues := range dsp.dataset {
+	for _, dataValues := range dataset {
 		for _, mu := range dataValues.metrics {
-			for policy, metrics := range byPolicy {
+			for _, bucket := range buckets {
+				// Add metric to the list of metrics aggregated by the aggregation bucket if necessary.
 				key := metricKey{id: string(mu.ID), typ: mu.Type}
-				datapoints, exists := metrics.data[key]
-				if !exists {
+				datapoints, metricExists := bucket.data[key]
+				if !metricExists {
 					datapoints = make(valuesByTime)
-					metrics.data[key] = datapoints
+					bucket.data[key] = datapoints
 				}
-				alignedStartNanos := dataValues.timestamp.Truncate(policy.Resolution().Window).UnixNano()
-				values, exists := datapoints[alignedStartNanos]
 
-				aggTypes, err := decompressor.Decompress(policy.AggregationID)
-				require.NoError(t, err)
-
-				metrics.aggTypes = aggTypes
-				aggregationOpts := aggregation.NewOptions()
-
-				if !exists {
+				// Add metric to the time bucket associated with the aggregation bucket if necessary.
+				resolution := bucket.key.storagePolicy.Resolution()
+				alignedStartNanos := dataValues.timestamp.Truncate(resolution.Window).UnixNano()
+				values, timeBucketExists := datapoints[alignedStartNanos]
+				if !timeBucketExists {
+					var (
+						aggTypeOpts = opts.AggregationTypesOptions()
+						aggTypes    = maggregation.NewIDDecompressor().MustDecompress(bucket.key.aggregationID)
+						//metrics.aggTypes = aggTypes
+						aggregationOpts = aggregation.NewOptions()
+					)
 					switch mu.Type {
 					case unaggregated.CounterType:
 						if aggTypes.IsDefault() {
@@ -250,7 +341,8 @@ func toExpectedResults(
 						require.Fail(t, fmt.Sprintf("unrecognized metric type %v", mu.Type))
 					}
 				}
-				// Add current metric to the value.
+
+				// Add metric value to the corresponding time bucket.
 				switch mu.Type {
 				case unaggregated.CounterType:
 					v := values.(aggregation.Counter)
@@ -271,18 +363,43 @@ func toExpectedResults(
 		}
 	}
 
-	// Convert metrics by policy to sorted aggregated metrics slice.
+	return buckets
+}
+
+// computeExpectedAggregationOutput computes the expected aggregation output given
+// the current time and the populated aggregation buckets.
+func computeExpectedAggregationOutput(
+	t *testing.T,
+	now time.Time,
+	buckets []aggregationBucket,
+	opts aggregator.Options,
+) []aggregated.MetricWithStoragePolicy {
 	var expected []aggregated.MetricWithStoragePolicy
-	for policy, metrics := range byPolicy {
-		alignedCutoffNanos := now.Truncate(policy.Resolution().Window).UnixNano()
-		for key, datapoints := range metrics.data {
+	for _, bucket := range buckets {
+		var (
+			aggregationTypes   = maggregation.NewIDDecompressor().MustDecompress(bucket.key.aggregationID)
+			storagePolicy      = bucket.key.storagePolicy
+			resolutionWindow   = storagePolicy.Resolution().Window
+			alignedCutoffNanos = now.Truncate(resolutionWindow).UnixNano()
+		)
+		for key, datapoints := range bucket.data {
 			for timeNanos, values := range datapoints {
-				endAtNanos := timeNanos + int64(policy.Resolution().Window)
+				endAtNanos := timeNanos + int64(resolutionWindow)
 				// The end time must be no later than the aligned cutoff time
 				// for the data to be flushed.
-				if endAtNanos <= alignedCutoffNanos {
-					expected = append(expected, toAggregatedMetrics(t, key, endAtNanos, values, policy.StoragePolicy, metrics.aggTypes, opts)...)
+				if endAtNanos > alignedCutoffNanos {
+					continue
 				}
+				outputs := computeExpectedAggregatedMetrics(
+					t,
+					key,
+					endAtNanos,
+					values,
+					storagePolicy,
+					aggregationTypes,
+					opts,
+				)
+				expected = append(expected, outputs...)
 			}
 		}
 	}
@@ -293,18 +410,27 @@ func toExpectedResults(
 	return expected
 }
 
-func toAggregatedMetrics(
+// computeExpectedAggregatedMetrics computes the expected set of aggregated metrics
+// given the metric key, timestamp, metric aggregation, and related aggregation metadata.
+func computeExpectedAggregatedMetrics(
 	t *testing.T,
 	key metricKey,
 	timeNanos int64,
-	values interface{},
+	metricAgg interface{},
 	sp policy.StoragePolicy,
 	aggTypes maggregation.Types,
 	opts aggregator.Options,
 ) []aggregated.MetricWithStoragePolicy {
-	var result []aggregated.MetricWithStoragePolicy
-	fn := func(prefix []byte, id string, suffix []byte, timeNanos int64, value float64, sp policy.StoragePolicy) {
-		result = append(result, aggregated.MetricWithStoragePolicy{
+	var results []aggregated.MetricWithStoragePolicy
+	fn := func(
+		prefix []byte,
+		id string,
+		suffix []byte,
+		timeNanos int64,
+		value float64,
+		sp policy.StoragePolicy,
+	) {
+		results = append(results, aggregated.MetricWithStoragePolicy{
 			Metric: aggregated.Metric{
 				ID:        metricid.RawID(string(prefix) + id + string(suffix)),
 				TimeNanos: timeNanos,
@@ -316,7 +442,7 @@ func toAggregatedMetrics(
 
 	id := key.id
 	aggTypeOpts := opts.AggregationTypesOptions()
-	switch values := values.(type) {
+	switch metricAgg := metricAgg.(type) {
 	case aggregation.Counter:
 		var fullCounterPrefix = opts.FullCounterPrefix()
 		if aggTypes.IsDefault() {
@@ -324,7 +450,7 @@ func toAggregatedMetrics(
 		}
 
 		for _, aggType := range aggTypes {
-			fn(fullCounterPrefix, id, aggTypeOpts.TypeStringForCounter(aggType), timeNanos, values.ValueOf(aggType), sp)
+			fn(fullCounterPrefix, id, aggTypeOpts.TypeStringForCounter(aggType), timeNanos, metricAgg.ValueOf(aggType), sp)
 		}
 	case aggregation.Timer:
 		var fullTimerPrefix = opts.FullTimerPrefix()
@@ -333,7 +459,7 @@ func toAggregatedMetrics(
 		}
 
 		for _, aggType := range aggTypes {
-			fn(fullTimerPrefix, id, aggTypeOpts.TypeStringForTimer(aggType), timeNanos, values.ValueOf(aggType), sp)
+			fn(fullTimerPrefix, id, aggTypeOpts.TypeStringForTimer(aggType), timeNanos, metricAgg.ValueOf(aggType), sp)
 		}
 	case aggregation.Gauge:
 		var fullGaugePrefix = opts.FullGaugePrefix()
@@ -342,12 +468,118 @@ func toAggregatedMetrics(
 		}
 
 		for _, aggType := range aggTypes {
-			fn(fullGaugePrefix, id, aggTypeOpts.TypeStringForGauge(aggType), timeNanos, values.ValueOf(aggType), sp)
+			fn(fullGaugePrefix, id, aggTypeOpts.TypeStringForGauge(aggType), timeNanos, metricAgg.ValueOf(aggType), sp)
 		}
 	default:
-		require.Fail(t, fmt.Sprintf("unrecognized aggregation type %T", values))
+		require.Fail(t, fmt.Sprintf("unrecognized aggregation type %T", metricAgg))
 	}
 
-	return result
+	return results
 }
-*/
+
+func roundRobinMetricTypeFn(_ time.Time, idx int) unaggregated.Type {
+	switch idx % 3 {
+	case 0:
+		return unaggregated.CounterType
+	case 1:
+		return unaggregated.BatchTimerType
+	default:
+		return unaggregated.GaugeType
+	}
+}
+
+func constantMetricTypeFnFactory(typ unaggregated.Type) metricTypeFn {
+	return func(time.Time, int) unaggregated.Type { return typ }
+}
+
+type byTimeIDPolicyAscending []aggregated.MetricWithStoragePolicy
+
+func (a byTimeIDPolicyAscending) Len() int      { return len(a) }
+func (a byTimeIDPolicyAscending) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a byTimeIDPolicyAscending) Less(i, j int) bool {
+	if a[i].TimeNanos != a[j].TimeNanos {
+		return a[i].TimeNanos < a[j].TimeNanos
+	}
+	id1, id2 := string(a[i].ID), string(a[j].ID)
+	if id1 != id2 {
+		return id1 < id2
+	}
+	resolution1, resolution2 := a[i].Resolution().Window, a[j].Resolution().Window
+	if resolution1 != resolution2 {
+		return resolution1 < resolution2
+	}
+	retention1, retention2 := a[i].Retention(), a[j].Retention()
+	return retention1 < retention2
+}
+
+type metricTypeFn func(ts time.Time, idx int) unaggregated.Type
+
+type metricKey struct {
+	id  string
+	typ unaggregated.Type
+}
+
+type valuesByTime map[int64]interface{}
+type datapointsByID map[metricKey]valuesByTime
+
+type aggregationKey struct {
+	aggregationID maggregation.ID
+	storagePolicy policy.StoragePolicy
+	pipeline      applied.Pipeline
+}
+
+func (k aggregationKey) Equal(other aggregationKey) bool {
+	return k.aggregationID == other.aggregationID &&
+		k.storagePolicy == other.storagePolicy &&
+		k.pipeline.Equal(other.pipeline)
+}
+
+type aggregationKeys []aggregationKey
+
+func (keys *aggregationKeys) add(newKey aggregationKey) {
+	for _, k := range *keys {
+		if k.Equal(newKey) {
+			return
+		}
+	}
+	*keys = append(*keys, newKey)
+}
+
+type aggregationBucket struct {
+	key  aggregationKey
+	data datapointsByID
+}
+
+type testData struct {
+	timestamp time.Time
+	metrics   []unaggregated.MetricUnion
+}
+
+type testDataset []testData
+
+type metadataType int
+
+const (
+	policiesListType metadataType = iota
+	stagedMetadatasType
+)
+
+type metadataUnion struct {
+	mType           metadataType
+	policiesList    policy.PoliciesList
+	stagedMetadatas metadata.StagedMetadatas
+}
+
+func (mu metadataUnion) expectedAggregationKeys(
+	t *testing.T,
+	now time.Time,
+	defaultStoragePolicies []policy.StoragePolicy,
+) aggregationKeys {
+	switch mu.mType {
+	case policiesListType:
+		return computeExpectedAggregationKeysFromPoliciesList(t, now, mu.policiesList, defaultStoragePolicies)
+	case stagedMetadatasType:
+		return computeExpectedAggregationKeysFromStagedMetadatas(t, now, mu.stagedMetadatas, defaultStoragePolicies)
+	}
+	panic("should not reach here")
+}

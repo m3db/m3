@@ -67,7 +67,6 @@ type metricElem interface {
 	) error
 
 	// AddMetric adds a new metric value.
-	// TODO(xichen): a value union would suffice here.
 	AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error
 
 	// Consume consumes values before a given time and removes

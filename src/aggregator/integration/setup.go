@@ -20,10 +20,36 @@
 
 package integration
 
-// TODO(xichen): revive this once encoder APIs are added.
-/*
+import (
+	"errors"
+	"flag"
+	"fmt"
+	"math"
+	"sort"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3aggregator/aggregator/handler"
+	"github.com/m3db/m3aggregator/aggregator/handler/writer"
+	"github.com/m3db/m3aggregator/runtime"
+	httpserver "github.com/m3db/m3aggregator/server/http"
+	rawtcpserver "github.com/m3db/m3aggregator/server/rawtcp"
+	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
+	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3metrics/metric/aggregated"
+	"github.com/m3db/m3x/clock"
+	xsync "github.com/m3db/m3x/sync"
+
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+)
+
 var (
-	msgpackAddrArg         = flag.String("msgpackAddr", "0.0.0.0:6000", "msgpack server address")
+	rawTCPAddrArg          = flag.String("rawTCPAddr", "0.0.0.0:6000", "raw TCP server address")
 	httpAddrArg            = flag.String("httpAddr", "0.0.0.0:6001", "http server address")
 	errServerStartTimedOut = errors.New("server took too long to start")
 )
@@ -32,23 +58,23 @@ var (
 type nowSetterFn func(t time.Time)
 
 type testSetup struct {
-	opts              testOptions
-	msgpackAddr       string
-	httpAddr          string
-	msgpackServerOpts msgpackserver.Options
-	httpServerOpts    httpserver.Options
-	aggregator        aggregator.Aggregator
-	aggregatorOpts    aggregator.Options
-	handler           handler.Handler
-	electionKey       string
-	leaderValue       string
-	leaderService     services.LeaderService
-	electionCluster   *testCluster
-	getNowFn          clock.NowFn
-	setNowFn          nowSetterFn
-	workerPool        xsync.WorkerPool
-	results           *[]aggregated.MetricWithStoragePolicy
-	resultLock        *sync.Mutex
+	opts             testOptions
+	rawTCPAddr       string
+	httpAddr         string
+	rawTCPServerOpts rawtcpserver.Options
+	httpServerOpts   httpserver.Options
+	aggregator       aggregator.Aggregator
+	aggregatorOpts   aggregator.Options
+	handler          handler.Handler
+	electionKey      string
+	leaderValue      string
+	leaderService    services.LeaderService
+	electionCluster  *testCluster
+	getNowFn         clock.NowFn
+	setNowFn         nowSetterFn
+	workerPool       xsync.WorkerPool
+	results          *[]aggregated.MetricWithStoragePolicy
+	resultLock       *sync.Mutex
 
 	// Signals.
 	doneCh   chan struct{}
@@ -60,10 +86,10 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 		opts = newTestOptions()
 	}
 
-	// Set up the msgpack server address.
-	msgpackAddr := *msgpackAddrArg
-	if addr := opts.MsgpackAddr(); addr != "" {
-		msgpackAddr = addr
+	// Set up the raw TCP server address.
+	rawTCPAddr := *rawTCPAddrArg
+	if addr := opts.RawTCPAddr(); addr != "" {
+		rawTCPAddr = addr
 	}
 
 	// Set up the http server address.
@@ -92,7 +118,7 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	}
 
 	// Create the server options.
-	msgpackServerOpts := msgpackserver.NewOptions()
+	rawTCPServerOpts := rawtcpserver.NewOptions()
 	httpServerOpts := httpserver.NewOptions()
 
 	// Creating the aggregator options.
@@ -183,29 +209,29 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	aggregatorOpts = aggregatorOpts.SetFlushHandler(handler)
 
 	return &testSetup{
-		opts:              opts,
-		msgpackAddr:       msgpackAddr,
-		httpAddr:          httpAddr,
-		msgpackServerOpts: msgpackServerOpts,
-		httpServerOpts:    httpServerOpts,
-		aggregatorOpts:    aggregatorOpts,
-		handler:           handler,
-		electionKey:       electionKey,
-		leaderValue:       leaderValue,
-		leaderService:     leaderService,
-		electionCluster:   electionCluster,
-		getNowFn:          getNowFn,
-		setNowFn:          setNowFn,
-		workerPool:        workerPool,
-		results:           &results,
-		resultLock:        &resultLock,
-		doneCh:            make(chan struct{}),
-		closedCh:          make(chan struct{}),
+		opts:             opts,
+		rawTCPAddr:       rawTCPAddr,
+		httpAddr:         httpAddr,
+		rawTCPServerOpts: rawTCPServerOpts,
+		httpServerOpts:   httpServerOpts,
+		aggregatorOpts:   aggregatorOpts,
+		handler:          handler,
+		electionKey:      electionKey,
+		leaderValue:      leaderValue,
+		leaderService:    leaderService,
+		electionCluster:  electionCluster,
+		getNowFn:         getNowFn,
+		setNowFn:         setNowFn,
+		workerPool:       workerPool,
+		results:          &results,
+		resultLock:       &resultLock,
+		doneCh:           make(chan struct{}),
+		closedCh:         make(chan struct{}),
 	}
 }
 
 func (ts *testSetup) newClient() *client {
-	return newClient(ts.msgpackAddr, ts.opts.ClientBatchSize(), ts.opts.ClientConnectTimeout())
+	return newClient(ts.rawTCPAddr, ts.opts.ClientBatchSize(), ts.opts.ClientConnectTimeout())
 }
 
 func (ts *testSetup) waitUntilServerIsUp() error {
@@ -230,8 +256,8 @@ func (ts *testSetup) startServer() error {
 
 	go func() {
 		if err := serve.Serve(
-			ts.msgpackAddr,
-			ts.msgpackServerOpts,
+			ts.rawTCPAddr,
+			ts.rawTCPServerOpts,
 			ts.httpAddr,
 			ts.httpServerOpts,
 			ts.aggregator,
@@ -324,4 +350,3 @@ func (h *capturingHandler) NewWriter(tally.Scope) (writer.Writer, error) {
 }
 
 func (h *capturingHandler) Close() {}
-*/

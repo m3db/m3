@@ -18,15 +18,21 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+logging:
+  level: info
+
 metrics:
+  scope:
+    reportingInterval: 1s
   m3:
     hostPort: 127.0.0.1:5000  # local collector host port for m3 metrics
     service: m3aggregator
     env: test
     includeHost: true
   samplingRate: 0.01
+  extended: moderate
 
-msgpack:
+rawtcp:
   listenAddress: 0.0.0.0:6000
   keepAliveEnabled: true
   keepAlivePeriod: 1m
@@ -36,7 +42,8 @@ msgpack:
     maxBackoff: 1s
     forever: true
     jitter: true
-  iterator:
+  readBufferSize: 1440
+  msgpackIterator:
     ignoreHigherVersion: false
     readerBufferSize: 1440
     largeFloatsSize: 1024
@@ -54,25 +61,47 @@ msgpack:
           capacity: 32768
         - count: 32
           capacity: 65536
-    iteratorPool:
-      size: 4096
-
-runtimeOptions:
-  kvConfig:
-    namespace: /m3aggregator
-    environment: production
-  writeValuesPerMetricLimitPerSecondKey: write-values-per-metric-limit-per-second
-  writeValuesPerMetricLimitPerSecond: 0
-  writeNewMetricLimitClusterPerSecondKey: write-new-metric-limit-cluster-per-second
-  writeNewMetricLimitClusterPerSecond: 0
-  writeNewMetricNoLimitWarmupDuration: 0
+      watermark:
+        low: 0.001
+        high: 0.002
+  protobufIterator:
+    initBufferSize: 1440
+    maxMessageSize: 50000000  # max message size is 50MB
+    bytesPool:
+      buckets:
+        - count: 1024
+          capacity: 2048
+        - count: 512
+          capacity: 4096
+        - count: 256
+          capacity: 8192
+        - count: 128
+          capacity: 16384
+        - count: 64
+          capacity: 32768
+        - count: 32
+          capacity: 65536
+      watermark:
+        low: 0.001
+        high: 0.002
 
 http:
   listenAddress: 0.0.0.0:6001
   readTimeout: 45s
   writeTimeout: 45s
 
+runtimeOptions:
+  kvConfig:
+    namespace: /m3aggregator
+    environment: test
+  writeValuesPerMetricLimitPerSecondKey: write-values-per-metric-limit-per-second
+  writeValuesPerMetricLimitPerSecond: 0
+  writeNewMetricLimitClusterPerSecondKey: write-new-metric-limit-cluster-per-second
+  writeNewMetricLimitClusterPerSecond: 0
+  writeNewMetricNoLimitWarmupDuration: 0
+
 aggregator:
+  metricPrefix: stats.
   aggregationTypes:
     counterOverrides:
       Sum: ""
@@ -105,35 +134,87 @@ aggregator:
   placementManager:
     kvConfig:
       namespace: /m3aggregator
-      environment: production
+      environment: test
     placementWatcher:
       key: placement
       initWatchTimeout: 10s
-  shardFnType: murmur32
+  hashType: murmur32
+  bufferDurationBeforeShardCutover: 10m
+  bufferDurationAfterShardCutoff: 10m
+  resignTimeout: 1m
+  flushTimesManager:
+    kvConfig:
+      namespace: /m3aggregator
+      environment: test
+    flushTimesKeyFmt: shardset/%d/flush
+    flushTimesPersistRetrier:
+      initialBackoff: 100ms
+      backoffFactor: 2.0
+      maxBackoff: 2s
+      maxRetries: 3
+  electionManager:
+    election:
+      leaderTimeout: 10s
+      resignTimeout: 10s
+      ttlSeconds: 10
+    serviceID:
+      name: m3aggregator
+      environment: test
+    electionKeyFmt: shardset/%d/lock
+    campaignRetrier:
+      initialBackoff: 100ms
+      backoffFactor: 2.0
+      maxBackoff: 2s
+      forever: true
+      jitter: true
+    changeRetrier:
+      initialBackoff: 100ms
+      backoffFactor: 2.0
+      maxBackoff: 5s
+      forever: true
+      jitter: true
+    resignRetrier:
+      initialBackoff: 100ms
+      backoffFactor: 2.0
+      maxBackoff: 5s
+      forever: true
+      jitter: true
+    campaignStateCheckInterval: 1s
+    shardCutoffCheckOffset: 30s
   flushManager:
     checkEvery: 1s
     jitterEnabled: true
-    numWorkersPerCPU: 0.125
+    maxJitters:
+      - flushInterval: 5s
+        maxJitterPercent: 1.0
+      - flushInterval: 10s
+        maxJitterPercent: 0.5
+      - flushInterval: 1m
+        maxJitterPercent: 0.5
+      - flushInterval: 10m
+        maxJitterPercent: 0.5
+      - flushInterval: 1h
+        maxJitterPercent: 0.25
+    numWorkersPerCPU: 0.5
+    flushTimesPersistEvery: 10s
+    maxBufferSize: 5m
+    forcedFlushWindowSize: 10s
   minFlushInterval: 5s
-  maxFlushSize: 1440
   flush:
-    type: broadcast
-    broadcast:
-      handlers:
-        - type: logging
-        - type: blackhole
+    handlers:
+      - type: logging
+      - type: blackhole
   entryTTL: 6h
   entryCheckInterval: 10m
-  defaultPolicies:
+  maxTimerBatchSizePerWrite: 140
+  defaultStoragePolicies:
     - 10s:2d
     - 1m:40d
+  entryPool:
+    size: 4096
   counterElemPool:
     size: 4096
   timerElemPool:
     size: 4096
   gaugeElemPool:
-    size: 4096
-  entryPool:
-    size: 4096
-  bufferedEncoderPool:
     size: 4096

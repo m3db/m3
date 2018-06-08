@@ -23,7 +23,7 @@ package common
 import (
 	"sync/atomic"
 
-	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3metrics/encoding/msgpack"
 )
 
 // RefCountedBuffer is a refcounted buffer.

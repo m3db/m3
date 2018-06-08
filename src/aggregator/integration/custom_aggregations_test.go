@@ -22,9 +22,61 @@
 
 package integration
 
-// TODO(xichen): revive this test once encoder APIs are added.
-/*
-func TestPolicyChange(t *testing.T) {
+import (
+	"sort"
+	"testing"
+	"time"
+
+	"github.com/m3db/m3metrics/metric/aggregated"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestCustomAggregationWithPoliciesList(t *testing.T) {
+	metadatas := [4]metadataUnion{
+		{
+			mType:        policiesListType,
+			policiesList: testPoliciesList,
+		},
+		{
+			mType:        policiesListType,
+			policiesList: testPoliciesListWithCustomAggregation1,
+		},
+		{
+			mType:        policiesListType,
+			policiesList: testPoliciesListWithCustomAggregation2,
+		},
+		{
+			mType:        policiesListType,
+			policiesList: testPoliciesList,
+		},
+	}
+	testCustomAggregations(t, metadatas)
+}
+
+func TestCustomAggregationWithStagedMetadatas(t *testing.T) {
+	metadatas := [4]metadataUnion{
+		{
+			mType:           stagedMetadatasType,
+			stagedMetadatas: testStagedMetadatas,
+		},
+		{
+			mType:           stagedMetadatasType,
+			stagedMetadatas: testUpdatedStagedMetadatas,
+		},
+		{
+			mType:           stagedMetadatasType,
+			stagedMetadatas: testStagedMetadatas,
+		},
+		{
+			mType:           stagedMetadatasType,
+			stagedMetadatas: testUpdatedStagedMetadatas,
+		},
+	}
+	testCustomAggregations(t, metadatas)
+}
+
+func testCustomAggregations(t *testing.T, metadatas [4]metadataUnion) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -40,7 +92,7 @@ func TestPolicyChange(t *testing.T) {
 
 	// Start the server.
 	log := testSetup.aggregatorOpts.InstrumentOptions().Logger()
-	log.Info("test policy change")
+	log.Info("test custom aggregations")
 	require.NoError(t, testSetup.startServer())
 	log.Info("server is now up")
 	require.NoError(t, testSetup.waitUntilLeader())
@@ -50,8 +102,10 @@ func TestPolicyChange(t *testing.T) {
 		idPrefix = "foo"
 		numIDs   = 100
 		start    = testSetup.getNowFn()
-		middle   = start.Add(4 * time.Second)
-		end      = start.Add(10 * time.Second)
+		t1       = start.Add(2 * time.Second)
+		t2       = start.Add(4 * time.Second)
+		t3       = start.Add(6 * time.Second)
+		end      = start.Add(8 * time.Second)
 		interval = time.Second
 	)
 	client := testSetup.newClient()
@@ -59,13 +113,36 @@ func TestPolicyChange(t *testing.T) {
 	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	input1 := generateTestData(start, middle, interval, ids, roundRobinMetricTypeFn, testPoliciesList)
-	input2 := generateTestData(middle, end, interval, ids, roundRobinMetricTypeFn, testUpdatedPoliciesList)
-	for _, input := range []testDatasetWithPoliciesList{input1, input2} {
+	inputs := []struct {
+		dataset  testDataset
+		metadata metadataUnion
+	}{
+		{
+			dataset:  generateTestDataset(start, t1, interval, ids, roundRobinMetricTypeFn),
+			metadata: metadatas[0],
+		},
+		{
+			dataset:  generateTestDataset(t1, t2, interval, ids, roundRobinMetricTypeFn),
+			metadata: metadatas[1],
+		},
+		{
+			dataset:  generateTestDataset(t2, t3, interval, ids, roundRobinMetricTypeFn),
+			metadata: metadatas[2],
+		},
+		{
+			dataset:  generateTestDataset(t3, end, interval, ids, roundRobinMetricTypeFn),
+			metadata: metadatas[3],
+		},
+	}
+	for _, input := range inputs {
 		for _, data := range input.dataset {
 			testSetup.setNowFn(data.timestamp)
 			for _, mu := range data.metrics {
-				require.NoError(t, client.write(mu, input.policiesList))
+				if input.metadata.mType == policiesListType {
+					require.NoError(t, client.writeMetricWithPoliciesList(mu, input.metadata.policiesList))
+				} else {
+					require.NoError(t, client.writeMetricWithMetadatas(mu, input.metadata.stagedMetadatas))
+				}
 			}
 			require.NoError(t, client.flush())
 
@@ -85,9 +162,11 @@ func TestPolicyChange(t *testing.T) {
 	log.Info("server is now down")
 
 	// Validate results.
-	expected := toExpectedResults(t, finalTime, input1, testSetup.aggregatorOpts)
-	expected = append(expected, toExpectedResults(t, finalTime, input2, testSetup.aggregatorOpts)...)
+	var expected []aggregated.MetricWithStoragePolicy
+	for _, input := range inputs {
+		expected = append(expected, computeExpectedResults(t, finalTime, input.dataset, input.metadata, testSetup.aggregatorOpts)...)
+	}
+	sort.Sort(byTimeIDPolicyAscending(expected))
 	actual := testSetup.sortedResults()
 	require.Equal(t, expected, actual)
 }
-*/

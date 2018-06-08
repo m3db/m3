@@ -18,10 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package msgpack
+package rawtcp
 
 import (
-	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3metrics/encoding/msgpack"
+	"github.com/m3db/m3metrics/encoding/protobuf"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/server"
@@ -30,6 +31,9 @@ import (
 const (
 	// A default limit value of 0 means error log rate limiting is disabled.
 	defaultErrorLogLimitPerSecond = 0
+
+	// The default read buffer size for raw TCP connections.
+	defaultReadBufferSize = 1440
 )
 
 // Options provide a set of server options.
@@ -46,47 +50,57 @@ type Options interface {
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 
-	// SetErrorLogLimitPerSecond sets the error log limit per second.
-	SetErrorLogLimitPerSecond(value int64) Options
-
-	// ErrorLogLimitPerSecond returns the error log limit per second.
-	ErrorLogLimitPerSecond() int64
-
 	// SetServerOptions sets the server options.
 	SetServerOptions(value server.Options) Options
 
 	// ServerOptiosn returns the server options.
 	ServerOptions() server.Options
 
-	// SetIteratorPool sets the iterator pool.
-	SetIteratorPool(value msgpack.UnaggregatedIteratorPool) Options
+	// SetMsgpackUnaggregatedIteratorOptions sets the msgpack unaggregated iterator options.
+	SetMsgpackUnaggregatedIteratorOptions(value msgpack.UnaggregatedIteratorOptions) Options
 
-	// IteratorPool returns the iterator pool.
-	IteratorPool() msgpack.UnaggregatedIteratorPool
+	// MsgpackUnaggregatedIteratorOptions returns the msgpack unaggregated iterator options.
+	MsgpackUnaggregatedIteratorOptions() msgpack.UnaggregatedIteratorOptions
+
+	// SetProtobufUnaggregatedIteratorOptions sets the protobuf unaggregated iterator options.
+	SetProtobufUnaggregatedIteratorOptions(value protobuf.UnaggregatedOptions) Options
+
+	// ProtobufUnaggregatedIteratorOptions returns the protobuf unaggregated iterator options.
+	ProtobufUnaggregatedIteratorOptions() protobuf.UnaggregatedOptions
+
+	// SetReadBufferSize sets the read buffer size.
+	SetReadBufferSize(value int) Options
+
+	// ReadBufferSize returns the read buffer size.
+	ReadBufferSize() int
+
+	// SetErrorLogLimitPerSecond sets the error log limit per second.
+	SetErrorLogLimitPerSecond(value int64) Options
+
+	// ErrorLogLimitPerSecond returns the error log limit per second.
+	ErrorLogLimitPerSecond() int64
 }
 
 type options struct {
 	clockOpts            clock.Options
 	instrumentOpts       instrument.Options
-	errLogLimitPerSecond int64
 	serverOpts           server.Options
-	iteratorPool         msgpack.UnaggregatedIteratorPool
+	msgpackItOpts        msgpack.UnaggregatedIteratorOptions
+	protobufItOpts       protobuf.UnaggregatedOptions
+	readBufferSize       int
+	errLogLimitPerSecond int64
 }
 
 // NewOptions creates a new set of server options.
 func NewOptions() Options {
-	iteratorPool := msgpack.NewUnaggregatedIteratorPool(nil)
-	opts := msgpack.NewUnaggregatedIteratorOptions().SetIteratorPool(iteratorPool)
-	iteratorPool.Init(func() msgpack.UnaggregatedIterator {
-		return msgpack.NewUnaggregatedIterator(nil, opts)
-	})
-
 	return &options{
 		clockOpts:            clock.NewOptions(),
 		instrumentOpts:       instrument.NewOptions(),
-		errLogLimitPerSecond: defaultErrorLogLimitPerSecond,
 		serverOpts:           server.NewOptions(),
-		iteratorPool:         iteratorPool,
+		msgpackItOpts:        msgpack.NewUnaggregatedIteratorOptions(),
+		protobufItOpts:       protobuf.NewUnaggregatedOptions(),
+		readBufferSize:       defaultReadBufferSize,
+		errLogLimitPerSecond: defaultErrorLogLimitPerSecond,
 	}
 }
 
@@ -110,16 +124,6 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetErrorLogLimitPerSecond(value int64) Options {
-	opts := *o
-	opts.errLogLimitPerSecond = value
-	return &opts
-}
-
-func (o *options) ErrorLogLimitPerSecond() int64 {
-	return o.errLogLimitPerSecond
-}
-
 func (o *options) SetServerOptions(value server.Options) Options {
 	opts := *o
 	opts.serverOpts = value
@@ -130,12 +134,42 @@ func (o *options) ServerOptions() server.Options {
 	return o.serverOpts
 }
 
-func (o *options) SetIteratorPool(value msgpack.UnaggregatedIteratorPool) Options {
+func (o *options) SetMsgpackUnaggregatedIteratorOptions(value msgpack.UnaggregatedIteratorOptions) Options {
 	opts := *o
-	opts.iteratorPool = value
+	opts.msgpackItOpts = value
 	return &opts
 }
 
-func (o *options) IteratorPool() msgpack.UnaggregatedIteratorPool {
-	return o.iteratorPool
+func (o *options) MsgpackUnaggregatedIteratorOptions() msgpack.UnaggregatedIteratorOptions {
+	return o.msgpackItOpts
+}
+
+func (o *options) SetProtobufUnaggregatedIteratorOptions(value protobuf.UnaggregatedOptions) Options {
+	opts := *o
+	opts.protobufItOpts = value
+	return &opts
+}
+
+func (o *options) ProtobufUnaggregatedIteratorOptions() protobuf.UnaggregatedOptions {
+	return o.protobufItOpts
+}
+
+func (o *options) SetReadBufferSize(value int) Options {
+	opts := *o
+	opts.readBufferSize = value
+	return &opts
+}
+
+func (o *options) ReadBufferSize() int {
+	return o.readBufferSize
+}
+
+func (o *options) SetErrorLogLimitPerSecond(value int64) Options {
+	opts := *o
+	opts.errLogLimitPerSecond = value
+	return &opts
+}
+
+func (o *options) ErrorLogLimitPerSecond() int64 {
+	return o.errLogLimitPerSecond
 }

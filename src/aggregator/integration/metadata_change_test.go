@@ -22,44 +22,41 @@
 
 package integration
 
-// TODO(xichen): revive this test once encoder APIs are added.
-/*
 import (
+	"sort"
+	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/policy"
-	xtime "github.com/m3db/m3x/time"
+	"github.com/m3db/m3metrics/metric/aggregated"
+
+	"github.com/stretchr/testify/require"
 )
 
-var (
-	compressor                             = aggregation.NewIDCompressor()
-	compressedMin                          = compressor.MustCompress(aggregation.Types{aggregation.Min})
-	compressedMinAndMax                    = compressor.MustCompress(aggregation.Types{aggregation.Min, aggregation.Max})
-	testPoliciesListWithCustomAggregation1 = policy.PoliciesList{
-		policy.NewStagedPolicies(
-			0,
-			false,
-			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), compressedMin),
-				policy.NewPolicy(policy.NewStoragePolicy(2*time.Second, xtime.Second, 6*time.Hour), compressedMin),
-			},
-		),
+func TestMetadataChangeWithPoliciesList(t *testing.T) {
+	oldMetadata := metadataUnion{
+		mType:        policiesListType,
+		policiesList: testPoliciesList,
 	}
-
-	testPoliciesListWithCustomAggregation2 = policy.PoliciesList{
-		policy.NewStagedPolicies(
-			0,
-			false,
-			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), compressedMinAndMax),
-				policy.NewPolicy(policy.NewStoragePolicy(3*time.Second, xtime.Second, 24*time.Hour), compressedMinAndMax),
-			},
-		),
+	newMetadata := metadataUnion{
+		mType:        policiesListType,
+		policiesList: testUpdatedPoliciesList,
 	}
-)
+	testMetadataChange(t, oldMetadata, newMetadata)
+}
 
-func TestCustomAggregation(t *testing.T) {
+func TestMetadataChangeWithStagedMetadatas(t *testing.T) {
+	oldMetadata := metadataUnion{
+		mType:           stagedMetadatasType,
+		stagedMetadatas: testStagedMetadatas,
+	}
+	newMetadata := metadataUnion{
+		mType:           stagedMetadatasType,
+		stagedMetadatas: testUpdatedStagedMetadatas,
+	}
+	testMetadataChange(t, oldMetadata, newMetadata)
+}
+
+func testMetadataChange(t *testing.T, oldMetadata, newMetadata metadataUnion) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -75,7 +72,7 @@ func TestCustomAggregation(t *testing.T) {
 
 	// Start the server.
 	log := testSetup.aggregatorOpts.InstrumentOptions().Logger()
-	log.Info("test policy change")
+	log.Info("test metadata change")
 	require.NoError(t, testSetup.startServer())
 	log.Info("server is now up")
 	require.NoError(t, testSetup.waitUntilLeader())
@@ -83,12 +80,10 @@ func TestCustomAggregation(t *testing.T) {
 
 	var (
 		idPrefix = "foo"
-		numIDs   = 3
+		numIDs   = 100
 		start    = testSetup.getNowFn()
-		t1       = start.Add(2 * time.Second)
-		t2       = start.Add(4 * time.Second)
-		t3       = start.Add(6 * time.Second)
-		end      = start.Add(8 * time.Second)
+		middle   = start.Add(4 * time.Second)
+		end      = start.Add(10 * time.Second)
 		interval = time.Second
 	)
 	client := testSetup.newClient()
@@ -96,15 +91,30 @@ func TestCustomAggregation(t *testing.T) {
 	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	input1 := generateTestData(start, t1, interval, ids, roundRobinMetricTypeFn, testPoliciesList)
-	input2 := generateTestData(t1, t2, interval, ids, roundRobinMetricTypeFn, testPoliciesListWithCustomAggregation1)
-	input3 := generateTestData(t2, t3, interval, ids, roundRobinMetricTypeFn, testPoliciesListWithCustomAggregation2)
-	input4 := generateTestData(t3, end, interval, ids, roundRobinMetricTypeFn, testPoliciesList)
-	for _, input := range []testDatasetWithPoliciesList{input1, input2, input3, input4} {
+	dataset1 := generateTestDataset(start, middle, interval, ids, roundRobinMetricTypeFn)
+	dataset2 := generateTestDataset(middle, end, interval, ids, roundRobinMetricTypeFn)
+	inputs := []struct {
+		dataset  testDataset
+		metadata metadataUnion
+	}{
+		{
+			dataset:  dataset1,
+			metadata: oldMetadata,
+		},
+		{
+			dataset:  dataset2,
+			metadata: newMetadata,
+		},
+	}
+	for _, input := range inputs {
 		for _, data := range input.dataset {
 			testSetup.setNowFn(data.timestamp)
 			for _, mu := range data.metrics {
-				require.NoError(t, client.write(mu, input.policiesList))
+				if input.metadata.mType == policiesListType {
+					require.NoError(t, client.writeMetricWithPoliciesList(mu, input.metadata.policiesList))
+				} else {
+					require.NoError(t, client.writeMetricWithMetadatas(mu, input.metadata.stagedMetadatas))
+				}
 			}
 			require.NoError(t, client.flush())
 
@@ -124,11 +134,11 @@ func TestCustomAggregation(t *testing.T) {
 	log.Info("server is now down")
 
 	// Validate results.
-	expected := toExpectedResults(t, finalTime, input1, testSetup.aggregatorOpts)
-	expected = append(expected, toExpectedResults(t, finalTime, input2, testSetup.aggregatorOpts)...)
-	expected = append(expected, toExpectedResults(t, finalTime, input3, testSetup.aggregatorOpts)...)
-	expected = append(expected, toExpectedResults(t, finalTime, input4, testSetup.aggregatorOpts)...)
+	var expected []aggregated.MetricWithStoragePolicy
+	for _, input := range inputs {
+		expected = append(expected, computeExpectedResults(t, finalTime, input.dataset, input.metadata, testSetup.aggregatorOpts)...)
+	}
+	sort.Sort(byTimeIDPolicyAscending(expected))
 	actual := testSetup.sortedResults()
 	require.Equal(t, expected, actual)
 }
-*/

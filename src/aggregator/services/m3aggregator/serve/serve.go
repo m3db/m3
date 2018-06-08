@@ -25,27 +25,27 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregator"
 	httpserver "github.com/m3db/m3aggregator/server/http"
-	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
+	rawtcpserver "github.com/m3db/m3aggregator/server/rawtcp"
 )
 
 // Serve starts serving RPC traffic.
 func Serve(
-	msgpackAddr string,
-	msgpackServerOpts msgpackserver.Options,
+	rawTCPAddr string,
+	rawTCPServerOpts rawtcpserver.Options,
 	httpAddr string,
 	httpServerOpts httpserver.Options,
 	aggregator aggregator.Aggregator,
 	doneCh chan struct{},
 ) error {
-	log := msgpackServerOpts.InstrumentOptions().Logger()
+	log := rawTCPServerOpts.InstrumentOptions().Logger()
 	defer aggregator.Close()
 
-	msgpackServer := msgpackserver.NewServer(msgpackAddr, aggregator, msgpackServerOpts)
-	if err := msgpackServer.ListenAndServe(); err != nil {
-		return fmt.Errorf("could not start msgpack server at %s: %v", msgpackAddr, err)
+	rawTCPServer := rawtcpserver.NewServer(rawTCPAddr, aggregator, rawTCPServerOpts)
+	if err := rawTCPServer.ListenAndServe(); err != nil {
+		return fmt.Errorf("could not start raw TCP server at %s: %v", rawTCPAddr, err)
 	}
-	defer msgpackServer.Close()
-	log.Infof("msgpack server: listening on %s", msgpackAddr)
+	defer rawTCPServer.Close()
+	log.Infof("raw TCP server: listening on %s", rawTCPAddr)
 
 	httpServer := httpserver.NewServer(httpAddr, aggregator, httpServerOpts)
 	if err := httpServer.ListenAndServe(); err != nil {

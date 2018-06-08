@@ -33,8 +33,8 @@ type Configuration struct {
 	// Metrics configuration.
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
 
-	// Msgpack server configuration.
-	Msgpack MsgpackServerConfiguration `yaml:"msgpack"`
+	// Raw TCP server configuration.
+	RawTCP RawTCPServerConfiguration `yaml:"rawtcp"`
 
 	// HTTP server configuration.
 	HTTP HTTPServerConfiguration `yaml:"http"`

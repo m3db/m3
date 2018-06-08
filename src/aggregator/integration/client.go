@@ -20,22 +20,39 @@
 
 package integration
 
-// TODO(xichen): revive this once encoder APIs are added.
-/*
+import (
+	"fmt"
+	"net"
+	"time"
+
+	"github.com/m3db/m3metrics/encoding"
+	"github.com/m3db/m3metrics/encoding/msgpack"
+	"github.com/m3db/m3metrics/encoding/protobuf"
+	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3metrics/policy"
+)
+
 type client struct {
-	address        string
-	batchSize      int
-	connectTimeout time.Duration
-	encoder        msgpack.UnaggregatedEncoder
-	conn           net.Conn
+	address         string
+	batchSize       int
+	connectTimeout  time.Duration
+	msgpackEncoder  msgpack.UnaggregatedEncoder
+	protobufEncoder protobuf.UnaggregatedEncoder
+	conn            net.Conn
 }
 
-func newClient(address string, batchSize int, connectTimeout time.Duration) *client {
+func newClient(
+	address string,
+	batchSize int,
+	connectTimeout time.Duration,
+) *client {
 	return &client{
-		address:        address,
-		batchSize:      batchSize,
-		connectTimeout: connectTimeout,
-		encoder:        msgpack.NewUnaggregatedEncoder(msgpack.NewPooledBufferedEncoder(nil)),
+		address:         address,
+		batchSize:       batchSize,
+		connectTimeout:  connectTimeout,
+		msgpackEncoder:  msgpack.NewUnaggregatedEncoder(msgpack.NewPooledBufferedEncoder(nil)),
+		protobufEncoder: protobuf.NewUnaggregatedEncoder(protobuf.NewUnaggregatedOptions()),
 	}
 }
 
@@ -57,23 +74,26 @@ func (c *client) testConnection() bool {
 	return true
 }
 
-func (c *client) write(mu unaggregated.MetricUnion, pl policy.PoliciesList) error {
-	encoder := c.encoder.Encoder()
+func (c *client) writeMetricWithPoliciesList(
+	mu unaggregated.MetricUnion,
+	pl policy.PoliciesList,
+) error {
+	encoder := c.msgpackEncoder.Encoder()
 	sizeBefore := encoder.Buffer().Len()
 	var err error
 	switch mu.Type {
 	case unaggregated.CounterType:
-		err = c.encoder.EncodeCounterWithPoliciesList(unaggregated.CounterWithPoliciesList{
+		err = c.msgpackEncoder.EncodeCounterWithPoliciesList(unaggregated.CounterWithPoliciesList{
 			Counter:      mu.Counter(),
 			PoliciesList: pl,
 		})
 	case unaggregated.BatchTimerType:
-		err = c.encoder.EncodeBatchTimerWithPoliciesList(unaggregated.BatchTimerWithPoliciesList{
+		err = c.msgpackEncoder.EncodeBatchTimerWithPoliciesList(unaggregated.BatchTimerWithPoliciesList{
 			BatchTimer:   mu.BatchTimer(),
 			PoliciesList: pl,
 		})
 	case unaggregated.GaugeType:
-		err = c.encoder.EncodeGaugeWithPoliciesList(unaggregated.GaugeWithPoliciesList{
+		err = c.msgpackEncoder.EncodeGaugeWithPoliciesList(unaggregated.GaugeWithPoliciesList{
 			Gauge:        mu.Gauge(),
 			PoliciesList: pl,
 		})
@@ -82,7 +102,7 @@ func (c *client) write(mu unaggregated.MetricUnion, pl policy.PoliciesList) erro
 	}
 	if err != nil {
 		encoder.Buffer().Truncate(sizeBefore)
-		c.encoder.Reset(encoder)
+		c.msgpackEncoder.Reset(encoder)
 		return err
 	}
 	sizeAfter := encoder.Buffer().Len()
@@ -96,21 +116,91 @@ func (c *client) write(mu unaggregated.MetricUnion, pl policy.PoliciesList) erro
 	encoder2 := msgpack.NewPooledBufferedEncoder(nil)
 	data := encoder.Bytes()
 	encoder2.Buffer().Write(data[sizeBefore:sizeAfter])
-	c.encoder.Reset(encoder2)
+	c.msgpackEncoder.Reset(encoder2)
 	encoder.Buffer().Truncate(sizeBefore)
 	_, err = c.conn.Write(encoder.Bytes())
 	encoder.Close()
 	return err
 }
 
-func (c *client) flush() error {
-	if encoder := c.encoder.Encoder(); len(encoder.Bytes()) > 0 {
-		c.encoder.Reset(msgpack.NewPooledBufferedEncoder(nil))
-		_, err := c.conn.Write(encoder.Bytes())
-		encoder.Close()
+func (c *client) writeMetricWithMetadatas(
+	mu unaggregated.MetricUnion,
+	sm metadata.StagedMetadatas,
+) error {
+	encoder := c.protobufEncoder
+	sizeBefore := encoder.Len()
+	var err error
+	switch mu.Type {
+	case unaggregated.CounterType:
+		err = c.protobufEncoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type: encoding.CounterWithMetadatasType,
+			CounterWithMetadatas: unaggregated.CounterWithMetadatas{
+				Counter:         mu.Counter(),
+				StagedMetadatas: sm,
+			}})
+	case unaggregated.BatchTimerType:
+		err = c.protobufEncoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type: encoding.BatchTimerWithMetadatasType,
+			BatchTimerWithMetadatas: unaggregated.BatchTimerWithMetadatas{
+				BatchTimer:      mu.BatchTimer(),
+				StagedMetadatas: sm,
+			}})
+	case unaggregated.GaugeType:
+		err = c.protobufEncoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+			Type: encoding.GaugeWithMetadatasType,
+			GaugeWithMetadatas: unaggregated.GaugeWithMetadatas{
+				Gauge:           mu.Gauge(),
+				StagedMetadatas: sm,
+			}})
+	default:
+		err = fmt.Errorf("unrecognized metric type %v", mu.Type)
+	}
+	if err != nil {
+		encoder.Truncate(sizeBefore)
 		return err
 	}
-	return nil
+	sizeAfter := encoder.Len()
+	// If the buffer size is not big enough, do nothing.
+	if sizeAfter < c.batchSize {
+		return nil
+	}
+	// Otherwise we get a new buffer and copy the bytes exceeding the max
+	// flush size to it, and flush out the old buffer.
+	buf := encoder.Relinquish()
+	encoder.Reset(buf.Bytes()[sizeBefore:sizeAfter])
+	buf.Truncate(sizeBefore)
+	_, err = c.conn.Write(buf.Bytes())
+	buf.Close()
+	return err
+}
+
+func (c *client) flush() error {
+	if err := c.flushMsgpackEncoder(); err != nil {
+		return err
+	}
+	return c.flushProtobufEncoder()
+}
+
+func (c *client) flushMsgpackEncoder() error {
+	encoder := c.msgpackEncoder.Encoder()
+	if len(encoder.Bytes()) == 0 {
+		return nil
+	}
+	c.msgpackEncoder.Reset(msgpack.NewPooledBufferedEncoder(nil))
+	_, err := c.conn.Write(encoder.Bytes())
+	encoder.Close()
+	return err
+}
+
+func (c *client) flushProtobufEncoder() error {
+	encoder := c.protobufEncoder
+	if encoder.Len() == 0 {
+		return nil
+	}
+	buf := c.protobufEncoder.Relinquish()
+	_, err := c.conn.Write(buf.Bytes())
+	buf.Close()
+	return err
 }
 
 func (c *client) close() {
@@ -119,4 +209,3 @@ func (c *client) close() {
 		c.conn = nil
 	}
 }
-*/

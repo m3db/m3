@@ -22,9 +22,33 @@
 
 package integration
 
-// TODO(xichen): revive this test once encoder APIs are added.
-/*
-func TestMultiClientOneType(t *testing.T) {
+import (
+	"math/rand"
+	"testing"
+	"time"
+
+	"github.com/m3db/m3metrics/metric/unaggregated"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestMultiClientOneTypeWithPoliciesList(t *testing.T) {
+	metadata := metadataUnion{
+		mType:        policiesListType,
+		policiesList: testPoliciesList,
+	}
+	testMultiClientOneType(t, metadata)
+}
+
+func TestMultiClientOneTypeWithStagedMetadatas(t *testing.T) {
+	metadata := metadataUnion{
+		mType:           stagedMetadatasType,
+		stagedMetadatas: testStagedMetadatas,
+	}
+	testMultiClientOneType(t, metadata)
+}
+
+func testMultiClientOneType(t *testing.T, metadata metadataUnion) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -62,14 +86,18 @@ func TestMultiClientOneType(t *testing.T) {
 	}
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	typeFn := constantMetryTypeFnFactory(unaggregated.CounterType)
-	input := generateTestData(start, stop, interval, ids, typeFn, testPoliciesList)
-	for _, data := range input.dataset {
+	typeFn := constantMetricTypeFnFactory(unaggregated.CounterType)
+	dataset := generateTestDataset(start, stop, interval, ids, typeFn)
+	for _, data := range dataset {
 		testSetup.setNowFn(data.timestamp)
 		for _, mu := range data.metrics {
 			// Randomly pick one client to write the metric.
 			client := clients[rand.Int63n(int64(numClients))]
-			require.NoError(t, client.write(mu, input.policiesList))
+			if metadata.mType == policiesListType {
+				require.NoError(t, client.writeMetricWithPoliciesList(mu, metadata.policiesList))
+			} else {
+				require.NoError(t, client.writeMetricWithMetadatas(mu, metadata.stagedMetadatas))
+			}
 		}
 		for _, client := range clients {
 			require.NoError(t, client.flush())
@@ -90,8 +118,7 @@ func TestMultiClientOneType(t *testing.T) {
 	log.Info("server is now down")
 
 	// Validate results.
-	expected := toExpectedResults(t, finalTime, input, testSetup.aggregatorOpts)
+	expected := computeExpectedResults(t, finalTime, dataset, metadata, testSetup.aggregatorOpts)
 	actual := testSetup.sortedResults()
 	require.Equal(t, expected, actual)
 }
-*/

@@ -22,9 +22,30 @@
 
 package integration
 
-// TODO(xichen): revive this test once encoder APIs are added.
-/*
-func TestOneClientMultiType(t *testing.T) {
+import (
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestOneClientMultiTypeWithPoliciesList(t *testing.T) {
+	metadata := metadataUnion{
+		mType:        policiesListType,
+		policiesList: testPoliciesList,
+	}
+	testOneClientMultiType(t, metadata)
+}
+
+func TestOneClientMultiTypeWithStagedMetadatas(t *testing.T) {
+	metadata := metadataUnion{
+		mType:           stagedMetadatasType,
+		stagedMetadatas: testStagedMetadatas,
+	}
+	testOneClientMultiType(t, metadata)
+}
+
+func testOneClientMultiType(t *testing.T, metadata metadataUnion) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -58,11 +79,15 @@ func TestOneClientMultiType(t *testing.T) {
 	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	input := generateTestData(start, stop, interval, ids, roundRobinMetricTypeFn, testPoliciesList)
-	for _, data := range input.dataset {
+	dataset := generateTestDataset(start, stop, interval, ids, roundRobinMetricTypeFn)
+	for _, data := range dataset {
 		testSetup.setNowFn(data.timestamp)
 		for _, mu := range data.metrics {
-			require.NoError(t, client.write(mu, input.policiesList))
+			if metadata.mType == policiesListType {
+				require.NoError(t, client.writeMetricWithPoliciesList(mu, metadata.policiesList))
+			} else {
+				require.NoError(t, client.writeMetricWithMetadatas(mu, metadata.stagedMetadatas))
+			}
 		}
 		require.NoError(t, client.flush())
 
@@ -81,8 +106,7 @@ func TestOneClientMultiType(t *testing.T) {
 	log.Info("server is now down")
 
 	// Validate results.
-	expected := toExpectedResults(t, finalTime, input, testSetup.aggregatorOpts)
+	expected := computeExpectedResults(t, finalTime, dataset, metadata, testSetup.aggregatorOpts)
 	actual := testSetup.sortedResults()
 	require.Equal(t, expected, actual)
 }
-*/

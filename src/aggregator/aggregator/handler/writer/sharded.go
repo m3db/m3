@@ -26,9 +26,9 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregator/handler/common"
 	"github.com/m3db/m3aggregator/sharding"
+	"github.com/m3db/m3metrics/encoding/msgpack"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
 
