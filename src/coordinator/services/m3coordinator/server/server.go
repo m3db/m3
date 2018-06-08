@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 	"github.com/m3db/m3db/src/dbnode/client"
 	xconfig "github.com/m3db/m3x/config"
+	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 
@@ -53,7 +54,11 @@ import (
 	"google.golang.org/grpc"
 )
 
-const defaultNamespace = "metrics"
+const (
+	defaultNamespace       = "metrics"
+	defaultWorkerPoolCount = 4096
+	defaultWorkerPoolSize  = 20
+)
 
 // RunOptions provides options for running the server
 // with backwards compatibility if only solely adding fields.
@@ -141,7 +146,32 @@ func Run(runOpts RunOptions) {
 		return <-dbClientCh, nil
 	}, nil)
 
-	fanoutStorage, storageCleanup := setupStorages(logger, session, cfg)
+	workerPoolCount := cfg.DecompressWorkerPoolCount
+	if workerPoolCount == 0 {
+		workerPoolCount = defaultWorkerPoolCount
+	}
+
+	workerPoolSize := cfg.DecompressWorkerPoolSize
+	if workerPoolSize == 0 {
+		workerPoolSize = defaultWorkerPoolSize
+	}
+
+	instrumentOptions := instrument.NewOptions().
+		SetZapLogger(logger).
+		SetMetricsScope(scope.SubScope("series-decompression-pool"))
+
+	poolOptions := pool.NewObjectPoolOptions().
+		SetSize(workerPoolCount).
+		SetInstrumentOptions(instrumentOptions)
+
+	objectPool := pool.NewObjectPool(poolOptions)
+	objectPool.Init(func() interface{} {
+		workerPool := xsync.NewWorkerPool(workerPoolSize)
+		workerPool.Init()
+		return workerPool
+	})
+
+	fanoutStorage, storageCleanup := setupStorages(logger, session, cfg, objectPool)
 	defer storageCleanup()
 
 	clusterClient := m3dbcluster.NewAsyncClient(func() (clusterclient.Client, error) {
@@ -172,22 +202,14 @@ func Run(runOpts RunOptions) {
 	}
 }
 
-func setupStorages(logger *zap.Logger, session client.Session, cfg config.Configuration) (storage.Storage, func()) {
+func setupStorages(logger *zap.Logger, session client.Session, cfg config.Configuration, workerPool pool.ObjectPool) (storage.Storage, func()) {
 	cleanup := func() {}
 	namespace := defaultNamespace
 	if cfg.DBNamespace != "" {
 		namespace = cfg.DBNamespace
 	}
 
-	// TODO(arnikola) build options from config
-	objectPool := pool.NewObjectPool(pool.NewObjectPoolOptions())
-	objectPool.Init(func() interface{} {
-		workerPool := xsync.NewWorkerPool(10)
-		workerPool.Init()
-		return workerPool
-	})
-
-	localStorage := local.NewStorage(session, namespace, objectPool)
+	localStorage := local.NewStorage(session, namespace, workerPool)
 	stores := []storage.Storage{localStorage}
 	remoteEnabled := false
 	if cfg.RPC != nil && cfg.RPC.Enabled {
