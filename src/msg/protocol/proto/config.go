@@ -47,6 +47,7 @@ func (c *EncodeDecoderConfiguration) NewEncodeDecoderOptions(iOpts instrument.Op
 			c.BytesPool.NewBuckets(),
 			c.BytesPool.NewObjectPoolOptions(iOpts),
 		)
+		p.Init()
 		encodeOpts = encodeOpts.SetBytesPool(p)
 		decodeOpts = decodeOpts.SetBytesPool(p)
 	}

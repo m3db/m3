@@ -115,8 +115,6 @@ type consumerServiceWriterImpl struct {
 	processFn watch.ProcessFn
 }
 
-// TODO: Remove the nolint comment after adding usage of this function.
-// nolint: deadcode
 func newConsumerServiceWriter(
 	cs topic.ConsumerService,
 	numShards uint32,
