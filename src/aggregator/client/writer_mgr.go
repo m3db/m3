@@ -27,6 +27,8 @@ import (
 
 	"github.com/m3db/m3cluster/placement"
 	xerrors "github.com/m3db/m3x/errors"
+
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -55,18 +57,36 @@ type instanceWriterManager interface {
 	Close() error
 }
 
+type writerManagerMetrics struct {
+	instancesAdded   tally.Counter
+	instancesRemoved tally.Counter
+}
+
+func newWriterManagerMetrics(scope tally.Scope) writerManagerMetrics {
+	return writerManagerMetrics{
+		instancesAdded: scope.Tagged(map[string]string{
+			"action": "add",
+		}).Counter("instances"),
+		instancesRemoved: scope.Tagged(map[string]string{
+			"action": "remove",
+		}).Counter("instances"),
+	}
+}
+
 type writerManager struct {
 	sync.RWMutex
 
 	opts    Options
 	writers map[string]*refCountedWriter
 	closed  bool
+	metrics writerManagerMetrics
 }
 
 func newInstanceWriterManager(opts Options) instanceWriterManager {
 	return &writerManager{
 		opts:    opts,
 		writers: make(map[string]*refCountedWriter),
+		metrics: newWriterManagerMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
 }
 
@@ -81,8 +101,12 @@ func (mgr *writerManager) AddInstances(instances []placement.Instance) error {
 		id := instance.ID()
 		writer, exists := mgr.writers[id]
 		if !exists {
-			writer = newRefCountedWriter(instance, mgr.opts)
+			instrumentOpts := mgr.opts.InstrumentOptions()
+			scope := instrumentOpts.MetricsScope()
+			opts := mgr.opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(scope.SubScope("writer")))
+			writer = newRefCountedWriter(instance, opts)
 			mgr.writers[id] = writer
+			mgr.metrics.instancesAdded.Inc(1)
 		}
 		writer.IncRef()
 	}
@@ -104,6 +128,7 @@ func (mgr *writerManager) RemoveInstances(instances []placement.Instance) error 
 		}
 		if writer.DecRef() == 0 {
 			delete(mgr.writers, id)
+			mgr.metrics.instancesRemoved.Inc(1)
 		}
 	}
 	return nil
