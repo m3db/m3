@@ -44,4 +44,5 @@ connectionReadBufferSize: 300
 	require.Equal(t, 100, opts.AckBufferSize())
 	require.Equal(t, 200, opts.ConnectionWriteBufferSize())
 	require.Equal(t, 300, opts.ConnectionReadBufferSize())
+	require.Nil(t, opts.InstrumentOptions())
 }

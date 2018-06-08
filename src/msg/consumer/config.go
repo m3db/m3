@@ -37,7 +37,7 @@ type Configuration struct {
 
 // NewOptions creates consumer options.
 func (c *Configuration) NewOptions(iOpts instrument.Options) Options {
-	opts := NewOptions()
+	opts := NewOptions().SetInstrumentOptions(iOpts)
 	if c.EncodeDecoder != nil {
 		opts = opts.SetEncodeDecoderOptions(c.EncodeDecoder.NewEncodeDecoderOptions(iOpts))
 	}
