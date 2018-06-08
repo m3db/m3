@@ -20,8 +20,14 @@
 
 package integration
 
-// TODO(xichen): revive this once encoder APIs are added.
-/*
+import (
+	"time"
+
+	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/kv/mem"
+)
+
 const (
 	defaultServerStateChangeTimeout   = 5 * time.Second
 	defaultClientBatchSize            = 1440
@@ -38,11 +44,11 @@ const (
 )
 
 type testOptions interface {
-	// SetMsgpackAddr sets the msgpack server address.
-	SetMsgpackAddr(value string) testOptions
+	// SetRawTCPAddr sets the raw TCP server address.
+	SetRawTCPAddr(value string) testOptions
 
-	// MsgpackAddr returns the msgpack server address.
-	MsgpackAddr() string
+	// RawTCPAddr returns the raw TCP server address.
+	RawTCPAddr() string
 
 	// SetHTTPAddr sets the http server address.
 	SetHTTPAddr(value string) testOptions
@@ -136,7 +142,7 @@ type testOptions interface {
 }
 
 type options struct {
-	msgpackAddr                string
+	rawTCPAddr                 string
 	httpAddr                   string
 	instanceID                 string
 	numShards                  int
@@ -173,14 +179,14 @@ func newTestOptions() testOptions {
 	}
 }
 
-func (o *options) SetMsgpackAddr(value string) testOptions {
+func (o *options) SetRawTCPAddr(value string) testOptions {
 	opts := *o
-	opts.msgpackAddr = value
+	opts.rawTCPAddr = value
 	return &opts
 }
 
-func (o *options) MsgpackAddr() string {
-	return o.msgpackAddr
+func (o *options) RawTCPAddr() string {
+	return o.rawTCPAddr
 }
 
 func (o *options) SetHTTPAddr(value string) testOptions {
@@ -336,4 +342,3 @@ func (o *options) MaxJitterFn() aggregator.FlushJitterFn {
 func defaultMaxJitterFn(interval time.Duration) time.Duration {
 	return time.Duration(0.75 * float64(interval))
 }
-*/

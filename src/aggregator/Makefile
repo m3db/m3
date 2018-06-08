@@ -146,9 +146,8 @@ generics-gen: install-generics-bin install-license-bin
 clean:
 	@rm -f *.html *.xml *.out *.test
 
-# TODO(xichen) Add back ci-integration once the integration tests are working.
 .PHONY: all
-all: lint metalint test-ci-unit m3aggregator # test-ci-integration
+all: lint metalint test-ci-unit test-ci-integration m3aggregator
 	@echo Made all successfully
 
 .DEFAULT_GOAL := all

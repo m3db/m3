@@ -114,8 +114,8 @@ type AggregatorConfiguration struct {
 	// MaxTimerBatchSizePerWrite determines the maximum timer batch size for each batched write.
 	MaxTimerBatchSizePerWrite int `yaml:"maxTimerBatchSizePerWrite" validate:"min=0"`
 
-	// Default policies.
-	DefaultPolicies []policy.StoragePolicy `yaml:"defaultPolicies" validate:"nonzero"`
+	// Default storage policies.
+	DefaultStoragePolicies []policy.StoragePolicy `yaml:"defaultStoragePolicies" validate:"nonzero"`
 
 	// Pool of counter elements.
 	CounterElemPool pool.ObjectPoolConfiguration `yaml:"counterElemPool"`
@@ -264,11 +264,11 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	}
 
 	// Set default storage policies.
+	storagePolicies := make([]policy.StoragePolicy, len(c.DefaultStoragePolicies))
+	copy(storagePolicies, c.DefaultStoragePolicies)
 	// TODO(xichen): sort the storage policies.
-	policies := make([]policy.StoragePolicy, len(c.DefaultPolicies))
-	copy(policies, c.DefaultPolicies)
 	// sort.Sort(policy.ByResolutionAscRetentionDesc(policies))
-	opts = opts.SetDefaultStoragePolicies(policies)
+	opts = opts.SetDefaultStoragePolicies(storagePolicies)
 
 	// Set counter elem pool.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("counter-elem-pool"))
@@ -666,7 +666,7 @@ func instanceID(address string) (string, error) {
 	}
 	_, port, err := net.SplitHostPort(address)
 	if err != nil {
-		return "", fmt.Errorf("error parse msgpack server address %s: %v", address, err)
+		return "", fmt.Errorf("error parsing server address %s: %v", address, err)
 	}
 	return net.JoinHostPort(hostName, port), nil
 }

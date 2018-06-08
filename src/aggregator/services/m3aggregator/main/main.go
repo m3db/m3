@@ -74,15 +74,15 @@ func main() {
 		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
 		SetReportInterval(cfg.Metrics.ReportInterval())
 
-	// Create the msgpack server options.
-	msgpackAddr := cfg.Msgpack.ListenAddress
-	msgpackServerScope := scope.SubScope("msgpack-server").Tagged(map[string]string{"server": "msgpack"})
-	iOpts := instrumentOpts.SetMetricsScope(msgpackServerScope)
-	msgpackServerOpts := cfg.Msgpack.NewMsgpackServerOptions(iOpts)
+	// Create the raw TCP server options.
+	rawTCPAddr := cfg.RawTCP.ListenAddress
+	rawTCPServerScope := scope.SubScope("rawtcp-server").Tagged(map[string]string{"server": "rawtcp"})
+	iOpts := instrumentOpts.SetMetricsScope(rawTCPServerScope)
+	rawTCPServerOpts := cfg.RawTCP.NewServerOptions(iOpts)
 
 	// Create the http server options.
 	httpAddr := cfg.HTTP.ListenAddress
-	httpServerOpts := cfg.HTTP.NewHTTPServerOptions()
+	httpServerOpts := cfg.HTTP.NewServerOptions()
 
 	// Create the kv client.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("kv-client"))
@@ -96,7 +96,7 @@ func main() {
 
 	// Create the aggregator.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("aggregator"))
-	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(msgpackAddr, client, runtimeOptsManager, iOpts)
+	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(rawTCPAddr, client, runtimeOptsManager, iOpts)
 	if err != nil {
 		logger.Fatalf("error creating aggregator options: %v", err)
 	}
@@ -113,8 +113,8 @@ func main() {
 	closedCh := make(chan struct{})
 	go func() {
 		if err := serve.Serve(
-			msgpackAddr,
-			msgpackServerOpts,
+			rawTCPAddr,
+			rawTCPServerOpts,
 			httpAddr,
 			httpServerOpts,
 			aggregator,

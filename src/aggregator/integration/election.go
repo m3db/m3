@@ -20,8 +20,6 @@
 
 package integration
 
-// TODO(xichen): revive this once encoder APIs are added.
-/*
 import (
 	"testing"
 
@@ -80,4 +78,3 @@ func (tc *testCluster) options() leader.Options {
 		SetServiceID(sid).
 		SetElectionOpts(eopts)
 }
-*/

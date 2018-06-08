@@ -22,9 +22,32 @@
 
 package integration
 
-// TODO(xichen): revive this test once encoder APIs are added.
-/*
-func TestSameIDMultiType(t *testing.T) {
+import (
+	"testing"
+	"time"
+
+	"github.com/m3db/m3metrics/metric/unaggregated"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestSameIDMultiTypeWithPoliciesList(t *testing.T) {
+	metadata := metadataUnion{
+		mType:        policiesListType,
+		policiesList: testPoliciesList,
+	}
+	testSameIDMultiType(t, metadata)
+}
+
+func TestSameIDMultiTypeWithStagedMetadatas(t *testing.T) {
+	metadata := metadataUnion{
+		mType:           stagedMetadatasType,
+		stagedMetadatas: testStagedMetadatas,
+	}
+	testSameIDMultiType(t, metadata)
+}
+
+func testSameIDMultiType(t *testing.T, metadata metadataUnion) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -40,7 +63,7 @@ func TestSameIDMultiType(t *testing.T) {
 
 	// Start the server.
 	log := testSetup.aggregatorOpts.InstrumentOptions().Logger()
-	log.Info("test one client sending multiple types of metrics")
+	log.Info("test sending same metric ID with different metric types")
 	require.NoError(t, testSetup.startServer())
 	log.Info("server is now up")
 	require.NoError(t, testSetup.waitUntilLeader())
@@ -81,11 +104,15 @@ func TestSameIDMultiType(t *testing.T) {
 		}
 	}
 
-	input := generateTestData(start, stop, interval, ids, metricTypeFn, testPoliciesList)
-	for _, data := range input.dataset {
+	dataset := generateTestDataset(start, stop, interval, ids, metricTypeFn)
+	for _, data := range dataset {
 		testSetup.setNowFn(data.timestamp)
 		for _, mu := range data.metrics {
-			require.NoError(t, client.write(mu, input.policiesList))
+			if metadata.mType == policiesListType {
+				require.NoError(t, client.writeMetricWithPoliciesList(mu, metadata.policiesList))
+			} else {
+				require.NoError(t, client.writeMetricWithMetadatas(mu, metadata.stagedMetadatas))
+			}
 		}
 		require.NoError(t, client.flush())
 
@@ -104,8 +131,7 @@ func TestSameIDMultiType(t *testing.T) {
 	log.Info("server is now down")
 
 	// Validate results.
-	expected := toExpectedResults(t, finalTime, input, testSetup.aggregatorOpts)
+	expected := computeExpectedResults(t, finalTime, dataset, metadata, testSetup.aggregatorOpts)
 	actual := testSetup.sortedResults()
 	require.Equal(t, expected, actual)
 }
-*/

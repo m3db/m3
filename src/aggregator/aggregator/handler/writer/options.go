@@ -21,7 +21,7 @@
 package writer
 
 import (
-	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3metrics/encoding/msgpack"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 )

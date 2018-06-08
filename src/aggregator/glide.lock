@@ -1,5 +1,5 @@
-hash: 254b7e0d8c8bb25c2e3e8dc283086832b18e68f08748f927bb36c9afeb54eb4d
-updated: 2018-06-08T09:07:31.526574-04:00
+hash: f23f55d458f3e40756df49a4e18c38cb9ffa1dc40ed87d9c92f7e7031c74a2bc
+updated: 2018-06-08T09:48:18.909794-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -7,29 +7,122 @@ imports:
   - lib/go/thrift
 - name: github.com/beorn7/perks
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
+  subpackages:
+  - quantile
 - name: github.com/boltdb/bolt
   version: 583e8937c61f1af6513608ccc75c97b6abdf4ff9
+- name: github.com/cockroachdb/cmux
+  version: 112f0506e7743d64a6eb8fedbcff13d9979bbf92
+- name: github.com/coreos/bbolt
+  version: 32c383e75ce054674c53b5a07e55de85332aee14
 - name: github.com/coreos/etcd
   version: 694728c496e22dfa5719c78ff23cc982e15bcb2f
   subpackages:
+  - alarm
+  - auth
   - auth/authpb
+  - client
   - clientv3
   - clientv3/concurrency
+  - clientv3/namespace
+  - clientv3/naming
+  - compactor
+  - discovery
+  - embed
+  - error
+  - etcdserver
+  - etcdserver/api
+  - etcdserver/api/etcdhttp
+  - etcdserver/api/v2http
+  - etcdserver/api/v2http/httptypes
+  - etcdserver/api/v3client
+  - etcdserver/api/v3election
+  - etcdserver/api/v3election/v3electionpb
+  - etcdserver/api/v3election/v3electionpb/gw
+  - etcdserver/api/v3lock
+  - etcdserver/api/v3lock/v3lockpb
+  - etcdserver/api/v3lock/v3lockpb/gw
+  - etcdserver/api/v3rpc
   - etcdserver/api/v3rpc/rpctypes
+  - etcdserver/auth
   - etcdserver/etcdserverpb
+  - etcdserver/etcdserverpb/gw
+  - etcdserver/membership
+  - etcdserver/stats
+  - integration
+  - lease
+  - lease/leasehttp
+  - lease/leasepb
+  - mvcc
+  - mvcc/backend
   - mvcc/mvccpb
+  - pkg/adt
+  - pkg/contention
+  - pkg/cors
+  - pkg/cpuutil
+  - pkg/crc
+  - pkg/debugutil
+  - pkg/fileutil
+  - pkg/httputil
+  - pkg/idutil
+  - pkg/ioutil
+  - pkg/logutil
+  - pkg/monotime
+  - pkg/netutil
+  - pkg/pathutil
+  - pkg/pbutil
+  - pkg/runtime
+  - pkg/schedule
+  - pkg/srv
+  - pkg/testutil
+  - pkg/tlsutil
+  - pkg/transport
+  - pkg/types
+  - pkg/wait
+  - proxy/grpcproxy
+  - proxy/grpcproxy/adapter
+  - proxy/grpcproxy/cache
+  - raft
+  - raft/raftpb
+  - rafthttp
+  - snap
+  - snap/snappb
+  - store
+  - version
+  - wal
+  - wal/walpb
 - name: github.com/coreos/go-semver
   version: 568e959cd89871e61434c1143528d9162da89ef2
+  subpackages:
+  - semver
 - name: github.com/coreos/go-systemd
   version: 48702e0da86bd25e76cfef347e2adeb434a0d0a6
+  subpackages:
+  - journal
 - name: github.com/coreos/pkg
   version: 3ac0863d7acf3bc44daf49afef8919af12f704ef
+  subpackages:
+  - capnslog
+- name: github.com/davecgh/go-spew
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  subpackages:
+  - spew
+- name: github.com/dgrijalva/jwt-go
+  version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
 - name: github.com/gogo/protobuf
   version: 100ba4e885062801d56799d78530b73b178a78f3
+  subpackages:
+  - gogoproto
+  - proto
+  - protoc-gen-gogo/descriptor
+- name: github.com/golang/groupcache
+  version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
+  subpackages:
+  - lru
 - name: github.com/golang/mock
   version: 58cd061d09382b6011f84c1291ebe50ef2e25bab
   subpackages:
@@ -37,11 +130,13 @@ imports:
 - name: github.com/golang/protobuf
   version: 5a0f697c9ed9d68fef0116532c6e05cfeae00e55
   subpackages:
+  - jsonpb
   - proto
   - protoc-gen-go/descriptor
   - ptypes
   - ptypes/any
   - ptypes/duration
+  - ptypes/struct
   - ptypes/timestamp
 - name: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
@@ -49,6 +144,10 @@ imports:
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
   version: 8cc3a55af3bcf171a1c23a90c4df9cf591706104
+  subpackages:
+  - runtime
+  - runtime/internal
+  - utilities
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
 - name: github.com/karlseguin/ccache
@@ -79,10 +178,18 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: f8695953f61353033eebec88d7b1a3f38167dcaa
+  version: b02357e96ca0ffd506d7e2b0d3ab242cd6a9ade1
   subpackages:
   - aggregation
-  - generated/proto/schema
+  - encoding
+  - encoding/migration
+  - encoding/msgpack
+  - encoding/protobuf
+  - generated/proto/aggregationpb
+  - generated/proto/metricpb
+  - generated/proto/pipelinepb
+  - generated/proto/policypb
+  - generated/proto/transformationpb
   - metadata
   - metric
   - metric/aggregated
@@ -91,7 +198,6 @@ imports:
   - op
   - op/applied
   - policy
-  - protocol/msgpack
   - transformation
 - name: github.com/m3db/m3x
   version: 29bc232d9ad2e6c4a1804ccce095bb730fb1c6bc
@@ -115,16 +221,30 @@ imports:
   - watch
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
+  subpackages:
+  - pbutil
 - name: github.com/mauricelam/genny
   version: 9d8700bcc567cd22ea2ef42ce5835a9c80296c4a
   subpackages:
   - generic
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
 - name: github.com/prometheus/client_golang
   version: c5b7fccd204277076155f10851dad72b76a49317
+  subpackages:
+  - prometheus
 - name: github.com/prometheus/client_model
   version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
+  subpackages:
+  - go
 - name: github.com/prometheus/common
   version: 3e6a7635bac6573d43f49f97b47eb9bda195dba8
+  subpackages:
+  - expfmt
+  - internal/bitbucket.org/ww/goautoneg
+  - model
 - name: github.com/prometheus/procfs
   version: 1878d9fbb537119d24b21ca07effd591627cd160
 - name: github.com/shirou/gopsutil
@@ -153,6 +273,8 @@ imports:
   - m3/thriftudp
 - name: github.com/ugorji/go
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
+  subpackages:
+  - codec
 - name: github.com/willf/bitset
   version: 988f4f24992fc745de53c42df0da6581e42a6686
 - name: github.com/xiang90/probing
@@ -171,6 +293,9 @@ imports:
   - zapcore
 - name: golang.org/x/crypto
   version: 1351f936d976c60a0a48d728281922cf63eafb8d
+  subpackages:
+  - bcrypt
+  - blowfish
 - name: golang.org/x/net
   version: ab5485076ff3407ad2d02db054635913f017b0ed
   repo: https://github.com/golang/net
@@ -185,6 +310,8 @@ imports:
   - trace
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  subpackages:
+  - unix
 - name: golang.org/x/text
   version: 4ee4af566555f5fbe026368b75596286a312663a
   subpackages:
@@ -194,6 +321,8 @@ imports:
   - unicode/norm
 - name: golang.org/x/time
   version: a4bde12657593d5e90d0533a3e4fd95e635124cb
+  subpackages:
+  - rate
 - name: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
   subpackages:
@@ -239,11 +368,11 @@ imports:
 - name: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
-- name: github.com/davecgh/go-spew
-  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+- name: github.com/google/go-cmp
+  version: 3af367b6b30c263d47e8895973edcca9a49cf029
   subpackages:
-  - spew
-- name: github.com/pmezard/go-difflib
-  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
-  subpackages:
-  - difflib
+  - cmp
+  - cmp/cmpopts
+  - cmp/internal/diff
+  - cmp/internal/function
+  - cmp/internal/value

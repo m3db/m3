@@ -24,42 +24,47 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/server/http"
-	"github.com/m3db/m3aggregator/server/msgpack"
-	msgpackp "github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3aggregator/server/rawtcp"
+	"github.com/m3db/m3metrics/encoding/msgpack"
+	"github.com/m3db/m3metrics/encoding/protobuf"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
 	xserver "github.com/m3db/m3x/server"
 )
 
-// MsgpackServerConfiguration contains msgpack server configuration.
-type MsgpackServerConfiguration struct {
-	// Msgpack server listening address.
+// RawTCPServerConfiguration contains raw TCP server configuration.
+type RawTCPServerConfiguration struct {
+	// Raw TCP server listening address.
 	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
 
 	// Error log limit per second.
-	ErrorLogLimitPerSecond int64 `yaml:"errorLogLimitPerSecond"`
+	ErrorLogLimitPerSecond *int64 `yaml:"errorLogLimitPerSecond"`
 
 	// Whether keep alives are enabled on connections.
 	KeepAliveEnabled *bool `yaml:"keepAliveEnabled"`
 
 	// KeepAlive period.
-	KeepAlivePeriod time.Duration `yaml:"keepAlivePeriod"`
+	KeepAlivePeriod *time.Duration `yaml:"keepAlivePeriod"`
 
 	// Retry mechanism configuration.
 	Retry retry.Configuration `yaml:"retry"`
 
-	// Iterator configuration.
-	Iterator unaggregatedIteratorConfiguration `yaml:"iterator"`
+	// Read buffer size.
+	ReadBufferSize *int `yaml:"readBufferSize"`
+
+	// Msgpack iterator configuration.
+	MsgpackIterator msgpackUnaggregatedIteratorConfiguration `yaml:"msgpackIterator"`
+
+	// Protobuf iterator configuration.
+	ProtobufIterator protobufUnaggregatedIteratorConfiguration `yaml:"protobufIterator"`
 }
 
-// NewMsgpackServerOptions create a new set of msgpack server options.
-func (c *MsgpackServerConfiguration) NewMsgpackServerOptions(
+// NewServerOptions create a new set of raw TCP server options.
+func (c *RawTCPServerConfiguration) NewServerOptions(
 	instrumentOpts instrument.Options,
-) msgpack.Options {
-	opts := msgpack.NewOptions().
-		SetInstrumentOptions(instrumentOpts).
-		SetErrorLogLimitPerSecond(c.ErrorLogLimitPerSecond)
+) rawtcp.Options {
+	opts := rawtcp.NewOptions().SetInstrumentOptions(instrumentOpts)
 
 	// Set server options.
 	serverOpts := xserver.NewOptions().
@@ -68,50 +73,57 @@ func (c *MsgpackServerConfiguration) NewMsgpackServerOptions(
 	if c.KeepAliveEnabled != nil {
 		serverOpts = serverOpts.SetTCPConnectionKeepAlive(*c.KeepAliveEnabled)
 	}
-	if c.KeepAlivePeriod != 0 {
-		serverOpts = serverOpts.SetTCPConnectionKeepAlivePeriod(c.KeepAlivePeriod)
+	if c.KeepAlivePeriod != nil {
+		serverOpts = serverOpts.SetTCPConnectionKeepAlivePeriod(*c.KeepAlivePeriod)
 	}
 	opts = opts.SetServerOptions(serverOpts)
 
-	// Set unaggregated iterator pool.
-	iteratorPool := c.Iterator.NewUnaggregatedIteratorPool(instrumentOpts)
-	opts = opts.SetIteratorPool(iteratorPool)
+	// Set msgpack iterator options.
+	msgpackItOpts := c.MsgpackIterator.NewOptions(instrumentOpts)
+	opts = opts.SetMsgpackUnaggregatedIteratorOptions(msgpackItOpts)
 
+	// Set protobuf iterator options.
+	protobufItOpts := c.ProtobufIterator.NewOptions(instrumentOpts)
+	opts = opts.SetProtobufUnaggregatedIteratorOptions(protobufItOpts)
+
+	if c.ReadBufferSize != nil {
+		opts = opts.SetReadBufferSize(*c.ReadBufferSize)
+	}
+	if c.ErrorLogLimitPerSecond != nil {
+		opts = opts.SetErrorLogLimitPerSecond(*c.ErrorLogLimitPerSecond)
+	}
 	return opts
 }
 
-// unaggregatedIteratorConfiguration contains configuration for unaggregated iterator.
-type unaggregatedIteratorConfiguration struct {
+// msgpackUnaggregatedIteratorConfiguration contains configuration for msgpack unaggregated iterator.
+type msgpackUnaggregatedIteratorConfiguration struct {
 	// Whether to ignore encoded data streams whose version is higher than the current known version.
 	IgnoreHigherVersion *bool `yaml:"ignoreHigherVersion"`
 
 	// Reader buffer size.
-	ReaderBufferSize int `yaml:"readerBufferSize"`
+	ReaderBufferSize *int `yaml:"readerBufferSize"`
 
 	// Whether a float slice is considered a "large" slice and therefore resort to
 	// the large floats pool for allocating that slice.
-	LargeFloatsSize int `yaml:"largeFloatsSize"`
+	LargeFloatsSize *int `yaml:"largeFloatsSize"`
 
 	// Pool of large float slices.
 	LargeFloatsPool pool.BucketizedPoolConfiguration `yaml:"largeFloatsPool"`
-
-	// Pool of unaggregated iterators.
-	IteratorPool pool.ObjectPoolConfiguration `yaml:"iteratorPool"`
 }
 
-func (c *unaggregatedIteratorConfiguration) NewUnaggregatedIteratorPool(
+func (c *msgpackUnaggregatedIteratorConfiguration) NewOptions(
 	instrumentOpts instrument.Options,
-) msgpackp.UnaggregatedIteratorPool {
+) msgpack.UnaggregatedIteratorOptions {
 	scope := instrumentOpts.MetricsScope()
-	opts := msgpackp.NewUnaggregatedIteratorOptions()
+	opts := msgpack.NewUnaggregatedIteratorOptions()
 	if c.IgnoreHigherVersion != nil {
 		opts = opts.SetIgnoreHigherVersion(*c.IgnoreHigherVersion)
 	}
-	if c.ReaderBufferSize != 0 {
-		opts = opts.SetReaderBufferSize(c.ReaderBufferSize)
+	if c.ReaderBufferSize != nil {
+		opts = opts.SetReaderBufferSize(*c.ReaderBufferSize)
 	}
-	if c.LargeFloatsSize != 0 {
-		opts = opts.SetLargeFloatsSize(c.LargeFloatsSize)
+	if c.LargeFloatsSize != nil {
+		opts = opts.SetLargeFloatsSize(*c.LargeFloatsSize)
 	}
 
 	// NB(xichen): intentionally not using the same floats pool used for computing
@@ -122,14 +134,41 @@ func (c *unaggregatedIteratorConfiguration) NewUnaggregatedIteratorPool(
 	opts = opts.SetLargeFloatsPool(largeFloatsPool)
 	largeFloatsPool.Init()
 
-	// Set iterator pool.
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("unaggregated-iterator-pool"))
-	iteratorPoolOpts := c.IteratorPool.NewObjectPoolOptions(iOpts)
-	iteratorPool := msgpackp.NewUnaggregatedIteratorPool(iteratorPoolOpts)
-	opts = opts.SetIteratorPool(iteratorPool)
-	iteratorPool.Init(func() msgpackp.UnaggregatedIterator { return msgpackp.NewUnaggregatedIterator(nil, opts) })
+	return opts
+}
 
-	return iteratorPool
+// protobufUnaggregatedIteratorConfiguration contains configuration for protobuf unaggregated iterator.
+type protobufUnaggregatedIteratorConfiguration struct {
+	// Initial buffer size.
+	InitBufferSize *int `yaml:"initBufferSize"`
+
+	// Maximum message size.
+	MaxMessageSize *int `yaml:"maxMessageSize"`
+
+	// Bytes pool.
+	BytesPool pool.BucketizedPoolConfiguration `yaml:"bytesPool"`
+}
+
+func (c *protobufUnaggregatedIteratorConfiguration) NewOptions(
+	instrumentOpts instrument.Options,
+) protobuf.UnaggregatedOptions {
+	opts := protobuf.NewUnaggregatedOptions()
+	if c.InitBufferSize != nil {
+		opts = opts.SetInitBufferSize(*c.InitBufferSize)
+	}
+	if c.MaxMessageSize != nil {
+		opts = opts.SetMaxMessageSize(*c.MaxMessageSize)
+	}
+
+	// Set bytes pool.
+	scope := instrumentOpts.MetricsScope()
+	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("bytes-pool"))
+	objectPoolOpts := c.BytesPool.NewObjectPoolOptions(iOpts)
+	buckets := c.BytesPool.NewBuckets()
+	bytesPool := pool.NewBytesPool(buckets, objectPoolOpts)
+	opts = opts.SetBytesPool(bytesPool)
+
+	return opts
 }
 
 // HTTPServerConfiguration contains http server configuration.
@@ -144,8 +183,8 @@ type HTTPServerConfiguration struct {
 	WriteTimeout time.Duration `yaml:"writeTimeout"`
 }
 
-// NewHTTPServerOptions create a new set of http server options.
-func (c *HTTPServerConfiguration) NewHTTPServerOptions() http.Options {
+// NewServerOptions create a new set of http server options.
+func (c *HTTPServerConfiguration) NewServerOptions() http.Options {
 	opts := http.NewOptions()
 	if c.ReadTimeout != 0 {
 		opts = opts.SetReadTimeout(c.ReadTimeout)

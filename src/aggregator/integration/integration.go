@@ -20,8 +20,6 @@
 
 package integration
 
-// TODO(xichen): revive this once encoder APIs are added.
-/*
 import (
 	"time"
 )
@@ -38,4 +36,3 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 	}
 	return false
 }
-*/
