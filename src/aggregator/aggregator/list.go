@@ -126,6 +126,11 @@ func newMetricListMetrics(scope tally.Scope) baseMetricListMetrics {
 	}
 }
 
+// targetNanosFn computes the target timestamp in nanoseconds from the current
+// time. This in combination with isEarlierThanFn is used to determine the set
+// of aggregation windows that are eligible for flushing.
+type targetNanosFn func(nowNanos int64) int64
+
 type flushBeforeFn func(beforeNanos int64, flushType flushType)
 
 // baseMetricList is a metric list storing aggregations at a given resolution and
@@ -141,6 +146,7 @@ type baseMetricList struct {
 	localWriter      writer.Writer
 	forwardedWriter  client.AdminClient
 	resolution       time.Duration
+	targetNanosFn    targetNanosFn
 	isEarlierThanFn  isEarlierThanFn
 	timestampNanosFn timestampNanosFn
 
@@ -160,6 +166,7 @@ type baseMetricList struct {
 func newBaseMetricList(
 	shard uint32,
 	resolution time.Duration,
+	targetNanosFn targetNanosFn,
 	isEarlierThanFn isEarlierThanFn,
 	timestampNanosFn timestampNanosFn,
 	opts Options,
@@ -182,6 +189,7 @@ func newBaseMetricList(
 		localWriter:      localWriter,
 		forwardedWriter:  opts.AdminClient(),
 		resolution:       resolution,
+		targetNanosFn:    targetNanosFn,
 		isEarlierThanFn:  isEarlierThanFn,
 		timestampNanosFn: timestampNanosFn,
 		aggregations:     list.New(),
@@ -254,10 +262,11 @@ func (l *baseMetricList) Flush(req flushRequest) {
 	l.timeLock.Lock()
 	nowNanos := l.nowFn().UnixNano()
 	l.timeLock.Unlock()
+	targetNanos := l.targetNanosFn(nowNanos)
 
 	// Metrics before shard cutover are discarded.
-	if nowNanos <= req.CutoverNanos {
-		l.flushBeforeFn(nowNanos, discardType)
+	if targetNanos <= req.CutoverNanos {
+		l.flushBeforeFn(targetNanos, discardType)
 		l.metrics.flushBeforeCutover.Inc(1)
 		return
 	}
@@ -266,15 +275,15 @@ func (l *baseMetricList) Flush(req flushRequest) {
 	if req.CutoverNanos > 0 {
 		l.flushBeforeFn(req.CutoverNanos, discardType)
 	}
-	if nowNanos <= req.CutoffNanos {
-		l.flushBeforeFn(nowNanos, consumeType)
+	if targetNanos <= req.CutoffNanos {
+		l.flushBeforeFn(targetNanos, consumeType)
 		l.metrics.flushBetweenCutoverCutoff.Inc(1)
 		return
 	}
 
 	// Metrics after now-keepAfterCutoff are retained.
 	l.flushBeforeFn(req.CutoffNanos, consumeType)
-	bufferEndNanos := nowNanos - int64(req.BufferAfterCutoff)
+	bufferEndNanos := targetNanos - int64(req.BufferAfterCutoff)
 	if bufferEndNanos <= req.CutoffNanos {
 		l.metrics.flushBetweenCutoffBufferEnd.Inc(1)
 		return
@@ -419,6 +428,9 @@ func (l *baseMetricList) discardForwardedMetric(
 	l.metrics.flushForwarded.metricDiscarded.Inc(1)
 }
 
+// Standard metrics whose timestamps are earlier than current time can be flushed.
+func standardMetricTargetNanos(nowNanos int64) int64 { return nowNanos }
+
 // The timestamp of a standard metric is the end time boundary of the aggregation
 // window when the metric is flushed. As such, only the aggregation windows whose
 // end time boundaries are no later than the target time can be flushed.
@@ -462,6 +474,7 @@ func newStandardMetricList(
 	l, err := newBaseMetricList(
 		shard,
 		id.resolution,
+		standardMetricTargetNanos,
 		isStandardMetricEarlierThan,
 		standardMetricTimestampNanos,
 		opts,
@@ -489,6 +502,16 @@ func (l *standardMetricList) Close() {
 	if err := l.flushMgr.Unregister(l); err != nil {
 		l.log.Errorf("error unregistering list: %v", err)
 	}
+}
+
+// NB: the targetNanos for forwarded metrics has already taken into account the maximum
+// amount of lateness that is tolerated.
+func isForwardedMetricEarlierThan(
+	windowStartNanos int64,
+	_ time.Duration,
+	targetNanos int64,
+) bool {
+	return windowStartNanos < targetNanos
 }
 
 // The timestamp of a forwarded metric is set to the start time boundary of the aggregation
@@ -530,16 +553,20 @@ func newForwardedMetricList(
 		numForwardedTimes    = id.numForwardedTimes
 		maxLatenessAllowedFn = opts.MaxAllowedForwardingDelayFn()
 		maxLatenessAllowed   = maxLatenessAllowedFn(resolution, numForwardedTimes)
-		timestampNanosFn     = forwardedMetricTimestampNanos
 	)
-	isEarlierThanFn := func(
-		windowStartNanos int64,
-		_ time.Duration,
-		targetNanos int64,
-	) bool {
-		return targetNanos-windowStartNanos >= maxLatenessAllowed.Nanoseconds()
+	// Forwarded metrics that have been kept for longer than the maximum lateness
+	// allowed will be flushed.
+	targetNanosFn := func(nowNanos int64) int64 {
+		return nowNanos - maxLatenessAllowed.Nanoseconds()
 	}
-	l, err := newBaseMetricList(shard, resolution, isEarlierThanFn, timestampNanosFn, opts)
+	l, err := newBaseMetricList(
+		shard,
+		resolution,
+		targetNanosFn,
+		isForwardedMetricEarlierThan,
+		forwardedMetricTimestampNanos,
+		opts,
+	)
 	if err != nil {
 		return nil, err
 	}

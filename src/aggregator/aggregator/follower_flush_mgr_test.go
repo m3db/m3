@@ -85,7 +85,7 @@ func TestFollowerFlushManagerCanNotLeadProtoNotUpdated(t *testing.T) {
 	require.False(t, mgr.CanLead())
 }
 
-func TestFollowerFlushManagerCanNotLeadFlushWindowsNotEnded(t *testing.T) {
+func TestFollowerFlushManagerCanNotLeadStandardFlushWindowsNotEnded(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -96,6 +96,20 @@ func TestFollowerFlushManagerCanNotLeadFlushWindowsNotEnded(t *testing.T) {
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.processed = testFlushTimes
 	mgr.openedAt = time.Unix(3624, 0)
+	require.False(t, mgr.CanLead())
+}
+
+func TestFollowerFlushManagerCanNotLeadForwardedFlushWindowsNotEnded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	doneCh := make(chan struct{})
+	electionManager := NewMockElectionManager(ctrl)
+	electionManager.EXPECT().IsCampaigning().Return(true)
+	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
+	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
+	mgr.processed = testFlushTimes
+	mgr.openedAt = time.Unix(3640, 0)
 	require.False(t, mgr.CanLead())
 }
 
@@ -125,7 +139,7 @@ func TestFollowerFlushManagerCanLeadWithTombstonedShards(t *testing.T) {
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.flushTimesState = flushTimesProcessed
 	mgr.processed = testFlushTimes2
-	mgr.openedAt = time.Unix(3660, 0)
+	mgr.openedAt = time.Unix(3600, 0)
 	require.True(t, mgr.CanLead())
 }
 

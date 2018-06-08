@@ -49,7 +49,7 @@ func TestBaseMetricListPushBack(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	l, err := newBaseMetricList(testShard, time.Second, nil, nil, testOptions(ctrl))
+	l, err := newBaseMetricList(testShard, time.Second, nil, nil, nil, testOptions(ctrl))
 	require.NoError(t, err)
 	elem, err := NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, l.opts)
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestBaseMetricListClose(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := testOptions(ctrl)
-	l, err := newBaseMetricList(testShard, time.Second, nil, nil, opts)
+	l, err := newBaseMetricList(testShard, time.Second, nil, nil, nil, opts)
 	require.NoError(t, err)
 
 	l.RLock()
@@ -96,12 +96,13 @@ func TestBaseMetricListFlushWithRequests(t *testing.T) {
 	var (
 		now              = time.Unix(12345, 0)
 		nowFn            = func() time.Time { return now }
+		targetNanosFn    = standardMetricTargetNanos
 		isEarlierThanFn  = isStandardMetricEarlierThan
 		timestampNanosFn = standardMetricTimestampNanos
 		results          []flushBeforeResult
 	)
 	opts := testOptions(ctrl).SetClockOptions(clock.NewOptions().SetNowFn(nowFn))
-	l, err := newBaseMetricList(testShard, time.Second, isEarlierThanFn, timestampNanosFn, opts)
+	l, err := newBaseMetricList(testShard, time.Second, targetNanosFn, isEarlierThanFn, timestampNanosFn, opts)
 	require.NoError(t, err)
 	l.flushBeforeFn = func(beforeNanos int64, flushType flushType) {
 		results = append(results, flushBeforeResult{
@@ -208,11 +209,12 @@ func TestBaseMetricListFlushBeforeStale(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
+		targetNanosFn    = standardMetricTargetNanos
 		isEarlierThanFn  = isStandardMetricEarlierThan
 		timestampNanosFn = standardMetricTimestampNanos
 		opts             = testOptions(ctrl)
 	)
-	l, err := newBaseMetricList(testShard, 0, isEarlierThanFn, timestampNanosFn, opts)
+	l, err := newBaseMetricList(testShard, 0, targetNanosFn, isEarlierThanFn, timestampNanosFn, opts)
 	require.NoError(t, err)
 	l.lastFlushedNanos = 1234
 	l.flushBefore(1000, discardType)
@@ -648,7 +650,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 	// Assert all elements have been collected.
 	require.Equal(t, 0, l.aggregations.Len())
 
-	require.Equal(t, l.lastFlushedNanos, nowTs.UnixNano())
+	require.Equal(t, l.lastFlushedNanos, nowTs.UnixNano()-maxLatenessAllowed.Nanoseconds())
 }
 
 func TestForwardedMetricListClose(t *testing.T) {

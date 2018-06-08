@@ -166,7 +166,7 @@ func (c *client) WriteUntimedCounter(
 			metadatas: metadatas,
 		},
 	}
-	return c.write(counter.ID, payload)
+	return c.write(counter.ID, c.nowNanos(), payload)
 }
 
 func (c *client) WriteUntimedBatchTimer(
@@ -180,7 +180,7 @@ func (c *client) WriteUntimedBatchTimer(
 			metadatas: metadatas,
 		},
 	}
-	return c.write(batchTimer.ID, payload)
+	return c.write(batchTimer.ID, c.nowNanos(), payload)
 }
 
 func (c *client) WriteUntimedGauge(
@@ -194,7 +194,7 @@ func (c *client) WriteUntimedGauge(
 			metadatas: metadatas,
 		},
 	}
-	return c.write(gauge.ID, payload)
+	return c.write(gauge.ID, c.nowNanos(), payload)
 }
 
 func (c *client) WriteForwarded(
@@ -208,7 +208,7 @@ func (c *client) WriteForwarded(
 			metadata: metadata,
 		},
 	}
-	return c.write(metric.ID, payload)
+	return c.write(metric.ID, metric.TimeNanos, payload)
 }
 
 func (c *client) Flush() error {
@@ -234,7 +234,7 @@ func (c *client) Close() error {
 	return c.writerMgr.Close()
 }
 
-func (c *client) write(metricID id.RawID, payload payloadUnion) error {
+func (c *client) write(metricID id.RawID, timeNanos int64, payload payloadUnion) error {
 	c.RLock()
 	if c.state != clientInitialized {
 		c.RUnlock()
@@ -255,7 +255,6 @@ func (c *client) write(metricID id.RawID, payload payloadUnion) error {
 		numShards = placement.NumShards()
 		shardID   = c.shardFn(metricID, numShards)
 		instances = placement.InstancesForShard(shardID)
-		nowNanos  = c.nowFn().UnixNano()
 		multiErr  = xerrors.NewMultiError()
 	)
 	for _, instance := range instances {
@@ -267,7 +266,7 @@ func (c *client) write(metricID id.RawID, payload payloadUnion) error {
 			multiErr = multiErr.Add(err)
 			continue
 		}
-		if !c.shouldWriteForShard(nowNanos, shard) {
+		if !c.shouldWriteForShard(timeNanos, shard) {
 			continue
 		}
 		if err = c.writerMgr.Write(instance, shardID, payload); err != nil {
@@ -299,3 +298,5 @@ func (c *client) writeTimeRangeFor(shard shard.Shard) (int64, int64) {
 	}
 	return earliestNanos, latestNanos
 }
+
+func (c *client) nowNanos() int64 { return c.nowFn().UnixNano() }

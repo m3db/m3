@@ -274,18 +274,24 @@ func (mgr *flushTimesManager) persistFlushTimes(persistWatch watch.Watch) {
 }
 
 type flushTimesCheckerMetrics struct {
-	noFlushTimes    tally.Counter
-	shardNotFound   tally.Counter
-	notFullyFlushed tally.Counter
-	allFlushed      tally.Counter
+	noFlushTimes             tally.Counter
+	shardNotFound            tally.Counter
+	standardNotFullyFlushed  tally.Counter
+	forwardedNotFullyFlushed tally.Counter
+	forwardedNilFlushTimes   tally.Counter
+	allFlushed               tally.Counter
 }
 
 func newFlushTimesCheckerMetrics(scope tally.Scope) flushTimesCheckerMetrics {
+	standardScope := scope.Tagged(map[string]string{"metric-type": "standard"})
+	forwardedScope := scope.Tagged(map[string]string{"metric-type": "forwarded"})
 	return flushTimesCheckerMetrics{
-		noFlushTimes:    scope.Counter("no-flush-times"),
-		shardNotFound:   scope.Counter("shard-not-found"),
-		notFullyFlushed: scope.Counter("not-fully-flushed"),
-		allFlushed:      scope.Counter("all-flushed"),
+		noFlushTimes:             scope.Counter("no-flush-times"),
+		shardNotFound:            scope.Counter("shard-not-found"),
+		standardNotFullyFlushed:  standardScope.Counter("not-fully-flushed"),
+		forwardedNotFullyFlushed: forwardedScope.Counter("not-fully-flushed"),
+		forwardedNilFlushTimes:   forwardedScope.Counter("nil-flush-times"),
+		allFlushed:               scope.Counter("all-flushed"),
 	}
 }
 
@@ -302,7 +308,6 @@ func newFlushTimesChecker(scope tally.Scope) flushTimesChecker {
 // HasFlushed returns true if data for a given shard have been flushed until
 // at least the given target nanoseconds based on the flush times persisted in kv,
 // and false otherwise.
-// TODO(xichen): rework the logic here to account for forwarded metrics.
 func (sc flushTimesChecker) HasFlushed(
 	shardID uint32,
 	targetNanos int64,
@@ -312,17 +317,37 @@ func (sc flushTimesChecker) HasFlushed(
 		sc.metrics.noFlushTimes.Inc(1)
 		return false
 	}
+
+	// Check if shard is present.
 	shardFlushTimes, exists := flushTimes.ByShard[shardID]
 	if !exists {
 		sc.metrics.shardNotFound.Inc(1)
 		return false
 	}
+
+	// Check if the standard metrics have been flushed past the target time.
 	for _, lastFlushedNanos := range shardFlushTimes.StandardByResolution {
 		if lastFlushedNanos < targetNanos {
-			sc.metrics.notFullyFlushed.Inc(1)
+			sc.metrics.standardNotFullyFlushed.Inc(1)
 			return false
 		}
 	}
+
+	// Check if the forwarded metrics have been flushed past the target time.
+	for _, fbr := range shardFlushTimes.ForwardedByResolution {
+		if fbr == nil {
+			sc.metrics.forwardedNilFlushTimes.Inc(1)
+			return false
+		}
+		for _, lastFlushedNanos := range fbr.ByNumForwardedTimes {
+			if lastFlushedNanos < targetNanos {
+				sc.metrics.forwardedNotFullyFlushed.Inc(1)
+				return false
+			}
+		}
+	}
+
+	// All metrics have been flushed past the target time.
 	sc.metrics.allFlushed.Inc(1)
 	return true
 }
