@@ -27,6 +27,9 @@
 
 // mockgen rules for generating mocks for unexported interfaces (file mode).
 //go:generate sh -c "mockgen -package=aggregator -destination=$GOPATH/src/$PACKAGE/aggregator/flush_mgr_mock.go -source=$GOPATH/src/$PACKAGE/aggregator/flush_mgr.go"
+//go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/writer_mgr_mock.go -source=$GOPATH/src/$PACKAGE/client/writer_mgr.go"
+//go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/writer_mock.go -source=$GOPATH/src/$PACKAGE/client/writer.go"
+//go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/queue_mock.go -source=$GOPATH/src/$PACKAGE/client/queue.go"
 //go:generate sh -c "mockgen -package=deploy -destination=$GOPATH/src/$PACKAGE/tools/deploy/client_mock.go -source=$GOPATH/src/$PACKAGE/tools/deploy/client.go"
 //go:generate sh -c "mockgen -package=deploy -destination=$GOPATH/src/$PACKAGE/tools/deploy/manager_mock.go -source=$GOPATH/src/$PACKAGE/tools/deploy/manager.go"
 //go:generate sh -c "mockgen -package=deploy -destination=$GOPATH/src/$PACKAGE/tools/deploy/planner_mock.go -source=$GOPATH/src/$PACKAGE/tools/deploy/planner.go"

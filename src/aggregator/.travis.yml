@@ -3,10 +3,13 @@ go:
   - "1.9.x"
   - "1.10.x"
 install: make install-ci
-env:
- # Set higher timeouts and package name for travis
- - TEST_TIMEOUT_SCALE=20 PACKAGE=github.com/m3db/m3aggregator
 sudo: required
 dist: trusty
-script:
- - make all
+env:
+  global:
+    - TEST_TIMEOUT_SCALE=20 PACKAGE=github.com/m3db/m3aggregator
+  matrix:
+    - MAKE_TARGET="test-ci-unit"
+    - MAKE_TARGET="test-ci-integration"
+    - MAKE_TARGET="lint metalint"
+script: "make $MAKE_TARGET"
