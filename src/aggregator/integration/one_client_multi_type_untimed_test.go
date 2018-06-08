@@ -23,39 +23,37 @@
 package integration
 
 import (
-	"math/rand"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3x/clock"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestMultiClientOneTypeWithPoliciesList(t *testing.T) {
+func TestOneClientMultiTypeUntimedMetricsWithPoliciesList(t *testing.T) {
 	metadataFn := func(int) metadataUnion {
 		return metadataUnion{
 			mType:        policiesListType,
 			policiesList: testPoliciesList,
 		}
 	}
-	testMultiClientOneType(t, metadataFn)
+	testOneClientMultiType(t, metadataFn)
 }
 
-func TestMultiClientOneTypeWithStagedMetadatas(t *testing.T) {
+func TestOneClientMultiTypeUntimedMetricsWithStagedMetadatas(t *testing.T) {
 	metadataFn := func(int) metadataUnion {
 		return metadataUnion{
 			mType:           stagedMetadatasType,
 			stagedMetadatas: testStagedMetadatas,
 		}
 	}
-	testMultiClientOneType(t, metadataFn)
+	testOneClientMultiType(t, metadataFn)
 }
 
-func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
+func testOneClientMultiType(t *testing.T, metadataFn metadataFn) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -96,56 +94,46 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 	// Create server.
 	testServer := newTestServerSetup(t, serverOpts)
 	defer testServer.close()
-
 	// Start the server.
 	log := testServer.aggregatorOpts.InstrumentOptions().Logger()
-	log.Info("test multiple clients sending one type of metrics")
+	log.Info("test one client sending multiple types of untimed metrics")
 	require.NoError(t, testServer.startServer())
 	log.Info("server is now up")
 	require.NoError(t, testServer.waitUntilLeader())
 	log.Info("server is now the leader")
 
 	var (
-		idPrefix   = "foo"
-		numIDs     = 100
-		start      = getNowFn()
-		stop       = start.Add(10 * time.Second)
-		interval   = time.Second
-		numClients = 10
-		clients    = make([]*client, numClients)
+		idPrefix = "foo"
+		numIDs   = 100
+		start    = getNowFn()
+		stop     = start.Add(4 * time.Second)
+		interval = 2 * time.Second
 	)
-	for i := 0; i < numClients; i++ {
-		clients[i] = testServer.newClient()
-		require.NoError(t, clients[i].connect())
-		defer clients[i].close()
-	}
+	client := testServer.newClient()
+	require.NoError(t, client.connect())
+	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	typeFn := constantMetricTypeFnFactory(metric.CounterType)
 	dataset := mustGenerateTestDataset(t, datasetGenOpts{
 		start:        start,
 		stop:         stop,
 		interval:     interval,
 		ids:          ids,
 		category:     untimedMetric,
-		typeFn:       typeFn,
+		typeFn:       roundRobinMetricTypeFn,
 		valueGenOpts: defaultValueGenOpts,
 		metadataFn:   metadataFn,
 	})
 	for _, data := range dataset {
 		setNowFn(data.timestamp)
 		for _, mm := range data.metricWithMetadatas {
-			// Randomly pick one client to write the metric.
-			client := clients[rand.Int63n(int64(numClients))]
 			if mm.metadata.mType == policiesListType {
 				require.NoError(t, client.writeUntimedMetricWithPoliciesList(mm.metric.untimed, mm.metadata.policiesList))
 			} else {
 				require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 			}
 		}
-		for _, client := range clients {
-			require.NoError(t, client.flush())
-		}
+		require.NoError(t, client.flush())
 
 		// Give server some time to process the incoming packets.
 		time.Sleep(100 * time.Millisecond)

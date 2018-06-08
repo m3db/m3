@@ -511,8 +511,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 	opts := testOptions(ctrl).
 		SetClockOptions(clockOpts).
 		SetAdminClient(client).
-		SetMaxAllowedForwardingDelayFn(maxForwardingDelayFn).
-		setSourceIDProvider(newSourceIDProvider(testSourceID))
+		SetMaxAllowedForwardingDelayFn(maxForwardingDelayFn)
 
 	listID := forwardedMetricListID{
 		resolution:        resolution,
@@ -530,13 +529,6 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 			},
 		},
 	})
-	expectedMetadata := metadata.ForwardMetadata{
-		AggregationID:     aggregation.MustCompressTypes(aggregation.Max),
-		StoragePolicy:     testStoragePolicy,
-		Pipeline:          applied.NewPipeline([]applied.Union{}),
-		SourceID:          testSourceID,
-		NumForwardedTimes: testNumForwardedTimes + 1,
-	}
 	elemPairs := []struct {
 		elem   metricElem
 		metric aggregated.Metric
@@ -562,8 +554,8 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 	}
 
 	for _, ep := range elemPairs {
-		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos), ep.metric.Value, 1))
-		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos).Add(l.resolution), ep.metric.Value, 1))
+		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos), ep.metric.Value, []byte("source1")))
+		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos).Add(l.resolution), ep.metric.Value, []byte("source1")))
 		_, err := l.PushBack(ep.elem)
 		require.NoError(t, err)
 	}
@@ -599,9 +591,16 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 				TimeNanos: alignedStart,
 				Value:     ep.metric.Value,
 			}
+			metadata := metadata.ForwardMetadata{
+				AggregationID:     aggregation.MustCompressTypes(aggregation.Max),
+				StoragePolicy:     testStoragePolicy,
+				Pipeline:          applied.NewPipeline([]applied.Union{}),
+				SourceID:          ep.elem.ID(),
+				NumForwardedTimes: testNumForwardedTimes + 1,
+			}
 			expected = append(expected, aggregated.MetricWithForwardMetadata{
 				Metric:          expectedMetric,
-				ForwardMetadata: expectedMetadata,
+				ForwardMetadata: metadata,
 			})
 		}
 

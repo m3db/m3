@@ -1,6 +1,6 @@
 // +build integration
 
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,39 +23,22 @@
 package integration
 
 import (
-	"math/rand"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3metrics/metric"
+	maggregation "github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestMultiClientOneTypeWithPoliciesList(t *testing.T) {
-	metadataFn := func(int) metadataUnion {
-		return metadataUnion{
-			mType:        policiesListType,
-			policiesList: testPoliciesList,
-		}
-	}
-	testMultiClientOneType(t, metadataFn)
-}
-
-func TestMultiClientOneTypeWithStagedMetadatas(t *testing.T) {
-	metadataFn := func(int) metadataUnion {
-		return metadataUnion{
-			mType:           stagedMetadatasType,
-			stagedMetadatas: testStagedMetadatas,
-		}
-	}
-	testMultiClientOneType(t, metadataFn)
-}
-
-func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
+func TestOneClientMultiTypeForwardedMetrics(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -99,63 +82,62 @@ func testMultiClientOneType(t *testing.T, metadataFn metadataFn) {
 
 	// Start the server.
 	log := testServer.aggregatorOpts.InstrumentOptions().Logger()
-	log.Info("test multiple clients sending one type of metrics")
+	log.Info("test one client sending multiple types of forwarded metrics")
 	require.NoError(t, testServer.startServer())
 	log.Info("server is now up")
 	require.NoError(t, testServer.waitUntilLeader())
 	log.Info("server is now the leader")
 
 	var (
-		idPrefix   = "foo"
-		numIDs     = 100
-		start      = getNowFn()
-		stop       = start.Add(10 * time.Second)
-		interval   = time.Second
-		numClients = 10
-		clients    = make([]*client, numClients)
+		idPrefix = "foo"
+		numIDs   = 100
+		start    = getNowFn()
+		stop     = start.Add(10 * time.Second)
+		interval = 2 * time.Second
 	)
-	for i := 0; i < numClients; i++ {
-		clients[i] = testServer.newClient()
-		require.NoError(t, clients[i].connect())
-		defer clients[i].close()
-	}
+	client := testServer.newClient()
+	require.NoError(t, client.connect())
+	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	typeFn := constantMetricTypeFnFactory(metric.CounterType)
+	testForwardMetadataTemplate := metadata.ForwardMetadata{
+		AggregationID:     maggregation.MustCompressTypes(maggregation.Sum),
+		StoragePolicy:     policy.NewStoragePolicy(2*time.Second, xtime.Second, time.Hour),
+		NumForwardedTimes: 1,
+	}
+	metadataFn := func(idx int) metadataUnion {
+		forwardMetadata := testForwardMetadataTemplate
+		forwardMetadata.SourceID = []byte(fmt.Sprintf("%d", idx))
+		return metadataUnion{
+			mType:           forwardMetadataType,
+			forwardMetadata: forwardMetadata,
+		}
+	}
 	dataset := mustGenerateTestDataset(t, datasetGenOpts{
 		start:        start,
 		stop:         stop,
 		interval:     interval,
 		ids:          ids,
-		category:     untimedMetric,
-		typeFn:       typeFn,
+		category:     forwardedMetric,
+		typeFn:       roundRobinMetricTypeFn,
 		valueGenOpts: defaultValueGenOpts,
 		metadataFn:   metadataFn,
 	})
 	for _, data := range dataset {
 		setNowFn(data.timestamp)
 		for _, mm := range data.metricWithMetadatas {
-			// Randomly pick one client to write the metric.
-			client := clients[rand.Int63n(int64(numClients))]
-			if mm.metadata.mType == policiesListType {
-				require.NoError(t, client.writeUntimedMetricWithPoliciesList(mm.metric.untimed, mm.metadata.policiesList))
-			} else {
-				require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
-			}
+			require.NoError(t, client.writeForwardedMetricWithMetadata(mm.metric.forwarded, mm.metadata.forwardMetadata))
 		}
-		for _, client := range clients {
-			require.NoError(t, client.flush())
-		}
+		require.NoError(t, client.flush())
 
 		// Give server some time to process the incoming packets.
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	// Move time forward and wait for ticking to happen. The sleep time
-	// must be the longer than the lowest resolution across all policies.
-	finalTime := stop.Add(time.Second)
+	// Move time forward and wait for flushing to happen.
+	finalTime := stop.Add(2 * time.Second)
 	setNowFn(finalTime)
-	time.Sleep(4 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	// Stop the server.
 	require.NoError(t, testServer.stopServer())

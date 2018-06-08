@@ -182,7 +182,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          1234,
+		SourceID:          []byte("testForwardSource1"),
 		NumForwardedTimes: 3,
 	}
 	testForwardMetadata2 = metadata.ForwardMetadata{
@@ -197,7 +197,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          5678,
+		SourceID:          []byte("testForwardSource2"),
 		NumForwardedTimes: 4,
 	}
 	testDefaultAggregationKeys         = aggregationKeys(testDefaultPipelines)
@@ -1332,7 +1332,7 @@ func TestEntryAddForwarded(t *testing.T) {
 
 	// Add the forwarded metric with same forward metadata and different source ID.
 	metadata := testForwardMetadata1
-	metadata.SourceID++
+	metadata.SourceID = []byte("newSourceID")
 	require.NoError(t, e.AddForwarded(testForwardedMetric, metadata))
 	require.Equal(t, 1, len(e.aggregations))
 	idx = e.aggregations.index(expectedKey)

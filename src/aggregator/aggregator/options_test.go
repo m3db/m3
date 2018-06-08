@@ -182,6 +182,18 @@ func TestSetEntryPool(t *testing.T) {
 	require.Equal(t, value, o.EntryPool())
 }
 
+func TestSetMaxNumCachedSourceSets(t *testing.T) {
+	value := 4
+	o := NewOptions().SetMaxNumCachedSourceSets(value)
+	require.Equal(t, value, o.MaxNumCachedSourceSets())
+}
+
+func TestSetMaxCachedSourceSetSize(t *testing.T) {
+	value := 100000
+	o := NewOptions().SetMaxCachedSourceSetSize(value)
+	require.Equal(t, value, o.MaxCachedSourceSetSize())
+}
+
 func TestSetCounterElemPool(t *testing.T) {
 	value := NewCounterElemPool(nil)
 	o := NewOptions().SetCounterElemPool(value)
@@ -198,10 +210,4 @@ func TestSetGaugeElemPool(t *testing.T) {
 	value := NewGaugeElemPool(nil)
 	o := NewOptions().SetGaugeElemPool(value)
 	require.Equal(t, value, o.GaugeElemPool())
-}
-
-func TestSetSourceIDProvider(t *testing.T) {
-	value := newSourceIDProvider(testSourceID)
-	o := NewOptions().setSourceIDProvider(value)
-	require.True(t, value == o.sourceIDProvider())
 }

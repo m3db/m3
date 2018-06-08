@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3metrics/op"
 	"github.com/m3db/m3metrics/op/applied"
 	"github.com/m3db/m3metrics/policy"
+	xid "github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )
 
@@ -42,8 +43,8 @@ const (
 	// Default number of aggregation buckets allocated initially.
 	defaultNumAggregations = 2
 
-	// Default number of sources that can fit in the bitset.
-	defaultNumSources = 256
+	// Default initial number of sources.
+	defaultNumSources = 1024
 
 	// Maximum transformation derivative order that is supported.
 	// A default value of 1 means we currently only support transformations that
@@ -55,6 +56,7 @@ const (
 var (
 	nan                          = math.NaN()
 	errElemClosed                = errors.New("element is closed")
+	errAggregationClosed         = errors.New("aggregation is closed")
 	errDuplicateForwardingSource = errors.New("duplicate forwarding source")
 )
 
@@ -65,6 +67,14 @@ type isEarlierThanFn func(windowStartNanos int64, resolution time.Duration, targ
 // timestampNanosFn determines the final timestamps of metrics in a given aggregation
 // window with a given resolution.
 type timestampNanosFn func(windowStartNanos int64, resolution time.Duration) int64
+
+// sourceSet is a set of sources.
+type sourceSet map[xid.Hash128]int64
+
+type createAggregationOptions struct {
+	// initSourceSet determines whether to initialize the source set.
+	initSourceSet bool
+}
 
 // metricElem is the common interface for metric elements.
 type metricElem interface {
@@ -86,7 +96,7 @@ type metricElem interface {
 	// AddUnique adds a metric value from a given source at a given timestamp.
 	// If previous values from the same source have already been added to the
 	// same aggregation, the incoming value is discarded.
-	AddUnique(timestamp time.Time, value float64, sourceID uint32) error
+	AddUnique(timestamp time.Time, value float64, sourceID []byte) error
 
 	// Consume consumes values before a given time and removes
 	// them from the element after they are consumed, returning whether
@@ -122,8 +132,10 @@ type elemBase struct {
 	numForwardedTimes     int
 
 	// Mutable states.
-	tombstoned bool
-	closed     bool
+	tombstoned           bool
+	closed               bool
+	cachedSourceSetsLock sync.Mutex  // nolint: structcheck
+	cachedSourceSets     []sourceSet // nolint: structcheck
 }
 
 func newElemBase(opts Options) elemBase {

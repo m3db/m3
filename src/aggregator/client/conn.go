@@ -87,7 +87,9 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 	c.writeWithLockFn = c.writeWithLock
 
 	c.Lock()
-	c.connectWithLockFn() // nolint: errcheck
+	if err := c.connectWithLockFn(); err != nil {
+		c.numFailures++
+	}
 	c.Unlock()
 
 	return c
@@ -154,7 +156,7 @@ func (c *connection) checkReconnectWithLock() error {
 	// If we haven't accumulated enough failures to warrant another reconnect
 	// and we haven't past the maximum duration since the last time we attempted
 	// to connect then we simply return false without reconnecting.
-	tooManyFailures := c.numFailures > c.threshold
+	tooManyFailures := c.numFailures >= c.threshold
 	sufficientTimePassed := c.nowFn().UnixNano()-c.lastConnectAttemptNanos >= c.maxDuration.Nanoseconds()
 	if !tooManyFailures && !sufficientTimePassed {
 		return errNoActiveConnection

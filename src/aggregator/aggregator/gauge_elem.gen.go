@@ -47,13 +47,14 @@ import (
 
 	"github.com/m3db/m3metrics/transformation"
 
-	"github.com/willf/bitset"
+	xid "github.com/m3db/m3x/ident"
 )
 
 type lockedGaugeAggregation struct {
 	sync.Mutex
 
-	sourcesSeen *bitset.BitSet
+	closed      bool
+	sourcesSeen sourceSet
 	aggregation gaugeAggregation
 }
 
@@ -64,10 +65,7 @@ type timedGauge struct {
 
 func (ta *timedGauge) Reset() {
 	ta.startAtNanos = 0
-	if ta.lockedAgg != nil {
-		ta.lockedAgg.sourcesSeen = nil
-		ta.lockedAgg = nil
-	}
+	ta.lockedAgg = nil
 }
 
 // GaugeElem is an element storing time-bucketed aggregations.
@@ -153,11 +151,15 @@ func (e *GaugeElem) ResetSetData(
 // AddUnion adds a metric value union at a given timestamp.
 func (e *GaugeElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
-	lockedAgg, err := e.findOrCreate(alignedStart)
+	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{})
 	if err != nil {
 		return err
 	}
 	lockedAgg.Lock()
+	if lockedAgg.closed {
+		lockedAgg.Unlock()
+		return errAggregationClosed
+	}
 	lockedAgg.aggregation.AddUnion(mu)
 	lockedAgg.Unlock()
 	return nil
@@ -166,23 +168,23 @@ func (e *GaugeElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) e
 // AddUnique adds a metric value from a given source at a given timestamp.
 // If previous values from the same source have already been added to the
 // same aggregation, the incoming value is discarded.
-func (e *GaugeElem) AddUnique(timestamp time.Time, value float64, sourceID uint32) error {
+func (e *GaugeElem) AddUnique(timestamp time.Time, value float64, sourceID []byte) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
-	lockedAgg, err := e.findOrCreate(alignedStart)
+	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{initSourceSet: true})
 	if err != nil {
 		return err
 	}
 	lockedAgg.Lock()
-	if lockedAgg.sourcesSeen == nil {
-		// NB(xichen): might be worth pooling the bitset.
-		lockedAgg.sourcesSeen = bitset.New(defaultNumSources)
+	if lockedAgg.closed {
+		lockedAgg.Unlock()
+		return errAggregationClosed
 	}
-	source := uint(sourceID)
-	if lockedAgg.sourcesSeen.Test(source) {
+	sourceHash := xid.Murmur3Hash128(sourceID)
+	if v, exists := lockedAgg.sourcesSeen[sourceHash]; exists && v == alignedStart {
 		lockedAgg.Unlock()
 		return errDuplicateForwardingSource
 	}
-	lockedAgg.sourcesSeen.Set(source)
+	lockedAgg.sourcesSeen[sourceHash] = alignedStart
 	lockedAgg.aggregation.Add(value)
 	lockedAgg.Unlock()
 	return nil
@@ -232,9 +234,30 @@ func (e *GaugeElem) Consume(
 	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
 		timeNanos := timestampNanosFn(e.toConsume[i].startAtNanos, resolution)
-		e.processValue(timeNanos, e.toConsume[i].lockedAgg, flushLocalFn, flushForwardedFn)
+		e.toConsume[i].lockedAgg.Lock()
+		e.processValueWithAggregationLock(timeNanos, e.toConsume[i].lockedAgg, flushLocalFn, flushForwardedFn)
 		// Closes the aggregation object after it's processed.
+		e.toConsume[i].lockedAgg.closed = true
 		e.toConsume[i].lockedAgg.aggregation.Close()
+		if e.toConsume[i].lockedAgg.sourcesSeen != nil {
+			sourceSetSize := len(e.toConsume[i].lockedAgg.sourcesSeen)
+			// If the source set we are about to cache is too big (i.e., bigger than the
+			// configured max size), we do not want to retain it and instead simply discard it.
+			// This is useful if say over the course of a month the metric IDs producing
+			// the forward metric ID have changed significantly so there are a lot of stale
+			// IDs in the map so we regenerate the map once in a while to refresh the map.
+			if sourceSetSize <= e.opts.MaxCachedSourceSetSize() {
+				e.cachedSourceSetsLock.Lock()
+				// This is to make sure there aren't too many cached source sets taking up
+				// too much space.
+				if len(e.cachedSourceSets) < e.opts.MaxNumCachedSourceSets() {
+					e.cachedSourceSets = append(e.cachedSourceSets, e.toConsume[i].lockedAgg.sourcesSeen)
+				}
+				e.cachedSourceSetsLock.Unlock()
+			}
+			e.toConsume[i].lockedAgg.sourcesSeen = nil
+		}
+		e.toConsume[i].lockedAgg.Unlock()
 		e.toConsume[i].Reset()
 	}
 
@@ -272,7 +295,10 @@ func (e *GaugeElem) Close() {
 
 // findOrCreate finds the aggregation for a given time, or creates one
 // if it doesn't exist.
-func (e *GaugeElem) findOrCreate(alignedStart int64) (*lockedGaugeAggregation, error) {
+func (e *GaugeElem) findOrCreate(
+	alignedStart int64,
+	createOpts createAggregationOptions,
+) (*lockedGaugeAggregation, error) {
 	e.RLock()
 	if e.closed {
 		e.RUnlock()
@@ -302,9 +328,25 @@ func (e *GaugeElem) findOrCreate(alignedStart int64) (*lockedGaugeAggregation, e
 	numValues := len(e.values)
 	e.values = append(e.values, timedGauge{})
 	copy(e.values[idx+1:numValues+1], e.values[idx:numValues])
+
+	var sourcesSeen sourceSet
+	if createOpts.initSourceSet {
+		e.cachedSourceSetsLock.Lock()
+		if numCachedSourceSets := len(e.cachedSourceSets); numCachedSourceSets > 0 {
+			sourcesSeen = e.cachedSourceSets[numCachedSourceSets-1]
+			e.cachedSourceSets[numCachedSourceSets-1] = nil
+			e.cachedSourceSets = e.cachedSourceSets[:numCachedSourceSets-1]
+		} else {
+			sourcesSeen = make(sourceSet, defaultNumSources)
+		}
+		e.cachedSourceSetsLock.Unlock()
+	}
 	e.values[idx] = timedGauge{
 		startAtNanos: alignedStart,
-		lockedAgg:    &lockedGaugeAggregation{aggregation: e.NewAggregation(e.opts, e.aggOpts)},
+		lockedAgg: &lockedGaugeAggregation{
+			sourcesSeen: sourcesSeen,
+			aggregation: e.NewAggregation(e.opts, e.aggOpts),
+		},
 	}
 	agg := e.values[idx].lockedAgg
 	e.Unlock()
@@ -340,7 +382,7 @@ func (e *GaugeElem) indexOfWithLock(alignedStart int64) (int, bool) {
 	return left, false
 }
 
-func (e *GaugeElem) processValue(
+func (e *GaugeElem) processValueWithAggregationLock(
 	timeNanos int64,
 	lockedAgg *lockedGaugeAggregation,
 	flushLocalFn flushLocalMetricFn,
@@ -350,7 +392,6 @@ func (e *GaugeElem) processValue(
 		fullPrefix      = e.FullPrefix(e.opts)
 		transformations = e.parsedPipeline.Transformations
 	)
-	lockedAgg.Lock()
 	for aggTypeIdx, aggType := range e.aggTypes {
 		value := lockedAgg.aggregation.ValueOf(aggType)
 		for i := 0; i < transformations.NumSteps(); i++ {
@@ -386,12 +427,11 @@ func (e *GaugeElem) processValue(
 				AggregationID:     e.parsedPipeline.Rollup.AggregationID,
 				StoragePolicy:     e.sp,
 				Pipeline:          e.parsedPipeline.Remainder,
-				SourceID:          e.opts.sourceIDProvider().Get(),
+				SourceID:          []byte(e.id),
 				NumForwardedTimes: e.numForwardedTimes + 1,
 			}
 			flushForwardedFn(fm, meta)
 		}
 	}
 	e.lastConsumedAtNanos = timeNanos
-	lockedAgg.Unlock()
 }

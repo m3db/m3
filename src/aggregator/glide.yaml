@@ -8,7 +8,7 @@ import:
   version: cb17a54d6902c03790286942bafa04a188d4eeb8
 
 - package: github.com/m3db/m3metrics
-  version: 7ab552d5455b45ee7306f38ce00b71cc404126e4
+  version: 5a5fc3695fee14c1f12db6007b47bee656126bd6
 
 - package: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -119,6 +119,9 @@ import:
 
 - package: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
+
+- package: github.com/google/go-cmp
+  version: ^0.2.0
 
 - package: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09

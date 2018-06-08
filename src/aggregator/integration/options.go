@@ -24,321 +24,424 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
+	aggclient "github.com/m3db/m3aggregator/client"
+	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/instrument"
 )
 
 const (
+	defaultRawTCPAddr                 = "localhost:6000"
+	defaultHTTPAddr                   = "localhost:6001"
 	defaultServerStateChangeTimeout   = 5 * time.Second
 	defaultClientBatchSize            = 1440
-	defaultClientConnectTimeout       = time.Second
 	defaultWorkerPoolSize             = 4
 	defaultInstanceID                 = "localhost:6000"
-	defaultNumShards                  = 1024
 	defaultPlacementKVKey             = "/placement"
 	defaultElectionKeyFmt             = "/shardset/%d/lock"
 	defaultFlushTimesKeyFmt           = "/shardset/%d/flush"
 	defaultShardSetID                 = 0
-	defaultElectionStateChangeTimeout = time.Second
+	defaultElectionStateChangeTimeout = 10 * time.Second
+	defaultEntryCheckInterval         = time.Second
 	defaultJitterEnabled              = true
 )
 
-type testOptions interface {
+type testServerOptions interface {
+	// SetClockOptions sets the clock options.
+	SetClockOptions(value clock.Options) testServerOptions
+
+	// ClockOptions returns the clock options.
+	ClockOptions() clock.Options
+
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) testServerOptions
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
+
 	// SetRawTCPAddr sets the raw TCP server address.
-	SetRawTCPAddr(value string) testOptions
+	SetRawTCPAddr(value string) testServerOptions
 
 	// RawTCPAddr returns the raw TCP server address.
 	RawTCPAddr() string
 
 	// SetHTTPAddr sets the http server address.
-	SetHTTPAddr(value string) testOptions
+	SetHTTPAddr(value string) testServerOptions
 
 	// HTTPAddr returns the http server address.
 	HTTPAddr() string
 
 	// SetInstanceID sets the instance id.
-	SetInstanceID(value string) testOptions
+	SetInstanceID(value string) testServerOptions
 
 	// InstanceID returns the instance id.
 	InstanceID() string
 
-	// SetNumShards sets the number of shards.
-	SetNumShards(value int) testOptions
-
-	// NumShards returns the number of shards.
-	NumShards() int
-
-	// SetPlacementKVKey sets the placement kv key.
-	SetPlacementKVKey(value string) testOptions
-
-	// PlacementKVKey returns the placement kv key.
-	PlacementKVKey() string
-
 	// SetElectionKeyFmt sets the election key format.
-	SetElectionKeyFmt(value string) testOptions
+	SetElectionKeyFmt(value string) testServerOptions
 
 	// ElectionKeyFmt returns the election key format.
 	ElectionKeyFmt() string
 
+	// SetElectionCluster sets the test KV cluster for election.
+	SetElectionCluster(value *testCluster) testServerOptions
+
+	// ElectionCluster returns the test KV cluster for election.
+	ElectionCluster() *testCluster
+
 	// SetShardSetID sets the shard set id.
-	SetShardSetID(value uint32) testOptions
+	SetShardSetID(value uint32) testServerOptions
 
 	// ShardSetID returns the shard set id.
 	ShardSetID() uint32
 
+	// SetShardFn sets the sharding function.
+	SetShardFn(value sharding.ShardFn) testServerOptions
+
+	// ShardFn returns the sharding function.
+	ShardFn() sharding.ShardFn
+
+	// SetPlacementKVKey sets the placement kv key.
+	SetPlacementKVKey(value string) testServerOptions
+
+	// PlacementKVKey returns the placement kv key.
+	PlacementKVKey() string
+
 	// SetFlushTimesKeyFmt sets the flush times key format.
-	SetFlushTimesKeyFmt(value string) testOptions
+	SetFlushTimesKeyFmt(value string) testServerOptions
 
 	// FlushTimesKeyFmt returns the flush times key format.
 	FlushTimesKeyFmt() string
 
 	// SetKVStore sets the key value store.
-	SetKVStore(value kv.Store) testOptions
+	SetKVStore(value kv.Store) testServerOptions
 
 	// KVStore returns the key value store.
 	KVStore() kv.Store
 
 	// SetClientBatchSize sets the client-side batch size.
-	SetClientBatchSize(value int) testOptions
+	SetClientBatchSize(value int) testServerOptions
 
 	// ClientBatchSize returns the client-side batch size.
 	ClientBatchSize() int
 
-	// SetClientConnectTimeout sets the client-side connect timeout.
-	SetClientConnectTimeout(value time.Duration) testOptions
+	// SetClientConnectionOptions sets the client-side connection options.
+	SetClientConnectionOptions(value aggclient.ConnectionOptions) testServerOptions
 
-	// ClientConnectTimeout returns the client-side connect timeout.
-	ClientConnectTimeout() time.Duration
+	// ClientConnectionOptions returns the client-side connection options.
+	ClientConnectionOptions() aggclient.ConnectionOptions
 
 	// SetServerStateChangeTimeout sets the client connect timeout.
-	SetServerStateChangeTimeout(value time.Duration) testOptions
+	SetServerStateChangeTimeout(value time.Duration) testServerOptions
 
 	// ServerStateChangeTimeout returns the client connect timeout.
 	ServerStateChangeTimeout() time.Duration
 
 	// SetElectionStateChangeTimeout sets the election state change timeout.
-	SetElectionStateChangeTimeout(value time.Duration) testOptions
+	SetElectionStateChangeTimeout(value time.Duration) testServerOptions
 
 	// ElectionStateChangeTimeout returns the election state change timeout.
 	ElectionStateChangeTimeout() time.Duration
 
 	// SetWorkerPoolSize sets the number of workers in the worker pool.
-	SetWorkerPoolSize(value int) testOptions
+	SetWorkerPoolSize(value int) testServerOptions
 
 	// WorkerPoolSize returns the number of workers in the worker pool.
 	WorkerPoolSize() int
 
+	// SetEntryCheckInterval sets the entry check interval.
+	SetEntryCheckInterval(value time.Duration) testServerOptions
+
+	// EntryCheckInterval returns the entry check interval.
+	EntryCheckInterval() time.Duration
+
 	// SetJitterEnabled sets whether jittering is enabled.
-	SetJitterEnabled(value bool) testOptions
+	SetJitterEnabled(value bool) testServerOptions
 
 	// JitterEnabled returns whether jittering is enabled.
 	JitterEnabled() bool
 
 	// SetMaxJitterFn sets the max flush jittering function.
-	SetMaxJitterFn(value aggregator.FlushJitterFn) testOptions
+	SetMaxJitterFn(value aggregator.FlushJitterFn) testServerOptions
 
 	// MaxJitterFn returns the max flush jittering function.
 	MaxJitterFn() aggregator.FlushJitterFn
+
+	// SetMaxAllowedForwardingDelayFn sets the maximum allowed forwarding delay function.
+	SetMaxAllowedForwardingDelayFn(value aggregator.MaxAllowedForwardingDelayFn) testServerOptions
+
+	// MaxAllowedForwardingDelayFn returns the maximum allowed forwarding delay function.
+	MaxAllowedForwardingDelayFn() aggregator.MaxAllowedForwardingDelayFn
 }
 
-type options struct {
-	rawTCPAddr                 string
-	httpAddr                   string
-	instanceID                 string
-	numShards                  int
-	placementKVKey             string
-	electionKeyFmt             string
-	shardSetID                 uint32
-	flushTimesKeyFmt           string
-	kvStore                    kv.Store
-	serverStateChangeTimeout   time.Duration
-	workerPoolSize             int
-	clientBatchSize            int
-	clientConnectTimeout       time.Duration
-	electionStateChangeTimeout time.Duration
-	jitterEnabled              bool
-	maxJitterFn                aggregator.FlushJitterFn
+type serverOptions struct {
+	clockOpts                   clock.Options
+	instrumentOpts              instrument.Options
+	rawTCPAddr                  string
+	httpAddr                    string
+	instanceID                  string
+	electionKeyFmt              string
+	electionCluster             *testCluster
+	shardSetID                  uint32
+	shardFn                     sharding.ShardFn
+	placementKVKey              string
+	flushTimesKeyFmt            string
+	kvStore                     kv.Store
+	serverStateChangeTimeout    time.Duration
+	workerPoolSize              int
+	clientBatchSize             int
+	clientConnectionOpts        aggclient.ConnectionOptions
+	electionStateChangeTimeout  time.Duration
+	entryCheckInterval          time.Duration
+	jitterEnabled               bool
+	maxJitterFn                 aggregator.FlushJitterFn
+	maxAllowedForwardingDelayFn aggregator.MaxAllowedForwardingDelayFn
 }
 
-func newTestOptions() testOptions {
-	return &options{
-		instanceID:                 defaultInstanceID,
-		numShards:                  defaultNumShards,
-		placementKVKey:             defaultPlacementKVKey,
-		electionKeyFmt:             defaultElectionKeyFmt,
-		shardSetID:                 defaultShardSetID,
-		flushTimesKeyFmt:           defaultFlushTimesKeyFmt,
-		kvStore:                    mem.NewStore(),
-		serverStateChangeTimeout:   defaultServerStateChangeTimeout,
-		workerPoolSize:             defaultWorkerPoolSize,
-		clientBatchSize:            defaultClientBatchSize,
-		clientConnectTimeout:       defaultClientConnectTimeout,
-		electionStateChangeTimeout: defaultElectionStateChangeTimeout,
-		jitterEnabled:              defaultJitterEnabled,
-		maxJitterFn:                defaultMaxJitterFn,
+func newTestServerOptions() testServerOptions {
+	return &serverOptions{
+		rawTCPAddr:                  defaultRawTCPAddr,
+		httpAddr:                    defaultHTTPAddr,
+		clockOpts:                   clock.NewOptions(),
+		instrumentOpts:              instrument.NewOptions(),
+		instanceID:                  defaultInstanceID,
+		electionKeyFmt:              defaultElectionKeyFmt,
+		shardSetID:                  defaultShardSetID,
+		shardFn:                     sharding.Murmur32Hash.MustShardFn(),
+		placementKVKey:              defaultPlacementKVKey,
+		flushTimesKeyFmt:            defaultFlushTimesKeyFmt,
+		kvStore:                     mem.NewStore(),
+		serverStateChangeTimeout:    defaultServerStateChangeTimeout,
+		workerPoolSize:              defaultWorkerPoolSize,
+		clientBatchSize:             defaultClientBatchSize,
+		clientConnectionOpts:        aggclient.NewConnectionOptions(),
+		electionStateChangeTimeout:  defaultElectionStateChangeTimeout,
+		jitterEnabled:               defaultJitterEnabled,
+		entryCheckInterval:          defaultEntryCheckInterval,
+		maxJitterFn:                 defaultMaxJitterFn,
+		maxAllowedForwardingDelayFn: defaultMaxAllowedForwardingDelayFn,
 	}
 }
 
-func (o *options) SetRawTCPAddr(value string) testOptions {
+func (o *serverOptions) SetClockOptions(value clock.Options) testServerOptions {
+	opts := *o
+	opts.clockOpts = value
+	return &opts
+}
+
+func (o *serverOptions) ClockOptions() clock.Options {
+	return o.clockOpts
+}
+
+func (o *serverOptions) SetInstrumentOptions(value instrument.Options) testServerOptions {
+	opts := *o
+	opts.instrumentOpts = value
+	return &opts
+}
+
+func (o *serverOptions) InstrumentOptions() instrument.Options {
+	return o.instrumentOpts
+}
+
+func (o *serverOptions) SetRawTCPAddr(value string) testServerOptions {
 	opts := *o
 	opts.rawTCPAddr = value
 	return &opts
 }
 
-func (o *options) RawTCPAddr() string {
+func (o *serverOptions) RawTCPAddr() string {
 	return o.rawTCPAddr
 }
 
-func (o *options) SetHTTPAddr(value string) testOptions {
+func (o *serverOptions) SetHTTPAddr(value string) testServerOptions {
 	opts := *o
 	opts.httpAddr = value
 	return &opts
 }
 
-func (o *options) HTTPAddr() string {
+func (o *serverOptions) HTTPAddr() string {
 	return o.httpAddr
 }
 
-func (o *options) SetInstanceID(value string) testOptions {
+func (o *serverOptions) SetInstanceID(value string) testServerOptions {
 	opts := *o
 	opts.instanceID = value
 	return &opts
 }
 
-func (o *options) InstanceID() string {
+func (o *serverOptions) InstanceID() string {
 	return o.instanceID
 }
 
-func (o *options) SetNumShards(value int) testOptions {
-	opts := *o
-	opts.numShards = value
-	return &opts
-}
-
-func (o *options) NumShards() int {
-	return o.numShards
-}
-
-func (o *options) SetPlacementKVKey(value string) testOptions {
-	opts := *o
-	opts.placementKVKey = value
-	return &opts
-}
-
-func (o *options) PlacementKVKey() string {
-	return o.placementKVKey
-}
-
-func (o *options) SetElectionKeyFmt(value string) testOptions {
+func (o *serverOptions) SetElectionKeyFmt(value string) testServerOptions {
 	opts := *o
 	opts.electionKeyFmt = value
 	return &opts
 }
 
-func (o *options) ElectionKeyFmt() string {
+func (o *serverOptions) ElectionKeyFmt() string {
 	return o.electionKeyFmt
 }
 
-func (o *options) SetShardSetID(value uint32) testOptions {
+func (o *serverOptions) SetElectionCluster(value *testCluster) testServerOptions {
+	opts := *o
+	opts.electionCluster = value
+	return &opts
+}
+
+func (o *serverOptions) ElectionCluster() *testCluster {
+	return o.electionCluster
+}
+
+func (o *serverOptions) SetShardSetID(value uint32) testServerOptions {
 	opts := *o
 	opts.shardSetID = value
 	return &opts
 }
 
-func (o *options) ShardSetID() uint32 {
+func (o *serverOptions) ShardSetID() uint32 {
 	return o.shardSetID
 }
 
-func (o *options) SetFlushTimesKeyFmt(value string) testOptions {
+func (o *serverOptions) SetShardFn(value sharding.ShardFn) testServerOptions {
+	opts := *o
+	opts.shardFn = value
+	return &opts
+}
+
+func (o *serverOptions) ShardFn() sharding.ShardFn {
+	return o.shardFn
+}
+
+func (o *serverOptions) SetPlacementKVKey(value string) testServerOptions {
+	opts := *o
+	opts.placementKVKey = value
+	return &opts
+}
+
+func (o *serverOptions) PlacementKVKey() string {
+	return o.placementKVKey
+}
+
+func (o *serverOptions) SetFlushTimesKeyFmt(value string) testServerOptions {
 	opts := *o
 	opts.flushTimesKeyFmt = value
 	return &opts
 }
 
-func (o *options) FlushTimesKeyFmt() string {
+func (o *serverOptions) FlushTimesKeyFmt() string {
 	return o.flushTimesKeyFmt
 }
 
-func (o *options) SetKVStore(value kv.Store) testOptions {
+func (o *serverOptions) SetKVStore(value kv.Store) testServerOptions {
 	opts := *o
 	opts.kvStore = value
 	return &opts
 }
 
-func (o *options) KVStore() kv.Store {
+func (o *serverOptions) KVStore() kv.Store {
 	return o.kvStore
 }
 
-func (o *options) SetClientBatchSize(value int) testOptions {
+func (o *serverOptions) SetClientBatchSize(value int) testServerOptions {
 	opts := *o
 	opts.clientBatchSize = value
 	return &opts
 }
 
-func (o *options) ClientBatchSize() int {
+func (o *serverOptions) ClientBatchSize() int {
 	return o.clientBatchSize
 }
 
-func (o *options) SetClientConnectTimeout(value time.Duration) testOptions {
+func (o *serverOptions) SetClientConnectionOptions(value aggclient.ConnectionOptions) testServerOptions {
 	opts := *o
-	opts.clientConnectTimeout = value
+	opts.clientConnectionOpts = value
 	return &opts
 }
 
-func (o *options) ClientConnectTimeout() time.Duration {
-	return o.clientConnectTimeout
+func (o *serverOptions) ClientConnectionOptions() aggclient.ConnectionOptions {
+	return o.clientConnectionOpts
 }
 
-func (o *options) SetServerStateChangeTimeout(value time.Duration) testOptions {
+func (o *serverOptions) SetServerStateChangeTimeout(value time.Duration) testServerOptions {
 	opts := *o
 	opts.serverStateChangeTimeout = value
 	return &opts
 }
 
-func (o *options) ServerStateChangeTimeout() time.Duration {
+func (o *serverOptions) ServerStateChangeTimeout() time.Duration {
 	return o.serverStateChangeTimeout
 }
 
-func (o *options) SetElectionStateChangeTimeout(value time.Duration) testOptions {
+func (o *serverOptions) SetElectionStateChangeTimeout(value time.Duration) testServerOptions {
 	opts := *o
 	opts.electionStateChangeTimeout = value
 	return &opts
 }
 
-func (o *options) ElectionStateChangeTimeout() time.Duration {
+func (o *serverOptions) ElectionStateChangeTimeout() time.Duration {
 	return o.electionStateChangeTimeout
 }
 
-func (o *options) SetWorkerPoolSize(value int) testOptions {
+func (o *serverOptions) SetWorkerPoolSize(value int) testServerOptions {
 	opts := *o
 	opts.workerPoolSize = value
 	return &opts
 }
 
-func (o *options) WorkerPoolSize() int {
+func (o *serverOptions) WorkerPoolSize() int {
 	return o.workerPoolSize
 }
 
-func (o *options) SetJitterEnabled(value bool) testOptions {
+func (o *serverOptions) SetEntryCheckInterval(value time.Duration) testServerOptions {
+	opts := *o
+	opts.entryCheckInterval = value
+	return &opts
+}
+
+func (o *serverOptions) EntryCheckInterval() time.Duration {
+	return o.entryCheckInterval
+}
+
+func (o *serverOptions) SetJitterEnabled(value bool) testServerOptions {
 	opts := *o
 	opts.jitterEnabled = value
 	return &opts
 }
 
-func (o *options) JitterEnabled() bool {
+func (o *serverOptions) JitterEnabled() bool {
 	return o.jitterEnabled
 }
 
-func (o *options) SetMaxJitterFn(value aggregator.FlushJitterFn) testOptions {
+func (o *serverOptions) SetMaxJitterFn(value aggregator.FlushJitterFn) testServerOptions {
 	opts := *o
 	opts.maxJitterFn = value
 	return &opts
 }
 
-func (o *options) MaxJitterFn() aggregator.FlushJitterFn {
+func (o *serverOptions) MaxJitterFn() aggregator.FlushJitterFn {
 	return o.maxJitterFn
+}
+
+func (o *serverOptions) SetMaxAllowedForwardingDelayFn(value aggregator.MaxAllowedForwardingDelayFn) testServerOptions {
+	opts := *o
+	opts.maxAllowedForwardingDelayFn = value
+	return &opts
+}
+
+func (o *serverOptions) MaxAllowedForwardingDelayFn() aggregator.MaxAllowedForwardingDelayFn {
+	return o.maxAllowedForwardingDelayFn
 }
 
 func defaultMaxJitterFn(interval time.Duration) time.Duration {
 	return time.Duration(0.75 * float64(interval))
+}
+
+func defaultMaxAllowedForwardingDelayFn(
+	resolution time.Duration,
+	numForwardedTimes int,
+) time.Duration {
+	return resolution + time.Second*time.Duration(numForwardedTimes)
 }
