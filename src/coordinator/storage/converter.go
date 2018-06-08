@@ -301,6 +301,7 @@ func SeriesIteratorsToFetchResult(
 	if !ok {
 		return decompressSequentially(iterLength, iters, namespace)
 	}
+	defer workerPools.Put(pool)
 
 	return decompressConcurrently(iterLength, iters, namespace, pool)
 }
