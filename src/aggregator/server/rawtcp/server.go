@@ -27,6 +27,7 @@ import (
 	"math/rand"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/rate"
@@ -35,6 +36,7 @@ import (
 	"github.com/m3db/m3metrics/encoding/msgpack"
 	"github.com/m3db/m3metrics/encoding/protobuf"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3x/log"
 	xserver "github.com/m3db/m3x/server"
@@ -57,6 +59,8 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) x
 type handlerMetrics struct {
 	unknownMessageTypeErrors tally.Counter
 	addUntimedErrors         tally.Counter
+	addForwardedErrors       tally.Counter
+	unknownErrorTypeErrors   tally.Counter
 	decodeErrors             tally.Counter
 	errLogRateLimited        tally.Counter
 }
@@ -65,6 +69,8 @@ func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 	return handlerMetrics{
 		unknownMessageTypeErrors: scope.Counter("unknown-message-type-errors"),
 		addUntimedErrors:         scope.Counter("add-untimed-errors"),
+		addForwardedErrors:       scope.Counter("add-forwarded-errors"),
+		unknownErrorTypeErrors:   scope.Counter("unknown-error-type-errors"),
 		decodeErrors:             scope.Counter("decode-errors"),
 		errLogRateLimited:        scope.Counter("error-log-rate-limited"),
 	}
@@ -116,25 +122,31 @@ func (s *handler) Handle(conn net.Conn) {
 
 	// Iterate over the incoming metrics stream and queue up metrics.
 	var (
-		metric    unaggregated.MetricUnion
-		metadatas metadata.StagedMetadatas
-		err       error
+		untimedMetric   unaggregated.MetricUnion
+		stagedMetadatas metadata.StagedMetadatas
+		forwardedMetric aggregated.Metric
+		forwardMetadata metadata.ForwardMetadata
+		err             error
 	)
 	for it.Next() {
 		current := it.Current()
 		switch current.Type {
 		case encoding.CounterWithMetadatasType:
-			metric = current.CounterWithMetadatas.Counter.ToUnion()
-			metadatas = current.CounterWithMetadatas.StagedMetadatas
-			err = newAddUntimedError(s.aggregator.AddUntimed(metric, metadatas))
+			untimedMetric = current.CounterWithMetadatas.Counter.ToUnion()
+			stagedMetadatas = current.CounterWithMetadatas.StagedMetadatas
+			err = newAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
 		case encoding.BatchTimerWithMetadatasType:
-			metric = current.BatchTimerWithMetadatas.BatchTimer.ToUnion()
-			metadatas = current.BatchTimerWithMetadatas.StagedMetadatas
-			err = newAddUntimedError(s.aggregator.AddUntimed(metric, metadatas))
+			untimedMetric = current.BatchTimerWithMetadatas.BatchTimer.ToUnion()
+			stagedMetadatas = current.BatchTimerWithMetadatas.StagedMetadatas
+			err = newAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
 		case encoding.GaugeWithMetadatasType:
-			metric = current.GaugeWithMetadatas.Gauge.ToUnion()
-			metadatas = current.GaugeWithMetadatas.StagedMetadatas
-			err = newAddUntimedError(s.aggregator.AddUntimed(metric, metadatas))
+			untimedMetric = current.GaugeWithMetadatas.Gauge.ToUnion()
+			stagedMetadatas = current.GaugeWithMetadatas.StagedMetadatas
+			err = newAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
+		case encoding.TimedMetricWithForwardMetadataType:
+			forwardedMetric = current.TimedMetricWithForwardMetadata.Metric
+			forwardMetadata = current.TimedMetricWithForwardMetadata.ForwardMetadata
+			err = newAddForwardedError(s.aggregator.AddForwarded(forwardedMetric, forwardMetadata))
 		default:
 			err = newUnknownMessageTypeError(current.Type)
 		}
@@ -159,11 +171,26 @@ func (s *handler) Handle(conn net.Conn) {
 			s.metrics.addUntimedErrors.Inc(1)
 			s.log.WithFields(
 				log.NewField("remoteAddress", remoteAddress),
-				log.NewField("type", metric.Type.String()),
-				log.NewField("id", metric.ID.String()),
-				log.NewField("metadatas", metadatas),
+				log.NewField("type", untimedMetric.Type.String()),
+				log.NewField("id", untimedMetric.ID.String()),
+				log.NewField("metadatas", stagedMetadatas),
 				log.NewErrField(err),
 			).Error("error adding untimed metric")
+		case addForwardedError:
+			s.metrics.addForwardedErrors.Inc(1)
+			s.log.WithFields(
+				log.NewField("remoteAddress", remoteAddress),
+				log.NewField("id", forwardedMetric.ID.String()),
+				log.NewField("timestamp", time.Unix(0, forwardedMetric.TimeNanos).String()),
+				log.NewField("value", forwardedMetric.Value),
+				log.NewErrField(err),
+			).Error("error adding forwarded metric")
+		default:
+			s.metrics.unknownErrorTypeErrors.Inc(1)
+			s.log.WithFields(
+				log.NewField("errorType", fmt.Sprintf("%T", err)),
+				log.NewErrField(err),
+			).Errorf("unknown error type")
 		}
 	}
 
@@ -202,4 +229,10 @@ type addUntimedError error
 
 func newAddUntimedError(err error) addUntimedError {
 	return addUntimedError(err)
+}
+
+type addForwardedError error
+
+func newAddForwardedError(err error) addForwardedError {
+	return addForwardedError(err)
 }

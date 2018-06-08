@@ -37,7 +37,7 @@ import (
 
 func TestElemBaseID(t *testing.T) {
 	e := &elemBase{}
-	e.resetSetData(testCounterID, testStoragePolicy, maggregation.DefaultTypes, true, applied.DefaultPipeline)
+	e.resetSetData(testCounterID, testStoragePolicy, maggregation.DefaultTypes, true, applied.DefaultPipeline, 0)
 	require.Equal(t, testCounterID, e.ID())
 }
 
@@ -70,13 +70,14 @@ func TestElemBaseResetSetData(t *testing.T) {
 		}),
 	}
 	e := &elemBase{}
-	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline)
+	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3)
 	require.Equal(t, testCounterID, e.id)
 	require.Equal(t, testStoragePolicy, e.sp)
 	require.Equal(t, testAggregationTypesExpensive, e.aggTypes)
 	require.False(t, e.useDefaultAggregation)
 	require.True(t, e.aggOpts.HasExpensiveAggregations)
 	require.Equal(t, expectedParsedPipeline, e.parsedPipeline)
+	require.Equal(t, 3, e.numForwardedTimes)
 	require.False(t, e.tombstoned)
 	require.False(t, e.closed)
 }
@@ -89,7 +90,7 @@ func TestElemBaseResetSetDataInvalidPipeline(t *testing.T) {
 		},
 	})
 	e := &elemBase{}
-	err := e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypes, false, invalidPipeline)
+	err := e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypes, false, invalidPipeline, 0)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "has no rollup operations"))
 }
@@ -119,20 +120,18 @@ func TestCounterElemBase(t *testing.T) {
 	require.True(t, opts.CounterElemPool() == e.ElemPool(opts))
 }
 
-func TestCounterElemBaseNewLockedAggregation(t *testing.T) {
+func TestCounterElemBaseNewAggregation(t *testing.T) {
 	e := counterElemBase{}
-	la := e.NewLockedAggregation(nil, raggregation.Options{})
-	la.Lock()
-	la.Add(unaggregated.MetricUnion{
+	la := e.NewAggregation(nil, raggregation.Options{})
+	la.AddUnion(unaggregated.MetricUnion{
 		Type:       metric.CounterType,
 		CounterVal: 100,
 	})
-	la.Add(unaggregated.MetricUnion{
+	la.AddUnion(unaggregated.MetricUnion{
 		Type:       metric.CounterType,
 		CounterVal: 200,
 	})
 	res := la.ValueOf(maggregation.Sum)
-	la.Unlock()
 	require.Equal(t, float64(300), res)
 }
 
@@ -171,20 +170,18 @@ func TestTimerElemBase(t *testing.T) {
 	require.True(t, opts.TimerElemPool() == e.ElemPool(opts))
 }
 
-func TestTimerElemBaseNewLockedAggregation(t *testing.T) {
+func TestTimerElemBaseNewAggregation(t *testing.T) {
 	e := timerElemBase{}
-	la := e.NewLockedAggregation(NewOptions(), raggregation.Options{})
-	la.Lock()
-	la.Add(unaggregated.MetricUnion{
+	la := e.NewAggregation(NewOptions(), raggregation.Options{})
+	la.AddUnion(unaggregated.MetricUnion{
 		Type:          metric.TimerType,
 		BatchTimerVal: []float64{100.0, 200.0},
 	})
-	la.Add(unaggregated.MetricUnion{
+	la.AddUnion(unaggregated.MetricUnion{
 		Type:          metric.TimerType,
 		BatchTimerVal: []float64{300.0, 400.0, 500.0},
 	})
 	res := la.ValueOf(maggregation.Mean)
-	la.Unlock()
 	require.Equal(t, float64(300.0), res)
 }
 
@@ -234,18 +231,16 @@ func TestGaugeElemBase(t *testing.T) {
 
 func TestGaugeElemBaseNewLockedAggregation(t *testing.T) {
 	e := gaugeElemBase{}
-	la := e.NewLockedAggregation(nil, raggregation.Options{})
-	la.Lock()
-	la.Add(unaggregated.MetricUnion{
+	la := e.NewAggregation(nil, raggregation.Options{})
+	la.AddUnion(unaggregated.MetricUnion{
 		Type:     metric.GaugeType,
 		GaugeVal: 100.0,
 	})
-	la.Add(unaggregated.MetricUnion{
+	la.AddUnion(unaggregated.MetricUnion{
 		Type:     metric.GaugeType,
 		GaugeVal: 200.0,
 	})
 	res := la.ValueOf(maggregation.Last)
-	la.Unlock()
 	require.Equal(t, float64(200.0), res)
 }
 

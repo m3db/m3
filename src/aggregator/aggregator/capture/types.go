@@ -22,6 +22,7 @@ package capture
 
 import (
 	aggr "github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 )
 
@@ -39,7 +40,8 @@ type Aggregator interface {
 
 // SnapshotResult is the snapshot result.
 type SnapshotResult struct {
-	CountersWithMetadatas    []unaggregated.CounterWithMetadatas
-	BatchTimersWithMetadatas []unaggregated.BatchTimerWithMetadatas
-	GaugesWithMetadatas      []unaggregated.GaugeWithMetadatas
+	CountersWithMetadatas      []unaggregated.CounterWithMetadatas
+	BatchTimersWithMetadatas   []unaggregated.BatchTimerWithMetadatas
+	GaugesWithMetadatas        []unaggregated.GaugeWithMetadatas
+	MetricsWithForwardMetadata []aggregated.MetricWithForwardMetadata
 }

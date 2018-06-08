@@ -202,6 +202,37 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 				},
 			},
 		},
+		{
+			interval: time.Second,
+			flushers: []flusherWithTime{
+				{
+					flusher:          buckets[3].flushers[0],
+					flushBeforeNanos: 3663000000000,
+				},
+				{
+					flusher:          buckets[3].flushers[1],
+					flushBeforeNanos: 3658000000000,
+				},
+			},
+		},
+		{
+			interval: time.Minute,
+			flushers: []flusherWithTime{
+				{
+					flusher:          buckets[4].flushers[0],
+					flushBeforeNanos: 3660000000000,
+				},
+			},
+		},
+		{
+			interval: time.Minute,
+			flushers: []flusherWithTime{
+				{
+					flusher:          buckets[5].flushers[0],
+					flushBeforeNanos: 3600000000000,
+				},
+			},
+		},
 	}
 	require.NotNil(t, flushTask)
 	require.Equal(t, time.Duration(0), dur)
@@ -271,6 +302,37 @@ func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
 				},
 			},
 		},
+		{
+			interval: time.Second,
+			flushers: []flusherWithTime{
+				{
+					flusher:          buckets[3].flushers[0],
+					flushBeforeNanos: 1244000000000,
+				},
+				{
+					flusher:          buckets[3].flushers[1],
+					flushBeforeNanos: 1244000000000,
+				},
+			},
+		},
+		{
+			interval: time.Minute,
+			flushers: []flusherWithTime{
+				{
+					flusher:          buckets[4].flushers[0],
+					flushBeforeNanos: 1244000000000,
+				},
+			},
+		},
+		{
+			interval: time.Minute,
+			flushers: []flusherWithTime{
+				{
+					flusher:          buckets[5].flushers[0],
+					flushBeforeNanos: 1244000000000,
+				},
+			},
+		},
 	}
 	require.NotNil(t, flushTask)
 	require.Equal(t, time.Duration(0), dur)
@@ -329,10 +391,10 @@ func TestFollowerFlushTaskRun(t *testing.T) {
 	defer ctrl.Finish()
 
 	flushedBefore := make([]int64, 3)
-	flushers := make([]PeriodicFlusher, 3)
+	flushers := make([]flushingMetricList, 3)
 	for i := 0; i < 3; i++ {
 		i := i
-		flusher := NewMockPeriodicFlusher(ctrl)
+		flusher := NewMockflushingMetricList(ctrl)
 		flusher.EXPECT().
 			DiscardBefore(gomock.Any()).
 			Do(func(beforeNanos int64) {

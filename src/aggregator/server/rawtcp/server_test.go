@@ -33,7 +33,10 @@ import (
 	"github.com/m3db/m3metrics/encoding/protobuf"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3metrics/op"
+	"github.com/m3db/m3metrics/op/applied"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/retry"
 	xserver "github.com/m3db/m3x/server"
@@ -64,6 +67,12 @@ var (
 		Type:     metric.GaugeType,
 		ID:       []byte("testGauge"),
 		GaugeVal: 456.780,
+	}
+	testForwarded = aggregated.Metric{
+		Type:      metric.CounterType,
+		ID:        []byte("testForwarded"),
+		TimeNanos: 12345,
+		Value:     908,
 	}
 	testDefaultPoliciesList = policy.DefaultPoliciesList
 	testCustomPoliciesList  = policy.PoliciesList{
@@ -101,6 +110,21 @@ var (
 			},
 		},
 	}
+	testForwardMetadata = metadata.ForwardMetadata{
+		AggregationID: aggregation.DefaultID,
+		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
+		Pipeline: applied.NewPipeline([]applied.Union{
+			{
+				Type: op.RollupType,
+				Rollup: applied.Rollup{
+					ID:            []byte("foo"),
+					AggregationID: aggregation.MustCompressTypes(aggregation.Count),
+				},
+			},
+		}),
+		SourceID:          1234,
+		NumForwardedTimes: 3,
+	}
 	testCounterWithPoliciesList = unaggregated.CounterWithPoliciesList{
 		Counter:      testCounter.Counter(),
 		PoliciesList: testDefaultPoliciesList,
@@ -124,6 +148,10 @@ var (
 	testGaugeWithMetadatas = unaggregated.GaugeWithMetadatas{
 		Gauge:           testGauge.Gauge(),
 		StagedMetadatas: testDefaultMetadatas,
+	}
+	testMetricWithForwardMetadata = aggregated.MetricWithForwardMetadata{
+		Metric:          testForwarded,
+		ForwardMetadata: testForwardMetadata,
 	}
 	testCmpOpts = []cmp.Option{
 		cmpopts.EquateEmpty(),
@@ -169,6 +197,7 @@ func testRawTCPServerHandleUnaggregated(
 	require.NoError(t, s.Serve(listener))
 
 	// Now establish multiple connections and send data to the server.
+	var expectedTotalMetrics int
 	for i := 0; i < numClients; i++ {
 		i := i
 		wgClient.Add(1)
@@ -178,16 +207,21 @@ func testRawTCPServerHandleUnaggregated(
 		expectedResult.BatchTimersWithMetadatas = append(expectedResult.BatchTimersWithMetadatas, testBatchTimerWithMetadatas)
 		expectedResult.GaugesWithMetadatas = append(expectedResult.GaugesWithMetadatas, testGaugeWithMetadatas)
 
+		protocol := protocolSelector(i)
+		if protocol == protobufEncoding {
+			expectedResult.MetricsWithForwardMetadata = append(expectedResult.MetricsWithForwardMetadata, testMetricWithForwardMetadata)
+			expectedTotalMetrics += 4
+		} else {
+			expectedTotalMetrics += 3
+		}
+
 		go func() {
 			defer wgClient.Done()
 
 			conn, err := net.Dial("tcp", listener.Addr().String())
 			require.NoError(t, err)
 
-			var (
-				stream   []byte
-				protocol = protocolSelector(i)
-			)
+			var stream []byte
 			switch protocol {
 			case msgpackEncoding:
 				encoder := msgpack.NewUnaggregatedEncoder(msgpack.NewPooledBufferedEncoder(nil))
@@ -209,6 +243,10 @@ func testRawTCPServerHandleUnaggregated(
 					Type:               encoding.GaugeWithMetadatasType,
 					GaugeWithMetadatas: testGaugeWithMetadatas,
 				}))
+				require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+					Type: encoding.TimedMetricWithForwardMetadataType,
+					TimedMetricWithForwardMetadata: testMetricWithForwardMetadata,
+				}))
 				buf := encoder.Relinquish()
 				stream = buf.Bytes()
 			}
@@ -218,7 +256,8 @@ func testRawTCPServerHandleUnaggregated(
 	}
 
 	// Wait for all metrics to be processed.
-	for agg.NumMetricsAdded() < numClients*3 {
+	wgClient.Wait()
+	for agg.NumMetricsAdded() < expectedTotalMetrics {
 		time.Sleep(50 * time.Millisecond)
 	}
 

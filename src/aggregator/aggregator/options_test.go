@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3aggregator/aggregator/handler"
+	"github.com/m3db/m3aggregator/client"
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -55,7 +56,6 @@ func TestOptionsValidateDefault(t *testing.T) {
 	require.Equal(t, defaultCounterPrefix, o.CounterPrefix())
 	require.Equal(t, defaultTimerPrefix, o.TimerPrefix())
 	require.Equal(t, defaultGaugePrefix, o.GaugePrefix())
-	require.Equal(t, defaultMinFlushInterval, o.MinFlushInterval())
 	require.Equal(t, defaultEntryTTL, o.EntryTTL())
 	require.Equal(t, defaultEntryCheckInterval, o.EntryCheckInterval())
 	require.Equal(t, defaultEntryCheckBatchPercent, o.EntryCheckBatchPercent())
@@ -122,6 +122,12 @@ func TestSetStreamOptions(t *testing.T) {
 	require.Equal(t, value, o.StreamOptions())
 }
 
+func TestSetAdminClient(t *testing.T) {
+	value := client.NewClient(client.NewOptions()).(client.AdminClient)
+	o := NewOptions().SetAdminClient(value)
+	require.True(t, value == o.AdminClient())
+}
+
 func TestSetRuntimeOptionsManager(t *testing.T) {
 	value := runtime.NewOptionsManager(runtime.NewOptions())
 	o := NewOptions().SetRuntimeOptionsManager(value)
@@ -132,12 +138,6 @@ func TestSetTimeLock(t *testing.T) {
 	value := &sync.RWMutex{}
 	o := NewOptions().SetTimeLock(value)
 	require.Equal(t, value, o.TimeLock())
-}
-
-func TestSetMinFlushInterval(t *testing.T) {
-	value := time.Second * 15
-	o := NewOptions().SetMinFlushInterval(value)
-	require.Equal(t, value, o.MinFlushInterval())
 }
 
 func TestSetFlushHandler(t *testing.T) {
@@ -153,6 +153,15 @@ func TestSetEntryTTL(t *testing.T) {
 	value := time.Minute
 	o := NewOptions().SetEntryTTL(value)
 	require.Equal(t, value, o.EntryTTL())
+}
+
+func TestSetMaxAllowedForwardingDelayFn(t *testing.T) {
+	value := func(resolution time.Duration, numForwardedTimes int) time.Duration {
+		return resolution + time.Second*time.Duration(numForwardedTimes)
+	}
+	o := NewOptions().SetMaxAllowedForwardingDelayFn(value)
+	fn := o.MaxAllowedForwardingDelayFn()
+	require.Equal(t, 72*time.Second, fn(time.Minute, 12))
 }
 
 func TestSetEntryCheckInterval(t *testing.T) {
@@ -189,4 +198,10 @@ func TestSetGaugeElemPool(t *testing.T) {
 	value := NewGaugeElemPool(nil)
 	o := NewOptions().SetGaugeElemPool(value)
 	require.Equal(t, value, o.GaugeElemPool())
+}
+
+func TestSetSourceIDProvider(t *testing.T) {
+	value := newSourceIDProvider(testSourceID)
+	o := NewOptions().setSourceIDProvider(value)
+	require.True(t, value == o.sourceIDProvider())
 }

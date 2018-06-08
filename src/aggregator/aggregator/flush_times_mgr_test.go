@@ -42,12 +42,12 @@ var (
 	testFlushTimesProto = &schema.ShardSetFlushTimes{
 		ByShard: map[uint32]*schema.ShardFlushTimes{
 			0: &schema.ShardFlushTimes{
-				ByResolution: map[int64]int64{
+				StandardByResolution: map[int64]int64{
 					int64(time.Second): 1000,
 				},
 			},
 			1: &schema.ShardFlushTimes{
-				ByResolution: map[int64]int64{
+				StandardByResolution: map[int64]int64{
 					int64(time.Minute): 2000,
 				},
 			},

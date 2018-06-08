@@ -780,12 +780,12 @@ func TestElectionManagerCampaignIsEnabledAllCutoffShardsFlushed(t *testing.T) {
 		Return(&schema.ShardSetFlushTimes{
 			ByShard: map[uint32]*schema.ShardFlushTimes{
 				0: &schema.ShardFlushTimes{
-					ByResolution: map[int64]int64{
+					StandardByResolution: map[int64]int64{
 						int64(time.Second): 8000,
 					},
 				},
 				1: &schema.ShardFlushTimes{
-					ByResolution: map[int64]int64{
+					StandardByResolution: map[int64]int64{
 						int64(time.Minute): 9000,
 					},
 				},
@@ -821,12 +821,12 @@ func TestElectionManagerCampaignIsEnabledHasReplacementInstance(t *testing.T) {
 		Return(&schema.ShardSetFlushTimes{
 			ByShard: map[uint32]*schema.ShardFlushTimes{
 				0: &schema.ShardFlushTimes{
-					ByResolution: map[int64]int64{
+					StandardByResolution: map[int64]int64{
 						int64(time.Second): 7000,
 					},
 				},
 				1: &schema.ShardFlushTimes{
-					ByResolution: map[int64]int64{
+					StandardByResolution: map[int64]int64{
 						int64(time.Minute): 9000,
 					},
 				},
@@ -863,12 +863,12 @@ func TestElectionManagerCampaignIsEnabledNoReplacementInstance(t *testing.T) {
 		Return(&schema.ShardSetFlushTimes{
 			ByShard: map[uint32]*schema.ShardFlushTimes{
 				0: &schema.ShardFlushTimes{
-					ByResolution: map[int64]int64{
+					StandardByResolution: map[int64]int64{
 						int64(time.Second): 7000,
 					},
 				},
 				1: &schema.ShardFlushTimes{
-					ByResolution: map[int64]int64{
+					StandardByResolution: map[int64]int64{
 						int64(time.Minute): 9000,
 					},
 				},

@@ -81,17 +81,20 @@ func TestFlushManagerOpenSuccess(t *testing.T) {
 	require.NoError(t, mgr.Open())
 }
 
-func TestFlushManagerRegisterSuccess(t *testing.T) {
+func TestFlushManagerRegisterStandardFlushingMetricList(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mgr, now := testFlushManager(t, ctrl)
+	mgr.jitterEnabled = true
+	mgr.maxJitterFn = func(d time.Duration) time.Duration { return d / 2 }
+	mgr.randFn = func(n int64) int64 { return n / 2 }
 	*now = time.Unix(1234, 0)
 
 	var (
 		bucketIndices []int
 		buckets       []*flushBucket
-		flushers      []PeriodicFlusher
+		flushers      []flushingMetricList
 	)
 	for _, intv := range []time.Duration{
 		time.Second,
@@ -99,7 +102,8 @@ func TestFlushManagerRegisterSuccess(t *testing.T) {
 		time.Second,
 		time.Hour,
 	} {
-		flusher := NewMockPeriodicFlusher(ctrl)
+		flusher := NewMockflushingMetricList(ctrl)
+		flusher.EXPECT().ID().Return(standardMetricListID{resolution: intv}.toMetricListID()).AnyTimes()
 		flusher.EXPECT().FlushInterval().Return(intv).AnyTimes()
 		flushers = append(flushers, flusher)
 	}
@@ -124,26 +128,131 @@ func TestFlushManagerRegisterSuccess(t *testing.T) {
 
 	expectedBuckets := []*flushBucket{
 		&flushBucket{
+			bucketID: standardMetricListID{resolution: time.Second}.toMetricListID(),
 			interval: time.Second,
-			flushers: []PeriodicFlusher{flushers[0], flushers[2]},
+			offset:   250 * time.Millisecond,
+			flushers: []flushingMetricList{flushers[0], flushers[2]},
 		},
 		&flushBucket{
+			bucketID: standardMetricListID{resolution: time.Minute}.toMetricListID(),
 			interval: time.Minute,
-			flushers: []PeriodicFlusher{flushers[1]},
+			offset:   15 * time.Second,
+			flushers: []flushingMetricList{flushers[1]},
 		},
 		&flushBucket{
+			bucketID: standardMetricListID{resolution: time.Hour}.toMetricListID(),
 			interval: time.Hour,
-			flushers: []PeriodicFlusher{flushers[3]},
+			offset:   15 * time.Minute,
+			flushers: []flushingMetricList{flushers[3]},
 		},
 	}
 	require.Equal(t, len(expectedBuckets), len(mgr.buckets))
 	for i := 0; i < len(expectedBuckets); i++ {
+		require.Equal(t, expectedBuckets[i].bucketID, mgr.buckets[i].bucketID)
 		require.Equal(t, expectedBuckets[i].interval, mgr.buckets[i].interval)
+		require.Equal(t, expectedBuckets[i].offset, mgr.buckets[i].offset)
 		require.Equal(t, expectedBuckets[i].flushers, mgr.buckets[i].flushers)
 	}
 	for i := 0; i < len(expectedBuckets); i++ {
 		require.Equal(t, i, bucketIndices[i])
+		require.Equal(t, expectedBuckets[i].bucketID, buckets[i].bucketID)
 		require.Equal(t, expectedBuckets[i].interval, buckets[i].interval)
+		require.Equal(t, expectedBuckets[i].offset, buckets[i].offset)
+		require.Equal(t, expectedBuckets[i].flushers, buckets[i].flushers)
+	}
+}
+
+func TestFlushManagerRegisterForwardedFlushingMetricList(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr, now := testFlushManager(t, ctrl)
+	*now = time.Unix(1234, 0)
+
+	var (
+		bucketIndices []int
+		buckets       []*flushBucket
+		flushers      []flushingMetricList
+	)
+	for _, intv := range []struct {
+		resolution        time.Duration
+		numForwardedTimes int
+		flushOffset       time.Duration
+	}{
+		{resolution: time.Second, numForwardedTimes: 1, flushOffset: 5 * time.Second},
+		{resolution: time.Minute, numForwardedTimes: 2, flushOffset: 6 * time.Second},
+		{resolution: time.Second, numForwardedTimes: 3, flushOffset: 7 * time.Second},
+		{resolution: time.Minute, numForwardedTimes: 2, flushOffset: 6 * time.Second},
+	} {
+		flusher := NewMockfixedOffsetFlushingMetricList(ctrl)
+		flusher.EXPECT().ID().Return(forwardedMetricListID{
+			resolution:        intv.resolution,
+			numForwardedTimes: intv.numForwardedTimes,
+		}.toMetricListID()).MinTimes(1)
+		flusher.EXPECT().FlushInterval().Return(intv.resolution).AnyTimes()
+		flusher.EXPECT().FlushOffset().Return(intv.flushOffset).AnyTimes()
+		flushers = append(flushers, flusher)
+	}
+
+	leaderMgr := NewMockroleBasedFlushManager(ctrl)
+	leaderMgr.EXPECT().Open().AnyTimes()
+	followerMgr := NewMockroleBasedFlushManager(ctrl)
+	followerMgr.EXPECT().Open().AnyTimes()
+	followerMgr.EXPECT().
+		OnBucketAdded(gomock.Any(), gomock.Any()).
+		Do(func(bucketIdx int, bucket *flushBucket) {
+			bucketIndices = append(bucketIndices, bucketIdx)
+			buckets = append(buckets, bucket)
+		}).
+		AnyTimes()
+	mgr.leaderMgr = leaderMgr
+	mgr.followerMgr = followerMgr
+	require.NoError(t, mgr.Open())
+	for _, flusher := range flushers {
+		require.NoError(t, mgr.Register(flusher))
+	}
+
+	expectedBuckets := []*flushBucket{
+		&flushBucket{
+			bucketID: forwardedMetricListID{
+				resolution:        time.Second,
+				numForwardedTimes: 1,
+			}.toMetricListID(),
+			interval: time.Second,
+			offset:   5 * time.Second,
+			flushers: []flushingMetricList{flushers[0]},
+		},
+		&flushBucket{
+			bucketID: forwardedMetricListID{
+				resolution:        time.Minute,
+				numForwardedTimes: 2,
+			}.toMetricListID(),
+			interval: time.Minute,
+			offset:   6 * time.Second,
+			flushers: []flushingMetricList{flushers[1], flushers[3]},
+		},
+		&flushBucket{
+			bucketID: forwardedMetricListID{
+				resolution:        time.Second,
+				numForwardedTimes: 3,
+			}.toMetricListID(),
+			interval: time.Second,
+			offset:   7 * time.Second,
+			flushers: []flushingMetricList{flushers[2]},
+		},
+	}
+	require.Equal(t, len(expectedBuckets), len(mgr.buckets))
+	for i := 0; i < len(expectedBuckets); i++ {
+		require.Equal(t, expectedBuckets[i].bucketID, mgr.buckets[i].bucketID)
+		require.Equal(t, expectedBuckets[i].interval, mgr.buckets[i].interval)
+		require.Equal(t, expectedBuckets[i].offset, mgr.buckets[i].offset)
+		require.Equal(t, expectedBuckets[i].flushers, mgr.buckets[i].flushers)
+	}
+	for i := 0; i < len(expectedBuckets); i++ {
+		require.Equal(t, i, bucketIndices[i])
+		require.Equal(t, expectedBuckets[i].bucketID, buckets[i].bucketID)
+		require.Equal(t, expectedBuckets[i].interval, buckets[i].interval)
+		require.Equal(t, expectedBuckets[i].offset, buckets[i].offset)
 		require.Equal(t, expectedBuckets[i].flushers, buckets[i].flushers)
 	}
 }
@@ -152,13 +261,13 @@ func TestFlushManagerUnregisterBucketNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	var flushers []PeriodicFlusher
+	var flushers []flushingMetricList
 	for _, intv := range []time.Duration{
 		time.Second,
 		time.Minute,
 	} {
-		flusher := NewMockPeriodicFlusher(ctrl)
-		flusher.EXPECT().FlushInterval().Return(intv).AnyTimes()
+		flusher := NewMockflushingMetricList(ctrl)
+		flusher.EXPECT().ID().Return(standardMetricListID{resolution: intv}.toMetricListID()).AnyTimes()
 		flushers = append(flushers, flusher)
 	}
 
@@ -166,8 +275,9 @@ func TestFlushManagerUnregisterBucketNotFound(t *testing.T) {
 	mgr.state = flushManagerOpen
 	mgr.buckets = []*flushBucket{
 		&flushBucket{
+			bucketID: standardMetricListID{resolution: time.Second}.toMetricListID(),
 			interval: time.Second,
-			flushers: []PeriodicFlusher{flushers[0]},
+			flushers: []flushingMetricList{flushers[0]},
 		},
 	}
 	require.Equal(t, errBucketNotFound, mgr.Unregister(flushers[1]))
@@ -177,20 +287,18 @@ func TestFlushManagerUnregisterFlusherNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	flusher := NewMockPeriodicFlusher(ctrl)
-	flusher.EXPECT().FlushInterval().Return(time.Second).AnyTimes()
-
 	mgr, _ := testFlushManager(t, ctrl)
 	mgr.state = flushManagerOpen
 	mgr.buckets = []*flushBucket{
 		&flushBucket{
+			bucketID: standardMetricListID{resolution: time.Second}.toMetricListID(),
 			interval: time.Second,
-			flushers: []PeriodicFlusher{flusher},
+			flushers: []flushingMetricList{NewMockflushingMetricList(ctrl)},
 		},
 	}
 
-	flusher2 := NewMockPeriodicFlusher(ctrl)
-	flusher2.EXPECT().FlushInterval().Return(time.Second).AnyTimes()
+	flusher2 := NewMockflushingMetricList(ctrl)
+	flusher2.EXPECT().ID().Return(standardMetricListID{resolution: time.Second}.toMetricListID()).AnyTimes()
 	require.Equal(t, errFlusherNotFound, mgr.Unregister(flusher2))
 }
 
@@ -198,14 +306,15 @@ func TestFlushManagerUnregisterSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	var flushers []PeriodicFlusher
+	var flushers []flushingMetricList
 	for _, intv := range []time.Duration{
 		time.Second,
 		time.Minute,
 		time.Second,
 		time.Second,
 	} {
-		flusher := NewMockPeriodicFlusher(ctrl)
+		flusher := NewMockflushingMetricList(ctrl)
+		flusher.EXPECT().ID().Return(standardMetricListID{resolution: intv}.toMetricListID()).AnyTimes()
 		flusher.EXPECT().FlushInterval().Return(intv).AnyTimes()
 		flushers = append(flushers, flusher)
 	}
@@ -214,12 +323,14 @@ func TestFlushManagerUnregisterSuccess(t *testing.T) {
 	mgr.state = flushManagerOpen
 	mgr.buckets = []*flushBucket{
 		&flushBucket{
+			bucketID: standardMetricListID{resolution: time.Second}.toMetricListID(),
 			interval: time.Second,
-			flushers: []PeriodicFlusher{flushers[0], flushers[2], flushers[3]},
+			flushers: []flushingMetricList{flushers[0], flushers[2], flushers[3]},
 		},
 		&flushBucket{
+			bucketID: standardMetricListID{resolution: time.Minute}.toMetricListID(),
 			interval: time.Minute,
-			flushers: []PeriodicFlusher{flushers[1]},
+			flushers: []flushingMetricList{flushers[1]},
 		},
 	}
 	require.NoError(t, mgr.Unregister(flushers[0]))
@@ -229,7 +340,7 @@ func TestFlushManagerUnregisterSuccess(t *testing.T) {
 	for _, b := range mgr.buckets {
 		if b.interval == time.Second {
 			found = true
-			require.Equal(t, []PeriodicFlusher{flushers[3]}, b.flushers)
+			require.Equal(t, []flushingMetricList{flushers[3]}, b.flushers)
 		}
 	}
 	require.True(t, found)
@@ -368,14 +479,15 @@ func TestFlushManagerFlush(t *testing.T) {
 	// Flush as a follower.
 	require.NoError(t, mgr.Open())
 
-	var flushers []PeriodicFlusher
+	var flushers []flushingMetricList
 	for _, intv := range []time.Duration{
 		100 * time.Millisecond,
 		200 * time.Millisecond,
 		100 * time.Millisecond,
 		500 * time.Millisecond,
 	} {
-		flusher := NewMockPeriodicFlusher(ctrl)
+		flusher := NewMockflushingMetricList(ctrl)
+		flusher.EXPECT().ID().Return(standardMetricListID{resolution: intv}.toMetricListID()).AnyTimes()
 		flusher.EXPECT().FlushInterval().Return(intv).AnyTimes()
 		flushers = append(flushers, flusher)
 	}
@@ -413,15 +525,15 @@ func TestFlushManagerFlush(t *testing.T) {
 	expectedBuckets := []*flushBucket{
 		&flushBucket{
 			interval: 100 * time.Millisecond,
-			flushers: []PeriodicFlusher{flushers[0], flushers[2]},
+			flushers: []flushingMetricList{flushers[0], flushers[2]},
 		},
 		&flushBucket{
 			interval: 200 * time.Millisecond,
-			flushers: []PeriodicFlusher{flushers[1]},
+			flushers: []flushingMetricList{flushers[1]},
 		},
 		&flushBucket{
 			interval: 500 * time.Millisecond,
-			flushers: []PeriodicFlusher{flushers[3]},
+			flushers: []flushingMetricList{flushers[3]},
 		},
 	}
 	require.Equal(t, len(expectedBuckets), len(captured))
@@ -432,6 +544,51 @@ func TestFlushManagerFlush(t *testing.T) {
 
 	mgr.state = flushManagerClosed
 	close(signalCh)
+}
+
+func TestFlushManagerComputeFlushIntervalOffsetJitterEnabled(t *testing.T) {
+	now := time.Unix(1234, 0)
+	nowFn := func() time.Time { return now }
+	maxJitterFn := func(interval time.Duration) time.Duration {
+		return time.Duration(0.5 * float64(interval))
+	}
+	randFn := func(n int64) int64 { return int64(0.5 * float64(n)) }
+	opts := NewFlushManagerOptions().
+		SetJitterEnabled(true).
+		SetMaxJitterFn(maxJitterFn)
+	mgr := NewFlushManager(opts).(*flushManager)
+	mgr.nowFn = nowFn
+	mgr.randFn = randFn
+
+	for _, input := range []struct {
+		interval time.Duration
+		expected time.Duration
+	}{
+		{interval: time.Second, expected: 250000000 * time.Nanosecond},
+		{interval: 10 * time.Second, expected: 2500000000 * time.Nanosecond},
+		{interval: time.Minute, expected: 15 * time.Second},
+	} {
+		require.Equal(t, input.expected, mgr.computeFlushIntervalOffset(input.interval))
+	}
+}
+
+func TestFlushManagerComputeFlushIntervalOffsetJitterDisabled(t *testing.T) {
+	now := time.Unix(1234, 0)
+	nowFn := func() time.Time { return now }
+	opts := NewFlushManagerOptions().SetJitterEnabled(false)
+	mgr := NewFlushManager(opts).(*flushManager)
+	mgr.nowFn = nowFn
+
+	for _, input := range []struct {
+		interval time.Duration
+		expected time.Duration
+	}{
+		{interval: time.Second, expected: 0},
+		{interval: 10 * time.Second, expected: 4 * time.Second},
+		{interval: time.Minute, expected: 34 * time.Second},
+	} {
+		require.Equal(t, input.expected, mgr.computeFlushIntervalOffset(input.interval))
+	}
 }
 
 func testFlushManager(t *testing.T, ctrl *gomock.Controller) (*flushManager, *time.Time) {

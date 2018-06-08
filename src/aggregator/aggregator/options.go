@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3aggregator/aggregator/handler"
+	"github.com/m3db/m3aggregator/client"
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3metrics/aggregation"
@@ -43,12 +44,12 @@ var (
 	defaultCounterPrefix             = []byte("counts.")
 	defaultTimerPrefix               = []byte("timers.")
 	defaultGaugePrefix               = []byte("gauges.")
-	defaultMinFlushInterval          = 5 * time.Second
 	defaultEntryTTL                  = 24 * time.Hour
 	defaultEntryCheckInterval        = time.Hour
 	defaultEntryCheckBatchPercent    = 0.01
 	defaultMaxTimerBatchSizePerWrite = 0
 	defaultResignTimeout             = 5 * time.Minute
+	defaultInitSourceID              = uint32(0)
 	defaultDefaultStoragePolicies    = []policy.StoragePolicy{
 		policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
 		policy.NewStoragePolicy(time.Minute, xtime.Minute, 40*24*time.Hour),
@@ -63,6 +64,17 @@ var (
 	// the traffic back to the previous owner of the shards immediately.
 	defaultBufferDurationAfterShardCutoff = time.Hour
 )
+
+// MaxAllowedForwardingDelayFn returns the maximum allowed forwarding delay given
+// the metric resolution and number of times the metric has been forwarded. The forwarding
+// delay refers to the maximum tolerated delay between when a metric is ready to be
+// forwarded (i.e., when the current aggregation window is closed) at the originating
+// server and when the forwarded metric is ingested successfully at the destination server.
+// This is the overall maximum delay accounting for between when a metric is ready to be
+// forwarded and when the actual flush happens due to scheduling delay and flush jittering
+// if any, flushing delay, queuing delay, encoding delay, network delay, decoding delay at
+// destination server, and ingestion delay at the destination server.
+type MaxAllowedForwardingDelayFn func(resolution time.Duration, numForwardedTimes int) time.Duration
 
 // Options provide a set of base and derived options for the aggregator.
 type Options interface {
@@ -122,6 +134,12 @@ type Options interface {
 	// StreamOptions returns the stream options.
 	StreamOptions() cm.Options
 
+	// SetAdminClient sets the administrative client.
+	SetAdminClient(value client.AdminClient) Options
+
+	// AdminClient returns the administrative client.
+	AdminClient() client.AdminClient
+
 	// SetRuntimeOptionsManager sets the runtime options manager.
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
 
@@ -170,12 +188,6 @@ type Options interface {
 	// FlushManager returns the flush manager.
 	FlushManager() FlushManager
 
-	// SetMinFlushInterval sets the minimum flush interval.
-	SetMinFlushInterval(value time.Duration) Options
-
-	// MinFlushInterval returns the minimum flush interval.
-	MinFlushInterval() time.Duration
-
 	// SetFlushHandler sets the handler that flushes buffered encoders.
 	SetFlushHandler(value handler.Handler) Options
 
@@ -218,6 +230,14 @@ type Options interface {
 	// ResignTimeout returns the resign timeout.
 	ResignTimeout() time.Duration
 
+	// SetMaxAllowedForwardingDelayFn sets the function that determines the maximum forwarding
+	// delay for given metric resolution and number of times the metric has been forwarded.
+	SetMaxAllowedForwardingDelayFn(value MaxAllowedForwardingDelayFn) Options
+
+	// MaxAllowedForwardingDelayFn returns the function that determines the maximum forwarding
+	// delay for given metric resolution and number of times the metric has been forwarded.
+	MaxAllowedForwardingDelayFn() MaxAllowedForwardingDelayFn
+
 	// SetEntryPool sets the entry pool.
 	SetEntryPool(value EntryPool) Options
 
@@ -252,6 +272,14 @@ type Options interface {
 
 	// FullGaugePrefix returns the full prefix for gauges.
 	FullGaugePrefix() []byte
+
+	// Internal use only.
+
+	// setSourceIDProvider sets the source ID provider.
+	setSourceIDProvider(value sourceIDProvider) Options
+
+	// sourceIDProvider returns the source ID provider.
+	sourceIDProvider() sourceIDProvider
 }
 
 type options struct {
@@ -265,13 +293,13 @@ type options struct {
 	clockOpts                        clock.Options
 	instrumentOpts                   instrument.Options
 	streamOpts                       cm.Options
+	adminClient                      client.AdminClient
 	runtimeOptsManager               runtime.OptionsManager
 	placementManager                 PlacementManager
 	shardFn                          sharding.ShardFn
 	bufferDurationBeforeShardCutover time.Duration
 	bufferDurationAfterShardCutoff   time.Duration
 	flushManager                     FlushManager
-	minFlushInterval                 time.Duration
 	flushHandler                     handler.Handler
 	entryTTL                         time.Duration
 	entryCheckInterval               time.Duration
@@ -281,6 +309,7 @@ type options struct {
 	flushTimesManager                FlushTimesManager
 	electionManager                  ElectionManager
 	resignTimeout                    time.Duration
+	maxAllowedForwardingDelayFn      MaxAllowedForwardingDelayFn
 	entryPool                        EntryPool
 	counterElemPool                  CounterElemPool
 	timerElemPool                    TimerElemPool
@@ -291,6 +320,9 @@ type options struct {
 	fullTimerPrefix   []byte
 	fullGaugePrefix   []byte
 	timerQuantiles    []float64
+
+	// Internal options.
+	srcIDProvider sourceIDProvider
 }
 
 // NewOptions create a new set of options.
@@ -309,13 +341,14 @@ func NewOptions() Options {
 		shardFn:            defaultShardFn,
 		bufferDurationBeforeShardCutover: defaultBufferDurationBeforeShardCutover,
 		bufferDurationAfterShardCutoff:   defaultBufferDurationAfterShardCutoff,
-		minFlushInterval:                 defaultMinFlushInterval,
 		entryTTL:                         defaultEntryTTL,
 		entryCheckInterval:               defaultEntryCheckInterval,
 		entryCheckBatchPercent:           defaultEntryCheckBatchPercent,
 		maxTimerBatchSizePerWrite:        defaultMaxTimerBatchSizePerWrite,
 		defaultStoragePolicies:           defaultDefaultStoragePolicies,
 		resignTimeout:                    defaultResignTimeout,
+		maxAllowedForwardingDelayFn:      defaultMaxAllowedForwardingDelayFn,
+		srcIDProvider:                    newSourceIDProvider(defaultInitSourceID),
 	}
 
 	// Initialize pools.
@@ -421,6 +454,16 @@ func (o *options) StreamOptions() cm.Options {
 	return o.streamOpts
 }
 
+func (o *options) SetAdminClient(value client.AdminClient) Options {
+	opts := *o
+	opts.adminClient = value
+	return &opts
+}
+
+func (o *options) AdminClient() client.AdminClient {
+	return o.adminClient
+}
+
 func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
 	opts := *o
 	opts.runtimeOptsManager = value
@@ -501,16 +544,6 @@ func (o *options) FlushManager() FlushManager {
 	return o.flushManager
 }
 
-func (o *options) SetMinFlushInterval(value time.Duration) Options {
-	opts := *o
-	opts.minFlushInterval = value
-	return &opts
-}
-
-func (o *options) MinFlushInterval() time.Duration {
-	return o.minFlushInterval
-}
-
 func (o *options) SetFlushHandler(value handler.Handler) Options {
 	opts := *o
 	opts.flushHandler = value
@@ -577,6 +610,16 @@ func (o *options) SetResignTimeout(value time.Duration) Options {
 	return &opts
 }
 
+func (o *options) SetMaxAllowedForwardingDelayFn(value MaxAllowedForwardingDelayFn) Options {
+	opts := *o
+	opts.maxAllowedForwardingDelayFn = value
+	return &opts
+}
+
+func (o *options) MaxAllowedForwardingDelayFn() MaxAllowedForwardingDelayFn {
+	return o.maxAllowedForwardingDelayFn
+}
+
 func (o *options) ResignTimeout() time.Duration {
 	return o.resignTimeout
 }
@@ -637,6 +680,16 @@ func (o *options) TimerQuantiles() []float64 {
 	return o.timerQuantiles
 }
 
+func (o *options) setSourceIDProvider(value sourceIDProvider) Options {
+	opts := *o
+	opts.srcIDProvider = value
+	return &opts
+}
+
+func (o *options) sourceIDProvider() sourceIDProvider {
+	return o.srcIDProvider
+}
+
 func (o *options) initPools() {
 	defaultRuntimeOpts := runtime.NewOptions()
 	o.entryPool = NewEntryPool(nil)
@@ -646,17 +699,17 @@ func (o *options) initPools() {
 
 	o.counterElemPool = NewCounterElemPool(nil)
 	o.counterElemPool.Init(func() *CounterElem {
-		return MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, o)
+		return MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, o)
 	})
 
 	o.timerElemPool = NewTimerElemPool(nil)
 	o.timerElemPool.Init(func() *TimerElem {
-		return MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, o)
+		return MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, o)
 	})
 
 	o.gaugeElemPool = NewGaugeElemPool(nil)
 	o.gaugeElemPool.Init(func() *GaugeElem {
-		return MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, o)
+		return MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, o)
 	})
 }
 
@@ -693,4 +746,11 @@ func (o *options) computeFullGaugePrefix() {
 
 func defaultShardFn(id []byte, numShards int) uint32 {
 	return murmur3.Sum32(id) % uint32(numShards)
+}
+
+func defaultMaxAllowedForwardingDelayFn(
+	resolution time.Duration,
+	numForwardedTimes int,
+) time.Duration {
+	return resolution * time.Duration(numForwardedTimes)
 }

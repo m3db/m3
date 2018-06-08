@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/aggregator/handler"
+	aggclient "github.com/m3db/m3aggregator/client"
 	aggruntime "github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3cluster/client"
@@ -72,6 +73,9 @@ type AggregatorConfiguration struct {
 	// Stream configuration for computing quantiles.
 	Stream streamConfiguration `yaml:"stream"`
 
+	// Client configuration.
+	Client aggclient.Configuration `yaml:"client"`
+
 	// Placement manager.
 	PlacementManager placementManagerConfiguration `yaml:"placementManager"`
 
@@ -96,11 +100,11 @@ type AggregatorConfiguration struct {
 	// Flush manager.
 	FlushManager flushManagerConfiguration `yaml:"flushManager"`
 
-	// Minimum flush interval across all resolutions.
-	MinFlushInterval time.Duration `yaml:"minFlushInterval"`
-
 	// Flushing handler configuration.
 	Flush handler.FlushHandlerConfiguration `yaml:"flush"`
+
+	// Forwarding configuration.
+	Forwarding forwardingConfiguration `yaml:"forwarding"`
 
 	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
 	EntryTTL time.Duration `yaml:"entryTTL"`
@@ -162,6 +166,17 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		return nil, err
 	}
 	opts = opts.SetStreamOptions(streamOpts)
+
+	// Set administrative client.
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("admin-client"))
+	adminClient, err := c.Client.NewAdminClient(client, iOpts)
+	if err != nil {
+		return nil, err
+	}
+	if err = adminClient.Init(); err != nil {
+		return nil, err
+	}
+	opts = opts.SetAdminClient(adminClient)
 
 	// Set instance id.
 	instanceID, err := instanceID(address)
@@ -227,7 +242,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 	// Set flush manager.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("flush-manager"))
-	flushManager, err := c.FlushManager.NewFlushManager(
+	flushManagerOpts, err := c.FlushManager.NewFlushManagerOptions(
 		placementManager,
 		electionManager,
 		flushTimesManager,
@@ -236,18 +251,22 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	if err != nil {
 		return nil, err
 	}
+	flushManager := aggregator.NewFlushManager(flushManagerOpts)
 	opts = opts.SetFlushManager(flushManager)
 
 	// Set flushing handler.
-	if c.MinFlushInterval != 0 {
-		opts = opts.SetMinFlushInterval(c.MinFlushInterval)
-	}
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("flush-handler"))
 	flushHandler, err := c.Flush.NewHandler(iOpts)
 	if err != nil {
 		return nil, err
 	}
 	opts = opts.SetFlushHandler(flushHandler)
+
+	// Set max allowed forwarding delay function.
+	jitterEnabled := flushManagerOpts.JitterEnabled()
+	maxJitterFn := flushManagerOpts.MaxJitterFn()
+	maxAllowedForwardingDelayFn := c.Forwarding.MaxAllowedForwardingDelayFn(jitterEnabled, maxJitterFn)
+	opts = opts.SetMaxAllowedForwardingDelayFn(maxAllowedForwardingDelayFn)
 
 	// Set entry options.
 	if c.EntryTTL != 0 {
@@ -266,8 +285,6 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	// Set default storage policies.
 	storagePolicies := make([]policy.StoragePolicy, len(c.DefaultStoragePolicies))
 	copy(storagePolicies, c.DefaultStoragePolicies)
-	// TODO(xichen): sort the storage policies.
-	// sort.Sort(policy.ByResolutionAscRetentionDesc(policies))
 	opts = opts.SetDefaultStoragePolicies(storagePolicies)
 
 	// Set counter elem pool.
@@ -276,7 +293,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	counterElemPool := aggregator.NewCounterElemPool(counterElemPoolOpts)
 	opts = opts.SetCounterElemPool(counterElemPool)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, opts)
+		return aggregator.MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts)
 	})
 
 	// Set timer elem pool.
@@ -285,7 +302,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	timerElemPool := aggregator.NewTimerElemPool(timerElemPoolOpts)
 	opts = opts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, opts)
+		return aggregator.MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts)
 	})
 
 	// Set gauge elem pool.
@@ -294,7 +311,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
 	opts = opts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, opts)
+		return aggregator.MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, opts)
 	})
 
 	// Set entry pool.
@@ -398,6 +415,27 @@ func (c placementManagerConfiguration) NewPlacementManager(
 		SetInstanceID(instanceID).
 		SetStagedPlacementWatcher(placementWatcher)
 	return aggregator.NewPlacementManager(placementManagerOpts), nil
+}
+
+type forwardingConfiguration struct {
+	// MaxSingleDelay is the maximum delay for a single forward step.
+	MaxSingleDelay time.Duration `yaml:"maxSingleDelay"`
+}
+
+func (c forwardingConfiguration) MaxAllowedForwardingDelayFn(
+	jitterEnabled bool,
+	maxJitterFn aggregator.FlushJitterFn,
+) aggregator.MaxAllowedForwardingDelayFn {
+	return func(resolution time.Duration, numForwardedTimes int) time.Duration {
+		// If jittering is enabled, we use max jitter fn to determine the initial jitter.
+		// Otherwise, flushing may start at any point within a resolution interval so we
+		// assume the full resolution interval may be used for initial jittering.
+		initialJitter := resolution
+		if jitterEnabled {
+			initialJitter = maxJitterFn(resolution)
+		}
+		return initialJitter + c.MaxSingleDelay*time.Duration(numForwardedTimes)
+	}
 }
 
 type flushTimesManagerConfiguration struct {
@@ -566,12 +604,12 @@ type flushManagerConfiguration struct {
 	ForcedFlushWindowSize time.Duration `yaml:"forcedFlushWindowSize"`
 }
 
-func (c flushManagerConfiguration) NewFlushManager(
+func (c flushManagerConfiguration) NewFlushManagerOptions(
 	placementManager aggregator.PlacementManager,
 	electionManager aggregator.ElectionManager,
 	flushTimesManager aggregator.FlushTimesManager,
 	instrumentOpts instrument.Options,
-) (aggregator.FlushManager, error) {
+) (aggregator.FlushManagerOptions, error) {
 	opts := aggregator.NewFlushManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetPlacementManager(placementManager).
@@ -605,7 +643,7 @@ func (c flushManagerConfiguration) NewFlushManager(
 	if c.ForcedFlushWindowSize != 0 {
 		opts = opts.SetForcedFlushWindowSize(c.ForcedFlushWindowSize)
 	}
-	return aggregator.NewFlushManager(opts), nil
+	return opts, nil
 }
 
 // jitterBucket determines the max jitter percent for lists whose flush

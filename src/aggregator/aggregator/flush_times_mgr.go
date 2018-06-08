@@ -302,6 +302,7 @@ func newFlushTimesChecker(scope tally.Scope) flushTimesChecker {
 // HasFlushed returns true if data for a given shard have been flushed until
 // at least the given target nanoseconds based on the flush times persisted in kv,
 // and false otherwise.
+// TODO(xichen): rework the logic here to account for forwarded metrics.
 func (sc flushTimesChecker) HasFlushed(
 	shardID uint32,
 	targetNanos int64,
@@ -316,7 +317,7 @@ func (sc flushTimesChecker) HasFlushed(
 		sc.metrics.shardNotFound.Inc(1)
 		return false
 	}
-	for _, lastFlushedNanos := range shardFlushTimes.ByResolution {
+	for _, lastFlushedNanos := range shardFlushTimes.StandardByResolution {
 		if lastFlushedNanos < targetNanos {
 			sc.metrics.notFullyFlushed.Inc(1)
 			return false

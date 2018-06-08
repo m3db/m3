@@ -33,25 +33,55 @@ import (
 	"github.com/uber-go/tally"
 )
 
+type standardFlusherMetrics struct {
+	shardNotFound      tally.Counter
+	resolutionNotFound tally.Counter
+}
+
+func newStandardFlusherMetrics(scope tally.Scope) standardFlusherMetrics {
+	return standardFlusherMetrics{
+		shardNotFound:      scope.Counter("shard-not-found"),
+		resolutionNotFound: scope.Counter("resolution-not-found"),
+	}
+}
+
+type forwardedFlusherMetrics struct {
+	shardNotFound             tally.Counter
+	resolutionNotFound        tally.Counter
+	nilForwardedTimes         tally.Counter
+	numForwardedTimesNotFound tally.Counter
+}
+
+func newForwardedFlusherMetrics(scope tally.Scope) forwardedFlusherMetrics {
+	return forwardedFlusherMetrics{
+		shardNotFound:             scope.Counter("shard-not-found"),
+		resolutionNotFound:        scope.Counter("resolution-not-found"),
+		nilForwardedTimes:         scope.Counter("nil-forwarded-times"),
+		numForwardedTimesNotFound: scope.Counter("num-forwarded-times-not-found"),
+	}
+}
+
 type followerFlushManagerMetrics struct {
 	watchCreateErrors    tally.Counter
-	shardNotFound        tally.Counter
-	resolutionNotFound   tally.Counter
 	kvUpdateFlush        tally.Counter
 	forcedFlush          tally.Counter
 	notCampaigning       tally.Counter
 	flushWindowsNotEnded tally.Counter
+	standard             standardFlusherMetrics
+	forwarded            forwardedFlusherMetrics
 }
 
 func newFollowerFlushManagerMetrics(scope tally.Scope) followerFlushManagerMetrics {
+	standardScope := scope.Tagged(map[string]string{"flusher-type": "standard"})
+	forwardedScope := scope.Tagged(map[string]string{"flusher-type": "forwarded"})
 	return followerFlushManagerMetrics{
 		watchCreateErrors:    scope.Counter("watch-create-errors"),
-		shardNotFound:        scope.Counter("shard-not-found"),
-		resolutionNotFound:   scope.Counter("resolution-not-found"),
 		kvUpdateFlush:        scope.Counter("kv-update-flush"),
 		forcedFlush:          scope.Counter("forced-flush"),
 		notCampaigning:       scope.Counter("not-campaigning"),
 		flushWindowsNotEnded: scope.Counter("flush-windows-not-ended"),
+		standard:             newStandardFlusherMetrics(standardScope),
+		forwarded:            newForwardedFlusherMetrics(forwardedScope),
 	}
 }
 
@@ -144,9 +174,12 @@ func (mgr *followerFlushManager) Prepare(buckets []*flushBucket) (flushTask, tim
 		mgr.metrics.kvUpdateFlush.Inc(1)
 	} else {
 		durationSinceLastFlush := now.Sub(mgr.lastFlushed)
+		// If the follower has accumulated enough data since last flush without receiving a KV
+		// update, we enter the forced flush mode.
 		if mgr.flushMode != forcedFollowerFlush && durationSinceLastFlush >= mgr.maxBufferSize {
 			mgr.flushMode = forcedFollowerFlush
 		}
+		// Each time the follower flushes the olded data accumulated for a given window size.
 		if mgr.flushMode == forcedFollowerFlush && durationSinceLastFlush >= mgr.forcedFlushWindowSize {
 			flushBeforeNanos := now.Add(-mgr.maxBufferSize).UnixNano()
 			flushersByInterval = mgr.flushersFromForcedFlush(buckets, flushBeforeNanos)
@@ -171,6 +204,7 @@ func (mgr *followerFlushManager) OnBucketAdded(int, *flushBucket) {}
 // are met:
 // * The instance is campaigning.
 // * All the aggregation windows since the flush manager is opened have ended.
+// TODO(xichen): rework the logic here to account for forwarded metrics.
 func (mgr *followerFlushManager) CanLead() bool {
 	mgr.RLock()
 	defer mgr.RUnlock()
@@ -187,7 +221,7 @@ func (mgr *followerFlushManager) CanLead() bool {
 		if shardFlushTimes.Tombstoned {
 			continue
 		}
-		for windowNanos, lastFlushedNanos := range shardFlushTimes.ByResolution {
+		for windowNanos, lastFlushedNanos := range shardFlushTimes.StandardByResolution {
 			windowSize := time.Duration(windowNanos)
 			windowEndAt := mgr.openedAt.Truncate(windowSize)
 			if windowEndAt.Before(mgr.openedAt) {
@@ -207,37 +241,110 @@ func (mgr *followerFlushManager) Close() { mgr.Wait() }
 func (mgr *followerFlushManager) flushersFromKVUpdateWithLock(buckets []*flushBucket) []flushersGroup {
 	flushersByInterval := make([]flushersGroup, len(buckets))
 	for i, bucket := range buckets {
+		bucketID := bucket.bucketID
 		flushersByInterval[i].interval = bucket.interval
 		flushersByInterval[i].duration = bucket.duration
-		flushersByInterval[i].flushers = make([]flusherWithTime, 0, defaultInitialFlushCapacity)
-		for _, flusher := range bucket.flushers {
-			shard := flusher.Shard()
-			shardFlushTimes, exists := mgr.received.ByShard[shard]
-			if !exists {
-				mgr.metrics.shardNotFound.Inc(1)
-				mgr.logger.WithFields(
-					log.NewField("shard", shard),
-				).Warn("shard not found in flush times")
-				continue
-			}
-			resolution := flusher.Resolution()
-			lastFlushedAtNanos, exists := shardFlushTimes.ByResolution[int64(resolution)]
-			if !exists {
-				mgr.metrics.resolutionNotFound.Inc(1)
-				mgr.logger.WithFields(
-					log.NewField("shard", shard),
-					log.NewField("resolution", resolution.String()),
-				).Warn("resolution not found in flush times")
-				continue
-			}
-			newFlushTarget := flusherWithTime{
-				flusher:          flusher,
-				flushBeforeNanos: lastFlushedAtNanos,
-			}
-			flushersByInterval[i].flushers = append(flushersByInterval[i].flushers, newFlushTarget)
+		switch bucketID.listType {
+		case standardMetricListType:
+			flushersByInterval[i].flushers = mgr.standardFlushersFromKVUpdateWithLock(bucketID.standard, bucket.flushers)
+		case forwardedMetricListType:
+			flushersByInterval[i].flushers = mgr.forwardedFlushersFromKVUpdateWithLock(bucketID.forwarded, bucket.flushers)
+		default:
+			panic("should never get here")
 		}
 	}
 	return flushersByInterval
+}
+
+func (mgr *followerFlushManager) standardFlushersFromKVUpdateWithLock(
+	listID standardMetricListID,
+	flushers []flushingMetricList,
+) []flusherWithTime {
+	var (
+		resolution       = listID.resolution
+		flushersWithTime = make([]flusherWithTime, 0, defaultInitialFlushCapacity)
+	)
+	for _, flusher := range flushers {
+		shard := flusher.Shard()
+		shardFlushTimes, exists := mgr.received.ByShard[shard]
+		if !exists {
+			mgr.metrics.standard.shardNotFound.Inc(1)
+			mgr.logger.WithFields(
+				log.NewField("shard", shard),
+			).Warn("shard not found in standard flusher flush times")
+			continue
+		}
+		lastFlushedAtNanos, exists := shardFlushTimes.StandardByResolution[int64(resolution)]
+		if !exists {
+			mgr.metrics.standard.resolutionNotFound.Inc(1)
+			mgr.logger.WithFields(
+				log.NewField("shard", shard),
+				log.NewField("resolution", resolution.String()),
+			).Warn("resolution not found in standard flusher flush times")
+			continue
+		}
+		newFlushTarget := flusherWithTime{
+			flusher:          flusher,
+			flushBeforeNanos: lastFlushedAtNanos,
+		}
+		flushersWithTime = append(flushersWithTime, newFlushTarget)
+	}
+	return flushersWithTime
+}
+
+func (mgr *followerFlushManager) forwardedFlushersFromKVUpdateWithLock(
+	listID forwardedMetricListID,
+	flushers []flushingMetricList,
+) []flusherWithTime {
+	var (
+		resolution        = listID.resolution
+		numForwardedTimes = listID.numForwardedTimes
+		flushersWithTime  = make([]flusherWithTime, 0, defaultInitialFlushCapacity)
+	)
+	for _, flusher := range flushers {
+		shard := flusher.Shard()
+		shardFlushTimes, exists := mgr.received.ByShard[shard]
+		if !exists {
+			mgr.metrics.forwarded.shardNotFound.Inc(1)
+			mgr.logger.WithFields(
+				log.NewField("shard", shard),
+			).Warn("shard not found in forwarded flusher flush times")
+			continue
+		}
+		flushTimesForResolution, exists := shardFlushTimes.ForwardedByResolution[int64(resolution)]
+		if !exists {
+			mgr.metrics.forwarded.resolutionNotFound.Inc(1)
+			mgr.logger.WithFields(
+				log.NewField("shard", shard),
+				log.NewField("resolution", resolution.String()),
+			).Warn("resolution not found in forwarded flusher flush times")
+			continue
+		}
+		if flushTimesForResolution == nil {
+			mgr.metrics.forwarded.nilForwardedTimes.Inc(1)
+			mgr.logger.WithFields(
+				log.NewField("shard", shard),
+				log.NewField("resolution", resolution.String()),
+			).Warn("nil forwarded flusher flush times")
+			continue
+		}
+		lastFlushedAtNanos, exists := flushTimesForResolution.ByNumForwardedTimes[int32(numForwardedTimes)]
+		if !exists {
+			mgr.metrics.forwarded.numForwardedTimesNotFound.Inc(1)
+			mgr.logger.WithFields(
+				log.NewField("shard", shard),
+				log.NewField("resolution", resolution.String()),
+				log.NewField("numForwardedTimes", numForwardedTimes),
+			).Warn("numForwardedTimes not found in forwarded flush times")
+			continue
+		}
+		newFlushTarget := flusherWithTime{
+			flusher:          flusher,
+			flushBeforeNanos: lastFlushedAtNanos,
+		}
+		flushersWithTime = append(flushersWithTime, newFlushTarget)
+	}
+	return flushersWithTime
 }
 
 func (mgr *followerFlushManager) flushersFromForcedFlush(
@@ -333,7 +440,7 @@ const (
 )
 
 type flusherWithTime struct {
-	flusher          PeriodicFlusher
+	flusher          flushingMetricList
 	flushBeforeNanos int64
 }
 

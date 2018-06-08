@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/close"
@@ -56,6 +57,7 @@ const (
 	// nolint: megacheck
 	unknownMetricCategory metricCategory = iota
 	untimedMetric
+	forwardedMetric
 )
 
 type entryKey struct {
@@ -152,6 +154,24 @@ func (m *metricMap) AddUntimed(
 		return err
 	}
 	err = entry.AddUntimed(metric, metadatas)
+	entry.DecWriter()
+	return err
+}
+
+func (m *metricMap) AddForwarded(
+	metric aggregated.Metric,
+	metadata metadata.ForwardMetadata,
+) error {
+	key := entryKey{
+		metricCategory: forwardedMetric,
+		metricType:     metric.Type,
+		idHash:         hash.Murmur3Hash128(metric.ID),
+	}
+	entry, err := m.findOrCreate(key)
+	if err != nil {
+		return err
+	}
+	err = entry.AddForwarded(metric, metadata)
 	entry.DecWriter()
 	return err
 }

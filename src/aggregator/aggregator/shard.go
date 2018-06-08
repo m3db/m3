@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3x/clock"
 
@@ -42,6 +43,11 @@ var (
 type addUntimedFn func(
 	metric unaggregated.MetricUnion,
 	metadatas metadata.StagedMetadatas,
+) error
+
+type addForwardedFn func(
+	metric aggregated.Metric,
+	metadata metadata.ForwardMetadata,
 ) error
 
 type aggregatorShardMetrics struct {
@@ -66,10 +72,11 @@ type aggregatorShard struct {
 	earliestWritableNanos            int64
 	latestWriteableNanos             int64
 
-	closed       bool
-	metricMap    *metricMap
-	metrics      aggregatorShardMetrics
-	addUntimedFn addUntimedFn
+	closed         bool
+	metricMap      *metricMap
+	metrics        aggregatorShardMetrics
+	addUntimedFn   addUntimedFn
+	addForwardedFn addForwardedFn
 }
 
 func newAggregatorShard(shard uint32, opts Options) *aggregatorShard {
@@ -89,6 +96,7 @@ func newAggregatorShard(shard uint32, opts Options) *aggregatorShard {
 		metrics:                          newAggregatorShardMetrics(scope),
 	}
 	s.addUntimedFn = s.metricMap.AddUntimed
+	s.addForwardedFn = s.metricMap.AddForwarded
 	return s
 }
 
@@ -152,6 +160,25 @@ func (s *aggregatorShard) AddUntimed(
 		return errAggregatorShardNotWriteable
 	}
 	err := s.addUntimedFn(metric, metadatas)
+	s.RUnlock()
+	return err
+}
+
+func (s *aggregatorShard) AddForwarded(
+	metric aggregated.Metric,
+	metadata metadata.ForwardMetadata,
+) error {
+	s.RLock()
+	if s.closed {
+		s.RUnlock()
+		return errAggregatorShardClosed
+	}
+	if !s.isWritableWithLock() {
+		s.RUnlock()
+		s.metrics.notWriteableErrors.Inc(1)
+		return errAggregatorShardNotWriteable
+	}
+	err := s.addForwardedFn(metric, metadata)
 	s.RUnlock()
 	return err
 }

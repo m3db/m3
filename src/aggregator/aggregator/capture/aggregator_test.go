@@ -23,11 +23,18 @@ package capture
 import (
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3metrics/op"
+	"github.com/m3db/m3metrics/op/applied"
+	"github.com/m3db/m3metrics/policy"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -48,11 +55,32 @@ var (
 		ID:       id.RawID("testCounter"),
 		GaugeVal: 123.456,
 	}
+	testForwarded = aggregated.Metric{
+		Type:      metric.CounterType,
+		ID:        []byte("testForwarded"),
+		TimeNanos: 12345,
+		Value:     908,
+	}
 	testInvalid = unaggregated.MetricUnion{
 		Type: metric.UnknownType,
 		ID:   id.RawID("invalid"),
 	}
 	testDefaultMetadatas = metadata.DefaultStagedMetadatas
+	testForwardMetadata  = metadata.ForwardMetadata{
+		AggregationID: aggregation.DefaultID,
+		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
+		Pipeline: applied.NewPipeline([]applied.Union{
+			{
+				Type: op.RollupType,
+				Rollup: applied.Rollup{
+					ID:            []byte("foo"),
+					AggregationID: aggregation.MustCompressTypes(aggregation.Count),
+				},
+			},
+		}),
+		SourceID:          1234,
+		NumForwardedTimes: 3,
+	}
 )
 
 func TestAggregator(t *testing.T) {
@@ -62,7 +90,7 @@ func TestAggregator(t *testing.T) {
 	metadatas := testDefaultMetadatas
 	require.Error(t, agg.AddUntimed(testInvalid, metadatas))
 
-	// Add valid metrics with policies.
+	// Add valid untimed metrics with policies.
 	var expected SnapshotResult
 	for _, mu := range []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge} {
 		switch mu.Type {
@@ -93,7 +121,17 @@ func TestAggregator(t *testing.T) {
 		require.NoError(t, agg.AddUntimed(mu, metadatas))
 	}
 
-	require.Equal(t, 3, agg.NumMetricsAdded())
+	// Add valid forwarded metrics with metadata.
+	expected.MetricsWithForwardMetadata = append(
+		expected.MetricsWithForwardMetadata,
+		aggregated.MetricWithForwardMetadata{
+			Metric:          testForwarded,
+			ForwardMetadata: testForwardMetadata,
+		},
+	)
+	require.NoError(t, agg.AddForwarded(testForwarded, testForwardMetadata))
+
+	require.Equal(t, 4, agg.NumMetricsAdded())
 
 	res := agg.Snapshot()
 	require.Equal(t, expected, res)

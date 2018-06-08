@@ -29,25 +29,13 @@ import (
 	"github.com/m3db/m3metrics/policy"
 )
 
-// FlushRequest is a request to flush data.
-type FlushRequest struct {
-	// The start time of consumable data.
-	CutoverNanos int64
-
-	// The end time of consumable data.
-	CutoffNanos int64
-
-	// If nonzero, data between [now - bufferAfterCutoff, now) are buffered.
-	BufferAfterCutoff time.Duration
-}
-
-// PeriodicFlusher flushes metrics periodically.
-type PeriodicFlusher interface {
+// flushingMetricList periodically flushes metrics stored in the list for a given shard.
+type flushingMetricList interface {
 	// Shard returns the shard associated with the flusher.
 	Shard() uint32
 
-	// Resolution returns the resolution of metrics associated with the flusher.
-	Resolution() time.Duration
+	// ID returns the list id.
+	ID() metricListID
 
 	// FlushInterval returns the periodic flush interval.
 	FlushInterval() time.Duration
@@ -56,10 +44,32 @@ type PeriodicFlusher interface {
 	LastFlushedNanos() int64
 
 	// Flush performs a flush for a given request.
-	Flush(req FlushRequest)
+	Flush(req flushRequest)
 
 	// DiscardBefore discards all metrics before a given timestamp.
 	DiscardBefore(beforeNanos int64)
+}
+
+// fixedOffsetFlushingMetricList is a flushing metric list that flushes at fixed offset
+// within the flush interval.
+type fixedOffsetFlushingMetricList interface {
+	flushingMetricList
+
+	// FlushOffset is the fixed offset within the flush interval when
+	// a flush is performed.
+	FlushOffset() time.Duration
+}
+
+// flushRequest is a request to flush data.
+type flushRequest struct {
+	// The start time of consumable data.
+	CutoverNanos int64
+
+	// The end time of consumable data.
+	CutoffNanos int64
+
+	// If nonzero, data between [now - bufferAfterCutoff, now) are buffered.
+	BufferAfterCutoff time.Duration
 }
 
 type flushType int

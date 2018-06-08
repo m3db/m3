@@ -29,6 +29,7 @@ import (
 
 	raggregation "github.com/m3db/m3aggregator/aggregation"
 	maggregation "github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/op"
@@ -39,7 +40,10 @@ import (
 
 const (
 	// Default number of aggregation buckets allocated initially.
-	defaultNumValues = 2
+	defaultNumAggregations = 2
+
+	// Default number of sources that can fit in the bitset.
+	defaultNumSources = 256
 
 	// Maximum transformation derivative order that is supported.
 	// A default value of 1 means we currently only support transformations that
@@ -49,9 +53,18 @@ const (
 )
 
 var (
-	nan           = math.NaN()
-	errElemClosed = errors.New("element is closed")
+	nan                          = math.NaN()
+	errElemClosed                = errors.New("element is closed")
+	errDuplicateForwardingSource = errors.New("duplicate forwarding source")
 )
+
+// isEarlierThanFn determines whether the timestamps of the metrics in a given
+// aggregation window are earlier than the given target time.
+type isEarlierThanFn func(windowStartNanos int64, resolution time.Duration, targetNanos int64) bool
+
+// timestampNanosFn determines the final timestamps of metrics in a given aggregation
+// window with a given resolution.
+type timestampNanosFn func(windowStartNanos int64, resolution time.Duration) int64
 
 // metricElem is the common interface for metric elements.
 type metricElem interface {
@@ -64,16 +77,24 @@ type metricElem interface {
 		sp policy.StoragePolicy,
 		aggTypes maggregation.Types,
 		pipeline applied.Pipeline,
+		numForwardedTimes int,
 	) error
 
-	// AddMetric adds a new metric value.
-	AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error
+	// AddUnion adds a metric value union at a given timestamp.
+	AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error
+
+	// AddUnique adds a metric value from a given source at a given timestamp.
+	// If previous values from the same source have already been added to the
+	// same aggregation, the incoming value is discarded.
+	AddUnique(timestamp time.Time, value float64, sourceID uint32) error
 
 	// Consume consumes values before a given time and removes
 	// them from the element after they are consumed, returning whether
 	// the element can be collected after the consumption is completed.
 	Consume(
-		earlierThanNanos int64,
+		targetNanos int64,
+		isEarlierThanFn isEarlierThanFn,
+		timestampNanosFn timestampNanosFn,
 		flushLocalFn flushLocalMetricFn,
 		flushForwardedFn flushForwardedMetricFn,
 	) bool
@@ -98,6 +119,7 @@ type elemBase struct {
 	aggTypes              maggregation.Types
 	aggOpts               raggregation.Options
 	parsedPipeline        parsedPipeline
+	numForwardedTimes     int
 
 	// Mutable states.
 	tombstoned bool
@@ -119,6 +141,7 @@ func (e *elemBase) resetSetData(
 	aggTypes maggregation.Types,
 	useDefaultAggregation bool,
 	pipeline applied.Pipeline,
+	numForwardedTimes int,
 ) error {
 	parsed, err := newParsedPipeline(pipeline)
 	if err != nil {
@@ -130,6 +153,7 @@ func (e *elemBase) resetSetData(
 	e.useDefaultAggregation = useDefaultAggregation
 	e.aggOpts.ResetSetData(aggTypes)
 	e.parsedPipeline = parsed
+	e.numForwardedTimes = numForwardedTimes
 	e.tombstoned = false
 	e.closed = false
 	return nil
@@ -157,6 +181,8 @@ func (e *elemBase) MarkAsTombstoned() {
 
 type counterElemBase struct{}
 
+func (e counterElemBase) Type() metric.Type { return metric.CounterType }
+
 func (e counterElemBase) FullPrefix(opts Options) []byte { return opts.FullCounterPrefix() }
 
 func (e counterElemBase) DefaultAggregationTypes(aggTypesOpts maggregation.TypesOptions) maggregation.Types {
@@ -169,8 +195,8 @@ func (e counterElemBase) TypeStringFor(aggTypesOpts maggregation.TypesOptions, a
 
 func (e counterElemBase) ElemPool(opts Options) CounterElemPool { return opts.CounterElemPool() }
 
-func (e counterElemBase) NewLockedAggregation(_ Options, aggOpts raggregation.Options) *lockedCounter {
-	return newLockedCounter(raggregation.NewCounter(aggOpts))
+func (e counterElemBase) NewAggregation(_ Options, aggOpts raggregation.Options) counterAggregation {
+	return newCounterAggregation(raggregation.NewCounter(aggOpts))
 }
 
 func (e *counterElemBase) ResetSetData(
@@ -191,6 +217,8 @@ type timerElemBase struct {
 	quantilesPool pool.FloatsPool
 }
 
+func (e timerElemBase) Type() metric.Type { return metric.TimerType }
+
 func (e timerElemBase) FullPrefix(opts Options) []byte { return opts.FullTimerPrefix() }
 
 func (e timerElemBase) DefaultAggregationTypes(aggTypesOpts maggregation.TypesOptions) maggregation.Types {
@@ -203,9 +231,9 @@ func (e timerElemBase) TypeStringFor(aggTypesOpts maggregation.TypesOptions, agg
 
 func (e timerElemBase) ElemPool(opts Options) TimerElemPool { return opts.TimerElemPool() }
 
-func (e timerElemBase) NewLockedAggregation(opts Options, aggOpts raggregation.Options) *lockedTimer {
+func (e timerElemBase) NewAggregation(opts Options, aggOpts raggregation.Options) timerAggregation {
 	newTimer := raggregation.NewTimer(e.quantiles, opts.StreamOptions(), aggOpts)
-	return newLockedTimer(newTimer)
+	return newTimerAggregation(newTimer)
 }
 
 func (e *timerElemBase) ResetSetData(
@@ -245,6 +273,8 @@ func (e *timerElemBase) Close() {
 
 type gaugeElemBase struct{}
 
+func (e gaugeElemBase) Type() metric.Type { return metric.GaugeType }
+
 func (e gaugeElemBase) FullPrefix(opts Options) []byte { return opts.FullGaugePrefix() }
 
 func (e gaugeElemBase) DefaultAggregationTypes(aggTypesOpts maggregation.TypesOptions) maggregation.Types {
@@ -257,8 +287,8 @@ func (e gaugeElemBase) TypeStringFor(aggTypesOpts maggregation.TypesOptions, agg
 
 func (e gaugeElemBase) ElemPool(opts Options) GaugeElemPool { return opts.GaugeElemPool() }
 
-func (e gaugeElemBase) NewLockedAggregation(_ Options, aggOpts raggregation.Options) *lockedGauge {
-	return newLockedGauge(raggregation.NewGauge(aggOpts))
+func (e gaugeElemBase) NewAggregation(_ Options, aggOpts raggregation.Options) gaugeAggregation {
+	return newGaugeAggregation(raggregation.NewGauge(aggOpts))
 }
 
 func (e *gaugeElemBase) ResetSetData(

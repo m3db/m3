@@ -21,7 +21,6 @@
 package aggregator
 
 import (
-	"math/rand"
 	"sync"
 	"time"
 
@@ -54,8 +53,6 @@ type leaderFlushManager struct {
 
 	nowFn                  clock.NowFn
 	checkEvery             time.Duration
-	jitterEnabled          bool
-	maxJitterFn            FlushJitterFn
 	workers                xsync.WorkerPool
 	placementManager       PlacementManager
 	flushTimesManager      FlushTimesManager
@@ -65,8 +62,6 @@ type leaderFlushManager struct {
 	scope                  tally.Scope
 
 	doneCh              <-chan struct{}
-	rand                *rand.Rand
-	randFn              randFn
 	flushTimes          flushMetadataHeap
 	flushedByShard      map[uint32]*schema.ShardFlushTimes
 	lastPersistAtNanos  int64
@@ -80,14 +75,11 @@ func newLeaderFlushManager(
 	opts FlushManagerOptions,
 ) roleBasedFlushManager {
 	nowFn := opts.ClockOptions().NowFn()
-	rand := rand.New(rand.NewSource(nowFn().UnixNano()))
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope()
 	mgr := &leaderFlushManager{
 		nowFn:                  nowFn,
 		checkEvery:             opts.CheckEvery(),
-		jitterEnabled:          opts.JitterEnabled(),
-		maxJitterFn:            opts.MaxJitterFn(),
 		workers:                opts.WorkerPool(),
 		placementManager:       opts.PlacementManager(),
 		flushTimesManager:      opts.FlushTimesManager(),
@@ -96,15 +88,13 @@ func newLeaderFlushManager(
 		logger:                 instrumentOpts.Logger(),
 		scope:                  scope,
 		doneCh:                 doneCh,
-		rand:                   rand,
-		randFn:                 rand.Int63n,
 		flushedByShard:         make(map[uint32]*schema.ShardFlushTimes, defaultInitialFlushCapacity),
 		lastPersistAtNanos:     nowFn().UnixNano(),
 		metrics:                newLeaderFlushManagerMetrics(scope),
 	}
 	mgr.flushTask = &leaderFlushTask{
 		mgr:      mgr,
-		flushers: make([]PeriodicFlusher, 0, defaultInitialFlushCapacity),
+		flushers: make([]flushingMetricList, 0, defaultInitialFlushCapacity),
 	}
 	return mgr
 }
@@ -161,15 +151,12 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 		}
 	}
 
-	var (
-		flushTimes               schema.ShardSetFlushTimes
-		durationSinceLastPersist = time.Duration(nowNanos - mgr.lastPersistAtNanos)
-	)
+	durationSinceLastPersist := time.Duration(nowNanos - mgr.lastPersistAtNanos)
 	if mgr.flushedSincePersist && durationSinceLastPersist >= mgr.flushTimesPersistEvery {
 		mgr.lastPersistAtNanos = nowNanos
 		mgr.flushedSincePersist = false
-		flushTimes = mgr.prepareFlushTimesWithLock(buckets)
-		mgr.flushTimesManager.StoreAsync(&flushTimes)
+		flushTimes := mgr.prepareFlushTimesWithLock(buckets)
+		mgr.flushTimesManager.StoreAsync(flushTimes)
 	}
 
 	if !shouldFlush {
@@ -198,8 +185,7 @@ func (mgr *leaderFlushManager) enqueueBucketWithLock(
 	bucketIdx int,
 	bucket *flushBucket,
 ) {
-	flushInterval := bucket.interval
-	nextFlushNanos := mgr.computeNextFlushNanos(flushInterval)
+	nextFlushNanos := mgr.computeNextFlushNanos(bucket.interval, bucket.offset)
 	newFlushMetadata := flushMetadata{
 		timeNanos: nextFlushNanos,
 		bucketIdx: bucketIdx,
@@ -207,19 +193,25 @@ func (mgr *leaderFlushManager) enqueueBucketWithLock(
 	mgr.flushTimes.Push(newFlushMetadata)
 }
 
-func (mgr *leaderFlushManager) computeNextFlushNanos(flushInterval time.Duration) int64 {
+func (mgr *leaderFlushManager) computeNextFlushNanos(
+	flushInterval, flushOffset time.Duration,
+) int64 {
 	now := mgr.nowFn()
-	nextFlushNanos := now.UnixNano() + int64(flushInterval)
-	if mgr.jitterEnabled {
-		alignedNow := now.Truncate(flushInterval)
-		if alignedNow.Before(now) {
-			alignedNow = alignedNow.Add(flushInterval)
-		}
-		maxJitter := mgr.maxJitterFn(flushInterval)
-		jitterNanos := mgr.randFn(int64(maxJitter))
-		nextFlushNanos = alignedNow.UnixNano() + jitterNanos
-	}
+	alignedNowNanos := now.Truncate(flushInterval).UnixNano()
+	nextFlushNanos := alignedNowNanos + flushOffset.Nanoseconds()
 	return nextFlushNanos
+}
+
+func (mgr *leaderFlushManager) prepareFlushTimesWithLock(
+	buckets []*flushBucket,
+) *schema.ShardSetFlushTimes {
+	// Update internal flush times to the latest flush times of all the flushers in the buckets.
+	mgr.updateFlushTimesWithLock(buckets)
+
+	// Make a copy of the updated flush times for asynchronous persistence.
+	cloned := cloneFlushTimesByShard(mgr.flushedByShard)
+
+	return &schema.ShardSetFlushTimes{ByShard: cloned}
 }
 
 func (mgr *leaderFlushManager) updateFlushTimesWithLock(
@@ -229,51 +221,117 @@ func (mgr *leaderFlushManager) updateFlushTimesWithLock(
 		shardFlushTimes.Tombstoned = true
 	}
 	for _, bucket := range buckets {
-		for _, flusher := range bucket.flushers {
-			shard := flusher.Shard()
-			resolution := flusher.Resolution()
-			flushTimes, exists := mgr.flushedByShard[shard]
-			if !exists {
-				flushTimes = &schema.ShardFlushTimes{
-					ByResolution: make(map[int64]int64, 2),
-				}
-				mgr.flushedByShard[shard] = flushTimes
-			}
-			flushTimes.ByResolution[int64(resolution)] = flusher.LastFlushedNanos()
-			flushTimes.Tombstoned = false
+		bucketID := bucket.bucketID
+		switch bucketID.listType {
+		case standardMetricListType:
+			mgr.updateStandardFlushTimesWithLock(bucketID.standard, bucket.flushers)
+		case forwardedMetricListType:
+			mgr.updateForwardedFlushTimesWithLock(bucketID.forwarded, bucket.flushers)
+		default:
+			panic("should never get here")
 		}
 	}
 }
 
-func (mgr *leaderFlushManager) prepareFlushTimesWithLock(
-	buckets []*flushBucket,
-) schema.ShardSetFlushTimes {
-	// Update internal flush times to the latest flush times of all the flushers in the buckets.
-	mgr.updateFlushTimesWithLock(buckets)
+func (mgr *leaderFlushManager) updateStandardFlushTimesWithLock(
+	listID standardMetricListID,
+	flushers []flushingMetricList,
+) {
+	resolution := listID.resolution
+	for _, flusher := range flushers {
+		shard := flusher.Shard()
+		flushTimes, exists := mgr.flushedByShard[shard]
+		if !exists {
+			flushTimes = newShardFlushTimes()
+			mgr.flushedByShard[shard] = flushTimes
+		}
+		flushTimes.StandardByResolution[int64(resolution)] = flusher.LastFlushedNanos()
+		flushTimes.Tombstoned = false
+	}
+}
 
-	// Make a copy of the updated flush times for asynchronous persistence.
-	proto := schema.ShardSetFlushTimes{
-		ByShard: make(map[uint32]*schema.ShardFlushTimes, len(mgr.flushedByShard)),
-	}
-	for shard, shardFlushTimes := range mgr.flushedByShard {
-		flushTimes := &schema.ShardFlushTimes{
-			ByResolution: make(map[int64]int64, len(shardFlushTimes.ByResolution)),
-			Tombstoned:   shardFlushTimes.Tombstoned,
+func (mgr *leaderFlushManager) updateForwardedFlushTimesWithLock(
+	listID forwardedMetricListID,
+	flushers []flushingMetricList,
+) {
+	var (
+		resolution        = listID.resolution
+		numForwardedTimes = listID.numForwardedTimes
+	)
+	for _, flusher := range flushers {
+		shard := flusher.Shard()
+		flushTimes, exists := mgr.flushedByShard[shard]
+		if !exists {
+			flushTimes = newShardFlushTimes()
+			mgr.flushedByShard[shard] = flushTimes
 		}
-		for resolution, lastFlushedNanos := range shardFlushTimes.ByResolution {
-			flushTimes.ByResolution[resolution] = lastFlushedNanos
+		forwardedFlushTimes, exists := flushTimes.ForwardedByResolution[int64(resolution)]
+		if !exists {
+			forwardedFlushTimes = newForwardedFlushTimesForResolution()
+			flushTimes.ForwardedByResolution[int64(resolution)] = forwardedFlushTimes
 		}
-		proto.ByShard[shard] = flushTimes
+		forwardedFlushTimes.ByNumForwardedTimes[int32(numForwardedTimes)] = flusher.LastFlushedNanos()
+		flushTimes.Tombstoned = false
 	}
-	return proto
 }
 
 func (mgr *leaderFlushManager) nowNanos() int64 { return mgr.nowFn().UnixNano() }
 
+func newShardFlushTimes() *schema.ShardFlushTimes {
+	return &schema.ShardFlushTimes{
+		StandardByResolution:  make(map[int64]int64),
+		ForwardedByResolution: make(map[int64]*schema.ForwardedFlushTimesForResolution),
+	}
+}
+
+func newForwardedFlushTimesForResolution() *schema.ForwardedFlushTimesForResolution {
+	return &schema.ForwardedFlushTimesForResolution{
+		ByNumForwardedTimes: make(map[int32]int64),
+	}
+}
+
+func cloneFlushTimesByShard(
+	proto map[uint32]*schema.ShardFlushTimes,
+) map[uint32]*schema.ShardFlushTimes {
+	clonedFlushTimesByShard := make(map[uint32]*schema.ShardFlushTimes, len(proto))
+	for k, v := range proto {
+		clonedFlushTimesByShard[k] = cloneShardFlushTimes(v)
+	}
+	return clonedFlushTimesByShard
+}
+
+func cloneShardFlushTimes(proto *schema.ShardFlushTimes) *schema.ShardFlushTimes {
+	clonedShardFlushTimes := &schema.ShardFlushTimes{
+		StandardByResolution:  make(map[int64]int64, len(proto.StandardByResolution)),
+		ForwardedByResolution: make(map[int64]*schema.ForwardedFlushTimesForResolution, len(proto.ForwardedByResolution)),
+		Tombstoned:            proto.Tombstoned,
+	}
+
+	for k, v := range proto.StandardByResolution {
+		clonedShardFlushTimes.StandardByResolution[k] = v
+	}
+	for k, v := range proto.ForwardedByResolution {
+		clonedShardFlushTimes.ForwardedByResolution[k] = cloneForwardedFlushTimesForResolution(v)
+	}
+	return clonedShardFlushTimes
+}
+
+func cloneForwardedFlushTimesForResolution(
+	proto *schema.ForwardedFlushTimesForResolution,
+) *schema.ForwardedFlushTimesForResolution {
+	cloned := &schema.ForwardedFlushTimesForResolution{
+		ByNumForwardedTimes: make(map[int32]int64, len(proto.ByNumForwardedTimes)),
+	}
+	for k, v := range proto.ByNumForwardedTimes {
+		cloned.ByNumForwardedTimes[k] = v
+	}
+	return cloned
+}
+
 type leaderFlushTask struct {
 	mgr      *leaderFlushManager
 	duration tally.Timer
-	flushers []PeriodicFlusher
+	flushers []flushingMetricList
 }
 
 func (t *leaderFlushTask) Run() {
@@ -303,7 +361,7 @@ func (t *leaderFlushTask) Run() {
 		// the leaving instance has good data after the shard transfer happens during a
 		// topology change in case we need to back out of the change and move the shard
 		// back to the instance.
-		req := FlushRequest{
+		req := flushRequest{
 			CutoverNanos:      cutoverNanos,
 			CutoffNanos:       cutoffNanos,
 			BufferAfterCutoff: mgr.maxBufferSize,

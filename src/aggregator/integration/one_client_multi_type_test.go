@@ -56,8 +56,7 @@ func testOneClientMultiType(t *testing.T, metadata metadataUnion) {
 
 	testSetup.aggregatorOpts =
 		testSetup.aggregatorOpts.
-			SetEntryCheckInterval(time.Second).
-			SetMinFlushInterval(0)
+			SetEntryCheckInterval(time.Second)
 
 	// Start the server.
 	log := testSetup.aggregatorOpts.InstrumentOptions().Logger()

@@ -92,6 +92,15 @@ func (t HashType) ShardFn() (ShardFn, error) {
 	}
 }
 
+// MustShardFn returns the sharding function, or panics if an error is encountered.
+func (t HashType) MustShardFn() ShardFn {
+	fn, err := t.ShardFn()
+	if err != nil {
+		panic(fmt.Errorf("error creating shard fn: %v", err))
+	}
+	return fn
+}
+
 // AggregatedShardFn returns the sharding function for computing aggregated shards.
 func (t HashType) AggregatedShardFn() (AggregatedShardFn, error) {
 	switch t {
