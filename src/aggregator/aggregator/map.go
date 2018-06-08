@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3aggregator/rate"
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/close"
@@ -49,9 +50,18 @@ var (
 	errWriteNewMetricRateLimitExceeded = errors.New("write new metric rate limit is exceeded")
 )
 
+type metricCategory int
+
+const (
+	// nolint: megacheck
+	unknownMetricCategory metricCategory = iota
+	untimedMetric
+)
+
 type entryKey struct {
-	metricType unaggregated.Type
-	idHash     hash.Hash128
+	metricCategory metricCategory
+	metricType     metric.Type
+	idHash         hash.Hash128
 }
 
 type hashedEntry struct {
@@ -133,8 +143,9 @@ func (m *metricMap) AddUntimed(
 	metadatas metadata.StagedMetadatas,
 ) error {
 	key := entryKey{
-		metricType: metric.Type,
-		idHash:     hash.Murmur3Hash128(metric.ID),
+		metricCategory: untimedMetric,
+		metricType:     metric.Type,
+		idHash:         hash.Murmur3Hash128(metric.ID),
 	}
 	entry, err := m.findOrCreate(key)
 	if err != nil {

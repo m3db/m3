@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3metrics/metric"
 
 	"github.com/stretchr/testify/require"
 )
@@ -82,24 +82,24 @@ func testSameIDMultiType(t *testing.T, metadata metadataUnion) {
 	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	metricTypeFn := func(ts time.Time, idx int) unaggregated.Type {
+	metricTypeFn := func(ts time.Time, idx int) metric.Type {
 		if ts.Before(mid) {
 			switch idx % 3 {
 			case 0:
-				return unaggregated.CounterType
+				return metric.CounterType
 			case 1:
-				return unaggregated.BatchTimerType
+				return metric.TimerType
 			default:
-				return unaggregated.GaugeType
+				return metric.GaugeType
 			}
 		} else {
 			switch idx % 3 {
 			case 0:
-				return unaggregated.BatchTimerType
+				return metric.TimerType
 			case 1:
-				return unaggregated.GaugeType
+				return metric.GaugeType
 			default:
-				return unaggregated.CounterType
+				return metric.CounterType
 			}
 		}
 	}

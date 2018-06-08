@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/op"
@@ -230,7 +231,7 @@ func TestEntryBatchTimerRateLimiting(t *testing.T) {
 	defer ctrl.Finish()
 
 	bt := unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            testBatchTimerID,
 		BatchTimerVal: make([]float64, 1000),
 	}
@@ -308,7 +309,7 @@ func TestEntryAddBatchTimerWithPoolAlloc(t *testing.T) {
 	input := timerValPool.Get(10)
 	input = append(input, []float64{1.0, 3.5, 2.2, 6.5, 4.8}...)
 	bt := unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            testBatchTimerID,
 		BatchTimerVal: input,
 		TimerValPool:  timerValPool,
@@ -332,7 +333,7 @@ func TestEntryAddBatchTimerWithTimerBatchSizeLimit(t *testing.T) {
 		SetDefaultStoragePolicies(testDefaultStoragePolicies)
 
 	bt := unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            testBatchTimerID,
 		BatchTimerVal: []float64{1.0, 3.5, 2.2, 6.5, 4.8},
 	}
@@ -358,7 +359,7 @@ func TestEntryAddBatchTimerWithTimerBatchSizeLimitError(t *testing.T) {
 	e.closed = true
 
 	bt := unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            testBatchTimerID,
 		BatchTimerVal: []float64{1.0, 3.5, 2.2, 6.5, 4.8},
 	}
@@ -441,7 +442,6 @@ func TestEntryAddUntimedDefaultStagedMetadata(t *testing.T) {
 	var (
 		withPrepopulation       = true
 		prePopulateData         = testDefaultAggregationKeys
-		ownsID                  = false
 		inputMetadatas          = testDefaultStagedMetadatas
 		expectedShouldAdd       = true
 		expectedCutoverNanos    = int64(0)
@@ -465,7 +465,7 @@ func TestEntryAddUntimedDefaultStagedMetadata(t *testing.T) {
 	}
 
 	testEntryAddUntimed(
-		t, ctrl, withPrepopulation, prePopulateData, ownsID,
+		t, ctrl, withPrepopulation, prePopulateData,
 		preAddFn, inputMetadatas, postAddFn, expectedShouldAdd,
 		expectedCutoverNanos, expectedAggregationKeys,
 	)
@@ -478,7 +478,6 @@ func TestEntryAddUntimedSameDefaultMetadata(t *testing.T) {
 	var (
 		withPrepopulation = true
 		prePopulateData   = testDefaultAggregationKeys
-		ownsID            = false
 		nowNanos          = time.Now().UnixNano()
 		inputMetadatas    = metadata.StagedMetadatas{
 			metadata.StagedMetadata{
@@ -520,7 +519,7 @@ func TestEntryAddUntimedSameDefaultMetadata(t *testing.T) {
 	}
 
 	testEntryAddUntimed(
-		t, ctrl, withPrepopulation, prePopulateData, ownsID,
+		t, ctrl, withPrepopulation, prePopulateData,
 		preAddFn, inputMetadatas, postAddFn, expectedShouldAdd,
 		expectedCutoverNanos, expectedAggregationKeys,
 	)
@@ -533,7 +532,6 @@ func TestEntryAddUntimedSameCustomMetadata(t *testing.T) {
 	var (
 		withPrepopulation = true
 		prePopulateData   = testAggregationKeys
-		ownsID            = false
 		nowNanos          = time.Now().UnixNano()
 		inputMetadatas    = metadata.StagedMetadatas{
 			metadata.StagedMetadata{
@@ -575,7 +573,7 @@ func TestEntryAddUntimedSameCustomMetadata(t *testing.T) {
 	}
 
 	testEntryAddUntimed(
-		t, ctrl, withPrepopulation, prePopulateData, ownsID,
+		t, ctrl, withPrepopulation, prePopulateData,
 		preAddFn, inputMetadatas, postAddFn, expectedShouldAdd,
 		expectedCutoverNanos, expectedAggregationKeys,
 	)
@@ -588,7 +586,6 @@ func TestEntryAddUntimedDifferentTombstone(t *testing.T) {
 	var (
 		withPrepopulation = true
 		prePopulateData   = testAggregationKeys
-		ownsID            = false
 		nowNanos          = time.Now().UnixNano()
 		inputMetadatas    = metadata.StagedMetadatas{
 			metadata.StagedMetadata{
@@ -630,7 +627,7 @@ func TestEntryAddUntimedDifferentTombstone(t *testing.T) {
 	}
 
 	testEntryAddUntimed(
-		t, ctrl, withPrepopulation, prePopulateData, ownsID,
+		t, ctrl, withPrepopulation, prePopulateData,
 		preAddFn, inputMetadatas, postAddFn, expectedShouldAdd,
 		expectedCutoverNanos, expectedAggregationKeys,
 	)
@@ -643,7 +640,6 @@ func TestEntryAddUntimedDifferentCutoverSameMetadata(t *testing.T) {
 	var (
 		withPrepopulation = true
 		prePopulateData   = testAggregationKeys
-		ownsID            = false
 		nowNanos          = time.Now().UnixNano()
 		inputMetadatas    = metadata.StagedMetadatas{
 			metadata.StagedMetadata{
@@ -685,7 +681,7 @@ func TestEntryAddUntimedDifferentCutoverSameMetadata(t *testing.T) {
 	}
 
 	testEntryAddUntimed(
-		t, ctrl, withPrepopulation, prePopulateData, ownsID,
+		t, ctrl, withPrepopulation, prePopulateData,
 		preAddFn, inputMetadatas, postAddFn, expectedShouldAdd,
 		expectedCutoverNanos, expectedAggregationKeys,
 	)
@@ -698,7 +694,6 @@ func TestEntryAddUntimedDifferentCutoverDifferentMetadata(t *testing.T) {
 	var (
 		withPrepopulation = true
 		prePopulateData   = testAggregationKeys
-		ownsID            = false
 		nowNanos          = time.Now().UnixNano()
 		inputMetadatas    = metadata.StagedMetadatas{
 			metadata.StagedMetadata{
@@ -749,7 +744,7 @@ func TestEntryAddUntimedDifferentCutoverDifferentMetadata(t *testing.T) {
 	}
 
 	testEntryAddUntimed(
-		t, ctrl, withPrepopulation, prePopulateData, ownsID,
+		t, ctrl, withPrepopulation, prePopulateData,
 		preAddFn, inputMetadatas, postAddFn, expectedShouldAdd,
 		expectedCutoverNanos, expectedAggregationKeys,
 	)
@@ -762,7 +757,6 @@ func TestEntryAddUntimedWithPolicyUpdateIDNotOwnedCopyID(t *testing.T) {
 	var (
 		withPrepopulation = false
 		prePopulateData   = testAggregationKeys
-		ownsID            = false
 		nowNanos          = time.Now().UnixNano()
 		inputMetadatas    = metadata.StagedMetadatas{
 			metadata.StagedMetadata{
@@ -804,66 +798,7 @@ func TestEntryAddUntimedWithPolicyUpdateIDNotOwnedCopyID(t *testing.T) {
 		}
 	}
 	testEntryAddUntimed(
-		t, ctrl, withPrepopulation, prePopulateData, ownsID,
-		preAddFn, inputMetadatas, postAddFn, expectedShouldAdd,
-		expectedCutoverNanos, expectedAggregationKeys,
-	)
-}
-
-func TestEntryAddUntimedWithPolicyUpdateIDOwnsID(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		withPrepopulation = false
-		prePopulateData   = testAggregationKeys
-		ownsID            = true
-		nowNanos          = time.Now().UnixNano()
-		inputMetadatas    = metadata.StagedMetadatas{
-			metadata.StagedMetadata{
-				CutoverNanos: nowNanos - 1000,
-				Tombstoned:   false,
-				Metadata:     metadata.Metadata{Pipelines: testDefaultPipelines},
-			},
-			metadata.StagedMetadata{
-				CutoverNanos: nowNanos - 10,
-				Tombstoned:   false,
-				Metadata:     metadata.Metadata{Pipelines: testPipelines},
-			},
-			metadata.StagedMetadata{
-				CutoverNanos: nowNanos + 100,
-				Tombstoned:   false,
-				Metadata:     metadata.Metadata{Pipelines: testPipelines},
-			},
-		}
-		expectedShouldAdd       = true
-		expectedCutoverNanos    = nowNanos - 10
-		expectedAggregationKeys = testAggregationKeys
-		lists                   *metricLists
-	)
-
-	deletedStoragePolicies := make(map[policy.StoragePolicy]struct{})
-	deletedStoragePolicies[testAggregationKeys[1].storagePolicy] = struct{}{}
-	deletedStoragePolicies[testAggregationKeys[2].storagePolicy] = struct{}{}
-
-	preAddFn := func(e *Entry, now *time.Time) {
-		*now = time.Unix(0, nowNanos)
-		e.cutoverNanos = uninitializedCutoverNanos
-		lists = e.lists
-	}
-	postAddFn := func(t *testing.T) {
-		require.Equal(t, 3, len(lists.lists))
-		for _, key := range expectedAggregationKeys {
-			list, exists := lists.lists[key.storagePolicy.Resolution().Window]
-			require.True(t, exists)
-			require.Equal(t, 1, list.aggregations.Len())
-			for elem := list.aggregations.Front(); elem != nil; elem = elem.Next() {
-				checkElemTombstoned(t, elem.Value.(metricElem), nil)
-			}
-		}
-	}
-	testEntryAddUntimed(
-		t, ctrl, withPrepopulation, prePopulateData, ownsID,
+		t, ctrl, withPrepopulation, prePopulateData,
 		preAddFn, inputMetadatas, postAddFn, expectedShouldAdd,
 		expectedCutoverNanos, expectedAggregationKeys,
 	)
@@ -876,7 +811,6 @@ func TestEntryAddUntimedDuplicateAggregationKeys(t *testing.T) {
 	var (
 		withPrepopulation = true
 		prePopulateData   = testAggregationKeys
-		ownsID            = false
 		nowNanos          = time.Now().UnixNano()
 		inputMetadatas    = metadata.StagedMetadatas{
 			metadata.StagedMetadata{
@@ -929,7 +863,7 @@ func TestEntryAddUntimedDuplicateAggregationKeys(t *testing.T) {
 		}
 	}
 	testEntryAddUntimed(
-		t, ctrl, withPrepopulation, prePopulateData, ownsID,
+		t, ctrl, withPrepopulation, prePopulateData,
 		preAddFn, inputMetadatas, postAddFn, expectedShouldAdd,
 		expectedCutoverNanos, expectedAggregationKeys,
 	)
@@ -1047,7 +981,7 @@ func TestEntryMaybeExpireWithExpiry(t *testing.T) {
 	defer ctrl.Finish()
 
 	e, _, now := testEntry(ctrl)
-	populateTestAggregations(t, e, testAggregationKeys, unaggregated.CounterType)
+	populateTestAggregations(t, e, testAggregationKeys, metric.CounterType)
 
 	var elems []*CounterElem
 	for _, agg := range e.aggregations {
@@ -1205,7 +1139,7 @@ func TestShouldUpdateMetadataWithLock(t *testing.T) {
 	for _, input := range inputs {
 		e, _, _ := testEntry(ctrl)
 		e.cutoverNanos = input.cutoverNanos
-		populateTestAggregations(t, e, input.aggregationKeys, unaggregated.CounterType)
+		populateTestAggregations(t, e, input.aggregationKeys, metric.CounterType)
 		e.Lock()
 		require.Equal(t, input.expected, e.shouldUpdateMetadatasWithLock(input.metadata))
 		e.Unlock()
@@ -1244,38 +1178,18 @@ func TestEntryStoragePolicies(t *testing.T) {
 	}
 }
 
-func TestEntryMaybeCopyIDWithLockOwnedID(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mu := unaggregated.MetricUnion{
-		ID:     []byte("foo"),
-		OwnsID: true,
-	}
-	e, _, _ := testEntry(ctrl)
-	id := e.maybeCopyIDWithLock(mu)
-	require.Equal(t, mu.ID, id)
-
-	// Verify the returned ID shares the same backing array as the original ID.
-	mu.ID[0] = 'b'
-	require.Equal(t, mu.ID, id)
-}
-
 func TestEntryMaybeCopyIDWithLockIDNotOwnedCloned(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mu := unaggregated.MetricUnion{
-		ID:     []byte("foo"),
-		OwnsID: false,
-	}
+	id := id.RawID("foo")
 	e, _, _ := testEntry(ctrl)
-	id := e.maybeCopyIDWithLock(mu)
-	require.Equal(t, mu.ID, id)
+	res := e.maybeCopyIDWithLock(id)
+	require.Equal(t, id, res)
 
 	// Verify the returned ID is a clone of the original ID.
-	mu.ID[0] = 'b'
-	require.NotEqual(t, mu.ID, id)
+	id[0] = 'b'
+	require.NotEqual(t, id, res)
 }
 
 func TestAggregationKeyEqual(t *testing.T) {
@@ -1510,7 +1424,7 @@ func populateTestAggregations(
 	t *testing.T,
 	e *Entry,
 	aggregationKeys []aggregationKey,
-	typ unaggregated.Type,
+	typ metric.Type,
 ) {
 	for _, aggKey := range aggregationKeys {
 		var (
@@ -1518,13 +1432,13 @@ func populateTestAggregations(
 			testID  id.RawID
 		)
 		switch typ {
-		case unaggregated.CounterType:
+		case metric.CounterType:
 			newElem = e.opts.CounterElemPool().Get()
 			testID = testCounterID
-		case unaggregated.BatchTimerType:
+		case metric.TimerType:
 			newElem = e.opts.TimerElemPool().Get()
 			testID = testBatchTimerID
-		case unaggregated.GaugeType:
+		case metric.GaugeType:
 			newElem = e.opts.GaugeElemPool().Get()
 			testID = testGaugeID
 		default:
@@ -1570,7 +1484,6 @@ func testEntryAddUntimed(
 	ctrl *gomock.Controller,
 	withPrePopulation bool,
 	prePopulateData []aggregationKey,
-	ownsID bool,
 	preAddFn testPreProcessFn,
 	inputMetadatas metadata.StagedMetadatas,
 	postAddFn testPostProcessFn,
@@ -1627,8 +1540,6 @@ func testEntryAddUntimed(
 	}
 
 	for _, input := range inputs {
-		input.mu.OwnsID = ownsID
-
 		e, _, now := testEntry(ctrl)
 		if withPrePopulation {
 			populateTestAggregations(t, e, prePopulateData, input.mu.Type)

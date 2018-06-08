@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
@@ -638,14 +639,14 @@ func (agg *aggregator) updateShardsWithLock(
 
 func (agg *aggregator) checkMetricType(mu unaggregated.MetricUnion) error {
 	switch mu.Type {
-	case unaggregated.CounterType:
+	case metric.CounterType:
 		agg.metrics.counters.Inc(1)
 		return nil
-	case unaggregated.BatchTimerType:
+	case metric.TimerType:
 		agg.metrics.timerBatches.Inc(1)
 		agg.metrics.timers.Inc(int64(len(mu.BatchTimerVal)))
 		return nil
-	case unaggregated.GaugeType:
+	case metric.GaugeType:
 		agg.metrics.gauges.Inc(1)
 		return nil
 	default:

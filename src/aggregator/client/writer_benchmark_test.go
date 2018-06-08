@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3metrics/encoding/protobuf"
-	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 
 	"github.com/uber-go/tally"
@@ -36,7 +36,7 @@ const ()
 
 var (
 	testLargerBatchTimer = unaggregated.MetricUnion{
-		Type:          unaggregated.BatchTimerType,
+		Type:          metric.TimerType,
 		ID:            []byte("foo"),
 		BatchTimerVal: []float64{222.22, 345.67, 901.23345, 222.22, 345.67, 901.23345, 222.22, 345.67, 901.23345, 222.22, 345.67, 901.23345},
 	}
@@ -61,7 +61,14 @@ func BenchmarkParallelWriter(b *testing.B) {
 
 		for pb.Next() {
 			shard := r.Intn(numShards)
-			if err := writer.WriteUntimed(uint32(shard), testLargerBatchTimer, testStagedMetadatas); err != nil {
+			payload := payloadUnion{
+				payloadType: untimedType,
+				untimed: untimedPayload{
+					metric:    testLargerBatchTimer,
+					metadatas: testStagedMetadatas,
+				},
+			}
+			if err := writer.Write(uint32(shard), payload); err != nil {
 				b.Fatalf("failed to successfully write metric: %v", err)
 			}
 		}
@@ -87,7 +94,14 @@ func BenchmarkSerialOneShardWriter(b *testing.B) {
 
 		for pb.Next() {
 			shard := r.Intn(numShards)
-			if err := writer.WriteUntimed(uint32(shard), testLargerBatchTimer, testStagedMetadatas); err != nil {
+			payload := payloadUnion{
+				payloadType: untimedType,
+				untimed: untimedPayload{
+					metric:    testLargerBatchTimer,
+					metadatas: testStagedMetadatas,
+				},
+			}
+			if err := writer.Write(uint32(shard), payload); err != nil {
 				b.Fatalf("failed to successfully write metric: %v", err)
 			}
 		}
@@ -118,7 +132,14 @@ func BenchmarkSerialWriter(b *testing.B) {
 
 		for pb.Next() {
 			shard := r.Intn(numShards)
-			if err := writer.WriteUntimed(uint32(shard), testLargerBatchTimer, testStagedMetadatas); err != nil {
+			payload := payloadUnion{
+				payloadType: untimedType,
+				untimed: untimedPayload{
+					metric:    testLargerBatchTimer,
+					metadatas: testStagedMetadatas,
+				},
+			}
+			if err := writer.Write(uint32(shard), payload); err != nil {
 				b.Fatalf("failed to successfully write metric: %v", err)
 			}
 		}
@@ -138,8 +159,7 @@ type testSerialWriter struct {
 
 func (mw *testSerialWriter) Write(
 	_ uint32,
-	metric unaggregated.MetricUnion,
-	metadatas metadata.StagedMetadatas,
+	payload payloadUnion,
 ) error {
-	return mw.encodeUntimedWithLock(mw.encoder, metric, metadatas)
+	return mw.encodeWithLock(mw.encoder, payload)
 }

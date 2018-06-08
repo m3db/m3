@@ -32,6 +32,8 @@ import (
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/id"
 	metricid "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/op/applied"
@@ -151,17 +153,17 @@ func (e *Entry) SetRuntimeOptions(opts runtime.Options) {
 
 // AddUntimed adds an untimed metric along with its metadatas.
 func (e *Entry) AddUntimed(
-	metric unaggregated.MetricUnion,
+	metricUnion unaggregated.MetricUnion,
 	metadatas metadata.StagedMetadatas,
 ) error {
-	switch metric.Type {
-	case unaggregated.BatchTimerType:
+	switch metricUnion.Type {
+	case metric.TimerType:
 		var err error
-		if err = e.applyValueRateLimit(int64(len(metric.BatchTimerVal))); err == nil {
-			err = e.writeBatchTimerWithMetadatas(metric, metadatas)
+		if err = e.applyValueRateLimit(int64(len(metricUnion.BatchTimerVal))); err == nil {
+			err = e.writeBatchTimerWithMetadatas(metricUnion, metadatas)
 		}
-		if metric.BatchTimerVal != nil && metric.TimerValPool != nil {
-			metric.TimerValPool.Put(metric.BatchTimerVal)
+		if metricUnion.BatchTimerVal != nil && metricUnion.TimerValPool != nil {
+			metricUnion.TimerValPool.Put(metricUnion.BatchTimerVal)
 		}
 		return err
 	default:
@@ -169,7 +171,7 @@ func (e *Entry) AddUntimed(
 		if err := e.applyValueRateLimit(1); err != nil {
 			return err
 		}
-		return e.addUntimed(metric, metadatas)
+		return e.addUntimed(metricUnion, metadatas)
 	}
 }
 
@@ -406,12 +408,7 @@ func (e *Entry) storagePolicies(policies []policy.StoragePolicy) []policy.Storag
 	return e.opts.DefaultStoragePolicies()
 }
 
-func (e *Entry) maybeCopyIDWithLock(metric unaggregated.MetricUnion) metricid.RawID {
-	// If we own the ID, there is no need to copy.
-	if metric.OwnsID {
-		return metric.ID
-	}
-
+func (e *Entry) maybeCopyIDWithLock(id id.RawID) metricid.RawID {
 	// If there are existing elements for this id, try reusing
 	// the id from the elements because those are owned by us.
 	if len(e.aggregations) > 0 {
@@ -419,18 +416,18 @@ func (e *Entry) maybeCopyIDWithLock(metric unaggregated.MetricUnion) metricid.Ra
 	}
 
 	// Otherwise it is necessary to make a copy because it's not owned by us.
-	elemID := make(metricid.RawID, len(metric.ID))
-	copy(elemID, metric.ID)
+	elemID := make(metricid.RawID, len(id))
+	copy(elemID, id)
 	return elemID
 }
 
 func (e *Entry) updateMetadatasWithLock(
-	metric unaggregated.MetricUnion,
+	mu unaggregated.MetricUnion,
 	hasDefaultMetadatas bool,
 	sm metadata.StagedMetadata,
 ) error {
 	var (
-		elemID          = e.maybeCopyIDWithLock(metric)
+		elemID          = e.maybeCopyIDWithLock(mu.ID)
 		newAggregations = make(aggregationValues, 0, initialAggregationCapacity)
 	)
 
@@ -455,12 +452,12 @@ func (e *Entry) updateMetadatasWithLock(
 					return err
 				}
 				var newElem metricElem
-				switch metric.Type {
-				case unaggregated.CounterType:
+				switch mu.Type {
+				case metric.CounterType:
 					newElem = e.opts.CounterElemPool().Get()
-				case unaggregated.BatchTimerType:
+				case metric.TimerType:
 					newElem = e.opts.TimerElemPool().Get()
-				case unaggregated.GaugeType:
+				case metric.GaugeType:
 					newElem = e.opts.GaugeElemPool().Get()
 				default:
 					return errInvalidMetricType

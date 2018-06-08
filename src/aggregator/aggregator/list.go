@@ -101,16 +101,16 @@ type metricList struct {
 	flushInterval time.Duration
 	flushMgr      FlushManager
 
-	closed                 bool
-	aggregations           *list.List
-	lastFlushedNanos       int64
-	toCollect              []*list.Element
-	flushBeforeFn          flushBeforeFn
-	consumeLocalMetricFn   flushLocalMetricFn
-	discardLocalMetricFn   flushLocalMetricFn
-	consumeForwardMetricFn flushForwardMetricFn
-	discardForwardMetricFn flushForwardMetricFn
-	metrics                metricListMetrics
+	closed                   bool
+	aggregations             *list.List
+	lastFlushedNanos         int64
+	toCollect                []*list.Element
+	flushBeforeFn            flushBeforeFn
+	consumeLocalMetricFn     flushLocalMetricFn
+	discardLocalMetricFn     flushLocalMetricFn
+	consumeForwardedMetricFn flushForwardedMetricFn
+	discardForwardedMetricFn flushForwardedMetricFn
+	metrics                  metricListMetrics
 }
 
 func newMetricList(shard uint32, resolution time.Duration, opts Options) (*metricList, error) {
@@ -148,8 +148,8 @@ func newMetricList(shard uint32, resolution time.Duration, opts Options) (*metri
 	l.flushBeforeFn = l.flushBefore
 	l.consumeLocalMetricFn = l.consumeLocalMetric
 	l.discardLocalMetricFn = l.discardLocalMetric
-	l.consumeForwardMetricFn = l.consumeForwardMetric
-	l.discardForwardMetricFn = l.discardForwardMetric
+	l.consumeForwardedMetricFn = l.consumeForwardedMetric
+	l.discardForwardedMetricFn = l.discardForwardedMetric
 	l.flushMgr.Register(l)
 
 	return l, nil
@@ -270,10 +270,10 @@ func (l *metricList) flushBefore(beforeNanos int64, flushType flushType) {
 	flushBeforeStart := l.nowFn()
 	l.toCollect = l.toCollect[:0]
 	flushLocalFn := l.consumeLocalMetricFn
-	flushForwardFn := l.consumeForwardMetricFn
+	flushForwardedFn := l.consumeForwardedMetricFn
 	if flushType == discardType {
 		flushLocalFn = l.discardLocalMetricFn
-		flushForwardFn = l.discardForwardMetricFn
+		flushForwardedFn = l.discardForwardedMetricFn
 	}
 
 	// Flush out aggregations, may need to do it in batches if the read lock
@@ -283,7 +283,7 @@ func (l *metricList) flushBefore(beforeNanos int64, flushType flushType) {
 		// If the element is eligible for collection after the values are
 		// processed, close it and reset the value to nil.
 		elem := e.Value.(metricElem)
-		if elem.Consume(alignedBeforeNanos, flushLocalFn, flushForwardFn) {
+		if elem.Consume(alignedBeforeNanos, flushLocalFn, flushForwardedFn) {
 			elem.Close()
 			e.Value = nil
 			l.toCollect = append(l.toCollect, e)
@@ -354,22 +354,22 @@ func (l *metricList) discardLocalMetric(
 	l.metrics.flushMetricDiscarded.Inc(1)
 }
 
-// consumeForwardMetric consumes a forward metric.
+// consumeForwardedMetric consumes a forward metric.
 // TODO(xichen): implement this.
-func (l *metricList) consumeForwardMetric(
+func (l *metricList) consumeForwardedMetric(
 	metric aggregated.Metric,
 	meta metadata.ForwardMetadata,
 ) {
-
+	panic("not implemented")
 }
 
-// discardForwardMetric discards a forward metric.
+// discardForwardedMetric discards a forward metric.
 // TODO(xichen): implement this.
-func (l *metricList) discardForwardMetric(
+func (l *metricList) discardForwardedMetric(
 	metric aggregated.Metric,
 	meta metadata.ForwardMetadata,
 ) {
-
+	panic("not implemented")
 }
 
 type newMetricListFn func(

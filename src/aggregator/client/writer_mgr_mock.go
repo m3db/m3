@@ -25,8 +25,6 @@ package client
 
 import (
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric/unaggregated"
 
 	"github.com/golang/mock/gomock"
 )
@@ -72,14 +70,14 @@ func (_mr *_MockinstanceWriterManagerRecorder) RemoveInstances(arg0 interface{})
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "RemoveInstances", arg0)
 }
 
-func (_m *MockinstanceWriterManager) WriteUntimed(instance placement.Instance, shardID uint32, metric unaggregated.MetricUnion, metadatas metadata.StagedMetadatas) error {
-	ret := _m.ctrl.Call(_m, "WriteUntimed", instance, shardID, metric, metadatas)
+func (_m *MockinstanceWriterManager) Write(instance placement.Instance, shardID uint32, payload payloadUnion) error {
+	ret := _m.ctrl.Call(_m, "Write", instance, shardID, payload)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockinstanceWriterManagerRecorder) WriteUntimed(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteUntimed", arg0, arg1, arg2, arg3)
+func (_mr *_MockinstanceWriterManagerRecorder) Write(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2)
 }
 
 func (_m *MockinstanceWriterManager) Flush() error {
