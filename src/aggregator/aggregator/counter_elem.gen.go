@@ -31,6 +31,8 @@ import (
 
 	"time"
 
+	"github.com/m3db/m3aggregator/hash"
+
 	maggregation "github.com/m3db/m3metrics/aggregation"
 
 	"github.com/m3db/m3metrics/metadata"
@@ -41,13 +43,11 @@ import (
 
 	"github.com/m3db/m3metrics/metric/unaggregated"
 
-	"github.com/m3db/m3metrics/op/applied"
+	"github.com/m3db/m3metrics/pipeline/applied"
 
 	"github.com/m3db/m3metrics/policy"
 
 	"github.com/m3db/m3metrics/transformation"
-
-	xid "github.com/m3db/m3x/ident"
 )
 
 type lockedCounterAggregation struct {
@@ -179,7 +179,7 @@ func (e *CounterElem) AddUnique(timestamp time.Time, value float64, sourceID []b
 		lockedAgg.Unlock()
 		return errAggregationClosed
 	}
-	sourceHash := xid.Murmur3Hash128(sourceID)
+	sourceHash := hash.Murmur3Hash128(sourceID)
 	if v, exists := lockedAgg.sourcesSeen[sourceHash]; exists && v == alignedStart {
 		lockedAgg.Unlock()
 		return errDuplicateForwardingSource
@@ -394,7 +394,7 @@ func (e *CounterElem) processValueWithAggregationLock(
 	)
 	for aggTypeIdx, aggType := range e.aggTypes {
 		value := lockedAgg.aggregation.ValueOf(aggType)
-		for i := 0; i < transformations.NumSteps(); i++ {
+		for i := 0; i < transformations.Len(); i++ {
 			transformType := transformations.At(i).Transformation.Type
 			if transformType.IsUnaryTransform() {
 				fn := transformType.MustUnaryTransform()

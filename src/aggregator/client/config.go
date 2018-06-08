@@ -190,8 +190,9 @@ func (c *EncoderConfiguration) NewEncoderOptions(
 	if c.BytesPool != nil {
 		sizeBuckets := c.BytesPool.NewBuckets()
 		objectPoolOpts := c.BytesPool.NewObjectPoolOptions(instrumentOpts)
-		bytesPoolOpts := pool.NewBytesPool(sizeBuckets, objectPoolOpts)
-		opts = opts.SetBytesPool(bytesPoolOpts)
+		bytesPool := pool.NewBytesPool(sizeBuckets, objectPoolOpts)
+		opts = opts.SetBytesPool(bytesPool)
+		bytesPool.Init()
 	}
 	return opts
 }

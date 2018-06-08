@@ -97,6 +97,7 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 
 // Write sends data onto the connection, and attempts to re-establish
 // connection if the connection is down.
+// TODO(xichen): emit a metric when the write fails.
 func (c *connection) Write(data []byte) error {
 	c.Lock()
 	if c.conn == nil {

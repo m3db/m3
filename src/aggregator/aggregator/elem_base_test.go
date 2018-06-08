@@ -28,8 +28,8 @@ import (
 	maggregation "github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/op"
-	"github.com/m3db/m3metrics/op/applied"
+	"github.com/m3db/m3metrics/pipeline"
+	"github.com/m3db/m3metrics/pipeline/applied"
 	"github.com/m3db/m3metrics/transformation"
 
 	"github.com/stretchr/testify/require"
@@ -44,25 +44,25 @@ func TestElemBaseID(t *testing.T) {
 func TestElemBaseResetSetData(t *testing.T) {
 	expectedParsedPipeline := parsedPipeline{
 		HasDerivativeTransform: true,
-		Transformations: applied.NewPipeline([]applied.Union{
+		Transformations: applied.NewPipeline([]applied.OpUnion{
 			{
-				Type:           op.TransformationType,
-				Transformation: op.Transformation{Type: transformation.Absolute},
+				Type:           pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 			},
 			{
-				Type:           op.TransformationType,
-				Transformation: op.Transformation{Type: transformation.PerSecond},
+				Type:           pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 			},
 		}),
 		HasRollup: true,
-		Rollup: applied.Rollup{
+		Rollup: applied.RollupOp{
 			ID:            []byte("foo.bar"),
 			AggregationID: maggregation.MustCompressTypes(maggregation.Count),
 		},
-		Remainder: applied.NewPipeline([]applied.Union{
+		Remainder: applied.NewPipeline([]applied.OpUnion{
 			{
-				Type: op.RollupType,
-				Rollup: applied.Rollup{
+				Type: pipeline.RollupOpType,
+				Rollup: applied.RollupOp{
 					ID:            []byte("foo.baz"),
 					AggregationID: maggregation.MustCompressTypes(maggregation.Max),
 				},
@@ -83,10 +83,10 @@ func TestElemBaseResetSetData(t *testing.T) {
 }
 
 func TestElemBaseResetSetDataInvalidPipeline(t *testing.T) {
-	invalidPipeline := applied.NewPipeline([]applied.Union{
+	invalidPipeline := applied.NewPipeline([]applied.OpUnion{
 		{
-			Type:           op.TransformationType,
-			Transformation: op.Transformation{Type: transformation.Absolute},
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 	})
 	e := &elemBase{}
@@ -264,28 +264,28 @@ func TestParsedPipelineEmptyPipeline(t *testing.T) {
 }
 
 func TestParsePipelineNoTransformation(t *testing.T) {
-	p := applied.NewPipeline([]applied.Union{
+	p := applied.NewPipeline([]applied.OpUnion{
 		{
-			Type: op.RollupType,
-			Rollup: applied.Rollup{
+			Type: pipeline.RollupOpType,
+			Rollup: applied.RollupOp{
 				ID:            []byte("foo"),
 				AggregationID: maggregation.MustCompressTypes(maggregation.Count),
 			},
 		},
 		{
-			Type: op.RollupType,
-			Rollup: applied.Rollup{
+			Type: pipeline.RollupOpType,
+			Rollup: applied.RollupOp{
 				ID:            []byte("bar"),
 				AggregationID: maggregation.MustCompressTypes(maggregation.Max),
 			},
 		},
 		{
-			Type:           op.TransformationType,
-			Transformation: op.Transformation{Type: transformation.Absolute},
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 		{
-			Type: op.RollupType,
-			Rollup: applied.Rollup{
+			Type: pipeline.RollupOpType,
+			Rollup: applied.RollupOp{
 				ID:            []byte("foo"),
 				AggregationID: maggregation.MustCompressTypes(maggregation.Sum),
 			},
@@ -293,27 +293,27 @@ func TestParsePipelineNoTransformation(t *testing.T) {
 	})
 	expected := parsedPipeline{
 		HasDerivativeTransform: false,
-		Transformations:        applied.NewPipeline([]applied.Union{}),
+		Transformations:        applied.NewPipeline([]applied.OpUnion{}),
 		HasRollup:              true,
-		Rollup: applied.Rollup{
+		Rollup: applied.RollupOp{
 			ID:            []byte("foo"),
 			AggregationID: maggregation.MustCompressTypes(maggregation.Count),
 		},
-		Remainder: applied.NewPipeline([]applied.Union{
+		Remainder: applied.NewPipeline([]applied.OpUnion{
 			{
-				Type: op.RollupType,
-				Rollup: applied.Rollup{
+				Type: pipeline.RollupOpType,
+				Rollup: applied.RollupOp{
 					ID:            []byte("bar"),
 					AggregationID: maggregation.MustCompressTypes(maggregation.Max),
 				},
 			},
 			{
-				Type:           op.TransformationType,
-				Transformation: op.Transformation{Type: transformation.Absolute},
+				Type:           pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 			},
 			{
-				Type: op.RollupType,
-				Rollup: applied.Rollup{
+				Type: pipeline.RollupOpType,
+				Rollup: applied.RollupOp{
 					ID:            []byte("foo"),
 					AggregationID: maggregation.MustCompressTypes(maggregation.Sum),
 				},
@@ -326,32 +326,32 @@ func TestParsePipelineNoTransformation(t *testing.T) {
 }
 
 func TestParsePipelineWithNonDerivativeTransformation(t *testing.T) {
-	p := applied.NewPipeline([]applied.Union{
+	p := applied.NewPipeline([]applied.OpUnion{
 		{
-			Type:           op.TransformationType,
-			Transformation: op.Transformation{Type: transformation.Absolute},
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 		{
-			Type: op.RollupType,
-			Rollup: applied.Rollup{
+			Type: pipeline.RollupOpType,
+			Rollup: applied.RollupOp{
 				ID:            []byte("foo"),
 				AggregationID: maggregation.MustCompressTypes(maggregation.Count),
 			},
 		},
 		{
-			Type: op.RollupType,
-			Rollup: applied.Rollup{
+			Type: pipeline.RollupOpType,
+			Rollup: applied.RollupOp{
 				ID:            []byte("bar"),
 				AggregationID: maggregation.MustCompressTypes(maggregation.Max),
 			},
 		},
 		{
-			Type:           op.TransformationType,
-			Transformation: op.Transformation{Type: transformation.Absolute},
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 		{
-			Type: op.RollupType,
-			Rollup: applied.Rollup{
+			Type: pipeline.RollupOpType,
+			Rollup: applied.RollupOp{
 				ID:            []byte("foo"),
 				AggregationID: maggregation.MustCompressTypes(maggregation.Sum),
 			},
@@ -359,32 +359,32 @@ func TestParsePipelineWithNonDerivativeTransformation(t *testing.T) {
 	})
 	expected := parsedPipeline{
 		HasDerivativeTransform: false,
-		Transformations: applied.NewPipeline([]applied.Union{
+		Transformations: applied.NewPipeline([]applied.OpUnion{
 			{
-				Type:           op.TransformationType,
-				Transformation: op.Transformation{Type: transformation.Absolute},
+				Type:           pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 			},
 		}),
 		HasRollup: true,
-		Rollup: applied.Rollup{
+		Rollup: applied.RollupOp{
 			ID:            []byte("foo"),
 			AggregationID: maggregation.MustCompressTypes(maggregation.Count),
 		},
-		Remainder: applied.NewPipeline([]applied.Union{
+		Remainder: applied.NewPipeline([]applied.OpUnion{
 			{
-				Type: op.RollupType,
-				Rollup: applied.Rollup{
+				Type: pipeline.RollupOpType,
+				Rollup: applied.RollupOp{
 					ID:            []byte("bar"),
 					AggregationID: maggregation.MustCompressTypes(maggregation.Max),
 				},
 			},
 			{
-				Type:           op.TransformationType,
-				Transformation: op.Transformation{Type: transformation.Absolute},
+				Type:           pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 			},
 			{
-				Type: op.RollupType,
-				Rollup: applied.Rollup{
+				Type: pipeline.RollupOpType,
+				Rollup: applied.RollupOp{
 					ID:            []byte("foo"),
 					AggregationID: maggregation.MustCompressTypes(maggregation.Sum),
 				},
@@ -397,36 +397,36 @@ func TestParsePipelineWithNonDerivativeTransformation(t *testing.T) {
 }
 
 func TestParsePipelineWithDerivativeTransformation(t *testing.T) {
-	p := applied.NewPipeline([]applied.Union{
+	p := applied.NewPipeline([]applied.OpUnion{
 		{
-			Type:           op.TransformationType,
-			Transformation: op.Transformation{Type: transformation.PerSecond},
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 		},
 		{
-			Type:           op.TransformationType,
-			Transformation: op.Transformation{Type: transformation.Absolute},
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 		{
-			Type: op.RollupType,
-			Rollup: applied.Rollup{
+			Type: pipeline.RollupOpType,
+			Rollup: applied.RollupOp{
 				ID:            []byte("foo"),
 				AggregationID: maggregation.MustCompressTypes(maggregation.Count),
 			},
 		},
 		{
-			Type: op.RollupType,
-			Rollup: applied.Rollup{
+			Type: pipeline.RollupOpType,
+			Rollup: applied.RollupOp{
 				ID:            []byte("bar"),
 				AggregationID: maggregation.MustCompressTypes(maggregation.Max),
 			},
 		},
 		{
-			Type:           op.TransformationType,
-			Transformation: op.Transformation{Type: transformation.Absolute},
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 		{
-			Type: op.RollupType,
-			Rollup: applied.Rollup{
+			Type: pipeline.RollupOpType,
+			Rollup: applied.RollupOp{
 				ID:            []byte("foo"),
 				AggregationID: maggregation.MustCompressTypes(maggregation.Sum),
 			},
@@ -434,36 +434,36 @@ func TestParsePipelineWithDerivativeTransformation(t *testing.T) {
 	})
 	expected := parsedPipeline{
 		HasDerivativeTransform: true,
-		Transformations: applied.NewPipeline([]applied.Union{
+		Transformations: applied.NewPipeline([]applied.OpUnion{
 			{
-				Type:           op.TransformationType,
-				Transformation: op.Transformation{Type: transformation.PerSecond},
+				Type:           pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 			},
 			{
-				Type:           op.TransformationType,
-				Transformation: op.Transformation{Type: transformation.Absolute},
+				Type:           pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 			},
 		}),
 		HasRollup: true,
-		Rollup: applied.Rollup{
+		Rollup: applied.RollupOp{
 			ID:            []byte("foo"),
 			AggregationID: maggregation.MustCompressTypes(maggregation.Count),
 		},
-		Remainder: applied.NewPipeline([]applied.Union{
+		Remainder: applied.NewPipeline([]applied.OpUnion{
 			{
-				Type: op.RollupType,
-				Rollup: applied.Rollup{
+				Type: pipeline.RollupOpType,
+				Rollup: applied.RollupOp{
 					ID:            []byte("bar"),
 					AggregationID: maggregation.MustCompressTypes(maggregation.Max),
 				},
 			},
 			{
-				Type:           op.TransformationType,
-				Transformation: op.Transformation{Type: transformation.Absolute},
+				Type:           pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 			},
 			{
-				Type: op.RollupType,
-				Rollup: applied.Rollup{
+				Type: pipeline.RollupOpType,
+				Rollup: applied.RollupOp{
 					ID:            []byte("foo"),
 					AggregationID: maggregation.MustCompressTypes(maggregation.Sum),
 				},
@@ -476,25 +476,25 @@ func TestParsePipelineWithDerivativeTransformation(t *testing.T) {
 }
 
 func TestParsePipelineInvalidOperationType(t *testing.T) {
-	p := applied.NewPipeline([]applied.Union{
+	p := applied.NewPipeline([]applied.OpUnion{
 		{
-			Type:           op.TransformationType,
-			Transformation: op.Transformation{Type: transformation.Absolute},
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 		{
-			Type: op.UnknownType,
+			Type: pipeline.UnknownOpType,
 		},
 	})
 	_, err := newParsedPipeline(p)
 	require.Error(t, err)
-	require.True(t, strings.Contains(err.Error(), "step 1 has invalid operation type UnknownType"))
+	require.True(t, strings.Contains(err.Error(), "step 1 has invalid operation type UnknownOpType"))
 }
 
 func TestParsePipelineNoRollupOperation(t *testing.T) {
-	p := applied.NewPipeline([]applied.Union{
+	p := applied.NewPipeline([]applied.OpUnion{
 		{
-			Type:           op.TransformationType,
-			Transformation: op.Transformation{Type: transformation.Absolute},
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 		},
 	})
 	_, err := newParsedPipeline(p)
@@ -503,18 +503,18 @@ func TestParsePipelineNoRollupOperation(t *testing.T) {
 }
 
 func TestParsePipelineTransformationDerivativeOrderTooHigh(t *testing.T) {
-	p := applied.NewPipeline([]applied.Union{
+	p := applied.NewPipeline([]applied.OpUnion{
 		{
-			Type:           op.TransformationType,
-			Transformation: op.Transformation{Type: transformation.PerSecond},
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 		},
 		{
-			Type:           op.TransformationType,
-			Transformation: op.Transformation{Type: transformation.PerSecond},
+			Type:           pipeline.TransformationOpType,
+			Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 		},
 		{
-			Type: op.RollupType,
-			Rollup: applied.Rollup{
+			Type: pipeline.RollupOpType,
+			Rollup: applied.RollupOp{
 				ID:            []byte("foo"),
 				AggregationID: maggregation.MustCompressTypes(maggregation.Count),
 			},

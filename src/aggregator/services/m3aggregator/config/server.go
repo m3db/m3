@@ -167,6 +167,7 @@ func (c *protobufUnaggregatedIteratorConfiguration) NewOptions(
 	buckets := c.BytesPool.NewBuckets()
 	bytesPool := pool.NewBytesPool(buckets, objectPoolOpts)
 	opts = opts.SetBytesPool(bytesPool)
+	bytesPool.Init()
 
 	return opts
 }

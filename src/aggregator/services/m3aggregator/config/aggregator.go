@@ -40,7 +40,7 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/op/applied"
+	"github.com/m3db/m3metrics/pipeline/applied"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
