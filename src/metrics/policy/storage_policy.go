@@ -23,6 +23,8 @@ package policy
 import (
 	"errors"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -61,17 +63,15 @@ func NewStoragePolicy(window time.Duration, precision xtime.Unit, retention time
 }
 
 // NewStoragePolicyFromProto creates a new storage policy from a storage policy protobuf message.
-func NewStoragePolicyFromProto(p *policypb.StoragePolicy) (StoragePolicy, error) {
-	if p == nil {
+func NewStoragePolicyFromProto(pb *policypb.StoragePolicy) (StoragePolicy, error) {
+	if pb == nil {
 		return EmptyStoragePolicy, errNilStoragePolicyProto
 	}
-	precision := time.Duration(p.Resolution.Precision)
-	unit, err := xtime.UnitFromDuration(precision)
-	if err != nil {
+	var sp StoragePolicy
+	if err := sp.FromProto(*pb); err != nil {
 		return EmptyStoragePolicy, err
 	}
-
-	return NewStoragePolicy(time.Duration(p.Resolution.WindowSize), unit, time.Duration(p.Retention.Period)), nil
+	return sp, nil
 }
 
 // String is the string representation of a storage policy.
@@ -87,6 +87,15 @@ func (p StoragePolicy) Resolution() Resolution {
 // Retention return the retention of the storage policy.
 func (p StoragePolicy) Retention() Retention {
 	return p.retention
+}
+
+// Proto returns the proto message for the storage policy.
+func (p StoragePolicy) Proto() (*policypb.StoragePolicy, error) {
+	var pb policypb.StoragePolicy
+	if err := p.ToProto(&pb); err != nil {
+		return nil, err
+	}
+	return &pb, nil
 }
 
 // ToProto converts the storage policy to a protobuf message in place.
@@ -112,6 +121,27 @@ func (p *StoragePolicy) FromProto(pb policypb.StoragePolicy) error {
 	if err := p.retention.FromProto(pb.Retention); err != nil {
 		return err
 	}
+	return nil
+}
+
+// MarshalJSON returns the JSON encoding of a storage policy.
+func (p StoragePolicy) MarshalJSON() ([]byte, error) {
+	marshalled := strconv.Quote(p.String())
+	return []byte(marshalled), nil
+}
+
+// UnmarshalJSON unmarshals JSON-encoded data into a storage policy.
+func (p *StoragePolicy) UnmarshalJSON(data []byte) error {
+	str := string(data)
+	unquoted, err := strconv.Unquote(str)
+	if err != nil {
+		return err
+	}
+	parsed, err := ParseStoragePolicy(unquoted)
+	if err != nil {
+		return err
+	}
+	*p = parsed
 	return nil
 }
 
@@ -156,8 +186,89 @@ func MustParseStoragePolicy(str string) StoragePolicy {
 	return sp
 }
 
+// StoragePolicies is a list of storage policies.
+type StoragePolicies []StoragePolicy
+
+// NewStoragePoliciesFromProto creates a list of storage policies from given storage policies proto.
+func NewStoragePoliciesFromProto(
+	storagePolicies []*policypb.StoragePolicy,
+) (StoragePolicies, error) {
+	res := make(StoragePolicies, 0, len(storagePolicies))
+	for _, sp := range storagePolicies {
+		storagePolicy, err := NewStoragePolicyFromProto(sp)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, storagePolicy)
+	}
+	return res, nil
+}
+
+// Equal returns true if two lists of storage policies are considered equal.
+func (sp StoragePolicies) Equal(other StoragePolicies) bool {
+	if len(sp) != len(other) {
+		return false
+	}
+	sp1 := sp.Clone()
+	sp2 := other.Clone()
+	sort.Sort(ByResolutionAscRetentionDesc(sp1))
+	sort.Sort(ByResolutionAscRetentionDesc(sp2))
+	for i := 0; i < len(sp1); i++ {
+		if sp1[i] != sp2[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// Proto returns the proto message for the given list of storage policies.
+func (sp StoragePolicies) Proto() ([]*policypb.StoragePolicy, error) {
+	pbStoragePolicies := make([]*policypb.StoragePolicy, 0, len(sp))
+	for _, storagePolicy := range sp {
+		pbStoragePolicy, err := storagePolicy.Proto()
+		if err != nil {
+			return nil, err
+		}
+		pbStoragePolicies = append(pbStoragePolicies, pbStoragePolicy)
+	}
+	return pbStoragePolicies, nil
+}
+
+// Clone clones the list of storage policies.
+func (sp StoragePolicies) Clone() StoragePolicies {
+	cloned := make(StoragePolicies, len(sp))
+	copy(cloned, sp)
+	return cloned
+}
+
 // IsDefaultStoragePolicies returns whether a list of storage policies are considered
 // as default storage policies.
-func IsDefaultStoragePolicies(policies []StoragePolicy) bool {
-	return len(policies) == 0
+func IsDefaultStoragePolicies(storagePolicies StoragePolicies) bool {
+	return len(storagePolicies) == 0
+}
+
+// ByResolutionAscRetentionDesc implements the sort.Sort interface that enables sorting
+// storage policies by resolution in ascending order and then by retention in descending
+// order.
+type ByResolutionAscRetentionDesc StoragePolicies
+
+func (sp ByResolutionAscRetentionDesc) Len() int      { return len(sp) }
+func (sp ByResolutionAscRetentionDesc) Swap(i, j int) { sp[i], sp[j] = sp[j], sp[i] }
+
+func (sp ByResolutionAscRetentionDesc) Less(i, j int) bool {
+	rw1, rw2 := sp[i].Resolution().Window, sp[j].Resolution().Window
+	if rw1 < rw2 {
+		return true
+	}
+	if rw1 > rw2 {
+		return false
+	}
+	rt1, rt2 := sp[i].Retention(), sp[j].Retention()
+	if rt1 > rt2 {
+		return true
+	}
+	if rt1 < rt2 {
+		return false
+	}
+	return sp[i].Resolution().Precision < sp[j].Resolution().Precision
 }

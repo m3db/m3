@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
 	xtime "github.com/m3db/m3x/time"
@@ -35,58 +36,86 @@ import (
 )
 
 var (
-	testMappingPoliciesList = policy.PoliciesList{
-		policy.NewStagedPolicies(
-			0,
-			false,
-			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
-				policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), aggregation.DefaultID),
-				policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour), aggregation.DefaultID),
+	testForExistingID = metadata.StagedMetadatas{
+		metadata.StagedMetadata{
+			CutoverNanos: 0,
+			Tombstoned:   false,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: aggregation.DefaultID,
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+							policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
+						},
+					},
+				},
 			},
-		),
-		policy.NewStagedPolicies(
-			0,
-			true,
-			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), aggregation.DefaultID),
+		},
+		metadata.StagedMetadata{
+			CutoverNanos: 0,
+			Tombstoned:   true,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: aggregation.DefaultID,
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+						},
+					},
+				},
 			},
-		),
+		},
 	}
-	testRollupResults = []rules.RollupResult{
+	testForNewRollupIDs = []rules.IDWithMetadatas{
 		{
-			ID:           []byte("rID1"),
-			PoliciesList: policy.DefaultPoliciesList,
+			ID:        []byte("rID1"),
+			Metadatas: metadata.DefaultStagedMetadatas,
 		},
 		{
 			ID: []byte("rID2"),
-			PoliciesList: policy.PoliciesList{
-				policy.NewStagedPolicies(
-					0,
-					false,
-					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
-						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), aggregation.DefaultID),
-						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour), aggregation.DefaultID),
+			Metadatas: metadata.StagedMetadatas{
+				metadata.StagedMetadata{
+					CutoverNanos: 0,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour),
+									policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+									policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
+								},
+							},
+						},
 					},
-				),
-				policy.NewStagedPolicies(
-					0,
-					true,
-					[]policy.Policy{
-						policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), aggregation.DefaultID),
+				},
+				metadata.StagedMetadata{
+					CutoverNanos: 0,
+					Tombstoned:   true,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+								},
+							},
+						},
 					},
-				),
+				},
 			},
 		},
 	}
 	testValidResults = []rules.MatchResult{
 		rules.NewMatchResult(0, math.MaxInt64, nil, nil),
-		rules.NewMatchResult(0, math.MaxInt64, testMappingPoliciesList, testRollupResults),
+		rules.NewMatchResult(0, math.MaxInt64, testForExistingID, testForNewRollupIDs),
 	}
 	testExpiredResults = []rules.MatchResult{
 		rules.NewMatchResult(0, 0, nil, nil),
-		rules.NewMatchResult(0, 0, testMappingPoliciesList, testRollupResults),
+		rules.NewMatchResult(0, 0, testForExistingID, testForNewRollupIDs),
 	}
 )
 

@@ -134,15 +134,15 @@ func TestSortMappingRuleChanges(t *testing.T) {
 }
 
 func TestMappingRuleJSONDeserialization(t *testing.T) {
-	fixtureBytes := []byte(`{
+	jsonInput := []byte(`{
 		"op": "change",
 		"ruleData": {
 			"id": "validID",
 			"name": "valid rule name",
 			"cutoverMillis": 61522,
 			"filter": "name:servers.* service:servers",
-			"policies": [
-					"1m:2d",
+			"storagePolicies": [
+					"10s:2d",
 					"1m:40d"
 			],
 			"lastUpdatedBy": "valid user name",
@@ -151,14 +151,10 @@ func TestMappingRuleJSONDeserialization(t *testing.T) {
 		"ruleID": "validID"
 	}`)
 
-	ruleChange := &MappingRuleChange{}
-	err := json.Unmarshal(fixtureBytes, ruleChange)
+	var ruleChange MappingRuleChange
+	err := json.Unmarshal(jsonInput, &ruleChange)
 	require.NoError(t, err)
 
-	policy1M2D, err := policy.ParsePolicy("1m:2d")
-	require.NoError(t, err)
-	policy1m40d, err := policy.ParsePolicy("1m:40d")
-	require.NoError(t, err)
 	expected := MappingRuleChange{
 		Op: "change",
 		RuleData: &models.MappingRule{
@@ -166,14 +162,14 @@ func TestMappingRuleJSONDeserialization(t *testing.T) {
 			Name:          "valid rule name",
 			CutoverMillis: 61522,
 			Filter:        "name:servers.* service:servers",
-			Policies: []policy.Policy{
-				policy1M2D,
-				policy1m40d,
+			StoragePolicies: policy.StoragePolicies{
+				policy.MustParseStoragePolicy("10s:2d"),
+				policy.MustParseStoragePolicy("1m:40d"),
 			},
 			LastUpdatedBy:       "valid user name",
 			LastUpdatedAtMillis: 1522,
 		},
 		RuleID: ptr("validID"),
 	}
-	require.Equal(t, expected, *ruleChange)
+	require.Equal(t, expected, ruleChange)
 }

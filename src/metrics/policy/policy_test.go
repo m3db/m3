@@ -21,7 +21,6 @@
 package policy
 
 import (
-	"sort"
 	"testing"
 	"time"
 
@@ -229,21 +228,4 @@ func TestParsePolicyIntoProto(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, input.expected, sp, input.str)
 	}
-}
-
-func TestPoliciesByResolutionAsc(t *testing.T) {
-	inputs := []Policy{
-		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
-		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), aggregation.DefaultID),
-		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), aggregation.DefaultID),
-		NewPolicy(NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
-		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), aggregation.DefaultID),
-		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), aggregation.DefaultID),
-		NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.ID{100}),
-		NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.DefaultID),
-		NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), aggregation.ID{100}),
-	}
-	expected := []Policy{inputs[2], inputs[0], inputs[1], inputs[5], inputs[4], inputs[3], inputs[7], inputs[6], inputs[8]}
-	sort.Sort(ByResolutionAscRetentionDesc(inputs))
-	require.Equal(t, expected, inputs)
 }

@@ -21,20 +21,20 @@
 package models
 
 import (
-	"sort"
-
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/policy"
 )
 
 // MappingRule is a common json serializable mapping rule.
 type MappingRule struct {
-	ID                  string          `json:"id,omitempty"`
-	Name                string          `json:"name" validate:"required"`
-	CutoverMillis       int64           `json:"cutoverMillis,omitempty"`
-	Filter              string          `json:"filter" validate:"required"`
-	Policies            []policy.Policy `json:"policies" validate:"required"`
-	LastUpdatedBy       string          `json:"lastUpdatedBy"`
-	LastUpdatedAtMillis int64           `json:"lastUpdatedAtMillis"`
+	ID                  string                 `json:"id,omitempty"`
+	Name                string                 `json:"name" validate:"required"`
+	CutoverMillis       int64                  `json:"cutoverMillis,omitempty"`
+	Filter              string                 `json:"filter" validate:"required"`
+	AggregationID       aggregation.ID         `json:"aggregationID"`
+	StoragePolicies     policy.StoragePolicies `json:"storagePolicies"`
+	LastUpdatedBy       string                 `json:"lastUpdatedBy"`
+	LastUpdatedAtMillis int64                  `json:"lastUpdatedAtMillis"`
 }
 
 // MappingRuleView is a human friendly representation of a mapping rule at a given point in time.
@@ -44,7 +44,8 @@ type MappingRuleView struct {
 	Tombstoned         bool
 	CutoverNanos       int64
 	Filter             string
-	Policies           []policy.Policy
+	AggregationID      aggregation.ID
+	StoragePolicies    policy.StoragePolicies
 	LastUpdatedBy      string
 	LastUpdatedAtNanos int64
 }
@@ -59,7 +60,8 @@ func NewMappingRule(mrv *MappingRuleView) MappingRule {
 		ID:                  mrv.ID,
 		Name:                mrv.Name,
 		Filter:              mrv.Filter,
-		Policies:            mrv.Policies,
+		AggregationID:       mrv.AggregationID,
+		StoragePolicies:     mrv.StoragePolicies,
 		CutoverMillis:       mrv.CutoverNanos / nanosPerMilli,
 		LastUpdatedBy:       mrv.LastUpdatedBy,
 		LastUpdatedAtMillis: mrv.LastUpdatedAtNanos / nanosPerMilli,
@@ -69,15 +71,20 @@ func NewMappingRule(mrv *MappingRuleView) MappingRule {
 // ToMappingRuleView returns a ToMappingRuleView type.
 func (m MappingRule) ToMappingRuleView() *MappingRuleView {
 	return &MappingRuleView{
-		ID:       m.ID,
-		Name:     m.Name,
-		Filter:   m.Filter,
-		Policies: m.Policies,
+		ID:                 m.ID,
+		Name:               m.Name,
+		Tombstoned:         false,
+		CutoverNanos:       m.CutoverMillis * nanosPerMilli,
+		Filter:             m.Filter,
+		AggregationID:      m.AggregationID,
+		StoragePolicies:    m.StoragePolicies,
+		LastUpdatedBy:      m.LastUpdatedBy,
+		LastUpdatedAtNanos: m.LastUpdatedAtMillis * nanosPerMilli,
 	}
 }
 
-// Equals determines whether two mapping rules are equal.
-func (m *MappingRule) Equals(other *MappingRule) bool {
+// Equal determines whether two mapping rules are equal.
+func (m *MappingRule) Equal(other *MappingRule) bool {
 	if m == nil && other == nil {
 		return true
 	}
@@ -87,12 +94,8 @@ func (m *MappingRule) Equals(other *MappingRule) bool {
 	return m.ID == other.ID &&
 		m.Name == other.Name &&
 		m.Filter == other.Filter &&
-		policy.Policies(m.Policies).Equals(policy.Policies(other.Policies))
-}
-
-// Sort sorts the policies inside the mapping rule.
-func (m *MappingRule) Sort() {
-	sort.Sort(policy.ByResolutionAscRetentionDesc(m.Policies))
+		m.AggregationID.Equal(other.AggregationID) &&
+		m.StoragePolicies.Equal(other.StoragePolicies)
 }
 
 type mappingRulesByNameAsc []MappingRule

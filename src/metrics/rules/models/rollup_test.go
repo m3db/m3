@@ -21,670 +21,1018 @@
 package models
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/pipeline"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/transformation"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestToRollupTargetView(t *testing.T) {
-	fixture := testRollupTarget("name")
-	expected := RollupTargetView{
-		Name:     "name",
-		Tags:     []string{"tag"},
-		Policies: []policy.Policy{},
+func TestRollupTargetToRollupTargetView(t *testing.T) {
+	target := &RollupTarget{
+		Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+			{
+				Type:        pipeline.AggregationOpType,
+				Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+			},
+			{
+				Type:           pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+			},
+			{
+				Type: pipeline.RollupOpType,
+				Rollup: pipeline.RollupOp{
+					NewName:       []byte("name"),
+					Tags:          [][]byte{[]byte("tag1"), []byte("tag2")},
+					AggregationID: aggregation.DefaultID,
+				},
+			},
+		}),
+		StoragePolicies: policy.StoragePolicies{
+			policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+			policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+			policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+		},
 	}
-	require.EqualValues(t, expected, fixture.ToRollupTargetView())
+	res := target.ToRollupTargetView()
+	expected := RollupTargetView{
+		Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+			{
+				Type:        pipeline.AggregationOpType,
+				Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+			},
+			{
+				Type:           pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+			},
+			{
+				Type: pipeline.RollupOpType,
+				Rollup: pipeline.RollupOp{
+					NewName:       []byte("name"),
+					Tags:          [][]byte{[]byte("tag1"), []byte("tag2")},
+					AggregationID: aggregation.DefaultID,
+				},
+			},
+		}),
+		StoragePolicies: policy.StoragePolicies{
+			policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+			policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+			policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+		},
+	}
+	require.Equal(t, expected, res)
 }
 
 func TestNewRollupTarget(t *testing.T) {
-	fixture := testRollupTargetView("name")
+	view := RollupTargetView{
+		Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+			{
+				Type:        pipeline.AggregationOpType,
+				Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+			},
+			{
+				Type:           pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+			},
+			{
+				Type: pipeline.RollupOpType,
+				Rollup: pipeline.RollupOp{
+					NewName:       []byte("name"),
+					Tags:          [][]byte{[]byte("tag1"), []byte("tag2")},
+					AggregationID: aggregation.DefaultID,
+				},
+			},
+		}),
+		StoragePolicies: policy.StoragePolicies{
+			policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+			policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+			policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+		},
+	}
+	res := NewRollupTarget(view)
 	expected := RollupTarget{
-		Name:     "name",
-		Tags:     []string{"tag"},
-		Policies: []policy.Policy{},
-	}
-	require.EqualValues(t, expected, NewRollupTarget(*fixture))
-}
-
-func TestNewRollupRule(t *testing.T) {
-	targets := []RollupTargetView{
-		*testRollupTargetView("target1"),
-		*testRollupTargetView("target2"),
-	}
-	fixture := testRollupRuleView("rr_id", "rr_name", targets)
-	expected := RollupRule{
-		ID:     "rr_id",
-		Name:   "rr_name",
-		Filter: "filter",
-		Targets: []RollupTarget{
+		Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 			{
-				Name:     "target1",
-				Tags:     []string{"tag"},
-				Policies: []policy.Policy{},
+				Type:        pipeline.AggregationOpType,
+				Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
 			},
 			{
-				Name:     "target2",
-				Tags:     []string{"tag"},
-				Policies: []policy.Policy{},
-			},
-		},
-		CutoverMillis:       0,
-		LastUpdatedBy:       "",
-		LastUpdatedAtMillis: 0,
-	}
-	require.EqualValues(t, expected, NewRollupRule(fixture))
-}
-
-func TestToRollupRuleView(t *testing.T) {
-	targets := []RollupTarget{
-		*testRollupTarget("target1"),
-		*testRollupTarget("target2"),
-	}
-	fixture := testRollupRule("id", "name", targets)
-	expected := &RollupRuleView{
-		ID:     "id",
-		Name:   "name",
-		Filter: "filter",
-		Targets: []RollupTargetView{
-			{
-				Name:     "target1",
-				Tags:     []string{"tag"},
-				Policies: []policy.Policy{},
+				Type:           pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
 			},
 			{
-				Name:     "target2",
-				Tags:     []string{"tag"},
-				Policies: []policy.Policy{},
+				Type: pipeline.RollupOpType,
+				Rollup: pipeline.RollupOp{
+					NewName:       []byte("name"),
+					Tags:          [][]byte{[]byte("tag1"), []byte("tag2")},
+					AggregationID: aggregation.DefaultID,
+				},
 			},
+		}),
+		StoragePolicies: policy.StoragePolicies{
+			policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+			policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+			policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
 		},
 	}
-	require.EqualValues(t, expected, fixture.ToRollupRuleView())
-}
-
-func TestRollupRuleSort(t *testing.T) {
-	rollupRule := `
-		{
-			"name":"sample_mapping_rule_1",
-			"filter":"filter_1",
-			"targets":[
-				{
-					"name": "rollup_target_1",
-					"tags": [
-						"tag1","tag2","tag3"
-					],
-					"policies":[
-						"10s:2d|Count,P99,P9999",
-						"1m:40d|Count,P99,P9999",
-						"1m:40d|Count,P9999"
-					]
-				},
-				{
-					"name": "rollup_target_1",
-					"tags": [
-						"tag1","tag2","tag3"
-					],
-					"policies":[
-						"1m:40d|Count,P99,P9999",
-						"1m:40d|Count,P9999",
-						"10s:2d|Count,P99,P9999"
-					]
-				}
-			]
-		}
-	`
-	var rr RollupRule
-	err := json.Unmarshal([]byte(rollupRule), &rr)
-	require.NoError(t, err)
-
-	expected := `["10s:2d|Count,P99,P9999","1m:40d|Count,P9999","1m:40d|Count,P99,P9999"]`
-	rr.Sort()
-	targetPolicy1 := rr.Targets[0].Policies
-	targetPolicy2 := rr.Targets[1].Policies
-	actual1, err1 := json.Marshal(targetPolicy1)
-	require.NoError(t, err1)
-	actual2, err2 := json.Marshal(targetPolicy2)
-	require.NoError(t, err2)
-
-	require.Equal(t, expected, string(actual1))
-	require.Equal(t, expected, string(actual2))
-}
-
-func TestRollupRuleSortTargetByNameAsc(t *testing.T) {
-	rollupRule := `
-		{
-			"name":"sample_mapping_rule_1",
-			"filter":"filter_1",
-			"targets":[
-				{
-					"name": "rollup_target_2",
-					"tags": [
-						"tag1","tag2","tag3"
-					],
-					"policies":[]
-				},
-				{
-					"name": "rollup_target_1",
-					"tags": [
-						"tag1","tag3"
-					],
-					"policies":[]
-				}
-			]
-		}
-	`
-	var rr RollupRule
-	err := json.Unmarshal([]byte(rollupRule), &rr)
-	require.NoError(t, err)
-
-	expectedJSON := `
-		{
-			"name":"sample_mapping_rule_1",
-			"filter":"filter_1",
-			"targets":[
-				{
-					"name": "rollup_target_1",
-					"tags": [
-						"tag1","tag3"
-					],
-					"policies":[]
-				},
-				{
-					"name": "rollup_target_2",
-					"tags": [
-						"tag1","tag2","tag3"
-					],
-					"policies":[]
-				}
-			]
-		}
-	`
-
-	var expected RollupRule
-	err = json.Unmarshal([]byte(expectedJSON), &expected)
-	require.NoError(t, err)
-
-	rr.Sort()
-
-	require.Equal(t, expected, rr)
-}
-
-func TestRollupRuleEqual(t *testing.T) {
-	rrJSON := `
-		{
-			"name":"rollup_rule_1",
-			"filter":"filter1",
-			"targets":[
-				{
-					"name": "rollup_target_1",
-					"tags": [
-						"tag1","tag2","tag3"
-					],
-					"policies":[
-						"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-					]
-				}
-			]
-		}
-	`
-
-	var rr1 RollupRule
-	err := json.Unmarshal([]byte(rrJSON), &rr1)
-	require.NoError(t, err)
-	var rr2 RollupRule
-	err = json.Unmarshal([]byte(rrJSON), &rr2)
-	require.NoError(t, err)
-
-	require.True(t, rr1.Equals(&rr2))
-}
-
-func TestRollupRuleNotEqual(t *testing.T) {
-	rrJSON1 := `
-		{
-			"name":"rollup_rule_1",
-			"filter":"filter1",
-			"targets":[
-				{
-					"name": "rollup_target_1",
-					"tags": [
-						"tag1","tag2","tag3"
-					],
-					"policies":[
-						"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-					]
-				}
-			]
-		}
-	`
-	rrJSON2 := `
-		{
-			"name":"rollup_rule_1",
-			"filter":"filter2",
-			"targets":[
-				{
-					"name": "rollup_target_1",
-					"tags": [
-						"tag1","tag2","tag3"
-					],
-					"policies":[
-						"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-					]
-				}
-			]
-		}
-	`
-	rrJSON3 := `
-		{
-			"name":"rollup_rule_1",
-			"filter":"filter1",
-			"targets":[
-				{
-					"name": "rollup_target_1",
-					"tags": [
-						"tag1","tag2"
-					],
-					"policies":[
-						"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-					]
-				}
-			]
-		}
-	`
-
-	var rr1 RollupRule
-	err := json.Unmarshal([]byte(rrJSON1), &rr1)
-	require.NoError(t, err)
-	var rr2 RollupRule
-	err = json.Unmarshal([]byte(rrJSON2), &rr2)
-	require.NoError(t, err)
-	var rr3 RollupRule
-	err = json.Unmarshal([]byte(rrJSON3), &rr3)
-	require.NoError(t, err)
-
-	require.False(t, rr1.Equals(&rr2))
-	require.False(t, rr1.Equals(&rr3))
-	require.False(t, rr2.Equals(&rr3))
-}
-
-func TestRollupRuleNilCases(t *testing.T) {
-	var rr1 *RollupRule
-
-	require.True(t, rr1.Equals(nil))
-
-	var rr2 RollupRule
-	rollupRule := &rr2
-	require.False(t, rollupRule.Equals(rr1))
-}
-
-func TestRollupTargetsEqual(t *testing.T) {
-	rtJSON := `
-		[
-			{
-				"name": "rollup_target_1",
-				"tags": [
-					"tag1","tag2","tag3"
-				],
-				"policies":[
-					"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-				]
-			},
-			{
-				"name": "rollup_target_2",
-				"tags": [
-					"tag1","tag2"
-				],
-				"policies":[
-					"10s:2d|Count,P99,P9999"
-				]
-			}
-		]
-	`
-	var rt1 []RollupTarget
-	err := json.Unmarshal([]byte(rtJSON), &rt1)
-	require.NoError(t, err)
-	var rt2 []RollupTarget
-	err = json.Unmarshal([]byte(rtJSON), &rt2)
-	require.NoError(t, err)
-
-	require.True(t, rollupTargets(rt1).Equals(rollupTargets(rt2)))
-}
-
-func TestRollupTargetsNotEqual(t *testing.T) {
-	rtJSON1 := `
-		[
-			{
-				"name": "rollup_target_1",
-				"tags": [
-					"tag1","tag2","tag3"
-				],
-				"policies":[
-					"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-				]
-			},
-			{
-				"name": "rollup_target_2",
-				"tags": [
-					"tag1","tag2"
-				],
-				"policies":[
-					"10s:2d|Count,P99,P9999"
-				]
-			}
-		]
-	`
-	rtJSON2 := `
-		[
-			{
-				"name": "rollup_target_2",
-				"tags": [
-					"tag1","tag2","tag4"
-				],
-				"policies":[
-					"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-				]
-			},
-			{
-				"name": "rollup_target_2",
-				"tags": [
-					"tag1","tag2"
-				],
-				"policies":[
-					"10s:2d|Count,P99,P9999"
-				]
-			}
-		]
-	`
-	var rt1 []RollupTarget
-	err := json.Unmarshal([]byte(rtJSON1), &rt1)
-	require.NoError(t, err)
-	var rt2 []RollupTarget
-	err = json.Unmarshal([]byte(rtJSON2), &rt2)
-	require.NoError(t, err)
-
-	require.False(t, rollupTargets(rt1).Equals(rollupTargets(rt2)))
+	require.Equal(t, expected, res)
 }
 
 func TestRollupTargetEqual(t *testing.T) {
-	rtJSON1 := `
-		{
-			"name": "rollup_target_1",
-			"tags": [
-				"tag1","tag2","tag3"
-			],
-			"policies":[
-				"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-			]
-		}
-	`
-	rtJSON2 := `
-		{
-			"name": "rollup_target_1",
-			"tags": [
-				"tag1","tag2","tag3"
-			],
-			"policies":[
-				"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-			]
-		}
-	`
-	var rt1 RollupTarget
-	err := json.Unmarshal([]byte(rtJSON1), &rt1)
-	require.NoError(t, err)
-	var rt2 RollupTarget
-	err = json.Unmarshal([]byte(rtJSON2), &rt2)
-	require.NoError(t, err)
-
-	require.True(t, rt1.Equals(&rt2))
+	target1 := RollupTarget{
+		Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+			{
+				Type:        pipeline.AggregationOpType,
+				Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+			},
+			{
+				Type:           pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+			},
+			{
+				Type: pipeline.RollupOpType,
+				Rollup: pipeline.RollupOp{
+					NewName:       []byte("name"),
+					Tags:          [][]byte{[]byte("tag1"), []byte("tag2")},
+					AggregationID: aggregation.DefaultID,
+				},
+			},
+		}),
+		StoragePolicies: policy.StoragePolicies{
+			policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+			policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+			policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+		},
+	}
+	target2 := RollupTarget{
+		Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+			{
+				Type:        pipeline.AggregationOpType,
+				Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+			},
+			{
+				Type:           pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+			},
+			{
+				Type: pipeline.RollupOpType,
+				Rollup: pipeline.RollupOp{
+					NewName:       []byte("name"),
+					Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+					AggregationID: aggregation.DefaultID,
+				},
+			},
+		}),
+		StoragePolicies: policy.StoragePolicies{
+			policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+			policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+			policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+		},
+	}
+	require.True(t, target1.Equal(&target2))
 }
 
 func TestRollupTargetNotEqual(t *testing.T) {
-	rtJSONs := []string{
-		`
+	targets := []RollupTarget{
 		{
-			"name": "rollup_target_1",
-			"tags": [
-				"tag1","tag3","tag2"
-			],
-			"policies":[
-				"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-			]
-		}
-	`,
-		`
+			Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+				{
+					Type:        pipeline.AggregationOpType,
+					Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+				},
+				{
+					Type:           pipeline.TransformationOpType,
+					Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+				},
+				{
+					Type: pipeline.RollupOpType,
+					Rollup: pipeline.RollupOp{
+						NewName:       []byte("name"),
+						Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+						AggregationID: aggregation.DefaultID,
+					},
+				},
+			}),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+				policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+				policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+			},
+		},
 		{
-			"name": "rollup_target_2",
-			"tags": [
-				"tag1","tag3","tag2"
-			],
-			"policies":[
-				"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-			]
-		}
-	`,
-		`
+			Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+				{
+					Type:           pipeline.TransformationOpType,
+					Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+				},
+				{
+					Type: pipeline.RollupOpType,
+					Rollup: pipeline.RollupOp{
+						NewName:       []byte("name"),
+						Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+						AggregationID: aggregation.DefaultID,
+					},
+				},
+			}),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+				policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+				policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+			},
+		},
 		{
-			"name": "rollup_target_1",
-			"tags": [
-				"tag1","tag2","tag3"
-			],
-			"policies":[
-				"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-			]
-		}
-	`,
-		`
+			Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+				{
+					Type:           pipeline.TransformationOpType,
+					Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+				},
+				{
+					Type: pipeline.RollupOpType,
+					Rollup: pipeline.RollupOp{
+						NewName:       []byte("name"),
+						Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+						AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+					},
+				},
+			}),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+				policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+				policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+			},
+		},
 		{
-			"name": "rollup_target_1",
-			"tags": [
-				"tag1","tag2","tag3"
-			],
-			"policies":[
-				"1m:40d|Count,P99,P9999","10s:2d|Count,P99,P9999"
-			]
-		}
-	`,
-		`
-		{
-			"name": "rollup_target_1",
-			"tags": [
-				"tag1","tag2"
-			],
-			"policies":[
-				"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-			]
-		}
-	`,
+			Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+				{
+					Type:           pipeline.TransformationOpType,
+					Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+				},
+				{
+					Type: pipeline.RollupOpType,
+					Rollup: pipeline.RollupOp{
+						NewName:       []byte("name"),
+						Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+						AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+					},
+				},
+			}),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+			},
+		},
 	}
 
-	targets := make([]RollupTarget, len(rtJSONs))
-	for i, rtJSON := range rtJSONs {
-		require.NoError(t, json.Unmarshal([]byte(rtJSON), &targets[i]))
-	}
-
-	for i := 1; i < len(targets); i++ {
-		require.False(t, targets[0].Equals(&targets[i]))
+	for i := 0; i < len(targets); i++ {
+		for j := i + 1; j < len(targets); j++ {
+			require.False(t, targets[i].Equal(&targets[j]))
+		}
 	}
 }
 
-func TestRollupTargetSort(t *testing.T) {
-	rtJSON1 := `
+func TestRollupTargetEqualNilCases(t *testing.T) {
+	var (
+		rt1 *RollupTarget
+		rt2 RollupTarget
+	)
+	require.True(t, rt1.Equal(nil))
+	require.False(t, rt2.Equal(rt1))
+}
+
+func TestNewRollupRule(t *testing.T) {
+	view := RollupRuleView{
+		ID:           "rr_id",
+		Name:         "rr_name",
+		CutoverNanos: 1234000000,
+		Filter:       "filter",
+		Targets: []RollupTargetView{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type:        pipeline.AggregationOpType,
+						Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+					},
+					{
+						Type:           pipeline.TransformationOpType,
+						Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+					},
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       []byte("name"),
+							Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+					policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+				},
+			},
+		},
+		LastUpdatedAtNanos: 1234000000,
+		LastUpdatedBy:      "john",
+	}
+	res := NewRollupRule(&view)
+
+	expected := RollupRule{
+		ID:            "rr_id",
+		Name:          "rr_name",
+		CutoverMillis: 1234,
+		Filter:        "filter",
+		Targets: []RollupTarget{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type:        pipeline.AggregationOpType,
+						Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+					},
+					{
+						Type:           pipeline.TransformationOpType,
+						Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+					},
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       []byte("name"),
+							Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+					policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+				},
+			},
+		},
+		LastUpdatedAtMillis: 1234,
+		LastUpdatedBy:       "john",
+	}
+	require.Equal(t, expected, res)
+}
+
+func TestRollupRuleToRollupRuleView(t *testing.T) {
+	rule := RollupRule{
+		ID:            "rr_id",
+		Name:          "rr_name",
+		CutoverMillis: 1234,
+		Filter:        "filter",
+		Targets: []RollupTarget{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type:        pipeline.AggregationOpType,
+						Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+					},
+					{
+						Type:           pipeline.TransformationOpType,
+						Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+					},
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       []byte("name"),
+							Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+					policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+				},
+			},
+		},
+		LastUpdatedAtMillis: 1234,
+		LastUpdatedBy:       "john",
+	}
+	res := rule.ToRollupRuleView()
+	expected := &RollupRuleView{
+		ID:           "rr_id",
+		Name:         "rr_name",
+		CutoverNanos: 1234000000,
+		Filter:       "filter",
+		Targets: []RollupTargetView{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type:        pipeline.AggregationOpType,
+						Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+					},
+					{
+						Type:           pipeline.TransformationOpType,
+						Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+					},
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       []byte("name"),
+							Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+					policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+				},
+			},
+		},
+		LastUpdatedAtNanos: 1234000000,
+		LastUpdatedBy:      "john",
+	}
+	require.Equal(t, expected, res)
+}
+
+func TestRollupRuleEqual(t *testing.T) {
+	rule1 := RollupRule{
+		ID:            "rr_id",
+		Name:          "rr_name",
+		CutoverMillis: 1234,
+		Filter:        "filter",
+		Targets: []RollupTarget{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type:        pipeline.AggregationOpType,
+						Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+					},
+					{
+						Type:           pipeline.TransformationOpType,
+						Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+					},
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       []byte("name"),
+							Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+					policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+				},
+			},
+		},
+		LastUpdatedAtMillis: 1234,
+		LastUpdatedBy:       "john",
+	}
+	rule2 := RollupRule{
+		ID:            "rr_id",
+		Name:          "rr_name",
+		CutoverMillis: 1234,
+		Filter:        "filter",
+		Targets: []RollupTarget{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type:        pipeline.AggregationOpType,
+						Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+					},
+					{
+						Type:           pipeline.TransformationOpType,
+						Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+					},
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       []byte("name"),
+							Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+					policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+				},
+			},
+		},
+		LastUpdatedAtMillis: 1234,
+		LastUpdatedBy:       "john",
+	}
+	require.True(t, rule1.Equal(&rule2))
+}
+
+func TestRollupRuleNotEqual(t *testing.T) {
+	rules := []RollupRule{
 		{
-			"name": "rollup_target_1",
-			"tags": [
-				"tag1","tag2","tag3"
-			],
-			"policies":[
-				"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-			]
+			ID:            "rr_id",
+			Name:          "rr_name",
+			CutoverMillis: 1234,
+			Filter:        "filter",
+			Targets: []RollupTarget{
+				{
+					Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+						{
+							Type:        pipeline.AggregationOpType,
+							Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+						},
+						{
+							Type:           pipeline.TransformationOpType,
+							Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+						},
+						{
+							Type: pipeline.RollupOpType,
+							Rollup: pipeline.RollupOp{
+								NewName:       []byte("name"),
+								Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+								AggregationID: aggregation.DefaultID,
+							},
+						},
+					}),
+					StoragePolicies: policy.StoragePolicies{
+						policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+						policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+						policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+					},
+				},
+			},
+			LastUpdatedAtMillis: 1234,
+			LastUpdatedBy:       "john",
+		},
+		{
+			ID:            "rr_id",
+			Name:          "rr_name",
+			CutoverMillis: 1234,
+			Filter:        "filter2",
+			Targets: []RollupTarget{
+				{
+					Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+						{
+							Type:        pipeline.AggregationOpType,
+							Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+						},
+						{
+							Type:           pipeline.TransformationOpType,
+							Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+						},
+						{
+							Type: pipeline.RollupOpType,
+							Rollup: pipeline.RollupOp{
+								NewName:       []byte("name"),
+								Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+								AggregationID: aggregation.DefaultID,
+							},
+						},
+					}),
+					StoragePolicies: policy.StoragePolicies{
+						policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+						policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+						policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+					},
+				},
+			},
+			LastUpdatedAtMillis: 1234,
+			LastUpdatedBy:       "john",
+		},
+		{
+			ID:            "rr_id",
+			Name:          "rr_name",
+			CutoverMillis: 1234,
+			Filter:        "filter2",
+			Targets: []RollupTarget{
+				{
+					Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+						{
+							Type:        pipeline.AggregationOpType,
+							Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+						},
+						{
+							Type:           pipeline.TransformationOpType,
+							Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+						},
+					}),
+					StoragePolicies: policy.StoragePolicies{
+						policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+						policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+						policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+					},
+				},
+			},
+			LastUpdatedAtMillis: 1234,
+			LastUpdatedBy:       "john",
+		},
+		{
+			ID:            "rr_id",
+			Name:          "rr_name",
+			CutoverMillis: 1234,
+			Filter:        "filter2",
+			Targets: []RollupTarget{
+				{
+					Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+						{
+							Type:        pipeline.AggregationOpType,
+							Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+						},
+						{
+							Type:           pipeline.TransformationOpType,
+							Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+						},
+					}),
+					StoragePolicies: policy.StoragePolicies{
+						policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+					},
+				},
+			},
+			LastUpdatedAtMillis: 1234,
+			LastUpdatedBy:       "john",
+		},
+		{
+			ID:            "rr_id2",
+			Name:          "rr_name",
+			CutoverMillis: 1234,
+			Filter:        "filter2",
+			Targets: []RollupTarget{
+				{
+					Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+						{
+							Type:        pipeline.AggregationOpType,
+							Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+						},
+						{
+							Type:           pipeline.TransformationOpType,
+							Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+						},
+					}),
+					StoragePolicies: policy.StoragePolicies{
+						policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+					},
+				},
+			},
+			LastUpdatedAtMillis: 1234,
+			LastUpdatedBy:       "john",
+		},
+	}
+
+	for i := 0; i < len(rules); i++ {
+		for j := i + 1; j < len(rules); j++ {
+			require.False(t, rules[i].Equal(&rules[j]))
 		}
-	`
-	rtJSON2 := `
+	}
+}
+
+func TestRollupRuleEqualNilCases(t *testing.T) {
+	var (
+		rr1 *RollupRule
+		rr2 RollupRule
+	)
+	require.True(t, rr1.Equal(nil))
+	require.False(t, rr2.Equal(rr1))
+}
+
+func TestRollupTargetsEqual(t *testing.T) {
+	targets1 := rollupTargets{
 		{
-			"name": "rollup_target_1",
-			"tags": [
-				"tag1","tag2","tag3"
-			],
-			"policies":[
-				"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-			]
+			Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+				{
+					Type:        pipeline.AggregationOpType,
+					Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+				},
+				{
+					Type:           pipeline.TransformationOpType,
+					Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+				},
+				{
+					Type: pipeline.RollupOpType,
+					Rollup: pipeline.RollupOp{
+						NewName:       []byte("name"),
+						Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+						AggregationID: aggregation.DefaultID,
+					},
+				},
+			}),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+				policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+				policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+			},
+		},
+		{
+			Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+				{
+					Type: pipeline.RollupOpType,
+					Rollup: pipeline.RollupOp{
+						NewName:       []byte("name2"),
+						Tags:          [][]byte{[]byte("tag1")},
+						AggregationID: aggregation.DefaultID,
+					},
+				},
+			}),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+			},
+		},
+	}
+	targets2 := rollupTargets{
+		{
+			Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+				{
+					Type:        pipeline.AggregationOpType,
+					Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+				},
+				{
+					Type:           pipeline.TransformationOpType,
+					Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+				},
+				{
+					Type: pipeline.RollupOpType,
+					Rollup: pipeline.RollupOp{
+						NewName:       []byte("name"),
+						Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+						AggregationID: aggregation.DefaultID,
+					},
+				},
+			}),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+				policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+				policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+			},
+		},
+		{
+			Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+				{
+					Type: pipeline.RollupOpType,
+					Rollup: pipeline.RollupOp{
+						NewName:       []byte("name2"),
+						Tags:          [][]byte{[]byte("tag1")},
+						AggregationID: aggregation.DefaultID,
+					},
+				},
+			}),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+			},
+		},
+	}
+	require.True(t, targets1.Equal(targets2))
+}
+
+func TestRollupTargetsNotEqual(t *testing.T) {
+	targetsList := []rollupTargets{
+		{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type:        pipeline.AggregationOpType,
+						Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+					},
+					{
+						Type:           pipeline.TransformationOpType,
+						Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+					},
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       []byte("name"),
+							Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+					policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+				},
+			},
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       []byte("name2"),
+							Tags:          [][]byte{[]byte("tag1")},
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+				},
+			},
+		},
+		{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type:        pipeline.AggregationOpType,
+						Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+					},
+					{
+						Type:           pipeline.TransformationOpType,
+						Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+					},
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       []byte("name"),
+							Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+					policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+				},
+			},
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       []byte("name2"),
+							Tags:          [][]byte{[]byte("tag2")},
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+				},
+			},
+		},
+		{
+			{
+				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+					{
+						Type:        pipeline.AggregationOpType,
+						Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+					},
+					{
+						Type:           pipeline.TransformationOpType,
+						Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+					},
+					{
+						Type: pipeline.RollupOpType,
+						Rollup: pipeline.RollupOp{
+							NewName:       []byte("name"),
+							Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+							AggregationID: aggregation.DefaultID,
+						},
+					},
+				}),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+					policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+				},
+			},
+		},
+	}
+
+	for i := 0; i < len(targetsList); i++ {
+		for j := i + 1; j < len(targetsList); j++ {
+			require.False(t, targetsList[i].Equal(targetsList[j]))
 		}
-	`
-	var rt1 RollupTarget
-	err := json.Unmarshal([]byte(rtJSON1), &rt1)
-	require.NoError(t, err)
-	var rt2 RollupTarget
-	err = json.Unmarshal([]byte(rtJSON2), &rt2)
-	require.NoError(t, err)
-
-	require.True(t, rt1.Equals(&rt2))
-}
-
-func TestRollupTargetNilCases(t *testing.T) {
-	var rt1 *RollupTarget
-
-	require.True(t, rt1.Equals(nil))
-
-	var rt2 RollupTarget
-	rollupTarget := &rt2
-	require.False(t, rollupTarget.Equals(rt1))
-}
-
-func TestRollupTargetSameTransform(t *testing.T) {
-	policies := []policy.Policy{
-		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), aggregation.DefaultID),
-	}
-	target := RollupTargetView{Name: "foo", Tags: []string{"bar1", "bar2"}}
-	inputs := []struct {
-		target RollupTargetView
-		result bool
-	}{
-		{
-			target: RollupTargetView{Name: "foo", Tags: []string{"bar1", "bar2"}, Policies: policies},
-			result: true,
-		},
-		{
-			target: RollupTargetView{Name: "foo", Tags: []string{"bar2", "bar1"}, Policies: policies},
-			result: true,
-		},
-		{
-			target: RollupTargetView{Name: "foo", Tags: []string{"bar1"}},
-			result: false,
-		},
-		{
-			target: RollupTargetView{Name: "foo", Tags: []string{"bar1", "bar2", "bar3"}},
-			result: false,
-		},
-		{
-			target: RollupTargetView{Name: "foo", Tags: []string{"bar1", "bar3"}},
-			result: false,
-		},
-		{
-			target: RollupTargetView{Name: "baz", Tags: []string{"bar1", "bar2"}},
-			result: false,
-		},
-		{
-			target: RollupTargetView{Name: "baz", Tags: []string{"bar2", "bar1"}},
-			result: false,
-		},
-	}
-	for _, input := range inputs {
-		require.Equal(t, input.result, target.SameTransform(input.target))
 	}
 }
 
-func TestNewRollupRuleHistoryJSON(t *testing.T) {
-	id := "id"
-	targets := []RollupTargetView{
-		*testRollupTargetView("target1"),
-		*testRollupTargetView("target2"),
+func TestNewRollupRuleSnapshots(t *testing.T) {
+	rules := []*RollupRuleView{
+		&RollupRuleView{
+			ID:           "rr_id",
+			Name:         "rr_name",
+			CutoverNanos: 1234000000,
+			Filter:       "filter",
+			Targets: []RollupTargetView{
+				{
+					Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+						{
+							Type:        pipeline.AggregationOpType,
+							Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+						},
+						{
+							Type:           pipeline.TransformationOpType,
+							Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+						},
+						{
+							Type: pipeline.RollupOpType,
+							Rollup: pipeline.RollupOp{
+								NewName:       []byte("name"),
+								Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+								AggregationID: aggregation.DefaultID,
+							},
+						},
+					}),
+					StoragePolicies: policy.StoragePolicies{
+						policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+						policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+						policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+					},
+				},
+			},
+			LastUpdatedAtNanos: 1234000000,
+			LastUpdatedBy:      "john",
+		},
+		&RollupRuleView{
+			ID:           "rr_id2",
+			Name:         "rr_name2",
+			CutoverNanos: 1234000000,
+			Filter:       "filter2",
+			Targets: []RollupTargetView{
+				{
+					Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+						{
+							Type: pipeline.RollupOpType,
+							Rollup: pipeline.RollupOp{
+								NewName:       []byte("name2"),
+								Tags:          [][]byte{[]byte("tag3"), []byte("tag4")},
+								AggregationID: aggregation.DefaultID,
+							},
+						},
+					}),
+					StoragePolicies: policy.StoragePolicies{
+						policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+					},
+				},
+			},
+			LastUpdatedAtNanos: 1234000000,
+			LastUpdatedBy:      "john2",
+		},
 	}
-	hist := []*RollupRuleView{
-		testRollupRuleView(id, "name1", targets),
-		testRollupRuleView(id, "name2", targets),
-	}
+	res := NewRollupRuleSnapshots(rules)
+
 	expected := RollupRuleSnapshots{
 		RollupRules: []RollupRule{
 			{
-				ID:     id,
-				Name:   "name1",
-				Filter: "filter",
+				ID:            "rr_id",
+				Name:          "rr_name",
+				CutoverMillis: 1234,
+				Filter:        "filter",
 				Targets: []RollupTarget{
 					{
-						Name:     "target1",
-						Tags:     []string{"tag"},
-						Policies: []policy.Policy{},
-					},
-					{
-						Name:     "target2",
-						Tags:     []string{"tag"},
-						Policies: []policy.Policy{},
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:        pipeline.AggregationOpType,
+								Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+							},
+							{
+								Type:           pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+							},
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("name"),
+									Tags:          [][]byte{[]byte("tag2"), []byte("tag1")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+							policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+						},
 					},
 				},
-				CutoverMillis:       0,
-				LastUpdatedBy:       "",
-				LastUpdatedAtMillis: 0,
+				LastUpdatedAtMillis: 1234,
+				LastUpdatedBy:       "john",
 			},
 			{
-				ID:     id,
-				Name:   "name2",
-				Filter: "filter",
+				ID:            "rr_id2",
+				Name:          "rr_name2",
+				CutoverMillis: 1234,
+				Filter:        "filter2",
 				Targets: []RollupTarget{
 					{
-						Name:     "target1",
-						Tags:     []string{"tag"},
-						Policies: []policy.Policy{},
-					},
-					{
-						Name:     "target2",
-						Tags:     []string{"tag"},
-						Policies: []policy.Policy{},
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("name2"),
+									Tags:          [][]byte{[]byte("tag3"), []byte("tag4")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+						},
 					},
 				},
-				CutoverMillis:       0,
-				LastUpdatedBy:       "",
-				LastUpdatedAtMillis: 0,
+				LastUpdatedAtMillis: 1234,
+				LastUpdatedBy:       "john2",
 			},
 		},
 	}
-	require.EqualValues(t, expected, NewRollupRuleSnapshots(hist))
-}
-
-func testRollupTarget(name string) *RollupTarget {
-	return &RollupTarget{
-		Name:     name,
-		Tags:     []string{"tag"},
-		Policies: []policy.Policy{},
-	}
-}
-
-func testRollupTargetView(name string) *RollupTargetView {
-	return &RollupTargetView{
-		Name:     name,
-		Tags:     []string{"tag"},
-		Policies: []policy.Policy{},
-	}
-}
-
-func testRollupRule(id, name string, targets []RollupTarget) *RollupRule {
-	return &RollupRule{
-		ID:      id,
-		Name:    name,
-		Filter:  "filter",
-		Targets: targets,
-	}
-}
-
-// nolint:unparam
-func testRollupRuleView(id, name string, targets []RollupTargetView) *RollupRuleView {
-	return &RollupRuleView{
-		ID:      id,
-		Name:    name,
-		Filter:  "filter",
-		Targets: targets,
-	}
+	require.Equal(t, expected, res)
 }

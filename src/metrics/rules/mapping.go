@@ -24,9 +24,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/m3db/m3metrics/aggregation"
 	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
-	policypb "github.com/m3db/m3metrics/generated/proto/policypb"
 	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules/models"
@@ -35,9 +35,10 @@ import (
 )
 
 var (
-	errMappingRuleSnapshotIndexOutOfRange = errors.New("mapping rule snapshot index out of range")
-	errNilMappingRuleSnapshotProto        = errors.New("nil mapping rule snapshot proto")
-	errNilMappingRuleProto                = errors.New("nil mapping rule proto")
+	errNoStoragePoliciesInMappingRuleSnapshot = errors.New("no storage policies in mapping rule snapshot")
+	errMappingRuleSnapshotIndexOutOfRange     = errors.New("mapping rule snapshot index out of range")
+	errNilMappingRuleSnapshotProto            = errors.New("nil mapping rule snapshot proto")
+	errNilMappingRuleProto                    = errors.New("nil mapping rule proto")
 )
 
 // mappingRuleSnapshot defines a rule snapshot such that if a metric matches the
@@ -48,21 +49,42 @@ type mappingRuleSnapshot struct {
 	cutoverNanos       int64
 	filter             filters.Filter
 	rawFilter          string
-	policies           []policy.Policy
+	aggregationID      aggregation.ID
+	storagePolicies    policy.StoragePolicies
 	lastUpdatedAtNanos int64
 	lastUpdatedBy      string
 }
 
-func newMappingRuleSnapshot(
+func newMappingRuleSnapshotFromProto(
 	r *rulepb.MappingRuleSnapshot,
 	opts filters.TagsFilterOptions,
 ) (*mappingRuleSnapshot, error) {
 	if r == nil {
 		return nil, errNilMappingRuleSnapshotProto
 	}
-	policies, err := policy.NewPoliciesFromProto(r.Policies)
-	if err != nil {
-		return nil, err
+	var (
+		aggregationID   aggregation.ID
+		storagePolicies policy.StoragePolicies
+		err             error
+	)
+	if len(r.Policies) > 0 {
+		// Extract the aggregation ID and storage policies from v1 proto (i.e., policies list).
+		aggregationID, storagePolicies, err = toAggregationIDAndStoragePolicies(r.Policies)
+		if err != nil {
+			return nil, err
+		}
+	} else if len(r.StoragePolicies) > 0 {
+		// Unmarshal aggregation ID and storage policies directly from v2 proto.
+		aggregationID, err = aggregation.NewIDFromProto(r.AggregationTypes)
+		if err != nil {
+			return nil, err
+		}
+		storagePolicies, err = policy.NewStoragePoliciesFromProto(r.StoragePolicies)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, errNoStoragePoliciesInMappingRuleSnapshot
 	}
 	filterValues, err := filters.ParseTagFilterValueMap(r.Filter)
 	if err != nil {
@@ -77,9 +99,10 @@ func newMappingRuleSnapshot(
 		r.Name,
 		r.Tombstoned,
 		r.CutoverNanos,
-		r.Filter,
-		policies,
 		filter,
+		r.Filter,
+		aggregationID,
+		storagePolicies,
 		r.LastUpdatedAtNanos,
 		r.LastUpdatedBy,
 	), nil
@@ -88,9 +111,10 @@ func newMappingRuleSnapshot(
 func newMappingRuleSnapshotFromFields(
 	name string,
 	cutoverNanos int64,
-	rawFilter string,
-	policies []policy.Policy,
 	filter filters.Filter,
+	rawFilter string,
+	aggregationID aggregation.ID,
+	storagePolicies policy.StoragePolicies,
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
 ) (*mappingRuleSnapshot, error) {
@@ -101,9 +125,10 @@ func newMappingRuleSnapshotFromFields(
 		name,
 		false,
 		cutoverNanos,
-		rawFilter,
-		policies,
 		filter,
+		rawFilter,
+		aggregationID,
+		storagePolicies,
 		lastUpdatedAtNanos,
 		lastUpdatedBy,
 	), nil
@@ -115,9 +140,10 @@ func newMappingRuleSnapshotFromFieldsInternal(
 	name string,
 	tombstoned bool,
 	cutoverNanos int64,
-	rawFilter string,
-	policies []policy.Policy,
 	filter filters.Filter,
+	rawFilter string,
+	aggregationID aggregation.ID,
+	storagePolicies policy.StoragePolicies,
 	lastUpdatedAtNanos int64,
 	lastUpdatedBy string,
 ) *mappingRuleSnapshot {
@@ -127,15 +153,14 @@ func newMappingRuleSnapshotFromFieldsInternal(
 		cutoverNanos:       cutoverNanos,
 		filter:             filter,
 		rawFilter:          rawFilter,
-		policies:           policies,
+		aggregationID:      aggregationID,
+		storagePolicies:    storagePolicies,
 		lastUpdatedAtNanos: lastUpdatedAtNanos,
 		lastUpdatedBy:      lastUpdatedBy,
 	}
 }
 
 func (mrs *mappingRuleSnapshot) clone() mappingRuleSnapshot {
-	policies := make([]policy.Policy, len(mrs.policies))
-	copy(policies, mrs.policies)
 	var filter filters.Filter
 	if mrs.filter != nil {
 		filter = mrs.filter.Clone()
@@ -146,51 +171,37 @@ func (mrs *mappingRuleSnapshot) clone() mappingRuleSnapshot {
 		cutoverNanos:       mrs.cutoverNanos,
 		filter:             filter,
 		rawFilter:          mrs.rawFilter,
-		policies:           policies,
+		aggregationID:      mrs.aggregationID,
+		storagePolicies:    mrs.storagePolicies.Clone(),
 		lastUpdatedAtNanos: mrs.lastUpdatedAtNanos,
 		lastUpdatedBy:      mrs.lastUpdatedBy,
 	}
 }
 
-// Proto returns the given MappingRuleSnapshot in protobuf form.
-func (mrs *mappingRuleSnapshot) Proto() (*rulepb.MappingRuleSnapshot, error) {
-	res := &rulepb.MappingRuleSnapshot{
+// proto returns the given MappingRuleSnapshot in protobuf form.
+func (mrs *mappingRuleSnapshot) proto() (*rulepb.MappingRuleSnapshot, error) {
+	aggTypes, err := mrs.aggregationID.Types()
+	if err != nil {
+		return nil, err
+	}
+	pbAggTypes, err := aggTypes.Proto()
+	if err != nil {
+		return nil, err
+	}
+	storagePolicies, err := mrs.storagePolicies.Proto()
+	if err != nil {
+		return nil, err
+	}
+
+	return &rulepb.MappingRuleSnapshot{
 		Name:               mrs.name,
 		Tombstoned:         mrs.tombstoned,
 		CutoverNanos:       mrs.cutoverNanos,
 		Filter:             mrs.rawFilter,
 		LastUpdatedAtNanos: mrs.lastUpdatedAtNanos,
 		LastUpdatedBy:      mrs.lastUpdatedBy,
-	}
-
-	policies := make([]*policypb.Policy, len(mrs.policies))
-	for i, p := range mrs.policies {
-		policy, err := p.Proto()
-		if err != nil {
-			return nil, err
-		}
-		policies[i] = policy
-	}
-	res.Policies = policies
-
-	return res, nil
-}
-
-func (mc *mappingRule) mappingRuleView(snapshotIdx int) (*models.MappingRuleView, error) {
-	if snapshotIdx < 0 || snapshotIdx >= len(mc.snapshots) {
-		return nil, errMappingRuleSnapshotIndexOutOfRange
-	}
-
-	mrs := mc.snapshots[snapshotIdx].clone()
-	return &models.MappingRuleView{
-		ID:                 mc.uuid,
-		Name:               mrs.name,
-		Tombstoned:         mrs.tombstoned,
-		CutoverNanos:       mrs.cutoverNanos,
-		Filter:             mrs.rawFilter,
-		Policies:           mrs.policies,
-		LastUpdatedAtNanos: mrs.lastUpdatedAtNanos,
-		LastUpdatedBy:      mrs.lastUpdatedBy,
+		AggregationTypes:   pbAggTypes,
+		StoragePolicies:    storagePolicies,
 	}, nil
 }
 
@@ -200,7 +211,11 @@ type mappingRule struct {
 	snapshots []*mappingRuleSnapshot
 }
 
-func newMappingRule(
+func newEmptyMappingRule() *mappingRule {
+	return &mappingRule{uuid: uuid.New()}
+}
+
+func newMappingRuleFromProto(
 	mc *rulepb.MappingRule,
 	opts filters.TagsFilterOptions,
 ) (*mappingRule, error) {
@@ -209,7 +224,7 @@ func newMappingRule(
 	}
 	snapshots := make([]*mappingRuleSnapshot, 0, len(mc.Snapshots))
 	for i := 0; i < len(mc.Snapshots); i++ {
-		mr, err := newMappingRuleSnapshot(mc.Snapshots[i], opts)
+		mr, err := newMappingRuleSnapshotFromProto(mc.Snapshots[i], opts)
 		if err != nil {
 			return nil, err
 		}
@@ -219,19 +234,6 @@ func newMappingRule(
 		uuid:      mc.Uuid,
 		snapshots: snapshots,
 	}, nil
-}
-
-func newMappingRuleFromFields(
-	name string,
-	rawFilter string,
-	policies []policy.Policy,
-	meta UpdateMetadata,
-) (*mappingRule, error) {
-	mr := mappingRule{uuid: uuid.New()}
-	if err := mr.addSnapshot(name, rawFilter, policies, meta); err != nil {
-		return nil, err
-	}
-	return &mr, nil
 }
 
 func (mc *mappingRule) clone() mappingRule {
@@ -246,7 +248,49 @@ func (mc *mappingRule) clone() mappingRule {
 	}
 }
 
-func (mc *mappingRule) Name() (string, error) {
+// proto returns the given MappingRule in protobuf form.
+func (mc *mappingRule) proto() (*rulepb.MappingRule, error) {
+	snapshots := make([]*rulepb.MappingRuleSnapshot, len(mc.snapshots))
+	for i, s := range mc.snapshots {
+		snapshot, err := s.proto()
+		if err != nil {
+			return nil, err
+		}
+		snapshots[i] = snapshot
+	}
+
+	return &rulepb.MappingRule{
+		Uuid:      mc.uuid,
+		Snapshots: snapshots,
+	}, nil
+}
+
+// activeSnapshot returns the active rule snapshot whose cutover time is no later than
+// the time passed in, or nil if no such rule snapshot exists.
+func (mc *mappingRule) activeSnapshot(timeNanos int64) *mappingRuleSnapshot {
+	idx := mc.activeIndex(timeNanos)
+	if idx < 0 {
+		return nil
+	}
+	return mc.snapshots[idx]
+}
+
+// activeRule returns the rule containing snapshots that's in effect at time timeNanos
+// and all future snapshots after time timeNanos.
+func (mc *mappingRule) activeRule(timeNanos int64) *mappingRule {
+	idx := mc.activeIndex(timeNanos)
+	// If there are no snapshots that are currently in effect, it means either all
+	// snapshots are in the future, or there are no snapshots.
+	if idx < 0 {
+		return mc
+	}
+	return &mappingRule{
+		uuid:      mc.uuid,
+		snapshots: mc.snapshots[idx:],
+	}
+}
+
+func (mc *mappingRule) name() (string, error) {
 	if len(mc.snapshots) == 0 {
 		return "", errNoRuleSnapshots
 	}
@@ -254,7 +298,7 @@ func (mc *mappingRule) Name() (string, error) {
 	return latest.name, nil
 }
 
-func (mc *mappingRule) Tombstoned() bool {
+func (mc *mappingRule) tombstoned() bool {
 	if len(mc.snapshots) == 0 {
 		return true
 	}
@@ -265,15 +309,17 @@ func (mc *mappingRule) Tombstoned() bool {
 func (mc *mappingRule) addSnapshot(
 	name string,
 	rawFilter string,
-	policies []policy.Policy,
+	aggregationID aggregation.ID,
+	storagePolicies policy.StoragePolicies,
 	meta UpdateMetadata,
 ) error {
 	snapshot, err := newMappingRuleSnapshotFromFields(
 		name,
 		meta.cutoverNanos,
-		rawFilter,
-		policies,
 		nil,
+		rawFilter,
+		aggregationID,
+		storagePolicies,
 		meta.updatedAtNanos,
 		meta.updatedBy,
 	)
@@ -285,12 +331,12 @@ func (mc *mappingRule) addSnapshot(
 }
 
 func (mc *mappingRule) markTombstoned(meta UpdateMetadata) error {
-	n, err := mc.Name()
+	n, err := mc.name()
 	if err != nil {
 		return err
 	}
 
-	if mc.Tombstoned() {
+	if mc.tombstoned() {
 		return merrors.NewInvalidInputError(fmt.Sprintf("%s is already tombstoned", n))
 	}
 	if len(mc.snapshots) == 0 {
@@ -299,7 +345,8 @@ func (mc *mappingRule) markTombstoned(meta UpdateMetadata) error {
 	snapshot := *mc.snapshots[len(mc.snapshots)-1]
 	snapshot.tombstoned = true
 	snapshot.cutoverNanos = meta.cutoverNanos
-	snapshot.policies = nil
+	snapshot.aggregationID = aggregation.DefaultID
+	snapshot.storagePolicies = nil
 	snapshot.lastUpdatedAtNanos = meta.updatedAtNanos
 	snapshot.lastUpdatedBy = meta.updatedBy
 	mc.snapshots = append(mc.snapshots, &snapshot)
@@ -309,41 +356,18 @@ func (mc *mappingRule) markTombstoned(meta UpdateMetadata) error {
 func (mc *mappingRule) revive(
 	name string,
 	rawFilter string,
-	policies []policy.Policy,
+	aggregationID aggregation.ID,
+	storagePolicies policy.StoragePolicies,
 	meta UpdateMetadata,
 ) error {
-	n, err := mc.Name()
+	n, err := mc.name()
 	if err != nil {
 		return err
 	}
-	if !mc.Tombstoned() {
+	if !mc.tombstoned() {
 		return merrors.NewInvalidInputError(fmt.Sprintf("%s is not tombstoned", n))
 	}
-	return mc.addSnapshot(name, rawFilter, policies, meta)
-}
-
-// equal to timeNanos, or nil if not found.
-func (mc *mappingRule) ActiveSnapshot(timeNanos int64) *mappingRuleSnapshot {
-	idx := mc.activeIndex(timeNanos)
-	if idx < 0 {
-		return nil
-	}
-	return mc.snapshots[idx]
-}
-
-// ActiveRule returns the rule containing snapshots that's in effect at time timeNanos
-// and all future snapshots after time timeNanos.
-func (mc *mappingRule) ActiveRule(timeNanos int64) *mappingRule {
-	idx := mc.activeIndex(timeNanos)
-	// If there are no snapshots that are currently in effect, it means either all
-	// snapshots are in the future, or there are no snapshots.
-	if idx < 0 {
-		return mc
-	}
-	return &mappingRule{
-		uuid:      mc.uuid,
-		snapshots: mc.snapshots[idx:],
-	}
+	return mc.addSnapshot(name, rawFilter, aggregationID, storagePolicies, meta)
 }
 
 func (mc *mappingRule) activeIndex(timeNanos int64) int {
@@ -368,20 +392,21 @@ func (mc *mappingRule) history() ([]*models.MappingRuleView, error) {
 	return views, nil
 }
 
-// Proto returns the given MappingRule in protobuf form.
-func (mc *mappingRule) Proto() (*rulepb.MappingRule, error) {
-	snapshots := make([]*rulepb.MappingRuleSnapshot, len(mc.snapshots))
-	for i, s := range mc.snapshots {
-		snapshot, err := s.Proto()
-		if err != nil {
-			return nil, err
-		}
-		snapshots[i] = snapshot
+func (mc *mappingRule) mappingRuleView(snapshotIdx int) (*models.MappingRuleView, error) {
+	if snapshotIdx < 0 || snapshotIdx >= len(mc.snapshots) {
+		return nil, errMappingRuleSnapshotIndexOutOfRange
 	}
 
-	return &rulepb.MappingRule{
-		Uuid:      mc.uuid,
-		Snapshots: snapshots,
+	mrs := mc.snapshots[snapshotIdx].clone()
+	return &models.MappingRuleView{
+		ID:                 mc.uuid,
+		Name:               mrs.name,
+		Tombstoned:         mrs.tombstoned,
+		CutoverNanos:       mrs.cutoverNanos,
+		Filter:             mrs.rawFilter,
+		AggregationID:      mrs.aggregationID,
+		StoragePolicies:    mrs.storagePolicies,
+		LastUpdatedAtNanos: mrs.lastUpdatedAtNanos,
+		LastUpdatedBy:      mrs.lastUpdatedBy,
 	}, nil
-
 }

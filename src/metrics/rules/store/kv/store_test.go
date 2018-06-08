@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3cluster/kv/mem"
 	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
+	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3metrics/generated/proto/policypb"
 	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/rules"
@@ -92,19 +93,14 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 12345,
 						Filter:       "tag1:value1 tag2:value2",
-						Policies: []*policypb.Policy{
-							&policypb.Policy{
-								StoragePolicy: &policypb.StoragePolicy{
-									Resolution: &policypb.Resolution{
-										WindowSize: int64(10 * time.Second),
-										Precision:  int64(time.Second),
-									},
-									Retention: &policypb.Retention{
-										Period: int64(24 * time.Hour),
-									},
+						StoragePolicies: []*policypb.StoragePolicy{
+							&policypb.StoragePolicy{
+								Resolution: &policypb.Resolution{
+									WindowSize: int64(10 * time.Second),
+									Precision:  int64(time.Second),
 								},
-								AggregationTypes: []aggregationpb.AggregationType{
-									aggregationpb.AggregationType_P999,
+								Retention: &policypb.Retention{
+									Period: int64(24 * time.Hour),
 								},
 							},
 						},
@@ -114,27 +110,23 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 67890,
 						Filter:       "tag3:value3 tag4:value4",
-						Policies: []*policypb.Policy{
-							&policypb.Policy{
-								StoragePolicy: &policypb.StoragePolicy{
-									Resolution: &policypb.Resolution{
-										WindowSize: int64(time.Minute),
-										Precision:  int64(time.Minute),
-									},
-									Retention: &policypb.Retention{
-										Period: int64(24 * time.Hour),
-									},
+						StoragePolicies: []*policypb.StoragePolicy{
+							&policypb.StoragePolicy{
+								Resolution: &policypb.Resolution{
+									WindowSize: int64(time.Minute),
+									Precision:  int64(time.Minute),
+								},
+								Retention: &policypb.Retention{
+									Period: int64(24 * time.Hour),
 								},
 							},
-							&policypb.Policy{
-								StoragePolicy: &policypb.StoragePolicy{
-									Resolution: &policypb.Resolution{
-										WindowSize: int64(5 * time.Minute),
-										Precision:  int64(time.Minute),
-									},
-									Retention: &policypb.Retention{
-										Period: int64(48 * time.Hour),
-									},
+							&policypb.StoragePolicy{
+								Resolution: &policypb.Resolution{
+									WindowSize: int64(5 * time.Minute),
+									Precision:  int64(time.Minute),
+								},
+								Retention: &policypb.Retention{
+									Period: int64(48 * time.Hour),
 								},
 							},
 						},
@@ -149,19 +141,17 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 12345,
 						Filter:       "tag1:value1 tag2:value2",
-						Policies: []*policypb.Policy{
-							&policypb.Policy{
-								StoragePolicy: &policypb.StoragePolicy{
-									Resolution: &policypb.Resolution{
-										WindowSize: int64(10 * time.Second),
-										Precision:  int64(time.Second),
-									},
-									Retention: &policypb.Retention{
-										Period: int64(24 * time.Hour),
-									},
+						AggregationTypes: []aggregationpb.AggregationType{
+							aggregationpb.AggregationType_P999,
+						},
+						StoragePolicies: []*policypb.StoragePolicy{
+							&policypb.StoragePolicy{
+								Resolution: &policypb.Resolution{
+									WindowSize: int64(10 * time.Second),
+									Precision:  int64(time.Second),
 								},
-								AggregationTypes: []aggregationpb.AggregationType{
-									aggregationpb.AggregationType_P999,
+								Retention: &policypb.Retention{
+									Period: int64(24 * time.Hour),
 								},
 							},
 						},
@@ -178,20 +168,27 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 12345,
 						Filter:       "tag1:value1 tag2:value2",
-						Targets: []*rulepb.RollupTarget{
-							&rulepb.RollupTarget{
-								Name: "rName1",
-								Tags: []string{"rtagName1", "rtagName2"},
-								Policies: []*policypb.Policy{
-									&policypb.Policy{
-										StoragePolicy: &policypb.StoragePolicy{
-											Resolution: &policypb.Resolution{
-												WindowSize: int64(10 * time.Second),
-												Precision:  int64(time.Second),
+						TargetsV2: []*rulepb.RollupTargetV2{
+							&rulepb.RollupTargetV2{
+								Pipeline: &pipelinepb.Pipeline{
+									Ops: []pipelinepb.PipelineOp{
+										{
+											Type: pipelinepb.PipelineOp_ROLLUP,
+											Rollup: &pipelinepb.RollupOp{
+												NewName: "rName1",
+												Tags:    []string{"rtagName1", "rtagName2"},
 											},
-											Retention: &policypb.Retention{
-												Period: int64(24 * time.Hour),
-											},
+										},
+									},
+								},
+								StoragePolicies: []*policypb.StoragePolicy{
+									&policypb.StoragePolicy{
+										Resolution: &policypb.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &policypb.Retention{
+											Period: int64(24 * time.Hour),
 										},
 									},
 								},
@@ -203,34 +200,39 @@ var (
 						Tombstoned:   true,
 						CutoverNanos: 67890,
 						Filter:       "tag3:value3 tag4:value4",
-						Targets: []*rulepb.RollupTarget{
-							&rulepb.RollupTarget{
-								Name: "rName1",
-								Tags: []string{"rtagName1", "rtagName2"},
-								Policies: []*policypb.Policy{
-									&policypb.Policy{
-										StoragePolicy: &policypb.StoragePolicy{
-											Resolution: &policypb.Resolution{
-												WindowSize: int64(time.Minute),
-												Precision:  int64(time.Minute),
-											},
-											Retention: &policypb.Retention{
-												Period: int64(24 * time.Hour),
+						TargetsV2: []*rulepb.RollupTargetV2{
+							&rulepb.RollupTargetV2{
+								Pipeline: &pipelinepb.Pipeline{
+									Ops: []pipelinepb.PipelineOp{
+										{
+											Type: pipelinepb.PipelineOp_ROLLUP,
+											Rollup: &pipelinepb.RollupOp{
+												NewName: "rName1",
+												Tags:    []string{"rtagName1", "rtagName2"},
+												AggregationTypes: []aggregationpb.AggregationType{
+													aggregationpb.AggregationType_MEAN,
+												},
 											},
 										},
 									},
-									&policypb.Policy{
-										StoragePolicy: &policypb.StoragePolicy{
-											Resolution: &policypb.Resolution{
-												WindowSize: int64(5 * time.Minute),
-												Precision:  int64(time.Minute),
-											},
-											Retention: &policypb.Retention{
-												Period: int64(48 * time.Hour),
-											},
+								},
+								StoragePolicies: []*policypb.StoragePolicy{
+									&policypb.StoragePolicy{
+										Resolution: &policypb.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
 										},
-										AggregationTypes: []aggregationpb.AggregationType{
-											aggregationpb.AggregationType_MEAN,
+										Retention: &policypb.Retention{
+											Period: int64(24 * time.Hour),
+										},
+									},
+									&policypb.StoragePolicy{
+										Resolution: &policypb.Resolution{
+											WindowSize: int64(5 * time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: &policypb.Retention{
+											Period: int64(48 * time.Hour),
 										},
 									},
 								},
@@ -247,20 +249,27 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 12345,
 						Filter:       "tag1:value1 tag2:value2",
-						Targets: []*rulepb.RollupTarget{
-							&rulepb.RollupTarget{
-								Name: "rName1",
-								Tags: []string{"rtagName1", "rtagName2"},
-								Policies: []*policypb.Policy{
-									&policypb.Policy{
-										StoragePolicy: &policypb.StoragePolicy{
-											Resolution: &policypb.Resolution{
-												WindowSize: int64(10 * time.Second),
-												Precision:  int64(time.Second),
+						TargetsV2: []*rulepb.RollupTargetV2{
+							&rulepb.RollupTargetV2{
+								Pipeline: &pipelinepb.Pipeline{
+									Ops: []pipelinepb.PipelineOp{
+										{
+											Type: pipelinepb.PipelineOp_ROLLUP,
+											Rollup: &pipelinepb.RollupOp{
+												NewName: "rName1",
+												Tags:    []string{"rtagName1", "rtagName2"},
 											},
-											Retention: &policypb.Retention{
-												Period: int64(24 * time.Hour),
-											},
+										},
+									},
+								},
+								StoragePolicies: []*policypb.StoragePolicy{
+									&policypb.StoragePolicy{
+										Resolution: &policypb.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &policypb.Retention{
+											Period: int64(24 * time.Hour),
 										},
 									},
 								},
@@ -272,34 +281,39 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 67890,
 						Filter:       "tag3:value3 tag4:value4",
-						Targets: []*rulepb.RollupTarget{
-							&rulepb.RollupTarget{
-								Name: "rName1",
-								Tags: []string{"rtagName1", "rtagName2"},
-								Policies: []*policypb.Policy{
-									&policypb.Policy{
-										StoragePolicy: &policypb.StoragePolicy{
-											Resolution: &policypb.Resolution{
-												WindowSize: int64(time.Minute),
-												Precision:  int64(time.Minute),
-											},
-											Retention: &policypb.Retention{
-												Period: int64(24 * time.Hour),
+						TargetsV2: []*rulepb.RollupTargetV2{
+							&rulepb.RollupTargetV2{
+								Pipeline: &pipelinepb.Pipeline{
+									Ops: []pipelinepb.PipelineOp{
+										{
+											Type: pipelinepb.PipelineOp_ROLLUP,
+											Rollup: &pipelinepb.RollupOp{
+												NewName: "rName1",
+												Tags:    []string{"rtagName1", "rtagName2"},
+												AggregationTypes: []aggregationpb.AggregationType{
+													aggregationpb.AggregationType_MEAN,
+												},
 											},
 										},
 									},
-									&policypb.Policy{
-										StoragePolicy: &policypb.StoragePolicy{
-											Resolution: &policypb.Resolution{
-												WindowSize: int64(5 * time.Minute),
-												Precision:  int64(time.Minute),
-											},
-											Retention: &policypb.Retention{
-												Period: int64(48 * time.Hour),
-											},
+								},
+								StoragePolicies: []*policypb.StoragePolicy{
+									&policypb.StoragePolicy{
+										Resolution: &policypb.Resolution{
+											WindowSize: int64(time.Minute),
+											Precision:  int64(time.Minute),
 										},
-										AggregationTypes: []aggregationpb.AggregationType{
-											aggregationpb.AggregationType_MEAN,
+										Retention: &policypb.Retention{
+											Period: int64(24 * time.Hour),
+										},
+									},
+									&policypb.StoragePolicy{
+										Resolution: &policypb.Resolution{
+											WindowSize: int64(5 * time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: &policypb.Retention{
+											Period: int64(48 * time.Hour),
 										},
 									},
 								},
@@ -316,20 +330,28 @@ var (
 						Tombstoned:   false,
 						CutoverNanos: 12345,
 						Filter:       "tag1:value1 tag2:value2",
-						Targets: []*rulepb.RollupTarget{
-							&rulepb.RollupTarget{
-								Name: "rName1",
-								Tags: []string{"rtagName1", "rtagName2"},
-								Policies: []*policypb.Policy{
-									&policypb.Policy{
-										StoragePolicy: &policypb.StoragePolicy{
-											Resolution: &policypb.Resolution{
-												WindowSize: int64(10 * time.Second),
-												Precision:  int64(time.Second),
+
+						TargetsV2: []*rulepb.RollupTargetV2{
+							&rulepb.RollupTargetV2{
+								Pipeline: &pipelinepb.Pipeline{
+									Ops: []pipelinepb.PipelineOp{
+										{
+											Type: pipelinepb.PipelineOp_ROLLUP,
+											Rollup: &pipelinepb.RollupOp{
+												NewName: "rName1",
+												Tags:    []string{"rtagName1", "rtagName2"},
 											},
-											Retention: &policypb.Retention{
-												Period: int64(24 * time.Hour),
-											},
+										},
+									},
+								},
+								StoragePolicies: []*policypb.StoragePolicy{
+									&policypb.StoragePolicy{
+										Resolution: &policypb.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &policypb.Retention{
+											Period: int64(24 * time.Hour),
 										},
 									},
 								},

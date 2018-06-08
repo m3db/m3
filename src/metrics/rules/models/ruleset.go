@@ -114,6 +114,7 @@ func (r RuleSet) ToRuleSetSnapshotView(IDGenType IDGenType) (*RuleSetSnapshotVie
 	return &RuleSetSnapshotView{
 		Namespace:    r.Namespace,
 		Version:      r.Version,
+		CutoverNanos: r.CutoverMillis * nanosPerMilli,
 		MappingRules: mappingRules,
 		RollupRules:  rollupRules,
 	}, nil
@@ -121,14 +122,7 @@ func (r RuleSet) ToRuleSetSnapshotView(IDGenType IDGenType) (*RuleSetSnapshotVie
 
 // Sort sorts the rules in the ruleset.
 func (r *RuleSet) Sort() {
-	for i := range r.MappingRules {
-		r.MappingRules[i].Sort()
-	}
 	sort.Sort(mappingRulesByNameAsc(r.MappingRules))
-
-	for i := range r.RollupRules {
-		r.RollupRules[i].Sort()
-	}
 	sort.Sort(rollupRulesByNameAsc(r.RollupRules))
 }
 

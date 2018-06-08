@@ -30,8 +30,8 @@ import (
 	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3metrics/generated/proto/policypb"
 	"github.com/m3db/m3metrics/generated/proto/transformationpb"
-	"github.com/m3db/m3metrics/op"
-	"github.com/m3db/m3metrics/op/applied"
+	"github.com/m3db/m3metrics/pipeline"
+	"github.com/m3db/m3metrics/pipeline/applied"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/transformation"
 	xtime "github.com/m3db/m3x/time"
@@ -43,10 +43,10 @@ var (
 	testSmallForwardMetadata = ForwardMetadata{
 		AggregationID: aggregation.DefaultID,
 		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
-		Pipeline: applied.NewPipeline([]applied.Union{
+		Pipeline: applied.NewPipeline([]applied.OpUnion{
 			{
-				Type: op.RollupType,
-				Rollup: applied.Rollup{
+				Type: pipeline.RollupOpType,
+				Rollup: applied.RollupOp{
 					ID:            []byte("foo"),
 					AggregationID: aggregation.MustCompressTypes(aggregation.Count),
 				},
@@ -58,16 +58,16 @@ var (
 	testLargeForwardMetadata = ForwardMetadata{
 		AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
 		StoragePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
-		Pipeline: applied.NewPipeline([]applied.Union{
+		Pipeline: applied.NewPipeline([]applied.OpUnion{
 			{
-				Type: op.TransformationType,
-				Transformation: op.Transformation{
+				Type: pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{
 					Type: transformation.Absolute,
 				},
 			},
 			{
-				Type: op.RollupType,
-				Rollup: applied.Rollup{
+				Type: pipeline.RollupOpType,
+				Rollup: applied.RollupOp{
 					ID:            []byte("bar"),
 					AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum),
 				},
@@ -81,10 +81,10 @@ var (
 		StoragePolicies: []policy.StoragePolicy{
 			policy.NewStoragePolicy(time.Minute, xtime.Minute, 6*time.Hour),
 		},
-		Pipeline: applied.NewPipeline([]applied.Union{
+		Pipeline: applied.NewPipeline([]applied.OpUnion{
 			{
-				Type: op.TransformationType,
-				Transformation: op.Transformation{
+				Type: pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{
 					Type: transformation.PerSecond,
 				},
 			},
@@ -96,16 +96,16 @@ var (
 			policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
 			policy.NewStoragePolicy(time.Hour, xtime.Hour, 30*24*time.Hour),
 		},
-		Pipeline: applied.NewPipeline([]applied.Union{
+		Pipeline: applied.NewPipeline([]applied.OpUnion{
 			{
-				Type: op.TransformationType,
-				Transformation: op.Transformation{
+				Type: pipeline.TransformationOpType,
+				Transformation: pipeline.TransformationOp{
 					Type: transformation.Absolute,
 				},
 			},
 			{
-				Type: op.RollupType,
-				Rollup: applied.Rollup{
+				Type: pipeline.RollupOpType,
+				Rollup: applied.RollupOp{
 					ID:            []byte("foo"),
 					AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum),
 				},
@@ -138,10 +138,10 @@ var (
 						StoragePolicies: []policy.StoragePolicy{
 							policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
 						},
-						Pipeline: applied.NewPipeline([]applied.Union{
+						Pipeline: applied.NewPipeline([]applied.OpUnion{
 							{
-								Type: op.RollupType,
-								Rollup: applied.Rollup{
+								Type: pipeline.RollupOpType,
+								Rollup: applied.RollupOp{
 									ID:            []byte("baz"),
 									AggregationID: aggregation.MustCompressTypes(aggregation.Mean),
 								},
@@ -174,16 +174,16 @@ var (
 							policy.NewStoragePolicy(time.Minute, xtime.Minute, 6*time.Hour),
 							policy.NewStoragePolicy(time.Hour, xtime.Hour, 30*24*time.Hour),
 						},
-						Pipeline: applied.NewPipeline([]applied.Union{
+						Pipeline: applied.NewPipeline([]applied.OpUnion{
 							{
-								Type: op.TransformationType,
-								Transformation: op.Transformation{
+								Type: pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{
 									Type: transformation.Absolute,
 								},
 							},
 							{
-								Type: op.RollupType,
-								Rollup: applied.Rollup{
+								Type: pipeline.RollupOpType,
+								Rollup: applied.RollupOp{
 									ID:            []byte("foo"),
 									AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum),
 								},
@@ -200,16 +200,16 @@ var (
 				Pipelines: []PipelineMetadata{
 					{
 						AggregationID: aggregation.DefaultID,
-						Pipeline: applied.NewPipeline([]applied.Union{
+						Pipeline: applied.NewPipeline([]applied.OpUnion{
 							{
-								Type: op.TransformationType,
-								Transformation: op.Transformation{
+								Type: pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{
 									Type: transformation.PerSecond,
 								},
 							},
 							{
-								Type: op.RollupType,
-								Rollup: applied.Rollup{
+								Type: pipeline.RollupOpType,
+								Rollup: applied.RollupOp{
 									ID:            []byte("bar"),
 									AggregationID: aggregation.MustCompressTypes(aggregation.P99),
 								},
@@ -613,10 +613,10 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 					Metadata: Metadata{
 						Pipelines: []PipelineMetadata{
 							{
-								Pipeline: applied.NewPipeline([]applied.Union{
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
 									{
-										Type:           op.TransformationType,
-										Transformation: op.Transformation{Type: transformation.Absolute},
+										Type:           pipeline.TransformationOpType,
+										Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
 									},
 								}),
 							},
@@ -632,10 +632,10 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 					Metadata: Metadata{
 						Pipelines: []PipelineMetadata{
 							{
-								Pipeline: applied.NewPipeline([]applied.Union{
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
 									{
-										Type:   op.RollupType,
-										Rollup: applied.Rollup{ID: []byte("foo")},
+										Type:   pipeline.RollupOpType,
+										Rollup: applied.RollupOp{ID: []byte("foo")},
 									},
 								}),
 							},
@@ -651,10 +651,10 @@ func TestStagedMetadatasIsDefault(t *testing.T) {
 					Metadata: Metadata{
 						Pipelines: []PipelineMetadata{
 							{
-								Pipeline: applied.NewPipeline([]applied.Union{
+								Pipeline: applied.NewPipeline([]applied.OpUnion{
 									{
-										Type:   op.RollupType,
-										Rollup: applied.Rollup{AggregationID: aggregation.MustCompressTypes(aggregation.Sum)},
+										Type:   pipeline.RollupOpType,
+										Rollup: applied.RollupOp{AggregationID: aggregation.MustCompressTypes(aggregation.Sum)},
 									},
 								}),
 							},

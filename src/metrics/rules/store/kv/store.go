@@ -53,7 +53,7 @@ func (s *store) ReadNamespaces() (*rules.Namespaces, error) {
 
 	version := value.Version()
 	var namespaces rulepb.Namespaces
-	if err := value.Unmarshal(&namespaces); err != nil {
+	if err = value.Unmarshal(&namespaces); err != nil {
 		return nil, err
 	}
 
@@ -74,13 +74,13 @@ func (s *store) ReadRuleSet(nsName string) (rules.RuleSet, error) {
 
 	version := value.Version()
 	var ruleSet rulepb.RuleSet
-	if err := value.Unmarshal(&ruleSet); err != nil {
-		return nil, fmt.Errorf("Could not fetch RuleSet %s: %v", nsName, err.Error())
+	if err = value.Unmarshal(&ruleSet); err != nil {
+		return nil, fmt.Errorf("could not fetch RuleSet %s: %v", nsName, err.Error())
 	}
 
 	rs, err := rules.NewRuleSetFromProto(version, &ruleSet, rules.NewOptions())
 	if err != nil {
-		return nil, fmt.Errorf("Could not fetch RuleSet %s: %v", nsName, err.Error())
+		return nil, fmt.Errorf("could not fetch RuleSet %s: %v", nsName, err.Error())
 	}
 	return rs, err
 }

@@ -33,10 +33,12 @@ import (
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/filters"
+	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
 	"github.com/m3db/m3metrics/generated/proto/policypb"
 	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/matcher"
 	"github.com/m3db/m3metrics/matcher/cache"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/id/m3"
 	"github.com/m3db/m3metrics/policy"
@@ -44,6 +46,8 @@ import (
 	"github.com/m3db/m3x/pool"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -96,15 +100,22 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 			expected: rules.NewMatchResult(
 				1,
 				math.MaxInt64,
-				policy.PoliciesList([]policy.StagedPolicies{
-					policy.NewStagedPolicies(
-						1000,
-						false,
-						[]policy.Policy{
-							policy.NewPolicy(policy.MustParseStoragePolicy("10s:1d"), aggregation.DefaultID),
+				metadata.StagedMetadatas{
+					{
+						CutoverNanos: 1000,
+						Tombstoned:   false,
+						Metadata: metadata.Metadata{
+							Pipelines: []metadata.PipelineMetadata{
+								{
+									AggregationID: aggregation.DefaultID,
+									StoragePolicies: policy.StoragePolicies{
+										policy.MustParseStoragePolicy("10s:1d"),
+									},
+								},
+							},
 						},
-					),
-				}),
+					},
+				},
 				nil,
 			),
 		},
@@ -117,20 +128,31 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 			expected: rules.NewMatchResult(
 				1,
 				math.MaxInt64,
-				policy.PoliciesList([]policy.StagedPolicies{
-					policy.NewStagedPolicies(0, false, nil),
-				}),
-				[]rules.RollupResult{
+				metadata.StagedMetadatas{
+					{
+						CutoverNanos: 500,
+						Tombstoned:   false,
+						Metadata:     metadata.DefaultMetadata,
+					},
+				},
+				[]rules.IDWithMetadatas{
 					{
 						ID: []byte("m3+newRollupName1+m3_rollup=true,namespace=stress,rtagName1=rtagValue1"),
-						PoliciesList: []policy.StagedPolicies{
-							policy.NewStagedPolicies(
-								500,
-								false,
-								[]policy.Policy{
-									policy.NewPolicy(policy.MustParseStoragePolicy("1m:2d"), aggregation.DefaultID),
+						Metadatas: metadata.StagedMetadatas{
+							{
+								CutoverNanos: 500,
+								Tombstoned:   false,
+								Metadata: metadata.Metadata{
+									Pipelines: []metadata.PipelineMetadata{
+										{
+											AggregationID: aggregation.DefaultID,
+											StoragePolicies: policy.StoragePolicies{
+												policy.MustParseStoragePolicy("1m:2d"),
+											},
+										},
+									},
 								},
-							),
+							},
 						},
 					},
 				},
@@ -145,26 +167,40 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 			expected: rules.NewMatchResult(
 				1,
 				math.MaxInt64,
-				policy.PoliciesList([]policy.StagedPolicies{
-					policy.NewStagedPolicies(
-						1000,
-						false,
-						[]policy.Policy{
-							policy.NewPolicy(policy.MustParseStoragePolicy("10s:1d"), aggregation.DefaultID),
+				metadata.StagedMetadatas{
+					{
+						CutoverNanos: 1000,
+						Tombstoned:   false,
+						Metadata: metadata.Metadata{
+							Pipelines: []metadata.PipelineMetadata{
+								{
+									AggregationID: aggregation.DefaultID,
+									StoragePolicies: policy.StoragePolicies{
+										policy.MustParseStoragePolicy("10s:1d"),
+									},
+								},
+							},
 						},
-					),
-				}),
-				[]rules.RollupResult{
+					},
+				},
+				[]rules.IDWithMetadatas{
 					{
 						ID: []byte("m3+newRollupName1+m3_rollup=true,namespace=stress,rtagName1=rtagValue1"),
-						PoliciesList: []policy.StagedPolicies{
-							policy.NewStagedPolicies(
-								500,
-								false,
-								[]policy.Policy{
-									policy.NewPolicy(policy.MustParseStoragePolicy("1m:2d"), aggregation.DefaultID),
+						Metadatas: metadata.StagedMetadatas{
+							{
+								CutoverNanos: 500,
+								Tombstoned:   false,
+								Metadata: metadata.Metadata{
+									Pipelines: []metadata.PipelineMetadata{
+										{
+											AggregationID: aggregation.DefaultID,
+											StoragePolicies: policy.StoragePolicies{
+												policy.MustParseStoragePolicy("1m:2d"),
+											},
+										},
+									},
 								},
-							),
+							},
 						},
 					},
 				},
@@ -174,7 +210,7 @@ func TestMatchWithRuleUpdatesStress(t *testing.T) {
 
 	for _, input := range inputs {
 		var (
-			matchIter  = 1000000
+			matchIter  = 100000
 			updateIter = 10000
 			results    []rules.MatchResult
 			expected   []rules.MatchResult
@@ -222,22 +258,25 @@ func validateMatchResult(
 ) {
 	if ignoreVersion {
 		var (
-			mappings policy.PoliciesList
-			rollups  []rules.RollupResult
+			forExistingID   metadata.StagedMetadatas
+			forNewRollupIDs []rules.IDWithMetadatas
 		)
-		if m := actual.MappingsAt(0); len(m) > 0 {
-			mappings = m
+		if m := actual.ForExistingIDAt(0); len(m) > 0 {
+			forExistingID = m
 		}
-		if numRollups := actual.NumRollups(); numRollups > 0 {
-			rollups = make([]rules.RollupResult, numRollups)
-			for i := range rollups {
-				r, _ := actual.RollupsAt(i, 0)
-				rollups[i] = r
+		if numNewRollupIDs := actual.NumNewRollupIDs(); numNewRollupIDs > 0 {
+			forNewRollupIDs = make([]rules.IDWithMetadatas, numNewRollupIDs)
+			for i := range forNewRollupIDs {
+				forNewRollupIDs[i] = actual.ForNewRollupIDsAt(i, 0)
 			}
 		}
-		actual = rules.NewMatchResult(expected.Version(), actual.ExpireAtNanos(), mappings, rollups)
+		actual = rules.NewMatchResult(expected.Version(), actual.ExpireAtNanos(), forExistingID, forNewRollupIDs)
 	}
-	require.Equal(t, expected, actual)
+	testMatchResultCmpOpts := []cmp.Option{
+		cmp.AllowUnexported(rules.MatchResult{}),
+		cmpopts.EquateEmpty(),
+	}
+	require.True(t, cmp.Equal(expected, actual, testMatchResultCmpOpts...))
 }
 
 func updateStore(
@@ -276,16 +315,14 @@ func stressTestMappingRulesConfig() []*rulepb.MappingRule {
 					Tombstoned:   false,
 					CutoverNanos: 1000,
 					Filter:       "mtagName1:mtagValue1",
-					Policies: []*policypb.Policy{
-						&policypb.Policy{
-							StoragePolicy: &policypb.StoragePolicy{
-								Resolution: &policypb.Resolution{
-									WindowSize: int64(10 * time.Second),
-									Precision:  int64(time.Second),
-								},
-								Retention: &policypb.Retention{
-									Period: int64(24 * time.Hour),
-								},
+					StoragePolicies: []*policypb.StoragePolicy{
+						&policypb.StoragePolicy{
+							Resolution: &policypb.Resolution{
+								WindowSize: int64(10 * time.Second),
+								Precision:  int64(time.Second),
+							},
+							Retention: &policypb.Retention{
+								Period: int64(24 * time.Hour),
 							},
 						},
 					},
@@ -305,20 +342,27 @@ func stressTestRollupRulesConfig() []*rulepb.RollupRule {
 					Tombstoned:   false,
 					CutoverNanos: 500,
 					Filter:       "rtagName1:rtagValue1",
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name: "newRollupName1",
-							Tags: []string{"namespace", "rtagName1"},
-							Policies: []*policypb.Policy{
-								&policypb.Policy{
-									StoragePolicy: &policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
-											WindowSize: int64(time.Minute),
-											Precision:  int64(time.Minute),
+					TargetsV2: []*rulepb.RollupTargetV2{
+						&rulepb.RollupTargetV2{
+							Pipeline: &pipelinepb.Pipeline{
+								Ops: []pipelinepb.PipelineOp{
+									{
+										Type: pipelinepb.PipelineOp_ROLLUP,
+										Rollup: &pipelinepb.RollupOp{
+											NewName: "newRollupName1",
+											Tags:    []string{"namespace", "rtagName1"},
 										},
-										Retention: &policypb.Retention{
-											Period: int64(48 * time.Hour),
-										},
+									},
+								},
+							},
+							StoragePolicies: []*policypb.StoragePolicy{
+								&policypb.StoragePolicy{
+									Resolution: &policypb.Resolution{
+										WindowSize: int64(time.Minute),
+										Precision:  int64(time.Minute),
+									},
+									Retention: &policypb.Retention{
+										Period: int64(48 * time.Hour),
 									},
 								},
 							},
