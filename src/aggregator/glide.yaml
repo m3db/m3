@@ -8,7 +8,7 @@ import:
   version: cb17a54d6902c03790286942bafa04a188d4eeb8
 
 - package: github.com/m3db/m3metrics
-  version: b02357e96ca0ffd506d7e2b0d3ab242cd6a9ade1
+  version: 5f1ccc3a13f3c1449d06c5d8d5201bda17529dbc
 
 - package: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a

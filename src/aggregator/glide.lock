@@ -1,5 +1,5 @@
-hash: f23f55d458f3e40756df49a4e18c38cb9ffa1dc40ed87d9c92f7e7031c74a2bc
-updated: 2018-06-08T09:48:18.909794-04:00
+hash: 0cb91866d85703f76ef21b41f13e287983f46292d61656fce1db43414d648eba
+updated: 2018-06-08T10:29:59.174947-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -178,7 +178,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: b02357e96ca0ffd506d7e2b0d3ab242cd6a9ade1
+  version: 5f1ccc3a13f3c1449d06c5d8d5201bda17529dbc
   subpackages:
   - aggregation
   - encoding
@@ -376,3 +376,8 @@ testImports:
   - cmp/internal/diff
   - cmp/internal/function
   - cmp/internal/value
+- name: github.com/leanovate/gopter
+  version: f778776473e0ef7764e1434dd01a61cc1ec574b4
+  subpackages:
+  - gen
+  - prop
