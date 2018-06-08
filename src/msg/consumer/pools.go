@@ -27,8 +27,16 @@ type messagePool struct {
 }
 
 func newMessagePool(pOpts pool.ObjectPoolOptions) *messagePool {
+	iOpts := pOpts.InstrumentOptions()
+	scope := iOpts.MetricsScope()
 	return &messagePool{
-		ObjectPool: pool.NewObjectPool(pOpts),
+		ObjectPool: pool.NewObjectPool(
+			pOpts.SetInstrumentOptions(
+				iOpts.SetMetricsScope(
+					scope.Tagged(map[string]string{"pool": "message"}),
+				),
+			),
+		),
 	}
 }
 
