@@ -79,234 +79,6 @@ type Aggregator interface {
 	Close() error
 }
 
-type aggregatorAddMetricMetrics struct {
-	success                    tally.Counter
-	successLatency             tally.Timer
-	shardNotOwned              tally.Counter
-	shardNotWriteable          tally.Counter
-	valueRateLimitExceeded     tally.Counter
-	newMetricRateLimitExceeded tally.Counter
-	uncategorizedErrors        tally.Counter
-}
-
-func newAggregatorAddMetricMetrics(
-	scope tally.Scope,
-	samplingRate float64,
-) aggregatorAddMetricMetrics {
-	return aggregatorAddMetricMetrics{
-		success:        scope.Counter("success"),
-		successLatency: instrument.MustCreateSampledTimer(scope.Timer("success-latency"), samplingRate),
-		shardNotOwned: scope.Tagged(map[string]string{
-			"reason": "shard-not-owned",
-		}).Counter("errors"),
-		shardNotWriteable: scope.Tagged(map[string]string{
-			"reason": "shard-not-writeable",
-		}).Counter("errors"),
-		valueRateLimitExceeded: scope.Tagged(map[string]string{
-			"reason": "value-rate-limit-exceeded",
-		}).Counter("errors"),
-		newMetricRateLimitExceeded: scope.Tagged(map[string]string{
-			"reason": "new-metric-rate-limit-exceeded",
-		}).Counter("errors"),
-		uncategorizedErrors: scope.Tagged(map[string]string{
-			"reason": "not-categorized",
-		}).Counter("errors"),
-	}
-}
-
-func (m *aggregatorAddMetricMetrics) ReportSuccess(d time.Duration) {
-	m.success.Inc(1)
-	m.successLatency.Record(d)
-}
-
-func (m *aggregatorAddMetricMetrics) ReportError(err error) {
-	if err == nil {
-		return
-	}
-	switch err {
-	case errShardNotOwned:
-		m.shardNotOwned.Inc(1)
-	case errAggregatorShardNotWriteable:
-		m.shardNotWriteable.Inc(1)
-	case errWriteNewMetricRateLimitExceeded:
-		m.newMetricRateLimitExceeded.Inc(1)
-	case errWriteValueRateLimitExceeded:
-		m.valueRateLimitExceeded.Inc(1)
-	default:
-		m.uncategorizedErrors.Inc(1)
-	}
-}
-
-type aggregatorAddUntimedMetrics struct {
-	aggregatorAddMetricMetrics
-
-	invalidMetricTypes tally.Counter
-}
-
-func newAggregatorAddUntimedMetrics(
-	scope tally.Scope,
-	samplingRate float64,
-) aggregatorAddUntimedMetrics {
-	return aggregatorAddUntimedMetrics{
-		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
-		invalidMetricTypes: scope.Tagged(map[string]string{
-			"reason": "invalid-metric-types",
-		}).Counter("errors"),
-	}
-}
-
-func (m *aggregatorAddUntimedMetrics) ReportError(err error) {
-	if err == errInvalidMetricType {
-		m.invalidMetricTypes.Inc(1)
-		return
-	}
-	m.aggregatorAddMetricMetrics.ReportError(err)
-}
-
-type aggregatorTickMetrics struct {
-	scope            tally.Scope
-	flushTimesErrors tally.Counter
-	duration         tally.Timer
-	activeEntries    tally.Gauge
-	expiredEntries   tally.Counter
-	activeElems      map[time.Duration]tally.Gauge
-}
-
-func newAggregatorTickMetrics(scope tally.Scope) aggregatorTickMetrics {
-	return aggregatorTickMetrics{
-		scope:            scope,
-		flushTimesErrors: scope.Counter("flush-times-errors"),
-		duration:         scope.Timer("duration"),
-		activeEntries:    scope.Gauge("active-entries"),
-		expiredEntries:   scope.Counter("expired-entries"),
-		activeElems:      make(map[time.Duration]tally.Gauge),
-	}
-}
-
-func (m aggregatorTickMetrics) Report(tickResult tickResult, duration time.Duration) {
-	m.duration.Record(duration)
-	m.activeEntries.Update(float64(tickResult.ActiveEntries))
-	m.expiredEntries.Inc(int64(tickResult.ExpiredEntries))
-	for dur, val := range tickResult.ActiveElems {
-		gauge, exists := m.activeElems[dur]
-		if !exists {
-			gauge = m.scope.Tagged(
-				map[string]string{"resolution": dur.String()},
-			).Gauge("active-elems")
-			m.activeElems[dur] = gauge
-		}
-		gauge.Update(float64(val))
-	}
-}
-
-type aggregatorShardsMetrics struct {
-	add          tally.Counter
-	close        tally.Counter
-	owned        tally.Gauge
-	pendingClose tally.Gauge
-}
-
-func newAggregatorShardsMetrics(scope tally.Scope) aggregatorShardsMetrics {
-	return aggregatorShardsMetrics{
-		add:          scope.Counter("add"),
-		close:        scope.Counter("close"),
-		owned:        scope.Gauge("owned"),
-		pendingClose: scope.Gauge("pending-close"),
-	}
-}
-
-type aggregatorPlacementMetrics struct {
-	stagedPlacementChanged tally.Counter
-	cutoverChanged         tally.Counter
-	updated                tally.Counter
-}
-
-func newAggregatorPlacementMetrics(scope tally.Scope) aggregatorPlacementMetrics {
-	return aggregatorPlacementMetrics{
-		stagedPlacementChanged: scope.Counter("staged-placement-changed"),
-		cutoverChanged:         scope.Counter("cutover-changed"),
-		updated:                scope.Counter("updated"),
-	}
-}
-
-type aggregatorShardSetIDMetrics struct {
-	open    tally.Counter
-	close   tally.Counter
-	clear   tally.Counter
-	reset   tally.Counter
-	same    tally.Counter
-	changed tally.Counter
-}
-
-func newAggregatorShardSetIDMetrics(scope tally.Scope) aggregatorShardSetIDMetrics {
-	return aggregatorShardSetIDMetrics{
-		open:    scope.Counter("open"),
-		close:   scope.Counter("close"),
-		clear:   scope.Counter("clear"),
-		reset:   scope.Counter("reset"),
-		same:    scope.Counter("same"),
-		changed: scope.Counter("changed"),
-	}
-}
-
-type aggregatorMetrics struct {
-	counters     tally.Counter
-	timers       tally.Counter
-	timerBatches tally.Counter
-	gauges       tally.Counter
-	forwarded    tally.Counter
-	addUntimed   aggregatorAddUntimedMetrics
-	addForwarded aggregatorAddMetricMetrics
-	placement    aggregatorPlacementMetrics
-	shards       aggregatorShardsMetrics
-	shardSetID   aggregatorShardSetIDMetrics
-	tick         aggregatorTickMetrics
-}
-
-func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMetrics {
-	addUntimedScope := scope.SubScope("addUntimed")
-	addForwardedScope := scope.SubScope("addForwarded")
-	placementScope := scope.SubScope("placement")
-	shardsScope := scope.SubScope("shards")
-	shardSetIDScope := scope.SubScope("shard-set-id")
-	tickScope := scope.SubScope("tick")
-	return aggregatorMetrics{
-		counters:     scope.Counter("counters"),
-		timers:       scope.Counter("timers"),
-		timerBatches: scope.Counter("timer-batches"),
-		gauges:       scope.Counter("gauges"),
-		forwarded:    scope.Counter("forwarded"),
-		addUntimed:   newAggregatorAddUntimedMetrics(addUntimedScope, samplingRate),
-		addForwarded: newAggregatorAddMetricMetrics(addForwardedScope, samplingRate),
-		placement:    newAggregatorPlacementMetrics(placementScope),
-		shards:       newAggregatorShardsMetrics(shardsScope),
-		shardSetID:   newAggregatorShardSetIDMetrics(shardSetIDScope),
-		tick:         newAggregatorTickMetrics(tickScope),
-	}
-}
-
-// RuntimeStatus contains run-time status of the aggregator.
-type RuntimeStatus struct {
-	FlushStatus FlushStatus `json:"flushStatus"`
-}
-
-type updateShardsType int
-
-const (
-	noUpdateShards updateShardsType = iota
-	updateShards
-)
-
-type aggregatorState int
-
-const (
-	aggregatorNotOpen aggregatorState = iota
-	aggregatorOpen
-	aggregatorClosed
-)
-
-type sleepFn func(d time.Duration)
-
 // aggregator stores aggregations of different types of metrics (e.g., counter,
 // timer, gauges) and periodically flushes them out.
 type aggregator struct {
@@ -779,8 +551,6 @@ func (agg *aggregator) tick() {
 	}
 }
 
-// TODO(xichen): distinguish metrics for standard metric entries/lists
-// from those for forwarded metric entries/lists.
 func (agg *aggregator) tickInternal() {
 	ownedShards, closingShards := agg.ownedShards()
 	agg.closeShardsAsync(closingShards)
@@ -807,3 +577,250 @@ func (agg *aggregator) tickInternal() {
 		agg.sleepFn(agg.checkInterval - tickDuration)
 	}
 }
+
+type aggregatorAddMetricMetrics struct {
+	success                    tally.Counter
+	successLatency             tally.Timer
+	shardNotOwned              tally.Counter
+	shardNotWriteable          tally.Counter
+	valueRateLimitExceeded     tally.Counter
+	newMetricRateLimitExceeded tally.Counter
+	uncategorizedErrors        tally.Counter
+}
+
+func newAggregatorAddMetricMetrics(
+	scope tally.Scope,
+	samplingRate float64,
+) aggregatorAddMetricMetrics {
+	return aggregatorAddMetricMetrics{
+		success:        scope.Counter("success"),
+		successLatency: instrument.MustCreateSampledTimer(scope.Timer("success-latency"), samplingRate),
+		shardNotOwned: scope.Tagged(map[string]string{
+			"reason": "shard-not-owned",
+		}).Counter("errors"),
+		shardNotWriteable: scope.Tagged(map[string]string{
+			"reason": "shard-not-writeable",
+		}).Counter("errors"),
+		valueRateLimitExceeded: scope.Tagged(map[string]string{
+			"reason": "value-rate-limit-exceeded",
+		}).Counter("errors"),
+		newMetricRateLimitExceeded: scope.Tagged(map[string]string{
+			"reason": "new-metric-rate-limit-exceeded",
+		}).Counter("errors"),
+		uncategorizedErrors: scope.Tagged(map[string]string{
+			"reason": "not-categorized",
+		}).Counter("errors"),
+	}
+}
+
+func (m *aggregatorAddMetricMetrics) ReportSuccess(d time.Duration) {
+	m.success.Inc(1)
+	m.successLatency.Record(d)
+}
+
+func (m *aggregatorAddMetricMetrics) ReportError(err error) {
+	if err == nil {
+		return
+	}
+	switch err {
+	case errShardNotOwned:
+		m.shardNotOwned.Inc(1)
+	case errAggregatorShardNotWriteable:
+		m.shardNotWriteable.Inc(1)
+	case errWriteNewMetricRateLimitExceeded:
+		m.newMetricRateLimitExceeded.Inc(1)
+	case errWriteValueRateLimitExceeded:
+		m.valueRateLimitExceeded.Inc(1)
+	default:
+		m.uncategorizedErrors.Inc(1)
+	}
+}
+
+type aggregatorAddUntimedMetrics struct {
+	aggregatorAddMetricMetrics
+
+	invalidMetricTypes tally.Counter
+}
+
+func newAggregatorAddUntimedMetrics(
+	scope tally.Scope,
+	samplingRate float64,
+) aggregatorAddUntimedMetrics {
+	return aggregatorAddUntimedMetrics{
+		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
+		invalidMetricTypes: scope.Tagged(map[string]string{
+			"reason": "invalid-metric-types",
+		}).Counter("errors"),
+	}
+}
+
+func (m *aggregatorAddUntimedMetrics) ReportError(err error) {
+	if err == errInvalidMetricType {
+		m.invalidMetricTypes.Inc(1)
+		return
+	}
+	m.aggregatorAddMetricMetrics.ReportError(err)
+}
+
+type tickMetricsForMetricCategory struct {
+	scope          tally.Scope
+	activeEntries  tally.Gauge
+	expiredEntries tally.Counter
+	activeElems    map[time.Duration]tally.Gauge
+}
+
+func newTickMetricsForMetricCategory(scope tally.Scope) tickMetricsForMetricCategory {
+	return tickMetricsForMetricCategory{
+		scope:          scope,
+		activeEntries:  scope.Gauge("active-entries"),
+		expiredEntries: scope.Counter("expired-entries"),
+		activeElems:    make(map[time.Duration]tally.Gauge),
+	}
+}
+
+func (m tickMetricsForMetricCategory) Report(tickResult tickResultForMetricCategory) {
+	m.activeEntries.Update(float64(tickResult.activeEntries))
+	m.expiredEntries.Inc(int64(tickResult.expiredEntries))
+	for dur, val := range tickResult.activeElems {
+		gauge, exists := m.activeElems[dur]
+		if !exists {
+			gauge = m.scope.Tagged(
+				map[string]string{"resolution": dur.String()},
+			).Gauge("active-elems")
+			m.activeElems[dur] = gauge
+		}
+		gauge.Update(float64(val))
+	}
+}
+
+type aggregatorTickMetrics struct {
+	flushTimesErrors tally.Counter
+	duration         tally.Timer
+	standard         tickMetricsForMetricCategory
+	forwarded        tickMetricsForMetricCategory
+}
+
+func newAggregatorTickMetrics(scope tally.Scope) aggregatorTickMetrics {
+	standardScope := scope.Tagged(map[string]string{"metric-type": "standard"})
+	forwardedScope := scope.Tagged(map[string]string{"metric-type": "forwarded"})
+	return aggregatorTickMetrics{
+		flushTimesErrors: scope.Counter("flush-times-errors"),
+		duration:         scope.Timer("duration"),
+		standard:         newTickMetricsForMetricCategory(standardScope),
+		forwarded:        newTickMetricsForMetricCategory(forwardedScope),
+	}
+}
+
+func (m aggregatorTickMetrics) Report(tickResult tickResult, duration time.Duration) {
+	m.duration.Record(duration)
+	m.standard.Report(tickResult.standard)
+	m.forwarded.Report(tickResult.forwarded)
+}
+
+type aggregatorShardsMetrics struct {
+	add          tally.Counter
+	close        tally.Counter
+	owned        tally.Gauge
+	pendingClose tally.Gauge
+}
+
+func newAggregatorShardsMetrics(scope tally.Scope) aggregatorShardsMetrics {
+	return aggregatorShardsMetrics{
+		add:          scope.Counter("add"),
+		close:        scope.Counter("close"),
+		owned:        scope.Gauge("owned"),
+		pendingClose: scope.Gauge("pending-close"),
+	}
+}
+
+type aggregatorPlacementMetrics struct {
+	stagedPlacementChanged tally.Counter
+	cutoverChanged         tally.Counter
+	updated                tally.Counter
+}
+
+func newAggregatorPlacementMetrics(scope tally.Scope) aggregatorPlacementMetrics {
+	return aggregatorPlacementMetrics{
+		stagedPlacementChanged: scope.Counter("staged-placement-changed"),
+		cutoverChanged:         scope.Counter("cutover-changed"),
+		updated:                scope.Counter("updated"),
+	}
+}
+
+type aggregatorShardSetIDMetrics struct {
+	open    tally.Counter
+	close   tally.Counter
+	clear   tally.Counter
+	reset   tally.Counter
+	same    tally.Counter
+	changed tally.Counter
+}
+
+func newAggregatorShardSetIDMetrics(scope tally.Scope) aggregatorShardSetIDMetrics {
+	return aggregatorShardSetIDMetrics{
+		open:    scope.Counter("open"),
+		close:   scope.Counter("close"),
+		clear:   scope.Counter("clear"),
+		reset:   scope.Counter("reset"),
+		same:    scope.Counter("same"),
+		changed: scope.Counter("changed"),
+	}
+}
+
+type aggregatorMetrics struct {
+	counters     tally.Counter
+	timers       tally.Counter
+	timerBatches tally.Counter
+	gauges       tally.Counter
+	forwarded    tally.Counter
+	addUntimed   aggregatorAddUntimedMetrics
+	addForwarded aggregatorAddMetricMetrics
+	placement    aggregatorPlacementMetrics
+	shards       aggregatorShardsMetrics
+	shardSetID   aggregatorShardSetIDMetrics
+	tick         aggregatorTickMetrics
+}
+
+func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMetrics {
+	addUntimedScope := scope.SubScope("addUntimed")
+	addForwardedScope := scope.SubScope("addForwarded")
+	placementScope := scope.SubScope("placement")
+	shardsScope := scope.SubScope("shards")
+	shardSetIDScope := scope.SubScope("shard-set-id")
+	tickScope := scope.SubScope("tick")
+	return aggregatorMetrics{
+		counters:     scope.Counter("counters"),
+		timers:       scope.Counter("timers"),
+		timerBatches: scope.Counter("timer-batches"),
+		gauges:       scope.Counter("gauges"),
+		forwarded:    scope.Counter("forwarded"),
+		addUntimed:   newAggregatorAddUntimedMetrics(addUntimedScope, samplingRate),
+		addForwarded: newAggregatorAddMetricMetrics(addForwardedScope, samplingRate),
+		placement:    newAggregatorPlacementMetrics(placementScope),
+		shards:       newAggregatorShardsMetrics(shardsScope),
+		shardSetID:   newAggregatorShardSetIDMetrics(shardSetIDScope),
+		tick:         newAggregatorTickMetrics(tickScope),
+	}
+}
+
+// RuntimeStatus contains run-time status of the aggregator.
+type RuntimeStatus struct {
+	FlushStatus FlushStatus `json:"flushStatus"`
+}
+
+type updateShardsType int
+
+const (
+	noUpdateShards updateShardsType = iota
+	updateShards
+)
+
+type aggregatorState int
+
+const (
+	aggregatorNotOpen aggregatorState = iota
+	aggregatorOpen
+	aggregatorClosed
+)
+
+type sleepFn func(d time.Duration)

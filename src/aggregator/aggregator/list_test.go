@@ -734,9 +734,13 @@ func TestMetricLists(t *testing.T) {
 
 	// Perform a tick.
 	tickRes := lists.Tick()
-	expectedRes := map[time.Duration]int{
-		time.Second:      0,
-		10 * time.Second: 0,
+	expectedRes := listsTickResult{
+		standard: map[time.Duration]int{
+			time.Second: 0,
+		},
+		forwarded: map[time.Duration]int{
+			10 * time.Second: 0,
+		},
 	}
 	require.Equal(t, expectedRes, tickRes)
 

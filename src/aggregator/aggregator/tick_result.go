@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,30 +22,43 @@ package aggregator
 
 import "time"
 
-type tickResult struct {
-	ActiveEntries  int
-	ExpiredEntries int
-	ActiveElems    map[time.Duration]int
+type tickResultForMetricCategory struct {
+	activeEntries  int
+	expiredEntries int
+	activeElems    map[time.Duration]int
 }
 
-// merge merges two tick results. Both input results may become
-// invalid after merge is called.
-func (r tickResult) merge(other tickResult) tickResult {
-	res := tickResult{
-		ActiveEntries:  r.ActiveEntries + other.ActiveEntries,
-		ExpiredEntries: r.ExpiredEntries + other.ExpiredEntries,
+func (r *tickResultForMetricCategory) merge(
+	other tickResultForMetricCategory,
+) tickResultForMetricCategory {
+	res := tickResultForMetricCategory{
+		activeEntries:  r.activeEntries + other.activeEntries,
+		expiredEntries: r.expiredEntries + other.expiredEntries,
 	}
-	if len(r.ActiveElems) == 0 {
-		res.ActiveElems = other.ActiveElems
+	if len(r.activeElems) == 0 {
+		res.activeElems = other.activeElems
 		return res
 	}
-	if len(other.ActiveElems) == 0 {
-		res.ActiveElems = r.ActiveElems
+	if len(other.activeElems) == 0 {
+		res.activeElems = r.activeElems
 		return res
 	}
-	for dur, val := range other.ActiveElems {
-		r.ActiveElems[dur] += val
+	for dur, val := range other.activeElems {
+		r.activeElems[dur] += val
 	}
-	res.ActiveElems = r.ActiveElems
+	res.activeElems = r.activeElems
 	return res
+}
+
+type tickResult struct {
+	standard  tickResultForMetricCategory
+	forwarded tickResultForMetricCategory
+}
+
+// merge merges two results. Both input results may become invalid after merge is called.
+func (r *tickResult) merge(other tickResult) tickResult {
+	return tickResult{
+		standard:  r.standard.merge(other.standard),
+		forwarded: r.forwarded.merge(other.forwarded),
+	}
 }

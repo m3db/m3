@@ -678,17 +678,25 @@ func (l *metricLists) FindOrCreate(id metricListID) (metricList, error) {
 }
 
 // Tick ticks through each list and returns the list sizes.
-func (l *metricLists) Tick() map[time.Duration]int {
+func (l *metricLists) Tick() listsTickResult {
 	l.RLock()
 	defer l.RUnlock()
 
-	activeElems := make(map[time.Duration]int, len(l.lists))
-	for _, list := range l.lists {
+	res := listsTickResult{
+		standard:  make(map[time.Duration]int, len(l.lists)),
+		forwarded: make(map[time.Duration]int, len(l.lists)),
+	}
+	for id, list := range l.lists {
 		resolution := list.Resolution()
 		numElems := list.Len()
-		activeElems[resolution] = numElems
+		switch id.listType {
+		case standardMetricListType:
+			res.standard[resolution] += numElems
+		case forwardedMetricListType:
+			res.forwarded[resolution] += numElems
+		}
 	}
-	return activeElems
+	return res
 }
 
 // Close closes the metric lists.
@@ -703,4 +711,9 @@ func (l *metricLists) Close() {
 	for _, list := range l.lists {
 		list.Close()
 	}
+}
+
+type listsTickResult struct {
+	standard  map[time.Duration]int
+	forwarded map[time.Duration]int
 }

@@ -411,7 +411,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 	}
 
 	// Delete expired entries.
-	m.deleteExpired(opts.EntryCheckInterval())
+	m.tick(opts.EntryCheckInterval())
 
 	// Assert there should be only half of the entries left.
 	require.Equal(t, numEntries/2, len(m.entries))
