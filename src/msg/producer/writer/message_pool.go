@@ -38,8 +38,6 @@ type msgPool struct {
 	pool.ObjectPool
 }
 
-// TODO: Remove the nolint comment after adding usage of this function.
-// nolint: deadcode
 func newMessagePool(opts pool.ObjectPoolOptions) messagePool {
 	p := pool.NewObjectPool(opts)
 	return &msgPool{p}

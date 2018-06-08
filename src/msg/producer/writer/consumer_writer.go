@@ -239,7 +239,6 @@ func (w *consumerWriterImpl) continueFn(int) bool {
 }
 
 func (w *consumerWriterImpl) readAcks() error {
-	// TODO: make util function for proto reset.
 	// NB(cw) The proto needs to be cleaned up because the gogo protobuf
 	// unmarshalling will append to the underlying slice.
 	w.ack.Metadata = w.ack.Metadata[:0]

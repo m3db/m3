@@ -32,17 +32,17 @@ import (
 func TestEncodeDecoderConfig(t *testing.T) {
 	str := `
 maxMessageSize: 1024
-bytesPool: 
-  buckets:
+bytesPool:
+    buckets:
     - capacity: 4
       count: 60000
     - capacity: 1024
       count: 30000
-  watermark:
-    lowWatermark: 0.01
-    highWatermark: 0.02
+    watermark:
+        lowWatermark: 0.01
+        highWatermark: 0.02
 encodeDecoderPool:
-  size: 30000
+    size: 30000
 `
 
 	var cfg EncodeDecoderConfiguration
@@ -53,4 +53,10 @@ encodeDecoderPool:
 	require.Equal(t, opts.EncoderOptions().BytesPool(), opts.DecoderOptions().BytesPool())
 	require.NotNil(t, opts.DecoderOptions().BytesPool())
 	require.NotNil(t, opts.EncodeDecoderPool())
+	b := opts.EncoderOptions().BytesPool().Get(2)
+	require.Equal(t, 0, len(b))
+	require.Equal(t, 4, cap(b))
+	b = opts.DecoderOptions().BytesPool().Get(200)
+	require.Equal(t, 0, len(b))
+	require.Equal(t, 1024, cap(b))
 }
