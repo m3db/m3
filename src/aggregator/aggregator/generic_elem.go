@@ -28,6 +28,7 @@ import (
 	raggregation "github.com/m3db/m3aggregator/aggregation"
 	maggregation "github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
@@ -36,14 +37,17 @@ import (
 	"github.com/m3db/m3metrics/transformation"
 
 	"github.com/mauricelam/genny/generic"
+	"github.com/willf/bitset"
 )
 
-type lockedAggregation interface {
+type typeSpecificAggregation interface {
 	generic.Type
-	sync.Locker
 
 	// Add adds a new metric value.
-	Add(mu unaggregated.MetricUnion)
+	Add(value float64)
+
+	// AddUnion adds a new metric value union.
+	AddUnion(mu unaggregated.MetricUnion)
 
 	// ValueOf returns the value for the given aggregation type.
 	ValueOf(aggType maggregation.Type) float64
@@ -62,6 +66,9 @@ type genericElemPool interface {
 type typeSpecificElemBase interface {
 	generic.Type
 
+	// Type returns the elem type.
+	Type() metric.Type
+
 	// FullPrefix returns the full prefix for the given metric type.
 	FullPrefix(opts Options) []byte
 
@@ -74,8 +81,8 @@ type typeSpecificElemBase interface {
 	// ElemPool returns the pool for the given element.
 	ElemPool(opts Options) genericElemPool
 
-	// NewLockedAggregation creates a new locked aggregation.
-	NewLockedAggregation(opts Options, aggOpts raggregation.Options) lockedAggregation
+	// NewAggregation creates a new aggregation.
+	NewAggregation(opts Options, aggOpts raggregation.Options) typeSpecificAggregation
 
 	// ResetSetData resets and sets data.
 	ResetSetData(
@@ -88,14 +95,24 @@ type typeSpecificElemBase interface {
 	Close()
 }
 
+type lockedAggregation struct {
+	sync.Mutex
+
+	sourcesSeen *bitset.BitSet
+	aggregation typeSpecificAggregation
+}
+
 type timedAggregation struct {
-	timeNanos   int64
-	aggregation lockedAggregation
+	startAtNanos int64 // start time of an aggregation window
+	lockedAgg    *lockedAggregation
 }
 
 func (ta *timedAggregation) Reset() {
-	ta.timeNanos = 0
-	ta.aggregation = nil
+	ta.startAtNanos = 0
+	if ta.lockedAgg != nil {
+		ta.lockedAgg.sourcesSeen = nil
+		ta.lockedAgg = nil
+	}
 }
 
 // GenericElem is an element storing time-bucketed aggregations.
@@ -115,13 +132,14 @@ func NewGenericElem(
 	sp policy.StoragePolicy,
 	aggTypes maggregation.Types,
 	pipeline applied.Pipeline,
+	numForwardedTimes int,
 	opts Options,
 ) (*GenericElem, error) {
 	e := &GenericElem{
 		elemBase: newElemBase(opts),
-		values:   make([]timedAggregation, 0, defaultNumValues), // in most cases values will have two entries
+		values:   make([]timedAggregation, 0, defaultNumAggregations), // in most cases values will have two entries
 	}
-	if err := e.ResetSetData(id, sp, aggTypes, pipeline); err != nil {
+	if err := e.ResetSetData(id, sp, aggTypes, pipeline, numForwardedTimes); err != nil {
 		return nil, err
 	}
 	return e, nil
@@ -133,9 +151,10 @@ func MustNewGenericElem(
 	sp policy.StoragePolicy,
 	aggTypes maggregation.Types,
 	pipeline applied.Pipeline,
+	numForwardedTimes int,
 	opts Options,
 ) *GenericElem {
-	elem, err := NewGenericElem(id, sp, aggTypes, pipeline, opts)
+	elem, err := NewGenericElem(id, sp, aggTypes, pipeline, numForwardedTimes, opts)
 	if err != nil {
 		panic(fmt.Errorf("unable to create element: %v", err))
 	}
@@ -148,12 +167,13 @@ func (e *GenericElem) ResetSetData(
 	sp policy.StoragePolicy,
 	aggTypes maggregation.Types,
 	pipeline applied.Pipeline,
+	numForwardedTimes int,
 ) error {
 	useDefaultAggregation := aggTypes.IsDefault()
 	if useDefaultAggregation {
 		aggTypes = e.DefaultAggregationTypes(e.aggTypesOpts)
 	}
-	if err := e.elemBase.resetSetData(id, sp, aggTypes, useDefaultAggregation, pipeline); err != nil {
+	if err := e.elemBase.resetSetData(id, sp, aggTypes, useDefaultAggregation, pipeline, numForwardedTimes); err != nil {
 		return err
 	}
 	if err := e.typeSpecificElemBase.ResetSetData(e.aggTypesOpts, aggTypes, useDefaultAggregation); err != nil {
@@ -175,16 +195,41 @@ func (e *GenericElem) ResetSetData(
 	return nil
 }
 
-// AddMetric adds a new metric value.
-func (e *GenericElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error {
+// AddUnion adds a metric value union at a given timestamp.
+func (e *GenericElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
-	agg, err := e.findOrCreate(alignedStart)
+	lockedAgg, err := e.findOrCreate(alignedStart)
 	if err != nil {
 		return err
 	}
-	agg.Lock()
-	agg.Add(mu)
-	agg.Unlock()
+	lockedAgg.Lock()
+	lockedAgg.aggregation.AddUnion(mu)
+	lockedAgg.Unlock()
+	return nil
+}
+
+// AddUnique adds a metric value from a given source at a given timestamp.
+// If previous values from the same source have already been added to the
+// same aggregation, the incoming value is discarded.
+func (e *GenericElem) AddUnique(timestamp time.Time, value float64, sourceID uint32) error {
+	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
+	lockedAgg, err := e.findOrCreate(alignedStart)
+	if err != nil {
+		return err
+	}
+	lockedAgg.Lock()
+	if lockedAgg.sourcesSeen == nil {
+		// NB(xichen): might be worth pooling the bitset.
+		lockedAgg.sourcesSeen = bitset.New(defaultNumSources)
+	}
+	source := uint(sourceID)
+	if lockedAgg.sourcesSeen.Test(source) {
+		lockedAgg.Unlock()
+		return errDuplicateForwardingSource
+	}
+	lockedAgg.sourcesSeen.Set(source)
+	lockedAgg.aggregation.Add(value)
+	lockedAgg.Unlock()
 	return nil
 }
 
@@ -194,10 +239,13 @@ func (e *GenericElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion
 // NB: Consume is not thread-safe and must be called within a single goroutine
 // to avoid race conditions.
 func (e *GenericElem) Consume(
-	earlierThanNanos int64,
+	targetNanos int64,
+	isEarlierThanFn isEarlierThanFn,
+	timestampNanosFn timestampNanosFn,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 ) bool {
+	resolution := e.sp.Resolution().Window
 	e.Lock()
 	if e.closed {
 		e.Unlock()
@@ -206,7 +254,7 @@ func (e *GenericElem) Consume(
 	idx := 0
 	for range e.values {
 		// Bail as soon as the timestamp is no later than the target time.
-		if e.values[idx].timeNanos >= earlierThanNanos {
+		if !isEarlierThanFn(e.values[idx].startAtNanos, resolution, targetNanos) {
 			break
 		}
 		idx++
@@ -228,10 +276,10 @@ func (e *GenericElem) Consume(
 
 	// Process the aggregations that are ready for consumption.
 	for i := range e.toConsume {
-		endAtNanos := e.toConsume[i].timeNanos + int64(e.sp.Resolution().Window)
-		e.processValue(endAtNanos, e.toConsume[i].aggregation, flushLocalFn, flushForwardedFn)
+		timeNanos := timestampNanosFn(e.toConsume[i].startAtNanos, resolution)
+		e.processValue(timeNanos, e.toConsume[i].lockedAgg, flushLocalFn, flushForwardedFn)
 		// Closes the aggregation object after it's processed.
-		e.toConsume[i].aggregation.Close()
+		e.toConsume[i].lockedAgg.aggregation.Close()
 		e.toConsume[i].Reset()
 	}
 
@@ -250,7 +298,7 @@ func (e *GenericElem) Close() {
 	e.parsedPipeline = parsedPipeline{}
 	for idx := range e.values {
 		// Close the underlying aggregation objects.
-		e.values[idx].aggregation.Close()
+		e.values[idx].lockedAgg.aggregation.Close()
 		e.values[idx].Reset()
 	}
 	e.values = e.values[:0]
@@ -269,7 +317,7 @@ func (e *GenericElem) Close() {
 
 // findOrCreate finds the aggregation for a given time, or creates one
 // if it doesn't exist.
-func (e *GenericElem) findOrCreate(alignedStart int64) (lockedAggregation, error) {
+func (e *GenericElem) findOrCreate(alignedStart int64) (*lockedAggregation, error) {
 	e.RLock()
 	if e.closed {
 		e.RUnlock()
@@ -277,7 +325,7 @@ func (e *GenericElem) findOrCreate(alignedStart int64) (lockedAggregation, error
 	}
 	idx, found := e.indexOfWithLock(alignedStart)
 	if found {
-		agg := e.values[idx].aggregation
+		agg := e.values[idx].lockedAgg
 		e.RUnlock()
 		return agg, nil
 	}
@@ -290,7 +338,7 @@ func (e *GenericElem) findOrCreate(alignedStart int64) (lockedAggregation, error
 	}
 	idx, found = e.indexOfWithLock(alignedStart)
 	if found {
-		agg := e.values[idx].aggregation
+		agg := e.values[idx].lockedAgg
 		e.Unlock()
 		return agg, nil
 	}
@@ -300,10 +348,10 @@ func (e *GenericElem) findOrCreate(alignedStart int64) (lockedAggregation, error
 	e.values = append(e.values, timedAggregation{})
 	copy(e.values[idx+1:numValues+1], e.values[idx:numValues])
 	e.values[idx] = timedAggregation{
-		timeNanos:   alignedStart,
-		aggregation: e.NewLockedAggregation(e.opts, e.aggOpts),
+		startAtNanos: alignedStart,
+		lockedAgg:    &lockedAggregation{aggregation: e.NewAggregation(e.opts, e.aggOpts)},
 	}
-	agg := e.values[idx].aggregation
+	agg := e.values[idx].lockedAgg
 	e.Unlock()
 	return agg, nil
 }
@@ -314,7 +362,7 @@ func (e *GenericElem) findOrCreate(alignedStart int64) (lockedAggregation, error
 func (e *GenericElem) indexOfWithLock(alignedStart int64) (int, bool) {
 	numValues := len(e.values)
 	// Optimize for the common case.
-	if numValues > 0 && e.values[numValues-1].timeNanos == alignedStart {
+	if numValues > 0 && e.values[numValues-1].startAtNanos == alignedStart {
 		return numValues - 1, true
 	}
 	// Binary search for the unusual case. We intentionally do not
@@ -323,7 +371,7 @@ func (e *GenericElem) indexOfWithLock(alignedStart int64) (int, bool) {
 	left, right := 0, numValues
 	for left < right {
 		mid := left + (right-left)/2 // avoid overflow
-		if e.values[mid].timeNanos < alignedStart {
+		if e.values[mid].startAtNanos < alignedStart {
 			left = mid + 1
 		} else {
 			right = mid
@@ -331,7 +379,7 @@ func (e *GenericElem) indexOfWithLock(alignedStart int64) (int, bool) {
 	}
 	// If the current timestamp is equal to or larger than the target time,
 	// return the index as is.
-	if left < numValues && e.values[left].timeNanos == alignedStart {
+	if left < numValues && e.values[left].startAtNanos == alignedStart {
 		return left, true
 	}
 	return left, false
@@ -339,7 +387,7 @@ func (e *GenericElem) indexOfWithLock(alignedStart int64) (int, bool) {
 
 func (e *GenericElem) processValue(
 	timeNanos int64,
-	agg lockedAggregation,
+	lockedAgg *lockedAggregation,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
 ) {
@@ -347,9 +395,9 @@ func (e *GenericElem) processValue(
 		fullPrefix      = e.FullPrefix(e.opts)
 		transformations = e.parsedPipeline.Transformations
 	)
-	agg.Lock()
+	lockedAgg.Lock()
 	for aggTypeIdx, aggType := range e.aggTypes {
-		value := agg.ValueOf(aggType)
+		value := lockedAgg.aggregation.ValueOf(aggType)
 		for i := 0; i < transformations.NumSteps(); i++ {
 			transformType := transformations.At(i).Transformation.Type
 			if transformType.IsUnaryTransform() {
@@ -374,18 +422,21 @@ func (e *GenericElem) processValue(
 			flushLocalFn(fullPrefix, e.id, e.TypeStringFor(e.aggTypesOpts, aggType), timeNanos, value, e.sp)
 		} else {
 			fm := aggregated.Metric{
+				Type:      e.Type(),
 				ID:        e.parsedPipeline.Rollup.ID,
 				TimeNanos: timeNanos,
 				Value:     value,
 			}
 			meta := metadata.ForwardMetadata{
-				AggregationID: e.parsedPipeline.Rollup.AggregationID,
-				StoragePolicy: e.sp,
-				Pipeline:      e.parsedPipeline.Remainder,
+				AggregationID:     e.parsedPipeline.Rollup.AggregationID,
+				StoragePolicy:     e.sp,
+				Pipeline:          e.parsedPipeline.Remainder,
+				SourceID:          e.opts.sourceIDProvider().Get(),
+				NumForwardedTimes: e.numForwardedTimes + 1,
 			}
 			flushForwardedFn(fm, meta)
 		}
 	}
 	e.lastConsumedAtNanos = timeNanos
-	agg.Unlock()
+	lockedAgg.Unlock()
 }

@@ -19,7 +19,8 @@
 // THE SOFTWARE.
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode).
-//go:generate sh -c "mockgen -package=aggregator $PACKAGE/aggregator ElectionManager,FlushTimesManager,PeriodicFlusher,PlacementManager | mockclean -pkg $PACKAGE/aggregator -out $GOPATH/src/$PACKAGE/aggregator/aggregator_mock.go"
+//go:generate sh -c "mockgen -package=aggregator $PACKAGE/aggregator ElectionManager,FlushTimesManager,PlacementManager | mockclean -pkg $PACKAGE/aggregator -out $GOPATH/src/$PACKAGE/aggregator/aggregator_mock.go"
+//go:generate sh -c "mockgen -package=client $PACKAGE/client AdminClient | mockclean -pkg $PACKAGE/client -out $GOPATH/src/$PACKAGE/client/client_mock.go"
 //go:generate sh -c "mockgen -package=handler $PACKAGE/aggregator/handler Handler | mockclean -pkg $PACKAGE/aggregator/handler -out $GOPATH/src/$PACKAGE/aggregator/handler/handler_mock.go"
 //go:generate sh -c "mockgen -package=writer $PACKAGE/aggregator/handler/writer Writer | mockclean -pkg $PACKAGE/aggregator/handler/writer -out $GOPATH/src/$PACKAGE/aggregator/handler/writer/writer_mock.go"
 //go:generate sh -c "mockgen -package=common $PACKAGE/aggregator/handler/common Queue,Router | mockclean -pkg $PACKAGE/aggregator/handler/common -out $GOPATH/src/$PACKAGE/aggregator/handler/common/common_mock.go"
@@ -27,6 +28,7 @@
 
 // mockgen rules for generating mocks for unexported interfaces (file mode).
 //go:generate sh -c "mockgen -package=aggregator -destination=$GOPATH/src/$PACKAGE/aggregator/flush_mgr_mock.go -source=$GOPATH/src/$PACKAGE/aggregator/flush_mgr.go"
+//go:generate sh -c "mockgen -package=aggregator -destination=$GOPATH/src/$PACKAGE/aggregator/flush_mock.go -source=$GOPATH/src/$PACKAGE/aggregator/flush.go"
 //go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/writer_mgr_mock.go -source=$GOPATH/src/$PACKAGE/client/writer_mgr.go"
 //go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/writer_mock.go -source=$GOPATH/src/$PACKAGE/client/writer.go"
 //go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/queue_mock.go -source=$GOPATH/src/$PACKAGE/client/queue.go"

@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -17,18 +17,29 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-syntax = "proto3";
 
-message ShardSetFlushTimes {
-  map<uint32, ShardFlushTimes> by_shard = 1;
+package aggregator
+
+import (
+	"sync/atomic"
+)
+
+// sourceIDProvider provides the source identifier where the metrics are emitted.
+type sourceIDProvider interface {
+	// Get returns the source ID.
+	Get() uint32
+
+	// Update updates the source ID.
+	Update(newSourceID uint32)
 }
 
-message ShardFlushTimes {
-  map<int64, int64> standard_by_resolution = 1;
-  bool tombstoned = 2;
-  map<int64, ForwardedFlushTimesForResolution> forwarded_by_resolution = 3;
+type srcIDProvider struct {
+	sourceID uint32
 }
 
-message ForwardedFlushTimesForResolution {
-  map<int32, int64> by_num_forwarded_times = 1;
+func newSourceIDProvider(initSourceID uint32) sourceIDProvider {
+	return &srcIDProvider{sourceID: initSourceID}
 }
+
+func (p *srcIDProvider) Get() uint32               { return atomic.LoadUint32(&p.sourceID) }
+func (p *srcIDProvider) Update(newSourceID uint32) { atomic.StoreUint32(&p.sourceID, newSourceID) }

@@ -588,6 +588,7 @@ func (mgr *electionManager) processCampaignStateChange(newState campaignState) {
 	}
 }
 
+// TODO(xichen): rework logic to take forwared metrics into account.
 func (mgr *electionManager) campaignIsEnabled() (bool, error) {
 	// If the current instance is not found in the placement, campaigning is disabled.
 	shards, err := mgr.placementManager.Shards()

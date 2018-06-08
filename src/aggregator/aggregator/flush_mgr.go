@@ -23,8 +23,11 @@ package aggregator
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/m3db/m3x/clock"
 
 	"github.com/uber-go/tally"
 )
@@ -48,10 +51,10 @@ type FlushManager interface {
 	Status() FlushStatus
 
 	// Register registers a flusher with the flush manager.
-	Register(flusher PeriodicFlusher) error
+	Register(flusher flushingMetricList) error
 
 	// Unregister unregisters a flusher with the flush manager.
-	Unregister(flusher PeriodicFlusher) error
+	Unregister(flusher flushingMetricList) error
 
 	// Close closes the flush manager.
 	Close() error
@@ -107,18 +110,23 @@ type flushManager struct {
 	sync.RWMutex
 	sync.WaitGroup
 
-	scope        tally.Scope
-	checkEvery   time.Duration
-	electionMgr  ElectionManager
-	leaderOpts   FlushManagerOptions
-	followerOpts FlushManagerOptions
+	scope         tally.Scope
+	checkEvery    time.Duration
+	jitterEnabled bool
+	maxJitterFn   FlushJitterFn
+	electionMgr   ElectionManager
+	leaderOpts    FlushManagerOptions
+	followerOpts  FlushManagerOptions
 
 	state         flushManagerState
 	doneCh        chan struct{}
-	buckets       []*flushBucket
+	rand          *rand.Rand
+	randFn        randFn
+	buckets       flushBuckets
 	electionState ElectionState
 	leaderMgr     roleBasedFlushManager
 	followerMgr   roleBasedFlushManager
+	nowFn         clock.NowFn
 	sleepFn       sleepFn
 }
 
@@ -129,6 +137,8 @@ func NewFlushManager(opts FlushManagerOptions) FlushManager {
 	}
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope()
+	nowFn := opts.ClockOptions().NowFn()
+	rand := rand.New(rand.NewSource(nowFn().UnixNano()))
 
 	leaderMgrScope := scope.SubScope("leader")
 	leaderMgrInstrumentOpts := instrumentOpts.SetMetricsScope(leaderMgrScope)
@@ -139,12 +149,17 @@ func NewFlushManager(opts FlushManagerOptions) FlushManager {
 	followerOpts := opts.SetInstrumentOptions(followerMgrInstrumentOpts)
 
 	mgr := &flushManager{
-		scope:        scope,
-		checkEvery:   opts.CheckEvery(),
-		electionMgr:  opts.ElectionManager(),
-		leaderOpts:   leaderOpts,
-		followerOpts: followerOpts,
-		sleepFn:      time.Sleep,
+		scope:         scope,
+		checkEvery:    opts.CheckEvery(),
+		jitterEnabled: opts.JitterEnabled(),
+		maxJitterFn:   opts.MaxJitterFn(),
+		electionMgr:   opts.ElectionManager(),
+		leaderOpts:    leaderOpts,
+		followerOpts:  followerOpts,
+		rand:          rand,
+		randFn:        rand.Int63n,
+		nowFn:         nowFn,
+		sleepFn:       time.Sleep,
 	}
 	mgr.Lock()
 	mgr.resetWithLock()
@@ -184,7 +199,7 @@ func (mgr *flushManager) Open() error {
 	return nil
 }
 
-func (mgr *flushManager) Register(flusher PeriodicFlusher) error {
+func (mgr *flushManager) Register(flusher flushingMetricList) error {
 	mgr.Lock()
 	defer mgr.Unlock()
 
@@ -196,11 +211,12 @@ func (mgr *flushManager) Register(flusher PeriodicFlusher) error {
 	return nil
 }
 
-func (mgr *flushManager) Unregister(flusher PeriodicFlusher) error {
+func (mgr *flushManager) Unregister(flusher flushingMetricList) error {
 	mgr.Lock()
 	defer mgr.Unlock()
 
-	bucket, err := mgr.findBucketWithLock(flusher)
+	bucketID := flusher.ID()
+	bucket, err := mgr.buckets.FindBucket(bucketID)
 	if err != nil {
 		return err
 	}
@@ -245,32 +261,51 @@ func (mgr *flushManager) resetWithLock() {
 	mgr.followerMgr.Init(mgr.buckets)
 }
 
-func (mgr *flushManager) findOrCreateBucketWithLock(l PeriodicFlusher) (*flushBucket, error) {
-	bucket, err := mgr.findBucketWithLock(l)
+func (mgr *flushManager) findOrCreateBucketWithLock(l flushingMetricList) (*flushBucket, error) {
+	bucketID := l.ID()
+	bucket, err := mgr.buckets.FindBucket(bucketID)
 	if err == nil {
 		return bucket, nil
 	}
 	if err != errBucketNotFound {
 		return nil, err
 	}
-	flushInterval := l.FlushInterval()
-	bucketScope := mgr.scope.SubScope("bucket").Tagged(map[string]string{
-		"interval": flushInterval.String(),
+	// Forwarded metric list has a fixed flush offset to ensure forwarded metrics are flushed
+	// immediately after we have waited long enough, whereas a standard metric list has a flexible
+	// flush offset to more evenly spread out the load during flushing.
+	var (
+		flushInterval = l.FlushInterval()
+		flushOffset   time.Duration
+	)
+	if fl, ok := l.(fixedOffsetFlushingMetricList); ok {
+		flushOffset = fl.FlushOffset()
+	} else {
+		flushOffset = mgr.computeFlushIntervalOffset(flushInterval)
+	}
+	scope := mgr.scope.SubScope("bucket").Tagged(map[string]string{
+		"bucket-type": bucketID.listType.String(),
+		"interval":    flushInterval.String(),
 	})
-	bucket = newBucket(flushInterval, bucketScope)
+	bucket = newBucket(bucketID, flushInterval, flushOffset, scope)
 	mgr.buckets = append(mgr.buckets, bucket)
 	mgr.flushManagerWithLock().OnBucketAdded(len(mgr.buckets)-1, bucket)
 	return bucket, nil
 }
 
-func (mgr *flushManager) findBucketWithLock(l PeriodicFlusher) (*flushBucket, error) {
-	flushInterval := l.FlushInterval()
-	for _, bucket := range mgr.buckets {
-		if bucket.interval == flushInterval {
-			return bucket, nil
-		}
+func (mgr *flushManager) computeFlushIntervalOffset(flushInterval time.Duration) time.Duration {
+	if !mgr.jitterEnabled {
+		// If jittering is disabled, we compute the offset between the current time
+		// and the aligned time and use that as the bucket offset.
+		now := mgr.nowFn()
+		alignedNow := now.Truncate(flushInterval)
+		offset := now.Sub(alignedNow)
+		return offset
 	}
-	return nil, errBucketNotFound
+
+	// Otherwise the offset is determined based on jittering.
+	maxJitter := mgr.maxJitterFn(flushInterval)
+	jitterNanos := mgr.randFn(int64(maxJitter))
+	return time.Duration(jitterNanos)
 }
 
 // NB(xichen): apparently timer.Reset() is more difficult to use than I originally
@@ -331,27 +366,34 @@ func (mgr *flushManager) flushManagerWithLock() roleBasedFlushManager {
 	}
 }
 
-// flushBucket contains all the registered lists for a given flush interval.
-// NB(xichen): flushBucket is not thread-safe. It is protected by the lock
-// in the flush manager.
+// flushBucket contains all the registered flushing metric lists for a given flush interval.
+// NB(xichen): flushBucket is not thread-safe. It is protected by the lock in the flush manager.
 type flushBucket struct {
+	bucketID metricListID
 	interval time.Duration
-	flushers []PeriodicFlusher
+	offset   time.Duration
+	flushers []flushingMetricList
 	duration tally.Timer
 }
 
-func newBucket(interval time.Duration, scope tally.Scope) *flushBucket {
+func newBucket(
+	bucketID metricListID,
+	interval, offset time.Duration,
+	scope tally.Scope,
+) *flushBucket {
 	return &flushBucket{
+		bucketID: bucketID,
 		interval: interval,
+		offset:   offset,
 		duration: scope.Timer("duration"),
 	}
 }
 
-func (b *flushBucket) Add(flusher PeriodicFlusher) {
+func (b *flushBucket) Add(flusher flushingMetricList) {
 	b.flushers = append(b.flushers, flusher)
 }
 
-func (b *flushBucket) Remove(flusher PeriodicFlusher) error {
+func (b *flushBucket) Remove(flusher flushingMetricList) error {
 	numFlushers := len(b.flushers)
 	for i := 0; i < numFlushers; i++ {
 		if b.flushers[i] == flusher {
@@ -361,4 +403,15 @@ func (b *flushBucket) Remove(flusher PeriodicFlusher) error {
 		}
 	}
 	return errFlusherNotFound
+}
+
+type flushBuckets []*flushBucket
+
+func (buckets flushBuckets) FindBucket(bucketID metricListID) (*flushBucket, error) {
+	for _, bucket := range buckets {
+		if bucket.bucketID == bucketID {
+			return bucket, nil
+		}
+	}
+	return nil, errBucketNotFound
 }

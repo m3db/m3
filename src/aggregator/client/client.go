@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3metrics/metadata"
@@ -102,7 +103,7 @@ type client struct {
 	shardCutoverWarmupDuration time.Duration
 	shardCutoffLingerDuration  time.Duration
 	writerMgr                  instanceWriterManager
-	shardFn                    ShardFn
+	shardFn                    sharding.ShardFn
 	placementWatcher           placement.StagedPlacementWatcher
 	state                      clientState
 }

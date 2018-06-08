@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate sh -c "cat $GOPATH/src/$PACKAGE/aggregator/generic_elem.go | awk '/^package/{i++}i' | genny -out=$GOPATH/src/$PACKAGE/aggregator/counter_elem.gen.go -pkg=aggregator gen \"timedAggregation=timedCounter lockedAggregation=*lockedCounter typeSpecificElemBase=counterElemBase genericElemPool=CounterElemPool GenericElem=CounterElem\""
-//go:generate sh -c "cat $GOPATH/src/$PACKAGE/aggregator/generic_elem.go | awk '/^package/{i++}i' | genny -out=$GOPATH/src/$PACKAGE/aggregator/timer_elem.gen.go -pkg=aggregator gen \"timedAggregation=timedTimer lockedAggregation=*lockedTimer typeSpecificElemBase=timerElemBase genericElemPool=TimerElemPool GenericElem=TimerElem\""
-//go:generate sh -c "cat $GOPATH/src/$PACKAGE/aggregator/generic_elem.go | awk '/^package/{i++}i' | genny -out=$GOPATH/src/$PACKAGE/aggregator/gauge_elem.gen.go -pkg=aggregator gen \"timedAggregation=timedGauge lockedAggregation=*lockedGauge typeSpecificElemBase=gaugeElemBase genericElemPool=GaugeElemPool GenericElem=GaugeElem\""
+//go:generate sh -c "cat $GOPATH/src/$PACKAGE/aggregator/generic_elem.go | awk '/^package/{i++}i' | genny -out=$GOPATH/src/$PACKAGE/aggregator/counter_elem.gen.go -pkg=aggregator gen \"timedAggregation=timedCounter lockedAggregation=lockedCounterAggregation typeSpecificAggregation=counterAggregation typeSpecificElemBase=counterElemBase genericElemPool=CounterElemPool GenericElem=CounterElem\""
+//go:generate sh -c "cat $GOPATH/src/$PACKAGE/aggregator/generic_elem.go | awk '/^package/{i++}i' | genny -out=$GOPATH/src/$PACKAGE/aggregator/timer_elem.gen.go -pkg=aggregator gen \"timedAggregation=timedTimer lockedAggregation=lockedTimerAggregation typeSpecificAggregation=timerAggregation typeSpecificElemBase=timerElemBase genericElemPool=TimerElemPool GenericElem=TimerElem\""
+//go:generate sh -c "cat $GOPATH/src/$PACKAGE/aggregator/generic_elem.go | awk '/^package/{i++}i' | genny -out=$GOPATH/src/$PACKAGE/aggregator/gauge_elem.gen.go -pkg=aggregator gen \"timedAggregation=timedGauge lockedAggregation=lockedGaugeAggregation typeSpecificAggregation=gaugeAggregation typeSpecificElemBase=gaugeElemBase genericElemPool=GaugeElemPool GenericElem=GaugeElem\""
 
 package generics

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -255,6 +256,109 @@ func TestMetricMapAddUntimedWithRateLimit(t *testing.T) {
 		ID:   id.RawID(fmt.Sprintf("testC%d", endIdx)),
 	}
 	require.Equal(t, errWriteNewMetricRateLimitExceeded, m.AddUntimed(metric, testDefaultStagedMetadatas))
+}
+
+func TestMetricMapAddForwardedNoRateLimit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions(ctrl)
+	m := newMetricMap(testShard, opts)
+
+	// Add a counter metric and assert there is one entry afterwards.
+	am := aggregated.Metric{
+		Type:      metric.CounterType,
+		ID:        []byte("aggregatedMetric"),
+		TimeNanos: 12345,
+		Value:     76109,
+	}
+	key := entryKey{
+		metricCategory: forwardedMetric,
+		metricType:     metric.CounterType,
+		idHash:         hash.Murmur3Hash128(am.ID),
+	}
+	require.NoError(t, m.AddForwarded(am, testForwardMetadata))
+	require.Equal(t, 1, len(m.entries))
+	require.Equal(t, 1, m.entryList.Len())
+
+	elem, exists := m.entries[key]
+	require.True(t, exists)
+	entry := elem.Value.(hashedEntry)
+	require.Equal(t, int32(0), atomic.LoadInt32(&entry.entry.numWriters))
+	require.Equal(t, key, entry.key)
+	require.Equal(t, 1, m.metricLists.Len())
+
+	// Add the same counter and assert there is still one entry.
+	require.NoError(t, m.AddForwarded(am, testForwardMetadata))
+	require.Equal(t, 1, len(m.entries))
+	require.Equal(t, 1, m.entryList.Len())
+	elem2, exists := m.entries[key]
+	require.True(t, exists)
+	entry2 := elem2.Value.(hashedEntry)
+	require.Equal(t, entry, entry2)
+	require.Equal(t, int32(0), atomic.LoadInt32(&entry2.entry.numWriters))
+	require.Equal(t, 1, m.metricLists.Len())
+
+	// Add a metric with a different metric category and assert a new entry is added.
+	um := unaggregated.MetricUnion{
+		Type:       metric.CounterType,
+		ID:         am.ID,
+		CounterVal: 123,
+	}
+	key2 := entryKey{
+		metricCategory: untimedMetric,
+		metricType:     metric.CounterType,
+		idHash:         hash.Murmur3Hash128(um.ID),
+	}
+	require.NoError(t, m.AddUntimed(um, testStagedMetadatas))
+	require.Equal(t, 2, len(m.entries))
+	require.Equal(t, 2, m.entryList.Len())
+	require.Equal(t, 3, m.metricLists.Len())
+	e1, exists1 := m.entries[key]
+	e2, exists2 := m.entries[key2]
+	require.True(t, exists1)
+	require.True(t, exists2)
+	require.False(t, e1 == e2)
+
+	// Add a metric with different type and assert a new entry is added.
+	metricWithDifferentType := aggregated.Metric{
+		Type:      metric.GaugeType,
+		ID:        am.ID,
+		TimeNanos: 1234,
+		Value:     123.456,
+	}
+	key3 := entryKey{
+		metricCategory: forwardedMetric,
+		metricType:     metric.GaugeType,
+		idHash:         hash.Murmur3Hash128(metricWithDifferentType.ID),
+	}
+	require.NoError(t, m.AddForwarded(metricWithDifferentType, testForwardMetadata))
+	require.Equal(t, 3, len(m.entries))
+	require.Equal(t, 3, m.entryList.Len())
+	require.Equal(t, 3, m.metricLists.Len())
+	e3, exists3 := m.entries[key3]
+	require.True(t, exists3)
+	require.False(t, e1 == e3)
+
+	// Add a metric with a different id and assert a new entry is added.
+	metricWithDifferentID := aggregated.Metric{
+		Type:      metric.GaugeType,
+		ID:        []byte("metricWithDifferentID"),
+		TimeNanos: 1234,
+		Value:     123.456,
+	}
+	key4 := entryKey{
+		metricCategory: forwardedMetric,
+		metricType:     metric.GaugeType,
+		idHash:         hash.Murmur3Hash128(metricWithDifferentID.ID),
+	}
+	require.NoError(t, m.AddForwarded(metricWithDifferentID, testForwardMetadata))
+	require.Equal(t, 4, len(m.entries))
+	require.Equal(t, 4, m.entryList.Len())
+	require.Equal(t, 3, m.metricLists.Len())
+	e4, exists4 := m.entries[key4]
+	require.True(t, exists4)
+	require.False(t, e1 == e4)
 }
 
 func TestMetricMapDeleteExpired(t *testing.T) {

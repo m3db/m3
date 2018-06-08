@@ -58,3 +58,63 @@ func TestJitterBuckets(t *testing.T) {
 		require.Equal(t, input.expectedMaxJitter, maxJitterFn(input.interval))
 	}
 }
+
+func TestMaxAllowedForwardingDelayFnJitterEnabled(t *testing.T) {
+	maxJitterFn := func(resolution time.Duration) time.Duration {
+		if resolution <= time.Second {
+			return time.Second
+		}
+		if resolution <= time.Minute {
+			return time.Duration(0.5 * float64(resolution))
+		}
+		return time.Duration(0.25 * float64(resolution))
+	}
+	c := forwardingConfiguration{MaxSingleDelay: 5 * time.Second}
+	fn := c.MaxAllowedForwardingDelayFn(true, maxJitterFn)
+
+	inputs := []struct {
+		resolution        time.Duration
+		numForwardedTimes int
+		expected          time.Duration
+	}{
+		{resolution: time.Second, numForwardedTimes: 1, expected: 6 * time.Second},
+		{resolution: time.Second, numForwardedTimes: 3, expected: 16 * time.Second},
+		{resolution: 10 * time.Second, numForwardedTimes: 1, expected: 10 * time.Second},
+		{resolution: 10 * time.Second, numForwardedTimes: 3, expected: 20 * time.Second},
+		{resolution: 10 * time.Minute, numForwardedTimes: 1, expected: 155 * time.Second},
+		{resolution: 10 * time.Minute, numForwardedTimes: 3, expected: 165 * time.Second},
+	}
+	for _, input := range inputs {
+		require.Equal(t, input.expected, fn(input.resolution, input.numForwardedTimes))
+	}
+}
+
+func TestMaxAllowedForwardingDelayFnJitterDisabled(t *testing.T) {
+	maxJitterFn := func(resolution time.Duration) time.Duration {
+		if resolution <= time.Second {
+			return time.Second
+		}
+		if resolution <= time.Minute {
+			return time.Duration(0.5 * float64(resolution))
+		}
+		return time.Duration(0.25 * float64(resolution))
+	}
+	c := forwardingConfiguration{MaxSingleDelay: 5 * time.Second}
+	fn := c.MaxAllowedForwardingDelayFn(false, maxJitterFn)
+
+	inputs := []struct {
+		resolution        time.Duration
+		numForwardedTimes int
+		expected          time.Duration
+	}{
+		{resolution: time.Second, numForwardedTimes: 1, expected: 6 * time.Second},
+		{resolution: time.Second, numForwardedTimes: 3, expected: 16 * time.Second},
+		{resolution: 10 * time.Second, numForwardedTimes: 1, expected: 15 * time.Second},
+		{resolution: 10 * time.Second, numForwardedTimes: 3, expected: 25 * time.Second},
+		{resolution: 10 * time.Minute, numForwardedTimes: 1, expected: 605 * time.Second},
+		{resolution: 10 * time.Minute, numForwardedTimes: 3, expected: 615 * time.Second},
+	}
+	for _, input := range inputs {
+		require.Equal(t, input.expected, fn(input.resolution, input.numForwardedTimes))
+	}
+}

@@ -131,6 +131,41 @@ aggregator:
           capacity: 32
         - count: 1024
           capacity: 64
+  client:
+    placementKV:
+      zone: testZone
+      environment: testEnvironment
+      namespace: testNamespace
+    placementWatcher:
+      key: testWatchKey
+      initWatchTimeout: 15s
+    hashType: murmur32
+    shardCutoverWarmupDuration: 10m
+    shardCutoffLingerDuration: 1m
+    encoder:
+      initBufferSize: 100
+      maxMessageSize: 50000000
+      bytesPool:
+        buckets:
+          - capacity: 16
+            count: 10
+          - capacity: 32
+            count: 20
+        watermark:
+          low: 0.001
+          high: 0.01
+    flushSize: 1440
+    maxTimerBatchSize: 140
+    queueSize: 1000
+    queueDropType: oldest
+    connection:
+      connectionTimeout: 1s
+      connectionKeepAlive: true
+      writeTimeout: 1s
+      initReconnectThreshold: 2
+      maxReconnectThreshold: 5000
+      reconnectThresholdMultiplier: 2
+      maxReconnectDuration: 1m
   placementManager:
     kvConfig:
       namespace: /m3aggregator
@@ -199,11 +234,12 @@ aggregator:
     flushTimesPersistEvery: 10s
     maxBufferSize: 5m
     forcedFlushWindowSize: 10s
-  minFlushInterval: 5s
   flush:
     handlers:
       - type: logging
       - type: blackhole
+  forwarding:
+    maxSingleDelay: 5s
   entryTTL: 6h
   entryCheckInterval: 10m
   maxTimerBatchSizePerWrite: 140

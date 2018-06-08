@@ -23,12 +23,11 @@ package client
 import (
 	"time"
 
+	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/encoding/protobuf"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
-
-	"github.com/spaolacci/murmur3"
 )
 
 const (
@@ -53,9 +52,6 @@ const (
 	defaultDropType = DropOldest
 )
 
-// ShardFn maps a id to a shard given the total number of shards.
-type ShardFn func(id []byte, numShards int) uint32
-
 // Options provide a set of client options.
 type Options interface {
 	// SetClockOptions sets the clock options.
@@ -77,10 +73,10 @@ type Options interface {
 	EncoderOptions() protobuf.UnaggregatedOptions
 
 	// SetShardFn sets the sharding function.
-	SetShardFn(value ShardFn) Options
+	SetShardFn(value sharding.ShardFn) Options
 
 	// ShardFn returns the sharding function.
-	ShardFn() ShardFn
+	ShardFn() sharding.ShardFn
 
 	// SetStagedPlacementWatcherOptions sets the staged placement watcher options.
 	SetStagedPlacementWatcherOptions(value placement.StagedPlacementWatcherOptions) Options
@@ -137,7 +133,7 @@ type options struct {
 	clockOpts                  clock.Options
 	instrumentOpts             instrument.Options
 	encoderOpts                protobuf.UnaggregatedOptions
-	shardFn                    ShardFn
+	shardFn                    sharding.ShardFn
 	shardCutoverWarmupDuration time.Duration
 	shardCutoffLingerDuration  time.Duration
 	watcherOpts                placement.StagedPlacementWatcherOptions
@@ -154,7 +150,7 @@ func NewOptions() Options {
 		clockOpts:                  clock.NewOptions(),
 		instrumentOpts:             instrument.NewOptions(),
 		encoderOpts:                protobuf.NewUnaggregatedOptions(),
-		shardFn:                    defaultShardFn,
+		shardFn:                    sharding.DefaultHash.MustShardFn(),
 		shardCutoverWarmupDuration: defaultShardCutoverWarmupDuration,
 		shardCutoffLingerDuration:  defaultShardCutoffLingerDuration,
 		watcherOpts:                placement.NewStagedPlacementWatcherOptions(),
@@ -196,13 +192,13 @@ func (o *options) EncoderOptions() protobuf.UnaggregatedOptions {
 	return o.encoderOpts
 }
 
-func (o *options) SetShardFn(value ShardFn) Options {
+func (o *options) SetShardFn(value sharding.ShardFn) Options {
 	opts := *o
 	opts.shardFn = value
 	return &opts
 }
 
-func (o *options) ShardFn() ShardFn {
+func (o *options) ShardFn() sharding.ShardFn {
 	return o.shardFn
 }
 
@@ -284,8 +280,4 @@ func (o *options) SetQueueDropType(value DropType) Options {
 
 func (o *options) QueueDropType() DropType {
 	return o.dropType
-}
-
-func defaultShardFn(id []byte, numShards int) uint32 {
-	return murmur3.Sum32(id) % uint32(numShards)
 }

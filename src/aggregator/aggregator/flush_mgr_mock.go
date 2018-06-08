@@ -80,7 +80,7 @@ func (_mr *_MockFlushManagerRecorder) Status() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Status")
 }
 
-func (_m *MockFlushManager) Register(flusher PeriodicFlusher) error {
+func (_m *MockFlushManager) Register(flusher flushingMetricList) error {
 	ret := _m.ctrl.Call(_m, "Register", flusher)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -90,7 +90,7 @@ func (_mr *_MockFlushManagerRecorder) Register(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Register", arg0)
 }
 
-func (_m *MockFlushManager) Unregister(flusher PeriodicFlusher) error {
+func (_m *MockFlushManager) Unregister(flusher flushingMetricList) error {
 	ret := _m.ctrl.Call(_m, "Unregister", flusher)
 	ret0, _ := ret[0].(error)
 	return ret0
