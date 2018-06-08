@@ -11,5 +11,5 @@ env:
   matrix:
     - MAKE_TARGET="test-ci-unit"
     - MAKE_TARGET="test-ci-integration"
-    - MAKE_TARGET="lint metalint"
+    - MAKE_TARGET="metalint"
 script: "make $MAKE_TARGET"

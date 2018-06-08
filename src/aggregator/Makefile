@@ -12,7 +12,6 @@ coverage_xml          := coverage.xml
 junit_xml             := junit.xml
 coverage_exclude      := .excludecoverage
 test_log              := test.log
-lint_check            := .ci/lint.sh
 metalint_check        := .ci/metalint.sh
 metalint_config       := .metalinter.json
 metalint_exclude      := .excludemetalint
@@ -62,11 +61,6 @@ services-linux-amd64:
 	$(LINUX_AMD64_ENV) make services
 
 $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
-
-.PHONY: lint
-lint:
-	@which golint > /dev/null || go get -u github.com/golang/lint/golint
-	$(lint_check)
 
 .PHONY: metalint
 metalint: install-metalinter install-linter-badtime
@@ -147,7 +141,7 @@ clean:
 	@rm -f *.html *.xml *.out *.test
 
 .PHONY: all
-all: lint metalint test-ci-unit test-ci-integration m3aggregator
+all: metalint test-ci-unit test-ci-integration m3aggregator
 	@echo Made all successfully
 
 .DEFAULT_GOAL := all
