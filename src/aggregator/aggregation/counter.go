@@ -22,7 +22,6 @@ package aggregation
 
 import (
 	"math"
-	"sync"
 
 	"github.com/m3db/m3metrics/aggregation"
 )
@@ -114,14 +113,5 @@ func (c *Counter) ValueOf(aggType aggregation.Type) float64 {
 	}
 }
 
-// LockedCounter is a locked counter.
-type LockedCounter struct {
-	sync.Mutex
-	Counter
-}
-
-// NewLockedCounter creates a new locked counter.
-func NewLockedCounter(c Counter) *LockedCounter { return &LockedCounter{Counter: c} }
-
-// Reset resets the locked counter.
-func (lc *LockedCounter) Reset(c Counter) { lc.Counter = c }
+// Close closes the counter.
+func (c *Counter) Close() {}

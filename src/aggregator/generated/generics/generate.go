@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,24 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package integration
+//go:generate sh -c "cat $GOPATH/src/$PACKAGE/aggregator/generic_elem.go | awk '/^package/{i++}i' | genny -out=$GOPATH/src/$PACKAGE/aggregator/counter_elem.gen.go -pkg=aggregator gen \"timedAggregation=timedCounter lockedAggregation=*lockedCounter typeSpecificElemBase=counterElemBase genericElemPool=CounterElemPool GenericElem=CounterElem\""
+//go:generate sh -c "cat $GOPATH/src/$PACKAGE/aggregator/generic_elem.go | awk '/^package/{i++}i' | genny -out=$GOPATH/src/$PACKAGE/aggregator/timer_elem.gen.go -pkg=aggregator gen \"timedAggregation=timedTimer lockedAggregation=*lockedTimer typeSpecificElemBase=timerElemBase genericElemPool=TimerElemPool GenericElem=TimerElem\""
+//go:generate sh -c "cat $GOPATH/src/$PACKAGE/aggregator/generic_elem.go | awk '/^package/{i++}i' | genny -out=$GOPATH/src/$PACKAGE/aggregator/gauge_elem.gen.go -pkg=aggregator gen \"timedAggregation=timedGauge lockedAggregation=*lockedGauge typeSpecificElemBase=gaugeElemBase genericElemPool=GaugeElemPool GenericElem=GaugeElem\""
 
-// TODO(xichen): revive this once encoder APIs are added.
-/*
-import (
-	"time"
-)
-
-type conditionFn func() bool
-
-func waitUntil(fn conditionFn, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if fn() {
-			return true
-		}
-		time.Sleep(time.Second)
-	}
-	return false
-}
-*/
+package generics

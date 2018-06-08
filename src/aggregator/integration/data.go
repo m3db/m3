@@ -20,24 +20,8 @@
 
 package integration
 
-import (
-	"fmt"
-	"sort"
-	"testing"
-	"time"
-
-	"github.com/m3db/m3aggregator/aggregation"
-	"github.com/m3db/m3aggregator/aggregator"
-	maggregation "github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/metric/aggregated"
-	metricid "github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/policy"
-	xtime "github.com/m3db/m3x/time"
-
-	"github.com/stretchr/testify/require"
-)
-
+// TODO(xichen): revive this once encoder APIs are added.
+/*
 var (
 	testCounterVal     = int64(123)
 	testBatchTimerVals = []float64{1.5, 2.5, 3.5, 4.5, 5.5}
@@ -366,3 +350,4 @@ func toAggregatedMetrics(
 
 	return result
 }
+*/

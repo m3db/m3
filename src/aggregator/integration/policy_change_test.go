@@ -22,13 +22,8 @@
 
 package integration
 
-import (
-	"testing"
-	"time"
-
-	"github.com/stretchr/testify/require"
-)
-
+// TODO(xichen): revive this test once encoder APIs are added.
+/*
 func TestPolicyChange(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
@@ -95,3 +90,4 @@ func TestPolicyChange(t *testing.T) {
 	actual := testSetup.sortedResults()
 	require.Equal(t, expected, actual)
 }
+*/

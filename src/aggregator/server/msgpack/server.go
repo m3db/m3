@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/rate"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/log"
 	xserver "github.com/m3db/m3x/server"
@@ -48,14 +49,14 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) x
 }
 
 type handlerMetrics struct {
-	addMetricErrors   tally.Counter
+	addUntimedErrors  tally.Counter
 	decodeErrors      tally.Counter
 	errLogRateLimited tally.Counter
 }
 
 func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 	return handlerMetrics{
-		addMetricErrors:   scope.Counter("add-metric-errors"),
+		addUntimedErrors:  scope.Counter("add-untimed-errors"),
 		decodeErrors:      scope.Counter("decode-errors"),
 		errLogRateLimited: scope.Counter("error-log-rate-limited"),
 	}
@@ -106,9 +107,12 @@ func (s *handler) Handle(conn net.Conn) {
 	// Iterate over the incoming metrics stream and queue up metrics.
 	for it.Next() {
 		metric := it.Metric()
-		policiesList := it.PoliciesList()
-		if err := s.aggregator.AddMetricWithPoliciesList(metric, policiesList); err != nil {
-			s.metrics.addMetricErrors.Inc(1)
+		// TODO(xichen): change the stagedMetadatas placeholder to use real
+		// staged metadatas decoded from the iterator.
+		// policiesList := it.PoliciesList()
+		stagedMetadatas := metadata.StagedMetadatas{}
+		if err := s.aggregator.AddUntimed(metric, stagedMetadatas); err != nil {
+			s.metrics.addUntimedErrors.Inc(1)
 			// We rate limit the error log here because the error rate may scale with
 			// the metrics incoming rate and consume lots of cpu cycles.
 			if s.errLogRateLimiter != nil && !s.errLogRateLimiter.IsAllowed(1) {
@@ -119,9 +123,9 @@ func (s *handler) Handle(conn net.Conn) {
 				log.NewField("remoteAddress", remoteAddress),
 				log.NewField("type", metric.Type.String()),
 				log.NewField("id", metric.ID.String()),
-				log.NewField("policies", policiesList),
+				log.NewField("metadatas", stagedMetadatas),
 				log.NewErrField(err),
-			).Errorf("error adding metric with policies")
+			).Errorf("error adding untimed metric")
 		}
 	}
 

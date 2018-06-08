@@ -25,8 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/policy"
 
 	"github.com/stretchr/testify/require"
 )
@@ -122,14 +122,14 @@ func TestAggregatorShardSetWritableRange(t *testing.T) {
 	}
 }
 
-func TestAggregatorShardAddMetricWithPoliciesListShardClosed(t *testing.T) {
+func TestAggregatorShardAddUntimedShardClosed(t *testing.T) {
 	shard := newAggregatorShard(testShard, NewOptions().SetEntryCheckInterval(0))
 	shard.closed = true
-	err := shard.AddMetricWithPoliciesList(testValidMetric, testPoliciesList)
+	err := shard.AddUntimed(testValidMetric, testStagedMetadatas)
 	require.Equal(t, errAggregatorShardClosed, err)
 }
 
-func TestAggregatorShardAddMetricWithPoliciesListShardNotWriteable(t *testing.T) {
+func TestAggregatorShardAddUntimedShardNotWriteable(t *testing.T) {
 	now := time.Unix(0, 12345)
 	shard := newAggregatorShard(testShard, NewOptions())
 	shard.nowFn = func() time.Time { return now }
@@ -146,32 +146,32 @@ func TestAggregatorShardAddMetricWithPoliciesListShardNotWriteable(t *testing.T)
 	for _, input := range inputs {
 		shard.earliestWritableNanos = input.earliestNanos
 		shard.latestWriteableNanos = input.latestNanos
-		err := shard.AddMetricWithPoliciesList(testValidMetric, testPoliciesList)
+		err := shard.AddUntimed(testValidMetric, testStagedMetadatas)
 		require.Equal(t, errAggregatorShardNotWriteable, err)
 	}
 }
 
-func TestAggregatorShardAddMetricWithPoliciesListSuccess(t *testing.T) {
+func TestAggregatorShardAddUntimedSuccess(t *testing.T) {
 	shard := newAggregatorShard(testShard, NewOptions())
 	require.Equal(t, testShard, shard.ID())
 
 	var (
-		resultMu           unaggregated.MetricUnion
-		resultPoliciesList policy.PoliciesList
+		resultMu        unaggregated.MetricUnion
+		resultMetadatas metadata.StagedMetadatas
 	)
-	shard.addMetricWithPoliciesListFn = func(
+	shard.addUntimedFn = func(
 		mu unaggregated.MetricUnion,
-		pl policy.PoliciesList,
+		sm metadata.StagedMetadatas,
 	) error {
 		resultMu = mu
-		resultPoliciesList = pl
+		resultMetadatas = sm
 		return nil
 	}
 
 	shard.SetWriteableRange(timeRange{cutoverNanos: 0, cutoffNanos: math.MaxInt64})
-	require.NoError(t, shard.AddMetricWithPoliciesList(testValidMetric, testPoliciesList))
+	require.NoError(t, shard.AddUntimed(testValidMetric, testStagedMetadatas))
 	require.Equal(t, testValidMetric, resultMu)
-	require.Equal(t, testPoliciesList, resultPoliciesList)
+	require.Equal(t, testStagedMetadatas, resultMetadatas)
 }
 
 func TestAggregatorShardClose(t *testing.T) {

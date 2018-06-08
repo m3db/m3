@@ -30,8 +30,8 @@ import (
 	"github.com/m3db/m3aggregator/hash"
 	"github.com/m3db/m3aggregator/rate"
 	"github.com/m3db/m3aggregator/runtime"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/close"
 
@@ -128,19 +128,19 @@ func newMetricMap(shard uint32, opts Options) *metricMap {
 	return m
 }
 
-func (m *metricMap) AddMetricWithPoliciesList(
-	mu unaggregated.MetricUnion,
-	pl policy.PoliciesList,
+func (m *metricMap) AddUntimed(
+	metric unaggregated.MetricUnion,
+	metadatas metadata.StagedMetadatas,
 ) error {
-	entryKey := entryKey{
-		metricType: mu.Type,
-		idHash:     hash.Murmur3Hash128(mu.ID),
+	key := entryKey{
+		metricType: metric.Type,
+		idHash:     hash.Murmur3Hash128(metric.ID),
 	}
-	entry, err := m.findOrCreate(entryKey)
+	entry, err := m.findOrCreate(key)
 	if err != nil {
 		return err
 	}
-	err = entry.AddMetricWithPoliciesList(mu, pl)
+	err = entry.AddUntimed(metric, metadatas)
 	entry.DecWriter()
 	return err
 }

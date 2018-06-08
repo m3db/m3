@@ -20,22 +20,19 @@
 
 package msgpack
 
+// TODO(xichen): revive the test once the encoder APIs are added.
+/*
 import (
-	"net"
-	"sync"
-	"testing"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregator/capture"
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/retry"
 	xserver "github.com/m3db/m3x/server"
 	xtime "github.com/m3db/m3x/time"
-
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -58,29 +55,36 @@ var (
 		ID:       []byte("baz"),
 		GaugeVal: 456.780,
 	}
-	testDefaultPoliciesList = policy.DefaultPoliciesList
-	testCustomPoliciesList  = policy.PoliciesList{
-		policy.NewStagedPolicies(
-			time.Now().UnixNano(),
-			false,
-			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
-				policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), aggregation.DefaultID),
-				policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 30*24*time.Hour), aggregation.DefaultID),
+	testDefaultMetadatas = metadata.DefaultStagedMetadatas
+	testCustomMetadatas  = metadata.StagedMetadatas{
+		{
+			CutoverNanos: time.Now().UnixNano(),
+			Tombstoned:   false,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: aggregation.DefaultID,
+						StoragePolicies: []policy.StoragePolicy{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+							policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 30*24*time.Hour),
+						},
+					},
+				},
 			},
-		),
+		},
 	}
-	testCounterWithPoliciesList = unaggregated.CounterWithPoliciesList{
-		Counter:      testCounter.Counter(),
-		PoliciesList: testDefaultPoliciesList,
+	testCounterWithMetadatas = unaggregated.CounterWithMetadatas{
+		Counter:         testCounter.Counter(),
+		StagedMetadatas: testDefaultMetadatas,
 	}
-	testBatchTimerWithPoliciesList = unaggregated.BatchTimerWithPoliciesList{
-		BatchTimer:   testBatchTimer.BatchTimer(),
-		PoliciesList: testCustomPoliciesList,
+	testBatchTimerWithMetadatas = unaggregated.BatchTimerWithMetadatas{
+		BatchTimer:      testBatchTimer.BatchTimer(),
+		StagedMetadatas: testCustomMetadatas,
 	}
-	testGaugeWithPoliciesList = unaggregated.GaugeWithPoliciesList{
-		Gauge:        testGauge.Gauge(),
-		PoliciesList: testDefaultPoliciesList,
+	testGaugeWithMetadatas = unaggregated.GaugeWithMetadatas{
+		Gauge:           testGauge.Gauge(),
+		StagedMetadatas: testCustomMetadatas,
 	}
 )
 
@@ -120,9 +124,9 @@ func TestHandleUnaggregatedMsgpack(t *testing.T) {
 		wgClient.Add(1)
 
 		// Add test metrics to expected result.
-		expectedResult.CountersWithPoliciesList = append(expectedResult.CountersWithPoliciesList, testCounterWithPoliciesList)
-		expectedResult.BatchTimersWithPoliciesList = append(expectedResult.BatchTimersWithPoliciesList, testBatchTimerWithPoliciesList)
-		expectedResult.GaugesWithPoliciesList = append(expectedResult.GaugesWithPoliciesList, testGaugeWithPoliciesList)
+		expectedResult.CountersWithMetadatas = append(expectedResult.CountersWithMetadatas, testCounterWithMetadatas)
+		expectedResult.BatchTimersWithMetadatas = append(expectedResult.BatchTimersWithMetadatas, testBatchTimerWithMetadatas)
+		expectedResult.GaugesWithMetadatas = append(expectedResult.GaugesWithMetadatas, testGaugeWithMetadatas)
 
 		go func() {
 			defer wgClient.Done()
@@ -151,3 +155,4 @@ func TestHandleUnaggregatedMsgpack(t *testing.T) {
 	// Assert the snapshot match expectations.
 	require.Equal(t, expectedResult, agg.Snapshot())
 }
+*/

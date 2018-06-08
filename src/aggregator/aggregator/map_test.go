@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3aggregator/hash"
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -40,21 +41,28 @@ import (
 )
 
 var (
-	testDefaultPoliciesList = policy.DefaultPoliciesList
-	testCustomPoliciesList  = policy.PoliciesList{
-		policy.NewStagedPolicies(
-			time.Now().UnixNano(),
-			false,
-			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
-				policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), aggregation.DefaultID),
-				policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 30*24*time.Hour), aggregation.DefaultID),
+	testDefaultStagedMetadatas = metadata.DefaultStagedMetadatas
+	testCustomStagedMetadatas  = metadata.StagedMetadatas{
+		metadata.StagedMetadata{
+			CutoverNanos: time.Now().UnixNano(),
+			Tombstoned:   false,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: aggregation.DefaultID,
+						StoragePolicies: []policy.StoragePolicy{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+							policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 30*24*time.Hour),
+						},
+					},
+				},
 			},
-		),
+		},
 	}
 )
 
-func TestMetricMapAddMetricWithPoliciesListMapClosed(t *testing.T) {
+func TestMetricMapAddUntimedMapClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -62,23 +70,23 @@ func TestMetricMapAddMetricWithPoliciesListMapClosed(t *testing.T) {
 	m := newMetricMap(testShard, opts)
 	m.Close()
 
-	require.Equal(t, errMetricMapClosed, m.AddMetricWithPoliciesList(testCounter, testDefaultPoliciesList))
+	require.Equal(t, errMetricMapClosed, m.AddUntimed(testCounter, testDefaultStagedMetadatas))
 }
 
-func TestMetricMapAddMetricWithPoliciesListNoRateLimit(t *testing.T) {
+func TestMetricMapAddUntimedNoRateLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	opts := testOptions(ctrl)
 	m := newMetricMap(testShard, opts)
-	policies := testDefaultPoliciesList
+	policies := testDefaultStagedMetadatas
 
 	// Add a counter metric and assert there is one entry afterwards.
 	key := entryKey{
 		metricType: unaggregated.CounterType,
 		idHash:     hash.Murmur3Hash128(testCounterID),
 	}
-	require.NoError(t, m.AddMetricWithPoliciesList(testCounter, policies))
+	require.NoError(t, m.AddUntimed(testCounter, policies))
 	require.Equal(t, 1, len(m.entries))
 	require.Equal(t, 1, m.entryList.Len())
 
@@ -90,7 +98,7 @@ func TestMetricMapAddMetricWithPoliciesListNoRateLimit(t *testing.T) {
 	require.Equal(t, 2, m.metricLists.Len())
 
 	// Add the same counter and assert there is still one entry.
-	require.NoError(t, m.AddMetricWithPoliciesList(testCounter, policies))
+	require.NoError(t, m.AddUntimed(testCounter, policies))
 	require.Equal(t, 1, len(m.entries))
 	require.Equal(t, 1, m.entryList.Len())
 	elem2, exists := m.entries[key]
@@ -111,9 +119,9 @@ func TestMetricMapAddMetricWithPoliciesListNoRateLimit(t *testing.T) {
 		ID:       testCounterID,
 		GaugeVal: 123.456,
 	}
-	require.NoError(t, m.AddMetricWithPoliciesList(
+	require.NoError(t, m.AddUntimed(
 		metricWithDifferentType,
-		testCustomPoliciesList,
+		testCustomStagedMetadatas,
 	))
 	require.Equal(t, 2, len(m.entries))
 	require.Equal(t, 2, m.entryList.Len())
@@ -130,9 +138,9 @@ func TestMetricMapAddMetricWithPoliciesListNoRateLimit(t *testing.T) {
 		ID:       []byte("bar"),
 		GaugeVal: 123.456,
 	}
-	require.NoError(t, m.AddMetricWithPoliciesList(
+	require.NoError(t, m.AddUntimed(
 		metricWithDifferentID,
-		testCustomPoliciesList,
+		testCustomStagedMetadatas,
 	))
 	require.Equal(t, 3, len(m.entries))
 	require.Equal(t, 3, m.entryList.Len())
@@ -147,9 +155,9 @@ func TestMetricMapSetRuntimeOptions(t *testing.T) {
 	m := newMetricMap(testShard, opts)
 
 	// Add three metrics.
-	require.NoError(t, m.AddMetricWithPoliciesList(testCounter, testDefaultPoliciesList))
-	require.NoError(t, m.AddMetricWithPoliciesList(testBatchTimer, testDefaultPoliciesList))
-	require.NoError(t, m.AddMetricWithPoliciesList(testGauge, testDefaultPoliciesList))
+	require.NoError(t, m.AddUntimed(testCounter, testDefaultStagedMetadatas))
+	require.NoError(t, m.AddUntimed(testBatchTimer, testDefaultStagedMetadatas))
+	require.NoError(t, m.AddUntimed(testGauge, testDefaultStagedMetadatas))
 
 	// Assert no entries have rate limiters.
 	runtimeOpts := runtime.NewOptions()
@@ -168,7 +176,7 @@ func TestMetricMapSetRuntimeOptions(t *testing.T) {
 	}
 }
 
-func TestMetricMapAddMetricWithPoliciesListWithRateLimit(t *testing.T) {
+func TestMetricMapAddUntimedWithRateLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -180,7 +188,7 @@ func TestMetricMapAddMetricWithPoliciesListWithRateLimit(t *testing.T) {
 	// Reset runtime options to disable rate limiting.
 	noRateLimitRuntimeOpts := runtime.NewOptions().SetWriteNewMetricLimitPerShardPerSecond(0)
 	m.SetRuntimeOptions(noRateLimitRuntimeOpts)
-	require.NoError(t, m.AddMetricWithPoliciesList(testCounter, testDefaultPoliciesList))
+	require.NoError(t, m.AddUntimed(testCounter, testDefaultStagedMetadatas))
 
 	// Reset runtime options to enable rate limit of 1/s with a warmup period of 1 minute.
 	limitPerSecond := 1
@@ -198,7 +206,7 @@ func TestMetricMapAddMetricWithPoliciesListWithRateLimit(t *testing.T) {
 			Type: unaggregated.CounterType,
 			ID:   id.RawID(fmt.Sprintf("testC%d", i)),
 		}
-		require.NoError(t, m.AddMetricWithPoliciesList(metric, testDefaultPoliciesList))
+		require.NoError(t, m.AddUntimed(metric, testDefaultStagedMetadatas))
 	}
 	require.Equal(t, now, m.firstInsertAt)
 
@@ -214,10 +222,10 @@ func TestMetricMapAddMetricWithPoliciesListWithRateLimit(t *testing.T) {
 			ID:   id.RawID(fmt.Sprintf("testC%d", i)),
 		}
 		if i == startIdx {
-			require.NoError(t, m.AddMetricWithPoliciesList(metric, testDefaultPoliciesList))
+			require.NoError(t, m.AddUntimed(metric, testDefaultStagedMetadatas))
 		}
 		if i == endIdx {
-			require.Equal(t, errWriteNewMetricRateLimitExceeded, m.AddMetricWithPoliciesList(metric, testDefaultPoliciesList))
+			require.Equal(t, errWriteNewMetricRateLimitExceeded, m.AddUntimed(metric, testDefaultStagedMetadatas))
 		}
 	}
 
@@ -235,7 +243,7 @@ func TestMetricMapAddMetricWithPoliciesListWithRateLimit(t *testing.T) {
 			Type: unaggregated.CounterType,
 			ID:   id.RawID(fmt.Sprintf("testC%d", i)),
 		}
-		require.NoError(t, m.AddMetricWithPoliciesList(metric, testDefaultPoliciesList))
+		require.NoError(t, m.AddUntimed(metric, testDefaultStagedMetadatas))
 	}
 
 	// Verify one more insert results in rate limit violation.
@@ -243,7 +251,7 @@ func TestMetricMapAddMetricWithPoliciesListWithRateLimit(t *testing.T) {
 		Type: unaggregated.CounterType,
 		ID:   id.RawID(fmt.Sprintf("testC%d", endIdx)),
 	}
-	require.Equal(t, errWriteNewMetricRateLimitExceeded, m.AddMetricWithPoliciesList(metric, testDefaultPoliciesList))
+	require.Equal(t, errWriteNewMetricRateLimitExceeded, m.AddUntimed(metric, testDefaultStagedMetadatas))
 }
 
 func TestMetricMapDeleteExpired(t *testing.T) {

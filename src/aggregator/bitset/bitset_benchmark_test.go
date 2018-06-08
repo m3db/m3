@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,24 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package integration
+package bitset
 
-// TODO(xichen): revive this once encoder APIs are added.
-/*
-import (
-	"time"
-)
+import "testing"
 
-type conditionFn func() bool
-
-func waitUntil(fn conditionFn, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if fn() {
-			return true
+func BenchmarkBitSetSmallRange(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		for j := 0; j <= 64; j++ {
+			bs := New(uint(j))
+			for k := 0; k < j; k++ {
+				bs.Set(uint(k))
+			}
+			bs.All(uint(j))
 		}
-		time.Sleep(time.Second)
 	}
-	return false
 }
-*/
+
+func BenchmarkBitSetLargeRange(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		for j := 65; j <= 256; j++ {
+			bs := New(uint(j))
+			for k := 0; k < j; k++ {
+				bs.Set(uint(k))
+			}
+			bs.All(uint(j))
+		}
+	}
+}

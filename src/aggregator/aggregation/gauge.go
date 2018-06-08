@@ -22,7 +22,6 @@ package aggregation
 
 import (
 	"math"
-	"sync"
 
 	"github.com/m3db/m3metrics/aggregation"
 )
@@ -125,14 +124,5 @@ func (g *Gauge) ValueOf(aggType aggregation.Type) float64 {
 	}
 }
 
-// LockedGauge is a locked gauge.
-type LockedGauge struct {
-	sync.Mutex
-	Gauge
-}
-
-// NewLockedGauge creates a new locked gauge.
-func NewLockedGauge(g Gauge) *LockedGauge { return &LockedGauge{Gauge: g} }
-
-// Reset resets the locked gauge.
-func (lg *LockedGauge) Reset(g Gauge) { lg.Gauge = g }
+// Close closes the gauge.
+func (g *Gauge) Close() {}

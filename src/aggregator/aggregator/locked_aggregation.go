@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,24 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package integration
+package aggregator
 
-// TODO(xichen): revive this once encoder APIs are added.
-/*
 import (
-	"time"
+	"sync"
+
+	"github.com/m3db/m3aggregator/aggregation"
+	"github.com/m3db/m3metrics/metric/unaggregated"
 )
 
-type conditionFn func() bool
-
-func waitUntil(fn conditionFn, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if fn() {
-			return true
-		}
-		time.Sleep(time.Second)
-	}
-	return false
+// lockedCounter is a locked counter.
+type lockedCounter struct {
+	sync.Mutex
+	aggregation.Counter
 }
-*/
+
+func newLockedCounter(c aggregation.Counter) *lockedCounter { return &lockedCounter{Counter: c} }
+func (c *lockedCounter) Add(mu unaggregated.MetricUnion)    { c.Counter.Update(mu.CounterVal) }
+
+// lockedTimer is a locked timer.
+type lockedTimer struct {
+	sync.Mutex
+	aggregation.Timer
+}
+
+func newLockedTimer(t aggregation.Timer) *lockedTimer  { return &lockedTimer{Timer: t} }
+func (t *lockedTimer) Add(mu unaggregated.MetricUnion) { t.Timer.AddBatch(mu.BatchTimerVal) }
+
+// lockedGauge is a locked gauge.
+type lockedGauge struct {
+	sync.Mutex
+	aggregation.Gauge
+}
+
+func newLockedGauge(g aggregation.Gauge) *lockedGauge  { return &lockedGauge{Gauge: g} }
+func (g *lockedGauge) Add(mu unaggregated.MetricUnion) { g.Gauge.Update(mu.GaugeVal) }

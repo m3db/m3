@@ -32,9 +32,10 @@ import (
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 
@@ -46,8 +47,8 @@ type Aggregator interface {
 	// Open opens the aggregator.
 	Open() error
 
-	// AddMetricWithPoliciesList adds a metric with policies list for aggregation.
-	AddMetricWithPoliciesList(mu unaggregated.MetricUnion, pl policy.PoliciesList) error
+	// AddUntimed adds an untimed metric with staged metadatas.
+	AddUntimed(metric unaggregated.MetricUnion, metas metadata.StagedMetadatas) error
 
 	// Resign stops the aggregator from participating in leader election and resigns
 	// from ongoing campaign if any.
@@ -58,6 +59,14 @@ type Aggregator interface {
 
 	// Close closes the aggregator.
 	Close() error
+}
+
+// metricsAggregator contains private aggregator APIs.
+// TODO(xichen): remove nolint once implemented.
+// nolint: megacheck
+type metricsAggregator interface {
+	// AddForwarded adds a forwarded metric with metadata.
+	AddForwarded(metric aggregated.Metric, metadata metadata.ForwardMetadata) error
 }
 
 const (
@@ -72,7 +81,7 @@ var (
 	errShardNotOwned                 = errors.New("aggregator shard is not owned")
 )
 
-type aggregatorAddMetricMetrics struct {
+type aggregatorAddUntimedMetrics struct {
 	success                    tally.Counter
 	successLatency             tally.Timer
 	invalidMetricTypes         tally.Counter
@@ -83,11 +92,11 @@ type aggregatorAddMetricMetrics struct {
 	uncategorizedErrors        tally.Counter
 }
 
-func newAggregatorAddMetricMetrics(
+func newAggregatorAddUntimedMetrics(
 	scope tally.Scope,
 	samplingRate float64,
-) aggregatorAddMetricMetrics {
-	return aggregatorAddMetricMetrics{
+) aggregatorAddUntimedMetrics {
+	return aggregatorAddUntimedMetrics{
 		success:        scope.Counter("success"),
 		successLatency: instrument.MustCreateSampledTimer(scope.Timer("success-latency"), samplingRate),
 		invalidMetricTypes: scope.Tagged(map[string]string{
@@ -111,12 +120,12 @@ func newAggregatorAddMetricMetrics(
 	}
 }
 
-func (m *aggregatorAddMetricMetrics) ReportSuccess(d time.Duration) {
+func (m *aggregatorAddUntimedMetrics) ReportSuccess(d time.Duration) {
 	m.success.Inc(1)
 	m.successLatency.Record(d)
 }
 
-func (m *aggregatorAddMetricMetrics) ReportError(err error) {
+func (m *aggregatorAddUntimedMetrics) ReportError(err error) {
 	if err == nil {
 		return
 	}
@@ -223,19 +232,19 @@ func newAggregatorShardSetIDMetrics(scope tally.Scope) aggregatorShardSetIDMetri
 }
 
 type aggregatorMetrics struct {
-	counters                  tally.Counter
-	timers                    tally.Counter
-	timerBatches              tally.Counter
-	gauges                    tally.Counter
-	addMetricWithPoliciesList aggregatorAddMetricMetrics
-	placement                 aggregatorPlacementMetrics
-	shards                    aggregatorShardsMetrics
-	shardSetID                aggregatorShardSetIDMetrics
-	tick                      aggregatorTickMetrics
+	counters     tally.Counter
+	timers       tally.Counter
+	timerBatches tally.Counter
+	gauges       tally.Counter
+	addUntimed   aggregatorAddUntimedMetrics
+	placement    aggregatorPlacementMetrics
+	shards       aggregatorShardsMetrics
+	shardSetID   aggregatorShardSetIDMetrics
+	tick         aggregatorTickMetrics
 }
 
 func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMetrics {
-	addMetricScope := scope.SubScope("addMetricWithPoliciesList")
+	addUntimedScope := scope.SubScope("addUntimed")
 	placementScope := scope.SubScope("placement")
 	shardsScope := scope.SubScope("shards")
 	shardSetIDScope := scope.SubScope("shard-set-id")
@@ -245,11 +254,11 @@ func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMet
 		timers:       scope.Counter("timers"),
 		timerBatches: scope.Counter("timer-batches"),
 		gauges:       scope.Counter("gauges"),
-		addMetricWithPoliciesList: newAggregatorAddMetricMetrics(addMetricScope, samplingRate),
-		placement:                 newAggregatorPlacementMetrics(placementScope),
-		shards:                    newAggregatorShardsMetrics(shardsScope),
-		shardSetID:                newAggregatorShardSetIDMetrics(shardSetIDScope),
-		tick:                      newAggregatorTickMetrics(tickScope),
+		addUntimed:   newAggregatorAddUntimedMetrics(addUntimedScope, samplingRate),
+		placement:    newAggregatorPlacementMetrics(placementScope),
+		shards:       newAggregatorShardsMetrics(shardsScope),
+		shardSetID:   newAggregatorShardSetIDMetrics(shardSetIDScope),
+		tick:         newAggregatorTickMetrics(tickScope),
 	}
 }
 
@@ -355,25 +364,25 @@ func (agg *aggregator) Open() error {
 	return nil
 }
 
-func (agg *aggregator) AddMetricWithPoliciesList(
-	mu unaggregated.MetricUnion,
-	pl policy.PoliciesList,
+func (agg *aggregator) AddUntimed(
+	metric unaggregated.MetricUnion,
+	metadatas metadata.StagedMetadatas,
 ) error {
 	callStart := agg.nowFn()
-	if err := agg.checkMetricType(mu); err != nil {
-		agg.metrics.addMetricWithPoliciesList.ReportError(err)
+	if err := agg.checkMetricType(metric); err != nil {
+		agg.metrics.addUntimed.ReportError(err)
 		return err
 	}
-	shard, err := agg.shardFor(mu.ID)
+	shard, err := agg.shardFor(metric.ID)
 	if err != nil {
-		agg.metrics.addMetricWithPoliciesList.ReportError(err)
+		agg.metrics.addUntimed.ReportError(err)
 		return err
 	}
-	if err = shard.AddMetricWithPoliciesList(mu, pl); err != nil {
-		agg.metrics.addMetricWithPoliciesList.ReportError(err)
+	if err = shard.AddUntimed(metric, metadatas); err != nil {
+		agg.metrics.addUntimed.ReportError(err)
 		return err
 	}
-	agg.metrics.addMetricWithPoliciesList.ReportSuccess(agg.nowFn().Sub(callStart))
+	agg.metrics.addUntimed.ReportSuccess(agg.nowFn().Sub(callStart))
 	return nil
 }
 

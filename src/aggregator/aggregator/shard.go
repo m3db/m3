@@ -27,8 +27,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 
 	"github.com/uber-go/tally"
@@ -39,7 +39,10 @@ var (
 	errAggregatorShardNotWriteable = errors.New("aggregator shard is not writeable")
 )
 
-type addMetricWithPoliciesListFn func(mu unaggregated.MetricUnion, pl policy.PoliciesList) error
+type addUntimedFn func(
+	metric unaggregated.MetricUnion,
+	metadatas metadata.StagedMetadatas,
+) error
 
 type aggregatorShardMetrics struct {
 	notWriteableErrors tally.Counter
@@ -63,10 +66,10 @@ type aggregatorShard struct {
 	earliestWritableNanos            int64
 	latestWriteableNanos             int64
 
-	closed                      bool
-	metricMap                   *metricMap
-	metrics                     aggregatorShardMetrics
-	addMetricWithPoliciesListFn addMetricWithPoliciesListFn
+	closed       bool
+	metricMap    *metricMap
+	metrics      aggregatorShardMetrics
+	addUntimedFn addUntimedFn
 }
 
 func newAggregatorShard(shard uint32, opts Options) *aggregatorShard {
@@ -85,7 +88,7 @@ func newAggregatorShard(shard uint32, opts Options) *aggregatorShard {
 		metricMap:                        newMetricMap(shard, opts),
 		metrics:                          newAggregatorShardMetrics(scope),
 	}
-	s.addMetricWithPoliciesListFn = s.metricMap.AddMetricWithPoliciesList
+	s.addUntimedFn = s.metricMap.AddUntimed
 	return s
 }
 
@@ -134,9 +137,9 @@ func (s *aggregatorShard) SetWriteableRange(rng timeRange) {
 	s.Unlock()
 }
 
-func (s *aggregatorShard) AddMetricWithPoliciesList(
-	mu unaggregated.MetricUnion,
-	pl policy.PoliciesList,
+func (s *aggregatorShard) AddUntimed(
+	metric unaggregated.MetricUnion,
+	metadatas metadata.StagedMetadatas,
 ) error {
 	s.RLock()
 	if s.closed {
@@ -148,7 +151,7 @@ func (s *aggregatorShard) AddMetricWithPoliciesList(
 		s.metrics.notWriteableErrors.Inc(1)
 		return errAggregatorShardNotWriteable
 	}
-	err := s.addMetricWithPoliciesListFn(mu, pl)
+	err := s.addUntimedFn(metric, metadatas)
 	s.RUnlock()
 	return err
 }
