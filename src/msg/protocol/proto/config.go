@@ -33,7 +33,9 @@ type EncodeDecoderConfiguration struct {
 }
 
 // NewEncodeDecoderOptions creates a new EncodeDecoderOptions.
-func (c *EncodeDecoderConfiguration) NewEncodeDecoderOptions(iOpts instrument.Options) EncodeDecoderOptions {
+func (c *EncodeDecoderConfiguration) NewEncodeDecoderOptions(
+	iOpts instrument.Options,
+) EncodeDecoderOptions {
 	var (
 		encodeOpts = NewBaseOptions()
 		decodeOpts = NewBaseOptions()
@@ -43,9 +45,12 @@ func (c *EncodeDecoderConfiguration) NewEncodeDecoderOptions(iOpts instrument.Op
 		decodeOpts = decodeOpts.SetMaxMessageSize(*c.MaxMessageSize)
 	}
 	if c.BytesPool != nil {
+		scope := iOpts.MetricsScope()
 		p := pool.NewBytesPool(
 			c.BytesPool.NewBuckets(),
-			c.BytesPool.NewObjectPoolOptions(iOpts),
+			c.BytesPool.NewObjectPoolOptions(iOpts.SetMetricsScope(scope.Tagged(
+				map[string]string{"pool": "bytes"},
+			))),
 		)
 		p.Init()
 		encodeOpts = encodeOpts.SetBytesPool(p)
