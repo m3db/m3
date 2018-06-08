@@ -703,7 +703,7 @@ func (e *Entry) updateForwardMetadataWithLock(
 	return nil
 }
 
-func (e *Entry) addForwardedWithLock(metric aggregated.Metric, sourceID uint32) error {
+func (e *Entry) addForwardedWithLock(metric aggregated.Metric, sourceID []byte) error {
 	var (
 		timestamp = time.Unix(0, metric.TimeNanos)
 		multiErr  = xerrors.NewMultiError()

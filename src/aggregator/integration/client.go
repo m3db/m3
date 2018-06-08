@@ -30,10 +30,12 @@ import (
 	"github.com/m3db/m3metrics/encoding/protobuf"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 )
 
+// TODO(xichen): replace client with the actual aggregation server client.
 type client struct {
 	address         string
 	batchSize       int
@@ -75,7 +77,7 @@ func (c *client) testConnection() bool {
 	return true
 }
 
-func (c *client) writeMetricWithPoliciesList(
+func (c *client) writeUntimedMetricWithPoliciesList(
 	mu unaggregated.MetricUnion,
 	pl policy.PoliciesList,
 ) error {
@@ -124,38 +126,59 @@ func (c *client) writeMetricWithPoliciesList(
 	return err
 }
 
-func (c *client) writeMetricWithMetadatas(
+func (c *client) writeUntimedMetricWithMetadatas(
 	mu unaggregated.MetricUnion,
 	sm metadata.StagedMetadatas,
 ) error {
-	encoder := c.protobufEncoder
-	sizeBefore := encoder.Len()
-	var err error
+	var msg encoding.UnaggregatedMessageUnion
 	switch mu.Type {
 	case metric.CounterType:
-		err = c.protobufEncoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+		msg = encoding.UnaggregatedMessageUnion{
 			Type: encoding.CounterWithMetadatasType,
 			CounterWithMetadatas: unaggregated.CounterWithMetadatas{
 				Counter:         mu.Counter(),
 				StagedMetadatas: sm,
-			}})
+			}}
 	case metric.TimerType:
-		err = c.protobufEncoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+		msg = encoding.UnaggregatedMessageUnion{
 			Type: encoding.BatchTimerWithMetadatasType,
 			BatchTimerWithMetadatas: unaggregated.BatchTimerWithMetadatas{
 				BatchTimer:      mu.BatchTimer(),
 				StagedMetadatas: sm,
-			}})
+			}}
 	case metric.GaugeType:
-		err = c.protobufEncoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
+		msg = encoding.UnaggregatedMessageUnion{
 			Type: encoding.GaugeWithMetadatasType,
 			GaugeWithMetadatas: unaggregated.GaugeWithMetadatas{
 				Gauge:           mu.Gauge(),
 				StagedMetadatas: sm,
-			}})
+			}}
 	default:
-		err = fmt.Errorf("unrecognized metric type %v", mu.Type)
+		return fmt.Errorf("unrecognized metric type %v", mu.Type)
 	}
+	return c.writeUnaggregatedMessage(msg)
+}
+
+func (c *client) writeForwardedMetricWithMetadata(
+	metric aggregated.Metric,
+	metadata metadata.ForwardMetadata,
+) error {
+	msg := encoding.UnaggregatedMessageUnion{
+		Type: encoding.TimedMetricWithForwardMetadataType,
+		TimedMetricWithForwardMetadata: aggregated.MetricWithForwardMetadata{
+			Metric:          metric,
+			ForwardMetadata: metadata,
+		},
+	}
+	return c.writeUnaggregatedMessage(msg)
+}
+
+func (c *client) writeUnaggregatedMessage(
+	msg encoding.UnaggregatedMessageUnion,
+) error {
+	encoder := c.protobufEncoder
+	sizeBefore := encoder.Len()
+	err := c.protobufEncoder.EncodeMessage(msg)
 	if err != nil {
 		encoder.Truncate(sizeBefore)
 		return err

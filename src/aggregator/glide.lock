@@ -1,5 +1,5 @@
-hash: 46370b8fe930d61d66263d802746fde256ddb7aa113cedc978f72b6b03fea3bc
-updated: 2018-06-08T12:30:18.169479-04:00
+hash: e85392bc810a87563230deda7d6d7998e17d4df7996c960697676575772042ba
+updated: 2018-06-08T14:32:13.994639-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -140,6 +140,14 @@ imports:
   - ptypes/timestamp
 - name: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
+- name: github.com/google/go-cmp
+  version: 3af367b6b30c263d47e8895973edcca9a49cf029
+  subpackages:
+  - cmp
+  - cmp/cmpopts
+  - cmp/internal/diff
+  - cmp/internal/function
+  - cmp/internal/value
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
@@ -178,7 +186,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: 7ab552d5455b45ee7306f38ce00b71cc404126e4
+  version: 5a5fc3695fee14c1f12db6007b47bee656126bd6
   subpackages:
   - aggregation
   - encoding
@@ -206,7 +214,9 @@ imports:
   - clock
   - close
   - config
+  - context
   - errors
+  - ident
   - instrument
   - log
   - net
@@ -368,14 +378,6 @@ imports:
 - name: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
-- name: github.com/google/go-cmp
-  version: 3af367b6b30c263d47e8895973edcca9a49cf029
-  subpackages:
-  - cmp
-  - cmp/cmpopts
-  - cmp/internal/diff
-  - cmp/internal/function
-  - cmp/internal/value
 - name: github.com/leanovate/gopter
   version: f778776473e0ef7764e1434dd01a61cc1ec574b4
   subpackages:

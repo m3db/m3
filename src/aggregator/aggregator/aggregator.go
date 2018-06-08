@@ -96,7 +96,6 @@ type aggregator struct {
 	flushHandler      handler.Handler
 	adminClient       client.AdminClient
 	resignTimeout     time.Duration
-	srcIDProvider     sourceIDProvider
 
 	shardSetID          uint32
 	shardSetOpen        bool
@@ -117,9 +116,8 @@ func NewAggregator(opts Options) Aggregator {
 	iOpts := opts.InstrumentOptions()
 	scope := iOpts.MetricsScope()
 	metrics := newAggregatorMetrics(scope, iOpts.MetricsSamplingRate())
-	srcIDProvider := newSourceIDProvider(uninitializedShardSetID)
 	return &aggregator{
-		opts:              opts.setSourceIDProvider(srcIDProvider),
+		opts:              opts,
 		nowFn:             opts.ClockOptions().NowFn(),
 		shardFn:           opts.ShardFn(),
 		checkInterval:     opts.EntryCheckInterval(),
@@ -131,7 +129,6 @@ func NewAggregator(opts Options) Aggregator {
 		flushHandler:      opts.FlushHandler(),
 		adminClient:       opts.AdminClient(),
 		resignTimeout:     opts.ResignTimeout(),
-		srcIDProvider:     srcIDProvider,
 		metrics:           metrics,
 		doneCh:            make(chan struct{}),
 		sleepFn:           time.Sleep,
@@ -340,7 +337,7 @@ func (agg *aggregator) clearShardSetIDWithLock() error {
 	if err := agg.closeShardSetWithLock(); err != nil {
 		return err
 	}
-	agg.setShardSetIDWithLock(uninitializedShardSetID)
+	agg.shardSetID = uninitializedShardSetID
 	agg.shardSetOpen = false
 	return nil
 }
@@ -354,7 +351,7 @@ func (agg *aggregator) resetShardSetIDWithLock(instance placement.Instance) erro
 		if err := agg.openShardSetWithLock(shardSetID); err != nil {
 			return err
 		}
-		agg.setShardSetIDWithLock(shardSetID)
+		agg.shardSetID = shardSetID
 		agg.shardSetOpen = true
 		return nil
 	}
@@ -370,7 +367,7 @@ func (agg *aggregator) resetShardSetIDWithLock(instance placement.Instance) erro
 	if err := agg.openShardSetWithLock(newShardSetID); err != nil {
 		return err
 	}
-	agg.setShardSetIDWithLock(newShardSetID)
+	agg.shardSetID = newShardSetID
 	agg.shardSetOpen = true
 	return nil
 }
@@ -455,11 +452,6 @@ func (agg *aggregator) updateShardsWithLock(
 	agg.currStagedPlacement = newStagedPlacement
 	agg.currPlacement = newPlacement
 	agg.closeShardsAsync(closing)
-}
-
-func (agg *aggregator) setShardSetIDWithLock(shardSetID uint32) {
-	agg.shardSetID = shardSetID
-	agg.srcIDProvider.Update(shardSetID)
 }
 
 func (agg *aggregator) checkMetricType(mu unaggregated.MetricUnion) error {

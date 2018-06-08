@@ -23,60 +23,96 @@
 package integration
 
 import (
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3x/clock"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestSameIDMultiTypeWithPoliciesList(t *testing.T) {
-	metadata := metadataUnion{
-		mType:        policiesListType,
-		policiesList: testPoliciesList,
+	metadataFn := func(int) metadataUnion {
+		return metadataUnion{
+			mType:        policiesListType,
+			policiesList: testPoliciesList,
+		}
 	}
-	testSameIDMultiType(t, metadata)
+	testSameIDMultiType(t, metadataFn)
 }
 
 func TestSameIDMultiTypeWithStagedMetadatas(t *testing.T) {
-	metadata := metadataUnion{
-		mType:           stagedMetadatasType,
-		stagedMetadatas: testStagedMetadatas,
+	metadataFn := func(int) metadataUnion {
+		return metadataUnion{
+			mType:           stagedMetadatasType,
+			stagedMetadatas: testStagedMetadatas,
+		}
 	}
-	testSameIDMultiType(t, metadata)
+	testSameIDMultiType(t, metadataFn)
 }
 
-func testSameIDMultiType(t *testing.T, metadata metadataUnion) {
+func testSameIDMultiType(t *testing.T, metadataFn metadataFn) {
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	// Test setup.
-	testSetup := newTestSetup(t, newTestOptions())
-	defer testSetup.close()
+	serverOpts := newTestServerOptions()
 
-	testSetup.aggregatorOpts =
-		testSetup.aggregatorOpts.
-			SetEntryCheckInterval(time.Second)
+	// Clock setup.
+	var lock sync.RWMutex
+	now := time.Now().Truncate(time.Hour)
+	getNowFn := func() time.Time {
+		lock.RLock()
+		t := now
+		lock.RUnlock()
+		return t
+	}
+	setNowFn := func(t time.Time) {
+		lock.Lock()
+		now = t
+		lock.Unlock()
+	}
+	clockOpts := clock.NewOptions().SetNowFn(getNowFn)
+	serverOpts = serverOpts.SetClockOptions(clockOpts)
+
+	// Placement setup.
+	numShards := 1024
+	cfg := placementInstanceConfig{
+		instanceID:          serverOpts.InstanceID(),
+		shardSetID:          serverOpts.ShardSetID(),
+		shardStartInclusive: 0,
+		shardEndExclusive:   uint32(numShards),
+	}
+	instance := cfg.newPlacementInstance()
+	placement := newPlacement(numShards, []placement.Instance{instance})
+	placementKey := serverOpts.PlacementKVKey()
+	placementStore := serverOpts.KVStore()
+	require.NoError(t, setPlacement(placementKey, placementStore, placement))
+
+	// Create server.
+	testServer := newTestServerSetup(t, serverOpts)
+	defer testServer.close()
 
 	// Start the server.
-	log := testSetup.aggregatorOpts.InstrumentOptions().Logger()
+	log := testServer.aggregatorOpts.InstrumentOptions().Logger()
 	log.Info("test sending same metric ID with different metric types")
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testServer.startServer())
 	log.Info("server is now up")
-	require.NoError(t, testSetup.waitUntilLeader())
+	require.NoError(t, testServer.waitUntilLeader())
 	log.Info("server is now the leader")
 
 	var (
 		idPrefix = "foo"
 		numIDs   = 100
-		start    = testSetup.getNowFn()
+		start    = getNowFn()
 		mid      = start.Add(4 * time.Second)
 		stop     = start.Add(10 * time.Second)
 		interval = time.Second
 	)
-	client := testSetup.newClient()
+	client := testServer.newClient()
 	require.NoError(t, client.connect())
 	defer client.close()
 
@@ -102,15 +138,23 @@ func testSameIDMultiType(t *testing.T, metadata metadataUnion) {
 			}
 		}
 	}
-
-	dataset := generateTestDataset(start, stop, interval, ids, metricTypeFn)
+	dataset := mustGenerateTestDataset(t, datasetGenOpts{
+		start:        start,
+		stop:         stop,
+		interval:     interval,
+		ids:          ids,
+		category:     untimedMetric,
+		typeFn:       metricTypeFn,
+		valueGenOpts: defaultValueGenOpts,
+		metadataFn:   metadataFn,
+	})
 	for _, data := range dataset {
-		testSetup.setNowFn(data.timestamp)
-		for _, mu := range data.metrics {
-			if metadata.mType == policiesListType {
-				require.NoError(t, client.writeMetricWithPoliciesList(mu, metadata.policiesList))
+		setNowFn(data.timestamp)
+		for _, mm := range data.metricWithMetadatas {
+			if mm.metadata.mType == policiesListType {
+				require.NoError(t, client.writeUntimedMetricWithPoliciesList(mm.metric.untimed, mm.metadata.policiesList))
 			} else {
-				require.NoError(t, client.writeMetricWithMetadatas(mu, metadata.stagedMetadatas))
+				require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 			}
 		}
 		require.NoError(t, client.flush())
@@ -122,15 +166,15 @@ func testSameIDMultiType(t *testing.T, metadata metadataUnion) {
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
 	finalTime := stop.Add(time.Second)
-	testSetup.setNowFn(finalTime)
+	setNowFn(finalTime)
 	time.Sleep(4 * time.Second)
 
 	// Stop the server.
-	require.NoError(t, testSetup.stopServer())
+	require.NoError(t, testServer.stopServer())
 	log.Info("server is now down")
 
 	// Validate results.
-	expected := computeExpectedResults(t, finalTime, dataset, metadata, testSetup.aggregatorOpts)
-	actual := testSetup.sortedResults()
+	expected := mustComputeExpectedResults(t, finalTime, dataset, testServer.aggregatorOpts)
+	actual := testServer.sortedResults()
 	require.Equal(t, expected, actual)
 }

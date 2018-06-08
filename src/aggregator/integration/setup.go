@@ -22,9 +22,7 @@ package integration
 
 import (
 	"errors"
-	"flag"
 	"fmt"
-	"math"
 	"sort"
 	"sync"
 	"testing"
@@ -33,15 +31,14 @@ import (
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/aggregator/handler"
 	"github.com/m3db/m3aggregator/aggregator/handler/writer"
+	aggclient "github.com/m3db/m3aggregator/client"
 	"github.com/m3db/m3aggregator/runtime"
 	httpserver "github.com/m3db/m3aggregator/server/http"
 	rawtcpserver "github.com/m3db/m3aggregator/server/rawtcp"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3x/clock"
 	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/stretchr/testify/require"
@@ -49,16 +46,12 @@ import (
 )
 
 var (
-	rawTCPAddrArg          = flag.String("rawTCPAddr", "0.0.0.0:6000", "raw TCP server address")
-	httpAddrArg            = flag.String("httpAddr", "0.0.0.0:6001", "http server address")
-	errServerStartTimedOut = errors.New("server took too long to start")
+	errServerStartTimedOut   = errors.New("server took too long to start")
+	errLeaderElectionTimeout = errors.New("took too long to become leader")
 )
 
-// nowSetterFn is the function that sets the current time.
-type nowSetterFn func(t time.Time)
-
-type testSetup struct {
-	opts             testOptions
+type testServerSetup struct {
+	opts             testServerOptions
 	rawTCPAddr       string
 	httpAddr         string
 	rawTCPServerOpts rawtcpserver.Options
@@ -70,8 +63,6 @@ type testSetup struct {
 	leaderValue      string
 	leaderService    services.LeaderService
 	electionCluster  *testCluster
-	getNowFn         clock.NowFn
-	setNowFn         nowSetterFn
 	workerPool       xsync.WorkerPool
 	results          *[]aggregated.MetricWithStoragePolicy
 	resultLock       *sync.Mutex
@@ -81,50 +72,28 @@ type testSetup struct {
 	closedCh chan struct{}
 }
 
-func newTestSetup(t *testing.T, opts testOptions) *testSetup {
+func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	if opts == nil {
-		opts = newTestOptions()
-	}
-
-	// Set up the raw TCP server address.
-	rawTCPAddr := *rawTCPAddrArg
-	if addr := opts.RawTCPAddr(); addr != "" {
-		rawTCPAddr = addr
-	}
-
-	// Set up the http server address.
-	httpAddr := *httpAddrArg
-	if addr := opts.HTTPAddr(); addr != "" {
-		httpAddr = addr
+		opts = newTestServerOptions()
 	}
 
 	// Set up worker pool.
 	workerPool := xsync.NewWorkerPool(opts.WorkerPoolSize())
 	workerPool.Init()
 
-	// Set up getter and setter for now.
-	var lock sync.RWMutex
-	now := time.Now().Truncate(time.Hour)
-	getNowFn := func() time.Time {
-		lock.RLock()
-		t := now
-		lock.RUnlock()
-		return t
-	}
-	setNowFn := func(t time.Time) {
-		lock.Lock()
-		now = t
-		lock.Unlock()
-	}
-
 	// Create the server options.
 	rawTCPServerOpts := rawtcpserver.NewOptions()
 	httpServerOpts := httpserver.NewOptions()
 
 	// Creating the aggregator options.
-	aggregatorOpts := aggregator.NewOptions()
-	clockOpts := aggregatorOpts.ClockOptions()
-	aggregatorOpts = aggregatorOpts.SetClockOptions(clockOpts.SetNowFn(getNowFn))
+	clockOpts := opts.ClockOptions()
+	aggregatorOpts := aggregator.NewOptions().
+		SetClockOptions(clockOpts).
+		SetInstrumentOptions(opts.InstrumentOptions()).
+		SetEntryCheckInterval(opts.EntryCheckInterval()).
+		SetMaxAllowedForwardingDelayFn(opts.MaxAllowedForwardingDelayFn())
+
+	// Set up entry pool.
 	runtimeOpts := runtime.NewOptions()
 	entryPool := aggregator.NewEntryPool(nil)
 	entryPool.Init(func() *aggregator.Entry {
@@ -133,41 +102,23 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	aggregatorOpts = aggregatorOpts.SetEntryPool(entryPool)
 
 	// Set up placement manager.
-	shardSet := make([]shard.Shard, opts.NumShards())
-	for i := 0; i < opts.NumShards(); i++ {
-		shardSet[i] = shard.NewShard(uint32(i)).
-			SetState(shard.Initializing).
-			SetCutoverNanos(0).
-			SetCutoffNanos(math.MaxInt64)
-	}
-	shards := shard.NewShards(shardSet)
-	instance := placement.NewInstance().
-		SetID(opts.InstanceID()).
-		SetShards(shards).
-		SetShardSetID(opts.ShardSetID())
-	testPlacement := placement.NewPlacement().
-		SetInstances([]placement.Instance{instance}).
-		SetShards(shards.AllIDs())
-	stagedPlacement := placement.NewStagedPlacement().
-		SetPlacements([]placement.Placement{testPlacement})
-	stagedPlacementProto, err := stagedPlacement.Proto()
-	require.NoError(t, err)
-	placementKey := opts.PlacementKVKey()
-	placementStore := opts.KVStore()
-	_, err = placementStore.SetIfNotExists(placementKey, stagedPlacementProto)
-	require.NoError(t, err)
 	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
-		SetStagedPlacementKey(placementKey).
-		SetStagedPlacementStore(placementStore)
+		SetClockOptions(clockOpts).
+		SetStagedPlacementKey(opts.PlacementKVKey()).
+		SetStagedPlacementStore(opts.KVStore())
 	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
 	placementManagerOpts := aggregator.NewPlacementManagerOptions().
+		SetClockOptions(clockOpts).
 		SetInstanceID(opts.InstanceID()).
 		SetStagedPlacementWatcher(placementWatcher)
 	placementManager := aggregator.NewPlacementManager(placementManagerOpts)
-	aggregatorOpts = aggregatorOpts.SetPlacementManager(placementManager)
+	aggregatorOpts = aggregatorOpts.
+		SetShardFn(opts.ShardFn()).
+		SetPlacementManager(placementManager)
 
 	// Set up flush times manager.
 	flushTimesManagerOpts := aggregator.NewFlushTimesManagerOptions().
+		SetClockOptions(clockOpts).
 		SetFlushTimesKeyFmt(opts.FlushTimesKeyFmt()).
 		SetFlushTimesStore(opts.KVStore())
 	flushTimesManager := aggregator.NewFlushTimesManager(flushTimesManagerOpts)
@@ -179,9 +130,13 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	require.NoError(t, err)
 	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
 	electionKey := fmt.Sprintf(opts.ElectionKeyFmt(), opts.ShardSetID())
-	electionCluster := newTestCluster(t)
+	electionCluster := opts.ElectionCluster()
+	if electionCluster == nil {
+		electionCluster = newTestCluster(t)
+	}
 	leaderService := electionCluster.LeaderService()
 	electionManagerOpts := aggregator.NewElectionManagerOptions().
+		SetClockOptions(clockOpts).
 		SetCampaignOptions(campaignOpts).
 		SetElectionKeyFmt(opts.ElectionKeyFmt()).
 		SetLeaderService(leaderService).
@@ -192,6 +147,7 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 
 	// Set up flush manager.
 	flushManagerOpts := aggregator.NewFlushManagerOptions().
+		SetClockOptions(clockOpts).
 		SetPlacementManager(placementManager).
 		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).
@@ -199,6 +155,16 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 		SetMaxJitterFn(opts.MaxJitterFn())
 	flushManager := aggregator.NewFlushManager(flushManagerOpts)
 	aggregatorOpts = aggregatorOpts.SetFlushManager(flushManager)
+
+	// Set up admin client.
+	clientOpts := aggclient.NewOptions().
+		SetClockOptions(clockOpts).
+		SetConnectionOptions(opts.ClientConnectionOptions()).
+		SetShardFn(opts.ShardFn()).
+		SetStagedPlacementWatcherOptions(placementWatcherOpts)
+	adminClient := aggclient.NewClient(clientOpts).(aggclient.AdminClient)
+	require.NoError(t, adminClient.Init())
+	aggregatorOpts = aggregatorOpts.SetAdminClient(adminClient)
 
 	// Set up the handler.
 	var (
@@ -208,10 +174,10 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	handler := &capturingHandler{results: &results, resultLock: &resultLock}
 	aggregatorOpts = aggregatorOpts.SetFlushHandler(handler)
 
-	return &testSetup{
+	return &testServerSetup{
 		opts:             opts,
-		rawTCPAddr:       rawTCPAddr,
-		httpAddr:         httpAddr,
+		rawTCPAddr:       opts.RawTCPAddr(),
+		httpAddr:         opts.HTTPAddr(),
 		rawTCPServerOpts: rawTCPServerOpts,
 		httpServerOpts:   httpServerOpts,
 		aggregatorOpts:   aggregatorOpts,
@@ -220,8 +186,6 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 		leaderValue:      leaderValue,
 		leaderService:    leaderService,
 		electionCluster:  electionCluster,
-		getNowFn:         getNowFn,
-		setNowFn:         setNowFn,
 		workerPool:       workerPool,
 		results:          &results,
 		resultLock:       &resultLock,
@@ -230,11 +194,12 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	}
 }
 
-func (ts *testSetup) newClient() *client {
-	return newClient(ts.rawTCPAddr, ts.opts.ClientBatchSize(), ts.opts.ClientConnectTimeout())
+func (ts *testServerSetup) newClient() *client {
+	connectTimeout := ts.opts.ClientConnectionOptions().ConnectionTimeout()
+	return newClient(ts.rawTCPAddr, ts.opts.ClientBatchSize(), connectTimeout)
 }
 
-func (ts *testSetup) waitUntilServerIsUp() error {
+func (ts *testServerSetup) waitUntilServerIsUp() error {
 	c := ts.newClient()
 	defer c.close()
 
@@ -245,7 +210,7 @@ func (ts *testSetup) waitUntilServerIsUp() error {
 	return errServerStartTimedOut
 }
 
-func (ts *testSetup) startServer() error {
+func (ts *testServerSetup) startServer() error {
 	errCh := make(chan error, 1)
 
 	// Creating the aggregator.
@@ -281,7 +246,7 @@ func (ts *testSetup) startServer() error {
 	return <-errCh
 }
 
-func (ts *testSetup) waitUntilLeader() error {
+func (ts *testServerSetup) waitUntilLeader() error {
 	isLeader := func() bool {
 		leader, err := ts.leaderService.Leader(ts.electionKey)
 		if err != nil {
@@ -289,16 +254,22 @@ func (ts *testSetup) waitUntilLeader() error {
 		}
 		return leader == ts.leaderValue
 	}
-	waitUntil(isLeader, ts.opts.ElectionStateChangeTimeout())
+	if !waitUntil(isLeader, ts.opts.ElectionStateChangeTimeout()) {
+		return errLeaderElectionTimeout
+	}
+	// TODO(xichen): replace the sleep here by using HTTP client to explicit
+	// curl the server for election status.
+	// Give the server some time to transition into leader state if needed.
+	time.Sleep(time.Second)
 	return nil
 }
 
-func (ts *testSetup) sortedResults() []aggregated.MetricWithStoragePolicy {
+func (ts *testServerSetup) sortedResults() []aggregated.MetricWithStoragePolicy {
 	sort.Sort(byTimeIDPolicyAscending(*ts.results))
 	return *ts.results
 }
 
-func (ts *testSetup) stopServer() error {
+func (ts *testServerSetup) stopServer() error {
 	if err := ts.aggregator.Close(); err != nil {
 		return err
 	}
@@ -309,7 +280,7 @@ func (ts *testSetup) stopServer() error {
 	return nil
 }
 
-func (ts *testSetup) close() {
+func (ts *testServerSetup) close() {
 	ts.electionCluster.Close()
 }
 

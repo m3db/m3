@@ -122,7 +122,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          1234,
+		SourceID:          []byte("testForwardSource"),
 		NumForwardedTimes: 3,
 	}
 	testCounterWithPoliciesList = unaggregated.CounterWithPoliciesList{

@@ -134,19 +134,19 @@ func (s *handler) Handle(conn net.Conn) {
 		case encoding.CounterWithMetadatasType:
 			untimedMetric = current.CounterWithMetadatas.Counter.ToUnion()
 			stagedMetadatas = current.CounterWithMetadatas.StagedMetadatas
-			err = newAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
+			err = toAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
 		case encoding.BatchTimerWithMetadatasType:
 			untimedMetric = current.BatchTimerWithMetadatas.BatchTimer.ToUnion()
 			stagedMetadatas = current.BatchTimerWithMetadatas.StagedMetadatas
-			err = newAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
+			err = toAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
 		case encoding.GaugeWithMetadatasType:
 			untimedMetric = current.GaugeWithMetadatas.Gauge.ToUnion()
 			stagedMetadatas = current.GaugeWithMetadatas.StagedMetadatas
-			err = newAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
+			err = toAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
 		case encoding.TimedMetricWithForwardMetadataType:
 			forwardedMetric = current.TimedMetricWithForwardMetadata.Metric
 			forwardMetadata = current.TimedMetricWithForwardMetadata.ForwardMetadata
-			err = newAddForwardedError(s.aggregator.AddForwarded(forwardedMetric, forwardMetadata))
+			err = toAddForwardedError(s.aggregator.AddForwarded(forwardedMetric, forwardMetadata))
 		default:
 			err = newUnknownMessageTypeError(current.Type)
 		}
@@ -154,6 +154,7 @@ func (s *handler) Handle(conn net.Conn) {
 		if err == nil {
 			continue
 		}
+
 		// We rate limit the error log here because the error rate may scale with
 		// the metrics incoming rate and consume lots of cpu cycles.
 		if s.errLogRateLimiter != nil && !s.errLogRateLimiter.IsAllowed(1) {
@@ -225,14 +226,28 @@ func (e unknownMessageTypeError) Error() string {
 	return fmt.Sprintf("unknown message type %v", e.msgType)
 }
 
-type addUntimedError error
-
-func newAddUntimedError(err error) addUntimedError {
-	return addUntimedError(err)
+type addUntimedError struct {
+	err error
 }
 
-type addForwardedError error
-
-func newAddForwardedError(err error) addForwardedError {
-	return addForwardedError(err)
+func toAddUntimedError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return addUntimedError{err: err}
 }
+
+func (e addUntimedError) Error() string { return e.err.Error() }
+
+type addForwardedError struct {
+	err error
+}
+
+func toAddForwardedError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return addForwardedError{err: err}
+}
+
+func (e addForwardedError) Error() string { return e.err.Error() }

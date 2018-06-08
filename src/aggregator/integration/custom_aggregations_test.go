@@ -24,123 +24,192 @@ package integration
 
 import (
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/metric/aggregated"
+	"github.com/m3db/m3x/clock"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestCustomAggregationWithPoliciesList(t *testing.T) {
-	metadatas := [4]metadataUnion{
-		{
-			mType:        policiesListType,
-			policiesList: testPoliciesList,
+	metadataFns := [4]metadataFn{
+		func(int) metadataUnion {
+			return metadataUnion{
+				mType:        policiesListType,
+				policiesList: testPoliciesList,
+			}
 		},
-		{
-			mType:        policiesListType,
-			policiesList: testPoliciesListWithCustomAggregation1,
+		func(int) metadataUnion {
+			return metadataUnion{
+				mType:        policiesListType,
+				policiesList: testPoliciesListWithCustomAggregation1,
+			}
 		},
-		{
-			mType:        policiesListType,
-			policiesList: testPoliciesListWithCustomAggregation2,
+		func(int) metadataUnion {
+			return metadataUnion{
+				mType:        policiesListType,
+				policiesList: testPoliciesListWithCustomAggregation2,
+			}
 		},
-		{
-			mType:        policiesListType,
-			policiesList: testPoliciesList,
+		func(int) metadataUnion {
+			return metadataUnion{
+				mType:        policiesListType,
+				policiesList: testPoliciesList,
+			}
 		},
 	}
-	testCustomAggregations(t, metadatas)
+	testCustomAggregations(t, metadataFns)
 }
 
 func TestCustomAggregationWithStagedMetadatas(t *testing.T) {
-	metadatas := [4]metadataUnion{
-		{
-			mType:           stagedMetadatasType,
-			stagedMetadatas: testStagedMetadatas,
+	metadataFns := [4]metadataFn{
+		func(int) metadataUnion {
+			return metadataUnion{
+				mType:           stagedMetadatasType,
+				stagedMetadatas: testStagedMetadatas,
+			}
 		},
-		{
-			mType:           stagedMetadatasType,
-			stagedMetadatas: testUpdatedStagedMetadatas,
+		func(int) metadataUnion {
+			return metadataUnion{
+				mType:           stagedMetadatasType,
+				stagedMetadatas: testUpdatedStagedMetadatas,
+			}
 		},
-		{
-			mType:           stagedMetadatasType,
-			stagedMetadatas: testStagedMetadatas,
+		func(int) metadataUnion {
+			return metadataUnion{
+				mType:           stagedMetadatasType,
+				stagedMetadatas: testStagedMetadatas,
+			}
 		},
-		{
-			mType:           stagedMetadatasType,
-			stagedMetadatas: testUpdatedStagedMetadatas,
+		func(int) metadataUnion {
+			return metadataUnion{
+				mType:           stagedMetadatasType,
+				stagedMetadatas: testUpdatedStagedMetadatas,
+			}
 		},
 	}
-	testCustomAggregations(t, metadatas)
+	testCustomAggregations(t, metadataFns)
 }
 
-func testCustomAggregations(t *testing.T, metadatas [4]metadataUnion) {
+func testCustomAggregations(t *testing.T, metadataFns [4]metadataFn) {
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	// Test setup.
-	testSetup := newTestSetup(t, newTestOptions())
-	defer testSetup.close()
+	serverOpts := newTestServerOptions()
 
-	testSetup.aggregatorOpts =
-		testSetup.aggregatorOpts.
-			SetEntryCheckInterval(time.Second)
+	// Clock setup.
+	var lock sync.RWMutex
+	now := time.Now().Truncate(time.Hour)
+	getNowFn := func() time.Time {
+		lock.RLock()
+		t := now
+		lock.RUnlock()
+		return t
+	}
+	setNowFn := func(t time.Time) {
+		lock.Lock()
+		now = t
+		lock.Unlock()
+	}
+	clockOpts := clock.NewOptions().SetNowFn(getNowFn)
+	serverOpts = serverOpts.SetClockOptions(clockOpts)
+
+	// Placement setup.
+	numShards := 1024
+	cfg := placementInstanceConfig{
+		instanceID:          serverOpts.InstanceID(),
+		shardSetID:          serverOpts.ShardSetID(),
+		shardStartInclusive: 0,
+		shardEndExclusive:   uint32(numShards),
+	}
+	instance := cfg.newPlacementInstance()
+	placement := newPlacement(numShards, []placement.Instance{instance})
+	placementKey := serverOpts.PlacementKVKey()
+	placementStore := serverOpts.KVStore()
+	require.NoError(t, setPlacement(placementKey, placementStore, placement))
+
+	// Create server.
+	testServer := newTestServerSetup(t, serverOpts)
+	defer testServer.close()
 
 	// Start the server.
-	log := testSetup.aggregatorOpts.InstrumentOptions().Logger()
+	log := testServer.aggregatorOpts.InstrumentOptions().Logger()
 	log.Info("test custom aggregations")
-	require.NoError(t, testSetup.startServer())
+	require.NoError(t, testServer.startServer())
 	log.Info("server is now up")
-	require.NoError(t, testSetup.waitUntilLeader())
+	require.NoError(t, testServer.waitUntilLeader())
 	log.Info("server is now the leader")
 
 	var (
 		idPrefix = "foo"
 		numIDs   = 100
-		start    = testSetup.getNowFn()
+		start    = getNowFn()
 		t1       = start.Add(2 * time.Second)
 		t2       = start.Add(4 * time.Second)
 		t3       = start.Add(6 * time.Second)
 		end      = start.Add(8 * time.Second)
 		interval = time.Second
 	)
-	client := testSetup.newClient()
+	client := testServer.newClient()
 	require.NoError(t, client.connect())
 	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	inputs := []struct {
-		dataset  testDataset
-		metadata metadataUnion
-	}{
-		{
-			dataset:  generateTestDataset(start, t1, interval, ids, roundRobinMetricTypeFn),
-			metadata: metadatas[0],
-		},
-		{
-			dataset:  generateTestDataset(t1, t2, interval, ids, roundRobinMetricTypeFn),
-			metadata: metadatas[1],
-		},
-		{
-			dataset:  generateTestDataset(t2, t3, interval, ids, roundRobinMetricTypeFn),
-			metadata: metadatas[2],
-		},
-		{
-			dataset:  generateTestDataset(t3, end, interval, ids, roundRobinMetricTypeFn),
-			metadata: metadatas[3],
-		},
+	inputs := []testDataset{
+		mustGenerateTestDataset(t, datasetGenOpts{
+			start:        start,
+			stop:         t1,
+			interval:     interval,
+			ids:          ids,
+			category:     untimedMetric,
+			typeFn:       roundRobinMetricTypeFn,
+			valueGenOpts: defaultValueGenOpts,
+			metadataFn:   metadataFns[0],
+		}),
+		mustGenerateTestDataset(t, datasetGenOpts{
+			start:        t1,
+			stop:         t2,
+			interval:     interval,
+			ids:          ids,
+			category:     untimedMetric,
+			typeFn:       roundRobinMetricTypeFn,
+			valueGenOpts: defaultValueGenOpts,
+			metadataFn:   metadataFns[1],
+		}),
+		mustGenerateTestDataset(t, datasetGenOpts{
+			start:        t2,
+			stop:         t3,
+			interval:     interval,
+			ids:          ids,
+			category:     untimedMetric,
+			typeFn:       roundRobinMetricTypeFn,
+			valueGenOpts: defaultValueGenOpts,
+			metadataFn:   metadataFns[2],
+		}),
+		mustGenerateTestDataset(t, datasetGenOpts{
+			start:        t3,
+			stop:         end,
+			interval:     interval,
+			ids:          ids,
+			category:     untimedMetric,
+			typeFn:       roundRobinMetricTypeFn,
+			valueGenOpts: defaultValueGenOpts,
+			metadataFn:   metadataFns[3],
+		}),
 	}
-	for _, input := range inputs {
-		for _, data := range input.dataset {
-			testSetup.setNowFn(data.timestamp)
-			for _, mu := range data.metrics {
-				if input.metadata.mType == policiesListType {
-					require.NoError(t, client.writeMetricWithPoliciesList(mu, input.metadata.policiesList))
+	for _, dataset := range inputs {
+		for _, data := range dataset {
+			setNowFn(data.timestamp)
+			for _, mm := range data.metricWithMetadatas {
+				if mm.metadata.mType == policiesListType {
+					require.NoError(t, client.writeUntimedMetricWithPoliciesList(mm.metric.untimed, mm.metadata.policiesList))
 				} else {
-					require.NoError(t, client.writeMetricWithMetadatas(mu, input.metadata.stagedMetadatas))
+					require.NoError(t, client.writeUntimedMetricWithMetadatas(mm.metric.untimed, mm.metadata.stagedMetadatas))
 				}
 			}
 			require.NoError(t, client.flush())
@@ -153,19 +222,19 @@ func testCustomAggregations(t *testing.T, metadatas [4]metadataUnion) {
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
 	finalTime := end.Add(time.Second)
-	testSetup.setNowFn(finalTime)
+	setNowFn(finalTime)
 	time.Sleep(6 * time.Second)
 
 	// Stop the server.
-	require.NoError(t, testSetup.stopServer())
+	require.NoError(t, testServer.stopServer())
 	log.Info("server is now down")
 
 	// Validate results.
 	var expected []aggregated.MetricWithStoragePolicy
 	for _, input := range inputs {
-		expected = append(expected, computeExpectedResults(t, finalTime, input.dataset, input.metadata, testSetup.aggregatorOpts)...)
+		expected = append(expected, mustComputeExpectedResults(t, finalTime, input, testServer.aggregatorOpts)...)
 	}
 	sort.Sort(byTimeIDPolicyAscending(expected))
-	actual := testSetup.sortedResults()
+	actual := testServer.sortedResults()
 	require.Equal(t, expected, actual)
 }

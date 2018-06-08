@@ -113,7 +113,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          1234,
+		SourceID:          []byte("testForwardSource"),
 		NumForwardedTimes: 3,
 	}
 )
