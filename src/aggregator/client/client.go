@@ -36,6 +36,9 @@ import (
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/instrument"
+
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -94,6 +97,28 @@ const (
 	clientClosed
 )
 
+type clientMetrics struct {
+	writeUntimedCounter    instrument.MethodMetrics
+	writeUntimedBatchTimer instrument.MethodMetrics
+	writeUntimedGauge      instrument.MethodMetrics
+	writeForwarded         instrument.MethodMetrics
+	flush                  instrument.MethodMetrics
+	shardNotOwned          tally.Counter
+	shardNotWriteable      tally.Counter
+}
+
+func newClientMetrics(scope tally.Scope, sampleRate float64) clientMetrics {
+	return clientMetrics{
+		writeUntimedCounter:    instrument.NewMethodMetrics(scope, "writeUntimedCounter", sampleRate),
+		writeUntimedBatchTimer: instrument.NewMethodMetrics(scope, "writeUntimedBatchTimer", sampleRate),
+		writeUntimedGauge:      instrument.NewMethodMetrics(scope, "writeUntimedGauge", sampleRate),
+		writeForwarded:         instrument.NewMethodMetrics(scope, "writeForwarded", sampleRate),
+		flush:                  instrument.NewMethodMetrics(scope, "flush", sampleRate),
+		shardNotOwned:          scope.Counter("shard-not-owned"),
+		shardNotWriteable:      scope.Counter("shard-not-writeable"),
+	}
+}
+
 // client partitions metrics and send them via different routes based on their partitions.
 type client struct {
 	sync.RWMutex
@@ -106,15 +131,16 @@ type client struct {
 	shardFn                    sharding.ShardFn
 	placementWatcher           placement.StagedPlacementWatcher
 	state                      clientState
+	metrics                    clientMetrics
 }
 
 // NewClient creates a new client.
 func NewClient(opts Options) Client {
 	var (
 		instrumentOpts = opts.InstrumentOptions()
-		writerScope    = instrumentOpts.MetricsScope().SubScope("writer")
-		writerOpts     = opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerScope))
-		writerMgr      = newInstanceWriterManager(writerOpts)
+		writerMgrScope = instrumentOpts.MetricsScope().SubScope("writer-manager")
+		writerMgrOpts  = opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerMgrScope))
+		writerMgr      = newInstanceWriterManager(writerMgrOpts)
 	)
 	onPlacementsAddedFn := func(placements []placement.Placement) {
 		for _, placement := range placements {
@@ -141,6 +167,7 @@ func NewClient(opts Options) Client {
 		writerMgr:                  writerMgr,
 		shardFn:                    opts.ShardFn(),
 		placementWatcher:           placementWatcher,
+		metrics:                    newClientMetrics(instrumentOpts.MetricsScope(), instrumentOpts.MetricsSamplingRate()),
 	}
 }
 
@@ -159,6 +186,7 @@ func (c *client) WriteUntimedCounter(
 	counter unaggregated.Counter,
 	metadatas metadata.StagedMetadatas,
 ) error {
+	callStart := c.nowFn()
 	payload := payloadUnion{
 		payloadType: untimedType,
 		untimed: untimedPayload{
@@ -166,13 +194,16 @@ func (c *client) WriteUntimedCounter(
 			metadatas: metadatas,
 		},
 	}
-	return c.write(counter.ID, c.nowNanos(), payload)
+	err := c.write(counter.ID, c.nowNanos(), payload)
+	c.metrics.writeUntimedCounter.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
+	return err
 }
 
 func (c *client) WriteUntimedBatchTimer(
 	batchTimer unaggregated.BatchTimer,
 	metadatas metadata.StagedMetadatas,
 ) error {
+	callStart := c.nowFn()
 	payload := payloadUnion{
 		payloadType: untimedType,
 		untimed: untimedPayload{
@@ -180,13 +211,16 @@ func (c *client) WriteUntimedBatchTimer(
 			metadatas: metadatas,
 		},
 	}
-	return c.write(batchTimer.ID, c.nowNanos(), payload)
+	err := c.write(batchTimer.ID, c.nowNanos(), payload)
+	c.metrics.writeUntimedBatchTimer.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
+	return err
 }
 
 func (c *client) WriteUntimedGauge(
 	gauge unaggregated.Gauge,
 	metadatas metadata.StagedMetadatas,
 ) error {
+	callStart := c.nowFn()
 	payload := payloadUnion{
 		payloadType: untimedType,
 		untimed: untimedPayload{
@@ -194,13 +228,16 @@ func (c *client) WriteUntimedGauge(
 			metadatas: metadatas,
 		},
 	}
-	return c.write(gauge.ID, c.nowNanos(), payload)
+	err := c.write(gauge.ID, c.nowNanos(), payload)
+	c.metrics.writeUntimedGauge.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
+	return err
 }
 
 func (c *client) WriteForwarded(
 	metric aggregated.Metric,
 	metadata metadata.ForwardMetadata,
 ) error {
+	callStart := c.nowFn()
 	payload := payloadUnion{
 		payloadType: forwardedType,
 		forwarded: forwardedPayload{
@@ -208,10 +245,13 @@ func (c *client) WriteForwarded(
 			metadata: metadata,
 		},
 	}
-	return c.write(metric.ID, metric.TimeNanos, payload)
+	err := c.write(metric.ID, metric.TimeNanos, payload)
+	c.metrics.writeForwarded.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
+	return err
 }
 
 func (c *client) Flush() error {
+	callStart := c.nowFn()
 	c.RLock()
 	if c.state != clientInitialized {
 		c.RUnlock()
@@ -219,6 +259,7 @@ func (c *client) Flush() error {
 	}
 	err := c.writerMgr.Flush()
 	c.RUnlock()
+	c.metrics.flush.ReportSuccessOrError(err, c.nowFn().Sub(callStart))
 	return err
 }
 
@@ -264,9 +305,11 @@ func (c *client) write(metricID id.RawID, timeNanos int64, payload payloadUnion)
 		if !ok {
 			err = fmt.Errorf("instance %s does not own shard %d", instance.ID(), shardID)
 			multiErr = multiErr.Add(err)
+			c.metrics.shardNotOwned.Inc(1)
 			continue
 		}
 		if !c.shouldWriteForShard(timeNanos, shard) {
+			c.metrics.shardNotWriteable.Inc(1)
 			continue
 		}
 		if err = c.writerMgr.Write(instance, shardID, payload); err != nil {

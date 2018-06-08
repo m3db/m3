@@ -118,15 +118,20 @@ type queue struct {
 	bufCh    chan protobuf.Buffer
 	doneCh   chan struct{}
 	closed   bool
+	wg       sync.WaitGroup
 
 	writeFn writeFn
 }
 
 func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 	var (
-		conn      = newConnection(instance.Endpoint(), opts.ConnectionOptions())
-		iOpts     = opts.InstrumentOptions()
-		queueSize = opts.InstanceQueueSize()
+		instrumentOpts     = opts.InstrumentOptions()
+		scope              = instrumentOpts.MetricsScope()
+		connInstrumentOpts = instrumentOpts.SetMetricsScope(scope.SubScope("connection"))
+		connOpts           = opts.ConnectionOptions().SetInstrumentOptions(connInstrumentOpts)
+		conn               = newConnection(instance.Endpoint(), connOpts)
+		iOpts              = opts.InstrumentOptions()
+		queueSize          = opts.InstanceQueueSize()
 	)
 	q := &queue{
 		dropType: opts.QueueDropType(),
@@ -139,8 +144,10 @@ func newInstanceQueue(instance placement.Instance, opts Options) instanceQueue {
 	}
 	q.writeFn = q.conn.Write
 
+	q.wg.Add(2)
 	go q.drain()
 	go q.reportQueueSize(iOpts.ReportInterval())
+
 	return q
 }
 
@@ -184,18 +191,22 @@ func (q *queue) Enqueue(buf protobuf.Buffer) error {
 
 func (q *queue) Close() error {
 	q.Lock()
-	defer q.Unlock()
-
 	if q.closed {
+		q.Unlock()
 		return errInstanceQueueClosed
 	}
 	q.closed = true
 	close(q.doneCh)
 	close(q.bufCh)
+	q.Unlock()
+
+	q.wg.Wait()
 	return nil
 }
 
 func (q *queue) drain() {
+	defer q.wg.Done()
+
 	for buf := range q.bufCh {
 		if err := q.writeFn(buf.Bytes()); err != nil {
 			q.log.WithFields(
@@ -210,6 +221,8 @@ func (q *queue) drain() {
 }
 
 func (q *queue) reportQueueSize(reportInterval time.Duration) {
+	defer q.wg.Done()
+
 	ticker := time.NewTicker(reportInterval)
 	defer ticker.Stop()
 

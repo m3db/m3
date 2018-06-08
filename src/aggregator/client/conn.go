@@ -97,7 +97,6 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 
 // Write sends data onto the connection, and attempts to re-establish
 // connection if the connection is down.
-// TODO(xichen): emit a metric when the write fails.
 func (c *connection) Write(data []byte) error {
 	c.Lock()
 	if c.conn == nil {
@@ -216,7 +215,7 @@ type connectionMetrics struct {
 
 func newConnectionMetrics(scope tally.Scope) connectionMetrics {
 	return connectionMetrics{
-		connectError: scope.Tagged(map[string]string{errorMetricType: "connection"}).
+		connectError: scope.Tagged(map[string]string{errorMetricType: "connect"}).
 			Counter(errorMetric),
 		writeError: scope.Tagged(map[string]string{errorMetricType: "write"}).
 			Counter(errorMetric),

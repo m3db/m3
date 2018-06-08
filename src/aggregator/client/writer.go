@@ -273,6 +273,7 @@ func (w *writer) encodeUntimedWithLock(
 		// Rewind buffer and clear out the encoder error.
 		encoder.Truncate(sizeBefore)
 		encoder.Unlock()
+		w.metrics.encodeErrors.Inc(1)
 		return encodeErr
 	}
 
@@ -316,6 +317,7 @@ func (w *writer) encodeForwardedWithLock(
 		// Rewind buffer and clear out the encoder error.
 		encoder.Truncate(sizeBefore)
 		encoder.Unlock()
+		w.metrics.encodeErrors.Inc(1)
 		return err
 	}
 
@@ -385,6 +387,7 @@ const (
 
 type writerMetrics struct {
 	buffersEnqueued tally.Counter
+	encodeErrors    tally.Counter
 	enqueueErrors   tally.Counter
 	flushErrors     tally.Counter
 }
@@ -392,6 +395,7 @@ type writerMetrics struct {
 func newWriterMetrics(s tally.Scope) writerMetrics {
 	return writerMetrics{
 		buffersEnqueued: s.Tagged(map[string]string{actionTag: "enqueued"}).Counter(buffersMetric),
+		encodeErrors:    s.Tagged(map[string]string{actionTag: "encode-error"}).Counter(buffersMetric),
 		enqueueErrors:   s.Tagged(map[string]string{actionTag: "enqueue-error"}).Counter(buffersMetric),
 		flushErrors:     s.Tagged(map[string]string{actionTag: "flush-error"}).Counter(buffersMetric),
 	}
