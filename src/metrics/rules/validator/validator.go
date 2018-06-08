@@ -21,15 +21,27 @@
 package validator
 
 import (
+	"errors"
 	"fmt"
 
-	"github.com/m3db/m3metrics/errors"
+	"github.com/m3db/m3metrics/aggregation"
+	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/metric"
+	mpipeline "github.com/m3db/m3metrics/pipeline"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3metrics/rules/models"
 	"github.com/m3db/m3metrics/rules/validator/namespace"
+)
+
+var (
+	errNoStoragePolicies                  = errors.New("no storage policies")
+	errEmptyRollupMetricName              = errors.New("empty rollup metric name")
+	errEmptyPipeline                      = errors.New("empty pipeline")
+	errMoreThanOneAggregationOpInPipeline = errors.New("more than one aggregation operation in pipeline")
+	errAggregationOpNotFirstInPipeline    = errors.New("aggregation operation is not the first operation in pipeline")
+	errNoRollupOpInPipeline               = errors.New("no rollup operation in pipeline")
 )
 
 type validator struct {
@@ -85,31 +97,39 @@ func (v *validator) validateNamespace(ns string) error {
 
 func (v *validator) validateMappingRules(mrv map[string]*models.MappingRuleView) error {
 	namesSeen := make(map[string]struct{}, len(mrv))
-	for _, view := range mrv {
-		// Validate that no rules with the same name exist.
-		if _, exists := namesSeen[view.Name]; exists {
-			return errors.NewInvalidInputError(fmt.Sprintf("mapping rule '%s' already exists", view.Name))
+	for _, rule := range mrv {
+		if rule.Tombstoned {
+			continue
 		}
-		namesSeen[view.Name] = struct{}{}
+		// Validate that no rules with the same name exist.
+		if _, exists := namesSeen[rule.Name]; exists {
+			return merrors.NewInvalidInputError(fmt.Sprintf("mapping rule '%s' already exists", rule.Name))
+		}
+		namesSeen[rule.Name] = struct{}{}
 
 		// Validate that the filter is valid.
-		filterValues, err := v.validateFilter(view.Name, view.Filter)
+		filterValues, err := v.validateFilter(rule.Filter)
 		if err != nil {
-			return err
+			return fmt.Errorf("mapping rule '%s' has invalid filter %s: %v", rule.Name, rule.Filter, err)
 		}
 
 		// Validate the metric types.
 		types, err := v.opts.MetricTypesFn()(filterValues)
 		if err != nil {
-			return err
+			return fmt.Errorf("mapping rule '%s' cannot infer metric types from filter %v: %v", rule.Name, rule.Filter, err)
 		}
 		if len(types) == 0 {
-			return fmt.Errorf("mapping rule '%s' does not match any allowed metric types, filter=%s", view.Name, view.Filter)
+			return fmt.Errorf("mapping rule '%s' does not match any allowed metric types, filter=%s", rule.Name, rule.Filter)
 		}
 
-		// Validate that the policies are valid.
-		if err := v.validatePolicies(view.Name, view.Policies, types); err != nil {
-			return err
+		// Validate the aggregation ID.
+		if err := v.validateAggregationID(rule.AggregationID, firstLevelAggregationType, types); err != nil {
+			return fmt.Errorf("mapping rule '%s' has invalid aggregation id %v: %v", rule.Name, rule.AggregationID, err)
+		}
+
+		// Validate that the storage policies are valid.
+		if err := v.validateStoragePolicies(rule.StoragePolicies, types); err != nil {
+			return fmt.Errorf("mapping rule '%s' has invalid storage policies in %v: %v", rule.Name, rule.StoragePolicies, err)
 		}
 	}
 	return nil
@@ -117,115 +137,283 @@ func (v *validator) validateMappingRules(mrv map[string]*models.MappingRuleView)
 
 func (v *validator) validateRollupRules(rrv map[string]*models.RollupRuleView) error {
 	var (
-		namesSeen   = make(map[string]struct{}, len(rrv))
-		targetsSeen = make([]models.RollupTargetView, 0, len(rrv))
+		namesSeen = make(map[string]struct{}, len(rrv))
+		pipelines = make([]mpipeline.Pipeline, 0, len(rrv))
 	)
-	for _, view := range rrv {
-		// Validate that no rules with the same name exist.
-		if _, exists := namesSeen[view.Name]; exists {
-			return errors.NewInvalidInputError(fmt.Sprintf("rollup rule '%s' already exists", view.Name))
+	for _, rule := range rrv {
+		if rule.Tombstoned {
+			continue
 		}
-		namesSeen[view.Name] = struct{}{}
+		// Validate that no rules with the same name exist.
+		if _, exists := namesSeen[rule.Name]; exists {
+			return merrors.NewInvalidInputError(fmt.Sprintf("rollup rule '%s' already exists", rule.Name))
+		}
+		namesSeen[rule.Name] = struct{}{}
 
 		// Validate that the filter is valid.
-		filterValues, err := v.validateFilter(view.Name, view.Filter)
+		filterValues, err := v.validateFilter(rule.Filter)
 		if err != nil {
-			return err
+			return fmt.Errorf("rollup rule '%s' has invalid filter %s: %v", rule.Name, rule.Filter, err)
 		}
 
 		// Validate the metric types.
 		types, err := v.opts.MetricTypesFn()(filterValues)
 		if err != nil {
-			return err
+			return fmt.Errorf("rollup rule '%s' cannot infer metric types from filter %v: %v", rule.Name, rule.Filter, err)
 		}
 		if len(types) == 0 {
-			return fmt.Errorf("rollup rule '%s' does not match any allowed metric types, filter=%s", view.Name, view.Filter)
+			return fmt.Errorf("rollup rule '%s' does not match any allowed metric types, filter=%s", rule.Name, rule.Filter)
 		}
 
-		for _, target := range view.Targets {
-			// Validate that rollup metric name is valid.
-			if err := v.validateRollupMetricName(view.Name, target.Name); err != nil {
-				return err
+		for _, target := range rule.Targets {
+			// Validate the pipeline is valid.
+			if err := v.validatePipeline(target.Pipeline, types); err != nil {
+				return fmt.Errorf("rollup rule '%s' has invalid pipeline '%v': %v", rule.Name, target.Pipeline, err)
 			}
 
-			// Validate that the rollup tags are valid.
-			if err := v.validateRollupTags(view.Name, target.Tags); err != nil {
-				return err
+			// Validate that the storage policies are valid.
+			if err := v.validateStoragePolicies(target.StoragePolicies, types); err != nil {
+				return fmt.Errorf("rollup rule '%s' has invalid storage policies in %v: %v", rule.Name, target.StoragePolicies, err)
 			}
-
-			// Validate that the policies are valid.
-			if err := v.validatePolicies(view.Name, target.Policies, types); err != nil {
-				return err
-			}
-
-			// Validate that there are no conflicting rollup targets.
-			for _, seenTarget := range targetsSeen {
-				if target.SameTransform(seenTarget) {
-					return errors.NewInvalidInputError(fmt.Sprintf("rollup target with name '%s' and tags '%s' already exists", target.Name, target.Tags))
-				}
-			}
-			targetsSeen = append(targetsSeen, target)
+			pipelines = append(pipelines, target.Pipeline)
 		}
 	}
 
-	return nil
+	return validateNoDuplicateRollupIDIn(pipelines)
 }
 
-func (v *validator) validateFilter(ruleName string, f string) (filters.TagFilterValueMap, error) {
+func (v *validator) validateFilter(f string) (filters.TagFilterValueMap, error) {
 	filterValues, err := filters.ValidateTagsFilter(f)
 	if err != nil {
-		return nil, fmt.Errorf("rule '%s' has invalid rule filter '%s': %v", ruleName, f, err)
+		return nil, err
 	}
 	for tag := range filterValues {
 		// Validating the filter tag name does not contain invalid chars.
 		if err := v.opts.CheckInvalidCharactersForTagName(tag); err != nil {
-			return nil, fmt.Errorf("rule '%s' has invalid rule filter '%s': tag name '%s' contains invalid character, err: %v", ruleName, f, tag, err)
+			return nil, fmt.Errorf("tag name '%s' contains invalid character, err: %v", tag, err)
 		}
 	}
 	return filterValues, nil
 }
 
-func (v *validator) validatePolicies(ruleName string, policies []policy.Policy, types []metric.Type) error {
-	// Validating that at least one policy is provided.
-	if len(policies) == 0 {
-		return fmt.Errorf("rule %s has no policies", ruleName)
+func (v *validator) validateAggregationID(
+	aggregationID aggregation.ID,
+	aggregationType aggregationType,
+	types []metric.Type,
+) error {
+	// Default aggregation types are always allowed.
+	if aggregationID.IsDefault() {
+		return nil
 	}
-
-	// Validating that no duplicate policies exist.
-	seen := make(map[policy.Policy]struct{}, len(policies))
-	for _, p := range policies {
-		if _, exists := seen[p]; exists {
-			return fmt.Errorf("rule '%s' has duplicate policy '%s', provided policies are %v", ruleName, p.String(), policies)
-		}
-		seen[p] = struct{}{}
+	aggTypes, err := aggregationID.Types()
+	if err != nil {
+		return err
 	}
-
-	// Validating that provided policies are allowed for the specified metric type.
+	isAllowedFn := v.opts.IsAllowedFirstLevelAggregationTypeFor
+	if aggregationType == nonFirstLevelAggregationType {
+		isAllowedFn = v.opts.IsAllowedNonFirstLevelAggregationTypeFor
+	}
 	for _, t := range types {
-		for _, p := range policies {
-			if err := v.validatePolicy(t, p); err != nil {
-				return err
+		for _, aggType := range aggTypes {
+			if !isAllowedFn(t, aggType) {
+				return fmt.Errorf("aggregation type %v is not allowed for metric type %v", aggType, t)
 			}
 		}
 	}
 	return nil
 }
 
-func (v *validator) validateRollupTags(ruleName string, tags []string) error {
+func (v *validator) validateStoragePolicies(
+	storagePolicies policy.StoragePolicies,
+	types []metric.Type,
+) error {
+	// Validating that at least one storage policy is provided.
+	if len(storagePolicies) == 0 {
+		return errNoStoragePolicies
+	}
+
+	// Validating that no duplicate storage policies exist.
+	seen := make(map[policy.StoragePolicy]struct{}, len(storagePolicies))
+	for _, sp := range storagePolicies {
+		if _, exists := seen[sp]; exists {
+			return fmt.Errorf("duplicate storage policy '%s'", sp.String())
+		}
+		seen[sp] = struct{}{}
+	}
+
+	// Validating that provided storage policies are allowed for the specified metric type.
+	for _, t := range types {
+		for _, sp := range storagePolicies {
+			if !v.opts.IsAllowedStoragePolicyFor(t, sp) {
+				return fmt.Errorf("storage policy '%s' is not allowed for metric type %v", sp.String(), t)
+			}
+		}
+	}
+	return nil
+}
+
+// validatePipeline validates the rollup pipeline as follows:
+// * The pipeline must contain at least one operation.
+// * The pipeline can contain at most one aggregation operation, and if there is one,
+//   it must be the first operation.
+// * The pipeline can contain arbitrary number of transformation operations. However,
+//   the transformation derivative order computed from the list of transformations must
+//   be no more than the maximum transformation derivative order that is supported.
+// * The pipeline must contain at least one rollup operation and at most `n` rollup operations,
+//   where `n` is the maximum supported number of rollup levels.
+func (v *validator) validatePipeline(pipeline mpipeline.Pipeline, types []metric.Type) error {
+	if pipeline.IsEmpty() {
+		return errEmptyPipeline
+	}
+	var (
+		numAggregationOps             int
+		transformationDerivativeOrder int
+		numRollupOps                  int
+		previousRollupTags            map[string]struct{}
+		numPipelineOps                = pipeline.Len()
+	)
+	for i := 0; i < numPipelineOps; i++ {
+		pipelineOp := pipeline.At(i)
+		switch pipelineOp.Type {
+		case mpipeline.AggregationOpType:
+			numAggregationOps++
+			if numAggregationOps > 1 {
+				return errMoreThanOneAggregationOpInPipeline
+			}
+			if i != 0 {
+				return errAggregationOpNotFirstInPipeline
+			}
+			if err := v.validateAggregationOp(pipelineOp.Aggregation, types); err != nil {
+				return fmt.Errorf("invalid aggregation operation at index %d: %v", i, err)
+			}
+		case mpipeline.TransformationOpType:
+			transformOp := pipelineOp.Transformation
+			if transformOp.Type.IsBinaryTransform() {
+				transformationDerivativeOrder++
+				if transformationDerivativeOrder > v.opts.MaxTransformationDerivativeOrder() {
+					return fmt.Errorf("transformation derivative order is %d higher than supported %d", transformationDerivativeOrder, v.opts.MaxTransformationDerivativeOrder())
+				}
+			}
+			if err := validateTransformationOp(transformOp); err != nil {
+				return fmt.Errorf("invalid transformation operation at index %d: %v", i, err)
+			}
+		case mpipeline.RollupOpType:
+			// We only care about the derivative order of transformation operations in between
+			// two consecutive rollup operations and as such we reset the derivative order when
+			// encountering a rollup operation.
+			transformationDerivativeOrder = 0
+			numRollupOps++
+			if numRollupOps > v.opts.MaxRollupLevels() {
+				return fmt.Errorf("number of rollup levels is %d higher than supported %d", numRollupOps, v.opts.MaxRollupLevels())
+			}
+			if err := v.validateRollupOp(pipelineOp.Rollup, i, types, previousRollupTags); err != nil {
+				return fmt.Errorf("invalid rollup operation at index %d: %v", i, err)
+			}
+			previousRollupTags = make(map[string]struct{}, len(pipelineOp.Rollup.Tags))
+			for _, tag := range pipelineOp.Rollup.Tags {
+				previousRollupTags[string(tag)] = struct{}{}
+			}
+		default:
+			return fmt.Errorf("operation at index %d has invalid type: %v", i, pipelineOp.Type)
+		}
+	}
+	if numRollupOps == 0 {
+		return errNoRollupOpInPipeline
+	}
+	return nil
+}
+
+func (v *validator) validateAggregationOp(
+	aggregationOp mpipeline.AggregationOp,
+	types []metric.Type,
+) error {
+	aggregationID, err := aggregation.CompressTypes(aggregationOp.Type)
+	if err != nil {
+		return err
+	}
+	return v.validateAggregationID(aggregationID, firstLevelAggregationType, types)
+}
+
+func validateTransformationOp(transformationOp mpipeline.TransformationOp) error {
+	if !transformationOp.Type.IsValid() {
+		return fmt.Errorf("invalid transformation type: %v", transformationOp.Type)
+	}
+	return nil
+}
+
+func (v *validator) validateRollupOp(
+	rollupOp mpipeline.RollupOp,
+	opIdxInPipeline int,
+	types []metric.Type,
+	previousRollupTags map[string]struct{},
+) error {
+	// Validate that the rollup metric name is valid.
+	if err := v.validateRollupMetricName(rollupOp.NewName); err != nil {
+		return fmt.Errorf("invalid rollup metric name '%s': %v", rollupOp.NewName, err)
+	}
+
+	// Validate that the rollup tags are valid.
+	if err := v.validateRollupTags(rollupOp.Tags, previousRollupTags); err != nil {
+		return fmt.Errorf("invalid rollup tags %v: %v", rollupOp.Tags, err)
+	}
+
+	// Validate that the aggregation ID is valid.
+	aggType := firstLevelAggregationType
+	if opIdxInPipeline > 0 {
+		aggType = nonFirstLevelAggregationType
+	}
+	if err := v.validateAggregationID(rollupOp.AggregationID, aggType, types); err != nil {
+		return fmt.Errorf("invalid aggregation ID %v: %v", rollupOp.AggregationID, err)
+	}
+
+	return nil
+}
+
+func (v *validator) validateRollupMetricName(metricName []byte) error {
+	// Validate that rollup metric name is not empty.
+	if len(metricName) == 0 {
+		return errEmptyRollupMetricName
+	}
+
+	// Validate that rollup metric name has valid characters.
+	return v.opts.CheckInvalidCharactersForMetricName(string(metricName))
+}
+
+func (v *validator) validateRollupTags(
+	tags [][]byte,
+	previousRollupTags map[string]struct{},
+) error {
 	// Validating that all tag names have valid characters.
 	for _, tag := range tags {
-		if err := v.opts.CheckInvalidCharactersForTagName(tag); err != nil {
-			return fmt.Errorf("rollup rule '%s' has invalid rollup tag '%s': %v", ruleName, tag, err)
+		if err := v.opts.CheckInvalidCharactersForTagName(string(tag)); err != nil {
+			return fmt.Errorf("invalid rollup tag '%s': %v", tag, err)
 		}
 	}
 
 	// Validating that there are no duplicate rollup tags.
 	rollupTags := make(map[string]struct{}, len(tags))
 	for _, tag := range tags {
-		if _, exists := rollupTags[tag]; exists {
-			return fmt.Errorf("rollup rule '%s' has duplicate rollup tag: '%s', provided rollup tags are %v", ruleName, tag, tags)
+		tagStr := string(tag)
+		if _, exists := rollupTags[tagStr]; exists {
+			return fmt.Errorf("duplicate rollup tag: '%s'", tagStr)
 		}
-		rollupTags[tag] = struct{}{}
+		rollupTags[tagStr] = struct{}{}
+	}
+
+	// Validate that the set of rollup tags are a strict subset of those in
+	// previous rollup operations.
+	// NB: `previousRollupTags` is nil for the first rollup operation.
+	if previousRollupTags != nil {
+		var numSeenTags int
+		for _, tag := range tags {
+			if _, exists := previousRollupTags[string(tag)]; !exists {
+				return fmt.Errorf("tag %s not found in previous rollup operations", tag)
+			}
+			numSeenTags++
+		}
+		if numSeenTags == len(previousRollupTags) {
+			return fmt.Errorf("same set of %d rollup tags in consecutive rollup operations", numSeenTags)
+		}
 	}
 
 	// Validating the list of rollup tags in the rule contain all required tags.
@@ -235,47 +423,31 @@ func (v *validator) validateRollupTags(ruleName string, tags []string) error {
 	}
 	for _, requiredTag := range requiredTags {
 		if _, exists := rollupTags[requiredTag]; !exists {
-			return fmt.Errorf("rollup rule '%s' does not have required rollup tag: '%s', provided rollup tags are %v", ruleName, requiredTag, tags)
+			return fmt.Errorf("missing required rollup tag: '%s'", requiredTag)
 		}
 	}
 
 	return nil
 }
 
-func (v *validator) validateRollupMetricName(ruleName, metricName string) error {
-	// Validate that rollup metric name is not empty.
-	if metricName == "" {
-		return fmt.Errorf("rollup rule '%s' has an empty rollup metric name", ruleName)
-	}
-
-	// Validate that rollup metric name has valid characters.
-	if err := v.opts.CheckInvalidCharactersForMetricName(metricName); err != nil {
-		return fmt.Errorf("rollup rule '%s' has an invalid rollup metric name '%s': %v", ruleName, metricName, err)
-	}
-
-	return nil
-}
-
-func (v *validator) validatePolicy(t metric.Type, p policy.Policy) error {
-	// Validate storage policy.
-	if !v.opts.IsAllowedStoragePolicyFor(t, p.StoragePolicy) {
-		return fmt.Errorf("storage policy %v is not allowed for metric type %v", p.StoragePolicy, t)
-	}
-
-	// Validate aggregation function.
-	if isDefaultAggFn := p.AggregationID.IsDefault(); isDefaultAggFn {
-		return nil
-	}
-	aggTypes, err := p.AggregationID.Types()
-	if err != nil {
-		return err
-	}
-	for _, aggType := range aggTypes {
-		if !v.opts.IsAllowedCustomAggregationTypeFor(t, aggType) {
-			return fmt.Errorf("aggregation type %v is not allowed for metric type %v", aggType, t)
+func validateNoDuplicateRollupIDIn(pipelines []mpipeline.Pipeline) error {
+	rollupOps := make([]mpipeline.RollupOp, 0, len(pipelines))
+	for _, pipeline := range pipelines {
+		numOps := pipeline.Len()
+		for i := 0; i < numOps; i++ {
+			pipelineOp := pipeline.At(i)
+			if pipelineOp.Type != mpipeline.RollupOpType {
+				continue
+			}
+			rollupOp := pipelineOp.Rollup
+			for _, existing := range rollupOps {
+				if rollupOp.SameTransform(existing) {
+					return merrors.NewInvalidInputError(fmt.Sprintf("more than one rollup operations with name '%s' and tags '%s' exist", rollupOp.NewName, rollupOp.Tags))
+				}
+			}
+			rollupOps = append(rollupOps, rollupOp)
 		}
 	}
-
 	return nil
 }
 
@@ -286,9 +458,22 @@ func (v *validator) wrapError(err error) error {
 	switch err.(type) {
 	// Do not wrap error for these error types so caller can take actions
 	// based on the correct error type.
-	case errors.InvalidInputError, errors.ValidationError:
+	case merrors.InvalidInputError, merrors.ValidationError:
 		return err
 	default:
-		return errors.NewValidationError(err.Error())
+		return merrors.NewValidationError(err.Error())
 	}
 }
+
+type aggregationType int
+
+const (
+	// First-level aggregation refers to the aggregation operation performed as the first
+	// step of metrics processing, such as the aggregations specified by a mapping rule,
+	// or those specified by the first operation in a rollup pipeline.
+	firstLevelAggregationType aggregationType = iota
+
+	// Non-first-level aggregation refers to the aggregation operation performed as the
+	// second step or later step of a rollup pipeline.
+	nonFirstLevelAggregationType
+)

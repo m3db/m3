@@ -41,12 +41,14 @@ var (
 
 // Configuration is the configuration for rules validation.
 type Configuration struct {
-	Namespace              namespaceValidatorConfiguration    `yaml:"namespace"`
-	RequiredRollupTags     []string                           `yaml:"requiredRollupTags"`
-	MetricTypes            metricTypesValidationConfiguration `yaml:"metricTypes"`
-	Policies               policiesValidationConfiguration    `yaml:"policies"`
-	TagNameInvalidChars    string                             `yaml:"tagNameInvalidChars"`
-	MetricNameInvalidChars string                             `yaml:"metricNameInvalidChars"`
+	Namespace                        namespaceValidatorConfiguration    `yaml:"namespace"`
+	RequiredRollupTags               []string                           `yaml:"requiredRollupTags"`
+	MaxTransformationDerivativeOrder *int                               `yaml:"maxTransformationDerivativeOrder"`
+	MaxRollupLevels                  *int                               `yaml:"maxRollupLevels"`
+	MetricTypes                      metricTypesValidationConfiguration `yaml:"metricTypes"`
+	Policies                         policiesValidationConfiguration    `yaml:"policies"`
+	TagNameInvalidChars              string                             `yaml:"tagNameInvalidChars"`
+	MetricNameInvalidChars           string                             `yaml:"metricNameInvalidChars"`
 }
 
 // NewValidator creates a new rules validator based on the given configuration.
@@ -62,13 +64,21 @@ func (c Configuration) NewValidator(
 		SetRequiredRollupTags(c.RequiredRollupTags).
 		SetMetricTypesFn(c.MetricTypes.NewMetricTypesFn()).
 		SetDefaultAllowedStoragePolicies(c.Policies.DefaultAllowed.StoragePolicies).
-		SetDefaultAllowedCustomAggregationTypes(c.Policies.DefaultAllowed.AggregationTypes).
+		SetDefaultAllowedFirstLevelAggregationTypes(c.Policies.DefaultAllowed.FirstLevelAggregationTypes).
+		SetDefaultAllowedNonFirstLevelAggregationTypes(c.Policies.DefaultAllowed.NonFirstLevelAggregationTypes).
 		SetTagNameInvalidChars(toRunes(c.TagNameInvalidChars)).
 		SetMetricNameInvalidChars(toRunes(c.MetricNameInvalidChars))
 	for _, override := range c.Policies.Overrides {
 		opts = opts.
 			SetAllowedStoragePoliciesFor(override.Type, override.Allowed.StoragePolicies).
-			SetAllowedCustomAggregationTypesFor(override.Type, override.Allowed.AggregationTypes)
+			SetAllowedFirstLevelAggregationTypesFor(override.Type, override.Allowed.FirstLevelAggregationTypes).
+			SetAllowedNonFirstLevelAggregationTypesFor(override.Type, override.Allowed.NonFirstLevelAggregationTypes)
+	}
+	if c.MaxTransformationDerivativeOrder != nil {
+		opts = opts.SetMaxTransformationDerivativeOrder(*c.MaxTransformationDerivativeOrder)
+	}
+	if c.MaxRollupLevels != nil {
+		opts = opts.SetMaxRollupLevels(*c.MaxRollupLevels)
 	}
 	return NewValidator(opts), nil
 }
@@ -142,8 +152,9 @@ type policiesOverrideConfiguration struct {
 
 // policiesConfiguration is the configuration for storage policies and aggregation types.
 type policiesConfiguration struct {
-	StoragePolicies  []policy.StoragePolicy `yaml:"storagePolicies"`
-	AggregationTypes []aggregation.Type     `yaml:"aggregationTypes"`
+	StoragePolicies               []policy.StoragePolicy `yaml:"storagePolicies"`
+	FirstLevelAggregationTypes    []aggregation.Type     `yaml:"firstLevelAggregationTypes"`
+	NonFirstLevelAggregationTypes []aggregation.Type     `yaml:"nonFirstLevelAggregationTypes"`
 }
 
 func toRunes(s string) []rune {

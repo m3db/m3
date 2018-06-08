@@ -18,54 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package models
+package bytes
 
-import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
-)
-
-func TestNewNamespace(t *testing.T) {
-	view := &NamespaceView{
-		Name:              "name",
-		ForRuleSetVersion: 1,
+// ArraysFromStringArray converts a string array to a byte slice array.
+func ArraysFromStringArray(values []string) [][]byte {
+	result := make([][]byte, len(values))
+	for i, str := range values {
+		result[i] = []byte(str)
 	}
-	res := NewNamespace(view)
-	expected := Namespace{
-		ID:                "name",
-		ForRuleSetVersion: 1,
-	}
-	require.Equal(t, expected, res)
+	return result
 }
 
-func TestNewNamespaces(t *testing.T) {
-	view := &NamespacesView{
-		Version: 1,
-		Namespaces: []*NamespaceView{
-			&NamespaceView{
-				Name:              "name1",
-				ForRuleSetVersion: 1,
-			},
-			&NamespaceView{
-				Name:              "name2",
-				ForRuleSetVersion: 1,
-			},
-		},
+// ArraysToStringArray converts a byte slice array to a string array.
+func ArraysToStringArray(values [][]byte) []string {
+	result := make([]string, len(values))
+	for i, bytes := range values {
+		result[i] = string(bytes)
 	}
-	res := NewNamespaces(view)
-	expected := Namespaces{
-		Version: 1,
-		Namespaces: []Namespace{
-			{
-				ID:                "name1",
-				ForRuleSetVersion: 1,
-			},
-			{
-				ID:                "name2",
-				ForRuleSetVersion: 1,
-			},
-		},
+	return result
+}
+
+// ArrayCopy copies a byte slice array to a new byte slice array.
+func ArrayCopy(values [][]byte) [][]byte {
+	result := make([][]byte, len(values))
+	for i, b := range values {
+		result[i] = make([]byte, len(b))
+		copy(result[i], b)
 	}
-	require.Equal(t, expected, res)
+	return result
 }

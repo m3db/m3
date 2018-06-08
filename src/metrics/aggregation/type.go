@@ -22,6 +22,7 @@ package aggregation
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
@@ -199,6 +200,30 @@ func (a Type) Proto() (aggregationpb.AggregationType, error) {
 	return s, nil
 }
 
+// MarshalJSON returns the JSON encoding of an aggregation type.
+func (a Type) MarshalJSON() ([]byte, error) {
+	if !a.IsValid() {
+		return nil, fmt.Errorf("invalid aggregation type %s", a.String())
+	}
+	marshalled := strconv.Quote(a.String())
+	return []byte(marshalled), nil
+}
+
+// UnmarshalJSON unmarshals JSON-encoded data into an aggregation type.
+func (a *Type) UnmarshalJSON(data []byte) error {
+	str := string(data)
+	unquoted, err := strconv.Unquote(str)
+	if err != nil {
+		return err
+	}
+	parsed, err := ParseType(unquoted)
+	if err != nil {
+		return err
+	}
+	*a = parsed
+	return nil
+}
+
 // UnmarshalYAML unmarshals aggregation type from a string.
 func (a *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
@@ -277,7 +302,7 @@ func (aggTypes Types) IsDefault() bool {
 	return len(aggTypes) == 0
 }
 
-// String is for debugging.
+// String returns the string representation of the list of aggregation types.
 func (aggTypes Types) String() string {
 	if len(aggTypes) == 0 {
 		return ""

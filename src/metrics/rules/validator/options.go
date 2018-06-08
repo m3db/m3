@@ -32,6 +32,15 @@ import (
 	"github.com/m3db/m3metrics/rules/validator/namespace/static"
 )
 
+const (
+	// By default we only support at most one binary transformation function in between
+	// consecutive rollup operations in a pipeline.
+	defaultMaxTransformationDerivativeOrder = 1
+
+	// By default we allow at most one level of rollup in a pipeline.
+	defaultMaxRollupLevels = 1
+)
+
 // MetricTypesFn determines the possible metric types based on a set of tag based filters.
 type MetricTypesFn func(tagFilters filters.TagFilterValueMap) ([]metric.Type, error)
 
@@ -46,16 +55,24 @@ type Options interface {
 	// SetDefaultAllowedStoragePolicies sets the default list of allowed storage policies.
 	SetDefaultAllowedStoragePolicies(value []policy.StoragePolicy) Options
 
-	// SetDefaultAllowedCustomAggregationTypes sets the default list of allowed custom
+	// SetDefaultAllowedFirstLevelAggregationTypes sets the default list of allowed first-level
 	// aggregation types.
-	SetDefaultAllowedCustomAggregationTypes(value aggregation.Types) Options
+	SetDefaultAllowedFirstLevelAggregationTypes(value aggregation.Types) Options
+
+	// SetDefaultAllowedNonFirstLevelAggregationTypes sets the default list of allowed
+	// non-first-level aggregation types.
+	SetDefaultAllowedNonFirstLevelAggregationTypes(value aggregation.Types) Options
 
 	// SetAllowedStoragePoliciesFor sets the list of allowed storage policies for a given metric type.
 	SetAllowedStoragePoliciesFor(t metric.Type, policies []policy.StoragePolicy) Options
 
-	// SetAllowedCustomAggregationTypesFor sets the list of allowed custom aggregation
+	// SetAllowedFirstLevelAggregationTypesFor sets the list of allowed first-level aggregation
 	// types for a given metric type.
-	SetAllowedCustomAggregationTypesFor(t metric.Type, aggTypes aggregation.Types) Options
+	SetAllowedFirstLevelAggregationTypesFor(t metric.Type, aggTypes aggregation.Types) Options
+
+	// SetAllowedNonFirstLevelAggregationTypesFor sets the list of allowed non-first-level
+	// aggregation types for a given metric type.
+	SetAllowedNonFirstLevelAggregationTypesFor(t metric.Type, aggTypes aggregation.Types) Options
 
 	// SetMetricTypesFn sets the metric types function.
 	SetMetricTypesFn(value MetricTypesFn) Options
@@ -68,6 +85,20 @@ type Options interface {
 
 	// RequiredRollupTags returns the list of required rollup tags.
 	RequiredRollupTags() []string
+
+	// SetMaxTransformationDerivativeOrder sets the maximum supported transformation
+	// derivative order between rollup operations in pipelines.
+	SetMaxTransformationDerivativeOrder(value int) Options
+
+	// MaxTransformationDerivativeOrder returns the maximum supported transformation
+	// derivative order between rollup operations in pipelines..
+	MaxTransformationDerivativeOrder() int
+
+	// SetMaxRollupLevels sets the maximum number of rollup operations supported in pipelines.
+	SetMaxRollupLevels(value int) Options
+
+	// MaxRollupLevels returns the maximum number of rollup operations supported in pipelines.
+	MaxRollupLevels() int
 
 	// SetTagNameInvalidChars sets the list of invalid chars for a tag name.
 	SetTagNameInvalidChars(value []rune) Options
@@ -87,32 +118,42 @@ type Options interface {
 	// given metric type.
 	IsAllowedStoragePolicyFor(t metric.Type, p policy.StoragePolicy) bool
 
-	// IsAllowedCustomAggregationTypeFor determines whether a given aggregation type is allowed for
-	// the given metric type.
-	IsAllowedCustomAggregationTypeFor(t metric.Type, aggType aggregation.Type) bool
+	// IsAllowedFirstLevelAggregationTypeFor determines whether a given aggregation type is allowed
+	// as the first-level aggregation for the given metric type.
+	IsAllowedFirstLevelAggregationTypeFor(t metric.Type, aggType aggregation.Type) bool
+
+	// IsAllowedNonFirstLevelAggregationTypeFor determines whether a given aggregation type is
+	// allowed as the non-first-level aggregation for the given metric type.
+	IsAllowedNonFirstLevelAggregationTypeFor(t metric.Type, aggType aggregation.Type) bool
 }
 
 type validationMetadata struct {
-	allowedStoragePolicies map[policy.StoragePolicy]struct{}
-	allowedCustomAggTypes  map[aggregation.Type]struct{}
+	allowedStoragePolicies       map[policy.StoragePolicy]struct{}
+	allowedFirstLevelAggTypes    map[aggregation.Type]struct{}
+	allowedNonFirstLevelAggTypes map[aggregation.Type]struct{}
 }
 
 type options struct {
-	namespaceValidator                   namespace.Validator
-	defaultAllowedStoragePolicies        map[policy.StoragePolicy]struct{}
-	defaultAllowedCustomAggregationTypes map[aggregation.Type]struct{}
-	metricTypesFn                        MetricTypesFn
-	requiredRollupTags                   []string
-	metricNameInvalidChars               map[rune]struct{}
-	tagNameInvalidChars                  map[rune]struct{}
-	metadatasByType                      map[metric.Type]validationMetadata
+	namespaceValidator                          namespace.Validator
+	defaultAllowedStoragePolicies               map[policy.StoragePolicy]struct{}
+	defaultAllowedFirstLevelAggregationTypes    map[aggregation.Type]struct{}
+	defaultAllowedNonFirstLevelAggregationTypes map[aggregation.Type]struct{}
+	metricTypesFn                               MetricTypesFn
+	requiredRollupTags                          []string
+	maxTransformationDerivativeOrder            int
+	maxRollupLevels                             int
+	metricNameInvalidChars                      map[rune]struct{}
+	tagNameInvalidChars                         map[rune]struct{}
+	metadatasByType                             map[metric.Type]validationMetadata
 }
 
 // NewOptions create a new set of validator options.
 func NewOptions() Options {
 	return &options{
-		namespaceValidator: static.NewNamespaceValidator(static.Valid),
-		metadatasByType:    make(map[metric.Type]validationMetadata),
+		maxTransformationDerivativeOrder: defaultMaxTransformationDerivativeOrder,
+		maxRollupLevels:                  defaultMaxRollupLevels,
+		namespaceValidator:               static.NewNamespaceValidator(static.Valid),
+		metadatasByType:                  make(map[metric.Type]validationMetadata),
 	}
 }
 
@@ -130,8 +171,13 @@ func (o *options) SetDefaultAllowedStoragePolicies(value []policy.StoragePolicy)
 	return o
 }
 
-func (o *options) SetDefaultAllowedCustomAggregationTypes(value aggregation.Types) Options {
-	o.defaultAllowedCustomAggregationTypes = toAggregationTypeSet(value)
+func (o *options) SetDefaultAllowedFirstLevelAggregationTypes(value aggregation.Types) Options {
+	o.defaultAllowedFirstLevelAggregationTypes = toAggregationTypeSet(value)
+	return o
+}
+
+func (o *options) SetDefaultAllowedNonFirstLevelAggregationTypes(value aggregation.Types) Options {
+	o.defaultAllowedNonFirstLevelAggregationTypes = toAggregationTypeSet(value)
 	return o
 }
 
@@ -142,9 +188,16 @@ func (o *options) SetAllowedStoragePoliciesFor(t metric.Type, policies []policy.
 	return o
 }
 
-func (o *options) SetAllowedCustomAggregationTypesFor(t metric.Type, aggTypes aggregation.Types) Options {
+func (o *options) SetAllowedFirstLevelAggregationTypesFor(t metric.Type, aggTypes aggregation.Types) Options {
 	metadata := o.findOrCreateMetadata(t)
-	metadata.allowedCustomAggTypes = toAggregationTypeSet(aggTypes)
+	metadata.allowedFirstLevelAggTypes = toAggregationTypeSet(aggTypes)
+	o.metadatasByType[t] = metadata
+	return o
+}
+
+func (o *options) SetAllowedNonFirstLevelAggregationTypesFor(t metric.Type, aggTypes aggregation.Types) Options {
+	metadata := o.findOrCreateMetadata(t)
+	metadata.allowedNonFirstLevelAggTypes = toAggregationTypeSet(aggTypes)
 	o.metadatasByType[t] = metadata
 	return o
 }
@@ -167,6 +220,24 @@ func (o *options) SetRequiredRollupTags(value []string) Options {
 
 func (o *options) RequiredRollupTags() []string {
 	return o.requiredRollupTags
+}
+
+func (o *options) SetMaxTransformationDerivativeOrder(value int) Options {
+	o.maxTransformationDerivativeOrder = value
+	return o
+}
+
+func (o *options) MaxTransformationDerivativeOrder() int {
+	return o.maxTransformationDerivativeOrder
+}
+
+func (o *options) SetMaxRollupLevels(value int) Options {
+	o.maxRollupLevels = value
+	return o
+}
+
+func (o *options) MaxRollupLevels() int {
+	return o.maxRollupLevels
 }
 
 func (o *options) SetTagNameInvalidChars(values []rune) Options {
@@ -204,12 +275,21 @@ func (o *options) IsAllowedStoragePolicyFor(t metric.Type, p policy.StoragePolic
 	return found
 }
 
-func (o *options) IsAllowedCustomAggregationTypeFor(t metric.Type, aggType aggregation.Type) bool {
+func (o *options) IsAllowedFirstLevelAggregationTypeFor(t metric.Type, aggType aggregation.Type) bool {
 	if metadata, exists := o.metadatasByType[t]; exists {
-		_, found := metadata.allowedCustomAggTypes[aggType]
+		_, found := metadata.allowedFirstLevelAggTypes[aggType]
 		return found
 	}
-	_, found := o.defaultAllowedCustomAggregationTypes[aggType]
+	_, found := o.defaultAllowedFirstLevelAggregationTypes[aggType]
+	return found
+}
+
+func (o *options) IsAllowedNonFirstLevelAggregationTypeFor(t metric.Type, aggType aggregation.Type) bool {
+	if metadata, exists := o.metadatasByType[t]; exists {
+		_, found := metadata.allowedNonFirstLevelAggTypes[aggType]
+		return found
+	}
+	_, found := o.defaultAllowedNonFirstLevelAggregationTypes[aggType]
 	return found
 }
 
@@ -218,8 +298,9 @@ func (o *options) findOrCreateMetadata(t metric.Type) validationMetadata {
 		return metadata
 	}
 	return validationMetadata{
-		allowedStoragePolicies: o.defaultAllowedStoragePolicies,
-		allowedCustomAggTypes:  o.defaultAllowedCustomAggregationTypes,
+		allowedStoragePolicies:       o.defaultAllowedStoragePolicies,
+		allowedFirstLevelAggTypes:    o.defaultAllowedFirstLevelAggregationTypes,
+		allowedNonFirstLevelAggTypes: o.defaultAllowedNonFirstLevelAggregationTypes,
 	}
 }
 

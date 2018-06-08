@@ -21,11 +21,9 @@
 package rules
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"math"
-	"sort"
 	"time"
 
 	"github.com/m3db/m3cluster/kv"
@@ -33,9 +31,7 @@ import (
 	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/rulepb"
-	"github.com/m3db/m3metrics/metric"
 	metricID "github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules/models"
 	"github.com/m3db/m3metrics/rules/models/changes"
 	xerrors "github.com/m3db/m3x/errors"
@@ -58,405 +54,7 @@ var (
 	unknownOpTypeFmt        = "unknown op type %v"
 )
 
-// Matcher matches metrics against rules to determine applicable policies.
-type Matcher interface {
-	// ForwardMatch matches the applicable policies for a metric id between [fromNanos, toNanos).
-	ForwardMatch(id []byte, fromNanos, toNanos int64) MatchResult
-
-	// ReverseMatch reverse matches the applicable policies for a metric id between [fromNanos, toNanos),
-	// with aware of the metric type and aggregation type for the given id.
-	ReverseMatch(id []byte, fromNanos, toNanos int64, mt metric.Type, at aggregation.Type) MatchResult
-}
-
-type activeRuleSet struct {
-	version         int
-	mappingRules    []*mappingRule
-	rollupRules     []*rollupRule
-	cutoverTimesAsc []int64
-	tagFilterOpts   filters.TagsFilterOptions
-	newRollupIDFn   metricID.NewIDFn
-	isRollupIDFn    metricID.MatchIDFn
-	aggTypeOpts     aggregation.TypesOptions
-}
-
-func newActiveRuleSet(
-	version int,
-	mappingRules []*mappingRule,
-	rollupRules []*rollupRule,
-	tagFilterOpts filters.TagsFilterOptions,
-	newRollupIDFn metricID.NewIDFn,
-	isRollupIDFn metricID.MatchIDFn,
-	aggOpts aggregation.TypesOptions,
-) *activeRuleSet {
-	uniqueCutoverTimes := make(map[int64]struct{})
-	for _, mappingRule := range mappingRules {
-		for _, snapshot := range mappingRule.snapshots {
-			uniqueCutoverTimes[snapshot.cutoverNanos] = struct{}{}
-		}
-	}
-	for _, rollupRule := range rollupRules {
-		for _, snapshot := range rollupRule.snapshots {
-			uniqueCutoverTimes[snapshot.cutoverNanos] = struct{}{}
-		}
-	}
-
-	cutoverTimesAsc := make([]int64, 0, len(uniqueCutoverTimes))
-	for t := range uniqueCutoverTimes {
-		cutoverTimesAsc = append(cutoverTimesAsc, t)
-	}
-	sort.Sort(int64Asc(cutoverTimesAsc))
-
-	return &activeRuleSet{
-		version:         version,
-		mappingRules:    mappingRules,
-		rollupRules:     rollupRules,
-		cutoverTimesAsc: cutoverTimesAsc,
-		tagFilterOpts:   tagFilterOpts,
-		newRollupIDFn:   newRollupIDFn,
-		isRollupIDFn:    isRollupIDFn,
-		aggTypeOpts:     aggOpts,
-	}
-}
-
-// NB(xichen): could make this more efficient by keeping track of matched rules
-// at previous iteration and incrementally update match results.
-func (as *activeRuleSet) ForwardMatch(
-	id []byte,
-	fromNanos, toNanos int64,
-) MatchResult {
-	var (
-		nextIdx            = as.nextCutoverIdx(fromNanos)
-		nextCutoverNanos   = as.cutoverNanosAt(nextIdx)
-		currMappingResults = policy.PoliciesList{as.forwardMappingsForNonRollupID(id, fromNanos)}
-		currRollupResults  = as.rollupResultsFor(id, fromNanos)
-	)
-	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
-		nextMappingPolicies := as.forwardMappingsForNonRollupID(id, nextCutoverNanos)
-		currMappingResults = mergeMappingResults(currMappingResults, nextMappingPolicies)
-		nextRollupResults := as.rollupResultsFor(id, nextCutoverNanos)
-		currRollupResults = mergeRollupResults(currRollupResults, nextRollupResults, nextCutoverNanos)
-		nextIdx++
-		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
-	}
-
-	// The result expires when it reaches the first cutover time after toNanos among all
-	// active rules because the metric may then be matched against a different set of rules.
-	return NewMatchResult(as.version, nextCutoverNanos, currMappingResults, currRollupResults)
-}
-
-func (as *activeRuleSet) ReverseMatch(
-	id []byte,
-	fromNanos, toNanos int64,
-	mt metric.Type,
-	at aggregation.Type,
-) MatchResult {
-	var (
-		nextIdx            = as.nextCutoverIdx(fromNanos)
-		nextCutoverNanos   = as.cutoverNanosAt(nextIdx)
-		currMappingResults policy.PoliciesList
-		isRollupID         bool
-	)
-
-	// Determine whether the id is a rollup metric id.
-	name, tags, err := as.tagFilterOpts.NameAndTagsFn(id)
-	if err == nil {
-		isRollupID = as.isRollupIDFn(name, tags)
-	}
-
-	if currMappingPolicies, found := as.reverseMappingsFor(id, name, tags, isRollupID, fromNanos, mt, at); found {
-		currMappingResults = append(currMappingResults, currMappingPolicies)
-	}
-	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
-		if nextMappingPolicies, found := as.reverseMappingsFor(id, name, tags, isRollupID, nextCutoverNanos, mt, at); found {
-			currMappingResults = mergeMappingResults(currMappingResults, nextMappingPolicies)
-		}
-		nextIdx++
-		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
-	}
-
-	// The result expires when it reaches the first cutover time after toNanos among all
-	// active rules because the metric may then be matched against a different set of rules.
-	return NewMatchResult(as.version, nextCutoverNanos, currMappingResults, nil)
-}
-
-func (as *activeRuleSet) reverseMappingsFor(
-	id, name, tags []byte,
-	isRollupID bool,
-	timeNanos int64,
-	mt metric.Type,
-	at aggregation.Type,
-) (policy.StagedPolicies, bool) {
-	if !isRollupID {
-		return as.reverseMappingsForNonRollupID(id, timeNanos, mt, at)
-	}
-	return as.reverseMappingsForRollupID(name, tags, timeNanos, mt, at)
-}
-
-// NB(xichen): in order to determine the applicable policies for a rollup metric, we need to
-// match the id against rollup rules to determine which rollup rules are applicable, under the
-// assumption that no two rollup targets in the same namespace may have the same rollup metric
-// name and the list of rollup tags. Otherwise, a rollup metric could potentially match more
-// than one rollup rule with different policies even though only one of the matched rules was
-// used to produce the given rollup metric id due to its tag filters, thereby causing the wrong
-// staged policies to be returned. This also implies at any given time, at most one rollup target
-// may match the given rollup id.
-// Since we may have policies with different aggregation types defined for a roll up rule,
-// and each aggregation type would generate a new id. So when doing reverse mapping, not only do
-// we need to match the roll up tags, we also need to check the aggregation type against
-// each policy to see if the aggregation type was actually contained in the policy.
-func (as *activeRuleSet) reverseMappingsForRollupID(
-	name, tags []byte,
-	timeNanos int64,
-	mt metric.Type,
-	at aggregation.Type,
-) (policy.StagedPolicies, bool) {
-	for _, rollupRule := range as.rollupRules {
-		snapshot := rollupRule.ActiveSnapshot(timeNanos)
-		if snapshot == nil || snapshot.tombstoned {
-			continue
-		}
-		for _, target := range snapshot.targets {
-			if !bytes.Equal(target.Name, name) {
-				continue
-			}
-			var (
-				tagIter      = as.tagFilterOpts.SortedTagIteratorFn(tags)
-				hasMoreTags  = tagIter.Next()
-				targetTagIdx = 0
-			)
-			for hasMoreTags && targetTagIdx < len(target.Tags) {
-				tagName, _ := tagIter.Current()
-				res := bytes.Compare(tagName, target.Tags[targetTagIdx])
-				if res == 0 {
-					targetTagIdx++
-					hasMoreTags = tagIter.Next()
-					continue
-				}
-				// If one of the target tags is not found in the id, this is considered
-				// a non-match so bail immediately.
-				if res > 0 {
-					break
-				}
-				hasMoreTags = tagIter.Next()
-			}
-			tagIter.Close()
-
-			// If all of the target tags are matched, this is considered as a match.
-			if targetTagIdx == len(target.Tags) {
-				policies := make([]policy.Policy, len(target.Policies))
-				copy(policies, target.Policies)
-				resolved := resolvePolicies(policies)
-				// Filter the each policy by the aggregation type.
-				filtered, _ := filterPoliciesWithAggregationTypes(resolved, mt, at, as.aggTypeOpts)
-				if len(filtered) == 0 {
-					return policy.DefaultStagedPolicies, false
-				}
-				return policy.NewStagedPolicies(snapshot.cutoverNanos, false, filtered), true
-			}
-		}
-	}
-
-	return policy.DefaultStagedPolicies, false
-}
-
-func (as *activeRuleSet) reverseMappingsForNonRollupID(
-	id []byte,
-	timeNanos int64,
-	mt metric.Type,
-	at aggregation.Type,
-) (policy.StagedPolicies, bool) {
-	policies, cutoverNanos := as.mappingsForNonRollupID(id, timeNanos)
-	// NB(cw) aggregation types filter must be applied after the policy list is resolved.
-	// Because policies like [1m:40h|P90,P99; 1m:20h|P50] will be resolved to [1m:40h|P50,P90,P99].
-	filtered, isDefault := filterPoliciesWithAggregationTypes(policies, mt, at, as.aggTypeOpts)
-	if cutoverNanos == 0 && isDefault {
-		return policy.DefaultStagedPolicies, true
-	}
-	if isDefault || len(filtered) != 0 {
-		return policy.NewStagedPolicies(cutoverNanos, false, filtered), true
-	}
-	return policy.DefaultStagedPolicies, false
-}
-
-func (as *activeRuleSet) forwardMappingsForNonRollupID(id []byte, timeNanos int64) policy.StagedPolicies {
-	policies, cutoverNanos := as.mappingsForNonRollupID(id, timeNanos)
-	if cutoverNanos == 0 && len(policies) == 0 {
-		return policy.DefaultStagedPolicies
-	}
-	return policy.NewStagedPolicies(cutoverNanos, false, policies)
-}
-
-// NB(xichen): if the given id is not a rollup id, we need to match it against the mapping
-// rules to determine the corresponding mapping policies.
-func (as *activeRuleSet) mappingsForNonRollupID(id []byte, timeNanos int64) ([]policy.Policy, int64) {
-	var (
-		cutoverNanos int64
-		policies     []policy.Policy
-	)
-	for _, mappingRule := range as.mappingRules {
-		snapshot := mappingRule.ActiveSnapshot(timeNanos)
-		if snapshot == nil {
-			continue
-		}
-		if !snapshot.filter.Matches(id) {
-			continue
-		}
-		if cutoverNanos < snapshot.cutoverNanos {
-			cutoverNanos = snapshot.cutoverNanos
-		}
-		// If the mapping rule snapshot is a tombstoned snapshot, its cutover time is
-		// recorded to indicate a rule change, but its policies are no longer in effect.
-		if snapshot.tombstoned {
-			continue
-		}
-		policies = append(policies, snapshot.policies...)
-	}
-	resolved := resolvePolicies(policies)
-	return resolved, cutoverNanos
-}
-
-func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64) []RollupResult {
-	// TODO(xichen): pool the rollup targets.
-	var (
-		cutoverNanos int64
-		rollups      []rollupTarget
-	)
-	for _, rollupRule := range as.rollupRules {
-		snapshot := rollupRule.ActiveSnapshot(timeNanos)
-		if snapshot == nil {
-			continue
-		}
-		if !snapshot.filter.Matches(id) {
-			continue
-		}
-		if cutoverNanos < snapshot.cutoverNanos {
-			cutoverNanos = snapshot.cutoverNanos
-		}
-		// If the rollup rule snapshot is a tombstoned snapshot, its cutover time is
-		// recorded to indicate a rule change, but its rollup targets are no longer in effect.
-		if snapshot.tombstoned {
-			continue
-		}
-		for _, target := range snapshot.targets {
-			found := false
-			// If the new target has the same transformation as an existing one,
-			// we merge their policies.
-			for i := range rollups {
-				if rollups[i].SameTransform(target) {
-					rollups[i].Policies = append(rollups[i].Policies, target.Policies...)
-					found = true
-					break
-				}
-			}
-			// Otherwise, we add a new rollup target.
-			if !found {
-				rollups = append(rollups, target.clone())
-			}
-		}
-	}
-
-	// Resolve the policies for each rollup target.
-	if len(rollups) == 0 {
-		return nil
-	}
-	for i := range rollups {
-		rollups[i].Policies = resolvePolicies(rollups[i].Policies)
-	}
-
-	return as.toRollupResults(id, cutoverNanos, rollups)
-}
-
-// toRollupResults encodes rollup target name and values into ids for each rollup target.
-func (as *activeRuleSet) toRollupResults(id []byte, cutoverNanos int64, targets []rollupTarget) []RollupResult {
-	// NB(r): This is n^2 however this should be quite fast still as
-	// long as there is not an absurdly high number of rollup
-	// targets for any given ID and that iterfn is alloc free.
-	//
-	// Even with a very high number of rules its still predicted that
-	// any given ID would match a relatively low number of rollups.
-
-	// TODO(xichen): pool tag pairs and rollup results.
-	if len(targets) == 0 {
-		return nil
-	}
-
-	// If we cannot extract tags from the id, this is likely an invalid
-	// metric and we bail early.
-	_, tags, err := as.tagFilterOpts.NameAndTagsFn(id)
-	if err != nil {
-		return nil
-	}
-
-	var tagPairs []metricID.TagPair
-	rollups := make([]RollupResult, 0, len(targets))
-	for _, target := range targets {
-		tagPairs = tagPairs[:0]
-
-		// NB(xichen): this takes advantage of the fact that the tags in each rollup
-		// target is sorted in ascending order.
-		var (
-			tagIter      = as.tagFilterOpts.SortedTagIteratorFn(tags)
-			hasMoreTags  = tagIter.Next()
-			targetTagIdx = 0
-		)
-		for hasMoreTags && targetTagIdx < len(target.Tags) {
-			tagName, tagVal := tagIter.Current()
-			res := bytes.Compare(tagName, target.Tags[targetTagIdx])
-			if res == 0 {
-				tagPairs = append(tagPairs, metricID.TagPair{Name: tagName, Value: tagVal})
-				targetTagIdx++
-				hasMoreTags = tagIter.Next()
-				continue
-			}
-			if res > 0 {
-				break
-			}
-			hasMoreTags = tagIter.Next()
-		}
-		tagIter.Close()
-		// If not all the target tags are found in the id, this is considered
-		// an ineligible rollup target. In practice, this should never happen
-		// because the UI requires the list of rollup tags should be a subset
-		// of the tags in the metric selection filter.
-		if targetTagIdx < len(target.Tags) {
-			continue
-		}
-
-		result := RollupResult{
-			ID:           as.newRollupIDFn(target.Name, tagPairs),
-			PoliciesList: policy.PoliciesList{policy.NewStagedPolicies(cutoverNanos, false, target.Policies)},
-		}
-		rollups = append(rollups, result)
-	}
-
-	sort.Sort(RollupResultsByIDAsc(rollups))
-	return rollups
-}
-
-// nextCutoverIdx returns the next snapshot index whose cutover time is after t.
-// NB(xichen): not using sort.Search to avoid a lambda capture.
-func (as *activeRuleSet) nextCutoverIdx(t int64) int {
-	i, j := 0, len(as.cutoverTimesAsc)
-	for i < j {
-		h := i + (j-i)/2
-		if as.cutoverTimesAsc[h] <= t {
-			i = h + 1
-		} else {
-			j = h
-		}
-	}
-	return i
-}
-
-// cutoverNanosAt returns the cutover time at given index.
-func (as *activeRuleSet) cutoverNanosAt(idx int) int64 {
-	if idx < len(as.cutoverTimesAsc) {
-		return as.cutoverTimesAsc[idx]
-	}
-	return timeNanosMax
-}
-
-// RuleSet is a set of rules associated with a namespace.
+// RuleSet is a read-only set of rules associated with a namespace.
 type RuleSet interface {
 	// Namespace is the metrics namespace the ruleset applies to.
 	Namespace() []byte
@@ -476,8 +74,8 @@ type RuleSet interface {
 	// LastUpdatedAtNanos returns the time when this ruleset was last updated.
 	LastUpdatedAtNanos() int64
 
-	// ActiveSet returns the active ruleset at a given time.
-	ActiveSet(timeNanos int64) Matcher
+	// Proto returns the rulepb.Ruleset representation of this ruleset.
+	Proto() (*rulepb.RuleSet, error)
 
 	// MappingRuleHistory returns a map of mapping rule id to states that rule has been in.
 	MappingRules() (models.MappingRuleViews, error)
@@ -489,16 +87,16 @@ type RuleSet interface {
 	// of each rule in the ruleset.
 	Latest() (*models.RuleSetSnapshotView, error)
 
+	// ActiveSet returns the active ruleset at a given time.
+	ActiveSet(timeNanos int64) Matcher
+
 	// ToMutableRuleSet returns a mutable version of this ruleset.
 	ToMutableRuleSet() MutableRuleSet
 }
 
-// MutableRuleSet is an extension of a RuleSet that implements mutation functions.
+// MutableRuleSet is mutable ruleset.
 type MutableRuleSet interface {
 	RuleSet
-
-	// Proto returns the rulepb.Ruleset representation of this ruleset.
-	Proto() (*rulepb.RuleSet, error)
 
 	// Clone returns a copy of this MutableRuleSet.
 	Clone() MutableRuleSet
@@ -558,7 +156,7 @@ func NewRuleSetFromProto(version int, rs *rulepb.RuleSet, opts Options) (RuleSet
 	tagsFilterOpts := opts.TagsFilterOptions()
 	mappingRules := make([]*mappingRule, 0, len(rs.MappingRules))
 	for _, mappingRule := range rs.MappingRules {
-		mc, err := newMappingRule(mappingRule, tagsFilterOpts)
+		mc, err := newMappingRuleFromProto(mappingRule, tagsFilterOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -566,7 +164,7 @@ func NewRuleSetFromProto(version int, rs *rulepb.RuleSet, opts Options) (RuleSet
 	}
 	rollupRules := make([]*rollupRule, 0, len(rs.RollupRules))
 	for _, rollupRule := range rs.RollupRules {
-		rc, err := newRollupRule(rollupRule, tagsFilterOpts)
+		rc, err := newRollupRuleFromProto(rollupRule, tagsFilterOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -605,22 +203,23 @@ func NewEmptyRuleSet(namespaceName string, meta UpdateMetadata) MutableRuleSet {
 	return rs
 }
 
-func (rs *ruleSet) Namespace() []byte         { return rs.namespace }
-func (rs *ruleSet) Version() int              { return rs.version }
-func (rs *ruleSet) CutoverNanos() int64       { return rs.cutoverNanos }
-func (rs *ruleSet) Tombstoned() bool          { return rs.tombstoned }
-func (rs *ruleSet) LastUpdatedAtNanos() int64 { return rs.lastUpdatedAtNanos }
-func (rs *ruleSet) CreatedAtNanos() int64     { return rs.createdAtNanos }
+func (rs *ruleSet) Namespace() []byte                { return rs.namespace }
+func (rs *ruleSet) Version() int                     { return rs.version }
+func (rs *ruleSet) CutoverNanos() int64              { return rs.cutoverNanos }
+func (rs *ruleSet) Tombstoned() bool                 { return rs.tombstoned }
+func (rs *ruleSet) LastUpdatedAtNanos() int64        { return rs.lastUpdatedAtNanos }
+func (rs *ruleSet) CreatedAtNanos() int64            { return rs.createdAtNanos }
+func (rs *ruleSet) ToMutableRuleSet() MutableRuleSet { return rs }
 
 func (rs *ruleSet) ActiveSet(timeNanos int64) Matcher {
 	mappingRules := make([]*mappingRule, 0, len(rs.mappingRules))
 	for _, mappingRule := range rs.mappingRules {
-		activeRule := mappingRule.ActiveRule(timeNanos)
+		activeRule := mappingRule.activeRule(timeNanos)
 		mappingRules = append(mappingRules, activeRule)
 	}
 	rollupRules := make([]*rollupRule, 0, len(rs.rollupRules))
 	for _, rollupRule := range rs.rollupRules {
-		activeRule := rollupRule.ActiveRule(timeNanos)
+		activeRule := rollupRule.activeRule(timeNanos)
 		rollupRules = append(rollupRules, activeRule)
 	}
 	return newActiveRuleSet(
@@ -632,10 +231,6 @@ func (rs *ruleSet) ActiveSet(timeNanos int64) Matcher {
 		rs.isRollupIDFn,
 		rs.aggTypesOpts,
 	)
-}
-
-func (rs *ruleSet) ToMutableRuleSet() MutableRuleSet {
-	return rs
 }
 
 // Proto returns the protobuf representation of a ruleset.
@@ -652,7 +247,7 @@ func (rs *ruleSet) Proto() (*rulepb.RuleSet, error) {
 
 	mappingRules := make([]*rulepb.MappingRule, len(rs.mappingRules))
 	for i, m := range rs.mappingRules {
-		mr, err := m.Proto()
+		mr, err := m.proto()
 		if err != nil {
 			return nil, err
 		}
@@ -662,7 +257,7 @@ func (rs *ruleSet) Proto() (*rulepb.RuleSet, error) {
 
 	rollupRules := make([]*rulepb.RollupRule, len(rs.rollupRules))
 	for i, r := range rs.rollupRules {
-		rr, err := r.Proto()
+		rr, err := r.proto()
 		if err != nil {
 			return nil, err
 		}
@@ -757,10 +352,12 @@ func (rs *ruleSet) AddMappingRule(mrv models.MappingRuleView, meta UpdateMetadat
 		return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", mrv.Name))
 	}
 	if err == errRuleNotFound {
-		if m, err = newMappingRuleFromFields(
+		m = newEmptyMappingRule()
+		if err = m.addSnapshot(
 			mrv.Name,
 			mrv.Filter,
-			mrv.Policies,
+			mrv.AggregationID,
+			mrv.StoragePolicies,
 			meta,
 		); err != nil {
 			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", mrv.Name))
@@ -770,7 +367,8 @@ func (rs *ruleSet) AddMappingRule(mrv models.MappingRuleView, meta UpdateMetadat
 		if err := m.revive(
 			mrv.Name,
 			mrv.Filter,
-			mrv.Policies,
+			mrv.AggregationID,
+			mrv.StoragePolicies,
 			meta,
 		); err != nil {
 			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "revive", mrv.Name))
@@ -788,7 +386,8 @@ func (rs *ruleSet) UpdateMappingRule(mrv models.MappingRuleView, meta UpdateMeta
 	if err := m.addSnapshot(
 		mrv.Name,
 		mrv.Filter,
-		mrv.Policies,
+		mrv.AggregationID,
+		mrv.StoragePolicies,
 		meta,
 	); err != nil {
 		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "update", mrv.Name))
@@ -817,7 +416,8 @@ func (rs *ruleSet) AddRollupRule(rrv models.RollupRuleView, meta UpdateMetadata)
 	}
 	targets := newRollupTargetsFromView(rrv.Targets)
 	if err == errRuleNotFound {
-		if r, err = newRollupRuleFromFields(
+		r = newEmptyRollupRule()
+		if err = r.addSnapshot(
 			rrv.Name,
 			rrv.Filter,
 			targets,
@@ -881,13 +481,13 @@ func (rs *ruleSet) Delete(meta UpdateMetadata) error {
 
 	// Make sure that all of the rules in the ruleset are tombstoned as well.
 	for _, m := range rs.mappingRules {
-		if t := m.Tombstoned(); !t {
+		if t := m.tombstoned(); !t {
 			_ = m.markTombstoned(meta)
 		}
 	}
 
 	for _, r := range rs.rollupRules {
-		if t := r.Tombstoned(); !t {
+		if t := r.tombstoned(); !t {
 			_ = r.markTombstoned(meta)
 		}
 	}
@@ -900,6 +500,98 @@ func (rs *ruleSet) ApplyRuleSetChanges(rsc changes.RuleSetChanges, meta UpdateMe
 		return err
 	}
 	return rs.applyRollupRuleChanges(rsc.RollupRuleChanges, meta)
+}
+
+func (rs *ruleSet) Revive(meta UpdateMetadata) error {
+	if !rs.Tombstoned() {
+		return xerrors.Wrap(errRuleSetNotTombstoned, fmt.Sprintf(ruleSetActionErrorFmt, "revive", string(rs.namespace)))
+	}
+
+	rs.tombstoned = false
+	rs.updateMetadata(meta)
+	return nil
+}
+
+func (rs *ruleSet) updateMetadata(meta UpdateMetadata) {
+	rs.cutoverNanos = meta.cutoverNanos
+	rs.lastUpdatedAtNanos = meta.updatedAtNanos
+	rs.lastUpdatedBy = meta.updatedBy
+}
+
+func (rs *ruleSet) getMappingRuleByName(name string) (*mappingRule, error) {
+	for _, m := range rs.mappingRules {
+		n, err := m.name()
+		if err != nil {
+			continue
+		}
+
+		if n == name {
+			return m, nil
+		}
+	}
+	return nil, errRuleNotFound
+}
+
+func (rs *ruleSet) getMappingRuleByID(id string) (*mappingRule, error) {
+	for _, m := range rs.mappingRules {
+		if m.uuid == id {
+			return m, nil
+		}
+	}
+	return nil, errRuleNotFound
+}
+
+func (rs *ruleSet) getRollupRuleByName(name string) (*rollupRule, error) {
+	for _, r := range rs.rollupRules {
+		n, err := r.name()
+		if err != nil {
+			return nil, err
+		}
+
+		if n == name {
+			return r, nil
+		}
+	}
+	return nil, errRuleNotFound
+}
+
+func (rs *ruleSet) getRollupRuleByID(id string) (*rollupRule, error) {
+	for _, r := range rs.rollupRules {
+		if r.uuid == id {
+			return r, nil
+		}
+	}
+	return nil, errRuleNotFound
+}
+
+func (rs *ruleSet) latestMappingRules() (map[string]*models.MappingRuleView, error) {
+	mrs, err := rs.MappingRules()
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]*models.MappingRuleView, len(mrs))
+	for id, m := range mrs {
+		if len(m) > 0 && !m[0].Tombstoned {
+			// views included in m are sorted latest first.
+			result[id] = m[0]
+		}
+	}
+	return result, nil
+}
+
+func (rs *ruleSet) latestRollupRules() (map[string]*models.RollupRuleView, error) {
+	rrs, err := rs.RollupRules()
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]*models.RollupRuleView, len(rrs))
+	for id, r := range rrs {
+		if len(r) > 0 && !r[0].Tombstoned {
+			// views included in m are sorted latest first.
+			result[id] = r[0]
+		}
+	}
+	return result, nil
 }
 
 func (rs *ruleSet) applyMappingRuleChanges(mrChanges []changes.MappingRuleChange, meta UpdateMetadata) error {
@@ -951,254 +643,6 @@ func (rs *ruleSet) applyRollupRuleChanges(rrChanges []changes.RollupRuleChange, 
 
 	return nil
 }
-
-func (rs *ruleSet) Revive(meta UpdateMetadata) error {
-	if !rs.Tombstoned() {
-		return xerrors.Wrap(errRuleSetNotTombstoned, fmt.Sprintf(ruleSetActionErrorFmt, "revive", string(rs.namespace)))
-	}
-
-	rs.tombstoned = false
-	rs.updateMetadata(meta)
-	return nil
-}
-
-func (rs *ruleSet) updateMetadata(meta UpdateMetadata) {
-	rs.cutoverNanos = meta.cutoverNanos
-	rs.lastUpdatedAtNanos = meta.updatedAtNanos
-	rs.lastUpdatedBy = meta.updatedBy
-}
-
-func (rs *ruleSet) getMappingRuleByName(name string) (*mappingRule, error) {
-	for _, m := range rs.mappingRules {
-		n, err := m.Name()
-		if err != nil {
-			continue
-		}
-
-		if n == name {
-			return m, nil
-		}
-	}
-	return nil, errRuleNotFound
-}
-
-func (rs *ruleSet) getMappingRuleByID(id string) (*mappingRule, error) {
-	for _, m := range rs.mappingRules {
-		if m.uuid == id {
-			return m, nil
-		}
-	}
-	return nil, errRuleNotFound
-}
-
-func (rs *ruleSet) getRollupRuleByName(name string) (*rollupRule, error) {
-	for _, r := range rs.rollupRules {
-		n, err := r.Name()
-		if err != nil {
-			return nil, err
-		}
-
-		if n == name {
-			return r, nil
-		}
-	}
-	return nil, errRuleNotFound
-}
-
-func (rs *ruleSet) getRollupRuleByID(id string) (*rollupRule, error) {
-	for _, r := range rs.rollupRules {
-		if r.uuid == id {
-			return r, nil
-		}
-	}
-	return nil, errRuleNotFound
-}
-
-func (rs *ruleSet) latestMappingRules() (map[string]*models.MappingRuleView, error) {
-	mrs, err := rs.MappingRules()
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]*models.MappingRuleView, len(mrs))
-	for id, m := range mrs {
-		if len(m) > 0 && !m[0].Tombstoned {
-			// views included in m are sorted latest first.
-			result[id] = m[0]
-		}
-	}
-	return result, nil
-}
-
-func (rs *ruleSet) latestRollupRules() (map[string]*models.RollupRuleView, error) {
-	rrs, err := rs.RollupRules()
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[string]*models.RollupRuleView, len(rrs))
-	for id, r := range rrs {
-		if len(r) > 0 && !r[0].Tombstoned {
-			// views included in m are sorted latest first.
-			result[id] = r[0]
-		}
-	}
-	return result, nil
-}
-
-// resolvePolicies resolves the conflicts among policies if any, following the rules below:
-// * Duplicate policies are skipped.
-func resolvePolicies(policies []policy.Policy) []policy.Policy {
-	if len(policies) == 0 {
-		return policies
-	}
-	sort.Sort(policy.ByResolutionAscRetentionDesc(policies))
-	curr := 0
-	for i := 1; i < len(policies); i++ {
-		if policies[curr] == policies[i] {
-			continue
-		}
-		curr++
-		policies[curr] = policies[i]
-	}
-	return policies[:curr+1]
-}
-
-// filterPoliciesWithAggregationTypes accepts a policy when:
-// * If the policy contains default aggregation types and the given aggregation type
-//   is contained in the default aggregation types for the metric type.
-// * If the policy contains custom aggregation types and the given aggregation type
-//   is contained in the custom aggregation type.
-func filterPoliciesWithAggregationTypes(
-	ps []policy.Policy,
-	mt metric.Type,
-	at aggregation.Type,
-	opts aggregation.TypesOptions,
-) ([]policy.Policy, bool) {
-	if policy.IsDefaultPolicies(ps) {
-		return nil, opts.IsContainedInDefaultAggregationTypes(at, mt)
-	}
-
-	var cur int
-	for i := 0; i < len(ps); i++ {
-		if !containsAggregationType(ps[i].AggregationID, mt, at, opts) {
-			continue
-		}
-		// NB: The policy does not match the aggregation type and should be removed,
-		// but we need to maintain the order of the policy list.
-		if cur != i {
-			ps[cur] = ps[i]
-		}
-		cur++
-	}
-	return ps[:cur], false
-}
-
-func containsAggregationType(
-	aggID aggregation.ID,
-	mt metric.Type,
-	at aggregation.Type,
-	opts aggregation.TypesOptions,
-) bool {
-	if aggID.IsDefault() {
-		return opts.IsContainedInDefaultAggregationTypes(at, mt)
-	}
-	return aggID.Contains(at)
-}
-
-// mergeMappingResults assumes the policies contained in currMappingResults
-// are sorted by cutover time in time ascending order.
-func mergeMappingResults(
-	currMappingResults policy.PoliciesList,
-	nextMappingPolicies policy.StagedPolicies,
-) policy.PoliciesList {
-	if len(currMappingResults) == 0 {
-		return policy.PoliciesList{nextMappingPolicies}
-	}
-	currMappingPolicies := currMappingResults[len(currMappingResults)-1]
-	if currMappingPolicies.Equals(nextMappingPolicies) {
-		return currMappingResults
-	}
-	currMappingResults = append(currMappingResults, nextMappingPolicies)
-	return currMappingResults
-}
-
-// mergeRollupResults assumes both currRollupResult and nextRollupResult
-// are sorted by the ids of roll up results in ascending order.
-func mergeRollupResults(
-	currRollupResults []RollupResult,
-	nextRollupResults []RollupResult,
-	nextCutoverNanos int64,
-) []RollupResult {
-	var (
-		numCurrRollupResults = len(currRollupResults)
-		numNextRollupResults = len(nextRollupResults)
-		currRollupIdx        int
-		nextRollupIdx        int
-	)
-
-	for currRollupIdx < numCurrRollupResults && nextRollupIdx < numNextRollupResults {
-		currRollupResult := currRollupResults[currRollupIdx]
-		nextRollupResult := nextRollupResults[nextRollupIdx]
-
-		// If the current and the next rollup result have the same id, we merge their policies.
-		compareResult := bytes.Compare(currRollupResult.ID, nextRollupResult.ID)
-		if compareResult == 0 {
-			currRollupPolicies := currRollupResult.PoliciesList[len(currRollupResult.PoliciesList)-1]
-			nextRollupPolicies := nextRollupResult.PoliciesList[0]
-			if !currRollupPolicies.Equals(nextRollupPolicies) {
-				currRollupResults[currRollupIdx].PoliciesList = append(currRollupResults[currRollupIdx].PoliciesList, nextRollupPolicies)
-			}
-			currRollupIdx++
-			nextRollupIdx++
-			continue
-		}
-
-		// If the current id is smaller, it means the id is deleted in the next rollup result.
-		if compareResult < 0 {
-			currRollupPolicies := currRollupResult.PoliciesList[len(currRollupResult.PoliciesList)-1]
-			if !currRollupPolicies.Tombstoned {
-				tombstonedPolicies := policy.NewStagedPolicies(nextCutoverNanos, true, nil)
-				currRollupResults[currRollupIdx].PoliciesList = append(currRollupResults[currRollupIdx].PoliciesList, tombstonedPolicies)
-			}
-			currRollupIdx++
-			continue
-		}
-
-		// Otherwise the current id is larger, meaning a new id is added in the next rollup result.
-		currRollupResults = append(currRollupResults, nextRollupResult)
-		nextRollupIdx++
-	}
-
-	// If there are leftover ids in the current rollup result, these ids must have been deleted
-	// in the next rollup result.
-	for currRollupIdx < numCurrRollupResults {
-		currRollupResult := currRollupResults[currRollupIdx]
-		currRollupPolicies := currRollupResult.PoliciesList[len(currRollupResult.PoliciesList)-1]
-		if !currRollupPolicies.Tombstoned {
-			tombstonedPolicies := policy.NewStagedPolicies(nextCutoverNanos, true, nil)
-			currRollupResults[currRollupIdx].PoliciesList = append(currRollupResults[currRollupIdx].PoliciesList, tombstonedPolicies)
-		}
-		currRollupIdx++
-	}
-
-	// If there are additional ids in the next rollup result, these ids must have been added
-	// in the next rollup result.
-	for nextRollupIdx < numNextRollupResults {
-		nextRollupResult := nextRollupResults[nextRollupIdx]
-		currRollupResults = append(currRollupResults, nextRollupResult)
-		nextRollupIdx++
-	}
-
-	sort.Sort(RollupResultsByIDAsc(currRollupResults))
-	return currRollupResults
-}
-
-type int64Asc []int64
-
-func (a int64Asc) Len() int           { return len(a) }
-func (a int64Asc) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a int64Asc) Less(i, j int) bool { return a[i] < a[j] }
-
-// RuleSetView is a view into the current state of the ruleset.
 
 // RuleSetUpdateHelper stores the necessary details to create an UpdateMetadata.
 type RuleSetUpdateHelper struct {

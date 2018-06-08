@@ -60,12 +60,17 @@ func NewIDFromProto(input []aggregationpb.AggregationType) (ID, error) {
 	return id, nil
 }
 
+// CompressTypes compresses a list of aggregation types to an ID.
+func CompressTypes(aggTypes ...Type) (ID, error) {
+	return NewIDCompressor().Compress(aggTypes)
+}
+
 // MustCompressTypes compresses a list of aggregation types to
 // an ID, it panics if an error was encountered.
 func MustCompressTypes(aggTypes ...Type) ID {
-	res, err := NewIDCompressor().Compress(aggTypes)
+	res, err := CompressTypes(aggTypes...)
 	if err != nil {
-		panic(err.Error())
+		panic(err)
 	}
 	return res
 }
@@ -73,6 +78,11 @@ func MustCompressTypes(aggTypes ...Type) ID {
 // IsDefault checks if the ID is the default aggregation type.
 func (id ID) IsDefault() bool {
 	return id == DefaultID
+}
+
+// Equal checks whether two IDs are considered equal.
+func (id ID) Equal(other ID) bool {
+	return id == other
 }
 
 // Contains checks if the given aggregation type is contained in the aggregation id.

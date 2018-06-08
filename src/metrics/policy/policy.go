@@ -110,7 +110,7 @@ func (p Policy) MarshalJSON() ([]byte, error) {
 	return []byte(marshalled), nil
 }
 
-// UnmarshalJSON unmarshals JSON-encoded data into staged a policy.
+// UnmarshalJSON unmarshals JSON-encoded data into a policy.
 func (p *Policy) UnmarshalJSON(data []byte) error {
 	str := string(data)
 	unquoted, err := strconv.Unquote(str)
@@ -200,49 +200,5 @@ func (p Policies) Equals(other Policies) bool {
 			return false
 		}
 	}
-	return true
-}
-
-// ByResolutionAscRetentionDesc implements the sort.Sort interface to sort policies first
-// by resolution in ascending order, then by rention in descending order.
-type ByResolutionAscRetentionDesc []Policy
-
-func (pr ByResolutionAscRetentionDesc) Len() int      { return len(pr) }
-func (pr ByResolutionAscRetentionDesc) Swap(i, j int) { pr[i], pr[j] = pr[j], pr[i] }
-
-func (pr ByResolutionAscRetentionDesc) Less(i, j int) bool {
-	p1, p2 := pr[i], pr[j]
-	sp1, sp2 := p1.StoragePolicy, p2.StoragePolicy
-	rw1, rw2 := sp1.Resolution().Window, sp2.Resolution().Window
-	if rw1 < rw2 {
-		return true
-	}
-	if rw1 > rw2 {
-		return false
-	}
-	r1, r2 := sp1.Retention(), sp2.Retention()
-	if r1 > r2 {
-		return true
-	}
-	if r1 < r2 {
-		return false
-	}
-	rp1, rp2 := sp1.Resolution().Precision, sp2.Resolution().Precision
-	if rp1 < rp2 {
-		return true
-	}
-	if rp1 > rp2 {
-		return false
-	}
-	at1, at2 := p1.AggregationID, p2.AggregationID
-	for k := 0; k < aggregation.IDLen; k++ {
-		if at1[k] < at2[k] {
-			return true
-		}
-		if at1[k] > at2[k] {
-			return false
-		}
-	}
-	// If everything equals, prefer the first one
 	return true
 }

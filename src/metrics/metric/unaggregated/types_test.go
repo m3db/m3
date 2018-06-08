@@ -32,8 +32,8 @@ import (
 	"github.com/m3db/m3metrics/generated/proto/transformationpb"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
-	"github.com/m3db/m3metrics/op"
-	"github.com/m3db/m3metrics/op/applied"
+	"github.com/m3db/m3metrics/pipeline"
+	"github.com/m3db/m3metrics/pipeline/applied"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/transformation"
 	xtime "github.com/m3db/m3x/time"
@@ -91,16 +91,16 @@ var (
 							policy.NewStoragePolicy(time.Minute, xtime.Minute, 6*time.Hour),
 							policy.NewStoragePolicy(time.Hour, xtime.Hour, 30*24*time.Hour),
 						},
-						Pipeline: applied.NewPipeline([]applied.Union{
+						Pipeline: applied.NewPipeline([]applied.OpUnion{
 							{
-								Type: op.TransformationType,
-								Transformation: op.Transformation{
+								Type: pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{
 									Type: transformation.Absolute,
 								},
 							},
 							{
-								Type: op.RollupType,
-								Rollup: applied.Rollup{
+								Type: pipeline.RollupOpType,
+								Rollup: applied.RollupOp{
 									ID:            []byte("foo"),
 									AggregationID: aggregation.MustCompressTypes(aggregation.Last, aggregation.Sum),
 								},
@@ -117,16 +117,16 @@ var (
 				Pipelines: []metadata.PipelineMetadata{
 					{
 						AggregationID: aggregation.DefaultID,
-						Pipeline: applied.NewPipeline([]applied.Union{
+						Pipeline: applied.NewPipeline([]applied.OpUnion{
 							{
-								Type: op.TransformationType,
-								Transformation: op.Transformation{
+								Type: pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{
 									Type: transformation.PerSecond,
 								},
 							},
 							{
-								Type: op.RollupType,
-								Rollup: applied.Rollup{
+								Type: pipeline.RollupOpType,
+								Rollup: applied.RollupOp{
 									ID:            []byte("bar"),
 									AggregationID: aggregation.MustCompressTypes(aggregation.P99),
 								},

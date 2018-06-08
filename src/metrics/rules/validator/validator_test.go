@@ -22,23 +22,21 @@ package validator
 
 import (
 	"fmt"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
-	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
-	"github.com/m3db/m3metrics/generated/proto/policypb"
-	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/pipeline"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3metrics/rules/models"
 	"github.com/m3db/m3metrics/rules/validator/namespace"
 	"github.com/m3db/m3metrics/rules/validator/namespace/kv"
+	"github.com/m3db/m3metrics/transformation"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/require"
@@ -73,9 +71,8 @@ func TestValidatorInvalidNamespace(t *testing.T) {
 	v := NewValidator(opts)
 	defer v.Close()
 
-	rs, err := rules.NewRuleSetFromProto(1, &rulepb.RuleSet{Namespace: "baz"}, rules.NewOptions())
-	require.NoError(t, err)
-	require.Error(t, v.Validate(rs))
+	view := &models.RuleSetSnapshotView{Namespace: "baz"}
+	require.Error(t, v.ValidateSnapshot(view))
 }
 
 func TestValidatorValidNamespace(t *testing.T) {
@@ -86,97 +83,122 @@ func TestValidatorValidNamespace(t *testing.T) {
 	v := NewValidator(opts)
 	defer v.Close()
 
-	rs, err := rules.NewRuleSetFromProto(1, &rulepb.RuleSet{Namespace: "foo"}, rules.NewOptions())
-	require.NoError(t, err)
-	require.NoError(t, v.Validate(rs))
+	view := &models.RuleSetSnapshotView{Namespace: "foo"}
+	require.NoError(t, v.ValidateSnapshot(view))
 }
 
 func TestValidatorValidateDuplicateMappingRules(t *testing.T) {
-	ruleSet := testRuleSetWithMappingRules(t, testDuplicateMappingRulesConfig())
+	view := &models.RuleSetSnapshotView{
+		MappingRules: map[string]*models.MappingRuleView{
+			"mappingRule1": &models.MappingRuleView{
+				Name:            "snapshot1",
+				Filter:          "tag1:value1",
+				StoragePolicies: testStoragePolicies(),
+			},
+			"mappingRule2": &models.MappingRuleView{
+				Name:            "snapshot1",
+				Filter:          "tag1:value1",
+				StoragePolicies: testStoragePolicies(),
+			},
+		},
+	}
 	validator := NewValidator(testValidatorOptions())
-	err := validator.Validate(ruleSet)
+	err := validator.ValidateSnapshot(view)
 	require.Error(t, err)
 	_, ok := err.(errors.InvalidInputError)
 	require.True(t, ok)
 }
 
 func TestValidatorValidateNoDuplicateMappingRulesWithTombstone(t *testing.T) {
-	ruleSet := testRuleSetWithMappingRules(t, testNoDuplicateMappingRulesConfigWithTombstone())
+	view := &models.RuleSetSnapshotView{
+		MappingRules: map[string]*models.MappingRuleView{
+			"mappingRule1": &models.MappingRuleView{
+				Name:            "snapshot1",
+				Filter:          "tag1:value1",
+				Tombstoned:      true,
+				StoragePolicies: testStoragePolicies(),
+			},
+			"mappingRule2": &models.MappingRuleView{
+				Name:            "snapshot1",
+				Filter:          "tag1:value1",
+				StoragePolicies: testStoragePolicies(),
+			},
+		},
+	}
+
 	validator := NewValidator(testValidatorOptions())
-	require.NoError(t, validator.Validate(ruleSet))
+	require.NoError(t, validator.ValidateSnapshot(view))
 }
 
 func TestValidatorValidateMappingRuleInvalidFilterExpr(t *testing.T) {
-	snapshot := testInvalidFilterExprMappingRuleSetSnapshot()
+	view := &models.RuleSetSnapshotView{
+		MappingRules: map[string]*models.MappingRuleView{
+			"mappingRule1": &models.MappingRuleView{
+				Name:   "snapshot1",
+				Filter: "randomTag:*too*many*wildcards*",
+			},
+		},
+	}
 	validator := NewValidator(testValidatorOptions())
-	require.Error(t, validator.ValidateSnapshot(snapshot))
+	require.Error(t, validator.ValidateSnapshot(view))
 }
 
 func TestValidatorValidateMappingRuleInvalidFilterTagName(t *testing.T) {
 	invalidChars := []rune{'$'}
-	snapshot := testInvalidFilterTagNameMappingRuleSetSnapshot()
+	view := &models.RuleSetSnapshotView{
+		MappingRules: map[string]*models.MappingRuleView{
+			"mappingRule1": &models.MappingRuleView{
+				Name:   "snapshot1",
+				Filter: "random$Tag:foo",
+			},
+		},
+	}
 	validator := NewValidator(testValidatorOptions().SetTagNameInvalidChars(invalidChars))
-	require.Error(t, validator.ValidateSnapshot(snapshot))
+	require.Error(t, validator.ValidateSnapshot(view))
 }
 
 func TestValidatorValidateMappingRuleInvalidMetricType(t *testing.T) {
-	ruleSet := testRuleSetWithMappingRules(t, testInvalidMetricTypeMappingRulesConfig())
-	validator := NewValidator(testValidatorOptions())
-	require.Error(t, validator.Validate(ruleSet))
-}
-
-func TestValidatorValidateMappingRulePolicy(t *testing.T) {
-	testStoragePolicies := []policy.StoragePolicy{
-		policy.MustParseStoragePolicy("10s:1d"),
-	}
-	ruleSet := testRuleSetWithMappingRules(t, testPolicyResolutionMappingRulesConfig())
-
-	inputs := []struct {
-		opts      Options
-		expectErr bool
-	}{
-		{
-			// By default policy is allowed.
-			opts:      testValidatorOptions(),
-			expectErr: true,
-		},
-		{
-			// Policy is allowed through the default list of policies.
-			opts:      testValidatorOptions().SetDefaultAllowedStoragePolicies(testStoragePolicies),
-			expectErr: false,
-		},
-		{
-			// Policy is allowed through the list of policies allowed for timers.
-			opts:      testValidatorOptions().SetAllowedStoragePoliciesFor(metric.TimerType, testStoragePolicies),
-			expectErr: false,
+	view := &models.RuleSetSnapshotView{
+		MappingRules: map[string]*models.MappingRuleView{
+			"mappingRule1": &models.MappingRuleView{
+				Name:            "snapshot1",
+				Filter:          testTypeTag + ":nonexistent",
+				StoragePolicies: testStoragePolicies(),
+			},
 		},
 	}
 
-	for _, input := range inputs {
-		validator := NewValidator(input.opts)
-		if input.expectErr {
-			require.Error(t, validator.Validate(ruleSet))
-		} else {
-			require.NoError(t, validator.Validate(ruleSet))
-		}
+	validator := NewValidator(testValidatorOptions())
+	require.Error(t, validator.ValidateSnapshot(view))
+}
+
+func TestValidatorValidateMappingRuleInvalidAggregationType(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		MappingRules: map[string]*models.MappingRuleView{
+			"mappingRule1": &models.MappingRuleView{
+				Name:          "snapshot1",
+				Filter:        testTypeTag + ":" + testCounterType,
+				AggregationID: aggregation.ID{1234567789},
+			},
+		},
 	}
-}
 
-func TestValidatorValidateMappingRuleNoPolicies(t *testing.T) {
-	ruleSet := testRuleSetWithMappingRules(t, testNoPoliciesMappingRulesConfig())
 	validator := NewValidator(testValidatorOptions())
-	require.Error(t, validator.Validate(ruleSet))
+	require.Error(t, validator.ValidateSnapshot(view))
 }
 
-func TestValidatorValidateMappingRuleDuplicatePolicies(t *testing.T) {
-	ruleSet := testRuleSetWithMappingRules(t, testDuplicatePoliciesMappingRulesConfig())
-	validator := NewValidator(testValidatorOptions())
-	require.Error(t, validator.Validate(ruleSet))
-}
-
-func TestValidatorValidateMappingRuleCustomAggregationTypes(t *testing.T) {
+func TestValidatorValidateMappingRuleFirstLevelAggregationType(t *testing.T) {
 	testAggregationTypes := []aggregation.Type{aggregation.Count, aggregation.Max}
-	ruleSet := testRuleSetWithMappingRules(t, testCustomAggregationTypeMappingRulesConfig())
+	view := &models.RuleSetSnapshotView{
+		MappingRules: map[string]*models.MappingRuleView{
+			"mappingRule1": &models.MappingRuleView{
+				Name:            "snapshot1",
+				Filter:          testTypeTag + ":" + testTimerType,
+				AggregationID:   aggregation.MustCompressTypes(aggregation.Count, aggregation.Max),
+				StoragePolicies: testStoragePolicies(),
+			},
+		},
+	}
 	inputs := []struct {
 		opts      Options
 		expectErr bool
@@ -188,12 +210,12 @@ func TestValidatorValidateMappingRuleCustomAggregationTypes(t *testing.T) {
 		},
 		{
 			// Aggregation type is allowed through the default list of custom aggregation types.
-			opts:      testValidatorOptions().SetDefaultAllowedCustomAggregationTypes(testAggregationTypes),
+			opts:      testValidatorOptions().SetDefaultAllowedFirstLevelAggregationTypes(testAggregationTypes),
 			expectErr: false,
 		},
 		{
 			// Aggregation type is allowed through the list of custom aggregation types for timers.
-			opts:      testValidatorOptions().SetAllowedCustomAggregationTypesFor(metric.TimerType, testAggregationTypes),
+			opts:      testValidatorOptions().SetAllowedFirstLevelAggregationTypesFor(metric.TimerType, testAggregationTypes),
 			expectErr: false,
 		},
 	}
@@ -201,155 +223,886 @@ func TestValidatorValidateMappingRuleCustomAggregationTypes(t *testing.T) {
 	for _, input := range inputs {
 		validator := NewValidator(input.opts)
 		if input.expectErr {
-			require.Error(t, validator.Validate(ruleSet))
+			require.Error(t, validator.ValidateSnapshot(view))
 		} else {
-			require.NoError(t, validator.Validate(ruleSet))
+			require.NoError(t, validator.ValidateSnapshot(view))
 		}
 	}
 }
 
-func TestValidatorValidateDuplicateRollupRules(t *testing.T) {
-	ruleSet := testRuleSetWithRollupRules(t, testDuplicateRollupRulesConfig())
+func TestValidatorValidateMappingRuleNoStoragePolicies(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		MappingRules: map[string]*models.MappingRuleView{
+			"mappingRule1": &models.MappingRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+			},
+		},
+	}
+
 	validator := NewValidator(testValidatorOptions())
-	err := validator.Validate(ruleSet)
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "no storage policies"))
+}
+
+func TestValidatorValidateMappingRuleDuplicateStoragePolicies(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		MappingRules: map[string]*models.MappingRuleView{
+			"mappingRule1": &models.MappingRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				StoragePolicies: policy.StoragePolicies{
+					policy.MustParseStoragePolicy("10s:6h"),
+					policy.MustParseStoragePolicy("10s:6h"),
+				},
+			},
+		},
+	}
+
+	validator := NewValidator(testValidatorOptions())
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "duplicate storage policy '10s:6h'"))
+}
+
+func TestValidatorValidateMappingRuleDisallowedStoragePolicies(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		MappingRules: map[string]*models.MappingRuleView{
+			"mappingRule1": &models.MappingRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				StoragePolicies: policy.StoragePolicies{
+					policy.MustParseStoragePolicy("1s:6h"),
+				},
+			},
+		},
+	}
+
+	validator := NewValidator(testValidatorOptions())
+	require.Error(t, validator.ValidateSnapshot(view))
+}
+
+func TestValidatorValidateMappingRule(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		MappingRules: map[string]*models.MappingRuleView{
+			"mappingRule1": &models.MappingRuleView{
+				Name:            "snapshot1",
+				Filter:          testTypeTag + ":" + testCounterType,
+				StoragePolicies: testStoragePolicies(),
+			},
+		},
+	}
+
+	validator := NewValidator(testValidatorOptions())
+	require.NoError(t, validator.ValidateSnapshot(view))
+}
+
+func TestValidatorValidateDuplicateRollupRules(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: "tag1:value1",
+			},
+			"rollupRule2": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: "tag1:value1",
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions())
+	err := validator.ValidateSnapshot(view)
 	require.Error(t, err)
 	_, ok := err.(errors.InvalidInputError)
 	require.True(t, ok)
 }
 
 func TestValidatorValidateNoDuplicateRollupRulesWithTombstone(t *testing.T) {
-	ruleSet := testRuleSetWithRollupRules(t, testNoDuplicateRollupRulesConfigWithTombstone())
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:       "snapshot1",
+				Filter:     "tag1:value1",
+				Tombstoned: true,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+			"rollupRule2": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: "tag1:value1",
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+
 	validator := NewValidator(testValidatorOptions())
-	require.NoError(t, validator.Validate(ruleSet))
+	require.NoError(t, validator.ValidateSnapshot(view))
 }
 
 func TestValidatorValidateRollupRuleInvalidFilterExpr(t *testing.T) {
-	snapshot := testInvalidFilterExprRollupRuleSetSnapshot()
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: "randomTag:*too*many*wildcards*",
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+
 	validator := NewValidator(testValidatorOptions())
-	require.Error(t, validator.ValidateSnapshot(snapshot))
+	require.Error(t, validator.ValidateSnapshot(view))
 }
 
 func TestValidatorValidateRollupRuleInvalidFilterTagName(t *testing.T) {
 	invalidChars := []rune{'$'}
-	snapshot := testInvalidFilterTagNameRollupRuleSetSnapshot()
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: "random$Tag:foo",
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
 	validator := NewValidator(testValidatorOptions().SetTagNameInvalidChars(invalidChars))
-	require.Error(t, validator.ValidateSnapshot(snapshot))
+	require.Error(t, validator.ValidateSnapshot(view))
 }
 
 func TestValidatorValidateRollupRuleInvalidMetricType(t *testing.T) {
-	ruleSet := testRuleSetWithRollupRules(t, testInvalidMetricTypeRollupRulesConfig())
-	validator := NewValidator(testValidatorOptions())
-	require.Error(t, validator.Validate(ruleSet))
-}
-
-func TestValidatorValidateRollupRuleDuplicateRollupTag(t *testing.T) {
-	ruleSet := testRuleSetWithRollupRules(t, testDuplicateTagRollupRulesConfig())
-	validator := NewValidator(testValidatorOptions())
-	require.Error(t, validator.Validate(ruleSet))
-}
-
-func TestValidatorValidateRollupRuleMissingRequiredTag(t *testing.T) {
-	requiredRollupTags := []string{"requiredTag"}
-	ruleSet := testRuleSetWithRollupRules(t, testMissingRequiredTagRollupRulesConfig())
-	validator := NewValidator(testValidatorOptions().SetRequiredRollupTags(requiredRollupTags))
-	require.Error(t, validator.Validate(ruleSet))
-}
-
-func TestValidateChars(t *testing.T) {
-	invalidChars := map[rune]struct{}{
-		'$': struct{}{},
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":nonexistent",
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
 	}
-	require.Error(t, validateChars("test$", invalidChars))
-	require.NoError(t, validateChars("test", invalidChars))
+	validator := NewValidator(testValidatorOptions())
+	require.Error(t, validator.ValidateSnapshot(view))
 }
 
-func TestValidatorValidateRollupRuleWithInvalidMetricName(t *testing.T) {
+func TestValidatorValidateRollupRulePipelineEmptyPipeline(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline:        pipeline.NewPipeline([]pipeline.OpUnion{}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions())
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "empty pipeline"))
+}
+
+func TestValidatorValidateRollupRulePipelineInvalidPipelineOp(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions())
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "operation at index 0 has invalid type"))
+}
+
+func TestValidatorValidateRollupRulePipelineMultipleAggregationOps(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:        pipeline.AggregationOpType,
+								Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+							},
+							{
+								Type:        pipeline.AggregationOpType,
+								Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	allowedAggregationTypes := aggregation.Types{aggregation.Sum}
+	opts := testValidatorOptions().
+		SetAllowedFirstLevelAggregationTypesFor(metric.CounterType, allowedAggregationTypes)
+	validator := NewValidator(opts)
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "more than one aggregation operation in pipeline"))
+}
+
+func TestValidatorValidateRollupRulePipelineAggregationOpNotFirst(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:           pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+							},
+							{
+								Type:        pipeline.AggregationOpType,
+								Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	allowedAggregationTypes := aggregation.Types{aggregation.Sum}
+	opts := testValidatorOptions().
+		SetAllowedFirstLevelAggregationTypesFor(metric.CounterType, allowedAggregationTypes)
+	validator := NewValidator(opts)
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "aggregation operation is not the first operation in pipeline"))
+}
+
+func TestValidatorValidateRollupRulePipelineAggregationOpInvalidAggregationType(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:        pipeline.AggregationOpType,
+								Aggregation: pipeline.AggregationOp{},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	allowedAggregationTypes := aggregation.Types{aggregation.Sum}
+	opts := testValidatorOptions().
+		SetAllowedFirstLevelAggregationTypesFor(metric.CounterType, allowedAggregationTypes)
+	validator := NewValidator(opts)
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "invalid aggregation operation at index 0"))
+}
+
+func TestValidatorValidateRollupRulePipelineAggregationOpDisallowedAggregationType(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:        pipeline.AggregationOpType,
+								Aggregation: pipeline.AggregationOp{Type: aggregation.Sum},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions())
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "invalid aggregation operation at index 0"))
+}
+
+func TestValidatorValidateRollupRulePipelineTransformationDerivativeOrderNotSupported(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+							{
+								Type:           pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+							},
+							{
+								Type:           pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions())
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "transformation derivative order is 2 higher than supported 1"))
+}
+
+func TestValidatorValidateRollupRulePipelineInvalidTransformationType(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:           pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions())
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "invalid transformation operation at index 0"))
+}
+
+func TestValidatorValidateRollupRulePipelineNoRollupOp(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:           pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions())
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "no rollup operation in pipeline"))
+}
+
+func TestValidatorValidateRollupRulePipelineRollupLevelHigherThanMax(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName2"),
+									Tags:          [][]byte{[]byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions())
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "number of rollup levels is 2 higher than supported 1"))
+}
+
+func TestValidatorValidateRollupRulePipelineRollupTagNotFoundInPrevRollupOp(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName2"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2"), []byte("rtagName3")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions().SetMaxRollupLevels(100))
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "tag rtagName3 not found in previous rollup operations"))
+}
+
+func TestValidatorValidateRollupRulePipelineRollupTagUnchangedInConsecutiveRollupOps(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName2"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions().SetMaxRollupLevels(100))
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "same set of 2 rollup tags in consecutive rollup operations"))
+}
+
+func TestValidatorValidateRollupRulePipelineMultiLevelRollup(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2"), []byte("rtagName3")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName2"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName2"),
+									Tags:          [][]byte{[]byte("rtagName1")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions().SetMaxRollupLevels(3))
+	require.NoError(t, validator.ValidateSnapshot(view))
+}
+
+func TestValidatorValidateRollupRuleRollupOpDuplicateRollupTag(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions())
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "duplicate rollup tag: 'rtagName2'"))
+}
+
+func TestValidatorValidateRollupRuleRollupOpMissingRequiredTag(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions().SetRequiredRollupTags([]string{"requiredTag"}))
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "missing required rollup tag: 'requiredTag'"))
+}
+
+func TestValidatorValidateRollupRuleRollupOpWithInvalidMetricName(t *testing.T) {
 	invalidChars := []rune{'$'}
-	ruleSet := testRuleSetWithRollupRules(t, testMetricNameRollupRulesConfig())
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName$1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+
 	validator := NewValidator(testValidatorOptions().SetMetricNameInvalidChars(invalidChars))
-	require.Error(t, validator.Validate(ruleSet))
+	require.Error(t, validator.ValidateSnapshot(view))
 }
 
-func TestValidatorValidateRollupRuleWithEmptyMetricName(t *testing.T) {
+func TestValidatorValidateRollupRuleRollupOpWithEmptyMetricName(t *testing.T) {
 	invalidChars := []rune{'$'}
-	ruleSet := testRuleSetWithRollupRules(t, testEmptyMetricNameRollupRulesConfig())
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte(""),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+
 	validator := NewValidator(testValidatorOptions().SetMetricNameInvalidChars(invalidChars))
-	require.Error(t, validator.Validate(ruleSet))
+	require.Error(t, validator.ValidateSnapshot(view))
 }
 
-func TestValidatorValidateRollupRuleWithValidMetricName(t *testing.T) {
+func TestValidatorValidateRollupRuleRollupOpWithValidMetricName(t *testing.T) {
 	invalidChars := []rune{' ', '%'}
-	ruleSet := testRuleSetWithRollupRules(t, testMetricNameRollupRulesConfig())
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte(""),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+
 	validator := NewValidator(testValidatorOptions().SetMetricNameInvalidChars(invalidChars))
-	require.NoError(t, validator.Validate(ruleSet))
+	require.Error(t, validator.ValidateSnapshot(view))
 }
 
-func TestValidatorValidateRollupRuleWithInvalidTagName(t *testing.T) {
+func TestValidatorValidateRollupRuleRollupOpWithInvalidTagName(t *testing.T) {
 	invalidChars := []rune{'$'}
-	ruleSet := testRuleSetWithRollupRules(t, testTagNameRollupRulesConfig())
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("foo"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2$"), []byte("$")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+
 	validator := NewValidator(testValidatorOptions().SetTagNameInvalidChars(invalidChars))
-	require.Error(t, validator.Validate(ruleSet))
+	require.Error(t, validator.ValidateSnapshot(view))
 }
 
-func TestValidatorValidateRollupRuleWithValidTagName(t *testing.T) {
+func TestValidatorValidateRollupRuleRollupOpWithValidTagName(t *testing.T) {
 	invalidChars := []rune{' ', '%'}
-	ruleSet := testRuleSetWithRollupRules(t, testTagNameRollupRulesConfig())
-	validator := NewValidator(testValidatorOptions().SetTagNameInvalidChars(invalidChars))
-	require.NoError(t, validator.Validate(ruleSet))
-}
-
-func TestValidatorValidateRollupRulePolicy(t *testing.T) {
-	testStoragePolicies := []policy.StoragePolicy{
-		policy.MustParseStoragePolicy("10s:1d"),
-	}
-	ruleSet := testRuleSetWithRollupRules(t, testPolicyResolutionRollupRulesConfig())
-
-	inputs := []struct {
-		opts      Options
-		expectErr bool
-	}{
-		{
-			// By default policy is allowed.
-			opts:      testValidatorOptions(),
-			expectErr: true,
-		},
-		{
-			// Policy is allowed through the default list of policies.
-			opts:      testValidatorOptions().SetDefaultAllowedStoragePolicies(testStoragePolicies),
-			expectErr: false,
-		},
-		{
-			// Policy is allowed through the list of policies allowed for timers.
-			opts:      testValidatorOptions().SetAllowedStoragePoliciesFor(metric.TimerType, testStoragePolicies),
-			expectErr: false,
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testCounterType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("foo"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2$"), []byte("$")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
 		},
 	}
 
-	for _, input := range inputs {
-		validator := NewValidator(input.opts)
-		if input.expectErr {
-			require.Error(t, validator.Validate(ruleSet))
-		} else {
-			require.NoError(t, validator.Validate(ruleSet))
-		}
-	}
+	validator := NewValidator(testValidatorOptions().SetMetricNameInvalidChars(invalidChars))
+	require.NoError(t, validator.ValidateSnapshot(view))
 }
 
-func TestValidatorValidateRollupRuleWithNoPolicies(t *testing.T) {
-	ruleSet := testRuleSetWithRollupRules(t, testNoPoliciesRollupRulesConfig())
-	validator := NewValidator(testValidatorOptions())
-	require.Error(t, validator.Validate(ruleSet))
-}
-
-func TestValidatorValidateRollupRuleWithDuplicatePolicies(t *testing.T) {
-	ruleSet := testRuleSetWithRollupRules(t, testDuplicatePoliciesRollupRulesConfig())
-	validator := NewValidator(testValidatorOptions())
-	require.Error(t, validator.Validate(ruleSet))
-}
-
-func TestValidatorValidateRollupRuleCustomAggregationTypes(t *testing.T) {
+func TestValidatorValidateRollupRuleRollupOpFirstLevelAggregationTypes(t *testing.T) {
 	testAggregationTypes := []aggregation.Type{aggregation.Count, aggregation.Max}
-	ruleSet := testRuleSetWithRollupRules(t, testCustomAggregationTypeRollupRulesConfig())
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testTimerType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.MustCompressTypes(aggregation.Count, aggregation.Max),
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.MustParseStoragePolicy("10s:6h"),
+						},
+					},
+				},
+			},
+		},
+	}
 	inputs := []struct {
 		opts      Options
 		expectErr bool
@@ -361,12 +1114,12 @@ func TestValidatorValidateRollupRuleCustomAggregationTypes(t *testing.T) {
 		},
 		{
 			// Aggregation type is allowed through the default list of custom aggregation types.
-			opts:      testValidatorOptions().SetDefaultAllowedCustomAggregationTypes(testAggregationTypes),
+			opts:      testValidatorOptions().SetDefaultAllowedFirstLevelAggregationTypes(testAggregationTypes),
 			expectErr: false,
 		},
 		{
 			// Aggregation type is allowed through the list of custom aggregation types for timers.
-			opts:      testValidatorOptions().SetAllowedCustomAggregationTypesFor(metric.TimerType, testAggregationTypes),
+			opts:      testValidatorOptions().SetAllowedFirstLevelAggregationTypesFor(metric.TimerType, testAggregationTypes),
 			expectErr: false,
 		},
 	}
@@ -374,673 +1127,330 @@ func TestValidatorValidateRollupRuleCustomAggregationTypes(t *testing.T) {
 	for _, input := range inputs {
 		validator := NewValidator(input.opts)
 		if input.expectErr {
-			require.Error(t, validator.Validate(ruleSet))
+			require.Error(t, validator.ValidateSnapshot(view))
 		} else {
-			require.NoError(t, validator.Validate(ruleSet))
+			require.NoError(t, validator.ValidateSnapshot(view))
 		}
 	}
 }
 
-func TestValidatorValidateRollupRuleConflictingTargets(t *testing.T) {
-	ruleSet := testRuleSetWithRollupRules(t, testConflictingTargetsRollupRulesConfig())
-	opts := testValidatorOptions()
-	validator := NewValidator(opts)
-	err := validator.Validate(ruleSet)
+func TestValidatorValidateRollupRuleRollupOpNonFirstLevelAggregationTypes(t *testing.T) {
+	testAggregationTypes := []aggregation.Type{aggregation.Count, aggregation.Max}
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testTimerType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:           pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+							},
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.MustCompressTypes(aggregation.Count, aggregation.Max),
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.MustParseStoragePolicy("10s:6h"),
+						},
+					},
+				},
+			},
+		},
+	}
+	inputs := []struct {
+		opts      Options
+		expectErr bool
+	}{
+		{
+			// By default no custom aggregation type is allowed.
+			opts:      testValidatorOptions(),
+			expectErr: true,
+		},
+		{
+			// Aggregation type is allowed through the default list of custom aggregation types.
+			opts:      testValidatorOptions().SetDefaultAllowedNonFirstLevelAggregationTypes(testAggregationTypes),
+			expectErr: false,
+		},
+		{
+			// Aggregation type is allowed through the list of non-first-level aggregation types for timers.
+			opts:      testValidatorOptions().SetAllowedNonFirstLevelAggregationTypesFor(metric.TimerType, testAggregationTypes),
+			expectErr: false,
+		},
+	}
+
+	for _, input := range inputs {
+		validator := NewValidator(input.opts)
+		if input.expectErr {
+			require.Error(t, validator.ValidateSnapshot(view))
+		} else {
+			require.NoError(t, validator.ValidateSnapshot(view))
+		}
+	}
+}
+
+func TestValidatorValidateRollupRuleRollupTargetWithStoragePolicies(t *testing.T) {
+	storagePolicies := testStoragePolicies()
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testTimerType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: storagePolicies,
+					},
+				},
+			},
+		},
+	}
+
+	inputs := []struct {
+		opts      Options
+		expectErr bool
+	}{
+		{
+			// By default policy is allowed.
+			opts:      testValidatorOptions().SetDefaultAllowedStoragePolicies(policy.StoragePolicies{}),
+			expectErr: true,
+		},
+		{
+			// Policy is allowed through the default list of policies.
+			opts:      testValidatorOptions().SetDefaultAllowedStoragePolicies(storagePolicies),
+			expectErr: false,
+		},
+		{
+			// Policy is allowed through the list of policies allowed for timers.
+			opts:      testValidatorOptions().SetAllowedStoragePoliciesFor(metric.TimerType, storagePolicies),
+			expectErr: false,
+		},
+	}
+
+	for _, input := range inputs {
+		validator := NewValidator(input.opts)
+		if input.expectErr {
+			require.Error(t, validator.ValidateSnapshot(view))
+		} else {
+			require.NoError(t, validator.ValidateSnapshot(view))
+		}
+	}
+}
+
+func TestValidatorValidateRollupRuleRollupTargetWithNoStoragePolicies(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testTimerType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+					},
+				},
+			},
+		},
+	}
+	validator := NewValidator(testValidatorOptions())
+	err := validator.ValidateSnapshot(view)
 	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "no storage policies"))
+}
+
+func TestValidatorValidateRollupRuleRollupOpWithDuplicateStoragePolicies(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testTimerType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.MustParseStoragePolicy("10s:6h"),
+							policy.MustParseStoragePolicy("10s:6h"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator := NewValidator(testValidatorOptions())
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "duplicate storage policy '10s:6h'"))
+}
+
+func TestValidatorValidateRollupRuleDisallowedStoragePolicies(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testTimerType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: policy.StoragePolicies{
+							policy.MustParseStoragePolicy("1s:6h"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	validator := NewValidator(testValidatorOptions())
+	require.Error(t, validator.ValidateSnapshot(view))
+}
+
+func TestValidatorRollupRule(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testGaugeType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:        pipeline.AggregationOpType,
+								Aggregation: pipeline.AggregationOp{Type: aggregation.Last},
+							},
+							{
+								Type:           pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+							},
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+
+	firstLevelAggregationTypes := aggregation.Types{aggregation.Last}
+	nonFirstLevelAggregationTypes := aggregation.Types{aggregation.Sum}
+	opts := testValidatorOptions().
+		SetAllowedFirstLevelAggregationTypesFor(metric.GaugeType, firstLevelAggregationTypes).
+		SetAllowedNonFirstLevelAggregationTypesFor(metric.GaugeType, nonFirstLevelAggregationTypes)
+	validator := NewValidator(opts)
+	require.NoError(t, validator.ValidateSnapshot(view))
+}
+
+func TestValidatorValidateRollupRuleDuplicateRollupIDs(t *testing.T) {
+	view := &models.RuleSetSnapshotView{
+		RollupRules: map[string]*models.RollupRuleView{
+			"rollupRule1": &models.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: testTypeTag + ":" + testGaugeType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type:        pipeline.AggregationOpType,
+								Aggregation: pipeline.AggregationOp{Type: aggregation.Last},
+							},
+							{
+								Type:           pipeline.TransformationOpType,
+								Transformation: pipeline.TransformationOp{Type: transformation.PerSecond},
+							},
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+			"rollupRule2": &models.RollupRuleView{
+				Name:   "snapshot2",
+				Filter: testTypeTag + ":" + testGaugeType,
+				Targets: []models.RollupTargetView{
+					{
+						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
+							{
+								Type: pipeline.RollupOpType,
+								Rollup: pipeline.RollupOp{
+									NewName:       []byte("rName1"),
+									Tags:          [][]byte{[]byte("rtagName1"), []byte("rtagName2")},
+									AggregationID: aggregation.DefaultID,
+								},
+							},
+						}),
+						StoragePolicies: testStoragePolicies(),
+					},
+				},
+			},
+		},
+	}
+	firstLevelAggregationTypes := aggregation.Types{aggregation.Last}
+	nonFirstLevelAggregationTypes := aggregation.Types{aggregation.Sum}
+	opts := testValidatorOptions().
+		SetAllowedFirstLevelAggregationTypesFor(metric.GaugeType, firstLevelAggregationTypes).
+		SetAllowedNonFirstLevelAggregationTypesFor(metric.GaugeType, nonFirstLevelAggregationTypes)
+	validator := NewValidator(opts)
+	err := validator.ValidateSnapshot(view)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "more than one rollup operations with name 'rName1' and tags '[rtagName1 rtagName2]' exist"))
 	_, ok := err.(errors.InvalidInputError)
 	require.True(t, ok)
-}
-
-func testDuplicateMappingRulesConfig() []*rulepb.MappingRule {
-	return []*rulepb.MappingRule{
-		&rulepb.MappingRule{
-			Uuid: "mappingRule1",
-			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Policies:   testPolicies(),
-				},
-			},
-		},
-		&rulepb.MappingRule{
-			Uuid: "mappingRule2",
-			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Policies: []*policypb.Policy{
-						&policypb.Policy{
-							StoragePolicy: &policypb.StoragePolicy{
-								Resolution: &policypb.Resolution{
-									WindowSize: int64(10 * time.Second),
-									Precision:  int64(time.Second),
-								},
-								Retention: &policypb.Retention{
-									Period: int64(6 * time.Hour),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testNoDuplicateMappingRulesConfigWithTombstone() []*rulepb.MappingRule {
-	return []*rulepb.MappingRule{
-		&rulepb.MappingRule{
-			Uuid: "mappingRule1",
-			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: true,
-					Policies:   testPolicies(),
-				},
-			},
-		},
-		&rulepb.MappingRule{
-			Uuid: "mappingRule2",
-			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Policies:   testPolicies(),
-				},
-			},
-		},
-	}
-}
-
-func testInvalidFilterExprMappingRuleSetSnapshot() *models.RuleSetSnapshotView {
-	return &models.RuleSetSnapshotView{
-		MappingRules: map[string]*models.MappingRuleView{
-			"mappingRule1": &models.MappingRuleView{
-				Name:   "snapshot1",
-				Filter: "randomTag:*too*many*wildcards*",
-			},
-		},
-	}
-}
-
-func testInvalidFilterTagNameMappingRuleSetSnapshot() *models.RuleSetSnapshotView {
-	return &models.RuleSetSnapshotView{
-		MappingRules: map[string]*models.MappingRuleView{
-			"mappingRule1": &models.MappingRuleView{
-				Name:   "snapshot1",
-				Filter: "random$Tag:foo",
-			},
-		},
-	}
-}
-
-func testInvalidMetricTypeMappingRulesConfig() []*rulepb.MappingRule {
-	return []*rulepb.MappingRule{
-		&rulepb.MappingRule{
-			Uuid: "mappingRule1",
-			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Filter:     testTypeTag + ":nonexistent",
-				},
-			},
-		},
-	}
-}
-
-func testPolicyResolutionMappingRulesConfig() []*rulepb.MappingRule {
-	return []*rulepb.MappingRule{
-		&rulepb.MappingRule{
-			Uuid: "mappingRule1",
-			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Filter:     testTypeTag + ":" + testTimerType,
-					Policies: []*policypb.Policy{
-						&policypb.Policy{
-							StoragePolicy: &policypb.StoragePolicy{
-								Resolution: &policypb.Resolution{
-									WindowSize: int64(10 * time.Second),
-									Precision:  int64(time.Second),
-								},
-								Retention: &policypb.Retention{
-									Period: int64(24 * time.Hour),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testNoPoliciesMappingRulesConfig() []*rulepb.MappingRule {
-	return []*rulepb.MappingRule{
-		&rulepb.MappingRule{
-			Uuid: "mappingRule1",
-			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Filter:     testTypeTag + ":" + testTimerType,
-					Policies:   []*policypb.Policy{},
-				},
-			},
-		},
-	}
-}
-
-func testDuplicatePoliciesMappingRulesConfig() []*rulepb.MappingRule {
-	return []*rulepb.MappingRule{
-		&rulepb.MappingRule{
-			Uuid: "mappingRule1",
-			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Filter:     testTypeTag + ":" + testTimerType,
-					Policies: []*policypb.Policy{
-						&policypb.Policy{
-							StoragePolicy: &policypb.StoragePolicy{
-								Resolution: &policypb.Resolution{
-									WindowSize: int64(10 * time.Second),
-									Precision:  int64(time.Second),
-								},
-								Retention: &policypb.Retention{
-									Period: int64(24 * time.Hour),
-								},
-							},
-						},
-						&policypb.Policy{
-							StoragePolicy: &policypb.StoragePolicy{
-								Resolution: &policypb.Resolution{
-									WindowSize: int64(10 * time.Second),
-									Precision:  int64(time.Second),
-								},
-								Retention: &policypb.Retention{
-									Period: int64(24 * time.Hour),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testCustomAggregationTypeMappingRulesConfig() []*rulepb.MappingRule {
-	return []*rulepb.MappingRule{
-		&rulepb.MappingRule{
-			Uuid: "mappingRule1",
-			Snapshots: []*rulepb.MappingRuleSnapshot{
-				&rulepb.MappingRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Filter:     testTypeTag + ":" + testTimerType,
-					Policies: []*policypb.Policy{
-						&policypb.Policy{
-							StoragePolicy: &policypb.StoragePolicy{
-								Resolution: &policypb.Resolution{
-									WindowSize: int64(10 * time.Second),
-									Precision:  int64(time.Second),
-								},
-								Retention: &policypb.Retention{
-									Period: int64(6 * time.Hour),
-								},
-							},
-							AggregationTypes: []aggregationpb.AggregationType{
-								aggregationpb.AggregationType_COUNT,
-								aggregationpb.AggregationType_MAX,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testDuplicateRollupRulesConfig() []*rulepb.RollupRule {
-	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
-			Uuid: "rollupRule1",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name:     "rName1",
-							Tags:     []string{"rtagName1", "rtagName2"},
-							Policies: testPolicies(),
-						},
-					},
-				},
-			},
-		},
-		&rulepb.RollupRule{
-			Uuid: "rollupRule2",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name:     "rName1",
-							Tags:     []string{"rtagName1", "rtagName2"},
-							Policies: testPolicies(),
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testNoDuplicateRollupRulesConfigWithTombstone() []*rulepb.RollupRule {
-	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
-			Uuid: "rollupRule1",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: true,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name:     "rName1",
-							Tags:     []string{"rtagName1", "rtagName2"},
-							Policies: testPolicies(),
-						},
-					},
-				},
-			},
-		},
-		&rulepb.RollupRule{
-			Uuid: "rollupRule2",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name:     "rName1",
-							Tags:     []string{"rtagName1", "rtagName2"},
-							Policies: testPolicies(),
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testInvalidFilterExprRollupRuleSetSnapshot() *models.RuleSetSnapshotView {
-	return &models.RuleSetSnapshotView{
-		RollupRules: map[string]*models.RollupRuleView{
-			"rollupRule1": &models.RollupRuleView{
-				Name:   "snapshot1",
-				Filter: "randomTag:*too*many*wildcards*",
-			},
-		},
-	}
-}
-
-func testInvalidFilterTagNameRollupRuleSetSnapshot() *models.RuleSetSnapshotView {
-	return &models.RuleSetSnapshotView{
-		RollupRules: map[string]*models.RollupRuleView{
-			"rollupRule1": &models.RollupRuleView{
-				Name:   "snapshot1",
-				Filter: "random$Tag:foo",
-			},
-		},
-	}
-}
-
-func testInvalidMetricTypeRollupRulesConfig() []*rulepb.RollupRule {
-	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
-			Uuid: "rollupRule1",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Filter:     testTypeTag + ":nonexistent",
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name:     "rName1",
-							Tags:     []string{"rtagName1", "rtagName2"},
-							Policies: testPolicies(),
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testDuplicateTagRollupRulesConfig() []*rulepb.RollupRule {
-	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
-			Uuid: "rollupRule1",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name:     "rName1",
-							Tags:     []string{"rtagName1", "rtagName2", "rtagName1"},
-							Policies: testPolicies(),
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testMissingRequiredTagRollupRulesConfig() []*rulepb.RollupRule {
-	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
-			Uuid: "rollupRule1",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name:     "rName1",
-							Tags:     []string{"rtagName1", "rtagName2"},
-							Policies: testPolicies(),
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testTagNameRollupRulesConfig() []*rulepb.RollupRule {
-	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
-			Uuid: "rollupRule1",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name:     "rName1",
-							Tags:     []string{"rtagName1", "rtagName2$", "$"},
-							Policies: testPolicies(),
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testMetricNameRollupRulesConfig() []*rulepb.RollupRule {
-	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
-			Uuid: "rollupRule1",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name:     "rName$1",
-							Tags:     []string{"rtagName1", "rtagName2"},
-							Policies: testPolicies(),
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testEmptyMetricNameRollupRulesConfig() []*rulepb.RollupRule {
-	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
-			Uuid: "rollupRule1",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name: "",
-							Tags: []string{"rtagName1", "rtagName2"},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testPolicyResolutionRollupRulesConfig() []*rulepb.RollupRule {
-	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
-			Uuid: "rollupRule1",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Filter:     testTypeTag + ":" + testTimerType,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name: "rName1",
-							Tags: []string{"rtagName1", "rtagName2"},
-							Policies: []*policypb.Policy{
-								&policypb.Policy{
-									StoragePolicy: &policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
-											WindowSize: int64(10 * time.Second),
-											Precision:  int64(time.Second),
-										},
-										Retention: &policypb.Retention{
-											Period: int64(24 * time.Hour),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testNoPoliciesRollupRulesConfig() []*rulepb.RollupRule {
-	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
-			Uuid: "rollupRule1",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Filter:     testTypeTag + ":" + testTimerType,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name:     "rName1",
-							Tags:     []string{"rtagName1", "rtagName2"},
-							Policies: []*policypb.Policy{},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testDuplicatePoliciesRollupRulesConfig() []*rulepb.RollupRule {
-	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
-			Uuid: "rollupRule1",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Filter:     testTypeTag + ":" + testTimerType,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name: "rName1",
-							Tags: []string{"rtagName1", "rtagName2"},
-							Policies: []*policypb.Policy{
-								&policypb.Policy{
-									StoragePolicy: &policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
-											WindowSize: int64(10 * time.Second),
-											Precision:  int64(time.Second),
-										},
-										Retention: &policypb.Retention{
-											Period: int64(24 * time.Hour),
-										},
-									},
-								},
-								&policypb.Policy{
-									StoragePolicy: &policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
-											WindowSize: int64(10 * time.Second),
-											Precision:  int64(time.Second),
-										},
-										Retention: &policypb.Retention{
-											Period: int64(24 * time.Hour),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testCustomAggregationTypeRollupRulesConfig() []*rulepb.RollupRule {
-	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
-			Uuid: "rollupRule1",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Filter:     testTypeTag + ":" + testTimerType,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name: "rName1",
-							Tags: []string{"rtagName1", "rtagName2"},
-							Policies: []*policypb.Policy{
-								&policypb.Policy{
-									StoragePolicy: &policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
-											WindowSize: int64(10 * time.Second),
-											Precision:  int64(time.Second),
-										},
-										Retention: &policypb.Retention{
-											Period: int64(6 * time.Hour),
-										},
-									},
-									AggregationTypes: []aggregationpb.AggregationType{
-										aggregationpb.AggregationType_COUNT,
-										aggregationpb.AggregationType_MAX,
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testConflictingTargetsRollupRulesConfig() []*rulepb.RollupRule {
-	return []*rulepb.RollupRule{
-		&rulepb.RollupRule{
-			Uuid: "rollupRule1",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot1",
-					Tombstoned: false,
-					Filter:     testTypeTag + ":" + testTimerType,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name: "rName1",
-							Tags: []string{"rtagName1", "rtagName2"},
-							Policies: []*policypb.Policy{
-								&policypb.Policy{
-									StoragePolicy: &policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
-											WindowSize: int64(10 * time.Second),
-											Precision:  int64(time.Second),
-										},
-										Retention: &policypb.Retention{
-											Period: int64(6 * time.Hour),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		&rulepb.RollupRule{
-			Uuid: "rollupRule2",
-			Snapshots: []*rulepb.RollupRuleSnapshot{
-				&rulepb.RollupRuleSnapshot{
-					Name:       "snapshot2",
-					Tombstoned: false,
-					Filter:     testTypeTag + ":" + testTimerType,
-					Targets: []*rulepb.RollupTarget{
-						&rulepb.RollupTarget{
-							Name: "rName1",
-							Tags: []string{"rtagName2", "rtagName1"},
-							Policies: []*policypb.Policy{
-								&policypb.Policy{
-									StoragePolicy: &policypb.StoragePolicy{
-										Resolution: &policypb.Resolution{
-											WindowSize: int64(10 * time.Second),
-											Precision:  int64(time.Second),
-										},
-										Retention: &policypb.Retention{
-											Period: int64(6 * time.Hour),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func testRuleSetWithMappingRules(t *testing.T, mrs []*rulepb.MappingRule) rules.RuleSet {
-	rs := &rulepb.RuleSet{MappingRules: mrs}
-	newRuleSet, err := rules.NewRuleSetFromProto(1, rs, rules.NewOptions())
-	require.NoError(t, err)
-	return newRuleSet
-}
-
-func testRuleSetWithRollupRules(t *testing.T, rrs []*rulepb.RollupRule) rules.RuleSet {
-	rs := &rulepb.RuleSet{RollupRules: rrs}
-	newRuleSet, err := rules.NewRuleSetFromProto(1, rs, rules.NewOptions())
-	require.NoError(t, err)
-	return newRuleSet
 }
 
 func testKVNamespaceValidator(t *testing.T) namespace.Validator {
@@ -1053,16 +1463,6 @@ func testKVNamespaceValidator(t *testing.T) namespace.Validator {
 	nsValidator, err := kv.NewNamespaceValidator(kvOpts)
 	require.NoError(t, err)
 	return nsValidator
-}
-
-func testValidatorOptions() Options {
-	testStoragePolicies := []policy.StoragePolicy{
-		policy.MustParseStoragePolicy("10s:6h"),
-	}
-	return NewOptions().
-		SetDefaultAllowedStoragePolicies(testStoragePolicies).
-		SetDefaultAllowedCustomAggregationTypes(nil).
-		SetMetricTypesFn(testMetricTypesFn())
 }
 
 func testMetricTypesFn() MetricTypesFn {
@@ -1084,18 +1484,16 @@ func testMetricTypesFn() MetricTypesFn {
 	}
 }
 
-func testPolicies() []*policypb.Policy {
-	return []*policypb.Policy{
-		&policypb.Policy{
-			StoragePolicy: &policypb.StoragePolicy{
-				Resolution: &policypb.Resolution{
-					WindowSize: int64(10 * time.Second),
-					Precision:  int64(time.Second),
-				},
-				Retention: &policypb.Retention{
-					Period: int64(6 * time.Hour),
-				},
-			},
-		},
+func testStoragePolicies() policy.StoragePolicies {
+	return policy.StoragePolicies{
+		policy.MustParseStoragePolicy("10s:6h"),
+		policy.MustParseStoragePolicy("1m:24h"),
 	}
+}
+
+func testValidatorOptions() Options {
+	return NewOptions().
+		SetDefaultAllowedStoragePolicies(testStoragePolicies()).
+		SetDefaultAllowedFirstLevelAggregationTypes(nil).
+		SetMetricTypesFn(testMetricTypesFn())
 }

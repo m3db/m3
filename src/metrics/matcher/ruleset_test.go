@@ -263,6 +263,7 @@ func (r *mockRuleSet) CutoverNanos() int64                            { return r
 func (r *mockRuleSet) LastUpdatedAtNanos() int64                      { return 0 }
 func (r *mockRuleSet) CreatedAtNanos() int64                          { return 0 }
 func (r *mockRuleSet) Tombstoned() bool                               { return r.tombstoned }
+func (r *mockRuleSet) Proto() (*rulepb.RuleSet, error)                { return nil, nil }
 func (r *mockRuleSet) ActiveSet(timeNanos int64) rules.Matcher        { return r.matcher }
 func (r *mockRuleSet) ToMutableRuleSet() rules.MutableRuleSet         { return nil }
 func (r *mockRuleSet) MappingRules() (models.MappingRuleViews, error) { return nil, nil }

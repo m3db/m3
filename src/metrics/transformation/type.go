@@ -22,6 +22,7 @@ package transformation
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/m3db/m3metrics/generated/proto/transformationpb"
 )
@@ -35,6 +36,11 @@ const (
 	Absolute
 	PerSecond
 )
+
+// IsValid checks if the transformation type is valid.
+func (t Type) IsValid() bool {
+	return t.IsUnaryTransform() || t.IsBinaryTransform()
+}
 
 // IsUnaryTransform returns whether this is a unary transformation.
 func (t Type) IsUnaryTransform() bool {
@@ -114,6 +120,54 @@ func (t *Type) FromProto(pb transformationpb.TransformationType) error {
 	return nil
 }
 
+// MarshalJSON returns the JSON encoding of a transformation type.
+func (t Type) MarshalJSON() ([]byte, error) {
+	if !t.IsValid() {
+		return nil, fmt.Errorf("invalid aggregation type %s", t.String())
+	}
+	marshalled := strconv.Quote(t.String())
+	return []byte(marshalled), nil
+}
+
+// UnmarshalJSON unmarshals JSON-encoded data into a transformation type.
+func (t *Type) UnmarshalJSON(data []byte) error {
+	str := string(data)
+	unquoted, err := strconv.Unquote(str)
+	if err != nil {
+		return err
+	}
+	parsed, err := ParseType(unquoted)
+	if err != nil {
+		return err
+	}
+	*t = parsed
+	return nil
+}
+
+// UnmarshalYAML unmarshals YAML-encoded data into a transformation type.
+func (t *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	parsed, err := ParseType(str)
+	if err != nil {
+		return err
+	}
+	*t = parsed
+	return nil
+}
+
+// ParseType parses a transformation type.
+func ParseType(str string) (Type, error) {
+	t, ok := typeStringMap[str]
+	if !ok {
+		return UnknownType, fmt.Errorf("invalid transformation type: %s", str)
+	}
+	return t, nil
+}
+
 var (
 	unaryTransforms = map[Type]UnaryTransform{
 		Absolute: absolute,
@@ -121,4 +175,15 @@ var (
 	binaryTransforms = map[Type]BinaryTransform{
 		PerSecond: perSecond,
 	}
+	typeStringMap map[string]Type
 )
+
+func init() {
+	typeStringMap = make(map[string]Type)
+	for t := range unaryTransforms {
+		typeStringMap[t.String()] = t
+	}
+	for t := range binaryTransforms {
+		typeStringMap[t.String()] = t
+	}
+}

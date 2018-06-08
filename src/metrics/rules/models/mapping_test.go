@@ -21,192 +21,223 @@
 package models
 
 import (
-	"encoding/json"
 	"testing"
+	"time"
 
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/policy"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewMappingRule(t *testing.T) {
-	id := "mr_id"
-	name := "mr_name"
-	fixture := testMappingRuleView(id, name)
+	view := &MappingRuleView{
+		ID:            "mr_id",
+		Name:          "mr_name",
+		CutoverNanos:  1234000000,
+		Filter:        "filter",
+		AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+		StoragePolicies: policy.StoragePolicies{
+			policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+		},
+		LastUpdatedAtNanos: 1234000000,
+		LastUpdatedBy:      "john",
+	}
+	res := NewMappingRule(view)
 	expected := MappingRule{
-		ID:                  id,
-		Name:                name,
-		Filter:              "filter",
-		Policies:            []policy.Policy{},
-		CutoverMillis:       0,
-		LastUpdatedBy:       "",
-		LastUpdatedAtMillis: 0,
+		ID:            "mr_id",
+		Name:          "mr_name",
+		CutoverMillis: 1234,
+		Filter:        "filter",
+		AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+		StoragePolicies: policy.StoragePolicies{
+			policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+		},
+		LastUpdatedAtMillis: 1234,
+		LastUpdatedBy:       "john",
 	}
-	require.EqualValues(t, expected, NewMappingRule(fixture))
+	require.Equal(t, expected, res)
 }
 
-func TestToMappingRuleView(t *testing.T) {
-	id := "id"
-	name := "name"
-	fixture := testMappingRule(id, name)
+func TestMappingRuleToMappingRuleView(t *testing.T) {
+	rule := MappingRule{
+		ID:            "mr_id",
+		Name:          "mr_name",
+		CutoverMillis: 1234,
+		Filter:        "filter",
+		AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+		StoragePolicies: policy.StoragePolicies{
+			policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+		},
+		LastUpdatedAtMillis: 1234,
+		LastUpdatedBy:       "john",
+	}
+	res := rule.ToMappingRuleView()
 	expected := &MappingRuleView{
-		ID:       id,
-		Name:     name,
-		Filter:   "filter",
-		Policies: []policy.Policy{},
+		ID:            "mr_id",
+		Name:          "mr_name",
+		CutoverNanos:  1234000000,
+		Filter:        "filter",
+		AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+		StoragePolicies: policy.StoragePolicies{
+			policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+		},
+		LastUpdatedAtNanos: 1234000000,
+		LastUpdatedBy:      "john",
 	}
-	require.EqualValues(t, expected, fixture.ToMappingRuleView())
+	require.Equal(t, expected, res)
 }
-func TestMappingRuleEqual(t *testing.T) {
-	mappingRule1 := `
-		{
-			"name": "sample_mapping_rule_1",
-			"filter": "filter_1",
-			"policies": [
-				"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-			]
-		}
-	`
-	mappingRule2 := `
-		{
-			"filter": "filter_1",
-			"name": "sample_mapping_rule_1",
-			"policies": [
-				"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-			]
-		}
-	`
-	var mr1 MappingRule
-	err := json.Unmarshal([]byte(mappingRule1), &mr1)
-	require.NoError(t, err)
-	var mr2 MappingRule
-	err = json.Unmarshal([]byte(mappingRule2), &mr2)
-	require.NoError(t, err)
 
-	require.True(t, mr1.Equals(&mr2))
+func TestMappingRuleEqual(t *testing.T) {
+	rule1 := MappingRule{
+		ID:            "mr_id",
+		Name:          "mr_name",
+		CutoverMillis: 1234,
+		Filter:        "filter",
+		AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+		StoragePolicies: policy.StoragePolicies{
+			policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+		},
+		LastUpdatedAtMillis: 1234,
+		LastUpdatedBy:       "john",
+	}
+	rule2 := MappingRule{
+		ID:            "mr_id",
+		Name:          "mr_name",
+		CutoverMillis: 1234,
+		Filter:        "filter",
+		AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+		StoragePolicies: policy.StoragePolicies{
+			policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+		},
+		LastUpdatedAtMillis: 1234,
+		LastUpdatedBy:       "john",
+	}
+	require.True(t, rule1.Equal(&rule2))
+	require.True(t, rule2.Equal(&rule1))
 }
 
 func TestMappingRuleNotEqual(t *testing.T) {
-	mappingRule1 := `
+	rules := []MappingRule{
 		{
-			"name": "sample_mapping_rule_1",
-			"filter": "filter_1",
-			"policies": [
-				"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-			]
-		}
-	`
-	mappingRule2 := `
-		{
-			"filter": "filter_2",
-			"name": "sample_mapping_rule_1",
-			"policies": [
-				"10s:2d|Count,P99,P9999","1m:40d|Count,P99,P9999"
-			]
-		}
-	`
-	mappingRule3 := `
-		{
-			"name": "sample_mapping_rule_2",
-			"filter": "filter_1",
-			"policies": [
-				"1m:2d","1m:40d"
-			]
-		}
-	`
-	var mr1 MappingRule
-	err := json.Unmarshal([]byte(mappingRule1), &mr1)
-	require.NoError(t, err)
-	var mr2 MappingRule
-	err = json.Unmarshal([]byte(mappingRule2), &mr2)
-	require.NoError(t, err)
-	var mr3 MappingRule
-	err = json.Unmarshal([]byte(mappingRule3), &mr3)
-	require.NoError(t, err)
-
-	require.False(t, mr1.Equals(&mr2))
-	require.False(t, mr1.Equals(&mr3))
-	require.False(t, mr2.Equals(&mr3))
-}
-
-func TestMappingRuleNilCases(t *testing.T) {
-	var mr1 *MappingRule
-
-	require.True(t, mr1.Equals(nil))
-
-	var mr2 MappingRule
-	mappingRule := &mr2
-	require.False(t, mappingRule.Equals(mr1))
-}
-
-func TestMappingRuleSort(t *testing.T) {
-	mappingRule := `
-		{
-			"name":"sample_mapping_rule_1",
-			"filter":"filter_1",
-			"policies":[
-				"10s:2d|Count,P99,P9999",
-				"1m:40d|Count,P99,P9999",
-				"1m:40d|Count,P9999"
-			]
-		}
-	`
-	var mr MappingRule
-	err := json.Unmarshal([]byte(mappingRule), &mr)
-	require.NoError(t, err)
-
-	expected := `["10s:2d|Count,P99,P9999","1m:40d|Count,P9999","1m:40d|Count,P99,P9999"]`
-	mr.Sort()
-	actual, err := json.Marshal(mr.Policies)
-	require.NoError(t, err)
-	require.Equal(t, expected, string(actual))
-}
-func TestNewMappingRuleHistoryJSON(t *testing.T) {
-	id := "id"
-	hist := []*MappingRuleView{
-		testMappingRuleView(id, "name1"),
-		testMappingRuleView(id, "name2"),
-	}
-	expected := MappingRuleSnapshots{
-		MappingRules: []MappingRule{
-			{
-				ID:                  id,
-				Name:                "name1",
-				Filter:              "filter",
-				Policies:            []policy.Policy{},
-				CutoverMillis:       0,
-				LastUpdatedBy:       "",
-				LastUpdatedAtMillis: 0,
+			ID:            "mr",
+			Name:          "foo",
+			Filter:        "filter",
+			AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
 			},
-			{
-				ID:                  id,
-				Name:                "name2",
-				Filter:              "filter",
-				Policies:            []policy.Policy{},
-				CutoverMillis:       0,
-				LastUpdatedBy:       "",
-				LastUpdatedAtMillis: 0,
+		},
+		{
+			ID:            "mr",
+			Name:          "foo",
+			Filter:        "filter",
+			AggregationID: aggregation.DefaultID,
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+			},
+		},
+		{
+			ID:            "mr",
+			Name:          "foo",
+			Filter:        "filter",
+			AggregationID: aggregation.DefaultID,
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+			},
+		},
+		{
+			ID:            "mr",
+			Name:          "bar",
+			Filter:        "filter",
+			AggregationID: aggregation.DefaultID,
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+			},
+		},
+		{
+			ID:            "mr",
+			Name:          "bar",
+			Filter:        "filter2",
+			AggregationID: aggregation.DefaultID,
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
 			},
 		},
 	}
-	require.EqualValues(t, expected, NewMappingRuleSnapshots(hist))
-}
-
-// nolint:unparam
-func testMappingRuleView(id, name string) *MappingRuleView {
-	return &MappingRuleView{
-		ID:       id,
-		Name:     name,
-		Filter:   "filter",
-		Policies: []policy.Policy{},
+	for i := 0; i < len(rules); i++ {
+		for j := i + 1; j < len(rules); j++ {
+			require.False(t, rules[i].Equal(&rules[j]))
+		}
 	}
 }
 
-func testMappingRule(id, name string) *MappingRule {
-	return &MappingRule{
-		ID:       id,
-		Name:     name,
-		Filter:   "filter",
-		Policies: []policy.Policy{},
+func TestNewMappingRuleSnapshots(t *testing.T) {
+	rules := []*MappingRuleView{
+		&MappingRuleView{
+			ID:            "mr_id1",
+			Name:          "mr_name1",
+			CutoverNanos:  1234000000,
+			Filter:        "filter1",
+			AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+			},
+			LastUpdatedAtNanos: 1234000000,
+			LastUpdatedBy:      "john1",
+		},
+		&MappingRuleView{
+			ID:            "mr_id2",
+			Name:          "mr_name2",
+			CutoverNanos:  1234000000,
+			Filter:        "filter2",
+			AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+			StoragePolicies: policy.StoragePolicies{
+				policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+			},
+			LastUpdatedAtNanos: 1234000000,
+			LastUpdatedBy:      "john2",
+		},
 	}
+	res := NewMappingRuleSnapshots(rules)
+
+	expected := MappingRuleSnapshots{
+		MappingRules: []MappingRule{
+			{
+				ID:            "mr_id1",
+				Name:          "mr_name1",
+				CutoverMillis: 1234,
+				Filter:        "filter1",
+				AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+				},
+				LastUpdatedAtMillis: 1234,
+				LastUpdatedBy:       "john1",
+			},
+			{
+				ID:            "mr_id2",
+				Name:          "mr_name2",
+				CutoverMillis: 1234,
+				Filter:        "filter2",
+				AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+				StoragePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+				},
+				LastUpdatedAtMillis: 1234,
+				LastUpdatedBy:       "john2",
+			},
+		},
+	}
+	require.Equal(t, expected, res)
+}
+
+func TestMappingRuleEqualNilCases(t *testing.T) {
+	var (
+		mr1 *MappingRule
+		mr2 MappingRule
+	)
+	require.True(t, mr1.Equal(nil))
+	require.False(t, mr2.Equal(mr1))
 }

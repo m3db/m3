@@ -21,6 +21,8 @@
 package policy
 
 import (
+	"encoding/json"
+	"sort"
 	"testing"
 	"time"
 
@@ -164,6 +166,132 @@ func TestParseStoragePolicyErrors(t *testing.T) {
 	for _, input := range inputs {
 		_, err := ParseStoragePolicy(input)
 		require.Error(t, err)
+	}
+}
+
+func TestStoragePolicyMarshalJSON(t *testing.T) {
+	inputs := []struct {
+		storagePolicy StoragePolicy
+		expected      string
+	}{
+		{
+			storagePolicy: NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+			expected:      "\"1s:1h\"",
+		},
+		{
+			storagePolicy: NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+			expected:      "\"10s:1d\"",
+		},
+		{
+			storagePolicy: NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+			expected:      "\"1m:1d\"",
+		},
+		{
+			storagePolicy: NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+			expected:      "\"1m:1d\"",
+		},
+		{
+			storagePolicy: NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+			expected:      "\"1s:1h\"",
+		},
+		{
+			storagePolicy: NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+			expected:      "\"10s:1d\"",
+		},
+		{
+			storagePolicy: NewStoragePolicy(time.Minute, xtime.Second, 24*time.Hour),
+			expected:      "\"1m@1s:1d\"",
+		},
+		{
+			storagePolicy: NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+			expected:      "\"1m:1d\"",
+		},
+	}
+
+	for _, input := range inputs {
+		res, err := json.Marshal(input.storagePolicy)
+		require.NoError(t, err)
+		require.Equal(t, input.expected, string(res))
+	}
+}
+
+func TestStoragePolicyUnmarshalJSON(t *testing.T) {
+	inputs := []struct {
+		str      string
+		expected StoragePolicy
+	}{
+		{
+			str:      "\"1s:1h\"",
+			expected: NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+		},
+		{
+			str:      "\"10s:1d\"",
+			expected: NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+		},
+		{
+			str:      "\"60s:24h\"",
+			expected: NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		},
+		{
+			str:      "\"1m:1d\"",
+			expected: NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		},
+		{
+			str:      "\"1s@1s:1h\"",
+			expected: NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+		},
+		{
+			str:      "\"10s@1s:1d\"",
+			expected: NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+		},
+		{
+			str:      "\"60s@1s:24h\"",
+			expected: NewStoragePolicy(time.Minute, xtime.Second, 24*time.Hour),
+		},
+		{
+			str:      "\"1m@1m:1d\"",
+			expected: NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		},
+	}
+
+	for _, input := range inputs {
+		var p StoragePolicy
+		require.NoError(t, json.Unmarshal([]byte(input.str), &p))
+		require.Equal(t, input.expected, p)
+	}
+}
+
+func TestStoragePolicyUnmarshalJSONError(t *testing.T) {
+	inputs := []string{
+		"1m:1d",
+		"1m",
+		"1d",
+	}
+
+	for _, input := range inputs {
+		var p StoragePolicy
+		require.Error(t, json.Unmarshal([]byte(input), &p))
+	}
+}
+
+func TestStoragePolicyJSONMarshalRoundtrip(t *testing.T) {
+	inputs := StoragePolicies{
+		NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Second, 24*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+	}
+
+	for _, input := range inputs {
+		b, err := json.Marshal(input)
+		require.NoError(t, err)
+		var res StoragePolicy
+		require.NoError(t, json.Unmarshal(b, &res))
+		require.Equal(t, input, res)
 	}
 }
 
@@ -330,4 +458,70 @@ func TestStoragePolicyProtoRoundTrip(t *testing.T) {
 	require.NoError(t, testStoragePolicy.ToProto(&pb))
 	require.NoError(t, res.FromProto(pb))
 	require.Equal(t, testStoragePolicy, res)
+}
+
+func TestStoragePoliciesJSONMarshal(t *testing.T) {
+	input := StoragePolicies{
+		NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+	}
+
+	b, err := json.Marshal(input)
+	require.NoError(t, err)
+	expected := "[\"1s:1h\",\"10s:1d\",\"1m:1d\"]"
+	require.Equal(t, expected, string(b))
+}
+
+func TestStoragePoliciesJSONUnMarshal(t *testing.T) {
+	input := "[\"1s:1h\",\"10s:1d\",\"1m:1d\"]"
+	var storagePolicies StoragePolicies
+	require.NoError(t, json.Unmarshal([]byte(input), &storagePolicies))
+	expected := StoragePolicies{
+		NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+	}
+	require.Equal(t, expected, storagePolicies)
+}
+
+func TestStoragePoliciesJSONRoundtrip(t *testing.T) {
+	input := StoragePolicies{
+		NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+	}
+	b, err := json.Marshal(input)
+	require.NoError(t, err)
+	var storagePolicies StoragePolicies
+	require.NoError(t, json.Unmarshal([]byte(b), &storagePolicies))
+	require.Equal(t, input, storagePolicies)
+}
+
+func TestStoragePoliciesByResolutionAscRetentionDesc(t *testing.T) {
+	inputs := StoragePolicies{
+		NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+		NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+	}
+	sort.Sort(ByResolutionAscRetentionDesc(inputs))
+
+	expected := StoragePolicies{
+		NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+		NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+	}
+	require.Equal(t, expected, inputs)
 }

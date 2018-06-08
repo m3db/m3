@@ -21,134 +21,23 @@
 package rules
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"sort"
 
 	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
-	"github.com/m3db/m3metrics/generated/proto/policypb"
 	"github.com/m3db/m3metrics/generated/proto/rulepb"
-	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules/models"
 
 	"github.com/pborman/uuid"
 )
 
 var (
-	emptyRollupTarget rollupTarget
-
-	errRollupRuleSnapshotIndexOutOfRange = errors.New("rollup rule snapshot index out of range")
-	errNilRollupTargetProto              = errors.New("nil rollup target proto")
-	errNilRollupRuleSnapshotProto        = errors.New("nil rollup rule snapshot proto")
-	errNilRollupRuleProto                = errors.New("nil rollup rule proto")
+	errNoRollupTargetsInRollupRuleSnapshot = errors.New("no rollup targets in rollup rule snapshot")
+	errRollupRuleSnapshotIndexOutOfRange   = errors.New("rollup rule snapshot index out of range")
+	errNilRollupRuleSnapshotProto          = errors.New("nil rollup rule snapshot proto")
+	errNilRollupRuleProto                  = errors.New("nil rollup rule proto")
 )
-
-// RollupTarget dictates how to roll up metrics. Metrics associated with a rollup
-// target will be grouped and rolled up across the provided set of tags, named
-// with the provided name, and aggregated and retained under the provided policies.
-type rollupTarget struct {
-	Name     []byte
-	Tags     [][]byte
-	Policies []policy.Policy
-}
-
-func newRollupTarget(target *rulepb.RollupTarget) (rollupTarget, error) {
-	if target == nil {
-		return emptyRollupTarget, errNilRollupTargetProto
-	}
-	policies, err := policy.NewPoliciesFromProto(target.Policies)
-	if err != nil {
-		return emptyRollupTarget, err
-	}
-	tags := make([]string, len(target.Tags))
-	copy(tags, target.Tags)
-	sort.Strings(tags)
-	return rollupTarget{
-		Name:     []byte(target.Name),
-		Tags:     bytesArrayFromStringArray(tags),
-		Policies: policies,
-	}, nil
-}
-
-func newRollupTargetsFromView(views []models.RollupTargetView) []rollupTarget {
-	targets := make([]rollupTarget, len(views))
-	for i, t := range views {
-		targets[i] = newRollupTargetFromView(t)
-	}
-	return targets
-}
-
-func newRollupTargetFromView(rtv models.RollupTargetView) rollupTarget {
-	return rollupTarget{
-		Name:     []byte(rtv.Name),
-		Tags:     bytesArrayFromStringArray(rtv.Tags),
-		Policies: rtv.Policies,
-	}
-}
-
-func (t rollupTarget) rollupTargetView() models.RollupTargetView {
-	return models.RollupTargetView{
-		Name:     string(t.Name),
-		Tags:     stringArrayFromBytesArray(t.Tags),
-		Policies: t.Policies,
-	}
-}
-
-// TODO: Evaluate if this function is needed for rule matching. If not remove it.
-// SameTransform returns whether two rollup targets have the same transformation.
-func (t *rollupTarget) SameTransform(other rollupTarget) bool {
-	if !bytes.Equal(t.Name, other.Name) {
-		return false
-	}
-	if len(t.Tags) != len(other.Tags) {
-		return false
-	}
-	clonedTags := stringArrayFromBytesArray(t.Tags)
-	sort.Strings(clonedTags)
-	otherClonedTags := stringArrayFromBytesArray(other.Tags)
-	sort.Strings(otherClonedTags)
-	for i := 0; i < len(clonedTags); i++ {
-		if clonedTags[i] != otherClonedTags[i] {
-			return false
-		}
-	}
-	return true
-}
-
-// clone clones a rollup target.
-func (t *rollupTarget) clone() rollupTarget {
-	name := make([]byte, len(t.Name))
-	copy(name, t.Name)
-	policies := make([]policy.Policy, len(t.Policies))
-	copy(policies, t.Policies)
-	return rollupTarget{
-		Name:     name,
-		Tags:     bytesArrayCopy(t.Tags),
-		Policies: policies,
-	}
-}
-
-// Proto returns the proto representation of a rollup target.
-func (t *rollupTarget) Proto() (*rulepb.RollupTarget, error) {
-	res := &rulepb.RollupTarget{
-		Name: string(t.Name),
-	}
-
-	policies := make([]*policypb.Policy, len(t.Policies))
-	for i, p := range t.Policies {
-		policy, err := p.Proto()
-		if err != nil {
-			return nil, err
-		}
-		policies[i] = policy
-	}
-	res.Policies = policies
-	res.Tags = stringArrayFromBytesArray(t.Tags)
-
-	return res, nil
-}
 
 // rollupRuleSnapshot defines a rule snapshot such that if a metric matches the
 // provided filters, it is rolled up using the provided list of rollup targets.
@@ -163,21 +52,38 @@ type rollupRuleSnapshot struct {
 	lastUpdatedBy      string
 }
 
-func newRollupRuleSnapshot(
+func newRollupRuleSnapshotFromProto(
 	r *rulepb.RollupRuleSnapshot,
 	opts filters.TagsFilterOptions,
 ) (*rollupRuleSnapshot, error) {
 	if r == nil {
 		return nil, errNilRollupRuleSnapshotProto
 	}
-	targets := make([]rollupTarget, 0, len(r.Targets))
-	for _, t := range r.Targets {
-		target, err := newRollupTarget(t)
-		if err != nil {
-			return nil, err
+	var targets []rollupTarget
+	if len(r.Targets) > 0 {
+		// Convert v1 (i.e., legacy) rollup targets proto to rollup targets v2.
+		targets = make([]rollupTarget, 0, len(r.Targets))
+		for _, t := range r.Targets {
+			target, err := newRollupTargetFromV1Proto(t)
+			if err != nil {
+				return nil, err
+			}
+			targets = append(targets, target)
 		}
-		targets = append(targets, target)
+	} else if len(r.TargetsV2) > 0 {
+		// Convert v2 rollup targets proto to rollup targest v2.
+		targets = make([]rollupTarget, 0, len(r.TargetsV2))
+		for _, t := range r.TargetsV2 {
+			target, err := newRollupTargetFromV2Proto(t)
+			if err != nil {
+				return nil, err
+			}
+			targets = append(targets, target)
+		}
+	} else {
+		return nil, errNoRollupTargetsInRollupRuleSnapshot
 	}
+
 	filterValues, err := filters.ParseTagFilterValueMap(r.Filter)
 	if err != nil {
 		return nil, err
@@ -268,8 +174,8 @@ func (rrs *rollupRuleSnapshot) clone() rollupRuleSnapshot {
 	}
 }
 
-// Proto returns the given MappingRuleSnapshot in protobuf form.
-func (rrs *rollupRuleSnapshot) Proto() (*rulepb.RollupRuleSnapshot, error) {
+// proto returns the given MappingRuleSnapshot in protobuf form.
+func (rrs *rollupRuleSnapshot) proto() (*rulepb.RollupRuleSnapshot, error) {
 	res := &rulepb.RollupRuleSnapshot{
 		Name:               rrs.name,
 		Tombstoned:         rrs.tombstoned,
@@ -279,40 +185,17 @@ func (rrs *rollupRuleSnapshot) Proto() (*rulepb.RollupRuleSnapshot, error) {
 		LastUpdatedBy:      rrs.lastUpdatedBy,
 	}
 
-	targets := make([]*rulepb.RollupTarget, len(rrs.targets))
+	targets := make([]*rulepb.RollupTargetV2, len(rrs.targets))
 	for i, t := range rrs.targets {
-		target, err := t.Proto()
+		target, err := t.proto()
 		if err != nil {
 			return nil, err
 		}
 		targets[i] = target
 	}
-	res.Targets = targets
+	res.TargetsV2 = targets
 
 	return res, nil
-}
-
-func (rc *rollupRule) rollupRuleView(snapshotIdx int) (*models.RollupRuleView, error) {
-	if snapshotIdx < 0 || snapshotIdx >= len(rc.snapshots) {
-		return nil, errRollupRuleSnapshotIndexOutOfRange
-	}
-
-	rrs := rc.snapshots[snapshotIdx].clone()
-	targets := make([]models.RollupTargetView, len(rrs.targets))
-	for i, t := range rrs.targets {
-		targets[i] = t.rollupTargetView()
-	}
-
-	return &models.RollupRuleView{
-		ID:                 rc.uuid,
-		Name:               rrs.name,
-		Tombstoned:         rrs.tombstoned,
-		CutoverNanos:       rrs.cutoverNanos,
-		Filter:             rrs.rawFilter,
-		Targets:            targets,
-		LastUpdatedAtNanos: rrs.lastUpdatedAtNanos,
-		LastUpdatedBy:      rrs.lastUpdatedBy,
-	}, nil
 }
 
 // rollupRule stores rollup rule snapshots.
@@ -321,7 +204,11 @@ type rollupRule struct {
 	snapshots []*rollupRuleSnapshot
 }
 
-func newRollupRule(
+func newEmptyRollupRule() *rollupRule {
+	return &rollupRule{uuid: uuid.New()}
+}
+
+func newRollupRuleFromProto(
 	rc *rulepb.RollupRule,
 	opts filters.TagsFilterOptions,
 ) (*rollupRule, error) {
@@ -330,7 +217,7 @@ func newRollupRule(
 	}
 	snapshots := make([]*rollupRuleSnapshot, 0, len(rc.Snapshots))
 	for i := 0; i < len(rc.Snapshots); i++ {
-		rr, err := newRollupRuleSnapshot(rc.Snapshots[i], opts)
+		rr, err := newRollupRuleSnapshotFromProto(rc.Snapshots[i], opts)
 		if err != nil {
 			return nil, err
 		}
@@ -340,19 +227,6 @@ func newRollupRule(
 		uuid:      rc.Uuid,
 		snapshots: snapshots,
 	}, nil
-}
-
-func newRollupRuleFromFields(
-	name string,
-	rawFilter string,
-	targets []rollupTarget,
-	meta UpdateMetadata,
-) (*rollupRule, error) {
-	rr := rollupRule{uuid: uuid.New()}
-	if err := rr.addSnapshot(name, rawFilter, targets, meta); err != nil {
-		return nil, err
-	}
-	return &rr, nil
 }
 
 func (rc rollupRule) clone() rollupRule {
@@ -367,9 +241,26 @@ func (rc rollupRule) clone() rollupRule {
 	}
 }
 
-// ActiveSnapshot returns the latest rule snapshot whose cutover time is earlier
+// proto returns the proto message for the given rollup rule.
+func (rc *rollupRule) proto() (*rulepb.RollupRule, error) {
+	snapshots := make([]*rulepb.RollupRuleSnapshot, len(rc.snapshots))
+	for i, s := range rc.snapshots {
+		snapshot, err := s.proto()
+		if err != nil {
+			return nil, err
+		}
+		snapshots[i] = snapshot
+	}
+
+	return &rulepb.RollupRule{
+		Uuid:      rc.uuid,
+		Snapshots: snapshots,
+	}, nil
+}
+
+// activeSnapshot returns the latest rule snapshot whose cutover time is earlier
 // than or equal to timeNanos, or nil if not found.
-func (rc *rollupRule) ActiveSnapshot(timeNanos int64) *rollupRuleSnapshot {
+func (rc *rollupRule) activeSnapshot(timeNanos int64) *rollupRuleSnapshot {
 	idx := rc.activeIndex(timeNanos)
 	if idx < 0 {
 		return nil
@@ -377,9 +268,9 @@ func (rc *rollupRule) ActiveSnapshot(timeNanos int64) *rollupRuleSnapshot {
 	return rc.snapshots[idx]
 }
 
-// ActiveRule returns the rule containing snapshots that's in effect at time timeNanos
+// activeRule returns the rule containing snapshots that's in effect at time timeNanos
 // and all future rules after time timeNanos.
-func (rc *rollupRule) ActiveRule(timeNanos int64) *rollupRule {
+func (rc *rollupRule) activeRule(timeNanos int64) *rollupRule {
 	idx := rc.activeIndex(timeNanos)
 	if idx < 0 {
 		return rc
@@ -397,7 +288,7 @@ func (rc *rollupRule) activeIndex(timeNanos int64) int {
 	return idx
 }
 
-func (rc *rollupRule) Name() (string, error) {
+func (rc *rollupRule) name() (string, error) {
 	if len(rc.snapshots) == 0 {
 		return "", errNoRuleSnapshots
 	}
@@ -405,7 +296,7 @@ func (rc *rollupRule) Name() (string, error) {
 	return latest.name, nil
 }
 
-func (rc *rollupRule) Tombstoned() bool {
+func (rc *rollupRule) tombstoned() bool {
 	if len(rc.snapshots) == 0 {
 		return true
 	}
@@ -437,12 +328,12 @@ func (rc *rollupRule) addSnapshot(
 }
 
 func (rc *rollupRule) markTombstoned(meta UpdateMetadata) error {
-	n, err := rc.Name()
+	n, err := rc.name()
 	if err != nil {
 		return err
 	}
 
-	if rc.Tombstoned() {
+	if rc.tombstoned() {
 		return merrors.NewInvalidInputError(fmt.Sprintf("%s is already tombstoned", n))
 	}
 
@@ -466,11 +357,11 @@ func (rc *rollupRule) revive(
 	targets []rollupTarget,
 	meta UpdateMetadata,
 ) error {
-	n, err := rc.Name()
+	n, err := rc.name()
 	if err != nil {
 		return err
 	}
-	if !rc.Tombstoned() {
+	if !rc.tombstoned() {
 		return merrors.NewInvalidInputError(fmt.Sprintf("%s is not tombstoned", n))
 	}
 	return rc.addSnapshot(name, rawFilter, targets, meta)
@@ -490,44 +381,25 @@ func (rc *rollupRule) history() ([]*models.RollupRuleView, error) {
 	return views, nil
 }
 
-// Proto returns the given RollupRule in protobuf form.
-func (rc *rollupRule) Proto() (*rulepb.RollupRule, error) {
-	snapshots := make([]*rulepb.RollupRuleSnapshot, len(rc.snapshots))
-	for i, s := range rc.snapshots {
-		snapshot, err := s.Proto()
-		if err != nil {
-			return nil, err
-		}
-		snapshots[i] = snapshot
+func (rc *rollupRule) rollupRuleView(snapshotIdx int) (*models.RollupRuleView, error) {
+	if snapshotIdx < 0 || snapshotIdx >= len(rc.snapshots) {
+		return nil, errRollupRuleSnapshotIndexOutOfRange
 	}
 
-	return &rulepb.RollupRule{
-		Uuid:      rc.uuid,
-		Snapshots: snapshots,
+	rrs := rc.snapshots[snapshotIdx].clone()
+	targets := make([]models.RollupTargetView, len(rrs.targets))
+	for i, t := range rrs.targets {
+		targets[i] = t.rollupTargetView()
+	}
+
+	return &models.RollupRuleView{
+		ID:                 rc.uuid,
+		Name:               rrs.name,
+		Tombstoned:         rrs.tombstoned,
+		CutoverNanos:       rrs.cutoverNanos,
+		Filter:             rrs.rawFilter,
+		Targets:            targets,
+		LastUpdatedAtNanos: rrs.lastUpdatedAtNanos,
+		LastUpdatedBy:      rrs.lastUpdatedBy,
 	}, nil
-}
-
-func bytesArrayFromStringArray(values []string) [][]byte {
-	result := make([][]byte, len(values))
-	for i, str := range values {
-		result[i] = []byte(str)
-	}
-	return result
-}
-
-func stringArrayFromBytesArray(values [][]byte) []string {
-	result := make([]string, len(values))
-	for i, bytes := range values {
-		result[i] = string(bytes)
-	}
-	return result
-}
-
-func bytesArrayCopy(values [][]byte) [][]byte {
-	result := make([][]byte, len(values))
-	for i, b := range values {
-		result[i] = make([]byte, len(b))
-		copy(result[i], b)
-	}
-	return result
 }
