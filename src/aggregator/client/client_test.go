@@ -472,12 +472,14 @@ func TestClientWriteForwardedMetricSuccess(t *testing.T) {
 		testPlacementInstances[0],
 		testPlacementInstances[2],
 	}
-	err := c.WriteForwarded(testForwarded, testForwardMetadata)
+	testMetric := testForwarded
+	testMetric.TimeNanos = testNowNanos
+	err := c.WriteForwarded(testMetric, testForwardMetadata)
 	require.NoError(t, err)
 	require.Equal(t, expectedInstances, instancesRes)
 	require.Equal(t, uint32(1), shardRes)
 	require.Equal(t, forwardedType, payloadRes.payloadType)
-	require.Equal(t, testForwarded, payloadRes.forwarded.metric)
+	require.Equal(t, testMetric, payloadRes.forwarded.metric)
 	require.Equal(t, testForwardMetadata, payloadRes.forwarded.metadata)
 }
 
@@ -521,13 +523,15 @@ func TestClientWriteForwardedMetricPartialError(t *testing.T) {
 	expectedInstances := []placement.Instance{
 		testPlacementInstances[2],
 	}
-	err := c.WriteForwarded(testForwarded, testForwardMetadata)
+	testMetric := testForwarded
+	testMetric.TimeNanos = testNowNanos
+	err := c.WriteForwarded(testMetric, testForwardMetadata)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), errInstanceWrite.Error()))
 	require.Equal(t, expectedInstances, instancesRes)
 	require.Equal(t, uint32(1), shardRes)
 	require.Equal(t, forwardedType, payloadRes.payloadType)
-	require.Equal(t, testForwarded, payloadRes.forwarded.metric)
+	require.Equal(t, testMetric, payloadRes.forwarded.metric)
 	require.Equal(t, testForwardMetadata, payloadRes.forwarded.metadata)
 }
 
