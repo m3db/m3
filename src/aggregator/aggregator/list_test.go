@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3metrics/op/applied"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 
@@ -46,7 +47,8 @@ func TestMetricListPushBack(t *testing.T) {
 
 	l, err := newMetricList(testShard, time.Second, testOptions(ctrl))
 	require.NoError(t, err)
-	elem := NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, l.opts)
+	elem, err := NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, l.opts)
+	require.NoError(t, err)
 
 	// Push a counter to the list.
 	e, err := l.PushBack(elem)
@@ -263,15 +265,15 @@ func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
 	// Intentionally cause a one-time error during encoding.
 	elemPairs := []testElemPair{
 		{
-			elem:   NewCounterElem(testCounterID, testStoragePolicy, aggregation.DefaultTypes, opts),
+			elem:   MustNewCounterElem(testCounterID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, opts),
 			metric: testCounter,
 		},
 		{
-			elem:   NewTimerElem(testBatchTimerID, testStoragePolicy, aggregation.DefaultTypes, opts),
+			elem:   MustNewTimerElem(testBatchTimerID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, opts),
 			metric: testBatchTimer,
 		},
 		{
-			elem:   NewGaugeElem(testGaugeID, testStoragePolicy, aggregation.DefaultTypes, opts),
+			elem:   MustNewGaugeElem(testGaugeID, testStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, opts),
 			metric: testGauge,
 		},
 	}
@@ -305,11 +307,11 @@ func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
 			CutoffNanos:  cutoffNanos,
 		})
 
-		var expected []testAggMetric
+		var expected []testLocalMetric
 		alignedStart := nowTs.Truncate(l.resolution).UnixNano()
-		expected = append(expected, expectedAggMetricsForCounter(alignedStart, testStoragePolicy, aggregation.DefaultTypes)...)
-		expected = append(expected, expectedAggMetricsForTimer(alignedStart, testStoragePolicy, aggregation.DefaultTypes)...)
-		expected = append(expected, expectedAggMetricsForGauge(alignedStart, testStoragePolicy, aggregation.DefaultTypes)...)
+		expected = append(expected, expectedLocalMetricsForCounter(alignedStart, testStoragePolicy, aggregation.DefaultTypes)...)
+		expected = append(expected, expectedLocalMetricsForTimer(alignedStart, testStoragePolicy, aggregation.DefaultTypes)...)
+		expected = append(expected, expectedLocalMetricsForGauge(alignedStart, testStoragePolicy, aggregation.DefaultTypes)...)
 
 		// Skip the first item because we intentionally triggered
 		// an encoder error when encoding the first item.
@@ -408,7 +410,7 @@ type testElemPair struct {
 
 func validateFlushed(
 	t *testing.T,
-	expected []testAggMetric,
+	expected []testLocalMetric,
 	flushed []aggregated.ChunkedMetricWithStoragePolicy,
 ) {
 	require.Equal(t, len(expected), len(flushed))

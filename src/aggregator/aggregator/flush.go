@@ -20,7 +20,14 @@
 
 package aggregator
 
-import "time"
+import (
+	"time"
+
+	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric/aggregated"
+	"github.com/m3db/m3metrics/metric/id"
+	"github.com/m3db/m3metrics/policy"
+)
 
 // FlushRequest is a request to flush data.
 type FlushRequest struct {
@@ -60,4 +67,25 @@ type flushType int
 const (
 	consumeType flushType = iota
 	discardType
+)
+
+// A flushLocalMetricFn flushes an aggregated metric datapoint locally by either
+// consuming or discarding it. Processing of the datapoint is completed once it is
+// flushed.
+type flushLocalMetricFn func(
+	idPrefix []byte,
+	id id.RawID,
+	idSuffix []byte,
+	timeNanos int64,
+	value float64,
+	sp policy.StoragePolicy,
+)
+
+// A flushForwardMetricFn flushes an aggregated metric datapoint eligible for
+// forwarding by either forwarding it (potentially to a different aggregation
+// server) or dropping it. Processing of the datapoint continues after it is
+// flushed as required by the pipeline.
+type flushForwardMetricFn func(
+	metric aggregated.Metric,
+	meta metadata.ForwardMetadata,
 )

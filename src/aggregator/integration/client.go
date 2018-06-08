@@ -20,16 +20,8 @@
 
 package integration
 
-import (
-	"fmt"
-	"net"
-	"time"
-
-	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/protocol/msgpack"
-)
-
+// TODO(xichen): revive this once encoder APIs are added.
+/*
 type client struct {
 	address        string
 	batchSize      int
@@ -127,3 +119,4 @@ func (c *client) close() {
 		c.conn = nil
 	}
 }
+*/

@@ -22,15 +22,8 @@
 
 package integration
 
-import (
-	"testing"
-	"time"
-
-	"github.com/m3db/m3metrics/metric/unaggregated"
-
-	"github.com/stretchr/testify/require"
-)
-
+// TODO(xichen): revive this test once encoder APIs are added.
+/*
 func TestSameIDMultiType(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
@@ -115,3 +108,4 @@ func TestSameIDMultiType(t *testing.T) {
 	actual := testSetup.sortedResults()
 	require.Equal(t, expected, actual)
 }
+*/

@@ -39,7 +39,7 @@ type Aggregator interface {
 
 // SnapshotResult is the snapshot result.
 type SnapshotResult struct {
-	CountersWithPoliciesList    []unaggregated.CounterWithPoliciesList
-	BatchTimersWithPoliciesList []unaggregated.BatchTimerWithPoliciesList
-	GaugesWithPoliciesList      []unaggregated.GaugeWithPoliciesList
+	CountersWithMetadatas    []unaggregated.CounterWithMetadatas
+	BatchTimersWithMetadatas []unaggregated.BatchTimerWithMetadatas
+	GaugesWithMetadatas      []unaggregated.GaugeWithMetadatas
 }

@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregator/handler"
 	"github.com/m3db/m3aggregator/aggregator/handler/writer"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	metricid "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
@@ -100,14 +101,16 @@ type metricList struct {
 	flushInterval time.Duration
 	flushMgr      FlushManager
 
-	closed             bool
-	aggregations       *list.List
-	lastFlushedNanos   int64
-	toCollect          []*list.Element
-	flushBeforeFn      flushBeforeFn
-	consumeAggMetricFn aggMetricFn
-	discardAggMetricFn aggMetricFn
-	metrics            metricListMetrics
+	closed                 bool
+	aggregations           *list.List
+	lastFlushedNanos       int64
+	toCollect              []*list.Element
+	flushBeforeFn          flushBeforeFn
+	consumeLocalMetricFn   flushLocalMetricFn
+	discardLocalMetricFn   flushLocalMetricFn
+	consumeForwardMetricFn flushForwardMetricFn
+	discardForwardMetricFn flushForwardMetricFn
+	metrics                metricListMetrics
 }
 
 func newMetricList(shard uint32, resolution time.Duration, opts Options) (*metricList, error) {
@@ -143,8 +146,10 @@ func newMetricList(shard uint32, resolution time.Duration, opts Options) (*metri
 		metrics:       newMetricListMetrics(scope),
 	}
 	l.flushBeforeFn = l.flushBefore
-	l.consumeAggMetricFn = l.consumeAggregatedMetric
-	l.discardAggMetricFn = l.discardAggregatedMetric
+	l.consumeLocalMetricFn = l.consumeLocalMetric
+	l.discardLocalMetricFn = l.discardLocalMetric
+	l.consumeForwardMetricFn = l.consumeForwardMetric
+	l.discardForwardMetricFn = l.discardForwardMetric
 	l.flushMgr.Register(l)
 
 	return l, nil
@@ -264,9 +269,11 @@ func (l *metricList) flushBefore(beforeNanos int64, flushType flushType) {
 
 	flushBeforeStart := l.nowFn()
 	l.toCollect = l.toCollect[:0]
-	flushFn := l.consumeAggMetricFn
+	flushLocalFn := l.consumeLocalMetricFn
+	flushForwardFn := l.consumeForwardMetricFn
 	if flushType == discardType {
-		flushFn = l.discardAggMetricFn
+		flushLocalFn = l.discardLocalMetricFn
+		flushForwardFn = l.discardForwardMetricFn
 	}
 
 	// Flush out aggregations, may need to do it in batches if the read lock
@@ -276,7 +283,7 @@ func (l *metricList) flushBefore(beforeNanos int64, flushType flushType) {
 		// If the element is eligible for collection after the values are
 		// processed, close it and reset the value to nil.
 		elem := e.Value.(metricElem)
-		if elem.Consume(alignedBeforeNanos, flushFn) {
+		if elem.Consume(alignedBeforeNanos, flushLocalFn, flushForwardFn) {
 			elem.Close()
 			e.Value = nil
 			l.toCollect = append(l.toCollect, e)
@@ -307,7 +314,7 @@ func (l *metricList) flushBefore(beforeNanos int64, flushType flushType) {
 	l.metrics.flushBeforeDuration.Record(flushBeforeDuration)
 }
 
-func (l *metricList) consumeAggregatedMetric(
+func (l *metricList) consumeLocalMetric(
 	idPrefix []byte,
 	id metricid.RawID,
 	idSuffix []byte,
@@ -335,9 +342,8 @@ func (l *metricList) consumeAggregatedMetric(
 	}
 }
 
-// discardAggregatedMetric discards aggregated metrics.
 // nolint: unparam
-func (l *metricList) discardAggregatedMetric(
+func (l *metricList) discardLocalMetric(
 	idPrefix []byte,
 	id metricid.RawID,
 	idSuffix []byte,
@@ -346,6 +352,24 @@ func (l *metricList) discardAggregatedMetric(
 	sp policy.StoragePolicy,
 ) {
 	l.metrics.flushMetricDiscarded.Inc(1)
+}
+
+// consumeForwardMetric consumes a forward metric.
+// TODO(xichen): implement this.
+func (l *metricList) consumeForwardMetric(
+	metric aggregated.Metric,
+	meta metadata.ForwardMetadata,
+) {
+
+}
+
+// discardForwardMetric discards a forward metric.
+// TODO(xichen): implement this.
+func (l *metricList) discardForwardMetric(
+	metric aggregated.Metric,
+	meta metadata.ForwardMetadata,
+) {
+
 }
 
 type newMetricListFn func(

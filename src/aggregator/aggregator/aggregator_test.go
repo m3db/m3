@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
@@ -63,12 +64,31 @@ var (
 		Type: unaggregated.UnknownType,
 		ID:   []byte("testInvalid"),
 	}
-	testPoliciesList = policy.PoliciesList{
-		policy.NewStagedPolicies(123, false, []policy.Policy{
-			policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), aggregation.DefaultID),
-			policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), aggregation.DefaultID),
-		}),
-		policy.NewStagedPolicies(456, true, nil),
+	testStagedMetadatas = metadata.StagedMetadatas{
+		{
+			CutoverNanos: 123,
+			Tombstoned:   false,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: aggregation.DefaultID,
+						StoragePolicies: []policy.StoragePolicy{
+							policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour),
+							policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
+						},
+					},
+				},
+			},
+		},
+		{
+			CutoverNanos: 456,
+			Tombstoned:   true,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{},
+				},
+			},
+		},
 	}
 )
 
@@ -212,7 +232,7 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 
 	// Instance is now in the placement.
 	agg.shardFn = func([]byte, int) uint32 { return 1 }
-	require.NoError(t, agg.AddMetricWithPoliciesList(testValidMetric, testPoliciesList))
+	require.NoError(t, agg.AddUntimed(testValidMetric, testStagedMetadatas))
 	require.Equal(t, testShardSetID, agg.shardSetID)
 	require.True(t, agg.shardSetOpen)
 	require.Equal(t, aggregatorOpen, agg.state)
@@ -235,7 +255,7 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	}
 
 	// Instance is now removed from the placement.
-	require.Error(t, agg.AddMetricWithPoliciesList(testValidMetric, testPoliciesList))
+	require.Error(t, agg.AddUntimed(testValidMetric, testStagedMetadatas))
 	require.Equal(t, uint32(0), agg.shardSetID)
 	require.False(t, agg.shardSetOpen)
 	require.Equal(t, 0, len(agg.shardIDs))
@@ -244,49 +264,49 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	require.Equal(t, aggregatorOpen, agg.state)
 }
 
-func TestAggregatorAddMetricWithPoliciesListInvalidMetricType(t *testing.T) {
+func TestAggregatorAddUntimedInvalidMetricType(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	agg, _ := testAggregator(t, ctrl)
 	require.NoError(t, agg.Open())
-	err := agg.AddMetricWithPoliciesList(testInvalidMetric, testPoliciesList)
+	err := agg.AddUntimed(testInvalidMetric, testStagedMetadatas)
 	require.Equal(t, errInvalidMetricType, err)
 }
 
-func TestAggregatorAddMetricWithPoliciesListNotOpen(t *testing.T) {
+func TestAggregatorAddUntimedNotOpen(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	agg, _ := testAggregator(t, ctrl)
-	err := agg.AddMetricWithPoliciesList(testValidMetric, testPoliciesList)
+	err := agg.AddUntimed(testValidMetric, testStagedMetadatas)
 	require.Equal(t, errAggregatorNotOpenOrClosed, err)
 }
 
-func TestAggregatorAddMetricWithPoliciesListNotResponsibleForShard(t *testing.T) {
+func TestAggregatorAddUntimedNotResponsibleForShard(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	agg, _ := testAggregator(t, ctrl)
 	require.NoError(t, agg.Open())
 	agg.shardFn = func([]byte, int) uint32 { return testNumShards }
-	err := agg.AddMetricWithPoliciesList(testValidMetric, testPoliciesList)
+	err := agg.AddUntimed(testValidMetric, testStagedMetadatas)
 	require.Error(t, err)
 }
 
-func TestAggregatorAddMetricWithPoliciesListSuccessNoPlacementUpdate(t *testing.T) {
+func TestAggregatorAddUntimedSuccessNoPlacementUpdate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	agg, _ := testAggregator(t, ctrl)
 	require.NoError(t, agg.Open())
 	agg.shardFn = func([]byte, int) uint32 { return 1 }
-	err := agg.AddMetricWithPoliciesList(testValidMetric, testPoliciesList)
+	err := agg.AddUntimed(testValidMetric, testStagedMetadatas)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(agg.shards[1].metricMap.entries))
 }
 
-func TestAggregatorAddMetricWithPoliciesListSuccessWithPlacementUpdate(t *testing.T) {
+func TestAggregatorAddUntimedSuccessWithPlacementUpdate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -323,7 +343,7 @@ func TestAggregatorAddMetricWithPoliciesListSuccessWithPlacementUpdate(t *testin
 	}
 
 	existingShard := agg.shards[3]
-	err = agg.AddMetricWithPoliciesList(testValidMetric, testPoliciesList)
+	err = agg.AddUntimed(testValidMetric, testStagedMetadatas)
 	require.NoError(t, err)
 	require.Equal(t, 5, len(agg.shards))
 
@@ -640,7 +660,7 @@ func TestAggregatorOwnedShards(t *testing.T) {
 
 func TestAggregatorAddMetricMetrics(t *testing.T) {
 	s := tally.NewTestScope("testScope", nil)
-	m := newAggregatorAddMetricMetrics(s, 1.0)
+	m := newAggregatorAddUntimedMetrics(s, 1.0)
 	m.ReportSuccess(time.Second)
 	m.ReportError(errInvalidMetricType)
 	m.ReportError(errShardNotOwned)

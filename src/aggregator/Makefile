@@ -3,30 +3,33 @@ include $(SELF_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail
 
-html_report          := coverage.html
-test                 := .ci/test-cover.sh
-test_ci_integration  := .ci/test-integration.sh
-convert-test-data    := .ci/convert-test-data.sh
-coverfile            := cover.out
-coverage_xml         := coverage.xml
-junit_xml            := junit.xml
-test_log             := test.log
-lint_check           := .ci/lint.sh
-metalint_check       := .ci/metalint.sh
-metalint_config      := .metalinter.json
-metalint_exclude     := .excludemetalint
-package_root         := github.com/m3db/m3aggregator
-gopath_prefix        := $(GOPATH)/src
-vendor_prefix        := vendor
-mockgen_package      := github.com/golang/mock/mockgen
-mocks_output_dir     := generated/mocks/mocks
-mocks_rules_dir      := generated/mocks
-protoc_go_package    := github.com/golang/protobuf/protoc-gen-go
-proto_output_dir     := generated/proto
-proto_rules_dir      := generated/proto
-auto_gen             := .ci/auto-gen.sh
-license_dir          := .ci/uber-licence
-license_node_modules := $(license_dir)/node_modules
+html_report           := coverage.html
+test                  := .ci/test-cover.sh
+test_ci_integration   := .ci/test-integration.sh
+convert-test-data     := .ci/convert-test-data.sh
+coverfile             := cover.out
+coverage_xml          := coverage.xml
+junit_xml             := junit.xml
+coverage_exclude      := .excludecoverage
+test_log              := test.log
+lint_check            := .ci/lint.sh
+metalint_check        := .ci/metalint.sh
+metalint_config       := .metalinter.json
+metalint_exclude      := .excludemetalint
+package_root          := github.com/m3db/m3aggregator
+gopath_prefix         := $(GOPATH)/src
+vendor_prefix         := vendor
+mockgen_package       := github.com/golang/mock/mockgen
+mocks_output_dir      := generated/mocks/mocks
+mocks_rules_dir       := generated/mocks
+protoc_go_package     := github.com/golang/protobuf/protoc-gen-go
+proto_output_dir      := generated/proto
+proto_rules_dir       := generated/proto
+generics_output_dir   := generated/generics
+generics_rules_dir    := generated/generics
+auto_gen              := .ci/auto-gen.sh
+license_dir           := .ci/uber-licence
+license_node_modules  := $(license_dir)/node_modules
 
 BUILD           := $(abspath ./bin)
 LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
@@ -72,7 +75,7 @@ metalint: install-metalinter install-linter-badtime
 .PHONY: test-internal
 test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
-	$(test) $(coverfile) | tee $(test_log)
+	($(test) $(coverfile) && cat $(coverfile) | egrep -v -f $(coverage_exclude) > $(coverfile).tmp && mv $(coverfile).tmp $(coverfile)) | tee $(test_log)
 
 .PHONY: test-integration
 test-integration:
@@ -134,12 +137,18 @@ proto-gen: install-proto-bin install-license-bin
 	@echo Generating protobuf files
 	PACKAGE=$(package_root) $(auto_gen) $(proto_output_dir) $(proto_rules_dir)
 
+.PHONY: generics-gen
+generics-gen: install-generics-bin install-license-bin
+	@echo Generating code from generic templates
+	PACKAGE=$(package_root) $(auto_gen) $(generics_output_dir) $(generics_rules_dir)
+
 .PHONY: clean
 clean:
 	@rm -f *.html *.xml *.out *.test
 
+# TODO(xichen) Add back ci-integration once the integration tests are working.
 .PHONY: all
-all: lint metalint test-ci-unit test-ci-integration m3aggregator
+all: lint metalint test-ci-unit m3aggregator # test-ci-integration
 	@echo Made all successfully
 
 .DEFAULT_GOAL := all

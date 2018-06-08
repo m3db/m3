@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/policy"
 
 	"github.com/stretchr/testify/require"
 )
@@ -51,45 +51,45 @@ var (
 		Type: unaggregated.UnknownType,
 		ID:   id.RawID("invalid"),
 	}
-	testDefaultPoliciesList = policy.DefaultPoliciesList
+	testDefaultMetadatas = metadata.DefaultStagedMetadatas
 )
 
 func TestAggregator(t *testing.T) {
 	agg := NewAggregator()
 
 	// Adding an invalid metric should result in an error.
-	policies := testDefaultPoliciesList
-	require.Error(t, agg.AddMetricWithPoliciesList(testInvalid, policies))
+	metadatas := testDefaultMetadatas
+	require.Error(t, agg.AddUntimed(testInvalid, metadatas))
 
 	// Add valid metrics with policies.
 	var expected SnapshotResult
 	for _, mu := range []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge} {
 		switch mu.Type {
 		case unaggregated.CounterType:
-			expected.CountersWithPoliciesList = append(
-				expected.CountersWithPoliciesList,
-				unaggregated.CounterWithPoliciesList{
-					Counter:      mu.Counter(),
-					PoliciesList: policies,
+			expected.CountersWithMetadatas = append(
+				expected.CountersWithMetadatas,
+				unaggregated.CounterWithMetadatas{
+					Counter:         mu.Counter(),
+					StagedMetadatas: metadatas,
 				})
 		case unaggregated.BatchTimerType:
-			expected.BatchTimersWithPoliciesList = append(
-				expected.BatchTimersWithPoliciesList,
-				unaggregated.BatchTimerWithPoliciesList{
-					BatchTimer:   mu.BatchTimer(),
-					PoliciesList: policies,
+			expected.BatchTimersWithMetadatas = append(
+				expected.BatchTimersWithMetadatas,
+				unaggregated.BatchTimerWithMetadatas{
+					BatchTimer:      mu.BatchTimer(),
+					StagedMetadatas: metadatas,
 				})
 		case unaggregated.GaugeType:
-			expected.GaugesWithPoliciesList = append(
-				expected.GaugesWithPoliciesList,
-				unaggregated.GaugeWithPoliciesList{
-					Gauge:        mu.Gauge(),
-					PoliciesList: policies,
+			expected.GaugesWithMetadatas = append(
+				expected.GaugesWithMetadatas,
+				unaggregated.GaugeWithMetadatas{
+					Gauge:           mu.Gauge(),
+					StagedMetadatas: metadatas,
 				})
 		default:
 			require.Fail(t, fmt.Sprintf("unknown metric type %v", mu.Type))
 		}
-		require.NoError(t, agg.AddMetricWithPoliciesList(mu, policies))
+		require.NoError(t, agg.AddUntimed(mu, metadatas))
 	}
 
 	require.Equal(t, 3, agg.NumMetricsAdded())

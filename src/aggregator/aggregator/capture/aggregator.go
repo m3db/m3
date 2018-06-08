@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	aggr "github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -36,10 +37,10 @@ import (
 type aggregator struct {
 	sync.RWMutex
 
-	numMetricsAdded             int
-	countersWithPoliciesList    []unaggregated.CounterWithPoliciesList
-	batchTimersWithPoliciesList []unaggregated.BatchTimerWithPoliciesList
-	gaugesWithPoliciesList      []unaggregated.GaugeWithPoliciesList
+	numMetricsAdded          int
+	countersWithMetadatas    []unaggregated.CounterWithMetadatas
+	batchTimersWithMetadatas []unaggregated.BatchTimerWithMetadatas
+	gaugesWithMetadatas      []unaggregated.GaugeWithMetadatas
 }
 
 // NewAggregator creates a new capturing aggregator.
@@ -49,43 +50,40 @@ func NewAggregator() Aggregator {
 
 func (agg *aggregator) Open() error { return nil }
 
-func (agg *aggregator) AddMetricWithPoliciesList(
+func (agg *aggregator) AddUntimed(
 	mu unaggregated.MetricUnion,
-	pl policy.PoliciesList,
+	sm metadata.StagedMetadatas,
 ) error {
-	// Clone the metric and policies to ensure it cannot be mutated externally.
+	// Clone the metric and metadatas to ensure it cannot be mutated externally.
 	mu = cloneMetric(mu)
-	pl = clonePoliciesList(pl)
+	sm = cloneStagedMetadatas(sm)
 
 	agg.Lock()
+	defer agg.Unlock()
 
 	switch mu.Type {
 	case unaggregated.CounterType:
-		cp := unaggregated.CounterWithPoliciesList{
-			Counter:      mu.Counter(),
-			PoliciesList: pl,
+		cp := unaggregated.CounterWithMetadatas{
+			Counter:         mu.Counter(),
+			StagedMetadatas: sm,
 		}
-		agg.countersWithPoliciesList = append(agg.countersWithPoliciesList, cp)
+		agg.countersWithMetadatas = append(agg.countersWithMetadatas, cp)
 	case unaggregated.BatchTimerType:
-		btp := unaggregated.BatchTimerWithPoliciesList{
-			BatchTimer:   mu.BatchTimer(),
-			PoliciesList: pl,
+		btp := unaggregated.BatchTimerWithMetadatas{
+			BatchTimer:      mu.BatchTimer(),
+			StagedMetadatas: sm,
 		}
-		agg.batchTimersWithPoliciesList = append(agg.batchTimersWithPoliciesList, btp)
+		agg.batchTimersWithMetadatas = append(agg.batchTimersWithMetadatas, btp)
 	case unaggregated.GaugeType:
-		gp := unaggregated.GaugeWithPoliciesList{
-			Gauge:        mu.Gauge(),
-			PoliciesList: pl,
+		gp := unaggregated.GaugeWithMetadatas{
+			Gauge:           mu.Gauge(),
+			StagedMetadatas: sm,
 		}
-		agg.gaugesWithPoliciesList = append(agg.gaugesWithPoliciesList, gp)
+		agg.gaugesWithMetadatas = append(agg.gaugesWithMetadatas, gp)
 	default:
-		agg.Unlock()
 		return fmt.Errorf("unrecognized metric type %v", mu.Type)
 	}
-
 	agg.numMetricsAdded++
-	agg.Unlock()
-
 	return nil
 }
 
@@ -104,13 +102,13 @@ func (agg *aggregator) Snapshot() SnapshotResult {
 	agg.Lock()
 
 	result := SnapshotResult{
-		CountersWithPoliciesList:    agg.countersWithPoliciesList,
-		BatchTimersWithPoliciesList: agg.batchTimersWithPoliciesList,
-		GaugesWithPoliciesList:      agg.gaugesWithPoliciesList,
+		CountersWithMetadatas:    agg.countersWithMetadatas,
+		BatchTimersWithMetadatas: agg.batchTimersWithMetadatas,
+		GaugesWithMetadatas:      agg.gaugesWithMetadatas,
 	}
-	agg.countersWithPoliciesList = nil
-	agg.batchTimersWithPoliciesList = nil
-	agg.gaugesWithPoliciesList = nil
+	agg.countersWithMetadatas = nil
+	agg.batchTimersWithMetadatas = nil
+	agg.gaugesWithMetadatas = nil
 	agg.numMetricsAdded = 0
 
 	agg.Unlock()
@@ -134,23 +132,36 @@ func cloneMetric(m unaggregated.MetricUnion) unaggregated.MetricUnion {
 	return mu
 }
 
-func cloneStagedPolicies(sp policy.StagedPolicies) policy.StagedPolicies {
-	if sp.IsDefault() {
-		return sp
+func cloneStagedMetadata(sm metadata.StagedMetadata) metadata.StagedMetadata {
+	if sm.IsDefault() {
+		return sm
 	}
-	policies, _ := sp.Policies()
-	cloned := make([]policy.Policy, len(policies))
-	copy(cloned, policies)
-	return policy.NewStagedPolicies(sp.CutoverNanos, sp.Tombstoned, cloned)
+	pipelines := sm.Pipelines
+	cloned := make([]metadata.PipelineMetadata, len(pipelines))
+	for i := 0; i < len(pipelines); i++ {
+		storagePolicies := make([]policy.StoragePolicy, len(pipelines[i].StoragePolicies))
+		copy(storagePolicies, pipelines[i].StoragePolicies)
+		pipeline := pipelines[i].Pipeline.Clone()
+		cloned[i] = metadata.PipelineMetadata{
+			AggregationID:   pipelines[i].AggregationID,
+			StoragePolicies: storagePolicies,
+			Pipeline:        pipeline,
+		}
+	}
+	return metadata.StagedMetadata{
+		Metadata:     metadata.Metadata{Pipelines: cloned},
+		CutoverNanos: sm.CutoverNanos,
+		Tombstoned:   sm.Tombstoned,
+	}
 }
 
-func clonePoliciesList(pl policy.PoliciesList) policy.PoliciesList {
-	if pl.IsDefault() {
-		return pl
+func cloneStagedMetadatas(sm metadata.StagedMetadatas) metadata.StagedMetadatas {
+	if sm.IsDefault() {
+		return sm
 	}
-	cloned := make(policy.PoliciesList, len(pl))
-	for i := 0; i < len(pl); i++ {
-		cloned[i] = cloneStagedPolicies(pl[i])
+	cloned := make(metadata.StagedMetadatas, len(sm))
+	for i := 0; i < len(sm); i++ {
+		cloned[i] = cloneStagedMetadata(sm[i])
 	}
 	return cloned
 }

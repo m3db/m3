@@ -20,34 +20,8 @@
 
 package integration
 
-import (
-	"errors"
-	"flag"
-	"fmt"
-	"math"
-	"sort"
-	"sync"
-	"testing"
-	"time"
-
-	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3aggregator/aggregator/handler"
-	"github.com/m3db/m3aggregator/aggregator/handler/writer"
-	"github.com/m3db/m3aggregator/runtime"
-	httpserver "github.com/m3db/m3aggregator/server/http"
-	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
-	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
-	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3x/clock"
-	xsync "github.com/m3db/m3x/sync"
-
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
-)
-
+// TODO(xichen): revive this once encoder APIs are added.
+/*
 var (
 	msgpackAddrArg         = flag.String("msgpackAddr", "0.0.0.0:6000", "msgpack server address")
 	httpAddrArg            = flag.String("httpAddr", "0.0.0.0:6001", "http server address")
@@ -350,3 +324,4 @@ func (h *capturingHandler) NewWriter(tally.Scope) (writer.Writer, error) {
 }
 
 func (h *capturingHandler) Close() {}
+*/

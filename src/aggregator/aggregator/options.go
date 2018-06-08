@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/op/applied"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -48,9 +49,9 @@ var (
 	defaultEntryCheckBatchPercent    = 0.01
 	defaultMaxTimerBatchSizePerWrite = 0
 	defaultResignTimeout             = 5 * time.Minute
-	defaultDefaultPolicies           = []policy.Policy{
-		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), aggregation.DefaultID),
-		policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 40*24*time.Hour), aggregation.DefaultID),
+	defaultDefaultStoragePolicies    = []policy.StoragePolicy{
+		policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
+		policy.NewStoragePolicy(time.Minute, xtime.Minute, 40*24*time.Hour),
 	}
 
 	// By default writes are buffered for 10 minutes before traffic is cut over to a shard
@@ -205,11 +206,11 @@ type Options interface {
 	// MaxTimerBatchSizePerWrite returns the maximum timer batch size for each batched write.
 	MaxTimerBatchSizePerWrite() int
 
-	// SetDefaultPolicies sets the default policies.
-	SetDefaultPolicies(value []policy.Policy) Options
+	// SetDefaultStoragePolicies sets the default policies.
+	SetDefaultStoragePolicies(value []policy.StoragePolicy) Options
 
-	// DefaultPolicies returns the default policies.
-	DefaultPolicies() []policy.Policy
+	// DefaultStoragePolicies returns the default storage policies.
+	DefaultStoragePolicies() []policy.StoragePolicy
 
 	// SetResignTimeout sets the resign timeout.
 	SetResignTimeout(value time.Duration) Options
@@ -276,7 +277,7 @@ type options struct {
 	entryCheckInterval               time.Duration
 	entryCheckBatchPercent           float64
 	maxTimerBatchSizePerWrite        int
-	defaultPolicies                  []policy.Policy
+	defaultStoragePolicies           []policy.StoragePolicy
 	flushTimesManager                FlushTimesManager
 	electionManager                  ElectionManager
 	resignTimeout                    time.Duration
@@ -313,7 +314,7 @@ func NewOptions() Options {
 		entryCheckInterval:               defaultEntryCheckInterval,
 		entryCheckBatchPercent:           defaultEntryCheckBatchPercent,
 		maxTimerBatchSizePerWrite:        defaultMaxTimerBatchSizePerWrite,
-		defaultPolicies:                  defaultDefaultPolicies,
+		defaultStoragePolicies:           defaultDefaultStoragePolicies,
 		resignTimeout:                    defaultResignTimeout,
 	}
 
@@ -560,14 +561,14 @@ func (o *options) MaxTimerBatchSizePerWrite() int {
 	return o.maxTimerBatchSizePerWrite
 }
 
-func (o *options) SetDefaultPolicies(value []policy.Policy) Options {
+func (o *options) SetDefaultStoragePolicies(value []policy.StoragePolicy) Options {
 	opts := *o
-	opts.defaultPolicies = value
+	opts.defaultStoragePolicies = value
 	return &opts
 }
 
-func (o *options) DefaultPolicies() []policy.Policy {
-	return o.defaultPolicies
+func (o *options) DefaultStoragePolicies() []policy.StoragePolicy {
+	return o.defaultStoragePolicies
 }
 
 func (o *options) SetResignTimeout(value time.Duration) Options {
@@ -645,17 +646,17 @@ func (o *options) initPools() {
 
 	o.counterElemPool = NewCounterElemPool(nil)
 	o.counterElemPool.Init(func() *CounterElem {
-		return NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, o)
+		return MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, o)
 	})
 
 	o.timerElemPool = NewTimerElemPool(nil)
 	o.timerElemPool.Init(func() *TimerElem {
-		return NewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, o)
+		return MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, o)
 	})
 
 	o.gaugeElemPool = NewGaugeElemPool(nil)
 	o.gaugeElemPool.Init(func() *GaugeElem {
-		return NewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, o)
+		return MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, o)
 	})
 }
 

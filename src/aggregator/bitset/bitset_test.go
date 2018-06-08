@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,24 +18,60 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package integration
+package bitset
 
-// TODO(xichen): revive this once encoder APIs are added.
-/*
 import (
-	"time"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-type conditionFn func() bool
-
-func waitUntil(fn conditionFn, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if fn() {
-			return true
+func TestBitSetSmallRangeSetAll(t *testing.T) {
+	for i := 0; i <= 64; i++ {
+		bs := New(uint(i))
+		for j := 0; j < i; j++ {
+			bs.Set(uint(j))
 		}
-		time.Sleep(time.Second)
+		require.True(t, bs.All(uint(i)))
 	}
-	return false
 }
-*/
+
+func TestBitSetSmallRangeSetPartial(t *testing.T) {
+	for i := 1; i <= 64; i++ {
+		for skip := 0; skip < i; skip++ {
+			bs := New(uint(i))
+			for j := 0; j < i; j++ {
+				if j == skip {
+					continue
+				}
+				bs.Set(uint(j))
+			}
+			require.False(t, bs.All(uint(i)))
+		}
+	}
+}
+
+func TestBitSetLargeRangeSetAll(t *testing.T) {
+	for i := 65; i <= 256; i++ {
+		bs := New(uint(i))
+		for j := 0; j < i; j++ {
+			bs.Set(uint(j))
+		}
+		require.True(t, bs.All(uint(i)))
+	}
+}
+
+func TestBitSetLargeRangeSetPartial(t *testing.T) {
+	for i := 65; i <= 256; i++ {
+		for skip := 0; skip < i; skip++ {
+			bs := New(uint(i))
+			for j := 0; j < i; j++ {
+				if j == skip {
+					continue
+				}
+				bs.Set(uint(j))
+			}
+			require.False(t, bs.All(uint(i)))
+		}
+	}
+}

@@ -21,8 +21,6 @@
 package aggregation
 
 import (
-	"sync"
-
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3metrics/aggregation"
 )
@@ -131,18 +129,4 @@ func (t *Timer) ValueOf(aggType aggregation.Type) float64 {
 }
 
 // Close closes the timer.
-func (t *Timer) Close() {
-	t.stream.Close()
-}
-
-// LockedTimer is a locked timer.
-type LockedTimer struct {
-	sync.Mutex
-	Timer
-}
-
-// NewLockedTimer creates a new locked timer.
-func NewLockedTimer(timer Timer) *LockedTimer { return &LockedTimer{Timer: timer} }
-
-// Reset resets the locked timer.
-func (lt *LockedTimer) Reset(timer Timer) { lt.Timer = timer }
+func (t *Timer) Close() { t.stream.Close() }

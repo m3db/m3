@@ -23,65 +23,82 @@ package aggregator
 import (
 	"container/list"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3aggregator/bitset"
 	"github.com/m3db/m3aggregator/rate"
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metadata"
 	metricid "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3metrics/op/applied"
 	"github.com/m3db/m3metrics/policy"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/uber-go/tally"
 )
 
+const (
+	// initialAggregationCapacity is the initial number of slots
+	// allocated for aggregation metadata.
+	initialAggregationCapacity = 2
+)
+
 var (
-	errEmptyPoliciesList           = errors.New("empty policies list")
+	errEmptyMetadatas              = errors.New("empty metadata list")
+	errNoApplicableMetadata        = errors.New("no applicable metadata")
+	errNoPipelinesInMetadata       = errors.New("no pipelines in metadata")
 	errEntryClosed                 = errors.New("entry is closed")
 	errWriteValueRateLimitExceeded = errors.New("write value rate limit is exceeded")
 )
 
 type entryMetrics struct {
-	emptyPoliciesList      tally.Counter
-	valueRateLimitExceeded tally.Counter
-	droppedValues          tally.Counter
-	stalePolicy            tally.Counter
-	futurePolicy           tally.Counter
-	tombstonedPolicy       tally.Counter
-	policyUpdates          tally.Counter
+	emptyMetadatas          tally.Counter
+	noApplicableMetadata    tally.Counter
+	noPipelinesInMetadata   tally.Counter
+	emptyPipeline           tally.Counter
+	noAggregationInPipeline tally.Counter
+	valueRateLimitExceeded  tally.Counter
+	droppedValues           tally.Counter
+	staleMetadata           tally.Counter
+	tombstonedMetadata      tally.Counter
+	metadataUpdates         tally.Counter
 }
 
 func newEntryMetrics(scope tally.Scope) entryMetrics {
 	return entryMetrics{
-		emptyPoliciesList:      scope.Counter("empty-policies-list"),
-		valueRateLimitExceeded: scope.Counter("value-rate-limit-exceeded"),
-		droppedValues:          scope.Counter("dropped-values"),
-		stalePolicy:            scope.Counter("stale-policy"),
-		futurePolicy:           scope.Counter("future-policy"),
-		tombstonedPolicy:       scope.Counter("tombstoned-policy"),
-		policyUpdates:          scope.Counter("policy-updates"),
+		emptyMetadatas:          scope.Counter("empty-metadatas"),
+		noApplicableMetadata:    scope.Counter("no-applicable-metadata"),
+		noPipelinesInMetadata:   scope.Counter("no-pipelines-in-metadata"),
+		emptyPipeline:           scope.Counter("empty-pipeline"),
+		noAggregationInPipeline: scope.Counter("no-aggregation-in-pipeline"),
+		valueRateLimitExceeded:  scope.Counter("value-rate-limit-exceeded"),
+		droppedValues:           scope.Counter("dropped-values"),
+		staleMetadata:           scope.Counter("stale-metadata"),
+		tombstonedMetadata:      scope.Counter("tombstoned-metadata"),
+		metadataUpdates:         scope.Counter("metadata-updates"),
 	}
 }
 
-// Entry stores metadata about current policies and aggregations for a metric.
+// Entry keeps track of a metric's aggregations alongside the aggregation
+// metadatas including storage policies, aggregation types, and remaining pipeline
+// steps if any.
 type Entry struct {
 	sync.RWMutex
 
-	closed                 bool
-	opts                   Options
-	rateLimiter            *rate.Limiter
-	hasDefaultPoliciesList bool
-	useDefaultPolicies     bool
-	cutoverNanos           int64
-	lists                  *metricLists
-	numWriters             int32
-	lastAccessNanos        int64
-	aggregations           map[policy.Policy]*list.Element
-	metrics                entryMetrics
+	closed              bool
+	opts                Options
+	rateLimiter         *rate.Limiter
+	hasDefaultMetadatas bool
+	cutoverNanos        int64
+	lists               *metricLists
+	numWriters          int32
+	lastAccessNanos     int64
+	aggregations        aggregationValues
+	metrics             entryMetrics
 	// The entry keeps a decompressor to reuse the bitset in it, so we can
 	// save some heap allocations.
 	decompressor aggregation.IDDecompressor
@@ -91,7 +108,7 @@ type Entry struct {
 func NewEntry(lists *metricLists, runtimeOpts runtime.Options, opts Options) *Entry {
 	scope := opts.InstrumentOptions().MetricsScope().SubScope("entry")
 	e := &Entry{
-		aggregations: make(map[policy.Policy]*list.Element),
+		aggregations: make(aggregationValues, 0, initialAggregationCapacity),
 		metrics:      newEntryMetrics(scope),
 		decompressor: aggregation.NewPooledIDDecompressor(opts.AggregationTypesOptions().TypesPool()),
 	}
@@ -113,8 +130,7 @@ func (e *Entry) ResetSetData(lists *metricLists, runtimeOpts runtime.Options, op
 	e.closed = false
 	e.opts = opts
 	e.resetRateLimiterWithLock(runtimeOpts)
-	e.hasDefaultPoliciesList = false
-	e.useDefaultPolicies = false
+	e.hasDefaultMetadatas = false
 	e.cutoverNanos = uninitializedCutoverNanos
 	e.lists = lists
 	e.numWriters = 0
@@ -133,19 +149,19 @@ func (e *Entry) SetRuntimeOptions(opts runtime.Options) {
 	e.Unlock()
 }
 
-// AddMetricWithPoliciesList adds a metric along with applicable policies list.
-func (e *Entry) AddMetricWithPoliciesList(
-	mu unaggregated.MetricUnion,
-	pl policy.PoliciesList,
+// AddUntimed adds an untimed metric along with its metadatas.
+func (e *Entry) AddUntimed(
+	metric unaggregated.MetricUnion,
+	metadatas metadata.StagedMetadatas,
 ) error {
-	switch mu.Type {
+	switch metric.Type {
 	case unaggregated.BatchTimerType:
 		var err error
-		if err = e.applyValueRateLimit(int64(len(mu.BatchTimerVal))); err == nil {
-			err = e.writeBatchTimerWithPoliciesList(mu, pl)
+		if err = e.applyValueRateLimit(int64(len(metric.BatchTimerVal))); err == nil {
+			err = e.writeBatchTimerWithMetadatas(metric, metadatas)
 		}
-		if mu.BatchTimerVal != nil && mu.TimerValPool != nil {
-			mu.TimerValPool.Put(mu.BatchTimerVal)
+		if metric.BatchTimerVal != nil && metric.TimerValPool != nil {
+			metric.TimerValPool.Put(metric.BatchTimerVal)
 		}
 		return err
 	default:
@@ -153,24 +169,24 @@ func (e *Entry) AddMetricWithPoliciesList(
 		if err := e.applyValueRateLimit(1); err != nil {
 			return err
 		}
-		return e.addMetricWithPoliciesList(mu, pl)
+		return e.addUntimed(metric, metadatas)
 	}
 }
 
-func (e *Entry) writeBatchTimerWithPoliciesList(
-	mu unaggregated.MetricUnion,
-	pl policy.PoliciesList,
+func (e *Entry) writeBatchTimerWithMetadatas(
+	metric unaggregated.MetricUnion,
+	metadatas metadata.StagedMetadatas,
 ) error {
 	// If there is no limit on the maximum batch size per write, write
 	// all timers at once.
 	maxTimerBatchSizePerWrite := e.opts.MaxTimerBatchSizePerWrite()
 	if maxTimerBatchSizePerWrite == 0 {
-		return e.addMetricWithPoliciesList(mu, pl)
+		return e.addUntimed(metric, metadatas)
 	}
 
 	// Otherwise, honor maximum timer batch size.
 	var (
-		timerValues    = mu.BatchTimerVal
+		timerValues    = metric.BatchTimerVal
 		numTimerValues = len(timerValues)
 		start, end     int
 	)
@@ -179,18 +195,18 @@ func (e *Entry) writeBatchTimerWithPoliciesList(
 		if end > numTimerValues {
 			end = numTimerValues
 		}
-		splitTimer := mu
+		splitTimer := metric
 		splitTimer.BatchTimerVal = timerValues[start:end]
-		if err := e.addMetricWithPoliciesList(splitTimer, pl); err != nil {
+		if err := e.addUntimed(splitTimer, metadatas); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (e *Entry) addMetricWithPoliciesList(
-	mu unaggregated.MetricUnion,
-	pl policy.PoliciesList,
+func (e *Entry) addUntimed(
+	metric unaggregated.MetricUnion,
+	metadatas metadata.StagedMetadatas,
 ) error {
 	timeLock := e.opts.TimeLock()
 	timeLock.RLock()
@@ -211,36 +227,44 @@ func (e *Entry) addMetricWithPoliciesList(
 		return errEntryClosed
 	}
 
-	// Fast exit path for the common case.
-	hasDefaultPoliciesList := pl.IsDefault()
-	if e.hasDefaultPoliciesList && hasDefaultPoliciesList {
-		err := e.addMetricWithLock(currTime, mu)
+	// Fast exit path for the common case where the metric has default metadatas for aggregation.
+	hasDefaultMetadatas := metadatas.IsDefault()
+	if e.hasDefaultMetadatas && hasDefaultMetadatas {
+		err := e.addMetricWithLock(currTime, metric)
 		e.RUnlock()
 		timeLock.RUnlock()
 		return err
 	}
 
-	sp, err := e.activeStagedPoliciesWithLock(pl, currTime)
+	sm, err := e.activeStagedMetadataWithLock(currTime, metadatas)
 	if err != nil {
 		e.RUnlock()
 		timeLock.RUnlock()
 		return err
 	}
 
-	// If the policy indicates the (rollup) metric has been tombstoned, the metric is
+	// If the metadata indicates the (rollup) metric has been tombstoned, the metric is
 	// not ingested for aggregation. However, we do not update the policies asssociated
 	// with this entry and mark it tombstoned because there may be a different raw metric
 	// generating this same (rollup) metric that is actively emitting, meaning this entry
 	// may still be very much alive.
-	if sp.Tombstoned {
+	if sm.Tombstoned {
 		e.RUnlock()
 		timeLock.RUnlock()
-		e.metrics.tombstonedPolicy.Inc(1)
+		e.metrics.tombstonedMetadata.Inc(1)
 		return nil
 	}
 
-	if !e.shouldUpdatePoliciesWithLock(currTime, sp) {
-		err := e.addMetricWithLock(currTime, mu)
+	// It is expected that there is at least one pipeline in the metadata.
+	if len(sm.Pipelines) == 0 {
+		e.RUnlock()
+		timeLock.RUnlock()
+		e.metrics.noPipelinesInMetadata.Inc(1)
+		return errNoPipelinesInMetadata
+	}
+
+	if !e.shouldUpdateMetadatasWithLock(sm) {
+		err = e.addMetricWithLock(currTime, metric)
 		e.RUnlock()
 		timeLock.RUnlock()
 		return err
@@ -254,8 +278,8 @@ func (e *Entry) addMetricWithPoliciesList(
 		return errEntryClosed
 	}
 
-	if e.shouldUpdatePoliciesWithLock(currTime, sp) {
-		if err := e.updatePoliciesWithLock(mu.Type, mu.ID, mu.OwnsID, hasDefaultPoliciesList, sp); err != nil {
+	if e.shouldUpdateMetadatasWithLock(sm) {
+		if err = e.updateMetadatasWithLock(metric, hasDefaultMetadatas, sm); err != nil {
 			// NB(xichen): if an error occurred during policy update, the policies
 			// will remain as they are, i.e., there are no half-updated policies.
 			e.Unlock()
@@ -264,7 +288,7 @@ func (e *Entry) addMetricWithPoliciesList(
 		}
 	}
 
-	err = e.addMetricWithLock(currTime, mu)
+	err = e.addMetricWithLock(currTime, metric)
 	e.Unlock()
 	timeLock.RUnlock()
 
@@ -296,10 +320,13 @@ func (e *Entry) TryExpire(now time.Time) bool {
 		return false
 	}
 	e.closed = true
-	for p, agg := range e.aggregations {
-		agg.Value.(metricElem).MarkAsTombstoned()
-		delete(e.aggregations, p)
+	// Empty out the aggregation elements so they don't hold references
+	// to other objects after being put back to pool to reduce GC overhead.
+	for i := range e.aggregations {
+		e.aggregations[i].elem.Value.(metricElem).MarkAsTombstoned()
+		e.aggregations[i] = aggregationValue{}
 	}
+	e.aggregations = e.aggregations[:0]
 	e.lists = nil
 	pool := e.opts.EntryPool()
 	e.Unlock()
@@ -315,170 +342,167 @@ func (e *Entry) recordLastAccessed(currTime time.Time) {
 	atomic.StoreInt64(&e.lastAccessNanos, currTime.UnixNano())
 }
 
-// NB(xichen): we assume the policies are sorted by their cutover times
+// NB(xichen): we assume the metadatas are sorted by their cutover times
 // in ascending order.
-func (e *Entry) activeStagedPoliciesWithLock(
-	pl policy.PoliciesList,
+func (e *Entry) activeStagedMetadataWithLock(
 	t time.Time,
-) (policy.StagedPolicies, error) {
-	// If we have no policy to apply, simply bail.
-	if len(pl) == 0 {
-		e.metrics.emptyPoliciesList.Inc(1)
-		return policy.DefaultStagedPolicies, errEmptyPoliciesList
+	metadatas metadata.StagedMetadatas,
+) (metadata.StagedMetadata, error) {
+	// If we have no metadata to apply, simply bail.
+	if len(metadatas) == 0 {
+		e.metrics.emptyMetadatas.Inc(1)
+		return metadata.DefaultStagedMetadata, errEmptyMetadatas
 	}
 	timeNanos := t.UnixNano()
-	for idx := len(pl) - 1; idx >= 0; idx-- {
-		if pl[idx].CutoverNanos <= timeNanos {
-			return pl[idx], nil
+	for idx := len(metadatas) - 1; idx >= 0; idx-- {
+		if metadatas[idx].CutoverNanos <= timeNanos {
+			return metadatas[idx], nil
 		}
 	}
-	return pl[0], nil
+	e.metrics.noApplicableMetadata.Inc(1)
+	return metadata.DefaultStagedMetadata, errNoApplicableMetadata
 }
 
-func (e *Entry) shouldUpdatePoliciesWithLock(currTime time.Time, sp policy.StagedPolicies) bool {
-	if e.cutoverNanos == uninitializedCutoverNanos {
-		return true
-	}
-	// If this is a future policy, we don't update the existing policy
-	// and instead use the cached policy.
-	if currTime.UnixNano() < sp.CutoverNanos {
-		e.metrics.futurePolicy.Inc(1)
+// NB: The metadata passed in is guaranteed to have cut over based on the current time.
+func (e *Entry) shouldUpdateMetadatasWithLock(sm metadata.StagedMetadata) bool {
+	// If this is a stale metadata, we don't update the existing metadata.
+	if e.cutoverNanos > sm.CutoverNanos {
+		e.metrics.staleMetadata.Inc(1)
 		return false
 	}
-	// If this is a stale policy, we don't update the existing policy
-	// and instead use the cached policy.
-	if sp.CutoverNanos < e.cutoverNanos {
-		e.metrics.stalePolicy.Inc(1)
-		return false
-	}
-	if e.cutoverNanos != sp.CutoverNanos {
-		return true
-	}
-	policies, useDefaultPolicies := sp.Policies()
-	if e.useDefaultPolicies && useDefaultPolicies {
-		return false
-	}
-	if useDefaultPolicies {
-		policies = e.opts.DefaultPolicies()
-	}
-	return e.hasPolicyChangesWithLock(policies)
-}
 
-func (e *Entry) hasPolicyChangesWithLock(newPolicies []policy.Policy) bool {
-	if len(e.aggregations) != len(newPolicies) {
+	// If this is a newer metadata, we always update.
+	if e.cutoverNanos < sm.CutoverNanos {
 		return true
 	}
-	for _, policy := range newPolicies {
-		if _, exists := e.aggregations[policy]; !exists {
-			return true
+
+	// Iterate over the list of pipelines and check whether we have metadata changes.
+	// NB: If the incoming metadata have the same set of aggregation keys as the cached
+	// set but also have duplicates, there is no need to update metadatas as long as
+	// the cached set has all aggregation keys in the incoming metadata and vice versa.
+	bs := bitset.New(uint(len(e.aggregations)))
+	for _, pipeline := range sm.Pipelines {
+		storagePolicies := e.storagePolicies(pipeline.StoragePolicies)
+		for _, storagePolicy := range storagePolicies {
+			key := aggregationKey{
+				aggregationID: pipeline.AggregationID,
+				storagePolicy: storagePolicy,
+				pipeline:      pipeline.Pipeline,
+			}
+			idx := e.aggregations.index(key)
+			if idx < 0 {
+				return true
+			}
+			bs.Set(uint(idx))
 		}
 	}
-	return false
+	return !bs.All(uint(len(e.aggregations)))
 }
 
-func (e *Entry) updatePoliciesWithLock(
-	typ unaggregated.Type,
-	id metricid.RawID,
-	ownsID bool,
-	hasDefaultPoliciesList bool,
-	sp policy.StagedPolicies,
+func (e *Entry) storagePolicies(policies []policy.StoragePolicy) []policy.StoragePolicy {
+	if !policy.IsDefaultStoragePolicies(policies) {
+		return policies
+	}
+	return e.opts.DefaultStoragePolicies()
+}
+
+func (e *Entry) maybeCopyIDWithLock(metric unaggregated.MetricUnion) metricid.RawID {
+	// If we own the ID, there is no need to copy.
+	if metric.OwnsID {
+		return metric.ID
+	}
+
+	// If there are existing elements for this id, try reusing
+	// the id from the elements because those are owned by us.
+	if len(e.aggregations) > 0 {
+		return e.aggregations[0].elem.Value.(metricElem).ID()
+	}
+
+	// Otherwise it is necessary to make a copy because it's not owned by us.
+	elemID := make(metricid.RawID, len(metric.ID))
+	copy(elemID, metric.ID)
+	return elemID
+}
+
+func (e *Entry) updateMetadatasWithLock(
+	metric unaggregated.MetricUnion,
+	hasDefaultMetadatas bool,
+	sm metadata.StagedMetadata,
 ) error {
-	policies, useDefaultPolicies := sp.Policies()
-	if useDefaultPolicies {
-		policies = e.opts.DefaultPolicies()
-	}
+	var (
+		elemID          = e.maybeCopyIDWithLock(metric)
+		newAggregations = make(aggregationValues, 0, initialAggregationCapacity)
+	)
 
-	// Fast path to exit in case the policies didn't change.
-	if !e.hasPolicyChangesWithLock(policies) {
-		e.hasDefaultPoliciesList = hasDefaultPoliciesList
-		e.useDefaultPolicies = useDefaultPolicies
-		e.cutoverNanos = sp.CutoverNanos
-		e.metrics.policyUpdates.Inc(1)
-		return nil
-	}
-
-	elemID := id
-	if !ownsID {
-		if len(e.aggregations) > 0 {
-			// If there are existing elements for this id, try reusing
-			// the id from the elements because those are owned by us.
-			for _, elem := range e.aggregations {
-				elemID = elem.Value.(metricElem).ID()
-				break
+	// Update the metadatas.
+	for _, pipeline := range sm.Pipelines {
+		storagePolicies := e.storagePolicies(pipeline.StoragePolicies)
+		for _, storagePolicy := range storagePolicies {
+			key := aggregationKey{
+				aggregationID: pipeline.AggregationID,
+				storagePolicy: storagePolicy,
+				pipeline:      pipeline.Pipeline,
 			}
-		} else {
-			// Otherwise this is a new id so it is necessary to make a
-			// copy because it's not owned by us.
-			elemID = make(metricid.RawID, len(id))
-			copy(elemID, id)
-		}
-	}
-
-	// We should update the policies first.
-	newAggregations := make(map[policy.Policy]*list.Element, len(policies))
-	for _, p := range policies {
-		if elem, exists := e.aggregations[p]; exists {
-			newAggregations[p] = elem
-		} else {
-			aggTypes, err := e.decompressor.Decompress(p.AggregationID)
-			if err != nil {
-				return err
+			// Remove duplicate aggregation pipelines.
+			if newAggregations.contains(key) {
+				continue
 			}
-
-			var newElem metricElem
-			switch typ {
-			case unaggregated.CounterType:
-				if !aggTypes.IsValidForCounter() {
-					return fmt.Errorf("invalid aggregation types %s for Counter", aggTypes.String())
+			if idx := e.aggregations.index(key); idx >= 0 {
+				newAggregations = append(newAggregations, e.aggregations[idx])
+			} else {
+				aggTypes, err := e.decompressor.Decompress(key.aggregationID)
+				if err != nil {
+					return err
 				}
-				newElem = e.opts.CounterElemPool().Get()
-			case unaggregated.BatchTimerType:
-				if !aggTypes.IsValidForTimer() {
-					return fmt.Errorf("invalid aggregation types %s for Timer", aggTypes.String())
+				var newElem metricElem
+				switch metric.Type {
+				case unaggregated.CounterType:
+					newElem = e.opts.CounterElemPool().Get()
+				case unaggregated.BatchTimerType:
+					newElem = e.opts.TimerElemPool().Get()
+				case unaggregated.GaugeType:
+					newElem = e.opts.GaugeElemPool().Get()
+				default:
+					return errInvalidMetricType
 				}
-				newElem = e.opts.TimerElemPool().Get()
-			case unaggregated.GaugeType:
-				if !aggTypes.IsValidForGauge() {
-					return fmt.Errorf("invalid aggregation types %s for Gauge", aggTypes.String())
+				// NB: The pipeline may not be owned by us and as such we need to make a copy here.
+				key.pipeline = key.pipeline.Clone()
+				if err = newElem.ResetSetData(elemID, storagePolicy, aggTypes, key.pipeline); err != nil {
+					return err
 				}
-				newElem = e.opts.GaugeElemPool().Get()
-			default:
-				return errInvalidMetricType
+				list, err := e.lists.FindOrCreate(storagePolicy.Resolution().Window)
+				if err != nil {
+					return err
+				}
+				newListElem, err := list.PushBack(newElem)
+				if err != nil {
+					return err
+				}
+				newAggregations = append(newAggregations, aggregationValue{key: key, elem: newListElem})
 			}
-			newElem.ResetSetData(elemID, p.StoragePolicy, aggTypes)
-			list, err := e.lists.FindOrCreate(p.Resolution().Window)
-			if err != nil {
-				return err
-			}
-			newListElem, err := list.PushBack(newElem)
-			if err != nil {
-				return err
-			}
-			newAggregations[p] = newListElem
 		}
 	}
 
 	// Mark the outdated elements as tombstoned.
-	for policy, elem := range e.aggregations {
-		if _, exists := newAggregations[policy]; !exists {
-			elem.Value.(metricElem).MarkAsTombstoned()
+	for _, val := range e.aggregations {
+		if !newAggregations.contains(val.key) {
+			val.elem.Value.(metricElem).MarkAsTombstoned()
 		}
 	}
 
 	// Replace the existing aggregations with new aggregations.
 	e.aggregations = newAggregations
-	e.hasDefaultPoliciesList = hasDefaultPoliciesList
-	e.useDefaultPolicies = useDefaultPolicies
-	e.cutoverNanos = sp.CutoverNanos
-	e.metrics.policyUpdates.Inc(1)
+	e.hasDefaultMetadatas = hasDefaultMetadatas
+	e.cutoverNanos = sm.CutoverNanos
+	e.metrics.metadataUpdates.Inc(1)
 
 	return nil
 }
 
 func (e *Entry) addMetricWithLock(timestamp time.Time, mu unaggregated.MetricUnion) error {
 	multiErr := xerrors.NewMultiError()
-	for _, elem := range e.aggregations {
-		if err := elem.Value.(metricElem).AddMetric(timestamp, mu); err != nil {
+	for _, val := range e.aggregations {
+		if err := val.elem.Value.(metricElem).AddMetric(timestamp, mu); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -518,4 +542,38 @@ func (e *Entry) applyValueRateLimit(numValues int64) error {
 	e.metrics.valueRateLimitExceeded.Inc(1)
 	e.metrics.droppedValues.Inc(numValues)
 	return errWriteValueRateLimitExceeded
+}
+
+type aggregationKey struct {
+	aggregationID aggregation.ID
+	storagePolicy policy.StoragePolicy
+	pipeline      applied.Pipeline
+}
+
+func (k aggregationKey) Equal(other aggregationKey) bool {
+	return k.aggregationID == other.aggregationID &&
+		k.storagePolicy == other.storagePolicy &&
+		k.pipeline.Equal(other.pipeline)
+}
+
+type aggregationValue struct {
+	key  aggregationKey
+	elem *list.Element
+}
+
+// TODO(xichen): benchmark the performance of using a single slice
+// versus a map with a partial key versus a map with a hash of full key.
+type aggregationValues []aggregationValue
+
+func (vals aggregationValues) index(k aggregationKey) int {
+	for i, val := range vals {
+		if val.key.Equal(k) {
+			return i
+		}
+	}
+	return -1
+}
+
+func (vals aggregationValues) contains(k aggregationKey) bool {
+	return vals.index(k) != -1
 }

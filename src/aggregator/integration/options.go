@@ -20,14 +20,8 @@
 
 package integration
 
-import (
-	"time"
-
-	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/kv/mem"
-)
-
+// TODO(xichen): revive this once encoder APIs are added.
+/*
 const (
 	defaultServerStateChangeTimeout   = 5 * time.Second
 	defaultClientBatchSize            = 1440
@@ -342,3 +336,4 @@ func (o *options) MaxJitterFn() aggregator.FlushJitterFn {
 func defaultMaxJitterFn(interval time.Duration) time.Duration {
 	return time.Duration(0.75 * float64(interval))
 }
+*/
