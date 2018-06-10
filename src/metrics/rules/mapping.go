@@ -83,7 +83,7 @@ func newMappingRuleSnapshotFromProto(
 		if err != nil {
 			return nil, err
 		}
-	} else {
+	} else if !r.Tombstoned {
 		return nil, errNoStoragePoliciesInMappingRuleSnapshot
 	}
 	filterValues, err := filters.ParseTagFilterValueMap(r.Filter)
@@ -342,13 +342,13 @@ func (mc *mappingRule) markTombstoned(meta UpdateMetadata) error {
 	if len(mc.snapshots) == 0 {
 		return errNoRuleSnapshots
 	}
-	snapshot := *mc.snapshots[len(mc.snapshots)-1]
+	snapshot := mc.snapshots[len(mc.snapshots)-1].clone()
 	snapshot.tombstoned = true
 	snapshot.cutoverNanos = meta.cutoverNanos
-	snapshot.aggregationID = aggregation.DefaultID
-	snapshot.storagePolicies = nil
 	snapshot.lastUpdatedAtNanos = meta.updatedAtNanos
 	snapshot.lastUpdatedBy = meta.updatedBy
+	snapshot.aggregationID = aggregation.DefaultID
+	snapshot.storagePolicies = nil
 	mc.snapshots = append(mc.snapshots, &snapshot)
 	return nil
 }
