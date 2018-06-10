@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/pipeline/applied"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
@@ -176,7 +177,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	// Set administrative client.
 	// TODO(xichen): client retry threshold likely needs to be low for faster retries.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("client"))
-	adminClient, err := c.Client.NewAdminClient(client, iOpts)
+	adminClient, err := c.Client.NewAdminClient(client, clock.NewOptions(), iOpts)
 	if err != nil {
 		return nil, err
 	}

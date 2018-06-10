@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/encoding/protobuf"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )
@@ -50,9 +51,10 @@ type Configuration struct {
 // NewAdminClient creates a new admin client.
 func (c *Configuration) NewAdminClient(
 	kvClient m3clusterclient.Client,
+	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 ) (AdminClient, error) {
-	client, err := c.NewClient(kvClient, instrumentOpts)
+	client, err := c.NewClient(kvClient, clockOpts, instrumentOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -62,9 +64,10 @@ func (c *Configuration) NewAdminClient(
 // NewClient creates a new client.
 func (c *Configuration) NewClient(
 	kvClient m3clusterclient.Client,
+	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 ) (Client, error) {
-	opts, err := c.newClientOptions(kvClient, instrumentOpts)
+	opts, err := c.newClientOptions(kvClient, clockOpts, instrumentOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +76,7 @@ func (c *Configuration) NewClient(
 
 func (c *Configuration) newClientOptions(
 	kvClient m3clusterclient.Client,
+	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
 ) (Options, error) {
 	scope := instrumentOpts.MetricsScope()
@@ -104,10 +108,11 @@ func (c *Configuration) newClientOptions(
 	}
 
 	opts := NewOptions().
+		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts).
-		SetEncoderOptions(encoderOpts).
-		SetShardFn(shardFn).
 		SetStagedPlacementWatcherOptions(watcherOpts).
+		SetShardFn(shardFn).
+		SetEncoderOptions(encoderOpts).
 		SetConnectionOptions(connectionOpts)
 
 	if c.ShardCutoverWarmupDuration != nil {
