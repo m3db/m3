@@ -20,7 +20,7 @@
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode).
 //go:generate sh -c "mockgen -package=aggregator $PACKAGE/aggregator ElectionManager,FlushTimesManager,PlacementManager | mockclean -pkg $PACKAGE/aggregator -out $GOPATH/src/$PACKAGE/aggregator/aggregator_mock.go"
-//go:generate sh -c "mockgen -package=client $PACKAGE/client AdminClient | mockclean -pkg $PACKAGE/client -out $GOPATH/src/$PACKAGE/client/client_mock.go"
+//go:generate sh -c "mockgen -package=client $PACKAGE/client Client,AdminClient | mockclean -pkg $PACKAGE/client -out $GOPATH/src/$PACKAGE/client/client_mock.go"
 //go:generate sh -c "mockgen -package=handler $PACKAGE/aggregator/handler Handler | mockclean -pkg $PACKAGE/aggregator/handler -out $GOPATH/src/$PACKAGE/aggregator/handler/handler_mock.go"
 //go:generate sh -c "mockgen -package=writer $PACKAGE/aggregator/handler/writer Writer | mockclean -pkg $PACKAGE/aggregator/handler/writer -out $GOPATH/src/$PACKAGE/aggregator/handler/writer/writer_mock.go"
 //go:generate sh -c "mockgen -package=common $PACKAGE/aggregator/handler/common Queue,Router | mockclean -pkg $PACKAGE/aggregator/handler/common -out $GOPATH/src/$PACKAGE/aggregator/handler/common/common_mock.go"
