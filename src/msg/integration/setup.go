@@ -53,6 +53,7 @@ const (
 	numberOfShards        = 10
 	msgPerShard           = 200
 	closeTimeout          = 30 * time.Second
+	topicName             = "topicName"
 )
 
 type consumerServiceConfig struct {
@@ -65,6 +66,16 @@ type consumerServiceConfig struct {
 type op struct {
 	progressPct int
 	fn          func()
+}
+
+type setup struct {
+	ts               topic.Service
+	sd               *services.MockServices
+	configs          []consumerServiceConfig
+	producers        []producer.Producer
+	consumerServices []*testConsumerService
+	totalConsumed    *atomic.Int64
+	extraOps         []op
 }
 
 func newTestSetup(
@@ -88,46 +99,16 @@ func newTestSetup(
 	)
 	for i, config := range configs {
 		log.SimpleLogger.Debugf("setting up a consumer service in %s mode with %d replicas", config.ct.String(), config.replicas)
-
-		sid := serviceID(i)
-		consumerService := topic.NewConsumerService().SetServiceID(sid).SetConsumptionType(config.ct)
-		topicConsumerServices = append(topicConsumerServices, consumerService)
-
-		ps := testPlacementService(mem.NewStore(), sid, config.isSharded)
-		sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil).Times(numProducers)
-
-		cs := testConsumerService{
-			consumed:         make(map[string]struct{}),
-			sid:              sid,
-			placementService: ps,
-			consumerService:  consumerService,
-		}
-		testConsumerServices = append(testConsumerServices, &cs)
-		var (
-			instances []placement.Instance
-			p         placement.Placement
-			err       error
-		)
-		for i := 0; i < config.instances; i++ {
-			c := newTestConsumer(t, &cs)
-			c.consumeAndAck(totalConsumed)
-			cs.testConsumers = append(cs.testConsumers, c)
-			instances = append(instances, c.instance)
-		}
-		if config.isSharded {
-			p, err = ps.BuildInitialPlacement(instances, numberOfShards, config.replicas)
-		} else {
-			p, err = ps.BuildInitialPlacement(instances, 0, config.replicas)
-		}
-		require.NoError(t, err)
-		require.Equal(t, len(instances), p.NumInstances())
+		cs := newTestConsumerService(t, i, config, sd, numProducers, totalConsumed)
+		topicConsumerServices = append(topicConsumerServices, cs.consumerService)
+		testConsumerServices = append(testConsumerServices, cs)
 	}
 
 	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(configService))
 	require.NoError(t, err)
 
 	testTopic := topic.NewTopic().
-		SetName("topicName").
+		SetName(topicName).
 		SetNumberOfShards(uint32(numberOfShards)).
 		SetConsumerServices(topicConsumerServices)
 	err = ts.CheckAndSet(testTopic.Name(), 0, testTopic)
@@ -141,6 +122,8 @@ func newTestSetup(
 	}
 
 	return &setup{
+		ts:               ts,
+		sd:               sd,
 		configs:          configs,
 		producers:        producers,
 		consumerServices: testConsumerServices,
@@ -148,23 +131,60 @@ func newTestSetup(
 	}
 }
 
-type setup struct {
-	configs          []consumerServiceConfig
-	producers        []producer.Producer
-	consumerServices []*testConsumerService
-	totalConsumed    *atomic.Int64
-	extraOps         []op
+func newTestConsumerService(
+	t *testing.T,
+	i int,
+	config consumerServiceConfig,
+	sd *services.MockServices,
+	numProducers int,
+	totalConsumed *atomic.Int64,
+) *testConsumerService {
+	sid := serviceID(i)
+	consumerService := topic.NewConsumerService().SetServiceID(sid).SetConsumptionType(config.ct)
+
+	ps := testPlacementService(mem.NewStore(), sid, config.isSharded)
+	sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil).Times(numProducers)
+
+	cs := testConsumerService{
+		consumed:         make(map[string]struct{}),
+		sid:              sid,
+		placementService: ps,
+		consumerService:  consumerService,
+	}
+	var (
+		instances []placement.Instance
+		p         placement.Placement
+		err       error
+	)
+	for i := 0; i < config.instances; i++ {
+		c := newTestConsumer(t, &cs)
+		c.consumeAndAck(totalConsumed)
+		cs.testConsumers = append(cs.testConsumers, c)
+		instances = append(instances, c.instance)
+	}
+	if config.isSharded {
+		p, err = ps.BuildInitialPlacement(instances, numberOfShards, config.replicas)
+	} else {
+		p, err = ps.BuildInitialPlacement(instances, 0, config.replicas)
+	}
+	require.NoError(t, err)
+	require.Equal(t, len(instances), p.NumInstances())
+	return &cs
 }
 
 func (s *setup) TotalMessages() int {
 	return msgPerShard * numberOfShards * len(s.producers)
 }
 
+func (s *setup) ExpectedNumMessages() int {
+	return msgPerShard * numberOfShards
+}
+
 func (s *setup) Run(
 	t *testing.T,
 	ctrl *gomock.Controller,
 ) {
-	numWritesPerProducer := msgPerShard * numberOfShards
+	numWritesPerProducer := s.ExpectedNumMessages()
 	mockData := make([]producer.Message, 0, numWritesPerProducer)
 	for i := 0; i < numberOfShards; i++ {
 		for j := 0; j < msgPerShard; j++ {
@@ -196,9 +216,6 @@ func (s *setup) Run(
 	log.SimpleLogger.Debug("produced all the messages")
 	s.CloseProducers(closeTimeout)
 	s.CloseConsumers()
-	for _, cs := range s.consumerServices {
-		require.Equal(t, numWritesPerProducer, len(cs.consumed))
-	}
 
 	expectedConsumeReplica := 0
 	for _, csc := range s.configs {
@@ -213,7 +230,14 @@ func (s *setup) Run(
 	log.SimpleLogger.Debug("done")
 }
 
-func (s setup) CloseProducers(dur time.Duration) {
+func (s *setup) VerifyConsumers(t *testing.T) {
+	numWritesPerProducer := s.ExpectedNumMessages()
+	for _, cs := range s.consumerServices {
+		require.Equal(t, numWritesPerProducer, len(cs.consumed))
+	}
+}
+
+func (s *setup) CloseProducers(dur time.Duration) {
 	doneCh := make(chan struct{})
 
 	go func() {
@@ -337,6 +361,29 @@ func (s *setup) ReplaceInstance(t *testing.T, idx int) {
 	require.NoError(t, err)
 	log.SimpleLogger.Debugf("new placement: %s", p.String())
 	cs.testConsumers[l-1] = newConsumer
+}
+
+func (s *setup) RemoveConsumerService(t *testing.T, idx int) {
+	require.True(t, idx < len(s.consumerServices))
+	topic, v, err := s.ts.Get(topicName)
+	require.NoError(t, err)
+	css := topic.ConsumerServices()
+	topic = topic.SetConsumerServices(append(css[:idx], css[idx+1:]...))
+	s.ts.CheckAndSet(topicName, v, topic)
+	tcss := s.consumerServices
+	tcs := tcss[idx]
+	s.consumerServices = append(tcss[:idx], tcss[idx+1:]...)
+	tcs.Close()
+	s.configs = append(s.configs[:idx], s.configs[idx+1:]...)
+}
+
+func (s *setup) AddConsumerService(t *testing.T, config consumerServiceConfig) {
+	cs := newTestConsumerService(t, len(s.consumerServices), config, s.sd, len(s.producers), s.totalConsumed)
+	s.consumerServices = append(s.consumerServices, cs)
+	topic, v, err := s.ts.Get(topicName)
+	require.NoError(t, err)
+	topic = topic.SetConsumerServices(append(topic.ConsumerServices(), cs.consumerService))
+	s.ts.CheckAndSet(topicName, v, topic)
 }
 
 type testConsumerService struct {

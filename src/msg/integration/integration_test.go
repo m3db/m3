@@ -55,6 +55,7 @@ func TestSharedConsumer(t *testing.T) {
 		})
 
 		s.Run(t, ctrl)
+		s.VerifyConsumers(t)
 	}
 }
 
@@ -74,6 +75,7 @@ func TestReplicatedConsumer(t *testing.T) {
 		})
 
 		s.Run(t, ctrl)
+		s.VerifyConsumers(t)
 	}
 }
 
@@ -96,6 +98,7 @@ func TestSharedAndReplicatedConsumers(t *testing.T) {
 			})
 
 			s.Run(t, ctrl)
+			s.VerifyConsumers(t)
 		}
 	}
 }
@@ -126,6 +129,7 @@ func TestSharedConsumerWithDeadInstance(t *testing.T) {
 			func() { s.KillInstance(t, 1) },
 		)
 		s.Run(t, ctrl)
+		s.VerifyConsumers(t)
 		testConsumers := s.consumerServices[0].testConsumers
 		require.True(t, testConsumers[len(testConsumers)-1].consumed <= s.TotalMessages()*10/100)
 		testConsumers = s.consumerServices[1].testConsumers
@@ -158,6 +162,7 @@ func TestSharedConsumerWithDeadConnection(t *testing.T) {
 			func() { s.KillConnection(t, 0) },
 		)
 		s.Run(t, ctrl)
+		s.VerifyConsumers(t)
 	}
 }
 
@@ -185,6 +190,7 @@ func TestReplicatedConsumerWithDeadConnection(t *testing.T) {
 			func() { s.KillConnection(t, 0) },
 		)
 		s.Run(t, ctrl)
+		s.VerifyConsumers(t)
 	}
 }
 
@@ -223,6 +229,7 @@ func TestSharedAndReplicatedConsumerWithDeadConnection(t *testing.T) {
 				func() { s.KillConnection(t, 1) },
 			)
 			s.Run(t, ctrl)
+			s.VerifyConsumers(t)
 		}
 	}
 }
@@ -252,6 +259,7 @@ func TestSharedConsumerAddInstances(t *testing.T) {
 			func() { s.AddInstance(t, 0) },
 		)
 		s.Run(t, ctrl)
+		s.VerifyConsumers(t)
 	}
 }
 
@@ -279,6 +287,7 @@ func TestReplicatedConsumerAddInstances(t *testing.T) {
 			func() { s.AddInstance(t, 0) },
 		)
 		s.Run(t, ctrl)
+		s.VerifyConsumers(t)
 	}
 }
 
@@ -317,6 +326,7 @@ func TestSharedAndReplicatedConsumerAddInstances(t *testing.T) {
 				func() { s.AddInstance(t, 1) },
 			)
 			s.Run(t, ctrl)
+			s.VerifyConsumers(t)
 		}
 	}
 }
@@ -346,6 +356,7 @@ func TestSharedConsumerRemoveInstances(t *testing.T) {
 			func() { s.RemoveInstance(t, 0) },
 		)
 		s.Run(t, ctrl)
+		s.VerifyConsumers(t)
 	}
 }
 
@@ -373,6 +384,7 @@ func TestReplicatedConsumerRemoveInstances(t *testing.T) {
 			func() { s.RemoveInstance(t, 0) },
 		)
 		s.Run(t, ctrl)
+		s.VerifyConsumers(t)
 	}
 }
 
@@ -411,6 +423,7 @@ func TestSharedAndReplicatedConsumerRemoveInstances(t *testing.T) {
 				func() { s.RemoveInstance(t, 1) },
 			)
 			s.Run(t, ctrl)
+			s.VerifyConsumers(t)
 		}
 	}
 }
@@ -440,6 +453,7 @@ func TestSharedConsumerReplaceInstances(t *testing.T) {
 			func() { s.ReplaceInstance(t, 0) },
 		)
 		s.Run(t, ctrl)
+		s.VerifyConsumers(t)
 	}
 }
 
@@ -467,6 +481,7 @@ func TestReplicatedConsumerReplaceInstances(t *testing.T) {
 			func() { s.ReplaceInstance(t, 0) },
 		)
 		s.Run(t, ctrl)
+		s.VerifyConsumers(t)
 	}
 }
 
@@ -505,6 +520,64 @@ func TestSharedAndReplicatedConsumerReplaceInstances(t *testing.T) {
 				func() { s.ReplaceInstance(t, 1) },
 			)
 			s.Run(t, ctrl)
+			s.VerifyConsumers(t)
 		}
+	}
+}
+
+func TestRemoveConsumerService(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
+
+	defer leaktest.Check(t)()
+
+	ctrl := gomock.NewController(test.Reporter{t})
+	defer ctrl.Finish()
+
+	for i := 1; i <= maxProducers; i++ {
+		s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
+			consumerServiceConfig{ct: topic.Shared, isSharded: true, instances: 5, replicas: 2},
+			consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 1, replicas: 1},
+			consumerServiceConfig{ct: topic.Replicated, isSharded: true, instances: 5, replicas: 2},
+		})
+
+		s.ScheduleOperations(
+			20,
+			func() { s.RemoveConsumerService(t, 2) },
+		)
+		s.Run(t, ctrl)
+		s.VerifyConsumers(t)
+		require.Equal(t, msgPerShard*numberOfShards, len(s.consumerServices[0].consumed))
+		require.Equal(t, msgPerShard*numberOfShards, len(s.consumerServices[1].consumed))
+	}
+}
+
+func TestAddConsumerService(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
+
+	defer leaktest.Check(t)()
+
+	ctrl := gomock.NewController(test.Reporter{t})
+	defer ctrl.Finish()
+
+	for i := 1; i <= maxProducers; i++ {
+		s := newTestSetup(t, ctrl, i, []consumerServiceConfig{
+			consumerServiceConfig{ct: topic.Shared, isSharded: true, instances: 5, replicas: 2},
+			consumerServiceConfig{ct: topic.Replicated, isSharded: true, instances: 5, replicas: 2},
+		})
+
+		s.ScheduleOperations(
+			20,
+			func() {
+				s.AddConsumerService(t, consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 1, replicas: 1})
+			},
+		)
+		s.Run(t, ctrl)
+		require.Equal(t, s.ExpectedNumMessages(), len(s.consumerServices[0].consumed))
+		require.Equal(t, s.ExpectedNumMessages(), len(s.consumerServices[1].consumed))
+		require.True(t, len(s.consumerServices[2].consumed) <= s.ExpectedNumMessages()*80/100)
 	}
 }
