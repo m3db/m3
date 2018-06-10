@@ -312,6 +312,32 @@ func TestNewMappingRuleSnapshotFromV2Proto(t *testing.T) {
 	}
 }
 
+func TestNewMappingRuleSnapshotFromProtoTombstoned(t *testing.T) {
+	filterOpts := testTagsFilterOptions()
+	input := &rulepb.MappingRuleSnapshot{
+		Name:               "foo",
+		Tombstoned:         true,
+		CutoverNanos:       12345,
+		Filter:             "tag1:value1 tag2:value2",
+		LastUpdatedAtNanos: 12345,
+		LastUpdatedBy:      "someone",
+	}
+	res, err := newMappingRuleSnapshotFromProto(input, filterOpts)
+	require.NoError(t, err)
+
+	expected := &mappingRuleSnapshot{
+		name:               "foo",
+		tombstoned:         true,
+		cutoverNanos:       12345,
+		rawFilter:          "tag1:value1 tag2:value2",
+		aggregationID:      aggregation.DefaultID,
+		lastUpdatedAtNanos: 12345,
+		lastUpdatedBy:      "someone",
+	}
+	require.True(t, cmp.Equal(expected, res, testMappingRuleSnapshotCmpOpts...))
+	require.NotNil(t, res.filter)
+}
+
 func TestNewMappingRuleSnapshotNoStoragePolicies(t *testing.T) {
 	proto := &rulepb.MappingRuleSnapshot{}
 	_, err := newMappingRuleSnapshotFromProto(proto, testTagsFilterOptions())

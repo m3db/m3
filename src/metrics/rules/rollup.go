@@ -80,7 +80,7 @@ func newRollupRuleSnapshotFromProto(
 			}
 			targets = append(targets, target)
 		}
-	} else {
+	} else if !r.Tombstoned {
 		return nil, errNoRollupTargetsInRollupRuleSnapshot
 	}
 
@@ -341,12 +341,12 @@ func (rc *rollupRule) markTombstoned(meta UpdateMetadata) error {
 		return errNoRuleSnapshots
 	}
 
-	snapshot := *rc.snapshots[len(rc.snapshots)-1]
+	snapshot := rc.snapshots[len(rc.snapshots)-1].clone()
 	snapshot.tombstoned = true
 	snapshot.cutoverNanos = meta.cutoverNanos
-	snapshot.targets = nil
 	snapshot.lastUpdatedAtNanos = meta.updatedAtNanos
 	snapshot.lastUpdatedBy = meta.updatedBy
+	snapshot.targets = nil
 	rc.snapshots = append(rc.snapshots, &snapshot)
 	return nil
 }

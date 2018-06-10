@@ -516,6 +516,31 @@ func TestNewRollupRuleSnapshotFromV2Proto(t *testing.T) {
 	}
 }
 
+func TestNewRollupRuleSnapshotFromProtoTombstoned(t *testing.T) {
+	filterOpts := testTagsFilterOptions()
+	input := &rulepb.RollupRuleSnapshot{
+		Name:               "foo",
+		Tombstoned:         true,
+		CutoverNanos:       12345,
+		LastUpdatedAtNanos: 12345,
+		LastUpdatedBy:      "someone",
+		Filter:             "tag1:value1 tag2:value2",
+	}
+	res, err := newRollupRuleSnapshotFromProto(input, filterOpts)
+	require.NoError(t, err)
+
+	expected := &rollupRuleSnapshot{
+		name:               "foo",
+		tombstoned:         true,
+		cutoverNanos:       12345,
+		rawFilter:          "tag1:value1 tag2:value2",
+		lastUpdatedAtNanos: 12345,
+		lastUpdatedBy:      "someone",
+	}
+	require.True(t, cmp.Equal(expected, res, testRollupRuleSnapshotCmpOpts...))
+	require.NotNil(t, res.filter)
+}
+
 func TestNewRollupRuleSnapshotNoRollupTargets(t *testing.T) {
 	proto := &rulepb.RollupRuleSnapshot{}
 	_, err := newRollupRuleSnapshotFromProto(proto, testTagsFilterOptions())
