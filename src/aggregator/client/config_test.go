@@ -28,6 +28,7 @@ import (
 	m3clusterclient "github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 
@@ -122,8 +123,9 @@ func TestNewClientOptions(t *testing.T) {
 	store := mem.NewStore()
 	kvClient := m3clusterclient.NewMockClient(ctrl)
 	kvClient.EXPECT().Store(expectedKvOpts).Return(store, nil)
+	clockOpts := clock.NewOptions()
 	instrumentOpts := instrument.NewOptions()
-	opts, err := cfg.newClientOptions(kvClient, instrumentOpts)
+	opts, err := cfg.newClientOptions(kvClient, clockOpts, instrumentOpts)
 	require.NoError(t, err)
 
 	// Verify the constructed options match expectations.
