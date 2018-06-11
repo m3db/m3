@@ -12,7 +12,10 @@ import:
   version: 829d4ae9ed79c90f32122cb32464312aed39686d
 
 - package: github.com/m3db/m3metrics
-  version: 0ba7ae136279e4c5394fc46347cf9f5732352f5c
+  version: c1e712b253c6662049507a11f70f83d5165ef3c9
+
+- package: github.com/m3db/m3aggregator
+  version: 4dad15f325f8db998fc26aaa153927a82fffbb70
 
 - package: github.com/uber-go/tally
   version: ^3.0.0 # ie >= 3.0.0, < 4.0.0

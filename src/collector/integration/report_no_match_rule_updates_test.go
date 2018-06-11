@@ -27,9 +27,9 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/id/m3"
-	"github.com/m3db/m3metrics/policy"
 
 	"github.com/stretchr/testify/require"
 )
@@ -56,18 +56,18 @@ func TestReportNoMatchWithRuleUpdates(t *testing.T) {
 	}
 	outputRes := []outputResult{
 		{
-			idGen:        idGen,
-			policiesList: policy.PoliciesList{policy.DefaultStagedPolicies},
+			idGen:     idGen,
+			metadatas: metadata.DefaultStagedMetadatas,
 		},
 	}
 
 	testReportWithRuleUpdates(t, testReportWithRuleUpdatesOptions{
-		Description:  "test reporting metrics with no rule match and rule updates",
-		Store:        store,
-		MatcherOpts:  defaultMatcherOptions(store, iterPool),
-		BackendOpts:  defaultBackendOptions(store),
-		InputIDGen:   idGen,
-		OutputRes:    outputRes,
-		RuleUpdateFn: func() { updateStore(t, store, defaultRuleSetKey, ruleSet) },
+		Description:   "test reporting metrics with no rule match and rule updates",
+		Store:         store,
+		MatcherOpts:   defaultMatcherOptions(store, iterPool),
+		AggClientOpts: defaultAggregatorClientOptions(store),
+		InputIDGen:    idGen,
+		OutputRes:     outputRes,
+		RuleUpdateFn:  func() { updateStore(t, store, defaultRuleSetKey, ruleSet) },
 	})
 }

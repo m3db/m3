@@ -18,23 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package reporter
+package m3aggregator
 
 import (
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 )
 
-// Options provide a set of options for the reporter.
-type Options interface {
+// ReporterOptions provide a set of options for the reporter.
+type ReporterOptions interface {
 	// SetClockOptions sets the clock options.
-	SetClockOptions(value clock.Options) Options
+	SetClockOptions(value clock.Options) ReporterOptions
 
 	// ClockOptions returns the clock options.
 	ClockOptions() clock.Options
 
 	// SetInstrumentOptions sets the instrument options.
-	SetInstrumentOptions(value instrument.Options) Options
+	SetInstrumentOptions(value instrument.Options) ReporterOptions
 
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
@@ -45,15 +45,15 @@ type options struct {
 	instrumentOpts instrument.Options
 }
 
-// NewOptions creates a new set of options.
-func NewOptions() Options {
+// NewReporterOptions creates a new set of options.
+func NewReporterOptions() ReporterOptions {
 	return &options{
 		clockOpts:      clock.NewOptions(),
 		instrumentOpts: instrument.NewOptions(),
 	}
 }
 
-func (o *options) SetClockOptions(value clock.Options) Options {
+func (o *options) SetClockOptions(value clock.Options) ReporterOptions {
 	opts := *o
 	opts.clockOpts = value
 	return &opts
@@ -63,7 +63,7 @@ func (o *options) ClockOptions() clock.Options {
 	return o.clockOpts
 }
 
-func (o *options) SetInstrumentOptions(value instrument.Options) Options {
+func (o *options) SetInstrumentOptions(value instrument.Options) ReporterOptions {
 	opts := *o
 	opts.instrumentOpts = value
 	return &opts

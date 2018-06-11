@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/id/m3"
 	"github.com/m3db/m3metrics/policy"
@@ -58,33 +59,44 @@ func TestReportMatchRollupWithRuleUpdates(t *testing.T) {
 	outputRes := []outputResult{
 		{
 			idGen: idGen,
-			policiesList: policy.PoliciesList{
-				policy.NewStagedPolicies(0, false, nil),
+			metadatas: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 500,
+					Tombstoned:   false,
+					Metadata:     metadata.DefaultMetadata,
+				},
 			},
 		},
 		{
 			idGen: func(i int) id.ID {
 				return m3.NewID([]byte(fmt.Sprintf("m3+newRollupName1+m3_rollup=true,namespace=%s,rtagName1=rtagValue1", defaultNamespace)), iterPool)
 			},
-			policiesList: policy.PoliciesList{
-				policy.NewStagedPolicies(
-					500,
-					false,
-					[]policy.Policy{
-						policy.NewPolicy(policy.MustParseStoragePolicy("1m:2d"), aggregation.DefaultID),
+			metadatas: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 500,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.MustParseStoragePolicy("1m:2d"),
+								},
+							},
+						},
 					},
-				),
+				},
 			},
 		},
 	}
 
 	testReportWithRuleUpdates(t, testReportWithRuleUpdatesOptions{
-		Description:  "test reporting metrics with rollup rule match and rule updates",
-		Store:        store,
-		MatcherOpts:  defaultMatcherOptions(store, iterPool),
-		BackendOpts:  defaultBackendOptions(store),
-		InputIDGen:   idGen,
-		OutputRes:    outputRes,
-		RuleUpdateFn: func() { updateStore(t, store, defaultRuleSetKey, ruleSet) },
+		Description:   "test reporting metrics with rollup rule match and rule updates",
+		Store:         store,
+		MatcherOpts:   defaultMatcherOptions(store, iterPool),
+		AggClientOpts: defaultAggregatorClientOptions(store),
+		InputIDGen:    idGen,
+		OutputRes:     outputRes,
+		RuleUpdateFn:  func() { updateStore(t, store, defaultRuleSetKey, ruleSet) },
 	})
 }

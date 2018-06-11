@@ -23,59 +23,38 @@ package integration
 import (
 	"bytes"
 
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/policy"
 )
 
 type idGenerator func(int) id.ID
 
-// nolint: structcheck
+// nolint:structcheck
 type outputResult struct {
-	idGen        idGenerator
-	policiesList policy.PoliciesList
+	idGen     idGenerator
+	metadatas metadata.StagedMetadatas
 }
 
 type outputResults []outputResult
 
-// nolint: structcheck
-type metricWithPoliciesList struct {
-	metric       interface{}
-	policiesList policy.PoliciesList
+// nolint:structcheck
+type metricWithMetadatas struct {
+	metric    unaggregated.MetricUnion
+	metadatas metadata.StagedMetadatas
 }
 
-type resultsByTypeAscIDAsc []metricWithPoliciesList
+type resultsByTypeAscIDAsc []metricWithMetadatas
 
 func (r resultsByTypeAscIDAsc) Len() int      { return len(r) }
 func (r resultsByTypeAscIDAsc) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 
 func (r resultsByTypeAscIDAsc) Less(i, j int) bool {
-	it, iid := metricTypeAndIDFrom(r[i].metric)
-	jt, jid := metricTypeAndIDFrom(r[j].metric)
-	if it < jt {
+	if r[i].metric.Type < r[j].metric.Type {
 		return true
 	}
-	if it > jt {
+	if r[i].metric.Type > r[j].metric.Type {
 		return false
 	}
-	return bytes.Compare(iid, jid) < 0
-}
-
-func metricTypeAndIDFrom(v interface{}) (unaggregated.Type, []byte) {
-	var (
-		t  unaggregated.Type
-		id []byte
-	)
-	switch value := v.(type) {
-	case unaggregated.Counter:
-		t = unaggregated.CounterType
-		id = value.ID
-	case unaggregated.BatchTimer:
-		t = unaggregated.BatchTimerType
-		id = value.ID
-	case unaggregated.Gauge:
-		t = unaggregated.GaugeType
-		id = value.ID
-	}
-	return t, id
+	return bytes.Compare(r[i].metric.ID, r[j].metric.ID) < 0
 }

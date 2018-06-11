@@ -25,10 +25,10 @@ import (
 	"flag"
 	"testing"
 
-	"github.com/m3db/m3collector/backend"
-	msgpackbackend "github.com/m3db/m3collector/backend/msgpack"
-	msgpackserver "github.com/m3db/m3collector/integration/msgpack"
+	aggclient "github.com/m3db/m3aggregator/client"
+	aggserver "github.com/m3db/m3collector/integration/server"
 	"github.com/m3db/m3collector/reporter"
+	aggreporter "github.com/m3db/m3collector/reporter/m3aggregator"
 	"github.com/m3db/m3metrics/matcher"
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3x/server"
@@ -44,7 +44,7 @@ var (
 
 type testSetup struct {
 	opts       testOptions
-	backend    backend.Server
+	client     aggclient.Client
 	reporter   reporter.Reporter
 	serverAddr string
 	server     server.Server
@@ -59,19 +59,19 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	cache := cache.NewCache(opts.CacheOptions())
 	matcher, err := matcher.NewMatcher(cache, opts.MatcherOptions())
 	require.NoError(t, err)
-	backend := msgpackbackend.NewServer(opts.BackendOptions())
-	reporter := reporter.NewReporter(matcher, backend, opts.ReporterOptions())
+	client := aggclient.NewClient(opts.AggregatorClientOptions())
+	reporter := aggreporter.NewReporter(matcher, client, opts.AggregatorReporterOptions())
 
 	// Create server.
 	serverAddr := *serverAddrArg
 	if addr := opts.ServerAddr(); addr != "" {
 		serverAddr = addr
 	}
-	server := msgpackserver.NewServer(serverAddr, opts.ServerOptions())
+	server := aggserver.NewServer(serverAddr, opts.ServerOptions())
 
 	return &testSetup{
 		opts:       opts,
-		backend:    backend,
+		client:     client,
 		reporter:   reporter,
 		serverAddr: serverAddr,
 		server:     server,
@@ -81,7 +81,9 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 func (ts *testSetup) Reporter() reporter.Reporter { return ts.reporter }
 
 func (ts *testSetup) newClient() *client {
-	return newClient(ts.serverAddr, ts.opts.ClientConnectTimeout())
+	aggClientOpts := ts.opts.AggregatorClientOptions()
+	connectTimeout := aggClientOpts.ConnectionOptions().ConnectionTimeout()
+	return newClient(ts.serverAddr, connectTimeout)
 }
 
 func (ts *testSetup) waitUntilServerIsUp() error {
@@ -113,7 +115,7 @@ func (ts *testSetup) startServer() error {
 	if err := ts.waitUntilServerIsUp(); err != nil {
 		return err
 	}
-	return ts.backend.Open()
+	return ts.client.Init()
 }
 
 func (ts *testSetup) stopServer() error {

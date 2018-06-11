@@ -23,27 +23,38 @@ package integration
 import (
 	"time"
 
+	aggclient "github.com/m3db/m3aggregator/client"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
-	msgpackbackend "github.com/m3db/m3collector/backend/msgpack"
-	msgpackserver "github.com/m3db/m3collector/integration/msgpack"
-	"github.com/m3db/m3collector/reporter"
+	"github.com/m3db/m3collector/integration/server"
+	aggreporter "github.com/m3db/m3collector/reporter/m3aggregator"
 	"github.com/m3db/m3metrics/matcher"
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3x/instrument"
 )
 
 const (
-	defaultClientConnectTimeout     = time.Second
 	defaultServerStateChangeTimeout = 5 * time.Second
 )
 
 type testOptions interface {
-	// SetClientConnectTimeout sets the client-side connect timeout.
-	SetClientConnectTimeout(value time.Duration) testOptions
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) testOptions
 
-	// ClientConnectTimeout returns the client-side connect timeout.
-	ClientConnectTimeout() time.Duration
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
+
+	// SetServerAddr sets the server listening address.
+	SetServerAddr(value string) testOptions
+
+	// ServerAddr returns the server listening address.
+	ServerAddr() string
+
+	// SetServerOptions sets the server options.
+	SetServerOptions(value server.Options) testOptions
+
+	// ServerOptions returns the server options.
+	ServerOptions() server.Options
 
 	// SetServerStateChangeTimeout sets the server state change timeout.
 	SetServerStateChangeTimeout(value time.Duration) testOptions
@@ -57,12 +68,6 @@ type testOptions interface {
 	// KVStore returns the key value store.
 	KVStore() kv.Store
 
-	// SetInstrumentOptions sets the instrument options.
-	SetInstrumentOptions(value instrument.Options) testOptions
-
-	// InstrumentOptions returns the instrument options.
-	InstrumentOptions() instrument.Options
-
 	// SetCacheOptions sets the cache options.
 	SetCacheOptions(value cache.Options) testOptions
 
@@ -75,66 +80,72 @@ type testOptions interface {
 	// MatcherOptions returns the matcher options.
 	MatcherOptions() matcher.Options
 
-	// SetBackendOptions sets the backend options.
-	SetBackendOptions(value msgpackbackend.ServerOptions) testOptions
+	// SetAggregatorClientOptions sets the aggregator client options.
+	SetAggregatorClientOptions(value aggclient.Options) testOptions
 
-	// BackendOptions returns the backend options.
-	BackendOptions() msgpackbackend.ServerOptions
+	// AggregatorClientOptions returns the aggregator client options.
+	AggregatorClientOptions() aggclient.Options
 
-	// SetReporterOptions sets the reporter options.
-	SetReporterOptions(value reporter.Options) testOptions
+	// SetAggregatorReporterOptions sets the aggregator reporter options.
+	SetAggregatorReporterOptions(value aggreporter.ReporterOptions) testOptions
 
-	// ReporterOptions returns the reporter options.
-	ReporterOptions() reporter.Options
-
-	// SetServerAddr sets the server listening address.
-	SetServerAddr(value string) testOptions
-
-	// ServerAddr returns the server listening address.
-	ServerAddr() string
-
-	// SetServerOptions sets the server options.
-	SetServerOptions(value msgpackserver.Options) testOptions
-
-	// ServerOptions returns the server options.
-	ServerOptions() msgpackserver.Options
+	// AggregatorReporterOptions returns the reporter options.
+	AggregatorReporterOptions() aggreporter.ReporterOptions
 }
 
 type options struct {
-	clientConnectTimeout     time.Duration
+	instrumentOpts           instrument.Options
+	serverAddr               string
+	serverOpts               server.Options
 	serverStateChangeTimeout time.Duration
 	store                    kv.Store
-	instrumentOpts           instrument.Options
 	cacheOpts                cache.Options
 	matcherOpts              matcher.Options
-	backendOpts              msgpackbackend.ServerOptions
-	reporterOpts             reporter.Options
-	serverAddr               string
-	serverOpts               msgpackserver.Options
+	aggClientOpts            aggclient.Options
+	aggReporterOpts          aggreporter.ReporterOptions
 }
 
 func newTestOptions() testOptions {
 	return &options{
-		clientConnectTimeout:     defaultClientConnectTimeout,
+		instrumentOpts:           instrument.NewOptions(),
+		serverOpts:               server.NewOptions(),
 		serverStateChangeTimeout: defaultServerStateChangeTimeout,
-		store:          mem.NewStore(),
-		instrumentOpts: instrument.NewOptions(),
-		cacheOpts:      cache.NewOptions(),
-		matcherOpts:    matcher.NewOptions(),
-		backendOpts:    msgpackbackend.NewServerOptions(),
-		reporterOpts:   reporter.NewOptions(),
-		serverOpts:     msgpackserver.NewOptions(),
+		store:           mem.NewStore(),
+		cacheOpts:       cache.NewOptions(),
+		matcherOpts:     matcher.NewOptions(),
+		aggClientOpts:   aggclient.NewOptions(),
+		aggReporterOpts: aggreporter.NewReporterOptions(),
 	}
 }
 
-func (o *options) SetClientConnectTimeout(value time.Duration) testOptions {
+func (o *options) SetInstrumentOptions(value instrument.Options) testOptions {
 	opts := *o
-	opts.clientConnectTimeout = value
+	opts.instrumentOpts = value
 	return &opts
 }
 
-func (o *options) ClientConnectTimeout() time.Duration {
-	return o.clientConnectTimeout
+func (o *options) InstrumentOptions() instrument.Options {
+	return o.instrumentOpts
+}
+
+func (o *options) SetServerAddr(value string) testOptions {
+	opts := *o
+	opts.serverAddr = value
+	return &opts
+}
+
+func (o *options) ServerAddr() string {
+	return o.serverAddr
+}
+
+func (o *options) SetServerOptions(value server.Options) testOptions {
+	opts := *o
+	opts.serverOpts = value
+	return &opts
+}
+
+func (o *options) ServerOptions() server.Options {
+	return o.serverOpts
 }
 
 func (o *options) SetServerStateChangeTimeout(value time.Duration) testOptions {
@@ -157,16 +168,6 @@ func (o *options) KVStore() kv.Store {
 	return o.store
 }
 
-func (o *options) SetInstrumentOptions(value instrument.Options) testOptions {
-	opts := *o
-	opts.instrumentOpts = value
-	return &opts
-}
-
-func (o *options) InstrumentOptions() instrument.Options {
-	return o.instrumentOpts
-}
-
 func (o *options) SetCacheOptions(value cache.Options) testOptions {
 	opts := *o
 	opts.cacheOpts = value
@@ -187,42 +188,22 @@ func (o *options) MatcherOptions() matcher.Options {
 	return o.matcherOpts
 }
 
-func (o *options) SetBackendOptions(value msgpackbackend.ServerOptions) testOptions {
+func (o *options) SetAggregatorClientOptions(value aggclient.Options) testOptions {
 	opts := *o
-	opts.backendOpts = value
+	opts.aggClientOpts = value
 	return &opts
 }
 
-func (o *options) BackendOptions() msgpackbackend.ServerOptions {
-	return o.backendOpts
+func (o *options) AggregatorClientOptions() aggclient.Options {
+	return o.aggClientOpts
 }
 
-func (o *options) SetReporterOptions(value reporter.Options) testOptions {
+func (o *options) SetAggregatorReporterOptions(value aggreporter.ReporterOptions) testOptions {
 	opts := *o
-	opts.reporterOpts = value
+	opts.aggReporterOpts = value
 	return &opts
 }
 
-func (o *options) ReporterOptions() reporter.Options {
-	return o.reporterOpts
-}
-
-func (o *options) SetServerAddr(value string) testOptions {
-	opts := *o
-	opts.serverAddr = value
-	return &opts
-}
-
-func (o *options) ServerAddr() string {
-	return o.serverAddr
-}
-
-func (o *options) SetServerOptions(value msgpackserver.Options) testOptions {
-	opts := *o
-	opts.serverOpts = value
-	return &opts
-}
-
-func (o *options) ServerOptions() msgpackserver.Options {
-	return o.serverOpts
+func (o *options) AggregatorReporterOptions() aggreporter.ReporterOptions {
+	return o.aggReporterOpts
 }

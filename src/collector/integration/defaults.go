@@ -25,17 +25,19 @@ import (
 	"hash/adler32"
 	"time"
 
+	aggclient "github.com/m3db/m3aggregator/client"
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
-	msgpackbackend "github.com/m3db/m3collector/backend/msgpack"
+	"github.com/m3db/m3metrics/encoding/protobuf"
 	"github.com/m3db/m3metrics/filters"
-	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/generated/proto/pipelinepb"
+	"github.com/m3db/m3metrics/generated/proto/policypb"
+	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/matcher"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/id/m3"
-	msgpackprotocol "github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/pool"
 )
@@ -70,13 +72,13 @@ func defaultStagedPlacementProto() (*placementpb.PlacementSnapshots, error) {
 	return stagedPlacement.Proto()
 }
 
-func defaultNamespaces() *schema.Namespaces {
-	return &schema.Namespaces{
-		Namespaces: []*schema.Namespace{
-			&schema.Namespace{
+func defaultNamespaces() *rulepb.Namespaces {
+	return &rulepb.Namespaces{
+		Namespaces: []*rulepb.Namespace{
+			&rulepb.Namespace{
 				Name: defaultNamespace,
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{
+				Snapshots: []*rulepb.NamespaceSnapshot{
+					&rulepb.NamespaceSnapshot{
 						ForRulesetVersion: 1,
 						Tombstoned:        false,
 					},
@@ -86,26 +88,24 @@ func defaultNamespaces() *schema.Namespaces {
 	}
 }
 
-func defaultMappingRulesConfig() []*schema.MappingRule {
-	return []*schema.MappingRule{
-		&schema.MappingRule{
+func defaultMappingRulesConfig() []*rulepb.MappingRule {
+	return []*rulepb.MappingRule{
+		&rulepb.MappingRule{
 			Uuid: "mappingRule1",
-			Snapshots: []*schema.MappingRuleSnapshot{
-				&schema.MappingRuleSnapshot{
+			Snapshots: []*rulepb.MappingRuleSnapshot{
+				&rulepb.MappingRuleSnapshot{
 					Name:         "mappingRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 1000,
 					Filter:       "mtagName1:mtagValue1",
-					Policies: []*schema.Policy{
-						&schema.Policy{
-							StoragePolicy: &schema.StoragePolicy{
-								Resolution: &schema.Resolution{
-									WindowSize: int64(10 * time.Second),
-									Precision:  int64(time.Second),
-								},
-								Retention: &schema.Retention{
-									Period: int64(24 * time.Hour),
-								},
+					StoragePolicies: []*policypb.StoragePolicy{
+						&policypb.StoragePolicy{
+							Resolution: &policypb.Resolution{
+								WindowSize: int64(10 * time.Second),
+								Precision:  int64(time.Second),
+							},
+							Retention: &policypb.Retention{
+								Period: int64(24 * time.Hour),
 							},
 						},
 					},
@@ -115,30 +115,37 @@ func defaultMappingRulesConfig() []*schema.MappingRule {
 	}
 }
 
-func defaultRollupRulesConfig() []*schema.RollupRule {
-	return []*schema.RollupRule{
-		&schema.RollupRule{
+func defaultRollupRulesConfig() []*rulepb.RollupRule {
+	return []*rulepb.RollupRule{
+		&rulepb.RollupRule{
 			Uuid: "rollupRule1",
-			Snapshots: []*schema.RollupRuleSnapshot{
-				&schema.RollupRuleSnapshot{
+			Snapshots: []*rulepb.RollupRuleSnapshot{
+				&rulepb.RollupRuleSnapshot{
 					Name:         "rollupRule1.snapshot1",
 					Tombstoned:   false,
 					CutoverNanos: 500,
 					Filter:       "rtagName1:rtagValue1",
-					Targets: []*schema.RollupTarget{
-						&schema.RollupTarget{
-							Name: "newRollupName1",
-							Tags: []string{"namespace", "rtagName1"},
-							Policies: []*schema.Policy{
-								&schema.Policy{
-									StoragePolicy: &schema.StoragePolicy{
-										Resolution: &schema.Resolution{
-											WindowSize: int64(time.Minute),
-											Precision:  int64(time.Minute),
+					TargetsV2: []*rulepb.RollupTargetV2{
+						{
+							Pipeline: &pipelinepb.Pipeline{
+								Ops: []pipelinepb.PipelineOp{
+									{
+										Type: pipelinepb.PipelineOp_ROLLUP,
+										Rollup: &pipelinepb.RollupOp{
+											NewName: "newRollupName1",
+											Tags:    []string{"namespace", "rtagName1"},
 										},
-										Retention: &schema.Retention{
-											Period: int64(48 * time.Hour),
-										},
+									},
+								},
+							},
+							StoragePolicies: []*policypb.StoragePolicy{
+								&policypb.StoragePolicy{
+									Resolution: &policypb.Resolution{
+										WindowSize: int64(time.Minute),
+										Precision:  int64(time.Minute),
+									},
+									Retention: &policypb.Retention{
+										Period: int64(48 * time.Hour),
 									},
 								},
 							},
@@ -150,8 +157,8 @@ func defaultRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func defaultRuleSet() *schema.RuleSet {
-	return &schema.RuleSet{
+func defaultRuleSet() *rulepb.RuleSet {
+	return &rulepb.RuleSet{
 		Uuid:         "07592642-a105-40a5-a5c5-7c416ccb56c5",
 		Namespace:    defaultNamespace,
 		Tombstoned:   false,
@@ -201,20 +208,25 @@ func defaultShardFn(id []byte, numShards int) uint32 {
 	return adler32.Checksum(id) % uint32(numShards)
 }
 
-func defaultBackendOptions(
+func defaultBytesPool() pool.BytesPool {
+	return pool.NewBytesPool([]pool.Bucket{
+		{Capacity: 128, Count: 1000},
+		{Capacity: 256, Count: 1000},
+		{Capacity: 4096, Count: 1000},
+	}, pool.NewObjectPoolOptions())
+}
+
+func defaultAggregatorClientOptions(
 	store kv.Store,
-) msgpackbackend.ServerOptions {
+) aggclient.Options {
 	watcherOpts := placement.NewStagedPlacementWatcherOptions().
 		SetStagedPlacementKey(defaultPlacementKey).
 		SetStagedPlacementStore(store)
-	poolOpts := pool.NewObjectPoolOptions()
-	encoderPoolOpts := msgpackprotocol.NewBufferedEncoderPoolOptions().SetObjectPoolOptions(poolOpts)
-	encoderPool := msgpackprotocol.NewBufferedEncoderPool(encoderPoolOpts)
-	encoderPool.Init(func() msgpackprotocol.BufferedEncoder {
-		return msgpackprotocol.NewPooledBufferedEncoder(encoderPool)
-	})
-	return msgpackbackend.NewServerOptions().
-		SetStagedPlacementWatcherOptions(watcherOpts).
+	bytesPool := defaultBytesPool()
+	bytesPool.Init()
+	encoderOpts := protobuf.NewUnaggregatedOptions().SetBytesPool(bytesPool)
+	return aggclient.NewOptions().
 		SetShardFn(defaultShardFn).
-		SetBufferedEncoderPool(encoderPool)
+		SetStagedPlacementWatcherOptions(watcherOpts).
+		SetEncoderOptions(encoderOpts)
 }

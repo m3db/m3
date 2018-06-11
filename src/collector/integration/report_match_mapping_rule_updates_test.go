@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/id/m3"
 	"github.com/m3db/m3metrics/policy"
@@ -58,25 +59,32 @@ func TestReportMatchMappingWithRuleUpdates(t *testing.T) {
 	outputRes := []outputResult{
 		{
 			idGen: idGen,
-			policiesList: policy.PoliciesList{
-				policy.NewStagedPolicies(
-					1000,
-					false,
-					[]policy.Policy{
-						policy.NewPolicy(policy.MustParseStoragePolicy("10s:1d"), aggregation.DefaultID),
+			metadatas: metadata.StagedMetadatas{
+				{
+					CutoverNanos: 1000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.MustParseStoragePolicy("10s:1d"),
+								},
+							},
+						},
 					},
-				),
+				},
 			},
 		},
 	}
 
 	testReportWithRuleUpdates(t, testReportWithRuleUpdatesOptions{
-		Description:  "test reporting metrics with mapping rule match and rule updates",
-		Store:        store,
-		MatcherOpts:  defaultMatcherOptions(store, iterPool),
-		BackendOpts:  defaultBackendOptions(store),
-		InputIDGen:   idGen,
-		OutputRes:    outputRes,
-		RuleUpdateFn: func() { updateStore(t, store, defaultRuleSetKey, ruleSet) },
+		Description:   "test reporting metrics with mapping rule match and rule updates",
+		Store:         store,
+		MatcherOpts:   defaultMatcherOptions(store, iterPool),
+		AggClientOpts: defaultAggregatorClientOptions(store),
+		InputIDGen:    idGen,
+		OutputRes:     outputRes,
+		RuleUpdateFn:  func() { updateStore(t, store, defaultRuleSetKey, ruleSet) },
 	})
 }
