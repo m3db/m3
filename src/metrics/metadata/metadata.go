@@ -48,13 +48,13 @@ var (
 // PipelineMetadata contains pipeline metadata.
 type PipelineMetadata struct {
 	// List of aggregation types.
-	AggregationID aggregation.ID
+	AggregationID aggregation.ID `json:"aggregation"`
 
 	// List of storage policies.
-	StoragePolicies policy.StoragePolicies
+	StoragePolicies policy.StoragePolicies `json:"storagePolicies"`
 
 	// Pipeline operations.
-	Pipeline applied.Pipeline
+	Pipeline applied.Pipeline `json:"-"` // NB: not needed for JSON marshaling for now.
 }
 
 // Equal returns true if two pipeline metadata are considered equal.
@@ -67,7 +67,7 @@ func (m PipelineMetadata) Equal(other PipelineMetadata) bool {
 // IsDefault returns whether this is the default standard pipeline metadata.
 func (m PipelineMetadata) IsDefault() bool {
 	return m.AggregationID.IsDefault() &&
-		policy.IsDefaultStoragePolicies(m.StoragePolicies) &&
+		m.StoragePolicies.IsDefault() &&
 		m.Pipeline.IsEmpty()
 }
 
@@ -117,7 +117,7 @@ func (m *PipelineMetadata) FromProto(pb metricpb.PipelineMetadata) error {
 
 // Metadata represents the metadata associated with a metric.
 type Metadata struct {
-	Pipelines []PipelineMetadata
+	Pipelines []PipelineMetadata `json:"pipelines"`
 }
 
 // IsDefault returns whether this is the default metadata.
@@ -210,13 +210,13 @@ func (m *ForwardMetadata) FromProto(pb metricpb.ForwardMetadata) error {
 
 // StagedMetadata represents metadata with a staged cutover time.
 type StagedMetadata struct {
-	Metadata
+	Metadata `json:"metadata"`
 
 	// Cutover is when the metadata is applicable.
-	CutoverNanos int64
+	CutoverNanos int64 `json:"cutoverNanos"`
 
 	// Tombstoned determines whether the associated metric has been tombstoned.
-	Tombstoned bool
+	Tombstoned bool `json:"tombstoned"`
 }
 
 // IsDefault returns whether this is a default staged metadata.
@@ -282,4 +282,10 @@ func (sms *StagedMetadatas) FromProto(pb metricpb.StagedMetadatas) error {
 		}
 	}
 	return nil
+}
+
+// VersionedStagedMetadatas is a versioned staged metadatas.
+type VersionedStagedMetadatas struct {
+	Version         int             `json:"version"`
+	StagedMetadatas StagedMetadatas `json:"stagedMetadatas"`
 }

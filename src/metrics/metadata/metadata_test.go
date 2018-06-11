@@ -21,6 +21,7 @@
 package metadata
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -1009,4 +1010,79 @@ func TestStagedMetadatasToProtoBadMetadatas(t *testing.T) {
 func TestStagedMetadatasFromProtoBadMetadatasProto(t *testing.T) {
 	var res StagedMetadatas
 	require.Error(t, res.FromProto(testBadStagedMetadatasProto))
+}
+
+func TestVersionedStagedMetadatasMarshalJSON(t *testing.T) {
+	vs := VersionedStagedMetadatas{
+		Version: 12,
+		StagedMetadatas: StagedMetadatas{
+			{
+				CutoverNanos: 4567,
+				Tombstoned:   true,
+				Metadata: Metadata{
+					Pipelines: []PipelineMetadata{
+						{
+							AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+							StoragePolicies: []policy.StoragePolicy{
+								policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+								policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
+							},
+						},
+						{
+							AggregationID: aggregation.DefaultID,
+							StoragePolicies: []policy.StoragePolicy{
+								policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	res, err := json.Marshal(vs)
+	require.NoError(t, err)
+
+	expected :=
+		`{"version":12,` +
+			`"stagedMetadatas":` +
+			`[{"metadata":{"pipelines":[` +
+			`{"aggregation":["Sum"],"storagePolicies":["1s:1h","1m:12h"]},` +
+			`{"aggregation":null,"storagePolicies":["10s:1h"]}]},` +
+			`"cutoverNanos":4567,` +
+			`"tombstoned":true}]}`
+	require.Equal(t, expected, string(res))
+}
+
+func TestVersionedStagedMetadatasMarshalJSONRoundtrip(t *testing.T) {
+	vs := VersionedStagedMetadatas{
+		Version: 12,
+		StagedMetadatas: StagedMetadatas{
+			{
+				CutoverNanos: 4567,
+				Tombstoned:   true,
+				Metadata: Metadata{
+					Pipelines: []PipelineMetadata{
+						{
+							AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+							StoragePolicies: []policy.StoragePolicy{
+								policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+								policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
+							},
+						},
+						{
+							AggregationID: aggregation.DefaultID,
+							StoragePolicies: []policy.StoragePolicy{
+								policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	b, err := json.Marshal(vs)
+	require.NoError(t, err)
+	var res VersionedStagedMetadatas
+	require.NoError(t, json.Unmarshal(b, &res))
+	require.Equal(t, vs, res)
 }
