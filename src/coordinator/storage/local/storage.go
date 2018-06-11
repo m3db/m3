@@ -27,25 +27,26 @@ import (
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/storage"
-	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util/execution"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
 
-const (
-	initRawFetchAllocSize = 32
-)
-
 type localStorage struct {
-	session   client.Session
-	namespace ident.ID
+	session    client.Session
+	namespace  ident.ID
+	workerPool pool.ObjectPool
 }
 
 // NewStorage creates a new local Storage instance.
-func NewStorage(session client.Session, namespace string) storage.Storage {
-	return &localStorage{session: session, namespace: ident.StringID(namespace)}
+func NewStorage(session client.Session, namespace string, workerPool pool.ObjectPool) storage.Storage {
+	return &localStorage{
+		session:    session,
+		namespace:  ident.StringID(namespace),
+		workerPool: workerPool,
+	}
 }
 
 func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.FetchResult, error) {
@@ -70,28 +71,7 @@ func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, opt
 		return nil, err
 	}
 
-	defer iters.Close()
-
-	seriesList := make([]*ts.Series, iters.Len())
-	for i, iter := range iters.Iters() {
-		metric, err := storage.FromM3IdentToMetric(s.namespace, iter.ID(), iter.Tags())
-		if err != nil {
-			return nil, err
-		}
-
-		datapoints := make(ts.Datapoints, 0, initRawFetchAllocSize)
-		for iter.Next() {
-			dp, _, _ := iter.Current()
-			datapoints = append(datapoints, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
-		}
-
-		series := ts.NewSeries(metric.ID, datapoints, metric.Tags)
-		seriesList[i] = series
-	}
-
-	return &storage.FetchResult{
-		SeriesList: seriesList,
-	}, nil
+	return storage.SeriesIteratorsToFetchResult(iters, s.namespace, s.workerPool)
 }
 
 func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {

@@ -70,6 +70,10 @@ func (s sessionPools) TagDecoder() serialize.TagDecoderPool {
 	return s.tagDecoder
 }
 
+func (s sessionPools) TagEncoder() serialize.TagEncoderPool {
+	return s.tagEncoder
+}
+
 func (s sessionPools) ReaderSliceOfSlicesIterator() *readerSliceOfSlicesIteratorPool {
 	return s.readerSliceOfSlicesIterator
 }

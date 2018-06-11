@@ -22,11 +22,16 @@ package storage
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/generated/proto/prompb"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/ts"
+	"github.com/m3db/m3db/src/dbnode/encoding"
+	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
+	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -120,7 +125,6 @@ func PromTypeToM3(labelType prompb.LabelMatcher_Type) (models.MatchType, error) 
 
 	default:
 		return 0, fmt.Errorf("unknown match type %v", labelType)
-
 	}
 }
 
@@ -176,4 +180,128 @@ func SeriesToPromSamples(series *ts.Series) []*prompb.Sample {
 	}
 
 	return samples
+}
+
+const (
+	// TODO(arnikola) get from config
+	initRawFetchAllocSize = 32
+)
+
+func iteratorToTsSeries(
+	iter encoding.SeriesIterator,
+	namespace ident.ID,
+) (*ts.Series, error) {
+	if namespace == nil {
+		namespace = iter.Namespace()
+	}
+	metric, err := FromM3IdentToMetric(namespace, iter.ID(), iter.Tags())
+	if err != nil {
+		return nil, err
+	}
+
+	datapoints := make(ts.Datapoints, 0, initRawFetchAllocSize)
+	for iter.Next() {
+		dp, _, _ := iter.Current()
+		datapoints = append(datapoints, ts.Datapoint{Timestamp: dp.Timestamp, Value: dp.Value})
+	}
+
+	return ts.NewSeries(metric.ID, datapoints, metric.Tags), nil
+}
+
+// Fall back to sequential decompression if unable to decompress concurrently
+func decompressSequentially(
+	iterLength int,
+	iters []encoding.SeriesIterator,
+	namespace ident.ID,
+) (*FetchResult, error) {
+	seriesList := make([]*ts.Series, iterLength)
+	for i, iter := range iters {
+		series, err := iteratorToTsSeries(iter, namespace)
+		if err != nil {
+			return nil, err
+		}
+		seriesList[i] = series
+	}
+
+	return &FetchResult{
+		SeriesList: seriesList,
+	}, nil
+}
+
+func decompressConcurrently(
+	iterLength int,
+	iters []encoding.SeriesIterator,
+	namespace ident.ID,
+	pool xsync.WorkerPool,
+) (*FetchResult, error) {
+	seriesList := make([]*ts.Series, iterLength)
+	var wg sync.WaitGroup
+	errorCh := make(chan error, 1)
+	done := make(chan struct{})
+	stopped := func() bool {
+		select {
+		case <-done:
+			return true
+		default:
+			return false
+		}
+	}
+
+	wg.Add(iterLength)
+
+	for i, iter := range iters {
+		i := i
+		iter := iter
+		pool.Go(func() {
+			defer wg.Done()
+			if stopped() {
+				return
+			}
+
+			series, err := iteratorToTsSeries(iter, namespace)
+			if err != nil {
+				// Return the first error that is encountered.
+				select {
+				case errorCh <- err:
+					close(done)
+				default:
+				}
+				return
+			}
+			seriesList[i] = series
+		})
+	}
+	wg.Wait()
+	close(errorCh)
+	if err := <-errorCh; err != nil {
+		return nil, err
+	}
+
+	return &FetchResult{
+		SeriesList: seriesList,
+	}, nil
+}
+
+// SeriesIteratorsToFetchResult converts SeriesIterators into a fetch result
+func SeriesIteratorsToFetchResult(
+	seriesIterators encoding.SeriesIterators,
+	namespace ident.ID,
+	workerPools pool.ObjectPool,
+) (*FetchResult, error) {
+	defer seriesIterators.Close()
+
+	iters := seriesIterators.Iters()
+	iterLength := seriesIterators.Len()
+
+	if workerPools == nil {
+		return decompressSequentially(iterLength, iters, namespace)
+	}
+
+	pool, ok := workerPools.Get().(xsync.WorkerPool)
+	if !ok {
+		return decompressSequentially(iterLength, iters, namespace)
+	}
+	defer workerPools.Put(pool)
+
+	return decompressConcurrently(iterLength, iters, namespace, pool)
 }
