@@ -51,6 +51,18 @@ type Topic interface {
 
 	// SetVersion sets the version of the topic.
 	SetVersion(value int) Topic
+
+	// AddConsumerService adds a consumer to the topic.
+	AddConsumerService(value ConsumerService) (Topic, error)
+
+	// RemoveConsumerService removes a consumer from the topic.
+	RemoveConsumerService(value services.ServiceID) (Topic, error)
+
+	// String returns the string representation of the topic.
+	String() string
+
+	// Validate() validates the topic.
+	Validate() error
 }
 
 // ConsumerService is a service that consumes the messages in a topic.
@@ -86,10 +98,10 @@ type Watch interface {
 // Service provides accessibility to topics.
 type Service interface {
 	// Get returns the topic and version for the given name.
-	Get(name string) (Topic, int, error)
+	Get(name string) (Topic, error)
 
 	// CheckAndSet sets the topic for the name if the version matches.
-	CheckAndSet(name string, currentVersion int, t Topic) error
+	CheckAndSet(t Topic, version int) (Topic, error)
 
 	// Delete deletes the topic with the name.
 	Delete(name string) error
@@ -113,20 +125,18 @@ type ServiceOptions interface {
 	SetKVOverrideOptions(value kv.OverrideOptions) ServiceOptions
 }
 
-//go:generate stringer -type=ConsumptionType
-
 // ConsumptionType defines how the consumer consumes messages.
-type ConsumptionType int
+type ConsumptionType string
 
 const (
 	// Unknown is the unknown consumption type.
-	Unknown ConsumptionType = iota
+	Unknown ConsumptionType = "unknown"
 
 	// Shared means the messages for each shard will be
 	// shared by all the responsible instances.
-	Shared
+	Shared ConsumptionType = "shared"
 
 	// Replicated means the messages for each shard will be
 	// replicated to all the responsible instances.
-	Replicated
+	Replicated ConsumptionType = "replicated"
 )

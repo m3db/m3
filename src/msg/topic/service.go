@@ -27,6 +27,7 @@ import (
 )
 
 var (
+	defaultNamespace     = "/topic"
 	errTopicNotAvailable = errors.New("topic is not available")
 )
 
@@ -36,7 +37,8 @@ type service struct {
 
 // NewService creates a topic service.
 func NewService(sOpts ServiceOptions) (Service, error) {
-	store, err := sOpts.ConfigService().Store(sOpts.KVOverrideOptions())
+	kvOpts := sanitizeKVOptions(sOpts.KVOverrideOptions())
+	store, err := sOpts.ConfigService().Store(kvOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -45,25 +47,31 @@ func NewService(sOpts ServiceOptions) (Service, error) {
 	}, nil
 }
 
-func (s *service) Get(name string) (Topic, int, error) {
+func (s *service) Get(name string) (Topic, error) {
 	value, err := s.store.Get(key(name))
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	t, err := NewTopicFromValue(value)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
-	return t, value.Version(), nil
+	return t, nil
 }
 
-func (s *service) CheckAndSet(name string, version int, t Topic) error {
+func (s *service) CheckAndSet(t Topic, version int) (Topic, error) {
+	if err := t.Validate(); err != nil {
+		return nil, err
+	}
 	pb, err := ToProto(t)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, err = s.store.CheckAndSet(key(name), version, pb)
-	return err
+	version, err = s.store.CheckAndSet(key(t.Name()), version, pb)
+	if err != nil {
+		return nil, err
+	}
+	return t.SetVersion(version), nil
 }
 
 func (s *service) Delete(name string) error {
@@ -81,6 +89,13 @@ func (s *service) Watch(name string) (Watch, error) {
 
 func key(name string) string {
 	return name
+}
+
+func sanitizeKVOptions(opts kv.OverrideOptions) kv.OverrideOptions {
+	if opts.Namespace() == "" {
+		opts = opts.SetNamespace(defaultNamespace)
+	}
+	return opts
 }
 
 // NewWatch creates a new topic watch.

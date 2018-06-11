@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
@@ -39,9 +40,10 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
-func TestWriterInitError(t *testing.T) {
+func TestWriterInitErrorNoTopic(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	ctrl := gomock.NewController(t)
@@ -137,9 +139,8 @@ func TestWriterInvalidTopicUpdate(t *testing.T) {
 		SetName(opts.TopicName()).
 		SetNumberOfShards(2).
 		SetConsumerServices([]topic.ConsumerService{cs1})
-	pb, err := topic.ToProto(testTopic)
+	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
 	require.NoError(t, err)
-	store.Set(opts.TopicName(), pb)
 
 	sd := services.NewMockServices(ctrl)
 	opts = opts.SetServiceDiscovery(sd)
@@ -176,11 +177,11 @@ func TestWriterInvalidTopicUpdate(t *testing.T) {
 	testTopic = topic.NewTopic().
 		SetName(opts.TopicName()).
 		SetNumberOfShards(3).
-		SetConsumerServices([]topic.ConsumerService{cs1})
-	pb, err = topic.ToProto(testTopic)
-	require.NoError(t, err)
+		SetConsumerServices([]topic.ConsumerService{cs1}).
+		SetVersion(1)
 	wg.Add(1)
-	store.Set(opts.TopicName(), pb)
+	_, err = ts.CheckAndSet(testTopic, 1)
+	require.NoError(t, err)
 	wg.Wait()
 
 	require.Equal(t, 2, int(w.numShards))
@@ -255,9 +256,8 @@ func TestWriterTopicUpdate(t *testing.T) {
 		SetName(opts.TopicName()).
 		SetNumberOfShards(2).
 		SetConsumerServices([]topic.ConsumerService{cs1})
-	pb, err := topic.ToProto(testTopic)
+	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
 	require.NoError(t, err)
-	store.Set(opts.TopicName(), pb)
 
 	sd := services.NewMockServices(ctrl)
 	opts = opts.SetServiceDiscovery(sd)
@@ -300,14 +300,15 @@ func TestWriterTopicUpdate(t *testing.T) {
 	sd.EXPECT().PlacementService(sid4, gomock.Any()).Return(ps4, nil)
 	ps4.EXPECT().Watch().Return(nil, errors.New("watch error"))
 
-	testTopic = testTopic.SetConsumerServices([]topic.ConsumerService{
-		cs1, cs2,
-		cs3, // Could not create consumer service write for cs3.
-		cs4, // Could not init cs4.
-	})
-	pb, err = topic.ToProto(testTopic)
+	testTopic = testTopic.
+		SetConsumerServices([]topic.ConsumerService{
+			cs1, cs2,
+			cs3, // Could not create consumer service write for cs3.
+			cs4, // Could not init cs4.
+		}).
+		SetVersion(1)
+	_, err = ts.CheckAndSet(testTopic, 1)
 	require.NoError(t, err)
-	store.Set(opts.TopicName(), pb)
 
 	for {
 		w.RLock()
@@ -323,10 +324,11 @@ func TestWriterTopicUpdate(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	require.Equal(t, 2, len(w.consumerServiceWriters))
 
-	testTopic = testTopic.SetConsumerServices([]topic.ConsumerService{cs2})
-	pb, err = topic.ToProto(testTopic)
+	testTopic = testTopic.
+		SetConsumerServices([]topic.ConsumerService{cs2}).
+		SetVersion(0)
+	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
 	require.NoError(t, err)
-	store.Set(opts.TopicName(), pb)
 
 	for {
 		w.RLock()
@@ -339,14 +341,113 @@ func TestWriterTopicUpdate(t *testing.T) {
 	}
 	w.Close()
 
-	testTopic = testTopic.SetConsumerServices([]topic.ConsumerService{cs1, cs2})
-	pb, err = topic.ToProto(testTopic)
+	testTopic = testTopic.
+		SetConsumerServices([]topic.ConsumerService{cs1, cs2}).
+		SetVersion(1)
+	_, err = ts.CheckAndSet(testTopic, 1)
 	require.NoError(t, err)
-	store.Set(opts.TopicName(), pb)
 
 	// Not going to process topic update anymore.
 	time.Sleep(100 * time.Millisecond)
 	require.Equal(t, 1, len(w.consumerServiceWriters))
+}
+
+func TestTopicUpdateWithSameConsumerServicesButDifferentOrder(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := mem.NewStore()
+	cs := client.NewMockClient(ctrl)
+	cs.EXPECT().Store(gomock.Any()).Return(store, nil)
+
+	ts, err := topic.NewService(topic.NewServiceOptions().SetConfigService(cs))
+	require.NoError(t, err)
+
+	opts := testOptions().SetTopicService(ts)
+
+	sid1 := services.NewServiceID().SetName("s1")
+	cs1 := topic.NewConsumerService().SetConsumptionType(topic.Replicated).SetServiceID(sid1)
+	sid2 := services.NewServiceID().SetName("s2")
+	cs2 := topic.NewConsumerService().SetConsumptionType(topic.Shared).SetServiceID(sid2)
+	testTopic := topic.NewTopic().
+		SetName(opts.TopicName()).
+		SetNumberOfShards(1).
+		SetConsumerServices([]topic.ConsumerService{cs1, cs2})
+	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
+	require.NoError(t, err)
+
+	sd := services.NewMockServices(ctrl)
+	opts = opts.SetServiceDiscovery(sd)
+	ps1 := testPlacementService(store, sid1)
+	sd.EXPECT().PlacementService(sid1, gomock.Any()).Return(ps1, nil)
+	ps2 := testPlacementService(store, sid2)
+	sd.EXPECT().PlacementService(sid2, gomock.Any()).Return(ps2, nil)
+
+	p1 := placement.NewPlacement().
+		SetInstances([]placement.Instance{
+			placement.NewInstance().
+				SetID("i1").
+				SetEndpoint("i1").
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Available),
+				})),
+		}).
+		SetShards([]uint32{0}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+	require.NoError(t, ps1.Set(p1))
+
+	p2 := placement.NewPlacement().
+		SetInstances([]placement.Instance{
+			placement.NewInstance().
+				SetID("i2").
+				SetEndpoint("i2").
+				SetShards(shard.NewShards([]shard.Shard{
+					shard.NewShard(0).SetState(shard.Available),
+				})),
+		}).
+		SetShards([]uint32{0}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+	require.NoError(t, ps2.Set(p2))
+
+	w := NewWriter(opts).(*writer)
+
+	called := atomic.NewInt32(0)
+	w.processFn = func(update interface{}) error {
+		called.Inc()
+		return w.process(update)
+	}
+	require.NoError(t, w.Init())
+	require.Equal(t, 1, int(called.Load()))
+	require.Equal(t, 2, len(w.consumerServiceWriters))
+	csw, ok := w.consumerServiceWriters[cs1.ServiceID().String()]
+	require.True(t, ok)
+	cswMock1 := NewMockconsumerServiceWriter(ctrl)
+	w.consumerServiceWriters[cs1.ServiceID().String()] = cswMock1
+	defer csw.Close()
+
+	csw, ok = w.consumerServiceWriters[cs2.ServiceID().String()]
+	require.True(t, ok)
+	cswMock2 := NewMockconsumerServiceWriter(ctrl)
+	w.consumerServiceWriters[cs2.ServiceID().String()] = cswMock2
+	defer csw.Close()
+
+	testTopic = testTopic.
+		SetConsumerServices([]topic.ConsumerService{cs2, cs1}).
+		SetVersion(1)
+	_, err = ts.CheckAndSet(testTopic, 1)
+	require.NoError(t, err)
+
+	// The update will be processed, but nothing will be called on any of the mock writers.
+	for called.Load() != 2 {
+		time.Sleep(50 * time.Millisecond)
+	}
+	cswMock1.EXPECT().Close()
+	cswMock2.EXPECT().Close()
+	w.Close()
 }
 
 func TestWriterWrite(t *testing.T) {
@@ -372,9 +473,8 @@ func TestWriterWrite(t *testing.T) {
 		SetName(opts.TopicName()).
 		SetNumberOfShards(1).
 		SetConsumerServices([]topic.ConsumerService{cs1, cs2})
-	pb, err := topic.ToProto(testTopic)
+	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
 	require.NoError(t, err)
-	store.Set(opts.TopicName(), pb)
 
 	sd := services.NewMockServices(ctrl)
 	opts = opts.SetServiceDiscovery(sd)
@@ -493,9 +593,8 @@ func TestWriterCloseBlocking(t *testing.T) {
 		SetName(opts.TopicName()).
 		SetNumberOfShards(1).
 		SetConsumerServices([]topic.ConsumerService{cs1})
-	pb, err := topic.ToProto(testTopic)
+	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
 	require.NoError(t, err)
-	store.Set(opts.TopicName(), pb)
 
 	sd := services.NewMockServices(ctrl)
 	opts = opts.SetServiceDiscovery(sd)
