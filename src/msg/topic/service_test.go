@@ -46,27 +46,31 @@ func TestTopicService(t *testing.T) {
 	require.NoError(t, err)
 
 	topicName := "topic1"
-	_, _, err = s.Get(topicName)
+	_, err = s.Get(topicName)
 	require.Error(t, err)
+
+	_, err = s.CheckAndSet(NewTopic(), kv.UninitializedVersion)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid topic")
 
 	w, err := s.Watch(topicName)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(w.C()))
 
 	topic1 := NewTopic().
+		SetName(topicName).
 		SetNumberOfShards(100).
 		SetConsumerServices([]ConsumerService{
 			NewConsumerService().SetConsumptionType(Shared).SetServiceID(services.NewServiceID().SetName("s1")),
 			NewConsumerService().SetConsumptionType(Replicated).SetServiceID(services.NewServiceID().SetName("s2")),
 		})
-	err = s.CheckAndSet(topicName, 0, topic1)
+	topic1, err = s.CheckAndSet(topic1, kv.UninitializedVersion)
 	require.NoError(t, err)
-	err = s.CheckAndSet(topicName, 1, topic1)
+	topic1, err = s.CheckAndSet(topic1, 1)
 	require.NoError(t, err)
 
-	topic2, version, err := s.Get(topicName)
+	topic2, err := s.Get(topicName)
 	require.NoError(t, err)
-	require.Equal(t, 2, version)
 	require.Equal(t, 2, topic2.Version())
 	require.Equal(t, topic1.Name(), topic2.Name())
 	require.Equal(t, topic1.NumberOfShards(), topic2.NumberOfShards())
@@ -84,23 +88,23 @@ func TestTopicService(t *testing.T) {
 	_, err = w.Get()
 	require.Error(t, err)
 
-	err = s.CheckAndSet(topicName, 0, topic1)
+	_, err = s.CheckAndSet(topic1, kv.UninitializedVersion)
 	require.NoError(t, err)
 
 	<-w.C()
 	topic, err = w.Get()
 	require.NoError(t, err)
 
-	topic3, version, err := s.Get(topicName)
+	topic3, err := s.Get(topicName)
 	require.NoError(t, err)
-	require.Equal(t, 1, version)
+	require.Equal(t, 1, topic3.Version())
 	require.Equal(t, topic3, topic)
 
-	version, err = store.Set(key(topicName), &msgpb.Message{Value: []byte("bad proto")})
+	version, err := store.Set(key(topicName), &msgpb.Message{Value: []byte("bad proto")})
 	require.NoError(t, err)
 	require.Equal(t, 2, version)
 
-	_, _, err = s.Get(topicName)
+	_, err = s.Get(topicName)
 	require.Error(t, err)
 
 	<-w.C()

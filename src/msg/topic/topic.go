@@ -21,11 +21,18 @@
 package topic
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3msg/generated/proto/topicpb"
+)
+
+var (
+	errEmptyName  = errors.New("invalid topic: empty name")
+	errZeroShards = errors.New("invalid topic: zero shards")
 )
 
 type topic struct {
@@ -107,6 +114,66 @@ func (t *topic) SetVersion(value int) Topic {
 	return &newt
 }
 
+func (t *topic) AddConsumerService(value ConsumerService) (Topic, error) {
+	cur := t.ConsumerServices()
+	for _, cs := range cur {
+		if cs.ServiceID().String() == value.ServiceID().String() {
+			return nil, fmt.Errorf("service %s is already consuming the topic", value.ServiceID().String())
+		}
+	}
+
+	return t.SetConsumerServices(append(cur, value)), nil
+}
+
+func (t *topic) RemoveConsumerService(value services.ServiceID) (Topic, error) {
+	cur := t.ConsumerServices()
+	for i, cs := range cur {
+		if cs.ServiceID().String() == value.String() {
+			cur = append(cur[:i], cur[i+1:]...)
+			return t.SetConsumerServices(cur), nil
+		}
+	}
+
+	return nil, fmt.Errorf("could not find consumer service %s in the topic", value.String())
+}
+
+func (t *topic) String() string {
+	var buf bytes.Buffer
+	buf.WriteString("\n{\n")
+	buf.WriteString(fmt.Sprintf("\tversion: %d\n", t.version))
+	buf.WriteString(fmt.Sprintf("\tname: %s\n", t.name))
+	buf.WriteString(fmt.Sprintf("\tnumOfShards: %d\n", t.numOfShards))
+	if len(t.consumerServices) > 0 {
+		buf.WriteString("\tconsumerServices: {\n")
+	}
+	for _, cs := range t.consumerServices {
+		buf.WriteString(fmt.Sprintf("\t\t%s\n", cs.String()))
+	}
+	if len(t.consumerServices) > 0 {
+		buf.WriteString("\t}\n")
+	}
+	buf.WriteString("}\n")
+	return buf.String()
+}
+
+func (t *topic) Validate() error {
+	if t.Name() == "" {
+		return errEmptyName
+	}
+	if t.NumberOfShards() == 0 {
+		return errZeroShards
+	}
+	uniqConsumers := make(map[string]struct{}, len(t.ConsumerServices()))
+	for _, cs := range t.ConsumerServices() {
+		_, ok := uniqConsumers[cs.ServiceID().String()]
+		if ok {
+			return fmt.Errorf("invalid topic: duplicated consumer %s", cs.ServiceID().String())
+		}
+		uniqConsumers[cs.ServiceID().String()] = struct{}{}
+	}
+	return nil
+}
+
 // ToProto creates proto from a topic.
 func ToProto(t Topic) (*topicpb.Topic, error) {
 	css := t.ConsumerServices()
@@ -180,28 +247,6 @@ func (cs *consumerService) SetConsumptionType(value ConsumptionType) ConsumerSer
 
 func (cs *consumerService) String() string {
 	return fmt.Sprintf("{service: %s, consumption type: %s}", cs.sid.String(), cs.ct.String())
-}
-
-// NewConsumptionTypeFromProto creates ConsumptionType from a proto.
-func NewConsumptionTypeFromProto(ct topicpb.ConsumptionType) (ConsumptionType, error) {
-	switch ct {
-	case topicpb.ConsumptionType_SHARED:
-		return Shared, nil
-	case topicpb.ConsumptionType_REPLICATED:
-		return Replicated, nil
-	}
-	return Unknown, fmt.Errorf("invalid consumption type in protobuf: %v", ct)
-}
-
-// ConsumptionTypeToProto creates proto from a ConsumptionType.
-func ConsumptionTypeToProto(ct ConsumptionType) (topicpb.ConsumptionType, error) {
-	switch ct {
-	case Shared:
-		return topicpb.ConsumptionType_SHARED, nil
-	case Replicated:
-		return topicpb.ConsumptionType_REPLICATED, nil
-	}
-	return topicpb.ConsumptionType_UNKNOWN, fmt.Errorf("invalid consumption type: %v", ct)
 }
 
 // NewServiceIDFromProto creates service id from a proto.

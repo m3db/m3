@@ -111,7 +111,7 @@ func newTestSetup(
 		SetName(topicName).
 		SetNumberOfShards(uint32(numberOfShards)).
 		SetConsumerServices(topicConsumerServices)
-	err = ts.CheckAndSet(testTopic.Name(), 0, testTopic)
+	_, err = ts.CheckAndSet(testTopic, kv.UninitializedVersion)
 	require.NoError(t, err)
 
 	var producers []producer.Producer
@@ -365,11 +365,11 @@ func (s *setup) ReplaceInstance(t *testing.T, idx int) {
 
 func (s *setup) RemoveConsumerService(t *testing.T, idx int) {
 	require.True(t, idx < len(s.consumerServices))
-	topic, v, err := s.ts.Get(topicName)
+	topic, err := s.ts.Get(topicName)
 	require.NoError(t, err)
 	css := topic.ConsumerServices()
 	topic = topic.SetConsumerServices(append(css[:idx], css[idx+1:]...))
-	s.ts.CheckAndSet(topicName, v, topic)
+	s.ts.CheckAndSet(topic, topic.Version())
 	tcss := s.consumerServices
 	tcs := tcss[idx]
 	s.consumerServices = append(tcss[:idx], tcss[idx+1:]...)
@@ -380,10 +380,10 @@ func (s *setup) RemoveConsumerService(t *testing.T, idx int) {
 func (s *setup) AddConsumerService(t *testing.T, config consumerServiceConfig) {
 	cs := newTestConsumerService(t, len(s.consumerServices), config, s.sd, len(s.producers), s.totalConsumed)
 	s.consumerServices = append(s.consumerServices, cs)
-	topic, v, err := s.ts.Get(topicName)
+	topic, err := s.ts.Get(topicName)
 	require.NoError(t, err)
 	topic = topic.SetConsumerServices(append(topic.ConsumerServices(), cs.consumerService))
-	s.ts.CheckAndSet(topicName, v, topic)
+	s.ts.CheckAndSet(topic, topic.Version())
 }
 
 type testConsumerService struct {

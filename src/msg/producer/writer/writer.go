@@ -133,7 +133,7 @@ func (w *writer) Init() error {
 		return t, nil
 	}
 	vOptions := watch.NewOptions().
-		SetInitWatchTimeout(w.opts.PlacementWatchInitTimeout()).
+		SetInitWatchTimeout(w.opts.TopicWatchInitTimeout()).
 		SetInstrumentOptions(w.opts.InstrumentOptions()).
 		SetNewUpdatableFn(newUpdatableFn).
 		SetGetUpdateFn(getUpdateFn).
@@ -144,6 +144,9 @@ func (w *writer) Init() error {
 
 func (w *writer) process(update interface{}) error {
 	t := update.(topic.Topic)
+	if err := t.Validate(); err != nil {
+		return err
+	}
 	// We don't allow changing number of shards for topics, it will be
 	// prevented on topic service side, but also being defensive here as well.
 	if w.numShards != 0 && w.numShards != t.NumberOfShards() {
