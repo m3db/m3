@@ -291,7 +291,7 @@ func tagIteratorFromTags(compressedTags []*rpc.Tag, idPool ident.Pool) ident.Tag
 
 func tagIteratorFromSeries(series *rpc.Series, iteratorPools encoding.IteratorPools) (ident.TagIterator, error) {
 	compressedValues := series.GetCompressed()
-	if len(compressedValues.GetCompressedTags()) > 0 {
+	if compressedValues != nil && len(compressedValues.GetCompressedTags()) > 0 {
 		return tagIteratorFromCompressedTagsWithDecoder(compressedValues.GetCompressedTags(), iteratorPools)
 	}
 	var idPool ident.Pool
