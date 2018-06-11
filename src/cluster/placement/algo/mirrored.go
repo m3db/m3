@@ -225,16 +225,16 @@ func (a mirroredAlgorithm) ReplaceInstances(
 	return p, nil
 }
 
-func (a mirroredAlgorithm) MarkShardAvailable(
+func (a mirroredAlgorithm) MarkShardsAvailable(
 	p placement.Placement,
 	instanceID string,
-	shardID uint32,
+	shardIDs ...uint32,
 ) (placement.Placement, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
 
-	return a.shardedAlgo.MarkShardAvailable(p, instanceID, shardID)
+	return a.shardedAlgo.MarkShardsAvailable(p, instanceID, shardIDs...)
 }
 
 func (a mirroredAlgorithm) MarkAllShardsAvailable(

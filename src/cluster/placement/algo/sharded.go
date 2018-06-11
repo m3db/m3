@@ -197,16 +197,16 @@ func (a shardedPlacementAlgorithm) ReplaceInstances(
 	return tryCleanupShardState(p, a.opts)
 }
 
-func (a shardedPlacementAlgorithm) MarkShardAvailable(
+func (a shardedPlacementAlgorithm) MarkShardsAvailable(
 	p placement.Placement,
 	instanceID string,
-	shardID uint32,
+	shardIDs ...uint32,
 ) (placement.Placement, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
 
-	return markShardAvailable(p.Clone(), instanceID, shardID, a.opts)
+	return markShardsAvailable(p.Clone(), instanceID, shardIDs, a.opts)
 }
 
 func (a shardedPlacementAlgorithm) MarkAllShardsAvailable(

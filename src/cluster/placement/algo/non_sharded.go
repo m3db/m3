@@ -136,10 +136,10 @@ func (a nonShardedAlgorithm) ReplaceInstances(
 	return a.RemoveInstances(p, leavingInstanceIDs)
 }
 
-func (a nonShardedAlgorithm) MarkShardAvailable(
+func (a nonShardedAlgorithm) MarkShardsAvailable(
 	p placement.Placement,
 	instanceID string,
-	shardID uint32,
+	shardIDs ...uint32,
 ) (placement.Placement, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
