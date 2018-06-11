@@ -38,6 +38,9 @@ type storage struct {
 
 // NewPlacementStorage creates a placement.Storage.
 func NewPlacementStorage(store kv.Store, key string, opts placement.Options) placement.Storage {
+	if opts == nil {
+		opts = placement.NewOptions()
+	}
 	return &storage{
 		key:    key,
 		store:  store,

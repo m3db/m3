@@ -41,6 +41,9 @@ type placementService struct {
 
 // NewPlacementService returns an instance of placement service.
 func NewPlacementService(s placement.Storage, opts placement.Options) placement.Service {
+	if opts == nil {
+		opts = placement.NewOptions()
+	}
 	return &placementService{
 		Storage:  s,
 		opts:     opts,

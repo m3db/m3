@@ -26,6 +26,9 @@ import (
 
 // NewAlgorithm returns a placement algorithm with given options
 func NewAlgorithm(opts placement.Options) placement.Algorithm {
+	if opts == nil {
+		opts = placement.NewOptions()
+	}
 	if opts.IsMirrored() {
 		return newMirroredAlgorithm(opts)
 	}
