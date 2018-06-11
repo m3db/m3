@@ -188,13 +188,13 @@ func (ps *placementService) ReplaceInstances(
 	return p, addedInstances, ps.CheckAndSet(p, v)
 }
 
-func (ps *placementService) MarkShardAvailable(instanceID string, shardID uint32) error {
+func (ps *placementService) MarkShardsAvailable(instanceID string, shardIDs ...uint32) error {
 	p, v, err := ps.Placement()
 	if err != nil {
 		return err
 	}
 
-	if p, err = ps.algo.MarkShardAvailable(p, instanceID, shardID); err != nil {
+	if p, err = ps.algo.MarkShardsAvailable(p, instanceID, shardIDs...); err != nil {
 		return err
 	}
 
@@ -241,7 +241,7 @@ func (ps *placementService) MarkInstanceAvailable(instanceID string) error {
 		if s.State() != shard.Initializing {
 			continue
 		}
-		p, err = ps.algo.MarkShardAvailable(p, instanceID, s.ID())
+		p, err = ps.algo.MarkShardsAvailable(p, instanceID, s.ID())
 		if err != nil {
 			return err
 		}

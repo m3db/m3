@@ -408,7 +408,7 @@ func TestMarkShard(t *testing.T) {
 	assert.NoError(t, err)
 
 	ps := NewPlacementService(ms, placement.NewOptions().SetValidZone("z1"))
-	err = ps.MarkShardAvailable("i5", 1)
+	err = ps.MarkShardsAvailable("i5", 1)
 	assert.NoError(t, err)
 	p, _, err = ms.Placement()
 	assert.NoError(t, err)
@@ -419,10 +419,10 @@ func TestMarkShard(t *testing.T) {
 		}
 	}
 
-	err = ps.MarkShardAvailable("i1", 1)
+	err = ps.MarkShardsAvailable("i1", 1)
 	assert.Error(t, err)
 
-	err = ps.MarkShardAvailable("i5", 5)
+	err = ps.MarkShardsAvailable("i5", 5)
 	assert.Error(t, err)
 }
 
