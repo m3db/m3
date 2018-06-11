@@ -1,5 +1,5 @@
-hash: 02286cc73017c01f50fd19c566a19a5865f8a2d07902896ab5e1582e950dfbdf
-updated: 2018-04-24T15:56:44.007793-04:00
+hash: 82538fe00c89f82322a03b54111f83ecf52010897ba5e0788c64eb4defd82eee
+updated: 2018-06-10T17:50:42.772429-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -15,14 +15,25 @@ imports:
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
+- name: github.com/gogo/protobuf
+  version: 100ba4e885062801d56799d78530b73b178a78f3
+  subpackages:
+  - gogoproto
+  - proto
+  - protoc-gen-gogo/descriptor
 - name: github.com/golang/mock
   version: 77f22c2b84e452a6b76fb0d1b09c9cfb44746aa4
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
+  version: 5a0f697c9ed9d68fef0116532c6e05cfeae00e55
   subpackages:
   - proto
+- name: github.com/m3db/m3aggregator
+  version: 4dad15f325f8db998fc26aaa153927a82fffbb70
+  subpackages:
+  - client
+  - sharding
 - name: github.com/m3db/m3cluster
   version: 829d4ae9ed79c90f32122cb32464312aed39686d
   subpackages:
@@ -41,24 +52,37 @@ imports:
   - services/leader/campaign
   - shard
 - name: github.com/m3db/m3metrics
-  version: 0ba7ae136279e4c5394fc46347cf9f5732352f5c
+  version: c1e712b253c6662049507a11f70f83d5165ef3c9
   subpackages:
   - aggregation
+  - encoding
+  - encoding/migration
+  - encoding/msgpack
+  - encoding/protobuf
   - errors
   - filters
-  - generated/proto/schema
+  - generated/proto/aggregationpb
+  - generated/proto/metricpb
+  - generated/proto/pipelinepb
+  - generated/proto/policypb
+  - generated/proto/rulepb
+  - generated/proto/transformationpb
   - matcher
   - matcher/cache
+  - metadata
   - metric
   - metric/aggregated
   - metric/id
   - metric/id/m3
   - metric/unaggregated
+  - pipeline
+  - pipeline/applied
   - policy
-  - protocol/msgpack
   - rules
   - rules/models
   - rules/models/changes
+  - transformation
+  - x/bytes
 - name: github.com/m3db/m3x
   version: d2606268ec596e14f84f1c9dd5c06317b944692d
   subpackages:
@@ -83,7 +107,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/shirou/gopsutil
-  version: fc04d2dd9a512906a2604242b35275179e250eda
+  version: eeb1d38d69593f121e060d24d17f7b1f0936b203
 - name: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/spaolacci/murmur3
@@ -91,14 +115,14 @@ imports:
 - name: github.com/StackExchange/wmi
   version: e542ed97d15e640bdc14b5c12162d59e8fc67324
 - name: github.com/stretchr/testify
-  version: d77da356e56a7428ad25149ca77381849a6a5232
+  version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
   - assert
   - require
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 522328b48efad0c6034dba92bf39228694e9d31f
+  version: 79f2a33b0e55b1255ffbbaf824dcafb09ff34dda
   subpackages:
   - m3
   - m3/customtransports
@@ -107,7 +131,7 @@ imports:
 - name: github.com/willf/bitset
   version: 988f4f24992fc745de53c42df0da6581e42a6686
 - name: go.uber.org/atomic
-  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
@@ -143,9 +167,12 @@ imports:
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
 - name: github.com/fortytw2/leaktest
-  version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
-- name: github.com/leanovate/gopter
-  version: 9e6101e5a87586b269acf3d0d61f363e4317309f
+  version: a5ef70473c97b71626b9abeda80ee92ba2a7de9e
+- name: github.com/google/go-cmp
+  version: 3af367b6b30c263d47e8895973edcca9a49cf029
   subpackages:
-  - gen
-  - prop
+  - cmp
+  - cmp/cmpopts
+  - cmp/internal/diff
+  - cmp/internal/function
+  - cmp/internal/value

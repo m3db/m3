@@ -28,25 +28,30 @@ import (
 	"testing"
 	"time"
 
+	aggclient "github.com/m3db/m3aggregator/client"
 	"github.com/m3db/m3cluster/kv"
-	msgpackbackend "github.com/m3db/m3collector/backend/msgpack"
-	msgpackserver "github.com/m3db/m3collector/integration/msgpack"
+	aggserver "github.com/m3db/m3collector/integration/server"
+	"github.com/m3db/m3metrics/encoding/protobuf"
 	"github.com/m3db/m3metrics/matcher"
+	"github.com/m3db/m3metrics/metadata"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 )
 
 type testReportWithRuleUpdatesOptions struct {
-	Description  string
-	Store        kv.Store
-	MatcherOpts  matcher.Options
-	BackendOpts  msgpackbackend.ServerOptions
-	InputIDGen   idGenerator
-	OutputRes    outputResults
-	RuleUpdateFn func()
+	Description   string
+	Store         kv.Store
+	MatcherOpts   matcher.Options
+	AggClientOpts aggclient.Options
+	InputIDGen    idGenerator
+	OutputRes     outputResults
+	RuleUpdateFn  func()
 }
 
 func testReportWithRuleUpdates(
@@ -56,60 +61,44 @@ func testReportWithRuleUpdates(
 	var (
 		resultsLock sync.Mutex
 		received    int
-		results     []metricWithPoliciesList
+		results     []metricWithMetadatas
 	)
-	handleFn := func(metric unaggregated.MetricUnion, policiesList policy.PoliciesList) error {
-		if !metric.OwnsID {
-			cloned := make([]byte, len(metric.ID))
-			copy(cloned, metric.ID)
-			metric.ID = id.RawID(cloned)
-			metric.OwnsID = true
-		}
-
-		// NB: The policies list decoded from the iterator only valid until the next decoding
-		// iteration. Make a copy here for validation later.
-		clonedPoliciesList := make(policy.PoliciesList, len(policiesList))
-		for i, sp := range policiesList {
-			policies, isDefault := sp.Policies()
-			if isDefault {
-				clonedPoliciesList[i] = policy.DefaultStagedPolicies
-			} else {
-				clonedPolicies := make([]policy.Policy, len(policies))
-				copy(clonedPolicies, policies)
-				clonedPoliciesList[i] = policy.NewStagedPolicies(sp.CutoverNanos, sp.Tombstoned, clonedPolicies)
-			}
-		}
-
-		var value interface{}
-		switch metric.Type {
-		case unaggregated.CounterType:
-			value = metric.Counter()
-		case unaggregated.BatchTimerType:
-			value = metric.BatchTimer()
-		case unaggregated.GaugeType:
-			value = metric.Gauge()
-		}
+	handleFn := func(
+		metric unaggregated.MetricUnion,
+		metadatas metadata.StagedMetadatas,
+	) error {
+		// The metric ID and metadatas decoded from the iterator are only valid till the
+		// next decoding iteration, and as such we make a copy here for validation later.
+		clonedMetric := cloneMetric(metric)
+		clonedMetadatas := cloneMetadatas(metadatas)
 
 		resultsLock.Lock()
 		defer resultsLock.Unlock()
-		results = append(results, metricWithPoliciesList{
-			metric:       value,
-			policiesList: clonedPoliciesList,
+		results = append(results, metricWithMetadatas{
+			metric:    clonedMetric,
+			metadatas: clonedMetadatas,
 		})
 		received++
 		return nil
 	}
 
-	// Create matcher.
+	// Set up test.
+	bytesPool := defaultBytesPool()
+	bytesPool.Init()
+	decodingIterOpts := protobuf.NewUnaggregatedOptions().SetBytesPool(bytesPool)
+	handlerOpts := aggserver.NewHandlerOptions().
+		SetHandleFn(handleFn).
+		SetProtobufUnaggregatedIteratorOptions(decodingIterOpts)
+	serverOpts := aggserver.NewOptions().SetHandlerOptions(handlerOpts)
 	testOpts := newTestOptions().
 		SetKVStore(opts.Store).
 		SetMatcherOptions(opts.MatcherOpts).
-		SetBackendOptions(opts.BackendOpts).
-		SetServerOptions(msgpackserver.NewOptions().SetHandleFn(handleFn))
+		SetAggregatorClientOptions(opts.AggClientOpts).
+		SetServerOptions(serverOpts)
 	testSetup := newTestSetup(t, testOpts)
 	defer testSetup.close()
 
-	// Start the server
+	// Start the server.
 	log := testOpts.InstrumentOptions().Logger()
 	log.Info(opts.Description)
 	require.NoError(t, testSetup.startServer())
@@ -118,14 +107,14 @@ func testReportWithRuleUpdates(
 	// Report metrics.
 	var (
 		reporter            = testSetup.Reporter()
-		reportIter          = 400000
+		reportIter          = 100000
 		ruleUpdatesIter     = 10000
-		types               = []unaggregated.Type{unaggregated.CounterType, unaggregated.BatchTimerType, unaggregated.GaugeType}
+		types               = []metric.Type{metric.CounterType, metric.TimerType, metric.GaugeType}
 		counterVal          = int64(1234)
 		batchTimerVals      = []float64{1.57, 2.38, 99.102}
 		gaugeVal            = 9.345
 		wg                  sync.WaitGroup
-		expectedResults     []metricWithPoliciesList
+		expectedResults     []metricWithMetadatas
 		expectedResultsLock sync.Mutex
 	)
 
@@ -145,12 +134,12 @@ func testReportWithRuleUpdates(
 				expectedResultsLock.Lock()
 				for _, result := range opts.OutputRes {
 					resID := id.RawID(result.idGen(i).Bytes())
-					expectedResults = append(expectedResults, metricWithPoliciesList{
+					expectedResults = append(expectedResults, metricWithMetadatas{
 						metric: unaggregated.Counter{
 							ID:    resID,
 							Value: counterVal,
-						},
-						policiesList: result.policiesList,
+						}.ToUnion(),
+						metadatas: result.metadatas,
 					})
 				}
 				expectedResultsLock.Unlock()
@@ -165,12 +154,12 @@ func testReportWithRuleUpdates(
 				expectedResultsLock.Lock()
 				for _, result := range opts.OutputRes {
 					resID := id.RawID(result.idGen(i).Bytes())
-					expectedResults = append(expectedResults, metricWithPoliciesList{
+					expectedResults = append(expectedResults, metricWithMetadatas{
 						metric: unaggregated.BatchTimer{
 							ID:     resID,
 							Values: batchTimerVals,
-						},
-						policiesList: result.policiesList,
+						}.ToUnion(),
+						metadatas: result.metadatas,
 					})
 				}
 				expectedResultsLock.Unlock()
@@ -185,12 +174,12 @@ func testReportWithRuleUpdates(
 				expectedResultsLock.Lock()
 				for _, result := range opts.OutputRes {
 					resID := id.RawID(result.idGen(i).Bytes())
-					expectedResults = append(expectedResults, metricWithPoliciesList{
+					expectedResults = append(expectedResults, metricWithMetadatas{
 						metric: unaggregated.Gauge{
 							ID:    resID,
 							Value: gaugeVal,
-						},
-						policiesList: result.policiesList,
+						}.ToUnion(),
+						metadatas: result.metadatas,
 					})
 				}
 				expectedResultsLock.Unlock()
@@ -227,7 +216,43 @@ func testReportWithRuleUpdates(
 	log.Info("server is now down")
 
 	// Validate results.
+	testCmpOpts := []cmp.Option{
+		cmpopts.EquateEmpty(),
+		cmp.AllowUnexported(metricWithMetadatas{}),
+		cmp.AllowUnexported(policy.StoragePolicy{}),
+	}
 	sort.Sort(resultsByTypeAscIDAsc(results))
 	sort.Sort(resultsByTypeAscIDAsc(expectedResults))
-	require.Equal(t, expectedResults, results)
+	require.True(t, cmp.Equal(expectedResults, results, testCmpOpts...))
+}
+
+func cloneMetric(metric unaggregated.MetricUnion) unaggregated.MetricUnion {
+	clonedMetric := metric
+	clonedID := make(id.RawID, len(metric.ID))
+	copy(clonedID, metric.ID)
+	clonedMetric.ID = clonedID
+	clonedBatchTimerVal := make([]float64, len(metric.BatchTimerVal))
+	copy(clonedBatchTimerVal, metric.BatchTimerVal)
+	clonedMetric.BatchTimerVal = clonedBatchTimerVal
+	return clonedMetric
+}
+
+func cloneMetadatas(metadatas metadata.StagedMetadatas) metadata.StagedMetadatas {
+	clonedMetadatas := make(metadata.StagedMetadatas, 0, len(metadatas))
+	for _, stagedMetadata := range metadatas {
+		clonedStagedMetadata := stagedMetadata
+		pipelines := stagedMetadata.Pipelines
+		clonedPipelines := make([]metadata.PipelineMetadata, 0, len(pipelines))
+		for _, pipeline := range pipelines {
+			clonedPipeline := metadata.PipelineMetadata{
+				AggregationID:   pipeline.AggregationID,
+				StoragePolicies: pipeline.StoragePolicies.Clone(),
+				Pipeline:        pipeline.Pipeline.Clone(),
+			}
+			clonedPipelines = append(clonedPipelines, clonedPipeline)
+		}
+		clonedStagedMetadata.Pipelines = clonedPipelines
+		clonedMetadatas = append(clonedMetadatas, clonedStagedMetadata)
+	}
+	return clonedMetadatas
 }
