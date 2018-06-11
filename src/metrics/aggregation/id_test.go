@@ -21,6 +21,7 @@
 package aggregation
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
@@ -53,4 +54,43 @@ func TestIDRoundTrip(t *testing.T) {
 	require.NoError(t, testID.ToProto(&pb))
 	require.NoError(t, res.FromProto(pb))
 	require.Equal(t, testID, res)
+}
+
+func TestIDMarshalJSON(t *testing.T) {
+	inputs := []struct {
+		id       ID
+		expected string
+	}{
+		{id: DefaultID, expected: `null`},
+		{id: testID, expected: `["Last","Min"]`},
+	}
+	for _, input := range inputs {
+		b, err := json.Marshal(input.id)
+		require.NoError(t, err)
+		require.Equal(t, input.expected, string(b))
+	}
+}
+
+func TestIDMarshalJSONError(t *testing.T) {
+	inputs := []ID{
+		ID{1234235235},
+	}
+	for _, input := range inputs {
+		_, err := json.Marshal(input)
+		require.Error(t, err)
+	}
+}
+
+func TestIDMarshalJSONRoundtrip(t *testing.T) {
+	inputs := []ID{
+		DefaultID,
+		testID,
+	}
+	for _, input := range inputs {
+		b, err := json.Marshal(input)
+		require.NoError(t, err)
+		var res ID
+		require.NoError(t, json.Unmarshal(b, &res))
+		require.Equal(t, input, res)
+	}
 }

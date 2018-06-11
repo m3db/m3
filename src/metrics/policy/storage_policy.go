@@ -241,11 +241,9 @@ func (sp StoragePolicies) Clone() StoragePolicies {
 	return cloned
 }
 
-// IsDefaultStoragePolicies returns whether a list of storage policies are considered
+// IsDefault returns whether a list of storage policies are considered
 // as default storage policies.
-func IsDefaultStoragePolicies(storagePolicies StoragePolicies) bool {
-	return len(storagePolicies) == 0
-}
+func (sp StoragePolicies) IsDefault() bool { return len(sp) == 0 }
 
 // ByResolutionAscRetentionDesc implements the sort.Sort interface that enables sorting
 // storage policies by resolution in ascending order and then by retention in descending

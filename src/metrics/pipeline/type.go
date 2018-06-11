@@ -304,11 +304,7 @@ func (op RollupOp) String() string {
 
 // MarshalJSON returns the JSON encoding of a rollup operation.
 func (op RollupOp) MarshalJSON() ([]byte, error) {
-	converted, err := newRollupMarshaler(op)
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(converted)
+	return json.Marshal(newRollupMarshaler(op))
 }
 
 // UnmarshalJSON unmarshals JSON-encoded data into a rollup operation.
@@ -317,11 +313,7 @@ func (op *RollupOp) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &converted); err != nil {
 		return err
 	}
-	rollupOp, err := converted.RollupOp()
-	if err != nil {
-		return err
-	}
-	*op = rollupOp
+	*op = converted.RollupOp()
 	return nil
 }
 
@@ -331,42 +323,30 @@ func (op *RollupOp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&converted); err != nil {
 		return err
 	}
-	rollupOp, err := converted.RollupOp()
-	if err != nil {
-		return err
-	}
-	*op = rollupOp
+	*op = converted.RollupOp()
 	return nil
 }
 
 type rollupMarshaler struct {
-	NewName     string            `json:"newName" yaml:"newName"`
-	Tags        []string          `json:"tags" yaml:"tags"`
-	Aggregation aggregation.Types `json:"aggregation,omitempty" yaml:"aggregation"`
+	NewName       string         `json:"newName" yaml:"newName"`
+	Tags          []string       `json:"tags" yaml:"tags"`
+	AggregationID aggregation.ID `json:"aggregation,omitempty" yaml:"aggregation"`
 }
 
-func newRollupMarshaler(op RollupOp) (rollupMarshaler, error) {
-	types, err := op.AggregationID.Types()
-	if err != nil {
-		return rollupMarshaler{}, fmt.Errorf("invalid aggregation ID %v: %v", op.AggregationID, err)
-	}
+func newRollupMarshaler(op RollupOp) rollupMarshaler {
 	return rollupMarshaler{
-		NewName:     string(op.NewName),
-		Tags:        xbytes.ArraysToStringArray(op.Tags),
-		Aggregation: types,
-	}, nil
+		NewName:       string(op.NewName),
+		Tags:          xbytes.ArraysToStringArray(op.Tags),
+		AggregationID: op.AggregationID,
+	}
 }
 
-func (m rollupMarshaler) RollupOp() (RollupOp, error) {
-	aggregationID, err := aggregation.CompressTypes(m.Aggregation...)
-	if err != nil {
-		return RollupOp{}, fmt.Errorf("invalid aggregation types %v: %v", m.Aggregation, err)
-	}
+func (m rollupMarshaler) RollupOp() RollupOp {
 	return RollupOp{
 		NewName:       []byte(m.NewName),
 		Tags:          xbytes.ArraysFromStringArray(m.Tags),
-		AggregationID: aggregationID,
-	}, nil
+		AggregationID: m.AggregationID,
+	}
 }
 
 // OpUnion is a union of different types of operation.

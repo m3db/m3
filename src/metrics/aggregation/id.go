@@ -21,6 +21,7 @@
 package aggregation
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/m3db/m3metrics/generated/proto/aggregationpb"
@@ -60,21 +61,6 @@ func NewIDFromProto(input []aggregationpb.AggregationType) (ID, error) {
 	return id, nil
 }
 
-// CompressTypes compresses a list of aggregation types to an ID.
-func CompressTypes(aggTypes ...Type) (ID, error) {
-	return NewIDCompressor().Compress(aggTypes)
-}
-
-// MustCompressTypes compresses a list of aggregation types to
-// an ID, it panics if an error was encountered.
-func MustCompressTypes(aggTypes ...Type) ID {
-	res, err := CompressTypes(aggTypes...)
-	if err != nil {
-		panic(err)
-	}
-	return res
-}
-
 // IsDefault checks if the ID is the default aggregation type.
 func (id ID) IsDefault() bool {
 	return id == DefaultID
@@ -100,13 +86,50 @@ func (id ID) Types() (Types, error) {
 	return NewIDDecompressor().Decompress(id)
 }
 
-// String for debugging.
+// String is a string representation of the ID.
 func (id ID) String() string {
 	aggTypes, err := id.Types()
 	if err != nil {
 		return fmt.Sprintf("[invalid ID: %v]", err)
 	}
 	return aggTypes.String()
+}
+
+// MarshalJSON returns the JSON encoding of an ID.
+func (id ID) MarshalJSON() ([]byte, error) {
+	aggTypes, err := id.Types()
+	if err != nil {
+		return nil, fmt.Errorf("invalid aggregation id %v: %v", id, err)
+	}
+	return json.Marshal(aggTypes)
+}
+
+// UnmarshalJSON unmarshals JSON-encoded data into an ID.
+func (id *ID) UnmarshalJSON(data []byte) error {
+	var aggTypes Types
+	if err := json.Unmarshal(data, &aggTypes); err != nil {
+		return err
+	}
+	tid, err := CompressTypes(aggTypes...)
+	if err != nil {
+		return fmt.Errorf("invalid aggregation types %v: %v", aggTypes, err)
+	}
+	*id = tid
+	return nil
+}
+
+// UnmarshalYAML unmarshals YAML-encoded data into an ID.
+func (id *ID) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var aggTypes Types
+	if err := unmarshal(&aggTypes); err != nil {
+		return err
+	}
+	tid, err := CompressTypes(aggTypes...)
+	if err != nil {
+		return fmt.Errorf("invalid aggregation types %v: %v", aggTypes, err)
+	}
+	*id = tid
+	return nil
 }
 
 // ToProto converts the aggregation id to a protobuf message in place.
@@ -125,4 +148,19 @@ func (id *ID) FromProto(pb aggregationpb.AggregationID) error {
 	}
 	(*id)[0] = pb.Id
 	return nil
+}
+
+// CompressTypes compresses a list of aggregation types to an ID.
+func CompressTypes(aggTypes ...Type) (ID, error) {
+	return NewIDCompressor().Compress(aggTypes)
+}
+
+// MustCompressTypes compresses a list of aggregation types to
+// an ID, it panics if an error was encountered.
+func MustCompressTypes(aggTypes ...Type) ID {
+	res, err := CompressTypes(aggTypes...)
+	if err != nil {
+		panic(err)
+	}
+	return res
 }

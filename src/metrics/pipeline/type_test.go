@@ -261,7 +261,7 @@ func TestOpUnionMarshalJSON(t *testing.T) {
 					AggregationID: aggregation.DefaultID,
 				},
 			},
-			expected: `{"rollup":{"newName":"testRollup","tags":["tag1","tag2"]}}`,
+			expected: `{"rollup":{"newName":"testRollup","tags":["tag1","tag2"],"aggregation":null}}`,
 		},
 	}
 
@@ -277,7 +277,6 @@ func TestOpUnionMarshalJSONError(t *testing.T) {
 	_, err := json.Marshal(op)
 	require.Error(t, err)
 }
-
 func TestOpUnionMarshalJSONRoundtrip(t *testing.T) {
 	ops := []OpUnion{
 		{
@@ -348,7 +347,7 @@ func TestPipelineMarshalJSON(t *testing.T) {
 	expected := `[{"aggregation":"Sum"},` +
 		`{"transformation":"PerSecond"},` +
 		`{"rollup":{"newName":"testRollup","tags":["tag1","tag2"],"aggregation":["Min","Max"]}},` +
-		`{"rollup":{"newName":"testRollup","tags":["tag1","tag2"]}}]`
+		`{"rollup":{"newName":"testRollup","tags":["tag1","tag2"],"aggregation":null}}]`
 	require.Equal(t, expected, string(b))
 }
 
