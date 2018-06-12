@@ -56,6 +56,13 @@ var (
 		// Default staged policies.
 		policy.DefaultStagedPolicies,
 
+		// Staged policies with default policies lists.
+		policy.NewStagedPolicies(
+			123,
+			false,
+			nil,
+		),
+
 		// Single pipeline.
 		policy.NewStagedPolicies(
 			1234,
@@ -116,6 +123,11 @@ var (
 	testConvertStagedMetadatas = metadata.StagedMetadatas{
 		metadata.DefaultStagedMetadata,
 		metadata.StagedMetadata{
+			CutoverNanos: 123,
+			Tombstoned:   false,
+			Metadata:     metadata.DefaultMetadata,
+		},
+		metadata.StagedMetadata{
 			CutoverNanos: 1234,
 			Tombstoned:   false,
 			Metadata: metadata.Metadata{
@@ -161,7 +173,7 @@ var (
 )
 
 func TestToStagedMetadatas(t *testing.T) {
-	require.Equal(t, testConvertStagedMetadatas, toStagedMetadatas(testConvertPoliciesList))
+	require.Equal(t, testConvertStagedMetadatas, ToStagedMetadatas(testConvertPoliciesList))
 }
 
 func TestToUnaggregatedMessageUnion(t *testing.T) {
