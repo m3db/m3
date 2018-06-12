@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3msg/producer/msg"
 	"github.com/m3db/m3msg/protocol/proto"
 	"github.com/m3db/m3msg/topic"
-	"github.com/m3db/m3x/watch"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -563,7 +562,7 @@ func TestConsumerServiceWriterAllowInitValueErrorWithInitValueError(t *testing.T
 	require.NoError(t, w.Init(allowInitValueError))
 }
 
-func TestConsumerServiceWriterInitWithCreateWatchError(t *testing.T) {
+func TestConsumerServiceWriterInitError(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	ctrl := gomock.NewController(t)
@@ -585,32 +584,7 @@ func TestConsumerServiceWriterInitWithCreateWatchError(t *testing.T) {
 
 	err = w.Init(failOnError)
 	require.Error(t, err)
-	_, ok := err.(watch.CreateWatchError)
-	require.True(t, ok)
-}
-
-func TestConsumerServiceWriterInitWithInitValueError(t *testing.T) {
-	defer leaktest.Check(t)()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	sid := services.NewServiceID().SetName("foo")
-	cs := topic.NewConsumerService().SetServiceID(sid).SetConsumptionType(topic.Shared)
-
-	ps := testPlacementService(mem.NewStore(), sid)
-	sd := services.NewMockServices(ctrl)
-	sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil)
-
-	opts := testOptions().SetServiceDiscovery(sd)
-	w, err := newConsumerServiceWriter(cs, 3, opts)
-	require.NoError(t, err)
-	defer w.Close()
-
-	err = w.Init(failOnError)
-	require.Error(t, err)
-	_, ok := err.(watch.InitValueError)
-	require.True(t, ok)
+	require.Contains(t, err.Error(), "m3msg consumer service writer init error")
 }
 
 func testPlacementService(store kv.Store, sid services.ServiceID) placement.Service {

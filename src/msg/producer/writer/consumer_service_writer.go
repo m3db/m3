@@ -22,6 +22,7 @@ package writer
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -214,17 +215,12 @@ func (w *consumerServiceWriterImpl) Init(t initType) error {
 	if err == nil {
 		return nil
 	}
-	switch t {
-	case failOnError:
-		return err
-	case allowInitValueError:
+	if t == allowInitValueError {
 		if _, ok := err.(watch.InitValueError); ok {
 			return nil
 		}
-		return err
-	default:
-		return err
 	}
+	return fmt.Errorf("m3msg consumer service writer init error: %v", err)
 }
 
 func (w *consumerServiceWriterImpl) process(update interface{}) error {
