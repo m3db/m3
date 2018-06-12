@@ -139,7 +139,10 @@ func (w *writer) Init() error {
 		SetGetUpdateFn(getUpdateFn).
 		SetProcessFn(w.processFn)
 	w.value = watch.NewValue(vOptions)
-	return w.value.Watch()
+	if err := w.value.Watch(); err != nil {
+		return fmt.Errorf("m3msg writer init error: %v", err)
+	}
+	return nil
 }
 
 func (w *writer) process(update interface{}) error {

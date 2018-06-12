@@ -442,10 +442,7 @@ func (w *messageWriterImpl) RemoveConsumerWriter(addr string) {
 }
 
 func (w *messageWriterImpl) QueueSize() int {
-	w.RLock()
-	l := w.queue.Len()
-	w.RUnlock()
-	return l
+	return w.acks.size()
 }
 
 func (w *messageWriterImpl) newMessage() *message {
@@ -475,27 +472,34 @@ func newAckHelper(size int) *acks {
 	}
 }
 
-func (h *acks) add(meta metadata, m *message) {
-	h.Lock()
-	h.m[meta] = m
-	h.Unlock()
+func (a *acks) add(meta metadata, m *message) {
+	a.Lock()
+	a.m[meta] = m
+	a.Unlock()
 }
 
-func (h *acks) remove(meta metadata) {
-	h.Lock()
-	delete(h.m, meta)
-	h.Unlock()
+func (a *acks) remove(meta metadata) {
+	a.Lock()
+	delete(a.m, meta)
+	a.Unlock()
 }
 
-func (h *acks) ack(meta metadata) {
-	h.Lock()
-	m, ok := h.m[meta]
+func (a *acks) ack(meta metadata) {
+	a.Lock()
+	m, ok := a.m[meta]
 	if !ok {
-		h.Unlock()
+		a.Unlock()
 		// Acking a message that is already acked, which is ok.
 		return
 	}
-	delete(h.m, meta)
-	h.Unlock()
+	delete(a.m, meta)
+	a.Unlock()
 	m.Ack()
+}
+
+func (a *acks) size() int {
+	a.Lock()
+	l := len(a.m)
+	a.Unlock()
+	return l
 }

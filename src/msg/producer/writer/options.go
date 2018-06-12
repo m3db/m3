@@ -39,8 +39,8 @@ const (
 	defaultCloseCheckInterval        = time.Second
 	defaultConnectionResetDelay      = 2 * time.Second
 	defaultMessageQueueScanInterval  = time.Second
-	defaultMessageRetryBatchSize     = 16 * 1024
-	defaultInitialAckMapSize         = 16 * 1024
+	defaultMessageRetryBatchSize     = 1024
+	defaultInitialAckMapSize         = 1024
 	// Using 16K which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
 	defaultConnectionBufferSize = 16384
