@@ -31,7 +31,7 @@ type MappingRule struct {
 	Name                string                 `json:"name" validate:"required"`
 	CutoverMillis       int64                  `json:"cutoverMillis,omitempty"`
 	Filter              string                 `json:"filter" validate:"required"`
-	AggregationID       aggregation.ID         `json:"aggregationID"`
+	AggregationID       aggregation.ID         `json:"aggregation"`
 	StoragePolicies     policy.StoragePolicies `json:"storagePolicies"`
 	LastUpdatedBy       string                 `json:"lastUpdatedBy"`
 	LastUpdatedAtMillis int64                  `json:"lastUpdatedAtMillis"`
