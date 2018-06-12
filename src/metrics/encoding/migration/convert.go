@@ -34,7 +34,7 @@ func toUnaggregatedMessageUnion(
 	metricUnion unaggregated.MetricUnion,
 	policiesList policy.PoliciesList,
 ) (encoding.UnaggregatedMessageUnion, error) {
-	metadatas := toStagedMetadatas(policiesList)
+	metadatas := ToStagedMetadatas(policiesList)
 	switch metricUnion.Type {
 	case metric.CounterType:
 		return encoding.UnaggregatedMessageUnion{
@@ -65,23 +65,23 @@ func toUnaggregatedMessageUnion(
 	}
 }
 
+// ToStagedMetadatas converts a list of policies to staged metadatas.
 // TODO: look into reuse metadatas during conversion.
-func toStagedMetadatas(
+func ToStagedMetadatas(
 	policiesList policy.PoliciesList,
 ) metadata.StagedMetadatas {
 	numStagedPolicies := len(policiesList)
 	res := make(metadata.StagedMetadatas, 0, numStagedPolicies)
 	for _, sp := range policiesList {
-		if sp.IsDefault() {
-			sm := metadata.DefaultStagedMetadata
-			res = append(res, sm)
-			continue
-		}
 		sm := metadata.StagedMetadata{}
 		sm.CutoverNanos = sp.CutoverNanos
 		sm.Tombstoned = sp.Tombstoned
-		policies, _ := sp.Policies()
-		sm.Metadata = toMetadata(policies)
+		policies, isDefault := sp.Policies()
+		if isDefault {
+			sm.Metadata = metadata.DefaultMetadata
+		} else {
+			sm.Metadata = toMetadata(policies)
+		}
 		res = append(res, sm)
 	}
 	return res
