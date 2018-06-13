@@ -1,5 +1,5 @@
-hash: e5ec323b289b7f089cbf07de1b64ad7b05df97113ec70f53a51b3a55eb717ab0
-updated: 2018-04-13T09:58:57.478011411-04:00
+hash: dbf71d181ca042b0d7a90dc61742182656ae1203ba2c7813b4a0836d8efddb82
+updated: 2018-06-13T13:53:36.755497-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -30,6 +30,12 @@ imports:
   - currency
 - name: github.com/go-playground/universal-translator
   version: 71201497bace774495daed26a3874fd339e0b538
+- name: github.com/gogo/protobuf
+  version: 100ba4e885062801d56799d78530b73b178a78f3
+  subpackages:
+  - gogoproto
+  - proto
+  - protoc-gen-gogo/descriptor
 - name: github.com/golang/mock
   version: c34cdb4725f4c3844d095133c6e40e448b86589b
   subpackages:
@@ -76,23 +82,33 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: b9180a85d76e188a542c24745f1c46dc2921281a
+  version: 7f583691525792425e599cf267e401ae56516891
   subpackages:
   - aggregation
   - errors
   - filters
-  - generated/proto/schema
+  - generated/proto/aggregationpb
+  - generated/proto/metricpb
+  - generated/proto/pipelinepb
+  - generated/proto/policypb
+  - generated/proto/rulepb
+  - generated/proto/transformationpb
+  - metadata
   - metric
   - metric/id
+  - pipeline
+  - pipeline/applied
   - policy
   - rules
-  - rules/models
-  - rules/models/changes
   - rules/store/kv
   - rules/validator
   - rules/validator/namespace
   - rules/validator/namespace/kv
   - rules/validator/namespace/static
+  - rules/view
+  - rules/view/changes
+  - transformation
+  - x/bytes
 - name: github.com/m3db/m3x
   version: a5cc485300c733558a25e1e6c5e9dcf4dbc241c4
   subpackages:
@@ -136,7 +152,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 522328b48efad0c6034dba92bf39228694e9d31f
+  version: 79f2a33b0e55b1255ffbbaf824dcafb09ff34dda
   subpackages:
   - m3
   - m3/customtransports
@@ -145,11 +161,11 @@ imports:
 - name: github.com/willf/bitset
   version: 988f4f24992fc745de53c42df0da6581e42a6686
 - name: go.uber.org/atomic
-  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+  version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  version: eeedf312bc6c57391d84767a4cd413f02a917974
   subpackages:
   - buffer
   - internal/bufferpool

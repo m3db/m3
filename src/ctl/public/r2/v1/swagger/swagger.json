@@ -893,14 +893,6 @@
         }
     },
     "definitions": {
-        "Namespace": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string"
-                }
-            }
-        },
         "Namespaces": {
             "type": "object",
             "properties": {
@@ -912,6 +904,14 @@
                     "items": {
                         "$ref": "#/definitions/Namespace"
                     }
+                }
+            }
+        },
+        "Namespace": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
                 }
             }
         },
@@ -998,24 +998,10 @@
                 }
             }
         },
-        "Policies": {
+        "MappingRuleHistory": {
             "type": "array",
             "items": {
-                "type": "string"
-            }
-        },
-        "MappingRuleData": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "filter": {
-                    "type": "string"
-                },
-                "policies": {
-                    "$ref": "#/definitions/Policies"
-                }
+                "$ref": "#/definitions/MappingRule"
             }
         },
         "MappingRule": {
@@ -1030,10 +1016,16 @@
                 "filter": {
                     "type": "string"
                 },
-                "policies": {
-                    "$ref": "#/definitions/Policies"
+                "aggregation": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
-                "cutoverMillies": {
+                "storagePolicies": {
+                    "$ref": "#/definitions/StoragePolicies"
+                },
+                "cutoverMillis": {
                     "type": "integer"
                 },
                 "lastUpdatedBy": {
@@ -1044,27 +1036,10 @@
                 }
             }
         },
-        "MappingRuleHistory": {
+        "RollupRuleHistory": {
             "type": "array",
             "items": {
-                "$ref": "#/definitions/MappingRule"
-            }
-        },
-        "RollupRuleData": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "filter": {
-                    "type": "string"
-                },
-                "targets": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/RollupTarget"
-                    }
-                }
+                "$ref": "#/definitions/RollupRule"
             }
         },
         "RollupRule": {
@@ -1099,24 +1074,22 @@
         "RollupTarget": {
             "type": "object",
             "properties": {
-                "name": {
-                    "type": "string"
+                "pipeline": {
+                    "$ref": "#/definitions/Pipeline"
                 },
-                "tags": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "policies": {
-                    "$ref": "#/definitions/Policies"
+                "storagePolicies": {
+                    "$ref": "#/definitions/StoragePolicies"
                 }
             }
         },
-        "RollupRuleHistory": {
+        "Pipeline": {
+            "type": "array",
+            "items": {}
+        },
+        "StoragePolicies": {
             "type": "array",
             "items": {
-                "$ref": "#/definitions/RollupRule"
+                "type": "string"
             }
         },
         "ApiResponse": {
