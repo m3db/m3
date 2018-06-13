@@ -18,54 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package models
+package changes
 
-import (
-	"testing"
+import "github.com/m3db/m3metrics/rules/view"
 
-	"github.com/stretchr/testify/require"
-)
-
-func TestNewNamespace(t *testing.T) {
-	view := &NamespaceView{
-		Name:              "name",
-		ForRuleSetVersion: 1,
-	}
-	res := NewNamespace(view)
-	expected := Namespace{
-		ID:                "name",
-		ForRuleSetVersion: 1,
-	}
-	require.Equal(t, expected, res)
+// MappingRuleChange is a mapping rule diff.
+type MappingRuleChange struct {
+	Op       Op                `json:"op"`
+	RuleID   *string           `json:"ruleID,omitempty"`
+	RuleData *view.MappingRule `json:"ruleData,omitempty"`
 }
 
-func TestNewNamespaces(t *testing.T) {
-	view := &NamespacesView{
-		Version: 1,
-		Namespaces: []*NamespaceView{
-			&NamespaceView{
-				Name:              "name1",
-				ForRuleSetVersion: 1,
-			},
-			&NamespaceView{
-				Name:              "name2",
-				ForRuleSetVersion: 1,
-			},
-		},
+type mappingRuleChangesByOpAscNameAscIDAsc []MappingRuleChange
+
+func (a mappingRuleChangesByOpAscNameAscIDAsc) Len() int      { return len(a) }
+func (a mappingRuleChangesByOpAscNameAscIDAsc) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a mappingRuleChangesByOpAscNameAscIDAsc) Less(i, j int) bool {
+	if a[i].Op < a[j].Op {
+		return true
 	}
-	res := NewNamespaces(view)
-	expected := Namespaces{
-		Version: 1,
-		Namespaces: []Namespace{
-			{
-				ID:                "name1",
-				ForRuleSetVersion: 1,
-			},
-			{
-				ID:                "name2",
-				ForRuleSetVersion: 1,
-			},
-		},
+	if a[i].Op > a[j].Op {
+		return false
 	}
-	require.Equal(t, expected, res)
+	// For adds and changes.
+	if a[i].RuleData != nil && a[j].RuleData != nil {
+		return a[i].RuleData.Name < a[j].RuleData.Name
+	}
+	// For deletes.
+	if a[i].RuleID != nil && a[j].RuleID != nil {
+		return *a[i].RuleID < *a[j].RuleID
+	}
+	// This should not happen
+	return false
 }

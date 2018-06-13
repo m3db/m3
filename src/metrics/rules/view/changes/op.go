@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,18 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package rules
+package changes
 
-import "github.com/m3db/m3metrics/rules/view"
+// Op is an update operation.
+type Op string
 
-// Validator validates a ruleset.
-type Validator interface {
-	// Validate validates a ruleset.
-	Validate(rs RuleSet) error
-
-	// ValidateSnapshot validates a ruleset snapshot.
-	ValidateSnapshot(snapshot view.RuleSet) error
-
-	// Close closes the validator.
-	Close()
-}
+// A list of supported update operations.
+const (
+	AddOp    Op = "add"
+	ChangeOp Op = "change"
+	DeleteOp Op = "delete"
+)

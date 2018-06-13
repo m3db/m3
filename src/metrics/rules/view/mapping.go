@@ -18,69 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package models
+package view
 
 import (
 	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/policy"
 )
 
-// MappingRule is a common json serializable mapping rule.
+// MappingRule is a mapping rule model at a given point in time.
 type MappingRule struct {
 	ID                  string                 `json:"id,omitempty"`
 	Name                string                 `json:"name" validate:"required"`
+	Tombstoned          bool                   `json:"tombstoned"`
 	CutoverMillis       int64                  `json:"cutoverMillis,omitempty"`
 	Filter              string                 `json:"filter" validate:"required"`
 	AggregationID       aggregation.ID         `json:"aggregation"`
 	StoragePolicies     policy.StoragePolicies `json:"storagePolicies"`
 	LastUpdatedBy       string                 `json:"lastUpdatedBy"`
 	LastUpdatedAtMillis int64                  `json:"lastUpdatedAtMillis"`
-}
-
-// MappingRuleView is a human friendly representation of a mapping rule at a given point in time.
-type MappingRuleView struct {
-	ID                 string
-	Name               string
-	Tombstoned         bool
-	CutoverNanos       int64
-	Filter             string
-	AggregationID      aggregation.ID
-	StoragePolicies    policy.StoragePolicies
-	LastUpdatedBy      string
-	LastUpdatedAtNanos int64
-}
-
-// MappingRuleViews belonging to a ruleset indexed by uuid.
-// Each value contains the entire snapshot history of the rule.
-type MappingRuleViews map[string][]*MappingRuleView
-
-// NewMappingRule takes a MappingRuleView and returns the equivalent MappingRule.
-func NewMappingRule(mrv *MappingRuleView) MappingRule {
-	return MappingRule{
-		ID:                  mrv.ID,
-		Name:                mrv.Name,
-		Filter:              mrv.Filter,
-		AggregationID:       mrv.AggregationID,
-		StoragePolicies:     mrv.StoragePolicies,
-		CutoverMillis:       mrv.CutoverNanos / nanosPerMilli,
-		LastUpdatedBy:       mrv.LastUpdatedBy,
-		LastUpdatedAtMillis: mrv.LastUpdatedAtNanos / nanosPerMilli,
-	}
-}
-
-// ToMappingRuleView returns a ToMappingRuleView type.
-func (m MappingRule) ToMappingRuleView() *MappingRuleView {
-	return &MappingRuleView{
-		ID:                 m.ID,
-		Name:               m.Name,
-		Tombstoned:         false,
-		CutoverNanos:       m.CutoverMillis * nanosPerMilli,
-		Filter:             m.Filter,
-		AggregationID:      m.AggregationID,
-		StoragePolicies:    m.StoragePolicies,
-		LastUpdatedBy:      m.LastUpdatedBy,
-		LastUpdatedAtNanos: m.LastUpdatedAtMillis * nanosPerMilli,
-	}
 }
 
 // Equal determines whether two mapping rules are equal.
@@ -98,22 +53,18 @@ func (m *MappingRule) Equal(other *MappingRule) bool {
 		m.StoragePolicies.Equal(other.StoragePolicies)
 }
 
-type mappingRulesByNameAsc []MappingRule
+// MappingRules belonging to a ruleset indexed by uuid.
+// Each value contains the entire snapshot history of the rule.
+type MappingRules map[string][]MappingRule
 
-func (a mappingRulesByNameAsc) Len() int           { return len(a) }
-func (a mappingRulesByNameAsc) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a mappingRulesByNameAsc) Less(i, j int) bool { return a[i].Name < a[j].Name }
+// MappingRulesByNameAsc sorts mapping rules by name in ascending order.
+type MappingRulesByNameAsc []MappingRule
+
+func (a MappingRulesByNameAsc) Len() int           { return len(a) }
+func (a MappingRulesByNameAsc) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a MappingRulesByNameAsc) Less(i, j int) bool { return a[i].Name < a[j].Name }
 
 // MappingRuleSnapshots contains a list of mapping rule snapshots.
 type MappingRuleSnapshots struct {
 	MappingRules []MappingRule `json:"mappingRules"`
-}
-
-// NewMappingRuleSnapshots returns a new MappingRuleSnapshots object.
-func NewMappingRuleSnapshots(hist []*MappingRuleView) MappingRuleSnapshots {
-	mappingRules := make([]MappingRule, len(hist))
-	for i, view := range hist {
-		mappingRules[i] = NewMappingRule(view)
-	}
-	return MappingRuleSnapshots{MappingRules: mappingRules}
 }

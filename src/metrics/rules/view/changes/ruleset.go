@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,18 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package rules
+package changes
 
-import "github.com/m3db/m3metrics/rules/view"
+import (
+	"sort"
+)
 
-// Validator validates a ruleset.
-type Validator interface {
-	// Validate validates a ruleset.
-	Validate(rs RuleSet) error
+// RuleSetChanges is a ruleset diff.
+type RuleSetChanges struct {
+	Namespace          string              `json:"namespace"`
+	MappingRuleChanges []MappingRuleChange `json:"mappingRuleChanges"`
+	RollupRuleChanges  []RollupRuleChange  `json:"rollupRuleChanges"`
+}
 
-	// ValidateSnapshot validates a ruleset snapshot.
-	ValidateSnapshot(snapshot view.RuleSet) error
-
-	// Close closes the validator.
-	Close()
+// Sort sorts the ruleset diff by op and rule names.
+func (d *RuleSetChanges) Sort() {
+	sort.Sort(mappingRuleChangesByOpAscNameAscIDAsc(d.MappingRuleChanges))
+	sort.Sort(rollupRuleChangesByOpAscNameAscIDAsc(d.RollupRuleChanges))
 }

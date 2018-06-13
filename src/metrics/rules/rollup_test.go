@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3metrics/generated/proto/transformationpb"
 	"github.com/m3db/m3metrics/pipeline"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/rules/models"
+	"github.com/m3db/m3metrics/rules/view"
 	"github.com/m3db/m3metrics/transformation"
 	xtime "github.com/m3db/m3x/time"
 
@@ -48,8 +48,8 @@ var (
 	testRollupRuleSnapshot1V1Proto = &rulepb.RollupRuleSnapshot{
 		Name:               "foo",
 		Tombstoned:         false,
-		CutoverNanos:       12345,
-		LastUpdatedAtNanos: 12345,
+		CutoverNanos:       12345000000,
+		LastUpdatedAtNanos: 12345000000,
 		LastUpdatedBy:      "someone",
 		Filter:             "tag1:value1 tag2:value2",
 		Targets: []*rulepb.RollupTarget{
@@ -75,8 +75,8 @@ var (
 	testRollupRuleSnapshot2V1Proto = &rulepb.RollupRuleSnapshot{
 		Name:               "bar",
 		Tombstoned:         true,
-		CutoverNanos:       67890,
-		LastUpdatedAtNanos: 67890,
+		CutoverNanos:       67890000000,
+		LastUpdatedAtNanos: 67890000000,
 		LastUpdatedBy:      "someone-else",
 		Filter:             "tag3:value3 tag4:value4",
 		Targets: []*rulepb.RollupTarget{
@@ -119,8 +119,8 @@ var (
 	testRollupRuleSnapshot3V2Proto = &rulepb.RollupRuleSnapshot{
 		Name:               "foo",
 		Tombstoned:         false,
-		CutoverNanos:       12345,
-		LastUpdatedAtNanos: 12345,
+		CutoverNanos:       12345000000,
+		LastUpdatedAtNanos: 12345000000,
 		LastUpdatedBy:      "someone",
 		Filter:             "tag1:value1 tag2:value2",
 		TargetsV2: []*rulepb.RollupTargetV2{
@@ -217,8 +217,8 @@ var (
 	testRollupRuleSnapshot4V2Proto = &rulepb.RollupRuleSnapshot{
 		Name:               "bar",
 		Tombstoned:         true,
-		CutoverNanos:       67890,
-		LastUpdatedAtNanos: 67890,
+		CutoverNanos:       67890000000,
+		LastUpdatedAtNanos: 67890000000,
 		LastUpdatedBy:      "someone-else",
 		Filter:             "tag3:value3 tag4:value4",
 		TargetsV2: []*rulepb.RollupTargetV2{
@@ -268,7 +268,7 @@ var (
 	testRollupRuleSnapshot1 = &rollupRuleSnapshot{
 		name:         "foo",
 		tombstoned:   false,
-		cutoverNanos: 12345,
+		cutoverNanos: 12345000000,
 		rawFilter:    "tag1:value1 tag2:value2",
 		targets: []rollupTarget{
 			{
@@ -287,13 +287,13 @@ var (
 				},
 			},
 		},
-		lastUpdatedAtNanos: 12345,
+		lastUpdatedAtNanos: 12345000000,
 		lastUpdatedBy:      "someone",
 	}
 	testRollupRuleSnapshot2 = &rollupRuleSnapshot{
 		name:         "bar",
 		tombstoned:   true,
-		cutoverNanos: 67890,
+		cutoverNanos: 67890000000,
 		rawFilter:    "tag3:value3 tag4:value4",
 		targets: []rollupTarget{
 			{
@@ -313,13 +313,13 @@ var (
 				},
 			},
 		},
-		lastUpdatedAtNanos: 67890,
+		lastUpdatedAtNanos: 67890000000,
 		lastUpdatedBy:      "someone-else",
 	}
 	testRollupRuleSnapshot3 = &rollupRuleSnapshot{
 		name:         "foo",
 		tombstoned:   false,
-		cutoverNanos: 12345,
+		cutoverNanos: 12345000000,
 		rawFilter:    "tag1:value1 tag2:value2",
 		targets: []rollupTarget{
 			{
@@ -373,13 +373,13 @@ var (
 				},
 			},
 		},
-		lastUpdatedAtNanos: 12345,
+		lastUpdatedAtNanos: 12345000000,
 		lastUpdatedBy:      "someone",
 	}
 	testRollupRuleSnapshot4 = &rollupRuleSnapshot{
 		name:         "bar",
 		tombstoned:   true,
-		cutoverNanos: 67890,
+		cutoverNanos: 67890000000,
 		rawFilter:    "tag3:value3 tag4:value4",
 		targets: []rollupTarget{
 			{
@@ -398,7 +398,7 @@ var (
 				},
 			},
 		},
-		lastUpdatedAtNanos: 67890,
+		lastUpdatedAtNanos: 67890000000,
 		lastUpdatedBy:      "someone-else",
 	}
 	testRollupRule1 = &rollupRule{
@@ -521,8 +521,8 @@ func TestNewRollupRuleSnapshotFromProtoTombstoned(t *testing.T) {
 	input := &rulepb.RollupRuleSnapshot{
 		Name:               "foo",
 		Tombstoned:         true,
-		CutoverNanos:       12345,
-		LastUpdatedAtNanos: 12345,
+		CutoverNanos:       12345000000,
+		LastUpdatedAtNanos: 12345000000,
 		LastUpdatedBy:      "someone",
 		Filter:             "tag1:value1 tag2:value2",
 	}
@@ -532,9 +532,9 @@ func TestNewRollupRuleSnapshotFromProtoTombstoned(t *testing.T) {
 	expected := &rollupRuleSnapshot{
 		name:               "foo",
 		tombstoned:         true,
-		cutoverNanos:       12345,
+		cutoverNanos:       12345000000,
 		rawFilter:          "tag1:value1 tag2:value2",
-		lastUpdatedAtNanos: 12345,
+		lastUpdatedAtNanos: 12345000000,
 		lastUpdatedBy:      "someone",
 	}
 	require.True(t, cmp.Equal(expected, res, testRollupRuleSnapshotCmpOpts...))
@@ -571,7 +571,7 @@ func TestNewRollupRuleSnapshotFromFieldsValidationError(t *testing.T) {
 	for _, f := range badFilters {
 		_, err := newRollupRuleSnapshotFromFields(
 			"bar",
-			12345,
+			12345000000,
 			f,
 			nil,
 			nil,
@@ -659,7 +659,7 @@ func TestRollupRuleActiveSnapshotNotFound(t *testing.T) {
 }
 
 func TestRollupRuleActiveSnapshotFound(t *testing.T) {
-	require.Equal(t, testRollupRule2.snapshots[1], testRollupRule2.activeSnapshot(100000))
+	require.Equal(t, testRollupRule2.snapshots[1], testRollupRule2.activeSnapshot(100000000000))
 }
 
 func TestRollupRuleActiveRuleNotFound(t *testing.T) {
@@ -671,7 +671,7 @@ func TestRollupRuleActiveRuleFound(t *testing.T) {
 		uuid:      testRollupRule2.uuid,
 		snapshots: testRollupRule2.snapshots[1:],
 	}
-	require.Equal(t, expected, testRollupRule2.activeRule(100000))
+	require.Equal(t, expected, testRollupRule2.activeRule(100000000000))
 }
 
 func TestRollupNameNoSnapshot(t *testing.T) {
@@ -706,7 +706,7 @@ func TestRollupRuleMarkTombstoned(t *testing.T) {
 	require.NoError(t, err)
 
 	meta := UpdateMetadata{
-		cutoverNanos:   67890,
+		cutoverNanos:   67890000000,
 		updatedAtNanos: 10000,
 		updatedBy:      "john",
 	}
@@ -717,7 +717,7 @@ func TestRollupRuleMarkTombstoned(t *testing.T) {
 	expected := &rollupRuleSnapshot{
 		name:               "foo",
 		tombstoned:         true,
-		cutoverNanos:       67890,
+		cutoverNanos:       67890000000,
 		rawFilter:          "tag1:value1 tag2:value2",
 		lastUpdatedAtNanos: 10000,
 		lastUpdatedBy:      "john",
@@ -740,13 +740,13 @@ func TestRollupRuleRollupRuleView(t *testing.T) {
 	res, err := testRollupRule2.rollupRuleView(1)
 	require.NoError(t, err)
 
-	expected := &models.RollupRuleView{
-		ID:           "12669817-13ae-40e6-ba2f-33087b262c68",
-		Name:         "bar",
-		Tombstoned:   true,
-		CutoverNanos: 67890,
-		Filter:       "tag3:value3 tag4:value4",
-		Targets: []models.RollupTargetView{
+	expected := view.RollupRule{
+		ID:            "12669817-13ae-40e6-ba2f-33087b262c68",
+		Name:          "bar",
+		Tombstoned:    true,
+		CutoverMillis: 67890,
+		Filter:        "tag3:value3 tag4:value4",
+		Targets: []view.RollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
@@ -763,8 +763,8 @@ func TestRollupRuleRollupRuleView(t *testing.T) {
 				},
 			},
 		},
-		LastUpdatedAtNanos: 67890,
-		LastUpdatedBy:      "someone-else",
+		LastUpdatedAtMillis: 67890,
+		LastUpdatedBy:       "someone-else",
 	}
 	require.Equal(t, expected, res)
 }
@@ -772,9 +772,8 @@ func TestRollupRuleRollupRuleView(t *testing.T) {
 func TestNewRollupRuleViewError(t *testing.T) {
 	badIndices := []int{-2, 2, 30}
 	for _, i := range badIndices {
-		res, err := testRollupRule2.rollupRuleView(i)
+		_, err := testRollupRule2.rollupRuleView(i)
 		require.Equal(t, errRollupRuleSnapshotIndexOutOfRange, err)
-		require.Nil(t, res)
 	}
 }
 
@@ -782,14 +781,14 @@ func TestNewRollupRuleHistory(t *testing.T) {
 	history, err := testRollupRule2.history()
 	require.NoError(t, err)
 
-	expected := []*models.RollupRuleView{
-		&models.RollupRuleView{
-			ID:           "12669817-13ae-40e6-ba2f-33087b262c68",
-			Name:         "bar",
-			Tombstoned:   true,
-			CutoverNanos: 67890,
-			Filter:       "tag3:value3 tag4:value4",
-			Targets: []models.RollupTargetView{
+	expected := []view.RollupRule{
+		{
+			ID:            "12669817-13ae-40e6-ba2f-33087b262c68",
+			Name:          "bar",
+			Tombstoned:    true,
+			CutoverMillis: 67890,
+			Filter:        "tag3:value3 tag4:value4",
+			Targets: []view.RollupTarget{
 				{
 					Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 						{
@@ -806,16 +805,16 @@ func TestNewRollupRuleHistory(t *testing.T) {
 					},
 				},
 			},
-			LastUpdatedAtNanos: 67890,
-			LastUpdatedBy:      "someone-else",
+			LastUpdatedAtMillis: 67890,
+			LastUpdatedBy:       "someone-else",
 		},
-		&models.RollupRuleView{
-			ID:           "12669817-13ae-40e6-ba2f-33087b262c68",
-			Name:         "foo",
-			Tombstoned:   false,
-			CutoverNanos: 12345,
-			Filter:       "tag1:value1 tag2:value2",
-			Targets: []models.RollupTargetView{
+		{
+			ID:            "12669817-13ae-40e6-ba2f-33087b262c68",
+			Name:          "foo",
+			Tombstoned:    false,
+			CutoverMillis: 12345,
+			Filter:        "tag1:value1 tag2:value2",
+			Targets: []view.RollupTarget{
 				{
 					Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 						{
@@ -867,8 +866,8 @@ func TestNewRollupRuleHistory(t *testing.T) {
 					},
 				},
 			},
-			LastUpdatedAtNanos: 12345,
-			LastUpdatedBy:      "someone",
+			LastUpdatedAtMillis: 12345,
+			LastUpdatedBy:       "someone",
 		},
 	}
 	require.Equal(t, expected, history)

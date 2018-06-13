@@ -23,15 +23,20 @@ package rules
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/m3db/m3metrics/aggregation"
 	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/rules/models"
+	"github.com/m3db/m3metrics/rules/view"
 
 	"github.com/pborman/uuid"
+)
+
+const (
+	nanosPerMilli = int64(time.Millisecond / time.Nanosecond)
 )
 
 var (
@@ -378,9 +383,9 @@ func (mc *mappingRule) activeIndex(timeNanos int64) int {
 	return idx
 }
 
-func (mc *mappingRule) history() ([]*models.MappingRuleView, error) {
+func (mc *mappingRule) history() ([]view.MappingRule, error) {
 	lastIdx := len(mc.snapshots) - 1
-	views := make([]*models.MappingRuleView, len(mc.snapshots))
+	views := make([]view.MappingRule, len(mc.snapshots))
 	// Snapshots are stored oldest -> newest. History should start with newest.
 	for i := 0; i < len(mc.snapshots); i++ {
 		mrs, err := mc.mappingRuleView(lastIdx - i)
@@ -392,21 +397,21 @@ func (mc *mappingRule) history() ([]*models.MappingRuleView, error) {
 	return views, nil
 }
 
-func (mc *mappingRule) mappingRuleView(snapshotIdx int) (*models.MappingRuleView, error) {
+func (mc *mappingRule) mappingRuleView(snapshotIdx int) (view.MappingRule, error) {
 	if snapshotIdx < 0 || snapshotIdx >= len(mc.snapshots) {
-		return nil, errMappingRuleSnapshotIndexOutOfRange
+		return view.MappingRule{}, errMappingRuleSnapshotIndexOutOfRange
 	}
 
 	mrs := mc.snapshots[snapshotIdx].clone()
-	return &models.MappingRuleView{
-		ID:                 mc.uuid,
-		Name:               mrs.name,
-		Tombstoned:         mrs.tombstoned,
-		CutoverNanos:       mrs.cutoverNanos,
-		Filter:             mrs.rawFilter,
-		AggregationID:      mrs.aggregationID,
-		StoragePolicies:    mrs.storagePolicies,
-		LastUpdatedAtNanos: mrs.lastUpdatedAtNanos,
-		LastUpdatedBy:      mrs.lastUpdatedBy,
+	return view.MappingRule{
+		ID:                  mc.uuid,
+		Name:                mrs.name,
+		Tombstoned:          mrs.tombstoned,
+		CutoverMillis:       mrs.cutoverNanos / nanosPerMilli,
+		Filter:              mrs.rawFilter,
+		AggregationID:       mrs.aggregationID,
+		StoragePolicies:     mrs.storagePolicies,
+		LastUpdatedBy:       mrs.lastUpdatedBy,
+		LastUpdatedAtMillis: mrs.lastUpdatedAtNanos / nanosPerMilli,
 	}, nil
 }

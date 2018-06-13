@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/rules"
-	"github.com/m3db/m3metrics/rules/models"
+	"github.com/m3db/m3metrics/rules/view"
 
 	"github.com/stretchr/testify/require"
 )
@@ -257,18 +257,18 @@ type mockRuleSet struct {
 	matcher      *mockMatcher
 }
 
-func (r *mockRuleSet) Namespace() []byte                              { return []byte(r.namespace) }
-func (r *mockRuleSet) Version() int                                   { return r.version }
-func (r *mockRuleSet) CutoverNanos() int64                            { return r.cutoverNanos }
-func (r *mockRuleSet) LastUpdatedAtNanos() int64                      { return 0 }
-func (r *mockRuleSet) CreatedAtNanos() int64                          { return 0 }
-func (r *mockRuleSet) Tombstoned() bool                               { return r.tombstoned }
-func (r *mockRuleSet) Proto() (*rulepb.RuleSet, error)                { return nil, nil }
-func (r *mockRuleSet) ActiveSet(timeNanos int64) rules.Matcher        { return r.matcher }
-func (r *mockRuleSet) ToMutableRuleSet() rules.MutableRuleSet         { return nil }
-func (r *mockRuleSet) MappingRules() (models.MappingRuleViews, error) { return nil, nil }
-func (r *mockRuleSet) RollupRules() (models.RollupRuleViews, error)   { return nil, nil }
-func (r *mockRuleSet) Latest() (*models.RuleSetSnapshotView, error)   { return nil, nil }
+func (r *mockRuleSet) Namespace() []byte                          { return []byte(r.namespace) }
+func (r *mockRuleSet) Version() int                               { return r.version }
+func (r *mockRuleSet) CutoverNanos() int64                        { return r.cutoverNanos }
+func (r *mockRuleSet) LastUpdatedAtNanos() int64                  { return 0 }
+func (r *mockRuleSet) CreatedAtNanos() int64                      { return 0 }
+func (r *mockRuleSet) Tombstoned() bool                           { return r.tombstoned }
+func (r *mockRuleSet) Proto() (*rulepb.RuleSet, error)            { return nil, nil }
+func (r *mockRuleSet) ActiveSet(timeNanos int64) rules.Matcher    { return r.matcher }
+func (r *mockRuleSet) ToMutableRuleSet() rules.MutableRuleSet     { return nil }
+func (r *mockRuleSet) MappingRules() (view.MappingRules, error) { return nil, nil }
+func (r *mockRuleSet) RollupRules() (view.RollupRules, error)   { return nil, nil }
+func (r *mockRuleSet) Latest() (view.RuleSet, error)            { return view.RuleSet{}, nil }
 
 func testRuleSet() (kv.Store, cache.Cache, *ruleSet) {
 	store := mem.NewStore()

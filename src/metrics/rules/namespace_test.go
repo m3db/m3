@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3metrics/generated/proto/rulepb"
-	"github.com/m3db/m3metrics/rules/models"
+	"github.com/m3db/m3metrics/rules/view"
 
 	"github.com/stretchr/testify/require"
 )
@@ -82,32 +82,32 @@ func TestNamespaceView(t *testing.T) {
 			{
 				forRuleSetVersion:  123,
 				tombstoned:         false,
-				lastUpdatedAtNanos: 456,
+				lastUpdatedAtNanos: 456000000,
 				lastUpdatedBy:      "someone",
 			},
 			{
 				forRuleSetVersion:  456,
 				tombstoned:         true,
-				lastUpdatedAtNanos: 7890,
+				lastUpdatedAtNanos: 7890000000,
 				lastUpdatedBy:      "someone else",
 			},
 		},
 	}
 
-	expected := []*models.NamespaceView{
-		&models.NamespaceView{
-			Name:               "foo",
-			ForRuleSetVersion:  123,
-			Tombstoned:         false,
-			LastUpdatedAtNanos: 456,
-			LastUpdatedBy:      "someone",
+	expected := []view.Namespace{
+		{
+			ID:                  "foo",
+			ForRuleSetVersion:   123,
+			Tombstoned:          false,
+			LastUpdatedAtMillis: 456,
+			LastUpdatedBy:       "someone",
 		},
-		&models.NamespaceView{
-			Name:               "foo",
-			ForRuleSetVersion:  456,
-			Tombstoned:         true,
-			LastUpdatedAtNanos: 7890,
-			LastUpdatedBy:      "someone else",
+		{
+			ID:                  "foo",
+			ForRuleSetVersion:   456,
+			Tombstoned:          true,
+			LastUpdatedAtMillis: 7890,
+			LastUpdatedBy:       "someone else",
 		},
 	}
 	for i := range ns.snapshots {
@@ -128,9 +128,8 @@ func TestNamespaceViewError(t *testing.T) {
 
 	badIdx := []int{-2, 2, 30}
 	for _, i := range badIdx {
-		actual, err := n.NamespaceView(i)
-		require.Error(t, err)
-		require.Nil(t, actual)
+		_, err := n.NamespaceView(i)
+		require.Equal(t, errNamespaceSnapshotIndexOutOfRange, err)
 	}
 }
 
@@ -469,13 +468,13 @@ func TestNamespacesView(t *testing.T) {
 					{
 						forRuleSetVersion:  123,
 						tombstoned:         false,
-						lastUpdatedAtNanos: 456,
+						lastUpdatedAtNanos: 456000000,
 						lastUpdatedBy:      "someone",
 					},
 					{
 						forRuleSetVersion:  456,
 						tombstoned:         true,
-						lastUpdatedAtNanos: 7890,
+						lastUpdatedAtNanos: 7890000000,
 						lastUpdatedBy:      "someone else",
 					},
 				},
@@ -486,7 +485,7 @@ func TestNamespacesView(t *testing.T) {
 					{
 						forRuleSetVersion:  789,
 						tombstoned:         false,
-						lastUpdatedAtNanos: 12345,
+						lastUpdatedAtNanos: 12345000000,
 						lastUpdatedBy:      "john",
 					},
 				},
@@ -494,22 +493,22 @@ func TestNamespacesView(t *testing.T) {
 		},
 	}
 
-	expected := &models.NamespacesView{
+	expected := view.Namespaces{
 		Version: 1,
-		Namespaces: []*models.NamespaceView{
-			&models.NamespaceView{
-				Name:               "foo",
-				ForRuleSetVersion:  456,
-				Tombstoned:         true,
-				LastUpdatedAtNanos: 7890,
-				LastUpdatedBy:      "someone else",
+		Namespaces: []view.Namespace{
+			{
+				ID:                  "foo",
+				ForRuleSetVersion:   456,
+				Tombstoned:          true,
+				LastUpdatedAtMillis: 7890,
+				LastUpdatedBy:       "someone else",
 			},
-			&models.NamespaceView{
-				Name:               "bar",
-				ForRuleSetVersion:  789,
-				Tombstoned:         false,
-				LastUpdatedAtNanos: 12345,
-				LastUpdatedBy:      "john",
+			{
+				ID:                  "bar",
+				ForRuleSetVersion:   789,
+				Tombstoned:          false,
+				LastUpdatedAtMillis: 12345,
+				LastUpdatedBy:       "john",
 			},
 		},
 	}
