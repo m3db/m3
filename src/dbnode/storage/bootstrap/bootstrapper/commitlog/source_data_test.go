@@ -28,10 +28,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/pool"
+
+	"github.com/golang/mock/gomock"
+
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
+	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
@@ -241,6 +248,128 @@ func TestReadTrimsToRanges(t *testing.T) {
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
 	require.NoError(t, verifyShardResultsAreCorrect(values[1:3], res.ShardResults(), opts))
+}
+
+func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		opts      = testOptions()
+		md        = testNsMetadata(t)
+		src       = newCommitLogSource(opts, fs.Inspection{}).(*commitLogSource)
+		blockSize = md.Options().RetentionOptions().BlockSize()
+		now       = time.Now()
+		start     = now.Truncate(blockSize).Add(-blockSize)
+		end       = now
+		ranges    = xtime.Ranges{}
+
+		foo             = commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
+		commitLogValues = []testValue{
+			{foo, start.Add(2 * time.Minute), 1.0, xtime.Nanosecond, nil},
+			{foo, start.Add(3 * time.Minute), 2.0, xtime.Nanosecond, nil},
+			{foo, start.Add(4 * time.Minute), 3.0, xtime.Nanosecond, nil},
+
+			// Should not be present
+			{foo, end.Truncate(blockSize).Add(blockSize).Add(time.Nanosecond), 4.0, xtime.Nanosecond, nil},
+		}
+	)
+
+	// Request a little after the start of data, because always reading full blocks it
+	// should return the entire block beginning from "start".
+	require.True(t, blockSize >= minCommitLogRetention)
+
+	ranges = ranges.AddRange(xtime.Range{
+		Start: start.Add(time.Minute),
+		End:   end,
+	})
+
+	src.newIteratorFn = func(_ commitlog.IteratorOpts) (commitlog.Iterator, error) {
+		return newTestCommitLogIterator(commitLogValues, nil), nil
+	}
+	src.snapshotFilesFn = func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error) {
+		return fs.FileSetFilesSlice{
+			fs.FileSetFile{
+				ID: fs.FileSetFileIdentifier{
+					Namespace:  namespace,
+					BlockStart: start,
+					Shard:      shard,
+					// TODO: Maker sure to test multiple indices
+					VolumeIndex: 0,
+				},
+				AbsoluteFilepaths: []string{"checkpoint"},
+			},
+		}, nil
+	}
+	src.snapshotTimeFn = func(filePathPrefix string, id fs.FileSetFileIdentifier, bufferSize int, decoder *msgpack.Decoder) (time.Time, error) {
+		return start.Add(time.Minute), nil
+	}
+
+	mockReader := fs.NewMockDataFileSetReader(ctrl)
+	mockReader.EXPECT().Open(fs.ReaderOpenOptionsMatcher{
+		// TODO: Share with the above
+		ID: fs.FileSetFileIdentifier{
+			Namespace:   testNamespaceID,
+			BlockStart:  start,
+			Shard:       0,
+			VolumeIndex: 0,
+		},
+		FileSetType: persist.FileSetSnapshotType,
+	}).Return(nil).AnyTimes()
+	// mockReader.EXPECT().Open(fs.ReaderOpenOptionsMatcher{
+	// 	// TODO: Share with the above
+	// 	ID: fs.FileSetFileIdentifier{
+	// 		Namespace:   testNamespaceID,
+	// 		BlockStart:  start,
+	// 		Shard:       1,
+	// 		VolumeIndex: 0,
+	// 	},
+	// 	FileSetType: persist.FileSetSnapshotType,
+	// }).Return(nil).AnyTimes()
+
+	snapshotValues := []testValue{
+		{foo, start.Add(1 * time.Minute), 1.0, xtime.Nanosecond, nil},
+	}
+
+	encoder := m3tsz.NewEncoder(snapshotValues[0].t, nil, true, nil)
+	for _, value := range snapshotValues {
+		dp := ts.Datapoint{
+			Timestamp: value.t,
+			Value:     value.v,
+		}
+		encoder.Encode(dp, value.u, value.a)
+	}
+	reader := encoder.Stream()
+	seg, err := reader.Segment()
+	require.NoError(t, err)
+	bytes := make([]byte, seg.Len())
+	_, err = reader.Read(bytes)
+	require.NoError(t, err)
+	mockReader.EXPECT().Read().Return(
+		foo.ID,
+		nil,
+		checked.NewBytes(bytes, nil),
+		// TODO: Calculate correct checksum
+		uint32(0),
+		nil,
+	)
+	mockReader.EXPECT().Read().Return(nil, nil, nil, uint32(0), io.EOF)
+
+	src.newReaderFn = func(bytesPool pool.CheckedBytesPool, opts fs.Options) (fs.DataFileSetReader, error) {
+		return mockReader, nil
+	}
+
+	targetRanges := result.ShardTimeRanges{0: ranges}
+	res, err := src.ReadData(md, targetRanges, testDefaultRunOpts)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.Equal(t, 1, len(res.ShardResults()))
+	require.Equal(t, 0, len(res.Unfulfilled()))
+	// TODO: Move higher?
+	expectedValues := append([]testValue{}, commitLogValues[0:3]...)
+	expectedValues = append(expectedValues, snapshotValues...)
+
+	require.NoError(t, verifyShardResultsAreCorrect(expectedValues, res.ShardResults(), opts))
 }
 
 type predCommitlogFile struct {
