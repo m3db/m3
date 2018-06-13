@@ -80,10 +80,16 @@ type encoder struct {
 
 func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source {
 	return &commitLogSource{
-		opts:                opts,
-		inspection:          inspection,
-		log:                 opts.ResultOptions().InstrumentOptions().Logger(),
-		newIteratorFn:       commitlog.NewIterator,
+		opts: opts,
+		log:  opts.ResultOptions().InstrumentOptions().Logger(),
+
+		inspection: inspection,
+
+		newIteratorFn:   commitlog.NewIterator,
+		snapshotFilesFn: fs.SnapshotFiles,
+		// snapshotTimeFn:
+		newReaderFn: fs.NewReader,
+
 		cachedShardDataByNS: map[string]*cachedShardData{},
 	}
 }
