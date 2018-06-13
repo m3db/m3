@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,18 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package rules
+package view
 
-import "github.com/m3db/m3metrics/rules/view"
+import (
+	"sort"
+)
 
-// Validator validates a ruleset.
-type Validator interface {
-	// Validate validates a ruleset.
-	Validate(rs RuleSet) error
+// RuleSet is a snapshot of the rule set at a given point in time.
+type RuleSet struct {
+	Namespace     string        `json:"id"`
+	Version       int           `json:"version"`
+	CutoverMillis int64         `json:"cutoverMillis"`
+	MappingRules  []MappingRule `json:"mappingRules"`
+	RollupRules   []RollupRule  `json:"rollupRules"`
+}
 
-	// ValidateSnapshot validates a ruleset snapshot.
-	ValidateSnapshot(snapshot view.RuleSet) error
+// Sort sorts the rules in the ruleset.
+func (r *RuleSet) Sort() {
+	sort.Sort(MappingRulesByNameAsc(r.MappingRules))
+	sort.Sort(RollupRulesByNameAsc(r.RollupRules))
+}
 
-	// Close closes the validator.
-	Close()
+// RuleSets is a collection of rulesets.
+type RuleSets map[string]*RuleSet
+
+// Sort sorts each ruleset based on it's own sort method.
+func (rss RuleSets) Sort() {
+	for _, rs := range rss {
+		rs.Sort()
+	}
 }

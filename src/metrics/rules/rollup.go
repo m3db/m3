@@ -27,7 +27,7 @@ import (
 	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/rulepb"
-	"github.com/m3db/m3metrics/rules/models"
+	"github.com/m3db/m3metrics/rules/view"
 
 	"github.com/pborman/uuid"
 )
@@ -367,9 +367,9 @@ func (rc *rollupRule) revive(
 	return rc.addSnapshot(name, rawFilter, targets, meta)
 }
 
-func (rc *rollupRule) history() ([]*models.RollupRuleView, error) {
+func (rc *rollupRule) history() ([]view.RollupRule, error) {
 	lastIdx := len(rc.snapshots) - 1
-	views := make([]*models.RollupRuleView, len(rc.snapshots))
+	views := make([]view.RollupRule, len(rc.snapshots))
 	// Snapshots are stored oldest -> newest. History should start with newest.
 	for i := 0; i < len(rc.snapshots); i++ {
 		rrs, err := rc.rollupRuleView(lastIdx - i)
@@ -381,25 +381,25 @@ func (rc *rollupRule) history() ([]*models.RollupRuleView, error) {
 	return views, nil
 }
 
-func (rc *rollupRule) rollupRuleView(snapshotIdx int) (*models.RollupRuleView, error) {
+func (rc *rollupRule) rollupRuleView(snapshotIdx int) (view.RollupRule, error) {
 	if snapshotIdx < 0 || snapshotIdx >= len(rc.snapshots) {
-		return nil, errRollupRuleSnapshotIndexOutOfRange
+		return view.RollupRule{}, errRollupRuleSnapshotIndexOutOfRange
 	}
 
 	rrs := rc.snapshots[snapshotIdx].clone()
-	targets := make([]models.RollupTargetView, len(rrs.targets))
+	targets := make([]view.RollupTarget, len(rrs.targets))
 	for i, t := range rrs.targets {
 		targets[i] = t.rollupTargetView()
 	}
 
-	return &models.RollupRuleView{
-		ID:                 rc.uuid,
-		Name:               rrs.name,
-		Tombstoned:         rrs.tombstoned,
-		CutoverNanos:       rrs.cutoverNanos,
-		Filter:             rrs.rawFilter,
-		Targets:            targets,
-		LastUpdatedAtNanos: rrs.lastUpdatedAtNanos,
-		LastUpdatedBy:      rrs.lastUpdatedBy,
+	return view.RollupRule{
+		ID:                  rc.uuid,
+		Name:                rrs.name,
+		Tombstoned:          rrs.tombstoned,
+		CutoverMillis:       rrs.cutoverNanos / nanosPerMilli,
+		Filter:              rrs.rawFilter,
+		Targets:             targets,
+		LastUpdatedBy:       rrs.lastUpdatedBy,
+		LastUpdatedAtMillis: rrs.lastUpdatedAtNanos / nanosPerMilli,
 	}, nil
 }

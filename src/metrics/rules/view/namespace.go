@@ -18,51 +18,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package models
+package view
 
 // Namespace is a common json serializable namespace.
 type Namespace struct {
-	ID                string `json:"id" validate:"required"`
-	ForRuleSetVersion int    `json:"forRuleSetVersion"`
-}
-
-// NamespaceView is a human friendly representation of a namespace at a single point in time.
-type NamespaceView struct {
-	Name               string
-	ForRuleSetVersion  int
-	Tombstoned         bool
-	LastUpdatedAtNanos int64
-	LastUpdatedBy      string
-}
-
-// NewNamespace takes a NamespaceView returns the equivalent Namespace.
-func NewNamespace(nv *NamespaceView) Namespace {
-	return Namespace{
-		ID:                nv.Name,
-		ForRuleSetVersion: nv.ForRuleSetVersion,
-	}
+	ID                  string `json:"id" validate:"required"`
+	ForRuleSetVersion   int    `json:"forRuleSetVersion"`
+	Tombstoned          bool   `json:"tombstoned"`
+	LastUpdatedBy       string `json:"lastUpdatedBy"`
+	LastUpdatedAtMillis int64  `json:"lastUpdatedAtMillis"`
 }
 
 // Namespaces is a common json serializable list of namespaces.
 type Namespaces struct {
 	Version    int         `json:"version"`
 	Namespaces []Namespace `json:"namespaces"`
-}
-
-// NamespacesView is a representation of all the namespaces at a point in time.
-type NamespacesView struct {
-	Version    int
-	Namespaces []*NamespaceView
-}
-
-// NewNamespaces takes a NamespacesView returns the equivalent Namespaces.
-func NewNamespaces(nss *NamespacesView) Namespaces {
-	views := make([]Namespace, len(nss.Namespaces))
-	for i, namespace := range nss.Namespaces {
-		views[i] = NewNamespace(namespace)
-	}
-	return Namespaces{
-		Version:    nss.Version,
-		Namespaces: views,
-	}
 }

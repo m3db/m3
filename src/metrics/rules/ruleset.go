@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"time"
 
 	"github.com/m3db/m3cluster/kv"
@@ -32,8 +33,8 @@ import (
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	metricID "github.com/m3db/m3metrics/metric/id"
-	"github.com/m3db/m3metrics/rules/models"
-	"github.com/m3db/m3metrics/rules/models/changes"
+	"github.com/m3db/m3metrics/rules/view"
+	"github.com/m3db/m3metrics/rules/view/changes"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/pborman/uuid"
@@ -78,14 +79,14 @@ type RuleSet interface {
 	Proto() (*rulepb.RuleSet, error)
 
 	// MappingRuleHistory returns a map of mapping rule id to states that rule has been in.
-	MappingRules() (models.MappingRuleViews, error)
+	MappingRules() (view.MappingRules, error)
 
 	// RollupRuleHistory returns a map of rollup rule id to states that rule has been in.
-	RollupRules() (models.RollupRuleViews, error)
+	RollupRules() (view.RollupRules, error)
 
 	// Latest returns the latest snapshot of a ruleset containing the latest snapshots
 	// of each rule in the ruleset.
-	Latest() (*models.RuleSetSnapshotView, error)
+	Latest() (view.RuleSet, error)
 
 	// ActiveSet returns the active ruleset at a given time.
 	ActiveSet(timeNanos int64) Matcher
@@ -103,20 +104,20 @@ type MutableRuleSet interface {
 
 	// AppendMappingRule creates a new mapping rule and adds it to this ruleset.
 	// Should return the id of the newly created rule.
-	AddMappingRule(models.MappingRuleView, UpdateMetadata) (string, error)
+	AddMappingRule(view.MappingRule, UpdateMetadata) (string, error)
 
 	// UpdateMappingRule creates a new mapping rule and adds it to this ruleset.
-	UpdateMappingRule(models.MappingRuleView, UpdateMetadata) error
+	UpdateMappingRule(view.MappingRule, UpdateMetadata) error
 
 	// DeleteMappingRule deletes a mapping rule
 	DeleteMappingRule(string, UpdateMetadata) error
 
 	// AppendRollupRule creates a new rollup rule and adds it to this ruleset.
 	// Should return the id of the newly created rule.
-	AddRollupRule(models.RollupRuleView, UpdateMetadata) (string, error)
+	AddRollupRule(view.RollupRule, UpdateMetadata) (string, error)
 
 	// UpdateRollupRule creates a new rollup rule and adds it to this ruleset.
-	UpdateRollupRule(models.RollupRuleView, UpdateMetadata) error
+	UpdateRollupRule(view.RollupRule, UpdateMetadata) error
 
 	// DeleteRollupRule deletes a rollup rule
 	DeleteRollupRule(string, UpdateMetadata) error
@@ -268,8 +269,8 @@ func (rs *ruleSet) Proto() (*rulepb.RuleSet, error) {
 	return res, nil
 }
 
-func (rs *ruleSet) MappingRules() (models.MappingRuleViews, error) {
-	mappingRules := make(models.MappingRuleViews, len(rs.mappingRules))
+func (rs *ruleSet) MappingRules() (view.MappingRules, error) {
+	mappingRules := make(view.MappingRules, len(rs.mappingRules))
 	for _, m := range rs.mappingRules {
 		hist, err := m.history()
 		if err != nil {
@@ -280,8 +281,8 @@ func (rs *ruleSet) MappingRules() (models.MappingRuleViews, error) {
 	return mappingRules, nil
 }
 
-func (rs *ruleSet) RollupRules() (models.RollupRuleViews, error) {
-	rollupRules := make(models.RollupRuleViews, len(rs.rollupRules))
+func (rs *ruleSet) RollupRules() (view.RollupRules, error) {
+	rollupRules := make(view.RollupRules, len(rs.rollupRules))
 	for _, r := range rs.rollupRules {
 		hist, err := r.history()
 		if err != nil {
@@ -292,21 +293,21 @@ func (rs *ruleSet) RollupRules() (models.RollupRuleViews, error) {
 	return rollupRules, nil
 }
 
-func (rs *ruleSet) Latest() (*models.RuleSetSnapshotView, error) {
+func (rs *ruleSet) Latest() (view.RuleSet, error) {
 	mrs, err := rs.latestMappingRules()
 	if err != nil {
-		return nil, err
+		return view.RuleSet{}, err
 	}
 	rrs, err := rs.latestRollupRules()
 	if err != nil {
-		return nil, err
+		return view.RuleSet{}, err
 	}
-	return &models.RuleSetSnapshotView{
-		Namespace:    string(rs.Namespace()),
-		Version:      rs.Version(),
-		CutoverNanos: rs.CutoverNanos(),
-		MappingRules: mrs,
-		RollupRules:  rrs,
+	return view.RuleSet{
+		Namespace:     string(rs.Namespace()),
+		Version:       rs.Version(),
+		CutoverMillis: rs.CutoverNanos() / nanosPerMilli,
+		MappingRules:  mrs,
+		RollupRules:   rrs,
 	}, nil
 }
 
@@ -328,7 +329,7 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 
 	// This clone deliberately ignores tagFliterOpts and rollupIDFn
 	// as they are not useful for the MutableRuleSet.
-	return MutableRuleSet(&ruleSet{
+	return &ruleSet{
 		uuid:               rs.uuid,
 		version:            rs.version,
 		createdAtNanos:     rs.createdAtNanos,
@@ -343,10 +344,10 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 		newRollupIDFn:      rs.newRollupIDFn,
 		isRollupIDFn:       rs.isRollupIDFn,
 		aggTypesOpts:       rs.aggTypesOpts,
-	})
+	}
 }
 
-func (rs *ruleSet) AddMappingRule(mrv models.MappingRuleView, meta UpdateMetadata) (string, error) {
+func (rs *ruleSet) AddMappingRule(mrv view.MappingRule, meta UpdateMetadata) (string, error) {
 	m, err := rs.getMappingRuleByName(mrv.Name)
 	if err != nil && err != errRuleNotFound {
 		return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", mrv.Name))
@@ -378,7 +379,7 @@ func (rs *ruleSet) AddMappingRule(mrv models.MappingRuleView, meta UpdateMetadat
 	return m.uuid, nil
 }
 
-func (rs *ruleSet) UpdateMappingRule(mrv models.MappingRuleView, meta UpdateMetadata) error {
+func (rs *ruleSet) UpdateMappingRule(mrv view.MappingRule, meta UpdateMetadata) error {
 	m, err := rs.getMappingRuleByID(mrv.ID)
 	if err != nil {
 		return merrors.NewInvalidInputError(fmt.Sprintf(ruleIDNotFoundErrorFmt, mrv.ID))
@@ -409,7 +410,7 @@ func (rs *ruleSet) DeleteMappingRule(id string, meta UpdateMetadata) error {
 	return nil
 }
 
-func (rs *ruleSet) AddRollupRule(rrv models.RollupRuleView, meta UpdateMetadata) (string, error) {
+func (rs *ruleSet) AddRollupRule(rrv view.RollupRule, meta UpdateMetadata) (string, error) {
 	r, err := rs.getRollupRuleByName(rrv.Name)
 	if err != nil && err != errRuleNotFound {
 		return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", rrv.Name))
@@ -440,7 +441,7 @@ func (rs *ruleSet) AddRollupRule(rrv models.RollupRuleView, meta UpdateMetadata)
 	return r.uuid, nil
 }
 
-func (rs *ruleSet) UpdateRollupRule(rrv models.RollupRuleView, meta UpdateMetadata) error {
+func (rs *ruleSet) UpdateRollupRule(rrv view.RollupRule, meta UpdateMetadata) error {
 	r, err := rs.getRollupRuleByID(rrv.ID)
 	if err != nil {
 		return merrors.NewInvalidInputError(fmt.Sprintf(ruleIDNotFoundErrorFmt, rrv.ID))
@@ -564,47 +565,47 @@ func (rs *ruleSet) getRollupRuleByID(id string) (*rollupRule, error) {
 	return nil, errRuleNotFound
 }
 
-func (rs *ruleSet) latestMappingRules() (map[string]*models.MappingRuleView, error) {
+func (rs *ruleSet) latestMappingRules() ([]view.MappingRule, error) {
 	mrs, err := rs.MappingRules()
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]*models.MappingRuleView, len(mrs))
-	for id, m := range mrs {
+	filtered := make([]view.MappingRule, 0, len(mrs))
+	for _, m := range mrs {
 		if len(m) > 0 && !m[0].Tombstoned {
-			// views included in m are sorted latest first.
-			result[id] = m[0]
+			// Rule snapshots are sorted by cutover time in descending order.
+			filtered = append(filtered, m[0])
 		}
 	}
-	return result, nil
+	sort.Sort(view.MappingRulesByNameAsc(filtered))
+	return filtered, nil
 }
 
-func (rs *ruleSet) latestRollupRules() (map[string]*models.RollupRuleView, error) {
+func (rs *ruleSet) latestRollupRules() ([]view.RollupRule, error) {
 	rrs, err := rs.RollupRules()
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]*models.RollupRuleView, len(rrs))
-	for id, r := range rrs {
+	filtered := make([]view.RollupRule, 0, len(rrs))
+	for _, r := range rrs {
 		if len(r) > 0 && !r[0].Tombstoned {
-			// views included in m are sorted latest first.
-			result[id] = r[0]
+			// Rule snapshots are sorted by cutover time in descending order.
+			filtered = append(filtered, r[0])
 		}
 	}
-	return result, nil
+	sort.Sort(view.RollupRulesByNameAsc(filtered))
+	return filtered, nil
 }
 
 func (rs *ruleSet) applyMappingRuleChanges(mrChanges []changes.MappingRuleChange, meta UpdateMetadata) error {
 	for _, mrChange := range mrChanges {
 		switch mrChange.Op {
 		case changes.AddOp:
-			view := mrChange.RuleData.ToMappingRuleView()
-			if _, err := rs.AddMappingRule(*view, meta); err != nil {
+			if _, err := rs.AddMappingRule(*mrChange.RuleData, meta); err != nil {
 				return err
 			}
 		case changes.ChangeOp:
-			view := mrChange.RuleData.ToMappingRuleView()
-			if err := rs.UpdateMappingRule(*view, meta); err != nil {
+			if err := rs.UpdateMappingRule(*mrChange.RuleData, meta); err != nil {
 				return err
 			}
 		case changes.DeleteOp:
@@ -623,13 +624,11 @@ func (rs *ruleSet) applyRollupRuleChanges(rrChanges []changes.RollupRuleChange, 
 	for _, rrChange := range rrChanges {
 		switch rrChange.Op {
 		case changes.AddOp:
-			view := rrChange.RuleData.ToRollupRuleView()
-			if _, err := rs.AddRollupRule(*view, meta); err != nil {
+			if _, err := rs.AddRollupRule(*rrChange.RuleData, meta); err != nil {
 				return err
 			}
 		case changes.ChangeOp:
-			view := rrChange.RuleData.ToRollupRuleView()
-			if err := rs.UpdateRollupRule(*view, meta); err != nil {
+			if err := rs.UpdateRollupRule(*rrChange.RuleData, meta); err != nil {
 				return err
 			}
 		case changes.DeleteOp:

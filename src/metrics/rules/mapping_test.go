@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3metrics/generated/proto/policypb"
 	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/rules/models"
+	"github.com/m3db/m3metrics/rules/view"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/google/go-cmp/cmp"
@@ -44,7 +44,7 @@ var (
 	testMappingRuleSnapshot1V1Proto = &rulepb.MappingRuleSnapshot{
 		Name:         "foo",
 		Tombstoned:   false,
-		CutoverNanos: 12345,
+		CutoverNanos: 12345000000,
 		Filter:       "tag1:value1 tag2:value2",
 		Policies: []*policypb.Policy{
 			&policypb.Policy{
@@ -59,13 +59,13 @@ var (
 				},
 			},
 		},
-		LastUpdatedAtNanos: 12345,
+		LastUpdatedAtNanos: 12345000000,
 		LastUpdatedBy:      "someone",
 	}
 	testMappingRuleSnapshot2V1Proto = &rulepb.MappingRuleSnapshot{
 		Name:         "bar",
 		Tombstoned:   true,
-		CutoverNanos: 67890,
+		CutoverNanos: 67890000000,
 		Filter:       "tag3:value3 tag4:value4",
 		Policies: []*policypb.Policy{
 			&policypb.Policy{
@@ -97,15 +97,15 @@ var (
 				},
 			},
 		},
-		LastUpdatedAtNanos: 67890,
+		LastUpdatedAtNanos: 67890000000,
 		LastUpdatedBy:      "someone-else",
 	}
 	testMappingRuleSnapshot3V2Proto = &rulepb.MappingRuleSnapshot{
 		Name:               "foo",
 		Tombstoned:         false,
-		CutoverNanos:       12345,
+		CutoverNanos:       12345000000,
 		Filter:             "tag1:value1 tag2:value2",
-		LastUpdatedAtNanos: 12345,
+		LastUpdatedAtNanos: 12345000000,
 		LastUpdatedBy:      "someone",
 		StoragePolicies: []*policypb.StoragePolicy{
 			&policypb.StoragePolicy{
@@ -140,9 +140,9 @@ var (
 	testMappingRuleSnapshot4V2Proto = &rulepb.MappingRuleSnapshot{
 		Name:               "bar",
 		Tombstoned:         true,
-		CutoverNanos:       67890,
+		CutoverNanos:       67890000000,
 		Filter:             "tag3:value3 tag4:value4",
-		LastUpdatedAtNanos: 67890,
+		LastUpdatedAtNanos: 67890000000,
 		LastUpdatedBy:      "someone-else",
 		AggregationTypes: []aggregationpb.AggregationType{
 			aggregationpb.AggregationType_MIN,
@@ -177,32 +177,32 @@ var (
 	testMappingRuleSnapshot1 = &mappingRuleSnapshot{
 		name:          "foo",
 		tombstoned:    false,
-		cutoverNanos:  12345,
+		cutoverNanos:  12345000000,
 		rawFilter:     "tag1:value1 tag2:value2",
 		aggregationID: aggregation.DefaultID,
 		storagePolicies: policy.StoragePolicies{
 			policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
 		},
-		lastUpdatedAtNanos: 12345,
+		lastUpdatedAtNanos: 12345000000,
 		lastUpdatedBy:      "someone",
 	}
 	testMappingRuleSnapshot2 = &mappingRuleSnapshot{
 		name:          "bar",
 		tombstoned:    true,
-		cutoverNanos:  67890,
+		cutoverNanos:  67890000000,
 		rawFilter:     "tag3:value3 tag4:value4",
 		aggregationID: aggregation.MustCompressTypes(aggregation.Mean),
 		storagePolicies: policy.StoragePolicies{
 			policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
 			policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
 		},
-		lastUpdatedAtNanos: 67890,
+		lastUpdatedAtNanos: 67890000000,
 		lastUpdatedBy:      "someone-else",
 	}
 	testMappingRuleSnapshot3 = &mappingRuleSnapshot{
 		name:          "foo",
 		tombstoned:    false,
-		cutoverNanos:  12345,
+		cutoverNanos:  12345000000,
 		rawFilter:     "tag1:value1 tag2:value2",
 		aggregationID: aggregation.DefaultID,
 		storagePolicies: policy.StoragePolicies{
@@ -210,19 +210,19 @@ var (
 			policy.NewStoragePolicy(time.Minute, xtime.Minute, 720*time.Hour),
 			policy.NewStoragePolicy(time.Hour, xtime.Hour, 365*24*time.Hour),
 		},
-		lastUpdatedAtNanos: 12345,
+		lastUpdatedAtNanos: 12345000000,
 		lastUpdatedBy:      "someone",
 	}
 	testMappingRuleSnapshot4 = &mappingRuleSnapshot{
 		name:          "bar",
 		tombstoned:    true,
-		cutoverNanos:  67890,
+		cutoverNanos:  67890000000,
 		rawFilter:     "tag3:value3 tag4:value4",
 		aggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
 		storagePolicies: policy.StoragePolicies{
 			policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 1800*time.Hour),
 		},
-		lastUpdatedAtNanos: 67890,
+		lastUpdatedAtNanos: 67890000000,
 		lastUpdatedBy:      "someone-else",
 	}
 	testMappingRule1 = &mappingRule{
@@ -317,9 +317,9 @@ func TestNewMappingRuleSnapshotFromProtoTombstoned(t *testing.T) {
 	input := &rulepb.MappingRuleSnapshot{
 		Name:               "foo",
 		Tombstoned:         true,
-		CutoverNanos:       12345,
+		CutoverNanos:       12345000000,
 		Filter:             "tag1:value1 tag2:value2",
-		LastUpdatedAtNanos: 12345,
+		LastUpdatedAtNanos: 12345000000,
 		LastUpdatedBy:      "someone",
 	}
 	res, err := newMappingRuleSnapshotFromProto(input, filterOpts)
@@ -328,10 +328,10 @@ func TestNewMappingRuleSnapshotFromProtoTombstoned(t *testing.T) {
 	expected := &mappingRuleSnapshot{
 		name:               "foo",
 		tombstoned:         true,
-		cutoverNanos:       12345,
+		cutoverNanos:       12345000000,
 		rawFilter:          "tag1:value1 tag2:value2",
 		aggregationID:      aggregation.DefaultID,
-		lastUpdatedAtNanos: 12345,
+		lastUpdatedAtNanos: 12345000000,
 		lastUpdatedBy:      "someone",
 	}
 	require.True(t, cmp.Equal(expected, res, testMappingRuleSnapshotCmpOpts...))
@@ -369,7 +369,7 @@ func TestNewMappingRuleSnapshotFromFieldsValidationError(t *testing.T) {
 	for _, f := range badFilters {
 		_, err := newMappingRuleSnapshotFromFields(
 			"bar",
-			12345,
+			12345000000,
 			nil,
 			f,
 			aggregation.DefaultID,
@@ -458,7 +458,7 @@ func TestMappingRuleActiveSnapshotNotFound(t *testing.T) {
 }
 
 func TestMappingRuleActiveSnapshotFound(t *testing.T) {
-	require.Equal(t, testMappingRule2.snapshots[1], testMappingRule2.activeSnapshot(100000))
+	require.Equal(t, testMappingRule2.snapshots[1], testMappingRule2.activeSnapshot(100000000000))
 }
 
 func TestMappingRuleActiveRuleNotFound(t *testing.T) {
@@ -470,7 +470,7 @@ func TestMappingRuleActiveRuleFound(t *testing.T) {
 		uuid:      testMappingRule2.uuid,
 		snapshots: testMappingRule2.snapshots[1:],
 	}
-	require.Equal(t, expected, testMappingRule2.activeRule(100000))
+	require.Equal(t, expected, testMappingRule2.activeRule(100000000000))
 }
 
 func TestMappingNameNoSnapshot(t *testing.T) {
@@ -505,7 +505,7 @@ func TestMappingRuleMarkTombstoned(t *testing.T) {
 	require.NoError(t, err)
 
 	meta := UpdateMetadata{
-		cutoverNanos:   67890,
+		cutoverNanos:   67890000000,
 		updatedAtNanos: 10000,
 		updatedBy:      "john",
 	}
@@ -516,7 +516,7 @@ func TestMappingRuleMarkTombstoned(t *testing.T) {
 	expected := &mappingRuleSnapshot{
 		name:               "foo",
 		tombstoned:         true,
-		cutoverNanos:       67890,
+		cutoverNanos:       67890000000,
 		rawFilter:          "tag1:value1 tag2:value2",
 		lastUpdatedAtNanos: 10000,
 		lastUpdatedBy:      "john",
@@ -539,18 +539,18 @@ func TestMappingRuleMappingRuleView(t *testing.T) {
 	res, err := testMappingRule2.mappingRuleView(1)
 	require.NoError(t, err)
 
-	expected := &models.MappingRuleView{
+	expected := view.MappingRule{
 		ID:            "12669817-13ae-40e6-ba2f-33087b262c68",
 		Name:          "bar",
 		Tombstoned:    true,
-		CutoverNanos:  67890,
+		CutoverMillis: 67890,
 		Filter:        "tag3:value3 tag4:value4",
 		AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
 		StoragePolicies: policy.StoragePolicies{
 			policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 1800*time.Hour),
 		},
-		LastUpdatedAtNanos: 67890,
-		LastUpdatedBy:      "someone-else",
+		LastUpdatedAtMillis: 67890,
+		LastUpdatedBy:       "someone-else",
 	}
 	require.Equal(t, expected, res)
 }
@@ -558,9 +558,8 @@ func TestMappingRuleMappingRuleView(t *testing.T) {
 func TestNewMappingRuleViewError(t *testing.T) {
 	badIndices := []int{-2, 2, 30}
 	for _, i := range badIndices {
-		res, err := testMappingRule2.mappingRuleView(i)
+		_, err := testMappingRule2.mappingRuleView(i)
 		require.Equal(t, errMappingRuleSnapshotIndexOutOfRange, err)
-		require.Nil(t, res)
 	}
 }
 
@@ -568,25 +567,25 @@ func TestNewMappingRuleHistory(t *testing.T) {
 	history, err := testMappingRule2.history()
 	require.NoError(t, err)
 
-	expected := []*models.MappingRuleView{
-		&models.MappingRuleView{
+	expected := []view.MappingRule{
+		{
 			ID:            "12669817-13ae-40e6-ba2f-33087b262c68",
 			Name:          "bar",
 			Tombstoned:    true,
-			CutoverNanos:  67890,
+			CutoverMillis: 67890,
 			Filter:        "tag3:value3 tag4:value4",
 			AggregationID: aggregation.MustCompressTypes(aggregation.Min, aggregation.Max),
 			StoragePolicies: policy.StoragePolicies{
 				policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 1800*time.Hour),
 			},
-			LastUpdatedAtNanos: 67890,
-			LastUpdatedBy:      "someone-else",
+			LastUpdatedAtMillis: 67890,
+			LastUpdatedBy:       "someone-else",
 		},
-		&models.MappingRuleView{
+		{
 			ID:            "12669817-13ae-40e6-ba2f-33087b262c68",
 			Name:          "foo",
 			Tombstoned:    false,
-			CutoverNanos:  12345,
+			CutoverMillis: 12345,
 			Filter:        "tag1:value1 tag2:value2",
 			AggregationID: aggregation.DefaultID,
 			StoragePolicies: policy.StoragePolicies{
@@ -594,8 +593,8 @@ func TestNewMappingRuleHistory(t *testing.T) {
 				policy.NewStoragePolicy(time.Minute, xtime.Minute, 720*time.Hour),
 				policy.NewStoragePolicy(time.Hour, xtime.Hour, 365*24*time.Hour),
 			},
-			LastUpdatedAtNanos: 12345,
-			LastUpdatedBy:      "someone",
+			LastUpdatedAtMillis: 12345,
+			LastUpdatedBy:       "someone",
 		},
 	}
 	require.Equal(t, expected, history)

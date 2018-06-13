@@ -38,8 +38,8 @@ import (
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/pipeline"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/rules/models"
-	"github.com/m3db/m3metrics/rules/models/changes"
+	"github.com/m3db/m3metrics/rules/view"
+	"github.com/m3db/m3metrics/rules/view/changes"
 	xbytes "github.com/m3db/m3metrics/x/bytes"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
@@ -264,7 +264,7 @@ func TestRuleSetRollupRules(t *testing.T) {
 func TestRuleSetLatest(t *testing.T) {
 	proto := &rulepb.RuleSet{
 		Namespace:    "testNamespace",
-		CutoverNanos: 998234,
+		CutoverNanos: 998234000000,
 		MappingRules: testMappingRulesConfig(),
 		RollupRules:  testRollupRulesConfig(),
 	}
@@ -273,27 +273,25 @@ func TestRuleSetLatest(t *testing.T) {
 	latest, err := rs.Latest()
 	require.NoError(t, err)
 
-	expected := &models.RuleSetSnapshotView{
-		Namespace:    "testNamespace",
-		Version:      123,
-		CutoverNanos: 998234,
-		MappingRules: map[string]*models.MappingRuleView{
-			"mappingRule1": &models.MappingRuleView{
+	expected := view.RuleSet{
+		Namespace:     "testNamespace",
+		Version:       123,
+		CutoverMillis: 998234,
+		MappingRules: []view.MappingRule{
+			{
 				ID:            "mappingRule1",
 				Name:          "mappingRule1.snapshot3",
 				Tombstoned:    false,
-				CutoverNanos:  30000,
 				Filter:        "mtagName1:mtagValue1",
 				AggregationID: aggregation.DefaultID,
 				StoragePolicies: policy.StoragePolicies{
 					policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour),
 				},
 			},
-			"mappingRule3": &models.MappingRuleView{
+			{
 				ID:            "mappingRule3",
 				Name:          "mappingRule3.snapshot2",
 				Tombstoned:    false,
-				CutoverNanos:  34000,
 				Filter:        "mtagName1:mtagValue1",
 				AggregationID: aggregation.DefaultID,
 				StoragePolicies: policy.StoragePolicies{
@@ -301,39 +299,35 @@ func TestRuleSetLatest(t *testing.T) {
 					policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
 				},
 			},
-			"mappingRule4": &models.MappingRuleView{
+			{
 				ID:            "mappingRule4",
 				Name:          "mappingRule4.snapshot1",
 				Tombstoned:    false,
-				CutoverNanos:  24000,
 				Filter:        "mtagName1:mtagValue2",
 				AggregationID: aggregation.MustCompressTypes(aggregation.P999),
 				StoragePolicies: policy.StoragePolicies{
 					policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
 				},
 			},
-			"mappingRule5": &models.MappingRuleView{
-				ID:                 "mappingRule5",
-				Name:               "mappingRule5.snapshot1",
-				Tombstoned:         false,
-				CutoverNanos:       100000,
-				LastUpdatedAtNanos: 123456,
-				LastUpdatedBy:      "test",
-				Filter:             "mtagName1:mtagValue1",
-				AggregationID:      aggregation.DefaultID,
+			{
+				ID:            "mappingRule5",
+				Name:          "mappingRule5.snapshot1",
+				Tombstoned:    false,
+				LastUpdatedBy: "test",
+				Filter:        "mtagName1:mtagValue1",
+				AggregationID: aggregation.DefaultID,
 				StoragePolicies: policy.StoragePolicies{
 					policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
 				},
 			},
 		},
-		RollupRules: map[string]*models.RollupRuleView{
-			"rollupRule1": &models.RollupRuleView{
-				ID:           "rollupRule1",
-				Name:         "rollupRule1.snapshot3",
-				Tombstoned:   false,
-				CutoverNanos: 30000,
-				Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
-				Targets: []models.RollupTargetView{
+		RollupRules: []view.RollupRule{
+			{
+				ID:         "rollupRule1",
+				Name:       "rollupRule1.snapshot3",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
@@ -350,13 +344,12 @@ func TestRuleSetLatest(t *testing.T) {
 					},
 				},
 			},
-			"rollupRule3": &models.RollupRuleView{
-				ID:           "rollupRule3",
-				Name:         "rollupRule3.snapshot2",
-				Tombstoned:   false,
-				CutoverNanos: 34000,
-				Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
-				Targets: []models.RollupTargetView{
+			{
+				ID:         "rollupRule3",
+				Name:       "rollupRule3.snapshot2",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
@@ -374,13 +367,12 @@ func TestRuleSetLatest(t *testing.T) {
 					},
 				},
 			},
-			"rollupRule4": &models.RollupRuleView{
-				ID:           "rollupRule4",
-				Name:         "rollupRule4.snapshot1",
-				Tombstoned:   false,
-				CutoverNanos: 24000,
-				Filter:       "rtagName1:rtagValue2",
-				Targets: []models.RollupTargetView{
+			{
+				ID:         "rollupRule4",
+				Name:       "rollupRule4.snapshot1",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue2",
+				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
@@ -397,13 +389,12 @@ func TestRuleSetLatest(t *testing.T) {
 					},
 				},
 			},
-			"rollupRule5": &models.RollupRuleView{
-				ID:           "rollupRule5",
-				Name:         "rollupRule5.snapshot1",
-				Tombstoned:   false,
-				CutoverNanos: 24000,
-				Filter:       "rtagName1:rtagValue2",
-				Targets: []models.RollupTargetView{
+			{
+				ID:         "rollupRule5",
+				Name:       "rollupRule5.snapshot1",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue2",
+				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
@@ -420,13 +411,12 @@ func TestRuleSetLatest(t *testing.T) {
 					},
 				},
 			},
-			"rollupRule6": &models.RollupRuleView{
-				ID:           "rollupRule6",
-				Name:         "rollupRule6.snapshot1",
-				Tombstoned:   false,
-				CutoverNanos: 100000,
-				Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
-				Targets: []models.RollupTargetView{
+			{
+				ID:         "rollupRule6",
+				Name:       "rollupRule6.snapshot1",
+				Tombstoned: false,
+				Filter:     "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Targets: []view.RollupTarget{
 					{
 						Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 							{
@@ -483,7 +473,7 @@ func TestRuleSetAddMappingRuleInvalidFilter(t *testing.T) {
 	require.NoError(t, err)
 	rs := res.(*ruleSet)
 
-	view := models.MappingRuleView{
+	view := view.MappingRule{
 		Name:   "testInvalidFilter",
 		Filter: "tag1:value1 tag2:abc[def",
 		StoragePolicies: policy.StoragePolicies{
@@ -512,7 +502,7 @@ func TestRuleSetAddMappingRuleNewRule(t *testing.T) {
 	_, err = rs.getMappingRuleByName("foo")
 	require.Equal(t, errRuleNotFound, err)
 
-	view := models.MappingRuleView{
+	view := view.MappingRule{
 		Name:   "foo",
 		Filter: "tag1:value tag2:value",
 		StoragePolicies: policy.StoragePolicies{
@@ -530,20 +520,19 @@ func TestRuleSetAddMappingRuleNewRule(t *testing.T) {
 	mr, err := rs.getMappingRuleByName("foo")
 	require.NoError(t, err)
 
-	expected := &models.MappingRuleView{
-		Name:          "foo",
-		ID:            mr.uuid,
-		Tombstoned:    false,
-		CutoverNanos:  nowNanos + 10,
-		Filter:        "tag1:value tag2:value",
-		AggregationID: aggregation.DefaultID,
-		StoragePolicies: policy.StoragePolicies{
+	expected := &mappingRuleSnapshot{
+		name:          "foo",
+		tombstoned:    false,
+		cutoverNanos:  nowNanos + 10,
+		rawFilter:     "tag1:value tag2:value",
+		aggregationID: aggregation.DefaultID,
+		storagePolicies: policy.StoragePolicies{
 			policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
 		},
-		LastUpdatedBy:      testUser,
-		LastUpdatedAtNanos: nowNanos,
+		lastUpdatedBy:      testUser,
+		lastUpdatedAtNanos: nowNanos,
 	}
-	require.Equal(t, expected, mrs[mr.uuid][0])
+	require.True(t, cmp.Equal(expected, mr.snapshots[len(mr.snapshots)-1], testMappingRuleSnapshotCmpOpts...))
 
 	require.Equal(t, nowNanos+10, rs.cutoverNanos)
 	require.Equal(t, testUser, rs.lastUpdatedBy)
@@ -564,7 +553,7 @@ func TestRuleSetAddMappingRuleDuplicateRule(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, mr)
 
-	view := models.MappingRuleView{
+	view := view.MappingRule{
 		Name:   "mappingRule5.snapshot1",
 		Filter: "tag1:value tag2:value",
 		StoragePolicies: policy.StoragePolicies{
@@ -597,7 +586,7 @@ func TestRuleSetAddMappingRuleReviveRule(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, mr)
 
-	view := models.MappingRuleView{
+	view := view.MappingRule{
 		Name:          "mappingRule2.snapshot3",
 		Filter:        "test:bar",
 		AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
@@ -617,20 +606,19 @@ func TestRuleSetAddMappingRuleReviveRule(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, mr.snapshots[len(mr.snapshots)-1].rawFilter, view.Filter)
 
-	expected := &models.MappingRuleView{
-		Name:          "mappingRule2.snapshot3",
-		ID:            mr.uuid,
-		Tombstoned:    false,
-		CutoverNanos:  nowNanos + 10,
-		Filter:        "test:bar",
-		AggregationID: aggregation.MustCompressTypes(aggregation.Sum),
-		StoragePolicies: policy.StoragePolicies{
+	expected := &mappingRuleSnapshot{
+		name:          "mappingRule2.snapshot3",
+		tombstoned:    false,
+		cutoverNanos:  nowNanos + 10,
+		rawFilter:     "test:bar",
+		aggregationID: aggregation.MustCompressTypes(aggregation.Sum),
+		storagePolicies: policy.StoragePolicies{
 			policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
 		},
-		LastUpdatedBy:      testUser,
-		LastUpdatedAtNanos: nowNanos,
+		lastUpdatedBy:      testUser,
+		lastUpdatedAtNanos: nowNanos,
 	}
-	require.Equal(t, expected, mrs[mr.uuid][0])
+	require.True(t, cmp.Equal(expected, mr.snapshots[len(mr.snapshots)-1], testMappingRuleSnapshotCmpOpts...))
 
 	require.Equal(t, nowNanos+10, rs.cutoverNanos)
 	require.Equal(t, testUser, rs.lastUpdatedBy)
@@ -654,7 +642,7 @@ func TestRuleSetUpdateMappingRule(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, mrs, "mappingRule5")
 
-	view := models.MappingRuleView{
+	view := view.MappingRule{
 		ID:     "mappingRule5",
 		Name:   "mappingRule5.snapshot2",
 		Filter: "tag3:value",
@@ -674,20 +662,19 @@ func TestRuleSetUpdateMappingRule(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, mrs, r.uuid)
 
-	expected := &models.MappingRuleView{
-		Name:          "mappingRule5.snapshot2",
-		ID:            mr.uuid,
-		Tombstoned:    false,
-		CutoverNanos:  nowNanos + 10,
-		Filter:        "tag3:value",
-		AggregationID: aggregation.DefaultID,
-		StoragePolicies: policy.StoragePolicies{
+	expected := &mappingRuleSnapshot{
+		name:          "mappingRule5.snapshot2",
+		tombstoned:    false,
+		cutoverNanos:  nowNanos + 10,
+		rawFilter:     "tag3:value",
+		aggregationID: aggregation.DefaultID,
+		storagePolicies: policy.StoragePolicies{
 			policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
 		},
-		LastUpdatedBy:      testUser,
-		LastUpdatedAtNanos: nowNanos,
+		lastUpdatedBy:      testUser,
+		lastUpdatedAtNanos: nowNanos,
 	}
-	require.Equal(t, expected, mrs[mr.uuid][0])
+	require.True(t, cmp.Equal(expected, r.snapshots[len(mr.snapshots)-1], testMappingRuleSnapshotCmpOpts...))
 
 	require.Equal(t, nowNanos+10, rs.cutoverNanos)
 	require.Equal(t, testUser, rs.lastUpdatedBy)
@@ -742,10 +729,10 @@ func TestRuleSetAddRollupRuleNewRule(t *testing.T) {
 	_, err = rs.getRollupRuleByName("foo")
 	require.Equal(t, errRuleNotFound, err)
 
-	view := models.RollupRuleView{
+	view := view.RollupRule{
 		Name:   "foo",
 		Filter: "tag1:value tag2:value",
-		Targets: []models.RollupTargetView{
+		Targets: []view.RollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
@@ -775,13 +762,12 @@ func TestRuleSetAddRollupRuleNewRule(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, rrs, rr.uuid)
 
-	expected := &models.RollupRuleView{
-		Name:         "foo",
-		ID:           rr.uuid,
-		Tombstoned:   false,
-		CutoverNanos: nowNanos + 10,
-		Filter:       "tag1:value tag2:value",
-		Targets: []models.RollupTargetView{
+	expected := &rollupRuleSnapshot{
+		name:         "foo",
+		tombstoned:   false,
+		cutoverNanos: nowNanos + 10,
+		rawFilter:    "tag1:value tag2:value",
+		targets: []rollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
@@ -798,10 +784,10 @@ func TestRuleSetAddRollupRuleNewRule(t *testing.T) {
 				},
 			},
 		},
-		LastUpdatedBy:      testUser,
-		LastUpdatedAtNanos: nowNanos,
+		lastUpdatedBy:      testUser,
+		lastUpdatedAtNanos: nowNanos,
 	}
-	require.Equal(t, expected, rrs[rr.uuid][0])
+	require.True(t, cmp.Equal(expected, rr.snapshots[len(rr.snapshots)-1], testRollupRuleSnapshotCmpOpts...))
 
 	require.Equal(t, nowNanos+10, rs.cutoverNanos)
 	require.Equal(t, testUser, rs.lastUpdatedBy)
@@ -822,10 +808,10 @@ func TestRuleSetAddRollupRuleDuplicateRule(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, r)
 
-	view := models.RollupRuleView{
+	view := view.RollupRule{
 		Name:   "rollupRule5.snapshot1",
 		Filter: "test:bar",
-		Targets: []models.RollupTargetView{
+		Targets: []view.RollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
@@ -869,10 +855,10 @@ func TestRuleSetAddRollupRuleReviveRule(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, rr)
 
-	view := models.RollupRuleView{
+	view := view.RollupRule{
 		Name:   "rollupRule3.snapshot4",
 		Filter: "test:bar",
-		Targets: []models.RollupTargetView{
+		Targets: []view.RollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
@@ -903,13 +889,12 @@ func TestRuleSetAddRollupRuleReviveRule(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, rr.snapshots[len(rr.snapshots)-1].rawFilter, view.Filter)
 
-	expected := &models.RollupRuleView{
-		Name:         "rollupRule3.snapshot4",
-		ID:           rr.uuid,
-		Tombstoned:   false,
-		CutoverNanos: nowNanos + 10,
-		Filter:       "test:bar",
-		Targets: []models.RollupTargetView{
+	expected := &rollupRuleSnapshot{
+		name:         "rollupRule3.snapshot4",
+		tombstoned:   false,
+		cutoverNanos: nowNanos + 10,
+		rawFilter:    "test:bar",
+		targets: []rollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
@@ -926,10 +911,10 @@ func TestRuleSetAddRollupRuleReviveRule(t *testing.T) {
 				},
 			},
 		},
-		LastUpdatedBy:      testUser,
-		LastUpdatedAtNanos: nowNanos,
+		lastUpdatedBy:      testUser,
+		lastUpdatedAtNanos: nowNanos,
 	}
-	require.Equal(t, expected, rrs[rr.uuid][0])
+	require.True(t, cmp.Equal(expected, rr.snapshots[len(rr.snapshots)-1], testRollupRuleSnapshotCmpOpts...))
 
 	require.Equal(t, nowNanos+10, rs.cutoverNanos)
 	require.Equal(t, testUser, rs.lastUpdatedBy)
@@ -949,11 +934,11 @@ func TestRuleSetUpdateRollupRule(t *testing.T) {
 	rr, err := rs.getRollupRuleByID("rollupRule5")
 	require.NoError(t, err)
 
-	view := models.RollupRuleView{
+	view := view.RollupRule{
 		ID:     "rollupRule5",
 		Name:   "rollupRule5.snapshot2",
 		Filter: "test:bar",
-		Targets: []models.RollupTargetView{
+		Targets: []view.RollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
@@ -983,13 +968,12 @@ func TestRuleSetUpdateRollupRule(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, rrs, r.uuid)
 
-	expected := &models.RollupRuleView{
-		Name:         "rollupRule5.snapshot2",
-		ID:           rr.uuid,
-		Tombstoned:   false,
-		CutoverNanos: nowNanos + 10,
-		Filter:       "test:bar",
-		Targets: []models.RollupTargetView{
+	expected := &rollupRuleSnapshot{
+		name:         "rollupRule5.snapshot2",
+		tombstoned:   false,
+		cutoverNanos: nowNanos + 10,
+		rawFilter:    "test:bar",
+		targets: []rollupTarget{
 			{
 				Pipeline: pipeline.NewPipeline([]pipeline.OpUnion{
 					{
@@ -1006,10 +990,10 @@ func TestRuleSetUpdateRollupRule(t *testing.T) {
 				},
 			},
 		},
-		LastUpdatedBy:      testUser,
-		LastUpdatedAtNanos: nowNanos,
+		lastUpdatedBy:      testUser,
+		lastUpdatedAtNanos: nowNanos,
 	}
-	require.Equal(t, expected, rrs[rr.uuid][0])
+	require.True(t, cmp.Equal(expected, r.snapshots[len(r.snapshots)-1], testRollupRuleSnapshotCmpOpts...))
 
 	require.Equal(t, nowNanos+10, rs.cutoverNanos)
 	require.Equal(t, testUser, rs.lastUpdatedBy)
@@ -1117,7 +1101,7 @@ func TestApplyRuleSetChanges(t *testing.T) {
 		MappingRuleChanges: []changes.MappingRuleChange{
 			{
 				Op: changes.AddOp,
-				RuleData: &models.MappingRule{
+				RuleData: &view.MappingRule{
 					ID:   "mrID1",
 					Name: "mappingRuleAdd",
 				},
@@ -1125,7 +1109,7 @@ func TestApplyRuleSetChanges(t *testing.T) {
 			{
 				Op:     changes.ChangeOp,
 				RuleID: ptr("mappingRule1"),
-				RuleData: &models.MappingRule{
+				RuleData: &view.MappingRule{
 					ID:   "mappingRule1",
 					Name: "updatedMappingRule",
 				},
@@ -1138,7 +1122,7 @@ func TestApplyRuleSetChanges(t *testing.T) {
 		RollupRuleChanges: []changes.RollupRuleChange{
 			{
 				Op: changes.AddOp,
-				RuleData: &models.RollupRule{
+				RuleData: &view.RollupRule{
 					ID:   "rrID1",
 					Name: "rollupRuleAdd",
 				},
@@ -1146,7 +1130,7 @@ func TestApplyRuleSetChanges(t *testing.T) {
 			{
 				Op:     changes.ChangeOp,
 				RuleID: ptr("rollupRule1"),
-				RuleData: &models.RollupRule{
+				RuleData: &view.RollupRule{
 					ID:   "rollupRule1",
 					Name: "updatedRollupRule",
 				},
@@ -1201,7 +1185,7 @@ func TestApplyMappingRuleChangesAddFailure(t *testing.T) {
 		MappingRuleChanges: []changes.MappingRuleChange{
 			{
 				Op: changes.AddOp,
-				RuleData: &models.MappingRule{
+				RuleData: &view.MappingRule{
 					ID:   "mappingRule1",
 					Name: "mappingRule1.snapshot3",
 				},
@@ -1234,7 +1218,7 @@ func TestApplyRollupRuleChangesAddFailure(t *testing.T) {
 		RollupRuleChanges: []changes.RollupRuleChange{
 			{
 				Op: changes.AddOp,
-				RuleData: &models.RollupRule{
+				RuleData: &view.RollupRule{
 					ID:   "rollupRule1",
 					Name: "rollupRule1.snapshot3",
 				},
@@ -1328,7 +1312,7 @@ func TestApplyMappingRuleChangesUpdateFailure(t *testing.T) {
 			{
 				Op:     changes.ChangeOp,
 				RuleID: ptr("invalidMappingRule"),
-				RuleData: &models.MappingRule{
+				RuleData: &view.MappingRule{
 					ID:   "invalidMappingRule",
 					Name: "updatedMappingRule",
 				},
@@ -1358,7 +1342,7 @@ func TestApplyRollupRuleChangesUpdateFailure(t *testing.T) {
 			{
 				Op:     changes.ChangeOp,
 				RuleID: ptr("rollupRule1"),
-				RuleData: &models.RollupRule{
+				RuleData: &view.RollupRule{
 					ID:   "invalidRollupRule",
 					Name: "updatedRollupRule",
 				},

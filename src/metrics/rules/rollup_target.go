@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3metrics/generated/proto/rulepb"
 	"github.com/m3db/m3metrics/pipeline"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/rules/models"
+	"github.com/m3db/m3metrics/rules/view"
 	"github.com/m3db/m3metrics/x/bytes"
 )
 
@@ -93,15 +93,15 @@ func newRollupTargetFromV2Proto(pb *rulepb.RollupTargetV2) (rollupTarget, error)
 	}, nil
 }
 
-func newRollupTargetFromView(rtv models.RollupTargetView) rollupTarget {
+func newRollupTargetFromView(rtv view.RollupTarget) rollupTarget {
 	return rollupTarget{
 		Pipeline:        rtv.Pipeline,
 		StoragePolicies: rtv.StoragePolicies,
 	}
 }
 
-func (t rollupTarget) rollupTargetView() models.RollupTargetView {
-	return models.RollupTargetView{
+func (t rollupTarget) rollupTargetView() view.RollupTarget {
+	return view.RollupTarget{
 		Pipeline:        t.Pipeline,
 		StoragePolicies: t.StoragePolicies,
 	}
@@ -131,10 +131,10 @@ func (t *rollupTarget) proto() (*rulepb.RollupTargetV2, error) {
 	}, nil
 }
 
-func newRollupTargetsFromView(views []models.RollupTargetView) []rollupTarget {
-	targets := make([]rollupTarget, 0, len(views))
-	for _, t := range views {
-		targets = append(targets, newRollupTargetFromView(t))
+func newRollupTargetsFromView(targets []view.RollupTarget) []rollupTarget {
+	res := make([]rollupTarget, 0, len(targets))
+	for _, t := range targets {
+		res = append(res, newRollupTargetFromView(t))
 	}
-	return targets
+	return res
 }
