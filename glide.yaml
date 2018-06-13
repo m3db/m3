@@ -157,7 +157,7 @@ import:
   version: ^0.1.0
 
 - package: google.golang.org/grpc
-  version: ^1.12.0
+  version: ~1.7.3
   subpackages:
   - codes
 
