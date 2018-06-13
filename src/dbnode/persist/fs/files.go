@@ -88,7 +88,7 @@ func (f FileSetFilesSlice) Filepaths() []string {
 }
 
 // LatestVolumeForBlock returns the latest (highest index) FileSetFile in the
-// slice for a given block start, only applicable for index file set files.
+// slice for a given block start, only applicable for index and snapshot file set files.
 func (f FileSetFilesSlice) LatestVolumeForBlock(blockStart time.Time) (FileSetFile, bool) {
 	// Make sure we're already sorted
 	f.sortByTimeAndVolumeIndexAscending()
