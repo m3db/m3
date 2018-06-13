@@ -481,7 +481,7 @@ func TestNextSnapshotFileSetVolumeIndex(t *testing.T) {
 		require.Equal(t, curr+1, index)
 		curr = index
 
-		p := filesetPathFromTimeAndIndex(shardDir, blockStart, index, "foo")
+		p := filesetPathFromTimeAndIndex(shardDir, blockStart, index, checkpointFileSuffix)
 		err = ioutil.WriteFile(p, []byte("bar"), defaultNewFileMode)
 		require.NoError(t, err)
 	}
@@ -504,7 +504,7 @@ func TestNextIndexFileSetVolumeIndex(t *testing.T) {
 		require.Equal(t, curr+1, index)
 		curr = index
 
-		p := filesetPathFromTimeAndIndex(dataDir, blockStart, index, "foo")
+		p := filesetPathFromTimeAndIndex(dataDir, blockStart, index, checkpointFileSuffix)
 		err = ioutil.WriteFile(p, []byte("bar"), defaultNewFileMode)
 		require.NoError(t, err)
 	}
@@ -527,7 +527,7 @@ func TestMultipleForBlockStart(t *testing.T) {
 			ts = time.Unix(0, int64(i))
 		}
 		filePath := filesetPathFromTimeAndIndex(shardDir, ts,
-			i%numSnapshotsPerBlock, infoFileSuffix)
+			i%numSnapshotsPerBlock, checkpointFileSuffix)
 		createFile(t, filePath, nil)
 	}
 

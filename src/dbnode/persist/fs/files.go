@@ -95,18 +95,24 @@ func (f FileSetFilesSlice) LatestVolumeForBlock(blockStart time.Time) (FileSetFi
 
 	for i, curr := range f {
 		if curr.ID.BlockStart.Equal(blockStart) {
-			isEnd := i == len(f)-1
-			isHighestIdx := true
-			if !isEnd {
-				next := f[i+1]
-				if next.ID.BlockStart.Equal(blockStart) && next.ID.VolumeIndex > curr.ID.VolumeIndex {
-					isHighestIdx = false
+			var bestSoFar FileSetFile
+			var bestSoFarExists bool
+
+			for j := i; j < len(f); j++ {
+				curr = f[j]
+
+				if !curr.ID.BlockStart.Equal(blockStart) {
+					break
 				}
+
+				if curr.HasCheckpointFile() && curr.ID.VolumeIndex >= bestSoFar.ID.VolumeIndex {
+					bestSoFar = curr
+					bestSoFarExists = true
+				}
+
 			}
 
-			if isEnd || isHighestIdx {
-				return curr, true
-			}
+			return bestSoFar, bestSoFarExists
 		}
 	}
 
