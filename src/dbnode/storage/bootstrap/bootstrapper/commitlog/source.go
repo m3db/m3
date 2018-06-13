@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
+	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
@@ -38,6 +39,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/x/xio"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -49,12 +51,22 @@ var (
 const encoderChanBufSize = 1000
 
 type newIteratorFn func(opts commitlog.IteratorOpts) (commitlog.Iterator, error)
+type snapshotFilesFn func(filePathPrefix string, namespace ident.ID, shard uint32) (fs.FileSetFilesSlice, error)
+type snapshotTimeFn func(filePathPrefix string, id fs.FileSetFileIdentifier, readerBufferSize int, decoder *msgpack.Decoder) (time.Time, error)
+type newReaderFn func(bytesPool pool.CheckedBytesPool, opts fs.Options) (fs.DataFileSetReader, error)
 
 type commitLogSource struct {
-	opts                Options
-	inspection          fs.Inspection
-	log                 xlog.Logger
-	newIteratorFn       newIteratorFn
+	opts Options
+	log  xlog.Logger
+
+	// Filesystem inspection capture before node was started.
+	inspection fs.Inspection
+
+	newIteratorFn   newIteratorFn
+	snapshotFilesFn snapshotFilesFn
+	snapshotTimeFn  snapshotTimeFn
+	newReaderFn     newReaderFn
+
 	cachedShardDataByNS map[string]*cachedShardData
 }
 
@@ -91,6 +103,45 @@ func (s *commitLogSource) AvailableData(
 	return shardsTimeRanges
 }
 
+// ReadData will read a combination of the available snapshot filesand commit log files to
+// restore as much unflushed data from disk as possible. The logic for performing this
+// correct is as follows:
+//
+// 		1. For every shard/blockStart combination, find the most recently written and complete
+// 		   (I.E has a checkpoint file) snapshot. Bootstrap that file.
+// 		2. For every shard/blockStart combination, determine the SnapshotTime for the snapshot file.
+// 		   This value corresponds to the (local) moment in time right before the snapshotting process
+// 		   began.
+// 		3. Find the minimum SnapshotTime for all of the shards and block starts (call it t0), and
+// 		   replay all commit log entries starting at t0.Add(-max(bufferPast, bufferFuture)). Note that
+//         commit log entries should be filtered by the local system timestamp for when they were written,
+//         not for the timestamp of the data point itself.
+//
+// The rationale for this is that for a given shard / blockStart, if we have a snapshot file that was written
+// at t0, then its guaranteed that the snapshot file contains every write for that shard/blockStart up until
+// (t0 - max(bufferPast, bufferFuture)). Lets start by imagining a scenario where taking into account the bufferPast
+// value is important:
+//
+// blockSize: 2hr, BufferPast: 5m, bufferFuture: 20m
+// Trying to bootstrap shard 0 for time period 12PM -> 2PM
+// Snapshot file was written at 1:50PM then:
+//
+// Snapshot file contains all writes for (shard 0, blockStart 12PM) up until 1:45PM (1:50-5) because we started
+// snapshotting at 1:50PM and a write at 1:50:01PM for a datapoint at 1:45PM would be rejected for trying to write
+// too far into the past.
+//
+// As a result, we might conclude that reading the commit log from 1:45PM onwards would be sufficient, however, we
+// also need to consider the value of bufferFuture. Reading the commit log starting at 1:45PM would actually not be
+// sufficient because we could have received a write at 1:42 system-time (within the 20m bufferFuture range) for a
+// datapoint at 2:02PM. This write would belong to the 2PM block, not the 12PM block, and as a result would not be
+// captured in the snapshot file, because snapshot files are block-specific. As a result, we actually need to read
+// everything in the commit log starting from 1:30PM (1:50-20). <--- I'm not actually sure this is true, it seems
+// like actually we just need to read everything in the commit log starting from 1:40PM (2:00-20)
+//
+//
+// Also, why cant this all be simplified by just assuming that for a given block we need to read all things from the
+// commitlog not covered by the snapshot files physical snapshot time?
+// TODO: Diagram
 func (s *commitLogSource) ReadData(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
@@ -99,6 +150,35 @@ func (s *commitLogSource) ReadData(
 	if shardsTimeRanges.IsEmpty() {
 		return result.NewDataBootstrapResult(), nil
 	}
+
+	var (
+		snapshotFilesByShard = map[uint32]fs.FileSetFilesSlice{}
+		fsOpts               = s.opts.CommitLogOptions().FilesystemOptions()
+		filePathPrefix       = fsOpts.FilePathPrefix()
+	)
+
+	for shard := range shardsTimeRanges {
+		snapshotFiles, err := s.snapshotFilesFn(filePathPrefix, ns.ID(), shard)
+		if err != nil {
+			return nil, err
+		}
+		snapshotFilesByShard[shard] = snapshotFiles
+	}
+
+	var (
+		bOpts  = s.opts.ResultOptions()
+		blOpts = bOpts.DatabaseBlockOptions()
+		// bytesPool  = blOpts.BytesPool()
+		// blocksPool = blOpts.DatabaseBlockPool()
+		blockSize = ns.Options().RetentionOptions().BlockSize()
+		// snapshotShardResults = make(map[uint32]result.ShardResult)
+	)
+
+	// Start off by bootstrapping the most recent and complete snapshot file for each
+	// shard/blockStart combination.
+	// snapshotShardResults, err := s.bootstrapAvailableSnapshotFiles(
+
+	// )
 
 	readCommitLogPredicate := newReadCommitLogPredicate(
 		ns, shardsTimeRanges, s.opts, s.inspection)
@@ -125,10 +205,7 @@ func (s *commitLogSource) ReadData(
 		// remembering to subtract 1 to convert to zero-based indexing
 		numShards   = s.findHighestShard(shardsTimeRanges) + 1
 		numConc     = s.opts.EncodingConcurrency()
-		bopts       = s.opts.ResultOptions()
-		blopts      = bopts.DatabaseBlockOptions()
-		blockSize   = ns.Options().RetentionOptions().BlockSize()
-		encoderPool = bopts.DatabaseBlockOptions().EncoderPool()
+		encoderPool = blOpts.EncoderPool()
 		workerErrs  = make([]int, numConc)
 	)
 
@@ -152,7 +229,7 @@ func (s *commitLogSource) ReadData(
 	for workerNum, encoderChan := range encoderChans {
 		wg.Add(1)
 		go s.startM3TSZEncodingWorker(
-			ns, runOpts, workerNum, encoderChan, shardDataByShard, encoderPool, workerErrs, blopts, wg)
+			ns, runOpts, workerNum, encoderChan, shardDataByShard, encoderPool, workerErrs, blOpts, wg)
 	}
 
 	for iter.Next() {
@@ -186,12 +263,95 @@ func (s *commitLogSource) ReadData(
 	wg.Wait()
 	s.logEncodingOutcome(workerErrs, iter)
 
-	result := s.mergeShards(int(numShards), bopts, blockSize, blopts, encoderPool, shardDataByShard)
+	result := s.mergeShards(int(numShards), bOpts, blockSize, blOpts, encoderPool, shardDataByShard)
 	// After merging shards, its safe to cache the shardData (which involves some mutation).
 	if s.shouldCacheSeriesMetadata(runOpts, ns) {
 		s.cacheShardData(ns, shardDataByShard)
 	}
 	return result, nil
+}
+
+func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
+	shardsTimeRanges result.ShardTimeRanges,
+	blockSize time.Duration,
+	snapshotFilesByShard map[uint32]fs.FileSetFilesSlice,
+	fsOpts fs.Options,
+) map[xtime.UnixNano]map[uint32]time.Time {
+	var (
+		// TODO: Maybe add a IterateOverBlocks method to this data structure?
+		minBlock, maxBlock              = shardsTimeRanges.MinMax()
+		decoder                         = msgpack.NewDecoder(nil)
+		mostRecentSnapshotsByBlockShard = map[xtime.UnixNano]map[uint32]time.Time{}
+	)
+
+	for currBlock := minBlock.Truncate(blockSize); currBlock.Before(maxBlock); currBlock = currBlock.Add(blockSize) {
+		for shard := range shardsTimeRanges {
+			func() {
+				var (
+					currBlockUnixNanos     = xtime.ToUnixNano(currBlock)
+					mostRecentSnapshotTime time.Time
+					mostRecentSnapshot     fs.FileSetFile
+					err                    error
+				)
+
+				defer func() {
+					existing := mostRecentSnapshotsByBlockShard[currBlockUnixNanos]
+					if existing == nil {
+						existing = map[uint32]time.Time{}
+					}
+					// Why are we setting a zero value here?
+					existing[shard] = mostRecentSnapshotTime
+					mostRecentSnapshotsByBlockShard[currBlockUnixNanos] = existing
+				}()
+
+				snapshotFiles, ok := snapshotFilesByShard[shard]
+				if !ok {
+					// If there are no snapshot files for this shard, then for this
+					// block we will need to read the entire commit log for that
+					// period so we just set the most recent snapshot to the beginning
+					// of the block.
+					mostRecentSnapshotTime = currBlock
+				}
+
+				mostRecentSnapshot, ok = snapshotFiles.LatestVolumeForBlock(currBlock)
+				if !ok || !mostRecentSnapshot.HasCheckpointFile() {
+					// If there are no complete snapshot files for this block, then for this
+					// block we will need to read the entire commit log for that period so we
+					// just set the most recent snapshot to the beginning of the block.
+					mostRecentSnapshotTime = currBlock
+					return
+				}
+
+				var (
+					filePathPrefix       = s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+					infoReaderBufferSize = s.opts.CommitLogOptions().FilesystemOptions().InfoReaderBufferSize()
+				)
+
+				// Performs I/O
+				mostRecentSnapshotTime, err = s.snapshotTimeFn(
+					filePathPrefix, mostRecentSnapshot.ID, infoReaderBufferSize, decoder)
+				if err != nil {
+					s.log.
+						WithFields(
+							xlog.NewField("namespace", mostRecentSnapshot.ID.Namespace),
+							xlog.NewField("blockStart", mostRecentSnapshot.ID.BlockStart),
+							xlog.NewField("shard", mostRecentSnapshot.ID.Shard),
+							xlog.NewField("index", mostRecentSnapshot.ID.VolumeIndex),
+							xlog.NewField("filepaths", mostRecentSnapshot.AbsoluteFilepaths),
+						).
+						Error("error resolving snapshot time for snapshot file")
+						// If we couldn't determine the snapshot time for the snapshot file, then we
+						// will need to read the entire commit log for that period so we just set the
+						// most recent snapshot to the beginning of the block.
+					mostRecentSnapshotTime = currBlock
+					return
+				}
+
+			}()
+		}
+	}
+
+	return mostRecentSnapshotsByBlockShard
 }
 
 func (s *commitLogSource) startM3TSZEncodingWorker(
