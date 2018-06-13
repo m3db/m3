@@ -21,12 +21,15 @@
 package commitlog
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3db/src/dbnode/encoding"
+	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
 	"github.com/m3db/m3db/src/dbnode/persist/fs/commitlog"
 	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
@@ -318,7 +321,7 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 				}
 
 				mostRecentSnapshot, ok = snapshotFiles.LatestVolumeForBlock(currBlockStart)
-				if !ok || !mostRecentSnapshot.HasCheckpointFile() {
+				if !ok {
 					// If there are no complete snapshot files for this block, then rely on
 					// the defer to fallback to using the block start time.
 					return
@@ -388,6 +391,118 @@ func (s *commitLogSource) minimumMostRecentSnapshotTimeByBlock(
 	}
 
 	return minimumMostRecentSnapshotTimeByBlock
+}
+
+func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
+	nsID ident.ID,
+	shardsTimeRanges result.ShardTimeRanges,
+	blockSize time.Duration,
+	snapshotFilesByShard map[uint32]fs.FileSetFilesSlice,
+	fsOpts fs.Options,
+	bytesPool pool.CheckedBytesPool,
+	blocksPool block.DatabaseBlockPool,
+) (map[uint32]result.ShardResult, error) {
+	snapshotShardResults := make(map[uint32]result.ShardResult)
+
+	for shard, tr := range shardsTimeRanges {
+		rangeIter := tr.Iter()
+		for hasMore := rangeIter.Next(); hasMore; hasMore = rangeIter.Next() {
+			var (
+				currRange             = rangeIter.Value()
+				currRangeDuration     = currRange.End.Unix() - currRange.Start.Unix()
+				isMultipleOfBlockSize = currRangeDuration/int64(blockSize) == 0
+			)
+
+			if !isMultipleOfBlockSize {
+				return nil, fmt.Errorf(
+					"received bootstrap range that is not multiple of blockSize, blockSize: %d, start: %d, end: %d",
+					blockSize, currRange.End.Unix(), currRange.Start.Unix(),
+				)
+			}
+
+			// TODO: Make function for this iteration?
+			// TODO: Estimate capacity better
+			shardResult := result.NewShardResult(0, s.opts.ResultOptions())
+			for blockStart := currRange.Start.Truncate(blockSize); blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
+				snapshotFiles := snapshotFilesByShard[shard]
+
+				// TODO: Already called this FN, maybe should just re-use the results somehow
+				latestSnapshot, ok := snapshotFiles.LatestVolumeForBlock(blockStart)
+				if !ok {
+					// There are no snapshot files for this shard / block combination
+					// TODO: This is sketch, it should just try and read the exact same ones
+					// we determined in earlier steps and error out if it cant read them because
+					// then the commit log logic we chose is wrong.
+					continue
+				}
+
+				// Bootstrap the snapshot file
+				reader, err := s.newReaderFn(bytesPool, fsOpts)
+				if err != nil {
+					// TODO: In this case, we want to emit an error log, and somehow propagate that
+					// we were unable to read this snapshot file to the subsequent code which determines
+					// how much commitlog to read. We might even want to try and read the next earlier file
+					// if it exists.
+					// Actually, since the commit log file no longer exists, we might just want to mark this
+					// as unfulfilled somehow and get on with it.
+					return nil, err
+				}
+
+				err = reader.Open(fs.DataReaderOpenOptions{
+					Identifier: fs.FileSetFileIdentifier{
+						Namespace:   nsID,
+						BlockStart:  blockStart,
+						Shard:       shard,
+						VolumeIndex: latestSnapshot.ID.VolumeIndex,
+					},
+					FileSetType: persist.FileSetSnapshotType,
+				})
+				if err != nil {
+					// TODO: Same comment as above
+					return nil, err
+				}
+
+				for {
+					// TODO: Verify checksum
+					id, tagsIter, data, _, err := reader.Read()
+					if err != nil && err != io.EOF {
+						return nil, err
+					}
+
+					if err == io.EOF {
+						break
+					}
+
+					var tags ident.Tags
+					entry, exists := shardResult.AllSeries().Get(id)
+					if exists {
+						// NB(r): In the case the series is already inserted
+						// we can avoid holding onto this ID and use the already
+						// allocated ID.
+						id.Finalize()
+						id = entry.ID
+						tags = entry.Tags
+					} else {
+						// TODO: Optimize this so we don't waste a bunch of time here
+						// even when the index is off
+						tags, err = s.tagsFromTagsIter(id, tagsIter)
+						if err != nil {
+							return nil, fmt.Errorf("unable to decode tags: %v", err)
+						}
+					}
+					tagsIter.Close()
+
+					dbBlock := blocksPool.Get()
+					dbBlock.Reset(blockStart, blockSize, ts.NewSegment(data, nil, ts.FinalizeHead))
+
+					shardResult.AddBlock(id, tags, dbBlock)
+				}
+			}
+			snapshotShardResults[shard] = shardResult
+		}
+	}
+
+	return snapshotShardResults, nil
 }
 
 func (s *commitLogSource) startM3TSZEncodingWorker(
@@ -980,6 +1095,48 @@ func (s commitLogSource) maybeAddToIndex(
 
 func (s commitLogSource) shouldCacheSeriesMetadata(runOpts bootstrap.RunOptions, nsMeta namespace.Metadata) bool {
 	return runOpts.CacheSeriesMetadata() && nsMeta.Options().IndexOptions().Enabled()
+}
+
+// TODO: Share this with the fs source somehow
+func (s commitLogSource) tagsFromTagsIter(
+	seriesID ident.ID,
+	iter ident.TagIterator,
+) (ident.Tags, error) {
+	var (
+		seriesIDBytes = ident.BytesID(seriesID.Bytes())
+		// TODO: Don't call all these functions here
+		idPool = s.opts.CommitLogOptions().IdentifierPool()
+		tags   = idPool.Tags()
+	)
+
+	for iter.Next() {
+		curr := iter.Current()
+
+		var (
+			nameBytes, valueBytes = curr.Name.Bytes(), curr.Value.Bytes()
+			tag                   ident.Tag
+			idRef                 bool
+		)
+		if idx := bytes.Index(seriesIDBytes, nameBytes); idx != -1 {
+			tag.Name = seriesIDBytes[idx : idx+len(nameBytes)]
+			idRef = true
+		} else {
+			tag.Name = idPool.Clone(curr.Name)
+		}
+		if idx := bytes.Index(seriesIDBytes, valueBytes); idx != -1 {
+			tag.Value = seriesIDBytes[idx : idx+len(valueBytes)]
+			idRef = true
+		} else {
+			tag.Value = idPool.Clone(curr.Value)
+		}
+
+		if idRef {
+			tag.NoFinalize() // Taken ref, cannot finalize this
+		}
+
+		tags.Append(tag)
+	}
+	return tags, iter.Err()
 }
 
 func newReadCommitLogPredicate(
