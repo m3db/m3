@@ -1166,8 +1166,8 @@ func TestEntryStoragePolicies(t *testing.T) {
 	defer ctrl.Finish()
 
 	inputs := []struct {
-		policies []policy.StoragePolicy
-		expected []policy.StoragePolicy
+		policies policy.StoragePolicies
+		expected policy.StoragePolicies
 	}{
 		{
 			policies: []policy.StoragePolicy{},
