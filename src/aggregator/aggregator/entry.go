@@ -449,8 +449,8 @@ func (e *Entry) shouldUpdateStagedMetadatasWithLock(sm metadata.StagedMetadata) 
 	return !bs.All(uint(len(e.aggregations)))
 }
 
-func (e *Entry) storagePolicies(policies []policy.StoragePolicy) []policy.StoragePolicy {
-	if !policy.IsDefaultStoragePolicies(policies) {
+func (e *Entry) storagePolicies(policies policy.StoragePolicies) policy.StoragePolicies {
+	if !policies.IsDefault() {
 		return policies
 	}
 	return e.opts.DefaultStoragePolicies()
