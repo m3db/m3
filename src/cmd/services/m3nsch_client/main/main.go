@@ -21,7 +21,7 @@
 package main
 
 import (
-	m3nsch "github.com/m3db/m3nsch/m3nsch_client/cmd"
+	m3nsch "github.com/m3db/m3db/src/cmd/services/m3nsch_client/cmd"
 )
 
 func main() {

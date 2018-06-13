@@ -21,8 +21,8 @@
 package convert
 
 import (
-	"github.com/m3db/m3nsch"
-	proto "github.com/m3db/m3nsch/rpc"
+	"github.com/m3db/m3db/src/m3nsch"
+	proto "github.com/m3db/m3db/src/m3nsch/rpc"
 
 	google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
 )

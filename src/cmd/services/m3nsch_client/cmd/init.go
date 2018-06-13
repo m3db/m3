@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/m3db/m3nsch/coordinator"
+	"github.com/m3db/m3db/src/m3nsch/coordinator"
 
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"

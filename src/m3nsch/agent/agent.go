@@ -25,11 +25,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3nsch"
-	"github.com/m3db/m3nsch/datums"
+	"github.com/m3db/m3db/src/m3nsch"
+	"github.com/m3db/m3db/src/m3nsch/datums"
 	"github.com/m3db/m3x/ident"
 
-	"github.com/gavv/monotime"
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
@@ -300,9 +299,9 @@ func (ms *m3nschAgent) runWorker(workerIdx int, workerCh chan workerNotification
 		case <-tickLoop.C:
 			fakeNow = fakeNow.Add(tickPeriod)
 			metric := ms.nextWorkerMetric(workerIdx)
-			start := monotime.Now()
+			start := time.Now()
 			err := ms.params.fn(workerIdx, ms.session, namespace, metric, fakeNow, timeUnit)
-			elapsed := monotime.Since(start)
+			elapsed := time.Since(start)
 			methodMetrics.ReportSuccessOrError(err, elapsed)
 		}
 	}

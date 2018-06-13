@@ -56,9 +56,10 @@ import:
   - gomock
 
 - package: github.com/golang/protobuf
-  version: 5a0f697c9ed9d68fef0116532c6e05cfeae00e55
+  version: ^1.1.0
   subpackages:
   - proto
+  - ptypes/timestamp
 
 - package: github.com/gogo/protobuf
   version: 0.4
@@ -91,6 +92,9 @@ import:
 - package: google.golang.org/appengine/datastore
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 
+- package: github.com/pborman/getopt
+  version: ec82d864f599c39673eef89f91b93fa5576567a1
+
 - package: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
   subpackages:
@@ -98,6 +102,9 @@ import:
 
 - package: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
+
+- package: github.com/spf13/viper
+  version: ^1.0.0
 
 # NB(prateek): ideally, the following dependencies would be under testImport, but
 # Glide doesn't like that. https://github.com/Masterminds/glide/issues/564
@@ -148,6 +155,14 @@ import:
 
 - package: github.com/mjibson/esc
   version: ^0.1.0
+
+- package: google.golang.org/grpc
+  version: ^1.12.0
+  subpackages:
+  - codes
+
+- package: gopkg.in/validator.v2
+  version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 
 testImport:
 - package: github.com/fortytw2/leaktest

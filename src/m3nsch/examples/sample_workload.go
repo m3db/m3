@@ -4,8 +4,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3nsch"
-	"github.com/m3db/m3nsch/coordinator"
+	"github.com/m3db/m3db/src/m3nsch"
+	"github.com/m3db/m3db/src/m3nsch/coordinator"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 

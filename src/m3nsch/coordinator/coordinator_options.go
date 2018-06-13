@@ -23,7 +23,7 @@ package coordinator
 import (
 	"time"
 
-	"github.com/m3db/m3nsch"
+	"github.com/m3db/m3db/src/m3nsch"
 	"github.com/m3db/m3x/instrument"
 )
 

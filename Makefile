@@ -37,12 +37,16 @@ include $(SELF_DIR)/src/dbnode/generated-source-files.mk
 
 SERVICES :=     \
 	m3dbnode      \
-	m3coordinator
+	m3coordinator \
+	m3nsch_server \
+	m3nsch_client \
+
 
 SUBDIRS :=    \
 	cmd         \
 	dbnode      \
-	coordinator
+	coordinator \
+	m3nsch      \
 
 TOOLS :=            \
 	read_ids          \
