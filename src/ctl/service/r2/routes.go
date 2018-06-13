@@ -24,31 +24,21 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3metrics/rules/models"
+	"github.com/m3db/m3metrics/rules/view"
 
 	"github.com/gorilla/mux"
 )
 
 func fetchNamespaces(s *service, _ *http.Request) (data interface{}, err error) {
-	view, err := s.store.FetchNamespaces()
-	if err != nil {
-		return nil, err
-	}
-
-	return models.NewNamespaces(view), err
+	return s.store.FetchNamespaces()
 }
 
 func fetchNamespace(s *service, r *http.Request) (data interface{}, err error) {
-	vars := mux.Vars(r)
-	rs, err := s.store.FetchRuleSetSnapshot(vars[namespaceIDVar])
-	if err != nil {
-		return nil, err
-	}
-	return models.NewRuleSet(rs), nil
+	return s.store.FetchRuleSetSnapshot(mux.Vars(r)[namespaceIDVar])
 }
 
 func createNamespace(s *service, r *http.Request) (data interface{}, err error) {
-	var n models.Namespace
+	var n view.Namespace
 	if err := parseRequest(&n, r.Body); err != nil {
 		return nil, err
 	}
@@ -58,35 +48,28 @@ func createNamespace(s *service, r *http.Request) (data interface{}, err error) 
 		return nil, err
 	}
 
-	view, err := s.store.CreateNamespace(n.ID, uOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	return models.NewNamespace(view), nil
+	return s.store.CreateNamespace(n.ID, uOpts)
 }
 
 func validateRuleSet(s *service, r *http.Request) (data interface{}, err error) {
 	vars := mux.Vars(r)
-	var rsj models.RuleSet
-	if err := parseRequest(&rsj, r.Body); err != nil {
+	var ruleset view.RuleSet
+	if err := parseRequest(&ruleset, r.Body); err != nil {
 		return nil, err
 	}
-	if vars[namespaceIDVar] != rsj.Namespace {
+
+	if vars[namespaceIDVar] != ruleset.Namespace {
 		return nil, fmt.Errorf(
 			"namespaceID param %s and ruleset namespaceID %s do not match",
 			vars[namespaceIDVar],
-			rsj.Namespace,
+			ruleset.Namespace,
 		)
 	}
 
-	rss, err := rsj.ToRuleSetSnapshotView(models.GenerateID)
-	if err != nil {
+	if err := s.store.ValidateRuleSet(ruleset); err != nil {
 		return nil, err
 	}
-	if err := s.store.ValidateRuleSet(rss); err != nil {
-		return nil, err
-	}
+
 	return "Ruleset is valid", nil
 }
 
@@ -107,17 +90,7 @@ func updateRuleSet(s *service, r *http.Request) (data interface{}, err error) {
 		return nil, err
 	}
 
-	snapshot, err := s.store.UpdateRuleSet(
-		req.RuleSetChanges,
-		req.RuleSetVersion,
-		uOpts,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	rs := models.NewRuleSet(snapshot)
-	return &rs, nil
+	return s.store.UpdateRuleSet(req.RuleSetChanges, req.RuleSetVersion, uOpts)
 }
 
 func deleteNamespace(s *service, r *http.Request) (data interface{}, err error) {
@@ -137,17 +110,13 @@ func deleteNamespace(s *service, r *http.Request) (data interface{}, err error) 
 
 func fetchMappingRule(s *service, r *http.Request) (data interface{}, err error) {
 	vars := mux.Vars(r)
-	mr, err := s.store.FetchMappingRule(vars[namespaceIDVar], vars[ruleIDVar])
-	if err != nil {
-		return nil, err
-	}
-	return models.NewMappingRule(mr), nil
+	return s.store.FetchMappingRule(vars[namespaceIDVar], vars[ruleIDVar])
 }
 
 func createMappingRule(s *service, r *http.Request) (data interface{}, err error) {
 	vars := mux.Vars(r)
-	var mrj models.MappingRule
-	if err := parseRequest(&mrj, r.Body); err != nil {
+	var mr view.MappingRule
+	if err := parseRequest(&mr, r.Body); err != nil {
 		return nil, err
 	}
 
@@ -156,22 +125,13 @@ func createMappingRule(s *service, r *http.Request) (data interface{}, err error
 		return nil, err
 	}
 
-	mr, err := s.store.CreateMappingRule(
-		vars[namespaceIDVar],
-		mrj.ToMappingRuleView(),
-		uOpts,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-	return models.NewMappingRule(mr), nil
+	return s.store.CreateMappingRule(vars[namespaceIDVar], mr, uOpts)
 }
 
 func updateMappingRule(s *service, r *http.Request) (data interface{}, err error) {
 	vars := mux.Vars(r)
 
-	var mrj models.MappingRule
+	var mrj view.MappingRule
 	if err := parseRequest(&mrj, r.Body); err != nil {
 		return nil, err
 	}
@@ -181,18 +141,7 @@ func updateMappingRule(s *service, r *http.Request) (data interface{}, err error
 		return nil, err
 	}
 
-	mr, err := s.store.UpdateMappingRule(
-		vars[namespaceIDVar],
-		vars[ruleIDVar],
-		mrj.ToMappingRuleView(),
-		uOpts,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return models.NewMappingRule(mr), nil
+	return s.store.UpdateMappingRule(vars[namespaceIDVar], vars[ruleIDVar], mrj, uOpts)
 }
 
 func deleteMappingRule(s *service, r *http.Request) (data interface{}, err error) {
@@ -214,27 +163,23 @@ func deleteMappingRule(s *service, r *http.Request) (data interface{}, err error
 
 func fetchMappingRuleHistory(s *service, r *http.Request) (data interface{}, err error) {
 	vars := mux.Vars(r)
-	hist, err := s.store.FetchMappingRuleHistory(vars[namespaceIDVar], vars[ruleIDVar])
+	snapshots, err := s.store.FetchMappingRuleHistory(vars[namespaceIDVar], vars[ruleIDVar])
 	if err != nil {
 		return nil, err
 	}
-	return models.NewMappingRuleSnapshots(hist), nil
+	return view.MappingRuleSnapshots{MappingRules: snapshots}, nil
 }
 
 func fetchRollupRule(s *service, r *http.Request) (data interface{}, err error) {
 	vars := mux.Vars(r)
-	rr, err := s.store.FetchRollupRule(vars[namespaceIDVar], vars[ruleIDVar])
-	if err != nil {
-		return nil, err
-	}
-	return models.NewRollupRule(rr), nil
+	return s.store.FetchRollupRule(vars[namespaceIDVar], vars[ruleIDVar])
 }
 
 func createRollupRule(s *service, r *http.Request) (data interface{}, err error) {
 	vars := mux.Vars(r)
 	namespaceID := vars[namespaceIDVar]
 
-	var rrj models.RollupRule
+	var rrj view.RollupRule
 	if err := parseRequest(&rrj, r.Body); err != nil {
 		return nil, err
 	}
@@ -244,16 +189,12 @@ func createRollupRule(s *service, r *http.Request) (data interface{}, err error)
 		return nil, err
 	}
 
-	rr, err := s.store.CreateRollupRule(namespaceID, rrj.ToRollupRuleView(), uOpts)
-	if err != nil {
-		return nil, err
-	}
-	return models.NewRollupRule(rr), nil
+	return s.store.CreateRollupRule(namespaceID, rrj, uOpts)
 }
 
 func updateRollupRule(s *service, r *http.Request) (data interface{}, err error) {
 	vars := mux.Vars(r)
-	var rrj models.RollupRule
+	var rrj view.RollupRule
 	if err := parseRequest(&rrj, r.Body); err != nil {
 		return nil, err
 	}
@@ -263,17 +204,7 @@ func updateRollupRule(s *service, r *http.Request) (data interface{}, err error)
 		return nil, err
 	}
 
-	rr, err := s.store.UpdateRollupRule(
-		vars[namespaceIDVar],
-		vars[ruleIDVar],
-		rrj.ToRollupRuleView(),
-		uOpts,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-	return models.NewRollupRule(rr), nil
+	return s.store.UpdateRollupRule(vars[namespaceIDVar], vars[ruleIDVar], rrj, uOpts)
 }
 
 func deleteRollupRule(s *service, r *http.Request) (data interface{}, err error) {
@@ -295,9 +226,9 @@ func deleteRollupRule(s *service, r *http.Request) (data interface{}, err error)
 
 func fetchRollupRuleHistory(s *service, r *http.Request) (data interface{}, err error) {
 	vars := mux.Vars(r)
-	hist, err := s.store.FetchRollupRuleHistory(vars[namespaceIDVar], vars[ruleIDVar])
+	snapshots, err := s.store.FetchRollupRuleHistory(vars[namespaceIDVar], vars[ruleIDVar])
 	if err != nil {
 		return nil, err
 	}
-	return models.NewRollupRuleSnapshots(hist), nil
+	return view.RollupRuleSnapshots{RollupRules: snapshots}, nil
 }

@@ -32,8 +32,8 @@ import (
 	"github.com/m3db/m3ctl/auth"
 	"github.com/m3db/m3ctl/service/r2/store"
 	"github.com/m3db/m3metrics/rules"
-	"github.com/m3db/m3metrics/rules/models"
-	"github.com/m3db/m3metrics/rules/models/changes"
+	"github.com/m3db/m3metrics/rules/view"
+	"github.com/m3db/m3metrics/rules/view/changes"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 
@@ -46,7 +46,7 @@ import (
 func TestHandleRoute(t *testing.T) {
 	s := newTestService(nil)
 	r := newTestGetRequest()
-	expected := models.NewNamespaces(&models.NamespacesView{})
+	expected := view.Namespaces{}
 	actual, err := s.handleRoute(fetchNamespaces, r, newTestInstrumentMethodMetrics())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
@@ -58,14 +58,14 @@ func TestHandleRouteNilRequest(t *testing.T) {
 	require.EqualError(t, err, errNilRequest.Error())
 }
 func TestFetchNamespacesSuccess(t *testing.T) {
-	expected := models.NewNamespaces(&models.NamespacesView{})
+	expected := view.Namespaces{}
 	actual, err := fetchNamespaces(newTestService(nil), newTestGetRequest())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
 
 func TestFetchNamespaceSuccess(t *testing.T) {
-	expected := models.NewRuleSet(&models.RuleSetSnapshotView{})
+	expected := view.RuleSet{}
 	actual, err := fetchNamespace(newTestService(nil), newTestGetRequest())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
@@ -79,7 +79,7 @@ func TestValidateRuleSetSuccess(t *testing.T) {
 }
 
 func TestCreateNamespaceSuccess(t *testing.T) {
-	expected := models.NewNamespace(&models.NamespaceView{})
+	expected := view.Namespace{}
 	actual, err := createNamespace(newTestService(nil), newTestPostRequest([]byte(`{"id": "id"}`)))
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
@@ -93,14 +93,14 @@ func TestDeleteNamespaceSuccess(t *testing.T) {
 }
 
 func TestFetchMappingRuleSuccess(t *testing.T) {
-	expected := models.NewMappingRule(&models.MappingRuleView{})
+	expected := view.MappingRule{}
 	actual, err := fetchMappingRule(newTestService(nil), newTestGetRequest())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
 
 func TestCreateMappingRuleSuccess(t *testing.T) {
-	expected := models.NewMappingRule(&models.MappingRuleView{})
+	expected := view.MappingRule{}
 	actual, err := createMappingRule(newTestService(nil), newTestPostRequest(
 		[]byte(`{"filter": "key:val", "name": "name", "policies": []}`),
 	))
@@ -109,7 +109,7 @@ func TestCreateMappingRuleSuccess(t *testing.T) {
 }
 
 func TestUpdateMappingRuleSuccess(t *testing.T) {
-	expected := models.NewMappingRule(&models.MappingRuleView{})
+	expected := view.MappingRule{}
 	actual, err := updateMappingRule(newTestService(nil), newTestPutRequest(
 		[]byte(`{"filter": "key:val", "name": "name", "policies": []}`),
 	))
@@ -125,21 +125,21 @@ func TestDeleteMappingRuleSuccess(t *testing.T) {
 }
 
 func TestFetchMappingRuleHistorySuccess(t *testing.T) {
-	expected := models.NewMappingRuleSnapshots(make([]*models.MappingRuleView, 0))
+	expected := view.MappingRuleSnapshots{MappingRules: make([]view.MappingRule, 0)}
 	actual, err := fetchMappingRuleHistory(newTestService(nil), newTestGetRequest())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
 
 func TestFetchRollupRuleSuccess(t *testing.T) {
-	expected := models.NewRollupRule(&models.RollupRuleView{})
+	expected := view.RollupRule{}
 	actual, err := fetchRollupRule(newTestService(nil), newTestGetRequest())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
 
 func TestCreateRollupRuleSuccess(t *testing.T) {
-	expected := models.NewRollupRule(&models.RollupRuleView{})
+	expected := view.RollupRule{}
 	actual, err := createRollupRule(newTestService(nil), newTestPostRequest(
 		[]byte(`{"filter": "key:val", "name": "name", "targets": []}`),
 	))
@@ -148,7 +148,7 @@ func TestCreateRollupRuleSuccess(t *testing.T) {
 }
 
 func TestUpdateRollupRuleSuccess(t *testing.T) {
-	expected := models.NewRollupRule(&models.RollupRuleView{})
+	expected := view.RollupRule{}
 	actual, err := updateRollupRule(newTestService(nil), newTestPutRequest(
 		[]byte(`{"filter": "key:val", "name": "name", "targets": []}`),
 	))
@@ -164,7 +164,7 @@ func TestDeleteRollupRuleSuccess(t *testing.T) {
 }
 
 func TestFetchRollupRuleHistorySuccess(t *testing.T) {
-	expected := models.NewRollupRuleSnapshots([]*models.RollupRuleView{})
+	expected := view.RollupRuleSnapshots{RollupRules: []view.RollupRule{}}
 	actual, err := fetchRollupRuleHistory(newTestService(nil), newTestGetRequest())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
@@ -192,7 +192,7 @@ func TestRulesetUpdateRuleSet(t *testing.T) {
 	defer ctrl.Finish()
 	storeMock := store.NewMockStore(ctrl)
 	storeMock.EXPECT().UpdateRuleSet(gomock.Any(), 1, gomock.Any()).Return(
-		&models.RuleSetSnapshotView{
+		view.RuleSet{
 			Version: 2,
 		},
 		nil,
@@ -201,7 +201,7 @@ func TestRulesetUpdateRuleSet(t *testing.T) {
 	service := newTestService(storeMock)
 	resp, err := updateRuleSet(service, req)
 	require.NoError(t, err)
-	typedResp := resp.(*models.RuleSet)
+	typedResp := resp.(view.RuleSet)
 	require.Equal(t, typedResp.Version, 2)
 }
 
@@ -227,13 +227,13 @@ func TestUpdateRuleSetStoreUpdateFailure(t *testing.T) {
 	defer ctrl.Finish()
 	storeMock := store.NewMockStore(ctrl)
 	storeMock.EXPECT().UpdateRuleSet(gomock.Any(), 1, gomock.Any()).Return(
-		nil,
+		view.RuleSet{},
 		NewConflictError("something horrible has happened"),
 	)
 
 	service := newTestService(storeMock)
 	resp, err := updateRuleSet(service, req)
-	require.Nil(t, resp)
+	require.Equal(t, view.RuleSet{}, resp)
 	require.Error(t, err)
 	require.IsType(t, NewConflictError(""), err)
 }
@@ -340,7 +340,7 @@ func newTestBulkReqBody() updateRuleSetRequest {
 			RollupRuleChanges: []changes.RollupRuleChange{
 				changes.RollupRuleChange{
 					Op: changes.AddOp,
-					RuleData: &models.RollupRule{
+					RuleData: &view.RollupRule{
 						Name: "rollupRule3",
 					},
 				},
@@ -348,7 +348,7 @@ func newTestBulkReqBody() updateRuleSetRequest {
 			MappingRuleChanges: []changes.MappingRuleChange{
 				changes.MappingRuleChange{
 					Op: changes.AddOp,
-					RuleData: &models.MappingRule{
+					RuleData: &view.MappingRule{
 						Name: "mappingRule3",
 					},
 				},
@@ -365,31 +365,31 @@ func newTestRuleSet(version int) rules.RuleSet {
 
 	mrs := rules.NewEmptyRuleSet("testNamespace", rules.UpdateMetadata{})
 	mrs.AddRollupRule(
-		models.RollupRuleView{
+		view.RollupRule{
 			Name: "rollupRule1",
 		},
 		meta,
 	)
 	mrs.AddRollupRule(
-		models.RollupRuleView{
+		view.RollupRule{
 			Name: "rollupRule2",
 		},
 		meta,
 	)
 	mrs.AddMappingRule(
-		models.MappingRuleView{
+		view.MappingRule{
 			Name: "mappingRule1",
 		},
 		meta,
 	)
 	mrs.AddMappingRule(
-		models.MappingRuleView{
+		view.MappingRule{
 			Name: "mappingRule2",
 		},
 		meta,
 	)
-	schema, _ := mrs.Schema()
-	rs, _ := rules.NewRuleSetFromSchema(version, schema, rules.NewOptions())
+	proto, _ := mrs.Proto()
+	rs, _ := rules.NewRuleSetFromProto(version, proto, rules.NewOptions())
 	return rs
 }
 
@@ -400,20 +400,20 @@ func newMockStore() store.Store {
 	return mockStore{}
 }
 
-func (s mockStore) FetchNamespaces() (*models.NamespacesView, error) {
-	return &models.NamespacesView{}, nil
+func (s mockStore) FetchNamespaces() (view.Namespaces, error) {
+	return view.Namespaces{}, nil
 }
 
-func (s mockStore) ValidateRuleSet(rs *models.RuleSetSnapshotView) error {
+func (s mockStore) ValidateRuleSet(rs view.RuleSet) error {
 	return nil
 }
 
-func (s mockStore) UpdateRuleSet(rsChanges changes.RuleSetChanges, version int, uOpts store.UpdateOptions) (*models.RuleSetSnapshotView, error) {
-	return nil, nil
+func (s mockStore) UpdateRuleSet(rsChanges changes.RuleSetChanges, version int, uOpts store.UpdateOptions) (view.RuleSet, error) {
+	return view.RuleSet{}, nil
 }
 
-func (s mockStore) CreateNamespace(namespaceID string, uOpts store.UpdateOptions) (*models.NamespaceView, error) {
-	return &models.NamespaceView{}, nil
+func (s mockStore) CreateNamespace(namespaceID string, uOpts store.UpdateOptions) (view.Namespace, error) {
+	return view.Namespace{}, nil
 }
 
 func (s mockStore) DeleteNamespace(namespaceID string, uOpts store.UpdateOptions) error {
@@ -425,48 +425,48 @@ func (s mockStore) FetchRuleSet(namespaceID string) (rules.RuleSet, error) {
 	return newTestRuleSet(1), nil
 }
 
-func (s mockStore) FetchRuleSetSnapshot(namespaceID string) (*models.RuleSetSnapshotView, error) {
-	return &models.RuleSetSnapshotView{}, nil
+func (s mockStore) FetchRuleSetSnapshot(namespaceID string) (view.RuleSet, error) {
+	return view.RuleSet{}, nil
 }
 
-func (s mockStore) FetchMappingRule(namespaceID, mappingRuleID string) (*models.MappingRuleView, error) {
-	return &models.MappingRuleView{}, nil
+func (s mockStore) FetchMappingRule(namespaceID, mappingRuleID string) (view.MappingRule, error) {
+	return view.MappingRule{}, nil
 }
 
-func (s mockStore) CreateMappingRule(namespaceID string, mrv *models.MappingRuleView, uOpts store.UpdateOptions) (*models.MappingRuleView, error) {
-	return &models.MappingRuleView{}, nil
+func (s mockStore) CreateMappingRule(namespaceID string, mrv view.MappingRule, uOpts store.UpdateOptions) (view.MappingRule, error) {
+	return view.MappingRule{}, nil
 }
 
-func (s mockStore) UpdateMappingRule(namespaceID, mappingRuleID string, mrv *models.MappingRuleView, uOpts store.UpdateOptions) (*models.MappingRuleView, error) {
-	return &models.MappingRuleView{}, nil
+func (s mockStore) UpdateMappingRule(namespaceID, mappingRuleID string, mrv view.MappingRule, uOpts store.UpdateOptions) (view.MappingRule, error) {
+	return view.MappingRule{}, nil
 }
 
 func (s mockStore) DeleteMappingRule(namespaceID, mappingRuleID string, uOpts store.UpdateOptions) error {
 	return nil
 }
 
-func (s mockStore) FetchMappingRuleHistory(namespaceID, mappingRuleID string) ([]*models.MappingRuleView, error) {
-	return make([]*models.MappingRuleView, 0), nil
+func (s mockStore) FetchMappingRuleHistory(namespaceID, mappingRuleID string) ([]view.MappingRule, error) {
+	return make([]view.MappingRule, 0), nil
 }
 
-func (s mockStore) FetchRollupRule(namespaceID, rollupRuleID string) (*models.RollupRuleView, error) {
-	return &models.RollupRuleView{}, nil
+func (s mockStore) FetchRollupRule(namespaceID, rollupRuleID string) (view.RollupRule, error) {
+	return view.RollupRule{}, nil
 }
 
-func (s mockStore) CreateRollupRule(namespaceID string, rrv *models.RollupRuleView, uOpts store.UpdateOptions) (*models.RollupRuleView, error) {
-	return &models.RollupRuleView{}, nil
+func (s mockStore) CreateRollupRule(namespaceID string, rrv view.RollupRule, uOpts store.UpdateOptions) (view.RollupRule, error) {
+	return view.RollupRule{}, nil
 }
 
-func (s mockStore) UpdateRollupRule(namespaceID, rollupRuleID string, rrv *models.RollupRuleView, uOpts store.UpdateOptions) (*models.RollupRuleView, error) {
-	return &models.RollupRuleView{}, nil
+func (s mockStore) UpdateRollupRule(namespaceID, rollupRuleID string, rrv view.RollupRule, uOpts store.UpdateOptions) (view.RollupRule, error) {
+	return view.RollupRule{}, nil
 }
 
 func (s mockStore) DeleteRollupRule(namespaceID, rollupRuleID string, uOpts store.UpdateOptions) error {
 	return nil
 }
 
-func (s mockStore) FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]*models.RollupRuleView, error) {
-	return make([]*models.RollupRuleView, 0), nil
+func (s mockStore) FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]view.RollupRule, error) {
+	return make([]view.RollupRule, 0), nil
 }
 
 func (s mockStore) Close() {}
