@@ -298,6 +298,55 @@ func timeAndIndexFromFileName(fname string, componentPosition int) (time.Time, i
 	return t, int(index), nil
 }
 
+// SnapshotTime returns the time at which the snapshot was taken.
+func SnapshotTime(
+	filePathPrefix string, id FileSetFileIdentifier, readerBufferSize int, decoder *msgpack.Decoder) (time.Time, error) {
+	infoBytes, err := readSnapshotInfoFile(filePathPrefix, id, readerBufferSize)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	decoder.Reset(msgpack.NewDecoderStream(infoBytes))
+	info, err := decoder.DecodeIndexInfo()
+	return time.Unix(0, info.SnapshotTime), err
+}
+
+func readSnapshotInfoFile(filePathPrefix string, id FileSetFileIdentifier, readerBufferSize int) ([]byte, error) {
+	var (
+		shardDir           = ShardSnapshotsDirPath(filePathPrefix, id.Namespace, id.Shard)
+		checkpointFilePath = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, checkpointFileSuffix)
+
+		digestFilePath = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, digestFileSuffix)
+		infoFilePath   = filesetPathFromTimeAndIndex(shardDir, id.BlockStart, id.VolumeIndex, infoFileSuffix)
+	)
+
+	checkpointFd, err := os.Open(checkpointFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read digest of digests from the checkpoint file
+	digestBuf := digest.NewBuffer()
+	expectedDigestOfDigest, err := digestBuf.ReadDigestFromFile(checkpointFd)
+	// TODO: Multierr
+	checkpointFd.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	// Read and validate the digest file
+	digestData, err := readAndValidate(
+		digestFilePath, readerBufferSize, expectedDigestOfDigest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read and validate the info file
+	expectedInfoDigest := digest.ToBuffer(digestData).ReadDigest()
+	return readAndValidate(
+		infoFilePath, readerBufferSize, expectedInfoDigest)
+}
+
 type forEachInfoFileSelector struct {
 	fileSetType    persist.FileSetType
 	contentType    persist.FileSetContentType

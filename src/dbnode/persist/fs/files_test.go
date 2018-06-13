@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,6 +35,7 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/digest"
 	"github.com/m3db/m3db/src/dbnode/persist"
+	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3x/ident"
@@ -819,6 +821,37 @@ func TestIndexFileSetsBefore(t *testing.T) {
 	for _, res := range results {
 		require.False(t, strings.Contains(res, fmt.Sprintf("%d", timeFor(3).UnixNano())))
 	}
+}
+
+func TestSnapshotFileSnapshotTime(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	entries := []testEntry{
+		{"foo", nil, []byte{1, 2, 3}},
+		{"bar", nil, []byte{4, 5, 6}},
+		{"baz", nil, make([]byte, 65536)},
+		{"cat", nil, make([]byte, 100000)},
+		{"echo", nil, []byte{7, 8, 9}},
+	}
+
+	// Write out snapshot file
+	w := newTestWriter(t, filePathPrefix)
+	writeTestData(
+		t, w, 0, testWriterStart, entries, persist.FileSetSnapshotType)
+
+	// Load snapshot files
+	snapshotFiles, err := SnapshotFiles(filePathPrefix, testNs1ID, 0)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(snapshotFiles))
+
+	// Verify SnapshotTime() returns the expected time
+	decoder := msgpack.NewDecoder(nil)
+	snapshotTime, err := SnapshotTime(
+		filePathPrefix, snapshotFiles[0].ID, 16, decoder)
+	require.NoError(t, err)
+	require.Equal(t, true, testWriterStart.Equal(snapshotTime))
 }
 
 func createTempFile(t *testing.T) *os.File {
