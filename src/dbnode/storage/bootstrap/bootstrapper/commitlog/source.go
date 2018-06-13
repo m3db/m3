@@ -355,6 +355,41 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 	return mostRecentSnapshotsByBlockShard
 }
 
+func (s *commitLogSource) minimumMostRecentSnapshotTimeByBlock(
+	shardsTimeRanges result.ShardTimeRanges,
+	blockSize time.Duration,
+	mostRecentSnapshotByBlockShard map[xtime.UnixNano]map[uint32]time.Time,
+) map[xtime.UnixNano]time.Time {
+	minimumMostRecentSnapshotTimeByBlock := map[xtime.UnixNano]time.Time{}
+	for blockStart, mostRecentSnapshotsByShard := range mostRecentSnapshotByBlockShard {
+
+		var minMostRecentSnapshot time.Time
+		for shard, mostRecentSnapshotForShard := range mostRecentSnapshotsByShard {
+			blockRange := xtime.Range{Start: blockStart.ToTime(), End: blockStart.ToTime().Add(blockSize)}
+			if !shardsTimeRanges[shard].Overlaps(blockRange) {
+				// In order for a minimum most recent snapshot to be valid, it needs to be for a block that
+				// we actually need to bootstrap for that. This check ensures that our algorithm doesn't do any
+				// extra work, even if we're bootstrapping different blocks for various shards.
+				continue
+			}
+
+			if mostRecentSnapshotForShard.Before(minMostRecentSnapshot) || minMostRecentSnapshot.IsZero() {
+				minMostRecentSnapshot = mostRecentSnapshotForShard
+			}
+		}
+
+		if minMostRecentSnapshot.IsZero() {
+			// If we didn't find a minimum most recent snapshot time for this blockStart, just use the
+			// blockStart as the minimum since we'll need to read the entire commit log in this case.
+			minMostRecentSnapshot = blockStart.ToTime()
+		}
+
+		minimumMostRecentSnapshotTimeByBlock[blockStart] = minMostRecentSnapshot
+	}
+
+	return minimumMostRecentSnapshotTimeByBlock
+}
+
 func (s *commitLogSource) startM3TSZEncodingWorker(
 	ns namespace.Metadata,
 	runOpts bootstrap.RunOptions,
