@@ -87,8 +87,8 @@ func newCommitLogSource(opts Options, inspection fs.Inspection) bootstrap.Source
 
 		newIteratorFn:   commitlog.NewIterator,
 		snapshotFilesFn: fs.SnapshotFiles,
-		// snapshotTimeFn:
-		newReaderFn: fs.NewReader,
+		snapshotTimeFn:  fs.SnapshotTime,
+		newReaderFn:     fs.NewReader,
 
 		cachedShardDataByNS: map[string]*cachedShardData{},
 	}
