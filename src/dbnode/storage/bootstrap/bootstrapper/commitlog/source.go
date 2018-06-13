@@ -284,11 +284,11 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 		mostRecentSnapshotsByBlockShard = map[xtime.UnixNano]map[uint32]time.Time{}
 	)
 
-	for currBlock := minBlock.Truncate(blockSize); currBlock.Before(maxBlock); currBlock = currBlock.Add(blockSize) {
+	for currBlockStart := minBlock.Truncate(blockSize); currBlockStart.Before(maxBlock); currBlockStart = currBlockStart.Add(blockSize) {
 		for shard := range shardsTimeRanges {
 			func() {
 				var (
-					currBlockUnixNanos     = xtime.ToUnixNano(currBlock)
+					currBlockUnixNanos     = xtime.ToUnixNano(currBlockStart)
 					mostRecentSnapshotTime time.Time
 					mostRecentSnapshot     fs.FileSetFile
 					err                    error
@@ -299,26 +299,28 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 					if existing == nil {
 						existing = map[uint32]time.Time{}
 					}
-					// Why are we setting a zero value here?
+
+					if mostRecentSnapshotTime.IsZero() {
+						// If we were unable to determine the most recent snapshot time for a given
+						// shard/blockStart combination, then just fall back to using the blockStart
+						// time as that will force us to read the entire commit log for that duration.
+						mostRecentSnapshotTime = currBlockStart
+					}
 					existing[shard] = mostRecentSnapshotTime
 					mostRecentSnapshotsByBlockShard[currBlockUnixNanos] = existing
 				}()
 
 				snapshotFiles, ok := snapshotFilesByShard[shard]
 				if !ok {
-					// If there are no snapshot files for this shard, then for this
-					// block we will need to read the entire commit log for that
-					// period so we just set the most recent snapshot to the beginning
-					// of the block.
-					mostRecentSnapshotTime = currBlock
+					// If there are no snapshot files for this shard, then rely on
+					// the defer to fallback to using the block start time.
+					return
 				}
 
-				mostRecentSnapshot, ok = snapshotFiles.LatestVolumeForBlock(currBlock)
+				mostRecentSnapshot, ok = snapshotFiles.LatestVolumeForBlock(currBlockStart)
 				if !ok || !mostRecentSnapshot.HasCheckpointFile() {
-					// If there are no complete snapshot files for this block, then for this
-					// block we will need to read the entire commit log for that period so we
-					// just set the most recent snapshot to the beginning of the block.
-					mostRecentSnapshotTime = currBlock
+					// If there are no complete snapshot files for this block, then rely on
+					// the defer to fallback to using the block start time.
 					return
 				}
 
@@ -340,10 +342,9 @@ func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(
 							xlog.NewField("filepaths", mostRecentSnapshot.AbsoluteFilepaths),
 						).
 						Error("error resolving snapshot time for snapshot file")
-						// If we couldn't determine the snapshot time for the snapshot file, then we
-						// will need to read the entire commit log for that period so we just set the
-						// most recent snapshot to the beginning of the block.
-					mostRecentSnapshotTime = currBlock
+
+					// If we couldn't determine the snapshot time for the snapshot file, then rely on
+					// the defer to fallback to using the block start time.
 					return
 				}
 
