@@ -742,7 +742,7 @@ func computeExpectedAggregationKeysFromStagedMetadatas(
 	res := make(aggregationKeys, 0, len(metadatas[i].Pipelines))
 	for _, pipeline := range metadatas[i].Pipelines {
 		storagePolicies := pipeline.StoragePolicies
-		if policy.IsDefaultStoragePolicies(storagePolicies) {
+		if storagePolicies.IsDefault() {
 			storagePolicies = defaultStoragePolices
 		}
 		for _, sp := range storagePolicies {
