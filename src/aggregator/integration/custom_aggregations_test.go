@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3x/clock"
 
@@ -76,13 +77,13 @@ func TestCustomAggregationWithStagedMetadatas(t *testing.T) {
 		func(int) metadataUnion {
 			return metadataUnion{
 				mType:           stagedMetadatasType,
-				stagedMetadatas: testUpdatedStagedMetadatas,
+				stagedMetadatas: testStagedMetadatasWithCustomAggregation1,
 			}
 		},
 		func(int) metadataUnion {
 			return metadataUnion{
 				mType:           stagedMetadatasType,
-				stagedMetadatas: testStagedMetadatas,
+				stagedMetadatas: testStagedMetadatasWithCustomAggregation2,
 			}
 		},
 		func(int) metadataUnion {
@@ -100,7 +101,12 @@ func testCustomAggregations(t *testing.T, metadataFns [4]metadataFn) {
 		t.SkipNow()
 	}
 
-	serverOpts := newTestServerOptions()
+	aggTypesOpts := aggregation.NewTypesOptions().
+		SetCounterTypeStringTransformFn(aggregation.SuffixTransform).
+		SetTimerTypeStringTransformFn(aggregation.SuffixTransform).
+		SetGaugeTypeStringTransformFn(aggregation.SuffixTransform)
+	serverOpts := newTestServerOptions().
+		SetAggregationTypesOptions(aggTypesOpts)
 
 	// Clock setup.
 	var lock sync.RWMutex

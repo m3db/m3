@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 )
@@ -60,6 +61,12 @@ type testServerOptions interface {
 
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
+
+	// SetAggregationTypesOptions sets the aggregation types options.
+	SetAggregationTypesOptions(value aggregation.TypesOptions) testServerOptions
+
+	// AggregationTypesOptions returns the aggregation types options.
+	AggregationTypesOptions() aggregation.TypesOptions
 
 	// SetRawTCPAddr sets the raw TCP server address.
 	SetRawTCPAddr(value string) testServerOptions
@@ -179,6 +186,7 @@ type testServerOptions interface {
 type serverOptions struct {
 	clockOpts                   clock.Options
 	instrumentOpts              instrument.Options
+	aggTypesOpts                aggregation.TypesOptions
 	rawTCPAddr                  string
 	httpAddr                    string
 	instanceID                  string
@@ -201,11 +209,16 @@ type serverOptions struct {
 }
 
 func newTestServerOptions() testServerOptions {
+	aggTypesOpts := aggregation.NewTypesOptions().
+		SetCounterTypeStringTransformFn(aggregation.EmptyTransform).
+		SetTimerTypeStringTransformFn(aggregation.SuffixTransform).
+		SetGaugeTypeStringTransformFn(aggregation.EmptyTransform)
 	return &serverOptions{
 		rawTCPAddr:                  defaultRawTCPAddr,
 		httpAddr:                    defaultHTTPAddr,
 		clockOpts:                   clock.NewOptions(),
 		instrumentOpts:              instrument.NewOptions(),
+		aggTypesOpts:                aggTypesOpts,
 		instanceID:                  defaultInstanceID,
 		electionKeyFmt:              defaultElectionKeyFmt,
 		shardSetID:                  defaultShardSetID,
@@ -243,6 +256,16 @@ func (o *serverOptions) SetInstrumentOptions(value instrument.Options) testServe
 
 func (o *serverOptions) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
+}
+
+func (o *serverOptions) SetAggregationTypesOptions(value aggregation.TypesOptions) testServerOptions {
+	opts := *o
+	opts.aggTypesOpts = value
+	return &opts
+}
+
+func (o *serverOptions) AggregationTypesOptions() aggregation.TypesOptions {
+	return o.aggTypesOpts
 }
 
 func (o *serverOptions) SetRawTCPAddr(value string) testServerOptions {

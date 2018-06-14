@@ -109,6 +109,40 @@ var (
 			},
 		},
 	}
+	testStagedMetadatasWithCustomAggregation1 = metadata.StagedMetadatas{
+		{
+			CutoverNanos: 0,
+			Tombstoned:   false,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: maggregation.MustCompressTypes(maggregation.Min),
+						StoragePolicies: []policy.StoragePolicy{
+							policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+							policy.NewStoragePolicy(2*time.Second, xtime.Second, 6*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
+	testStagedMetadatasWithCustomAggregation2 = metadata.StagedMetadatas{
+		{
+			CutoverNanos: 0,
+			Tombstoned:   false,
+			Metadata: metadata.Metadata{
+				Pipelines: []metadata.PipelineMetadata{
+					{
+						AggregationID: maggregation.MustCompressTypes(maggregation.Min, maggregation.Max),
+						StoragePolicies: []policy.StoragePolicy{
+							policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+							policy.NewStoragePolicy(3*time.Second, xtime.Second, 24*time.Hour),
+						},
+					},
+				},
+			},
+		},
+	}
 	testUpdatedStagedMetadatas = metadata.StagedMetadatas{
 		{
 			CutoverNanos: 0,
@@ -328,7 +362,7 @@ func computeExpectedAggregationBuckets(
 							aggTypes = aggTypeOpts.DefaultTimerAggregationTypes()
 						}
 						aggregationOpts.ResetSetData(aggTypes)
-						values = aggregation.NewTimer(aggTypeOpts.TimerQuantiles(), opts.StreamOptions(), aggregationOpts)
+						values = aggregation.NewTimer(aggTypeOpts.Quantiles(), opts.StreamOptions(), aggregationOpts)
 					case metric.GaugeType:
 						if aggTypes.IsDefault() {
 							aggTypes = aggTypeOpts.DefaultGaugeAggregationTypes()

@@ -103,11 +103,9 @@ runtimeOptions:
 aggregator:
   metricPrefix: stats.
   aggregationTypes:
-    counterOverrides:
-      Sum: ""
-    gaugeOverrides:
-      Last: ""
-    transformFnType: suffix
+    counterTransformFnType: empty
+    timerTransformFnType: suffix
+    gaugeTransformFnType: empty
     aggregationTypesPool:
       size: 1024
     quantilesPool:
