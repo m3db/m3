@@ -116,7 +116,7 @@ func TestCounterElemBase(t *testing.T) {
 	require.Equal(t, []byte("stats.counts."), e.FullPrefix(opts))
 	require.Equal(t, maggregation.Types{maggregation.Sum}, e.DefaultAggregationTypes(aggTypesOpts))
 	require.Equal(t, []byte(nil), e.TypeStringFor(aggTypesOpts, maggregation.Sum))
-	require.Equal(t, []byte("lower"), e.TypeStringFor(aggTypesOpts, maggregation.Min))
+	require.Equal(t, []byte(nil), e.TypeStringFor(aggTypesOpts, maggregation.Min))
 	require.True(t, opts.CounterElemPool() == e.ElemPool(opts))
 }
 
@@ -166,7 +166,7 @@ func TestTimerElemBase(t *testing.T) {
 	e := timerElemBase{}
 	require.Equal(t, []byte("stats.timers."), e.FullPrefix(opts))
 	require.Equal(t, defaultTimerAggregationTypes, e.DefaultAggregationTypes(aggTypesOpts))
-	require.Equal(t, []byte("lower"), e.TypeStringFor(aggTypesOpts, maggregation.Min))
+	require.Equal(t, []byte(".lower"), e.TypeStringFor(aggTypesOpts, maggregation.Min))
 	require.True(t, opts.TimerElemPool() == e.ElemPool(opts))
 }
 
@@ -190,7 +190,7 @@ func TestTimerElemBaseResetSetDataWithDefaultAggregation(t *testing.T) {
 	typesOpts := maggregation.NewTypesOptions()
 	aggTypes := typesOpts.DefaultTimerAggregationTypes()
 	require.NoError(t, e.ResetSetData(typesOpts, aggTypes, true))
-	require.Equal(t, typesOpts.TimerQuantiles(), e.quantiles)
+	require.Equal(t, typesOpts.Quantiles(), e.quantiles)
 	require.Nil(t, e.quantilesPool)
 
 	e.Close()
@@ -225,7 +225,7 @@ func TestGaugeElemBase(t *testing.T) {
 	require.Equal(t, []byte("stats.gauges."), e.FullPrefix(opts))
 	require.Equal(t, maggregation.Types{maggregation.Last}, e.DefaultAggregationTypes(aggTypesOpts))
 	require.Equal(t, []byte(nil), e.TypeStringFor(aggTypesOpts, maggregation.Last))
-	require.Equal(t, []byte("lower"), e.TypeStringFor(aggTypesOpts, maggregation.Min))
+	require.Equal(t, []byte(nil), e.TypeStringFor(aggTypesOpts, maggregation.Min))
 	require.True(t, opts.GaugeElemPool() == e.ElemPool(opts))
 }
 

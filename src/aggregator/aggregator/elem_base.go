@@ -257,7 +257,7 @@ func (e *timerElemBase) ResetSetData(
 		return fmt.Errorf("invalid aggregation types %s for timer", aggTypes.String())
 	}
 	if useDefaultAggregation {
-		e.quantiles = aggTypesOpts.TimerQuantiles()
+		e.quantiles = aggTypesOpts.Quantiles()
 		e.quantilesPool = nil
 		return nil
 	}

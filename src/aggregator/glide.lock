@@ -1,5 +1,5 @@
-hash: c72ea95280807b48ec30b214dc768744271f311575b30d2f7cbbd5f715f2d28f
-updated: 2018-06-13T13:13:06.694891-04:00
+hash: 341d40171dc7b6a96efe405b08bb2932c41d3826e612714d11af60db79fe9421
+updated: 2018-06-14T15:30:54.082945-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -186,7 +186,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: e11f9737a72b77367def7f7bf247adf134e4f5b5
+  version: d84343677f64db35894920212a20475a4143c588
   subpackages:
   - aggregation
   - encoding
@@ -293,7 +293,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: eeedf312bc6c57391d84767a4cd413f02a917974
+  version: 88c71ae3d702167d7f8be42c0e0b68bfa4d1707e
   subpackages:
   - buffer
   - internal/bufferpool

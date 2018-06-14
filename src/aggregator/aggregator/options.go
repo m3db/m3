@@ -329,8 +329,12 @@ type options struct {
 
 // NewOptions create a new set of options.
 func NewOptions() Options {
+	aggTypesOptions := aggregation.NewTypesOptions().
+		SetCounterTypeStringTransformFn(aggregation.EmptyTransform).
+		SetTimerTypeStringTransformFn(aggregation.SuffixTransform).
+		SetGaugeTypeStringTransformFn(aggregation.EmptyTransform)
 	o := &options{
-		aggTypesOptions:    aggregation.NewTypesOptions(),
+		aggTypesOptions:    aggTypesOptions,
 		metricPrefix:       defaultMetricPrefix,
 		counterPrefix:      defaultCounterPrefix,
 		timerPrefix:        defaultTimerPrefix,

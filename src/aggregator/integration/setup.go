@@ -38,7 +38,10 @@ import (
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric/aggregated"
+	"github.com/m3db/m3metrics/pipeline/applied"
+	"github.com/m3db/m3metrics/policy"
 	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/stretchr/testify/require"
@@ -90,16 +93,9 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	aggregatorOpts := aggregator.NewOptions().
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(opts.InstrumentOptions()).
+		SetAggregationTypesOptions(opts.AggregationTypesOptions()).
 		SetEntryCheckInterval(opts.EntryCheckInterval()).
 		SetMaxAllowedForwardingDelayFn(opts.MaxAllowedForwardingDelayFn())
-
-	// Set up entry pool.
-	runtimeOpts := runtime.NewOptions()
-	entryPool := aggregator.NewEntryPool(nil)
-	entryPool.Init(func() *aggregator.Entry {
-		return aggregator.NewEntry(nil, runtimeOpts, aggregatorOpts)
-	})
-	aggregatorOpts = aggregatorOpts.SetEntryPool(entryPool)
 
 	// Set up placement manager.
 	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
@@ -173,6 +169,33 @@ func newTestServerSetup(t *testing.T, opts testServerOptions) *testServerSetup {
 	)
 	handler := &capturingHandler{results: &results, resultLock: &resultLock}
 	aggregatorOpts = aggregatorOpts.SetFlushHandler(handler)
+
+	// Set up entry pool.
+	runtimeOpts := runtime.NewOptions()
+	entryPool := aggregator.NewEntryPool(nil)
+	entryPool.Init(func() *aggregator.Entry {
+		return aggregator.NewEntry(nil, runtimeOpts, aggregatorOpts)
+	})
+	aggregatorOpts = aggregatorOpts.SetEntryPool(entryPool)
+
+	// Set up elem pools.
+	counterElemPool := aggregator.NewCounterElemPool(nil)
+	aggregatorOpts = aggregatorOpts.SetCounterElemPool(counterElemPool)
+	counterElemPool.Init(func() *aggregator.CounterElem {
+		return aggregator.MustNewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregatorOpts)
+	})
+
+	timerElemPool := aggregator.NewTimerElemPool(nil)
+	aggregatorOpts = aggregatorOpts.SetTimerElemPool(timerElemPool)
+	timerElemPool.Init(func() *aggregator.TimerElem {
+		return aggregator.MustNewTimerElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregatorOpts)
+	})
+
+	gaugeElemPool := aggregator.NewGaugeElemPool(nil)
+	aggregatorOpts = aggregatorOpts.SetGaugeElemPool(gaugeElemPool)
+	gaugeElemPool.Init(func() *aggregator.GaugeElem {
+		return aggregator.MustNewGaugeElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, applied.DefaultPipeline, 0, aggregatorOpts)
+	})
 
 	return &testServerSetup{
 		opts:             opts,
