@@ -213,7 +213,7 @@ var _escData = map[string]*_escFile{
 	"/asset-gen.sh": {
 		local:   "asset-gen.sh",
 		size:    221,
-		modtime: 1527738292,
+		modtime: 1528754933,
 		compressed: `
 H4sIAAAAAAAC/0zKQUrGMBDF8X1O8TrNqpAG18WFiBew7kSktpN0EGdKEkEQ7y5W0G82A7//67v4Ihrr
 7tzNPN89PM/3t9f+yiUrEIiC/J9THCZs5gBAEjo8ImzwgqcJbWc9w8+tpk30nU9I4s7P626gzMplaaIZ
@@ -225,7 +225,7 @@ AAA=
 	"/index.html": {
 		local:   "openapi/index.html",
 		size:    639,
-		modtime: 1527780902,
+		modtime: 1528754933,
 		compressed: `
 H4sIAAAAAAAC/0ySwW7bMAyG73kKRpdeIstDB2zI5GzY0mPXIehltyoSbauVJUNkUhjb3n1wlLS5iR/p
 jz8I6+X24cfj71930PMQNgu9lHLx8+Hxbg27Q4SnwbwgGCJk2WGUNqXsfDSc8hP4FqZ0gDISJ7C9iR0S
@@ -240,7 +240,7 @@ gz/mKiKrOA7lo2/BMBKr/SG6gFRgRWyiMyFFrJ5JbOagJ2tJWgJqVf6I/wEAAP//yE0CVn8CAAA=
 	"/spec.yml": {
 		local:   "openapi/spec.yml",
 		size:    9261,
-		modtime: 1527780695,
+		modtime: 1528754933,
 		compressed: `
 H4sIAAAAAAAC/+xZX2+cSBJ/n09RIfdwebBxbF9OmrdxPPEhObZlW5Eu0Upp6AI6gS7SXSRxov3uq4YZ
 hvmzwGQSJ+tdHuyB/tX/H1UNPIaLy9vpGK5LDW9z8R5BWIu8l6Dei4iMVFowmbegYrijEmqIvoMoFTpB

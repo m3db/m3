@@ -18,6 +18,9 @@ vendor/
 # Build binaries
 bin/
 
+# retool dependencies
+_tools/
+
 # Used to serve swagger documentation
 !**/openapi/*.html
 

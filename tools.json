@@ -1,0 +1,17 @@
+{
+  "Tools": [
+    {
+      "Repository": "github.com/Masterminds/glide",
+      "Commit": "5539dc14dc6c62b10c1bb1412bbdf08e7fda85bb"
+    },
+    {
+      "Repository": "github.com/m3db/build-tools/utilities/mockclean",
+      "Commit": "3e9c30b229f100027d742104ad6d6b2d968374bd"
+    },
+    {
+      "Repository": "github.com/mjibson/esc",
+      "Commit": "58d9cde84f237ecdd89bd7f61c2de2853f4c5c6e"
+    }
+  ],
+  "RetoolVersion": "1.3.7"
+}

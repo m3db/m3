@@ -321,8 +321,6 @@ imports:
   - pbutil
 - name: github.com/mitchellh/mapstructure
   version: bb74f1db0675b241733089d5a1faa5dd8b0ef57b
-- name: github.com/mjibson/esc
-  version: 58d9cde84f237ecdd89bd7f61c2de2853f4c5c6e
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/nightlyone/lockfile
