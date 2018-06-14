@@ -21,6 +21,7 @@
 package database
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net/http"
@@ -138,8 +139,14 @@ func (h *createHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, *admin.PlacementInitRequest, *handler.ParseError) {
+	defer r.Body.Close()
+	rBody, err := handler.DurationToNanosBytes(r.Body)
+	if err != nil {
+		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
+	}
+
 	dbCreateReq := new(admin.DatabaseCreateRequest)
-	if err := jsonpb.Unmarshal(r.Body, dbCreateReq); err != nil {
+	if err := jsonpb.Unmarshal(bytes.NewReader(rBody), dbCreateReq); err != nil {
 		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 

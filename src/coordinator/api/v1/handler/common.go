@@ -23,7 +23,11 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
@@ -35,6 +39,13 @@ import (
 const (
 	// RoutePrefixV1 is the v1 prefix for all coordinator routes
 	RoutePrefixV1 = "/api/v1"
+
+	durationSuffix = "Duration"
+	nanosSuffix    = "Nanos"
+)
+
+var (
+	errDurationType = errors.New("invalid duration type")
 )
 
 // WriteJSONResponse writes generic data to the ResponseWriter
@@ -99,4 +110,72 @@ func CloseWatcher(ctx context.Context, w http.ResponseWriter) (<-chan bool, <-ch
 	}
 
 	return doneChan, closing
+}
+
+// DurationToNanosBytes transforms a json byte slice with Duration keys into Nanos
+func DurationToNanosBytes(r io.Reader) ([]byte, error) {
+	var dict map[string]interface{}
+	d := json.NewDecoder(r)
+	d.UseNumber()
+	if err := d.Decode(&dict); err != nil {
+		return nil, err
+	}
+
+	ret, err := DurationToNanosMap(dict)
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(ret)
+}
+
+// DurationToNanosMap transforms keys with a Duration into Nanos
+func DurationToNanosMap(input map[string]interface{}) (map[string]interface{}, error) {
+	dictTranslated := make(map[string]interface{}, len(input))
+
+	for k, v := range input {
+		if strings.HasSuffix(k, durationSuffix) {
+			newKey := strings.Replace(k, durationSuffix, nanosSuffix, 1)
+
+			switch vv := v.(type) {
+			case string:
+				duration, err := time.ParseDuration(vv)
+				if err != nil {
+					return nil, err
+				}
+
+				dictTranslated[newKey] = duration.Nanoseconds()
+			case json.Number:
+				// json.Number when using a json decoder with UseNumber()
+				// Assume given number is in nanos
+				vvNum, err := vv.Int64()
+				if err != nil {
+					return nil, err
+				}
+
+				dictTranslated[newKey] = vvNum
+			case float64:
+				// float64 when unmarshaling without UseNumber()
+				// Assume given number is in nanos
+				dictTranslated[newKey] = int64(vv)
+			default:
+				// Has Duration suffix, but is not string or number
+				return nil, errDurationType
+			}
+		} else {
+			switch vv := v.(type) {
+			case map[string]interface{}:
+				durMap, err := DurationToNanosMap(vv)
+				if err != nil {
+					return nil, err
+				}
+
+				dictTranslated[k] = durMap
+			default:
+				dictTranslated[k] = vv
+			}
+		}
+	}
+
+	return dictTranslated, nil
 }

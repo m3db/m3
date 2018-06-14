@@ -39,16 +39,16 @@ curl -X POST localhost:7201/api/v1/namespace -d '{
     "snapshotEnabled": false,
     "repairEnabled": false,
     "retentionOptions": {
-      "retentionPeriodNanos": 172800000000000,
-      "blockSizeNanos": 7200000000000,
-      "bufferFutureNanos": 600000000000,
-      "bufferPastNanos": 600000000000,
+      "retentionPeriodDuration": "720h",
+      "blockSizeDuration": "12h",
+      "bufferFutureDuration": "1h",
+      "bufferPastDuration": "1h",
       "blockDataExpiry": true,
-      "blockDataExpiryAfterNotAccessPeriodNanos": 300000000000
+      "blockDataExpiryAfterNotAccessPeriodDuration": "5m"
     },
     "indexOptions": {
       "enabled": true,
-      "blockSizeNanos": 7200000000000
+      "blockSizeDuration": "12h"
     }
   }
 }'

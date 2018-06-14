@@ -82,6 +82,7 @@ func (h *InitHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *InitHandler) parseRequest(r *http.Request) (*admin.PlacementInitRequest, *handler.ParseError) {
+	defer r.Body.Close()
 	initReq := new(admin.PlacementInitRequest)
 	if err := jsonpb.Unmarshal(r.Body, initReq); err != nil {
 		return nil, handler.NewParseError(err, http.StatusBadRequest)
