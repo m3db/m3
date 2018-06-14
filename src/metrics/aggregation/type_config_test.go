@@ -21,7 +21,6 @@
 package aggregation
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/m3db/m3x/instrument"
@@ -34,13 +33,9 @@ func TestTypesConfiguration(t *testing.T) {
 	str := `
 defaultGaugeAggregationTypes: Max
 defaultTimerAggregationTypes: P50,P99,P9999
-globalOverrides:
-  Mean: testMean
-gaugeOverrides:
-  Last: ""
-counterOverrides:
-  Sum: ""
-transformFnType: suffix
+counterTransformFnType: empty
+timerTransformFnType: suffix
+gaugeTransformFnType: empty
 `
 
 	var cfg TypesConfiguration
@@ -50,39 +45,39 @@ transformFnType: suffix
 	require.Equal(t, defaultDefaultCounterAggregationTypes, opts.DefaultCounterAggregationTypes())
 	require.Equal(t, Types{Max}, opts.DefaultGaugeAggregationTypes())
 	require.Equal(t, Types{P50, P99, P9999}, opts.DefaultTimerAggregationTypes())
-	require.Equal(t, []byte(".testMean"), opts.TypeStringForCounter(Mean))
+	require.Equal(t, []byte(nil), opts.TypeStringForCounter(Mean))
 	require.Equal(t, []byte(nil), opts.TypeStringForCounter(Sum))
+	require.Equal(t, []byte(".sum"), opts.TypeStringForTimer(Sum))
+	require.Equal(t, []byte(".mean"), opts.TypeStringForTimer(Mean))
+	require.Equal(t, []byte(".p50"), opts.TypeStringForTimer(P50))
+	require.Equal(t, []byte(".p999"), opts.TypeStringForTimer(P999))
 	require.Equal(t, []byte(nil), opts.TypeStringForGauge(Last))
-	typeStrings := opts.DefaultTimerAggregationTypeStrings()
-	for i, aggType := range opts.DefaultTimerAggregationTypes() {
-		require.Equal(t, typeStrings[i], opts.TypeStringForTimer(aggType))
-		require.True(t, strings.HasPrefix(string(typeStrings[i]), "."))
-	}
 }
 
 func TestTypesConfigurationNoTransformFnType(t *testing.T) {
 	str := `
 defaultGaugeAggregationTypes: Max
 defaultTimerAggregationTypes: P50,P99,P9999
-globalOverrides:
-  Mean: testMean
-gaugeOverrides:
-  Last: ""
-counterOverrides:
-  Sum: ""
 `
 
 	var cfg TypesConfiguration
 	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
-	_, err := cfg.NewOptions(instrument.NewOptions())
+	opts, err := cfg.NewOptions(instrument.NewOptions())
 	require.NoError(t, err)
+	require.Equal(t, []byte("mean"), opts.TypeStringForCounter(Mean))
+	require.Equal(t, []byte("sum"), opts.TypeStringForCounter(Sum))
+	require.Equal(t, []byte("sum"), opts.TypeStringForTimer(Sum))
+	require.Equal(t, []byte("mean"), opts.TypeStringForTimer(Mean))
+	require.Equal(t, []byte("p50"), opts.TypeStringForTimer(P50))
+	require.Equal(t, []byte("p999"), opts.TypeStringForTimer(P999))
+	require.Equal(t, []byte("last"), opts.TypeStringForGauge(Last))
 }
 
 func TestTypesConfigurationError(t *testing.T) {
 	str := `
 defaultGaugeAggregationTypes: Max
 defaultTimerAggregationTypes: P50,P99,P9999
-transformFnType: bla
+timerTransformFnType: bla
 `
 
 	var cfg TypesConfiguration
