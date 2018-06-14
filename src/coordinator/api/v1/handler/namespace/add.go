@@ -21,6 +21,7 @@
 package namespace
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 
@@ -77,8 +78,14 @@ func (h *AddHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AddHandler) parseRequest(r *http.Request) (*admin.NamespaceAddRequest, *handler.ParseError) {
+	defer r.Body.Close()
+	rBody, err := handler.DurationToNanosBytes(r.Body)
+	if err != nil {
+		return nil, handler.NewParseError(err, http.StatusBadRequest)
+	}
+
 	addReq := new(admin.NamespaceAddRequest)
-	if err := jsonpb.Unmarshal(r.Body, addReq); err != nil {
+	if err := jsonpb.Unmarshal(bytes.NewReader(rBody), addReq); err != nil {
 		return nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
