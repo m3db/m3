@@ -38,20 +38,14 @@ type TypesConfiguration struct {
 	// Default aggregation types for gauge metrics.
 	DefaultGaugeAggregationTypes *Types `yaml:"defaultGaugeAggregationTypes"`
 
-	// Global type string overrides.
-	GlobalOverrides map[Type]string `yaml:"globalOverrides"`
+	// CounterTransformFnType configures the type string transformation function for counters.
+	CounterTransformFnType *transformFnType `yaml:"counterTransformFnType"`
 
-	// Type string overrides for Counter.
-	CounterOverrides map[Type]string `yaml:"counterOverrides"`
+	// TimerTransformFnType configures the type string transformation function for timers.
+	TimerTransformFnType *transformFnType `yaml:"timerTransformFnType"`
 
-	// Type string overrides for Timer.
-	TimerOverrides map[Type]string `yaml:"timerOverrides"`
-
-	// Type string overrides for Gauge.
-	GaugeOverrides map[Type]string `yaml:"gaugeOverrides"`
-
-	// TransformFnType configs the global type string transform function type.
-	TransformFnType *transformFnType `yaml:"transformFnType"`
+	// GaugeTransformFnType configures the type string transformation function for gauges.
+	GaugeTransformFnType *transformFnType `yaml:"gaugeTransformFnType"`
 
 	// Pool of aggregation types.
 	AggregationTypesPool pool.ObjectPoolConfiguration `yaml:"aggregationTypesPool"`
@@ -63,14 +57,6 @@ type TypesConfiguration struct {
 // NewOptions creates a new Option.
 func (c TypesConfiguration) NewOptions(instrumentOpts instrument.Options) (TypesOptions, error) {
 	opts := NewTypesOptions()
-	if c.TransformFnType != nil {
-		fn, err := c.TransformFnType.TransformFn()
-		if err != nil {
-			return nil, err
-		}
-		opts = opts.SetGlobalTypeStringTransformFn(fn)
-	}
-
 	if c.DefaultCounterAggregationTypes != nil {
 		opts = opts.SetDefaultCounterAggregationTypes(*c.DefaultCounterAggregationTypes)
 	}
@@ -80,15 +66,30 @@ func (c TypesConfiguration) NewOptions(instrumentOpts instrument.Options) (Types
 	if c.DefaultTimerAggregationTypes != nil {
 		opts = opts.SetDefaultTimerAggregationTypes(*c.DefaultTimerAggregationTypes)
 	}
-
-	opts = opts.SetGlobalTypeStringOverrides(parseTypeStringOverride(c.GlobalOverrides))
-	opts = opts.SetCounterTypeStringOverrides(parseTypeStringOverride(c.CounterOverrides))
-	opts = opts.SetGaugeTypeStringOverrides(parseTypeStringOverride(c.GaugeOverrides))
-	opts = opts.SetTimerTypeStringOverrides(parseTypeStringOverride(c.TimerOverrides))
-
-	scope := instrumentOpts.MetricsScope()
+	if c.CounterTransformFnType != nil {
+		fn, err := c.CounterTransformFnType.TransformFn()
+		if err != nil {
+			return nil, err
+		}
+		opts = opts.SetCounterTypeStringTransformFn(fn)
+	}
+	if c.TimerTransformFnType != nil {
+		fn, err := c.TimerTransformFnType.TransformFn()
+		if err != nil {
+			return nil, err
+		}
+		opts = opts.SetTimerTypeStringTransformFn(fn)
+	}
+	if c.GaugeTransformFnType != nil {
+		fn, err := c.GaugeTransformFnType.TransformFn()
+		if err != nil {
+			return nil, err
+		}
+		opts = opts.SetGaugeTypeStringTransformFn(fn)
+	}
 
 	// Set aggregation types pool.
+	scope := instrumentOpts.MetricsScope()
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("aggregation-types-pool"))
 	aggTypesPoolOpts := c.AggregationTypesPool.NewObjectPoolOptions(iOpts)
 	aggTypesPool := NewTypesPool(aggTypesPoolOpts)
@@ -106,33 +107,19 @@ func (c TypesConfiguration) NewOptions(instrumentOpts instrument.Options) (Types
 	opts = opts.SetQuantilesPool(quantilesPool)
 	quantilesPool.Init()
 
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
 	return opts, nil
-}
-
-func parseTypeStringOverride(m map[Type]string) map[Type][]byte {
-	res := make(map[Type][]byte, len(m))
-	for aggType, s := range m {
-		var bytes []byte
-		if s != "" {
-			// NB(cw) []byte("") is empty with a cap of 8.
-			bytes = []byte(s)
-		}
-		res[aggType] = bytes
-	}
-	return res
 }
 
 type transformFnType string
 
 var (
 	noopTransformType   transformFnType = "noop"
+	emptyTransformType  transformFnType = "empty"
 	suffixTransformType transformFnType = "suffix"
 
 	validTypes = []transformFnType{
 		noopTransformType,
+		emptyTransformType,
 		suffixTransformType,
 	}
 )
@@ -158,9 +145,11 @@ func (t *transformFnType) UnmarshalYAML(unmarshal func(interface{}) error) error
 func (t transformFnType) TransformFn() (TypeStringTransformFn, error) {
 	switch t {
 	case noopTransformType:
-		return noopTransformFn, nil
+		return NoOpTransform, nil
+	case emptyTransformType:
+		return EmptyTransform, nil
 	case suffixTransformType:
-		return suffixTransformFn, nil
+		return SuffixTransform, nil
 	default:
 		return nil, fmt.Errorf("invalid type string transform function type: %s", string(t))
 	}
