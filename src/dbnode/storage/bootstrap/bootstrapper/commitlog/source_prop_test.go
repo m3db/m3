@@ -57,11 +57,10 @@ const blockSize = 2 * time.Hour
 func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	var (
 		parameters = gopter.DefaultTestParameters()
-		// seed       = time.Now().UnixNano()
-		seed      = int64(1529084206406557145)
-		props     = gopter.NewProperties(parameters)
-		reporter  = gopter.NewFormatedReporter(true, 160, os.Stdout)
-		startTime = time.Now().Truncate(blockSize)
+		seed       = time.Now().UnixNano()
+		props      = gopter.NewProperties(parameters)
+		reporter   = gopter.NewFormatedReporter(true, 160, os.Stdout)
+		startTime  = time.Now().Truncate(blockSize)
 
 		nsOpts = namespace.NewOptions().SetIndexOptions(
 			namespace.NewOptions().IndexOptions().SetEnabled(true),
