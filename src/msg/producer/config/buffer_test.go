@@ -38,6 +38,7 @@ maxBufferSize: 100
 maxMessageSize: 16
 cleanupInterval: 2s
 closeCheckInterval: 3s
+scanBatchSize: 128
 `
 
 	var cfg BufferConfiguration
@@ -49,6 +50,7 @@ closeCheckInterval: 3s
 	require.Equal(t, 16, bOpts.MaxMessageSize())
 	require.Equal(t, 2*time.Second, bOpts.CleanupInterval())
 	require.Equal(t, 3*time.Second, bOpts.CloseCheckInterval())
+	require.Equal(t, 128, bOpts.ScanBatchSize())
 }
 
 func TestEmptyBufferConfiguration(t *testing.T) {
