@@ -367,7 +367,6 @@ func (s *commitLogSource) ReadData(
 	for shard, shardResult := range snapshotShardResults {
 		existingShardResult, ok := shardResults[shard]
 		if !ok {
-			fmt.Println("Adding entire shard result")
 			bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
 			continue
 		}
@@ -375,16 +374,12 @@ func (s *commitLogSource) ReadData(
 		for _, mapEntry := range shardResult.AllSeries().Iter() {
 			series := mapEntry.Value()
 			for blockStart, dbBlock := range series.Blocks.AllBlocks() {
-				fmt.Println("blockStart", blockStart)
-				fmt.Println("id", series.ID.String())
 				existingBlock, ok := existingShardResult.BlockAt(series.ID, blockStart.ToTime())
 				if !ok {
-					fmt.Printf("Add blocking for %s\n", series.ID.String())
 					existingShardResult.AddBlock(series.ID, series.Tags, dbBlock)
 					continue
 				}
 
-				fmt.Printf("merging block for: %s\n", series.ID.String())
 				existingBlock.Merge(dbBlock)
 			}
 		}
@@ -597,8 +592,6 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 						break
 					}
 
-					fmt.Printf("bootstrapped from snapshot: %s\n", id.String())
-
 					var tags ident.Tags
 					entry, exists := shardResult.AllSeries().Get(id)
 					if exists {
@@ -621,7 +614,6 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 					dbBlock := blocksPool.Get()
 					dbBlock.Reset(blockStart, blockSize, ts.NewSegment(data, nil, ts.FinalizeHead))
 
-					fmt.Printf("Adding to shardResult: %s\n", id)
 					shardResult.AddBlock(id, tags, dbBlock)
 				}
 			}
