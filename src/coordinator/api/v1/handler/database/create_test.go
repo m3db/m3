@@ -103,7 +103,7 @@ func TestLocalType(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
-	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 16, 1).Return(newPlacement, nil)
+	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 32, 1).Return(newPlacement, nil)
 
 	createHandler.ServeHTTP(w, req)
 
