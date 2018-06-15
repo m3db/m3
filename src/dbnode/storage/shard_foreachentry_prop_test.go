@@ -123,7 +123,7 @@ func testShardConcurrentForEachTick(
 
 	go func() {
 		<-barrier
-		shard.Tick(context.NewNoOpCanncellable())
+		shard.Tick(context.NewNoOpCanncellable(), time.Now())
 		wg.Done()
 	}()
 

@@ -224,7 +224,7 @@ type databaseNamespace interface {
 	GetIndex() (namespaceIndex, error)
 
 	// Tick performs any regular maintenance operations
-	Tick(c context.Cancellable) error
+	Tick(c context.Cancellable, tickStart time.Time) error
 
 	// Write writes a data point
 	Write(
@@ -349,7 +349,7 @@ type databaseShard interface {
 	Close() error
 
 	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
-	Tick(c context.Cancellable) (tickResult, error)
+	Tick(c context.Cancellable, tickStart time.Time) (tickResult, error)
 
 	Write(
 		ctx context.Context,
@@ -467,7 +467,7 @@ type namespaceIndex interface {
 
 	// Tick performs internal house keeping in the index, including block rotation,
 	// data eviction, and so on.
-	Tick(c context.Cancellable) (namespaceIndexTickResult, error)
+	Tick(c context.Cancellable, tickStart time.Time) (namespaceIndexTickResult, error)
 
 	// Flush performs any flushes that the index has outstanding using
 	// the owned shards of the database.
@@ -601,7 +601,7 @@ type databaseTickManager interface {
 	// Tick performs maintenance operations, restarting the current
 	// tick if force is true. It returns nil if a new tick has
 	// completed successfully, and an error otherwise.
-	Tick(forceType forceType) error
+	Tick(forceType forceType, tickStart time.Time) error
 }
 
 // databaseMediator mediates actions among various database managers

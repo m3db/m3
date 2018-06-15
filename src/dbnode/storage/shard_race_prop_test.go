@@ -78,7 +78,7 @@ func testShardTickReadFnRace(t *testing.T, ids []ident.ID, tickBatchSize int, fn
 
 	wg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable())
+		shard.Tick(context.NewNoOpCanncellable(), time.Now())
 		wg.Done()
 	}()
 
@@ -175,7 +175,7 @@ func TestShardTickWriteRace(t *testing.T) {
 
 	go func() {
 		<-barrier
-		shard.Tick(context.NewNoOpCanncellable())
+		shard.Tick(context.NewNoOpCanncellable(), time.Now())
 		wg.Done()
 	}()
 

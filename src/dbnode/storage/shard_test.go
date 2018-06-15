@@ -458,7 +458,7 @@ func TestShardTick(t *testing.T) {
 	shard.Write(ctx, ident.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
 	shard.Write(ctx, ident.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
 
-	r, err := shard.Tick(context.NewNoOpCanncellable())
+	r, err := shard.Tick(context.NewNoOpCanncellable(), nowFn())
 	require.NoError(t, err)
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
@@ -542,7 +542,7 @@ func TestShardWriteAsync(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	r, err := shard.Tick(context.NewNoOpCanncellable())
+	r, err := shard.Tick(context.NewNoOpCanncellable(), nowFn())
 	require.NoError(t, err)
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
@@ -565,12 +565,12 @@ func TestShardTickRace(t *testing.T) {
 
 	wg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable())
+		shard.Tick(context.NewNoOpCanncellable(), time.Now())
 		wg.Done()
 	}()
 
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable())
+		shard.Tick(context.NewNoOpCanncellable(), time.Now())
 		wg.Done()
 	}()
 
@@ -588,7 +588,7 @@ func TestShardTickCleanupSmallBatchSize(t *testing.T) {
 	opts := testDatabaseOptions()
 	shard := testDatabaseShard(t, opts)
 	addTestSeries(shard, ident.StringID("foo"))
-	shard.Tick(context.NewNoOpCanncellable())
+	shard.Tick(context.NewNoOpCanncellable(), time.Now())
 	require.Equal(t, 0, shard.lookup.Len())
 }
 
@@ -620,14 +620,14 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 	}).Return(series.TickResult{}, nil)
 
 	go func() {
-		_, err := shard.Tick(context.NewNoOpCanncellable())
+		_, err := shard.Tick(context.NewNoOpCanncellable(), time.Now())
 		require.NoError(t, err)
 		closeWg.Done()
 	}()
 
 	go func() {
 		tick1Wg.Wait()
-		_, err := shard.Tick(context.NewNoOpCanncellable())
+		_, err := shard.Tick(context.NewNoOpCanncellable(), time.Now())
 		require.Error(t, err)
 		tick2Wg.Done()
 		closeWg.Done()
@@ -691,7 +691,7 @@ func TestShardTicksStopWhenClosing(t *testing.T) {
 
 	closeWg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable())
+		shard.Tick(context.NewNoOpCanncellable(), time.Now())
 		closeWg.Done()
 	}()
 
@@ -712,7 +712,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 
 	addTestSeries(shard, ident.StringID("foo"))
 
-	shard.Tick(context.NewNoOpCanncellable())
+	shard.Tick(context.NewNoOpCanncellable(), time.Now())
 
 	shard.RLock()
 	require.Equal(t, 0, shard.lookup.Len())

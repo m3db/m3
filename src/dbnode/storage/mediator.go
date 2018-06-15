@@ -145,11 +145,19 @@ func (m *mediator) EnableFileOps() {
 // The mediator helps ensure conditions #3 and #4 are met by measuring the tickStart time and the shard bootstrap
 // states *before* the tick, and then propagating those values to downstream components so they can use that
 // information to make decisions about whether to flush / snapshot / run cleanups.
+//
+// Measuring the tickStart before the tick and propagating that also helps the tick and flush logic to coordinate.
+// For example, there is logic in the Tick flow for removing shard flush states from a map so that it doesn't
+// grow infinitely for nodes that are not restarted. If the Tick path measured the current time when it made that
+// decision instead of using the same measurement that is shared with the flush logic, it might end up removing
+// a shard flush state (due to it expiring), but since the flush logic is using a slightly more stale timestamp it
+// will think that the old block hasn't been flushed (even thought it has) and try to flush it even though the data
+// is potentially still on disk (if it hasn't been cleaned up yet).
 func (m *mediator) Tick(runType runType, forceType forceType) error {
 	tickStart := m.nowFn()
 	dbBootstrapStateAtTickStart := m.database.BootstrapState()
 
-	if err := m.databaseTickManager.Tick(forceType); err != nil {
+	if err := m.databaseTickManager.Tick(forceType, tickStart); err != nil {
 		return err
 	}
 
