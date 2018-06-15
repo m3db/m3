@@ -54,11 +54,13 @@ const (
 
 	idealDatapointsPerBlock           = 720
 	blockSizeFromExpectedSeriesScalar = idealDatapointsPerBlock * int64(time.Hour)
+	shardMultiplier                   = 32
 
 	dbTypeLocal                 dbType = "local"
+	dbTypeGroup                 dbType = "group"
 	defaultLocalRetentionPeriod        = 24 * time.Hour
-	minLocalBlockSize                  = 30 * time.Minute // 30m
-	maxLocalBlockSize                  = 2 * time.Hour    // 2h
+	minBlockSize                       = 30 * time.Minute
+	maxBlockSize                       = 2 * time.Hour
 )
 
 var (
@@ -170,7 +172,7 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.Namesp
 	options := dbnamespace.NewOptions()
 
 	switch dbType(r.Type) {
-	case dbTypeLocal:
+	case dbTypeLocal, dbTypeGroup:
 		options.SetRepairEnabled(false)
 
 		if r.RetentionPeriodNanos <= 0 {
@@ -182,10 +184,10 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.Namesp
 		retentionPeriod := options.RetentionOptions().RetentionPeriod()
 		if r.ExpectedSeriesDatapointsPerHour > 0 {
 			blockSize := time.Duration(blockSizeFromExpectedSeriesScalar / r.ExpectedSeriesDatapointsPerHour)
-			if blockSize < minLocalBlockSize {
-				blockSize = minLocalBlockSize
-			} else if blockSize > maxLocalBlockSize {
-				blockSize = maxLocalBlockSize
+			if blockSize < minBlockSize {
+				blockSize = minBlockSize
+			} else if blockSize > maxBlockSize {
+				blockSize = maxBlockSize
 			}
 			options.RetentionOptions().SetBlockSize(blockSize)
 		} else if retentionPeriod <= 12*time.Hour {
@@ -222,7 +224,7 @@ func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest, dbCfg dbconfi
 
 	switch dbType(r.Type) {
 	case dbTypeLocal:
-		numShards = 16
+		numShards = shardMultiplier
 		replicationFactor = 1
 		instances = []*placementpb.Instance{
 			&placementpb.Instance{
@@ -234,6 +236,22 @@ func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest, dbCfg dbconfi
 				Hostname:       "localhost",
 				Port:           uint32(port),
 			},
+		}
+	case dbTypeGroup:
+		numHosts := len(r.Hostnames)
+		numShards = int32(numHosts * shardMultiplier)
+		replicationFactor = 1
+		instances = make([]*placementpb.Instance, numHosts)
+		for _, hostname := range r.Hostnames {
+			instances = append(instances, &placementpb.Instance{
+				Id:             hostname,
+				IsolationGroup: "local",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       fmt.Sprintf("http://%s:%d", hostname, port),
+				Hostname:       hostname,
+				Port:           uint32(port),
+			})
 		}
 	default:
 		return nil, errInvalidDBType

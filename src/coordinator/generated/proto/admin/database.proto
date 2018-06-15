@@ -16,6 +16,8 @@ message DatabaseCreateRequest {
   // The below two options are used to default retention options
   int64 retention_period_nanos = 5;
   int64 expected_series_datapoints_per_hour = 6;
+  // Used for "hostnames"
+  repeated string hostnames = 7;
 }
 
 message DatabaseCreateResponse {
