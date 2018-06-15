@@ -166,7 +166,8 @@ func TestReadOrderedValues(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(values[:4], res.ShardResults(), opts))
+	require.NoError(t, verifyShardResultsAreCorrect(
+		values[:4], blockSize, res.ShardResults(), opts))
 }
 
 func TestReadUnorderedValues(t *testing.T) {
@@ -207,7 +208,8 @@ func TestReadUnorderedValues(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(values, res.ShardResults(), opts))
+	require.NoError(t, verifyShardResultsAreCorrect(
+		values, blockSize, res.ShardResults(), opts))
 }
 
 func TestReadTrimsToRanges(t *testing.T) {
@@ -247,7 +249,8 @@ func TestReadTrimsToRanges(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	require.NoError(t, verifyShardResultsAreCorrect(values[1:3], res.ShardResults(), opts))
+	require.NoError(t, verifyShardResultsAreCorrect(
+		values[1:3], blockSize, res.ShardResults(), opts))
 }
 
 func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
@@ -369,7 +372,8 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	expectedValues := append([]testValue{}, commitLogValues[0:3]...)
 	expectedValues = append(expectedValues, snapshotValues...)
 
-	require.NoError(t, verifyShardResultsAreCorrect(expectedValues, res.ShardResults(), opts))
+	require.NoError(t, verifyShardResultsAreCorrect(
+		expectedValues, blockSize, res.ShardResults(), opts))
 }
 
 type predCommitlogFile struct {
@@ -527,6 +531,7 @@ type seriesShardResult struct {
 
 func verifyShardResultsAreCorrect(
 	values []testValue,
+	blockSize time.Duration,
 	actual result.ShardResults,
 	opts Options,
 ) error {
@@ -539,7 +544,7 @@ func verifyShardResultsAreCorrect(
 			"shard result is nil, but expected: %d values", len(values))
 	}
 	// First create what result should be constructed for test values
-	expected, err := createExpectedShardResult(values, actual, opts)
+	expected, err := createExpectedShardResult(values, blockSize, actual, opts)
 	if err != nil {
 		return err
 	}
@@ -568,11 +573,11 @@ func verifyShardResultsAreCorrect(
 
 func createExpectedShardResult(
 	values []testValue,
+	blockSize time.Duration,
 	actual result.ShardResults,
 	opts Options,
 ) (result.ShardResults, error) {
 	bopts := opts.ResultOptions()
-	blockSize := opts.CommitLogOptions().BlockSize()
 	blopts := bopts.DatabaseBlockOptions()
 
 	expected := result.ShardResults{}
@@ -685,8 +690,8 @@ func verifyShardResultsAreEqual(opts Options, shard uint32, actualResult, expect
 
 func verifyBlocksAreEqual(opts Options, expectedAllBlocks, actualAllBlocks map[xtime.UnixNano]block.DatabaseBlock) error {
 	blopts := opts.ResultOptions().DatabaseBlockOptions()
-	for start, actualBlock := range actualAllBlocks {
-		expectedBlock, ok := expectedAllBlocks[start]
+	for start, expectedBlock := range expectedAllBlocks {
+		actualBlock, ok := actualAllBlocks[start]
 		if !ok {
 			return fmt.Errorf("Expected block for start time: %v", start)
 		}
