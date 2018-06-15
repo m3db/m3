@@ -50,7 +50,7 @@ func (_m *MockconsumerServiceWriter) EXPECT() *_MockconsumerServiceWriterRecorde
 	return _m.recorder
 }
 
-func (_m *MockconsumerServiceWriter) Write(rm producer.RefCountedMessage) {
+func (_m *MockconsumerServiceWriter) Write(rm *producer.RefCountedMessage) {
 	_m.ctrl.Call(_m, "Write", rm)
 }
 

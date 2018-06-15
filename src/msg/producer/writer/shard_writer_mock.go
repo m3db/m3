@@ -51,7 +51,7 @@ func (_m *MockshardWriter) EXPECT() *_MockshardWriterRecorder {
 	return _m.recorder
 }
 
-func (_m *MockshardWriter) Write(rm producer.RefCountedMessage) {
+func (_m *MockshardWriter) Write(rm *producer.RefCountedMessage) {
 	_m.ctrl.Call(_m, "Write", rm)
 }
 

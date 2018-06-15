@@ -18,22 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package msg
+package producer
 
 import (
 	"sync"
-
-	"github.com/m3db/m3msg/producer"
 
 	"go.uber.org/atomic"
 )
 
 // OnFinalizeFn will be called when the message is being finalized.
-type OnFinalizeFn func(rm producer.RefCountedMessage)
+type OnFinalizeFn func(rm *RefCountedMessage)
 
-type refCountedMessage struct {
+// RefCountedMessage is a reference counted message.
+type RefCountedMessage struct {
 	sync.RWMutex
-	producer.Message
+	Message
 
 	onFinalizeFn OnFinalizeFn
 
@@ -42,8 +41,8 @@ type refCountedMessage struct {
 }
 
 // NewRefCountedMessage creates RefCountedMessage.
-func NewRefCountedMessage(m producer.Message, fn OnFinalizeFn) producer.RefCountedMessage {
-	return &refCountedMessage{
+func NewRefCountedMessage(m Message, fn OnFinalizeFn) *RefCountedMessage {
+	return &RefCountedMessage{
 		Message:             m,
 		refCount:            atomic.NewInt32(0),
 		onFinalizeFn:        fn,
@@ -51,49 +50,54 @@ func NewRefCountedMessage(m producer.Message, fn OnFinalizeFn) producer.RefCount
 	}
 }
 
-func (rm *refCountedMessage) Accept(fn producer.FilterFunc) bool {
+// Accept returns true if the message can be accepted by the filter.
+func (rm *RefCountedMessage) Accept(fn FilterFunc) bool {
 	return fn(rm.Message)
 }
 
-func (rm *refCountedMessage) IncRef() {
+// IncRef increments the ref count.
+func (rm *RefCountedMessage) IncRef() {
 	rm.refCount.Inc()
 }
 
-func (rm *refCountedMessage) DecRef() {
+// DecRef decrements the ref count. If the reference count became zero after
+// the call, the message will be finalized as consumed.
+func (rm *RefCountedMessage) DecRef() {
 	rc := rm.refCount.Dec()
 	if rc == 0 {
-		rm.finalize(producer.Consumed)
+		rm.finalize(Consumed)
 	}
 	if rc < 0 {
 		panic("invalid ref count")
 	}
 }
 
-func (rm *refCountedMessage) IncReads() {
+// IncReads increments the reads count.
+func (rm *RefCountedMessage) IncReads() {
 	rm.RLock()
 }
 
-func (rm *refCountedMessage) DecReads() {
+// DecReads decrements the reads count.
+func (rm *RefCountedMessage) DecReads() {
 	rm.RUnlock()
 }
 
-func (rm *refCountedMessage) Bytes() []byte {
-	return rm.Message.Bytes()
-}
-
-func (rm *refCountedMessage) Size() uint64 {
+// Size returns the size of the message.
+func (rm *RefCountedMessage) Size() uint64 {
 	return uint64(rm.Message.Size())
 }
 
-func (rm *refCountedMessage) Drop() bool {
-	return rm.finalize(producer.Dropped)
+// Drop drops the message without waiting for it to be consumed.
+func (rm *RefCountedMessage) Drop() bool {
+	return rm.finalize(Dropped)
 }
 
-func (rm *refCountedMessage) IsDroppedOrConsumed() bool {
+// IsDroppedOrConsumed returns true if the message has been dropped or consumed.
+func (rm *RefCountedMessage) IsDroppedOrConsumed() bool {
 	return rm.isDroppedOrConsumed.Load()
 }
 
-func (rm *refCountedMessage) finalize(r producer.FinalizeReason) bool {
+func (rm *RefCountedMessage) finalize(r FinalizeReason) bool {
 	rm.Lock()
 	if rm.isDroppedOrConsumed.Load() {
 		rm.Unlock()

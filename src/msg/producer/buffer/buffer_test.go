@@ -124,11 +124,11 @@ func TestCleanupBatch(t *testing.T) {
 
 	mm1.EXPECT().Finalize(gomock.Eq(producer.Dropped))
 	front := b.buffers.Front()
-	front.Value.(producer.RefCountedMessage).Drop()
+	front.Value.(*producer.RefCountedMessage).Drop()
 
 	require.Equal(t, 3, b.bufferLen())
 	e := b.cleanupBatchWithLock(front, 2)
-	require.Equal(t, 3, int(e.Value.(producer.RefCountedMessage).Size()))
+	require.Equal(t, 3, int(e.Value.(*producer.RefCountedMessage).Size()))
 	require.Equal(t, 2, b.bufferLen())
 
 	e = b.cleanupBatchWithLock(e, 2)
@@ -160,12 +160,12 @@ func TestCleanupBatchWithElementBeingRemovedByOtherThread(t *testing.T) {
 	require.NoError(t, err)
 
 	mm1.EXPECT().Finalize(gomock.Eq(producer.Dropped))
-	b.buffers.Front().Value.(producer.RefCountedMessage).Drop()
+	b.buffers.Front().Value.(*producer.RefCountedMessage).Drop()
 
 	require.Equal(t, 3, b.bufferLen())
 	e := b.cleanupBatchWithLock(b.buffers.Front(), 1)
 	// e stopped at message 2.
-	require.Equal(t, 2, int(e.Value.(producer.RefCountedMessage).Size()))
+	require.Equal(t, 2, int(e.Value.(*producer.RefCountedMessage).Size()))
 	require.Equal(t, 2, b.bufferLen())
 	require.NotNil(t, e)
 
@@ -177,7 +177,7 @@ func TestCleanupBatchWithElementBeingRemovedByOtherThread(t *testing.T) {
 
 	// Mark message 3 as dropped, so it's ready to be removed.
 	mm3.EXPECT().Finalize(gomock.Eq(producer.Dropped))
-	b.buffers.Front().Value.(producer.RefCountedMessage).Drop()
+	b.buffers.Front().Value.(*producer.RefCountedMessage).Drop()
 
 	// But next clean batch from the removed element is going to do nothing
 	// because the starting element is already removed.

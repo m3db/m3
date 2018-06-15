@@ -32,7 +32,7 @@ import (
 
 type shardWriter interface {
 	// Write writes the reference counted message, this needs to be thread safe.
-	Write(rm producer.RefCountedMessage)
+	Write(rm *producer.RefCountedMessage)
 
 	// UpdateInstances updates the instances responsible for this shard.
 	UpdateInstances(
@@ -71,7 +71,7 @@ func newSharedShardWriter(
 	}
 }
 
-func (w *sharedShardWriter) Write(rm producer.RefCountedMessage) {
+func (w *sharedShardWriter) Write(rm *producer.RefCountedMessage) {
 	w.mw.Write(rm)
 }
 
@@ -149,7 +149,7 @@ func newReplicatedShardWriter(
 	}
 }
 
-func (w *replicatedShardWriter) Write(rm producer.RefCountedMessage) {
+func (w *replicatedShardWriter) Write(rm *producer.RefCountedMessage) {
 	w.RLock()
 	for _, mw := range w.messageWriters {
 		mw.Write(rm)

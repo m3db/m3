@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3msg/producer"
-	"github.com/m3db/m3msg/producer/msg"
 	"github.com/m3db/m3x/retry"
 
 	"github.com/fortytw2/leaktest"
@@ -75,7 +74,7 @@ func TestMessageWriterWithPooling(t *testing.T) {
 	md1.EXPECT().Bytes().Return([]byte("foo")).Times(1)
 	md1.EXPECT().Finalize(producer.Consumed)
 
-	w.Write(msg.NewRefCountedMessage(md1, nil))
+	w.Write(producer.NewRefCountedMessage(md1, nil))
 
 	for {
 		w.RLock()
@@ -92,7 +91,7 @@ func TestMessageWriterWithPooling(t *testing.T) {
 	md2 := producer.NewMockMessage(ctrl)
 	md2.EXPECT().Bytes().Return([]byte("bar")).Times(1)
 
-	w.Write(msg.NewRefCountedMessage(md2, nil))
+	w.Write(producer.NewRefCountedMessage(md2, nil))
 	for {
 		if !isEmptyWithLock(w.acks) {
 			break
@@ -156,7 +155,7 @@ func TestMessageWriterWithoutPooling(t *testing.T) {
 	md1.EXPECT().Bytes().Return([]byte("foo")).Times(1)
 	md1.EXPECT().Finalize(producer.Consumed)
 
-	w.Write(msg.NewRefCountedMessage(md1, nil))
+	w.Write(producer.NewRefCountedMessage(md1, nil))
 
 	for {
 		w.RLock()
@@ -173,7 +172,7 @@ func TestMessageWriterWithoutPooling(t *testing.T) {
 	md2 := producer.NewMockMessage(ctrl)
 	md2.EXPECT().Bytes().Return([]byte("bar")).Times(1)
 
-	w.Write(msg.NewRefCountedMessage(md2, nil))
+	w.Write(producer.NewRefCountedMessage(md2, nil))
 	for {
 		if !isEmptyWithLock(w.acks) {
 			break
@@ -221,7 +220,7 @@ func TestMessageWriterRetryWithoutPooling(t *testing.T) {
 	mm.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
 	mm.EXPECT().Finalize(producer.Consumed)
 
-	rm := msg.NewRefCountedMessage(mm, nil)
+	rm := producer.NewRefCountedMessage(mm, nil)
 	w.Write(rm)
 
 	w.AddConsumerWriter(newConsumerWriter("bad", a, opts, testConsumerWriterMetrics()))
@@ -280,7 +279,7 @@ func TestMessageWriterRetryWithPooling(t *testing.T) {
 	mm.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
 	mm.EXPECT().Finalize(producer.Consumed)
 
-	rm := msg.NewRefCountedMessage(mm, nil)
+	rm := producer.NewRefCountedMessage(mm, nil)
 	w.Write(rm)
 
 	w.AddConsumerWriter(newConsumerWriter("bad", a, opts, testConsumerWriterMetrics()))
@@ -332,7 +331,7 @@ func TestMessageWriterCleanupDroppedMessage(t *testing.T) {
 
 	mm := producer.NewMockMessage(ctrl)
 
-	rm := msg.NewRefCountedMessage(mm, nil)
+	rm := producer.NewRefCountedMessage(mm, nil)
 	mm.EXPECT().Finalize(producer.Dropped)
 	rm.Drop()
 	mm.EXPECT().Bytes().Return([]byte("foo"))
@@ -376,7 +375,7 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Bytes().Return([]byte("foo"))
 
-	rm := msg.NewRefCountedMessage(mm, nil)
+	rm := producer.NewRefCountedMessage(mm, nil)
 	// Another message write also holds this message.
 	rm.IncRef()
 
@@ -432,7 +431,7 @@ func TestMessageWriterCutoverCutoff(t *testing.T) {
 	require.False(t, w.isValidWriteWithLock(now.UnixNano()+250))
 	require.False(t, w.isValidWriteWithLock(now.UnixNano()+50))
 	require.Equal(t, 0, w.queue.Len())
-	w.Write(msg.NewRefCountedMessage(nil, nil))
+	w.Write(producer.NewRefCountedMessage(nil, nil))
 	require.Equal(t, 0, w.queue.Len())
 }
 
@@ -450,10 +449,10 @@ func TestMessageWriterRetryIterateBatch(t *testing.T) {
 	md2 := producer.NewMockMessage(ctrl)
 	md3 := producer.NewMockMessage(ctrl)
 	md4 := producer.NewMockMessage(ctrl)
-	rd1 := msg.NewRefCountedMessage(md1, nil)
-	rd2 := msg.NewRefCountedMessage(md2, nil)
-	rd3 := msg.NewRefCountedMessage(md3, nil)
-	rd4 := msg.NewRefCountedMessage(md4, nil)
+	rd1 := producer.NewRefCountedMessage(md1, nil)
+	rd2 := producer.NewRefCountedMessage(md2, nil)
+	rd3 := producer.NewRefCountedMessage(md3, nil)
+	rd4 := producer.NewRefCountedMessage(md4, nil)
 	md1.EXPECT().Bytes().Return([]byte("1"))
 	md2.EXPECT().Bytes().Return([]byte("2"))
 	md3.EXPECT().Bytes().Return([]byte("3"))
@@ -527,7 +526,7 @@ func TestMessageWriterCloseCleanupAllMessages(t *testing.T) {
 
 	mm := producer.NewMockMessage(ctrl)
 
-	rm := msg.NewRefCountedMessage(mm, nil)
+	rm := producer.NewRefCountedMessage(mm, nil)
 	mm.EXPECT().Finalize(producer.Consumed)
 	mm.EXPECT().Bytes().Return([]byte("foo"))
 	w.Write(rm)

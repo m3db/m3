@@ -42,7 +42,7 @@ var (
 
 type messageWriter interface {
 	// Write writes the message.
-	Write(rm producer.RefCountedMessage)
+	Write(rm *producer.RefCountedMessage)
 
 	// Ack acknowledges the metadata.
 	Ack(meta metadata)
@@ -172,7 +172,7 @@ func newMessageWriter(
 	}
 }
 
-func (w *messageWriterImpl) Write(rm producer.RefCountedMessage) {
+func (w *messageWriterImpl) Write(rm *producer.RefCountedMessage) {
 	var (
 		nowNanos = w.nowFn().UnixNano()
 		msg      = w.newMessage()

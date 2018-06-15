@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3msg/producer"
-	"github.com/m3db/m3msg/producer/msg"
 	"github.com/m3db/m3msg/topic"
 
 	"github.com/fortytw2/leaktest"
@@ -82,7 +81,7 @@ func TestWriterWriteAfterClosed(t *testing.T) {
 
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Finalize(producer.Dropped)
-	rm := msg.NewRefCountedMessage(mm, nil)
+	rm := producer.NewRefCountedMessage(mm, nil)
 	err = w.Write(rm)
 	require.Error(t, err)
 	require.Equal(t, errWriterClosed, err)
@@ -108,13 +107,13 @@ func TestWriterWriteWithInvalidShard(t *testing.T) {
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Shard().Return(uint32(2))
 	mm.EXPECT().Finalize(producer.Dropped)
-	rm := msg.NewRefCountedMessage(mm, nil)
+	rm := producer.NewRefCountedMessage(mm, nil)
 	err = w.Write(rm)
 	require.Error(t, err)
 
 	mm.EXPECT().Shard().Return(uint32(100))
 	mm.EXPECT().Finalize(producer.Dropped)
-	rm = msg.NewRefCountedMessage(mm, nil)
+	rm = producer.NewRefCountedMessage(mm, nil)
 	err = w.Write(rm)
 	require.Error(t, err)
 }
@@ -546,7 +545,7 @@ func TestWriterWrite(t *testing.T) {
 	mm.EXPECT().Shard().Return(uint32(0)).Times(3)
 	mm.EXPECT().Bytes().Return([]byte("foo")).Times(3)
 	mm.EXPECT().Finalize(producer.Consumed).Do(func(interface{}) { wg.Done() })
-	rm := msg.NewRefCountedMessage(mm, nil)
+	rm := producer.NewRefCountedMessage(mm, nil)
 	wg.Add(1)
 	require.NoError(t, w.Write(rm))
 
@@ -623,7 +622,7 @@ func TestWriterCloseBlocking(t *testing.T) {
 	mm.EXPECT().Shard().Return(uint32(0)).Times(2)
 	mm.EXPECT().Bytes().Return([]byte("foo")).Times(1)
 	mm.EXPECT().Finalize(producer.Dropped)
-	rm := msg.NewRefCountedMessage(mm, nil)
+	rm := producer.NewRefCountedMessage(mm, nil)
 	require.NoError(t, w.Write(rm))
 
 	doneCh := make(chan struct{})
