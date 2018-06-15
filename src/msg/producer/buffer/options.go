@@ -31,6 +31,7 @@ var (
 	defaultMaxMessageSize     = 1 * 1024 * 1024   // 1MB.
 	defaultCleanupInterval    = 5 * time.Second
 	defaultCloseCheckInterval = time.Second
+	defaultScanBatchSize      = 256
 )
 
 type bufferOptions struct {
@@ -39,6 +40,7 @@ type bufferOptions struct {
 	maxMessageSize     int
 	cleanupInterval    time.Duration
 	closeCheckInterval time.Duration
+	scanBatchSize      int
 	iOpts              instrument.Options
 }
 
@@ -50,6 +52,7 @@ func NewOptions() Options {
 		maxMessageSize:     defaultMaxMessageSize,
 		cleanupInterval:    defaultCleanupInterval,
 		closeCheckInterval: defaultCloseCheckInterval,
+		scanBatchSize:      defaultScanBatchSize,
 		iOpts:              instrument.NewOptions(),
 	}
 }
@@ -101,6 +104,16 @@ func (opts *bufferOptions) CloseCheckInterval() time.Duration {
 func (opts *bufferOptions) SetCloseCheckInterval(value time.Duration) Options {
 	o := *opts
 	o.closeCheckInterval = value
+	return &o
+}
+
+func (opts *bufferOptions) ScanBatchSize() int {
+	return opts.scanBatchSize
+}
+
+func (opts *bufferOptions) SetScanBatchSize(value int) Options {
+	o := *opts
+	o.scanBatchSize = value
 	return &o
 }
 

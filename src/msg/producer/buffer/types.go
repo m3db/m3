@@ -72,6 +72,12 @@ type Options interface {
 	// SetCloseCheckInterval sets the close check interval.
 	SetCloseCheckInterval(value time.Duration) Options
 
+	// ScanBatchSize returns the scan batch size.
+	ScanBatchSize() int
+
+	// SetScanBatchSize sets the scan batch size.
+	SetScanBatchSize(value int) Options
+
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 

@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3msg/producer"
 	"github.com/m3db/m3msg/producer/msg"
+	"github.com/m3db/m3x/instrument"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
@@ -46,15 +47,20 @@ type bufferMetrics struct {
 	messageTooLarge tally.Counter
 	messageBuffered tally.Gauge
 	byteBuffered    tally.Gauge
+	bufferScanBatch tally.Timer
 }
 
-func newBufferMetrics(scope tally.Scope) bufferMetrics {
+func newBufferMetrics(
+	scope tally.Scope,
+	samplingRate float64,
+) bufferMetrics {
 	return bufferMetrics{
 		messageDropped:  scope.Counter("buffer-message-dropped"),
 		byteDropped:     scope.Counter("buffer-byte-dropped"),
 		messageTooLarge: scope.Counter("message-too-large"),
 		messageBuffered: scope.Gauge("message-buffered"),
 		byteBuffered:    scope.Gauge("byte-buffered"),
+		bufferScanBatch: instrument.MustCreateSampledTimer(scope.Timer("buffer-scan-batch"), samplingRate),
 	}
 }
 
@@ -85,10 +91,13 @@ func NewBuffer(opts Options) producer.Buffer {
 		maxBufferSize:  uint64(opts.MaxBufferSize()),
 		maxMessageSize: uint32(opts.MaxMessageSize()),
 		opts:           opts,
-		m:              newBufferMetrics(opts.InstrumentOptions().MetricsScope()),
-		size:           atomic.NewUint64(0),
-		doneCh:         make(chan struct{}),
-		isClosed:       false,
+		m: newBufferMetrics(
+			opts.InstrumentOptions().MetricsScope(),
+			opts.InstrumentOptions().MetricsSamplingRate(),
+		),
+		size:     atomic.NewUint64(0),
+		doneCh:   make(chan struct{}),
+		isClosed: false,
 	}
 	b.onFinalizeFn = b.subSize
 	return b
@@ -169,21 +178,51 @@ func (b *buffer) cleanupUntilClose() {
 	for {
 		select {
 		case <-ticker.C:
-			b.Lock()
-			b.cleanupWithLock()
-			l := b.buffers.Len()
-			b.Unlock()
-			b.m.messageBuffered.Update(float64(l))
-			b.m.byteBuffered.Update(float64(b.size.Load()))
+			b.cleanup()
 		case <-b.doneCh:
 			return
 		}
 	}
 }
 
-func (b *buffer) cleanupWithLock() {
-	var next *list.Element
-	for e := b.buffers.Front(); e != nil; e = next {
+func (b *buffer) cleanup() {
+	b.RLock()
+	e := b.buffers.Front()
+	b.RUnlock()
+	batchSize := b.opts.ScanBatchSize()
+	for e != nil {
+		beforeBatch := time.Now()
+		// NB: There is a chance the start element could be removed by another
+		// thread since the lock will be released between scan batch.
+		// For example when the there is a slow/dead consumer that is not
+		// consuming anything and caused buffer to be full, a new write could
+		// trigger dropEarliest and remove elements from the front of the list.
+		// In this case, the batch starting from the removed element will do
+		// nothing and will finish the tick, which is good as this avoids the
+		// tick repeatedly scanning and doing nothing because nothing is being
+		// consumed.
+		b.Lock()
+		e = b.cleanupBatchWithLock(e, batchSize)
+		b.Unlock()
+		b.m.bufferScanBatch.Record(time.Since(beforeBatch))
+	}
+	b.m.messageBuffered.Update(float64(b.bufferLen()))
+	b.m.byteBuffered.Update(float64(b.size.Load()))
+}
+
+func (b *buffer) cleanupBatchWithLock(
+	start *list.Element,
+	batchSize int,
+) *list.Element {
+	var (
+		iterated int
+		next     *list.Element
+	)
+	for e := start; e != nil; e = next {
+		iterated++
+		if iterated > batchSize {
+			break
+		}
 		next = e.Next()
 		rm := e.Value.(producer.RefCountedMessage)
 		if rm.IsDroppedOrConsumed() {
@@ -193,12 +232,15 @@ func (b *buffer) cleanupWithLock() {
 		if !b.forceDrop {
 			continue
 		}
+		// There is a chance that the message is consumed right before
+		// the drop call which will lead drop to return false.
 		if rm.Drop() {
 			b.m.messageDropped.Inc(1)
 			b.m.byteDropped.Inc(int64(rm.Size()))
 			b.buffers.Remove(e)
 		}
 	}
+	return next
 }
 
 func (b *buffer) Close(ct producer.CloseType) {
@@ -220,24 +262,24 @@ func (b *buffer) Close(ct producer.CloseType) {
 }
 
 func (b *buffer) waitUntilAllDataConsumed() {
-	if b.isBufferEmpty() {
+	if b.bufferLen() == 0 {
 		return
 	}
 	ticker := time.NewTicker(b.opts.CloseCheckInterval())
 	defer ticker.Stop()
 
 	for range ticker.C {
-		if b.isBufferEmpty() {
+		if b.bufferLen() == 0 {
 			return
 		}
 	}
 }
 
-func (b *buffer) isBufferEmpty() bool {
+func (b *buffer) bufferLen() int {
 	b.RLock()
 	l := b.buffers.Len()
 	b.RUnlock()
-	return l == 0
+	return l
 }
 
 func (b *buffer) subSize(rm producer.RefCountedMessage) {

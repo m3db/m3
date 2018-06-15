@@ -34,6 +34,7 @@ type BufferConfiguration struct {
 	MaxMessageSize     *int                   `yaml:"maxMessageSize"`
 	CleanupInterval    *time.Duration         `yaml:"cleanupInterval"`
 	CloseCheckInterval *time.Duration         `yaml:"closeCheckInterval"`
+	ScanBatchSize      *int                   `yaml:"scanBatchSize"`
 }
 
 // NewOptions creates new buffer options.
@@ -53,6 +54,9 @@ func (c *BufferConfiguration) NewOptions(iOpts instrument.Options) buffer.Option
 	}
 	if c.OnFullStrategy != nil {
 		opts = opts.SetOnFullStrategy(*c.OnFullStrategy)
+	}
+	if c.ScanBatchSize != nil {
+		opts = opts.SetScanBatchSize(*c.ScanBatchSize)
 	}
 	return opts.SetInstrumentOptions(iOpts)
 }
