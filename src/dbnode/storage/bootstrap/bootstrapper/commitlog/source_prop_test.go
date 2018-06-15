@@ -62,7 +62,10 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 		props     = gopter.NewProperties(parameters)
 		reporter  = gopter.NewFormatedReporter(true, 160, os.Stdout)
 		startTime = time.Now().Truncate(blockSize)
-		nsOpts    = namespace.NewOptions()
+
+		nsOpts = namespace.NewOptions().SetIndexOptions(
+			namespace.NewOptions().IndexOptions().SetEnabled(true),
+		)
 	)
 	parameters.MinSuccessfulTests = 40
 	parameters.Rng.Seed(seed)
@@ -287,9 +290,6 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Determine time range to bootstrap
-			nsOpts = nsOpts.SetIndexOptions(
-				nsOpts.IndexOptions().SetEnabled(true),
-			)
 			end := input.currentTime.Add(blockSize)
 			ranges := xtime.Ranges{}
 			ranges = ranges.AddRange(xtime.Range{
@@ -304,7 +304,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Perform the bootstrap
-			runOpts := testDefaultRunOpts.SetCacheSeriesMetadata(input.shouldCacheSeriesMetadata)
+			// runOpts := testDefaultRunOpts.SetCacheSeriesMetadata(input.shouldCacheSeriesMetadata)
+			runOpts := testDefaultRunOpts
 			dataResult, err := source.BootstrapData(nsMeta, shardTimeRanges, runOpts)
 			if err != nil {
 				return false, err
