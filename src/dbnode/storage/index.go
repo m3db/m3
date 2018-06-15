@@ -450,12 +450,11 @@ func (i *nsIndex) Bootstrap(
 	return multiErr.FinalError()
 }
 
-func (i *nsIndex) Tick(c context.Cancellable) (namespaceIndexTickResult, error) {
+func (i *nsIndex) Tick(c context.Cancellable, tickStart time.Time) (namespaceIndexTickResult, error) {
 	var (
 		result                     = namespaceIndexTickResult{}
-		now                        = i.nowFn()
-		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, now)
-		lastSealableBlockStart     = retention.FlushTimeEndForBlockSize(i.blockSize, now.Add(-i.bufferPast))
+		earliestBlockStartToRetain = retention.FlushTimeStartForRetentionPeriod(i.retentionPeriod, i.blockSize, tickStart)
+		lastSealableBlockStart     = retention.FlushTimeEndForBlockSize(i.blockSize, tickStart.Add(-i.bufferPast))
 	)
 
 	i.state.Lock()

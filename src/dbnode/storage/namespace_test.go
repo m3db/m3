@@ -100,12 +100,12 @@ func TestNamespaceTick(t *testing.T) {
 	defer closer()
 	for i := range testShardIDs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Tick(context.NewNoOpCanncellable()).Return(tickResult{}, nil)
+		shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any()).Return(tickResult{}, nil)
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
 	// Only asserting the expected methods are called
-	require.NoError(t, ns.Tick(context.NewNoOpCanncellable()))
+	require.NoError(t, ns.Tick(context.NewNoOpCanncellable(), time.Time{}))
 }
 
 func TestNamespaceTickError(t *testing.T) {
@@ -119,14 +119,14 @@ func TestNamespaceTickError(t *testing.T) {
 	for i := range testShardIDs {
 		shard := NewMockdatabaseShard(ctrl)
 		if i == 0 {
-			shard.EXPECT().Tick(context.NewNoOpCanncellable()).Return(tickResult{}, fakeErr)
+			shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any()).Return(tickResult{}, fakeErr)
 		} else {
-			shard.EXPECT().Tick(context.NewNoOpCanncellable()).Return(tickResult{}, nil)
+			shard.EXPECT().Tick(context.NewNoOpCanncellable(), gomock.Any()).Return(tickResult{}, nil)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
-	err := ns.Tick(context.NewNoOpCanncellable())
+	err := ns.Tick(context.NewNoOpCanncellable(), time.Time{})
 	require.NotNil(t, err)
 	require.Equal(t, fakeErr.Error(), err.Error())
 }
@@ -1136,8 +1136,8 @@ func TestNamespaceTicksIndex(t *testing.T) {
 	defer closer()
 
 	ctx := context.NewCancellable()
-	idx.EXPECT().Tick(ctx).Return(namespaceIndexTickResult{}, nil)
-	err := ns.Tick(ctx)
+	idx.EXPECT().Tick(ctx, gomock.Any()).Return(namespaceIndexTickResult{}, nil)
+	err := ns.Tick(ctx, time.Time{})
 	require.NoError(t, err)
 }
 

@@ -48,6 +48,7 @@ import (
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	sync0 "github.com/m3db/m3x/sync"
 	time0 "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -832,15 +833,15 @@ func (mr *MockdatabaseNamespaceMockRecorder) GetIndex() *gomock.Call {
 }
 
 // Tick mocks base method
-func (m *MockdatabaseNamespace) Tick(c context.Cancellable) error {
-	ret := m.ctrl.Call(m, "Tick", c)
+func (m *MockdatabaseNamespace) Tick(c context.Cancellable, timeBeforeTickStart time.Time) error {
+	ret := m.ctrl.Call(m, "Tick", c, timeBeforeTickStart)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MockdatabaseNamespaceMockRecorder) Tick(c interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseNamespace)(nil).Tick), c)
+func (mr *MockdatabaseNamespaceMockRecorder) Tick(c, timeBeforeTickStart interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseNamespace)(nil).Tick), c, timeBeforeTickStart)
 }
 
 // Write mocks base method
@@ -1196,16 +1197,16 @@ func (mr *MockdatabaseShardMockRecorder) Close() *gomock.Call {
 }
 
 // Tick mocks base method
-func (m *MockdatabaseShard) Tick(c context.Cancellable) (tickResult, error) {
-	ret := m.ctrl.Call(m, "Tick", c)
+func (m *MockdatabaseShard) Tick(c context.Cancellable, tickStart time.Time) (tickResult, error) {
+	ret := m.ctrl.Call(m, "Tick", c, tickStart)
 	ret0, _ := ret[0].(tickResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MockdatabaseShardMockRecorder) Tick(c interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseShard)(nil).Tick), c)
+func (mr *MockdatabaseShardMockRecorder) Tick(c, tickStart interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseShard)(nil).Tick), c, tickStart)
 }
 
 // Write mocks base method
@@ -1469,16 +1470,16 @@ func (mr *MocknamespaceIndexMockRecorder) CleanupExpiredFileSets(t interface{}) 
 }
 
 // Tick mocks base method
-func (m *MocknamespaceIndex) Tick(c context.Cancellable) (namespaceIndexTickResult, error) {
-	ret := m.ctrl.Call(m, "Tick", c)
+func (m *MocknamespaceIndex) Tick(c context.Cancellable, tickStart time.Time) (namespaceIndexTickResult, error) {
+	ret := m.ctrl.Call(m, "Tick", c, tickStart)
 	ret0, _ := ret[0].(namespaceIndexTickResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MocknamespaceIndexMockRecorder) Tick(c interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MocknamespaceIndex)(nil).Tick), c)
+func (mr *MocknamespaceIndexMockRecorder) Tick(c, tickStart interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MocknamespaceIndex)(nil).Tick), c, tickStart)
 }
 
 // Flush mocks base method
@@ -1954,15 +1955,15 @@ func (m *MockdatabaseTickManager) EXPECT() *MockdatabaseTickManagerMockRecorder 
 }
 
 // Tick mocks base method
-func (m *MockdatabaseTickManager) Tick(forceType forceType) error {
-	ret := m.ctrl.Call(m, "Tick", forceType)
+func (m *MockdatabaseTickManager) Tick(forceType forceType, tickStart time.Time) error {
+	ret := m.ctrl.Call(m, "Tick", forceType, tickStart)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MockdatabaseTickManagerMockRecorder) Tick(forceType interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseTickManager)(nil).Tick), forceType)
+func (mr *MockdatabaseTickManagerMockRecorder) Tick(forceType, tickStart interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseTickManager)(nil).Tick), forceType, tickStart)
 }
 
 // MockdatabaseMediator is a mock of databaseMediator interface
@@ -2890,4 +2891,28 @@ func (m *MockOptions) FetchBlocksMetadataResultsPool() block.FetchBlocksMetadata
 // FetchBlocksMetadataResultsPool indicates an expected call of FetchBlocksMetadataResultsPool
 func (mr *MockOptionsMockRecorder) FetchBlocksMetadataResultsPool() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchBlocksMetadataResultsPool", reflect.TypeOf((*MockOptions)(nil).FetchBlocksMetadataResultsPool))
+}
+
+// SetQueryIDsWorkerPool mocks base method
+func (m *MockOptions) SetQueryIDsWorkerPool(value sync0.WorkerPool) Options {
+	ret := m.ctrl.Call(m, "SetQueryIDsWorkerPool", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetQueryIDsWorkerPool indicates an expected call of SetQueryIDsWorkerPool
+func (mr *MockOptionsMockRecorder) SetQueryIDsWorkerPool(value interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetQueryIDsWorkerPool", reflect.TypeOf((*MockOptions)(nil).SetQueryIDsWorkerPool), value)
+}
+
+// QueryIDsWorkerPool mocks base method
+func (m *MockOptions) QueryIDsWorkerPool() sync0.WorkerPool {
+	ret := m.ctrl.Call(m, "QueryIDsWorkerPool")
+	ret0, _ := ret[0].(sync0.WorkerPool)
+	return ret0
+}
+
+// QueryIDsWorkerPool indicates an expected call of QueryIDsWorkerPool
+func (mr *MockOptionsMockRecorder) QueryIDsWorkerPool() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "QueryIDsWorkerPool", reflect.TypeOf((*MockOptions)(nil).QueryIDsWorkerPool))
 }

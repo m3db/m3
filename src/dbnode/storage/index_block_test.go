@@ -346,7 +346,7 @@ func TestNamespaceIndexTickExpire(t *testing.T) {
 
 	c := context.NewCancellable()
 	b0.EXPECT().Close().Return(nil)
-	result, err := idx.Tick(c)
+	result, err := idx.Tick(c, now)
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
 		NumBlocksEvicted: 1,
@@ -387,7 +387,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		NumDocs:     10,
 		NumSegments: 2,
 	}, nil)
-	result, err := idx.Tick(c)
+	result, err := idx.Tick(c, now)
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
 		NumBlocks:    1,
@@ -405,7 +405,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 	}, nil)
 	b0.EXPECT().IsSealed().Return(false)
 	b0.EXPECT().Seal().Return(nil)
-	result, err = idx.Tick(c)
+	result, err = idx.Tick(c, now)
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
 		NumBlocks:       1,
@@ -419,7 +419,7 @@ func TestNamespaceIndexTick(t *testing.T) {
 		NumSegments: 2,
 	}, nil)
 	b0.EXPECT().IsSealed().Return(true)
-	result, err = idx.Tick(c)
+	result, err = idx.Tick(c, nowFn())
 	require.NoError(t, err)
 	require.Equal(t, namespaceIndexTickResult{
 		NumBlocks:    1,
