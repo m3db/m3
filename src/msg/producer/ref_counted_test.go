@@ -18,14 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package msg
+package producer
 
 import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/m3db/m3msg/producer"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -35,9 +33,9 @@ func TestRefCountedMessageConsume(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mm := producer.NewMockMessage(ctrl)
+	mm := NewMockMessage(ctrl)
 	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
-	mm.EXPECT().Finalize(producer.Consumed)
+	mm.EXPECT().Finalize(Consumed)
 
 	rm := NewRefCountedMessage(mm, nil)
 	require.Equal(t, uint64(mm.Size()), rm.Size())
@@ -59,9 +57,9 @@ func TestRefCountedMessageDrop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mm := producer.NewMockMessage(ctrl)
+	mm := NewMockMessage(ctrl)
 	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
-	mm.EXPECT().Finalize(producer.Dropped)
+	mm.EXPECT().Finalize(Dropped)
 
 	rm := NewRefCountedMessage(mm, nil)
 	require.Equal(t, uint64(mm.Size()), rm.Size())
@@ -82,7 +80,7 @@ func TestRefCountedMessageBytesReadBlocking(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mm := producer.NewMockMessage(ctrl)
+	mm := NewMockMessage(ctrl)
 	mockBytes := []byte("foo")
 	mm.EXPECT().Bytes().Return(mockBytes)
 
@@ -94,7 +92,7 @@ func TestRefCountedMessageBytesReadBlocking(t *testing.T) {
 
 	doneCh := make(chan struct{})
 	go func() {
-		mm.EXPECT().Finalize(producer.Dropped)
+		mm.EXPECT().Finalize(Dropped)
 		rm.Drop()
 		close(doneCh)
 	}()
@@ -119,12 +117,12 @@ func TestRefCountedMessageFilter(t *testing.T) {
 	defer ctrl.Finish()
 
 	var called int
-	filter := func(m producer.Message) bool {
+	filter := func(m Message) bool {
 		called++
 		return m.Shard() == 0
 	}
 
-	mm := producer.NewMockMessage(ctrl)
+	mm := NewMockMessage(ctrl)
 	rm := NewRefCountedMessage(mm, nil)
 
 	mm.EXPECT().Shard().Return(uint32(0))
@@ -138,11 +136,11 @@ func TestRefCountedMessageOnDropFn(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Finalize(producer.Dropped)
+	mm := NewMockMessage(ctrl)
+	mm.EXPECT().Finalize(Dropped)
 
 	var called int
-	fn := func(rm producer.RefCountedMessage) {
+	fn := func(rm *RefCountedMessage) {
 		called++
 	}
 
@@ -157,7 +155,7 @@ func TestRefCountedMessageNoBlocking(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mm := producer.NewMockMessage(ctrl)
+	mm := NewMockMessage(ctrl)
 	for i := 0; i < 10000; i++ {
 		rm := NewRefCountedMessage(mm, nil)
 		var wg sync.WaitGroup
@@ -169,7 +167,7 @@ func TestRefCountedMessageNoBlocking(t *testing.T) {
 			wg.Done()
 		}()
 		go func() {
-			mm.EXPECT().Finalize(producer.Dropped)
+			mm.EXPECT().Finalize(Dropped)
 			rm.Drop()
 			wg.Done()
 		}()

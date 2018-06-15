@@ -29,7 +29,7 @@ import (
 )
 
 type message struct {
-	producer.RefCountedMessage
+	*producer.RefCountedMessage
 
 	pb           msgpb.Message
 	meta         metadata
@@ -49,7 +49,7 @@ func newMessage() *message {
 }
 
 // Set sets the message.
-func (m *message) Set(meta metadata, rm producer.RefCountedMessage) {
+func (m *message) Set(meta metadata, rm *producer.RefCountedMessage) {
 	m.meta = meta
 	m.RefCountedMessage = rm
 	m.ToProto(&m.pb)

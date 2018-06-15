@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3msg/generated/proto/msgpb"
 	"github.com/m3db/m3msg/producer"
-	"github.com/m3db/m3msg/producer/msg"
 	"github.com/m3db/m3msg/protocol/proto"
 	"github.com/m3db/m3msg/topic"
 
@@ -123,7 +122,7 @@ func TestConsumerServiceWriterWithSharedConsumerWithNonShardedPlacement(t *testi
 	mm.EXPECT().Bytes().Return([]byte("foo"))
 	mm.EXPECT().Finalize(producer.Consumed)
 
-	rm := msg.NewRefCountedMessage(mm, nil)
+	rm := producer.NewRefCountedMessage(mm, nil)
 	csw.Write(rm)
 	for {
 		if rm.IsDroppedOrConsumed() {
@@ -258,7 +257,7 @@ func TestConsumerServiceWriterWithSharedConsumerWithShardedPlacement(t *testing.
 	mm.EXPECT().Bytes().Return([]byte("foo"))
 	mm.EXPECT().Finalize(producer.Consumed)
 
-	rm := msg.NewRefCountedMessage(mm, nil)
+	rm := producer.NewRefCountedMessage(mm, nil)
 	csw.Write(rm)
 	for {
 		if rm.IsDroppedOrConsumed() {
@@ -382,7 +381,7 @@ func TestConsumerServiceWriterWithReplicatedConsumerWithShardedPlacement(t *test
 	mm.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
 	mm.EXPECT().Finalize(producer.Consumed)
 
-	rm := msg.NewRefCountedMessage(mm, nil)
+	rm := producer.NewRefCountedMessage(mm, nil)
 	csw.Write(rm)
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -463,7 +462,7 @@ func TestConsumerServiceWriterWithReplicatedConsumerWithShardedPlacement(t *test
 	}()
 
 	mm.EXPECT().Finalize(producer.Consumed)
-	rm = msg.NewRefCountedMessage(mm, nil)
+	rm = producer.NewRefCountedMessage(mm, nil)
 	csw.Write(rm)
 	for {
 		if rm.IsDroppedOrConsumed() {
@@ -503,19 +502,19 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 	md1.EXPECT().Shard().Return(uint32(1)).AnyTimes()
 
 	sw0.EXPECT().Write(gomock.Any())
-	csw.Write(msg.NewRefCountedMessage(md0, nil))
+	csw.Write(producer.NewRefCountedMessage(md0, nil))
 	sw1.EXPECT().Write(gomock.Any())
-	csw.Write(msg.NewRefCountedMessage(md1, nil))
+	csw.Write(producer.NewRefCountedMessage(md1, nil))
 
 	csw.RegisterFilter(func(m producer.Message) bool { return m.Shard() == uint32(0) })
-	csw.Write(msg.NewRefCountedMessage(md1, nil))
+	csw.Write(producer.NewRefCountedMessage(md1, nil))
 
 	sw0.EXPECT().Write(gomock.Any())
-	csw.Write(msg.NewRefCountedMessage(md0, nil))
+	csw.Write(producer.NewRefCountedMessage(md0, nil))
 
 	csw.UnregisterFilter()
 	sw1.EXPECT().Write(gomock.Any())
-	csw.Write(msg.NewRefCountedMessage(md1, nil))
+	csw.Write(producer.NewRefCountedMessage(md1, nil))
 }
 
 func TestConsumerServiceWriterAllowInitValueErrorWithCreateWatchError(t *testing.T) {
@@ -638,7 +637,7 @@ func TestConsumerServiceCloseShardWritersConcurrently(t *testing.T) {
 		mm.EXPECT().Shard().Return(i)
 		mm.EXPECT().Bytes().Return(b).AnyTimes()
 		mm.EXPECT().Finalize(gomock.Any())
-		w.Write(msg.NewRefCountedMessage(mm, nil))
+		w.Write(producer.NewRefCountedMessage(mm, nil))
 	}
 
 	ch := make(chan struct{})

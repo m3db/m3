@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3msg/producer"
-	"github.com/m3db/m3msg/producer/msg"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/uber-go/tally"
@@ -71,7 +70,7 @@ type buffer struct {
 	opts           Options
 	maxBufferSize  uint64
 	maxMessageSize uint32
-	onFinalizeFn   msg.OnFinalizeFn
+	onFinalizeFn   producer.OnFinalizeFn
 	m              bufferMetrics
 
 	size      *atomic.Uint64
@@ -103,7 +102,7 @@ func NewBuffer(opts Options) producer.Buffer {
 	return b
 }
 
-func (b *buffer) Add(m producer.Message) (producer.RefCountedMessage, error) {
+func (b *buffer) Add(m producer.Message) (*producer.RefCountedMessage, error) {
 	b.Lock()
 	if b.isClosed {
 		b.Unlock()
@@ -129,7 +128,7 @@ func (b *buffer) Add(m producer.Message) (producer.RefCountedMessage, error) {
 		}
 	}
 	b.size.Add(dataSize)
-	rm := msg.NewRefCountedMessage(m, b.onFinalizeFn)
+	rm := producer.NewRefCountedMessage(m, b.onFinalizeFn)
 	b.buffers.PushBack(rm)
 	b.Unlock()
 	return rm, nil
@@ -149,7 +148,7 @@ func (b *buffer) dropEarliestUntilTargetWithLock(targetSize uint64) {
 	var next *list.Element
 	for e := b.buffers.Front(); e != nil && b.size.Load() > targetSize; e = next {
 		next = e.Next()
-		rm := e.Value.(producer.RefCountedMessage)
+		rm := e.Value.(*producer.RefCountedMessage)
 		b.buffers.Remove(e)
 		if rm.IsDroppedOrConsumed() {
 			continue
@@ -224,7 +223,7 @@ func (b *buffer) cleanupBatchWithLock(
 			break
 		}
 		next = e.Next()
-		rm := e.Value.(producer.RefCountedMessage)
+		rm := e.Value.(*producer.RefCountedMessage)
 		if rm.IsDroppedOrConsumed() {
 			b.buffers.Remove(e)
 			continue
@@ -282,6 +281,6 @@ func (b *buffer) bufferLen() int {
 	return l
 }
 
-func (b *buffer) subSize(rm producer.RefCountedMessage) {
+func (b *buffer) subSize(rm *producer.RefCountedMessage) {
 	b.size.Sub(rm.Size())
 }

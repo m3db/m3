@@ -25,7 +25,6 @@ import (
 
 	"github.com/m3db/m3msg/generated/proto/msgpb"
 	"github.com/m3db/m3msg/producer"
-	"github.com/m3db/m3msg/producer/msg"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/golang/mock/gomock"
@@ -40,7 +39,7 @@ func TestMessagePool(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	rm := msg.NewRefCountedMessage(mm, nil)
+	rm := producer.NewRefCountedMessage(mm, nil)
 	rm.IncRef()
 
 	m := p.Get()
@@ -62,6 +61,6 @@ func TestMessagePool(t *testing.T) {
 	require.True(t, m.IsDroppedOrConsumed())
 
 	mm.EXPECT().Bytes().Return([]byte("foo"))
-	m.Set(metadata{}, msg.NewRefCountedMessage(mm, nil))
+	m.Set(metadata{}, producer.NewRefCountedMessage(mm, nil))
 	require.False(t, m.IsDroppedOrConsumed())
 }

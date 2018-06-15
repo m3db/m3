@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3msg/generated/proto/msgpb"
 	"github.com/m3db/m3msg/producer"
-	"github.com/m3db/m3msg/producer/msg"
 	"github.com/m3db/m3msg/protocol/proto"
 
 	"github.com/fortytw2/leaktest"
@@ -87,7 +86,7 @@ func TestSharedShardWriter(t *testing.T) {
 	mm.EXPECT().Bytes().Return([]byte("foo"))
 	mm.EXPECT().Finalize(producer.Consumed)
 
-	sw.Write(msg.NewRefCountedMessage(mm, nil))
+	sw.Write(producer.NewRefCountedMessage(mm, nil))
 
 	mw := sw.(*sharedShardWriter).mw.(*messageWriterImpl)
 	mw.RLock()
@@ -169,7 +168,7 @@ func TestReplicatedShardWriter(t *testing.T) {
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Bytes().Return([]byte("foo")).Times(2)
 
-	sw.Write(msg.NewRefCountedMessage(mm, nil))
+	sw.Write(producer.NewRefCountedMessage(mm, nil))
 
 	mw1 := sw.messageWriters[i1.Endpoint()].(*messageWriterImpl)
 	require.Equal(t, 1, mw1.queue.Len())
@@ -277,7 +276,7 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Bytes().Return([]byte("foo")).Times(2)
 
-	sw.Write(msg.NewRefCountedMessage(mm, nil))
+	sw.Write(producer.NewRefCountedMessage(mm, nil))
 	require.Equal(t, 1, mw1.queue.Len())
 	require.Equal(t, 1, mw2.queue.Len())
 

@@ -94,7 +94,7 @@ func NewWriter(opts Options) producer.Writer {
 	return w
 }
 
-func (w *writer) Write(rm producer.RefCountedMessage) error {
+func (w *writer) Write(rm *producer.RefCountedMessage) error {
 	w.RLock()
 	if w.isClosed {
 		rm.Drop()

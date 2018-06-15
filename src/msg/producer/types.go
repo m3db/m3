@@ -102,7 +102,7 @@ type Options interface {
 // Buffer buffers all the messages in the producer.
 type Buffer interface {
 	// Add adds message to the buffer and returns a reference counted message.
-	Add(m Message) (RefCountedMessage, error)
+	Add(m Message) (*RefCountedMessage, error)
 
 	// Init initializes the buffer.
 	Init()
@@ -116,7 +116,7 @@ type Buffer interface {
 // Writer writes all the messages out to the consumer services.
 type Writer interface {
 	// Write writes a reference counted message out.
-	Write(rm RefCountedMessage) error
+	Write(rm *RefCountedMessage) error
 
 	// RegisterFilter registers a filter to a consumer service.
 	RegisterFilter(sid services.ServiceID, fn FilterFunc)
@@ -129,38 +129,4 @@ type Writer interface {
 
 	// Close closes the writer.
 	Close()
-}
-
-// RefCountedMessage is a reference counted message.
-type RefCountedMessage interface {
-	// Shard returns the shard of the message.
-	Shard() uint32
-
-	// Bytes returns the bytes of the message.
-	Bytes() []byte
-
-	// Size returns the size of the message.
-	Size() uint64
-
-	// Accept returns true if the message can be accepted by the filter.
-	Accept(fn FilterFunc) bool
-
-	// IncRef increments the ref count.
-	IncRef()
-
-	// DecRef decrements the ref count. If the reference count became zero after
-	// the call, the message will be finalized as consumed.
-	DecRef()
-
-	// IncReads increments the reads count.
-	IncReads()
-
-	// DecReads decrements the reads count.
-	DecReads()
-
-	// Drop drops the message without waiting for it to be consumed.
-	Drop() bool
-
-	// IsDroppedOrConsumed returns true if the message has been dropped or consumed.
-	IsDroppedOrConsumed() bool
 }

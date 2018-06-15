@@ -61,7 +61,7 @@ const (
 
 type consumerServiceWriter interface {
 	// Write writes a message.
-	Write(rm producer.RefCountedMessage)
+	Write(rm *producer.RefCountedMessage)
 
 	// Init will initialize the consumer service writer.
 	Init(initType) error
@@ -177,7 +177,7 @@ func initShardWriters(
 	return sws
 }
 
-func (w *consumerServiceWriterImpl) Write(rm producer.RefCountedMessage) {
+func (w *consumerServiceWriterImpl) Write(rm *producer.RefCountedMessage) {
 	if rm.Accept(w.dataFilter) {
 		w.shardWriters[rm.Shard()].Write(rm)
 		w.m.filterAccepted.Inc(1)
