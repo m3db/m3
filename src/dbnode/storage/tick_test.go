@@ -163,7 +163,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 			ch1 <- struct{}{}
 			<-ch2
 		}),
-		namespace.EXPECT().Tick(c, time.Now()),
+		namespace.EXPECT().Tick(c, gomock.Any()),
 	)
 	db := newMockdatabase(ctrl, namespace)
 
