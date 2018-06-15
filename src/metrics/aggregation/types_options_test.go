@@ -78,46 +78,73 @@ func TestOptionsSetTimerQuantileTypeStringFn(t *testing.T) {
 	validateQuantiles(t, o)
 }
 
-func TestOptionSetCounterTypeStringTranformFn(t *testing.T) {
+func TestOptionTypeStringTranformFn(t *testing.T) {
+	inputs := []struct {
+		aggType  Type
+		expected []byte
+	}{
+		{aggType: Last, expected: []byte(nil)},
+		{aggType: Min, expected: []byte(nil)},
+		{aggType: Max, expected: []byte(nil)},
+		{aggType: Mean, expected: []byte(nil)},
+		{aggType: Median, expected: []byte(nil)},
+		{aggType: Count, expected: []byte(nil)},
+		{aggType: Sum, expected: []byte(nil)},
+		{aggType: SumSq, expected: []byte(nil)},
+		{aggType: Stdev, expected: []byte(nil)},
+	}
+
 	o := NewTypesOptions().SetCounterTypeStringTransformFn(EmptyTransform)
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Last))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Min))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Max))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Mean))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Median))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Count))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Sum))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(SumSq))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Stdev))
+	for _, input := range inputs {
+		require.Equal(t, input.expected, o.TypeStringForCounter(input.aggType))
+	}
 }
 
 func TestOptionSetTimerTypeStringTranformFn(t *testing.T) {
+	inputs := []struct {
+		aggType  Type
+		expected []byte
+	}{
+		{aggType: Last, expected: []byte(".last")},
+		{aggType: Min, expected: []byte(".lower")},
+		{aggType: Max, expected: []byte(".upper")},
+		{aggType: Mean, expected: []byte(".mean")},
+		{aggType: Median, expected: []byte(".median")},
+		{aggType: Count, expected: []byte(".count")},
+		{aggType: Sum, expected: []byte(".sum")},
+		{aggType: SumSq, expected: []byte(".sum_sq")},
+		{aggType: Stdev, expected: []byte(".stdev")},
+		{aggType: P50, expected: []byte(".p50")},
+		{aggType: P95, expected: []byte(".p95")},
+		{aggType: P99, expected: []byte(".p99")},
+	}
+
 	o := NewTypesOptions().SetTimerTypeStringTransformFn(SuffixTransform)
-	require.Equal(t, []byte(".last"), o.TypeStringForTimer(Last))
-	require.Equal(t, []byte(".lower"), o.TypeStringForTimer(Min))
-	require.Equal(t, []byte(".upper"), o.TypeStringForTimer(Max))
-	require.Equal(t, []byte(".mean"), o.TypeStringForTimer(Mean))
-	require.Equal(t, []byte(".median"), o.TypeStringForTimer(Median))
-	require.Equal(t, []byte(".count"), o.TypeStringForTimer(Count))
-	require.Equal(t, []byte(".sum"), o.TypeStringForTimer(Sum))
-	require.Equal(t, []byte(".sum_sq"), o.TypeStringForTimer(SumSq))
-	require.Equal(t, []byte(".stdev"), o.TypeStringForTimer(Stdev))
-	require.Equal(t, []byte(".p50"), o.TypeStringForTimer(P50))
-	require.Equal(t, []byte(".p95"), o.TypeStringForTimer(P95))
-	require.Equal(t, []byte(".p99"), o.TypeStringForTimer(P99))
+	for _, input := range inputs {
+		require.Equal(t, input.expected, o.TypeStringForTimer(input.aggType))
+	}
 }
 
 func TestOptionSetGaugeTypeStringTranformFn(t *testing.T) {
+	inputs := []struct {
+		aggType  Type
+		expected []byte
+	}{
+		{aggType: Last, expected: []byte(nil)},
+		{aggType: Min, expected: []byte(nil)},
+		{aggType: Max, expected: []byte(nil)},
+		{aggType: Mean, expected: []byte(nil)},
+		{aggType: Median, expected: []byte(nil)},
+		{aggType: Count, expected: []byte(nil)},
+		{aggType: Sum, expected: []byte(nil)},
+		{aggType: SumSq, expected: []byte(nil)},
+		{aggType: Stdev, expected: []byte(nil)},
+	}
+
 	o := NewTypesOptions().SetGaugeTypeStringTransformFn(EmptyTransform)
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Last))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Min))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Max))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Mean))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Median))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Count))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Sum))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(SumSq))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Stdev))
+	for _, input := range inputs {
+		require.Equal(t, input.expected, o.TypeStringForGauge(input.aggType))
+	}
 }
 
 func TestOptionSetAllTypeStringTranformFns(t *testing.T) {
@@ -126,80 +153,221 @@ func TestOptionSetAllTypeStringTranformFns(t *testing.T) {
 		SetTimerTypeStringTransformFn(SuffixTransform).
 		SetGaugeTypeStringTransformFn(EmptyTransform)
 
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Last))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Min))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Max))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Mean))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Median))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Count))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Sum))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(SumSq))
-	require.Equal(t, []byte(nil), o.TypeStringForCounter(Stdev))
+	inputs := []struct {
+		aggType  Type
+		expected []byte
+	}{
+		{aggType: Last, expected: []byte(nil)},
+		{aggType: Min, expected: []byte(nil)},
+		{aggType: Max, expected: []byte(nil)},
+		{aggType: Mean, expected: []byte(nil)},
+		{aggType: Median, expected: []byte(nil)},
+		{aggType: Count, expected: []byte(nil)},
+		{aggType: Sum, expected: []byte(nil)},
+		{aggType: SumSq, expected: []byte(nil)},
+		{aggType: Stdev, expected: []byte(nil)},
+	}
+	for _, input := range inputs {
+		require.Equal(t, input.expected, o.TypeStringForCounter(input.aggType))
+	}
 
-	require.Equal(t, []byte(".last"), o.TypeStringForTimer(Last))
-	require.Equal(t, []byte(".lower"), o.TypeStringForTimer(Min))
-	require.Equal(t, []byte(".upper"), o.TypeStringForTimer(Max))
-	require.Equal(t, []byte(".mean"), o.TypeStringForTimer(Mean))
-	require.Equal(t, []byte(".median"), o.TypeStringForTimer(Median))
-	require.Equal(t, []byte(".count"), o.TypeStringForTimer(Count))
-	require.Equal(t, []byte(".sum"), o.TypeStringForTimer(Sum))
-	require.Equal(t, []byte(".sum_sq"), o.TypeStringForTimer(SumSq))
-	require.Equal(t, []byte(".stdev"), o.TypeStringForTimer(Stdev))
-	require.Equal(t, []byte(".p50"), o.TypeStringForTimer(P50))
-	require.Equal(t, []byte(".p95"), o.TypeStringForTimer(P95))
-	require.Equal(t, []byte(".p99"), o.TypeStringForTimer(P99))
+	inputs = []struct {
+		aggType  Type
+		expected []byte
+	}{
+		{aggType: Last, expected: []byte(".last")},
+		{aggType: Min, expected: []byte(".lower")},
+		{aggType: Max, expected: []byte(".upper")},
+		{aggType: Mean, expected: []byte(".mean")},
+		{aggType: Median, expected: []byte(".median")},
+		{aggType: Count, expected: []byte(".count")},
+		{aggType: Sum, expected: []byte(".sum")},
+		{aggType: SumSq, expected: []byte(".sum_sq")},
+		{aggType: Stdev, expected: []byte(".stdev")},
+		{aggType: P50, expected: []byte(".p50")},
+		{aggType: P95, expected: []byte(".p95")},
+		{aggType: P99, expected: []byte(".p99")},
+	}
+	for _, input := range inputs {
+		require.Equal(t, input.expected, o.TypeStringForTimer(input.aggType))
+	}
 
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Last))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Min))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Max))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Mean))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Median))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Count))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Sum))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(SumSq))
-	require.Equal(t, []byte(nil), o.TypeStringForGauge(Stdev))
+	inputs = []struct {
+		aggType  Type
+		expected []byte
+	}{
+		{aggType: Last, expected: []byte(nil)},
+		{aggType: Min, expected: []byte(nil)},
+		{aggType: Max, expected: []byte(nil)},
+		{aggType: Mean, expected: []byte(nil)},
+		{aggType: Median, expected: []byte(nil)},
+		{aggType: Count, expected: []byte(nil)},
+		{aggType: Sum, expected: []byte(nil)},
+		{aggType: SumSq, expected: []byte(nil)},
+		{aggType: Stdev, expected: []byte(nil)},
+	}
+	for _, input := range inputs {
+		require.Equal(t, input.expected, o.TypeStringForGauge(input.aggType))
+	}
 }
 
-func TestOptionsCounterTypeString(t *testing.T) {
+func TestOptionsTypeStringForCounter(t *testing.T) {
+	inputs := []struct {
+		aggType  Type
+		expected []byte
+	}{
+		{aggType: Last, expected: []byte("last")},
+		{aggType: Min, expected: []byte("lower")},
+		{aggType: Max, expected: []byte("upper")},
+		{aggType: Mean, expected: []byte("mean")},
+		{aggType: Median, expected: []byte("median")},
+		{aggType: Count, expected: []byte("count")},
+		{aggType: Sum, expected: []byte("sum")},
+		{aggType: SumSq, expected: []byte("sum_sq")},
+		{aggType: Stdev, expected: []byte("stdev")},
+		{aggType: P50, expected: []byte("p50")},
+		{aggType: P95, expected: []byte("p95")},
+		{aggType: P99, expected: []byte("p99")},
+	}
+
 	o := NewTypesOptions()
-	require.Equal(t, []byte("last"), o.TypeStringForCounter(Last))
-	require.Equal(t, []byte("lower"), o.TypeStringForCounter(Min))
-	require.Equal(t, []byte("upper"), o.TypeStringForCounter(Max))
-	require.Equal(t, []byte("mean"), o.TypeStringForCounter(Mean))
-	require.Equal(t, []byte("median"), o.TypeStringForCounter(Median))
-	require.Equal(t, []byte("count"), o.TypeStringForCounter(Count))
-	require.Equal(t, []byte("sum"), o.TypeStringForCounter(Sum))
-	require.Equal(t, []byte("sum_sq"), o.TypeStringForCounter(SumSq))
-	require.Equal(t, []byte("stdev"), o.TypeStringForCounter(Stdev))
+	for _, input := range inputs {
+		require.Equal(t, input.expected, o.TypeStringForCounter(input.aggType))
+	}
 }
 
-func TestOptionsTimerTypeString(t *testing.T) {
+func TestOptionsTypeStringForTimer(t *testing.T) {
+	inputs := []struct {
+		aggType  Type
+		expected []byte
+	}{
+		{aggType: Last, expected: []byte("last")},
+		{aggType: Min, expected: []byte("lower")},
+		{aggType: Max, expected: []byte("upper")},
+		{aggType: Mean, expected: []byte("mean")},
+		{aggType: Median, expected: []byte("median")},
+		{aggType: Count, expected: []byte("count")},
+		{aggType: Sum, expected: []byte("sum")},
+		{aggType: SumSq, expected: []byte("sum_sq")},
+		{aggType: Stdev, expected: []byte("stdev")},
+		{aggType: P50, expected: []byte("p50")},
+		{aggType: P95, expected: []byte("p95")},
+		{aggType: P99, expected: []byte("p99")},
+	}
+
 	o := NewTypesOptions()
-	require.Equal(t, []byte("last"), o.TypeStringForTimer(Last))
-	require.Equal(t, []byte("lower"), o.TypeStringForTimer(Min))
-	require.Equal(t, []byte("upper"), o.TypeStringForTimer(Max))
-	require.Equal(t, []byte("mean"), o.TypeStringForTimer(Mean))
-	require.Equal(t, []byte("median"), o.TypeStringForTimer(Median))
-	require.Equal(t, []byte("count"), o.TypeStringForTimer(Count))
-	require.Equal(t, []byte("sum"), o.TypeStringForTimer(Sum))
-	require.Equal(t, []byte("sum_sq"), o.TypeStringForTimer(SumSq))
-	require.Equal(t, []byte("stdev"), o.TypeStringForTimer(Stdev))
+	for _, input := range inputs {
+		require.Equal(t, input.expected, o.TypeStringForTimer(input.aggType))
+	}
 }
 
-func TestOptionsGaugeTypeString(t *testing.T) {
+func TestOptionsTypeStringForGauge(t *testing.T) {
+	inputs := []struct {
+		aggType  Type
+		expected []byte
+	}{
+		{aggType: Last, expected: []byte("last")},
+		{aggType: Min, expected: []byte("lower")},
+		{aggType: Max, expected: []byte("upper")},
+		{aggType: Mean, expected: []byte("mean")},
+		{aggType: Median, expected: []byte("median")},
+		{aggType: Count, expected: []byte("count")},
+		{aggType: Sum, expected: []byte("sum")},
+		{aggType: SumSq, expected: []byte("sum_sq")},
+		{aggType: Stdev, expected: []byte("stdev")},
+		{aggType: P50, expected: []byte("p50")},
+		{aggType: P95, expected: []byte("p95")},
+		{aggType: P99, expected: []byte("p99")},
+	}
+
 	o := NewTypesOptions()
-	require.Equal(t, []byte("last"), o.TypeStringForGauge(Last))
-	require.Equal(t, []byte("lower"), o.TypeStringForGauge(Min))
-	require.Equal(t, []byte("upper"), o.TypeStringForGauge(Max))
-	require.Equal(t, []byte("mean"), o.TypeStringForGauge(Mean))
-	require.Equal(t, []byte("median"), o.TypeStringForGauge(Median))
-	require.Equal(t, []byte("count"), o.TypeStringForGauge(Count))
-	require.Equal(t, []byte("sum"), o.TypeStringForGauge(Sum))
-	require.Equal(t, []byte("sum_sq"), o.TypeStringForGauge(SumSq))
-	require.Equal(t, []byte("stdev"), o.TypeStringForGauge(Stdev))
+	for _, input := range inputs {
+		require.Equal(t, input.expected, o.TypeStringForGauge(input.aggType))
+	}
 }
 
-func TestOptionTimerQuantileTypeString(t *testing.T) {
+func TestOptionsTypeForCounter(t *testing.T) {
+	inputs := []struct {
+		typeStr  []byte
+		expected Type
+	}{
+		{typeStr: []byte("last"), expected: Last},
+		{typeStr: []byte("lower"), expected: Min},
+		{typeStr: []byte("upper"), expected: Max},
+		{typeStr: []byte("mean"), expected: Mean},
+		{typeStr: []byte("median"), expected: Median},
+		{typeStr: []byte("count"), expected: Count},
+		{typeStr: []byte("sum"), expected: Sum},
+		{typeStr: []byte("sum_sq"), expected: SumSq},
+		{typeStr: []byte("stdev"), expected: Stdev},
+		{typeStr: []byte("p50"), expected: P50},
+		{typeStr: []byte("p95"), expected: P95},
+		{typeStr: []byte("p99"), expected: P99},
+		{typeStr: []byte(nil), expected: UnknownType},
+		{typeStr: []byte("abcd"), expected: UnknownType},
+	}
+
+	o := NewTypesOptions()
+	for _, input := range inputs {
+		require.Equal(t, input.expected, o.TypeForCounter(input.typeStr))
+	}
+}
+
+func TestOptionsTypeForTimer(t *testing.T) {
+	inputs := []struct {
+		typeStr  []byte
+		expected Type
+	}{
+		{typeStr: []byte(".last"), expected: Last},
+		{typeStr: []byte(".lower"), expected: Min},
+		{typeStr: []byte(".upper"), expected: Max},
+		{typeStr: []byte(".mean"), expected: Mean},
+		{typeStr: []byte(".median"), expected: Median},
+		{typeStr: []byte(".count"), expected: Count},
+		{typeStr: []byte(".sum"), expected: Sum},
+		{typeStr: []byte(".sum_sq"), expected: SumSq},
+		{typeStr: []byte(".stdev"), expected: Stdev},
+		{typeStr: []byte(".p50"), expected: P50},
+		{typeStr: []byte(".p95"), expected: P95},
+		{typeStr: []byte(".p99"), expected: P99},
+		{typeStr: []byte(nil), expected: UnknownType},
+		{typeStr: []byte("abcd"), expected: UnknownType},
+	}
+
+	o := NewTypesOptions().SetTimerTypeStringTransformFn(SuffixTransform)
+	for _, input := range inputs {
+		require.Equal(t, input.expected, o.TypeForTimer(input.typeStr))
+	}
+}
+
+func TestOptionsTypeForGauge(t *testing.T) {
+	inputs := []struct {
+		typeStr  []byte
+		expected Type
+	}{
+		{typeStr: []byte("last"), expected: Last},
+		{typeStr: []byte("lower"), expected: Min},
+		{typeStr: []byte("upper"), expected: Max},
+		{typeStr: []byte("mean"), expected: Mean},
+		{typeStr: []byte("median"), expected: Median},
+		{typeStr: []byte("count"), expected: Count},
+		{typeStr: []byte("sum"), expected: Sum},
+		{typeStr: []byte("sum_sq"), expected: SumSq},
+		{typeStr: []byte("stdev"), expected: Stdev},
+		{typeStr: []byte("p50"), expected: P50},
+		{typeStr: []byte("p95"), expected: P95},
+		{typeStr: []byte("p99"), expected: P99},
+		{typeStr: []byte(nil), expected: UnknownType},
+		{typeStr: []byte("abcd"), expected: UnknownType},
+	}
+
+	o := NewTypesOptions()
+	for _, input := range inputs {
+		require.Equal(t, input.expected, o.TypeForGauge(input.typeStr))
+	}
+}
+
+func TestOptionQuantileTypeString(t *testing.T) {
 	o := NewTypesOptions()
 	cases := []struct {
 		quantile float64
