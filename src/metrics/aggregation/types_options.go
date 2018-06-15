@@ -21,6 +21,7 @@
 package aggregation
 
 import (
+	"bytes"
 	"strconv"
 	"strings"
 
@@ -102,6 +103,15 @@ type TypesOptions interface {
 
 	// TypeStringForGauge returns the type string for the aggregation type for gauges.
 	TypeStringForGauge(value Type) []byte
+
+	// TypeForCounter returns the aggregation type for given counter type string.
+	TypeForCounter(value []byte) Type
+
+	// TypeForTimer returns the aggregation type for given timer type string.
+	TypeForTimer(value []byte) Type
+
+	// TypeForGauge returns the aggregation type for given gauge type string.
+	TypeForGauge(value []byte) Type
 
 	// Quantiles returns the quantiles for timers.
 	Quantiles() []float64
@@ -296,6 +306,18 @@ func (o *options) TypeStringForGauge(aggType Type) []byte {
 	return o.gaugeTypeStrings[aggType.ID()]
 }
 
+func (o *options) TypeForCounter(value []byte) Type {
+	return typeFor(value, o.counterTypeStrings)
+}
+
+func (o *options) TypeForTimer(value []byte) Type {
+	return typeFor(value, o.timerTypeStrings)
+}
+
+func (o *options) TypeForGauge(value []byte) Type {
+	return typeFor(value, o.gaugeTypeStrings)
+}
+
 func (o *options) Quantiles() []float64 {
 	return o.quantiles
 }
@@ -352,6 +374,18 @@ func (o *options) computeTypeStrings(transformFn TypeStringTransformFn) [][]byte
 		res[aggType.ID()] = transformed
 	}
 	return res
+}
+
+func typeFor(value []byte, typeStrings [][]byte) Type {
+	for id, typeString := range typeStrings {
+		if !bytes.Equal(value, typeString) {
+			continue
+		}
+		if t := Type(id); t.IsValid() {
+			return t
+		}
+	}
+	return UnknownType
 }
 
 // By default we use e.g. "p50", "p95", "p99" for the 50th/95th/99th percentile.
