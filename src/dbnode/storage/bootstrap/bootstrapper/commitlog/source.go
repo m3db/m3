@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"sync"
 	"time"
 
@@ -175,22 +176,107 @@ func (s *commitLogSource) ReadData(
 	}
 
 	var (
-		bOpts  = s.opts.ResultOptions()
-		blOpts = bOpts.DatabaseBlockOptions()
-		// bytesPool  = blOpts.BytesPool()
-		// blocksPool = blOpts.DatabaseBlockPool()
-		blockSize = ns.Options().RetentionOptions().BlockSize()
-		// snapshotShardResults = make(map[uint32]result.ShardResult)
+		bOpts                = s.opts.ResultOptions()
+		blOpts               = bOpts.DatabaseBlockOptions()
+		bytesPool            = blOpts.BytesPool()
+		blocksPool           = blOpts.DatabaseBlockPool()
+		blockSize            = ns.Options().RetentionOptions().BlockSize()
+		snapshotShardResults = make(map[uint32]result.ShardResult)
+		err                  error
 	)
 
 	// Start off by bootstrapping the most recent and complete snapshot file for each
 	// shard/blockStart combination.
-	// snapshotShardResults, err := s.bootstrapAvailableSnapshotFiles(
+	snapshotShardResults, err = s.bootstrapAvailableSnapshotFiles(
+		ns.ID(), shardsTimeRanges, blockSize, snapshotFilesByShard, fsOpts, bytesPool, blocksPool)
+	if err != nil {
+		return nil, err
+	}
 
-	// )
+	// At this point we've bootstrapped all the snapshot files that we can, and we need to
+	// decide which commit logs to read. In order to do that, we'll need to figure out the
+	// minimum most recent snapshot time for each block, then we can use that information to
+	// decide how much of the commit log we need to read for each block that we're bootstrapping.
+	// To start, for each block that we're bootstrapping, we need to figure out the most recent
+	// snapshot that was taken for each shard. I.E we want to create a datastructure that looks
+	// like this:
+	// 		map[blockStart]map[shard]mostRecentSnapshotTime
+	mostRecentCompleteSnapshotTimeByBlockShard := s.mostRecentCompleteSnapshotTimeByBlockShard(
+		shardsTimeRanges, blockSize, snapshotFilesByShard, s.opts.CommitLogOptions().FilesystemOptions())
 
-	readCommitLogPredicate := newReadCommitLogPredicate(
-		ns, shardsTimeRanges, s.opts, s.inspection)
+	// Once we have the desired data structure, we next need to figure out the minimum most recent
+	// snapshot for that block accross all shards. This will help us determine how much of the commit
+	// log we need to read. The new data structure we're trying to generate looks like:
+	// 		map[blockStart]minimumMostRecentSnapshotTime (accross all shards)
+	// This structure is important because it tells us how much of the commit log we need to read for
+	// each block that we're trying to bootstrap (because the commit log is shared accross all shards.)
+	minimumMostRecentSnapshotTimeByBlock := s.minimumMostRecentSnapshotTimeByBlock(
+		shardsTimeRanges, blockSize, mostRecentCompleteSnapshotTimeByBlockShard)
+
+	// TODO: Move this all into a helper?
+	// Now that we have the minimum most recent snapshot time for each block, we can use that data to
+	// decide how much of the commit log we need to read for each block that we're bootstrapping. We'll
+	// construct a new predicate based on the data structure we constructed earlier where the new
+	// predicate will check if there is any overlap between a commit log file and a temporary range
+	// we constructor that begins with the minimum snapshot time and ends with the end of that block.
+	var (
+		bufferPast             = ns.Options().RetentionOptions().BufferPast()
+		bufferFuture           = ns.Options().RetentionOptions().BufferFuture()
+		maxBufferPastAndFuture = math.Max(float64(int(bufferPast)), float64(int(bufferFuture)))
+		rangesToCheck          = []xtime.Range{}
+	)
+
+	for blockStart, minimumMostRecentSnapshotTime := range minimumMostRecentSnapshotTimeByBlock {
+		rangesToCheck = append(rangesToCheck, xtime.Range{
+			// We have to subtract Max(bufferPast, bufferFuture) for the reasons described in the
+			// method documentation.
+			Start: minimumMostRecentSnapshotTime.Add(-time.Duration(maxBufferPastAndFuture)),
+			End:   blockStart.ToTime().Add(blockSize),
+		})
+	}
+
+	readCommitLogPred := func(fileName string, fileStart time.Time, fileBlockSize time.Duration) bool {
+		// Note that the rangesToCheck that we generated above are *logical* ranges not physical ones. I.E
+		// a range of 12:30PM to 2:00PM means that we need all data with a timestamp between 12:30PM and 2:00PM
+		// which is strictly different than all datapoints that *arrived* between 12:30PM and 2:00PM due to the
+		// bufferFuture and bufferPast semantics.
+		// Since the commit log file ranges represent physical ranges, we will first convert them to logical ranges,
+		// and *then* we will perform a range overlap comparison.
+		for _, rangeToCheck := range rangesToCheck {
+			commitLogEntryRange := xtime.Range{
+				// Commit log filetime and duration represent system time, not the logical timestamps of
+				// the values contained within. Imagine the following scenario:
+				// 			Namespace blockSize: 2 hours
+				// 			Namespace bufferPast: 10 minutes
+				// 			Namespace bufferFuture: 20 minutes
+				// 			Commit log file start: 12:30PM
+				// 			Commit log file blockSize: 15 minutes
+				//
+				// While the commit log file only contains writes that were physically received between 12:30PM
+				// and 12:45PM system time, it *could* contain datapoints with *logical* timestamps anywhere between
+				// 12:20PM and 1:05PM.
+				//
+				// I.E A write that arrives at exactly 12:30PM (system) with a timestamp of 12:20PM (logical) would be
+				// within the 10 minute bufferPast period. Similarly, a write that arrives at exactly 12:45PM (system)
+				// with a timestamp of 1:05PM (logical) would be within the 20 minute bufferFuture period.
+				Start: fileStart.Add(-bufferPast),
+				End:   fileStart.Add(fileBlockSize).Add(bufferFuture),
+			}
+
+			if commitLogEntryRange.Overlaps(rangeToCheck) {
+				s.log.
+					WithFields(
+						xlog.NewField("start", fileStart),
+						xlog.NewField("blockSize", fileBlockSize),
+					).
+					Infof(
+						"Opting to read commit log: %s with start: %s and duration: %s", fileName)
+				return true
+			}
+		}
+
+		return false
+	}
 
 	// TODO(rartoul): When we implement caching data across namespaces, this will need
 	// to be commitlog.ReadAllSeriesPredicate() if CacheSeriesMetadata() is enabled
@@ -199,7 +285,7 @@ func (s *commitLogSource) ReadData(
 	readSeriesPredicate := newReadSeriesPredicate(ns)
 	iterOpts := commitlog.IteratorOpts{
 		CommitLogOptions:      s.opts.CommitLogOptions(),
-		FileFilterPredicate:   readCommitLogPredicate,
+		FileFilterPredicate:   readCommitLogPred,
 		SeriesFilterPredicate: readSeriesPredicate,
 	}
 	iter, err := s.newIteratorFn(iterOpts)
@@ -272,12 +358,39 @@ func (s *commitLogSource) ReadData(
 	wg.Wait()
 	s.logEncodingOutcome(workerErrs, iter)
 
-	result := s.mergeShards(int(numShards), bOpts, blockSize, blOpts, encoderPool, shardDataByShard)
+	var (
+		bootstrapResult = s.mergeShards(int(numShards), bOpts, blockSize, blOpts, encoderPool, shardDataByShard)
+		shardResults    = bootstrapResult.ShardResults()
+	)
+
+	// TODO: Helper?
+	for shard, shardResult := range snapshotShardResults {
+		existingShardResult, ok := shardResults[shard]
+		if !ok {
+			bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
+			continue
+		}
+
+		for _, mapEntry := range shardResult.AllSeries().Iter() {
+			series := mapEntry.Value()
+			for blockStart, dbBlock := range series.Blocks.AllBlocks() {
+				existingBlock, ok := existingShardResult.BlockAt(series.ID, blockStart.ToTime())
+				if !ok {
+					existingShardResult.AddBlock(series.ID, series.Tags, dbBlock)
+					continue
+				}
+
+				existingBlock.Merge(dbBlock)
+			}
+		}
+	}
+
+	// TODO: Need to fix caching logic to handle the snapshot files
 	// After merging shards, its safe to cache the shardData (which involves some mutation).
 	if s.shouldCacheSeriesMetadata(runOpts, ns) {
 		s.cacheShardData(ns, shardDataByShard)
 	}
-	return result, nil
+	return bootstrapResult, nil
 }
 
 func (s *commitLogSource) mostRecentCompleteSnapshotTimeByBlockShard(

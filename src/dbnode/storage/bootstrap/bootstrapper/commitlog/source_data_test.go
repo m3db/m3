@@ -347,7 +347,7 @@ func TestItMergesSnapshotsAndCommitLogs(t *testing.T) {
 	require.NoError(t, err)
 	mockReader.EXPECT().Read().Return(
 		foo.ID,
-		nil,
+		ident.EmptyTagIterator,
 		checked.NewBytes(bytes, nil),
 		// TODO: Calculate correct checksum
 		uint32(0),
