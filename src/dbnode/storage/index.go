@@ -482,7 +482,7 @@ func (i *nsIndex) Tick(c context.Cancellable, tickStart time.Time) (namespaceInd
 		}
 
 		// tick any blocks we're going to retain
-		blockTickResult, tickErr := block.Tick(c)
+		blockTickResult, tickErr := block.Tick(c, tickStart)
 		multiErr = multiErr.Add(tickErr)
 		result.NumSegments += blockTickResult.NumSegments
 		result.NumTotalDocs += blockTickResult.NumDocs

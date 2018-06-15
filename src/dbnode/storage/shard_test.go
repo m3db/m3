@@ -458,7 +458,7 @@ func TestShardTick(t *testing.T) {
 	shard.Write(ctx, ident.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
 	shard.Write(ctx, ident.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
 
-	r, err := shard.Tick(context.NewNoOpCanncellable(), now)
+	r, err := shard.Tick(context.NewNoOpCanncellable(), nowFn())
 	require.NoError(t, err)
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)

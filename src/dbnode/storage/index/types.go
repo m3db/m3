@@ -149,7 +149,7 @@ type Block interface {
 	AddResults(results result.IndexBlock) error
 
 	// Tick does internal house keeping operations.
-	Tick(c context.Cancellable) (BlockTickResult, error)
+	Tick(c context.Cancellable, tickStart time.Time) (BlockTickResult, error)
 
 	// Seal prevents the block from taking any more writes, but, it still permits
 	// addition of segments via Bootstrap().

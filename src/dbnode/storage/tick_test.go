@@ -47,7 +47,7 @@ func TestTickManagerTickNormalFlow(t *testing.T) {
 	tm.c = c
 	tm.sleepFn = func(time.Duration) {}
 
-	require.NoError(t, tm.Tick(noForce, time.Time{}))
+	require.NoError(t, tm.Tick(noForce, time.Now()))
 	require.Equal(t, 1, len(tm.tokenCh))
 }
 
@@ -76,7 +76,7 @@ func TestTickManagerTickCancelled(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		require.Equal(t, errTickCancelled, tm.Tick(noForce, time.Time{}))
+		require.Equal(t, errTickCancelled, tm.Tick(noForce, time.Now()))
 		require.Equal(t, 1, len(tm.tokenCh))
 	}()
 
@@ -103,7 +103,7 @@ func TestTickManagerTickErrorFlow(t *testing.T) {
 	tm.c = c
 	tm.sleepFn = func(time.Duration) {}
 
-	err := tm.Tick(noForce, time.Time{})
+	err := tm.Tick(noForce, time.Now())
 	require.Error(t, err)
 	require.Equal(t, fakeErr.Error(), err.Error())
 	require.Equal(t, 1, len(tm.tokenCh))
@@ -134,12 +134,12 @@ func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		require.NoError(t, tm.Tick(noForce, time.Time{}))
+		require.NoError(t, tm.Tick(noForce, time.Now()))
 	}()
 
 	// Wait for tick to start
 	<-ch1
-	require.Equal(t, errTickInProgress, tm.Tick(noForce, time.Time{}))
+	require.Equal(t, errTickInProgress, tm.Tick(noForce, time.Now()))
 
 	ch2 <- struct{}{}
 	wg.Wait()
@@ -163,7 +163,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 			ch1 <- struct{}{}
 			<-ch2
 		}),
-		namespace.EXPECT().Tick(c, time.Time{}),
+		namespace.EXPECT().Tick(c, time.Now()),
 	)
 	db := newMockdatabase(ctrl, namespace)
 
@@ -175,7 +175,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 	go func() {
 		defer wg.Done()
 
-		require.Equal(t, errTickCancelled, tm.Tick(noForce, time.Time{}))
+		require.Equal(t, errTickCancelled, tm.Tick(noForce, time.Now()))
 	}()
 
 	go func() {
@@ -183,7 +183,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 
 		// Wait for tick to start
 		<-ch1
-		require.NoError(t, tm.Tick(force, time.Time{}))
+		require.NoError(t, tm.Tick(force, time.Now()))
 	}()
 
 	go func() {

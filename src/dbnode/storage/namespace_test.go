@@ -105,7 +105,7 @@ func TestNamespaceTick(t *testing.T) {
 	}
 
 	// Only asserting the expected methods are called
-	require.NoError(t, ns.Tick(context.NewNoOpCanncellable(), time.Time{}))
+	require.NoError(t, ns.Tick(context.NewNoOpCanncellable(), time.Now()))
 }
 
 func TestNamespaceTickError(t *testing.T) {
@@ -126,7 +126,7 @@ func TestNamespaceTickError(t *testing.T) {
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
-	err := ns.Tick(context.NewNoOpCanncellable(), time.Time{})
+	err := ns.Tick(context.NewNoOpCanncellable(), time.Now())
 	require.NotNil(t, err)
 	require.Equal(t, fakeErr.Error(), err.Error())
 }
@@ -1137,7 +1137,7 @@ func TestNamespaceTicksIndex(t *testing.T) {
 
 	ctx := context.NewCancellable()
 	idx.EXPECT().Tick(ctx, gomock.Any()).Return(namespaceIndexTickResult{}, nil)
-	err := ns.Tick(ctx, time.Time{})
+	err := ns.Tick(ctx, time.Now())
 	require.NoError(t, err)
 }
 

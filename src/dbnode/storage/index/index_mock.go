@@ -264,16 +264,16 @@ func (mr *MockBlockMockRecorder) StartTime() *gomock.Call {
 }
 
 // Tick mocks base method
-func (m *MockBlock) Tick(arg0 context.Cancellable) (BlockTickResult, error) {
-	ret := m.ctrl.Call(m, "Tick", arg0)
+func (m *MockBlock) Tick(arg0 context.Cancellable, arg1 time.Time) (BlockTickResult, error) {
+	ret := m.ctrl.Call(m, "Tick", arg0, arg1)
 	ret0, _ := ret[0].(BlockTickResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MockBlockMockRecorder) Tick(arg0 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockBlock)(nil).Tick), arg0)
+func (mr *MockBlockMockRecorder) Tick(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockBlock)(nil).Tick), arg0, arg1)
 }
 
 // WriteBatch mocks base method
