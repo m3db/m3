@@ -584,7 +584,75 @@ func TestConsumerServiceWriterInitError(t *testing.T) {
 
 	err = w.Init(failOnError)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "m3msg consumer service writer init error")
+	require.Contains(t, err.Error(), "consumer service writer init error")
+}
+
+func TestConsumerServiceWriterUpdateNonShardedPlacementWithReplicatedConsumptionType(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	sid := services.NewServiceID().SetName("foo")
+	cs := topic.NewConsumerService().SetServiceID(sid).SetConsumptionType(topic.Replicated)
+	sd := services.NewMockServices(ctrl)
+	pOpts := placement.NewOptions().SetIsSharded(false)
+	ps := service.NewPlacementService(storage.NewPlacementStorage(mem.NewStore(), sid.String(), pOpts), pOpts)
+	sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil)
+	_, err := ps.BuildInitialPlacement([]placement.Instance{
+		placement.NewInstance().SetID("i1").SetEndpoint("i1").SetWeight(1),
+	}, 0, 1)
+	require.NoError(t, err)
+	opts := testOptions().SetServiceDiscovery(sd)
+	w, err := newConsumerServiceWriter(cs, 2, opts)
+	require.NoError(t, err)
+	err = w.Init(failOnError)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "non-sharded placement for replicated consumer")
+	w.Close()
+}
+
+func TestConsumerServiceCloseShardWritersConcurrently(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	sid := services.NewServiceID().SetName("foo")
+	cs := topic.NewConsumerService().SetServiceID(sid).SetConsumptionType(topic.Shared)
+	sd := services.NewMockServices(ctrl)
+	ps := testPlacementService(mem.NewStore(), sid)
+	sd.EXPECT().PlacementService(sid, gomock.Any()).Return(ps, nil)
+	opts := testOptions().SetServiceDiscovery(sd).SetCloseCheckInterval(time.Second)
+
+	numShards := uint32(1024)
+	w, err := newConsumerServiceWriter(cs, numShards, opts)
+	require.NoError(t, err)
+	require.NoError(t, w.Init(allowInitValueError))
+
+	// Write one message to each shard, so each shard needs to tick
+	// and wait for the queue to be cleaned up.
+	b := []byte{}
+	for i := uint32(0); i < numShards; i++ {
+		mm := producer.NewMockMessage(ctrl)
+		mm.EXPECT().Shard().Return(i)
+		mm.EXPECT().Bytes().Return(b).AnyTimes()
+		mm.EXPECT().Finalize(gomock.Any())
+		w.Write(msg.NewRefCountedMessage(mm, nil))
+	}
+
+	ch := make(chan struct{})
+	go func() {
+		w.Close()
+		close(ch)
+	}()
+
+	select {
+	case <-ch:
+		return
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "taking too long to close consumer service writer")
+	}
 }
 
 func testPlacementService(store kv.Store, sid services.ServiceID) placement.Service {

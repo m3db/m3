@@ -82,9 +82,9 @@ func (m *message) IncWriteTimes() {
 	m.retried++
 }
 
-// IsDroppedOrAcked returns true if the message has been dropped or acked.
-func (m *message) IsDroppedOrAcked() bool {
-	return m.isAcked.Load() || m.RefCountedMessage.IsDroppedOrConsumed()
+// IsAcked returns true if the message has been acked.
+func (m *message) IsAcked() bool {
+	return m.isAcked.Load()
 }
 
 // Ack acknowledges the message. Duplicated acks on the same message might cause panic.

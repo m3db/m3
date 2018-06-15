@@ -45,7 +45,7 @@ const (
 var (
 	u uninitializedReadWriter
 
-	errNotInitialized = errors.New("connection not initialized")
+	errInvalidConnection = errors.New("connection is invalid")
 )
 
 type consumerWriter interface {
@@ -63,6 +63,8 @@ type consumerWriter interface {
 }
 
 type consumerWriterMetrics struct {
+	writeInvalidConn        tally.Counter
+	readInvalidConn         tally.Counter
 	ackError                tally.Counter
 	decodeError             tally.Counter
 	encodeError             tally.Counter
@@ -76,6 +78,8 @@ type consumerWriterMetrics struct {
 
 func newConsumerWriterMetrics(scope tally.Scope) consumerWriterMetrics {
 	return consumerWriterMetrics{
+		writeInvalidConn:        scope.Counter("write-invalid-conn"),
+		readInvalidConn:         scope.Counter("read-invalid-conn"),
 		ackError:                scope.Counter("ack-error"),
 		decodeError:             scope.Counter("decode-error"),
 		encodeError:             scope.Counter("encode-error"),
@@ -102,6 +106,7 @@ type consumerWriterImpl struct {
 	connRetrier retry.Retrier
 	logger      log.Logger
 
+	validConn      *atomic.Bool
 	conn           io.ReadWriteCloser
 	bw             *bufio.Writer
 	br             *bufio.Reader
@@ -141,6 +146,7 @@ func newConsumerWriter(
 		ackRetrier:     retry.NewRetrier(opts.AckErrorRetryOptions()),
 		connRetrier:    retry.NewRetrier(connOpts.RetryOptions().SetForever(defaultRetryForever)),
 		logger:         opts.InstrumentOptions().Logger(),
+		validConn:      atomic.NewBool(false),
 		conn:           u,
 		bw:             bw,
 		br:             br,
@@ -166,6 +172,10 @@ func (w *consumerWriterImpl) Address() string {
 // Write should fail fast so that the write could be tried on other
 // consumer writers that are sharing the message queue.
 func (w *consumerWriterImpl) Write(m proto.Marshaler) error {
+	if !w.validConn.Load() {
+		w.m.writeInvalidConn.Inc(1)
+		return errInvalidConnection
+	}
 	w.encodeLock.Lock()
 	err := w.encdec.Encode(m)
 	w.encodeLock.Unlock()
@@ -194,6 +204,11 @@ func (w *consumerWriterImpl) resetConnectionUntilClose() {
 	for {
 		select {
 		case <-w.resetCh:
+			// Avoid resetting too frequent.
+			if w.resetTooSoon() {
+				w.m.resetTooSoon.Inc(1)
+				continue
+			}
 			if err := w.resetWithConnectFn(w.connectWithRetry); err != nil {
 				w.m.resetError.Inc(1)
 				w.logger.Errorf("could not reconnect to %s, %v", w.addr, err)
@@ -208,17 +223,18 @@ func (w *consumerWriterImpl) resetConnectionUntilClose() {
 	}
 }
 
+func (w *consumerWriterImpl) resetTooSoon() bool {
+	return w.nowFn().UnixNano() < w.lastResetNanos+int64(w.connOpts.ResetDelay())
+}
+
 func (w *consumerWriterImpl) resetWithConnectFn(fn connectFn) error {
-	// Avoid resetting too frequent.
-	if w.nowFn().UnixNano() < w.lastResetNanos+int64(w.connOpts.ResetDelay()) {
-		w.m.resetTooSoon.Inc(1)
-		return nil
-	}
+	w.validConn.Store(false)
 	conn, err := fn(w.addr)
 	if err != nil {
 		return err
 	}
 	w.reset(conn)
+	w.validConn.Store(true)
 	return nil
 }
 
@@ -241,6 +257,10 @@ func (w *consumerWriterImpl) continueFn(int) bool {
 }
 
 func (w *consumerWriterImpl) readAcks() error {
+	if !w.validConn.Load() {
+		w.m.readInvalidConn.Inc(1)
+		return errInvalidConnection
+	}
 	// NB(cw) The proto needs to be cleaned up because the gogo protobuf
 	// unmarshalling will append to the underlying slice.
 	w.ack.Metadata = w.ack.Metadata[:0]
@@ -339,6 +359,6 @@ func (w *consumerWriterImpl) connectWithRetry(addr string) (io.ReadWriteCloser, 
 
 type uninitializedReadWriter struct{}
 
-func (u uninitializedReadWriter) Read(p []byte) (int, error)  { return 0, errNotInitialized }
-func (u uninitializedReadWriter) Write(p []byte) (int, error) { return 0, errNotInitialized }
+func (u uninitializedReadWriter) Read(p []byte) (int, error)  { return 0, errInvalidConnection }
+func (u uninitializedReadWriter) Write(p []byte) (int, error) { return 0, errInvalidConnection }
 func (u uninitializedReadWriter) Close() error                { return nil }

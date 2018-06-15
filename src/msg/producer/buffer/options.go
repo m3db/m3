@@ -29,7 +29,7 @@ import (
 var (
 	defaultMaxBufferSize      = 100 * 1024 * 1024 // 100MB.
 	defaultMaxMessageSize     = 1 * 1024 * 1024   // 1MB.
-	defaultCleanupInterval    = time.Second
+	defaultCleanupInterval    = 5 * time.Second
 	defaultCloseCheckInterval = time.Second
 )
 

@@ -50,8 +50,8 @@ type bufferMetrics struct {
 
 func newBufferMetrics(scope tally.Scope) bufferMetrics {
 	return bufferMetrics{
-		messageDropped:  scope.Counter("message-dropped"),
-		byteDropped:     scope.Counter("byte-dropped"),
+		messageDropped:  scope.Counter("buffer-message-dropped"),
+		byteDropped:     scope.Counter("buffer-byte-dropped"),
 		messageTooLarge: scope.Counter("message-too-large"),
 		messageBuffered: scope.Gauge("message-buffered"),
 		byteBuffered:    scope.Gauge("byte-buffered"),

@@ -572,7 +572,7 @@ func TestAddConsumerService(t *testing.T) {
 		s.ScheduleOperations(
 			20,
 			func() {
-				s.AddConsumerService(t, consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 1, replicas: 1})
+				s.AddConsumerService(t, consumerServiceConfig{ct: topic.Shared, isSharded: false, instances: 1, replicas: 1, lateJoin: true})
 			},
 		)
 		s.Run(t, ctrl)

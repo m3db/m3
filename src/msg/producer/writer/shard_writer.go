@@ -151,11 +151,10 @@ func newReplicatedShardWriter(
 
 func (w *replicatedShardWriter) Write(rm producer.RefCountedMessage) {
 	w.RLock()
-	mws := w.messageWriters
-	w.RUnlock()
-	for _, mw := range mws {
+	for _, mw := range w.messageWriters {
 		mw.Write(rm)
 	}
+	w.RUnlock()
 }
 
 // This is not thread safe, must be called in one thread.
@@ -263,11 +262,11 @@ func (w *replicatedShardWriter) Close() {
 func (w *replicatedShardWriter) QueueSize() int {
 	w.RLock()
 	mws := w.messageWriters
-	w.RUnlock()
 	var l int
 	for _, mw := range mws {
 		l += mw.QueueSize()
 	}
+	w.RUnlock()
 	return l
 }
 

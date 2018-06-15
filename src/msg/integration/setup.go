@@ -61,6 +61,7 @@ type consumerServiceConfig struct {
 	instances int
 	replicas  int
 	isSharded bool
+	lateJoin  bool
 }
 
 type op struct {
@@ -71,7 +72,6 @@ type op struct {
 type setup struct {
 	ts               topic.Service
 	sd               *services.MockServices
-	configs          []consumerServiceConfig
 	producers        []producer.Producer
 	consumerServices []*testConsumerService
 	totalConsumed    *atomic.Int64
@@ -124,7 +124,6 @@ func newTestSetup(
 	return &setup{
 		ts:               ts,
 		sd:               sd,
-		configs:          configs,
 		producers:        producers,
 		consumerServices: testConsumerServices,
 		totalConsumed:    totalConsumed,
@@ -150,6 +149,7 @@ func newTestConsumerService(
 		sid:              sid,
 		placementService: ps,
 		consumerService:  consumerService,
+		config:           config,
 	}
 	var (
 		instances []placement.Instance
@@ -218,12 +218,15 @@ func (s *setup) Run(
 	s.CloseConsumers()
 
 	expectedConsumeReplica := 0
-	for _, csc := range s.configs {
-		if csc.ct == topic.Shared {
+	for _, cs := range s.consumerServices {
+		if cs.config.lateJoin {
+			continue
+		}
+		if cs.config.ct == topic.Shared {
 			expectedConsumeReplica++
 			continue
 		}
-		expectedConsumeReplica += csc.replicas
+		expectedConsumeReplica += cs.config.replicas
 	}
 	expectedConsumed := expectedConsumeReplica * numWritesPerProducer * len(s.producers)
 	require.True(t, int(s.totalConsumed.Load()) >= expectedConsumed, fmt.Sprintf("expect %d, consumed %d", expectedConsumed, s.totalConsumed.Load()))
@@ -242,8 +245,9 @@ func (s *setup) CloseProducers(dur time.Duration) {
 
 	go func() {
 		for _, p := range s.producers {
+			log.SimpleLogger.Debug("closing producer")
 			p.Close(producer.WaitForConsumption)
-			log.SimpleLogger.Debug("producer closed")
+			log.SimpleLogger.Debug("closed producer")
 		}
 		close(doneCh)
 	}()
@@ -371,10 +375,8 @@ func (s *setup) RemoveConsumerService(t *testing.T, idx int) {
 	topic = topic.SetConsumerServices(append(css[:idx], css[idx+1:]...))
 	s.ts.CheckAndSet(topic, topic.Version())
 	tcss := s.consumerServices
-	tcs := tcss[idx]
+	tcss[idx].Close()
 	s.consumerServices = append(tcss[:idx], tcss[idx+1:]...)
-	tcs.Close()
-	s.configs = append(s.configs[:idx], s.configs[idx+1:]...)
 }
 
 func (s *setup) AddConsumerService(t *testing.T, config consumerServiceConfig) {
@@ -394,6 +396,7 @@ type testConsumerService struct {
 	placementService placement.Service
 	consumerService  topic.ConsumerService
 	testConsumers    []*testConsumer
+	config           consumerServiceConfig
 }
 
 func (cs *testConsumerService) markConsumed(b []byte) {
@@ -526,6 +529,9 @@ func testProducer(
 	cs client.Client,
 ) producer.Producer {
 	str := `
+buffer:
+  cleanupInterval: 200ms
+  closeCheckInterval: 200ms
 writer:
   topicName: topicName
   topicWatchInitTimeout: 100ms

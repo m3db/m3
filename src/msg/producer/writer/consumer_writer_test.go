@@ -100,20 +100,21 @@ func TestConsumerWriterSignalResetConnection(t *testing.T) {
 
 	w.notifyReset()
 	require.Equal(t, 1, len(w.resetCh))
-	require.NoError(t, w.resetWithConnectFn(w.connectFn))
-	require.Equal(t, 0, called)
+	require.True(t, w.resetTooSoon())
 
 	now := time.Now()
 	w.nowFn = func() time.Time { return now.Add(1 * time.Hour) }
 	require.Equal(t, 1, len(w.resetCh))
+	require.False(t, w.resetTooSoon())
 	require.NoError(t, w.resetWithConnectFn(w.connectFn))
 	require.Equal(t, 1, called)
 	require.Equal(t, 1, len(w.resetCh))
+
 	// Reset won't do anything as it is too soon since last reset.
-	require.NoError(t, w.resetWithConnectFn(w.connectFn))
-	require.Equal(t, 1, called)
+	require.True(t, w.resetTooSoon())
 
 	w.nowFn = func() time.Time { return now.Add(2 * time.Hour) }
+	require.False(t, w.resetTooSoon())
 	require.NoError(t, w.resetWithConnectFn(w.connectFn))
 	require.Equal(t, 2, called)
 }
@@ -123,7 +124,7 @@ func TestConsumerWriterResetConnection(t *testing.T) {
 	require.Equal(t, 1, len(w.resetCh))
 	err := w.Write(&testMsg)
 	require.Error(t, err)
-	require.Equal(t, errNotInitialized, err)
+	require.Equal(t, errInvalidConnection, err)
 
 	var called int
 	conn := new(net.TCPConn)
@@ -174,7 +175,14 @@ func TestConsumerWriterWriteErrorTriggerReset(t *testing.T) {
 	w := newConsumerWriter("badAddr", nil, opts, testConsumerWriterMetrics()).(*consumerWriterImpl)
 	<-w.resetCh
 	require.Equal(t, 0, len(w.resetCh))
-	require.Error(t, w.Write(&testMsg))
+	err := w.Write(&testMsg)
+	require.Error(t, err)
+	require.Equal(t, errInvalidConnection, err)
+	require.Equal(t, 0, len(w.resetCh))
+	w.validConn.Store(true)
+	err = w.Write(&testMsg)
+	require.Error(t, err)
+	require.Equal(t, errInvalidConnection, err)
 	require.Equal(t, 1, len(w.resetCh))
 }
 
@@ -184,14 +192,12 @@ func TestConsumerWriterReadErrorTriggerReset(t *testing.T) {
 	opts := testOptions()
 	w := newConsumerWriter("badAddr", nil, opts, testConsumerWriterMetrics()).(*consumerWriterImpl)
 	<-w.resetCh
-	w.Init()
-	for {
-		l := len(w.resetCh)
-		if l > 0 {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	w.validConn.Store(true)
+	require.Equal(t, 0, len(w.resetCh))
+	err := w.readAcks()
+	require.Error(t, err)
+	require.Equal(t, errInvalidConnection, err)
+	require.Equal(t, 1, len(w.resetCh))
 	w.Close()
 }
 
@@ -313,7 +319,6 @@ func testOptions() Options {
 		SetMessagePoolOptions(pool.NewObjectPoolOptions().SetSize(1)).
 		SetMessageQueueScanInterval(100 * time.Millisecond).
 		SetMessageRetryOptions(retry.NewOptions().SetInitialBackoff(100 * time.Millisecond).SetMaxBackoff(500 * time.Millisecond)).
-		SetCloseCheckInterval(100 * time.Microsecond).
 		SetAckErrorRetryOptions(retry.NewOptions().SetInitialBackoff(200 * time.Millisecond).SetMaxBackoff(time.Second)).
 		SetConnectionOptions(testConnectionOptions())
 }
