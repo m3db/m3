@@ -359,7 +359,7 @@ func TestMessageWriterCleanupDroppedMessage(t *testing.T) {
 
 	// A get will NOT allocate a new message because the old one has been returned to pool.
 	m = w.(*messageWriterImpl).mPool.Get()
-	require.True(t, m.IsDroppedOrAcked())
+	require.True(t, m.IsDroppedOrConsumed())
 }
 
 func TestMessageWriterCleanupAckedMessage(t *testing.T) {
@@ -440,7 +440,8 @@ func TestMessageWriterRetryIterateBatch(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testOptions().SetMessageRetryBatchSize(2).SetMessageRetryOptions(
+	retryBatchSize := 2
+	opts := testOptions().SetMessageRetryBatchSize(retryBatchSize).SetMessageRetryOptions(
 		retry.NewOptions().SetInitialBackoff(2 * time.Nanosecond).SetMaxBackoff(5 * time.Nanosecond),
 	)
 	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
@@ -464,7 +465,7 @@ func TestMessageWriterRetryIterateBatch(t *testing.T) {
 
 	md4.EXPECT().Finalize(gomock.Eq(producer.Dropped))
 	rd4.Drop()
-	e, toBeRetried := w.retryBatchWithLock(w.queue.Front(), w.nowFn().UnixNano())
+	e, toBeRetried := w.retryBatchWithLock(w.queue.Front(), w.nowFn().UnixNano(), retryBatchSize)
 	require.Equal(t, 2, len(toBeRetried))
 	for _, m := range toBeRetried {
 		m.SetRetryAtNanos(w.nowFn().Add(time.Hour).UnixNano())
@@ -474,19 +475,19 @@ func TestMessageWriterRetryIterateBatch(t *testing.T) {
 	require.Equal(t, []byte("3"), e.Value.(*message).RefCountedMessage.Bytes())
 
 	require.Equal(t, 4, w.queue.Len())
-	e, toBeRetried = w.retryBatchWithLock(e, w.nowFn().UnixNano())
+	e, toBeRetried = w.retryBatchWithLock(e, w.nowFn().UnixNano(), retryBatchSize)
 	require.Nil(t, e)
 	require.Equal(t, 1, len(toBeRetried))
 	require.Equal(t, 3, w.queue.Len())
 	for _, m := range toBeRetried {
 		m.SetRetryAtNanos(w.nowFn().Add(time.Hour).UnixNano())
 	}
-	e, toBeRetried = w.retryBatchWithLock(w.queue.Front(), w.nowFn().UnixNano())
+	e, toBeRetried = w.retryBatchWithLock(w.queue.Front(), w.nowFn().UnixNano(), retryBatchSize)
 	require.Equal(t, 0, len(toBeRetried))
 	// Make sure it stopped at rd3.
 	md3.EXPECT().Bytes().Return([]byte("3"))
 	require.Equal(t, []byte("3"), e.Value.(*message).RefCountedMessage.Bytes())
-	e, toBeRetried = w.retryBatchWithLock(e, w.nowFn().UnixNano())
+	e, toBeRetried = w.retryBatchWithLock(e, w.nowFn().UnixNano(), retryBatchSize)
 	require.Nil(t, e)
 	require.Equal(t, 0, len(toBeRetried))
 }
@@ -515,11 +516,11 @@ func TestNextRetryNanos(t *testing.T) {
 	require.True(t, retryAtNanos == nowNanos+2*int64(backoffDuration))
 }
 
-func TestMessageWriterCloseImmediately(t *testing.T) {
+func TestMessageWriterCloseCleanupAllMessages(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
-	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics())
+	w := newMessageWriter(200, nil, opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -530,12 +531,12 @@ func TestMessageWriterCloseImmediately(t *testing.T) {
 	mm.EXPECT().Finalize(producer.Consumed)
 	mm.EXPECT().Bytes().Return([]byte("foo"))
 	w.Write(rm)
-
-	require.Equal(t, 1, w.(*messageWriterImpl).queue.Len())
+	require.False(t, isEmptyWithLock(w.acks))
+	require.Equal(t, 1, w.queue.Len())
 	w.Init()
 	w.Close()
-	require.Equal(t, 0, w.(*messageWriterImpl).queue.Len())
-	require.True(t, isEmptyWithLock(w.(*messageWriterImpl).acks))
+	require.Equal(t, 0, w.queue.Len())
+	require.True(t, isEmptyWithLock(w.acks))
 }
 
 func isEmptyWithLock(h *acks) bool {
@@ -551,5 +552,5 @@ func testMessagePool(opts Options) messagePool {
 }
 
 func testMessageWriterMetrics() messageWriterMetrics {
-	return newMessageWriterMetrics(tally.NoopScope)
+	return newMessageWriterMetrics(tally.NoopScope, 1)
 }

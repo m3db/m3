@@ -96,27 +96,26 @@ func NewWriter(opts Options) producer.Writer {
 
 func (w *writer) Write(rm producer.RefCountedMessage) error {
 	w.RLock()
-	isClosed := w.isClosed
-	m := w.consumerServiceWriters
-	numShards := w.numShards
-	w.RUnlock()
-	if isClosed {
+	if w.isClosed {
 		rm.Drop()
+		w.RUnlock()
 		return errWriterClosed
 	}
 	shard := rm.Shard()
-	if shard >= numShards {
+	if shard >= w.numShards {
 		w.m.invalidShard.Inc(1)
 		rm.Drop()
-		return fmt.Errorf("could not write message for shard %d which is larger than max shard id %d", shard, numShards-1)
+		w.RUnlock()
+		return fmt.Errorf("could not write message for shard %d which is larger than max shard id %d", shard, w.numShards-1)
 	}
 	// NB(cw): Need to inc ref here in case a consumer service
 	// writes the message too fast and close the message.
 	rm.IncRef()
-	for _, csw := range m {
+	for _, csw := range w.consumerServiceWriters {
 		csw.Write(rm)
 	}
 	rm.DecRef()
+	w.RUnlock()
 	return nil
 }
 
@@ -140,7 +139,7 @@ func (w *writer) Init() error {
 		SetProcessFn(w.processFn)
 	w.value = watch.NewValue(vOptions)
 	if err := w.value.Watch(); err != nil {
-		return fmt.Errorf("m3msg writer init error: %v", err)
+		return fmt.Errorf("writer init error: %v", err)
 	}
 	return nil
 }
@@ -189,6 +188,7 @@ func (w *writer) process(update interface{}) error {
 			continue
 		}
 		newConsumerServiceWriters[key] = csw
+		w.logger.Infof("initialized consumer service writer for %s", cs.String())
 	}
 	for key, csw := range w.consumerServiceWriters {
 		if _, ok := newConsumerServiceWriters[key]; !ok {
