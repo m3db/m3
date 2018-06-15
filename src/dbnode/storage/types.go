@@ -224,7 +224,7 @@ type databaseNamespace interface {
 	GetIndex() (namespaceIndex, error)
 
 	// Tick performs any regular maintenance operations
-	Tick(c context.Cancellable, timeBeforeTickStart time.Time) error
+	Tick(c context.Cancellable, tickStart time.Time) error
 
 	// Write writes a data point
 	Write(

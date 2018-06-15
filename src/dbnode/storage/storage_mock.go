@@ -833,15 +833,15 @@ func (mr *MockdatabaseNamespaceMockRecorder) GetIndex() *gomock.Call {
 }
 
 // Tick mocks base method
-func (m *MockdatabaseNamespace) Tick(c context.Cancellable, timeBeforeTickStart time.Time) error {
-	ret := m.ctrl.Call(m, "Tick", c, timeBeforeTickStart)
+func (m *MockdatabaseNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
+	ret := m.ctrl.Call(m, "Tick", c, tickStart)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Tick indicates an expected call of Tick
-func (mr *MockdatabaseNamespaceMockRecorder) Tick(c, timeBeforeTickStart interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseNamespace)(nil).Tick), c, timeBeforeTickStart)
+func (mr *MockdatabaseNamespaceMockRecorder) Tick(c, tickStart interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Tick", reflect.TypeOf((*MockdatabaseNamespace)(nil).Tick), c, tickStart)
 }
 
 // Write mocks base method
