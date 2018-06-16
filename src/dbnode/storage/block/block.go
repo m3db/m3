@@ -207,8 +207,16 @@ func (b *dbBlock) OnRetrieveBlock(
 }
 
 func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
+	lockUpgraded := false
+
 	b.RLock()
-	defer b.RUnlock()
+	defer func() {
+		if lockUpgraded {
+			b.Unlock()
+		} else {
+			b.RUnlock()
+		}
+	}()
 
 	if b.closed {
 		return xio.EmptyBlockReader, errReadFromClosedBlock
@@ -219,6 +227,15 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 		return xio.EmptyBlockReader, err
 	}
 
+	if b.mergeTarget == nil {
+		return stream, nil
+	}
+
+	b.RUnlock()
+	lockUpgraded = true
+	b.Lock()
+
+	// NB: need to re-check as we just upgraded the lock.
 	if b.mergeTarget == nil {
 		return stream, nil
 	}
