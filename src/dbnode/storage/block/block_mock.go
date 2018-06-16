@@ -371,6 +371,18 @@ func (mr *MockDatabaseBlockMockRecorder) Merge(other interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Merge", reflect.TypeOf((*MockDatabaseBlock)(nil).Merge), other)
 }
 
+// HasMergeTarget mocks base method
+func (m *MockDatabaseBlock) HasMergeTarget() bool {
+	ret := m.ctrl.Call(m, "HasMergeTarget")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// HasMergeTarget indicates an expected call of HasMergeTarget
+func (mr *MockDatabaseBlockMockRecorder) HasMergeTarget() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasMergeTarget", reflect.TypeOf((*MockDatabaseBlock)(nil).HasMergeTarget))
+}
+
 // IsRetrieved mocks base method
 func (m *MockDatabaseBlock) IsRetrieved() bool {
 	ret := m.ctrl.Call(m, "IsRetrieved")

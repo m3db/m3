@@ -142,6 +142,8 @@ type TickStatus struct {
 	WiredBlocks int
 	// UnwiredBlocks is the number of blocks unwired (data kept on disk)
 	UnwiredBlocks int
+	// PendingMergeBlocks is the number of blocks pending merges
+	PendingMergeBlocks int
 }
 
 // TickResult is a set of results from a tick

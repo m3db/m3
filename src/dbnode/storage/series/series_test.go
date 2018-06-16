@@ -357,6 +357,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() / 2))
+	b.EXPECT().HasMergeTarget().Return(true)
 	series.blocks.AddBlock(b)
 
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
@@ -364,6 +365,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	tickResult, err := series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
+	require.Equal(t, 1, tickResult.PendingMergeBlocks)
 
 	// Test case where block has not been read within expiry period - will be removed
 	b = block.NewMockDatabaseBlock(ctrl)
@@ -379,10 +381,12 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	tickResult, err = series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
+	require.Equal(t, 0, tickResult.PendingMergeBlocks)
 
 	// Test case where block is not flushed yet (not retrievable) - Will not be removed
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
+	b.EXPECT().HasMergeTarget().Return(true)
 	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	series.blocks.AddBlock(b)
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
@@ -390,6 +394,7 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	tickResult, err = series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
+	require.Equal(t, 1, tickResult.PendingMergeBlocks)
 }
 
 func TestSeriesTickCacheLRU(t *testing.T) {
@@ -425,11 +430,13 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	tickResult, err := series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
+	require.Equal(t, 0, tickResult.PendingMergeBlocks)
 
 	// Test case where block was retrieved from disk - Will not be removed
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
+	b.EXPECT().HasMergeTarget().Return(true)
 	b.EXPECT().WasRetrievedFromDisk().Return(true)
 	series.blocks.AddBlock(b)
 
@@ -438,11 +445,13 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	tickResult, err = series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
+	require.Equal(t, 1, tickResult.PendingMergeBlocks)
 
 	// Test case where block is not flushed yet (not retrievable) - Will not be removed
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
+	b.EXPECT().HasMergeTarget().Return(true)
 	series.blocks.AddBlock(b)
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
 
@@ -458,6 +467,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	tickResult, err = series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
+	require.Equal(t, 1, tickResult.PendingMergeBlocks)
 	_, expiredBlockExists = series.blocks.BlockAt(curr.Add(-2 * retentionPeriod))
 	require.Equal(t, false, expiredBlockExists)
 }
@@ -487,6 +497,7 @@ func TestSeriesTickCacheAllMetadata(t *testing.T) {
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
+	b.EXPECT().HasMergeTarget().Return(true)
 	b.EXPECT().LastReadTime().Return(
 		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() / 2))
 	series.blocks.AddBlock(b)
@@ -496,6 +507,7 @@ func TestSeriesTickCacheAllMetadata(t *testing.T) {
 	tickResult, err := series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
+	require.Equal(t, 1, tickResult.PendingMergeBlocks)
 
 	// Test case where block has not been read within expiry period - will be reset to only have metadata
 	b = block.NewMockDatabaseBlock(ctrl)
@@ -514,10 +526,12 @@ func TestSeriesTickCacheAllMetadata(t *testing.T) {
 	tickResult, err = series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
+	require.Equal(t, 0, tickResult.PendingMergeBlocks)
 
 	// Test case where block is not flushed yet (not retrievable) - won't be reset to only have metadata
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
+	b.EXPECT().HasMergeTarget().Return(true)
 	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
 	series.blocks.AddBlock(b)
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
@@ -525,6 +539,7 @@ func TestSeriesTickCacheAllMetadata(t *testing.T) {
 	tickResult, err = series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
+	require.Equal(t, 1, tickResult.PendingMergeBlocks)
 }
 
 func TestSeriesTickCacheNone(t *testing.T) {
@@ -556,16 +571,19 @@ func TestSeriesTickCacheNone(t *testing.T) {
 	tickResult, err := series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
+	require.Equal(t, 0, tickResult.PendingMergeBlocks)
 
 	// Non-retrievable blocks should not be removed
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
+	b.EXPECT().HasMergeTarget().Return(true)
 	series.blocks.AddBlock(b)
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
 
 	tickResult, err = series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
+	require.Equal(t, 1, tickResult.PendingMergeBlocks)
 }
 
 func TestSeriesBootstrapWithError(t *testing.T) {
