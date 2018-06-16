@@ -222,13 +222,8 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 		return xio.EmptyBlockReader, errReadFromClosedBlock
 	}
 
-	stream, err := b.streamWithRLock(blocker)
-	if err != nil {
-		return xio.EmptyBlockReader, err
-	}
-
 	if b.mergeTarget == nil {
-		return stream, nil
+		return b.streamWithRLock(blocker)
 	}
 
 	b.RUnlock()
@@ -236,7 +231,7 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 	b.Lock()
 
 	// NB: need to re-check as we just upgraded the lock.
-	stream, err = b.streamWithRLock(blocker)
+	stream, err := b.streamWithRLock(blocker)
 	if err != nil {
 		return xio.EmptyBlockReader, err
 	}
