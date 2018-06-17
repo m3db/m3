@@ -9,7 +9,7 @@ m3x_package_path     := $(gopath_prefix)/$(m3x_package)
 m3x_package_min_ver  := 6148700dde75adcdcc27d16fb68cee2d9d9126d8
 
 .PHONY: install-m3x-repo
-install-m3x-repo: install-glide install-generics-bin
+install-m3x-repo: install-glide
 	# Check if repository exists, if not get it
 	test -d $(m3x_package_path) || go get -u $(m3x_package)
 	test -d $(m3x_package_path)/vendor || (cd $(m3x_package_path) && glide install)

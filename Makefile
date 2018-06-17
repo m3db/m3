@@ -200,7 +200,7 @@ site-build:
 define SUBDIR_RULES
 
 .PHONY: mock-gen-$(SUBDIR)
-mock-gen-$(SUBDIR): install-mockgen install-license-bin
+mock-gen-$(SUBDIR): install-codegen-tools install-mockgen install-license-bin
 	@echo Generating mocks $(SUBDIR)
 	@[ ! -d src/$(SUBDIR)/$(mocks_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
@@ -227,7 +227,7 @@ asset-gen-$(SUBDIR): install-codegen-tools install-license-bin
 genny-gen-$(SUBDIR):
 	@echo Generating genny files $(SUBDIR)
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
-		make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk genny-all-$(SUBDIR)
+		PATH=$(retool_bin_path):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk genny-all-$(SUBDIR)
 
 .PHONY: all-gen-$(SUBDIR)
 # NB(prateek): order matters here, mock-gen needs to be last because we sometimes

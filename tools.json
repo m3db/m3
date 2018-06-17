@@ -11,6 +11,10 @@
     {
       "Repository": "github.com/mjibson/esc",
       "Commit": "58d9cde84f237ecdd89bd7f61c2de2853f4c5c6e"
+    },
+    {
+      "Repository": "github.com/mauricelam/genny",
+      "Commit": "9d8700bcc567cd22ea2ef42ce5835a9c80296c4a"
     }
   ],
   "RetoolVersion": "1.3.7"
