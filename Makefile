@@ -203,7 +203,7 @@ define SUBDIR_RULES
 mock-gen-$(SUBDIR): install-mockgen install-license-bin
 	@echo Generating mocks $(SUBDIR)
 	@[ ! -d src/$(SUBDIR)/$(mocks_rules_dir) ] || \
-		PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
+		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
 
 .PHONY: thrift-gen-$(SUBDIR)
 thrift-gen-$(SUBDIR): install-license-bin
