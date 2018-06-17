@@ -63,6 +63,7 @@ define SERVICE_RULES
 .PHONY: $(SERVICE)
 $(SERVICE): setup
 	@echo Building $(SERVICE)
+	[ -d $(m3db_package_path)/$(vendor_prefix) ] || make install-vendor
 	go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
 
 .PHONY: $(SERVICE)-linux-amd64

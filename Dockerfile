@@ -11,8 +11,7 @@ ADD . /go/src/github.com/m3db/m3db
 
 # Build m3dbnode binary
 RUN cd /go/src/github.com/m3db/m3db/ && \
-    git submodule update --init && \
-    glide install && \
+    git submodule update --init      && \
     make m3dbnode-linux-amd64
 
 # stage 2: lightweight "release"
