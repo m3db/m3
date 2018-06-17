@@ -298,8 +298,8 @@ $(foreach GENTARGET,$(GEN_TARGETS),$(eval $(GEN_TARGET_RULE)))
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-all-gen
 test-all-gen: all-gen
-	@test "$(shell git diff --shortstat 2>/dev/null)" = "" || (git diff --no-color && echo "Check git status, there are dirty files" && exit 1)
-	@test "$(shell git status --porcelain 2>/dev/null | grep "^??")" = "" || (git status --porcelain && echo "Check git status, there are untracked files" && exit 1)
+	@test "$(shell git diff --exit-code --shortstat 2>/dev/null)" = "" || (git diff --exit-code && echo "Check git status, there are dirty files" && exit 1)
+	@test "$(shell git status --exit-code --porcelain 2>/dev/null | grep "^??")" = "" || (git status --exit-code --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 .PHONY: clean
 clean:
