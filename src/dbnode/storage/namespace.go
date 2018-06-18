@@ -171,6 +171,7 @@ type databaseNamespaceTickMetrics struct {
 	openBlocks             tally.Gauge
 	wiredBlocks            tally.Gauge
 	unwiredBlocks          tally.Gauge
+	pendingMergeBlocks     tally.Gauge
 	madeUnwiredBlocks      tally.Counter
 	madeExpiredBlocks      tally.Counter
 	mergedOutOfOrderBlocks tally.Counter
@@ -234,6 +235,7 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 			openBlocks:             tickScope.Gauge("open-blocks"),
 			wiredBlocks:            tickScope.Gauge("wired-blocks"),
 			unwiredBlocks:          tickScope.Gauge("unwired-blocks"),
+			pendingMergeBlocks:     tickScope.Gauge("pending-merge-blocks"),
 			madeUnwiredBlocks:      tickScope.Counter("made-unwired-blocks"),
 			madeExpiredBlocks:      tickScope.Counter("made-expired-blocks"),
 			mergedOutOfOrderBlocks: tickScope.Counter("merged-out-of-order-blocks"),
@@ -524,6 +526,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, tickStart time.Time) error {
 	n.metrics.tick.openBlocks.Update(float64(r.openBlocks))
 	n.metrics.tick.wiredBlocks.Update(float64(r.wiredBlocks))
 	n.metrics.tick.unwiredBlocks.Update(float64(r.unwiredBlocks))
+	n.metrics.tick.pendingMergeBlocks.Update(float64(r.pendingMergeBlocks))
 	n.metrics.tick.madeExpiredBlocks.Inc(int64(r.madeExpiredBlocks))
 	n.metrics.tick.madeUnwiredBlocks.Inc(int64(r.madeUnwiredBlocks))
 	n.metrics.tick.mergedOutOfOrderBlocks.Inc(int64(r.mergedOutOfOrderBlocks))

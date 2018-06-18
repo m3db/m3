@@ -245,6 +245,13 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 	return b.forceMergeWithLock(blocker, stream)
 }
 
+func (b *dbBlock) HasMergeTarget() bool {
+	b.RLock()
+	hasMergeTarget := b.mergeTarget != nil
+	b.RUnlock()
+	return hasMergeTarget
+}
+
 func (b *dbBlock) IsRetrieved() bool {
 	b.RLock()
 	retrieved := b.retriever == nil

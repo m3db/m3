@@ -164,6 +164,10 @@ type DatabaseBlock interface {
 	// rather than merging three blocks together.
 	Merge(other DatabaseBlock) error
 
+	// HasMergeTarget returns whether the block requires multiple blocks to be
+	// merged during Stream().
+	HasMergeTarget() bool
+
 	// IsRetrieved returns whether the block is already retrieved. Only
 	// meaningful in the context of the CacheAllMetadata series caching policy.
 	IsRetrieved() bool

@@ -638,6 +638,7 @@ func (s *dbShard) tickAndExpire(
 			r.openBlocks += result.OpenBlocks
 			r.wiredBlocks += result.WiredBlocks
 			r.unwiredBlocks += result.UnwiredBlocks
+			r.pendingMergeBlocks += result.PendingMergeBlocks
 			r.madeExpiredBlocks += result.MadeExpiredBlocks
 			r.madeUnwiredBlocks += result.MadeUnwiredBlocks
 			r.mergedOutOfOrderBlocks += result.MergedOutOfOrderBlocks

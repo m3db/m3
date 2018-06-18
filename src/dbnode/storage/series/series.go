@@ -265,6 +265,9 @@ func (s *dbSeries) updateBlocksWithLock() (updateBlocksResult, error) {
 			result.UnwiredBlocks++
 		} else {
 			result.WiredBlocks++
+			if currBlock.HasMergeTarget() {
+				result.PendingMergeBlocks++
+			}
 		}
 	}
 
