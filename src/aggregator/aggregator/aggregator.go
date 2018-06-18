@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -197,7 +198,10 @@ func (agg *aggregator) AddForwarded(
 		agg.metrics.addForwarded.ReportError(err)
 		return err
 	}
-	agg.metrics.addForwarded.ReportSuccess(agg.nowFn().Sub(callStart))
+	callEnd := agg.nowFn()
+	agg.metrics.addForwarded.ReportSuccess(callEnd.Sub(callStart))
+	forwardingDelay := time.Duration(callEnd.UnixNano() - metric.TimeNanos)
+	agg.metrics.addForwarded.ReportForwardingLatency(metadata.NumForwardedTimes, forwardingDelay)
 	return nil
 }
 
@@ -654,6 +658,53 @@ func (m *aggregatorAddUntimedMetrics) ReportError(err error) {
 	m.aggregatorAddMetricMetrics.ReportError(err)
 }
 
+type aggregatorAddForwardedMetrics struct {
+	sync.RWMutex
+	aggregatorAddMetricMetrics
+
+	scope             tally.Scope
+	latencyBuckets    tally.DurationBuckets
+	forwardingLatency map[int]tally.Histogram
+}
+
+func newAggregatorAddForwardedMetrics(
+	scope tally.Scope,
+	samplingRate float64,
+) aggregatorAddForwardedMetrics {
+	numLatencyBuckets := int(maxLatencyBucketLimit / latencyBucketSize)
+	latencyBuckets := tally.MustMakeLinearDurationBuckets(0, latencyBucketSize, numLatencyBuckets)
+	return aggregatorAddForwardedMetrics{
+		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
+		scope:             scope,
+		latencyBuckets:    latencyBuckets,
+		forwardingLatency: make(map[int]tally.Histogram),
+	}
+}
+
+func (m *aggregatorAddForwardedMetrics) ReportForwardingLatency(
+	numForwardedTimes int,
+	duration time.Duration,
+) {
+	m.RLock()
+	histogram, exists := m.forwardingLatency[numForwardedTimes]
+	m.RUnlock()
+	if exists {
+		histogram.RecordDuration(duration)
+		return
+	}
+	m.Lock()
+	histogram, exists = m.forwardingLatency[numForwardedTimes]
+	if !exists {
+		histogram = m.scope.Tagged(map[string]string{
+			"bucket-version":      strconv.Itoa(latencyBucketVersion),
+			"num-forwarded-times": strconv.Itoa(numForwardedTimes),
+		}).Histogram("forwarding-latency", m.latencyBuckets)
+		m.forwardingLatency[numForwardedTimes] = histogram
+	}
+	m.Unlock()
+	histogram.RecordDuration(duration)
+}
+
 type tickMetricsForMetricCategory struct {
 	scope          tally.Scope
 	activeEntries  tally.Gauge
@@ -766,7 +817,7 @@ type aggregatorMetrics struct {
 	gauges       tally.Counter
 	forwarded    tally.Counter
 	addUntimed   aggregatorAddUntimedMetrics
-	addForwarded aggregatorAddMetricMetrics
+	addForwarded aggregatorAddForwardedMetrics
 	placement    aggregatorPlacementMetrics
 	shards       aggregatorShardsMetrics
 	shardSetID   aggregatorShardSetIDMetrics
@@ -787,7 +838,7 @@ func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMet
 		gauges:       scope.Counter("gauges"),
 		forwarded:    scope.Counter("forwarded"),
 		addUntimed:   newAggregatorAddUntimedMetrics(addUntimedScope, samplingRate),
-		addForwarded: newAggregatorAddMetricMetrics(addForwardedScope, samplingRate),
+		addForwarded: newAggregatorAddForwardedMetrics(addForwardedScope, samplingRate),
 		placement:    newAggregatorPlacementMetrics(placementScope),
 		shards:       newAggregatorShardsMetrics(shardsScope),
 		shardSetID:   newAggregatorShardSetIDMetrics(shardSetIDScope),
@@ -816,3 +867,9 @@ const (
 )
 
 type sleepFn func(d time.Duration)
+
+const (
+	latencyBucketVersion  = 1
+	latencyBucketSize     = 500 * time.Millisecond
+	maxLatencyBucketLimit = 20 * time.Second
+)
