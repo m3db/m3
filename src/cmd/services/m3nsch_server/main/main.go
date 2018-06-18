@@ -35,9 +35,9 @@ import (
 	"github.com/m3db/m3db/src/m3nsch/agent"
 	"github.com/m3db/m3db/src/m3nsch/datums"
 	"github.com/m3db/m3db/src/m3nsch/rpc"
-
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
+
 	"github.com/pborman/getopt"
 	"github.com/uber-go/tally"
 	"google.golang.org/grpc"
