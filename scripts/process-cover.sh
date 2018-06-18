@@ -1,6 +1,5 @@
 #!/bin/bash
 
-set -x
 if [ $# -ne 1 ] || [ -z "$1" ]; then
     echo "usage: $0 <coverfile.out>"
     exit 1
