@@ -181,22 +181,31 @@ docker-integration-test:
 	@./scripts/integration-tests/docker-integration-test.sh
 	@cd scripts/integration-tests/prometheus/ && ./prometheus-integration-test.sh
 
-SUBDIR_TARGETS = mock-gen thrift-gen proto-gen asset-gen all-gen metalint test \
-				 test-xml test-ci-unit test-ci-integration
-
-define TARGET_RULE
-
-.PHONY: $(SUBDIR_TARGET)
-$(SUBDIR_TARGET): $(patsubst %,$(SUBDIR_TARGET)-%,$(SUBDIRS))
-
-endef
-
-$(foreach SUBDIR_TARGET,$(SUBDIR_TARGETS),$(eval $(TARGET_RULE)))
-
 .PHONY: site-build
 site-build:
 	@echo "Building site"
 	@./scripts/site-build.sh
+
+SUBDIR_TARGETS :=     \
+	mock-gen            \
+	thrift-gen          \
+	proto-gen           \
+	asset-gen           \
+	genny-gen           \
+	all-gen             \
+	metalint            \
+	test                \
+	test-xml            \
+	test-ci-unit        \
+	test-ci-big-unit    \
+	test-ci-integration
+
+define SUBDIR_TARGET_RULE
+.PHONY: $(SUBDIR_TARGET)
+$(SUBDIR_TARGET): $(foreach SUBDIR,$(SUBDIRS),$(SUBDIR_TARGET)-$(SUBDIR))
+endef
+
+$(foreach SUBDIR_TARGET,$(SUBDIR_TARGETS),$(eval $(SUBDIR_TARGET_RULE)))
 
 define SUBDIR_RULES
 
@@ -237,24 +246,29 @@ all-gen-$(SUBDIR): thrift-gen-$(SUBDIR) proto-gen-$(SUBDIR) asset-gen-$(SUBDIR) 
 
 .PHONY: metalint-$(SUBDIR)
 metalint-$(SUBDIR): install-metalinter install-linter-badtime install-linter-importorder
+	@echo metalinting $(SUBDIR)
 	@($(metalint_check) src/$(SUBDIR)/$(metalint_config) src/$(SUBDIR)/$(metalint_exclude) src/$(SUBDIR))
 
 .PHONY: test-$(SUBDIR)
 test-$(SUBDIR):
+	@echo testing $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) make test-base
 	gocov convert $(coverfile) | gocov report
 
 .PHONY: test-xml-$(SUBDIR)
 test-xml-$(SUBDIR):
+	@echo test-xml $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) make test-base-xml
 
 .PHONY: test-html-$(SUBDIR)
 test-html-$(SUBDIR):
+	@echo test-html $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) make test-base-html
 
 # Note: do not test native pooling since it's experimental/deprecated
 .PHONY: test-integration-$(SUBDIR)
 test-integration-$(SUBDIR):
+	@echo test-integration $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) TEST_NATIVE_POOLING=false make test-base-integration
 
 # Usage: make test-single-integration name=<test_name>
@@ -264,37 +278,25 @@ test-single-integration-$(SUBDIR):
 
 .PHONY: test-ci-unit-$(SUBDIR)
 test-ci-unit-$(SUBDIR):
+	@echo test-ci-unit $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) make test-base
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
 .PHONY: test-ci-big-unit-$(SUBDIR)
 test-ci-big-unit-$(SUBDIR):
+	@echo test-ci-big-unit $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) make test-big-base
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
 .PHONY: test-ci-integration-$(SUBDIR)
 test-ci-integration-$(SUBDIR):
+	@echo test-ci-integration $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
 endef
 
 $(foreach SUBDIR,$(SUBDIRS),$(eval $(SUBDIR_RULES)))
-
-GEN_TARGETS := \
-	mock-gen     \
-	proto-gen    \
-	thrift-gen   \
-	asset-gen    \
-	genny-gen    \
-	all-gen      \
-
-define GEN_TARGET_RULE
-.PHONY: $(GENTARGET)
-$(GENTARGET): $(foreach SUBDIR,$(SUBDIRS),$(GENTARGET)-$(SUBDIR))
-endef
-
-$(foreach GENTARGET,$(GEN_TARGETS),$(eval $(GEN_TARGET_RULE)))
 
 # Tests that all currently generated types match their contents if they were regenerated
 .PHONY: test-all-gen
