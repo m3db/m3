@@ -153,9 +153,6 @@ import:
   subpackages:
   - capnslog
 
-- package: github.com/mjibson/esc
-  version: ^0.1.0
-
 - package: google.golang.org/grpc
   version: ~1.7.3
   subpackages:

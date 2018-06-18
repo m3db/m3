@@ -9,19 +9,18 @@ license_dir          := .ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
 m3db_package         := github.com/m3db/m3db
 m3db_package_path    := $(gopath_prefix)/$(m3db_package)
+mockgen_package      := github.com/golang/mock/mockgen
+retool_bin_path      := $(m3db_package_path)/_tools/bin
+retool_package       := github.com/twitchtv/retool
 metalint_check       := .ci/metalint.sh
 metalint_config      := .metalinter.json
 metalint_exclude     := .excludemetalint
-mockgen_package      := github.com/golang/mock/mockgen
 mocks_output_dir     := generated/mocks
 mocks_rules_dir      := generated/mocks
 proto_output_dir     := generated/proto
 proto_rules_dir      := generated/proto
 assets_output_dir    := generated/assets
 assets_rules_dir     := generated/assets
-asset_go_package     := github.com/mjibson/esc
-protoc_go_package    := github.com/golang/protobuf/protoc-gen-go
-thrift_gen_package   := github.com/uber/tchannel-go
 thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
@@ -33,14 +32,11 @@ GO_BUILD_LDFLAGS     := $(shell $(GO_BUILD_LDFLAGS_CMD))
 LINUX_AMD64_ENV      := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 GO_RELEASER_VERSION  := v0.76.1
 
-include $(SELF_DIR)/src/dbnode/generated-source-files.mk
-
 SERVICES :=     \
 	m3dbnode      \
 	m3coordinator \
 	m3nsch_server \
 	m3nsch_client \
-
 
 SUBDIRS :=    \
 	cmd         \
@@ -67,6 +63,7 @@ define SERVICE_RULES
 .PHONY: $(SERVICE)
 $(SERVICE): setup
 	@echo Building $(SERVICE)
+	[ -d $(m3db_package_path)/$(vendor_prefix) ] || make install-vendor
 	go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./src/cmd/services/$(SERVICE)/main/.
 
 .PHONY: $(SERVICE)-linux-amd64
@@ -109,49 +106,39 @@ all: metalint test-ci-unit test-ci-integration services tools
 .PHONY: install-license-bin
 install-license-bin:
 	@echo Installing node modules
-	[ -d $(license_node_modules) ] || (          \
+	@[ -d $(license_node_modules) ] || (         \
 		git submodule update --init --recursive && \
 		cd $(license_dir) && npm install           \
 	)
 
+# NB(prateek): cannot use retool for mock-gen, as mock-gen reflection mode requires
+# it's full source code be present in the GOPATH at runtime.
 .PHONY: install-mockgen
 install-mockgen:
 	@echo Installing mockgen
-	@which mockgen >/dev/null || (make install-vendor                               && \
+	@which mockgen >/dev/null || (                                                     \
 		rm -rf $(gopath_prefix)/$(mockgen_package)                                    && \
-		cp -r $(vendor_prefix)/$(mockgen_package) $(gopath_prefix)/$(mockgen_package) && \
+		mkdir -p $(shell dirname $(gopath_prefix)/$(mockgen_package))                 && \
+ 		cp -r $(vendor_prefix)/$(mockgen_package) $(gopath_prefix)/$(mockgen_package) && \
 		go install $(mockgen_package)                                                    \
 	)
 
-.PHONY: install-thrift-bin
-install-thrift-bin: install-glide
-	@echo Installing thrift binaries
-	@echo Note: the thrift binary should be installed from https://github.com/apache/thrift at commit 9b954e6a469fef18682314458e6fc4af2dd84add.
-	@which thrift-gen >/dev/null || (make install-vendor                                      && \
-		go get $(thrift_gen_package) && cd $(GOPATH)/src/$(thrift_gen_package) && glide install && \
-		go install $(thrift_gen_package)/thrift/thrift-gen                                         \
-	)
+.PHONY: install-retool
+install-retool:
+	@which retool >/dev/null || go get $(retool_package)
 
-.PHONY: install-proto-bin
-install-proto-bin: install-glide
-	@echo Installing protobuf binaries
-	@echo Note: the protobuf compiler v3.0.0 can be downloaded from https://github.com/google/protobuf/releases or built from source at https://github.com/google/protobuf.
-	@which protoc-gen-go >/dev/null || (make install-vendor            && \
-		go install $(m3db_package)/$(vendor_prefix)/$(protoc_go_package)    \
-	)
+.PHONY: install-codegen-tools
+install-codegen-tools: install-retool
+	@echo "Installing retool dependencies"
+	@retool sync >/dev/null 2>/dev/null
+	@retool build >/dev/null 2>/dev/null
 
-.PHONY: install-asset-bin
-install-asset-bin: install-glide
-	@echo Installing esc binaries
-	@echo Note: the esc binary can be built from source at https://github.com/mjibson/esc.
-	@which esc >/dev/null || (make install-vendor            && \
-		go install $(m3db_package)/$(vendor_prefix)/$(asset_go_package)    \
-	)
-
+.PHONY: install-stringer
 install-stringer:
 		@which stringer > /dev/null || go get golang.org/x/tools/cmd/stringer
 		@which stringer > /dev/null || (echo "stringer install failed" && exit 1)
 
+.PHONY: install-goreleaser
 install-goreleaser: install-stringer
 		@which goreleaser > /dev/null || (go get -d github.com/goreleaser/goreleaser && \
 		  cd $(GOPATH)/src/github.com/goreleaser/goreleaser && \
@@ -173,8 +160,8 @@ release-snapshot: install-goreleaser
 
 .PHONY: docs-container
 docs-container:
-	which docker
-	docker build -t m3db-docs -f scripts/Dockerfile-docs docs
+	docker run --rm hello-world >/dev/null
+	docker build -t m3db-docs -f scripts/docs.Dockerfile docs
 
 .PHONY: docs-build
 docs-build: docs-container
@@ -194,70 +181,94 @@ docker-integration-test:
 	@./scripts/integration-tests/docker-integration-test.sh
 	@cd scripts/integration-tests/prometheus/ && ./prometheus-integration-test.sh
 
-SUBDIR_TARGETS = mock-gen thrift-gen proto-gen asset-gen all-gen metalint test \
-				 test-xml test-ci-unit test-ci-integration
-
-define TARGET_RULE
-
-.PHONY: $(SUBDIR_TARGET)
-$(SUBDIR_TARGET): $(patsubst %,$(SUBDIR_TARGET)-%,$(SUBDIRS))
-
-endef
-
-$(foreach SUBDIR_TARGET,$(SUBDIR_TARGETS),$(eval $(TARGET_RULE)))
-
 .PHONY: site-build
-site-build: 
+site-build:
 	@echo "Building site"
 	@./scripts/site-build.sh
+
+SUBDIR_TARGETS :=     \
+	mock-gen            \
+	thrift-gen          \
+	proto-gen           \
+	asset-gen           \
+	genny-gen           \
+	all-gen             \
+	metalint            \
+	test                \
+	test-xml            \
+	test-ci-unit        \
+	test-ci-big-unit    \
+	test-ci-integration
+
+define SUBDIR_TARGET_RULE
+.PHONY: $(SUBDIR_TARGET)
+$(SUBDIR_TARGET): $(foreach SUBDIR,$(SUBDIRS),$(SUBDIR_TARGET)-$(SUBDIR))
+endef
+
+$(foreach SUBDIR_TARGET,$(SUBDIR_TARGETS),$(eval $(SUBDIR_TARGET_RULE)))
 
 define SUBDIR_RULES
 
 .PHONY: mock-gen-$(SUBDIR)
-mock-gen-$(SUBDIR): install-mockgen install-license-bin install-util-mockclean
-	@echo Generating mocks
-	PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
+mock-gen-$(SUBDIR): install-codegen-tools install-mockgen install-license-bin
+	@echo Generating mocks $(SUBDIR)
+	@[ ! -d src/$(SUBDIR)/$(mocks_rules_dir) ] || \
+		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
 
 .PHONY: thrift-gen-$(SUBDIR)
-thrift-gen-$(SUBDIR): install-thrift-bin install-license-bin
-	@echo Generating thrift files
-	PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
+thrift-gen-$(SUBDIR): install-license-bin
+	@echo Generating thrift files $(SUBDIR)
+	@[ ! -d src/$(SUBDIR)/$(thrift_rules_dir) ] || \
+		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
 
 .PHONY: proto-gen-$(SUBDIR)
-proto-gen-$(SUBDIR): install-proto-bin install-license-bin
-	@echo Generating protobuf files
-	PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
+proto-gen-$(SUBDIR): install-license-bin
+	@echo Generating protobuf files $(SUBDIR)
+	@[ ! -d src/$(SUBDIR)/$(proto_rules_dir) ] || \
+		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
 
 .PHONY: asset-gen-$(SUBDIR)
-asset-gen-$(SUBDIR): install-asset-bin install-license-bin
-	@echo Generating asset files
-	PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
+asset-gen-$(SUBDIR): install-codegen-tools install-license-bin
+	@echo Generating asset files $(SUBDIR)
+	@[ ! -d src/$(SUBDIR)/$(assets_rules_dir) ] || \
+		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
+
+.PHONY: genny-gen-$(SUBDIR)
+genny-gen-$(SUBDIR):
+	@echo Generating genny files $(SUBDIR)
+	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
+		PATH=$(retool_bin_path):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk genny-all-$(SUBDIR)
 
 .PHONY: all-gen-$(SUBDIR)
 # NB(prateek): order matters here, mock-gen needs to be last because we sometimes
 # generate mocks for thrift/proto generated code.
-all-gen-$(SUBDIR): thrift-gen-$(SUBDIR) proto-gen-$(SUBDIR) mock-gen-$(SUBDIR) genny-all-$(SUBDIR)
+all-gen-$(SUBDIR): thrift-gen-$(SUBDIR) proto-gen-$(SUBDIR) asset-gen-$(SUBDIR) genny-gen-$(SUBDIR) mock-gen-$(SUBDIR)
 
 .PHONY: metalint-$(SUBDIR)
 metalint-$(SUBDIR): install-metalinter install-linter-badtime install-linter-importorder
+	@echo metalinting $(SUBDIR)
 	@($(metalint_check) src/$(SUBDIR)/$(metalint_config) src/$(SUBDIR)/$(metalint_exclude) src/$(SUBDIR))
 
 .PHONY: test-$(SUBDIR)
 test-$(SUBDIR):
+	@echo testing $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) make test-base
 	gocov convert $(coverfile) | gocov report
 
 .PHONY: test-xml-$(SUBDIR)
 test-xml-$(SUBDIR):
+	@echo test-xml $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) make test-base-xml
 
 .PHONY: test-html-$(SUBDIR)
 test-html-$(SUBDIR):
+	@echo test-html $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) make test-base-html
 
 # Note: do not test native pooling since it's experimental/deprecated
 .PHONY: test-integration-$(SUBDIR)
 test-integration-$(SUBDIR):
+	@echo test-integration $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) TEST_NATIVE_POOLING=false make test-base-integration
 
 # Usage: make test-single-integration name=<test_name>
@@ -267,22 +278,31 @@ test-single-integration-$(SUBDIR):
 
 .PHONY: test-ci-unit-$(SUBDIR)
 test-ci-unit-$(SUBDIR):
+	@echo test-ci-unit $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) make test-base
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
 .PHONY: test-ci-big-unit-$(SUBDIR)
 test-ci-big-unit-$(SUBDIR):
+	@echo test-ci-big-unit $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) make test-big-base
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
 .PHONY: test-ci-integration-$(SUBDIR)
 test-ci-integration-$(SUBDIR):
+	@echo test-ci-integration $(SUBDIR)
 	SRC_ROOT=./src/$(SUBDIR) INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 	$(codecov_push) -f $(coverfile) -F $(SUBDIR)
 
 endef
 
 $(foreach SUBDIR,$(SUBDIRS),$(eval $(SUBDIR_RULES)))
+
+# Tests that all currently generated types match their contents if they were regenerated
+.PHONY: test-all-gen
+test-all-gen: all-gen
+	@test "$(shell git diff --exit-code --shortstat 2>/dev/null)" = "" || (git diff --exit-code && echo "Check git status, there are dirty files" && exit 1)
+	@test "$(shell git status --exit-code --porcelain 2>/dev/null | grep "^??")" = "" || (git status --exit-code --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 .PHONY: clean
 clean:

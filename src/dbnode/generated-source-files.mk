@@ -1,9 +1,15 @@
+SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+include $(SELF_DIR)/../../.ci/common.mk
+
+gopath_prefix        := $(GOPATH)/src
+m3db_package         := github.com/m3db/m3db
+m3db_package_path    := $(gopath_prefix)/$(m3db_package)
 m3x_package          := github.com/m3db/m3x
 m3x_package_path     := $(gopath_prefix)/$(m3x_package)
 m3x_package_min_ver  := 6148700dde75adcdcc27d16fb68cee2d9d9126d8
 
 .PHONY: install-m3x-repo
-install-m3x-repo: install-glide install-generics-bin
+install-m3x-repo: install-glide
 	# Check if repository exists, if not get it
 	test -d $(m3x_package_path) || go get -u $(m3x_package)
 	test -d $(m3x_package_path)/vendor || (cd $(m3x_package_path) && glide install)
@@ -27,7 +33,7 @@ test-genny-all-dbnode: genny-all-dbnode
 
 # Map generation rule for all generated maps
 .PHONY: genny-map-all-dbnode
-genny-map-all-dbnode:                           \
+genny-map-all-dbnode:                         \
 	genny-map-client-received-blocks-dbnode     \
 	genny-map-storage-block-retriever-dbnode    \
 	genny-map-storage-bootstrap-result-dbnode   \
@@ -39,7 +45,7 @@ genny-map-all-dbnode:                           \
 # Map generation rule for client/receivedBlocksMap
 .PHONY: genny-map-client-received-blocks-dbnode
 genny-map-client-received-blocks-dbnode: install-m3x-repo
-	cd $(m3x_package_path) && make hashmap-gen           \
+	cd $(m3x_package_path) && make hashmap-gen         \
 		pkg=client                                       \
 		key_type=idAndBlockStart                         \
 		value_type=receivedBlocks                        \
@@ -51,7 +57,7 @@ genny-map-client-received-blocks-dbnode: install-m3x-repo
 # Map generation rule for storage/block/retrieverMap
 .PHONY: genny-map-storage-block-retriever-dbnode
 genny-map-storage-block-retriever-dbnode: install-m3x-repo
-	cd $(m3x_package_path) && make idhashmap-gen                \
+	cd $(m3x_package_path) && make idhashmap-gen              \
 		pkg=block                                               \
 		value_type=DatabaseBlockRetriever                       \
 		target_package=$(m3db_package)/src/dbnode/storage/block \
@@ -65,7 +71,7 @@ genny-map-storage-block-retriever-dbnode: install-m3x-repo
 # Map generation rule for storage/bootstrap/result/Map
 .PHONY: genny-map-storage-bootstrap-result-dbnode
 genny-map-storage-bootstrap-result-dbnode: install-m3x-repo
-	cd $(m3x_package_path) && make idhashmap-gen                \
+	cd $(m3x_package_path) && make idhashmap-gen              \
 		pkg=result                                              \
 		value_type=DatabaseSeriesBlocks                         \
 		target_package=$(m3db_package)/src/dbnode/storage/bootstrap/result
@@ -73,9 +79,9 @@ genny-map-storage-bootstrap-result-dbnode: install-m3x-repo
 # Map generation rule for storage package maps (to avoid double build over each other
 # when generating map source files in parallel, run these sequentially)
 .PHONY: genny-map-storage-dbnode
-genny-map-storage-dbnode:
-	make genny-map-storage-database-namespaces-dbnode
-	make genny-map-storage-shard-dbnode
+genny-map-storage-dbnode:                      \
+	genny-map-storage-database-namespaces-dbnode \
+	genny-map-storage-shard-dbnode
 
 # Map generation rule for storage/databaseNamespacesMap
 .PHONY: genny-map-storage-database-namespaces-dbnode
@@ -160,7 +166,7 @@ genny-arraypool-node-segments-dbnode: install-m3x-repo
 # generation rule for all generated leakcheckpools
 .PHONY: genny-leakcheckpool-all-dbnode
 genny-leakcheckpool-all-dbnode: genny-leakcheckpool-fetch-tagged-attempt-dbnode \
-	genny-leakcheckpool-fetch-state-dbnode                                      \
+	genny-leakcheckpool-fetch-state-dbnode                                        \
 	genny-leakcheckpool-fetch-tagged-op-dbnode
 
 # leakcheckpool generation rule for ./client/fetchTaggedAttemptPool

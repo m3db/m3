@@ -7,5 +7,5 @@ for i in "$ASSET_SRC"/*; do
     fi
 
     echo "generating from $i"
-    esc -prefix "${i##*/}/" -pkg "${i##*/}" -ignore .go -o "${i##*/}/assets.go" "."
+    esc -modtime "12345" -prefix "${i##*/}/" -pkg "${i##*/}" -ignore .go -o "${i##*/}/assets.go" "."
 done
