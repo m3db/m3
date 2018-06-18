@@ -24,7 +24,6 @@ import (
 	"github.com/m3db/m3db/src/m3nsch"
 	"github.com/m3db/m3db/src/m3nsch/rpc"
 	convert "github.com/m3db/m3db/src/m3nsch/rpc/convert"
-
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
