@@ -4,6 +4,7 @@ include $(SELF_DIR)/.ci/common.mk
 SHELL=/bin/bash -o pipefail
 
 auto_gen             := scripts/auto-gen.sh
+process_coverfile    := scripts/process-cover.sh
 gopath_prefix        := $(GOPATH)/src
 m3db_package         := github.com/m3db/m3db
 m3db_package_path    := $(gopath_prefix)/$(m3db_package)
@@ -183,12 +184,7 @@ SUBDIR_TARGETS :=     \
 	asset-gen           \
 	genny-gen           \
 	all-gen             \
-	metalint            \
-	test                \
-	test-xml            \
-	test-ci-unit        \
-	test-ci-big-unit    \
-	test-ci-integration
+	metalint
 
 define SUBDIR_TARGET_RULE
 .PHONY: $(SUBDIR_TARGET)
@@ -196,6 +192,19 @@ $(SUBDIR_TARGET): $(foreach SUBDIR,$(SUBDIRS),$(SUBDIR_TARGET)-$(SUBDIR))
 endef
 
 $(foreach SUBDIR_TARGET,$(SUBDIR_TARGETS),$(eval $(SUBDIR_TARGET_RULE)))
+
+.PHONY: test-ci-unit
+test-ci-unit: test-base
+	$(process_coverfile) $(coverfile)
+
+.PHONY: test-ci-big-unit
+test-ci-big-unit: test-big-base
+	$(process_coverfile) $(coverfile)
+
+.PHONY: test-ci-integration
+test-ci-integration:
+	INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+	$(process_coverfile) $(coverfile)
 
 define SUBDIR_RULES
 
