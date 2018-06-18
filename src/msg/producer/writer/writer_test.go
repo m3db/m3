@@ -81,6 +81,7 @@ func TestWriterWriteAfterClosed(t *testing.T) {
 
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Finalize(producer.Dropped)
+	mm.EXPECT().Size().Return(uint32(3))
 	rm := producer.NewRefCountedMessage(mm, nil)
 	err = w.Write(rm)
 	require.Error(t, err)
@@ -107,12 +108,14 @@ func TestWriterWriteWithInvalidShard(t *testing.T) {
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Shard().Return(uint32(2))
 	mm.EXPECT().Finalize(producer.Dropped)
+	mm.EXPECT().Size().Return(uint32(3))
 	rm := producer.NewRefCountedMessage(mm, nil)
 	err = w.Write(rm)
 	require.Error(t, err)
 
 	mm.EXPECT().Shard().Return(uint32(100))
 	mm.EXPECT().Finalize(producer.Dropped)
+	mm.EXPECT().Size().Return(uint32(3))
 	rm = producer.NewRefCountedMessage(mm, nil)
 	err = w.Write(rm)
 	require.Error(t, err)
@@ -543,6 +546,7 @@ func TestWriterWrite(t *testing.T) {
 	var wg sync.WaitGroup
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Shard().Return(uint32(0)).Times(3)
+	mm.EXPECT().Size().Return(uint32(3))
 	mm.EXPECT().Bytes().Return([]byte("foo")).Times(3)
 	mm.EXPECT().Finalize(producer.Consumed).Do(func(interface{}) { wg.Done() })
 	rm := producer.NewRefCountedMessage(mm, nil)
@@ -619,6 +623,7 @@ func TestWriterCloseBlocking(t *testing.T) {
 	require.Equal(t, 1, len(w.consumerServiceWriters))
 
 	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(3))
 	mm.EXPECT().Shard().Return(uint32(0)).Times(2)
 	mm.EXPECT().Bytes().Return([]byte("foo")).Times(1)
 	mm.EXPECT().Finalize(producer.Dropped)

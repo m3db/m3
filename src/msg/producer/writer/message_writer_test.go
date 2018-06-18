@@ -70,11 +70,12 @@ func TestMessageWriterWithPooling(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md1 := producer.NewMockMessage(ctrl)
-	md1.EXPECT().Bytes().Return([]byte("foo")).Times(1)
-	md1.EXPECT().Finalize(producer.Consumed)
+	mm1 := producer.NewMockMessage(ctrl)
+	mm1.EXPECT().Bytes().Return([]byte("foo")).Times(1)
+	mm1.EXPECT().Size().Return(uint32(3)).Times(1)
+	mm1.EXPECT().Finalize(producer.Consumed)
 
-	w.Write(producer.NewRefCountedMessage(md1, nil))
+	w.Write(producer.NewRefCountedMessage(mm1, nil))
 
 	for {
 		w.RLock()
@@ -88,10 +89,11 @@ func TestMessageWriterWithPooling(t *testing.T) {
 	require.Equal(t, 0, w.queue.Len())
 	w.RemoveConsumerWriter(addr)
 
-	md2 := producer.NewMockMessage(ctrl)
-	md2.EXPECT().Bytes().Return([]byte("bar")).Times(1)
+	mm2 := producer.NewMockMessage(ctrl)
+	mm2.EXPECT().Bytes().Return([]byte("bar")).Times(1)
+	mm2.EXPECT().Size().Return(uint32(3)).Times(1)
 
-	w.Write(producer.NewRefCountedMessage(md2, nil))
+	w.Write(producer.NewRefCountedMessage(mm2, nil))
 	for {
 		if !isEmptyWithLock(w.acks) {
 			break
@@ -100,7 +102,7 @@ func TestMessageWriterWithPooling(t *testing.T) {
 	}
 	require.Equal(t, 1, w.queue.Len())
 
-	md2.EXPECT().Finalize(producer.Consumed)
+	mm2.EXPECT().Finalize(producer.Consumed)
 	w.Ack(metadata{shard: 200, id: 2})
 	require.True(t, isEmptyWithLock(w.acks))
 	for {
@@ -151,11 +153,12 @@ func TestMessageWriterWithoutPooling(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	md1 := producer.NewMockMessage(ctrl)
-	md1.EXPECT().Bytes().Return([]byte("foo")).Times(1)
-	md1.EXPECT().Finalize(producer.Consumed)
+	mm1 := producer.NewMockMessage(ctrl)
+	mm1.EXPECT().Bytes().Return([]byte("foo")).Times(1)
+	mm1.EXPECT().Size().Return(uint32(3)).Times(1)
+	mm1.EXPECT().Finalize(producer.Consumed)
 
-	w.Write(producer.NewRefCountedMessage(md1, nil))
+	w.Write(producer.NewRefCountedMessage(mm1, nil))
 
 	for {
 		w.RLock()
@@ -169,10 +172,11 @@ func TestMessageWriterWithoutPooling(t *testing.T) {
 	require.Equal(t, 0, w.queue.Len())
 	w.RemoveConsumerWriter(addr)
 
-	md2 := producer.NewMockMessage(ctrl)
-	md2.EXPECT().Bytes().Return([]byte("bar")).Times(1)
+	mm2 := producer.NewMockMessage(ctrl)
+	mm2.EXPECT().Bytes().Return([]byte("bar")).Times(1)
+	mm2.EXPECT().Size().Return(uint32(3)).Times(1)
 
-	w.Write(producer.NewRefCountedMessage(md2, nil))
+	w.Write(producer.NewRefCountedMessage(mm2, nil))
 	for {
 		if !isEmptyWithLock(w.acks) {
 			break
@@ -181,7 +185,7 @@ func TestMessageWriterWithoutPooling(t *testing.T) {
 	}
 	require.Equal(t, 1, w.queue.Len())
 
-	md2.EXPECT().Finalize(producer.Consumed)
+	mm2.EXPECT().Finalize(producer.Consumed)
 	w.Ack(metadata{shard: 200, id: 2})
 	require.True(t, isEmptyWithLock(w.acks))
 	for {
@@ -218,6 +222,7 @@ func TestMessageWriterRetryWithoutPooling(t *testing.T) {
 
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
+	mm.EXPECT().Size().Return(uint32(3)).Times(1)
 	mm.EXPECT().Finalize(producer.Consumed)
 
 	rm := producer.NewRefCountedMessage(mm, nil)
@@ -277,6 +282,7 @@ func TestMessageWriterRetryWithPooling(t *testing.T) {
 
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
+	mm.EXPECT().Size().Return(uint32(3)).Times(1)
 	mm.EXPECT().Finalize(producer.Consumed)
 
 	rm := producer.NewRefCountedMessage(mm, nil)
@@ -331,6 +337,7 @@ func TestMessageWriterCleanupDroppedMessage(t *testing.T) {
 
 	mm := producer.NewMockMessage(ctrl)
 
+	mm.EXPECT().Size().Return(uint32(3)).Times(1)
 	rm := producer.NewRefCountedMessage(mm, nil)
 	mm.EXPECT().Finalize(producer.Dropped)
 	rm.Drop()
@@ -374,6 +381,7 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Bytes().Return([]byte("foo"))
+	mm.EXPECT().Size().Return(uint32(3)).Times(1)
 
 	rm := producer.NewRefCountedMessage(mm, nil)
 	// Another message write also holds this message.
@@ -416,8 +424,10 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 }
 
 func TestMessageWriterCutoverCutoff(t *testing.T) {
-	w := newMessageWriter(200, testMessagePool(testOptions()), nil, testMessageWriterMetrics()).(*messageWriterImpl)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
+	w := newMessageWriter(200, testMessagePool(testOptions()), nil, testMessageWriterMetrics()).(*messageWriterImpl)
 	now := time.Now()
 	w.nowFn = func() time.Time { return now }
 	require.True(t, w.isValidWriteWithLock(now.UnixNano()))
@@ -431,7 +441,10 @@ func TestMessageWriterCutoverCutoff(t *testing.T) {
 	require.False(t, w.isValidWriteWithLock(now.UnixNano()+250))
 	require.False(t, w.isValidWriteWithLock(now.UnixNano()+50))
 	require.Equal(t, 0, w.queue.Len())
-	w.Write(producer.NewRefCountedMessage(nil, nil))
+
+	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(3))
+	w.Write(producer.NewRefCountedMessage(mm, nil))
 	require.Equal(t, 0, w.queue.Len())
 }
 
@@ -445,32 +458,36 @@ func TestMessageWriterRetryIterateBatch(t *testing.T) {
 	)
 	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
-	md1 := producer.NewMockMessage(ctrl)
-	md2 := producer.NewMockMessage(ctrl)
-	md3 := producer.NewMockMessage(ctrl)
-	md4 := producer.NewMockMessage(ctrl)
-	rd1 := producer.NewRefCountedMessage(md1, nil)
-	rd2 := producer.NewRefCountedMessage(md2, nil)
-	rd3 := producer.NewRefCountedMessage(md3, nil)
-	rd4 := producer.NewRefCountedMessage(md4, nil)
-	md1.EXPECT().Bytes().Return([]byte("1"))
-	md2.EXPECT().Bytes().Return([]byte("2"))
-	md3.EXPECT().Bytes().Return([]byte("3"))
-	md4.EXPECT().Bytes().Return([]byte("4"))
-	w.Write(rd1)
-	w.Write(rd2)
-	w.Write(rd3)
-	w.Write(rd4)
+	mm1 := producer.NewMockMessage(ctrl)
+	mm1.EXPECT().Size().Return(uint32(3))
+	mm2 := producer.NewMockMessage(ctrl)
+	mm2.EXPECT().Size().Return(uint32(3))
+	mm3 := producer.NewMockMessage(ctrl)
+	mm3.EXPECT().Size().Return(uint32(3))
+	mm4 := producer.NewMockMessage(ctrl)
+	mm4.EXPECT().Size().Return(uint32(3))
+	rm1 := producer.NewRefCountedMessage(mm1, nil)
+	rm2 := producer.NewRefCountedMessage(mm2, nil)
+	rm3 := producer.NewRefCountedMessage(mm3, nil)
+	rm4 := producer.NewRefCountedMessage(mm4, nil)
+	mm1.EXPECT().Bytes().Return([]byte("1"))
+	mm2.EXPECT().Bytes().Return([]byte("2"))
+	mm3.EXPECT().Bytes().Return([]byte("3"))
+	mm4.EXPECT().Bytes().Return([]byte("4"))
+	w.Write(rm1)
+	w.Write(rm2)
+	w.Write(rm3)
+	w.Write(rm4)
 
-	md4.EXPECT().Finalize(gomock.Eq(producer.Dropped))
-	rd4.Drop()
+	mm4.EXPECT().Finalize(gomock.Eq(producer.Dropped))
+	rm4.Drop()
 	e, toBeRetried := w.retryBatchWithLock(w.queue.Front(), w.nowFn().UnixNano(), retryBatchSize)
 	require.Equal(t, 2, len(toBeRetried))
 	for _, m := range toBeRetried {
 		m.SetRetryAtNanos(w.nowFn().Add(time.Hour).UnixNano())
 	}
 	// Make sure it stopped at rd3.
-	md3.EXPECT().Bytes().Return([]byte("3"))
+	mm3.EXPECT().Bytes().Return([]byte("3"))
 	require.Equal(t, []byte("3"), e.Value.(*message).RefCountedMessage.Bytes())
 
 	require.Equal(t, 4, w.queue.Len())
@@ -484,7 +501,7 @@ func TestMessageWriterRetryIterateBatch(t *testing.T) {
 	e, toBeRetried = w.retryBatchWithLock(w.queue.Front(), w.nowFn().UnixNano(), retryBatchSize)
 	require.Equal(t, 0, len(toBeRetried))
 	// Make sure it stopped at rd3.
-	md3.EXPECT().Bytes().Return([]byte("3"))
+	mm3.EXPECT().Bytes().Return([]byte("3"))
 	require.Equal(t, []byte("3"), e.Value.(*message).RefCountedMessage.Bytes())
 	e, toBeRetried = w.retryBatchWithLock(e, w.nowFn().UnixNano(), retryBatchSize)
 	require.Nil(t, e)
@@ -525,6 +542,7 @@ func TestMessageWriterCloseCleanupAllMessages(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(3))
 
 	rm := producer.NewRefCountedMessage(mm, nil)
 	mm.EXPECT().Finalize(producer.Consumed)

@@ -28,25 +28,27 @@ import (
 
 	"github.com/m3db/m3msg/producer"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/retry"
 
 	"github.com/uber-go/tally"
 	"go.uber.org/atomic"
 )
 
 var (
-	errBufferFull                     = errors.New("buffer full")
-	errBufferClosed                   = errors.New("buffer closed")
-	errMessageTooLarge                = errors.New("message size larger than allowed")
-	errMessageLargerThanMaxBufferSize = errors.New("message size larger than max buffer size")
+	errBufferFull        = errors.New("buffer full")
+	errBufferClosed      = errors.New("buffer closed")
+	errMessageTooLarge   = errors.New("message size larger than allowed")
+	errCleanupNoProgress = errors.New("buffer cleanup no progress")
 )
 
 type bufferMetrics struct {
-	messageDropped  tally.Counter
-	byteDropped     tally.Counter
-	messageTooLarge tally.Counter
-	messageBuffered tally.Gauge
-	byteBuffered    tally.Gauge
-	bufferScanBatch tally.Timer
+	messageDropped    tally.Counter
+	byteDropped       tally.Counter
+	messageTooLarge   tally.Counter
+	cleanupNoProgress tally.Counter
+	messageBuffered   tally.Gauge
+	byteBuffered      tally.Gauge
+	bufferScanBatch   tally.Timer
 }
 
 func newBufferMetrics(
@@ -54,12 +56,13 @@ func newBufferMetrics(
 	samplingRate float64,
 ) bufferMetrics {
 	return bufferMetrics{
-		messageDropped:  scope.Counter("buffer-message-dropped"),
-		byteDropped:     scope.Counter("buffer-byte-dropped"),
-		messageTooLarge: scope.Counter("message-too-large"),
-		messageBuffered: scope.Gauge("message-buffered"),
-		byteBuffered:    scope.Gauge("byte-buffered"),
-		bufferScanBatch: instrument.MustCreateSampledTimer(scope.Timer("buffer-scan-batch"), samplingRate),
+		messageDropped:    scope.Counter("buffer-message-dropped"),
+		byteDropped:       scope.Counter("buffer-byte-dropped"),
+		messageTooLarge:   scope.Counter("message-too-large"),
+		cleanupNoProgress: scope.Counter("cleanup-no-progress"),
+		messageBuffered:   scope.Gauge("message-buffered"),
+		byteBuffered:      scope.Gauge("byte-buffered"),
+		bufferScanBatch:   instrument.MustCreateSampledTimer(scope.Timer("buffer-scan-batch"), samplingRate),
 	}
 }
 
@@ -71,6 +74,7 @@ type buffer struct {
 	maxBufferSize  uint64
 	maxMessageSize uint32
 	onFinalizeFn   producer.OnFinalizeFn
+	retrier        retry.Retrier
 	m              bufferMetrics
 
 	size      *atomic.Uint64
@@ -81,15 +85,19 @@ type buffer struct {
 }
 
 // NewBuffer returns a new buffer.
-func NewBuffer(opts Options) producer.Buffer {
+func NewBuffer(opts Options) (producer.Buffer, error) {
 	if opts == nil {
 		opts = NewOptions()
+	}
+	if err := opts.Validate(); err != nil {
+		return nil, err
 	}
 	b := &buffer{
 		buffers:        list.New(),
 		maxBufferSize:  uint64(opts.MaxBufferSize()),
 		maxMessageSize: uint32(opts.MaxMessageSize()),
 		opts:           opts,
+		retrier:        retry.NewRetrier(opts.CleanupRetryOptions()),
 		m: newBufferMetrics(
 			opts.InstrumentOptions().MetricsScope(),
 			opts.InstrumentOptions().MetricsSamplingRate(),
@@ -99,27 +107,21 @@ func NewBuffer(opts Options) producer.Buffer {
 		isClosed: false,
 	}
 	b.onFinalizeFn = b.subSize
-	return b
+	return b, nil
 }
 
 func (b *buffer) Add(m producer.Message) (*producer.RefCountedMessage, error) {
+	s := m.Size()
+	if s > b.maxMessageSize {
+		b.m.messageTooLarge.Inc(1)
+		return nil, errMessageTooLarge
+	}
 	b.Lock()
 	if b.isClosed {
 		b.Unlock()
 		return nil, errBufferClosed
 	}
-	s := m.Size()
-	if s > b.maxMessageSize {
-		b.Unlock()
-		b.m.messageTooLarge.Inc(1)
-		return nil, errMessageTooLarge
-	}
 	dataSize := uint64(s)
-	if dataSize > b.maxBufferSize {
-		b.Unlock()
-		b.m.messageTooLarge.Inc(1)
-		return nil, errMessageLargerThanMaxBufferSize
-	}
 	targetBufferSize := b.maxBufferSize - dataSize
 	if b.size.Load() > targetBufferSize {
 		if err := b.produceOnFullWithLock(targetBufferSize); err != nil {
@@ -171,24 +173,41 @@ func (b *buffer) Init() {
 }
 
 func (b *buffer) cleanupUntilClose() {
-	ticker := time.NewTicker(b.opts.CleanupInterval())
+	ticker := time.NewTicker(
+		b.opts.CleanupRetryOptions().InitialBackoff(),
+	)
 	defer ticker.Stop()
 
+	continueFn := func(int) bool {
+		select {
+		case <-b.doneCh:
+			return false
+		default:
+			return true
+		}
+	}
 	for {
 		select {
 		case <-ticker.C:
-			b.cleanup()
+			b.retrier.AttemptWhile(
+				continueFn,
+				b.cleanup,
+			)
 		case <-b.doneCh:
 			return
 		}
 	}
 }
 
-func (b *buffer) cleanup() {
+func (b *buffer) cleanup() error {
 	b.RLock()
 	e := b.buffers.Front()
 	b.RUnlock()
-	batchSize := b.opts.ScanBatchSize()
+	var (
+		batchSize    = b.opts.ScanBatchSize()
+		totalRemoved int
+		batchRemoved int
+	)
 	for e != nil {
 		beforeBatch := time.Now()
 		// NB: There is a chance the start element could be removed by another
@@ -201,21 +220,28 @@ func (b *buffer) cleanup() {
 		// tick repeatedly scanning and doing nothing because nothing is being
 		// consumed.
 		b.Lock()
-		e = b.cleanupBatchWithLock(e, batchSize)
+		e, batchRemoved = b.cleanupBatchWithLock(e, batchSize)
 		b.Unlock()
 		b.m.bufferScanBatch.Record(time.Since(beforeBatch))
+		totalRemoved += batchRemoved
 	}
 	b.m.messageBuffered.Update(float64(b.bufferLen()))
 	b.m.byteBuffered.Update(float64(b.size.Load()))
+	if totalRemoved == 0 {
+		b.m.cleanupNoProgress.Inc(1)
+		return errCleanupNoProgress
+	}
+	return nil
 }
 
 func (b *buffer) cleanupBatchWithLock(
 	start *list.Element,
 	batchSize int,
-) *list.Element {
+) (*list.Element, int) {
 	var (
 		iterated int
 		next     *list.Element
+		removed  int
 	)
 	for e := start; e != nil; e = next {
 		iterated++
@@ -226,6 +252,7 @@ func (b *buffer) cleanupBatchWithLock(
 		rm := e.Value.(*producer.RefCountedMessage)
 		if rm.IsDroppedOrConsumed() {
 			b.buffers.Remove(e)
+			removed++
 			continue
 		}
 		if !b.forceDrop {
@@ -234,12 +261,13 @@ func (b *buffer) cleanupBatchWithLock(
 		// There is a chance that the message is consumed right before
 		// the drop call which will lead drop to return false.
 		if rm.Drop() {
+			b.buffers.Remove(e)
+			removed++
 			b.m.messageDropped.Inc(1)
 			b.m.byteDropped.Inc(int64(rm.Size()))
-			b.buffers.Remove(e)
 		}
 	}
-	return next
+	return next, removed
 }
 
 func (b *buffer) Close(ct producer.CloseType) {
@@ -254,7 +282,6 @@ func (b *buffer) Close(ct producer.CloseType) {
 		b.forceDrop = true
 	}
 	b.Unlock()
-
 	b.waitUntilAllDataConsumed()
 	close(b.doneCh)
 	b.wg.Wait()

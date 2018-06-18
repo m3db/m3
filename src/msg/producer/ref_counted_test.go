@@ -82,6 +82,7 @@ func TestRefCountedMessageBytesReadBlocking(t *testing.T) {
 
 	mm := NewMockMessage(ctrl)
 	mockBytes := []byte("foo")
+	mm.EXPECT().Size().Return(uint32(3))
 	mm.EXPECT().Bytes().Return(mockBytes)
 
 	rm := NewRefCountedMessage(mm, nil)
@@ -108,7 +109,12 @@ func TestRefCountedMessageBytesReadBlocking(t *testing.T) {
 }
 
 func TestRefCountedMessageDecPanic(t *testing.T) {
-	rm := NewRefCountedMessage(nil, nil)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mm := NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(0))
+	rm := NewRefCountedMessage(mm, nil)
 	require.Panics(t, rm.DecRef)
 }
 
@@ -123,6 +129,7 @@ func TestRefCountedMessageFilter(t *testing.T) {
 	}
 
 	mm := NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(0))
 	rm := NewRefCountedMessage(mm, nil)
 
 	mm.EXPECT().Shard().Return(uint32(0))
@@ -137,6 +144,7 @@ func TestRefCountedMessageOnDropFn(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(0))
 	mm.EXPECT().Finalize(Dropped)
 
 	var called int
@@ -156,6 +164,7 @@ func TestRefCountedMessageNoBlocking(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := NewMockMessage(ctrl)
+	mm.EXPECT().Size().Return(uint32(0)).AnyTimes()
 	for i := 0; i < 10000; i++ {
 		rm := NewRefCountedMessage(mm, nil)
 		var wg sync.WaitGroup

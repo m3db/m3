@@ -34,6 +34,7 @@ import (
 func TestProducerConfiguration(t *testing.T) {
 	str := `
 buffer:
+  maxMessageSize: 10
   maxBufferSize: 100
 writer:
   topicName: testTopic

@@ -34,6 +34,7 @@ type RefCountedMessage struct {
 	sync.RWMutex
 	Message
 
+	size         uint64
 	onFinalizeFn OnFinalizeFn
 
 	refCount            *atomic.Int32
@@ -45,6 +46,7 @@ func NewRefCountedMessage(m Message, fn OnFinalizeFn) *RefCountedMessage {
 	return &RefCountedMessage{
 		Message:             m,
 		refCount:            atomic.NewInt32(0),
+		size:                uint64(m.Size()),
 		onFinalizeFn:        fn,
 		isDroppedOrConsumed: atomic.NewBool(false),
 	}
@@ -84,7 +86,7 @@ func (rm *RefCountedMessage) DecReads() {
 
 // Size returns the size of the message.
 func (rm *RefCountedMessage) Size() uint64 {
-	return uint64(rm.Message.Size())
+	return rm.size
 }
 
 // Drop drops the message without waiting for it to be consumed.
