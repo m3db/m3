@@ -3,10 +3,8 @@ include $(SELF_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail
 
-auto_gen             := .ci/auto-gen.sh
+auto_gen             := scripts/auto-gen.sh
 gopath_prefix        := $(GOPATH)/src
-license_dir          := .ci/uber-licence
-license_node_modules := $(license_dir)/node_modules
 m3db_package         := github.com/m3db/m3db
 m3db_package_path    := $(gopath_prefix)/$(m3db_package)
 mockgen_package      := github.com/golang/mock/mockgen
@@ -102,14 +100,6 @@ tools-linux-amd64:
 .PHONY: all
 all: metalint test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
-
-.PHONY: install-license-bin
-install-license-bin:
-	@echo Installing node modules
-	@[ -d $(license_node_modules) ] || (         \
-		git submodule update --init --recursive && \
-		cd $(license_dir) && npm install           \
-	)
 
 # NB(prateek): cannot use retool for mock-gen, as mock-gen reflection mode requires
 # it's full source code be present in the GOPATH at runtime.
@@ -210,31 +200,31 @@ $(foreach SUBDIR_TARGET,$(SUBDIR_TARGETS),$(eval $(SUBDIR_TARGET_RULE)))
 define SUBDIR_RULES
 
 .PHONY: mock-gen-$(SUBDIR)
-mock-gen-$(SUBDIR): install-codegen-tools install-mockgen install-license-bin
+mock-gen-$(SUBDIR): install-codegen-tools install-mockgen
 	@echo Generating mocks $(SUBDIR)
 	@[ ! -d src/$(SUBDIR)/$(mocks_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(mocks_output_dir) src/$(SUBDIR)/$(mocks_rules_dir)
 
 .PHONY: thrift-gen-$(SUBDIR)
-thrift-gen-$(SUBDIR): install-license-bin
+thrift-gen-$(SUBDIR): install-codegen-tools
 	@echo Generating thrift files $(SUBDIR)
 	@[ ! -d src/$(SUBDIR)/$(thrift_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(thrift_output_dir) src/$(SUBDIR)/$(thrift_rules_dir)
 
 .PHONY: proto-gen-$(SUBDIR)
-proto-gen-$(SUBDIR): install-license-bin
+proto-gen-$(SUBDIR): install-codegen-tools
 	@echo Generating protobuf files $(SUBDIR)
 	@[ ! -d src/$(SUBDIR)/$(proto_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(proto_output_dir) src/$(SUBDIR)/$(proto_rules_dir)
 
 .PHONY: asset-gen-$(SUBDIR)
-asset-gen-$(SUBDIR): install-codegen-tools install-license-bin
+asset-gen-$(SUBDIR): install-codegen-tools
 	@echo Generating asset files $(SUBDIR)
 	@[ ! -d src/$(SUBDIR)/$(assets_rules_dir) ] || \
 		PATH=$(retool_bin_path):$(PATH) PACKAGE=$(m3db_package) $(auto_gen) src/$(SUBDIR)/$(assets_output_dir) src/$(SUBDIR)/$(assets_rules_dir)
 
 .PHONY: genny-gen-$(SUBDIR)
-genny-gen-$(SUBDIR):
+genny-gen-$(SUBDIR): install-codegen-tools
 	@echo Generating genny files $(SUBDIR)
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
 		PATH=$(retool_bin_path):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk genny-all-$(SUBDIR)

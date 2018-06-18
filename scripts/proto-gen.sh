@@ -23,7 +23,7 @@ for i in "${GOPATH}/src/${PROTO_SRC}"/*; do
 		# need the additional m3db_path mount in docker because it's a symlink on the CI.
 		m3db_path=$(realpath $GOPATH/src/github.com/m3db/m3db)
 		docker run --rm -w /src -v $GOPATH/src:/src -v ${m3db_path}:/src/github.com/m3db/m3db \
-	   	$PROTOC_IMAGE_VERSION --gogofaster_out=plugins=grpc:/src                            \
+	   	-u $(id -u) $PROTOC_IMAGE_VERSION --gogofaster_out=plugins=grpc:/src                \
 			 -I/src -I/src/github.com/m3db/m3db/vendor ${proto_files}
 	fi
 done
