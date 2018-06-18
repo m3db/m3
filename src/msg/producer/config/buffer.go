@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3msg/producer/buffer"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/retry"
 )
 
 // BufferConfiguration configs the buffer.
@@ -32,9 +33,9 @@ type BufferConfiguration struct {
 	OnFullStrategy     *buffer.OnFullStrategy `yaml:"onFullStrategy"`
 	MaxBufferSize      *int                   `yaml:"maxBufferSize"`
 	MaxMessageSize     *int                   `yaml:"maxMessageSize"`
-	CleanupInterval    *time.Duration         `yaml:"cleanupInterval"`
 	CloseCheckInterval *time.Duration         `yaml:"closeCheckInterval"`
 	ScanBatchSize      *int                   `yaml:"scanBatchSize"`
+	CleanupRetry       *retry.Configuration   `yaml:"cleanupRetry"`
 }
 
 // NewOptions creates new buffer options.
@@ -46,9 +47,6 @@ func (c *BufferConfiguration) NewOptions(iOpts instrument.Options) buffer.Option
 	if c.MaxMessageSize != nil {
 		opts = opts.SetMaxMessageSize(*c.MaxMessageSize)
 	}
-	if c.CleanupInterval != nil {
-		opts = opts.SetCleanupInterval(*c.CleanupInterval)
-	}
 	if c.CloseCheckInterval != nil {
 		opts = opts.SetCloseCheckInterval(*c.CloseCheckInterval)
 	}
@@ -57,6 +55,9 @@ func (c *BufferConfiguration) NewOptions(iOpts instrument.Options) buffer.Option
 	}
 	if c.ScanBatchSize != nil {
 		opts = opts.SetScanBatchSize(*c.ScanBatchSize)
+	}
+	if c.CleanupRetry != nil {
+		opts = opts.SetCleanupRetryOptions(c.CleanupRetry.NewOptions(iOpts.MetricsScope()))
 	}
 	return opts.SetInstrumentOptions(iOpts)
 }

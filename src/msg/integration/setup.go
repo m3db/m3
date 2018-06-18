@@ -530,8 +530,10 @@ func testProducer(
 ) producer.Producer {
 	str := `
 buffer:
-  cleanupInterval: 200ms
   closeCheckInterval: 200ms
+  cleanupRetry:
+    initialBackoff: 100ms
+    maxBackoff: 200ms
 writer:
   topicName: topicName
   topicWatchInitTimeout: 100ms

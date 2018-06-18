@@ -21,26 +21,33 @@
 package buffer
 
 import (
+	"errors"
 	"time"
 
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/retry"
+)
+
+const (
+	defaultMaxBufferSize         = 100 * 1024 * 1024 // 100MB.
+	defaultMaxMessageSize        = 1 * 1024 * 1024   // 1MB.
+	defaultCloseCheckInterval    = time.Second
+	defaultScanBatchSize         = 16
+	defaultCleanupInitialBackoff = 10 * time.Second
+	defaultCleanupMaxBackoff     = time.Minute
 )
 
 var (
-	defaultMaxBufferSize      = 100 * 1024 * 1024 // 100MB.
-	defaultMaxMessageSize     = 1 * 1024 * 1024   // 1MB.
-	defaultCleanupInterval    = 5 * time.Second
-	defaultCloseCheckInterval = time.Second
-	defaultScanBatchSize      = 256
+	errInvalidMaxMessageSize = errors.New("invalid max message size")
 )
 
 type bufferOptions struct {
 	strategy           OnFullStrategy
 	maxBufferSize      int
 	maxMessageSize     int
-	cleanupInterval    time.Duration
 	closeCheckInterval time.Duration
 	scanBatchSize      int
+	rOpts              retry.Options
 	iOpts              instrument.Options
 }
 
@@ -50,10 +57,13 @@ func NewOptions() Options {
 		strategy:           DropEarliest,
 		maxBufferSize:      defaultMaxBufferSize,
 		maxMessageSize:     defaultMaxMessageSize,
-		cleanupInterval:    defaultCleanupInterval,
 		closeCheckInterval: defaultCloseCheckInterval,
 		scanBatchSize:      defaultScanBatchSize,
-		iOpts:              instrument.NewOptions(),
+		rOpts: retry.NewOptions().
+			SetInitialBackoff(defaultCleanupInitialBackoff).
+			SetMaxBackoff(defaultCleanupMaxBackoff).
+			SetForever(true),
+		iOpts: instrument.NewOptions(),
 	}
 }
 
@@ -87,16 +97,6 @@ func (opts *bufferOptions) SetMaxBufferSize(value int) Options {
 	return &o
 }
 
-func (opts *bufferOptions) CleanupInterval() time.Duration {
-	return opts.cleanupInterval
-}
-
-func (opts *bufferOptions) SetCleanupInterval(value time.Duration) Options {
-	o := *opts
-	o.cleanupInterval = value
-	return &o
-}
-
 func (opts *bufferOptions) CloseCheckInterval() time.Duration {
 	return opts.closeCheckInterval
 }
@@ -117,6 +117,16 @@ func (opts *bufferOptions) SetScanBatchSize(value int) Options {
 	return &o
 }
 
+func (opts *bufferOptions) CleanupRetryOptions() retry.Options {
+	return opts.rOpts
+}
+
+func (opts *bufferOptions) SetCleanupRetryOptions(value retry.Options) Options {
+	o := *opts
+	o.rOpts = value
+	return &o
+}
+
 func (opts *bufferOptions) InstrumentOptions() instrument.Options {
 	return opts.iOpts
 }
@@ -125,4 +135,12 @@ func (opts *bufferOptions) SetInstrumentOptions(value instrument.Options) Option
 	o := *opts
 	o.iOpts = value
 	return &o
+}
+
+func (opts *bufferOptions) Validate() error {
+	if opts.MaxMessageSize() > opts.MaxBufferSize() {
+		// Max message size can only be as large as max buffer size.
+		return errInvalidMaxMessageSize
+	}
+	return nil
 }

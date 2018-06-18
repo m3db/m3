@@ -120,6 +120,7 @@ func TestConsumerServiceWriterWithSharedConsumerWithNonShardedPlacement(t *testi
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Shard().Return(uint32(1))
 	mm.EXPECT().Bytes().Return([]byte("foo"))
+	mm.EXPECT().Size().Return(uint32(3))
 	mm.EXPECT().Finalize(producer.Consumed)
 
 	rm := producer.NewRefCountedMessage(mm, nil)
@@ -255,6 +256,7 @@ func TestConsumerServiceWriterWithSharedConsumerWithShardedPlacement(t *testing.
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Shard().Return(uint32(1))
 	mm.EXPECT().Bytes().Return([]byte("foo"))
+	mm.EXPECT().Size().Return(uint32(3))
 	mm.EXPECT().Finalize(producer.Consumed)
 
 	rm := producer.NewRefCountedMessage(mm, nil)
@@ -379,6 +381,7 @@ func TestConsumerServiceWriterWithReplicatedConsumerWithShardedPlacement(t *test
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Shard().Return(uint32(1)).AnyTimes()
 	mm.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
+	mm.EXPECT().Size().Return(uint32(3))
 	mm.EXPECT().Finalize(producer.Consumed)
 
 	rm := producer.NewRefCountedMessage(mm, nil)
@@ -462,6 +465,7 @@ func TestConsumerServiceWriterWithReplicatedConsumerWithShardedPlacement(t *test
 	}()
 
 	mm.EXPECT().Finalize(producer.Consumed)
+	mm.EXPECT().Size().Return(uint32(3))
 	rm = producer.NewRefCountedMessage(mm, nil)
 	csw.Write(rm)
 	for {
@@ -496,25 +500,27 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 	csw.(*consumerServiceWriterImpl).shardWriters[0] = sw0
 	csw.(*consumerServiceWriterImpl).shardWriters[1] = sw1
 
-	md0 := producer.NewMockMessage(ctrl)
-	md0.EXPECT().Shard().Return(uint32(0)).AnyTimes()
-	md1 := producer.NewMockMessage(ctrl)
-	md1.EXPECT().Shard().Return(uint32(1)).AnyTimes()
+	mm0 := producer.NewMockMessage(ctrl)
+	mm0.EXPECT().Shard().Return(uint32(0)).AnyTimes()
+	mm0.EXPECT().Size().Return(uint32(3)).AnyTimes()
+	mm1 := producer.NewMockMessage(ctrl)
+	mm1.EXPECT().Shard().Return(uint32(1)).AnyTimes()
+	mm1.EXPECT().Size().Return(uint32(3)).AnyTimes()
 
 	sw0.EXPECT().Write(gomock.Any())
-	csw.Write(producer.NewRefCountedMessage(md0, nil))
+	csw.Write(producer.NewRefCountedMessage(mm0, nil))
 	sw1.EXPECT().Write(gomock.Any())
-	csw.Write(producer.NewRefCountedMessage(md1, nil))
+	csw.Write(producer.NewRefCountedMessage(mm1, nil))
 
 	csw.RegisterFilter(func(m producer.Message) bool { return m.Shard() == uint32(0) })
-	csw.Write(producer.NewRefCountedMessage(md1, nil))
+	csw.Write(producer.NewRefCountedMessage(mm1, nil))
 
 	sw0.EXPECT().Write(gomock.Any())
-	csw.Write(producer.NewRefCountedMessage(md0, nil))
+	csw.Write(producer.NewRefCountedMessage(mm0, nil))
 
 	csw.UnregisterFilter()
 	sw1.EXPECT().Write(gomock.Any())
-	csw.Write(producer.NewRefCountedMessage(md1, nil))
+	csw.Write(producer.NewRefCountedMessage(mm1, nil))
 }
 
 func TestConsumerServiceWriterAllowInitValueErrorWithCreateWatchError(t *testing.T) {
@@ -636,6 +642,7 @@ func TestConsumerServiceCloseShardWritersConcurrently(t *testing.T) {
 		mm := producer.NewMockMessage(ctrl)
 		mm.EXPECT().Shard().Return(i)
 		mm.EXPECT().Bytes().Return(b).AnyTimes()
+		mm.EXPECT().Size().Return(uint32(0)).AnyTimes()
 		mm.EXPECT().Finalize(gomock.Any())
 		w.Write(producer.NewRefCountedMessage(mm, nil))
 	}

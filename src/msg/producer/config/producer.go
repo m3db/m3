@@ -42,8 +42,12 @@ func (c *ProducerConfiguration) newOptions(
 	if err != nil {
 		return nil, err
 	}
+	b, err := buffer.NewBuffer(c.Buffer.NewOptions(iOpts))
+	if err != nil {
+		return nil, err
+	}
 	return producer.NewOptions().
-		SetBuffer(buffer.NewBuffer(c.Buffer.NewOptions(iOpts))).
+		SetBuffer(b).
 		SetWriter(writer.NewWriter(wOpts)), nil
 }
 

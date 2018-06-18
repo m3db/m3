@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/retry"
 )
 
 // OnFullStrategy defines the buffer behavior when the buffer is full.
@@ -60,12 +61,6 @@ type Options interface {
 	// SetMaxBufferSize sets the max buffer size.
 	SetMaxBufferSize(value int) Options
 
-	// CleanupInterval returns the cleanup interval.
-	CleanupInterval() time.Duration
-
-	// SetCleanupInterval sets the cleanup interval.
-	SetCleanupInterval(value time.Duration) Options
-
 	// CloseCheckInterval returns the close check interval.
 	CloseCheckInterval() time.Duration
 
@@ -78,9 +73,18 @@ type Options interface {
 	// SetScanBatchSize sets the scan batch size.
 	SetScanBatchSize(value int) Options
 
+	// CleanupRetryOptions returns the cleanup retry options.
+	CleanupRetryOptions() retry.Options
+
+	// SetCleanupRetryOptions sets the cleanup retry options.
+	SetCleanupRetryOptions(value retry.Options) Options
+
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 
 	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) Options
+
+	// Validate validates the options.
+	Validate() error
 }

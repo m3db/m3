@@ -60,6 +60,7 @@ func (m *message) Close() {
 	m.retryAtNanos = 0
 	m.retried = 0
 	m.isAcked.Store(false)
+	m.ResetProto(&m.pb)
 }
 
 // RetryAtNanos returns the timestamp for next retry in nano seconds.
@@ -106,4 +107,8 @@ func (m *message) Marshaler() (proto.Marshaler, bool) {
 func (m *message) ToProto(pb *msgpb.Message) {
 	m.meta.ToProto(&pb.Metadata)
 	pb.Value = m.RefCountedMessage.Bytes()
+}
+
+func (m *message) ResetProto(pb *msgpb.Message) {
+	pb.Value = nil
 }
