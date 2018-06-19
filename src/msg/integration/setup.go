@@ -190,7 +190,7 @@ func (s *setup) Run(
 		for j := 0; j < msgPerShard; j++ {
 			b := fmt.Sprintf("foo%d-%d", i, j)
 			mm := producer.NewMockMessage(ctrl)
-			mm.EXPECT().Size().Return(uint32(len(b))).AnyTimes()
+			mm.EXPECT().Size().Return(len(b)).AnyTimes()
 			mm.EXPECT().Bytes().Return([]byte(b)).AnyTimes()
 			mm.EXPECT().Shard().Return(uint32(i)).AnyTimes()
 			mm.EXPECT().Finalize(producer.Consumed).Times(len(s.producers))

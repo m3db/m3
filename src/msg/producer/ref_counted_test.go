@@ -34,11 +34,11 @@ func TestRefCountedMessageConsume(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm.EXPECT().Size().Return(100).AnyTimes()
 	mm.EXPECT().Finalize(Consumed)
 
 	rm := NewRefCountedMessage(mm, nil)
-	require.Equal(t, uint64(mm.Size()), rm.Size())
+	require.Equal(t, mm.Size(), int(rm.Size()))
 	require.False(t, rm.IsDroppedOrConsumed())
 
 	rm.IncRef()
@@ -58,11 +58,11 @@ func TestRefCountedMessageDrop(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm.EXPECT().Size().Return(100).AnyTimes()
 	mm.EXPECT().Finalize(Dropped)
 
 	rm := NewRefCountedMessage(mm, nil)
-	require.Equal(t, uint64(mm.Size()), rm.Size())
+	require.Equal(t, mm.Size(), int(rm.Size()))
 	require.False(t, rm.IsDroppedOrConsumed())
 
 	rm.Drop()
@@ -82,7 +82,7 @@ func TestRefCountedMessageBytesReadBlocking(t *testing.T) {
 
 	mm := NewMockMessage(ctrl)
 	mockBytes := []byte("foo")
-	mm.EXPECT().Size().Return(uint32(3))
+	mm.EXPECT().Size().Return(3)
 	mm.EXPECT().Bytes().Return(mockBytes)
 
 	rm := NewRefCountedMessage(mm, nil)
@@ -113,7 +113,7 @@ func TestRefCountedMessageDecPanic(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(0))
+	mm.EXPECT().Size().Return(0)
 	rm := NewRefCountedMessage(mm, nil)
 	require.Panics(t, rm.DecRef)
 }
@@ -129,7 +129,7 @@ func TestRefCountedMessageFilter(t *testing.T) {
 	}
 
 	mm := NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(0))
+	mm.EXPECT().Size().Return(0)
 	rm := NewRefCountedMessage(mm, nil)
 
 	mm.EXPECT().Shard().Return(uint32(0))
@@ -144,7 +144,7 @@ func TestRefCountedMessageOnDropFn(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(0))
+	mm.EXPECT().Size().Return(0)
 	mm.EXPECT().Finalize(Dropped)
 
 	var called int
@@ -164,7 +164,7 @@ func TestRefCountedMessageNoBlocking(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(0)).AnyTimes()
+	mm.EXPECT().Size().Return(0).AnyTimes()
 	for i := 0; i < 10000; i++ {
 		rm := NewRefCountedMessage(mm, nil)
 		var wg sync.WaitGroup

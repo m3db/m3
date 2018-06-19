@@ -39,7 +39,7 @@ func TestMessagePool(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(3))
+	mm.EXPECT().Size().Return(3)
 	rm := producer.NewRefCountedMessage(mm, nil)
 	rm.IncRef()
 
@@ -65,7 +65,7 @@ func TestMessagePool(t *testing.T) {
 	require.Nil(t, m.pb.Value)
 	require.True(t, m.IsDroppedOrConsumed())
 
-	mm.EXPECT().Size().Return(uint32(3))
+	mm.EXPECT().Size().Return(3)
 	mm.EXPECT().Bytes().Return([]byte("foo"))
 	m.Set(metadata{}, producer.NewRefCountedMessage(mm, nil))
 	require.False(t, m.IsDroppedOrConsumed())

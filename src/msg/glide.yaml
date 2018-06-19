@@ -1,9 +1,9 @@
 package: github.com/m3db/m3msg
 import:
 - package: github.com/m3db/m3x
-  version: 782ecfe679d9bb930a06b6c97f632caa1bb14494
+  version: 647a4a05078f018242070cbd71bea6ecba964199
 - package: github.com/m3db/m3cluster
-  version: cb17a54d6902c03790286942bafa04a188d4eeb8
+  version: 932643c994584dc8830cdc6434fd5545768d9f29
 - package: github.com/golang/protobuf
   version: v1.0.0
 - package: github.com/gogo/protobuf
