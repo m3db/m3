@@ -133,7 +133,7 @@ func NewColumnBlockBuilder(meta Metadata) Builder {
 	}
 }
 
-// AppendValue adds a value to a column at idx
+// AppendValue adds a value to a column at index
 func (cb ColumnBlockBuilder) AppendValue(idx int, value float64) error {
 	columns := cb.block.columns
 	if len(columns) <= idx {

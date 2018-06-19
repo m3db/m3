@@ -53,7 +53,7 @@ type Bounds struct {
 	StepSize time.Duration
 }
 
-// TimeForIndex returns the start time for a given idx assuming a uniform step size
+// TimeForIndex returns the start time for a given index assuming a uniform step size
 func (b Bounds) TimeForIndex(idx int) (time.Time, error) {
 	step := b.StepSize
 	t := b.Start.Add(time.Duration(idx) * step)
