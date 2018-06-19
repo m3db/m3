@@ -66,7 +66,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			namespace.NewOptions().IndexOptions().SetEnabled(true),
 		)
 	)
-	parameters.MinSuccessfulTests = 40
+	parameters.MinSuccessfulTests = 80
 	parameters.Rng.Seed(seed)
 	nsMeta, err := namespace.NewMetadata(testNamespaceID, nsOpts)
 	require.NoError(t, err)
@@ -94,7 +94,10 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}()
 
 			var (
-				currentTime = startTime
+				// This is the earliest system time that we would be willing to write
+				// a datapoint for, so start with that and let the write themselves
+				// continue to increment the current time.
+				currentTime = startTime.Add(-input.bufferFuture)
 				lock        = sync.RWMutex{}
 				writesCh    = make(chan struct{}, 5)
 
@@ -124,7 +127,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 						SetBlockSize(blockSize).
 						SetFilesystemOptions(fsOpts).
 						SetBlockSize(commitLogBlockSize).
-						SetStrategy(commitlog.StrategyWriteWait).
+						SetStrategy(commitlog.StrategyWriteBehind).
 						SetFlushInterval(time.Millisecond).
 						SetClockOptions(commitlog.NewOptions().ClockOptions().SetNowFn(nowFn))
 				bootstrapOpts = testOptions().SetCommitLogOptions(commitLogOpts)
@@ -161,77 +164,78 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 				})
 			}
 
-			compressedWritesByShards := map[uint32]map[string][]byte{}
-			for seriesID, writesForSeries := range orderedWritesBySeries {
-				shard := hashIDToShard(ident.StringID(seriesID))
-				encodersBySeries, ok := compressedWritesByShards[shard]
-				if !ok {
-					encodersBySeries = map[string][]byte{}
-					compressedWritesByShards[shard] = encodersBySeries
-				}
+			if input.snapshotExists {
+				compressedWritesByShards := map[uint32]map[string][]byte{}
+				for seriesID, writesForSeries := range orderedWritesBySeries {
+					shard := hashIDToShard(ident.StringID(seriesID))
+					encodersBySeries, ok := compressedWritesByShards[shard]
+					if !ok {
+						encodersBySeries = map[string][]byte{}
+						compressedWritesByShards[shard] = encodersBySeries
+					}
 
-				encoder := m3tsz.NewEncoder(writesForSeries[0].datapoint.Timestamp, nil, true, encoding.NewOptions())
-				for _, value := range writesForSeries {
-					// Only include datapoints that are before or during the snapshot time to ensure that we
-					// properly bootstrap from both snapshot files and commit logs and merge them together.
-					if value.arrivedAt.Before(input.snapshotTime) ||
-						value.arrivedAt.Equal(input.snapshotTime) {
-						fmt.Printf("encoding: %d for %s\n", value.datapoint.Timestamp.Unix(), seriesID)
-						err := encoder.Encode(value.datapoint, value.unit, value.annotation)
+					encoder := m3tsz.NewEncoder(writesForSeries[0].datapoint.Timestamp, nil, true, encoding.NewOptions())
+					for _, value := range writesForSeries {
+						// Only include datapoints that are before or during the snapshot time to ensure that we
+						// properly bootstrap from both snapshot files and commit logs and merge them together.
+						if value.arrivedAt.Before(input.snapshotTime) ||
+							value.arrivedAt.Equal(input.snapshotTime) {
+							fmt.Printf("encoding: %d for %s\n", value.datapoint.Timestamp.Unix(), seriesID)
+							err := encoder.Encode(value.datapoint, value.unit, value.annotation)
+							if err != nil {
+								return false, err
+							}
+						}
+					}
+
+					reader := encoder.Stream()
+					if reader != nil {
+						seg, err := reader.Segment()
 						if err != nil {
 							return false, err
 						}
+
+						bytes := make([]byte, seg.Len())
+						_, err = reader.Read(bytes)
+						if err != nil {
+							return false, err
+						}
+						encodersBySeries[seriesID] = bytes
 					}
+					compressedWritesByShards[shard] = encodersBySeries
 				}
 
-				reader := encoder.Stream()
-				if reader != nil {
-					seg, err := reader.Segment()
+				for shard, seriesForShard := range compressedWritesByShards {
+					err = writer.Open(fs.DataWriterOpenOptions{
+						Identifier: fs.FileSetFileIdentifier{
+							Namespace:   nsMeta.ID(),
+							BlockStart:  start,
+							Shard:       shard,
+							VolumeIndex: 0,
+						},
+						BlockSize:   blockSize,
+						FileSetType: persist.FileSetSnapshotType,
+						Snapshot: fs.DataWriterSnapshotOptions{
+							SnapshotTime: input.snapshotTime,
+						},
+					})
+
 					if err != nil {
 						return false, err
 					}
 
-					bytes := make([]byte, seg.Len())
-					_, err = reader.Read(bytes)
+					for seriesID, data := range seriesForShard {
+						checkedBytes := checked.NewBytes(data, nil)
+						checkedBytes.IncRef()
+						// TODO: Calculate correct checksum
+						tags := orderedWritesBySeries[seriesID][0].series.Tags
+						writer.Write(ident.StringID(seriesID), tags, checkedBytes, uint32(0))
+					}
+
+					err = writer.Close()
 					if err != nil {
 						return false, err
 					}
-					encodersBySeries[seriesID] = bytes
-				}
-				compressedWritesByShards[shard] = encodersBySeries
-			}
-
-			for shard, seriesForShard := range compressedWritesByShards {
-				err = writer.Open(fs.DataWriterOpenOptions{
-					Identifier: fs.FileSetFileIdentifier{
-						Namespace:   nsMeta.ID(),
-						BlockStart:  start,
-						Shard:       shard,
-						VolumeIndex: 0,
-					},
-					BlockSize:   blockSize,
-					FileSetType: persist.FileSetSnapshotType,
-					Snapshot: fs.DataWriterSnapshotOptions{
-						SnapshotTime: input.snapshotTime,
-					},
-				})
-
-				if err != nil {
-					return false, err
-				}
-
-				for seriesID, data := range seriesForShard {
-					checkedBytes := checked.NewBytes(data, nil)
-					checkedBytes.IncRef()
-					// TODO: Calculate correct checksum
-					tags := orderedWritesBySeries[seriesID][0].series.Tags
-					fmt.Printf("writing data to snapshot for: %s\n", seriesID)
-					writer.Write(ident.StringID(seriesID), tags, checkedBytes, uint32(0))
-				}
-
-				err = writer.Close()
-				if err != nil {
-					return false, err
 				}
 			}
 
@@ -252,22 +256,21 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			// Write all the datapoints to the commitlog
 			for _, write := range input.writes {
 				// Only write datapoints that are not in the snapshots.
-				if !write.arrivedAt.After(input.snapshotTime) {
+				if input.snapshotExists && !write.arrivedAt.After(input.snapshotTime) {
 					continue
 				}
 
-				now := nowFn()
-				if write.arrivedAt.After(now) { // TODO: Do I need this?
-					lock.Lock()
-					currentTime = write.arrivedAt
-					lock.Unlock()
-				}
+				lock.Lock()
+				currentTime = write.arrivedAt
+				lock.Unlock()
+
 				err := log.Write(context.NewContext(), write.series, write.datapoint, write.unit, write.annotation)
 				if err != nil {
 					return false, err
 				}
 				writesCh <- struct{}{}
 			}
+			close(writesCh)
 
 			err = log.Close()
 			if err != nil {
@@ -346,6 +349,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 type propTestInput struct {
 	currentTime               time.Time
 	snapshotTime              time.Time
+	snapshotExists            bool
 	bufferPast                time.Duration
 	bufferFuture              time.Duration
 	writes                    []generatedWrite
@@ -376,20 +380,23 @@ func genPropTestInputs(nsMeta namespace.Metadata, blockStart time.Time) gopter.G
 		var (
 			inputs                    = input.([]interface{})
 			snapshotTime              = inputs[0].(time.Time)
-			bufferPast                = time.Duration(inputs[1].(int64))
-			bufferFuture              = time.Duration(inputs[2].(int64))
-			numDatapoints             = inputs[3].(int)
-			shouldCacheSeriesMetadata = inputs[4].(bool)
+			snapshotExists            = inputs[1].(bool)
+			bufferPast                = time.Duration(inputs[2].(int64))
+			bufferFuture              = time.Duration(inputs[3].(int64))
+			numDatapoints             = inputs[4].(int)
+			shouldCacheSeriesMetadata = inputs[5].(bool)
 		)
 
 		return genPropTestInput(
-			blockStart, bufferPast, bufferFuture, snapshotTime, numDatapoints, shouldCacheSeriesMetadata, nsMeta.ID().String())
+			blockStart, bufferPast, bufferFuture, snapshotTime, snapshotExists, numDatapoints, shouldCacheSeriesMetadata, nsMeta.ID().String())
 	}
 
 	return gopter.CombineGens(
 		// Run iterations of the test with the snapshot time set at any point
 		// between the beginning and end of the block.
-		gen.TimeRange(blockStart, blockSize-15*time.Minute),
+		gen.TimeRange(blockStart, blockSize),
+		// SnapshotExists
+		gen.Bool(),
 		// Run iterations with any bufferPast/bufferFuture between zero and
 		// the namespace blockSize (distinct from the commitLog blockSize).
 		gen.Int64Range(0, int64(blockSize)),
@@ -406,6 +413,7 @@ func genPropTestInput(
 	bufferPast,
 	bufferFuture time.Duration,
 	snapshotTime time.Time,
+	snapshotExists bool,
 	numDatapoints int,
 	shouldCacheSeriesMetadata bool,
 	ns string,
@@ -413,11 +421,12 @@ func genPropTestInput(
 	return gen.SliceOfN(numDatapoints, genWrite(start, bufferPast, bufferFuture, ns)).
 		Map(func(val interface{}) propTestInput {
 			return propTestInput{
-				currentTime:  start,
-				bufferFuture: bufferFuture,
-				bufferPast:   bufferPast,
-				snapshotTime: snapshotTime,
-				writes:       val.([]generatedWrite),
+				currentTime:    start,
+				bufferFuture:   bufferFuture,
+				bufferPast:     bufferPast,
+				snapshotTime:   snapshotTime,
+				snapshotExists: snapshotExists,
+				writes:         val.([]generatedWrite),
 				shouldCacheSeriesMetadata: shouldCacheSeriesMetadata,
 			}
 		})
@@ -441,19 +450,18 @@ func genWrite(start time.Time, bufferPast, bufferFuture time.Duration, ns string
 		// sometimes not include tags to ensure that the commitlog writer/readers can
 		// handle both series that have tags and those that don't.
 		gen.Bool(),
-		gen.TimeRange(start, 15*time.Minute),
 		// M3TSZ is lossy, so we want to avoid very large numbers with high amounts of precision
 		gen.Float64Range(-9999999, 99999999),
 	).Map(func(val []interface{}) generatedWrite {
 		var (
 			id                 = val[0].(string)
-			a                  = val[1].(time.Time)
+			t                  = val[1].(time.Time)
+			a                  = t
 			bufferPastOrFuture = val[2].(bool)
 			tagKey             = val[3].(string)
 			tagVal             = val[4].(string)
 			includeTags        = val[5].(bool)
-			t                  = val[6].(time.Time)
-			v                  = val[7].(float64)
+			v                  = val[6].(float64)
 		)
 
 		if bufferPastOrFuture {
