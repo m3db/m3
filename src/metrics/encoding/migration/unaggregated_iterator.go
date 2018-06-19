@@ -119,6 +119,10 @@ func (it *unaggregatedIterator) Close() {
 		return
 	}
 	it.closed = true
+	it.msgpackIt.Close()
+	it.msgpackIt = nil
+	it.protobufIt.Close()
+	it.protobufIt = nil
 	it.msg = encoding.UnaggregatedMessageUnion{}
 	it.err = nil
 }
