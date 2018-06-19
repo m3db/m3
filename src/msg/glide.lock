@@ -1,5 +1,5 @@
-hash: 72d8bc94c4e5c219966ac2c7b18a169e2cd3e47b872ef940b4a5330822ed8ab5
-updated: 2018-06-03T23:32:33.341349-04:00
+hash: ad49256c7523c990892d0deeffafdad7340d6537973410a37b8840fea8d2d519
+updated: 2018-06-19T10:38:09.058936-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -37,7 +37,7 @@ imports:
   - cmp/internal/function
   - cmp/internal/value
 - name: github.com/m3db/m3cluster
-  version: cb17a54d6902c03790286942bafa04a188d4eeb8
+  version: 932643c994584dc8830cdc6434fd5545768d9f29
   subpackages:
   - client
   - generated/proto/metadatapb
@@ -54,7 +54,7 @@ imports:
   - services/leader/campaign
   - shard
 - name: github.com/m3db/m3x
-  version: 782ecfe679d9bb930a06b6c97f632caa1bb14494
+  version: 647a4a05078f018242070cbd71bea6ecba964199
   subpackages:
   - checked
   - clock
@@ -97,7 +97,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
-  version: 12b6f73e6084dad08a7c6e575284b177ecafbc71
+  version: f35b8ab0b5a2cef36673838d662e249dd9c94686
   subpackages:
   - assert
   - require

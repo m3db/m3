@@ -72,7 +72,7 @@ type buffer struct {
 	buffers        *list.List
 	opts           Options
 	maxBufferSize  uint64
-	maxMessageSize uint32
+	maxMessageSize int
 	onFinalizeFn   producer.OnFinalizeFn
 	retrier        retry.Retrier
 	m              bufferMetrics
@@ -95,7 +95,7 @@ func NewBuffer(opts Options) (producer.Buffer, error) {
 	b := &buffer{
 		buffers:        list.New(),
 		maxBufferSize:  uint64(opts.MaxBufferSize()),
-		maxMessageSize: uint32(opts.MaxMessageSize()),
+		maxMessageSize: opts.MaxMessageSize(),
 		opts:           opts,
 		retrier:        retry.NewRetrier(opts.CleanupRetryOptions()),
 		m: newBufferMetrics(

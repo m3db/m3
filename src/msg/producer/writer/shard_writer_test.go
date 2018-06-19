@@ -85,7 +85,7 @@ func TestSharedShardWriter(t *testing.T) {
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Bytes().Return([]byte("foo"))
 	mm.EXPECT().Finalize(producer.Consumed)
-	mm.EXPECT().Size().Return(uint32(3))
+	mm.EXPECT().Size().Return(3)
 
 	sw.Write(producer.NewRefCountedMessage(mm, nil))
 
@@ -167,7 +167,7 @@ func TestReplicatedShardWriter(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(3))
+	mm.EXPECT().Size().Return(3)
 	mm.EXPECT().Bytes().Return([]byte("foo")).Times(2)
 
 	sw.Write(producer.NewRefCountedMessage(mm, nil))
@@ -276,7 +276,7 @@ func TestReplicatedShardWriterRemoveMessageWriter(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(3))
+	mm.EXPECT().Size().Return(3)
 	mm.EXPECT().Bytes().Return([]byte("foo")).Times(2)
 
 	sw.Write(producer.NewRefCountedMessage(mm, nil))

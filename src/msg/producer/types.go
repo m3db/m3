@@ -45,7 +45,7 @@ type Message interface {
 	Bytes() []byte
 
 	// Size returns the size of the bytes of the message.
-	Size() uint32
+	Size() int
 
 	// Finalize will be called by producer to indicate the end of its lifecycle.
 	Finalize(FinalizeReason)

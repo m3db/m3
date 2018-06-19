@@ -46,7 +46,7 @@ func TestBuffer(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm.EXPECT().Size().Return(100).AnyTimes()
 
 	b := mustNewBuffer(t, testOptions())
 	require.Equal(t, 0, int(b.size.Load()))
@@ -54,7 +54,7 @@ func TestBuffer(t *testing.T) {
 
 	rm, err := b.Add(mm)
 	require.NoError(t, err)
-	require.Equal(t, uint64(mm.Size()), b.size.Load())
+	require.Equal(t, mm.Size(), int(b.size.Load()))
 
 	mm.EXPECT().Finalize(producer.Consumed)
 	// Finalize the message will reduce the buffer size.
@@ -68,7 +68,7 @@ func TestBufferAddMessageTooLarge(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm.EXPECT().Size().Return(100).AnyTimes()
 
 	b := mustNewBuffer(t, NewOptions().SetMaxMessageSize(1))
 	_, err := b.Add(mm)
@@ -81,7 +81,7 @@ func TestBufferAddMessageLargerThanMaxBufferSize(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm.EXPECT().Size().Return(100).AnyTimes()
 
 	b := mustNewBuffer(t, NewOptions().
 		SetMaxMessageSize(1).
@@ -97,12 +97,12 @@ func TestBufferCleanupEarliest(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm.EXPECT().Size().Return(100).AnyTimes()
 
 	b := mustNewBuffer(t, NewOptions())
 	rm, err := b.Add(mm)
 	require.NoError(t, err)
-	require.Equal(t, rm.Size(), uint64(mm.Size()))
+	require.Equal(t, int(rm.Size()), mm.Size())
 	require.Equal(t, rm.Size(), b.size.Load())
 	require.Equal(t, 1, b.buffers.Len())
 
@@ -119,13 +119,13 @@ func TestCleanupBatch(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm1 := producer.NewMockMessage(ctrl)
-	mm1.EXPECT().Size().Return(uint32(1)).AnyTimes()
+	mm1.EXPECT().Size().Return(1).AnyTimes()
 
 	mm2 := producer.NewMockMessage(ctrl)
-	mm2.EXPECT().Size().Return(uint32(2)).AnyTimes()
+	mm2.EXPECT().Size().Return(2).AnyTimes()
 
 	mm3 := producer.NewMockMessage(ctrl)
-	mm3.EXPECT().Size().Return(uint32(3)).AnyTimes()
+	mm3.EXPECT().Size().Return(3).AnyTimes()
 
 	b := mustNewBuffer(t, NewOptions().SetScanBatchSize(2))
 	_, err := b.Add(mm1)
@@ -158,13 +158,13 @@ func TestCleanupBatchWithElementBeingRemovedByOtherThread(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm1 := producer.NewMockMessage(ctrl)
-	mm1.EXPECT().Size().Return(uint32(1)).AnyTimes()
+	mm1.EXPECT().Size().Return(1).AnyTimes()
 
 	mm2 := producer.NewMockMessage(ctrl)
-	mm2.EXPECT().Size().Return(uint32(2)).AnyTimes()
+	mm2.EXPECT().Size().Return(2).AnyTimes()
 
 	mm3 := producer.NewMockMessage(ctrl)
-	mm3.EXPECT().Size().Return(uint32(3)).AnyTimes()
+	mm3.EXPECT().Size().Return(3).AnyTimes()
 
 	b := mustNewBuffer(t, NewOptions())
 	_, err := b.Add(mm1)
@@ -216,7 +216,7 @@ func TestBufferCleanupBackground(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm.EXPECT().Size().Return(100).AnyTimes()
 
 	b := mustNewBuffer(t, testOptions())
 	rm, err := b.Add(mm)
@@ -244,7 +244,7 @@ func TestListRemoveCleanupNextAndPrev(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm.EXPECT().Size().Return(100).AnyTimes()
 
 	b := mustNewBuffer(t, NewOptions())
 	_, err := b.Add(mm)
@@ -270,7 +270,7 @@ func TestBufferCloseDropEverything(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm.EXPECT().Size().Return(100).AnyTimes()
 
 	b := mustNewBuffer(t, testOptions())
 	rm, err := b.Add(mm)
@@ -297,7 +297,7 @@ func TestBufferDropEarliestOnFull(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm.EXPECT().Size().Return(100).AnyTimes()
 
 	b := mustNewBuffer(t,
 		testOptions().
@@ -332,7 +332,7 @@ func TestBufferReturnErrorOnFull(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm.EXPECT().Size().Return(100).AnyTimes()
 
 	b := mustNewBuffer(t, testOptions().
 		SetMaxMessageSize(int(mm.Size())).
@@ -371,7 +371,7 @@ func BenchmarkProduce(b *testing.B) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(100)).AnyTimes()
+	mm.EXPECT().Size().Return(100).AnyTimes()
 	mm.EXPECT().Finalize(producer.Dropped).AnyTimes()
 
 	buffer := mustNewBuffer(b, NewOptions().

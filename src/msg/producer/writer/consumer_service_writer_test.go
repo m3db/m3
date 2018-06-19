@@ -120,7 +120,7 @@ func TestConsumerServiceWriterWithSharedConsumerWithNonShardedPlacement(t *testi
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Shard().Return(uint32(1))
 	mm.EXPECT().Bytes().Return([]byte("foo"))
-	mm.EXPECT().Size().Return(uint32(3))
+	mm.EXPECT().Size().Return(3)
 	mm.EXPECT().Finalize(producer.Consumed)
 
 	rm := producer.NewRefCountedMessage(mm, nil)
@@ -256,7 +256,7 @@ func TestConsumerServiceWriterWithSharedConsumerWithShardedPlacement(t *testing.
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Shard().Return(uint32(1))
 	mm.EXPECT().Bytes().Return([]byte("foo"))
-	mm.EXPECT().Size().Return(uint32(3))
+	mm.EXPECT().Size().Return(3)
 	mm.EXPECT().Finalize(producer.Consumed)
 
 	rm := producer.NewRefCountedMessage(mm, nil)
@@ -381,7 +381,7 @@ func TestConsumerServiceWriterWithReplicatedConsumerWithShardedPlacement(t *test
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Shard().Return(uint32(1)).AnyTimes()
 	mm.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
-	mm.EXPECT().Size().Return(uint32(3))
+	mm.EXPECT().Size().Return(3)
 	mm.EXPECT().Finalize(producer.Consumed)
 
 	rm := producer.NewRefCountedMessage(mm, nil)
@@ -465,7 +465,7 @@ func TestConsumerServiceWriterWithReplicatedConsumerWithShardedPlacement(t *test
 	}()
 
 	mm.EXPECT().Finalize(producer.Consumed)
-	mm.EXPECT().Size().Return(uint32(3))
+	mm.EXPECT().Size().Return(3)
 	rm = producer.NewRefCountedMessage(mm, nil)
 	csw.Write(rm)
 	for {
@@ -502,10 +502,10 @@ func TestConsumerServiceWriterFilter(t *testing.T) {
 
 	mm0 := producer.NewMockMessage(ctrl)
 	mm0.EXPECT().Shard().Return(uint32(0)).AnyTimes()
-	mm0.EXPECT().Size().Return(uint32(3)).AnyTimes()
+	mm0.EXPECT().Size().Return(3).AnyTimes()
 	mm1 := producer.NewMockMessage(ctrl)
 	mm1.EXPECT().Shard().Return(uint32(1)).AnyTimes()
-	mm1.EXPECT().Size().Return(uint32(3)).AnyTimes()
+	mm1.EXPECT().Size().Return(3).AnyTimes()
 
 	sw0.EXPECT().Write(gomock.Any())
 	csw.Write(producer.NewRefCountedMessage(mm0, nil))
@@ -642,7 +642,7 @@ func TestConsumerServiceCloseShardWritersConcurrently(t *testing.T) {
 		mm := producer.NewMockMessage(ctrl)
 		mm.EXPECT().Shard().Return(i)
 		mm.EXPECT().Bytes().Return(b).AnyTimes()
-		mm.EXPECT().Size().Return(uint32(0)).AnyTimes()
+		mm.EXPECT().Size().Return(0).AnyTimes()
 		mm.EXPECT().Finalize(gomock.Any())
 		w.Write(producer.NewRefCountedMessage(mm, nil))
 	}

@@ -72,7 +72,7 @@ func TestMessageWriterWithPooling(t *testing.T) {
 
 	mm1 := producer.NewMockMessage(ctrl)
 	mm1.EXPECT().Bytes().Return([]byte("foo")).Times(1)
-	mm1.EXPECT().Size().Return(uint32(3)).Times(1)
+	mm1.EXPECT().Size().Return(3).Times(1)
 	mm1.EXPECT().Finalize(producer.Consumed)
 
 	w.Write(producer.NewRefCountedMessage(mm1, nil))
@@ -91,7 +91,7 @@ func TestMessageWriterWithPooling(t *testing.T) {
 
 	mm2 := producer.NewMockMessage(ctrl)
 	mm2.EXPECT().Bytes().Return([]byte("bar")).Times(1)
-	mm2.EXPECT().Size().Return(uint32(3)).Times(1)
+	mm2.EXPECT().Size().Return(3).Times(1)
 
 	w.Write(producer.NewRefCountedMessage(mm2, nil))
 	for {
@@ -155,7 +155,7 @@ func TestMessageWriterWithoutPooling(t *testing.T) {
 
 	mm1 := producer.NewMockMessage(ctrl)
 	mm1.EXPECT().Bytes().Return([]byte("foo")).Times(1)
-	mm1.EXPECT().Size().Return(uint32(3)).Times(1)
+	mm1.EXPECT().Size().Return(3).Times(1)
 	mm1.EXPECT().Finalize(producer.Consumed)
 
 	w.Write(producer.NewRefCountedMessage(mm1, nil))
@@ -174,7 +174,7 @@ func TestMessageWriterWithoutPooling(t *testing.T) {
 
 	mm2 := producer.NewMockMessage(ctrl)
 	mm2.EXPECT().Bytes().Return([]byte("bar")).Times(1)
-	mm2.EXPECT().Size().Return(uint32(3)).Times(1)
+	mm2.EXPECT().Size().Return(3).Times(1)
 
 	w.Write(producer.NewRefCountedMessage(mm2, nil))
 	for {
@@ -222,7 +222,7 @@ func TestMessageWriterRetryWithoutPooling(t *testing.T) {
 
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
-	mm.EXPECT().Size().Return(uint32(3)).Times(1)
+	mm.EXPECT().Size().Return(3).Times(1)
 	mm.EXPECT().Finalize(producer.Consumed)
 
 	rm := producer.NewRefCountedMessage(mm, nil)
@@ -282,7 +282,7 @@ func TestMessageWriterRetryWithPooling(t *testing.T) {
 
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Bytes().Return([]byte("foo")).AnyTimes()
-	mm.EXPECT().Size().Return(uint32(3)).Times(1)
+	mm.EXPECT().Size().Return(3).Times(1)
 	mm.EXPECT().Finalize(producer.Consumed)
 
 	rm := producer.NewRefCountedMessage(mm, nil)
@@ -337,7 +337,7 @@ func TestMessageWriterCleanupDroppedMessage(t *testing.T) {
 
 	mm := producer.NewMockMessage(ctrl)
 
-	mm.EXPECT().Size().Return(uint32(3)).Times(1)
+	mm.EXPECT().Size().Return(3).Times(1)
 	rm := producer.NewRefCountedMessage(mm, nil)
 	mm.EXPECT().Finalize(producer.Dropped)
 	rm.Drop()
@@ -381,7 +381,7 @@ func TestMessageWriterCleanupAckedMessage(t *testing.T) {
 
 	mm := producer.NewMockMessage(ctrl)
 	mm.EXPECT().Bytes().Return([]byte("foo"))
-	mm.EXPECT().Size().Return(uint32(3)).Times(1)
+	mm.EXPECT().Size().Return(3).Times(1)
 
 	rm := producer.NewRefCountedMessage(mm, nil)
 	// Another message write also holds this message.
@@ -443,7 +443,7 @@ func TestMessageWriterCutoverCutoff(t *testing.T) {
 	require.Equal(t, 0, w.queue.Len())
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(3))
+	mm.EXPECT().Size().Return(3)
 	w.Write(producer.NewRefCountedMessage(mm, nil))
 	require.Equal(t, 0, w.queue.Len())
 }
@@ -459,13 +459,13 @@ func TestMessageWriterRetryIterateBatch(t *testing.T) {
 	w := newMessageWriter(200, testMessagePool(opts), opts, testMessageWriterMetrics()).(*messageWriterImpl)
 
 	mm1 := producer.NewMockMessage(ctrl)
-	mm1.EXPECT().Size().Return(uint32(3))
+	mm1.EXPECT().Size().Return(3)
 	mm2 := producer.NewMockMessage(ctrl)
-	mm2.EXPECT().Size().Return(uint32(3))
+	mm2.EXPECT().Size().Return(3)
 	mm3 := producer.NewMockMessage(ctrl)
-	mm3.EXPECT().Size().Return(uint32(3))
+	mm3.EXPECT().Size().Return(3)
 	mm4 := producer.NewMockMessage(ctrl)
-	mm4.EXPECT().Size().Return(uint32(3))
+	mm4.EXPECT().Size().Return(3)
 	rm1 := producer.NewRefCountedMessage(mm1, nil)
 	rm2 := producer.NewRefCountedMessage(mm2, nil)
 	rm3 := producer.NewRefCountedMessage(mm3, nil)
@@ -542,7 +542,7 @@ func TestMessageWriterCloseCleanupAllMessages(t *testing.T) {
 	defer ctrl.Finish()
 
 	mm := producer.NewMockMessage(ctrl)
-	mm.EXPECT().Size().Return(uint32(3))
+	mm.EXPECT().Size().Return(3)
 
 	rm := producer.NewRefCountedMessage(mm, nil)
 	mm.EXPECT().Finalize(producer.Consumed)

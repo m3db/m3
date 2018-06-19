@@ -78,9 +78,9 @@ func (_mr *_MockMessageRecorder) Shard() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Shard")
 }
 
-func (_m *MockMessage) Size() uint32 {
+func (_m *MockMessage) Size() int {
 	ret := _m.ctrl.Call(_m, "Size")
-	ret0, _ := ret[0].(uint32)
+	ret0, _ := ret[0].(int)
 	return ret0
 }
 
