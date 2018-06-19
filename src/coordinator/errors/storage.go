@@ -54,4 +54,8 @@ var (
 
 	// ErrCannotDecodeCompressedTags is an error returned when compressed tags cannot be decoded
 	ErrCannotDecodeCompressedTags = errors.New("unable to decode compressed tags")
+
+	// ErrOnlyFixedResSupported is an error returned we try to get step size for variable resolution
+	ErrOnlyFixedResSupported = errors.New("only fixed resolution supported")
+
 )

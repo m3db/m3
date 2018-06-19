@@ -45,7 +45,7 @@ func (c *columnBlock) StepIter() StepIter {
 	return &colBlockIter{
 		columns: c.columns,
 		meta:    c.meta,
-		index:   -1,
+		idx:     -1,
 	}
 }
 
@@ -70,19 +70,20 @@ func (c *columnBlock) Close() error {
 type colBlockIter struct {
 	columns []column
 	meta    Metadata
-	index   int
+	idx     int
 }
 
 // Next returns true if iterator has more values remaining
 func (c *colBlockIter) Next() bool {
-	c.index++
-	return c.index < len(c.columns)
+	c.idx++
+	return c.idx < len(c.columns)
 }
 
 // Current returns the current step
 func (c *colBlockIter) Current() Step {
-	col := c.columns[c.index]
-	t, err := c.meta.Bounds.TimeForIndex(c.index)
+	col := c.columns[c.idx]
+	t, err := c.meta.Bounds.TimeForIndex(c.idx)
+	// TODO: Test panic case
 	if err != nil {
 		panic(err)
 	}
@@ -132,14 +133,14 @@ func NewColumnBlockBuilder(meta Metadata) Builder {
 	}
 }
 
-// AppendValue adds a value to a column at index
-func (cb ColumnBlockBuilder) AppendValue(index int, value float64) error {
+// AppendValue adds a value to a column at idx
+func (cb ColumnBlockBuilder) AppendValue(idx int, value float64) error {
 	columns := cb.block.columns
-	if len(columns) <= index {
-		return fmt.Errorf("index out of range for append: %d", index)
+	if len(columns) <= idx {
+		return fmt.Errorf("idx out of range for append: %d", idx)
 	}
 
-	columns[index].Values = append(columns[index].Values, value)
+	columns[idx].Values = append(columns[idx].Values, value)
 	return nil
 }
 

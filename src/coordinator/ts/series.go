@@ -24,9 +24,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/models"
-
-	"github.com/pkg/errors"
 )
 
 // A Series is the public interface to a block of timeseries values.  Each block has a start time,
@@ -47,22 +46,22 @@ func NewSeries(name string, vals Values, tags models.Tags) *Series {
 }
 
 // Name returns the name of the timeseries block
-func (b *Series) Name() string { return b.name }
+func (s *Series) Name() string { return s.name }
 
 // Len returns the number of values in the time series. Used for aggregation
-func (b *Series) Len() int { return b.vals.Len() }
+func (s *Series) Len() int { return s.vals.Len() }
 
 // Values returns the underlying values interface
-func (b *Series) Values() Values { return b.vals }
+func (s *Series) Values() Values { return s.vals }
 
 // Align adjusts the datapoints to start, end and a fixed interval
-func (b *Series) Align(start, end time.Time, interval time.Duration) (*Series, error) {
-	fixedVals, err := alignValues(b.Values(), start, end, interval)
+func (s *Series) Align(start, end time.Time, interval time.Duration) (*Series, error) {
+	fixedVals, err := alignValues(s.Values(), start, end, interval)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewSeries(b.name, fixedVals, b.Tags), nil
+	return NewSeries(s.name, fixedVals, s.Tags), nil
 }
 
 func alignValues(values Values, start, end time.Time, interval time.Duration) (FixedResolutionMutableValues, error) {
@@ -86,7 +85,7 @@ func (seriesList SeriesList) Resolution() (time.Duration, error) {
 	for i, s := range seriesList {
 		fixedRes, ok := s.Values().(FixedResolutionMutableValues)
 		if !ok {
-			return 0, errors.New("only fixed resolution supported")
+			return 0, errors.ErrOnlyFixedResSupported
 		}
 
 		if i == 0 {

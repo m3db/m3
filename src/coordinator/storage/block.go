@@ -86,6 +86,7 @@ func (m multiSeriesBlock) SeriesMeta() []block.SeriesMeta {
 	return metas
 }
 
+// TODO: Actually free up resources
 func (m multiSeriesBlock) Close() error {
 	return nil
 }
@@ -123,6 +124,7 @@ func (m *multiSeriesBlockStepIter) Steps() int {
 	return m.block.seriesList[0].Values().Len()
 }
 
+// TODO: Actually free up resources
 func (m *multiSeriesBlockStepIter) Close() {
 }
 

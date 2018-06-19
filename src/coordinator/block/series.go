@@ -36,7 +36,7 @@ func NewSeries(values []float64, bounds Bounds) Series {
 	return Series{values: values, bounds: bounds}
 }
 
-// ValueAtStep returns the datapoint value at a step index
+// ValueAtStep returns the datapoint value at a step idx
 func (s Series) ValueAtStep(idx int) float64 {
 	return s.values[idx]
 }
