@@ -813,8 +813,29 @@ func TestUnaggregatedIteratorNextOnClose(t *testing.T) {
 	require.False(t, it.Next())
 	require.True(t, iterator.closed)
 	require.Equal(t, encoding.UnaggregatedMessageUnion{}, iterator.msg)
-	require.Nil(t, it.Err())
 
 	// Verify that closing a second time is a no op.
 	it.Close()
+}
+
+func TestUnaggregatedIteratorClose(t *testing.T) {
+	it := NewUnaggregatedIterator(
+		nil,
+		msgpack.NewUnaggregatedIteratorOptions(),
+		protobuf.NewUnaggregatedOptions(),
+	)
+	require.False(t, it.(*unaggregatedIterator).closed)
+	require.NotNil(t, it.(*unaggregatedIterator).msgpackIt)
+	require.NotNil(t, it.(*unaggregatedIterator).protobufIt)
+
+	it.Close()
+	require.True(t, it.(*unaggregatedIterator).closed)
+	require.Nil(t, it.(*unaggregatedIterator).msgpackIt)
+	require.Nil(t, it.(*unaggregatedIterator).protobufIt)
+
+	// Verify that closing a second time is a no op.
+	it.Close()
+	require.True(t, it.(*unaggregatedIterator).closed)
+	require.Nil(t, it.(*unaggregatedIterator).msgpackIt)
+	require.Nil(t, it.(*unaggregatedIterator).protobufIt)
 }
