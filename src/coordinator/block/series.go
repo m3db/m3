@@ -18,22 +18,40 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package executor
+package block
 
 import (
-	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/parser"
+	"fmt"
+	"time"
 )
 
-// Result provides the execution results
-type Result interface {
+// Series is a single series within a block
+type Series struct {
+	values []float64
+	bounds Bounds
 }
 
-// ResultNode is used to provide the results to the caller from the query execution
-type ResultNode struct {
+// NewSeries creates a new series
+func NewSeries(values []float64, bounds Bounds) Series {
+	return Series{values: values, bounds: bounds}
 }
 
-// Process the block
-func (r ResultNode) Process(ID parser.NodeID, block block.Block) error {
-	return nil
+// ValueAtStep returns the datapoint value at a step index
+func (s Series) ValueAtStep(idx int) float64 {
+	return s.values[idx]
+}
+
+// ValueAtTime returns the datapoint value at a given time
+func (s Series) ValueAtTime(t time.Time) (float64, error) {
+	bounds := s.bounds
+	if t.Before(bounds.Start) || t.After(bounds.End) {
+		return 0, fmt.Errorf(errBounds, t, bounds)
+	}
+
+	step := int(t.Sub(bounds.Start) / bounds.StepSize)
+	if step >= len(s.values) {
+		return 0, fmt.Errorf(errBounds, t, bounds)
+	}
+
+	return s.ValueAtStep(step), nil
 }

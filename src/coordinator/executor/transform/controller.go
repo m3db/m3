@@ -21,9 +21,8 @@
 package transform
 
 import (
-	"github.com/m3db/m3db/src/coordinator/errors"
+	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/parser"
-	"github.com/m3db/m3db/src/coordinator/storage"
 )
 
 // Controller controls the caching and forwarding the request to downstream.
@@ -38,7 +37,7 @@ func (t *Controller) AddTransform(node OpNode) {
 }
 
 // Process performs processing on the underlying transforms
-func (t *Controller) Process(block storage.Block) error {
+func (t *Controller) Process(block block.Block) error {
 	for _, ts := range t.transforms {
 		err := ts.Process(t.ID, block)
 		if err != nil {
@@ -51,12 +50,6 @@ func (t *Controller) Process(block storage.Block) error {
 
 // BlockBuilder returns a BlockBuilder instance with associated metadata
 // nolint: unparam
-func (t *Controller) BlockBuilder(blockMeta storage.BlockMetadata) (BlockBuilder, error) {
-	return nil, errors.ErrNotImplemented
-}
-
-// BlockBuilder builds a new block
-type BlockBuilder interface {
-	AppendValue(index int, value float64)
-	Build() storage.Block
+func (t *Controller) BlockBuilder(blockMeta block.Metadata) (block.Builder, error) {
+	return block.NewColumnBlockBuilder(blockMeta), nil
 }
