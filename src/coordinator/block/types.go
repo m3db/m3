@@ -28,8 +28,8 @@ import (
 )
 
 const (
-	// errBounds is returned when time requested is outside the block bounds
-	errBounds = "out of bounds, time: %v, bounds: %v"
+	// errBounds is returned when time requested is outside the block Bounds
+	errBounds = "out of Bounds, time: %v, Bounds: %v"
 )
 
 // Block represents a group of series across a time bound
@@ -46,7 +46,7 @@ type SeriesMeta struct {
 	Tags models.Tags
 }
 
-// Bounds are the time bounds
+// Bounds are the time Bounds
 type Bounds struct {
 	Start    time.Time
 	End      time.Time
@@ -58,7 +58,7 @@ func (b Bounds) TimeForIndex(idx int) (time.Time, error) {
 	step := b.StepSize
 	t := b.Start.Add(time.Duration(idx) * step)
 	if t.After(b.End) {
-		return time.Time{}, fmt.Errorf("out of bounds, %d", idx)
+		return time.Time{}, fmt.Errorf("out of Bounds, %d", idx)
 	}
 
 	return t, nil

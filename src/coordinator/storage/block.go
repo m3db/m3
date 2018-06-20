@@ -148,7 +148,7 @@ func (m *multiSeriesBlockSeriesIter) Current() block.Series {
 	for i := 0; i < s.Len(); i++ {
 		values[i] = s.Values().ValueAt(i)
 	}
-	return block.NewSeries(values, m.block.meta.Bounds)
+	return block.NewSeries(values, m.block.meta.Bounds, s.Name())
 }
 
 func (m *multiSeriesBlockSeriesIter) Close()  {

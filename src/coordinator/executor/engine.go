@@ -44,6 +44,7 @@ type EngineOptions struct {
 	Now     time.Time
 }
 
+// Query is the result after execution
 type Query struct {
 	Err    error
 	Result Result

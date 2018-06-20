@@ -24,18 +24,19 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/prometheus"
+	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/parser/promql"
 	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"go.uber.org/zap"
-	"time"
-	"github.com/m3db/m3db/src/coordinator/block"
 )
 
 const (
@@ -148,6 +149,7 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, re
 
 	// Results is closed by execute
 	results := make(chan executor.Query)
+	// Block series slices are sorted by start time
 	seriesMap := make(map[string][]block.Series)
 	go h.engine.ExecuteExpr(ctx, parser, opts, results)
 
@@ -157,19 +159,11 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, re
 		}
 
 		blocks := result.Result.Blocks()
-		// TODO: Stream blocks
+		// TODO: Stream blocks to client
 		for blk := range blocks {
 			iter := blk.SeriesIter()
 			for iter.Next() {
-				blockSeries := iter.Current()
-				s, ok := seriesMap[blockSeries.ID]
-				if !ok {
-					seriesMap[blockSeries.ID] = make([]block.Series, 1)
-					seriesMap[blockSeries.ID][0] = blockSeries
-				} else {
-					s = append(s, blockSeries)
-					seriesMap[blockSeries.ID] = s
-				}
+				insertSeriesInMap(iter.Current(), seriesMap)
 			}
 
 			blk.Close()
@@ -178,20 +172,63 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, re
 
 	return seriesMapToSeriesList(seriesMap)
 }
+
+func insertSeriesInMap(blockSeries block.Series, seriesMap map[string][]block.Series) {
+	blockList, ok := seriesMap[blockSeries.ID]
+	if !ok {
+		seriesMap[blockSeries.ID] = make([]block.Series, 1)
+		seriesMap[blockSeries.ID][0] = blockSeries
+		return
+	}
+
+	// Insert sorted by start time
+	for idx, s := range blockList {
+		if blockSeries.Bounds.Start.Before(s.Bounds.Start) {
+			blockList = append(blockList, block.Series{})
+			copy(blockList[idx+1:], blockList[idx:])
+			blockList[idx] = blockSeries
+			seriesMap[blockSeries.ID] = blockList
+			return
+		}
+	}
+
+	// If all start times lesser, then append to the end
+	seriesMap[blockSeries.ID] = append(blockList, blockSeries)
+}
+
 func seriesMapToSeriesList(seriesMap map[string][]block.Series) ([]ts.Series, error) {
 	seriesList := make([]ts.Series, 0, len(seriesMap))
-	for id, blockSeriesList := range seriesMap {
-		s, err := blockSeriesListToSeries(blockSeriesList, id)
+	for _, blockSeriesList := range seriesMap {
+		s, err := blockSeriesListToSeries(blockSeriesList)
 		if err != nil {
 			return nil, err
 		}
 
-		seriesList = append(seriesList, s)
+		seriesList = append(seriesList, *s)
 	}
 
 	return seriesList, nil
 }
 
-func blockSeriesListToSeries(series []block.Series, id string) (ts.Series, error) {
+func blockSeriesListToSeries(series []block.Series) (*ts.Series, error) {
+	if len(series) == 0 {
+		return &ts.Series{}, nil
+	}
 
+	firstSeries := series[0]
+	var totalDatapoints int
+	for _, s := range series {
+		totalDatapoints += s.Len()
+	}
+
+	values := ts.NewFixedStepValues(firstSeries.Bounds.StepSize, totalDatapoints, math.NaN(), firstSeries.Bounds.Start)
+	valIdx := 0
+	for _, s := range series {
+		for idx := 0 ; idx < s.Len(); idx++ {
+			values.SetValueAt(valIdx, s.ValueAtStep(idx))
+			valIdx++
+		}
+	}
+
+	return ts.NewSeries(firstSeries.ID, values, nil), nil
 }

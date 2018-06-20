@@ -40,3 +40,14 @@ type ResultNode struct {
 func (r ResultNode) Process(ID parser.NodeID, block block.Block) error {
 	return nil
 }
+
+// Blocks return a channel to stream back blocks to the client
+func (r ResultNode) Blocks() chan block.Block {
+	return nil
+}
+
+func (r ResultNode) abort(err error) {
+}
+
+func (r ResultNode) done() {
+}
