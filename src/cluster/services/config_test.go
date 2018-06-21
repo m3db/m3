@@ -81,3 +81,19 @@ TTLSeconds: 15
 	require.Equal(t, time.Second*10, opts.ResignTimeout())
 	require.Equal(t, 15, opts.TTLSecs())
 }
+
+func TestServiceID(t *testing.T) {
+	configStr := `
+name: sampleName
+environment: sampleEnvironment
+zone: sampleZone
+`
+
+	var cfg ServiceIDConfiguration
+	err := yaml.Unmarshal([]byte(configStr), &cfg)
+	require.NoError(t, err)
+	sID := cfg.NewServiceID()
+	require.Equal(t, "sampleName", sID.Name())
+	require.Equal(t, "sampleEnvironment", sID.Environment())
+	require.Equal(t, "sampleZone", sID.Zone())
+}
