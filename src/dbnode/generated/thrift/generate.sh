@@ -7,7 +7,7 @@ set -e
 docker run --rm hello-world >/dev/null
 
 # generate files using dockerized thrift-gen
-THRIFT_IMAGE_VERSION=${THRIFT_IMAGE_VERSION:-"quay.io/prateekrungta/thrift-gen:0.1.0"}
+THRIFT_IMAGE_VERSION=${THRIFT_IMAGE_VERSION:-"quay.io/m3db/thrift-gen:0.1.0"}
 docker run --rm -u $(id -u) -v "$(pwd):/data" \
   "$THRIFT_IMAGE_VERSION" --generateThrift    \
   --inputFile /data/rpc.thrift --outputDir /data

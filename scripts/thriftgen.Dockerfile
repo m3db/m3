@@ -1,3 +1,5 @@
+# built artifacts maintained externally at https://quay.io/repository/m3db/thrift-gen
+
 # stage 1: build thrift-gen binary
 FROM golang:1.10-alpine AS thriftgen
 LABEL maintainer="The M3DB Authors <m3db@googlegroups.com>"
