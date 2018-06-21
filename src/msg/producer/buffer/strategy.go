@@ -25,7 +25,7 @@ import "fmt"
 var (
 	validStrategies = []OnFullStrategy{
 		ReturnError,
-		DropEarliest,
+		DropOldest,
 	}
 )
 

@@ -30,17 +30,19 @@ import (
 
 // BufferConfiguration configs the buffer.
 type BufferConfiguration struct {
-	OnFullStrategy     *buffer.OnFullStrategy `yaml:"onFullStrategy"`
-	MaxBufferSize      *int                   `yaml:"maxBufferSize"`
-	MaxMessageSize     *int                   `yaml:"maxMessageSize"`
-	CloseCheckInterval *time.Duration         `yaml:"closeCheckInterval"`
-	ScanBatchSize      *int                   `yaml:"scanBatchSize"`
-	CleanupRetry       *retry.Configuration   `yaml:"cleanupRetry"`
+	OnFullStrategy        *buffer.OnFullStrategy `yaml:"onFullStrategy"`
+	MaxBufferSize         *int                   `yaml:"maxBufferSize"`
+	MaxMessageSize        *int                   `yaml:"maxMessageSize"`
+	CloseCheckInterval    *time.Duration         `yaml:"closeCheckInterval"`
+	DropOldestInterval    *time.Duration         `yaml:"dropOldestInterval"`
+	ScanBatchSize         *int                   `yaml:"scanBatchSize"`
+	AllowedSpilloverRatio *float64               `yaml:"allowedSpilloverRatio"`
+	CleanupRetry          *retry.Configuration   `yaml:"cleanupRetry"`
 }
 
 // NewOptions creates new buffer options.
 func (c *BufferConfiguration) NewOptions(iOpts instrument.Options) buffer.Options {
-	opts := buffer.NewOptions().SetOnFullStrategy(buffer.DropEarliest)
+	opts := buffer.NewOptions().SetOnFullStrategy(buffer.DropOldest)
 	if c.MaxBufferSize != nil {
 		opts = opts.SetMaxBufferSize(*c.MaxBufferSize)
 	}
@@ -53,8 +55,14 @@ func (c *BufferConfiguration) NewOptions(iOpts instrument.Options) buffer.Option
 	if c.OnFullStrategy != nil {
 		opts = opts.SetOnFullStrategy(*c.OnFullStrategy)
 	}
+	if c.DropOldestInterval != nil {
+		opts = opts.SetDropOldestInterval(*c.DropOldestInterval)
+	}
 	if c.ScanBatchSize != nil {
 		opts = opts.SetScanBatchSize(*c.ScanBatchSize)
+	}
+	if c.AllowedSpilloverRatio != nil {
+		opts = opts.SetAllowedSpilloverRatio(*c.AllowedSpilloverRatio)
 	}
 	if c.CleanupRetry != nil {
 		opts = opts.SetCleanupRetryOptions(c.CleanupRetry.NewOptions(iOpts.MetricsScope()))

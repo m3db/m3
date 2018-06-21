@@ -35,9 +35,9 @@ func TestStrategyYamlUnmarshal(t *testing.T) {
 		expectedStrategy OnFullStrategy
 	}{
 		{
-			bytes:            []byte("dropEarliest"),
+			bytes:            []byte("dropOldest"),
 			expectErr:        false,
-			expectedStrategy: DropEarliest,
+			expectedStrategy: DropOldest,
 		},
 		{
 			bytes:            []byte("returnError"),
