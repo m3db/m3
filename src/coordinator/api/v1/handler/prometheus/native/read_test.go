@@ -42,18 +42,6 @@ const (
 	target    = "?target="
 )
 
-func TestPromReadParsing(t *testing.T) {
-	logging.InitWithCores(nil)
-	ctrl := gomock.NewController(t)
-	storage, _ := local.NewStorageAndSession(ctrl)
-	promRead := &PromReadHandler{engine: executor.NewEngine(storage)}
-
-	req, _ := http.NewRequest("GET", createURL().String(), nil)
-
-	r, err := promRead.parseRequest(req)
-	require.Nil(t, err, "unable to parse request")
-	require.Equal(t, promQuery, r)
-}
 
 func TestPromReadNotImplemented(t *testing.T) {
 	logging.InitWithCores(nil)

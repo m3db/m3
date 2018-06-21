@@ -23,13 +23,9 @@ package native
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"math"
 	"net/http"
-	"time"
-
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
-	"github.com/m3db/m3db/src/coordinator/api/v1/handler/prometheus"
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/parser/promql"
@@ -45,14 +41,6 @@ const (
 
 	// PromReadHTTPMethod is the HTTP method used with this resource.
 	PromReadHTTPMethod = http.MethodGet
-
-	targetQuery = "target"
-)
-
-var (
-	errBatchQuery    = errors.New("batch queries are currently not supported")
-	errNoQueryFound  = errors.New("no query found")
-	errNoTargetFound = errors.New("no target found")
 )
 
 // PromReadHandler represents a handler for prometheus read endpoint.
@@ -74,19 +62,13 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	req, rErr := h.parseRequest(r)
+	params, rErr := ParseParams(r)
 	if rErr != nil {
 		handler.Error(w, rErr.Error(), rErr.Code())
 		return
 	}
 
-	timeout, err := prometheus.ParseRequestTimeout(r)
-	if err != nil {
-		handler.Error(w, err, http.StatusBadRequest)
-		return
-	}
-
-	result, err := h.read(ctx, w, req, timeout)
+	result, err := h.read(ctx, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Any("error", err))
 		handler.Error(w, err, http.StatusInternalServerError)
@@ -113,36 +95,18 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *PromReadHandler) parseRequest(r *http.Request) (string, *handler.ParseError) {
-	targetQueries, ok := r.URL.Query()[targetQuery]
-	if !ok {
-		return "", handler.NewParseError(errNoTargetFound, http.StatusBadRequest)
-	}
-
-	// NB(braskin): currently, we only support one query at a time
-	if len(targetQueries) > 1 {
-		return "", handler.NewParseError(errBatchQuery, http.StatusBadRequest)
-	}
-
-	if len(targetQueries) == 0 {
-		return "", handler.NewParseError(errNoQueryFound, http.StatusBadRequest)
-	}
-
-	return targetQueries[0], nil
-}
-
-func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, req string, timeout time.Duration) ([]ts.Series, error) {
-	ctx, cancel := context.WithTimeout(reqCtx, timeout)
+func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, params RequestParams) ([]ts.Series, error) {
+	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
 	defer cancel()
 
 	opts := &executor.EngineOptions{
-		Now: time.Now(),
+		Now: params.Now,
 	}
 	// Detect clients closing connections
 	abortCh, _ := handler.CloseWatcher(ctx, w)
 	opts.AbortCh = abortCh
 
-	parser, err := promql.Parse(req)
+	parser, err := promql.Parse(params.Target)
 	if err != nil {
 		return nil, err
 	}
