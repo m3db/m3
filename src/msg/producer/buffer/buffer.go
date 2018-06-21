@@ -35,6 +35,8 @@ import (
 )
 
 var (
+	emptyStruct = struct{}{}
+
 	errBufferFull        = errors.New("buffer full")
 	errBufferClosed      = errors.New("buffer closed")
 	errMessageTooLarge   = errors.New("message size larger than allowed")
@@ -46,6 +48,8 @@ type bufferMetrics struct {
 	byteDropped       tally.Counter
 	messageTooLarge   tally.Counter
 	cleanupNoProgress tally.Counter
+	dropOldestSync    tally.Counter
+	dropOldestAsync   tally.Counter
 	messageBuffered   tally.Gauge
 	byteBuffered      tally.Gauge
 	bufferScanBatch   tally.Timer
@@ -60,6 +64,8 @@ func newBufferMetrics(
 		byteDropped:       scope.Counter("buffer-byte-dropped"),
 		messageTooLarge:   scope.Counter("message-too-large"),
 		cleanupNoProgress: scope.Counter("cleanup-no-progress"),
+		dropOldestSync:    scope.Counter("drop-oldest-sync"),
+		dropOldestAsync:   scope.Counter("drop-oldest-async"),
 		messageBuffered:   scope.Gauge("message-buffered"),
 		byteBuffered:      scope.Gauge("byte-buffered"),
 		bufferScanBatch:   instrument.MustCreateSampledTimer(scope.Timer("buffer-scan-batch"), samplingRate),
@@ -69,19 +75,22 @@ func newBufferMetrics(
 type buffer struct {
 	sync.RWMutex
 
-	buffers        *list.List
-	opts           Options
-	maxBufferSize  uint64
-	maxMessageSize int
-	onFinalizeFn   producer.OnFinalizeFn
-	retrier        retry.Retrier
-	m              bufferMetrics
+	listLock         sync.RWMutex
+	bufferList       *list.List
+	opts             Options
+	maxBufferSize    uint64
+	maxSpilloverSize uint64
+	maxMessageSize   int
+	onFinalizeFn     producer.OnFinalizeFn
+	retrier          retry.Retrier
+	m                bufferMetrics
 
-	size      *atomic.Uint64
-	isClosed  bool
-	doneCh    chan struct{}
-	forceDrop bool
-	wg        sync.WaitGroup
+	size         *atomic.Uint64
+	isClosed     bool
+	dropOldestCh chan struct{}
+	doneCh       chan struct{}
+	forceDrop    bool
+	wg           sync.WaitGroup
 }
 
 // NewBuffer returns a new buffer.
@@ -92,19 +101,23 @@ func NewBuffer(opts Options) (producer.Buffer, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
+	maxBufferSize := uint64(opts.MaxBufferSize())
+	allowedSpillover := float64(maxBufferSize) * opts.AllowedSpilloverRatio()
 	b := &buffer{
-		buffers:        list.New(),
-		maxBufferSize:  uint64(opts.MaxBufferSize()),
-		maxMessageSize: opts.MaxMessageSize(),
-		opts:           opts,
-		retrier:        retry.NewRetrier(opts.CleanupRetryOptions()),
+		bufferList:       list.New(),
+		maxBufferSize:    maxBufferSize,
+		maxSpilloverSize: uint64(allowedSpillover) + maxBufferSize,
+		maxMessageSize:   opts.MaxMessageSize(),
+		opts:             opts,
+		retrier:          retry.NewRetrier(opts.CleanupRetryOptions()),
 		m: newBufferMetrics(
 			opts.InstrumentOptions().MetricsScope(),
 			opts.InstrumentOptions().MetricsSamplingRate(),
 		),
-		size:     atomic.NewUint64(0),
-		doneCh:   make(chan struct{}),
-		isClosed: false,
+		size:         atomic.NewUint64(0),
+		isClosed:     false,
+		dropOldestCh: make(chan struct{}, 1),
+		doneCh:       make(chan struct{}),
 	}
 	b.onFinalizeFn = b.subSize
 	return b, nil
@@ -116,58 +129,65 @@ func (b *buffer) Add(m producer.Message) (*producer.RefCountedMessage, error) {
 		b.m.messageTooLarge.Inc(1)
 		return nil, errMessageTooLarge
 	}
-	b.Lock()
+	b.RLock()
 	if b.isClosed {
-		b.Unlock()
+		b.RUnlock()
 		return nil, errBufferClosed
 	}
-	dataSize := uint64(s)
-	targetBufferSize := b.maxBufferSize - dataSize
-	if b.size.Load() > targetBufferSize {
-		if err := b.produceOnFullWithLock(targetBufferSize); err != nil {
-			b.Unlock()
+	messageSize := uint64(s)
+	newBufferSize := b.size.Add(messageSize)
+	if newBufferSize > b.maxBufferSize {
+		if err := b.produceOnFull(newBufferSize, messageSize); err != nil {
+			b.RUnlock()
 			return nil, err
 		}
 	}
-	b.size.Add(dataSize)
 	rm := producer.NewRefCountedMessage(m, b.onFinalizeFn)
-	b.buffers.PushBack(rm)
-	b.Unlock()
+	b.listLock.Lock()
+	b.bufferList.PushBack(rm)
+	b.listLock.Unlock()
+	b.RUnlock()
 	return rm, nil
 }
 
-func (b *buffer) produceOnFullWithLock(targetSize uint64) error {
+func (b *buffer) produceOnFull(newBufferSize uint64, messageSize uint64) error {
 	switch b.opts.OnFullStrategy() {
 	case ReturnError:
+		b.size.Sub(messageSize)
 		return errBufferFull
-	case DropEarliest:
-		b.dropEarliestUntilTargetWithLock(targetSize)
+	case DropOldest:
+		if newBufferSize >= b.maxSpilloverSize {
+			// The size after the write reached max allowed spill over size.
+			// We have to clean up the buffer synchronizely to make room for
+			// the new write.
+			b.dropOldestUntilTarget(b.maxBufferSize)
+			b.m.dropOldestSync.Inc(1)
+			return nil
+		}
+		// The new message is within the allowed spill over range, clean up
+		// the buffer asynchronizely.
+		select {
+		case b.dropOldestCh <- emptyStruct:
+		default:
+		}
+		b.m.dropOldestAsync.Inc(1)
 	}
 	return nil
-}
-
-func (b *buffer) dropEarliestUntilTargetWithLock(targetSize uint64) {
-	var next *list.Element
-	for e := b.buffers.Front(); e != nil && b.size.Load() > targetSize; e = next {
-		next = e.Next()
-		rm := e.Value.(*producer.RefCountedMessage)
-		b.buffers.Remove(e)
-		if rm.IsDroppedOrConsumed() {
-			continue
-		}
-		// There is a chance that the message is consumed right before
-		// the drop call which will lead drop to return false.
-		if rm.Drop() {
-			b.m.messageDropped.Inc(1)
-			b.m.byteDropped.Inc(int64(rm.Size()))
-		}
-	}
 }
 
 func (b *buffer) Init() {
 	b.wg.Add(1)
 	go func() {
 		b.cleanupUntilClose()
+		b.wg.Done()
+	}()
+
+	if b.opts.OnFullStrategy() != DropOldest {
+		return
+	}
+	b.wg.Add(1)
+	go func() {
+		b.dropOldestUntilClose()
 		b.wg.Done()
 	}()
 }
@@ -200,8 +220,11 @@ func (b *buffer) cleanupUntilClose() {
 }
 
 func (b *buffer) cleanup() error {
+	b.listLock.RLock()
+	e := b.bufferList.Front()
+	b.listLock.RUnlock()
 	b.RLock()
-	e := b.buffers.Front()
+	forceDrop := b.forceDrop
 	b.RUnlock()
 	var (
 		batchSize    = b.opts.ScanBatchSize()
@@ -214,14 +237,14 @@ func (b *buffer) cleanup() error {
 		// thread since the lock will be released between scan batch.
 		// For example when the there is a slow/dead consumer that is not
 		// consuming anything and caused buffer to be full, a new write could
-		// trigger dropEarliest and remove elements from the front of the list.
+		// trigger dropOldest and remove elements from the front of the list.
 		// In this case, the batch starting from the removed element will do
 		// nothing and will finish the tick, which is good as this avoids the
 		// tick repeatedly scanning and doing nothing because nothing is being
 		// consumed.
-		b.Lock()
-		e, batchRemoved = b.cleanupBatchWithLock(e, batchSize)
-		b.Unlock()
+		b.listLock.Lock()
+		e, batchRemoved = b.cleanupBatchWithListLock(e, batchSize, forceDrop)
+		b.listLock.Unlock()
 		b.m.bufferScanBatch.Record(time.Since(beforeBatch))
 		totalRemoved += batchRemoved
 	}
@@ -234,9 +257,10 @@ func (b *buffer) cleanup() error {
 	return nil
 }
 
-func (b *buffer) cleanupBatchWithLock(
+func (b *buffer) cleanupBatchWithListLock(
 	start *list.Element,
 	batchSize int,
+	forceDrop bool,
 ) (*list.Element, int) {
 	var (
 		iterated int
@@ -251,23 +275,81 @@ func (b *buffer) cleanupBatchWithLock(
 		next = e.Next()
 		rm := e.Value.(*producer.RefCountedMessage)
 		if rm.IsDroppedOrConsumed() {
-			b.buffers.Remove(e)
+			b.bufferList.Remove(e)
 			removed++
 			continue
 		}
-		if !b.forceDrop {
+		if !forceDrop {
 			continue
 		}
 		// There is a chance that the message is consumed right before
 		// the drop call which will lead drop to return false.
 		if rm.Drop() {
-			b.buffers.Remove(e)
+			b.bufferList.Remove(e)
 			removed++
 			b.m.messageDropped.Inc(1)
 			b.m.byteDropped.Inc(int64(rm.Size()))
 		}
 	}
 	return next, removed
+}
+
+func (b *buffer) dropOldestUntilClose() {
+	ticker := time.NewTicker(b.opts.DropOldestInterval())
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			select {
+			case <-b.dropOldestCh:
+			default:
+				continue
+			}
+			b.dropOldestUntilTarget(b.maxBufferSize)
+		case <-b.doneCh:
+			return
+		}
+	}
+}
+
+func (b *buffer) dropOldestUntilTarget(targetSize uint64) {
+	shouldContinue := true
+	for shouldContinue {
+		b.listLock.Lock()
+		shouldContinue = b.dropOldestBatchUntilTargetWithListLock(targetSize, b.opts.ScanBatchSize())
+		b.listLock.Unlock()
+	}
+}
+
+func (b *buffer) dropOldestBatchUntilTargetWithListLock(
+	targetSize uint64,
+	batchSize int,
+) bool {
+	var (
+		iterated int
+		e        = b.bufferList.Front()
+	)
+	for e != nil && b.size.Load() > targetSize {
+		iterated++
+		if iterated > batchSize {
+			return true
+		}
+		next := e.Next()
+		rm := e.Value.(*producer.RefCountedMessage)
+		b.bufferList.Remove(e)
+		e = next
+		if rm.IsDroppedOrConsumed() {
+			continue
+		}
+		// There is a chance that the message is consumed right before
+		// the drop call which will lead drop to return false.
+		if rm.Drop() {
+			b.m.messageDropped.Inc(1)
+			b.m.byteDropped.Inc(int64(rm.Size()))
+		}
+	}
+	return false
 }
 
 func (b *buffer) Close(ct producer.CloseType) {
@@ -284,6 +366,7 @@ func (b *buffer) Close(ct producer.CloseType) {
 	b.Unlock()
 	b.waitUntilAllDataConsumed()
 	close(b.doneCh)
+	close(b.dropOldestCh)
 	b.wg.Wait()
 }
 
@@ -302,9 +385,9 @@ func (b *buffer) waitUntilAllDataConsumed() {
 }
 
 func (b *buffer) bufferLen() int {
-	b.RLock()
-	l := b.buffers.Len()
-	b.RUnlock()
+	b.listLock.RLock()
+	l := b.bufferList.Len()
+	b.listLock.RUnlock()
 	return l
 }
 
