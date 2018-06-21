@@ -20,7 +20,9 @@
 
 package services
 
-import "time"
+import (
+	"time"
+)
 
 // OverrideConfiguration configs the override options.
 type OverrideConfiguration struct {
@@ -56,6 +58,28 @@ func (cfg Configuration) NewOptions() Options {
 	opts := NewOptions()
 	if cfg.InitTimeout != nil {
 		opts = opts.SetInitTimeout(*cfg.InitTimeout)
+	}
+	return opts
+}
+
+// ElectionConfiguration is for configuring election timeouts and TTLs
+type ElectionConfiguration struct {
+	LeaderTimeout *time.Duration `yaml:"leaderTimeout"`
+	ResignTimeout *time.Duration `yaml:"resignTimeout"`
+	TTLSeconds    *int           `yaml:"TTLSeconds"`
+}
+
+// NewOptions creates an ElectionOptions.
+func (cfg ElectionConfiguration) NewOptions() ElectionOptions {
+	opts := NewElectionOptions()
+	if cfg.LeaderTimeout != nil {
+		opts = opts.SetLeaderTimeout(*cfg.LeaderTimeout)
+	}
+	if cfg.ResignTimeout != nil {
+		opts = opts.SetResignTimeout(*cfg.ResignTimeout)
+	}
+	if cfg.TTLSeconds != nil {
+		opts = opts.SetTTLSecs(*cfg.TTLSeconds)
 	}
 	return opts
 }

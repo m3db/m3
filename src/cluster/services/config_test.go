@@ -65,3 +65,19 @@ func TestConfig(t *testing.T) {
 	cf = Configuration{InitTimeout: &sec}
 	require.Equal(t, time.Second, cf.NewOptions().InitTimeout())
 }
+
+func TestElectionOptions(t *testing.T) {
+	configStr := `
+leaderTimeout: 5s
+resignTimeout: 10s
+TTLSeconds: 15
+`
+
+	var cfg ElectionConfiguration
+	err := yaml.Unmarshal([]byte(configStr), &cfg)
+	require.NoError(t, err)
+	opts := cfg.NewOptions()
+	require.Equal(t, time.Second*5, opts.LeaderTimeout())
+	require.Equal(t, time.Second*10, opts.ResignTimeout())
+	require.Equal(t, 15, opts.TTLSecs())
+}
