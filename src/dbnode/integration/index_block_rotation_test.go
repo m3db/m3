@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/retention"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3ninx/idx"
+	"github.com/m3db/m3db/src/m3ninx/idx"
 	xclock "github.com/m3db/m3x/clock"
 
 	"github.com/stretchr/testify/require"

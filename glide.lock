@@ -1,5 +1,5 @@
-hash: cfe7165e66082b0346c01980706a97236c013a428a5b4f6a63ecddac955f2417
-updated: 2018-06-13T15:55:48.806119-04:00
+hash: 7e20975e9e51d213f02bcc1f1cefe331c70b7cd1ea20a09056f4133c6590f055
+updated: 2018-06-21T00:05:09.027415377-04:00
 imports:
 - name: github.com/apache/thrift
   version: c2fb1c4e8c931d22617bebb0bf388cb4d5e6fcff
@@ -122,7 +122,7 @@ imports:
 - name: github.com/ghodss/yaml
   version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/glycerine/go-unsnap-stream
-  version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
+  version: 9f0cb55181dd3a0a4c168d3dbc72d4aca4853126
 - name: github.com/go-kit/kit
   version: 04dd4f741c6e76cc170a4d7913f4c625952e6f58
   subpackages:
@@ -245,29 +245,6 @@ imports:
   - generated/proto/schema
   - metric
   - policy
-- name: github.com/m3db/m3ninx
-  version: 7556fa8339674f1d9f559486d1feca18c17d1190
-  subpackages:
-  - doc
-  - generated/proto/fswriter
-  - generated/proto/querypb
-  - idx
-  - index
-  - index/segment
-  - index/segment/fs
-  - index/segment/fs/encoding
-  - index/segment/fs/encoding/docs
-  - index/segment/mem
-  - index/util
-  - persist
-  - postings
-  - postings/pilosa
-  - postings/roaring
-  - search
-  - search/executor
-  - search/query
-  - search/searcher
-  - x
 - name: github.com/m3db/m3x
   version: 216f0e4a8870d0df302aef0550a4b0e0db9291cd
   vcs: git
@@ -421,8 +398,9 @@ imports:
   subpackages:
   - assert
   - require
+  - suite
 - name: github.com/tinylib/msgp
-  version: 3b5c87ab5fb00c660bf85b888445d9a01db64db4
+  version: c8cf64dff2009d53fa8f8a16df54d1cdfc64c4a7
   subpackages:
   - msgp
 - name: github.com/uber-go/atomic
@@ -556,7 +534,7 @@ testImports:
 - name: github.com/fortytw2/leaktest
   version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
 - name: github.com/leanovate/gopter
-  version: 9e6101e5a87586b269acf3d0d61f363e4317309f
+  version: f778776473e0ef7764e1434dd01a61cc1ec574b4
   subpackages:
   - commands
   - gen

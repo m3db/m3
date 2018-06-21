@@ -23,7 +23,7 @@ package searcher
 import (
 	"testing"
 
-	"github.com/m3db/m3ninx/search"
+	"github.com/m3db/m3db/src/m3ninx/search"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

@@ -23,10 +23,10 @@ package query
 import (
 	"fmt"
 
-	"github.com/m3db/m3ninx/generated/proto/querypb"
-	"github.com/m3db/m3ninx/index"
-	"github.com/m3db/m3ninx/search"
-	"github.com/m3db/m3ninx/search/searcher"
+	"github.com/m3db/m3db/src/m3ninx/generated/proto/querypb"
+	"github.com/m3db/m3db/src/m3ninx/index"
+	"github.com/m3db/m3db/src/m3ninx/search"
+	"github.com/m3db/m3db/src/m3ninx/search/searcher"
 )
 
 // DisjuctionQuery finds documents which match at least one of the given queries.

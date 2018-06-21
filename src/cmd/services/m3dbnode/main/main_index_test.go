@@ -38,7 +38,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/client"
 	"github.com/m3db/m3db/src/dbnode/kvconfig"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
-	m3ninxidx "github.com/m3db/m3ninx/idx"
+	m3ninxidx "github.com/m3db/m3db/src/m3ninx/idx"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"

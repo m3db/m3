@@ -42,6 +42,7 @@ SUBDIRS :=    \
 	dbnode      \
 	coordinator \
 	m3nsch      \
+	m3ninx      \
 
 TOOLS :=            \
 	read_ids          \
@@ -236,7 +237,7 @@ asset-gen-$(SUBDIR): install-codegen-tools
 genny-gen-$(SUBDIR): install-codegen-tools
 	@echo Generating genny files $(SUBDIR)
 	@[ ! -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk ] || \
-		PATH=$(retool_bin_path):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk genny-all-$(SUBDIR)
+		PATH=$(retool_bin_path):$(PATH) make -f $(SELF_DIR)/src/$(SUBDIR)/generated-source-files.mk genny-all
 
 .PHONY: all-gen-$(SUBDIR)
 # NB(prateek): order matters here, mock-gen needs to be last because we sometimes

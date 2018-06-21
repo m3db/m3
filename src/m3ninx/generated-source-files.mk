@@ -1,9 +1,15 @@
+SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
+include $(SELF_DIR)/../../.ci/common.mk
+
+gopath_prefix        := $(GOPATH)/src
+m3ninx_package       := github.com/m3db/m3db/src/m3ninx
+m3ninx_package_path  := $(gopath_prefix)/$(m3ninx_package)
 m3x_package          := github.com/m3db/m3x
 m3x_package_path     := $(gopath_prefix)/$(m3x_package)
 m3x_package_min_ver  := 6148700dde75adcdcc27d16fb68cee2d9d9126d8
 
 .PHONY: install-m3x-repo
-install-m3x-repo: install-glide install-generics-bin
+install-m3x-repo: install-glide
 	# Check if repository exists, if not get it
 	test -d $(m3x_package_path) || go get -u $(m3x_package)
 	test -d $(m3x_package_path)/vendor || (cd $(m3x_package_path) && glide install)
@@ -18,12 +24,6 @@ install-m3x-repo: install-glide install-generics-bin
 # Generation rule for all generated types
 .PHONY: genny-all
 genny-all: genny-map-all
-
-# Tests that all currently generated types match their contents if they were regenerated
-.PHONY: test-genny-all
-test-genny-all: genny-all
-	@test "$(shell git diff --shortstat 2>/dev/null)" = "" || (git diff --no-color && echo "Check git status, there are dirty files" && exit 1)
-	@test "$(shell git status --porcelain 2>/dev/null | grep "^??")" = "" || (git status --porcelain && echo "Check git status, there are untracked files" && exit 1)
 
 # Map generation rule for all generated maps
 .PHONY: genny-map-all

@@ -21,9 +21,9 @@
 package mem
 
 import (
-	"github.com/m3db/m3ninx/index/util"
-	"github.com/m3db/m3ninx/postings"
-	"github.com/m3db/m3ninx/postings/roaring"
+	"github.com/m3db/m3db/src/m3ninx/index/util"
+	"github.com/m3db/m3db/src/m3ninx/postings"
+	"github.com/m3db/m3db/src/m3ninx/postings/roaring"
 
 	"github.com/m3db/m3x/instrument"
 )

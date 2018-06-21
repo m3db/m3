@@ -16,11 +16,9 @@ autogen_clear() {
 }
 
 remove_matching_files() {
-    local FILE_PATTERN=$1
-    for DIR in $SRC;
-    do
-        find $DIR -type f -name "$FILE_PATTERN" -exec rm -f {} \;
-    done
+    local DIR=$1
+    local FILE_PATTERN=$2
+    find $DIR -type f -name "$FILE_PATTERN" -exec rm -f {} \;
 }
 
 autogen_cleanup() {
@@ -75,9 +73,9 @@ if [ $# -ne 2 ] || [ -z "$1" ] || [ -z "$2" ]; then
 fi
 
 if [[ "$2" = *"generated/mocks"* ]]; then
-    remove_matching_files "*_mock.go"
+    remove_matching_files $1 "*_mock.go"
 elif [[ "$2" = *"generated/generics"* ]]; then
-    remove_matching_files "*.gen.go"
+    remove_matching_files $1 "*.gen.go"
 else
     autogen_clear $1
 fi

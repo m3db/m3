@@ -21,8 +21,8 @@
 package searcher
 
 import (
-	"github.com/m3db/m3ninx/postings"
-	"github.com/m3db/m3ninx/search"
+	"github.com/m3db/m3db/src/m3ninx/postings"
+	"github.com/m3db/m3db/src/m3ninx/search"
 )
 
 type conjunctionSearcher struct {

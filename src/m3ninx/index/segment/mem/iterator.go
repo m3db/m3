@@ -21,7 +21,7 @@
 package mem
 
 import (
-	"github.com/m3db/m3ninx/postings"
+	"github.com/m3db/m3db/src/m3ninx/postings"
 )
 
 // boundedPostingsIterator wraps a normal postings iterator but only returns IDs

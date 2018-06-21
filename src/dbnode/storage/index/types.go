@@ -27,9 +27,9 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/clock"
 	"github.com/m3db/m3db/src/dbnode/storage/bootstrap/result"
-	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/idx"
-	"github.com/m3db/m3ninx/index/segment/mem"
+	"github.com/m3db/m3db/src/m3ninx/doc"
+	"github.com/m3db/m3db/src/m3ninx/idx"
+	"github.com/m3db/m3db/src/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"

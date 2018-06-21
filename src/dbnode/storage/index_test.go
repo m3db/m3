@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/block"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
-	"github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3db/src/m3ninx/index/segment"
 	"github.com/m3db/m3x/ident"
 	xtest "github.com/m3db/m3x/test"
 	xtime "github.com/m3db/m3x/time"

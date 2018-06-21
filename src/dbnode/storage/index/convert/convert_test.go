@@ -23,7 +23,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/src/dbnode/storage/index/convert"
-	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3db/src/m3ninx/doc"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
