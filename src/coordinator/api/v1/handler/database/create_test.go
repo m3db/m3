@@ -76,11 +76,11 @@ func TestLocalType(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	jsonInput := `
-        {
-            "namespaceName": "testNamespace",
-            "type": "local"
-        }
-    `
+		{
+			"namespaceName": "testNamespace",
+			"type": "local"
+		}
+	`
 
 	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
 	require.NotNil(t, req)
@@ -103,7 +103,7 @@ func TestLocalType(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
-	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 32, 1).Return(newPlacement, nil)
+	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 64, 1).Return(newPlacement, nil)
 
 	createHandler.ServeHTTP(w, req)
 
@@ -112,6 +112,164 @@ func TestLocalType(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "{\"namespace\":{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":true,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"120000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\"},\"snapshotEnabled\":false,\"indexOptions\":{\"enabled\":false,\"blockSizeNanos\":\"7200000000000\"}}}}},\"placement\":{\"placement\":{\"instances\":{\"localhost\":{\"id\":\"localhost\",\"isolationGroup\":\"local\",\"zone\":\"embedded\",\"weight\":1,\"endpoint\":\"http://localhost:9000\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"localhost\",\"port\":9000}},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}}", string(body))
+}
+
+func TestClusterTypeHostnames(t *testing.T) {
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
+	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	w := httptest.NewRecorder()
+
+	jsonInput := `
+		{
+			"namespaceName": "testNamespace",
+			"type": "cluster",
+			"hostnames": ["host1", "host2"]
+		}
+	`
+
+	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	require.NotNil(t, req)
+
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
+
+	placementProto := &placementpb.Placement{
+		Instances: map[string]*placementpb.Instance{
+			"host1": &placementpb.Instance{
+				Id:             "host1",
+				IsolationGroup: "local",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       "http://host1:9000",
+				Hostname:       "host1",
+				Port:           9000,
+			},
+			"host2": &placementpb.Instance{
+				Id:             "host2",
+				IsolationGroup: "local",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       "http://host2:9000",
+				Hostname:       "host2",
+				Port:           9000,
+			},
+		},
+	}
+	newPlacement, err := placement.NewPlacementFromProto(placementProto)
+	require.NoError(t, err)
+	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 128, 1).Return(newPlacement, nil)
+
+	createHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "{\"namespace\":{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":true,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"120000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\"},\"snapshotEnabled\":false,\"indexOptions\":{\"enabled\":false,\"blockSizeNanos\":\"7200000000000\"}}}}},\"placement\":{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"local\",\"zone\":\"embedded\",\"weight\":1,\"endpoint\":\"http://host1:9000\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host1\",\"port\":9000},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"local\",\"zone\":\"embedded\",\"weight\":1,\"endpoint\":\"http://host2:9000\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host2\",\"port\":9000}},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}}", string(body))
+}
+
+func TestClusterTypeHostnameGroups(t *testing.T) {
+	mockClient, mockKV, mockPlacementService := SetupDatabaseTest(t)
+	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	w := httptest.NewRecorder()
+
+	jsonInput := `
+		{
+			"namespaceName": "testNamespace",
+			"type": "cluster",
+			"hostnameGroups": [{"hostname":"host1", "isolationGroup":"group1"}, {"hostname":"host2", "isolationGroup":"group2"}]
+		}
+	`
+
+	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	require.NotNil(t, req)
+
+	mockKV.EXPECT().Get(namespace.M3DBNodeNamespacesKey).Return(nil, kv.ErrNotFound)
+	mockKV.EXPECT().CheckAndSet(namespace.M3DBNodeNamespacesKey, gomock.Any(), gomock.Not(nil)).Return(1, nil)
+
+	placementProto := &placementpb.Placement{
+		Instances: map[string]*placementpb.Instance{
+			"host1": &placementpb.Instance{
+				Id:             "host1",
+				IsolationGroup: "group1",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       "http://host1:9000",
+				Hostname:       "host1",
+				Port:           9000,
+			},
+			"host2": &placementpb.Instance{
+				Id:             "host2",
+				IsolationGroup: "group2",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       "http://host2:9000",
+				Hostname:       "host2",
+				Port:           9000,
+			},
+		},
+	}
+	newPlacement, err := placement.NewPlacementFromProto(placementProto)
+	require.NoError(t, err)
+	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 128, 1).Return(newPlacement, nil)
+
+	createHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "{\"namespace\":{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":true,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"120000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\"},\"snapshotEnabled\":false,\"indexOptions\":{\"enabled\":false,\"blockSizeNanos\":\"7200000000000\"}}}}},\"placement\":{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"group1\",\"zone\":\"embedded\",\"weight\":1,\"endpoint\":\"http://host1:9000\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host1\",\"port\":9000},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"group2\",\"zone\":\"embedded\",\"weight\":1,\"endpoint\":\"http://host2:9000\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host2\",\"port\":9000}},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}}", string(body))
+}
+
+func TestClusterTypeMultipleHostnameTypes(t *testing.T) {
+	mockClient, _, _ := SetupDatabaseTest(t)
+	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	w := httptest.NewRecorder()
+
+	jsonInput := `
+		{
+			"namespaceName": "testNamespace",
+			"type": "cluster",
+			"hostnameGroups": [{"hostname":"host1", "isolationGroup":"group1"}, {"hostname":"host2", "isolationGroup":"group2"}],
+			"hostnames": ["other_host1"]
+		}
+	`
+
+	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	require.NotNil(t, req)
+
+	createHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, "{\"error\":\"must only specify one type of host\"}\n", string(body))
+}
+
+func TestClusterTypeMissingHostnames(t *testing.T) {
+	mockClient, _, _ := SetupDatabaseTest(t)
+	createHandler := NewCreateHandler(mockClient, config.Configuration{}, testDBCfg)
+	w := httptest.NewRecorder()
+
+	jsonInput := `
+		{
+			"namespaceName": "testNamespace",
+			"type": "cluster"
+		}
+	`
+
+	req := httptest.NewRequest("POST", "/database/create", strings.NewReader(jsonInput))
+	require.NotNil(t, req)
+
+	createHandler.ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, "{\"error\":\"missing required field\"}\n", string(body))
 }
 
 func TestBadType(t *testing.T) {
