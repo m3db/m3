@@ -13,9 +13,9 @@ import (
 
 	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs"
-	"github.com/m3db/m3ninx/doc"
-	m3ninxfs "github.com/m3db/m3ninx/index/segment/fs"
-	m3ninxpersist "github.com/m3db/m3ninx/persist"
+	"github.com/m3db/m3db/src/m3ninx/doc"
+	m3ninxfs "github.com/m3db/m3db/src/m3ninx/index/segment/fs"
+	m3ninxpersist "github.com/m3db/m3db/src/m3ninx/persist"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 

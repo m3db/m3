@@ -26,7 +26,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3db/src/m3ninx/doc"
 )
 
 // ReadDocs reads up to n documents from a JSON formatted file at the provided path.

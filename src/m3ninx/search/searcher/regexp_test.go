@@ -24,9 +24,9 @@ import (
 	re "regexp"
 	"testing"
 
-	"github.com/m3db/m3ninx/index"
-	"github.com/m3db/m3ninx/postings"
-	"github.com/m3db/m3ninx/postings/roaring"
+	"github.com/m3db/m3db/src/m3ninx/index"
+	"github.com/m3db/m3db/src/m3ninx/postings"
+	"github.com/m3db/m3db/src/m3ninx/postings/roaring"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

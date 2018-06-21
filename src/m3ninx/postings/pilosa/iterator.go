@@ -21,7 +21,7 @@
 package pilosa
 
 import (
-	"github.com/m3db/m3ninx/postings"
+	"github.com/m3db/m3db/src/m3ninx/postings"
 
 	"github.com/pilosa/pilosa/roaring"
 )

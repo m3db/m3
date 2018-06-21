@@ -21,7 +21,7 @@
 package idx
 
 import (
-	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3db/src/m3ninx/doc"
 )
 
 // Index is an inverted index.

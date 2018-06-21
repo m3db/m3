@@ -24,9 +24,9 @@ import (
 	"errors"
 	"io"
 
-	"github.com/m3db/m3ninx/index/segment"
-	m3ninxfs "github.com/m3db/m3ninx/index/segment/fs"
-	m3ninxpersist "github.com/m3db/m3ninx/persist"
+	"github.com/m3db/m3db/src/m3ninx/index/segment"
+	m3ninxfs "github.com/m3db/m3db/src/m3ninx/index/segment/fs"
+	m3ninxpersist "github.com/m3db/m3db/src/m3ninx/persist"
 )
 
 var (

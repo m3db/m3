@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m3db/m3ninx/index/segment/fs"
+	"github.com/m3db/m3db/src/m3ninx/index/segment/fs"
 	xtest "github.com/m3db/m3x/test"
 
 	"github.com/golang/mock/gomock"

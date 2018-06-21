@@ -24,8 +24,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/index/segment/fs/encoding"
+	"github.com/m3db/m3db/src/m3ninx/doc"
+	"github.com/m3db/m3db/src/m3ninx/index/segment/fs/encoding"
 )
 
 const initialDataEncoderLen = 1024

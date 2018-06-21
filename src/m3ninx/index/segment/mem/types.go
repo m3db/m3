@@ -23,8 +23,8 @@ package mem
 import (
 	re "regexp"
 
-	"github.com/m3db/m3ninx/doc"
-	"github.com/m3db/m3ninx/postings"
+	"github.com/m3db/m3db/src/m3ninx/doc"
+	"github.com/m3db/m3db/src/m3ninx/postings"
 )
 
 // termsDictionary is an internal interface for a mutable terms dictionary.

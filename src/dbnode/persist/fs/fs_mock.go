@@ -29,7 +29,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/m3db/m3ninx/persist"
+	"github.com/m3db/m3db/src/m3ninx/persist"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	time0 "github.com/m3db/m3x/time"

@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/persist"
 	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3db/src/dbnode/persist/schema"
-	idxpersist "github.com/m3db/m3ninx/persist"
+	idxpersist "github.com/m3db/m3db/src/m3ninx/persist"
 	xclose "github.com/m3db/m3x/close"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"

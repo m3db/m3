@@ -48,7 +48,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/series/lookup"
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
-	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3db/src/m3ninx/doc"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"

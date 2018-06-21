@@ -24,8 +24,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3ninx/generated/proto/querypb"
-	"github.com/m3db/m3ninx/search"
+	"github.com/m3db/m3db/src/m3ninx/generated/proto/querypb"
+	"github.com/m3db/m3db/src/m3ninx/search"
 )
 
 var errNilQuery = errors.New("query is nil")

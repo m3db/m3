@@ -29,8 +29,8 @@ import (
 	"github.com/m3db/m3db/src/dbnode/persist/fs/msgpack"
 	"github.com/m3db/m3db/src/dbnode/runtime"
 	"github.com/m3db/m3db/src/dbnode/serialize"
-	"github.com/m3db/m3ninx/postings"
-	"github.com/m3db/m3ninx/postings/roaring"
+	"github.com/m3db/m3db/src/m3ninx/postings"
+	"github.com/m3db/m3db/src/m3ninx/postings/roaring"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )

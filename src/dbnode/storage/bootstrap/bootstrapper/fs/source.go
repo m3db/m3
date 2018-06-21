@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3db/src/dbnode/storage/series"
 	"github.com/m3db/m3db/src/dbnode/ts"
-	"github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3db/src/m3ninx/index/segment"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
