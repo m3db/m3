@@ -801,7 +801,6 @@ func (s *dbShard) writeAndIndex(
 			if entry.NeedsIndexUpdate(s.reverseIndex.BlockStartForWriteTime(timestamp)) {
 				err = s.insertSeriesForIndexingAsyncBatched(entry, timestamp,
 					opts.writeNewSeriesAsync)
-			} else {
 			}
 		}
 		// release the reference we got on entry from `writableSeries`
