@@ -23,7 +23,7 @@ package handler
 import (
 	"testing"
 
-	"github.com/m3db/m3aggregator/aggregator/handler/common"
+	"github.com/m3db/m3aggregator/aggregator/handler/router"
 	"github.com/m3db/m3aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3aggregator/sharding"
 
@@ -36,7 +36,7 @@ func TestNewShardedHandlerOneNonSharded(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	router := common.NewMockRouter(ctrl)
+	router := router.NewMockRouter(ctrl)
 	srs := []SharderRouter{
 		{
 			SharderID: sharding.NoShardingSharderID,
@@ -57,7 +57,7 @@ func TestNewShardedHandlerMultipleNonSharded(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	routers := []common.Router{common.NewMockRouter(ctrl), common.NewMockRouter(ctrl)}
+	routers := []router.Router{router.NewMockRouter(ctrl), router.NewMockRouter(ctrl)}
 	srs := []SharderRouter{
 		{
 			SharderID: sharding.NoShardingSharderID,
@@ -72,7 +72,7 @@ func TestNewShardedHandlerMultipleNonSharded(t *testing.T) {
 	expected := []SharderRouter{
 		{
 			SharderID: sharding.NoShardingSharderID,
-			Router:    common.NewBroadcastRouter(routers),
+			Router:    router.NewBroadcastRouter(routers),
 		},
 	}
 	require.Equal(t, expected, handler.routersBySharderID)
@@ -82,7 +82,7 @@ func TestNewShardedHandlerOneSharded(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	router := common.NewMockRouter(ctrl)
+	router := router.NewMockRouter(ctrl)
 	srs := []SharderRouter{
 		{
 			SharderID: sharding.NewSharderID(sharding.Murmur32Hash, 1024),
@@ -103,7 +103,7 @@ func TestNewShardedHandlerMultipleShardedSameSharderID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	routers := []common.Router{common.NewMockRouter(ctrl), common.NewMockRouter(ctrl)}
+	routers := []router.Router{router.NewMockRouter(ctrl), router.NewMockRouter(ctrl)}
 	sharderID := sharding.NewSharderID(sharding.Murmur32Hash, 1024)
 	srs := []SharderRouter{
 		{
@@ -119,7 +119,7 @@ func TestNewShardedHandlerMultipleShardedSameSharderID(t *testing.T) {
 	expected := []SharderRouter{
 		{
 			SharderID: sharderID,
-			Router:    common.NewBroadcastRouter(routers),
+			Router:    router.NewBroadcastRouter(routers),
 		},
 	}
 	require.Equal(t, expected, handler.routersBySharderID)
@@ -129,10 +129,10 @@ func TestNewShardedHandlerMultipleShardedDifferentSharderIDs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	routers := []common.Router{
-		common.NewMockRouter(ctrl),
-		common.NewMockRouter(ctrl),
-		common.NewMockRouter(ctrl),
+	routers := []router.Router{
+		router.NewMockRouter(ctrl),
+		router.NewMockRouter(ctrl),
+		router.NewMockRouter(ctrl),
 	}
 	srs := []SharderRouter{
 		{
@@ -152,7 +152,7 @@ func TestNewShardedHandlerMultipleShardedDifferentSharderIDs(t *testing.T) {
 	expected := []SharderRouter{
 		{
 			SharderID: sharding.NewSharderID(sharding.Murmur32Hash, 1024),
-			Router:    common.NewBroadcastRouter([]common.Router{routers[0], routers[2]}),
+			Router:    router.NewBroadcastRouter([]router.Router{routers[0], routers[2]}),
 		},
 		{
 			SharderID: sharding.NewSharderID(sharding.Murmur32Hash, 128),
@@ -166,12 +166,12 @@ func TestNewShardedHandlerBothShardedAndNonSharded(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	routers := []common.Router{
-		common.NewMockRouter(ctrl),
-		common.NewMockRouter(ctrl),
-		common.NewMockRouter(ctrl),
-		common.NewMockRouter(ctrl),
-		common.NewMockRouter(ctrl),
+	routers := []router.Router{
+		router.NewMockRouter(ctrl),
+		router.NewMockRouter(ctrl),
+		router.NewMockRouter(ctrl),
+		router.NewMockRouter(ctrl),
+		router.NewMockRouter(ctrl),
 	}
 	srs := []SharderRouter{
 		{
@@ -199,7 +199,7 @@ func TestNewShardedHandlerBothShardedAndNonSharded(t *testing.T) {
 	expected := []SharderRouter{
 		{
 			SharderID: sharding.NewSharderID(sharding.Murmur32Hash, 1024),
-			Router:    common.NewBroadcastRouter([]common.Router{routers[0], routers[3], routers[1], routers[4]}),
+			Router:    router.NewBroadcastRouter([]router.Router{routers[0], routers[3], routers[1], routers[4]}),
 		},
 		{
 			SharderID: sharding.NewSharderID(sharding.Murmur32Hash, 128),
@@ -214,7 +214,7 @@ func TestShardedHandlerNewWriterSingleSharder(t *testing.T) {
 	defer ctrl.Finish()
 
 	sharderID := sharding.NewSharderID(sharding.Murmur32Hash, 1024)
-	router := common.NewMockRouter(ctrl)
+	router := router.NewMockRouter(ctrl)
 	opts := writer.NewOptions()
 	handler := NewShardedHandler(nil, opts).(*shardedHandler)
 	handler.routersBySharderID = []SharderRouter{
@@ -231,9 +231,9 @@ func TestShardedHandlerNewWriterMultipleSharder(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	routers := []common.Router{
-		common.NewMockRouter(ctrl),
-		common.NewMockRouter(ctrl),
+	routers := []router.Router{
+		router.NewMockRouter(ctrl),
+		router.NewMockRouter(ctrl),
 	}
 	opts := writer.NewOptions()
 	handler := NewShardedHandler(nil, opts).(*shardedHandler)
@@ -255,9 +255,9 @@ func TestShardedHandlerNewWriterError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	routers := []common.Router{
-		common.NewMockRouter(ctrl),
-		common.NewMockRouter(ctrl),
+	routers := []router.Router{
+		router.NewMockRouter(ctrl),
+		router.NewMockRouter(ctrl),
 	}
 	opts := writer.NewOptions()
 	handler := NewShardedHandler(nil, opts).(*shardedHandler)

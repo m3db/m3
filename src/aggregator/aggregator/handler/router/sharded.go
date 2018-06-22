@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,40 +18,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package common
+package router
 
 import (
 	"fmt"
 
+	"github.com/m3db/m3aggregator/aggregator/handler/common"
 	"github.com/m3db/m3aggregator/sharding"
-	"github.com/m3db/m3x/errors"
 
 	"github.com/uber-go/tally"
 )
-
-// Router routes data to the corresponding backends.
-type Router interface {
-	// Route routes a buffer for a given shard.
-	Route(shard uint32, buffer *RefCountedBuffer) error
-
-	// Close closes the router.
-	Close()
-}
-
-type allowAllRouter struct {
-	queue Queue
-}
-
-// NewAllowAllRouter creates a new router that routes all data to the backend queue.
-func NewAllowAllRouter(queue Queue) Router {
-	return &allowAllRouter{queue: queue}
-}
-
-func (r *allowAllRouter) Route(shard uint32, buffer *RefCountedBuffer) error {
-	return r.queue.Enqueue(buffer)
-}
-
-func (r *allowAllRouter) Close() { r.queue.Close() }
 
 type shardedRouterMetrics struct {
 	routeNotFound tally.Counter
@@ -64,14 +40,14 @@ func newShardedRouterMetrics(scope tally.Scope) shardedRouterMetrics {
 }
 
 type shardedRouter struct {
-	queues  []Queue
+	queues  []common.Queue
 	metrics shardedRouterMetrics
 }
 
 // ShardedQueue is a backend queue responsible for a set of shards.
 type ShardedQueue struct {
 	sharding.ShardSet
-	Queue
+	common.Queue
 }
 
 // NewShardedRouter creates a sharded router.
@@ -80,7 +56,7 @@ func NewShardedRouter(
 	totalShards int,
 	scope tally.Scope,
 ) Router {
-	queues := make([]Queue, totalShards)
+	queues := make([]common.Queue, totalShards)
 	for _, q := range shardedQueues {
 		for shard := range q.ShardSet {
 			queues[shard] = q.Queue
@@ -92,7 +68,7 @@ func NewShardedRouter(
 	}
 }
 
-func (r *shardedRouter) Route(shard uint32, buffer *RefCountedBuffer) error {
+func (r *shardedRouter) Route(shard uint32, buffer *common.RefCountedBuffer) error {
 	if int(shard) < len(r.queues) && r.queues[shard] != nil {
 		return r.queues[shard].Enqueue(buffer)
 	}
@@ -108,32 +84,5 @@ func (r *shardedRouter) Close() {
 		if queue != nil {
 			queue.Close()
 		}
-	}
-}
-
-type broadcastRouter struct {
-	routers []Router
-}
-
-// NewBroadcastRouter creates a broadcast router.
-func NewBroadcastRouter(routers []Router) Router {
-	return &broadcastRouter{routers: routers}
-}
-
-func (r *broadcastRouter) Route(shard uint32, buffer *RefCountedBuffer) error {
-	multiErr := errors.NewMultiError()
-	for _, router := range r.routers {
-		buffer.IncRef()
-		if err := router.Route(shard, buffer); err != nil {
-			multiErr = multiErr.Add(err)
-		}
-	}
-	buffer.DecRef()
-	return multiErr.FinalError()
-}
-
-func (r *broadcastRouter) Close() {
-	for _, router := range r.routers {
-		router.Close()
 	}
 }

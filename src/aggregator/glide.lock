@@ -1,5 +1,5 @@
-hash: 851f610d2bca1233f93ba3041d9b66297c1e86ef5c5fbce929aaf3cc12afad9b
-updated: 2018-06-19T14:30:31.019144-04:00
+hash: d1cf84f6d022ced90e0d7004a170d5f2ad162ef84ced3d3dcb60c7b2e00b372c
+updated: 2018-06-21T17:17:32.242609-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -161,7 +161,7 @@ imports:
 - name: github.com/karlseguin/ccache
   version: a2d62155777b39595c825ed3824279e642a5db3c
 - name: github.com/m3db/m3cluster
-  version: cb17a54d6902c03790286942bafa04a188d4eeb8
+  version: 9d4f278c87f229036b76fea62ad65eac47e4e23f
   subpackages:
   - client
   - client/etcd
@@ -208,8 +208,19 @@ imports:
   - policy
   - transformation
   - x/bytes
+- name: github.com/m3db/m3msg
+  version: cba72b15c487584b42356c9023b5178c2a6edef1
+  subpackages:
+  - generated/proto/msgpb
+  - generated/proto/topicpb
+  - producer
+  - producer/buffer
+  - producer/config
+  - producer/writer
+  - protocol/proto
+  - topic
 - name: github.com/m3db/m3x
-  version: 29bc232d9ad2e6c4a1804ccce095bb730fb1c6bc
+  version: 647a4a05078f018242070cbd71bea6ecba964199
   subpackages:
   - checked
   - clock
@@ -228,6 +239,23 @@ imports:
   - sync
   - time
   - watch
+- name: github.com/m3db/prometheus_client_golang
+  version: 8ae269d24972b8695572fa6b2e3718b5ea82d6b4
+  subpackages:
+  - prometheus
+  - prometheus/promhttp
+- name: github.com/m3db/prometheus_client_model
+  version: 8b2299a4bf7d7fc10835527021716d4b4a6e8700
+  subpackages:
+  - go
+- name: github.com/m3db/prometheus_common
+  version: 25aaa3dff79bb48116615ebe1dea6a494b74ce77
+  subpackages:
+  - expfmt
+  - internal/bitbucket.org/ww/goautoneg
+  - model
+- name: github.com/m3db/prometheus_procfs
+  version: 1878d9fbb537119d24b21ca07effd591627cd160
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
@@ -280,6 +308,8 @@ imports:
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
+  - multi
+  - prometheus
 - name: github.com/ugorji/go
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
   subpackages:
@@ -319,8 +349,6 @@ imports:
   - trace
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
-  subpackages:
-  - unix
 - name: golang.org/x/text
   version: 4ee4af566555f5fbe026368b75596286a312663a
   subpackages:
@@ -375,7 +403,7 @@ imports:
   subpackages:
   - codes
 - name: gopkg.in/yaml.v2
-  version: a83829b6f1293c91addabc89d0571c246397bbf4
+  version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
 testImports:
 - name: github.com/leanovate/gopter
   version: 7464b68a2409c0e6c6986805c808ca767f3c0054

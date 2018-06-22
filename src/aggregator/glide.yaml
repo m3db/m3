@@ -2,10 +2,13 @@ package: github.com/m3db/m3aggregator
 
 import:
 - package: github.com/m3db/m3x
-  version: 29bc232d9ad2e6c4a1804ccce095bb730fb1c6bc
+  version: 647a4a05078f018242070cbd71bea6ecba964199
 
 - package: github.com/m3db/m3cluster
-  version: cb17a54d6902c03790286942bafa04a188d4eeb8
+  version: 9d4f278c87f229036b76fea62ad65eac47e4e23f
+
+- package: github.com/m3db/m3msg
+  version: cba72b15c487584b42356c9023b5178c2a6edef1
 
 - package: github.com/m3db/m3metrics
   version: 3b2957921f0d4167eecd26346a48cf762fbe3d3d
@@ -46,7 +49,7 @@ import:
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 
 - package: gopkg.in/yaml.v2
-  version: a83829b6f1293c91addabc89d0571c246397bbf4
+  version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
 
 - package: github.com/shirou/gopsutil
   version: b62e301a8b9958eebb7299683eb57fab229a9501

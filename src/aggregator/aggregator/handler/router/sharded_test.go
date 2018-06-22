@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,11 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package common
+package router
 
 import (
 	"testing"
 
+	"github.com/m3db/m3aggregator/aggregator/handler/common"
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3metrics/encoding/msgpack"
 
@@ -36,18 +37,18 @@ func TestShardedRouterRoute(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		enqueued      [3][]*RefCountedBuffer
+		enqueued      [3][]*common.RefCountedBuffer
 		shardedQueues []ShardedQueue
 		totalShards   = 1024
 	)
 	ranges := []string{"10..30", "60..80", "95"}
 	for i, rng := range ranges {
 		i := i
-		q := NewMockQueue(ctrl)
+		q := common.NewMockQueue(ctrl)
 		q.EXPECT().
 			Enqueue(gomock.Any()).
 			Return(nil).
-			Do(func(b *RefCountedBuffer) {
+			Do(func(b *common.RefCountedBuffer) {
 				enqueued[i] = append(enqueued[i], b)
 			}).
 			AnyTimes()
@@ -61,21 +62,21 @@ func TestShardedRouterRoute(t *testing.T) {
 
 	inputs := []struct {
 		shard uint32
-		buf   *RefCountedBuffer
+		buf   *common.RefCountedBuffer
 	}{
-		{shard: 12, buf: NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
-		{shard: 67, buf: NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
-		{shard: 95, buf: NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
-		{shard: 24, buf: NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
-		{shard: 70, buf: NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
+		{shard: 12, buf: common.NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
+		{shard: 67, buf: common.NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
+		{shard: 95, buf: common.NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
+		{shard: 24, buf: common.NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
+		{shard: 70, buf: common.NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
 	}
 	for _, input := range inputs {
 		require.NoError(t, router.Route(input.shard, input.buf))
 	}
-	expected := [3][]*RefCountedBuffer{
-		[]*RefCountedBuffer{inputs[0].buf, inputs[3].buf},
-		[]*RefCountedBuffer{inputs[1].buf, inputs[4].buf},
-		[]*RefCountedBuffer{inputs[2].buf},
+	expected := [3][]*common.RefCountedBuffer{
+		[]*common.RefCountedBuffer{inputs[0].buf, inputs[3].buf},
+		[]*common.RefCountedBuffer{inputs[1].buf, inputs[4].buf},
+		[]*common.RefCountedBuffer{inputs[2].buf},
 	}
 	require.Equal(t, expected, enqueued)
 }
@@ -85,18 +86,18 @@ func TestShardedRouterRouteErrors(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		enqueued      [3][]*RefCountedBuffer
+		enqueued      [3][]*common.RefCountedBuffer
 		shardedQueues []ShardedQueue
 		totalShards   = 1024
 	)
 	ranges := []string{"10..30", "60..80", "95"}
 	for i, rng := range ranges {
 		i := i
-		q := NewMockQueue(ctrl)
+		q := common.NewMockQueue(ctrl)
 		q.EXPECT().
 			Enqueue(gomock.Any()).
 			Return(nil).
-			Do(func(b *RefCountedBuffer) {
+			Do(func(b *common.RefCountedBuffer) {
 				enqueued[i] = append(enqueued[i], b)
 			}).
 			AnyTimes()
@@ -110,17 +111,17 @@ func TestShardedRouterRouteErrors(t *testing.T) {
 
 	inputs := []struct {
 		shard uint32
-		buf   *RefCountedBuffer
+		buf   *common.RefCountedBuffer
 	}{
-		{shard: 0, buf: NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
-		{shard: uint32(totalShards + 100), buf: NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
-		{shard: 88, buf: NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
+		{shard: 0, buf: common.NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
+		{shard: uint32(totalShards + 100), buf: common.NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
+		{shard: 88, buf: common.NewRefCountedBuffer(msgpack.NewBufferedEncoder())},
 	}
 	for _, input := range inputs {
 		require.Error(t, router.Route(input.shard, input.buf))
 		require.Panics(t, func() { input.buf.DecRef() })
 	}
-	expected := [3][]*RefCountedBuffer{nil, nil, nil}
+	expected := [3][]*common.RefCountedBuffer{nil, nil, nil}
 	require.Equal(t, expected, enqueued)
 }
 
@@ -134,7 +135,7 @@ func TestShardedRouterPartialShardSetClose(t *testing.T) {
 	)
 	ranges := []string{"10..30"}
 	for _, rng := range ranges {
-		q := NewMockQueue(ctrl)
+		q := common.NewMockQueue(ctrl)
 		q.EXPECT().Close().Times(21)
 		sq := ShardedQueue{
 			ShardSet: sharding.MustParseShardSet(rng),

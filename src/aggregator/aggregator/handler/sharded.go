@@ -21,7 +21,7 @@
 package handler
 
 import (
-	"github.com/m3db/m3aggregator/aggregator/handler/common"
+	"github.com/m3db/m3aggregator/aggregator/handler/router"
 	"github.com/m3db/m3aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3aggregator/sharding"
 
@@ -31,12 +31,12 @@ import (
 // SharderRouter contains a sharder id and a router.
 type SharderRouter struct {
 	sharding.SharderID
-	common.Router
+	router.Router
 }
 
 type sharderRouters struct {
 	SharderID sharding.SharderID
-	Routers   []common.Router
+	Routers   []router.Router
 }
 
 type shardedHandler struct {
@@ -49,7 +49,7 @@ func NewShardedHandler(srs []SharderRouter, writerOpts writer.Options) Handler {
 	// Group routers by their sharder ids so that metrics are only encoded once
 	// for backends with the same sharding functions.
 	var (
-		nonShardedRouters  = make([]common.Router, 0, len(srs))
+		nonShardedRouters  = make([]router.Router, 0, len(srs))
 		shardedRoutersByID = make([]sharderRouters, 0, len(srs))
 	)
 	for _, sr := range srs {
@@ -67,7 +67,7 @@ func NewShardedHandler(srs []SharderRouter, writerOpts writer.Options) Handler {
 			if !found {
 				shardedRoutersByID = append(shardedRoutersByID, sharderRouters{
 					SharderID: sr.SharderID,
-					Routers:   []common.Router{sr.Router},
+					Routers:   []router.Router{sr.Router},
 				})
 			}
 		}
@@ -89,15 +89,15 @@ func NewShardedHandler(srs []SharderRouter, writerOpts writer.Options) Handler {
 
 	routersBySharderID := make([]SharderRouter, 0, len(shardedRoutersByID))
 	for _, sr := range shardedRoutersByID {
-		var router common.Router
+		var r router.Router
 		if len(sr.Routers) == 1 {
-			router = sr.Routers[0]
+			r = sr.Routers[0]
 		} else {
-			router = common.NewBroadcastRouter(sr.Routers)
+			r = router.NewBroadcastRouter(sr.Routers)
 		}
 		routersBySharderID = append(routersBySharderID, SharderRouter{
 			SharderID: sr.SharderID,
-			Router:    router,
+			Router:    r,
 		})
 	}
 	return &shardedHandler{
