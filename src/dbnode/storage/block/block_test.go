@@ -255,7 +255,13 @@ func TestDatabaseBlockMergeRace(t *testing.T) {
 				defer wg.Done()
 
 				depCtx := block.opts.ContextPool().Get()
-				stream, err := block.Stream(depCtx)
+				var (
+					// Make sure we shadow the top level variables
+					// with the same name
+					stream xio.BlockReader
+					err    error
+				)
+				stream, err = block.Stream(depCtx)
 				block.Close()
 				if err == errReadFromClosedBlock {
 					return
