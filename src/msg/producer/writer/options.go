@@ -33,6 +33,7 @@ import (
 
 const (
 	defaultDialTimeout               = 10 * time.Second
+	defaultWriteTimeout              = 5 * time.Second
 	defaultKeepAlivePeriod           = time.Minute
 	defaultPlacementWatchInitTimeout = 2 * time.Second
 	defaultTopicWatchInitTimeout     = 2 * time.Second
@@ -53,6 +54,12 @@ type ConnectionOptions interface {
 
 	// SetDialTimeout sets the dial timeout.
 	SetDialTimeout(value time.Duration) ConnectionOptions
+
+	// WriteTimeout returns the write timeout.
+	WriteTimeout() time.Duration
+
+	// SetWriteTimeout sets the write timeout.
+	SetWriteTimeout(value time.Duration) ConnectionOptions
 
 	// KeepAlivePeriod returns the keepAlivePeriod.
 	KeepAlivePeriod() time.Duration
@@ -93,6 +100,7 @@ type ConnectionOptions interface {
 
 type connectionOptions struct {
 	dialTimeout     time.Duration
+	writeTimeout    time.Duration
 	keepAlivePeriod time.Duration
 	resetDelay      time.Duration
 	rOpts           retry.Options
@@ -105,6 +113,7 @@ type connectionOptions struct {
 func NewConnectionOptions() ConnectionOptions {
 	return &connectionOptions{
 		dialTimeout:     defaultDialTimeout,
+		writeTimeout:    defaultWriteTimeout,
 		keepAlivePeriod: defaultKeepAlivePeriod,
 		resetDelay:      defaultConnectionResetDelay,
 		rOpts:           retry.NewOptions(),
@@ -121,6 +130,16 @@ func (opts *connectionOptions) DialTimeout() time.Duration {
 func (opts *connectionOptions) SetDialTimeout(value time.Duration) ConnectionOptions {
 	o := *opts
 	o.dialTimeout = value
+	return &o
+}
+
+func (opts *connectionOptions) WriteTimeout() time.Duration {
+	return opts.writeTimeout
+}
+
+func (opts *connectionOptions) SetWriteTimeout(value time.Duration) ConnectionOptions {
+	o := *opts
+	o.writeTimeout = value
 	return &o
 }
 
