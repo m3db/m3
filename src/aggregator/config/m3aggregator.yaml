@@ -234,8 +234,10 @@ aggregator:
     forcedFlushWindowSize: 10s
   flush:
     handlers:
-      - type: logging
-      - type: blackhole
+      - staticBackend:
+          type: logging
+      - staticBackend:
+          type: blackhole
   forwarding:
     maxSingleDelay: 5s
   entryTTL: 6h

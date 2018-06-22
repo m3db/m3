@@ -25,6 +25,7 @@ import (
 	"math/rand"
 
 	"github.com/m3db/m3aggregator/aggregator/handler/common"
+	"github.com/m3db/m3aggregator/aggregator/handler/router"
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3metrics/encoding/msgpack"
 	"github.com/m3db/m3metrics/metric/aggregated"
@@ -66,7 +67,7 @@ type randFn func() float64
 // shardedWriter is not thread safe.
 type shardedWriter struct {
 	sharding.AggregatedSharder
-	common.Router
+	router.Router
 
 	nowFn                    clock.NowFn
 	maxBufferSize            int
@@ -84,7 +85,7 @@ type shardedWriter struct {
 // NewShardedWriter creates a new sharded writer.
 func NewShardedWriter(
 	sharderID sharding.SharderID,
-	router common.Router,
+	router router.Router,
 	opts Options,
 ) (Writer, error) {
 	sharder, err := sharding.NewAggregatedSharder(sharderID)

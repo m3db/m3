@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator/handler/common"
+	"github.com/m3db/m3aggregator/aggregator/handler/router"
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3metrics/encoding/msgpack"
 	"github.com/m3db/m3metrics/metric/aggregated"
@@ -241,7 +242,7 @@ func TestShardedWriterWriteNoEncodeTimeWithFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	flushed := make(map[uint32][]*common.RefCountedBuffer)
-	router := common.NewMockRouter(ctrl)
+	router := router.NewMockRouter(ctrl)
 	router.EXPECT().
 		Route(gomock.Any(), gomock.Any()).
 		Return(nil).
@@ -313,7 +314,7 @@ func TestShardedWriterFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	flushed := make(map[uint32][]*common.RefCountedBuffer)
-	router := common.NewMockRouter(ctrl)
+	router := router.NewMockRouter(ctrl)
 	router.EXPECT().
 		Route(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(shard uint32, buf *common.RefCountedBuffer) error {

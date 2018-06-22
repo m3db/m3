@@ -23,7 +23,8 @@
 //go:generate sh -c "mockgen -package=client $PACKAGE/client Client,AdminClient | mockclean -pkg $PACKAGE/client -out $GOPATH/src/$PACKAGE/client/client_mock.go"
 //go:generate sh -c "mockgen -package=handler $PACKAGE/aggregator/handler Handler | mockclean -pkg $PACKAGE/aggregator/handler -out $GOPATH/src/$PACKAGE/aggregator/handler/handler_mock.go"
 //go:generate sh -c "mockgen -package=writer $PACKAGE/aggregator/handler/writer Writer | mockclean -pkg $PACKAGE/aggregator/handler/writer -out $GOPATH/src/$PACKAGE/aggregator/handler/writer/writer_mock.go"
-//go:generate sh -c "mockgen -package=common $PACKAGE/aggregator/handler/common Queue,Router | mockclean -pkg $PACKAGE/aggregator/handler/common -out $GOPATH/src/$PACKAGE/aggregator/handler/common/common_mock.go"
+//go:generate sh -c "mockgen -package=common $PACKAGE/aggregator/handler/common Queue | mockclean -pkg $PACKAGE/aggregator/handler/common -out $GOPATH/src/$PACKAGE/aggregator/handler/common/common_mock.go"
+//go:generate sh -c "mockgen -package=router $PACKAGE/aggregator/handler/router Router | mockclean -pkg $PACKAGE/aggregator/handler/router -out $GOPATH/src/$PACKAGE/aggregator/handler/router/router_mock.go"
 //go:generate sh -c "mockgen -package=runtime $PACKAGE/runtime OptionsWatcher | mockclean -pkg $PACKAGE/runtime -out $GOPATH/src/$PACKAGE/runtime/runtime_mock.go"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode).
