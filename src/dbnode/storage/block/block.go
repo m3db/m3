@@ -178,7 +178,7 @@ func (b *dbBlock) Checksum() (uint32, error) {
 
 	// This will merge the existing stream with the merge target's stream,
 	// as well as recalculate and store the new checksum.
-	_, err = b.forceMergeWithLock(tempCtx, stream)
+	err = b.forceMergeWithLock(tempCtx, stream)
 	if err != nil {
 		return 0, err
 	}
@@ -242,7 +242,12 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 
 	// This will merge the existing stream with the merge target's stream,
 	// as well as recalculate and store the new checksum.
-	return b.forceMergeWithLock(blocker, stream)
+	err = b.forceMergeWithLock(blocker, stream)
+	if err != nil {
+		return xio.EmptyBlockReader, err
+	}
+
+	return b.streamWithRLock(blocker)
 }
 
 func (b *dbBlock) HasMergeTarget() bool {
@@ -354,10 +359,10 @@ func (b *dbBlock) streamWithRLock(ctx context.Context) (xio.BlockReader, error) 
 // TODO(rartoul): The existing ctx is still holding a reference to the old segment so that will hang around
 // and waste memory until the block is closed. We could improve this by swapping out the underlying ctx with
 // a new one, allowing us to close the old one and release the old segment, freeing memory.
-func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentReader) (xio.BlockReader, error) {
+func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentReader) error {
 	targetStream, err := b.mergeTarget.Stream(ctx)
 	if err != nil {
-		return xio.EmptyBlockReader, err
+		return err
 	}
 	start := b.startWithRLock()
 	mergedBlockReader := newDatabaseMergedBlockReader(start, b.blockSize,
@@ -366,12 +371,12 @@ func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentRead
 		b.opts)
 	mergedSegment, err := mergedBlockReader.Segment()
 	if err != nil {
-		return xio.EmptyBlockReader, err
+		return err
 	}
 
 	b.resetMergeTargetWithLock()
 	b.resetSegmentWithLock(mergedSegment)
-	return mergedBlockReader, nil
+	return nil
 }
 
 func (b *dbBlock) resetNewBlockStartWithLock(start time.Time, blockSize time.Duration) {
