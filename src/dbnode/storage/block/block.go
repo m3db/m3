@@ -230,7 +230,11 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 	lockUpgraded = true
 	b.Lock()
 
-	// NB: need to re-check as we just upgraded the lock.
+	// Need to re-check everything since we upgraded the lock.
+	if b.closed {
+		return xio.EmptyBlockReader, errReadFromClosedBlock
+	}
+
 	stream, err := b.streamWithRLock(blocker)
 	if err != nil {
 		return xio.EmptyBlockReader, err
