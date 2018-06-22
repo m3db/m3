@@ -259,6 +259,7 @@ func TestDatabaseBlockMergeRace(t *testing.T) {
 					// Make sure we shadow the top level variables
 					// with the same name
 					stream xio.BlockReader
+					seg    ts.Segment
 					err    error
 				)
 				stream, err = block.Stream(depCtx)
