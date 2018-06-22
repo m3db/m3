@@ -37,6 +37,7 @@ import (
 func TestConnectionConfiguration(t *testing.T) {
 	str := `
 dialTimeout: 3s
+writeTimeout: 2s
 keepAlivePeriod: 20s
 resetDelay: 1s
 retry:
@@ -51,6 +52,7 @@ readBufferSize: 200
 
 	cOpts := cfg.NewOptions(instrument.NewOptions())
 	require.Equal(t, 3*time.Second, cOpts.DialTimeout())
+	require.Equal(t, 2*time.Second, cOpts.WriteTimeout())
 	require.Equal(t, 20*time.Second, cOpts.KeepAlivePeriod())
 	require.Equal(t, time.Second, cOpts.ResetDelay())
 	require.Equal(t, time.Millisecond, cOpts.RetryOptions().InitialBackoff())

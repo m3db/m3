@@ -336,7 +336,7 @@ func (w *consumerWriterImpl) connectOnce(addr string) (io.ReadWriteCloser, error
 	if err = tcpConn.SetKeepAlivePeriod(keepAlivePeriod); err != nil {
 		w.m.setKeepAlivePeriodError.Inc(1)
 	}
-	return conn, nil
+	return newReadWriterWithTimeout(conn, w.connOpts.WriteTimeout(), w.nowFn), nil
 }
 
 func (w *consumerWriterImpl) connectWithRetry(addr string) (io.ReadWriteCloser, error) {
@@ -355,6 +355,26 @@ func (w *consumerWriterImpl) connectWithRetry(addr string) (io.ReadWriteCloser, 
 		return nil, attemptErr
 	}
 	return conn, nil
+}
+
+type readWriterWithTimeout struct {
+	net.Conn
+
+	timeout time.Duration
+	nowFn   clock.NowFn
+}
+
+func newReadWriterWithTimeout(conn net.Conn, timeout time.Duration, nowFn clock.NowFn) readWriterWithTimeout {
+	return readWriterWithTimeout{
+		Conn:    conn,
+		timeout: timeout,
+		nowFn:   nowFn,
+	}
+}
+
+func (conn readWriterWithTimeout) Write(p []byte) (int, error) {
+	conn.SetWriteDeadline(conn.nowFn().Add(conn.timeout))
+	return conn.Conn.Write(p)
 }
 
 type uninitializedReadWriter struct{}
