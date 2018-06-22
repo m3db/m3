@@ -251,6 +251,8 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.BlockReader, error) {
 		return xio.EmptyBlockReader, err
 	}
 
+	// This will return a copy of the data so that it is still safe to
+	// close the block after calling this method.
 	return b.streamWithRLock(blocker)
 }
 
@@ -360,9 +362,6 @@ func (b *dbBlock) streamWithRLock(ctx context.Context) (xio.BlockReader, error) 
 	return blockReader, nil
 }
 
-// TODO(rartoul): The existing ctx is still holding a reference to the old segment so that will hang around
-// and waste memory until the block is closed. We could improve this by swapping out the underlying ctx with
-// a new one, allowing us to close the old one and release the old segment, freeing memory.
 func (b *dbBlock) forceMergeWithLock(ctx context.Context, stream xio.SegmentReader) error {
 	targetStream, err := b.mergeTarget.Stream(ctx)
 	if err != nil {
