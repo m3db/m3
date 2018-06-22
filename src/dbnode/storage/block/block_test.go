@@ -206,59 +206,83 @@ func TestDatabaseBlockMergeRace(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	// Test data
-	curr := time.Now()
-	data := []ts.Datapoint{
-		ts.Datapoint{
-			Timestamp: curr,
-			Value:     0,
-		},
-		ts.Datapoint{
-			Timestamp: curr.Add(time.Second),
-			Value:     1,
-		},
+	var (
+		numRuns     = 1000
+		numRoutines = 20
+	)
+
+	for i := 0; i < numRuns; i++ {
+		func() {
+			// Test data
+			curr := time.Now()
+			data := []ts.Datapoint{
+				ts.Datapoint{
+					Timestamp: curr,
+					Value:     0,
+				},
+				ts.Datapoint{
+					Timestamp: curr.Add(time.Second),
+					Value:     1,
+				},
+			}
+			durations := []time.Duration{
+				time.Minute,
+				time.Hour,
+			}
+
+			// Setup
+			blockOpts := NewOptions()
+			encodingOpts := encoding.NewOptions()
+
+			// Create the two blocks we plan to merge
+			encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
+			encoder.Encode(data[0], xtime.Second, nil)
+			seg := encoder.Discard()
+			block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts).(*dbBlock)
+
+			encoder.Reset(data[1].Timestamp, 10)
+			encoder.Encode(data[1], xtime.Second, nil)
+			seg = encoder.Discard()
+			block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts).(*dbBlock)
+
+			// Lazily merge the two blocks
+			block1.Merge(block2)
+
+			var wg sync.WaitGroup
+			wg.Add(numRoutines)
+
+			blockFn := func(block *dbBlock) {
+				defer wg.Done()
+
+				depCtx := block.opts.ContextPool().Get()
+				stream, err := block.Stream(depCtx)
+				block.Close()
+				if err == errReadFromClosedBlock {
+					return
+				}
+				require.NoError(t, err)
+
+				seg, err = stream.Segment()
+				require.NoError(t, err)
+				reader := xio.NewSegmentReader(seg)
+				iter := m3tsz.NewReaderIterator(reader, true, encodingOpts)
+
+				i := 0
+				for iter.Next() {
+					dp, _, _ := iter.Current()
+					require.True(t, data[i].Equal(dp))
+					i++
+				}
+				require.NoError(t, iter.Err())
+			}
+
+			for i := 0; i < numRoutines; i++ {
+				go blockFn(block1)
+			}
+
+			wg.Wait()
+		}()
 	}
-	durations := []time.Duration{
-		time.Minute,
-		time.Hour,
-	}
-
-	// Setup
-	blockOpts := NewOptions()
-	encodingOpts := encoding.NewOptions()
-
-	// Create the two blocks we plan to merge
-	encoder := m3tsz.NewEncoder(data[0].Timestamp, nil, true, encodingOpts)
-	encoder.Encode(data[0], xtime.Second, nil)
-	seg := encoder.Discard()
-	block1 := NewDatabaseBlock(data[0].Timestamp, durations[0], seg, blockOpts).(*dbBlock)
-
-	encoder.Reset(data[1].Timestamp, 10)
-	encoder.Encode(data[1], xtime.Second, nil)
-	seg = encoder.Discard()
-	block2 := NewDatabaseBlock(data[1].Timestamp, durations[1], seg, blockOpts).(*dbBlock)
-
-	// Lazily merge the two blocks
-	block1.Merge(block2)
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		depCtx := block1.opts.ContextPool().Get()
-		_, err := block1.Stream(depCtx)
-		require.NoError(t, err)
-		wg.Done()
-	}()
-
-	go func() {
-		depCtx := block1.opts.ContextPool().Get()
-		_, err := block1.Stream(depCtx)
-		require.NoError(t, err)
-		wg.Done()
-	}()
-
-	wg.Wait()
 }
 
 // TestDatabaseBlockMergeChained is similar to TestDatabaseBlockMerge except
