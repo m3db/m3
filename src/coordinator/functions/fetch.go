@@ -47,7 +47,7 @@ type FetchNode struct {
 	op         FetchOp
 	controller *transform.Controller
 	storage    storage.Storage
-	now        time.Time
+	timespec   transform.TimeSpec
 }
 
 // OpType for the operator
@@ -62,17 +62,18 @@ func (o FetchOp) String() string {
 
 // Node creates an execution node
 func (o FetchOp) Node(controller *transform.Controller, storage storage.Storage, options transform.Options) parser.Source {
-	return &FetchNode{op: o, controller: controller, storage: storage, now: options.Now}
+	return &FetchNode{op: o, controller: controller, storage: storage, timespec: options.TimeSpec}
 }
 
 // Execute runs the fetch node operation
 func (n *FetchNode) Execute(ctx context.Context) error {
-	startTime := n.now.Add(-1 * n.op.Offset)
-	endTime := startTime.Add(n.op.Range)
+	startTime := n.timespec.Start.Add(-1 * n.op.Offset)
+	endTime := n.timespec.End
 	blockResult, err := n.storage.FetchBlocks(ctx, &storage.FetchQuery{
 		Start:       startTime,
 		End:         endTime,
 		TagMatchers: n.op.Matchers,
+		Interval:    n.timespec.Step,
 	}, &storage.FetchOptions{})
 	if err != nil {
 		return err
@@ -80,9 +81,11 @@ func (n *FetchNode) Execute(ctx context.Context) error {
 
 	for _, block := range blockResult.Blocks {
 		if err := n.controller.Process(block); err != nil {
+			block.Close()
 			// Fail on first error
 			return err
 		}
+		block.Close()
 	}
 
 	return nil

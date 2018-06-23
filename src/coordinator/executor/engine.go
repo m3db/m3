@@ -22,11 +22,10 @@ package executor
 
 import (
 	"context"
-	"time"
-
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/plan"
+	"github.com/m3db/m3db/src/coordinator/models"
 )
 
 // Engine executes a Query.
@@ -41,13 +40,16 @@ type Engine struct {
 type EngineOptions struct {
 	// AbortCh is a channel that signals when results are no longer desired by the caller.
 	AbortCh <-chan bool
-	Now     time.Time
 }
 
 // Query is the result after execution
 type Query struct {
 	Err    error
 	Result Result
+}
+
+type Params struct {
+
 }
 
 // NewEngine returns a new instance of QueryExecutor.
@@ -93,7 +95,7 @@ func (e *Engine) Execute(ctx context.Context, query *storage.FetchQuery, opts *E
 }
 
 // ExecuteExpr runs the query DAG and closes the results channel once done
-func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *EngineOptions, results chan Query) {
+func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *EngineOptions, params models.RequestParams, results chan Query) {
 	defer close(results)
 
 	nodes, edges, err := parser.DAG()
@@ -108,7 +110,7 @@ func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *En
 		return
 	}
 
-	pp, err := plan.NewPhysicalPlan(lp, e.store, opts.Now)
+	pp, err := plan.NewPhysicalPlan(lp, e.store, params)
 	if err != nil {
 		results <- Query{Err: err}
 		return
@@ -117,7 +119,6 @@ func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *En
 	state, err := GenerateExecutionState(pp, e.store)
 	result := state.resultNode
 	// free up resources
-	defer result.done()
 	if err != nil {
 		results <- Query{Err: err}
 		return
@@ -126,7 +127,8 @@ func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *En
 	results <- Query{Result: result}
 	if err := state.Execute(ctx); err != nil {
 		result.abort(err)
-		return
+	} else {
+		result.done()
 	}
 }
 

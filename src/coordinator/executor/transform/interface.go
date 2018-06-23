@@ -29,10 +29,18 @@ import (
 
 // Options to create transform nodes
 type Options struct {
-	Now time.Time
+	TimeSpec TimeSpec
 }
 
 // OpNode represents the execution node
 type OpNode interface {
 	Process(ID parser.NodeID, block block.Block) error
+}
+
+type TimeSpec struct {
+	Start time.Time
+	End   time.Time
+	// Now captures the current time and fixes it throughout the request, we may let people override it in the future
+	Now  time.Time
+	Step time.Duration
 }

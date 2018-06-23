@@ -18,49 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package executor
+package models
 
 import (
-	"github.com/m3db/m3db/src/coordinator/block"
-	"github.com/m3db/m3db/src/coordinator/parser"
+	"time"
 )
 
-const (
-	channelSize = 100
-)
-
-// Result provides the execution results
-type Result interface {
-	abort(err error)
-	done()
-	Blocks() chan block.Block
-}
-
-// ResultNode is used to provide the results to the caller from the query execution
-type ResultNode struct {
-	blocks chan block.Block
-}
-
-func newResultNode() *ResultNode {
-	blocks := make(chan block.Block, channelSize)
-	return &ResultNode{blocks: blocks}
-}
-
-// Process the block
-func (r *ResultNode) Process(ID parser.NodeID, block block.Block) error {
-	r.blocks <- block
-	return nil
-}
-
-// Blocks return a channel to stream back blocks to the client
-func (r *ResultNode) Blocks() chan block.Block {
-	return r.blocks
-}
-
-func (r *ResultNode) abort(err error) {
-	close(r.blocks)
-}
-
-func (r *ResultNode) done() {
-	close(r.blocks)
+type RequestParams struct {
+	Start   time.Time
+	End     time.Time
+	// Now captures the current time and fixes it throughout the request, we may let people override it in the future
+	Now     time.Time
+	Timeout time.Duration
+	Step    time.Duration
+	Target  string
 }

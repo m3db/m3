@@ -21,62 +21,76 @@
 package native
 
 import (
-	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"testing"
-	"time"
-
 	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/test/local"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/m3db/m3db/src/coordinator/test/seriesiter"
+	"github.com/stretchr/testify/assert"
+	"math"
 )
 
-const (
-	promQuery = `http_requests_total{job="prometheus",group="canary"}`
-	target    = "?target="
-)
-
-
-func TestPromReadNotImplemented(t *testing.T) {
+func TestPromReadWithFetchOnly(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
-	storage, _ := local.NewStorageAndSession(ctrl)
+	storage, mockSession := local.NewStorageAndSession(ctrl)
+	testTags := seriesiter.GenerateTag()
+	mockSession.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 10), true, nil)
+
 	promRead := &PromReadHandler{engine: executor.NewEngine(storage)}
-	req, _ := http.NewRequest("GET", createURL().String(), nil)
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	req.URL.RawQuery = defaultParams().Encode()
 
-	r, parseErr := promRead.parseRequest(req)
-	require.Nil(t, parseErr, "unable to parse request")
-	_, err := promRead.read(context.TODO(), httptest.NewRecorder(), r, time.Hour)
-	require.NotNil(t, err, "{\"error\":\"not implemented\"}\n")
+	r, parseErr := ParseParams(req)
+	require.Nil(t, parseErr)
+	seriesList, err := promRead.read(context.TODO(), httptest.NewRecorder(), r)
+	require.NoError(t, err)
+	require.Len(t, seriesList, 1)
+	s := seriesList[0]
+	assert.Equal(t, s.Values().Len(), 360, "10 second resolution for 1 hour")
+	assert.Equal(t, s.Values().ValueAt(0), float64(0), "first value is zero since db returns values starting from start + 10ms")
+	assert.Equal(t, s.Values().ValueAt(1), float64(0))
+	for i := 2 ; i < 10; i++ {
+		assert.Equal(t, s.Values().ValueAt(i), float64(i-1))
+	}
+
+	for i := 11; i < s.Values().Len(); i++ {
+		require.True(t, math.IsNaN(s.Values().ValueAt(i)), "all remaining are nans")
+	}
 }
 
-// NB(braskin): will replace this test once the server actually returns something
-func TestPromReadEndpoint(t *testing.T) {
+func TestPromReadWithFetchAndCount(t *testing.T) {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
-	// No calls expected on session object
-	req, _ := http.NewRequest("GET", createURL().String(), nil)
-	res := httptest.NewRecorder()
-	storage, _ := local.NewStorageAndSession(ctrl)
-	engine := executor.NewEngine(storage)
-	promRead := &PromReadHandler{engine: engine}
+	storage, mockSession := local.NewStorageAndSession(ctrl)
+	testTags := seriesiter.GenerateTag()
+	mockSession.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 10), true, nil)
 
-	promRead.ServeHTTP(res, req)
-	require.Equal(t, "{\"error\":\"not implemented\"}\n", res.Body.String())
+	promRead := &PromReadHandler{engine: executor.NewEngine(storage)}
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	params := defaultParams()
+	params.Set(targetQuery, `count(http_requests_total{job="prometheus",group="canary"})`)
+	req.URL.RawQuery = params.Encode()
+
+	r, parseErr := ParseParams(req)
+	require.Nil(t, parseErr)
+	seriesList, err := promRead.read(context.TODO(), httptest.NewRecorder(), r)
+	require.NoError(t, err)
+	require.Len(t, seriesList, 1)
+	s := seriesList[0]
+	assert.Equal(t, s.Values().Len(), 360, "10 second resolution for 1 hour")
+	for i := 0 ; i < 10; i++ {
+		assert.Equal(t, s.Values().ValueAt(i), float64(1))
+	}
+
+	for i := 11; i < s.Values().Len(); i++ {
+		assert.Equal(t, s.Values().ValueAt(i), float64(0))
+	}
 }
 
-func createURL() *bytes.Buffer {
-	var buffer bytes.Buffer
-
-	buffer.WriteString(PromReadURL)
-	buffer.WriteString(target)
-	buffer.WriteString(url.QueryEscape(promQuery))
-
-	return &buffer
-}

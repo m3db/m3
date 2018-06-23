@@ -28,13 +28,12 @@ import (
 // Series is a single series within a block
 type Series struct {
 	values []float64
-	Bounds Bounds
-	ID     string
+	Meta   SeriesMeta
 }
 
 // NewSeries creates a new series
-func NewSeries(values []float64, bounds Bounds, ID string) Series {
-	return Series{values: values, Bounds: bounds, ID: ID}
+func NewSeries(values []float64, meta SeriesMeta) Series {
+	return Series{values: values, Meta: meta}
 }
 
 // ValueAtStep returns the datapoint value at a step index
@@ -44,7 +43,7 @@ func (s Series) ValueAtStep(idx int) float64 {
 
 // ValueAtTime returns the datapoint value at a given time
 func (s Series) ValueAtTime(t time.Time) (float64, error) {
-	bounds := s.Bounds
+	bounds := s.Meta.Bounds
 	if t.Before(bounds.Start) || t.After(bounds.End) {
 		return 0, fmt.Errorf(errBounds, t, bounds)
 	}

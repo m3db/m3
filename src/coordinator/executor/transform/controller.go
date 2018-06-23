@@ -50,6 +50,6 @@ func (t *Controller) Process(block block.Block) error {
 
 // BlockBuilder returns a BlockBuilder instance with associated metadata
 // nolint: unparam
-func (t *Controller) BlockBuilder(blockMeta block.Metadata) (block.Builder, error) {
-	return block.NewColumnBlockBuilder(blockMeta), nil
+func (t *Controller) BlockBuilder(blockMeta block.Metadata, seriesMeta []block.SeriesMeta) (block.Builder, error) {
+	return block.NewColumnBlockBuilder(blockMeta, seriesMeta), nil
 }

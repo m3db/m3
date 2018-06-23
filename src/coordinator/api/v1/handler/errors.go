@@ -23,6 +23,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 )
@@ -61,6 +62,11 @@ func (e *ParseError) Error() error {
 // Code returns the error code
 func (e *ParseError) Code() int {
 	return e.code
+}
+
+// Code returns the error code
+func (e *ParseError) String() string {
+	return fmt.Sprintf("error: %v, code: %d", e.inner, e.code)
 }
 
 // IsInvalidParams returns true if this is an invalid params error

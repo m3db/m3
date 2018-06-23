@@ -22,10 +22,10 @@ package plan
 
 import (
 	"fmt"
-	"time"
-
+	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/executor/transform"
 )
 
 // PhysicalPlan represents the physical plan
@@ -33,7 +33,7 @@ type PhysicalPlan struct {
 	steps      map[parser.NodeID]LogicalStep
 	pipeline   []parser.NodeID // Ordered list of steps to be performed
 	ResultStep ResultOp
-	Now        time.Time
+	TimeSpec   transform.TimeSpec
 }
 
 // ResultOp is resonsible for delivering results to the clients
@@ -44,13 +44,18 @@ type ResultOp struct {
 // NewPhysicalPlan is used to generate a physical plan. Its responsibilities include creating consolidation nodes, result nodes,
 // pushing down predicates, changing the ordering for nodes
 // nolint: unparam
-func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, now time.Time) (PhysicalPlan, error) {
+func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.RequestParams) (PhysicalPlan, error) {
 	// generate a new physical plan after cloning the logical plan so that any changes here do not update the logical plan
 	cloned := lp.Clone()
 	p := PhysicalPlan{
 		steps:    cloned.Steps,
 		pipeline: cloned.Pipeline,
-		Now:      now,
+		TimeSpec: transform.TimeSpec{
+			Start: params.Start,
+			End:   params.End,
+			Now:   params.Now,
+			Step:  params.Step,
+		},
 	}
 
 	pl, err := p.createResultNode()

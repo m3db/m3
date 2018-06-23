@@ -70,7 +70,7 @@ func (m multiSeriesBlock) Meta() block.Metadata {
 }
 
 func (m multiSeriesBlock) StepIter() block.StepIter {
-	return &multiSeriesBlockStepIter{block: m}
+	return &multiSeriesBlockStepIter{block: m, index: -1}
 }
 
 func (m multiSeriesBlock) SeriesIter() block.SeriesIter {
@@ -108,7 +108,7 @@ func (m *multiSeriesBlockStepIter) Next() bool {
 func (m *multiSeriesBlockStepIter) Current() block.Step {
 	values := make([]float64, len(m.block.seriesList))
 	for i, s := range m.block.seriesList {
-		values[i] = s.Values().ValueAt(i)
+		values[i] = s.Values().ValueAt(m.index)
 	}
 
 	bounds := m.block.meta.Bounds
@@ -133,7 +133,7 @@ type multiSeriesBlockSeriesIter struct {
 	index int
 }
 
-func newMultiSeriesBlockSeriesIter(block multiSeriesBlock) *multiSeriesBlockSeriesIter {
+func newMultiSeriesBlockSeriesIter(block multiSeriesBlock) block.SeriesIter {
 	return &multiSeriesBlockSeriesIter{block: block, index: -1}
 }
 
@@ -148,8 +148,12 @@ func (m *multiSeriesBlockSeriesIter) Current() block.Series {
 	for i := 0; i < s.Len(); i++ {
 		values[i] = s.Values().ValueAt(i)
 	}
-	return block.NewSeries(values, m.block.meta.Bounds, s.Name())
+	return block.NewSeries(values, block.SeriesMeta{
+		Tags:   m.block.seriesList[m.index].Tags,
+		Name:   m.block.seriesList[m.index].Name(),
+		Bounds: m.block.meta.Bounds,
+	})
 }
 
-func (m *multiSeriesBlockSeriesIter) Close()  {
+func (m *multiSeriesBlockSeriesIter) Close() {
 }

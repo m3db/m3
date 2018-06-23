@@ -79,7 +79,7 @@ func GenerateExecutionState(pplan plan.PhysicalPlan, storage storage.Storage) (*
 	}
 
 	options := transform.Options{
-		Now: pplan.Now,
+		TimeSpec: pplan.TimeSpec,
 	}
 	controller, err := state.createNode(step, options)
 	if err != nil {
@@ -90,7 +90,7 @@ func GenerateExecutionState(pplan plan.PhysicalPlan, storage storage.Storage) (*
 		return nil, errors.New("empty sources for the execution state")
 	}
 
-	rNode := ResultNode{}
+	rNode := newResultNode()
 	state.resultNode = rNode
 	controller.AddTransform(rNode)
 

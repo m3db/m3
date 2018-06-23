@@ -59,8 +59,7 @@ type CountNode struct {
 
 // Process the block
 func (c *CountNode) Process(ID parser.NodeID, block block.Block) error {
-	defer block.Close()
-	builder, err := c.controller.BlockBuilder(block.Meta())
+	builder, err := c.controller.BlockBuilder(block.Meta(), block.SeriesMeta())
 	if err != nil {
 		return err
 	}
@@ -83,5 +82,7 @@ func (c *CountNode) Process(ID parser.NodeID, block block.Block) error {
 		builder.AppendValue(index, count)
 	}
 
-	return c.controller.Process(builder.Build())
+	nextBlock := builder.Build()
+	defer nextBlock.Close()
+	return c.controller.Process(nextBlock)
 }

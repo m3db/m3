@@ -21,20 +21,60 @@
 package native
 
 import (
+	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
+	"time"
 
-	"github.com/m3db/m3db/src/coordinator/util/logging"
-
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	promQuery = `http_requests_total{job="prometheus",group="canary"}`
+)
+
+func defaultParams() url.Values {
+	vals := url.Values{}
+	vals.Add(targetQuery, promQuery)
+	vals.Add(startParam, time.Now().Format(time.RFC3339))
+	vals.Add(endParam, string(time.Now().Add(time.Hour).Format(time.RFC3339)))
+	vals.Add(stepParam, (time.Duration(10) * time.Second).String())
+	return vals
+}
+
 func TestParamParsing(t *testing.T) {
-	logging.InitWithCores(nil)
-	req, _ := http.NewRequest("GET", createURL().String(), nil)
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	req.URL.RawQuery = defaultParams().Encode()
 
 	r, err := ParseParams(req)
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, promQuery, r.Target)
 }
+
+func TestInvalidStart(t *testing.T) {
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	vals := defaultParams()
+	vals.Del(startParam)
+	req.URL.RawQuery = vals.Encode()
+	_, err := ParseParams(req)
+	require.NotNil(t, err, "unable to parse request")
+	require.Equal(t, err.Code(), http.StatusBadRequest)
+}
+
+func TestInvalidTarget(t *testing.T) {
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	vals := defaultParams()
+	vals.Del(targetQuery)
+	fmt.Println(vals)
+	req.URL.RawQuery = vals.Encode()
+
+	p, err := ParseParams(req)
+	require.NotNil(t, err, "unable to parse request")
+	assert.NotNil(t, p.Start)
+	require.Equal(t, err.Code(), http.StatusBadRequest)
+}
+
+
 

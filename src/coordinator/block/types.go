@@ -43,7 +43,9 @@ type Block interface {
 
 // SeriesMeta is metadata data for the series
 type SeriesMeta struct {
-	Tags models.Tags
+	Tags   models.Tags
+	Name   string
+	Bounds Bounds
 }
 
 // Bounds are the time Bounds
