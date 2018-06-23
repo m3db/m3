@@ -46,7 +46,7 @@ func TestMessagePool(t *testing.T) {
 	m := p.Get()
 	require.Nil(t, m.pb.Value)
 	mm.EXPECT().Bytes().Return([]byte("foo"))
-	m.Set(metadata{}, rm)
+	m.Set(metadata{}, rm, 500)
 	m.SetRetryAtNanos(100)
 
 	pb, ok := m.Marshaler()
@@ -64,9 +64,11 @@ func TestMessagePool(t *testing.T) {
 	m = p.Get()
 	require.Nil(t, m.pb.Value)
 	require.True(t, m.IsDroppedOrConsumed())
+	require.Equal(t, int64(500), m.InitNanos())
 
 	mm.EXPECT().Size().Return(3)
 	mm.EXPECT().Bytes().Return([]byte("foo"))
-	m.Set(metadata{}, producer.NewRefCountedMessage(mm, nil))
+	m.Set(metadata{}, producer.NewRefCountedMessage(mm, nil), 600)
 	require.False(t, m.IsDroppedOrConsumed())
+	require.Equal(t, int64(600), m.InitNanos())
 }

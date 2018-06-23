@@ -82,7 +82,7 @@ type WriterConfiguration struct {
 	MessagePool               *pool.ObjectPoolConfiguration     `yaml:"messagePool"`
 	MessageRetry              *retry.Configuration              `yaml:"messageRetry"`
 	MessageQueueScanInterval  *time.Duration                    `yaml:"messageQueueScanInterval"`
-	MessageRetryBatchSize     *int                              `yaml:"messageRetryBatchSize"`
+	MessageQueueScanBatchSize *int                              `yaml:"messageQueueScanBatchSize"`
 	InitialAckMapSize         *int                              `yaml:"initialAckMapSize"`
 	CloseCheckInterval        *time.Duration                    `yaml:"closeCheckInterval"`
 	AckErrorRetry             *retry.Configuration              `yaml:"ackErrorRetry"`
@@ -129,8 +129,8 @@ func (c *WriterConfiguration) NewOptions(
 	if c.MessageQueueScanInterval != nil {
 		opts = opts.SetMessageQueueScanInterval(*c.MessageQueueScanInterval)
 	}
-	if c.MessageRetryBatchSize != nil {
-		opts = opts.SetMessageRetryBatchSize(*c.MessageRetryBatchSize)
+	if c.MessageQueueScanBatchSize != nil {
+		opts = opts.SetMessageQueueScanBatchSize(*c.MessageQueueScanBatchSize)
 	}
 	if c.InitialAckMapSize != nil {
 		opts = opts.SetInitialAckMapSize(*c.InitialAckMapSize)

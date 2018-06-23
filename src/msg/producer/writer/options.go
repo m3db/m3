@@ -40,7 +40,7 @@ const (
 	defaultCloseCheckInterval        = time.Second
 	defaultConnectionResetDelay      = 2 * time.Second
 	defaultMessageQueueScanInterval  = time.Second
-	defaultMessageRetryBatchSize     = 16
+	defaultMessageQueueScanBatchSize = 16
 	defaultInitialAckMapSize         = 1024
 	// Using 16K which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
@@ -253,11 +253,11 @@ type Options interface {
 	// SetMessageQueueScanInterval sets the interval between scanning message queue for retries.
 	SetMessageQueueScanInterval(value time.Duration) Options
 
-	// MessageRetryBatchSize returns the batch size for retry.
-	MessageRetryBatchSize() int
+	// MessageQueueScanBatchSize returns the batch size for queue scan.
+	MessageQueueScanBatchSize() int
 
-	// SetMessageRetryBatchSize sets the batch size for retry.
-	SetMessageRetryBatchSize(value int) Options
+	// SetMessageQueueScanBatchSize sets the batch size for queue scan.
+	SetMessageQueueScanBatchSize(value int) Options
 
 	// InitialAckMapSize returns the initial size of the ack map.
 	InitialAckMapSize() int
@@ -305,7 +305,7 @@ type writerOptions struct {
 	messagePoolOptions        pool.ObjectPoolOptions
 	messageRetryOpts          retry.Options
 	messageQueueScanInterval  time.Duration
-	messageRetryBatchSize     int
+	messageQueueScanBatchSize int
 	initialAckMapSize         int
 	closeCheckInterval        time.Duration
 	ackErrRetryOpts           retry.Options
@@ -321,7 +321,7 @@ func NewOptions() Options {
 		placementWatchInitTimeout: defaultPlacementWatchInitTimeout,
 		messageRetryOpts:          retry.NewOptions(),
 		messageQueueScanInterval:  defaultMessageQueueScanInterval,
-		messageRetryBatchSize:     defaultMessageRetryBatchSize,
+		messageQueueScanBatchSize: defaultMessageQueueScanBatchSize,
 		initialAckMapSize:         defaultInitialAckMapSize,
 		closeCheckInterval:        defaultCloseCheckInterval,
 		ackErrRetryOpts:           retry.NewOptions(),
@@ -411,13 +411,13 @@ func (opts *writerOptions) SetMessageQueueScanInterval(value time.Duration) Opti
 	return &o
 }
 
-func (opts *writerOptions) MessageRetryBatchSize() int {
-	return opts.messageRetryBatchSize
+func (opts *writerOptions) MessageQueueScanBatchSize() int {
+	return opts.messageQueueScanBatchSize
 }
 
-func (opts *writerOptions) SetMessageRetryBatchSize(value int) Options {
+func (opts *writerOptions) SetMessageQueueScanBatchSize(value int) Options {
 	o := *opts
-	o.messageRetryBatchSize = value
+	o.messageQueueScanBatchSize = value
 	return &o
 }
 
