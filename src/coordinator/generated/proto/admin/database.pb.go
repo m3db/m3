@@ -68,7 +68,7 @@ type DatabaseCreateRequest struct {
 	// The below two options are used to default retention options
 	RetentionPeriodNanos            int64 `protobuf:"varint,5,opt,name=retention_period_nanos,json=retentionPeriodNanos,proto3" json:"retention_period_nanos,omitempty"`
 	ExpectedSeriesDatapointsPerHour int64 `protobuf:"varint,6,opt,name=expected_series_datapoints_per_hour,json=expectedSeriesDatapointsPerHour,proto3" json:"expected_series_datapoints_per_hour,omitempty"`
-	// Only one of the tww below hostname types should be taken. This is enforced
+	// Only one of the two below hostname types should be taken. This is enforced
 	// in application code instead of via protobuf oneof to reduce the amount of
 	// JSON nested structures required for input.
 	Hostnames      []string         `protobuf:"bytes,7,rep,name=hostnames" json:"hostnames,omitempty"`
