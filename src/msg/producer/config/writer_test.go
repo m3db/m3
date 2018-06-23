@@ -77,7 +77,7 @@ messagePool:
 messageRetry:
   initialBackoff: 1ms
 messageQueueScanInterval: 5s
-messageRetryBatchSize: 1024
+messageQueueScanBatchSize: 1024
 initialAckMapSize: 1024
 closeCheckInterval: 2s
 ackErrorRetry: 
@@ -107,7 +107,7 @@ connection:
 	require.Equal(t, 5, wOpts.MessagePoolOptions().Size())
 	require.Equal(t, time.Millisecond, wOpts.MessageRetryOptions().InitialBackoff())
 	require.Equal(t, 5*time.Second, wOpts.MessageQueueScanInterval())
-	require.Equal(t, 1024, wOpts.MessageRetryBatchSize())
+	require.Equal(t, 1024, wOpts.MessageQueueScanBatchSize())
 	require.Equal(t, 1024, wOpts.InitialAckMapSize())
 	require.Equal(t, 2*time.Second, wOpts.CloseCheckInterval())
 	require.Equal(t, 2*time.Millisecond, wOpts.AckErrorRetryOptions().InitialBackoff())

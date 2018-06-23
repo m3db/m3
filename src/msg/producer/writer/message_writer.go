@@ -89,8 +89,10 @@ type messageWriterMetrics struct {
 	messageAcked           tally.Counter
 	messageClosed          tally.Counter
 	messageDropped         tally.Counter
-	retryBatchLatency      tally.Timer
-	retryTotalLatency      tally.Timer
+	messageRetry           tally.Counter
+	messageConsumeLatency  tally.Timer
+	scanBatchLatency       tally.Timer
+	scanTotalLatency       tally.Timer
 }
 
 func newMessageWriterMetrics(
@@ -112,11 +114,13 @@ func newMessageWriterMetrics(
 		writeBeforeCutover: scope.
 			Tagged(map[string]string{"reason": "before-cutover"}).
 			Counter("invalid-write"),
-		messageAcked:      scope.Counter("message-acked"),
-		messageClosed:     scope.Counter("message-closed"),
-		messageDropped:    scope.Counter("message-dropped"),
-		retryBatchLatency: instrument.MustCreateSampledTimer(scope.Timer("retry-batch-latency"), samplingRate),
-		retryTotalLatency: instrument.MustCreateSampledTimer(scope.Timer("retry-total-latency"), samplingRate),
+		messageAcked:          scope.Counter("message-acked"),
+		messageClosed:         scope.Counter("message-closed"),
+		messageDropped:        scope.Counter("message-dropped"),
+		messageRetry:          scope.Counter("message-retry"),
+		messageConsumeLatency: instrument.MustCreateSampledTimer(scope.Timer("message-consume-latency"), samplingRate),
+		scanBatchLatency:      instrument.MustCreateSampledTimer(scope.Timer("scan-batch-latency"), samplingRate),
+		scanTotalLatency:      instrument.MustCreateSampledTimer(scope.Timer("scan-total-latency"), samplingRate),
 	}
 }
 
@@ -136,7 +140,7 @@ type messageWriterImpl struct {
 	acks             *acks
 	cutOffNanos      int64
 	cutOverNanos     int64
-	toBeRetried      []*message
+	msgsToWrite      []*message
 	isClosed         bool
 	doneCh           chan struct{}
 	wg               sync.WaitGroup
@@ -154,22 +158,23 @@ func newMessageWriter(
 	if opts == nil {
 		opts = NewOptions()
 	}
+	nowFn := time.Now
 	return &messageWriterImpl{
 		replicatedShardID: replicatedShardID,
 		mPool:             mPool,
 		opts:              opts,
 		retryOpts:         opts.MessageRetryOptions(),
-		r:                 rand.New(rand.NewSource(time.Now().UnixNano())),
+		r:                 rand.New(rand.NewSource(nowFn().UnixNano())),
 		msgID:             0,
 		queue:             list.New(),
-		acks:              newAckHelper(opts.InitialAckMapSize()),
+		acks:              newAckHelper(opts.InitialAckMapSize(), m, nowFn),
 		cutOffNanos:       0,
 		cutOverNanos:      0,
-		toBeRetried:       make([]*message, 0, opts.MessageRetryBatchSize()),
+		msgsToWrite:       make([]*message, 0, opts.MessageQueueScanBatchSize()),
 		isClosed:          false,
 		doneCh:            make(chan struct{}),
 		m:                 m,
-		nowFn:             time.Now,
+		nowFn:             nowFn,
 	}
 }
 
@@ -190,7 +195,7 @@ func (w *messageWriterImpl) Write(rm *producer.RefCountedMessage) {
 		shard: w.replicatedShardID,
 		id:    w.msgID,
 	}
-	msg.Set(meta, rm)
+	msg.Set(meta, rm, nowNanos)
 	w.acks.add(meta, msg)
 	w.queue.PushBack(msg)
 	w.Unlock()
@@ -267,12 +272,12 @@ func (w *messageWriterImpl) Ack(meta metadata) {
 func (w *messageWriterImpl) Init() {
 	w.wg.Add(1)
 	go func() {
-		w.retryUnacknowledgedUntilClose()
+		w.scanMessageQueueUntilClose()
 		w.wg.Done()
 	}()
 }
 
-func (w *messageWriterImpl) retryUnacknowledgedUntilClose() {
+func (w *messageWriterImpl) scanMessageQueueUntilClose() {
 	var (
 		interval = w.opts.MessageQueueScanInterval()
 		jitter   = time.Duration(rand.Int63n(int64(interval)))
@@ -286,21 +291,21 @@ func (w *messageWriterImpl) retryUnacknowledgedUntilClose() {
 	for {
 		select {
 		case <-ticker.C:
-			w.retryUnacknowledged()
+			w.scanMessageQueue()
 		case <-w.doneCh:
 			return
 		}
 	}
 }
 
-func (w *messageWriterImpl) retryUnacknowledged() {
+func (w *messageWriterImpl) scanMessageQueue() {
 	w.RLock()
 	e := w.queue.Front()
 	w.RUnlock()
 	var (
-		toBeRetried      []*message
-		beforeRetry      = w.nowFn()
-		batchSize        = w.opts.MessageRetryBatchSize()
+		msgsToWrite      []*message
+		beforeScan       = w.nowFn()
+		batchSize        = w.opts.MessageQueueScanBatchSize()
 		consumerWriters  []consumerWriter
 		iterationIndexes []int
 	)
@@ -308,19 +313,19 @@ func (w *messageWriterImpl) retryUnacknowledged() {
 		beforeBatch := w.nowFn()
 		beforeBatchNanos := beforeBatch.UnixNano()
 		w.Lock()
-		e, toBeRetried = w.retryBatchWithLock(e, beforeBatchNanos, batchSize)
+		e, msgsToWrite = w.scanBatchWithLock(e, beforeBatchNanos, batchSize)
 		consumerWriters = w.consumerWriters
 		iterationIndexes = w.iterationIndexes
 		w.Unlock()
-		err := w.writeBatch(iterationIndexes, consumerWriters, toBeRetried)
-		w.m.retryBatchLatency.Record(w.nowFn().Sub(beforeBatch))
+		err := w.writeBatch(iterationIndexes, consumerWriters, msgsToWrite)
+		w.m.scanBatchLatency.Record(w.nowFn().Sub(beforeBatch))
 		if err != nil {
 			// When we can't write to any consumer writer, skip the tick
 			// to avoid meaningless attempts, wait for next tick to retry.
 			break
 		}
 	}
-	w.m.retryTotalLatency.Record(w.nowFn().Sub(beforeRetry))
+	w.m.scanTotalLatency.Record(w.nowFn().Sub(beforeScan))
 }
 
 func (w *messageWriterImpl) writeBatch(
@@ -341,12 +346,10 @@ func (w *messageWriterImpl) writeBatch(
 	return nil
 }
 
-// retryBatchWithLock iterates the message queue with a lock.
-// It returns after visited enough items or the first item
-// to retry so it holds the lock for less time and allows new writes
-// to be less blocked, so that one slow message writer does not
-// slow down other message writers too much.
-func (w *messageWriterImpl) retryBatchWithLock(
+// scanBatchWithLock iterates the message queue with a lock. It returns after
+// visited enough elements. So it holds the lock for less time and allows new
+// writes to be unblocked.
+func (w *messageWriterImpl) scanBatchWithLock(
 	start *list.Element,
 	nowNanos int64,
 	batchSize int,
@@ -355,7 +358,7 @@ func (w *messageWriterImpl) retryBatchWithLock(
 		iterated int
 		next     *list.Element
 	)
-	w.toBeRetried = w.toBeRetried[:0]
+	w.msgsToWrite = w.msgsToWrite[:0]
 	for e := start; e != nil; e = next {
 		iterated++
 		if iterated > batchSize {
@@ -397,10 +400,14 @@ func (w *messageWriterImpl) retryBatchWithLock(
 			continue
 		}
 		m.IncWriteTimes()
-		m.SetRetryAtNanos(w.nextRetryNanos(m.WriteTimes(), nowNanos))
-		w.toBeRetried = append(w.toBeRetried, m)
+		writeTimes := m.WriteTimes()
+		m.SetRetryAtNanos(w.nextRetryNanos(writeTimes, nowNanos))
+		if writeTimes > 1 {
+			w.m.messageRetry.Inc(1)
+		}
+		w.msgsToWrite = append(w.msgsToWrite, m)
 	}
-	return next, w.toBeRetried
+	return next, w.msgsToWrite
 }
 
 func (w *messageWriterImpl) Close() {
@@ -528,44 +535,50 @@ func (w *messageWriterImpl) close(m *message) {
 type acks struct {
 	sync.Mutex
 
-	m map[metadata]*message
+	ackMap map[metadata]*message
+	m      messageWriterMetrics
+
+	nowFn clock.NowFn
 }
 
 // nolint: unparam
-func newAckHelper(size int) *acks {
+func newAckHelper(size int, m messageWriterMetrics, nowFn clock.NowFn) *acks {
 	return &acks{
-		m: make(map[metadata]*message, size),
+		ackMap: make(map[metadata]*message, size),
+		m:      m,
+		nowFn:  nowFn,
 	}
 }
 
 func (a *acks) add(meta metadata, m *message) {
 	a.Lock()
-	a.m[meta] = m
+	a.ackMap[meta] = m
 	a.Unlock()
 }
 
 func (a *acks) remove(meta metadata) {
 	a.Lock()
-	delete(a.m, meta)
+	delete(a.ackMap, meta)
 	a.Unlock()
 }
 
 func (a *acks) ack(meta metadata) {
 	a.Lock()
-	m, ok := a.m[meta]
+	m, ok := a.ackMap[meta]
 	if !ok {
 		a.Unlock()
 		// Acking a message that is already acked, which is ok.
 		return
 	}
-	delete(a.m, meta)
+	delete(a.ackMap, meta)
 	a.Unlock()
+	a.m.messageConsumeLatency.Record(time.Duration(a.nowFn().UnixNano() - m.InitNanos()))
 	m.Ack()
 }
 
 func (a *acks) size() int {
 	a.Lock()
-	l := len(a.m)
+	l := len(a.ackMap)
 	a.Unlock()
 	return l
 }

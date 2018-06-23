@@ -33,6 +33,7 @@ type message struct {
 
 	pb           msgpb.Message
 	meta         metadata
+	initNanos    int64
 	retryAtNanos int64
 	retried      int
 	// NB(cw) isAcked could be accessed concurrently by the background thread
@@ -49,7 +50,8 @@ func newMessage() *message {
 }
 
 // Set sets the message.
-func (m *message) Set(meta metadata, rm *producer.RefCountedMessage) {
+func (m *message) Set(meta metadata, rm *producer.RefCountedMessage, initNanos int64) {
+	m.initNanos = initNanos
 	m.meta = meta
 	m.RefCountedMessage = rm
 	m.ToProto(&m.pb)
@@ -61,6 +63,11 @@ func (m *message) Close() {
 	m.retried = 0
 	m.isAcked.Store(false)
 	m.ResetProto(&m.pb)
+}
+
+// InitNanos returns the nanosecond when the message was initiated.
+func (m *message) InitNanos() int64 {
+	return m.initNanos
 }
 
 // RetryAtNanos returns the timestamp for next retry in nano seconds.
