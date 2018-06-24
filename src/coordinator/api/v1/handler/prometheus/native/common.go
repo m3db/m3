@@ -25,8 +25,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/m3db/m3db/src/coordinator/api/v1/handler/prometheus"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
+	"github.com/m3db/m3db/src/coordinator/api/v1/handler/prometheus"
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/util"
