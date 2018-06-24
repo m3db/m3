@@ -42,6 +42,7 @@ const (
 	defaultMessageQueueScanInterval  = time.Second
 	defaultMessageQueueScanBatchSize = 16
 	defaultInitialAckMapSize         = 1024
+	defaultConnectionFlushInterval   = time.Second
 	// Using 16K which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
 	defaultConnectionBufferSize = 16384
@@ -79,6 +80,12 @@ type ConnectionOptions interface {
 	// SetRetryOptions sets the options for connection retrier.
 	SetRetryOptions(value retry.Options) ConnectionOptions
 
+	// FlushInterval returns the interval for flushing the buffered bytes.
+	FlushInterval() time.Duration
+
+	// SetFlushInterval sets the interval for flushing the buffered bytes.
+	SetFlushInterval(value time.Duration) ConnectionOptions
+
 	// WriteBufferSize returns the buffer size for write.
 	WriteBufferSize() int
 
@@ -104,6 +111,7 @@ type connectionOptions struct {
 	keepAlivePeriod time.Duration
 	resetDelay      time.Duration
 	rOpts           retry.Options
+	flushInterval   time.Duration
 	writeBufferSize int
 	readBufferSize  int
 	iOpts           instrument.Options
@@ -117,6 +125,7 @@ func NewConnectionOptions() ConnectionOptions {
 		keepAlivePeriod: defaultKeepAlivePeriod,
 		resetDelay:      defaultConnectionResetDelay,
 		rOpts:           retry.NewOptions(),
+		flushInterval:   defaultConnectionFlushInterval,
 		writeBufferSize: defaultConnectionBufferSize,
 		readBufferSize:  defaultConnectionBufferSize,
 		iOpts:           instrument.NewOptions(),
@@ -170,6 +179,16 @@ func (opts *connectionOptions) ResetDelay() time.Duration {
 func (opts *connectionOptions) SetResetDelay(value time.Duration) ConnectionOptions {
 	o := *opts
 	o.resetDelay = value
+	return &o
+}
+
+func (opts *connectionOptions) FlushInterval() time.Duration {
+	return opts.flushInterval
+}
+
+func (opts *connectionOptions) SetFlushInterval(value time.Duration) ConnectionOptions {
+	o := *opts
+	o.flushInterval = value
 	return &o
 }
 

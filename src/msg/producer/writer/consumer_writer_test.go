@@ -172,7 +172,9 @@ func TestConsumerWriterWriteErrorTriggerReset(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	opts := testOptions()
-	w := newConsumerWriter("badAddr", nil, opts, testConsumerWriterMetrics()).(*consumerWriterImpl)
+	w := newConsumerWriter("badAddr", nil, opts.SetConnectionOptions(
+		opts.ConnectionOptions().SetWriteBufferSize(1000),
+	), testConsumerWriterMetrics()).(*consumerWriterImpl)
 	<-w.resetCh
 	require.Equal(t, 0, len(w.resetCh))
 	err := w.Write(&testMsg)
@@ -180,6 +182,44 @@ func TestConsumerWriterWriteErrorTriggerReset(t *testing.T) {
 	require.Equal(t, errInvalidConnection, err)
 	require.Equal(t, 0, len(w.resetCh))
 	w.validConn.Store(true)
+	err = w.Write(&testMsg)
+	require.NoError(t, err)
+	for {
+		// The writer will need to wait until buffered size to try the flush
+		// and then realize the connection is broken.
+		err = w.Write(&testMsg)
+		if err != nil {
+			break
+		}
+	}
+	require.Error(t, err)
+	require.Equal(t, errInvalidConnection, err)
+	require.Equal(t, 1, len(w.resetCh))
+}
+
+func TestConsumerWriterFlushWriteAfterFlushErrorTriggerReset(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	opts := testOptions()
+	w := newConsumerWriter("badAddr", nil, opts.SetConnectionOptions(
+		opts.ConnectionOptions().SetWriteBufferSize(1000),
+	), testConsumerWriterMetrics()).(*consumerWriterImpl)
+	<-w.resetCh
+	require.Equal(t, 0, len(w.resetCh))
+	err := w.Write(&testMsg)
+	require.Error(t, err)
+	require.Equal(t, errInvalidConnection, err)
+	require.Equal(t, 0, len(w.resetCh))
+	w.validConn.Store(true)
+
+	// The write will be buffered in the bufio.Writer, and will
+	// not return err because it has not tried to flush yet.
+	require.NoError(t, w.Write(&testMsg))
+
+	require.Error(t, w.rw.Flush())
+
+	// Flush err will be stored in bufio.Writer, the next time
+	// Write is called, the err will be returned.
 	err = w.Write(&testMsg)
 	require.Error(t, err)
 	require.Equal(t, errInvalidConnection, err)
@@ -326,7 +366,7 @@ func testOptions() Options {
 func testConnectionOptions() ConnectionOptions {
 	return NewConnectionOptions().
 		SetRetryOptions(retry.NewOptions().SetInitialBackoff(200 * time.Millisecond).SetMaxBackoff(time.Second)).
-		SetWriteBufferSize(1).
+		SetFlushInterval(100 * time.Millisecond).
 		SetResetDelay(100 * time.Millisecond)
 }
 

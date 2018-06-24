@@ -280,7 +280,7 @@ func (w *messageWriterImpl) Init() {
 func (w *messageWriterImpl) scanMessageQueueUntilClose() {
 	var (
 		interval = w.opts.MessageQueueScanInterval()
-		jitter   = time.Duration(rand.Int63n(int64(interval)))
+		jitter   = time.Duration(w.r.Int63n(int64(interval)))
 	)
 	// NB(cw): Add some jitter before the tick starts to reduce
 	// some contention between all the message writers.
