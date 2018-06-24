@@ -22,18 +22,19 @@ package native
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
 	"github.com/m3db/m3db/src/coordinator/executor"
 	"github.com/m3db/m3db/src/coordinator/test/local"
+	"github.com/m3db/m3db/src/coordinator/test/seriesiter"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-	"github.com/m3db/m3db/src/coordinator/test/seriesiter"
 	"github.com/stretchr/testify/assert"
-	"math"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPromReadWithFetchOnly(t *testing.T) {

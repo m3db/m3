@@ -22,10 +22,11 @@ package executor
 
 import (
 	"context"
-	"github.com/m3db/m3db/src/coordinator/storage"
+
+	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/plan"
-	"github.com/m3db/m3db/src/coordinator/models"
+	"github.com/m3db/m3db/src/coordinator/storage"
 )
 
 // Engine executes a Query.
@@ -46,10 +47,6 @@ type EngineOptions struct {
 type Query struct {
 	Err    error
 	Result Result
-}
-
-type Params struct {
-
 }
 
 // NewEngine returns a new instance of QueryExecutor.
@@ -95,6 +92,7 @@ func (e *Engine) Execute(ctx context.Context, query *storage.FetchQuery, opts *E
 }
 
 // ExecuteExpr runs the query DAG and closes the results channel once done
+// nolint: unparam
 func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *EngineOptions, params models.RequestParams, results chan Query) {
 	defer close(results)
 
@@ -117,13 +115,13 @@ func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *En
 	}
 
 	state, err := GenerateExecutionState(pp, e.store)
-	result := state.resultNode
 	// free up resources
 	if err != nil {
 		results <- Query{Err: err}
 		return
 	}
 
+	result := state.resultNode
 	results <- Query{Result: result}
 	if err := state.Execute(ctx); err != nil {
 		result.abort(err)

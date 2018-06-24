@@ -24,6 +24,7 @@ import (
 	"time"
 )
 
+// RequestParams represents the params from the request
 type RequestParams struct {
 	Start   time.Time
 	End     time.Time

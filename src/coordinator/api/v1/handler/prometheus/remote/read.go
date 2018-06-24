@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/prometheus"
@@ -36,7 +37,6 @@ import (
 	"github.com/golang/snappy"
 	"github.com/uber-go/tally"
 	"go.uber.org/zap"
-	"time"
 )
 
 const (

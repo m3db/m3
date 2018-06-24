@@ -37,6 +37,7 @@ type OpNode interface {
 	Process(ID parser.NodeID, block block.Block) error
 }
 
+// TimeSpec defines the window for the query
 type TimeSpec struct {
 	Start time.Time
 	End   time.Time

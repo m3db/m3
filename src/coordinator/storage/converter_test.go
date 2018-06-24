@@ -38,7 +38,7 @@ import (
 
 func verifyExpandSeries(t *testing.T, ctrl *gomock.Controller, num int, pools pool.ObjectPool) {
 	testTags := seriesiter.GenerateTag()
-	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num)
+	iters := seriesiter.NewMockSeriesIters(ctrl, testTags, num, 2)
 
 	results, err := SeriesIteratorsToFetchResult(iters, ident.StringID("strID"), pools)
 	assert.NoError(t, err)

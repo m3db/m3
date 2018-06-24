@@ -25,15 +25,16 @@ import (
 	"encoding/json"
 	"math"
 	"net/http"
+
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/executor"
+	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser/promql"
 	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"go.uber.org/zap"
-	"github.com/m3db/m3db/src/coordinator/models"
 )
 
 const (
@@ -138,11 +139,11 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 }
 
 func insertSeriesInMap(blockSeries block.Series, seriesMap map[string][]block.Series) {
-	seriesId := blockSeries.Meta.Name
-	blockList, ok := seriesMap[seriesId]
+	seriesID := blockSeries.Meta.Name
+	blockList, ok := seriesMap[seriesID]
 	if !ok {
-		seriesMap[seriesId] = make([]block.Series, 1)
-		seriesMap[seriesId][0] = blockSeries
+		seriesMap[seriesID] = make([]block.Series, 1)
+		seriesMap[seriesID][0] = blockSeries
 		return
 	}
 
@@ -152,13 +153,13 @@ func insertSeriesInMap(blockSeries block.Series, seriesMap map[string][]block.Se
 			blockList = append(blockList, block.Series{})
 			copy(blockList[idx+1:], blockList[idx:])
 			blockList[idx] = blockSeries
-			seriesMap[seriesId] = blockList
+			seriesMap[seriesID] = blockList
 			return
 		}
 	}
 
 	// If all start times lesser, then append to the end
-	seriesMap[seriesId] = append(blockList, blockSeries)
+	seriesMap[seriesID] = append(blockList, blockSeries)
 }
 
 func seriesMapToSeriesList(seriesMap map[string][]block.Series) ([]ts.Series, error) {

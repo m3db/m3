@@ -22,10 +22,11 @@ package plan
 
 import (
 	"fmt"
+
+	"github.com/m3db/m3db/src/coordinator/executor/transform"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/storage"
-	"github.com/m3db/m3db/src/coordinator/executor/transform"
 )
 
 // PhysicalPlan represents the physical plan

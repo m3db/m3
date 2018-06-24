@@ -49,6 +49,7 @@ func parseTime(r *http.Request, key string) (time.Time, error) {
 	return time.Time{}, errors.ErrNotFound
 }
 
+// nolint: unparam
 func parseDuration(r *http.Request, key string) (time.Duration, error) {
 	if d := r.FormValue(key); d != "" {
 		return time.ParseDuration(d)
@@ -62,36 +63,37 @@ func ParseParams(r *http.Request) (models.RequestParams, *handler.ParseError) {
 	params := models.RequestParams{
 		Now: time.Now(),
 	}
-	if t, err := prometheus.ParseRequestTimeout(r); err != nil {
+
+	t, err := prometheus.ParseRequestTimeout(r)
+	if err != nil {
 		return params, handler.NewParseError(err, http.StatusBadRequest)
-	} else {
-		params.Timeout = t
 	}
 
-	if t, err := parseTime(r, startParam); err != nil {
+	params.Timeout = t
+	start, err := parseTime(r, startParam)
+	if err != nil {
 		return params, handler.NewParseError(fmt.Errorf(formatErrStr, startParam, err), http.StatusBadRequest)
-	} else {
-		params.Start = t
 	}
 
-	if t, err := parseTime(r, endParam); err != nil {
+	params.Start = start
+	end, err := parseTime(r, endParam)
+	if err != nil {
 		return params, handler.NewParseError(fmt.Errorf(formatErrStr, endParam, err), http.StatusBadRequest)
-	} else {
-		params.End = t
 	}
 
-	if step, err := parseDuration(r, stepParam); err != nil {
+	params.End = end
+	step, err := parseDuration(r, stepParam)
+	if err != nil {
 		return params, handler.NewParseError(fmt.Errorf(formatErrStr, stepParam, err), http.StatusBadRequest)
-	} else {
-		params.Step = step
 	}
 
-	if target, err := parseTarget(r); err != nil {
-		return params, err
-	} else {
-		params.Target = target
+	params.Step = step
+	target, pErr := parseTarget(r)
+	if pErr != nil {
+		return params, pErr
 	}
 
+	params.Target = target
 	return params, nil
 }
 

@@ -57,6 +57,7 @@ func (r *ResultNode) Blocks() chan block.Block {
 	return r.blocks
 }
 
+// TODO: Signal error downstream
 func (r *ResultNode) abort(err error) {
 	close(r.blocks)
 }

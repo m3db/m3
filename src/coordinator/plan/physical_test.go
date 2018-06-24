@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/functions"
+	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser"
 
 	"github.com/stretchr/testify/assert"
@@ -44,7 +45,7 @@ func TestResultNode(t *testing.T) {
 
 	lp, err := NewLogicalPlan(transforms, edges)
 	require.NoError(t, err)
-	p, err := NewPhysicalPlan(lp, nil, time.Now())
+	p, err := NewPhysicalPlan(lp, nil, models.RequestParams{Now:time.Now()})
 	require.NoError(t, err)
 	node, err := p.leafNode()
 	require.NoError(t, err)

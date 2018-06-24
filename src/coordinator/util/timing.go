@@ -21,13 +21,13 @@
 package util
 
 import (
-	"time"
-	"strconv"
-	"math"
 	"fmt"
+	"math"
+	"strconv"
+	"time"
 )
 
-// ParseTime parses a time string into time.Time
+// ParseTimeString parses a time string into time.Time
 func ParseTimeString(s string) (time.Time, error) {
 	if t, err := strconv.ParseFloat(s, 64); err == nil {
 		s, ns := math.Modf(t)
