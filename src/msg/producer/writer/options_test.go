@@ -70,6 +70,9 @@ func TestConnectionOptions(t *testing.T) {
 
 	require.Nil(t, opts.SetRetryOptions(nil).RetryOptions())
 
+	require.Equal(t, defaultConnectionFlushInterval, opts.FlushInterval())
+	require.Equal(t, 2*time.Second, opts.SetFlushInterval(2*time.Second).FlushInterval())
+
 	require.Equal(t, defaultConnectionBufferSize, opts.WriteBufferSize())
 	require.Equal(t, 1, opts.SetWriteBufferSize(1).WriteBufferSize())
 

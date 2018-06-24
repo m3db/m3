@@ -41,6 +41,7 @@ type ConnectionConfiguration struct {
 	KeepAlivePeriod *time.Duration       `yaml:"keepAlivePeriod"`
 	ResetDelay      *time.Duration       `yaml:"resetDelay"`
 	Retry           *retry.Configuration `yaml:"retry"`
+	FlushInterval   *time.Duration       `yaml:"flushInterval"`
 	WriteBufferSize *int                 `yaml:"writeBufferSize"`
 	ReadBufferSize  *int                 `yaml:"readBufferSize"`
 }
@@ -62,6 +63,9 @@ func (c *ConnectionConfiguration) NewOptions(iOpts instrument.Options) writer.Co
 	}
 	if c.Retry != nil {
 		opts = opts.SetRetryOptions(c.Retry.NewOptions(iOpts.MetricsScope()))
+	}
+	if c.FlushInterval != nil {
+		opts = opts.SetFlushInterval(*c.FlushInterval)
 	}
 	if c.WriteBufferSize != nil {
 		opts = opts.SetWriteBufferSize(*c.WriteBufferSize)

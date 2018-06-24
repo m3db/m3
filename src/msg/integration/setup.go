@@ -554,7 +554,8 @@ writer:
     retry:
       initialBackoff: 20ms
       maxBackoff: 50ms
-    writeBufferSize: 128
+    flushInterval: 50ms
+    writeBufferSize: 4096
     resetDelay: 50ms
 `
 

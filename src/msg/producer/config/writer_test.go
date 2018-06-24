@@ -43,6 +43,7 @@ resetDelay: 1s
 retry:
   initialBackoff: 1ms
   maxBackoff: 2ms
+flushInterval: 2s
 writeBufferSize: 100
 readBufferSize: 200
 `
@@ -57,6 +58,7 @@ readBufferSize: 200
 	require.Equal(t, time.Second, cOpts.ResetDelay())
 	require.Equal(t, time.Millisecond, cOpts.RetryOptions().InitialBackoff())
 	require.Equal(t, 2*time.Millisecond, cOpts.RetryOptions().MaxBackoff())
+	require.Equal(t, 2*time.Second, cOpts.FlushInterval())
 	require.Equal(t, 100, cOpts.WriteBufferSize())
 	require.Equal(t, 200, cOpts.ReadBufferSize())
 }
