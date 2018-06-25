@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -54,14 +55,17 @@ const (
 
 	idealDatapointsPerBlock           = 720
 	blockSizeFromExpectedSeriesScalar = idealDatapointsPerBlock * int64(time.Hour)
+	shardMultiplier                   = 64
 
 	dbTypeLocal                 dbType = "local"
+	dbTypeCluster               dbType = "cluster"
 	defaultLocalRetentionPeriod        = 24 * time.Hour
-	minLocalBlockSize                  = 30 * time.Minute // 30m
-	maxLocalBlockSize                  = 2 * time.Hour    // 2h
+	minBlockSize                       = 30 * time.Minute
+	maxBlockSize                       = 2 * time.Hour
 )
 
 var (
+	errMultipleHostTypes    = errors.New("must only specify one type of host")
 	errMissingRequiredField = errors.New("missing required field")
 	errInvalidDBType        = errors.New("invalid database type")
 	errMissingPort          = errors.New("unable to get port from address")
@@ -150,8 +154,20 @@ func (h *createHandler) parseRequest(r *http.Request) (*admin.NamespaceAddReques
 		return nil, nil, handler.NewParseError(err, http.StatusBadRequest)
 	}
 
+	// Required fields
 	if util.HasEmptyString(dbCreateReq.NamespaceName, dbCreateReq.Type) {
 		return nil, nil, handler.NewParseError(errMissingRequiredField, http.StatusBadRequest)
+	}
+
+	if dbType(dbCreateReq.Type) == dbTypeCluster {
+		// One (and only one) hostname type required
+		if len(dbCreateReq.Hostnames) == 0 && len(dbCreateReq.HostnameGroups) == 0 {
+			return nil, nil, handler.NewParseError(errMissingRequiredField, http.StatusBadRequest)
+		}
+
+		if len(dbCreateReq.Hostnames) > 0 && len(dbCreateReq.HostnameGroups) > 0 {
+			return nil, nil, handler.NewParseError(errMultipleHostTypes, http.StatusBadRequest)
+		}
 	}
 
 	namespaceAddRequest, err := defaultedNamespaceAddRequest(dbCreateReq)
@@ -170,7 +186,7 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.Namesp
 	options := dbnamespace.NewOptions()
 
 	switch dbType(r.Type) {
-	case dbTypeLocal:
+	case dbTypeLocal, dbTypeCluster:
 		options.SetRepairEnabled(false)
 
 		if r.RetentionPeriodNanos <= 0 {
@@ -182,10 +198,10 @@ func defaultedNamespaceAddRequest(r *admin.DatabaseCreateRequest) (*admin.Namesp
 		retentionPeriod := options.RetentionOptions().RetentionPeriod()
 		if r.ExpectedSeriesDatapointsPerHour > 0 {
 			blockSize := time.Duration(blockSizeFromExpectedSeriesScalar / r.ExpectedSeriesDatapointsPerHour)
-			if blockSize < minLocalBlockSize {
-				blockSize = minLocalBlockSize
-			} else if blockSize > maxLocalBlockSize {
-				blockSize = maxLocalBlockSize
+			if blockSize < minBlockSize {
+				blockSize = minBlockSize
+			} else if blockSize > maxBlockSize {
+				blockSize = maxBlockSize
 			}
 			options.RetentionOptions().SetBlockSize(blockSize)
 		} else if retentionPeriod <= 12*time.Hour {
@@ -222,7 +238,7 @@ func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest, dbCfg dbconfi
 
 	switch dbType(r.Type) {
 	case dbTypeLocal:
-		numShards = 16
+		numShards = shardMultiplier
 		replicationFactor = 1
 		instances = []*placementpb.Instance{
 			&placementpb.Instance{
@@ -234,6 +250,39 @@ func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest, dbCfg dbconfi
 				Hostname:       "localhost",
 				Port:           uint32(port),
 			},
+		}
+	case dbTypeCluster:
+		// This function assumes only one of Hostnames/HostnameGroups have been set
+		numHosts := len(r.Hostnames) + len(r.HostnameGroups)
+		numShards = int32(math.Min(math.MaxInt32, powerOfTwoAtLeast(float64(numHosts*shardMultiplier))))
+		replicationFactor = r.ReplicationFactor
+		if replicationFactor == 0 {
+			replicationFactor = 3
+		}
+		instances = make([]*placementpb.Instance, 0, numHosts)
+
+		for _, hostname := range r.Hostnames {
+			instances = append(instances, &placementpb.Instance{
+				Id:             hostname,
+				IsolationGroup: "cluster",
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       fmt.Sprintf("http://%s:%d", hostname, port),
+				Hostname:       hostname,
+				Port:           uint32(port),
+			})
+		}
+
+		for _, hostnameGroup := range r.HostnameGroups {
+			instances = append(instances, &placementpb.Instance{
+				Id:             hostnameGroup.Hostname,
+				IsolationGroup: hostnameGroup.IsolationGroup,
+				Zone:           "embedded",
+				Weight:         1,
+				Endpoint:       fmt.Sprintf("http://%s:%d", hostnameGroup.Hostname, port),
+				Hostname:       hostnameGroup.Hostname,
+				Port:           uint32(port),
+			})
 		}
 	default:
 		return nil, errInvalidDBType
@@ -253,4 +302,8 @@ func portFromAddress(address string) (int, error) {
 	}
 
 	return strconv.Atoi(address[colonIdx+1:])
+}
+
+func powerOfTwoAtLeast(num float64) float64 {
+	return math.Pow(2, math.Ceil(math.Log2(num)))
 }

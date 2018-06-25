@@ -16,6 +16,16 @@ message DatabaseCreateRequest {
   // The below two options are used to default retention options
   int64 retention_period_nanos = 5;
   int64 expected_series_datapoints_per_hour = 6;
+  // Only one of the two below hostname types should be taken. This is enforced
+  // in application code instead of via protobuf oneof to reduce the amount of
+  // JSON nested structures required for input.
+  repeated string hostnames = 7;
+  repeated HostnameGroup hostname_groups = 8;
+}
+
+message HostnameGroup {
+  string hostname = 1;
+  string isolation_group = 2;
 }
 
 message DatabaseCreateResponse {
