@@ -257,14 +257,14 @@ func defaultedPlacementInitRequest(r *admin.DatabaseCreateRequest, dbCfg dbconfi
 		numShards = int32(math.Min(math.MaxInt32, powerOfTwoAtLeast(float64(numHosts*shardMultiplier))))
 		replicationFactor = r.ReplicationFactor
 		if replicationFactor == 0 {
-			replicationFactor = 1
+			replicationFactor = 3
 		}
 		instances = make([]*placementpb.Instance, 0, numHosts)
 
 		for _, hostname := range r.Hostnames {
 			instances = append(instances, &placementpb.Instance{
 				Id:             hostname,
-				IsolationGroup: "local",
+				IsolationGroup: "cluster",
 				Zone:           "embedded",
 				Weight:         1,
 				Endpoint:       fmt.Sprintf("http://%s:%d", hostname, port),
