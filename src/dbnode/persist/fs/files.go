@@ -1061,18 +1061,15 @@ func filesetPathFromTime(prefix string, t time.Time, suffix string) string {
 }
 
 func filesetPathFromTimeAndIndex(prefix string, t time.Time, index int, suffix string) string {
-	name := fmt.Sprintf("%s%s%d%s%d%s%s%s", filesetFilePrefix, separator, t.UnixNano(), separator, index, separator, suffix, fileSuffix)
-	return path.Join(prefix, name)
+	return path.Join(prefix, filesetFileForTime(t, fmt.Sprintf("%d%s%s", index, separator, suffix)))
 }
 
 func filesetIndexSegmentFileSuffixFromTime(
-	prefix string,
 	t time.Time,
 	segmentIndex int,
 	segmentFileType idxpersist.IndexSegmentFileType,
 ) string {
-	return fmt.Sprintf("%s%s%d%s%s", segmentFileSetFilePrefix,
-		separator, segmentIndex, separator, segmentFileType)
+	return fmt.Sprintf("%s%s%d%s%s", segmentFileSetFilePrefix, separator, segmentIndex, separator, segmentFileType)
 }
 
 func filesetIndexSegmentFilePathFromTime(
@@ -1082,8 +1079,7 @@ func filesetIndexSegmentFilePathFromTime(
 	segmentIndex int,
 	segmentFileType idxpersist.IndexSegmentFileType,
 ) string {
-	suffix := filesetIndexSegmentFileSuffixFromTime(prefix, t,
-		segmentIndex, segmentFileType)
+	suffix := filesetIndexSegmentFileSuffixFromTime(t, segmentIndex, segmentFileType)
 	return filesetPathFromTimeAndIndex(prefix, t, volumeIndex, suffix)
 }
 
@@ -1094,7 +1090,6 @@ func snapshotIndexSegmentFilePathFromTimeAndIndex(
 	segmentIndex int,
 	segmentFileType idxpersist.IndexSegmentFileType,
 ) string {
-	suffix := filesetIndexSegmentFileSuffixFromTime(prefix, t,
-		segmentIndex, segmentFileType)
+	suffix := filesetIndexSegmentFileSuffixFromTime(t, segmentIndex, segmentFileType)
 	return filesetPathFromTimeAndIndex(prefix, t, snapshotIndex, suffix)
 }
