@@ -479,10 +479,3 @@ func (s *seeker) ConcurrentClone() (ConcurrentDataFileSetSeeker, error) {
 		isClone:     true,
 	}, nil
 }
-
-type expectedDigests struct {
-	expectedInfoDigest        uint32
-	expectedIndexDigest       uint32
-	expectedBloomFilterDigest uint32
-	expectedSummariesDigest   uint32
-}
