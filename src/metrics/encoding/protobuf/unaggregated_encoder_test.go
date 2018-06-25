@@ -72,17 +72,17 @@ var (
 		ID:    []byte("testGauge2"),
 		Value: 234231.345,
 	}
-	testTimedMetric1 = aggregated.Metric{
+	testForwardedMetric1 = aggregated.ForwardedMetric{
 		Type:      metric.CounterType,
-		ID:        []byte("testTimedMetric1"),
+		ID:        []byte("testForwardedMetric1"),
 		TimeNanos: 8259,
-		Value:     29234.29934,
+		Values:    []float64{1, 3234, -12},
 	}
-	testTimedMetric2 = aggregated.Metric{
+	testForwardedMetric2 = aggregated.ForwardedMetric{
 		Type:      metric.TimerType,
-		ID:        []byte("testTimedMetric2"),
+		ID:        []byte("testForwardedMetric2"),
 		TimeNanos: 145668,
-		Value:     563.875,
+		Values:    []float64{563.875, -23.87},
 	}
 	testStagedMetadatas1 = metadata.StagedMetadatas{
 		{
@@ -195,7 +195,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          []byte("testForwardSource1"),
+		SourceID:          1234,
 		NumForwardedTimes: 3,
 	}
 	testForwardMetadata2 = metadata.ForwardMetadata{
@@ -216,7 +216,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          []byte("testForwardSource2"),
+		SourceID:          897,
 		NumForwardedTimes: 2,
 	}
 	testCounter1Proto = metricpb.Counter{
@@ -243,17 +243,17 @@ var (
 		Id:    []byte("testGauge2"),
 		Value: 234231.345,
 	}
-	testTimedMetric1Proto = metricpb.TimedMetric{
+	testForwardedMetric1Proto = metricpb.ForwardedMetric{
 		Type:      metricpb.MetricType_COUNTER,
-		Id:        []byte("testTimedMetric1"),
+		Id:        []byte("testForwardedMetric1"),
 		TimeNanos: 8259,
-		Value:     29234.29934,
+		Values:    []float64{1, 3234, -12},
 	}
-	testTimedMetric2Proto = metricpb.TimedMetric{
+	testForwardedMetric2Proto = metricpb.ForwardedMetric{
 		Type:      metricpb.MetricType_TIMER,
-		Id:        []byte("testTimedMetric2"),
+		Id:        []byte("testForwardedMetric2"),
 		TimeNanos: 145668,
-		Value:     563.875,
+		Values:    []float64{563.875, -23.87},
 	}
 	testStagedMetadatas1Proto = metricpb.StagedMetadatas{
 		Metadatas: []metricpb.StagedMetadata{
@@ -426,7 +426,7 @@ var (
 				},
 			},
 		},
-		SourceId:          []byte("testForwardSource1"),
+		SourceId:          1234,
 		NumForwardedTimes: 3,
 	}
 	testForwardMetadata2Proto = metricpb.ForwardMetadata{
@@ -457,7 +457,7 @@ var (
 				},
 			},
 		},
-		SourceId:          []byte("testForwardSource2"),
+		SourceId:          897,
 		NumForwardedTimes: 2,
 	}
 	testCmpOpts = []cmp.Option{
@@ -646,40 +646,40 @@ func TestUnaggregatedEncoderEncodeGaugeWithMetadatas(t *testing.T) {
 	}
 }
 
-func TestUnaggregatedEncoderEncodeTimedMetricWithForwardMetadata(t *testing.T) {
-	inputs := []aggregated.MetricWithForwardMetadata{
+func TestUnaggregatedEncoderEncodeForwardedMetricWithMetadata(t *testing.T) {
+	inputs := []aggregated.ForwardedMetricWithMetadata{
 		{
-			Metric:          testTimedMetric1,
+			ForwardedMetric: testForwardedMetric1,
 			ForwardMetadata: testForwardMetadata1,
 		},
 		{
-			Metric:          testTimedMetric1,
+			ForwardedMetric: testForwardedMetric1,
 			ForwardMetadata: testForwardMetadata2,
 		},
 		{
-			Metric:          testTimedMetric2,
+			ForwardedMetric: testForwardedMetric2,
 			ForwardMetadata: testForwardMetadata1,
 		},
 		{
-			Metric:          testTimedMetric2,
+			ForwardedMetric: testForwardedMetric2,
 			ForwardMetadata: testForwardMetadata2,
 		},
 	}
-	expected := []metricpb.TimedMetricWithForwardMetadata{
+	expected := []metricpb.ForwardedMetricWithMetadata{
 		{
-			Metric:   testTimedMetric1Proto,
+			Metric:   testForwardedMetric1Proto,
 			Metadata: testForwardMetadata1Proto,
 		},
 		{
-			Metric:   testTimedMetric1Proto,
+			Metric:   testForwardedMetric1Proto,
 			Metadata: testForwardMetadata2Proto,
 		},
 		{
-			Metric:   testTimedMetric2Proto,
+			Metric:   testForwardedMetric2Proto,
 			Metadata: testForwardMetadata1Proto,
 		},
 		{
-			Metric:   testTimedMetric2Proto,
+			Metric:   testForwardedMetric2Proto,
 			Metadata: testForwardMetadata2Proto,
 		},
 	}
@@ -693,12 +693,12 @@ func TestUnaggregatedEncoderEncodeTimedMetricWithForwardMetadata(t *testing.T) {
 	enc.(*unaggregatedEncoder).encodeMessageFn = func(pb metricpb.MetricWithMetadatas) error { pbRes = pb; return nil }
 	for i, input := range inputs {
 		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
-			Type: encoding.TimedMetricWithForwardMetadataType,
-			TimedMetricWithForwardMetadata: input,
+			Type: encoding.ForwardedMetricWithMetadataType,
+			ForwardedMetricWithMetadata: input,
 		}))
 		expectedProto := metricpb.MetricWithMetadatas{
-			Type: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_FORWARD_METADATA,
-			TimedMetricWithForwardMetadata: &expected[i],
+			Type: metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
+			ForwardedMetricWithMetadata: &expected[i],
 		}
 		expectedMsgSize := expectedProto.Size()
 		require.Equal(t, expectedMsgSize, sizeRes)
@@ -720,8 +720,8 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 			Gauge:           testGauge1,
 			StagedMetadatas: testStagedMetadatas1,
 		},
-		aggregated.MetricWithForwardMetadata{
-			Metric:          testTimedMetric1,
+		aggregated.ForwardedMetricWithMetadata{
+			ForwardedMetric: testForwardedMetric1,
 			ForwardMetadata: testForwardMetadata1,
 		},
 		unaggregated.CounterWithMetadatas{
@@ -736,8 +736,8 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 			Gauge:           testGauge2,
 			StagedMetadatas: testStagedMetadatas1,
 		},
-		aggregated.MetricWithForwardMetadata{
-			Metric:          testTimedMetric2,
+		aggregated.ForwardedMetricWithMetadata{
+			ForwardedMetric: testForwardedMetric2,
 			ForwardMetadata: testForwardMetadata1,
 		},
 		unaggregated.CounterWithMetadatas{
@@ -752,8 +752,8 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 			Gauge:           testGauge1,
 			StagedMetadatas: testStagedMetadatas2,
 		},
-		aggregated.MetricWithForwardMetadata{
-			Metric:          testTimedMetric1,
+		aggregated.ForwardedMetricWithMetadata{
+			ForwardedMetric: testForwardedMetric1,
 			ForwardMetadata: testForwardMetadata2,
 		},
 		unaggregated.CounterWithMetadatas{
@@ -768,8 +768,8 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 			Gauge:           testGauge2,
 			StagedMetadatas: testStagedMetadatas2,
 		},
-		aggregated.MetricWithForwardMetadata{
-			Metric:          testTimedMetric2,
+		aggregated.ForwardedMetricWithMetadata{
+			ForwardedMetric: testForwardedMetric2,
 			ForwardMetadata: testForwardMetadata2,
 		},
 	}
@@ -787,8 +787,8 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 			Gauge:     testGauge1Proto,
 			Metadatas: testStagedMetadatas1Proto,
 		},
-		metricpb.TimedMetricWithForwardMetadata{
-			Metric:   testTimedMetric1Proto,
+		metricpb.ForwardedMetricWithMetadata{
+			Metric:   testForwardedMetric1Proto,
 			Metadata: testForwardMetadata1Proto,
 		},
 		metricpb.CounterWithMetadatas{
@@ -803,8 +803,8 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 			Gauge:     testGauge2Proto,
 			Metadatas: testStagedMetadatas1Proto,
 		},
-		metricpb.TimedMetricWithForwardMetadata{
-			Metric:   testTimedMetric2Proto,
+		metricpb.ForwardedMetricWithMetadata{
+			Metric:   testForwardedMetric2Proto,
 			Metadata: testForwardMetadata1Proto,
 		},
 		metricpb.CounterWithMetadatas{
@@ -819,8 +819,8 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 			Gauge:     testGauge1Proto,
 			Metadatas: testStagedMetadatas2Proto,
 		},
-		metricpb.TimedMetricWithForwardMetadata{
-			Metric:   testTimedMetric1Proto,
+		metricpb.ForwardedMetricWithMetadata{
+			Metric:   testForwardedMetric1Proto,
 			Metadata: testForwardMetadata2Proto,
 		},
 		metricpb.CounterWithMetadatas{
@@ -835,8 +835,8 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 			Gauge:     testGauge2Proto,
 			Metadatas: testStagedMetadatas2Proto,
 		},
-		metricpb.TimedMetricWithForwardMetadata{
-			Metric:   testTimedMetric2Proto,
+		metricpb.ForwardedMetricWithMetadata{
+			Metric:   testForwardedMetric2Proto,
 			Metadata: testForwardMetadata2Proto,
 		},
 	}
@@ -887,15 +887,15 @@ func TestUnaggregatedEncoderStress(t *testing.T) {
 					Type:               metricpb.MetricWithMetadatas_GAUGE_WITH_METADATAS,
 					GaugeWithMetadatas: &res,
 				}
-			case aggregated.MetricWithForwardMetadata:
+			case aggregated.ForwardedMetricWithMetadata:
 				msg = encoding.UnaggregatedMessageUnion{
-					Type: encoding.TimedMetricWithForwardMetadataType,
-					TimedMetricWithForwardMetadata: input,
+					Type: encoding.ForwardedMetricWithMetadataType,
+					ForwardedMetricWithMetadata: input,
 				}
-				res := expected[i].(metricpb.TimedMetricWithForwardMetadata)
+				res := expected[i].(metricpb.ForwardedMetricWithMetadata)
 				expectedProto = metricpb.MetricWithMetadatas{
-					Type: metricpb.MetricWithMetadatas_TIMED_METRIC_WITH_FORWARD_METADATA,
-					TimedMetricWithForwardMetadata: &res,
+					Type: metricpb.MetricWithMetadatas_FORWARDED_METRIC_WITH_METADATA,
+					ForwardedMetricWithMetadata: &res,
 				}
 			default:
 				require.Fail(t, "unrecognized type %T", input)

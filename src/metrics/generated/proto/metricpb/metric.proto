@@ -52,3 +52,10 @@ message TimedMetric {
   int64 time_nanos = 3;
   double value = 4;
 }
+
+message ForwardedMetric {
+  MetricType type = 1;
+  bytes id = 2;
+  int64 time_nanos = 3;
+  repeated double values = 4;
+}

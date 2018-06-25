@@ -168,9 +168,8 @@ type ForwardMetadata struct {
 	// Pipeline of operations that may be applied to the metric.
 	Pipeline applied.Pipeline
 
-	// Metric source id. This usually refers to the source metric id producing
-	// this forward metric.
-	SourceID []byte
+	// Metric source id that refers to the unique id of the source producing this metric.
+	SourceID uint32
 
 	// Number of times this metric has been forwarded.
 	NumForwardedTimes int

@@ -172,22 +172,22 @@ func TestUnaggregatedIteratorDecodeGaugeWithMetadatas(t *testing.T) {
 	require.Equal(t, len(inputs), i)
 }
 
-func TestUnaggregatedIteratorDecodeTimedMetricWithForwardMetadata(t *testing.T) {
-	inputs := []aggregated.MetricWithForwardMetadata{
+func TestUnaggregatedIteratorDecodeForwardedMetricWithMetadata(t *testing.T) {
+	inputs := []aggregated.ForwardedMetricWithMetadata{
 		{
-			Metric:          testTimedMetric1,
+			ForwardedMetric: testForwardedMetric1,
 			ForwardMetadata: testForwardMetadata1,
 		},
 		{
-			Metric:          testTimedMetric2,
+			ForwardedMetric: testForwardedMetric2,
 			ForwardMetadata: testForwardMetadata1,
 		},
 		{
-			Metric:          testTimedMetric1,
+			ForwardedMetric: testForwardedMetric1,
 			ForwardMetadata: testForwardMetadata2,
 		},
 		{
-			Metric:          testTimedMetric2,
+			ForwardedMetric: testForwardedMetric2,
 			ForwardMetadata: testForwardMetadata2,
 		},
 	}
@@ -195,8 +195,8 @@ func TestUnaggregatedIteratorDecodeTimedMetricWithForwardMetadata(t *testing.T) 
 	enc := NewUnaggregatedEncoder(NewUnaggregatedOptions())
 	for _, input := range inputs {
 		require.NoError(t, enc.EncodeMessage(encoding.UnaggregatedMessageUnion{
-			Type: encoding.TimedMetricWithForwardMetadataType,
-			TimedMetricWithForwardMetadata: input,
+			Type: encoding.ForwardedMetricWithMetadataType,
+			ForwardedMetricWithMetadata: input,
 		}))
 	}
 	dataBuf := enc.Relinquish()
@@ -210,8 +210,8 @@ func TestUnaggregatedIteratorDecodeTimedMetricWithForwardMetadata(t *testing.T) 
 	defer it.Close()
 	for it.Next() {
 		res := it.Current()
-		require.Equal(t, encoding.TimedMetricWithForwardMetadataType, res.Type)
-		require.Equal(t, inputs[i], res.TimedMetricWithForwardMetadata)
+		require.Equal(t, encoding.ForwardedMetricWithMetadataType, res.Type)
+		require.Equal(t, inputs[i], res.ForwardedMetricWithMetadata)
 		i++
 	}
 	require.Equal(t, io.EOF, it.Err())
@@ -232,8 +232,8 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 			Gauge:           testGauge1,
 			StagedMetadatas: testStagedMetadatas1,
 		},
-		aggregated.MetricWithForwardMetadata{
-			Metric:          testTimedMetric1,
+		aggregated.ForwardedMetricWithMetadata{
+			ForwardedMetric: testForwardedMetric1,
 			ForwardMetadata: testForwardMetadata1,
 		},
 		unaggregated.CounterWithMetadatas{
@@ -248,8 +248,8 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 			Gauge:           testGauge2,
 			StagedMetadatas: testStagedMetadatas1,
 		},
-		aggregated.MetricWithForwardMetadata{
-			Metric:          testTimedMetric2,
+		aggregated.ForwardedMetricWithMetadata{
+			ForwardedMetric: testForwardedMetric2,
 			ForwardMetadata: testForwardMetadata1,
 		},
 		unaggregated.CounterWithMetadatas{
@@ -264,8 +264,8 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 			Gauge:           testGauge1,
 			StagedMetadatas: testStagedMetadatas2,
 		},
-		aggregated.MetricWithForwardMetadata{
-			Metric:          testTimedMetric1,
+		aggregated.ForwardedMetricWithMetadata{
+			ForwardedMetric: testForwardedMetric1,
 			ForwardMetadata: testForwardMetadata2,
 		},
 		unaggregated.CounterWithMetadatas{
@@ -280,8 +280,8 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 			Gauge:           testGauge2,
 			StagedMetadatas: testStagedMetadatas2,
 		},
-		aggregated.MetricWithForwardMetadata{
-			Metric:          testTimedMetric2,
+		aggregated.ForwardedMetricWithMetadata{
+			ForwardedMetric: testForwardedMetric2,
 			ForwardMetadata: testForwardMetadata2,
 		},
 	}
@@ -307,10 +307,10 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 					Type:               encoding.GaugeWithMetadatasType,
 					GaugeWithMetadatas: input,
 				}
-			case aggregated.MetricWithForwardMetadata:
+			case aggregated.ForwardedMetricWithMetadata:
 				msg = encoding.UnaggregatedMessageUnion{
-					Type: encoding.TimedMetricWithForwardMetadataType,
-					TimedMetricWithForwardMetadata: input,
+					Type: encoding.ForwardedMetricWithMetadataType,
+					ForwardedMetricWithMetadata: input,
 				}
 			default:
 				require.Fail(t, "unrecognized type %T", input)
@@ -340,9 +340,9 @@ func TestUnaggregatedIteratorDecodeStress(t *testing.T) {
 		case unaggregated.GaugeWithMetadatas:
 			require.Equal(t, encoding.GaugeWithMetadatasType, res.Type)
 			require.True(t, cmp.Equal(expectedRes, res.GaugeWithMetadatas, testCmpOpts...))
-		case aggregated.MetricWithForwardMetadata:
-			require.Equal(t, encoding.TimedMetricWithForwardMetadataType, res.Type)
-			require.True(t, cmp.Equal(expectedRes, res.TimedMetricWithForwardMetadata, testCmpOpts...))
+		case aggregated.ForwardedMetricWithMetadata:
+			require.Equal(t, encoding.ForwardedMetricWithMetadataType, res.Type)
+			require.True(t, cmp.Equal(expectedRes, res.ForwardedMetricWithMetadata, testCmpOpts...))
 		default:
 			require.Fail(t, "unknown input type: %T", inputs[j])
 		}
