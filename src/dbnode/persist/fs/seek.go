@@ -189,6 +189,7 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		infoFdWithDigest.Close()
 		indexFdWithDigest.Close()
 		bloomFilterFdWithDigest.Close()
+		summariesFdWithDigest.Close()
 		digestFdWithDigestContents.Close()
 		dataFd.Close()
 	}()
