@@ -54,6 +54,24 @@ var (
 		TimeNanos: 67890,
 		Value:     21.99,
 	}
+	testBadMetric = Metric{
+		Type: metric.UnknownType,
+	}
+	testForwardedMetric1 = ForwardedMetric{
+		Type:      metric.CounterType,
+		ID:        []byte("testForwardedMetric1"),
+		TimeNanos: 12345,
+		Values:    []float64{1, 289},
+	}
+	testForwardedMetric2 = ForwardedMetric{
+		Type:      metric.GaugeType,
+		ID:        []byte("testForwardedMetric2"),
+		TimeNanos: 67890,
+		Values:    []float64{1.34, -26.57},
+	}
+	testBadForwardedMetric = ForwardedMetric{
+		Type: metric.UnknownType,
+	}
 	testForwardMetadata1 = metadata.ForwardMetadata{
 		AggregationID: aggregation.DefaultID,
 		StoragePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour),
@@ -66,7 +84,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          []byte("testForward1"),
+		SourceID:          1234,
 		NumForwardedTimes: 3,
 	}
 	testForwardMetadata2 = metadata.ForwardMetadata{
@@ -87,11 +105,8 @@ var (
 				},
 			},
 		}),
-		SourceID:          []byte("testForward2"),
+		SourceID:          897,
 		NumForwardedTimes: 2,
-	}
-	testBadMetric = Metric{
-		Type: metric.UnknownType,
 	}
 	testBadForwardMetadata = metadata.ForwardMetadata{
 		StoragePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Unit(101), 6*time.Hour),
@@ -107,6 +122,18 @@ var (
 		Id:        []byte("testMetric2"),
 		TimeNanos: 67890,
 		Value:     21.99,
+	}
+	testForwardedMetric1Proto = metricpb.ForwardedMetric{
+		Type:      metricpb.MetricType_COUNTER,
+		Id:        []byte("testForwardedMetric1"),
+		TimeNanos: 12345,
+		Values:    []float64{1, 289},
+	}
+	testForwardedMetric2Proto = metricpb.ForwardedMetric{
+		Type:      metricpb.MetricType_GAUGE,
+		Id:        []byte("testForwardedMetric2"),
+		TimeNanos: 67890,
+		Values:    []float64{1.34, -26.57},
 	}
 	testForwardMetadata1Proto = metricpb.ForwardMetadata{
 		AggregationId: aggregationpb.AggregationID{Id: 0},
@@ -130,7 +157,7 @@ var (
 				},
 			},
 		},
-		SourceId:          []byte("testForward1"),
+		SourceId:          1234,
 		NumForwardedTimes: 3,
 	}
 	testForwardMetadata2Proto = metricpb.ForwardMetadata{
@@ -161,10 +188,13 @@ var (
 				},
 			},
 		},
-		SourceId:          []byte("testForward2"),
+		SourceId:          897,
 		NumForwardedTimes: 2,
 	}
 	testBadMetricProto = metricpb.TimedMetric{
+		Type: metricpb.MetricType_UNKNOWN,
+	}
+	testBadForwardedMetricProto = metricpb.ForwardedMetric{
 		Type: metricpb.MetricType_UNKNOWN,
 	}
 )
@@ -212,169 +242,169 @@ func TestCounterRoundTrip(t *testing.T) {
 	}
 }
 
-func TestMetricWithForwardMetadataToProto(t *testing.T) {
+func TestForwardedMetricWithMetadataToProto(t *testing.T) {
 	inputs := []struct {
-		metric   Metric
+		metric   ForwardedMetric
 		metadata metadata.ForwardMetadata
-		expected metricpb.TimedMetricWithForwardMetadata
+		expected metricpb.ForwardedMetricWithMetadata
 	}{
 		{
-			metric:   testMetric1,
+			metric:   testForwardedMetric1,
 			metadata: testForwardMetadata1,
-			expected: metricpb.TimedMetricWithForwardMetadata{
-				Metric:   testMetric1Proto,
+			expected: metricpb.ForwardedMetricWithMetadata{
+				Metric:   testForwardedMetric1Proto,
 				Metadata: testForwardMetadata1Proto,
 			},
 		},
 		{
-			metric:   testMetric1,
+			metric:   testForwardedMetric1,
 			metadata: testForwardMetadata2,
-			expected: metricpb.TimedMetricWithForwardMetadata{
-				Metric:   testMetric1Proto,
+			expected: metricpb.ForwardedMetricWithMetadata{
+				Metric:   testForwardedMetric1Proto,
 				Metadata: testForwardMetadata2Proto,
 			},
 		},
 		{
-			metric:   testMetric2,
+			metric:   testForwardedMetric2,
 			metadata: testForwardMetadata1,
-			expected: metricpb.TimedMetricWithForwardMetadata{
-				Metric:   testMetric2Proto,
+			expected: metricpb.ForwardedMetricWithMetadata{
+				Metric:   testForwardedMetric2Proto,
 				Metadata: testForwardMetadata1Proto,
 			},
 		},
 		{
-			metric:   testMetric2,
+			metric:   testForwardedMetric2,
 			metadata: testForwardMetadata2,
-			expected: metricpb.TimedMetricWithForwardMetadata{
-				Metric:   testMetric2Proto,
+			expected: metricpb.ForwardedMetricWithMetadata{
+				Metric:   testForwardedMetric2Proto,
 				Metadata: testForwardMetadata2Proto,
 			},
 		},
 	}
 
-	var pb metricpb.TimedMetricWithForwardMetadata
+	var pb metricpb.ForwardedMetricWithMetadata
 	for _, input := range inputs {
-		tm := MetricWithForwardMetadata{
-			Metric:          input.metric,
+		tm := ForwardedMetricWithMetadata{
+			ForwardedMetric: input.metric,
 			ForwardMetadata: input.metadata,
 		}
 		require.NoError(t, tm.ToProto(&pb))
 	}
 }
 
-func TestMetricWithForwardMetadataToProtoBadMetric(t *testing.T) {
-	var pb metricpb.TimedMetricWithForwardMetadata
-	tm := MetricWithForwardMetadata{
-		Metric:          testBadMetric,
+func TestForwardedMetricWithMetadataToProtoBadMetric(t *testing.T) {
+	var pb metricpb.ForwardedMetricWithMetadata
+	tm := ForwardedMetricWithMetadata{
+		ForwardedMetric: testBadForwardedMetric,
 		ForwardMetadata: testForwardMetadata1,
 	}
 	require.Error(t, tm.ToProto(&pb))
 }
 
-func TestMetricWithForwardMetadataToProtoBadMetadata(t *testing.T) {
-	var pb metricpb.TimedMetricWithForwardMetadata
-	tm := MetricWithForwardMetadata{
-		Metric:          testMetric1,
+func TestForwardedMetricWithMetadataToProtoBadMetadata(t *testing.T) {
+	var pb metricpb.ForwardedMetricWithMetadata
+	tm := ForwardedMetricWithMetadata{
+		ForwardedMetric: testForwardedMetric1,
 		ForwardMetadata: testBadForwardMetadata,
 	}
 	require.Error(t, tm.ToProto(&pb))
 }
 
-func TestMetricWithForwardMetadataFromProto(t *testing.T) {
+func TestForwardedMetricWithMetadataFromProto(t *testing.T) {
 	inputs := []struct {
-		data             metricpb.TimedMetricWithForwardMetadata
-		expectedMetric   Metric
+		data             metricpb.ForwardedMetricWithMetadata
+		expectedMetric   ForwardedMetric
 		expectedMetadata metadata.ForwardMetadata
 	}{
 		{
-			data: metricpb.TimedMetricWithForwardMetadata{
-				Metric:   testMetric1Proto,
+			data: metricpb.ForwardedMetricWithMetadata{
+				Metric:   testForwardedMetric1Proto,
 				Metadata: testForwardMetadata1Proto,
 			},
-			expectedMetric:   testMetric1,
+			expectedMetric:   testForwardedMetric1,
 			expectedMetadata: testForwardMetadata1,
 		},
 		{
-			data: metricpb.TimedMetricWithForwardMetadata{
-				Metric:   testMetric1Proto,
+			data: metricpb.ForwardedMetricWithMetadata{
+				Metric:   testForwardedMetric1Proto,
 				Metadata: testForwardMetadata2Proto,
 			},
-			expectedMetric:   testMetric1,
+			expectedMetric:   testForwardedMetric1,
 			expectedMetadata: testForwardMetadata2,
 		},
 		{
-			data: metricpb.TimedMetricWithForwardMetadata{
-				Metric:   testMetric2Proto,
+			data: metricpb.ForwardedMetricWithMetadata{
+				Metric:   testForwardedMetric2Proto,
 				Metadata: testForwardMetadata1Proto,
 			},
-			expectedMetric:   testMetric2,
+			expectedMetric:   testForwardedMetric2,
 			expectedMetadata: testForwardMetadata1,
 		},
 		{
-			data: metricpb.TimedMetricWithForwardMetadata{
-				Metric:   testMetric2Proto,
+			data: metricpb.ForwardedMetricWithMetadata{
+				Metric:   testForwardedMetric2Proto,
 				Metadata: testForwardMetadata2Proto,
 			},
-			expectedMetric:   testMetric2,
+			expectedMetric:   testForwardedMetric2,
 			expectedMetadata: testForwardMetadata2,
 		},
 	}
 
-	var res MetricWithForwardMetadata
+	var res ForwardedMetricWithMetadata
 	for _, input := range inputs {
 		require.NoError(t, res.FromProto(&input.data))
-		expected := MetricWithForwardMetadata{
-			Metric:          input.expectedMetric,
+		expected := ForwardedMetricWithMetadata{
+			ForwardedMetric: input.expectedMetric,
 			ForwardMetadata: input.expectedMetadata,
 		}
 		require.Equal(t, expected, res)
 	}
 }
 
-func TestMetricWithForwardMetadataFromProtoNilProto(t *testing.T) {
-	var res MetricWithForwardMetadata
-	require.Equal(t, errNilTimedMetricWithForwardMetadataProto, res.FromProto(nil))
+func TestForwardedMetricWithMetadataFromProtoNilProto(t *testing.T) {
+	var res ForwardedMetricWithMetadata
+	require.Equal(t, errNilForwardedMetricWithMetadataProto, res.FromProto(nil))
 }
 
-func TestMetricWithForwardMetadataFromProtoBadMetricProto(t *testing.T) {
-	var res MetricWithForwardMetadata
-	pb := metricpb.TimedMetricWithForwardMetadata{
-		Metric:   testBadMetricProto,
+func TestForwardedMetricWithMetadataFromProtoBadMetricProto(t *testing.T) {
+	var res ForwardedMetricWithMetadata
+	pb := metricpb.ForwardedMetricWithMetadata{
+		Metric:   testBadForwardedMetricProto,
 		Metadata: testForwardMetadata1Proto,
 	}
 	require.Error(t, res.FromProto(&pb))
 }
 
-func TestMetricWithForwardMetadataRoundtrip(t *testing.T) {
+func TestForwardedMetricWithMetadataRoundtrip(t *testing.T) {
 	inputs := []struct {
-		metric   Metric
+		metric   ForwardedMetric
 		metadata metadata.ForwardMetadata
 	}{
 		{
-			metric:   testMetric1,
+			metric:   testForwardedMetric1,
 			metadata: testForwardMetadata1,
 		},
 		{
-			metric:   testMetric1,
+			metric:   testForwardedMetric1,
 			metadata: testForwardMetadata2,
 		},
 		{
-			metric:   testMetric2,
+			metric:   testForwardedMetric2,
 			metadata: testForwardMetadata1,
 		},
 		{
-			metric:   testMetric2,
+			metric:   testForwardedMetric2,
 			metadata: testForwardMetadata2,
 		},
 	}
 
 	var (
-		res MetricWithForwardMetadata
-		pb  metricpb.TimedMetricWithForwardMetadata
+		res ForwardedMetricWithMetadata
+		pb  metricpb.ForwardedMetricWithMetadata
 	)
 	for _, input := range inputs {
-		data := MetricWithForwardMetadata{
-			Metric:          input.metric,
+		data := ForwardedMetricWithMetadata{
+			ForwardedMetric: input.metric,
 			ForwardMetadata: input.metadata,
 		}
 		require.NoError(t, data.ToProto(&pb))

@@ -33,7 +33,7 @@ import (
 )
 
 var (
-	errNilTimedMetricWithForwardMetadataProto = errors.New("nil timed metric with forward metadata proto message")
+	errNilForwardedMetricWithMetadataProto = errors.New("nil forwarded metric with metadata proto message")
 )
 
 // Metric is a metric, which is essentially a named value at certain time.
@@ -128,27 +128,67 @@ type RawMetricWithStoragePolicy struct {
 	policy.StoragePolicy
 }
 
-// MetricWithForwardMetadata is a metric with forward metadata.
-type MetricWithForwardMetadata struct {
-	Metric
+// ForwardedMetric is a forwarded metric.
+type ForwardedMetric struct {
+	Type      metric.Type
+	ID        id.RawID
+	TimeNanos int64
+	Values    []float64
+}
+
+// ToProto converts the forwarded metric to a protobuf message in place.
+func (m ForwardedMetric) ToProto(pb *metricpb.ForwardedMetric) error {
+	if err := m.Type.ToProto(&pb.Type); err != nil {
+		return err
+	}
+	pb.Id = m.ID
+	pb.TimeNanos = m.TimeNanos
+	pb.Values = m.Values
+	return nil
+}
+
+// FromProto converts the protobuf message to a forwarded metric in place.
+func (m *ForwardedMetric) FromProto(pb metricpb.ForwardedMetric) error {
+	if err := m.Type.FromProto(pb.Type); err != nil {
+		return err
+	}
+	m.ID = pb.Id
+	m.TimeNanos = pb.TimeNanos
+	m.Values = pb.Values
+	return nil
+}
+
+// String is a string representation of the forwarded metric.
+func (m ForwardedMetric) String() string {
+	return fmt.Sprintf(
+		"{id:%s,timestamp:%s,values:%v}",
+		m.ID.String(),
+		time.Unix(0, m.TimeNanos).String(),
+		m.Values,
+	)
+}
+
+// ForwardedMetricWithMetadata is a forwarded metric with metadata.
+type ForwardedMetricWithMetadata struct {
+	ForwardedMetric
 	metadata.ForwardMetadata
 }
 
-// ToProto converts the metric with forward metadata to a protobuf message in place.
-func (tm MetricWithForwardMetadata) ToProto(pb *metricpb.TimedMetricWithForwardMetadata) error {
-	if err := tm.Metric.ToProto(&pb.Metric); err != nil {
+// ToProto converts the forwarded metric with metadata to a protobuf message in place.
+func (fm ForwardedMetricWithMetadata) ToProto(pb *metricpb.ForwardedMetricWithMetadata) error {
+	if err := fm.ForwardedMetric.ToProto(&pb.Metric); err != nil {
 		return err
 	}
-	return tm.ForwardMetadata.ToProto(&pb.Metadata)
+	return fm.ForwardMetadata.ToProto(&pb.Metadata)
 }
 
-// FromProto converts the protobuf message to a metric with forward metadata in place.
-func (tm *MetricWithForwardMetadata) FromProto(pb *metricpb.TimedMetricWithForwardMetadata) error {
+// FromProto converts the protobuf message to a forwarded metric with metadata in place.
+func (fm *ForwardedMetricWithMetadata) FromProto(pb *metricpb.ForwardedMetricWithMetadata) error {
 	if pb == nil {
-		return errNilTimedMetricWithForwardMetadataProto
+		return errNilForwardedMetricWithMetadataProto
 	}
-	if err := tm.Metric.FromProto(pb.Metric); err != nil {
+	if err := fm.ForwardedMetric.FromProto(pb.Metric); err != nil {
 		return err
 	}
-	return tm.ForwardMetadata.FromProto(pb.Metadata)
+	return fm.ForwardMetadata.FromProto(pb.Metadata)
 }

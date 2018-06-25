@@ -43,8 +43,8 @@ message GaugeWithMetadatas {
   StagedMetadatas metadatas = 2 [(gogoproto.nullable) = false];
 }
 
-message TimedMetricWithForwardMetadata {
-  TimedMetric metric = 1 [(gogoproto.nullable) = false];
+message ForwardedMetricWithMetadata {
+  ForwardedMetric metric = 1 [(gogoproto.nullable) = false];
   ForwardMetadata metadata = 2 [(gogoproto.nullable) = false];
 }
 
@@ -60,11 +60,11 @@ message MetricWithMetadatas {
     COUNTER_WITH_METADATAS = 1;
     BATCH_TIMER_WITH_METADATAS = 2;
     GAUGE_WITH_METADATAS = 3;
-    TIMED_METRIC_WITH_FORWARD_METADATA = 4;
+    FORWARDED_METRIC_WITH_METADATA = 4;
   }
   Type type = 1;
   CounterWithMetadatas counter_with_metadatas = 2;
   BatchTimerWithMetadatas batch_timer_with_metadatas = 3;
   GaugeWithMetadatas gauge_with_metadatas = 4;
-  TimedMetricWithForwardMetadata timed_metric_with_forward_metadata = 5;
+  ForwardedMetricWithMetadata forwarded_metric_with_metadata = 5;
 }
