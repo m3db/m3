@@ -33,9 +33,9 @@ const (
 	segmentFileSetFilePrefix = "segment"
 	fileSuffix               = ".db"
 
-	anyLowerCaseCharsPattern   = "[a-z]*"
-	anyNumbersPattern          = "[0-9]*"
-	anyLowerCaseNumbersPattern = "[a-z0-9]*"
+	anyLowerCaseCharsPattern        = "[a-z]*"
+	anyNumbersPattern               = "[0-9]*"
+	anyLowerCaseCharsNumbersPattern = "[a-z0-9]*"
 
 	separator                    = "-"
 	infoFilePattern              = filesetFilePrefix + separator + anyNumbersPattern + separator + infoFileSuffix + fileSuffix
