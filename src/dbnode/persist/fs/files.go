@@ -550,7 +550,7 @@ func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockSta
 		filePathPrefix: filePathPrefix,
 		namespace:      namespace,
 		shard:          shard,
-		pattern:        filesetFileForTime(blockStart, "[a-z]*"),
+		pattern:        filesetFileForTime(blockStart, anyLowerCaseCharsPattern),
 	})
 	if err != nil {
 		return FileSetFile{}, false, err
@@ -587,8 +587,7 @@ func IndexFileSetsAt(filePathPrefix string, namespace ident.ID, blockStart time.
 		contentType:    persist.FileSetIndexContentType,
 		filePathPrefix: filePathPrefix,
 		namespace:      namespace,
-		pattern:        filesetFilePattern,
-		// pattern:        filesetPathFromTime("", blockStart, "[a-z]*"),
+		pattern:        filesetFileForTime(blockStart, anyLowerCaseNumbersPattern),
 	})
 	if err != nil {
 		return nil, err
@@ -1007,8 +1006,7 @@ func NextIndexFileSetVolumeIndex(filePathPrefix string, namespace ident.ID, bloc
 		contentType:    persist.FileSetIndexContentType,
 		filePathPrefix: filePathPrefix,
 		namespace:      namespace,
-		pattern:        filesetFilePattern,
-		// pattern:        filesetPathFromTime("", blockStart, "[a-z]*"),
+		pattern:        filesetFileForTime(blockStart, anyLowerCaseNumbersPattern),
 	})
 	if err != nil {
 		return -1, err

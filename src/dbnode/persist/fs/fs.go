@@ -33,9 +33,13 @@ const (
 	segmentFileSetFilePrefix = "segment"
 	fileSuffix               = ".db"
 
+	anyLowerCaseCharsPattern   = "[a-z]*"
+	anyNumbersPattern          = "[0-9]*"
+	anyLowerCaseNumbersPattern = "[a-z0-9]*"
+
 	separator                    = "-"
-	infoFilePattern              = filesetFilePrefix + separator + "[0-9]*" + separator + infoFileSuffix + fileSuffix
-	filesetFilePattern           = filesetFilePrefix + separator + "[0-9]*" + separator + "[a-z]*" + fileSuffix
-	commitLogFilePattern         = commitLogFilePrefix + separator + "[0-9]*" + separator + "[0-9]*" + fileSuffix
-	commitLogFileForTimeTemplate = commitLogFilePrefix + separator + "%d" + separator + "[0-9]*" + fileSuffix
+	infoFilePattern              = filesetFilePrefix + separator + anyNumbersPattern + separator + infoFileSuffix + fileSuffix
+	filesetFilePattern           = filesetFilePrefix + separator + anyNumbersPattern + separator + anyLowerCaseCharsPattern + fileSuffix
+	commitLogFilePattern         = commitLogFilePrefix + separator + anyNumbersPattern + separator + anyNumbersPattern + fileSuffix
+	commitLogFileForTimeTemplate = commitLogFilePrefix + separator + "%d" + separator + anyNumbersPattern + fileSuffix
 )
