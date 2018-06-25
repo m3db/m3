@@ -550,7 +550,7 @@ func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockSta
 		filePathPrefix: filePathPrefix,
 		namespace:      namespace,
 		shard:          shard,
-		pattern:        filesetPathFromTime(filesetFilePrefix, blockStart, "[a-z]*"),
+		pattern:        filesetFileForTime(blockStart, "[a-z]*"),
 	})
 	if err != nil {
 		return FileSetFile{}, false, err
@@ -588,6 +588,7 @@ func IndexFileSetsAt(filePathPrefix string, namespace ident.ID, blockStart time.
 		filePathPrefix: filePathPrefix,
 		namespace:      namespace,
 		pattern:        filesetFilePattern,
+		// pattern:        filesetPathFromTime("", blockStart, "[a-z]*"),
 	})
 	if err != nil {
 		return nil, err
@@ -1007,6 +1008,7 @@ func NextIndexFileSetVolumeIndex(filePathPrefix string, namespace ident.ID, bloc
 		filePathPrefix: filePathPrefix,
 		namespace:      namespace,
 		pattern:        filesetFilePattern,
+		// pattern:        filesetPathFromTime("", blockStart, "[a-z]*"),
 	})
 	if err != nil {
 		return -1, err
@@ -1050,9 +1052,12 @@ func OpenWritable(filePath string, perm os.FileMode) (*os.File, error) {
 	return os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 }
 
+func filesetFileForTime(t time.Time, suffix string) string {
+	return fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, t.UnixNano(), separator, suffix, fileSuffix)
+}
+
 func filesetPathFromTime(prefix string, t time.Time, suffix string) string {
-	name := fmt.Sprintf("%s%s%d%s%s%s", filesetFilePrefix, separator, t.UnixNano(), separator, suffix, fileSuffix)
-	return path.Join(prefix, name)
+	return path.Join(prefix, filesetFileForTime(t, suffix))
 }
 
 func filesetPathFromTimeAndIndex(prefix string, t time.Time, index int, suffix string) string {
