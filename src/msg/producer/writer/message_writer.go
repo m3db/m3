@@ -91,6 +91,7 @@ type messageWriterMetrics struct {
 	messageDropped         tally.Counter
 	messageRetry           tally.Counter
 	messageConsumeLatency  tally.Timer
+	messageWriteDelay      tally.Timer
 	scanBatchLatency       tally.Timer
 	scanTotalLatency       tally.Timer
 }
@@ -119,6 +120,7 @@ func newMessageWriterMetrics(
 		messageDropped:        scope.Counter("message-dropped"),
 		messageRetry:          scope.Counter("message-retry"),
 		messageConsumeLatency: instrument.MustCreateSampledTimer(scope.Timer("message-consume-latency"), samplingRate),
+		messageWriteDelay:     instrument.MustCreateSampledTimer(scope.Timer("message-write-delay"), samplingRate),
 		scanBatchLatency:      instrument.MustCreateSampledTimer(scope.Timer("scan-batch-latency"), samplingRate),
 		scanTotalLatency:      instrument.MustCreateSampledTimer(scope.Timer("scan-total-latency"), samplingRate),
 	}
@@ -145,6 +147,7 @@ type messageWriterImpl struct {
 	doneCh           chan struct{}
 	wg               sync.WaitGroup
 	m                messageWriterMetrics
+	nextFullScan     time.Time
 
 	nowFn clock.NowFn
 }
@@ -197,7 +200,7 @@ func (w *messageWriterImpl) Write(rm *producer.RefCountedMessage) {
 	}
 	msg.Set(meta, rm, nowNanos)
 	w.acks.add(meta, msg)
-	w.queue.PushBack(msg)
+	w.queue.PushFront(msg)
 	w.Unlock()
 }
 
@@ -279,7 +282,7 @@ func (w *messageWriterImpl) Init() {
 
 func (w *messageWriterImpl) scanMessageQueueUntilClose() {
 	var (
-		interval = w.opts.MessageQueueScanInterval()
+		interval = w.opts.MessageQueueNewWritesScanInterval()
 		jitter   = time.Duration(w.r.Int63n(int64(interval)))
 	)
 	// NB(cw): Add some jitter before the tick starts to reduce
@@ -301,6 +304,7 @@ func (w *messageWriterImpl) scanMessageQueueUntilClose() {
 func (w *messageWriterImpl) scanMessageQueue() {
 	w.RLock()
 	e := w.queue.Front()
+	isClosed := w.isClosed
 	w.RUnlock()
 	var (
 		msgsToWrite      []*message
@@ -308,12 +312,13 @@ func (w *messageWriterImpl) scanMessageQueue() {
 		batchSize        = w.opts.MessageQueueScanBatchSize()
 		consumerWriters  []consumerWriter
 		iterationIndexes []int
+		fullScan         = isClosed || beforeScan.After(w.nextFullScan)
 	)
 	for e != nil {
 		beforeBatch := w.nowFn()
 		beforeBatchNanos := beforeBatch.UnixNano()
 		w.Lock()
-		e, msgsToWrite = w.scanBatchWithLock(e, beforeBatchNanos, batchSize)
+		e, msgsToWrite = w.scanBatchWithLock(e, beforeBatchNanos, batchSize, fullScan)
 		consumerWriters = w.consumerWriters
 		iterationIndexes = w.iterationIndexes
 		w.Unlock()
@@ -324,8 +329,17 @@ func (w *messageWriterImpl) scanMessageQueue() {
 			// to avoid meaningless attempts, wait for next tick to retry.
 			break
 		}
+		if !fullScan && len(msgsToWrite) == 0 {
+			// If this is not a full scan, abort after the iteration batch
+			// that no new messages were found.
+			break
+		}
 	}
-	w.m.scanTotalLatency.Record(w.nowFn().Sub(beforeScan))
+	afterScan := w.nowFn()
+	w.m.scanTotalLatency.Record(afterScan.Sub(beforeScan))
+	if fullScan {
+		w.nextFullScan = afterScan.Add(w.opts.MessageQueueFullScanInterval())
+	}
 }
 
 func (w *messageWriterImpl) writeBatch(
@@ -342,6 +356,7 @@ func (w *messageWriterImpl) writeBatch(
 		if err := w.write(iterationIndexes, consumerWriters, m); err != nil {
 			return err
 		}
+		w.m.messageWriteDelay.Record(time.Duration(w.nowFn().UnixNano() - m.InitNanos()))
 	}
 	return nil
 }
@@ -353,6 +368,7 @@ func (w *messageWriterImpl) scanBatchWithLock(
 	start *list.Element,
 	nowNanos int64,
 	batchSize int,
+	fullScan bool,
 ) (*list.Element, []*message) {
 	var (
 		iterated int
@@ -379,6 +395,11 @@ func (w *messageWriterImpl) scanBatchWithLock(
 			continue
 		}
 		if m.RetryAtNanos() >= nowNanos {
+			if !fullScan {
+				// If this is not a full scan, bail after the first element that
+				// is not a new write.
+				break
+			}
 			continue
 		}
 		if m.IsAcked() {

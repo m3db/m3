@@ -32,17 +32,18 @@ import (
 )
 
 const (
-	defaultDialTimeout               = 10 * time.Second
-	defaultWriteTimeout              = 5 * time.Second
-	defaultKeepAlivePeriod           = time.Minute
-	defaultPlacementWatchInitTimeout = 2 * time.Second
-	defaultTopicWatchInitTimeout     = 2 * time.Second
-	defaultCloseCheckInterval        = time.Second
-	defaultConnectionResetDelay      = 2 * time.Second
-	defaultMessageQueueScanInterval  = time.Second
-	defaultMessageQueueScanBatchSize = 16
-	defaultInitialAckMapSize         = 1024
-	defaultConnectionFlushInterval   = time.Second
+	defaultDialTimeout                       = 10 * time.Second
+	defaultWriteTimeout                      = 5 * time.Second
+	defaultKeepAlivePeriod                   = time.Minute
+	defaultPlacementWatchInitTimeout         = 2 * time.Second
+	defaultTopicWatchInitTimeout             = 2 * time.Second
+	defaultCloseCheckInterval                = time.Second
+	defaultConnectionResetDelay              = 2 * time.Second
+	defaultMessageQueueNewWritesScanInterval = 200 * time.Millisecond
+	defaultMessageQueueFullScanInterval      = 5 * time.Second
+	defaultMessageQueueScanBatchSize         = 16
+	defaultInitialAckMapSize                 = 1024
+	defaultConnectionFlushInterval           = time.Second
 	// Using 16K which provides much better performance comparing
 	// to lower values like 1k ~ 8k.
 	defaultConnectionBufferSize = 16384
@@ -266,11 +267,21 @@ type Options interface {
 	// MessageRetryOptions returns the retry options for message retry.
 	SetMessageRetryOptions(value retry.Options) Options
 
-	// MessageQueueScanInterval returns the interval between scanning message queue for retries.
-	MessageQueueScanInterval() time.Duration
+	// MessageQueueNewWritesScanInterval returns the interval between scanning
+	// message queue for new writes.
+	MessageQueueNewWritesScanInterval() time.Duration
 
-	// SetMessageQueueScanInterval sets the interval between scanning message queue for retries.
-	SetMessageQueueScanInterval(value time.Duration) Options
+	// SetMessageQueueNewWritesScanInterval sets the interval between scanning
+	// message queue for new writes.
+	SetMessageQueueNewWritesScanInterval(value time.Duration) Options
+
+	// MessageQueueFullScanInterval returns the interval between scanning
+	// message queue for retriable writes and cleanups.
+	MessageQueueFullScanInterval() time.Duration
+
+	// SetMessageQueueFullScanInterval sets the interval between scanning
+	// message queue for retriable writes and cleanups.
+	SetMessageQueueFullScanInterval(value time.Duration) Options
 
 	// MessageQueueScanBatchSize returns the batch size for queue scan.
 	MessageQueueScanBatchSize() int
@@ -316,37 +327,39 @@ type Options interface {
 }
 
 type writerOptions struct {
-	topicName                 string
-	topicService              topic.Service
-	topicWatchInitTimeout     time.Duration
-	services                  services.Services
-	placementWatchInitTimeout time.Duration
-	messagePoolOptions        pool.ObjectPoolOptions
-	messageRetryOpts          retry.Options
-	messageQueueScanInterval  time.Duration
-	messageQueueScanBatchSize int
-	initialAckMapSize         int
-	closeCheckInterval        time.Duration
-	ackErrRetryOpts           retry.Options
-	encdecOpts                proto.EncodeDecoderOptions
-	cOpts                     ConnectionOptions
-	iOpts                     instrument.Options
+	topicName                         string
+	topicService                      topic.Service
+	topicWatchInitTimeout             time.Duration
+	services                          services.Services
+	placementWatchInitTimeout         time.Duration
+	messagePoolOptions                pool.ObjectPoolOptions
+	messageRetryOpts                  retry.Options
+	messageQueueNewWritesScanInterval time.Duration
+	messageQueueFullScanInterval      time.Duration
+	messageQueueScanBatchSize         int
+	initialAckMapSize                 int
+	closeCheckInterval                time.Duration
+	ackErrRetryOpts                   retry.Options
+	encdecOpts                        proto.EncodeDecoderOptions
+	cOpts                             ConnectionOptions
+	iOpts                             instrument.Options
 }
 
 // NewOptions creates Options.
 func NewOptions() Options {
 	return &writerOptions{
-		topicWatchInitTimeout:     defaultTopicWatchInitTimeout,
-		placementWatchInitTimeout: defaultPlacementWatchInitTimeout,
-		messageRetryOpts:          retry.NewOptions(),
-		messageQueueScanInterval:  defaultMessageQueueScanInterval,
-		messageQueueScanBatchSize: defaultMessageQueueScanBatchSize,
-		initialAckMapSize:         defaultInitialAckMapSize,
-		closeCheckInterval:        defaultCloseCheckInterval,
-		ackErrRetryOpts:           retry.NewOptions(),
-		encdecOpts:                proto.NewEncodeDecoderOptions(),
-		cOpts:                     NewConnectionOptions(),
-		iOpts:                     instrument.NewOptions(),
+		topicWatchInitTimeout:             defaultTopicWatchInitTimeout,
+		placementWatchInitTimeout:         defaultPlacementWatchInitTimeout,
+		messageRetryOpts:                  retry.NewOptions(),
+		messageQueueNewWritesScanInterval: defaultMessageQueueNewWritesScanInterval,
+		messageQueueFullScanInterval:      defaultMessageQueueFullScanInterval,
+		messageQueueScanBatchSize:         defaultMessageQueueScanBatchSize,
+		initialAckMapSize:                 defaultInitialAckMapSize,
+		closeCheckInterval:                defaultCloseCheckInterval,
+		ackErrRetryOpts:                   retry.NewOptions(),
+		encdecOpts:                        proto.NewEncodeDecoderOptions(),
+		cOpts:                             NewConnectionOptions(),
+		iOpts:                             instrument.NewOptions(),
 	}
 }
 
@@ -420,13 +433,23 @@ func (opts *writerOptions) SetMessageRetryOptions(value retry.Options) Options {
 	return &o
 }
 
-func (opts *writerOptions) MessageQueueScanInterval() time.Duration {
-	return opts.messageQueueScanInterval
+func (opts *writerOptions) MessageQueueNewWritesScanInterval() time.Duration {
+	return opts.messageQueueNewWritesScanInterval
 }
 
-func (opts *writerOptions) SetMessageQueueScanInterval(value time.Duration) Options {
+func (opts *writerOptions) SetMessageQueueNewWritesScanInterval(value time.Duration) Options {
 	o := *opts
-	o.messageQueueScanInterval = value
+	o.messageQueueNewWritesScanInterval = value
+	return &o
+}
+
+func (opts *writerOptions) MessageQueueFullScanInterval() time.Duration {
+	return opts.messageQueueFullScanInterval
+}
+
+func (opts *writerOptions) SetMessageQueueFullScanInterval(value time.Duration) Options {
+	o := *opts
+	o.messageQueueFullScanInterval = value
 	return &o
 }
 
