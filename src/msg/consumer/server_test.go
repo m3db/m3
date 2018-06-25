@@ -56,7 +56,9 @@ func TestConsumerServer(t *testing.T) {
 		closed = true
 	}
 
-	opts := NewServerOptions().SetConsumerOptions(testOptions()).SetConsumeFn(consumeFn)
+	// Set a large ack buffer size to make sure the background go routine
+	// can flush it.
+	opts := NewServerOptions().SetConsumerOptions(testOptions().SetAckBufferSize(100)).SetConsumeFn(consumeFn)
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 

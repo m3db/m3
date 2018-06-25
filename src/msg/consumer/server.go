@@ -56,7 +56,9 @@ func NewHandler(consumeFn ConsumeFn, opts Options) server.Handler {
 }
 
 func (h *handler) Handle(conn net.Conn) {
-	h.consumeFn(newConsumer(conn, h.mPool, h.opts, h.m))
+	c := newConsumer(conn, h.mPool, h.opts, h.m)
+	c.Init()
+	h.consumeFn(c)
 }
 
 func (h *handler) Close() {}

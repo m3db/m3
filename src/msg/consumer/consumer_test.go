@@ -24,6 +24,7 @@ import (
 	"errors"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3msg/generated/proto/msgpb"
 	"github.com/m3db/m3msg/protocol/proto"
@@ -318,6 +319,54 @@ func TestConsumerAckAfterClosed(t *testing.T) {
 	m2.Ack()
 }
 
+func TestConsumerTimeBasedFlush(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	opts := testOptions().SetAckBufferSize(2)
+	l, err := NewListener("127.0.0.1:0", opts)
+	require.NoError(t, err)
+	defer l.Close()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	conn, err := net.Dial("tcp", l.Addr().String())
+	require.NoError(t, err)
+	producer := proto.NewEncodeDecoder(conn, opts.EncodeDecoderOptions())
+
+	c, err := l.Accept()
+	require.NoError(t, err)
+
+	mockEncdec := proto.NewMockEncodeDecoder(ctrl)
+
+	cc := c.(*consumer)
+	encdec := cc.encdec
+	cc.encdec = mockEncdec
+
+	err = producer.Encode(&testMsg1)
+	require.NoError(t, err)
+
+	err = producer.Encode(&testMsg2)
+	require.NoError(t, err)
+
+	mockEncdec.EXPECT().Decode(gomock.Any()).DoAndReturn(
+		func(m proto.Unmarshaler) error {
+			return encdec.Decode(m)
+		},
+	)
+
+	m1, err := cc.Message()
+	require.NoError(t, err)
+	require.Equal(t, testMsg1.Value, m1.Bytes())
+
+	m1.Ack()
+	require.Equal(t, 1, len(cc.ackPb.Metadata))
+
+	mockEncdec.EXPECT().Encode(gomock.Any()).Return(nil)
+	cc.Init()
+	cc.Close()
+}
+
 func TestConsumerFlushAcksOnClose(t *testing.T) {
 	defer leaktest.Check(t)()
 
@@ -335,6 +384,7 @@ func TestConsumerFlushAcksOnClose(t *testing.T) {
 
 	c, err := l.Accept()
 	require.NoError(t, err)
+	c.Init()
 
 	mockEncdec := proto.NewMockEncodeDecoder(ctrl)
 
@@ -405,6 +455,7 @@ func testOptions() Options {
 	opts := NewOptions()
 	return opts.
 		SetAckBufferSize(1).
+		SetAckFlushInterval(50 * time.Millisecond).
 		SetMessagePoolOptions(pool.NewObjectPoolOptions().SetSize(1)).
 		SetConnectionWriteBufferSize(1)
 }

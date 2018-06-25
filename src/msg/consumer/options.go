@@ -21,6 +21,8 @@
 package consumer
 
 import (
+	"time"
+
 	"github.com/m3db/m3msg/protocol/proto"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
@@ -29,27 +31,30 @@ import (
 
 var (
 	defaultAckBufferSize        = 100
+	defaultAckFlushInterval     = time.Second
 	defaultConnectionBufferSize = 16384
 )
 
 type options struct {
-	encdecOptions   proto.EncodeDecoderOptions
-	messagePoolOpts pool.ObjectPoolOptions
-	ackBufferSize   int
-	writeBufferSize int
-	readBufferSize  int
-	iOpts           instrument.Options
+	encdecOptions    proto.EncodeDecoderOptions
+	messagePoolOpts  pool.ObjectPoolOptions
+	ackFlushInterval time.Duration
+	ackBufferSize    int
+	writeBufferSize  int
+	readBufferSize   int
+	iOpts            instrument.Options
 }
 
 // NewOptions creates a new options.
 func NewOptions() Options {
 	return &options{
-		encdecOptions:   proto.NewEncodeDecoderOptions(),
-		messagePoolOpts: pool.NewObjectPoolOptions(),
-		ackBufferSize:   defaultAckBufferSize,
-		writeBufferSize: defaultConnectionBufferSize,
-		readBufferSize:  defaultConnectionBufferSize,
-		iOpts:           instrument.NewOptions(),
+		encdecOptions:    proto.NewEncodeDecoderOptions(),
+		messagePoolOpts:  pool.NewObjectPoolOptions(),
+		ackFlushInterval: defaultAckFlushInterval,
+		ackBufferSize:    defaultAckBufferSize,
+		writeBufferSize:  defaultConnectionBufferSize,
+		readBufferSize:   defaultConnectionBufferSize,
+		iOpts:            instrument.NewOptions(),
 	}
 }
 
@@ -70,6 +75,16 @@ func (opts *options) MessagePoolOptions() pool.ObjectPoolOptions {
 func (opts *options) SetMessagePoolOptions(value pool.ObjectPoolOptions) Options {
 	o := *opts
 	o.messagePoolOpts = value
+	return &o
+}
+
+func (opts *options) AckFlushInterval() time.Duration {
+	return opts.ackFlushInterval
+}
+
+func (opts *options) SetAckFlushInterval(value time.Duration) Options {
+	o := *opts
+	o.ackFlushInterval = value
 	return &o
 }
 

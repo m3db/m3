@@ -22,6 +22,7 @@ package consumer
 
 import (
 	"net"
+	"time"
 
 	"github.com/m3db/m3msg/protocol/proto"
 	"github.com/m3db/m3x/instrument"
@@ -42,6 +43,9 @@ type Message interface {
 type Consumer interface {
 	// Message waits for and returns the next message received.
 	Message() (Message, error)
+
+	// Init initializes the consumer.
+	Init()
 
 	// Close closes the consumer.
 	Close()
@@ -73,6 +77,12 @@ type Options interface {
 
 	// SetMessagePoolOptions sets the options for message pool.
 	SetMessagePoolOptions(value pool.ObjectPoolOptions) Options
+
+	// AckFlushInterval returns the ack flush interval.
+	AckFlushInterval() time.Duration
+
+	// SetAckFlushInterval sets the ack flush interval.
+	SetAckFlushInterval(value time.Duration) Options
 
 	// AckBufferSize returns the ack buffer size.
 	AckBufferSize() int

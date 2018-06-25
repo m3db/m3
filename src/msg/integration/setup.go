@@ -570,6 +570,7 @@ writer:
 
 func testConsumerOptions(t *testing.T) consumer.Options {
 	str := `
+ackFlushInterval: 100ms
 ackBufferSize: 4
 connectionWriteBufferSize: 32
 `
