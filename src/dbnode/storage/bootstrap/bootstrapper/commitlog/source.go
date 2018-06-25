@@ -112,21 +112,21 @@ func (s *commitLogSource) AvailableData(
 	return shardsTimeRanges
 }
 
-// ReadData will read a combination of the available snapshot filesand commit log files to
+// ReadData will read a combination of the available snapshot files and commit log files to
 // restore as much unflushed data from disk as possible. The logic for performing this
-// correct is as follows:
+// correctly is as follows:
 //
 // 		1. 	For every shard/blockStart combination, find the most recently written and complete
-// 		   	(I.E has a checkpoint file) snapshot. Bootstrap that file.
+// 		   	(has a checkpoint file) snapshot. Bootstrap that file.
 // 		2. 	For every shard/blockStart combination, determine the SnapshotTime for the snapshot file.
 // 		   	This value corresponds to the (local) moment in time right before the snapshotting process
 // 		   	began.
 // 		3. 	Find the minimum SnapshotTime for all of the shards and block starts (call it t0), and
 // 		   	replay all commit log entries whose system timestamps overlap the range
 // 			[minimumSnapshotTimeAcrossShards, blockStart.Add(blockSize).Add(bufferPast)]. This logic
-// 			has one exception which is in the case where there is no minimimum snapshot time accross
-// 			shards (the code treats this case as minimum snapshot time accorss shards == blockStart).
-// 			In that case, we reply all commit log entries whose system timestamps overlap the range
+// 			has one exception which is in the case where there is no minimimum snapshot time across
+// 			shards (the code treats this case as minimum snapshot time across shards == blockStart).
+// 			In that case, we replay all commit log entries whose system timestamps overlap the range
 // 			[blockStart.Add(-bufferFuture), blockStart.Add(blockSize).Add(bufferPast)]
 func (s *commitLogSource) ReadData(
 	ns namespace.Metadata,
@@ -206,7 +206,7 @@ func (s *commitLogSource) ReadData(
 	// decide how much of the commit log we need to read for each block that we're bootstrapping. We'll
 	// construct a new predicate based on the data structure we constructed earlier where the new
 	// predicate will check if there is any overlap between a commit log file and a temporary range
-	// we constructor that begins with the minimum snapshot time and ends with the end of that block.
+	// we construct that begins with the minimum snapshot time and ends with the end of that block + bufferPast.
 	var (
 		bufferPast    = ns.Options().RetentionOptions().BufferPast()
 		bufferFuture  = ns.Options().RetentionOptions().BufferFuture()
@@ -621,22 +621,11 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 						break
 					}
 
-					var tags ident.Tags
-					entry, exists := shardResult.AllSeries().Get(id)
-					if exists {
-						// NB(r): In the case the series is already inserted
-						// we can avoid holding onto this ID and use the already
-						// allocated ID.
-						id.Finalize()
-						id = entry.ID
-						tags = entry.Tags
-					} else {
-						// TODO: Optimize this so we don't waste a bunch of time here
-						// even when the index is off
-						tags, err = s.tagsFromTagsIter(id, tagsIter)
-						if err != nil {
-							return nil, fmt.Errorf("unable to decode tags: %v", err)
-						}
+					// TODO: Optimize this so we don't waste a bunch of time here
+					// even when the index is disabled
+					tags, err := s.tagsFromTagsIter(id, tagsIter)
+					if err != nil {
+						return nil, fmt.Errorf("unable to decode tags: %v", err)
 					}
 					tagsIter.Close()
 
