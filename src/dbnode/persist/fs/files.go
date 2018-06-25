@@ -550,7 +550,7 @@ func FileSetAt(filePathPrefix string, namespace ident.ID, shard uint32, blockSta
 		filePathPrefix: filePathPrefix,
 		namespace:      namespace,
 		shard:          shard,
-		pattern:        filesetFilePattern,
+		pattern:        filesetPathFromTime(filesetFilePrefix, blockStart, "[a-z]*"),
 	})
 	if err != nil {
 		return FileSetFile{}, false, err
