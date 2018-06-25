@@ -21,6 +21,8 @@
 package consumer
 
 import (
+	"time"
+
 	"github.com/m3db/m3msg/protocol/proto"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
@@ -30,6 +32,7 @@ import (
 type Configuration struct {
 	EncodeDecoder             *proto.EncodeDecoderConfiguration `yaml:"encodeDecoder"`
 	MessagePool               *pool.ObjectPoolConfiguration     `yaml:"messagePool"`
+	AckFlushInterval          *time.Duration                    `yaml:"ackFlushInterval"`
 	AckBufferSize             *int                              `yaml:"ackBufferSize"`
 	ConnectionWriteBufferSize *int                              `yaml:"connectionWriteBufferSize"`
 	ConnectionReadBufferSize  *int                              `yaml:"connectionReadBufferSize"`
@@ -43,6 +46,9 @@ func (c *Configuration) NewOptions(iOpts instrument.Options) Options {
 	}
 	if c.MessagePool != nil {
 		opts = opts.SetMessagePoolOptions(c.MessagePool.NewObjectPoolOptions(iOpts))
+	}
+	if c.AckFlushInterval != nil {
+		opts = opts.SetAckFlushInterval(*c.AckFlushInterval)
 	}
 	if c.AckBufferSize != nil {
 		opts = opts.SetAckBufferSize(*c.AckBufferSize)

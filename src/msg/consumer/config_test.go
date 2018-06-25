@@ -22,6 +22,7 @@ package consumer
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
@@ -31,6 +32,7 @@ func TestConfiguration(t *testing.T) {
 	str := `
 messagePool:
   size: 5
+ackFlushInterval: 100ms
 ackBufferSize: 100
 connectionWriteBufferSize: 200
 connectionReadBufferSize: 300
@@ -41,6 +43,7 @@ connectionReadBufferSize: 300
 
 	opts := cfg.NewOptions(nil)
 	require.Equal(t, 5, opts.MessagePoolOptions().Size())
+	require.Equal(t, 100*time.Millisecond, opts.AckFlushInterval())
 	require.Equal(t, 100, opts.AckBufferSize())
 	require.Equal(t, 200, opts.ConnectionWriteBufferSize())
 	require.Equal(t, 300, opts.ConnectionReadBufferSize())

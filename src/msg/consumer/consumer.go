@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3msg/generated/proto/msgpb"
 	"github.com/m3db/m3msg/protocol/proto"
@@ -83,16 +84,19 @@ func newConsumerMetrics(scope tally.Scope) metrics {
 }
 
 type consumer struct {
+	sync.Mutex
+
 	opts   Options
 	mPool  *messagePool
 	encdec proto.EncodeDecoder
 	rw     *bufio.ReadWriter
 	conn   net.Conn
 
-	ackLock sync.Mutex
-	ackPb   msgpb.Ack
-	canAck  bool
-	m       metrics
+	ackPb  msgpb.Ack
+	closed bool
+	doneCh chan struct{}
+	wg     sync.WaitGroup
+	m      metrics
 }
 
 func newConsumer(
@@ -110,9 +114,18 @@ func newConsumer(
 		encdec: proto.NewEncodeDecoder(rw, opts.EncodeDecoderOptions()),
 		rw:     rw,
 		conn:   conn,
-		canAck: true,
+		closed: false,
+		doneCh: make(chan struct{}),
 		m:      m,
 	}
+}
+
+func (c *consumer) Init() {
+	c.wg.Add(1)
+	go func() {
+		c.ackUntilClose()
+		c.wg.Done()
+	}()
 }
 
 func (c *consumer) Message() (Message, error) {
@@ -130,41 +143,69 @@ func (c *consumer) Message() (Message, error) {
 // This function could be called concurrently if messages are being
 // processed concurrently.
 func (c *consumer) tryAck(m msgpb.Metadata) {
-	c.ackLock.Lock()
-	if !c.canAck {
-		c.ackLock.Unlock()
+	c.Lock()
+	if c.closed {
+		c.Unlock()
 		return
 	}
 	c.ackPb.Metadata = append(c.ackPb.Metadata, m)
 	ackLen := len(c.ackPb.Metadata)
 	if ackLen < c.opts.AckBufferSize() {
-		c.ackLock.Unlock()
+		c.Unlock()
 		return
 	}
-	if err := c.encodeAckWithLock(); err != nil {
+	if err := c.encodeAckWithLock(ackLen); err != nil {
 		c.conn.Close()
-		c.m.ackEncodeError.Inc(1)
-	} else {
-		c.m.ackSent.Inc(int64(ackLen))
 	}
-	c.ackLock.Unlock()
+	c.Unlock()
 }
 
-func (c *consumer) encodeAckWithLock() error {
+func (c *consumer) ackUntilClose() {
+	flushTicker := time.NewTicker(c.opts.AckFlushInterval())
+	defer flushTicker.Stop()
+
+	for {
+		select {
+		case <-flushTicker.C:
+			c.tryAckAndFlush()
+		case <-c.doneCh:
+			c.tryAckAndFlush()
+			return
+		}
+	}
+}
+
+func (c *consumer) tryAckAndFlush() {
+	c.Lock()
+	if ackLen := len(c.ackPb.Metadata); ackLen > 0 {
+		c.encodeAckWithLock(ackLen)
+	}
+	c.rw.Flush()
+	c.Unlock()
+}
+
+func (c *consumer) encodeAckWithLock(ackLen int) error {
 	err := c.encdec.Encode(&c.ackPb)
 	c.ackPb.Metadata = c.ackPb.Metadata[:0]
-	return err
+	if err != nil {
+		c.m.ackEncodeError.Inc(1)
+		return err
+	}
+	c.m.ackSent.Inc(int64(ackLen))
+	return nil
 }
 
 func (c *consumer) Close() {
-	c.ackLock.Lock()
-	c.canAck = false
-	if len(c.ackPb.Metadata) > 0 {
-		c.encodeAckWithLock()
+	c.Lock()
+	if c.closed {
+		c.Unlock()
+		return
 	}
-	c.ackLock.Unlock()
+	c.closed = true
+	c.Unlock()
 
-	c.rw.Flush()
+	close(c.doneCh)
+	c.wg.Wait()
 	c.conn.Close()
 }
 
