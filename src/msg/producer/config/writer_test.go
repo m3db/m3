@@ -78,7 +78,8 @@ messagePool:
   size: 5
 messageRetry:
   initialBackoff: 1ms
-messageQueueScanInterval: 5s
+messageQueueNewWritesScanInterval: 200ms
+messageQueueFullScanInterval: 10s
 messageQueueScanBatchSize: 1024
 initialAckMapSize: 1024
 closeCheckInterval: 2s
@@ -108,7 +109,8 @@ connection:
 	require.Equal(t, 2*time.Second, wOpts.PlacementWatchInitTimeout())
 	require.Equal(t, 5, wOpts.MessagePoolOptions().Size())
 	require.Equal(t, time.Millisecond, wOpts.MessageRetryOptions().InitialBackoff())
-	require.Equal(t, 5*time.Second, wOpts.MessageQueueScanInterval())
+	require.Equal(t, 200*time.Millisecond, wOpts.MessageQueueNewWritesScanInterval())
+	require.Equal(t, 10*time.Second, wOpts.MessageQueueFullScanInterval())
 	require.Equal(t, 1024, wOpts.MessageQueueScanBatchSize())
 	require.Equal(t, 1024, wOpts.InitialAckMapSize())
 	require.Equal(t, 2*time.Second, wOpts.CloseCheckInterval())

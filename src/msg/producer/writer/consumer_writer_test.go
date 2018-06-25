@@ -357,7 +357,8 @@ func testOptions() Options {
 		SetTopicWatchInitTimeout(100 * time.Millisecond).
 		SetPlacementWatchInitTimeout(100 * time.Millisecond).
 		SetMessagePoolOptions(pool.NewObjectPoolOptions().SetSize(1)).
-		SetMessageQueueScanInterval(100 * time.Millisecond).
+		SetMessageQueueNewWritesScanInterval(100 * time.Millisecond).
+		SetMessageQueueFullScanInterval(200 * time.Millisecond).
 		SetMessageRetryOptions(retry.NewOptions().SetInitialBackoff(100 * time.Millisecond).SetMaxBackoff(500 * time.Millisecond)).
 		SetAckErrorRetryOptions(retry.NewOptions().SetInitialBackoff(200 * time.Millisecond).SetMaxBackoff(time.Second)).
 		SetConnectionOptions(testConnectionOptions())
