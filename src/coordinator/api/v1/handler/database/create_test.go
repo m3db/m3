@@ -137,7 +137,7 @@ func TestClusterTypeHostnames(t *testing.T) {
 		Instances: map[string]*placementpb.Instance{
 			"host1": &placementpb.Instance{
 				Id:             "host1",
-				IsolationGroup: "local",
+				IsolationGroup: "cluster",
 				Zone:           "embedded",
 				Weight:         1,
 				Endpoint:       "http://host1:9000",
@@ -146,7 +146,7 @@ func TestClusterTypeHostnames(t *testing.T) {
 			},
 			"host2": &placementpb.Instance{
 				Id:             "host2",
-				IsolationGroup: "local",
+				IsolationGroup: "cluster",
 				Zone:           "embedded",
 				Weight:         1,
 				Endpoint:       "http://host2:9000",
@@ -157,7 +157,7 @@ func TestClusterTypeHostnames(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
-	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 128, 1).Return(newPlacement, nil)
+	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 128, 3).Return(newPlacement, nil)
 
 	createHandler.ServeHTTP(w, req)
 
@@ -165,7 +165,7 @@ func TestClusterTypeHostnames(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "{\"namespace\":{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":true,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"120000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\"},\"snapshotEnabled\":false,\"indexOptions\":{\"enabled\":false,\"blockSizeNanos\":\"7200000000000\"}}}}},\"placement\":{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"local\",\"zone\":\"embedded\",\"weight\":1,\"endpoint\":\"http://host1:9000\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host1\",\"port\":9000},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"local\",\"zone\":\"embedded\",\"weight\":1,\"endpoint\":\"http://host2:9000\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host2\",\"port\":9000}},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}}", string(body))
+	assert.Equal(t, "{\"namespace\":{\"registry\":{\"namespaces\":{\"testNamespace\":{\"bootstrapEnabled\":true,\"flushEnabled\":true,\"writesToCommitLog\":true,\"cleanupEnabled\":true,\"repairEnabled\":false,\"retentionOptions\":{\"retentionPeriodNanos\":\"172800000000000\",\"blockSizeNanos\":\"7200000000000\",\"bufferFutureNanos\":\"120000000000\",\"bufferPastNanos\":\"600000000000\",\"blockDataExpiry\":true,\"blockDataExpiryAfterNotAccessPeriodNanos\":\"300000000000\"},\"snapshotEnabled\":false,\"indexOptions\":{\"enabled\":false,\"blockSizeNanos\":\"7200000000000\"}}}}},\"placement\":{\"placement\":{\"instances\":{\"host1\":{\"id\":\"host1\",\"isolationGroup\":\"cluster\",\"zone\":\"embedded\",\"weight\":1,\"endpoint\":\"http://host1:9000\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host1\",\"port\":9000},\"host2\":{\"id\":\"host2\",\"isolationGroup\":\"cluster\",\"zone\":\"embedded\",\"weight\":1,\"endpoint\":\"http://host2:9000\",\"shards\":[],\"shardSetId\":0,\"hostname\":\"host2\",\"port\":9000}},\"replicaFactor\":0,\"numShards\":0,\"isSharded\":false,\"cutoverTime\":\"0\",\"isMirrored\":false,\"maxShardSetId\":0},\"version\":0}}", string(body))
 }
 
 func TestClusterTypeHostnameGroups(t *testing.T) {
@@ -211,7 +211,7 @@ func TestClusterTypeHostnameGroups(t *testing.T) {
 	}
 	newPlacement, err := placement.NewPlacementFromProto(placementProto)
 	require.NoError(t, err)
-	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 128, 1).Return(newPlacement, nil)
+	mockPlacementService.EXPECT().BuildInitialPlacement(gomock.Any(), 128, 3).Return(newPlacement, nil)
 
 	createHandler.ServeHTTP(w, req)
 
