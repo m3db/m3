@@ -26,10 +26,12 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"time"
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/retry"
 )
 
 const (
@@ -37,6 +39,12 @@ const (
 	defaultKeepAlivePeriod          = 30 * time.Minute
 	defaultKeepAlivePeriodMaxJitter = 0
 	defaultKeepAliveTimeout         = 20 * time.Second
+
+	defaultRetryInitialBackoff = 2 * time.Second
+	defaultRetryBackoffFactor  = 2.0
+	defaultRetryMaxRetries     = 3
+	defaultRetryMaxBackoff     = time.Duration(math.MaxInt64)
+	defaultRetryJitter         = true
 )
 
 type keepAliveOptions struct {
@@ -159,17 +167,26 @@ func NewOptions() Options {
 	return options{
 		sdOpts: services.NewOptions(),
 		iopts:  instrument.NewOptions(),
+		// NB(r): Set some default retry options so changes to retry
+		// option defaults don't change behavior of this client's retry options
+		retryOpts: retry.NewOptions().
+			SetInitialBackoff(defaultRetryInitialBackoff).
+			SetBackoffFactor(defaultRetryBackoffFactor).
+			SetMaxBackoff(defaultRetryMaxBackoff).
+			SetMaxRetries(defaultRetryMaxRetries).
+			SetJitter(defaultRetryJitter),
 	}
 }
 
 type options struct {
-	env      string
-	zone     string
-	service  string
-	cacheDir string
-	sdOpts   services.Options
-	clusters map[string]Cluster
-	iopts    instrument.Options
+	env       string
+	zone      string
+	service   string
+	cacheDir  string
+	sdOpts    services.Options
+	clusters  map[string]Cluster
+	iopts     instrument.Options
+	retryOpts retry.Options
 }
 
 func (o options) Validate() error {
@@ -260,6 +277,15 @@ func (o options) InstrumentOptions() instrument.Options {
 
 func (o options) SetInstrumentOptions(iopts instrument.Options) Options {
 	o.iopts = iopts
+	return o
+}
+
+func (o options) RetryOptions() retry.Options {
+	return o.retryOpts
+}
+
+func (o options) SetRetryOptions(retryOpts retry.Options) Options {
+	o.retryOpts = retryOpts
 	return o
 }
 
