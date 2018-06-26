@@ -74,6 +74,13 @@ type Options interface {
 	// SetWatchChanInitTimeout sets the WatchChanInitTimeout
 	SetWatchChanInitTimeout(t time.Duration) Options
 
+	// WatchWithRevision is the revision that watch requests will start from.
+	WatchWithRevision() int64
+
+	// SetWatchWithRevision sets the revision that watch requests will start
+	// from.
+	SetWatchWithRevision(rev int64) Options
+
 	// Prefix is the prefix for each key
 	Prefix() string
 	// SetPrefix sets the prefix
@@ -98,6 +105,7 @@ type options struct {
 	watchChanCheckInterval time.Duration
 	watchChanResetInterval time.Duration
 	watchChanInitTimeout   time.Duration
+	watchWithRevision      int64
 	cacheFileFn            CacheFileFn
 }
 
@@ -180,6 +188,15 @@ func (o options) WatchChanInitTimeout() time.Duration {
 
 func (o options) SetWatchChanInitTimeout(t time.Duration) Options {
 	o.watchChanInitTimeout = t
+	return o
+}
+
+func (o options) WatchWithRevision() int64 {
+	return o.watchWithRevision
+}
+
+func (o options) SetWatchWithRevision(rev int64) Options {
+	o.watchWithRevision = rev
 	return o
 }
 

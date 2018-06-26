@@ -71,17 +71,24 @@ func NewStore(etcdKV clientv3.KV, etcdWatcher clientv3.Watcher, opts Options) (k
 			diskReadError:  scope.Counter("disk-read-error"),
 		},
 	}
+
+	clientWatchOpts := []clientv3.OpOption{
+		// periodically (appx every 10 mins) checks for the latest data
+		// with or without any update notification
+		clientv3.WithProgressNotify(),
+		// receive initial notification once the watch channel is created
+		clientv3.WithCreatedNotify(),
+	}
+
+	if rev := opts.WatchWithRevision(); rev > 0 {
+		clientWatchOpts = append(clientWatchOpts, clientv3.WithRev(rev))
+	}
+
 	wOpts := watchmanager.NewOptions().
 		SetWatcher(etcdWatcher).
 		SetUpdateFn(store.update).
 		SetTickAndStopFn(store.tickAndStop).
-		SetWatchOptions([]clientv3.OpOption{
-			// periodically (appx every 10 mins) checks for the latest data
-			// with or without any update notification
-			clientv3.WithProgressNotify(),
-			// receive initial notification once the watch channel is created
-			clientv3.WithCreatedNotify(),
-		}).
+		SetWatchOptions(clientWatchOpts).
 		SetWatchChanCheckInterval(opts.WatchChanCheckInterval()).
 		SetWatchChanInitTimeout(opts.WatchChanInitTimeout()).
 		SetWatchChanResetInterval(opts.WatchChanResetInterval()).
