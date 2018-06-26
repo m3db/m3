@@ -33,7 +33,9 @@ import (
 	"github.com/m3db/m3cluster/generated/proto/kvtest"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/mocks"
+
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/context"
 )
 
 func TestValue(t *testing.T) {
@@ -778,6 +780,47 @@ func TestTxn_UnknownType(t *testing.T) {
 		[]kv.Op{kv.NewSetOp("foo", genProto("bar1"))},
 	)
 	require.Equal(t, kv.ErrUnknownCompareType, err)
+}
+
+// TestWatchWithStartRevision that watching from 1) an old compacted start
+// revision and 2) a start revision in the future are both safe
+func TestWatchWithStartRevision(t *testing.T) {
+	tests := map[string]int64{
+		"old_revision":    1,
+		"future_revision": 100000,
+	}
+
+	for name, rev := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec, opts, closeFn := testStore(t)
+			defer closeFn()
+
+			opts = opts.SetWatchWithRevision(rev)
+
+			store, err := NewStore(ec, ec, opts)
+			require.NoError(t, err)
+
+			for i := 1; i <= 100; i++ {
+				_, err = store.Set("foo", genProto(fmt.Sprintf("bar-%d", i)))
+				require.NoError(t, err)
+			}
+
+			cl := store.(*client).kv
+
+			resp, err := cl.Get(context.Background(), "foo")
+			require.NoError(t, err)
+			compactRev := resp.Header.Revision
+
+			_, err = cl.Compact(context.Background(), compactRev-1)
+			require.NoError(t, err)
+
+			w1, err := store.Watch("foo")
+			require.NoError(t, err)
+			<-w1.C()
+			verifyValue(t, w1.Get(), "bar-100", 100)
+		})
+	}
+
 }
 
 func verifyValue(t *testing.T, v kv.Value, value string, version int) {

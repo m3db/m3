@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3x/log"
 
 	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
 	"github.com/uber-go/tally"
 )
 
@@ -66,17 +67,21 @@ type metrics struct {
 	etcdWatchReset  tally.Counter
 }
 
-func (w *manager) watchChanWithTimeout(key string) (clientv3.WatchChan, context.CancelFunc, error) {
+func (w *manager) watchChanWithTimeout(key string, rev int64) (clientv3.WatchChan, context.CancelFunc, error) {
 	doneCh := make(chan struct{})
 
 	ctx, cancelFn := context.WithCancel(clientv3.WithRequireLeader(context.Background()))
 
 	var watchChan clientv3.WatchChan
 	go func() {
+		wOpts := w.opts.WatchOptions()
+		if rev > 0 {
+			wOpts = append(wOpts, clientv3.WithRev(rev))
+		}
 		watchChan = w.opts.Watcher().Watch(
 			ctx,
 			key,
-			w.opts.WatchOptions()...,
+			wOpts...,
 		)
 		close(doneCh)
 	}()
@@ -95,14 +100,15 @@ func (w *manager) Watch(key string) {
 	ticker := time.Tick(w.opts.WatchChanCheckInterval()) //nolint: megacheck
 
 	var (
-		watchChan clientv3.WatchChan
-		cancelFn  context.CancelFunc
-		err       error
+		revOverride int64
+		watchChan   clientv3.WatchChan
+		cancelFn    context.CancelFunc
+		err         error
 	)
 	for {
 		if watchChan == nil {
 			w.m.etcdWatchCreate.Inc(1)
-			watchChan, cancelFn, err = w.watchChanWithTimeout(key)
+			watchChan, cancelFn, err = w.watchChanWithTimeout(key, revOverride)
 			if err != nil {
 				w.logger.Errorf("could not create etcd watch: %v", err)
 
@@ -139,6 +145,14 @@ func (w *manager) Watch(key string) {
 				w.m.etcdWatchError.Inc(1)
 				// do not stop here, even though the update contains an error
 				// we still take this chance to attempt a Get() for the latest value
+
+				// If the current revision has been compacted, set watchChan to
+				// nil so the watch is recreated with a valid start revision
+				if err == rpctypes.ErrCompacted {
+					w.logger.Warnf("recreating watch at revision %d", r.CompactRevision)
+					revOverride = r.CompactRevision
+					watchChan = nil
+				}
 			}
 
 			if err = w.updateFn(key, r.Events); err != nil {

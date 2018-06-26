@@ -21,14 +21,17 @@
 package watchmanager
 
 import (
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3cluster/mocks"
+	"github.com/uber-go/tally"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/context"
 )
@@ -37,7 +40,7 @@ func TestWatchChan(t *testing.T) {
 	wh, ec, _, _, _, closer := testSetup(t)
 	defer closer()
 
-	wc, _, err := wh.watchChanWithTimeout("foo")
+	wc, _, err := wh.watchChanWithTimeout("foo", 0)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(wc))
 
@@ -54,7 +57,7 @@ func TestWatchChan(t *testing.T) {
 	wh.opts = wh.opts.SetWatcher(mw).SetWatchChanInitTimeout(100 * time.Millisecond)
 
 	before := time.Now()
-	_, _, err = wh.watchChanWithTimeout("foo")
+	_, _, err = wh.watchChanWithTimeout("foo", 0)
 	require.WithinDuration(t, time.Now(), before, 150*time.Millisecond)
 	require.Error(t, err)
 }
@@ -216,6 +219,48 @@ func TestWatchNoLeader(t *testing.T) {
 
 	// clean up the background go routine
 	atomic.AddInt32(&shouldStop, 1)
+	<-doneCh
+}
+
+func TestWatchCompactedRevision(t *testing.T) {
+	wh, ec, updateCalled, shouldStop, doneCh, closer := testSetup(t)
+	defer closer()
+
+	ts := tally.NewTestScope("", nil)
+	errC := ts.Counter("errors")
+	wh.m.etcdWatchError = errC
+
+	var compactRev int64
+	for i := 1; i <= 10; i++ {
+		resp, err := ec.Put(context.Background(), "foo", fmt.Sprintf("bar-%d", i))
+		require.NoError(t, err)
+		compactRev = resp.Header.Revision
+	}
+
+	_, err := ec.Compact(context.Background(), compactRev)
+	require.NoError(t, err)
+
+	wh.opts = wh.opts.SetWatchOptions([]clientv3.OpOption{
+		clientv3.WithCreatedNotify(),
+		clientv3.WithRev(1),
+	})
+
+	go wh.Watch("foo")
+	time.Sleep(3 * wh.opts.WatchChanInitTimeout())
+
+	assert.Equal(t, int32(4), atomic.LoadInt32(updateCalled))
+
+	lastRead := atomic.LoadInt32(updateCalled)
+	ec.Put(context.Background(), "foo", "bar-11")
+
+	for atomic.LoadInt32(updateCalled) <= lastRead {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	errN := ts.Snapshot().Counters()["errors+"].Value()
+	assert.Equal(t, int64(1), errN, "expected to encounter watch error")
+
+	atomic.AddInt32(shouldStop, 1)
 	<-doneCh
 }
 
