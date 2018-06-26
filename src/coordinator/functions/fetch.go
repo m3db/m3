@@ -67,13 +67,14 @@ func (o FetchOp) Node(controller *transform.Controller, storage storage.Storage,
 
 // Execute runs the fetch node operation
 func (n *FetchNode) Execute(ctx context.Context) error {
-	startTime := n.timespec.Start.Add(-1 * n.op.Offset)
-	endTime := n.timespec.End
+	timeSpec := n.timespec
+	startTime := timeSpec.Start.Add(-1 * n.op.Offset)
+	endTime := timeSpec.End
 	blockResult, err := n.storage.FetchBlocks(ctx, &storage.FetchQuery{
 		Start:       startTime,
 		End:         endTime,
 		TagMatchers: n.op.Matchers,
-		Interval:    n.timespec.Step,
+		Interval:    timeSpec.Step,
 	}, &storage.FetchOptions{})
 	if err != nil {
 		return err

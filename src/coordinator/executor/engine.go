@@ -27,6 +27,9 @@ import (
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/plan"
 	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
+
+	"go.uber.org/zap"
 )
 
 // Engine executes a Query.
@@ -108,10 +111,18 @@ func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *En
 		return
 	}
 
+	if params.Debug {
+		logging.WithContext(ctx).Info("logical plan", zap.String("plan", lp.String()))
+	}
+
 	pp, err := plan.NewPhysicalPlan(lp, e.store, params)
 	if err != nil {
 		results <- Query{Err: err}
 		return
+	}
+
+	if params.Debug {
+		logging.WithContext(ctx).Info("physical plan", zap.String("plan", pp.String()))
 	}
 
 	state, err := GenerateExecutionState(pp, e.store)
@@ -119,6 +130,10 @@ func (e *Engine) ExecuteExpr(ctx context.Context, parser parser.Parser, opts *En
 	if err != nil {
 		results <- Query{Err: err}
 		return
+	}
+
+	if params.Debug {
+		logging.WithContext(ctx).Info("execution state", zap.String("state", state.String()))
 	}
 
 	result := state.resultNode

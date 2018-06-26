@@ -26,6 +26,7 @@ import (
 )
 
 const (
+	// TODO: Get from config
 	channelSize = 100
 )
 

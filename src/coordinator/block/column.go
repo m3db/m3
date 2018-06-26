@@ -163,6 +163,7 @@ type column struct {
 	Values []float64
 }
 
+// columnBlockSeriesIter is used to iterate over a column. Assumes that all columns have the same length
 type columnBlockSeriesIter struct {
 	columns    []column
 	idx        int
@@ -176,13 +177,15 @@ func newColumnBlockSeriesIter(columns []column, blockMeta Metadata, seriesMeta [
 
 func (m *columnBlockSeriesIter) Next() bool {
 	m.idx++
-	return m.idx < len(m.columns[0].Values)
+	cols := m.columns
+	return len(cols) > 0 && m.idx < len(cols[0].Values)
 }
 
 func (m *columnBlockSeriesIter) Current() Series {
-	values := make([]float64, len(m.columns))
-	for i := 0; i < len(m.columns); i++ {
-		values[i] = m.columns[i].Values[m.idx]
+	cols := m.columns
+	values := make([]float64, len(cols))
+	for i := 0; i < len(cols); i++ {
+		values[i] = cols[i].Values[m.idx]
 	}
 
 	return NewSeries(values, m.seriesMeta[m.idx])

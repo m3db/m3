@@ -26,11 +26,12 @@ import (
 
 // RequestParams represents the params from the request
 type RequestParams struct {
-	Start   time.Time
-	End     time.Time
+	Start time.Time
+	End   time.Time
 	// Now captures the current time and fixes it throughout the request, we may let people override it in the future
 	Now     time.Time
 	Timeout time.Duration
 	Step    time.Duration
 	Target  string
+	Debug   bool
 }

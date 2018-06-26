@@ -32,6 +32,7 @@ import (
 )
 
 const (
+	// TODO: get timeouts from configs
 	maxTimeout     = time.Minute
 	defaultTimeout = time.Second * 15
 )

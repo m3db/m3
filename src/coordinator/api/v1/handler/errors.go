@@ -59,7 +59,7 @@ func (e *ParseError) Error() error {
 	return e.inner
 }
 
-// Code returns the error code
+// Code returns the parse error type
 func (e *ParseError) Code() int {
 	return e.code
 }

@@ -64,7 +64,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := logging.WithContext(ctx)
 
-	params, rErr := ParseParams(r)
+	params, rErr := parseParams(r)
 	if rErr != nil {
 		handler.Error(w, rErr.Error(), rErr.Code())
 		return
@@ -101,12 +101,12 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
 	defer cancel()
 
-	opts := &executor.EngineOptions{
-	}
+	opts := &executor.EngineOptions{}
 	// Detect clients closing connections
 	abortCh, _ := handler.CloseWatcher(ctx, w)
 	opts.AbortCh = abortCh
 
+	// TODO: Capture timing
 	parser, err := promql.Parse(params.Target)
 	if err != nil {
 		return nil, err
@@ -124,13 +124,14 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 		}
 
 		blocks := result.Result.Blocks()
-		// TODO: Stream blocks to client
+		// TODO(nikunj): Stream blocks to client
 		for blk := range blocks {
 			iter := blk.SeriesIter()
 			for iter.Next() {
 				insertSeriesInMap(iter.Current(), seriesMap)
 			}
 
+			// TODO(nikunj): Figure out how to close this outside
 			blk.Close()
 		}
 	}
@@ -149,6 +150,7 @@ func insertSeriesInMap(blockSeries block.Series, seriesMap map[string][]block.Se
 
 	// Insert sorted by start time
 	for idx, s := range blockList {
+		// TODO(nikunj): Use binary search once blocklist becomes big
 		if blockSeries.Meta.Bounds.Start.Before(s.Meta.Bounds.Start) {
 			blockList = append(blockList, block.Series{})
 			copy(blockList[idx+1:], blockList[idx:])

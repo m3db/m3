@@ -21,7 +21,6 @@
 package native
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
@@ -37,7 +36,7 @@ const (
 
 func defaultParams() url.Values {
 	vals := url.Values{}
-	vals.Add(targetQuery, promQuery)
+	vals.Add(targetParam, promQuery)
 	vals.Add(startParam, time.Now().Format(time.RFC3339))
 	vals.Add(endParam, string(time.Now().Add(time.Hour).Format(time.RFC3339)))
 	vals.Add(stepParam, (time.Duration(10) * time.Second).String())
@@ -48,7 +47,7 @@ func TestParamParsing(t *testing.T) {
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 
-	r, err := ParseParams(req)
+	r, err := parseParams(req)
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, promQuery, r.Target)
 }
@@ -58,7 +57,7 @@ func TestInvalidStart(t *testing.T) {
 	vals := defaultParams()
 	vals.Del(startParam)
 	req.URL.RawQuery = vals.Encode()
-	_, err := ParseParams(req)
+	_, err := parseParams(req)
 	require.NotNil(t, err, "unable to parse request")
 	require.Equal(t, err.Code(), http.StatusBadRequest)
 }
@@ -66,15 +65,11 @@ func TestInvalidStart(t *testing.T) {
 func TestInvalidTarget(t *testing.T) {
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	vals := defaultParams()
-	vals.Del(targetQuery)
-	fmt.Println(vals)
+	vals.Del(targetParam)
 	req.URL.RawQuery = vals.Encode()
 
-	p, err := ParseParams(req)
+	p, err := parseParams(req)
 	require.NotNil(t, err, "unable to parse request")
 	assert.NotNil(t, p.Start)
 	require.Equal(t, err.Code(), http.StatusBadRequest)
 }
-
-
-

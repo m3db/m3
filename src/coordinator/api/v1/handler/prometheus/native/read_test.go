@@ -48,7 +48,7 @@ func TestPromReadWithFetchOnly(t *testing.T) {
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	req.URL.RawQuery = defaultParams().Encode()
 
-	r, parseErr := ParseParams(req)
+	r, parseErr := parseParams(req)
 	require.Nil(t, parseErr)
 	seriesList, err := promRead.read(context.TODO(), httptest.NewRecorder(), r)
 	require.NoError(t, err)
@@ -76,10 +76,10 @@ func TestPromReadWithFetchAndCount(t *testing.T) {
 	promRead := &PromReadHandler{engine: executor.NewEngine(storage)}
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
 	params := defaultParams()
-	params.Set(targetQuery, `count(http_requests_total{job="prometheus",group="canary"})`)
+	params.Set(targetParam, `count(http_requests_total{job="prometheus",group="canary"})`)
 	req.URL.RawQuery = params.Encode()
 
-	r, parseErr := ParseParams(req)
+	r, parseErr := parseParams(req)
 	require.Nil(t, parseErr)
 	seriesList, err := promRead.read(context.TODO(), httptest.NewRecorder(), r)
 	require.NoError(t, err)

@@ -23,6 +23,7 @@ package native
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
@@ -35,8 +36,9 @@ import (
 const (
 	endParam    = "end"
 	startParam  = "start"
-	targetQuery = "target"
+	targetParam = "target"
 	stepParam   = "step"
+	debugParam  = "debug"
 
 	formatErrStr = "error parsing param: %s, error: %v"
 )
@@ -58,8 +60,8 @@ func parseDuration(r *http.Request, key string) (time.Duration, error) {
 	return 0, errors.ErrNotFound
 }
 
-// ParseParams parses all params from the GET request
-func ParseParams(r *http.Request) (models.RequestParams, *handler.ParseError) {
+// parseParams parses all params from the GET request
+func parseParams(r *http.Request) (models.RequestParams, *handler.ParseError) {
 	params := models.RequestParams{
 		Now: time.Now(),
 	}
@@ -88,24 +90,27 @@ func ParseParams(r *http.Request) (models.RequestParams, *handler.ParseError) {
 	}
 
 	params.Step = step
-	target, pErr := parseTarget(r)
-	if pErr != nil {
-		return params, pErr
+	target, err := parseTarget(r)
+	if err != nil {
+		return params, handler.NewParseError(fmt.Errorf(formatErrStr, targetParam, err), http.StatusBadRequest)
 	}
 
 	params.Target = target
+	// Skip debug if unable to parse debug param
+	params.Debug, _ = strconv.ParseBool(r.FormValue(debugParam))
+
 	return params, nil
 }
 
-func parseTarget(r *http.Request) (string, *handler.ParseError) {
-	targetQueries, ok := r.URL.Query()[targetQuery]
+func parseTarget(r *http.Request) (string, error) {
+	targetQueries, ok := r.URL.Query()[targetParam]
 	if !ok || len(targetQueries) == 0 || targetQueries[0] == "" {
-		return "", handler.NewParseError(errors.ErrNoTargetFound, http.StatusBadRequest)
+		return "", errors.ErrNoTargetFound
 	}
 
 	// TODO: currently, we only support one target at a time
 	if len(targetQueries) > 1 {
-		return "", handler.NewParseError(errors.ErrBatchQuery, http.StatusBadRequest)
+		return "", errors.ErrBatchQuery
 	}
 
 	return targetQueries[0], nil

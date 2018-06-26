@@ -11,5 +11,4 @@ var (
 	ErrBatchQuery    = errors.New("batch queries are currently not supported")
 	// ErrNoTargetFound is returned when a target is not found
 	ErrNoTargetFound = errors.New("no target found")
-
 )
