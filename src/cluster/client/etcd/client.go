@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3cluster/services/leader"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/retry"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/uber-go/tally"
@@ -77,6 +78,7 @@ func NewConfigServiceClient(opts Options) (client.Client, error) {
 		clis:    make(map[string]*clientv3.Client),
 		logger:  opts.InstrumentOptions().Logger(),
 		newFn:   newClient,
+		retrier: retry.NewRetrier(opts.RetryOptions()),
 		stores:  make(map[string]kv.TxnStore),
 	}, nil
 }
@@ -92,6 +94,7 @@ type csclient struct {
 	hbScope tally.Scope
 	logger  log.Logger
 	newFn   newClientFn
+	retrier retry.Retrier
 
 	storeLock sync.Mutex
 	stores    map[string]kv.TxnStore
@@ -252,7 +255,11 @@ func (c *csclient) etcdClientGen(zone string) (*clientv3.Client, error) {
 		return nil, fmt.Errorf("no etcd cluster found for zone %s", zone)
 	}
 
-	cli, err := c.newFn(cluster)
+	err := c.retrier.Attempt(func() error {
+		var tryErr error
+		cli, tryErr = c.newFn(cluster)
+		return tryErr
+	})
 	if err != nil {
 		return nil, err
 	}

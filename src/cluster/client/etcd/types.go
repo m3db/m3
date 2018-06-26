@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/retry"
 )
 
 // Options is the Options to create a config service client.
@@ -51,6 +52,9 @@ type Options interface {
 
 	InstrumentOptions() instrument.Options
 	SetInstrumentOptions(iopts instrument.Options) Options
+
+	RetryOptions() retry.Options
+	SetRetryOptions(retryOpts retry.Options) Options
 
 	Validate() error
 }
