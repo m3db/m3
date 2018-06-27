@@ -26,8 +26,10 @@ import (
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/policy"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -82,10 +84,161 @@ kv:
 	require.NoError(t, err)
 }
 
-func TestNamespaceValidatorConfigurationStatic(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestNewValidator(t *testing.T) {
+	cfgStr := `
+namespace:
+  static:
+    validationResult: valid
+requiredRollupTags:
+  - tag1
+  - tag2
+maxTransformationDerivativeOrder: 2
+maxRollupLevels: 1
+metricTypes:
+  typeTag: type
+  allowed:
+    - counter
+    - timer
+    - gauge
+policies:
+  defaultAllowed:
+    storagePolicies:
+      - 10s:2d
+      - 1m:40d
+    nonFirstLevelAggregationTypes:
+      - Sum
+      - Last
+  overrides:
+    - type: counter
+      allowed:
+        firstLevelAggregationTypes:
+          - Sum
+    - type: timer
+      allowed:
+        storagePolicies:
+          - 10s:2d
+        firstLevelAggregationTypes:
+          - P50
+          - P9999
+    - type: gauge
+      allowed:
+        firstLevelAggregationTypes:
+          - Last
+`
 
+	var cfg Configuration
+	require.NoError(t, yaml.Unmarshal([]byte(cfgStr), &cfg))
+	opts := cfg.newValidatorOptions(nil)
+
+	inputs := []struct {
+		metricType                      metric.Type
+		allowedStoragePolicies          policy.StoragePolicies
+		disallowedStoragePolicies       policy.StoragePolicies
+		allowedFirstLevelAggTypes       aggregation.Types
+		disallowedFirstLevelAggTypes    aggregation.Types
+		allowedNonFirstLevelAggTypes    aggregation.Types
+		disallowedNonFirstLevelAggTypes aggregation.Types
+	}{
+		{
+			metricType: metric.CounterType,
+			allowedStoragePolicies: policy.StoragePolicies{
+				policy.MustParseStoragePolicy("10s:2d"),
+				policy.MustParseStoragePolicy("1m:40d"),
+			},
+			disallowedStoragePolicies: policy.StoragePolicies{
+				policy.MustParseStoragePolicy("1m:2d"),
+				policy.MustParseStoragePolicy("10s:40d"),
+			},
+			allowedFirstLevelAggTypes: aggregation.Types{
+				aggregation.Sum,
+			},
+			disallowedFirstLevelAggTypes: aggregation.Types{
+				aggregation.Last,
+			},
+			allowedNonFirstLevelAggTypes: aggregation.Types{
+				aggregation.Sum,
+				aggregation.Last,
+			},
+			disallowedNonFirstLevelAggTypes: aggregation.Types{
+				aggregation.Min,
+				aggregation.P99,
+			},
+		},
+		{
+			metricType: metric.TimerType,
+			allowedStoragePolicies: policy.StoragePolicies{
+				policy.MustParseStoragePolicy("10s:2d"),
+			},
+			disallowedStoragePolicies: policy.StoragePolicies{
+				policy.MustParseStoragePolicy("1m:2d"),
+				policy.MustParseStoragePolicy("1m:40d"),
+			},
+			allowedFirstLevelAggTypes: aggregation.Types{
+				aggregation.P50,
+				aggregation.P9999,
+			},
+			disallowedFirstLevelAggTypes: aggregation.Types{
+				aggregation.Last,
+			},
+			allowedNonFirstLevelAggTypes: aggregation.Types{
+				aggregation.Sum,
+				aggregation.Last,
+			},
+			disallowedNonFirstLevelAggTypes: aggregation.Types{
+				aggregation.Min,
+				aggregation.P99,
+			},
+		},
+		{
+			metricType: metric.GaugeType,
+			allowedStoragePolicies: policy.StoragePolicies{
+				policy.MustParseStoragePolicy("10s:2d"),
+				policy.MustParseStoragePolicy("1m:40d"),
+			},
+			disallowedStoragePolicies: policy.StoragePolicies{
+				policy.MustParseStoragePolicy("1m:2d"),
+				policy.MustParseStoragePolicy("10s:40d"),
+			},
+			allowedFirstLevelAggTypes: aggregation.Types{
+				aggregation.Last,
+			},
+			disallowedFirstLevelAggTypes: aggregation.Types{
+				aggregation.Sum,
+			},
+			allowedNonFirstLevelAggTypes: aggregation.Types{
+				aggregation.Sum,
+				aggregation.Last,
+			},
+			disallowedNonFirstLevelAggTypes: aggregation.Types{
+				aggregation.Min,
+				aggregation.P99,
+			},
+		},
+	}
+
+	for _, input := range inputs {
+		for _, storagePolicy := range input.allowedStoragePolicies {
+			require.True(t, opts.IsAllowedStoragePolicyFor(input.metricType, storagePolicy))
+		}
+		for _, storagePolicy := range input.disallowedStoragePolicies {
+			require.False(t, opts.IsAllowedStoragePolicyFor(input.metricType, storagePolicy))
+		}
+		for _, aggregationType := range input.allowedFirstLevelAggTypes {
+			require.True(t, opts.IsAllowedFirstLevelAggregationTypeFor(input.metricType, aggregationType))
+		}
+		for _, aggregationType := range input.disallowedFirstLevelAggTypes {
+			require.False(t, opts.IsAllowedFirstLevelAggregationTypeFor(input.metricType, aggregationType))
+		}
+		for _, aggregationType := range input.allowedNonFirstLevelAggTypes {
+			require.True(t, opts.IsAllowedNonFirstLevelAggregationTypeFor(input.metricType, aggregationType))
+		}
+		for _, aggregationType := range input.disallowedNonFirstLevelAggTypes {
+			require.False(t, opts.IsAllowedNonFirstLevelAggregationTypeFor(input.metricType, aggregationType))
+		}
+	}
+}
+
+func TestNamespaceValidatorConfigurationStatic(t *testing.T) {
 	cfgStr := `
 static:
   validationResult: valid
