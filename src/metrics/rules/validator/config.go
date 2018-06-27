@@ -59,20 +59,38 @@ func (c Configuration) NewValidator(
 	if err != nil {
 		return nil, err
 	}
+	opts := c.newValidatorOptions(nsValidator)
+	return NewValidator(opts), nil
+}
+
+func (c Configuration) newValidatorOptions(
+	nsValidator namespace.Validator,
+) Options {
 	opts := NewOptions().
 		SetNamespaceValidator(nsValidator).
 		SetRequiredRollupTags(c.RequiredRollupTags).
 		SetMetricTypesFn(c.MetricTypes.NewMetricTypesFn()).
-		SetDefaultAllowedStoragePolicies(c.Policies.DefaultAllowed.StoragePolicies).
-		SetDefaultAllowedFirstLevelAggregationTypes(c.Policies.DefaultAllowed.FirstLevelAggregationTypes).
-		SetDefaultAllowedNonFirstLevelAggregationTypes(c.Policies.DefaultAllowed.NonFirstLevelAggregationTypes).
 		SetTagNameInvalidChars(toRunes(c.TagNameInvalidChars)).
 		SetMetricNameInvalidChars(toRunes(c.MetricNameInvalidChars))
+	if c.Policies.DefaultAllowed.StoragePolicies != nil {
+		opts = opts.SetDefaultAllowedStoragePolicies(*c.Policies.DefaultAllowed.StoragePolicies)
+	}
+	if c.Policies.DefaultAllowed.FirstLevelAggregationTypes != nil {
+		opts = opts.SetDefaultAllowedFirstLevelAggregationTypes(*c.Policies.DefaultAllowed.FirstLevelAggregationTypes)
+	}
+	if c.Policies.DefaultAllowed.NonFirstLevelAggregationTypes != nil {
+		opts = opts.SetDefaultAllowedNonFirstLevelAggregationTypes(*c.Policies.DefaultAllowed.NonFirstLevelAggregationTypes)
+	}
 	for _, override := range c.Policies.Overrides {
-		opts = opts.
-			SetAllowedStoragePoliciesFor(override.Type, override.Allowed.StoragePolicies).
-			SetAllowedFirstLevelAggregationTypesFor(override.Type, override.Allowed.FirstLevelAggregationTypes).
-			SetAllowedNonFirstLevelAggregationTypesFor(override.Type, override.Allowed.NonFirstLevelAggregationTypes)
+		if override.Allowed.StoragePolicies != nil {
+			opts = opts.SetAllowedStoragePoliciesFor(override.Type, *override.Allowed.StoragePolicies)
+		}
+		if override.Allowed.FirstLevelAggregationTypes != nil {
+			opts = opts.SetAllowedFirstLevelAggregationTypesFor(override.Type, *override.Allowed.FirstLevelAggregationTypes)
+		}
+		if override.Allowed.NonFirstLevelAggregationTypes != nil {
+			opts = opts.SetAllowedNonFirstLevelAggregationTypesFor(override.Type, *override.Allowed.NonFirstLevelAggregationTypes)
+		}
 	}
 	if c.MaxTransformationDerivativeOrder != nil {
 		opts = opts.SetMaxTransformationDerivativeOrder(*c.MaxTransformationDerivativeOrder)
@@ -80,7 +98,7 @@ func (c Configuration) NewValidator(
 	if c.MaxRollupLevels != nil {
 		opts = opts.SetMaxRollupLevels(*c.MaxRollupLevels)
 	}
-	return NewValidator(opts), nil
+	return opts
 }
 
 type namespaceValidatorConfiguration struct {
@@ -152,9 +170,9 @@ type policiesOverrideConfiguration struct {
 
 // policiesConfiguration is the configuration for storage policies and aggregation types.
 type policiesConfiguration struct {
-	StoragePolicies               []policy.StoragePolicy `yaml:"storagePolicies"`
-	FirstLevelAggregationTypes    []aggregation.Type     `yaml:"firstLevelAggregationTypes"`
-	NonFirstLevelAggregationTypes []aggregation.Type     `yaml:"nonFirstLevelAggregationTypes"`
+	StoragePolicies               *[]policy.StoragePolicy `yaml:"storagePolicies"`
+	FirstLevelAggregationTypes    *[]aggregation.Type     `yaml:"firstLevelAggregationTypes"`
+	NonFirstLevelAggregationTypes *[]aggregation.Type     `yaml:"nonFirstLevelAggregationTypes"`
 }
 
 func toRunes(s string) []rune {
