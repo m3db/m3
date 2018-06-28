@@ -22,6 +22,7 @@ package native
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -30,10 +31,9 @@ import (
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler/prometheus"
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/models"
-	"github.com/m3db/m3db/src/coordinator/util"
-	"code.uber.internal/infra/statsdex/encoding/streamjson"
-	"io"
 	"github.com/m3db/m3db/src/coordinator/ts"
+	"github.com/m3db/m3db/src/coordinator/util"
+	"github.com/m3db/m3db/src/coordinator/util/encoding"
 )
 
 const (
@@ -119,8 +119,8 @@ func parseTarget(r *http.Request) (string, error) {
 	return targetQueries[0], nil
 }
 
-func renderResultsJSON(w io.Writer, series []ts.Series) {
-	jw := streamjson.NewWriter(w)
+func renderResultsJSON(w io.Writer, series []*ts.Series) {
+	jw := encoding.NewWriter(w)
 	jw.BeginArray()
 	for _, s := range series {
 		jw.BeginObject()
@@ -150,7 +150,7 @@ func renderResultsJSON(w io.Writer, series []ts.Series) {
 		fixedStep, ok := s.Values().(ts.FixedResolutionMutableValues)
 		if ok {
 			jw.BeginObjectField("step_size_ms")
-			jw.WriteInt(int(fixedStep.MillisPerStep().Nanoseconds() / int64(time.Millisecond)))
+			jw.WriteInt(int(util.DurationToMS(fixedStep.MillisPerStep())))
 			jw.EndObject()
 		}
 	}

@@ -40,3 +40,8 @@ func ParseTimeString(s string) (time.Time, error) {
 
 	return time.Time{}, fmt.Errorf("invalid timestamp for %s", s)
 }
+
+// DurationToMS converts a duration into milliseconds
+func DurationToMS(duration time.Duration) int64 {
+	return duration.Nanoseconds() / int64(time.Millisecond)
+}

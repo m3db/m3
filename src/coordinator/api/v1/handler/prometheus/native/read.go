@@ -22,8 +22,10 @@ package native
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"net/http"
+	"sort"
 
 	"github.com/m3db/m3db/src/coordinator/api/v1/handler"
 	"github.com/m3db/m3db/src/coordinator/block"
@@ -34,8 +36,6 @@ import (
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"go.uber.org/zap"
-	"sort"
-	"fmt"
 )
 
 const (
@@ -82,11 +82,12 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO: Support multiple result types
 	w.Header().Set("Content-Type", "application/json")
 	renderResultsJSON(w, result)
 }
 
-func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, params models.RequestParams) ([]ts.Series, error) {
+func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, params models.RequestParams) ([]*ts.Series, error) {
 	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
 	defer cancel()
 
@@ -128,17 +129,22 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 		}
 	}
 
-	return sortedBlocksToSeriesList(sortedBlockList)
+	seriesList, err := sortedBlocksToSeriesList(sortedBlockList)
+	for _, b := range sortedBlockList {
+		b.Close()
+	}
+
+	return seriesList, err
 }
 
-func sortedBlocksToSeriesList(blockList []block.Block) ([]ts.Series, error) {
+func sortedBlocksToSeriesList(blockList []block.Block) ([]*ts.Series, error) {
 	if len(blockList) == 0 {
-		return []ts.Series{}, nil
+		return []*ts.Series{}, nil
 	}
 
 	firstBlock := blockList[0]
 	numSeries := firstBlock.Series()
-	seriesList := make([]ts.Series, numSeries)
+	seriesList := make([]*ts.Series, numSeries)
 	seriesIters := make([]block.SeriesIter, len(blockList))
 	for i, b := range blockList {
 		seriesIters[i] = b.SeriesIter()
@@ -161,7 +167,7 @@ func sortedBlocksToSeriesList(blockList []block.Block) ([]ts.Series, error) {
 			}
 		}
 
-		seriesList[i] = *ts.NewSeries(seriesMeta[i].Name, values, seriesMeta[i].Tags)
+		seriesList[i] = ts.NewSeries(seriesMeta[i].Name, values, seriesMeta[i].Tags)
 
 	}
 

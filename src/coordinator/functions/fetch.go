@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/coordinator/util/logging"
+
 	"go.uber.org/zap"
 )
 

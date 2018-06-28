@@ -24,12 +24,12 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3db/src/coordinator/functions"
+	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/parser/common"
 
-	"github.com/prometheus/prometheus/promql"
-	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/promql"
 )
 
 // NewSelectorFromVector creates a new fetchop

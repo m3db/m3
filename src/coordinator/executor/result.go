@@ -23,6 +23,7 @@ package executor
 import (
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/parser"
+	
 	"github.com/pkg/errors"
 )
 
@@ -32,7 +33,7 @@ const (
 )
 
 var (
-	abortedErr = errors.New("aborted")
+	errAborted = errors.New("the query has been aborted")
 )
 
 // Result provides the execution results
@@ -48,6 +49,7 @@ type ResultNode struct {
 	aborted bool
 }
 
+// BlockResult has the result from a block
 type BlockResult struct {
 	Block block.Block
 	Err   error
@@ -61,7 +63,7 @@ func newResultNode() *ResultNode {
 // Process the block
 func (r *ResultNode) Process(ID parser.NodeID, block block.Block) error {
 	if r.aborted {
-		return abortedErr
+		return errAborted
 	}
 
 	r.blocks <- BlockResult{

@@ -21,10 +21,11 @@
 package storage
 
 import (
+	"math"
 	"time"
+
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/ts"
-	"math"
 )
 
 // FetchResultToBlockResult converts a fetch result into coordinator blocks

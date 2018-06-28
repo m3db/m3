@@ -64,7 +64,7 @@ func (e *ParseError) Code() int {
 	return e.code
 }
 
-// Code returns the error code
+// String returns the string representation of the error
 func (e *ParseError) String() string {
 	return fmt.Sprintf("error: %v, code: %d", e.inner, e.code)
 }
