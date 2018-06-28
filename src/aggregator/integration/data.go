@@ -267,11 +267,11 @@ func generateTestForwardedMetric(
 ) metricUnion {
 	return metricUnion{
 		category: forwardedMetric,
-		forwarded: aggregated.Metric{
+		forwarded: aggregated.ForwardedMetric{
 			Type:      metricType,
 			ID:        metricid.RawID(id),
 			TimeNanos: timeNanos,
-			Value:     valueGenOpts.forwardedValueGenFn(intervalIdx, idIdx),
+			Values:    valueGenOpts.forwardedValueGenFn(intervalIdx, idIdx),
 		},
 	}
 }
@@ -419,20 +419,24 @@ func addUntimedMetricToAggregation(
 
 func addForwardedMetricToAggregation(
 	values interface{},
-	mu aggregated.Metric,
+	mu aggregated.ForwardedMetric,
 ) (interface{}, error) {
 	switch mu.Type {
 	case metric.CounterType:
 		v := values.(aggregation.Counter)
-		v.Update(int64(mu.Value))
+		for _, val := range mu.Values {
+			v.Update(int64(val))
+		}
 		return v, nil
 	case metric.TimerType:
 		v := values.(aggregation.Timer)
-		v.Add(mu.Value)
+		v.AddBatch(mu.Values)
 		return v, nil
 	case metric.GaugeType:
 		v := values.(aggregation.Gauge)
-		v.Update(mu.Value)
+		for _, val := range mu.Values {
+			v.Update(val)
+		}
 		return v, nil
 	default:
 		return nil, fmt.Errorf("unrecognized forwarded metric type %v", mu.Type)
@@ -653,7 +657,7 @@ func (c metricCategory) TimestampNanosFn() timestampNanosFn {
 type metricUnion struct {
 	category  metricCategory
 	untimed   unaggregated.MetricUnion
-	forwarded aggregated.Metric
+	forwarded aggregated.ForwardedMetric
 }
 
 func (mu metricUnion) Type() metric.Type {
@@ -850,10 +854,15 @@ var defaultUntimedValueGenOpts = untimedValueGenOpts{
 	gaugeValueGenFn:   defaultGaugeValueGenFn,
 }
 
-type forwardedValueGenFn func(intervalIdx, idIdx int) float64
+type forwardedValueGenFn func(intervalIdx, idIdx int) []float64
 
-func defaultForwardedValueGenFn(intervalIdx, _ int) float64 {
-	return float64(intervalIdx)
+func defaultForwardedValueGenFn(intervalIdx, _ int) []float64 {
+	testForwardedVals := []float64{1.2, 3.4, 5.6}
+	vals := make([]float64, len(testForwardedVals))
+	for idx, v := range testForwardedVals {
+		vals[idx] = v + float64(intervalIdx)
+	}
+	return vals
 }
 
 type forwardedValueGenOpts struct {

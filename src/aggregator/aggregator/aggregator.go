@@ -67,7 +67,7 @@ type Aggregator interface {
 	AddUntimed(metric unaggregated.MetricUnion, metas metadata.StagedMetadatas) error
 
 	// AddForwarded adds a forwarded metric with metadata.
-	AddForwarded(metric aggregated.Metric, metadata metadata.ForwardMetadata) error
+	AddForwarded(metric aggregated.ForwardedMetric, metadata metadata.ForwardMetadata) error
 
 	// Resign stops the aggregator from participating in leader election and resigns
 	// from ongoing campaign if any.
@@ -116,7 +116,7 @@ type aggregator struct {
 func NewAggregator(opts Options) Aggregator {
 	iOpts := opts.InstrumentOptions()
 	scope := iOpts.MetricsScope()
-	metrics := newAggregatorMetrics(scope, iOpts.MetricsSamplingRate())
+	samplingRate := iOpts.MetricsSamplingRate()
 	return &aggregator{
 		opts:              opts,
 		nowFn:             opts.ClockOptions().NowFn(),
@@ -130,7 +130,7 @@ func NewAggregator(opts Options) Aggregator {
 		flushHandler:      opts.FlushHandler(),
 		adminClient:       opts.AdminClient(),
 		resignTimeout:     opts.ResignTimeout(),
-		metrics:           metrics,
+		metrics:           newAggregatorMetrics(scope, samplingRate, opts.MaxAllowedForwardingDelayFn()),
 		doneCh:            make(chan struct{}),
 		sleepFn:           time.Sleep,
 	}
@@ -184,7 +184,7 @@ func (agg *aggregator) AddUntimed(
 }
 
 func (agg *aggregator) AddForwarded(
-	metric aggregated.Metric,
+	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
 	callStart := agg.nowFn()
@@ -201,7 +201,11 @@ func (agg *aggregator) AddForwarded(
 	callEnd := agg.nowFn()
 	agg.metrics.addForwarded.ReportSuccess(callEnd.Sub(callStart))
 	forwardingDelay := time.Duration(callEnd.UnixNano() - metric.TimeNanos)
-	agg.metrics.addForwarded.ReportForwardingLatency(metadata.NumForwardedTimes, forwardingDelay)
+	agg.metrics.addForwarded.ReportForwardingLatency(
+		metadata.StoragePolicy.Resolution().Window,
+		metadata.NumForwardedTimes,
+		forwardingDelay,
+	)
 	return nil
 }
 
@@ -658,49 +662,66 @@ func (m *aggregatorAddUntimedMetrics) ReportError(err error) {
 	m.aggregatorAddMetricMetrics.ReportError(err)
 }
 
+type latencyBucketKey struct {
+	resolution        time.Duration
+	numForwardedTimes int
+}
+
 type aggregatorAddForwardedMetrics struct {
 	sync.RWMutex
 	aggregatorAddMetricMetrics
 
-	scope             tally.Scope
-	latencyBuckets    tally.DurationBuckets
-	forwardingLatency map[int]tally.Histogram
+	scope                       tally.Scope
+	maxAllowedForwardingDelayFn MaxAllowedForwardingDelayFn
+	forwardingLatency           map[latencyBucketKey]tally.Histogram
 }
 
 func newAggregatorAddForwardedMetrics(
 	scope tally.Scope,
 	samplingRate float64,
+	maxAllowedForwardingDelayFn MaxAllowedForwardingDelayFn,
 ) aggregatorAddForwardedMetrics {
-	numLatencyBuckets := int(maxLatencyBucketLimit / latencyBucketSize)
-	latencyBuckets := tally.MustMakeLinearDurationBuckets(0, latencyBucketSize, numLatencyBuckets)
 	return aggregatorAddForwardedMetrics{
 		aggregatorAddMetricMetrics: newAggregatorAddMetricMetrics(scope, samplingRate),
-		scope:             scope,
-		latencyBuckets:    latencyBuckets,
-		forwardingLatency: make(map[int]tally.Histogram),
+		scope: scope,
+		maxAllowedForwardingDelayFn: maxAllowedForwardingDelayFn,
+		forwardingLatency:           make(map[latencyBucketKey]tally.Histogram),
 	}
 }
 
 func (m *aggregatorAddForwardedMetrics) ReportForwardingLatency(
+	resolution time.Duration,
 	numForwardedTimes int,
 	duration time.Duration,
 ) {
+	key := latencyBucketKey{
+		resolution:        resolution,
+		numForwardedTimes: numForwardedTimes,
+	}
 	m.RLock()
-	histogram, exists := m.forwardingLatency[numForwardedTimes]
+	histogram, exists := m.forwardingLatency[key]
 	m.RUnlock()
 	if exists {
 		histogram.RecordDuration(duration)
 		return
 	}
 	m.Lock()
-	histogram, exists = m.forwardingLatency[numForwardedTimes]
-	if !exists {
-		histogram = m.scope.Tagged(map[string]string{
-			"bucket-version":      strconv.Itoa(latencyBucketVersion),
-			"num-forwarded-times": strconv.Itoa(numForwardedTimes),
-		}).Histogram("forwarding-latency", m.latencyBuckets)
-		m.forwardingLatency[numForwardedTimes] = histogram
+	histogram, exists = m.forwardingLatency[key]
+	if exists {
+		m.Unlock()
+		histogram.RecordDuration(duration)
+		return
 	}
+	maxForwardingDelayAllowed := m.maxAllowedForwardingDelayFn(resolution, numForwardedTimes)
+	maxLatencyBucketLimit := maxForwardingDelayAllowed * maxLatencyBucketLimitScaleFactor
+	latencyBucketSize := maxLatencyBucketLimit / time.Duration(numLatencyBuckets)
+	latencyBuckets := tally.MustMakeLinearDurationBuckets(0, latencyBucketSize, numLatencyBuckets)
+	histogram = m.scope.Tagged(map[string]string{
+		"bucket-version":      strconv.Itoa(latencyBucketVersion),
+		"resolution":          resolution.String(),
+		"num-forwarded-times": strconv.Itoa(numForwardedTimes),
+	}).Histogram("forwarding-latency", latencyBuckets)
+	m.forwardingLatency[key] = histogram
 	m.Unlock()
 	histogram.RecordDuration(duration)
 }
@@ -824,7 +845,11 @@ type aggregatorMetrics struct {
 	tick         aggregatorTickMetrics
 }
 
-func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMetrics {
+func newAggregatorMetrics(
+	scope tally.Scope,
+	samplingRate float64,
+	maxAllowedForwardingDelayFn MaxAllowedForwardingDelayFn,
+) aggregatorMetrics {
 	addUntimedScope := scope.SubScope("addUntimed")
 	addForwardedScope := scope.SubScope("addForwarded")
 	placementScope := scope.SubScope("placement")
@@ -838,7 +863,7 @@ func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMet
 		gauges:       scope.Counter("gauges"),
 		forwarded:    scope.Counter("forwarded"),
 		addUntimed:   newAggregatorAddUntimedMetrics(addUntimedScope, samplingRate),
-		addForwarded: newAggregatorAddForwardedMetrics(addForwardedScope, samplingRate),
+		addForwarded: newAggregatorAddForwardedMetrics(addForwardedScope, samplingRate, maxAllowedForwardingDelayFn),
 		placement:    newAggregatorPlacementMetrics(placementScope),
 		shards:       newAggregatorShardsMetrics(shardsScope),
 		shardSetID:   newAggregatorShardSetIDMetrics(shardSetIDScope),
@@ -869,7 +894,7 @@ const (
 type sleepFn func(d time.Duration)
 
 const (
-	latencyBucketVersion  = 1
-	latencyBucketSize     = 500 * time.Millisecond
-	maxLatencyBucketLimit = 20 * time.Second
+	latencyBucketVersion             = 2
+	numLatencyBuckets                = 40
+	maxLatencyBucketLimitScaleFactor = 2
 )

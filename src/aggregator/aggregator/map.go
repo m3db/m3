@@ -159,7 +159,7 @@ func (m *metricMap) AddUntimed(
 }
 
 func (m *metricMap) AddForwarded(
-	metric aggregated.Metric,
+	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
 	key := entryKey{

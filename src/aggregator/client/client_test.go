@@ -64,11 +64,11 @@ var (
 		ID:       []byte("foo"),
 		GaugeVal: 123.456,
 	}
-	testForwarded = aggregated.Metric{
+	testForwarded = aggregated.ForwardedMetric{
 		Type:      metric.CounterType,
 		ID:        []byte("testForwarded"),
 		TimeNanos: 1234,
-		Value:     34567,
+		Values:    []float64{34567, 256, 178},
 	}
 	testStagedMetadatas = metadata.StagedMetadatas{
 		{
@@ -114,7 +114,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          []byte("testForwardSource"),
+		SourceID:          1234,
 		NumForwardedTimes: 3,
 	}
 	testPlacementInstances = []placement.Instance{

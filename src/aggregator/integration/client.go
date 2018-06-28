@@ -160,13 +160,13 @@ func (c *client) writeUntimedMetricWithMetadatas(
 }
 
 func (c *client) writeForwardedMetricWithMetadata(
-	metric aggregated.Metric,
+	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
 	msg := encoding.UnaggregatedMessageUnion{
-		Type: encoding.TimedMetricWithForwardMetadataType,
-		TimedMetricWithForwardMetadata: aggregated.MetricWithForwardMetadata{
-			Metric:          metric,
+		Type: encoding.ForwardedMetricWithMetadataType,
+		ForwardedMetricWithMetadata: aggregated.ForwardedMetricWithMetadata{
+			ForwardedMetric: metric,
 			ForwardMetadata: metadata,
 		},
 	}

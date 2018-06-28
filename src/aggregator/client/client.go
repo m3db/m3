@@ -84,7 +84,7 @@ type AdminClient interface {
 
 	// WriteForwarded writes forwarded metrics.
 	WriteForwarded(
-		metric aggregated.Metric,
+		metric aggregated.ForwardedMetric,
 		metadata metadata.ForwardMetadata,
 	) error
 }
@@ -234,7 +234,7 @@ func (c *client) WriteUntimedGauge(
 }
 
 func (c *client) WriteForwarded(
-	metric aggregated.Metric,
+	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
 	callStart := c.nowFn()

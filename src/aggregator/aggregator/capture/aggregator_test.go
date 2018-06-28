@@ -55,11 +55,11 @@ var (
 		ID:       id.RawID("testCounter"),
 		GaugeVal: 123.456,
 	}
-	testForwarded = aggregated.Metric{
+	testForwarded = aggregated.ForwardedMetric{
 		Type:      metric.CounterType,
 		ID:        []byte("testForwarded"),
 		TimeNanos: 12345,
-		Value:     908,
+		Values:    []float64{908, -13.5},
 	}
 	testInvalid = unaggregated.MetricUnion{
 		Type: metric.UnknownType,
@@ -78,7 +78,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          []byte("testForwardSource"),
+		SourceID:          1234,
 		NumForwardedTimes: 3,
 	}
 )
@@ -122,10 +122,10 @@ func TestAggregator(t *testing.T) {
 	}
 
 	// Add valid forwarded metrics with metadata.
-	expected.MetricsWithForwardMetadata = append(
-		expected.MetricsWithForwardMetadata,
-		aggregated.MetricWithForwardMetadata{
-			Metric:          testForwarded,
+	expected.ForwardedMetricsWithMetadata = append(
+		expected.ForwardedMetricsWithMetadata,
+		aggregated.ForwardedMetricWithMetadata{
+			ForwardedMetric: testForwarded,
 			ForwardMetadata: testForwardMetadata,
 		},
 	)

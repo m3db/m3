@@ -45,7 +45,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBaseMetricListPushBack(t *testing.T) {
+func TestBaseMetricListPushBackElemWithDefaultPipeline(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -59,6 +59,8 @@ func TestBaseMetricListPushBack(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, l.aggregations.Len())
 	require.Equal(t, elem, e.Value.(*CounterElem))
+	require.Nil(t, elem.writeForwardedMetricFn)
+	require.Nil(t, elem.onForwardedAggregationWrittenFn)
 
 	// Push a counter to a closed list should result in an error.
 	l.Lock()
@@ -67,6 +69,24 @@ func TestBaseMetricListPushBack(t *testing.T) {
 
 	_, err = l.PushBack(elem)
 	require.Equal(t, err, errListClosed)
+}
+
+func TestBaseMetricListPushBackElemWithForwardingPipeline(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	l, err := newBaseMetricList(testShard, time.Second, nil, nil, nil, testOptions(ctrl))
+	require.NoError(t, err)
+	elem, err := NewCounterElem(nil, policy.EmptyStoragePolicy, aggregation.DefaultTypes, testPipeline, 0, l.opts)
+	require.NoError(t, err)
+
+	// Push a counter to the list.
+	e, err := l.PushBack(elem)
+	require.NoError(t, err)
+	require.Equal(t, 1, l.aggregations.Len())
+	require.Equal(t, elem, e.Value.(*CounterElem))
+	require.NotNil(t, elem.writeForwardedMetricFn)
+	require.NotNil(t, elem.onForwardedAggregationWrittenFn)
 }
 
 func TestBaseMetricListClose(t *testing.T) {
@@ -474,11 +494,11 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 		cutoffNanos  = int64(math.MaxInt64)
 		count        int
 		flushLock    sync.Mutex
-		flushed      []aggregated.MetricWithForwardMetadata
+		flushed      []aggregated.ForwardedMetricWithMetadata
 	)
 
 	// Intentionally cause a one-time error during encoding.
-	writeFn := func(metric aggregated.Metric, meta metadata.ForwardMetadata) error {
+	writeFn := func(metric aggregated.ForwardedMetric, meta metadata.ForwardMetadata) error {
 		flushLock.Lock()
 		defer flushLock.Unlock()
 
@@ -486,8 +506,8 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 			count++
 			return errTestWrite
 		}
-		flushed = append(flushed, aggregated.MetricWithForwardMetadata{
-			Metric:          metric,
+		flushed = append(flushed, aggregated.ForwardedMetricWithMetadata{
+			ForwardedMetric: metric,
 			ForwardMetadata: meta,
 		})
 		return nil
@@ -520,6 +540,7 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 	l, err := newForwardedMetricList(testShard, listID, opts)
 	require.NoError(t, err)
 
+	sourceID := uint32(testShard)
 	pipeline := applied.NewPipeline([]applied.OpUnion{
 		{
 			Type: pipeline.RollupOpType,
@@ -531,34 +552,36 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 	})
 	elemPairs := []struct {
 		elem   metricElem
-		metric aggregated.Metric
+		metric aggregated.ForwardedMetric
 	}{
 		{
 			elem: MustNewCounterElem([]byte("testForwardedCounter"), testStoragePolicy, aggregation.DefaultTypes, pipeline, testNumForwardedTimes, opts),
-			metric: aggregated.Metric{
+			metric: aggregated.ForwardedMetric{
 				Type:      metric.CounterType,
 				ID:        []byte("testForwardedCounter"),
 				TimeNanos: alignedTimeNanos,
-				Value:     123,
+				Values:    []float64{123},
 			},
 		},
 		{
 			elem: MustNewGaugeElem([]byte("testForwardedGauge"), testStoragePolicy, aggregation.DefaultTypes, pipeline, testNumForwardedTimes, opts),
-			metric: aggregated.Metric{
+			metric: aggregated.ForwardedMetric{
 				Type:      metric.GaugeType,
 				ID:        []byte("testForwardedGauge"),
 				TimeNanos: alignedTimeNanos,
-				Value:     1.762,
+				Values:    []float64{1.762},
 			},
 		},
 	}
 
 	for _, ep := range elemPairs {
-		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos), ep.metric.Value, []byte("source1")))
-		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos).Add(l.resolution), ep.metric.Value, []byte("source1")))
+		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos), ep.metric.Values, sourceID))
+		require.NoError(t, ep.elem.AddUnique(time.Unix(0, ep.metric.TimeNanos).Add(l.resolution), ep.metric.Values, sourceID))
 		_, err := l.PushBack(ep.elem)
 		require.NoError(t, err)
 	}
+
+	require.Equal(t, len(elemPairs), l.forwardedWriter.Len())
 
 	// Force a flush.
 	l.Flush(flushRequest{
@@ -582,24 +605,24 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 			CutoffNanos:  cutoffNanos,
 		})
 
-		var expected []aggregated.MetricWithForwardMetadata
+		var expected []aggregated.ForwardedMetricWithMetadata
 		alignedStart := (nowTs.Add(-maxLatenessAllowed)).Truncate(l.resolution).UnixNano()
 		for _, ep := range elemPairs {
-			expectedMetric := aggregated.Metric{
+			expectedMetric := aggregated.ForwardedMetric{
 				Type:      ep.metric.Type,
 				ID:        []byte("foo.bar"),
 				TimeNanos: alignedStart,
-				Value:     ep.metric.Value,
+				Values:    ep.metric.Values,
 			}
 			metadata := metadata.ForwardMetadata{
 				AggregationID:     aggregation.MustCompressTypes(aggregation.Max),
 				StoragePolicy:     testStoragePolicy,
 				Pipeline:          applied.NewPipeline([]applied.OpUnion{}),
-				SourceID:          ep.elem.ID(),
+				SourceID:          sourceID,
 				NumForwardedTimes: testNumForwardedTimes + 1,
 			}
-			expected = append(expected, aggregated.MetricWithForwardMetadata{
-				Metric:          expectedMetric,
+			expected = append(expected, aggregated.ForwardedMetricWithMetadata{
+				ForwardedMetric: expectedMetric,
 				ForwardMetadata: metadata,
 			})
 		}
@@ -648,6 +671,9 @@ func TestForwardedMetricListFlushConsumingAndCollectingForwardedMetrics(t *testi
 
 	// Assert all elements have been collected.
 	require.Equal(t, 0, l.aggregations.Len())
+
+	// Assert there are no more forwarded metrics tracked by the writer.
+	require.Equal(t, 0, l.forwardedWriter.Len())
 
 	require.Equal(t, l.lastFlushedNanos, nowTs.UnixNano()-maxLatenessAllowed.Nanoseconds())
 }

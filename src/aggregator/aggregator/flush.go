@@ -23,8 +23,6 @@ package aggregator
 import (
 	"time"
 
-	"github.com/m3db/m3metrics/metadata"
-	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 )
@@ -96,6 +94,15 @@ type flushLocalMetricFn func(
 // server) or dropping it. Processing of the datapoint continues after it is
 // flushed as required by the pipeline.
 type flushForwardedMetricFn func(
-	metric aggregated.Metric,
-	meta metadata.ForwardMetadata,
+	writeFn writeForwardedMetricFn,
+	aggregationKey aggregationKey,
+	timeNanos int64,
+	value float64,
+)
+
+// An onForwardingElemFlushedFn is a callback function that should be called
+// when an aggregation element producing forwarded metrics has been flushed.
+type onForwardingElemFlushedFn func(
+	onDoneFn onForwardedAggregationDoneFn,
+	aggregationKey aggregationKey,
 )

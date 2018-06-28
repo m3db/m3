@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3metrics/metric/aggregated"
 	metricid "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/pipeline/applied"
 	"github.com/m3db/m3metrics/policy"
 	xerrors "github.com/m3db/m3x/errors"
 
@@ -221,7 +220,7 @@ func (e *Entry) AddUntimed(
 
 // AddForwarded adds a forwarded metric alongside its metadata.
 func (e *Entry) AddForwarded(
-	metric aggregated.Metric,
+	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
 	if err := e.applyValueRateLimit(1, e.metrics.untimed.rateLimit); err != nil {
@@ -578,7 +577,7 @@ func (e *Entry) addUntimedWithLock(timestamp time.Time, mu unaggregated.MetricUn
 }
 
 func (e *Entry) addForwarded(
-	metric aggregated.Metric,
+	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
 	timeLock := e.opts.TimeLock()
@@ -670,7 +669,7 @@ func (e *Entry) shouldUpdateForwardMetadataWithLock(metadata metadata.ForwardMet
 }
 
 func (e *Entry) updateForwardMetadataWithLock(
-	metric aggregated.Metric,
+	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
 	var (
@@ -703,13 +702,13 @@ func (e *Entry) updateForwardMetadataWithLock(
 	return nil
 }
 
-func (e *Entry) addForwardedWithLock(metric aggregated.Metric, sourceID []byte) error {
+func (e *Entry) addForwardedWithLock(metric aggregated.ForwardedMetric, sourceID uint32) error {
 	var (
 		timestamp = time.Unix(0, metric.TimeNanos)
 		multiErr  = xerrors.NewMultiError()
 	)
 	for _, val := range e.aggregations {
-		err := val.elem.Value.(metricElem).AddUnique(timestamp, metric.Value, sourceID)
+		err := val.elem.Value.(metricElem).AddUnique(timestamp, metric.Values, sourceID)
 		if err == errDuplicateForwardingSource {
 			// Duplicate forwarding sources may occur during a leader re-election and is not
 			// considered an external facing error. Hence, we record it and move on.
@@ -763,20 +762,6 @@ func (e *Entry) applyValueRateLimit(numValues int64, m rateLimitEntryMetrics) er
 	m.valueRateLimitExceeded.Inc(1)
 	m.droppedValues.Inc(numValues)
 	return errWriteValueRateLimitExceeded
-}
-
-type aggregationKey struct {
-	aggregationID     aggregation.ID
-	storagePolicy     policy.StoragePolicy
-	pipeline          applied.Pipeline
-	numForwardedTimes int
-}
-
-func (k aggregationKey) Equal(other aggregationKey) bool {
-	return k.aggregationID == other.aggregationID &&
-		k.storagePolicy == other.storagePolicy &&
-		k.pipeline.Equal(other.pipeline) &&
-		k.numForwardedTimes == other.numForwardedTimes
 }
 
 type aggregationValue struct {

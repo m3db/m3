@@ -182,7 +182,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          []byte("testForwardSource1"),
+		SourceID:          12345,
 		NumForwardedTimes: 3,
 	}
 	testForwardMetadata2 = metadata.ForwardMetadata{
@@ -197,7 +197,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          []byte("testForwardSource2"),
+		SourceID:          67890,
 		NumForwardedTimes: 4,
 	}
 	testDefaultAggregationKeys         = aggregationKeys(testDefaultPipelines)
@@ -1316,8 +1316,8 @@ func TestEntryAddForwarded(t *testing.T) {
 	resolution := testForwardMetadata1.StoragePolicy.Resolution().Window
 	expectedNanos := time.Unix(0, testForwardedMetric.TimeNanos).Truncate(resolution).UnixNano()
 	require.Equal(t, expectedNanos, values[0].startAtNanos)
-	require.Equal(t, int64(1), values[0].lockedAgg.aggregation.Count())
-	require.Equal(t, int64(testForwardedMetric.Value), values[0].lockedAgg.aggregation.Sum())
+	require.Equal(t, int64(2), values[0].lockedAgg.aggregation.Count())
+	require.Equal(t, int64(100000), values[0].lockedAgg.aggregation.Sum())
 
 	// Add the forwarded metric again with duplicate metadata should not result in an error.
 	require.NoError(t, e.AddForwarded(testForwardedMetric, testForwardMetadata1))
@@ -1327,12 +1327,12 @@ func TestEntryAddForwarded(t *testing.T) {
 	expectedElem = e.aggregations[idx].elem
 	values = expectedElem.Value.(*CounterElem).values
 	require.Equal(t, 1, len(values))
-	require.Equal(t, int64(1), values[0].lockedAgg.aggregation.Count())
-	require.Equal(t, int64(testForwardedMetric.Value), values[0].lockedAgg.aggregation.Sum())
+	require.Equal(t, int64(2), values[0].lockedAgg.aggregation.Count())
+	require.Equal(t, int64(100000), values[0].lockedAgg.aggregation.Sum())
 
 	// Add the forwarded metric with same forward metadata and different source ID.
 	metadata := testForwardMetadata1
-	metadata.SourceID = []byte("newSourceID")
+	metadata.SourceID = 67890
 	require.NoError(t, e.AddForwarded(testForwardedMetric, metadata))
 	require.Equal(t, 1, len(e.aggregations))
 	idx = e.aggregations.index(expectedKey)
@@ -1340,8 +1340,8 @@ func TestEntryAddForwarded(t *testing.T) {
 	expectedElem = e.aggregations[idx].elem
 	values = expectedElem.Value.(*CounterElem).values
 	require.Equal(t, 1, len(values))
-	require.Equal(t, int64(2), values[0].lockedAgg.aggregation.Count())
-	require.Equal(t, 2*int64(testForwardedMetric.Value), values[0].lockedAgg.aggregation.Sum())
+	require.Equal(t, int64(4), values[0].lockedAgg.aggregation.Count())
+	require.Equal(t, int64(200000), values[0].lockedAgg.aggregation.Sum())
 
 	// Add the forwarded metric with different timestamp and same forward metadata.
 	metric := testForwardedMetric
@@ -1355,8 +1355,8 @@ func TestEntryAddForwarded(t *testing.T) {
 	require.Equal(t, 2, len(values))
 	expectedNanos += testForwardMetadata1.StoragePolicy.Resolution().Window.Nanoseconds()
 	require.Equal(t, expectedNanos, values[1].startAtNanos)
-	require.Equal(t, int64(1), values[1].lockedAgg.aggregation.Count())
-	require.Equal(t, int64(testForwardedMetric.Value), values[1].lockedAgg.aggregation.Sum())
+	require.Equal(t, int64(2), values[1].lockedAgg.aggregation.Count())
+	require.Equal(t, int64(100000), values[1].lockedAgg.aggregation.Sum())
 
 	// Add the forwarded metric with a different metadata.
 	metric.ID = make(id.RawID, len(testForwardedMetric.ID))
@@ -1394,8 +1394,8 @@ func TestEntryAddForwarded(t *testing.T) {
 	resolution = testForwardMetadata2.StoragePolicy.Resolution().Window
 	expectedNanos = time.Unix(0, metric.TimeNanos).Truncate(resolution).UnixNano()
 	require.Equal(t, expectedNanos, values[0].startAtNanos)
-	require.Equal(t, int64(1), values[0].lockedAgg.aggregation.Count())
-	require.Equal(t, int64(testForwardedMetric.Value), values[0].lockedAgg.aggregation.Sum())
+	require.Equal(t, int64(2), values[0].lockedAgg.aggregation.Count())
+	require.Equal(t, int64(100000), values[0].lockedAgg.aggregation.Sum())
 	require.Equal(t, metric.ID, counterElem.ID())
 
 	// Ensure the ID is properly cloned so mutating the ID externally does not mutate the
@@ -1463,132 +1463,6 @@ func TestEntryMaybeCopyIDWithLock(t *testing.T) {
 	// Verify the returned ID is a clone of the original ID.
 	id[0] = 'b'
 	require.NotEqual(t, id, res)
-}
-
-func TestAggregationKeyEqual(t *testing.T) {
-	inputs := []struct {
-		a        aggregationKey
-		b        aggregationKey
-		expected bool
-	}{
-		{
-			a:        aggregationKey{},
-			b:        aggregationKey{},
-			expected: true,
-		},
-		{
-			a: aggregationKey{
-				aggregationID: aggregation.DefaultID,
-				storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
-			},
-			b: aggregationKey{
-				aggregationID: aggregation.DefaultID,
-				storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
-			},
-			expected: true,
-		},
-		{
-			a: aggregationKey{
-				aggregationID: aggregation.DefaultID,
-				storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
-				pipeline: applied.NewPipeline([]applied.OpUnion{
-					{
-						Type:           pipeline.TransformationOpType,
-						Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
-					},
-					{
-						Type: pipeline.RollupOpType,
-						Rollup: applied.RollupOp{
-							ID:            []byte("foo.baz"),
-							AggregationID: aggregation.DefaultID,
-						},
-					},
-				}),
-			},
-			b: aggregationKey{
-				aggregationID: aggregation.DefaultID,
-				storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
-				pipeline: applied.NewPipeline([]applied.OpUnion{
-					{
-						Type:           pipeline.TransformationOpType,
-						Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
-					},
-					{
-						Type: pipeline.RollupOpType,
-						Rollup: applied.RollupOp{
-							ID:            []byte("foo.baz"),
-							AggregationID: aggregation.DefaultID,
-						},
-					},
-				}),
-			},
-			expected: true,
-		},
-		{
-			a: aggregationKey{
-				aggregationID: aggregation.DefaultID,
-				storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
-			},
-			b: aggregationKey{
-				aggregationID: aggregation.MustCompressTypes(aggregation.Count),
-				storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
-			},
-			expected: false,
-		},
-		{
-			a: aggregationKey{
-				aggregationID: aggregation.DefaultID,
-				storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
-			},
-			b: aggregationKey{
-				aggregationID: aggregation.DefaultID,
-				storagePolicy: policy.NewStoragePolicy(time.Minute, xtime.Minute, 48*time.Hour),
-			},
-			expected: false,
-		},
-		{
-			a: aggregationKey{
-				aggregationID: aggregation.DefaultID,
-				storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
-				pipeline: applied.NewPipeline([]applied.OpUnion{
-					{
-						Type:           pipeline.TransformationOpType,
-						Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
-					},
-					{
-						Type: pipeline.RollupOpType,
-						Rollup: applied.RollupOp{
-							ID:            []byte("foo.baz"),
-							AggregationID: aggregation.DefaultID,
-						},
-					},
-				}),
-			},
-			b: aggregationKey{
-				aggregationID: aggregation.DefaultID,
-				storagePolicy: policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour),
-				pipeline: applied.NewPipeline([]applied.OpUnion{
-					{
-						Type:           pipeline.TransformationOpType,
-						Transformation: pipeline.TransformationOp{Type: transformation.Absolute},
-					},
-					{
-						Type: pipeline.RollupOpType,
-						Rollup: applied.RollupOp{
-							ID:            []byte("foo.bar"),
-							AggregationID: aggregation.DefaultID,
-						},
-					},
-				}),
-			},
-			expected: false,
-		},
-	}
-
-	for _, input := range inputs {
-		require.Equal(t, input.expected, input.a.Equal(input.b))
-		require.Equal(t, input.expected, input.b.Equal(input.a))
-	}
 }
 
 func TestAggregationValues(t *testing.T) {

@@ -125,9 +125,6 @@ type AggregatorConfiguration struct {
 	// Maximum number of cached source sets.
 	MaxNumCachedSourceSets *int `yaml:"maxNumCachedSourceSets"`
 
-	// Maximum size of the cached source set.
-	MaxCachedSourceSetSize *int `yaml:"maxCachedSourceSetSize"`
-
 	// Pool of counter elements.
 	CounterElemPool pool.ObjectPoolConfiguration `yaml:"counterElemPool"`
 
@@ -298,9 +295,6 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	// Set cached source sets options.
 	if c.MaxNumCachedSourceSets != nil {
 		opts = opts.SetMaxNumCachedSourceSets(*c.MaxNumCachedSourceSets)
-	}
-	if c.MaxCachedSourceSetSize != nil {
-		opts = opts.SetMaxCachedSourceSetSize(*c.MaxCachedSourceSetSize)
 	}
 
 	// Set counter elem pool.

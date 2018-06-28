@@ -39,11 +39,11 @@ import (
 type aggregator struct {
 	sync.RWMutex
 
-	numMetricsAdded            int
-	countersWithMetadatas      []unaggregated.CounterWithMetadatas
-	batchTimersWithMetadatas   []unaggregated.BatchTimerWithMetadatas
-	gaugesWithMetadatas        []unaggregated.GaugeWithMetadatas
-	metricsWithForwardMetadata []aggregated.MetricWithForwardMetadata
+	numMetricsAdded              int
+	countersWithMetadatas        []unaggregated.CounterWithMetadatas
+	batchTimersWithMetadatas     []unaggregated.BatchTimerWithMetadatas
+	gaugesWithMetadatas          []unaggregated.GaugeWithMetadatas
+	forwardedMetricsWithMetadata []aggregated.ForwardedMetricWithMetadata
 }
 
 // NewAggregator creates a new capturing aggregator.
@@ -91,7 +91,7 @@ func (agg *aggregator) AddUntimed(
 }
 
 func (agg *aggregator) AddForwarded(
-	metric aggregated.Metric,
+	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
 	// Clone the metric and forward metadata to ensure it cannot be mutated externally.
@@ -101,11 +101,11 @@ func (agg *aggregator) AddForwarded(
 	agg.Lock()
 	defer agg.Unlock()
 
-	mf := aggregated.MetricWithForwardMetadata{
-		Metric:          metric,
+	mf := aggregated.ForwardedMetricWithMetadata{
+		ForwardedMetric: metric,
 		ForwardMetadata: metadata,
 	}
-	agg.metricsWithForwardMetadata = append(agg.metricsWithForwardMetadata, mf)
+	agg.forwardedMetricsWithMetadata = append(agg.forwardedMetricsWithMetadata, mf)
 	agg.numMetricsAdded++
 	return nil
 }
@@ -125,15 +125,15 @@ func (agg *aggregator) Snapshot() SnapshotResult {
 	agg.Lock()
 
 	result := SnapshotResult{
-		CountersWithMetadatas:      agg.countersWithMetadatas,
-		BatchTimersWithMetadatas:   agg.batchTimersWithMetadatas,
-		GaugesWithMetadatas:        agg.gaugesWithMetadatas,
-		MetricsWithForwardMetadata: agg.metricsWithForwardMetadata,
+		CountersWithMetadatas:        agg.countersWithMetadatas,
+		BatchTimersWithMetadatas:     agg.batchTimersWithMetadatas,
+		GaugesWithMetadatas:          agg.gaugesWithMetadatas,
+		ForwardedMetricsWithMetadata: agg.forwardedMetricsWithMetadata,
 	}
 	agg.countersWithMetadatas = nil
 	agg.batchTimersWithMetadatas = nil
 	agg.gaugesWithMetadatas = nil
-	agg.metricsWithForwardMetadata = nil
+	agg.forwardedMetricsWithMetadata = nil
 	agg.numMetricsAdded = 0
 
 	agg.Unlock()
@@ -192,10 +192,12 @@ func cloneStagedMetadatas(sm metadata.StagedMetadatas) metadata.StagedMetadatas 
 	return cloned
 }
 
-func cloneForwardedMetric(metric aggregated.Metric) aggregated.Metric {
+func cloneForwardedMetric(metric aggregated.ForwardedMetric) aggregated.ForwardedMetric {
 	cloned := metric
 	cloned.ID = make(id.RawID, len(metric.ID))
 	copy(cloned.ID, metric.ID)
+	cloned.Values = make([]float64, len(metric.Values))
+	copy(cloned.Values, metric.Values)
 	return cloned
 }
 

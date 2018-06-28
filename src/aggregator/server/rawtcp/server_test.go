@@ -68,11 +68,11 @@ var (
 		ID:       []byte("testGauge"),
 		GaugeVal: 456.780,
 	}
-	testForwarded = aggregated.Metric{
+	testForwarded = aggregated.ForwardedMetric{
 		Type:      metric.CounterType,
 		ID:        []byte("testForwarded"),
 		TimeNanos: 12345,
-		Value:     908,
+		Values:    []float64{908, -13},
 	}
 	testDefaultPoliciesList = policy.DefaultPoliciesList
 	testCustomPoliciesList  = policy.PoliciesList{
@@ -122,7 +122,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          []byte("testForwardSource"),
+		SourceID:          1234,
 		NumForwardedTimes: 3,
 	}
 	testCounterWithPoliciesList = unaggregated.CounterWithPoliciesList{
@@ -149,8 +149,8 @@ var (
 		Gauge:           testGauge.Gauge(),
 		StagedMetadatas: testDefaultMetadatas,
 	}
-	testMetricWithForwardMetadata = aggregated.MetricWithForwardMetadata{
-		Metric:          testForwarded,
+	testForwardedMetricWithMetadata = aggregated.ForwardedMetricWithMetadata{
+		ForwardedMetric: testForwarded,
 		ForwardMetadata: testForwardMetadata,
 	}
 	testCmpOpts = []cmp.Option{
@@ -209,7 +209,7 @@ func testRawTCPServerHandleUnaggregated(
 
 		protocol := protocolSelector(i)
 		if protocol == protobufEncoding {
-			expectedResult.MetricsWithForwardMetadata = append(expectedResult.MetricsWithForwardMetadata, testMetricWithForwardMetadata)
+			expectedResult.ForwardedMetricsWithMetadata = append(expectedResult.ForwardedMetricsWithMetadata, testForwardedMetricWithMetadata)
 			expectedTotalMetrics += 4
 		} else {
 			expectedTotalMetrics += 3
@@ -244,8 +244,8 @@ func testRawTCPServerHandleUnaggregated(
 					GaugeWithMetadatas: testGaugeWithMetadatas,
 				}))
 				require.NoError(t, encoder.EncodeMessage(encoding.UnaggregatedMessageUnion{
-					Type: encoding.TimedMetricWithForwardMetadataType,
-					TimedMetricWithForwardMetadata: testMetricWithForwardMetadata,
+					Type: encoding.ForwardedMetricWithMetadataType,
+					ForwardedMetricWithMetadata: testForwardedMetricWithMetadata,
 				}))
 				buf := encoder.Relinquish()
 				stream = buf.Bytes()

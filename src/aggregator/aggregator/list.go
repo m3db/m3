@@ -30,8 +30,6 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregator/handler"
 	"github.com/m3db/m3aggregator/aggregator/handler/writer"
-	"github.com/m3db/m3aggregator/client"
-	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	metricid "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
@@ -74,6 +72,24 @@ func newMetricProcessingMetrics(scope tally.Scope) metricProcessingMetrics {
 	}
 }
 
+type forwardedMetricProcessingMetrics struct {
+	metricConsumed    tally.Counter
+	metricDiscarded   tally.Counter
+	onConsumedSuccess tally.Counter
+	onConsumedErrors  tally.Counter
+	onDiscarded       tally.Counter
+}
+
+func newForwardedMetricProcessingMetrics(scope tally.Scope) forwardedMetricProcessingMetrics {
+	return forwardedMetricProcessingMetrics{
+		metricConsumed:    scope.Counter("metric-consumed"),
+		metricDiscarded:   scope.Counter("metric-discarded"),
+		onConsumedSuccess: scope.Counter("on-consumed-success"),
+		onConsumedErrors:  scope.Counter("on-consumed-errors"),
+		onDiscarded:       scope.Counter("on-discarded"),
+	}
+}
+
 type writerMetrics struct {
 	flushSuccess tally.Counter
 	flushErrors  tally.Counter
@@ -89,7 +105,7 @@ func newWriterMetrics(scope tally.Scope) writerMetrics {
 type baseMetricListMetrics struct {
 	flushLocal                  metricProcessingMetrics
 	flushLocalWriter            writerMetrics
-	flushForwarded              metricProcessingMetrics
+	flushForwarded              forwardedMetricProcessingMetrics
 	flushForwardedWriter        writerMetrics
 	flushElemCollected          tally.Counter
 	flushDuration               tally.Timer
@@ -112,7 +128,7 @@ func newMetricListMetrics(scope tally.Scope) baseMetricListMetrics {
 	return baseMetricListMetrics{
 		flushLocal:                  newMetricProcessingMetrics(flushLocalScope),
 		flushLocalWriter:            newWriterMetrics(flushLocalWriterScope),
-		flushForwarded:              newMetricProcessingMetrics(flushForwardedScope),
+		flushForwarded:              newForwardedMetricProcessingMetrics(flushForwardedScope),
 		flushForwardedWriter:        newWriterMetrics(flushForwardedWriterScope),
 		flushElemCollected:          flushScope.Counter("elem-collected"),
 		flushDuration:               flushScope.Timer("duration"),
@@ -144,7 +160,7 @@ type baseMetricList struct {
 	timeLock         *sync.RWMutex
 	flushHandler     handler.Handler
 	localWriter      writer.Writer
-	forwardedWriter  client.AdminClient
+	forwardedWriter  forwardedMetricWriter
 	resolution       time.Duration
 	targetNanosFn    targetNanosFn
 	isEarlierThanFn  isEarlierThanFn
@@ -156,11 +172,13 @@ type baseMetricList struct {
 	toCollect        []*list.Element
 	metrics          baseMetricListMetrics
 
-	flushBeforeFn            flushBeforeFn
-	consumeLocalMetricFn     flushLocalMetricFn
-	discardLocalMetricFn     flushLocalMetricFn
-	consumeForwardedMetricFn flushForwardedMetricFn
-	discardForwardedMetricFn flushForwardedMetricFn
+	flushBeforeFn               flushBeforeFn
+	consumeLocalMetricFn        flushLocalMetricFn
+	discardLocalMetricFn        flushLocalMetricFn
+	consumeForwardedMetricFn    flushForwardedMetricFn
+	discardForwardedMetricFn    flushForwardedMetricFn
+	onForwardingElemConsumedFn  onForwardingElemFlushedFn
+	onForwardingElemDiscardedFn onForwardingElemFlushedFn
 }
 
 func newBaseMetricList(
@@ -175,11 +193,13 @@ func newBaseMetricList(
 		map[string]string{"resolution": resolution.String()},
 	)
 	flushHandler := opts.FlushHandler()
-	localWriter, err := flushHandler.NewWriter(scope.SubScope("writer"))
+	localWriterScope := scope.Tagged(map[string]string{"writer-type": "local"}).SubScope("writer")
+	localWriter, err := flushHandler.NewWriter(localWriterScope)
 	if err != nil {
 		return nil, err
 	}
-
+	forwardedWriterScope := scope.Tagged(map[string]string{"writer-type": "forwarded"}).SubScope("writer")
+	forwardedWriter := newForwardedWriter(shard, opts.AdminClient(), forwardedWriterScope)
 	l := &baseMetricList{
 		shard:            shard,
 		opts:             opts,
@@ -187,7 +207,7 @@ func newBaseMetricList(
 		timeLock:         opts.TimeLock(),
 		flushHandler:     flushHandler,
 		localWriter:      localWriter,
-		forwardedWriter:  opts.AdminClient(),
+		forwardedWriter:  forwardedWriter,
 		resolution:       resolution,
 		targetNanosFn:    targetNanosFn,
 		isEarlierThanFn:  isEarlierThanFn,
@@ -200,6 +220,8 @@ func newBaseMetricList(
 	l.discardLocalMetricFn = l.discardLocalMetric
 	l.consumeForwardedMetricFn = l.consumeForwardedMetric
 	l.discardForwardedMetricFn = l.discardForwardedMetric
+	l.onForwardingElemConsumedFn = l.onForwardingElemConsumed
+	l.onForwardingElemDiscardedFn = l.onForwardingElemDiscarded
 
 	return l, nil
 }
@@ -217,18 +239,41 @@ func (l *baseMetricList) Len() int {
 	return numElems
 }
 
-// PushBack adds an element to the list.
+// PushBack adds an element to the list. It also registers the value
+// with the forwarded writer if the metric element passed in produces
+// forwarded metrics, and sets the function responsible for writing
+// forwarded metrics in the metric element.
+//
 // NB(xichen): the container list doesn't provide an API to directly
 // insert a list element, therefore making it impossible to pool the
 // elements and manage their lifetimes. If this becomes an issue,
 // need to switch to a custom type-specific list implementation.
 func (l *baseMetricList) PushBack(value metricElem) (*list.Element, error) {
+	var (
+		forwardedMetricType         = value.Type()
+		forwardedID, hasForwardedID = value.ForwardedID()
+		forwardedAggregationKey, _  = value.ForwardedAggregationKey()
+	)
 	l.Lock()
 	if l.closed {
 		l.Unlock()
 		return nil, errListClosed
 	}
 	elem := l.aggregations.PushBack(value)
+	if !hasForwardedID {
+		l.Unlock()
+		return elem, nil
+	}
+	writeForwardedFn, onForwardedWrittenFn, err := l.forwardedWriter.Register(
+		forwardedMetricType,
+		forwardedID,
+		forwardedAggregationKey,
+	)
+	if err != nil {
+		l.Unlock()
+		return nil, err
+	}
+	value.SetForwardedCallbacks(writeForwardedFn, onForwardedWrittenFn)
 	l.Unlock()
 	return elem, nil
 }
@@ -242,8 +287,7 @@ func (l *baseMetricList) Close() bool {
 		return false
 	}
 	l.localWriter.Close()
-	// NB: forwardedWriter is shared across lists and closed during
-	// aggregator shutdown.
+	l.forwardedWriter.Close()
 	l.closed = true
 	return true
 }
@@ -311,17 +355,26 @@ func (l *baseMetricList) flushBefore(beforeNanos int64, flushType flushType) {
 	l.toCollect = l.toCollect[:0]
 	flushLocalFn := l.consumeLocalMetricFn
 	flushForwardedFn := l.consumeForwardedMetricFn
+	onForwardedFlushedFn := l.onForwardingElemConsumedFn
 	if flushType == discardType {
 		flushLocalFn = l.discardLocalMetricFn
 		flushForwardedFn = l.discardForwardedMetricFn
+		onForwardedFlushedFn = l.onForwardingElemDiscardedFn
 	}
 
 	// Flush out aggregations, may need to do it in batches if the read lock
-	// is held for too long.
+	// is held for too long. If consuming in batches, need to change the forward
+	// writer to take a snapshot of the current refcounts during reset as well as
+	// the last element of the list before the consumption starts to ensure elements
+	// added or removed while consuming do not affect the refcounts in the current cycle.
 	l.RLock()
+	// NB: Ensure the elements are consumed within a read lock so that the
+	// refcounts of forwarded metrics tracked in the forwarded writer do not
+	// change so no elements may be added or removed while holding the lock.
+	l.forwardedWriter.Prepare()
 	for e := l.aggregations.Front(); e != nil; e = e.Next() {
 		// If the element is eligible for collection after the values are
-		// processed, close it and reset the value to nil.
+		// processed, add it to the list of elements to collect.
 		elem := e.Value.(metricElem)
 		if elem.Consume(
 			beforeNanos,
@@ -329,9 +382,8 @@ func (l *baseMetricList) flushBefore(beforeNanos int64, flushType flushType) {
 			l.timestampNanosFn,
 			flushLocalFn,
 			flushForwardedFn,
+			onForwardedFlushedFn,
 		) {
-			elem.Close()
-			e.Value = nil
 			l.toCollect = append(l.toCollect, e)
 		}
 	}
@@ -358,6 +410,15 @@ func (l *baseMetricList) flushBefore(beforeNanos int64, flushType flushType) {
 	// Collect tombstoned elements.
 	l.Lock()
 	for _, e := range l.toCollect {
+		elem := e.Value.(metricElem)
+		// NB: must unregister the element with forwarded writer before closing it.
+		if forwardedID, hasForwardedID := elem.ForwardedID(); hasForwardedID {
+			forwardedType := elem.Type()
+			forwardedAggregationKey, _ := elem.ForwardedAggregationKey()
+			l.forwardedWriter.Unregister(forwardedType, forwardedID, forwardedAggregationKey)
+		}
+		elem.Close()
+		e.Value = nil
 		l.aggregations.Remove(e)
 	}
 	numCollected := len(l.toCollect)
@@ -410,22 +471,42 @@ func (l *baseMetricList) discardLocalMetric(
 }
 
 func (l *baseMetricList) consumeForwardedMetric(
-	metric aggregated.Metric,
-	meta metadata.ForwardMetadata,
+	writeFn writeForwardedMetricFn,
+	aggregationKey aggregationKey,
+	timeNanos int64,
+	value float64,
 ) {
-	if err := l.forwardedWriter.WriteForwarded(metric, meta); err != nil {
-		l.metrics.flushForwarded.metricConsumeErrors.Inc(1)
-	} else {
-		l.metrics.flushForwarded.metricConsumeSuccess.Inc(1)
-	}
+	writeFn(aggregationKey, timeNanos, value)
+	l.metrics.flushForwarded.metricConsumed.Inc(1)
 }
 
 // nolint: unparam
 func (l *baseMetricList) discardForwardedMetric(
-	metric aggregated.Metric,
-	meta metadata.ForwardMetadata,
+	writeFn writeForwardedMetricFn,
+	aggregationKey aggregationKey,
+	timeNanos int64,
+	value float64,
 ) {
 	l.metrics.flushForwarded.metricDiscarded.Inc(1)
+}
+
+func (l *baseMetricList) onForwardingElemConsumed(
+	onForwardedWrittenFn onForwardedAggregationDoneFn,
+	aggregationKey aggregationKey,
+) {
+	if err := onForwardedWrittenFn(aggregationKey); err != nil {
+		l.metrics.flushForwarded.onConsumedErrors.Inc(1)
+	} else {
+		l.metrics.flushForwarded.onConsumedSuccess.Inc(1)
+	}
+}
+
+// nolint: unparam
+func (l *baseMetricList) onForwardingElemDiscarded(
+	onForwardedWrittenFn onForwardedAggregationDoneFn,
+	aggregationKey aggregationKey,
+) {
+	l.metrics.flushForwarded.onDiscarded.Inc(1)
 }
 
 // Standard metrics whose timestamps are earlier than current time can be flushed.
