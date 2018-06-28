@@ -31,6 +31,9 @@ import (
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/util"
+	"code.uber.internal/infra/statsdex/encoding/streamjson"
+	"io"
+	"github.com/m3db/m3db/src/coordinator/ts"
 )
 
 const (
@@ -114,4 +117,43 @@ func parseTarget(r *http.Request) (string, error) {
 	}
 
 	return targetQueries[0], nil
+}
+
+func renderResultsJSON(w io.Writer, series []ts.Series) {
+	jw := streamjson.NewWriter(w)
+	jw.BeginArray()
+	for _, s := range series {
+		jw.BeginObject()
+		jw.BeginObjectField("target")
+		jw.WriteString(s.Name())
+
+		jw.BeginObjectField("tags")
+		jw.BeginObject()
+
+		for k, v := range s.Tags {
+			jw.BeginObjectField(k)
+			jw.WriteString(v)
+		}
+
+		jw.EndObject()
+
+		jw.BeginObjectField("datapoints")
+		jw.BeginArray()
+		for i := 0; i < s.Len(); i++ {
+			dp := s.Values().DatapointAt(i)
+			jw.BeginArray()
+			jw.WriteFloat64(dp.Value)
+			jw.WriteInt(int(dp.Timestamp.Unix()))
+			jw.EndArray()
+		}
+		jw.EndArray()
+		fixedStep, ok := s.Values().(ts.FixedResolutionMutableValues)
+		if ok {
+			jw.BeginObjectField("step_size_ms")
+			jw.WriteInt(int(fixedStep.MillisPerStep().Nanoseconds() / int64(time.Millisecond)))
+			jw.EndObject()
+		}
+	}
+	jw.EndArray()
+	jw.Close()
 }

@@ -22,7 +22,6 @@ package native
 
 import (
 	"context"
-	"encoding/json"
 	"math"
 	"net/http"
 
@@ -35,6 +34,8 @@ import (
 	"github.com/m3db/m3db/src/coordinator/util/logging"
 
 	"go.uber.org/zap"
+	"sort"
+	"fmt"
 )
 
 const (
@@ -77,24 +78,8 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := &ReadResponse{
-		Results: result,
-	}
-
-	data, err := json.Marshal(resp)
-	if err != nil {
-		logger.Error("unable to marshal read results to json", zap.Any("error", err))
-		handler.Error(w, err, http.StatusInternalServerError)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-
-	if _, err := w.Write(data); err != nil {
-		logger.Error("unable to write results", zap.Any("err", err))
-		handler.Error(w, err, http.StatusInternalServerError)
-		return
-	}
+	renderResultsJSON(w, result)
 }
 
 func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, params models.RequestParams) ([]ts.Series, error) {
@@ -114,89 +99,90 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 
 	// Results is closed by execute
 	results := make(chan executor.Query)
-	// Block series slices are sorted by start time
-	seriesMap := make(map[string][]block.Series)
 	go h.engine.ExecuteExpr(ctx, parser, opts, params, results)
 
+	// Block slices are sorted by start time
+	// TODO: Pooling
+	sortedBlockList := make([]block.Block, 0, 10)
 	for result := range results {
 		if result.Err != nil {
-			return nil, err
+			return nil, result.Err
 		}
 
 		blocks := result.Result.Blocks()
 		// TODO(nikunj): Stream blocks to client
-		for blk := range blocks {
-			iter := blk.SeriesIter()
-			for iter.Next() {
-				insertSeriesInMap(iter.Current(), seriesMap)
+		for blkResult := range blocks {
+			if blkResult.Err != nil {
+				return nil, blkResult.Err
 			}
 
-			// TODO(nikunj): Figure out how to close this outside
-			blk.Close()
+			// Insert blocks sorted by start time
+			sortedBlockList, err = insertSortedBlock(blkResult.Block, sortedBlockList)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	return seriesMapToSeriesList(seriesMap)
+	return sortedBlocksToSeriesList(sortedBlockList)
 }
 
-func insertSeriesInMap(blockSeries block.Series, seriesMap map[string][]block.Series) {
-	seriesID := blockSeries.Meta.Name
-	blockList, ok := seriesMap[seriesID]
-	if !ok {
-		seriesMap[seriesID] = make([]block.Series, 1)
-		seriesMap[seriesID][0] = blockSeries
-		return
+func sortedBlocksToSeriesList(blockList []block.Block) ([]ts.Series, error) {
+	if len(blockList) == 0 {
+		return []ts.Series{}, nil
 	}
 
-	// Insert sorted by start time
-	for idx, s := range blockList {
-		// TODO(nikunj): Use binary search once blocklist becomes big
-		if blockSeries.Meta.Bounds.Start.Before(s.Meta.Bounds.Start) {
-			blockList = append(blockList, block.Series{})
-			copy(blockList[idx+1:], blockList[idx:])
-			blockList[idx] = blockSeries
-			seriesMap[seriesID] = blockList
-			return
-		}
+	firstBlock := blockList[0]
+	numSeries := firstBlock.Series()
+	seriesList := make([]ts.Series, numSeries)
+	seriesIters := make([]block.SeriesIter, len(blockList))
+	for i, b := range blockList {
+		seriesIters[i] = b.SeriesIter()
 	}
 
-	// If all start times lesser, then append to the end
-	seriesMap[seriesID] = append(blockList, blockSeries)
-}
+	seriesMeta := firstBlock.SeriesMeta()
+	bounds := firstBlock.Meta().Bounds
+	for i := 0; i < numSeries; i++ {
+		values := ts.NewFixedStepValues(bounds.StepSize, firstBlock.Steps()*len(blockList), math.NaN(), bounds.Start)
+		valIdx := 0
+		for idx, iter := range seriesIters {
+			fmt.Println("Series Iter", i, idx, firstBlock.Series(), firstBlock.Steps())
+			if !iter.Next() {
+				return nil, fmt.Errorf("invalid number of datapoints for series: %d, block: %d", i, idx)
+			}
 
-func seriesMapToSeriesList(seriesMap map[string][]block.Series) ([]ts.Series, error) {
-	seriesList := make([]ts.Series, 0, len(seriesMap))
-	for _, blockSeriesList := range seriesMap {
-		s, err := blockSeriesListToSeries(blockSeriesList)
-		if err != nil {
-			return nil, err
+			blockSeries := iter.Current()
+			for i := 0; i < blockSeries.Len(); i++ {
+				values.SetValueAt(valIdx, blockSeries.ValueAtStep(i))
+				valIdx++
+			}
 		}
 
-		seriesList = append(seriesList, *s)
+		seriesList[i] = *ts.NewSeries(seriesMeta[i].Name, values, seriesMeta[i].Tags)
+
 	}
 
 	return seriesList, nil
 }
 
-func blockSeriesListToSeries(series []block.Series) (*ts.Series, error) {
-	if len(series) == 0 {
-		return &ts.Series{}, nil
+func insertSortedBlock(b block.Block, blockList []block.Block) ([]block.Block, error) {
+	if len(blockList) == 0 {
+		blockList = append(blockList, b)
+		return blockList, nil
 	}
 
-	firstSeries := series[0]
-	var totalDatapoints int
-	for _, s := range series {
-		totalDatapoints += s.Len()
+	firstBlock := blockList[0]
+	if firstBlock.Series() != b.Series() {
+		return nil, fmt.Errorf("mismatch in number of series for the block, wanted: %d, found: %d", firstBlock.Series(), b.Series())
 	}
 
-	values := ts.NewFixedStepValues(firstSeries.Meta.Bounds.StepSize, totalDatapoints, math.NaN(), firstSeries.Meta.Bounds.Start)
-	valIdx := 0
-	for _, s := range series {
-		for idx := 0 ; idx < s.Len(); idx++ {
-			values.SetValueAt(valIdx, s.ValueAtStep(idx))
-			valIdx++
-		}
+	if firstBlock.Steps() != b.Steps() {
+		return nil, fmt.Errorf("mismatch in number of steps for the block, wanted: %d, found: %d", firstBlock.Steps(), b.Steps())
 	}
 
-	return ts.NewSeries(firstSeries.Meta.Name, values, nil), nil
+	index := sort.Search(len(blockList), func(i int) bool { return blockList[i].Meta().Bounds.Start.Before(b.Meta().Bounds.Start) })
+	blockList = append(blockList, b)
+	copy(blockList[index+1:], blockList[index:])
+	blockList[index] = b
+	return blockList, nil
 }

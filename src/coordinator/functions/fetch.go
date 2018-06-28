@@ -86,6 +86,7 @@ func (n *FetchNode) Execute(ctx context.Context) error {
 			// Fail on first error
 			return err
 		}
+
 		block.Close()
 	}
 

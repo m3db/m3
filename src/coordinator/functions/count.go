@@ -58,14 +58,19 @@ type CountNode struct {
 }
 
 // Process the block
-func (c *CountNode) Process(ID parser.NodeID, block block.Block) error {
-	builder, err := c.controller.BlockBuilder(block.Meta(), block.SeriesMeta())
+func (c *CountNode) Process(ID parser.NodeID, b block.Block) error {
+	// TODO: Figure out a good name and tags after an aggregation operation
+	meta := block.SeriesMeta{
+		Name: CountType,
+	}
+
+	builder, err := c.controller.BlockBuilder(b.Meta(), []block.SeriesMeta{meta})
 	if err != nil {
 		return err
 	}
 
-	stepIter := block.StepIter()
-	if err := builder.AddCols(stepIter.Steps()); err != nil {
+	stepIter := b.StepIter()
+	if err := builder.AddCols(b.Steps()); err != nil {
 		return err
 	}
 

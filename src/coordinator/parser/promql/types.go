@@ -21,33 +21,46 @@
 package promql
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3db/src/coordinator/functions"
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/parser/common"
 
 	"github.com/prometheus/prometheus/promql"
+	"github.com/m3db/m3db/src/coordinator/models"
+	"github.com/prometheus/prometheus/pkg/labels"
 )
 
 // NewSelectorFromVector creates a new fetchop
-func NewSelectorFromVector(n *promql.VectorSelector) parser.Params {
-	// TODO: convert n.LabelMatchers to Matchers
-	return functions.FetchOp{Name: n.Name, Offset: n.Offset, Matchers: nil}
+func NewSelectorFromVector(n *promql.VectorSelector) (parser.Params, error) {
+	matchers, err := labelMatchersToModelMatcher(n.LabelMatchers)
+	if err != nil {
+		return nil, err
+	}
+
+	return functions.FetchOp{Name: n.Name, Offset: n.Offset, Matchers: matchers}, nil
 }
 
 // NewSelectorFromMatrix creates a new fetchop
-func NewSelectorFromMatrix(n *promql.MatrixSelector) parser.Params {
-	// TODO: convert n.LabelMatchers to Matchers
-	return functions.FetchOp{Name: n.Name, Offset: n.Offset, Matchers: nil, Range: n.Range}
+func NewSelectorFromMatrix(n *promql.MatrixSelector) (parser.Params, error) {
+	matchers, err := labelMatchersToModelMatcher(n.LabelMatchers)
+	if err != nil {
+		return nil, err
+	}
+
+	return functions.FetchOp{Name: n.Name, Offset: n.Offset, Matchers: matchers, Range: n.Range}, nil
 }
 
 // NewOperator creates a new operator based on the type
-func NewOperator(opType promql.ItemType) parser.Params {
+func NewOperator(opType promql.ItemType) (parser.Params, error) {
 	switch getOpType(opType) {
 	case functions.CountType:
-		return functions.CountOp{}
+		return functions.CountOp{}, nil
+	default:
+		// TODO: handle other types
+		return nil, fmt.Errorf("operator not supported: %s", opType)
 	}
-	// TODO: handle other types
-	return nil
 }
 
 func getOpType(opType promql.ItemType) string {
@@ -56,5 +69,42 @@ func getOpType(opType promql.ItemType) string {
 		return functions.CountType
 	default:
 		return common.UnknownOpType
+	}
+}
+
+func labelMatchersToModelMatcher(lMatchers []*labels.Matcher) (models.Matchers, error) {
+	matchers := make(models.Matchers, len(lMatchers))
+	for i, m := range lMatchers {
+		modelType, err := promTypeToM3(m.Type)
+		if err != nil {
+			return nil, err
+		}
+
+		match, err := models.NewMatcher(modelType, m.Name, m.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		matchers[i] = match
+	}
+
+	return matchers, nil
+}
+
+// promTypeToM3 converts a prometheus label type to m3 matcher type
+//TODO(nikunj): Consider merging with prompb code
+func promTypeToM3(labelType labels.MatchType) (models.MatchType, error) {
+	switch labelType {
+	case labels.MatchEqual:
+		return models.MatchEqual, nil
+	case labels.MatchNotEqual:
+		return models.MatchNotEqual, nil
+	case labels.MatchRegexp:
+		return models.MatchRegexp, nil
+	case labels.MatchNotRegexp:
+		return models.MatchNotRegexp, nil
+
+	default:
+		return 0, fmt.Errorf("unknown match type %v", labelType)
 	}
 }

@@ -22,7 +22,6 @@ package storage
 
 import (
 	"time"
-
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/ts"
 )
@@ -69,6 +68,22 @@ func (m multiSeriesBlock) Meta() block.Metadata {
 	return m.meta
 }
 
+func (m multiSeriesBlock) Steps() int {
+	if len(m.seriesList) == 0 {
+		return 0
+	}
+
+	return m.seriesList[0].Values().Len()
+}
+
+func (m multiSeriesBlock) Series() int {
+	if len(m.seriesList) == 0 {
+		return 0
+	}
+
+	return len(m.seriesList)
+}
+
 func (m multiSeriesBlock) StepIter() block.StepIter {
 	return &multiSeriesBlockStepIter{block: m, index: -1}
 }
@@ -81,6 +96,7 @@ func (m multiSeriesBlock) SeriesMeta() []block.SeriesMeta {
 	metas := make([]block.SeriesMeta, len(m.seriesList))
 	for i, s := range m.seriesList {
 		metas[i].Tags = s.Tags
+		metas[i].Name = s.Name()
 	}
 
 	return metas
@@ -116,14 +132,6 @@ func (m *multiSeriesBlockStepIter) Current() block.Step {
 	return block.NewColStep(t, values)
 }
 
-func (m *multiSeriesBlockStepIter) Steps() int {
-	if len(m.block.seriesList) == 0 {
-		return 0
-	}
-
-	return m.block.seriesList[0].Values().Len()
-}
-
 // TODO: Actually free up resources
 func (m *multiSeriesBlockStepIter) Close() {
 }
@@ -149,9 +157,8 @@ func (m *multiSeriesBlockSeriesIter) Current() block.Series {
 		values[i] = s.Values().ValueAt(i)
 	}
 	return block.NewSeries(values, block.SeriesMeta{
-		Tags:   m.block.seriesList[m.index].Tags,
-		Name:   m.block.seriesList[m.index].Name(),
-		Bounds: m.block.meta.Bounds,
+		Tags:   s.Tags,
+		Name:   s.Name(),
 	})
 }
 

@@ -38,6 +38,8 @@ type Block interface {
 	StepIter() StepIter
 	SeriesIter() SeriesIter
 	SeriesMeta() []SeriesMeta
+	Steps() int
+	Series() int
 	Close() error
 }
 
@@ -45,7 +47,6 @@ type Block interface {
 type SeriesMeta struct {
 	Tags   models.Tags
 	Name   string
-	Bounds Bounds
 }
 
 // Bounds are the time bounds
@@ -82,7 +83,6 @@ type SeriesIter interface {
 type StepIter interface {
 	Iterator
 	Current() Step
-	Steps() int
 }
 
 // Step is a single time step within a block

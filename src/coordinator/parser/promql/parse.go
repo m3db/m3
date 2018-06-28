@@ -57,21 +57,18 @@ func walk(node pql.Node) (parser.Nodes, parser.Edges, error) {
 	}
 
 	switch n := node.(type) {
-	case pql.Statements:
-	case *pql.AlertStmt:
-
-	case *pql.EvalStmt:
-
-	case *pql.RecordStmt:
-
-	case pql.Expressions:
 	case *pql.AggregateExpr:
 		transforms, edges, err := walk(n.Expr)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		opTransform := parser.NewTransformFromOperation(NewOperator(n.Op), len(transforms))
+		op, err := NewOperator(n.Op)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		opTransform := parser.NewTransformFromOperation(op, len(transforms))
 		edges = append(edges, parser.Edge{
 			ParentID: transforms[len(transforms)-1].ID,
 			ChildID:  opTransform.ID,
@@ -79,23 +76,21 @@ func walk(node pql.Node) (parser.Nodes, parser.Edges, error) {
 		transforms = append(transforms, opTransform)
 		// TODO: handle labels, params
 		return transforms, edges, nil
-	case *pql.BinaryExpr:
-
-	case *pql.Call:
-
-	case *pql.ParenExpr:
-
-	case *pql.UnaryExpr:
-
 	case *pql.MatrixSelector:
-		operation := NewSelectorFromMatrix(n)
+		operation, err := NewSelectorFromMatrix(n)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		return []parser.Node{parser.NewTransformFromOperation(operation, 0)}, nil, nil
 
 	case *pql.VectorSelector:
-		operation := NewSelectorFromVector(n)
-		return []parser.Node{parser.NewTransformFromOperation(operation, 0)}, nil, nil
+		operation, err := NewSelectorFromVector(n)
+		if err != nil {
+			return nil, nil, err
+		}
 
-	case *pql.NumberLiteral, *pql.StringLiteral:
+		return []parser.Node{parser.NewTransformFromOperation(operation, 0)}, nil, nil
 
 	default:
 		return nil, nil, fmt.Errorf("promql.Walk: unhandled node type %T", node)

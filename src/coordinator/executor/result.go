@@ -23,6 +23,7 @@ package executor
 import (
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/parser"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -30,36 +31,61 @@ const (
 	channelSize = 100
 )
 
+var (
+	abortedErr = errors.New("aborted")
+)
+
 // Result provides the execution results
 type Result interface {
 	abort(err error)
 	done()
-	Blocks() chan block.Block
+	Blocks() chan BlockResult
 }
 
 // ResultNode is used to provide the results to the caller from the query execution
 type ResultNode struct {
-	blocks chan block.Block
+	blocks chan BlockResult
+	aborted bool
+}
+
+type BlockResult struct {
+	Block block.Block
+	Err   error
 }
 
 func newResultNode() *ResultNode {
-	blocks := make(chan block.Block, channelSize)
+	blocks := make(chan BlockResult, channelSize)
 	return &ResultNode{blocks: blocks}
 }
 
 // Process the block
 func (r *ResultNode) Process(ID parser.NodeID, block block.Block) error {
-	r.blocks <- block
+	if r.aborted {
+		return abortedErr
+	}
+
+	r.blocks <- BlockResult{
+		Block: block,
+	}
+
 	return nil
 }
 
 // Blocks return a channel to stream back blocks to the client
-func (r *ResultNode) Blocks() chan block.Block {
+func (r *ResultNode) Blocks() chan BlockResult {
 	return r.blocks
 }
 
 // TODO: Signal error downstream
 func (r *ResultNode) abort(err error) {
+	if r.aborted {
+		return
+	}
+
+	r.aborted = true
+	r.blocks <- BlockResult{
+		Err: err,
+	}
 	close(r.blocks)
 }
 

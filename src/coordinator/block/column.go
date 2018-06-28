@@ -62,6 +62,15 @@ func (c *columnBlock) SeriesMeta() []SeriesMeta {
 	return c.seriesMeta
 }
 
+// Steps returns the total steps
+func (c *columnBlock) Steps() int {
+	return len(c.columns)
+}
+
+func (c *columnBlock) Series() int {
+	return len(c.seriesMeta)
+}
+
 // Close frees up any resources
 // TODO: actually free up the resources
 func (c *columnBlock) Close() error {
@@ -93,11 +102,6 @@ func (c *colBlockIter) Current() Step {
 		time:   t,
 		values: col.Values,
 	}
-}
-
-// Steps returns the total steps
-func (c *colBlockIter) Steps() int {
-	return len(c.columns)
 }
 
 // Close frees up resources

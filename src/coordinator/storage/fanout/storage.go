@@ -117,6 +117,12 @@ func (s *fanoutStorage) Type() storage.Type {
 
 func (s *fanoutStorage) FetchBlocks(
 	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
+	for _, store := range s.stores {
+		if store.Type() == storage.TypeLocalDC {
+			return store.FetchBlocks(ctx, query, options)
+		}
+	}
+
 	return block.Result{}, errors.ErrNotImplemented
 }
 
