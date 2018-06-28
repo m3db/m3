@@ -124,7 +124,7 @@ func (s *handler) Handle(conn net.Conn) {
 	var (
 		untimedMetric   unaggregated.MetricUnion
 		stagedMetadatas metadata.StagedMetadatas
-		forwardedMetric aggregated.Metric
+		forwardedMetric aggregated.ForwardedMetric
 		forwardMetadata metadata.ForwardMetadata
 		err             error
 	)
@@ -143,9 +143,9 @@ func (s *handler) Handle(conn net.Conn) {
 			untimedMetric = current.GaugeWithMetadatas.Gauge.ToUnion()
 			stagedMetadatas = current.GaugeWithMetadatas.StagedMetadatas
 			err = toAddUntimedError(s.aggregator.AddUntimed(untimedMetric, stagedMetadatas))
-		case encoding.TimedMetricWithForwardMetadataType:
-			forwardedMetric = current.TimedMetricWithForwardMetadata.Metric
-			forwardMetadata = current.TimedMetricWithForwardMetadata.ForwardMetadata
+		case encoding.ForwardedMetricWithMetadataType:
+			forwardedMetric = current.ForwardedMetricWithMetadata.ForwardedMetric
+			forwardMetadata = current.ForwardedMetricWithMetadata.ForwardMetadata
 			err = toAddForwardedError(s.aggregator.AddForwarded(forwardedMetric, forwardMetadata))
 		default:
 			err = newUnknownMessageTypeError(current.Type)
@@ -183,7 +183,7 @@ func (s *handler) Handle(conn net.Conn) {
 				log.NewField("remoteAddress", remoteAddress),
 				log.NewField("id", forwardedMetric.ID.String()),
 				log.NewField("timestamp", time.Unix(0, forwardedMetric.TimeNanos).String()),
-				log.NewField("value", forwardedMetric.Value),
+				log.NewField("values", forwardedMetric.Values),
 				log.NewErrField(err),
 			).Error("error adding forwarded metric")
 		default:

@@ -193,7 +193,9 @@ func TestMultiServerForwardingPipeline(t *testing.T) {
 		leaders    = make(map[int]struct{})
 		leaderCh   = make(chan int, len(servers)/2)
 		numLeaders int32
+		wg         sync.WaitGroup
 	)
+	wg.Add(len(servers) / 2)
 	for i, server := range servers {
 		i, server := i, server
 		go func() {
@@ -201,13 +203,13 @@ func TestMultiServerForwardingPipeline(t *testing.T) {
 				res := int(atomic.AddInt32(&numLeaders, 1))
 				if res <= len(servers)/2 {
 					leaderCh <- i
-				}
-				if res == len(servers)/2 {
-					close(leaderCh)
+					wg.Done()
 				}
 			}
 		}()
 	}
+	wg.Wait()
+	close(leaderCh)
 
 	for i := range leaderCh {
 		leaders[i] = struct{}{}
@@ -217,7 +219,7 @@ func TestMultiServerForwardingPipeline(t *testing.T) {
 
 	var (
 		idPrefix      = "foo"
-		numIDs        = 2
+		numIDs        = 100
 		start         = getNowFn()
 		stop          = start.Add(10 * time.Second)
 		interval      = time.Second

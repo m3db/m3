@@ -41,7 +41,7 @@ type untimedPayload struct {
 }
 
 type forwardedPayload struct {
-	metric   aggregated.Metric
+	metric   aggregated.ForwardedMetric
 	metadata metadata.ForwardMetadata
 }
 

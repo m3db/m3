@@ -545,9 +545,9 @@ func TestWriterWriteForwardedWithFlushingZeroSizeBefore(t *testing.T) {
 	gomock.InOrder(
 		encoder.EXPECT().Len().Return(0),
 		encoder.EXPECT().EncodeMessage(encoding.UnaggregatedMessageUnion{
-			Type: encoding.TimedMetricWithForwardMetadataType,
-			TimedMetricWithForwardMetadata: aggregated.MetricWithForwardMetadata{
-				Metric:          testForwarded,
+			Type: encoding.ForwardedMetricWithMetadataType,
+			ForwardedMetricWithMetadata: aggregated.ForwardedMetricWithMetadata{
+				ForwardedMetric: testForwarded,
 				ForwardMetadata: testForwardMetadata,
 			},
 		}).Return(nil),
@@ -596,9 +596,9 @@ func TestWriterWriteForwardedWithFlushingPositiveSizeBefore(t *testing.T) {
 	gomock.InOrder(
 		encoder.EXPECT().Len().Return(3),
 		encoder.EXPECT().EncodeMessage(encoding.UnaggregatedMessageUnion{
-			Type: encoding.TimedMetricWithForwardMetadataType,
-			TimedMetricWithForwardMetadata: aggregated.MetricWithForwardMetadata{
-				Metric:          testForwarded,
+			Type: encoding.ForwardedMetricWithMetadataType,
+			ForwardedMetricWithMetadata: aggregated.ForwardedMetricWithMetadata{
+				ForwardedMetric: testForwarded,
 				ForwardMetadata: testForwardMetadata,
 			},
 		}).Return(nil),
@@ -648,9 +648,9 @@ func TestWriterWriteForwardedEncodeError(t *testing.T) {
 		encoder := protobuf.NewMockUnaggregatedEncoder(ctrl)
 		encoder.EXPECT().Len().Return(0)
 		encoder.EXPECT().EncodeMessage(encoding.UnaggregatedMessageUnion{
-			Type: encoding.TimedMetricWithForwardMetadataType,
-			TimedMetricWithForwardMetadata: aggregated.MetricWithForwardMetadata{
-				Metric:          testForwarded,
+			Type: encoding.ForwardedMetricWithMetadataType,
+			ForwardedMetricWithMetadata: aggregated.ForwardedMetricWithMetadata{
+				ForwardedMetric: testForwarded,
 				ForwardMetadata: testForwardMetadata,
 			},
 		}).Return(errTestEncodeMetric)
@@ -800,12 +800,12 @@ func testWriterConcurrentWriteStress(
 	defer ctrl.Finish()
 
 	var (
-		numIter     = 10000
+		numIter     = 3000
 		shard       = uint32(0)
 		counters    = make([]unaggregated.Counter, numIter)
 		timers      = make([]unaggregated.BatchTimer, numIter)
 		gauges      = make([]unaggregated.Gauge, numIter)
-		forwarded   = make([]aggregated.Metric, numIter)
+		forwarded   = make([]aggregated.ForwardedMetric, numIter)
 		resultsLock sync.Mutex
 		results     [][]byte
 	)
@@ -832,11 +832,12 @@ func testWriterConcurrentWriteStress(
 			ID:     []byte(fmt.Sprintf("timer%d", i)),
 			Values: timerVals,
 		}
-		forwarded[i] = aggregated.Metric{
-			Type:      metric.CounterType,
+		forwardedVals := []float64{float64(i) - 0.5, float64(i), float64(i) + 0.5}
+		forwarded[i] = aggregated.ForwardedMetric{
+			Type:      metric.GaugeType,
 			ID:        []byte(fmt.Sprintf("forwarded%d", i)),
 			TimeNanos: int64(i),
-			Value:     float64(i),
+			Values:    forwardedVals,
 		}
 	}
 
@@ -944,7 +945,7 @@ func testWriterConcurrentWriteStress(
 		resCounters  = make([]unaggregated.Counter, 0, numIter)
 		resTimers    = make([]unaggregated.BatchTimer, 0, numIter)
 		resGauges    = make([]unaggregated.Gauge, 0, numIter)
-		resForwarded = make([]aggregated.Metric, 0, numIter)
+		resForwarded = make([]aggregated.ForwardedMetric, 0, numIter)
 	)
 	for i := 0; i < len(results); i++ {
 		buf := bytes.NewBuffer(results[i])
@@ -964,9 +965,9 @@ func testWriterConcurrentWriteStress(
 				require.Equal(t, testStagedMetadatas, msgResult.GaugeWithMetadatas.StagedMetadatas)
 				metric := cloneMetric(msgResult.GaugeWithMetadatas.Gauge.ToUnion())
 				resGauges = append(resGauges, metric.Gauge())
-			case encoding.TimedMetricWithForwardMetadataType:
-				require.Equal(t, testForwardMetadata, msgResult.TimedMetricWithForwardMetadata.ForwardMetadata)
-				metric := cloneForwardedMetric(msgResult.TimedMetricWithForwardMetadata.Metric)
+			case encoding.ForwardedMetricWithMetadataType:
+				require.Equal(t, testForwardMetadata, msgResult.ForwardedMetricWithMetadata.ForwardMetadata)
+				metric := cloneForwardedMetric(msgResult.ForwardedMetricWithMetadata.ForwardedMetric)
 				resForwarded = append(resForwarded, metric)
 			default:
 				require.Fail(t, "unrecognized message type %v", msgResult.Type)
@@ -1064,8 +1065,9 @@ func cloneMetric(m unaggregated.MetricUnion) unaggregated.MetricUnion {
 	return mu
 }
 
-func cloneForwardedMetric(m aggregated.Metric) aggregated.Metric {
+func cloneForwardedMetric(m aggregated.ForwardedMetric) aggregated.ForwardedMetric {
 	cloned := m
 	cloned.ID = append([]byte(nil), m.ID...)
+	cloned.Values = append([]float64(nil), m.Values...)
 	return cloned
 }

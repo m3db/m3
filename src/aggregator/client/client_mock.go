@@ -163,7 +163,7 @@ func (_mr *_MockAdminClientRecorder) Init() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Init")
 }
 
-func (_m *MockAdminClient) WriteForwarded(_param0 aggregated.Metric, _param1 metadata.ForwardMetadata) error {
+func (_m *MockAdminClient) WriteForwarded(_param0 aggregated.ForwardedMetric, _param1 metadata.ForwardMetadata) error {
 	ret := _m.ctrl.Call(_m, "WriteForwarded", _param0, _param1)
 	ret0, _ := ret[0].(error)
 	return ret0

@@ -46,7 +46,7 @@ type addUntimedFn func(
 ) error
 
 type addForwardedFn func(
-	metric aggregated.Metric,
+	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error
 
@@ -165,7 +165,7 @@ func (s *aggregatorShard) AddUntimed(
 }
 
 func (s *aggregatorShard) AddForwarded(
-	metric aggregated.Metric,
+	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
 	s.RLock()

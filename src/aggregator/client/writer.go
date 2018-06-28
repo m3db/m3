@@ -296,16 +296,16 @@ func (w *writer) encodeUntimedWithLock(
 
 func (w *writer) encodeForwardedWithLock(
 	encoder *lockedEncoder,
-	metric aggregated.Metric,
+	metric aggregated.ForwardedMetric,
 	metadata metadata.ForwardMetadata,
 ) error {
 	encoder.Lock()
 
 	sizeBefore := encoder.Len()
 	msg := encoding.UnaggregatedMessageUnion{
-		Type: encoding.TimedMetricWithForwardMetadataType,
-		TimedMetricWithForwardMetadata: aggregated.MetricWithForwardMetadata{
-			Metric:          metric,
+		Type: encoding.ForwardedMetricWithMetadataType,
+		ForwardedMetricWithMetadata: aggregated.ForwardedMetricWithMetadata{
+			ForwardedMetric: metric,
 			ForwardMetadata: metadata,
 		}}
 	if err := encoder.EncodeMessage(msg); err != nil {

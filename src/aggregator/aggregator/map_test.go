@@ -266,11 +266,11 @@ func TestMetricMapAddForwardedNoRateLimit(t *testing.T) {
 	m := newMetricMap(testShard, opts)
 
 	// Add a counter metric and assert there is one entry afterwards.
-	am := aggregated.Metric{
+	am := aggregated.ForwardedMetric{
 		Type:      metric.CounterType,
 		ID:        []byte("aggregatedMetric"),
 		TimeNanos: 12345,
-		Value:     76109,
+		Values:    []float64{76109},
 	}
 	key := entryKey{
 		metricCategory: forwardedMetric,
@@ -321,11 +321,11 @@ func TestMetricMapAddForwardedNoRateLimit(t *testing.T) {
 	require.False(t, e1 == e2)
 
 	// Add a metric with different type and assert a new entry is added.
-	metricWithDifferentType := aggregated.Metric{
+	metricWithDifferentType := aggregated.ForwardedMetric{
 		Type:      metric.GaugeType,
 		ID:        am.ID,
 		TimeNanos: 1234,
-		Value:     123.456,
+		Values:    []float64{123.456},
 	}
 	key3 := entryKey{
 		metricCategory: forwardedMetric,
@@ -341,11 +341,11 @@ func TestMetricMapAddForwardedNoRateLimit(t *testing.T) {
 	require.False(t, e1 == e3)
 
 	// Add a metric with a different id and assert a new entry is added.
-	metricWithDifferentID := aggregated.Metric{
+	metricWithDifferentID := aggregated.ForwardedMetric{
 		Type:      metric.GaugeType,
 		ID:        []byte("metricWithDifferentID"),
 		TimeNanos: 1234,
-		Value:     123.456,
+		Values:    []float64{123.456},
 	}
 	key4 := entryKey{
 		metricCategory: forwardedMetric,

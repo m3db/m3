@@ -26,11 +26,8 @@ import (
 	"time"
 
 	raggregation "github.com/m3db/m3aggregator/aggregation"
-	"github.com/m3db/m3aggregator/hash"
 	maggregation "github.com/m3db/m3metrics/aggregation"
-	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
-	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/pipeline/applied"
@@ -38,6 +35,7 @@ import (
 	"github.com/m3db/m3metrics/transformation"
 
 	"github.com/mauricelam/genny/generic"
+	"github.com/willf/bitset"
 )
 
 type typeSpecificAggregation interface {
@@ -99,7 +97,7 @@ type lockedAggregation struct {
 	sync.Mutex
 
 	closed      bool
-	sourcesSeen sourceSet
+	sourcesSeen *bitset.BitSet
 	aggregation typeSpecificAggregation
 }
 
@@ -213,7 +211,7 @@ func (e *GenericElem) AddUnion(timestamp time.Time, mu unaggregated.MetricUnion)
 // AddUnique adds a metric value from a given source at a given timestamp.
 // If previous values from the same source have already been added to the
 // same aggregation, the incoming value is discarded.
-func (e *GenericElem) AddUnique(timestamp time.Time, value float64, sourceID []byte) error {
+func (e *GenericElem) AddUnique(timestamp time.Time, values []float64, sourceID uint32) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	lockedAgg, err := e.findOrCreate(alignedStart, createAggregationOptions{initSourceSet: true})
 	if err != nil {
@@ -224,13 +222,15 @@ func (e *GenericElem) AddUnique(timestamp time.Time, value float64, sourceID []b
 		lockedAgg.Unlock()
 		return errAggregationClosed
 	}
-	sourceHash := hash.Murmur3Hash128(sourceID)
-	if v, exists := lockedAgg.sourcesSeen[sourceHash]; exists && v == alignedStart {
+	source := uint(sourceID)
+	if lockedAgg.sourcesSeen.Test(source) {
 		lockedAgg.Unlock()
 		return errDuplicateForwardingSource
 	}
-	lockedAgg.sourcesSeen[sourceHash] = alignedStart
-	lockedAgg.aggregation.Add(value)
+	lockedAgg.sourcesSeen.Set(source)
+	for _, v := range values {
+		lockedAgg.aggregation.Add(v)
+	}
 	lockedAgg.Unlock()
 	return nil
 }
@@ -246,6 +246,7 @@ func (e *GenericElem) Consume(
 	timestampNanosFn timestampNanosFn,
 	flushLocalFn flushLocalMetricFn,
 	flushForwardedFn flushForwardedMetricFn,
+	onForwardedFlushedFn onForwardingElemFlushedFn,
 ) bool {
 	resolution := e.sp.Resolution().Window
 	e.Lock()
@@ -285,25 +286,22 @@ func (e *GenericElem) Consume(
 		e.toConsume[i].lockedAgg.closed = true
 		e.toConsume[i].lockedAgg.aggregation.Close()
 		if e.toConsume[i].lockedAgg.sourcesSeen != nil {
-			sourceSetSize := len(e.toConsume[i].lockedAgg.sourcesSeen)
-			// If the source set we are about to cache is too big (i.e., bigger than the
-			// configured max size), we do not want to retain it and instead simply discard it.
-			// This is useful if say over the course of a month the metric IDs producing
-			// the forward metric ID have changed significantly so there are a lot of stale
-			// IDs in the map so we regenerate the map once in a while to refresh the map.
-			if sourceSetSize <= e.opts.MaxCachedSourceSetSize() {
-				e.cachedSourceSetsLock.Lock()
-				// This is to make sure there aren't too many cached source sets taking up
-				// too much space.
-				if len(e.cachedSourceSets) < e.opts.MaxNumCachedSourceSets() {
-					e.cachedSourceSets = append(e.cachedSourceSets, e.toConsume[i].lockedAgg.sourcesSeen)
-				}
-				e.cachedSourceSetsLock.Unlock()
+			e.cachedSourceSetsLock.Lock()
+			// This is to make sure there aren't too many cached source sets taking up
+			// too much space.
+			if len(e.cachedSourceSets) < e.opts.MaxNumCachedSourceSets() {
+				e.cachedSourceSets = append(e.cachedSourceSets, e.toConsume[i].lockedAgg.sourcesSeen)
 			}
+			e.cachedSourceSetsLock.Unlock()
 			e.toConsume[i].lockedAgg.sourcesSeen = nil
 		}
 		e.toConsume[i].lockedAgg.Unlock()
 		e.toConsume[i].Reset()
+	}
+
+	if e.parsedPipeline.HasRollup {
+		forwardedAggregationKey, _ := e.ForwardedAggregationKey()
+		onForwardedFlushedFn(e.onForwardedAggregationWrittenFn, forwardedAggregationKey)
 	}
 
 	return canCollect
@@ -319,8 +317,15 @@ func (e *GenericElem) Close() {
 	e.closed = true
 	e.id = nil
 	e.parsedPipeline = parsedPipeline{}
+	e.writeForwardedMetricFn = nil
+	e.onForwardedAggregationWrittenFn = nil
+	for idx := range e.cachedSourceSets {
+		e.cachedSourceSets[idx] = nil
+	}
+	e.cachedSourceSets = nil
 	for idx := range e.values {
 		// Close the underlying aggregation objects.
+		e.values[idx].lockedAgg.sourcesSeen = nil
 		e.values[idx].lockedAgg.aggregation.Close()
 		e.values[idx].Reset()
 	}
@@ -374,15 +379,16 @@ func (e *GenericElem) findOrCreate(
 	e.values = append(e.values, timedAggregation{})
 	copy(e.values[idx+1:numValues+1], e.values[idx:numValues])
 
-	var sourcesSeen sourceSet
+	var sourcesSeen *bitset.BitSet
 	if createOpts.initSourceSet {
 		e.cachedSourceSetsLock.Lock()
 		if numCachedSourceSets := len(e.cachedSourceSets); numCachedSourceSets > 0 {
 			sourcesSeen = e.cachedSourceSets[numCachedSourceSets-1]
 			e.cachedSourceSets[numCachedSourceSets-1] = nil
 			e.cachedSourceSets = e.cachedSourceSets[:numCachedSourceSets-1]
+			sourcesSeen.ClearAll()
 		} else {
-			sourcesSeen = make(sourceSet, defaultNumSources)
+			sourcesSeen = bitset.New(defaultNumSources)
 		}
 		e.cachedSourceSetsLock.Unlock()
 	}
@@ -462,20 +468,8 @@ func (e *GenericElem) processValueWithAggregationLock(
 		if !e.parsedPipeline.HasRollup {
 			flushLocalFn(fullPrefix, e.id, e.TypeStringFor(e.aggTypesOpts, aggType), timeNanos, value, e.sp)
 		} else {
-			fm := aggregated.Metric{
-				Type:      e.Type(),
-				ID:        e.parsedPipeline.Rollup.ID,
-				TimeNanos: timeNanos,
-				Value:     value,
-			}
-			meta := metadata.ForwardMetadata{
-				AggregationID:     e.parsedPipeline.Rollup.AggregationID,
-				StoragePolicy:     e.sp,
-				Pipeline:          e.parsedPipeline.Remainder,
-				SourceID:          []byte(e.id),
-				NumForwardedTimes: e.numForwardedTimes + 1,
-			}
-			flushForwardedFn(fm, meta)
+			forwardedAggregationKey, _ := e.ForwardedAggregationKey()
+			flushForwardedFn(e.writeForwardedMetricFn, forwardedAggregationKey, timeNanos, value)
 		}
 	}
 	e.lastConsumedAtNanos = timeNanos

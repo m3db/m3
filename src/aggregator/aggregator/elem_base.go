@@ -28,7 +28,6 @@ import (
 	"time"
 
 	raggregation "github.com/m3db/m3aggregator/aggregation"
-	"github.com/m3db/m3aggregator/hash"
 	maggregation "github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/id"
@@ -37,6 +36,8 @@ import (
 	"github.com/m3db/m3metrics/pipeline/applied"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/pool"
+
+	"github.com/willf/bitset"
 )
 
 const (
@@ -68,9 +69,6 @@ type isEarlierThanFn func(windowStartNanos int64, resolution time.Duration, targ
 // window with a given resolution.
 type timestampNanosFn func(windowStartNanos int64, resolution time.Duration) int64
 
-// sourceSet is a set of sources.
-type sourceSet map[hash.Hash128]int64
-
 type createAggregationOptions struct {
 	// initSourceSet determines whether to initialize the source set.
 	initSourceSet bool
@@ -78,8 +76,17 @@ type createAggregationOptions struct {
 
 // metricElem is the common interface for metric elements.
 type metricElem interface {
+	// Type returns the metric type.
+	Type() metric.Type
+
 	// ID returns the metric id.
 	ID() id.RawID
+
+	// ForwardedID returns the id of the forwarded metric if applicable.
+	ForwardedID() (id.RawID, bool)
+
+	// ForwardedAggregationKey returns the forwarded aggregation key if applicable.
+	ForwardedAggregationKey() (aggregationKey, bool)
 
 	// ResetSetData resets the element and sets data.
 	ResetSetData(
@@ -90,13 +97,19 @@ type metricElem interface {
 		numForwardedTimes int,
 	) error
 
+	// SetForwardedCallbacks sets the callback functions to write forwarded
+	// metrics for elements producing such forwarded metrics.
+	SetForwardedCallbacks(
+		writeFn writeForwardedMetricFn,
+		onDoneFn onForwardedAggregationDoneFn)
+
 	// AddUnion adds a metric value union at a given timestamp.
 	AddUnion(timestamp time.Time, mu unaggregated.MetricUnion) error
 
 	// AddUnique adds a metric value from a given source at a given timestamp.
 	// If previous values from the same source have already been added to the
 	// same aggregation, the incoming value is discarded.
-	AddUnique(timestamp time.Time, value float64, sourceID []byte) error
+	AddUnique(timestamp time.Time, values []float64, sourceID uint32) error
 
 	// Consume consumes values before a given time and removes
 	// them from the element after they are consumed, returning whether
@@ -107,6 +120,7 @@ type metricElem interface {
 		timestampNanosFn timestampNanosFn,
 		flushLocalFn flushLocalMetricFn,
 		flushForwardedFn flushForwardedMetricFn,
+		onForwardedFlushedFn onForwardingElemFlushedFn,
 	) bool
 
 	// MarkAsTombstoned marks an element as tombstoned, which means this element
@@ -121,21 +135,23 @@ type elemBase struct {
 	sync.RWMutex
 
 	// Immutable states.
-	opts                  Options
-	aggTypesOpts          maggregation.TypesOptions
-	id                    id.RawID
-	sp                    policy.StoragePolicy
-	useDefaultAggregation bool
-	aggTypes              maggregation.Types
-	aggOpts               raggregation.Options
-	parsedPipeline        parsedPipeline
-	numForwardedTimes     int
+	opts                            Options
+	aggTypesOpts                    maggregation.TypesOptions
+	id                              id.RawID
+	sp                              policy.StoragePolicy
+	useDefaultAggregation           bool
+	aggTypes                        maggregation.Types
+	aggOpts                         raggregation.Options
+	parsedPipeline                  parsedPipeline
+	numForwardedTimes               int
+	writeForwardedMetricFn          writeForwardedMetricFn
+	onForwardedAggregationWrittenFn onForwardedAggregationDoneFn
 
 	// Mutable states.
 	tombstoned           bool
 	closed               bool
-	cachedSourceSetsLock sync.Mutex  // nolint: structcheck
-	cachedSourceSets     []sourceSet // nolint: structcheck
+	cachedSourceSetsLock sync.Mutex       // nolint: structcheck
+	cachedSourceSets     []*bitset.BitSet // nolint: structcheck
 }
 
 func newElemBase(opts Options) elemBase {
@@ -171,12 +187,33 @@ func (e *elemBase) resetSetData(
 	return nil
 }
 
-// ID returns the metric id.
-func (e *elemBase) ID() id.RawID {
-	e.RLock()
-	id := e.id
-	e.RUnlock()
-	return id
+func (e *elemBase) SetForwardedCallbacks(
+	writeFn writeForwardedMetricFn,
+	onDoneFn onForwardedAggregationDoneFn,
+) {
+	e.writeForwardedMetricFn = writeFn
+	e.onForwardedAggregationWrittenFn = onDoneFn
+}
+
+func (e *elemBase) ID() id.RawID { return e.id }
+
+func (e *elemBase) ForwardedID() (id.RawID, bool) {
+	if !e.parsedPipeline.HasRollup {
+		return nil, false
+	}
+	return e.parsedPipeline.Rollup.ID, true
+}
+
+func (e *elemBase) ForwardedAggregationKey() (aggregationKey, bool) {
+	if !e.parsedPipeline.HasRollup {
+		return aggregationKey{}, false
+	}
+	return aggregationKey{
+		aggregationID:     e.parsedPipeline.Rollup.AggregationID,
+		storagePolicy:     e.sp,
+		pipeline:          e.parsedPipeline.Remainder,
+		numForwardedTimes: e.numForwardedTimes + 1,
+	}, true
 }
 
 // MarkAsTombstoned marks an element as tombstoned, which means this element

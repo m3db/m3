@@ -202,11 +202,11 @@ func TestAggregatorShardAddForwardedSuccess(t *testing.T) {
 	require.Equal(t, testShard, shard.ID())
 
 	var (
-		resultMetric   aggregated.Metric
+		resultMetric   aggregated.ForwardedMetric
 		resultMetadata metadata.ForwardMetadata
 	)
 	shard.addForwardedFn = func(
-		metric aggregated.Metric,
+		metric aggregated.ForwardedMetric,
 		metadata metadata.ForwardMetadata,
 	) error {
 		resultMetric = metric

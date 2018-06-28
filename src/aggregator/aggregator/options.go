@@ -47,7 +47,6 @@ var (
 	defaultEntryCheckBatchPercent    = 0.01
 	defaultMaxTimerBatchSizePerWrite = 0
 	defaultMaxNumCachedSourceSets    = 2
-	defaultMaxCachedSourceSetSize    = 128 * 1024
 	defaultResignTimeout             = 5 * time.Minute
 	defaultDefaultStoragePolicies    = []policy.StoragePolicy{
 		policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
@@ -243,12 +242,6 @@ type Options interface {
 	// MaxNumCachedSourceSets returns the maximum number of cached source sets.
 	MaxNumCachedSourceSets() int
 
-	// SetMaxCachedSourceSetSize sets the maximum size of the cached source set.
-	SetMaxCachedSourceSetSize(value int) Options
-
-	// MaxCachedSourceSetSize returns the maximum size of the cached source set.
-	MaxCachedSourceSetSize() int
-
 	// SetEntryPool sets the entry pool.
 	SetEntryPool(value EntryPool) Options
 
@@ -314,7 +307,6 @@ type options struct {
 	resignTimeout                    time.Duration
 	maxAllowedForwardingDelayFn      MaxAllowedForwardingDelayFn
 	maxNumCachedSourceSets           int
-	maxCachedSourceSetSize           int
 	entryPool                        EntryPool
 	counterElemPool                  CounterElemPool
 	timerElemPool                    TimerElemPool
@@ -355,7 +347,6 @@ func NewOptions() Options {
 		resignTimeout:                    defaultResignTimeout,
 		maxAllowedForwardingDelayFn:      defaultMaxAllowedForwardingDelayFn,
 		maxNumCachedSourceSets:           defaultMaxNumCachedSourceSets,
-		maxCachedSourceSetSize:           defaultMaxCachedSourceSetSize,
 	}
 
 	// Initialize pools.
@@ -639,16 +630,6 @@ func (o *options) SetMaxNumCachedSourceSets(value int) Options {
 
 func (o *options) MaxNumCachedSourceSets() int {
 	return o.maxNumCachedSourceSets
-}
-
-func (o *options) SetMaxCachedSourceSetSize(value int) Options {
-	opts := *o
-	opts.maxCachedSourceSetSize = value
-	return &opts
-}
-
-func (o *options) MaxCachedSourceSetSize() int {
-	return o.maxCachedSourceSetSize
 }
 
 func (o *options) SetEntryPool(value EntryPool) Options {

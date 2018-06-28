@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -107,7 +106,7 @@ func TestOneClientMultiTypeForwardedMetrics(t *testing.T) {
 	}
 	metadataFn := func(idx int) metadataUnion {
 		forwardMetadata := testForwardMetadataTemplate
-		forwardMetadata.SourceID = []byte(fmt.Sprintf("%d", idx))
+		forwardMetadata.SourceID = uint32(idx)
 		return metadataUnion{
 			mType:           forwardMetadataType,
 			forwardMetadata: forwardMetadata,

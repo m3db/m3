@@ -65,11 +65,11 @@ var (
 		ID:         []byte("foo"),
 		CounterVal: 1234,
 	}
-	testForwardedMetric = aggregated.Metric{
+	testForwardedMetric = aggregated.ForwardedMetric{
 		Type:      metric.CounterType,
 		ID:        []byte("testForwarded"),
 		TimeNanos: 12345,
-		Value:     76109,
+		Values:    []float64{76109, 23891},
 	}
 	testInvalidMetric = unaggregated.MetricUnion{
 		Type: metric.UnknownType,
@@ -113,7 +113,7 @@ var (
 				},
 			},
 		}),
-		SourceID:          []byte("testForwardSource"),
+		SourceID:          1234,
 		NumForwardedTimes: 3,
 	}
 )

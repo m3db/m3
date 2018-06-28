@@ -24,6 +24,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/m3db/m3metrics/metric/id"
+
 	raggregation "github.com/m3db/m3aggregator/aggregation"
 	maggregation "github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metric"
@@ -93,6 +95,48 @@ func TestElemBaseResetSetDataInvalidPipeline(t *testing.T) {
 	err := e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypes, false, invalidPipeline, 0)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "has no rollup operations"))
+}
+
+func TestElemBaseForwardedIDWithDefaultPipeline(t *testing.T) {
+	e := newElemBase(NewOptions())
+	_, ok := e.ForwardedID()
+	require.False(t, ok)
+}
+
+func TestElemBaseForwardedIDWithCustomPipeline(t *testing.T) {
+	e := &elemBase{}
+	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3)
+	fid, ok := e.ForwardedID()
+	require.True(t, ok)
+	require.Equal(t, id.RawID("foo.bar"), fid)
+}
+
+func TestElemBaseForwardedAggregationKeyWithDefaultPipeline(t *testing.T) {
+	e := newElemBase(NewOptions())
+	_, ok := e.ForwardedAggregationKey()
+	require.False(t, ok)
+}
+
+func TestElemBaseForwardedAggregationKeyWithCustomPipeline(t *testing.T) {
+	e := &elemBase{}
+	e.resetSetData(testCounterID, testStoragePolicy, testAggregationTypesExpensive, false, testPipeline, 3)
+	aggKey, ok := e.ForwardedAggregationKey()
+	require.True(t, ok)
+	expected := aggregationKey{
+		aggregationID: maggregation.MustCompressTypes(maggregation.Count),
+		storagePolicy: testStoragePolicy,
+		pipeline: applied.NewPipeline([]applied.OpUnion{
+			{
+				Type: pipeline.RollupOpType,
+				Rollup: applied.RollupOp{
+					ID:            []byte("foo.baz"),
+					AggregationID: maggregation.MustCompressTypes(maggregation.Max),
+				},
+			},
+		}),
+		numForwardedTimes: 4,
+	}
+	require.Equal(t, expected, aggKey)
 }
 
 func TestElemBaseMarkAsTombStoned(t *testing.T) {

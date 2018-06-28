@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,18 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-syntax = "proto3";
+package aggregator
 
-message ShardSetFlushTimes {
-  map<uint32, ShardFlushTimes> by_shard = 1;
+import (
+	"github.com/m3db/m3metrics/aggregation"
+	"github.com/m3db/m3metrics/pipeline/applied"
+	"github.com/m3db/m3metrics/policy"
+)
+
+type aggregationKey struct {
+	aggregationID     aggregation.ID
+	storagePolicy     policy.StoragePolicy
+	pipeline          applied.Pipeline
+	numForwardedTimes int
 }
 
-message ShardFlushTimes {
-  map<int64, int64> standard_by_resolution = 1;
-  bool tombstoned = 2;
-  map<int64, ForwardedFlushTimesForResolution> forwarded_by_resolution = 3;
-}
-
-message ForwardedFlushTimesForResolution {
-  map<int32, int64> by_num_forwarded_times = 1;
+func (k aggregationKey) Equal(other aggregationKey) bool {
+	return k.aggregationID == other.aggregationID &&
+		k.storagePolicy == other.storagePolicy &&
+		k.pipeline.Equal(other.pipeline) &&
+		k.numForwardedTimes == other.numForwardedTimes
 }

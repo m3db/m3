@@ -246,6 +246,7 @@ aggregator:
   defaultStoragePolicies:
     - 10s:2d
     - 1m:40d
+  maxNumCachedSourceSets: 2
   entryPool:
     size: 4096
   counterElemPool:
