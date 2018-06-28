@@ -80,6 +80,7 @@ func GenerateExecutionState(pplan plan.PhysicalPlan, storage storage.Storage) (*
 
 	options := transform.Options{
 		TimeSpec: pplan.TimeSpec,
+		Debug:    pplan.Debug,
 	}
 	controller, err := state.createNode(step, options)
 	if err != nil {

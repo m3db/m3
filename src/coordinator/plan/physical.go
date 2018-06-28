@@ -35,6 +35,7 @@ type PhysicalPlan struct {
 	pipeline   []parser.NodeID // Ordered list of steps to be performed
 	ResultStep ResultOp
 	TimeSpec   transform.TimeSpec
+	Debug      bool
 }
 
 // ResultOp is resonsible for delivering results to the clients
@@ -57,6 +58,7 @@ func NewPhysicalPlan(lp LogicalPlan, storage storage.Storage, params models.Requ
 			Now:   params.Now,
 			Step:  params.Step,
 		},
+		Debug: params.Debug,
 	}
 
 	pl, err := p.createResultNode()
@@ -107,5 +109,5 @@ func (p PhysicalPlan) Step(ID parser.NodeID) (LogicalStep, bool) {
 }
 
 func (p PhysicalPlan) String() string {
-	return fmt.Sprintf("Steps: %s, Pipeline: %s, Result: %s", p.steps, p.pipeline, p.ResultStep)
+	return fmt.Sprintf("Steps: %s, Pipeline: %s, Result: %s, TimeSpec: %v", p.steps, p.pipeline, p.ResultStep, p.TimeSpec)
 }

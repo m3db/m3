@@ -24,6 +24,7 @@ import (
 	"time"
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/ts"
+	"math"
 )
 
 // FetchResultToBlockResult converts a fetch result into coordinator blocks
@@ -69,11 +70,8 @@ func (m multiSeriesBlock) Meta() block.Metadata {
 }
 
 func (m multiSeriesBlock) Steps() int {
-	if len(m.seriesList) == 0 {
-		return 0
-	}
-
-	return m.seriesList[0].Values().Len()
+	// If series has lesser points then it should return NaNs
+	return m.meta.Bounds.Steps()
 }
 
 func (m multiSeriesBlock) Series() int {
@@ -118,13 +116,18 @@ func (m *multiSeriesBlockStepIter) Next() bool {
 	}
 
 	m.index++
-	return m.index < m.block.seriesList[0].Values().Len()
+	return m.index < m.block.Steps()
 }
 
 func (m *multiSeriesBlockStepIter) Current() block.Step {
 	values := make([]float64, len(m.block.seriesList))
+	seriesLen := m.block.seriesList[0].Len()
 	for i, s := range m.block.seriesList {
-		values[i] = s.Values().ValueAt(m.index)
+		if m.index < seriesLen {
+			values[i] = s.Values().ValueAt(m.index)
+		} else {
+			values[i] = math.NaN()
+		}
 	}
 
 	bounds := m.block.meta.Bounds
@@ -152,13 +155,19 @@ func (m *multiSeriesBlockSeriesIter) Next() bool {
 
 func (m *multiSeriesBlockSeriesIter) Current() block.Series {
 	s := m.block.seriesList[m.index]
-	values := make([]float64, s.Len())
-	for i := 0; i < s.Len(); i++ {
-		values[i] = s.Values().ValueAt(i)
+	seriesLen := s.Values().Len()
+	values := make([]float64, m.block.Steps())
+	for i := 0; i < m.block.Steps(); i++ {
+		if i < seriesLen {
+			values[i] = s.Values().ValueAt(i)
+		} else {
+			values[i] = math.NaN()
+		}
 	}
+
 	return block.NewSeries(values, block.SeriesMeta{
-		Tags:   s.Tags,
-		Name:   s.Name(),
+		Tags: s.Tags,
+		Name: s.Name(),
 	})
 }
 

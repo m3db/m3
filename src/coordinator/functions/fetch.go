@@ -29,6 +29,8 @@ import (
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/parser"
 	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
+	"go.uber.org/zap"
 )
 
 // FetchType gets the series from storage
@@ -48,6 +50,7 @@ type FetchNode struct {
 	controller *transform.Controller
 	storage    storage.Storage
 	timespec   transform.TimeSpec
+	debug      bool
 }
 
 // OpType for the operator
@@ -62,7 +65,7 @@ func (o FetchOp) String() string {
 
 // Node creates an execution node
 func (o FetchOp) Node(controller *transform.Controller, storage storage.Storage, options transform.Options) parser.Source {
-	return &FetchNode{op: o, controller: controller, storage: storage, timespec: options.TimeSpec}
+	return &FetchNode{op: o, controller: controller, storage: storage, timespec: options.TimeSpec, debug: options.Debug}
 }
 
 // Execute runs the fetch node operation
@@ -81,6 +84,9 @@ func (n *FetchNode) Execute(ctx context.Context) error {
 	}
 
 	for _, block := range blockResult.Blocks {
+		if n.debug {
+			logging.WithContext(ctx).Info("fetch block", zap.String("meta", block.Meta().String()))
+		}
 		if err := n.controller.Process(block); err != nil {
 			block.Close()
 			// Fail on first error

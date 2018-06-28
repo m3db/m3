@@ -71,6 +71,10 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if params.Debug {
+		logger.Info("Request params", zap.Any("params", params))
+	}
+
 	result, err := h.read(ctx, w, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Any("error", err))
@@ -146,7 +150,6 @@ func sortedBlocksToSeriesList(blockList []block.Block) ([]ts.Series, error) {
 		values := ts.NewFixedStepValues(bounds.StepSize, firstBlock.Steps()*len(blockList), math.NaN(), bounds.Start)
 		valIdx := 0
 		for idx, iter := range seriesIters {
-			fmt.Println("Series Iter", i, idx, firstBlock.Series(), firstBlock.Steps())
 			if !iter.Next() {
 				return nil, fmt.Errorf("invalid number of datapoints for series: %d, block: %d", i, idx)
 			}

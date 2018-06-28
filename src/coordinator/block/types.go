@@ -27,11 +27,6 @@ import (
 	"github.com/m3db/m3db/src/coordinator/models"
 )
 
-const (
-	// errBounds is returned when time requested is outside the block bounds
-	errBounds = "out of bounds, time: %v, bounds: %v"
-)
-
 // Block represents a group of series across a time bound
 type Block interface {
 	Meta() Metadata
@@ -45,8 +40,8 @@ type Block interface {
 
 // SeriesMeta is metadata data for the series
 type SeriesMeta struct {
-	Tags   models.Tags
-	Name   string
+	Tags models.Tags
+	Name string
 }
 
 // Bounds are the time bounds
@@ -65,6 +60,18 @@ func (b Bounds) TimeForIndex(idx int) (time.Time, error) {
 	}
 
 	return t, nil
+}
+
+func (b Bounds) Steps() int {
+	if b.Start.After(b.End) || b.StepSize == 0 {
+		return 0
+	}
+
+	return int(b.End.Sub(b.Start)/b.StepSize) + 1
+}
+
+func (b Bounds) String() string {
+	return fmt.Sprintf("start: %v, end: %v, stepSize: %v, steps: %d", b.Start, b.End, b.StepSize, b.Steps())
 }
 
 // Iterator is the base iterator
@@ -95,6 +102,11 @@ type Step interface {
 type Metadata struct {
 	Bounds Bounds
 	Tags   models.Tags // Common tags across different series
+}
+
+// String returns a string representation of metadata
+func (m Metadata) String() string {
+	return fmt.Sprintf("Bounds: %v, Tags: %v", m.Bounds, m.Tags)
 }
 
 // Builder builds a new block
