@@ -798,6 +798,18 @@ func TestForwardMetadataFromProtoBadMetadataProto(t *testing.T) {
 	require.Error(t, res.FromProto(testBadForwardMetadataProto))
 }
 
+func TestPipelineMetadataClone(t *testing.T) {
+	cloned1 := testLargePipelineMetadata.Clone()
+	cloned2 := testLargePipelineMetadata.Clone()
+	require.True(t, cloned1.Equal(testLargePipelineMetadata))
+	require.True(t, cloned2.Equal(testLargePipelineMetadata))
+
+	// Assert that modifying the clone does not mutate the original pipeline metadata.
+	cloned1.StoragePolicies[0] = policy.MustParseStoragePolicy("1h:1h")
+	require.False(t, cloned1.Equal(testLargePipelineMetadata))
+	require.True(t, cloned2.Equal(testLargePipelineMetadata))
+}
+
 func TestPipelineMetadataToProto(t *testing.T) {
 	inputs := []struct {
 		sequence []PipelineMetadata
@@ -903,6 +915,22 @@ func TestPipelineMetadataToProtoBadMetadata(t *testing.T) {
 func TestPipelineMetadataFromProtoBadMetadataProto(t *testing.T) {
 	var res PipelineMetadata
 	require.Error(t, res.FromProto(testBadPipelineMetadataProto))
+}
+
+func TestPipelineMetadatasClone(t *testing.T) {
+	input := PipelineMetadatas{
+		testSmallPipelineMetadata,
+		testLargePipelineMetadata,
+	}
+	cloned1 := input.Clone()
+	cloned2 := input.Clone()
+	require.True(t, cloned1.Equal(input))
+	require.True(t, cloned2.Equal(input))
+
+	// Assert that modifying the clone does not mutate the original pipeline metadata.
+	cloned1[0].StoragePolicies[0] = policy.MustParseStoragePolicy("1h:1h")
+	require.False(t, cloned1.Equal(input))
+	require.True(t, cloned2.Equal(input))
 }
 
 func TestStagedMetadatasToProto(t *testing.T) {

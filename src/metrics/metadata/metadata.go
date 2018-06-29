@@ -33,7 +33,7 @@ var (
 	DefaultPipelineMetadata PipelineMetadata
 
 	// DefaultPipelineMetadatas is a default list of pipeline metadatas.
-	DefaultPipelineMetadatas = []PipelineMetadata{DefaultPipelineMetadata}
+	DefaultPipelineMetadatas = PipelineMetadatas{DefaultPipelineMetadata}
 
 	// DefaultMetadata is a default metadata.
 	DefaultMetadata = Metadata{Pipelines: DefaultPipelineMetadatas}
@@ -69,6 +69,15 @@ func (m PipelineMetadata) IsDefault() bool {
 	return m.AggregationID.IsDefault() &&
 		m.StoragePolicies.IsDefault() &&
 		m.Pipeline.IsEmpty()
+}
+
+// Clone clones the pipeline metadata.
+func (m PipelineMetadata) Clone() PipelineMetadata {
+	return PipelineMetadata{
+		AggregationID:   m.AggregationID,
+		StoragePolicies: m.StoragePolicies.Clone(),
+		Pipeline:        m.Pipeline.Clone(),
+	}
 }
 
 // ToProto converts the pipeline metadata to a protobuf message in place.
@@ -115,9 +124,34 @@ func (m *PipelineMetadata) FromProto(pb metricpb.PipelineMetadata) error {
 	return nil
 }
 
+// PipelineMetadatas is a list of pipeline metadatas.
+type PipelineMetadatas []PipelineMetadata
+
+// Equal returns true if two pipline metadatas are considered equal.
+func (metadatas PipelineMetadatas) Equal(other PipelineMetadatas) bool {
+	if len(metadatas) != len(other) {
+		return false
+	}
+	for i := 0; i < len(metadatas); i++ {
+		if !metadatas[i].Equal(other[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// Clone clones the list of pipeline metadatas.
+func (metadatas PipelineMetadatas) Clone() PipelineMetadatas {
+	cloned := make(PipelineMetadatas, 0, len(metadatas))
+	for i := 0; i < len(metadatas); i++ {
+		cloned = append(cloned, metadatas[i].Clone())
+	}
+	return cloned
+}
+
 // Metadata represents the metadata associated with a metric.
 type Metadata struct {
-	Pipelines []PipelineMetadata `json:"pipelines"`
+	Pipelines PipelineMetadatas `json:"pipelines"`
 }
 
 // IsDefault returns whether this is the default metadata.
@@ -147,7 +181,7 @@ func (m *Metadata) FromProto(pb metricpb.Metadata) error {
 	if cap(m.Pipelines) >= numPipelines {
 		m.Pipelines = m.Pipelines[:numPipelines]
 	} else {
-		m.Pipelines = make([]PipelineMetadata, numPipelines)
+		m.Pipelines = make(PipelineMetadatas, numPipelines)
 	}
 	for i := 0; i < numPipelines; i++ {
 		if err := m.Pipelines[i].FromProto(pb.Pipelines[i]); err != nil {
