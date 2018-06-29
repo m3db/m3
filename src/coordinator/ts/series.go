@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/models"
 )
 
-// A SeriesCount is the public interface to a block of timeseries values.  Each block has a start time,
+// Series is the public interface to a block of timeseries values.  Each block has a start time,
 // a logical number of steps, and a step size indicating the number of milliseconds represented by each point.
 type Series struct {
 	name string

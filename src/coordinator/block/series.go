@@ -20,7 +20,7 @@
 
 package block
 
-// SeriesCount is a single series within a block
+// Series is a single series within a block
 type Series struct {
 	values []float64
 	Meta   SeriesMeta

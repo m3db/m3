@@ -69,7 +69,7 @@ func (b Bounds) TimeForIndex(idx int) (time.Time, error) {
 	return t, nil
 }
 
-// StepCount calculates the number of steps for the bounds
+// Steps calculates the number of steps for the bounds
 func (b Bounds) Steps() int {
 	if b.Start.After(b.End) || b.StepSize == 0 {
 		return 0
