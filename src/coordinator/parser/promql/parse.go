@@ -119,6 +119,37 @@ func walk(node pql.Node) (parser.Nodes, parser.Edges, error) {
 		transforms = append(transforms, opTransform)
 		return transforms, edges, nil
 
+	case *pql.BinaryExpr:
+		transforms, edges, err := walk(n.LHS)
+		lhsID := transforms[len(transforms)-1].ID
+		if err != nil {
+			return nil, nil, err
+		}
+
+		t, e, err := walk(n.RHS)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		rhsID := t[len(t)-1].ID
+
+		transforms = append(transforms, t...)
+		edges = append(edges, e...)
+
+		op, err := NewBinaryOperator(n, lhsID, rhsID)
+		opTransform := parser.NewTransformFromOperation(op, len(transforms))
+		edges = append(edges, parser.Edge{
+			ParentID: lhsID,
+			ChildID:  opTransform.ID,
+		})
+		edges = append(edges, parser.Edge{
+			ParentID: rhsID,
+			ChildID:  opTransform.ID,
+		})
+		transforms = append(transforms, opTransform)
+		return transforms, edges, nil
+
+
 	default:
 		return nil, nil, fmt.Errorf("promql.Walk: unhandled node type %T, %v", node, node)
 	}
