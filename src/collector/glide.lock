@@ -1,5 +1,5 @@
-hash: 82538fe00c89f82322a03b54111f83ecf52010897ba5e0788c64eb4defd82eee
-updated: 2018-06-10T17:50:42.772429-04:00
+hash: 76e360c645621849874341717e0635a446c328b24d6658e4c9397845a2622f1e
+updated: 2018-06-28T15:53:58.264043-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -30,7 +30,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3aggregator
-  version: 4dad15f325f8db998fc26aaa153927a82fffbb70
+  version: 6d537300ac6dec79e5ab2eb6d30cb007f8d9a2c6
   subpackages:
   - client
   - sharding
@@ -52,7 +52,7 @@ imports:
   - services/leader/campaign
   - shard
 - name: github.com/m3db/m3metrics
-  version: c1e712b253c6662049507a11f70f83d5165ef3c9
+  version: 4a7c38ade76a50ec85ce3659c869a6804d08b4e3
   subpackages:
   - aggregation
   - encoding
@@ -79,8 +79,8 @@ imports:
   - pipeline/applied
   - policy
   - rules
-  - rules/models
-  - rules/models/changes
+  - rules/view
+  - rules/view/changes
   - transformation
   - x/bytes
 - name: github.com/m3db/m3x
