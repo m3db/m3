@@ -233,6 +233,12 @@ func (as *activeRuleSet) mappingsForNonRollupID(
 		}
 		pipelines = append(pipelines, pipeline)
 	}
+	// NB: The pipeline list should never be empty as the resulting pipelines are
+	// used to determine how the *existing* ID is aggregated and retained. If there
+	// are no rule match, the default pipeline list is used.
+	if len(pipelines) == 0 {
+		pipelines = metadata.DefaultPipelineMetadatas.Clone()
+	}
 	return mappingResults{
 		forExistingID: ruleMatchResults{cutoverNanos: cutoverNanos, pipelines: pipelines},
 	}
@@ -489,7 +495,7 @@ func (as *activeRuleSet) reverseMappingsForNonRollupID(
 	at aggregation.Type,
 ) (metadata.StagedMetadata, bool) {
 	mappingRes := as.mappingsForNonRollupID(id, timeNanos).forExistingID
-	filteredPipelines := filteredPipelinesWithAggregationType(mappingRes.resolvedPipelines(), mt, at, as.aggTypeOpts)
+	filteredPipelines := filteredPipelinesWithAggregationType(mappingRes.pipelines, mt, at, as.aggTypeOpts)
 	if len(filteredPipelines) == 0 {
 		return metadata.DefaultStagedMetadata, false
 	}
