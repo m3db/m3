@@ -31,7 +31,7 @@ import (
 )
 
 func TestDAG(t *testing.T) {
-	q := "sum(http_requests_total{method=\"GET\"} offset 5m) by (service)"
+	q := "count(http_requests_total{method=\"GET\"} offset 5m) by (service)"
 	p, err := Parse(q)
 	require.NoError(t, err)
 	transforms, edges, err := p.DAG()
@@ -43,5 +43,14 @@ func TestDAG(t *testing.T) {
 	assert.Len(t, edges, 1)
 	assert.Equal(t, edges[0].ParentID, parser.NodeID("0"), "fetch should be the parent")
 	assert.Equal(t, edges[0].ChildID, parser.NodeID("1"), "aggregation should be the child")
+
+}
+
+func TestDAGWithUnknownOp(t *testing.T) {
+	q := "sum(http_requests_total{method=\"GET\"})"
+	p, err := Parse(q)
+	require.NoError(t, err)
+	_, _, err = p.DAG()
+	require.Error(t, err, "unsupported operation fails parsing")
 
 }
