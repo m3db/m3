@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package encoding
+package json
 
 import (
 	"bytes"
@@ -120,7 +120,6 @@ func TestWriteComplexObject(t *testing.T) {
 }
 
 func TestWriteErrors(t *testing.T) {
-	// NB(mmihic): All of these error messages could be improved
 	testWriteError(t, "value not allowed", func(w *Writer) {
 		w.BeginObject()
 		w.BeginArray()

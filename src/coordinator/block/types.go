@@ -29,12 +29,19 @@ import (
 
 // Block represents a group of series across a time bound
 type Block interface {
+	// Meta returns the metadata for the block
 	Meta() Metadata
+	// StepIter returns a StepIterator
 	StepIter() StepIter
+	// SeriesIter returns a SeriesIterator
 	SeriesIter() SeriesIter
+	// SeriesMeta returns the metadata for each series in the block
 	SeriesMeta() []SeriesMeta
-	Steps() int
-	Series() int
+	// StepCount returns the total steps/columns
+	StepCount() int
+	// SeriesCount returns the number of series in the block
+	SeriesCount() int
+	// Close frees up any resources
 	Close() error
 }
 
@@ -62,7 +69,7 @@ func (b Bounds) TimeForIndex(idx int) (time.Time, error) {
 	return t, nil
 }
 
-// Steps calculates the number of steps for the bounds
+// StepCount calculates the number of steps for the bounds
 func (b Bounds) Steps() int {
 	if b.Start.After(b.End) || b.StepSize == 0 {
 		return 0
@@ -71,6 +78,7 @@ func (b Bounds) Steps() int {
 	return int(b.End.Sub(b.Start)/b.StepSize) + 1
 }
 
+// String representation of the bounds
 func (b Bounds) String() string {
 	return fmt.Sprintf("start: %v, end: %v, stepSize: %v, steps: %d", b.Start, b.End, b.StepSize, b.Steps())
 }

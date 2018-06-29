@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/models"
 )
 
-// A Series is the public interface to a block of timeseries values.  Each block has a start time,
+// A SeriesCount is the public interface to a block of timeseries values.  Each block has a start time,
 // a logical number of steps, and a step size indicating the number of milliseconds represented by each point.
 type Series struct {
 	name string
@@ -36,7 +36,7 @@ type Series struct {
 	Tags models.Tags
 }
 
-// NewSeries creates a new Series at a given start time, backed by the provided values
+// NewSeries creates a new SeriesCount at a given start time, backed by the provided values
 func NewSeries(name string, vals Values, tags models.Tags) *Series {
 	return &Series{
 		name: name,

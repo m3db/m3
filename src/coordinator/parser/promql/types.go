@@ -63,6 +63,17 @@ func NewOperator(opType promql.ItemType) (parser.Params, error) {
 	}
 }
 
+// NewFunction creates a new function expr based on the type
+func NewFunctionExpr(name string) (parser.Params, error) {
+	switch name {
+	case functions.AbsType:
+		return functions.AbsOp{}, nil
+	default:
+		// TODO: handle other types
+		return nil, fmt.Errorf("function not supported: %s", name)
+	}
+}
+
 func getOpType(opType promql.ItemType) string {
 	switch opType {
 	case promql.ItemType(itemCount):

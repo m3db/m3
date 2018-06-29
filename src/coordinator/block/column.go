@@ -62,12 +62,13 @@ func (c *columnBlock) SeriesMeta() []SeriesMeta {
 	return c.seriesMeta
 }
 
-// Steps returns the total steps
-func (c *columnBlock) Steps() int {
+// StepCount returns the total steps
+func (c *columnBlock) StepCount() int {
 	return len(c.columns)
 }
 
-func (c *columnBlock) Series() int {
+// SeriesCount returns the number of series in the block
+func (c *columnBlock) SeriesCount() int {
 	return len(c.seriesMeta)
 }
 

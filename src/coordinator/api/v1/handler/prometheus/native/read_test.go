@@ -71,7 +71,8 @@ func TestPromReadWithFetchAndCount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	storage, mockSession := local.NewStorageAndSession(ctrl)
 	testTags := seriesiter.GenerateTag()
-	mockSession.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 10), true, nil)
+	numSeries := 2
+	mockSession.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(seriesiter.NewMockSeriesIters(ctrl, testTags, numSeries, 10), true, nil)
 
 	promRead := &PromReadHandler{engine: executor.NewEngine(storage)}
 	req, _ := http.NewRequest("GET", PromReadURL, nil)
@@ -87,7 +88,7 @@ func TestPromReadWithFetchAndCount(t *testing.T) {
 	s := seriesList[0]
 	assert.Equal(t, s.Values().Len(), 361, "10 second resolution for 1 hour including start time")
 	for i := 0 ; i < 10; i++ {
-		assert.Equal(t, s.Values().ValueAt(i), float64(1))
+		assert.Equal(t, s.Values().ValueAt(i), float64(numSeries))
 	}
 
 	for i := 11; i < s.Values().Len(); i++ {
@@ -95,3 +96,33 @@ func TestPromReadWithFetchAndCount(t *testing.T) {
 	}
 }
 
+func TestPromReadWithFetchAndAbs(t *testing.T) {
+	logging.InitWithCores(nil)
+	ctrl := gomock.NewController(t)
+	storage, mockSession := local.NewStorageAndSession(ctrl)
+	testTags := seriesiter.GenerateTag()
+	mockSession.EXPECT().FetchTagged(gomock.Any(), gomock.Any(), gomock.Any()).Return(seriesiter.NewMockSeriesIters(ctrl, testTags, 1, 10), true, nil)
+
+	promRead := &PromReadHandler{engine: executor.NewEngine(storage)}
+	req, _ := http.NewRequest("GET", PromReadURL, nil)
+	params := defaultParams()
+	params.Set(targetParam, `abs(http_requests_total{job="prometheus",group="canary"})`)
+	req.URL.RawQuery = params.Encode()
+
+	r, parseErr := parseParams(req)
+	require.Nil(t, parseErr)
+	seriesList, err := promRead.read(context.TODO(), httptest.NewRecorder(), r)
+	require.NoError(t, err)
+	require.Len(t, seriesList, 1)
+	s := seriesList[0]
+	assert.Equal(t, s.Values().Len(), 361, "10 second resolution for 1 hour including start time")
+	assert.Equal(t, s.Values().ValueAt(0), float64(0), "first value is zero since db returns values starting from start + 10ms")
+	assert.Equal(t, s.Values().ValueAt(1), float64(0))
+	for i := 2 ; i < 10; i++ {
+		assert.Equal(t, s.Values().ValueAt(i), float64(i-1))
+	}
+
+	for i := 11; i < s.Values().Len(); i++ {
+		require.True(t, math.IsNaN(s.Values().ValueAt(i)), "all remaining are nans")
+	}
+}

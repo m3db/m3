@@ -29,10 +29,10 @@ import (
 )
 
 // Values holds the values for a timeseries.  It provides a minimal interface
-// for storing and retrieving values in the series, with Series providing a
+// for storing and retrieving values in the series, with SeriesCount providing a
 // more convenient interface for applications to build on top of.  Values
 // objects are not specific to a given time, allowing them to be
-// pre-allocated, pooled, and re-used across multiple Series.  There are
+// pre-allocated, pooled, and re-used across multiple SeriesCount.  There are
 // multiple implementations of Values so that we can optimize storage based on
 // the density of the series.
 type Values interface {

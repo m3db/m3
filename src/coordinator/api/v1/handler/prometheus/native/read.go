@@ -44,6 +44,13 @@ const (
 
 	// PromReadHTTPMethod is the HTTP method used with this resource.
 	PromReadHTTPMethod = http.MethodGet
+
+	// TODO: Move to config
+	initialBlockAlloc = 10
+)
+
+var (
+	emptySeriesList = []*ts.Series{}
 )
 
 // PromReadHandler represents a handler for prometheus read endpoint.
@@ -108,7 +115,13 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 
 	// Block slices are sorted by start time
 	// TODO: Pooling
-	sortedBlockList := make([]block.Block, 0, 10)
+	sortedBlockList := make([]block.Block, 0, initialBlockAlloc)
+	defer func() {
+		for _, b := range sortedBlockList {
+			b.Close()
+		}
+	}()
+
 	for result := range results {
 		if result.Err != nil {
 			return nil, result.Err
@@ -130,22 +143,21 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 	}
 
 	seriesList, err := sortedBlocksToSeriesList(sortedBlockList)
-	for _, b := range sortedBlockList {
-		b.Close()
-	}
 
 	return seriesList, err
 }
 
 func sortedBlocksToSeriesList(blockList []block.Block) ([]*ts.Series, error) {
 	if len(blockList) == 0 {
-		return []*ts.Series{}, nil
+		return emptySeriesList, nil
 	}
 
 	firstBlock := blockList[0]
-	numSeries := firstBlock.Series()
+	numSeries := firstBlock.SeriesCount()
 	seriesList := make([]*ts.Series, numSeries)
 	seriesIters := make([]block.SeriesIter, len(blockList))
+	// To create individual series, we iterate over seriesIterators for each block in the block list.
+	// For each iterator, the nth current() will be combined to give the nth series
 	for i, b := range blockList {
 		seriesIters[i] = b.SeriesIter()
 	}
@@ -153,7 +165,7 @@ func sortedBlocksToSeriesList(blockList []block.Block) ([]*ts.Series, error) {
 	seriesMeta := firstBlock.SeriesMeta()
 	bounds := firstBlock.Meta().Bounds
 	for i := 0; i < numSeries; i++ {
-		values := ts.NewFixedStepValues(bounds.StepSize, firstBlock.Steps()*len(blockList), math.NaN(), bounds.Start)
+		values := ts.NewFixedStepValues(bounds.StepSize, firstBlock.StepCount()*len(blockList), math.NaN(), bounds.Start)
 		valIdx := 0
 		for idx, iter := range seriesIters {
 			if !iter.Next() {
@@ -168,7 +180,6 @@ func sortedBlocksToSeriesList(blockList []block.Block) ([]*ts.Series, error) {
 		}
 
 		seriesList[i] = ts.NewSeries(seriesMeta[i].Name, values, seriesMeta[i].Tags)
-
 	}
 
 	return seriesList, nil
@@ -181,12 +192,12 @@ func insertSortedBlock(b block.Block, blockList []block.Block) ([]block.Block, e
 	}
 
 	firstBlock := blockList[0]
-	if firstBlock.Series() != b.Series() {
-		return nil, fmt.Errorf("mismatch in number of series for the block, wanted: %d, found: %d", firstBlock.Series(), b.Series())
+	if firstBlock.SeriesCount() != b.SeriesCount() {
+		return nil, fmt.Errorf("mismatch in number of series for the block, wanted: %d, found: %d", firstBlock.SeriesCount(), b.SeriesCount())
 	}
 
-	if firstBlock.Steps() != b.Steps() {
-		return nil, fmt.Errorf("mismatch in number of steps for the block, wanted: %d, found: %d", firstBlock.Steps(), b.Steps())
+	if firstBlock.StepCount() != b.StepCount() {
+		return nil, fmt.Errorf("mismatch in number of steps for the block, wanted: %d, found: %d", firstBlock.StepCount(), b.StepCount())
 	}
 
 	index := sort.Search(len(blockList), func(i int) bool { return blockList[i].Meta().Bounds.Start.Before(b.Meta().Bounds.Start) })

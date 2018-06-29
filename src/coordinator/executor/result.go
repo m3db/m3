@@ -21,6 +21,8 @@
 package executor
 
 import (
+	"sync"
+
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/parser"
 
@@ -40,23 +42,24 @@ var (
 type Result interface {
 	abort(err error)
 	done()
-	Blocks() chan BlockResult
+	Blocks() chan ResultChan
 }
 
 // ResultNode is used to provide the results to the caller from the query execution
 type ResultNode struct {
-	blocks chan BlockResult
+	mu      sync.Mutex
+	blocks  chan ResultChan
 	aborted bool
 }
 
-// BlockResult has the result from a block
-type BlockResult struct {
+// ResultChan has the result from a block
+type ResultChan struct {
 	Block block.Block
 	Err   error
 }
 
 func newResultNode() *ResultNode {
-	blocks := make(chan BlockResult, channelSize)
+	blocks := make(chan ResultChan, channelSize)
 	return &ResultNode{blocks: blocks}
 }
 
@@ -66,7 +69,7 @@ func (r *ResultNode) Process(ID parser.NodeID, block block.Block) error {
 		return errAborted
 	}
 
-	r.blocks <- BlockResult{
+	r.blocks <- ResultChan{
 		Block: block,
 	}
 
@@ -74,18 +77,20 @@ func (r *ResultNode) Process(ID parser.NodeID, block block.Block) error {
 }
 
 // Blocks return a channel to stream back blocks to the client
-func (r *ResultNode) Blocks() chan BlockResult {
+func (r *ResultNode) Blocks() chan ResultChan {
 	return r.blocks
 }
 
 // TODO: Signal error downstream
 func (r *ResultNode) abort(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.aborted {
 		return
 	}
 
 	r.aborted = true
-	r.blocks <- BlockResult{
+	r.blocks <- ResultChan{
 		Err: err,
 	}
 	close(r.blocks)

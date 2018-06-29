@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util"
-	"github.com/m3db/m3db/src/coordinator/util/encoding"
+	"github.com/m3db/m3db/src/coordinator/util/json"
 )
 
 const (
@@ -120,7 +120,7 @@ func parseTarget(r *http.Request) (string, error) {
 }
 
 func renderResultsJSON(w io.Writer, series []*ts.Series) {
-	jw := encoding.NewWriter(w)
+	jw := json.NewWriter(w)
 	jw.BeginArray()
 	for _, s := range series {
 		jw.BeginObject()
@@ -129,24 +129,24 @@ func renderResultsJSON(w io.Writer, series []*ts.Series) {
 
 		jw.BeginObjectField("tags")
 		jw.BeginObject()
-
 		for k, v := range s.Tags {
 			jw.BeginObjectField(k)
 			jw.WriteString(v)
 		}
-
 		jw.EndObject()
 
 		jw.BeginObjectField("datapoints")
 		jw.BeginArray()
+		vals := s.Values()
 		for i := 0; i < s.Len(); i++ {
-			dp := s.Values().DatapointAt(i)
+			dp := vals.DatapointAt(i)
 			jw.BeginArray()
 			jw.WriteFloat64(dp.Value)
 			jw.WriteInt(int(dp.Timestamp.Unix()))
 			jw.EndArray()
 		}
 		jw.EndArray()
+
 		fixedStep, ok := s.Values().(ts.FixedResolutionMutableValues)
 		if ok {
 			jw.BeginObjectField("step_size_ms")

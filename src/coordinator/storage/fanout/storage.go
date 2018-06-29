@@ -41,7 +41,7 @@ type fanoutStorage struct {
 	writeFilter filter.Storage
 }
 
-// NewStorage creates a new remote Storage instance.
+// NewStorage creates a new fanout Storage instance.
 func NewStorage(stores []storage.Storage, fetchFilter filter.Storage, writeFilter filter.Storage) storage.Storage {
 	return &fanoutStorage{stores: stores, fetchFilter: fetchFilter, writeFilter: writeFilter}
 }
@@ -117,13 +117,18 @@ func (s *fanoutStorage) Type() storage.Type {
 
 func (s *fanoutStorage) FetchBlocks(
 	ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
-	for _, store := range s.stores {
-		if store.Type() == storage.TypeLocalDC {
-			return store.FetchBlocks(ctx, query, options)
+	stores := filterStores(s.stores, s.writeFilter, query)
+	blockResult := block.Result{}
+	for _, store := range stores {
+		result, err := store.FetchBlocks(ctx, query, options)
+		if err != nil {
+			return block.Result{}, err
 		}
+
+		blockResult.Blocks = append(blockResult.Blocks, result.Blocks...)
 	}
 
-	return block.Result{}, errors.ErrNotImplemented
+	return blockResult, nil
 }
 
 func (s *fanoutStorage) Close() error {

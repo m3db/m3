@@ -79,7 +79,7 @@ func NewLogicalPlan(transforms parser.Nodes, edges parser.Edges) (LogicalPlan, e
 }
 
 func (l LogicalPlan) String() string {
-	return fmt.Sprintf("Steps: %s, Pipeline: %s", l.Steps, l.Pipeline)
+	return fmt.Sprintf("StepCount: %s, Pipeline: %s", l.Steps, l.Pipeline)
 }
 
 // Clone the plan

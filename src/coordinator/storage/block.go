@@ -70,16 +70,13 @@ func (m multiSeriesBlock) Meta() block.Metadata {
 	return m.meta
 }
 
-func (m multiSeriesBlock) Steps() int {
-	// If series has lesser points then it should return NaNs
+func (m multiSeriesBlock) StepCount() int {
+	// If series has fewer points then it should return NaNs
 	return m.meta.Bounds.Steps()
 }
 
-func (m multiSeriesBlock) Series() int {
-	if len(m.seriesList) == 0 {
-		return 0
-	}
-
+// SeriesCount returns the number of series in the block
+func (m multiSeriesBlock) SeriesCount() int {
 	return len(m.seriesList)
 }
 
@@ -117,7 +114,7 @@ func (m *multiSeriesBlockStepIter) Next() bool {
 	}
 
 	m.index++
-	return m.index < m.block.Steps()
+	return m.index < m.block.StepCount()
 }
 
 func (m *multiSeriesBlockStepIter) Current() block.Step {
@@ -157,8 +154,8 @@ func (m *multiSeriesBlockSeriesIter) Next() bool {
 func (m *multiSeriesBlockSeriesIter) Current() block.Series {
 	s := m.block.seriesList[m.index]
 	seriesLen := s.Values().Len()
-	values := make([]float64, m.block.Steps())
-	for i := 0; i < m.block.Steps(); i++ {
+	values := make([]float64, m.block.StepCount())
+	for i := 0; i < m.block.StepCount(); i++ {
 		if i < seriesLen {
 			values[i] = s.Values().ValueAt(i)
 		} else {

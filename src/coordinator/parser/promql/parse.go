@@ -92,8 +92,35 @@ func walk(node pql.Node) (parser.Nodes, parser.Edges, error) {
 
 		return []parser.Node{parser.NewTransformFromOperation(operation, 0)}, nil, nil
 
+	case *pql.Call:
+		op, err := NewFunctionExpr(n.Func.Name)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		expressions := n.Args
+		edges := make(parser.Edges, 0, 1)
+		transforms := make(parser.Nodes, 0, 1)
+		for _, expr := range expressions {
+			t, e, err := walk(expr)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			transforms = append(transforms, t...)
+			edges = append(edges, e...)
+		}
+
+		opTransform := parser.NewTransformFromOperation(op, len(transforms))
+		edges = append(edges, parser.Edge{
+			ParentID: transforms[len(transforms)-1].ID,
+			ChildID:  opTransform.ID,
+		})
+		transforms = append(transforms, opTransform)
+		return transforms, edges, nil
+
 	default:
-		return nil, nil, fmt.Errorf("promql.Walk: unhandled node type %T", node)
+		return nil, nil, fmt.Errorf("promql.Walk: unhandled node type %T, %v", node, node)
 	}
 
 	// TODO: This should go away once all cases have been implemented

@@ -108,6 +108,7 @@ func (p PhysicalPlan) Step(ID parser.NodeID) (LogicalStep, bool) {
 	return step, ok
 }
 
+// String representation of the physical plan
 func (p PhysicalPlan) String() string {
-	return fmt.Sprintf("Steps: %s, Pipeline: %s, Result: %s, TimeSpec: %v", p.steps, p.pipeline, p.ResultStep, p.TimeSpec)
+	return fmt.Sprintf("StepCount: %s, Pipeline: %s, Result: %s, TimeSpec: %v", p.steps, p.pipeline, p.ResultStep, p.TimeSpec)
 }
