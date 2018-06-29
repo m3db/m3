@@ -36,9 +36,10 @@ const (
 
 func defaultParams() url.Values {
 	vals := url.Values{}
+	now := time.Now()
 	vals.Add(targetParam, promQuery)
-	vals.Add(startParam, time.Now().Format(time.RFC3339))
-	vals.Add(endParam, string(time.Now().Add(time.Hour).Format(time.RFC3339)))
+	vals.Add(startParam, now.Format(time.RFC3339))
+	vals.Add(endParam, string(now.Add(time.Hour).Format(time.RFC3339)))
 	vals.Add(stepParam, (time.Duration(10) * time.Second).String())
 	return vals
 }

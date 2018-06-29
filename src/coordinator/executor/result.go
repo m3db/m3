@@ -23,7 +23,7 @@ package executor
 import (
 	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/coordinator/parser"
-	
+
 	"github.com/pkg/errors"
 )
 

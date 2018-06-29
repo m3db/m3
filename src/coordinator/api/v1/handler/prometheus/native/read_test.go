@@ -54,7 +54,7 @@ func TestPromReadWithFetchOnly(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, seriesList, 1)
 	s := seriesList[0]
-	assert.Equal(t, s.Values().Len(), 360, "10 second resolution for 1 hour")
+	assert.Equal(t, s.Values().Len(), 361, "10 second resolution for 1 hour, including the start time")
 	assert.Equal(t, s.Values().ValueAt(0), float64(0), "first value is zero since db returns values starting from start + 10ms")
 	assert.Equal(t, s.Values().ValueAt(1), float64(0))
 	for i := 2 ; i < 10; i++ {
@@ -85,7 +85,7 @@ func TestPromReadWithFetchAndCount(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, seriesList, 1)
 	s := seriesList[0]
-	assert.Equal(t, s.Values().Len(), 360, "10 second resolution for 1 hour")
+	assert.Equal(t, s.Values().Len(), 361, "10 second resolution for 1 hour including start time")
 	for i := 0 ; i < 10; i++ {
 		assert.Equal(t, s.Values().ValueAt(i), float64(1))
 	}
