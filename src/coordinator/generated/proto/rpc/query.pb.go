@@ -44,7 +44,7 @@
 		CompressedValuesReplica
 		CompressedDatapoints
 		Tag
-		SeriesCount
+		Series
 */
 package rpc
 
@@ -543,7 +543,7 @@ func init() {
 	proto.RegisterType((*CompressedValuesReplica)(nil), "rpc.CompressedValuesReplica")
 	proto.RegisterType((*CompressedDatapoints)(nil), "rpc.CompressedDatapoints")
 	proto.RegisterType((*Tag)(nil), "rpc.Tag")
-	proto.RegisterType((*Series)(nil), "rpc.SeriesCount")
+	proto.RegisterType((*Series)(nil), "rpc.Series")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -2809,7 +2809,7 @@ func (m *FetchResult) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SeriesCount", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Series", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -3520,10 +3520,10 @@ func (m *Series) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: SeriesCount: wiretype end group for non-group")
+			return fmt.Errorf("proto: Series: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: SeriesCount: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: Series: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
