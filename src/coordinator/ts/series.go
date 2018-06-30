@@ -36,7 +36,7 @@ type Series struct {
 	Tags models.Tags
 }
 
-// NewSeries creates a new SeriesCount at a given start time, backed by the provided values
+// NewSeries creates a new Series at a given start time, backed by the provided values
 func NewSeries(name string, vals Values, tags models.Tags) *Series {
 	return &Series{
 		name: name,

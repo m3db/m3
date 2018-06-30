@@ -54,11 +54,11 @@ func TestPromReadWithFetchOnly(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, seriesList, 1)
 	s := seriesList[0]
-	assert.Equal(t, s.Values().Len(), 361, "10 second resolution for 1 hour, including the start time")
-	assert.Equal(t, s.Values().ValueAt(0), float64(0), "first value is zero since db returns values starting from start + 10ms")
-	assert.Equal(t, s.Values().ValueAt(1), float64(0))
-	for i := 2 ; i < 10; i++ {
-		assert.Equal(t, s.Values().ValueAt(i), float64(i-1))
+	assert.Equal(t, 361, s.Values().Len(), "10 second resolution for 1 hour, including the start time")
+	assert.Equal(t, float64(0), s.Values().ValueAt(0), "first value is zero since db returns values starting from start + 10ms")
+	assert.Equal(t, float64(0), s.Values().ValueAt(1))
+	for i := 2; i < 10; i++ {
+		assert.Equal(t, float64(i-1), s.Values().ValueAt(i))
 	}
 
 	for i := 11; i < s.Values().Len(); i++ {
@@ -86,13 +86,13 @@ func TestPromReadWithFetchAndCount(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, seriesList, 1)
 	s := seriesList[0]
-	assert.Equal(t, s.Values().Len(), 361, "10 second resolution for 1 hour including start time")
-	for i := 0 ; i < 10; i++ {
-		assert.Equal(t, s.Values().ValueAt(i), float64(numSeries))
+	assert.Equal(t, 361, s.Values().Len(), "10 second resolution for 1 hour including start time")
+	for i := 0; i < 10; i++ {
+		assert.Equal(t, float64(numSeries), s.Values().ValueAt(i))
 	}
 
 	for i := 11; i < s.Values().Len(); i++ {
-		assert.Equal(t, s.Values().ValueAt(i), float64(0))
+		assert.Equal(t, float64(0), s.Values().ValueAt(i))
 	}
 }
 
@@ -110,16 +110,16 @@ func TestPromReadWithFetchAndAbs(t *testing.T) {
 	req.URL.RawQuery = params.Encode()
 
 	r, parseErr := parseParams(req)
-	require.Nil(t, parseErr)
+	require.NoError(t, parseErr)
 	seriesList, err := promRead.read(context.TODO(), httptest.NewRecorder(), r)
 	require.NoError(t, err)
 	require.Len(t, seriesList, 1)
 	s := seriesList[0]
-	assert.Equal(t, s.Values().Len(), 361, "10 second resolution for 1 hour including start time")
-	assert.Equal(t, s.Values().ValueAt(0), float64(0), "first value is zero since db returns values starting from start + 10ms")
-	assert.Equal(t, s.Values().ValueAt(1), float64(0))
-	for i := 2 ; i < 10; i++ {
-		assert.Equal(t, s.Values().ValueAt(i), float64(i-1))
+	assert.Equal(t, 361, s.Values().Len(), "10 second resolution for 1 hour including start time")
+	assert.Equal(t, float64(0), s.Values().ValueAt(0), "first value is zero since db returns values starting from start + 10ms")
+	assert.Equal(t, float64(0), s.Values().ValueAt(1))
+	for i := 2; i < 10; i++ {
+		assert.Equal(t, float64(i-1), s.Values().ValueAt(i))
 	}
 
 	for i := 11; i < s.Values().Len(); i++ {

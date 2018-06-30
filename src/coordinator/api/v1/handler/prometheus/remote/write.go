@@ -76,7 +76,7 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
 		h.promWriteMetrics.writeErrorsClient.Inc(1)
-		handler.Error(w, rErr.Error(), rErr.Code())
+		handler.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 	if err := h.write(r.Context(), req); err != nil {

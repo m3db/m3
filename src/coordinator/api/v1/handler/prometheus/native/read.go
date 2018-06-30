@@ -74,7 +74,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	params, rErr := parseParams(r)
 	if rErr != nil {
-		handler.Error(w, rErr.Error(), rErr.Code())
+		handler.Error(w, rErr.Inner(), rErr.Code())
 		return
 	}
 
