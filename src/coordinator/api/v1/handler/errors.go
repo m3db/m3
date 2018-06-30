@@ -54,7 +54,7 @@ func NewParseError(inner error, code int) *ParseError {
 	return &ParseError{inner, code}
 }
 
-// Errors returns the error object
+// Errors returns the error string
 func (e *ParseError) Error() string {
 	return e.inner.Error()
 }
