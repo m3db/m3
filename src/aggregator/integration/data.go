@@ -333,7 +333,7 @@ func computeExpectedAggregationBuckets(
 
 				// Add metric to the list of metrics aggregated by the aggregation bucket if necessary.
 				mu := mm.metric
-				key := metricKey{category: mu.category, typ: mu.Type(), id: string(mu.ID())}
+				key := metricKey{category: mu.category, typ: mu.Type(), id: string(mu.ID()), storagePolicy: key.storagePolicy}
 				datapoints, metricExists := bucket.data[key]
 				if !metricExists {
 					datapoints = make(valuesByTime)
@@ -593,9 +593,10 @@ func (a byTimeIDPolicyAscending) Less(i, j int) bool {
 type metricTypeFn func(ts time.Time, idx int) metric.Type
 
 type metricKey struct {
-	category metricCategory
-	typ      metric.Type
-	id       string
+	category      metricCategory
+	typ           metric.Type
+	id            string
+	storagePolicy policy.StoragePolicy
 }
 
 type valuesByTime map[int64]interface{}

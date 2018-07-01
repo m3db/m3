@@ -24,6 +24,7 @@ package integration
 
 import (
 	"math"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -36,6 +37,7 @@ import (
 	maggregation "github.com/m3db/m3metrics/aggregation"
 	"github.com/m3db/m3metrics/metadata"
 	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/pipeline"
 	"github.com/m3db/m3metrics/pipeline/applied"
 	"github.com/m3db/m3metrics/policy"
@@ -218,12 +220,15 @@ func TestMultiServerForwardingPipeline(t *testing.T) {
 	log.Infof("%d servers have become leaders", len(leaders))
 
 	var (
-		idPrefix      = "foo"
-		numIDs        = 100
-		start         = getNowFn()
-		stop          = start.Add(10 * time.Second)
-		interval      = time.Second
-		storagePolicy = policy.NewStoragePolicy(2*time.Second, xtime.Second, time.Hour)
+		idPrefix        = "foo"
+		numIDs          = 2
+		start           = getNowFn()
+		stop            = start.Add(12 * time.Second)
+		interval        = time.Second
+		storagePolicies = policy.StoragePolicies{
+			policy.NewStoragePolicy(2*time.Second, xtime.Second, time.Hour),
+			policy.NewStoragePolicy(4*time.Second, xtime.Second, 24*time.Hour),
+		}
 	)
 
 	ids := generateTestIDs(idPrefix, numIDs)
@@ -235,7 +240,7 @@ func TestMultiServerForwardingPipeline(t *testing.T) {
 				Pipelines: []metadata.PipelineMetadata{
 					{
 						AggregationID:   maggregation.DefaultID,
-						StoragePolicies: []policy.StoragePolicy{storagePolicy},
+						StoragePolicies: storagePolicies,
 						Pipeline: applied.NewPipeline([]applied.OpUnion{
 							{
 								Type:           pipeline.TransformationOpType,
@@ -303,17 +308,21 @@ func TestMultiServerForwardingPipeline(t *testing.T) {
 		time.Sleep(time.Second)
 	}
 
-	// Move time forward and wait for flushing to happen at the originating server
-	// (where the raw metrics are aggregated).
-	originatingServerflushTime := stop.Add(storagePolicy.Resolution().Window)
-	setNowFn(originatingServerflushTime)
-	time.Sleep(2 * time.Second)
+	// Move time forward using the larger resolution and wait for flushing to happen
+	// at the originating server (where the raw metrics are aggregated).
+	originatingServerflushTime := stop.Add(2 * storagePolicies[1].Resolution().Window)
+	for currTime := stop; !currTime.After(originatingServerflushTime); currTime = currTime.Add(time.Second) {
+		setNowFn(currTime)
+		time.Sleep(time.Second)
+	}
 
-	// Move time forward again and wait for flushing to happen at the destination server
-	// (where the rollup metrics are aggregated).
-	destinationServerflushTime := originatingServerflushTime.Add(2 * time.Second)
-	setNowFn(destinationServerflushTime)
-	time.Sleep(2 * time.Second)
+	// Move time forward using the larger resolution again and wait for flushing to
+	// happen at the destination server (where the rollup metrics are aggregated).
+	destinationServerflushTime := originatingServerflushTime.Add(2 * storagePolicies[1].Resolution().Window)
+	for currTime := originatingServerflushTime; !currTime.After(destinationServerflushTime); currTime = currTime.Add(time.Second) {
+		setNowFn(currTime)
+		time.Sleep(time.Second)
+	}
 
 	// Stop the servers.
 	for i, server := range servers {
@@ -337,42 +346,72 @@ func TestMultiServerForwardingPipeline(t *testing.T) {
 	}
 
 	aggregatorOpts := destinationServer.aggregatorOpts
-	expectedMetricKey := metricKey{
-		category: forwardedMetric,
-		typ:      metric.GaugeType,
-		id:       pipelineRollupID,
-	}
-	expectedValuesByTime := make(valuesByTime)
-	expectedValues := []float64{
-		math.NaN(),
-		float64(numIDs),
-		float64(numIDs),
-		float64(numIDs),
-		float64(numIDs),
-	}
-	for i := 0; i < len(expectedValues); i++ {
-		currTime := start.Add(time.Duration(i+1) * storagePolicy.Resolution().Window)
-		agg := aggregation.NewGauge(aggregation.NewOptions())
-		agg.Update(expectedValues[i])
-		expectedValuesByTime[currTime.UnixNano()] = agg
-	}
-	expectedDatapointsByID := datapointsByID{
-		expectedMetricKey: expectedValuesByTime,
-	}
-	expectedBuckets := []aggregationBucket{
+	expectedMetricKeyList := []metricKey{
 		{
-			key: aggregationKey{
-				aggregationID: maggregation.MustCompressTypes(maggregation.Sum),
-				storagePolicy: storagePolicy,
-			},
-			data: expectedDatapointsByID,
+			category:      forwardedMetric,
+			typ:           metric.GaugeType,
+			id:            pipelineRollupID,
+			storagePolicy: storagePolicies[0],
+		},
+		{
+			category:      forwardedMetric,
+			typ:           metric.GaugeType,
+			id:            pipelineRollupID,
+			storagePolicy: storagePolicies[1],
 		},
 	}
-	expectedResults, err := computeExpectedAggregationOutput(
-		destinationServerflushTime,
-		expectedBuckets,
-		aggregatorOpts,
-	)
-	require.NoError(t, err)
-	require.True(t, cmp.Equal(expectedResults, destinationServer.sortedResults(), testCmpOpts...))
+	// Expected results for 2s:1h storage policy.
+	expectedValuesByTimeList := []valuesByTime{
+		make(valuesByTime),
+		make(valuesByTime),
+	}
+	expectedValuesList := [][]float64{
+		{
+			math.NaN(),
+			float64(numIDs),
+			float64(numIDs),
+			float64(numIDs),
+			float64(numIDs),
+			float64(numIDs),
+		},
+		{
+			math.NaN(),
+			float64(numIDs),
+			float64(numIDs),
+		},
+	}
+	for spIdx := 0; spIdx < len(storagePolicies); spIdx++ {
+		storagePolicy := storagePolicies[spIdx]
+		for i := 0; i < len(expectedValuesList[spIdx]); i++ {
+			currTime := start.Add(time.Duration(i+1) * storagePolicy.Resolution().Window)
+			agg := aggregation.NewGauge(aggregation.NewOptions())
+			agg.Update(expectedValuesList[spIdx][i])
+			expectedValuesByTimeList[spIdx][currTime.UnixNano()] = agg
+		}
+	}
+
+	var expectedResultsFlattened []aggregated.MetricWithStoragePolicy
+	for i := 0; i < len(storagePolicies); i++ {
+		expectedDatapointsByID := datapointsByID{
+			expectedMetricKeyList[i]: expectedValuesByTimeList[i],
+		}
+		expectedBuckets := []aggregationBucket{
+			{
+				key: aggregationKey{
+					aggregationID: maggregation.MustCompressTypes(maggregation.Sum),
+					storagePolicy: storagePolicies[i],
+				},
+				data: expectedDatapointsByID,
+			},
+		}
+		expectedResults, err := computeExpectedAggregationOutput(
+			destinationServerflushTime,
+			expectedBuckets,
+			aggregatorOpts,
+		)
+		require.NoError(t, err)
+		expectedResultsFlattened = append(expectedResultsFlattened, expectedResults...)
+	}
+	sort.Sort(byTimeIDPolicyAscending(expectedResultsFlattened))
+	require.True(t, cmp.Equal(expectedResultsFlattened, destinationServer.sortedResults(), testCmpOpts...))
 }
