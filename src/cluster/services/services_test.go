@@ -1005,6 +1005,19 @@ func TestLeaderService(t *testing.T) {
 		"should cache 6 unique client entries")
 }
 
+func TestServiceIDEqual(t *testing.T) {
+	sid := NewServiceID().SetName("name").SetEnvironment("env").SetZone("zone")
+	assert.Equal(t, "name", sid.Name())
+	assert.Equal(t, "env", sid.Environment())
+	assert.Equal(t, "zone", sid.Zone())
+
+	assert.True(t, sid.Equal(NewServiceID().SetName("name").SetEnvironment("env").SetZone("zone")))
+	assert.False(t, sid.Equal(NewServiceID().SetName("name").SetEnvironment("env")))
+	assert.False(t, sid.Equal(NewServiceID().SetName("name").SetZone("zone")))
+	assert.False(t, sid.Equal(NewServiceID().SetEnvironment("env").SetZone("zone")))
+	assert.False(t, sid.Equal(nil))
+}
+
 func newTestLeaderGen(mc *gomock.Controller) LeaderGen {
 	svc := NewMockLeaderService(mc)
 	return func(sid ServiceID, eo ElectionOptions) (LeaderService, error) {

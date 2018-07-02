@@ -270,6 +270,9 @@ type ServiceID interface {
 	// SetZone sets the zone of the ServiceID.
 	SetZone(zone string) ServiceID
 
+	// Equal retruns if the service IDs are equivalent.
+	Equal(value ServiceID) bool
+
 	// String returns a description of the ServiceID.
 	String() string
 }
