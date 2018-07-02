@@ -32,6 +32,7 @@ import (
 
 	"github.com/m3db/m3x/checked"
 
+	"github.com/m3db/m3db/src/dbnode/digest"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3db/src/dbnode/persist"
@@ -227,9 +228,8 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 					for seriesID, data := range seriesForShard {
 						checkedBytes := checked.NewBytes(data, nil)
 						checkedBytes.IncRef()
-						// TODO: Calculate correct checksum
 						tags := orderedWritesBySeries[seriesID][0].series.Tags
-						writer.Write(ident.StringID(seriesID), tags, checkedBytes, uint32(0))
+						writer.Write(ident.StringID(seriesID), tags, checkedBytes, digest.Checksum(data))
 					}
 
 					err = writer.Close()

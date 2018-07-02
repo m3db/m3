@@ -589,7 +589,7 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 					shard, blockStart.Unix(), latestSnapshot.ID.VolumeIndex)
 				for {
 					// TODO: Verify checksum
-					id, tagsIter, data, _, err := reader.Read()
+					id, tagsIter, data, expectedChecksum, err := reader.Read()
 					if err != nil && err != io.EOF {
 						return nil, err
 					}
@@ -608,6 +608,17 @@ func (s *commitLogSource) bootstrapAvailableSnapshotFiles(
 
 					dbBlock := blocksPool.Get()
 					dbBlock.Reset(blockStart, blockSize, ts.NewSegment(data, nil, ts.FinalizeHead))
+					// Resetting the block will trigger a checksum calculation, so use that instead
+					// of calculating it twice.
+					checksum, err := dbBlock.Checksum()
+					if err != nil {
+						return nil, err
+					}
+
+					if checksum != expectedChecksum {
+						// TODO: Need to propagate back better
+						return nil, fmt.Errorf("checksum for series: %s was %d but expected %d", id, checksum, expectedChecksum)
+					}
 
 					shardResult.AddBlock(id, tags, dbBlock)
 				}
