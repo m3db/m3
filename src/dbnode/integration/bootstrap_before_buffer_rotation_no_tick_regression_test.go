@@ -202,7 +202,7 @@ func TestBootstrapBeforeBufferRotationNoTick(t *testing.T) {
 
 	// Verify in-memory data match what we expect - commitlog write should not be lost
 	expectedSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{
-		xtime.ToUnixNano(commitlogWrite.Timestamp): generate.SeriesBlock{
+		xtime.ToUnixNano(commitlogWrite.Timestamp.Truncate(blockSize)): generate.SeriesBlock{
 			generate.Series{
 				ID:   testID,
 				Data: []ts.Datapoint{commitlogWrite},
