@@ -552,13 +552,15 @@ func newStandardMetricList(
 	id standardMetricListID,
 	opts Options,
 ) (*standardMetricList, error) {
+	iOpts := opts.InstrumentOptions()
+	listScope := iOpts.MetricsScope().Tagged(map[string]string{"list-type": "standard"})
 	l, err := newBaseMetricList(
 		shard,
 		id.resolution,
 		standardMetricTargetNanos,
 		isStandardMetricEarlierThan,
 		standardMetricTimestampNanos,
-		opts,
+		opts.SetInstrumentOptions(iOpts.SetMetricsScope(listScope)),
 	)
 	if err != nil {
 		return nil, err
@@ -634,6 +636,8 @@ func newForwardedMetricList(
 		numForwardedTimes    = id.numForwardedTimes
 		maxLatenessAllowedFn = opts.MaxAllowedForwardingDelayFn()
 		maxLatenessAllowed   = maxLatenessAllowedFn(resolution, numForwardedTimes)
+		iOpts                = opts.InstrumentOptions()
+		listScope            = iOpts.MetricsScope().Tagged(map[string]string{"list-type": "forwarded"})
 	)
 	// Forwarded metrics that have been kept for longer than the maximum lateness
 	// allowed will be flushed.
@@ -646,7 +650,7 @@ func newForwardedMetricList(
 		targetNanosFn,
 		isForwardedMetricEarlierThan,
 		forwardedMetricTimestampNanos,
-		opts,
+		opts.SetInstrumentOptions(iOpts.SetMetricsScope(listScope)),
 	)
 	if err != nil {
 		return nil, err

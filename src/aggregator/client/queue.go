@@ -214,6 +214,8 @@ func (q *queue) drain() {
 				log.NewErrField(err),
 			).Error("write data error")
 			q.metrics.connWriteErrors.Inc(1)
+		} else {
+			q.metrics.connWriteSuccesses.Inc(1)
 		}
 		buf.Close()
 	}
@@ -242,6 +244,7 @@ type queueMetrics struct {
 	enqueueOldestDropped  tally.Counter
 	enqueueCurrentDropped tally.Counter
 	enqueueClosedErrors   tally.Counter
+	connWriteSuccesses    tally.Counter
 	connWriteErrors       tally.Counter
 }
 
@@ -252,6 +255,7 @@ func newQueueMetrics(s tally.Scope, queueSize int) queueMetrics {
 	}
 	buckets := tally.MustMakeLinearValueBuckets(0, float64(queueSize/numBuckets), numBuckets)
 	enqueueScope := s.Tagged(map[string]string{"action": "enqueue"})
+	connWriteScope := s.Tagged(map[string]string{"action": "conn-write"})
 	return queueMetrics{
 		queueLen:         s.Histogram("queue-length", buckets),
 		enqueueSuccesses: enqueueScope.Counter("successes"),
@@ -261,7 +265,7 @@ func newQueueMetrics(s tally.Scope, queueSize int) queueMetrics {
 			Counter("dropped"),
 		enqueueClosedErrors: enqueueScope.Tagged(map[string]string{"error-type": "queue-closed"}).
 			Counter("errors"),
-		connWriteErrors: s.Tagged(map[string]string{"error-type": "conn-write", "action": "drain"}).
-			Counter("errors"),
+		connWriteSuccesses: connWriteScope.Counter("successes"),
+		connWriteErrors:    connWriteScope.Counter("errors"),
 	}
 }

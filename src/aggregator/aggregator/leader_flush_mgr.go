@@ -36,13 +36,29 @@ const (
 	defaultInitialFlushCapacity = 32
 )
 
+type leaderFlusherMetrics struct {
+	updateFlushTimes tally.Counter
+}
+
+func newLeaderFlusherMetrics(scope tally.Scope) leaderFlusherMetrics {
+	return leaderFlusherMetrics{
+		updateFlushTimes: scope.Counter("update-flush-times"),
+	}
+}
+
 type leaderFlushManagerMetrics struct {
 	queueSize tally.Gauge
+	standard  leaderFlusherMetrics
+	forwarded leaderFlusherMetrics
 }
 
 func newLeaderFlushManagerMetrics(scope tally.Scope) leaderFlushManagerMetrics {
+	standardScope := scope.Tagged(map[string]string{"flusher-type": "standard"})
+	forwardedScope := scope.Tagged(map[string]string{"flusher-type": "forwarded"})
 	return leaderFlushManagerMetrics{
 		queueSize: scope.Gauge("queue-size"),
+		standard:  newLeaderFlusherMetrics(standardScope),
+		forwarded: newLeaderFlusherMetrics(forwardedScope),
 	}
 }
 
@@ -248,6 +264,7 @@ func (mgr *leaderFlushManager) updateStandardFlushTimesWithLock(
 		flushTimes.StandardByResolution[int64(resolution)] = flusher.LastFlushedNanos()
 		flushTimes.Tombstoned = false
 	}
+	mgr.metrics.standard.updateFlushTimes.Inc(int64(len(flushers)))
 }
 
 func (mgr *leaderFlushManager) updateForwardedFlushTimesWithLock(
@@ -273,6 +290,7 @@ func (mgr *leaderFlushManager) updateForwardedFlushTimesWithLock(
 		forwardedFlushTimes.ByNumForwardedTimes[int32(numForwardedTimes)] = flusher.LastFlushedNanos()
 		flushTimes.Tombstoned = false
 	}
+	mgr.metrics.forwarded.updateFlushTimes.Inc(int64(len(flushers)))
 }
 
 func (mgr *leaderFlushManager) nowNanos() int64 { return mgr.nowFn().UnixNano() }
