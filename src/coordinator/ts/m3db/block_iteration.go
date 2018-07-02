@@ -46,18 +46,28 @@ func (m MultiSeriesBlock) SeriesIter() block.SeriesIter {
 }
 
 // SeriesMeta returns metadata for the individual timeseries
-func (m MultiSeriesBlock) SeriesMeta() ([]block.SeriesMeta, error) {
+func (m MultiSeriesBlock) SeriesMeta() []block.SeriesMeta {
 	metas := make([]block.SeriesMeta, len(m.Blocks))
 	for i, s := range m.Blocks {
 		metas[i].Tags = s.Metadata.Tags
 	}
-	return metas, nil
+	return metas
+}
+
+// StepCount returns the total steps/columns
+func (m MultiSeriesBlock) StepCount() int {
+	return m.Blocks[0].Metadata.Bounds.Steps()
 }
 
 // Close frees up resources
 func (m MultiSeriesBlock) Close() error {
 	// todo(braskin): Actually free up resources
 	return nil
+}
+
+// SeriesCount returns the number of time series in a MultiSeriesBlock
+func (m MultiSeriesBlock) SeriesCount() int {
+	return len(m.Blocks)
 }
 
 func newConsolidatedSeriesBlockIters(blocks ConsolidatedSeriesBlocks) consolidatedSeriesBlockIters {

@@ -33,9 +33,7 @@ func makeResults() [][]float64 {
 	var results [][]float64
 	sliceOfNaNs := []float64{math.NaN(), math.NaN()}
 	results = append(results, []float64{1, 1})
-	results = append(results, sliceOfNaNs)
-	results = append(results, sliceOfNaNs)
-	results = append(results, sliceOfNaNs)
+	results = append(results, sliceOfNaNs, sliceOfNaNs, sliceOfNaNs)
 	results = append(results, []float64{3, 3})
 	for i := 0; i < 11; i++ {
 		results = append(results, sliceOfNaNs)

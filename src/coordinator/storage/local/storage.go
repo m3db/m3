@@ -294,10 +294,18 @@ func (s *localStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuer
 		return block.Result{}, err
 	}
 
-	var res block.Result
-	res.Blocks = multiSeriesBlocks
+	var (
+		res block.Result
 
-	return multiSeriesBlocks, nil
+		blocks = make([]block.Block, len(multiSeriesBlocks))
+	)
+
+	for i, block := range multiSeriesBlocks {
+		blocks[i] = block
+	}
+	res.Blocks = blocks
+
+	return res, nil
 }
 
 func (s *localStorage) Close() error {
