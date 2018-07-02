@@ -42,14 +42,14 @@ var (
 type Result interface {
 	abort(err error)
 	done()
-	Blocks() chan ResultChan
+	ResultChan() chan ResultChan
 }
 
 // ResultNode is used to provide the results to the caller from the query execution
 type ResultNode struct {
-	mu      sync.Mutex
-	blocks  chan ResultChan
-	aborted bool
+	mu         sync.Mutex
+	resultChan chan ResultChan
+	aborted    bool
 }
 
 // ResultChan has the result from a block
@@ -60,7 +60,7 @@ type ResultChan struct {
 
 func newResultNode() *ResultNode {
 	blocks := make(chan ResultChan, channelSize)
-	return &ResultNode{blocks: blocks}
+	return &ResultNode{resultChan: blocks}
 }
 
 // Process the block
@@ -69,16 +69,16 @@ func (r *ResultNode) Process(ID parser.NodeID, block block.Block) error {
 		return errAborted
 	}
 
-	r.blocks <- ResultChan{
+	r.resultChan <- ResultChan{
 		Block: block,
 	}
 
 	return nil
 }
 
-// Blocks return a channel to stream back blocks to the client
-func (r *ResultNode) Blocks() chan ResultChan {
-	return r.blocks
+// ResultChan return a channel to stream back resultChan to the client
+func (r *ResultNode) ResultChan() chan ResultChan {
+	return r.resultChan
 }
 
 // TODO: Signal error downstream
@@ -90,12 +90,12 @@ func (r *ResultNode) abort(err error) {
 	}
 
 	r.aborted = true
-	r.blocks <- ResultChan{
+	r.resultChan <- ResultChan{
 		Err: err,
 	}
-	close(r.blocks)
+	close(r.resultChan)
 }
 
 func (r *ResultNode) done() {
-	close(r.blocks)
+	close(r.resultChan)
 }

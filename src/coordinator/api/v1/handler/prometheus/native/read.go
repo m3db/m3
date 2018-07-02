@@ -122,29 +122,42 @@ func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, pa
 		}
 	}()
 
+	var processErr error
 	for result := range results {
 		if result.Err != nil {
-			return nil, result.Err
+			processErr = result.Err
+			break
 		}
 
-		blocks := result.Result.Blocks()
+		resultChan := result.Result.ResultChan()
 		// TODO(nikunj): Stream blocks to client
-		for blkResult := range blocks {
+		for blkResult := range resultChan {
 			if blkResult.Err != nil {
-				return nil, blkResult.Err
+				processErr = blkResult.Err
+				break
 			}
 
 			// Insert blocks sorted by start time
 			sortedBlockList, err = insertSortedBlock(blkResult.Block, sortedBlockList)
 			if err != nil {
-				return nil, err
+				processErr = err
+				break
 			}
 		}
 	}
 
-	seriesList, err := sortedBlocksToSeriesList(sortedBlockList)
+	// Ensure that the blocks are closed. Can't do this above since sortedBlockList might change
+	defer func() {
+		for _, b := range sortedBlockList {
+			b.Close()
+		}
+	}()
 
-	return seriesList, err
+	if processErr != nil {
+		return nil, err
+	}
+
+	return sortedBlocksToSeriesList(sortedBlockList)
 }
 
 func sortedBlocksToSeriesList(blockList []block.Block) ([]*ts.Series, error) {
@@ -164,8 +177,9 @@ func sortedBlocksToSeriesList(blockList []block.Block) ([]*ts.Series, error) {
 
 	seriesMeta := firstBlock.SeriesMeta()
 	bounds := firstBlock.Meta().Bounds
+	numValues := firstBlock.StepCount() * len(blockList)
 	for i := 0; i < numSeries; i++ {
-		values := ts.NewFixedStepValues(bounds.StepSize, firstBlock.StepCount()*len(blockList), math.NaN(), bounds.Start)
+		values := ts.NewFixedStepValues(bounds.StepSize, numValues, math.NaN(), bounds.Start)
 		valIdx := 0
 		for idx, iter := range seriesIters {
 			if !iter.Next() {

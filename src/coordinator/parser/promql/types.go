@@ -39,7 +39,11 @@ func NewSelectorFromVector(n *promql.VectorSelector) (parser.Params, error) {
 		return nil, err
 	}
 
-	return functions.FetchOp{Name: n.Name, Offset: n.Offset, Matchers: matchers}, nil
+	return functions.FetchOp{
+		Name:     n.Name,
+		Offset:   n.Offset,
+		Matchers: matchers,
+	}, nil
 }
 
 // NewSelectorFromMatrix creates a new fetchop

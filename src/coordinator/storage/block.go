@@ -155,9 +155,10 @@ func (m *multiSeriesBlockSeriesIter) Current() block.Series {
 	s := m.block.seriesList[m.index]
 	seriesLen := s.Values().Len()
 	values := make([]float64, m.block.StepCount())
+	seriesValues := s.Values()
 	for i := 0; i < m.block.StepCount(); i++ {
 		if i < seriesLen {
-			values[i] = s.Values().ValueAt(i)
+			values[i] = seriesValues.ValueAt(i)
 		} else {
 			values[i] = math.NaN()
 		}

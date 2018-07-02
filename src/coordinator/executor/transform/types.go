@@ -38,7 +38,7 @@ type OpNode interface {
 	Process(ID parser.NodeID, block block.Block) error
 }
 
-// TimeSpec defines the window for the query
+// TimeSpec defines the time bounds for the query execution
 type TimeSpec struct {
 	Start time.Time
 	End   time.Time

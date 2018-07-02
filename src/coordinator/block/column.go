@@ -196,5 +196,6 @@ func (m *columnBlockSeriesIter) Current() Series {
 	return NewSeries(values, m.seriesMeta[m.idx])
 }
 
+// TODO: Actually free resources once we do pooling
 func (m *columnBlockSeriesIter) Close() {
 }

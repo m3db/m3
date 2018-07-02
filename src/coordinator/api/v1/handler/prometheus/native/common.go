@@ -34,6 +34,9 @@ import (
 	"github.com/m3db/m3db/src/coordinator/ts"
 	"github.com/m3db/m3db/src/coordinator/util"
 	"github.com/m3db/m3db/src/coordinator/util/json"
+	"github.com/m3db/m3db/src/coordinator/util/logging"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -73,34 +76,41 @@ func parseParams(r *http.Request) (models.RequestParams, *handler.ParseError) {
 	if err != nil {
 		return params, handler.NewParseError(err, http.StatusBadRequest)
 	}
-
 	params.Timeout = t
+
 	start, err := parseTime(r, startParam)
 	if err != nil {
 		return params, handler.NewParseError(fmt.Errorf(formatErrStr, startParam, err), http.StatusBadRequest)
 	}
-
 	params.Start = start
+
 	end, err := parseTime(r, endParam)
 	if err != nil {
 		return params, handler.NewParseError(fmt.Errorf(formatErrStr, endParam, err), http.StatusBadRequest)
 	}
-
 	params.End = end
+
 	step, err := parseDuration(r, stepParam)
 	if err != nil {
 		return params, handler.NewParseError(fmt.Errorf(formatErrStr, stepParam, err), http.StatusBadRequest)
 	}
-
 	params.Step = step
+
 	target, err := parseTarget(r)
 	if err != nil {
 		return params, handler.NewParseError(fmt.Errorf(formatErrStr, targetParam, err), http.StatusBadRequest)
 	}
-
 	params.Target = target
+
 	// Skip debug if unable to parse debug param
-	params.Debug, _ = strconv.ParseBool(r.FormValue(debugParam))
+	debugVal := r.FormValue(debugParam)
+	if debugVal != "" {
+		debug, err := strconv.ParseBool(r.FormValue(debugParam))
+		if err != nil {
+			logging.WithContext(r.Context()).Warn("unable to parse debug flag", zap.Any("error", err))
+		}
+		params.Debug = debug
+	}
 
 	return params, nil
 }
@@ -154,6 +164,7 @@ func renderResultsJSON(w io.Writer, series []*ts.Series) {
 			jw.EndObject()
 		}
 	}
+
 	jw.EndArray()
 	jw.Close()
 }

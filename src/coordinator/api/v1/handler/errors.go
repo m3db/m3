@@ -54,9 +54,9 @@ func NewParseError(inner error, code int) *ParseError {
 	return &ParseError{inner, code}
 }
 
-// Errors returns the error string
+// Error returns the error string
 func (e *ParseError) Error() string {
-	return e.inner.Error()
+	return fmt.Sprintf("err: %s, code: %d", e.inner.Error(), e.code)
 }
 
 // Inner returns the error object
@@ -67,11 +67,6 @@ func (e *ParseError) Inner() error {
 // Code returns the parse error type
 func (e *ParseError) Code() int {
 	return e.code
-}
-
-// String returns the string representation of the error
-func (e *ParseError) String() string {
-	return fmt.Sprintf("error: %v, code: %d", e.inner, e.code)
 }
 
 // IsInvalidParams returns true if this is an invalid params error
