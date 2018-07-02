@@ -162,6 +162,11 @@ func isRollupID(
 	return false
 }
 
+// rollupIDProvider is a constructor for rollup IDs, it can be pooled to avoid
+// requiring allocation every time we need to construct a rollup ID.
+// When used as a ident.TagIterator for the call to serialize.TagEncoder Encode
+// method, it will return the rollup tag in the correct alphabetical order
+// when progressing through the existing tags.
 type rollupIDProvider struct {
 	index          int
 	tagPairs       []id.TagPair
@@ -262,8 +267,7 @@ func (p *rollupIDProvider) Remaining() int {
 }
 
 func (p *rollupIDProvider) Duplicate() ident.TagIterator {
-	duplicate := new(rollupIDProvider)
-	*duplicate = *p
+	duplicate := p.pool.Get()
 	duplicate.reset(p.tagPairs)
 	return duplicate
 }
@@ -297,34 +301,27 @@ func (p *rollupIDProviderPool) Put(v *rollupIDProvider) {
 	p.pool.Put(v)
 }
 
-func encodedTagsNameAndTags(
+func resolveEncodedTagsNameTag(
 	id []byte,
 	iterPool *encodedTagsIteratorPool,
-) ([]byte, []byte, error) {
+) ([]byte, error) {
 	// ID is always the encoded tags for downsampling IDs
-	metricTags := id
-
 	iter := iterPool.Get()
-	iter.Reset(metricTags)
+	iter.Reset(id)
 	defer iter.Close()
 
-	var metricName []byte
-	for iter.Next() {
-		name, value := iter.Current()
-		if bytes.Equal(metricNameTagName, name) {
-			metricName = value
-			break
-		}
-	}
-
-	if err := iter.Err(); err != nil {
-		return nil, nil, err
-	}
-
-	if metricName == nil {
+	value, ok := iter.TagValue(metricNameTagName)
+	if !ok {
 		// No name was found in encoded tags
-		return nil, nil, errNoMetricNameTag
+		return nil, errNoMetricNameTag
 	}
 
-	return metricName, metricTags, nil
+	idx := bytes.Index(id, value)
+	if idx == -1 {
+		return nil, fmt.Errorf(
+			"resolved metric name tag value not found in ID: %v", value)
+	}
+
+	// Return original reference to avoid needing to return a copy
+	return id[idx : idx+len(value)], nil
 }

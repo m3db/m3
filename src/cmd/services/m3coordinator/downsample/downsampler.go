@@ -202,7 +202,13 @@ func (o DownsamplerOptions) newAggregator() (newAggregatorResult, error) {
 	tagsFilterOptions := filters.TagsFilterOptions{
 		NameTagKey: metricNameTagName,
 		NameAndTagsFn: func(id []byte) ([]byte, []byte, error) {
-			return encodedTagsNameAndTags(id, sortedTagIteratorPool)
+			name, err := resolveEncodedTagsNameTag(id, sortedTagIteratorPool)
+			if err != nil {
+				return nil, nil, err
+			}
+			// ID is always the encoded tags for IDs in the downsampler
+			tags := id
+			return name, tags, nil
 		},
 		SortedTagIteratorFn: sortedTagIteratorFn,
 	}
