@@ -125,7 +125,7 @@ func (as *activeRuleSet) ForwardMatch(
 	)
 	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
 		nextMatchRes := as.forwardMatchAt(id, nextCutoverNanos)
-		forExistingID = append(forExistingID, nextMatchRes.forExistingID)
+		forExistingID = mergeResultsForExistingID(forExistingID, nextMatchRes.forExistingID, nextCutoverNanos)
 		forNewRollupIDs = mergeResultsForNewRollupIDs(forNewRollupIDs, nextMatchRes.forNewRollupIDs, nextCutoverNanos)
 		nextIdx++
 		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
@@ -160,11 +160,11 @@ func (as *activeRuleSet) ReverseMatch(
 	}
 
 	if currForExistingID, found := as.reverseMappingsFor(id, name, tags, isRollupID, fromNanos, mt, at); found {
-		forExistingID = append(forExistingID, currForExistingID)
+		forExistingID = mergeResultsForExistingID(forExistingID, currForExistingID, fromNanos)
 	}
 	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
 		if nextForExistingID, found := as.reverseMappingsFor(id, name, tags, isRollupID, nextCutoverNanos, mt, at); found {
-			forExistingID = append(forExistingID, nextForExistingID)
+			forExistingID = mergeResultsForExistingID(forExistingID, nextForExistingID, nextCutoverNanos)
 		}
 		nextIdx++
 		nextCutoverNanos = as.cutoverNanosAt(nextIdx)
@@ -616,6 +616,31 @@ func filteredPipelinesWithAggregationType(
 		cur++
 	}
 	return pipelines[:cur]
+}
+
+// mergeResultsForExistingID merges the next staged metadata into the current list of staged
+// metadatas while ensuring the cutover times of the staged metadatas are non-decreasing. This
+// is needed because the cutover times of staged metadata results produced by mapping rule matching
+// may not always be in ascending order. For example, if at time T0 a metric matches against a
+// mapping rule, and the filter of such rule changed at T1 such that the metric no longer matches
+// the rule, this would indicate the staged metadata at T0 would have a cutover time of T0,
+// whereas the staged metadata at T1 would have a cutover time of 0 (due to no rule match),
+// in which case we need to set the cutover time of the staged metadata at T1 to T1 to ensure
+// the mononicity of cutover times.
+func mergeResultsForExistingID(
+	currMetadatas metadata.StagedMetadatas,
+	nextMetadata metadata.StagedMetadata,
+	nextCutoverNanos int64,
+) metadata.StagedMetadatas {
+	if len(currMetadatas) == 0 {
+		return metadata.StagedMetadatas{nextMetadata}
+	}
+	currCutoverNanos := currMetadatas[len(currMetadatas)-1].CutoverNanos
+	if currCutoverNanos > nextMetadata.CutoverNanos {
+		nextMetadata.CutoverNanos = nextCutoverNanos
+	}
+	currMetadatas = append(currMetadatas, nextMetadata)
+	return currMetadatas
 }
 
 // mergeResultsForNewRollupIDs merges the current list of staged metadatas for new rollup IDs

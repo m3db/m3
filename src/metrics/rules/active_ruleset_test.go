@@ -59,7 +59,7 @@ func TestActiveRuleSetCutoverTimesWithMappingRules(t *testing.T) {
 		nil,
 		aggregation.NewTypesOptions(),
 	)
-	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 100000}
+	expectedCutovers := []int64{5000, 8000, 10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 100000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
 }
 
@@ -87,7 +87,7 @@ func TestActiveRuleSetCutoverTimesWithMappingRulesAndRollupRules(t *testing.T) {
 		nil,
 		aggregation.NewTypesOptions(),
 	)
-	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 90000, 100000, 120000}
+	expectedCutovers := []int64{5000, 8000, 10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 90000, 100000, 120000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
 }
 
@@ -391,6 +391,34 @@ func TestActiveRuleSetForwardMatchWithMappingRules(t *testing.T) {
 							},
 						},
 					},
+				},
+			},
+		},
+		{
+			id:            "mtagName1=mtagValue3",
+			matchFrom:     4000,
+			matchTo:       9000,
+			expireAtNanos: 10000,
+			forExistingIDResult: metadata.StagedMetadatas{
+				metadata.DefaultStagedMetadata,
+				metadata.StagedMetadata{
+					CutoverNanos: 5000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+								},
+							},
+						},
+					},
+				},
+				metadata.StagedMetadata{
+					CutoverNanos: 8000,
+					Tombstoned:   false,
+					Metadata:     metadata.DefaultMetadata,
 				},
 			},
 		},
@@ -2267,6 +2295,34 @@ func TestActiveRuleSetForwardMatchWithMappingRulesAndRollupRules(t *testing.T) {
 				},
 			},
 		},
+		{
+			id:            "mtagName1=mtagValue3",
+			matchFrom:     4000,
+			matchTo:       9000,
+			expireAtNanos: 10000,
+			forExistingIDResult: metadata.StagedMetadatas{
+				metadata.DefaultStagedMetadata,
+				metadata.StagedMetadata{
+					CutoverNanos: 5000,
+					Tombstoned:   false,
+					Metadata: metadata.Metadata{
+						Pipelines: []metadata.PipelineMetadata{
+							{
+								AggregationID: aggregation.DefaultID,
+								StoragePolicies: policy.StoragePolicies{
+									policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+								},
+							},
+						},
+					},
+				},
+				metadata.StagedMetadata{
+					CutoverNanos: 8000,
+					Tombstoned:   false,
+					Metadata:     metadata.DefaultMetadata,
+				},
+			},
+		},
 	}
 
 	as := newActiveRuleSet(
@@ -2920,6 +2976,18 @@ func testMappingRules(t *testing.T) []*mappingRule {
 		testTagsFilterOptions(),
 	)
 	require.NoError(t, err)
+	filter3, err := filters.NewTagsFilter(
+		filters.TagFilterValueMap{"mtagName1": filters.FilterValue{Pattern: "mtagValue3"}},
+		filters.Conjunction,
+		testTagsFilterOptions(),
+	)
+	require.NoError(t, err)
+	filter4, err := filters.NewTagsFilter(
+		filters.TagFilterValueMap{"mtagName1": filters.FilterValue{Pattern: "mtagValue4"}},
+		filters.Conjunction,
+		testTagsFilterOptions(),
+	)
+	require.NoError(t, err)
 
 	mappingRule1 := &mappingRule{
 		uuid: "mappingRule1",
@@ -3068,7 +3136,33 @@ func testMappingRules(t *testing.T) []*mappingRule {
 		},
 	}
 
-	return []*mappingRule{mappingRule1, mappingRule2, mappingRule3, mappingRule4, mappingRule5}
+	mappingRule6 := &mappingRule{
+		uuid: "mappingRule6",
+		snapshots: []*mappingRuleSnapshot{
+			&mappingRuleSnapshot{
+				name:          "mappingRule6.snapshot1",
+				tombstoned:    false,
+				cutoverNanos:  5000,
+				filter:        filter3,
+				aggregationID: aggregation.DefaultID,
+				storagePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+				},
+			},
+			&mappingRuleSnapshot{
+				name:          "mappingRule6.snapshot2",
+				tombstoned:    false,
+				cutoverNanos:  8000,
+				filter:        filter4,
+				aggregationID: aggregation.DefaultID,
+				storagePolicies: policy.StoragePolicies{
+					policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour),
+				},
+			},
+		},
+	}
+
+	return []*mappingRule{mappingRule1, mappingRule2, mappingRule3, mappingRule4, mappingRule5, mappingRule6}
 }
 
 func testRollupRules(t *testing.T) []*rollupRule {
