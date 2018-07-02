@@ -21,7 +21,6 @@
 package m3db
 
 import (
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -63,10 +62,8 @@ func TestStepIteration(t *testing.T) {
 
 	for _, seriesBlock := range m3CoordBlocks {
 		stepIter := seriesBlock.StepIter()
-		fmt.Println(seriesBlock.Metadata.Tags.ID())
 		for stepIter.Next() {
 			actualResults = append(actualResults, stepIter.Current().Values())
-			fmt.Println(stepIter.Current().Values())
 		}
 	}
 
