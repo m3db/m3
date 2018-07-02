@@ -23,7 +23,9 @@ package m3db
 import (
 	"time"
 
+	"github.com/m3db/m3db/src/coordinator/block"
 	"github.com/m3db/m3db/src/dbnode/encoding"
+	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3x/ident"
 )
 
@@ -56,33 +58,50 @@ func (n MultiNamespaceSeries) ID() ident.ID { return n[0].ID }
 type ConsolidatedNSBlock struct {
 	ID              ident.ID
 	Namespace       ident.ID
-	Start           time.Time
-	End             time.Time
+	Bounds          block.Bounds
 	SeriesIterators encoding.SeriesIterators
 }
 
 func (c ConsolidatedNSBlock) beyondBounds(consolidatedSeriesBlock ConsolidatedSeriesBlock) bool {
-	if c.Start != consolidatedSeriesBlock.Start || c.End != consolidatedSeriesBlock.End {
+	if c.Bounds.Start != consolidatedSeriesBlock.Metadata.Bounds.Start || c.Bounds.End != consolidatedSeriesBlock.Metadata.Bounds.End {
 		return false
 	}
 	return true
 }
 
+type consolidatedNSBlockIter struct {
+	consolidatesNSBlockSeriesIters []encoding.SeriesIterator
+	bounds                         block.Bounds
+	seriesIndex                    int
+	currentTime                    time.Time
+	lastDP                         ts.Datapoint
+	lastVal                        bool
+}
+
+type consolidatedNSBlockIters []*consolidatedNSBlockIter
+
 // ConsolidatedSeriesBlock is a single series consolidated across different namespaces
 // for a single block
 type ConsolidatedSeriesBlock struct {
-	Start                time.Time
-	End                  time.Time
+	Metadata             block.Metadata
 	ConsolidatedNSBlocks []ConsolidatedNSBlock
 	consolidationFunc    ConsolidationFunc // nolint
 }
 
 func (c ConsolidatedSeriesBlock) beyondBounds(multiSeriesBlock MultiSeriesBlock) bool {
-	if c.Start != multiSeriesBlock.Start || c.End != multiSeriesBlock.End {
+	if c.Metadata.Bounds.Start != multiSeriesBlock.Metadata.Bounds.Start || c.Metadata.Bounds.End != multiSeriesBlock.Metadata.Bounds.End {
 		return false
 	}
 	return true
 }
+
+type consolidatedSeriesBlockIter struct {
+	consolidatedNSBlockIters consolidatedNSBlockIters
+	index                    int
+}
+
+// ConsolidatedSeriesBlockIters is a slice of ConsolidatedSeriesBlockIter
+type consolidatedSeriesBlockIters []*consolidatedSeriesBlockIter
 
 // ConsolidationFunc determines how to consolidate across namespaces
 type ConsolidationFunc func(existing, toAdd float64, count int) float64
@@ -94,9 +113,8 @@ type ConsolidatedSeriesBlocks []ConsolidatedSeriesBlock
 
 // MultiSeriesBlock represents a vertically oriented block
 type MultiSeriesBlock struct {
-	Start  time.Time
-	End    time.Time
-	Blocks ConsolidatedSeriesBlocks
+	Blocks   ConsolidatedSeriesBlocks
+	Metadata block.Metadata
 }
 
 // MultiSeriesBlocks is a slice of MultiSeriesBlock

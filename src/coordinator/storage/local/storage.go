@@ -24,6 +24,7 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -31,7 +32,10 @@ import (
 	"github.com/m3db/m3db/src/coordinator/errors"
 	"github.com/m3db/m3db/src/coordinator/models"
 	"github.com/m3db/m3db/src/coordinator/storage"
+	"github.com/m3db/m3db/src/coordinator/ts/m3db"
 	"github.com/m3db/m3db/src/coordinator/util/execution"
+	"github.com/m3db/m3db/src/dbnode/encoding"
+	"github.com/m3db/m3db/src/dbnode/encoding/m3tsz"
 	"github.com/m3db/m3db/src/dbnode/storage/index"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
@@ -247,21 +251,53 @@ func (s *localStorage) Type() storage.Type {
 	return storage.TypeLocalDC
 }
 
-func (s *localStorage) FetchBlocks(
-	ctx context.Context,
-	query *storage.FetchQuery,
-	options *storage.FetchOptions) (block.Result, error) {
-	fetchResult, err := s.Fetch(ctx, query, options)
+func (s *localStorage) fetchRaw(
+	query index.Query,
+	opts index.QueryOptions,
+) (encoding.SeriesIterators, bool, error) {
+	iters, exhaustive, err := s.session.FetchTagged(s.namespace, query, opts)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return iters, exhaustive, nil
+}
+
+func (s *localStorage) FetchBlocks(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (block.Result, error) {
+	m3query, err := storage.FetchQueryToM3Query(query)
 	if err != nil {
 		return block.Result{}, err
 	}
 
-	res, err := storage.FetchResultToBlockResult(fetchResult, query)
+	opts := storage.FetchOptionsToM3Options(options, query)
+
+	// todo(braskin): figure out what to do with second return argument
+	seriesIters, _, err := s.fetchRaw(m3query, opts)
 	if err != nil {
 		return block.Result{}, err
 	}
 
-	return res, nil
+	iterAlloc := func(r io.Reader) encoding.ReaderIterator {
+		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encoding.NewOptions())
+	}
+	sliceOfSeriesBlocks, err := m3db.ConvertM3DBSeriesIterators(seriesIters, iterAlloc)
+	if err != nil {
+		return block.Result{}, err
+	}
+
+	// NB/todo(braskin): because we are only support querying one namespace now, we can just create
+	// a multiNamespaceList with one element. However, once we support querying multiple namespaces,
+	// we will need to append each namespace sliceOfSeriesBlocks to the multiNamespaceList
+	multiNamespaceSeriesList := []m3db.MultiNamespaceSeries{sliceOfSeriesBlocks}
+	multiSeriesBlocks, err := m3db.SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList, nil)
+	if err != nil {
+		return block.Result{}, err
+	}
+
+	var res block.Result
+	res.Blocks = multiSeriesBlocks
+
+	return multiSeriesBlocks, nil
 }
 
 func (s *localStorage) Close() error {

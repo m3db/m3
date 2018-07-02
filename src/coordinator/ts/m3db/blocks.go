@@ -22,7 +22,10 @@ package m3db
 
 import (
 	"errors"
+	"time"
 
+	"github.com/m3db/m3db/src/coordinator/block"
+	"github.com/m3db/m3db/src/coordinator/storage"
 	"github.com/m3db/m3db/src/dbnode/encoding"
 )
 
@@ -33,7 +36,13 @@ var (
 // SeriesBlockToMultiSeriesBlocks converts M3DB blocks to multi series blocks
 func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSeries, seriesIteratorsPool encoding.MutableSeriesIteratorsPool) (MultiSeriesBlocks, error) {
 	// todo(braskin): validate blocks size and aligment per namespace before creating []MultiNamespaceSeries
-	var multiSeriesBlocks MultiSeriesBlocks
+	var (
+		multiSeriesBlocks MultiSeriesBlocks
+
+		commonTags      = make(map[string]string)
+		firstSeriesTags = make(map[string]string)
+	)
+
 	for multiNamespaceSeriesIdx, multiNamespaceSeries := range multiNamespaceSeriesList {
 		consolidatedSeriesBlocks, err := newConsolidatedSeriesBlocks(multiNamespaceSeries, seriesIteratorsPool)
 		if err != nil {
@@ -44,13 +53,34 @@ func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSer
 		// MultiSeriesBlocks list with the proper size
 		if multiNamespaceSeriesIdx == 0 {
 			multiSeriesBlocks = make(MultiSeriesBlocks, len(consolidatedSeriesBlocks))
+			commonTags, err = storage.FromIdentTagIteratorToTags(consolidatedSeriesBlocks[0].ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].Tags())
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		for consolidatedSeriesBlockIdx, consolidatedSeriesBlock := range consolidatedSeriesBlocks {
 			// we only want to set the start and end times once
 			if multiNamespaceSeriesIdx == 0 {
-				multiSeriesBlocks[consolidatedSeriesBlockIdx].Start = consolidatedSeriesBlock.Start
-				multiSeriesBlocks[consolidatedSeriesBlockIdx].End = consolidatedSeriesBlock.End
+				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds.StepSize = consolidatedSeriesBlock.Metadata.Bounds.StepSize
+				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds.Start = consolidatedSeriesBlock.Metadata.Bounds.Start
+				multiSeriesBlocks[consolidatedSeriesBlockIdx].Metadata.Bounds.End = consolidatedSeriesBlock.Metadata.Bounds.End
+			} else {
+				dupedTags := consolidatedSeriesBlock.ConsolidatedNSBlocks[0].SeriesIterators.Iters()[0].Tags().Duplicate()
+				seriesTags, err := storage.FromIdentTagIteratorToTags(dupedTags)
+				if err != nil {
+					return nil, err
+				}
+
+				for tag, val := range commonTags {
+					if seriesTags[tag] != val {
+						delete(commonTags, tag)
+						firstSeriesTags[tag] = val
+					} else {
+						delete(seriesTags, tag)
+					}
+				}
+				consolidatedSeriesBlock.Metadata.Tags = seriesTags
 			}
 
 			if !consolidatedSeriesBlock.beyondBounds(multiSeriesBlocks[consolidatedSeriesBlockIdx]) {
@@ -61,7 +91,16 @@ func SeriesBlockToMultiSeriesBlocks(multiNamespaceSeriesList []MultiNamespaceSer
 		}
 	}
 
+	multiSeriesBlocks[0].Blocks[0].Metadata.Tags = firstSeriesTags
+	multiSeriesBlocks.setCommonTags(commonTags)
+
 	return multiSeriesBlocks, nil
+}
+
+func (m MultiSeriesBlocks) setCommonTags(commonTags map[string]string) {
+	for i := range m {
+		m[i].Metadata.Tags = commonTags
+	}
 }
 
 // newConsolidatedSeriesBlocks creates consolidated blocks by timeseries across namespaces
@@ -79,8 +118,9 @@ func newConsolidatedSeriesBlocks(multiNamespaceSeries MultiNamespaceSeries, seri
 		for consolidatedNSBlockIdx, consolidatedNSBlock := range consolidatedNSBlocks {
 			// we only want to set the start and end times once
 			if seriesBlocksIdx == 0 {
-				consolidatedSeriesBlocks[consolidatedNSBlockIdx].Start = consolidatedNSBlock.Start
-				consolidatedSeriesBlocks[consolidatedNSBlockIdx].End = consolidatedNSBlock.End
+				consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds.StepSize = consolidatedNSBlock.Bounds.StepSize
+				consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds.Start = consolidatedNSBlock.Bounds.Start
+				consolidatedSeriesBlocks[consolidatedNSBlockIdx].Metadata.Bounds.End = consolidatedNSBlock.Bounds.End
 			}
 
 			if !consolidatedNSBlock.beyondBounds(consolidatedSeriesBlocks[consolidatedNSBlockIdx]) {
@@ -104,8 +144,11 @@ func newConsolidatedNSBlocks(seriesBlocks SeriesBlocks, seriesIteratorsPool enco
 		consolidatedNSBlock := ConsolidatedNSBlock{
 			Namespace: namespace,
 			ID:        id,
-			Start:     seriesBlock.start,
-			End:       seriesBlock.end,
+			Bounds: block.Bounds{
+				Start:    seriesBlock.start,
+				End:      seriesBlock.end,
+				StepSize: time.Minute, // get actual step size!!
+			},
 		}
 		s := []encoding.SeriesIterator{seriesBlock.seriesIterator}
 		// todo(braskin): figure out how many series iterators we need based on largest step size (i.e. namespace)
