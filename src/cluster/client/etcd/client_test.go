@@ -202,31 +202,39 @@ func TestServicesWithNamespace(t *testing.T) {
 	require.Error(t, err)
 }
 
+func newOverrideOpts(zone, namespace, environment string) kv.OverrideOptions {
+	return kv.NewOverrideOptions().
+		SetZone(zone).
+		SetNamespace(namespace).
+		SetEnvironment(environment)
+}
+
 func TestCacheFileForZone(t *testing.T) {
 	c, err := NewConfigServiceClient(testOptions())
 	require.NoError(t, err)
 	cs := c.(*csclient)
 
-	kvOpts := cs.newkvOptions("z1", cs.cacheFileFn(), "namespace")
+	kvOpts := cs.newkvOptions(newOverrideOpts("z1", "namespace", ""), cs.cacheFileFn())
 	require.Equal(t, "", kvOpts.CacheFileFn()(kvOpts.Prefix()))
 
 	cs.opts = cs.opts.SetCacheDir("/cacheDir")
-	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn())
+	kvOpts = cs.newkvOptions(newOverrideOpts("z1", "", ""), cs.cacheFileFn())
 	require.Equal(t, "/cacheDir/test_app_z1.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
-	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn(), "namespace")
+
+	kvOpts = cs.newkvOptions(newOverrideOpts("z1", "namespace", ""), cs.cacheFileFn())
 	require.Equal(t, "/cacheDir/namespace_test_app_z1.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
 
-	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn(), "namespace", "")
+	kvOpts = cs.newkvOptions(newOverrideOpts("z1", "namespace", ""), cs.cacheFileFn())
 	require.Equal(t, "/cacheDir/namespace_test_app_z1.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
 
-	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn(), "namespace", "env")
+	kvOpts = cs.newkvOptions(newOverrideOpts("z1", "namespace", "env"), cs.cacheFileFn())
 	require.Equal(t, "/cacheDir/namespace_env_test_app_z1.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
 
-	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn("f1", "", "f2"), "namespace")
+	kvOpts = cs.newkvOptions(newOverrideOpts("z1", "namespace", ""), cs.cacheFileFn("f1", "", "f2"))
 	require.Equal(t, "/cacheDir/namespace_test_app_z1_f1_f2.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
 
-	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn("/r2/m3agg"), "")
-	require.Equal(t, "/cacheDir/test_app_z1__r2_m3agg.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
+	kvOpts = cs.newkvOptions(newOverrideOpts("z2", "", ""), cs.cacheFileFn("/r2/m3agg"))
+	require.Equal(t, "/cacheDir/test_app_z2__r2_m3agg.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
 }
 
 func TestSanitizeKVOverrideOptions(t *testing.T) {

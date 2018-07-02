@@ -144,44 +144,51 @@ func (c *csclient) createServices(opts services.OverrideOptions) (services.Servi
 }
 
 func (c *csclient) createTxnStore(opts kv.OverrideOptions) (kv.TxnStore, error) {
+	// validate the override options because they are user supplied.
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	return c.txnGen(opts.Zone(), c.cacheFileFn(), opts.Namespace(), opts.Environment())
+	return c.txnGen(opts, c.cacheFileFn())
 }
 
 func (c *csclient) kvGen(fn cacheFileForZoneFn) services.KVGen {
 	return services.KVGen(func(zone string) (kv.Store, error) {
-		return c.txnGen(zone, fn)
+		// we don't validate or sanitize the options here because we're using
+		// them as a container for zone.
+		opts := kv.NewOverrideOptions().SetZone(zone)
+		return c.txnGen(opts, fn)
 	})
 }
 
 func (c *csclient) newkvOptions(
-	zone string,
+	opts kv.OverrideOptions,
 	cacheFileFn cacheFileForZoneFn,
-	namespaces ...string,
 ) etcdkv.Options {
-	opts := etcdkv.NewOptions().
+	kvOpts := etcdkv.NewOptions().
 		SetInstrumentsOptions(instrument.NewOptions().
 			SetLogger(c.logger).
 			SetMetricsScope(c.kvScope)).
-		SetCacheFileFn(cacheFileFn(zone))
+		SetCacheFileFn(cacheFileFn(opts.Zone())).
+		SetWatchWithRevision(c.opts.WatchWithRevision())
 
-	for _, namespace := range namespaces {
-		if namespace == "" {
-			continue
-		}
-		opts = opts.SetPrefix(opts.ApplyPrefix(namespace))
+	if ns := opts.Namespace(); ns != "" {
+		kvOpts = kvOpts.SetPrefix(kvOpts.ApplyPrefix(ns))
 	}
-	return opts
+
+	if env := opts.Environment(); env != "" {
+		kvOpts = kvOpts.SetPrefix(kvOpts.ApplyPrefix(env))
+	}
+
+	return kvOpts
 }
 
+// txnGen assumes the caller has validated the options passed if they are
+// user-supplied (as opposed to constructed ourselves).
 func (c *csclient) txnGen(
-	zone string,
+	opts kv.OverrideOptions,
 	cacheFileFn cacheFileForZoneFn,
-	namespaces ...string,
 ) (kv.TxnStore, error) {
-	cli, err := c.etcdClientGen(zone)
+	cli, err := c.etcdClientGen(opts.Zone())
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +196,7 @@ func (c *csclient) txnGen(
 	c.storeLock.Lock()
 	defer c.storeLock.Unlock()
 
-	key := kvStoreCacheKey(zone, namespaces...)
+	key := kvStoreCacheKey(opts.Zone(), opts.Namespace(), opts.Environment())
 	store, ok := c.stores[key]
 	if ok {
 		return store, nil
@@ -197,7 +204,7 @@ func (c *csclient) txnGen(
 	if store, err = etcdkv.NewStore(
 		cli.KV,
 		cli.Watcher,
-		c.newkvOptions(zone, cacheFileFn, namespaces...),
+		c.newkvOptions(opts, cacheFileFn),
 	); err != nil {
 		return nil, err
 	}
@@ -362,6 +369,10 @@ func (c *csclient) sanitizeOptions(opts kv.OverrideOptions) (kv.OverrideOptions,
 func kvStoreCacheKey(zone string, namespaces ...string) string {
 	parts := make([]string, 0, 1+len(namespaces))
 	parts = append(parts, zone)
-	parts = append(parts, namespaces...)
+	for _, ns := range namespaces {
+		if ns != "" {
+			parts = append(parts, ns)
+		}
+	}
 	return strings.Join(parts, hierarchySeparator)
 }

@@ -73,12 +73,13 @@ func (c *keepAliveConfig) NewOptions() KeepAliveOptions {
 
 // Configuration is for config service client.
 type Configuration struct {
-	Zone         string                 `yaml:"zone"`
-	Env          string                 `yaml:"env"`
-	Service      string                 `yaml:"service" validate:"nonzero"`
-	CacheDir     string                 `yaml:"cacheDir"`
-	ETCDClusters []ClusterConfig        `yaml:"etcdClusters"`
-	SDConfig     services.Configuration `yaml:"m3sd"`
+	Zone              string                 `yaml:"zone"`
+	Env               string                 `yaml:"env"`
+	Service           string                 `yaml:"service" validate:"nonzero"`
+	CacheDir          string                 `yaml:"cacheDir"`
+	ETCDClusters      []ClusterConfig        `yaml:"etcdClusters"`
+	SDConfig          services.Configuration `yaml:"m3sd"`
+	WatchWithRevision int64                  `yaml:"watchWithRevision"`
 }
 
 // NewClient creates a new config service client.
@@ -94,7 +95,8 @@ func (cfg Configuration) NewOptions() Options {
 		SetService(cfg.Service).
 		SetCacheDir(cfg.CacheDir).
 		SetClusters(cfg.etcdClusters()).
-		SetServicesOptions(cfg.SDConfig.NewOptions())
+		SetServicesOptions(cfg.SDConfig.NewOptions()).
+		SetWatchWithRevision(cfg.WatchWithRevision)
 }
 
 func (cfg Configuration) etcdClusters() []Cluster {
