@@ -40,6 +40,7 @@ import (
 	"github.com/m3db/m3db/src/dbnode/storage/namespace"
 	"github.com/m3db/m3db/src/dbnode/ts"
 	"github.com/m3db/m3db/src/dbnode/x/xio"
+	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
@@ -382,31 +383,32 @@ func (s *commitLogSource) ReadData(
 	s.logEncodingOutcome(workerErrs, iter)
 
 	var (
-		bootstrapResult = s.mergeShards(int(numShards), bOpts, blockSize, blOpts, encoderPool, shardDataByShard)
-		shardResults    = bootstrapResult.ShardResults()
+		bootstrapResult = s.mergeShards(
+			int(numShards), bOpts, blockSize, blOpts, encoderPool, snapshotShardResults, shardDataByShard)
+		// shardResults = bootstrapResult.ShardResults()
 	)
 
 	// TODO: Helper?
-	for shard, shardResult := range snapshotShardResults {
-		existingShardResult, ok := shardResults[shard]
-		if !ok {
-			bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
-			continue
-		}
+	// for shard, shardResult := range snapshotShardResults {
+	// 	existingShardResult, ok := shardResults[shard]
+	// 	if !ok {
+	// 		bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
+	// 		continue
+	// 	}
 
-		for _, mapEntry := range shardResult.AllSeries().Iter() {
-			series := mapEntry.Value()
-			for blockStart, dbBlock := range series.Blocks.AllBlocks() {
-				existingBlock, ok := existingShardResult.BlockAt(series.ID, blockStart.ToTime())
-				if !ok {
-					existingShardResult.AddBlock(series.ID, series.Tags, dbBlock)
-					continue
-				}
+	// 	for _, mapEntry := range shardResult.AllSeries().Iter() {
+	// 		series := mapEntry.Value()
+	// 		for blockStart, dbBlock := range series.Blocks.AllBlocks() {
+	// 			existingBlock, ok := existingShardResult.BlockAt(series.ID, blockStart.ToTime())
+	// 			if !ok {
+	// 				existingShardResult.AddBlock(series.ID, series.Tags, dbBlock)
+	// 				continue
+	// 			}
 
-				existingBlock.Merge(dbBlock)
-			}
-		}
-	}
+	// 			existingBlock.Merge(dbBlock)
+	// 		}
+	// 	}
+	// }
 
 	// TODO: Need to fix caching logic to handle the snapshot files
 	// After merging shards, its safe to cache the shardData (which involves some mutation).
@@ -790,6 +792,7 @@ func (s *commitLogSource) mergeShards(
 	blockSize time.Duration,
 	blopts block.Options,
 	encoderPool encoding.EncoderPool,
+	snapshotShardResults map[uint32]result.ShardResult,
 	unmerged []shardData,
 ) result.DataBootstrapResult {
 	var (
@@ -807,15 +810,27 @@ func (s *commitLogSource) mergeShards(
 	workerPool.Init()
 
 	for shard, unmergedShard := range unmerged {
+		snapshotData, hasSnapshotData := snapshotShardResults[uint32(shard)]
+
 		if unmergedShard.series == nil {
-			continue
+			if !hasSnapshotData {
+				// No snapshot or commit log data, skip.
+				continue
+			}
+
+			// No commit log data, but we do have snapshot data, so just use that.
+			bootstrapResultLock.Lock()
+			bootstrapResult.Add(uint32(shard), snapshotData, xtime.Ranges{})
+			bootstrapResultLock.Unlock()
 		}
+
+		// Have snapshot and commit log data, so we need to merge.
 		wg.Add(1)
 		shard, unmergedShard := shard, unmergedShard
 		mergeShardFunc := func() {
 			var shardResult result.ShardResult
 			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
-				shard, unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blockSize, blopts)
+				shard, snapshotData, unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blockSize, blopts)
 
 			if shardResult != nil && shardResult.NumSeries() > 0 {
 				// Prevent race conditions while updating bootstrapResult from multiple go-routines
@@ -837,6 +852,7 @@ func (s *commitLogSource) mergeShards(
 
 func (s *commitLogSource) mergeShard(
 	shard int,
+	snapshotData result.ShardResult,
 	unmergedShard shardData,
 	blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
@@ -844,12 +860,16 @@ func (s *commitLogSource) mergeShard(
 	blockSize time.Duration,
 	blopts block.Options,
 ) (result.ShardResult, int, int) {
-	var shardResult result.ShardResult
+	// TODO: Estimate better
+	var shardResult = result.NewShardResult(len(unmergedShard.series), s.opts.ResultOptions())
 	var numShardEmptyErrs int
 	var numErrs int
 
+	allSnapshotSeries := snapshotData.AllSeries()
 	for _, unmergedBlocks := range unmergedShard.series {
+		snapshotSeriesData, _ := allSnapshotSeries.Get(unmergedBlocks.id)
 		seriesBlocks, numSeriesEmptyErrs, numSeriesErrs := s.mergeSeries(
+			snapshotSeriesData,
 			unmergedBlocks,
 			blocksPool,
 			multiReaderIteratorPool,
@@ -859,20 +879,32 @@ func (s *commitLogSource) mergeShard(
 		)
 
 		if seriesBlocks != nil && seriesBlocks.Len() > 0 {
-			if shardResult == nil {
-				shardResult = result.NewShardResult(len(unmergedShard.series), s.opts.ResultOptions())
-			}
 			shardResult.AddSeries(unmergedBlocks.id, unmergedBlocks.tags, seriesBlocks)
 		}
 
 		numShardEmptyErrs += numSeriesEmptyErrs
 		numErrs += numSeriesErrs
 	}
+
+	allShardResultSeries := shardResult.AllSeries()
+	for _, val := range allSnapshotSeries.Iter() {
+		id := val.Key()
+		blocks := val.Value()
+
+		if allShardResultSeries.Contains(id) {
+			// Already merged
+			continue
+		}
+
+		shardResult.AddSeries(id, blocks.Tags, blocks.Blocks)
+	}
 	return shardResult, numShardEmptyErrs, numErrs
 }
 
 func (s *commitLogSource) mergeSeries(
-	unmergedBlocks metadataAndEncodersByTime, blocksPool block.DatabaseBlockPool,
+	snapshotData result.DatabaseSeriesBlocks,
+	unmergedCommitlogBlocks metadataAndEncodersByTime,
+	blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	encoderPool encoding.EncoderPool,
 	blockSize time.Duration,
@@ -882,26 +914,47 @@ func (s *commitLogSource) mergeSeries(
 	var numEmptyErrs int
 	var numErrs int
 
-	for startNano, encoders := range unmergedBlocks.encoders {
+	for startNano, encoders := range unmergedCommitlogBlocks.encoders {
 		start := startNano.ToTime()
 
-		if len(encoders) == 0 {
-			numEmptyErrs++
-			continue
-		}
+		// if len(encoders) == 0 {
+		// 	numEmptyErrs++
+		// 	continue
+		// }
 
-		if len(encoders) == 1 {
-			pooledBlock := blocksPool.Get()
-			pooledBlock.Reset(start, blockSize, encoders[0].enc.Discard())
-			if seriesBlocks == nil {
-				seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
-			}
-			seriesBlocks.AddBlock(pooledBlock)
-			continue
+		// if len(encoders) == 1 {
+		// 	pooledBlock := blocksPool.Get()
+		// 	pooledBlock.Reset(start, blockSize, encoders[0].enc.Discard())
+		// 	if seriesBlocks == nil {
+		// 		seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedCommitlogBlocks.encoders))
+		// 	}
+		// 	seriesBlocks.AddBlock(pooledBlock)
+		// 	continue
+		// }
+
+		var (
+			snapshotBlock    block.DatabaseBlock
+			hasSnapshotBlock bool
+		)
+
+		if snapshotData.Blocks != nil {
+			snapshotBlock, hasSnapshotBlock = snapshotData.Blocks.BlockAt(start)
 		}
 
 		// Convert encoders to readers so we can use iteration helpers
 		readers := encoders.newReaders()
+
+		// TODO: Don't allocate each time
+		tmpCtx := context.NewContext()
+		if hasSnapshotBlock {
+			snapshotReader, err := snapshotBlock.Stream(tmpCtx)
+			if err != nil {
+				panic(err)
+			}
+			readers = append(readers, snapshotReader)
+		}
+		// tmpCtx.BlockingClose()
+
 		iter := multiReaderIteratorPool.Get()
 		iter.Reset(readers, time.Time{}, 0)
 
@@ -910,8 +963,12 @@ func (s *commitLogSource) mergeSeries(
 		enc.Reset(start, blopts.DatabaseBlockAllocSize())
 		for iter.Next() {
 			dp, unit, annotation := iter.Current()
+			fmt.Printf("decoded: %s\n", dp.Timestamp)
 			encodeErr := enc.Encode(dp, unit, annotation)
 			if encodeErr != nil {
+				if err != nil {
+					panic(err)
+				}
 				err = encodeErr
 				numErrs++
 				break
@@ -919,6 +976,7 @@ func (s *commitLogSource) mergeSeries(
 		}
 
 		if iterErr := iter.Err(); iterErr != nil {
+			panic(iterErr)
 			if err == nil {
 				err = iter.Err()
 			}
@@ -931,15 +989,32 @@ func (s *commitLogSource) mergeSeries(
 		readers.close()
 
 		if err != nil {
+			panic(err)
 			continue
 		}
 
 		pooledBlock := blocksPool.Get()
 		pooledBlock.Reset(start, blockSize, enc.Discard())
 		if seriesBlocks == nil {
-			seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
+			seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedCommitlogBlocks.encoders))
 		}
 		seriesBlocks.AddBlock(pooledBlock)
+	}
+
+	if snapshotData.Blocks != nil {
+		allSnapshotBlocks := snapshotData.Blocks.AllBlocks()
+		for startNano, snapshotBlock := range snapshotData.Blocks.AllBlocks() {
+			if seriesBlocks == nil {
+				seriesBlocks = block.NewDatabaseSeriesBlocks(len(allSnapshotBlocks))
+			}
+			_, ok := seriesBlocks.BlockAt(startNano.ToTime())
+			if ok {
+				// Already merged
+				continue
+			}
+
+			seriesBlocks.AddBlock(snapshotBlock)
+		}
 	}
 	return seriesBlocks, numEmptyErrs, numErrs
 }
