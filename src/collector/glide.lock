@@ -1,5 +1,5 @@
-hash: 031ffea6efa5c84994b545168203723a7c3f91373552fe9fd186b629842a7949
-updated: 2018-06-29T09:07:11.74516-04:00
+hash: 0393926a80c9e4aacf1d87bed6e1fcaf2a1e98508c85235a4921b878c52c9527
+updated: 2018-07-02T15:20:40.026842-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -52,7 +52,7 @@ imports:
   - services/leader/campaign
   - shard
 - name: github.com/m3db/m3metrics
-  version: 0d435401c5888b4dd16350e8604a51fc14630198
+  version: 92eb72c4c1337e472c1e9a1e29922539589405a3
   subpackages:
   - aggregation
   - encoding
@@ -107,7 +107,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/shirou/gopsutil
-  version: eeb1d38d69593f121e060d24d17f7b1f0936b203
+  version: 4a180b209f5f494e5923cfce81ea30ba23915877
 - name: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/spaolacci/murmur3
